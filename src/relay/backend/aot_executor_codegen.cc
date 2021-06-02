@@ -148,7 +148,7 @@ class AOTExecutorCodegen : public ExprVisitor {
 
   /*!
    * \brief Utility function to return a parameter associated with an expression
-   * \param expr Relay Expression assicated with the parameter
+   * \param expr Relay Expression associated with the parameter
    * \return Variable that represents the DLTensor associated with the parameters
    */
   tir::Var PackParam(Expr expr) {

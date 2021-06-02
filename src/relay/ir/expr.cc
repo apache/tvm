@@ -115,6 +115,8 @@ Call::Call(Expr op, Array<Expr> args, Attrs attrs, Array<Type> type_args, Span s
   n->attrs = std::move(attrs);
   n->type_args = std::move(type_args);
   n->span = std::move(span);
+  n->saved_deleter_ = n->deleter_;
+  n->deleter_ = CallNode::Deleter_;
   data_ = std::move(n);
 }
 
@@ -288,16 +290,24 @@ inline void Dismantle(const Expr& expr) {
 
       // special handling
       if (const CallNode* op = node.as<CallNode>()) {
-        for (auto it = op->args.rbegin(); it != op->args.rend(); ++it) {
-          fpush_to_stack(*it);
+        // do not process args if used elsewhere
+        if (op->args.use_count() < 2) {
+          for (auto it = op->args.rbegin(); it != op->args.rend(); ++it) {
+            fpush_to_stack(*it);
+          }
         }
-        fpush_to_stack(op->op);
       } else if (const TupleNode* op = node.as<TupleNode>()) {
-        for (auto it = op->fields.rbegin(); it != op->fields.rend(); ++it) {
-          fpush_to_stack(*it);
+        // do not process fields if used elsewhere
+        if (op->fields.use_count() < 2) {
+          for (auto it = op->fields.rbegin(); it != op->fields.rend(); ++it) {
+            fpush_to_stack(*it);
+          }
         }
       } else if (const TupleGetItemNode* op = node.as<TupleGetItemNode>()) {
-        fpush_to_stack(op->tuple);
+        // do not process tuple if used elsewhere
+        if (op->tuple.use_count() < 2) {
+          fpush_to_stack(op->tuple);
+        }
       }
     }
   }
@@ -306,7 +316,6 @@ inline void Dismantle(const Expr& expr) {
 /*
  * Non-recursive destructor
  */
-
 Call::~Call() {
   // attempt to dismantle if referenced one or zero times
   if (this->use_count() < 2) {
@@ -314,6 +323,17 @@ Call::~Call() {
       Dismantle(*this);
     }
   }
+}
+
+/*
+ * CallNode's deleter
+ */
+void CallNode::Deleter_(Object* ptr) {
+  auto p = reinterpret_cast<CallNode*>(ptr);
+  // resore original deleter
+  p->deleter_ = p->saved_deleter_;
+  // create Call reference in order to invoke ~Call
+  auto c = GetRef<Call>(p);
 }
 
 }  // namespace relay

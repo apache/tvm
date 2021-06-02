@@ -142,5 +142,102 @@ class SRefTreeVerifier : public StmtVisitor {
 
 void VerifySRefTree(const ScheduleState& self) { SRefTreeVerifier::Verify(self.get()); }
 
+void VerifyCachedFlags(const ScheduleState& self) {
+  std::vector<StmtSRef> block_info_not_found;
+  std::vector<std::tuple<StmtSRef, bool, bool>> block_info_wrong_affine_binding;
+  std::vector<std::tuple<StmtSRef, bool, bool>> block_info_wrong_region_cover;
+  std::vector<std::tuple<StmtSRef, bool, bool>> block_info_wrong_stage_pipeline;
+
+  ScheduleState new_state(self->mod);
+  for (const auto& kv : new_state->stmt2ref) {
+    const StmtNode* stmt = kv.first;
+    const StmtSRef& new_sref = kv.second;
+    if (stmt->IsInstance<ForNode>() || !self->stmt2ref.count(stmt)) {
+      continue;
+    }
+    const BlockInfo& new_block_info = new_state->block_info.at(new_sref);
+    const StmtSRef& old_sref = self->stmt2ref.at(stmt);
+    if (!self->block_info.count(old_sref)) {
+      block_info_not_found.push_back(new_sref);
+      continue;
+    }
+    const BlockInfo& old_block_info = self->block_info.at(old_sref);
+    if (new_block_info.affine_binding != old_block_info.affine_binding) {
+      block_info_wrong_affine_binding.emplace_back(new_sref,  //
+                                                   new_block_info.affine_binding,
+                                                   old_block_info.affine_binding);
+    }
+    if (new_block_info.region_cover != old_block_info.region_cover) {
+      block_info_wrong_region_cover.emplace_back(new_sref,  //
+                                                 new_block_info.region_cover,
+                                                 old_block_info.region_cover);
+    }
+    if (new_block_info.scope->stage_pipeline != old_block_info.scope->stage_pipeline) {
+      block_info_wrong_stage_pipeline.emplace_back(new_sref,  //
+                                                   new_block_info.scope->stage_pipeline,
+                                                   old_block_info.scope->stage_pipeline);
+    }
+  }
+
+  bool has_not_found = !block_info_not_found.empty();
+  bool has_wrong_affine_binding = !block_info_wrong_affine_binding.empty();
+  bool has_wrong_region_cover = !block_info_wrong_region_cover.empty();
+  bool has_wrong_stage_pipeline = !block_info_wrong_stage_pipeline.empty();
+  if (!(has_not_found || has_wrong_affine_binding || has_wrong_region_cover ||
+        has_wrong_stage_pipeline)) {
+    return;
+  }
+  std::ostringstream os;
+  if (has_not_found) {
+    os << "- BlockInfo not found:";
+    for (const StmtSRef& block_sref : block_info_not_found) {
+      const auto* block = block_sref->StmtAs<BlockNode>();
+      ICHECK(block);
+      os << " " << block->name_hint;
+    }
+    os << std::endl;
+  }
+  if (has_wrong_affine_binding) {
+    os << "- Wrong affine_binding: ";
+    for (const std::tuple<StmtSRef, bool, bool>& record : block_info_wrong_affine_binding) {
+      const StmtSRef& block_sref = std::get<0>(record);
+      bool expected = std::get<1>(record);
+      bool actual = std::get<2>(record);
+      const auto* block = block_sref->StmtAs<BlockNode>();
+      ICHECK(block);
+      os << " (" << block->name_hint << ", expected=" << expected << ", actual=" << actual << ")";
+    }
+    os << std::endl;
+  }
+  if (has_wrong_region_cover) {
+    os << "- Wrong region_cover: ";
+    for (const std::tuple<StmtSRef, bool, bool>& record : block_info_wrong_region_cover) {
+      const StmtSRef& block_sref = std::get<0>(record);
+      bool expected = std::get<1>(record);
+      bool actual = std::get<2>(record);
+      const auto* block = block_sref->StmtAs<BlockNode>();
+      ICHECK(block);
+      os << " (" << block->name_hint << ", expected=" << expected << ", actual=" << actual << ")";
+    }
+    os << std::endl;
+  }
+  if (has_wrong_stage_pipeline) {
+    os << "- Wrong stage_pipeline: ";
+    for (const std::tuple<StmtSRef, bool, bool>& record : block_info_wrong_stage_pipeline) {
+      const StmtSRef& block_sref = std::get<0>(record);
+      bool expected = std::get<1>(record);
+      bool actual = std::get<2>(record);
+      const auto* block = block_sref->StmtAs<BlockNode>();
+      ICHECK(block);
+      os << " (" << block->name_hint << ", expected=" << expected << ", actual=" << actual << ")";
+    }
+    os << std::endl;
+  }
+  LOG(FATAL) << "Schedule verification failed. The IR is:\n"
+             << AsTVMScript(self->mod) << "\nThe errors are:\n"
+             << os.str();
+  throw;
+}
+
 }  // namespace tir
 }  // namespace tvm

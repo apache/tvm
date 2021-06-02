@@ -397,10 +397,10 @@ the below code applies both the ``FoldConstant`` and ``ToANormalForm`` passes
 More detail about registration can be found in :ref:`tvm-runtime-system` and more
 information about the pass manager interface can be found in :ref:`pass-infra`.
 Relay's standard passes are listed in `include/tvm/relay/transform.h`_ and implemented
-in `src/relay/pass/`_.
+in `src/relay/transforms/`_.
 
 .. _include/tvm/relay/transform.h: https://github.com/apache/tvm/blob/main/include/tvm/relay/transform.h
 
-.. _src/relay/pass/: https://github.com/apache/tvm/tree/main/src/relay/pass
+.. _src/relay/transforms/: https://github.com/apache/tvm/tree/main/src/relay/transforms
 
 .. _src/relay/transforms/fold_constant.cc: https://github.com/apache/tvm/blob/main/src/relay/transforms/fold_constant.cc

@@ -770,6 +770,61 @@ def test_alter_layout_strided_slice():
                 )
 
 
+@tvm.testing.uses_gpu
+def test_alter_layout_strided_slice_axes_nhwc():
+    """Test rewriting strided_slice with axes during alter_iop_layout"""
+
+    def before():
+        x = relay.var("x", shape=(1, 28, 28, 32))
+        weight = relay.var("weight", shape=(3, 3, 32, 32))
+        y = relay.nn.conv2d(
+            x,
+            weight,
+            channels=32,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+            data_layout="NHWC",
+            kernel_layout="HWIO",
+        )
+        y = relay.strided_slice(y, begin=[0, 16], end=[1, 32], strides=[1, 1], axes=[0, 3])
+        y = relay.Function(analysis.free_vars(y), y)
+        return y
+
+    def alter_conv2d(attrs, inputs, tinfos, out_type):
+        data, weight = inputs
+        new_attrs = dict(attrs)
+        new_attrs["data_layout"] = "NHWC4c"
+        return relay.nn.conv2d(data, weight, **new_attrs)
+
+    def expected():
+        x = relay.var("x", shape=(1, 28, 28, 32))
+        weight = relay.var("weight", shape=(3, 3, 32, 32))
+        x = relay.layout_transform(x, "NHWC", "NHWC4c")
+        y = relay.op.nn.conv2d(
+            x,
+            weight,
+            channels=32,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+            data_layout="NHWC4c",
+            kernel_layout="HWIO",
+        )
+        y = relay.strided_slice(y, begin=[0, 4], end=[1, 8], strides=[1, 1], axes=[0, 3])
+        y = relay.layout_transform(y, "NHWC4c", "NHWC")
+        y = relay.Function(analysis.free_vars(y), y)
+        return y
+
+    with TempOpAttr("nn.conv2d", "FTVMAlterOpLayout", alter_conv2d):
+        a = run_opt_pass(before(), transform.AlterOpLayout())
+        b = run_opt_pass(expected(), transform.InferType())
+
+    mod_before = tvm.IRModule()
+    mod_new = tvm.IRModule()
+    mod_before["main"] = a
+    mod_new["main"] = b
+    assert tvm.ir.structural_equal(mod_before, mod_new)
+
+
 def test_alter_layout_depthwise_conv2d():
     """Test depthwise_conv2d operator"""
 
@@ -1298,3 +1353,4 @@ if __name__ == "__main__":
     test_alter_layout_nhwc_int8_aarch64()
     test_alter_op_with_global_var()
     test_alter_op_dense()
+    test_alter_layout_strided_slice_axes_nhwc()
