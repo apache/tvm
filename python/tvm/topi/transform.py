@@ -490,7 +490,7 @@ def gather(data, axis, indices):
     return cpp.gather(data, axis, indices)
 
 
-def gather_nd(a, indices, batch_dims=0):
+def gather_nd(a, indices):
     """Gather elements from a n-dimension array..
 
     Parameters
@@ -505,7 +505,7 @@ def gather_nd(a, indices, batch_dims=0):
     -------
     ret : tvm.te.Tensor
     """
-    return cpp.gather_nd(a, indices, batch_dims)
+    return cpp.gather_nd(a, indices)
 
 
 def matmul(a, b, transp_a=False, transp_b=False):
