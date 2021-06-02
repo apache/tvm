@@ -54,6 +54,8 @@ def _infer_type_with_prelude(val, prelude):
 
 
 def set_span(sym, node_name):
+    """set span of symbol"""
+
     span = tvm.relay.Span(tvm.relay.SourceName(node_name), 0, 0, 0, 0)
     if isinstance(sym, _expr.Call):
         sym = _expr.Call(sym.op, sym.args, sym.attrs, sym.type_args, span)
@@ -227,15 +229,24 @@ class GraphProto:
         self._gdef_lib = {}
 
     def from_tensorflow(
-        self, graph, layout="NHWC", shape=None, outputs=None, input_types={}, gdef_lib={}
+        self, graph, layout="NHWC", shape=None, outputs=None, input_types=None, gdef_lib=None
     ):
+        if input_types is None:
+            input_types = {}
+
+        if gdef_lib is None:
+            gdef_lib = {}
+
         self._gdef_lib = gdef_lib
         func = self._get_relay_func(
             graph, layout=layout, shape=shape, outputs=outputs, input_types=input_types
         )
         return func, self._params
 
-    def _get_relay_func(self, graph, layout="NHWC", shape=None, outputs=None, input_types={}):
+    def _get_relay_func(self, graph, layout="NHWC", shape=None, outputs=None, input_types=None):
+        if input_types is None:
+            input_types = {}
+
         self._layout = layout
         for node in graph.node:
             name = node.name
@@ -570,9 +581,9 @@ def _convert_function(
     # Computing subgraph's input shape and type dictionaries
     input_expr_dict = {}
     input_types = {}
-    for f_arg, input in zip(func.signature.input_arg, inputs):
-        input_expr_dict[f_arg.name] = input
-        input_types[f_arg.name] = _infer_type_with_prelude(input, prelude)
+    for f_arg, input_ in zip(func.signature.input_arg, inputs):
+        input_expr_dict[f_arg.name] = input_
+        input_types[f_arg.name] = _infer_type_with_prelude(input_, prelude)
 
     func_name = "func_{}".format(func.signature.name)
     try:
