@@ -137,3 +137,22 @@ class String(str, PyNativeObject):
         val = str.__new__(cls, content)
         val.__tvm_object__ = obj
         return val
+
+@tvm._ffi.register_object("ShapeTuple")
+class ShapeTuple(Object):
+    def __init__(self, shape):
+        for s in shape:
+            assert isinstance(
+                s, int
+            ), "Expect int type, but received : {0}".format(type(s))
+        self.__init_handle_by_constructor__(_ffi_api.ShapeTuple, *shape)
+
+    def __getitem__(self, idx):
+        return getitem_helper(self, _ffi_api.GetShapeTupleElem, len(self), idx)
+
+    def ndim(self):
+        return _ffi_api.GetShapeTupleNdim(self)
+
+    def __len__(self):
+        return self.ndim()
+

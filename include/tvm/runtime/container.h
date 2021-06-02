@@ -3088,6 +3088,40 @@ inline Map<K, V> Merge(Map<K, V> lhs, const Map<K, V>& rhs) {
   return std::move(lhs);
 }
 
+class ShapeTupleObj : public Object {
+ public:
+  using index_type = int64_t;
+  std::vector<index_type> data;
+
+  static constexpr const uint32_t _type_index = runtime::TypeIndex::kRuntimeShapeTuple;
+  static constexpr const char* _type_key = "ShapeTuple";
+  TVM_DECLARE_FINAL_OBJECT_INFO(ShapeTupleObj, Object);
+ private:
+  template <typename Iterator>
+  void Init(Iterator begin, Iterator end) {
+    data = std::vector<index_type>(begin, end);
+  }
+  friend class ShapeTuple;
+}; 
+
+class ShapeTuple : public ObjectRef {
+ public:
+  using index_type = ShapeTupleObj::index_type;
+  ShapeTuple(std::vector<index_type> shape) : ShapeTuple(shape.begin(), shape.end()) {}
+  template<typename Iterator>
+  ShapeTuple(Iterator begin, Iterator end) {
+    auto ptr = make_object<ShapeTupleObj>();
+    ptr->Init(begin, end);
+    data_ = std::move(ptr);
+  }
+  ShapeTuple(std::initializer_list<index_type> shape) : ShapeTuple(shape.begin(), shape.end()) {}
+
+  index_type operator[](size_t idx) const { return operator->()->data[idx]; }
+  size_t ndim() const { return operator->()->data.size(); }
+  TVM_DEFINE_OBJECT_REF_METHODS(ShapeTuple, ObjectRef, ShapeTupleObj);
+}; 
+
+
 }  // namespace runtime
 
 // expose the functions to the root namespace.
