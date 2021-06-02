@@ -45,216 +45,15 @@ VulkanDeviceAPI* VulkanDeviceAPI::Global() {
 VulkanDeviceAPI::VulkanDeviceAPI() {
   std::vector<VkPhysicalDevice> vulkan_physical_devices = instance_.GetPhysicalDevices();
   for (VkPhysicalDevice phy_dev : vulkan_physical_devices) {
-    // Get a list of queue families supporting compute, in order of preference. We currently only
-    // make use of the most preferred one family.
-    std::vector<uint32_t> queue_family_indexes = GetComputeQueueFamilies(phy_dev);
-    if (queue_family_indexes.empty()) continue;
-    uint32_t queue_family_index = queue_family_indexes[0];
-    float priority = 1.0f;
+    VulkanDevice device(instance_, phy_dev);
 
-    struct VkDeviceQueueCreateInfo queue_create_info;
-    queue_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-    queue_create_info.pNext = nullptr;
-    queue_create_info.flags = 0;
-    queue_create_info.queueFamilyIndex = queue_family_index;
-    queue_create_info.queueCount = 1;
-    queue_create_info.pQueuePriorities = &priority;
-
-    VulkanDevice device;
-    device.phy_device = phy_dev;
-    vkGetPhysicalDeviceProperties(device.phy_device, &(device.phy_device_prop));
-
-    const auto device_extensions = [&]() {
-      std::vector<const char*> required_extensions{};
-      std::vector<const char*> optional_extensions{
-          "VK_KHR_driver_properties",
-          "VK_KHR_storage_buffer_storage_class",
-          "VK_KHR_8bit_storage",
-          "VK_KHR_16bit_storage",
-          "VK_KHR_shader_float16_int8",
-          "VK_KHR_push_descriptor",
-          "VK_KHR_descriptor_update_template",
-          "VK_KHR_get_memory_requirements2",
-          "VK_KHR_dedicated_allocation",
-          "VK_KHR_spirv_1_4",
-      };
-
-      uint32_t device_extension_prop_count;
-      VULKAN_CALL(vkEnumerateDeviceExtensionProperties(device.phy_device, nullptr,
-                                                       &device_extension_prop_count, nullptr));
-      std::vector<VkExtensionProperties> device_extension_prop(device_extension_prop_count);
-      VULKAN_CALL(vkEnumerateDeviceExtensionProperties(
-          device.phy_device, nullptr, &device_extension_prop_count, device_extension_prop.data()));
-
-      return FindEnabledExtensions(device_extension_prop, required_extensions, optional_extensions);
-    }();
-
-    device.device_properties = VulkanDeviceProperties(instance_, phy_dev, device_extensions);
-
-    {
-      // Enable all features we may use that a device supports.
-      VkPhysicalDeviceFeatures2 enabled_features = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2};
-      VkPhysicalDevice8BitStorageFeatures storage_8bit = {
-          VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_8BIT_STORAGE_FEATURES};
-      VkPhysicalDevice16BitStorageFeatures storage_16bit = {
-          VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_16BIT_STORAGE_FEATURES};
-      VkPhysicalDeviceShaderFloat16Int8Features float16_int8 = {
-          VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_FLOAT16_INT8_FEATURES};
-
-      void** pp_next = &enabled_features.pNext;
-      bool needs_float16_int8 = false;
-
-      if (device.device_properties.supports_float16) {
-        float16_int8.shaderFloat16 = true;
-        needs_float16_int8 = true;
-      }
-      if (device.device_properties.supports_float64) {
-        enabled_features.features.shaderFloat64 = true;
-      }
-      if (device.device_properties.supports_int8) {
-        float16_int8.shaderInt8 = true;
-        needs_float16_int8 = true;
-      }
-      if (device.device_properties.supports_int16) {
-        enabled_features.features.shaderInt16 = true;
-      }
-      if (device.device_properties.supports_int64) {
-        enabled_features.features.shaderInt64 = true;
-      }
-      if (device.device_properties.supports_8bit_buffer) {
-        storage_8bit.storageBuffer8BitAccess = true;
-        *pp_next = &storage_8bit;
-        pp_next = &storage_8bit.pNext;
-      }
-      if (device.device_properties.supports_16bit_buffer) {
-        storage_16bit.storageBuffer16BitAccess = true;
-        *pp_next = &storage_16bit;
-        pp_next = &storage_16bit.pNext;
-      }
-
-      if (needs_float16_int8) {
-        *pp_next = &float16_int8;
-        pp_next = &float16_int8.pNext;
-      }
-
-      VkDeviceCreateInfo device_create_info;
-      device_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-      device_create_info.pNext = nullptr;
-      device_create_info.flags = 0;
-      device_create_info.queueCreateInfoCount = 1;
-      device_create_info.pQueueCreateInfos = &queue_create_info;
-      device_create_info.enabledLayerCount = 0;
-      device_create_info.ppEnabledLayerNames = nullptr;
-      device_create_info.enabledExtensionCount = device_extensions.size();
-      device_create_info.ppEnabledExtensionNames = device_extensions.data();
-
-      if (instance_.HasExtension("VK_KHR_get_physical_device_properties2")) {
-        device_create_info.pEnabledFeatures = nullptr;
-        device_create_info.pNext = &enabled_features;
-      } else {
-        device_create_info.pNext = nullptr;
-        device_create_info.pEnabledFeatures = &enabled_features.features;
-      }
-      VULKAN_CALL(vkCreateDevice(phy_dev, &device_create_info, nullptr, &(device.device)));
+    if (device.SupportsCompute()) {
+      devices_.push_back(std::move(device));
     }
-
-    device.queue_mutex.reset(new std::mutex());
-    vkGetDeviceQueue(device.device, queue_family_index, 0, &(device.queue));
-    device.queue_family_index = queue_family_index;
-    // Find suitable memory type for staging and compute
-    // Find suitable compute index.
-    VkBuffer buffer;
-    VkMemoryRequirements req_staging, req_compute;
-    VkBufferCreateInfo info;
-    info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    info.pNext = nullptr;
-    info.flags = 0;
-    info.size = 1024;
-    info.queueFamilyIndexCount = 1;
-    info.pQueueFamilyIndices = &(device.queue_family_index);
-    info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-    // get staging requirement
-    info.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-    VULKAN_CALL(vkCreateBuffer(device.device, &info, nullptr, &buffer));
-    vkGetBufferMemoryRequirements(device.device, buffer, &req_staging);
-    vkDestroyBuffer(device.device, buffer, nullptr);
-    // get compute requirement
-    info.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT |
-                 VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
-    VULKAN_CALL(vkCreateBuffer(device.device, &info, nullptr, &buffer));
-    vkGetBufferMemoryRequirements(device.device, buffer, &req_compute);
-    vkDestroyBuffer(device.device, buffer, nullptr);
-
-    // Query phyiscal device property
-    // find a memory that is host visible, no need to be consistent
-    int win_rank = -1;
-    VkPhysicalDeviceMemoryProperties prop;
-    vkGetPhysicalDeviceMemoryProperties(device.phy_device, &prop);
-
-    for (uint32_t k = 0; k < prop.memoryTypeCount; ++k) {
-      VkMemoryType ty = prop.memoryTypes[k];
-      size_t heap_size = prop.memoryHeaps[ty.heapIndex].size;
-      // host visible
-      if (!(ty.propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)) continue;
-      // match copy requirment
-      if (!(req_staging.memoryTypeBits & (1 << k))) continue;
-      if (heap_size < 1024) continue;
-      int rank = 0;
-      rank += ty.propertyFlags & VK_MEMORY_PROPERTY_HOST_CACHED_BIT;
-      if (rank > win_rank) {
-        win_rank = rank;
-        device.staging_mtype_index = k;
-        device.coherent_staging = ty.propertyFlags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-      }
-    }
-    ICHECK_GE(win_rank, 0) << "Cannot find suitable staging memory on device.";
-
-    win_rank = -1;
-    for (uint32_t k = 0; k < prop.memoryTypeCount; ++k) {
-      VkMemoryType ty = prop.memoryTypes[k];
-      size_t heap_size = prop.memoryHeaps[ty.heapIndex].size;
-      // host visible
-      if (!(ty.propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)) continue;
-      // match copy requirment
-      if (!(req_staging.memoryTypeBits & (1 << k))) continue;
-      if (heap_size < 1024) continue;
-      int rank = 0;
-      // prefer not host visible
-      rank += !(ty.propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
-      if (rank > win_rank) {
-        win_rank = rank;
-        device.compute_mtype_index = k;
-      }
-    }
-    ICHECK_GE(win_rank, 0) << "Cannot find suitable local memory on device.";
-
-    if (device.device_properties.supports_push_descriptor) {
-      device.descriptor_template_khr_functions =
-          std::make_unique<VulkanDescriptorTemplateKHRFunctions>(device.device);
-    }
-
-    if (device.device_properties.supports_dedicated_allocation) {
-      device.get_buffer_memory_requirements_2_functions =
-          std::make_unique<VulkanGetBufferMemoryRequirements2Functions>(device.device);
-    }
-
-    devices_.push_back(std::move(device));
-  }
-
-  LOG(INFO) << "Initialize Vulkan with " << devices_.size() << " devices..";
-  for (size_t i = 0; i < devices_.size(); ++i) {
-    LOG(INFO) << "vulkan(" << i << ")=\'" << devices_[i].phy_device_prop.deviceName
-              << "\' phy_dev_id=" << devices_[i].phy_device
-              << " use_immediate=" << devices_[i].UseImmediate();
   }
 }
 
-VulkanDeviceAPI::~VulkanDeviceAPI() {
-  for (auto& device : devices_) {
-    vkDestroyDevice(device.device, nullptr);
-  }
-}
+VulkanDeviceAPI::~VulkanDeviceAPI() {}
 
 void VulkanDeviceAPI::SetDevice(Device dev) { VulkanThreadEntry::ThreadLocal()->device = dev; }
 
@@ -436,8 +235,8 @@ void VulkanDeviceAPI::FreeDataSpace(Device dev, void* ptr) {
 
   const auto& device = this->device(dev.device_id);
   auto* pbuf = static_cast<VulkanBuffer*>(ptr);
-  vkDestroyBuffer(device.device, pbuf->buffer, nullptr);
-  vkFreeMemory(device.device, pbuf->memory, nullptr);
+  vkDestroyBuffer(device, pbuf->buffer, nullptr);
+  vkFreeMemory(device, pbuf->memory, nullptr);
   delete pbuf;
 }
 
@@ -530,7 +329,7 @@ void VulkanDeviceAPI::CopyDataFromTo(const void* from, size_t from_offset, void*
       mrange.memory = temp->vk_buf->memory;
       mrange.offset = 0;
       mrange.size = VK_WHOLE_SIZE;  // size;
-      VULKAN_CALL(vkInvalidateMappedMemoryRanges(device.device, 1, &mrange));
+      VULKAN_CALL(vkInvalidateMappedMemoryRanges(device, 1, &mrange));
     }
     memcpy(static_cast<char*>(to) + to_offset, static_cast<char*>(temp->host_addr), size);
   } else if (from_dev_type == kDLCPU && to_dev_type == kDLVulkan) {
@@ -548,7 +347,7 @@ void VulkanDeviceAPI::CopyDataFromTo(const void* from, size_t from_offset, void*
       mrange.memory = temp->vk_buf->memory;
       mrange.offset = 0;
       mrange.size = VK_WHOLE_SIZE;  // size;
-      VULKAN_CALL(vkFlushMappedMemoryRanges(device.device, 1, &mrange));
+      VULKAN_CALL(vkFlushMappedMemoryRanges(device, 1, &mrange));
     }
 
     VulkanThreadEntry::ThreadLocal()
@@ -583,31 +382,6 @@ const VulkanDevice& VulkanDeviceAPI::device(size_t device_id) const {
   ICHECK_LT(device_id, devices_.size()) << "Requested Vulkan device_id=" << device_id
                                         << ", but only " << devices_.size() << " devices present";
   return devices_[device_id];
-}
-
-std::vector<uint32_t> VulkanDeviceAPI::GetComputeQueueFamilies(VkPhysicalDevice phy_dev) {
-  uint32_t queue_prop_count = 0;
-  vkGetPhysicalDeviceQueueFamilyProperties(phy_dev, &queue_prop_count, nullptr);
-  std::vector<VkQueueFamilyProperties> queue_props(queue_prop_count);
-  vkGetPhysicalDeviceQueueFamilyProperties(phy_dev, &queue_prop_count, dmlc::BeginPtr(queue_props));
-
-  std::vector<uint32_t> result;
-  // Prefer compute-only queues. On certain devices supporting this (e.g. Mesa RADV), using
-  // compute-only queues gives better responsiveness for other graphics workload (e.g. desktop).
-  for (uint32_t i = 0; i != queue_prop_count; ++i) {
-    if ((VK_QUEUE_COMPUTE_BIT & queue_props[i].queueFlags) != 0 &&
-        (VK_QUEUE_GRAPHICS_BIT & queue_props[i].queueFlags) == 0) {
-      result.push_back(i);
-    }
-  }
-  // Now, push the compute queues that we skipped above into the list.
-  for (uint32_t i = 0; i != queue_prop_count; ++i) {
-    if ((VK_QUEUE_COMPUTE_BIT & queue_props[i].queueFlags) != 0 &&
-        (VK_QUEUE_GRAPHICS_BIT & queue_props[i].queueFlags) != 0) {
-      result.push_back(i);
-    }
-  }
-  return result;
 }
 
 TVM_REGISTER_GLOBAL("device_api.vulkan").set_body([](TVMArgs args, TVMRetValue* rv) {

@@ -31,7 +31,7 @@ VulkanStream::VulkanStream(const VulkanDevice* device)
   cmd_pool_cinfo.pNext = nullptr;
   cmd_pool_cinfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
   cmd_pool_cinfo.queueFamilyIndex = device_->queue_family_index;
-  VULKAN_CALL(vkCreateCommandPool(device_->device, &cmd_pool_cinfo, nullptr, &cmd_pool_));
+  VULKAN_CALL(vkCreateCommandPool(*device_, &cmd_pool_cinfo, nullptr, &cmd_pool_));
 
   VkCommandBufferAllocateInfo buffer_alloc_info;
   buffer_alloc_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -39,14 +39,13 @@ VulkanStream::VulkanStream(const VulkanDevice* device)
   buffer_alloc_info.commandPool = cmd_pool_;
   buffer_alloc_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
   buffer_alloc_info.commandBufferCount = 1;
-  VULKAN_CALL(
-      vkAllocateCommandBuffers(device_->device, &buffer_alloc_info, &(state_->cmd_buffer_)));
+  VULKAN_CALL(vkAllocateCommandBuffers(*device_, &buffer_alloc_info, &(state_->cmd_buffer_)));
 
   VkFenceCreateInfo fence_cinfo;
   fence_cinfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
   fence_cinfo.pNext = nullptr;
   fence_cinfo.flags = 0;  // VK_FENCE_CREATE_SIGNALED_BIT;
-  VULKAN_CALL(vkCreateFence(device_->device, &fence_cinfo, nullptr, &(state_->fence_)));
+  VULKAN_CALL(vkCreateFence(*device_, &fence_cinfo, nullptr, &(state_->fence_)));
 
   VkCommandBufferBeginInfo cb_begin;
   cb_begin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -57,8 +56,8 @@ VulkanStream::VulkanStream(const VulkanDevice* device)
 }
 
 VulkanStream::~VulkanStream() {
-  vkDestroyFence(device_->device, state_->fence_, nullptr);
-  vkDestroyCommandPool(device_->device, cmd_pool_, nullptr);
+  vkDestroyFence(*device_, state_->fence_, nullptr);
+  vkDestroyCommandPool(*device_, cmd_pool_, nullptr);
 }
 
 void VulkanStream::Launch(const std::function<void(VulkanStreamState*)>& kernel) {
@@ -131,20 +130,16 @@ void VulkanStream::Synchronize() {
   cb_submit.signalSemaphoreCount = 0;
   cb_submit.pSignalSemaphores = nullptr;
 
-  {
-    // Multiple streams (on different threads) use the same VulkanDevice
-    // instance, so we need to externally synchronize accesses.
-    std::lock_guard<std::mutex> g(*(device_->queue_mutex));
-    VULKAN_CALL(vkQueueSubmit(device_->queue, 1, &cb_submit, state_->fence_));
-  }
+  device_->QueueSubmit(cb_submit, state_->fence_);
+
   uint64_t timeout = 1UL << 30UL;
   VkResult res;
   do {
-    res = vkWaitForFences(device_->device, 1, &(state_->fence_), 0, timeout);
+    res = vkWaitForFences(*device_, 1, &(state_->fence_), 0, timeout);
   } while (res == VK_TIMEOUT);
   VULKAN_CHECK_ERROR(res);
   VULKAN_CALL(vkResetCommandBuffer(state_->cmd_buffer_, 0));
-  VULKAN_CALL(vkResetFences(device_->device, 1, &(state_->fence_)));
+  VULKAN_CALL(vkResetFences(*device_, 1, &(state_->fence_)));
 
   // Re-initialize the command buffer
   VkCommandBufferBeginInfo cb_begin;
