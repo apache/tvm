@@ -140,6 +140,12 @@ class RandomEngine {
     // Use float representation could make us work well on float / int type too.
     if (tensor->dtype.bits == 1) {
       std::generate_n(static_cast<bool*>(tensor->data), size, [&]() { return dist(rnd_engine_); });
+    } else if (tensor->dtype.bits == 4) {
+      // For uint4/int4 we pack two values into a single byte.
+      // Thus, to ensure both values are non-zero, we use a distribution of 17 - 30.
+      std::uniform_real_distribution<> packed_dist(17.0, 30.0);
+      std::generate_n(reinterpret_cast<uint8_t*>(tensor->data), size,
+                      [&]() { return packed_dist(rnd_engine_); });
     } else if (tensor->dtype.bits == 8) {
       std::generate_n(static_cast<uint8_t*>(tensor->data), size,
                       [&]() { return dist(rnd_engine_); });

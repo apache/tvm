@@ -42,9 +42,17 @@ def schedule_softmax(outs):
         exp = softmax.op.input_tensors[0]
         expsum = softmax.op.input_tensors[1]
         max_elem = s[exp].op.input_tensors[1]
+        delta = None
+        axis = int(softmax.op.attrs["axis"])
+    elif op_tag == "fast_softmax_output":
+        exp = softmax.op.input_tensors[0]
+        expsum = softmax.op.input_tensors[1]
+        delta = s[exp].op.input_tensors[0]
+        max_elem = s[delta].op.input_tensors[1]
         axis = int(softmax.op.attrs["axis"])
     elif op_tag == "log_softmax_output":
         exp = None
+        delta = None
         max_elem = softmax.op.input_tensors[1]
         expsum = softmax.op.input_tensors[2]
         axis = 1
@@ -65,6 +73,9 @@ def schedule_softmax(outs):
     s[max_elem].compute_at(s[softmax], fused_outer_axes)
     s[expsum].compute_at(s[softmax], fused_outer_axes)
 
+    if delta is not None:
+        s[exp].compute_inline()
+        s[delta].compute_inline()
     if exp is not None:
         s[exp].compute_at(s[softmax], fused_outer_axes)
 

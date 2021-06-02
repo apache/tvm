@@ -32,14 +32,13 @@ import typing
 from random import getrandbits
 from collections import namedtuple
 import tempfile
-import numpy as np
 
 import tvm._ffi
 import tvm.ir.transform
 from tvm import nd, rpc as _rpc
 from tvm.error import TVMError
 from tvm.driver import build
-from tvm.contrib import nvcc, ndk, tar
+from tvm.contrib import nvcc, ndk, tar, stackvm
 from tvm.target import Target
 
 from ..utils import get_const_tuple
@@ -81,6 +80,7 @@ class LocalBuilder(Builder):
     build_func: callable or str
         If is 'default', use default build function
         If is 'ndk', use function for android ndk
+        If id 'stackvm', use function for stackvm
         If is callable, use it as custom build function, expect lib_format field.
     """
 
@@ -92,6 +92,8 @@ class LocalBuilder(Builder):
                 build_func = tar.tar
             elif build_func == "ndk":
                 build_func = ndk.create_shared
+            elif build_func == "stackvm":
+                build_func = stackvm.build
             else:
                 raise ValueError("Invalid build_func" + build_func)
         self.build_func = _WrappedBuildFunc(build_func)
@@ -397,19 +399,17 @@ class LocalRunner(RPCRunner):
         from ...rpc.server import Server
 
         self.task = task
-        tracker = Tracker("0.0.0.0", port=9000, port_end=10000, silent=True)
+        tracker = Tracker(port=9000, port_end=10000, silent=True)
         device_key = "$local$device$%d" % tracker.port
         server = Server(
-            "0.0.0.0",
             port=9000,
             port_end=10000,
             key=device_key,
-            use_popen=True,
             silent=True,
-            tracker_addr=(tracker.host, tracker.port),
+            tracker_addr=("127.0.0.1", tracker.port),
         )
         self.key = device_key
-        self.host = tracker.host
+        self.host = "127.0.0.1"
         self.port = tracker.port
 
         super(LocalRunner, self).set_task(task)
@@ -459,7 +459,7 @@ class _WrappedBuildFunc:
     Parameters
     ----------
     build_func : The compilation function
-        We expect fcompile to contain an attr "output_format"
+        We expect fcompile to contain an attr "output_format".
 
     Returns
     -------
@@ -581,7 +581,7 @@ def run_through_rpc(
                 raise AttributeError(
                     "Please make sure USE_RANDOM is ON in the config.cmake " "on the remote devices"
                 )
-            args = [nd.array(np.zeros(x[0], dtype=x[1]), device=dev) for x in build_result.arg_info]
+            args = [nd.empty(x[0], x[1], dev) for x in build_result.arg_info]
             if "scatter" not in measure_input.task.name:
                 # the index tensor of scatter op cannot be randomly initialized
                 for arg in args:

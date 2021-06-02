@@ -220,9 +220,8 @@ class QuantizeContext(object):
         if current_qconfig().skip_conv_layers is not None:
             # check skip conv layers
             skipped_indices = [int(x) for x in current_qconfig().skip_conv_layers]
-            if self._conv2d_counter in skipped_indices:
-                if ref_call.op.name == "nn.conv2d":
-                    self._conv2d_counter += 1
+            if self._conv2d_counter in skipped_indices and ref_call.op.name == "nn.conv2d":
+                self._conv2d_counter += 1
                 return True
             if ref_call.op.name == "nn.conv2d":
                 self._conv2d_counter += 1

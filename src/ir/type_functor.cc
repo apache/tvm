@@ -194,7 +194,7 @@ Type TypeMutator::VisitType_(const PointerTypeNode* op) {
   if (element_type.same_as(op->element_type)) {
     return GetRef<Type>(op);
   } else {
-    return PointerType(element_type);
+    return PointerType(element_type, op->storage_scope);
   }
 }
 

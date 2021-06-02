@@ -25,7 +25,7 @@
 #include <time.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/crt/logging.h>
-#include <tvm/runtime/crt/memory.h>
+#include <tvm/runtime/crt/page_allocator.h>
 #include <tvm/runtime/crt/utvm_rpc_server.h>
 #include <unistd.h>
 
@@ -110,7 +110,7 @@ tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
 }
 }
 
-uint8_t memory[512 * 1024];
+uint8_t memory[2048 * 1024];
 
 static char** g_argv = NULL;
 
@@ -123,7 +123,8 @@ int testonly_reset_server(TVMValue* args, int* type_codes, int num_args, TVMValu
 
 int main(int argc, char** argv) {
   g_argv = argv;
-  int status = MemoryManagerCreate(&memory_manager, memory, sizeof(memory), 8 /* page_size_log2 */);
+  int status =
+      PageMemoryManagerCreate(&memory_manager, memory, sizeof(memory), 8 /* page_size_log2 */);
   if (status != 0) {
     fprintf(stderr, "error initiailizing memory manager\n");
     return 2;
@@ -136,9 +137,12 @@ int main(int argc, char** argv) {
            "failed to register GraphExecutor TVMModule");
 #endif
 
-  if (TVMFuncRegisterGlobal("tvm.testing.reset_server", (TVMFunctionHandle)&testonly_reset_server,
-                            0)) {
-    fprintf(stderr, "utvm runtime: internal error registering global packedfunc; exiting\n");
+  int error = TVMFuncRegisterGlobal("tvm.testing.reset_server",
+                                    (TVMFunctionHandle)&testonly_reset_server, 0);
+  if (error) {
+    fprintf(stderr,
+            "utvm runtime: internal error (error#: %x) registering global packedfunc; exiting\n",
+            error);
     return 2;
   }
 

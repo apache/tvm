@@ -86,7 +86,7 @@ def build(mod, target, target_host=None):
 
 @tvm._ffi.register_func("relay._tensor_value_repr")
 def _tensor_value_repr(tvalue):
-    return str(tvalue.data.asnumpy())
+    return str(tvalue.data.numpy())
 
 
 @tvm._ffi.register_func("relay._constant_repr")
@@ -94,7 +94,7 @@ def _tensor_constant_repr(tvalue):
     dtype = tvm.runtime.DataType(tvalue.data.dtype)
     if tvm.target.datatype.get_type_registered(dtype.type_code):
         return "custom tensor of type " + dtype.type_code
-    return str(tvalue.data.asnumpy())
+    return str(tvalue.data.numpy())
 
 
 tvm._ffi._init_api("relay.backend", __name__)

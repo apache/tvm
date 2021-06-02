@@ -81,6 +81,22 @@ def func_with_opaque_block(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
             C[vi, vj] = B[vi, vj] + tir.float32(1)
 
 
+@tvm.script.tir
+def func_with_part_access_region(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
+    A = tir.match_buffer(a, [128, 128])
+    B = tir.match_buffer(b, [128, 128])
+    C = tir.match_buffer(c, [128, 128])
+
+    with tir.block([]) as []:
+        with tir.block([128, 128]) as [vi, vj]:
+            tir.reads(A[vi, vj])
+            B[vi, vj] = A[vi, vj] + tir.float32(1)
+
+        with tir.block([128, 128]) as [vi, vj]:
+            tir.writes(C[vi, vj])
+            C[vi, vj] = B[vi, vj] + tir.float32(1)
+
+
 def test_complete_matmul():
     func = matmul
     A, B, C = [func.buffer_map[x] for x in func.params]
@@ -124,8 +140,7 @@ def test_complete_matmul_original():
     tvm.ir.assert_structural_equal(block2.writes, [access_C])
 
 
-def test_complete_with_root():
-    func = elementwise_with_root
+def _check_elementwise(func):
     A, B, C = [func.buffer_map[x] for x in func.params]
 
     block1 = func.body.block.body[0].body.body.block
@@ -154,6 +169,14 @@ def test_complete_with_root():
     )
 
 
+def test_complete_with_root():
+    _check_elementwise(elementwise_with_root)
+
+
+def test_complete_part_region():
+    _check_elementwise(func_with_part_access_region)
+
+
 def test_complete_opaque_block_error():
     def render(e):
         pass
@@ -172,3 +195,4 @@ if __name__ == "__main__":
     test_complete_matmul_original()
     test_complete_with_root()
     test_complete_opaque_block_error()
+    test_complete_part_region()

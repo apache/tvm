@@ -76,7 +76,7 @@ def test_rpc_module():
     time_f = f2.time_evaluator(f2.entry_name, dev, number=10)
     cost = time_f(a, b).mean
     print("%g secs/op\n" % cost)
-    np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
+    np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 
     # Compile the Graph for OpenCL target
     if test_opencl:
@@ -99,7 +99,7 @@ def test_rpc_module():
         time_f = f1.time_evaluator(f1.entry_name, dev, number=10)
         cost = time_f(a, b).mean
         print("%g secs/op\n" % cost)
-        np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
+        np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 
     # Compile the Graph for Vulkan target
     if test_vulkan:
@@ -122,7 +122,7 @@ def test_rpc_module():
         time_f = f1.time_evaluator(f1.entry_name, dev, number=10)
         cost = time_f(a, b).mean
         print("%g secs/op\n" % cost)
-        np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
+        np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 
 
 if __name__ == "__main__":

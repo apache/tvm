@@ -45,7 +45,8 @@ class Module(object):
         self.entry_name = "__tvm_main__"
 
     def __del__(self):
-        check_call(_LIB.TVMModFree(self.handle))
+        if _LIB:
+            check_call(_LIB.TVMModFree(self.handle))
 
     def __hash__(self):
         return ctypes.cast(self.handle, ctypes.c_void_p).value
@@ -444,6 +445,10 @@ def load_module(path, fmt=""):
     This function will automatically call
     cc.create_shared if the path is in format .o or .tar
     """
+    if os.path.isfile(path):
+        path = os.path.realpath(path)
+    else:
+        raise ValueError("cannot find file %s" % path)
 
     # c++ compiler/linker
     cc = os.environ.get("CXX", "g++")

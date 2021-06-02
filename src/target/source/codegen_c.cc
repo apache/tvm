@@ -212,13 +212,18 @@ std::string CodeGenC::GetBufferRef(DataType t, const VarNode* buffer, PrimExpr i
       PrintType(t.element_of(), os);
       os << "*)";
     }
-    os << vid << " + (";
-    PrintExpr(index, os);
-    os << ")";
     if (t.bits() == 4 || (t.bits() == 1 && t.is_int())) {
-      os << " / " << (32 / t.bits());
+      os << vid << ") + (";
+      PrintExpr(index, os);
+      os << ")";
+      os << " / " << t.lanes();
+      os << ")[0]";
+    } else {
+      os << vid << " + (";
+      PrintExpr(index, os);
+      os << ")";
+      os << "))[0]";
     }
-    os << "))[0]";
   }
   return os.str();
 }
@@ -662,6 +667,11 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       os << " != ";
       this->PrintExpr(op->args[0], os);
       os << ")";
+    } else if (op->op.same_as(builtin::lookup_param())) {
+      ICHECK_EQ(op->args.size(), 1);
+      const StringImmNode* str = op->args[0].as<StringImmNode>();
+      ICHECK(str != nullptr);
+      os << "__tvm_param__" << str->value;
     } else {
       LOG(FATAL) << "Unresolved call " << op->op;
     }
@@ -852,8 +862,11 @@ void CodeGenC::VisitStmt_(const AllocateNode* op) {
   int32_t constant_size = op->constant_allocation_size();
   ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation for now";
   const VarNode* buffer = op->buffer_var.as<VarNode>();
-  std::string scope = alloc_storage_scope_.at(buffer);
-  PrintStorageScope(scope, stream);
+  auto it = alloc_storage_scope_.find(buffer);
+  if (it != alloc_storage_scope_.end()) {
+    std::string scope = alloc_storage_scope_.at(buffer);
+    PrintStorageScope(scope, stream);
+  }
   PrintType(op->dtype, stream);
   stream << ' ' << vid << '[' << constant_size << "];\n";
 
@@ -960,11 +973,19 @@ void CodeGenC::VisitStmt_(const EvaluateNode* op) {
       return;
     } else if (call->op.same_as(builtin::tvm_struct_set())) {
       ICHECK_EQ(call->args.size(), 4);
+      int kind = call->args[2].as<IntImmNode>()->value;
+      std::string ref = GetStructRef(call->args[3].dtype(), call->args[0], call->args[1], kind);
       std::string value = PrintExpr(call->args[3]);
-      std::string ref = GetStructRef(call->args[3].dtype(), call->args[0], call->args[1],
-                                     call->args[2].as<IntImmNode>()->value);
+      std::string cast;
+      if (kind == builtin::kArrStrides) {
+        // cast void* to int64_t*
+        cast = call->args[3]->dtype.is_handle() ? "(int64_t*)" : "";
+      } else if (kind == builtin::kArrDeviceType) {
+        // cast int to enum
+        cast = "(DLDeviceType)";
+      }
       this->PrintIndent();
-      this->stream << ref << " = " << value << ";\n";
+      this->stream << ref << " = " << cast << value << ";\n";
       return;
     }
   }

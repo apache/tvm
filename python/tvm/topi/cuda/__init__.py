@@ -43,7 +43,7 @@ from .batch_matmul import *
 from .batch_matmul_tensorcore import *
 from .vision import *
 from .ssd import *
-from .nms import get_valid_counts, non_max_suppression
+from .nms import get_valid_counts, non_max_suppression, all_class_non_max_suppression
 from .rcnn import *
 from .scatter import *
 from .sort import *
@@ -57,4 +57,5 @@ from . import tensorcore_alter_op
 from .argwhere import *
 from .scan import *
 from .sparse_reshape import *
+from .transform import *
 from .unique import *

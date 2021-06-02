@@ -15,13 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 import argparse
-import os
-from os import path
 
 import pytest
 
 import tvm
-from tvm import relay
 from tvm.driver import tvmc
 
 from tvm.driver.tvmc.common import TVMCException
@@ -31,7 +28,8 @@ def test_compile_tflite_module_nhwc_to_nchw(tflite_mobilenet_v1_1_quant):
     # some CI environments wont offer TFLite, so skip in case it is not present
     pytest.importorskip("tflite")
 
-    before, _ = tvmc.frontends.load_model(tflite_mobilenet_v1_1_quant)
+    tvmc_model = tvmc.frontends.load_model(tflite_mobilenet_v1_1_quant)
+    before = tvmc_model.mod
 
     expected_layout = "NCHW"
     after = tvmc.common.convert_graph_layout(before, expected_layout)
@@ -55,7 +53,8 @@ def test_compile_onnx_module_nchw_to_nhwc(onnx_resnet50):
     # some CI environments wont offer ONNX, so skip in case it is not present
     pytest.importorskip("onnx")
 
-    before, _ = tvmc.frontends.load_model(onnx_resnet50)
+    tvmc_model = tvmc.frontends.load_model(onnx_resnet50)
+    before = tvmc_model.mod
 
     expected_layout = "NHWC"
     after = tvmc.common.convert_graph_layout(before, expected_layout)
@@ -79,7 +78,8 @@ def test_compile_tflite_module__same_layout__nhwc_to_nhwc(tflite_mobilenet_v1_1_
     # some CI environments wont offer TFLite, so skip in case it is not present
     pytest.importorskip("tflite")
 
-    before, _ = tvmc.frontends.load_model(tflite_mobilenet_v1_1_quant)
+    tvmc_model = tvmc.frontends.load_model(tflite_mobilenet_v1_1_quant)
+    before = tvmc_model.mod
 
     expected_layout = "NHWC"
     after = tvmc.common.convert_graph_layout(before, expected_layout)
@@ -103,7 +103,8 @@ def test_compile_onnx_module__same_layout__nchw_to_nchw(onnx_resnet50):
     # some CI environments wont offer ONNX, so skip in case it is not present
     pytest.importorskip("onnx")
 
-    before, _ = tvmc.frontends.load_model(onnx_resnet50)
+    tvmc_model = tvmc.frontends.load_model(onnx_resnet50)
+    before = tvmc_model.mod
 
     expected_layout = "NCHW"
     after = tvmc.common.convert_graph_layout(before, expected_layout)

@@ -43,7 +43,7 @@ def test_clip():
         for target, dev in tvm.testing.enabled_targets():
             intrp = relay.create_executor(device=dev, target=target)
             op_res, (op_grad,) = intrp.evaluate(bwd_func)(data)
-            np.testing.assert_allclose(op_grad.asnumpy(), ref_grad, rtol=0.01)
+            np.testing.assert_allclose(op_grad.numpy(), ref_grad, rtol=0.01)
 
 
 def verify_transpose_grad(d_shape, axes=None):
@@ -176,8 +176,8 @@ def test_zeros_ones_grad_dynamic():
         for target, dev in tvm.testing.enabled_targets():
             intrp = relay.create_executor(device=dev, target=target)
             res, (grad,) = intrp.evaluate(bwd_func)(dyn_shape)
-            tvm.testing.assert_allclose(res.asnumpy(), op_ref(dyn_shape, dtype="float32"))
-            tvm.testing.assert_allclose(grad.asnumpy(), np.zeros((rank,), dtype="int32"))
+            tvm.testing.assert_allclose(res.numpy(), op_ref(dyn_shape, dtype="float32"))
+            tvm.testing.assert_allclose(grad.numpy(), np.zeros((rank,), dtype="int32"))
 
 
 if __name__ == "__main__":

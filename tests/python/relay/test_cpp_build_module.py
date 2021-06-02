@@ -54,8 +54,8 @@ def test_basic_build():
     out = rt.get_output(0)
 
     np.testing.assert_allclose(
-        out.asnumpy(),
-        np.maximum(np.dot(A.asnumpy(), B.asnumpy().T), 0) + C.asnumpy(),
+        out.numpy(),
+        np.maximum(np.dot(A.numpy(), B.numpy().T), 0) + C.numpy(),
         atol=1e-5,
         rtol=1e-5,
     )
@@ -65,7 +65,7 @@ def test_basic_build():
 def test_fp16_build():
     dtype = "float16"
 
-    dev = tvm.gpu(0)
+    dev = tvm.cuda(0)
     if dtype == "float16" and not have_fp16(dev.compute_version):
         print("skip because gpu does not support fp16")
         return
@@ -90,7 +90,7 @@ def test_fp16_build():
     rt.run()
     out = rt.get_output(0)
 
-    np.testing.assert_allclose(out.asnumpy(), X.asnumpy() + Y.asnumpy(), atol=1e-5, rtol=1e-5)
+    np.testing.assert_allclose(out.numpy(), X.numpy() + Y.numpy(), atol=1e-5, rtol=1e-5)
 
 
 @tvm.testing.parametrize_targets("llvm", "cuda")
@@ -119,7 +119,7 @@ def test_fp16_conversion(target, dev):
         rt.run()
         out = rt.get_output(0)
 
-        np.testing.assert_allclose(out.asnumpy(), X.asnumpy().astype(dst), atol=1e-5, rtol=1e-5)
+        np.testing.assert_allclose(out.numpy(), X.numpy().astype(dst), atol=1e-5, rtol=1e-5)
 
 
 if __name__ == "__main__":

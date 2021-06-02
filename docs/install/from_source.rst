@@ -51,27 +51,31 @@ Build the Shared Library
 
 Our goal is to build the shared libraries:
 
-- On Linux the target library are `libtvm.so`
-- On macOS the target library are `libtvm.dylib`
-- On Windows the target library are `libtvm.dll`
+   - On Linux the target library are `libtvm.so` and `libtvm_runtime.so`
+   - On macOS the target library are `libtvm.dylib` and `libtvm_runtime.dylib` 
+   - On Windows the target library are `libtvm.dll` and `libtvm_runtime.dll` 
 
+It is also possible to :ref:`build the runtime <deploy-and-integration>` library only.
+
+The minimal building requirements for the ``TVM`` libraries are:
+
+   - A recent c++ compiler supporting C++ 14 (g++-5 or higher)
+   - CMake 3.5 or higher
+   - We highly recommend to build with LLVM to enable all the features.
+   - If you want to use CUDA, CUDA toolkit version >= 8.0 is required. If you are upgrading from an older version, make sure you purge the older version and reboot after installation.
+   - On macOS, you may want to install `Homebrew <https://brew.sh>` to easily install and manage dependencies.
+
+To install the these minimal pre-requisites on Ubuntu/Debian like
+linux operating systems, execute (in a terminal):
 
 .. code:: bash
 
     sudo apt-get update
     sudo apt-get install -y python3 python3-dev python3-setuptools gcc libtinfo-dev zlib1g-dev build-essential cmake libedit-dev libxml2-dev
 
-The minimal building requirements are
-
-- A recent c++ compiler supporting C++ 14 (g++-5 or higher)
-- CMake 3.5 or higher
-- We highly recommend to build with LLVM to enable all the features.
-- If you want to use CUDA, CUDA toolkit version >= 8.0 is required. If you are upgrading from an older version, make sure you purge the older version and reboot after installation.
-- On macOS, you may want to install `Homebrew <https://brew.sh>` to easily install and manage dependencies.
-
 
 We use cmake to build the library.
-The configuration of TVM can be modified by `config.cmake`.
+The configuration of TVM can be modified by editing `config.cmake` and/or by passing cmake flags to the command line:
 
 
 - First, check the cmake in your system. If you do not have cmake,
@@ -89,6 +93,11 @@ The configuration of TVM can be modified by `config.cmake`.
   - Change ``set(USE_CUDA OFF)`` to ``set(USE_CUDA ON)`` to enable CUDA backend. Do the same for other backends and libraries
     you want to build for (OpenCL, RCOM, METAL, VULKAN, ...).
   - To help with debugging, ensure the embedded graph executor and debugging functions are enabled with ``set(USE_GRAPH_EXECUTOR ON)`` and ``set(USE_PROFILER ON)``
+  - To debug with IRs, ``set(USE_RELAY_DEBUG ON)`` and set environment variable `TVM_LOG_DEBUG`.
+
+      .. code:: bash
+
+          export TVM_LOG_DEBUG=1
 
 - TVM requires LLVM for for CPU codegen. We highly recommend you to build with the LLVM support on.
 
@@ -260,6 +269,8 @@ Install Contrib Libraries
    nnpack
 
 
+.. _install-from-source-cpp-tests:
+
 Enable C++ Tests
 ----------------
 We use `Google Test <https://github.com/google/googletest>`_ to drive the C++
@@ -271,7 +282,7 @@ tests in TVM. The easiest way to install GTest is from source.
        cd googletest
        mkdir build
        cd build
-       cmake ..
+       cmake -DMAKE_SHARED_LIBS=ON ..
        make
        sudo make install
 

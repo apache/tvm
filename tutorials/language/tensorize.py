@@ -191,7 +191,7 @@ a = np.random.uniform(size=get_const_tuple(A.shape)).astype(dtype)
 b = np.random.uniform(size=get_const_tuple(B.shape)).astype(dtype)
 c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=dtype), dev)
 func(tvm.nd.array(a, dev), tvm.nd.array(b, dev), c)
-tvm.testing.assert_allclose(c.asnumpy(), np.dot(a, b.T), rtol=1e-3)
+tvm.testing.assert_allclose(c.numpy(), np.dot(a, b.T), rtol=1e-3)
 
 ######################################################################
 # Reduce-update for Tensorize
@@ -302,7 +302,7 @@ a = np.random.uniform(size=get_const_tuple(A.shape)).astype(dtype)
 b = np.random.uniform(size=get_const_tuple(B.shape)).astype(dtype)
 c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=dtype), dev)
 func(tvm.nd.array(a, dev), tvm.nd.array(b, dev), c)
-tvm.testing.assert_allclose(c.asnumpy(), np.dot(a, b.T), rtol=1e-3)
+tvm.testing.assert_allclose(c.numpy(), np.dot(a, b.T), rtol=1e-3)
 
 ######################################################################
 # Summary

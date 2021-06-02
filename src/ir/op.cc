@@ -26,6 +26,7 @@
 #include <tvm/runtime/container.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/packed_func.h>
+#include <tvm/tir/op_attr_types.h>
 
 #include <memory>
 
@@ -36,6 +37,7 @@ namespace tvm {
 using runtime::PackedFunc;
 using runtime::TVMArgs;
 using runtime::TVMRetValue;
+using tir::FLowerIntrinsic;
 
 using OpRegistry = AttrRegistry<OpRegEntry, Op>;
 
@@ -100,6 +102,12 @@ TVM_REGISTER_GLOBAL("ir.OpResetAttr").set_body_typed([](Op op, String attr_name)
   reg.reset_attr(attr_name);
 });
 
+TVM_REGISTER_GLOBAL("ir.RegisterOp").set_body_typed([](String op_name) {
+  const OpRegEntry* reg = OpRegistry::Global()->Get(op_name);
+  ICHECK(reg == nullptr) << "AttributeError: Operator " << op_name << " is registered before";
+  OpRegistry::Global()->RegisterOrGet(op_name).set_name();
+});
+
 TVM_REGISTER_GLOBAL("ir.RegisterOpAttr")
     .set_body_typed([](String op_name, String attr_key, runtime::TVMArgValue value, int plevel) {
       auto& reg = OpRegistry::Global()->RegisterOrGet(op_name).set_name();
@@ -120,6 +128,12 @@ TVM_REGISTER_GLOBAL("ir.RegisterOpAttr")
           reg.set_attr(attr_key, value, plevel);
         }
       }
+    });
+
+TVM_REGISTER_GLOBAL("ir.RegisterOpLowerIntrinsic")
+    .set_body_typed([](String name, PackedFunc f, String target, int plevel) {
+      tvm::OpRegEntry::RegisterOrGet(name).set_attr<FLowerIntrinsic>(target + ".FLowerIntrinsic", f,
+                                                                     plevel);
     });
 
 // helper to get internal dev function in objectref.

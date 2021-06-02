@@ -151,6 +151,55 @@ Timer DefaultTimer(Device dev);
 
 namespace profiling {
 
+/*! \brief Data collected from a profiling run. Includes per-call metrics and per-device metrics.
+ */
+class ReportNode : public Object {
+ public:
+  /*! \brief A list of function calls and the metrics recorded for that call.
+   *
+   * Each element is a mapping from metric name to value. Some metrics that
+   * appear in every call are "Name" (the function name), "Argument Shapes",
+   * and "Duration (us)". Values are one of `String`, `PercentNode`,
+   * `DurationNode`, or `CountNode`.
+   */
+  Array<Map<String, ObjectRef>> calls;
+  /*! \brief Metrics collected for the entire run of the model on a per-device basis.
+   *
+   * `device_metrics` is indexed by device name then metric.
+   *
+   * These metrics may be larger than the sum of the same metric in `calls`
+   * because these metrics include the overhead of the executor.
+   */
+  Map<String, Map<String, ObjectRef>> device_metrics;
+  /*! \brief Output `calls` in CSV format.
+   *
+   * Note that this does not include `device_metrics`, it only includes per-call metrics.
+   */
+  String AsCSV() const;
+  /*! \brief Create a human readable table of profiling metrics.
+   *  \param aggregate Whether or not to join multiple calls to the same op into a single line.
+   *  \param sort Whether or not to sort call frames by descending duration. If
+   *  false and if `aggregate` is false, frames will be sorted by order of
+   *  appearance in the program. Order is undefined if `sort` is false and
+   *  `aggregate` is true.
+   */
+  String AsTable(bool sort = true, bool aggregate = true) const;
+
+  static constexpr const char* _type_key = "runtime.profiling.Report";
+  TVM_DECLARE_FINAL_OBJECT_INFO(ReportNode, Object);
+};
+
+class Report : public ObjectRef {
+ public:
+  /*! Construct a Report from a set of calls (with associated metrics) and per-device metrics.
+   * \param calls Function calls and associated metrics.
+   * \param device_metrics Per-device metrics for overall execution.
+   */
+  explicit Report(Array<Map<String, ObjectRef>> calls,
+                  Map<String, Map<String, ObjectRef>> device_metrics);
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Report, ObjectRef, ReportNode);
+};
+
 /*! Information about a single function or operator call. */
 struct CallFrame {
   /*! Device on which the call was made */
@@ -212,16 +261,12 @@ class Profiler {
    * the frame (input sizes, allocations).
    */
   void StopCall(std::unordered_map<std::string, ObjectRef> extra_metrics = {});
-  /*! \brief A textual report of total runtime between `Start` and `Stop` as
+  /*! \brief A report of total runtime between `Start` and `Stop` as
    *        well as individual statistics for each `StartCall`-`StopCall` pair.
-   *  \param aggregate Whether or not to join multiple calls to the same op into a single line.
-   *  \param sort Whether or not to sort call frames by descending duration. If
-   *  false and if `aggregate` is false, frames will be sorted by order of
-   *  appearance in the program. Order is undefined if `sort` is false and
-   *  `aggregate` is true.
-   *  \returns The report as a string.
+   *  \returns A `Report` that can either be formatted as CSV (with `.AsCSV`)
+   *  or as a human readable table (with `.AsTable`).
    */
-  String Report(bool aggregate = true, bool sort = true);
+  profiling::Report Report(bool aggregate = true, bool sort = true);
   /*! \brief Check if the profiler is currently running.
    * \returns Whether or not the profiler is running.
    */

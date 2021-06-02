@@ -943,14 +943,19 @@ bool BatchMatmulRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
     oshape.Set(2, y_shape[1]);
   }
 
+  DataType out_dtype = param->out_dtype;
+  if (out_dtype.bits() == 0) {
+    out_dtype = x->dtype;
+  }
   // assign output type
-  reporter->Assign(types[2], TensorType(oshape, x->dtype));
+  reporter->Assign(types[2], TensorType(oshape, out_dtype));
   return true;
 }
 
 // Positional relay function to create batch_matmul operator used by frontend FFI.
-Expr MakeBatchMatmul(Expr x, Expr y) {
+Expr MakeBatchMatmul(Expr x, Expr y, DataType out_dtype) {
   auto attrs = make_object<BatchMatmulAttrs>();
+  attrs->out_dtype = out_dtype;
   static const Op& op = Op::Get("nn.batch_matmul");
   return Call(op, {x, y}, Attrs(attrs), {});
 }

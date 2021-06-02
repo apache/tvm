@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file tvm/relay/pass/annotated_region_set.h
+ * \file tvm/relay/transforms/annotated_region_set.h
  * \brief Define data structures to extract and manipulate regions from
  * a relay function. Regions are denoted by region_begin and region_end
  * annotations that exist on all the input and output edges of the region.

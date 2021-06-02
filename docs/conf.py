@@ -47,18 +47,31 @@ sys.path.insert(0, os.path.join(curr_path, "../vta/python"))
 # General information about the project.
 project = "tvm"
 author = "Apache Software Foundation"
-copyright = "2020, %s" % author
+copyright = "2020 - 2021, %s" % author
 github_doc_root = "https://github.com/apache/tvm/tree/main/docs/"
 
 os.environ["TVM_BUILD_DOC"] = "1"
+
+
+def git_describe_version(original_version):
+    """Get git describe version."""
+    ver_py = os.path.join(curr_path, "..", "version.py")
+    libver = {"__file__": ver_py}
+    exec(compile(open(ver_py, "rb").read(), ver_py, "exec"), libver, libver)
+    _, gd_version = libver["git_describe_version"]()
+    if gd_version != original_version:
+        print("Use git describe based version %s" % gd_version)
+    return gd_version
+
+
 # Version information.
 import tvm
 from tvm import topi
 from tvm import te
 from tvm import testing
 
-version = tvm.__version__
-release = tvm.__version__
+version = git_describe_version(tvm.__version__)
+release = version
 
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom ones
@@ -213,6 +226,7 @@ within_subsection_order = {
         "introduction.py",
         "install.py",
         "tvmc_command_line_driver.py",
+        "auto_tuning_with_python.py",
         "tensor_expr_get_started.py",
         "autotvm_matmul.py",
         "autoschedule_matmul.py",
@@ -244,7 +258,6 @@ within_subsection_order = {
         "opt_gemm.py",
         "opt_conv_cuda.py",
         "opt_conv_tensorcore.py",
-        "opt_matmul_auto_tensorcore.py",
     ],
     "autotvm": [
         "tune_simple_template.py",

@@ -304,6 +304,11 @@ class NonMaximumSuppressionAttrs(Attrs):
     """Attributes for vision.non_maximum_suppression"""
 
 
+@tvm._ffi.register_object("relay.attrs.AllClassNonMaximumSuppressionAttrs")
+class AllClassNonMaximumSuppressionAttrs(Attrs):
+    """Attributes for vision.all_classnon_maximum_suppression"""
+
+
 @tvm._ffi.register_object("relay.attrs.ROIAlignAttrs")
 class ROIAlignAttrs(Attrs):
     """Attributes for vision.roi_align"""
@@ -529,6 +534,11 @@ class SparseTransposeAttrs(Attrs):
     """Attributes used in sparse_transpose operators"""
 
 
+@tvm._ffi.register_object("relay.attrs.SparseConv2DAttrs")
+class SparseConv2DAttrs(Attrs):
+    """Attributes used in sparse_conv2d operators"""
+
+
 @tvm._ffi.register_object("relay.attrs.TopkAttrs")
 class TopkAttrs(Attrs):
     """Attributes used in topk operators"""
@@ -557,3 +567,8 @@ class BatchToSpaceNDAttrs(Attrs):
 @tvm._ffi.register_object("relay.attrs.ThreefryGenerateAttrs")
 class ThreefryGenerateAttrs(Attrs):
     """Attributes used in ThreefryGenerateAttrs operators"""
+
+
+@tvm._ffi.register_object("relay.attrs.UniformAttrs")
+class UniformAttrs(Attrs):
+    """Attributes used in UniformAttrs operators"""

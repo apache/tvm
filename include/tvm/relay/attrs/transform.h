@@ -126,10 +126,11 @@ struct ScatterAddAttrs : public tvm::AttrsNode<ScatterAddAttrs> {
 };
 
 struct ScatterNDAttrs : public tvm::AttrsNode<ScatterNDAttrs> {
-  Array<Integer> out_shape;
+  String mode;
 
   TVM_DECLARE_ATTRS(ScatterNDAttrs, "relay.attrs.ScatterNDAttrs") {
-    TVM_ATTR_FIELD(out_shape).describe("Output shape of the scatter.");
+    TVM_ATTR_FIELD(mode).describe(
+        "Accumulation mode of the scatter, either \"update\" or \"add\".");
   }
 };
 
@@ -143,11 +144,29 @@ struct GatherAttrs : public tvm::AttrsNode<GatherAttrs> {
   }
 };
 
+struct GatherNDAttrs : public tvm::AttrsNode<GatherNDAttrs> {
+  Integer batch_dims;
+  Optional<Integer> index_rank;
+
+  TVM_DECLARE_ATTRS(GatherAttrs, "relay.attrs.GatherNDAttrs") {
+    TVM_ATTR_FIELD(batch_dims).set_default(Integer(0)).describe("The number of batch dimensions.");
+    TVM_ATTR_FIELD(index_rank)
+        .set_default(NullValue<Integer>())
+        .describe(
+            "The size of an indexing tuple, which is a fixed value. Only needed when the number of "
+            "indexting tuples is dynamic.");
+  }
+};
+
 struct TakeAttrs : public tvm::AttrsNode<TakeAttrs> {
+  Integer batch_dims;
   Integer axis;
   std::string mode;
 
   TVM_DECLARE_ATTRS(TakeAttrs, "relay.attrs.TakeAttrs") {
+    TVM_ATTR_FIELD(batch_dims)
+        .set_default(0)
+        .describe("The batch_dims over which to select values.");
     TVM_ATTR_FIELD(axis)
         .set_default(NullValue<Integer>())
         .describe("The axis over which to select values.");
@@ -291,6 +310,7 @@ struct StridedSliceAttrs : public tvm::AttrsNode<StridedSliceAttrs> {
   Optional<Array<Integer>> end;
   Optional<Array<Integer>> strides;
   std::string slice_mode;
+  Optional<Array<Integer>> axes;
 
   TVM_DECLARE_ATTRS(StridedSliceAttrs, "relay.attrs.StridedSliceAttrs") {
     TVM_ATTR_FIELD(begin).describe("Indices for begin of slice, begin index is also inclusive");
@@ -305,6 +325,9 @@ struct StridedSliceAttrs : public tvm::AttrsNode<StridedSliceAttrs> {
             "size - The input strides will be ignored, input end in this mode indicates the size"
             "of a slice starting at the location specified by begin. If end[i] is -1,"
             "all remaining elements in that dimension are included in the slice");
+    TVM_ATTR_FIELD(axes).describe(
+        "Axes along which slicing is applied. When it is specified, the length of begin, end, "
+        "strides, and axes must be equal.");
   }
 };
 

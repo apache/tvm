@@ -152,7 +152,7 @@ Map<String, ObjectRef> UpdateNVPTXAttrs(Map<String, ObjectRef> attrs) {
   } else {
     // Use the compute version of the first CUDA GPU instead
     TVMRetValue version;
-    if (!DetectDeviceFlag({kDLGPU, 0}, runtime::kComputeVersion, &version)) {
+    if (!DetectDeviceFlag({kDLCUDA, 0}, runtime::kComputeVersion, &version)) {
       LOG(WARNING) << "Unable to detect CUDA version, default to \"-mcpu=sm_20\" instead";
       arch = 20;
     } else {
@@ -209,6 +209,85 @@ Map<String, ObjectRef> UpdateROCmAttrs(Map<String, ObjectRef> attrs) {
   return attrs;
 }
 
+/*!
+ * \brief Update the attributes in the Vulkan target.
+ * \param attrs The original attributes
+ * \return The updated attributes
+ */
+Map<String, ObjectRef> UpdateVulkanAttrs(Map<String, ObjectRef> attrs) {
+  if (attrs.count("from_device")) {
+    int device_id = Downcast<Integer>(attrs.at("from_device"));
+    Device device{kDLVulkan, device_id};
+    const PackedFunc* get_target_property =
+        runtime::Registry::Get("device_api.vulkan.get_target_property");
+    ICHECK(get_target_property)
+        << "Requested to read Vulkan parameters from device, but no Vulkan runtime available";
+
+    // Current vulkan implementation is partially a proof-of-concept,
+    // with long-term goal to move the -from_device functionality to
+    // TargetInternal::FromConfig, and to be usable by all targets.
+    // The duplicate list of parameters is needed until then, since
+    // TargetKind::Get("vulkan")->key2vtype_ is private.
+    std::vector<const char*> bool_opts = {
+        "supports_float16",         "supports_float32",
+        "supports_float64",         "supports_int8",
+        "supports_int16",           "supports_int32",
+        "supports_int64",           "supports_8bit_buffer",
+        "supports_16bit_buffer",    "supports_storage_buffer_storage_class",
+        "supports_push_descriptor", "supports_dedicated_allocation"};
+    std::vector<const char*> int_opts = {"supported_subgroup_operations",
+                                         "max_num_threads",
+                                         "thread_warp_size",
+                                         "max_block_size_x",
+                                         "max_block_size_y",
+                                         "max_block_size_z",
+                                         "max_push_constants_size",
+                                         "max_uniform_buffer_range",
+                                         "max_storage_buffer_range",
+                                         "max_per_stage_descriptor_storage_buffer",
+                                         "max_shared_memory_per_block",
+                                         "driver_version",
+                                         "vulkan_api_version",
+                                         "max_spirv_version"};
+    std::vector<const char*> str_opts = {"device_name"};
+
+    for (auto& key : bool_opts) {
+      if (!attrs.count(key)) {
+        attrs.Set(key, Bool(static_cast<bool>((*get_target_property)(device, key))));
+      }
+    }
+    for (auto& key : int_opts) {
+      if (!attrs.count(key)) {
+        attrs.Set(key, Integer(static_cast<int64_t>((*get_target_property)(device, key))));
+      }
+    }
+    for (auto& key : str_opts) {
+      if (!attrs.count(key)) {
+        attrs.Set(key, (*get_target_property)(device, key));
+      }
+    }
+
+    attrs.erase("from_device");
+  }
+
+  // Set defaults here, rather than in the .add_attr_option() calls.
+  // The priority should be user-specified > device-query > default,
+  // but defaults defined in .add_attr_option() are already applied by
+  // this point.  Longer-term, would be good to add a
+  // `DeviceAPI::GetTargetProperty` function and extend "from_device"
+  // to work for all runtimes.
+  std::unordered_map<String, ObjectRef> defaults = {{"supports_float32", Bool(true)},
+                                                    {"supports_int32", Bool(true)},
+                                                    {"max_num_threads", Integer(256)},
+                                                    {"thread_warp_size", Integer(1)}};
+  for (const auto& kv : defaults) {
+    if (!attrs.count(kv.first)) {
+      attrs.Set(kv.first, kv.second);
+    }
+  }
+  return attrs;
+}
+
 /**********  Register Target kinds and attributes  **********/
 
 TVM_REGISTER_TARGET_KIND("llvm", kDLCPU)
@@ -227,9 +306,11 @@ TVM_REGISTER_TARGET_KIND("c", kDLCPU)
     .add_attr_option<String>("runtime")
     .add_attr_option<String>("mcpu")
     .add_attr_option<String>("march")
+    .add_attr_option<String>("executor")
+    .add_attr_option<Integer>("workspace-byte-alignment")
     .set_default_keys({"cpu"});
 
-TVM_REGISTER_TARGET_KIND("cuda", kDLGPU)
+TVM_REGISTER_TARGET_KIND("cuda", kDLCUDA)
     .add_attr_option<String>("mcpu")
     .add_attr_option<String>("arch")
     .add_attr_option<Bool>("system-lib")
@@ -240,7 +321,7 @@ TVM_REGISTER_TARGET_KIND("cuda", kDLGPU)
     .add_attr_option<Integer>("max_threads_per_block")
     .set_default_keys({"cuda", "gpu"});
 
-TVM_REGISTER_TARGET_KIND("nvptx", kDLGPU)
+TVM_REGISTER_TARGET_KIND("nvptx", kDLCUDA)
     .add_attr_option<String>("mcpu")
     .add_attr_option<String>("mtriple")
     .add_attr_option<Bool>("system-lib")
@@ -261,7 +342,7 @@ TVM_REGISTER_TARGET_KIND("rocm", kDLROCM)
 TVM_REGISTER_TARGET_KIND("opencl", kDLOpenCL)
     .add_attr_option<Bool>("system-lib")
     .add_attr_option<Integer>("max_num_threads", Integer(256))
-    .add_attr_option<Integer>("thread_warp_size")
+    .add_attr_option<Integer>("thread_warp_size", Integer(1))
     .set_default_keys({"opencl", "gpu"});
 
 TVM_REGISTER_TARGET_KIND("metal", kDLMetal)
@@ -271,8 +352,40 @@ TVM_REGISTER_TARGET_KIND("metal", kDLMetal)
 
 TVM_REGISTER_TARGET_KIND("vulkan", kDLVulkan)
     .add_attr_option<Bool>("system-lib")
-    .add_attr_option<Integer>("max_num_threads", Integer(256))
-    .set_default_keys({"vulkan", "gpu"});
+    .add_attr_option<Bool>("from_device")
+    // Feature support
+    .add_attr_option<Bool>("supports_float16")
+    .add_attr_option<Bool>("supports_float32")
+    .add_attr_option<Bool>("supports_float64")
+    .add_attr_option<Bool>("supports_int8")
+    .add_attr_option<Bool>("supports_int16")
+    .add_attr_option<Bool>("supports_int32")
+    .add_attr_option<Bool>("supports_int64")
+    .add_attr_option<Bool>("supports_8bit_buffer")
+    .add_attr_option<Bool>("supports_16bit_buffer")
+    .add_attr_option<Bool>("supports_storage_buffer_storage_class")
+    .add_attr_option<Bool>("supports_push_descriptor")
+    .add_attr_option<Bool>("supports_dedicated_allocation")
+    .add_attr_option<Integer>("supported_subgroup_operations")
+    // Physical device limits
+    .add_attr_option<Integer>("max_num_threads")
+    .add_attr_option<Integer>("thread_warp_size")
+    .add_attr_option<Integer>("max_block_size_x")
+    .add_attr_option<Integer>("max_block_size_y")
+    .add_attr_option<Integer>("max_block_size_z")
+    .add_attr_option<Integer>("max_push_constants_size")
+    .add_attr_option<Integer>("max_uniform_buffer_range")
+    .add_attr_option<Integer>("max_storage_buffer_range")
+    .add_attr_option<Integer>("max_per_stage_descriptor_storage_buffer")
+    .add_attr_option<Integer>("max_shared_memory_per_block")
+    // Other device properties
+    .add_attr_option<String>("device_name")
+    .add_attr_option<Integer>("driver_version")
+    .add_attr_option<Integer>("vulkan_api_version")
+    .add_attr_option<Integer>("max_spirv_version")
+    // Tags
+    .set_default_keys({"vulkan", "gpu"})
+    .set_attrs_preprocessor(UpdateVulkanAttrs);
 
 TVM_REGISTER_TARGET_KIND("webgpu", kDLWebGPU)
     .add_attr_option<Bool>("system-lib")
@@ -308,8 +421,7 @@ TVM_REGISTER_TARGET_KIND("ext_dev", kDLExtDev)  // line break
 TVM_REGISTER_TARGET_KIND("hybrid", kDLCPU)  // line break
     .add_attr_option<Bool>("system-lib");
 
-TVM_REGISTER_TARGET_KIND("composite", kDLCPU)
-    .add_attr_option<Array<Target>>("devices");
+TVM_REGISTER_TARGET_KIND("composite", kDLCPU).add_attr_option<Array<Target>>("devices");
 
 /**********  Registry  **********/
 

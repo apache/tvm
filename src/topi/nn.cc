@@ -95,11 +95,6 @@ TVM_REGISTER_GLOBAL("topi.nn.scale_shift_nhwc").set_body([](TVMArgs args, TVMRet
 });
 
 /* Ops from nn/pooling.h */
-TVM_REGISTER_GLOBAL("topi.nn.pool").set_body([](TVMArgs args, TVMRetValue* rv) {
-  *rv = nn::pool(args[0], args[1], args[2], args[3],
-                 static_cast<nn::PoolType>(static_cast<int>(args[4])), args[5], args[6], args[7]);
-});
-
 TVM_REGISTER_GLOBAL("topi.nn.pool_grad").set_body([](TVMArgs args, TVMRetValue* rv) {
   *rv = nn::pool_grad(args[0], args[1], args[2], args[3], args[4],
                       static_cast<nn::PoolType>(static_cast<int>(args[5])), args[6], args[7],
@@ -121,13 +116,18 @@ TVM_REGISTER_GLOBAL("topi.nn.adaptive_pool3d").set_body([](TVMArgs args, TVMRetV
 });
 
 TVM_REGISTER_GLOBAL("topi.nn.pool1d").set_body([](TVMArgs args, TVMRetValue* rv) {
-  *rv = nn::pool1d(args[0], args[1], args[2], args[3],
-                   static_cast<nn::PoolType>(static_cast<int>(args[4])), args[5], args[6], args[7]);
+  *rv = nn::pool1d(args[0], args[1], args[2], args[3], args[4],
+                   static_cast<nn::PoolType>(static_cast<int>(args[5])), args[6], args[7], args[8]);
+});
+
+TVM_REGISTER_GLOBAL("topi.nn.pool2d").set_body([](TVMArgs args, TVMRetValue* rv) {
+  *rv = nn::pool2d(args[0], args[1], args[2], args[3], args[4],
+                   static_cast<nn::PoolType>(static_cast<int>(args[5])), args[6], args[7], args[8]);
 });
 
 TVM_REGISTER_GLOBAL("topi.nn.pool3d").set_body([](TVMArgs args, TVMRetValue* rv) {
-  *rv = nn::pool3d(args[0], args[1], args[2], args[3],
-                   static_cast<nn::PoolType>(static_cast<int>(args[4])), args[5], args[6], args[7]);
+  *rv = nn::pool3d(args[0], args[1], args[2], args[3], args[4],
+                   static_cast<nn::PoolType>(static_cast<int>(args[5])), args[6], args[7], args[8]);
 });
 
 /* Ops from nn/softmax.h */

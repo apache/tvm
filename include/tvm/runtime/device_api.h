@@ -47,7 +47,8 @@ enum DeviceAttrKind : int {
   kMaxThreadDimensions = 8,
   kMaxRegistersPerBlock = 9,
   kGcnArch = 10,
-  kApiVersion = 11
+  kApiVersion = 11,
+  kDriverVersion = 12
 };
 
 /*! \brief Number of bytes each allocation must align to */
@@ -58,6 +59,10 @@ constexpr int kTempAllocaAlignment = 128;
 
 /*! \brief Maximum size that can be allocated on stack */
 constexpr int kMaxStackAlloca = 1024;
+
+/*! \brief Number of bytes each allocation must align to by default in the workspace buffer to
+ * service intermediate tensors */
+constexpr int kDefaultWorkspaceAlignment = 1;
 
 /*!
  *  \brief TVM Runtime Device API, abstracts the device
@@ -230,10 +235,10 @@ inline const char* DeviceName(int type) {
   switch (type) {
     case kDLCPU:
       return "cpu";
-    case kDLGPU:
-      return "gpu";
-    case kDLCPUPinned:
-      return "cpu_pinned";
+    case kDLCUDA:
+      return "cuda";
+    case kDLCUDAHost:
+      return "cuda_host";
     case kDLOpenCL:
       return "opencl";
     case kDLSDAccel:

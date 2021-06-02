@@ -75,7 +75,7 @@ def verify_resize(
         f = tvm.build(s, [A, B], target)
         f(a, b)
 
-        tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-3, atol=1e-3)
+        tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-3, atol=1e-3)
 
     for target, dev in tvm.testing.enabled_targets():
         check_target(target, dev)
@@ -92,12 +92,8 @@ def test_resize():
     # Scale NHWC + Align Corners
     verify_resize(6, 32, 64, 64, 20, 20, "NHWC")
     for method in ["nearest_neighbor", "bilinear"]:
-        for coord_trans in ["asymmetric", "half_pixel", "align_corners"]:
+        for coord_trans in ["asymmetric"]:  # TOPI testing function only support asymmetric
             for layout in ["NCHW", "NHWC"]:
-                # TODO: When topi test has an option for align corners and nearest neighbor that
-                # produces correct results, re-enable it.
-                if coord_trans == "align_corners" and method == "nearest_neighbor":
-                    continue
                 verify_resize(4, 16, 32, 32, 50, 50, layout, coord_trans, method=method)
 
 
@@ -162,7 +158,7 @@ def verify_resize3d(
         f = tvm.build(s, [A, B], target)
         f(a, b)
 
-        tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-3, atol=1e-3)
+        tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-3, atol=1e-3)
 
     for target, dev in tvm.testing.enabled_targets():
         check_target(target, dev)
@@ -236,7 +232,7 @@ def test_crop_and_resize():
             f = tvm.build(s, [images, boxes, box_ind, out], target, name="crop_and_resize")
             f(tvm_images, tvm_boxes, tvm_indices, tvm_out)
 
-            tvm.testing.assert_allclose(tvm_out.asnumpy(), baseline_np, rtol=1e-3, atol=1e-3)
+            tvm.testing.assert_allclose(tvm_out.numpy(), baseline_np, rtol=1e-3, atol=1e-3)
 
         for target, dev in tvm.testing.enabled_targets():
             check_target(target, dev)
@@ -281,7 +277,7 @@ def test_affine_grid():
             f = tvm.build(s, [data, out], target)
             f(tvm_data, tvm_out)
 
-            tvm.testing.assert_allclose(tvm_out.asnumpy(), out_np, rtol=1e-5, atol=1e-5)
+            tvm.testing.assert_allclose(tvm_out.numpy(), out_np, rtol=1e-5, atol=1e-5)
 
         for target, dev in tvm.testing.enabled_targets():
             check_target(target, dev)
@@ -318,7 +314,7 @@ def test_grid_sample():
             f = tvm.build(s, [data, grid, out], target)
             f(tvm_data, tvm_grid, tvm_out)
 
-            tvm.testing.assert_allclose(tvm_out.asnumpy(), out_np, rtol=1e-5, atol=1e-5)
+            tvm.testing.assert_allclose(tvm_out.numpy(), out_np, rtol=1e-5, atol=1e-5)
 
         for target, dev in tvm.testing.enabled_targets():
             check_target(target, dev)

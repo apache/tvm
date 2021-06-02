@@ -32,6 +32,7 @@
 #include <tvm/runtime/logging.h>
 
 #include "src/runtime/c_runtime_api.cc"
+#include "src/runtime/contrib/sort/sort.cc"
 #include "src/runtime/cpu_device_api.cc"
 #include "src/runtime/file_utils.cc"
 #include "src/runtime/graph_executor/graph_executor.cc"

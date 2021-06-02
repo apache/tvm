@@ -29,6 +29,7 @@ from .call_graph import CallGraph
 # Feature
 from . import feature
 from . import sparse_dense
+from . import sparse_conv2d
 
 # Utilities
 from .count_layers import count_layers

@@ -201,8 +201,8 @@ class RPCSession(object):
         """Construct CPU device."""
         return self.device(1, dev_id)
 
-    def gpu(self, dev_id=0):
-        """Construct GPU device."""
+    def cuda(self, dev_id=0):
+        """Construct CUDA GPU device."""
         return self.device(2, dev_id)
 
     def cl(self, dev_id=0):
@@ -458,7 +458,7 @@ def connect(url, port, key="", session_timeout=0, session_constructor_args=None)
         Additional key to match server
 
     session_timeout : float, optional
-        The duration of the session, allows server to kill
+        The duration of the session in seconds, allows server to kill
         the connection when duration is longer than this value.
         When duration is zero, it means the request must always be kept alive.
 

@@ -44,7 +44,7 @@ import tvm
 from tvm import relay
 from tvm import relay
 from tvm.runtime.vm import VirtualMachine
-from tvm.contrib.download import download
+from tvm.contrib.download import download_testdata
 
 import numpy as np
 import cv2
@@ -96,11 +96,10 @@ with torch.no_grad():
 ######################################################################
 # Download a test image and pre-process
 # -------------------------------------
-img_path = "test_street_small.jpg"
 img_url = (
     "https://raw.githubusercontent.com/dmlc/web-data/" "master/gluoncv/detection/street_small.jpg"
 )
-download(img_url, img_path)
+img_path = download_testdata(img_url, "test_street_small.jpg", module="data")
 
 img = cv2.imread(img_path).astype("float32")
 img = cv2.resize(img, (in_size, in_size))
@@ -143,9 +142,9 @@ tvm_res = vm.run()
 # Get boxes with score larger than 0.9
 # ------------------------------------
 score_threshold = 0.9
-boxes = tvm_res[0].asnumpy().tolist()
+boxes = tvm_res[0].numpy().tolist()
 valid_boxes = []
-for i, score in enumerate(tvm_res[1].asnumpy().tolist()):
+for i, score in enumerate(tvm_res[1].numpy().tolist()):
     if score > score_threshold:
         valid_boxes.append(boxes[i])
     else:

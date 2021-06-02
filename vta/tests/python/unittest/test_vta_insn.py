@@ -70,7 +70,7 @@ def test_save_load_out():
 
         f(x_nd, y_nd)
 
-        np.testing.assert_equal(y_np, y_nd.asnumpy())
+        np.testing.assert_equal(y_np, y_nd.numpy())
 
         if env.TARGET in ["sim", "tsim"]:
             sim_stats = simulator.stats()
@@ -149,7 +149,7 @@ def test_padded_load():
 
             f(x_nd, y_nd)
 
-            np.testing.assert_equal(y_np, y_nd.asnumpy())
+            np.testing.assert_equal(y_np, y_nd.numpy())
 
             if env.TARGET in ["sim", "tsim"]:
                 sim_stats = simulator.stats()
@@ -240,7 +240,7 @@ def test_gemm():
 
             f(x_nd, w_nd, y_nd)
 
-            np.testing.assert_equal(y_np, y_nd.asnumpy())
+            np.testing.assert_equal(y_np, y_nd.numpy())
 
             if env.TARGET in ["sim", "tsim"]:
                 sim_stats = simulator.stats()
@@ -398,7 +398,7 @@ def test_alu():
                 b_nd = tvm.nd.array(b_np, dev)
                 f(a_nd, b_nd, res_nd)
 
-            np.testing.assert_equal(res_np, res_nd.asnumpy())
+            np.testing.assert_equal(res_np, res_nd.numpy())
 
             if env.TARGET in ["sim", "tsim"]:
                 sim_stats = simulator.stats()
@@ -470,7 +470,7 @@ def test_relu():
 
         f(a_nd, res_nd)
 
-        np.testing.assert_equal(res_np, res_nd.asnumpy())
+        np.testing.assert_equal(res_np, res_nd.numpy())
 
         if env.TARGET in ["sim", "tsim"]:
             sim_stats = simulator.stats()
@@ -533,7 +533,7 @@ def test_shift_and_scale():
 
         f(a_nd, res_nd)
 
-        np.testing.assert_equal(res_np, res_nd.asnumpy())
+        np.testing.assert_equal(res_np, res_nd.numpy())
 
         if env.TARGET in ["sim", "tsim"]:
             sim_stats = simulator.stats()
@@ -550,7 +550,7 @@ def test_runtime_array():
         dev = remote.ext_dev(0)
         x_np = np.random.randint(1, 10, size=(n, n, env.BATCH, env.BLOCK_OUT)).astype("int8")
         x_nd = tvm.nd.array(x_np, dev)
-        np.testing.assert_equal(x_np, x_nd.asnumpy())
+        np.testing.assert_equal(x_np, x_nd.numpy())
 
     vta.testing.run(_run)
 

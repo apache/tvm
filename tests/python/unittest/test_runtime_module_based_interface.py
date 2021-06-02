@@ -41,7 +41,7 @@ def verify(data):
     module.set_input("data", data)
     module.set_input(**graph_params)
     module.run()
-    out = module.get_output(0).asnumpy()
+    out = module.get_output(0).numpy()
 
     return out
 
@@ -59,7 +59,7 @@ def test_legacy_compatibility():
     module.set_input("data", data)
     module.set_input(**graph_params)
     module.run()
-    out = module.get_output(0).asnumpy()
+    out = module.get_output(0).numpy()
     tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
 
@@ -79,14 +79,14 @@ def test_cpu():
     get_output = gmod["get_output"]
     set_input("data", tvm.nd.array(data))
     run()
-    out = get_output(0).asnumpy()
+    out = get_output(0).numpy()
     tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
     # graph executor wrapper
     gmod = graph_executor.GraphModule(complied_graph_lib["default"](dev))
     gmod.set_input("data", data)
     gmod.run()
-    out = gmod.get_output(0).asnumpy()
+    out = gmod.get_output(0).numpy()
     tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
 
@@ -97,7 +97,7 @@ def test_gpu():
     with relay.build_config(opt_level=3):
         complied_graph_lib = relay.build_module.build(mod, "cuda", params=params)
     data = np.random.uniform(-1, 1, size=input_shape(mod)).astype("float32")
-    dev = tvm.gpu()
+    dev = tvm.cuda()
 
     # raw api
     gmod = complied_graph_lib["default"](dev)
@@ -106,14 +106,14 @@ def test_gpu():
     get_output = gmod["get_output"]
     set_input("data", tvm.nd.array(data))
     run()
-    out = get_output(0).asnumpy()
+    out = get_output(0).numpy()
     tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
     # graph executor wrapper
     gmod = graph_executor.GraphModule(complied_graph_lib["default"](dev))
     gmod.set_input("data", data)
     gmod.run()
-    out = gmod.get_output(0).asnumpy()
+    out = gmod.get_output(0).numpy()
     tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
 
@@ -137,10 +137,16 @@ def test_mod_export():
             file_name = "deploy_lib.tar"
         path_lib = temp.relpath(file_name)
         complied_graph_lib.export_library(path_lib)
-        loaded_lib = tvm.runtime.load_module(path_lib)
-        dev = tvm.cpu(0)
-        gmod = loaded_lib["default"](dev)
 
+        # run the setup in a separate function, so the load_lib
+        # can get destructed right away
+        # test the robustness wrt to parent module destruction
+        def setup_gmod():
+            loaded_lib = tvm.runtime.load_module(path_lib)
+            dev = tvm.cpu(0)
+            return loaded_lib["default"](dev)
+
+        gmod = setup_gmod()
         # raw api
         set_input = gmod["set_input"]
         run = gmod["run"]
@@ -148,14 +154,14 @@ def test_mod_export():
         data = np.random.uniform(-1, 1, size=input_shape(mod)).astype("float32")
         set_input("data", tvm.nd.array(data))
         run()
-        out = get_output(0).asnumpy()
+        out = get_output(0).numpy()
         tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
         # graph executor wrapper
-        gmod = graph_executor.GraphModule(loaded_lib["default"](dev))
+        gmod = graph_executor.GraphModule(setup_gmod())
         gmod.set_input("data", data)
         gmod.run()
-        out = gmod.get_output(0).asnumpy()
+        out = gmod.get_output(0).numpy()
         tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
     def verify_gpu_export(obj_format):
@@ -176,25 +182,32 @@ def test_mod_export():
             file_name = "deploy_lib.tar"
         path_lib = temp.relpath(file_name)
         complied_graph_lib.export_library(path_lib)
-        loaded_lib = tvm.runtime.load_module(path_lib)
-        data = np.random.uniform(-1, 1, size=input_shape(mod)).astype("float32")
-        dev = tvm.gpu()
 
+        data = np.random.uniform(-1, 1, size=input_shape(mod)).astype("float32")
+
+        # run the setup in a separate function, so the load_lib
+        # can get destructed right away
+        # test the robustness wrt to parent module destruction
+        def setup_gmod():
+            loaded_lib = tvm.runtime.load_module(path_lib)
+            dev = tvm.cuda()
+            return loaded_lib["default"](dev)
+
+        gmod = setup_gmod()
         # raw api
-        gmod = loaded_lib["default"](dev)
         set_input = gmod["set_input"]
         run = gmod["run"]
         get_output = gmod["get_output"]
         set_input("data", tvm.nd.array(data))
         run()
-        out = get_output(0).asnumpy()
+        out = get_output(0).numpy()
         tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
         # graph executor wrapper
-        gmod = graph_executor.GraphModule(loaded_lib["default"](dev))
+        gmod = graph_executor.GraphModule(setup_gmod())
         gmod.set_input("data", data)
         gmod.run()
-        out = gmod.get_output(0).asnumpy()
+        out = gmod.get_output(0).numpy()
         tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
     def verify_rpc_cpu_export(obj_format):
@@ -231,14 +244,14 @@ def test_mod_export():
         get_output = gmod["get_output"]
         set_input("data", tvm.nd.array(data, device=dev))
         run()
-        out = get_output(0).asnumpy()
+        out = get_output(0).numpy()
         tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
         # graph executor wrapper
         gmod = graph_executor.GraphModule(loaded_lib["default"](dev))
         gmod.set_input("data", data)
         gmod.run()
-        out = gmod.get_output(0).asnumpy()
+        out = gmod.get_output(0).numpy()
         tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
     def verify_rpc_gpu_export(obj_format):
@@ -262,12 +275,12 @@ def test_mod_export():
 
         from tvm import rpc
 
-        server = rpc.Server("localhost", use_popen=True, port=9094)
+        server = rpc.Server("127.0.0.1", port=9094)
         remote = rpc.connect(server.host, server.port)
         remote.upload(path_lib)
         loaded_lib = remote.load_module(path_lib)
         data = np.random.uniform(-1, 1, size=input_shape(mod)).astype("float32")
-        dev = remote.gpu()
+        dev = remote.cuda()
 
         # raw api
         gmod = loaded_lib["default"](dev)
@@ -276,14 +289,14 @@ def test_mod_export():
         get_output = gmod["get_output"]
         set_input("data", tvm.nd.array(data, device=dev))
         run()
-        out = get_output(0).asnumpy()
+        out = get_output(0).numpy()
         tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
         # graph executor wrapper
         gmod = graph_executor.GraphModule(loaded_lib["default"](dev))
         gmod.set_input("data", data)
         gmod.run()
-        out = gmod.get_output(0).asnumpy()
+        out = gmod.get_output(0).numpy()
         tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
     for obj_format in [".so", ".tar"]:
@@ -330,7 +343,7 @@ def test_remove_package_params():
         set_input("data", tvm.nd.array(data))
         load_params(loaded_params)
         run()
-        out = get_output(0).asnumpy()
+        out = get_output(0).numpy()
         tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
         # graph executor wrapper
@@ -339,7 +352,7 @@ def test_remove_package_params():
         gmod.set_input("data", data)
         gmod.load_params(loaded_params)
         gmod.run()
-        out = gmod.get_output(0).asnumpy()
+        out = gmod.get_output(0).numpy()
         tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
     def verify_gpu_remove_package_params(obj_format):
@@ -365,7 +378,7 @@ def test_remove_package_params():
             fo.write(runtime.save_param_dict(complied_graph_lib.get_params()))
         loaded_lib = tvm.runtime.load_module(path_lib)
         data = np.random.uniform(-1, 1, size=input_shape(mod)).astype("float32")
-        dev = tvm.gpu(0)
+        dev = tvm.cuda(0)
 
         # raw api
         gmod = loaded_lib["default"](dev)
@@ -377,7 +390,7 @@ def test_remove_package_params():
         set_input("data", tvm.nd.array(data))
         load_params(loaded_params)
         run()
-        out = get_output(0).asnumpy()
+        out = get_output(0).numpy()
         tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
         # graph executor wrapper
@@ -386,7 +399,7 @@ def test_remove_package_params():
         gmod.set_input("data", data)
         gmod.load_params(loaded_params)
         gmod.run()
-        out = gmod.get_output(0).asnumpy()
+        out = gmod.get_output(0).numpy()
         tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
     def verify_rpc_cpu_remove_package_params(obj_format):
@@ -430,7 +443,7 @@ def test_remove_package_params():
         set_input("data", tvm.nd.array(data, device=dev))
         load_params(loaded_params)
         run()
-        out = get_output(0).asnumpy()
+        out = get_output(0).numpy()
         tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
         # graph executor wrapper
@@ -439,7 +452,7 @@ def test_remove_package_params():
         gmod.set_input("data", data)
         gmod.load_params(loaded_params)
         gmod.run()
-        out = gmod.get_output(0).asnumpy()
+        out = gmod.get_output(0).numpy()
         tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
     def verify_rpc_gpu_remove_package_params(obj_format):
@@ -471,7 +484,7 @@ def test_remove_package_params():
         remote.upload(path_lib)
         loaded_lib = remote.load_module(path_lib)
         data = np.random.uniform(-1, 1, size=input_shape(mod)).astype("float32")
-        dev = remote.gpu()
+        dev = remote.cuda()
 
         # raw api
         gmod = loaded_lib["default"](dev)
@@ -483,7 +496,7 @@ def test_remove_package_params():
         set_input("data", tvm.nd.array(data, device=dev))
         load_params(loaded_params)
         run()
-        out = get_output(0).asnumpy()
+        out = get_output(0).numpy()
         tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
         # graph executor wrapper
@@ -492,7 +505,7 @@ def test_remove_package_params():
         gmod.set_input("data", data)
         gmod.load_params(loaded_params)
         gmod.run()
-        out = gmod.get_output(0).asnumpy()
+        out = gmod.get_output(0).numpy()
         tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
     for obj_format in [".so", ".tar"]:
@@ -523,19 +536,19 @@ def test_debug_graph_executor():
     get_output = gmod["get_output"]
     set_input("data", tvm.nd.array(data))
     run()
-    out = get_output(0).asnumpy()
+    out = get_output(0).numpy()
     tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
     # debug graph executor wrapper
     debug_g_mod = debug_executor.GraphModuleDebug(
         complied_graph_lib["debug_create"]("default", dev),
         [dev],
-        complied_graph_lib.get_json(),
+        complied_graph_lib.get_graph_json(),
         None,
     )
     debug_g_mod.set_input("data", data)
     debug_g_mod.run()
-    out = debug_g_mod.get_output(0).asnumpy()
+    out = debug_g_mod.get_output(0).numpy()
     tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
 
@@ -546,7 +559,7 @@ def test_cuda_graph_executor():
         complied_graph_lib = relay.build_module.build(mod, "cuda", params=params)
     data = np.random.uniform(-1, 1, size=input_shape(mod)).astype("float32")
 
-    dev = tvm.gpu()
+    dev = tvm.cuda()
     try:
         gmod = complied_graph_lib["cuda_graph_create"](dev)
     except:
@@ -557,14 +570,14 @@ def test_cuda_graph_executor():
     get_output = gmod["get_output"]
     set_input("data", tvm.nd.array(data))
     run()
-    out = get_output(0).asnumpy()
+    out = get_output(0).numpy()
     tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
     # cuda graph executor wrapper
     cu_gmod = cuda_graph_executor.GraphModuleCudaGraph(gmod)
     cu_gmod.set_input("data", data)
     cu_gmod.run()
-    out = cu_gmod.get_output(0).asnumpy()
+    out = cu_gmod.get_output(0).numpy()
     tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
 

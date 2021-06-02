@@ -34,7 +34,7 @@ def check_eval(expr, expected_result, mod=None, rtol=1e-07):
     intrp = create_executor(mod=mod, device=dev, target="llvm")
 
     result = intrp.evaluate(expr)
-    np.testing.assert_allclose(result.asnumpy(), expected_result, rtol=rtol)
+    np.testing.assert_allclose(result.numpy(), expected_result, rtol=rtol)
 
 
 def run_opt_pass(expr, passes):
@@ -147,8 +147,8 @@ def test_if_ref():
     ex = create_executor()
     f_res = ex.evaluate(f)(const(True))
     pe_f_res = ex.evaluate(pe_f)(const(True))
-    np.testing.assert_allclose(f_res.asnumpy(), 2 * np.ones_like(f_res.asnumpy()))
-    np.testing.assert_allclose(pe_f_res.asnumpy(), 2 * np.ones_like(pe_f_res.asnumpy()))
+    np.testing.assert_allclose(f_res.numpy(), 2 * np.ones_like(f_res.numpy()))
+    np.testing.assert_allclose(pe_f_res.numpy(), 2 * np.ones_like(pe_f_res.numpy()))
 
 
 def test_function_invalidate():
@@ -171,8 +171,8 @@ def test_function_invalidate():
     ex = create_executor()
     f_res = ex.evaluate(f)(const(True))
     pe_f_res = ex.evaluate(pe_f)(const(True))
-    np.testing.assert_allclose(f_res.asnumpy(), np.ones_like(f_res.asnumpy()))
-    np.testing.assert_allclose(pe_f_res.asnumpy(), np.ones_like(pe_f_res.asnumpy()))
+    np.testing.assert_allclose(f_res.numpy(), np.ones_like(f_res.numpy()))
+    np.testing.assert_allclose(pe_f_res.numpy(), np.ones_like(pe_f_res.numpy()))
 
 
 def test_head_cons():

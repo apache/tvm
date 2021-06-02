@@ -16,6 +16,8 @@
 # under the License.
 import numpy as np
 import pytest
+from io import StringIO
+import csv
 
 import tvm.testing
 from tvm.runtime import profiler_vm
@@ -33,9 +35,18 @@ def test_vm(target, dev):
     vm = profiler_vm.VirtualMachineProfiler(exe, dev)
 
     data = np.random.rand(1, 1, 28, 28).astype("float32")
-    report = vm.profile([data], func_name="main")
-    assert "fused_nn_softmax" in report
-    assert "Total time" in report
+    report = vm.profile(data, func_name="main")
+    assert "fused_nn_softmax" in str(report)
+    assert "Total" in str(report)
+
+    f = StringIO(report.csv())
+    reader = csv.reader(f, delimiter=",")
+    # force parsing
+    in_header = True
+    for row in reader:
+        if in_header:
+            assert "Hash" in row
+            in_header = False
 
 
 @tvm.testing.parametrize_targets
@@ -43,9 +54,10 @@ def test_graph_executor(target, dev):
     mod, params = mlp.get_workload(1)
 
     exe = relay.build(mod, target, params=params)
-    gr = debug_executor.create(exe.get_json(), exe.lib, dev)
+    gr = debug_executor.create(exe.get_graph_json(), exe.lib, dev)
 
     data = np.random.rand(1, 1, 28, 28).astype("float32")
     report = gr.profile(data=data)
-    assert "fused_nn_softmax" in report
-    assert "Total time" in report
+    assert "fused_nn_softmax" in str(report)
+    assert "Total" in str(report)
+    assert "Hash" in str(report)

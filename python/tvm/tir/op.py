@@ -264,7 +264,7 @@ def any(*args, span=None):
 
 
 def all(*args, span=None):
-    """Create a new experssion of the intersection of all conditions in the
+    """Create a new expression of the intersection of all conditions in the
       arguments
 
     Parameters
@@ -750,6 +750,23 @@ def rsqrt(x):
         The result.
     """
     return call_intrin(x.dtype, "tir.rsqrt", x)
+
+
+def clz(x):
+    """Count leading zero bits of an integer x.
+
+    Parameters
+    ----------
+    x : PrimExpr
+        Input 32 or 64 bit integer.
+        The result is undefined if the input is 0.
+
+    Returns
+    -------
+    y : PrimExpr
+        The result.
+    """
+    return call_intrin("int32", "tir.clz", x)
 
 
 def floor(x, span=None):

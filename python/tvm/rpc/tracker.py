@@ -41,14 +41,15 @@ List of available APIs:
 """
 # pylint: disable=invalid-name
 
+import asyncio
 import heapq
 import logging
 import socket
 import threading
-import multiprocessing
 import errno
 import struct
 import json
+from tvm.contrib.popen_pool import PopenWorker
 
 try:
     from tornado import ioloop
@@ -181,7 +182,7 @@ class TCPEventHandler(tornado_util.TCPHandler):
         return self._info
 
     def _init_conn(self, message):
-        """Initialie the connection"""
+        """Initialize the connection"""
         if len(message) != 4:
             logger.warning("Invalid connection from %s", self.name())
             self.close()
@@ -362,14 +363,55 @@ class TrackerServerHandler(object):
 
 
 def _tracker_server(listen_sock, stop_key):
+    asyncio.set_event_loop(asyncio.new_event_loop())
     handler = TrackerServerHandler(listen_sock, stop_key)
     handler.run()
 
 
-class Tracker(object):
-    """Start RPC tracker on a seperate process.
+class PopenTrackerServerState(object):
+    """Internal PopenTrackerServer State"""
 
-    Python implementation based on multi-processing.
+    current = None
+
+    def __init__(self, host, port=9190, port_end=9199, silent=False):
+        if silent:
+            logger.setLevel(logging.WARN)
+
+        sock = socket.socket(base.get_addr_family((host, port)), socket.SOCK_STREAM)
+        self.port = None
+        self.stop_key = base.random_key("tracker")
+        for my_port in range(port, port_end):
+            try:
+                sock.bind((host, my_port))
+                self.port = my_port
+                break
+            except socket.error as sock_err:
+                if sock_err.errno in [errno.EADDRINUSE]:
+                    continue
+                raise sock_err
+        if not self.port:
+            raise ValueError("cannot bind to any port in [%d, %d)" % (port, port_end))
+        logger.info("bind to %s:%d", host, self.port)
+        sock.listen(1)
+        self.thread = threading.Thread(target=_tracker_server, args=(sock, self.stop_key))
+        self.thread.start()
+        self.host = host
+
+
+def _popen_start_tracker_server(host, port=9190, port_end=9199, silent=False):
+    # This is a function that will be sent to the
+    # Popen worker to run on a separate process.
+    # Create and start the server in a different thread
+    state = PopenTrackerServerState(host, port, port_end, silent)
+    PopenTrackerServerState.current = state
+    # returns the port so that the main can get the port number.
+    return (state.port, state.stop_key)
+
+
+class Tracker(object):
+    """Start RPC tracker on a separate process.
+
+    Python implementation based on PopenWorker.
 
     Parameters
     ----------
@@ -386,35 +428,27 @@ class Tracker(object):
         Whether run in silent mode
     """
 
-    def __init__(self, host, port=9190, port_end=9199, silent=False):
+    def __init__(self, host="0.0.0.0", port=9190, port_end=9199, silent=False):
         if silent:
             logger.setLevel(logging.WARN)
-
-        sock = socket.socket(base.get_addr_family((host, port)), socket.SOCK_STREAM)
-        self.port = None
-        self.stop_key = base.random_key("tracker")
-        for my_port in range(port, port_end):
-            try:
-                sock.bind((host, my_port))
-                self.port = my_port
-                break
-            except socket.error as sock_err:
-                if sock_err.errno in [98, 48]:
-                    continue
-                raise sock_err
-        if not self.port:
-            raise ValueError("cannot bind to any port in [%d, %d)" % (port, port_end))
-        logger.info("bind to %s:%d", host, self.port)
-        sock.listen(1)
-        self.proc = multiprocessing.Process(target=_tracker_server, args=(sock, self.stop_key))
-        self.proc.start()
+        self.proc = PopenWorker()
+        # send the function
+        self.proc.send(
+            _popen_start_tracker_server,
+            [
+                host,
+                port,
+                port_end,
+                silent,
+            ],
+        )
+        # receive the port
+        self.port, self.stop_key = self.proc.recv()
         self.host = host
-        # close the socket on this process
-        sock.close()
 
     def _stop_tracker(self):
         sock = socket.socket(base.get_addr_family((self.host, self.port)), socket.SOCK_STREAM)
-        sock.connect((self.host, self.port))
+        sock.connect(("127.0.0.1", self.port))
         sock.sendall(struct.pack("<i", base.RPC_TRACKER_MAGIC))
         magic = struct.unpack("<i", base.recvall(sock, 4))[0]
         assert magic == base.RPC_TRACKER_MAGIC
@@ -427,11 +461,14 @@ class Tracker(object):
         if self.proc:
             if self.proc.is_alive():
                 self._stop_tracker()
-                self.proc.join(1)
+            self.proc.join(0.1)
             if self.proc.is_alive():
                 logger.info("Terminating Tracker Server...")
-                self.proc.terminate()
+                self.proc.kill()
             self.proc = None
 
     def __del__(self):
-        self.terminate()
+        try:
+            self.terminate()
+        except TypeError:
+            pass

@@ -74,6 +74,29 @@ def test_batch_flatten_rewrite():
     relay.analysis.post_order_visit(qmod["main"], _check_batch_flatten)
 
 
+def test_batch_matmul_rewrite():
+    data = relay.var("data", shape=(1, 4, 16, 16))
+    data2 = relay.sigmoid(relay.var("data", shape=(4, 16, 64)))
+    out = relay.nn.conv2d(data, relay.var("weight"), kernel_size=(3, 3), padding=(1, 1), channels=8)
+
+    out = relay.nn.batch_flatten(out)
+    out = relay.reshape(out, [1, 32, 64])
+    out = relay.nn.batch_matmul(out, data2)
+
+    qmod = quantize_and_build(out)
+
+    def _check_batch_matmul(node):
+        if isinstance(node, Call):
+
+            if node.op.name in ["nn.batch_matmul", "nn.conv2d"]:
+                assert node.checked_type.dtype == "int32"
+            elif node.op.name == "nn.batch_flatten":
+                assert node.checked_type.dtype == "int8"
+
+    # check if batch_matmul is quantized
+    relay.analysis.post_order_visit(qmod["main"], _check_batch_matmul)
+
+
 def get_calibration_dataset(mod, input_name):
     dataset = []
     input_shape = [int(x) for x in mod["main"].checked_type.arg_types[0].shape]
@@ -103,6 +126,13 @@ def test_calibrate_memory_bound():
 
     num_cpu = multiprocessing.cpu_count()
     with relay.quantize.qconfig(calibrate_mode="kl_divergence", calibrate_chunk_by=num_cpu):
+        relay.quantize.quantize(mod, params, dataset)
+
+
+def test_calibrate_percentile():
+    mod, params = testing.synthetic.get_workload()
+    dataset = get_calibration_dataset(mod, "data")
+    with relay.quantize.qconfig(calibrate_mode="percentile"):
         relay.quantize.quantize(mod, params, dataset)
 
 
@@ -160,9 +190,7 @@ def verify_partition(mod, params):
 
     partitioned_mod_result = _eval_mod(partitioned_mod)
     unpartitioned_mod_result = _eval_mod(unpartitioned_mod)
-    tvm.testing.assert_allclose(
-        unpartitioned_mod_result.asnumpy(), partitioned_mod_result.asnumpy()
-    )
+    tvm.testing.assert_allclose(unpartitioned_mod_result.numpy(), partitioned_mod_result.numpy())
 
 
 def test_add_partition():
@@ -336,16 +364,52 @@ def test_left_shift_negative():
     opf.visit(qnn_mod["main"])
     assert len(opf.ops) > 0, 'Broken case, can\'t find any "left_shift" operators.'
     for left_shift_op in opf.ops:
-        shift_amount = left_shift_op.args[1].data.asnumpy()
+        shift_amount = left_shift_op.args[1].data.numpy()
         assert shift_amount >= 0, "Shift amount must be non-negative."
+
+
+def test_dense_conv2d_rewrite():
+    n, c, h, w = 1, 16, 64, 64
+    data = relay.var("data", relay.TensorType((n, c, h, w)))
+    inp = relay.var("inp", relay.TensorType((n, c * h * w)))
+    weight_T = relay.const(np.random.random((n, c * h * w)), dtype="float32")
+    bias = relay.const(np.random.random((n,)), dtype="float32")
+    conv_w = relay.const(np.random.random((16, 16, 3, 3)), dtype="float32")
+
+    dense_o = relay.nn.dense(inp, weight_T)
+    linear_o = relay.nn.bias_add(dense_o, bias)
+    conv2d_o = relay.nn.conv2d(data, conv_w, kernel_size=(3, 3), padding=(1, 1), channels=16)
+    result = relay.Tuple((linear_o, conv2d_o))
+
+    mod = tvm.IRModule.from_expr(result)
+    with tvm.transform.PassContext(opt_level=3):
+        with relay.quantize.qconfig(
+            calibrate_mode="global_scale", global_scale=8.0, skip_dense_layer=False
+        ):
+            qnn_mod = relay.quantize.quantize(mod)
+
+    def _check_dense(node):
+        if isinstance(node, Call):
+            if node.op.name == "nn.dense":
+                assert node.args[0].checked_type.dtype == "int8"
+                assert node.args[1].checked_type.dtype == "int8"
+                assert node.checked_type.dtype == "int32"
+            if node.op.name == "nn.conv2d":
+                assert node.args[0].checked_type.dtype == "float32"
+                assert node.args[1].checked_type.dtype == "float32"
+                assert node.checked_type.dtype == "float32"
+
+    relay.analysis.post_order_visit(qnn_mod["main"], _check_dense)
 
 
 if __name__ == "__main__":
     test_mul_rewrite()
     test_batch_flatten_rewrite()
+    test_batch_matmul_rewrite()
     test_calibrate_target(False)
     test_calibrate_target(True)
     test_calibrate_memory_bound()
+    test_calibrate_percentile()
 
     test_add_partition()
     test_conv2d_partition()
@@ -354,3 +418,4 @@ if __name__ == "__main__":
     test_unquantizable_core_partition()
     test_unquantizable_suffix_partition()
     test_left_shift_negative()
+    test_dense_conv2d_rewrite()

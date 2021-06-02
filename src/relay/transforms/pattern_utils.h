@@ -498,6 +498,11 @@ inline Expr FastTanh(Expr e) {
   return Call(op, {e});
 }
 
+inline Expr FastSoftmax(Expr e, tvm::Attrs attr) {
+  static const Op& op = Op::Get("nn.fast_softmax");
+  return Call(op, {e}, attr);
+}
+
 inline Expr Log(Expr e) {
   static const Op& op = Op::Get("log");
   return Call(op, {e});
@@ -670,13 +675,13 @@ static inline Expr Reshape(Expr data, Array<Integer> newshape) {
 }
 
 static inline Expr AvgPool2D(Expr data, Array<IndexExpr> pool_size, Array<IndexExpr> strides,
-                             Array<IndexExpr> padding, std::string layout, bool ceil_mode,
-                             bool count_include_pad) {
-  return MakeAvgPool<AvgPool2DAttrs>(data, pool_size, strides, padding, layout, ceil_mode,
+                             Array<IndexExpr> dilation, Array<IndexExpr> padding,
+                             std::string layout, bool ceil_mode, bool count_include_pad) {
+  return MakeAvgPool<AvgPool2DAttrs>(data, pool_size, strides, dilation, padding, layout, ceil_mode,
                                      count_include_pad, "nn.avg_pool2d");
 }
 
-static inline Expr Pad(Expr data, Array<Array<IndexExpr>> pad_width, double pad_value,
+static inline Expr Pad(Expr data, Array<Array<IndexExpr>> pad_width, Expr pad_value,
                        std::string pad_mode) {
   Array<Array<Integer>> pad_width_int;
   for (size_t i = 0; i < pad_width.size(); ++i) {

@@ -294,7 +294,7 @@ def check_bool_expr_is_true(bool_expr, vranges, cond=None):
         sch = tvm.te.create_schedule(A.op)
         mod = tvm.build(sch, [A])
         mod(*args)
-        return args[0].asnumpy()
+        return args[0].numpy()
 
     res = _run_expr(bool_expr, vranges)
     if not np.all(res):
@@ -464,9 +464,9 @@ def _compose(args, decs):
 
 
 def uses_gpu(*args):
-    """Mark to differentiate tests that use the GPU is some capacity.
+    """Mark to differentiate tests that use the GPU in some capacity.
 
-    These tests will be run on CPU-only test nodes and on test nodes with GPUS.
+    These tests will be run on CPU-only test nodes and on test nodes with GPUs.
     To mark a test that must have a GPU present to run, use
     :py:func:`tvm.testing.requires_gpu`.
 
@@ -490,7 +490,14 @@ def requires_gpu(*args):
         Function to mark
     """
     _requires_gpu = [
-        pytest.mark.skipif(not tvm.gpu().exist, reason="No GPU present"),
+        pytest.mark.skipif(
+            not tvm.cuda().exist
+            and not tvm.rocm().exist
+            and not tvm.opencl().exist
+            and not tvm.metal().exist
+            and not tvm.vulkan().exist,
+            reason="No GPU present",
+        ),
         *uses_gpu(),
     ]
     return _compose(args, _requires_gpu)
@@ -499,7 +506,7 @@ def requires_gpu(*args):
 def requires_cuda(*args):
     """Mark a test as requiring the CUDA runtime.
 
-    This also marks the test as requiring a gpu.
+    This also marks the test as requiring a cuda gpu.
 
     Parameters
     ----------
@@ -618,7 +625,7 @@ def requires_tensorcore(*args):
     _requires_tensorcore = [
         pytest.mark.tensorcore,
         pytest.mark.skipif(
-            not tvm.gpu().exist or not nvcc.have_tensorcore(tvm.gpu(0).compute_version),
+            not tvm.cuda().exist or not nvcc.have_tensorcore(tvm.cuda(0).compute_version),
             reason="No tensorcore present",
         ),
         *requires_gpu(),
@@ -703,7 +710,7 @@ def parametrize_targets(*args):
     Parameters
     ----------
     f : function
-        Function to parametrize. Must be of the form `def test_xxxxxxxxx(target, device)`:,
+        Function to parametrize. Must be of the form `def test_xxxxxxxxx(target, dev)`:,
         where `xxxxxxxxx` is any name.
     targets : list[str], optional
         Set of targets to run against. If not supplied,

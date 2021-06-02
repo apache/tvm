@@ -29,6 +29,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "../source_utils.h"
 #include "opencl_common.h"
 
 namespace tvm {
@@ -105,8 +106,13 @@ OpenCLModuleNode::~OpenCLModuleNode() {
   for (cl_kernel k : kernels_) {
     OPENCL_CALL(clReleaseKernel(k));
   }
-  if (program_) {
-    OPENCL_CALL(clReleaseProgram(program_));
+  // free the programs
+  for (auto& kv : programs_) {
+    for (auto& program : kv.second) {
+      if (program) {
+        OPENCL_CALL(clReleaseProgram(program));
+      }
+    }
   }
 }
 
@@ -166,7 +172,6 @@ std::string OpenCLModuleNode::GetSource(const std::string& format) {
 void OpenCLModuleNode::Init() {
   workspace_ = GetGlobalWorkspace();
   workspace_->Init();
-  device_built_flag_.resize(workspace_->devices.size(), false);
   // initialize the kernel id, need to lock global table.
   std::lock_guard<std::mutex> lock(workspace_->mu);
   for (const auto& kv : fmap_) {
@@ -181,28 +186,39 @@ void OpenCLModuleNode::Init() {
     e.version = workspace_->timestamp++;
     kid_map_[key] = e;
   }
+
+  // split into source artifacts for each kernel
+  parsed_kernels_ = SplitKernels(GetSource("cl"));
+  ICHECK(!parsed_kernels_.empty()) << "The OpenCL module expects a kernel delimited "
+                                   << "source from code generation, but no kernel "
+                                   << "delimiter was found.";
+  ICHECK_EQ(workspace_->num_registered_kernels, parsed_kernels_.size())
+      << "The number of registered kernels does not match number of parsed kernel sources";
+  // zero initialize cl_program pointers for each device kernel
+  for (auto& kv : parsed_kernels_) {
+    programs_.insert({kv.first, std::vector<cl_program>(workspace_->devices.size(), nullptr)});
+  }
 }
 
 cl_kernel OpenCLModuleNode::InstallKernel(cl::OpenCLWorkspace* w, cl::OpenCLThreadEntry* t,
                                           const std::string& func_name, const KTRefEntry& e) {
   std::lock_guard<std::mutex> lock(build_lock_);
   int device_id = t->device.device_id;
-  if (!device_built_flag_[device_id]) {
+  if (programs_[func_name][device_id] == nullptr) {
     // create program
     if (fmt_ == "cl") {
-      if (program_ == nullptr) {
-        const char* s = data_.c_str();
-        size_t len = data_.length();
-        cl_int err;
-        program_ = clCreateProgramWithSource(w->context, 1, &s, &len, &err);
-        OPENCL_CHECK_ERROR(err);
-      }
+      const char* s = parsed_kernels_[func_name].c_str();
+      size_t len = parsed_kernels_[func_name].length();
+      cl_int err;
+      programs_[func_name][device_id] = clCreateProgramWithSource(w->context, 1, &s, &len, &err);
+      OPENCL_CHECK_ERROR(err);
     } else if (fmt_ == "xclbin" || fmt_ == "awsxclbin" || fmt_ == "aocx") {
       const unsigned char* s = (const unsigned char*)data_.c_str();
       size_t len = data_.length();
       cl_int err;
       cl_device_id dev = w->devices[device_id];
-      program_ = clCreateProgramWithBinary(w->context, 1, &dev, &len, &s, NULL, &err);
+      programs_[func_name][device_id] =
+          clCreateProgramWithBinary(w->context, 1, &dev, &len, &s, NULL, &err);
       OPENCL_CHECK_ERROR(err);
     } else {
       LOG(FATAL) << "Unknown OpenCL format " << fmt_;
@@ -210,20 +226,21 @@ cl_kernel OpenCLModuleNode::InstallKernel(cl::OpenCLWorkspace* w, cl::OpenCLThre
     // build program
     cl_int err;
     cl_device_id dev = w->devices[device_id];
-    err = clBuildProgram(program_, 1, &dev, nullptr, nullptr, nullptr);
+    err = clBuildProgram(programs_[func_name][device_id], 1, &dev, nullptr, nullptr, nullptr);
     if (err != CL_SUCCESS) {
       size_t len;
       std::string log;
-      clGetProgramBuildInfo(program_, dev, CL_PROGRAM_BUILD_LOG, 0, nullptr, &len);
+      clGetProgramBuildInfo(programs_[func_name][device_id], dev, CL_PROGRAM_BUILD_LOG, 0, nullptr,
+                            &len);
       log.resize(len);
-      clGetProgramBuildInfo(program_, dev, CL_PROGRAM_BUILD_LOG, len, &log[0], nullptr);
-      LOG(FATAL) << "OpenCL build error for device=" << dev << log;
+      clGetProgramBuildInfo(programs_[func_name][device_id], dev, CL_PROGRAM_BUILD_LOG, len,
+                            &log[0], nullptr);
+      LOG(FATAL) << "OpenCL build error for device=" << dev << "\n" << log;
     }
-    device_built_flag_[device_id] = true;
   }
   // build kernel
   cl_int err;
-  cl_kernel kernel = clCreateKernel(program_, func_name.c_str(), &err);
+  cl_kernel kernel = clCreateKernel(programs_[func_name][device_id], func_name.c_str(), &err);
   OPENCL_CHECK_ERROR(err);
   t->kernel_table[e.kernel_id].kernel = kernel;
   t->kernel_table[e.kernel_id].version = e.version;

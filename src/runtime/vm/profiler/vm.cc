@@ -42,7 +42,7 @@ namespace vm {
 PackedFunc VirtualMachineDebug::GetFunction(const std::string& name,
                                             const ObjectPtr<Object>& sptr_to_self) {
   if (name == "profile") {
-    return TypedPackedFunc<String(String)>([sptr_to_self, this](String arg_name) {
+    return TypedPackedFunc<profiling::Report(String)>([sptr_to_self, this](String arg_name) {
       std::vector<Device> devices;
       for (auto dev : devices_) {
         if (dev.device_type > 0) {
@@ -104,8 +104,24 @@ void VirtualMachineDebug::InvokePacked(Index packed_index, const PackedFunc& fun
       }
     }
 
-    prof_.StartCall(packed_index_map_[packed_index], dev,
-                    {{"Argument Shapes", profiling::ShapeString(shapes)}});
+    std::unordered_map<std::string, ObjectRef> metrics;
+
+    ICHECK(exec_->op_attrs.find(packed_index) != exec_->op_attrs.end())
+        << packed_index_map_[packed_index] << " not found in op attrs";
+
+    auto& op_attrs = exec_->op_attrs.at(packed_index);
+    for (auto p : op_attrs) {
+      if (std::string(p.first).find("layout") != std::string::npos) {
+        metrics[p.first] = p.second;
+      }
+    }
+    auto it = op_attrs.find("hash");
+    if (it != op_attrs.end()) {
+      metrics["Hash"] = Downcast<String>((*it).second);
+    }
+    metrics["Argument Shapes"] = profiling::ShapeString(shapes);
+
+    prof_.StartCall(packed_index_map_[packed_index], dev, metrics);
   }
   VirtualMachine::InvokePacked(packed_index, func, arg_count, output_size, args);
   if (prof_.IsRunning()) {

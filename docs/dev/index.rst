@@ -24,10 +24,16 @@ This page is organized as follows:
 
 - The `Example Compilation Flow`_ gives an overview of the steps that TVM takes to turn a high level description of a model into a deployable module.
   To get started, please read this section first.
+
 - The `Logical Architecture Components`_ section describes the logical components.
   The sections after are specific guides focused on each logical component, organized
   by the component's name.
-- Feel free to also checkout the :ref:`dev-how-to` for useful development tips.
+
+- The `Device/Target Interactions`_ section describes how TVM
+  interacts with each supported physical device and code-generation
+  target.
+
+- Feel free to also check out the :ref:`dev-how-to` for useful development tips.
 
 This guide provides a few complementary views of the architecture.
 First, we review a single end-to-end compilation flow and discuss the key data structures and the transformations.
@@ -42,7 +48,7 @@ In this guide, we will study an example compilation flow in the compiler. The fi
 
 - Import: The frontend component ingests a model into an IRModule, which contains a collection of functions that internally represent the model.
 - Transformation: The compiler transforms an IRModule to another functionally equivalent or approximately
-  equivalent(e.g. in the case of quantization) IRModule. Many of the transformatons are target (backend) independent.
+  equivalent(e.g. in the case of quantization) IRModule. Many of the transformations are target (backend) independent.
   We also allow target to affect the configuration of the transformation pipeline.
 - Target Translation: The compiler translates(codegen) the IRModule to an executable format specified by the target.
   The target translation result is encapsulated as a `runtime.Module` that can be exported, loaded, and executed on the target runtime environment.
@@ -103,7 +109,7 @@ Many low-level optimizations can be handled in the target phase by the LLVM, CUD
 Search-space and Learning-based Transformations
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The transformation passes we described so far are deterministic and rule-based. One design goal of the TVM stack is to support high-performance code optimizations for different hardware platforms. To do so, we will need to investigate as many optimizations choices as possible, including but not limited to, multi-dimensional tensor access, loop tiling behavior, special accelerator memory hierarchy, and threading.
+The transformation passes we described so far are deterministic and rule-based. One design goal of the TVM stack is to support high-performance code optimizations for different hardware platforms. To do so, we will need to investigate as many optimization choices as possible, including but not limited to, multi-dimensional tensor access, loop tiling behavior, special accelerator memory hierarchy, and threading.
 
 It is hard to define a heuristic to make all of the choices. Instead, we will take a search and learning-based approach.
 We first define a collection of actions we can take to transform a program. Example actions include loop transformations, inlining,
@@ -144,10 +150,10 @@ The main goal of TVM's runtime is to provide a minimal API for loading and execu
     import tvm
     # Example runtime execution program in python, with type annotated
     mod: tvm.runtime.Module = tvm.runtime.load_module("compiled_artifact.so")
-    arr: tvm.runtime.NDArray = tvm.nd.array([1, 2, 3], device=tvm.gpu(0))
+    arr: tvm.runtime.NDArray = tvm.nd.array([1, 2, 3], device=tvm.cuda(0))
     fun: tvm.runtime.PackedFunc = mod["addone"]
     fun(a)
-    print(a.asnumpy())
+    print(a.numpy())
 
 
 :py:class:`tvm.runtime.Module` encapsulates the result of compilation. A runtime.Module contains a GetFunction method to obtain PackedFuncs by name.
@@ -164,15 +170,15 @@ The above example only deals with a simple `addone` function. The code snippet b
    import tvm
    # Example runtime execution program in python, with types annotated
    factory: tvm.runtime.Module = tvm.runtime.load_module("resnet18.so")
-   # Create a stateful graph execution module for resnet18 on gpu(0)
-   gmod: tvm.runtime.Module = factory["resnet18"](tvm.gpu(0))
+   # Create a stateful graph execution module for resnet18 on cuda(0)
+   gmod: tvm.runtime.Module = factory["resnet18"](tvm.cuda(0))
    data: tvm.runtime.NDArray = get_input_data()
    # set input
    gmod["set_input"](0, data)
    # execute the model
    gmod["run"]()
    # get the output
-   result = gmod["get_output"](0).asnumpy()
+   result = gmod["get_output"](0).numpy()
 
 The main take away is that runtime.Module and runtime.PackedFunc are sufficient to encapsulate both operator level programs (such as addone), as well as the end-to-end models.
 
@@ -239,7 +245,7 @@ for learning-based optimizations.
 
 
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 2
 
    runtime
    debugger

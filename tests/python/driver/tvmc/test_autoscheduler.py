@@ -14,10 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import json
 import pytest
 import os
-import tarfile
 
 from os import path
 
@@ -26,27 +24,29 @@ from tvm.driver import tvmc
 
 
 def _get_tasks(model):
-    mod, params = tvmc.frontends.load_model(model)
-    tasks, weights = tvmc.autotuner.autoscheduler_get_tuning_tasks(mod, params, "llvm")
+    tvmc_model = tvmc.frontends.load_model(model)
+    tasks, weights = tvmc.autotuner.autoscheduler_get_tuning_tasks(
+        tvmc_model.mod, tvmc_model.params, "llvm"
+    )
     return (tasks, weights)
 
 
-def _autoscheduler_test_helper(
-    model, tmpdir_name, tasks_weights=None, early_stopping=1, tuning_records=None
-):
-    tasks, weights = tasks_weights if tasks_weights else _get_tasks(model)
+def _autoscheduler_test_helper(model, tmpdir_name, early_stopping=1, prior_records=None):
+    tvmc_model = tvmc.frontends.load_model(model)
     log_file = os.path.join(tmpdir_name, "autoscheduler.json")
 
-    tuning_options = auto_scheduler.TuningOptions(
-        num_measure_trials=1,
-        measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
-        runner="local",
-        builder="local",
-        verbose=0,
-        early_stopping=early_stopping,
-    )
+    hardware_params = auto_scheduler.HardwareParams(num_cores=4, target="llvm")
 
-    tvmc.autotuner.schedule_tasks(tasks[:1], weights[:1], tuning_options, tuning_records)
+    tvmc.tune(
+        tvmc_model,
+        target="llvm",
+        tuning_records=log_file,
+        prior_records=prior_records,
+        early_stopping=early_stopping,
+        enable_autoscheduler=True,
+        trials=2,
+        hardware_params=hardware_params,
+    )
 
     # testing whether the log file was produced
     assert path.exists(log_file), "autoscheduler log file should exist"
@@ -59,10 +59,10 @@ def _autoscheduler_test_helper(
     return log_file
 
 
-def test_get_tuning_tasks(onnx_resnet50):
-    pytest.importorskip("onnx")
+def test_get_tuning_tasks(keras_simple):
+    pytest.importorskip("tensorflow")
 
-    tasks, weights = _get_tasks(onnx_resnet50)
+    tasks, weights = _get_tasks(keras_simple)
     expected_task_type = auto_scheduler.SearchTask
 
     assert type(tasks) is list
@@ -70,32 +70,25 @@ def test_get_tuning_tasks(onnx_resnet50):
     assert all([type(x) is expected_task_type for x in tasks]) is True
 
 
-def test_tune_tasks(onnx_resnet50, tmpdir_factory):
-    pytest.importorskip("onnx")
+def test_tune_tasks(keras_simple, tmpdir_factory):
+    pytest.importorskip("tensorflow")
 
     tmpdir_name = tmpdir_factory.mktemp("data")
-    _autoscheduler_test_helper(onnx_resnet50, tmpdir_name)
+    _autoscheduler_test_helper(keras_simple, tmpdir_name)
 
 
-def test_tune_tasks__tuning_records(onnx_resnet50, tmpdir_factory):
-    pytest.importorskip("onnx")
+def test_tune_tasks__tuning_records(keras_simple, tmpdir_factory):
+    pytest.importorskip("tensorflow")
 
     tmpdir_name = tmpdir_factory.mktemp("data")
-    output_log_phase_1 = _autoscheduler_test_helper(onnx_resnet50, tmpdir_name)
+    output_log_phase_1 = _autoscheduler_test_helper(keras_simple, tmpdir_name)
 
     # Exercises transfer learning by making sure a previous log exists
-    _autoscheduler_test_helper(onnx_resnet50, tmpdir_name, tuning_records=output_log_phase_1)
+    _autoscheduler_test_helper(keras_simple, tmpdir_name, prior_records=output_log_phase_1)
 
 
-def test_tune_tasks__no_early_stopping(onnx_resnet50, tmpdir_factory):
-    pytest.importorskip("onnx")
-
-    tmpdir_name = tmpdir_factory.mktemp("data")
-    _autoscheduler_test_helper(onnx_resnet50, tmpdir_name, tasks_weights=None, early_stopping=None)
-
-
-def test_tune_tasks__no_tuning_records(onnx_resnet50, tmpdir_factory):
-    pytest.importorskip("onnx")
+def test_tune_tasks__no_early_stopping(keras_simple, tmpdir_factory):
+    pytest.importorskip("tensorflow")
 
     tmpdir_name = tmpdir_factory.mktemp("data")
-    _autoscheduler_test_helper(onnx_resnet50, tmpdir_name, tasks_weights=None, tuning_records=None)
+    _autoscheduler_test_helper(keras_simple, tmpdir_name, early_stopping=None)

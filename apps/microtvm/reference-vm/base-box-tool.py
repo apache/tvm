@@ -358,6 +358,8 @@ def test_command(args):
 
 
 def release_command(args):
+    vm_name = f"tlcpack/microtvm-{args.platform}-{args.platform_version}"
+
     if not args.skip_creating_release_version:
         subprocess.check_call(
             [
@@ -365,7 +367,7 @@ def release_command(args):
                 "cloud",
                 "version",
                 "create",
-                f"tlcpack/microtvm-{args.platform}",
+                vm_name,
                 args.release_version,
             ]
         )
@@ -379,7 +381,7 @@ def release_command(args):
                 "cloud",
                 "publish",
                 "-f",
-                f"tlcpack/microtvm-{args.platform}",
+                vm_name,
                 args.release_version,
                 provider_name,
                 os.path.join(
@@ -392,23 +394,11 @@ def release_command(args):
         )
 
 
-ALL_COMMANDS = {
-    "build": build_command,
-    "test": test_command,
-    "release": release_command,
-}
-
-
 def parse_args():
     parser = argparse.ArgumentParser(
         description="Automates building, testing, and releasing a base box"
     )
-    parser.add_argument(
-        "command",
-        default=",".join(ALL_COMMANDS),
-        choices=ALL_COMMANDS,
-        help="Action or actions (comma-separated) to perform.",
-    )
+    subparsers = parser.add_subparsers(help="Action to perform.")
     parser.add_argument(
         "platform",
         help="Name of the platform VM to act on. Must be a sub-directory of this directory.",
@@ -417,48 +407,58 @@ def parse_args():
         "--provider",
         choices=ALL_PROVIDERS,
         action="append",
-        default=[],
-        help="Name of the provider or providers to act on; if not specified, act on all",
+        default=list(ALL_PROVIDERS),
+        help="Name of the provider or providers to act on; if not specified, act on all.",
     )
-    parser.add_argument(
+
+    parser_build = subparsers.add_parser("build", help="Build a base box.")
+    parser_build.set_defaults(func=build_command)
+    parser_test = subparsers.add_parser("test", help="Test a base box before release.")
+    parser_test.set_defaults(func=test_command)
+    parser_release = subparsers.add_parser("release", help="Release base box to cloud.")
+    parser_release.set_defaults(func=release_command)
+
+    parser_build.add_argument(
+        "--debug-packer",
+        action="store_true",
+        help=("Run packer in debug mode, and write log to the base-box directory."),
+    )
+    parser_test.add_argument(
         "--skip-build",
         action="store_true",
         help=(
-            "For use with the 'test' command. If given, assume a box has already been built in "
+            "If given, assume a box has already been built in "
             "the release-test subdirectory. Attach a USB device to this box and execute the "
             "release test script--do not delete it."
         ),
     )
-    parser.add_argument(
+    parser_test.add_argument(
         "--test-device-serial",
         help=(
             "If given, attach the test device with this USB serial number. Corresponds to the "
             "iSerial field from `lsusb -v` output."
         ),
     )
-    parser.add_argument(
+    parser_test.add_argument(
+        "--microtvm-platform",
+        choices=ALL_MICROTVM_PLATFORMS,
+        required=True,
+        help="MicroTVM platfrom used for testing.",
+    )
+    parser_release.add_argument(
         "--release-version",
+        required=True,
         help="Version to release, in the form 'x.y.z'. Must be specified with release.",
     )
-    parser.add_argument(
+    parser_release.add_argument(
         "--skip-creating-release-version",
         action="store_true",
-        help="With release, skip creating the version and just upload for this provider.",
+        help="Skip creating the version and just upload for this provider.",
     )
-    parser.add_argument(
-        "--debug-packer",
-        action="store_true",
-        help=(
-            "When the build command is given, run packer in debug mode, and write log to the "
-            "base-box directory"
-        ),
-    )
-
-    parser.add_argument(
-        "--microtvm-platform",
-        default="stm32f746xx",
-        choices=ALL_MICROTVM_PLATFORMS,
-        help="For use with 'test' command. MicroTVM platfrom that are used for testing.",
+    parser_release.add_argument(
+        "--platform-version",
+        required=True,
+        help="Platform version to release, in the form 'x.y'.",
     )
 
     return parser.parse_args()
@@ -466,21 +466,11 @@ def parse_args():
 
 def main():
     args = parse_args()
+
     if os.path.sep in args.platform or not os.path.isdir(os.path.join(THIS_DIR, args.platform)):
         sys.exit(f"<platform> must be a sub-direcotry of {THIS_DIR}; got {args.platform}")
 
-    if not args.provider:
-        args.provider = list(ALL_PROVIDERS)
-
-    todo = []
-    for phase in args.command.split(","):
-        if phase not in ALL_COMMANDS:
-            sys.exit(f"unknown command: {phase}")
-
-        todo.append(ALL_COMMANDS[phase])
-
-    for phase in todo:
-        phase(args)
+    args.func(args)
 
 
 if __name__ == "__main__":

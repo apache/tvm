@@ -75,7 +75,7 @@ def verify_dynamic_csrmv(batch, in_dim, out_dim, use_bias=True):
         assert a.indptr.dtype == A.indptr.dtype
         f = tvm.build(s, [nr, A.data, A.indices, A.indptr, B, C, D], device, name="csrmv")
         f(_nr, a.data, a.indices, a.indptr, b, c, d)
-        tvm.testing.assert_allclose(d.asnumpy(), d_np, rtol=1e-4, atol=1e-4)
+        tvm.testing.assert_allclose(d.numpy(), d_np, rtol=1e-4, atol=1e-4)
 
     for device in ["llvm"]:
         check_device(device)
@@ -119,7 +119,7 @@ def verify_dynamic_csrmm(batch, in_dim, out_dim, use_bias=True):
         f = tvm.build(s, [nr, A.data, A.indices, A.indptr, B, C, D], device, name="csrmm")
 
         f(_nr, a.data, a.indices, a.indptr, b, c, d)
-        tvm.testing.assert_allclose(d.asnumpy(), d_np, rtol=1e-2, atol=1e-2)
+        tvm.testing.assert_allclose(d.numpy(), d_np, rtol=1e-2, atol=1e-2)
 
     for device in ["llvm"]:
         check_device(device)
@@ -163,7 +163,7 @@ def verify_dense_si(batch, in_dim, out_dim, use_bias=True, dtype="float32"):
         d = tvm.nd.array(np.zeros(get_const_tuple(D.shape), dtype=dtype), dev)
         f = tvm.build(s, [A.data, A.indices, A.indptr, B, C, D], device, name="dense")
         f(a.data, a.indices, a.indptr, b, c, d)
-        tvm.testing.assert_allclose(d.asnumpy(), d_np, rtol=1e-4, atol=1e-4)
+        tvm.testing.assert_allclose(d.numpy(), d_np, rtol=1e-4, atol=1e-4)
 
     check_device("llvm")
 
@@ -206,7 +206,7 @@ def verify_dense_sw(batch, in_dim, out_dim, use_bias=True, dtype="float32"):
         d = tvm.nd.array(np.zeros(get_const_tuple(D.shape), dtype=dtype), dev)
         f = tvm.build(s, [A, B.data, B.indices, B.indptr, C, D], device, name="dense")
         f(a, b.data, b.indices, b.indptr, c, d)
-        tvm.testing.assert_allclose(d.asnumpy(), d_np, rtol=1e-4, atol=1e-4)
+        tvm.testing.assert_allclose(d.numpy(), d_np, rtol=1e-4, atol=1e-4)
 
     check_device("llvm")
 
@@ -269,7 +269,7 @@ def test_sparse_dense_csr():
         tvm.nd.array(W_sp_np.indptr),
         Y_tvm,
     )
-    tvm.testing.assert_allclose(Y_tvm.asnumpy(), Y_np, atol=1e-4, rtol=1e-4)
+    tvm.testing.assert_allclose(Y_tvm.numpy(), Y_np, atol=1e-4, rtol=1e-4)
 
 
 def test_sparse_dense_csr_reverse():
@@ -294,7 +294,7 @@ def test_sparse_dense_csr_reverse():
         tvm.nd.array(W_sp_np.indptr),
         Y_tvm,
     )
-    tvm.testing.assert_allclose(Y_tvm.asnumpy(), Y_np, atol=1e-4, rtol=1e-4)
+    tvm.testing.assert_allclose(Y_tvm.numpy(), Y_np, atol=1e-4, rtol=1e-4)
 
 
 def test_sparse_transpose_csr():
@@ -327,7 +327,7 @@ def test_sparse_transpose_csr():
     )
 
     X_T_out = sp.csr_matrix(
-        (X_T_data_tvm.asnumpy(), X_T_indices_tvm.asnumpy(), X_T_indptr_tvm.asnumpy()), shape=(N, N)
+        (X_T_data_tvm.numpy(), X_T_indices_tvm.numpy(), X_T_indptr_tvm.numpy()), shape=(N, N)
     ).todense()
     tvm.testing.assert_allclose(X_np_T, X_T_out, atol=1e-4, rtol=1e-4)
 
@@ -383,7 +383,7 @@ def verify_sparse_dense_bsr(M, N, K, BS_R, BS_C, density, use_relu, device, targ
             tvm.nd.array(W_sp_np.indptr, device=device),
             Y_tvm,
         )
-        tvm.testing.assert_allclose(Y_tvm.asnumpy(), Y_np, atol=1e-4, rtol=1e-4)
+        tvm.testing.assert_allclose(Y_tvm.numpy(), Y_np, atol=1e-4, rtol=1e-4)
 
 
 @tvm.testing.parametrize_targets("llvm", "cuda")
@@ -415,7 +415,7 @@ def test_sparse_dense_bsr_reverse():
         tvm.nd.array(W_sp_np.indptr),
         Y_tvm,
     )
-    tvm.testing.assert_allclose(Y_tvm.asnumpy(), Y_np, atol=1e-4, rtol=1e-4)
+    tvm.testing.assert_allclose(Y_tvm.numpy(), Y_np, atol=1e-4, rtol=1e-4)
 
 
 @tvm.testing.uses_gpu
@@ -457,14 +457,14 @@ def test_sparse_dense_bsr_randomized():
                     tvm.nd.array(W_sp_np.indptr, device=dev),
                     Y_tvm,
                 )
-                tvm.testing.assert_allclose(Y_tvm.asnumpy(), Y_np, atol=1e-5, rtol=1e-5)
+                tvm.testing.assert_allclose(Y_tvm.numpy(), Y_np, atol=1e-5, rtol=1e-5)
 
         for device in ["llvm", "cuda"]:
             check_device(device)
 
 
-@tvm.testing.requires_cuda
-def test_sparse_dense_padded_cuda():
+@tvm.testing.parametrize_targets("cuda", "rocm")
+def test_sparse_dense_padded_gpu(target, dev):
     M = 128
     N = 1280
     K = 128
@@ -483,8 +483,7 @@ def test_sparse_dense_padded_cuda():
         shape=W_sp_np_padded.indptr.shape, dtype=str(W_sp_np_padded.indptr.dtype)
     )
     X = te.placeholder(shape=X_np.shape, dtype=str(X_np.dtype))
-    with tvm.target.Target("cuda"):
-        dev = tvm.device("gpu")
+    with tvm.target.Target(target):
         Y = topi.cuda.sparse_dense_padded(X, W_data, W_indices, W_indptr)
         s = topi.cuda.schedule_sparse_dense_padded([Y])
         func = tvm.build(s, [X, W_data, W_indices, W_indptr, Y])
@@ -496,12 +495,12 @@ def test_sparse_dense_padded_cuda():
             tvm.nd.array(W_sp_np_padded.indptr, device=dev),
             Y_tvm,
         )
-        tvm.testing.assert_allclose(Y_tvm.asnumpy(), Y_np, atol=1e-5, rtol=1e-5)
+        tvm.testing.assert_allclose(Y_tvm.numpy(), Y_np, atol=1e-5, rtol=1e-5)
 
 
-@tvm.testing.requires_cuda
-def test_sparse_dense_padded_alter_op():
-    with tvm.target.Target("cuda"):
+@tvm.testing.parametrize_targets("cuda", "rocm")
+def test_sparse_dense_padded_alter_op(target, dev):
+    with tvm.target.Target(target):
         M = 128
         N = 16
         K = 128
@@ -523,7 +522,7 @@ def test_sparse_dense_padded_alter_op():
 
         # build with cuda and AlterOpLayout to ensure that sparse_dense_padded is in action
         with tvm.transform.PassContext(opt_level=3, required_pass="AlterOpLayout"):
-            x = relay.build(tvm.IRModule.from_expr(f), target=tvm.target.Target("cuda"))
+            x = relay.build(tvm.IRModule.from_expr(f), target=target)
 
 
 def test_sparse_add_csr():
@@ -550,18 +549,72 @@ def test_sparse_add_csr():
                 tvm.nd.array(Y_sp_np.indptr.astype(indices_dtype)),
                 Z_tvm,
             )
-            tvm.testing.assert_allclose(Z_tvm.asnumpy(), Z_np, atol=1e-4, rtol=1e-4)
+            tvm.testing.assert_allclose(Z_tvm.numpy(), Z_np, atol=1e-4, rtol=1e-4)
+
+
+def verify_sparse_conv2d_bsr(M, H, W, N, K, BS_R, BS_C, density, layout):
+    if layout == "NHWC":
+        X_np = np.random.randn(M, H, W, K).astype("float32")
+    elif layout == "NCHW":
+        X_np = np.random.randn(M, K, H, W).astype("float32")
+    W_sp_np = random_bsr_matrix(N, K, BS_R, BS_C, density=density, dtype="float32")
+    W_np = W_sp_np.todense()
+    if layout == "NHWC":
+        Y_np = tvm.topi.testing.conv2d_nhwc_python(X_np, np.array(W_np).T.reshape(1, 1, K, N), 1, 0)
+    elif layout == "NCHW":
+        Y_np = tvm.topi.testing.conv2d_nchw_python(X_np, np.array(W_np).reshape(N, K, 1, 1), 1, 0)
+
+    if BS_C == 1:
+        W_data = te.placeholder(shape=W_sp_np.data.shape[:-1], dtype=str(W_sp_np.data.dtype))
+        W_sp_np_data = W_sp_np.data.reshape(W_sp_np.data.shape[0], BS_R)
+    else:
+        W_data = te.placeholder(shape=W_sp_np.data.shape, dtype=str(W_sp_np.data.dtype))
+        W_sp_np_data = W_sp_np.data
+    W_indices = te.placeholder(shape=W_sp_np.indices.shape, dtype=str(W_sp_np.indices.dtype))
+    W_indptr = te.placeholder(shape=W_sp_np.indptr.shape, dtype=str(W_sp_np.indptr.dtype))
+    X = te.placeholder(shape=X_np.shape, dtype=str(X_np.dtype))
+
+    Y = topi.nn.sparse_conv2d(X, W_data, W_indices, W_indptr, layout)
+    s = te.create_schedule(Y.op)
+
+    def check_device(device):
+        dev = tvm.device(device, 0)
+        if not tvm.testing.device_enabled(device):
+            print("Skip because %s is not enabled" % device)
+            return
+        print("Running on target: %s" % device)
+
+        func = tvm.build(s, [X, W_data, W_indices, W_indptr, Y])
+        Y_tvm = tvm.nd.array(np.zeros(Y_np.shape, dtype="float32"))
+        func(
+            tvm.nd.array(X_np, dev),
+            tvm.nd.array(W_sp_np_data, dev),
+            tvm.nd.array(W_sp_np.indices, dev),
+            tvm.nd.array(W_sp_np.indptr, dev),
+            Y_tvm,
+        )
+        tvm.testing.assert_allclose(Y_tvm.numpy(), Y_np.astype("float32"), atol=1e-4, rtol=1e-4)
+
+    check_device("llvm")
+
+
+def test_sparse_conv2d_bsr():
+    M, H, W, N, K, BS_R, BS_C, density = 1, 32, 32, 128, 64, 8, 16, 0.9
+    verify_sparse_conv2d_bsr(M, H, W, N, K, BS_R, BS_C, density, "NHWC")
+    verify_sparse_conv2d_bsr(M, H, W, N, K, BS_R, BS_C, density, "NCHW")
+    verify_sparse_conv2d_bsr(M, H, W, N, K, BS_R, 1, density, "NHWC")
 
 
 if __name__ == "__main__":
-    test_csrmv()
-    test_csrmm()
-    test_dense()
-    test_sparse_dense_csr()
-    test_sparse_dense_bsr_randomized()
-    test_sparse_transpose_csr()
-    test_sparse_dense_padded_cuda()
-    test_sparse_dense_padded_alter_op()
-    test_sparse_dense_csr_reverse()
-    test_sparse_dense_bsr_reverse()
-    test_sparse_add_csr()
+    # test_csrmv()
+    # test_csrmm()
+    # test_dense()
+    # test_sparse_dense_csr()
+    # test_sparse_dense_bsr_randomized()
+    # test_sparse_transpose_csr()
+    # test_sparse_dense_padded_cuda()
+    # test_sparse_dense_padded_alter_op()
+    # test_sparse_dense_csr_reverse()
+    # test_sparse_dense_bsr_reverse()
+    # test_sparse_add_csr()
+    test_sparse_conv2d()
