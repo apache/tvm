@@ -43,13 +43,25 @@ from .common import infer_channels as _infer_channels
 from .common import infer_value as _infer_value
 
 from .tensorflow_ops import _convert_map
-from .tensorflow_ops import (
-    _identity_list,
-    _need_prelude_for_shape_inference,
-    _get_more_static_shape,
-)
+from .tensorflow_ops import _need_prelude_for_shape_inference
+from .tensorflow_ops import _get_more_static_shape
 
 __all__ = ["from_tensorflow"]
+
+# compatible operators that do NOT require any conversion.
+_identity_list = []
+
+# Operators that get pruned away when the complete graph is frozen.
+# These operators are not needed for inference.
+_freezed_graph_pruned_op_list = [
+    "ReadVariableOp",
+    "ResourceGather",
+    "Variable",
+    "VariableV2",
+    "VarHandleOp",
+    "Assign",
+    "AssignVariableOp",
+]
 
 # An internal list to contain all the control flow primitives used in Tensorflow
 # 1.x.

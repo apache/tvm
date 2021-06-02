@@ -2715,22 +2715,6 @@ def _unique(return_counts=True):
     return _impl
 
 
-# compatible operators that do NOT require any conversion.
-_identity_list = []
-
-# Operators that get pruned away when the complete graph is frozen.
-# These operators are not needed for inference.
-_freezed_graph_pruned_op_list = [
-    "ReadVariableOp",
-    "ResourceGather",
-    "Variable",
-    "VariableV2",
-    "VarHandleOp",
-    "Assign",
-    "AssignVariableOp",
-]
-
-
 # _convert_map defines maps of name to converter functor(callable)
 # for 1 to 1 mapping, use Renamer if nothing but name is different
 # use AttrCvt if attributes need to be converted
