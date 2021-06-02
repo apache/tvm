@@ -212,8 +212,6 @@ VulkanGetBufferMemoryRequirements2Functions::VulkanGetBufferMemoryRequirements2F
 
 VulkanDevice::VulkanDevice(const VulkanInstance& instance, VkPhysicalDevice phy_device)
     : physical_device_(phy_device) {
-  vkGetPhysicalDeviceProperties(phy_device, &phy_device_prop);
-
   queue_family_index = SelectComputeQueueFamily();
   if (queue_family_index == uint32_t(-1)) {
     // The GPU doesn't support compute, cannot use
@@ -334,7 +332,6 @@ void VulkanDevice::do_swap(VulkanDevice&& other) {
   std::lock_guard<std::mutex> lock_other(other.queue_mutex, std::adopt_lock);
 
   std::swap(device_properties, other.device_properties);
-  std::swap(phy_device_prop, other.phy_device_prop);
   std::swap(staging_mtype_index, other.staging_mtype_index);
   std::swap(coherent_staging, other.coherent_staging);
   std::swap(descriptor_template_khr_functions, other.descriptor_template_khr_functions);

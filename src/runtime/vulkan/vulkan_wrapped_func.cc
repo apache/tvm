@@ -338,7 +338,13 @@ std::shared_ptr<VulkanPipeline> VulkanModuleNode::GetPipeline(size_t device_id,
   if (0 < nbytes_scalars && !pe->use_ubo) {
     playout_cinfo.pushConstantRangeCount = 1;
     playout_cinfo.pPushConstantRanges = &crange;
-    ICHECK_LE(crange.size, device.phy_device_prop.limits.maxPushConstantsSize);
+    ICHECK_LE(crange.size, device.device_properties.max_push_constants_size)
+        << "The Vulkan shader uses " << crange.size
+        << " bytes of push constants, but the device only supports "
+        << device.device_properties.max_push_constants_size << "bytes. "
+        << "Please rebuild the shader using a smaller limit on push constants size "
+        << "by passing -max_push_constants_size=N in the Target string, "
+        << "or pass -from_device=0 to query all device parameters.";
   } else {
     playout_cinfo.pushConstantRangeCount = 0;
     playout_cinfo.pPushConstantRanges = nullptr;

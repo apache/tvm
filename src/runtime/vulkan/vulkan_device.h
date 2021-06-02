@@ -159,8 +159,6 @@ class VulkanDevice {
   // Cached device properties, queried through Vulkan API.
   VulkanDeviceProperties device_properties{};
 
-  // Phyiscal device property
-  VkPhysicalDeviceProperties phy_device_prop{};
   // Memory type index for staging.
   uint32_t staging_mtype_index{0};
   // whether staging is coherent
