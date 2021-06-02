@@ -65,7 +65,8 @@ class TensorRTRuntime : public JSONRuntimeBase {
       : JSONRuntimeBase(symbol_name, graph_json, const_names),
         use_implicit_batch_(true),
         max_workspace_size_(size_t(1) << 30),
-        highest_batch_size_(-1) {}
+        max_batch_size_(-1),
+        multi_engine_mode_(false) {}
 
   /*!
    * \brief The type key of the module.
@@ -86,6 +87,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
     LoadGlobalAttributes();
     if (GetCachedEnginesFromDisk()) return;
     SetupConstants(consts);
+    multi_engine_mode_ = dmlc::GetEnv("TVM_TENSORRT_MULTI_ENGINE", false);
   }
 
   void LoadGlobalAttributes() {
@@ -111,12 +113,15 @@ class TensorRTRuntime : public JSONRuntimeBase {
 
 #ifdef TVM_GRAPH_EXECUTOR_TENSORRT
   /*! \brief Destroy engines and contexts. */
-  ~TensorRTRuntime() {
+  void DestroyEngines() {
     for (auto& it : trt_engine_cache_) {
       it.second.context->destroy();
       it.second.engine->destroy();
     }
+    trt_engine_cache_.clear();
   }
+
+  ~TensorRTRuntime() { DestroyEngines(); }
 
   /*! \brief Run inference using built engine. */
   void Run() override {
@@ -188,17 +193,20 @@ class TensorRTRuntime : public JSONRuntimeBase {
     return data_entry_[input_var_eid_[0]]->ndim == 0 ? 1 : data_entry_[input_var_eid_[0]]->shape[0];
   }
 
-  /*! \brief TensorRT engines are built for a maximum batch size. If an engine doesn't exist for a
-   * certain batch size already, see if we can reuse an engine built for a higher batch size. */
+  /*! \brief Find an engine in the cache which we can reuse depending on the mode. If no compatible
+   * engine exists, return false to indicate that a new one should be built. */
   bool FindCompatibleEngine(int batch_size, int* compatible_engine_batch_size) {
-    // Check for exact match
-    if (trt_engine_cache_.count(std::make_pair(symbol_name_, batch_size))) {
-      *compatible_engine_batch_size = batch_size;
-      return true;
+    if (multi_engine_mode_) {
+      // Exact match is required for multi engine mode.
+      if (trt_engine_cache_.count(std::make_pair(symbol_name_, batch_size))) {
+        *compatible_engine_batch_size = batch_size;
+        return true;
+      }
+      return false;
     }
-    // Check for engine with max_batch_size.
-    if (batch_size <= highest_batch_size_) {
-      *compatible_engine_batch_size = highest_batch_size_;
+    // Check for engine with compatible max_batch_size.
+    if (batch_size <= max_batch_size_) {
+      *compatible_engine_batch_size = max_batch_size_;
       return true;
     }
     return false;
@@ -214,6 +222,11 @@ class TensorRTRuntime : public JSONRuntimeBase {
     if (FindCompatibleEngine(batch_size, &compatible_engine_batch_size)) {
       // A compatible engine already exists.
       return trt_engine_cache_.at(std::make_pair(symbol_name_, compatible_engine_batch_size));
+    }
+    // For single engine mode, remove previous engine and update max_batch_size.
+    if (!multi_engine_mode_) {
+      DestroyEngines();
+      max_batch_size_ = batch_size;
     }
     DLOG(INFO) << "Building new TensorRT engine for subgraph " << symbol_name_
                << " with batch size " << batch_size;
@@ -251,10 +264,6 @@ class TensorRTRuntime : public JSONRuntimeBase {
     trt_engine_cache_[std::make_pair(symbol_name_, batch_size)] = builder.BuildEngine();
     DLOG(INFO) << "Finished building TensorRT engine for subgraph " << symbol_name_
                << " with batch size " << batch_size;
-    // Update highest batch size.
-    if (batch_size > highest_batch_size_) {
-      highest_batch_size_ = batch_size;
-    }
     CacheEngineToDisk();
     return trt_engine_cache_.at(std::make_pair(symbol_name_, batch_size));
   }
@@ -387,8 +396,16 @@ class TensorRTRuntime : public JSONRuntimeBase {
 
   size_t max_workspace_size_;
 
-  /*! \brief Highest batch size that an engine has been built for. */
-  int highest_batch_size_;
+  /*! \brief Highest batch size that an engine has been built for, used in single-engine mode only
+   * (multi_engine_mode=false). */
+  int max_batch_size_;
+
+  /*! \brief The strategy to use for dynamic batching. With multi_engine_mode=true, a new TensorRT
+   * engine is created for each unique batch size encountered. With multi_engine_mode=false, only
+   * one TensorRT engine is alive at any given time. It is replaced if a higher batch size is
+   * encountered. Multi-engine mode should give better performance, at a cost of higher memory usage
+   * and more time spent building engines. */
+  bool multi_engine_mode_;
 };
 
 runtime::Module TensorRTRuntimeCreate(const String& symbol_name, const String& graph_json,
