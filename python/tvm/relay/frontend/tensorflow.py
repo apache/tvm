@@ -796,6 +796,7 @@ def _nms(return_scores=False):
 def convert_combined_nms_with_all_class(
     batch_size,
     max_output_boxes_per_batch,
+    num_class,
     boxes,
     scores,
     max_output_boxes_per_class,
@@ -842,7 +843,11 @@ def convert_combined_nms_with_all_class(
             return nmsed_scores, topk_indices
 
         def false_branch():
-            return _op.topk(selected_scores, k=max_total_size, axis=1, ret_type="both")
+            slice_mx = _op.const([max_output_boxes_per_class * num_class], dtype="int64")
+            selected_scores_slice = _op.strided_slice(
+                selected_scores, begin=_op.const([0], dtype="int64"), end=slice_mx, axes=[1]
+            )
+            return _op.topk(selected_scores_slice, k=max_total_size, axis=1, ret_type="both")
 
         # TODO(masahi): support dynamic num_boxes
         # return _expr.If(do_zero_pad, true_branch(), false_branch())
@@ -903,6 +908,7 @@ def _combined_nms():
             return convert_combined_nms_with_all_class(
                 batch_size,
                 max_output_boxes_per_batch,
+                num_classes,
                 boxes,
                 scores_trans,
                 max_output_size,
