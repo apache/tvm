@@ -32,17 +32,17 @@ shift
 ZEPHYR_BRANCH=$1
 shift
 
-commit="0"
+commit_hash="0"
 if [ "$1" == "--commit" ]; then
     shift
-    commit=$1
+    commit_hash=$1
 fi
 
 west init --mr ${ZEPHYR_BRANCH} ${DOWNLOAD_DIR}
 
-if [ "$commit" != "0"]; then
+if [ "$commit_hash" != "0" ]; then
     cd ${DOWNLOAD_DIR}/zephyr
-    git checkout ${commit}
+    git checkout ${commit_hash}
 fi
 
 cd ${DOWNLOAD_DIR}/zephyr
