@@ -416,7 +416,7 @@ def verify_strided_slice(in_shape, begin, end, strides=None, axes=None):
 
         foo = tvm.build(s, [A, B], target, name="stride_slice")
         x_np = np.random.uniform(size=in_shape).astype(A.dtype)
-        out_npy = tvm.topi.testing.strided_slice_python(x_np, begin, end, strides, axes) + 1
+        out_npy = tvm.topi.testing.strided_slice_python(x_np, begin, end, strides, axes=axes) + 1
         data_nd = tvm.nd.array(x_np, dev)
         out_nd = tvm.nd.empty(out_npy.shape, device=dev, dtype=A.dtype)
         foo(data_nd, out_nd)
