@@ -842,10 +842,9 @@ def convert_combined_nms_with_all_class_nms(
         def false_branch():
             if isinstance(max_output_boxes_per_class, int):
                 # Do topk on smaller input if possible
-                # TODO(masahi): use axes argument in strided slice when it becomes available
-                slice_mx = _op.const([-1, max_output_boxes_per_class * num_class], dtype="int64")
+                slice_mx = _op.const([max_output_boxes_per_class * num_class], dtype="int64")
                 selected_scores_slice = _op.strided_slice(
-                    selected_scores, begin=_op.const([0, 0], dtype="int64"), end=slice_mx
+                    selected_scores, begin=_op.const([0], dtype="int64"), end=slice_mx, axes=[1]
                 )
             else:
                 selected_scores_slice = selected_scores
