@@ -385,7 +385,7 @@ def test_strided_slice():
         end,
         strides,
         output,
-        axis=None,
+        axes=None,
         slice_mode="end",
         test_ref=True,
         dtype="int32",
@@ -397,12 +397,16 @@ def test_strided_slice():
 
         # target numpy result
         x_data = np.random.uniform(size=dshape).astype("float32")
-        ref_res = tvm.topi.testing.strided_slice_python(x_data, begin, end, strides, slice_mode)
+        ref_res = tvm.topi.testing.strided_slice_python(
+            x_data, begin, end, strides, axes, slice_mode
+        )
 
         if strides:
-            z = relay.strided_slice(x, begin=begin, end=end, strides=strides, slice_mode=slice_mode)
+            z = relay.strided_slice(
+                x, begin=begin, end=end, strides=strides, axes=axes, slice_mode=slice_mode
+            )
         else:
-            z = relay.strided_slice(x, begin=begin, end=end, slice_mode=slice_mode)
+            z = relay.strided_slice(x, begin=begin, end=end, axes=axes, slice_mode=slice_mode)
         func = relay.Function([x], z)
 
         func = run_infer_type(func)
@@ -446,7 +450,7 @@ def test_strided_slice():
         (3, 4, 3), [1, 0, 0], [3, -1, 3], [1, 1, 1], (2, 4, 3), slice_mode="size", test_ref=False
     )
     verify((3, 4, 3), [1, 0, 0], [-1, 2, 3], [1, 1, 1], (2, 2, 3), slice_mode="size", test_ref=True)
-    verify((3, 4, 3), [1], [4], None, None, axis=[1])
+    verify((3, 4, 3), [1], [4], None, None, axes=[1])
 
 
 @tvm.testing.uses_gpu
@@ -469,16 +473,20 @@ def test_dyn_strided_slice():
 
         # target numpy result
         x_data = np.random.uniform(size=dshape).astype("float32")
-        ref_res = tvm.topi.testing.strided_slice_python(x_data, begin, end, strides, slice_mode)
+        ref_res = tvm.topi.testing.strided_slice_python(
+            x_data, begin, end, strides, axes, slice_mode
+        )
 
         if ishape is None:
             ishape = (relay.Any(),) * ndim
 
         x = relay.var("x", relay.TensorType(ishape, "float32"))
         if strides:
-            z = relay.strided_slice(x, begin=begin, end=end, strides=strides, slice_mode=slice_mode)
+            z = relay.strided_slice(
+                x, begin=begin, end=end, strides=strides, axes=axes, slice_mode=slice_mode
+            )
         else:
-            z = relay.strided_slice(x, begin=begin, end=end, slice_mode=slice_mode)
+            z = relay.strided_slice(x, begin=begin, end=end, axes=axes, slice_mode=slice_mode)
         func = relay.Function([x], z)
 
         func = run_infer_type(func)
@@ -518,7 +526,7 @@ def test_dyn_strided_slice():
         (3, 4, 3, 2),
         [1, 0],
         [3, 1],
-        None,
+        [1, 1],
         None,
         axes=[1, 3],
         ishape=(relay.Any(), 4, relay.Any(), 2),

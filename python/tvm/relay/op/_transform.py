@@ -252,33 +252,32 @@ def _strided_slice_shape_func_with_axes(data_shape, begin, end, strides, slice_m
         out[i] = data_shape[i]
 
     for i in const_range(len(axes)):
-        axis = int64(axes[i])
         cbegin = int64(0)
-        cend = int64(data_shape[axis])
+        cend = int64(data_shape[axes[i]])
         cstride = int64(1)
         if len(strides) > i:
             cstride = int64(strides[i])
         if len(begin) > i:
             cbegin = int64(begin[i])
             if cbegin < 0:
-                cbegin += int64(data_shape[axis])
+                cbegin += int64(data_shape[axes[i]])
         if len(end) <= i:
-            cend = int64(data_shape[axis])
+            cend = int64(data_shape[axes[i]])
         elif slice_mode != 0:
             cstride = int64(1)
             if end[i] < 0:
-                cend = int64(data_shape[axis])
+                cend = int64(data_shape[axes[i]])
             else:
                 cend = cbegin + int64(end[i])
         else:
             if end[i] > data_shape[i]:
-                cend = int64(data_shape[axis])
+                cend = int64(data_shape[axes[i]])
             elif end[i] < -data_shape[i]:
                 cend = int64(-1)
             else:
                 cend = int64(end[i])
                 if cend < 0:
-                    cend += int64(data_shape[axis])
+                    cend += int64(data_shape[axes[i]])
         assert cstride != 0, "Strides can't be zero."
         if cstride < 0:
             slice_range = cbegin - cend
@@ -287,7 +286,7 @@ def _strided_slice_shape_func_with_axes(data_shape, begin, end, strides, slice_m
             slice_range = cend - cbegin
             step = cstride
 
-        out[axis] = int64(ceil_div(slice_range, step))
+        out[axes[i]] = int64(ceil_div(slice_range, step))
     return out
 
 
