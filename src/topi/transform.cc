@@ -178,12 +178,17 @@ TVM_REGISTER_GLOBAL("topi.strided_slice").set_body([](TVMArgs args, TVMRetValue*
   Array<PrimExpr> begin = args[1];
   Array<PrimExpr> end = args[2];
   Array<PrimExpr> strides = args[3];
-  std::string slice_mode = args[4];
   if (IsConstIntArray(begin) && IsConstIntArray(end) && IsConstIntArray(strides)) {
     Array<Integer> begin_static = args[1];
     Array<Integer> end_static = args[2];
     Array<Integer> strides_static = args[3];
-    *rv = strided_slice(x, begin_static, end_static, strides_static, slice_mode);
+    Array<Integer> axes = args[4];
+    std::string slice_mode = args[5];
+    if (axes.size() > 0) {
+      *rv = strided_slice_with_axes(x, begin_static, end_static, strides_static, axes, slice_mode);
+    } else {
+      *rv = strided_slice(x, begin_static, end_static, strides_static, slice_mode);
+    }
   } else {
     *rv = dynamic_strided_slice(x, begin, end, strides);
   }
