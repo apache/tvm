@@ -3437,16 +3437,18 @@ def _test_forward_combined_nms(
             "nms/CombinedNonMaxSuppression:2",
             "nms/CombinedNonMaxSuppression:3",
         ],
-        mode="vm",
     )
 
 
 def test_forward_combined_nms():
     """CombinedNonMaxSuppression"""
     _test_forward_combined_nms((1, 64, 1, 4), (1, 64, 1), 0.7, 0.5, 64, 64)
+    _test_forward_combined_nms((1, 32, 1, 4), (1, 32, 1), 0.7, 0.5, 10, 64)
+    _test_forward_combined_nms((1, 32, 1, 4), (1, 32, 2), 0.7, 0.5, 32, 64)
     _test_forward_combined_nms((1, 64, 1, 4), (1, 64, 20), 0.7, 0.5, 64, 10)
     _test_forward_combined_nms((1, 64, 20, 4), (1, 64, 20), 0.7, 0.5, 64, 64, clip_boxes=True)
     _test_forward_combined_nms((2, 200, 1, 4), (2, 200, 1), 0.4, 0.6, 100, 100)
+    _test_forward_combined_nms((2, 200, 1, 4), (2, 200, 10), 0.4, 0.2, 150, 1000)
 
 
 #######################################################################
