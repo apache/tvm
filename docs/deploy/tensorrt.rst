@@ -170,7 +170,7 @@ There are some additional options which can be configured at runtime using envir
   can be used to determine how TensorRT engines will be created at runtime. The default mode,
   ``TVM_TENSORRT_MULTI_ENGINE=0``, will maintain only one engine in memory at a time. If an input
   is encountered with a higher batch size, the engine will be rebuilt with the new max_batch_size
-  setting. That engine will be compatible with all batch sizea from 1 to max_batch_size. This mode
+  setting. That engine will be compatible with all batch sizes from 1 to max_batch_size. This mode
   reduces the amount of memory used at runtime. The second mode, ``TVM_TENSORRT_MULTI_ENGINE=1``
   will build a unique TensorRT engine which is optimized for each batch size that is encountered.
   This will give greater performance, but will consume more memory.
