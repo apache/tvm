@@ -784,7 +784,6 @@ def all_class_non_max_suppression(
     max_output_boxes_per_class,
     iou_threshold,
     score_threshold,
-    max_total_size=None,
     output_format="onnx",
 ):
     """Non-maximum suppression operator for object detection, corresponding to ONNX
@@ -861,7 +860,5 @@ def all_class_non_max_suppression(
         num_total_detections,
         _collect_selected_indices_and_scores_ir,
     )
-
-    num_total_detections = minimum(num_total_detections, max_total_size)
 
     return [selected_indices, selected_scores, num_total_detections]

@@ -166,8 +166,6 @@ bool AllClassNMSRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
     fields.push_back(TensorType(oshape, DataType::Int(64)));
     fields.push_back(TensorType(counts_shape, DataType::Int(64)));
   } else {
-    ICHECK(param->max_total_size) << "max_total_size required for tf mode";
-    Integer max_total_size = param->max_total_size.value();
     IndexExpr num_total_boxes_per_batch = Any();
     if (!num_boxes.as<AnyNode>()) {
       num_total_boxes_per_batch = num_classes * num_boxes;
@@ -184,10 +182,8 @@ bool AllClassNMSRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
 }
 
 Expr MakeAllClassNMS(Expr boxes, Expr scores, Expr max_output_boxes_per_class, Expr iou_threshold,
-                     Expr score_threshold, Optional<Integer> max_total_size = NullValue<Integer>(),
-                     std::string output_format = "onnx") {
+                     Expr score_threshold, std::string output_format = "onnx") {
   auto attrs = make_object<AllClassNonMaximumSuppressionAttrs>();
-  attrs->max_total_size = std::move(max_total_size);
   attrs->output_format = std::move(output_format);
   static const Op& op = Op::Get("vision.all_class_non_max_suppression");
   return Call(op, {boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold},

@@ -811,7 +811,6 @@ def convert_combined_nms_with_all_class(
         max_output_boxes_per_class,
         iou_threshold,
         score_threshold,
-        max_total_size,
         output_format="tensorflow",
     )
     box_range = _op.arange(
@@ -861,6 +860,7 @@ def convert_combined_nms_with_all_class(
     nmsed_classes = _op.take(indices, _op.const(0), axis=2)
     nmsed_classes = _op.cast(nmsed_classes, "float32")
     nmsed_boxes = _op.take(boxes, nmsed_box_indices, axis=1, batch_dims=1)
+    num_detections = _op.minimum(num_detections, _op.const(max_total_size, dtype="int64"))
 
     if clip_boxes:
         nmsed_boxes = _op.maximum(nmsed_boxes, _expr.const(0, dtype="float32"))

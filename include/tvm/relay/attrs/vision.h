@@ -114,16 +114,18 @@ struct NonMaximumSuppressionAttrs : public tvm::AttrsNode<NonMaximumSuppressionA
   }
 };
 
-/*! \brief Attributes used in non_maximum_suppression operator */
+/*! \brief Attributes used in all_class_non_maximum_suppression operator */
 struct AllClassNonMaximumSuppressionAttrs
     : public tvm::AttrsNode<AllClassNonMaximumSuppressionAttrs> {
-  Optional<Integer> max_total_size;
   std::string output_format;
 
   TVM_DECLARE_ATTRS(AllClassNonMaximumSuppressionAttrs,
                     "relay.attrs.AllClassNonMaximumSuppressionAttrs") {
-    TVM_ATTR_FIELD(max_total_size).set_default(NullValue<Integer>()).describe("TODO");
-    TVM_ATTR_FIELD(output_format).set_default("onnx").describe("Output format. onnx or tensorflow");
+    TVM_ATTR_FIELD(output_format)
+        .set_default("onnx")
+        .describe(
+            "Output format, onnx or tensorflow. Returns outputs so that they can be easily "
+            "consumed by each frontend.");
   }
 };
 

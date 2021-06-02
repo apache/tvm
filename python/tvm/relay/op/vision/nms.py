@@ -157,7 +157,6 @@ def all_class_non_max_suppression(
     max_output_boxes_per_class=-1,
     iou_threshold=-1.0,
     score_threshold=-1.0,
-    max_total_size=None,
     output_format="onnx",
 ):
     """Non-maximum suppression operator for object detection, corresponding to ONNX
@@ -206,7 +205,6 @@ def all_class_non_max_suppression(
         max_output_boxes_per_class,
         iou_threshold,
         score_threshold,
-        max_total_size,
         output_format,
     )
 
