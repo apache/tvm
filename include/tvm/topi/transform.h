@@ -561,7 +561,7 @@ inline Array<Tensor> split(const Tensor& x, Array<PrimExpr> split_indices, int a
  * \param name The name of the operation
  * \param tag The tag to mark the operation
  *
- * \return A Tensor whose op member is the split operation
+ * \return A Tensor whose op member is the dynamic_strided_slice operation
  */
 inline Tensor dynamic_strided_slice(const Tensor& x, const Array<PrimExpr>& begin,
                                     const Array<PrimExpr>& end, const Array<PrimExpr>& strides,
@@ -618,7 +618,7 @@ inline Tensor dynamic_strided_slice(const Tensor& x, const Array<PrimExpr>& begi
  * \param name The name of the operation
  * \param tag The tag to mark the operation
  *
- * \return A Tensor whose op member is the split operation
+ * \return A Tensor whose op member is the dynamic_strided_slice operation
  */
 inline te::Tensor dynamic_strided_slice(const te::Tensor& x, const te::Tensor& begin,
                                         const te::Tensor& end, const te::Tensor& strides,
@@ -678,7 +678,7 @@ inline Array<PrimExpr> StridedSliceOutputShape(
  * \param name The name of the operation
  * \param tag The tag to mark the operation
  *
- * \return A Tensor whose op member is the split operation
+ * \return A Tensor whose op member is the sstrided_slice operation
  */
 inline Tensor strided_slice_with_axes(const Tensor& x, const Array<Integer>& begin,
                                       const Array<Integer>& end, const Array<Integer>& strides,
@@ -724,7 +724,7 @@ inline Tensor strided_slice_with_axes(const Tensor& x, const Array<Integer>& beg
  * \param name The name of the operation
  * \param tag The tag to mark the operation
  *
- * \return A Tensor whose op member is the split operation
+ * \return A Tensor whose op member is the strided_slice operation
  */
 inline Tensor strided_slice(const Tensor& x, const Array<Integer>& begin, const Array<Integer>& end,
                             const Array<Integer>& strides, std::string slice_mode = "end",
