@@ -3107,14 +3107,14 @@ class ShapeTupleObj : public Object {
 class ShapeTuple : public ObjectRef {
  public:
   using index_type = ShapeTupleObj::index_type;
-  ShapeTuple(std::vector<index_type> shape) : ShapeTuple(shape.begin(), shape.end()) {}
+  explicit ShapeTuple(std::vector<index_type> shape) : ShapeTuple(shape.begin(), shape.end()) {}
   template<typename Iterator>
-  ShapeTuple(Iterator begin, Iterator end) {
+  explicit ShapeTuple(Iterator begin, Iterator end) {
     auto ptr = make_object<ShapeTupleObj>();
     ptr->Init(begin, end);
     data_ = std::move(ptr);
   }
-  ShapeTuple(std::initializer_list<index_type> shape) : ShapeTuple(shape.begin(), shape.end()) {}
+  explicit ShapeTuple(std::initializer_list<index_type> shape) : ShapeTuple(shape.begin(), shape.end()) {}
 
   index_type operator[](size_t idx) const { return operator->()->data[idx]; }
   size_t ndim() const { return operator->()->data.size(); }
