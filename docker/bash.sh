@@ -48,12 +48,12 @@ fi
 
 # Mount external directory to the docker
 CI_DOCKER_MOUNT_DIR=( )
-CI_DOCKER_MOUNT_CMD=""
+CI_DOCKER_MOUNT_CMD=( )
 if [[ "$1" == "--mount" ]]; then
     shift 1
     CI_DOCKER_MOUNT_DIR+="$1"
     shift 1
-    CI_DOCKER_MOUNT_CMD="--mount type=bind,source=${CI_DOCKER_MOUNT_DIR},target=${CI_DOCKER_MOUNT_DIR}"
+    CI_DOCKER_MOUNT_CMD=( "--mount" "type=bind,source=${CI_DOCKER_MOUNT_DIR},target=${CI_DOCKER_MOUNT_DIR}" )
 fi
 
 if [ "$#" -lt 1 ]; then
@@ -177,7 +177,7 @@ ${DOCKER_BINARY} run --rm --pid=host\
     ${CI_ADDON_ENV} \
     ${CUDA_ENV} \
     "${CI_DOCKER_EXTRA_PARAMS[@]}" \
-    ${CI_DOCKER_MOUNT_CMD} \
+    "${CI_DOCKER_MOUNT_CMD[@]}" \
     ${DOCKER_IMAGE_NAME} \
     bash --login /docker/with_the_same_user \
     "${COMMAND[@]}"
