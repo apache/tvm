@@ -231,6 +231,9 @@ class GraphProto:
     def from_tensorflow(
         self, graph, layout="NHWC", shape=None, outputs=None, input_types=None, gdef_lib=None
     ):
+        """Wrapper to _get_relay_func which converts Tensorflow graph to Relay function
+        which is used as main function for the Relay module
+        """
         if input_types is None:
             input_types = {}
 
