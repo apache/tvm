@@ -842,10 +842,14 @@ def convert_combined_nms_with_all_class(
             return nmsed_scores, topk_indices
 
         def false_branch():
-            slice_mx = _op.const([max_output_boxes_per_class * num_class], dtype="int64")
-            selected_scores_slice = _op.strided_slice(
-                selected_scores, begin=_op.const([0], dtype="int64"), end=slice_mx, axes=[1]
-            )
+            if isinstance(max_output_boxes_per_class, int):
+                # Do topk on smaller input if possible
+                slice_mx = _op.const([max_output_boxes_per_class * num_class], dtype="int64")
+                selected_scores_slice = _op.strided_slice(
+                    selected_scores, begin=_op.const([0], dtype="int64"), end=slice_mx, axes=[1]
+                )
+            else:
+                selected_scores_slice = selected_scores
             return _op.topk(selected_scores_slice, k=max_total_size, axis=1, ret_type="both")
 
         # TODO(masahi): support dynamic num_boxes
