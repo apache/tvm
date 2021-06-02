@@ -34,6 +34,8 @@ _LOG = logging.getLogger(__name__)
 
 THIS_DIR = os.path.realpath(os.path.dirname(__file__) or ".")
 
+ZEPHYR_BRANCH = "v2.5-branch"
+ZEPHYR_COMMIT = "dabf23758417fd041fec2a2a821d8f526afac29d"
 
 # List of vagrant providers supported by this tool
 ALL_PROVIDERS = (
@@ -177,6 +179,7 @@ ATTACH_USB_DEVICE = {
 
 def generate_packer_config(file_path, providers):
     builders = []
+    provisioners = []
     for provider_name in providers:
         builders.append(
             {
@@ -190,10 +193,19 @@ def generate_packer_config(file_path, providers):
             }
         )
 
+    provisioners.append(
+        {
+            "type": "shell-local",
+            "script": "../../../../../docker/install/ubuntu_init_zephyr_project.sh",
+            "execute_command": f"sh '{{.Path}}' ~/zephyrproject {ZEPHYR_BRANCH} {ZEPHYR_COMMIT}"
+        }
+    )
+
     with open(file_path, "w") as f:
         json.dump(
             {
                 "builders": builders,
+                "provisioners": provisioners,
             },
             f,
             sort_keys=True,
