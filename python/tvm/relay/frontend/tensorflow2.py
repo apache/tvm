@@ -369,8 +369,14 @@ class GraphProto:
 
         Parameters
         ----------
+        graph : <class 'tensorflow.core.framework.graph_pb2.GraphDef'>
+            TF2 frozen graph def
+
         node_name : str
             node name
+
+        outputs : List[str]
+            List of output nodes
 
         Returns
         -------
@@ -524,6 +530,9 @@ def _convert_function(
 
     node_func_name : str
         Name of tf2 node to be converted
+
+    outputs : List[str]
+        The list of output nodes.
 
     Returns
     -------
