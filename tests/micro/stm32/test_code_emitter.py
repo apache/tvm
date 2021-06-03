@@ -50,7 +50,7 @@ BUILD_DIR = "build"
 # =========================================================
 def get_data(in_data_shapes, in_data_dtypes):
     """ Generate a uint8 image."""
-    assert len(in_data_shapes) == 1,("Only single input models are supported.")
+    assert len(in_data_shapes) == 1, "Only single input models are supported."
     in_data = OrderedDict()
     for shape_name, shape in in_data_shapes.items():
         for dtype_name, dtype in in_data_dtypes.items():
@@ -60,8 +60,9 @@ def get_data(in_data_shapes, in_data_dtypes):
                 break
         if shape_name not in in_data.keys():
             raise ValueError("Shape and dtype dictionaries do not fit.")
-            
+
     return in_data
+
 
 # ==================================================================
 #   dump_image
@@ -79,6 +80,7 @@ def dump_image(filename, image):
     for i in range(0, len(outputRaw)):
         f.write(outputRaw[i])
     f.close()
+
 
 # ==================================================================
 #   scale_input_data
@@ -315,14 +317,14 @@ def check_network(build_dir, target_name, model_path, image_path):
     #
     image_data = []
     for i in range(NUM_ITERATIONS):
-        assert len(shape_dict) == 1,("Only single input models are supported.")
+        assert len(shape_dict) == 1, "Only single input models are supported."
         image_shape = list(shape_dict.values())[0]
         in_data = np.random.randint(0, 255, size=image_shape).astype("uint8")
         # Write raw data for using with the TVM implementation
         filename = os.path.join(image_path, "{:02d}.raw".format(i))
         dump_image(filename, in_data)
         image_data.append(in_data)
-    
+
     mod, params = relay.frontend.from_tflite(model, shape_dict, dtype_dict)
 
     #
@@ -386,7 +388,7 @@ def test_mnist():
     model_url = "https://storage.googleapis.com/download.tensorflow.org/models/tflite/digit_classifier/mnist.tflite"
     download(model_url, model_path)
     check_network(build_dir, "mnist", model_path, build_dir)
-    
+
 
 if __name__ == "__main__":
     sys.exit(pytest.main([os.path.dirname(__file__)] + sys.argv[1:]))

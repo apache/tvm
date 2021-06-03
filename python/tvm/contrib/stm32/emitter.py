@@ -42,7 +42,7 @@ AI_API_VERSION_MICRO = 0
 
 AI_TOOLS_REVISION = "v1"
 
-DBAR = "="*60
+DBAR = "=" * 60
 
 # ==========================================================
 #   _fix_name
@@ -331,7 +331,7 @@ class CodeEmitter(object):
             # activation
             dl_tensor_name = get_output_tensor_name(arg_name, arg_idx)
         return dl_tensor_name
-            
+
     # ==========================================================
     #   __tensor_is_output
     # ==========================================================
@@ -445,19 +445,19 @@ class CodeEmitter(object):
 
             if node["op"] != "tvm_op":
                 raise ValueError(f"Only TVM ops are supported")
-            
+
             node_name = node["name"]
             node_attrs = node["attrs"]
             func_name = node_attrs["func_name"]
             num_outputs = int(node_attrs["num_outputs"])
-            
+
             if func_name == "__nop":
-                assert node_name == "reshape_nop",(f"Unsupported __nop operator {node_name}.")
+                assert node_name == "reshape_nop", f"Unsupported __nop operator {node_name}."
                 assert num_outputs == 1
                 assert not self.__tensor_is_output(nid, 0)
                 nid += 1
                 continue
-            
+
             for idx in range(num_outputs):
                 #
                 # Do not count the 'outputs_'
@@ -819,8 +819,8 @@ class CodeEmitter(object):
     # ==========================================================
 
     def __emit_open(self, name, out_h, out_c):
-        """ Emits the network.h file with a few network defines and 
-        writes the header part of the network.c file. """
+        """Emits the network.h file with a few network defines and
+        writes the header part of the network.c file."""
         name_upper = name.upper()
 
         #
@@ -939,7 +939,7 @@ class CodeEmitter(object):
         if quantization is not None:
             scale = quantization["scale"]
             zero_point = quantization["zero_point"]
-            dim = quantization['dim']
+            # dim = quantization['dim']
 
             #
             # Sometimes we get a scalar with ScaleAsNumpy.
@@ -983,15 +983,13 @@ class CodeEmitter(object):
     # ==========================================================
     #   __emit_tensor_init
     # ==========================================================
-    
+
     def __emit_tensor_init(self, dl_tensor_name, tensor, out_c):
         """ Emits the tensor instantiation code. """
         dltype = tensor["dltype"]
         dims = tensor["dims"]
         strides = tensor["strides"]
-        storage_id = tensor['storage_id']
         byte_offset = tensor["byte_offset"]
-        size = tensor['size']
         dtype = _get_type_data(dltype)
         ndim = len(dims)
         shape = str(dims)
@@ -1137,7 +1135,7 @@ class CodeEmitter(object):
 
             if func_name == "__nop":
                 continue
-            
+
             out_c.write(
                 f"TVM_DLL int32_t {func_name}(void * args, void * arg_type_ids, int32_t num_args); \n"
             )
@@ -1310,7 +1308,7 @@ class CodeEmitter(object):
 
             if func_name == "__nop":
                 continue
-            
+
             out_c.write(f"  // \n")
             out_c.write(f"  // {func_name}\n")
             out_c.write(f"  // \n")
