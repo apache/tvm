@@ -753,7 +753,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
   size_t GetFTValue(const PStatic& ps) {
     if (ps->pstatic.defined()) {
       if (auto* st = ps->pstatic.as<STensorNode>()) {
-        if (st->data.Shape().empty()) {
+        if (st->data.Shape().ndim() == 0) {
           NDArray cpu_array = st->data.CopyTo(CPUDevice());
           DataType dtype = DataType(cpu_array->dtype);
           if (dtype == DataType::Int(32)) {

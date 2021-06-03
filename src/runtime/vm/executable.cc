@@ -157,7 +157,7 @@ std::string Executable::Stats() const {
     const auto& shape = constant.Shape();
 
     // Scalar
-    if (shape.empty()) {
+    if (shape.ndim() == 0) {
       oss << "scalar, ";
       continue;
     }

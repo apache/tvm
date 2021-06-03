@@ -123,7 +123,7 @@ struct NDArray::Internal {
   }
   // Local create function which allocates tensor metadata
   // but does not allocate space for the data.
-  static NDArray Create(std::vector<int64_t> shape, DLDataType dtype, Device dev) {
+  static NDArray Create(ShapeTuple shape, DLDataType dtype, Device dev) {
     VerifyDataType(dtype);
 
     // critical zone: construct header
@@ -133,8 +133,8 @@ struct NDArray::Internal {
     // RAII now in effect
     NDArray ret(GetObjectPtr<Object>(data));
     // setup shape
-    data->shape_ = std::move(shape);
-    data->dl_tensor.shape = dmlc::BeginPtr(data->shape_);
+    data->shape_ = shape;
+    data->dl_tensor.shape = data->shape_->data;
     data->dl_tensor.ndim = static_cast<int>(data->shape_.size());
     // setup dtype
     data->dl_tensor.dtype = dtype;
@@ -172,7 +172,7 @@ struct NDArray::Internal {
   }
 };
 
-NDArray NDArray::CreateView(std::vector<int64_t> shape, DLDataType dtype) {
+NDArray NDArray::CreateView(ShapeTuple shape, DLDataType dtype) {
   ICHECK(data_ != nullptr);
   ICHECK(get_mutable()->dl_tensor.strides == nullptr) << "Can only create view for compact tensor";
   NDArray ret = Internal::Create(shape, dtype, get_mutable()->dl_tensor.device);
@@ -190,7 +190,7 @@ NDArray NDArray::CreateView(std::vector<int64_t> shape, DLDataType dtype) {
 
 DLManagedTensor* NDArray::ToDLPack() const { return Internal::ToDLPack(get_mutable()); }
 
-NDArray NDArray::Empty(std::vector<int64_t> shape, DLDataType dtype, Device dev,
+NDArray NDArray::Empty(ShapeTuple shape, DLDataType dtype, Device dev,
                        Optional<String> mem_scope) {
   NDArray ret = Internal::Create(shape, dtype, dev);
   ret.get_mutable()->dl_tensor.data =
@@ -207,8 +207,9 @@ NDArray NDArray::FromDLPack(DLManagedTensor* tensor) {
   data->manager_ctx = tensor;
   data->dl_tensor = tensor->dl_tensor;
   // update shape_
-  data->shape_.resize(data->dl_tensor.ndim);
-  data->shape_.assign(data->dl_tensor.shape, data->dl_tensor.shape + data->dl_tensor.ndim);
+  std::vector<int64_t> temp(data->dl_tensor.ndim);
+  temp.assign(data->dl_tensor.shape, data->dl_tensor.shape + data->dl_tensor.ndim);
+  data->shape_ = temp;
   data->dl_tensor.shape = data->shape_.data();
   return NDArray(GetObjectPtr<Object>(data));
 }
@@ -242,7 +243,7 @@ void NDArray::CopyFromTo(const DLTensor* from, DLTensor* to, TVMStreamHandle str
   DeviceAPI::Get(dev)->CopyDataFromTo(const_cast<DLTensor*>(from), to, stream);
 }
 
-std::vector<int64_t> NDArray::Shape() const { return get_mutable()->shape_; }
+ShapeTuple NDArray::Shape() const { return get_mutable()->shape_; }
 runtime::DataType NDArray::DataType() const {
   return runtime::DataType(get_mutable()->dl_tensor.dtype);
 }

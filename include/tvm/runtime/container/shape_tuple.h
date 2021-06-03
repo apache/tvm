@@ -60,13 +60,21 @@ class ShapeTuple : public ObjectRef {
   using index_type = ShapeTupleObj::index_type;
   ShapeTuple() : ShapeTuple(std::vector<index_type>()) {}
   template<typename Iterator>
-  explicit ShapeTuple(Iterator begin, Iterator end) : ShapeTuple(std::vector<index_type>(begin, end)) {};
-  explicit ShapeTuple(std::initializer_list<index_type> shape) : ShapeTuple(shape.begin(), shape.end()) {}
+  ShapeTuple(Iterator begin, Iterator end) : ShapeTuple(std::vector<index_type>(begin, end)) {};
+  ShapeTuple(std::initializer_list<index_type> shape) : ShapeTuple(shape.begin(), shape.end()) {}
 
-  explicit ShapeTuple(std::vector<index_type> shape);
+  ShapeTuple(std::vector<index_type> shape);
 
   index_type operator[](size_t idx) const { return get()->data[idx]; }
+  index_type at(size_t idx) const { return get()->data[idx]; }
+  index_type* data() { return get()->data; }
   size_t ndim() const { return get()->ndim; }
+  size_t size() const { return get()->ndim; }
+
+  index_type* begin() { return get()->data; }
+  index_type* end() { return (get()->data + ndim()); }
+  const index_type* begin() const { return get()->data; }
+  const index_type* end() const { return (get()->data + ndim()); }
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(ShapeTuple, ObjectRef, ShapeTupleObj);
 }; 
 
