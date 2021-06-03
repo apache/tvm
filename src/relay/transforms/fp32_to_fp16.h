@@ -15,6 +15,9 @@ struct FP16OpDType {
   DataType output_dtype;
 };
 
+// GREEN colored ops should always be done in FP16 due to the speed and memory savings
+// GRAY colored ops can be done in FP16 but don't have speedups to justify a dedicated cast.
+// RED colored ops should not be done in FP16 due to numerical reasons.
 enum FP16ConversionCategory { RED, GRAY, GREEN };
 std::unordered_map<FP16ConversionCategory, std::string> conversion_category_strings(
     {{RED, "Red"}, {GRAY, "Gray"}, {GREEN, "Green"}});
@@ -32,7 +35,10 @@ OpStringSet DEFAULT_GREEN_LIST({
     "nn.conv2d_transpose",
     "nn.conv3d_transpose",
     "nn.dense",
+    "nn.batch_matmul",
 });
+// TODO make a list of ops which don't care about the types of tensors coming in for stuff like
+// "where" and "strided_slice"
 OpStringSet DEFAULT_GRAY_LIST({
     // These ops add new data or change shape
     "nn.pad",
@@ -40,6 +46,32 @@ OpStringSet DEFAULT_GRAY_LIST({
     "concatenate",
     "zeros",
     "split",
+    "squeeze",
+    "transpose",
+    "expand_dims",
+    "reshape",
+    "dyn.reshape",
+    "broadcast_to_like",
+    "dyn.broadcast_to",
+    "strided_slice",
+    "dyn.strided_slice",
+    "take",
+    "argwhere",
+    "where",
+    "tile",
+    "dyn.tile",
+    "scatter",
+    "full",
+    "dyn.full",
+    // Comparison
+    "less",
+    "greater",
+    "less_equal",
+    "greater_equal",
+    // By definition copy and cast will become green or red based on inputs
+    "copy",
+    "cast",
+    "cast_like",
     // Simple arithmetic
     "add",
     "subtract",
@@ -47,7 +79,15 @@ OpStringSet DEFAULT_GRAY_LIST({
     "divide",
     "nn.bias_add",
     "nn.batch_norm",
+    "sum",
+    "mean",
+    "sqrt",
+    "shape_of",
     // Simple activations
+    "max",
+    "min",
+    "maximum",
+    "minimum",
     "nn.relu",
     "nn.leaky_relu",
     "nn.prelu",
@@ -76,15 +116,23 @@ OpStringSet DEFAULT_GRAY_LIST({
     "nn.adaptive_avg_pool3d",
 });
 OpStringSet DEFAULT_RED_LIST({
-    // In general if |f(x)| >> |x| for some expected inputs to the op then put it here.
-    // Activations with exponents or dividing by small numbers
+    // In general if |f(x)| >> |x| for expected inputs then put the op here.
+    "exp",
+    "power",
     "nn.cross_entropy",
     "nn.cross_entropy_with_logits",
     "nn.softmax",
     "nn.l2_normalize",
+    // Error function doesn't seem to be able to be lowered into fp16 version in llvm.
+    // Move to gray list when it does.
+    "erf",
 });
 
 class DefaultFP16Colorer {
+  /* The default class to initially color ops for conversion using lists.
+
+  Creates a callable which given a CallNode* returns the node's color.
+  */
  private:
   std::unordered_map<std::string, FP16ConversionCategory> op_to_initial_color;
 
@@ -111,33 +159,51 @@ class DefaultFP16Colorer {
 
       if (color == op_to_initial_color.end()) {
         if (ignore_missing) {
-          LOG(WARNING) << "Op name " + op_name + " not in included in fp16 conversion lists!.";
+          LOG(WARNING) << "Op name " << op_name << " not in included in fp16 conversion lists!.";
           return RED;
         } else {
-          LOG(FATAL) << "Op name " + op_name + " not in included in fp16 lists!.";
+          LOG(FATAL) << "Op name " << op_name << " not in included in fp16 lists!.";
         }
       }
 
       return color->second;
     } else if (auto* func_node = (call->op).as<FunctionNode>()) {
-      // Make RED to avoid messing with function types which are complicated, fold in other pass
+      // TODO: make RED to avoid messing with function signatures. For now keep this simple
       return RED;
     } else {
-      LOG(FATAL) << "FP16 conversion only supports call nodes with op calls got " << call->op;
+      LOG(FATAL) << "FP16 conversion only supports call nodes with OpNodes or Functions got "
+                 << call->op;
       return RED;
     }
   }
 };
 
 class DefaultFP16OpDefinition {
+  /* The default class which determines the accumulation and
+
+  Note this is actually kind of hard! Not every op fits neatly into the dichotomy of
+  returning a floating point type. In the future try using type relations to keep things better.
+  */
  public:
   FP16OpDType operator()(const CallNode* call) {
+    // TODO: remove when batch_matmul handles accumulation dtypes well.
+    // Batched matmul has inconsistent support for mixed precision operations.
+    // Many schedules ignore the out_dtype attribute which leads to errors when
+    // input types do not match the out_dtype. Therefore, accumulate to fp16 if green.
+    if (auto op_node = call->op.as<OpNode>()) {
+      if (op_node->name == "nn.batch_matmul") {
+        return {DataType::Float(16), DataType::Float(16)};
+      }
+    }
+
+    // We assume the "out_dtype" field is always an accumulation dtype specification.
     if (call->attrs != NullValue<Attrs>()) {
       Array<AttrFieldInfo> fields = call->attrs->ListFieldInfo();
       for (AttrFieldInfo field_info : fields) {
         if (field_info->name == "out_dtype") return {DataType::Float(32), DataType::Float(16)};
       }
     }
+
     return {DataType::Float(16), DataType::Float(16)};
   }
 };
