@@ -20,15 +20,21 @@
 #ifndef TVM_RUNTIME_VULKAN_VULKAN_DEVICE_H_
 #define TVM_RUNTIME_VULKAN_VULKAN_DEVICE_H_
 
+#include <dmlc/thread_local.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/target/target.h>
 
 #include <memory>
+#include <mutex>
+#include <shared_mutex>
 #include <string>
+#include <thread>
+#include <unordered_map>
 #include <vector>
 
+#include "../thread_map.h"
 #include "vulkan/vulkan_core.h"
 #include "vulkan_buffer.h"
+#include "vulkan_stream.h"
 
 namespace tvm {
 namespace runtime {
@@ -156,6 +162,12 @@ class VulkanDevice {
    */
   bool HasExtension(const char* query) const;
 
+  //! \brief Return the VulkanStream for the current CPU thread
+  VulkanStream& ThreadLocalStream();
+
+  //! \brief Return the VulkanStream for the current CPU thread
+  const VulkanStream& ThreadLocalStream() const;
+
   // Cached device properties, queried through Vulkan API.
   VulkanDeviceProperties device_properties{};
 
@@ -183,8 +195,24 @@ class VulkanDevice {
    */
   void do_swap(VulkanDevice&& other);
 
+  /*! \brief Returns a queue family capable of running Vulkan compute
+   * operations
+   */
   uint32_t SelectComputeQueueFamily() const;
+
+  /*! \brief Returns the extensions to be enabled.
+   *
+   * All char* in the returned vector point to static memory
+   * allocations, and do not require cleanup.
+   */
   std::vector<const char*> SelectEnabledExtensions() const;
+
+  /*! \brief Initialize the VkDevice
+   *
+   * Called during VulkanDevice construction.  Assumes that
+   * queue_family_index, device_properties, and enabled_extensions
+   * have been set.
+   */
   void CreateVkDevice(const VulkanInstance& instance);
 
   //! \brief Handle to the Vulkan API physical device
@@ -210,6 +238,15 @@ class VulkanDevice {
    * VulkanDevice::SubmitQueue.
    */
   VkQueue queue{nullptr};
+
+  /*! \brief The VulkanStream for each CPU thread.
+   *
+   * To mimic the semantics of cudaSetDevice and cuLaunchKernel, each
+   * CPU thread must have a separate stream of execution.  The
+   * ThreadMap is declared mutable so that the streams can be lazily
+   * generated.
+   */
+  mutable ThreadMap<VulkanStream> stream_per_thread;
 };
 
 uint32_t FindMemoryType(const VulkanDevice& device, VkBufferCreateInfo info,

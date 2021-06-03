@@ -34,7 +34,6 @@ VulkanThreadEntry::~VulkanThreadEntry() {
   // to ensure the destruction order.
 
   pool.reset();
-  streams_.clear();
   for (const auto& kv : staging_buffers_) {
     DeleteHostVisibleBuffer(kv.second.get());
   }
@@ -69,14 +68,6 @@ VulkanThreadEntry::VulkanThreadEntry()
                                            VulkanDeviceAPI::Global())) {
   device.device_id = 0;
   device.device_type = static_cast<DLDeviceType>(kDLVulkan);
-}
-
-VulkanStream* VulkanThreadEntry::Stream(size_t device_id) {
-  if (!streams_[device_id]) {
-    streams_[device_id] = std::unique_ptr<VulkanStream>(
-        new VulkanStream(&VulkanDeviceAPI::Global()->device(device_id)));
-  }
-  return streams_[device_id].get();
 }
 
 }  // namespace vulkan

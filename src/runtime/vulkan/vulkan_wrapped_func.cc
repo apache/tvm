@@ -47,7 +47,7 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
                                    const ArgUnion64* pack_args) const {
   int device_id = VulkanThreadEntry::ThreadLocal()->device.device_id;
   ICHECK_LT(device_id, kVulkanMaxNumDevice);
-  const auto& device = VulkanDeviceAPI::Global()->device(device_id);
+  auto& device = VulkanDeviceAPI::Global()->device(device_id);
   if (!scache_[device_id]) {
     scache_[device_id] = m_->GetPipeline(device_id, func_name_, num_pack_args_);
   }
@@ -75,7 +75,7 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
   }
   if (device.UseImmediate()) {
     // Can safely capture by reference as this lambda is immediately executed on the calling thread.
-    VulkanThreadEntry::ThreadLocal()->Stream(device_id)->Launch([&](VulkanStreamState* state) {
+    device.ThreadLocalStream().Launch([&](VulkanStreamState* state) {
       vkCmdBindPipeline(state->cmd_buffer_, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline->pipeline);
       ICHECK(pipeline->descriptor_update_template != VK_NULL_HANDLE);
       device.descriptor_template_khr_functions->vkCmdPushDescriptorSetWithTemplateKHR(
@@ -164,8 +164,7 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
   for (size_t i = 0; i < descriptor_buffers.size(); ++i) {
     deferred_token.buffers_[i] = descriptor_buffers[i].buffer;
   }
-  VulkanThreadEntry::ThreadLocal()->Stream(device_id)->LaunchDeferred(
-      deferred_initializer, deferred_kernel, deferred_token);
+  device.ThreadLocalStream().LaunchDeferred(deferred_initializer, deferred_kernel, deferred_token);
 }
 
 VulkanModuleNode::~VulkanModuleNode() {

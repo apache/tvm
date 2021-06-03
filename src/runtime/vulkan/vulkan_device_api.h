@@ -25,6 +25,8 @@
 #include <string>
 #include <vector>
 
+#include "../thread_map.h"
+#include "../workspace_pool.h"
 #include "vulkan/vulkan_core.h"
 #include "vulkan_device.h"
 #include "vulkan_instance.h"
@@ -75,6 +77,13 @@ class VulkanDeviceAPI final : public DeviceAPI {
    * this function returns immediately.
    */
   const VulkanDevice& device(size_t device_id) const;
+
+  /*! \brief Return the VulkanDevice associated with a specific device_id
+   *
+   * These are constructed during VulkanDeviceAPI initialization, so
+   * this function returns immediately.
+   */
+  VulkanDevice& device(size_t device_id);
 
   /*! \brief Returns a property to be stored in a target.
    *

@@ -310,6 +310,11 @@ VulkanDevice::VulkanDevice(const VulkanInstance& instance, VkPhysicalDevice phy_
 }
 
 VulkanDevice::~VulkanDevice() {
+  // Need to clear anything that uses this device calling
+  // vkDestroyDevice.  Might be a sign that the VkDevice should be
+  // held by member variable rather than beind owned directly by
+  // VulkanDevice.
+  stream_per_thread.Clear();
   if (device_) {
     vkDestroyDevice(device_, nullptr);
   }
@@ -491,6 +496,14 @@ void VulkanDevice::CreateVkDevice(const VulkanInstance& instance) {
   VULKAN_CALL(vkCreateDevice(physical_device_, &device_create_info, nullptr, &device_));
 }
 
+VulkanStream& VulkanDevice::ThreadLocalStream() {
+  return const_cast<VulkanStream&>(const_cast<const VulkanDevice*>(this)->ThreadLocalStream());
+}
+
+const VulkanStream& VulkanDevice::ThreadLocalStream() const {
+  return stream_per_thread.GetOrMake(this);
+}
+
 uint32_t FindMemoryType(const VulkanDevice& device, VkBufferCreateInfo info,
                         VkMemoryPropertyFlags req_prop) {
   VkBuffer buffer;
@@ -596,6 +609,8 @@ VulkanHostVisibleBuffer* GetOrAllocate(
     buffers[device_id] = std::make_unique<VulkanHostVisibleBuffer>();
   }
 
+  auto& vulkan_device = VulkanDeviceAPI::Global()->device(device_id);
+
   auto& buf = *(buffers[device_id]);
   if (buf.device != nullptr && buf.size < size) {
     // free previous buffer
@@ -605,12 +620,10 @@ VulkanHostVisibleBuffer* GetOrAllocate(
       // Synchronization on staging buffers is done after host to device memory copy
       // For UBO, we sync here before we reallocate a larger buffer, to minimize synchronization
       // points
-      VulkanThreadEntry::ThreadLocal()->Stream(device_id)->Synchronize();
+      vulkan_device.ThreadLocalStream().Synchronize();
     }
     DeleteHostVisibleBuffer(&buf);
   }
-
-  const auto& vulkan_device = VulkanDeviceAPI::Global()->device(device_id);
 
   if (buf.device == nullptr) {
     buf.device = vulkan_device;
