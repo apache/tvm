@@ -25,10 +25,7 @@ Otherwise use the tf1.x converter:
 """
 
 import numpy as np
-from tensorflow.python.framework import function_def_to_graph
-from tensorflow.python.framework import tensor_util
-from tensorflow.python.framework import dtypes
-
+from tensorflow.python.framework import function_def_to_graph, tensor_util, dtypes
 
 import tvm
 from tvm.relay.transform import InferType
@@ -40,7 +37,7 @@ from .. import function as _function
 from ..loops import while_loop as _while_loop
 from .common import infer_type as _infer_type
 
-from .tensorflow import _convert_map as _convert_map_tf1
+from .tensorflow import _convert_map as _convert_map_common
 from .tensorflow import _need_prelude_for_shape_inference
 
 from ..ty import Any
@@ -97,83 +94,55 @@ def convert_const_node(node, shape):
 
 def get_attr(buf):
     """convert value of a node attribute. node attribute is part of a node in a graph.
-        // tensorflow/core/framework/attr_value.proto
-        message AttrValue {
-            oneof value {
-                bytes s = 2;                 // "string"
-                int64 i = 3;                 // "int"
-                float f = 4;                 // "float"
-                bool b = 5;                  // "bool"
-                DataType type = 6;           // "type"
-                TensorShapeProto shape = 7;  // "shape"
-                TensorProto tensor = 8;      // "tensor"
-                ListValue list = 1;          // any "list(...)"            }
-        }
+
     Parameters
     ----------
     buf: attrvalue protobuf.  <class 'tensorflow.core.framework.attr_value_pb2.AttrValue'>
+
     Returns
     -------
     The value of the attr, as a Python object.
-    """
-    fields = ["s", "i", "f", "b", "type", "shape", "tensor", "func"]
 
-    x = buf
+    Raises:
+    -------
+    ValueError: If this op does not have an attr with the given `name`.
+    """
+
+    fields = ["s", "i", "f", "b", "type", "shape", "tensor", "func"]
 
     ret = []
 
-    if not x.WhichOneof("value"):
+    if not buf.WhichOneof("value"):
         return ret
 
-    if x.HasField("list"):
+    if buf.HasField("list"):
         for f in fields:
-            if getattr(x.list, f):
+            if getattr(buf.list, f):
                 if f == "type":
-                    ret += [dtypes.as_dtype(x) for x in list(getattr(x.list, f))]
+                    ret += [dtypes.as_dtype(x) for x in list(getattr(buf.list, f))]
                 else:
-                    ret += list(getattr(x.list, f))
+                    ret += list(getattr(buf.list, f))
     else:
         for f in fields:
-            if x.HasField(f):
+            if buf.HasField(f):
                 if f == "type":
-                    ret = dtypes.as_dtype(getattr(x, f))
+                    ret = dtypes.as_dtype(getattr(buf, f))
                 else:
-                    ret = getattr(x, f)
+                    ret = getattr(buf, f)
     return ret
 
 
 def parse_attr(attr_proto):
     """Convert node attributes (a serialized map of key-value pairs) in a node to a dict
+
     Parameters
     ----------
     attr_proto: <class 'google.protobuf.pyext._message.MessageMapContainer'>
-    attributes of a tf node
-    protobuf message format:
-        // tensorflow/core/framework/node_def.proto
-        message NodeDef {
-            map<string, AttrValue> attr = 5;
-        }
+
     Returns
     -------
     Dict {string: python object}
-    Examples
-    --------
-    attributes in following node converted to {'_user_specified_name': b'x', 'dtype': tf.float32 }
-        node {
-        name: "x"
-        op: "Placeholder"
-        attr {
-            key: "_user_specified_name"
-            value {
-            s: "x"
-            }
-        }
-        attr {
-            key: "dtype"
-            value {
-            type: DT_FLOAT
-            }
-        }
+
     """
     attrs = {}
     for key, value in attr_proto.items():
@@ -182,12 +151,12 @@ def parse_attr(attr_proto):
     return attrs
 
 
-def convert_place_holder(shape, node, in_type=None):
-    """convert tf place holder into relay var.
+def convert_placeholder(shape, node, in_type=None):
+    """convert tf placeholder into relay var.
 
-    Examples
+    Example
     --------
-    a tf place holder with name "x" is converted to [Var(x, ty=TensorType([], float32))]
+    a tf placeholder with name "x" is converted to [Var(x, ty=TensorType([], float32))]
     """
 
     if shape and node.name in shape:
@@ -210,9 +179,9 @@ class RelayModule:
     after converted from tf graphdef"""
 
     def __init__(self):
-        self.mod = IRModule({})  # relay function and type definitions. defined in tvm/ir/module.py
-        self.params = {}  # for constants (weights) in the entire relay module
-        self.prelude = Prelude(self.mod)  # relay.prelude needed for tensorlist ops
+        self.mod = IRModule({})
+        self.params = {}
+        self.prelude = Prelude(self.mod)
 
 
 class GraphProto:
@@ -258,7 +227,7 @@ class GraphProto:
                 in_type = None
                 if node.name in input_types:
                     in_type = input_types[node.name]
-                self._input_shapes[name], self._nodes[name] = convert_place_holder(
+                self._input_shapes[name], self._nodes[name] = convert_placeholder(
                     shape, node, in_type
                 )
             elif node.op == "Const":
@@ -311,8 +280,12 @@ class GraphProto:
 
         Parameters
         ----------
+        graph: <class 'tensorflow.core.framework.graph_pb2.GraphDef'>
+            TF2 frozen graph def
         op_name : str
             Operator name, such as Conv2D, AvgPool
+        node_name: str
+             Name of the node in TF2 graph, such as Identity:0
         inputs : list of relay.op
             List of input symbols.
         attrs : dict
@@ -347,11 +320,11 @@ class GraphProto:
                 self._prelude,
                 gdef_lib=self._gdef_lib,
             )
-        elif op_name in _convert_map_tf1:
+        elif op_name in _convert_map_common:
             if _need_prelude_for_shape_inference(op_name):
-                sym = _convert_map_tf1[op_name](inputs, attrs, self._params, self._prelude)
+                sym = _convert_map_common[op_name](inputs, attrs, self._params, self._prelude)
             else:
-                sym = _convert_map_tf1[op_name](inputs, attrs, self._params, self._module.mod)
+                sym = _convert_map_common[op_name](inputs, attrs, self._params, self._module.mod)
         else:
             raise NotImplementedError("Operator {} not implemented.".format(op_name))
 
@@ -482,7 +455,6 @@ def _convert_loop(module, graph, inputs, attr, node_name, nodes, prelude, gdef_l
         None,
     )
     loop_inputs = convert_vars(inputs, while_func.signature.input_arg)
-    # in_shapes = nodes[node_name].attr["output_shapes"].list.shape
 
     def cond_fn(*loop_inputs):
         return _convert_function(

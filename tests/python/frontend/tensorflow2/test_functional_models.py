@@ -377,33 +377,37 @@ def test_multi_output():
 
 
 def test_if():
-    class If(tf.Module):
-        def get_input(self):
-            return np.ones((2, 2), dtype="float32")
-
-        @tf.function(input_signature=[tf.TensorSpec(shape=(2, 2), dtype=tf.float32)])
-        def func(self, x):
-            @tf.function(input_signature=[tf.TensorSpec(shape=(2, 2), dtype=tf.float32)])
-            def double(x):
-                return 2 * x
+    def create_if_class(_condition=True):
+        class If(tf.Module):
+            def get_input(self):
+                return np.ones((2, 2), dtype="float32")
 
             @tf.function(input_signature=[tf.TensorSpec(shape=(2, 2), dtype=tf.float32)])
-            def triple(x):
-                return 3 * x
+            def func(self, x):
+                @tf.function(input_signature=[tf.TensorSpec(shape=(2, 2), dtype=tf.float32)])
+                def double(x):
+                    return 2 * x
 
-            cond = True
-            output = tf.raw_ops.If(
-                cond=cond,
-                input=[x],
-                Tout=[tf.float32],
-                output_shapes=[(2, 2)],
-                then_branch=double.get_concrete_function(),
-                else_branch=triple.get_concrete_function(),
-            )
-            return output[0]
+                @tf.function(input_signature=[tf.TensorSpec(shape=(2, 2), dtype=tf.float32)])
+                def triple(x):
+                    return 3 * x
 
-    run_func_graph(If, runtime="vm")
-    run_model_graph(If)
+                output = tf.raw_ops.If(
+                    cond=_condition,
+                    input=[x],
+                    Tout=[tf.float32],
+                    output_shapes=[(2, 2)],
+                    then_branch=double.get_concrete_function(),
+                    else_branch=triple.get_concrete_function(),
+                )
+                return output[0]
+
+        return If
+
+    for cond in [True, False]:
+        if_class = create_if_class(_condition=cond)
+        run_func_graph(if_class, runtime="vm")
+        run_model_graph(if_class)
 
 
 def test_stateless_while():
