@@ -52,8 +52,6 @@ struct TensorRTEngineAndContext {
   nvinfer1::IExecutionContext* context;
   std::vector<std::string> inputs;
   std::vector<std::string> outputs;
-  /*! \brief GPU buffers for inputs and outputs. */
-  std::vector<NDArray> device_buffers;
 };
 
 /*!
@@ -122,12 +120,6 @@ class TensorRTBuilder {
 
   /*! \brief Clean up resources used to create engine. */
   void CleanUp();
-
-  /*! \brief Allocate a GPU buffer for input or output DLTensor, only if the context is not GPU
-   * already. Inputs that are already on the GPU can be passed directly to TensorRT and will not
-   * need a buffer. */
-  void AllocateDeviceBuffer(nvinfer1::ICudaEngine* engine, const std::string& name,
-                            std::vector<runtime::NDArray>* device_buffers);
 
   /*! \brief Maps a node to its outputs. */
   std::unordered_map<int, std::vector<TensorRTOpInput>> node_output_map_;

@@ -37,6 +37,10 @@ if [[ "$#" -lt 1 ]]; then
     exit 1
 fi
 
+# required to make black's dep click to work
+export LC_ALL=C.UTF-8
+export LANG=C.UTF-8
+
 if [ ! -x "$(command -v black)" ]; then
     echo "Cannot find black"
     exit 1
@@ -53,10 +57,6 @@ if [ -z ${FILES+x} ]; then
     exit 0
 fi
 echo "Files: $FILES"
-
-# required to make black's dep click to work
-export LC_ALL=C.UTF-8
-export LANG=C.UTF-8
 
 if [[ ${INPLACE_FORMAT} -eq 1 ]]; then
     echo "Running black on Python files against revision" $1:
