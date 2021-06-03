@@ -27,7 +27,7 @@
 
 /* Begin PBXBuildFile section */
 		016B19C22657B390002E1719 /* RPCServer.mm in Sources */ = {isa = PBXBuildFile; fileRef = 016B19C12657B390002E1719 /* RPCServer.mm */; };
-		01A1DB432652CBA700655BBC /* rpc_args.mm in Sources */ = {isa = PBXBuildFile; fileRef = 01A1DB412652CBA700655BBC /* rpc_args.mm */; };
+		01A1DB432652CBA700655BBC /* RPCArgs.mm in Sources */ = {isa = PBXBuildFile; fileRef = 01A1DB412652CBA700655BBC /* RPCArgs.mm */; };
 		01A9B7B3265BD1FD000D092F /* libtvm_runtime.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 01A9B7B2265BD1FD000D092F /* libtvm_runtime.dylib */; };
 		01A9B7B8265BD307000D092F /* libtvm_runtime.dylib in Embed Libraries */ = {isa = PBXBuildFile; fileRef = 01A9B7B2265BD1FD000D092F /* libtvm_runtime.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		C02637501F1C25E8007247A9 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = C026374F1F1C25E8007247A9 /* main.m */; };
@@ -68,8 +68,8 @@
 /* Begin PBXFileReference section */
 		016B19C02657B390002E1719 /* RPCServer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = RPCServer.h; sourceTree = "<group>"; };
 		016B19C12657B390002E1719 /* RPCServer.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = RPCServer.mm; sourceTree = "<group>"; };
-		01A1DB402652CBA700655BBC /* rpc_args.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = rpc_args.h; sourceTree = "<group>"; };
-		01A1DB412652CBA700655BBC /* rpc_args.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = rpc_args.mm; sourceTree = "<group>"; };
+		01A1DB402652CBA700655BBC /* RPCArgs.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = RPCArgs.h; sourceTree = "<group>"; };
+		01A1DB412652CBA700655BBC /* RPCArgs.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = RPCArgs.mm; sourceTree = "<group>"; };
 		01A9B7B2265BD1FD000D092F /* libtvm_runtime.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libtvm_runtime.dylib; path = "${TVM_BUILD_DIR}/libtvm_runtime.dylib"; sourceTree = "<group>"; };
 		C026374B1F1C25E8007247A9 /* tvmrpc.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = tvmrpc.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C026374F1F1C25E8007247A9 /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
@@ -134,8 +134,8 @@
 			children = (
 				016B19C02657B390002E1719 /* RPCServer.h */,
 				016B19C12657B390002E1719 /* RPCServer.mm */,
-				01A1DB402652CBA700655BBC /* rpc_args.h */,
-				01A1DB412652CBA700655BBC /* rpc_args.mm */,
+				01A1DB402652CBA700655BBC /* RPCArgs.h */,
+				01A1DB412652CBA700655BBC /* RPCArgs.mm */,
 				C02637651F1C2690007247A9 /* TVMRuntime.mm */,
 				C02637511F1C25E8007247A9 /* AppDelegate.h */,
 				C02637521F1C25E8007247A9 /* AppDelegate.m */,
@@ -299,7 +299,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				C02637691F1C26AF007247A9 /* ViewController.mm in Sources */,
-				01A1DB432652CBA700655BBC /* rpc_args.mm in Sources */,
+				01A1DB432652CBA700655BBC /* RPCArgs.mm in Sources */,
 				016B19C22657B390002E1719 /* RPCServer.mm in Sources */,
 				C02637531F1C25E8007247A9 /* AppDelegate.m in Sources */,
 				C02637661F1C2690007247A9 /* TVMRuntime.mm in Sources */,
@@ -370,6 +370,7 @@
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_BITCODE = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu99;
@@ -422,6 +423,7 @@
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_BITCODE = NO;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu99;
@@ -449,7 +451,6 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CLANG_ENABLE_OBJC_ARC = NO;
 				CLANG_ENABLE_OBJC_WEAK = YES;
 				CLANG_WARN_DOCUMENTATION_COMMENTS = NO;
 				DEVELOPMENT_TEAM = 3FR42MXLK9;
@@ -474,7 +475,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = org.apache.tvmrpc;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				TVM_BUILD_DIR = "path-to-tvm-ios-build-folder";
-				USE_CUSTOM_DSO_LOADER = 0;
+				USE_CUSTOM_DSO_LOADER = 1;
 				WARNING_CFLAGS = "-Wno-shorten-64-to-32";
 				_DSO_LOADER_NAME_0 = "";
 				_DSO_LOADER_NAME_1 = "-lmacho_dyld";
@@ -485,7 +486,6 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CLANG_ENABLE_OBJC_ARC = NO;
 				CLANG_ENABLE_OBJC_WEAK = YES;
 				CLANG_WARN_DOCUMENTATION_COMMENTS = NO;
 				DEVELOPMENT_TEAM = 3FR42MXLK9;
@@ -510,7 +510,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = org.apache.tvmrpc;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				TVM_BUILD_DIR = "path-to-tvm-ios-build-folder";
-				USE_CUSTOM_DSO_LOADER = 0;
+				USE_CUSTOM_DSO_LOADER = 1;
 				WARNING_CFLAGS = "-Wno-shorten-64-to-32";
 				_DSO_LOADER_NAME_0 = "";
 				_DSO_LOADER_NAME_1 = "-lmacho_dyld";

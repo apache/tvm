@@ -23,7 +23,7 @@
 
 #import <UIKit/UIKit.h>
 #import "AppDelegate.h"
-#import "rpc_args.h"
+#import "RPCArgs.h"
 
 int main(int argc, char * argv[]) {
     update_rpc_args(argc, argv);

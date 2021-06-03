@@ -64,6 +64,17 @@ typedef enum {
  */
 @interface RPCServer : NSObject <NSStreamDelegate>
 
+/// Event listener delegate to set
+@property(retain) id<RPCServerEventListener> delegate;
+/// Device key to report during RPC session
+@property(retain) NSString* key;
+/// Host address of Proxy/Tracker server (generally IPv4). Ignored for PureServer mode.
+@property(retain) NSString* host;
+/// Port of Proxy/Tracker server. Ignored for PureServer mode.
+@property int port;
+/// Triger to enable printing of server state info
+@property BOOL verbose;
+
 /*!
  * \brief Create server with specified sevicing mode
  * \param mode Mode of server
@@ -71,18 +82,9 @@ typedef enum {
 + (instancetype)serverWithMode:(RPCServerMode)mode;
 
 /*!
- * \brief Set listener delegate
- * \param delegate Event listener delegate to set
- */
-- (void)setDelegate:(id<RPCServerEventListener>)delegate;
-
-/*!
  * \brief Start RPC server with options. Non blocking method
- * \param host Host address of Tracker/Proxy to connect. Skipped for PureServer mode
- * \param port Port of Tracker/Proxy to connect. Skipped for PureServer mode
- * \param key device key to use in RPC server
  */
-- (void)startWithHost:(NSString*)host port:(int)port key:(NSString*)key;
+- (void)start;
 
 /*!
  * \brief Stop RPC server. Non blocking method

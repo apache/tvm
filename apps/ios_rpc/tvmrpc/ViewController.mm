@@ -22,9 +22,16 @@
  */
 
 #import "ViewController.h"
-#import "rpc_args.h"
+#import "RPCArgs.h"
 
-@implementation ViewController
+@implementation ViewController {
+  // server implementation
+  RPCServer* server_;
+  // verbose flag to print status info
+  bool verbose_;
+  // verbose flag to print status info
+  bool to_connect_;
+}
 
 - (void)viewDidLoad {
   // To handle end editing events
@@ -38,6 +45,16 @@
   self.proxyKey.text = @(args.key);
 
   self.ModeSelector.selectedSegmentIndex = args.server_mode;
+  self->verbose_ = args.verbose;
+  self->to_connect_ = true;
+
+  // Add border to button
+  void (^addBorder)(UIButton* btn) = ^(UIButton* btn) {
+    btn.layer.borderWidth = 2.0f;
+    btn.layer.borderColor = self.ConnectButton.currentTitleColor.CGColor;
+    btn.layer.cornerRadius = 10;
+  };
+  addBorder(self.ConnectButton);
 
   // Connect to tracker immediately
   if (args.immediate_connect) {
@@ -55,11 +72,15 @@
     field.backgroundColor = [UIColor lightGrayColor];
   };
 
+  void (^disableButton)(UIButton* btn) = ^(UIButton* btn) {
+    btn.enabled = NO;
+    btn.layer.borderColor = btn.currentTitleColor.CGColor;
+  };
+
   disable(self.proxyURL);
   disable(self.proxyPort);
   disable(self.proxyKey);
-  self.ConnectButton.enabled = NO;
-  self.DisconnectButton.enabled = NO;
+  disableButton(self.ConnectButton);
   self.ModeSelector.enabled = NO;
 }
 
@@ -70,12 +91,14 @@
   RPCServerMode server_mode = static_cast<RPCServerMode>(self.ModeSelector.selectedSegmentIndex);
 
   server_ = [RPCServer serverWithMode:server_mode];
-  [server_ setDelegate:self];
-  [server_ startWithHost:self.proxyURL.text
-                    port:self.proxyPort.text.intValue
-                     key:self.proxyKey.text];
+  server_.host = self.proxyURL.text;
+  server_.port = self.proxyPort.text.intValue;
+  server_.key = self.proxyKey.text;
+  server_.verbose = self->verbose_;
+  server_.delegate = self;
 
-  NSLog(@"Connecting to the proxy server...");
+  [server_ start];
+
   self.infoText.text = @"";
   self.statusLabel.text = @"Connecting...";
 }
@@ -85,20 +108,18 @@
  */
 - (void)close {
   [server_ stop];
-  NSLog(@"Closing the streams...");
   self.statusLabel.text = @"Disconnecting...";
 }
 
 #pragma mark - Button responders
-
+/*!
+ * \brief Connect/disconnect button handler
+ */
 - (IBAction)connect:(id)sender {
-  [[self view] endEditing:YES];
-  [self open];
-}
-
-- (IBAction)disconnect:(id)sender {
-  [[self view] endEditing:YES];
-  [self close];
+  [[self view] endEditing:YES];  // to hide keyboard
+  (to_connect_ ^= true) ? [self close] : [self open];
+  [self.ConnectButton setTitle:to_connect_ ? @"Connect" : @"Disconenct"
+                      forState:UIControlStateNormal];
 }
 
 #pragma mark - UITextFieldDelegate
@@ -141,8 +162,4 @@
   });
 }
 
-- (void)dealloc {
-  [_ModeSelector release];
-  [super dealloc];
-}
 @end

@@ -25,7 +25,7 @@
 
 #include <tvm/runtime/registry.h>
 
-#include "rpc_args.h"
+#include "RPCArgs.h"
 
 // internal TVM header
 #include <../../../src/runtime/file_utils.h>

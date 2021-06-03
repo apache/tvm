@@ -17,7 +17,7 @@
  * under the License.
  */
 
-#import "rpc_args.h"
+#import "RPCArgs.h"
 
 #import <Foundation/Foundation.h>
 
@@ -31,14 +31,13 @@ using std::string;
 const char* kUsage =
     "\n"
     "iOS tvmrpc application supported flags:\n"
-    "--host_url  - The tracker/proxy address, Default=0.0.0.0\n"
-    "--host_port - The tracker/proxy port, Default=9190\n"
-    "--port         - The port of the RPC, Default=9090\n"
-    "--port_end     - The end search port of the RPC, Default=9099\n"
-    "--key          - The key used to identify the device type in tracker. Default=\"\"\n"
-    "--custom_addr  - Custom IP Address to Report to RPC Tracker. Default=\"\"\n"
-    "--immediate_connect - No UI interconnection, connect to tracker immediately. Default=False\n"
-    "--server_mode  - Server mode. Can be \"pure_server\", \"proxy\" or \"tracker\". "
+    "--host_url      The tracker/proxy address, Default=0.0.0.0\n"
+    "--host_port     The tracker/proxy port, Default=9190\n"
+    "--key           The key used to identify the device type in tracker. Default=\"\"\n"
+    "--custom_addr   Custom IP Address to Report to RPC Tracker. Default=\"\"\n"
+    "--immediate_connect   No UI interconnection, connect to tracker immediately. Default=False\n"
+    "--verbose       Allow to print status info to std out. Default=False\n"
+    "--server_mode   Server mode. Can be \"pure_server\", \"proxy\" or \"tracker\". "
     "Default=pure_server \n"
     "\n";
 
@@ -48,10 +47,9 @@ struct RPCArgs_cpp {
 
   string key;
   string custom_addr = "";
-  int port = 9090;
-  int port_end = 9099;
 
   bool immediate_connect = false;
+  bool verbose = false;
   char server_mode = 0;
 
   operator RPCArgs() const {
@@ -59,8 +57,7 @@ struct RPCArgs_cpp {
                    .host_port = host_port,
                    .key = key.c_str(),
                    .custom_addr = custom_addr.c_str(),
-                   .port = port,
-                   .port_end = port_end,
+                   .verbose = verbose,
                    .immediate_connect = immediate_connect,
                    .server_mode = server_mode};
   };
@@ -70,8 +67,7 @@ struct RPCArgs_cpp {
     host_port = args.host_port;
     key = args.key;
     custom_addr = args.custom_addr;
-    port = args.port;
-    port_end = args.port_end;
+    verbose = args.verbose;
     immediate_connect = args.immediate_connect;
     server_mode = args.server_mode;
     return *this;
@@ -135,9 +131,10 @@ void update_rpc_args(int argc, char* argv[]) {
   constexpr int MAX_PORT_NUM = 65535;
 
   const string immediate_connect = GetCmdOption(argc, argv, "--immediate_connect", true);
-  if (!immediate_connect.empty()) {
-    args.immediate_connect = true;
-  }
+  args.immediate_connect = !immediate_connect.empty();
+
+  const string verbose = GetCmdOption(argc, argv, "--verbose", true);
+  args.verbose = !verbose.empty();
 
   const string server_mode = GetCmdOption(argc, argv, "--server_mode=", false);
   if (!server_mode.empty()) {
@@ -172,26 +169,6 @@ void update_rpc_args(int argc, char* argv[]) {
       exit(1);
     }
     args.host_port = stoi(host_port);
-  }
-
-  const string port = GetCmdOption(argc, argv, "--port=");
-  if (!port.empty()) {
-    if (!IsNumber(port) || stoi(port) > MAX_PORT_NUM) {
-      LOG(WARNING) << "Wrong port number.";
-      LOG(INFO) << kUsage;
-      exit(1);
-    }
-    args.port = stoi(port);
-  }
-
-  const string port_end = GetCmdOption(argc, argv, "--port_end=");
-  if (!port_end.empty()) {
-    if (!IsNumber(port_end) || stoi(port_end) > MAX_PORT_NUM) {
-      LOG(WARNING) << "Wrong port_end number.";
-      LOG(INFO) << kUsage;
-      exit(1);
-    }
-    args.port_end = stoi(port_end);
   }
 
   const string key = GetCmdOption(argc, argv, "--key=");

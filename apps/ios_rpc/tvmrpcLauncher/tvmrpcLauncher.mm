@@ -23,23 +23,47 @@
  */
 
 #import <XCTest/XCTest.h>
+#import "RPCArgs.h"
 #import "RPCServer.h"
-#import "rpc_args.h"
+
+@interface EventListenerWrapper : NSObject <RPCServerEventListener>
+@end
+
+@implementation EventListenerWrapper {
+  void (^blk_)(RPCServerStatus);
+}
+
+- (instancetype)initWithBlock:(void (^)(RPCServerStatus))blk {
+  blk_ = blk;
+  return self;
+}
+
+- (void)onError:(NSString*)msg {
+}
+- (void)onStatusChanged:(RPCServerStatus)status {
+  blk_(status);
+}
+// void (^disable)(UITextField* field) = ^(UITextField* field) {
+@end
 
 @interface tvmrpcLauncher : XCTestCase
-
 @end
 
 @implementation tvmrpcLauncher
 
 - (void)testRPC {
   RPCArgs args = get_current_rpc_args();
-  RPCServerMode server_mode = static_cast<RPCServerMode>(args.server_mode);
 
-  RPCServer* server_ = [RPCServer serverWithMode:server_mode];
+  RPCServer* server = [RPCServer serverWithMode:static_cast<RPCServerMode>(args.server_mode)];
+  server.host = @(args.host_url);
+  server.port = args.host_port;
+  server.key = @(args.key);
 
-  RPCServer* server = [RPCServer serverWithMode:server_mode];
-  [server startWithHost:@(args.host_url) port:args.host_port key:@(args.key)];
+  server.delegate = [[EventListenerWrapper alloc] initWithBlock:^(RPCServerStatus sts) {
+    NSLog(@"Sts : %d", sts);
+  }];
+
+  [server start];
 }
 
 @end

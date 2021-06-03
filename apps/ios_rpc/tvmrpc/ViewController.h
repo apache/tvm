@@ -24,9 +24,7 @@
 #import <UIKit/UIKit.h>
 #import "RPCServer.h"
 
-@interface ViewController : UIViewController <RPCServerEventListener, UITextFieldDelegate> {
-  RPCServer* server_;
-}
+@interface ViewController : UIViewController <RPCServerEventListener, UITextFieldDelegate>
 
 @property(weak, nonatomic) IBOutlet UITextField* proxyURL;
 @property(weak, nonatomic) IBOutlet UITextField* proxyPort;
@@ -35,8 +33,6 @@
 @property(weak, nonatomic) IBOutlet UITextView* infoText;
 
 - (IBAction)connect:(id)sender;
-- (IBAction)disconnect:(id)sender;
-@property(retain, nonatomic) IBOutlet UIButton* DisconnectButton;
 @property(retain, nonatomic) IBOutlet UIButton* ConnectButton;
 @property(retain, nonatomic) IBOutlet UISegmentedControl* ModeSelector;
 

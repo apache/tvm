@@ -92,13 +92,12 @@ static std::string getWiFiAddress() {
 
   int success = getifaddrs(&interfaces);
   if (success == 0) {
-    // Loop through linked list of interfaces
     ifaddrs* temp_addr = interfaces;
     while (temp_addr != NULL) {
       if (temp_addr->ifa_addr->sa_family == AF_INET) {
         // Check if interface is en0 which is the wifi connection on the iPhone
         if (std::string(temp_addr->ifa_name) == "en0") {
-          address = std::string(inet_ntoa(((sockaddr_in*)temp_addr->ifa_addr)->sin_addr));
+          address = inet_ntoa(((sockaddr_in*)temp_addr->ifa_addr)->sin_addr);
         }
       }
       temp_addr = temp_addr->ifa_next;
@@ -112,262 +111,46 @@ static std::string getWiFiAddress() {
 }  // namespace runtime
 }  // namespace tvm
 
-// Forward declaration
-@interface RPCTrackerClien : RPCServer <RPCServerEventListener>
-@end
-
-// Forward declaration
-@interface RPCServerPure : RPCServer
-@end
+// Base class for any type of RPC servicing
+@interface RPCServerBase : RPCServer
 
 /*!
- * \brief Base implementation of server to work with RPCProxy
- *        Will automatically connect/reconnect to RPCProxy server
+ * Methods to implement on inherited classes
  */
-@implementation RPCServer {
- @protected
-  // The key of the server.
-  NSString* key_;
-  // The url of host.
-  NSString* url_;
-  // The port of host.
-  NSInteger port_;
-  // Event listener
-  id<RPCServerEventListener> delegate_;
+- (bool)onReadHandler;   // return true - continue feeding, false - stop, try to drain output buffer
+- (bool)onWriteHandler;  // return true - continue draining, false - no data to write
+- (void)onEndEncountered;  // called on disconnect or session desided that it's shutdown time
+- (void)open;              // Initiate listening objects like i/o streams and other resources
+- (void)close;             // Deinitialize resources opend in "open" method
+@end
+
+@implementation RPCServerBase {
   // Worker thread
   NSThread* worker_thread_;
-  // Triger to continue processing
+  // Triger to continue RunLoop processing inside worker_thread_
   BOOL shouldKeepRunning;
-  // Ip of rpc server (actually ip of ios device)
-  std::string server_ip_;
-  // Port of rpc server
-  int server_port_;
   // Input socket stream
+ @protected
   NSInputStream* inputStream_;
   // Output socket stream
   NSOutputStream* outputStream_;
-  // Temporal receive buffer.
+  // Temporal buffer with data to send
+  std::string sendBuffer_;
+  // Temporal receive buffer
   std::string recvBuffer_;
-  // Whether connection is initialized.
-  bool initialized_;
-  // Initial bytes to be send to remote
-  std::string initBytes_;
-  // Send pointer of initial bytes.
-  size_t initSendPtr_;
-  // Event handler.
-  tvm::runtime::FEventHandler handler_;
-}
-
-+ (instancetype)serverWithMode:(RPCServerMode)mode {
-  if (mode == RPCServerMode_PureServer) return [[RPCServerPure alloc] init];
-  if (mode == RPCServerMode_Proxy) return [[RPCServer alloc] init];
-  if (mode == RPCServerMode_Tracker) return [[RPCTrackerClien alloc] init];
-  return nil;
-}
-
-- (instancetype)init {
-  [super init];
-  server_ip_ = tvm::runtime::getWiFiAddress();
-  return self;
+  // Requested data size to accumulate in recvBuffer_ before continue processing
+  int requiredToRecv_;
 }
 
 /*!
- * Internal setters methods
+ * Start internal worker thread with RunLoop and submit correspoding open handlers into it
+ * Not blocking
  */
-- (void)setDelegate:(id<RPCServerEventListener>)delegate {
-  delegate_ = delegate;
-}
-- (void)setKey:(NSString*)key {
-  key_ = key;
-}
-- (void)setUrl:(NSString*)url {
-  url_ = url;
-}
-- (void)setPort:(NSInteger)port {
-  port_ = port;
-}
-
-/*!
- * \brief Main event listener method. All stream event handling starts here
- */
-- (void)stream:(NSStream*)strm handleEvent:(NSStreamEvent)event {
-  std::string buffer;
-  switch (event) {
-    case NSStreamEventOpenCompleted: {
-      break;
-    }
-    case NSStreamEventHasBytesAvailable:
-      if (strm == inputStream_) {
-        [self onReadAvailable];
-      }
-      break;
-    case NSStreamEventHasSpaceAvailable: {
-      if (strm == outputStream_) {
-        [self onWriteAvailable];
-      }
-      break;
-    }
-    case NSStreamEventErrorOccurred: {
-      NSLog(@"%@", [strm streamError].localizedDescription);
-      break;
-    }
-    case NSStreamEventEndEncountered: {
-      [self onEndEvent];
-      break;
-    }
-    default: {
-      NSLog(@"Unknown event");
-    }
-  }
-}
-
-- (void)notifyError:(NSString*)msg {
-  NSLog(@"[IOS-RPC] ERROR: %@", msg);
-  if (delegate_ != nil) [delegate_ onError:msg];
-}
-
-- (void)notifyState:(RPCServerStatus)state {
-  if (state == RPCServerStatus_Launched) {
-    // Notify host runner script with actual address
-    NSLog(@"[IOS-RPC] IP: %s", server_ip_.c_str());
-    NSLog(@"[IOS-RPC] PORT: %d", server_port_);
-  }
-  // Notify host runner script with current status
-  NSLog(@"[IOS-RPC] STATE: %d", state);
-  // Notify listener
-  if (delegate_ != nil) [delegate_ onStatusChanged:state];
-}
-
-- (void)onReadAvailable {
-  if (!initialized_) {
-    using tvm::runtime::kRPCMagic;
-    int code;
-    size_t nbytes = [inputStream_ read:reinterpret_cast<uint8_t*>(&code) maxLength:sizeof(code)];
-    if (nbytes != sizeof(code)) {
-      [self notifyError:@"Fail to receive remote confirmation code."];
-      [self close];
-    } else if (code == kRPCMagic + 2) {
-      [self notifyError:@"Proxy server cannot find client that matches the key"];
-      [self close];
-    } else if (code == kRPCMagic + 1) {
-      [self notifyError:@"Proxy server already have another server with same key"];
-      [self close];
-    } else if (code != kRPCMagic) {
-      [self notifyError:@"Given address is not a TVM RPC Proxy"];
-      [self close];
-    } else {
-      initialized_ = true;
-      ICHECK(handler_ != nullptr);
-    }
-  }
-  const int kBufferSize = 4 << 10;
-  if (initialized_) {
-    while ([inputStream_ hasBytesAvailable]) {
-      recvBuffer_.resize(kBufferSize);
-      uint8_t* bptr = reinterpret_cast<uint8_t*>(&recvBuffer_[0]);
-      size_t nbytes = [inputStream_ read:bptr maxLength:kBufferSize];
-      recvBuffer_.resize(nbytes);
-      int flag = 1;
-      if ([outputStream_ hasSpaceAvailable]) {
-        flag |= 2;
-      }
-      // always try to write
-      try {
-        TVMByteArray arr{recvBuffer_.data(), recvBuffer_.size()};
-        flag = handler_(arr, flag);
-        if (flag == 2) {
-          [self onShutdownReceived];
-        }
-      } catch (const tvm::Error& e) {
-        [self close];
-      }
-    }
-  }
-}
-
-- (void)onWriteAvailable {
-  if (initSendPtr_ < initBytes_.length()) {
-    initSendPtr_ += [outputStream_ write:reinterpret_cast<uint8_t*>(&initBytes_[initSendPtr_])
-                               maxLength:(initBytes_.length() - initSendPtr_)];
-  }
-  [self notifyState:RPCServerStatus_Connected];
-  if (initialized_) {
-    try {
-      TVMByteArray dummy{nullptr, 0};
-      int flag = handler_(dummy, 2);
-      if (flag == 2) {
-        [self onShutdownReceived];
-      }
-    } catch (const tvm::Error& e) {
-      [self close];
-    }
-  }
-}
-
-- (void)onShutdownReceived {
-  [self close];
-}
-
-- (void)onEndEvent {
-  [self close];
-  [self notifyState:RPCServerStatus_RPCSessionFinished];
-  // Basic behaviour is to reconnect
-  [self open];
-}
-
-- (void)open {
-  // Initialize the data states.
-  std::string full_key = std::string("server:") + [key_ UTF8String];
-  std::ostringstream os;
-  int rpc_magic = tvm::runtime::kRPCMagic;
-  os.write(reinterpret_cast<char*>(&rpc_magic), sizeof(rpc_magic));
-  int keylen = static_cast<int>(full_key.length());
-  os.write(reinterpret_cast<char*>(&keylen), sizeof(keylen));
-  os.write(full_key.c_str(), full_key.length());
-  initialized_ = false;
-  initBytes_ = os.str();
-  initSendPtr_ = 0;
-
-  // Initialize the network.
-  CFReadStreamRef readStream;
-  CFWriteStreamRef writeStream;
-  CFStreamCreatePairWithSocketToHost(NULL, (CFStringRef)url_, port_, &readStream, &writeStream);
-  inputStream_ = (NSInputStream*)readStream;
-  outputStream_ = (NSOutputStream*)writeStream;
-  [inputStream_ setDelegate:self];
-  [outputStream_ setDelegate:self];
-  [inputStream_ scheduleInRunLoop:[NSRunLoop currentRunLoop] forMode:NSDefaultRunLoopMode];
-  [outputStream_ scheduleInRunLoop:[NSRunLoop currentRunLoop] forMode:NSDefaultRunLoopMode];
-  [outputStream_ open];
-  [inputStream_ open];
-
-  handler_ = tvm::runtime::CreateServerEventHandler(outputStream_, full_key, "%toinit");
-  ICHECK(handler_ != nullptr);
-}
-
-- (void)close {
-  [inputStream_ close];
-  [outputStream_ close];
-  [inputStream_ removeFromRunLoop:[NSRunLoop currentRunLoop] forMode:NSDefaultRunLoopMode];
-  [outputStream_ removeFromRunLoop:[NSRunLoop currentRunLoop] forMode:NSDefaultRunLoopMode];
-  [inputStream_ setDelegate:nil];
-  [outputStream_ setDelegate:nil];
-  inputStream_ = nil;
-  outputStream_ = nil;
-  handler_ = nullptr;
-  [self notifyState:RPCServerStatus_Disconnected];
-}
-
-- (void)startWithHost:(NSString*)host port:(int)port key:(NSString*)key {
-  key_ = [key copy];
-  port_ = port;
-  url_ = [host copy];
-
-  // process in separate thead with runloop
+- (void)start {
   worker_thread_ = [[NSThread alloc] initWithBlock:^{
     @autoreleasepool {
-      [self open];
       [self notifyState:RPCServerStatus_Launched];
+      [self open];
       shouldKeepRunning = YES;
       while (shouldKeepRunning && [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode
                                                            beforeDate:[NSDate distantFuture]])
@@ -378,11 +161,15 @@ static std::string getWiFiAddress() {
   [worker_thread_ start];
 }
 
+/*!
+ * Send message to workel thread runloop to finish processing
+ * Not blocking
+ */
 - (void)stop {
   if (worker_thread_ == nil) return;
 
   [self performSelector:@selector(stop_) onThread:worker_thread_ withObject:nil waitUntilDone:NO];
-  worker_thread_ = nil;
+  worker_thread_ = nil;  // TODO: is it valide? may be better to do that inside NSThread?
 }
 
 - (void)stop_ {
@@ -390,320 +177,617 @@ static std::string getWiFiAddress() {
   shouldKeepRunning = NO;
 }
 
-@end
-
-@implementation RPCServerPure {
-  // Socket with incoming conenction (only for Pure RPC server)
-  CFSocketNativeHandle socket_;
-}
-
-- (void)handleConnect:(const CFSocketNativeHandle)hdl {
-  socket_ = hdl;
-
-  // Initialize the data states.
-  std::string full_key = std::string("server:") + [key_ UTF8String];
-  std::ostringstream os;
-  int rpc_magic = tvm::runtime::kRPCMagic;
-  os.write(reinterpret_cast<char*>(&rpc_magic), sizeof(rpc_magic));
-  int keylen = static_cast<int>(full_key.length());
-  os.write(reinterpret_cast<char*>(&keylen), sizeof(keylen));
-  os.write(full_key.c_str(), full_key.length());
-  initialized_ = false;
-  initBytes_ = os.str();
-  initSendPtr_ = 0;
-
-  // Initialize the network.
+/*!
+ * Base implementation to selup i/o streams
+ * Will connect to host and port specified in corresponding properties
+ */
+- (void)open {
   CFReadStreamRef readStream;
   CFWriteStreamRef writeStream;
-  CFStreamCreatePairWithSocket(NULL, socket_, &readStream, &writeStream);
-
-  inputStream_ = (NSInputStream*)readStream;
-  outputStream_ = (NSOutputStream*)writeStream;
+  CFStreamCreatePairWithSocketToHost(NULL, (__bridge CFStringRef)self.host, self.port, &readStream,
+                                     &writeStream);
+  inputStream_ = (__bridge NSInputStream*)readStream;
+  outputStream_ = (__bridge NSOutputStream*)writeStream;
   [inputStream_ setDelegate:self];
   [outputStream_ setDelegate:self];
   [inputStream_ scheduleInRunLoop:[NSRunLoop currentRunLoop] forMode:NSDefaultRunLoopMode];
   [outputStream_ scheduleInRunLoop:[NSRunLoop currentRunLoop] forMode:NSDefaultRunLoopMode];
   [outputStream_ open];
   [inputStream_ open];
-
-  handler_ = tvm::runtime::CreateServerEventHandler(outputStream_, full_key, "%toinit");
-  ICHECK(handler_ != nullptr);
 }
 
-static void handleConnect(CFSocketRef socket, CFSocketCallBackType type, CFDataRef address,
-                          const void* data, void* info) {
-  RPCServerPure* it = static_cast<RPCServerPure*>(info);
-  [it handleConnect:*static_cast<const CFSocketNativeHandle*>(data)];
+/*!
+ * Base implementation to selup i/o streams
+ * Will assign i/o streams to provided socket connection.
+ */
+- (void)openWithSocket:(CFSocketNativeHandle)sock {
+  CFReadStreamRef readStream;
+  CFWriteStreamRef writeStream;
+  CFStreamCreatePairWithSocket(NULL, sock, &readStream, &writeStream);
+  inputStream_ = (__bridge NSInputStream*)readStream;
+  outputStream_ = (__bridge NSOutputStream*)writeStream;
+  [inputStream_ setDelegate:self];
+  [outputStream_ setDelegate:self];
+  [inputStream_ scheduleInRunLoop:[NSRunLoop currentRunLoop] forMode:NSDefaultRunLoopMode];
+  [outputStream_ scheduleInRunLoop:[NSRunLoop currentRunLoop] forMode:NSDefaultRunLoopMode];
+  [outputStream_ open];
+  [inputStream_ open];
 }
 
-- (void)open {
-  CFSocketContext ctx{};
-  ctx.info = self;
-
-  CFSocketRef myipv4cfsock = CFSocketCreate(kCFAllocatorDefault, PF_INET, SOCK_STREAM, IPPROTO_TCP,
-                                            kCFSocketAcceptCallBack, handleConnect, &ctx);
-
-  struct sockaddr_in sin;
-  int rpc_port = 9090;  // TODO: hardcoded. Should try bind in range of ports
-  memset(&sin, 0, sizeof(sin));
-  sin.sin_len = sizeof(sin);
-  sin.sin_family = AF_INET;
-  sin.sin_port = htons(rpc_port);
-  sin.sin_addr.s_addr = INADDR_ANY;
-
-  CFDataRef sincfd = CFDataCreate(kCFAllocatorDefault, (UInt8*)&sin, sizeof(sin));
-
-  if (CFSocketSetAddress(myipv4cfsock, sincfd) != 0)
-    @throw [NSException
-        exceptionWithName:@"SocketError"
-                   reason:[NSString stringWithFormat:@"Can not bind to port %d", rpc_port]
-                 userInfo:nil];
-  CFRelease(sincfd);
-  server_port_ = rpc_port;
-
-  CFRunLoopSourceRef socketsource =
-      CFSocketCreateRunLoopSource(kCFAllocatorDefault, myipv4cfsock, 0);
-  CFRunLoopAddSource(CFRunLoopGetCurrent(), socketsource, kCFRunLoopDefaultMode);
+/*!
+ * Close i/o streams assosiated with connection
+ */
+- (void)close {
+  [inputStream_ close];
+  [outputStream_ close];
+  [inputStream_ removeFromRunLoop:[NSRunLoop currentRunLoop] forMode:NSDefaultRunLoopMode];
+  [outputStream_ removeFromRunLoop:[NSRunLoop currentRunLoop] forMode:NSDefaultRunLoopMode];
+  [inputStream_ setDelegate:nil];
+  [outputStream_ setDelegate:nil];
+  inputStream_ = nil;
+  outputStream_ = nil;
 }
 
-- (void)onEndEvent {
-  [self close];
-  [self notifyState:RPCServerStatus_RPCSessionFinished];
-}
-
-@end
-
-typedef enum {
-  HandshakeToSend,
-  HandshakeToRecv,
-  ServerInfoToSend,
-  ServerInfoToRecv,
-  ReportResToSend,
-  ReportResToRecv,
-  UpdateKeyToSend,
-  UpdateKeyToRecv,
-  WaitConnection,
-} TrackerClientState;
-
-@implementation RPCTrackerClien {
-  // RPC Server to register in tracker
-  RPCServerPure* rpc_server_;
-  // Size of data required accumulate in readBuffer before processing
-  int required_data_size;
-  // State of tracker client
-  TrackerClientState state_;
-}
-
-- (void)toSend:(NSData*)data {
-  // try to send
-  NSInteger sent_size = [outputStream_ write:(uint8_t*)data.bytes maxLength:data.length];
-  // assume that all data is sent
-  if (sent_size != data.length)
-    @throw [NSException exceptionWithName:@"SocketError"
-                                   reason:[NSString stringWithFormat:@"Unable to send data"]
-                                 userInfo:nil];
-}
-
-- (void)toSendPacked:(NSData*)data {
-  // try to send
-  int packet_size = data.length;
-  NSInteger sent_size = [outputStream_ write:(uint8_t*)&packet_size maxLength:sizeof(packet_size)];
-  if (sent_size != sizeof(packet_size))
-    @throw [NSException exceptionWithName:@"SocketError"
-                                   reason:[NSString stringWithFormat:@"Unable to send data"]
-                                 userInfo:nil];
-
-  NSInteger sent_data = [outputStream_ write:(uint8_t*)data.bytes maxLength:data.length];
-  // assume that all data is sent
-  if (sent_data != data.length)
-    @throw [NSException exceptionWithName:@"SocketError"
-                                   reason:[NSString stringWithFormat:@"Unable to send data"]
-                                 userInfo:nil];
-}
-
-- (void)onReadAvailable {
-  const int kBufferSize = 4 << 10;
+/*!
+ * Try to read data from stream and call processing hadnler
+ */
+- (void)tryToRead {
+  const int kBufferSize = 4 << 10;  // 4kB buffer
   const int prev_size = recvBuffer_.size();
   recvBuffer_.resize(kBufferSize);
   size_t nbytes = [inputStream_ read:(uint8_t*)recvBuffer_.data() + prev_size
                            maxLength:recvBuffer_.size() - prev_size];
   recvBuffer_.resize(nbytes + prev_size);
 
-  if (recvBuffer_.size() < required_data_size) return;
-
-  switch (state_) {
-    case HandshakeToRecv: {
-      int code = tvm::runtime::kRPCTrackerMagic;
-      if (recvBuffer_.size() < sizeof(code)) {
-        required_data_size = sizeof(code);
-        break;
-      }
-
-      if (recvBuffer_.size() != sizeof(code) || *(int*)recvBuffer_.data() != code) {
-        [self notifyError:@"Wrong responce, server is not tracker."];
-        [self close];
-        break;
-      }
-
-      recvBuffer_.erase(recvBuffer_.begin(), recvBuffer_.begin() + sizeof(code));
-      required_data_size = 0;
-      [self notifyState:RPCServerStatus_Connected];
-      state_ = ServerInfoToSend;
-      break;
-    }
-    case ServerInfoToRecv: {
-      std::string expected = std::to_string(static_cast<int>(tvm::runtime::TrackerCode::kSuccess));
-      int packet_size;
-      if (recvBuffer_.size() < sizeof(packet_size)) {
-        required_data_size = sizeof(packet_size);
-        break;
-      }
-
-      packet_size = *(int*)recvBuffer_.data();
-      if (recvBuffer_.size() < sizeof(packet_size) + packet_size) {
-        required_data_size = sizeof(packet_size) + packet_size;
-        break;
-      }
-
-      if (std::string((char*)recvBuffer_.data() + sizeof(packet_size), packet_size) != expected) {
-        [self notifyError:@"Was not able to update info in tracker. Responce is not OK."];
-        [self close];
-        break;
-      }
-
-      recvBuffer_.erase(recvBuffer_.begin(),
-                        recvBuffer_.begin() + sizeof(packet_size) + packet_size);
-      required_data_size = 0;
-      state_ = ReportResToSend;
-      break;
-    }
-    case ReportResToRecv: {
-      std::string expected = std::to_string(static_cast<int>(tvm::runtime::TrackerCode::kSuccess));
-      int packet_size;
-      if (recvBuffer_.size() < sizeof(packet_size)) {
-        required_data_size = sizeof(packet_size);
-        break;
-      }
-
-      packet_size = *(int*)recvBuffer_.data();
-      if (recvBuffer_.size() < sizeof(packet_size) + packet_size) {
-        required_data_size = sizeof(packet_size) + packet_size;
-        break;
-      }
-
-      if (std::string((char*)recvBuffer_.data() + sizeof(packet_size), packet_size) != expected) {
-        [self notifyError:@"Was not able to put resource into tracker. Responce is not OK."];
-        [self close];
-        break;
-      }
-
-      recvBuffer_.erase(recvBuffer_.begin(),
-                        recvBuffer_.begin() + sizeof(packet_size) + packet_size);
-      required_data_size = 0;
-      state_ = WaitConnection;
-      break;
-    }
-    default:
-      // Nothing
-      break;
-  }
-
-  if (outputStream_.hasSpaceAvailable) [self onWriteAvailable];
+  // feed while it accept or requested particulat buffer size
+  while (!recvBuffer_.empty() && requiredToRecv_ <= recvBuffer_.size() && [self onReadHandler])
+    ;
 }
 
-- (void)onWriteAvailable {
+/*!
+ * Try to write remaining data to stream and call processing hadnler
+ */
+- (void)tryToWrite {
+  if (!sendBuffer_.empty()) {
+    size_t nbytes = [outputStream_ write:(uint8_t*)sendBuffer_.data() maxLength:sendBuffer_.size()];
+    sendBuffer_.erase(0, nbytes);
+  }
+  // call write handler while it want be called and space is available
+  while (sendBuffer_.empty() && [outputStream_ hasSpaceAvailable] && [self onWriteHandler])
+    ;
+}
+
+/*!
+ * Main event handler of socket stream events
+ */
+- (void)stream:(NSStream*)strm handleEvent:(NSStreamEvent)event {
+  std::string buffer;
+  switch (event) {
+    case NSStreamEventOpenCompleted: {
+      // Nothing
+      break;
+    }
+    case NSStreamEventHasBytesAvailable:
+      if (strm == inputStream_) {
+        [self tryToRead];
+        if ([outputStream_ hasSpaceAvailable]) [self tryToWrite];
+      }
+      break;
+    case NSStreamEventHasSpaceAvailable: {
+      if (strm == outputStream_) {
+        [self tryToWrite];
+        if ([inputStream_ hasBytesAvailable]) [self tryToRead];
+      }
+      break;
+    }
+    case NSStreamEventErrorOccurred: {
+      [self notifyError:[strm streamError].localizedDescription];
+      break;
+    }
+    case NSStreamEventEndEncountered: {
+      [self onEndEncountered];
+      break;
+    }
+    default: {
+      NSLog(@"Unknown event");
+    }
+  }
+}
+
+#pragma mark - Helpers
+
+/*!
+ * Set buffer to send into stream. Try to send immediatly or submit to lazy sending
+ * Non blocking operation
+ */
+- (void)toSend:(NSData*)data {
+  sendBuffer_.append(static_cast<const char*>(data.bytes), data.length);
+
+  // try to flush buffer
+  NSInteger sent_size = [outputStream_ write:(uint8_t*)sendBuffer_.data()
+                                   maxLength:sendBuffer_.size()];
+  sendBuffer_.erase(0, sent_size);
+}
+
+/*!
+ * Set buffer to send  in packet format [size, data]. Behaviour is same as for toSend.
+ */
+- (void)toSendPacked:(NSData*)data {
+  int packet_size = data.length;
+  [self toSend:[NSData dataWithBytes:&packet_size length:sizeof(packet_size)]];
+  [self toSend:data];
+}
+
+/*!
+ */
+- (NSData*)requestInputDataWithSize:(NSInteger)size {
+  if (recvBuffer_.size() < size) {
+    requiredToRecv_ = size;
+    return nil;
+  }
+  NSData* res = [NSData dataWithBytes:recvBuffer_.data() length:size];
+  recvBuffer_.erase(0, size);
+  return res;
+}
+
+/*!
+ */
+- (NSData*)requestInputDataPacked {
+  int size;
+  if (recvBuffer_.size() < sizeof(size)) {
+    requiredToRecv_ = sizeof(size);
+    return nil;
+  }
+  size = *(int*)recvBuffer_.data();
+  if (recvBuffer_.size() < sizeof(size) + size) {
+    requiredToRecv_ = sizeof(size) + size;
+    return nil;
+  }
+  NSData* res = [NSData dataWithBytes:recvBuffer_.data() + sizeof(size) length:size];
+  recvBuffer_.erase(0, sizeof(size) + size);
+  return res;
+};
+
+#pragma mark - Notifiers
+
+/*!
+ * Notify external listener about error.
+ * Also print error message to std out in case of Verbose mode
+ */
+- (void)notifyError:(NSString*)msg {
+  // Duplicate error message in std output. Host launcher script may listen it.
+  if (self.verbose) NSLog(@"[IOS-RPC] ERROR: %@", msg);
+  if (self.delegate) [self.delegate onError:msg];
+}
+
+/*!
+ * Notify external listener about server state changes.
+ * Also print information to std out in case of Verbose mode
+ */
+- (void)notifyState:(RPCServerStatus)state {
+  // Duplicate sattus changing in std output. Host launcher script may listen it.
+  if (self.verbose) NSLog(@"[IOS-RPC] STATE: %d", state);
+  if (self.delegate != nil) [self.delegate onStatusChanged:state];
+}
+
+@end
+
+@interface RPCServerProxy : RPCServerBase
+@end
+
+typedef enum {
+  RPCServerProxyState_Idle,
+  RPCServerProxyState_HandshakeToSend,
+  RPCServerProxyState_HandshakeToRecv,
+  RPCServerProxyState_Processing,
+} RPCServerProxyState;
+
+@implementation RPCServerProxy {
+  /// Original TVM RPC event handler
+  tvm::runtime::FEventHandler handler_;
+ @protected
+  /// Sate of Proxy client implementation
+  RPCServerProxyState state_;
+}
+
+- (instancetype)init {
+  if (self = [super init]) {
+    handler_ = nullptr;
+    state_ = RPCServerProxyState_Idle;
+  }
+  return self;
+}
+
+/*!
+ * Implement matching of internat state on state available for outside users
+ */
+- (void)setState:(RPCServerProxyState)new_state {
+  // Send Connected notification because Proxy doesn't responce until client connected.
+  if (new_state == RPCServerProxyState_HandshakeToRecv)
+    [self notifyState:RPCServerStatus_Connected];
+  if (new_state == RPCServerProxyState_Idle) [self notifyState:RPCServerStatus_Disconnected];
+  if (state_ == RPCServerProxyState_HandshakeToRecv && new_state == RPCServerProxyState_Processing)
+    [self notifyState:RPCServerStatus_RPCSessionStarted];
+  if (state_ == RPCServerProxyState_Processing && new_state == RPCServerProxyState_Idle)
+    [self notifyState:RPCServerStatus_RPCSessionStarted];
+
+  state_ = new_state;
+}
+
+- (bool)onWriteHandler {
   switch (state_) {
-    case HandshakeToSend: {
-      int code = tvm::runtime::kRPCTrackerMagic;
-      NSData* data = [NSData dataWithBytes:&code length:sizeof(code)];
-      [self toSend:data];
-      state_ = HandshakeToRecv;
-      break;
+    case RPCServerProxyState_HandshakeToSend: {
+      // Send together kRPCMagic and server descriptor because of Proxy
+      int code = tvm::runtime::kRPCMagic;
+      [self toSend:[NSData dataWithBytes:&code length:sizeof(code)]];
+
+      std::string full_key = std::string("server:") + self.key.UTF8String;
+      [self toSendPacked:[NSData dataWithBytes:full_key.data() length:full_key.size()]];
+
+      self.state = RPCServerProxyState_HandshakeToRecv;
+      return TRUE;
     }
-    case ServerInfoToSend: {
-      std::ostringstream ss;
-      ss << "[" << static_cast<int>(tvm::runtime::TrackerCode::kUpdateInfo)
-         << ", {\"key\": \"server:" << key_.UTF8String << "\"}]";
-      std::string data_s = ss.str();
-      NSData* data = [NSData dataWithBytes:data_s.data() length:data_s.length()];
-      [self toSendPacked:data];
-      state_ = ServerInfoToRecv;
-      break;
-    }
-    case ReportResToSend: {
-      std::mt19937 gen(std::random_device{}());
-      std::uniform_real_distribution<float> dis(0.0, 1.0);
-
-      // TODO: All values are hardcoded
-      int port = 9090;
-      std::string custom_addr = "null";
-      std::string matchkey = std::string(key_.UTF8String) + ":" + std::to_string(dis(gen));
-
-      std::ostringstream ss;
-      ss << "[" << static_cast<int>(tvm::runtime::TrackerCode::kPut) << ", \"" << key_.UTF8String
-         << "\", [" << port << ", \"" << matchkey << "\"], " << custom_addr << "]";
-
-      std::string data_s = ss.str();
-      NSData* data = [NSData dataWithBytes:data_s.data() length:data_s.length()];
-      [self toSendPacked:data];
-      state_ = ReportResToRecv;
+    case RPCServerProxyState_Processing: {
+      try {
+        TVMByteArray dummy{nullptr, 0};
+        int flag = handler_(dummy, 2);
+        if (flag == 0) {
+          [self onEndEncountered];
+        }
+        return flag == 2;
+      } catch (const tvm::Error& e) {
+        [self close];
+      }
       break;
     }
     default:
       // Nothing
       break;
   }
+  return FALSE;
+}
 
-  if (inputStream_.hasBytesAvailable) [self onReadAvailable];
+- (bool)onReadHandler {
+  switch (state_) {
+    case RPCServerProxyState_HandshakeToRecv: {
+      NSData* data = [self requestInputDataWithSize:sizeof(int)];
+      if (data == nil) return FALSE;
+
+      if (*(int*)data.bytes != tvm::runtime::kRPCMagic) {
+        [self notifyError:@"Wrong responce, is not RPC client."];
+        [self close];
+        return FALSE;
+        break;
+      }
+
+      handler_ = tvm::runtime::CreateServerEventHandler(outputStream_, "iphone", "%toinit");
+
+      self.state = RPCServerProxyState_Processing;
+      return TRUE;
+      break;
+    }
+    case RPCServerProxyState_Processing: {
+      int flag = 1;
+      if ([outputStream_ hasSpaceAvailable]) {
+        flag |= 2;
+      }
+      // always try to write
+      try {
+        TVMByteArray arr{recvBuffer_.data(), recvBuffer_.size()};
+        flag = handler_(arr, flag);
+        recvBuffer_.clear();
+        if (flag == 0) {
+          [self onEndEncountered];
+        }
+        return flag == 1;
+      } catch (const tvm::Error& e) {
+        [self close];
+      }
+      break;
+    }
+    default:
+      // Nothing
+      break;
+  }
+  return FALSE;
+}
+
+- (void)onEndEncountered {
+  // Automatic reconnection when session is finished.
+  [self close];
+  [self open];
 }
 
 - (void)open {
-  // create RPC pure server
-  //   * set self as delegate (to register back when servicing is finished)
-  //   * mute printing status
-  //   * stop processing by sending stop
-  rpc_server_ = [[RPCServerPure alloc] init];
-  rpc_server_.key = key_;
-  rpc_server_.delegate = self;
-  [rpc_server_ open];
+  [super open];
+  self.state = RPCServerProxyState_HandshakeToSend;
+}
 
-  // Initialize the network.
-  CFReadStreamRef readStream;
-  CFWriteStreamRef writeStream;
+- (void)close {
+  [super close];
+  handler_ = nullptr;
+  self.state = RPCServerProxyState_Idle;
+}
 
-  CFStreamCreatePairWithSocketToHost(NULL, (CFStringRef)url_, port_, &readStream, &writeStream);
+@end
 
-  inputStream_ = (NSInputStream*)readStream;
-  outputStream_ = (NSOutputStream*)writeStream;
-  [inputStream_ setDelegate:self];
-  [outputStream_ setDelegate:self];
-  [inputStream_ scheduleInRunLoop:[NSRunLoop currentRunLoop] forMode:NSDefaultRunLoopMode];
-  [outputStream_ scheduleInRunLoop:[NSRunLoop currentRunLoop] forMode:NSDefaultRunLoopMode];
-  [outputStream_ open];
-  [inputStream_ open];
+@interface RPCServerPure : RPCServerProxy
+@property(readonly) int rpc_port;
+@end
+
+@implementation RPCServerPure {
+  // Socket to listen incomming connections
+  CFSocketRef socket_;
+  /// Current socket connection handler
+  CFSocketNativeHandle connection_;
+  /// Port range to try bind to socket
+  int port_range_start;
+  int port_range_end;
+}
+
+- (instancetype)init {
+  if (self = [super init]) {
+    connection_ = 0;
+    port_range_start = 9090;
+    port_range_end = 9099;
+  }
+  return self;
+}
+
+- (void)setState:(RPCServerProxyState)new_state {
+  if (state_ == RPCServerProxyState_Idle && new_state == RPCServerProxyState_HandshakeToSend) {
+    if (self.verbose) {
+      // Notify host runner script with actual address
+      NSLog(@"[IOS-RPC] IP: %s", tvm::runtime::getWiFiAddress().c_str());
+      NSLog(@"[IOS-RPC] PORT: %d", _rpc_port);
+    }
+    [self notifyState:RPCServerStatus_Connected];
+  }
+  if (new_state == RPCServerProxyState_Idle) [self notifyState:RPCServerStatus_Disconnected];
+  if (state_ == RPCServerProxyState_HandshakeToRecv && new_state == RPCServerProxyState_Processing)
+    [self notifyState:RPCServerStatus_RPCSessionStarted];
+  if (state_ == RPCServerProxyState_Processing && new_state == RPCServerProxyState_HandshakeToSend)
+    [self notifyState:RPCServerStatus_RPCSessionFinished];
+
+  state_ = new_state;
+}
+
+- (void)handleConnect:(CFSocketNativeHandle)hdl {
+  connection_ = hdl;
+  [super openWithSocket:connection_];
+  self.state = RPCServerProxyState_HandshakeToSend;
+}
+
+static void handleConnect(CFSocketRef socket, CFSocketCallBackType type, CFDataRef address,
+                          const void* data, void* info) {
+  RPCServerPure* it = (__bridge RPCServerPure*)(info);
+  [it handleConnect:*static_cast<const CFSocketNativeHandle*>(data)];
+}
+
+- (void)open {
+  CFSocketContext ctx{};
+  ctx.info = (__bridge void*)self;
+
+  socket_ = CFSocketCreate(kCFAllocatorDefault, PF_INET, SOCK_STREAM, IPPROTO_TCP,
+                           kCFSocketAcceptCallBack, handleConnect, &ctx);
+  self->_rpc_port = 0;
+
+  // Try to bind with range
+  for (int port = port_range_start; port < port_range_end; port++) {
+    struct sockaddr_in sin;
+    memset(&sin, 0, sizeof(sin));
+    sin.sin_len = sizeof(sin);
+    sin.sin_family = AF_INET;
+    sin.sin_port = htons(port);
+    sin.sin_addr.s_addr = INADDR_ANY;
+
+    CFDataRef sincfd = CFDataCreate(kCFAllocatorDefault, (UInt8*)&sin, sizeof(sin));
+    CFSocketError res = CFSocketSetAddress(socket_, sincfd);
+    CFRelease(sincfd);
+    if (res == kCFSocketSuccess) {
+      self->_rpc_port = port;
+      break;
+    }
+  }
+  if (self->_rpc_port == 0) {
+    @throw
+        [NSException exceptionWithName:@"SocketError"
+                                reason:[NSString stringWithFormat:@"Unable bind socket to port"
+                                                                   "in range [%d, %d]",
+                                                                  port_range_start, port_range_end]
+                              userInfo:nil];
+  }
+
+  CFRunLoopSourceRef socketsource = CFSocketCreateRunLoopSource(kCFAllocatorDefault, socket_, 0);
+  CFRunLoopAddSource(CFRunLoopGetCurrent(), socketsource, kCFRunLoopDefaultMode);
+
+  self.state = RPCServerProxyState_HandshakeToSend;
+}
+
+- (void)closeSocket {
+  CFSocketInvalidate(socket_);
+}
+
+- (void)close {
+  [super close];
+  close(connection_);
+}
+
+- (void)onEndEncountered {
+  [self close];
+  [self notifyState:RPCServerStatus_RPCSessionFinished];
+}
+
+@end
+
+@interface RPCServerTracker : RPCServerBase <RPCServerEventListener>
+@end
+
+typedef enum {
+  RPCServerTracker_Idle,
+  RPCServerTracker_HandshakeToSend,
+  RPCServerTracker_HandshakeToRecv,
+  RPCServerTracker_ServerInfoToSend,
+  RPCServerTracker_ServerInfoToRecv,
+  RPCServerTracker_ReportResToSend,
+  RPCServerTracker_ReportResToRecv,
+  RPCServerTracker_UpdateKeyToSend,
+  RPCServerTracker_UpdateKeyToRecv,
+  RPCServerTracker_WaitConnection
+} RPCServerTrackerState;
+
+@implementation RPCServerTracker {
+  RPCServerTrackerState state_;
+  RPCServerPure* rpc_server_;
+}
+
+- (void)setState:(RPCServerTrackerState)new_state {
+  if (state_ == RPCServerTracker_ReportResToRecv && new_state == RPCServerTracker_WaitConnection)
+    [self notifyState:RPCServerStatus_Connected];
+  if (state_ == RPCServerTracker_WaitConnection && new_state == RPCServerTracker_Idle)
+    [self notifyState:RPCServerStatus_Disconnected];
+
+  state_ = new_state;
+}
+
+- (bool)onWriteHandler {
+  switch (state_) {
+    case RPCServerTracker_HandshakeToSend: {
+      int code = tvm::runtime::kRPCTrackerMagic;
+      [self toSend:[NSData dataWithBytes:&code length:sizeof(code)]];
+      self.state = RPCServerTracker_HandshakeToRecv;
+      return TRUE;
+      break;
+    }
+    case RPCServerTracker_ServerInfoToSend: {
+      std::ostringstream ss;
+      ss << "[" << static_cast<int>(tvm::runtime::TrackerCode::kUpdateInfo)
+         << ", {\"key\": \"server:" << self.key.UTF8String << "\"}]";
+      std::string data_s = ss.str();
+      [self toSendPacked:[NSData dataWithBytes:data_s.data() length:data_s.length()]];
+      self.state = RPCServerTracker_ServerInfoToRecv;
+      return TRUE;
+      break;
+    }
+    case RPCServerTracker_ReportResToSend: {
+      std::mt19937 gen(std::random_device{}());
+      std::uniform_real_distribution<float> dis(0.0, 1.0);
+
+      std::string matchkey = std::string(self.key.UTF8String) + ":" + std::to_string(dis(gen));
+      std::ostringstream ss;
+      ss << "[" << static_cast<int>(tvm::runtime::TrackerCode::kPut) << ", \""
+         << self.key.UTF8String << "\", [" << rpc_server_.rpc_port << ", \"" << matchkey
+         << "\"], null]";
+
+      std::string data_s = ss.str();
+      [self toSendPacked:[NSData dataWithBytes:data_s.data() length:data_s.length()]];
+      self.state = RPCServerTracker_ReportResToRecv;
+      return TRUE;
+      break;
+    }
+    default:
+      // Nothing
+      break;
+  }
+  return FALSE;
+}
+
+- (bool)onReadHandler {
+  static const std::string resp_OK =
+      std::to_string(static_cast<int>(tvm::runtime::TrackerCode::kSuccess));
+  switch (state_) {
+    case RPCServerTracker_HandshakeToRecv: {
+      NSData* data = [self requestInputDataWithSize:sizeof(int)];
+      if (data == nil) return FALSE;
+
+      if (*(int*)data.bytes != tvm::runtime::kRPCTrackerMagic) {
+        [self notifyError:@"Wrong responce, is not RPC Tracker."];
+        [self close];
+        return FALSE;
+        break;
+      }
+      self.state = RPCServerTracker_ServerInfoToSend;
+      return TRUE;
+      break;
+    }
+    case RPCServerTracker_ServerInfoToRecv: {
+      NSData* data = [self requestInputDataPacked];
+      if (data == nil) return FALSE;
+
+      if (std::string((char*)data.bytes, data.length) != resp_OK) {
+        [self notifyError:@"Failed to Update info on tracker. Responce is not OK."];
+        [self close];
+        return FALSE;
+        break;
+      }
+      self.state = RPCServerTracker_ReportResToSend;
+      return TRUE;
+      break;
+    }
+    case RPCServerTracker_ReportResToRecv: {
+      NSData* data = [self requestInputDataPacked];
+      if (data == nil) return FALSE;
+
+      if (std::string((char*)data.bytes, data.length) != resp_OK) {
+        [self notifyError:@"Failed to Put server into tracker. Responce is not OK."];
+        [self close];
+        return FALSE;
+        break;
+      }
+      self.state = RPCServerTracker_WaitConnection;
+      return TRUE;
+      break;
+    }
+    default:
+      // Nothing
+      break;
+  }
+  return FALSE;
+}
+
+- (void)onEndEncountered {
+  [self close];
 }
 
 - (void)close {
   [rpc_server_ close];
+  [rpc_server_ closeSocket];
   [super close];
-  [self notifyState:RPCServerStatus_Disconnected];
+  self.state = RPCServerTracker_Idle;
 }
 
-- (void)onEndEvent {
-  [self close];
+- (void)open {
+  // Start internal Pure RPC server at first
+  rpc_server_ = [[RPCServerPure alloc] init];
+  rpc_server_.key = self.key;
+  rpc_server_.delegate = self;
+  [rpc_server_ open];
+
+  [super open];
+  self.state = RPCServerTracker_HandshakeToSend;
 }
 
 - (void)onError:(NSString*)msg {
-  // transfer error form rpc_server_ to real delegate
+  // transfer error form internal rpc_server_ to real delegate
   [self notifyError:msg];
 }
 
 - (void)onStatusChanged:(RPCServerStatus)status {
   if (status == RPCServerStatus_RPCSessionFinished) {
     [self notifyState:status];
-    state_ = ReportResToSend;
-    [self onWriteAvailable];
+    self.state = RPCServerTracker_ReportResToSend;
+    [self tryToWrite];
   }
+}
+@end
+
+@implementation RPCServer
+
++ (instancetype)serverWithMode:(RPCServerMode)mode {
+  if (mode == RPCServerMode_PureServer) return [[RPCServerPure alloc] init];
+  if (mode == RPCServerMode_Proxy) return [[RPCServerProxy alloc] init];
+  if (mode == RPCServerMode_Tracker) return [[RPCServerTracker alloc] init];
+  return nil;
 }
 
 @end
