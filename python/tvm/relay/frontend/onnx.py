@@ -1445,13 +1445,20 @@ class EyeLike(OnnxOpConverter):
 
     @classmethod
     def _impl_v9(cls, inputs, attr, params):
-        dtype = attr.get("dtype", "float32")
-        in_dtype = infer_type(inputs[0]).checked_type.dtype
-        zeros = _op.zeros_like(inputs[0])
-        dim = infer_shape(zeros)[0]
+        in_checked_type = infer_type(inputs[0]).checked_type
+        in_dtype = in_checked_type.dtype
+        in_shape = list(get_const_tuple(in_checked_type.shape))
+        dtype = attr.get("dtype", None)
+        if dtype == None:
+            dtype = in_dtype
+        else:
+            dtype = get_type(dtype)
+        zeros = _op.zeros(in_shape, dtype)
+        dim = in_shape[0]
         indices = _op.arange(_op.const(0), _op.const(dim), dtype="int32")
-        ones = _op.full(_op.const(1), (dim,), dtype=in_dtype)
-        return _op.scatter_nd(zeros, _op.stack([indices, indices], axis=0), ones, "update")
+        ones = _op.full(_op.const(1), (dim,), dtype=dtype)
+        k = _op.const(attr.get("k" , 0), dtype= "int32")
+        return _op.scatter_nd(zeros, _op.stack([indices, indices+k], axis=0), ones, "update")
 
 
 class Greater(OnnxOpConverter):
