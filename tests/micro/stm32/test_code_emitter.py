@@ -36,22 +36,32 @@ import tensorflow as tf
 import tvm
 import tvm.relay as relay
 from tvm.contrib import stm32
+from tvm.contrib.download import download
 from tvm import testing
 
-TEST_IMAGES = [
-    "00.raw",
-    "01.raw",
-    "02.raw",
-    "03.raw",
-    "04.raw",
-    "05.raw",
-    "06.raw",
-    "07.raw",
-    "08.raw",
-    "09.raw",
-]
+import conftest
+
+NUM_ITERATIONS = 10
 
 BUILD_DIR = "build"
+
+# =========================================================
+#   get_data
+# =========================================================
+def get_data(in_data_shapes, in_data_dtypes):
+    """ Generate a uint8 image."""
+    assert len(in_data_shapes) == 1,("Only single input models are supported.")
+    in_data = OrderedDict()
+    for shape_name, shape in in_data_shapes.items():
+        for dtype_name, dtype in in_data_dtypes.items():
+            if dtype_name == shape_name:
+                in_data[shape_name] = np.random.uniform(size=shape).astype(dtype)
+                in_data = np.random.uniform(size=shape).astype("uint8")
+                break
+        if shape_name not in in_data.keys():
+            raise ValueError("Shape and dtype dictionaries do not fit.")
+            
+    return in_data
 
 # ==================================================================
 #   dump_image
@@ -69,7 +79,6 @@ def dump_image(filename, image):
     for i in range(0, len(outputRaw)):
         f.write(outputRaw[i])
     f.close()
-
 
 # ==================================================================
 #   scale_input_data
@@ -194,7 +203,6 @@ def extract_tflite_quantization(model):
         tensor = subgraph.Tensors(node_id)
         tensor_name = tensor.Name().decode("utf-8")
         tensor_type = tensor.Type()
-        # print("== Input[{}]: {} shape={} type={}".format(node_id, tensor_name, tensor.ShapeAsNumpy(), tensor_type))
         dl_tensor_name = stm32.get_input_tensor_name(tensor_name)
 
         quantization = tensor.Quantization()
@@ -206,7 +214,6 @@ def extract_tflite_quantization(model):
         tensor = subgraph.Tensors(node_id)
         tensor_name = tensor.Name().decode("utf-8")
         tensor_type = tensor.Type()
-        # print("== Output[{}]: {} shape={} type={}".format(node_id, tensor_name, tensor.ShapeAsNumpy(), tensor_type))
         #
         # TODO: TVM does not preserve the output tensor names.
         #       Eventually, we should be able to form a valid name.
@@ -224,8 +231,7 @@ def extract_tflite_quantization(model):
 # ========================================================
 #   run_tflite_model
 # ========================================================
-def run_tflite_model(model_path, image_path):
-
+def run_tflite_model(model_path, image_data):
     #
     # Load TFLite model and allocate tensors.
     #
@@ -240,20 +246,14 @@ def run_tflite_model(model_path, image_path):
     #
     # Run test images
     #
-    tf_results = np.empty(shape=[len(TEST_IMAGES), 10], dtype=np.float)
-    for i, filename in enumerate(TEST_IMAGES):
-        image_data = np.fromfile(os.path.join(image_path, filename), dtype="uint8")
-        #
-        # Run the TFLite model: channels last
-        #
-        image_data = image_data.reshape([1, 28, 28, 1])
+    tf_results = np.empty(shape=[NUM_ITERATIONS, 10], dtype=np.float)
+    for i, image in enumerate(image_data):
         #
         # Normalize the input data
         #
-        image_data = image_data / 255.0
-
-        image_data = scale_input_data(input_details, image_data)
-        interpreter.set_tensor(input_details["index"], image_data)
+        image = image / 255.0
+        image = scale_input_data(input_details, image)
+        interpreter.set_tensor(input_details["index"], image)
         interpreter.invoke()
         tf_results[i] = interpreter.get_tensor(output_details["index"])
         tf_results[i] = scale_output_data(output_details, tf_results[i])
@@ -308,9 +308,21 @@ def check_network(build_dir, target_name, model_path, image_path):
 
     model_name = "network"
 
-    target_dir = os.path.join(build_dir, target_name + "_gen")
-
     model, shape_dict, dtype_dict = get_tflite_model(model_path)
+
+    #
+    # Generate random input data
+    #
+    image_data = []
+    for i in range(NUM_ITERATIONS):
+        assert len(shape_dict) == 1,("Only single input models are supported.")
+        image_shape = list(shape_dict.values())[0]
+        in_data = np.random.randint(0, 255, size=image_shape).astype("uint8")
+        # Write raw data for using with the TVM implementation
+        filename = os.path.join(image_path, "{:02d}.raw".format(i))
+        dump_image(filename, in_data)
+        image_data.append(in_data)
+    
     mod, params = relay.frontend.from_tflite(model, shape_dict, dtype_dict)
 
     #
@@ -326,6 +338,7 @@ def check_network(build_dir, target_name, model_path, image_path):
     #
     # Export model library format
     #
+    target_dir = os.path.join(build_dir, target_name + "_gen")
     mlf_tar_path = os.path.join(build_dir, target_name + "_lib.tar")
     import tvm.micro as micro
 
@@ -339,7 +352,7 @@ def check_network(build_dir, target_name, model_path, image_path):
     #
     # Results
     #
-    tf_results = run_tflite_model(model_path, image_path)
+    tf_results = run_tflite_model(model_path, image_data)
     tvm_results = run_tvm_model(build_dir, model_name, target_dir, image_path)
 
     check_result(tf_results, tvm_results)
@@ -362,60 +375,18 @@ def check_result(tflite_results, tvm_results):
 
 
 # ========================================================
-#   test_mnist_quant_fp
+#   test_mnist
 # ========================================================
-def test_mnist_quant_fp():
-    curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
-    model_path = os.path.join(curr_path, "models/mnist.quant.2_mod.tflite")
-    image_path = os.path.join(curr_path, "images")
-    build_dir = os.path.join(curr_path, BUILD_DIR)
-    if not os.path.exists(build_dir):
-        os.makedirs(build_dir)
-    check_network(build_dir, "mnist_quant_fp", model_path, image_path)
-
-
-# ========================================================
-#   test_mnist_quant_int
-# ========================================================
-def test_mnist_quant_int():
-    curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
-    model_path = os.path.join(curr_path, "models/mnist_q_with_int8_io.tflite")
-    image_path = os.path.join(curr_path, "images")
-    build_dir = os.path.join(curr_path, BUILD_DIR)
-    if not os.path.exists(build_dir):
-        os.makedirs(build_dir)
-    check_network(build_dir, "mnist_quant_int", model_path, image_path)
-
-
-# ========================================================
-#   test_mnist_quant_uint
-# ========================================================
-def test_mnist_quant_uint():
-    curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
-    model_path = os.path.join(curr_path, "models/mnist_q_with_uint8_io.tflite")
-    image_path = os.path.join(curr_path, "images")
-    build_dir = os.path.join(curr_path, BUILD_DIR)
-    if not os.path.exists(build_dir):
-        os.makedirs(build_dir)
-    check_network(build_dir, "mnist_quant_uint", model_path, image_path)
-
-
-# ========================================================
-#   test_mnist_fp
-# ========================================================
-def test_mnist_fp():
+def test_mnist():
     curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
     model_path = os.path.join(curr_path, "models/mnist.tflite")
-    image_path = os.path.join(curr_path, "images")
     build_dir = os.path.join(curr_path, BUILD_DIR)
     if not os.path.exists(build_dir):
         os.makedirs(build_dir)
-    check_network(build_dir, "mnist_fp", model_path, image_path)
-
+    model_url = "https://storage.googleapis.com/download.tensorflow.org/models/tflite/digit_classifier/mnist.tflite"
+    download(model_url, model_path)
+    check_network(build_dir, "mnist", model_path, build_dir)
+    
 
 if __name__ == "__main__":
-    # test_mnist_fp()
-    # test_mnist_quant_fp()
-    # test_mnist_quant_int()
-    # test_mnist_quant_uint()
     sys.exit(pytest.main([os.path.dirname(__file__)] + sys.argv[1:]))

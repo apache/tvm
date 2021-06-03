@@ -19,13 +19,12 @@
 
 """Code emission for the STM32 targets."""
 
+import json
 import os
-
-# import sys
 import shutil
 import tarfile
 import re
-import json
+
 from datetime import datetime
 
 import numpy as np
@@ -43,16 +42,15 @@ AI_API_VERSION_MICRO = 0
 
 AI_TOOLS_REVISION = "v1"
 
-DBAR = "============================================================"
+DBAR = "="*60
 
 # ==========================================================
 #   _fix_name
-#
-#   Replace ':' with '_' in names like 'InputImg:0'
 # ==========================================================
 
 
 def _fix_name(node_name):
+    """ Replace ':' with '_' in names like 'InputImg:0' """
     return node_name.replace(":", "_")
 
 
@@ -313,76 +311,36 @@ class CodeEmitter(object):
                     self.quantization_["output"] = quantization[name]
                     break
 
-    # ==================================================================
-    #   _json_load_attrs
-    # ==================================================================
-    # def __json_load_attrs (self, attr_dict):
-
-    #    param = None
-
-    #    for key in attr_dict:
-
-    #        if key == 'func_name':
-    # param->func_name = value;
-    #            print ("json_load_attrs: TODO.")
-    #        elif key == 'num_inputs':
-    # param->num_inputs = strtoul(value.c_str(), nullptr, 10);
-    #            print ("json_load_attrs: TODO.")
-    #        elif key == 'num_outputs':
-    # param->num_outputs = strtoul(value.c_str(), nullptr, 10);
-    #            print ("json_load_attrs: TODO.")
-    #        elif key == 'flatten_data':
-    # param->flatten_data = strtoul(value.c_str(), nullptr, 10);
-    #            print ("json_load_attrs: TODO.")
-
-    #    return param
-
     # ==========================================================
-    #   _json_parse_nodes
+    #   _get_node_arg_name
     # ==========================================================
-    # def __json_parse_nodes(self, nodes):
-    #    """ Parse the nodes part of the JSON graph. """
 
-    #    for node_dict in nodes:
-
-    # print ("    node: {}".format(node_dict))
-
-    #        op = None
-    #        name = None
-    #        inputs = None
-    #        attrs = None
-    #        deps = None
-
-    #        for key in node_dict:
-
-    #            if key == 'op':
-    #                op = node_dict['op']
-    # print ("    op: {}".format(node_dict['op']))
-    #            elif key == 'name':
-    #                name = node_dict['name']
-    # print ("    name: {}".format(node_dict['name']))
-    #            elif key == 'inputs':
-    #                inputs = node_dict['inputs']
-    # print ("    inputs: {}".format(node_dict['inputs']))
-    #            elif key == 'attr':
-    #                attrs = node_dict['attr']
-    #            elif key == 'attrs':
-    #                attrs = node_dict['attrs']
-    #            elif key == 'control_deps':
-    #                deps = node_dict['control_deps']
-    #            else:
-    #                print("### Error: JSON do not support key {}".format(key))
-    #                assert False
-
+    def __get_node_arg_name(self, arg):
+        arg_nid = arg[0]
+        arg_idx = arg[1]
+        arg_node = self.nodes_[arg_nid]
+        arg_name = self.nodes_[arg_nid]["name"]
+        if arg_node["op"] == "null":
+            # parameter
+            dl_tensor_name = get_input_tensor_name(arg_name)
+        elif arg_node["name"] == "reshape_nop":
+            # Handle __nop
+            src = arg_node["inputs"][0]
+            dl_tensor_name = self.__get_node_arg_name(src)
+        else:
+            # activation
+            dl_tensor_name = get_output_tensor_name(arg_name, arg_idx)
+        return dl_tensor_name
+            
     # ==========================================================
     #   __tensor_is_output
     # ==========================================================
+
     def __tensor_is_output(self, nid, idx):
 
         for out in self.outputs_:
             out_nid = out[0]
             out_idx = out[1]
-            # out_version = out[2]
             if out_nid == nid and out_idx == idx:
                 return True
         return False
@@ -390,6 +348,7 @@ class CodeEmitter(object):
     # ==========================================================
     #   __get_tensor_from_node
     # ==========================================================
+
     def __get_tensor_from_node(self, nid, idx):
         #
         # 'eid' is index into the dltype', 'shape', etc.
@@ -400,7 +359,6 @@ class CodeEmitter(object):
         dims = self.attrs_["shape"][1][eid]
         storage_id = self.attrs_["storage_id"][1][eid]
         ndim = len(dims)
-        # shape = str(dims)
         #
         # Get tensor size
         #
@@ -481,39 +439,46 @@ class CodeEmitter(object):
 
         for node in self.nodes_:
 
+            if node["op"] == "null":
+                nid += 1
+                continue
+
+            if node["op"] != "tvm_op":
+                raise ValueError(f"Only TVM ops are supported")
+            
             node_name = node["name"]
+            node_attrs = node["attrs"]
+            func_name = node_attrs["func_name"]
+            num_outputs = int(node_attrs["num_outputs"])
+            
+            if func_name == "__nop":
+                assert node_name == "reshape_nop",(f"Unsupported __nop operator {node_name}.")
+                assert num_outputs == 1
+                assert not self.__tensor_is_output(nid, 0)
+                nid += 1
+                continue
+            
+            for idx in range(num_outputs):
+                #
+                # Do not count the 'outputs_'
+                #
+                if self.__tensor_is_output(nid, idx):
+                    continue
 
-            # print ("== [{}] op: {}".format(nid, node['name']))
+                dl_tensor_name = get_output_tensor_name(node_name, idx)
+                tensor = self.__get_tensor_from_node(nid, idx)
+                #
+                # Remember this tensor with the storage id
+                #
+                storage_id = tensor["storage_id"]
+                if storage_id not in buffer_list_:
+                    buffer_list_[storage_id] = []
+                buffer_entry = buffer_list_[storage_id]
+                buffer_entry.append(tensor)
 
-            if node["op"] != "null":
+                self.activations_[dl_tensor_name] = tensor
 
-                if node["op"] != "tvm_op":
-                    raise ValueError(f"Only TVM ops are supported")
-
-                node_attrs = node["attrs"]
-                num_outputs = int(node_attrs["num_outputs"])
-
-                for idx in range(num_outputs):
-                    #
-                    # Do not count the 'outputs_'
-                    #
-                    if self.__tensor_is_output(nid, idx):
-                        continue
-
-                    dl_tensor_name = get_output_tensor_name(node_name, idx)
-                    tensor = self.__get_tensor_from_node(nid, idx)
-                    #
-                    # Remember this tensor with the storage id
-                    #
-                    storage_id = tensor["storage_id"]
-                    if storage_id not in buffer_list_:
-                        buffer_list_[storage_id] = []
-                    buffer_entry = buffer_list_[storage_id]
-                    buffer_entry.append(tensor)
-
-                    self.activations_[dl_tensor_name] = tensor
-
-                self.nodes_size_ = self.nodes_size_ + 1
+            self.nodes_size_ = self.nodes_size_ + 1
 
             nid += 1
 
@@ -570,7 +535,6 @@ class CodeEmitter(object):
 
             nid = output[0]
             idx = output[1]
-            # version = output[2]
 
             node = self.nodes_[nid]
             node_name = node["name"]
@@ -643,22 +607,15 @@ class CodeEmitter(object):
         for key in self.graph_:
             if key == "nodes":
                 self.nodes_ = self.graph_["nodes"]
-                # print (" -- nodes: {}".format(graph_dict['nodes']))
-                # self.__json_parse_nodes(self.nodes_)
             elif key == "arg_nodes":
                 self.arg_nodes_ = self.graph_["arg_nodes"]
-                # print (" -- inputs: {}".format(arg_nodes_))
             elif key == "node_row_ptr":
                 self.node_row_ptr_ = self.graph_["node_row_ptr"]
-                # print (" -- node_row_ptr: {}".format(graph_dict['node_row_ptr']))
             elif key == "heads":
                 self.outputs_ = self.graph_["heads"]
-                # print (" -- outputs: {}".format(outputs_))
             elif key == "attrs":
                 self.attrs_ = self.graph_["attrs"]
-                # print (" -- attrs: {}".format(attrs_))
             elif key == "metadata":
-                # print (" -- meta: {}".format(graph_dict['metadata']))
                 continue
             else:
                 print("### Error: JSON key {} not supported".format(key))
@@ -678,6 +635,7 @@ class CodeEmitter(object):
     # ==========================================================
     #   parse_library_format
     # ==========================================================
+
     def parse_library_format(self, model_library_format_path, quantization=None):
         """Parse the module. Build internal data structures.
 
@@ -728,9 +686,6 @@ class CodeEmitter(object):
             with open(os.path.join(src_dir, filename), "r") as fin:
                 src = fin.read()
                 src_files.append(src)
-        # for filename in os.listdir(src_dir):
-        #    if filename.endswith(".c"):
-        #        src_files.append(os.path.join(src_dir, filename))
 
         self.graph_ = graph_dict
         self.params_ = params_dict
@@ -741,6 +696,7 @@ class CodeEmitter(object):
     # ==========================================================
     #   parse_module
     # ==========================================================
+
     def parse_module(self, module, quantization=None):
         """Parse the module. Build internal data structures.
 
@@ -769,7 +725,7 @@ class CodeEmitter(object):
             params_dict[k] = tmp_params[k]
 
         self.graph_ = json.loads(graph)
-        self.params_ = params_dict  # module.get_params()
+        self.params_ = params_dict
         self.lib_ = module.get_lib()
 
         self._parse_model(quantization)
@@ -777,8 +733,9 @@ class CodeEmitter(object):
     # ==========================================================
     #   __emit_params_data
     # ==========================================================
-    def __emit_params_data(self, name, out_h, out_c):
 
+    def __emit_params_data(self, name, out_h, out_c):
+        """ Emits the network_data[c,h] files with parameters."""
         name_upper = name.upper()
 
         #
@@ -860,8 +817,10 @@ class CodeEmitter(object):
     # ==========================================================
     #   __emit_open
     # ==========================================================
-    def __emit_open(self, name, out_h, out_c):
 
+    def __emit_open(self, name, out_h, out_c):
+        """ Emits the network.h file with a few network defines and 
+        writes the header part of the network.c file. """
         name_upper = name.upper()
 
         #
@@ -889,7 +848,6 @@ class CodeEmitter(object):
 
         out_c.write(f'#include "dlpack/dlpack.h" \n')
         out_c.write(f'#include "tvm/runtime/c_runtime_api.h" \n')
-        # out_c.write(f'#include "tvm/runtime/c_backend_api.h" \n')
         out_c.write(f'#include "{name}.h" \n')
         out_c.write(f'#include "{name}_data.h" \n')
         out_c.write(f"\n")
@@ -897,15 +855,15 @@ class CodeEmitter(object):
     # ==========================================================
     #   __emit_close
     # ==========================================================
-    def __emit_close(self, name, out_h, out_c):
 
+    def __emit_close(self, name, out_h, out_c):
+        """ Emits the ai_model_info structure. """
         name_upper = name.upper()
 
         # datetime object containing current date and time
         now = datetime.now()
         # dd/mm/YY H:M:S
         dt_string = now.strftime("%d/%m/%Y %H:%M:%S")
-        # print("date and time =", dt_string)
 
         #
         # XXX.h
@@ -934,7 +892,6 @@ class CodeEmitter(object):
         out_c.write(
             f'  .api_version = "{AI_API_VERSION_MAJOR}.{AI_API_VERSION_MINOR}.{AI_API_VERSION_MICRO}.0",\n'
         )
-        # out_c.write ("  .n_macc = {},\n".format(0))
         out_c.write(f"  .n_nodes = {self.nodes_size_},\n")
         out_c.write(f"  .n_inputs = {num_inputs},\n")
         out_c.write(f"  .n_outputs = {num_outputs},\n")
@@ -956,6 +913,7 @@ class CodeEmitter(object):
     # ==========================================================
     #   __emit_tensor_shape
     # ==========================================================
+
     def __emit_tensor_shape(self, dl_tensor_name, ndim, shape, strides, out_c):
         out_c.write(f"AI_STATIC int64_t {dl_tensor_name}_shape[{ndim}] = {{{shape[1:-1]}}}; \n")
         assert strides is None, f"###Error: non-compact tensors are not handled yet."
@@ -964,6 +922,7 @@ class CodeEmitter(object):
     # ==========================================================
     #   __emit_tensor_quant
     # ==========================================================
+
     def __emit_tensor_quant(self, dl_tensor_name, out_c):
 
         if dl_tensor_name in self.quantization_:
@@ -978,11 +937,9 @@ class CodeEmitter(object):
             quantization = None
 
         if quantization is not None:
-            # minval = quantization['min']
-            # maxval = quantization['max']
             scale = quantization["scale"]
             zero_point = quantization["zero_point"]
-            # dim = quantization['dim']
+            dim = quantization['dim']
 
             #
             # Sometimes we get a scalar with ScaleAsNumpy.
@@ -1003,7 +960,6 @@ class CodeEmitter(object):
             ), f"Inconsistent quantizations scale:{scale} vs zero-point:{zero_point}"
 
             if len(scale) == 1:
-                # print ("== Setting quantization for {}: {}".format(dl_tensor_name, quantization))
                 quant_name = dl_tensor_name + "_quant"
 
                 out_c.write(f"AI_STATIC float {quant_name}_scale[{scale_size}] = {{ ")
@@ -1027,14 +983,15 @@ class CodeEmitter(object):
     # ==========================================================
     #   __emit_tensor_init
     # ==========================================================
+    
     def __emit_tensor_init(self, dl_tensor_name, tensor, out_c):
-
+        """ Emits the tensor instantiation code. """
         dltype = tensor["dltype"]
         dims = tensor["dims"]
         strides = tensor["strides"]
-        # storage_id = tensor['storage_id']
+        storage_id = tensor['storage_id']
         byte_offset = tensor["byte_offset"]
-        # size = tensor['size']
+        size = tensor['size']
         dtype = _get_type_data(dltype)
         ndim = len(dims)
         shape = str(dims)
@@ -1054,9 +1011,9 @@ class CodeEmitter(object):
         out_c.write(f"  .dltensor = {{ \n")
         out_c.write(f"  .data = (ai_ptr)(NULL), \n")
         #
-        # TODO: use the 'storage_id'
+        # TODO: use the 'storage_id':
+        #   "    .ctx = {{ {} }}, \n".format(str(storage_id)[1:-1])
         #
-        # out_c.write ("    .ctx = {{ {} }}, \n".format(str(storage_id)[1:-1]))
         out_c.write(f"  .device = {{ kDLCPU, 0 }}, \n")
         out_c.write(f"  .ndim = {ndim}, \n")
         out_c.write(f"  .dtype = {{ {dtype} }}, \n")
@@ -1079,7 +1036,9 @@ class CodeEmitter(object):
     # ==========================================================
     #   __emit_activation_buffers
     # ==========================================================
+
     def __emit_activation_buffers(self, name, out_c):
+        """ Emits activation tensors, including inputs/outputs."""
         #
         # Inputs:
         #
@@ -1146,8 +1105,9 @@ class CodeEmitter(object):
     # ==========================================================
     #   __emit_params_buffers
     # ==========================================================
-    def __emit_params_buffers(self, name, out_c):
 
+    def __emit_params_buffers(self, name, out_c):
+        """ Emits all parameter tensors."""
         out_c.write(f"// \n")
         out_c.write(f"// Weights: {name}\n")
         out_c.write(f"// \n")
@@ -1159,8 +1119,9 @@ class CodeEmitter(object):
     # ==========================================================
     #   __emit_network
     # ==========================================================
-    def __emit_network(self, name, out_c):
 
+    def __emit_network(self, name, out_c):
+        """ Emits prototypes for the network operator functions."""
         out_c.write(f"// \n")
         out_c.write(f"// Network: {name}\n")
         out_c.write(f"// \n")
@@ -1168,18 +1129,24 @@ class CodeEmitter(object):
         # Emit prototypes for the TVM library functions
         #
         for node in self.nodes_:
-            if node["op"] != "null":
-                assert node["op"] == "tvm_op", f"###Error: Only TVM ops are supported."
-                node_attrs = node["attrs"]
-                func_name = node_attrs["func_name"]
-                out_c.write(
-                    f"TVM_DLL int32_t {func_name}(void * args, void * arg_type_ids, int32_t num_args); \n"
-                )
+            if node["op"] == "null":
+                continue
+            assert node["op"] == "tvm_op", f"###Error: Only TVM ops are supported."
+            node_attrs = node["attrs"]
+            func_name = node_attrs["func_name"]
+
+            if func_name == "__nop":
+                continue
+            
+            out_c.write(
+                f"TVM_DLL int32_t {func_name}(void * args, void * arg_type_ids, int32_t num_args); \n"
+            )
         out_c.write(f"\n")
 
     # ==========================================================
     #   __emit_tensor_activation
     # ==========================================================
+
     def __emit_tensor_activation(self, dl_tensor_name, tensor, out_c):
 
         storage_id = tensor["storage_id"]
@@ -1193,8 +1160,9 @@ class CodeEmitter(object):
     # ==========================================================
     #   __emit_activation_init
     # ==========================================================
-    def __emit_activation_init(self, name, out_c):
 
+    def __emit_activation_init(self, name, out_c):
+        """ Emits buffer initialization code for activation tensors."""
         out_c.write(f"// {DBAR} \n")
         out_c.write(f"//   {name}_configure_activations \n")
         out_c.write(f"// {DBAR} \n")
@@ -1241,8 +1209,9 @@ class CodeEmitter(object):
     # ==========================================================
     #   __emit_params_init
     # ==========================================================
-    def __emit_params_init(self, name, out_c):
 
+    def __emit_params_init(self, name, out_c):
+        """ Emits buffer initialization code for params tensors."""
         out_c.write(f"// {DBAR} \n")
         out_c.write(f"//   {name}_configure_weights \n")
         out_c.write(f"// {DBAR} \n")
@@ -1275,7 +1244,9 @@ class CodeEmitter(object):
     # ==========================================================
     #   __emit_init
     # ==========================================================
+
     def __emit_init(self, name, out_c):
+        """ Emits buffer initialization code."""
         #
         # {name}_configure_activations
         #
@@ -1288,8 +1259,9 @@ class CodeEmitter(object):
     # ==========================================================
     #   __emit_run
     # ==========================================================
-    def __emit_run(self, name, out_h, out_c):
 
+    def __emit_run(self, name, out_h, out_c):
+        """ Emits the run function code."""
         out_h.write(f"AI_API_ENTRY \n")
         out_h.write(f"ai_status ai_{name}_run ( \n")
         out_h.write(f"  ai_tensor *inputs[], \n")
@@ -1327,7 +1299,6 @@ class CodeEmitter(object):
             node_name = node["name"]
             node_name_upper = node_name.upper()
 
-            # print ("    [{}] op: {}".format(nid, node['name']))
             nid += 1
 
             if node["op"] == "null":
@@ -1337,6 +1308,9 @@ class CodeEmitter(object):
             node_attrs = node["attrs"]
             func_name = node_attrs["func_name"]
 
+            if func_name == "__nop":
+                continue
+            
             out_c.write(f"  // \n")
             out_c.write(f"  // {func_name}\n")
             out_c.write(f"  // \n")
@@ -1372,17 +1346,8 @@ class CodeEmitter(object):
 
             curr_idx = 0
 
-            for node_in in node["inputs"]:
-                src_nid = node_in[0]
-                src_idx = node_in[1]
-                # src_version = node_in[2]
-                src_node = self.nodes_[src_nid]
-                src_name = self.nodes_[src_nid]["name"]
-
-                if src_node["op"] == "null":
-                    dl_tensor_name = get_input_tensor_name(src_name)
-                else:
-                    dl_tensor_name = get_output_tensor_name(src_name, src_idx)
+            for arg in node["inputs"]:
+                dl_tensor_name = self.__get_node_arg_name(arg)
                 #
                 # If this input is not an activation or a parameter => find the input
                 #
@@ -1491,8 +1456,6 @@ class CodeEmitter(object):
                     )
             out_c.write(f"#endif \n")
 
-            # nid += 1
-
         out_c.write(f"\n")
 
         out_c.write(f"#if defined(_DUMP_INPUTS_) ")
@@ -1512,8 +1475,9 @@ class CodeEmitter(object):
     # ==========================================================
     #   __emit_create_destroy
     # ==========================================================
-    def __emit_create_destroy(self, name, out_h, out_c):
 
+    def __emit_create_destroy(self, name, out_h, out_c):
+        """ Emits the create/destroy functions."""
         out_h.write(f"AI_API_ENTRY \n")
         out_h.write(f"ai_status ai_{name}_create ( \n")
         out_h.write(f"  const ai_ptr weights, \n")
@@ -1559,8 +1523,9 @@ class CodeEmitter(object):
     # ==================================================================
     #   emit_code
     # ==================================================================
+
     def emit_code(self, dest_dir, model_name):
-        """ Emit the C code implementing the model. """
+        """ Emits the C code implementing the model. """
 
         #
         # Build the directory structure
@@ -1591,19 +1556,8 @@ class CodeEmitter(object):
                 filename = os.path.join(dest_dir, f"{model_name}_lib{idx}.c")
                 with open(filename, "w") as fout:
                     fout.write(code)
-            # List of C files from Module Format
-            # for idx, filename in enumerate(self.lib_):
-            #    with open(filename, 'r') as fin:
-            #        src = fin.read()
-            #        code = _preprocess_code(src)
-            #        filename = os.path.join(dest_dir, f'{model_name}_lib{idx}.c')
-            #        with open (filename, "w") as fout:
-            #            fout.write(code)
         else:
             # a TVM RuntimeGraphFactory
-            # src = src + self.lib_.get_source(fmt="c")
-            # for m in self.lib_.imported_modules:
-            #    src = src + m.get_source(fmt="c")
             src = self.lib_.get_source(fmt="c")
             code = _preprocess_code(src)
             filename = os.path.join(dest_dir, f"{model_name}_lib.c")
@@ -1622,8 +1576,9 @@ class CodeEmitter(object):
         # Write the .json
         #
         graph_name = os.path.join(dest_dir, model_name + ".json")
+        json_string = json.dumps(self.graph_, indent=4)
         with open(graph_name, "w") as f:
-            json.dump(self.graph_, f)
+            print(json_string, file=f)
 
         #
         # emit X_data[c,h]
