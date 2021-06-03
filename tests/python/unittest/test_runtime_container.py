@@ -81,6 +81,7 @@ def test_string():
 def test_shape_tuple():
     shape = [random.randint(-10, 10) for _ in range(5)]
     stuple = _container.ShapeTuple(shape)
+    stuple.ndim == len(shape)
     for a, b in zip(stuple, shape):
         assert a == b
 

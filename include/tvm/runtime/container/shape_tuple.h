@@ -32,35 +32,50 @@ namespace runtime {
 class ShapeTupleObj : public Object {
  public:
   using index_type = int64_t;
-  std::vector<index_type> data;
+  index_type* data;
+  uint64_t ndim;
 
   static constexpr const uint32_t _type_index = runtime::TypeIndex::kRuntimeShapeTuple;
-  static constexpr const char* _type_key = "ShapeTuple";
+  static constexpr const char* _type_key = "runtime.ShapeTuple";
   TVM_DECLARE_FINAL_OBJECT_INFO(ShapeTupleObj, Object);
  private:
-  template <typename Iterator>
-  void Init(Iterator begin, Iterator end) {
-    data = std::vector<index_type>(begin, end);
-  }
+  class FromStd;
   friend class ShapeTuple;
 }; 
+
+class ShapeTupleObj::FromStd : public ShapeTupleObj {
+ public:
+  using index_type = ShapeTupleObj::index_type;
+  explicit FromStd(std::vector<index_type> other) : data_container{other} {}
+ private:
+  /*! \brief Container that holds the memory. */
+  std::vector<index_type> data_container;
+
+  friend class ShapeTuple;
+};
+
 
 class ShapeTuple : public ObjectRef {
  public:
   using index_type = ShapeTupleObj::index_type;
-  explicit ShapeTuple(std::vector<index_type> shape) : ShapeTuple(shape.begin(), shape.end()) {}
+  ShapeTuple() : ShapeTuple(std::vector<index_type>()) {}
   template<typename Iterator>
-  explicit ShapeTuple(Iterator begin, Iterator end) {
-    auto ptr = make_object<ShapeTupleObj>();
-    ptr->Init(begin, end);
-    data_ = std::move(ptr);
-  }
+  explicit ShapeTuple(Iterator begin, Iterator end) : ShapeTuple(std::vector<index_type>(begin, end)) {};
   explicit ShapeTuple(std::initializer_list<index_type> shape) : ShapeTuple(shape.begin(), shape.end()) {}
 
-  index_type operator[](size_t idx) const { return operator->()->data[idx]; }
-  size_t ndim() const { return operator->()->data.size(); }
-  TVM_DEFINE_OBJECT_REF_METHODS(ShapeTuple, ObjectRef, ShapeTupleObj);
+  explicit ShapeTuple(std::vector<index_type> shape);
+
+  index_type operator[](size_t idx) const { return get()->data[idx]; }
+  size_t ndim() const { return get()->ndim; }
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(ShapeTuple, ObjectRef, ShapeTupleObj);
 }; 
+
+inline ShapeTuple::ShapeTuple(std::vector<index_type> shape) {
+  auto ptr = make_object<ShapeTupleObj::FromStd>(std::move(shape));
+  ptr->ndim = ptr->data_container.size();
+  ptr->data = ptr->data_container.data();
+  data_ = std::move(ptr);
+}
 
 }  // namespace runtime
 

@@ -138,7 +138,7 @@ class String(str, PyNativeObject):
         val.__tvm_object__ = obj
         return val
 
-@tvm._ffi.register_object("ShapeTuple")
+@tvm._ffi.register_object("runtime.ShapeTuple")
 class ShapeTuple(Object):
     def __init__(self, shape):
         for s in shape:
@@ -150,9 +150,10 @@ class ShapeTuple(Object):
     def __getitem__(self, idx):
         return getitem_helper(self, _ffi_api.GetShapeTupleElem, len(self), idx)
 
+    @property
     def ndim(self):
         return _ffi_api.GetShapeTupleNdim(self)
 
     def __len__(self):
-        return self.ndim()
+        return self.ndim
 
