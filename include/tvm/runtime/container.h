@@ -24,9 +24,9 @@
 #ifndef TVM_RUNTIME_CONTAINER_H_
 #define TVM_RUNTIME_CONTAINER_H_
 
-#include "./container/base.h"
 #include "./container/adt.h"
 #include "./container/array.h"
+#include "./container/base.h"
 #include "./container/closure.h"
 #include "./container/map.h"
 #include "./container/optional.h"

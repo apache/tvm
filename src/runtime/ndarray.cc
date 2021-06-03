@@ -190,8 +190,7 @@ NDArray NDArray::CreateView(ShapeTuple shape, DLDataType dtype) {
 
 DLManagedTensor* NDArray::ToDLPack() const { return Internal::ToDLPack(get_mutable()); }
 
-NDArray NDArray::Empty(ShapeTuple shape, DLDataType dtype, Device dev,
-                       Optional<String> mem_scope) {
+NDArray NDArray::Empty(ShapeTuple shape, DLDataType dtype, Device dev, Optional<String> mem_scope) {
   NDArray ret = Internal::Create(shape, dtype, dev);
   ret.get_mutable()->dl_tensor.data =
       DeviceAPI::Get(ret->device)

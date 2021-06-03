@@ -355,8 +355,7 @@ inline void NDArray::CopyTo(const NDArray& other) const {
 inline NDArray NDArray::CopyTo(const Device& dev) const {
   ICHECK(data_ != nullptr);
   const DLTensor* dptr = operator->();
-  NDArray ret =
-      Empty(ShapeTuple(dptr->shape, dptr->shape + dptr->ndim), dptr->dtype, dev);
+  NDArray ret = Empty(ShapeTuple(dptr->shape, dptr->shape + dptr->ndim), dptr->dtype, dev);
   this->CopyTo(ret);
   return ret;
 }

@@ -24,8 +24,9 @@
 #ifndef TVM_RUNTIME_CONTAINER_SHAPE_TUPLE_H_
 #define TVM_RUNTIME_CONTAINER_SHAPE_TUPLE_H_
 
-#include <vector>
 #include <utility>
+#include <vector>
+
 #include "./base.h"
 
 namespace tvm {
@@ -40,6 +41,7 @@ class ShapeTupleObj : public Object {
   static constexpr const uint32_t _type_index = runtime::TypeIndex::kRuntimeShapeTuple;
   static constexpr const char* _type_key = "runtime.ShapeTuple";
   TVM_DECLARE_FINAL_OBJECT_INFO(ShapeTupleObj, Object);
+
  private:
   class FromStd;
   friend class ShapeTuple;
@@ -49,6 +51,7 @@ class ShapeTupleObj::FromStd : public ShapeTupleObj {
  public:
   using index_type = ShapeTupleObj::index_type;
   explicit FromStd(std::vector<index_type> other) : data_container{other} {}
+
  private:
   /*! \brief Container that holds the memory. */
   std::vector<index_type> data_container;
@@ -56,12 +59,11 @@ class ShapeTupleObj::FromStd : public ShapeTupleObj {
   friend class ShapeTuple;
 };
 
-
 class ShapeTuple : public ObjectRef {
  public:
   using index_type = ShapeTupleObj::index_type;
   ShapeTuple() : ShapeTuple(std::vector<index_type>()) {}
-  template<typename Iterator>
+  template <typename Iterator>
   ShapeTuple(Iterator begin, Iterator end) : ShapeTuple(std::vector<index_type>(begin, end)) {}
   ShapeTuple(std::initializer_list<index_type> shape) : ShapeTuple(shape.begin(), shape.end()) {}
 

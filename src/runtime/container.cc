@@ -61,7 +61,6 @@ TVM_REGISTER_GLOBAL("runtime.ArraySize").set_body([](TVMArgs args, TVMRetValue* 
   *ret = static_cast<int64_t>(static_cast<const ArrayNode*>(ptr)->size());
 });
 
-
 // ADT
 
 TVM_REGISTER_OBJECT_TYPE(ADTObj);
@@ -104,7 +103,6 @@ TVM_REGISTER_GLOBAL("runtime.ADT").set_body([](TVMArgs args, TVMRetValue* rv) {
   *rv = ADT(tag, fields);
 });
 
-
 // String
 
 TVM_REGISTER_OBJECT_TYPE(StringObj);
@@ -116,7 +114,6 @@ TVM_REGISTER_GLOBAL("runtime.String").set_body_typed([](std::string str) {
 TVM_REGISTER_GLOBAL("runtime.GetFFIString").set_body_typed([](String str) {
   return std::string(str);
 });
-
 
 // Map
 
@@ -210,7 +207,6 @@ TVM_REGISTER_GLOBAL("runtime.GetShapeTupleElem").set_body([](TVMArgs args, TVMRe
   ICHECK_LT(idx, shape.ndim());
   *rv = shape[idx];
 });
-
 
 }  // namespace runtime
 }  // namespace tvm

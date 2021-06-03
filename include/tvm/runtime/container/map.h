@@ -28,9 +28,10 @@
 #define USE_FALLBACK_STL_MAP 0
 #endif
 
-#include <unordered_map>
 #include <algorithm>
+#include <unordered_map>
 #include <utility>
+
 #include "./base.h"
 
 namespace tvm {

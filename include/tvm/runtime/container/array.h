@@ -24,10 +24,11 @@
 #ifndef TVM_RUNTIME_CONTAINER_ARRAY_H_
 #define TVM_RUNTIME_CONTAINER_ARRAY_H_
 
-#include <vector>
-#include <memory>
 #include <algorithm>
+#include <memory>
 #include <utility>
+#include <vector>
+
 #include "./base.h"
 
 namespace tvm {
