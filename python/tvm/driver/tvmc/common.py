@@ -306,7 +306,8 @@ def target_from_cli(target):
         if len(tvm_targets) == 1:
             target = tvm_targets[0]["raw"]
             target_host = None
-        elif len(tvm_targets) == 2:
+        else:
+            assert len(tvm_targets) == 2
             target = tvm_targets[0]["raw"]
             target_host = tvm_targets[1]["raw"]
 
