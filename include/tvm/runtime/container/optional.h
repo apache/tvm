@@ -24,6 +24,7 @@
 #ifndef TVM_RUNTIME_CONTAINER_OPTIONAL_H_
 #define TVM_RUNTIME_CONTAINER_OPTIONAL_H_
 
+#include <utility>
 #include "./base.h"
 
 namespace tvm {

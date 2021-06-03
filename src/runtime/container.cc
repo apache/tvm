@@ -30,7 +30,6 @@ namespace tvm {
 namespace runtime {
 
 // Array
- 
 TVM_REGISTER_OBJECT_TYPE(ArrayNode);
 
 TVM_REGISTER_GLOBAL("runtime.Array").set_body([](TVMArgs args, TVMRetValue* ret) {

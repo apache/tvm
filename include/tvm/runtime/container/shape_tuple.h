@@ -24,6 +24,8 @@
 #ifndef TVM_RUNTIME_CONTAINER_SHAPE_TUPLE_H_
 #define TVM_RUNTIME_CONTAINER_SHAPE_TUPLE_H_
 
+#include <vector>
+#include <utility>
 #include "./base.h"
 
 namespace tvm {
@@ -41,7 +43,7 @@ class ShapeTupleObj : public Object {
  private:
   class FromStd;
   friend class ShapeTuple;
-}; 
+};
 
 class ShapeTupleObj::FromStd : public ShapeTupleObj {
  public:
@@ -60,10 +62,10 @@ class ShapeTuple : public ObjectRef {
   using index_type = ShapeTupleObj::index_type;
   ShapeTuple() : ShapeTuple(std::vector<index_type>()) {}
   template<typename Iterator>
-  ShapeTuple(Iterator begin, Iterator end) : ShapeTuple(std::vector<index_type>(begin, end)) {};
+  ShapeTuple(Iterator begin, Iterator end) : ShapeTuple(std::vector<index_type>(begin, end)) {}
   ShapeTuple(std::initializer_list<index_type> shape) : ShapeTuple(shape.begin(), shape.end()) {}
 
-  ShapeTuple(std::vector<index_type> shape);
+  ShapeTuple(std::vector<index_type> shape);  // NOLINT(*)
 
   index_type operator[](size_t idx) const { return get()->data[idx]; }
   index_type at(size_t idx) const { return get()->data[idx]; }
@@ -76,7 +78,7 @@ class ShapeTuple : public ObjectRef {
   const index_type* begin() const { return get()->data; }
   const index_type* end() const { return (get()->data + ndim()); }
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(ShapeTuple, ObjectRef, ShapeTupleObj);
-}; 
+};
 
 inline ShapeTuple::ShapeTuple(std::vector<index_type> shape) {
   auto ptr = make_object<ShapeTupleObj::FromStd>(std::move(shape));

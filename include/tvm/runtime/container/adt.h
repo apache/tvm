@@ -24,6 +24,8 @@
 #ifndef TVM_RUNTIME_CONTAINER_ADT_H_
 #define TVM_RUNTIME_CONTAINER_ADT_H_
 
+#include <vector>
+#include <utility>
 #include "./base.h"
 
 namespace tvm {

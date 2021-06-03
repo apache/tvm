@@ -21,11 +21,14 @@
  * \file tvm/runtime/container/array.h
  * \brief Runtime Array container types.
  */
-#ifndef TVM_RUNTIME_CONTAINER_ARRARY_H_
-#define TVM_RUNTIME_CONTAINER_ARRARY_H_
+#ifndef TVM_RUNTIME_CONTAINER_ARRAY_H_
+#define TVM_RUNTIME_CONTAINER_ARRAY_H_
 
-#include "./base.h"
 #include <vector>
+#include <memory>
+#include <algorithm>
+#include <utility>
+#include "./base.h"
 
 namespace tvm {
 namespace runtime {
