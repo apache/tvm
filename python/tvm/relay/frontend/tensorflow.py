@@ -2702,19 +2702,21 @@ def _unique(return_counts=True):
         assert len(inputs) == 1
         data = inputs[0]
         if return_counts:
-            [unique, indices, num_uniq, counts] = _op.unique(
+            [unique, _, inverse_indices, num_uniq, counts] = _op.unique(
                 data, is_sorted=False, return_counts=True
             )
             unique_sliced = _op.strided_slice(unique, begin=[0], end=num_uniq, slice_mode="size")
             counts_sliced = _op.strided_slice(counts, begin=[0], end=num_uniq, slice_mode="size")
             return _expr.TupleWrapper(
-                _expr.Tuple([unique_sliced, indices, counts_sliced]),
+                _expr.Tuple([unique_sliced, inverse_indices, counts_sliced]),
                 3,
             )
-        [unique, indices, num_uniq] = _op.unique(data, is_sorted=False, return_counts=False)
+        [unique, _, inverse_indices, num_uniq] = _op.unique(
+            data, is_sorted=False, return_counts=False
+        )
         unique_sliced = _op.strided_slice(unique, begin=[0], end=num_uniq, slice_mode="size")
         return _expr.TupleWrapper(
-            _expr.Tuple([unique_sliced, indices]),
+            _expr.Tuple([unique_sliced, inverse_indices]),
             2,
         )
 

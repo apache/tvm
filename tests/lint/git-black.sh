@@ -54,6 +54,10 @@ if [ -z ${FILES+x} ]; then
 fi
 echo "Files: $FILES"
 
+# required to make black's dep click to work
+export LC_ALL=C.UTF-8
+export LANG=C.UTF-8
+
 if [[ ${INPLACE_FORMAT} -eq 1 ]]; then
     echo "Running black on Python files against revision" $1:
     CMD=( "black" "${FILES[@]}" )
@@ -61,5 +65,5 @@ if [[ ${INPLACE_FORMAT} -eq 1 ]]; then
     "${CMD[@]}"
 else
     echo "Running black in checking mode"
-    black --diff --check ${FILES[@]}
+    python3 -m black --diff --check ${FILES[@]}
 fi

@@ -79,6 +79,18 @@ def softmax_strategy_cpu(attrs, inputs, out_type, target):
     return strategy
 
 
+@fast_softmax_strategy.register("cpu")
+def fast_softmax_strategy_cpu(attrs, inputs, out_type, target):
+    """fast_softmax x86 strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_softmax(topi.nn.fast_softmax),
+        wrap_topi_schedule(topi.x86.schedule_softmax),
+        name="fast_softmax.x86",
+    )
+    return strategy
+
+
 @schedule_log_softmax.register("cpu")
 def schedule_log_softmax_cpu(attrs, outs, target):
     """schedule log_softmax op for x86"""
