@@ -63,7 +63,7 @@ def run_all(TestClass):
 
 def test_add_one():
     class AddOne(tf.Module):
-        """ simple function to test x=x+1; scalar as input"""
+        """simple function to test x=x+1; scalar as input"""
 
         def get_input(self):
             return np.array(1.0, dtype="float32")
