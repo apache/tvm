@@ -18,19 +18,35 @@
  */
 
 /*!
- * \file tvm/runtime/container.h
- * \brief Common POD(plain old data) container types.
+ * \file tvm/runtime/container/closure.h
+ * \brief Runtime Closure container types.
  */
-#ifndef TVM_RUNTIME_CONTAINER_H_
-#define TVM_RUNTIME_CONTAINER_H_
+#ifndef TVM_RUNTIME_CONTAINER_CLOSURE_H_
+#define TVM_RUNTIME_CONTAINER_CLOSURE_H_
 
-#include "./container/base.h"
-#include "./container/adt.h"
-#include "./container/array.h"
-#include "./container/closure.h"
-#include "./container/map.h"
-#include "./container/optional.h"
-#include "./container/shape_tuple.h"
-#include "./container/string.h"
+#include "./base.h"
 
-#endif  // TVM_RUNTIME_CONTAINER_H_
+namespace tvm {
+namespace runtime {
+
+/*!
+ * \brief An object representing a closure. This object is used by both the
+ * Relay VM and interpreter.
+ */
+class ClosureObj : public Object {
+ public:
+  static constexpr const uint32_t _type_index = TypeIndex::kRuntimeClosure;
+  static constexpr const char* _type_key = "runtime.Closure";
+  TVM_DECLARE_BASE_OBJECT_INFO(ClosureObj, Object);
+};
+
+/*! \brief reference to closure. */
+class Closure : public ObjectRef {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(Closure, ObjectRef, ClosureObj);
+};
+
+}  // namespace runtime
+}  // namespace tvm
+
+#endif  // TVM_RUNTIME_CONTAINER_CLOSURE_H_
