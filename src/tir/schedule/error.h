@@ -29,8 +29,6 @@ class ScheduleError : public tvm::runtime::Error {
  public:
   /*! \brief Base constructor */
   ScheduleError() : tvm::runtime::Error("") {}
-  /*! \brief The error occurred in this scheduling primitive */
-  virtual String primitive() const = 0;
   /*! \brief The error occurred in this IRModule */
   virtual IRModule mod() const = 0;
   /*! \brief The locations of interest that we want to point out */
@@ -51,7 +49,7 @@ class ScheduleError : public tvm::runtime::Error {
    */
   virtual String FastErrorString() const = 0;
   /*! \brief Render the ScheduleError with the template provided by `DetailRenderTemplate` */
-  String RenderReport() const;
+  String RenderReport(const String& primitive) const;
 };
 
 }  // namespace tir

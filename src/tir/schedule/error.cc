@@ -21,10 +21,10 @@
 namespace tvm {
 namespace tir {
 
-String ScheduleError::RenderReport() const {
+String ScheduleError::RenderReport(const String& primitive) const {
   IRModule mod = this->mod();
   std::ostringstream os;
-  os << "ScheduleError: An error occurred in the schedule primitive '" << this->primitive()
+  os << "ScheduleError: An error occurred in the schedule primitive '" << primitive
      << "'.\n\nThe IR is:\n"
      << AsTVMScript(mod);
   Array<ObjectRef> locs = LocationsOfInterest();
