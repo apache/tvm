@@ -754,9 +754,13 @@ class PyTorchOpConverter:
         return _op.nn.relu(data)
 
     def prelu(self, inputs, input_types):
+        # Reference: https://pytorch.org/docs/stable/generated/torch.nn.PReLU.html#torch.nn.PReLU
         data = inputs[0]
-        alpha = inputs[1]
-        return _op.nn.prelu(data, alpha)
+        dim = self.get_dims(data)
+        ndims = len(dim)
+        axis = 0 if ndims == 1 else 1
+        alpha = _op.broadcast_to(inputs[1], (dim[axis]))
+        return _op.nn.prelu(data, alpha, axis)
 
     def leaky_relu(self, inputs, input_types):
         data = inputs[0]
