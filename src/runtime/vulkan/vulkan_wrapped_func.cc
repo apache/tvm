@@ -25,7 +25,6 @@
 
 #include "../file_utils.h"
 #include "vulkan_device_api.h"
-#include "vulkan_thread_entry.h"
 
 namespace tvm {
 namespace runtime {
@@ -45,8 +44,7 @@ void VulkanWrappedFunc::Init(VulkanModuleNode* m, ObjectPtr<Object> sptr,
 
 void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
                                    const ArgUnion64* pack_args) const {
-  int device_id = VulkanThreadEntry::ThreadLocal()->device.device_id;
-  ICHECK_LT(device_id, kVulkanMaxNumDevice);
+  int device_id = VulkanDeviceAPI::Global()->GetActiveDeviceID();
   auto& device = VulkanDeviceAPI::Global()->device(device_id);
   if (!scache_[device_id]) {
     scache_[device_id] = m_->GetPipeline(device_id, func_name_, num_pack_args_);

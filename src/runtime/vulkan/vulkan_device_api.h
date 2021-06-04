@@ -31,7 +31,6 @@
 #include "vulkan/vulkan_core.h"
 #include "vulkan_device.h"
 #include "vulkan_instance.h"
-#include "vulkan_thread_entry.h"
 
 namespace tvm {
 namespace runtime {
@@ -72,6 +71,22 @@ class VulkanDeviceAPI final : public DeviceAPI {
   // End of required methods for the DeviceAPI interface
 
  public:
+  /*! \brief Return the currently active VulkanDevice
+   *
+   * The active device can be set using VulkanDeviceAPI::SetDevice.
+   * Each CPU thread has its own active device, mimicking the
+   * semantics of cudaSetDevice.
+   */
+  VulkanDevice& GetActiveDevice();
+
+  /*! \brief Return the currently active VulkanDevice
+   *
+   * The active device can be set using VulkanDeviceAPI::SetDevice.
+   * Each CPU thread has its own active device, mimicking the
+   * semantics of cudaSetDevice.
+   */
+  int GetActiveDeviceID();
+
   /*! \brief Return the VulkanDevice associated with a specific device_id
    *
    * These are constructed during VulkanDeviceAPI initialization, so
@@ -115,6 +130,14 @@ class VulkanDeviceAPI final : public DeviceAPI {
    * The memory pools must be destructed before devices_.
    */
   ThreadMap<WorkspacePool> pool_per_thread;
+
+  /*! \brief The index of the active device for each CPU thread.
+   *
+   * To mimic the semantics of cudaSetDevice, each CPU thread can set
+   * the device on which functions should run.  If unset, the active
+   * device defaults to device_id == 0.
+   */
+  ThreadMap<int> active_device_id_per_thread;
 };
 
 }  // namespace vulkan

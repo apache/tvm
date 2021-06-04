@@ -26,7 +26,6 @@
 #include <utility>
 
 #include "vulkan_common.h"
-#include "vulkan_thread_entry.h"
 
 namespace tvm {
 namespace runtime {
@@ -55,7 +54,20 @@ VulkanDeviceAPI::VulkanDeviceAPI() {
 
 VulkanDeviceAPI::~VulkanDeviceAPI() {}
 
-void VulkanDeviceAPI::SetDevice(Device dev) { VulkanThreadEntry::ThreadLocal()->device = dev; }
+void VulkanDeviceAPI::SetDevice(Device dev) {
+  ICHECK_EQ(dev.device_type, kDLVulkan)
+      << "Active vulkan device cannot be set to non-vulkan device" << dev;
+
+  ICHECK_LE(dev.device_id, static_cast<int>(devices_.size()))
+      << "Attempted to set active vulkan device to device_id==" << dev.device_id << ", but only "
+      << devices_.size() << " devices present";
+
+  active_device_id_per_thread.GetOrMake(0) = dev.device_id;
+}
+
+int VulkanDeviceAPI::GetActiveDeviceID() { return active_device_id_per_thread.GetOrMake(0); }
+
+VulkanDevice& VulkanDeviceAPI::GetActiveDevice() { return device(GetActiveDeviceID()); }
 
 void VulkanDeviceAPI::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) {
   size_t index = static_cast<size_t>(dev.device_id);

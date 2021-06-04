@@ -20,7 +20,6 @@
 #ifndef TVM_RUNTIME_VULKAN_VULKAN_DEVICE_H_
 #define TVM_RUNTIME_VULKAN_VULKAN_DEVICE_H_
 
-#include <dmlc/thread_local.h>
 #include <tvm/runtime/logging.h>
 
 #include <memory>

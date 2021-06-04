@@ -28,7 +28,6 @@
 #include "vulkan_device.h"
 #include "vulkan_device_api.h"
 #include "vulkan_instance.h"
-#include "vulkan_thread_entry.h"
 
 namespace tvm {
 namespace runtime {
