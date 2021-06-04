@@ -21,6 +21,7 @@
 #define TVM_RUNTIME_VULKAN_VULKAN_DEVICE_API_H_
 
 #include <tvm/runtime/device_api.h>
+#include <vulkan/vulkan_core.h>
 
 #include <string>
 #include <vector>
@@ -95,9 +96,25 @@ class VulkanDeviceAPI final : public DeviceAPI {
  private:
   std::vector<uint32_t> GetComputeQueueFamilies(VkPhysicalDevice phy_dev);
 
+  /*! \brief The Vulkan API instance owned by the VulkanDeviceAPI
+   *
+   * Holds and manages VkInstance.
+   */
   VulkanInstance instance_;
-  // The physical devices, have 1 to 1 mapping to devices
+
+  /*! \brief Handles to the Vulkan devices
+   *
+   * The physical devices.  These are constructed after the instance_,
+   * and must be destructed before the instance_.
+   */
   std::vector<VulkanDevice> devices_;
+
+  /*! \brief One pool of device memory for each CPU thread.
+   *
+   * These allocate memory based on the devices stored in devices_.
+   * The memory pools must be destructed before devices_.
+   */
+  ThreadMap<WorkspacePool> pool_per_thread;
 };
 
 }  // namespace vulkan

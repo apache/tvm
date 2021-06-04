@@ -40,7 +40,6 @@ class VulkanThreadEntry {
   ~VulkanThreadEntry();
 
   Device device;
-  std::unique_ptr<WorkspacePool> pool;
 };
 
 typedef dmlc::ThreadLocalStore<VulkanThreadEntry> VulkanThreadStore;

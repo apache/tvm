@@ -26,21 +26,11 @@ namespace tvm {
 namespace runtime {
 namespace vulkan {
 
-VulkanThreadEntry::~VulkanThreadEntry() {
-  // Because the thread entry refers to Device API
-  // The command buffer always will be destroyed before
-  // the instance and device get destroyed.
-  // The destruction need to be manually called
-  // to ensure the destruction order.
-
-  pool.reset();
-}
+VulkanThreadEntry::~VulkanThreadEntry() {}
 
 VulkanThreadEntry* VulkanThreadEntry::ThreadLocal() { return VulkanThreadStore::Get(); }
 
-VulkanThreadEntry::VulkanThreadEntry()
-    : pool(std::make_unique<WorkspacePool>(static_cast<DLDeviceType>(kDLVulkan),
-                                           VulkanDeviceAPI::Global())) {
+VulkanThreadEntry::VulkanThreadEntry() {
   device.device_id = 0;
   device.device_type = static_cast<DLDeviceType>(kDLVulkan);
 }
