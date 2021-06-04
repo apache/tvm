@@ -23,7 +23,7 @@ from .type import TypeConstraint, FuncType, IncompleteType, RelayRefType
 from .tensor_type import TensorType
 from .type_relation import TypeCall, TypeRelation
 from .expr import BaseExpr, PrimExpr, RelayExpr, GlobalVar, Range
-from .op import Op, register_op, register_op_attr, register_intrin_lowering
+from .op import Op, register_op_attr, register_intrin_lowering
 from .function import CallingConv, BaseFunc
 from .adt import Constructor, TypeData
 from .module import IRModule
