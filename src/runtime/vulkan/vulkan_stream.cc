@@ -23,15 +23,15 @@ namespace tvm {
 namespace runtime {
 namespace vulkan {
 
-VulkanStream::VulkanStream(const VulkanContext* vctx)
-    : vctx_(vctx), state_(new VulkanStreamState()) {
+VulkanStream::VulkanStream(const VulkanDevice* device)
+    : device_(device), state_(new VulkanStreamState()) {
   // create command pool
   VkCommandPoolCreateInfo cmd_pool_cinfo;
   cmd_pool_cinfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
   cmd_pool_cinfo.pNext = nullptr;
   cmd_pool_cinfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-  cmd_pool_cinfo.queueFamilyIndex = vctx_->queue_family_index;
-  VULKAN_CALL(vkCreateCommandPool(vctx_->device, &cmd_pool_cinfo, nullptr, &cmd_pool_));
+  cmd_pool_cinfo.queueFamilyIndex = device_->queue_family_index;
+  VULKAN_CALL(vkCreateCommandPool(*device_, &cmd_pool_cinfo, nullptr, &cmd_pool_));
 
   VkCommandBufferAllocateInfo buffer_alloc_info;
   buffer_alloc_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -39,13 +39,13 @@ VulkanStream::VulkanStream(const VulkanContext* vctx)
   buffer_alloc_info.commandPool = cmd_pool_;
   buffer_alloc_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
   buffer_alloc_info.commandBufferCount = 1;
-  VULKAN_CALL(vkAllocateCommandBuffers(vctx_->device, &buffer_alloc_info, &(state_->cmd_buffer_)));
+  VULKAN_CALL(vkAllocateCommandBuffers(*device_, &buffer_alloc_info, &(state_->cmd_buffer_)));
 
   VkFenceCreateInfo fence_cinfo;
   fence_cinfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
   fence_cinfo.pNext = nullptr;
   fence_cinfo.flags = 0;  // VK_FENCE_CREATE_SIGNALED_BIT;
-  VULKAN_CALL(vkCreateFence(vctx_->device, &fence_cinfo, nullptr, &(state_->fence_)));
+  VULKAN_CALL(vkCreateFence(*device_, &fence_cinfo, nullptr, &(state_->fence_)));
 
   VkCommandBufferBeginInfo cb_begin;
   cb_begin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -56,12 +56,12 @@ VulkanStream::VulkanStream(const VulkanContext* vctx)
 }
 
 VulkanStream::~VulkanStream() {
-  vkDestroyFence(vctx_->device, state_->fence_, nullptr);
-  vkDestroyCommandPool(vctx_->device, cmd_pool_, nullptr);
+  vkDestroyFence(*device_, state_->fence_, nullptr);
+  vkDestroyCommandPool(*device_, cmd_pool_, nullptr);
 }
 
 void VulkanStream::Launch(const std::function<void(VulkanStreamState*)>& kernel) {
-  if (vctx_->UseImmediate()) {
+  if (device_->UseImmediate()) {
     kernel(state_.get());
   } else {
     deferred_kernels_.push_back(kernel);
@@ -71,7 +71,7 @@ void VulkanStream::Launch(const std::function<void(VulkanStreamState*)>& kernel)
 void VulkanStream::LaunchDeferred(const std::function<void()>& deferred_initializer,
                                   const std::function<void(VulkanStreamState*)>& deferred_kernel,
                                   const VulkanStreamToken& deferred_token) {
-  ICHECK(!vctx_->UseImmediate());
+  ICHECK(!device_->UseImmediate());
 
   // If the new kernel uses the same descriptor set as one of the
   // kernels already in the command buffer, we need to synchronize
@@ -107,7 +107,7 @@ void VulkanStream::LaunchDeferred(const std::function<void()>& deferred_initiali
 }
 
 void VulkanStream::Synchronize() {
-  if (!vctx_->UseImmediate()) {
+  if (!device_->UseImmediate()) {
     for (const auto& deferred_kernel : deferred_kernels_) {
       deferred_kernel(state_.get());
     }
@@ -130,20 +130,16 @@ void VulkanStream::Synchronize() {
   cb_submit.signalSemaphoreCount = 0;
   cb_submit.pSignalSemaphores = nullptr;
 
-  {
-    // Multiple streams (on different threads) use the same VulkanContext
-    // instance, so we need to externally synchronize accesses.
-    std::lock_guard<std::mutex> g(*(vctx_->queue_mutex));
-    VULKAN_CALL(vkQueueSubmit(vctx_->queue, 1, &cb_submit, state_->fence_));
-  }
+  device_->QueueSubmit(cb_submit, state_->fence_);
+
   uint64_t timeout = 1UL << 30UL;
   VkResult res;
   do {
-    res = vkWaitForFences(vctx_->device, 1, &(state_->fence_), 0, timeout);
+    res = vkWaitForFences(*device_, 1, &(state_->fence_), 0, timeout);
   } while (res == VK_TIMEOUT);
   VULKAN_CHECK_ERROR(res);
   VULKAN_CALL(vkResetCommandBuffer(state_->cmd_buffer_, 0));
-  VULKAN_CALL(vkResetFences(vctx_->device, 1, &(state_->fence_)));
+  VULKAN_CALL(vkResetFences(*device_, 1, &(state_->fence_)));
 
   // Re-initialize the command buffer
   VkCommandBufferBeginInfo cb_begin;
