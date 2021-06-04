@@ -28,7 +28,7 @@ from ..environment import get_env
 
 @autotvm.register_topi_compute("group_conv2d_packed.vta")
 def group_conv2d_packed(cfg, data, kernel, strides, padding, dilation, group, out_dtype):
-    """ Packed group conv2d nchw function."""
+    """Packed group conv2d nchw function."""
     assert dilation == (1, 1)
 
     if padding[0]:

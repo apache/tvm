@@ -91,7 +91,7 @@ class BufferSlice(ObjectGeneric):
         span: Optional[Span] = None,
     ):
         def check_index(index: Union[int, PrimExpr]):
-            """ Check input index is non-negative integer or PrimExpr"""
+            """Check input index is non-negative integer or PrimExpr"""
             if isinstance(index, int):
                 if index < 0:
                     report_error("Negative index is not allowed during buffer access", span)

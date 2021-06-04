@@ -159,7 +159,7 @@ def conv2d_infer_layout(workload, cfg):
 
 
 def _get_workload(data, kernel, stride, padding, dilation, out_dtype, data_layout="NCHW"):
-    """ Get the workload structure. """
+    """Get the workload structure."""
     if data_layout == "NCHW":
         _, CI, IH, IW = get_const_tuple(data.shape)
     elif data_layout == "NHWC":
