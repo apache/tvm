@@ -34,9 +34,6 @@ _LOG = logging.getLogger(__name__)
 
 THIS_DIR = os.path.realpath(os.path.dirname(__file__) or ".")
 
-ZEPHYR_BRANCH = "v2.5-branch"
-ZEPHYR_COMMIT = "dabf23758417fd041fec2a2a821d8f526afac29d"
-
 # List of vagrant providers supported by this tool
 ALL_PROVIDERS = (
     "parallels",
@@ -176,6 +173,11 @@ ATTACH_USB_DEVICE = {
     "vmware_desktop": attach_vmware,
 }
 
+EXTRA_SCRIPTS = (
+    "../../../../../docker/install/ubuntu_init_zephyr_project.sh",
+    "../../../../../docker/install/ubuntu_install_qemu.sh",
+)
+
 
 def generate_packer_config(file_path, providers):
     builders = []
@@ -183,6 +185,7 @@ def generate_packer_config(file_path, providers):
     for provider_name in providers:
         builders.append(
             {
+                "name": f"{provider_name}",
                 "type": "vagrant",
                 "box_name": f"microtvm-base-{provider_name}",
                 "output_dir": f"output-packer-{provider_name}",
@@ -193,11 +196,15 @@ def generate_packer_config(file_path, providers):
             }
         )
 
+    for script in EXTRA_SCRIPTS:
+        filename = os.path.basename(script)
+        provisioners.append({"type": "file", "source": script, "destination": f"~/{filename}"})
+
     provisioners.append(
         {
             "type": "shell",
-            "script": "../../../../../docker/install/ubuntu_init_zephyr_project.sh",
-            "execute_command": f"chmod +x {{{{ .Path }}}}; source ~/.profile; {{{{ .Vars }}}} {{{{ .Path }}}} ~/zephyrproject {ZEPHYR_BRANCH} --commit {ZEPHYR_COMMIT}",
+            "script": "base_box_provision.sh",
+            "execute_command": f"chmod +x {{{{ .Path }}}}; {{{{ .Vars }}}} {{{{ .Path }}}}",
         }
     )
 
@@ -208,7 +215,7 @@ def generate_packer_config(file_path, providers):
                 "provisioners": provisioners,
             },
             f,
-            sort_keys=True,
+            sort_keys=False,
             indent=2,
         )
 
@@ -298,16 +305,6 @@ def do_build_release_test_vm(release_test_dir, user_box_dir, base_box_dir, provi
     return_code = subprocess.call(remove_args, cwd=release_test_dir)
     assert return_code in (0, 1), f'{" ".join(remove_args)} returned exit code {return_code}'
     subprocess.check_call(["vagrant", "up", f"--provider={provider_name}"], cwd=release_test_dir)
-
-    # Build QEMU
-    tvm_home = subprocess.check_output(
-        ["git", "rev-parse", "--show-toplevel"], encoding="utf-8"
-    ).strip()
-    qemu_cmd = (
-        f"cd {tvm_home} && sudo docker/install/ubuntu_install_qemu.sh --target-list arm-softmmu"
-    )
-    subprocess.check_call(["vagrant", "ssh", "-c", qemu_cmd], cwd=release_test_dir)
-
     return True
 
 
@@ -426,14 +423,15 @@ def parse_args():
     )
     subparsers = parser.add_subparsers(help="Action to perform.")
     parser.add_argument(
-        "platform",
-        help="Name of the platform VM to act on. Must be a sub-directory of this directory.",
-    )
-    parser.add_argument(
         "--provider",
         choices=ALL_PROVIDERS,
         action="append",
         help="Name of the provider or providers to act on; if not specified, act on all.",
+    )
+
+    parser.add_argument(
+        "platform",
+        help="Name of the platform VM to act on. Must be a sub-directory of this directory.",
     )
 
     parser_build = subparsers.add_parser("build", help="Build a base box.")
