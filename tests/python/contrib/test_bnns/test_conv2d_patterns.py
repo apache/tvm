@@ -105,3 +105,10 @@ def test_pattern_conv2d_with_non_cons_bias():
     bias_is_fused = is_op_fused(mod["bnns_0"], "nn.bias_add")
 
     assert not bias_is_fused
+
+
+if __name__ == '__main__':
+    test_pattern_conv2d_with_bias_add()
+    test_pattern_conv2d_with_add()
+    test_pattern_conv2d_with_non_cons_weights()
+    test_pattern_conv2d_with_non_cons_bias()

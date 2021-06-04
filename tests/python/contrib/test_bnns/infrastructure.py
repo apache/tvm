@@ -18,16 +18,18 @@
 from itertools import zip_longest, combinations
 import json
 import os
-import warnings
-
+from enum import Enum
 import numpy as np
+import pytest
 
 import tvm
+import tvm.testing
 from tvm import relay
 from tvm import rpc
 from tvm.contrib import graph_executor
 from tvm.relay.op.contrib.bnns import partition_for_bnns
 from tvm.contrib import utils
+from tvm.contrib import xcode
 from tvm.autotvm.measure import request_remote
 from tvm.relay.analysis import analysis
 
@@ -62,29 +64,52 @@ class Device:
         The compilation target.
     device_key : str
         The device key of the remote target. Use when connecting to a remote device via a tracker.
-    cross_compile : str
-        Specify path to cross compiler to use when connecting a remote device from a non-arm platform.
     """
 
-    connection_type = "local"
-    host = "127.0.0.1"
-    port = 9090
-    target = "llvm"
-    device_key = ""
-    cross_compile = ""
+    class ConnectionType(Enum):
+        TRACKER = "tracker"
+        REMOTE = "remote"
+        LOCAL = "local"
 
-    def __init__(self):
+    class EnvironmentVariables(Enum):
+        TVM_USE_TRACKER = "TVM_USE_TRACKER"
+        TVM_TRACKER_HOST = "TVM_TRACKER_HOST"
+        TVM_TRACKER_PORT = "TVM_TRACKER_PORT"
+        TVM_REMOTE_DEVICE_KEY = "TVM_REMOTE_DEVICE_KEY"
+        TVM_RUN_COMPLEXITY_TEST = "TVM_RUN_COMPLEXITY_TEST"
+
+    host = os.environ.get(EnvironmentVariables.TVM_TRACKER_HOST.value)
+    port = int(os.environ.get(EnvironmentVariables.TVM_TRACKER_PORT.value) or 0) or None
+    device_key = os.environ.get(EnvironmentVariables.TVM_REMOTE_DEVICE_KEY.value)
+
+    def __init__(self, connection_type):
         """Keep remote device for lifetime of object."""
+        self.connection_type = connection_type
+        if self.connection_type == Device.ConnectionType.TRACKER and not Device.is_tracker_compatible():
+            raise Exception('Can\'t create Device instance. No environment variables set for the RPC Tracker')
+
+        if self.connection_type == Device.ConnectionType.TRACKER:
+            self.target = "llvm -mtriple=arm64-apple-darwin"
+            self.fcompile = lambda output, objects, **kwargs: xcode.create_dylib(output, objects, arch="arm64", sdk="iphoneos")
+        else:
+            self.target = "llvm"
+            self.fcompile = None
+
         self.device = self._get_remote()
 
     @classmethod
-    def _get_remote(cls):
+    def is_tracker_compatible(cls):
+        def ok(attr):
+            return attr is not None
+        return ok(cls.host) and ok(cls.port) and ok(cls.device_key)
+
+    def _get_remote(self):
         """Get a remote (or local) device to use for testing."""
-        if cls.connection_type == "tracker":
-            device = request_remote(cls.device_key, cls.host, cls.port, timeout=1000)
-        elif cls.connection_type == "remote":
-            device = rpc.connect(cls.host, cls.port)
-        elif cls.connection_type == "local":
+        if self.connection_type == Device.ConnectionType.TRACKER:
+            device = request_remote(self.device_key, self.host, self.port, timeout=1000)
+        elif self.connection_type == Device.ConnectionType.REMOTE:
+            device = rpc.connect(self.host, self.port)
+        elif self.connection_type == Device.ConnectionType.LOCAL:
             device = rpc.LocalSession()
         else:
             raise ValueError(
@@ -93,46 +118,31 @@ class Device:
 
         return device
 
-    @classmethod
-    def load(cls, file_name):
-        """Load test config
 
-        Load the test configuration by looking for file_name relative
-        to the test_bnns directory.
-        """
-        location = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
-        config_file = os.path.join(location, file_name)
-        if not os.path.exists(config_file):
-            warnings.warn("Config file doesn't exist, resuming tests with default config.")
-            return
-        with open(config_file, mode="r") as config:
-            test_config = json.load(config)
-
-        cls.connection_type = test_config["connection_type"]
-        cls.host = test_config["host"]
-        cls.port = test_config["port"]
-        cls.target = test_config["target"]
-        cls.device_key = test_config.get("device_key") or ""
-        cls.cross_compile = test_config.get("cross_compile") or ""
+def bnns_is_absent():
+    return tvm.get_global_func("relay.ext.bnns", True) is None
 
 
-Device.target = "llvm"
+def get_run_modes():
+    return [Device.ConnectionType.LOCAL, Device.ConnectionType.TRACKER]
 
 
-def skip_runtime_test():
-    """Skip test if it requires the runtime and it's not present."""
-    # BNNS codegen not present.
-    if not tvm.get_global_func("relay.ext.bnns", True):
-        print("Skip because BNNS codegen is not available.")
-        return True
-    return False
+def skip_complexity_test(f):
+    skip = os.environ.get('TVM_RUN_COMPLEXITY_TEST') is None
+    return pytest.mark.skipif(skip, reason='Disabled because of huge complexity')(f)
 
 
-def skip_codegen_test():
-    """Skip test if it requires the BNNS codegen and it's not present."""
-    if not tvm.get_global_func("relay.ext.bnns", True):
-        print("Skip because BNNS codegen is not available.")
-        return True
+def check_test_parameters(mode):
+    skip = False
+    reason = ""
+    if bnns_is_absent():
+        skip = True
+        reason = f"{reason}; Skip because BNNS codegen is not available"
+    if mode == Device.ConnectionType.TRACKER and not Device.is_tracker_compatible():
+        skip = True
+        reason = f"{reason}; Skip because no environment variables set for the launch mode {mode}"
+    if skip:
+        pytest.skip(reason)
 
 
 def build_module(mod, target, params=None, enable_bnns=True, tvm_ops=0):
@@ -170,8 +180,8 @@ def build_and_run(
         err_msg += str(e)
         raise Exception(err_msg)
 
-    lib = update_lib(lib, device.device, device.cross_compile)
-    gen_module = graph_executor.GraphModule(lib["default"](device.device.cpu(0)))
+    loaded_lib = update_lib(lib, device.device, device.fcompile)
+    gen_module = graph_executor.GraphModule(loaded_lib["default"](device.device.cpu(0)))
     gen_module.set_input(**inputs)
     out = []
     for _ in range(no_runs):
@@ -180,15 +190,12 @@ def build_and_run(
     return out
 
 
-def update_lib(lib, device, cross_compile):
+def update_lib(lib, device, fcompile):
     """Export the library to the remote/local device."""
     lib_name = "mod.so"
     temp = utils.tempdir()
     lib_path = temp.relpath(lib_name)
-    if cross_compile:
-        lib.export_library(lib_path, cc=cross_compile)
-    else:
-        lib.export_library(lib_path)
+    lib.export_library(lib_path, fcompile=fcompile)
     device.upload(lib_path)
     lib = device.load_module(lib_name)
     return lib
@@ -229,8 +236,8 @@ def verify_codegen(
     module,
     known_good_codegen,
     num_bnns_modules,
+    target,
     tvm_ops=0,
-    target=Device.target,
 ):
     """Check BNNS codegen against a known good output."""
     module = build_module(module, target, tvm_ops=tvm_ops)
@@ -258,7 +265,7 @@ def verify_codegen(
         )
 
 
-def compare_inference_with_ref(func, params, atol=0.002, rtol=0.007):
+def compare_inference_with_ref(func, params, mode, atol=0.002, rtol=0.007):
     """Compare scoring results for compilation with and without BNNS.
 
     Provided function will be compiled two times with and without BNNS.
@@ -276,7 +283,7 @@ def compare_inference_with_ref(func, params, atol=0.002, rtol=0.007):
         inputs[name] = tvm.nd.array(np.random.uniform(0, 127, shape).astype(dtype))
 
     # Run for both type of compilation
-    device = Device()
+    device = Device(mode)
     outputs = []
     for bnns in [False, True]:
         outputs.append(build_and_run(func, inputs, 1, params, device, enable_bnns=bnns)[0])

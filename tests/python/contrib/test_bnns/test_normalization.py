@@ -17,19 +17,17 @@
 """BNNS integration normalization tests."""
 
 import numpy as np
-import math
 import pytest
 import tvm
 from tvm import relay
-from tvm import testing
 from .infrastructure import (
     Device,
-    skip_runtime_test,
-    skip_codegen_test,
+    bnns_is_absent,
+    get_run_modes,
+    check_test_parameters,
     verify_codegen,
     build_and_run,
     verify,
-    generate_trials,
 )
 
 
@@ -92,9 +90,11 @@ def _get_expected_codegen(shape, axis, center, scale, dtype, offload_on_bnns):
     return inputs
 
 
-@pytest.mark.skipif(skip_runtime_test(), reason="Skip because BNNS codegen is not available")
-def test_normalization():
-    device = Device()
+@pytest.mark.parametrize("mode", get_run_modes())
+def test_normalization(mode):
+    check_test_parameters(mode)
+
+    device = Device(mode)
     np.random.seed(0)
     dtype = "float32"
 
@@ -145,8 +145,9 @@ def test_normalization():
                     verify(outputs, atol=0.001, rtol=0.01, config=config)
 
 
-@pytest.mark.skipif(skip_codegen_test(), reason="Skip because BNNS codegen is not available")
+@pytest.mark.skipif(bnns_is_absent(), reason="Skip because BNNS codegen is not available")
 def test_codegen_normalization():
+    device = Device(Device.ConnectionType.LOCAL)
     np.random.seed(0)
 
     dtype = "float32"
@@ -193,9 +194,10 @@ def test_codegen_normalization():
                     else:
                         bnns_blocks = 0
                     exp_codegen = _get_expected_codegen(*args, offload_on_bnns)
-                    verify_codegen(func, exp_codegen, bnns_blocks)
+                    verify_codegen(func, exp_codegen, bnns_blocks, device.target)
 
 
 if __name__ == "__main__":
-    test_normalization()
+    for _mode in get_run_modes():
+        test_normalization()
     test_codegen_normalization()

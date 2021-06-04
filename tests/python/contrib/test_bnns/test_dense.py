@@ -23,8 +23,9 @@ import tvm
 from tvm import relay
 from .infrastructure import (
     Device,
-    skip_runtime_test,
-    skip_codegen_test,
+    bnns_is_absent,
+    get_run_modes,
+    check_test_parameters,
     build_and_run,
     verify,
     verify_codegen,
@@ -107,9 +108,11 @@ def _get_expected_codegen(shape, weight_shape, units, dtype, has_bias=False, has
     return inputs
 
 
-@pytest.mark.skipif(skip_runtime_test(), reason="Skip because BNNS codegen is not available")
-def test_dense():
-    device = Device()
+@pytest.mark.parametrize("mode", get_run_modes())
+def test_dense(mode):
+    check_test_parameters(mode)
+
+    device = Device(mode)
     np.random.seed(0)
 
     dtype = ["float32"]
@@ -158,8 +161,9 @@ def test_dense():
         verify(outputs, atol=0.001, rtol=0.01, config=config)
 
 
-@pytest.mark.skipif(skip_codegen_test(), reason="Skip because BNNS codegen is not available")
+@pytest.mark.skipif(bnns_is_absent(), reason="Skip because BNNS codegen is not available")
 def test_codegen_dense():
+    device = Device(Device.ConnectionType.LOCAL)
     np.random.seed(0)
 
     dtype = ["float32"]
@@ -182,9 +186,10 @@ def test_codegen_dense():
             *args, var_names=iter(inputs), has_bias=with_bias, has_gelu=with_gelu
         )
         exp_codegen = _get_expected_codegen(*args, has_bias=with_bias, has_gelu=with_gelu)
-        verify_codegen(func, exp_codegen, 1)
+        verify_codegen(func, exp_codegen, 1, device.target)
 
 
 if __name__ == "__main__":
-    test_dense()
+    for _mode in get_run_modes():
+        test_dense(_mode)
     test_codegen_dense()

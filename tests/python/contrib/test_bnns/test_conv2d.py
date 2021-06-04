@@ -21,7 +21,12 @@ import pytest
 import tvm
 from tvm import relay
 
-from .infrastructure import skip_runtime_test, compare_inference_with_ref, generate_trials
+from .infrastructure import (
+    get_run_modes,
+    check_test_parameters,
+    compare_inference_with_ref,
+    generate_trials
+)
 
 # TODO: Missed cases
 #   1. Bias as add with 3d const tensor. Lead to additional unsqueeze op between
@@ -83,8 +88,9 @@ def _get_model(
     return out, params
 
 
-@pytest.mark.skipif(skip_runtime_test(), reason="Skip because BNNS codegen is not available")
-def test_conv2d():
+@pytest.mark.parametrize("mode", get_run_modes())
+def test_conv2d(mode):
+    check_test_parameters(mode)
     np.random.seed(0)
 
     kernel_hs = [1, 2, 3, 5]
@@ -141,37 +147,32 @@ def test_conv2d():
             bias_type=bias,
             activation_type=activation,
         )
-        compare_inference_with_ref(func, params)
+        compare_inference_with_ref(func, params, mode)
 
 
-@pytest.mark.skipif(skip_runtime_test(), reason="Skip because BNNS codegen is not available")
-def test_conv2d_dw():
-    if skip_runtime_test():
-        return
-
+@pytest.mark.parametrize("mode", get_run_modes())
+def test_conv2d_dw(mode):
     np.random.seed(0)
     shape = [4, 5, 5]
 
     for batch in [1, 2]:
         mod, params = _get_model(shape=(batch, *shape), groups=shape[0])
-        compare_inference_with_ref(mod, params)
+        compare_inference_with_ref(mod, params, mode)
 
 
-@pytest.mark.skipif(skip_runtime_test(), reason="Skip because BNNS codegen is not available")
-def test_conv2d_with_oc1():
-    if skip_runtime_test():
-        return
-
+@pytest.mark.parametrize("mode", get_run_modes())
+def test_conv2d_with_oc1(mode):
     np.random.seed(0)
     shape = [3, 5, 5]
 
     for batch in [1, 2]:
         for bias in ["none", "add_4d"]:
             mod, params = _get_model(shape=(batch, *shape), channels=1, bias_type=bias)
-            compare_inference_with_ref(mod, params)
+            compare_inference_with_ref(mod, params, mode)
 
 
 if __name__ == "__main__":
-    test_conv2d()
-    test_conv2d_dw()
-    test_conv2d_with_oc1()
+    for _mode in get_run_modes():
+        test_conv2d(_mode)
+        test_conv2d_dw(_mode)
+        test_conv2d_with_oc1(_mode)
