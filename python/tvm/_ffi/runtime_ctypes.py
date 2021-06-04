@@ -173,7 +173,6 @@ class Device(ctypes.Structure):
         9: "vpi",
         10: "rocm",
         12: "ext_dev",
-        13: "micro_dev",
         14: "hexagon",
         15: "webgpu",
     }
@@ -194,7 +193,6 @@ class Device(ctypes.Structure):
         "vpi": 9,
         "rocm": 10,
         "ext_dev": 12,
-        "micro_dev": 13,
         "hexagon": 14,
         "webgpu": 15,
     }

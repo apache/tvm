@@ -276,8 +276,6 @@ class RPCRunner(Runner):
 
             if "cuda" in self.task.target.keys:
                 kwargs["cuda_arch"] = "sm_" + "".join(dev.compute_version.split("."))
-        if self.task.target.device_name == "micro_dev":
-            kwargs.setdefault("build_option", {})["tir.disable_vectorize"] = True
 
         return kwargs
 
