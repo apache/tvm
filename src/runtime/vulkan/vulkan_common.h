@@ -106,6 +106,10 @@ inline const char* VKGetErrorString(VkResult error) {
     VULKAN_CHECK_ERROR(__e); \
   }
 
+std::vector<const char*> FindEnabledExtensions(const std::vector<VkExtensionProperties>& ext_prop,
+                                               const std::vector<const char*>& required_extensions,
+                                               const std::vector<const char*>& optional_extensions);
+
 }  // namespace vulkan
 }  // namespace runtime
 }  // namespace tvm
