@@ -112,6 +112,10 @@ if(MSVC)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /bigobj")
+
+  # MSVC already errors on undefined symbols, no additional flag needed.
+  set(TVM_NO_UNDEFINED_SYMBOLS "")
+
   if(USE_MSVC_MT)
     foreach(flag_var
         CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
@@ -164,6 +168,16 @@ else(MSVC)
       CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 7.0)
     set(CMAKE_CXX_FLAGS "-faligned-new ${CMAKE_CXX_FLAGS}")
   endif()
+
+  # ld option to warn if symbols are undefined (e.g. libtvm_runtime.so
+  # using symbols only present in libtvm.so).  Not needed for MSVC,
+  # since this is already the default there.
+  if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    set(TVM_NO_UNDEFINED_SYMBOLS "-Wl,-undefined,error")
+  else()
+    set(TVM_NO_UNDEFINED_SYMBOLS "-Wl,--no-undefined")
+  endif()
+  message(STATUS "Forbidding undefined symbols in shared library, using ${TVM_NO_UNDEFINED_SYMBOLS} on platform ${CMAKE_SYSTEM_NAME}")
 
   # Detect if we're compiling for Hexagon.
   set(TEST_FOR_HEXAGON_CXX
@@ -414,6 +428,7 @@ add_library(tvm_objs OBJECT ${COMPILER_SRCS})
 add_library(tvm_runtime_objs OBJECT ${RUNTIME_SRCS})
 
 add_library(tvm SHARED $<TARGET_OBJECTS:tvm_objs> $<TARGET_OBJECTS:tvm_runtime_objs>)
+set_property(TARGET tvm APPEND PROPERTY LINK_OPTIONS "${TVM_NO_UNDEFINED_SYMBOLS}")
 set_property(TARGET tvm APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAG}")
 if(BUILD_STATIC_RUNTIME)
   add_library(tvm_runtime STATIC $<TARGET_OBJECTS:tvm_runtime_objs>)
@@ -425,6 +440,7 @@ if(BUILD_STATIC_RUNTIME)
     COMMAND ${CMAKE_COMMAND} -E cmake_echo_color --yellow --bold ${NOTICE})
 else()
   add_library(tvm_runtime SHARED $<TARGET_OBJECTS:tvm_runtime_objs>)
+  set_property(TARGET tvm_runtime APPEND PROPERTY LINK_OPTIONS "${TVM_NO_UNDEFINED_SYMBOLS}")
 endif()
 set_property(TARGET tvm_runtime APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAG}")
 target_compile_definitions(tvm_objs PUBLIC DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
