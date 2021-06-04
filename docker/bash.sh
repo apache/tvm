@@ -47,11 +47,12 @@ if [[ "$1" == "--net=host" ]]; then
 fi
 
 # Mount external directory to the docker
-CI_DOCKER_MOUNT_DIR=( )
 if [[ "$1" == "--mount" ]]; then
     shift 1
-    CI_DOCKER_MOUNT_DIR+="$1"
+    CI_DOCKER_MOUNT_CMD="-v $1:$1"
     shift 1
+else
+    CI_DOCKER_MOUNT_CMD=""
 fi
 
 if [ "$#" -lt 1 ]; then
@@ -162,7 +163,7 @@ ${DOCKER_BINARY} run --rm --pid=host\
     ${WORKSPACE_VOLUMES}\
     -v ${WORKSPACE}:/workspace \
     -v ${SCRIPT_DIR}:/docker \
-    -v ${CI_DOCKER_MOUNT_DIR}:${CI_DOCKER_MOUNT_DIR} \
+    ${CI_DOCKER_MOUNT_CMD} \
     "${EXTRA_MOUNTS[@]}" \
     -w /workspace \
     -e "CI_BUILD_HOME=/workspace" \
