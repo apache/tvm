@@ -793,6 +793,88 @@ def _nms(return_scores=False):
     return _impl
 
 
+def convert_combined_nms_with_all_class_nms(
+    batch_size,
+    max_output_boxes_per_batch,
+    num_class,
+    boxes,
+    scores,
+    max_output_boxes_per_class,
+    iou_threshold,
+    score_threshold,
+    max_total_size,
+    clip_boxes,
+):
+    """Converts TF combined_nms using Relay all_class_max_suppression op"""
+    (selected_indices, selected_scores, num_detections,) = _op.vision.all_class_non_max_suppression(
+        boxes,
+        scores,
+        max_output_boxes_per_class,
+        iou_threshold,
+        score_threshold,
+        output_format="tensorflow",
+    )
+    box_range = _op.arange(
+        _op.const(0, dtype="int64"), _op.const(max_total_size, dtype="int64"), dtype="int64"
+    )
+    assert isinstance(batch_size, int), "dynamic batch size not supported yet."
+    tile_batch_reps = _op.const([batch_size, 1])
+    box_range_2d = _op.tile(box_range, tile_batch_reps)
+    valid_mask = _op.cast(
+        _op.less(box_range_2d, _op.expand_dims(num_detections, axis=1)), "float32"
+    )
+
+    def select_topk(do_zero_pad):
+        def true_branch():
+            arange = _op.arange(
+                _op.const(0, dtype="int64"),
+                _op.const(max_output_boxes_per_batch, dtype="int64"),
+                dtype="int64",
+            )
+            pad = _op.full(
+                _op.const(0, dtype="int64"), (max_total_size - max_output_boxes_per_batch,)
+            )
+            topk_indices = _op.tile(_op.concatenate([arange, pad], 0), tile_batch_reps)
+            nmsed_scores = _op.gather(selected_scores, 1, topk_indices)
+            nmsed_scores = nmsed_scores * valid_mask
+            return nmsed_scores, topk_indices
+
+        def false_branch():
+            if isinstance(max_output_boxes_per_class, int):
+                # Do topk on smaller input if possible
+                slice_mx = _op.const([max_output_boxes_per_class * num_class], dtype="int64")
+                selected_scores_slice = _op.strided_slice(
+                    selected_scores, begin=_op.const([0], dtype="int64"), end=slice_mx, axes=[1]
+                )
+            else:
+                selected_scores_slice = selected_scores
+            return _op.topk(selected_scores_slice, k=max_total_size, axis=1, ret_type="both")
+
+        # TODO(masahi): support dynamic num_boxes
+        # return _expr.If(do_zero_pad, true_branch(), false_branch())
+        return true_branch() if do_zero_pad else false_branch()
+
+    assert isinstance(max_output_boxes_per_batch, int), "dynamic number of boxes not supported yet."
+    nmsed_scores, topk_indices = select_topk(max_output_boxes_per_batch < max_total_size)
+
+    indices = _op.take(selected_indices, topk_indices, axis=1, batch_dims=1)
+    nmsed_box_indices = _op.take(indices, _op.const(1), axis=2)
+    nmsed_classes = _op.take(indices, _op.const(0), axis=2)
+    nmsed_classes = _op.cast(nmsed_classes, "float32")
+    nmsed_boxes = _op.take(boxes, nmsed_box_indices, axis=1, batch_dims=1)
+    num_detections = _op.minimum(num_detections, _op.const(max_total_size, dtype="int64"))
+
+    if clip_boxes:
+        nmsed_boxes = _op.maximum(nmsed_boxes, _expr.const(0, dtype="float32"))
+        nmsed_boxes = _op.minimum(nmsed_boxes, _expr.const(1, dtype="float32"))
+
+    nmsed_boxes = nmsed_boxes * _op.expand_dims(valid_mask, axis=2)
+
+    return _expr.TupleWrapper(
+        _expr.Tuple([nmsed_boxes, nmsed_scores, nmsed_classes, num_detections]), 4
+    )
+
+
 def _combined_nms():
     def _impl(inputs, attr, params, mod):
         # Get parameter values
@@ -821,9 +903,27 @@ def _combined_nms():
         q = boxes_shape[2]
         num_classes = scores_shape[2]
 
-        if q != num_classes:
-            # When q is 1, it means same box coords are used for all classes.
-            boxes = _op.broadcast_to(boxes, (batch_size, num_anchors, num_classes, 4))
+        assert isinstance(batch_size, int) and isinstance(
+            num_anchors, int
+        ), "Dynamic inputs not supported yet"
+
+        if q == 1:
+            boxes = _op.squeeze(boxes, axis=[2])
+            scores_trans = _op.transpose(scores, [0, 2, 1])
+            max_output_boxes_per_batch = num_anchors * num_classes
+            return convert_combined_nms_with_all_class_nms(
+                batch_size,
+                max_output_boxes_per_batch,
+                num_classes,
+                boxes,
+                scores_trans,
+                max_output_size,
+                iou_threshold,
+                score_threshold,
+                max_total_size.data.numpy().item(),
+                attr["clip_boxes"],
+            )
+
         boxes = _op.reshape(boxes, newshape=[batch_size, num_anchors * num_classes, 4])
         scores = _op.reshape(scores, newshape=[batch_size, num_anchors * num_classes, 1])
 
