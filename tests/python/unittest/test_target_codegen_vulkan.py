@@ -255,7 +255,7 @@ def test_vulkan_unique():
     dtype = "int32"
     x = relay.var("x", shape=(relay.Any(),), dtype=dtype)
     mod = tvm.IRModule()
-    [unique, _, num_unique] = relay.unique(x, is_sorted=True)
+    [unique, _, _, num_unique] = relay.unique(x, is_sorted=True)
     mod["main"] = relay.Function([x], relay.op.strided_slice(unique, begin=[0], end=num_unique))
     x_np = np.random.randint(0, high=10, size=(10,)).astype(dtype)
     res_np = np.unique(x_np)
