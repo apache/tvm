@@ -29,8 +29,8 @@ using namespace tvm::runtime;
 typedef vector<shared_ptr<RuntimeItem>> SHARED_RUNTIME_VEC;
 typedef unordered_map<int, unordered_map<int, unordered_map<int, int>>> PIPELINE_CONF;
 
-void pipeline_init(Array<Module> graphRuntimes, SHARED_RUNTIME_VEC* runtimes,
-                   PIPELINE_CONF* pipeline_conf);
+size_t pipeline_init(Array<Module> graphRuntimes, SHARED_RUNTIME_VEC* runtimes,
+                     PIPELINE_CONF* pipeline_conf);
 void pipeline_run(const SHARED_RUNTIME_VEC& runtimes);
 inline void pipeline_queue_push(QUEUE* queue, vector<shared_ptr<OutputData>>* outputs);
 bool pipeline_queue_poll(QUEUE* queue, RuntimeData* runtimeData);

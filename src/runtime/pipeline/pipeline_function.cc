@@ -53,18 +53,19 @@ thread* pipeline_pipeline_init(SHARED_RUNTIME_VEC* runtimes) {
   return NULL;
 }
 
-void pipeline_init(Array<Module> graphRuntimes, SHARED_RUNTIME_VEC* runtimes,
-                   PIPELINE_CONF* pipeline_conf) {
+size_t pipeline_init(Array<Module> graphRuntimes, SHARED_RUNTIME_VEC* runtimes,
+                     PIPELINE_CONF* pipeline_conf) {
+  int outputNum = 0;
   int len = graphRuntimes.size();
   for (int i = 0; i < len; i++) {
     QUEUE* sub_queue = createQueue<SLOT>(NULL, SUB_Q_SIZE);
     /* runtimeIndx start from 1.
      */
     int runtimeIndx = i + 1;
-    auto runItem = make_shared<RuntimeItem>(graphRuntimes[i], sub_queue,
-                                            &((*pipeline_conf)[runtimeIndx]), runtimeIndx);
+    auto& pConf = pipeline_conf->at(runtimeIndx);
+    auto runItem = make_shared<RuntimeItem>(graphRuntimes[i], sub_queue, &pConf, runtimeIndx);
     runtimes->push_back(runItem);
-    /*set prev and next for RuntimeItem, runtime need these information to
+    /* set prev and next for RuntimeItem, runtime need these information to
      * poll data from prev and do notification for next.
      */
     if (i > 0) {
@@ -73,9 +74,20 @@ void pipeline_init(Array<Module> graphRuntimes, SHARED_RUNTIME_VEC* runtimes,
     if (i == len - 1) {
       (*runtimes)[i]->next = (*runtimes)[0];
     }
+    /* get output number.
+     */
+    if (i < len - 1) {
+      for (auto depMap : pConf) {
+        /* output is final output when dependent number is 0.
+         */
+        outputNum += depMap.second.find(0) != depMap.second.end();
+      }
+    } else {
+      outputNum += runItem->runtimePtr->NumOutputs();
+    }
   }
   pipeline_pipeline_init(runtimes);
-  return;
+  return outputNum;
 }
 
 inline void pipeline_queue_push(QUEUE* queue, vector<shared_ptr<OutputData>>* outputs) {

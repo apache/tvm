@@ -23,7 +23,7 @@ from tvm.relay import transform
 from tvm.contrib import graph_executor, pipeline_executor
 
 
-def run_modules(mod_configs, dev, target, dname, data):
+def run_modules(mod_configs, dev, target, dname, data, iMod, iName, iData):
     mod_input = {}
     final_output = {}
     indx = 1
@@ -40,6 +40,11 @@ def run_modules(mod_configs, dev, target, dname, data):
                 m.set_input(input["index"] - 1, input["data"])
         else:
             m.set_input(dname, data)
+
+        # set input for specify module
+        if mod == iMod:
+            m.set_input(iName, iData)
+
         m.run()
         n = m.get_num_outputs()
         # parse mod_config and set current output as next mod input data
@@ -68,7 +73,8 @@ def run_modules(mod_configs, dev, target, dname, data):
 def get_mannual_mod():
     mods = []
     dshape = (3, 3)
-    data = relay.var("data", relay.TensorType(dshape, "float32"))
+    data = relay.var("data_0", relay.TensorType(dshape, "float32"))
+    data21 = relay.var("data_1", relay.TensorType(dshape, "float32"))
     data_net1_output_1 = relay.var("data_0", relay.TensorType(dshape, "float32"))
     data_net1_output_2 = relay.var("data_1", relay.TensorType(dshape, "float32"))
     data_net2_output_1 = relay.var("data_0", relay.TensorType(dshape, "float32"))
@@ -86,6 +92,7 @@ def get_mannual_mod():
 
     # net2 use net1 output1 as input
     net2 = relay.add(data_net1_output_1, mv2)
+    net2 = relay.add(net2, data21)
     net2 = relay.add(net2, mv3)
 
     # net3 use net2 output1 and net1 outpu2 as input
@@ -97,7 +104,7 @@ def get_mannual_mod():
             relay.Function([data], relay.Tuple([net_output1, net_output2, net_output3]))
         )
     )
-    mods.append(tvm.IRModule.from_expr(relay.Function([data_net1_output_1], net2)))
+    mods.append(tvm.IRModule.from_expr(relay.Function([data_net1_output_1, data21], net2)))
     mods.append(
         tvm.IRModule.from_expr(relay.Function([data_net1_output_2, data_net2_output_1], net3))
     )
@@ -129,7 +136,7 @@ def run_pipeline(target):
     mconfig1["pipeline"] = {
         "mod_indx": 1,
         "output": [
-            {"output_indx": 1, "dependent": [{"mod_indx": 2, "input_indx": 1}]},
+            {"output_indx": 1, "dependent": [{"mod_indx": 2, "input_indx": 2}]},
             {"output_indx": 2, "dependent": [{"mod_indx": 3, "input_indx": 1}]},
             {"output_indx": 3, "dependent": [{"mod_indx": 0, "input_indx": 1}]},
         ],
@@ -160,7 +167,10 @@ def run_pipeline(target):
     """
     #Run with graph executor for verification purpose
     """
-    outs = [run_modules(mod_config, tvm.cpu(), "llvm", "data", data) for data in datas]
+    outs = [
+        run_modules(mod_config, tvm.cpu(), "llvm", "data_0", data, mods[1], "data_1", data)
+        for data in datas
+    ]
     """
 
 
@@ -173,7 +183,8 @@ def run_pipeline(target):
     #Use pipeline executor to pipeline the said pipeline which use different backend
     """
     for data in datas:
-        pipeline_module.set_input("data", data)
+        pipeline_module.set_input("data_0", data)
+        pipeline_module.set_input("data_1", data, modindx=1)
         pipeline_module.run()
 
     """
@@ -204,4 +215,5 @@ def test_pipeline():
 
 
 if __name__ == "__main__":
-    test_pipeline()
+    if pipeline_executor.pipeline_executor_enabled():
+        test_pipeline()

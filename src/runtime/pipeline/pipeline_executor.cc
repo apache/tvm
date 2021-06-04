@@ -41,22 +41,29 @@ void SubGraphRuntime::Init(const Array<tvm::runtime::Module>& modules,
   std::istringstream is(pipeline_json);
   dmlc::JSONReader reader(&is);
   this->Load(&reader);
-  pipeline_init(modules, &runtimes, &pipeline_conf);
+  outpuNumber = pipeline_init(modules, &runtimes, &pipeline_conf);
   return;
 }
 
 /*!
- * \brief set index-th input to the graph.
+ * \brief set index-th input to the modIndx-th graph.
  * \param index The input index.
  * \param data_in The input data.
+ * \param modIndx The runtime index.
  */
-void SubGraphRuntime::SetInput(int index, DLTensor* data_in) {
-  auto gruntime = runtimes.front();
+void SubGraphRuntime::SetInput(int index, DLTensor* data_in, int modIndx) {
+  auto gruntime = runtimes[modIndx];
   gruntime->runtimePtr->SetInput(index, data_in);
 }
 
-void SubGraphRuntime::SetInput(const std::string& name, DLTensor* data_in) {
-  auto gruntime = runtimes.front();
+/*!
+ * \brief set index-th input to the modIndx-th graph.
+ * \param index The input index.
+ * \param data_in The input data.
+ * \param modIndx The runtime index.
+ */
+void SubGraphRuntime::SetInput(const std::string& name, DLTensor* data_in, int modIndx) {
+  auto gruntime = runtimes[modIndx];
   gruntime->runtimePtr->SetInput(name, data_in);
 }
 
@@ -65,14 +72,20 @@ void SubGraphRuntime::SetInput(const std::string& name, DLTensor* data_in) {
  *
  * \return The number of outputs from last pipeline.
  */
-int SubGraphRuntime::NumOutputs() const { return runtimes.back()->runtimePtr->NumOutputs(); }
+int SubGraphRuntime::NumOutputs() const { return outpuNumber; }
 
 /*!
  * \brief Get the number of inputs
  *
  * \return The number of inputs to the first pipeline.
  */
-int SubGraphRuntime::NumInputs() const { return runtimes.front()->runtimePtr->NumInputs(); }
+int SubGraphRuntime::NumInputs() const {
+  int inputsNum = 0;
+  for (auto runtime : runtimes) {
+    inputsNum += runtime->runtimePtr->NumInputs();
+  }
+  return inputsNum;
+}
 
 /*!
  * \brief Return NDArray for given input index.
@@ -110,10 +123,16 @@ PackedFunc SubGraphRuntime::GetFunction(const std::string& name,
   // Return member functions during query.
   if (name == "set_input") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      /* Default use first runtime index value.
+       */
+      int modIndx = 0;
+      if (args.num_args == 3) {
+        modIndx = static_cast<int>(args[2]);
+      }
       if (String::CanConvertFrom(args[0])) {
-        this->SetInput(args[0].operator String(), args[1]);
+        this->SetInput(args[0].operator String(), args[1], modIndx);
       } else {
-        this->SetInput(static_cast<int>(args[0]), args[1]);
+        this->SetInput(static_cast<int>(args[0]), args[1], modIndx);
       }
     });
   } else if (name == "get_output") {

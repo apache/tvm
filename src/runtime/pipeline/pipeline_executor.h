@@ -81,8 +81,8 @@ class TVM_DLL SubGraphRuntime : public ModuleNode {
    * \param index The input index.
    * \param data_in The input data.
    */
-  void SetInput(int index, DLTensor* data_in);
-  void SetInput(const std::string& name, DLTensor* data_in);
+  void SetInput(int index, DLTensor* data_in, int modIndx);
+  void SetInput(const std::string& name, DLTensor* data_in, int modIndx);
   NDArray GetInput(int index, int mIndx) const;
   NDArray GetInput(const std::string& name, int mIndx) const;
   /*!
@@ -162,6 +162,7 @@ class TVM_DLL SubGraphRuntime : public ModuleNode {
   vector<NDArray> output_entry_;
   PIPELINE_CONF pipeline_conf;
   vector<shared_ptr<RuntimeItem>> runtimes;
+  size_t outpuNumber = 0;
 };
 }  // namespace runtime
 }  // namespace tvm
