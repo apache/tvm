@@ -1492,8 +1492,8 @@ class EyeLike(OnnxOpConverter):
         dim = in_shape[0]
         indices = _op.arange(_op.const(0), _op.const(dim), dtype="int32")
         ones = _op.full(_op.const(1), (dim,), dtype=dtype)
-        k = _op.const(attr.get("k" , 0), dtype= "int32")
-        return _op.scatter_nd(zeros, _op.stack([indices, indices+k], axis=0), ones, "update")
+        k = _op.const(attr.get("k", 0), dtype="int32")
+        return _op.scatter_nd(zeros, _op.stack([indices, indices + k], axis=0), ones, "update")
 
 
 class Greater(OnnxOpConverter):
