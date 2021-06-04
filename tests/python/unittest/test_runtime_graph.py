@@ -63,7 +63,7 @@ def test_graph_simple():
         a = np.random.uniform(size=(n,)).astype(A.dtype)
         mod.run(x=a)
         out = mod.get_output(0, tvm.nd.empty((n,)))
-        np.testing.assert_equal(out.asnumpy(), a + 1)
+        np.testing.assert_equal(out.numpy(), a + 1)
 
     def check_remote():
         mlib = tvm.build(s, [A, B], "llvm", name="myadd")
@@ -80,7 +80,7 @@ def test_graph_simple():
         mod.run(x=tvm.nd.array(a, dev))
         out = tvm.nd.empty((n,), device=dev)
         out = mod.get_output(0, out)
-        np.testing.assert_equal(out.asnumpy(), a + 1)
+        np.testing.assert_equal(out.numpy(), a + 1)
 
     def check_sharing():
         x = relay.var("x", shape=(1, 10))
@@ -104,14 +104,14 @@ def test_graph_simple():
         for mod in mods:
             mod.run(y=a)
             out = mod.get_output(0, tvm.nd.empty((1, 10)))
-            np.testing.assert_equal(out.asnumpy(), x_in + a)
+            np.testing.assert_equal(out.numpy(), x_in + a)
 
         # Explicitly delete the shared module and verify correctness.
         del mod_shared
         for mod in mods:
             mod.run(y=a)
             out = mod.get_output(0, tvm.nd.empty((1, 10)))
-            np.testing.assert_equal(out.asnumpy(), x_in + a)
+            np.testing.assert_equal(out.numpy(), x_in + a)
             del mod
 
     check_verify()

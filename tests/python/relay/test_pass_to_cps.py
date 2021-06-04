@@ -61,7 +61,7 @@ def test_recursion():
     ex = create_executor(mod=mod)
     i_nd = rand(dtype, *shape)
     forward = ex.evaluate()(i_nd)
-    tvm.testing.assert_allclose(forward.asnumpy(), 8 * i_nd.asnumpy())
+    tvm.testing.assert_allclose(forward.numpy(), 8 * i_nd.numpy())
 
 
 # This serve as an integration test.

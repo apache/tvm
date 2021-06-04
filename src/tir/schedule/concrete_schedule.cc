@@ -21,9 +21,11 @@
 namespace tvm {
 namespace tir {
 
-Schedule Schedule::Concrete(IRModule mod, int debug_mode) {
+Schedule Schedule::Concrete(IRModule mod, int debug_mode,
+                            ScheduleErrorRenderLevel error_render_level) {
   ObjectPtr<ConcreteScheduleNode> n = make_object<ConcreteScheduleNode>();
   n->state_ = ScheduleState(mod, debug_mode);
+  n->error_render_level_ = error_render_level;
   n->symbol_table_ = {};
   n->analyzer_ = std::make_unique<arith::Analyzer>();
   return Schedule(std::move(n));
@@ -136,6 +138,7 @@ class ScheduleCopier {
       scope->src2deps = Copy(old_info.scope->src2deps);
       scope->dst2deps = Copy(old_info.scope->dst2deps);
       scope->buffer_writers = Copy(old_info.scope->buffer_writers);
+      scope->stage_pipeline = old_info.scope->stage_pipeline;
       new_info.scope = BlockScope(std::move(scope));
       result[Copy(old_sref)] = std::move(new_info);
     }
@@ -173,21 +176,81 @@ class ScheduleCopier {
 
 void ConcreteScheduleNode::Copy(ScheduleState* new_state, TSymbolTable* new_symbol_table) const {
   ScheduleCopier::Copy(this, new_state, new_symbol_table);
+  new_state->get()->DebugVerify();
 }
 
 Schedule ConcreteScheduleNode::Copy() const {
   ObjectPtr<ConcreteScheduleNode> n = make_object<ConcreteScheduleNode>();
-  Copy(&n->state_, &n->symbol_table_);
+  n->error_render_level_ = this->error_render_level_;
+  this->Copy(&n->state_, &n->symbol_table_);
   n->analyzer_ = std::make_unique<arith::Analyzer>();
   return Schedule(std::move(n));
 }
 
+/*! \brief Macro that guards the beginning of each invocation of TensorIR schedule primitive */
+#define TVM_TIR_SCHEDULE_BEGIN() try {
+/*!
+ * \brief Macro that pairs with `TVM_TIR_SCHEDULE_BEGIN`, handling potential errors and error
+ * message rendering
+ * \param level An ScheduleErrorRenderLevel enum, level of error rendering
+ * \sa ScheduleErrorRenderLevel
+ */
+#define TVM_TIR_SCHEDULE_END(level)                               \
+  }                                                               \
+  catch (const ScheduleError& error) {                            \
+    if ((level) == ScheduleErrorRenderLevel::kDetail) {           \
+      throw tvm::runtime::Error(error.RenderReport());            \
+    } else if ((level) == ScheduleErrorRenderLevel::kFast) {      \
+      throw tvm::runtime::Error(error.FastErrorString());         \
+    } else if ((level) == ScheduleErrorRenderLevel::kNone) {      \
+      throw tvm::runtime::Error("ScheduleError: (not rendered)"); \
+    }                                                             \
+  }
+
 /******** Block/Loop relation ********/
 
 BlockRV ConcreteScheduleNode::GetBlock(const String& name, const String& func_name) {
+  class NotSingleResult : public ScheduleError {
+   public:
+    explicit NotSingleResult(String name, IRModule mod, const Array<StmtSRef>& blocks)
+        : name_(name), mod_(mod), blocks_{} {
+      blocks_.reserve(blocks.size());
+      for (const StmtSRef& block_sref : blocks) {
+        const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+        blocks_.push_back(GetRef<Block>(block));
+      }
+    }
+
+    String primitive() const final { return "get-block"; }
+    IRModule mod() const final { return mod_; }
+    Array<ObjectRef> LocationsOfInterest() const final { return {blocks_.begin(), blocks_.end()}; }
+
+    String DetailRenderTemplate() const final {
+      if (blocks_.empty()) {
+        return "Cannot find a block with the name: " + name_;
+      } else {
+        return "Found  " + std::to_string(blocks_.size()) + " blocks with the name: " + name_;
+      }
+    }
+
+    String FastErrorString() const final {
+      if (blocks_.empty()) {
+        return "ScheduleError: Cannot find a block with the specified name";
+      } else {
+        return "ScheduleError: Found multiple blocks with the specified name";
+      }
+    }
+
+    String name_;
+    IRModule mod_;
+    Array<Block> blocks_;
+  };
   Array<StmtSRef> blocks = tir::GetBlocks(this->state_, name, func_name);
-  CHECK_EQ(blocks.size(), 1) << "ValueError: There are " << blocks.size()
-                             << " blocks with the name: " << name;
+  if (blocks.size() != 1) {
+    TVM_TIR_SCHEDULE_BEGIN();
+    throw NotSingleResult(name, this->state_->mod, blocks);
+    TVM_TIR_SCHEDULE_END(this->error_render_level_);
+  }
   return CreateRV<BlockRV>(blocks[0]);
 }
 

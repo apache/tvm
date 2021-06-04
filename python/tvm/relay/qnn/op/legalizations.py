@@ -83,11 +83,11 @@ def qnn_dense_legalize(attrs, inputs, types):
 
 
 def get_scalar_from_constant(expr):
-    """ Returns scalar value from Relay constant scalar. """
+    """Returns scalar value from Relay constant scalar."""
     assert (
         isinstance(expr, relay.Constant) and not expr.data.shape
     ), "Expr is not a constant scalar."
-    value = expr.data.asnumpy()
+    value = expr.data.numpy()
     assert value.dtype == np.dtype(np.int32) or value.dtype == np.dtype(
         np.float32
     ), "value must be float32/int32"
@@ -265,19 +265,19 @@ def helper_change_dtypes_to_be_same(attrs, inputs, types, relay_op):
 
 
 def is_fast_int8_on_intel():
-    """ Checks whether the hardware has support for fast Int8 arithmetic operations. """
+    """Checks whether the hardware has support for fast Int8 arithmetic operations."""
     target = tvm.target.Target.current(allow_none=False)
     return target.mcpu in {"skylake-avx512", "cascadelake"}
 
 
 def is_fast_int8_on_arm():
-    """ Checks whether the hardware has support for fast Int8 arithmetic operations. """
+    """Checks whether the hardware has support for fast Int8 arithmetic operations."""
     target = tvm.target.Target.current(allow_none=False)
     return "+v8.2a" in target.mattr and "+dotprod" in target.mattr
 
 
 def is_aarch64_arm():
-    """ Checks whether we are compiling for an AArch64 target. """
+    """Checks whether we are compiling for an AArch64 target."""
     target = tvm.target.Target.current(allow_none=False)
     return "aarch64" in target.attrs.get("mtriple", "")
 

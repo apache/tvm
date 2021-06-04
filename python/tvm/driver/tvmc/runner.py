@@ -42,7 +42,7 @@ logger = logging.getLogger("TVMC")
 
 @register_parser
 def add_run_parser(subparsers):
-    """ Include parser for 'run' subcommand """
+    """Include parser for 'run' subcommand"""
 
     parser = subparsers.add_parser("run", help="run a compiled module")
     parser.set_defaults(func=drive_run)
@@ -359,6 +359,14 @@ def run_module(
             "Try calling tvmc.compile on the model before running it."
         )
 
+    # Currently only two package formats are supported: "classic" and
+    # "mlf". The later can only be used for micro targets, i.e. with µTVM.
+    if tvmc_package.type == "mlf":
+        raise TVMCException(
+            "You're trying to run a model saved using the Model Library Format (MLF)."
+            "MLF can only be used to run micro targets (µTVM)."
+        )
+
     if hostname:
         if isinstance(port, str):
             port = int(port)
@@ -379,8 +387,8 @@ def run_module(
 
     # TODO expand to other supported devices, as listed in tvm.rpc.client (@leandron)
     logger.debug("Device is %s.", device)
-    if device == "gpu":
-        dev = session.gpu()
+    if device == "cuda":
+        dev = session.cuda()
     elif device == "cl":
         dev = session.cl()
     else:
@@ -420,6 +428,6 @@ def run_module(
     outputs = {}
     for i in range(num_outputs):
         output_name = "output_{}".format(i)
-        outputs[output_name] = module.get_output(i).asnumpy()
+        outputs[output_name] = module.get_output(i).numpy()
 
     return TVMCResult(outputs, times)

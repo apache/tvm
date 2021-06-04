@@ -466,10 +466,18 @@ bool StridedSliceRel(const Array<Type>& types, int num_inputs, const Attrs& attr
   auto dshape = data->shape;
   int64_t num_axis = dshape.size();
 
+  const auto* begin = types[1].as<TensorTypeNode>();
+  ICHECK(begin);
+
   // calculate output shape
   std::vector<IndexExpr> oshape(num_axis);
-  for (int64_t i = 0; i < num_axis; ++i) {
+  int64_t num_dynamic_axes = begin->shape[0].as<IntImmNode>()->value;
+  for (int64_t i = 0; i < num_dynamic_axes; ++i) {
     oshape[i] = Any();
+  }
+
+  for (int64_t i = num_dynamic_axes; i < num_axis; ++i) {
+    oshape[i] = dshape[i];
   }
 
   reporter->Assign(types[4], TensorType(oshape, data->dtype));
@@ -484,11 +492,12 @@ Array<te::Tensor> StridedSliceCompute(const Attrs& attrs, const Array<te::Tensor
   te::Tensor strides = inputs[3];
   // Dynamic computation
   int64_t data_rank = data->shape.size();
-  ICHECK(begin->shape[0].as<IntImmNode>()->value == data_rank &&
-         end->shape[0].as<IntImmNode>()->value == data_rank &&
-         strides->shape[0].as<IntImmNode>()->value == data_rank)
-      << "begin, end, and strides are required to have the same length"
-      << " if they are dynamic variables.";
+  int64_t num_dynamic_axes = begin->shape[0].as<IntImmNode>()->value;
+  ICHECK(end->shape[0].as<IntImmNode>()->value == num_dynamic_axes &&
+         strides->shape[0].as<IntImmNode>()->value == num_dynamic_axes)
+      << "begin, end, strides should have the same length if they are dynamic variables";
+  ICHECK(num_dynamic_axes <= data_rank)
+      << "the number of dynamic axes to slice should be less than or equal to the data rank";
   return Array<te::Tensor>{topi::dynamic_strided_slice(data, begin, end, strides)};
 }
 

@@ -172,9 +172,9 @@ def run_inference(
 
         # Functional check
         if data_dtype == "uint8":
-            np.testing.assert_equal(c_orig.asnumpy(), c_sch.asnumpy())
+            np.testing.assert_equal(c_orig.numpy(), c_sch.numpy())
         else:
-            assert np.allclose(c_orig.asnumpy(), c_sch.asnumpy())
+            assert np.allclose(c_orig.numpy(), c_sch.numpy())
 
         evaluator = func.time_evaluator(func.entry_name, DEV, number=1000)
         LOGGER.debug(tvm.lower(sconv, [data, kernel], simple_mode=True))

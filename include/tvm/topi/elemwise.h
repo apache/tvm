@@ -456,54 +456,60 @@ inline Tensor fast_exp(const Tensor& x, std::string name = "T_fast_exp",
 }
 
 /*!
- * \brief Fast_tanh_float implementation from Eigen
+ * \brief Fast_erf_float expression from Eigen
  * https://github.com/eigenteam/eigen-git-mirror/blob/master/unsupported/Eigen/src/SpecialFunctions/SpecialFunctionsImpl.h#L290
+ * \param arg The input expression.
+ * \param bits The number of bits in the type.
  */
-inline Tensor fast_erf_float32(const Tensor& data, std::string name, std::string tag) {
-  auto plus_4 = make_const(DataType::Float(32), 4.f);
-  auto minus_4 = make_const(DataType::Float(32), -4.f);
+inline PrimExpr fast_erf_float_expr(PrimExpr arg, int bits) {
+  auto plus_4 = make_const(DataType::Float(bits), 4.f);
+  auto minus_4 = make_const(DataType::Float(bits), -4.f);
 
   // The monomial coefficients of the numerator polynomial (odd).
-  auto alpha_1 = make_const(DataType::Float(32), -1.60960333262415e-02f);
-  auto alpha_3 = make_const(DataType::Float(32), -2.95459980854025e-03f);
-  auto alpha_5 = make_const(DataType::Float(32), -7.34990630326855e-04f);
-  auto alpha_7 = make_const(DataType::Float(32), -5.69250639462346e-05f);
-  auto alpha_9 = make_const(DataType::Float(32), -2.10102402082508e-06f);
-  auto alpha_11 = make_const(DataType::Float(32), 2.77068142495902e-08f);
-  auto alpha_13 = make_const(DataType::Float(32), -2.72614225801306e-10f);
+  auto alpha_1 = make_const(DataType::Float(bits), -1.60960333262415e-02f);
+  auto alpha_3 = make_const(DataType::Float(bits), -2.95459980854025e-03f);
+  auto alpha_5 = make_const(DataType::Float(bits), -7.34990630326855e-04f);
+  auto alpha_7 = make_const(DataType::Float(bits), -5.69250639462346e-05f);
+  auto alpha_9 = make_const(DataType::Float(bits), -2.10102402082508e-06f);
+  auto alpha_11 = make_const(DataType::Float(bits), 2.77068142495902e-08f);
+  auto alpha_13 = make_const(DataType::Float(bits), -2.72614225801306e-10f);
 
   // The monomial coefficients of the denominator polynomial (even).
-  auto beta_0 = make_const(DataType::Float(32), -1.42647390514189e-02f);
-  auto beta_2 = make_const(DataType::Float(32), -7.37332916720468e-03f);
-  auto beta_4 = make_const(DataType::Float(32), -1.68282697438203e-03f);
-  auto beta_6 = make_const(DataType::Float(32), -2.13374055278905e-04f);
-  auto beta_8 = make_const(DataType::Float(32), -1.45660718464996e-05f);
+  auto beta_0 = make_const(DataType::Float(bits), -1.42647390514189e-02f);
+  auto beta_2 = make_const(DataType::Float(bits), -7.37332916720468e-03f);
+  auto beta_4 = make_const(DataType::Float(bits), -1.68282697438203e-03f);
+  auto beta_6 = make_const(DataType::Float(bits), -2.13374055278905e-04f);
+  auto beta_8 = make_const(DataType::Float(bits), -1.45660718464996e-05f);
 
+  // clamp x
+  auto x = tvm::max(tvm::min(arg, plus_4), minus_4);
+  auto x2 = x * x;
+
+  // Evaluate the numerator polynomial p.
+  auto p = x2 * alpha_13 + alpha_11;
+  p = x2 * p + alpha_9;
+  p = x2 * p + alpha_7;
+  p = x2 * p + alpha_5;
+  p = x2 * p + alpha_3;
+  p = x2 * p + alpha_1;
+  p = x * p;
+
+  // Evaluate the denominator polynomial p.
+  auto q = x2 * beta_8 + beta_6;
+  q = x2 * q + beta_4;
+  q = x2 * q + beta_2;
+  q = x2 * q + beta_0;
+
+  return p / q;
+}
+
+/*!
+ * \brief Fast_erf_float expression from Eigen
+ */
+inline Tensor fast_erf_float32(const Tensor& data, std::string name, std::string tag) {
   return compute(
-      data->shape,
-      [&](const Array<Var>& i) {
-        // clamp x
-        auto x = tvm::max(tvm::min(data(i), plus_4), minus_4);
-        auto x2 = x * x;
-
-        // Evaluate the numerator polynomial p.
-        auto p = x2 * alpha_13 + alpha_11;
-        p = x2 * p + alpha_9;
-        p = x2 * p + alpha_7;
-        p = x2 * p + alpha_5;
-        p = x2 * p + alpha_3;
-        p = x2 * p + alpha_1;
-        p = x * p;
-
-        // Evaluate the denominator polynomial p.
-        auto q = x2 * beta_8 + beta_6;
-        q = x2 * q + beta_4;
-        q = x2 * q + beta_2;
-        q = x2 * q + beta_0;
-
-        return p / q;
-      },
-      name, tag);
+      data->shape, [&](const Array<Var>& i) { return fast_erf_float_expr(data(i), 32); }, name,
+      tag);
 }
 
 /*!

@@ -42,7 +42,7 @@ def test_large_uint_imm():
         # launch the kernel.
         a = tvm.nd.empty((n,), dtype=A.dtype, device=dev)
         f(a)
-        assert a.asnumpy()[0] == value + 3
+        assert a.numpy()[0] == value + 3
 
     check_target("cuda")
     check_target("vulkan")
@@ -79,7 +79,7 @@ def test_add_pipeline():
         b = tvm.nd.array(np.random.uniform(size=()).astype(B.dtype), dev)
         d = tvm.nd.array(np.zeros(n, dtype=D.dtype), dev)
         f(a, b, d)
-        tvm.testing.assert_allclose(d.asnumpy(), a.asnumpy() + b.asnumpy() + 1)
+        tvm.testing.assert_allclose(d.numpy(), a.numpy() + b.numpy() + 1)
 
     check_target("cuda", host="llvm")
     check_target("nvptx", host="llvm")

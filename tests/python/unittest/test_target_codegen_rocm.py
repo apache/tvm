@@ -50,7 +50,7 @@ def test_rocm_cross_thread_reduction():
     a = tvm.nd.array(np.random.uniform(size=(nn, nn)).astype(A.dtype), dev)
     b = tvm.nd.array(np.zeros(nn, dtype=B.dtype), dev)
     frocm(a, b)
-    tvm.testing.assert_allclose(b.asnumpy(), np.sum(a.asnumpy(), axis=1), rtol=1e-4)
+    tvm.testing.assert_allclose(b.numpy(), np.sum(a.numpy(), axis=1), rtol=1e-4)
 
 
 @tvm.testing.requires_rocm
@@ -97,9 +97,9 @@ def test_rocm_copy():
         dev = tvm.rocm(0)
         a_np = np.random.uniform(size=(n,)).astype(A.dtype)
         a = tvm.nd.empty((n,), A.dtype, dev).copyfrom(a_np)
-        b_np = a.asnumpy()
+        b_np = a.numpy()
         tvm.testing.assert_allclose(a_np, b_np)
-        tvm.testing.assert_allclose(a_np, a.asnumpy())
+        tvm.testing.assert_allclose(a_np, a.numpy())
 
     for _ in range(100):
         dtype = np.random.choice(["float32", "float16", "int8", "int32"])
@@ -124,7 +124,7 @@ def test_rocm_vectorize_add():
         a = tvm.nd.empty((n,), A.dtype, dev).copyfrom(np.random.uniform(size=(n, lanes)))
         c = tvm.nd.empty((n,), B.dtype, dev)
         fun(a, c)
-        tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + 1)
+        tvm.testing.assert_allclose(c.numpy(), a.numpy() + 1)
 
     check_rocm("float32", 64, 2)
     check_rocm("float16", 64, 2)

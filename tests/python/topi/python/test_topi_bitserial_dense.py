@@ -74,7 +74,7 @@ def verify_bitserial_dense(batch, in_dim, out_dim, activation_bits, weight_bits,
         c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), dev)
         func = tvm.build(s, [A, B, C], target)
         func(a, b, c)
-        tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
+        tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-5)
 
 
 def test_bitserial_dense():

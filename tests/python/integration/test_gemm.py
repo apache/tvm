@@ -99,7 +99,7 @@ def test_gemm():
         ftimer = f.time_evaluator(f.entry_name, dev, number=1)
         tcost = ftimer(a, b, c).mean
         print("%s: exec=%g sec/op" % (dev, tcost))
-        tvm.testing.assert_allclose(c.asnumpy(), np.dot(a_np, b_np.T), rtol=1e-5)
+        tvm.testing.assert_allclose(c.numpy(), np.dot(a_np, b_np.T), rtol=1e-5)
 
     check_device("vulkan")
     check_device("nvptx -mcpu=sm_20")

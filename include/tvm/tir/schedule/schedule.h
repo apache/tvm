@@ -24,6 +24,16 @@
 namespace tvm {
 namespace tir {
 
+/*! \brief The level of detailed error message rendering */
+enum class ScheduleErrorRenderLevel : int32_t {
+  /*! \brief Render a detailed error message */
+  kDetail = 0,
+  /*! \brief Render the error in fast mode */
+  kFast = 1,
+  /*! \brief No error message at all */
+  kNone = 2,
+};
+
 /**************** Random variable: BlockRV ****************/
 
 /*! \brief A random variable that evaluates to a TensorIR block */
@@ -66,12 +76,12 @@ class LoopRV : public runtime::ObjectRef {
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(LoopRV, runtime::ObjectRef, LoopRVNode);
 };
 
-/**************** Random variable: IntRV ****************/
+/**************** Random variable: ExprRV ****************/
 
-/*! \brief An integer random variable */
-using IntRV = PrimExpr;
+/*! \brief An expr random variable */
+using ExprRV = PrimExpr;
 
-using IntRVNode = PrimExprNode;
+using ExprRVNode = PrimExprNode;
 
 /**************** The Schedule class ****************/
 
@@ -124,11 +134,11 @@ class ScheduleNode : public runtime::Object {
    */
   virtual For Get(const LoopRV& loop_rv) const = 0;
   /*!
-   * \brief Get the value corresponding to the specific random variable
-   * \param int_rv The random variable to be looked up
-   * \return The corresponding value
+   * \brief Get the expr corresponding to the specific random variable
+   * \param expr_rv The random variable to be looked up
+   * \return The corresponding expr
    */
-  virtual int64_t Get(const IntRV& int_rv) const = 0;
+  virtual PrimExpr Get(const ExprRV& expr_rv) const = 0;
   /*!
    * \brief Get the block sref corresponding to the specific BlockRV
    * \param block_rv The BlockRV to be looked up
@@ -165,9 +175,9 @@ class ScheduleNode : public runtime::Object {
   virtual void RemoveRV(const LoopRV& loop_rv) = 0;
   /*!
    * \brief Remove an integer random variable from the symbol table
-   * \param int_rv The random variable to be removed
+   * \param expr_rv The random variable to be removed
    */
-  virtual void RemoveRV(const IntRV& int_rv) = 0;
+  virtual void RemoveRV(const ExprRV& expr_rv) = 0;
 
  public:
   /******** Block/Loop relation ********/
@@ -209,15 +219,15 @@ class Schedule : public runtime::ObjectRef {
    * \param mod The IRModule to be scheduled
    * \param debug_mode Do extra correctness checking after the class creation
    * and each time after calling the Replace method.
+   * \param error_render_level The level of error rendering
    * \return The concrete schedule created
    * \sa ScheduleDebugMask
    * \note The checks performed includes:
    * 1) VerifySRefTree
-   * 2) VerifyAffineBinding
-   * 3) VerifyRegionCover
-   * 4) VerifyStagePipeline
+   * 2) VerifyCachedFlags
    */
-  TVM_DLL static Schedule Concrete(IRModule mod, int debug_mode);
+  TVM_DLL static Schedule Concrete(IRModule mod, int debug_mode,
+                                   ScheduleErrorRenderLevel error_render_level);
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Schedule, runtime::ObjectRef, ScheduleNode);
 };
 

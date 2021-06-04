@@ -29,9 +29,9 @@
 
 #include <stack>
 
-#include "../../runtime/thread_storage_scope.h"
 #include "../../support/arena.h"
 #include "../../support/utils.h"
+#include "../schedule/utils.h"
 
 namespace tvm {
 namespace tir {
@@ -280,15 +280,10 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
       return false;
     }
     ICHECK(loop->thread_binding.defined());
-    IterVar binding = loop->thread_binding.value();
-    runtime::ThreadScope ts = runtime::ThreadScope::Create(binding->thread_tag);
-
+    const String& thread_tag = loop->thread_binding.value()->thread_tag;
     // When there is warp memory
     // threadIdx.x must be set to be warp index.
-    if (scope.rank == runtime::StorageRank::kWarp && ts.rank == 1 && ts.dim_index == 0) {
-      return true;
-    }
-    return static_cast<int>(scope.rank) <= ts.rank;
+    return CanRelaxStorageUndereThread(scope, runtime::ThreadScope::Create(thread_tag));
   }
 
   /**************** Class members ****************/

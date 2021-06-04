@@ -58,7 +58,7 @@ def verify_batch_matmul(x_batch, y_batch, M, N, K):
         c = tvm.nd.array(np.zeros(get_const_tuple(out.shape), dtype=dtype), dev)
         f = tvm.build(s, [x, y, out], device, name="dense")
         f(a, b, c)
-        tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-3)
+        tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-3)
 
     check_device("cuda")
 

@@ -41,13 +41,13 @@ def check_memory_plan(func, check_fn):
         plan_result = ex.evaluate(mod["main"])(*args)
 
     # Compute Python result.
-    py_res = check_fn(*[arg.asnumpy() for arg in args])
+    py_res = check_fn(*[arg.numpy() for arg in args])
 
     # First check that the two VM results agree.
-    np.testing.assert_allclose(no_plan_result.asnumpy(), plan_result.asnumpy())
+    np.testing.assert_allclose(no_plan_result.numpy(), plan_result.numpy())
 
     # Finally check that the results match the Python result.
-    np.testing.assert_allclose(plan_result.asnumpy(), py_res)
+    np.testing.assert_allclose(plan_result.numpy(), py_res)
 
 
 def storage_type(mod):

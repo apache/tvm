@@ -80,7 +80,7 @@ VerilatorRuntime::~VerilatorRuntime() {
   auto dealloc = reinterpret_cast<VerilatorDeallocFunc>(lib_->GetSymbol("VerilatorDealloc"));
   ICHECK(dealloc != nullptr);
   dealloc(device_);
-  delete lib_;
+  lib_->~VerilatorLibrary();
 }
 
 void VerilatorRuntime::SetLibrary(const std::string& lib_path) { lib_path_ = lib_path; }
@@ -100,7 +100,6 @@ void VerilatorRuntime::Init(const Array<NDArray>& consts) {
   ICHECK(reset != nullptr);
   read_ = reinterpret_cast<VerilatorReadFunc>(lib_->GetSymbol("VerilatorRead"));
   ICHECK(read_ != nullptr);
-  add_op_ = reinterpret_cast<VerilatorAddFunc>(lib_->GetSymbol("verilator_add"));
 
   // alloc verilator device
   device_ = alloc();
@@ -108,7 +107,7 @@ void VerilatorRuntime::Init(const Array<NDArray>& consts) {
   // enable profiler
   if (prof_enable_) prof_ = VerilatorProfiler::ThreadLocal();
 
-  // reset verilator device.
+  // reset verilator device
   reset(device_, reset_cycles_);
 
   CHECK_EQ(consts.size(), const_idx_.size())
@@ -136,11 +135,17 @@ void VerilatorRuntime::Run() {
     if (node.GetOpType() == "kernel") {
       CHECK_EQ(node.GetOpType(), "kernel");
       auto op_name = node.GetOpName();
+      auto entry = node.GetInputs()[0];
+      auto shape = node.GetOpShape()[entry.index_];
       if ("add" == op_name) {
-        auto entry = node.GetInputs()[0];
-        auto shape = nodes_[entry.id_].GetOpShape()[entry.index_];
-        ICHECK(add_op_ != nullptr);
-        add_op_(device_, in_ptr[0], in_ptr[1], out_ptr[0], shape[0], shape[1]);
+        auto add = reinterpret_cast<VerilatorAddFunc>(lib_->GetSymbol("verilator_add"));
+        ICHECK(add != nullptr);
+        add(device_, in_ptr[0], in_ptr[1], out_ptr[0], shape[0], shape[1]);
+      } else if ("nn.bias_add" == op_name) {
+        auto bias_add =
+            reinterpret_cast<VerilatorBiasAddFunc>(lib_->GetSymbol("verilator_bias_add"));
+        ICHECK(bias_add != nullptr);
+        bias_add(device_, in_ptr[0], in_ptr[1], out_ptr[0], shape[0], shape[3], shape[1], shape[2]);
       } else {
         LOG(FATAL) << "Unsupported op: " << op_name;
       }

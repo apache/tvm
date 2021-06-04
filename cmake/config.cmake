@@ -93,6 +93,9 @@ set(USE_RPC ON)
 # Whether to build the C++ RPC server binary
 set(USE_CPP_RPC OFF)
 
+# Whether to build the iOS RPC server application
+set(USE_IOS_RPC OFF)
+
 # Whether embed stackvm into the runtime
 set(USE_STACKVM_RUNTIME OFF)
 
@@ -284,3 +287,15 @@ set(USE_BNNS OFF)
 # - ON: enable libbacktrace
 # - OFF: disable libbacktrace
 set(USE_LIBBACKTRACE AUTO)
+
+# Whether to build static libtvm_runtime.a, the default is to build the dynamic
+# version: libtvm_runtime.so.
+#
+# The static runtime library needs to be linked into executables with the linker
+# option --whole-archive (or its equivalent). The reason is that the TVM registry
+# mechanism relies on global constructors being executed at program startup.
+# Global constructors alone are not sufficient for the linker to consider a
+# library member to be used, and some of such library members (object files) may
+# not be included in the final executable. This would make the corresponding
+# runtime functions to be unavailable to the program.
+set(BUILD_STATIC_RUNTIME OFF)

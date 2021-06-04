@@ -83,8 +83,8 @@ def verify_conv2d_transpose_nchw(
         func2 = tvm.build(s2, [A, W, C], target)
         func1(a, w, b)
         func2(a, w, c)
-        tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
-        tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
+        tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-5)
+        tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-5)
 
     def check_generic(target, dev):
         print("Running generic on target: %s" % target)

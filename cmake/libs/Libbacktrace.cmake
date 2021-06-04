@@ -14,14 +14,39 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
+# On MacOS, the default C compiler (/usr/bin/cc) is actually a small script that dispatches to a
+# compiler the default SDK (usually /Library/Developer/CommandLineTools/usr/bin/ or
+# /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/). CMake
+# automatically detects what is being dispatched and uses it instead along with all the flags it
+# needs. CMake makes this second compiler avaliable through the CMAKE_C_COMPILER variable, but it
+# does not make the necessary flags available. This leads to configuration errors in libbacktrace
+# because it can't find system libraries. Our solution is to detect if CMAKE_C_COMPILER lives in
+# /Library or /Applications and switch to the default compiler instead.
 include(ExternalProject)
+
+
+if(CMAKE_SYSTEM_NAME MATCHES "Darwin" AND (CMAKE_C_COMPILER MATCHES "^/Library"
+  OR CMAKE_C_COMPILER MATCHES "^/Applications"))
+    set(c_compiler "/usr/bin/cc")
+  else()
+    set(c_compiler "${CMAKE_C_COMPILER}")
+endif()
 
 ExternalProject_Add(project_libbacktrace
   PREFIX libbacktrace
   SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/../../3rdparty/libbacktrace
   BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/libbacktrace
   CONFIGURE_COMMAND "${CMAKE_CURRENT_LIST_DIR}/../../3rdparty/libbacktrace/configure"
-                    "--prefix=${CMAKE_CURRENT_BINARY_DIR}/libbacktrace" --with-pic
+                    "--prefix=${CMAKE_CURRENT_BINARY_DIR}/libbacktrace"
+                    --with-pic
+                    "CC=${c_compiler}"
+                    "CFLAGS=${CMAKE_C_FLAGS}"
+                    "LDFLAGS=${CMAKE_EXE_LINKER_FLAGS}"
+                    "CPP=${c_compiler} -E"
+                    "NM=${CMAKE_NM}"
+                    "STRIP=${CMAKE_STRIP}"
+                    "--host=${MACHINE_NAME}"
   INSTALL_DIR "${CMAKE_CURRENT_BINARY_DIR}/libbacktrace"
   BUILD_COMMAND make
   INSTALL_COMMAND make install

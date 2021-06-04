@@ -142,9 +142,9 @@ tvm_res = vm.run()
 # Get boxes with score larger than 0.9
 # ------------------------------------
 score_threshold = 0.9
-boxes = tvm_res[0].asnumpy().tolist()
+boxes = tvm_res[0].numpy().tolist()
 valid_boxes = []
-for i, score in enumerate(tvm_res[1].asnumpy().tolist()):
+for i, score in enumerate(tvm_res[1].numpy().tolist()):
     if score > score_threshold:
         valid_boxes.append(boxes[i])
     else:

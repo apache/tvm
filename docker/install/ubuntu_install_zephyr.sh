@@ -41,25 +41,18 @@ sudo apt-get update
 
 sudo apt-get install -y cmake
 
-#mkdir /opt/west
-#python3.6 -mvenv /opt/west  # NOTE: include .6 to make a python3.6 link for west/cmake.
-#/opt/west/bin/pip3 install west
 pip3 install west
-
-#cat <<EOF | tee /usr/local/bin/west >/dev/null
-##!/bin/bash -e
-#
-#source /opt/west/bin/activate
-#export ZEPHYR_BASE=/opt/zephyrproject/zephyr
-#west "\$@"
-#EOF
-#chmod a+x /usr/local/bin/west
 
 # Init ZephyrProject
 ZEPHYR_PROJECT_PATH=/opt/zephyrproject
 ZEPHYR_INIT_SCRIPT=$(find -name "ubuntu_init_zephyr_project.sh")
 bash ${ZEPHYR_INIT_SCRIPT} ${ZEPHYR_PROJECT_PATH} v2.5-branch
 cd ${ZEPHYR_PROJECT_PATH}
+
+# As part of the build process, Zephyr needs to touch some symlinks in zephyr/misc/generated/syscalls_links (this path is relative to the
+# build directory for a project). Mark the zephyr installation world-writable since this is a docker
+# container
+chmod -R o+w ${ZEPHYR_PROJECT_PATH}
 
 # This step is required because of the way docker/bash.sh works. It sets the user home directory to
 # /workspace (or the TVM root, anyhow), and this means that zephyr expects a ~/.cache directory to be

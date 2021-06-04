@@ -24,9 +24,15 @@ This page is organized as follows:
 
 - The `Example Compilation Flow`_ gives an overview of the steps that TVM takes to turn a high level description of a model into a deployable module.
   To get started, please read this section first.
+
 - The `Logical Architecture Components`_ section describes the logical components.
   The sections after are specific guides focused on each logical component, organized
   by the component's name.
+
+- The `Device/Target Interactions`_ section describes how TVM
+  interacts with each supported physical device and code-generation
+  target.
+
 - Feel free to also check out the :ref:`dev-how-to` for useful development tips.
 
 This guide provides a few complementary views of the architecture.
@@ -144,10 +150,10 @@ The main goal of TVM's runtime is to provide a minimal API for loading and execu
     import tvm
     # Example runtime execution program in python, with type annotated
     mod: tvm.runtime.Module = tvm.runtime.load_module("compiled_artifact.so")
-    arr: tvm.runtime.NDArray = tvm.nd.array([1, 2, 3], device=tvm.gpu(0))
+    arr: tvm.runtime.NDArray = tvm.nd.array([1, 2, 3], device=tvm.cuda(0))
     fun: tvm.runtime.PackedFunc = mod["addone"]
     fun(a)
-    print(a.asnumpy())
+    print(a.numpy())
 
 
 :py:class:`tvm.runtime.Module` encapsulates the result of compilation. A runtime.Module contains a GetFunction method to obtain PackedFuncs by name.
@@ -164,15 +170,15 @@ The above example only deals with a simple `addone` function. The code snippet b
    import tvm
    # Example runtime execution program in python, with types annotated
    factory: tvm.runtime.Module = tvm.runtime.load_module("resnet18.so")
-   # Create a stateful graph execution module for resnet18 on gpu(0)
-   gmod: tvm.runtime.Module = factory["resnet18"](tvm.gpu(0))
+   # Create a stateful graph execution module for resnet18 on cuda(0)
+   gmod: tvm.runtime.Module = factory["resnet18"](tvm.cuda(0))
    data: tvm.runtime.NDArray = get_input_data()
    # set input
    gmod["set_input"](0, data)
    # execute the model
    gmod["run"]()
    # get the output
-   result = gmod["get_output"](0).asnumpy()
+   result = gmod["get_output"](0).numpy()
 
 The main take away is that runtime.Module and runtime.PackedFunc are sufficient to encapsulate both operator level programs (such as addone), as well as the end-to-end models.
 
@@ -239,7 +245,7 @@ for learning-based optimizations.
 
 
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 2
 
    runtime
    debugger

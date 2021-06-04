@@ -100,11 +100,11 @@ def search_common(
 
         tvm_arrays = [tvm.nd.array(x, ctx) for x in np_arrays]
         mod(*tvm_arrays)
-        actual = [x.asnumpy() for x in tvm_arrays]
+        actual = [x.numpy() for x in tvm_arrays]
 
         tvm_arrays = [tvm.nd.array(x) for x in np_arrays]
         mod_ref(*tvm_arrays)
-        expected = [x.asnumpy() for x in tvm_arrays]
+        expected = [x.numpy() for x in tvm_arrays]
 
         for x, y in zip(actual, expected):
             tvm.testing.assert_allclose(x, y, rtol=1e-5)

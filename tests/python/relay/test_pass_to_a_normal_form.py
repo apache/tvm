@@ -40,7 +40,7 @@ def check_eval(expr, expected_result, mod=None, rtol=1e-07):
     intrp = create_executor(mod=mod, device=dev, target="llvm")
 
     result = intrp.evaluate(expr)
-    np.testing.assert_allclose(result.asnumpy(), expected_result, rtol=rtol)
+    np.testing.assert_allclose(result.numpy(), expected_result, rtol=rtol)
 
 
 def test_explicit_bound():
