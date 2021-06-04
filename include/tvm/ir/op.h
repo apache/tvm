@@ -245,7 +245,7 @@ class OpRegEntry {
           type_rel_func);
   /*!
    * \brief Set the attrs type key and index to be AttrsType.
-   * \param AttrsType the attribute type to b set.
+   * \tparam AttrsType the attribute type to b set.
    * \return reference to self.
    */
   template <typename AttrsType>
