@@ -54,12 +54,6 @@ VulkanUniformBuffer* VulkanThreadEntry::GetUniformBuffer(int device_id, size_t s
   return buf.get();
 }
 
-VulkanStagingBuffer* VulkanThreadEntry::StagingBuffer(int device_id, size_t size) {
-  const auto& device = VulkanDeviceAPI::Global()->device(device_id);
-  auto usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-  return GetOrAllocate(device_id, size, usage, device.staging_mtype_index, &staging_buffers_);
-}
-
 VulkanThreadEntry::VulkanThreadEntry()
     : pool(std::make_unique<WorkspacePool>(static_cast<DLDeviceType>(kDLVulkan),
                                            VulkanDeviceAPI::Global())) {

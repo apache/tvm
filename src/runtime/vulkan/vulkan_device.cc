@@ -315,6 +315,8 @@ VulkanDevice::~VulkanDevice() {
   // held by member variable rather than beind owned directly by
   // VulkanDevice.
   stream_per_thread.Clear();
+  staging_buffer_per_thread.Clear();
+
   if (device_) {
     vkDestroyDevice(device_, nullptr);
   }
@@ -502,6 +504,18 @@ VulkanStream& VulkanDevice::ThreadLocalStream() {
 
 const VulkanStream& VulkanDevice::ThreadLocalStream() const {
   return stream_per_thread.GetOrMake(this);
+}
+
+VulkanStagingBuffer& VulkanDevice::ThreadLocalStagingBuffer(size_t min_size) {
+  auto usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+  VulkanStagingBuffer& result =
+      staging_buffer_per_thread.GetOrMake(*this, min_size, usage, staging_mtype_index);
+
+  if (result.size < min_size) {
+    result = VulkanStagingBuffer(*this, min_size, usage, staging_mtype_index);
+  }
+
+  return result;
 }
 
 uint32_t FindMemoryType(const VulkanDevice& device, VkBufferCreateInfo info,

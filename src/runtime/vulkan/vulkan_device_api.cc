@@ -308,14 +308,13 @@ void VulkanDeviceAPI::CopyDataFromTo(const void* from, size_t from_offset, void*
     const auto* from_buf = static_cast<const VulkanBuffer*>(from);
     auto& device = this->device(dev_from.device_id);
     auto& stream = device.ThreadLocalStream();
-    auto* staging_buffer =
-        VulkanThreadEntry::ThreadLocal()->StagingBuffer(dev_from.device_id, size);
+    auto& staging_buffer = device.ThreadLocalStagingBuffer(size);
     stream.Launch([&](VulkanStreamState* state) {
       VkBufferCopy copy_info;
       copy_info.srcOffset = from_offset;
       copy_info.dstOffset = 0;
       copy_info.size = size;
-      vkCmdCopyBuffer(state->cmd_buffer_, from_buf->buffer, staging_buffer->vk_buf.buffer, 1,
+      vkCmdCopyBuffer(state->cmd_buffer_, from_buf->buffer, staging_buffer.vk_buf.buffer, 1,
                       &copy_info);
     });
     stream.Synchronize();
@@ -323,26 +322,25 @@ void VulkanDeviceAPI::CopyDataFromTo(const void* from, size_t from_offset, void*
       VkMappedMemoryRange mrange;
       mrange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
       mrange.pNext = nullptr;
-      mrange.memory = staging_buffer->vk_buf.memory;
+      mrange.memory = staging_buffer.vk_buf.memory;
       mrange.offset = 0;
       mrange.size = VK_WHOLE_SIZE;  // size;
       VULKAN_CALL(vkInvalidateMappedMemoryRanges(device, 1, &mrange));
     }
-    memcpy(static_cast<char*>(to) + to_offset, static_cast<char*>(staging_buffer->host_addr), size);
+    memcpy(static_cast<char*>(to) + to_offset, static_cast<char*>(staging_buffer.host_addr), size);
   } else if (from_dev_type == kDLCPU && to_dev_type == kDLVulkan) {
     auto& device = this->device(dev_to.device_id);
     auto& stream = device.ThreadLocalStream();
     const auto* to_buf = static_cast<const VulkanBuffer*>(to);
-    VulkanStagingBuffer* temp =
-        VulkanThreadEntry::ThreadLocal()->StagingBuffer(dev_to.device_id, size);
-    memcpy(temp->host_addr, static_cast<const char*>(from) + from_offset, size);
+    auto& staging_buffer = device.ThreadLocalStagingBuffer(size);
+    memcpy(staging_buffer.host_addr, static_cast<const char*>(from) + from_offset, size);
     // host side flush if access is not coherent.
     // so writes from CPU is visible to GPU
     if (!device.coherent_staging) {
       VkMappedMemoryRange mrange;
       mrange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
       mrange.pNext = nullptr;
-      mrange.memory = temp->vk_buf.memory;
+      mrange.memory = staging_buffer.vk_buf.memory;
       mrange.offset = 0;
       mrange.size = VK_WHOLE_SIZE;  // size;
       VULKAN_CALL(vkFlushMappedMemoryRanges(device, 1, &mrange));
@@ -363,7 +361,8 @@ void VulkanDeviceAPI::CopyDataFromTo(const void* from, size_t from_offset, void*
       copy_info.srcOffset = 0;
       copy_info.dstOffset = to_offset;
       copy_info.size = size;
-      vkCmdCopyBuffer(state->cmd_buffer_, temp->vk_buf.buffer, to_buf->buffer, 1, &copy_info);
+      vkCmdCopyBuffer(state->cmd_buffer_, staging_buffer.vk_buf.buffer, to_buf->buffer, 1,
+                      &copy_info);
     });
     // TODO(tulloch): should we instead make the staging buffer a property of the
     // Stream? This would allow us to elide synchronizations here.

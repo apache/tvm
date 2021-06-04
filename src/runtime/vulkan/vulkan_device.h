@@ -168,6 +168,17 @@ class VulkanDevice {
   //! \brief Return the VulkanStream for the current CPU thread
   const VulkanStream& ThreadLocalStream() const;
 
+  /*! \brief Return the staging buffer for the current CPU thread
+   *
+   * This function may re-allocate the staging buffer depending on the
+   * size of the previously allocated buffer.
+   *
+   * \param min_size The size in bytes of the staging buffer to be
+   * returned.  The buffer may be larger than requested, depending on
+   * previous use.
+   */
+  VulkanStagingBuffer& ThreadLocalStagingBuffer(size_t min_size);
+
   // Cached device properties, queried through Vulkan API.
   VulkanDeviceProperties device_properties{};
 
@@ -235,7 +246,7 @@ class VulkanDevice {
   /*! \brief Handle to Vulkan API VkQueue.
    *
    * Work can be executed by submitted to this queue using
-   * VulkanDevice::SubmitQueue.
+   * VulkanDevice::QueueSubmit.
    */
   VkQueue queue{nullptr};
 
@@ -247,6 +258,9 @@ class VulkanDevice {
    * generated.
    */
   mutable ThreadMap<VulkanStream> stream_per_thread;
+
+  //! \brief The VulkanStagingBuffer for each CPU thread.
+  ThreadMap<VulkanStagingBuffer> staging_buffer_per_thread;
 };
 
 uint32_t FindMemoryType(const VulkanDevice& device, VkBufferCreateInfo info,

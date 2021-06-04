@@ -44,13 +44,10 @@ class VulkanThreadEntry {
 
   Device device;
   std::unique_ptr<WorkspacePool> pool;
-  VulkanStagingBuffer* StagingBuffer(int device_id, size_t size);
   void AllocateUniformBuffer(int device_id, size_t size);
   VulkanUniformBuffer* GetUniformBuffer(int device_id, size_t size);
 
  private:
-  //! Map from device to the StagingBuffer for it
-  std::unordered_map<size_t, std::unique_ptr<VulkanStagingBuffer>> staging_buffers_;
   //! Map from device to the UniformBuffer associated with it
   std::unordered_map<size_t, std::unique_ptr<VulkanUniformBuffer>> uniform_buffers_;
 };
