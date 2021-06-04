@@ -4129,6 +4129,7 @@ def test_softplus():
     verify_softplus(input_data)
 
 
+@tvm.testing.uses_gpu
 def test_cumsum():
     def verify_cumsum(indata, axis, exclusive=0, reverse=0, type="float32"):
         cumsum_node = onnx.helper.make_node(
@@ -4205,6 +4206,30 @@ def test_cumsum():
     verify_cumsum(data, 1, 1, 1, type="int32")
 
 
+@tvm.testing.uses_gpu
+def test_eyelike():
+    def verify_eyelike(indata):
+        node = helper.make_node(
+            "EyeLike",
+            inputs=["X"],
+            outputs=["Y"],
+        )
+
+        graph = helper.make_graph(
+            [node],
+            "eyelike_test",
+            inputs=[helper.make_tensor_value_info("X", TensorProto.FLOAT, list(indata.shape))],
+            outputs=[helper.make_tensor_value_info("Y", TensorProto.FLOAT, list(indata.shape))],
+        )
+
+        model = helper.make_model(graph, producer_name="eyelike_test")
+
+        verify_with_ort_with_inputs(model, [indata], dtype="float32", opset=9)
+
+    input_data = np.zeros((5, 5), dtype=np.float32)
+    verify_eyelike(input_data)
+
+
 """
   The following parameterized tests loads the tests that ONNX ships as
   serialized ONNX files, inputs, and outputs. The goal of this test
@@ -4241,9 +4266,6 @@ unsupported_onnx_tests = [
     "test_cumsum_2d_negative_axis/",
     "test_det_2d/",
     "test_det_nd/",
-    "test_eyelike_populate_off_main_diagonal/",
-    "test_eyelike_with_dtype/",
-    "test_eyelike_without_dtype/",
     "test_matmulinteger/",
     "test_maxpool_2d_same_lower/",
     "test_maxpool_2d_same_upper/",
@@ -4680,4 +4702,5 @@ if __name__ == "__main__":
     test_wrong_input()
     test_aten()
     test_reverse_sequence()
+    test_eyelike()
     test_qlinearconv()
