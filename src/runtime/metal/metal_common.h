@@ -49,10 +49,7 @@ namespace runtime {
 namespace metal {
 class AutoReleasePoolWrapper {
  public:
-  static AutoReleasePoolWrapper& GetInstance() {
-    static AutoReleasePoolWrapper instance;
-    return instance;
-  }
+  static AutoReleasePoolWrapper& GetInstance();
   template <typename T>
   void operator<<(const T& f) {
     std::exception_ptr eptr;

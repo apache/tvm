@@ -29,6 +29,11 @@ namespace tvm {
 namespace runtime {
 namespace metal {
 
+AutoReleasePoolWrapper& AutoReleasePoolWrapper::GetInstance() {
+  static AutoReleasePoolWrapper instance;
+  return instance;
+}
+
 MetalWorkspace* MetalWorkspace::Global() {
   // NOTE: explicitly use new to avoid exit-time destruction of global state
   // Global state will be recycled by OS as the process exits.
