@@ -141,6 +141,13 @@ class String(str, PyNativeObject):
 
 @tvm._ffi.register_object("runtime.ShapeTuple")
 class ShapeTuple(Object):
+    """TVM runtime ShapeTuple object.
+
+    Parameters
+    ----------
+    shape : list[int]
+        The shape list used to construct the object.
+    """
     def __init__(self, shape):
         for s in shape:
             assert isinstance(s, int), "Expect int type, but received : {0}".format(type(s))
