@@ -51,7 +51,7 @@ def evaluate(func, dev, N, times):
     cost = time_f(a, b, c).mean
     gf = ngflops(N) / cost
     print("%g secs/op, %g GFLOPS" % (cost, gf))
-    np.testing.assert_almost_equal(c.asnumpy(), a_np.dot(b_np), decimal=2)
+    np.testing.assert_almost_equal(c.numpy(), a_np.dot(b_np), decimal=2)
 
 
 def test_gemm_gpu(N, times, bn, num_block, num_thread):

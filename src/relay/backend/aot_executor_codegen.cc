@@ -148,44 +148,27 @@ class AOTExecutorCodegen : public ExprVisitor {
 
   /*!
    * \brief Utility function to return a parameter associated with an expression
-   * \param expr Relay Expression assicated with the parameter
+   * \param expr Relay Expression associated with the parameter
    * \return Variable that represents the DLTensor associated with the parameters
    */
   tir::Var PackParam(Expr expr) {
-    // TODO(giuseros): Using call_extern to call into lookup_linked_param. This is because the
-    // builtin::ret is not supported yet in the c target. Once return is supported we can use
-    // tvm_call_packed_lowered().
     int param_sid = param_storage_ids_[params_by_expr_[expr]];
-    auto lookup_linked_param_fn = tir::StringImm(::tvm::runtime::symbol::tvm_lookup_linked_param);
     auto param_array = te::Var(MakeString("param_", param_sid, "_array"), DataType::Handle());
 
     // Compose the lookup_call using a local stack
     Array<tir::Stmt> lookup_call;
-    auto param_var = te::Var(MakeString("param_", param_sid, "_value"), DataType::Handle());
-    auto ret_var = te::Var("ret_value", DataType::Handle());
-    auto ret_code = te::Var("ret_value", DataType::Handle());
-
-    lookup_call.push_back(tir::Evaluate(
-        tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_struct_set(),
-                       {param_var, 0, tir::builtin::kTVMValueContent, ConstInt32(param_sid)})));
-    lookup_call.push_back(tir::Evaluate(
-        tvm::tir::Call(DataType::Handle(), tir::builtin::call_extern(),
-                       {lookup_linked_param_fn, param_var, 0, 0, ret_var, ret_code, 0})));
-    auto ret_var_handle = tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_struct_get(),
-                                         {ret_var, 0, tir::builtin::kTVMValueContent});
-
     // Set the param to the value returned by lookup_call
+    auto param_handle = tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::lookup_param(),
+                                       {tir::StringImm(params_by_expr_[expr])});
+
     tvm::PrimExpr set_param_array =
         tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_struct_set(),
-                       {param_array, 0, tir::builtin::kArrData, ret_var_handle});
+                       {param_array, 0, tir::builtin::kArrData, param_handle});
     lookup_call.push_back(tir::Evaluate(set_param_array));
 
     tir::Stmt lookup_body = tir::SeqStmt(lookup_call);
 
     // Allocate the DLTensors on the stack
-    lookup_body = tir::LetStmt(param_var, StackAlloca("arg_value", 1), lookup_body);
-    lookup_body = tir::LetStmt(ret_var, StackAlloca("arg_value", 1), lookup_body);
-    lookup_body = tir::LetStmt(ret_code, StackAlloca("arg_value", 1), lookup_body);
     lookup_body = tir::LetStmt(param_array, StackAlloca("arg_value", 1), lookup_body);
     stmts_.push_back(lookup_body);
     return param_array;
@@ -279,7 +262,9 @@ class AOTExecutorCodegen : public ExprVisitor {
    * \param func The main function that contains calls to operator tir primitive functions
    */
   void UpdateMainWorkspaceSize(const tir::PrimFunc& primfunc, const relay::Function& func) {
-    Integer workspace_size = CalculateWorkspaceBytes(primfunc);
+    auto workspace_byte_alignment = target_host_->GetAttr<Integer>("workspace-byte-alignment")
+                                        .value_or(tvm::runtime::kDefaultWorkspaceAlignment);
+    Integer workspace_size = CalculateWorkspaceBytes(primfunc, workspace_byte_alignment);
     // Populate FunctionInfo
     auto fi_node = make_object<FunctionInfoNode>();
     // Initialize all target workspaces to zero
@@ -318,7 +303,9 @@ class AOTExecutorCodegen : public ExprVisitor {
     auto fi_node = make_object<FunctionInfoNode>();
     for (const auto& kv : cfunc->funcs->functions) {
       auto primfunc = Downcast<tir::PrimFunc>(kv.second);
-      Integer workspace_size = CalculateWorkspaceBytes(primfunc);
+      auto workspace_byte_alignment =
+          target_host_->GetAttr<Integer>("workspace-byte-alignment").value_or(16);
+      Integer workspace_size = CalculateWorkspaceBytes(primfunc, workspace_byte_alignment);
       Target primfunc_target = relay_target;
       if (primfunc->attrs->dict.count("target")) {
         primfunc_target = Downcast<Target>(primfunc->attrs->dict["target"]);

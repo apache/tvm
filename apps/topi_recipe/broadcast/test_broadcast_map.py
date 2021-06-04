@@ -65,11 +65,11 @@ def test_broadcast_to(in_shape, out_shape):
     data_npy = np.random.uniform(size=in_shape).astype(A.dtype)
     out_npy = np.broadcast_to(data_npy, out_shape)
 
-    data_nd = tvm.nd.array(data_npy, tvm.gpu())
-    out_nd = tvm.nd.array(np.empty(out_shape).astype(B.dtype), tvm.gpu())
+    data_nd = tvm.nd.array(data_npy, tvm.cuda())
+    out_nd = tvm.nd.array(np.empty(out_shape).astype(B.dtype), tvm.cuda())
     for _ in range(2):
         fcuda(data_nd, out_nd)
-    tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy)
+    tvm.testing.assert_allclose(out_nd.numpy(), out_npy)
 
 
 def test_broadcast_binary_op(lhs_shape, rhs_shape, typ="add"):
@@ -116,12 +116,12 @@ def test_broadcast_binary_op(lhs_shape, rhs_shape, typ="add"):
         out_npy = np.maximum(lhs_npy, rhs_npy)
     elif typ == "minimum":
         out_npy = np.minimum(lhs_npy, rhs_npy)
-    lhs_nd = tvm.nd.array(lhs_npy, tvm.gpu())
-    rhs_nd = tvm.nd.array(rhs_npy, tvm.gpu())
-    out_nd = tvm.nd.array(np.empty(out_npy.shape).astype(B.dtype), tvm.gpu())
+    lhs_nd = tvm.nd.array(lhs_npy, tvm.cuda())
+    rhs_nd = tvm.nd.array(rhs_npy, tvm.cuda())
+    out_nd = tvm.nd.array(np.empty(out_npy.shape).astype(B.dtype), tvm.cuda())
     for _ in range(2):
         fcuda(lhs_nd, rhs_nd, out_nd)
-    tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy)
+    tvm.testing.assert_allclose(out_nd.numpy(), out_npy)
 
 
 if __name__ == "__main__":

@@ -19,12 +19,18 @@
 from typing import List, Optional, Union
 
 from tvm._ffi import register_object as _register_object
+from tvm.error import TVMError, register_error
 from tvm.ir import IRModule, PrimExpr
 from tvm.runtime import Object
 from tvm.tir import Block, For, IntImm, PrimFunc, Var
 
 from . import _ffi_api_schedule
 from .state import ScheduleState, StmtSRef
+
+
+@register_error
+class ScheduleError(TVMError):
+    """Error that happens during TensorIR scheduling."""
 
 
 @_register_object("tir.LoopRV")
@@ -37,9 +43,9 @@ class BlockRV(Object):
     """A random variable that refers to a block"""
 
 
-IntRV = PrimExpr  #  A random variable that evaluates to an integer
+ExprRV = PrimExpr  #  A random variable that evaluates to an integer
 
-RAND_VAR_TYPE = Union[IntRV, BlockRV, LoopRV]  # pylint: disable=invalid-name
+RAND_VAR_TYPE = Union[ExprRV, BlockRV, LoopRV]  # pylint: disable=invalid-name
 
 
 @_register_object("tir.Schedule")
@@ -57,10 +63,14 @@ class Schedule(Object):
     Link to tutorial: https://tvm.apache.org/docs/tutorials/language/schedule_primitives.html
     """
 
+    ERROR_RENDER_LEVEL = {"detail": 0, "fast": 1, "none": 2}
+
     def __init__(
         self,
         func_or_mod: Union[PrimFunc, IRModule],
+        *,
         debug_mode: Union[bool, int] = False,
+        error_render_level: str = "detail",
     ):
         """Construct a concrete TensorIR schedule from an IRModule or a PrimFunc
 
@@ -71,14 +81,17 @@ class Schedule(Object):
         debug_mode : Union[bool, int]
             Do extra correctness checking after the class creation and each time
             scheduling primitive
+        error_render_level : str = "detail"
+            The level of error rendering. Choices: "detail", "fast", "none".
+            "detail": Render a detailed error message, with the TIR and error locations printed
+            "fast: Show a simple error message without rendering or string manipulation
+            "none": Do not show any error message.
 
         Note
         ----------
         The checks performed includes:
         1) VerifySRefTree
-        2) VerifyAffineBinding
-        3) VerifyRegionCover
-        4) VerifyStagePipeline
+        2) VerifyCachedFlags
         """
         if isinstance(debug_mode, bool):
             if debug_mode:
@@ -87,10 +100,17 @@ class Schedule(Object):
                 debug_mode = 0
         if not isinstance(debug_mode, int):
             raise TypeError(f"`debug_mode` should be integer or boolean, but gets: {debug_mode}")
+        if error_render_level not in Schedule.ERROR_RENDER_LEVEL:
+            raise ValueError(
+                'error_render_level can be "detail", "fast", or "none", but got: '
+                + f"{error_render_level}"
+            )
+        error_render_level = Schedule.ERROR_RENDER_LEVEL.get(error_render_level)
         self.__init_handle_by_constructor__(
             _ffi_api_schedule.ConcreteSchedule,  # pylint: disable=no-member
             func_or_mod,
             debug_mode,
+            error_render_level,
         )
 
     ########## Utilities ##########
@@ -132,7 +152,7 @@ class Schedule(Object):
         """Returns a string representation of the value that the random variable evaluates to
         Parameters
         ----------
-        rand_var : Union[IntRV, BlockRV, LoopRV]
+        rand_var : Union[ExprRV, BlockRV, LoopRV]
             The random variable to be evaluated
         Returns
         ----------
@@ -150,12 +170,12 @@ class Schedule(Object):
         """Returns:
         - the corresponding Block that a BlockRV evaluates to;
         - the corresponding For that a LoopRV evaluates to;
-        - the corresponding integer that a IntRV evaluates to;
+        - the corresponding integer that a ExprRV evaluates to;
         - the corresponding Block that a block sref points to;
         - the corresponding For that a loop sref points to;
         Parameters
         ----------
-        rand_var_or_sref : Union[IntRV, BlockRV, LoopRV, StmtSRef]
+        rand_var_or_sref : Union[ExprRV, BlockRV, LoopRV, StmtSRef]
             The random variable / sref to be evaluated
         Returns
         ----------
@@ -192,7 +212,7 @@ class Schedule(Object):
         """Remove a random variable from the symbol table
         Parameters
         ----------
-        rand_var : Union[BlockRV, LoopRV, IntRV]
+        rand_var : Union[BlockRV, LoopRV, ExprRV]
             The random variable to be removed
         """
         return _ffi_api_schedule.ScheduleRemoveRV(self, rand_var)  # pylint: disable=no-member

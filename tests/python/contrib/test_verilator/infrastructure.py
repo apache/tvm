@@ -19,6 +19,7 @@
 import os
 import sys
 import subprocess as sp
+import json
 
 import tvm
 from tvm import relay
@@ -48,6 +49,10 @@ def _register_verilator_op(op_name, supported=True):
     return _func_wrapper
 
 
+_register_verilator_op("add")
+_register_verilator_op("nn.bias_add")
+
+
 def skip_test():
     """Skip test if it requires the Verilator codegen and it's not present."""
     if not tvm.get_global_func("relay.ext.verilator", True):
@@ -59,8 +64,33 @@ def skip_test():
     return False
 
 
+def clear_stats():
+    """Clear profiler statistics."""
+    f = tvm.get_global_func("verilator.profiler_clear", True)
+    if f:
+        f()
+
+
+def stats():
+    """Get profiler statistics."""
+
+    x = tvm.get_global_func("verilator.profiler_status")()
+    return json.loads(x)
+
+
 def offload(mod):
-    """Offload ops based on the registered ops"""
+    """Offload ops based on the registered ops
+
+    Paramters
+    ---------
+    mod : Module
+        The input module.
+
+    Returns
+    -------
+    mod : Module
+        The output module with offloaded ops.
+    """
 
     backend = "verilator"
     mod = transform.AnnotateTarget([backend])(mod)
@@ -69,7 +99,7 @@ def offload(mod):
 
 
 def verilator_app_path():
-    """Find verilator hardware app path"""
+    """Create verilator hardware app path."""
 
     cur_dir = os.path.dirname(os.path.realpath(__file__))
     return os.path.join(
@@ -82,37 +112,87 @@ def verilator_app_path():
         "vta-hw",
         "apps",
         "verilator",
+        "add",
     )
 
 
-def compile_hardware():
-    """Compile hardware into shared library"""
+def compile_hardware(lanes):
+    """Compile hardware into shared library
 
-    cmd = []
-    cmd.append("make")
-    cmd.append("--directory")
-    cmd.append(verilator_app_path())
-    sp.run(cmd, check=True)
+    Paramters
+    ---------
+    lanes : Int
+        The number of vector lanes.
 
-
-def compile_module(mod):
-    """Compile Relay module and hardware library"""
-
-    lib = os.path.join(verilator_app_path(), "libverilator.so")
+    Returns
+    -------
+    path : Str
+        The path of the shared library.
+    """
+    lib_name = "libverilator_{}".format(lanes)
+    lib_name_ext = "{}.so".format(lib_name)
+    lib = os.path.join(verilator_app_path(), lib_name_ext)
     if not os.path.isfile(lib):
-        compile_hardware()
+        opt_lib_name = "LIB_NAME={}".format(lib_name)
+        opt_lanes = "LANES={}".format(lanes)
+        cmd = []
+        cmd.append("make")
+        cmd.append("--directory")
+        cmd.append(verilator_app_path())
+        cmd.append(opt_lib_name)
+        cmd.append(opt_lanes)
+        sp.run(cmd, check=True, stdout=sp.DEVNULL)
+    return lib
 
-    opts = {"lib_path": lib}
+
+def compiler_opts(lib):
+    """Create compiler options
+
+    Paramters
+    ---------
+    lib : Str
+        The path of the hardware shared library.
+
+    Returns
+    -------
+    opts : Dict
+        The compiler options.
+    """
+    opts = {
+        "lib_path": lib,
+        "profiler_enable": True,
+        "profiler_cycle_counter_id": 0,
+    }
+    return opts
+
+
+def run_module(inp, mod, params=None, opts=None):
+    """Compile Relay module and hardware library
+
+    Paramters
+    ---------
+    inp : Data
+        The input data.
+
+    mod : Module
+        The relay module.
+
+    params : Parameters
+        The model Parameters.
+
+    opts : Dict
+        The compiler
+
+    Returns
+    -------
+    out : Data
+        The output data.
+    """
 
     with tvm.transform.PassContext(opt_level=3, config={"relay.ext.verilator.options": opts}):
-        exe = relay.vm.compile(mod, target="llvm", params=None)
-        code, lib = exe.save()
-        return runtime.vm.Executable.load_exec(code, lib)
-
-
-def run_module(exe, inputs):
-    """Run Relay module"""
-
-    dev = tvm.cpu()
-    vm = runtime.vm.VirtualMachine(exe, dev)
-    return vm.run(**inputs)
+        lib = relay.vm.compile(mod, target="llvm", params=params)
+    code, lib = lib.save()
+    exe = runtime.vm.Executable.load_exec(code, lib)
+    vm = runtime.vm.VirtualMachine(exe, tvm.cpu())
+    out = vm.run(**inp)
+    return out

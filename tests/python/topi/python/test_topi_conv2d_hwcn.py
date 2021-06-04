@@ -85,9 +85,9 @@ def verify_conv2d_hwcn(batch, in_channel, in_size, num_filter, kernel, stride, p
         func1(a, w, conv_out)
         func2(a, w, b, bias_out)
         func3(a, w, b, relu_out)
-        tvm.testing.assert_allclose(conv_out.asnumpy(), c1_np, rtol=1e-5)
-        tvm.testing.assert_allclose(bias_out.asnumpy(), c2_np, rtol=1e-5)
-        tvm.testing.assert_allclose(relu_out.asnumpy(), c3_np, rtol=1e-5)
+        tvm.testing.assert_allclose(conv_out.numpy(), c1_np, rtol=1e-5)
+        tvm.testing.assert_allclose(bias_out.numpy(), c2_np, rtol=1e-5)
+        tvm.testing.assert_allclose(relu_out.numpy(), c3_np, rtol=1e-5)
 
     for target in ["cuda", "opencl", "metal", "rocm", "vulkan", "nvptx"]:
         check_target(target)

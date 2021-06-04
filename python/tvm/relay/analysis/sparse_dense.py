@@ -83,7 +83,7 @@ def process_params(expr, params, block_size, sparsity_threshold):
     weight_names = _search_dense_op_weight(expr)
     for name in weight_names:
         name = str(name)
-        w_np = params[name].asnumpy()
+        w_np = params[name].numpy()
         sparsity = 1.0 - (np.count_nonzero(w_np) / w_np.size)
         if sparsity >= sparsity_threshold:
             sparse_weight = sp.bsr_matrix(w_np, blocksize=block_size)

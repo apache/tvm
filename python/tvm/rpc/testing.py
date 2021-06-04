@@ -45,7 +45,7 @@ def _strcat(x, y):
 @tvm.register_func("rpc.test.remote_array_func")
 def _remote_array_func(y):
     x = np.ones((3, 4))
-    np.testing.assert_equal(y.asnumpy(), x)
+    np.testing.assert_equal(y.numpy(), x)
 
 
 @tvm.register_func("rpc.test.add_to_lhs")
@@ -63,7 +63,7 @@ def _my_module(name):
     if name == "ref_count":
         return lambda: tvm.testing.object_use_count(nd)
     if name == "get_elem":
-        return lambda idx: nd.asnumpy()[idx]
+        return lambda idx: nd.numpy()[idx]
     if name == "get_arr_elem":
-        return lambda arr, idx: arr.asnumpy()[idx]
+        return lambda arr, idx: arr.numpy()[idx]
     raise RuntimeError("unknown name")

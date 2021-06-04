@@ -42,7 +42,7 @@ def verify_broadcast_to_ele(in_shape, out_shape, fbcast):
         data_nd = tvm.nd.array(data_npy, dev)
         out_nd = tvm.nd.array(np.empty(out_shape).astype(B.dtype), dev)
         foo(data_nd, out_nd)
-        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy)
+        tvm.testing.assert_allclose(out_nd.numpy(), out_npy)
 
     for target, dev in tvm.testing.enabled_targets():
         check_target(target)
@@ -103,7 +103,7 @@ def verify_broadcast_binary_ele(
 
         out_nd = tvm.nd.array(np.empty(out_npy.shape).astype(C.dtype), dev)
         foo(lhs_nd, rhs_nd, out_nd)
-        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy, rtol=1e-4, atol=1e-4)
+        tvm.testing.assert_allclose(out_nd.numpy(), out_npy, rtol=1e-4, atol=1e-4)
 
     for target, dev in tvm.testing.enabled_targets():
         check_target(target)
@@ -316,7 +316,7 @@ def test_logical_single_ele():
             out_npy = f_numpy(indata)
             out_nd = tvm.nd.array(np.empty(data_npy.shape).astype(B.dtype), dev)
             foo(data_nd, out_nd)
-            tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy)
+            tvm.testing.assert_allclose(out_nd.numpy(), out_npy)
 
         for target, dev in tvm.testing.enabled_targets():
             check_target(target, dev)
@@ -354,7 +354,7 @@ def test_bitwise_not():
             out_npy = f_numpy(data_npy)
             out_nd = tvm.nd.array(np.empty(data_npy.shape).astype(B.dtype), dev)
             foo(data_nd, out_nd)
-            tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy)
+            tvm.testing.assert_allclose(out_nd.numpy(), out_npy)
 
         for target, dev in tvm.testing.enabled_targets():
             check_target(target, dev)
@@ -393,7 +393,7 @@ def test_logical_binary_ele():
             out_npy = f_numpy(lhs, rhs)
             out_nd = tvm.nd.array(np.empty(out_npy.shape).astype(C.dtype), dev)
             foo(lhs_nd, rhs_nd, out_nd)
-            tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy, rtol=1e-4, atol=1e-4)
+            tvm.testing.assert_allclose(out_nd.numpy(), out_npy, rtol=1e-4, atol=1e-4)
 
         for target, dev in tvm.testing.enabled_targets():
             check_target(target, dev)

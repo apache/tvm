@@ -392,7 +392,7 @@ print(tvm.lower(s, [A, W, Conv], simple_mode=True))
 # Since TensorCores are only supported in NVIDIA GPU with Compute Capability 7.0 or higher, it may not
 # be able to run on our build server
 
-dev = tvm.gpu(0)
+dev = tvm.cuda(0)
 if nvcc.have_tensorcore(dev.compute_version):
     with tvm.transform.PassContext(config={"tir.UnrollLoop": {"auto_max_step": 16}}):
         func = tvm.build(s, [A, W, Conv], "cuda")

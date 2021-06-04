@@ -56,7 +56,7 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleCopy")  //
 /**************** (FFI) Constructor ****************/
 
 TVM_REGISTER_GLOBAL("tir.schedule.ConcreteSchedule")
-    .set_body_typed([](ObjectRef obj, int debug_mode) -> Schedule {
+    .set_body_typed([](ObjectRef obj, int debug_mode, int error_render_level) -> Schedule {
       IRModule mod{nullptr};
       if (const auto* func = obj.as<PrimFuncNode>()) {
         mod = IRModule({{GlobalVar("main"), GetRef<BaseFunc>(func)}});
@@ -66,7 +66,8 @@ TVM_REGISTER_GLOBAL("tir.schedule.ConcreteSchedule")
         LOG(FATAL) << "TypeError: Expects `IRModule` or `PrimFunc`, but gets: "
                    << obj->GetTypeKey();
       }
-      return Schedule::Concrete(mod, debug_mode);
+      return Schedule::Concrete(mod, debug_mode,
+                                static_cast<ScheduleErrorRenderLevel>(error_render_level));
     });
 
 /******** (FFI) Lookup random variables ********/
@@ -79,9 +80,8 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGet")
       if (const auto* block_rv = obj.as<BlockRVNode>()) {
         return self->Get(GetRef<BlockRV>(block_rv));
       }
-      if (const auto* int_rv = obj.as<IntRVNode>()) {
-        int64_t result = self->Get(GetRef<IntRV>(int_rv));
-        return IntImm(DataType::Int(32), result);
+      if (const auto* expr_rv = obj.as<ExprRVNode>()) {
+        return self->Get(GetRef<ExprRV>(expr_rv));
       }
       LOG(FATAL) << "TypeError: Cannot evaluate the random variable of type: " << obj->GetTypeKey()
                  << ". Its value is: " << obj;
@@ -109,8 +109,8 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleRemoveRV")
       if (const auto* block_rv = obj.as<BlockRVNode>()) {
         return self->RemoveRV(GetRef<BlockRV>(block_rv));
       }
-      if (const auto* int_rv = obj.as<IntRVNode>()) {
-        return self->RemoveRV(GetRef<IntRV>(int_rv));
+      if (const auto* expr_rv = obj.as<ExprRVNode>()) {
+        return self->RemoveRV(GetRef<ExprRV>(expr_rv));
       }
       LOG(FATAL) << "TypeError: Invalid type: " << obj->GetTypeKey();
       throw;

@@ -64,9 +64,9 @@ def compile_cuda(code, target="ptx", arch=None, options=None, path_target=None):
         out_file.write(code)
 
     if arch is None:
-        if nd.gpu(0).exist:
+        if nd.cuda(0).exist:
             # auto detect the compute arch argument
-            arch = "sm_" + "".join(nd.gpu(0).compute_version.split("."))
+            arch = "sm_" + "".join(nd.cuda(0).compute_version.split("."))
         else:
             raise ValueError("arch(sm_xy) is not passed, and we cannot detect it from env")
 
@@ -194,7 +194,7 @@ def find_libdevice_path(arch):
     selected_ver = 0
     selected_path = None
     cuda_ver = get_cuda_version(cuda_path)
-    if cuda_ver in (9.0, 9.1, 10.0, 10.1, 10.2, 11.0, 11.1, 11.2):
+    if cuda_ver in (9.0, 9.1, 10.0, 10.1, 10.2, 11.0, 11.1, 11.2, 11.3):
         path = os.path.join(lib_path, "libdevice.10.bc")
     else:
         for fn in os.listdir(lib_path):
@@ -249,8 +249,8 @@ def get_target_compute_version(target=None):
         return major + "." + minor
 
     # 3. GPU
-    if tvm.gpu(0).exist:
-        return tvm.gpu(0).compute_version
+    if tvm.cuda(0).exist:
+        return tvm.cuda(0).compute_version
 
     warnings.warn(
         "No CUDA architecture was specified or GPU detected."
@@ -331,8 +331,8 @@ def have_tensorcore(compute_version=None, target=None):
         isn't specified.
     """
     if compute_version is None:
-        if tvm.gpu(0).exist:
-            compute_version = tvm.gpu(0).compute_version
+        if tvm.cuda(0).exist:
+            compute_version = tvm.cuda(0).compute_version
         else:
             if target is None or "arch" not in target.attrs:
                 warnings.warn(

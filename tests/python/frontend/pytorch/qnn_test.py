@@ -291,7 +291,7 @@ def test_quantized_modules():
         runtime = get_tvm_runtime(script_module, input_name, ishape)
         runtime.set_input(input_name, inp.numpy().copy())
         runtime.run()
-        tvm_result = runtime.get_output(0).asnumpy()
+        tvm_result = runtime.get_output(0).numpy()
 
         max_abs_diff = np.max(np.abs(tvm_result - pt_result))
         mean_abs_diff = np.mean(np.abs(tvm_result - pt_result))
@@ -396,7 +396,7 @@ def test_quantized_imagenet():
         runtime.set_input(input_name, inp)
         runtime.run()
 
-        tvm_result = runtime.get_output(0).asnumpy()
+        tvm_result = runtime.get_output(0).numpy()
 
         results.append((model_name, pt_result[0], tvm_result[0]))
 
@@ -496,7 +496,7 @@ def test_serialized_modules():
     runtime = get_tvm_runtime(loaded, input_name, ishape)
     runtime.set_input(input_name, inp.numpy().copy())
     runtime.run()
-    tvm_result = runtime.get_output(0).asnumpy()
+    tvm_result = runtime.get_output(0).numpy()
 
     # with 0.5ish results, 1e-2 is relative accuracy close to 2**-6.
     # for simple layers like here this should be achievable
@@ -538,7 +538,7 @@ def test_quantize_dynamic():
             runtime = get_tvm_runtime(script_module, "input", inp.shape)
             runtime.set_input(input_name, inp.numpy().copy())
             runtime.run()
-            tvm_result = runtime.get_output(0).asnumpy()
+            tvm_result = runtime.get_output(0).numpy()
 
             # Only compare with the PyTorch result for version v1.6 or newer
             # Have seen a strange accuracy problem from PyTorch 1.4 and 1.5

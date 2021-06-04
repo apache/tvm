@@ -301,11 +301,11 @@ for i in range(2):
     layer_out = {}
     layer_out["type"] = "Yolo"
     # Get the yolo layer attributes (n, out_c, out_h, out_w, classes, total)
-    layer_attr = m.get_output(i * 4 + 3).asnumpy()
-    layer_out["biases"] = m.get_output(i * 4 + 2).asnumpy()
-    layer_out["mask"] = m.get_output(i * 4 + 1).asnumpy()
+    layer_attr = m.get_output(i * 4 + 3).numpy()
+    layer_out["biases"] = m.get_output(i * 4 + 2).numpy()
+    layer_out["mask"] = m.get_output(i * 4 + 1).numpy()
     out_shape = (layer_attr[0], layer_attr[1] // layer_attr[0], layer_attr[2], layer_attr[3])
-    layer_out["output"] = m.get_output(i * 4).asnumpy().reshape(out_shape)
+    layer_out["output"] = m.get_output(i * 4).numpy().reshape(out_shape)
     layer_out["classes"] = layer_attr[4]
     tvm_out.append(layer_out)
     thresh = 0.560

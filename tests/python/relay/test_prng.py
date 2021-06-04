@@ -36,11 +36,11 @@ def test_threefry_repeatability(target, dev):
     ).evaluate()()
 
     assert (
-        out1.asnumpy() == out2.asnumpy()
+        out1.numpy() == out2.numpy()
     ).all(), "Generate on same seed should have the same output random numbers"
 
     assert (
-        out_key1.asnumpy() == out_key2.asnumpy()
+        out_key1.numpy() == out_key2.numpy()
     ).all(), "Generate on same seed should have the same next keys"
 
 
@@ -58,7 +58,7 @@ def test_threefry_split(target, dev):
     ).evaluate()()
 
     assert (
-        out1.asnumpy() != out2.asnumpy()
+        out1.numpy() != out2.numpy()
     ).any(), "Generate after split should not have the same output"
 
 
@@ -75,7 +75,24 @@ def test_threefry_sequential_generate(target, dev):
     ).evaluate()()
 
     assert (
-        out1.asnumpy() != out2.asnumpy()
+        out1.numpy() != out2.numpy()
+    ).any(), "Sequential generates should not have the same output"
+
+
+@tvm.testing.parametrize_targets
+def test_threefry_sequential_generate_remaining(target, dev):
+    key = tvm.relay.random.threefry_key(1)
+    key, rand1 = tvm.relay.TupleWrapper(tvm.relay.random.threefry_generate(key, (7,)), 2)
+    _, rand2 = tvm.relay.TupleWrapper(tvm.relay.random.threefry_generate(key, (7,)), 2)
+    out1, out2 = tvm.relay.create_executor(
+        "vm",
+        tvm.IRModule.from_expr(tvm.relay.Function([], tvm.relay.Tuple((rand1, rand2)))),
+        target=target,
+        device=dev,
+    ).evaluate()()
+
+    assert (
+        out1.asnumpy()[-3:] != out2.asnumpy()[-3:]
     ).any(), "Sequential generates should not have the same output"
 
 
@@ -103,6 +120,21 @@ def test_threefry_split_infer():
     assert tvm.ir.structural_equal(f.ret_type, expected_type)
 
 
+def test_uniform_infer():
+    oshape = (12,)
+    odtypes = ["float32", "float64"]
+    for odtype in odtypes:
+        key_type = tvm.relay.TensorType([10], dtype="uint64")
+        gen_type = tvm.relay.TensorType(oshape, dtype=odtype)
+        expected_type = tvm.relay.TupleType([key_type, gen_type])
+
+        key = tvm.relay.random.threefry_key(1)
+        rand1 = tvm.relay.random.uniform(key, oshape, odtype)
+        f = tvm.relay.Function([], rand1)
+        f = run_infer_type(f)
+        assert tvm.ir.structural_equal(f.ret_type, expected_type)
+
+
 @pytest.mark.xfail(raises=tvm.error.TVMError)
 def test_threefry_generate_infer_fail():
     # xfail: key size should be 10
@@ -122,12 +154,10 @@ def test_threefry_split_infer_fail():
 
 
 @tvm.testing.requires_llvm
-@pytest.mark.xfail(raises=tvm.error.TVMError)
-def test_threefry_generate_incorrect_out_size():
+def test_threefry_generate_out_size():
     key = tvm.relay.random.threefry_key(1)
-    # xfail: output size should be multiple of 4
     key, rand1 = tvm.relay.TupleWrapper(tvm.relay.random.threefry_generate(key, (5,)), 2)
-    out1, out2 = tvm.relay.create_executor(
+    out = tvm.relay.create_executor(
         "vm",
         tvm.IRModule.from_expr(tvm.relay.Function([], rand1)),
         target=tvm.target.Target("llvm"),
@@ -139,3 +169,4 @@ if __name__ == "__main__":
     test_threefry_repeatability(tvm.target.Target("llvm"), tvm.device("cpu"))
     test_threefry_split(tvm.target.Target("llvm"), tvm.device("cpu"))
     test_threefry_sequential_generate(tvm.target.Target("llvm"), tvm.device("cpu"))
+    test_threefry_sequential_generate_remaining(tvm.target.Target("llvm"), tvm.device("cpu"))

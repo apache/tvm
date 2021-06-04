@@ -61,17 +61,17 @@ public class ModuleTest {
   }
 
   @Test
-  public void test_load_add_func_gpu() {
+  public void test_load_add_func_cuda() {
     final Random RND = new Random(0);
 
-    Device dev = new Device("gpu", 0);
+    Device dev = new Device("cuda", 0);
     if (!dev.exist()) {
-      logger.warn("GPU does not exist. Skip the test.");
+      logger.warn("CUDA GPU does not exist. Skip the test.");
       return;
     }
 
-    Module fadd = Module.load(loadingDir + File.separator + "add_gpu.so");
-    Module faddDev = Module.load(loadingDir + File.separator + "add_gpu.ptx");
+    Module fadd = Module.load(loadingDir + File.separator + "add_cuda.so");
+    Module faddDev = Module.load(loadingDir + File.separator + "add_cuda.ptx");
     fadd.importModule(faddDev);
 
     final int dim = 100;

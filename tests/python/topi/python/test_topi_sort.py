@@ -73,7 +73,7 @@ def verify_sort(axis, is_ascend):
         tvm_out = tvm.nd.array(np.zeros(dshape, dtype=data_dtype), dev)
         f = tvm.build(s, [data, out], target)
         f(tvm_data, tvm_out)
-        tvm.testing.assert_allclose(tvm_out.asnumpy(), np_sort, rtol=1e0)
+        tvm.testing.assert_allclose(tvm_out.numpy(), np_sort, rtol=1e0)
 
     for target in ["llvm", "cuda", "opencl", "vulkan", "nvptx"]:
         check_target(target)
@@ -113,7 +113,7 @@ def verify_argsort(axis, is_ascend):
         tvm_out = tvm.nd.array(np.zeros(dshape, dtype=data_dtype), dev)
         f = tvm.build(s, [data, out], target)
         f(tvm_data, tvm_out)
-        tvm.testing.assert_allclose(tvm_out.asnumpy(), np_indices.astype(data_dtype), rtol=1e0)
+        tvm.testing.assert_allclose(tvm_out.numpy(), np_indices.astype(data_dtype), rtol=1e0)
 
     for target in ["llvm", "cuda", "opencl", "vulkan", "nvptx"]:
         check_target(target)
@@ -160,12 +160,12 @@ def verify_topk(k, axis, ret_type, is_ascend, dtype):
         f = tvm.build(s, [data] + outs, target)
         f(tvm_data, *tvm_res)
         if ret_type == "both":
-            tvm.testing.assert_allclose(tvm_res[0].asnumpy(), np_values)
-            tvm.testing.assert_allclose(tvm_res[1].asnumpy(), np_indices)
+            tvm.testing.assert_allclose(tvm_res[0].numpy(), np_values)
+            tvm.testing.assert_allclose(tvm_res[1].numpy(), np_indices)
         elif ret_type == "values":
-            tvm.testing.assert_allclose(tvm_res[0].asnumpy(), np_values)
+            tvm.testing.assert_allclose(tvm_res[0].numpy(), np_values)
         else:
-            tvm.testing.assert_allclose(tvm_res[0].asnumpy(), np_indices)
+            tvm.testing.assert_allclose(tvm_res[0].numpy(), np_indices)
 
     for target in ["llvm", "cuda", "opencl", "vulkan", "nvptx"]:
         check_target(target)

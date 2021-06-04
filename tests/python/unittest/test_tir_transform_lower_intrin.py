@@ -55,7 +55,7 @@ def check_value(expr, vx, vy, data, fref):
     c = tvm.nd.array(np.zeros(len(data), dtype=expr.dtype))
     f(a, b, c)
     cref = np.array([fref(x, y) for x, y in data])
-    np.testing.assert_equal(c.asnumpy(), cref)
+    np.testing.assert_equal(c.numpy(), cref)
 
 
 def get_ref_data():

@@ -35,14 +35,14 @@ def verify_matmul_add(in_dtype, out_dtype, rtol=1e-5):
         if not tvm.get_global_func("tvm.contrib.cublas.matmul", True):
             print("skip because extern function is not available")
             return
-        dev = tvm.gpu(0)
+        dev = tvm.cuda(0)
         f = tvm.build(s, [A, B, C], target)
         a = tvm.nd.array(np.random.uniform(0, 128, size=(n, l)).astype(A.dtype), dev)
         b = tvm.nd.array(np.random.uniform(0, 128, size=(l, m)).astype(B.dtype), dev)
         c = tvm.nd.array(np.zeros((n, m), dtype=C.dtype), dev)
         f(a, b, c)
         tvm.testing.assert_allclose(
-            c.asnumpy(), np.dot(a.asnumpy().astype(C.dtype), b.asnumpy().astype(C.dtype)), rtol=rtol
+            c.numpy(), np.dot(a.numpy().astype(C.dtype), b.numpy().astype(C.dtype)), rtol=rtol
         )
 
     verify()
@@ -70,7 +70,7 @@ def verify_matmul_add_igemm(in_dtype, out_dtype, rtol=1e-5):
         if not tvm.get_global_func("tvm.contrib.cublaslt.matmul", True):
             print("skip because extern function is not available")
             return
-        dev = tvm.gpu(0)
+        dev = tvm.cuda(0)
         f = tvm.build(s, [A, B, C], target)
         a_old = np.random.uniform(0, 128, size=(n, l))
         b_old = np.random.uniform(0, 128, size=(l, m))
@@ -100,7 +100,7 @@ def verify_matmul_add_igemm(in_dtype, out_dtype, rtol=1e-5):
         c = tvm.nd.array(np.zeros((m, N_out), dtype=C.dtype), dev)
         f(a, b, c)
         # Transform output c from layout CUBLASLT_ORDER_COL32 to row major layout
-        c_out = c.asnumpy()
+        c_out = c.numpy()
         c_out = c_out.reshape([int(m * N_out / 32), 32])
         c_out = np.hstack(np.vsplit(c_out, int(N_out / 32)))
         c_out = c_out[:, :n]
@@ -126,15 +126,15 @@ def verify_batch_matmul(in_dtype, out_dtype, rtol=1e-5):
         if not tvm.get_global_func("tvm.contrib.cublas.matmul", True):
             print("skip because extern function is not available")
             return
-        dev = tvm.gpu(0)
+        dev = tvm.cuda(0)
         f = tvm.build(s, [A, B, C], target)
         a = tvm.nd.array(np.random.uniform(size=(j, n, l)).astype(A.dtype), dev)
         b = tvm.nd.array(np.random.uniform(size=(j, l, m)).astype(B.dtype), dev)
         c = tvm.nd.array(np.zeros((j, n, m), dtype=C.dtype), dev)
         f(a, b, c)
         tvm.testing.assert_allclose(
-            c.asnumpy(),
-            np.matmul(a.asnumpy().astype(C.dtype), b.asnumpy().astype(C.dtype)).astype(C.dtype),
+            c.numpy(),
+            np.matmul(a.numpy().astype(C.dtype), b.numpy().astype(C.dtype)).astype(C.dtype),
             rtol=rtol,
         )
 

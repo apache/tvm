@@ -56,7 +56,7 @@ def test_sort():
     b = tvm.nd.array(np.array(sort_num_input).astype(sort_num.dtype), dev)
     c = tvm.nd.array(np.zeros(a.shape, dtype=out.dtype), dev)
     f(a, b, c)
-    tvm.testing.assert_allclose(c.asnumpy(), np.array(sorted_index).astype(out.dtype), rtol=1e-5)
+    tvm.testing.assert_allclose(c.numpy(), np.array(sorted_index).astype(out.dtype), rtol=1e-5)
 
 
 def test_sort_np():
@@ -88,7 +88,7 @@ def test_sort_np():
     b = tvm.nd.array(np.array(sort_num_input).astype(sort_num.dtype), dev)
     c = tvm.nd.array(np.zeros(a.shape, dtype=out.dtype), dev)
     f(a, b, c)
-    tvm.testing.assert_allclose(c.asnumpy(), np_out, rtol=1e-5)
+    tvm.testing.assert_allclose(c.numpy(), np_out, rtol=1e-5)
 
 
 def test_sort_by_key_gpu():
@@ -119,8 +119,8 @@ def test_sort_by_key_gpu():
 
             ref_keys_out = np.sort(keys_np)
             ref_values_out = np.array([values_np[i] for i in np.argsort(keys_np)])
-            tvm.testing.assert_allclose(keys_out.asnumpy(), ref_keys_out, rtol=1e-5)
-            tvm.testing.assert_allclose(values_out.asnumpy(), ref_values_out, rtol=1e-5)
+            tvm.testing.assert_allclose(keys_out.numpy(), ref_keys_out, rtol=1e-5)
+            tvm.testing.assert_allclose(values_out.numpy(), ref_values_out, rtol=1e-5)
 
 
 if __name__ == "__main__":

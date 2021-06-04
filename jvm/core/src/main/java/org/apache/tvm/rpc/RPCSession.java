@@ -110,20 +110,20 @@ public class RPCSession {
   }
 
   /**
-   * Construct remote GPU device.
+   * Construct remote CUDA GPU device.
    * @param devId device id.
-   * @return Remote GPU device.
+   * @return Remote CUDA GPU device.
    */
-  public Device gpu(int devId) {
+  public Device cuda(int devId) {
     return device(2, devId);
   }
 
   /**
-   * Construct remote GPU device.
-   * @return Remote GPU device.
+   * Construct remote CUDA GPU device.
+   * @return Remote CUDA GPU device.
    */
-  public Device gpu() {
-    return gpu(0);
+  public Device cuda() {
+    return cuda(0);
   }
 
   /**

@@ -72,7 +72,7 @@ label_map_url = os.path.join(repo_base, label_map)
 # Use these commented settings to build for cuda.
 # target = tvm.target.Target("cuda", host="llvm")
 # layout = "NCHW"
-# dev = tvm.gpu(0)
+# dev = tvm.cuda(0)
 target = tvm.target.Target("llvm", host="llvm")
 layout = None
 dev = tvm.cpu(0)
@@ -165,7 +165,7 @@ tvm_output = m.get_output(0, tvm.nd.empty(((1, 1008)), "float32"))
 # Process the output
 # ------------------
 # Process the model output to human readable text for InceptionV1.
-predictions = tvm_output.asnumpy()
+predictions = tvm_output.numpy()
 predictions = np.squeeze(predictions)
 
 # Creates node ID --> English string lookup.

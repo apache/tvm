@@ -53,7 +53,7 @@ def test_matmul():
         b = tvm.nd.array(np.random.uniform(size=(l, m)).astype(B.dtype), dev)
         c = tvm.nd.array(np.zeros((n, m), dtype=C.dtype), dev)
         f(a, b, c)
-        tvm.testing.assert_allclose(c.asnumpy(), np.dot(a.asnumpy(), b.asnumpy()) + 1, rtol=1e-5)
+        tvm.testing.assert_allclose(c.numpy(), np.dot(a.numpy(), b.numpy()) + 1, rtol=1e-5)
 
     verify(A, B, D, s)
 
@@ -83,7 +83,7 @@ def test_conv2d():
         b = tvm.nd.array(np.random.uniform(size=(co, kh, kw, ci)).astype(B.dtype), dev)
         c = tvm.nd.array(np.zeros((n, h // stride, w // stride, co), dtype=C.dtype), dev)
         f(a, b, c)
-        # print(c.asnumpy())
+        # print(c.numpy())
         # print(c.shape)
 
     verify(A, B, C, s1)

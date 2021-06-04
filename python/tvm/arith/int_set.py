@@ -79,3 +79,63 @@ class IntervalSet(IntSet):
 
     def __init__(self, min_value, max_value):
         self.__init_handle_by_constructor__(_ffi_api.IntervalSet, min_value, max_value)
+
+
+def estimate_region_lower_bound(region, var_dom, predicate):
+    """Analyze the region with affine map, given the domain of variables and their predicate
+
+    Parameters
+    ----------
+    region : List[Range]
+        The region to be analyzed.
+
+    var_dom : Dict[Var, Range]
+        The ranges of the variables
+
+    predicate : PrimExpr
+        The predicate for the affine map
+
+    Returns
+    ----------
+    region_int_set : Optional[List[IntSet]]
+        None if the detection fails, or an array of IntSets as the result of analysis
+    """
+    return _ffi_api.EstimateRegionLowerBound(region, var_dom, predicate)
+
+
+def pos_inf():
+    """Returns the symbolic positive infinity
+
+    Returns
+    ----------
+    pos_inf : Var
+        A symbolic var that indicates positive infinity
+    """
+    return _ffi_api.PosInf()
+
+
+def neg_inf():
+    """Returns the symbolic positive infinity
+
+    Returns
+    ----------
+    neg_inf : Var
+        A symbolic var that indicates positive infinity
+    """
+    return _ffi_api.NegInf()
+
+
+def union_lower_bound(sets):
+    """Create a lower-bound of union set, where some of the segments may be dropped
+
+    Parameters
+    ----------
+    sets : List[IntSet]
+        The sets to be combined
+
+    Returns
+    ----------
+    union_lower_bound : List[IntSet]
+        An N-dimensional integer set, the lower bound of the union
+    """
+    return _ffi_api.UnionLowerBound(sets)

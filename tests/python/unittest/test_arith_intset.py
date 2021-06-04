@@ -123,6 +123,106 @@ def test_select():
     ck.verify(tvm.tir.Select(x > 0, x - 1, x + 1), {x: tvm.arith.IntervalSet(0, 10)}, (-1, 11))
 
 
+def test_region_lower_bound_not_independent():
+    i = tvm.tir.Var("i", "int32")
+    result = tvm.arith.estimate_region_lower_bound(
+        region=[
+            tvm.ir.Range(begin=i, end=i + 2),
+            tvm.ir.Range(begin=i + 1, end=i + 4),
+        ],
+        var_dom={
+            i: tvm.ir.Range(begin=0, end=64),
+        },
+        predicate=tvm.tir.IntImm("bool", 1),
+    )
+    assert result is None
+
+
+def test_region_lower_bound_stride_too_wide():
+    i = tvm.tir.Var("i", "int32")
+    result = tvm.arith.estimate_region_lower_bound(
+        region=[
+            tvm.ir.Range(begin=i * 4, end=i * 4 + 2),
+        ],
+        var_dom={
+            i: tvm.ir.Range(begin=0, end=64),
+        },
+        predicate=tvm.tir.IntImm("bool", 1),
+    )
+    assert result is None
+
+
+def test_region_lower_bound_small_stride():
+    i = tvm.tir.Var("i", "int32")
+    (result,) = tvm.arith.estimate_region_lower_bound(
+        region=[
+            tvm.ir.Range.from_min_extent(min_value=i * 4, extent=8),
+        ],
+        var_dom={
+            i: tvm.ir.Range(begin=0, end=64),
+        },
+        predicate=tvm.tir.IntImm("bool", 1),
+    )
+    assert result.min_value.value == 0
+    assert result.max_value.value == 259
+
+
+def test_region_lower_bound_split_predicate():
+    x_o = tvm.tir.Var("xo", "int32")
+    x_i = tvm.tir.Var("xi", "int32")
+    x = x_o * 4 + x_i
+    (result,) = tvm.arith.estimate_region_lower_bound(
+        region=[
+            tvm.ir.Range.from_min_extent(min_value=x * 4, extent=8),
+        ],
+        var_dom={
+            x_o: tvm.ir.Range(begin=0, end=16),
+            x_i: tvm.ir.Range(begin=0, end=4),
+        },
+        predicate=x < 63,
+    )
+    assert result.min_value.value == 0
+    assert result.max_value.value == 255
+
+
+def test_region_lower_bound_multiple_variables():
+    div = tvm.tir.floordiv
+    mod = tvm.tir.floormod
+    x = tvm.tir.Var("x", "int32")
+    wid = tvm.tir.Var("wid", "int32")
+    i = div(x, 16)
+    j = div(mod(x, 16), 4) * 8 + mod(x, 4) + div(wid, 32) * 4
+    k = wid % 32
+    (i_int_set, j_int_set, k_int_set) = tvm.arith.estimate_region_lower_bound(
+        region=[
+            tvm.ir.Range.from_min_extent(min_value=i, extent=1),
+            tvm.ir.Range.from_min_extent(min_value=j, extent=1),
+            tvm.ir.Range.from_min_extent(min_value=k, extent=1),
+        ],
+        var_dom={
+            x: tvm.ir.Range(begin=0, end=32),
+            wid: tvm.ir.Range(begin=0, end=64),
+        },
+        predicate=tvm.tir.IntImm("bool", 1),
+    )
+    assert i_int_set.min_value.value == 0
+    assert i_int_set.max_value.value == 1
+    assert j_int_set.min_value.value == 0
+    assert j_int_set.max_value.value == 31
+    assert k_int_set.min_value.value == 0
+    assert k_int_set.max_value.value == 31
+
+
+def test_union_lower_bound():
+    neg_inf = tvm.arith.int_set.neg_inf()
+    pos_inf = tvm.arith.int_set.pos_inf()
+    set_0 = tvm.arith.IntervalSet(min_value=neg_inf, max_value=0)
+    set_1 = tvm.arith.IntervalSet(min_value=1, max_value=pos_inf)
+    result = tvm.arith.int_set.union_lower_bound([set_0, set_1])
+    assert result.min_value.same_as(neg_inf)
+    assert result.max_value.same_as(pos_inf)
+
+
 if __name__ == "__main__":
     test_basic()
     test_vector()
@@ -131,3 +231,9 @@ if __name__ == "__main__":
     test_max_min()
     test_select()
     test_mod()
+    test_region_lower_bound_not_independent()
+    test_region_lower_bound_stride_too_wide()
+    test_region_lower_bound_small_stride()
+    test_region_lower_bound_split_predicate()
+    test_region_lower_bound_multiple_variables()
+    test_union_lower_bound()

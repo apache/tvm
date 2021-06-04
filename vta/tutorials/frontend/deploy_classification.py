@@ -286,7 +286,7 @@ else:
 # Get classification results
 tvm_output = m.get_output(0, tvm.nd.empty((env.BATCH, 1000), "float32", remote.cpu(0)))
 for b in range(env.BATCH):
-    top_categories = np.argsort(tvm_output.asnumpy()[b])
+    top_categories = np.argsort(tvm_output.numpy()[b])
     # Report top-5 classification results
     print("\n{} prediction for sample {}".format(model, b))
     print("\t#1:", synset[top_categories[-1]])

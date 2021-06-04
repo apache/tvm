@@ -20,6 +20,7 @@ import pytest
 import tvm
 from tvm import te
 from tvm import topi
+from tvm import relay
 import tvm.topi.testing
 from tvm.contrib.nvcc import have_fp16
 
@@ -40,7 +41,7 @@ def verify_expand_dims(in_shape, out_shape, axis, num_newaxis):
         data_nd = tvm.nd.array(data_npy, dev)
         out_nd = tvm.nd.array(np.empty(out_shape).astype(B.dtype), dev)
         foo(data_nd, out_nd)
-        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy)
+        tvm.testing.assert_allclose(out_nd.numpy(), out_npy)
 
     for target, dev in tvm.testing.enabled_targets():
         check_device(target, dev)
@@ -63,7 +64,7 @@ def verify_reinterpret(in_shape, in_dtype, out_dtype, generator):
         data_nd = tvm.nd.array(data_npy, dev)
         out_nd = tvm.nd.array(np.empty(in_shape).astype(B.dtype), dev)
         foo(data_nd, out_nd)
-        np.testing.assert_equal(out_nd.asnumpy(), out_npy)
+        np.testing.assert_equal(out_nd.numpy(), out_npy)
 
     for target, dev in tvm.testing.enabled_targets():
         check_device(target, dev)
@@ -83,7 +84,7 @@ def verify_transpose(in_shape, axes):
         data_nd = tvm.nd.array(data_npy, dev)
         out_nd = tvm.nd.empty(out_npy.shape, device=dev, dtype=B.dtype)
         foo(data_nd, out_nd)
-        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy)
+        tvm.testing.assert_allclose(out_nd.numpy(), out_npy)
 
     for target, dev in tvm.testing.enabled_targets():
         check_device(target, dev)
@@ -103,7 +104,7 @@ def verify_reshape(src_shape, dst_shape):
         data_nd = tvm.nd.array(data_npy, dev)
         out_nd = tvm.nd.empty(dst_shape, device=dev, dtype=B.dtype)
         foo(data_nd, out_nd)
-        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy)
+        tvm.testing.assert_allclose(out_nd.numpy(), out_npy)
 
     for target, dev in tvm.testing.enabled_targets():
         check_device(target, dev)
@@ -125,7 +126,7 @@ def verify_squeeze(src_shape, axis):
         out_nd_shape = out_npy.shape
         out_nd = tvm.nd.empty(out_nd_shape, device=dev, dtype=B.dtype)
         foo(data_nd, out_nd)
-        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy)
+        tvm.testing.assert_allclose(out_nd.numpy(), out_npy)
 
     for target, dev in tvm.testing.enabled_targets():
         check_device(target, dev)
@@ -160,7 +161,7 @@ def verify_concatenate(shapes, axis):
         data_nds = [tvm.nd.array(data_npy, dev) for data_npy in data_npys]
         out_nd = tvm.nd.empty(out_npy.shape, device=dev, dtype=out_tensor.dtype)
         foo(*(data_nds + [out_nd]))
-        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy)
+        tvm.testing.assert_allclose(out_nd.numpy(), out_npy)
 
     for target, dev in tvm.testing.enabled_targets():
         check_device(target, dev)
@@ -183,7 +184,7 @@ def verify_stack(shapes, axis):
         data_nds = [tvm.nd.array(data_npy, dev) for data_npy in data_npys]
         out_nd = tvm.nd.empty(out_npy.shape, device=dev, dtype=out_tensor.dtype)
         foo(*(data_nds + [out_nd]))
-        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy)
+        tvm.testing.assert_allclose(out_nd.numpy(), out_npy)
 
     for target, dev in tvm.testing.enabled_targets():
         check_device(target, dev)
@@ -207,7 +208,7 @@ def verify_split(src_shape, indices_or_sections, axis):
         ]
         foo(*([data_nd] + out_nds))
         for out_nd, out_npy in zip(out_nds, out_npys):
-            tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy)
+            tvm.testing.assert_allclose(out_nd.numpy(), out_npy)
 
     for target, dev in tvm.testing.enabled_targets():
         check_device(target, dev)
@@ -239,7 +240,7 @@ def verify_expand_like(in_shape, out_shape, axis):
         tvm_shape_like = tvm.nd.array(np.zeros(out_shape).astype(B.dtype), dev)
         out = tvm.nd.array(np.zeros(out_shape).astype(A.dtype), dev)
         f(tvm_input, tvm_shape_like, out)
-        tvm.testing.assert_allclose(out.asnumpy(), input)
+        tvm.testing.assert_allclose(out.numpy(), input)
 
     for target in ["llvm"]:
         check_device(target)
@@ -264,7 +265,7 @@ def verify_flip(in_shape, axis):
         data_nd = tvm.nd.array(x_np, dev)
         out_nd = tvm.nd.empty(out_npy.shape, device=dev, dtype=A.dtype)
         foo(data_nd, out_nd)
-        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy)
+        tvm.testing.assert_allclose(out_nd.numpy(), out_npy)
 
     for target in ["llvm", "cuda", "opencl", "sdaccel", "aocl_sw_emu"]:
         check_device(target)
@@ -289,7 +290,7 @@ def test_reverse_sequence():
             seq_lengths_nd = tvm.nd.array(seq_lengths, dev)
             out_nd = tvm.nd.empty(in_data.shape, device=dev, dtype=A.dtype)
             foo(data_nd, seq_lengths_nd, out_nd)
-            tvm.testing.assert_allclose(out_nd.asnumpy(), ref_res)
+            tvm.testing.assert_allclose(out_nd.numpy(), ref_res)
 
         for target, dev in tvm.testing.enabled_targets():
             check_device(target, dev)
@@ -391,16 +392,18 @@ def verify_take(src_shape, indices_src, axis=None, mode="clip"):
         indices_nd = tvm.nd.array(indices_src, dev)
         out_nd = tvm.nd.empty(out_npys.shape, device=dev, dtype=src_dtype)
         foo(data_nd, indices_nd, out_nd)
-        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npys)
+        tvm.testing.assert_allclose(out_nd.numpy(), out_npys)
 
     for target in ["llvm", "opencl", "sdaccel", "aocl_sw_emu"]:
         check_device(target)
 
 
-def verify_strided_slice(in_shape, begin, end, strides=None):
+def verify_strided_slice(in_shape, begin, end, strides=None, axes=None):
     A = te.placeholder(shape=in_shape, name="A")
     strides = [1, 1, 1] if strides is None else strides
-    B = topi.strided_slice(A, begin, end, strides) + 1
+    if axes:
+        strides = [strides[axis] for axis in axes]
+    B = topi.strided_slice(A, begin, end, strides, axes) + 1
 
     def check_device(target):
         dev = tvm.device(target, 0)
@@ -413,11 +416,11 @@ def verify_strided_slice(in_shape, begin, end, strides=None):
 
         foo = tvm.build(s, [A, B], target, name="stride_slice")
         x_np = np.random.uniform(size=in_shape).astype(A.dtype)
-        out_npy = tvm.topi.testing.strided_slice_python(x_np, begin, end, strides) + 1
+        out_npy = tvm.topi.testing.strided_slice_python(x_np, begin, end, strides, axes=axes) + 1
         data_nd = tvm.nd.array(x_np, dev)
         out_nd = tvm.nd.empty(out_npy.shape, device=dev, dtype=A.dtype)
         foo(data_nd, out_nd)
-        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy)
+        tvm.testing.assert_allclose(out_nd.numpy(), out_npy)
 
     for target in ["llvm", "opencl", "sdaccel", "aocl_sw_emu"]:
         check_device(target)
@@ -449,7 +452,7 @@ def verify_dynamic_strided_slice(in_shape, begin, end, strides=None):
         end_nd = tvm.nd.array(np.array(end).astype("int64"), dev)
         strides_nd = tvm.nd.array(np.array(strides).astype("int64"), dev)
         foo(data_nd, begin_nd, end_nd, strides_nd, out_nd)
-        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy)
+        tvm.testing.assert_allclose(out_nd.numpy(), out_npy)
 
     for target in ["llvm", "opencl", "sdaccel", "aocl_sw_emu"]:
         check_device(target)
@@ -495,7 +498,7 @@ def verify_strided_set(in_shape, v_shape, begin, end, strides=None):
             foo(data_nd, v_nd, b_nd, e_nd, s_nd, out_nd)
         else:
             foo(data_nd, v_nd, b_nd, e_nd, out_nd)
-        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy)
+        tvm.testing.assert_allclose(out_nd.numpy(), out_npy)
 
     for target in ["llvm", "opencl", "sdaccel", "aocl_sw_emu"]:
         check_device(target)
@@ -521,7 +524,7 @@ def verify_gather(data, axis, indices):
         indices_nd = tvm.nd.array(indices, dev)
         out_nd = tvm.nd.empty(out_npys.shape, device=dev, dtype=data.dtype.name)
         func(data_nd, indices_nd, out_nd)
-        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npys)
+        tvm.testing.assert_allclose(out_nd.numpy(), out_npys)
 
     for target, dev in tvm.testing.enabled_targets():
         check_device(target, dev)
@@ -550,7 +553,7 @@ def verify_gather_nd(src_shape, indices_src, indices_dtype):
         indices_nd = tvm.nd.array(indices_src, dev)
         out_nd = tvm.nd.empty(out_npys.shape, device=dev, dtype=src_dtype)
         func(data_nd, indices_nd, out_nd)
-        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npys)
+        tvm.testing.assert_allclose(out_nd.numpy(), out_npys)
 
     for target, dev in tvm.testing.enabled_targets():
         check_device(target, dev)
@@ -577,7 +580,7 @@ def verify_arange(start, stop, step):
         f = tvm.build(s, [A], target, name="arange")
         a_nd = tvm.nd.empty(a_np.shape, dtype="float32", device=dev)
         f(a_nd)
-        tvm.testing.assert_allclose(a_nd.asnumpy(), a_np)
+        tvm.testing.assert_allclose(a_nd.numpy(), a_np)
 
     for target, dev in tvm.testing.enabled_targets():
         check_device(target, dev)
@@ -597,7 +600,7 @@ def verify_repeat(in_shape, repeats, axis):
         data_nd = tvm.nd.array(data_npy, dev)
         out_nd = tvm.nd.array(np.empty(out_npy.shape).astype(B.dtype), dev)
         foo(data_nd, out_nd)
-        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy)
+        tvm.testing.assert_allclose(out_nd.numpy(), out_npy)
 
     for target, dev in tvm.testing.enabled_targets():
         check_device(target, dev)
@@ -617,7 +620,7 @@ def verify_tile(in_shape, reps):
         data_nd = tvm.nd.array(data_npy, dev)
         out_nd = tvm.nd.array(np.empty(out_npy.shape).astype(B.dtype), dev)
         foo(data_nd, out_nd)
-        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy)
+        tvm.testing.assert_allclose(out_nd.numpy(), out_npy)
 
     for target, dev in tvm.testing.enabled_targets():
         check_device(target, dev)
@@ -644,7 +647,7 @@ def verify_where(in_shape):
         y_nd = tvm.nd.array(y_npy, dev)
         out_nd = tvm.nd.array(np.empty(out_npy.shape).astype(C.dtype), dev)
         f(cond_nd, x_nd, y_nd, out_nd)
-        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy)
+        tvm.testing.assert_allclose(out_nd.numpy(), out_npy)
 
     for target, dev in tvm.testing.enabled_targets():
         check_device(target, dev)
@@ -668,7 +671,7 @@ def verify_one_hot(indices_shape, depth, on_value, off_value, axis, dtype):
         indices_nd = tvm.nd.array(indices_npy, dev)
         out_nd = tvm.nd.array(np.empty(out_npy.shape).astype(one_hot_result.dtype), dev)
         fn(indices_nd, out_nd)
-        out_topi = out_nd.asnumpy()
+        out_topi = out_nd.numpy()
         tvm.testing.assert_allclose(out_topi, out_npy)
 
     for target, dev in tvm.testing.enabled_targets():
@@ -698,7 +701,7 @@ def verify_unravel_index(indices, shape, dtype):
         datay_nd = tvm.nd.array(y_data, dev)
         out_nd = tvm.nd.empty(dst_shape, device=dev, dtype=Z.dtype)
         foo(datax_nd, datay_nd, out_nd)
-        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy)
+        tvm.testing.assert_allclose(out_nd.numpy(), out_npy)
 
     for target, dev in tvm.testing.enabled_targets():
         check_device(target, dev)
@@ -741,7 +744,7 @@ def verify_sparse_to_dense(sparse_indices, sparse_values, default_value, output_
             default_value_nd = tvm.nd.array(default_value_data, dev)
             foo(sparse_indices_nd, sparse_values_nd, default_value_nd, out_nd)
 
-        tvm.testing.assert_allclose(out_nd.asnumpy(), np.array(xpected))
+        tvm.testing.assert_allclose(out_nd.numpy(), np.array(xpected))
 
     for target, dev in tvm.testing.enabled_targets():
         check_device(target, dev)
@@ -765,7 +768,7 @@ def verify_matrix_set_diag(input_shape, diagonal_shape, dtype, k=0, align="RIGHT
         diagonal_nd = tvm.nd.array(diagonal_npy, dev)
         out_nd = tvm.nd.array(np.empty(out_npy.shape).astype(matrix_set_diag_result.dtype), dev)
         fn(input_nd, diagonal_nd, out_nd)
-        out_topi = out_nd.asnumpy()
+        out_topi = out_nd.numpy()
         tvm.testing.assert_allclose(out_topi, out_npy)
 
     for target, dev in tvm.testing.enabled_targets():
@@ -802,7 +805,7 @@ def verify_adv_index(data_shape, index_shapes):
         nd_list.append(tvm.nd.empty(out.shape, device=dev, dtype=data.dtype))
 
         func(*nd_list)
-        tvm.testing.assert_allclose(nd_list[-1].asnumpy(), np.array(np_out))
+        tvm.testing.assert_allclose(nd_list[-1].numpy(), np.array(np_out))
 
     for target, dev in tvm.testing.enabled_targets():
         check_device(target, dev)
@@ -818,6 +821,7 @@ def test_strided_slice():
     verify_strided_slice((3, 4, 3), [1, 1, 0], [4, 4, 3])
     verify_strided_slice((3, 4, 3), [0, 2, 0], [1, 2, 3])
     verify_strided_slice((3, 4, 3), [0, 0, 0], [None, None, None])
+    verify_strided_slice((3, 4, 3), [0], [2], None, axes=[1])
 
 
 @tvm.testing.uses_gpu
@@ -870,6 +874,31 @@ def test_transpose():
     verify_transpose((3, 10), None)
 
 
+@tvm.testing.parametrize_targets("cuda", "rocm")
+def test_transpose_unfused_schedule(target, dev):
+    shape = (100, tvm.target.Target(target).thread_warp_size + 3)
+    x = relay.var("x", relay.TensorType(shape, "float32"))
+    f = relay.transpose(x)
+    ex = relay.create_executor(
+        kind="graph", mod=tvm.IRModule.from_expr(relay.Function([x], f)), device=dev, target=target
+    )
+    r = np.random.rand(*shape)
+    tvm.testing.assert_allclose(ex.evaluate()(r).asnumpy(), np.transpose(r))
+
+    # We want to make sure schedule does not fire here, but there is no way of
+    # inspecting which schedules were used.
+    x = relay.var("x", relay.TensorType(shape, "float32"))
+    y = relay.var("y", relay.TensorType(shape, "float32"))
+    f = relay.transpose(x + y)
+    ex = relay.create_executor(
+        kind="graph",
+        mod=tvm.IRModule.from_expr(relay.Function([x, y], f)),
+        device=dev,
+        target=target,
+    )
+    tvm.testing.assert_allclose(ex.evaluate()(r, r).asnumpy(), np.transpose(r + r))
+
+
 @tvm.testing.uses_gpu
 def test_reshape():
     verify_reshape((1, 2, 3, 4), (2, 3, 4))
@@ -905,7 +934,7 @@ def test_squeeze():
             a = tvm.nd.array(np.array((1, 2)).astype("float32"), device=dev)
             c = tvm.nd.empty((1,), dtype="float32", device=dev)
             func(a, c)
-            assert c.asnumpy()[0] == 2
+            assert c.numpy()[0] == 2
 
 
 @tvm.testing.uses_gpu
@@ -1048,7 +1077,7 @@ def test_layout_transform():
             s = tvm.topi.testing.get_injective_schedule(target)(B)
         f = tvm.build(s, [A, B], target, name="layout_transform")
         f(tvm_input, tvm_output)
-        tvm.testing.assert_allclose(tvm_output.asnumpy(), output)
+        tvm.testing.assert_allclose(tvm_output.numpy(), output)
 
     for backend, dev in tvm.testing.enabled_targets():
         check_device(backend, dev)
@@ -1072,7 +1101,7 @@ def test_shape():
             s = tvm.topi.testing.get_injective_schedule(target)(B)
         f = tvm.build(s, [A, B], target, name="shape")
         f(tvm_input, tvm_output)
-        tvm.testing.assert_allclose(tvm_output.asnumpy(), output)
+        tvm.testing.assert_allclose(tvm_output.numpy(), output)
 
     for backend, dev in tvm.testing.enabled_targets():
         check_device(backend, dev)
@@ -1101,7 +1130,7 @@ def test_sequence_mask():
                         s = tvm.topi.testing.get_injective_schedule(target)(C)
                     f = tvm.build(s, [A, B, C], target, name="SequenceMask")
                     f(tvm_A, tvm_B, tvm_C)
-                    tvm.testing.assert_allclose(tvm_C.asnumpy(), C_gt_data)
+                    tvm.testing.assert_allclose(tvm_C.numpy(), C_gt_data)
 
                 for backend, dev in tvm.testing.enabled_targets():
                     check_device(backend, dev)
@@ -1125,7 +1154,7 @@ def test_ndarray_size():
             s = tvm.topi.testing.get_injective_schedule(target)(B)
         f = tvm.build(s, [A, B], target, name="ndarray_size")
         f(tvm_input, tvm_output)
-        tvm.testing.assert_allclose(tvm_output.asnumpy(), output)
+        tvm.testing.assert_allclose(tvm_output.numpy(), output)
 
     for backend, dev in tvm.testing.enabled_targets():
         check_device(backend, dev)
