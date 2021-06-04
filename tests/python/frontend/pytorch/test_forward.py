@@ -165,12 +165,7 @@ def measure_latency(model, input_shapes, output_shapes, thresh, dryruns=40):
 
 
 def verify_model(
-    model_name,
-    input_data=[],
-    custom_convert_map={},
-    rtol=1e-5,
-    atol=1e-5,
-    expected_ops=[],
+    model_name, input_data=[], custom_convert_map={}, rtol=1e-5, atol=1e-5, expected_ops=[]
 ):
     """Assert that the output of a compiled model matches with that of its
     baseline."""
@@ -648,7 +643,9 @@ def test_forward_prelu():
     input_shape = [1, 3, 10, 10]
     input_data = torch.rand(input_shape).float()
     verify_model(torch.nn.PReLU(num_parameters=3).eval(), input_data=input_data)
+    # Test when input channel > 1 and num parameters = 1
     verify_model(torch.nn.PReLU(num_parameters=1).eval(), input_data=input_data)
+    # Test when input dims < 2
     verify_model(torch.nn.PReLU(num_parameters=1).eval(), input_data=torch.randn(2))
 
 
@@ -659,13 +656,9 @@ def test_forward_leakyrelu():
     input_data = torch.rand(input_shape).float()
     verify_model(torch.nn.LeakyReLU().eval(), input_data=input_data)
     verify_model(torch.nn.LeakyReLU(negative_slope=0.05).eval(), input_data=input_data)
+    verify_model(torch.nn.LeakyReLU(negative_slope=1.0, inplace=True).eval(), input_data=input_data)
     verify_model(
-        torch.nn.LeakyReLU(negative_slope=1.0, inplace=True).eval(),
-        input_data=input_data,
-    )
-    verify_model(
-        torch.nn.LeakyReLU(negative_slope=1.25, inplace=True).eval(),
-        input_data=input_data,
+        torch.nn.LeakyReLU(negative_slope=1.25, inplace=True).eval(), input_data=input_data
     )
 
 
@@ -773,10 +766,7 @@ def test_forward_maxpool2d():
         def forward(self, *args):
             # Makes kernel_size and strides a Relay expr to test converting back to int
             x_shape = args[0].shape
-            kernel_size = [
-                torch.tensor(x_shape[1]).int(),
-                torch.tensor(x_shape[1]).int(),
-            ]
+            kernel_size = [torch.tensor(x_shape[1]).int(), torch.tensor(x_shape[1]).int()]
             strides = [torch.tensor(x_shape[0]).int(), torch.tensor(x_shape[0]).int()]
             return torch.nn.functional.max_pool2d(args[0], kernel_size=[4, 4], stride=strides)
 
@@ -812,10 +802,7 @@ def test_forward_maxpool3d():
     verify_model(torch.nn.MaxPool3d(kernel_size=[1, 1, 1]).eval(), input_data)
     verify_model(torch.nn.MaxPool3d(kernel_size=[2, 2, 2], dilation=[1, 2, 3]).eval(), input_data)
     verify_model(torch.nn.MaxPool3d(kernel_size=[10, 10, 10]).eval(), input_data)
-    verify_model(
-        torch.nn.MaxPool3d(kernel_size=[4, 4, 4], padding=2, stride=2).eval(),
-        input_data,
-    )
+    verify_model(torch.nn.MaxPool3d(kernel_size=[4, 4, 4], padding=2, stride=2).eval(), input_data)
 
     # A functional variant (default strides = None case)
     class MaxPool3D(Module):
@@ -859,8 +846,7 @@ def test_forward_avgpool1d():
     verify_model(torch.nn.AvgPool1d(kernel_size=[10]).eval(), input_data=input_data)
     verify_model(AvgPool1D2().float().eval(), input_data=input_data)
     verify_model(
-        torch.nn.AvgPool1d(kernel_size=[5], stride=2, padding=2).eval(),
-        input_data=input_data,
+        torch.nn.AvgPool1d(kernel_size=[5], stride=2, padding=2).eval(), input_data=input_data
     )
 
 
@@ -877,8 +863,7 @@ def test_forward_avgpool2d():
     verify_model(torch.nn.AvgPool2d(kernel_size=[10, 10]).eval(), input_data=input_data)
     verify_model(AvgPool2D2().float().eval(), input_data=input_data)
     verify_model(
-        torch.nn.AvgPool2d(kernel_size=5, stride=2, padding=2).eval(),
-        input_data=input_data,
+        torch.nn.AvgPool2d(kernel_size=5, stride=2, padding=2).eval(), input_data=input_data
     )
 
 
@@ -895,8 +880,7 @@ def test_forward_avgpool3d():
     verify_model(torch.nn.AvgPool3d(kernel_size=[10, 10, 10]).eval(), input_data=input_data)
     verify_model(AvgPool3D1().float().eval(), input_data=input_data)
     verify_model(
-        torch.nn.AvgPool3d(kernel_size=5, stride=2, padding=2).eval(),
-        input_data=input_data,
+        torch.nn.AvgPool3d(kernel_size=5, stride=2, padding=2).eval(), input_data=input_data
     )
 
 
@@ -1154,10 +1138,7 @@ def test_forward_batchnorm():
     inp_2d = torch.rand((1, 16, 10, 10))
     inp_3d = torch.rand((1, 16, 10, 10, 10))
 
-    for bn, inp in [
-        (torch.nn.BatchNorm2d(16), inp_2d),
-        (torch.nn.BatchNorm3d(16), inp_3d),
-    ]:
+    for bn, inp in [(torch.nn.BatchNorm2d(16), inp_2d), (torch.nn.BatchNorm3d(16), inp_3d)]:
         init_weight(bn.eval())
         verify_model(bn.eval(), input_data=inp)
 
@@ -1934,8 +1915,7 @@ def test_forward_upsample3d():
     verify_model(torch.nn.Upsample(scale_factor=2, mode="nearest").eval(), inp)
     verify_model(torch.nn.Upsample(scale_factor=2, mode="trilinear").eval(), inp)
     verify_model(
-        torch.nn.Upsample(scale_factor=2, mode="trilinear", align_corners=True).eval(),
-        inp,
+        torch.nn.Upsample(scale_factor=2, mode="trilinear", align_corners=True).eval(), inp
     )
 
 
@@ -2029,8 +2009,7 @@ def test_conv3d_transpose():
             inp,
         ),
         verify_model(
-            torch.nn.ConvTranspose3d(in_channels=8, out_channels=20, kernel_size=1).eval(),
-            inp,
+            torch.nn.ConvTranspose3d(in_channels=8, out_channels=20, kernel_size=1).eval(), inp
         )
         verify_model(
             torch.nn.ConvTranspose3d(in_channels=8, out_channels=5, kernel_size=1, stride=2).eval(),
@@ -3291,16 +3270,10 @@ def test_forward_true_divide():
     divisor_tensor = torch.rand([5, 3]).float() + 0.5
     divisor_scalar = torch.tensor(1.0, dtype=torch.float32)
     verify_model(
-        TrueDivide().float().eval(),
-        input_data=[dividend, divisor_tensor],
-        atol=1e-4,
-        rtol=1e-4,
+        TrueDivide().float().eval(), input_data=[dividend, divisor_tensor], atol=1e-4, rtol=1e-4
     )
     verify_model(
-        TrueDivide().float().eval(),
-        input_data=[dividend, divisor_scalar],
-        atol=1e-4,
-        rtol=1e-4,
+        TrueDivide().float().eval(), input_data=[dividend, divisor_scalar], atol=1e-4, rtol=1e-4
     )
 
 
@@ -3402,38 +3375,24 @@ def test_forward_matmul():
     # matrix x matrix
     tensor1 = torch.randn(10, 4)
     tensor2 = torch.randn(4, 10)
-    verify_model(
-        MatMul1().float().eval(),
-        input_data=[tensor1, tensor2],
-        expected_ops=["nn.dense"],
-    )
+    verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.dense"])
 
     # batched matrix x batched matrix
     tensor1 = torch.randn(10, 3, 4)
     tensor2 = torch.randn(10, 4, 5)
     verify_model(
-        MatMul1().float().eval(),
-        input_data=[tensor1, tensor2],
-        expected_ops=["nn.batch_matmul"],
+        MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.batch_matmul"]
     )
 
     # batched matrix x broadcasted matrix
     tensor1 = torch.randn(10, 3, 4)
     tensor2 = torch.randn(4, 5)
-    verify_model(
-        MatMul1().float().eval(),
-        input_data=[tensor1, tensor2],
-        expected_ops=["nn.dense"],
-    )
+    verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.dense"])
 
     # broadcasted matrix x batched matrix
     tensor1 = torch.randn(10, 4)
     tensor2 = torch.randn(3, 4, 5)
-    verify_model(
-        MatMul1().float().eval(),
-        input_data=[tensor1, tensor2],
-        expected_ops=["nn.dense"],
-    )
+    verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.dense"])
 
     # batched matrix x batched matrix
     tensor1 = torch.randn(1, 12, 14, 64)
@@ -3692,10 +3651,7 @@ def test_forward_pretrained_bert_base_uncased():
 
     input_1 = "input_ids"
     input_2 = "input.2"
-    shape_list = [
-        (input_1, list(tokens_tensor.shape)),
-        (input_2, list(segments_tensors.shape)),
-    ]
+    shape_list = [(input_1, list(tokens_tensor.shape)), (input_2, list(segments_tensors.shape))]
 
     mod, params = relay.frontend.from_pytorch(scripted_model, shape_list)
 
@@ -3797,22 +3753,14 @@ def test_bincount():
 
 
 def test_hard_swish():
-    examples = [
-        torch.rand(8).float(),
-        torch.rand(8, 10).float(),
-        torch.rand(1, 1, 10).float(),
-    ]
+    examples = [torch.rand(8).float(), torch.rand(8, 10).float(), torch.rand(1, 1, 10).float()]
     for input in examples:
         verify_model(torch.nn.Hardswish().eval(), input_data=input)
         verify_model(torch.nn.Hardswish(inplace=True).eval(), input_data=input)
 
 
 def test_hard_sigmoid():
-    examples = [
-        torch.rand(8).float(),
-        torch.rand(8, 10).float(),
-        torch.rand(1, 1, 10).float(),
-    ]
+    examples = [torch.rand(8).float(), torch.rand(8, 10).float(), torch.rand(1, 1, 10).float()]
     for input in examples:
         verify_model(torch.nn.Hardsigmoid().eval(), input_data=input)
         verify_model(torch.nn.Hardsigmoid(inplace=True).eval(), input_data=input)
