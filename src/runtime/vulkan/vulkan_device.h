@@ -17,8 +17,8 @@
  * under the License.
  */
 
-#ifndef TVM_RUNTIME_VULKAN_VULKAN_CONTEXT_H_
-#define TVM_RUNTIME_VULKAN_VULKAN_CONTEXT_H_
+#ifndef TVM_RUNTIME_VULKAN_VULKAN_DEVICE_H_
+#define TVM_RUNTIME_VULKAN_VULKAN_DEVICE_H_
 
 #include <tvm/runtime/logging.h>
 #include <tvm/target/target.h>
@@ -33,6 +33,9 @@
 namespace tvm {
 namespace runtime {
 namespace vulkan {
+
+class VulkanInstance;
+class VulkanDevice;
 
 struct VulkanDescriptorTemplateKHRFunctions {
   explicit VulkanDescriptorTemplateKHRFunctions(VkDevice device);
@@ -59,9 +62,7 @@ struct VulkanGetBufferMemoryRequirements2Functions {
  */
 struct VulkanDeviceProperties {
   VulkanDeviceProperties() {}
-  VulkanDeviceProperties(VkInstance instance, VkPhysicalDevice phy_device,
-                         const std::vector<const char*> instance_extensions,
-                         const std::vector<const char*> device_extensions);
+  VulkanDeviceProperties(const VulkanInstance& instance, const VulkanDevice& device);
 
   bool supports_float16{false};
   bool supports_float32{true};
@@ -92,15 +93,72 @@ struct VulkanDeviceProperties {
   uint32_t max_spirv_version{0x10000};
 };
 
-struct VulkanContext {
-  // physical device
-  VkPhysicalDevice phy_device{nullptr};
+/*! \brief Handle to the Vulkan API's VkDevice
+ *
+ * Handles all setup and teardown of the class.  The owner of the
+ * VulkanDevice object is responsible for ensuring that it remains
+ * alive as long as any object that accesses that device is used.
+ */
+class VulkanDevice {
+ public:
+  VulkanDevice(const VulkanInstance& instance, VkPhysicalDevice phy_dev);
+  ~VulkanDevice();
+
+  // Allow move constructor/assignment
+  VulkanDevice(VulkanDevice&&);
+  VulkanDevice& operator=(VulkanDevice&&);
+
+  // Disable copy constructor/assignment
+  VulkanDevice(const VulkanDevice&) = delete;
+  VulkanDevice& operator=(const VulkanDevice&) = delete;
+
+  /*! \brief Expose the internal VkDevice
+   *
+   * Allows the managed class to be passed to Vulkan APIs as if it
+   * were the VkDevice handler itself.
+   */
+  operator VkDevice() const { return device_; }
+
+  /*! \brief Expose the internal VkPhysicalDevice
+   *
+   * Allows the managed class to be passed to Vulkan APIs as if it
+   * were the VkPhysicalDevice handler itself.
+   */
+  operator VkPhysicalDevice() const { return physical_device_; }
+
+  /*! \brief Returns whether this device supports Vulkan compute operations.
+   *
+   * If the device does not support Vulkan compute operations, it
+   * should not be used any further.
+   */
+  bool SupportsCompute() const;
+
+  /*! \brief Calls vkQueueSubmit to run work on the GPU
+   *
+   * Currently only supports submitting a single VkSubmitInfo at a
+   * time.  Handles mutexing internally, safe to call from multiple
+   * CPU threads.
+   *
+   * \param submit_info The job submission information to be passed to
+   * vkQueueSubmit.
+   *
+   * \param fence Optional fence to be passed to vkQueueSubmit,
+   * signals once the command buffers submitted have completed.
+   */
+  void QueueSubmit(VkSubmitInfo submit_info, VkFence fence) const;
+
+  /*! \brief Checks if the device has an extension enabled
+   *
+   * Returns true if the device was initialized with the extension
+   * given.
+   *
+   * \param query The name of the extension to check.
+   */
+  bool HasExtension(const char* query) const;
 
   // Cached device properties, queried through Vulkan API.
-  VulkanDeviceProperties device_properties;
+  VulkanDeviceProperties device_properties{};
 
-  // Phyiscal device property
-  VkPhysicalDeviceProperties phy_device_prop;
   // Memory type index for staging.
   uint32_t staging_mtype_index{0};
   // whether staging is coherent
@@ -111,31 +169,60 @@ struct VulkanContext {
       get_buffer_memory_requirements_2_functions{nullptr};
   // Memory type index for compute
   uint32_t compute_mtype_index{0};
-  // The logical device
-  VkDevice device{nullptr};
-  // command queue
 
-  std::unique_ptr<std::mutex> queue_mutex;
-  VkQueue queue{nullptr};
   // queue family_index;
-  uint32_t queue_family_index{0};
-  // Queue family index.
-  VkQueueFamilyProperties queue_prop;
+  uint32_t queue_family_index{uint32_t(-1)};
 
   bool UseImmediate() const { return descriptor_template_khr_functions != nullptr; }
+
+ private:
+  /*! \brief Helper function for move assignment/construction
+   *
+   * Named "do_swap" instead of "swap" because otherwise cpplint.py
+   * thinks that it needs the <utility> header include.
+   */
+  void do_swap(VulkanDevice&& other);
+
+  uint32_t SelectComputeQueueFamily() const;
+  std::vector<const char*> SelectEnabledExtensions() const;
+  void CreateVkDevice(const VulkanInstance& instance);
+
+  //! \brief Handle to the Vulkan API physical device
+  VkPhysicalDevice physical_device_{nullptr};
+
+  /*! \brief Extensions enabled for this device
+   *
+   * Based on supported extensions queried from physical_device_ prior
+   * to creating device_.  Contains only statically allocated string
+   * literals, no cleanup required.
+   */
+  std::vector<const char*> enabled_extensions;
+
+  //! \brief Handle to the Vulkan API logical device
+  VkDevice device_{nullptr};
+
+  //! \brief Mutex to protect access to queue
+  mutable std::mutex queue_mutex;
+
+  /*! \brief Handle to Vulkan API VkQueue.
+   *
+   * Work can be executed by submitted to this queue using
+   * VulkanDevice::SubmitQueue.
+   */
+  VkQueue queue{nullptr};
 };
 
-uint32_t FindMemoryType(const VulkanContext& vctx, VkBufferCreateInfo info,
+uint32_t FindMemoryType(const VulkanDevice& device, VkBufferCreateInfo info,
                         VkMemoryPropertyFlags req_prop);
 
-VkBufferCreateInfo MakeBufferCreateInfo(const VulkanContext& vctx, size_t nbytes,
+VkBufferCreateInfo MakeBufferCreateInfo(const VulkanDevice& device, size_t nbytes,
                                         VkBufferUsageFlags usage);
 
-VulkanBuffer* CreateBuffer(const VulkanContext& vctx, size_t nbytes, VkBufferUsageFlags usage,
+VulkanBuffer* CreateBuffer(const VulkanDevice& device, size_t nbytes, VkBufferUsageFlags usage,
                            uint32_t mem_type_index);
 
 }  // namespace vulkan
 }  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RUNTIME_VULKAN_VULKAN_CONTEXT_H_
+#endif  // TVM_RUNTIME_VULKAN_VULKAN_DEVICE_H_
