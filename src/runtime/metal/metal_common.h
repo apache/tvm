@@ -42,11 +42,42 @@
 
 #include "../workspace_pool.h"
 
+/* Macro for convenience in using AutoReleasePoolWrapper.
+ * With this macro we can add AutoReleasePoolWrapper to our ObjC code in more
+ * native way.
+ *
+ * For example, this is ObjC code with autoreleasepool:
+ *     @autoreleasepool {
+ *         // Some code
+ *     }
+ *
+ * To avoid possible memory leaks when an exception will be generated, we
+ * should update this code:
+ *     AUTORELEASEPOOL { // Replace @autoreleasepool -> AUTORELEASEPOOL
+ *         // Some code
+ *     }; // Add semicolon after close bracket
+ *
+ * In macro AUTORELEASEPOOL we get the instance of AutoReleasePoolWrapper and
+ * put a lambda function with code from autoreleasepool to the insertion
+ * operator of AutoReleasePoolWrapper class.
+ *
+ * Note: If you want to return a value from the autoreleasepool, you should
+ * declare the variable with result before AUTORELEASEPOOL macro. This variable
+ * will be captured by reference and you can use it in the code in autorelease
+ * pool. But you should write return statement after AUTORELEASEPOOL macro.
+ */
 #define AUTORELEASEPOOL tvm::runtime::metal::AutoReleasePoolWrapper::GetInstance() << [&]()
 
 namespace tvm {
 namespace runtime {
 namespace metal {
+/*!
+ * \brief Wrapper on autoreleasepool with exception handling
+ *
+ * \note In case when the exception was thrown from the autoreleasepool, the
+ * allocated resources won't be released in proper way. So, we handle exception
+ * in autoreleasepool and after the autoreleasepool we rethrow this exception.
+ */
 class AutoReleasePoolWrapper {
  public:
   static AutoReleasePoolWrapper& GetInstance();
