@@ -1484,7 +1484,7 @@ class EyeLike(OnnxOpConverter):
         in_dtype = in_checked_type.dtype
         in_shape = list(get_const_tuple(in_checked_type.shape))
         dtype = attr.get("dtype", None)
-        if dtype == None:
+        if dtype is None:
             dtype = in_dtype
         else:
             dtype = get_type(dtype)
