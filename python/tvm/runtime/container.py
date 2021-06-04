@@ -148,6 +148,7 @@ class ShapeTuple(Object):
     shape : list[int]
         The shape list used to construct the object.
     """
+
     def __init__(self, shape):
         for s in shape:
             assert isinstance(s, int), "Expect int type, but received : {0}".format(type(s))
@@ -156,9 +157,10 @@ class ShapeTuple(Object):
     def __getitem__(self, idx):
         return getitem_helper(self, _ffi_api.GetShapeTupleElem, len(self), idx)
 
-    @property
-    def ndim(self):
-        return _ffi_api.GetShapeTupleNdim(self)
-
     def __len__(self):
         return self.ndim
+
+    @property
+    def ndim(self):
+        """number of dimensions"""
+        return _ffi_api.GetShapeTupleNdim(self)
