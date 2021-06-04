@@ -193,7 +193,7 @@ class MetalWrappedFunc {
   }
   // invoke the function with void arguments
   void operator()(TVMArgs args, TVMRetValue* rv, const ArgUnion64* pack_args) const {
-    @autoreleasepool {
+    AUTORELEASEPOOL {
       metal::MetalThreadEntry* t = metal::MetalThreadEntry::ThreadLocal();
       int device_id = t->device.device_id;
       auto stream = static_cast<metal::Stream*>(t->stream[device_id]);
@@ -223,7 +223,7 @@ class MetalWrappedFunc {
       [encoder dispatchThreadgroups:dimGrid threadsPerThreadgroup:dimBlock];
       [encoder endEncoding];
       [cb commit];
-    }
+    };
   }
 
  private:
@@ -248,27 +248,33 @@ class MetalWrappedFunc {
 
 PackedFunc MetalModuleNode::GetFunction(const std::string& name,
                                         const ObjectPtr<Object>& sptr_to_self) {
-  @autoreleasepool {
+  PackedFunc pf;
+  AUTORELEASEPOOL {
     ICHECK_EQ(sptr_to_self.get(), this);
     ICHECK_NE(name, symbol::tvm_module_main) << "Device function do not have main";
     auto it = fmap_.find(name);
-    if (it == fmap_.end()) return PackedFunc();
+    if (it == fmap_.end()) {
+      pf = PackedFunc();
+      return;
+    }
     const FunctionInfo& info = it->second;
     MetalWrappedFunc f;
     size_t num_buffer_args = NumBufferArgs(info.arg_types);
     f.Init(this, sptr_to_self, name, num_buffer_args, info.arg_types.size() - num_buffer_args,
            info.thread_axis_tags);
-    return PackFuncNonBufferArg(f, info.arg_types);
-  }
+    pf = PackFuncNonBufferArg(f, info.arg_types);
+  };
+  return pf;
 }
 
 Module MetalModuleCreate(std::string data, std::string fmt,
                          std::unordered_map<std::string, FunctionInfo> fmap, std::string source) {
-  @autoreleasepool {
+  ObjectPtr<Object> n;
+  AUTORELEASEPOOL {
     metal::MetalWorkspace::Global()->Init();
-    auto n = make_object<MetalModuleNode>(data, fmt, fmap, source);
-    return Module(n);
-  }
+    n = make_object<MetalModuleNode>(data, fmt, fmap, source);
+  };
+  return Module(n);
 }
 
 // Load module from module.
