@@ -27,7 +27,7 @@ set -e
 set -o pipefail
 
 # Get number of cores for build
-if [[ -n "${TVM_CI_NUM_CORES}" ]]; then
+if [ -n "${TVM_CI_NUM_CORES}" ]; then
   num_cores=${TVM_CI_NUM_CORES}
 else
   num_cores=2
