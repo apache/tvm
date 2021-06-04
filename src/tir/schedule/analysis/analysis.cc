@@ -21,6 +21,146 @@
 namespace tvm {
 namespace tir {
 
+/******** Scope ********/
+
+Optional<StmtSRef> GetScopeRoot(const StmtSRef& sref) {
+  for (const StmtSRefNode* p = sref->parent; p != nullptr; p = p->parent) {
+    if (p->stmt->IsInstance<BlockNode>()) {
+      return GetRef<StmtSRef>(p);
+    }
+  }
+  return NullOpt;
+}
+
+StmtSRef GetScopeRootAndCheckStagePipeline(const ScheduleState& self, const StmtSRef& sref) {
+  class RootBlockError : public ScheduleError {
+   public:
+    explicit RootBlockError(IRModule mod) : mod_(mod) {}
+    IRModule mod() const final { return mod_; }
+    String FastErrorString() const final {
+      return "ScheduleError: The primitive does not operate on the root block";
+    }
+    String DetailRenderTemplate() const final {
+      return "The primitive does not operate on the root block";
+    }
+    Array<ObjectRef> LocationsOfInterest() const final { return {}; }
+    IRModule mod_;
+  };
+
+  class NotStagePipelineError : public ScheduleError {
+   public:
+    explicit NotStagePipelineError(IRModule mod, Block block) : mod_(mod), block_(block) {}
+    IRModule mod() const final { return mod_; }
+    String FastErrorString() const final {
+      return "ScheduleError: The scope root is not a stage pipeline";
+    }
+    String DetailRenderTemplate() const final {
+      return R"(The scope {0} is not a stage pipeline.
+Definition of a scope that is a stage pipeline:
+- The region cover property holds for every of its child blocks
+- No write-after-read dependency or opaque dependency,
+- only read-after-write and write-after-write are allowed
+- All the statements in the scope are schedulable statements, i.e. Block and For
+)";
+    }
+    Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
+    IRModule mod_;
+    Block block_;
+  };
+
+  StmtSRef scope_root_sref{nullptr};
+  if (Optional<StmtSRef> opt_scope_root_sref = GetScopeRoot(sref)) {
+    scope_root_sref = opt_scope_root_sref.value();
+  } else {
+    throw RootBlockError(self->mod);
+  }
+  bool stage_pipeline = self->GetBlockInfo(scope_root_sref).scope->stage_pipeline;
+  if (stage_pipeline == false) {
+    const BlockNode* block = TVM_SREF_TO_BLOCK(block, scope_root_sref);
+    throw NotStagePipelineError(self->mod, GetRef<Block>(block));
+  }
+  return scope_root_sref;
+}
+
+/*!
+ * \brief Check the dominant property of a block:
+ * the block is the only writer of its output, dominating the reader of its output buffers
+ * \param self The schedule state
+ * \param block_sref The block whose dominant property is to be checked
+ * \return A boolean indicating if the block is a dominant block
+ */
+bool IsDominantBlock(const BlockScope& self, const StmtSRef& block_sref) {
+  // Check whether the input block is the only writer of its outputs
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  const std::unordered_map<Buffer, Array<StmtSRef>, ObjectPtrHash, ObjectPtrEqual>& buffer_writers =
+      self->buffer_writers;
+  for (const BufferRegion& write_region : block->writes) {
+    ICHECK(buffer_writers.count(write_region->buffer))
+        << "InternalError: buffer \"" << write_region->buffer->name
+        << "\" does not exist in the current scope, when querying block:\n"
+        << GetRef<Block>(block);
+    if (buffer_writers.at(write_region->buffer).size() != 1) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool IsCompleteBlock(const ScheduleState& self, const StmtSRef& block_sref,
+                     const StmtSRef& scope_root) {
+  BlockScope scope = self->GetBlockScope(scope_root);
+  // Cond 1. All block vars are data parallel
+  const auto* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  for (const IterVar& iter_var : block->iter_vars) {
+    if (iter_var->iter_type != kDataPar) {
+      return false;
+    }
+  }
+  // Cond 2. Dominant: the block is the only writer of its output,
+  // dominating the reader of its output buffers
+  if (!IsDominantBlock(scope, block_sref)) {
+    return false;
+  }
+  // Cond 3. No overlap between the buffers the block reads and writes
+  std::unordered_set<const BufferNode*> written_buffers;
+  written_buffers.reserve(block->writes.size());
+  for (const BufferRegion& write : block->writes) {
+    written_buffers.insert(write->buffer.get());
+  }
+  for (const BufferRegion& read : block->reads) {
+    if (written_buffers.count(read->buffer.get())) {
+      return false;
+    }
+  }
+  return true;
+}
+
+void CheckCompleteBlock(const ScheduleState& self, const StmtSRef& block_sref,
+                        const StmtSRef& scope_root_sref) {
+  class IncompleteBlockError : public ScheduleError {
+   public:
+    explicit IncompleteBlockError(IRModule mod, Block block) : mod_(mod), block_(block) {}
+    String FastErrorString() const final { return "ScheduleError: Incomplete block"; }
+    String DetailRenderTemplate() const final {
+      return R"(The block {0} is not a complete block.
+Definition of a complete block:
+1) All block vars are data parallel
+2) Dominant: the block is the only writer of its output, dominating the reader of its output buffers
+3) No overlap between the buffers the block reads and writes)";
+    }
+    IRModule mod() const final { return mod_; }
+    Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
+    IRModule mod_;
+    Block block_;
+  };
+
+  bool result = IsCompleteBlock(self, block_sref, scope_root_sref);
+  if (result == false) {
+    const BlockNode* block = TVM_SREF_TO_BLOCK(block, scope_root_sref);
+    throw IncompleteBlockError(self->mod, GetRef<Block>(block));
+  }
+}
+
 /******** Binding ********/
 
 bool IsAffineBinding(const BlockRealize& realize, const Map<Var, Range>& loop_var_ranges,
