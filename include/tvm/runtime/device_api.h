@@ -257,8 +257,6 @@ inline const char* DeviceName(int type) {
       return "ext_dev";
     case kDLWebGPU:
       return "webgpu";
-    case kDLMicroDev:
-      return "micro_dev";
     case kDLHexagon:
       return "hexagon";
     default:
