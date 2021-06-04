@@ -20,7 +20,6 @@ import pytest
 
 import tvm
 from tvm import relay
-from tvm.relay.dataflow_pattern import *
 
 
 def test_fake_quantize_conv():
@@ -42,7 +41,7 @@ def test_fake_quantize_conv():
         x_np = np.random.randint(-128, 127, size=[1, 3, 224, 224], dtype="int8")
         w_np = np.random.randint(-128, 127, size=[16, 3, 5, 5], dtype="int8")
 
-        mod2 = tvm.relay.transform.QuantizeFakeQuantization()(mod)
+        mod2 = tvm.relay.transform.FakeQuantizationToInteger()(mod)
         assert not tvm.ir.structural_equal(mod, mod2)
         mod2 = tvm.relay.transform.FoldConstant()(mod2)
 
@@ -72,7 +71,7 @@ def test_fake_transpose_quantize_conv():
     x_np = np.random.randint(-128, 127, size=[1, 224, 224, 3], dtype="int8")
     w_np = np.random.randint(-128, 127, size=[16, 3, 5, 5], dtype="int8")
 
-    mod2 = tvm.relay.transform.QuantizeFakeQuantization()(mod)
+    mod2 = tvm.relay.transform.FakeQuantizationToInteger()(mod)
     assert not tvm.ir.structural_equal(mod, mod2)
     mod2 = tvm.relay.transform.FoldConstant()(mod2)
 
@@ -105,7 +104,7 @@ def test_fake_transpose_quantize_conv_bias_add():
     w_np = np.random.randint(-128, 127, size=[16, 3, 5, 5], dtype="int8")
     bias_np = np.random.randint(-32768, 32767, size=[16], dtype="int32")
 
-    mod2 = tvm.relay.transform.QuantizeFakeQuantization()(mod)
+    mod2 = tvm.relay.transform.FakeQuantizationToInteger()(mod)
     assert not tvm.ir.structural_equal(mod, mod2)
     mod2 = tvm.relay.transform.FoldConstant()(mod2)
 
@@ -131,7 +130,7 @@ def test_fake_quantize_maxpool():
 
     x_np = np.random.randint(-128, 127, size=[1, 3, 224, 224], dtype="int8")
 
-    mod2 = tvm.relay.transform.QuantizeFakeQuantization()(mod)
+    mod2 = tvm.relay.transform.FakeQuantizationToInteger()(mod)
     assert not tvm.ir.structural_equal(mod, mod2)
     mod2 = tvm.relay.transform.FoldConstant()(mod2)
 
@@ -157,7 +156,7 @@ def test_fake_quantize_avgpool():
 
     x_np = np.random.randint(-128, 127, size=[1, 3, 224, 224], dtype="int8")
 
-    mod2 = tvm.relay.transform.QuantizeFakeQuantization()(mod)
+    mod2 = tvm.relay.transform.FakeQuantizationToInteger()(mod)
     assert not tvm.ir.structural_equal(mod, mod2)
     mod2 = tvm.relay.transform.FoldConstant()(mod2)
 
@@ -183,7 +182,7 @@ def test_fake_quantize_reshape():
 
     x_np = np.random.randint(-128, 127, size=[1, 3, 224, 224], dtype="int8")
 
-    mod2 = tvm.relay.transform.QuantizeFakeQuantization()(mod)
+    mod2 = tvm.relay.transform.FakeQuantizationToInteger()(mod)
     assert not tvm.ir.structural_equal(mod, mod2)
     mod2 = tvm.relay.transform.FoldConstant()(mod2)
 
@@ -210,7 +209,7 @@ def test_fake_quantize_transpose_reshape():
 
     x_np = np.random.randint(-128, 127, size=[1, 3, 224, 224], dtype="int8")
 
-    mod2 = tvm.relay.transform.QuantizeFakeQuantization()(mod)
+    mod2 = tvm.relay.transform.FakeQuantizationToInteger()(mod)
     assert not tvm.ir.structural_equal(mod, mod2)
     mod2 = tvm.relay.transform.FoldConstant()(mod2)
 
@@ -242,7 +241,7 @@ def test_fake_quantize_concat():
     for i in range(4):
         inputs_np.append(np.random.randint(-128, 127, size=[1, 4], dtype="int8"))
 
-    mod2 = tvm.relay.transform.QuantizeFakeQuantization()(mod)
+    mod2 = tvm.relay.transform.FakeQuantizationToInteger()(mod)
     assert not tvm.ir.structural_equal(mod, mod2)
     mod2 = tvm.relay.transform.FoldConstant()(mod2)
 
@@ -267,7 +266,7 @@ def test_fake_quantize_clip():
 
     x_np = np.random.randint(0, 255, size=[1, 3, 224, 224], dtype="uint8")
 
-    mod2 = tvm.relay.transform.QuantizeFakeQuantization()(mod)
+    mod2 = tvm.relay.transform.FakeQuantizationToInteger()(mod)
     assert not tvm.ir.structural_equal(mod, mod2)
     mod2 = tvm.relay.transform.FoldConstant()(mod2)
 

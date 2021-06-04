@@ -17,7 +17,7 @@
 """Relay functions for rewriting fake quantized ops."""
 import tvm
 from tvm import relay
-from ..op import register_quantize_fake_quantization
+from ..op import register_fake_quantization_to_integer
 
 
 def fold_constant(expr):
@@ -26,16 +26,16 @@ def fold_constant(expr):
     return mod["main"].body
 
 
-@register_quantize_fake_quantization("qnn.dequantize")
-def dequantize_qfq(expr, type_map):
+@register_fake_quantization_to_integer("qnn.dequantize")
+def dequantize(expr, type_map):
     """Remove dequantize op"""
     out = expr.args[0]
     t = type_map[expr]
     return [out, t.scale, t.zero_point, t.dtype]
 
 
-@register_quantize_fake_quantization("qnn.quantize")
-def quantize_qfq(expr, type_map):
+@register_fake_quantization_to_integer("qnn.quantize")
+def quantize(expr, type_map):
     """Turn a quantize op into requantize or remove it"""
     out = expr.args[0]
     t = type_map[out]
@@ -57,23 +57,24 @@ def quantize_qfq(expr, type_map):
     return [out, expr.args[1], expr.args[2], expr.attrs.out_dtype]
 
 
-def register_qfq_identity(op_name, op):
+def register_unary_identity(op_name, op):
     def identity(expr, type_map):
+        assert len(expr.args) == 1
         arg = expr.args[0]
         t = type_map[arg]
         out = op(arg, **expr.attrs)
         return [out, t.scale, t.zero_point, t.dtype]
 
-    return register_quantize_fake_quantization(op_name, identity)
+    return register_fake_quantization_to_integer(op_name, identity)
 
 
-register_qfq_identity("reshape", relay.op.reshape)
-register_qfq_identity("transpose", relay.op.transpose)
-register_qfq_identity("nn.max_pool2d", relay.op.nn.max_pool2d)
+register_unary_identity("reshape", relay.op.reshape)
+register_unary_identity("transpose", relay.op.transpose)
+register_unary_identity("nn.max_pool2d", relay.op.nn.max_pool2d)
 
 
-@register_quantize_fake_quantization("nn.avg_pool2d")
-def avgpool_qfq(expr, type_map):
+@register_fake_quantization_to_integer("nn.avg_pool2d")
+def avgpool2d(expr, type_map):
     """Rewrite a avgpool op"""
     arg = expr.args[0]
     t = type_map[arg]
@@ -83,8 +84,8 @@ def avgpool_qfq(expr, type_map):
     return [out, t.scale, t.zero_point, t.dtype]
 
 
-@register_quantize_fake_quantization("nn.bias_add")
-def bias_add_qfq(expr, type_map):
+@register_fake_quantization_to_integer("nn.bias_add")
+def bias_add(expr, type_map):
     """Rewrite a bias_add op"""
     x, b = expr.args
     x_t = type_map[x]
@@ -104,8 +105,8 @@ def bias_add_qfq(expr, type_map):
     return [out, x_t.scale, x_t.zero_point, x_t.dtype]
 
 
-@register_quantize_fake_quantization("nn.conv2d")
-def conv2d_qfq(expr, type_map):
+@register_fake_quantization_to_integer("nn.conv2d")
+def conv2d(expr, type_map):
     """Rewrite a conv2d op"""
     attrs = {**expr.attrs}
     attrs.pop("out_dtype")
@@ -120,8 +121,8 @@ def conv2d_qfq(expr, type_map):
     return [out, conv_scale, conv_zp, out.attrs.out_dtype]
 
 
-@register_quantize_fake_quantization("concatenate")
-def concat_qfq(expr, type_map):
+@register_fake_quantization_to_integer("concatenate")
+def concat(expr, type_map):
     """Rewrite a concat op"""
     scales = []
     zps = []
@@ -143,8 +144,8 @@ def concat_qfq(expr, type_map):
     return [out, out_type.scale, out_type.zero_point, out_type.dtype]
 
 
-@register_quantize_fake_quantization("clip")
-def clip_qfq(expr, type_map):
+@register_fake_quantization_to_integer("clip")
+def clip(expr, type_map):
     """Rewrite a clip op"""
     arg = expr.args[0]
     t = type_map[arg]

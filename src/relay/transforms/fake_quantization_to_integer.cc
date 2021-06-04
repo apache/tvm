@@ -27,7 +27,7 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
 
-/* Description of QuantizeFakeQuantization
+/* Description of FakeQuantizationToInteger
  *
  * The purpose of this pass is to find regions of the graph that follow
  * the general pattern:
@@ -54,7 +54,7 @@
  * types of the inputs for later processing
  *
  * The third pass is an ExprMutator that recursively rewrites the subgraphs using packed funcs
- * registered with the FTVMQuantizeFakeQuantization attribute. These packed funcs rewrite
+ * registered with the FTVMFakeQuantizationToInteger attribute. These packed funcs rewrite
  * the ops based on the affine types of their inputs and then return the affine types of the
  * new rewriten ops to pass that information down the stack during rewrite.
  *
@@ -125,7 +125,7 @@ using ExprSet = std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual>;
 using ExprMap = std::unordered_map<Expr, Expr, ObjectPtrHash, ObjectPtrEqual>;
 using AffineTypeMap = Map<Expr, AffineType>;
 
-using FTVMQuantizeFakeQuantization =
+using FTVMFakeQuantizationToInteger =
     runtime::TypedPackedFunc<Array<ObjectRef>(const Expr& expr, const AffineTypeMap& map)>;
 
 class SubgraphExtractor : public ExprVisitor {
@@ -193,7 +193,8 @@ class SubgraphMutator : public ExprMutator {
     ICHECK(quantize_node);
     ICHECK(quantize_node->op == quantize_op_);
     out_type_ = affine_types_[expr];
-    static auto fqfq = Op::GetAttrMap<FTVMQuantizeFakeQuantization>("FTVMQuantizeFakeQuantization");
+    static auto fqfq =
+        Op::GetAttrMap<FTVMFakeQuantizationToInteger>("FTVMFakeQuantizationToInteger");
     for (auto node : subgraph_) {
       if (!fqfq.count(Downcast<Op>(node.as<CallNode>()->op))) {
         // Only modify the subgraph if we have translation
@@ -208,7 +209,8 @@ class SubgraphMutator : public ExprMutator {
   Expr VisitExpr_(const CallNode* call_node) {
     Expr out;
 
-    static auto fqfq = Op::GetAttrMap<FTVMQuantizeFakeQuantization>("FTVMQuantizeFakeQuantization");
+    static auto fqfq =
+        Op::GetAttrMap<FTVMFakeQuantizationToInteger>("FTVMFakeQuantizationToInteger");
     Op op = Downcast<Op>(call_node->op);
     if (fqfq.count(op)) {
       Expr expr;
@@ -224,7 +226,7 @@ class SubgraphMutator : public ExprMutator {
       Array<ObjectRef> vals = fqfq[op](expr, affine_types_);
       // Save teh outputs of the rewrite
       ICHECK(vals.size() == 4)
-          << "got the wrong number of returned arguments from FTWMQuantizeFakeQuantization for "
+          << "got the wrong number of returned arguments from FTVMFakeQuantizationToInteger for "
           << AsText(op, false);
       out = Downcast<Expr>(vals[0]);
       affine_types_.Set(out, AffineType(Downcast<Expr>(vals[1]), Downcast<Expr>(vals[2]),
@@ -274,22 +276,22 @@ class FakeQuantizationRewriter : public MixedModeMutator {
   const Op quantize_op_ = Op::Get("qnn.quantize");
 };
 
-Expr QuantizeFakeQuantization(const Expr& expr, const IRModule& mod) {
+Expr FakeQuantizationToInteger(const Expr& expr, const IRModule& mod) {
   return FakeQuantizationRewriter().Mutate(expr);
 }
 
 namespace transform {
 
-Pass QuantizeFakeQuantization() {
+Pass FakeQuantizationToInteger() {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
-        return Downcast<Function>(QuantizeFakeQuantization(f, m));
+        return Downcast<Function>(FakeQuantizationToInteger(f, m));
       };
-  return CreateFunctionPass(pass_func, 0, "QuantizeFakeQuantization", {"InferType"});
+  return CreateFunctionPass(pass_func, 0, "FakeQuantizationToInteger", {"InferType"});
 }
 
-TVM_REGISTER_GLOBAL("relay._transform.QuantizeFakeQuantization")
-    .set_body_typed(QuantizeFakeQuantization);
+TVM_REGISTER_GLOBAL("relay._transform.FakeQuantizationToInteger")
+    .set_body_typed(FakeQuantizationToInteger);
 
 }  // namespace transform
 

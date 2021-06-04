@@ -1173,7 +1173,7 @@ def AnnotateSpans():
     return _ffi_api.AnnotateSpans()
 
 
-def QuantizeFakeQuantization():
+def FakeQuantizationToInteger():
     # pylint: disable=anomalous-backslash-in-string
     """
     Find regions of the graph of the form
@@ -1191,11 +1191,11 @@ def QuantizeFakeQuantization():
     where q == qnn.quantize and dq = qnn.dequantize
     and rewrite them into integer versions of op1 and op2
 
-    Rules for rewriting indivdual ops are in quantize_fake_quantization.py
+    Rules for rewriting indivdual ops are in fake_quantization_to_integer.py
 
     Returns
     -------
     ret : tvm.transform.Pass
         The registered SimplifyExpr pass.
     """
-    return _ffi_api.QuantizeFakeQuantization()
+    return _ffi_api.FakeQuantizationToInteger()
