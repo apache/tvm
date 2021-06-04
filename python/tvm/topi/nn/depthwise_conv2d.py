@@ -51,7 +51,7 @@ Workload = namedtuple(
 
 
 def _get_workload(data, kernel, stride, padding, dilation, out_dtype):
-    """ Get the workload structure. """
+    """Get the workload structure."""
     _, in_channel, height, width = [x.value for x in data.shape]
     channel, channel_multiplier, kh, kw = [x.value for x in kernel.shape]
     out_channel = channel * channel_multiplier

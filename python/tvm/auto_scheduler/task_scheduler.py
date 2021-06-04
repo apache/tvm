@@ -540,7 +540,7 @@ class TaskScheduler:
 
 
 class TaskSchedulerCallback:
-    """The base class of task scheduler callback functions. """
+    """The base class of task scheduler callback functions."""
 
     def pre_tune(self, task_scheduler, task_id):
         """The callback before tuning each task.
