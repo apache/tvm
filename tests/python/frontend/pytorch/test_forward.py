@@ -642,7 +642,6 @@ def test_forward_prelu():
     torch.set_grad_enabled(False)
     input_shape = [1, 3, 10, 10]
     input_data = torch.rand(input_shape).float()
-    
     verify_model(torch.nn.PReLU(num_parameters=3).eval(), input_data=input_data)
     # Test when input_channel > 1 and num_parameters = 1 
     verify_model(torch.nn.PReLU(num_parameters=1).eval(), input_data=input_data)
