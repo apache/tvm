@@ -245,14 +245,14 @@ class OpRegEntry {
           type_rel_func);
   /*!
    * \brief Set the attrs type key and index to be AttrsType.
-   * \tparam AttrsType the attribute type to b set.
+   * \param AttrsType the attribute type to b set.
    * \return reference to self.
    */
   template <typename AttrsType>
   inline OpRegEntry& set_attrs_type();
   /*!
    * \brief Set the attrs type key and index to be AttrsType.
-   * \tparam key The attribute type key to be set.
+   * \param key The attribute type key to be set.
    * \return reference to self.
    */
   inline OpRegEntry& set_attrs_type_key(const String& key);
