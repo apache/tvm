@@ -252,11 +252,7 @@ class VulkanDevice {
 uint32_t FindMemoryType(const VulkanDevice& device, VkBufferCreateInfo info,
                         VkMemoryPropertyFlags req_prop);
 
-VkBufferCreateInfo MakeBufferCreateInfo(const VulkanDevice& device, size_t nbytes,
-                                        VkBufferUsageFlags usage);
-
-VulkanBuffer* CreateBuffer(const VulkanDevice& device, size_t nbytes, VkBufferUsageFlags usage,
-                           uint32_t mem_type_index);
+VkBufferCreateInfo MakeBufferCreateInfo(size_t nbytes, VkBufferUsageFlags usage);
 
 }  // namespace vulkan
 }  // namespace runtime

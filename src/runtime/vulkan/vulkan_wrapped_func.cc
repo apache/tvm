@@ -68,7 +68,7 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
     auto ubo = VulkanThreadEntry::ThreadLocal()->GetUniformBuffer(device_id, nbytes_scalars);
     CHECK(ubo->host_addr) << "The UBO host buffer is not allocated";
     VkDescriptorBufferInfo binfo;
-    binfo.buffer = ubo->vk_buf->buffer;
+    binfo.buffer = ubo->vk_buf.buffer;
     binfo.offset = 0;
     binfo.range = VK_WHOLE_SIZE;
     descriptor_buffers.push_back(binfo);

@@ -225,7 +225,7 @@ void* VulkanDeviceAPI::AllocDataSpace(Device dev, size_t nbytes, size_t alignmen
   const auto& device = this->device(dev.device_id);
   auto usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT |
                VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
-  return CreateBuffer(device, nbytes, usage, device.compute_mtype_index);
+  return new VulkanBuffer(device, nbytes, usage, device.compute_mtype_index);
 }
 
 void VulkanDeviceAPI::FreeDataSpace(Device dev, void* ptr) {
@@ -233,10 +233,7 @@ void VulkanDeviceAPI::FreeDataSpace(Device dev, void* ptr) {
   // finish all the vulkan commands that reference the buffer.
   StreamSync(dev, nullptr);
 
-  const auto& device = this->device(dev.device_id);
   auto* pbuf = static_cast<VulkanBuffer*>(ptr);
-  vkDestroyBuffer(device, pbuf->buffer, nullptr);
-  vkFreeMemory(device, pbuf->memory, nullptr);
   delete pbuf;
 }
 
@@ -318,7 +315,7 @@ void VulkanDeviceAPI::CopyDataFromTo(const void* from, size_t from_offset, void*
       copy_info.srcOffset = from_offset;
       copy_info.dstOffset = 0;
       copy_info.size = size;
-      vkCmdCopyBuffer(state->cmd_buffer_, from_buf->buffer, staging_buffer->vk_buf->buffer, 1,
+      vkCmdCopyBuffer(state->cmd_buffer_, from_buf->buffer, staging_buffer->vk_buf.buffer, 1,
                       &copy_info);
     });
     stream.Synchronize();
@@ -326,7 +323,7 @@ void VulkanDeviceAPI::CopyDataFromTo(const void* from, size_t from_offset, void*
       VkMappedMemoryRange mrange;
       mrange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
       mrange.pNext = nullptr;
-      mrange.memory = staging_buffer->vk_buf->memory;
+      mrange.memory = staging_buffer->vk_buf.memory;
       mrange.offset = 0;
       mrange.size = VK_WHOLE_SIZE;  // size;
       VULKAN_CALL(vkInvalidateMappedMemoryRanges(device, 1, &mrange));
@@ -345,7 +342,7 @@ void VulkanDeviceAPI::CopyDataFromTo(const void* from, size_t from_offset, void*
       VkMappedMemoryRange mrange;
       mrange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
       mrange.pNext = nullptr;
-      mrange.memory = temp->vk_buf->memory;
+      mrange.memory = temp->vk_buf.memory;
       mrange.offset = 0;
       mrange.size = VK_WHOLE_SIZE;  // size;
       VULKAN_CALL(vkFlushMappedMemoryRanges(device, 1, &mrange));
@@ -366,7 +363,7 @@ void VulkanDeviceAPI::CopyDataFromTo(const void* from, size_t from_offset, void*
       copy_info.srcOffset = 0;
       copy_info.dstOffset = to_offset;
       copy_info.size = size;
-      vkCmdCopyBuffer(state->cmd_buffer_, temp->vk_buf->buffer, to_buf->buffer, 1, &copy_info);
+      vkCmdCopyBuffer(state->cmd_buffer_, temp->vk_buf.buffer, to_buf->buffer, 1, &copy_info);
     });
     // TODO(tulloch): should we instead make the staging buffer a property of the
     // Stream? This would allow us to elide synchronizations here.

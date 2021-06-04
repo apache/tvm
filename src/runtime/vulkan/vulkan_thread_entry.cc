@@ -34,9 +34,6 @@ VulkanThreadEntry::~VulkanThreadEntry() {
   // to ensure the destruction order.
 
   pool.reset();
-  for (const auto& kv : staging_buffers_) {
-    DeleteHostVisibleBuffer(kv.second.get());
-  }
 }
 
 VulkanThreadEntry* VulkanThreadEntry::ThreadLocal() { return VulkanThreadStore::Get(); }
@@ -44,7 +41,7 @@ VulkanThreadEntry* VulkanThreadEntry::ThreadLocal() { return VulkanThreadStore::
 void VulkanThreadEntry::AllocateUniformBuffer(int device_id, size_t size) {
   const auto& device = VulkanDeviceAPI::Global()->device(device_id);
   auto prop = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-  auto info = MakeBufferCreateInfo(device, size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+  auto info = MakeBufferCreateInfo(size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
   auto mem_type_index = FindMemoryType(device, info, prop);
   GetOrAllocate(device_id, size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, mem_type_index,
                 &uniform_buffers_, true);
