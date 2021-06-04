@@ -41,7 +41,7 @@ reg.register_pattern("copy", OpPattern.INJECTIVE, level=15)
 
 # add clip vta strategy
 def compute_clip_vta(attrs, inputs, output_type):
-    """ Clip operator. """
+    """Clip operator."""
     x = inputs[0]
     a_min = attrs.a_min
     a_max = attrs.a_max

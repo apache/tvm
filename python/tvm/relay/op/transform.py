@@ -867,7 +867,7 @@ def split(data, indices_or_sections, axis=0):
     return TupleWrapper(_make.split(data, indices_or_sections, axis), ret_size)
 
 
-def strided_slice(data, begin, end, strides=None, slice_mode="end"):
+def strided_slice(data, begin, end, strides=None, axes=None, slice_mode="end"):
     """Strided slice of an array.
 
     Parameters
@@ -884,6 +884,12 @@ def strided_slice(data, begin, end, strides=None, slice_mode="end"):
     strides : relay.Expr, Tuple[int], or List[int], optional
         Specifies the stride values, it can be negative in that case,
         the input tensor will be reversed in that particular axis.
+
+    axes : Tuple[int] or List[int], optional
+        Axes along which slicing is applied. When it is specified, the length of begin, end,
+        strides, and axes must be equal. Moreover, begin, end, strides, and axes must be
+        static (cannot be relay.Expr). Axes argument for dynamic parameter slicing is
+        not supported yet.
 
     slice_mode : str, optional
         The slice mode [end, size].
@@ -916,8 +922,10 @@ def strided_slice(data, begin, end, strides=None, slice_mode="end"):
         ishape_slice = slice_like(ishape, begin)
         begin = _make.where(begin < cast_like(const(0), begin), begin + ishape_slice, begin)
         begin = _make.where(begin >= ishape_slice, ishape_slice, begin)
+        # TODO(masahi): Support axes argument in dynamic strided slice
+        assert axes is None, "Axes argument for dynamic parameter slicing is not supported yet."
         return _dyn_make.strided_slice(data, begin, end, strides, slice_mode)
-    return _make.strided_slice(data, begin, end, strides, slice_mode)
+    return _make.strided_slice(data, begin, end, strides, slice_mode, axes)
 
 
 def strided_set(data, v, begin, end, strides=None):
@@ -1072,7 +1080,7 @@ def gather(data, axis, indices):
     return _make.gather(data, axis, indices)
 
 
-def gather_nd(data, indices, batch_dims=0):
+def gather_nd(data, indices, batch_dims=0, index_rank=None):
     """Gather elements or slices from data and store to a tensor whose shape is
     defined by indices.
 
@@ -1086,6 +1094,10 @@ def gather_nd(data, indices, batch_dims=0):
 
     batch_dims : int
         The number of batch dimensions.
+
+    index_rank : int, optional
+        The size of an indexing tuple, which is a fixed value and the same as indices.shape[0]
+        Only needed when other dimensions of indices are dynamic.
 
     Returns
     -------
@@ -1108,7 +1120,7 @@ def gather_nd(data, indices, batch_dims=0):
         indices = [[1, 0]]
         relay.gather_nd(data, indices, batch_dims=1) = [[2,3],[4,5]]
     """
-    return _make.gather_nd(data, indices, batch_dims)
+    return _make.gather_nd(data, indices, batch_dims, index_rank)
 
 
 def sequence_mask(data, valid_length, mask_value=0, axis=0):
@@ -1654,7 +1666,7 @@ def unique(data, is_sorted=True, return_counts=False):
     data : relay.Expr
         A 1-D tensor of integers.
 
-    sorted : bool
+    is_sorted : bool
         Whether to sort the unique elements in ascending order before returning as output.
 
     return_counts : bool
@@ -1662,11 +1674,15 @@ def unique(data, is_sorted=True, return_counts=False):
 
     Returns
     -------
-    output : relay.Expr
+    unique : relay.Expr
         A 1-D tensor containing the unique elements of the input data tensor.
 
     indices : relay.Expr
         A 1-D tensor containing the index of each data element in the output tensor.
+
+    inverse_indices : relay.Expr
+        A 1-D tensor. For each entry in data, it contains the index of that data element in the
+        unique array.
 
     num_unique : relay.Expr
         A 1-D tensor with size=1 containing the number of unique elements in the input data tensor.
@@ -1694,5 +1710,5 @@ def unique(data, is_sorted=True, return_counts=False):
         num_unique     =  [5]
     """
     if return_counts:
-        return TupleWrapper(_make.unique(data, is_sorted, return_counts), 4)
-    return TupleWrapper(_make.unique(data, is_sorted, return_counts), 3)
+        return TupleWrapper(_make.unique(data, is_sorted, return_counts), 5)
+    return TupleWrapper(_make.unique(data, is_sorted, return_counts), 4)

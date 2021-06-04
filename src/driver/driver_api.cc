@@ -200,8 +200,15 @@ std::pair<IRModule, IRModule> SplitDevHostFuncs(IRModule mod_mixed, const Target
   mixed_pass_list.push_back(tir::transform::ThreadSync("warp"));
   mixed_pass_list.push_back(tir::transform::InferFragment());
   mixed_pass_list.push_back(tir::transform::LowerThreadAllreduce());
-  mixed_pass_list.push_back(tir::transform::MakePackedAPI(0));
+
+  if (target->GetAttr<Bool>("unpacked-api").value_or(Bool(false))) {
+    mixed_pass_list.push_back(tir::transform::MakeUnpackedAPI());
+  } else {
+    mixed_pass_list.push_back(tir::transform::MakePackedAPI(0));
+  }
+
   mixed_pass_list.push_back(tir::transform::SplitHostDevice());
+
   auto opt_mixed = transform::Sequential(mixed_pass_list);
   mod_mixed = opt_mixed(std::move(mod_mixed));
 

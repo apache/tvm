@@ -89,6 +89,18 @@ def softmax_strategy_cuda(attrs, inputs, out_type, target):
     return strategy
 
 
+@fast_softmax_strategy.register(["cuda", "gpu"])
+def fast_softmax_strategy_cuda(attrs, inputs, out_type, target):
+    """fast_softmax cuda strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_softmax(topi.nn.fast_softmax),
+        wrap_topi_schedule(topi.cuda.schedule_softmax),
+        name="fast_softmax.cuda",
+    )
+    return strategy
+
+
 @schedule_log_softmax.register(["cuda", "gpu"])
 def schedule_log_softmax_cuda(attrs, outs, target):
     """scheudle log_softmax for cuda"""
@@ -240,10 +252,23 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
 
             tensorcore_dtypes = ["int4", "uint4", "int8", "uint8"]
             if (
-                (N % 16 == 0 and in_channels % 16 == 0 and out_channels % 16 == 0)
-                or (N % 8 == 0 and in_channels % 16 == 0 and out_channels % 32 == 0)
-                or (N % 32 == 0 and in_channels % 16 == 0 and out_channels % 8 == 0)
-                and (data.dtype in tensorcore_dtypes and kernel.dtype in tensorcore_dtypes)
+                target.kind.name == "cuda"
+                and nvcc.have_tensorcore(target=target)
+                and kernel.dtype in tensorcore_dtypes
+                and (
+                    (
+                        data.dtype in ["int4", "uint4"]
+                        and N % 8 == 0
+                        and in_channels % 32 == 0
+                        and out_channels % 8 == 0
+                    )
+                    or (
+                        data.dtype in ["int8", "uint8"]
+                        and N % 8 == 0
+                        and in_channels % 16 == 0
+                        and out_channels % 32 == 0
+                    )
+                )
             ):
                 strategy.add_implementation(
                     wrap_compute_conv2d(topi.cuda.conv2d_hwnc_tensorcore),
@@ -309,17 +334,37 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
                 cudnn_impl = True
 
         if layout == "NCHW":
-            # TODO(@vinx13, @icemelon9): Use group_conv2d_NCHWc_int8 when dtype is int8/uint8.
             assert kernel_layout == "OIHW"
-            strategy.add_implementation(
-                wrap_compute_conv2d(topi.cuda.group_conv2d_nchw, has_groups=True),
-                wrap_topi_schedule(topi.cuda.schedule_group_conv2d_nchw),
-                name="group_conv2d_nchw.cuda",
-            )
+            _, channels, _, _ = get_const_tuple(data.shape)
+            out_channels, in_channels, _, _ = get_const_tuple(kernel.shape)
+            oc_chunk = out_channels // 4
+            ic_chunk = in_channels // 4
+
+            if (
+                data.dtype in ["int8", "uint8"]
+                and kernel.dtype in ["int8", "uint8"]
+                and channels % groups == 0
+                and out_channels % groups == 0
+                and channels % 4 == 0
+                and out_channels % 4 == 0
+                and groups <= oc_chunk
+                and groups <= ic_chunk
+            ):
+                strategy.add_implementation(
+                    wrap_compute_conv2d(topi.cuda.group_conv2d_nchw_int8, has_groups=True),
+                    wrap_topi_schedule(topi.cuda.schedule_group_conv2d_nchw_int8),
+                    name="group_conv2d_nchw_int8.cuda",
+                )
+            else:
+                strategy.add_implementation(
+                    wrap_compute_conv2d(topi.cuda.group_conv2d_nchw, has_groups=True),
+                    wrap_topi_schedule(topi.cuda.schedule_group_conv2d_nchw),
+                    name="group_conv2d_nchw.cuda",
+                )
         elif layout == "NCHW4c" and data.dtype in ["int8", "uint8"]:
             assert kernel_layout == "OIHW4o4i"
             strategy.add_implementation(
-                wrap_compute_conv2d(topi.cuda.group_conv2d_NCHWc_int8, True),
+                wrap_compute_conv2d(topi.cuda.group_conv2d_NCHWc_int8, has_groups=True),
                 wrap_topi_schedule(topi.cuda.schedule_group_conv2d_NCHWc_int8),
                 name="group_conv2d_NCHWc_int8.cuda",
             )

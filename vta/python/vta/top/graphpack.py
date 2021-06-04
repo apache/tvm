@@ -210,7 +210,7 @@ class ExprDeviceAnnot(ExprMutator):
         super().__init__()
 
     def visit_call(self, call):
-        """ Visit the children. """
+        """Visit the children."""
         # First visit the children.
         args = [self.visit(arg) for arg in call.args]
 
@@ -265,7 +265,7 @@ class ExprLocator(ExprMutator):
         super().__init__()
 
     def visit_call(self, call):
-        """ Visit the children. """
+        """Visit the children."""
         # First visit the children.
         args = [self.visit(arg) for arg in call.args]
 
@@ -302,7 +302,7 @@ class ExprPack(ExprMutator):
         super().__init__()
 
     def visit_call(self, call):
-        """ Visit the children. """
+        """Visit the children."""
         # First visit the children.
         oshape = _get_tensor_shape(call)
         odtype = _get_tensor_type(call)

@@ -190,7 +190,7 @@ def get_const_tuple(in_tuple):
 
 
 def list_to_tuple(x):
-    """ Convert a list to a tuple recursively. """
+    """Convert a list to a tuple recursively."""
     assert isinstance(x, list)
     return tuple(list_to_tuple(y) if isinstance(y, list) else y for y in x)
 
@@ -250,7 +250,7 @@ MAX_TRACEBACK_INFO_LEN = 512
 
 
 def make_traceback_info():
-    """ Get the error message from traceback. """
+    """Get the error message from traceback."""
     info = str(traceback.format_exc())
     if len(info) > MAX_TRACEBACK_INFO_LEN:
         info = (

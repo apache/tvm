@@ -40,7 +40,9 @@ rm -rf docs/doxygen
 
 # prepare auto scheduler tutorials
 rm -rf tutorials/auto_scheduler/*.json
+rm -rf tutorials/get_started/*.json
 cp -f tutorials/auto_scheduler/ci_logs/*.json tutorials/auto_scheduler
+cp -f tutorials/auto_scheduler/ci_logs/*.json tutorials/get_started
 
 # remove stale tutorials and always build from scratch.
 rm -rf docs/tutorials

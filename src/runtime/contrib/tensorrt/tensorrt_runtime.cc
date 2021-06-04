@@ -64,7 +64,9 @@ class TensorRTRuntime : public JSONRuntimeBase {
                            const Array<String>& const_names)
       : JSONRuntimeBase(symbol_name, graph_json, const_names),
         use_implicit_batch_(true),
-        max_workspace_size_(size_t(1) << 30) {}
+        max_workspace_size_(size_t(1) << 30),
+        max_batch_size_(-1),
+        multi_engine_mode_(false) {}
 
   /*!
    * \brief The type key of the module.
@@ -85,6 +87,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
     LoadGlobalAttributes();
     if (GetCachedEnginesFromDisk()) return;
     SetupConstants(consts);
+    multi_engine_mode_ = dmlc::GetEnv("TVM_TENSORRT_MULTI_ENGINE", false);
   }
 
   void LoadGlobalAttributes() {
@@ -110,23 +113,25 @@ class TensorRTRuntime : public JSONRuntimeBase {
 
 #ifdef TVM_GRAPH_EXECUTOR_TENSORRT
   /*! \brief Destroy engines and contexts. */
-  ~TensorRTRuntime() {
+  void DestroyEngines() {
     for (auto& it : trt_engine_cache_) {
       it.second.context->destroy();
       it.second.engine->destroy();
     }
+    trt_engine_cache_.clear();
   }
+
+  ~TensorRTRuntime() { DestroyEngines(); }
 
   /*! \brief Run inference using built engine. */
   void Run() override {
-    BuildEngine();
-    batch_size_ = data_entry_[input_var_eid_[0]]->shape[0];
-    if (batch_size_ == 0) return;
-    auto& engine_and_context = trt_engine_cache_.at(std::make_pair(symbol_name_, batch_size_));
+    auto& engine_and_context = GetOrBuildEngine();
+    int batch_size = GetBatchSize();
+    if (batch_size == 0) return;
     auto engine = engine_and_context.engine;
     auto context = engine_and_context.context;
-    auto& device_buffers = engine_and_context.device_buffers;
     std::vector<void*> bindings(engine->getNbBindings(), nullptr);
+    // Setup input bindings.
     for (size_t i = 0; i < input_nodes_.size(); ++i) {
       auto nid = input_nodes_[i];
       if (nodes_[nid].GetOpType() == "input") {
@@ -138,13 +143,14 @@ class TensorRTRuntime : public JSONRuntimeBase {
           if (data_entry_[eid]->device.device_type == kDLCUDA) {
             bindings[binding_index] = data_entry_[eid]->data;
           } else {
-            device_buffers[binding_index].CopyFrom(data_entry_[eid]);
-            bindings[binding_index] = device_buffers[binding_index]->data;
+            auto device_buffer = GetOrAllocateDeviceBuffer(eid, binding_index);
+            device_buffer.CopyFrom(data_entry_[eid]);
+            bindings[binding_index] = device_buffer->data;
           }
         }
       }
     }
-
+    // Setup output bindings.
     for (size_t i = 0; i < outputs_.size(); ++i) {
       uint32_t eid = EntryID(outputs_[i]);
       const std::string& name = engine_and_context.outputs[i];
@@ -153,18 +159,19 @@ class TensorRTRuntime : public JSONRuntimeBase {
       if (data_entry_[eid]->device.device_type == kDLCUDA) {
         bindings[binding_index] = data_entry_[eid]->data;
       } else {
-        bindings[binding_index] = device_buffers[binding_index]->data;
+        auto device_buffer = GetOrAllocateDeviceBuffer(eid, binding_index);
+        bindings[binding_index] = device_buffer->data;
       }
     }
 
 #if TRT_VERSION_GE(6, 0, 1)
     if (use_implicit_batch_) {
-      ICHECK(context->execute(batch_size_, bindings.data())) << "Running TensorRT failed.";
+      ICHECK(context->execute(batch_size, bindings.data())) << "Running TensorRT failed.";
     } else {
       ICHECK(context->executeV2(bindings.data())) << "Running TensorRT failed.";
     }
 #else
-    ICHECK(context->execute(batch_size_, bindings.data())) << "Running TensorRT failed.";
+    ICHECK(context->execute(batch_size, bindings.data())) << "Running TensorRT failed.";
 #endif
 
     // Copy outputs from GPU buffers if needed.
@@ -174,25 +181,58 @@ class TensorRTRuntime : public JSONRuntimeBase {
       int binding_index = engine->getBindingIndex(name.c_str());
       ICHECK_NE(binding_index, -1);
       if (data_entry_[eid]->device.device_type != kDLCUDA) {
-        device_buffers[binding_index].CopyTo(const_cast<DLTensor*>(data_entry_[eid]));
+        auto device_buffer = GetOrAllocateDeviceBuffer(eid, binding_index);
+        device_buffer.CopyTo(const_cast<DLTensor*>(data_entry_[eid]));
       }
     }
   }
 
  private:
+  /*! \brief Get batch size for engine from the runtime input shapes. */
+  int GetBatchSize() {
+    return data_entry_[input_var_eid_[0]]->ndim == 0 ? 1 : data_entry_[input_var_eid_[0]]->shape[0];
+  }
+
+  /*! \brief Find an engine in the cache which we can reuse depending on the mode. If no compatible
+   * engine exists, return false to indicate that a new one should be built. */
+  bool FindCompatibleEngine(int batch_size, int* compatible_engine_batch_size) {
+    if (multi_engine_mode_) {
+      // Exact match is required for multi engine mode.
+      if (trt_engine_cache_.count(std::make_pair(symbol_name_, batch_size))) {
+        *compatible_engine_batch_size = batch_size;
+        return true;
+      }
+      return false;
+    }
+    // Check for engine with compatible max_batch_size.
+    if (batch_size <= max_batch_size_) {
+      *compatible_engine_batch_size = max_batch_size_;
+      return true;
+    }
+    return false;
+  }
+
   /*!
-   * \brief Build TensorRT engine from JSON representation and cache it. If engine is already built,
-   * do nothing.
+   * \brief Build TensorRT engine from JSON representation and cache it. If compatible engine is
+   * already built, do nothing.
    */
-  void BuildEngine() {
-    batch_size_ =
-        data_entry_[input_var_eid_[0]]->ndim == 0 ? 1 : data_entry_[input_var_eid_[0]]->shape[0];
-    if (trt_engine_cache_.count(std::make_pair(symbol_name_, batch_size_))) return;
+  TensorRTEngineAndContext& GetOrBuildEngine() {
+    int batch_size = GetBatchSize();
+    int compatible_engine_batch_size = -1;
+    if (FindCompatibleEngine(batch_size, &compatible_engine_batch_size)) {
+      // A compatible engine already exists.
+      return trt_engine_cache_.at(std::make_pair(symbol_name_, compatible_engine_batch_size));
+    }
+    // For single engine mode, remove previous engine and update max_batch_size.
+    if (!multi_engine_mode_) {
+      DestroyEngines();
+      max_batch_size_ = batch_size;
+    }
     DLOG(INFO) << "Building new TensorRT engine for subgraph " << symbol_name_
-               << " with batch size " << batch_size_;
+               << " with batch size " << batch_size;
     const bool use_fp16 = dmlc::GetEnv("TVM_TENSORRT_USE_FP16", false);
     TensorRTBuilder builder(&logger_, data_entry_, max_workspace_size_, use_implicit_batch_,
-                            use_fp16, batch_size_);
+                            use_fp16, batch_size);
 
     // Add inputs and constants.
     for (size_t i = 0; i < input_nodes_.size(); ++i) {
@@ -221,10 +261,11 @@ class TensorRTRuntime : public JSONRuntimeBase {
     }
 
     // Build engine.
-    trt_engine_cache_[std::make_pair(symbol_name_, batch_size_)] = builder.BuildEngine();
+    trt_engine_cache_[std::make_pair(symbol_name_, batch_size)] = builder.BuildEngine();
     DLOG(INFO) << "Finished building TensorRT engine for subgraph " << symbol_name_
-               << " with batch size " << batch_size_;
+               << " with batch size " << batch_size;
     CacheEngineToDisk();
+    return trt_engine_cache_.at(std::make_pair(symbol_name_, batch_size));
   }
 
   /*! \brief If TVM_TENSORRT_CACHE_DIR is set, will check that directory for
@@ -268,7 +309,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
    * directory so it can be loaded later.
    */
   void CacheEngineToDisk() {
-    batch_size_ = data_entry_[input_var_eid_[0]]->shape[0];
+    int batch_size = GetBatchSize();
     std::string cache_dir = dmlc::GetEnv("TVM_TENSORRT_CACHE_DIR", std::string(""));
     if (cache_dir.empty()) return;
     std::string key = GetSubgraphKey();
@@ -276,7 +317,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
     DLOG(INFO) << "Caching TensorRT engine to " << path;
     // Serialize engine to disk
     nvinfer1::IHostMemory* serialized_engine =
-        trt_engine_cache_[std::make_pair(symbol_name_, batch_size_)].engine->serialize();
+        trt_engine_cache_[std::make_pair(symbol_name_, batch_size)].engine->serialize();
     SaveBinaryToFile(path, std::string(static_cast<const char*>(serialized_engine->data()),
                                        serialized_engine->size()));
     serialized_engine->destroy();
@@ -285,9 +326,9 @@ class TensorRTRuntime : public JSONRuntimeBase {
     dmlc::JSONWriter writer(&os);
     writer.BeginObject();
     writer.WriteObjectKeyValue("inputs",
-                               trt_engine_cache_[std::make_pair(symbol_name_, batch_size_)].inputs);
-    writer.WriteObjectKeyValue(
-        "outputs", trt_engine_cache_[std::make_pair(symbol_name_, batch_size_)].outputs);
+                               trt_engine_cache_[std::make_pair(symbol_name_, batch_size)].inputs);
+    writer.WriteObjectKeyValue("outputs",
+                               trt_engine_cache_[std::make_pair(symbol_name_, batch_size)].outputs);
     writer.EndObject();
     std::string meta_path = cache_dir + "/" + key + ".meta";
     SaveBinaryToFile(meta_path, os.str());
@@ -300,28 +341,40 @@ class TensorRTRuntime : public JSONRuntimeBase {
     return symbol_name_ + (dmlc::GetEnv("TVM_TENSORRT_USE_FP16", false) ? "_fp16" : "_fp32");
   }
 
-  /*! \brief Get the batch size when in implicit_batch mode. */
-  int GetBatchSize() {
-    if (!use_implicit_batch_) return -1;
-    for (size_t i = 0; i < input_nodes_.size(); ++i) {
-      auto nid = input_nodes_[i];
-      if (nodes_[nid].GetOpType() == "input") {
-        // Get batch size from first input.
-        return nodes_[nid].GetOpShape()[0][0];
+  /*! \brief Retreive a GPU buffer for input or output or allocate if needed. */
+  NDArray GetOrAllocateDeviceBuffer(int entry_id, int binding_index) {
+    std::vector<int64_t> shape(data_entry_[entry_id]->shape,
+                               data_entry_[entry_id]->shape + data_entry_[entry_id]->ndim);
+    if (device_buffers_.count(binding_index)) {
+      // Buffer is already initialized.
+      if (shape[0] > device_buffers_[binding_index]->shape[0]) {
+        // Buffer is too small. Need to allocate bigger buffer.
+        device_buffers_[binding_index] =
+            runtime::NDArray::Empty(shape, data_entry_[entry_id]->dtype, {kDLCUDA, 0});
+      } else if (shape[0] < device_buffers_[binding_index]->shape[0]) {
+        // Buffer is too large. Create view.
+        return device_buffers_[binding_index].CreateView(shape, data_entry_[entry_id]->dtype);
       }
+    } else {
+      // Buffer not initialized yet.
+      device_buffers_[binding_index] =
+          runtime::NDArray::Empty(shape, data_entry_[entry_id]->dtype, {kDLCUDA, 0});
     }
-    return -1;
+    return device_buffers_.at(binding_index);
   }
 
-  /*! \brief Map of function name to TRT engine if built already. */
+  /*! \brief Map of function name and max batch size to TRT engine if built already. */
   std::unordered_map<std::pair<std::string, int>, TensorRTEngineAndContext, PairHash>
       trt_engine_cache_;
 
+  /*! \brief Map of inding index to GPU buffers for inputs and outputs. Only used when target device
+   * is not "cuda". Since TensorRT execution can only read data from GPU, we need to copy data from
+   * the runtime device to these buffers first. These will be allocated for the highest batch size
+   * used by all engines. */
+  std::unordered_map<int, NDArray> device_buffers_;
+
   /*! \brief TensorRT logger. */
   TensorRTLogger logger_;
-
-  /*! \brief Batch size that the engine is optimized for. */
-  int batch_size_;
 
 #else
   void Run() override {
@@ -342,6 +395,17 @@ class TensorRTRuntime : public JSONRuntimeBase {
   bool use_implicit_batch_;
 
   size_t max_workspace_size_;
+
+  /*! \brief Highest batch size that an engine has been built for, used in single-engine mode only
+   * (multi_engine_mode=false). */
+  int max_batch_size_;
+
+  /*! \brief The strategy to use for dynamic batching. With multi_engine_mode=true, a new TensorRT
+   * engine is created for each unique batch size encountered. With multi_engine_mode=false, only
+   * one TensorRT engine is alive at any given time. It is replaced if a higher batch size is
+   * encountered. Multi-engine mode should give better performance, at a cost of higher memory usage
+   * and more time spent building engines. */
+  bool multi_engine_mode_;
 };
 
 runtime::Module TensorRTRuntimeCreate(const String& symbol_name, const String& graph_json,
