@@ -348,6 +348,24 @@ def test_compute_at():
     invalid_compute_at_loop()
 
 
+def test_cache_write_with_split_reduce_axis():
+    A = te.placeholder((16, 128), name="A")
+    k = te.reduce_axis((0, 128), name="k")
+    B = te.compute((16,), lambda i: te.sum(A[i][k], axis=[k]), name="B")
+    s = te.create_schedule(B.op)
+
+    s[B].split(B.op.axis[0], 8)
+    s[B].split(B.op.reduce_axis[0], 16)
+    s.cache_write(B, "local")
+    stmt = tvm.lower(s, [A, B], simple_mode=True)["main"].body
+
+    assert isinstance(stmt, tvm.tir.stmt.Allocate)
+    assert stmt.buffer_var.type_annotation.storage_scope == "local"
+    assert isinstance(stmt.body, tvm.tir.stmt.SeqStmt)
+    assert isinstance(stmt.body[0], tvm.tir.stmt.For)
+    assert isinstance(stmt.body[1], tvm.tir.stmt.For)
+
+
 if __name__ == "__main__":
     test_singleton()
     test_pragma()
@@ -366,3 +384,4 @@ if __name__ == "__main__":
     test_vectorize_commreduce()
     test_legalize_invalid_attach()
     test_compute_at()
+    test_cache_write_with_split_reduce_axis()

@@ -188,21 +188,26 @@ Tensor Schedule::cache_read(const Tensor& tensor, const std::string& scope,
 }
 
 template <typename OpType>
-void PrepareAxisMapping(Stage orig_stage, OpType* op, std::unordered_set<IterVar>* p_red_axis,
-                        Array<IterVar>* p_new_axis, std::unordered_map<IterVar, Range>* p_dom_map,
-                        std::unordered_map<const VarNode*, PrimExpr>* p_vsub,
-                        std::unordered_map<const VarNode*, PrimExpr>* p_vsub2newvar,
-                        std::vector<PrimExpr>* p_predicates) {
-  auto& red_axis = *p_red_axis;
+Array<IterVar> PrepareAxisMapping(const Stage& orig_stage, const OpType* op,
+                                  Array<IterVar>* p_new_axis, Array<IterVar>* p_new_red_axis,
+                                  std::unordered_map<IterVar, Range>* p_dom_map,
+                                  std::unordered_map<const VarNode*, PrimExpr>* p_vsub,
+                                  std::unordered_map<const VarNode*, PrimExpr>* p_vsub2newvar,
+                                  std::vector<PrimExpr>* p_predicates) {
+  Array<IterVar> leaf_axis;
   auto& new_axis = *p_new_axis;
+  auto& new_red_axis = *p_new_red_axis;
   auto& dom_map = *p_dom_map;
   auto& vsub = *p_vsub;
   auto& vsub2newvar = *p_vsub2newvar;
   auto& predicates = *p_predicates;
-  arith::Analyzer analyzer;
 
+  arith::Analyzer analyzer;
+  std::unordered_set<IterVar> red_axis;
   for (IterVar iv : op->reduce_axis) {
     red_axis.insert(iv);
+    dom_map[iv] = iv->dom;
+    analyzer.Bind(iv->var, iv->dom);
   }
   for (IterVar iv : op->axis) {
     dom_map[iv] = iv->dom;
@@ -212,40 +217,66 @@ void PrepareAxisMapping(Stage orig_stage, OpType* op, std::unordered_set<IterVar
   {
     // The source->cache
     std::unordered_map<IterVar, PrimExpr> value_map;
+    // mapping the leaf_iter_vars from orig stage to cache stage
     for (IterVar iv : orig_stage->leaf_iter_vars) {
-      if (red_axis.count(iv)) continue;
-      ICHECK_EQ(iv->iter_type, kDataPar) << "Can only relayout with in data parallel dimensions";
+      CHECK(iv->iter_type == kDataPar || iv->iter_type == kCommReduce)
+          << "Cannot relayout axis type " << IterVarType2String(iv->iter_type);
+      // the dom may has loop dep on upper, so replace them with new vars
       Range dom = dom_map.at(iv);
-      IterVar new_iv = IterVar(dom, iv->var.copy_with_suffix(".c"), iv->iter_type);
-      new_axis.push_back(new_iv);
-      if (is_one(dom->min)) {
-        value_map[iv] = dom->min;
+      PrimExpr min = VarReplacer(vsub2newvar)(dom->min);
+      PrimExpr extent = VarReplacer(vsub2newvar)(dom->extent);
+      if (!dom->min.same_as(min) || !dom->extent.same_as(extent)) {
+        dom = Range::FromMinExtent(min, extent);
+      }
+      IterVar new_iv = iv;
+      if (red_axis.count(iv)) {
+        // recreate reduce axis only if dom has loop dep
+        if (!dom_map.at(iv).same_as(dom)) {
+          new_iv = IterVar(dom, iv->var, iv->iter_type);
+        }
       } else {
-        value_map[iv] = iv->var;
-        vsub2newvar[iv->var.get()] = new_iv->var;
+        // recreate normal axis and leaf reduce axis anyway
+        new_iv = IterVar(dom, iv->var.copy_with_suffix(".c"), iv->iter_type);
+        if (is_one(dom->min)) {
+          value_map[iv] = dom->min;
+        } else {
+          value_map[iv] = iv->var;
+          vsub2newvar[iv->var.get()] = new_iv->var;
+        }
+      }
+      leaf_axis.push_back(new_iv);
+      if (new_iv->iter_type == kDataPar) {
+        new_axis.push_back(new_iv);
+      } else if (new_iv->iter_type == kCommReduce) {
+        new_red_axis.push_back(new_iv);
+      } else {
+        // cache write does not support yet, checked at beginning of this for loop
       }
     }
-    // skip reduction iteration.
-    std::unordered_set<IterVar> skip_bound_check;
-    for (IterVar iv : op->reduce_axis) {
-      skip_bound_check.insert(iv);
-    }
-    PassUpIndex(orig_stage, dom_map, &value_map, true);
-    predicates = MakeBoundCheck(orig_stage, dom_map, value_map, true, skip_bound_check);
+
+    te::PassUpIndex(orig_stage, dom_map, &value_map, true);
+    predicates = te::MakeBoundCheck(orig_stage, dom_map, value_map, true, {});
     // The root axis
     for (IterVar iv : op->axis) {
       if (value_map.count(iv)) {
         vsub[iv->var.get()] = value_map.at(iv);
       }  // to handle tensor axis
     }
+    // the reduce axis
+    for (IterVar iv : op->reduce_axis) {
+      if (value_map.count(iv)) {
+        vsub[iv->var.get()] = value_map.at(iv);
+      }  // to handle tensor axis
+    }
   }
+  return leaf_axis;
 }
 
-Array<Tensor> ReplaceOriginalOp(Schedule sch, Stage orig_stage, const std::string& scope,
-                                Operation cache_op, Operation orig_new_op, size_t tensor_size) {
+Array<Tensor> ReplaceOriginalOp(Schedule sch, Stage orig_stage, Stage cache_stage,
+                                Operation orig_new_op, size_t tensor_size) {
   Array<Tensor> cache_tensor_list;
   for (size_t i = 0; i < tensor_size; i++) {
-    Tensor cache_tensor = cache_op.output(i);
+    Tensor cache_tensor = cache_stage->op.output(i);
     cache_tensor_list.push_back(cache_tensor);
   }
   // The replace of the dataflow
@@ -266,17 +297,49 @@ Array<Tensor> ReplaceOriginalOp(Schedule sch, Stage orig_stage, const std::strin
   // create schedule for new cached stage.
   Array<Stage>& stages = sch->stages;
   size_t pos = FindNodeRef(stages.GetArrayNode(), orig_stage);
-  Stage cache_stage = Stage(cache_op);
-  cache_stage.set_scope(scope);
   ICHECK_LT(pos, stages.size());
   stages.insert(stages.begin() + pos, cache_stage);
-  sch->stage_map.Set(cache_op, cache_stage);
+  sch->stage_map.Set(cache_stage->op, cache_stage);
   // Update group
   cache_stage->group = orig_stage->group;
   if (cache_stage->group.defined()) {
     ++cache_stage->group->num_child_stages;
   }
   return cache_tensor_list;
+}
+
+PrimExpr UpdateReduce(const tir::ReduceNode* first_reduce, PrimExpr body,
+                      const Array<IterVar>& red_axis) {
+  if (!body->IsInstance<tir::ReduceNode>()) {
+    if (first_reduce == nullptr) {
+      return body;
+    }
+    // Reduce nodes in ONE computeOp must be the same except value_index
+    // This is right only if the original body ensures Reduce nodes are the same
+    LOG(FATAL) << "cannot mix reduce and other node in ONE compute bodys";
+  }
+  CHECK_NE(red_axis.size(), 0);
+  const tir::ReduceNode* reduce_body = body.as<tir::ReduceNode>();
+  if (first_reduce == nullptr) {
+    body = tir::Reduce(reduce_body->combiner, reduce_body->source, red_axis, reduce_body->condition,
+                       reduce_body->value_index, reduce_body->init);
+    return body;
+  }
+  return tir::Reduce(first_reduce->combiner, first_reduce->source, first_reduce->axis,
+                     first_reduce->condition, reduce_body->value_index, first_reduce->init);
+}
+
+PrimExpr CheckReduce(const tir::ReduceNode* first_reduce, PrimExpr body) {
+  if (!body->IsInstance<tir::ReduceNode>()) {
+    return body;
+  }
+  const tir::ReduceNode* reduce_body = body.as<tir::ReduceNode>();
+  if (first_reduce != nullptr) {
+    ICHECK(ReduceEqual(reduce_body, first_reduce));
+  } else {
+    first_reduce = reduce_body;
+  }
+  return body;
 }
 
 // Cache write and relayout the data according to loop pattern
@@ -288,40 +351,43 @@ Array<Tensor> CacheWriteWithReLayout(Schedule sch, const Array<Tensor>& tensor_a
   Stage orig_stage = sch[tensor->op];
   const ComputeOpNode* compute = orig_stage->op.as<ComputeOpNode>();
 
-  std::unordered_set<IterVar> red_axis;
+  // kept the order of leaf iter vars of orig stage
+  Array<IterVar> ordered_leaf_axis;
+  // the normal axis of new cache stage
   Array<IterVar> new_axis;
+  // the reduce axis of new cache stage
+  Array<IterVar> new_red_axis;
+  // bounds of all iter vars of orig stage
   std::unordered_map<IterVar, Range> dom_map;
-
+  // indice mapping from orig stage to cache stage
   std::unordered_map<const VarNode*, PrimExpr> vsub;
+  // axes mapping from orig stage to cache stage
   std::unordered_map<const VarNode*, PrimExpr> vsub2newvar;
   std::vector<PrimExpr> predicates;
 
-  PrepareAxisMapping(orig_stage, compute, &red_axis, &new_axis, &dom_map, &vsub, &vsub2newvar,
-                     &predicates);
+  ordered_leaf_axis = PrepareAxisMapping(orig_stage, compute, &new_axis, &new_red_axis, &dom_map,
+                                         &vsub, &vsub2newvar, &predicates);
 
-  PrimExpr body;
   Array<PrimExpr> body_list;
   const tir::ReduceNode* first_reduce = nullptr;
-  for (auto cbody : compute->body) {
-    body = VarReplacer(vsub)(cbody);
+  for (auto body : compute->body) {
+    body = UpdateReduce(first_reduce, body, new_red_axis);
+    body = VarReplacer(vsub)(body);
     body = InjectPredicate(predicates, body);
     body = VarReplacer(vsub2newvar)(body);
-    // Reduce nodes in ONE computeOp must be the same except value_index
-    // This is right only if the original body ensures Reduce nodes are the same
-    if (body->IsInstance<tir::ReduceNode>()) {
-      const tir::ReduceNode* reduce_body = body.as<tir::ReduceNode>();
-      if (first_reduce != nullptr) {
-        ICHECK(ReduceEqual(reduce_body, first_reduce));
-        body = tir::Reduce(first_reduce->combiner, first_reduce->source, first_reduce->axis,
-                           first_reduce->condition, reduce_body->value_index, reduce_body->init);
-      } else {
-        first_reduce = reduce_body;
-      }
-    } else {
-      ICHECK(first_reduce == nullptr) << "cannot mix reduce and other node in ONE compute bodys";
-    }
+    body = CheckReduce(first_reduce, body);
     body_list.push_back(body);
   }
+
+  // create cache op
+  Operation cache_op =
+      ComputeOp(compute->name + "." + scope, compute->tag, compute->attrs, new_axis, body_list);
+  // create cache stage
+  Stage cache_stage = Stage(cache_op);
+  cache_stage.set_scope(scope);
+  CHECK_EQ(cache_stage->leaf_iter_vars.size(), ordered_leaf_axis.size());
+  cache_stage.reorder(ordered_leaf_axis);
+
   // The reader args
   Array<PrimExpr> args;
   {
@@ -332,13 +398,11 @@ Array<Tensor> CacheWriteWithReLayout(Schedule sch, const Array<Tensor>& tensor_a
     }
     te::PassDownIndex(orig_stage, dom_map, &value_map, true);
     for (IterVar iv : orig_stage->leaf_iter_vars) {
-      if (red_axis.count(iv)) continue;
+      if (iv->iter_type == kCommReduce) continue;
       args.push_back(value_map.at(iv));
     }
   }
-  Operation cache_op =
-      ComputeOp(compute->name + "." + scope, compute->tag, compute->attrs, new_axis, body_list);
-
+  // update orig op
   Array<PrimExpr> cache_expr_list;
   for (size_t i = 0; i < tensor_size; i++) {
     Tensor cache_tensor = cache_op.output(i);
@@ -346,7 +410,7 @@ Array<Tensor> CacheWriteWithReLayout(Schedule sch, const Array<Tensor>& tensor_a
   }
   Operation orig_new_op =
       ComputeOp(compute->name, compute->tag, compute->attrs, compute->axis, cache_expr_list);
-  return ReplaceOriginalOp(sch, orig_stage, scope, cache_op, orig_new_op, tensor_size);
+  return ReplaceOriginalOp(sch, orig_stage, cache_stage, orig_new_op, tensor_size);
 }
 
 // for tensor compute op
@@ -360,16 +424,22 @@ Array<Tensor> CacheWriteWithReLayoutTensor(Schedule sch, const Array<Tensor>& te
   ICHECK_EQ(tensor_op->num_outputs(), 1)
       << "cache write only support single output tensor_compute_op";
 
-  std::unordered_set<IterVar> red_axis;
+  // kept the order of leaf iter vars of orig stage
+  Array<IterVar> ordered_leaf_axis;
+  // the normal axis of new cache stage
   Array<IterVar> new_axis;
+  // the reduce axis of new cache stage
+  Array<IterVar> new_red_axis;
+  // bounds of all iter vars of orig stage
   std::unordered_map<IterVar, Range> dom_map;
-
+  // indice mapping from orig stage to cache stage
   std::unordered_map<const VarNode*, PrimExpr> vsub;
+  // axes mapping from orig stage to cache stage
   std::unordered_map<const VarNode*, PrimExpr> vsub2newvar;
   std::vector<PrimExpr> predicates;
 
-  PrepareAxisMapping(orig_stage, tensor_op, &red_axis, &new_axis, &dom_map, &vsub, &vsub2newvar,
-                     &predicates);
+  ordered_leaf_axis = PrepareAxisMapping(orig_stage, tensor_op, &new_axis, &new_red_axis, &dom_map,
+                                         &vsub, &vsub2newvar, &predicates);
 
   for (int i = tensor_op->schedulable_ndim; i < static_cast<int>(tensor_op->axis.size()); ++i) {
     IterVar iv = tensor_op->axis[i];
@@ -392,10 +462,14 @@ Array<Tensor> CacheWriteWithReLayoutTensor(Schedule sch, const Array<Tensor>& te
     new_scalar_inputs.push_back(VarReplacer(vsub2newvar)(old_input));
   }
 
-  Operation cache_op =
-      TensorComputeOp(tensor_op->name + "." + scope, tensor_op->tag, new_axis,
-                      tensor_op->reduce_axis, tensor_op->schedulable_ndim, tensor_op->intrin,
-                      tensor_op->inputs, new_regions, new_scalar_inputs);
+  // create cache stage
+  Operation cache_op = TensorComputeOp(tensor_op->name + "." + scope, tensor_op->tag, new_axis,
+                                       new_red_axis, tensor_op->schedulable_ndim, tensor_op->intrin,
+                                       tensor_op->inputs, new_regions, new_scalar_inputs);
+  Stage cache_stage = Stage(cache_op);
+  cache_stage.set_scope(scope);
+  CHECK_EQ(cache_stage->leaf_iter_vars.size(), ordered_leaf_axis.size());
+  cache_stage.reorder(ordered_leaf_axis);
 
   // axis will be used in generating compute op
   Array<IterVar> compute_axis = tensor_op->axis;
@@ -415,7 +489,7 @@ Array<Tensor> CacheWriteWithReLayoutTensor(Schedule sch, const Array<Tensor>& te
     }
     PassDownIndex(orig_stage, dom_map, &value_map, true);
     for (IterVar iv : orig_stage->leaf_iter_vars) {
-      if (red_axis.count(iv)) continue;
+      if (iv->iter_type == kCommReduce) continue;
       args.push_back(value_map.at(iv));
     }
     // tensorized region axis
@@ -424,7 +498,7 @@ Array<Tensor> CacheWriteWithReLayoutTensor(Schedule sch, const Array<Tensor>& te
       args.push_back(value_map.at(iv));
     }
   }
-
+  // update orig op
   Array<PrimExpr> cache_expr_list;
   for (size_t i = 0; i < tensor_size; i++) {
     Tensor cache_tensor = cache_op.output(i);
@@ -432,7 +506,7 @@ Array<Tensor> CacheWriteWithReLayoutTensor(Schedule sch, const Array<Tensor>& te
   }
   Operation orig_new_op =
       ComputeOp(tensor_op->name, tensor_op->tag, {}, compute_axis, cache_expr_list);
-  return ReplaceOriginalOp(sch, orig_stage, scope, cache_op, orig_new_op, tensor_size);
+  return ReplaceOriginalOp(sch, orig_stage, cache_stage, orig_new_op, tensor_size);
 }
 
 Array<Tensor> Schedule::cache_write(const Array<Tensor>& tensor_array, const std::string& scope) {
