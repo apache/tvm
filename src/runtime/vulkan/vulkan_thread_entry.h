@@ -23,11 +23,8 @@
 #include <dmlc/thread_local.h>
 
 #include <memory>
-#include <unordered_map>
 
 #include "../workspace_pool.h"
-#include "vulkan_buffer.h"
-#include "vulkan_stream.h"
 
 namespace tvm {
 namespace runtime {
@@ -44,12 +41,6 @@ class VulkanThreadEntry {
 
   Device device;
   std::unique_ptr<WorkspacePool> pool;
-  void AllocateUniformBuffer(int device_id, size_t size);
-  VulkanUniformBuffer* GetUniformBuffer(int device_id, size_t size);
-
- private:
-  //! Map from device to the UniformBuffer associated with it
-  std::unordered_map<size_t, std::unique_ptr<VulkanUniformBuffer>> uniform_buffers_;
 };
 
 typedef dmlc::ThreadLocalStore<VulkanThreadEntry> VulkanThreadStore;

@@ -179,6 +179,26 @@ class VulkanDevice {
    */
   VulkanStagingBuffer& ThreadLocalStagingBuffer(size_t min_size);
 
+  /*! \brief Allocate the uniform buffer for the current CPU thread
+   *
+   * \param min_size The minimum size in bytes of the uniformn buffer
+   * to be allocated.  If a larger uniform buffer has already been
+   * allocated, no allocation is performed.
+   */
+  void AllocateThreadLocalUniformBuffer(size_t min_size);
+
+  /*! \brief Return the uniform buffer for the current CPU thread
+   *
+   * Assumes that AllocateThreadLocalUniformBuffer has previously been
+   * called, with a min_size greater than or equal to the min_size of
+   * the current call.  If this is not the case, will throw an
+   * exception.
+   *
+   * \param min_size The minimum size in bytes of the uniform buffer to be
+   * returned.
+   */
+  VulkanUniformBuffer& ThreadLocalUniformBuffer(size_t min_size);
+
   // Cached device properties, queried through Vulkan API.
   VulkanDeviceProperties device_properties{};
 
@@ -261,6 +281,9 @@ class VulkanDevice {
 
   //! \brief The VulkanStagingBuffer for each CPU thread.
   ThreadMap<VulkanStagingBuffer> staging_buffer_per_thread;
+
+  //! \brief The VulkanUniformBuffer for each CPU thread.
+  ThreadMap<VulkanUniformBuffer> uniform_buffer_per_thread;
 };
 
 uint32_t FindMemoryType(const VulkanDevice& device, VkBufferCreateInfo info,

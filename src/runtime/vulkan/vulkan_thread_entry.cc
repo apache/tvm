@@ -38,22 +38,6 @@ VulkanThreadEntry::~VulkanThreadEntry() {
 
 VulkanThreadEntry* VulkanThreadEntry::ThreadLocal() { return VulkanThreadStore::Get(); }
 
-void VulkanThreadEntry::AllocateUniformBuffer(int device_id, size_t size) {
-  const auto& device = VulkanDeviceAPI::Global()->device(device_id);
-  auto prop = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-  auto info = MakeBufferCreateInfo(size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
-  auto mem_type_index = FindMemoryType(device, info, prop);
-  GetOrAllocate(device_id, size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, mem_type_index,
-                &uniform_buffers_, true);
-}
-
-VulkanUniformBuffer* VulkanThreadEntry::GetUniformBuffer(int device_id, size_t size) {
-  auto& buf = uniform_buffers_[device_id];
-  ICHECK(buf);
-  ICHECK_GE(buf->size, size);
-  return buf.get();
-}
-
 VulkanThreadEntry::VulkanThreadEntry()
     : pool(std::make_unique<WorkspacePool>(static_cast<DLDeviceType>(kDLVulkan),
                                            VulkanDeviceAPI::Global())) {

@@ -316,6 +316,7 @@ VulkanDevice::~VulkanDevice() {
   // VulkanDevice.
   stream_per_thread.Clear();
   staging_buffer_per_thread.Clear();
+  uniform_buffer_per_thread.Clear();
 
   if (device_) {
     vkDestroyDevice(device_, nullptr);
@@ -516,6 +517,29 @@ VulkanStagingBuffer& VulkanDevice::ThreadLocalStagingBuffer(size_t min_size) {
   }
 
   return result;
+}
+
+void VulkanDevice::AllocateThreadLocalUniformBuffer(size_t min_size) {
+  auto usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+  auto buffer_info = MakeBufferCreateInfo(min_size, usage);
+  auto prop = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+  auto mem_type_index = FindMemoryType(*this, buffer_info, prop);
+
+  VulkanUniformBuffer& result =
+      uniform_buffer_per_thread.GetOrMake(*this, min_size, usage, mem_type_index);
+
+  if (result.size < min_size) {
+    result = VulkanUniformBuffer(*this, min_size, usage, mem_type_index);
+  }
+}
+
+VulkanStagingBuffer& VulkanDevice::ThreadLocalUniformBuffer(size_t min_size) {
+  VulkanStagingBuffer* buffer = uniform_buffer_per_thread.Get();
+  ICHECK(buffer) << "Vulkan uniform buffer requested, but not previously allocated.";
+  ICHECK_GE(buffer->size, min_size)
+      << "Vulkan uniform buffer of size " << min_size << " requested, but only " << buffer->size
+      << " was previously allocated.";
+  return *buffer;
 }
 
 uint32_t FindMemoryType(const VulkanDevice& device, VkBufferCreateInfo info,
