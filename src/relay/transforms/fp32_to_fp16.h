@@ -1,3 +1,29 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+/*!
+ * \file fp32_to_fp16.h
+ * \brief Utilities and common types used for FP32->FP16 pass.
+ */
+#ifndef TVM_RELAY_TRANSFORMS_FP32_TO_FP16_H_
+#define TVM_RELAY_TRANSFORMS_FP32_TO_FP16_H_
+
 #include <tvm/ir/op.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/function.h>
@@ -5,6 +31,7 @@
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 namespace tvm {
@@ -37,8 +64,6 @@ OpStringSet DEFAULT_GREEN_LIST({
     "nn.dense",
     "nn.batch_matmul",
 });
-// TODO make a list of ops which don't care about the types of tensors coming in for stuff like
-// "where" and "strided_slice"
 OpStringSet DEFAULT_GRAY_LIST({
     // These ops add new data or change shape
     "nn.pad",
@@ -168,7 +193,7 @@ class DefaultFP16Colorer {
 
       return color->second;
     } else if (auto* func_node = (call->op).as<FunctionNode>()) {
-      // TODO: make RED to avoid messing with function signatures. For now keep this simple
+      // Make RED to avoid messing with function headers.
       return RED;
     } else {
       LOG(FATAL) << "FP16 conversion only supports call nodes with OpNodes or Functions got "
@@ -179,14 +204,10 @@ class DefaultFP16Colorer {
 };
 
 class DefaultFP16OpDefinition {
-  /* The default class which determines the accumulation and
-
-  Note this is actually kind of hard! Not every op fits neatly into the dichotomy of
-  returning a floating point type. In the future try using type relations to keep things better.
-  */
+  /* The default callable for determining accumulation_dtypes for ops. */
  public:
   FP16OpDType operator()(const CallNode* call) {
-    // TODO: remove when batch_matmul handles accumulation dtypes well.
+    // TODO(AndrewZhaoLuo): remove when batch_matmul handles accumulation dtypes well.
     // Batched matmul has inconsistent support for mixed precision operations.
     // Many schedules ignore the out_dtype attribute which leads to errors when
     // input types do not match the out_dtype. Therefore, accumulate to fp16 if green.
@@ -210,3 +231,4 @@ class DefaultFP16OpDefinition {
 
 }  // namespace relay
 }  // namespace tvm
+#endif  // TVM_RELAY_TRANSFORMS_FP32_TO_FP16_H_

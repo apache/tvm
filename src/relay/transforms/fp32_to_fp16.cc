@@ -1,10 +1,35 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 
+/*!
+ *
+ * \file fp32_to_fp16.cc
+ * \brief Rewrite a graph into an fp16 form.
+ */
 #include "fp32_to_fp16.h"
 
 #include <tvm/ir/attrs.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
 #include <tvm/runtime/object.h>
+
+#include <utility>
 
 #include "pattern_utils.h"
 
@@ -41,7 +66,7 @@ class FP16GraphCreator : public ExprMutator {
     /* If the accumulation dtype is in the attributes make a copy and mutate the field. */
     Attrs new_attrs = Attrs(call->attrs);
     if (new_attrs.get() != nullptr) {
-      // TODO: Figure out a better way to do this
+      // TODO(AndrewZhaoLuo): Figure out a better way to do this
       // modify output_dtype attributes (accumulation dtypes for ops)
       if (auto attrs = new_attrs.as<Conv1DAttrs>()) {
         ModifyAttrsOutputDType(attrs, accumulation_dtype);
@@ -85,7 +110,6 @@ class FP16GraphCreator : public ExprMutator {
      These represent accumulation dtypes for some operations e.g.
      conv2d might take in fp16 and give a fp32 result.
      Attrs is const because we get it as a const.
-     TODO: think about a better way to do this
      */
     T* mutable_attrs = const_cast<T*>(attrs);
     mutable_attrs->out_dtype = accumulation_dtype;
@@ -98,7 +122,6 @@ class FP16GraphCreator : public ExprMutator {
      This determines the output dtype for some ops. For example
      zeros creates a tensor of zeros of the specified dtype.
      Attrs is const because we get it as a const.
-     TODO: think about a better way to do this
     */
     T* mutable_attrs = const_cast<T*>(attrs);
     mutable_attrs->dtype = accumulation_dtype;
