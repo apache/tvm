@@ -42,19 +42,6 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<runtime::ShapeTupleObj>([](const ObjectRef& node, ReprPrinter* p) {
-      auto* op = static_cast<const runtime::ShapeTupleObj*>(node.get());
-      p->stream << '[';
-      for (size_t i = 0; i < op->ndim; ++i) {
-        if (i != 0) {
-          p->stream << ", ";
-        }
-        p->stream << op->data[i];
-      }
-      p->stream << ']';
-    });
-
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<MapNode>([](const ObjectRef& node, ReprPrinter* p) {
       auto* op = static_cast<const MapNode*>(node.get());
       p->stream << '{';

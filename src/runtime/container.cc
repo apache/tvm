@@ -183,30 +183,5 @@ TVM_DLL constexpr uint64_t DenseMapNode::kNextProbeLocation[];
 
 TVM_REGISTER_OBJECT_TYPE(ClosureObj);
 
-// ShapeTuple
-TVM_REGISTER_OBJECT_TYPE(ShapeTupleObj);
-
-TVM_REGISTER_GLOBAL("runtime.ShapeTuple").set_body([](TVMArgs args, TVMRetValue* rv) {
-  std::vector<ShapeTuple::index_type> shape;
-  for (int i = 0; i < args.size(); i++) {
-    shape.push_back(args[i]);
-  }
-  *rv = ShapeTuple(shape);
-});
-
-TVM_REGISTER_GLOBAL("runtime.GetShapeTupleNdim").set_body([](TVMArgs args, TVMRetValue* rv) {
-  ObjectRef obj = args[0];
-  const auto& shape = Downcast<ShapeTuple>(obj);
-  *rv = static_cast<int64_t>(shape.ndim());
-});
-
-TVM_REGISTER_GLOBAL("runtime.GetShapeTupleElem").set_body([](TVMArgs args, TVMRetValue* rv) {
-  ObjectRef obj = args[0];
-  int idx = args[1];
-  const auto& shape = Downcast<ShapeTuple>(obj);
-  ICHECK_LT(idx, shape.ndim());
-  *rv = shape[idx];
-});
-
 }  // namespace runtime
 }  // namespace tvm

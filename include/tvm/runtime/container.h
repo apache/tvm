@@ -30,7 +30,6 @@
 #include "./container/closure.h"
 #include "./container/map.h"
 #include "./container/optional.h"
-#include "./container/shape_tuple.h"
 #include "./container/string.h"
 
 #endif  // TVM_RUNTIME_CONTAINER_H_
