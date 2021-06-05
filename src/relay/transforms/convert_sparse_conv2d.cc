@@ -73,10 +73,12 @@ TVM_REGISTER_GLOBAL("relay.analysis.search_conv2d_op_weight").set_body_typed(Sea
 class Conv2dToSparseConv2dMutator : public ExprRewriter {
  public:
   Conv2dToSparseConv2dMutator(const Array<ObjectRef>& weight_name,
-                              const Array<Array<PrimExpr>>& weight_shape, const String& layout)
+                              const Array<Array<PrimExpr>>& weight_shape,
+                              const String& layout, int kernel_size)
       : conv2d_op_(Op::Get("nn.conv2d")), sparse_conv2d_op_(Op::Get("nn.sparse_conv2d")) {
     ICHECK_EQ(weight_name.size(), weight_shape.size());
     layout_ = layout;
+    kernel_size_ = kernel_size;
     for (size_t i = 0; i < weight_name.size(); ++i) {
       ICHECK(weight_name[i]->IsInstance<runtime::StringObj>());
       std::string k = weight_name[i].as<runtime::StringObj>()->data;
@@ -112,6 +114,7 @@ class Conv2dToSparseConv2dMutator : public ExprRewriter {
           Var weight_indptr(prefix + ".indptr", ws_indptr_type);
           auto attrs = make_object<SparseConv2DAttrs>();
           attrs->layout = std::move(layout_);
+          attrs->kernel_size = kernel_size_;
           return Call(sparse_conv2d_op_, {data, weight_data, weight_indices, weight_indptr},
                       Attrs(attrs));
         }
@@ -126,22 +129,23 @@ class Conv2dToSparseConv2dMutator : public ExprRewriter {
   const Op& sparse_conv2d_op_;
   std::unordered_map<std::string, std::vector<int>> target_weights_;
   String layout_;
+  int kernel_size_;
 };  // class Conv2dToSparseConv2dAlter
 
 Expr Conv2dToSparse(const Expr& e, const Array<ObjectRef>& weight_name,
-                    const Array<Array<PrimExpr>>& weight_shape, const String& layout) {
-  auto rewriter = Conv2dToSparseConv2dMutator(weight_name, weight_shape, layout);
+                    const Array<Array<PrimExpr>>& weight_shape, const String& layout, int kernel_size) {
+  auto rewriter = Conv2dToSparseConv2dMutator(weight_name, weight_shape, layout, kernel_size);
   return PostOrderRewrite(e, &rewriter);
 }
 
 namespace transform {
 
 Pass Conv2dToSparse(const Array<ObjectRef>& weight_name, const Array<Array<PrimExpr>>& weight_shape,
-                    const String& layout) {
+                    const String& layout, int kernel_size) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
         // Remove FreeVar warnings
-        auto f0 = Downcast<Function>(Conv2dToSparse(f, weight_name, weight_shape, layout));
+        auto f0 = Downcast<Function>(Conv2dToSparse(f, weight_name, weight_shape, layout, kernel_size));
         Array<Var> sparse_params = FreeVars(f0);
         auto f1 = Function(sparse_params, f0->body, f0->ret_type, f0->type_params, f0->attrs);
         Array<Var> params = FreeVars(f1);
