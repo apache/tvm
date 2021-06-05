@@ -46,8 +46,6 @@ struct FP16OpDType {
 // GRAY colored ops can be done in FP16 but don't have speedups to justify a dedicated cast.
 // RED colored ops should not be done in FP16 due to numerical reasons.
 enum FP16ConversionCategory { RED, GRAY, GREEN };
-std::unordered_map<FP16ConversionCategory, std::string> conversion_category_strings(
-    {{RED, "Red"}, {GRAY, "Gray"}, {GREEN, "Green"}});
 
 using OpStringSet = std::unordered_set<std::string>;
 
