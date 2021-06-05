@@ -39,7 +39,6 @@ def run_module(mod: tvm.runtime.Module, mod_params: Dict[str, Any]) -> List:
 def verify_fp32_fp16_output_close(
     mod: tvm.runtime.Module, mod_params: Dict[str, Any], rtol: float = 1e-3, atol: float = 0
 ) -> tvm.runtime.Module:
-    # TODO: add InferType to list of required pass before this one
     mod = InferType()(mod)
     result_fp32 = run_module(mod, mod_params)
     fp16_mod = RewriteFP16()(mod)
