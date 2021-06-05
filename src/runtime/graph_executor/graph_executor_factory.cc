@@ -24,7 +24,7 @@
 
 #include "./graph_executor_factory.h"
 
-#include <tvm/runtime/container.h>
+#include <tvm/runtime/container/string.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
 

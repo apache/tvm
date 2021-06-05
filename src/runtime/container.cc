@@ -21,7 +21,11 @@
  * \file src/runtime/container.cc
  * \brief Implementations of common containers.
  */
-#include <tvm/runtime/container.h>
+#include <tvm/runtime/container/adt.h>
+#include <tvm/runtime/container/array.h>
+#include <tvm/runtime/container/closure.h>
+#include <tvm/runtime/container/map.h>
+#include <tvm/runtime/container/string.h>
 #include <tvm/runtime/memory.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/registry.h>

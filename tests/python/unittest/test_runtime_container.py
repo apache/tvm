@@ -78,16 +78,7 @@ def test_string():
     assert s == z
 
 
-def test_shape_tuple():
-    shape = [random.randint(-10, 10) for _ in range(5)]
-    stuple = _container.ShapeTuple(shape)
-    stuple.ndim == len(shape)
-    for a, b in zip(stuple, shape):
-        assert a == b
-
-
 if __name__ == "__main__":
-    test_shape_tuple()
     test_string()
     test_adt_constructor()
     test_tuple_object()
