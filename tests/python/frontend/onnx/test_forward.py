@@ -2402,6 +2402,46 @@ def test_batch_norm_dynamic_subgraph():
     verify_batch_norm_dynamic_subgraph([16, 16, 10, 10], [160, 160])
 
 
+@tvm.testing.uses_gpu
+def test_batch_norm_training():
+    def verify_batch_norm(in_shape):
+        batchnorm = onnx.helper.make_node(
+            "BatchNormalization",
+            inputs=["x", "scale", "B", "mean", "var"],
+            outputs=["Y", "mean", "var", "saved_mean", "saved_var"]
+        )
+
+        graph = helper.make_graph(
+            [batchnorm],
+            "batchnorm_test",
+            inputs=[
+                helper.make_tensor_value_info("x", TensorProto.FLOAT, list(in_shape)),
+                helper.make_tensor_value_info("scale", TensorProto.FLOAT, [in_shape[1]]),
+                helper.make_tensor_value_info("B", TensorProto.FLOAT, [in_shape[1]]),
+                helper.make_tensor_value_info("mean", TensorProto.FLOAT, [in_shape[1]]),
+                helper.make_tensor_value_info("var", TensorProto.FLOAT, [in_shape[1]]),
+            ],
+            outputs=[
+                helper.make_tensor_value_info("Y", TensorProto.FLOAT, list(in_shape)),
+                helper.make_tensor_value_info("mean", TensorProto.FLOAT, [in_shape[1]]),
+                helper.make_tensor_value_info("var", TensorProto.FLOAT, [in_shape[1]]),
+                helper.make_tensor_value_info("saved_mean", TensorProto.FLOAT, [in_shape[1]]),
+                helper.make_tensor_value_info("saved_var", TensorProto.FLOAT, [in_shape[1]]),
+            ],
+        )
+
+        model = helper.make_model(graph, producer_name="batchnorm_test")
+        # X, scale, b, mean, var
+        inshapes = [in_shape, in_shape[1], in_shape[1], in_shape[1], in_shape[1]]
+        verify_with_ort(model, inshapes, out_shape=[in_shape])
+
+    verify_batch_norm([1, 3, 224, 224])
+    verify_batch_norm([1, 3, 24, 24])
+    verify_batch_norm([16, 3, 24, 24])
+    verify_batch_norm([16, 16, 24, 24])
+    verify_batch_norm([16, 16, 10, 10])
+
+
 def verify_conv(
     x_shape,
     w_shape,
@@ -4698,6 +4738,7 @@ if __name__ == "__main__":
     test_space_to_depth()
     test_batch_norm()
     test_batch_norm_dynamic_subgraph()
+    test_batch_norm_training()
     test_conv()
     test_convtranspose()
     test_unsqueeze_constant()
