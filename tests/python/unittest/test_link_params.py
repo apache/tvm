@@ -124,15 +124,15 @@ def _verify_linked_param(dtype, lib, mod, graph, name):
     """Directly read memory from the linked library to verify the linked parameter is correct."""
     sid = _lookup_sid(graph, name)
     # NOTE: query_imports=True because when loading a module from disk (i.e. for C backend),
-    # a GraphRuntimeFactory module is created instead of the module itself.
+    # a GraphExecutorFactory module is created instead of the module itself.
     param_ptr = mod.get_function("_lookup_linked_param", True)(sid)
     gen_param = lib.params[name]
     arr_data = (_get_ctypes_dtype(dtype) * np.prod(gen_param.shape)).from_address(param_ptr.value)
     arr = np.ndarray(shape=gen_param.shape, dtype=gen_param.dtype, buffer=arr_data, order="C")
     if "int" in gen_param.dtype:
-        np.testing.assert_equal(gen_param.asnumpy(), arr)
+        np.testing.assert_equal(gen_param.numpy(), arr)
     else:
-        np.testing.assert_allclose(gen_param.asnumpy(), arr)
+        np.testing.assert_allclose(gen_param.numpy(), arr)
     return dtype == gen_param.dtype
 
 
@@ -154,7 +154,7 @@ def _make_mod_and_params(dtype):
         f"def @main(%rand_input : Tensor[{INPUT_SHAPE}, {dtype}], { ', '.join(param_decls.values()) } )  {{",
         # This program ensures that GraphPlanMemory alternates between the same two storage IDs for a
         # while. In doing this, it ensures that param %{dtype}_b will be placed into the graph at an
-        # index unequal to its storage_id. This ensures that GraphRuntimeCodegen encodes the storage_id
+        # index unequal to its storage_id. This ensures that GraphExecutorCodegen encodes the storage_id
         # and not the parameter index into the graph.
         (
             f'    %0 = nn.conv2d(%rand_input, %{dtype}_a, data_layout="NCHW", kernel_layout="OIHW", '
@@ -206,7 +206,7 @@ def test_llvm_link_params():
             # Wrap in function to explicitly deallocate the runtime.
             def _run_linked(lib, mod):
                 graph_json, _, _ = lib
-                graph_rt = tvm.contrib.graph_runtime.create(graph_json, mod, tvm.cpu(0))
+                graph_rt = tvm.contrib.graph_executor.create(graph_json, mod, tvm.cpu(0))
                 graph_rt.set_input("rand_input", rand_input)  # NOTE: params not required.
                 graph_rt.run()
                 return graph_rt.get_output(0)
@@ -218,7 +218,7 @@ def test_llvm_link_params():
 
             def _run_unlinked(lib):
                 graph_json, mod, lowered_params = lib
-                graph_rt = tvm.contrib.graph_runtime.create(graph_json, mod, tvm.cpu(0))
+                graph_rt = tvm.contrib.graph_executor.create(graph_json, mod, tvm.cpu(0))
                 graph_rt.set_input("rand_input", rand_input, **lowered_params)
                 graph_rt.run()
                 return graph_rt.get_output(0)
@@ -226,9 +226,9 @@ def test_llvm_link_params():
             unlinked_output = _run_unlinked(lib)
 
         if "int" in dtype:
-            np.testing.assert_equal(unlinked_output.asnumpy(), linked_output.asnumpy())
+            np.testing.assert_equal(unlinked_output.numpy(), linked_output.numpy())
         else:
-            np.testing.assert_allclose(unlinked_output.asnumpy(), linked_output.asnumpy())
+            np.testing.assert_allclose(unlinked_output.numpy(), linked_output.numpy())
 
 
 def _get_c_datatype(dtype):
@@ -275,10 +275,10 @@ def test_c_link_params():
             assert set(lib.params.keys()) == {"p0", "p1"}  # NOTE: op folded
 
             src = lib.lib.get_source()
-            lib.lib.save("test.c", "c")
+            lib.lib.save(temp_dir.relpath("test.c"), "c")
             c_dtype = _get_c_datatype(dtype)
             src_lines = src.split("\n")
-            param = lib.params["p0"].asnumpy().reshape(np.prod(KERNEL_SHAPE))
+            param = lib.params["p0"].numpy().reshape(np.prod(KERNEL_SHAPE))
             param_def = f"static const {c_dtype} __tvm_param__p0[{np.prod(param.shape)}] = {{"
             for i, line in enumerate(src_lines):
                 if line == param_def:
@@ -302,7 +302,6 @@ def test_c_link_params():
                 i += 1
 
             assert cursor == np.prod(param.shape)
-            temp = utils.tempdir()
 
             # Need a unique name per library to avoid dlopen caching the lib load.
             lib_path = temp_dir.relpath(f"test-{dtype}-linked.so")
@@ -316,7 +315,7 @@ def test_c_link_params():
 
             # Wrap in function to explicitly deallocate the runtime.
             def _run_linked(lib_mod):
-                graph_rt = tvm.contrib.graph_runtime.GraphModule(lib_mod["default"](tvm.cpu(0)))
+                graph_rt = tvm.contrib.graph_executor.GraphModule(lib_mod["default"](tvm.cpu(0)))
                 graph_rt.set_input("rand_input", rand_input)  # NOTE: params not required.
                 graph_rt.run()
 
@@ -334,7 +333,7 @@ def test_c_link_params():
             lib_mod = tvm.runtime.load_module(lib_path)
 
             def _run_unlinked(lib_mod):
-                graph_rt = tvm.contrib.graph_runtime.GraphModule(lib_mod["default"](tvm.cpu(0)))
+                graph_rt = tvm.contrib.graph_executor.GraphModule(lib_mod["default"](tvm.cpu(0)))
                 graph_rt.set_input("rand_input", rand_input, **params)
                 graph_rt.run()
                 return graph_rt.get_output(0)
@@ -342,9 +341,9 @@ def test_c_link_params():
             unlinked_output = _run_unlinked(lib_mod)
 
         if "int" in dtype:
-            np.testing.assert_equal(unlinked_output.asnumpy(), linked_output.asnumpy())
+            np.testing.assert_equal(unlinked_output.numpy(), linked_output.numpy())
         else:
-            np.testing.assert_allclose(unlinked_output.asnumpy(), linked_output.asnumpy())
+            np.testing.assert_allclose(unlinked_output.numpy(), linked_output.numpy())
 
 
 @tvm.testing.requires_micro
@@ -365,7 +364,7 @@ def test_crt_link_params():
             opts = tvm.micro.default_options(
                 os.path.join(tvm.micro.get_standalone_crt_dir(), "template", "host")
             )
-            opts["bin_opts"]["ldflags"].append("-DTVM_HOST_USE_GRAPH_RUNTIME_MODULE")
+            opts["bin_opts"]["ldflags"].append("-DTVM_HOST_USE_GRAPH_EXECUTOR_MODULE")
 
             micro_binary = tvm.micro.build_static_runtime(
                 workspace,
@@ -374,7 +373,7 @@ def test_crt_link_params():
                 compiler_options=opts,
                 extra_libs=[
                     tvm.micro.get_standalone_crt_lib(m)
-                    for m in ("memory", "graph_runtime_module", "graph_runtime")
+                    for m in ("memory", "graph_executor_module", "graph_executor")
                 ],
             )
 
@@ -383,24 +382,24 @@ def test_crt_link_params():
             }
             flasher = compiler.flasher(**flasher_kw)
             with tvm.micro.Session(binary=micro_binary, flasher=flasher) as sess:
-                graph_rt = tvm.micro.session.create_local_graph_runtime(
-                    graph_json, sess.get_system_lib(), sess.context
+                graph_rt = tvm.micro.session.create_local_graph_executor(
+                    graph_json, sess.get_system_lib(), sess.device
                 )
 
                 # NOTE: not setting params here.
                 graph_rt.set_input("rand_input", rand_input)
                 graph_rt.run()
-                linked_output = graph_rt.get_output(0).asnumpy()
+                linked_output = graph_rt.get_output(0).numpy()
 
         with tvm.transform.PassContext(opt_level=3):
             lib = tvm.relay.build(mod, "llvm --system-lib", params=param_init)
 
             def _run_unlinked(lib):
                 graph_json, mod, lowered_params = lib
-                graph_rt = tvm.contrib.graph_runtime.create(graph_json, mod, tvm.cpu(0))
+                graph_rt = tvm.contrib.graph_executor.create(graph_json, mod, tvm.cpu(0))
                 graph_rt.set_input("rand_input", rand_input, **lowered_params)
                 graph_rt.run()
-                return graph_rt.get_output(0).asnumpy()
+                return graph_rt.get_output(0).numpy()
 
             unlinked_output = _run_unlinked(lib)
 

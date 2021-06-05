@@ -45,8 +45,10 @@ void DFPatternVisitor::VisitDFPattern_(const AttrPatternNode* op) { VisitDFPatte
 
 void DFPatternVisitor::VisitDFPattern_(const CallPatternNode* op) {
   VisitDFPattern(op->op);
-  for (auto arg : op->args) {
-    VisitDFPattern(arg);
+  if (op->args.defined()) {
+    for (auto arg : op->args) {
+      VisitDFPattern(arg);
+    }
   }
 }
 
@@ -63,8 +65,10 @@ void DFPatternVisitor::VisitDFPattern_(const DominatorPatternNode* op) {
 void DFPatternVisitor::VisitDFPattern_(const ExprPatternNode* op) {}
 
 void DFPatternVisitor::VisitDFPattern_(const FunctionPatternNode* op) {
-  for (auto param : op->params) {
-    VisitDFPattern(param);
+  if (op->params.defined()) {
+    for (auto param : op->params) {
+      VisitDFPattern(param);
+    }
   }
   VisitDFPattern(op->body);
 }
@@ -76,8 +80,10 @@ void DFPatternVisitor::VisitDFPattern_(const TupleGetItemPatternNode* op) {
 }
 
 void DFPatternVisitor::VisitDFPattern_(const TuplePatternNode* op) {
-  for (auto field : op->fields) {
-    VisitDFPattern(field);
+  if (op->fields.defined()) {
+    for (auto field : op->fields) {
+      VisitDFPattern(field);
+    }
   }
 }
 

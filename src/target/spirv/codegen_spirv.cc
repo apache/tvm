@@ -30,14 +30,25 @@
 
 #include <string>
 
+#include "../../runtime/pack_args.h"
+#include "../../runtime/vulkan/vulkan_common.h"
+#include "../../runtime/vulkan/vulkan_shader.h"
+
 namespace tvm {
 namespace codegen {
 
-std::vector<uint32_t> CodeGenSPIRV::BuildFunction(const PrimFunc& f, const std::string& name) {
+CodeGenSPIRV::CodeGenSPIRV(Target target) : spirv_support_(target) {}
+
+runtime::VulkanShader CodeGenSPIRV::BuildFunction(const PrimFunc& f, const std::string& name) {
   this->InitFuncState();
   ICHECK(f->HasNonzeroAttr(tir::attr::kNoAlias)) << "SPIRV only takes restricted memory model";
   std::vector<Var> pod_args;
   uint32_t num_buffer = 0;
+
+  // Currently, all storage and uniform buffer arguments are passed as
+  // a single descriptor set at index 0.  If ever non-zero, must
+  // ensure it is less than maxBoundDescriptorSets.
+  const uint32_t descriptor_set = 0;
 
   for (Var arg : f->params) {
     DataType t = arg.dtype();
@@ -51,8 +62,8 @@ std::vector<uint32_t> CodeGenSPIRV::BuildFunction(const PrimFunc& f, const std::
           // The loaded byte is cast to bool inside the LoadNode visitor below.
           value_storage_type = DataType::UInt(8);
         }
-        spirv::Value arg_value =
-            builder_->BufferArgument(builder_->GetSType(value_storage_type), 0, num_buffer);
+        spirv::Value arg_value = builder_->BufferArgument(builder_->GetSType(value_storage_type),
+                                                          descriptor_set, num_buffer);
         storage_info_[arg.get()].UpdateContentType(value_storage_type);
         var_map_[arg.get()] = arg_value;
       } else {
@@ -66,16 +77,28 @@ std::vector<uint32_t> CodeGenSPIRV::BuildFunction(const PrimFunc& f, const std::
   spirv::Value func_ptr = builder_->NewFunction();
   builder_->StartFunction(func_ptr);
 
-  // All the POD arguments are passed in through PushConstant
+  runtime::VulkanShader shader;
+
   if (pod_args.size() != 0) {
     std::vector<spirv::SType> value_types;
     for (size_t i = 0; i < pod_args.size(); ++i) {
       value_types.push_back(builder_->GetSType(pod_args[i].dtype()));
     }
-    spirv::Value ptr = builder_->DeclarePushConstant(value_types);
-    for (size_t i = 0; i < pod_args.size(); ++i) {
-      spirv::Value value = builder_->GetPushConstant(ptr, value_types[i], static_cast<uint32_t>(i));
-      var_map_[pod_args[i].get()] = value;
+    if (pod_args.size() * sizeof(runtime::ArgUnion64) <= runtime::vulkan::kMaxPushConstantsBytes) {
+      spirv::Value ptr = builder_->DeclarePushConstant(value_types);
+      for (size_t i = 0; i < pod_args.size(); ++i) {
+        spirv::Value value =
+            builder_->GetPushConstant(ptr, value_types[i], static_cast<uint32_t>(i));
+        var_map_[pod_args[i].get()] = value;
+      }
+    } else {
+      shader.flag |= 1 << runtime::vulkan::ShaderMetaDataFlagMask::kUseUBO;
+      // If we need to pass more arguments than push constants could handle, we use UBO.
+      spirv::Value ptr = builder_->DeclareUniformBuffer(value_types, descriptor_set, num_buffer);
+      for (size_t i = 0; i < pod_args.size(); ++i) {
+        spirv::Value value = builder_->GetUniform(ptr, value_types[i], static_cast<uint32_t>(i));
+        var_map_[pod_args[i].get()] = value;
+      }
     }
   }
   this->VisitStmt(f->body);
@@ -85,7 +108,8 @@ std::vector<uint32_t> CodeGenSPIRV::BuildFunction(const PrimFunc& f, const std::
 
   builder_->CommitKernelFunction(func_ptr, name);
 
-  return builder_->Finalize();
+  shader.data = builder_->Finalize();
+  return shader;
 }
 
 void CodeGenSPIRV::InitFuncState() {
@@ -93,7 +117,7 @@ void CodeGenSPIRV::InitFuncState() {
   var_map_.clear();
   storage_info_.clear();
   analyzer_.reset(new arith::Analyzer());
-  builder_.reset(new spirv::IRBuilder());
+  builder_.reset(new spirv::IRBuilder(spirv_support_));
   builder_->InitHeader();
 }
 
@@ -528,6 +552,7 @@ void CodeGenSPIRV::VisitStmt_(const ForNode* op) {
 
 void CodeGenSPIRV::VisitStmt_(const WhileNode* op) {
   spirv::Label head_label = builder_->NewLabel();
+  spirv::Label condition_label = builder_->NewLabel();
   spirv::Label body_label = builder_->NewLabel();
   spirv::Label continue_label = builder_->NewLabel();
   spirv::Label merge_label = builder_->NewLabel();
@@ -535,9 +560,15 @@ void CodeGenSPIRV::VisitStmt_(const WhileNode* op) {
 
   // Loop head
   builder_->StartLabel(head_label);
-  spirv::Value loop_cond = MakeValue(op->condition);
   uint32_t control = spv::LoopControlMaskNone;
   builder_->MakeInst(spv::OpLoopMerge, merge_label, continue_label, control);
+  builder_->MakeInst(spv::OpBranch, condition_label);
+
+  // Loop condition evaluation.  The condition could contain if/else
+  // blocks that introduce additional labels, so the condition cannot
+  // be in the loop head's block.
+  builder_->StartLabel(condition_label);
+  spirv::Value loop_cond = MakeValue(op->condition);
   builder_->MakeInst(spv::OpBranchConditional, loop_cond, body_label, merge_label,
                      weight_likely_branch_, 1);
 

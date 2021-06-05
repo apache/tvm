@@ -91,9 +91,17 @@ class ConvertTransformMemorizer : public TransformMemorizer {
       auto desired_layouts = operator->()->desired_layouts_;
       if (desired_layouts.find(op->name) != desired_layouts.end()) {
         tvm::Array<tvm::te::Tensor> tinfos;
-        for (auto expr : ref_call->args) {
-          auto ttype = expr->type_as<TensorTypeNode>();
-          tinfos.push_back(tvm::te::placeholder(ttype->shape, ttype->dtype));
+        for (auto& expr : ref_call->args) {
+          if (expr->checked_type()->IsInstance<TupleTypeNode>()) {
+            auto tuple_ttype_node = expr->type_as<TupleTypeNode>();
+            for (auto& ttype : tuple_ttype_node->fields) {
+              auto ttype_node = ttype.as<TensorTypeNode>();
+              tinfos.push_back(tvm::te::placeholder(ttype_node->shape, ttype_node->dtype));
+            }
+          } else {
+            auto ttype = expr->type_as<TensorTypeNode>();
+            tinfos.push_back(tvm::te::placeholder(ttype->shape, ttype->dtype));
+          }
         }
 
         Array<String> op_desired_layouts = desired_layouts.at(op->name);
@@ -113,7 +121,7 @@ class ConvertTransformMemorizer : public TransformMemorizer {
 
     const CallNode* new_call = new_e.as<CallNode>();
     ICHECK(new_call) << "Can only replace the original operator with another call node";
-    return GetRef<Call>(new_call);
+    return Call(new_call->op, new_call->args, new_call->attrs, new_call->type_args, ref_call->span);
   }
 
   using ContainerType = ConvertTransformMemorizerNode;

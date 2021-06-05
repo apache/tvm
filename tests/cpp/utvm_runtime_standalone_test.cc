@@ -37,6 +37,7 @@
 #include <tvm/relay/expr.h>
 #include <tvm/relay/transform.h>
 #include <tvm/relay/type.h>
+#include <tvm/runtime/executor_info.h>
 #include <tvm/runtime/micro/standalone/utvm_runtime.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/packed_func.h>
@@ -91,7 +92,7 @@ TEST(MicroStandaloneRuntime, BuildModule) {
 
   Target llvm_tgt = Target("llvm");
   targets.Set(0, llvm_tgt);
-  build_f(func, targets, llvm_tgt);
+  build_f(func, targets, llvm_tgt, runtime::kTvmExecutorGraph);
   std::string json = json_f();
   tvm::runtime::Module mod = mod_f();
   std::string o_fname = std::tmpnam(nullptr);
@@ -111,12 +112,12 @@ TEST(MicroStandaloneRuntime, BuildModule) {
   auto* handle = UTVMRuntimeCreate(json.c_str(), json.size(), dsoModule);
   ASSERT_NE(handle, nullptr);
 
-  UTVMRuntimeSetInput(handle, 0, &A.ToDLPack()->dl_tensor);
-  UTVMRuntimeSetInput(handle, 1, &B.ToDLPack()->dl_tensor);
-  UTVMRuntimeSetInput(handle, 2, &C.ToDLPack()->dl_tensor);
+  UTVMRuntimeSetInput(handle, 0, const_cast<DLTensor*>(A.operator->()));
+  UTVMRuntimeSetInput(handle, 1, const_cast<DLTensor*>(B.operator->()));
+  UTVMRuntimeSetInput(handle, 2, const_cast<DLTensor*>(C.operator->()));
   UTVMRuntimeRun(handle);
   auto Y = tvm::runtime::NDArray::Empty({2, 3}, {kDLFloat, 32, 1}, {kDLCPU, 0});
-  UTVMRuntimeGetOutput(handle, 0, &Y.ToDLPack()->dl_tensor);
+  UTVMRuntimeGetOutput(handle, 0, const_cast<DLTensor*>(Y.operator->()));
   auto* pY = (float*)Y->data;
   for (int i = 0; i < 6; ++i) {
     CHECK_LT(fabs(pY[i] - (i + (i + 1) + (i + 2))), 1e-4);

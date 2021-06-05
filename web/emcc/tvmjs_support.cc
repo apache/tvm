@@ -24,10 +24,11 @@
  *        We do not need to link this file in standalone wasm.
  */
 
-// configurations for the dmlc log.
+// configurations for tvm logging
+#define TVM_LOG_STACK_TRACE 0
 #define TVM_LOG_DEBUG 0
+#define TVM_LOG_CUSTOMIZE 1
 #define DMLC_USE_LOGGING_LIBRARY <tvm/runtime/logging.h>
-#define TVM_BACKTRACE_DISABLED 1
 
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/container.h>
@@ -180,14 +181,14 @@ class AsyncLocalSession : public LocalSession {
     try {
       DLTensor local_from;
       local_from.data = local_from_bytes;
-      local_from.ctx = TVMContext{kDLCPU, 0};
+      local_from.device = Device{kDLCPU, 0};
       local_from.ndim = remote_to->ndim;
       local_from.shape = remote_to->shape;
       local_from.dtype = remote_to->dtype;
       local_from.strides = nullptr;
       local_from.byte_offset = 0;
-      this->GetDeviceAPI(remote_to->ctx)->CopyDataFromTo(&local_from, remote_to, nullptr);
-      this->AsyncStreamWait(remote_to->ctx, nullptr, on_complete);
+      this->GetDeviceAPI(remote_to->device)->CopyDataFromTo(&local_from, remote_to, nullptr);
+      this->AsyncStreamWait(remote_to->device, nullptr, on_complete);
     } catch (const std::runtime_error& e) {
       this->SendException(on_complete, e.what());
     }
@@ -198,27 +199,27 @@ class AsyncLocalSession : public LocalSession {
     try {
       DLTensor local_to;
       local_to.data = local_to_bytes;
-      local_to.ctx = TVMContext{kDLCPU, 0};
+      local_to.device = Device{kDLCPU, 0};
       local_to.ndim = remote_from->ndim;
       local_to.shape = remote_from->shape;
       local_to.dtype = remote_from->dtype;
       local_to.strides = nullptr;
       local_to.byte_offset = 0;
-      this->GetDeviceAPI(remote_from->ctx)->CopyDataFromTo(&local_to, remote_from, nullptr);
-      this->AsyncStreamWait(remote_from->ctx, nullptr, on_complete);
+      this->GetDeviceAPI(remote_from->device)->CopyDataFromTo(&local_to, remote_from, nullptr);
+      this->AsyncStreamWait(remote_from->device, nullptr, on_complete);
     } catch (const std::runtime_error& e) {
       this->SendException(on_complete, e.what());
     }
   }
 
-  void AsyncStreamWait(TVMContext ctx, TVMStreamHandle stream, FAsyncCallback on_complete) final {
-    if (ctx.device_type == kDLCPU) {
+  void AsyncStreamWait(Device dev, TVMStreamHandle stream, FAsyncCallback on_complete) final {
+    if (dev.device_type == kDLCPU) {
       TVMValue value;
       int32_t tcode = kTVMNullptr;
       value.v_handle = nullptr;
       on_complete(RPCCode::kReturn, TVMArgs(&value, &tcode, 1));
     } else {
-      CHECK(ctx.device_type == static_cast<DLDeviceType>(kDLWebGPU));
+      CHECK(dev.device_type == static_cast<DLDeviceType>(kDLWebGPU));
       if (async_wait_ == nullptr) {
         async_wait_ = tvm::runtime::Registry::Get("__async.wasm.WebGPUWaitForTasks");
       }
@@ -242,25 +243,25 @@ class AsyncLocalSession : public LocalSession {
   // time evaluator
   PackedFunc GetTimeEvaluator(Optional<Module> opt_mod, std::string name, int device_type,
                               int device_id, int number, int repeat, int min_repeat_ms) {
-    TVMContext ctx;
-    ctx.device_type = static_cast<DLDeviceType>(device_type);
-    ctx.device_id = device_id;
+    Device dev;
+    dev.device_type = static_cast<DLDeviceType>(device_type);
+    dev.device_id = device_id;
 
     if (opt_mod.defined()) {
       Module m = opt_mod.value();
       std::string tkey = m->type_key();
-      return WrapWasmTimeEvaluator(m.GetFunction(name, false), ctx, number, repeat, min_repeat_ms);
+      return WrapWasmTimeEvaluator(m.GetFunction(name, false), dev, number, repeat, min_repeat_ms);
     } else {
       auto* pf = runtime::Registry::Get(name);
       CHECK(pf != nullptr) << "Cannot find " << name << " in the global function";
-      return WrapWasmTimeEvaluator(*pf, ctx, number, repeat, min_repeat_ms);
+      return WrapWasmTimeEvaluator(*pf, dev, number, repeat, min_repeat_ms);
     }
   }
 
   // time evaluator
-  PackedFunc WrapWasmTimeEvaluator(PackedFunc pf, TVMContext ctx, int number, int repeat,
+  PackedFunc WrapWasmTimeEvaluator(PackedFunc pf, Device dev, int number, int repeat,
                                    int min_repeat_ms) {
-    auto ftimer = [pf, ctx, number, repeat, min_repeat_ms](TVMArgs args, TVMRetValue* rv) {
+    auto ftimer = [pf, dev, number, repeat, min_repeat_ms](TVMArgs args, TVMRetValue* rv) {
       // the function is a async function.
       PackedFunc on_complete = args[args.size() - 1];
       // keep argument alive in finvoke so that they
@@ -277,7 +278,7 @@ class AsyncLocalSession : public LocalSession {
       };
       auto* time_exec = runtime::Registry::Get("__async.wasm.TimeExecution");
       CHECK(time_exec != nullptr) << "Cannot find wasm.GetTimer in the global function";
-      (*time_exec)(TypedPackedFunc<void(int)>(finvoke), ctx, number, repeat, min_repeat_ms,
+      (*time_exec)(TypedPackedFunc<void(int)>(finvoke), dev, number, repeat, min_repeat_ms,
                    on_complete);
     };
     return PackedFunc(ftimer);

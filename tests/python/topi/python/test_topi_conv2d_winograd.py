@@ -84,7 +84,7 @@ def verify_conv2d_nchw(
     a_np, w_np, b_np, c_np = get_ref_data()
 
     def check_device(device):
-        ctx = tvm.context(device, 0)
+        dev = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
@@ -98,10 +98,10 @@ def verify_conv2d_nchw(
                 C = topi.nn.relu(C)
             s = fschedule([C])
 
-        a = tvm.nd.array(a_np, ctx)
-        w = tvm.nd.array(w_np, ctx)
-        b = tvm.nd.array(b_np, ctx)
-        c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), ctx)
+        a = tvm.nd.array(a_np, dev)
+        w = tvm.nd.array(w_np, dev)
+        b = tvm.nd.array(b_np, dev)
+        c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), dev)
         if add_bias:
             func = tvm.build(
                 s,
@@ -122,7 +122,7 @@ def verify_conv2d_nchw(
             func(a, w, c)
 
         rtol = 1e-3
-        tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=rtol)
+        tvm.testing.assert_allclose(c.numpy(), c_np, rtol=rtol)
 
     for device in devices:
         check_device(device)
@@ -205,20 +205,20 @@ def verify_conv2d_nhwc(
     a_np, w_np, b_np, c_np = get_ref_data()
 
     target = "llvm"
-    ctx = tvm.context(target)
+    dev = tvm.device(target)
 
     C = topi.nn.conv2d_winograd_nhwc(A, W, stride, padding, dilation, dtype)
     s = te.create_schedule([C.op])
 
-    a = tvm.nd.array(a_np, ctx=ctx)
-    w = tvm.nd.array(w_np, ctx=ctx)
-    b = tvm.nd.array(b_np, ctx=ctx)
-    c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), ctx=ctx)
+    a = tvm.nd.array(a_np, device=dev)
+    w = tvm.nd.array(w_np, device=dev)
+    b = tvm.nd.array(b_np, device=dev)
+    c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), device=dev)
     func = tvm.build(s, [A, W, C], target=target)
     func(a, w, c)
 
     rtol = 1e-3
-    tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=rtol)
+    tvm.testing.assert_allclose(c.numpy(), c_np, rtol=rtol)
 
 
 def test_conv2d_nhwc():

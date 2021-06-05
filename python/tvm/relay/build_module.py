@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """
-Construct the necessary state for the TVM graph runtime
+Construct the necessary state for the TVM graph executor
 from a Relay expression.
 """
 import warnings
@@ -25,15 +25,16 @@ from tvm.ir import IRModule
 
 from tvm.ir.transform import PassContext
 from tvm.tir import expr as tvm_expr
+from tvm.target import Target
 from .. import nd as _nd, autotvm, register_func
 from ..target import Target
-from ..contrib import graph_runtime as _graph_rt
+from ..contrib import graph_executor as _graph_rt
 from . import _build_module
 from . import ty as _ty
 from . import expr as _expr
 from . import function as _function
 from .transform import InferType
-from .backend import graph_runtime_factory as _graph_runtime_factory
+from .backend import executor_factory as _executor_factory
 from .backend import interpreter as _interpreter
 from .backend.vm import VMExecutor
 
@@ -45,11 +46,11 @@ def _update_target(target):
 
     tgts = {}
     if isinstance(target, (str, Target)):
-        dev_type = tvm_expr.IntImm("int32", _nd.context(str(target)).device_type)
+        dev_type = tvm_expr.IntImm("int32", _nd.device(str(target)).device_type)
         tgts[dev_type] = Target(target)
     elif isinstance(target, dict):
         for dev, tgt in target.items():
-            dev_type = tvm_expr.IntImm("int32", _nd.context(dev).device_type)
+            dev_type = tvm_expr.IntImm("int32", _nd.device(dev).device_type)
             tgts[dev_type] = Target(tgt)
     else:
         raise TypeError(
@@ -70,7 +71,7 @@ def _convert_param_map(params):
 
 
 class BuildModule(object):
-    """Build an IR module to run on TVM graph runtime. This class is used
+    """Build an IR module to run on TVM graph executor. This class is used
     to expose the `RelayBuildModule` APIs implemented in C++.
     """
 
@@ -82,8 +83,9 @@ class BuildModule(object):
         self._optimize = self.mod["optimize"]
         self._set_params_func = self.mod["set_params"]
         self._get_params_func = self.mod["get_params"]
+        self._get_function_metadata = self.mod["get_function_metadata"]
 
-    def build(self, mod, target=None, target_host=None, params=None):
+    def build(self, mod, target=None, target_host=None, params=None, executor="graph"):
         """
         Parameters
         ----------
@@ -108,12 +110,26 @@ class BuildModule(object):
             Input parameters to the graph that do not change
             during inference time. Used for constant folding.
 
+        executor: str[Optional]
+            The type of executor to be used in order to run the model:
+            - If "graph" is specified, then the graph_executor will be used
+            - If "aot" is specified, then the aot_executor will be used
+
         Returns
         -------
-        factory_module : tvm.relay.backend.graph_runtime_factory.GraphRuntimeFactoryModule
-            The runtime factory for the TVM graph runtime.
+        graph_json : str
+            The json string that can be accepted by graph executor.
+
+        mod : tvm.Module
+            The module containing necessary libraries.
+
+        params : dict
+            The parameters of the final graph.
         """
         target = _update_target(target)
+        target, target_host = Target.check_and_update_host_consist(
+            target, target_host, target_is_dict_key=False
+        )
 
         # Setup the params.
         if params:
@@ -129,15 +145,15 @@ class BuildModule(object):
         old_autotvm_silent = autotvm.GLOBAL_SCOPE.silent
         autotvm.GLOBAL_SCOPE.silent = use_auto_scheduler
 
-        self._build(mod, target, target_host)
+        self._build(mod, target, target_host, executor)
         autotvm.GLOBAL_SCOPE.silent = old_autotvm_silent
 
         # Get artifacts
-        graph_json = self.get_json()
         mod = self.get_module()
         params = self.get_params()
+        executor_config = self.get_graph_json() if executor == "graph" else None
 
-        return graph_json, mod, params
+        return executor_config, mod, params
 
     def optimize(self, mod, target=None, params=None):
         """
@@ -177,13 +193,19 @@ class BuildModule(object):
     def _set_params(self, params):
         self._set_params_func(_convert_param_map(params))
 
-    def get_json(self):
+    def get_graph_json(self):
         """Return the json file of the built program."""
         return self._get_graph_json()
 
     def get_module(self):
         """Return the built module."""
         return self._get_module()
+
+    def get_function_metadata(self):
+        """Return the compiled function metadata.
+        Currently, the metadata contains workspace size required by
+        each PrimFunc"""
+        return self._get_function_metadata()
 
     def get_params(self):
         """Return the updated weights."""
@@ -205,13 +227,41 @@ def _build_module_no_factory(mod, target=None, target_host=None, params=None, mo
     This wrapper is suitable to be used from other programming languages as
     the runtime::Module can be freely passed between language boundaries.
     """
-    return build(mod, target, target_host, params, mod_name).module
+    target, target_host = Target.check_and_update_host_consist(target, target_host)
+    return build(mod, target, params=params, mod_name=mod_name).module
+
+
+def get_executor_from_target(target, target_host):
+    """Helper function to extract the executor parameter from the target
+
+    Parameters
+    ----------
+    target : Dict of targets for heterogeneous compilation
+
+    target_host :  Host compilation target
+
+    Returns
+    -------
+    executor : str
+    A string representing the executor type
+    """
+
+    # Default executor is graph
+    executor = "graph"
+    cpu_device_type = 1
+    if target_host:
+        executor = target_host.attrs.get("executor", "graph")
+    else:
+        for device_type in target:
+            if device_type == cpu_device_type:
+                executor = target[device_type].attrs.get("executor", "graph")
+    return executor
 
 
 def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"):
     # fmt: off
     # pylint: disable=line-too-long
-    """Helper function that builds a Relay function to run on TVM graph runtime.
+    """Helper function that builds a Relay function to run on TVM graph executor.
 
     Parameters
     ----------
@@ -240,14 +290,8 @@ def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"
 
     Returns
     -------
-    graph_json : str
-        The json string that can be accepted by graph runtime.
-
-    mod : tvm.Module
-        The module containing necessary libraries.
-
-    params : dict
-        The parameters of the final graph.
+    factory_module : tvm.relay.backend.executor_factory.ExecutorFactoryModule
+            The runtime factory for the TVM graph executor.
     """
     # pylint: enable=line-too-long
     # fmt: on
@@ -263,13 +307,18 @@ def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"
             "instead of deprecated parameter mod (tvm.relay.function.Function)",
             DeprecationWarning,
         )
-
     target = _update_target(target)
-
     if isinstance(target_host, (str, Target)):
         target_host = Target(target_host)
     elif target_host:
         raise ValueError("target host must be the type of str, " + "tvm.target.Target, or None")
+
+    target, target_host = Target.check_and_update_host_consist(
+        target, target_host, target_is_dict_key=False
+    )
+
+    # Retrieve the executor from the target
+    executor = get_executor_from_target(target, target_host)
 
     # If current dispatch context is fallback context (the default root context),
     # then load pre-tuned parameters from TopHub
@@ -280,11 +329,23 @@ def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"
 
     with tophub_context:
         bld_mod = BuildModule()
-        graph_json, runtime_mod, params = bld_mod.build(ir_mod, target, target_host, params)
-        runtime_mod = _graph_runtime_factory.GraphRuntimeFactoryModule(
-            ir_mod, target, graph_json, runtime_mod, mod_name, params
+        executor_config, runtime_mod, params = bld_mod.build(
+            mod=ir_mod, target=target, params=params, executor=executor
         )
-        return runtime_mod
+        func_metadata = bld_mod.get_function_metadata()
+
+        if executor == "aot":
+            executor_factory = _executor_factory.AOTExecutorFactoryModule(
+                ir_mod, target, runtime_mod, mod_name, params, func_metadata
+            )
+        elif executor == "graph":
+            executor_factory = _executor_factory.GraphExecutorFactoryModule(
+                ir_mod, target, executor_config, runtime_mod, mod_name, params, func_metadata
+            )
+        else:
+            assert False, "Executor " + executor + " not supported"
+
+        return executor_factory
 
 
 def optimize(mod, target=None, params=None):
@@ -373,17 +434,17 @@ class GraphExecutor(_interpreter.Executor):
     mod : :py:class:`~tvm.IRModule`
         The module to support the execution.
 
-    ctx : :py:class:`TVMContext`
-        The runtime context to run the code on.
+    device : :py:class:`Device`
+        The runtime device to run the code on.
 
     target : :py:class:`Target`
         The target option to build the function.
     """
 
-    def __init__(self, mod, ctx, target):
+    def __init__(self, mod, device, target):
         assert mod is not None
         self.mod = mod
-        self.ctx = ctx
+        self.device = device
         self.target = target
 
     def _make_executor(self, expr=None):
@@ -392,9 +453,11 @@ class GraphExecutor(_interpreter.Executor):
         self.mod = InferType()(self.mod)
         ret_type = self.mod["main"].checked_type.ret_type
         if _ty.is_dynamic(ret_type):
-            raise ValueError("Graph Runtime only supports static graphs, got output type", ret_type)
+            raise ValueError(
+                "Graph Executor only supports static graphs, got output type", ret_type
+            )
         mod = build(self.mod, target=self.target)
-        gmodule = _graph_rt.GraphModule(mod["default"](self.ctx))
+        gmodule = _graph_rt.GraphModule(mod["default"](self.device))
 
         def _unflatten(flat_iter, cur_type):
             if isinstance(cur_type, _ty.TensorType):
@@ -423,7 +486,7 @@ class GraphExecutor(_interpreter.Executor):
         return _graph_wrapper
 
 
-def create_executor(kind="debug", mod=None, ctx=None, target="llvm"):
+def create_executor(kind="debug", mod=None, device=None, target="llvm"):
     """Factory function to create an executor.
 
     Example
@@ -444,14 +507,14 @@ def create_executor(kind="debug", mod=None, ctx=None, target="llvm"):
     ----------
     kind : str
         The type of executor. Avaliable options are `debug` for the
-        interpreter, `graph` for the graph runtime, and `vm` for the virtual
+        interpreter, `graph` for the graph executor, and `vm` for the virtual
         machine.
 
     mod : :py:class:`~tvm.IRModule`
         The Relay module containing collection of functions
 
-    ctx : :py:class:`tvmContext`
-        The context to execute the code.
+    device : :py:class:`Device`
+        The device to execute the code.
 
     target : :py:class:`tvm.Target`
         The corresponding context
@@ -462,17 +525,17 @@ def create_executor(kind="debug", mod=None, ctx=None, target="llvm"):
     """
     if mod is None:
         mod = IRModule()
-    if ctx is not None:
-        assert ctx.device_type == _nd.context(str(target), 0).device_type
+    if device is not None:
+        assert device.device_type == _nd.device(str(target), 0).device_type
     else:
-        ctx = _nd.context(str(target), 0)
+        device = _nd.device(str(target), 0)
 
     if isinstance(target, str):
         target = Target(target)
     if kind == "debug":
-        return _interpreter.Interpreter(mod, ctx, target)
+        return _interpreter.Interpreter(mod, device, target)
     if kind == "graph":
-        return GraphExecutor(mod, ctx, target)
+        return GraphExecutor(mod, device, target)
     if kind == "vm":
-        return VMExecutor(mod, ctx, target)
+        return VMExecutor(mod, device, target)
     raise RuntimeError("unknown execution strategy: {0}".format(kind))

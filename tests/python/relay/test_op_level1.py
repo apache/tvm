@@ -61,18 +61,18 @@ def test_unary_op():
             data = np.random.rand(*shape).astype(dtype)
             ref_res = ref(data)
             func = relay.Function([x], y)
-            for target, ctx in tvm.testing.enabled_targets():
+            for target, dev in tvm.testing.enabled_targets():
                 # use graph by execuor default for testing, as we need
                 # create function explicitly to avoid constant-folding.
                 if (
                     dtype == "float16"
                     and target == "cuda"
-                    and not have_fp16(tvm.gpu(0).compute_version)
+                    and not have_fp16(tvm.cuda(0).compute_version)
                 ):
                     continue
-                intrp = relay.create_executor("graph", ctx=ctx, target=target)
+                intrp = relay.create_executor("graph", device=dev, target=target)
                 op_res = intrp.evaluate(func)(data)
-                np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=0.01)
+                np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=0.01)
 
     for opfunc, ref in [
         (tvm.relay.log, np.log),
@@ -123,18 +123,18 @@ def test_binary_op():
             ref_res = ref(x_data, y_data)
             func = relay.Function([x, y], z)
 
-            for target, ctx in tvm.testing.enabled_targets():
+            for target, dev in tvm.testing.enabled_targets():
                 # use graph by execuor default for testing, as we need
                 # create function explicitly to avoid constant-folding.
                 if (
                     dtype == "float16"
                     and target == "cuda"
-                    and not have_fp16(tvm.gpu(0).compute_version)
+                    and not have_fp16(tvm.cuda(0).compute_version)
                 ):
                     continue
-                intrp = relay.create_executor("graph", ctx=ctx, target=target)
+                intrp = relay.create_executor("graph", device=dev, target=target)
                 op_res = intrp.evaluate(func)(x_data, y_data)
-                np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=0.01, atol=1e-3)
+                np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=0.01, atol=1e-3)
 
     for opfunc, ref in [
         (relay.add, np.add),
@@ -154,18 +154,18 @@ def test_expand_dims():
     def verify_expand_dims(dshape, dtype, oshape, axis, num_newaxis):
         x = relay.Var("x", relay.TensorType(dshape, dtype))
         func = relay.Function([x], relay.expand_dims(x, axis, num_newaxis))
-        for target, ctx in tvm.testing.enabled_targets():
+        for target, dev in tvm.testing.enabled_targets():
             if (
                 dtype == "float16"
                 and target == "cuda"
-                and not have_fp16(tvm.gpu(0).compute_version)
+                and not have_fp16(tvm.cuda(0).compute_version)
             ):
                 continue
             data = np.random.uniform(size=dshape).astype(dtype)
             ref_res = data.reshape(oshape)
-            intrp = relay.create_executor("graph", ctx=ctx, target=target)
+            intrp = relay.create_executor("graph", device=dev, target=target)
             op_res = intrp.evaluate(func)(data)
-            np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=0.01)
+            np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=0.01)
 
     for dtype in ["float16", "float32"]:
         verify_expand_dims((3, 10), dtype, (3, 10, 1, 1), 2, 2)
@@ -189,16 +189,16 @@ def test_bias_add():
         x_data = np.random.uniform(size=xshape).astype(dtype)
         y_data = np.random.uniform(size=bshape).astype(dtype)
         ref_res = x_data + y_data.reshape((2, 1, 1))
-        for target, ctx in tvm.testing.enabled_targets():
+        for target, dev in tvm.testing.enabled_targets():
             if (
                 dtype == "float16"
                 and target == "cuda"
-                and not have_fp16(tvm.gpu(0).compute_version)
+                and not have_fp16(tvm.cuda(0).compute_version)
             ):
                 continue
-            intrp = relay.create_executor("graph", ctx=ctx, target=target)
+            intrp = relay.create_executor("graph", device=dev, target=target)
             op_res = intrp.evaluate(func)(x_data, y_data)
-            np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=rtol)
+            np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=rtol)
 
 
 def test_bias_add_type_failure():
@@ -239,10 +239,10 @@ def test_softmax():
         func = relay.Function([x], y)
         x_data = np.random.uniform(size=shape).astype(dtype)
         ref_res = tvm.topi.testing.softmax_python(x_data)
-        for target, ctx in tvm.testing.enabled_targets():
-            intrp = relay.create_executor("graph", ctx=ctx, target=target)
+        for target, dev in tvm.testing.enabled_targets():
+            intrp = relay.create_executor("graph", device=dev, target=target)
             op_res = intrp.evaluate(func)(x_data)
-            np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+            np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
 
 @tvm.testing.uses_gpu
@@ -260,10 +260,10 @@ def test_log_softmax():
         func = relay.Function([x], y)
         x_data = np.random.uniform(size=shape).astype(dtype)
         ref_res = tvm.topi.testing.log_softmax_python(x_data)
-        for target, ctx in tvm.testing.enabled_targets():
-            intrp = relay.create_executor("graph", ctx=ctx, target=target)
+        for target, dev in tvm.testing.enabled_targets():
+            intrp = relay.create_executor("graph", device=dev, target=target)
             op_res = intrp.evaluate(func)(x_data)
-            np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+            np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
 
 @tvm.testing.uses_gpu
@@ -310,19 +310,19 @@ def test_concatenate():
         t_data = np.random.uniform(size=()).astype(dtype)
         ref_res = np.concatenate((x_data, y_data), axis=1) + t_data
 
-        for target, ctx in tvm.testing.enabled_targets():
+        for target, dev in tvm.testing.enabled_targets():
             if (
                 dtype == "float16"
                 and target == "cuda"
-                and not have_fp16(tvm.gpu(0).compute_version)
+                and not have_fp16(tvm.cuda(0).compute_version)
             ):
                 continue
-            intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
-            intrp2 = relay.create_executor("debug", ctx=ctx, target=target)
+            intrp1 = relay.create_executor("graph", device=dev, target=target)
+            intrp2 = relay.create_executor("debug", device=dev, target=target)
             op_res1 = intrp1.evaluate(func)(x_data, y_data, t_data)
-            tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=0.01)
+            tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=0.01)
             op_res2 = intrp2.evaluate(func)(x_data, y_data, t_data)
-            tvm.testing.assert_allclose(op_res2.asnumpy(), ref_res, rtol=0.01)
+            tvm.testing.assert_allclose(op_res2.numpy(), ref_res, rtol=0.01)
 
 
 def test_dropout():
@@ -339,11 +339,11 @@ def test_dropout():
     x = relay.const(in_np)
     y = relay.nn.dropout(x, rate=0.5)
     func = relay.Function([], y)
-    for target, ctx in tvm.testing.enabled_targets():
+    for target, dev in tvm.testing.enabled_targets():
         for backend in ["debug", "graph"]:
-            intrp = relay.create_executor("debug", ctx=ctx, target=target)
+            intrp = relay.create_executor("debug", device=dev, target=target)
             op_res = intrp.evaluate(func)()
-            tvm.testing.assert_allclose(op_res.asnumpy(), in_np, rtol=0.01)
+            tvm.testing.assert_allclose(op_res.numpy(), in_np, rtol=0.01)
 
 
 def test_batch_norm():
@@ -460,13 +460,13 @@ def test_dense():
         w_data = np.random.rand(2, 5).astype(dtype)
         ref_res = np.dot(x_data, w_data.T)
 
-        for target, ctx in tvm.testing.enabled_targets():
-            intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
-            intrp2 = relay.create_executor("debug", ctx=ctx, target=target)
+        for target, dev in tvm.testing.enabled_targets():
+            intrp1 = relay.create_executor("graph", device=dev, target=target)
+            intrp2 = relay.create_executor("debug", device=dev, target=target)
             op_res1 = intrp1.evaluate(func)(x_data, w_data)
-            tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5)
+            tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5)
             op_res2 = intrp2.evaluate(func)(x_data, w_data)
-            tvm.testing.assert_allclose(op_res2.asnumpy(), ref_res, rtol=1e-5)
+            tvm.testing.assert_allclose(op_res2.numpy(), ref_res, rtol=1e-5)
 
 
 def test_dense_dtype():

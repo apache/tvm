@@ -32,6 +32,7 @@ import pytest
 import tvm
 import tvm.relay
 import tvm.testing
+from tvm.target import Target
 
 from tvm.topi.utils import get_const_tuple
 from tvm.topi.testing import conv2d_nchw_python
@@ -44,7 +45,7 @@ TARGET = tvm.target.target.micro("host")
 
 def _make_sess_from_op(workspace, op_name, sched, arg_bufs):
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        mod = tvm.build(sched, arg_bufs, TARGET, target_host=TARGET, name=op_name)
+        mod = tvm.build(sched, arg_bufs, Target(TARGET, TARGET), name=op_name)
 
     return _make_session(workspace, mod)
 
@@ -92,16 +93,16 @@ def test_compile_runtime():
     workspace = tvm.micro.Workspace()
 
     with _make_add_sess(workspace) as sess:
-        A_data = tvm.nd.array(np.array([2, 3], dtype="int8"), ctx=sess.context)
-        assert (A_data.asnumpy() == np.array([2, 3])).all()
-        B_data = tvm.nd.array(np.array([4], dtype="int8"), ctx=sess.context)
-        assert (B_data.asnumpy() == np.array([4])).all()
-        C_data = tvm.nd.array(np.array([0, 0], dtype="int8"), ctx=sess.context)
-        assert (C_data.asnumpy() == np.array([0, 0])).all()
+        A_data = tvm.nd.array(np.array([2, 3], dtype="int8"), device=sess.device)
+        assert (A_data.numpy() == np.array([2, 3])).all()
+        B_data = tvm.nd.array(np.array([4], dtype="int8"), device=sess.device)
+        assert (B_data.numpy() == np.array([4])).all()
+        C_data = tvm.nd.array(np.array([0, 0], dtype="int8"), device=sess.device)
+        assert (C_data.numpy() == np.array([0, 0])).all()
 
         system_lib = sess.get_system_lib()
         system_lib.get_function("add")(A_data, B_data, C_data)
-        assert (C_data.asnumpy() == np.array([6, 7])).all()
+        assert (C_data.numpy() == np.array([6, 7])).all()
 
 
 @tvm.testing.requires_micro
@@ -138,8 +139,8 @@ def test_reset():
 
 
 @tvm.testing.requires_micro
-def test_graph_runtime():
-    """Test use of the graph runtime with microTVM."""
+def test_graph_executor():
+    """Test use of the graph executor with microTVM."""
     import tvm.micro
 
     workspace = tvm.micro.Workspace(debug=True)
@@ -156,18 +157,18 @@ def test_graph_runtime():
         factory = tvm.relay.build(relay_mod, target=TARGET)
 
     with _make_session(workspace, factory.get_lib()) as sess:
-        graph_mod = tvm.micro.create_local_graph_runtime(
-            factory.get_json(), sess.get_system_lib(), sess.context
+        graph_mod = tvm.micro.create_local_graph_executor(
+            factory.get_graph_json(), sess.get_system_lib(), sess.device
         )
-        A_data = tvm.nd.array(np.array([2, 3], dtype="uint8"), ctx=sess.context)
-        assert (A_data.asnumpy() == np.array([2, 3])).all()
-        B_data = tvm.nd.array(np.array([4, 7], dtype="uint8"), ctx=sess.context)
-        assert (B_data.asnumpy() == np.array([4, 7])).all()
+        A_data = tvm.nd.array(np.array([2, 3], dtype="uint8"), device=sess.device)
+        assert (A_data.numpy() == np.array([2, 3])).all()
+        B_data = tvm.nd.array(np.array([4, 7], dtype="uint8"), device=sess.device)
+        assert (B_data.numpy() == np.array([4, 7])).all()
 
         graph_mod.run(a=A_data, b=B_data)
 
         out = graph_mod.get_output(0)
-        assert (out.asnumpy() == np.array([6, 10])).all()
+        assert (out.numpy() == np.array([6, 10])).all()
 
 
 @tvm.testing.requires_micro
@@ -178,12 +179,12 @@ def test_std_math_functions():
     workspace = tvm.micro.Workspace()
 
     with _make_add_sess(workspace) as sess:
-        A_data = tvm.nd.array(np.array([2, 3], dtype="int8"), ctx=sess.context)
-        assert (A_data.asnumpy() == np.array([2, 3])).all()
-        B_data = tvm.nd.array(np.array([4], dtype="int8"), ctx=sess.context)
-        assert (B_data.asnumpy() == np.array([4])).all()
-        C_data = tvm.nd.array(np.array([0, 0], dtype="int8"), ctx=sess.context)
-        assert (C_data.asnumpy() == np.array([0, 0])).all()
+        A_data = tvm.nd.array(np.array([2, 3], dtype="int8"), device=sess.device)
+        assert (A_data.numpy() == np.array([2, 3])).all()
+        B_data = tvm.nd.array(np.array([4], dtype="int8"), device=sess.device)
+        assert (B_data.numpy() == np.array([4])).all()
+        C_data = tvm.nd.array(np.array([0, 0], dtype="int8"), device=sess.device)
+        assert (C_data.numpy() == np.array([0, 0])).all()
 
         system_lib = sess.get_system_lib()
         system_lib.get_function("add")(A_data, B_data, C_data)
@@ -194,12 +195,12 @@ def test_std_math_functions():
     s = tvm.te.create_schedule(B.op)
 
     with _make_sess_from_op(workspace, "myexpf", s, [A, B]) as sess:
-        A_data = tvm.nd.array(np.array([2.0, 3.0], dtype="float32"), ctx=sess.context)
-        B_data = tvm.nd.array(np.array([2.0, 3.0], dtype="float32"), ctx=sess.context)
+        A_data = tvm.nd.array(np.array([2.0, 3.0], dtype="float32"), device=sess.device)
+        B_data = tvm.nd.array(np.array([2.0, 3.0], dtype="float32"), device=sess.device)
         lib = sess.get_system_lib()
         func = lib["myexpf"]
         func(A_data, B_data)
-        np.testing.assert_allclose(B_data.asnumpy(), np.array([7.389056, 20.085537]))
+        np.testing.assert_allclose(B_data.numpy(), np.array([7.389056, 20.085537]))
 
 
 @tvm.testing.requires_micro
@@ -213,11 +214,11 @@ def test_platform_timer():
     s = tvm.te.create_schedule(B.op)
 
     with _make_sess_from_op(workspace, "myexpf", s, [A, B]) as sess:
-        A_data = tvm.nd.array(np.array([2.0, 3.0], dtype="float32"), ctx=sess.context)
-        B_data = tvm.nd.array(np.array([2.0, 3.0], dtype="float32"), ctx=sess.context)
+        A_data = tvm.nd.array(np.array([2.0, 3.0], dtype="float32"), device=sess.device)
+        B_data = tvm.nd.array(np.array([2.0, 3.0], dtype="float32"), device=sess.device)
         lib = sess.get_system_lib()
         time_eval_f = lib.time_evaluator(
-            "myexpf", sess.context, number=2000, repeat=3, min_repeat_ms=40
+            "myexpf", sess.device, number=2000, repeat=3, min_repeat_ms=40
         )
         result = time_eval_f(A_data, B_data)
         assert result.mean > 0
@@ -225,4 +226,5 @@ def test_platform_timer():
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    test_graph_executor()
+#     sys.exit(pytest.main([__file__] + sys.argv[1:]))

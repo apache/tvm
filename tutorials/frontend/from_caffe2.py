@@ -105,19 +105,19 @@ with transform.PassContext(opt_level=3):
 # The process is no different from other examples.
 import tvm
 from tvm import te
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 
-# context x86 CPU, use tvm.gpu(0) if you run on GPU
-ctx = tvm.cpu(0)
+# context x86 CPU, use tvm.cuda(0) if you run on GPU
+dev = tvm.cpu(0)
 # create a runtime executor module
-m = graph_runtime.GraphModule(lib["default"](ctx))
+m = graph_executor.GraphModule(lib["default"](dev))
 # set inputs
 m.set_input(input_name, tvm.nd.array(data.astype("float32")))
 # execute
 m.run()
 # get outputs
 tvm_out = m.get_output(0)
-top1_tvm = np.argmax(tvm_out.asnumpy()[0])
+top1_tvm = np.argmax(tvm_out.numpy()[0])
 
 #####################################################################
 # Look up synset name

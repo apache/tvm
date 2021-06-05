@@ -18,7 +18,7 @@
 import numpy as np
 import tvm
 from tvm import relay
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 from tvm.relay.frontend.mxnet_qnn_op_utils import (
     dequantize_mxnet_min_max,
     quantize_mxnet_min_max,
@@ -41,11 +41,11 @@ def test_mkldnn_dequantize():
         mod = tvm.IRModule.from_expr(mod)
         with tvm.transform.PassContext(opt_level=3):
             graph, lib, params = relay.build(mod, "llvm", params=None)
-            rt_mod = graph_runtime.create(graph, lib, ctx=tvm.cpu(0))
+            rt_mod = graph_executor.create(graph, lib, device=tvm.cpu(0))
             rt_mod.set_input(input_data=in_data)
             rt_mod.set_input(**params)
             rt_mod.run()
-            res = rt_mod.get_output(0).asnumpy()
+            res = rt_mod.get_output(0).numpy()
             assert np.allclose(res, verify_output_data)
             assert res.dtype == np.float32
 
@@ -120,11 +120,11 @@ def test_mkldnn_quantize():
         mod = tvm.IRModule.from_expr(mod)
         with tvm.transform.PassContext(opt_level=3):
             graph, lib, params = relay.build(mod, "llvm", params=None)
-            rt_mod = graph_runtime.create(graph, lib, ctx=tvm.cpu(0))
+            rt_mod = graph_executor.create(graph, lib, device=tvm.cpu(0))
             rt_mod.set_input(input_data=in_data)
             rt_mod.set_input(**params)
             rt_mod.run()
-            res = rt_mod.get_output(0).asnumpy()
+            res = rt_mod.get_output(0).numpy()
             assert np.allclose(res, verify_output_data)
             assert res.dtype == verify_output_data.dtype
 

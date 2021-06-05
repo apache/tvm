@@ -27,6 +27,8 @@
 #include "runtime.h"
 
 #include <dmlc/logging.h>
+#include <malloc.h>
+#include <stdlib.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <vta/driver.h>
 #include <vta/hw_spec.h>
@@ -35,6 +37,9 @@
 #include <cassert>
 #include <cstring>
 #include <memory>
+#include <mutex>
+#include <set>
+#include <thread>
 #include <vector>
 
 namespace vta {
@@ -47,10 +52,84 @@ static const bool kBufferCoherent = VTA_COHERENT_ACCESSES;
 /*! \brief Always cache buffers (otherwise, write back to DRAM from CPU) */
 static const bool kAlwaysCache = true;
 
+template <typename T, std::size_t N = ALLOC_ALIGNMENT>
+class AlignmentAllocator : public std::allocator<T> {
+ public:
+  typedef T value_type;
+  typedef std::size_t size_type;
+  typedef std::ptrdiff_t difference_type;
+
+  typedef T* pointer;
+  typedef const T* const_pointer;
+
+  typedef T& reference;
+  typedef const T& const_reference;
+
+  inline AlignmentAllocator() throw() {}
+
+  template <typename T2>
+  inline AlignmentAllocator(const AlignmentAllocator<T2, N>&) throw() {}
+
+  inline ~AlignmentAllocator() throw() {}
+
+  inline pointer address(reference r) { return &r; }
+
+  inline const_pointer address(const_reference r) const { return &r; }
+
+  inline pointer allocate(size_type n) { return (pointer)memalign(N, n * sizeof(value_type)); }
+
+  inline void deallocate(pointer p, size_type) { free(p); }
+
+  inline void construct(pointer p, const value_type& wert) { new (p) value_type(wert); }
+
+  inline void destroy(pointer p) { p->~value_type(); }
+
+  inline size_type max_size() const throw() { return size_type(-1) / sizeof(value_type); }
+
+  template <typename T2>
+  struct rebind {
+    typedef AlignmentAllocator<T2, N> other;
+  };
+
+  bool operator!=(const AlignmentAllocator<T, N>& other) const { return !(*this == other); }
+
+  // Returns true if and only if storage allocated from *this
+  // can be deallocated from other, and vice versa.
+  // Always returns true for stateless allocators.
+  bool operator==(const AlignmentAllocator<T, N>& other) const { return true; }
+};
+
+class DeviceAllocStat {
+ public:
+  void AddAlloc(const void* ptr) {
+    std::lock_guard<std::mutex> lock(mtx_);
+    allocated_.insert(ptr);
+  }
+
+  bool CheckAlloc(const void* ptr) {
+    std::lock_guard<std::mutex> lock(mtx_);
+    return allocated_.count(ptr);
+  }
+
+  void DelAlloc(const void* ptr) {
+    std::lock_guard<std::mutex> lock(mtx_);
+    allocated_.erase(ptr);
+  }
+
+ private:
+  std::set<const void*> allocated_;
+  std::mutex mtx_;
+};
+
+// here we use a global variable to memorize the allocation stats
+static std::shared_ptr<DeviceAllocStat> alloc_stat(new DeviceAllocStat());
+
 /*!
  * \brief Data buffer represents data on CMA.
  */
 struct DataBuffer {
+  DataBuffer() { alloc_stat_ = alloc_stat; }
+
   /*! \return Virtual address of the data. */
   void* virt_addr() const { return data_; }
   /*! \return Physical address of the data. */
@@ -101,6 +180,8 @@ struct DataBuffer {
     DataBuffer* buffer = new DataBuffer();
     buffer->data_ = data;
     buffer->phy_addr_ = VTAMemGetPhyAddr(data);
+
+    alloc_stat->AddAlloc(buffer);
     return buffer;
   }
   /*!
@@ -108,6 +189,7 @@ struct DataBuffer {
    * \param buffer The buffer to be freed.
    */
   static void Free(DataBuffer* buffer) {
+    alloc_stat->DelAlloc(buffer);
     VTAMemFree(buffer->data_);
     delete buffer;
   }
@@ -117,7 +199,11 @@ struct DataBuffer {
    * \return The corresponding data buffer header.
    */
   static DataBuffer* FromHandle(const void* buffer) {
-    return const_cast<DataBuffer*>(reinterpret_cast<const DataBuffer*>(buffer));
+    if (alloc_stat->CheckAlloc(buffer)) {
+      return const_cast<DataBuffer*>(reinterpret_cast<const DataBuffer*>(buffer));
+    } else {
+      return nullptr;
+    }
   }
 
  private:
@@ -125,6 +211,11 @@ struct DataBuffer {
   void* data_;
   /*! \brief The physical address of the buffer, excluding header. */
   vta_phy_addr_t phy_addr_;
+
+  // a copy of global shared_ptr instance
+  // to avoid the global instance is destructed before there are still some pending DataBuffers not
+  // destructed
+  std::shared_ptr<DeviceAllocStat> alloc_stat_;
 };
 
 /*!
@@ -329,7 +420,7 @@ class BaseQueue {
   // End location of current SRAM write in FIFO mode
   uint32_t sram_end_{0};
   // The buffer in DRAM
-  std::vector<T> dram_buffer_;
+  std::vector<T, AlignmentAllocator<T, ALLOC_ALIGNMENT>> dram_buffer_;
   // FPGA accessible buffer
   void* fpga_buff_{NULL};
   // Physical address of the FPGA buffer
@@ -429,14 +520,24 @@ class UopQueue : public BaseQueue<VTAUop> {
       buff_size += cache_[i]->size() * kElemBytes;
     }
     CHECK(buff_size <= kMaxBytes);
-    // Move kernel contents to FPGA readable buffer
+
+    // merge all the cache entries and do CopyFromHost once
+    uint32_t total_size = 0;
+    for (uint32_t i = 0; i < cache_.size(); ++i) {
+      uint32_t ksize = cache_[i]->size() * kElemBytes;
+      total_size += ksize;
+    }
+
+    char* lbuf = (char*)memalign(ALLOC_ALIGNMENT, total_size);
     uint32_t offset = 0;
     for (uint32_t i = 0; i < cache_.size(); ++i) {
       uint32_t ksize = cache_[i]->size() * kElemBytes;
-      VTAMemCopyFromHost(static_cast<char*>(fpga_buff_) + offset, cache_[i]->data(), ksize);
-      // Update offset
+      memcpy(lbuf + offset, cache_[i]->data(), ksize);
       offset += ksize;
     }
+    VTAMemCopyFromHost(static_cast<char*>(fpga_buff_), lbuf, total_size);
+    free(lbuf);
+
     // Flush if we're using a shared memory system
     // and if interface is non-coherent
     if (!coherent_ && always_cache_) {
@@ -631,6 +732,8 @@ class InsnQueue : public BaseQueue<VTAGenericInsn> {
       }
     } else if (opcode == VTA_ALU_OPCODE_SHR) {
       return "shr";
+    } else if (opcode == VTA_ALU_OPCODE_MUL) {
+      return "mul";
     }
 
     return "unknown op";
@@ -830,7 +933,7 @@ class InsnQueue : public BaseQueue<VTAGenericInsn> {
   }
   // Get stage of the memory
   static PipelineStage GetMemPipelineStage(int memory_type) {
-    if (memory_type == VTA_MEM_ID_ACC) return kComputeStage;
+    if (memory_type == VTA_MEM_ID_ACC || memory_type == VTA_MEM_ID_ACC_8BIT) return kComputeStage;
     if (memory_type == VTA_MEM_ID_UOP) return kComputeStage;
     return kLoadStage;
   }
@@ -840,7 +943,8 @@ class InsnQueue : public BaseQueue<VTAGenericInsn> {
     if (insn->opcode == VTA_OPCODE_ALU) return kComputeStage;
     if (insn->opcode == VTA_OPCODE_LOAD) {
       if (insn->x_size == 0) return kNoneStage;
-      if (insn->memory_type == VTA_MEM_ID_ACC) return kComputeStage;
+      if (insn->memory_type == VTA_MEM_ID_ACC || insn->memory_type == VTA_MEM_ID_ACC_8BIT)
+        return kComputeStage;
       if (insn->memory_type == VTA_MEM_ID_UOP) return kComputeStage;
       return kLoadStage;
     }
@@ -922,6 +1026,9 @@ class CommandQueue {
         break;
       case VTA_MEM_ID_OUT:
         elem_bytes = VTA_OUT_ELEM_BYTES;
+        break;
+      case VTA_MEM_ID_ACC_8BIT:
+        elem_bytes = VTA_ACC_ELEM_BYTES / 4;
         break;
       default:
         LOG(FATAL) << "Memory id not recognized:" << memory_id;
@@ -1022,7 +1129,7 @@ class CommandQueue {
           VTA_OPCODE_FINISH);
 
     // Make sure that we don't exceed contiguous physical memory limits
-    CHECK(insn_queue_.count() * sizeof(VTAGenericInsn) < VTA_MAX_XFER);
+    CHECK(insn_queue_.count() * sizeof(VTAGenericInsn) <= VTA_MAX_XFER);
     int timeout =
         VTADeviceRun(device_, insn_queue_.dram_phy_addr(), insn_queue_.count(), wait_cycles);
     CHECK_EQ(timeout, 0);
@@ -1170,8 +1277,8 @@ class CommandQueue {
 
   void CheckInsnOverFlow() {
     // At each API call, we can at most commit:
-    // one pending store, one pending load, and one uop
-    if ((insn_queue_.count() + 4) * sizeof(VTAGenericInsn) >= VTA_MAX_XFER) {
+    // at most: 2 NOP-COMPUTE-STAGE -> 2 NOP-MEMORY-STAGE -> 1 NOP-COMPUTE-STAGE -> 1 FINISH
+    if ((insn_queue_.count() + 6) * sizeof(VTAGenericInsn) > VTA_MAX_XFER) {
       this->AutoSync();
     }
   }
@@ -1232,7 +1339,12 @@ void VTASetDebugMode(VTACommandHandle cmd, int debug_flag) {
 }
 
 void* VTABufferCPUPtr(VTACommandHandle cmd, void* buffer) {
-  return vta::DataBuffer::FromHandle(buffer)->virt_addr();
+  auto data_buf = vta::DataBuffer::FromHandle(buffer);
+  if (data_buf) {
+    return data_buf->virt_addr();
+  } else {  // it is a raw ptr allocated by CPU
+    return buffer;
+  }
 }
 
 void VTAWriteBarrier(VTACommandHandle cmd, void* buffer, uint32_t elem_bits, uint32_t start,

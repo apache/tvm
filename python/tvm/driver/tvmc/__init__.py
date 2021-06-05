@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=redefined-builtin
 """
 TVMC - TVM driver command-line interface
 """
@@ -21,3 +22,9 @@ TVMC - TVM driver command-line interface
 from . import autotuner
 from . import compiler
 from . import runner
+from . import result_utils
+from .frontends import load_model as load
+from .compiler import compile_model as compile
+from .runner import run_module as run
+from .autotuner import tune_model as tune
+from .model import TVMCModel, TVMCPackage, TVMCResult

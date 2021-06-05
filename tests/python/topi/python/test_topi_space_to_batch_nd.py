@@ -42,18 +42,18 @@ def verify_space_to_batch_nd(input_shape, block_shape, pad_before, pad_after, pa
         a_np, block_shape, pad_before, pad_after, pad_value
     )
 
-    def check_device(device, ctx):
-        print("Running on target: %s" % device)
-        with tvm.target.create(device):
-            s = tvm.topi.testing.get_injective_schedule(device)(B)
-        a = tvm.nd.array(a_np, ctx)
-        b = tvm.nd.array(np.zeros(out_shape, dtype=dtype), ctx)
-        f = tvm.build(s, [A, B], device)
+    def check_target(target, dev):
+        print("Running on target: %s" % target)
+        with tvm.target.create(target):
+            s = tvm.topi.testing.get_injective_schedule(target)(B)
+        a = tvm.nd.array(a_np, dev)
+        b = tvm.nd.array(np.zeros(out_shape, dtype=dtype), dev)
+        f = tvm.build(s, [A, B], target)
         f(a, b)
-        tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-3, atol=1e-3)
+        tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-3, atol=1e-3)
 
-    for device, ctx in tvm.testing.enabled_targets():
-        check_device(device, ctx)
+    for target, dev in tvm.testing.enabled_targets():
+        check_target(target, dev)
 
 
 @tvm.testing.uses_gpu

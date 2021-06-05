@@ -79,6 +79,18 @@ def softmax_strategy_cpu(attrs, inputs, out_type, target):
     return strategy
 
 
+@fast_softmax_strategy.register("cpu")
+def fast_softmax_strategy_cpu(attrs, inputs, out_type, target):
+    """fast_softmax x86 strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_softmax(topi.nn.fast_softmax),
+        wrap_topi_schedule(topi.x86.schedule_softmax),
+        name="fast_softmax.x86",
+    )
+    return strategy
+
+
 @schedule_log_softmax.register("cpu")
 def schedule_log_softmax_cpu(attrs, outs, target):
     """schedule log_softmax op for x86"""
@@ -205,12 +217,10 @@ def conv2d_strategy_cpu(attrs, inputs, out_type, target):
     else:  # group_conv2d
         if layout == "NCHW":
             assert kernel_layout == "OIHW"
-            if not is_auto_scheduler_enabled():
-                logger.warning("group_conv2d is not optimized for x86 with autotvm.")
             strategy.add_implementation(
-                wrap_compute_conv2d(topi.nn.group_conv2d_nchw, has_groups=True),
-                wrap_topi_schedule(topi.generic.schedule_group_conv2d_nchw),
-                name="group_conv2d_nchw.generic",
+                wrap_compute_conv2d(topi.x86.group_conv2d_nchw, has_groups=True),
+                wrap_topi_schedule(topi.x86.schedule_group_conv2d_nchw),
+                name="group_conv2d_nchw.x86",
             )
         elif layout == "NHWC":
             assert kernel_layout == "HWIO"

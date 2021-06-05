@@ -43,7 +43,7 @@ def test_stable_sort_by_key():
                 print("skip because thrust is not enabled...")
                 return
 
-            ctx = tvm.context(target, 0)
+            dev = tvm.device(target, 0)
             s = te.create_schedule([keys_out.op, values_out.op])
             f = tvm.build(s, [keys, values, keys_out, values_out], target)
 
@@ -51,16 +51,16 @@ def test_stable_sort_by_key():
             values_np = np.random.randint(0, 10, size=(size,)).astype(np.int32)
             keys_np_out = np.zeros(keys_np.shape, np.int32)
             values_np_out = np.zeros(values_np.shape, np.int32)
-            keys_in = tvm.nd.array(keys_np, ctx)
-            values_in = tvm.nd.array(values_np, ctx)
-            keys_out = tvm.nd.array(keys_np_out, ctx)
-            values_out = tvm.nd.array(values_np_out, ctx)
+            keys_in = tvm.nd.array(keys_np, dev)
+            values_in = tvm.nd.array(values_np, dev)
+            keys_out = tvm.nd.array(keys_np_out, dev)
+            values_out = tvm.nd.array(values_np_out, dev)
             f(keys_in, values_in, keys_out, values_out)
 
             ref_keys_out = np.sort(keys_np)
             ref_values_out = np.array([values_np[i] for i in np.argsort(keys_np)])
-            tvm.testing.assert_allclose(keys_out.asnumpy(), ref_keys_out, rtol=1e-5)
-            tvm.testing.assert_allclose(values_out.asnumpy(), ref_values_out, rtol=1e-5)
+            tvm.testing.assert_allclose(keys_out.numpy(), ref_keys_out, rtol=1e-5)
+            tvm.testing.assert_allclose(values_out.numpy(), ref_values_out, rtol=1e-5)
 
 
 def test_exclusive_scan():
@@ -80,7 +80,7 @@ def test_exclusive_scan():
                 scan, reduction = exclusive_scan(values, return_reduction=True)
                 s = schedule_scan([scan, reduction])
 
-                ctx = tvm.context(target, 0)
+                dev = tvm.device(target, 0)
                 f = tvm.build(s, [values, scan, reduction], target)
 
                 values_np = np.random.randint(0, 10, size=ishape).astype(np.int32)
@@ -93,15 +93,15 @@ def test_exclusive_scan():
 
                 reduction_np_out = np.zeros(reduction_shape, np.int32)
 
-                values_in = tvm.nd.array(values_np, ctx)
-                values_out = tvm.nd.array(values_np_out, ctx)
-                reduction_out = tvm.nd.array(reduction_np_out, ctx)
+                values_in = tvm.nd.array(values_np, dev)
+                values_out = tvm.nd.array(values_np_out, dev)
+                reduction_out = tvm.nd.array(reduction_np_out, dev)
                 f(values_in, values_out, reduction_out)
 
                 ref_values_out = np.cumsum(values_np, axis=-1, dtype="int32") - values_np
-                tvm.testing.assert_allclose(values_out.asnumpy(), ref_values_out, rtol=1e-5)
+                tvm.testing.assert_allclose(values_out.numpy(), ref_values_out, rtol=1e-5)
                 ref_reduction_out = np.sum(values_np, axis=-1)
-                tvm.testing.assert_allclose(reduction_out.asnumpy(), ref_reduction_out, rtol=1e-5)
+                tvm.testing.assert_allclose(reduction_out.numpy(), ref_reduction_out, rtol=1e-5)
 
 
 def test_inclusive_scan():
@@ -123,17 +123,17 @@ def test_inclusive_scan():
                 scan = scan_thrust(values, out_dtype, exclusive=False)
                 s = tvm.te.create_schedule([scan.op])
 
-                ctx = tvm.context(target, 0)
+                dev = tvm.device(target, 0)
                 f = tvm.build(s, [values, scan], target)
 
                 values_np = np.random.randint(0, 10, size=ishape).astype(np.int32)
                 values_np_out = np.zeros(values_np.shape, out_dtype)
-                values_in = tvm.nd.array(values_np, ctx)
-                values_out = tvm.nd.array(values_np_out, ctx)
+                values_in = tvm.nd.array(values_np, dev)
+                values_out = tvm.nd.array(values_np_out, dev)
                 f(values_in, values_out)
 
                 ref_values_out = np.cumsum(values_np, axis=-1, dtype=out_dtype)
-                tvm.testing.assert_allclose(values_out.asnumpy(), ref_values_out, rtol=1e-5)
+                tvm.testing.assert_allclose(values_out.numpy(), ref_values_out, rtol=1e-5)
 
 
 if __name__ == "__main__":

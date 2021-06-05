@@ -32,23 +32,29 @@
 #define API_BEGIN() try {
 /*! \brief every function starts with API_BEGIN();
      and finishes with API_END() or API_END_HANDLE_ERROR */
-#define API_END()                           \
-  }                                         \
-  catch (std::exception & _except_) {       \
-    return TVMAPIHandleException(_except_); \
-  }                                         \
+#define API_END()                                         \
+  }                                                       \
+  catch (::tvm::runtime::EnvErrorAlreadySet & _except_) { \
+    return -2;                                            \
+  }                                                       \
+  catch (std::exception & _except_) {                     \
+    return TVMAPIHandleException(_except_);               \
+  }                                                       \
   return 0;  // NOLINT(*)
 /*!
  * \brief every function starts with API_BEGIN();
  *   and finishes with API_END() or API_END_HANDLE_ERROR
  *   The finally clause contains procedure to cleanup states when an error happens.
  */
-#define API_END_HANDLE_ERROR(Finalize)      \
-  }                                         \
-  catch (std::exception & _except_) {       \
-    Finalize;                               \
-    return TVMAPIHandleException(_except_); \
-  }                                         \
+#define API_END_HANDLE_ERROR(Finalize)                    \
+  }                                                       \
+  catch (::tvm::runtime::EnvErrorAlreadySet & _except_) { \
+    return -2;                                            \
+  }                                                       \
+  catch (std::exception & _except_) {                     \
+    Finalize;                                             \
+    return TVMAPIHandleException(_except_);               \
+  }                                                       \
   return 0;  // NOLINT(*)
 
 /*!

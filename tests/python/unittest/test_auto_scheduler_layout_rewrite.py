@@ -119,19 +119,19 @@ def test_correctness_layout_rewrite_rewrite_for_preTransformed():
         func = tvm.build(s, bufs, target=target)
         func_ref = tvm.build(s_ref, bufs_ref, target=target)
 
-        ctx = tvm.context(str(target))
-        ctx_ref = tvm.cpu()
+        dev = tvm.device(str(target))
+        dev_ref = tvm.cpu()
 
-        args = [tvm.nd.array(x, ctx=ctx) for x in np_args]
-        args_ref = [tvm.nd.array(x, ctx=ctx_ref) for x in np_args_ref]
-        ctx.sync()
+        args = [tvm.nd.array(x, device=dev) for x in np_args]
+        args_ref = [tvm.nd.array(x, device=dev_ref) for x in np_args_ref]
+        dev.sync()
 
         func(*args)
         func_ref(*args_ref)
-        ctx.sync()
+        dev.sync()
 
-        tvm.testing.assert_allclose(args[0].asnumpy(), args_ref[0].asnumpy(), atol=1e-3, rtol=1e-3)
-        tvm.testing.assert_allclose(args[2].asnumpy(), args_ref[2].asnumpy(), atol=1e-3, rtol=1e-3)
+        tvm.testing.assert_allclose(args[0].numpy(), args_ref[0].numpy(), atol=1e-3, rtol=1e-3)
+        tvm.testing.assert_allclose(args[2].numpy(), args_ref[2].numpy(), atol=1e-3, rtol=1e-3)
         del measure_ctx
 
 
@@ -166,20 +166,20 @@ def test_correctness_layout_rewrite_insert_transform_stage():
         func = tvm.build(s, bufs, target=target)
         func_ref = tvm.build(s_ref, bufs_ref, target=target)
 
-        ctx = tvm.context(str(target))
-        ctx_ref = tvm.cpu()
+        dev = tvm.device(str(target))
+        dev_ref = tvm.cpu()
 
-        args = [tvm.nd.array(x, ctx=ctx) for x in np_args]
-        args_ref = [tvm.nd.array(x, ctx=ctx_ref) for x in np_args]
-        ctx.sync()
+        args = [tvm.nd.array(x, device=dev) for x in np_args]
+        args_ref = [tvm.nd.array(x, device=dev_ref) for x in np_args]
+        dev.sync()
 
         func(*args)
         func_ref(*args_ref)
-        ctx.sync()
+        dev.sync()
 
-        tvm.testing.assert_allclose(args[0].asnumpy(), args_ref[0].asnumpy(), atol=1e-3, rtol=1e-3)
-        tvm.testing.assert_allclose(args[1].asnumpy(), args_ref[1].asnumpy(), atol=1e-3, rtol=1e-3)
-        tvm.testing.assert_allclose(args[2].asnumpy(), args_ref[2].asnumpy(), atol=1e-3, rtol=1e-3)
+        tvm.testing.assert_allclose(args[0].numpy(), args_ref[0].numpy(), atol=1e-3, rtol=1e-3)
+        tvm.testing.assert_allclose(args[1].numpy(), args_ref[1].numpy(), atol=1e-3, rtol=1e-3)
+        tvm.testing.assert_allclose(args[2].numpy(), args_ref[2].numpy(), atol=1e-3, rtol=1e-3)
         del measure_ctx
 
 

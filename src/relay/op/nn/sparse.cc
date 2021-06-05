@@ -26,6 +26,7 @@
 #include <tvm/relay/op.h>
 #include <tvm/tir/data_layout.h>
 
+#include <string>
 #include <vector>
 
 #include "../../transforms/infer_layout_utils.h"
@@ -236,6 +237,69 @@ RELAY_REGISTER_OP("nn.sparse_add")
     .add_argument("sparse_indptr", "1D Tensor", "Sparse index pointer vector.")
     .set_support_level(1)
     .add_type_rel("SparseAdd", SparseAddRel);
+
+TVM_REGISTER_NODE_TYPE(SparseConv2DAttrs);
+
+bool SparseConv2dRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                     const TypeReporter& reporter) {
+  ICHECK_EQ(types.size(), 5);
+  const auto* param = attrs.as<SparseConv2DAttrs>();
+  ICHECK(param != nullptr);
+
+  const auto* data = types[0].as<TensorTypeNode>();
+  const auto* weight_data = types[1].as<TensorTypeNode>();
+  ICHECK(weight_data->shape.size() == 1 || weight_data->shape.size() == 2 ||
+         weight_data->shape.size() == 3);
+  const auto* weight_indptr = types[3].as<TensorTypeNode>();
+  if (data == nullptr) return false;
+
+  if (weight_data->shape.size() == 2 || weight_data->shape.size() == 3) {
+    // BSR case.
+    if (param->layout == "NHWC") {
+      Array<IndexExpr> oshape({data->shape[0], data->shape[1], data->shape[2],
+                               (weight_indptr->shape[0] - 1) * weight_data->shape[1]});
+      reporter->Assign(types[4], TensorType(oshape, data->dtype));
+      return true;
+    } else if (param->layout == "NCHW") {
+      Array<IndexExpr> oshape({data->shape[0],
+                               (weight_indptr->shape[0] - 1) * weight_data->shape[1],
+                               data->shape[2], data->shape[3]});
+      reporter->Assign(types[4], TensorType(oshape, data->dtype));
+      return true;
+    }
+  }
+  LOG(FATAL) << "Unknown weight ndim " << weight_data->shape.size()
+             << " for nn.sparse_conv2d, should be 2 or 3 (BSR)";
+  return false;
+}
+
+Expr MakeSparseConv2d(Expr data, Expr weight_data, Expr weight_indices, Expr weight_indptr,
+                      std::string layout) {
+  static const Op& op = Op::Get("nn.sparse_conv2d");
+  auto attrs = make_object<SparseConv2DAttrs>();
+  attrs->layout = std::move(layout);
+  return Call(op, {data, weight_data, weight_indices, weight_indptr}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op.nn._make.sparse_conv2d").set_body_typed(MakeSparseConv2d);
+
+RELAY_REGISTER_OP("nn.sparse_conv2d")
+    .describe(
+        R"code(Applies a sparse convolution :math:`Y = X*W^T` with W sparse.
+
+- **data**: `(x1, x2, ..., xn, input_dim)`
+- **weight**: `(units, input_dim)`
+- **out**: `(x1, x2, ..., xn, units)`.
+
+)code" TVM_ADD_FILELINE)
+    .set_attrs_type<SparseConv2DAttrs>()
+    .set_num_inputs(4)
+    .add_argument("dense_data", "nD Tensor", "Input dense data.")
+    .add_argument("sparse_data", "1D or 3D Tensor", "Sparse data matrix.")
+    .add_argument("sparse_indices", "1D Tensor", "Sparse indices matrix.")
+    .add_argument("sparse_indptr", "1D Tensor", "Sparse indptr matrix.")
+    .set_support_level(1)
+    .add_type_rel("SparseConv2d", SparseConv2dRel);
 
 }  // namespace relay
 }  // namespace tvm

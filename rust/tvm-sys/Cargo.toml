@@ -17,14 +17,16 @@
 
 [package]
 name = "tvm-sys"
-version = "0.1.0"
+version = "0.1.1-alpha"
 authors = ["TVM Contributors"]
 license = "Apache-2.0"
 edition = "2018"
+description = "Low level bindings to TVM's cross language API."
 
 [features]
-default = []
-bindings = []
+default = ["dynamic-linking"]
+static-linking = []
+dynamic-linking = []
 
 [dependencies]
 thiserror = "^1.0"
@@ -33,5 +35,6 @@ ndarray = "0.12"
 enumn = "^0.1"
 
 [build-dependencies]
-bindgen = { version="0.51", default-features=false }
+bindgen = { version="0.57", default-features = false, features = ["runtime"] }
 anyhow = "^1.0"
+tvm-build = "0.1"

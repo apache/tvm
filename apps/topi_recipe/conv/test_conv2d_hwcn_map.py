@@ -75,11 +75,11 @@ def test_conv2d_hwcn_map():
         if not tvm.runtime.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
-        ctx = tvm.context(device, 0)
-        a = tvm.nd.array(a_np, ctx)
-        w = tvm.nd.array(w_np, ctx)
-        b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)
-        c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), ctx)
+        dev = tvm.device(device, 0)
+        a = tvm.nd.array(a_np, dev)
+        w = tvm.nd.array(w_np, dev)
+        b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), dev)
+        c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), dev)
 
         with tvm.transform.PassContext(
             config={
@@ -88,10 +88,10 @@ def test_conv2d_hwcn_map():
         ):
             func1 = tvm.build(s1, [A, W, B], device)
             func1(a, w, b)
-            tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
+            tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-5)
             func2 = tvm.build(s2, [A, W, C], device)
             func2(a, w, c)
-            tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
+            tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-5)
 
     for device in ["cuda", "opencl", "rocm"]:
         check_device(device)

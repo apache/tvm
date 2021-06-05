@@ -49,7 +49,7 @@ import numpy as np
 import tvm
 from tvm import relay, auto_scheduler
 import tvm.relay.testing
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 
 #################################################################
 # Define a Network
@@ -280,15 +280,15 @@ with auto_scheduler.ApplyHistoryBest(log_file):
     with tvm.transform.PassContext(opt_level=3, config={"relay.backend.use_auto_scheduler": True}):
         lib = relay.build(mod, target=target, params=params)
 
-# Create graph runtime
-ctx = tvm.context(str(target), 0)
-module = graph_runtime.GraphModule(lib["default"](ctx))
+# Create graph executor
+dev = tvm.device(str(target), 0)
+module = graph_executor.GraphModule(lib["default"](dev))
 data_tvm = tvm.nd.array((np.random.uniform(size=input_shape)).astype(dtype))
 module.set_input("data", data_tvm)
 
 # Evaluate
 print("Evaluate inference time cost...")
-ftimer = module.module.time_evaluator("run", ctx, repeat=3, min_repeat_ms=500)
+ftimer = module.module.time_evaluator("run", dev, repeat=3, min_repeat_ms=500)
 prof_res = np.array(ftimer().results) * 1e3  # convert to millisecond
 print("Mean inference time (std dev): %.2f ms (%.2f ms)" % (np.mean(prof_res), np.std(prof_res)))
 

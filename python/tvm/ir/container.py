@@ -44,7 +44,7 @@ class Map(Object):
     """Map container of TVM.
 
     You do not need to create Map explicitly.
-    Normally python dict will be converted automaticall to Map during tvm function call.
+    Normally python dict will be converted automatically to Map during tvm function call.
     You can use convert to create a dict[Object-> Object] into a Map
     """
 
@@ -53,6 +53,19 @@ class Map(Object):
 
     def __contains__(self, k):
         return _ffi_api.MapCount(self, k) != 0
+
+    def __iter__(self):
+        akvs = _ffi_api.MapItems(self)
+        for i in range(len(self)):
+            yield akvs[i * 2]
+
+    def keys(self):
+        return iter(self)
+
+    def values(self):
+        akvs = _ffi_api.MapItems(self)
+        for i in range(len(self)):
+            yield akvs[i * 2 + 1]
 
     def items(self):
         """Get the items from the map"""

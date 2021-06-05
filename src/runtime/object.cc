@@ -88,7 +88,7 @@ class TypeContext {
     }
     // try to allocate from parent's type table.
     ICHECK_LT(parent_tindex, type_table_.size())
-        << " skey= " << skey << "static_index=" << static_tindex;
+        << " skey=" << skey << ", static_index=" << static_tindex;
     TypeInfo& pinfo = type_table_[parent_tindex];
     ICHECK_EQ(pinfo.index, parent_tindex);
 

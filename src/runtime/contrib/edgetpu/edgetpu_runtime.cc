@@ -31,12 +31,18 @@
 namespace tvm {
 namespace runtime {
 
-void EdgeTPURuntime::Init(const std::string& tflite_model_bytes, TVMContext ctx) {
+void EdgeTPURuntime::Init(const std::string& tflite_model_bytes, Device dev) {
   const char* buffer = tflite_model_bytes.c_str();
   size_t buffer_size = tflite_model_bytes.size();
   // Load compiled model as a FlatBufferModel
+
+  // According to tflite_runtime.cc, the buffer for tflite::FlatBufferModel
+  // should be allocated on flatBuffersBuffer_ to make share it must be kept alive
+  // for interpreters.
+  flatBuffersBuffer_ = std::unique_ptr<char[]>(new char[buffer_size]);
+  std::memcpy(flatBuffersBuffer_.get(), buffer, buffer_size);
   std::unique_ptr<tflite::FlatBufferModel> model =
-      tflite::FlatBufferModel::BuildFromBuffer(buffer, buffer_size);
+      tflite::FlatBufferModel::BuildFromBuffer(flatBuffersBuffer_.get(), buffer_size);
   // Build resolver
   tflite::ops::builtin::BuiltinOpResolver resolver;
   // Init EdgeTPUContext object
@@ -53,12 +59,12 @@ void EdgeTPURuntime::Init(const std::string& tflite_model_bytes, TVMContext ctx)
   status = interpreter_->AllocateTensors();
   CHECK_TFLITE_STATUS(status) << "Failed to allocate tensors.";
 
-  ctx_ = ctx;
+  device_ = dev;
 }
 
-Module EdgeTPURuntimeCreate(const std::string& tflite_model_bytes, TVMContext ctx) {
+Module EdgeTPURuntimeCreate(const std::string& tflite_model_bytes, Device dev) {
   auto exec = make_object<EdgeTPURuntime>();
-  exec->Init(tflite_model_bytes, ctx);
+  exec->Init(tflite_model_bytes, dev);
   return Module(exec);
 }
 

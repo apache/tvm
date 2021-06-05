@@ -28,7 +28,7 @@ from tvm import te
 import numpy as np
 from tvm import rpc
 from tvm.contrib import utils
-from tvm.contrib.debugger import debug_runtime
+from tvm.contrib.debugger import debug_executor
 
 
 @tvm.testing.requires_llvm
@@ -75,7 +75,7 @@ def test_graph_simple():
         mlib_proxy = tvm.support.FrontendTestModule()
         mlib_proxy["myadd"] = myadd
         try:
-            mod = debug_runtime.create(graph, mlib_proxy, tvm.cpu(0))
+            mod = debug_executor.create(graph, mlib_proxy, tvm.cpu(0))
         except ValueError:
             return
 
@@ -154,7 +154,7 @@ def test_graph_simple():
 
         # verify the output is correct
         out = mod.get_output(0, tvm.nd.empty((n,)))
-        np.testing.assert_equal(out.asnumpy(), a + 1)
+        np.testing.assert_equal(out.numpy(), a + 1)
 
         mod.exit()
         # verify dump root delete after cleanup
@@ -162,24 +162,24 @@ def test_graph_simple():
 
     def check_remote():
         mlib = tvm.build(s, [A, B], "llvm", name="myadd")
-        server = rpc.Server("localhost")
+        server = rpc.Server("127.0.0.1")
         remote = rpc.connect(server.host, server.port)
         temp = utils.tempdir()
-        ctx = remote.cpu(0)
+        dev = remote.cpu(0)
         path_dso = temp.relpath("dev_lib.so")
         mlib.export_library(path_dso)
         remote.upload(path_dso)
         mlib = remote.load_module("dev_lib.so")
         try:
-            mod = debug_runtime.create(graph, mlib, remote.cpu(0))
+            mod = debug_executor.create(graph, mlib, remote.cpu(0))
         except ValueError:
             print("Skip because debug runtime not enabled")
             return
         a = np.random.uniform(size=(n,)).astype(A.dtype)
-        mod.run(x=tvm.nd.array(a, ctx))
-        out = tvm.nd.empty((n,), ctx=ctx)
+        mod.run(x=tvm.nd.array(a, dev))
+        out = tvm.nd.empty((n,), device=dev)
         out = mod.get_output(0, out)
-        np.testing.assert_equal(out.asnumpy(), a + 1)
+        np.testing.assert_equal(out.numpy(), a + 1)
 
     check_verify()
     check_remote()

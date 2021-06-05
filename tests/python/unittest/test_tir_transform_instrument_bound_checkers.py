@@ -39,11 +39,12 @@ def test_out_of_bounds_llvm(index_a, index_b):
     tgt_host = "llvm"
     stmt = tvm.lower(s, [A, B, C], simple_mode=True)
     print(stmt)
-    fadd = tvm.build(s, [A, B, C], tgt, target_host=tgt_host, name="myadd")
-    ctx = tvm.context(tgt, 0)
-    a = tvm.nd.array(np.random.uniform(size=1024).astype(A.dtype), ctx)
-    b = tvm.nd.array(np.random.uniform(size=1024).astype(B.dtype), ctx)
-    c = tvm.nd.array(np.zeros(1024, dtype=C.dtype), ctx)
+    tgt = tvm.target.Target(tgt, tgt_host)
+    fadd = tvm.build(s, [A, B, C], target=tgt, name="myadd")
+    dev = tvm.device(tgt.kind.name, 0)
+    a = tvm.nd.array(np.random.uniform(size=1024).astype(A.dtype), dev)
+    b = tvm.nd.array(np.random.uniform(size=1024).astype(B.dtype), dev)
+    c = tvm.nd.array(np.zeros(1024, dtype=C.dtype), dev)
     fadd(a, b, c)
 
 
@@ -57,11 +58,12 @@ def test_in_bounds_llvm():
     tgt = "llvm"
     tgt_host = "llvm"
     stmt = tvm.lower(s, [A, B, C], simple_mode=True)
-    fadd = tvm.build(s, [A, B, C], tgt, target_host=tgt_host, name="myadd")
-    ctx = tvm.context(tgt, 0)
-    a = tvm.nd.array(np.random.uniform(size=1024).astype(A.dtype), ctx)
-    b = tvm.nd.array(np.random.uniform(size=1024).astype(B.dtype), ctx)
-    c = tvm.nd.array(np.zeros(1024, dtype=C.dtype), ctx)
+    tgt = tvm.target.Target(tgt, tgt_host)
+    fadd = tvm.build(s, [A, B, C], target=tgt, name="myadd")
+    dev = tvm.device(tgt.kind.name, 0)
+    a = tvm.nd.array(np.random.uniform(size=1024).astype(A.dtype), dev)
+    b = tvm.nd.array(np.random.uniform(size=1024).astype(B.dtype), dev)
+    c = tvm.nd.array(np.zeros(1024, dtype=C.dtype), dev)
     fadd(a, b, c)
 
 
@@ -79,12 +81,13 @@ def test_out_of_bounds_vectorize_llvm(nn, index_a, index_b):
     tgt = "llvm"
     tgt_host = "llvm"
     stmt = tvm.lower(s, [a, b, c], simple_mode=True)
-    f = tvm.build(s, [a, b, c], tgt, target_host=tgt_host, name="myaddvec")
-    ctx = tvm.cpu(0)
+    tgt = tvm.target.Target(tgt, tgt_host)
+    f = tvm.build(s, [a, b, c], target=tgt, name="myaddvec")
+    dev = tvm.cpu(0)
     n = nn
-    a = tvm.nd.array(np.random.uniform(size=(n)).astype(a.dtype), ctx)
-    b = tvm.nd.array(np.random.uniform(size=(n)).astype(a.dtype), ctx)
-    c = tvm.nd.array(np.zeros(n, dtype=c.dtype), ctx)
+    a = tvm.nd.array(np.random.uniform(size=(n)).astype(a.dtype), dev)
+    b = tvm.nd.array(np.random.uniform(size=(n)).astype(a.dtype), dev)
+    c = tvm.nd.array(np.zeros(n, dtype=c.dtype), dev)
     f(a, b, c)
 
 
@@ -106,12 +109,12 @@ def test_in_bounds_vectorize_llvm():
     # build and invoke the kernel.
     lowered_func = tvm.lower(s, [A, C], "llvm", simple_mode=False)
     f = tvm.build(s, [A, C], "llvm")
-    ctx = tvm.cpu(0)
+    dev = tvm.cpu(0)
     # launch the kernel.
     a = tvm.nd.empty((n,), A.dtype).copyfrom(np.random.uniform(size=(n, lanes)))
-    c = tvm.nd.empty((n,), C.dtype, ctx)
+    c = tvm.nd.empty((n,), C.dtype, dev)
     f(a, c)
-    tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + 1)
+    tvm.testing.assert_allclose(c.numpy(), a.numpy() + 1)
 
 
 @tvm.testing.requires_llvm
@@ -124,12 +127,12 @@ def test_in_bounds_loop_partition_basic_llvm():
     s = te.create_schedule(T.op)
     xo, xi = s[T].split(T.op.axis[0], factor=4)
     lowered_func = tvm.lower(s, [A, B, T], "llvm", simple_mode=False)
-    ctx = tvm.cpu(0)
+    dev = tvm.cpu(0)
 
     f = tvm.build(s, [A, B, T], "llvm")
-    a = tvm.nd.array(np.random.uniform(size=(32,)).astype(A.dtype), ctx)
-    b = tvm.nd.array(np.random.uniform(size=(32,)).astype(B.dtype), ctx)
-    t = tvm.nd.empty((32,), T.dtype, ctx)
+    a = tvm.nd.array(np.random.uniform(size=(32,)).astype(A.dtype), dev)
+    b = tvm.nd.array(np.random.uniform(size=(32,)).astype(B.dtype), dev)
+    t = tvm.nd.empty((32,), T.dtype, dev)
     f(a, b, t)
 
 
@@ -144,12 +147,12 @@ def test_out_of_bounds_loop_partition_basic_llvm(index_a, index_b):
     s = te.create_schedule(T.op)
     xo, xi = s[T].split(T.op.axis[0], factor=4)
     lowered_func = tvm.lower(s, [A, B, T], "llvm", simple_mode=False)
-    ctx = tvm.cpu(0)
+    dev = tvm.cpu(0)
 
     f = tvm.build(s, [A, B, T], "llvm")
-    a = tvm.nd.array(np.random.uniform(size=(32,)).astype(A.dtype), ctx)
-    b = tvm.nd.array(np.random.uniform(size=(32,)).astype(B.dtype), ctx)
-    t = tvm.nd.empty((32,), T.dtype, ctx)
+    a = tvm.nd.array(np.random.uniform(size=(32,)).astype(A.dtype), dev)
+    b = tvm.nd.array(np.random.uniform(size=(32,)).astype(B.dtype), dev)
+    t = tvm.nd.empty((32,), T.dtype, dev)
     f(a, b, t)
 
 
@@ -221,12 +224,12 @@ def test_in_bounds_const_loop_partition_llvm():
         s = te.create_schedule(T.op)
         xo, xi = s[T].split(T.op.axis[0], factor=4)
         lowered_func = tvm.lower(s, [A, B, T], "llvm", simple_mode=False)
-        ctx = tvm.cpu(0)
+        dev = tvm.cpu(0)
 
         f = tvm.build(s, [A, B, T], "llvm")
-        a = tvm.nd.array(np.random.uniform(size=(n,)).astype(A.dtype), ctx)
-        b = tvm.nd.array(np.random.uniform(size=(n,)).astype(B.dtype), ctx)
-        t = tvm.nd.empty((n,), T.dtype, ctx)
+        a = tvm.nd.array(np.random.uniform(size=(n,)).astype(A.dtype), dev)
+        b = tvm.nd.array(np.random.uniform(size=(n,)).astype(B.dtype), dev)
+        t = tvm.nd.empty((n,), T.dtype, dev)
         f(a, b, t)
 
 
@@ -247,12 +250,12 @@ def test_out_of_bounds_const_loop_partition_llvm(index_a, index_b):
         s = te.create_schedule(T.op)
         xo, xi = s[T].split(T.op.axis[0], factor=4)
         lowered_func = tvm.lower(s, [A, B, T], "llvm", simple_mode=False)
-        ctx = tvm.cpu(0)
+        dev = tvm.cpu(0)
 
         f = tvm.build(s, [A, B, T], "llvm")
-        a = tvm.nd.array(np.random.uniform(size=(n,)).astype(A.dtype), ctx)
-        b = tvm.nd.array(np.random.uniform(size=(n,)).astype(B.dtype), ctx)
-        t = tvm.nd.empty((n,), T.dtype, ctx)
+        a = tvm.nd.array(np.random.uniform(size=(n,)).astype(A.dtype), dev)
+        b = tvm.nd.array(np.random.uniform(size=(n,)).astype(B.dtype), dev)
+        t = tvm.nd.empty((n,), T.dtype, dev)
         f(a, b, t)
 
 
@@ -283,19 +286,19 @@ def test_in_bounds_conv_llvm(loop_tiling=False):
     if loop_tiling:
         oho, owo, ohi, owi = s[conv].tile(oh, ow, 16, 16)
     lowered_func = tvm.lower(s, [data, kernel, conv], simple_mode=True)
-    ctx = tvm.cpu(0)
+    dev = tvm.cpu(0)
 
     f = tvm.build(s, [data, kernel, conv], "llvm")
     data_input = tvm.nd.array(
-        np.random.uniform(size=(batch_size, in_channel, in_height, in_width)).astype("float32"), ctx
+        np.random.uniform(size=(batch_size, in_channel, in_height, in_width)).astype("float32"), dev
     )
     kernel_input = tvm.nd.array(
         np.random.uniform(size=(kernel_height, kernel_width, in_channel, out_channel)).astype(
             "float32"
         ),
-        ctx,
+        dev,
     )
-    conv_out = tvm.nd.empty((batch_size, out_channel, out_height, out_width), "float32", ctx)
+    conv_out = tvm.nd.empty((batch_size, out_channel, out_height, out_width), "float32", dev)
     f(data_input, kernel_input, conv_out)
 
 
@@ -339,19 +342,19 @@ def test_out_of_bounds_conv_llvm(data_offsets, kernel_offsets, loop_tiling=False
     if loop_tiling:
         oho, owo, ohi, owi = s[conv].tile(oh, ow, 16, 16)
     lowered_func = tvm.lower(s, [data, kernel, conv], simple_mode=True)
-    ctx = tvm.cpu(0)
+    dev = tvm.cpu(0)
 
     f = tvm.build(s, [data, kernel, conv], "llvm")
     data_input = tvm.nd.array(
-        np.random.uniform(size=(batch_size, in_channel, in_height, in_width)).astype("float32"), ctx
+        np.random.uniform(size=(batch_size, in_channel, in_height, in_width)).astype("float32"), dev
     )
     kernel_input = tvm.nd.array(
         np.random.uniform(size=(kernel_height, kernel_width, in_channel, out_channel)).astype(
             "float32"
         ),
-        ctx,
+        dev,
     )
-    conv_out = tvm.nd.empty((batch_size, out_channel, out_height, out_width), "float32", ctx)
+    conv_out = tvm.nd.empty((batch_size, out_channel, out_height, out_width), "float32", dev)
     f(data_input, kernel_input, conv_out)
 
 
@@ -366,12 +369,12 @@ def test_in_bounds_tensors_with_same_shapes1D_llvm():
     T = te.compute((m,), lambda i: A[i] * B[i])
     s = te.create_schedule(T.op)
     lowered_func = tvm.lower(s, [A, B, T], "llvm", simple_mode=False)
-    ctx = tvm.cpu(0)
+    dev = tvm.cpu(0)
 
     f = tvm.build(s, [A, B, T], "llvm")
-    a = tvm.nd.array(np.random.uniform(size=(32,)).astype(A.dtype), ctx)
-    b = tvm.nd.array(np.random.uniform(size=(32,)).astype(B.dtype), ctx)
-    t = tvm.nd.empty((32,), T.dtype, ctx)
+    a = tvm.nd.array(np.random.uniform(size=(32,)).astype(A.dtype), dev)
+    b = tvm.nd.array(np.random.uniform(size=(32,)).astype(B.dtype), dev)
+    t = tvm.nd.empty((32,), T.dtype, dev)
     f(a, b, t)
 
 
@@ -387,12 +390,12 @@ def test_out_of_bounds_tensors_with_diff_shapes1D_llvm(a_shape, b_shape, c_shape
     T = te.compute((m,), lambda i: A[i] * B[i])
     s = te.create_schedule(T.op)
     lowered_func = tvm.lower(s, [A, B, T], "llvm", simple_mode=False)
-    ctx = tvm.cpu(0)
+    dev = tvm.cpu(0)
 
     f = tvm.build(s, [A, B, T], "llvm")
-    a = tvm.nd.array(np.random.uniform(size=(a_shape,)).astype(A.dtype), ctx)
-    b = tvm.nd.array(np.random.uniform(size=(b_shape,)).astype(B.dtype), ctx)
-    t = tvm.nd.empty((c_shape,), T.dtype, ctx)
+    a = tvm.nd.array(np.random.uniform(size=(a_shape,)).astype(A.dtype), dev)
+    b = tvm.nd.array(np.random.uniform(size=(b_shape,)).astype(B.dtype), dev)
+    t = tvm.nd.empty((c_shape,), T.dtype, dev)
     f(a, b, t)
 
 
@@ -407,12 +410,12 @@ def test_in_bounds_tensors_with_same_shapes2D_llvm():
     T = te.compute((m, m), lambda i, j: A[i][j] * B[i][j])
     s = te.create_schedule(T.op)
     lowered_func = tvm.lower(s, [A, B, T], "llvm", simple_mode=False)
-    ctx = tvm.cpu(0)
+    dev = tvm.cpu(0)
 
     f = tvm.build(s, [A, B, T], "llvm")
-    a = tvm.nd.array(np.random.uniform(size=(32, 32)).astype(A.dtype), ctx)
-    b = tvm.nd.array(np.random.uniform(size=(32, 32)).astype(B.dtype), ctx)
-    t = tvm.nd.empty((32, 32), T.dtype, ctx)
+    a = tvm.nd.array(np.random.uniform(size=(32, 32)).astype(A.dtype), dev)
+    b = tvm.nd.array(np.random.uniform(size=(32, 32)).astype(B.dtype), dev)
+    t = tvm.nd.empty((32, 32), T.dtype, dev)
     f(a, b, t)
 
 
@@ -428,12 +431,12 @@ def test_out_of_bounds_tensors_with_diff_shapes2D_llvm(a_shape, b_shape, c_shape
     T = te.compute((m, m), lambda i, j: A[i][j] * B[i][j])
     s = te.create_schedule(T.op)
     lowered_func = tvm.lower(s, [A, B, T], "llvm", simple_mode=False)
-    ctx = tvm.cpu(0)
+    dev = tvm.cpu(0)
 
     f = tvm.build(s, [A, B, T], "llvm")
-    a = tvm.nd.array(np.random.uniform(size=(a_shape[0], a_shape[1])).astype(A.dtype), ctx)
-    b = tvm.nd.array(np.random.uniform(size=(b_shape[0], b_shape[1])).astype(B.dtype), ctx)
-    t = tvm.nd.empty((c_shape[0], c_shape[1]), T.dtype, ctx)
+    a = tvm.nd.array(np.random.uniform(size=(a_shape[0], a_shape[1])).astype(A.dtype), dev)
+    b = tvm.nd.array(np.random.uniform(size=(b_shape[0], b_shape[1])).astype(B.dtype), dev)
+    t = tvm.nd.empty((c_shape[0], c_shape[1]), T.dtype, dev)
     f(a, b, t)
 
 
@@ -449,12 +452,12 @@ def test_in_bounds_tensors_with_same_shapes3D_llvm():
     s = te.create_schedule(T.op)
     lowered_func = tvm.lower(s, [A, B, T], "llvm", simple_mode=False)
 
-    ctx = tvm.cpu(0)
+    dev = tvm.cpu(0)
 
     f = tvm.build(s, [A, B, T], "llvm")
-    a = tvm.nd.array(np.random.uniform(size=(32, 32, 32)).astype(A.dtype), ctx)
-    b = tvm.nd.array(np.random.uniform(size=(32, 32, 32)).astype(B.dtype), ctx)
-    t = tvm.nd.empty((32, 32, 32), T.dtype, ctx)
+    a = tvm.nd.array(np.random.uniform(size=(32, 32, 32)).astype(A.dtype), dev)
+    b = tvm.nd.array(np.random.uniform(size=(32, 32, 32)).astype(B.dtype), dev)
+    t = tvm.nd.empty((32, 32, 32), T.dtype, dev)
     f(a, b, t)
 
 
@@ -471,16 +474,16 @@ def test_out_of_bounds_tensors_with_diff_shapes3D_llvm(a_shape, b_shape, c_shape
     s = te.create_schedule(T.op)
     lowered_func = tvm.lower(s, [A, B, T], "llvm", simple_mode=False)
 
-    ctx = tvm.cpu(0)
+    dev = tvm.cpu(0)
 
     f = tvm.build(s, [A, B, T], "llvm")
     a = tvm.nd.array(
-        np.random.uniform(size=(a_shape[0], a_shape[1], c_shape[2])).astype(A.dtype), ctx
+        np.random.uniform(size=(a_shape[0], a_shape[1], c_shape[2])).astype(A.dtype), dev
     )
     b = tvm.nd.array(
-        np.random.uniform(size=(b_shape[0], b_shape[1], b_shape[2])).astype(B.dtype), ctx
+        np.random.uniform(size=(b_shape[0], b_shape[1], b_shape[2])).astype(B.dtype), dev
     )
-    t = tvm.nd.empty((c_shape[0], c_shape[1], c_shape[2]), T.dtype, ctx)
+    t = tvm.nd.empty((c_shape[0], c_shape[1], c_shape[2]), T.dtype, dev)
     f(a, b, t)
 
 
@@ -498,14 +501,14 @@ def test_out_of_bounds_tensors_with_zero_shape_op_with_not_zero_shape_llvm():
 
     # build and invoke the kernel.
     f = tvm.build(s, [A, scale, D], "llvm")
-    ctx = tvm.cpu(0)
+    dev = tvm.cpu(0)
     # launch the kernel.
-    a = tvm.nd.array(np.random.randint(0, 2, size=(n,)).astype(A.dtype), ctx)
-    sc = tvm.nd.array(np.random.randint(0, 2, size=()).astype(scale.dtype), ctx)
-    d = tvm.nd.empty((), D.dtype, ctx)
+    a = tvm.nd.array(np.random.randint(0, 2, size=(n,)).astype(A.dtype), dev)
+    sc = tvm.nd.array(np.random.randint(0, 2, size=()).astype(scale.dtype), dev)
+    d = tvm.nd.empty((), D.dtype, dev)
     f(a, sc, d)
-    d_np = np.sum(a.asnumpy()) * sc.asnumpy() + 1
-    tvm.testing.assert_allclose(d.asnumpy(), d_np)
+    d_np = np.sum(a.numpy()) * sc.numpy() + 1
+    tvm.testing.assert_allclose(d.numpy(), d_np)
 
 
 if __name__ == "__main__":

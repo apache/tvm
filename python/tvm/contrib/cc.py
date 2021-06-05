@@ -92,7 +92,7 @@ def get_target_by_dump_machine(compiler):
     """
 
     def get_target_triple():
-        """ Get target triple according to dumpmachine option of compiler."""
+        """Get target triple according to dumpmachine option of compiler."""
         if compiler:
             cmd = [compiler, "-dumpmachine"]
             proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)

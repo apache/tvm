@@ -40,12 +40,12 @@ def test_ext_dev():
         if not tvm.testing.device_enabled("llvm"):
             return
         f = tvm.build(s, [A, B], "ext_dev", "llvm")
-        ctx = tvm.ext_dev(0)
+        dev = tvm.ext_dev(0)
         # launch the kernel.
-        a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
-        b = tvm.nd.array(np.zeros(n, dtype=B.dtype), ctx)
+        a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
+        b = tvm.nd.array(np.zeros(n, dtype=B.dtype), dev)
         f(a, b)
-        tvm.testing.assert_allclose(b.asnumpy(), a.asnumpy() + 1)
+        tvm.testing.assert_allclose(b.numpy(), a.numpy() + 1)
 
     check_llvm()
 
@@ -87,12 +87,12 @@ def test_extern_call():
         if not tvm.testing.device_enabled("llvm"):
             return
         f = tvm.build(s, [A, B], "llvm")
-        ctx = tvm.cpu(0)
+        dev = tvm.cpu(0)
         # launch the kernel.
-        a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
-        b = tvm.nd.array(np.zeros(n, dtype=B.dtype), ctx)
+        a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
+        b = tvm.nd.array(np.zeros(n, dtype=B.dtype), dev)
         f(a, b)
-        tvm.testing.assert_allclose(b.asnumpy(), a.asnumpy() + 1)
+        tvm.testing.assert_allclose(b.numpy(), a.numpy() + 1)
 
     check_llvm()
 

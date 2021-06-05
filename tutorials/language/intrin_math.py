@@ -29,10 +29,11 @@ how we can invoke these target specific functions, and how we can unify
 the interface via tvm's intrinsic API.
 """
 from __future__ import absolute_import, print_function
+import numpy as np
 
 import tvm
 from tvm import te
-import numpy as np
+from tvm.ir import register_op_attr, register_intrin_lowering
 
 ######################################################################
 # Direct Declare Extern Math Call
@@ -112,7 +113,7 @@ def my_cuda_math_rule(op):
         return op
 
 
-tvm.target.register_intrin_rule("cuda", "exp", my_cuda_math_rule, override=True)
+register_intrin_lowering("tir.exp", target="cuda", f=my_cuda_math_rule, level=99)
 ######################################################################
 # Register the rule to TVM with override option to override existing rule.
 # Notice the difference between the printed code from previous one:
@@ -147,8 +148,8 @@ def my_cuda_mylog_rule(op):
 
 
 # new op registration is triggered by registering an attribute of the op
-tvm.ir.register_op_attr("tir.mylog", "TCallEffectKind", tvm.tir.CallEffectKind.Pure)
-tvm.target.register_intrin_rule("cuda", "mylog", my_cuda_mylog_rule, override=True)
+register_op_attr("tir.mylog", "TCallEffectKind", tvm.tir.CallEffectKind.Pure)
+register_intrin_lowering("tir.mylog", target="cuda", f=my_cuda_mylog_rule, level=99)
 
 n = te.var("n")
 A = te.placeholder((n,), name="A")

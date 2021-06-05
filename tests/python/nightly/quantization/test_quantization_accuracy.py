@@ -92,11 +92,13 @@ def get_model(model_name, batch_size, qconfig, target=None, original=False, simu
     return qfunc
 
 
-def eval_acc(model, dataset, batch_fn, target=tvm.target.cuda(), ctx=tvm.gpu(), log_interval=100):
+def eval_acc(
+    model, dataset, batch_fn, target=tvm.target.cuda(), device=tvm.cuda(), log_interval=100
+):
     with tvm.transform.PassContext(opt_level=3):
         graph, lib, params = relay.build(model, target)
     # create runtime module
-    m = tvm.contrib.graph_runtime.create(graph, lib, ctx)
+    m = tvm.contrib.graph_executor.create(graph, lib, device)
     m.set_input(**params)
 
     # setup evaluaiton metric
@@ -109,10 +111,10 @@ def eval_acc(model, dataset, batch_fn, target=tvm.target.cuda(), ctx=tvm.gpu(), 
     # Execute
     for i, batch in enumerate(dataset):
         data, label = batch_fn(batch, [mx.cpu(0)])
-        m.run(data=data[0].asnumpy())
+        m.run(data=data[0].numpy())
         out_arr = m.get_output(0)
-        acc_top1.update(label, [mx.nd.array(out_arr.asnumpy())])
-        acc_top5.update(label, [mx.nd.array(out_arr.asnumpy())])
+        acc_top1.update(label, [mx.nd.array(out_arr.numpy())])
+        acc_top5.update(label, [mx.nd.array(out_arr.numpy())])
 
         if not (i + 1) % log_interval:
             _, top1 = acc_top1.get()

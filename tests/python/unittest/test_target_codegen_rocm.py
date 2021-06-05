@@ -46,35 +46,35 @@ def test_rocm_cross_thread_reduction():
     frocm = tvm.build(s, [A, B], "rocm")
 
     nn = 128
-    ctx = tvm.rocm(0)
-    a = tvm.nd.array(np.random.uniform(size=(nn, nn)).astype(A.dtype), ctx)
-    b = tvm.nd.array(np.zeros(nn, dtype=B.dtype), ctx)
+    dev = tvm.rocm(0)
+    a = tvm.nd.array(np.random.uniform(size=(nn, nn)).astype(A.dtype), dev)
+    b = tvm.nd.array(np.zeros(nn, dtype=B.dtype), dev)
     frocm(a, b)
-    tvm.testing.assert_allclose(b.asnumpy(), np.sum(a.asnumpy(), axis=1), rtol=1e-4)
+    tvm.testing.assert_allclose(b.numpy(), np.sum(a.numpy(), axis=1), rtol=1e-4)
 
 
 @tvm.testing.requires_rocm
 def test_rocm_inf_nan():
-    def check_inf_nan(ctx, n, value, dtype):
+    def check_inf_nan(dev, n, value, dtype):
         A = te.placeholder((n,), name="A", dtype=dtype)
         inf_value = tvm.tir.const(value, dtype=dtype)
         C = te.compute((n,), lambda i: inf_value, name="C")
         s = te.create_schedule(C.op)
         s[C].bind(s[C].op.axis[0], tx)
         fun = tvm.build(s, [A, C], "rocm")
-        a = tvm.nd.empty((n,), A.dtype, ctx)
-        c = tvm.nd.empty((n,), A.dtype, ctx)
+        a = tvm.nd.empty((n,), A.dtype, dev)
+        c = tvm.nd.empty((n,), A.dtype, dev)
         # Only need to test compiling here
         fun(a, c)
 
-    ctx = tvm.rocm(0)
+    dev = tvm.rocm(0)
 
-    check_inf_nan(ctx, 1, -float("inf"), "float32")
-    check_inf_nan(ctx, 1, -float("inf"), "float64")
-    check_inf_nan(ctx, 1, float("inf"), "float32")
-    check_inf_nan(ctx, 1, float("inf"), "float64")
-    check_inf_nan(ctx, 1, float("nan"), "float32")
-    check_inf_nan(ctx, 1, float("nan"), "float64")
+    check_inf_nan(dev, 1, -float("inf"), "float32")
+    check_inf_nan(dev, 1, -float("inf"), "float64")
+    check_inf_nan(dev, 1, float("inf"), "float32")
+    check_inf_nan(dev, 1, float("inf"), "float64")
+    check_inf_nan(dev, 1, float("nan"), "float32")
+    check_inf_nan(dev, 1, float("nan"), "float64")
 
 
 @tvm.testing.requires_rocm
@@ -94,12 +94,12 @@ def test_rocm_reduction_binding():
 def test_rocm_copy():
     def check_rocm(dtype, n):
         A = te.placeholder((n,), name="A", dtype=dtype)
-        ctx = tvm.rocm(0)
+        dev = tvm.rocm(0)
         a_np = np.random.uniform(size=(n,)).astype(A.dtype)
-        a = tvm.nd.empty((n,), A.dtype, ctx).copyfrom(a_np)
-        b_np = a.asnumpy()
+        a = tvm.nd.empty((n,), A.dtype, dev).copyfrom(a_np)
+        b_np = a.numpy()
         tvm.testing.assert_allclose(a_np, b_np)
-        tvm.testing.assert_allclose(a_np, a.asnumpy())
+        tvm.testing.assert_allclose(a_np, a.numpy())
 
     for _ in range(100):
         dtype = np.random.choice(["float32", "float16", "int8", "int32"])
@@ -120,11 +120,11 @@ def test_rocm_vectorize_add():
         s[B].bind(xo, bx)
         s[B].bind(xi, tx)
         fun = tvm.build(s, [A, B], "rocm")
-        ctx = tvm.rocm(0)
-        a = tvm.nd.empty((n,), A.dtype, ctx).copyfrom(np.random.uniform(size=(n, lanes)))
-        c = tvm.nd.empty((n,), B.dtype, ctx)
+        dev = tvm.rocm(0)
+        a = tvm.nd.empty((n,), A.dtype, dev).copyfrom(np.random.uniform(size=(n, lanes)))
+        c = tvm.nd.empty((n,), B.dtype, dev)
         fun(a, c)
-        tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + 1)
+        tvm.testing.assert_allclose(c.numpy(), a.numpy() + 1)
 
     check_rocm("float32", 64, 2)
     check_rocm("float16", 64, 2)

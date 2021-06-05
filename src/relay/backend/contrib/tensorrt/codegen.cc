@@ -32,7 +32,7 @@
 #include "../../utils.h"
 #include "../codegen_json/codegen_json.h"
 
-#if TVM_GRAPH_RUNTIME_TENSORRT
+#if TVM_GRAPH_EXECUTOR_TENSORRT
 #include "NvInfer.h"
 #endif
 
@@ -99,6 +99,8 @@ class TensorRTJSONSerializer : public backend::contrib::JSONSerializer {
       SetPadNodeAttribute(node, cn);
     } else if (name == "strided_slice") {
       SetStridedSliceNodeAttribute(node, cn);
+    } else if (name == "split") {
+      SetSplitNodeAttribute(node, cn);
     } else {
       SetCallNodeAttribute(node, cn);
     }
@@ -172,6 +174,35 @@ class TensorRTJSONSerializer : public backend::contrib::JSONSerializer {
     node->SetAttr("strides", strides_attr);
   }
 
+  void SetSplitNodeAttribute(std::shared_ptr<JSONGraphNode> node, const CallNode* cn) {
+    const auto* split_attr = cn->attrs.as<SplitAttrs>();
+    ICHECK(split_attr);
+
+    std::vector<std::string> indices_or_sections;
+    std::vector<std::string> mode;
+    std::vector<std::string> axis = {std::to_string(split_attr->axis)};
+    if (const IntImmNode* sections = split_attr->indices_or_sections.as<IntImmNode>()) {
+      mode.emplace_back("sections");
+      indices_or_sections.emplace_back(std::to_string(sections->value));
+    } else {
+      mode.emplace_back("indices");
+      auto indices = Downcast<tvm::Array<Integer>>(split_attr->indices_or_sections);
+      for (const auto& i : indices) {
+        indices_or_sections.emplace_back(std::to_string(i->value));
+      }
+    }
+
+    std::vector<dmlc::any> indices_or_sections_attr;
+    std::vector<dmlc::any> mode_attr;
+    std::vector<dmlc::any> axis_attr;
+    indices_or_sections_attr.emplace_back(indices_or_sections);
+    mode_attr.emplace_back(mode);
+    axis_attr.emplace_back(axis);
+    node->SetAttr("indices_or_sections", indices_or_sections_attr);
+    node->SetAttr("mode", mode_attr);
+    node->SetAttr("axis", axis_attr);
+  }
+
   void SaveGlobalAttributes(std::shared_ptr<JSONGraphNode> node) {
     auto ctx = transform::PassContext::Current();
     auto cfg = ctx->GetConfig<TensorRTCompilerConfig>("relay.ext.tensorrt.options");
@@ -217,15 +248,15 @@ runtime::Module TensorRTCompiler(const ObjectRef& ref) {
 TVM_REGISTER_GLOBAL("relay.ext.tensorrt").set_body_typed(TensorRTCompiler);
 
 /*!
- * \brief Check whether TensorRT graph runtime is enabled.
+ * \brief Check whether TensorRT graph executor is enabled.
  * \return True if enabled, False if not.
  */
 inline constexpr bool IsTensorRTRuntimeEnabled() {
-#if TVM_GRAPH_RUNTIME_TENSORRT
+#if TVM_GRAPH_EXECUTOR_TENSORRT
   return true;
 #else
   return false;
-#endif  // TVM_GRAPH_RUNTIME_TENSORRT
+#endif  // TVM_GRAPH_EXECUTOR_TENSORRT
 }
 
 /*!
@@ -234,11 +265,11 @@ inline constexpr bool IsTensorRTRuntimeEnabled() {
  * runtime is not enabled.
  */
 Array<Integer> GetTensorRTVersion() {
-#if TVM_GRAPH_RUNTIME_TENSORRT
+#if TVM_GRAPH_EXECUTOR_TENSORRT
   return {Integer(NV_TENSORRT_MAJOR), Integer(NV_TENSORRT_MINOR), Integer(NV_TENSORRT_PATCH)};
 #else
   return {};
-#endif  // TVM_GRAPH_RUNTIME_TENSORRT
+#endif  // TVM_GRAPH_EXECUTOR_TENSORRT
 }
 
 TVM_REGISTER_GLOBAL("relay.op.is_tensorrt_runtime_enabled")

@@ -41,21 +41,21 @@ def verify_elemwise_sum(num_args, dtype):
 
     np_nd = get_ref_data()
 
-    def check_device(device):
-        if not tvm.testing.device_enabled(device):
-            print("Skip because %s is not enabled" % device)
+    def check_target(target):
+        if not tvm.testing.device_enabled(target):
+            print("Skip because %s is not enabled" % target)
             return
 
-        ctx = tvm.context(device, 0)
-        out = tvm.nd.array(np.zeros(shape, dtype=dtype), ctx)
-        f = tvm.build(s, tvm_placeholders + [esum], device, name="elemwise_sum")
-        tvm_nd = [tvm.nd.array(nd, ctx) for nd in np_nd] + [out]
+        dev = tvm.device(target, 0)
+        out = tvm.nd.array(np.zeros(shape, dtype=dtype), dev)
+        f = tvm.build(s, tvm_placeholders + [esum], target, name="elemwise_sum")
+        tvm_nd = [tvm.nd.array(nd, dev) for nd in np_nd] + [out]
         f(*tvm_nd)
         np_out = np.sum(np.array(np_nd), axis=0)
-        tvm.testing.assert_allclose(out.asnumpy(), np_out, rtol=1e-5)
+        tvm.testing.assert_allclose(out.numpy(), np_out, rtol=1e-5)
 
-    for device in ["llvm"]:
-        check_device(device)
+    for target in ["llvm"]:
+        check_target(target)
 
 
 def verify_full(shape, dtype, fill_value):
@@ -71,47 +71,47 @@ def verify_full(shape, dtype, fill_value):
 
     np_nd = get_ref_data()
 
-    def check_device(device):
-        if not tvm.testing.device_enabled(device):
-            print("Skip because %s is not enabled" % device)
+    def check_target(target):
+        if not tvm.testing.device_enabled(target):
+            print("Skip because %s is not enabled" % target)
             return
 
-        ctx = tvm.context(device, 0)
-        out = tvm.nd.array(np.zeros(shape, dtype=dtype), ctx)
-        f = tvm.build(s1, [A, B], device, name="full_like")
-        f(tvm.nd.array(np.zeros(shape, dtype), ctx), out)
-        tvm.testing.assert_allclose(out.asnumpy(), np_nd, rtol=1e-5)
+        dev = tvm.device(target, 0)
+        out = tvm.nd.array(np.zeros(shape, dtype=dtype), dev)
+        f = tvm.build(s1, [A, B], target, name="full_like")
+        f(tvm.nd.array(np.zeros(shape, dtype), dev), out)
+        tvm.testing.assert_allclose(out.numpy(), np_nd, rtol=1e-5)
 
-        f = tvm.build(s2, [C], device, name="full")
+        f = tvm.build(s2, [C], target, name="full")
         f(out)
-        tvm.testing.assert_allclose(out.asnumpy(), np_nd, rtol=1e-5)
+        tvm.testing.assert_allclose(out.numpy(), np_nd, rtol=1e-5)
 
-    for device in ["llvm"]:
-        check_device(device)
+    for target in ["llvm"]:
+        check_target(target)
 
 
 def verify_vectorization(n, m, dtype):
-    def check_device(device):
-        if not tvm.testing.device_enabled(device):
-            print("Skip because %s is not enabled" % device)
+    def check_targeta(targeta):
+        if not tvm.testing.device_enabled(targeta):
+            print("Skip because %s is not enabled" % targeta)
             return
-        if dtype == "float16" and device == "cuda" and not have_fp16(tvm.gpu(0).compute_version):
+        if dtype == "float16" and targeta == "cuda" and not have_fp16(tvm.cuda(0).compute_version):
             print("Skip because gpu does not have fp16 support")
             return
-        with tvm.target.Target(device):
-            ctx = tvm.context(device, 0)
+        with tvm.target.Target(targeta):
+            dev = tvm.device(targeta, 0)
             A = te.placeholder((n, m), name="A", dtype=dtype)
             B = te.compute((n, m), lambda i, j: A[i, j] + tvm.tir.const(1, A.dtype), name="B")
-            S = tvm.topi.testing.get_elemwise_schedule(device)(B)
+            S = tvm.topi.testing.get_elemwise_schedule(targeta)(B)
 
-            fun = tvm.build(S, [A, B], device)
-            np_A = tvm.nd.empty((n, m), A.dtype, ctx).copyfrom(np.random.uniform(size=(n, m)))
-            np_B = tvm.nd.empty((n, m), B.dtype, ctx)
+            fun = tvm.build(S, [A, B], targeta)
+            np_A = tvm.nd.empty((n, m), A.dtype, dev).copyfrom(np.random.uniform(size=(n, m)))
+            np_B = tvm.nd.empty((n, m), B.dtype, dev)
             fun(np_A, np_B)
-            tvm.testing.assert_allclose(np_B.asnumpy(), np_A.asnumpy() + 1, rtol=1e-5)
+            tvm.testing.assert_allclose(np_B.numpy(), np_A.numpy() + 1, rtol=1e-5)
 
-    for device in ["cuda"]:
-        check_device(device)
+    for targeta in ["cuda"]:
+        check_targeta(targeta)
 
 
 @tvm.testing.requires_gpu

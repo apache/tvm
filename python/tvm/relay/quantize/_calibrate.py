@@ -29,7 +29,7 @@ from .. import op as _op
 from .. import expr as _expr
 from .. import analysis as _analysis
 from .. import build_module as _build_module
-from ...contrib import graph_runtime
+from ...contrib import graph_executor
 from .kl_divergence import _find_scale_by_kl
 
 
@@ -39,14 +39,14 @@ def _get_profile_runtime(mod):
 
     if tvm.target.Target.current():
         target = tvm.target.Target.current()
-        ctx = tvm.context(target.kind.name)
+        dev = tvm.device(target.kind.name)
     else:
         target = "llvm"
-        ctx = tvm.context(target)
+        dev = tvm.device(target)
 
     with tvm.transform.PassContext(opt_level=3):
         lib = _build_module.build(func, target=target)
-    runtime = graph_runtime.GraphModule(lib["default"](ctx))
+    runtime = graph_executor.GraphModule(lib["default"](dev))
 
     return runtime
 
@@ -86,7 +86,7 @@ def collect_stats(mod, dataset, chunk_by=-1):
             runtime.set_input(**batch)
             runtime.run()
             for j in range(i, min(i + chunk_by, num_outputs)):
-                outputs[j - i].append(runtime.get_output(j).asnumpy())
+                outputs[j - i].append(runtime.get_output(j).numpy())
         yield [np.concatenate(output).reshape(-1) for output in outputs]
 
 
@@ -98,6 +98,32 @@ def _kl_scale(mod, dataset):
         logging.info("finding threshold with kl for calibration...")
         with mp.Pool() as pool:
             scales += list(pool.map(_find_scale_by_kl, samples))
+
+    def func(_):
+        scale = scales[func.scale_idx]
+        func.scale_idx += 1
+        return scale
+
+    func.scale_idx = 0
+
+    return func
+
+
+def _find_scale_by_percentile(arr, percentile=0.99999):
+    assert isinstance(arr, np.ndarray)
+    x = np.abs(arr)
+    max_k = int(x.size * percentile)
+    return np.partition(x, max_k)[max_k]
+
+
+def _percentile_scale(mod, dataset):
+    cfg = quantize.current_qconfig()
+    chunk_by = cfg.calibrate_chunk_by
+    scales = []
+    for samples in collect_stats(mod, dataset, chunk_by):
+        logging.info("finding threshold with percentile for calibration...")
+        with mp.Pool() as pool:
+            scales += list(pool.map(_find_scale_by_percentile, samples))
 
     def func(_):
         scale = scales[func.scale_idx]
@@ -153,7 +179,7 @@ def _power2_scale(sq_call):  # pylint: disable=unused-argument
     """calculate weight scale with nearest mode-2 scale"""
     var = sq_call.args[0]
     assert isinstance(var, _expr.Constant)
-    val = np.amax(np.abs(var.data.asnumpy()))
+    val = np.amax(np.abs(var.data.numpy()))
     return 2 ** np.math.ceil(np.math.log(val, 2)) if val > 0 else 1.0
 
 
@@ -161,7 +187,7 @@ def _max_scale(sq_call):
     """calculate weight scale with maximum absolute value"""
     var = sq_call.args[0]
     assert isinstance(var, _expr.Constant)
-    val = np.amax(np.abs(var.data.asnumpy()))
+    val = np.amax(np.abs(var.data.numpy()))
     return val
 
 
@@ -195,6 +221,8 @@ def calibrate(dataset=None):
             input_scale_func = _kl_scale(mod, dataset)
         elif cfg.calibrate_mode == "global_scale":
             input_scale_func = _global_scale
+        elif cfg.calibrate_mode == "percentile":
+            input_scale_func = _percentile_scale(mod, dataset)
         else:
             raise ValueError("Unknown calibrate mode {}".format(cfg.calibrate_mode))
 

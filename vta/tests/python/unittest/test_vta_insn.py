@@ -59,18 +59,18 @@ def test_save_load_out():
         remote.upload(temp.relpath("load_act.o"))
         f = remote.load_module("load_act.o")
         # verify
-        ctx = remote.ext_dev(0)
+        dev = remote.ext_dev(0)
         x_np = np.random.randint(1, 10, size=(n, n, env.BATCH, env.BLOCK_OUT)).astype(x.dtype)
         y_np = x_np.astype(y.dtype)
-        x_nd = tvm.nd.array(x_np, ctx)
-        y_nd = tvm.nd.empty(y_np.shape, ctx=ctx, dtype=y_np.dtype)
+        x_nd = tvm.nd.array(x_np, dev)
+        y_nd = tvm.nd.empty(y_np.shape, device=dev, dtype=y_np.dtype)
 
         if env.TARGET in ["sim", "tsim"]:
             simulator.clear_stats()
 
         f(x_nd, y_nd)
 
-        np.testing.assert_equal(y_np, y_nd.asnumpy())
+        np.testing.assert_equal(y_np, y_nd.numpy())
 
         if env.TARGET in ["sim", "tsim"]:
             sim_stats = simulator.stats()
@@ -130,7 +130,7 @@ def test_padded_load():
             remote.upload(temp.relpath("padded_load.o"))
             f = remote.load_module("padded_load.o")
             # verify
-            ctx = remote.ext_dev(0)
+            dev = remote.ext_dev(0)
             x_np = np.random.randint(0, 10, size=(n, m, env.BATCH, env.BLOCK_OUT)).astype(x.dtype)
             y_np = np.zeros(
                 (
@@ -141,15 +141,15 @@ def test_padded_load():
                 )
             ).astype(y.dtype)
             y_np[pad_before[0] : pad_before[0] + n, pad_before[1] : pad_before[1] + m, :] = x_np
-            x_nd = tvm.nd.array(x_np, ctx)
-            y_nd = tvm.nd.empty(y_np.shape, ctx=ctx, dtype=y_np.dtype)
+            x_nd = tvm.nd.array(x_np, dev)
+            y_nd = tvm.nd.empty(y_np.shape, device=dev, dtype=y_np.dtype)
 
             if env.TARGET in ["sim", "tsim"]:
                 simulator.clear_stats()
 
             f(x_nd, y_nd)
 
-            np.testing.assert_equal(y_np, y_nd.asnumpy())
+            np.testing.assert_equal(y_np, y_nd.numpy())
 
             if env.TARGET in ["sim", "tsim"]:
                 sim_stats = simulator.stats()
@@ -214,7 +214,7 @@ def test_gemm():
             remote.upload(temp.relpath("gemm.o"))
             f = remote.load_module("gemm.o")
             # verify
-            ctx = remote.ext_dev(0)
+            dev = remote.ext_dev(0)
             x_np = np.random.randint(-128, 128, size=(o, n, env.BATCH, env.BLOCK_IN)).astype(
                 x.dtype
             )
@@ -222,9 +222,9 @@ def test_gemm():
                 w.dtype
             )
             y_np = np.zeros((o, m, env.BATCH, env.BLOCK_OUT)).astype(y.dtype)
-            x_nd = tvm.nd.array(x_np, ctx)
-            w_nd = tvm.nd.array(w_np, ctx)
-            y_nd = tvm.nd.array(y_np, ctx)
+            x_nd = tvm.nd.array(x_np, dev)
+            w_nd = tvm.nd.array(w_np, dev)
+            y_nd = tvm.nd.array(y_np, dev)
             y_np = y_np.astype(env.acc_dtype)
             for b in range(o):
                 for i in range(m):
@@ -240,7 +240,7 @@ def test_gemm():
 
             f(x_nd, w_nd, y_nd)
 
-            np.testing.assert_equal(y_np, y_nd.asnumpy())
+            np.testing.assert_equal(y_np, y_nd.numpy())
 
             if env.TARGET in ["sim", "tsim"]:
                 sim_stats = simulator.stats()
@@ -376,7 +376,7 @@ def test_alu():
             remote.upload(temp.relpath("load_act.o"))
             f = remote.load_module("load_act.o")
             # verify
-            ctx = remote.ext_dev(0)
+            dev = remote.ext_dev(0)
             a_np = np.random.randint(-16, 16, size=(m, n, env.BATCH, env.BLOCK_OUT)).astype(a.dtype)
             if use_imm:
                 res_np = np_op(a_np, imm) if np_op else tvm_op(a_np, imm)
@@ -386,8 +386,8 @@ def test_alu():
                 )
                 res_np = np_op(a_np, b_np) if np_op else tvm_op(a_np, b_np)
             res_np = res_np.astype(res.dtype)
-            a_nd = tvm.nd.array(a_np, ctx)
-            res_nd = tvm.nd.array(np.zeros((m, n, env.BATCH, env.BLOCK_OUT)).astype(res.dtype), ctx)
+            a_nd = tvm.nd.array(a_np, dev)
+            res_nd = tvm.nd.array(np.zeros((m, n, env.BATCH, env.BLOCK_OUT)).astype(res.dtype), dev)
 
             if env.TARGET in ["sim", "tsim"]:
                 simulator.clear_stats()
@@ -395,10 +395,10 @@ def test_alu():
             if use_imm:
                 f(a_nd, res_nd)
             else:
-                b_nd = tvm.nd.array(b_np, ctx)
+                b_nd = tvm.nd.array(b_np, dev)
                 f(a_nd, b_nd, res_nd)
 
-            np.testing.assert_equal(res_np, res_nd.asnumpy())
+            np.testing.assert_equal(res_np, res_nd.numpy())
 
             if env.TARGET in ["sim", "tsim"]:
                 sim_stats = simulator.stats()
@@ -459,18 +459,18 @@ def test_relu():
         remote.upload(temp.relpath("load_act.o"))
         f = remote.load_module("load_act.o")
         # verify
-        ctx = remote.ext_dev(0)
+        dev = remote.ext_dev(0)
         a_np = np.random.randint(-256, 256, size=(m, n, env.BATCH, env.BLOCK_OUT)).astype(a.dtype)
         res_np = np.clip(a_np, 0, (1 << (env.INP_WIDTH - 1)) - 1).astype(res.dtype)
-        a_nd = tvm.nd.array(a_np, ctx)
-        res_nd = tvm.nd.array(np.zeros((m, n, env.BATCH, env.BLOCK_OUT)).astype(res.dtype), ctx)
+        a_nd = tvm.nd.array(a_np, dev)
+        res_nd = tvm.nd.array(np.zeros((m, n, env.BATCH, env.BLOCK_OUT)).astype(res.dtype), dev)
 
         if env.TARGET in ["sim", "tsim"]:
             simulator.clear_stats()
 
         f(a_nd, res_nd)
 
-        np.testing.assert_equal(res_np, res_nd.asnumpy())
+        np.testing.assert_equal(res_np, res_nd.numpy())
 
         if env.TARGET in ["sim", "tsim"]:
             sim_stats = simulator.stats()
@@ -521,19 +521,19 @@ def test_shift_and_scale():
         remote.upload(temp.relpath("load_act.o"))
         f = remote.load_module("load_act.o")
         # verify
-        ctx = remote.ext_dev(0)
+        dev = remote.ext_dev(0)
         a_np = np.random.randint(-10, 10, size=(m, n, env.BATCH, env.BLOCK_OUT)).astype(a.dtype)
         res_np = np.right_shift((a_np + imm_shift), imm_scale)
         res_np = res_np.astype(res.dtype)
-        a_nd = tvm.nd.array(a_np, ctx)
-        res_nd = tvm.nd.array(np.zeros((m, n, env.BATCH, env.BLOCK_OUT)).astype(res.dtype), ctx)
+        a_nd = tvm.nd.array(a_np, dev)
+        res_nd = tvm.nd.array(np.zeros((m, n, env.BATCH, env.BLOCK_OUT)).astype(res.dtype), dev)
 
         if env.TARGET in ["sim", "tsim"]:
             simulator.clear_stats()
 
         f(a_nd, res_nd)
 
-        np.testing.assert_equal(res_np, res_nd.asnumpy())
+        np.testing.assert_equal(res_np, res_nd.numpy())
 
         if env.TARGET in ["sim", "tsim"]:
             sim_stats = simulator.stats()
@@ -547,10 +547,10 @@ def test_shift_and_scale():
 def test_runtime_array():
     def _run(env, remote):
         n = 100
-        ctx = remote.ext_dev(0)
+        dev = remote.ext_dev(0)
         x_np = np.random.randint(1, 10, size=(n, n, env.BATCH, env.BLOCK_OUT)).astype("int8")
-        x_nd = tvm.nd.array(x_np, ctx)
-        np.testing.assert_equal(x_np, x_nd.asnumpy())
+        x_nd = tvm.nd.array(x_np, dev)
+        np.testing.assert_equal(x_np, x_nd.numpy())
 
     vta.testing.run(_run)
 

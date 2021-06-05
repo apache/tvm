@@ -17,11 +17,12 @@
 """Definition of generic operator strategy."""
 # pylint: disable=invalid-name,unused-argument
 import logging
-
 import re
-from tvm import topi, _ffi, te, ir
-from tvm.topi.utils import get_const_int, get_const_float, get_const_tuple, get_float_tuple
+
+from tvm import _ffi, ir, te, topi
 from tvm.target import generic_func, override_native_generic_func
+from tvm.topi.utils import get_const_float, get_const_int, get_const_tuple, get_float_tuple
+
 from .. import op as _op
 
 logger = logging.getLogger("strategy")
@@ -48,6 +49,15 @@ def wrap_topi_schedule(topi_schedule):
     def wrapper(attrs, outs, target):
         with target:
             return topi_schedule(outs)
+
+    return wrapper
+
+
+def wrap_topi_compute(topi_compute):
+    """Wrap TOPI compute which doesn't use attrs"""
+
+    def wrapper(attrs, inputs, out_type):
+        return [topi_compute(*inputs)]
 
     return wrapper
 
@@ -165,7 +175,7 @@ def fast_softmax_strategy(attrs, inputs, out_type, target):
     strategy = _op.OpStrategy()
     strategy.add_implementation(
         wrap_compute_softmax(topi.nn.fast_softmax),
-        naive_schedule,
+        wrap_topi_schedule(topi.generic.schedule_fast_softmax),
         name="fast_softmax.generic",
     )
     return strategy
@@ -745,13 +755,15 @@ def dense_pack_strategy(attrs, inputs, out_type, target):
 
 
 # batch_matmul
-def wrap_compute_batch_matmul(topi_compute, need_auto_scheduler_layout=False):
+def wrap_compute_batch_matmul(topi_compute, need_auto_scheduler_layout=False, need_out_dtype=False):
     """wrap batch_matmul topi compute"""
 
     def _compute_batch_matmul(attrs, inputs, out_type):
         args = [inputs[0], inputs[1], out_type.shape]
         if need_auto_scheduler_layout:
             args.append(get_auto_scheduler_rewritten_layout(attrs))
+        if need_out_dtype:
+            args.append(out_type.dtype)
         return [topi_compute(*args)]
 
     return _compute_batch_matmul
@@ -828,6 +840,29 @@ def schedule_sparse_transpose(attrs, outs, target):
     """schedule sparse_transpose"""
     with target:
         return topi.generic.schedule_sparse_transpose(outs)
+
+
+# sparse conv2d
+def wrap_compute_sparse_conv2d(topi_compute):
+    """wrap sparse conv2d topi compute"""
+
+    def _compute_sparse_conv2d(attrs, inputs, out_type):
+        return [topi_compute(inputs[0], inputs[1], inputs[2], inputs[3], attrs["layout"])]
+
+    return _compute_sparse_conv2d
+
+
+@override_native_generic_func("sparse_conv2d_strategy")
+def sparse_conv2d_strategy(attrs, inputs, out_type, target):
+    """sparse conv2d generic strategy"""
+    logger.warning("sparse conv2d is not optimized for this platform.")
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_sparse_conv2d(topi.nn.sparse_conv2d),
+        wrap_topi_schedule(topi.generic.schedule_sparse_conv2d),
+        name="sparse_conv2d.generic",
+    )
+    return strategy
 
 
 # sort
@@ -999,10 +1034,6 @@ def wrap_compute_nms(topi_compute):
     def _compute_nms(attrs, inputs, out_type):
         max_output_size = inputs[3]
         iou_threshold = inputs[4]
-        if attrs.max_output_size is not None:
-            max_output_size = attrs.max_output_size
-        if attrs.iou_threshold is not None:
-            iou_threshold = get_const_float(attrs.iou_threshold)
         return_indices = bool(get_const_int(attrs.return_indices))
         force_suppress = bool(get_const_int(attrs.force_suppress))
         top_k = get_const_int(attrs.top_k)
@@ -1053,6 +1084,38 @@ def nms_strategy(attrs, inputs, out_type, target):
         wrap_compute_nms(topi.vision.non_max_suppression),
         wrap_topi_schedule(topi.generic.schedule_nms),
         name="nms.generic",
+    )
+    return strategy
+
+
+def wrap_compute_all_class_nms(topi_compute):
+    """wrap all class nms topi compute"""
+
+    def _compute_nms(attrs, inputs, out_type):
+        max_output_size = inputs[2]
+        iou_threshold = inputs[3]
+        score_threshold = inputs[4]
+        output_format = attrs.output_format
+        return topi_compute(
+            inputs[0],
+            inputs[1],
+            max_output_size,
+            iou_threshold,
+            score_threshold,
+            output_format,
+        )
+
+    return _compute_nms
+
+
+@override_native_generic_func("all_class_non_max_suppression_strategy")
+def all_class_nms_strategy(attrs, inputs, out_type, target):
+    """all class nms generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_all_class_nms(topi.vision.all_class_non_max_suppression),
+        wrap_topi_schedule(topi.generic.schedule_nms),
+        name="all_class_nms.generic",
     )
     return strategy
 
@@ -1256,7 +1319,7 @@ def wrap_compute_scatter_nd(topi_compute):
     """Wrap scatter_nd topi compute"""
 
     def _compute_scatter_nd(attrs, inputs, _):
-        return [topi_compute(inputs[0], inputs[1], attrs.out_shape)]
+        return [topi_compute(inputs[0], inputs[1], inputs[2], attrs.mode)]
 
     return _compute_scatter_nd
 
@@ -1463,13 +1526,35 @@ def threefry_split_strategy(attrs, inputs, out_type, target):
     return strategy
 
 
-def wrap_compute_cumsum(topi_compute):
-    """Wrap cumsum topi compute"""
+# uniform
+def wrap_compute_uniform(topi_compute):
+    """Wrap uniform topi compute"""
 
-    def _compute_cumsum(attrs, inputs, _):
+    def _compute_uniform(attrs, inputs, _):
+        return list(topi_compute(inputs[0], inputs[1], inputs[2], attrs.out_shape, attrs.out_dtype))
+
+    return _compute_uniform
+
+
+@override_native_generic_func("uniform_strategy")
+def uniform_strategy(attrs, inputs, out_type, target):
+    """uniform generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_uniform(topi.random.uniform),
+        wrap_topi_schedule(topi.generic.schedule_extern),
+        name="uniform.generic",
+    )
+    return strategy
+
+
+def wrap_compute_scanop(topi_compute):
+    """Wrap scanop style topi compute"""
+
+    def _compute_scanop(attrs, inputs, _):
         return [topi_compute(inputs[0], attrs.axis, attrs.dtype, attrs.exclusive)]
 
-    return _compute_cumsum
+    return _compute_scanop
 
 
 @override_native_generic_func("cumsum_strategy")
@@ -1477,9 +1562,21 @@ def cumsum_strategy(attrs, inputs, out_type, target):
     """cumsum generic strategy"""
     strategy = _op.OpStrategy()
     strategy.add_implementation(
-        wrap_compute_cumsum(topi.cumsum),
+        wrap_compute_scanop(topi.cumsum),
         wrap_topi_schedule(topi.generic.schedule_extern),
         name="cumsum.generic",
+    )
+    return strategy
+
+
+@override_native_generic_func("cumprod_strategy")
+def cumprod_strategy(attrs, inputs, out_type, target):
+    """cumprod generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_scanop(topi.cumprod),
+        wrap_topi_schedule(topi.generic.schedule_extern),
+        name="cumprod.generic",
     )
     return strategy
 
@@ -1503,3 +1600,10 @@ def unique_strategy(attrs, inputs, out_type, target):
         name="unique.generic",
     )
     return strategy
+
+
+@generic_func
+def schedule_transpose(attrs, outs, target):
+    """schedule transpose"""
+    with target:
+        return schedule_injective(attrs, outs, target)

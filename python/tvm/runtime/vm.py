@@ -23,17 +23,19 @@ Implements a Python interface to executing the compiled VM object.
 import numpy as np
 
 import tvm
+from tvm.runtime import Module
 from tvm._ffi.runtime_ctypes import TVMByteArray
 from tvm._ffi import base as _base
 from .object import Object
 from . import _ffi_api, container
+from ..rpc.base import RPC_SESS_MASK
 
 
 def _convert(arg, cargs):
     if isinstance(arg, Object):
         cargs.append(arg)
     elif isinstance(arg, np.ndarray):
-        nd_arr = tvm.nd.array(arg, ctx=tvm.cpu(0))
+        nd_arr = tvm.nd.array(arg, device=tvm.cpu(0))
         cargs.append(nd_arr)
     elif isinstance(arg, tvm.runtime.NDArray):
         cargs.append(arg)
@@ -44,7 +46,7 @@ def _convert(arg, cargs):
         cargs.append(container.tuple_object(field_args))
     elif isinstance(arg, (_base.numeric_types, bool)):
         dtype = "int32" if isinstance(arg, (int, bool)) else "float32"
-        value = tvm.nd.array(np.array(arg, dtype=dtype), ctx=tvm.cpu(0))
+        value = tvm.nd.array(np.array(arg, dtype=dtype), device=tvm.cpu(0))
         cargs.append(value)
     else:
         raise TypeError("Unsupported type: %s" % (type(arg)))
@@ -115,7 +117,7 @@ class Executable(object):
             f = relay.Function([x], x + x)
             mod = tvm.IRModule({"main": f})
             # create a Relay VM.
-            ctx = tvm.cpu()
+            dev = tvm.cpu()
             target = "llvm"
             executable = relay.vm.compile(mod, target)
             code, lib = executable.save()
@@ -131,9 +133,9 @@ class Executable(object):
             des_exec = tvm.runtime.vm.Executable.load_exec(loaded_code, loaded_lib)
             # execute the deserialized executable.
             x_data = np.random.rand(10, 10).astype('float32')
-            des_vm = tvm.runtime.vm.VirtualMachine(des_exec, ctx)
+            des_vm = tvm.runtime.vm.VirtualMachine(des_exec, dev)
             res = des_vm.run(x_data)
-            print(res.asnumpy())
+            print(res.numpy())
         """
         return self._save(), self._get_lib()
 
@@ -283,14 +285,14 @@ class VirtualMachine(object):
     exe : Executable
         The VM executable.
 
-    ctx : tvm.runtime.TVMContext or List[tvm.runtime.TVMContext]
-        The context to deploy the module
+    device : tvm.runtime.Device or List[tvm.runtime.Device]
+        The device to deploy the module
 
-    memory_cfg : str or Dict[tvm.runtime.TVMContext, str], optional
+    memory_cfg : str or Dict[tvm.runtime.Device, str], optional
         Config the type of memory allocator. The allocator type can be ["naive",
-        "pooled"]. If memory_cfg is None, all contexts will use pooled allocator
-        by default. If memory_cfg is string, all contexts will use the specified
-        allocator type. If memory_cfg is a dict, each context uses the allocator
+        "pooled"]. If memory_cfg is None, all devices will use pooled allocator
+        by default. If memory_cfg is string, all devices will use the specified
+        allocator type. If memory_cfg is a dict, each device uses the allocator
         type specified in the dict, or pooled allocator if not specified in the
         dict.
     """
@@ -298,33 +300,68 @@ class VirtualMachine(object):
     NAIVE_ALLOCATOR = 1
     POOLED_ALLOCATOR = 2
 
-    def __init__(self, exe, ctx, memory_cfg=None):
-        if not isinstance(exe, Executable):
+    def __init__(self, exe, device, memory_cfg=None):
+        """
+        Construct a VirtualMachine wrapper class which provides a simple
+        interface over the raw C++ Module based API.
+
+        Parameters
+        ----------
+        exe: Union[Executable, Module]
+            The executable either with the wrapper Python type or the raw runtime.Module.
+
+            In most cases this will be the Python wrapper class tvm.runtime.vm.Executable but
+            if you instead get the underlying runtime.Module subclass (i.e `exe.mod`) you
+            can directly pass it to this method.
+
+            This case can occur when doing things such as RPC where TVM's module APIs
+            return the raw modules, not the wrapped modules. This constructor will
+            handle this internally.
+
+        device: Union[Device, List[Device]]
+            The device, or devices on which to execute the VM code.
+
+        memory_cfg: Optional[str]
+            The allocator behavior to use for the VM.
+
+        Returns
+        -------
+        vm: VirtualMachine
+            A VM wrapper object.
+        """
+        if not isinstance(exe, Executable) and not isinstance(exe, Module):
             raise TypeError(
                 "exe is expected to be the type of Executable, "
                 + "but received {}".format(type(exe))
             )
-        self.module = _ffi_api._VirtualMachine(exe.module)
+
+        if not isinstance(exe, Executable):
+            exe = Executable(exe)
+
+        self.module = exe.mod["vm_load_executable"]()
         self._exec = exe
         self._init = self.module["init"]
         self._invoke = self.module["invoke"]
+        self._invoke_stateful = self.module["invoke_stateful"]
+        self._get_output = self.module["get_output"]
+        self._get_num_outputs = self.module["get_num_outputs"]
         self._set_input = self.module["set_input"]
-        self._setup_ctx(ctx, memory_cfg)
+        self._setup_device(device, memory_cfg)
 
-    def _setup_ctx(self, ctx, memory_cfg):
-        """Init context and allocators."""
-        ctxs = ctx
-        if not isinstance(ctx, (list, tuple)):
-            if not isinstance(ctx, tvm.runtime.TVMContext):
+    def _setup_device(self, dev, memory_cfg):
+        """Init devices and allocators."""
+        devs = dev
+        if not isinstance(dev, (list, tuple)):
+            if not isinstance(dev, tvm.runtime.Device):
                 raise TypeError(
-                    "ctx is expected to be TVMContext or \
-                                List[TVMContext]"
+                    "dev is expected to be Device or \
+                                List[Device]"
                 )
-            ctxs = [ctx]
+            devs = [dev]
 
         # CPU is required for executing shape functions
-        if not any(c.device_type == tvm.cpu().device_type for c in ctxs):
-            ctxs.append(tvm.cpu())
+        if not any(c.device_type % RPC_SESS_MASK == tvm.cpu().device_type for c in devs):
+            devs.append(tvm.cpu())
 
         default_alloc_type = VirtualMachine.POOLED_ALLOCATOR
         if memory_cfg is None:
@@ -340,10 +377,10 @@ class VirtualMachine(object):
                 + "but received {}".format(type(memory_cfg))
             )
         init_args = []
-        for context in ctxs:
-            init_args.append(context.device_type)
-            init_args.append(context.device_id)
-            alloc_type = memory_cfg[context] if context in memory_cfg else default_alloc_type
+        for device in devs:
+            init_args.append(device.device_type % RPC_SESS_MASK)
+            init_args.append(device.device_id)
+            alloc_type = memory_cfg[device] if device in memory_cfg else default_alloc_type
             init_args.append(alloc_type)
         self._init(*init_args)
 
@@ -422,3 +459,34 @@ class VirtualMachine(object):
             The output.
         """
         return self.invoke("main", *args, **kwargs)
+
+    def invoke_stateful(self, func_name, *args, **kwargs):
+        """Invoke a function and ignore the returned result.
+
+        Use this function when running over rpc because it is currently
+        impossible to return a ADT object over rpc. To get the outputs, use
+        :py:func`get_outputs`.
+
+        Parameters
+        ----------
+        func_name : str
+            The name of the function.
+
+        args : list[tvm.runtime.NDArray] or list[np.ndarray]
+            The arguments to the function.
+
+        kwargs: dict of str to tvm.runtime.NDArray or np.ndarray
+            Named arguments to the function.
+        """
+        if args or kwargs:
+            self.set_input(func_name, *args, **kwargs)
+        self._invoke_stateful(func_name)
+
+    def get_outputs(self):
+        """Get the outputs from a call to :py:func`invoke_stateful`.
+
+        Returns
+        -------
+        outputs : List[NDArray]
+        """
+        return [self._get_output(i) for i in range(self._get_num_outputs())]

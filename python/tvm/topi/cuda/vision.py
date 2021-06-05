@@ -32,14 +32,16 @@ def _default_schedule(outs):
     scheduled_ops = []
 
     def traverse(op):
-        if tag.is_broadcast(op.tag) or op.tag in ["bbox_score", "sorted_bbox"]:
+        if tag.is_injective(op.tag) or op.tag in ["bbox_score", "sorted_bbox"]:
             schedule_injective_from_existing(s, op.output(0))
         for tensor in op.input_tensors:
             if tensor.op.input_tensors and tensor.op not in scheduled_ops:
                 traverse(tensor.op)
         scheduled_ops.append(op)
 
-    traverse(outs[0].op)
+    for o in outs:
+        traverse(o.op)
+
     return s
 
 

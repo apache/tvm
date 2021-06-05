@@ -20,7 +20,7 @@
 from __future__ import absolute_import, print_function
 import tvm
 from tvm import relay
-from tvm.contrib import utils, graph_runtime, download
+from tvm.contrib import utils, graph_executor, download
 from hashlib import md5
 from itertools import zip_longest, combinations
 import numpy as np
@@ -211,7 +211,7 @@ def run(lib, inputs, outputs, npu=True):
     lib_path = temp.relpath(lib_name)
     lib.export_library(lib_path)
     lib = tvm.runtime.load_module(lib_path)
-    module = graph_runtime.GraphModule(lib["default"](tvm.cpu()))
+    module = graph_executor.GraphModule(lib["default"](tvm.cpu()))
     module.set_input(**inputs)
     module.run()
     out = [module.get_output(i) for i in range(outputs)]
@@ -221,7 +221,7 @@ def run(lib, inputs, outputs, npu=True):
 
 
 def build_and_run(
-    mod, inputs, outputs, params, ctx=tvm.cpu(), npu=True, expected_host_ops=0, npu_partitions=1
+    mod, inputs, outputs, params, device=tvm.cpu(), npu=True, expected_host_ops=0, npu_partitions=1
 ):
     lib = build(mod, params, npu, expected_host_ops, npu_partitions)
     return run(lib, inputs, outputs, npu)
@@ -235,12 +235,12 @@ def verify(answers, atol, rtol=1e-07, verify_saturation=True):
         for outs in combinations(answer, 2):
             if verify_saturation:
                 assert (
-                    np.count_nonzero(outs[0].asnumpy() == 255) < 0.25 * outs[0].asnumpy().size
+                    np.count_nonzero(outs[0].numpy() == 255) < 0.25 * outs[0].numpy().size
                 ), "Output is saturated: {}".format(outs[0])
                 assert (
-                    np.count_nonzero(outs[0].asnumpy() == 0) < 0.25 * outs[0].asnumpy().size
+                    np.count_nonzero(outs[0].numpy() == 0) < 0.25 * outs[0].numpy().size
                 ), "Output is saturated: {}".format(outs[0])
-            tvm.testing.assert_allclose(outs[0].asnumpy(), outs[1].asnumpy(), rtol=rtol, atol=atol)
+            tvm.testing.assert_allclose(outs[0].numpy(), outs[1].numpy(), rtol=rtol, atol=atol)
 
 
 def inference_result(outputs):

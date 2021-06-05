@@ -95,16 +95,16 @@ def search_common(
         sch, args = task.compute_dag.apply_steps_from_state(task.compute_dag.init_state)
         mod_ref = tvm.build(sch, args, "llvm")
 
-        ctx = tvm.context(str(target), 0)
+        ctx = tvm.device(str(target), 0)
         np_arrays = [np.random.uniform(size=get_const_tuple(x.shape)).astype(x.dtype) for x in args]
 
         tvm_arrays = [tvm.nd.array(x, ctx) for x in np_arrays]
         mod(*tvm_arrays)
-        actual = [x.asnumpy() for x in tvm_arrays]
+        actual = [x.numpy() for x in tvm_arrays]
 
         tvm_arrays = [tvm.nd.array(x) for x in np_arrays]
         mod_ref(*tvm_arrays)
-        expected = [x.asnumpy() for x in tvm_arrays]
+        expected = [x.numpy() for x in tvm_arrays]
 
         for x, y in zip(actual, expected):
             tvm.testing.assert_allclose(x, y, rtol=1e-5)

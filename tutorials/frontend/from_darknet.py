@@ -94,14 +94,13 @@ mod, params = relay.frontend.from_darknet(net, dtype=dtype, shape=data.shape)
 # Import the graph to Relay
 # -------------------------
 # compile the model
-target = "llvm"
-target_host = "llvm"
-ctx = tvm.cpu(0)
+target = tvm.target.Target("llvm", host="llvm")
+dev = tvm.cpu(0)
 data = np.empty([batch_size, net.c, net.h, net.w], dtype)
 shape = {"data": data.shape}
 print("Compiling the model...")
 with tvm.transform.PassContext(opt_level=3):
-    lib = relay.build(mod, target=target, target_host=target_host, params=params)
+    lib = relay.build(mod, target=target, params=params)
 
 [neth, netw] = shape["data"][2:]  # Current image shape is 608x608
 ######################################################################
@@ -117,9 +116,9 @@ data = tvm.relay.testing.darknet.load_image(img_path, netw, neth)
 # Execute on TVM Runtime
 # ----------------------
 # The process is no different from other examples.
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 
-m = graph_runtime.GraphModule(lib["default"](ctx))
+m = graph_executor.GraphModule(lib["default"](dev))
 
 # set inputs
 m.set_input("data", tvm.nd.array(data.astype(dtype)))
@@ -138,10 +137,10 @@ if MODEL_NAME == "yolov2":
     layer_out = {}
     layer_out["type"] = "Region"
     # Get the region layer attributes (n, out_c, out_h, out_w, classes, coords, background)
-    layer_attr = m.get_output(2).asnumpy()
-    layer_out["biases"] = m.get_output(1).asnumpy()
+    layer_attr = m.get_output(2).numpy()
+    layer_out["biases"] = m.get_output(1).numpy()
     out_shape = (layer_attr[0], layer_attr[1] // layer_attr[0], layer_attr[2], layer_attr[3])
-    layer_out["output"] = m.get_output(0).asnumpy().reshape(out_shape)
+    layer_out["output"] = m.get_output(0).numpy().reshape(out_shape)
     layer_out["classes"] = layer_attr[4]
     layer_out["coords"] = layer_attr[5]
     layer_out["background"] = layer_attr[6]
@@ -152,11 +151,11 @@ elif MODEL_NAME == "yolov3":
         layer_out = {}
         layer_out["type"] = "Yolo"
         # Get the yolo layer attributes (n, out_c, out_h, out_w, classes, total)
-        layer_attr = m.get_output(i * 4 + 3).asnumpy()
-        layer_out["biases"] = m.get_output(i * 4 + 2).asnumpy()
-        layer_out["mask"] = m.get_output(i * 4 + 1).asnumpy()
+        layer_attr = m.get_output(i * 4 + 3).numpy()
+        layer_out["biases"] = m.get_output(i * 4 + 2).numpy()
+        layer_out["mask"] = m.get_output(i * 4 + 1).numpy()
         out_shape = (layer_attr[0], layer_attr[1] // layer_attr[0], layer_attr[2], layer_attr[3])
-        layer_out["output"] = m.get_output(i * 4).asnumpy().reshape(out_shape)
+        layer_out["output"] = m.get_output(i * 4).numpy().reshape(out_shape)
         layer_out["classes"] = layer_attr[4]
         tvm_out.append(layer_out)
 
@@ -165,11 +164,11 @@ elif MODEL_NAME == "yolov3-tiny":
         layer_out = {}
         layer_out["type"] = "Yolo"
         # Get the yolo layer attributes (n, out_c, out_h, out_w, classes, total)
-        layer_attr = m.get_output(i * 4 + 3).asnumpy()
-        layer_out["biases"] = m.get_output(i * 4 + 2).asnumpy()
-        layer_out["mask"] = m.get_output(i * 4 + 1).asnumpy()
+        layer_attr = m.get_output(i * 4 + 3).numpy()
+        layer_out["biases"] = m.get_output(i * 4 + 2).numpy()
+        layer_out["mask"] = m.get_output(i * 4 + 1).numpy()
         out_shape = (layer_attr[0], layer_attr[1] // layer_attr[0], layer_attr[2], layer_attr[3])
-        layer_out["output"] = m.get_output(i * 4).asnumpy().reshape(out_shape)
+        layer_out["output"] = m.get_output(i * 4).numpy().reshape(out_shape)
         layer_out["classes"] = layer_attr[4]
         tvm_out.append(layer_out)
         thresh = 0.560

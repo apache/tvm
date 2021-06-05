@@ -22,46 +22,66 @@ import tvm.topi.testing
 
 
 @tvm.testing.parametrize_targets
-def test_scatter_nd(ctx, target):
-    def check_scatter_nd(data, indices, shape, out):
+def test_scatter_nd(dev, target):
+    def check_scatter_nd(data, indices, updates, out, mode="add"):
         implementations = {
-            "generic": (lambda x, y: topi.scatter_nd(x, y, shape), topi.generic.schedule_extern),
-            "gpu": (lambda x, y: topi.cuda.scatter_nd(x, y, shape), topi.generic.schedule_extern),
-            "cpu": (lambda x, y: topi.x86.scatter_nd(x, y, shape), topi.generic.schedule_extern),
+            "generic": (
+                lambda x, y, z: topi.scatter_nd(x, y, z, mode),
+                topi.generic.schedule_extern,
+            ),
+            "gpu": (
+                lambda x, y, z: topi.cuda.scatter_nd(x, y, z, mode),
+                topi.generic.schedule_extern,
+            ),
+            "cpu": (
+                lambda x, y, z: topi.x86.scatter_nd(x, y, z, mode),
+                topi.generic.schedule_extern,
+            ),
         }
         fcompute, fschedule = tvm.topi.testing.dispatch(target, implementations)
-        tvm.topi.testing.compare_numpy_tvm([data, indices], out, target, ctx, fcompute, fschedule)
+        tvm.topi.testing.compare_numpy_tvm(
+            [data, indices, updates], out, target, dev, fcompute, fschedule
+        )
 
-    data = np.array([2, 3, 0])
+    data = np.zeros((2, 2)).astype("int64")
     indices = np.array([[1, 1, 0], [0, 1, 0]])
-    shape = (2, 2)
+    updates = np.array([2, 3, 0])
     out = np.array([[0, 0], [2, 3]])
-    check_scatter_nd(data, indices, shape, out)
+    check_scatter_nd(data, indices, updates, out)
 
-    data = np.array([[[1, 2], [3, 4]], [[5, 6], [7, 8]]])
+    data = np.zeros((2, 2, 2, 2)).astype("int64")
     indices = np.array([[0, 1], [1, 1]])
-    shape = (2, 2, 2, 2)
+    updates = np.array([[[1, 2], [3, 4]], [[5, 6], [7, 8]]])
     out = np.array([[[[0, 0], [0, 0]], [[1, 2], [3, 4]]], [[[0, 0], [0, 0]], [[5, 6], [7, 8]]]])
-    check_scatter_nd(data, indices, shape, out)
+    check_scatter_nd(data, indices, updates, out)
 
-    data = np.reshape(np.arange(1560 * 3), (3, 1560)).astype("float32")
     indices = np.array([[1, 0, 0]])
+    updates = np.reshape(np.arange(1560 * 3), (3, 1560)).astype("float32")
     shape = (2, 1560)
-    out = np.zeros(shape).astype("float32")
-    out[1, :] += data[0, :]
-    out[0, :] += data[1, :]
-    out[0, :] += data[2, :]
-    check_scatter_nd(data, indices, shape, out)
+    data = np.zeros(shape).astype("float32")
+    out = data.copy()
+    out[1, :] += updates[0, :]
+    out[0, :] += updates[1, :]
+    out[0, :] += updates[2, :]
+    check_scatter_nd(data, indices, updates, out)
 
-    data = np.ones((5, 3)).astype("float64")
-    indices = np.stack((np.random.randint(2, size=5), np.random.randint(7, size=5))).astype("int64")
-    shape = (2, 7, 3)
-    out = np.zeros(shape).astype("float64")
-    for i in range(indices.shape[1]):
-        for j in range(data.shape[1]):
-            out[indices[0, i], indices[1, i], j] += data[i, j]
-    check_scatter_nd(data, indices, shape, out)
+    for mode in ["add", "update"]:
+        updates = np.ones((5, 3)).astype("float64")
+        indices = np.stack((np.random.randint(2, size=5), np.random.randint(7, size=5))).astype(
+            "int64"
+        )
+        shape = (2, 7, 3)
+        data = np.random.random(shape).astype("float64")
+        out = data.copy()
+        for i in range(indices.shape[1]):
+            for j in range(updates.shape[1]):
+                if mode == "add":
+                    out[indices[0, i], indices[1, i], j] += updates[i, j]
+                elif mode == "update":
+                    out[indices[0, i], indices[1, i], j] = updates[i, j]
+
+        check_scatter_nd(data, indices, updates, out, mode)
 
 
 if __name__ == "__main__":
-    test_scatter_nd(tvm.context("cpu"), tvm.target.Target("llvm"))
+    test_scatter_nd(tvm.device("cpu"), tvm.target.Target("llvm"))

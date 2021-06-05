@@ -37,18 +37,18 @@ def check_server_drop():
             base.sendjson(tclient._sock, value)
             base.recvjson(tclient._sock)
 
-        tserver = tracker.Tracker("localhost", 8888)
-        tproxy = proxy.Proxy("localhost", 8881, tracker_addr=("localhost", tserver.port))
-        tclient = rpc.connect_tracker("localhost", tserver.port)
+        tserver = tracker.Tracker("127.0.0.1", 8888)
+        tproxy = proxy.Proxy("127.0.0.1", 8881, tracker_addr=("127.0.0.1", tserver.port))
+        tclient = rpc.connect_tracker("127.0.0.1", tserver.port)
 
         server0 = rpc.Server(
-            "localhost", port=9099, tracker_addr=("localhost", tserver.port), key="abc"
+            "127.0.0.1", port=9099, tracker_addr=("127.0.0.1", tserver.port), key="abc"
         )
         server1 = rpc.Server(
-            "localhost", port=9099, tracker_addr=("localhost", tserver.port), key="xyz"
+            "127.0.0.1", port=9099, tracker_addr=("127.0.0.1", tserver.port), key="xyz"
         )
-        server2 = rpc.Server("localhost", tproxy.port, is_proxy=True, key="xyz")
-        server3 = rpc.Server("localhost", tproxy.port, is_proxy=True, key="xyz1")
+        server2 = rpc.Server("127.0.0.1", tproxy.port, is_proxy=True, key="xyz")
+        server3 = rpc.Server("127.0.0.1", tproxy.port, is_proxy=True, key="xyz1")
 
         # Fault tolerence to un-handled requested value
         _put(tclient, [TrackerCode.REQUEST, "abc", "", 1])

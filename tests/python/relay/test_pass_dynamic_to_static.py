@@ -37,12 +37,12 @@ def run_opt_pass(expr, opt_pass):
 
 def verify_func(func, data, ref_res, rtol=1e-5, atol=1e-7):
     assert isinstance(data, list)
-    for target, ctx in tvm.testing.enabled_targets():
+    for target, dev in tvm.testing.enabled_targets():
         for kind in ["graph", "vm", "debug"]:
             mod = tvm.ir.IRModule.from_expr(func)
-            intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+            intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
             op_res = intrp.evaluate()(*data)
-            tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=rtol, atol=atol)
+            tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=rtol, atol=atol)
 
 
 @tvm.testing.uses_gpu
@@ -176,20 +176,20 @@ def test_dynamic_to_static_topk():
         assert isinstance(zz, relay.Call)
         assert zz.op == relay.op.get("topk")
 
-        for target, ctx in tvm.testing.enabled_targets():
+        for target, dev in tvm.testing.enabled_targets():
             if "llvm" not in target:
                 continue
             for kind in ["graph", "vm", "debug"]:
                 mod = tvm.ir.IRModule.from_expr(func2)
-                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
                 op_res = intrp.evaluate()(np_data)
                 if ret_type == "both":
-                    tvm.testing.assert_allclose(op_res[0].asnumpy(), np_values)
-                    tvm.testing.assert_allclose(op_res[1].asnumpy(), np_indices)
+                    tvm.testing.assert_allclose(op_res[0].numpy(), np_values)
+                    tvm.testing.assert_allclose(op_res[1].numpy(), np_indices)
                 elif ret_type == "values":
-                    tvm.testing.assert_allclose(op_res.asnumpy(), np_values)
+                    tvm.testing.assert_allclose(op_res.numpy(), np_values)
                 else:
-                    tvm.testing.assert_allclose(op_res.asnumpy(), np_indices)
+                    tvm.testing.assert_allclose(op_res.numpy(), np_indices)
 
     np.random.seed(0)
     for k in [0, 1, 5]:

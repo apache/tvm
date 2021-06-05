@@ -21,7 +21,7 @@ import numpy as np
 from tvm import relay
 from tvm.relay import transform
 from tvm.relay.testing import run_infer_type
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 from tvm.relay.testing.temp_op_attr import TempOpAttr
 
 # We use llvm target for testing functionality. `llvm` points to an older Intel
@@ -198,11 +198,11 @@ def verify(ref_func, qnn_func, data_shape, data_dtype, kernel_shape, kernel_dtyp
             golden_data, golden_weight = golden_inputs
             params = {"kernel": golden_weight}
             graph, lib, params = relay.build(func, "llvm", params=params)
-            mod = graph_runtime.create(graph, lib, ctx=tvm.cpu(0))
+            mod = graph_executor.create(graph, lib, device=tvm.cpu(0))
             mod.set_input("data", golden_data)
             mod.set_input(**params)
             mod.run()
-            res = mod.get_output(0).asnumpy()
+            res = mod.get_output(0).numpy()
             return res
 
     golden_inputs = get_inputs(data_shape, data_dtype, kernel_shape, kernel_dtype)
@@ -722,11 +722,11 @@ def test_tflite_large_irregular():
         with tvm.transform.PassContext(opt_level=2):
             params = {"kernel": golden_weight}
             graph, lib, params = relay.build(qnn_func, "llvm", params=params)
-            mod = graph_runtime.create(graph, lib, ctx=tvm.cpu(0))
+            mod = graph_executor.create(graph, lib, device=tvm.cpu(0))
             mod.set_input("data", golden_data)
             mod.set_input(**params)
             mod.run()
-            qnn_output = mod.get_output(0).asnumpy()
+            qnn_output = mod.get_output(0).numpy()
         golden_output = np.full((1, 1001, 1, 1), 0).astype("uint8")
         np.testing.assert_equal(qnn_output, golden_output)
 
@@ -767,11 +767,11 @@ def test_tflite_output_multiplier_greater_than_one():
         with tvm.transform.PassContext(opt_level=2):
             params = {"kernel": golden_weight}
             graph, lib, params = relay.build(qnn_func, "llvm", params=params)
-            mod = graph_runtime.create(graph, lib, ctx=tvm.cpu(0))
+            mod = graph_executor.create(graph, lib, device=tvm.cpu(0))
             mod.set_input("data", golden_data)
             mod.set_input(**params)
             mod.run()
-            qnn_output = mod.get_output(0).asnumpy()
+            qnn_output = mod.get_output(0).numpy()
         golden_output = np.array((17, 17, 0, 0, 2, 2, 16, 36, 2, 2, 0, 0)).reshape(2, 3, 1, 2)
         np.testing.assert_equal(qnn_output, golden_output)
 
@@ -830,11 +830,11 @@ def test_tflite_anistropic_strides():
         with tvm.transform.PassContext(opt_level=2):
             params = {"kernel": golden_weight}
             graph, lib, params = relay.build(qnn_func, "llvm", params=params)
-            mod = graph_runtime.create(graph, lib, ctx=tvm.cpu(0))
+            mod = graph_executor.create(graph, lib, device=tvm.cpu(0))
             mod.set_input("data", golden_data)
             mod.set_input(**params)
             mod.run()
-            qnn_output = mod.get_output(0).asnumpy()
+            qnn_output = mod.get_output(0).numpy()
         golden_output = np.array((124, -92, 164, -132)).reshape(1, 1, 2, 2)
         np.testing.assert_equal(qnn_output, golden_output)
 

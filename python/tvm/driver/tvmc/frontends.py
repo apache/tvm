@@ -25,12 +25,14 @@ import os
 import sys
 from abc import ABC
 from abc import abstractmethod
+from typing import Optional, List, Dict
 from pathlib import Path
 
 import numpy as np
 
 from tvm import relay
 from tvm.driver.tvmc.common import TVMCException
+from tvm.driver.tvmc.model import TVMCModel
 
 
 # pylint: disable=invalid-name
@@ -75,7 +77,7 @@ class Frontend(ABC):
 
 
 def import_keras():
-    """ Lazy import function for Keras"""
+    """Lazy import function for Keras"""
     # Keras writes the message "Using TensorFlow backend." to stderr
     # Redirect stderr during the import to disable this
     stderr = sys.stderr
@@ -91,7 +93,7 @@ def import_keras():
 
 
 class KerasFrontend(Frontend):
-    """ Keras frontend for TVMC """
+    """Keras frontend for TVMC"""
 
     @staticmethod
     def name():
@@ -149,7 +151,7 @@ class KerasFrontend(Frontend):
 
 
 class OnnxFrontend(Frontend):
-    """ ONNX frontend for TVMC """
+    """ONNX frontend for TVMC"""
 
     @staticmethod
     def name():
@@ -170,7 +172,7 @@ class OnnxFrontend(Frontend):
 
 
 class TensorflowFrontend(Frontend):
-    """ TensorFlow frontend for TVMC """
+    """TensorFlow frontend for TVMC"""
 
     @staticmethod
     def name():
@@ -197,7 +199,7 @@ class TensorflowFrontend(Frontend):
 
 
 class TFLiteFrontend(Frontend):
-    """ TFLite frontend for TVMC """
+    """TFLite frontend for TVMC"""
 
     @staticmethod
     def name():
@@ -235,7 +237,7 @@ class TFLiteFrontend(Frontend):
 
 
 class PyTorchFrontend(Frontend):
-    """ PyTorch frontend for TVMC """
+    """PyTorch frontend for TVMC"""
 
     @staticmethod
     def name():
@@ -284,7 +286,7 @@ def get_frontend_names():
     return [frontend.name() for frontend in ALL_FRONTENDS]
 
 
-def get_frontend_by_name(name):
+def get_frontend_by_name(name: str):
     """
     This function will try to get a frontend instance, based
     on the name provided.
@@ -311,7 +313,7 @@ def get_frontend_by_name(name):
     )
 
 
-def guess_frontend(path):
+def guess_frontend(path: str):
     """
     This function will try to imply which framework is being used,
     based on the extension of the file provided in the path parameter.
@@ -340,7 +342,12 @@ def guess_frontend(path):
     raise TVMCException("failed to infer the model format. Please specify --model-format")
 
 
-def load_model(path, model_format=None, shape_dict=None, **kwargs):
+def load_model(
+    path: str,
+    model_format: Optional[str] = None,
+    shape_dict: Optional[Dict[str, List[int]]] = None,
+    **kwargs,
+):
     """Load a model from a supported framework and convert it
     into an equivalent relay representation.
 
@@ -356,10 +363,8 @@ def load_model(path, model_format=None, shape_dict=None, **kwargs):
 
     Returns
     -------
-    mod : tvm.relay.Module
-        The produced relay module.
-    params : dict
-        The parameters (weights) for the relay module.
+    tvmc_model : TVMCModel
+        The produced model package.
 
     """
 
@@ -370,4 +375,4 @@ def load_model(path, model_format=None, shape_dict=None, **kwargs):
 
     mod, params = frontend.load(path, shape_dict, **kwargs)
 
-    return mod, params
+    return TVMCModel(mod, params)

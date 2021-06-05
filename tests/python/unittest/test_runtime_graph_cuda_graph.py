@@ -27,8 +27,8 @@ import tvm.testing
 from tvm import te
 import numpy as np
 
-from tvm.contrib import utils, graph_runtime
-from tvm.contrib.cuda_graph import cuda_graph_runtime
+from tvm.contrib import utils, graph_executor
+from tvm.contrib.cuda_graph import cuda_graph_executor
 
 
 bx = te.thread_axis("blockIdx.x")
@@ -73,9 +73,9 @@ def test_graph_simple():
 
     def check_verify():
         mlib = tvm.build(s, [A, B], "cuda", name="myadd")
-        ctx = tvm.gpu(0)
+        dev = tvm.cuda(0)
         try:
-            mod = cuda_graph_runtime.create(graph, mlib, ctx)
+            mod = cuda_graph_executor.create(graph, mlib, dev)
         except ValueError:
             return
 
@@ -83,7 +83,7 @@ def test_graph_simple():
             a = np.random.uniform(size=(n,)).astype(A.dtype)
             mod.run(x=a)  # The first run captured a CUDA graph
             out = mod.get_output(0, tvm.nd.empty((n,)))
-            np.testing.assert_equal(out.asnumpy(), a + 1)
+            np.testing.assert_equal(out.numpy(), a + 1)
 
         # capture / run CUDA graph manually
         mod.capture_cuda_graph()
@@ -91,7 +91,7 @@ def test_graph_simple():
         mod.set_input(x=a)
         mod.run_cuda_graph()
         out = mod.get_output(0, tvm.nd.empty((n,)))
-        np.testing.assert_equal(out.asnumpy(), a + 1)
+        np.testing.assert_equal(out.numpy(), a + 1)
 
     check_verify()
 

@@ -34,7 +34,7 @@ To begin with, we import Relay and TVM.
 import tvm
 from tvm import te
 import numpy as np
-from tvm.contrib import graph_runtime as runtime
+from tvm.contrib import graph_executor as runtime
 from tvm import relay
 from tvm.relay import testing
 import tvm.testing
@@ -77,14 +77,14 @@ logging.basicConfig(level=logging.DEBUG)  # to dump TVM IR after fusion
 target = "cuda"
 lib = relay.build_module.build(net, target, params=params)
 
-ctx = tvm.context(target, 0)
+dev = tvm.device(target, 0)
 data = np.random.uniform(-1, 1, size=data_shape).astype("float32")
-module = runtime.GraphModule(lib["default"](ctx))
+module = runtime.GraphModule(lib["default"](dev))
 module.set_input("data", data)
 module.run()
 out_shape = (batch_size, out_channels, 224, 224)
 out = module.get_output(0, tvm.nd.empty(out_shape))
-out_cuda = out.asnumpy()
+out_cuda = out.numpy()
 ######################################################################
 # The generated pseudo code should look something like below.
 # Note how bias add, batch normalization, and ReLU activation are fused into the convolution kernel.
@@ -498,14 +498,14 @@ net, params = testing.create_workload(simple_net)
 target = "cuda -libs=cudnn"  # use cudnn for convolution
 lib = relay.build_module.build(net, target, params=params)
 
-ctx = tvm.context(target, 0)
+dev = tvm.device(target, 0)
 data = np.random.uniform(-1, 1, size=data_shape).astype("float32")
-module = runtime.GraphModule(lib["default"](ctx))
+module = runtime.GraphModule(lib["default"](dev))
 module.set_input("data", data)
 module.run()
 out_shape = (batch_size, out_channels, 224, 224)
 out = module.get_output(0, tvm.nd.empty(out_shape))
-out_cudnn = out.asnumpy()
+out_cudnn = out.numpy()
 
 ######################################################################
 # Note that if you use cuDNN, Relay cannot fuse convolution with layers following it.

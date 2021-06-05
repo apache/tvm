@@ -79,4 +79,4 @@ def test_constant_duplication():
     res = tei.build(mod, params, npu=True, expected_host_ops=1)
     for key, value in res.params.items():
         assert key == "p0"
-        assert value.asnumpy().size == 64
+        assert value.numpy().size == 64

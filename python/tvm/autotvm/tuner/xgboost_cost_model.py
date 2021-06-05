@@ -225,7 +225,7 @@ class XGBoostCostModel(CostModel):
             self.feature_cache.size(self.fea_type),
         )
 
-    def fit_log(self, records, plan_size):
+    def fit_log(self, records, plan_size, min_seed_records=500):
         tic = time.time()
 
         # filter data, only pick the data with a same task
@@ -258,7 +258,7 @@ class XGBoostCostModel(CostModel):
                 xs.append(x)
                 ys.append(y)
 
-        if len(xs) < 500:  # no enough samples
+        if len(xs) < min_seed_records:  # no enough samples
             return False
 
         xs, ys = np.array(xs), np.array(ys)

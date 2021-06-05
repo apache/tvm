@@ -89,7 +89,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.random.randint").set_body([](TVMArgs args, TVMR
     low = std::max(low, numeric_low);
     high = std::min(high, numeric_high);
 
-    if (out->ctx.device_type == kDLCPU) {
+    if (out->device.device_type == kDLCPU) {
       // file the data with random byte
       std::generate_n(static_cast<DType*>(out->data), size, [&]() {
         unsigned rint = entry->random_engine.GetRandInt();

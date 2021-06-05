@@ -30,6 +30,9 @@ namespace runtime {
 /*! \brief The current RPC procotol version. */
 constexpr const char* kRPCProtocolVer = "0.8.0";
 
+// When tvm.rpc.server.GetCRTMaxPacketSize global function is not registered.
+const uint64_t kRPCMaxTransferSizeBytesDefault = UINT64_MAX;
+
 /*! \brief The RPC code */
 enum class RPCCode : int {
   kNone,
@@ -52,6 +55,9 @@ enum class RPCCode : int {
   kDevStreamSync,
   kCopyAmongRemote,
   kDevAllocDataWithScope,
+  kDevCreateStream,
+  kDevFreeStream,
+  kDevSetStream,
 };
 
 /*!
@@ -104,8 +110,14 @@ inline const char* RPCCodeToString(RPCCode code) {
       return "kDevAllocData";
     case RPCCode::kDevFreeData:
       return "kDevFreeData";
+    case RPCCode::kDevCreateStream:
+      return "kDevCreateStream";
+    case RPCCode::kDevFreeStream:
+      return "kDevFreeStream";
     case RPCCode::kDevStreamSync:
       return "kDevStreamSync";
+    case RPCCode::kDevSetStream:
+      return "kDevSetStream";
     case RPCCode::kCopyAmongRemote:
       return "kCopyAmongRemote";
     case RPCCode::kDevAllocDataWithScope:
@@ -223,15 +235,15 @@ struct RPCReference {
 
   template <typename TChannelPtr>
   static void SendDLTensor(TChannelPtr channel, DLTensor* arr) {
-    TVMContext ctx;
+    DLDevice dev;
     uint64_t data;
     // When we return NDArray, we directly return
     // the space and the context
     // The client will be further wrapping
-    ctx = arr->ctx;
+    dev = arr->device;
     data = reinterpret_cast<uint64_t>(arr->data);
     channel->Write(data);
-    channel->Write(ctx);
+    channel->Write(dev);
     channel->Write(arr->ndim);
     channel->Write(arr->dtype);
     channel->WriteArray(arr->shape, arr->ndim);
@@ -249,7 +261,7 @@ struct RPCReference {
     DLTensor* arr = channel->template ArenaAlloc<DLTensor>(1);
     DLTensor& tensor = *arr;
     tensor.data = reinterpret_cast<void*>(handle);
-    channel->Read(&(tensor.ctx));
+    channel->Read(&(tensor.device));
     channel->Read(&(tensor.ndim));
     channel->Read(&(tensor.dtype));
     tensor.shape = channel->template ArenaAlloc<int64_t>(tensor.ndim);
@@ -306,8 +318,8 @@ struct RPCReference {
           channel->template Write<int32_t>(padding);
           break;
         }
-        case kTVMContext: {
-          channel->Write(value.v_ctx);
+        case kDLDevice: {
+          channel->Write(value.v_device);
           break;
         }
 
@@ -408,8 +420,8 @@ struct RPCReference {
           channel->template Read<int32_t>(&padding);
           break;
         }
-        case kTVMContext: {
-          channel->Read(&(value.v_ctx));
+        case kDLDevice: {
+          channel->Read(&(value.v_device));
           break;
         }
         case kTVMPackedFuncHandle:

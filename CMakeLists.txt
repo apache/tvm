@@ -34,9 +34,9 @@ tvm_option(USE_RPC "Build with RPC" ON)
 tvm_option(USE_THREADS "Build with thread support" ON)
 tvm_option(USE_LLVM "Build with LLVM, can be set to specific llvm-config path" OFF)
 tvm_option(USE_STACKVM_RUNTIME "Include stackvm into the runtime" OFF)
-tvm_option(USE_GRAPH_RUNTIME "Build with tiny graph runtime" ON)
-tvm_option(USE_GRAPH_RUNTIME_CUDA_GRAPH "Build with tiny graph runtime with CUDA Graph for GPUs" OFF)
-tvm_option(USE_PROFILER "Build profiler for the VM and graph runtime" ON)
+tvm_option(USE_GRAPH_EXECUTOR "Build with tiny graph executor" ON)
+tvm_option(USE_GRAPH_EXECUTOR_CUDA_GRAPH "Build with tiny graph executor with CUDA Graph for GPUs" OFF)
+tvm_option(USE_PROFILER "Build profiler for the VM and graph executor" ON)
 tvm_option(USE_OPENMP "Build with OpenMP thread pool implementation" OFF)
 tvm_option(USE_RELAY_DEBUG "Building Relay in debug mode..." OFF)
 tvm_option(USE_RTTI "Build with RTTI" ON)
@@ -49,6 +49,7 @@ tvm_option(USE_FALLBACK_STL_MAP "Use TVM's POD compatible Map" OFF)
 tvm_option(USE_ETHOSN "Build with Arm Ethos-N" OFF)
 tvm_option(INDEX_DEFAULT_I64 "Defaults the index datatype to int64" ON)
 tvm_option(USE_LIBBACKTRACE "Build libbacktrace to supply linenumbers on stack traces" AUTO)
+tvm_option(BUILD_STATIC_RUNTIME "Build static version of libtvm_runtime" OFF)
 
 # 3rdparty libraries
 tvm_option(DLPACK_PATH "Path to DLPACK" "3rdparty/dlpack/include")
@@ -73,13 +74,14 @@ tvm_option(USE_NNPACK "Build with nnpack support" OFF)
 tvm_option(USE_RANDOM "Build with random support" ON)
 tvm_option(USE_MICRO_STANDALONE_RUNTIME "Build with micro.standalone_runtime support" OFF)
 tvm_option(USE_CPP_RPC "Build CPP RPC" OFF)
+tvm_option(USE_IOS_RPC "Build iOS RPC" OFF)
 tvm_option(USE_TFLITE "Build with tflite support" OFF)
 tvm_option(USE_TENSORFLOW_PATH "TensorFlow root path when use TFLite" none)
 tvm_option(USE_COREML "Build with coreml support" OFF)
 tvm_option(USE_BNNS "Build with BNNS support" OFF)
 tvm_option(USE_TARGET_ONNX "Build with ONNX Codegen support" OFF)
 tvm_option(USE_ARM_COMPUTE_LIB "Build with Arm Compute Library" OFF)
-tvm_option(USE_ARM_COMPUTE_LIB_GRAPH_RUNTIME "Build with Arm Compute Library graph runtime" OFF)
+tvm_option(USE_ARM_COMPUTE_LIB_GRAPH_EXECUTOR "Build with Arm Compute Library graph executor" OFF)
 tvm_option(USE_TENSORRT_CODEGEN "Build with TensorRT Codegen support" OFF)
 tvm_option(USE_TENSORRT_RUNTIME "Build with TensorRT runtime" OFF)
 tvm_option(USE_RUST_EXT "Build with Rust based compiler extensions, STATIC, DYNAMIC, or OFF" OFF)
@@ -110,6 +112,10 @@ if(MSVC)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /bigobj")
+
+  # MSVC already errors on undefined symbols, no additional flag needed.
+  set(TVM_NO_UNDEFINED_SYMBOLS "")
+
   if(USE_MSVC_MT)
     foreach(flag_var
         CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
@@ -162,6 +168,16 @@ else(MSVC)
       CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 7.0)
     set(CMAKE_CXX_FLAGS "-faligned-new ${CMAKE_CXX_FLAGS}")
   endif()
+
+  # ld option to warn if symbols are undefined (e.g. libtvm_runtime.so
+  # using symbols only present in libtvm.so).  Not needed for MSVC,
+  # since this is already the default there.
+  if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    set(TVM_NO_UNDEFINED_SYMBOLS "-Wl,-undefined,error")
+  else()
+    set(TVM_NO_UNDEFINED_SYMBOLS "-Wl,--no-undefined")
+  endif()
+  message(STATUS "Forbidding undefined symbols in shared library, using ${TVM_NO_UNDEFINED_SYMBOLS} on platform ${CMAKE_SYSTEM_NAME}")
 
   # Detect if we're compiling for Hexagon.
   set(TEST_FOR_HEXAGON_CXX
@@ -276,8 +292,18 @@ file(GLOB RUNTIME_SRCS
 )
 
 if(BUILD_FOR_HEXAGON)
-  # Add file implementing posix_memalign.
-  list(APPEND RUNTIME_SRCS src/runtime/hexagon/hexagon_posix.cc)
+  # Add file implementing posix_memalign when building the runtime as
+  # a shared library.
+  # This function is actually defined in the static libc, but when linking
+  # a shared library, libc is not linked into it. Some runtime systems
+  # don't implement posix_runtime, which causes runtime failires.
+  # To avoid this issue, Hexagon runtime contains an implementation of
+  # posix_memalign, but it should only be used with the dynamic TVM
+  # runtime, since it would cause multiple definition errors with the
+  # static one.
+  if(NOT BUILD_STATIC_RUNTIME)
+    list(APPEND RUNTIME_SRCS src/runtime/hexagon/hexagon_posix.cc)
+  endif()
 
   add_definitions(-D_MACH_I32=int)
 endif()
@@ -307,16 +333,30 @@ else()
   list(APPEND COMPILER_SRCS ${STACKVM_RUNTIME_SRCS})
 endif(USE_STACKVM_RUNTIME)
 
-if(USE_GRAPH_RUNTIME)
-  message(STATUS "Build with Graph runtime support...")
-  file(GLOB RUNTIME_GRAPH_SRCS src/runtime/graph/*.cc)
-  list(APPEND RUNTIME_SRCS ${RUNTIME_GRAPH_SRCS})
+# NOTE(areusch): USE_GRAPH_RUNTIME will be deleted in a future release
+if(USE_GRAPH_RUNTIME AND NOT DEFINED USE_GRAPH_EXECUTOR)
+  message(WARNING "USE_GRAPH_RUNTIME renamed to USE_GRAPH_EXECUTOR. Please update your config.cmake")
+  set(USE_GRAPH_EXECUTOR ${USE_GRAPH_RUNTIME})
+  unset(USE_GRAPH_RUNTIME CACHE)
+endif(USE_GRAPH_RUNTIME AND NOT DEFINED USE_GRAPH_EXECUTOR)
 
-endif(USE_GRAPH_RUNTIME)
+# NOTE(areusch): USE_GRAPH_RUNTIME_DEBUG will be deleted in a future release
+if(USE_GRAPH_RUNTIME_DEBUG AND NOT DEFINED USE_GRAPH_EXECUTOR_DEBUG)
+  message(WARNING "USE_GRAPH_RUNTIME_DEBUG renamed to USE_GRAPH_EXECUTOR_DEBUG. Please update your config.cmake")
+  set(USE_GRAPH_EXECUTOR_DEBUG ${USE_GRAPH_RUNTIME_DEBUG})
+  unset(USE_GRAPH_RUNTIME_DEBUG CACHE)
+endif(USE_GRAPH_RUNTIME_DEBUG AND NOT DEFINED USE_GRAPH_EXECUTOR_DEBUG)
+
+if(USE_GRAPH_EXECUTOR)
+  message(STATUS "Build with Graph Executor support...")
+  file(GLOB RUNTIME_GRAPH_EXECUTOR_SRCS src/runtime/graph_executor/*.cc)
+  list(APPEND RUNTIME_SRCS ${RUNTIME_GRAPH_EXECUTOR_SRCS})
+
+endif(USE_GRAPH_EXECUTOR)
 
 # convert old options for profiler
-if(USE_GRAPH_RUNTIME_DEBUG)
-  unset(USE_GRAPH_RUNTIME_DEBUG CACHE)
+if(USE_GRAPH_EXECUTOR_DEBUG)
+  unset(USE_GRAPH_EXECUTOR_DEBUG CACHE)
   set(USE_PROFILER ON)
 endif()
 if(USE_VM_PROFILER)
@@ -327,10 +367,10 @@ endif()
 if(USE_PROFILER)
   message(STATUS "Build with profiler...")
 
-  file(GLOB RUNTIME_GRAPH_DEBUG_SRCS src/runtime/graph/debug/*.cc)
-  list(APPEND RUNTIME_SRCS ${RUNTIME_GRAPH_DEBUG_SRCS})
-  set_source_files_properties(${RUNTIME_GRAPH_SRCS}
-    PROPERTIES COMPILE_DEFINITIONS "TVM_GRAPH_RUNTIME_DEBUG")
+  file(GLOB RUNTIME_GRAPH_EXECUTOR_DEBUG_SRCS src/runtime/graph_executor/debug/*.cc)
+  list(APPEND RUNTIME_SRCS ${RUNTIME_GRAPH_EXECUTOR_DEBUG_SRCS})
+  set_source_files_properties(${RUNTIME_GRAPH_EXECUTOR_SRCS}
+    PROPERTIES COMPILE_DEFINITIONS "TVM_GRAPH_EXECUTOR_DEBUG")
 
   file(GLOB RUNTIME_VM_PROFILER_SRCS src/runtime/vm/profiler/*.cc)
   list(APPEND RUNTIME_SRCS ${RUNTIME_VM_PROFILER_SRCS})
@@ -388,8 +428,20 @@ add_library(tvm_objs OBJECT ${COMPILER_SRCS})
 add_library(tvm_runtime_objs OBJECT ${RUNTIME_SRCS})
 
 add_library(tvm SHARED $<TARGET_OBJECTS:tvm_objs> $<TARGET_OBJECTS:tvm_runtime_objs>)
+set_property(TARGET tvm APPEND PROPERTY LINK_OPTIONS "${TVM_NO_UNDEFINED_SYMBOLS}")
 set_property(TARGET tvm APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAG}")
-add_library(tvm_runtime SHARED $<TARGET_OBJECTS:tvm_runtime_objs>)
+if(BUILD_STATIC_RUNTIME)
+  add_library(tvm_runtime STATIC $<TARGET_OBJECTS:tvm_runtime_objs>)
+  set(NOTICE_MULTILINE
+    "You have build static version of the TVM runtime library. Make "
+    "sure to use --whole-archive when linking it into your project.")
+  string(CONCAT NOTICE ${NOTICE_MULTILINE})
+  add_custom_command(TARGET tvm_runtime POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E cmake_echo_color --yellow --bold ${NOTICE})
+else()
+  add_library(tvm_runtime SHARED $<TARGET_OBJECTS:tvm_runtime_objs>)
+  set_property(TARGET tvm_runtime APPEND PROPERTY LINK_OPTIONS "${TVM_NO_UNDEFINED_SYMBOLS}")
+endif()
 set_property(TARGET tvm_runtime APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAG}")
 target_compile_definitions(tvm_objs PUBLIC DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
 target_compile_definitions(tvm_runtime_objs PUBLIC DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
@@ -408,6 +460,10 @@ endif()
 
 if(USE_CPP_RPC)
   add_subdirectory("apps/cpp_rpc")
+endif()
+
+if(USE_IOS_RPC)
+  add_subdirectory("apps/ios_rpc")
 endif()
 
 if(USE_RELAY_DEBUG)
@@ -435,12 +491,6 @@ if(BUILD_FOR_HEXAGON)
   # Wrap pthread_create to allow setting custom stack size.
   set_property(TARGET tvm_runtime APPEND PROPERTY LINK_FLAGS
                         "-Wl,--wrap=pthread_create")
-
-  target_include_directories(tvm_runtime SYSTEM
-    PUBLIC "${USE_HEXAGON_SDK}/libs/common/qurt/ADSPv62MP/include/posix"
-    PUBLIC "${USE_HEXAGON_SDK}/libs/common/qurt/ADSPv62MP/include/qurt"
-    PUBLIC "${USE_HEXAGON_SDK}/incs"
-    PUBLIC "${USE_HEXAGON_SDK}/incs/stddef")
 endif()
 
 if(USE_THREADS AND NOT BUILD_FOR_HEXAGON)

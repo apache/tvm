@@ -24,7 +24,7 @@ from .. import rpc
 
 
 def main():
-    """Main funciton"""
+    """Main function"""
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", type=str, default="", help="the hostname of the tracker")
     parser.add_argument("--port", type=int, default=None, help="The port of the RPC")
@@ -33,7 +33,7 @@ def main():
 
     # default to local host or environment variable
     if not args.host:
-        args.host = os.environ.get("TVM_TRACKER_HOST", "localhost")
+        args.host = os.environ.get("TVM_TRACKER_HOST", "127.0.0.1")
 
     if not args.port:
         args.port = int(os.environ.get("TVM_TRACKER_PORT", "9190"))

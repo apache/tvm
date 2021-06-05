@@ -43,6 +43,7 @@ def verify_bitserial_conv2d_nhwc(
     activation_bits,
     weight_bits,
     unipolar,
+    use_relu=False,
 ):
     in_height = in_width = in_size
     input_type = "uint32"
@@ -55,6 +56,8 @@ def verify_bitserial_conv2d_nhwc(
         B = topi.arm_cpu.bitserial_conv2d_nhwc(
             A, W, stride, padding, activation_bits, weight_bits, "uint8", out_dtype, unipolar
         )
+        if use_relu:
+            B = topi.nn.relu(B)
         s = topi.arm_cpu.schedule_bitserial_conv2d_nhwc([B])
 
     func = tvm.build(s, [A, W, B], device)
@@ -67,7 +70,7 @@ def verify_bitserial_conv2d_nhwc(
     matches = re.findall("vpadd", assembly)
     assert len(matches) > 0
 
-    ctx = tvm.context(device, 0)
+    dev = tvm.device(device, 0)
     if "arm" not in os.uname()[4]:
         print("Skipped running code, not an arm device")
         return
@@ -89,13 +92,13 @@ def verify_bitserial_conv2d_nhwc(
         return a_np, w_np, b_np
 
     a_np, w_np, b_np = get_ref_data()
-    a = tvm.nd.array(a_np, ctx)
-    w = tvm.nd.array(w_np, ctx)
-    b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)
+    a = tvm.nd.array(a_np, dev)
+    w = tvm.nd.array(w_np, dev)
+    b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), dev)
     func = tvm.build(s, [A, W, B], device)
 
     func(a, w, b)
-    np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
+    np.testing.assert_allclose(b.numpy(), b_np, rtol=1e-5)
 
 
 def test_bitserial_conv2d():
@@ -110,6 +113,8 @@ def test_bitserial_conv2d():
 
     verify_bitserial_conv2d_nhwc(1, in_size, ic, oc, k, stride, pad, 1, 1, True)
     verify_bitserial_conv2d_nhwc(1, in_size, ic, oc, k, stride, pad, 2, 1, True)
+
+    verify_bitserial_conv2d_nhwc(1, in_size, ic, oc, k, stride, pad, 2, 1, True, True)
 
 
 if __name__ == "__main__":

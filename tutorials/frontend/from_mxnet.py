@@ -104,18 +104,18 @@ with tvm.transform.PassContext(opt_level=3):
 # Execute the portable graph on TVM
 # ---------------------------------
 # Now, we would like to reproduce the same forward computation using TVM.
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 
-ctx = tvm.gpu(0)
+dev = tvm.cuda(0)
 dtype = "float32"
-m = graph_runtime.GraphModule(lib["default"](ctx))
+m = graph_executor.GraphModule(lib["default"](dev))
 # set inputs
 m.set_input("data", tvm.nd.array(x.astype(dtype)))
 # execute
 m.run()
 # get outputs
 tvm_output = m.get_output(0)
-top1 = np.argmax(tvm_output.asnumpy()[0])
+top1 = np.argmax(tvm_output.numpy()[0])
 print("TVM prediction top-1:", top1, synset[top1])
 
 ######################################################################

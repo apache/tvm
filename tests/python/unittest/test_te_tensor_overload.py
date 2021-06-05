@@ -77,14 +77,14 @@ def test_combination():
     D = k + A - B * C + x
     s = te.create_schedule(D.op)
     foo = tvm.build(s, [x, A, B, C, D], "llvm")
-    ctx = tvm.cpu(0)
+    dev = tvm.cpu(0)
     x = 2
-    a = tvm.nd.array(np.random.uniform(size=(n, m)).astype(A.dtype), ctx)
-    b = tvm.nd.array(np.random.uniform(size=(n, m)).astype(B.dtype), ctx)
-    c = tvm.nd.array(np.random.uniform(size=(n, m)).astype(C.dtype), ctx)
-    d = tvm.nd.array(np.zeros((n, m), dtype=D.dtype), ctx)
+    a = tvm.nd.array(np.random.uniform(size=(n, m)).astype(A.dtype), dev)
+    b = tvm.nd.array(np.random.uniform(size=(n, m)).astype(B.dtype), dev)
+    c = tvm.nd.array(np.random.uniform(size=(n, m)).astype(C.dtype), dev)
+    d = tvm.nd.array(np.zeros((n, m), dtype=D.dtype), dev)
     foo(x, a, b, c, d)
-    tvm.testing.assert_allclose(d.asnumpy(), k + a.asnumpy() - b.asnumpy() * c.asnumpy() + x)
+    tvm.testing.assert_allclose(d.numpy(), k + a.numpy() - b.numpy() * c.numpy() + x)
 
 
 def verify_tensor_scalar_bop(shape, typ="add"):
@@ -107,7 +107,7 @@ def verify_tensor_scalar_bop(shape, typ="add"):
         if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
-        ctx = tvm.context(device, 0)
+        dev = tvm.device(device, 0)
         print("Running on target: %s" % device)
         with tvm.target.Target(device):
             s = tvm.topi.testing.get_elemwise_schedule(device)(B)
@@ -126,10 +126,10 @@ def verify_tensor_scalar_bop(shape, typ="add"):
         else:
             raise NotImplementedError()
 
-        a_nd = tvm.nd.array(a_npy, ctx)
-        b_nd = tvm.nd.array(np.empty(b_npy.shape).astype(B.dtype), ctx)
+        a_nd = tvm.nd.array(a_npy, dev)
+        b_nd = tvm.nd.array(np.empty(b_npy.shape).astype(B.dtype), dev)
         foo(a_nd, b_nd, k_, *shape)
-        tvm.testing.assert_allclose(b_nd.asnumpy(), b_npy, rtol=1e-5)
+        tvm.testing.assert_allclose(b_nd.numpy(), b_npy, rtol=1e-5)
 
     for device in ["llvm", "cuda", "opencl", "metal", "rocm", "vulkan"]:
         check_device(device)
@@ -150,7 +150,7 @@ def verify_broadcast_bop(lhs_shape, rhs_shape, typ="add"):
         raise NotImplementedError()
 
     def check_device(device):
-        ctx = tvm.context(device, 0)
+        dev = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
@@ -173,12 +173,12 @@ def verify_broadcast_bop(lhs_shape, rhs_shape, typ="add"):
         else:
             raise NotImplementedError()
 
-        lhs_nd = tvm.nd.array(lhs_npy, ctx)
-        rhs_nd = tvm.nd.array(rhs_npy, ctx)
-        out_nd = tvm.nd.array(np.empty(out_npy.shape).astype(B.dtype), ctx)
+        lhs_nd = tvm.nd.array(lhs_npy, dev)
+        rhs_nd = tvm.nd.array(rhs_npy, dev)
+        out_nd = tvm.nd.array(np.empty(out_npy.shape).astype(B.dtype), dev)
         for _ in range(1):
             foo(lhs_nd, rhs_nd, out_nd)
-        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy, rtol=1e-4, atol=1e-4)
+        tvm.testing.assert_allclose(out_nd.numpy(), out_npy, rtol=1e-4, atol=1e-4)
 
     for device in ["llvm", "cuda", "opencl", "metal", "rocm", "vulkan"]:
         check_device(device)
@@ -189,7 +189,7 @@ def verify_conv2d_scalar_bop(
     batch, in_size, in_channel, num_filter, kernel, stride, padding, typ="add"
 ):
     def check_device(device):
-        ctx = tvm.context(device, 0)
+        dev = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
@@ -232,12 +232,12 @@ def verify_conv2d_scalar_bop(
         else:
             raise NotImplementedError()
 
-        a_nd = tvm.nd.array(a_npy, ctx)
-        w_nd = tvm.nd.array(w_npy, ctx)
-        b_nd = tvm.nd.array(np.empty(b_npy.shape).astype(B.dtype), ctx)
-        c_nd = tvm.nd.array(np.empty(c_npy.shape).astype(C.dtype), ctx)
+        a_nd = tvm.nd.array(a_npy, dev)
+        w_nd = tvm.nd.array(w_npy, dev)
+        b_nd = tvm.nd.array(np.empty(b_npy.shape).astype(B.dtype), dev)
+        c_nd = tvm.nd.array(np.empty(c_npy.shape).astype(C.dtype), dev)
         foo(a_nd, w_nd, b_nd, c_nd)
-        tvm.testing.assert_allclose(c_nd.asnumpy(), c_npy, rtol=1e-4, atol=1e-4)
+        tvm.testing.assert_allclose(c_nd.numpy(), c_npy, rtol=1e-4, atol=1e-4)
 
     for device in ["llvm", "cuda", "opencl", "metal", "rocm", "vulkan"]:
         check_device(device)

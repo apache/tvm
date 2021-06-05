@@ -51,19 +51,19 @@ def verify_binary_dense(batch, in_dim, out_dim):
 
     a_np, b_np, c_np = get_ref_data()
 
-    ctx = tvm.cpu(0)
-    a = tvm.nd.array(a_np, ctx)
-    b = tvm.nd.array(b_np, ctx)
-    bnn_a = tvm.nd.array(np.zeros(get_const_tuple(bnn_A.shape), dtype=bnn_A.dtype), ctx)
-    bnn_b = tvm.nd.array(np.zeros(get_const_tuple(bnn_B.shape), dtype=bnn_B.dtype), ctx)
-    bnn_c = tvm.nd.array(np.zeros(get_const_tuple(bnn_C.shape), dtype=bnn_C.dtype), ctx)
+    dev = tvm.cpu(0)
+    a = tvm.nd.array(a_np, dev)
+    b = tvm.nd.array(b_np, dev)
+    bnn_a = tvm.nd.array(np.zeros(get_const_tuple(bnn_A.shape), dtype=bnn_A.dtype), dev)
+    bnn_b = tvm.nd.array(np.zeros(get_const_tuple(bnn_B.shape), dtype=bnn_B.dtype), dev)
+    bnn_c = tvm.nd.array(np.zeros(get_const_tuple(bnn_C.shape), dtype=bnn_C.dtype), dev)
     f1 = tvm.build(s1, [A, bnn_A], "llvm")
     f2 = tvm.build(s2, [B, bnn_B], "llvm")
     f3 = tvm.build(s3, [bnn_A1, bnn_B1, bnn_C], "llvm")
     f1(a, bnn_a)
     f2(b, bnn_b)
     f3(bnn_a, bnn_b, bnn_c)
-    tvm.testing.assert_allclose(bnn_c.asnumpy(), c_np, rtol=1e-5)
+    tvm.testing.assert_allclose(bnn_c.numpy(), c_np, rtol=1e-5)
 
 
 def test_binary_dense():

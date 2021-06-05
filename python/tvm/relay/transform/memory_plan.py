@@ -26,7 +26,7 @@ from ..expr_functor import ExprMutator
 from .. import op, expr
 from ..function import Function
 from ... import register_func, ir, cpu
-from ..._ffi.runtime_ctypes import TVMContext
+from ..._ffi.runtime_ctypes import Device
 from ... import IRModule
 from .. import transform
 from . import function_pass
@@ -54,7 +54,7 @@ class Region:
     size: expr.Expr
     alignment: Optional[expr.Expr]
     dtype: Optional[str]
-    ctx: TVMContext
+    device: Device
     offsets: Dict[expr.Var, Tuple[expr.Expr, expr.Expr]]
 
     @staticmethod
@@ -69,7 +69,7 @@ class Region:
         old_storage: expr.Var,
         size: expr.Expr,
         alignment: expr.Expr,
-        ctx: TVMContext,
+        dev: Device,
         dtype: str,
     ) -> None:
         """Grow the region by a given allocation as well as track the old storage
@@ -87,13 +87,14 @@ class Region:
         else:
             self.alignment = alignment
 
-        if self.ctx:
+        if self.device:
             assert (
-                self.ctx.device_type == ctx.device_type and self.ctx.device_id == ctx.device_id
-            ), "must have matching context"
+                self.device.device_type == dev.device_type
+                and self.device.device_id == dev.device_id
+            ), "must have matching device"
         else:
-            assert ctx
-            self.ctx = ctx
+            assert dev
+            self.device = dev
 
         new_size = (
             (size + self.alignment - expr.const(1, "int64")) / self.alignment * self.alignment
@@ -116,8 +117,8 @@ class Region:
         all offset computations.
         """
 
-        if self.ctx is None:
-            self.ctx = cpu(0)
+        if self.device is None:
+            self.device = cpu(0)
 
         # Generate bindings for each and every size computation
         # we must do this to maintain ANF.
@@ -128,7 +129,7 @@ class Region:
         bindings.append((total_size, self.size))
 
         # Allocate the entire region with a single call.
-        alloc = op.memory.alloc_storage(total_size, self.alignment, self.ctx, self.dtype)
+        alloc = op.memory.alloc_storage(total_size, self.alignment, self.device, self.dtype)
         bindings.append((self.var, alloc))
 
         # Generate variables which contain all of the offset math.
@@ -279,21 +280,21 @@ class StorageCoalesce(ExprMutator):
         """Process alloc_storage"""
         size, alignment = call.args
         dtype = call.attrs.dtype
-        ctx = TVMContext(call.attrs.device_type, call.attrs.device_id)
+        dev = Device(call.attrs.device_type, call.attrs.device_id)
 
         if not isinstance(size, expr.Constant):
             self.enter_scope()
             dynamic_regions.append(lhs)
         else:
             # A new scope is created when entering a new region with different
-            # device context.
+            # device device.
             region = self.current_region(dtype)
-            if region.ctx and region.ctx.device_type != ctx.device_type:
+            if region.device and region.device.device_type != dev.device_type:
                 self.enter_scope()
                 dynamic_regions.append(lhs)
 
         region = self.current_region(dtype)
-        region.grow(lhs, size, alignment, ctx, dtype)
+        region.grow(lhs, size, alignment, dev, dtype)
         return lhs, region.var
 
     def process_alloc_tensor(self, lhs, call):
@@ -301,7 +302,7 @@ class StorageCoalesce(ExprMutator):
         storage, old_offset, shape = call.args
         region, offset = self.new_region_and_offset(storage)
 
-        assert old_offset.data.asnumpy().item() == 0, "no offsets should yet be allocated"
+        assert old_offset.data.numpy().item() == 0, "no offsets should yet be allocated"
         return (
             lhs,
             expr.Call(call.op, [region.var, offset, shape], call.attrs),

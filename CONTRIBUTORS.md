@@ -46,7 +46,7 @@ We do encourage everyone to work anything they are interested in.
 - [Liangfu Chen](https://github.com/liangfu): @liangfu - vta, chisel, intel FPGA, c runtime
 - [Wei Chen](https://github.com/wweic): @wweic - runtime, relay, vm
 - [Zhi Chen](https://github.com/zhiics) (PMC): @zhiics - relay, quantization, pass manager
-- [Chenfan](https://github.com/jcf94): @jcf94 - autoscheduling
+- [Chenfan](https://github.com/jcf94): @jcf94 - auto_scheduler
 - [Josh Fromm](https://github.com/jwfromm): @jwfromm - frontends, quantization, topi
 - [Yuwei Hu](https://github.com/Huyuwei): @Huyuwei - topi, frontends
 - [Nick Hynes](https://github.com/nhynes): @nhynes: - sgx, rust
@@ -55,10 +55,13 @@ We do encourage everyone to work anything they are interested in.
 - [Marisa Kirisame](https://github.com/MarisaKirisame): @MarisaKirisame - relay
 - [Wuwei Lin](https://github.com/vinx13): @vinx13 - relay, topi
 - [Yizhi Liu](https://github.com/yzhliu) (PMC): @yzhliu - jvm, topi, relay
+- [Steven Lyubomirsky](https://github.com/slyubomirsky): @slyubomirsky - relay
 - [Hao Lu](https://github.com/hlu1): @hlu1 - nnpack, frontends
 - [Masahiro Masuda](https://github.com/masahi) (PMC): @masahi - topi, relay
 - [Thierry Moreau](https://github.com/tmoreau89) (PMC): @tmoreau89 - vta
 - [Kazutaka Morita](https://github.com/kazum): @kazum - frontends, opencl
+- [Trevor Morris](https://github.com/trevor-m): @trevor-m - byoc, compiler
+- [Leandro Nunes](https://github.com/leandron): @leandron - tvmc
 - [Krzysztof Parzyszek](https://github.com/kparzysz-quic): @kparzysz-quic - hexagon, llvm
 - [Andrew Reusch](https://github.com/areusch): @areusch - runtime, µTVM
 - [Jared Roesch](https://github.com/jroesch) (PMC): @jroesch - relay
@@ -70,12 +73,12 @@ We do encourage everyone to work anything they are interested in.
 - [Andrew Tulloch](https://github.com/ajtulloch): @ajtulloch - topi, compiler, runtime
 - [Luis Vega](https://github.com/vegaluisjose): @vegaluisjose - vta, chisel
 - [Leyuan Wang](https://github.com/Laurawly) (PMC): @Laurawly: - topi
-- [Yao Wang](https://github.com/kevinthesun): @kevinthesun: - topi, vision
+- [Yao Wang](https://github.com/kevinthesun): @kevinthesun (PMC): - topi, vision
 - [Jian Weng](https://github.com/were): @were: - hybrid script
 - [Zhao Wu](https://github.com/FrozenGene): @FrozenGene - runtime, topi, frontends
 - [Eddie Yan](https://github.com/eqy) (PMC): @eqy - runtime, autotvm, rpc, topi
-- [Hao Yu](https://github.com/comaniac): @comaniac - relay, byoc, ansor
-- [Lianmin Zheng](https://github.com/merrymercy) (PMC): @merrymercy - autotvm, topi, relay
+- [Hao Yu](https://github.com/comaniac): @comaniac - relay, byoc, auto_scheduler
+- [Lianmin Zheng](https://github.com/merrymercy) (PMC): @merrymercy - autotvm, auto_scheduler, topi, relay
 
 ## Reviewers
 
@@ -92,8 +95,10 @@ We do encourage everyone to work anything they are interested in.
 - [Balint Cristian](https://github.com/cbalint13): @cbalint13
 - [Haozheng Fan](https://github.com/hzfan): @hzfan
 - [Josh Fromm](https://github.com/jwfromm): @jwfromm
+- [Siyuan Feng](https://github.com/Hzfengsy): @Hzfengsy
 - [Sergei Grechanik](https://github.com/sgrechanik-h): @sgrechanik-h
 - [Hao Lu](https://github.com/hlu1): @hlu1
+- [Bohan Hou](https://github.com/spectrometerHBH): @spectrometerHBH
 - [Nick Hynes](https://github.com/nhynes): @nhynes
 - [Yuwei Hu](https://github.com/Huyuwei): @Huyuwei
 - [Luke Hutton](https://github.com/lhutton1): @lhutton1
@@ -104,11 +109,13 @@ We do encourage everyone to work anything they are interested in.
 - [Zhixun Tan](https://github.com/phisiart): @phisiart
 - [Xiaoqiang Dan](https://github.com/xqdan): @xqdan
 - [Ziheng Jiang](https://github.com/ZihengJiang): @ZihengJiang
+- [Manupa Karunaratne](https://github.com/manupa-arm): @manupa-arm
 - [Marisa Kirisame](https://github.com/MarisaKirisame): @MarisaKirisame
 - [Tristan Konolige](https://github.com/tkonolige): @tkonolige
 - [Wuwei Lin](https://github.com/vinx13): @vinx13
 - [Andrew Liu](https://github.com/hypercubestart): @hypercubestart
 - [Henry Liu](https://github.com/optima2005): @optima2005
+- [Xin Liu](https://github.com/Meteorix): @Meteorix
 - [Steven Lyubomirsky](https://github.com/slyubomirsky): @slyubomirsky
 - [Masahiro Masuda](https://github.com/masahi): @masahi
 - [Sergey Mironov](https://github.com/grwlf): @grwlf
@@ -121,6 +128,7 @@ We do encourage everyone to work anything they are interested in.
 - [Pariksheet Pinjari](https://github.com/PariksheetPinjari909): @PariksheetPinjari909
 - [Josh Pollock](https://github.com/joshpoll): @joshpoll
 - [Jared Roesch](https://github.com/jroesch): @jroesch
+- [Giuseppe Rossini](https://github.com/giuseros): @giuseros
 - [Andrew Reusch](https://github.com/areusch): @areusch
 - [Dmitriy Smirnov](https://github.com/d-smirnov): @d-smirnov
 - [Siva](https://github.com/srkreddy1238): @srkreddy1238

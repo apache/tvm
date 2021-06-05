@@ -86,8 +86,6 @@ struct GetValidCountsAttrs : public tvm::AttrsNode<GetValidCountsAttrs> {
 
 /*! \brief Attributes used in non_maximum_suppression operator */
 struct NonMaximumSuppressionAttrs : public tvm::AttrsNode<NonMaximumSuppressionAttrs> {
-  Optional<Integer> max_output_size;
-  Optional<FloatImm> iou_threshold;
   bool force_suppress;
   int top_k;
   int coord_start;
@@ -97,8 +95,6 @@ struct NonMaximumSuppressionAttrs : public tvm::AttrsNode<NonMaximumSuppressionA
   bool invalid_to_bottom;
 
   TVM_DECLARE_ATTRS(NonMaximumSuppressionAttrs, "relay.attrs.NonMaximumSuppressionAttrs") {
-    TVM_ATTR_FIELD(max_output_size).describe("Max number of output valid boxes for each instance.");
-    TVM_ATTR_FIELD(iou_threshold).describe("Non-maximum suppression iou threshold.");
     TVM_ATTR_FIELD(force_suppress)
         .set_default(false)
         .describe("Suppress all detections regardless of class_id.");
@@ -115,6 +111,21 @@ struct NonMaximumSuppressionAttrs : public tvm::AttrsNode<NonMaximumSuppressionA
     TVM_ATTR_FIELD(invalid_to_bottom)
         .set_default(false)
         .describe("Whether to move all invalid bounding boxes to the bottom.");
+  }
+};
+
+/*! \brief Attributes used in all_class_non_maximum_suppression operator */
+struct AllClassNonMaximumSuppressionAttrs
+    : public tvm::AttrsNode<AllClassNonMaximumSuppressionAttrs> {
+  std::string output_format;
+
+  TVM_DECLARE_ATTRS(AllClassNonMaximumSuppressionAttrs,
+                    "relay.attrs.AllClassNonMaximumSuppressionAttrs") {
+    TVM_ATTR_FIELD(output_format)
+        .set_default("onnx")
+        .describe(
+            "Output format, onnx or tensorflow. Returns outputs in a way that can be easily "
+            "consumed by each frontend.");
   }
 };
 

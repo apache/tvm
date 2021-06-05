@@ -70,14 +70,14 @@ def test_simplify_conv_pad():
         mod2 = tvm.IRModule.from_expr(zz)
 
         with tvm.transform.PassContext():
-            ex1 = relay.create_executor("vm", mod=mod1, ctx=tvm.cpu(), target="llvm")
-        ex2 = relay.create_executor("vm", mod=mod2, ctx=tvm.cpu(), target="llvm")
+            ex1 = relay.create_executor("vm", mod=mod1, device=tvm.cpu(), target="llvm")
+        ex2 = relay.create_executor("vm", mod=mod2, device=tvm.cpu(), target="llvm")
         x_np = np.random.rand(*shape).astype("float32")
         w_np = np.random.rand(*wshape).astype("float32")
         result1 = ex1.evaluate()(x_np, w_np)
         result2 = ex2.evaluate()(x_np, w_np)
 
-        tvm.testing.assert_allclose(result1.asnumpy(), result2.asnumpy(), rtol=1e-5, atol=1e-5)
+        tvm.testing.assert_allclose(result1.numpy(), result2.numpy(), rtol=1e-5, atol=1e-5)
 
     for orig_pad in [[0, 0], [2, 0], [0, 2]]:
         for i_pad in [[0, 0], [1, 1], [1, 0]]:

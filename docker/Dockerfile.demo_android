@@ -61,7 +61,7 @@ RUN cd /usr && \
         -DUSE_LLVM=llvm-config-8 \
         -DUSE_RPC=ON \
         -DUSE_SORT=ON \
-        -DUSE_GRAPH_RUNTIME=ON \
+        -DUSE_GRAPH_EXECUTOR=ON \
         -DUSE_VULKAN=ON \
         .. && \
     make -j10

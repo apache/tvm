@@ -31,18 +31,18 @@ def run_func(func, params, x):
     with tvm.transform.PassContext(opt_level=3):
         lib = relay.build(func, "llvm", params=params)
 
-    from tvm.contrib import graph_runtime
+    from tvm.contrib import graph_executor
 
-    ctx = tvm.cpu(0)
+    dev = tvm.cpu(0)
     dtype = "float32"
-    m = graph_runtime.GraphModule(lib["default"](ctx))
+    m = graph_executor.GraphModule(lib["default"](dev))
     # set inputs
     m.set_input("data", tvm.nd.array(x.astype(dtype)))
     # execute
     m.run()
     # get outputs
     tvm_output = m.get_output(0)
-    return tvm_output.asnumpy()
+    return tvm_output.numpy()
 
 
 def test_simplify_fc_transpose():

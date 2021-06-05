@@ -329,7 +329,10 @@ class TaskScheduler:
             tune_option.num_measures_per_round, tune_option.num_measure_trials // len(self.tasks)
         )
         if self.num_measures_per_round <= 0:
-            raise ValueError("num_measure_trials is too small. Please set it to a higher value.")
+            raise ValueError(
+                "num_measure_trials is too small. Please set it to a higher value."
+                f"It should be at least {len(self.tasks)} for this model."
+            )
 
         # restore the status of the task scheduler from a log file
         if self.load_log_file:
@@ -537,7 +540,7 @@ class TaskScheduler:
 
 
 class TaskSchedulerCallback:
-    """The base class of task scheduler callback functions. """
+    """The base class of task scheduler callback functions."""
 
     def pre_tune(self, task_scheduler, task_id):
         """The callback before tuning each task.

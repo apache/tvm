@@ -118,7 +118,7 @@ def assert_parse_module_as(code, mod):
 
 def get_scalar(x):
     # type: (relay.Constant) -> (Union[float, int, bool])
-    return x.data.asnumpy().item()
+    return x.data.numpy().item()
 
 
 int32 = relay.scalar_type("int32")
@@ -957,6 +957,13 @@ def test_tokenize_inf():
     mod = tvm.IRModule.from_expr(f)
 
     mod = relay.transform.AnnotateSpans()(mod)
+
+
+def test_func_attrs():
+    attrs = tvm.ir.make_node("DictAttrs", **{"Primitive": 1, "relay.reshape_only": 1})
+    x = relay.var("x", shape=(2, 3))
+    func = relay.Function([x], relay.reshape(x, (-1,)), attrs=attrs)
+    assert_parses_as(func.astext(), func)
 
 
 if __name__ == "__main__":

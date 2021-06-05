@@ -39,15 +39,18 @@ def test_exp():
     def check_device(device, host="stackvm"):
         if not tvm.testing.device_enabled(host):
             return
-        ctx = tvm.context(device, 0)
+        dev = tvm.device(device, 0)
+        if not tvm.testing.device_enabled(device):
+            print("skip because %s is not enabled.." % device)
+            return
         fexp = tvm.build(s, [A, B], device, host, name="myexp")
-        ctx = tvm.context(device, 0)
+        dev = tvm.device(device, 0)
         # launch the kernel.
         n = 1024
-        a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
-        b = tvm.nd.array(np.zeros(n, dtype=B.dtype), ctx)
+        a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
+        b = tvm.nd.array(np.zeros(n, dtype=B.dtype), dev)
         fexp(a, b)
-        tvm.testing.assert_allclose(b.asnumpy(), np.exp(a.asnumpy()), rtol=1e-5)
+        tvm.testing.assert_allclose(b.numpy(), np.exp(a.numpy()), rtol=1e-5)
 
     check_device("opencl -device=intel_graphics")
     check_device("cuda", "llvm")
@@ -68,7 +71,7 @@ def test_fmod():
         bx, tx = s[C].split(C.op.axis[0], factor=num_thread)
 
         def check_device(device):
-            ctx = tvm.context(device, 0)
+            dev = tvm.device(device, 0)
             if not tvm.testing.device_enabled(device):
                 print("skip because %s is not enabled.." % device)
                 return
@@ -87,13 +90,13 @@ def test_fmod():
             b_np += (b_np < 2.0) * 2
             a_np[np.abs(np.fmod(a_np, b_np)) < 1] += 1
 
-            a = tvm.nd.array(a_np, ctx)
-            b = tvm.nd.array(b_np, ctx)
-            c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
-            ftimer = fmod.time_evaluator(fmod.entry_name, ctx, number=1)
+            a = tvm.nd.array(a_np, dev)
+            b = tvm.nd.array(b_np, dev)
+            c = tvm.nd.array(np.zeros(n, dtype=C.dtype), dev)
+            ftimer = fmod.time_evaluator(fmod.entry_name, dev, number=1)
             tcost = ftimer(a, b, c).mean
             # fmod(a, b, c)
-            np.testing.assert_allclose(c.asnumpy(), np.mod(a.asnumpy(), b.asnumpy()), rtol=1e-5)
+            np.testing.assert_allclose(c.numpy(), np.mod(a.numpy(), b.numpy()), rtol=1e-5)
 
         check_device("cuda")
         check_device("opencl -device=intel_graphics")
@@ -123,19 +126,19 @@ def test_multiple_cache_write():
     def check_device(device, host="stackvm"):
         if not tvm.testing.device_enabled(host):
             return
-        ctx = tvm.context(device, 0)
+        dev = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             return
         func = tvm.build(s, [A0, A1, C], device, host, name="multiple_cache_write")
-        ctx = tvm.context(device, 0)
+        dev = tvm.device(device, 0)
         # launch the kernel.
         n = 1024
-        a0 = tvm.nd.array(np.random.uniform(size=n).astype(A0.dtype), ctx)
-        a1 = tvm.nd.array(np.random.uniform(size=n).astype(A1.dtype), ctx)
-        c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
+        a0 = tvm.nd.array(np.random.uniform(size=n).astype(A0.dtype), dev)
+        a1 = tvm.nd.array(np.random.uniform(size=n).astype(A1.dtype), dev)
+        c = tvm.nd.array(np.zeros(n, dtype=C.dtype), dev)
         func(a0, a1, c)
         tvm.testing.assert_allclose(
-            c.asnumpy(), a0.asnumpy() + a1.asnumpy() + (a0.asnumpy() * a1.asnumpy()), rtol=1e-5
+            c.numpy(), a0.numpy() + a1.numpy() + (a0.numpy() * a1.numpy()), rtol=1e-5
         )
 
     check_device("cuda", "llvm")
@@ -156,16 +159,16 @@ def test_log_pow_llvm():
         return
 
     flog = tvm.build(s, [A, B], "llvm", name="mylog")
-    ctx = tvm.cpu(0)
+    dev = tvm.cpu(0)
     # launch the kernel.
     n = 1028
-    a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
-    b = tvm.nd.array(np.zeros(n, dtype=B.dtype), ctx)
+    a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
+    b = tvm.nd.array(np.zeros(n, dtype=B.dtype), dev)
     repeat = 10
-    ftimer = flog.time_evaluator(flog.entry_name, ctx, number=1, repeat=repeat)
+    ftimer = flog.time_evaluator(flog.entry_name, dev, number=1, repeat=repeat)
     res = ftimer(a, b)
     assert len(res.results) == repeat
-    tvm.testing.assert_allclose(b.asnumpy(), np.power(np.log(a.asnumpy()), 2.0), rtol=1e-5)
+    tvm.testing.assert_allclose(b.numpy(), np.power(np.log(a.numpy()), 2.0), rtol=1e-5)
 
 
 @tvm.testing.uses_gpu
@@ -181,7 +184,7 @@ def test_popcount():
         bx, tx = s[B].split(B.op.axis[0], factor=num_thread)
 
         def check_device(device):
-            ctx = tvm.context(device, 0)
+            dev = tvm.device(device, 0)
             if not tvm.testing.device_enabled(device):
                 print("skip because %s is not enabled.." % device)
                 return
@@ -192,11 +195,11 @@ def test_popcount():
             func = tvm.build(s, [A, B], device)
             # launch the kernel.
             n = 1024
-            a = tvm.nd.array(np.random.randint(low=0, high=1000, size=n, dtype=A.dtype), ctx)
-            b = tvm.nd.array(np.zeros(shape=n, dtype=B.dtype), ctx)
+            a = tvm.nd.array(np.random.randint(low=0, high=1000, size=n, dtype=A.dtype), dev)
+            b = tvm.nd.array(np.zeros(shape=n, dtype=B.dtype), dev)
             func(a, b)
             tvm.testing.assert_allclose(
-                b.asnumpy(), list(map(lambda x: bin(x).count("1"), a.asnumpy())), rtol=1e-5
+                b.numpy(), list(map(lambda x: bin(x).count("1"), a.numpy())), rtol=1e-5
             )
 
         check_device("llvm")
@@ -233,7 +236,7 @@ def test_add():
 
         # one line to build the function.
         def check_device(device):
-            ctx = tvm.context(device, 0)
+            dev = tvm.device(device, 0)
             if not tvm.testing.device_enabled(device):
                 print("skip because %s is not enabled.." % device)
                 return
@@ -241,12 +244,12 @@ def test_add():
 
             # launch the kernel.
             n = 1024
-            a = tvm.nd.array((np.random.uniform(size=n) * 256).astype(A.dtype), ctx)
-            b = tvm.nd.array((np.random.uniform(size=n) * 256).astype(B.dtype), ctx)
-            c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
-            ftimer = fadd.time_evaluator(fadd.entry_name, ctx, number=1)
+            a = tvm.nd.array((np.random.uniform(size=n) * 256).astype(A.dtype), dev)
+            b = tvm.nd.array((np.random.uniform(size=n) * 256).astype(B.dtype), dev)
+            c = tvm.nd.array(np.zeros(n, dtype=C.dtype), dev)
+            ftimer = fadd.time_evaluator(fadd.entry_name, dev, number=1)
             tcost = ftimer(a, b, c).mean
-            tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy(), rtol=1e-6)
+            tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy(), rtol=1e-6)
 
         check_device("opencl")
         check_device("cuda")
@@ -285,15 +288,15 @@ def try_warp_memory():
 
     # one line to build the function.
     def check_device(device):
-        ctx = tvm.context(device, 0)
+        dev = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("skip because %s is not enabled.." % device)
             return
         f = tvm.build(s, [A, B], device)
-        a = tvm.nd.array((np.random.uniform(size=m) * 256).astype(A.dtype), ctx)
-        b = tvm.nd.array(np.zeros(m, dtype=B.dtype), ctx)
+        a = tvm.nd.array((np.random.uniform(size=m) * 256).astype(A.dtype), dev)
+        b = tvm.nd.array(np.zeros(m, dtype=B.dtype), dev)
         f(a, b)
-        tvm.testing.assert_allclose(b.asnumpy(), a.asnumpy() + 3, rtol=1e-6)
+        tvm.testing.assert_allclose(b.numpy(), a.numpy() + 3, rtol=1e-6)
 
     check_device("cuda")
 

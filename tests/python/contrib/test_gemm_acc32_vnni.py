@@ -48,7 +48,7 @@ def test_fc_int8_acc32():
             print("skip because %s is not enabled..." % target)
             return
 
-        ctx = tvm.context(target, 0)
+        dev = tvm.device(target, 0)
         pc = dot_16x1x16_uint8_int8_int32_cascadelake()
         ak = te.reduce_axis((0, k), name="k")
         packedW = te.placeholder((n // 16, 16 * (k // 4), 4), name="packedW", dtype="int8")
@@ -76,7 +76,7 @@ def test_fc_int8_acc32():
         t_sch[t_fc].tensorize(a_yi, pc)
 
         t_func = tvm.build(t_sch, [X, packedW, t_fc], target, name="intrinsic")
-        t_evaluator = t_func.time_evaluator(t_func.entry_name, ctx, number=10)
+        t_evaluator = t_func.time_evaluator(t_func.entry_name, dev, number=10)
 
         # generate the plain data
         a_ = np.random.uniform(1, 10, size=(m, k)).astype("uint8")
@@ -91,14 +91,14 @@ def test_fc_int8_acc32():
                         (s_idx // 16) * 4 + t_idx
                     ]
 
-        x = tvm.nd.array(a_, ctx)
-        w = tvm.nd.array(packW, ctx)
-        y = tvm.nd.array(np.zeros((m, n), dtype="int32"), ctx)
+        x = tvm.nd.array(a_, dev)
+        w = tvm.nd.array(packW, dev)
+        y = tvm.nd.array(np.zeros((m, n), dtype="int32"), dev)
         result = t_evaluator(x, w, y)
 
         gops_per_sec = gops_per_mm / result.mean / 1e9
         # verify the correctness
-        tvm.testing.assert_allclose(y.asnumpy(), np.dot(a_, b_.T), rtol=0)
+        tvm.testing.assert_allclose(y.numpy(), np.dot(a_, b_.T), rtol=0)
         print(
             "Tensorization: running time: {:.3f} ms, {:.2f} Gops/s, effiency: {:.2f}".format(
                 result.mean * 1000, gops_per_sec, gops_per_sec / peak

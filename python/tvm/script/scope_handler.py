@@ -80,8 +80,8 @@ class WithScopeHandler(ScopeHandler):
         self.def_symbol = def_symbol
 
     @staticmethod
-    def get_optional_var_names(node, context):
-        """Get list of names from ast.With's optional_vars"""
+    def get_optional_vars(node, context):
+        """Get a list ast.With's optional_vars"""
         assert isinstance(
             node, ast.With
         ), f"WithScopeHandler expected ast.With but got {type(node)}"
@@ -93,18 +93,18 @@ class WithScopeHandler(ScopeHandler):
                         f"Invalid optional var definition, expected Var but got {type(var)}",
                         node.span,
                     )
-            var_names = [var.id.name for var in node.lhs]
+            vars = node.lhs
         else:
             context.report_error(
                 f"Invalid optional var definition, expected list of Var but got {type(node.lhs)}",
                 node.span,
             )
-        return var_names
+        return vars
 
 
 @register
 class Allocate(WithScopeHandler):
-    """ With scope handler tir.allocate(extents, dtype, scope, condition) """
+    """With scope handler tir.allocate(extents, dtype, scope, condition)"""
 
     def __init__(self):
         def allocate(extents, dtype, scope, condition=True, span=None):
@@ -127,12 +127,14 @@ class Allocate(WithScopeHandler):
     ):
         # define buffer vars in symbol table
         if isinstance(node, ast.With):
-            names = WithScopeHandler.get_optional_var_names(node, context)
-            if len(names) != 1:
+            vars = WithScopeHandler.get_optional_vars(node, context)
+            if len(vars) != 1:
                 context.report_error("Unexpected number of vars", node.span)
-            name = names[0]
+            name = vars[0].id.name
+            var_span = vars[0].id.span
         elif isinstance(node, ast.Assign):
             name = node.lhs.id.name
+            var_span = node.lhs.id.span
         else:
             raise Exception("Internal Bug")
 
@@ -141,26 +143,28 @@ class Allocate(WithScopeHandler):
             buffer_ptr_type = tvm.ir.PointerType(tvm.ir.PrimType(dtype))
             self.buffer_var = tvm.tir.Var(name, buffer_ptr_type, span)
 
-        setup_buffer_var(*arg_list, span=tvm_span_from_synr(node.lhs.id.span))
+        setup_buffer_var(*arg_list, span=tvm_span_from_synr(var_span))
         context.update_symbol(name, self.buffer_var, node)
 
 
 @register
 class LaunchThread(WithScopeHandler):
-    """ With scope handler tir.launch_thread(env_var, extent) """
+    """With scope handler tir.launch_thread(env_var, extent)"""
 
     def __init__(self):
         def launch_thread(env_var, extent, span):
             extent = tvm.runtime.convert(extent, span=span)
+            thread_id = self.context.func_var_env_dict[env_var]
+            attr_key = "virtual_thread" if thread_id == "vthread" else "thread_extent"
             return tvm.tir.AttrStmt(
                 IterVar(
-                    None,
+                    (0, extent),
                     env_var,
                     getattr(IterVar, "ThreadIndex"),
-                    self.context.func_var_env_dict[env_var],
+                    thread_id,
                     span=span,
                 ),
-                "thread_extent",
+                attr_key,
                 extent,
                 self.body,
                 span=span,
@@ -171,7 +175,7 @@ class LaunchThread(WithScopeHandler):
 
 @register
 class Realize(WithScopeHandler):
-    """ With scope handler tir.realize(buffer_bounds, scope, condition) """
+    """With scope handler tir.realize(buffer_bounds, scope, condition)"""
 
     def __init__(self):
         def realize(
@@ -201,7 +205,7 @@ class Realize(WithScopeHandler):
 
 @register
 class Attr(WithScopeHandler):
-    """ With scope handler tir.attr(attr_node, attr_key, value) """
+    """With scope handler tir.attr(attr_node, attr_key, value)"""
 
     def __init__(self):
         def attr(attr_node, attr_key, value, span):
@@ -214,7 +218,7 @@ class Attr(WithScopeHandler):
 
 @register
 class AssertHandler(WithScopeHandler):
-    """ With scope handler tir.Assert(condition, message) """
+    """With scope handler tir.Assert(condition, message)"""
 
     def __init__(self):
         def Assert(condition, message, span):
@@ -225,7 +229,7 @@ class AssertHandler(WithScopeHandler):
 
 @register
 class Let(WithScopeHandler):
-    """ With scope handler tir.let(var, value) """
+    """With scope handler tir.let(var, value)"""
 
     def __init__(self):
         def let(var, value, span):
@@ -236,7 +240,7 @@ class Let(WithScopeHandler):
 
 @register
 class Block(WithScopeHandler):
-    """ With scope handler tir.block(extents, name) as iter_vars"""
+    """With scope handler tir.block(extents, name) as iter_vars"""
 
     def __init__(self):
         def block(axes=None, name_hint: str = "", span: Optional[Span] = None):
@@ -282,6 +286,13 @@ class Block(WithScopeHandler):
                 if block_info.writes
                 else []
             )
+
+            region_detect_mask: int = (block_info.reads is None) | (
+                (block_info.writes is None) << 1
+            )
+            annotations = {} if block_info.annotations is None else block_info.annotations
+            if region_detect_mask != 0:
+                annotations["tir.script_parsing_detect_access"] = region_detect_mask
             inner = tvm.tir.Block(
                 block_iters,
                 reads,
@@ -291,14 +302,17 @@ class Block(WithScopeHandler):
                 block_info.init,
                 block_info.alloc_buffers,
                 block_info.match_buffers,
-                block_info.annotations,
+                annotations,
                 span,
             )
             # create block var iter binding
             values: List[PrimExpr]
             if not block_info.iter_bindings:
                 values = self.context.loop_stack[-2].copy()
-                if len(values) == 0:
+                if len(block_iters) == 0:
+                    # It is an opaque block without any bindings
+                    values = []
+                elif len(values) == 0:
                     values = [tvm.tir.const(float("nan"), dtype="float32")] * len(block_iters)
                 elif len(values) != len(block_iters):
                     self.context.report_error(
@@ -337,15 +351,15 @@ class Block(WithScopeHandler):
             node, ast.With
         ), f"BlockScopeHandler expected to work on ast.With but got {type(node)}"
 
-        var_names = WithScopeHandler.get_optional_var_names(node, context)
-        self.block_vars = [tvm.te.var(name) for name in var_names]
+        vars = WithScopeHandler.get_optional_vars(node, context)
+        self.block_vars = [tvm.te.var(var.id.name) for var in vars]
         for block_var in self.block_vars:
             context.update_symbol(block_var.name, block_var, node)
 
 
 @register
 class InitBlock(WithScopeHandler):
-    """ With scope handler tir.init()"""
+    """With scope handler tir.init()"""
 
     def __init__(self):
         def init(span: Span = None):
@@ -476,7 +490,7 @@ class ForScopeHandler(ScopeHandler):
 
 @register
 class Serial(ForScopeHandler):
-    """ For scope handler tir.serial(begin, end, annotations)"""
+    """For scope handler tir.serial(begin, end, annotations)"""
 
     def __init__(self):
         def serial(
@@ -492,7 +506,7 @@ class Serial(ForScopeHandler):
 
 @register
 class Parallel(ForScopeHandler):
-    """ For scope handler tir.parallel(begin, end, annotations)"""
+    """For scope handler tir.parallel(begin, end, annotations)"""
 
     def __init__(self):
         def parallel(
@@ -510,7 +524,7 @@ class Parallel(ForScopeHandler):
 
 @register
 class Vectorized(ForScopeHandler):
-    """ For scope handler tir.vectorized(begin, end, annotations)"""
+    """For scope handler tir.vectorized(begin, end, annotations)"""
 
     def __init__(self):
         def vectorized(
@@ -528,7 +542,7 @@ class Vectorized(ForScopeHandler):
 
 @register
 class Unroll(ForScopeHandler):
-    """ For scope handler tir.unroll(begin, end, annotations)"""
+    """For scope handler tir.unroll(begin, end, annotations)"""
 
     def __init__(self):
         def unroll(
@@ -546,7 +560,7 @@ class Unroll(ForScopeHandler):
 
 @register
 class ThreadBinding(ForScopeHandler):
-    """ For scope handler tir.thread_binding(begin, end, thread, annotations)"""
+    """For scope handler tir.thread_binding(begin, end, thread, annotations)"""
 
     def __init__(self):
         def thread_binding(
@@ -592,7 +606,7 @@ class RangeHandler(ForScopeHandler):
 
 @register
 class Grid(ForScopeHandler):
-    """ For scope handler tir.grid(extents)"""
+    """For scope handler tir.grid(extents)"""
 
     def __init__(self):
         def grid(*extents: List[PrimExpr], span: Span):

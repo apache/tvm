@@ -50,12 +50,12 @@ def verify_lrn(shape, size, axis, bias, alpha, beta):
         with tvm.target.Target(device):
             s_func = tvm.topi.testing.dispatch(device, _lrn_schedule)
             s = s_func([B])
-        ctx = tvm.context(device, 0)
-        a = tvm.nd.array(a_np, ctx)
-        b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=dtype), ctx)
+        dev = tvm.device(device, 0)
+        a = tvm.nd.array(a_np, dev)
+        b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=dtype), dev)
         f = tvm.build(s, [A, B], device)
         f(a, b)
-        tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
+        tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-5)
 
     for device in ["llvm", "cuda", "opencl", "metal", "rocm", "vulkan", "nvptx"]:
         check_device(device)

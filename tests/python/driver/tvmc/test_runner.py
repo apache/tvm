@@ -18,6 +18,8 @@ import pytest
 import numpy as np
 
 from tvm.driver import tvmc
+from tvm.driver.tvmc.model import TVMCResult
+from tvm.driver.tvmc.result_utils import get_top_results
 
 
 def test_generate_tensor_data_zeros():
@@ -50,14 +52,16 @@ def test_generate_tensor_data__type_unknown():
 
 
 def test_format_times__contains_header():
-    sut = tvmc.runner.format_times([60, 120, 12, 42])
-    assert "std (s)" in sut
+    fake_result = TVMCResult(outputs=None, times=[0.6, 1.2, 0.12, 0.42])
+    sut = fake_result.format_times()
+    assert "std (ms)" in sut
 
 
 def test_get_top_results_keep_results():
     fake_outputs = {"output_0": np.array([[1, 2, 3, 4], [5, 6, 7, 8]])}
+    fake_result = TVMCResult(outputs=fake_outputs, times=None)
     number_of_results_wanted = 3
-    sut = tvmc.runner.get_top_results(fake_outputs, number_of_results_wanted)
+    sut = get_top_results(fake_result, number_of_results_wanted)
 
     expected_number_of_lines = 2
     assert len(sut) == expected_number_of_lines
@@ -67,22 +71,22 @@ def test_get_top_results_keep_results():
     assert len(sut[1]) == expected_number_of_results_per_line
 
 
-def test_run_tflite_module__with_profile__valid_input(
-    tflite_compiled_module_as_tarfile, imagenet_cat
-):
+def test_run_tflite_module__with_profile__valid_input(tflite_compiled_model, imagenet_cat):
     # some CI environments wont offer TFLite, so skip in case it is not present
     pytest.importorskip("tflite")
 
-    outputs, times = tvmc.runner.run_module(
-        tflite_compiled_module_as_tarfile,
-        inputs_file=imagenet_cat,
+    inputs = np.load(imagenet_cat)
+
+    result = tvmc.run(
+        tflite_compiled_model,
+        inputs=inputs,
         hostname=None,
         device="cpu",
         profile=True,
     )
 
     # collect the top 5 results
-    top_5_results = tvmc.runner.get_top_results(outputs, 5)
+    top_5_results = get_top_results(result, 5)
     top_5_ids = top_5_results[0]
 
     # IDs were collected from this reference:
@@ -93,6 +97,6 @@ def test_run_tflite_module__with_profile__valid_input(
     assert (
         tiger_cat_mobilenet_id in top_5_ids
     ), "tiger cat is expected in the top-5 for mobilenet v1"
-    assert type(outputs) is dict
-    assert type(times) is tuple
-    assert "output_0" in outputs.keys()
+    assert type(result.outputs) is dict
+    assert type(result.times) is tuple
+    assert "output_0" in result.outputs.keys()

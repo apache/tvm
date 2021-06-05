@@ -81,18 +81,18 @@ with tvm.transform.PassContext(opt_level=3):
 # Execute on TVM
 # -------------------
 # The process is no different from other example
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 
-ctx = tvm.cpu(0)
+dev = tvm.cpu(0)
 dtype = "float32"
-m = graph_runtime.GraphModule(lib["default"](ctx))
+m = graph_executor.GraphModule(lib["default"](dev))
 # set inputs
 m.set_input("image", tvm.nd.array(x.astype(dtype)))
 # execute
 m.run()
 # get outputs
 tvm_output = m.get_output(0)
-top1 = np.argmax(tvm_output.asnumpy()[0])
+top1 = np.argmax(tvm_output.numpy()[0])
 
 #####################################################################
 # Look up synset name

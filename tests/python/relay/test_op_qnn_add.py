@@ -63,9 +63,9 @@ def test_tflite_same_io_qnn_params():
         y_data = y_datas[i]
         golden_output = golden_outputs[i]
 
-        intrp = relay.create_executor("graph", ctx=tvm.cpu(0), target="llvm")
+        intrp = relay.create_executor("graph", device=tvm.cpu(0), target="llvm")
         op_res = intrp.evaluate(func)(x_data, y_data)
-        np.testing.assert_equal(op_res.asnumpy(), golden_output)
+        np.testing.assert_equal(op_res.numpy(), golden_output)
 
 
 def test_tflite_different_io_qnn_params():
@@ -111,9 +111,9 @@ def test_tflite_different_io_qnn_params():
         y_data = y_datas[i]
         golden_output = golden_outputs[i]
 
-        intrp = relay.create_executor("graph", ctx=tvm.cpu(0), target="llvm")
+        intrp = relay.create_executor("graph", device=tvm.cpu(0), target="llvm")
         op_res = intrp.evaluate(func)(x_data, y_data)
-        np.testing.assert_equal(op_res.asnumpy(), golden_output)
+        np.testing.assert_equal(op_res.numpy(), golden_output)
 
 
 def test_saturation():
@@ -143,9 +143,9 @@ def test_saturation():
     y_data = np.array((255, 255, 128, 0)).reshape((1, 4))
     golden_output = np.array((255, 255, 129, 0)).reshape((1, 4))
 
-    intrp = relay.create_executor("graph", ctx=tvm.cpu(0), target="llvm")
+    intrp = relay.create_executor("graph", device=tvm.cpu(0), target="llvm")
     op_res = intrp.evaluate(func)(x_data, y_data)
-    np.testing.assert_equal(op_res.asnumpy(), golden_output)
+    np.testing.assert_equal(op_res.numpy(), golden_output)
 
     # Same params, different scale
     z = relay.qnn.op.add(
@@ -169,9 +169,9 @@ def test_saturation():
     y_data = np.array((255, 255, 127, 0)).reshape((1, 4))
     golden_output = np.array((255, 129, 65, 0)).reshape((1, 4))
 
-    intrp = relay.create_executor("graph", ctx=tvm.cpu(0), target="llvm")
+    intrp = relay.create_executor("graph", device=tvm.cpu(0), target="llvm")
     op_res = intrp.evaluate(func)(x_data, y_data)
-    np.testing.assert_equal(op_res.asnumpy(), golden_output)
+    np.testing.assert_equal(op_res.numpy(), golden_output)
 
     # Same io params, different output scale
     z = relay.qnn.op.add(
@@ -195,9 +195,9 @@ def test_saturation():
     y_data = np.array((255, 255, 127, 0)).reshape((1, 4))
     golden_output = np.array((255, 129, 65, 0)).reshape((1, 4))
 
-    intrp = relay.create_executor("graph", ctx=tvm.cpu(0), target="llvm")
+    intrp = relay.create_executor("graph", device=tvm.cpu(0), target="llvm")
     op_res = intrp.evaluate(func)(x_data, y_data)
-    np.testing.assert_equal(op_res.asnumpy(), golden_output)
+    np.testing.assert_equal(op_res.numpy(), golden_output)
 
     # All params different
     z = relay.qnn.op.add(
@@ -221,9 +221,9 @@ def test_saturation():
     y_data = np.array((0, 128, 64, 0)).reshape((1, 4))
     golden_output = np.array((255, 255, 132, 0)).reshape((1, 4))
 
-    intrp = relay.create_executor("graph", ctx=tvm.cpu(0), target="llvm")
+    intrp = relay.create_executor("graph", device=tvm.cpu(0), target="llvm")
     op_res = intrp.evaluate(func)(x_data, y_data)
-    np.testing.assert_equal(op_res.asnumpy(), golden_output)
+    np.testing.assert_equal(op_res.numpy(), golden_output)
 
 
 if __name__ == "__main__":

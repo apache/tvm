@@ -17,9 +17,9 @@
 
 [package]
 name = "tvm-graph-rt"
-version = "0.1.0"
+version = "0.1.0-alpha"
 license = "Apache-2.0"
-description = "A static graph runtime for TVM."
+description = "A static graph executor for TVM."
 repository = "https://github.com/apache/tvm"
 readme = "README.md"
 keywords = ["tvm"]
@@ -38,8 +38,8 @@ nom = "5.0"
 num_cpus = "1.10"
 serde = { version = "^1.0", features = ["derive"] }
 serde_json = "^1.0"
-tvm-sys = { version = "0.1", path = "../tvm-sys" }
-tvm-macros = { version = "0.1", path = "../tvm-macros" }
+tvm-sys = { version = "0.1.1-alpha", path = "../tvm-sys" }
+tvm-macros = { version = "0.1.1-alpha", path = "../tvm-macros" }
 
 [target.'cfg(not(any(target_arch = "wasm32", target_env = "sgx")))'.dependencies]
 libloading = "0.5"

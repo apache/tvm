@@ -109,6 +109,16 @@ def test_get_direct_ancestor():
     out = get_direct_ancestor(node_list, visited_dict, target_ops, 5, input_names)
     assert out == [0], "Output mismatch: expecting [0] but got %s." % str(out)
 
+    # non-regression test
+    out = relay.add(relay.log(data), relay.sqrt(data))
+    net = relay.Function(relay.analysis.free_vars(out), out)
+    net = bind_inputs(net, {"data": (1, 16, 224, 224)})
+    node_list = []
+    node_dict = {}
+    expr2graph(net, target_ops, node_dict, node_list)
+    out = get_direct_ancestor(node_list, visited_dict, target_ops, 3, input_names)
+    assert out == [0], "Output mismatch: expecting [0] but got %s." % str(out)
+
 
 def test_get_in_nodes():
     data = relay.var("data")

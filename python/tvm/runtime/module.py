@@ -45,7 +45,8 @@ class Module(object):
         self.entry_name = "__tvm_main__"
 
     def __del__(self):
-        check_call(_LIB.TVMModFree(self.handle))
+        if _LIB:
+            check_call(_LIB.TVMModFree(self.handle))
 
     def __hash__(self):
         return ctypes.cast(self.handle, ctypes.c_void_p).value
@@ -168,7 +169,7 @@ class Module(object):
         """
         _ffi_api.ModuleSaveToFile(self, file_name, fmt)
 
-    def time_evaluator(self, func_name, ctx, number=10, repeat=1, min_repeat_ms=0, f_preproc=""):
+    def time_evaluator(self, func_name, dev, number=10, repeat=1, min_repeat_ms=0, f_preproc=""):
         """Get an evaluator that measures time cost of running function.
 
         Parameters
@@ -176,8 +177,8 @@ class Module(object):
         func_name: str
             The name of the function in the module.
 
-        ctx: TVMContext
-            The context we should run this function on.
+        dev: Device
+            The device we should run this function on.
 
         number: int
             The number of times to run this function for taking average.
@@ -215,8 +216,8 @@ class Module(object):
             feval = _ffi_api.RPCTimeEvaluator(
                 self,
                 func_name,
-                ctx.device_type,
-                ctx.device_id,
+                dev.device_type,
+                dev.device_id,
                 number,
                 repeat,
                 min_repeat_ms,
@@ -269,10 +270,14 @@ class Module(object):
         return self._collect_from_import_tree(is_dso_exportable)
 
     def export_library(self, file_name, fcompile=None, addons=None, workspace_dir=None, **kwargs):
-        """Export the module and its imported device code one library.
+        """
+        Export the module and all imported modules into a single device library.
 
-        This function only works on host llvm modules.
-        It will pack all the imported modules
+        This function only works on host LLVM modules, other runtime::Module
+        subclasses will work with this API but they must support implement
+        the save and load mechanisms of modules completely including saving
+        from streams and files. This will pack your non-shared library module
+        into a single shared library which can later be loaded by TVM.
 
         Parameters
         ----------
@@ -280,13 +285,20 @@ class Module(object):
             The name of the shared library.
 
         fcompile : function(target, file_list, kwargs), optional
-            Compilation function to use create dynamic library.
+            The compilation function to use create the final library object during
+            export.
+
+            For example, when fcompile=_cc.create_shared, or when it is not supplied but
+            module is "llvm," this is used to link all produced artifacts
+            into a final dynamic library.
+
+            This behavior is controlled by the type of object exported.
             If fcompile has attribute object_format, will compile host library
             to that format. Otherwise, will use default format "o".
 
         workspace_dir : str, optional
-            the path to a directory used to create intermediary
-            artifacts for the process exporting of the library.
+            The path of the directory used to create the intermediate
+            artifacts when exporting the module.
             If this is not provided a temporary dir will be created.
 
         kwargs : dict, optional
@@ -433,6 +445,10 @@ def load_module(path, fmt=""):
     This function will automatically call
     cc.create_shared if the path is in format .o or .tar
     """
+    if os.path.isfile(path):
+        path = os.path.realpath(path)
+    else:
+        raise ValueError("cannot find file %s" % path)
 
     # c++ compiler/linker
     cc = os.environ.get("CXX", "g++")
@@ -454,9 +470,6 @@ def load_module(path, fmt=""):
         files = [tar_temp.relpath(x) for x in tar_temp.listdir()]
         _cc.create_shared(path + ".so", files, cc=cc)
         path += ".so"
-    # TODO(weberlo): we should probably use a more distinctive suffix for uTVM object files
-    elif path.endswith(".obj"):
-        fmt = "micro_dev"
     # Redirect to the load API
     return _ffi_api.ModuleLoadFromFile(path, fmt)
 

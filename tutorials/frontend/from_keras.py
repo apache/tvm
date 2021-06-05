@@ -96,16 +96,16 @@ shape_dict = {"input_1": data.shape}
 mod, params = relay.frontend.from_keras(keras_resnet50, shape_dict)
 # compile the model
 target = "cuda"
-ctx = tvm.gpu(0)
+dev = tvm.cuda(0)
 with tvm.transform.PassContext(opt_level=3):
-    executor = relay.build_module.create_executor("graph", mod, ctx, target)
+    executor = relay.build_module.create_executor("graph", mod, dev, target)
 
 ######################################################################
 # Execute on TVM
 # ---------------
 dtype = "float32"
 tvm_out = executor.evaluate()(tvm.nd.array(data.astype(dtype)), **params)
-top1_tvm = np.argmax(tvm_out.asnumpy()[0])
+top1_tvm = np.argmax(tvm_out.numpy()[0])
 
 #####################################################################
 # Look up synset name

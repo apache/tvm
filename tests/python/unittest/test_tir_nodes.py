@@ -338,6 +338,17 @@ def test_vars():
     assert isinstance(ptype.element_type, tvm.ir.PrimType)
 
 
+def test_scoped_storage_vars():
+    dtype = "float"
+    storage_scope = "global.texture"
+    ptype = tvm.ir.PointerType(tvm.ir.PrimType(dtype), storage_scope)
+    x = tvm.tir.Var("xyz", ptype)
+    assert x.dtype == "handle"
+    assert x.type_annotation == ptype
+    assert x.type_annotation.storage_scope == storage_scope
+    assert isinstance(ptype.element_type, tvm.ir.PrimType)
+
+
 def test_buffer_load_store():
     b = tvm.tir.decl_buffer((10,), "float32")
     x = tvm.tir.BufferLoad(b, [0])
@@ -440,15 +451,27 @@ def test_block_blockrealize():
     assert block_realize.predicate == tvm.tir.const(True, "bool")
     assert block_realize.block == block
 
-    # make sure we can print
+    # make sure we can print using ReprPrinter
     str(block)
     str(block_realize)
+    # make sure we can print using TIRTextPrinter
+    func = tvm.tir.PrimFunc([], block_realize)
+    output = func.astext()
+    assert output.find("meta[tir.BlockRealise]") == -1
+    assert output.find("bind") != -1
+    assert output.find("reads") != -1
+    assert output.find("writes") != -1
+    assert output.find("alloc_buffer") != -1
+    assert output.find("match_buffer_region") != -1
+    assert output.find("attr") != -1
+    assert output.find("with init()") != -1
 
 
 if __name__ == "__main__":
     test_intimm_cond()
     test_buffer_load_store()
     test_vars()
+    test_scoped_storage_var()
     test_prim_func()
     test_cast()
     test_attr()

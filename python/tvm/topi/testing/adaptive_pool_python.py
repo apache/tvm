@@ -27,6 +27,17 @@ def _end_index(index, odim, idim):
     return int(np.ceil((index + 1) * idim / odim))
 
 
+def _pool1d(in_size, out_size, np_data, np_op):
+    out = np.zeros(out_size).astype(np_data.dtype)
+    ow = out_size[0]
+    for l in range(ow):
+        l_start = _start_index(l, ow, in_size[0])
+        l_end = _end_index(l, ow, in_size[0])
+        l_sl = slice(l_start, l_end)
+        out[l] = np_op(np_data[l_sl])
+    return out
+
+
 def _pool2d(in_size, out_size, np_data, np_op):
     out = np.zeros(out_size).astype(np_data.dtype)
     oh, ow = out_size
@@ -61,8 +72,8 @@ def _pool3d(in_size, out_size, np_data, np_op):
     return out
 
 
-def adaptive_pool_nchw(np_data, out_size, pool_op, np_op):
-    """ The reference function for adaptive pool, nchw layout """
+def adaptive_pool_channel_first(np_data, out_size, pool_op, np_op):
+    """The reference function for adaptive pool, channel first layout"""
     ishape = np_data.shape
     n, c = ishape[:2]
     oshape = (n, c) + out_size
@@ -75,8 +86,8 @@ def adaptive_pool_nchw(np_data, out_size, pool_op, np_op):
     return np_out
 
 
-def adaptive_pool_nhwc(np_data, out_size, pool_op, np_op):
-    """ The reference function for adaptive pool, nhwc layout """
+def adaptive_pool_channel_last(np_data, out_size, pool_op, np_op):
+    """The reference function for adaptive pool, channel last layout"""
     ishape = np_data.shape
     n, c = ishape[0], ishape[-1]
     oshape = (n,) + out_size + (c,)
@@ -84,7 +95,9 @@ def adaptive_pool_nhwc(np_data, out_size, pool_op, np_op):
 
     for i in range(n):
         for j in range(c):
-            if len(out_size) == 2:
+            if len(out_size) == 1:
+                np_out[i, :, j] = pool_op(ishape[1:-1], out_size, np_data[i, :, j], np_op)
+            elif len(out_size) == 2:
                 np_out[i, :, :, j] = pool_op(ishape[1:-1], out_size, np_data[i, :, :, j], np_op)
             else:
                 np_out[i, :, :, :, j] = pool_op(
@@ -95,8 +108,12 @@ def adaptive_pool_nhwc(np_data, out_size, pool_op, np_op):
 
 
 def adaptive_pool(np_data, out_size, pool_type, layout):
-    """ The reference function for adaptive pool, for 2d and 3d """
-    if len(out_size) == 2:
+    """The reference function for adaptive pool, for 2d and 3d"""
+    if isinstance(out_size, int):
+        out_size = (out_size,)
+    if len(out_size) == 1:
+        pool_op = _pool1d
+    elif len(out_size) == 2:
         pool_op = _pool2d
     else:
         assert len(out_size) == 3
@@ -104,8 +121,8 @@ def adaptive_pool(np_data, out_size, pool_type, layout):
 
     np_op = np.mean if pool_type == "avg" else np.max
 
-    if layout in ["NCHW", "NCDHW"]:
-        return adaptive_pool_nchw(np_data, out_size, pool_op, np_op)
+    if layout in ["NCW", "NCHW", "NCDHW"]:
+        return adaptive_pool_channel_first(np_data, out_size, pool_op, np_op)
 
-    assert layout in ["NHWC", "NDHWC"]
-    return adaptive_pool_nhwc(np_data, out_size, pool_op, np_op)
+    assert layout in ["NWC", "NHWC", "NDHWC"]
+    return adaptive_pool_channel_last(np_data, out_size, pool_op, np_op)

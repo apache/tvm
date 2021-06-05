@@ -115,6 +115,8 @@ Call::Call(Expr op, Array<Expr> args, Attrs attrs, Array<Type> type_args, Span s
   n->attrs = std::move(attrs);
   n->type_args = std::move(type_args);
   n->span = std::move(span);
+  n->saved_deleter_ = n->deleter_;
+  n->deleter_ = CallNode::Deleter_;
   data_ = std::move(n);
 }
 
@@ -257,6 +259,82 @@ TVM_REGISTER_GLOBAL("relay.ir.TempExprRealize").set_body_typed([](TempExpr temp)
 });
 
 TVM_REGISTER_GLOBAL("relay.ir.Any").set_body_typed([]() { return Any(); });
+
+/*
+ * Non-recursive traversal with dismantling unused call nodes,
+ * a derivative from ExpandDataflow method
+ */
+inline void Dismantle(const Expr& expr) {
+  std::stack<std::pair<Expr, bool>> stack;
+  auto fpush_to_stack = [&stack](const Expr& expr) {
+    // do not visit nodes with more than 2 refs (one can be in stack)
+    if (expr.use_count() < 3) {
+      stack.push({expr, false});
+    }
+  };
+  fpush_to_stack(expr);
+  while (stack.size() > 0) {
+    const auto& node = stack.top().first;
+    if (stack.top().second) {
+      // dismantle node
+      // +1 ref in stack/deque;
+      if (node.use_count() < 3) {
+        if (auto* op = const_cast<CallNode*>(node.as<CallNode>())) {
+          op->args = Array<Expr>();
+        }
+      }
+      // eject
+      stack.pop();
+    } else {
+      stack.top().second = true;
+
+      // special handling
+      if (const CallNode* op = node.as<CallNode>()) {
+        // do not process args if used elsewhere
+        if (op->args.use_count() < 2) {
+          for (auto it = op->args.rbegin(); it != op->args.rend(); ++it) {
+            fpush_to_stack(*it);
+          }
+        }
+      } else if (const TupleNode* op = node.as<TupleNode>()) {
+        // do not process fields if used elsewhere
+        if (op->fields.use_count() < 2) {
+          for (auto it = op->fields.rbegin(); it != op->fields.rend(); ++it) {
+            fpush_to_stack(*it);
+          }
+        }
+      } else if (const TupleGetItemNode* op = node.as<TupleGetItemNode>()) {
+        // do not process tuple if used elsewhere
+        if (op->tuple.use_count() < 2) {
+          fpush_to_stack(op->tuple);
+        }
+      }
+    }
+  }
+}
+
+/*
+ * Non-recursive destructor
+ */
+Call::~Call() {
+  // attempt to dismantle if referenced one or zero times
+  if (this->use_count() < 2) {
+    if (this->as<CallNode>() && this->as<CallNode>()->args.size()) {
+      Dismantle(*this);
+    }
+  }
+}
+
+/*
+ * CallNode's deleter
+ */
+void CallNode::Deleter_(Object* ptr) {
+  auto p = reinterpret_cast<CallNode*>(ptr);
+  // resore original deleter
+  p->deleter_ = p->saved_deleter_;
+  // create Call reference in order to invoke ~Call
+  auto c = GetRef<Call>(p);
+}
 
 }  // namespace relay
 }  // namespace tvm

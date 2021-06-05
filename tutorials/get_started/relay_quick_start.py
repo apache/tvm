@@ -43,7 +43,7 @@ from tvm import relay
 from tvm.relay import testing
 import tvm
 from tvm import te
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 import tvm.testing
 
 ######################################################################
@@ -104,19 +104,19 @@ with tvm.transform.PassContext(opt_level=opt_level):
 #####################################################################
 # Run the generate library
 # ------------------------
-# Now we can create graph runtime and run the module on Nvidia GPU.
+# Now we can create graph executor and run the module on Nvidia GPU.
 
 # create random input
-ctx = tvm.gpu()
+dev = tvm.cuda()
 data = np.random.uniform(-1, 1, size=data_shape).astype("float32")
 # create module
-module = graph_runtime.GraphModule(lib["default"](ctx))
+module = graph_executor.GraphModule(lib["default"](dev))
 # set input and parameters
 module.set_input("data", data)
 # run
 module.run()
 # get output
-out = module.get_output(0, tvm.nd.empty(out_shape)).asnumpy()
+out = module.get_output(0, tvm.nd.empty(out_shape)).numpy()
 
 # Print first 10 elements of output
 print(out.flatten()[0:10])
@@ -141,14 +141,14 @@ print(temp.listdir())
 
 # load the module back.
 loaded_lib = tvm.runtime.load_module(path_lib)
-input_data = tvm.nd.array(np.random.uniform(size=data_shape).astype("float32"))
+input_data = tvm.nd.array(data)
 
-module = graph_runtime.GraphModule(loaded_lib["default"](ctx))
+module = graph_executor.GraphModule(loaded_lib["default"](dev))
 module.run(data=input_data)
-out_deploy = module.get_output(0).asnumpy()
+out_deploy = module.get_output(0).numpy()
 
 # Print first 10 elements of output
 print(out_deploy.flatten()[0:10])
 
 # check whether the output from deployed module is consistent with original one
-tvm.testing.assert_allclose(out_deploy, out, atol=1e-3)
+tvm.testing.assert_allclose(out_deploy, out, atol=1e-5)

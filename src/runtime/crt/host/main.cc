@@ -25,7 +25,7 @@
 #include <time.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/crt/logging.h>
-#include <tvm/runtime/crt/memory.h>
+#include <tvm/runtime/crt/page_allocator.h>
 #include <tvm/runtime/crt/utvm_rpc_server.h>
 #include <unistd.h>
 
@@ -34,8 +34,8 @@
 
 #include "crt_config.h"
 
-#ifdef TVM_HOST_USE_GRAPH_RUNTIME_MODULE
-#include <tvm/runtime/crt/graph_runtime_module.h>
+#ifdef TVM_HOST_USE_GRAPH_EXECUTOR_MODULE
+#include <tvm/runtime/crt/graph_executor_module.h>
 #endif
 
 using namespace std::chrono;
@@ -61,12 +61,12 @@ void TVMPlatformAbort(tvm_crt_error_t error_code) {
 
 MemoryManagerInterface* memory_manager;
 
-tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLContext ctx, void** out_ptr) {
-  return memory_manager->Allocate(memory_manager, num_bytes, ctx, out_ptr);
+tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLDevice dev, void** out_ptr) {
+  return memory_manager->Allocate(memory_manager, num_bytes, dev, out_ptr);
 }
 
-tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLContext ctx) {
-  return memory_manager->Free(memory_manager, ptr, ctx);
+tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
+  return memory_manager->Free(memory_manager, ptr, dev);
 }
 
 steady_clock::time_point g_utvm_start_time;
@@ -110,7 +110,7 @@ tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
 }
 }
 
-uint8_t memory[512 * 1024];
+uint8_t memory[2048 * 1024];
 
 static char** g_argv = NULL;
 
@@ -123,7 +123,8 @@ int testonly_reset_server(TVMValue* args, int* type_codes, int num_args, TVMValu
 
 int main(int argc, char** argv) {
   g_argv = argv;
-  int status = MemoryManagerCreate(&memory_manager, memory, sizeof(memory), 8 /* page_size_log2 */);
+  int status =
+      PageMemoryManagerCreate(&memory_manager, memory, sizeof(memory), 8 /* page_size_log2 */);
   if (status != 0) {
     fprintf(stderr, "error initiailizing memory manager\n");
     return 2;
@@ -131,14 +132,17 @@ int main(int argc, char** argv) {
 
   utvm_rpc_server_t rpc_server = UTvmRpcServerInit(&UTvmWriteFunc, nullptr);
 
-#ifdef TVM_HOST_USE_GRAPH_RUNTIME_MODULE
-  CHECK_EQ(TVMGraphRuntimeModule_Register(), kTvmErrorNoError,
-           "failed to register GraphRuntime TVMModule");
+#ifdef TVM_HOST_USE_GRAPH_EXECUTOR_MODULE
+  CHECK_EQ(TVMGraphExecutorModule_Register(), kTvmErrorNoError,
+           "failed to register GraphExecutor TVMModule");
 #endif
 
-  if (TVMFuncRegisterGlobal("tvm.testing.reset_server", (TVMFunctionHandle)&testonly_reset_server,
-                            0)) {
-    fprintf(stderr, "utvm runtime: internal error registering global packedfunc; exiting\n");
+  int error = TVMFuncRegisterGlobal("tvm.testing.reset_server",
+                                    (TVMFunctionHandle)&testonly_reset_server, 0);
+  if (error) {
+    fprintf(stderr,
+            "utvm runtime: internal error (error#: %x) registering global packedfunc; exiting\n",
+            error);
     return 2;
   }
 

@@ -77,14 +77,14 @@ s = te.create_schedule(D.op)
 # -----------------
 # We can verify that the result matches what we expected.
 #
-ctx = tvm.cpu(0)
+dev = tvm.cpu(0)
 f = tvm.build(s, [A, B, D, bias], "llvm")
-a = tvm.nd.array(np.random.uniform(size=(n, l)).astype(A.dtype), ctx)
-b = tvm.nd.array(np.random.uniform(size=(l, m)).astype(B.dtype), ctx)
-d = tvm.nd.array(np.zeros((n, m), dtype=D.dtype), ctx)
+a = tvm.nd.array(np.random.uniform(size=(n, l)).astype(A.dtype), dev)
+b = tvm.nd.array(np.random.uniform(size=(l, m)).astype(B.dtype), dev)
+d = tvm.nd.array(np.zeros((n, m), dtype=D.dtype), dev)
 bb = 10.0
 f(a, b, d, bb)
-tvm.testing.assert_allclose(d.asnumpy(), np.dot(a.asnumpy(), b.asnumpy()) + 10, rtol=1e-5)
+tvm.testing.assert_allclose(d.numpy(), np.dot(a.numpy(), b.numpy()) + 10, rtol=1e-5)
 
 ######################################################################
 # Extern Contrib Wrappers
@@ -113,7 +113,7 @@ s = te.create_schedule(D.op)
 @tvm.register_func("tvm.contrib.my_tvm_addone")
 def my_tvm_addone(x, y):
     print("my_tvm_addone signatures: %s, %s" % (type(x), type(y)))
-    tvm.nd.array(x.asnumpy() + 1).copyto(y)
+    tvm.nd.array(x.numpy() + 1).copyto(y)
 
 
 A = te.placeholder((n,), name="A")
@@ -125,10 +125,10 @@ B = te.extern(
 )
 s = te.create_schedule(B.op)
 f = tvm.build(s, [A, B], "llvm")
-a = tvm.nd.array(np.random.uniform(size=(n,)).astype(A.dtype), ctx)
-b = tvm.nd.array(np.random.uniform(size=(n,)).astype(B.dtype), ctx)
+a = tvm.nd.array(np.random.uniform(size=(n,)).astype(A.dtype), dev)
+b = tvm.nd.array(np.random.uniform(size=(n,)).astype(B.dtype), dev)
 f(a, b)
-tvm.testing.assert_allclose(b.asnumpy(), a.asnumpy() + 1, rtol=1e-5)
+tvm.testing.assert_allclose(b.numpy(), a.numpy() + 1, rtol=1e-5)
 
 ######################################################################
 # Summary
