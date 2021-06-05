@@ -190,7 +190,7 @@ class FP16GraphCreator : public ExprMutator {
     } else if (const TupleTypeNode* tuple_type = expr_type.as<TupleTypeNode>()) {
       Array<Expr> new_expr;
       bool all_same = true;
-      for (int i = 0; i < (tuple_type->fields).size(); i++) {
+      for (size_t i = 0; i < (tuple_type->fields).size(); i++) {
         Expr tuple_element = GetField(expr, i);
         Type tuple_element_dtype = (tuple_type->fields)[i];
         Expr casted_element = CastArg(tuple_element, tuple_element_dtype, wanted_dtype);

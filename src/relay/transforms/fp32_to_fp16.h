@@ -192,7 +192,7 @@ class DefaultFP16Colorer {
       }
 
       return color->second;
-    } else if (auto* func_node = (call->op).as<FunctionNode>()) {
+    } else if ((call->op).as<FunctionNode>()) {
       // Make RED to avoid messing with function headers.
       return RED;
     } else {
