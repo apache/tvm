@@ -18,7 +18,7 @@
  */
 #ifndef TVM_SUPPORT_ARRAY_H_
 #define TVM_SUPPORT_ARRAY_H_
-#include <tvm/runtime/container.h>
+#include <tvm/runtime/container/array.h>
 
 #include <vector>
 
