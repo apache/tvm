@@ -478,7 +478,7 @@ class BlockMatchBufferRegion(SpecialStmt):
 
 @register
 class VarDef(SpecialStmt):
-    """ Special function for defining a Var"""
+    """Special function for defining a Var"""
 
     def __init__(self):
         def var(dtype, span):
@@ -493,7 +493,7 @@ class VarDef(SpecialStmt):
 
 @register
 class EnvThread(SpecialStmt):
-    """ Bind a var to thread env """
+    """Bind a var to thread env"""
 
     def __init__(self):
         def env_thread(env_name, span):

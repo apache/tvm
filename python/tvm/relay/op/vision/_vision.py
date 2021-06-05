@@ -89,7 +89,7 @@ def nms_shape_func(attrs, inputs, _):
 
 
 @script
-def _all_class_nms_shape_func(boxes_shape, scores_shape):
+def _all_class_nms_shape_func_onnx(boxes_shape, scores_shape):
     out_shape = output_tensor((2,), "int64")
     count_shape = output_tensor((1,), "int64")
 
@@ -99,9 +99,27 @@ def _all_class_nms_shape_func(boxes_shape, scores_shape):
     return out_shape, count_shape
 
 
+@script
+def _all_class_nms_shape_func_tf(boxes_shape, scores_shape):
+    out_indices_shape = output_tensor((3,), "int64")
+    out_scores_shape = output_tensor((2,), "int64")
+    count_shape = output_tensor((1,), "int64")
+
+    out_indices_shape[0] = boxes_shape[0]
+    out_indices_shape[1] = scores_shape[1] * boxes_shape[1]
+    out_indices_shape[2] = int64(2)
+    out_scores_shape[0] = boxes_shape[0]
+    out_scores_shape[1] = scores_shape[1] * boxes_shape[1]
+    count_shape[0] = boxes_shape[0]
+
+    return out_indices_shape, out_scores_shape, count_shape
+
+
 @reg.register_shape_func("vision.all_class_non_max_suppression", False)
 def all_class_nms_shape_func(attrs, inputs, _):
-    return _all_class_nms_shape_func(inputs[0], inputs[1])
+    if attrs.output_format == "onnx":
+        return _all_class_nms_shape_func_onnx(inputs[0], inputs[1])
+    return _all_class_nms_shape_func_tf(inputs[0], inputs[1])
 
 
 @script

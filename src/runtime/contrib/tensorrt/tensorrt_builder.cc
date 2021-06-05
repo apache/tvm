@@ -178,15 +178,7 @@ TensorRTEngineAndContext TensorRTBuilder::BuildEngine() {
   nvinfer1::IExecutionContext* context = engine->createExecutionContext();
   CleanUp();
 
-  // Allocate I/O buffers on GPU for TVM inputs which are on a different context.
-  std::vector<runtime::NDArray> device_buffers(engine->getNbBindings());
-  for (size_t i = 0; i < network_input_names_.size(); ++i) {
-    AllocateDeviceBuffer(engine, network_input_names_[i], &device_buffers);
-  }
-  for (size_t i = 0; i < network_output_names_.size(); ++i) {
-    AllocateDeviceBuffer(engine, network_output_names_[i], &device_buffers);
-  }
-  return {engine, context, network_input_names_, network_output_names_, device_buffers};
+  return {engine, context, network_input_names_, network_output_names_};
 }
 
 nvinfer1::Weights TensorRTBuilder::GetDLTensorAsWeights(const DLTensor* dptr,
@@ -242,19 +234,6 @@ void TensorRTBuilder::CleanUp() {
     } else {
       delete[] static_cast<const uint16_t*>(weight.values);
     }
-  }
-}
-
-void TensorRTBuilder::AllocateDeviceBuffer(nvinfer1::ICudaEngine* engine, const std::string& name,
-                                           std::vector<runtime::NDArray>* device_buffers) {
-  const uint32_t entry_id = entry_id_map_[name];
-  if (data_entry_[entry_id]->device.device_type != kDLCUDA) {
-    const int binding_index = engine->getBindingIndex(name.c_str());
-    ICHECK_NE(binding_index, -1);
-    std::vector<int64_t> shape(data_entry_[entry_id]->shape,
-                               data_entry_[entry_id]->shape + data_entry_[entry_id]->ndim);
-    device_buffers->at(binding_index) =
-        runtime::NDArray::Empty(shape, data_entry_[entry_id]->dtype, {kDLCUDA, 0});
   }
 }
 

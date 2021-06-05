@@ -32,7 +32,7 @@
 #include "../thread_storage_scope.h"
 #include "vulkan/vulkan_core.h"
 #include "vulkan_common.h"
-#include "vulkan_context.h"
+#include "vulkan_device.h"
 #include "vulkan_shader.h"
 
 namespace tvm {
@@ -40,7 +40,7 @@ namespace runtime {
 namespace vulkan {
 
 struct VulkanPipeline {
-  VulkanContext* vctx_{nullptr};
+  VulkanDevice* device{nullptr};
   VkShaderModule shader{VK_NULL_HANDLE};
   VkDescriptorSetLayout descriptor_set_layout{VK_NULL_HANDLE};
   VkDescriptorPool descriptor_pool{VK_NULL_HANDLE};

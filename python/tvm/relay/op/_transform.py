@@ -244,15 +244,67 @@ def _strided_slice_shape_func_input_shape(data_shape, begin, end, strides, slice
     return out
 
 
+@script
+def _strided_slice_shape_func_with_axes(data_shape, begin, end, strides, slice_mode, axes):
+    ndim = data_shape.shape[0]
+    out = output_tensor((ndim,), "int64")
+    for i in const_range(ndim):
+        out[i] = data_shape[i]
+
+    for i in const_range(len(axes)):
+        cbegin = int64(0)
+        cend = int64(data_shape[axes[i]])
+        cstride = int64(1)
+        if len(strides) > i:
+            cstride = int64(strides[i])
+        if len(begin) > i:
+            cbegin = int64(begin[i])
+            if cbegin < 0:
+                cbegin += int64(data_shape[axes[i]])
+        if len(end) <= i:
+            cend = int64(data_shape[axes[i]])
+        elif slice_mode != 0:
+            cstride = int64(1)
+            if end[i] < 0:
+                cend = int64(data_shape[axes[i]])
+            else:
+                cend = cbegin + int64(end[i])
+        else:
+            if end[i] > data_shape[i]:
+                cend = int64(data_shape[axes[i]])
+            elif end[i] < -data_shape[i]:
+                cend = int64(-1)
+            else:
+                cend = int64(end[i])
+                if cend < 0:
+                    cend += int64(data_shape[axes[i]])
+        assert cstride != 0, "Strides can't be zero."
+        if cstride < 0:
+            slice_range = cbegin - cend
+            step = -cstride
+        else:
+            slice_range = cend - cbegin
+            step = cstride
+
+        out[axes[i]] = int64(ceil_div(slice_range, step))
+    return out
+
+
 @_reg.register_shape_func("strided_slice", False)
 def strided_slice_shape_func(attrs, inputs, _):
     """
     Shape func for strided_slice
     """
     slice_mode = convert(0 if attrs.slice_mode == "end" else 1)
+    if attrs.axes is None:
+        return [
+            _strided_slice_shape_func_input_shape(
+                inputs[0], attrs.begin, attrs.end, attrs.strides, slice_mode
+            )
+        ]
     return [
-        _strided_slice_shape_func_input_shape(
-            inputs[0], attrs.begin, attrs.end, attrs.strides, slice_mode
+        _strided_slice_shape_func_with_axes(
+            inputs[0], attrs.begin, attrs.end, attrs.strides, slice_mode, attrs.axes
         )
     ]
 

@@ -23,7 +23,7 @@ import numpy as np
 def trilinear_resize3d_python(
     data_in, out_size, layout, coordinate_transformation_mode="align_corners"
 ):
-    """ Trilinear 3d scaling using python"""
+    """Trilinear 3d scaling using python"""
     (new_d, new_h, new_w) = out_size
 
     if layout == "NDHWC":

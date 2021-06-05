@@ -466,7 +466,7 @@ void IRBuilder::AddCapabilityFor(const DataType& dtype) {
       ICHECK(spirv_support_.supports_int64)
           << "Vulkan target does not support Int64 capability.  "
           << "If your device supports 64-bit int operations, "
-          << "please either add -supports_float64=1 to the target, "
+          << "please either add -supports_int64=1 to the target, "
           << "or query all device parameters by adding -from_device=0.";
       capabilities_used_.insert(spv::CapabilityInt64);
     }
@@ -482,8 +482,8 @@ void IRBuilder::AddCapabilityFor(const DataType& dtype) {
     } else if (dtype.bits() == 64) {
       ICHECK(spirv_support_.supports_float64)
           << "Vulkan target does not support Float64 capability.  "
-          << "If your device supports 16-bit float operations, "
-          << "please either add -supports_float16=1 to the target, "
+          << "If your device supports 64-bit float operations, "
+          << "please either add -supports_float64=1 to the target, "
           << "or query all device parameters by adding -from_device=0.";
       capabilities_used_.insert(spv::CapabilityFloat64);
     }

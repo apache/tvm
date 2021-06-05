@@ -195,11 +195,11 @@ Schedule ConcreteScheduleNode::Copy() const {
  * \param level An ScheduleErrorRenderLevel enum, level of error rendering
  * \sa ScheduleErrorRenderLevel
  */
-#define TVM_TIR_SCHEDULE_END(level)                               \
+#define TVM_TIR_SCHEDULE_END(primitive, level)                    \
   }                                                               \
   catch (const ScheduleError& error) {                            \
     if ((level) == ScheduleErrorRenderLevel::kDetail) {           \
-      throw tvm::runtime::Error(error.RenderReport());            \
+      throw tvm::runtime::Error(error.RenderReport(primitive));   \
     } else if ((level) == ScheduleErrorRenderLevel::kFast) {      \
       throw tvm::runtime::Error(error.FastErrorString());         \
     } else if ((level) == ScheduleErrorRenderLevel::kNone) {      \
@@ -221,7 +221,6 @@ BlockRV ConcreteScheduleNode::GetBlock(const String& name, const String& func_na
       }
     }
 
-    String primitive() const final { return "get-block"; }
     IRModule mod() const final { return mod_; }
     Array<ObjectRef> LocationsOfInterest() const final { return {blocks_.begin(), blocks_.end()}; }
 
@@ -249,7 +248,7 @@ BlockRV ConcreteScheduleNode::GetBlock(const String& name, const String& func_na
   if (blocks.size() != 1) {
     TVM_TIR_SCHEDULE_BEGIN();
     throw NotSingleResult(name, this->state_->mod, blocks);
-    TVM_TIR_SCHEDULE_END(this->error_render_level_);
+    TVM_TIR_SCHEDULE_END("get-block", this->error_render_level_);
   }
   return CreateRV<BlockRV>(blocks[0]);
 }
@@ -257,6 +256,28 @@ BlockRV ConcreteScheduleNode::GetBlock(const String& name, const String& func_na
 Array<LoopRV> ConcreteScheduleNode::GetLoops(const BlockRV& block_rv) {
   return CreateRV<LoopRV>(tir::GetLoops(this->GetSRef(block_rv)));
 }
+
+/******** Schedule: loops manipulation ********/
+/******** Schedule: compute location ********/
+
+void ConcreteScheduleNode::ComputeInline(const BlockRV& block_rv) {
+  TVM_TIR_SCHEDULE_BEGIN();
+  tir::ComputeInline(state_, this->GetSRef(block_rv));
+  TVM_TIR_SCHEDULE_END("compute-inline", this->error_render_level_);
+  this->state_->DebugVerify();
+}
+
+void ConcreteScheduleNode::ReverseComputeInline(const BlockRV& block_rv) {
+  TVM_TIR_SCHEDULE_BEGIN();
+  tir::ReverseComputeInline(state_, this->GetSRef(block_rv));
+  TVM_TIR_SCHEDULE_END("reverse-compute-inline", this->error_render_level_);
+  this->state_->DebugVerify();
+}
+
+/******** Schedule: loop binding/annotation ********/
+/******** Schedule: cache read/write ********/
+/******** Schedule: reduction ********/
+/******** Schedule: blockize & tensorize ********/
 
 /******** FFI ********/
 

@@ -213,6 +213,17 @@ TVM_DLL Pass InstrumentBoundCheckers();
 TVM_DLL Pass MakePackedAPI(int num_unpacked_args);
 
 /*!
+ * \brief Transform the high-level PrimFunc to a C signature that can be used
+ *   to call the operator directly.
+ *
+ *  The main task of this function is to create code that maps the values in the
+ *  api_args to Var that is required by body
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass MakeUnpackedAPI();
+
+/*!
  * \brief Remap the thread axis
  *
  *  This can be used to get equivalent program which uses

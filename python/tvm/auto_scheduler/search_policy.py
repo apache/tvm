@@ -96,7 +96,7 @@ class PreloadCustomSketchRule(SearchCallback):
 
 @tvm._ffi.register_object("auto_scheduler.SearchPolicy")
 class SearchPolicy(Object):
-    """ The base class of search policies. """
+    """The base class of search policies."""
 
     def continue_search_one_round(self, num_measure, measurer):
         """

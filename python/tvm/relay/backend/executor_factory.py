@@ -31,7 +31,7 @@ class ExecutorFactoryModule:
 
     @abstractmethod
     def get_executor_config(self):
-        """ Return the internal configuration the executor uses to execute the network """
+        """Return the internal configuration the executor uses to execute the network"""
         raise NotImplementedError
 
     @abstractmethod
@@ -41,7 +41,7 @@ class ExecutorFactoryModule:
 
     @abstractmethod
     def get_lib(self):
-        """ Return the generated library"""
+        """Return the generated library"""
         raise NotImplementedError
 
     def __getitem__(self, item):

@@ -495,5 +495,5 @@ def ceil_div(a, b):
 
 
 def swap(arr, axis):
-    """ swap arr[axis] and arr[-1] """
+    """swap arr[axis] and arr[-1]"""
     return arr[:axis] + [arr[-1]] + arr[axis + 1 : -1] + [arr[axis]]

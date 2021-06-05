@@ -122,6 +122,16 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetBlock")
     .set_body_method<Schedule>(&ScheduleNode::GetBlock);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetLoops")
     .set_body_method<Schedule>(&ScheduleNode::GetLoops);
+/******** (FFI) loops manipulation ********/
+/******** (FFI) compute location ********/
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleComputeInline")
+    .set_body_method<Schedule>(&ScheduleNode::ComputeInline);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleReverseComputeInline")
+    .set_body_method<Schedule>(&ScheduleNode::ReverseComputeInline);
+/******** (FFI) loop binding/annotation ********/
+/******** (FFI) cache read/write ********/
+/******** (FFI) reduction ********/
+/******** (FFI) blockize & tensorize ********/
 
 }  // namespace tir
 }  // namespace tvm
