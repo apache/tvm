@@ -22,7 +22,6 @@
  */
 #include "codegen_c_host.h"
 
-#include <tvm/runtime/container.h>
 #include <tvm/runtime/crt/error_codes.h>
 #include <tvm/runtime/module.h>
 #include <tvm/target/codegen.h>
