@@ -23,7 +23,6 @@
  */
 #include "codegen_spirv.h"
 
-#include <tvm/runtime/container.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>

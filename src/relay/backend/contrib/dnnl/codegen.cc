@@ -393,7 +393,6 @@ class DNNLModuleCodegen : public CSourceModuleCodegenBase {
     code_stream_ << "#include <cstring>\n";
     code_stream_ << "#include <vector>\n";
     code_stream_ << "#include <tvm/runtime/c_runtime_api.h>\n";
-    code_stream_ << "#include <tvm/runtime/container.h>\n";
     code_stream_ << "#include <tvm/runtime/packed_func.h>\n";
     code_stream_ << "#include <dlpack/dlpack.h>\n";
     // dnnl_kernel file is saved under src/runtime/contrib/dnnl so that we don't

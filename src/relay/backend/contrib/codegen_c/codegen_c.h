@@ -27,7 +27,6 @@
 #include <tvm/relay/expr.h>
 #include <tvm/relay/function.h>
 #include <tvm/relay/op.h>
-#include <tvm/runtime/container.h>
 
 #include <sstream>
 #include <string>

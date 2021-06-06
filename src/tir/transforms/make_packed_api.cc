@@ -20,7 +20,6 @@
 /*!
  * \file make_packed_api.cc Lower PrimFunc to use the packed function API.
  */
-#include <tvm/runtime/container.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/target/target.h>

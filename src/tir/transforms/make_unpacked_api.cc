@@ -20,7 +20,6 @@
 /*!
  * \file make_unpacked_api.cc Lower PrimFunc to a standard C function API.
  */
-#include <tvm/runtime/container.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/target/target.h>
