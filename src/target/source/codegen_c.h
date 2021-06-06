@@ -25,7 +25,6 @@
 #define TVM_TARGET_SOURCE_CODEGEN_C_H_
 
 #include <tvm/ir/op.h>
-#include <tvm/runtime/container.h>
 #include <tvm/target/codegen.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/builtin.h>

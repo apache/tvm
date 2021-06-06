@@ -60,7 +60,8 @@
 #include <tvm/ir/error.h>
 #include <tvm/ir/instrument.h>
 #include <tvm/ir/module.h>
-#include <tvm/runtime/container.h>
+#include <tvm/runtime/container/array.h>
+#include <tvm/runtime/container/string.h>
 #include <tvm/support/with.h>
 
 #include <string>
