@@ -1216,6 +1216,7 @@ def test_forward_batch_norm():
 @tvm.testing.uses_gpu
 def test_forward_instance_norm():
     np.random.seed(90)
+
     def verify(shape, axis=1, epsilon=1e-5):
         x = np.random.uniform(size=shape).astype("float32")
         gamma = np.random.uniform(size=(shape[axis])).astype("float32")
