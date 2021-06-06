@@ -2408,7 +2408,7 @@ def test_batch_norm_training():
         batchnorm = onnx.helper.make_node(
             "BatchNormalization",
             inputs=["x", "scale", "B", "mean", "var"],
-            outputs=["Y", "mean", "var", "saved_mean", "saved_var"]
+            outputs=["Y", "mean", "var", "saved_mean", "saved_var"],
         )
 
         graph = helper.make_graph(
