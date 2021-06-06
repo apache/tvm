@@ -2408,7 +2408,7 @@ def test_batch_norm_training():
         batchnorm = onnx.helper.make_node(
             "BatchNormalization",
             inputs=["x", "scale", "B", "mean", "var"],
-            outputs=["Y", "mean", "var", "saved_mean", "saved_var"],
+            outputs=["Y", "mean_out", "var_out", "saved_mean", "saved_var"],
         )
 
         graph = helper.make_graph(
@@ -2423,8 +2423,8 @@ def test_batch_norm_training():
             ],
             outputs=[
                 helper.make_tensor_value_info("Y", TensorProto.FLOAT, list(in_shape)),
-                helper.make_tensor_value_info("mean", TensorProto.FLOAT, [in_shape[1]]),
-                helper.make_tensor_value_info("var", TensorProto.FLOAT, [in_shape[1]]),
+                helper.make_tensor_value_info("mean_out", TensorProto.FLOAT, [in_shape[1]]),
+                helper.make_tensor_value_info("var_out", TensorProto.FLOAT, [in_shape[1]]),
                 helper.make_tensor_value_info("saved_mean", TensorProto.FLOAT, [in_shape[1]]),
                 helper.make_tensor_value_info("saved_var", TensorProto.FLOAT, [in_shape[1]]),
             ],
