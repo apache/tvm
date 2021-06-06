@@ -18,26 +18,35 @@
  */
 
 /*!
- * \file llvm_module.h
- * \brief Declares top-level shared functions related to the LLVM codegen.
+ * \file tvm/runtime/container/closure.h
+ * \brief Runtime Closure container types.
  */
+#ifndef TVM_RUNTIME_CONTAINER_CLOSURE_H_
+#define TVM_RUNTIME_CONTAINER_CLOSURE_H_
 
-#ifndef TVM_TARGET_LLVM_LLVM_MODULE_H_
-#define TVM_TARGET_LLVM_LLVM_MODULE_H_
-
-#include <tvm/runtime/module.h>
-#include <tvm/target/target.h>
-
-#ifdef TVM_LLVM_VERSION
+#include "./base.h"
 
 namespace tvm {
-namespace codegen {
+namespace runtime {
 
-runtime::Module CreateLLVMCrtMetadataModule(const Array<runtime::Module>& modules, Target target);
+/*!
+ * \brief An object representing a closure. This object is used by both the
+ * Relay VM and interpreter.
+ */
+class ClosureObj : public Object {
+ public:
+  static constexpr const uint32_t _type_index = TypeIndex::kRuntimeClosure;
+  static constexpr const char* _type_key = "runtime.Closure";
+  TVM_DECLARE_BASE_OBJECT_INFO(ClosureObj, Object);
+};
 
-}  // namespace codegen
+/*! \brief reference to closure. */
+class Closure : public ObjectRef {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(Closure, ObjectRef, ClosureObj);
+};
+
+}  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_LLVM_VERSION
-
-#endif  // TVM_TARGET_LLVM_LLVM_MODULE_H_
+#endif  // TVM_RUNTIME_CONTAINER_CLOSURE_H_

@@ -16,6 +16,7 @@
 # under the License.
 
 import numpy as np
+import random
 import tvm
 import tvm.testing
 import pickle

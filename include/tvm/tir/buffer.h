@@ -25,7 +25,8 @@
 #define TVM_TIR_BUFFER_H_
 
 #include <tvm/ir/expr.h>
-#include <tvm/runtime/container.h>
+#include <tvm/runtime/container/array.h>
+#include <tvm/runtime/container/string.h>
 #include <tvm/tir/var.h>
 
 #include <string>

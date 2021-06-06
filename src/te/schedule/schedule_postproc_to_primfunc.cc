@@ -36,7 +36,6 @@
  *  - Add annotation of extern buffers using the buffer_map field
  *    in the PrimFunc type.
  */
-#include <tvm/runtime/container.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/te/operation.h>
 #include <tvm/tir/expr.h>

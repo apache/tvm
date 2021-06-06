@@ -23,7 +23,6 @@
  */
 #include <tvm/ir/op.h>
 #include <tvm/ir/type.h>
-#include <tvm/runtime/container.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/tir/op_attr_types.h>
