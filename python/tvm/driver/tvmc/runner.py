@@ -51,7 +51,7 @@ def add_run_parser(subparsers):
     #      like 'webgpu', etc (@leandron)
     parser.add_argument(
         "--device",
-        choices=["cpu", "gpu", "cl"],
+        choices=["cpu", "cuda", "cl"],
         default="cpu",
         help="target device to run the compiled module. Defaults to 'cpu'",
     )
@@ -323,7 +323,7 @@ def run_module(
     tvmc_package: TVMCPackage
         The compiled model package object that will be run.
     device: str,
-        the device (e.g. "cpu" or "gpu") to be targeted by the RPC
+        the device (e.g. "cpu" or "cuda") to be targeted by the RPC
         session, local or remote).
     hostname : str, optional
         The hostname of the target device on which to run.
