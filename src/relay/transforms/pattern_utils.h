@@ -441,7 +441,7 @@ static inline long double ToScalar(const runtime::NDArray& array, size_t i = 0) 
 static inline Array<Integer> ToVector(const runtime::NDArray& array) {
   size_t ndim = array.Shape().size();
   ICHECK_EQ(ndim, 1) << "This function should only be used for 1D NDArrays";
-  size_t len = array.Shape().front();
+  size_t len = array.Shape().at(0);
   Array<Integer> out;
   for (size_t i = 0; i < len; ++i) {
     long double elem_val = ToScalar(array, i);
