@@ -216,7 +216,7 @@ tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
 }
 
 // Ring buffer used to store data read from the UART on rx interrupt.
-// TODO(mehrdadh): Explore why offset is required.
+// This ring buffer size is only required for testing with QEMU and not for physical hardware.
 #define RING_BUF_SIZE_BYTES (TVM_CRT_MAX_PACKET_SIZE_BYTES + 100)
 RING_BUF_ITEM_DECLARE_SIZE(uart_rx_rbuf, RING_BUF_SIZE_BYTES);
 
