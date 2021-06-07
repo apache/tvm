@@ -16,9 +16,31 @@
 # specific language governing permissions and limitations
 # under the License.
 
+#
+# Install QEMU on Ubuntu.
+#
+# Usage: ubuntu_install_qemu.sh [--target-list target0,target1,...]
+#   --target-list is list of target for QEMU comma seperated. e.g. aarch64-softmmu,arm-softmmu,...
+#
+
 set -e
-set -u
 set -o pipefail
+
+# Get number of cores for build
+if [ -n "${TVM_CI_NUM_CORES}" ]; then
+  num_cores=${TVM_CI_NUM_CORES}
+else
+  num_cores=2
+fi
+
+# Set target list for QEMU
+if [ "$1" == "--target-list" ]; then
+    shift
+    target_list=$1
+else
+    # Build these by defualt for microtvm reference virtual machine and ci_qemu.
+    target_list="aarch64-softmmu,arm-softmmu,i386-softmmu,riscv32-softmmu,riscv64-softmmu,x86_64-softmmu"
+fi
 
 sudo sed -i '/deb-src/s/^# //' /etc/apt/sources.list
 apt update
@@ -44,8 +66,8 @@ gpg --verify qemu-5.1.0.tar.xz.sig
 
 tar -xf qemu-5.1.0.tar.xz
 cd qemu-5.1.0
-./configure --target-list=aarch64-softmmu,arm-softmmu,i386-softmmu,riscv32-softmmu,riscv64-softmmu,x86_64-softmmu
-make -j2
+./configure --target-list=${target_list}
+make -j${num_cores}
 sudo make install
 
 # For debugging with qemu
