@@ -726,11 +726,15 @@ def pad_annotate_fn(expr):  # pylint: disable=unused-variable
     if float(attrs.pad_value) != 0.0:
         logger.info("nn.pad: pad value is %f but must be 0.0.", float(attrs.pad_value))
         return False
+    if len(attrs.pad_width) not in [4, 5]:
+        logger.info("nn.pad: can only pad 4D or 5D inputs")
+        return False
     if any([x != 0 for x in attrs.pad_width[0]]) or any([x != 0 for x in attrs.pad_width[1]]):
         logger.info("nn.pad: can't pad batch or channel dimensions.")
         return False
     if len(attrs.pad_width) == 5 and any([x != 0 for x in attrs.pad_width[2]]):
         logger.info("nn.pad: can only pad last two dimensions for 5D inputs.")
+        return False
     return True
 
 

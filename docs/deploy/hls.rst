@@ -79,7 +79,7 @@ We use two python scripts for this tutorial.
       c = tvm.nd.array(np.zeros(n, dtype="float32"), dev)
 
       fadd(a, b, c)
-      tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
+      tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
 
 
 Setup

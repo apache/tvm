@@ -42,7 +42,7 @@ logger = logging.getLogger("TVMC")
 
 @register_parser
 def add_run_parser(subparsers):
-    """ Include parser for 'run' subcommand """
+    """Include parser for 'run' subcommand"""
 
     parser = subparsers.add_parser("run", help="run a compiled module")
     parser.set_defaults(func=drive_run)
@@ -51,7 +51,7 @@ def add_run_parser(subparsers):
     #      like 'webgpu', etc (@leandron)
     parser.add_argument(
         "--device",
-        choices=["cpu", "gpu", "cl"],
+        choices=["cpu", "cuda", "cl"],
         default="cpu",
         help="target device to run the compiled module. Defaults to 'cpu'",
     )
@@ -323,7 +323,7 @@ def run_module(
     tvmc_package: TVMCPackage
         The compiled model package object that will be run.
     device: str,
-        the device (e.g. "cpu" or "gpu") to be targeted by the RPC
+        the device (e.g. "cpu" or "cuda") to be targeted by the RPC
         session, local or remote).
     hostname : str, optional
         The hostname of the target device on which to run.
@@ -357,6 +357,14 @@ def run_module(
         raise TVMCException(
             "This model doesn't seem to have been compiled yet. "
             "Try calling tvmc.compile on the model before running it."
+        )
+
+    # Currently only two package formats are supported: "classic" and
+    # "mlf". The later can only be used for micro targets, i.e. with µTVM.
+    if tvmc_package.type == "mlf":
+        raise TVMCException(
+            "You're trying to run a model saved using the Model Library Format (MLF)."
+            "MLF can only be used to run micro targets (µTVM)."
         )
 
     if hostname:
@@ -420,6 +428,6 @@ def run_module(
     outputs = {}
     for i in range(num_outputs):
         output_name = "output_{}".format(i)
-        outputs[output_name] = module.get_output(i).asnumpy()
+        outputs[output_name] = module.get_output(i).numpy()
 
     return TVMCResult(outputs, times)

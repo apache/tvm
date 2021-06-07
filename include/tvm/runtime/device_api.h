@@ -60,6 +60,10 @@ constexpr int kTempAllocaAlignment = 128;
 /*! \brief Maximum size that can be allocated on stack */
 constexpr int kMaxStackAlloca = 1024;
 
+/*! \brief Number of bytes each allocation must align to by default in the workspace buffer to
+ * service intermediate tensors */
+constexpr int kDefaultWorkspaceAlignment = 1;
+
 /*!
  *  \brief TVM Runtime Device API, abstracts the device
  *  specific interface for memory management.
@@ -253,8 +257,6 @@ inline const char* DeviceName(int type) {
       return "ext_dev";
     case kDLWebGPU:
       return "webgpu";
-    case kDLMicroDev:
-      return "micro_dev";
     case kDLHexagon:
       return "hexagon";
     default:

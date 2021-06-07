@@ -338,6 +338,17 @@ def test_vars():
     assert isinstance(ptype.element_type, tvm.ir.PrimType)
 
 
+def test_scoped_storage_vars():
+    dtype = "float"
+    storage_scope = "global.texture"
+    ptype = tvm.ir.PointerType(tvm.ir.PrimType(dtype), storage_scope)
+    x = tvm.tir.Var("xyz", ptype)
+    assert x.dtype == "handle"
+    assert x.type_annotation == ptype
+    assert x.type_annotation.storage_scope == storage_scope
+    assert isinstance(ptype.element_type, tvm.ir.PrimType)
+
+
 def test_buffer_load_store():
     b = tvm.tir.decl_buffer((10,), "float32")
     x = tvm.tir.BufferLoad(b, [0])
@@ -460,6 +471,7 @@ if __name__ == "__main__":
     test_intimm_cond()
     test_buffer_load_store()
     test_vars()
+    test_scoped_storage_var()
     test_prim_func()
     test_cast()
     test_attr()

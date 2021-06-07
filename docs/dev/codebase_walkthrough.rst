@@ -169,7 +169,7 @@ The returned module, which can be thought of as a combination of a compiled func
    b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), dev)
    c = tvm.nd.array(np.zeros(n, dtype=C.dtype), dev)
    fadd(a, b, c)
-   output = c.asnumpy()
+   output = c.numpy()
 
 Under the hood, TVM allocates device memory and manages memory transfers automatically. To do that, each backend needs to subclass ``DeviceAPI`` class, defined in ``include/tvm/runtime/device_api.h``, and override memory management methods to use device specific API. For example, the CUDA backend implements ``CUDADeviceAPI`` in ``src/runtime/cuda/cuda_device_api.cc`` to use ``cudaMalloc``, ``cudaMemcpy`` etc.
 

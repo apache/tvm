@@ -38,7 +38,7 @@ tvm_crt_error_t WriteStream::WriteAll(uint8_t* data, size_t data_size_bytes,
       return kTvmErrorWriteStreamShortWrite;
     } else if (to_return < 0) {
       return (tvm_crt_error_t)to_return;
-    } else if (to_return > 0 && ((size_t)to_return) > data_size_bytes) {
+    } else if (to_return > 0 && (static_cast<size_t>(to_return)) > data_size_bytes) {
       return kTvmErrorWriteStreamLongWrite;
     }
 

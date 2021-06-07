@@ -132,7 +132,7 @@ def verify_conv2d_nhwc(
             )
             func(a, w, c)
 
-        tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=2e-3)
+        tvm.testing.assert_allclose(c.numpy(), c_np, rtol=2e-3)
 
     check_device(devices)
 

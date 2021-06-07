@@ -43,7 +43,7 @@ def test_matmul():
         b = tvm.nd.array(np.random.uniform(size=(l, m)).astype(B.dtype), dev)
         c = tvm.nd.array(np.zeros((n, m), dtype=C.dtype), dev)
         f(a, b, c)
-        tvm.testing.assert_allclose(c.asnumpy(), np.dot(a.asnumpy(), b.asnumpy()), rtol=1e-5)
+        tvm.testing.assert_allclose(c.numpy(), np.dot(a.numpy(), b.numpy()), rtol=1e-5)
 
     verify()
 
@@ -77,7 +77,7 @@ def verify_batch_matmul(batch, m, k, n, lib, transa=False, transb=False, dtype="
         c = tvm.nd.array(np.zeros((batch, m, n), dtype=C.dtype), dev)
         f(a, b, c)
         tvm.testing.assert_allclose(
-            c.asnumpy(), get_numpy(a.asnumpy(), b.asnumpy(), transa, transb), rtol=1e-5
+            c.numpy(), get_numpy(a.numpy(), b.numpy(), transa, transb), rtol=1e-5
         )
 
     verify()

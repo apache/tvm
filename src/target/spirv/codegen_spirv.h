@@ -25,6 +25,7 @@
 #define TVM_TARGET_SPIRV_CODEGEN_SPIRV_H_
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/target/target.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/function.h>
@@ -38,6 +39,7 @@
 #include "../../runtime/thread_storage_scope.h"
 #include "../../runtime/vulkan/vulkan_shader.h"
 #include "ir_builder.h"
+#include "spirv_support.h"
 
 namespace tvm {
 namespace codegen {
@@ -50,6 +52,14 @@ using namespace tir;
 class CodeGenSPIRV : public ExprFunctor<spirv::Value(const PrimExpr&)>,
                      public StmtFunctor<void(const Stmt&)> {
  public:
+  /*!
+   * \brief Initialize the codegen based on a specific target.
+   *
+   * \param target The target for which code should be generated.  The
+   * device_type for this target must be kDLVulkan.
+   */
+  CodeGenSPIRV(Target target);
+
   /*!
    * \brief Compile and add function f to the current module.
    * \param f The function to be added.
@@ -131,6 +141,8 @@ class CodeGenSPIRV : public ExprFunctor<spirv::Value(const PrimExpr&)>,
   spirv::Value GetThreadIndex(const IterVar& iv, const PrimExpr& extent);
   spirv::Value CreateStorageSync(const CallNode* op);
   void Scalarize(const PrimExpr& e, std::function<void(int i, spirv::Value v)> f);
+  // SPIRV-related capabilities of the target
+  SPIRVSupport spirv_support_;
   // The builder
   std::unique_ptr<spirv::IRBuilder> builder_;
   // Work group size of three

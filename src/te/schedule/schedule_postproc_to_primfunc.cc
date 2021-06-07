@@ -36,7 +36,6 @@
  *  - Add annotation of extern buffers using the buffer_map field
  *    in the PrimFunc type.
  */
-#include <tvm/runtime/container.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/te/operation.h>
 #include <tvm/tir/expr.h>
@@ -159,13 +158,13 @@ PrimFunc SchedulePostProcToPrimFunc(Array<ObjectRef> arg_list, Stmt body,
       ICHECK(!extern_buffer.count(tensor));
 
       tir::Buffer buffer = CreateBufferFor(tensor);
-      tir::Var bptr(buffer->name, DataType::Handle());
+      tir::Var bptr(buffer->name, PrimType(DataType::Handle()));
       params.push_back(bptr);
       buffer_map.Set(bptr, buffer);
       extern_buffer[tensor] = buffer;
     } else {
       tir::Buffer buffer = Downcast<tir::Buffer>(var);
-      tir::Var bptr(buffer->name, DataType::Handle());
+      tir::Var bptr(buffer->name, PrimType(DataType::Handle()));
       params.push_back(bptr);
       buffer_map.Set(bptr, buffer);
     }

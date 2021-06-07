@@ -53,7 +53,7 @@ def test_exp():
         a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
         b = tvm.nd.array(np.zeros(n, dtype=B.dtype), dev)
         fexp(a, b)
-        tvm.testing.assert_allclose(b.asnumpy(), np.exp(a.asnumpy()), rtol=1e-5)
+        tvm.testing.assert_allclose(b.numpy(), np.exp(a.numpy()), rtol=1e-5)
 
     check_device("sdaccel")
     if "AWS_PLATFORM" in os.environ:
@@ -90,7 +90,7 @@ def test_multi_kernel():
         c = tvm.nd.array(np.random.uniform(size=n).astype(C.dtype), dev)
         d = tvm.nd.array(np.random.uniform(size=n).astype(D.dtype), dev)
         fadd(a, b, c, d)
-        tvm.testing.assert_allclose(d.asnumpy(), a.asnumpy() * 2 + b.asnumpy(), rtol=1e-5)
+        tvm.testing.assert_allclose(d.numpy(), a.numpy() * 2 + b.numpy(), rtol=1e-5)
 
     check_device("sdaccel")
     check_device("aocl_sw_emu")

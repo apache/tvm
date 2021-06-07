@@ -39,7 +39,7 @@ class ChangeDatatype(ExprMutator):
 
         def change_dtype(mod, params, src, dst):
             mod = ChangeDatatype(src, dst)(mod)
-            params = dict((p, tvm.nd.array(params[p].asnumpy().astype(dst))) for p in params)
+            params = dict((p, tvm.nd.array(params[p].numpy().astype(dst))) for p in params)
             return mod, params
 
         mod, params = change_dtype(mod, params, "float32", "custom[posites2]32")

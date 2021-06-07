@@ -165,7 +165,7 @@ tvm_output = m.get_output(0, tvm.nd.empty(((1, 1008)), "float32"))
 # Process the output
 # ------------------
 # Process the model output to human readable text for InceptionV1.
-predictions = tvm_output.asnumpy()
+predictions = tvm_output.numpy()
 predictions = np.squeeze(predictions)
 
 # Creates node ID --> English string lookup.

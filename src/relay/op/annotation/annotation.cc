@@ -73,7 +73,7 @@ TVM_REGISTER_GLOBAL("relay.op.annotation._make.stop_fusion").set_body_typed([](E
 
 RELAY_REGISTER_OP("annotation.stop_fusion")
     .describe(
-        R"code(Annotate an expression to prevent it being fused with previous expressions.)code" TVM_ADD_FILELINE)
+        R"code(Annotate an expression to prevent it being fused with following expressions.)code" TVM_ADD_FILELINE)
     .set_num_inputs(1)
     .add_argument("data", "Tensor", "The input data.")
     .add_type_rel("Identity", IdentityRel)

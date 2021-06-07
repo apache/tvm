@@ -36,7 +36,7 @@
 
 #include <tvm/ir/module.h>
 #include <tvm/relay/expr.h>
-#include <tvm/runtime/container.h>
+#include <tvm/runtime/container/closure.h>
 #include <tvm/runtime/object.h>
 #include <tvm/target/target.h>
 

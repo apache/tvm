@@ -16,6 +16,7 @@
 # under the License.
 
 import numpy as np
+import random
 import tvm
 import tvm.testing
 import pickle
@@ -52,7 +53,7 @@ def test_tuple_object():
     value_tuple = _container.tuple_object([nd.array(np.array(11)), nd.array(np.array(12))])
     # pass an ADT object to evaluate
     out = f(value_tuple)
-    tvm.testing.assert_allclose(out.asnumpy(), np.array(11))
+    tvm.testing.assert_allclose(out.numpy(), np.array(11))
 
 
 def test_string():

@@ -105,16 +105,19 @@ def _dimension_constraint():
 
 def _get_param(params, input_node):
     if isinstance(input_node, _expr.Constant):
-        return np.atleast_1d(input_node.data.asnumpy())
-    return params[input_node.name_hint].asnumpy()
+        return np.atleast_1d(input_node.data.numpy())
+    return params[input_node.name_hint].numpy()
 
 
 def _get_num_param(params, input_node):
     return _get_param(params, input_node).item()
 
 
-def _get_list_param(params, input_node):
-    return _get_param(params, input_node).tolist()
+def _get_list_param(params, input_node, mod):
+    try:
+        return _get_param(params, input_node).tolist()
+    except (IndexError, KeyError, AttributeError):
+        return _infer_value(input_node, params, mod).numpy().tolist()
 
 
 def _get_tuple_param(params, input_node):
@@ -152,7 +155,7 @@ def _rsqrt():
 
 
 def _argx(func, func_name):
-    """ A common wrapper for argmin and argmax operations """
+    """A common wrapper for argmin and argmax operations"""
 
     def _impl(inputs, attr, params, mod):
         try:
@@ -720,17 +723,17 @@ def _nms(return_scores=False):
     def _impl(inputs, attr, params, mod):
         # Get parameter values
         try:
-            max_output_size = int(np.atleast_1d(inputs[2].data.asnumpy().astype("int64"))[0])
+            max_output_size = int(np.atleast_1d(inputs[2].data.numpy().astype("int64"))[0])
         except Exception:
             try:
                 max_output_size = (
-                    _infer_value(inputs[2], params, mod).asnumpy().astype("int64").tolist()[0]
+                    _infer_value(inputs[2], params, mod).numpy().astype("int64").tolist()[0]
                 )
             except Exception:
                 max_output_size = inputs[2]
-        iou_threshold = np.atleast_1d(inputs[3].data.asnumpy())[0]
+        iou_threshold = np.atleast_1d(inputs[3].data.numpy())[0]
         # score_threshold was introduced from V3
-        score_threshold = np.atleast_1d(inputs[4].data.asnumpy())[0] if len(inputs) > 4 else 0.0
+        score_threshold = np.atleast_1d(inputs[4].data.numpy())[0] if len(inputs) > 4 else 0.0
         pad_output = "pad_to_max_output_size"
 
         # Generate data with shape (1, num_anchors, 5)
@@ -790,23 +793,105 @@ def _nms(return_scores=False):
     return _impl
 
 
+def convert_combined_nms_with_all_class_nms(
+    batch_size,
+    max_output_boxes_per_batch,
+    num_class,
+    boxes,
+    scores,
+    max_output_boxes_per_class,
+    iou_threshold,
+    score_threshold,
+    max_total_size,
+    clip_boxes,
+):
+    """Converts TF combined_nms using Relay all_class_max_suppression op"""
+    (selected_indices, selected_scores, num_detections,) = _op.vision.all_class_non_max_suppression(
+        boxes,
+        scores,
+        max_output_boxes_per_class,
+        iou_threshold,
+        score_threshold,
+        output_format="tensorflow",
+    )
+    box_range = _op.arange(
+        _op.const(0, dtype="int64"), _op.const(max_total_size, dtype="int64"), dtype="int64"
+    )
+    assert isinstance(batch_size, int), "dynamic batch size not supported yet."
+    tile_batch_reps = _op.const([batch_size, 1])
+    box_range_2d = _op.tile(box_range, tile_batch_reps)
+    valid_mask = _op.cast(
+        _op.less(box_range_2d, _op.expand_dims(num_detections, axis=1)), "float32"
+    )
+
+    def select_topk(do_zero_pad):
+        def true_branch():
+            arange = _op.arange(
+                _op.const(0, dtype="int64"),
+                _op.const(max_output_boxes_per_batch, dtype="int64"),
+                dtype="int64",
+            )
+            pad = _op.full(
+                _op.const(0, dtype="int64"), (max_total_size - max_output_boxes_per_batch,)
+            )
+            topk_indices = _op.tile(_op.concatenate([arange, pad], 0), tile_batch_reps)
+            nmsed_scores = _op.gather(selected_scores, 1, topk_indices)
+            nmsed_scores = nmsed_scores * valid_mask
+            return nmsed_scores, topk_indices
+
+        def false_branch():
+            if isinstance(max_output_boxes_per_class, int):
+                # Do topk on smaller input if possible
+                slice_mx = _op.const([max_output_boxes_per_class * num_class], dtype="int64")
+                selected_scores_slice = _op.strided_slice(
+                    selected_scores, begin=_op.const([0], dtype="int64"), end=slice_mx, axes=[1]
+                )
+            else:
+                selected_scores_slice = selected_scores
+            return _op.topk(selected_scores_slice, k=max_total_size, axis=1, ret_type="both")
+
+        # TODO(masahi): support dynamic num_boxes
+        # return _expr.If(do_zero_pad, true_branch(), false_branch())
+        return true_branch() if do_zero_pad else false_branch()
+
+    assert isinstance(max_output_boxes_per_batch, int), "dynamic number of boxes not supported yet."
+    nmsed_scores, topk_indices = select_topk(max_output_boxes_per_batch < max_total_size)
+
+    indices = _op.take(selected_indices, topk_indices, axis=1, batch_dims=1)
+    nmsed_box_indices = _op.take(indices, _op.const(1), axis=2)
+    nmsed_classes = _op.take(indices, _op.const(0), axis=2)
+    nmsed_classes = _op.cast(nmsed_classes, "float32")
+    nmsed_boxes = _op.take(boxes, nmsed_box_indices, axis=1, batch_dims=1)
+    num_detections = _op.minimum(num_detections, _op.const(max_total_size, dtype="int64"))
+
+    if clip_boxes:
+        nmsed_boxes = _op.maximum(nmsed_boxes, _expr.const(0, dtype="float32"))
+        nmsed_boxes = _op.minimum(nmsed_boxes, _expr.const(1, dtype="float32"))
+
+    nmsed_boxes = nmsed_boxes * _op.expand_dims(valid_mask, axis=2)
+
+    return _expr.TupleWrapper(
+        _expr.Tuple([nmsed_boxes, nmsed_scores, nmsed_classes, num_detections]), 4
+    )
+
+
 def _combined_nms():
     def _impl(inputs, attr, params, mod):
         # Get parameter values
         boxes = inputs[0]
         scores = inputs[1]
         try:
-            max_output_size = int(np.atleast_1d(inputs[2].data.asnumpy().astype("int64"))[0])
+            max_output_size = int(np.atleast_1d(inputs[2].data.numpy().astype("int64"))[0])
         except Exception:
             try:
                 max_output_size = (
-                    _infer_value(inputs[2], params, mod).asnumpy().astype("int64").tolist()[0]
+                    _infer_value(inputs[2], params, mod).numpy().astype("int64").tolist()[0]
                 )
             except Exception:
                 max_output_size = inputs[2]
         max_total_size = inputs[3]
-        iou_threshold = np.atleast_1d(inputs[4].data.asnumpy())[0]
-        score_threshold = np.atleast_1d(inputs[5].data.asnumpy())[0]
+        iou_threshold = np.atleast_1d(inputs[4].data.numpy())[0]
+        score_threshold = np.atleast_1d(inputs[5].data.numpy())[0]
         if attr["pad_per_class"]:
             raise tvm.error.OpAttributeUnImplemented(
                 "pad_per_class for CombinedNonMaxSuppression is not supported"
@@ -818,9 +903,27 @@ def _combined_nms():
         q = boxes_shape[2]
         num_classes = scores_shape[2]
 
-        if q != num_classes:
-            # When q is 1, it means same box coords are used for all classes.
-            boxes = _op.broadcast_to(boxes, (batch_size, num_anchors, num_classes, 4))
+        assert isinstance(batch_size, int) and isinstance(
+            num_anchors, int
+        ), "Dynamic inputs not supported yet"
+
+        if q == 1:
+            boxes = _op.squeeze(boxes, axis=[2])
+            scores_trans = _op.transpose(scores, [0, 2, 1])
+            max_output_boxes_per_batch = num_anchors * num_classes
+            return convert_combined_nms_with_all_class_nms(
+                batch_size,
+                max_output_boxes_per_batch,
+                num_classes,
+                boxes,
+                scores_trans,
+                max_output_size,
+                iou_threshold,
+                score_threshold,
+                max_total_size.data.numpy().item(),
+                attr["clip_boxes"],
+            )
+
         boxes = _op.reshape(boxes, newshape=[batch_size, num_anchors * num_classes, 4])
         scores = _op.reshape(scores, newshape=[batch_size, num_anchors * num_classes, 1])
 
@@ -913,10 +1016,7 @@ def _crop_and_resize():
     def _impl(inputs, attr, params, mod):
         # input image is a 4-D tensor of shape [batch, image_height, image_width, depth]
         # boxes is a 2-D tensor of shape [num_boxes, 4], 4 is for [y1, x1, y2, x2]
-        try:
-            crop_size = _get_list_param(params, inputs[3])
-        except (IndexError, KeyError):
-            crop_size = _infer_value(inputs[3], params, mod).asnumpy().tolist()
+        crop_size = _get_list_param(params, inputs[3], mod)
 
         method = attr["method"].decode()
         method = "nearest_neighbor" if method == "nearest" else method
@@ -968,9 +1068,9 @@ def _resize(method):
             # Important that the size is defined. If an axis is not, we need to infer what
             # the shape should be.
             if -1 in size:
-                size = _infer_value(inputs[1], params, mod).asnumpy().reshape([-1]).tolist()
+                size = _infer_value(inputs[1], params, mod).numpy().reshape([-1]).tolist()
         else:
-            size = _infer_value(inputs[1], params, mod).asnumpy().reshape([-1]).tolist()
+            size = _infer_value(inputs[1], params, mod).numpy().reshape([-1]).tolist()
 
         attr["size"] = size
         inputs.pop(1)
@@ -1100,9 +1200,9 @@ def _sparse_tensor_dense_matmul():
 
         assert len(inputs) == 4, "There should be 4 input tensors"
 
-        indices_tensor = _infer_value(inputs[0], params, mod).asnumpy()
-        values_tensor = _infer_value(inputs[1], params, mod).asnumpy()
-        dense_shape_tensor = _infer_value(inputs[2], params, mod).asnumpy()
+        indices_tensor = _infer_value(inputs[0], params, mod).numpy()
+        values_tensor = _infer_value(inputs[1], params, mod).numpy()
+        dense_shape_tensor = _infer_value(inputs[2], params, mod).numpy()
 
         data = inputs[3]
 
@@ -1230,7 +1330,7 @@ def _sparse_segment_sum_with_num_segments():
     def _impl(inputs, attr, params, mod):
         assert len(inputs) == 4, "There should be 4 input tensors"
         data = _op.take(inputs[0], inputs[1], axis=0)
-        num_segments = int(inputs[3].data.asnumpy().item())
+        num_segments = int(inputs[3].data.numpy().item())
         return _op.segment_sum(data, inputs[2], num_segments)
 
     return _impl
@@ -1287,7 +1387,7 @@ def _sparse_segment_sum_sqrtn_with_num_segments():
     def _impl(inputs, attr, params, mod):
         assert len(inputs) == 4, "There should be 4 input tensors"
         data = _op.take(inputs[0], inputs[1], axis=0)
-        num_segments = int(inputs[3].data.asnumpy().item())
+        num_segments = int(inputs[3].data.numpy().item())
         real_counts = count_all_indices(inputs[2], attr["T"].name, num_segments=num_segments)
         real_sqrt_counts = _op.sqrt(_op.cast_like(real_counts, data))
 
@@ -1317,7 +1417,7 @@ def _sparse_segment_mean_with_num_segments():
     def _impl(inputs, attr, params, mod):
         assert len(inputs) == 4, "There should be 4 input tensors"
         data = _op.take(inputs[0], inputs[1], axis=0)
-        num_segments = int(inputs[3].data.asnumpy().item())
+        num_segments = int(inputs[3].data.numpy().item())
         real_counts = count_all_indices(inputs[2], attr["T"].name, num_segments=num_segments)
 
         # Calculate regular segment sum
@@ -1337,9 +1437,9 @@ def _sparse_tensor_dense_add():
             len(inputs) == 4
         ), "There should be 4 input tensors [sparse_indices, sparse_values, sparse_shape, dense]."
 
-        indices_tensor = _infer_value(inputs[0], params, mod).asnumpy()
-        values_tensor = _infer_value(inputs[1], params, mod).asnumpy()
-        dense_shape_tensor = _infer_value(inputs[2], params, mod).asnumpy()
+        indices_tensor = _infer_value(inputs[0], params, mod).numpy()
+        values_tensor = _infer_value(inputs[1], params, mod).numpy()
+        dense_shape_tensor = _infer_value(inputs[2], params, mod).numpy()
 
         data = inputs[3]
 
@@ -1655,10 +1755,10 @@ def _tile():
     def _impl(inputs, attr, params, mod):
         reps_input = inputs.pop()
         if isinstance(reps_input, _expr.Call):
-            np_reps = _infer_value(reps_input, params, mod).asnumpy()
+            np_reps = _infer_value(reps_input, params, mod).numpy()
             reps = [np_reps.flatten()[i] for i in range(np_reps.flatten().shape[0])]
         else:
-            reps = _get_list_param(params, reps_input)
+            reps = _get_list_param(params, reps_input, mod)
         new_input = [inputs.pop(0)]
 
         return AttrCvt(op_name="tile", extras={"reps": tuple(reps)}, ignores=["Tmultiples"])(
@@ -1671,21 +1771,15 @@ def _tile():
 def _slice():
     def _impl(inputs, attr, params, mod):
         try:
-            begin = _get_list_param(params, inputs[1])
-        except (IndexError, KeyError, AttributeError):
+            begin = _get_list_param(params, inputs[1], mod)
+        except Exception:
             # Handle symbolic begin
-            try:
-                begin = _infer_value(inputs[1], params, mod).asnumpy().tolist()
-            except Exception:
-                begin = inputs[1]
+            begin = inputs[1]
         try:
-            size = _get_list_param(params, inputs[2])
-        except (IndexError, KeyError, AttributeError):
+            size = _get_list_param(params, inputs[2], mod)
+        except Exception:
             # Handle symbolic size
-            try:
-                size = _infer_value(inputs[2], params, mod).asnumpy().tolist()
-            except Exception:
-                size = inputs[2]
+            size = inputs[2]
 
         # Align begin and strides for dynamic shape.
         data_dim = len(_infer_shape(inputs[0], mod))
@@ -1714,7 +1808,7 @@ def _reshape():
             # try to infer shape by precompute prune if possible.
             try:
                 params_new = _infer_value(pop_node, params, mod)
-                shape_arg = tuple(params_new.asnumpy().astype("int32").flatten())
+                shape_arg = tuple(params_new.numpy().astype("int32").flatten())
             except Exception:
                 # Deal with symbolic shape case.
                 if isinstance(pop_node, _expr.Call) and "shape_of" in str(pop_node.op):
@@ -1781,8 +1875,8 @@ def _broadcast_args():
             s1 = params[inputs[1].name_hint]
         else:
             s1 = _infer_value(inputs[1], params, mod)
-        s0 = list(s0.asnumpy().reshape([-1]))
-        s1 = list(s1.asnumpy().reshape([-1]))
+        s0 = list(s0.numpy().reshape([-1]))
+        s1 = list(s1.numpy().reshape([-1]))
         s0_size, s1_size = len(s0), len(s1)
 
         out = deque([])
@@ -1814,7 +1908,7 @@ def _broadcast_to():
             shape = params[inputs[1].name_hint]
         else:
             shape = _infer_value(inputs[1], params, mod)
-        shape = list(shape.asnumpy().reshape([-1]))
+        shape = list(shape.numpy().reshape([-1]))
         return _op.broadcast_to(inputs[0], shape)
 
     return _impl
@@ -1923,7 +2017,7 @@ def _shape():
 def _fill():
     def _impl(inputs, attr, params, mod):
         try:
-            output_shape = _infer_value(inputs[0], params, mod).asnumpy().tolist()
+            output_shape = _infer_value(inputs[0], params, mod).numpy().tolist()
         except Exception:
             output_shape = inputs[0]
 
@@ -1962,7 +2056,7 @@ def _sum():
 
 def _reduce(op):
     def _impl(inputs, attr, params, mod):
-        axis = _get_list_param(params, inputs[1])
+        axis = _get_list_param(params, inputs[1], mod)
         axis = tuple(axis)
         if not axis:
             axis = None
@@ -1978,7 +2072,7 @@ def _reduce(op):
 
 def _euclidean_norm():
     def _impl(inputs, attr, params, mod):
-        axis = tuple(_get_list_param(params, inputs[1]))
+        axis = tuple(_get_list_param(params, inputs[1], mod))
         keep_dims = bool(attr.get("keep_dims", False))
         return _op.sqrt(
             _op.cast(_op.reduce.sum(_op.multiply(inputs[0], inputs[0]), axis, keep_dims), "float32")
@@ -2039,9 +2133,9 @@ def _stridedSlice():
         Tensorflow mask validation: https://github.com/tensorflow/tensorflow/blob/master/
         tensorflow/core/util/strided_slice_op.cc#L147-L368
         """
-        begin = _get_list_param(params, inputs[1])
-        end = _get_list_param(params, inputs[2])
-        stride = _get_list_param(params, inputs[3])
+        begin = _get_list_param(params, inputs[1], mod)
+        end = _get_list_param(params, inputs[2], mod)
+        stride = _get_list_param(params, inputs[3], mod)
 
         begin_mask = int(attr.get("begin_mask", 0))
         end_mask = int(attr.get("end_mask", 0))
@@ -2053,7 +2147,7 @@ def _stridedSlice():
         data_dim = len(data_shape)
         stride_dim = len(stride)
         if data_dim == 0 and isinstance(inputs[0], _expr.Constant):
-            new_data = inputs[0].data.asnumpy().reshape(1)
+            new_data = inputs[0].data.numpy().reshape(1)
             return _expr.const(new_data, inputs[0].data.dtype)
 
         # This is a special routine to handle strided_slice after shape_of.
@@ -2199,7 +2293,7 @@ def _pad(name):
             padlist = _get_param(params, inputs[1])
         except (IndexError, KeyError, AttributeError):
             try:
-                padlist = _infer_value(inputs[1], params, mod).asnumpy().tolist()
+                padlist = _infer_value(inputs[1], params, mod).numpy().tolist()
             except Exception:
                 padlist = inputs[1]
 
@@ -2243,10 +2337,7 @@ def _transpose():
     def _impl(inputs, attr, params, mod):
         # If perm is not specified, axes is left empty,
         # otherwise its value is get from params
-        try:
-            axes = _get_list_param(params, inputs[1])
-        except (IndexError, KeyError, AttributeError):
-            axes = _infer_value(inputs[1], params, mod).asnumpy().tolist()
+        axes = _get_list_param(params, inputs[1], mod)
         return _op.transpose(inputs[0], axes=axes)
 
     return _impl
@@ -2297,7 +2388,7 @@ def _range():
             start = _get_param(params, inputs[0])[0]
         except (IndexError, KeyError, AttributeError):
             try:
-                start = _infer_value(inputs[1], params, mod).asnumpy().tolist()
+                start = _infer_value(inputs[1], params, mod).numpy().tolist()
                 start = start if not isinstance(start, list) else start[0]
             except Exception:
                 # Symbolic start
@@ -2307,11 +2398,11 @@ def _range():
             limit = (
                 _get_param(params, inputs[1])[0]
                 if hasattr(inputs[1], "name_hint") or isinstance(inputs[1], _expr.Constant)
-                else params.pop("Rank").asnumpy()[0]
+                else params.pop("Rank").numpy()[0]
             )
         except (IndexError, KeyError, AttributeError):
             try:
-                limit = _infer_value(inputs[1], params, mod).asnumpy().tolist()
+                limit = _infer_value(inputs[1], params, mod).numpy().tolist()
                 limit = limit if not isinstance(limit, list) else limit[0]
             except Exception:
                 limit = inputs[1]
@@ -2320,7 +2411,7 @@ def _range():
             delta = _get_param(params, inputs[2])[0]
         except (IndexError, KeyError, AttributeError):
             try:
-                delta = _infer_value(inputs[2], params, mod).asnumpy().tolist()
+                delta = _infer_value(inputs[2], params, mod).numpy().tolist()
                 delta = delta if not isinstance(delta, list) else delta[0]
             except Exception:
                 # Symbolic delta
@@ -2489,7 +2580,7 @@ def _topk():
             k = int(_get_num_param(params, k_input))
         except (IndexError, KeyError, AttributeError):
             try:
-                k = int(_infer_value(k_input, params, mod).asnumpy().tolist())
+                k = int(_infer_value(k_input, params, mod).numpy().tolist())
             except Exception:
                 k = k_input
         if isinstance(k, int):
@@ -2536,19 +2627,13 @@ def _logical(name):
 
 def _space_to_batch_nd():
     def _impl(inputs, attr, params, mod):
-        try:
-            block_shape = _get_list_param(params, inputs[1])
-        except (IndexError, KeyError, AttributeError):
-            block_shape = _infer_value(inputs[1], params, mod).asnumpy().tolist()
+        block_shape = _get_list_param(params, inputs[1], mod)
 
-        try:
-            paddings = _get_list_param(params, inputs[2])
-        except (IndexError, KeyError, AttributeError):
-            paddings = _infer_value(inputs[2], params, mod).asnumpy()
-            paddings = np.squeeze(paddings)
-            if len(paddings.shape) == 1:
-                paddings = np.expand_dims(paddings, axis=0)
-            paddings = paddings.tolist()
+        paddings = _get_list_param(params, inputs[2], mod)
+        paddings = np.squeeze(paddings)
+        if len(paddings.shape) == 1:
+            paddings = np.expand_dims(paddings, axis=0)
+        paddings = paddings.tolist()
 
         attr["block_shape"] = block_shape
         attr["paddings"] = paddings
@@ -2561,19 +2646,13 @@ def _space_to_batch_nd():
 
 def _batch_to_space_nd():
     def _impl(inputs, attr, params, mod):
-        try:
-            block_shape = _get_list_param(params, inputs[1])
-        except (IndexError, KeyError, AttributeError):
-            block_shape = _infer_value(inputs[1], params, mod).asnumpy().tolist()
+        block_shape = _get_list_param(params, inputs[1], mod)
 
-        try:
-            crops = _get_list_param(params, inputs[2])
-        except (IndexError, KeyError, AttributeError):
-            crops = _infer_value(inputs[2], params, mod).asnumpy()
-            crops = np.squeeze(crops)
-            if len(crops.shape) == 1:
-                crops = np.expand_dims(crops, axis=0)
-            crops = crops.tolist()
+        crops = _get_list_param(params, inputs[2], mod)
+        crops = np.squeeze(crops)
+        if len(crops.shape) == 1:
+            crops = np.expand_dims(crops, axis=0)
+        crops = crops.tolist()
 
         attr["block_shape"] = block_shape
         attr["crops"] = crops
@@ -2723,19 +2802,21 @@ def _unique(return_counts=True):
         assert len(inputs) == 1
         data = inputs[0]
         if return_counts:
-            [unique, indices, num_uniq, counts] = _op.unique(
+            [unique, _, inverse_indices, num_uniq, counts] = _op.unique(
                 data, is_sorted=False, return_counts=True
             )
             unique_sliced = _op.strided_slice(unique, begin=[0], end=num_uniq, slice_mode="size")
             counts_sliced = _op.strided_slice(counts, begin=[0], end=num_uniq, slice_mode="size")
             return _expr.TupleWrapper(
-                _expr.Tuple([unique_sliced, indices, counts_sliced]),
+                _expr.Tuple([unique_sliced, inverse_indices, counts_sliced]),
                 3,
             )
-        [unique, indices, num_uniq] = _op.unique(data, is_sorted=False, return_counts=False)
+        [unique, _, inverse_indices, num_uniq] = _op.unique(
+            data, is_sorted=False, return_counts=False
+        )
         unique_sliced = _op.strided_slice(unique, begin=[0], end=num_uniq, slice_mode="size")
         return _expr.TupleWrapper(
-            _expr.Tuple([unique_sliced, indices]),
+            _expr.Tuple([unique_sliced, inverse_indices]),
             2,
         )
 
@@ -3693,7 +3774,7 @@ class GraphProto(object):
                 if node_name_prefix not in self._while_loop_name_set:
                     try:
                         cond_val = np.all(
-                            _infer_value(branch.cond, self._params, self._mod).asnumpy()
+                            _infer_value(branch.cond, self._params, self._mod).numpy()
                         )
                         if cond_val:
                             op = branch.true_branch

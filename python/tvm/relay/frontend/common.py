@@ -582,7 +582,7 @@ def try_infer_value(val, on_success=None, on_failure=None):
     indicates whether infer_value has succeeded or not.
     """
     try:
-        ret = infer_value(val, {}).asnumpy()
+        ret = infer_value(val, {}).numpy()
         if on_success:
             return on_success(ret), True
         return ret, True

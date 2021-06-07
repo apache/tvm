@@ -25,7 +25,6 @@
 #define TVM_TARGET_BUILD_COMMON_H_
 
 #include <tvm/ir/module.h>
-#include <tvm/runtime/container.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/target/codegen.h>
 #include <tvm/tir/expr.h>

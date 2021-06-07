@@ -97,10 +97,10 @@ def validate_targets(parse_targets):
         )
 
     tvm_targets = [t for t in targets if t in tvm_target_kinds]
-    if len(tvm_targets) > 1:
+    if len(tvm_targets) > 2:
         verbose_tvm_targets = ", ".join(tvm_targets)
         raise TVMCException(
-            "Only one of the following targets can be used at a time. "
+            "Only two of the following targets can be used at a time. "
             f"Found: {verbose_tvm_targets}."
         )
 
@@ -199,6 +199,7 @@ def parse_target(target):
     """
     codegens = []
 
+    tvm_target_kinds = tvm.target.Target.list_kinds()
     parsed_tokens = tokenize_target(target)
 
     split_codegens = []
@@ -222,6 +223,7 @@ def parse_target(target):
     for codegen_def in split_codegens:
         # the first is expected to be the name
         name = codegen_def[0]
+        is_tvm_target = name in tvm_target_kinds
         raw_target = " ".join(codegen_def)
         all_opts = codegen_def[1:] if len(codegen_def) > 1 else []
         opts = {}
@@ -244,7 +246,9 @@ def parse_target(target):
 
             opts[opt_name] = opt_value
 
-        codegens.append({"name": name, "opts": opts, "raw": raw_target})
+        codegens.append(
+            {"name": name, "opts": opts, "raw": raw_target, "is_tvm_target": is_tvm_target}
+        )
 
     return codegens
 
@@ -295,10 +299,21 @@ def target_from_cli(target):
             raise TVMCException(f"Error parsing target string '{target}'.\nThe error was: {ex}")
 
         validate_targets(parsed_targets)
-        target = parsed_targets[-1]["raw"]
-        extra_targets = parsed_targets[:-1] if len(parsed_targets) > 1 else []
+        tvm_targets = [t for t in parsed_targets if t["is_tvm_target"]]
 
-    return tvm.target.Target(target), extra_targets
+        # Validated target strings have 1 or 2 tvm targets, otherwise
+        # `validate_targets` above will fail.
+        if len(tvm_targets) == 1:
+            target = tvm_targets[0]["raw"]
+            target_host = None
+        else:
+            assert len(tvm_targets) == 2
+            target = tvm_targets[0]["raw"]
+            target_host = tvm_targets[1]["raw"]
+
+        extra_targets = [t for t in parsed_targets if not t["is_tvm_target"]]
+
+    return tvm.target.Target(target, host=target_host), extra_targets
 
 
 def tracker_host_port_from_cli(rpc_tracker_str):

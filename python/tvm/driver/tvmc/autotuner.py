@@ -46,7 +46,7 @@ logger = logging.getLogger("TVMC")
 
 @register_parser
 def add_tune_parser(subparsers):
-    """ Include parser for 'tune' subcommand """
+    """Include parser for 'tune' subcommand"""
 
     parser = subparsers.add_parser("tune", help="auto-tune a model")
     parser.set_defaults(func=drive_tune)
@@ -116,7 +116,7 @@ def add_tune_parser(subparsers):
         help="the host compilation target, defaults to 'llvm'",
         default="llvm",
     )
-    parser.add_argument("--timeout", default=10, help="compilation timeout, in seconds")
+    parser.add_argument("--timeout", type=int, default=10, help="compilation timeout, in seconds")
     parser.add_argument(
         "--trials",
         type=int,
@@ -142,7 +142,7 @@ def add_tune_parser(subparsers):
 
     auto_scheduler_group = parser.add_argument_group(
         "Autoscheduler options",
-        "Autoscheduler options, used when --enabled-auto-scheduler is provided",
+        "Autoscheduler options, used when --enable-autoscheduler is provided",
     )
 
     auto_scheduler_group.add_argument(

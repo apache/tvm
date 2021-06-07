@@ -101,7 +101,7 @@ def tree_to_dict(t):
 
 def vmobj_to_list(o, dtype="float32"):
     if isinstance(o, tvm.nd.NDArray):
-        return [o.asnumpy().tolist()]
+        return [o.numpy().tolist()]
     elif isinstance(o, tvm.runtime.container.ADT):
         if len(o) == 0:
             tensor_nil = p.get_var("tensor_nil", dtype=dtype)
@@ -124,7 +124,7 @@ def vmobj_to_list(o, dtype="float32"):
         elif "tensor_nil" in o.constructor.name_hint:
             return [0]
         elif "tensor" in o.constructor.name_hint:
-            return [o.fields[0].asnumpy()]
+            return [o.fields[0].numpy()]
         else:
             raise RuntimeError("Unknown object type: %s" % o.constructor.name_hint)
     else:
@@ -133,7 +133,7 @@ def vmobj_to_list(o, dtype="float32"):
 
 # turns a scalar-valued relay tensor value into a python number
 def get_scalar(tv):
-    return tv.asnumpy().item()
+    return tv.numpy().item()
 
 
 # @tvm.testing.uses_gpu

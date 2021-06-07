@@ -45,7 +45,7 @@ def test_mkldnn_dequantize():
             rt_mod.set_input(input_data=in_data)
             rt_mod.set_input(**params)
             rt_mod.run()
-            res = rt_mod.get_output(0).asnumpy()
+            res = rt_mod.get_output(0).numpy()
             assert np.allclose(res, verify_output_data)
             assert res.dtype == np.float32
 
@@ -124,7 +124,7 @@ def test_mkldnn_quantize():
             rt_mod.set_input(input_data=in_data)
             rt_mod.set_input(**params)
             rt_mod.run()
-            res = rt_mod.get_output(0).asnumpy()
+            res = rt_mod.get_output(0).numpy()
             assert np.allclose(res, verify_output_data)
             assert res.dtype == verify_output_data.dtype
 

@@ -764,7 +764,11 @@ Doc TVMScriptPrinter::VisitType_(const PrimTypeNode* node) {
 
 Doc TVMScriptPrinter::VisitType_(const PointerTypeNode* node) {
   Doc doc;
-  doc << "ty.Ptr[" << Print(node->element_type) << "]";
+  doc << "ty.Ptr[";
+  if (!node->storage_scope.empty()) {
+    doc << node->storage_scope << " ";
+  }
+  doc << Print(node->element_type) << "]";
   return doc;
 }
 
@@ -1112,12 +1116,12 @@ Doc TVMScriptPrinter::PrintLoopStack() {
   return res;
 }
 
-TVM_REGISTER_GLOBAL("script.AsTVMScript")
-    .set_body_typed<std::string(const ObjectRef&, bool)>([](const ObjectRef& functions,
-                                                            bool show_meta) {
-      ICHECK(functions.as<PrimFuncNode>() != nullptr || functions.as<IRModuleNode>() != nullptr);
-      return "@tvm.script.tir\n" + TVMScriptPrinter(show_meta).Print(functions).str() + "\n";
-    });
+String AsTVMScript(const ObjectRef& mod, bool show_meta) {
+  ICHECK(mod->IsInstance<PrimFuncNode>() || mod->IsInstance<IRModuleNode>());
+  return "@tvm.script.tir\n" + TVMScriptPrinter(show_meta).Print(mod).str() + "\n";
+}
+
+TVM_REGISTER_GLOBAL("script.AsTVMScript").set_body_typed(AsTVMScript);
 
 }  // namespace tir
 }  // namespace tvm

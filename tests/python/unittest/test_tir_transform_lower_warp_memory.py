@@ -131,7 +131,7 @@ def test_lower_warp_memory_cuda_end_to_end():
             A_nd = tvm.nd.array(A_np, dev)
             B_nd = tvm.nd.array(np.zeros(B_np.shape, dtype=B_np.dtype), dev)
             func(A_nd, B_nd)
-            tvm.testing.assert_allclose(B_nd.asnumpy(), B_np, rtol=1e-3)
+            tvm.testing.assert_allclose(B_nd.numpy(), B_np, rtol=1e-3)
 
     check_cuda("float32")
     check_cuda("float16")
@@ -188,7 +188,7 @@ def test_lower_warp_memory_cuda_half_a_warp():
             A_nd = tvm.nd.array(A_np, dev)
             B_nd = tvm.nd.array(np.zeros(B_np.shape, dtype=B_np.dtype), dev)
             func(A_nd, B_nd)
-            tvm.testing.assert_allclose(B_nd.asnumpy(), B_np, rtol=1e-3)
+            tvm.testing.assert_allclose(B_nd.numpy(), B_np, rtol=1e-3)
 
     check_cuda("float32")
     check_cuda("float16")
@@ -236,7 +236,7 @@ def test_lower_warp_memory_cuda_2_buffers():
             B_nd = tvm.nd.array(AB_np, dev)
             C_nd = tvm.nd.array(np.zeros(C_np.shape, dtype=C_np.dtype), dev)
             func(A_nd, B_nd, C_nd)
-            tvm.testing.assert_allclose(C_nd.asnumpy(), C_np, rtol=1e-3)
+            tvm.testing.assert_allclose(C_nd.numpy(), C_np, rtol=1e-3)
 
     check_cuda("float32")
     check_cuda("float16")
@@ -268,7 +268,7 @@ def test_lower_warp_memory_roundup():
             B_nd = tvm.nd.array(B_np, dev)
             func(A_nd, B_nd)
             B_np = A_np + 1
-            tvm.testing.assert_allclose(B_nd.asnumpy(), B_np)
+            tvm.testing.assert_allclose(B_nd.numpy(), B_np)
 
     for device in ["cuda", "rocm"]:
         if not tvm.testing.device_enabled(device):

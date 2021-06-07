@@ -113,7 +113,11 @@ class BufferFlattener : public StmtExprMutator {
     if (it == unit_loop_vars_.end()) {
       return std::move(var);
     } else {
-      return it->second;
+      PrimExpr expr = it->second;
+      if (expr.dtype() != var.dtype()) {
+        expr = Cast(var.dtype(), std::move(expr));
+      }
+      return expr;
     }
   }
 

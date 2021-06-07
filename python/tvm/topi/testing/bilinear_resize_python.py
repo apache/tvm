@@ -22,7 +22,7 @@ from tvm.topi.utils import nchw_pack_layout
 
 
 def bilinear_resize_python(image, out_size, layout, coordinate_transformation_mode="align_corners"):
-    """ Bilinear scaling using python"""
+    """Bilinear scaling using python"""
     (new_h, new_w) = out_size
     (ib, ic) = (1, 1)
 

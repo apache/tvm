@@ -69,7 +69,7 @@ def test_broadcast_to(in_shape, out_shape):
     out_nd = tvm.nd.array(np.empty(out_shape).astype(B.dtype), tvm.cuda())
     for _ in range(2):
         fcuda(data_nd, out_nd)
-    tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy)
+    tvm.testing.assert_allclose(out_nd.numpy(), out_npy)
 
 
 def test_broadcast_binary_op(lhs_shape, rhs_shape, typ="add"):
@@ -121,7 +121,7 @@ def test_broadcast_binary_op(lhs_shape, rhs_shape, typ="add"):
     out_nd = tvm.nd.array(np.empty(out_npy.shape).astype(B.dtype), tvm.cuda())
     for _ in range(2):
         fcuda(lhs_nd, rhs_nd, out_nd)
-    tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy)
+    tvm.testing.assert_allclose(out_nd.numpy(), out_npy)
 
 
 if __name__ == "__main__":

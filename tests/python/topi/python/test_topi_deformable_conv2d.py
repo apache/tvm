@@ -110,7 +110,7 @@ def verify_deformable_conv2d_nchw(
 
             func = tvm.build(s, [A, Offset, W, C], device)
             func(a, offset, w, c)
-            tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
+            tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-5)
 
     for device in ["llvm", "cuda"]:
         check_device(device)
@@ -190,7 +190,7 @@ def verify_deformable_conv2d_nhwc(
 
             func = tvm.build(s, [A, Offset, W, C], device)
             func(a, offset, w, c)
-            tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
+            tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-5)
 
     for device in ["llvm"]:
         check_device(device)

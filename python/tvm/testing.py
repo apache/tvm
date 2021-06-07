@@ -294,7 +294,7 @@ def check_bool_expr_is_true(bool_expr, vranges, cond=None):
         sch = tvm.te.create_schedule(A.op)
         mod = tvm.build(sch, [A])
         mod(*args)
-        return args[0].asnumpy()
+        return args[0].numpy()
 
     res = _run_expr(bool_expr, vranges)
     if not np.all(res):
@@ -490,7 +490,14 @@ def requires_gpu(*args):
         Function to mark
     """
     _requires_gpu = [
-        pytest.mark.skipif(not tvm.cuda().exist, reason="No GPU present"),
+        pytest.mark.skipif(
+            not tvm.cuda().exist
+            and not tvm.rocm().exist
+            and not tvm.opencl().exist
+            and not tvm.metal().exist
+            and not tvm.vulkan().exist,
+            reason="No GPU present",
+        ),
         *uses_gpu(),
     ]
     return _compose(args, _requires_gpu)
