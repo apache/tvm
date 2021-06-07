@@ -143,7 +143,7 @@ def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr):
         listen_sock: Socket
             The socket used by listening process.
 
-        tracker_conn : connnection to tracker
+        tracker_conn : connection to tracker
             Tracker connection
 
         ping_period : float, optional
