@@ -45,6 +45,6 @@ if [ "$commit_hash" != "0" ]; then
     git checkout ${commit_hash}
 fi
 
-cd ${DOWNLOAD_DIR}/zephyr
+cd ${DOWNLOAD_DIR}
 west update
 west zephyr-export
