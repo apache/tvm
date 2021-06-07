@@ -24,29 +24,27 @@ Server is TCP based with the following protocol:
 - The key is in format
    - {server|client}:device-type[:random-key] [-timeout=timeout]
 """
+import ctypes
+import errno
+import logging
+import multiprocessing
 # pylint: disable=invalid-name
 import os
-import ctypes
-import socket
 import select
+import socket
 import struct
-import logging
 import threading
-import multiprocessing
 import time
-import errno
-import tvm._ffi
 
+import tvm._ffi
 from tvm._ffi.base import py_str
 from tvm._ffi.libinfo import find_lib_path
-from tvm.runtime.module import load_module as _load_module
 from tvm.contrib import utils
 from tvm.contrib.popen_pool import PopenWorker
+from tvm.runtime.module import load_module as _load_module
 from . import _ffi_api
 from . import base
-
 # pylint: disable=unused-import
-from . import testing
 from .base import TrackerCode
 
 logger = logging.getLogger("RPCServer")
@@ -216,7 +214,8 @@ def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr):
                 if magic != base.RPC_TRACKER_MAGIC:
                     raise RuntimeError("%s is not RPC Tracker" % str(tracker_addr))
                 # report status of current queue
-                cinfo = {"key": "server:" + rpc_key}
+                cinfo = {"key": "server:" + rpc_key,
+                         "addr": (custom_addr, port)}
                 base.sendjson(tracker_conn, [TrackerCode.UPDATE_INFO, cinfo])
                 assert base.recvjson(tracker_conn) == TrackerCode.SUCCESS
 
@@ -304,16 +303,16 @@ class PopenRPCServerState(object):
     current = None
 
     def __init__(
-        self,
-        host,
-        port=9091,
-        port_end=9199,
-        is_proxy=False,
-        tracker_addr=None,
-        key="",
-        load_library=None,
-        custom_addr=None,
-        silent=False,
+            self,
+            host,
+            port=9091,
+            port_end=9199,
+            is_proxy=False,
+            tracker_addr=None,
+            key="",
+            load_library=None,
+            custom_addr=None,
+            silent=False,
     ):
 
         # start update
@@ -355,16 +354,16 @@ class PopenRPCServerState(object):
 
 
 def _popen_start_rpc_server(
-    host,
-    port=9091,
-    port_end=9199,
-    is_proxy=False,
-    tracker_addr=None,
-    key="",
-    load_library=None,
-    custom_addr=None,
-    silent=False,
-    no_fork=False,
+        host,
+        port=9091,
+        port_end=9199,
+        is_proxy=False,
+        tracker_addr=None,
+        key="",
+        load_library=None,
+        custom_addr=None,
+        silent=False,
+        no_fork=False,
 ):
     if no_fork:
         multiprocessing.set_start_method("spawn")
@@ -423,17 +422,17 @@ class Server(object):
     """
 
     def __init__(
-        self,
-        host="0.0.0.0",
-        port=9091,
-        port_end=9199,
-        is_proxy=False,
-        tracker_addr=None,
-        key="",
-        load_library=None,
-        custom_addr=None,
-        silent=False,
-        no_fork=False,
+            self,
+            host="0.0.0.0",
+            port=9091,
+            port_end=9199,
+            is_proxy=False,
+            tracker_addr=None,
+            key="",
+            load_library=None,
+            custom_addr=None,
+            silent=False,
+            no_fork=False,
     ):
         try:
             if _ffi_api.ServerLoop is None:
