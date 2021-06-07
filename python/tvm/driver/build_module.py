@@ -59,8 +59,8 @@ def get_binds(args, compact=False, binds=None):
     arg_list: list
         The list of symbolic buffers of arguments.
     """
-    out_arr = ffi.get_binds(args, compact, binds)
-    return out_arr[0], out_arr[1]
+    binds, arg_list = ffi.get_binds(args, compact, binds)
+    return binds, arg_list
 
 
 def schedule_to_module(

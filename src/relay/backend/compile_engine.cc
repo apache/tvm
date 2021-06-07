@@ -763,16 +763,13 @@ class CompileEngineImpl : public CompileEngineNode {
       all_args.push_back(arg);
     }
     // lower the function
-    if (const auto* f = runtime::Registry::Get("relay.backend.lower")) {
-      cache_node->funcs = (*f)(cfunc->schedule, all_args, cache_node->func_name, key->source_func);
-    } else {
-      using tvm::transform::PassContext;
-      With<PassContext> fresh_pass_ctx_scope(PassContext::Create());
+    using tvm::transform::PassContext;
+    With<PassContext> fresh_pass_ctx_scope(PassContext::Create());
 
-      std::unordered_map<te::Tensor, tir::Buffer> binds;
-      cache_node->funcs =
-          tvm::LowerSchedule(cfunc->schedule, all_args, cache_node->func_name, binds);
-    }
+    std::unordered_map<te::Tensor, tir::Buffer> binds;
+    cache_node->funcs =
+        tvm::LowerSchedule(cfunc->schedule, all_args, cache_node->func_name, binds);
+  
     value->cached_func = CachedFunc(cache_node);
     return value;
   }
