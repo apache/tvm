@@ -80,7 +80,7 @@ TVM_DLL IRModule LowerSchedule(te::Schedule sch, const Array<te::Tensor>& args,
 /*!
  * \brief Build an IRModule given a TE schedule, args and binds
  * \param sch The TE schedule to lower.
- * \param args The arguments to the function (Array of Union of Tensor, Buffer and Vars)
+ * \param args The arguments to the function (Array of Tensor, Buffer and Vars)
  * \param name The name of the lowered function.
  * \param binds Buffer assignments.
  * \param simple_mode Disables the loop partition pass. Defaults to false.
