@@ -78,10 +78,7 @@ if __name__ == "__main__":
                         and ROCM compilers.",
     )
     parser.add_argument(
-        "--custom-addr",
-        type=str,
-        default=None,
-        help="Custom IP Address to Report to RPC Tracker"
+        "--custom-addr", type=str, default=None, help="Custom IP Address to Report to RPC Tracker"
     )
 
     parser.set_defaults(fork=True)
