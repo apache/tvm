@@ -84,7 +84,7 @@ def convert_image_resize(attrs, inputs, tinfos, desired_layouts):
 
     new_attrs = dict(attrs)
     assert len(desired_layouts) == 1, "Only one desired layout is expected"
-    (desired_layout,) = map(str, desired_layouts)
+    desired_layout = str(desired_layouts[0])
     assert desired_layout != "default", "Layout cannot be default"
     new_attrs["layout"] = desired_layout
     return relay.image.resize(*inputs, **new_attrs)
