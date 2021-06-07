@@ -440,7 +440,8 @@ def register_fake_quantization_to_integer(op_name, func=None, level=10):
     """Register quantize function for an op
 
     Given an op and Affine Types on it's inputs, this function should return the op
-    in affine space/integer operators and the new type of the output
+    in affine space/integer operators and the new type of the output, where affine
+    denotes the transformation x_real = (x_affine - zero_point) * scale
 
     Parameters
     ----------

@@ -51,7 +51,8 @@
  *
  * The second pass is an ExprVisitor that recursively searches for subgraphs leading to the
  * quantize for subtraphs bounded by dequantize operations. This pass extracts the affine
- * types of the inputs for later processing
+ * types of the inputs for later processing, where affine denotes the transformation
+ * x_real = (x_affine - zero_point) * scale
  *
  * The third pass is an ExprMutator that recursively rewrites the subgraphs using packed funcs
  * registered with the FTVMFakeQuantizationToInteger attribute. These packed funcs rewrite
