@@ -77,7 +77,7 @@ def schedule_to_module(
     args : list of Buffer or Tensor or Var
         The argument lists to the function.
     name : str
-        The name of result function.
+        The name of result function, default name is "main"
     binds : dict of :any:`Tensor` to :any:`Buffer`, optional
         The binds information
     Returns

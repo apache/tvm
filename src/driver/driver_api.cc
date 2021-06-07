@@ -128,8 +128,9 @@ void GetBinds(const Array<ObjectRef>& args, bool compact,
     } else if (x.as<te::BufferNode>() || x.as<tir::VarNode>()) {
       out_arg_list->push_back(x);
     } else {
-      ICHECK(false)
-          << "Expected type of the elements of args to be te::Tensor, te::Buffer or tir::Var";
+      LOG(FATAL)
+          << "Expected type of the elements of args to be te::Tensor, te::Buffer or tir::Var, "
+          << "but got a " << typeid(x).name();
     }
   }
 }
