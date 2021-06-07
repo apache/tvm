@@ -67,7 +67,7 @@ logger = logging.getLogger("RPCTracker")
 
 
 class Scheduler(object):
-    """Abstratc interface of scheduler."""
+    """Abstract interface of scheduler."""
 
     def put(self, value):
         """Push a resource into the scheduler.
