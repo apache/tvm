@@ -162,7 +162,7 @@ ${DOCKER_BINARY} run --rm --pid=host\
     ${WORKSPACE_VOLUMES}\
     -v ${WORKSPACE}:/workspace \
     -v ${SCRIPT_DIR}:/docker \
-    ${CI_DOCKER_MOUNT_CMD[@]} \
+    "${CI_DOCKER_MOUNT_CMD[@]}" \
     "${EXTRA_MOUNTS[@]}" \
     -w /workspace \
     -e "CI_BUILD_HOME=/workspace" \
