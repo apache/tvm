@@ -35,7 +35,6 @@
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
-#include <tvm/runtime/container.h>
 
 #include <unordered_map>
 #include <unordered_set>

@@ -1341,7 +1341,30 @@ class Slice(OnnxOpConverter):
         axes = inputs[3]
         steps = inputs[4]
 
-        data_rank = len(infer_shape(inputs[0]))
+        ishape = infer_shape(inputs[0])
+        data_rank = len(ishape)
+
+        def has_static_axes():
+            return (
+                isinstance(axes, _expr.Constant)
+                and isinstance(starts, _expr.Constant)
+                and isinstance(ends, _expr.Constant)
+                and (steps is None or isinstance(steps, _expr.Constant))
+            )
+
+        if axes is not None and has_static_axes():
+            axes_np = axes.data.asnumpy().astype("int64")
+            begin_np = starts.data.asnumpy().astype("int64")
+            end_np = ends.data.asnumpy().astype("int64")
+            if steps is None:
+                strides_np = np.ones_like(begin_np).astype("int64")
+            else:
+                strides_np = steps.data.asnumpy().astype("int64")
+
+            if all([isinstance(ishape[i], int) for i in axes_np]):
+                return _op.strided_slice(
+                    inputs[0], list(begin_np), list(end_np), list(strides_np), axes=list(axes_np)
+                )
 
         # Update the starts and ends according to axes if required.
         if axes is not None:
@@ -1450,6 +1473,27 @@ class ScatterND(OnnxOpConverter):
         return _op.scatter_nd(
             inputs[0], _op.transpose(inputs[1], axes[-1:] + axes[:-1]), inputs[2], "update"
         )
+
+
+class EyeLike(OnnxOpConverter):
+    """Operator converter for EyeLike."""
+
+    @classmethod
+    def _impl_v9(cls, inputs, attr, params):
+        in_checked_type = infer_type(inputs[0]).checked_type
+        in_dtype = in_checked_type.dtype
+        in_shape = list(get_const_tuple(in_checked_type.shape))
+        dtype = attr.get("dtype", None)
+        if dtype is None:
+            dtype = in_dtype
+        else:
+            dtype = get_type(dtype)
+        zeros = _op.zeros(in_shape, dtype)
+        dim = in_shape[0]
+        indices = _op.arange(_op.const(0), _op.const(dim), dtype="int32")
+        ones = _op.full(_op.const(1), (dim,), dtype=dtype)
+        k = _op.const(attr.get("k", 0), dtype="int32")
+        return _op.scatter_nd(zeros, _op.stack([indices, indices + k], axis=0), ones, "update")
 
 
 class Greater(OnnxOpConverter):
@@ -3135,6 +3179,7 @@ def _get_convert_map(opset):
         "Scatter": Scatter.get_converter(opset),
         "ScatterElements": Scatter.get_converter(opset),
         "ScatterND": ScatterND.get_converter(opset),
+        "EyeLike": EyeLike.get_converter(opset),
         "Squeeze": AttrCvt("squeeze", {"axes": "axis"}),
         "Unsqueeze": Unsqueeze.get_converter(opset),
         "Pad": Pad.get_converter(opset),

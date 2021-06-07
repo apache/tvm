@@ -17,6 +17,7 @@
 import tvm
 from tvm import relay
 from tvm.relay.testing.temp_op_attr import TempOpAttr
+from tvm.relay.op import op as _op
 
 
 def test_op_attr():
@@ -103,11 +104,20 @@ def test_op_register():
     """Tests register_op functionality."""
     op_name = "custom_op"
 
-    tvm.ir.register_op(op_name)
-    tvm.ir.register_op_attr(op_name, "num_inputs", 2, 256)
+    _op.register(op_name, r"code(Add two tensor with inner broadcasting.)code")
+    _op.get(op_name).set_num_inputs(2)
+    _op.get(op_name).add_argument("data_0", "Tensor", "The input data tensor.")
+    _op.get(op_name).add_argument("data_1", "Tensor", "The input data tensor.")
+    # call default relation functions
+    _op.get(op_name).add_type_rel("Identity")
+    _op.get(op_name).set_support_level(1)
+    _op.register_pattern(op_name, _op.OpPattern.ELEMWISE)
+    _op.register_stateful(op_name, False)
 
-    assert tvm.ir.Op.get(op_name).name == op_name
-    assert tvm.ir.Op.get(op_name).num_inputs == 2
+    assert _op.get(op_name).name == op_name
+    assert _op.get(op_name).num_inputs == 2
+    assert _op.get(op_name).get_attr("TOpPattern") == _op.OpPattern.ELEMWISE
+    assert _op.get(op_name).get_attr("TOpIsStateful") == False
 
 
 if __name__ == "__main__":

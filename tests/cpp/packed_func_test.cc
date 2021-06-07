@@ -19,7 +19,6 @@
 
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
-#include <tvm/runtime/container.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/expr.h>

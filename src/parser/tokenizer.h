@@ -25,7 +25,6 @@
 #define TVM_PARSER_TOKENIZER_H_
 
 #include <tvm/node/serialization.h>
-#include <tvm/runtime/container.h>
 #include <tvm/runtime/object.h>
 
 #include <fstream>

@@ -24,6 +24,7 @@
 
 #include "vm.h"
 
+#include <tvm/runtime/container/adt.h>
 #include <tvm/runtime/registry.h>
 
 #include <algorithm>
@@ -105,6 +106,10 @@ void VirtualMachineDebug::InvokePacked(Index packed_index, const PackedFunc& fun
     }
 
     std::unordered_map<std::string, ObjectRef> metrics;
+
+    ICHECK(exec_->op_attrs.find(packed_index) != exec_->op_attrs.end())
+        << packed_index_map_[packed_index] << " not found in op attrs";
+
     auto& op_attrs = exec_->op_attrs.at(packed_index);
     for (auto p : op_attrs) {
       if (std::string(p.first).find("layout") != std::string::npos) {

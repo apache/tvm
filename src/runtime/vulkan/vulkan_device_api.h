@@ -22,10 +22,12 @@
 
 #include <tvm/runtime/device_api.h>
 
+#include <string>
 #include <vector>
 
 #include "vulkan/vulkan_core.h"
-#include "vulkan_context.h"
+#include "vulkan_device.h"
+#include "vulkan_instance.h"
 #include "vulkan_thread_entry.h"
 
 namespace tvm {
@@ -67,35 +69,26 @@ class VulkanDeviceAPI final : public DeviceAPI {
   // End of required methods for the DeviceAPI interface
 
  public:
-  /*! \brief Return the context associated with a specific device.
+  /*! \brief Return the VulkanDevice associated with a specific device_id
    *
    * These are constructed during VulkanDeviceAPI initialization, so
    * this function returns immediately.
    */
-  const VulkanContext& context(size_t device_id) const;
+  const VulkanDevice& device(size_t device_id) const;
 
-  /*! \brief Get a Target that best describes a particular device.
+  /*! \brief Returns a property to be stored in a target.
    *
    * Returns the results of feature/property queries done during the
    * device initialization.
    */
-  Target GenerateTarget(size_t device_id) const;
+  void GetTargetProperty(Device dev, const std::string& property, TVMRetValue* rv);
 
  private:
   std::vector<uint32_t> GetComputeQueueFamilies(VkPhysicalDevice phy_dev);
 
-  Target GetDeviceDescription(VkInstance instance, VkPhysicalDevice dev,
-                              const std::vector<const char*>& instance_extensions,
-                              const std::vector<const char*>& device_extensions);
-
-  std::vector<const char*> FindEnabledExtensions(
-      const std::vector<VkExtensionProperties>& ext_prop,
-      const std::vector<const char*>& required_extensions,
-      const std::vector<const char*>& optional_extensions);
-
-  VkInstance instance_{nullptr};
+  VulkanInstance instance_;
   // The physical devices, have 1 to 1 mapping to devices
-  std::vector<VulkanContext> context_;
+  std::vector<VulkanDevice> devices_;
 };
 
 }  // namespace vulkan

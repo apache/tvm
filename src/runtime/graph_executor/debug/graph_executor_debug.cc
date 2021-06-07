@@ -20,7 +20,7 @@
 /*!
  * \file graph_executor_debug.cc
  */
-#include <tvm/runtime/container.h>
+#include <tvm/runtime/container/string.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/profiling.h>

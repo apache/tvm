@@ -137,10 +137,17 @@ class AOTExecutorCodegen : public ExprVisitor {
       // Pack the sid inside the TVMValue
       auto sid_array = te::Var(MakeString("sid_", sid, "_value"), DataType::Handle());
       auto sid_value = sids_table_[sid];
-      tvm::PrimExpr set_tensor =
-          tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_struct_set(),
-                         {sid_array, 0, tir::builtin::kArrData, sid_value});
-      stmts_.push_back(tir::LetStmt(sid_array, StackAlloca("array", 1), tir::Evaluate(set_tensor)));
+
+      if (!use_unpacked_api_) {
+        tvm::PrimExpr set_tensor =
+            tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_struct_set(),
+                           {sid_array, 0, tir::builtin::kArrData, sid_value});
+        stmts_.push_back(
+            tir::LetStmt(sid_array, StackAlloca("array", 1), tir::Evaluate(set_tensor)));
+      } else {
+        stmts_.push_back(tir::LetStmt(sid_array, sid_value, tir::Evaluate(0)));
+      }
+
       sid_vars.push_back(sid_array);
     }
     return sid_vars;
@@ -161,16 +168,16 @@ class AOTExecutorCodegen : public ExprVisitor {
     auto param_handle = tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::lookup_param(),
                                        {tir::StringImm(params_by_expr_[expr])});
 
-    tvm::PrimExpr set_param_array =
-        tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_struct_set(),
-                       {param_array, 0, tir::builtin::kArrData, param_handle});
-    lookup_call.push_back(tir::Evaluate(set_param_array));
+    if (!use_unpacked_api_) {
+      tvm::PrimExpr set_param_array =
+          tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_struct_set(),
+                         {param_array, 0, tir::builtin::kArrData, param_handle});
+      stmts_.push_back(
+          tir::LetStmt(param_array, StackAlloca("arg_value", 1), tir::Evaluate(set_param_array)));
+    } else {
+      stmts_.push_back(tir::LetStmt(param_array, param_handle, tir::Evaluate(0)));
+    }
 
-    tir::Stmt lookup_body = tir::SeqStmt(lookup_call);
-
-    // Allocate the DLTensors on the stack
-    lookup_body = tir::LetStmt(param_array, StackAlloca("arg_value", 1), lookup_body);
-    stmts_.push_back(lookup_body);
     return param_array;
   }
 
@@ -206,15 +213,20 @@ class AOTExecutorCodegen : public ExprVisitor {
     }
 
     auto ret_expr = Downcast<Expr>(call);
-
     // Pack the return(s) value. A call node can produce multiple outputs
     for (const auto& var : PackSid(ret_expr)) {
       args.push_back(var);
     }
 
-    // Use tvm_call_packed to execute the function
-    create_func_call_stmts.push_back(tir::Evaluate(
-        tvm::tir::Call(DataType::Int(32), tvm::tir::builtin::tvm_call_cpacked(), args)));
+    // Use tvm_call_packed to execute the function unless we're calling directly
+    auto calling_pattern = tvm::tir::builtin::tvm_call_cpacked();
+    if (use_unpacked_api_) {
+      calling_pattern = tvm::tir::builtin::call_extern();
+    }
+
+    create_func_call_stmts.push_back(
+        tir::Evaluate(tvm::tir::Call(DataType::Int(32), calling_pattern, args)));
+
     tir::Stmt body = tir::SeqStmt(create_func_call_stmts);
     stmts_.push_back(body);
   }
@@ -226,16 +238,20 @@ class AOTExecutorCodegen : public ExprVisitor {
    * copy-on-write fashion.
    */
   void CopyToOutput(te::Var out, te::Var in, size_t size) {
-    auto retval_get = tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_struct_get(),
-                                     {in, 0, tir::builtin::kArrData});
-
     // Define intermediate DLTensor to load/store the data
     auto tmp0 = te::Var("tmp0", DataType::Handle());
     auto tmp1 = te::Var("tmp1", DataType::Handle());
     te::Var loop_idx("i", DataType::Int(32));
     auto retval_i = tir::Load(DataType::UInt(8), tmp0, loop_idx, tir::const_true());
-    auto tostore = tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_struct_get(),
-                                  {out, 0, tir::builtin::kArrData});
+
+    PrimExpr retval_get = tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_struct_get(),
+                                         {in, 0, tir::builtin::kArrData});
+    PrimExpr tostore = tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_struct_get(),
+                                      {out, 0, tir::builtin::kArrData});
+    if (use_unpacked_api_) {
+      retval_get = in;
+      tostore = out;
+    }
 
     // Copy the variable from the input to the output
     tir::Stmt copy = tir::For(
@@ -535,6 +551,15 @@ class AOTExecutorCodegen : public ExprVisitor {
   TargetsMap targets_;
   /*! \brief target host */
   Target target_host_;
+  /*!
+   * \brief unpacked api toggle
+   * When set to true the code generated will use unpacked calls to functions:
+   * func(void* arg0, void* arg1)
+   * Rather than packed calls:
+   * func(void* args)
+   * Defaults to using the packed calling convention
+   */
+  Bool use_unpacked_api_;
 
   /*!
    * \brief parameters (i.e. ConstantNodes found in the graph).
@@ -564,21 +589,20 @@ class AOTExecutorCodegen : public ExprVisitor {
 
  public:
   AOTExecutorCodegen(runtime::Module* mod, const TargetsMap& targets, Target target_host)
-      : mod_(mod), return_sid_() {
-    compile_engine_ = CompileEngine::Global();
-    targets_ = targets;
-    target_host_ = target_host;
-  }
+      : mod_(mod),
+        targets_(targets),
+        target_host_(target_host),
+        use_unpacked_api_(target_host->GetAttr<Bool>("unpacked-api").value_or(Bool(false))),
+        compile_engine_(CompileEngine::Global()) {}
 
   LoweredOutput Codegen(relay::Function func) {
     // Get the module, storage map and token sizes
     auto pf = GetPackedFunc("relay.backend.GraphPlanMemory");
     storage_device_map_ = (*pf)(func);
 
-    int input_index = 0;
     for (auto input : func->params) {
       input_vars_.push_back(input);
-      main_signature_.push_back(tir::Var(MakeString("input_", input_index), DataType::Handle()));
+      main_signature_.push_back(tir::Var("input", DataType::Handle()));
     }
 
     // Define the storage allocator ids
@@ -592,7 +616,7 @@ class AOTExecutorCodegen : public ExprVisitor {
     // Find the return sid
     return_sid_ = AotReturnSidVisitor(storage_device_map_).FindReturnSid(func);
     for (unsigned int output_index = 0; output_index < return_sid_.size(); output_index++) {
-      main_signature_.push_back(tir::Var(MakeString("output_", output_index), DataType::Handle()));
+      main_signature_.push_back(tir::Var("output", DataType::Handle()));
     }
 
     VisitExpr(func->body);
