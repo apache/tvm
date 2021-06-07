@@ -43,7 +43,8 @@ echo "---------Sphinx Log----------"
 cat /tmp/$$.logclean.txt
 echo "-----------------------------"
 if grep --quiet -E "WARN" < /tmp/$$.logclean.txt; then
-    echo "WARNINIG found in the log, please fix them."
+    echo "WARNING found in the log, please fix them."
+    grep -E "WARN" < /tmp/$$.logclean.txt
     echo "You can reproduce locally by running ./tests/scripts/task_sphinx_precheck.sh"
     exit 1
 fi
