@@ -46,7 +46,7 @@ static const std::unordered_map<DLDeviceType, std::vector<std::string>> default_
     {kDLCPU,
      {"perf::CYCLES", "perf::STALLED-CYCLES-FRONTEND", "perf::STALLED-CYCLES-BACKEND",
       "perf::INSTRUCTIONS", "perf::CACHE-MISSES"}},
-    {kDLGPU, {"cuda:::event:elapsed_cycles_sm:device=0"}}};
+    {kDLCUDA, {"cuda:::event:elapsed_cycles_sm:device=0"}}};
 
 /*! \brief Object that holds the values of counters at the start of a function call. */
 struct PAPIEventSetNode : public Object {
@@ -71,10 +71,9 @@ int component_for_device(Device dev) {
   std::string component_name;
   switch (dev.device_type) {
     case kDLCPU:
-    case kDLCPUPinned:
       component_name = "perf_event";
       break;
-    case kDLGPU:
+    case kDLCUDA:
       component_name = "cuda";
       break;
     case kDLROCM:
@@ -131,11 +130,10 @@ struct PAPIMetricCollectorNode final : public MetricCollectorNode {
         std::string help_message = "";
         switch (device.device_type) {
           case kDLCPU:
-          case kDLCPUPinned:
             help_message =
                 "Try setting `sudo sh -c 'echo 1 >/proc/sys/kernel/perf_event_paranoid'`";
             break;
-          case kDLGPU:
+          case kDLCUDA:
             help_message =
                 "Try enabling gpu profiling with `modprobe nvidia "
                 "NVreg_RestrictProfilingToAdminUsers=0`. If that does not work, try adding  "
