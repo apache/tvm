@@ -269,11 +269,10 @@ class AOTExecutorCodegen : public ExprVisitor {
         continue;
       }
 
-
       auto sid_value = sids_table_[sid];
       if (!use_unpacked_api_) {
-    	// Pack the sid inside the TVMValue
-    	auto sid_array = te::Var(MakeString("sid_", sid, "_value"), DataType::Handle());
+        // Pack the sid inside the TVMValue
+        auto sid_array = te::Var(MakeString("sid_", sid, "_value"), DataType::Handle());
         tvm::PrimExpr set_tensor =
             tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_struct_set(),
                            {sid_array, 0, tir::builtin::kArrData, sid_value});
@@ -281,7 +280,7 @@ class AOTExecutorCodegen : public ExprVisitor {
             tir::LetStmt(sid_array, StackAlloca("array", 1), tir::Evaluate(set_tensor)));
         buffer_vars.push_back(sid_array);
       } else {
-    	  buffer_vars.push_back(sid_value)
+        buffer_vars.push_back(sid_value);
       }
     }
     return buffer_vars;

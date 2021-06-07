@@ -484,7 +484,8 @@ def test_quant_mobilenet_tfl():
     inputs = {"input": data}
     output_list = generate_ref_data(mod, inputs, params)
     input_list = [inputs["input"]]
-    compile_and_run(mod, input_list, output_list, True, params)
+    compile_and_run(mod, input_list, output_list, "--unpacked-api=0", True, params)
+
 
 @pytest.mark.parametrize("target_options", ["--unpacked-api=0", "--unpacked-api=1"])
 def test_transpose(target_options):

@@ -47,7 +47,7 @@ def convert_to_relay(
     input_data,
     input_node,
 ):
-    """ Convert a tflite model buffer in a Relay module """
+    """Convert a tflite model buffer in a Relay module"""
 
     def convert_to_list(x):
         if not isinstance(x, list):
