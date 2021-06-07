@@ -140,9 +140,9 @@ TVM_REGISTER_GLOBAL("driver.get_binds")
                        const Map<te::Tensor, tir::Buffer>& binds) {
       std::unordered_map<te::Tensor, tir::Buffer> c_binds;
       // Check to make sure binds is not null before doing the conversion;
-      if (binds.get() != NULL) {
+      if (binds.get() != nullptr) {
         for (auto kv : binds) {
-          c_binds.insert(std::pair<te::Tensor, tir::Buffer>(kv.first, kv.second));
+          c_binds.insert({kv.first, kv.second});
         }
       }
       Map<te::Tensor, tir::Buffer> out_binds;
@@ -256,7 +256,6 @@ Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition, bool for
   pass_list.push_back(tir::transform::Simplify());
   pass_list.push_back(tir::transform::RemoveNoOp());
   pass_list.push_back(tir::transform::RewriteUnsafeSelect());
-  // HoistIfThenElse
   pass_list.push_back(tir::transform::HoistIfThenElse());
 
   // Add user-defined phase-3 passes
@@ -308,9 +307,9 @@ TVM_REGISTER_GLOBAL("driver.schedule_to_module")
                        const Map<te::Tensor, tir::Buffer>& binds) {
       std::unordered_map<te::Tensor, tir::Buffer> c_binds;
       // Check to make sure binds is not null before doing the conversion;
-      if (binds.get() != NULL) {
+      if (binds.get() != nullptr) {
         for (auto kv : binds) {
-          c_binds.insert(std::pair<te::Tensor, tir::Buffer>(kv.first, kv.second));
+          c_binds.insert({kv.first, kv.second});
         }
       }
       IRModule mod = ScheduleToModule(sch, args, name, c_binds);
@@ -369,9 +368,9 @@ TVM_REGISTER_GLOBAL("driver.lower_schedule")
                        const Map<te::Tensor, tir::Buffer>& binds, bool simple_mode) {
       std::unordered_map<te::Tensor, tir::Buffer> c_binds;
       // Check to make sure binds is not null before doing the conversion;
-      if (binds.get() != NULL) {
+      if (binds.get() != nullptr) {
         for (auto kv : binds) {
-          c_binds.insert(std::pair<te::Tensor, tir::Buffer>(kv.first, kv.second));
+          c_binds.insert({kv.first, kv.second});
         }
       }
       return LowerSchedule(sch, args, name, c_binds, simple_mode);
