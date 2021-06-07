@@ -38,6 +38,7 @@ def pytest_generate_tests(metafunc):
 
 def pytest_collection_modifyitems(config, items):
     tvm.testing._count_num_fixture_uses(items)
+    tvm.testing._remove_global_fixture_definitions(items)
 
 
 def pytest_sessionfinish(session, exitstatus):

@@ -1171,6 +1171,23 @@ def _count_num_fixture_uses(items):
                 fixturedef.func.num_tests_use_this += 1
 
 
+def _remove_global_fixture_definitions(items):
+    # Helper function, removes fixture definitions from the global
+    # variables of the modules they were defined in.  This is intended
+    # to improve readability of error messages by giving a NameError
+    # if a test function accesses a pytest fixture but doesn't include
+    # it as an argument.  Should be called from
+    # pytest_collection_modifyitems().
+
+    modules = set(item.module for item in items)
+
+    for module in modules:
+        for name in dir(module):
+            obj = getattr(module, name)
+            if hasattr(obj, "_pytestfixturefunction"):
+                delattr(module, name)
+
+
 def identity_after(x, sleep):
     """Testing function to return identity after sleep
 
