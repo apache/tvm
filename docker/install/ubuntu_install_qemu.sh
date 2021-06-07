@@ -34,7 +34,7 @@ QEMU_TAR_FILE=${QEMU_NAME}.tar.xz
 rm -rf ${QEMU_NAME} ${QEMU_SIG_FILE} ${QEMU_TAR_FILE}
 
 # Get number of cores for build
-if [[ "${TVM_CI_NUM_CORES}" ]]; then
+if [ -n "${TVM_CI_NUM_CORES}" ]; then
   num_cores=${TVM_CI_NUM_CORES}
 else
   num_cores=2
