@@ -19,10 +19,10 @@
 set -e
 
 # Get number of cores for build
-if [[ "${TVM_CI_NUM_CORES}" ]]; then
+if [ -n "${TVM_CI_NUM_CORES}" ]; then
   num_cores=${TVM_CI_NUM_CORES}
 else
-  num_cores=2
+  num_cores=4
 fi
 
 cd "$(dirname $0)"
