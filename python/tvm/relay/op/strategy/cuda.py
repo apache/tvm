@@ -334,17 +334,37 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
                 cudnn_impl = True
 
         if layout == "NCHW":
-            # TODO(@vinx13, @icemelon9): Use group_conv2d_NCHWc_int8 when dtype is int8/uint8.
             assert kernel_layout == "OIHW"
-            strategy.add_implementation(
-                wrap_compute_conv2d(topi.cuda.group_conv2d_nchw, has_groups=True),
-                wrap_topi_schedule(topi.cuda.schedule_group_conv2d_nchw),
-                name="group_conv2d_nchw.cuda",
-            )
+            _, channels, _, _ = get_const_tuple(data.shape)
+            out_channels, in_channels, _, _ = get_const_tuple(kernel.shape)
+            oc_chunk = out_channels // 4
+            ic_chunk = in_channels // 4
+
+            if (
+                data.dtype in ["int8", "uint8"]
+                and kernel.dtype in ["int8", "uint8"]
+                and channels % groups == 0
+                and out_channels % groups == 0
+                and channels % 4 == 0
+                and out_channels % 4 == 0
+                and groups <= oc_chunk
+                and groups <= ic_chunk
+            ):
+                strategy.add_implementation(
+                    wrap_compute_conv2d(topi.cuda.group_conv2d_nchw_int8, has_groups=True),
+                    wrap_topi_schedule(topi.cuda.schedule_group_conv2d_nchw_int8),
+                    name="group_conv2d_nchw_int8.cuda",
+                )
+            else:
+                strategy.add_implementation(
+                    wrap_compute_conv2d(topi.cuda.group_conv2d_nchw, has_groups=True),
+                    wrap_topi_schedule(topi.cuda.schedule_group_conv2d_nchw),
+                    name="group_conv2d_nchw.cuda",
+                )
         elif layout == "NCHW4c" and data.dtype in ["int8", "uint8"]:
             assert kernel_layout == "OIHW4o4i"
             strategy.add_implementation(
-                wrap_compute_conv2d(topi.cuda.group_conv2d_NCHWc_int8, True),
+                wrap_compute_conv2d(topi.cuda.group_conv2d_NCHWc_int8, has_groups=True),
                 wrap_topi_schedule(topi.cuda.schedule_group_conv2d_NCHWc_int8),
                 name="group_conv2d_NCHWc_int8.cuda",
             )

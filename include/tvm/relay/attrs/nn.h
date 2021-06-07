@@ -29,8 +29,6 @@
 
 #include <string>
 
-#include "tvm/runtime/container.h"
-
 namespace tvm {
 namespace relay {
 

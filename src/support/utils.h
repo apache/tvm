@@ -32,7 +32,7 @@
 #endif  // __hexagon__
 #endif  // _WIN32
 
-#include <tvm/runtime/container.h>
+#include <tvm/runtime/container/string.h>
 
 #include <algorithm>
 #include <array>

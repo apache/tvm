@@ -152,7 +152,7 @@ def test_average_pool():
 
 
 def test_move():
-    """No float number operation in simple move. So the estimator should raise an error """
+    """No float number operation in simple move. So the estimator should raise an error"""
     N = 1024
 
     A = te.placeholder((N,))

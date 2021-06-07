@@ -419,7 +419,7 @@ def InjectDMAIntrin():
             strides = list(x for x in strides)
 
         def raise_error():
-            """Internal function to raise error """
+            """Internal function to raise error"""
             raise RuntimeError(
                 (
                     "Scope[%s]: cannot detect 2d pattern with elem_block=%d:"

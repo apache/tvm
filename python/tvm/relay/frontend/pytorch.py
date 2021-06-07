@@ -754,9 +754,13 @@ class PyTorchOpConverter:
         return _op.nn.relu(data)
 
     def prelu(self, inputs, input_types):
+        # Reference: https://pytorch.org/docs/stable/generated/torch.nn.PReLU.html#torch.nn.PReLU
         data = inputs[0]
-        alpha = inputs[1]
-        return _op.nn.prelu(data, alpha)
+        dim = self.get_dims(data)
+        ndims = len(dim)
+        axis = 0 if ndims == 1 else 1
+        alpha = _op.broadcast_to(inputs[1], (dim[axis]))
+        return _op.nn.prelu(data, alpha, axis)
 
     def leaky_relu(self, inputs, input_types):
         data = inputs[0]
@@ -2294,16 +2298,18 @@ class PyTorchOpConverter:
             logging.warning("TVM always assumes sorted=True for torch.unique")
             is_sorted = True
         if return_counts:
-            [unique, indices, num_uniq, counts] = _op.unique(
+            [unique, indices, inverse_indices, num_uniq, counts] = _op.unique(
                 data, is_sorted=is_sorted, return_counts=True
             )
             unique_sliced = _op.strided_slice(unique, begin=[0], end=num_uniq, slice_mode="size")
             counts_sliced = _op.strided_slice(counts, begin=[0], end=num_uniq, slice_mode="size")
-            return (unique_sliced, indices, counts_sliced)
+            return (unique_sliced, inverse_indices, counts_sliced)
         else:
-            [unique, indices, num_uniq] = _op.unique(data, is_sorted=is_sorted, return_counts=False)
+            [unique, indices, inverse_indices, num_uniq] = _op.unique(
+                data, is_sorted=is_sorted, return_counts=False
+            )
             unique_sliced = _op.strided_slice(unique, begin=[0], end=num_uniq, slice_mode="size")
-            return (unique_sliced, indices)
+            return (unique_sliced, inverse_indices)
 
     # Operator mappings
     def create_convert_map(self):

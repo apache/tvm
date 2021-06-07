@@ -22,7 +22,6 @@
  * \brief Split device function from host.
  */
 #include <tvm/ir/transform.h>
-#include <tvm/runtime/container.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/analysis.h>

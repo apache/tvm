@@ -65,7 +65,7 @@ def unpack_HWNCnc_to_hwnc(packed_out, out_dtype):
 
 
 def conv2d_hwnc_tensorcore(data, kernel, strides, padding, dilation, in_dtype, out_dtype="int32"):
-    """"Compute conv2d with tensorcore for HWNC layout with int8/int4"""
+    """ "Compute conv2d with tensorcore for HWNC layout with int8/int4"""
     assert data.dtype in ("int4", "uint4", "int8", "uint8")
     assert kernel.dtype in ("int4", "uint4", "int8", "uint8")
     packed_out = hwnc_tensorcore_cuda(data, kernel, strides, padding, dilation, out_dtype)

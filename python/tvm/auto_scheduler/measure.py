@@ -84,7 +84,7 @@ class BuildFunc:
 
 @tvm._ffi.register_object("auto_scheduler.MeasureCallback")
 class MeasureCallback(Object):
-    """ The base class of measurement callback functions. """
+    """The base class of measurement callback functions."""
 
 
 @tvm._ffi.register_object("auto_scheduler.PythonBasedMeasureCallback")
@@ -244,7 +244,7 @@ def recover_measure_input(inp, rebuild_state=False):
 
 @tvm._ffi.register_object("auto_scheduler.ProgramBuilder")
 class ProgramBuilder(Object):
-    """ The base class of ProgramBuilders. """
+    """The base class of ProgramBuilders."""
 
     def build(self, measure_inputs, verbose=1):
         """Build programs and return results.
@@ -265,7 +265,7 @@ class ProgramBuilder(Object):
 
 @tvm._ffi.register_object("auto_scheduler.ProgramRunner")
 class ProgramRunner(Object):
-    """ The base class of ProgramRunners. """
+    """The base class of ProgramRunners."""
 
     def run(self, measure_inputs, build_results, verbose=1):
         """Run measurement and return results.
@@ -585,7 +585,7 @@ class LocalRPCMeasureContext:
 
 
 class MeasureErrorNo(object):
-    """ Error type for MeasureResult. """
+    """Error type for MeasureResult."""
 
     NO_ERROR = 0  # No error
     INSTANTIATION_ERROR = 1  # Errors happen when apply transform steps from init state

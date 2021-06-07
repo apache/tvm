@@ -1246,12 +1246,12 @@ def test_tensorrt_dynamic_batch():
 def test_tensorrt_dynamic_batch_conv():
     if skip_codegen_test():
         return
-    batches_to_test = [1, 1, 0, 2, 3, 0, 1, 3, 2]
+    batches_to_test = [1, 5, 1, 0, 2, 3, 0, 1, 3, 2]
     x_shape = (relay.Any(), 32, 8, 8)
     x_data = np.ones([max(batches_to_test)] + list(x_shape)[1:]).astype("float32")
     k_shape = (16, 32, 3, 3)
     params = {"kernel": np.random.uniform(-1, 1, k_shape).astype("float32")}
-    result_arr = [{} for _ in range(len(batches_to_test))]
+    result_arr = [{"cuda": {}, "llvm": {}} for _ in range(len(batches_to_test))]
     for use_trt in [True, False]:
         x = relay.var("x", shape=x_shape, dtype="float32")
         kernel = relay.var("kernel", shape=k_shape, dtype="float32")
@@ -1263,15 +1263,21 @@ def test_tensorrt_dynamic_batch_conv():
             mod, _ = tensorrt.partition_for_tensorrt(mod, params)
 
         if not skip_runtime_test():
-            with relay.build_config(opt_level=3):
-                relay_exec = relay.create_executor("vm", mod=mod, device=tvm.cpu(0), target="llvm")
+            for target in ["llvm", "cuda"]:
+                with relay.build_config(opt_level=3):
+                    relay_exec = relay.create_executor(
+                        "vm", mod=mod, device=tvm.cpu(0), target="llvm"
+                    )
 
-            for i, batch_size in enumerate(batches_to_test):
-                result_arr[i][use_trt] = relay_exec.evaluate()(x_data[:batch_size, ...], **params)
+                for i, batch_size in enumerate(batches_to_test):
+                    result_arr[i][target][use_trt] = relay_exec.evaluate()(
+                        x_data[:batch_size, ...], **params
+                    )
 
     if not skip_runtime_test():
         for i in range(len(batches_to_test)):
-            assert_result_dict_holds(result_arr[i])
+            for target in ["llvm", "cuda"]:
+                assert_result_dict_holds(result_arr[i][target])
 
 
 def test_maskrcnn_resnet50() -> None:

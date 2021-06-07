@@ -735,7 +735,7 @@ def test_scalar_convert_layout():
 
 
 def test_conv_bn_convert_layout():
-    """ Check that layout transforms are propagated through bn. """
+    """Check that layout transforms are propagated through bn."""
 
     def before():
         x = relay.var("x", shape=(1, 56, 56, 64))
@@ -1097,7 +1097,7 @@ def test_qnn_conv_nhwc_convert_layout():
 
 
 def test_conv_convert_kernel_layout():
-    """ Check that convolution kernel layout is correctly transformed. """
+    """Check that convolution kernel layout is correctly transformed."""
 
     def before():
         x = relay.var("x", shape=(1, 56, 56, 64))
@@ -1235,6 +1235,49 @@ def test_conv_strided_slice_convert_layout():
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
 
+def test_conv_strided_slice_axes_convert_layout():
+    def before():
+        x = relay.var("x", shape=(1, 28, 28, 32))
+        weight = relay.var("weight", shape=(3, 3, 32, 32))
+        y = relay.nn.conv2d(
+            x,
+            weight,
+            channels=32,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+            data_layout="NHWC",
+            kernel_layout="HWIO",
+        )
+        y = relay.strided_slice(y, begin=[0, 16], end=[1, 33], strides=[1, 1], axes=[0, 3])
+        y = relay.Function(analysis.free_vars(y), y)
+        return y
+
+    def expected():
+        x = relay.var("x", shape=(1, 28, 28, 32))
+        weight = relay.var("weight", shape=(3, 3, 32, 32))
+        weight = relay.layout_transform(weight, "HWIO", "OIHW")
+        x = relay.layout_transform(x, "NHWC", "NCHW")
+        y = relay.nn.conv2d(
+            x,
+            weight,
+            channels=32,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+            data_layout="NCHW",
+            kernel_layout="OIHW",
+        )
+        y = relay.strided_slice(y, begin=[0, 16], end=[1, 33], strides=[1, 1], axes=[0, 1])
+
+        y = relay.layout_transform(y, "NCHW", "NHWC")
+        y = relay.Function(analysis.free_vars(y), y)
+        return y
+
+    a = run_opt_pass(before(), transform.ConvertLayout({"nn.conv2d": ["NCHW", "default"]}))
+    b = run_opt_pass(expected(), transform.InferType())
+
+    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+
+
 def test_conv_roi_pool_convert_layout():
     def before():
         x = relay.var("x", shape=(1, 64, 56, 56))
@@ -1289,7 +1332,7 @@ def test_conv_roi_pool_convert_layout():
 
 
 def test_default_keyword():
-    """ Check that the default keyword selects correct TVM default layout. """
+    """Check that the default keyword selects correct TVM default layout."""
 
     def before():
         x = relay.var("x", shape=(1, 64, 56, 56))
@@ -1784,3 +1827,4 @@ if __name__ == "__main__":
     test_convert_with_config()
     test_conv_squeeze_convert_layout()
     test_conv_reduce_convert_layout()
+    test_conv_strided_slice_axes_convert_layout()

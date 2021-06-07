@@ -27,7 +27,6 @@
 #include <tvm/ir/attrs.h>
 #include <tvm/ir/expr.h>
 #include <tvm/relay/type.h>
-#include <tvm/runtime/container.h>
 
 #include <utility>
 
