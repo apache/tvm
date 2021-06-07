@@ -137,17 +137,16 @@ class AOTOnDemandAllocator : public ExprVisitor {
 
   void VisitExpr_(const IfNode* op) final { LOG(FATAL) << "if is not supported."; }
 
-  void VisitExpr_(const LetNode* op) final { LOG(FATAL) << "if is not supported."; }
+  void VisitExpr_(const LetNode* op) final { LOG(FATAL) << "let is not supported."; }
 
  private:
   void AssignReturnSid(Expr e) {
     if (storage_device_map_.find(e) != storage_device_map_.end()) {
       auto buffers = storage_device_map_[e];
-      std::vector<int> return_ids;
+      return_ids_.clear();
       for (auto buffer : buffers) {
-        return_ids.push_back(buffer.sid);
+        return_ids_.push_back(buffer.sid);
       }
-      return_ids_ = return_ids;
     }
   }
   /*!
@@ -163,7 +162,7 @@ class AOTOnDemandAllocator : public ExprVisitor {
    * \param prototype The prototype token.
    * \return The required memory size.
    */
-  size_t GetMemorySize(const TensorTypeNode* ttype) {
+  size_t GetMemorySizeBytes(const TensorTypeNode* ttype) {
     ICHECK(ttype != nullptr);
     size_t size = 1;
     for (IndexExpr dim : ttype->shape) {
@@ -200,8 +199,8 @@ class AOTOnDemandAllocator : public ExprVisitor {
         const auto* ttype = t.as<TensorTypeNode>();
         ICHECK(ttype);
         StorageInfo buffer;
-        buffer.sid = sid_++;
-        buffer.size_bytes = GetMemorySize(ttype);
+        buffer.sid = next_available_sid_++;
+        buffer.size_bytes = GetMemorySizeBytes(ttype);
         buffer.dev_type = device_type;
         buffers.push_back(buffer);
       }
@@ -209,8 +208,8 @@ class AOTOnDemandAllocator : public ExprVisitor {
       const auto* ttype = op->checked_type().as<TensorTypeNode>();
       ICHECK(ttype);
       StorageInfo buffer;
-      buffer.sid = sid_++;
-      buffer.size_bytes = GetMemorySize(ttype);
+      buffer.sid = next_available_sid_++;
+      buffer.size_bytes = GetMemorySizeBytes(ttype);
       buffer.dev_type = device_type;
       buffers.push_back(buffer);
     }
@@ -221,7 +220,7 @@ class AOTOnDemandAllocator : public ExprVisitor {
   /*! \brief mapping of expression -> device type*/
   Map<Expr, Integer> node_device_map_;
   /*! \brief current id of the temporary allocated*/
-  int sid_{0};
+  int next_available_sid_{0};
   /*! \brief the set of intermediate tensors that are return variables */
   std::vector<int> return_ids_;
 };

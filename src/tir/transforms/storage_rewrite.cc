@@ -142,7 +142,8 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
       // Recall that the arguments of a tvm_call_cpacked are passed as
       // TVMValues. But a TVMValue is only a container, that points to
       // a real buffer previously allocated. We need to signal that those
-      // buffers need to be live at the same time (i.e., cannot be overridden)
+      // buffers need to be live at the same time (i.e., cannot be overwritten during the function
+      // call)
       Array<PrimExpr> args = op->args;
       for (auto arg : args) {
         const VarNode* var = arg.as<VarNode>();
@@ -234,7 +235,12 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
   bool in_thread_env_{false};
   // The scope stack.
   std::vector<StmtEntry> scope_;
-  // This is a map to connect TVMValues to real allocations
+  // This is a map to connect TVMValues to real allocations. When we pass parameters
+  // to a tvm_call_cpacked, the data needs to be wrapped in a TVMValue. The wrapping
+  // happens through the tvm_struct_set built-in. This map is mapping the variable
+  // representing the TVMValue to the variable representing the real buffer. The live
+  // analysis needs to happen on the latter and not on the TVMValue which only acts as
+  // a container.
   std::unordered_map<const VarNode*, std::vector<const VarNode*>> value_to_alloc_;
 };
 
