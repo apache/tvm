@@ -21,7 +21,7 @@ import numpy as np
 import tvm
 from tvm import relay
 from tvm.relay.testing import lstm
-from tvm.relay.transform import RewriteFP16
+from tvm.relay.transform import AMPRewrite
 from tvm.relay.transform.transform import InferType
 
 
@@ -41,7 +41,7 @@ def verify_fp32_fp16_output_close(
 ) -> tvm.runtime.Module:
     mod = InferType()(mod)
     result_fp32 = run_module(mod, mod_params)
-    fp16_mod = RewriteFP16()(mod)
+    fp16_mod = AMPRewrite()(mod)
     result_fp16 = run_module(fp16_mod, mod_params)
 
     # Ensure the results are close

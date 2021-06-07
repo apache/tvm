@@ -182,10 +182,10 @@ class DefaultFP16Colorer {
 
       if (color == op_to_initial_color.end()) {
         if (ignore_missing) {
-          LOG(WARNING) << "Op name " << op_name << " not in included in fp16 conversion lists!.";
+          LOG(WARNING) << "Op name " << op_name << " not in included in fp16 conversion lists!";
           return RED;
         } else {
-          LOG(FATAL) << "Op name " << op_name << " not in included in fp16 lists!.";
+          LOG(FATAL) << "Op name " << op_name << " not in included in fp16 lists!";
         }
       }
 

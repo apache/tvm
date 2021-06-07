@@ -1200,16 +1200,18 @@ def FakeQuantizationToInteger():
     return _ffi_api.FakeQuantizationToInteger()
 
 
-def RewriteFP16():
+def AMPRewrite():
     """
-    Rewrite an FP32 relay graph into an FP16 version. Note this does mutate
-    the original graph putting it in a bad state potentially.
+    Automatic mixed precision rewriter. Rewrite an FP32 relay graph into a version
+    where as many operations as possible are in FP16.
 
-    TODO: don't mutate the original graph.
+    Note this does mutate the original graph putting it in a bad state potentially.
+
+    TODO(AndrewZhaoLuo): don't mutate the original graph.
 
     Returns
     -------
     ret : tvm.transform.Pass
         The registered RewriteFP16 pass.
     """
-    return _ffi_api.RewriteFP16()
+    return _ffi_api.AMPRewrite()

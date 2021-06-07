@@ -56,7 +56,7 @@ using ColorFunc = std::function<FP16ConversionCategory(const CallNode*)>;
 // A function which maps green CallNodes to wanted accumulation and output dtypes
 using OutputDtypeFunc = std::function<FP16OpDType(const CallNode*)>;
 
-class FP16GraphCreator : public ExprMutator {
+class AmpGraphCreator : public ExprMutator {
  private:
   CachedCastNodes cast_nodes_cache;
   const ColorFunc colorer;
@@ -221,7 +221,7 @@ class FP16GraphCreator : public ExprMutator {
   }
 
  public:
-  explicit FP16GraphCreator(ColorFunc colorer, OutputDtypeFunc output_dtype_func)
+  explicit AmpGraphCreator(ColorFunc colorer, OutputDtypeFunc output_dtype_func)
       : ExprMutator(), colorer(colorer), output_dtype_func(output_dtype_func) {}
 
   Expr VisitExpr_(const CallNode* call_node) {
@@ -305,24 +305,24 @@ class FP16GraphCreator : public ExprMutator {
   }
 };
 
-Expr RewriteFp16Graph(const Expr& expr, const ColorFunc& colorer,
-                      const OutputDtypeFunc& output_dtype_func) {
-  FP16GraphCreator converter = FP16GraphCreator(colorer, output_dtype_func);
+Expr AMPRewriteGraph(const Expr& expr, const ColorFunc& colorer,
+                     const OutputDtypeFunc& output_dtype_func) {
+  AmpGraphCreator converter = AmpGraphCreator(colorer, output_dtype_func);
   return converter.Mutate(expr);
 }
 
 namespace transform {
 
-Pass RewriteFP16() {
+Pass AMPRewrite() {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
         return Downcast<Function>(
-            RewriteFp16Graph(f, DefaultFP16Colorer(), DefaultFP16OpDefinition()));
+            AMPRewriteGraph(f, DefaultFP16Colorer(), DefaultFP16OpDefinition()));
       };
   return CreateFunctionPass(pass_func, 10, "RewriteFp16", {});
 }
 
-TVM_REGISTER_GLOBAL("relay._transform.RewriteFP16").set_body_typed(RewriteFP16);
+TVM_REGISTER_GLOBAL("relay._transform.AMPRewrite").set_body_typed(AMPRewrite);
 
 }  // namespace transform
 
