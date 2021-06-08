@@ -78,6 +78,7 @@ class ShapeTupleObj::FromStd : public ShapeTupleObj {
  */
 class ShapeTuple : public ObjectRef {
  public:
+  /*! \brief The type of shape index element. */
   using index_type = ShapeTupleObj::index_type;
   /*!
    * \brief Construct an empty shape tuple.

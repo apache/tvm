@@ -198,18 +198,13 @@ TVM_REGISTER_GLOBAL("runtime.ShapeTuple").set_body([](TVMArgs args, TVMRetValue*
   *rv = ShapeTuple(shape);
 });
 
-TVM_REGISTER_GLOBAL("runtime.GetShapeTupleSize").set_body([](TVMArgs args, TVMRetValue* rv) {
-  ObjectRef obj = args[0];
-  const auto& shape = Downcast<ShapeTuple>(obj);
-  *rv = static_cast<int64_t>(shape.size());
+TVM_REGISTER_GLOBAL("runtime.GetShapeTupleSize").set_body_typed([](ShapeTuple shape) {
+  return static_cast<int64_t>(shape.size());
 });
 
-TVM_REGISTER_GLOBAL("runtime.GetShapeTupleElem").set_body([](TVMArgs args, TVMRetValue* rv) {
-  ObjectRef obj = args[0];
-  int idx = args[1];
-  const auto& shape = Downcast<ShapeTuple>(obj);
+TVM_REGISTER_GLOBAL("runtime.GetShapeTupleElem").set_body_typed([](ShapeTuple shape, int idx) {
   ICHECK_LT(idx, shape.size());
-  *rv = shape[idx];
+  return shape[idx];
 });
 }  // namespace runtime
 }  // namespace tvm
