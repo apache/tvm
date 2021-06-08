@@ -84,10 +84,12 @@ def _populate_codegen_dir(mod, codegen_dir: str, module_name: str = None):
 
     for dso_mod in dso_modules:
         if dso_mod.type_key == "c":
+            assert dso_mod.format in ["c", "cc", "cpp"]
+            ext = dso_mod.format
             index = mod_indices["src"]
             mod_indices["src"] += 1
             parent_dir = os.path.join(host_codegen_dir, "src")
-            file_name = os.path.join(parent_dir, f"{lib_name}{index}.c")
+            file_name = os.path.join(parent_dir, f"{lib_name}{index}.{ext}")
         elif dso_mod.type_key == "llvm":
             index = mod_indices["lib"]
             mod_indices["lib"] += 1

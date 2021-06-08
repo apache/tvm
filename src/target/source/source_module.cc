@@ -62,6 +62,8 @@ class SourceModuleNode : public runtime::ModuleNode {
 
   std::string GetSource(const std::string& format) final { return code_; }
 
+  std::string GetFormat() { return fmt_; }
+
  protected:
   std::string code_;
   std::string fmt_;
@@ -101,10 +103,12 @@ class CSourceModuleNode : public runtime::ModuleNode {
 
   std::string GetSource(const std::string& format) final { return code_; }
 
+  std::string GetFormat() { return fmt_; }
+
   void SaveToFile(const std::string& file_name, const std::string& format) final {
     std::string fmt = GetFileFormat(file_name, format);
     std::string meta_file = GetMetaFilePath(file_name);
-    if (fmt == "c" || fmt == "cu") {
+    if (fmt == "c" || fmt == "cc" || fmt == "cpp" || fmt == "cu") {
       ICHECK_NE(code_.length(), 0);
       SaveBinaryToFile(file_name, code_);
     } else {
@@ -138,6 +142,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
 
   std::string GetSource(const std::string& format) final { return code_.str(); }
 
+  std::string GetFormat() { return fmt_; }
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
     return PackedFunc(nullptr);
   }
@@ -145,7 +150,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
   void SaveToFile(const std::string& file_name, const std::string& format) final {
     std::string fmt = GetFileFormat(file_name, format);
     std::string meta_file = GetMetaFilePath(file_name);
-    if (fmt == "c") {
+    if (fmt == "c" || fmt == "cc" || fmt == "cpp") {
       auto code_str = code_.str();
       ICHECK_NE(code_str.length(), 0);
       SaveBinaryToFile(file_name, code_str);

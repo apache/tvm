@@ -185,6 +185,11 @@ class Module(object):
         """Get type key of the module."""
         return _ffi_api.ModuleGetTypeKey(self)
 
+    @property
+    def format(self):
+        """Get format of the module."""
+        return _ffi_api.ModuleGetFormat(self)
+
     def get_source(self, fmt=""):
         """Get source code from module, if available.
 
@@ -402,7 +407,8 @@ class Module(object):
         for index, module in enumerate(modules):
             if fcompile is not None and hasattr(fcompile, "object_format"):
                 if module.type_key == "c":
-                    object_format = "c"
+                    assert module.format in ["c", "cc", "cpp"]
+                    object_format = module.format
                     has_c_module = True
                 else:
                     object_format = fcompile.object_format
@@ -412,7 +418,9 @@ class Module(object):
                 else:
                     assert module.type_key == "c"
                     object_format = "c"
-                    if "cc" in kwargs:
+                    if module.format in ["cc", "cpp"]:
+                        object_format = module.format
+                    elif "cc" in kwargs:
                         if kwargs["cc"] == "nvcc":
                             object_format = "cu"
                     has_c_module = True
