@@ -48,6 +48,8 @@ def schedule_direct_cuda(cfg, s, conv):
             target.kind.name, target.model, "conv2d_nchw.cuda"
         )
         cfg.fallback_with_reference_log(ref_log)
+        if target.kind.name == "metal":
+            cfg["auto_unroll_max_step"].val = 128
     ##### space definition end #####
 
     pad_data, kernel = s[conv].op.input_tensors
