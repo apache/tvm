@@ -93,22 +93,6 @@ tir::Buffer BufferWithOffsetAlignment(Array<PrimExpr> shape, DataType dtype, std
                      offset_factor, buffer_type);
 }
 
-void GetBinds(const Array<te::Tensor>& args, bool compact,
-              const std::unordered_map<te::Tensor, tir::Buffer>& binds,
-              Map<te::Tensor, tir::Buffer>* out_binds, Array<ObjectRef>* out_arg_list) {
-  *out_binds = binds;
-
-  for (const auto& x : args) {
-    if (out_binds->find(x) == out_binds->end()) {
-      auto buf = BufferWithOffsetAlignment(x->shape, x->dtype, x->op->name, -1, 0, compact);
-      out_binds->Set(x, buf);
-      out_arg_list->push_back(buf);
-    } else {
-      out_arg_list->push_back((*out_binds)[x]);
-    }
-  }
-}
-
 void GetBinds(const Array<ObjectRef>& args, bool compact,
               const std::unordered_map<te::Tensor, tir::Buffer>& binds,
               Map<te::Tensor, tir::Buffer>* out_binds, Array<ObjectRef>* out_arg_list) {
@@ -133,6 +117,16 @@ void GetBinds(const Array<ObjectRef>& args, bool compact,
           << "but got a " << typeid(x).name();
     }
   }
+}
+
+void GetBinds(const Array<te::Tensor>& args, bool compact,
+              const std::unordered_map<te::Tensor, tir::Buffer>& binds,
+              Map<te::Tensor, tir::Buffer>* out_binds, Array<ObjectRef>* out_arg_list) {
+  Array<ObjectRef> ref_args;
+  for (ObjectRef x : args) {
+    ref_args.push_back(x);
+  }
+  GetBinds(ref_args, compact, binds, out_binds, out_arg_list);
 }
 
 TVM_REGISTER_GLOBAL("driver.get_binds")
