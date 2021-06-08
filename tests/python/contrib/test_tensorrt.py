@@ -801,11 +801,18 @@ def test_pad():
 
     run_and_verify_func(get_graph((1, 8, 16, 16), [[0, 0], [0, 0], [0, 0], [0, 0]]))
     run_and_verify_func(get_graph((1, 8, 16, 16), [[0, 0], [0, 0], [1, 1], [1, 1]]))
-    run_and_verify_func(get_graph((1, 8, 16, 16), [[0, 0], [0, 0], [1, 1], [1, 1]], pad_value=-1.0e30))
+    run_and_verify_func(
+        get_graph((1, 8, 16, 16), [[0, 0], [0, 0], [1, 1], [1, 1]], pad_value=-1.0e30)
+    )
     run_and_verify_func(get_graph((1, 8, 16, 16), [[0, 0], [0, 0], [0, 1], [2, 0]]))
-    run_and_verify_func(get_graph((1, 8, 16, 16), [[0, 0], [0, 0], [0, 1], [2, 0]], pad_value=-1.0e30))
+    run_and_verify_func(
+        get_graph((1, 8, 16, 16), [[0, 0], [0, 0], [0, 1], [2, 0]], pad_value=-1.0e30)
+    )
     run_and_verify_func(get_graph((1, 8, 3, 16, 16), [[0, 0], [0, 0], [0, 0], [0, 0], [0, 0]]))
-    run_and_verify_func(get_graph((1, 8, 3, 16, 16), [[0, 0], [0, 0], [0, 0], [0, 0], [0, 0]], pad_value=-1.0e30))
+    run_and_verify_func(
+        get_graph((1, 8, 3, 16, 16), [[0, 0], [0, 0], [0, 0], [0, 0], [0, 0]], pad_value=-1.0e30)
+    )
+
 
 def test_softmax():
     def get_graph(x_shape, axis):

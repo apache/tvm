@@ -725,7 +725,7 @@ def pad_annotate_fn(expr):  # pylint: disable=unused-variable
         return False
     if (
         not isinstance(args[1], relay.Constant)
-        or len(args[1].checked_type.shape) != 0 
+        or len(args[1].checked_type.shape) != 0
         or args[1].data.numpy().item() != 0.0
     ):
         logger.info("nn.pad: pad value is %s but must be 0.0.", args[1])
