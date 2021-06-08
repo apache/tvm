@@ -171,6 +171,7 @@ def test_int_literal():
     assert get_scalar(parse_text("0")) == 0
     assert get_scalar(parse_text("-100")) == -100
     assert get_scalar(parse_text("-05")) == -5
+    assert get_scalar(parse_text("9223372036854775807")) == 9223372036854775807
 
 
 def test_float_literal():
