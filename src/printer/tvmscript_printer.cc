@@ -389,6 +389,7 @@ Doc TVMScriptPrinter::Print(const ObjectRef& node) {
     return PrintMatchBufferRegion(node.as<MatchBufferRegionNode>());
   } else {
     LOG(FATAL) << "Do not know how to print " << node->GetTypeKey();
+    return Doc();
   }
 }
 
