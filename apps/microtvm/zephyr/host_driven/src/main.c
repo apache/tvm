@@ -61,6 +61,7 @@ static const struct device* led0_pin;
 
 static size_t g_num_bytes_requested = 0;
 static size_t g_num_bytes_written = 0;
+static size_t g_num_bytes_in_rx_buffer = 0;
 
 // Called by TVM to write serial data to the UART.
 ssize_t write_serial(void* unused_context, const uint8_t* data, size_t size) {
@@ -99,6 +100,7 @@ size_t TVMPlatformFormatMessage(char* out_buf, size_t out_buf_size_bytes, const 
 
 // Called by TVM when an internal invariant is violated, and execution cannot continue.
 void TVMPlatformAbort(tvm_crt_error_t error) {
+  TVMLogf("TVMError: %x", error);
   sys_reboot(SYS_REBOOT_COLD);
 #ifdef CONFIG_LED
   gpio_pin_set(led0_pin, LED0_PIN, 1);
@@ -214,33 +216,37 @@ tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
 }
 
 // Ring buffer used to store data read from the UART on rx interrupt.
-#define RING_BUF_SIZE_BYTES 4 * 1024
-RING_BUF_DECLARE(uart_rx_rbuf, RING_BUF_SIZE_BYTES);
-
-// Small buffer used to read data from the UART into the ring buffer.
-static uint8_t uart_data[8];
+// This ring buffer size is only required for testing with QEMU and not for physical hardware.
+#define RING_BUF_SIZE_BYTES (TVM_CRT_MAX_PACKET_SIZE_BYTES + 100)
+RING_BUF_ITEM_DECLARE_SIZE(uart_rx_rbuf, RING_BUF_SIZE_BYTES);
 
 // UART interrupt callback.
 void uart_irq_cb(const struct device* dev, void* user_data) {
-  while (uart_irq_update(dev) && uart_irq_is_pending(dev)) {
+  uart_irq_update(dev);
+  if (uart_irq_is_pending(dev)) {
     struct ring_buf* rbuf = (struct ring_buf*)user_data;
     if (uart_irq_rx_ready(dev) != 0) {
-      for (;;) {
-        // Read a small chunk of data from the UART.
-        int bytes_read = uart_fifo_read(dev, uart_data, sizeof(uart_data));
-        if (bytes_read < 0) {
-          TVMPlatformAbort((tvm_crt_error_t)0xbeef1);
-        } else if (bytes_read == 0) {
-          break;
-        }
-        // Write it into the ring buffer.
-        int bytes_written = ring_buf_put(rbuf, uart_data, bytes_read);
-        if (bytes_read != bytes_written) {
-          TVMPlatformAbort((tvm_crt_error_t)0xbeef2);
-        }
-        // CHECK_EQ(bytes_read, bytes_written, "bytes_read: %d; bytes_written: %d", bytes_read,
-        //         bytes_written);
+      uint8_t* data;
+      uint32_t size;
+      size = ring_buf_put_claim(rbuf, &data, RING_BUF_SIZE_BYTES);
+      int rx_size = uart_fifo_read(dev, data, size);
+      // Write it into the ring buffer.
+      g_num_bytes_in_rx_buffer += rx_size;
+
+      if (g_num_bytes_in_rx_buffer > RING_BUF_SIZE_BYTES) {
+        TVMPlatformAbort((tvm_crt_error_t)0xbeef3);
       }
+
+      if (rx_size < 0) {
+        TVMPlatformAbort((tvm_crt_error_t)0xbeef1);
+      }
+
+      int err = ring_buf_put_finish(rbuf, rx_size);
+      if (err != 0) {
+        TVMPlatformAbort((tvm_crt_error_t)0xbeef2);
+      }
+      // CHECK_EQ(bytes_read, bytes_written, "bytes_read: %d; bytes_written: %d", bytes_read,
+      // bytes_written);
     }
   }
 }
@@ -250,17 +256,6 @@ void uart_rx_init(struct ring_buf* rbuf, const struct device* dev) {
   uart_irq_callback_user_data_set(dev, uart_irq_cb, (void*)rbuf);
   uart_irq_rx_enable(dev);
 }
-
-// Used to read data from the UART.
-int uart_rx_buf_read(struct ring_buf* rbuf, uint8_t* data, size_t data_size_bytes) {
-  unsigned int key = irq_lock();
-  int bytes_read = ring_buf_get(rbuf, data, data_size_bytes);
-  irq_unlock(key);
-  return bytes_read;
-}
-
-// Buffer used to read from the UART rx ring buffer and feed it to the UTvmRpcServerLoop.
-static uint8_t main_rx_buf[RING_BUF_SIZE_BYTES];
 
 // The main function of this application.
 extern void __stdout_hook_install(int (*hook)(int));
@@ -299,13 +294,15 @@ void main(void) {
   // The main application loop. We continuously read commands from the UART
   // and dispatch them to UTvmRpcServerLoop().
   while (true) {
-    int bytes_read = uart_rx_buf_read(&uart_rx_rbuf, main_rx_buf, sizeof(main_rx_buf));
+    uint8_t* data;
+    unsigned int key = irq_lock();
+    uint32_t bytes_read = ring_buf_get_claim(&uart_rx_rbuf, &data, RING_BUF_SIZE_BYTES);
     if (bytes_read > 0) {
+      g_num_bytes_in_rx_buffer -= bytes_read;
       size_t bytes_remaining = bytes_read;
-      uint8_t* cursor = main_rx_buf;
       while (bytes_remaining > 0) {
         // Pass the received bytes to the RPC server.
-        tvm_crt_error_t err = UTvmRpcServerLoop(server, &cursor, &bytes_remaining);
+        tvm_crt_error_t err = UTvmRpcServerLoop(server, &data, &bytes_remaining);
         if (err != kTvmErrorNoError && err != kTvmErrorFramingShortPacket) {
           TVMPlatformAbort(err);
         }
@@ -317,7 +314,12 @@ void main(void) {
           g_num_bytes_requested = 0;
         }
       }
+      int err = ring_buf_get_finish(&uart_rx_rbuf, bytes_read);
+      if (err != 0) {
+        TVMPlatformAbort((tvm_crt_error_t)0xbeef6);
+      }
     }
+    irq_unlock(key);
   }
 
 #ifdef CONFIG_ARCH_POSIX

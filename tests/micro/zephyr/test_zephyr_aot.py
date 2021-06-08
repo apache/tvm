@@ -41,17 +41,8 @@ _LOG = logging.getLogger(__name__)
 
 PLATFORMS = conftest.PLATFORMS
 
-# If set, build the uTVM binary from scratch on each test.
-# Otherwise, reuses the build from the previous test run.
-BUILD = True
 
-# If set, enable a debug session while the test is running.
-# Before running the test, in a separate shell, you should run:
-#   python -m tvm.exec.microtvm_debug_shell
-DEBUG = False
-
-
-def _build_session_kw(model, target, zephyr_board, west_cmd, mod, runtime_path):
+def _build_session_kw(model, target, zephyr_board, west_cmd, mod, runtime_path, build_config):
     parent_dir = os.path.dirname(__file__)
     filename = os.path.splitext(os.path.basename(__file__))[0]
     prev_build = f"{os.path.join(parent_dir, 'archive')}_{filename}_{zephyr_board}_last_build.micro"
@@ -77,14 +68,14 @@ def _build_session_kw(model, target, zephyr_board, west_cmd, mod, runtime_path):
     opts["lib_opts"]["include_dirs"].append(os.path.join(runtime_path, "include"))
 
     flasher_kw = {}
-    if DEBUG:
+    if build_config["debug"]:
         flasher_kw["debug_rpc_session"] = tvm.rpc.connect("127.0.0.1", 9090)
 
     session_kw = {
         "flasher": compiler.flasher(**flasher_kw),
     }
 
-    if BUILD:
+    if not build_config["skip_build"]:
         session_kw["binary"] = tvm.micro.build_static_runtime(
             workspace,
             compiler,
@@ -159,11 +150,12 @@ def _get_message(fd, expr: str):
             return data
 
 
-def test_tflite(platform, west_cmd):
+def test_tflite(platform, west_cmd, skip_build, tvm_debug):
     """Testing a TFLite model."""
     model, zephyr_board = PLATFORMS[platform]
     input_shape = (1, 32, 32, 3)
     output_shape = (1, 10)
+    build_config = {"skip_build": skip_build, "debug": tvm_debug}
 
     this_dir = os.path.dirname(__file__)
     tvm_source_dir = os.path.join(this_dir, "..", "..", "..")
@@ -203,7 +195,9 @@ def test_tflite(platform, west_cmd):
         "output_data", np.zeros(shape=output_shape, dtype="float32"), model_files_path
     )
 
-    session_kw = _build_session_kw(model, target, zephyr_board, west_cmd, lowered.lib, runtime_path)
+    session_kw = _build_session_kw(
+        model, target, zephyr_board, west_cmd, lowered.lib, runtime_path, build_config
+    )
     transport = session_kw["flasher"].flash(session_kw["binary"])
     transport.open()
     transport.write(b"start\n", timeout_sec=5)
