@@ -85,21 +85,21 @@ class ShapeTuple : public ObjectRef {
   ShapeTuple() : ShapeTuple(std::vector<index_type>()) {}
   /*!
    * \brief Constructor from iterator
-   * \param first begin of iterator
-   * \param last end of iterator
+   * \param begin begin of iterator
+   * \param end end of iterator
    * \tparam IterType The type of iterator
    */
   template <typename IterType>
   ShapeTuple(IterType begin, IterType end) : ShapeTuple(std::vector<index_type>(begin, end)) {}
   /*!
    * \brief constructor from initializer list
-   * \param init The initializer list
+   * \param shape The initializer list
    */
   ShapeTuple(std::initializer_list<index_type> shape) : ShapeTuple(shape.begin(), shape.end()) {}
   /*!
    * \brief Construct a new ShapeTuple object
    *
-   * \param other The moved/copied std::vector object
+   * \param shape The moved/copied std::vector object
    *
    * \note If user passes const reference, it will trigger copy. If it's rvalue,
    * it will be moved into other.
@@ -120,13 +120,13 @@ class ShapeTuple : public ObjectRef {
   size_t size() const { return get()->size; }
   /*!
    * \brief Immutably read i-th element from the shape tuple.
-   * \param i The index
+   * \param idx The index
    * \return the i-th element.
    */
   index_type operator[](size_t idx) const { return this->data()[idx]; }
   /*!
    * \brief Immutably read i-th element from the shape tuple.
-   * \param i The index
+   * \param idx The index
    * \return the i-th element.
    */
   index_type at(size_t idx) const { return this->data()[idx]; }
