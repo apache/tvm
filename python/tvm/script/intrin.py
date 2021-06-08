@@ -181,6 +181,21 @@ def opaque_axis(begin, end, span):
 
 
 @register
+def Select(cond, if_body, else_body, span):
+    return tvm.tir.Select(cond, if_body, else_body, span)
+
+
+@register
+def min(a, b, span):
+    return tvm.tir.Min(a, b, span)
+
+
+@register
+def max(a, b, span):
+    return tvm.tir.Max(a, b, span)
+
+
+@register
 class EvaluateIntrin(Intrin):
     def __init__(self):
         def evaluate(value, span):
