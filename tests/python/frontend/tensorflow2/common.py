@@ -23,8 +23,7 @@ from tvm import relay
 
 from tvm.runtime.vm import VirtualMachine
 import tvm.contrib.graph_executor as runtime
-from tvm.relay.frontend.tensorflow import from_tensorflow
-
+from tvm.relay.frontend.tensorflow2 import from_tensorflow
 import tvm.testing
 from tvm.relay.testing.tf import vmobj_to_list as vmobj_to_list
 
@@ -34,20 +33,20 @@ from tensorflow.python.eager.def_function import Function
 
 def run_tf_code(func, input_):
     if type(func) is Function:
-        out = func(input_)
-        if isinstance(out, list):
-            a = [x.numpy() for x in out]
+        f_out = func(input_)
+        if isinstance(f_out, (list, tuple)):
+            np_out = [x.numpy() for x in f_out]
         else:
-            a = [out.numpy()]
+            np_out = [f_out.numpy()]
     else:
-        a = func(tf.constant(input_))
-        if type(a) is dict:
-            a = [x.numpy() for x in a.values()]
-        elif type(a) is list:
-            a = [x.numpy() for x in a]
+        f_out = func(tf.constant(input_))
+        if type(f_out) is dict:
+            np_out = [f_out[k].numpy() for k in sorted(f_out.keys())]
+        elif type(f_out) is list:
+            np_out = [x.numpy() for x in f_out]
         else:
-            a = a.numpy()
-    return a
+            np_out = f_out.numpy()
+    return np_out
 
 
 def compile_graph_executor(mod, params, target="llvm", target_host="llvm", opt_level=3):
@@ -72,7 +71,7 @@ def run_graph_executor(lib, input_, ctx=tvm.cpu(0)):
     mod = runtime.GraphModule(lib["default"](ctx))
     mod.set_input(0, input_)
     mod.run()
-    return [mod.get_output(0).asnumpy()]
+    return [mod.get_output(i).asnumpy() for i in range(mod.get_num_outputs())]
 
 
 def compare_tf_tvm(gdef, input_, output_, runtime="vm", output_tensors=None):
