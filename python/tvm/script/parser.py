@@ -769,8 +769,8 @@ class TVMScriptParser(Transformer):
             return
 
         self.report_error(
-            "Unexpected statement. Expected an assert, an intrinsic, a with statement, or a special "
-            f"statement, but got {type(func).__name__}.",
+            "Unexpected statement. Expected an assert, an intrinsic, a with statement, or a "
+            f"special statement, but got {type(func).__name__}.",
             node.call.func_name.span,
         )
 
