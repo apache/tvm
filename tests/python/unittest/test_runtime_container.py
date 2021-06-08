@@ -78,7 +78,6 @@ def test_string():
     assert s == z
 
 
-
 def test_shape_tuple():
     shape = [random.randint(-10, 10) for _ in range(5)]
     stuple = _container.ShapeTuple(shape)
