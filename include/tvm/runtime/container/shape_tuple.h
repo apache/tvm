@@ -35,6 +35,7 @@ namespace runtime {
 /*! \brief An object representing a shape tuple. */
 class ShapeTupleObj : public Object {
  public:
+  /*! \brief The type of shape index element. */
   using index_type = int64_t;
   /*! \brief The pointer to shape tuple data. */
   index_type* data;
@@ -55,6 +56,7 @@ class ShapeTupleObj : public Object {
 /*! \brief An object representing shape tuple moved from std::vector. */
 class ShapeTupleObj::FromStd : public ShapeTupleObj {
  public:
+  /*! \brief The type of shape index element. */
   using index_type = ShapeTupleObj::index_type;
   /*!
    * \brief Construct a new FromStd object
