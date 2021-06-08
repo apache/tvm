@@ -38,7 +38,7 @@ logger = logging.getLogger("TVMC")
 
 @register_parser
 def add_compile_parser(subparsers):
-    """ Include parser for 'compile' subcommand """
+    """Include parser for 'compile' subcommand"""
 
     parser = subparsers.add_parser("compile", help="compile a model")
     parser.set_defaults(func=drive_compile)
@@ -216,7 +216,9 @@ def compile_model(
         partition_function = codegen["pass_pipeline"]
         mod, codegen_config = partition_function(mod, params, **codegen_from_cli["opts"])
         if codegen["config_key"] is not None:
-            config[codegen["config_key"]] = codegen_config if codegen_config else codegen_from_cli["opts"]
+            config[codegen["config_key"]] = (
+                codegen_config if codegen_config else codegen_from_cli["opts"]
+            )
 
     if tuning_records and os.path.exists(tuning_records):
         logger.debug("tuning records file provided: %s", tuning_records)
