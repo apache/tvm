@@ -21,11 +21,11 @@ from tvm import topi
 from tvm.auto_scheduler import is_auto_scheduler_enabled
 from tvm.te import SpecializedCondition
 from tvm.contrib.thrust import can_use_rocthrust
+from tvm.contrib import rocm
 
 from .generic import *
 from .. import op as _op
 from .cuda import judge_winograd, naive_schedule
-from tvm.contrib import rocm
 
 
 @schedule_lrn.register("rocm")

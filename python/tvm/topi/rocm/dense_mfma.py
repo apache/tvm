@@ -17,7 +17,6 @@
 # pylint: disable=invalid-name, too-many-locals, too-many-statements, unused-argument
 """Compute and Schedule definition for dense tensorcore with cuda backend"""
 from __future__ import absolute_import as _abs
-import tvm
 from tvm import te
 import tvm.autotvm as autotvm
 from .. import tag
@@ -85,8 +84,6 @@ def dense_mfma_rocm(data, weight, bias=None, out_dtype=None):
 def _schedule_dense_mfma(cfg, s, C):
     """Schedule dense operator using MFMA"""
     A, B = s[C].op.input_tensors
-    batch, out_dim = get_const_tuple(C.shape)
-    out_dtype = C.dtype
     s[A].compute_inline()
     s[B].compute_inline()
 

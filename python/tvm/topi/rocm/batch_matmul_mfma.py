@@ -17,10 +17,8 @@
 # pylint: disable=invalid-name, too-many-locals, too-many-statements, unused-argument
 """Compute and Schedule definition for dense tensorcore with cuda backend"""
 from __future__ import absolute_import as _abs
-import tvm
 from tvm import te
 import tvm.autotvm as autotvm
-from .. import tag
 from ..util import traverse_inline, get_const_tuple
 from .tensor_intrin import (
     intrin_mfma_load_matrix,
@@ -47,7 +45,7 @@ def batch_matmul_mfma(cfg, x, y, out_shape=None):
     output : tvm.te.Tensor
         3-D with shape [batch, M, N]
     """
-    batch, M, K = get_const_tuple(x.shape)
+    batch, M, _ = get_const_tuple(x.shape)
     _, N, _ = get_const_tuple(y.shape)
     if out_shape is not None:
         assert out_shape[0] == batch, "Input and output batch sizes must match"
@@ -98,7 +96,6 @@ def batch_matmul_mfma_rocm(A, B):
 def _schedule_batch_matmul_mfma(cfg, s, C):
     """Schedule batch_matmul operator using MFMA"""
     A, B = s[C].op.input_tensors
-    batch, M, N = get_const_tuple(C.shape)
 
     s[A].compute_inline()
     s[B].compute_inline()

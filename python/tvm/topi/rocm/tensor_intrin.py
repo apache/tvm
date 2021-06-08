@@ -21,7 +21,11 @@ from tvm import te
 
 
 def intrin_mfma_load_matrix(shape, matrix, thread=None, strides_src=None, strides_dst=None):
+    """Intrin function for loading thread registers for mfma tensorization"""
     M, N, K = shape
+    assert M == 16
+    assert N == 16
+    assert K == 16
     if matrix in ("A", "BT", "W"):
         row, col = M, K
     elif matrix == "B":
@@ -42,7 +46,7 @@ def intrin_mfma_load_matrix(shape, matrix, thread=None, strides_src=None, stride
         BC = outs[0]
 
         tx = thread
-        if tx == None:
+        if tx is None:
             tx = te.thread_axis("threadIdx.x")
             ib.scope_attr(tx, "thread_extent", 64)
 
@@ -61,7 +65,11 @@ def intrin_mfma_load_matrix(shape, matrix, thread=None, strides_src=None, stride
 
 
 def intrin_mfma_store_matrix(shape, thread=None, strides_src=None, strides_dst=None):
+    """Intrin function for storing result to accumulator registers"""
     M, N, K = shape
+    assert M == 16
+    assert N == 16
+    assert K == 16
     A = te.placeholder((M, N), name="A", dtype="float32")
     BA = tvm.tir.decl_buffer(A.shape, A.dtype, scope="local", offset_factor=1, strides=strides_src)
     C = te.compute((M, N), lambda i, j: A[i, j], name="C")
@@ -72,7 +80,7 @@ def intrin_mfma_store_matrix(shape, thread=None, strides_src=None, strides_dst=N
         BA = ins[0]
         BC = outs[0]
         tx = thread
-        if tx == None:
+        if tx is None:
             tx = te.thread_axis("threadIdx.x")
             ib.scope_attr(tx, "thread_extent", 64)
         vec_width = 4
@@ -91,10 +99,8 @@ def intrin_mfma_store_matrix(shape, thread=None, strides_src=None, strides_dst=N
 def intrin_mfma_gemm(
     shape, te_mfma_compute, input_scope, strides_A=None, strides_B=None, strides_C=None
 ):
+    """Intrin definition for mfma_16x16x16f16 compute"""
     M, N, K = shape
-
-    # TODO(csullivan):Replace below with a function to get the correct
-    # llvm function based on shape and type
     assert M == 16
     assert N == 16
     assert K == 16
