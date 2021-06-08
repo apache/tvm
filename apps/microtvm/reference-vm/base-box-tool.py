@@ -204,7 +204,6 @@ def generate_packer_config(file_path, providers):
         {
             "type": "shell",
             "script": "base_box_provision.sh",
-            "execute_command": f"chmod +x {{{{ .Path }}}}; {{{{ .Vars }}}} {{{{ .Path }}}}",
         }
     )
 
