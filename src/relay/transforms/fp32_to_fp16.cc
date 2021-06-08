@@ -112,7 +112,7 @@ class AmpGraphCreator : public ExprMutator {
      Attrs is const because we get it as a const.
      */
     T* mutable_attrs = const_cast<T*>(attrs);
-    mutable_attrs->out_dtype = accumulation_dtype;
+    if ((mutable_attrs->out_dtype).is_float()) mutable_attrs->out_dtype = accumulation_dtype;
   }
 
   template <typename T>
@@ -124,12 +124,13 @@ class AmpGraphCreator : public ExprMutator {
      Attrs is const because we get it as a const.
     */
     T* mutable_attrs = const_cast<T*>(attrs);
-    mutable_attrs->dtype = accumulation_dtype;
+    if ((mutable_attrs->dtype).is_float()) mutable_attrs->dtype = accumulation_dtype;
   }
 
   Type GetType(const Expr& expr) const {
     auto mod = IRModule::FromExpr(expr);
     mod = transform::InferType()(mod);
+
     if (expr.as<FunctionNode>()) {
       return mod->Lookup("main")->checked_type();
     } else {
@@ -261,6 +262,7 @@ class AmpGraphCreator : public ExprMutator {
 
     Array<Expr> call_args = call_args_and_types.first;
     Array<Type> call_arg_types;
+
     if (call_node->op.as<FunctionNode>()) {
       // Function Nodes don't store type info in the Call, it should be a []
       call_arg_types = call_node->type_args;
