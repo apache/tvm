@@ -88,7 +88,7 @@ def schedule_to_module(
 
 
 def lower(
-    inputs: Union[schedule.Schedule, PrimFunc, IRModule],
+    inp: Union[schedule.Schedule, PrimFunc, IRModule],
     args: Optional[List[Union[Buffer, tensor.Tensor, Var]]] = None,
     name: str = "main",
     binds: Optional[Mapping[tensor.Tensor, Buffer]] = None,
@@ -122,12 +122,12 @@ def lower(
     m : IRModule
        The result IRModule
     """
-    if isinstance(inputs, IRModule):
-        return ffi.lower_module(inputs, simple_mode)
-    if isinstance(inputs, PrimFunc):
-        return ffi.lower_primfunc(inputs, name, simple_mode)
-    if isinstance(inputs, schedule.Schedule):
-        return ffi.lower_schedule(inputs, args, name, binds, simple_mode)
+    if isinstance(inp, IRModule):
+        return ffi.lower_module(input, simple_mode)
+    if isinstance(inp, PrimFunc):
+        return ffi.lower_primfunc(input, name, simple_mode)
+    if isinstance(inp, schedule.Schedule):
+        return ffi.lower_schedule(input, args, name, binds, simple_mode)
     raise ValueError(
         "Expected input to be an IRModule, PrimFunc or Schedule, but got, ", type(inputs)
     )

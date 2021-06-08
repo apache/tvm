@@ -63,7 +63,8 @@ TVM_DLL IRModule LowerPrimFunc(tvm::tir::PrimFunc func, const std::string& name,
                                bool simple_mode = false);
 
 /*!
- * \brief Build an IRModule given a TE schedule, args and binds
+ * \brief Build an IRModule given a TE schedule, args and binds. This function also applies
+ * the lowering passes defined in CreatePassList.
  * \param sch The TE schedule to lower.
  * \param args The arguments to the function.
  * \param name The name of the lowered function.
@@ -78,7 +79,8 @@ TVM_DLL IRModule LowerSchedule(te::Schedule sch, const Array<te::Tensor>& args,
                                bool simple_mode = false);
 
 /*!
- * \brief Build an IRModule given a TE schedule, args and binds
+ * \brief Build an IRModule given a TE schedule, args and binds. This function also applies
+ * the lowering passes defined in CreatePassList.
  * \param sch The TE schedule to lower.
  * \param args The arguments to the function (Array of Tensor, Buffer and Vars)
  * \param name The name of the lowered function.
@@ -92,7 +94,8 @@ TVM_DLL IRModule LowerSchedule(te::Schedule sch, const Array<ObjectRef>& args,
                                bool simple_mode = false);
 
 /*!
- * \brief Create an IRModule out of a TE Schedule (without applying lowering passes)
+ * \brief Create an IRModule out of a TE Schedule. It does not apply lowering passes. If you want
+ * to apply lowering passes as well, use LowerSchedule.
  * \param sch The schedule
  * \param args The arguments to the function.
  * \param name The name of the lowered function.
