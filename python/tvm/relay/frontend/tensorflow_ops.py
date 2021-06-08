@@ -24,7 +24,7 @@ from collections import deque
 import numpy as np
 import tvm
 
-from tvm.relay.prelude import Prelude, StaticTensorArrayOps, get_tensor_array_shape
+from tvm.relay.prelude import StaticTensorArrayOps, get_tensor_array_shape
 from tvm.topi.utils import get_const_tuple
 
 from .. import expr as _expr
@@ -35,8 +35,6 @@ from .common import infer_type as _infer_type
 from .common import infer_shape as _infer_shape
 from .common import infer_channels as _infer_channels
 from .common import infer_value as _infer_value
-
-__all__ = ["from_tensorflow"]
 
 
 def check_symbolic_shape(shape):

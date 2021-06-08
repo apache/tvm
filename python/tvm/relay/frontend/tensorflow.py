@@ -19,27 +19,23 @@
 """TF: Tensorflow frontend."""
 import warnings
 from collections import defaultdict
-from collections import deque
 
 # Numpy support
 import numpy as np
 import tvm
 
 from tvm.ir import IRModule
-from tvm.relay.prelude import Prelude, StaticTensorArrayOps, get_tensor_array_shape
+from tvm.relay.prelude import Prelude
 from tvm.relay.transform import InferType
-from tvm.topi.utils import get_const_tuple
 
 from .. import analysis
 from .. import expr as _expr
 from .. import function as _function
-from .. import op as _op
 from ..ty import Any
 from ..expr_functor import ExprMutator, ExprVisitor
-from .common import AttrCvt, get_relay_op
+from .common import get_relay_op
 from .common import infer_type as _infer_type
 from .common import infer_shape as _infer_shape
-from .common import infer_channels as _infer_channels
 from .common import infer_value as _infer_value
 
 from .tensorflow_ops import _convert_map
