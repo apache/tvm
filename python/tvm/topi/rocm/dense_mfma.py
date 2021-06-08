@@ -20,7 +20,7 @@ from __future__ import absolute_import as _abs
 from tvm import te
 import tvm.autotvm as autotvm
 from .. import tag
-from ..util import traverse_inline, get_const_tuple
+from ..utils import traverse_inline, get_const_tuple
 from .tensor_intrin import (
     intrin_mfma_load_matrix,
     intrin_mfma_store_matrix,
