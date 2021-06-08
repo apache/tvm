@@ -28,6 +28,7 @@ from .op import (
     OpStrategy,
     debug,
     register_external_compiler,
+    register_fake_quantization_to_integer,
 )
 from . import strategy
 
