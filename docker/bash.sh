@@ -20,7 +20,7 @@
 #
 # Start a bash, mount /workspace to be current directory.
 #
-# Usage: bash.sh <CONTAINER_TYPE> [-i] [--net=host] <CONTAINER_NAME>  <COMMAND>
+# Usage: bash.sh <CONTAINER_TYPE> [-i] [--net=host] [--mount path] <CONTAINER_NAME>  <COMMAND>
 #
 # Usage: docker/bash.sh <CONTAINER_NAME>
 #     Starts an interactive session
@@ -43,6 +43,14 @@ fi
 CI_DOCKER_EXTRA_PARAMS=( )
 if [[ "$1" == "--net=host" ]]; then
     CI_DOCKER_EXTRA_PARAMS+=('--net=host')
+    shift 1
+fi
+
+# Mount external directory to the docker
+CI_DOCKER_MOUNT_CMD=( )
+if [ "$1" == "--mount" ]; then
+    shift 1
+    CI_DOCKER_MOUNT_CMD=( -v "$1:$1" )
     shift 1
 fi
 
@@ -154,6 +162,7 @@ ${DOCKER_BINARY} run --rm --pid=host\
     ${WORKSPACE_VOLUMES}\
     -v ${WORKSPACE}:/workspace \
     -v ${SCRIPT_DIR}:/docker \
+    "${CI_DOCKER_MOUNT_CMD[@]}" \
     "${EXTRA_MOUNTS[@]}" \
     -w /workspace \
     -e "CI_BUILD_HOME=/workspace" \
