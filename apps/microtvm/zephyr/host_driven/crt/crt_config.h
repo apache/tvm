@@ -42,7 +42,7 @@
 #define TVM_CRT_MAX_REGISTERED_MODULES 2
 
 /*! Maximum packet size, in bytes, including the length header. */
-#define TVM_CRT_MAX_PACKET_SIZE_BYTES 8192
+#define TVM_CRT_MAX_PACKET_SIZE_BYTES (4 * 1024)
 
 /*! Maximum supported string length in dltype, e.g. "int8", "int16", "float32" */
 #define TVM_CRT_MAX_STRLEN_DLTYPE 10
