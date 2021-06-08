@@ -49,13 +49,15 @@ def _model_graph(TestClass):
     return gdef, input_, output
 
 
+def run_func_graph(TestClass, runtime="vm", outputs=None):
+    compare_tf_tvm(*_function_graph(TestClass), runtime=runtime, output_tensors=outputs)
+
+
+def run_model_graph(TestClass, outputs=None):
+    compare_tf_tvm(*_model_graph(TestClass), runtime="vm", output_tensors=outputs)
+
+
 def run_all(TestClass):
-    def run_func_graph(TestClass, runtime="vm"):
-        compare_tf_tvm(*_function_graph(TestClass), runtime=runtime)
-
-    def run_model_graph(TestClass):
-        compare_tf_tvm(*_model_graph(TestClass), runtime="vm")
-
     run_model_graph(TestClass)
     for runtime_ in ["vm", "graph"]:
         run_func_graph(TestClass, runtime=runtime_)
@@ -355,6 +357,94 @@ def test_concat_v2():
             return tf.raw_ops.ConcatV2(values=[a, b, c], axis=1)
 
     run_all(ConcatV2)
+
+
+def test_multi_output():
+    class MultiOutput(tf.Module):
+        def get_input(self):
+            return np.ones((2, 2), dtype="float32")
+
+        @tf.function(input_signature=[tf.TensorSpec(shape=(2, 2), dtype=tf.float32)])
+        def func(self, x):
+            y = 2 * x
+            return x, y
+
+    run_func_graph(MultiOutput, runtime="vm", outputs=["Identity:output:0", "Identity_1:output:0"])
+    run_func_graph(
+        MultiOutput, runtime="graph", outputs=["Identity:output:0", "Identity_1:output:0"]
+    )
+    run_model_graph(MultiOutput, outputs=["Identity:output:0"])
+
+
+def test_if():
+    def create_if_class(_condition=True):
+        class If(tf.Module):
+            def get_input(self):
+                return np.ones((2, 2), dtype="float32")
+
+            @tf.function(input_signature=[tf.TensorSpec(shape=(2, 2), dtype=tf.float32)])
+            def func(self, x):
+                @tf.function(input_signature=[tf.TensorSpec(shape=(2, 2), dtype=tf.float32)])
+                def double(x):
+                    return 2 * x
+
+                @tf.function(input_signature=[tf.TensorSpec(shape=(2, 2), dtype=tf.float32)])
+                def triple(x):
+                    return 3 * x
+
+                output = tf.raw_ops.If(
+                    cond=_condition,
+                    input=[x],
+                    Tout=[tf.float32],
+                    output_shapes=[(2, 2)],
+                    then_branch=double.get_concrete_function(),
+                    else_branch=triple.get_concrete_function(),
+                )
+                return output[0]
+
+        return If
+
+    for cond in [True, False]:
+        if_class = create_if_class(_condition=cond)
+        run_func_graph(if_class, runtime="vm")
+        run_model_graph(if_class)
+
+
+def test_stateless_while():
+    class StatelessWhile(tf.Module):
+        def get_input(self):
+            return np.array([6], dtype="float32")
+
+        @tf.function(input_signature=[tf.TensorSpec(shape=(1,), dtype=tf.float32)])
+        def func(self, x):
+            i = tf.constant(3.0)
+            cond = lambda i: tf.less(i, x)
+            body = lambda i: (tf.add(i, 2),)
+            r = tf.while_loop(cond, body, [i])
+            return r[0]
+
+    run_func_graph(StatelessWhile, runtime="vm")
+    run_model_graph(StatelessWhile)
+
+
+def test_stateless_while_2var():
+    class StatelessWhile2Var(tf.Module):
+        def get_input(self):
+            return np.array([20], dtype="float32")
+
+        @tf.function(input_signature=[tf.TensorSpec(shape=(1,), dtype=tf.float32)])
+        def func(self, x):
+            i = tf.constant(3.0)
+            j = tf.constant(5.0)
+            cond = lambda i, j: tf.less(i + j, x)
+            body = lambda i, j: (tf.add(i, 2), tf.add(j, 3))
+            r = tf.while_loop(cond, body, [i, j])
+            return r
+
+    run_func_graph(
+        StatelessWhile2Var, runtime="vm", outputs=["Identity:output:0", "Identity_1:output:0"]
+    )
+    run_model_graph(StatelessWhile2Var, outputs=["Identity:output:0"])
 
 
 if __name__ == "__main__":
