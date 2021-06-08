@@ -29,15 +29,11 @@ def intrin_mfma_load_matrix(shape, matrix, thread=None, strides_src=None, stride
     output_shape = (row, col)
 
     A = te.placeholder(output_shape, name=matrix, dtype="float16")
-    BA = tvm.tir.decl_buffer(
-        A.shape, A.dtype, scope="shared", offset_factor=1, strides=strides_src
-    )
+    BA = tvm.tir.decl_buffer(A.shape, A.dtype, scope="shared", offset_factor=1, strides=strides_src)
 
     C = te.compute(output_shape, lambda i, j: A[i, j], name="C")
 
-    BC = tvm.tir.decl_buffer(
-        C.shape, C.dtype, scope="local", offset_factor=1, strides=strides_dst
-    )
+    BC = tvm.tir.decl_buffer(C.shape, C.dtype, scope="local", offset_factor=1, strides=strides_dst)
 
     def intrin_func(ins, outs):
         ib = tvm.tir.ir_builder.create()
@@ -54,25 +50,22 @@ def intrin_mfma_load_matrix(shape, matrix, thread=None, strides_src=None, stride
         offset = tx // 16
         # TODO(csullivan): Using offset works, but using tx directly does not, fix this
         if matrix in ("A", "BT", "W"):
-            for blk_id in range(0,4):
-                ib.emit(BC.vstore([0, blk_id], BA.vload([blk_td, blk_id*4 + offset], "float16")))
+            for blk_id in range(0, 4):
+                ib.emit(BC.vstore([0, blk_id], BA.vload([blk_td, blk_id * 4 + offset], "float16")))
         elif matrix == "B":
-            for blk_id in range(0,4):
-                ib.emit(BC.vstore([0, blk_id], BA.vload([blk_id*4 + offset, blk_td], "float16")))
+            for blk_id in range(0, 4):
+                ib.emit(BC.vstore([0, blk_id], BA.vload([blk_id * 4 + offset, blk_td], "float16")))
         return ib.get()
 
     return te.decl_tensor_intrin(C.op, intrin_func, binds={A: BA, C: BC})
 
+
 def intrin_mfma_store_matrix(shape, thread=None, strides_src=None, strides_dst=None):
     M, N, K = shape
     A = te.placeholder((M, N), name="A", dtype="float32")
-    BA = tvm.tir.decl_buffer(
-        A.shape, A.dtype, scope="local", offset_factor=1, strides=strides_src
-    )
+    BA = tvm.tir.decl_buffer(A.shape, A.dtype, scope="local", offset_factor=1, strides=strides_src)
     C = te.compute((M, N), lambda i, j: A[i, j], name="C")
-    BC = tvm.tir.decl_buffer(
-        C.shape, C.dtype, scope="shared", offset_factor=1, strides=strides_dst
-    )
+    BC = tvm.tir.decl_buffer(C.shape, C.dtype, scope="shared", offset_factor=1, strides=strides_dst)
 
     def intrin_func(ins, outs):
         ib = tvm.tir.ir_builder.create()
@@ -88,13 +81,16 @@ def intrin_mfma_store_matrix(shape, thread=None, strides_src=None, strides_dst=N
 
         # TODO(csullivan): Consider TVM change to BufferVar.__getitem__
         # to convert int to const for quality of life when using vector types.
-        ib.emit(BC.vstore([blk_td, blk_id*vec_width], BA.vload([0, 0], "float32x4")))
+        ib.emit(BC.vstore([blk_td, blk_id * vec_width], BA.vload([0, 0], "float32x4")))
 
         return ib.get()
 
     return te.decl_tensor_intrin(C.op, intrin_func, binds={A: BA, C: BC})
 
-def intrin_mfma_gemm(shape, te_mfma_compute, input_scope, strides_A=None, strides_B=None, strides_C=None):
+
+def intrin_mfma_gemm(
+    shape, te_mfma_compute, input_scope, strides_A=None, strides_B=None, strides_C=None
+):
     M, N, K = shape
 
     # TODO(csullivan):Replace below with a function to get the correct
@@ -136,13 +132,7 @@ def intrin_mfma_gemm(shape, te_mfma_compute, input_scope, strides_A=None, stride
             # Transpose inputs in order to ensure row-major order on the output for
             # coalesced vector writes.
             gemm = tvm.tir.call_llvm_pure_intrin(
-                "float32x4",
-                mfma_instr_name,
-                args_6,
-                b_vec,
-                a_vec,
-                c_vec,
-                0,0,0
+                "float32x4", mfma_instr_name, args_6, b_vec, a_vec, c_vec, 0, 0, 0
             )
             ib.emit(Cb.vstore([0, 0], gemm))
             return ib.get()

@@ -198,7 +198,7 @@ def dense_strategy_rocm(attrs, inputs, out_type, target):
         data, weights = inputs
         b, i = get_const_tuple(data.shape)
         o, _ = get_const_tuple(weights.shape)
-        if (b % 16 == 0 and o % 16 == 0 and i % 16 == 0):
+        if b % 16 == 0 and o % 16 == 0 and i % 16 == 0:
             strategy.add_implementation(
                 wrap_compute_dense(topi.rocm.dense_mfma),
                 wrap_topi_schedule(topi.rocm.schedule_dense_mfma),
@@ -230,7 +230,7 @@ def batch_matmul_strategy_rocm(attrs, inputs, out_type, target):
         A, B = inputs
         _, M, K = get_const_tuple(A.shape)
         _, _, N = get_const_tuple(B.shape)
-        if (M % 16 == 0 and N % 16 == 0 and K % 16 == 0):
+        if M % 16 == 0 and N % 16 == 0 and K % 16 == 0:
             strategy.add_implementation(
                 wrap_compute_batch_matmul(topi.rocm.batch_matmul_mfma),
                 wrap_topi_schedule(topi.rocm.schedule_batch_matmul_mfma),

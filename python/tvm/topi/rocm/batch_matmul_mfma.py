@@ -28,6 +28,7 @@ from .tensor_intrin import (
     intrin_mfma_gemm,
 )
 
+
 @autotvm.register_topi_compute("batch_matmul_mfma.rocm")
 def batch_matmul_mfma(cfg, x, y, out_shape=None):
     """Computes matrix multiplication of `x` and `y` when
@@ -77,7 +78,7 @@ def batch_matmul_mfma_rocm(A, B):
     # B is transposed by default in relay
     _, N, _ = get_const_tuple(B.shape)
 
-    assert (M % 16 == 0 and N % 16 == 0 and K % 16 == 0), "M, N, and K each must be a multiple of 16"
+    assert M % 16 == 0 and N % 16 == 0 and K % 16 == 0, "M, N, and K each must be a multiple of 16"
     A_16 = te.compute((batch, M, K), lambda b, i, j: A[b, i, j].astype("float16"))
     B_16 = te.compute((batch, N, K), lambda b, i, j: B[b, i, j].astype("float16"))
 
@@ -246,14 +247,43 @@ def _schedule_batch_matmul_mfma(cfg, s, C):
         A = te.placeholder((M, K), name="A", dtype="float16")
         B = te.placeholder((K, N), name="B", dtype="float16")
         k = te.reduce_axis((0, K), name="k")
-        return A, B, te.compute(
-            (M, N),
-            lambda i, j: te.sum(A[i, k].astype("float") * B[j, k].astype("float") , axis=[k]),
-            name="C"
+        return (
+            A,
+            B,
+            te.compute(
+                (M, N),
+                lambda i, j: te.sum(A[i, k].astype("float") * B[j, k].astype("float"), axis=[k]),
+                name="C",
+            ),
         )
 
     # Lower the inner loop nest down to MFMA hardware intrinsics
-    s[AF].tensorize(_mai, intrin_mfma_load_matrix((mfma_m, mfma_n, mfma_k), "A", strides_src=AS_stride, strides_dst=AF_stride))
-    s[BF].tensorize(_nbi, intrin_mfma_load_matrix((mfma_m, mfma_n, mfma_k), "BT", strides_src=BS_stride, strides_dst=BF_stride))
-    s[CF].tensorize(_ii, intrin_mfma_gemm((mfma_m, mfma_n, mfma_k), mfma_compute, input_scope="local", strides_A=AF_stride, strides_B=BF_stride, strides_C=CF_stride))
-    s[CS].tensorize(_mi, intrin_mfma_store_matrix(shape=(mfma_m, mfma_n, mfma_k), strides_src=CF_stride, strides_dst=CS_stride))
+    s[AF].tensorize(
+        _mai,
+        intrin_mfma_load_matrix(
+            (mfma_m, mfma_n, mfma_k), "A", strides_src=AS_stride, strides_dst=AF_stride
+        ),
+    )
+    s[BF].tensorize(
+        _nbi,
+        intrin_mfma_load_matrix(
+            (mfma_m, mfma_n, mfma_k), "BT", strides_src=BS_stride, strides_dst=BF_stride
+        ),
+    )
+    s[CF].tensorize(
+        _ii,
+        intrin_mfma_gemm(
+            (mfma_m, mfma_n, mfma_k),
+            mfma_compute,
+            input_scope="local",
+            strides_A=AF_stride,
+            strides_B=BF_stride,
+            strides_C=CF_stride,
+        ),
+    )
+    s[CS].tensorize(
+        _mi,
+        intrin_mfma_store_matrix(
+            shape=(mfma_m, mfma_n, mfma_k), strides_src=CF_stride, strides_dst=CS_stride
+        ),
+    )

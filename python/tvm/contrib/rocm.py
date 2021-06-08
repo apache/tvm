@@ -169,6 +169,7 @@ def callback_rocm_bitcode_path(rocdl_dir=None):
 
     return tvm.runtime.convert(bitcode_files)
 
+
 def parse_compute_version(compute_version):
     """Parse compute capability string to divide major and minor version
 
@@ -191,6 +192,7 @@ def parse_compute_version(compute_version):
         return major, minor
     except (IndexError, ValueError) as err:
         raise RuntimeError("Compute version parsing error: " + str(err))
+
 
 def support_mfma(device):
     major, minor = parse_compute_version(device.compute_version)
