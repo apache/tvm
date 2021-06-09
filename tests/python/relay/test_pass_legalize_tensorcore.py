@@ -114,6 +114,7 @@ def test_legalize_conv2d_NHWC():
         _test_legalize_conv2d((8, 16, 16, 64), (3, 3, 64, 33), (0, 0, 31), dtype)
         _test_legalize_conv2d((8, 16, 16, 64), (3, 3, 64, 1), (0, 0, 0), dtype, False)
 
+
 @tvm.testing.uses_gpu
 def test_legalize_conv2d_HWNC():
     """test legalize HWNC conv2d to enable tensorcore"""
@@ -177,7 +178,6 @@ def test_legalize_conv2d_HWNC():
             a = run_opt_pass(a, transform.Legalize())
             b = run_opt_pass(expected(), transform.InferType())
         assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a) + "Expected = \n" + str(b)
-    # data_layout="HWNC",kernel_layout="HWOI"
     # conv2d pad batch
     _test_legalize_conv2d((16, 16, 7, 64), (3, 3, 64, 64), (1, 0, 0), "int8")
     _test_legalize_conv2d((16, 16, 3, 64), (3, 3, 64, 64), (5, 0, 0), "int8")
@@ -201,6 +201,7 @@ def test_legalize_conv2d_HWNC():
     _test_legalize_conv2d((16, 16, 8, 64), (3, 3, 63, 64), (0, 0, 1), "int4")
     _test_legalize_conv2d((16, 16, 8, 64), (3, 3, 33, 64), (0, 0, 7), "int4")
     _test_legalize_conv2d((16, 16, 8, 64), (3, 3, 1, 64), (0, 0, 0), "int4", False)
+
 
 @tvm.testing.uses_gpu
 def test_legalize_dense():
