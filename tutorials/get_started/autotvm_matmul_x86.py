@@ -15,8 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 """
-Optimizing Operators with Templates and AutoTVM
-===============================================
+.. _tutorial-autotvm-matmul-x86:
+
+Optimizing Operators with Schedule Templates and AutoTVM
+========================================================
 **Authors**:
 `Lianmin Zheng <https://github.com/merrymercy>`_,
 `Chris Hoge <https://github.com/hogepodge>`_
@@ -42,6 +44,7 @@ workflow is illustrated by a matrix multiplication example.
   To get it to run, you will need to wrap the body of this tutorial in a
   :code:`if __name__ == "__main__":` block.
 """
+
 
 ################################################################################
 # Install dependencies
@@ -370,6 +373,6 @@ tvm.testing.assert_allclose(c_np, c_tvm.numpy(), rtol=1e-4)
 # To gain a deeper understanding of how this works, we recommend expanding on
 # this example by adding new search parameters to the schedule based on
 # schedule operations demonstated in the `Getting Started With Tensor
-# Expressions <tensor_expr_get_started>_` tutorial In the upcoming sections, we
+# Expressions <tensor_expr_get_started>_` tutorial. In the upcoming sections, we
 # will demonstate the AutoScheduler, a method for TVM to optimize common
 # operators without the need for the user to provide a user-defined template.

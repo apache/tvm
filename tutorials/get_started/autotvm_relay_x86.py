@@ -15,8 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """
-Compiling and Optimizing a Model with the Python AutoScheduler
-==============================================================
+Compiling and Optimizing a Model with AutoTVM
+=============================================
 **Author**:
 `Chris Hoge <https://github.com/hogepodge>`_
 
