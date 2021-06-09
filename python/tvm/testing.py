@@ -61,6 +61,7 @@ import os
 import sys
 import time
 import pytest
+import _pytest
 import numpy as np
 import tvm
 import tvm.arith
@@ -1184,7 +1185,9 @@ def _remove_global_fixture_definitions(items):
     for module in modules:
         for name in dir(module):
             obj = getattr(module, name)
-            if hasattr(obj, "_pytestfixturefunction"):
+            if hasattr(obj, "_pytestfixturefunction") and isinstance(
+                obj._pytestfixturefunction, _pytest.fixtures.FixtureFunctionMarker
+            ):
                 delattr(module, name)
 
 
