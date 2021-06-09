@@ -114,7 +114,7 @@ void GetBinds(const Array<ObjectRef>& args, bool compact,
     } else {
       LOG(FATAL)
           << "Expected type of the elements of args to be te::Tensor, te::Buffer or tir::Var, "
-          << "but got a " << typeid(x).name();
+          << "but got a " << x->GetTypeKey();
     }
   }
 }
