@@ -46,7 +46,7 @@ def InjectRollingBuffer():
     buffer_to_attrs = defaultdict(list)
     rolling_buffers = set()
     rolling_buffer_to_info = dict()
-    iter_vars = list()
+    for_loops = list()
     hoist_buffer_to_for = defaultdict(list)
 
     RollingBufferInfo = namedtuple(
@@ -56,7 +56,7 @@ def InjectRollingBuffer():
     def _pre_visit(stmt):
         if isinstance(stmt, tvm.tir.For):
             # Manage the stack of iter_vars
-            iter_vars.append(stmt)
+            for_loops.append(stmt)
 
         elif isinstance(stmt, tvm.tir.AttrStmt):
             if isinstance(stmt.node, tvm.tir.Buffer):
@@ -118,7 +118,7 @@ def InjectRollingBuffer():
                 # to be the rolling axis
                 roll_iter_var = None
                 roll_axis = -1
-                for loop in iter_vars:
+                for loop in for_loops:
                     iter_var = loop.loop_var
                     if iter_var in bound_iter_vars:
                         roll_iter_var = iter_var
@@ -148,7 +148,7 @@ def InjectRollingBuffer():
     def _post_visit(stmt):
         if isinstance(stmt, tvm.tir.For):
             # Manage the stack of iter_vars
-            iter_vars.pop()
+            for_loops.pop()
             # If the loop corresponds to an iter_var that needs a BufferRealize
             # hoisting to its scope, perform the hoisting
             if stmt.loop_var in hoist_buffer_to_for:
