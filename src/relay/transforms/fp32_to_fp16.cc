@@ -54,7 +54,7 @@ using CachedCastNodes = std::unordered_map<std::pair<const ExprNode*, DataType>,
 // A function which maps CallNodes to their initial conversion color
 using ColorFunc = std::function<MixedTypeConversionCategory(const CallNode*)>;
 
-// A function which maps green CallNodes to wanted accumulation and output dtypes
+// A function which maps MIXED_PRECISION_ALWAYS CallNodes to wanted accumulation and output dtypes
 using OutputDtypeFunc = std::function<MixedPrecisionOpOutDType(const CallNode*)>;
 
 class AmpGraphCreator : public ExprMutator {
@@ -240,7 +240,7 @@ class AmpGraphCreator : public ExprMutator {
   }
 
   Expr VisitExpr_(const CallNode* call_node) {
-    MixedTypeConversionCategory initial_color = colorer(call_node);
+    MixedTypeConversionCategory initial_category = colorer(call_node);
     auto new_op = this->Mutate(call_node->op);
 
     // Mutate arguments to reduced precision form first if possible and keep track of
@@ -255,7 +255,7 @@ class AmpGraphCreator : public ExprMutator {
       new_args.push_back(new_arg);
       new_arg_types.push_back(new_arg_type);
 
-      if (initial_color == GRAY && all_args_mixed_type_compatible) {
+      if (initial_category == MIXED_PRECISION_FOLLOW && all_args_mixed_type_compatible) {
         // We can cast Vars and Constants to the right types so don't care about the types.
         bool is_mixed_type_compatible = IsMixedPrecisionType(new_arg_type, true) ||
                                         arg->IsInstance<VarNode>() ||
@@ -264,16 +264,18 @@ class AmpGraphCreator : public ExprMutator {
       }
     }
 
-    // Determine the final color.
-    MixedTypeConversionCategory final_color;
-    if (initial_color == GRAY) {
-      final_color = all_args_mixed_type_compatible ? GREEN : RED;
+    // Determine the final category for conversion.
+    MixedTypeConversionCategory final_category;
+    if (initial_category == MIXED_PRECISION_FOLLOW) {
+      final_category =
+          all_args_mixed_type_compatible ? MIXED_PRECISION_ALWAYS : MIXED_PRECISION_NEVER;
     } else {
-      final_color = initial_color;
+      final_category = initial_category;
     }
 
     // Create the new arguments to the call.
-    DataType wanted_arg_dtypes = final_color == GREEN ? mixed_precision_type : DataType::Float(32);
+    DataType wanted_arg_dtypes =
+        final_category == MIXED_PRECISION_ALWAYS ? mixed_precision_type : DataType::Float(32);
     auto call_args_and_types = CastAllArgs(new_args, new_arg_types, wanted_arg_dtypes);
 
     Array<Expr> call_args = call_args_and_types.first;
@@ -287,7 +289,7 @@ class AmpGraphCreator : public ExprMutator {
     }
 
     // Finally create the new attributes.
-    if (final_color == GREEN) {
+    if (final_category == MIXED_PRECISION_ALWAYS) {
       MixedPrecisionOpOutDType output_dtypes = output_dtype_func(call_node);
 
       Attrs new_attrs = GetNewAttrs(call_node, output_dtypes.accumulation_dtype);

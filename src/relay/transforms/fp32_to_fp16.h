@@ -42,17 +42,22 @@ struct MixedPrecisionOpOutDType {
   DataType output_dtype;
 };
 
-// GREEN colored ops should always be done in lower precision due to the speed and memory savings
-// GRAY colored ops can be done in lower precision but don't have speedups to justify a dedicated
-// cast. RED colored ops should not be done in lower precision due to numerical reasons.
-enum MixedTypeConversionCategory { RED, GRAY, GREEN };
+// MIXED_PRECISION_ALWAYS ops should always be done in lower precision due to the speed and memory
+// savings. MIXED_PRECISION_FOLLOW ops can be done in lower precision but don't have speedups to
+// justify a cast. MIXED_PRECISION_NEVER colored ops should not be done in lower precision due to
+// numerical reasons.
+enum MixedTypeConversionCategory {
+  MIXED_PRECISION_ALWAYS,
+  MIXED_PRECISION_FOLLOW,
+  MIXED_PRECISION_NEVER
+};
 
 using OpStringSet = std::unordered_set<std::string>;
 
 // Default lists inspired from TF's classifications:
 // github.com/tensorflow/tensorflow/blob/v2.5.0/tensorflow/core/grappler/optimizers/auto_mixed_precision_lists.h
 // They have a bias toward Nvidia Tensor Cores so modify lists per your hardware choice.
-OpStringSet DEFAULT_GREEN_LIST({
+OpStringSet DEFAULT_ALWAYS_LIST({
     "nn.conv1d",
     "nn.conv2d",
     "nn.conv3d",
@@ -62,7 +67,7 @@ OpStringSet DEFAULT_GREEN_LIST({
     "nn.dense",
     "nn.batch_matmul",
 });
-OpStringSet DEFAULT_GRAY_LIST({
+OpStringSet DEFAULT_FOLLOW_LIST({
     // These ops add new data or change shape
     "nn.pad",
     "nn.batch_flatten",
@@ -91,7 +96,7 @@ OpStringSet DEFAULT_GRAY_LIST({
     "greater",
     "less_equal",
     "greater_equal",
-    // By definition copy and cast will become green or red based on inputs
+    // By definition copy and cast will depend on inputs for output.
     "copy",
     "cast",
     "cast_like",
@@ -138,7 +143,7 @@ OpStringSet DEFAULT_GRAY_LIST({
     "nn.adaptive_avg_pool2d",
     "nn.adaptive_avg_pool3d",
 });
-OpStringSet DEFAULT_RED_LIST({
+OpStringSet DEFAULT_NEVER_LIST({
     // In general if |f(x)| >> |x| for expected inputs then put the op here.
     "exp",
     "power",
@@ -147,7 +152,7 @@ OpStringSet DEFAULT_RED_LIST({
     "nn.softmax",
     "nn.l2_normalize",
     // Error function doesn't seem to be able to be lowered into fp16 version in llvm.
-    // Move to gray list when it does.
+    // Move to follow list when it does.
     "erf",
 });
 
@@ -161,11 +166,13 @@ class DefaultMixedPrecisionColorer {
   std::unordered_map<std::string, MixedTypeConversionCategory> op_to_initial_color;
 
  public:
-  DefaultMixedPrecisionColorer(OpStringSet red_list = DEFAULT_RED_LIST,
-                               OpStringSet gray_list = DEFAULT_GRAY_LIST,
-                               OpStringSet green_list = DEFAULT_GREEN_LIST) {
+  DefaultMixedPrecisionColorer(OpStringSet never_list = DEFAULT_NEVER_LIST,
+                               OpStringSet follow_list = DEFAULT_FOLLOW_LIST,
+                               OpStringSet always_list = DEFAULT_ALWAYS_LIST) {
     std::vector<std::pair<OpStringSet, MixedTypeConversionCategory>> lists_and_colors{
-        {red_list, RED}, {gray_list, GRAY}, {green_list, GREEN}};
+        {never_list, MIXED_PRECISION_NEVER},
+        {follow_list, MIXED_PRECISION_FOLLOW},
+        {always_list, MIXED_PRECISION_ALWAYS}};
 
     for (auto list_and_color : lists_and_colors) {
       OpStringSet ops = list_and_color.first;
@@ -184,17 +191,17 @@ class DefaultMixedPrecisionColorer {
       if (color == op_to_initial_color.end()) {
         (ignore_missing ? LOG(WARNING) : LOG(FATAL))
             << "Op name " << op_name << " not in included in conversion lists!";
-        return RED;
+        return MIXED_PRECISION_NEVER;
       }
 
       return color->second;
     } else if ((call->op).as<FunctionNode>()) {
-      // Make RED to avoid messing with function headers.
-      return RED;
+      // Make MIXED_PRECISION_NEVER to avoid messing with function headers.
+      return MIXED_PRECISION_NEVER;
     } else {
       LOG(FATAL) << "Conversion only supports call nodes with OpNodes or Functions got "
                  << call->op;
-      return RED;
+      return MIXED_PRECISION_NEVER;
     }
   }
 };
@@ -218,7 +225,7 @@ class DefaultMixedPrecisionOpDefinition {
     // TODO(AndrewZhaoLuo): remove when batch_matmul handles accumulation dtypes well.
     // Batched matmul has inconsistent support for mixed precision operations.
     // Many schedules ignore the out_dtype attribute which leads to errors when
-    // input types do not match the out_dtype. Therefore, accumulate to output_dtype if green.
+    // input types do not match the out_dtype. Therefore, accumulate to output_dtype.
     if (auto op_node = call->op.as<OpNode>()) {
       if (op_node->name == "nn.batch_matmul") {
         return {default_output_dtype, default_output_dtype};
