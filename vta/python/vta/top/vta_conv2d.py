@@ -29,7 +29,7 @@ from ..environment import get_env
 
 @autotvm.register_topi_compute("conv2d_packed.vta")
 def conv2d_packed(cfg, data, kernel, strides, padding, dilation, layout, out_dtype):
-    """ Packed conv2d function."""
+    """Packed conv2d function."""
     if not is_packed_layout(layout):
         raise topi.InvalidShapeError()
     assert dilation == (1, 1)

@@ -47,7 +47,7 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
                                    const ArgUnion64* pack_args) const {
   int device_id = VulkanThreadEntry::ThreadLocal()->device.device_id;
   ICHECK_LT(device_id, kVulkanMaxNumDevice);
-  const auto& vctx = VulkanDeviceAPI::Global()->context(device_id);
+  const auto& device = VulkanDeviceAPI::Global()->device(device_id);
   if (!scache_[device_id]) {
     scache_[device_id] = m_->GetPipeline(device_id, func_name_, num_pack_args_);
   }
@@ -73,12 +73,12 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
     binfo.range = VK_WHOLE_SIZE;
     descriptor_buffers.push_back(binfo);
   }
-  if (vctx.UseImmediate()) {
+  if (device.UseImmediate()) {
     // Can safely capture by reference as this lambda is immediately executed on the calling thread.
     VulkanThreadEntry::ThreadLocal()->Stream(device_id)->Launch([&](VulkanStreamState* state) {
       vkCmdBindPipeline(state->cmd_buffer_, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline->pipeline);
       ICHECK(pipeline->descriptor_update_template != VK_NULL_HANDLE);
-      vctx.descriptor_template_khr_functions->vkCmdPushDescriptorSetWithTemplateKHR(
+      device.descriptor_template_khr_functions->vkCmdPushDescriptorSetWithTemplateKHR(
           state->cmd_buffer_, pipeline->descriptor_update_template, pipeline->pipeline_layout, 0,
           descriptor_buffers.data());
 
@@ -107,7 +107,7 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
 
   // Otherwise, the more expensive deferred path.
   std::vector<ArgUnion64> pack_args_storage(pack_args, pack_args + num_pack_args_);
-  const auto& deferred_initializer = [&vctx, pipeline, descriptor_buffers]() {
+  const auto& deferred_initializer = [&device, pipeline, descriptor_buffers]() {
     std::vector<VkWriteDescriptorSet> write_descriptor_sets;
     write_descriptor_sets.resize(descriptor_buffers.size());
     for (size_t i = 0; i < write_descriptor_sets.size(); i++) {
@@ -128,8 +128,8 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
         write_descriptor_sets[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
       }
     }
-    vkUpdateDescriptorSets(vctx.device, write_descriptor_sets.size(), write_descriptor_sets.data(),
-                           0, 0);
+    vkUpdateDescriptorSets(device, write_descriptor_sets.size(), write_descriptor_sets.data(), 0,
+                           0);
   };
   const auto& deferred_kernel = [this, pipeline, wl, pack_args_storage, nbytes_scalars,
                                  device_id](VulkanStreamState* state) {
@@ -174,17 +174,17 @@ VulkanModuleNode::~VulkanModuleNode() {
     for (auto& kv : ecache_[device_id]) {
       auto& pe = kv.second;
       ICHECK(pe);
-      const auto& vctx = VulkanDeviceAPI::Global()->context(device_id);
+      const auto& device = VulkanDeviceAPI::Global()->device(device_id);
 
       if (pe->descriptor_update_template != VK_NULL_HANDLE) {
-        vctx.descriptor_template_khr_functions->vkDestroyDescriptorUpdateTemplateKHR(
-            vctx.device, pe->descriptor_update_template, nullptr);
+        device.descriptor_template_khr_functions->vkDestroyDescriptorUpdateTemplateKHR(
+            device, pe->descriptor_update_template, nullptr);
       }
-      vkDestroyPipeline(vctx.device, pe->pipeline, nullptr);
-      vkDestroyPipelineLayout(vctx.device, pe->pipeline_layout, nullptr);
-      vkDestroyDescriptorPool(vctx.device, pe->descriptor_pool, nullptr);
-      vkDestroyDescriptorSetLayout(vctx.device, pe->descriptor_set_layout, nullptr);
-      vkDestroyShaderModule(vctx.device, pe->shader, nullptr);
+      vkDestroyPipeline(device, pe->pipeline, nullptr);
+      vkDestroyPipelineLayout(device, pe->pipeline_layout, nullptr);
+      vkDestroyDescriptorPool(device, pe->descriptor_pool, nullptr);
+      vkDestroyDescriptorSetLayout(device, pe->descriptor_set_layout, nullptr);
+      vkDestroyShaderModule(device, pe->shader, nullptr);
     }
   }
 }
@@ -206,7 +206,7 @@ PackedFunc VulkanModuleNode::GetFunction(const std::string& name,
 std::shared_ptr<VulkanPipeline> VulkanModuleNode::GetPipeline(size_t device_id,
                                                               const std::string& func_name,
                                                               size_t num_pack_args) {
-  const auto& vctx = VulkanDeviceAPI::Global()->context(device_id);
+  const auto& device = VulkanDeviceAPI::Global()->device(device_id);
   std::lock_guard<std::mutex> lock(mutex_);
   const auto& cp = ecache_[device_id][func_name];
   if (cp) {
@@ -226,7 +226,7 @@ std::shared_ptr<VulkanPipeline> VulkanModuleNode::GetPipeline(size_t device_id,
     shader_cinfo.flags = 0;
     shader_cinfo.codeSize = data.size() * sizeof(uint32_t);
     shader_cinfo.pCode = data.data();
-    VULKAN_CALL(vkCreateShaderModule(vctx.device, &shader_cinfo, nullptr, &(pe->shader)));
+    VULKAN_CALL(vkCreateShaderModule(device, &shader_cinfo, nullptr, &(pe->shader)));
   }
   std::vector<VkDescriptorSetLayoutBinding> arg_binding;
   std::vector<VkDescriptorUpdateTemplateEntryKHR> arg_template;
@@ -294,16 +294,16 @@ std::shared_ptr<VulkanPipeline> VulkanModuleNode::GetPipeline(size_t device_id,
     descrip_cinfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
     descrip_cinfo.pNext = nullptr;
     descrip_cinfo.flags = 0;
-    if (vctx.UseImmediate()) {
+    if (device.UseImmediate()) {
       descrip_cinfo.flags |= VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT_KHR;
     }
     descrip_cinfo.bindingCount = arg_binding.size();
     descrip_cinfo.pBindings = arg_binding.data();
-    VULKAN_CALL(vkCreateDescriptorSetLayout(vctx.device, &descrip_cinfo, nullptr,
-                                            &(pe->descriptor_set_layout)));
+    VULKAN_CALL(
+        vkCreateDescriptorSetLayout(device, &descrip_cinfo, nullptr, &(pe->descriptor_set_layout)));
   }
 
-  if (!vctx.UseImmediate()) {
+  if (!device.UseImmediate()) {
     VkDescriptorPoolCreateInfo descrip_pool_cinfo;
     descrip_pool_cinfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     descrip_pool_cinfo.pNext = nullptr;
@@ -312,7 +312,7 @@ std::shared_ptr<VulkanPipeline> VulkanModuleNode::GetPipeline(size_t device_id,
     descrip_pool_cinfo.poolSizeCount = descriptor_set_pool_sizes.size();
     descrip_pool_cinfo.pPoolSizes = descriptor_set_pool_sizes.data();
     VULKAN_CALL(
-        vkCreateDescriptorPool(vctx.device, &descrip_pool_cinfo, nullptr, &(pe->descriptor_pool)));
+        vkCreateDescriptorPool(device, &descrip_pool_cinfo, nullptr, &(pe->descriptor_pool)));
 
     VkDescriptorSetAllocateInfo alloc_info;
     alloc_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
@@ -320,7 +320,7 @@ std::shared_ptr<VulkanPipeline> VulkanModuleNode::GetPipeline(size_t device_id,
     alloc_info.descriptorPool = pe->descriptor_pool;
     alloc_info.descriptorSetCount = 1;
     alloc_info.pSetLayouts = &(pe->descriptor_set_layout);
-    VULKAN_CALL(vkAllocateDescriptorSets(vctx.device, &alloc_info, &(pe->descriptor_set)));
+    VULKAN_CALL(vkAllocateDescriptorSets(device, &alloc_info, &(pe->descriptor_set)));
   }
 
   VkPushConstantRange crange;
@@ -338,13 +338,19 @@ std::shared_ptr<VulkanPipeline> VulkanModuleNode::GetPipeline(size_t device_id,
   if (0 < nbytes_scalars && !pe->use_ubo) {
     playout_cinfo.pushConstantRangeCount = 1;
     playout_cinfo.pPushConstantRanges = &crange;
-    ICHECK_LE(crange.size, vctx.phy_device_prop.limits.maxPushConstantsSize);
+    ICHECK_LE(crange.size, device.device_properties.max_push_constants_size)
+        << "The Vulkan shader uses " << crange.size
+        << " bytes of push constants, but the device only supports "
+        << device.device_properties.max_push_constants_size << "bytes. "
+        << "Please rebuild the shader using a smaller limit on push constants size "
+        << "by passing -max_push_constants_size=N in the Target string, "
+        << "or pass -from_device=0 to query all device parameters.";
   } else {
     playout_cinfo.pushConstantRangeCount = 0;
     playout_cinfo.pPushConstantRanges = nullptr;
   }
 
-  VULKAN_CALL(vkCreatePipelineLayout(vctx.device, &playout_cinfo, nullptr, &(pe->pipeline_layout)));
+  VULKAN_CALL(vkCreatePipelineLayout(device, &playout_cinfo, nullptr, &(pe->pipeline_layout)));
 
   VkComputePipelineCreateInfo pipeline_cinfo;
   pipeline_cinfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
@@ -360,10 +366,10 @@ std::shared_ptr<VulkanPipeline> VulkanModuleNode::GetPipeline(size_t device_id,
   pipeline_cinfo.layout = pe->pipeline_layout;
   pipeline_cinfo.basePipelineHandle = VK_NULL_HANDLE;
   pipeline_cinfo.basePipelineIndex = 0;
-  VULKAN_CALL(vkCreateComputePipelines(vctx.device, VK_NULL_HANDLE, 1, &pipeline_cinfo, nullptr,
+  VULKAN_CALL(vkCreateComputePipelines(device, VK_NULL_HANDLE, 1, &pipeline_cinfo, nullptr,
                                        &(pe->pipeline)));
 
-  if (vctx.UseImmediate()) {
+  if (device.UseImmediate()) {
     VkDescriptorUpdateTemplateCreateInfoKHR descrip_template_cinfo;
     descrip_template_cinfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_UPDATE_TEMPLATE_CREATE_INFO_KHR;
     descrip_template_cinfo.pNext = 0;
@@ -375,8 +381,8 @@ std::shared_ptr<VulkanPipeline> VulkanModuleNode::GetPipeline(size_t device_id,
     descrip_template_cinfo.pipelineBindPoint = VK_PIPELINE_BIND_POINT_COMPUTE;
     descrip_template_cinfo.pipelineLayout = pe->pipeline_layout;
     descrip_template_cinfo.set = 0;
-    VULKAN_CALL(vctx.descriptor_template_khr_functions->vkCreateDescriptorUpdateTemplateKHR(
-        vctx.device, &descrip_template_cinfo, 0, &(pe->descriptor_update_template)));
+    VULKAN_CALL(device.descriptor_template_khr_functions->vkCreateDescriptorUpdateTemplateKHR(
+        device, &descrip_template_cinfo, 0, &(pe->descriptor_update_template)));
   }
   ecache_[device_id][func_name] = pe;
   return pe;

@@ -1611,7 +1611,8 @@ def test_all_class_non_max_suppression():
         max_output_boxes_per_class,
         iou_threshold,
         score_threshold,
-        expected_indices,
+        expected,
+        output_format="onnx",
     ):
         batch_size = boxes_np.shape[0]
         num_classes = scores_np.shape[1]
@@ -1622,23 +1623,23 @@ def test_all_class_non_max_suppression():
         )
 
         nms_out = relay.vision.all_class_non_max_suppression(
-            boxes,
-            scores,
-            max_output_boxes_per_class,
-            iou_threshold,
-            score_threshold,
+            boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold, output_format
         )
 
-        three = relay.const(np.array([3]), dtype="int64")
-        begin = relay.const(np.array([0, 0]), dtype="int64")
-        end = relay.op.concatenate([nms_out[1], three], axis=0)
-        strides = relay.const(np.array([1, 1]), dtype="int64")
-        out = relay.op.strided_slice(nms_out[0], begin, end, strides)
-
-        mod = tvm.IRModule()
-        mod["main"] = relay.Function([boxes, scores], out)
-
-        check_result([boxes_np, scores_np], mod, [expected_indices])
+        if output_format == "onnx":
+            three = relay.const(np.array([3]), dtype="int64")
+            begin = relay.const(np.array([0, 0]), dtype="int64")
+            end = relay.op.concatenate([nms_out[1], three], axis=0)
+            strides = relay.const(np.array([1, 1]), dtype="int64")
+            out = relay.op.strided_slice(nms_out[0], begin, end, strides)
+            mod = tvm.IRModule()
+            mod["main"] = relay.Function([boxes, scores], out)
+            check_result([boxes_np, scores_np], mod, [expected])
+        else:
+            out = nms_out.tuple_value
+            mod = tvm.IRModule()
+            mod["main"] = relay.Function([boxes, scores], out)
+            check_result([boxes_np, scores_np], mod, expected)
 
     boxes = np.array(
         [
@@ -1666,6 +1667,39 @@ def test_all_class_non_max_suppression():
 
     verify_all_class_non_max_suppression(
         boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold, expected
+    )
+
+    expected = [
+        np.array(
+            [[[0, 4], [0, 2], [1, 4], [1, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0]]]
+        ),
+        np.array(
+            [
+                [
+                    0.9,
+                    0.6,
+                    0.9,
+                    0.8,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                ]
+            ]
+        ),
+        np.array([4]),
+    ]
+
+    verify_all_class_non_max_suppression(
+        boxes,
+        scores,
+        max_output_boxes_per_class,
+        iou_threshold,
+        score_threshold,
+        expected,
+        output_format="tensorflow",
     )
 
     boxes = np.array(

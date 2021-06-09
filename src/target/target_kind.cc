@@ -298,6 +298,7 @@ TVM_REGISTER_TARGET_KIND("llvm", kDLCPU)
     .add_attr_option<Bool>("system-lib")
     .add_attr_option<String>("runtime")
     .add_attr_option<Bool>("link-params", Bool(false))
+    .add_attr_option<Bool>("unpacked-api")
     .set_default_keys({"cpu"});
 
 TVM_REGISTER_TARGET_KIND("c", kDLCPU)
@@ -308,6 +309,7 @@ TVM_REGISTER_TARGET_KIND("c", kDLCPU)
     .add_attr_option<String>("march")
     .add_attr_option<String>("executor")
     .add_attr_option<Integer>("workspace-byte-alignment")
+    .add_attr_option<Bool>("unpacked-api")
     .set_default_keys({"cpu"});
 
 TVM_REGISTER_TARGET_KIND("cuda", kDLCUDA)
@@ -348,6 +350,7 @@ TVM_REGISTER_TARGET_KIND("opencl", kDLOpenCL)
 TVM_REGISTER_TARGET_KIND("metal", kDLMetal)
     .add_attr_option<Bool>("system-lib")
     .add_attr_option<Integer>("max_num_threads", Integer(256))
+    .add_attr_option<Integer>("thread_warp_size", Integer(16))
     .set_default_keys({"metal", "gpu"});
 
 TVM_REGISTER_TARGET_KIND("vulkan", kDLVulkan)

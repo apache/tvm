@@ -256,6 +256,121 @@ class Schedule(Object):
         """
         return _ffi_api_schedule.ScheduleGetLoops(self, block)  # pylint: disable=no-member
 
+    ########## Schedule: loops manipulation ##########
+    ########## Schedule: compute location ##########
+    def compute_inline(self, block: BlockRV) -> None:
+        """Inline a block into its consumer(s). It requires:
+        1) The block is a complete non-root block, which only produces one buffer
+        2) The block must not be the only leaf in the scope.
+        3) The body of the block must be a BufferStore statement in the form of,
+            A[i, j, k, ...] = ...
+        where the indices of the LHS are all distinct atomic variables,
+        and no variables other than those indexing variables are allowed in the statement.
+
+        Parameters
+        ----------
+        block : BlockRV
+            The block to be inlined to its consumer(s)
+
+        Examples
+        --------
+
+        Before compute-inline, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @tvm.script.tir
+            def before_inline(a: ty.handle, c: ty.handle) -> None:
+                A = tir.match_buffer(a, (128, 128))
+                B = tir.alloc_buffer((128, 128))
+                C = tir.match_buffer(c, (128, 128))
+                with tir.block([128, 128], "B") as [vi, vj]:
+                    B[vi, vj] = A[vi, vj] * 2.0
+                with tir.block([128, 128], "C") as [vi, vj]:
+                    C[vi, vj] = B[vi, vj] + 1.0
+
+        Create the schedule and do compute-inline:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(before_inline, debug_mode=True)
+            sch.compute_inline(sch.get_block("B"))
+            print(tvm.script.asscript(sch.mod["main"]))
+
+        After applying compute-inline, the IR becomes:
+
+        .. code-block:: python
+
+            @tvm.script.tir
+            def after_inline(a: ty.handle, c: ty.handle) -> None:
+                A = tir.match_buffer(a, (128, 128))
+                C = tir.match_buffer(c, (128, 128))
+                with tir.block([128, 128], "C") as [vi, vj]:
+                    C[vi, vj] = A[vi, vj] * 2.0 + 1.0
+
+        """
+        _ffi_api_schedule.ScheduleComputeInline(self, block)  # pylint: disable=no-member
+
+    def reverse_compute_inline(self, block: BlockRV) -> None:
+        """Inline a block into its only producer. It requires:
+        1) The block is a complete non-root block, which only produces and consumes one buffer
+        2) The block must not be the only leaf in the scope.
+        3) The only producer of the block is a read-after-write producer
+        and a complete non-root block
+        4) The body of the block must be a BufferStore statement in the form of,
+            B[f(i, j, k, ...)] = g(i, j, k, A[i, j, k, ...] ...)
+        where the indices of each `BufferLoad` on the RHS are all distinct atomic variables,
+        and no variables other than those indexing variables are allowed in the statement.
+
+        Parameters
+        ----------
+        block : BlockRV
+            The block to be inlined to its producer
+
+        Examples
+        --------
+
+        Before reverse-compute-inline, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @tvm.script.tir
+            def before_inline(a: ty.handle, c: ty.handle) -> None:
+                A = tir.match_buffer(a, (128, 128))
+                B = tir.alloc_buffer((128, 128))
+                C = tir.match_buffer(c, (128, 128))
+                with tir.block([128, 128], "B") as [vi, vj]:
+                    B[vi, vj] = A[vi, vj] * 2.0
+                with tir.block([128, 128], "C") as [vi, vj]:
+                    C[vi, vj] = B[vi, vj] + 1.0
+
+        Create the schedule and do reverse-compute-inline:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(before_inline, debug_mode=True)
+            sch.reverse_compute_inline(sch.get_block("C"))
+            print(tvm.script.asscript(sch.mod["main"]))
+
+        After applying reverse-compute-inline, the IR becomes:
+
+        .. code-block:: python
+
+            @tvm.script.tir
+            def after_inline(a: ty.handle, c: ty.handle) -> None:
+                A = tir.match_buffer(a, (128, 128))
+                C = tir.match_buffer(c, (128, 128))
+                with tir.block([128, 128], "C") as [vi, vj]:
+                    C[vi, vj] = A[vi, vj] * 2.0 + 1.0
+
+        """
+        _ffi_api_schedule.ScheduleReverseComputeInline(self, block)  # pylint: disable=no-member
+
+    ########## Schedule: loop binding/annotation ##########
+    ########## Schedule: cache read/write ##########
+    ########## Schedule: reduction ##########
+    ########## Schedule: blockize & tensorize ##########
+
 
 @_register_object("tir.ConcreteSchedule")
 class ConcreteSchedule(Schedule):

@@ -347,6 +347,17 @@ def MakePackedAPI(num_unpacked_params=0):
     return _ffi_api.MakePackedAPI(num_unpacked_params)
 
 
+def MakeUnpackedAPI():
+    """Transform the PrimFuncs in the module to a C API compatible with internal calls.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.MakeUnpackedAPI()
+
+
 def SplitHostDevice():
     """Split the function into a host function and device functions.
 

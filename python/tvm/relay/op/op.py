@@ -21,6 +21,7 @@ import tvm.ir
 from tvm.driver import lower, build
 from tvm.target import get_native_generic_func, GenericFunc
 from tvm.runtime import Object
+import tvm.ir._ffi_api
 from . import _make
 
 
@@ -38,6 +39,40 @@ def get(op_name):
         The op of the corresponding name
     """
     return tvm.ir.Op.get(op_name)
+
+
+def register(op_name, describe=""):
+    """Get the Op for a given name.
+    when the op_name is not registered, create a new empty op with the given name.
+    when the op_name has been registered, abort with an error message.
+
+    Parameters
+    ----------
+    op_name : str
+        The operator name
+
+    describe : Optional[str]
+        The operator description
+    """
+
+    tvm.ir._ffi_api.RegisterOp(op_name, describe)
+
+
+def register_stateful(op_name, stateful, level=10):
+    """Register operator pattern for an op.
+
+    Parameters
+    ----------
+    op_name : str
+        The name of the op.
+
+    stateful : bool
+        The stateful flag.
+
+    level : int
+        The priority level
+    """
+    tvm.ir.register_op_attr(op_name, "TOpIsStateful", stateful, level)
 
 
 class OpPattern(object):
@@ -399,6 +434,27 @@ def register_external_compiler(op_name, fexternal=None, level=10):
         The priority level
     """
     return tvm.ir.register_op_attr(op_name, "FTVMExternalCompiler", fexternal, level)
+
+
+def register_fake_quantization_to_integer(op_name, func=None, level=10):
+    """Register quantize function for an op
+
+    Given an op and Affine Types on it's inputs, this function should return the op
+    in affine space/integer operators and the new type of the output, where affine
+    denotes the transformation x_real = (x_affine - zero_point) * scale
+
+    Parameters
+    ----------
+    op_name : str
+        The name of the operator
+
+    func: function (expr: Expr, map: Map<Expr, AffineType>) -> new_expr: Expr
+        The function for translating the op into affine space and integer operators
+
+    level : int
+        The priority level
+    """
+    return tvm.ir.register_op_attr(op_name, "FTVMFakeQuantizationToInteger", func, level)
 
 
 @tvm._ffi.register_func("relay.op.compiler._lower")

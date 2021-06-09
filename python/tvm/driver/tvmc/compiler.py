@@ -38,7 +38,7 @@ logger = logging.getLogger("TVMC")
 
 @register_parser
 def add_compile_parser(subparsers):
-    """ Include parser for 'compile' subcommand """
+    """Include parser for 'compile' subcommand"""
 
     parser = subparsers.add_parser("compile", help="compile a model.")
     parser.set_defaults(func=drive_compile)

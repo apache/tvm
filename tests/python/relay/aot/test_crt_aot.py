@@ -44,7 +44,8 @@ from aot_test_utils import *
 
 
 @pytest.mark.parametrize("use_calculated_workspaces", [True, False])
-def test_conv_with_params(use_calculated_workspaces):
+@pytest.mark.parametrize("target_options", ["--unpacked-api=0", "--unpacked-api=1"])
+def test_conv_with_params(use_calculated_workspaces, target_options):
     RELAY_MODEL = """
 #[version = "0.0.5"]
 def @main(%data : Tensor[(1, 3, 64, 64), uint8], %weight : Tensor[(8, 3, 5, 5), int8]) {
@@ -73,11 +74,12 @@ def @main(%data : Tensor[(1, 3, 64, 64), uint8], %weight : Tensor[(8, 3, 5, 5), 
     output_list = generate_ref_data(mod, inputs, params)
 
     input_list = [input_data]
-    compile_and_run(mod, input_list, output_list, use_calculated_workspaces, params)
+    compile_and_run(mod, input_list, output_list, target_options, use_calculated_workspaces, params)
 
 
 @pytest.mark.parametrize("use_calculated_workspaces", [True, False])
-def test_add_with_params(use_calculated_workspaces):
+@pytest.mark.parametrize("target_options", ["--unpacked-api=0", "--unpacked-api=1"])
+def test_add_with_params(use_calculated_workspaces, target_options):
     x = relay.var("x", shape=(1, 10))
     y = relay.var("y", shape=(1, 10))
     z = relay.add(x, y)
@@ -91,11 +93,14 @@ def test_add_with_params(use_calculated_workspaces):
     output_list = generate_ref_data(func, inputs, params)
 
     input_list = [y_in]
-    compile_and_run(func, input_list, output_list, use_calculated_workspaces, params)
+    compile_and_run(
+        func, input_list, output_list, target_options, use_calculated_workspaces, params
+    )
 
 
 @pytest.mark.parametrize("use_calculated_workspaces", [True, False])
-def test_conv2d(use_calculated_workspaces):
+@pytest.mark.parametrize("target_options", ["--unpacked-api=0", "--unpacked-api=1"])
+def test_conv2d(use_calculated_workspaces, target_options):
     """Test a subgraph with a single conv2d operator."""
 
     def conv2d_direct():
@@ -137,11 +142,12 @@ def test_conv2d(use_calculated_workspaces):
     for mod, inputs, out_shape in [conv2d_direct(), group_conv2d()]:
         output_list = generate_ref_data(mod, inputs)
         input_list = [inputs["data"], inputs["weight"]]
-        compile_and_run(mod, input_list, output_list, use_calculated_workspaces)
+        compile_and_run(mod, input_list, output_list, target_options, use_calculated_workspaces)
 
 
 @pytest.mark.parametrize("use_calculated_workspaces", [True, False])
-def test_concatenate(use_calculated_workspaces):
+@pytest.mark.parametrize("target_options", ["--unpacked-api=0", "--unpacked-api=1"])
+def test_concatenate(use_calculated_workspaces, target_options):
     dtype = "float32"
     x = relay.var("x", shape=(10, 5), dtype=dtype)
     y = relay.var("y", shape=(10, 5), dtype=dtype)
@@ -157,11 +163,12 @@ def test_concatenate(use_calculated_workspaces):
 
     output_list = generate_ref_data(func, inputs)
     input_list = [inputs["x"], inputs["y"], inputs["z"]]
-    compile_and_run(func, input_list, output_list, use_calculated_workspaces)
+    compile_and_run(func, input_list, output_list, target_options, use_calculated_workspaces)
 
 
 @pytest.mark.parametrize("use_calculated_workspaces", [True, False])
-def test_nested_tuples(use_calculated_workspaces):
+@pytest.mark.parametrize("target_options", ["--unpacked-api=0", "--unpacked-api=1"])
+def test_nested_tuples(use_calculated_workspaces, target_options):
     x = relay.var("x", shape=(10,))
     x1 = x + relay.const(1.0)
     x2 = x1 + relay.const(1.0)
@@ -174,39 +181,43 @@ def test_nested_tuples(use_calculated_workspaces):
     inputs = {"x": x_data}
     output_list = generate_ref_data(func, inputs)
     input_list = [x_data]
-    compile_and_run(func, input_list, output_list, use_calculated_workspaces)
+    compile_and_run(func, input_list, output_list, target_options, use_calculated_workspaces)
 
 
 @pytest.mark.parametrize("use_calculated_workspaces", [True, False])
-def test_tuple_getitem(use_calculated_workspaces):
+@pytest.mark.parametrize("target_options", ["--unpacked-api=0", "--unpacked-api=1"])
+def test_tuple_getitem(use_calculated_workspaces, target_options):
     func = relay.Function([], relay.TupleGetItem(relay.Tuple([relay.const(1), relay.const(2)]), 0))
     output_list = generate_ref_data(func, {})
     input_list = []
-    compile_and_run(func, input_list, output_list, use_calculated_workspaces)
+    compile_and_run(func, input_list, output_list, target_options, use_calculated_workspaces)
 
 
 @pytest.mark.parametrize("use_calculated_workspaces", [True, False])
-def test_id(use_calculated_workspaces):
+@pytest.mark.parametrize("target_options", ["--unpacked-api=0", "--unpacked-api=1"])
+def test_id(use_calculated_workspaces, target_options):
     x = relay.var("x", "float32")
     ident = relay.Function([x], x)
     one = np.array(1.0, "float32")
     inputs = {"x": one}
     output_list = generate_ref_data(ident, inputs)
     input_list = [one]
-    compile_and_run(ident, input_list, output_list, use_calculated_workspaces)
+    compile_and_run(ident, input_list, output_list, target_options, use_calculated_workspaces)
 
 
 @pytest.mark.parametrize("use_calculated_workspaces", [True, False])
-def test_add_const(use_calculated_workspaces):
+@pytest.mark.parametrize("target_options", ["--unpacked-api=0", "--unpacked-api=1"])
+def test_add_const(use_calculated_workspaces, target_options):
     two = relay.add(relay.const(1), relay.const(1))
     func = relay.Function([], two)
     output_list = generate_ref_data(func, {})
     input_list = []
-    compile_and_run(func, input_list, output_list, use_calculated_workspaces)
+    compile_and_run(func, input_list, output_list, target_options, use_calculated_workspaces)
 
 
 @pytest.mark.parametrize("use_calculated_workspaces", [True, False])
-def test_mul_param(use_calculated_workspaces):
+@pytest.mark.parametrize("target_options", ["--unpacked-api=0", "--unpacked-api=1"])
+def test_mul_param(use_calculated_workspaces, target_options):
     x = relay.var("x", shape=(10, 10))
     y = relay.var("y", shape=(1, 10))
     func = relay.Function([x, y], relay.multiply(x, y))
@@ -215,11 +226,12 @@ def test_mul_param(use_calculated_workspaces):
     inputs = {"x": x_data, "y": y_data}
     output_list = generate_ref_data(func, inputs)
     input_list = [inputs["x"], inputs["y"]]
-    compile_and_run(func, input_list, output_list, use_calculated_workspaces)
+    compile_and_run(func, input_list, output_list, target_options, use_calculated_workspaces)
 
 
 @pytest.mark.parametrize("use_calculated_workspaces", [True, False])
-def test_subtract(use_calculated_workspaces):
+@pytest.mark.parametrize("target_options", ["--unpacked-api=0", "--unpacked-api=1"])
+def test_subtract(use_calculated_workspaces, target_options):
     i = relay.var("i", shape=[], dtype="int32")
     sub = relay.subtract(i, relay.const(1, dtype="int32"))
     func = relay.Function([i], sub, ret_type=relay.TensorType([], "int32"))
@@ -227,11 +239,12 @@ def test_subtract(use_calculated_workspaces):
     inputs = {"i": i_data}
     output_list = generate_ref_data(func, inputs)
     input_list = [inputs["i"]]
-    compile_and_run(func, input_list, output_list, use_calculated_workspaces)
+    compile_and_run(func, input_list, output_list, target_options, use_calculated_workspaces)
 
 
 @pytest.mark.parametrize("use_calculated_workspaces", [True, False])
-def test_tuple_output(use_calculated_workspaces):
+@pytest.mark.parametrize("target_options", ["--unpacked-api=0", "--unpacked-api=1"])
+def test_tuple_output(use_calculated_workspaces, target_options):
     x = relay.var("x", shape=(6, 9))
     y = relay.split(x, 3).astuple()
     a = relay.TupleGetItem(y, 0)
@@ -243,15 +256,17 @@ def test_tuple_output(use_calculated_workspaces):
     inputs = {"x": x_data}
     output_list = generate_ref_data(func, inputs)
     input_list = [inputs["x"]]
-    compile_and_run(func, input_list, output_list, use_calculated_workspaces)
+    compile_and_run(func, input_list, output_list, target_options, use_calculated_workspaces)
 
 
 @pytest.mark.parametrize(
     "use_calculated_workspaces_and_alignment", [(True, 1), (True, 16), (False, 1)]
 )
-def test_mobilenet(use_calculated_workspaces_and_alignment):
+@pytest.mark.parametrize("target_options", ["--unpacked-api"])
+def test_mobilenet(use_calculated_workspaces_and_alignment, target_options):
     use_calculated_workspaces = use_calculated_workspaces_and_alignment[0]
     workspace_byte_alignment = use_calculated_workspaces_and_alignment[1]
+
     mod, params = testing.mobilenet.get_workload(batch_size=1)
     data_shape = [int(x) for x in mod["main"].checked_type.arg_types[0].shape]
     data = np.random.uniform(size=data_shape).astype("float32")
@@ -259,7 +274,13 @@ def test_mobilenet(use_calculated_workspaces_and_alignment):
     output_list = generate_ref_data(mod, inputs, params)
     input_list = [inputs["data"]]
     compile_and_run(
-        mod, input_list, output_list, use_calculated_workspaces, params, workspace_byte_alignment
+        mod,
+        input_list,
+        output_list,
+        target_options,
+        use_calculated_workspaces,
+        params,
+        workspace_byte_alignment,
     )
 
 
@@ -318,7 +339,8 @@ class CcompilerAnnotator(ExprMutator):
 
 
 @pytest.mark.parametrize("use_calculated_workspaces", [True, False])
-def test_byoc_utvm(use_calculated_workspaces):
+@pytest.mark.parametrize("target_options", [""])
+def test_byoc_utvm(use_calculated_workspaces, target_options):
     """This is a simple test case to check BYOC capabilities of AOT"""
     x = relay.var("x", shape=(10, 10))
     w0 = relay.var("w0", shape=(10, 10))
@@ -361,7 +383,7 @@ def test_byoc_utvm(use_calculated_workspaces):
     output_list = generate_ref_data(mod, map_inputs)
     input_list = [map_inputs["x"]]
     input_list.extend([map_inputs["w{}".format(i)] for i in range(8)])
-    compile_and_run(mod, input_list, output_list, use_calculated_workspaces)
+    compile_and_run(mod, input_list, output_list, target_options, use_calculated_workspaces)
 
 
 if __name__ == "__main__":

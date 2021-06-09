@@ -4129,6 +4129,7 @@ def test_softplus():
     verify_softplus(input_data)
 
 
+@tvm.testing.uses_gpu
 def test_cumsum():
     def verify_cumsum(indata, axis, exclusive=0, reverse=0, type="float32"):
         cumsum_node = onnx.helper.make_node(
@@ -4205,6 +4206,30 @@ def test_cumsum():
     verify_cumsum(data, 1, 1, 1, type="int32")
 
 
+@tvm.testing.uses_gpu
+def test_eyelike():
+    def verify_eyelike(indata):
+        node = helper.make_node(
+            "EyeLike",
+            inputs=["X"],
+            outputs=["Y"],
+        )
+
+        graph = helper.make_graph(
+            [node],
+            "eyelike_test",
+            inputs=[helper.make_tensor_value_info("X", TensorProto.FLOAT, list(indata.shape))],
+            outputs=[helper.make_tensor_value_info("Y", TensorProto.FLOAT, list(indata.shape))],
+        )
+
+        model = helper.make_model(graph, producer_name="eyelike_test")
+
+        verify_with_ort_with_inputs(model, [indata], dtype="float32", opset=9)
+
+    input_data = np.zeros((5, 5), dtype=np.float32)
+    verify_eyelike(input_data)
+
+
 """
   The following parameterized tests loads the tests that ONNX ships as
   serialized ONNX files, inputs, and outputs. The goal of this test
@@ -4241,9 +4266,6 @@ unsupported_onnx_tests = [
     "test_cumsum_2d_negative_axis/",
     "test_det_2d/",
     "test_det_nd/",
-    "test_eyelike_populate_off_main_diagonal/",
-    "test_eyelike_with_dtype/",
-    "test_eyelike_without_dtype/",
     "test_matmulinteger/",
     "test_maxpool_2d_same_lower/",
     "test_maxpool_2d_same_upper/",
@@ -4284,8 +4306,25 @@ unsupported_onnx_tests = [
 ]
 
 
+targets = [tgt for (tgt, _) in tvm.testing.enabled_targets()]
+
+target_skips = {
+    "cuda": [
+        "test_mod_mixed_sign_float16/",
+        "test_qlinearconv/",
+        "test_resize_upsample_sizes_nearest/",
+    ]
+}
+
+
+@pytest.mark.parametrize("target", targets)
 @pytest.mark.parametrize("test", onnx_test_folders)
-def test_onnx_nodes(test):
+def test_onnx_nodes(test, target):
+    if target in target_skips:
+        for failure in target_skips[target]:
+            if failure in test:
+                pytest.skip()
+                break
     for failure in unsupported_onnx_tests:
         if failure in test:
             pytest.skip()
@@ -4311,12 +4350,14 @@ def test_onnx_nodes(test):
                 outputs.append(numpy_helper.to_array(new_tensor))
             else:
                 raise ImportError(str(tensor) + " not labeled as an import or an output")
-        tvm_val = get_tvm_output_with_vm(onnx_model, inputs, "llvm", tvm.cpu(0))
-        if len(outputs) == 1:
-            tvm.testing.assert_allclose(outputs[0], tvm_val, rtol=rtol, atol=atol)
-        else:
-            for output, val in zip(outputs, tvm_val):
-                tvm.testing.assert_allclose(output, val, rtol=rtol, atol=atol)
+
+    dev = tvm.device(target, 0)
+    tvm_val = get_tvm_output_with_vm(onnx_model, inputs, target, dev)
+    if len(outputs) == 1:
+        tvm.testing.assert_allclose(outputs[0], tvm_val, rtol=rtol, atol=atol)
+    else:
+        for output, val in zip(outputs, tvm_val):
+            tvm.testing.assert_allclose(output, val, rtol=rtol, atol=atol)
 
 
 def test_wrong_input():
@@ -4680,4 +4721,5 @@ if __name__ == "__main__":
     test_wrong_input()
     test_aten()
     test_reverse_sequence()
+    test_eyelike()
     test_qlinearconv()

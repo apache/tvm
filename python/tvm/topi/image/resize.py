@@ -24,7 +24,7 @@ from .. import tag
 
 
 def get_2d_indices(indices, layout="NCHW"):
-    """ Get 2d indices """
+    """Get 2d indices"""
     (cc, inum, ic) = (0, 0, 0)
     if layout == "NHWC":
         n, y, x, c = indices
@@ -43,7 +43,7 @@ def get_2d_indices(indices, layout="NCHW"):
 
 
 def get_2d_pixel(data, layout, boxes, image_height, image_width, n, c, y, x, cc, ib, ic):
-    """ Get 2d pixel """
+    """Get 2d pixel"""
     if boxes is None:
         y = tvm.te.max(tvm.te.min(y, image_height - 1), 0)
         x = tvm.te.max(tvm.te.min(x, image_width - 1), 0)
@@ -62,7 +62,7 @@ def get_2d_pixel(data, layout, boxes, image_height, image_width, n, c, y, x, cc,
 def get_iny_inx(
     y, x, image_height, image_width, target_height, target_width, coordinate_transformation_mode
 ):
-    """ Infer input x,y from output x,y with various coordinate transformation methods """
+    """Infer input x,y from output x,y with various coordinate transformation methods"""
     scale_y = te.div(image_height.astype("float"), target_height.astype("float"))
     scale_x = te.div(image_width.astype("float"), target_width.astype("float"))
     if coordinate_transformation_mode == "half_pixel":

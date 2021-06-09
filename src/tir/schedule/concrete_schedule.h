@@ -77,6 +77,14 @@ class ConcreteScheduleNode : public ScheduleNode {
   /******** Block/Loop relation ********/
   BlockRV GetBlock(const String& name, const String& func_name = "main") override;
   Array<LoopRV> GetLoops(const BlockRV& block_rv) override;
+  /******** Schedule: loops manipulation ********/
+  /******** Schedule: compute location ********/
+  void ComputeInline(const BlockRV& block) override;
+  void ReverseComputeInline(const BlockRV& block) override;
+  /******** Schedule: loop binding/annotation ********/
+  /******** Schedule: cache read/write ********/
+  /******** Schedule: reduction ********/
+  /******** Schedule: blockize & tensorize ********/
 
   /******** Utility functions ********/
  protected:

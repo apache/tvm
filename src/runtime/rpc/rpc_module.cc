@@ -21,7 +21,7 @@
  * \file rpc_module.cc
  * \brief RPC runtime module.
  */
-#include <tvm/runtime/container.h>
+#include <tvm/runtime/container/string.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/profiling.h>
 #include <tvm/runtime/registry.h>

@@ -24,6 +24,7 @@
 
 #include "vm.h"
 
+#include <tvm/runtime/container/adt.h>
 #include <tvm/runtime/registry.h>
 
 #include <algorithm>

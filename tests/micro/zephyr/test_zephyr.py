@@ -42,30 +42,21 @@ from tvm.relay.op.annotation import compiler_begin, compiler_end
 
 import conftest
 
-# If set, build the uTVM binary from scratch on each test.
-# Otherwise, reuses the build from the previous test run.
-BUILD = True
-
-# If set, enable a debug session while the test is running.
-# Before running the test, in a separate shell, you should run:
-#   python -m tvm.exec.microtvm_debug_shell
-DEBUG = False
-
 _LOG = logging.getLogger(__name__)
 
 PLATFORMS = conftest.PLATFORMS
 
 
-def _make_sess_from_op(model, zephyr_board, west_cmd, op_name, sched, arg_bufs):
+def _make_sess_from_op(model, zephyr_board, west_cmd, op_name, sched, arg_bufs, build_config):
     target = tvm.target.target.micro(model)
     target = tvm.target.Target(target=target, host=target)
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         mod = tvm.build(sched, arg_bufs, target=target, name=op_name)
 
-    return _make_session(model, target, zephyr_board, west_cmd, mod)
+    return _make_session(model, target, zephyr_board, west_cmd, mod, build_config)
 
 
-def _make_session(model, target, zephyr_board, west_cmd, mod):
+def _make_session(model, target, zephyr_board, west_cmd, mod, build_config):
     parent_dir = os.path.dirname(__file__)
     filename = os.path.splitext(os.path.basename(__file__))[0]
     prev_build = f"{os.path.join(parent_dir, 'archive')}_{filename}_{zephyr_board}_last_build.micro"
@@ -94,14 +85,14 @@ def _make_session(model, target, zephyr_board, west_cmd, mod):
     opts["lib_opts"]["ccflags"] = ["-std=gnu++14"]
 
     flasher_kw = {}
-    if DEBUG:
+    if build_config["debug"]:
         flasher_kw["debug_rpc_session"] = tvm.rpc.connect("127.0.0.1", 9090)
 
     session_kw = {
         "flasher": compiler.flasher(**flasher_kw),
     }
 
-    if BUILD:
+    if not build_config["skip_build"]:
         session_kw["binary"] = tvm.micro.build_static_runtime(
             # the x86 compiler *expects* you to give the exact same dictionary for both
             # lib_opts and bin_opts. so the library compiler is mutating lib_opts and
@@ -124,19 +115,20 @@ def _make_session(model, target, zephyr_board, west_cmd, mod):
     return tvm.micro.Session(**session_kw)
 
 
-def _make_add_sess(model, zephyr_board, west_cmd):
+def _make_add_sess(model, zephyr_board, west_cmd, build_config):
     A = tvm.te.placeholder((2,), dtype="int8")
     B = tvm.te.placeholder((1,), dtype="int8")
     C = tvm.te.compute(A.shape, lambda i: A[i] + B[0], name="C")
     sched = tvm.te.create_schedule(C.op)
-    return _make_sess_from_op(model, zephyr_board, west_cmd, "add", sched, [A, B, C])
+    return _make_sess_from_op(model, zephyr_board, west_cmd, "add", sched, [A, B, C], build_config)
 
 
 # The same test code can be executed on both the QEMU simulation and on real hardware.
-def test_compile_runtime(platform, west_cmd):
+def test_compile_runtime(platform, west_cmd, skip_build, tvm_debug):
     """Test compiling the on-device runtime."""
 
     model, zephyr_board = PLATFORMS[platform]
+    build_config = {"skip_build": skip_build, "debug": tvm_debug}
 
     # NOTE: run test in a nested function so cPython will delete arrays before closing the session.
     def test_basic_add(sess):
@@ -151,14 +143,15 @@ def test_compile_runtime(platform, west_cmd):
         system_lib.get_function("add")(A_data, B_data, C_data)
         assert (C_data.numpy() == np.array([6, 7])).all()
 
-    with _make_add_sess(model, zephyr_board, west_cmd) as sess:
+    with _make_add_sess(model, zephyr_board, west_cmd, build_config) as sess:
         test_basic_add(sess)
 
 
-def test_platform_timer(platform, west_cmd):
+def test_platform_timer(platform, west_cmd, skip_build, tvm_debug):
     """Test compiling the on-device runtime."""
 
     model, zephyr_board = PLATFORMS[platform]
+    build_config = {"skip_build": skip_build, "debug": tvm_debug}
 
     # NOTE: run test in a nested function so cPython will delete arrays before closing the session.
     def test_basic_add(sess):
@@ -178,13 +171,14 @@ def test_platform_timer(platform, west_cmd):
         assert result.mean > 0
         assert len(result.results) == 3
 
-    with _make_add_sess(model, zephyr_board, west_cmd) as sess:
+    with _make_add_sess(model, zephyr_board, west_cmd, build_config) as sess:
         test_basic_add(sess)
 
 
-def test_relay(platform, west_cmd):
+def test_relay(platform, west_cmd, skip_build, tvm_debug):
     """Testing a simple relay graph"""
     model, zephyr_board = PLATFORMS[platform]
+    build_config = {"skip_build": skip_build, "debug": tvm_debug}
     shape = (10,)
     dtype = "int8"
 
@@ -198,7 +192,7 @@ def test_relay(platform, west_cmd):
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         graph, mod, params = tvm.relay.build(func, target=target)
 
-    with _make_session(model, target, zephyr_board, west_cmd, mod) as session:
+    with _make_session(model, target, zephyr_board, west_cmd, mod, build_config) as session:
         graph_mod = tvm.micro.create_local_graph_executor(
             graph, session.get_system_lib(), session.device
         )
@@ -210,9 +204,10 @@ def test_relay(platform, west_cmd):
         tvm.testing.assert_allclose(result, x_in * x_in + 1)
 
 
-def test_onnx(platform, west_cmd):
+def test_onnx(platform, west_cmd, skip_build, tvm_debug):
     """Testing a simple ONNX model."""
     model, zephyr_board = PLATFORMS[platform]
+    build_config = {"skip_build": skip_build, "debug": tvm_debug}
 
     # Load test images.
     this_dir = os.path.dirname(__file__)
@@ -239,7 +234,7 @@ def test_onnx(platform, west_cmd):
         lowered = relay.build(relay_mod, target, params=params)
         graph = lowered.get_graph_json()
 
-    with _make_session(model, target, zephyr_board, west_cmd, lowered.lib) as session:
+    with _make_session(model, target, zephyr_board, west_cmd, lowered.lib, build_config) as session:
         graph_mod = tvm.micro.create_local_graph_executor(
             graph, session.get_system_lib(), session.device
         )
@@ -311,14 +306,16 @@ class CcompilerAnnotator(ExprMutator):
         return super().visit_call(call)
 
 
-def check_result(relay_mod, model, zephyr_board, west_cmd, map_inputs, out_shape, result):
+def check_result(
+    relay_mod, model, zephyr_board, west_cmd, map_inputs, out_shape, result, build_config
+):
     """Helper function to verify results"""
     TOL = 1e-5
     target = tvm.target.target.micro(model)
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         graph, mod, params = tvm.relay.build(relay_mod, target=target)
 
-    with _make_session(model, target, zephyr_board, west_cmd, mod) as session:
+    with _make_session(model, target, zephyr_board, west_cmd, mod, build_config) as session:
         rt_mod = tvm.micro.create_local_graph_executor(
             graph, session.get_system_lib(), session.device
         )
@@ -337,9 +334,10 @@ def check_result(relay_mod, model, zephyr_board, west_cmd, map_inputs, out_shape
             tvm.testing.assert_allclose(out.numpy(), results[idx], rtol=TOL, atol=TOL)
 
 
-def test_byoc_utvm(platform, west_cmd):
+def test_byoc_utvm(platform, west_cmd, skip_build, tvm_debug):
     """This is a simple test case to check BYOC capabilities of uTVM"""
     model, zephyr_board = PLATFORMS[platform]
+    build_config = {"skip_build": skip_build, "debug": tvm_debug}
     x = relay.var("x", shape=(10, 10))
     w0 = relay.var("w0", shape=(10, 10))
     w1 = relay.var("w1", shape=(10, 10))
@@ -393,7 +391,41 @@ def test_byoc_utvm(platform, west_cmd):
         model=model,
         zephyr_board=zephyr_board,
         west_cmd=west_cmd,
+        build_config=build_config,
     )
+
+
+def _make_add_sess_with_shape(model, zephyr_board, west_cmd, shape, build_config):
+    A = tvm.te.placeholder(shape, dtype="int8")
+    C = tvm.te.compute(A.shape, lambda i: A[i] + A[i], name="C")
+    sched = tvm.te.create_schedule(C.op)
+    return _make_sess_from_op(model, zephyr_board, west_cmd, "add", sched, [A, C], build_config)
+
+
+@pytest.mark.parametrize(
+    "shape,",
+    [
+        pytest.param((1 * 1024,), id="(1*1024)"),
+        pytest.param((4 * 1024,), id="(4*1024)"),
+        pytest.param((16 * 1024,), id="(16*1024)"),
+    ],
+)
+def test_rpc_large_array(platform, west_cmd, skip_build, tvm_debug, shape):
+    """Test large RPC array transfer."""
+    model, zephyr_board = PLATFORMS[platform]
+    build_config = {"skip_build": skip_build, "debug": tvm_debug}
+
+    # NOTE: run test in a nested function so cPython will delete arrays before closing the session.
+    def test_tensors(sess):
+        a_np = np.random.randint(low=-128, high=127, size=shape, dtype="int8")
+
+        A_data = tvm.nd.array(a_np, device=sess.device)
+        assert (A_data.asnumpy() == a_np).all()
+        C_data = tvm.nd.array(np.zeros(shape, dtype="int8"), device=sess.device)
+        assert (C_data.asnumpy() == np.zeros(shape)).all()
+
+    with _make_add_sess_with_shape(model, zephyr_board, west_cmd, shape, build_config) as sess:
+        test_tensors(sess)
 
 
 if __name__ == "__main__":
