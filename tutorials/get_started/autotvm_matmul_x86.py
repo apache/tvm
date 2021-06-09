@@ -45,7 +45,6 @@ workflow is illustrated by a matrix multiplication example.
   :code:`if __name__ == "__main__":` block.
 """
 
-
 ################################################################################
 # Install dependencies
 # --------------------
