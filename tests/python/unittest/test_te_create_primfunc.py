@@ -300,6 +300,21 @@ def test_constant():
     tvm.testing.assert_allclose(a_np + 2, c.numpy())
 
 
+def test_data_dependent_access():
+    A = te.placeholder((10,), name="A")
+    B = te.placeholder((10,), name="B", dtype="int32")
+    C = te.compute((10,), lambda i: A[B[i]])
+
+    func = te.create_prim_func([C, A, B])
+    func = tvm.build(func)
+
+    a_np = np.random.uniform(size=(10,)).astype(A.dtype)
+    b_np = np.arange(10, dtype=B.dtype)
+    c = tvm.nd.array(np.zeros(10, dtype=C.dtype))
+    func(c, tvm.nd.array(a_np), tvm.nd.array(b_np))
+    tvm.testing.assert_allclose(a_np[b_np], c.numpy())
+
+
 if __name__ == "__main__":
     test_unique_name()
     test_matmul()
