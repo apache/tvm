@@ -215,6 +215,63 @@ def test_green_gray_propagates_simple():
     assert tvm.ir.structural_equal(fp16_mod, expected_mod)
 
 
+def test_green_red_not_use_extraneous_cast():
+    """Conv. is a green listed operation, while softmax is red.
+
+    Conv. also by default accumulates to fp32 but outputs fp16.
+
+    We want to avoid a situation where we have extraneous casts.
+    E.g. because softmax wants to operate on FP32 we might have
+
+    conv (FP32) -> cast (FP16) -> cast (FP32) -> softmax (FP32)
+
+    To get around this internally when we cast in the pass we cache
+    the output nodes and the reverse of the cast back to the original
+    node. For example casting the `conv (FP32)` to FP16 would produce:
+
+    `conv (FP32) -> cast (FP16)`
+
+    As the outputs. Now anytime we try to cast the `conv (FP32)` node
+    to FP16 it would return the cached result instead of a new cast node:
+
+    `conv (FP32) -> cast (FP16)`
+
+    Furthermore, if we try to cast the `cast (FP16)` node back to FP32 it
+    would just return
+
+    `conv (FP32)`.
+
+    This test makes sure this behavior occurs.
+    """
+    data_shape = (1, 3, 32, 32)
+    weight_shape = (5, 3, 3, 3)
+    data = relay.var("data", shape=data_shape, dtype="float32")
+    weight = relay.var("weight", shape=weight_shape, dtype="float32")
+    conv = relay.nn.conv2d(data, weight, strides=(1, 1), padding=(1, 1), out_dtype="float32")
+    result = relay.nn.softmax(conv)
+    mod = tvm.IRModule.from_expr(result)
+
+    mod_params = {
+        "data": np.random.uniform(-1, 1, size=data_shape).astype("float32"),
+        "weight": np.random.uniform(-1, 1, size=weight_shape).astype("float32"),
+    }
+    fp16_mod = verify_fp32_fp16_output_close(mod, mod_params, atol=0.01, rtol=1e-3)
+
+    # Construct expected structure
+    conv = relay.nn.conv2d(
+        relay.cast(data, "float16"),
+        relay.cast(weight, "float16"),
+        strides=(1, 1),
+        padding=(1, 1),
+        out_dtype="float32",
+    )
+    result = relay.nn.softmax(conv)
+    expected_mod = tvm.IRModule.from_expr(result)
+    expected_mod = InferType()(expected_mod)
+
+    assert tvm.ir.structural_equal(expected_mod, fp16_mod)
+
+
 def test_red_gray_propagates_simple():
     """Everything after a softmax should be in FP32 (exception green colored ops)"""
     np.random.seed(211)
