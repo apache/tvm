@@ -184,6 +184,12 @@ class PassContext : public ObjectRef {
   TVM_DLL static PassContext Current();
 
   /*!
+   * \brief Get all supported configuration names, registered within the PassContext.
+   * \return List of all configuration names.
+   */
+  TVM_DLL static Array<String> ListConfigNames();
+
+  /*!
    * \brief Call instrument implementations' callbacks when entering PassContext.
    *        The callbacks are called in order, and if one raises an exception, the rest will not be
    *        called.

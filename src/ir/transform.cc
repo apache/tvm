@@ -145,6 +145,14 @@ class PassConfigManager {
     }
   }
 
+  Array<String> ListConfigNames() {
+    Array<String> config_keys;
+    for (const auto& kv : key2vtype_) {
+      config_keys.push_back(kv.first);
+    }
+    return config_keys;
+  }
+
   static PassConfigManager* Global() {
     static auto* inst = new PassConfigManager();
     return inst;
@@ -161,6 +169,10 @@ class PassConfigManager {
 
 void PassContext::RegisterConfigOption(const char* key, uint32_t value_type_index) {
   PassConfigManager::Global()->Register(key, value_type_index);
+}
+
+Array<String> PassContext::ListConfigNames() {
+  return PassConfigManager::Global()->ListConfigNames();
 }
 
 PassContext PassContext::Create() { return PassContext(make_object<PassContextNode>()); }
@@ -606,6 +618,8 @@ Pass PrintIR(String header, bool show_meta_data) {
 }
 
 TVM_REGISTER_GLOBAL("transform.PrintIR").set_body_typed(PrintIR);
+
+TVM_REGISTER_GLOBAL("transform.ListConfigNames").set_body_typed(PassContext::ListConfigNames);
 
 }  // namespace transform
 }  // namespace tvm
