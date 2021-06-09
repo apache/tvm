@@ -82,10 +82,12 @@ class ShapeTuple : public ObjectRef {
  public:
   /*! \brief The type of shape index element. */
   using index_type = ShapeTupleObj::index_type;
+
   /*!
    * \brief Construct an empty shape tuple.
    */
   ShapeTuple() : ShapeTuple(std::vector<index_type>()) {}
+
   /*!
    * \brief Constructor from iterator
    * \param begin begin of iterator
@@ -94,11 +96,13 @@ class ShapeTuple : public ObjectRef {
    */
   template <typename IterType>
   ShapeTuple(IterType begin, IterType end) : ShapeTuple(std::vector<index_type>(begin, end)) {}
+
   /*!
    * \brief constructor from initializer list
    * \param shape The initializer list
    */
   ShapeTuple(std::initializer_list<index_type> shape) : ShapeTuple(shape.begin(), shape.end()) {}
+
   /*!
    * \brief Construct a new ShapeTuple object
    *
@@ -115,28 +119,47 @@ class ShapeTuple : public ObjectRef {
    * \return const index_type* data pointer
    */
   const index_type* data() const { return get()->data; }
+
   /*!
    * \brief Return the size of the shape tuple
    *
    * \return size_t shape tuple size
    */
   size_t size() const { return get()->size; }
+
   /*!
    * \brief Immutably read i-th element from the shape tuple.
    * \param idx The index
    * \return the i-th element.
    */
-  index_type operator[](size_t idx) const { return this->data()[idx]; }
+  index_type operator[](size_t idx) const {
+    ICHECK(0 <= idx && idx < this->size())
+        << "IndexError: indexing " << idx << " on an array of size " << this->size();
+    return this->data()[idx];
+  }
+
   /*!
    * \brief Immutably read i-th element from the shape tuple.
    * \param idx The index
    * \return the i-th element.
    */
-  index_type at(size_t idx) const { return this->data()[idx]; }
+  index_type at(size_t idx) const { return this->operator[](idx); }
+
+  /*! \return Whether shape tuple is empty */
+  bool empty() const { return size() == 0; }
+
+  /*! \return The first element of the shape tuple */
+  index_type front() const { return this->at(0); }
+
+  /*! \return The last element of the shape tuple */
+  index_type back() const { return this->at(this->size() - 1); }
+
   /*! \return begin iterator */
   const index_type* begin() const { return get()->data; }
+
   /*! \return end iterator */
   const index_type* end() const { return (get()->data + size()); }
+
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(ShapeTuple, ObjectRef, ShapeTupleObj);
 };
 
