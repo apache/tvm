@@ -18,7 +18,7 @@
 .. _tvm-target-specific-overview:
 
 Device/Target Interactions
---------------------------
+==========================
 
 This documented is intended for developers interested in understanding
 how the TVM framework interacts with specific device APIs, or who

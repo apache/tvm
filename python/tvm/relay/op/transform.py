@@ -1443,6 +1443,7 @@ def sparse_fill_empty_rows(sparse_indices, sparse_values, dense_shape, default_v
     Examples
     -------
     .. code-block:: python
+
         sparse_indices = [[0, 1],
                          [0, 3],
                          [2, 0],
@@ -1464,7 +1465,6 @@ def sparse_fill_empty_rows(sparse_indices, sparse_values, dense_shape, default_v
                              [4, 0]]
         empty_row_indicator = [False, True, False, False, True]
         new_sparse_values = [1, 2, 10, 3, 4, 10]
-
     """
     new_sparse_indices, new_sparse_values, empty_row_indicator = TupleWrapper(
         _make.sparse_fill_empty_rows(sparse_indices, sparse_values, dense_shape, default_value), 3
@@ -1496,6 +1496,7 @@ def sparse_reshape(sparse_indices, prev_shape, new_shape):
     Examples
     --------
     .. code-block:: python
+
         sparse_indices = [[0, 0, 0],
                             [0, 0, 1],
                             [0, 1, 0],
@@ -1547,6 +1548,7 @@ def segment_sum(data, segment_ids, num_segments=None):
     Examples
     --------
     .. code-block:: python
+
         data = [[1, 2, 3, 4],
                 [4, -3, 2, -1],
                 [5, 6, 7, 8]]
@@ -1617,6 +1619,7 @@ def cumsum(data, axis=None, dtype=None, exclusive=None):
     Examples
     --------
     .. code-block:: python
+
         a = [[1,2,3], [4,5,6]]
 
         cumsum(a)  # if axis is not provided, cumsum is done over the flattened input.
@@ -1672,6 +1675,7 @@ def cumprod(data, axis=None, dtype=None, exclusive=None):
     Examples
     --------
     .. code-block:: python
+
         a = [[1,2,3], [4,5,6]]
 
         cumprod(a)  # if axis is not provided, cumprod is done over the flattened input.
@@ -1732,6 +1736,7 @@ def unique(data, is_sorted=True, return_counts=False):
     Examples
     --------
     .. code-block:: python
+
         [output, indices, num_unique] = unique([4, 5, 1, 2, 3, 3, 4, 5], False, False)
         output         =  [4, 5, 1, 2, 3, ?, ?, ?]
         indices        =  [0, 1, 2, 3, 4, 4, 0, 1]

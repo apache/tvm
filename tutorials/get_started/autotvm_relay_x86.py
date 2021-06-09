@@ -15,8 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """
-Compiling and Optimizing a Model with the Python AutoScheduler
-==============================================================
+Compiling and Optimizing a Model with the Python Interface (AutoTVM)
+====================================================================
 **Author**:
 `Chris Hoge <https://github.com/hogepodge>`_
 
@@ -302,6 +302,7 @@ runner = autotvm.LocalRunner(
     repeat=repeat,
     timeout=timeout,
     min_repeat_ms=min_repeat_ms,
+    enable_cpu_cache_flush=True,
 )
 
 # Create a simple structure for holding tuning options. We use an XGBoost
