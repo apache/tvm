@@ -35,11 +35,12 @@ class ProducerToBufferTransformer : public StmtExprMutator {
       : tensor2buffers_(tensor2buffers) {}
 
   PrimExpr VisitExpr_(const ProducerLoadNode* op) final {
-    te::Tensor tensor = Downcast<te::Tensor>(op->producer);
+    auto visited_op = Downcast<ProducerLoad>(StmtExprMutator::VisitExpr_(op));
+    te::Tensor tensor = Downcast<te::Tensor>(visited_op->producer);
     auto it = tensor2buffers_.find(tensor);
     ICHECK(it != tensor2buffers_.end()) << "IndexError: Cannot find the tensor " << tensor;
     const Buffer& buffer = it->second;
-    return BufferLoad(buffer, op->indices);
+    return BufferLoad(buffer, visited_op->indices);
   }
 
  private:
