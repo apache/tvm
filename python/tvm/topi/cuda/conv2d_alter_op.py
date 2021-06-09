@@ -401,7 +401,8 @@ def _conv2d_legalize(attrs, inputs, arg_types):
             else:
                 out = relay.nn.conv2d(data, kernel, **new_attrs)
             return out
-        elif data_layout == "NHWC" and kernel_layout == "HWIO":
+
+        if data_layout == "NHWC" and kernel_layout == "HWIO":
             batch = data_tensor.shape[0].value
             in_channel = data_tensor.shape[3].value
             out_channel = kernel_tensor.shape[3].value
@@ -426,7 +427,8 @@ def _conv2d_legalize(attrs, inputs, arg_types):
             logger.info("conv2d pad_to_tensorcore, extra_flops %s", extra_flops)
 
             return _pad_conv2d_NHWC(db, di, do, data, kernel, out_channel, new_attrs, output_tensor)
-        elif data_layout == "HWNC" and kernel_layout == "HWOI":
+
+        if data_layout == "HWNC" and kernel_layout == "HWOI":
             batch = data_tensor.shape[2].value
             in_channel = data_tensor.shape[3].value
             out_channel = kernel_tensor.shape[2].value
@@ -445,6 +447,7 @@ def _conv2d_legalize(attrs, inputs, arg_types):
             logger.info("conv2d pad_to_tensorcore, extra_flops %s", extra_flops)
 
             return _pad_conv2d_HWNC(db, di, do, data, kernel, out_channel, new_attrs, output_tensor)
+
     elif data_dtype in ["float16"]:
         if data_layout == "NHWC" and kernel_layout == "HWIO":
             batch = data_tensor.shape[0].value
@@ -471,6 +474,7 @@ def _conv2d_legalize(attrs, inputs, arg_types):
             logger.info("conv2d pad_to_tensorcore, extra_flops %s", extra_flops)
 
             return _pad_conv2d_NHWC(db, di, do, data, kernel, out_channel, new_attrs, output_tensor)
+
     elif data_dtype in ["int4", "uint4"]:
         if data_layout == "NHWC" and kernel_layout == "HWIO":
             batch = data_tensor.shape[0].value
@@ -497,7 +501,8 @@ def _conv2d_legalize(attrs, inputs, arg_types):
             logger.info("conv2d pad_to_tensorcore, extra_flops %s", extra_flops)
 
             return _pad_conv2d_NHWC(db, di, do, data, kernel, out_channel, new_attrs, output_tensor)
-        elif data_layout == "HWNC" and kernel_layout == "HWOI":
+
+        if data_layout == "HWNC" and kernel_layout == "HWOI":
             batch = data_tensor.shape[2].value
             in_channel = data_tensor.shape[3].value
             out_channel = kernel_tensor.shape[2].value
@@ -516,4 +521,5 @@ def _conv2d_legalize(attrs, inputs, arg_types):
             logger.info("conv2d pad_to_tensorcore, extra_flops %s", extra_flops)
 
             return _pad_conv2d_HWNC(db, di, do, data, kernel, out_channel, new_attrs, output_tensor)
+
     return None
