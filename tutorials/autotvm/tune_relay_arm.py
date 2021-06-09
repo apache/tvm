@@ -295,7 +295,7 @@ def tune_tasks(
             if os.path.isfile(tmp_log_file):
                 tuner_obj.load_history(autotvm.record.load_from_file(tmp_log_file))
 
-        # do tuning
+        # process tuning
         tsk_trial = min(n_trial, len(tsk.config_space))
         tuner_obj.tune(
             n_trial=tsk_trial,
