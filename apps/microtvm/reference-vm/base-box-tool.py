@@ -50,6 +50,7 @@ ALL_MICROTVM_PLATFORMS = (
 
 PACKER_FILE_NAME = "packer.json"
 
+
 def parse_virtualbox_devices():
     output = subprocess.check_output(["VBoxManage", "list", "usbhost"], encoding="utf-8")
     devices = []
@@ -197,11 +198,13 @@ def generate_packer_config(file_path, providers):
             }
         )
 
-    repo_root = subprocess.check_output(["git", "rev-parse", "--show-toplevel"], cwd=os.path.dirname(__file__))
+    repo_root = subprocess.check_output(
+        ["git", "rev-parse", "--show-toplevel"], cwd=os.path.dirname(__file__), encoding="utf-8"
+    ).strip()
     for script in EXTRA_SCRIPTS:
-        file_path = os.path.join(repo_root, script)
-        filename = os.path.basename(file_path)
-        provisioners.append({"type": "file", "source": file_path, "destination": f"~/{filename}"})
+        script_path = os.path.join(repo_root, script)
+        filename = os.path.basename(script_path)
+        provisioners.append({"type": "file", "source": script_path, "destination": f"~/{filename}"})
 
     provisioners.append(
         {
@@ -329,12 +332,20 @@ def do_run_release_test(release_test_dir, provider_name, test_config, test_devic
     def _quote_cmd(cmd):
         return " ".join(shlex.quote(a) for a in cmd)
 
-    test_cmd_zephyr = _quote_cmd(["cd", tvm_home]) + " && " + _quote_cmd(test_config["test_cmd_zephyr"])
-    test_cmd_zephyr_aot = _quote_cmd(["cd", tvm_home]) + " && " + _quote_cmd(test_config["test_cmd_zephyr_aot"])
+    test_cmd_zephyr = (
+        _quote_cmd(["cd", tvm_home]) + " && " + _quote_cmd(test_config["test_cmd_zephyr"])
+    )
+    test_cmd_zephyr_aot = (
+        _quote_cmd(["cd", tvm_home]) + " && " + _quote_cmd(test_config["test_cmd_zephyr_aot"])
+    )
     if test_cmd_zephyr:
-        subprocess.check_call(["vagrant", "ssh", "-c", f"bash -ec '{test_cmd_zephyr}'"], cwd=release_test_dir)
+        subprocess.check_call(
+            ["vagrant", "ssh", "-c", f"bash -ec '{test_cmd_zephyr}'"], cwd=release_test_dir
+        )
     if test_cmd_zephyr_aot:
-        subprocess.check_call(["vagrant", "ssh", "-c", f"bash -ec '{test_cmd_zephyr_aot}'"], cwd=release_test_dir)
+        subprocess.check_call(
+            ["vagrant", "ssh", "-c", f"bash -ec '{test_cmd_zephyr_aot}'"], cwd=release_test_dir
+        )
 
 
 def test_command(args):
