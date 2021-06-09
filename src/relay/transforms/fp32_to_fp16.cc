@@ -245,7 +245,7 @@ class AmpGraphCreator : public ExprMutator {
       new_args.push_back(new_arg);
       new_arg_types.push_back(new_arg_type);
 
-      if (all_args_fp16_compatible) {
+      if (initial_color == GRAY && all_args_fp16_compatible) {
         // We can cast Vars and Constants to the right types so don't care about the types.
         bool is_fp16_compatible = IsFP16Type(new_arg_type, true) || arg->IsInstance<VarNode>() ||
                                   arg->IsInstance<ConstantNode>();
@@ -285,9 +285,9 @@ class AmpGraphCreator : public ExprMutator {
         output = CastArg(output, GetType(output), output_dtypes.output_dtype);
       }
       return output;
-    } else {
-      return Call(new_op, call_args, call_node->attrs, call_arg_types, call_node->span);
     }
+
+    return Call(new_op, call_args, call_node->attrs, call_arg_types, call_node->span);
   }
 
   Expr VisitExpr_(const FunctionNode* func) final {

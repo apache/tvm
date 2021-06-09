@@ -18,6 +18,7 @@
 from typing import Any, Dict, List
 
 import numpy as np
+import pytest
 import tvm
 from tvm import relay
 from tvm.relay.testing import lstm
@@ -326,3 +327,7 @@ def test_batch_matmul_simple():
     expected_mod = tvm.IRModule.from_expr(a)
     expected_mod = InferType()(expected_mod)
     assert tvm.ir.structural_equal(expected_mod, output_mod)
+
+
+if __name__ == "__main__":
+    pytest.main([__file__])
