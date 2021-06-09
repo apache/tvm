@@ -128,9 +128,7 @@ def lower(
         return ffi.lower_primfunc(inp, name, simple_mode)
     if isinstance(inp, schedule.Schedule):
         return ffi.lower_schedule(inp, args, name, binds, simple_mode)
-    raise ValueError(
-        "Expected input to be an IRModule, PrimFunc or Schedule, but got, ", type(inp)
-    )
+    raise ValueError("Expected input to be an IRModule, PrimFunc or Schedule, but got, ", type(inp))
 
 
 def _build_for_device(input_mod, target, target_host):
