@@ -37,15 +37,15 @@
 namespace tvm {
 namespace relay {
 
-struct FP16OpDType {
+struct MixedPrecisionOpOutDType {
   DataType accumulation_dtype;
   DataType output_dtype;
 };
 
-// GREEN colored ops should always be done in FP16 due to the speed and memory savings
-// GRAY colored ops can be done in FP16 but don't have speedups to justify a dedicated cast.
-// RED colored ops should not be done in FP16 due to numerical reasons.
-enum FP16ConversionCategory { RED, GRAY, GREEN };
+// GREEN colored ops should always be done in lower precision due to the speed and memory savings
+// GRAY colored ops can be done in lower precision but don't have speedups to justify a dedicated
+// cast. RED colored ops should not be done in lower precision due to numerical reasons.
+enum MixedTypeConversionCategory { RED, GRAY, GREEN };
 
 using OpStringSet = std::unordered_set<std::string>;
 
@@ -151,42 +151,40 @@ OpStringSet DEFAULT_RED_LIST({
     "erf",
 });
 
-class DefaultFP16Colorer {
+class DefaultMixedPrecisionColorer {
   /* The default class to initially color ops for conversion using lists.
+  Default lists are for NVidia Tensor Cores and FP16.
 
   Creates a callable which given a CallNode* returns the node's color.
   */
  private:
-  std::unordered_map<std::string, FP16ConversionCategory> op_to_initial_color;
+  std::unordered_map<std::string, MixedTypeConversionCategory> op_to_initial_color;
 
  public:
-  DefaultFP16Colorer(OpStringSet red_list = DEFAULT_RED_LIST,
-                     OpStringSet gray_list = DEFAULT_GRAY_LIST,
-                     OpStringSet green_list = DEFAULT_GREEN_LIST) {
-    std::vector<std::pair<OpStringSet, FP16ConversionCategory>> lists_and_colors{
+  DefaultMixedPrecisionColorer(OpStringSet red_list = DEFAULT_RED_LIST,
+                               OpStringSet gray_list = DEFAULT_GRAY_LIST,
+                               OpStringSet green_list = DEFAULT_GREEN_LIST) {
+    std::vector<std::pair<OpStringSet, MixedTypeConversionCategory>> lists_and_colors{
         {red_list, RED}, {gray_list, GRAY}, {green_list, GREEN}};
 
     for (auto list_and_color : lists_and_colors) {
       OpStringSet ops = list_and_color.first;
-      FP16ConversionCategory color = list_and_color.second;
+      MixedTypeConversionCategory color = list_and_color.second;
       for (std::string op_name : ops) {
         op_to_initial_color.insert({{op_name, color}});
       }
     }
   }
 
-  FP16ConversionCategory operator()(const CallNode* call, bool ignore_missing = true) {
+  MixedTypeConversionCategory operator()(const CallNode* call, bool ignore_missing = true) {
     if (auto* op_node = (call->op).as<tvm::OpNode>()) {
       std::string op_name = op_node->name;
       auto color = op_to_initial_color.find(op_name);
 
       if (color == op_to_initial_color.end()) {
-        if (ignore_missing) {
-          LOG(WARNING) << "Op name " << op_name << " not in included in fp16 conversion lists!";
-          return RED;
-        } else {
-          LOG(FATAL) << "Op name " << op_name << " not in included in fp16 lists!";
-        }
+        (ignore_missing ? LOG(WARNING) : LOG(FATAL))
+            << "Op name " << op_name << " not in included in conversion lists!";
+        return RED;
       }
 
       return color->second;
@@ -194,24 +192,36 @@ class DefaultFP16Colorer {
       // Make RED to avoid messing with function headers.
       return RED;
     } else {
-      LOG(FATAL) << "FP16 conversion only supports call nodes with OpNodes or Functions got "
+      LOG(FATAL) << "Conversion only supports call nodes with OpNodes or Functions got "
                  << call->op;
       return RED;
     }
   }
 };
 
-class DefaultFP16OpDefinition {
-  /* The default callable for determining accumulation_dtypes for ops. */
+class DefaultMixedPrecisionOpDefinition {
+  /* The default callable for determining accumulation_dtypes for ops.
+
+  Assumes accumulatable operations accumulate to one type and outputs are
+  all of the same type.*/
+
+  const DataType default_output_dtype;
+  const DataType default_accumulation_dtype;
+
  public:
-  FP16OpDType operator()(const CallNode* call) {
+  DefaultMixedPrecisionOpDefinition(DataType default_output_dtype = DataType::Float(16),
+                                    DataType default_accumulation_dtype = DataType::Float(32))
+      : default_output_dtype(default_output_dtype),
+        default_accumulation_dtype(default_accumulation_dtype) {}
+
+  MixedPrecisionOpOutDType operator()(const CallNode* call) {
     // TODO(AndrewZhaoLuo): remove when batch_matmul handles accumulation dtypes well.
     // Batched matmul has inconsistent support for mixed precision operations.
     // Many schedules ignore the out_dtype attribute which leads to errors when
-    // input types do not match the out_dtype. Therefore, accumulate to fp16 if green.
+    // input types do not match the out_dtype. Therefore, accumulate to output_dtype if green.
     if (auto op_node = call->op.as<OpNode>()) {
       if (op_node->name == "nn.batch_matmul") {
-        return {DataType::Float(16), DataType::Float(16)};
+        return {default_output_dtype, default_output_dtype};
       }
     }
 
@@ -219,11 +229,12 @@ class DefaultFP16OpDefinition {
     if (call->attrs != NullValue<Attrs>()) {
       Array<AttrFieldInfo> fields = call->attrs->ListFieldInfo();
       for (AttrFieldInfo field_info : fields) {
-        if (field_info->name == "out_dtype") return {DataType::Float(32), DataType::Float(16)};
+        if (field_info->name == "out_dtype")
+          return {default_accumulation_dtype, default_output_dtype};
       }
     }
 
-    return {DataType::Float(16), DataType::Float(16)};
+    return {default_output_dtype, default_output_dtype};
   }
 };
 

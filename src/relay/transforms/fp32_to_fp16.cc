@@ -52,16 +52,17 @@ struct pair_hash {
 using CachedCastNodes = std::unordered_map<std::pair<const ExprNode*, DataType>, Expr, pair_hash>;
 
 // A function which maps CallNodes to their initial conversion color
-using ColorFunc = std::function<FP16ConversionCategory(const CallNode*)>;
+using ColorFunc = std::function<MixedTypeConversionCategory(const CallNode*)>;
 
 // A function which maps green CallNodes to wanted accumulation and output dtypes
-using OutputDtypeFunc = std::function<FP16OpDType(const CallNode*)>;
+using OutputDtypeFunc = std::function<MixedPrecisionOpOutDType(const CallNode*)>;
 
 class AmpGraphCreator : public ExprMutator {
  private:
   CachedCastNodes cast_nodes_cache;
   const ColorFunc colorer;
   const OutputDtypeFunc output_dtype_func;
+  const DataType mixed_precision_type;
 
   Attrs GetNewAttrs(const CallNode* call, const DataType& accumulation_dtype) const {
     /* If the accumulation dtype is in the attributes make a copy and mutate the field. */
@@ -143,16 +144,16 @@ class AmpGraphCreator : public ExprMutator {
     }
   }
 
-  bool IsFP16Type(const Type& t, bool ignore_non_float = false) const {
-    /* Returns whether t is a type with only fp16 elements.
+  bool IsMixedPrecisionType(const Type& t, bool ignore_non_float = false) const {
+    /* Returns whether t is a type with only target mixed precision type elements.
        If ignore_non_float, then ignore non-floating types.
      */
     if (const TensorTypeNode* tensor_type = t.as<TensorTypeNode>()) {
       return (!ignore_non_float || (tensor_type->dtype).is_float()) &&
-             tensor_type->dtype == DataType::Float(16);
+             tensor_type->dtype == mixed_precision_type;
     } else if (const TupleTypeNode* tuple_type = t.as<TupleTypeNode>()) {
       for (Type t : tuple_type->fields) {
-        if (!IsFP16Type(t, ignore_non_float)) return false;
+        if (!IsMixedPrecisionType(t, ignore_non_float)) return false;
       }
       return true;
     } else {
@@ -227,42 +228,52 @@ class AmpGraphCreator : public ExprMutator {
   }
 
  public:
-  explicit AmpGraphCreator(ColorFunc colorer, OutputDtypeFunc output_dtype_func)
-      : ExprMutator(), colorer(colorer), output_dtype_func(output_dtype_func) {}
+  explicit AmpGraphCreator(ColorFunc colorer, OutputDtypeFunc output_dtype_func,
+                           DataType mixed_precision_type = DataType::Float(16))
+      : ExprMutator(),
+        colorer(colorer),
+        output_dtype_func(output_dtype_func),
+        mixed_precision_type(mixed_precision_type) {
+    if (!mixed_precision_type.is_float() && !mixed_precision_type.is_bfloat16())
+      LOG(FATAL) << "Only support IEEE floating point mixed precision types and bfloat 16 got "
+                 << mixed_precision_type;
+  }
 
   Expr VisitExpr_(const CallNode* call_node) {
-    FP16ConversionCategory initial_color = colorer(call_node);
+    MixedTypeConversionCategory initial_color = colorer(call_node);
     auto new_op = this->Mutate(call_node->op);
 
-    // Mutate arguments to FP16 form first if possible and keep track of whether all floating point
-    // tensors are in FP16 form already. This is useful for propagating color.
+    // Mutate arguments to reduced precision form first if possible and keep track of
+    // whether all floating point tensors are in reduced precision form already. This is
+    // useful for propagating conversion conditions.
     Array<Expr> new_args;
     Array<Type> new_arg_types;
-    bool all_args_fp16_compatible = true;
+    bool all_args_mixed_type_compatible = true;
     for (Expr arg : call_node->args) {
       Expr new_arg = this->Mutate(arg);
       Type new_arg_type = GetType(new_arg);
       new_args.push_back(new_arg);
       new_arg_types.push_back(new_arg_type);
 
-      if (initial_color == GRAY && all_args_fp16_compatible) {
+      if (initial_color == GRAY && all_args_mixed_type_compatible) {
         // We can cast Vars and Constants to the right types so don't care about the types.
-        bool is_fp16_compatible = IsFP16Type(new_arg_type, true) || arg->IsInstance<VarNode>() ||
-                                  arg->IsInstance<ConstantNode>();
-        all_args_fp16_compatible &= is_fp16_compatible;
+        bool is_mixed_type_compatible = IsMixedPrecisionType(new_arg_type, true) ||
+                                        arg->IsInstance<VarNode>() ||
+                                        arg->IsInstance<ConstantNode>();
+        all_args_mixed_type_compatible &= is_mixed_type_compatible;
       }
     }
 
     // Determine the final color.
-    FP16ConversionCategory final_color;
+    MixedTypeConversionCategory final_color;
     if (initial_color == GRAY) {
-      final_color = all_args_fp16_compatible ? GREEN : RED;
+      final_color = all_args_mixed_type_compatible ? GREEN : RED;
     } else {
       final_color = initial_color;
     }
 
     // Create the new arguments to the call.
-    DataType wanted_arg_dtypes = final_color == GREEN ? DataType::Float(16) : DataType::Float(32);
+    DataType wanted_arg_dtypes = final_color == GREEN ? mixed_precision_type : DataType::Float(32);
     auto call_args_and_types = CastAllArgs(new_args, new_arg_types, wanted_arg_dtypes);
 
     Array<Expr> call_args = call_args_and_types.first;
@@ -277,7 +288,7 @@ class AmpGraphCreator : public ExprMutator {
 
     // Finally create the new attributes.
     if (final_color == GREEN) {
-      FP16OpDType output_dtypes = output_dtype_func(call_node);
+      MixedPrecisionOpOutDType output_dtypes = output_dtype_func(call_node);
 
       Attrs new_attrs = GetNewAttrs(call_node, output_dtypes.accumulation_dtype);
       Expr output = Call(new_op, call_args, new_attrs, call_arg_types, call_node->span);
@@ -297,7 +308,7 @@ class AmpGraphCreator : public ExprMutator {
   }
 
   Expr VisitExpr_(const LetNode* op) final {
-    // First convert as much of the bound computation to FP16 as possible
+    // First convert as much of the bound computation to lower precision as possible
     Expr value = this->Mutate(op->value);
 
     // Then rewrite the var type and associated expression
@@ -323,10 +334,10 @@ namespace transform {
 Pass AMPRewrite() {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
-        return Downcast<Function>(
-            AMPRewriteGraph(f, DefaultFP16Colorer(), DefaultFP16OpDefinition()));
+        return Downcast<Function>(AMPRewriteGraph(f, DefaultMixedPrecisionColorer(),
+                                                  DefaultMixedPrecisionOpDefinition()));
       };
-  return CreateFunctionPass(pass_func, 10, "RewriteFp16", {});
+  return CreateFunctionPass(pass_func, 10, "AMPRewrite", {});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.AMPRewrite").set_body_typed(AMPRewrite);
