@@ -235,7 +235,7 @@ class AmpGraphCreator : public ExprMutator {
         output_dtype_func(output_dtype_func),
         mixed_precision_type(mixed_precision_type) {
     if (!mixed_precision_type.is_float() && !mixed_precision_type.is_bfloat16())
-      LOG(FATAL) << "Only support IEEE floating point mixed precision types and bfloat 16 got "
+      LOG(FATAL) << "Only support IEEE floating point mixed precision types and bfloat16 got "
                  << mixed_precision_type;
   }
 
@@ -276,6 +276,7 @@ class AmpGraphCreator : public ExprMutator {
     // Create the new arguments to the call.
     DataType wanted_arg_dtypes =
         final_category == MIXED_PRECISION_ALWAYS ? mixed_precision_type : DataType::Float(32);
+
     auto call_args_and_types = CastAllArgs(new_args, new_arg_types, wanted_arg_dtypes);
 
     Array<Expr> call_args = call_args_and_types.first;
@@ -326,18 +327,22 @@ class AmpGraphCreator : public ExprMutator {
 };
 
 Expr AMPRewriteGraph(const Expr& expr, const ColorFunc& colorer,
-                     const OutputDtypeFunc& output_dtype_func) {
-  AmpGraphCreator converter = AmpGraphCreator(colorer, output_dtype_func);
-  return converter.Mutate(expr);
+                     const OutputDtypeFunc& output_dtype_func,
+                     const DataType& mixed_precision_type) {
+  AmpGraphCreator converter = AmpGraphCreator(colorer, output_dtype_func, mixed_precision_type);
+  auto result = converter.Mutate(expr);
+  return result;
 }
 
 namespace transform {
 
-Pass AMPRewrite() {
+Pass AMPRewrite(DataType mixed_precision_type) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
-        return Downcast<Function>(AMPRewriteGraph(f, DefaultMixedPrecisionColorer(),
-                                                  DefaultMixedPrecisionOpDefinition()));
+        return Downcast<Function>(AMPRewriteGraph(
+            f, DefaultMixedPrecisionColorer(),
+            DefaultMixedPrecisionOpDefinition(mixed_precision_type, DataType::Float(32)),
+            mixed_precision_type));
       };
   return CreateFunctionPass(pass_func, 10, "AMPRewrite", {});
 }

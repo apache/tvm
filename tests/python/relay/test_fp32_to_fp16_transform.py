@@ -22,8 +22,7 @@ import pytest
 import tvm
 from tvm import relay
 from tvm.relay.testing import lstm
-from tvm.relay.transform import AMPRewrite
-from tvm.relay.transform.transform import InferType
+from tvm.relay.transform import AMPRewrite, InferType
 
 
 def run_module(mod: tvm.runtime.Module, mod_params: Dict[str, Any]) -> List:
@@ -38,11 +37,15 @@ def run_module(mod: tvm.runtime.Module, mod_params: Dict[str, Any]) -> List:
 
 
 def verify_fp32_fp16_output_close(
-    mod: tvm.runtime.Module, mod_params: Dict[str, Any], rtol: float = 1e-3, atol: float = 0
+    mod: tvm.runtime.Module,
+    mod_params: Dict[str, Any],
+    mixed_precision_dtype="float16",
+    rtol: float = 1e-3,
+    atol: float = 0,
 ) -> tvm.runtime.Module:
     mod = InferType()(mod)
     result_fp32 = run_module(mod, mod_params)
-    fp16_mod = AMPRewrite()(mod)
+    fp16_mod = AMPRewrite(mixed_precision_dtype)(mod)
     result_fp16 = run_module(fp16_mod, mod_params)
 
     # Ensure the results are close
@@ -89,6 +92,43 @@ def test_convert_single_conv():
         "weight": np.random.uniform(-1, 1, size=weight_shape).astype("float32"),
     }
     fp16_mod = verify_fp32_fp16_output_close(mod, mod_params, atol=0.01, rtol=1e-3)
+
+    expected_mod = tvm.IRModule.from_expr(
+        relay.cast(
+            relay.nn.conv2d(
+                relay.cast(data, "float16"),
+                relay.cast(weight, "float16"),
+                strides=(1, 1),
+                padding=(1, 1),
+                out_dtype="float32",
+            ),
+            "float16",
+        )
+    )
+    expected_mod = tvm.relay.transform.InferType()(expected_mod)
+
+    assert not tvm.ir.structural_equal(fp16_mod, mod)
+    assert tvm.ir.structural_equal(fp16_mod, expected_mod)
+
+
+def test_convert_single_conv_bfloat16():
+    """Stuff"""
+    data_shape = (1, 3, 32, 32)
+    weight_shape = (5, 3, 3, 3)
+    data = relay.var("data", shape=data_shape, dtype="float32")
+    weight = relay.var("weight", shape=weight_shape, dtype="float32")
+    conv = relay.nn.conv2d(data, weight, strides=(1, 1), padding=(1, 1), out_dtype="float32")
+    mod = tvm.IRModule.from_expr(conv)
+    mod = tvm.relay.transform.InferType()(mod)
+
+    mod_params = {
+        "data": np.random.uniform(-1, 1, size=data_shape).astype("float32"),
+        "weight": np.random.uniform(-1, 1, size=weight_shape).astype("float32"),
+    }
+
+    fp16_mod = verify_fp32_fp16_output_close(
+        mod, mod_params, mixed_precision_dtype="bfloat16", atol=0.01, rtol=1e-3
+    )
 
     expected_mod = tvm.IRModule.from_expr(
         relay.cast(
