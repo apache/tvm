@@ -2917,7 +2917,6 @@ def rank0_block(a: ty.handle) -> None:
 
 def test_rank0_blocks():
     func = rank0_block
-    print(tvm.script.asscript(func, True))
     rt_func = tvm.script.from_source(tvm.script.asscript(func, True))
     tvm.ir.assert_structural_equal(func, rt_func)
 
@@ -2930,7 +2929,6 @@ def select(a: ty.handle) -> None:
 
 def test_select():
     func = select
-    print(tvm.script.asscript(func, True))
     rt_func = tvm.script.from_source(tvm.script.asscript(func, True))
     tvm.ir.assert_structural_equal(func, rt_func)
 
@@ -2944,7 +2942,6 @@ def minmax(a: ty.handle) -> None:
 
 def test_minmax():
     func = minmax
-    print(tvm.script.asscript(func, True))
     rt_func = tvm.script.from_source(tvm.script.asscript(func, True))
     tvm.ir.assert_structural_equal(func, rt_func)
 
