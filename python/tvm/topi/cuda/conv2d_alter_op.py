@@ -415,7 +415,9 @@ def _conv2d_legalize(attrs, inputs, arg_types):
                 return None
 
             candidates = [(16, 16, 16), (32, 16, 8), (8, 16, 32)]
-            (db, di, do), extra_flops = pad_to_tensorcore(batch, in_channel, out_channel, candidates)
+            (db, di, do), extra_flops = pad_to_tensorcore(
+                batch, in_channel, out_channel, candidates
+            )
 
             if extra_flops > 2:
                 logger.info("conv2d pad_to_tensorcore skipped, extra_flops %s", extra_flops)
@@ -433,7 +435,9 @@ def _conv2d_legalize(attrs, inputs, arg_types):
                 return None
 
             candidates = [(8, 16, 32)]
-            (db, di, do), extra_flops = pad_to_tensorcore(batch, in_channel, out_channel, candidates)
+            (db, di, do), extra_flops = pad_to_tensorcore(
+                batch, in_channel, out_channel, candidates
+            )
 
             if extra_flops > 2:
                 logger.info("conv2d pad_to_tensorcore skipped, extra_flops %s", extra_flops)
@@ -456,7 +460,9 @@ def _conv2d_legalize(attrs, inputs, arg_types):
                 return None
 
             candidates = [(16, 16, 16), (32, 16, 8), (8, 16, 32)]
-            (db, di, do), extra_flops = pad_to_tensorcore(batch, in_channel, out_channel, candidates)
+            (db, di, do), extra_flops = pad_to_tensorcore(
+                batch, in_channel, out_channel, candidates
+            )
 
             if extra_flops > 2:
                 logger.info("conv2d pad_to_tensorcore skipped, extra_flops %s", extra_flops)
@@ -480,7 +486,9 @@ def _conv2d_legalize(attrs, inputs, arg_types):
                 return None
 
             candidates = [(16, 16, 16), (32, 16, 8), (8, 16, 32)]
-            (db, di, do), extra_flops = pad_to_tensorcore(batch, in_channel, out_channel, candidates)
+            (db, di, do), extra_flops = pad_to_tensorcore(
+                batch, in_channel, out_channel, candidates
+            )
 
             if extra_flops > 2:
                 logger.info("conv2d pad_to_tensorcore skipped, extra_flops %s", extra_flops)
@@ -498,7 +506,9 @@ def _conv2d_legalize(attrs, inputs, arg_types):
                 return None
 
             candidates = [(8, 32, 8)]
-            (db, di, do), extra_flops = pad_to_tensorcore(batch, in_channel, out_channel, candidates)
+            (db, di, do), extra_flops = pad_to_tensorcore(
+                batch, in_channel, out_channel, candidates
+            )
 
             if extra_flops > 2:
                 logger.info("conv2d pad_to_tensorcore skipped, extra_flops %s", extra_flops)

@@ -178,6 +178,7 @@ def test_legalize_conv2d_HWNC():
             a = run_opt_pass(a, transform.Legalize())
             b = run_opt_pass(expected(), transform.InferType())
         assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a) + "Expected = \n" + str(b)
+
     # conv2d pad batch
     _test_legalize_conv2d((16, 16, 7, 64), (3, 3, 64, 64), (1, 0, 0), "int8")
     _test_legalize_conv2d((16, 16, 3, 64), (3, 3, 64, 64), (5, 0, 0), "int8")
