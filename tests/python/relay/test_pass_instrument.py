@@ -182,6 +182,13 @@ def test_instrument_pass_counts():
     assert passes_counter.run_after_count == 0
 
 
+def test_list_pass_configs():
+    config_names = tvm.transform.PassContext.list_config_names()
+
+    assert len(config_names) > 0
+    assert "relay.backend.use_auto_scheduler" in config_names
+
+
 def test_enter_pass_ctx_exception():
     events = []
 
