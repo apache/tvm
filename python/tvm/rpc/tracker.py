@@ -167,7 +167,7 @@ class TCPEventHandler(tornado_util.TCPHandler):
         self._msg_size = 0
         self._addr = addr
         self._init_req_nbytes = 4
-        self._info = {"addr": addr}
+        self._info = {}
         # list of pending match keys that has not been used.
         self.pending_matchkeys = set()
         self._tracker._connections.add(self)
