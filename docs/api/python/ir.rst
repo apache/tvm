@@ -24,7 +24,7 @@ tvm.ir
 
 
 tvm.ir.instrument
-------
+-----------------
 .. automodule:: tvm.ir.instrument
    :members:
    :imported-members:
