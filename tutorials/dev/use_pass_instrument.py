@@ -86,7 +86,6 @@ print(profiles)
 # decorate the class
 @pass_instrument
 class RelayCallNodeDiffer:
-
     def __init__(self):
         self._op_diff = []
         # Passes can be nested.
@@ -94,12 +93,11 @@ class RelayCallNodeDiffer:
         self._op_cnt_before_stack = []
 
     def enter_pass_ctx(self):
-       self._op_diff = []
-       self._op_cnt_before_stack = []
+        self._op_diff = []
+        self._op_cnt_before_stack = []
 
     def exit_pass_ctx(self):
-        assert len(self._op_cnt_before_stack) == 0, \
-                "The stack is not empty. Something wrong."
+        assert len(self._op_cnt_before_stack) == 0, "The stack is not empty. Something wrong."
 
     def run_before_pass(self, mod, info):
         self._op_cnt_before_stack.append((info.name, self._count_nodes(mod)))
@@ -107,8 +105,9 @@ class RelayCallNodeDiffer:
     def run_after_pass(self, mod, info):
         # Pop out the latest recorded pass.
         name_before, op_to_cnt_before = self._op_cnt_before_stack.pop()
-        assert name_before == info.name, \
-            "name_before: {}, info.name: {} doesn't match".format(name_before, info.name)
+        assert name_before == info.name, "name_before: {}, info.name: {} doesn't match".format(
+            name_before, info.name
+        )
         cur_depth = len(self._op_cnt_before_stack)
         op_to_cnt_after = self._count_nodes(mod)
         op_diff = self._diff(op_to_cnt_after, op_to_cnt_before)
@@ -127,6 +126,7 @@ class RelayCallNodeDiffer:
     @staticmethod
     def _count_nodes(mod):
         ret = {}
+
         def visit(node):
             if isinstance(node, relay.expr.Call):
                 try:
@@ -138,6 +138,7 @@ class RelayCallNodeDiffer:
                     ret[op_name] += 1
                 except KeyError:
                     ret[op_name] = 1
+
         relay.analysis.post_order_visit(mod["main"], visit)
         return ret
 
@@ -181,23 +182,25 @@ desired_layouts = {
 # Though it is obvious only the FoldConstant after the ConvertLayout matter,
 # we want to show how many layout_transform is added as a successor of
 # Constant.
-pass_seq = tvm.transform.Sequential([
+pass_seq = tvm.transform.Sequential(
+    [
     relay.transform.FoldConstant(),
     relay.transform.ConvertLayout(desired_layouts),
     relay.transform.FoldConstant(),
-])
+    ]
+)
 # bind parameters to make VarNode as ConstantNode.
 relay_mod["main"] = bind_params_by_name(relay_mod["main"], relay_params)
 # timing_inst is put after call_node_inst.
 # So the execution time of ``call_node.inst.run_after_pass()`` is also counted.
-with tvm.transform.PassContext(opt_level=3,
-                               instruments=[call_node_inst, timing_inst]):
+with tvm.transform.PassContext(opt_level=3, instruments=[call_node_inst, timing_inst]):
     relay_mod = pass_seq(relay_mod)
     profiles = timing_inst.render()
 # Uncomment the next line to see timing-profile results.
-#print(profiles)
+# print(profiles)
 #
 # We can see how many CallNode increase/decrease per op type.
 #
 from pprint import pprint
 pprint(call_node_inst.get_pass_to_op_diff())
+
