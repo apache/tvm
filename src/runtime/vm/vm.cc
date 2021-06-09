@@ -473,7 +473,7 @@ void VirtualMachine::RunLoop() {
       case Opcode::InvokeClosure: {
         auto object = ReadRegister(instr.closure);
         const auto* closure = object.as<VMClosureObj>();
-
+        ICHECK(closure);
         std::vector<ObjectRef> args;
         for (auto free_var : closure->free_vars) {
           args.push_back(free_var);
