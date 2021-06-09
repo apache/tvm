@@ -46,6 +46,7 @@ from .interpolate import *
 from .scan import *
 from .einsum import *
 from .unique import *
+from .mlas_op import *
 from . import generic
 from . import nn
 from . import x86

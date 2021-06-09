@@ -29,6 +29,25 @@ from ..nn import dense_alter_layout
 @dense_alter_layout.register(["cpu", "arm_cpu"])
 def _alter_dense_layout(attrs, inputs, tinfos, out_type):
     target = tvm.target.Target.current(allow_none=False)
+    # special check to turn on mlas library
+    if (
+        "mlas" in target.libs
+        and tinfos[0].dtype == "float32"
+        and tinfos[1].dtype == "float32"
+        and out_type.dtype == "float32"
+    ):
+        # if matrix B is constant, use packed matmul
+        if isinstance(inputs[1], relay.expr.Constant):
+            b_shape = inputs[1].data.shape
+            assert len(b_shape) == 2
+            N, K = b_shape[0], b_shape[1]
+            packed_b = relay.op.mlas_packb(inputs[1], K, N)
+            output = relay.op.mlas_matmul(inputs[0], packed_b, True, K, N)
+            return output
+        # if matrix A, B are not constant and no other libs are enabled, use normal matmul
+        if not any([item in target.libs for item in ["mkl", "clbas", "mkldnn"]]):
+            return relay.op.mlas_matmul(inputs[0], inputs[1], False)
+
     dispatch_ctx = autotvm.task.DispatchContext.current
     data_tensor, weight_tensor = tinfos
     out_dtype = out_type.dtype
