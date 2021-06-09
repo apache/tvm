@@ -113,7 +113,9 @@ class AmpGraphCreator : public ExprMutator {
      Attrs is const because we get it as a const.
      */
     T* mutable_attrs = const_cast<T*>(attrs);
-    if ((mutable_attrs->out_dtype).is_float()) mutable_attrs->out_dtype = accumulation_dtype;
+
+    DataType cur_type = (mutable_attrs->out_dtype);
+    if (cur_type.is_float() || cur_type.is_void()) mutable_attrs->out_dtype = accumulation_dtype;
   }
 
   template <typename T>
@@ -125,7 +127,9 @@ class AmpGraphCreator : public ExprMutator {
      Attrs is const because we get it as a const.
     */
     T* mutable_attrs = const_cast<T*>(attrs);
-    if ((mutable_attrs->dtype).is_float()) mutable_attrs->dtype = accumulation_dtype;
+    DataType cur_type = (mutable_attrs->dtype);
+
+    if (cur_type.is_float() || cur_type.is_void()) mutable_attrs->dtype = accumulation_dtype;
   }
 
   Type GetType(const Expr& expr) const {
