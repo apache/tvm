@@ -302,6 +302,7 @@ runner = autotvm.LocalRunner(
     repeat=repeat,
     timeout=timeout,
     min_repeat_ms=min_repeat_ms,
+    enable_cpu_cache_flush=True,
 )
 
 # Create a simple structure for holding tuning options. We use an XGBoost

@@ -246,7 +246,7 @@ within_subsection_order = {
     ],
     "language": [
         "schedule_primitives.py",
-        "reduciton.py",
+        "reduction.py",
         "intrin_math.py",
         "scan.py",
         "extern_op.py",

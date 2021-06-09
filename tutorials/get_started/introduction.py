@@ -38,7 +38,7 @@ Contents
 #. :doc:`Installing TVM <install>`
 #. :doc:`Compiling and Optimizing a Model with the Command Line Interface <tvmc_command_line_driver>`
 #. :doc:`Compiling and Optimizing a Model with the Python Interface <autotvm_relay_x86>`
-#. :doc:`Working with Operators Using Tensor Expressions <tensor_expr_get_started>`
+#. :doc:`Working with Operators Using Tensor Expression <tensor_expr_get_started>`
 #. :doc:`Optimizing Operators with Templates and AutoTVM <autotvm_matmul_x86>`
 #. :doc:`Optimizing Operators with Template-free AutoScheduler <auto_scheduler_matmul_x86>`
 #. :doc:`Cross Compilation and Remote Procedure Calls (RPC) <cross_compilation_and_rpc>`
@@ -73,14 +73,14 @@ Contents
 #      differentiable language
 #    - Ability to allow the user to mix the two programming styles
 #
-#    Relay applies graph-level optimizations passes to optimize the model.
+#    Relay applies graph-level optimization passes to optimize the model.
 #
 # 3. Lower to *Tensor Expression* (TE) representation. Lowering is when a
 #    higher-level representation is transformed into a lower-level
 #    representation. After applying the high-level optimizations, Relay
 #    runs FuseOps pass to partition the model into many small subgraphs and lowers
 #    the subgraphs to TE representation. Tensor Expression (TE) is a
-#    domain-specific language for describing the tensor computations.
+#    domain-specific language for describing tensor computations.
 #    TE also provides several *schedule* primitives to specify low-level loop
 #    optimizations, such as tiling, vectorization, parallelization,
 #    unrolling, and fusion.
@@ -94,13 +94,13 @@ Contents
 #    and compare them with cost models and on-device measurements.
 #    There are two auto-tuning modules in TVM.
 #
-#    - **AutoTVM**: A template-based auto-tuning module. It requires users to
-#      define a schedule template with tunable knobs and runs search algorithms
-#      to find the best values for the tunable knobs. For common operators, their
-#      templates are already provided in TOPI.
+#    - **AutoTVM**: A template-based auto-tuning module. It runs search algorithms
+#      to find the best values for the tunable knobs in a user-defined template.
+#      For common operators, their templates are already provided in TOPI.
 #    - **AutoScheduler (a.k.a. Ansor)**: A template-free auto-tuning module.
 #      It does not require pre-defined schedule templates. Instead, it generates
 #      the search space automatically by analyzing the computation definition.
+#      It then searches for the best schedule in the generated search space.
 #
 # 5. Choose the optimal configurations for model compilation. After tuning, the
 #    auto-tuning module generates tuning records in JSON format. This step
