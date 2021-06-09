@@ -123,13 +123,13 @@ def lower(
        The result IRModule
     """
     if isinstance(inp, IRModule):
-        return ffi.lower_module(input, simple_mode)
+        return ffi.lower_module(inp, simple_mode)
     if isinstance(inp, PrimFunc):
-        return ffi.lower_primfunc(input, name, simple_mode)
+        return ffi.lower_primfunc(inp, name, simple_mode)
     if isinstance(inp, schedule.Schedule):
-        return ffi.lower_schedule(input, args, name, binds, simple_mode)
+        return ffi.lower_schedule(inp, args, name, binds, simple_mode)
     raise ValueError(
-        "Expected input to be an IRModule, PrimFunc or Schedule, but got, ", type(inputs)
+        "Expected input to be an IRModule, PrimFunc or Schedule, but got, ", type(inp)
     )
 
 
