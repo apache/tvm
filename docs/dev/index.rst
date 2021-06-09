@@ -29,10 +29,6 @@ This page is organized as follows:
   The sections after are specific guides focused on each logical component, organized
   by the component's name.
 
-- The `Device/Target Interactions`_ section describes how TVM
-  interacts with each supported physical device and code-generation
-  target.
-
 - Feel free to also check out the :ref:`dev-how-to` for useful development tips.
 
 This guide provides a few complementary views of the architecture.
@@ -245,12 +241,13 @@ for learning-based optimizations.
 
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
 
    runtime
    debugger
    virtual_machine
    introduction_to_module_serialization
+   device_target_interactions
 
 tvm/node
 --------
@@ -317,6 +314,11 @@ It also provides a common `Target` class that describes the target.
 
 The compilation pipeline can be customized according to the target by querying the attribute information
 in the target and builtin information registered to each target id(cuda, opencl).
+
+.. toctree::
+   :maxdepth: 1
+
+   device_target_interactions
 
 tvm/tir
 -------

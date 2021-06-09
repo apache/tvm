@@ -15,17 +15,18 @@
 # specific language governing permissions and limitations
 # under the License.
 """
-Optimizing Operators with Templates and AutoTVM
-===============================================
+.. _tutorial-autotvm-matmul-x86:
+
+Optimizing Operators with Schedule Templates and AutoTVM
+========================================================
 **Authors**:
 `Lianmin Zheng <https://github.com/merrymercy>`_,
 `Chris Hoge <https://github.com/hogepodge>`_
 
-In this tutorial, we will now show how the TVM Template Extension (TE) language
-can be used to write scheduling templates that can be searched by AutoTVM to
-find optimal configurations of scheduling variables. This process is called
-Auto-Tuning, and builds on TE to help automate the process of optimizing
-operations.
+In this tutorial, we show how the TVM Tensor Expression (TE) language
+can be used to write schedule templates that can be searched by AutoTVM to
+find the optimal schedule. This process is called Auto-Tuning, which helps
+automate the process of optimizing tensor computation.
 
 This tutorial builds on the previous `tutorial on how to write a matrix
 multiplication using TE <tensor_expr_get_started>`.
@@ -371,6 +372,6 @@ tvm.testing.assert_allclose(c_np, c_tvm.numpy(), rtol=1e-4)
 # To gain a deeper understanding of how this works, we recommend expanding on
 # this example by adding new search parameters to the schedule based on
 # schedule operations demonstated in the `Getting Started With Tensor
-# Expressions <tensor_expr_get_started>_` tutorial In the upcoming sections, we
+# Expressions <tensor_expr_get_started>_` tutorial. In the upcoming sections, we
 # will demonstate the AutoScheduler, a method for TVM to optimize common
 # operators without the need for the user to provide a user-defined template.
