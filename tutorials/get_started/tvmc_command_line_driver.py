@@ -493,6 +493,6 @@ capabilities, and set the stage for understanding how TVM works.
 # To see what other options are available, please have a look at ``tvmc
 # --help``.
 #
-# In the next tutorial, `Compiling and Optimizing a Model with the Python Interface
-# <auto_tuning_with_pyton>`_, we will cover the same compilation
+# In the next tutorial, `Compiling and Optimizing a Model with the Python
+# Interface <auto_tuning_with_pyton>`_, we will cover the same compilation
 # and optimization steps using the Python interface.
