@@ -120,6 +120,11 @@ class PassContext(tvm.runtime.Object):
         """Return the current pass context."""
         return _ffi_transform_api.GetCurrentPassContext()
 
+    @staticmethod
+    def list_config_names():
+        """List all registered `PassContext` configuration names"""
+        return list(_ffi_transform_api.ListConfigNames())
+
 
 @tvm._ffi.register_object("transform.Pass")
 class Pass(tvm.runtime.Object):
