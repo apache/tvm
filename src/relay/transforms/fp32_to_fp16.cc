@@ -43,6 +43,7 @@ struct pair_hash {
     auto h1 = std::hash<T1>()(pair.first);
     auto h2 = std::hash<T2>()(pair.second);
 
+    // Use boost's combine_hash strategy
     return h1 ^ (h1 + 0x9e3779b9 + (h2 << 6) + (h2 >> 2))
   }
 };
