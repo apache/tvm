@@ -149,9 +149,9 @@ class ShapeTuple(Object):
     """
 
     def __init__(self, shape):
-        assert isinstance(
-            shape, (list, tuple)
-        ), "Expect list of tuple, but received : {0}".format(type(shape))
+        assert isinstance(shape, (list, tuple)), "Expect list of tuple, but received : {0}".format(
+            type(shape)
+        )
         for x in shape:
             assert isinstance(x, int), "Expect int type, but received : {0}".format(type(x))
         self.__init_handle_by_constructor__(_ffi_api.ShapeTuple, *shape)
