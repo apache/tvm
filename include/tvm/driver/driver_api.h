@@ -45,7 +45,7 @@
 namespace tvm {
 
 /*!
- * \brief Build an IRModule given an input IRModule
+ * \brief Lower an IRModule (optimize with it with the pass list defined in CreatePassList)
  * \param mod The IRmodule to lower
  * \param simple_mode Disables the loop partition pass. Defaults to false.
  * \return The result module.
@@ -53,7 +53,8 @@ namespace tvm {
 TVM_DLL IRModule LowerModule(IRModule mod, bool simple_mode = false);
 
 /*!
- * \brief Build an IRModule given a primfunc and name
+ * \brief Lower a primfunc and name (convert to IRModule, and optimize it with the pass list
+ * defined in CreatePassList)
  * \param func The PrimFunc to lower
  * \param name The name of the lowered function.
  * \param simple_mode Disables the loop partition pass. Defaults to false.
