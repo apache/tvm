@@ -29,7 +29,7 @@ This page is organized as follows:
   The sections after are specific guides focused on each logical component, organized
   by the component's name.
 
-- The `Device/Target Interactions`_ section describes how TVM
+- The :doc:`Device/Target Interactions <device_target_interactions>` section describes how TVM
   interacts with each supported physical device and code-generation
   target.
 
