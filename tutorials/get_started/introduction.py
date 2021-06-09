@@ -52,7 +52,7 @@ Contents
 # The diagram below illustrates the steps a machine model takes as it is
 # transformed with the TVM optimizing compiler framework.
 #
-# .. image:: https://raw.githubusercontent.com/hogepodge/web-data/c339ebbbae41f3762873147c1e920a53a08963dd/images/getting_started/overview.png
+# .. image:: https://raw.githubusercontent.com/apache/tvm-site/main/images/tutorial/overview.png
 #   :width: 100%
 #   :alt: A High Level View of TVM
 #
