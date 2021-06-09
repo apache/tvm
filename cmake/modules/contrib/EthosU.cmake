@@ -18,7 +18,8 @@
 if(USE_ETHOSU)
   tvm_file_glob(GLOB COMPILER_ETHOSU_SRCS
                 src/relay/backend/contrib/ethosu/*
-                src/contrib/ethosu/cascader/*)
+                src/contrib/ethosu/cascader/*
+                src/contrib/ethosu/cascader/parts/*)
   list(APPEND COMPILER_SRCS ${COMPILER_ETHOSU_SRCS})
 else()
   # Keeping just utils.cc because it has Object definitions

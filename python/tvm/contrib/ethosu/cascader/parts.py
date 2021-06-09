@@ -14,4 +14,27 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Test infrastructure for the NPU cascader"""
+"""Parts used by the NPU cascader."""
+from typing import List
+import tvm._ffi
+
+from .propagator import Propagator
+from .graph import Part, TESubgraph
+from . import _ffi_api
+
+
+@tvm._ffi.register_object("contrib.ethosu.cascader.InlinePart")
+class InlinePart(Part):
+    """InlinePart class"""
+
+    def __init__(
+        self,
+        te_subgraph: TESubgraph,
+        propagators: List[Propagator],
+    ):
+        self.__init_handle_by_constructor__(
+            _ffi_api.InlinePart,
+            te_subgraph.input_tensors,
+            te_subgraph.output_tensor,
+            propagators,
+        )

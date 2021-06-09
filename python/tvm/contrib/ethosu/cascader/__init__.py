@@ -14,10 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""The NPU cascading planner.
+"""The NPU cascader.
 
 This component performs inter-operator scheduling to optimize
 for both performance and memory usage on Arm(R) Ethos(TM)-U NPUs.
 """
 from .stripe_config import StripeConfig
 from .propagator import Propagator
+from .graph import PerformanceInfo, Tensor, Part, TESubgraph, CascaderGraph
+from .parts import InlinePart
