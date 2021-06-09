@@ -184,9 +184,9 @@ desired_layouts = {
 # Constant.
 pass_seq = tvm.transform.Sequential(
     [
-    relay.transform.FoldConstant(),
-    relay.transform.ConvertLayout(desired_layouts),
-    relay.transform.FoldConstant(),
+        relay.transform.FoldConstant(),
+        relay.transform.ConvertLayout(desired_layouts),
+        relay.transform.FoldConstant(),
     ]
 )
 # bind parameters to make VarNode as ConstantNode.
@@ -202,5 +202,6 @@ with tvm.transform.PassContext(opt_level=3, instruments=[call_node_inst, timing_
 # We can see how many CallNode increase/decrease per op type.
 #
 from pprint import pprint
+
 pprint(call_node_inst.get_pass_to_op_diff())
 
