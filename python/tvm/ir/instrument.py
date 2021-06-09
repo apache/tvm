@@ -30,11 +30,8 @@ class PassInstrument(tvm.runtime.Object):
     """A pass instrument implementation.
 
     Users don't need to interact with this class directly.
-    Instead, a `PassInstrument` instance should be created through `pass_instrument`.
-
-    See Also
-    --------
-    `pass_instrument`
+    Instead, a `PassInstrument` instance should be created through
+    :py:func:`pass_instrument`
     """
 
 
@@ -91,13 +88,15 @@ def pass_instrument(pi_cls=None):
 
     Parameters
     ----------
-    pi_class :
+    pi_class : class
+        Instrument class. See example below.
 
     Examples
     --------
-    The following code block decorates a pass instrument class.
+    The following code block show how to decorate a pass instrument class.
 
     .. code-block:: python
+
         @tvm.instrument.pass_instrument
         class SkipPass:
             def __init__(self, skip_pass_name):

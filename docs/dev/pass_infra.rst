@@ -109,7 +109,8 @@ configure the compilation options, including optimization level and
 required/disabled passes, etc. For instance, we may have a configuration which
 performs all passes at ``opt_level=3`` with some disabled passes using
 ``disabled_pass=xx`` provided by ``PassContext``. Now we could glob all passes
-at ``opt_level=3`` and exclude those in the disabled pass list.
+at ``opt_level=3`` and exclude those in the disabled pass list. ``PassContext``
+also provides pass-instruments mechanism, which will be introduced latter.
 
 This class is designed for users to conveniently write the Python ``with``
 syntax to perform optimizations under a certain configuration. In addition, the
@@ -123,16 +124,23 @@ Python APIs to create a compilation pipeline using pass context.
 
     class PassContextNode : public Object {
      public:
-      ErrorReporter err_reporter;
       int opt_level{2};
       tvm::Array<tvm::Expr> required_pass;
       tvm::Array<tvm::Expr> disabled_pass;
+      mutable Optional<DiagnosticContext> diag_ctx;
+      Map<String, ObjectRef> config;
+      Array<instrument::PassInstrument> instruments;
     };
 
     class PassContext : public NodeRef {
      public:
       TVM_DLL static PassContext Create();
       TVM_DLL static PassContext Current();
+      TVM_DLL void InstrumentEnterPassContext();
+      TVM_DLL void InstrumentExitPassContext();
+      TVM_DLL bool InstrumentBeforePass(const IRModule& mod, const PassInfo& info) const;
+      TVM_DLL void InstrumentAfterPass(const IRModule& mod, const PassInfo& info) const;
+      TVM_DLL bool PassEnabled(const PassInfo& info) const;
       /* Other fields are omitted. */
 
      private:
@@ -389,6 +397,51 @@ To allow other C++ modules to apply this pass, we declare a free function in
 
     TVM_DLL Pass FoldConstant();
 
+Pass Instrument
+~~~~~~~~~~~~~~~
+
+To instrument passes, four methods are introduced to ``PassContext``.
+
+.. code:: c++
+
+    TVM_DLL void InstrumentEnterPassContext();
+    TVM_DLL void InstrumentExitPassContext();
+    TVM_DLL bool InstrumentBeforePass(const IRModule& mod, const PassInfo& info) const;
+    TVM_DLL void InstrumentAfterPass(const IRModule& mod, const PassInfo& info) const;
+
+The first two methods are called respectively in entering/exiting context scope. The latter two are called while passes is being applied(`src/ir/transform.cc`_).
+
+Note that ``InstrumentBeforePass()`` return a boolean indicating this pass should
+be run or not.
+
+``PassInstrument`` provides callbacks run by these methods. Multiple
+``PassInstrument`` instances can be registed into a single ``PassContext``.
+They are called sequentially in the order of ``instruments`` member.
+
+.. code:: c++
+
+    namespace instrument {
+
+    class PassInstrumentNode : public Object {
+     public:
+      String name;
+      virtual void EnterPassContext() const = 0;
+      virtual void ExitPassContext() const = 0;
+      virtual bool ShouldRun(const IRModule& mod, const transform::PassInfo& info) const = 0;
+      virtual void RunBeforePass(const IRModule& mod, const transform::PassInfo& info) const = 0;
+      virtual void RunAfterPass(const IRModule& mod, const transform::PassInfo& info) const = 0;
+      /* Other fields are omitted. */
+    };
+
+    class PassInstrument : public ObjectRef {
+     public:
+      TVM_DEFINE_OBJECT_REF_METHODS(PassInstrument, ObjectRef, PassInstrumentNode);
+    };
+
+    }  // namespace instrument
+
+Python interfaces are provided to implement ``PassInstrument`` quickly.
+
 Python Frontend
 ~~~~~~~~~~~~~~~
 
@@ -526,6 +579,51 @@ decorators and then invoke it. For more examples about how to customize your own
 optimization pipeline and debug Relay and tir passes, please refer to the
 `use pass infra`_ tutorial.
 
+Pass Instrument
+^^^^^^^^^^^^^^^
+
+A customizable framework to instrument passes is provided. ``PassInstrument`` classes can be registered while constructing ``PassContext``.
+
+.. code:: python
+
+    @tvm._ffi.register_object("transform.PassContext")
+    class PassContext(tvm.runtime.Object):
+        def __init__(
+            self,
+            opt_level=2,
+            required_pass=None,
+            disabled_pass=None,
+            instruments=None,
+            config=None,
+        ):
+        # ...
+
+One can implement a ``PassInstrument`` by ``pass_instrument`` decorator(`python/tvm/ir/instrument.py`_) with a class implementing following methods:
+
+- ``enter_pass_ctx``
+
+  * This callback is run at the moement of entering ``PassContext``.
+
+- ``exit_pass_ctx``
+
+  * This callback is run at the moement of exiting ``PassContext``.
+
+- ``should_run``
+
+  * This callback is run before a pass is executed, returning a boolean indicating if the pass should be run.
+  * If a pass is listed as required, this callback will not be executed for that pass.
+
+- ``run_before_pass``
+
+  * If a pass should be run, this callback is run just before pass execution.
+
+- ``run_after_pass``
+
+  * This callback is run right after a pass has been executed.
+
+
+`use pass instrument`_ tutorial provides examples for how to implement ``PassInstrument`` with Python APIs.
+
 .. _Sequential: https://pytorch.org/docs/stable/nn.html?highlight=sequential#torch.nn.Sequential
 
 .. _Block: https://mxnet.apache.org/api/python/docs/api/gluon/block.html#gluon-block
@@ -544,6 +642,9 @@ optimization pipeline and debug Relay and tir passes, please refer to the
 
 .. _python/tvm/ir/transform.py: https://github.com/apache/tvm/blob/main/python/tvm/ir/transform.py
 
+.. _python/tvm/ir/instrument.py: https://github.com/apache/tvm/blob/main/python/tvm/ir/instrument.py
+
 .. _src/tir/transforms/unroll_loop.cc: https://github.com/apache/tvm/blob/main/src/tir/transforms/unroll_loop.cc
 
 .. _use pass infra: https://github.com/apache/tvm/blob/main/tutorials/dev/use_pass_infra.py
+.. _use pass instrument: https://github.com/apache/tvm/blob/main/tutorials/dev/use_pass_instrument.py
