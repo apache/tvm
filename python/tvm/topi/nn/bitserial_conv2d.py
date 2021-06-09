@@ -40,10 +40,10 @@ def bitserial_conv2d_nchw(
 
     Parameters
     ----------
-    input : tvm.te.Tensor
+    data : tvm.te.Tensor
         4-D with shape [batch, in_channel, in_height, in_width]
 
-    filter : tvm.te.Tensor
+    kernel : tvm.te.Tensor
         4-D with shape [num_filter, in_channel, filter_height, filter_width]
 
     stride : int or a list/tuple of two ints
@@ -163,10 +163,10 @@ def bitserial_conv2d_nhwc(
 
     Parameters
     ----------
-    input : tvm.te.Tensor
+    data : tvm.te.Tensor
         4-D with shape [batch, in_height, in_width, in_channel]
 
-    filter : tvm.te.Tensor
+    kernel : tvm.te.Tensor
         4-D with shape [filter_height, filter_width, in_channel, num_filter]
 
     stride : int or a list/tuple of two ints
