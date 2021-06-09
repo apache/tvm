@@ -98,7 +98,7 @@ def lower(
 
     Parameters
     ----------
-    inp : Union[schedule.Schedule, tvm.tir.PrimFunc, IRModule]
+    inp : Union[tvm.te.schedule.Schedule, tvm.tir.PrimFunc, IRModule]
         The TE schedule or TensorIR PrimFunc/IRModule to be built
 
     args : Optional[List[Union[tvm.tir.Buffer, tensor.Tensor, Var]]]
@@ -233,7 +233,7 @@ def build(
 
     Parameters
     ----------
-    inputs : Union[schedule.Schedule, tvm.tir.PrimFunc, IRModule, Mapping[str, IRModule]]
+    inputs : Union[tvm.te.schedule.Schedule, tvm.tir.PrimFunc, IRModule, Mapping[str, IRModule]]
         The input to be built
 
     args : Optional[List[Union[tvm.tir.Buffer, tensor.Tensor, Var]]]
