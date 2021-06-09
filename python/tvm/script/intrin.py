@@ -151,6 +151,11 @@ def max(a, b, span):  # pylint: disable=redefined-builtin
     return tvm.tir.Max(a, b, span)
 
 
+@register
+def min(a, b, span):  # pylint: disable=redefined-builtin
+    return tvm.tir.Min(a, b, span)
+
+
 def get_axis(begin, end, iter_type, span):
     ana = tvm.arith.Analyzer()
     extent = ana.simplify(end - begin)
