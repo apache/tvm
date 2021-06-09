@@ -102,7 +102,6 @@ class RelayCallNodeDiffer:
                 "The stack is not empty. Something wrong."
 
     def run_before_pass(self, mod, info):
-        cur_depth = len(self._op_cnt_before_stack)
         self._op_cnt_before_stack.append((info.name, self._count_nodes(mod)))
 
     def run_after_pass(self, mod, info):
