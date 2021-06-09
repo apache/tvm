@@ -203,7 +203,7 @@ class RPCServer {
         auto pid = fork();
         if (pid == 0) {
           ServerLoopProc(conn, addr, work_dir_);
-          exit(0);
+          _exit(0);
         }
         // Wait for the result
         int status = 0;

@@ -197,6 +197,7 @@ tvm_t.*
 .pytest_cache
 .local
 cmake-build-debug
+cmake-build*
 
 # Visual Studio
 .vs
