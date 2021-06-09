@@ -57,7 +57,6 @@ def test_lstm():
 
     Has internal functions and let statements the pass must work on.
     """
-    np.random.seed(5628)
     units = 3
     iterations = 5
     mod, mod_params = lstm.get_workload(iterations=iterations, num_hidden=units)
@@ -77,8 +76,6 @@ def test_convert_single_conv():
 
     By default it accumulates to fp32 and outputs fp16.
     """
-    np.random.seed(208)
-
     data_shape = (1, 3, 32, 32)
     weight_shape = (5, 3, 3, 3)
     data = relay.var("data", shape=data_shape, dtype="float32")
@@ -113,8 +110,6 @@ def test_convert_single_conv():
 
 def test_convert_conv_bn():
     """Conv is green and batch norm is gray. As Conv should output fp16 batch_norm should be green."""
-    np.random.seed(208)
-
     data_shape = (1, 3, 32, 32)
     weight_shape = (5, 3, 3, 3)
     data = relay.var("data", shape=data_shape, dtype="float32")
@@ -163,7 +158,6 @@ def test_convert_conv_bn():
 
 def test_do_not_convert_softmax():
     """Softmax is a red listed operation and therefore should never be fp16."""
-    np.random.seed(209)
     shape = [1, 2, 3]
     a = relay.var("a", shape=shape)
     b = relay.nn.softmax(a)
@@ -182,7 +176,6 @@ def test_green_gray_propagates_simple():
 
     As Conv outputs fp16 the add should be done in fp16.
     """
-    np.random.seed(210)
     data_shape = (1, 3, 32, 32)
     weight_shape = (5, 3, 3, 3)
     data = relay.var("data", shape=data_shape, dtype="float32")
@@ -274,7 +267,6 @@ def test_green_red_not_use_extraneous_cast():
 
 def test_red_gray_propagates_simple():
     """Everything after a softmax should be in FP32 (exception green colored ops)"""
-    np.random.seed(211)
     shape = [1, 2, 3]
     a = relay.var("a", shape=shape)
     b = relay.nn.softmax(a)
@@ -293,9 +285,8 @@ def test_red_gray_propagates_simple():
 def test_let_statement_simple():
     """A 'simple' let statement example.
 
-    Noticable is the mutation of the bound variable types.
+    Noticeable is the mutation of the bound variable types.
     """
-    np.random.seed(211)
     var1 = relay.var("var1", shape=[1, 20])
     var2 = relay.var("var2", shape=[1, 20])
 
