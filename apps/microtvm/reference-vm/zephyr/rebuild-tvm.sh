@@ -22,7 +22,8 @@ set -e
 if [ -n "${TVM_CI_NUM_CORES}" ]; then
   num_cores=${TVM_CI_NUM_CORES}
 else
-  num_cores=4
+  # default setup for Vagrantfile
+  num_cores=2
 fi
 
 cd "$(dirname $0)"

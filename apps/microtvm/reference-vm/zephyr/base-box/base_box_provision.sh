@@ -26,9 +26,7 @@ cd ~
 ~/ubuntu_init_zephyr_project.sh ~/zephyrproject v2.5-branch --commit dabf23758417fd041fec2a2a821d8f526afac29d
 
 # Build QEMU
-cd ~
 sudo ~/ubuntu_install_qemu.sh --target-list arm-softmmu
 
 # Cleanup
-cd ~
 rm -f *.sh

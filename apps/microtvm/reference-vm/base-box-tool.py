@@ -48,6 +48,7 @@ ALL_MICROTVM_PLATFORMS = (
     "mps2_an521",
 )
 
+PACKER_FILE_NAME = "packer.json"
 
 def parse_virtualbox_devices():
     output = subprocess.check_output(["VBoxManage", "list", "usbhost"], encoding="utf-8")
@@ -174,8 +175,8 @@ ATTACH_USB_DEVICE = {
 }
 
 EXTRA_SCRIPTS = (
-    "../../../../../docker/install/ubuntu_init_zephyr_project.sh",
-    "../../../../../docker/install/ubuntu_install_qemu.sh",
+    "docker/install/ubuntu_init_zephyr_project.sh",
+    "docker/install/ubuntu_install_qemu.sh",
 )
 
 
@@ -196,9 +197,11 @@ def generate_packer_config(file_path, providers):
             }
         )
 
+    repo_root = subprocess.check_output(["git", "rev-parse", "--show-toplevel"], cwd=os.path.dirname(__file__))
     for script in EXTRA_SCRIPTS:
-        filename = os.path.basename(script)
-        provisioners.append({"type": "file", "source": script, "destination": f"~/{filename}"})
+        file_path = os.path.join(repo_root, script)
+        filename = os.path.basename(file_path)
+        provisioners.append({"type": "file", "source": file_path, "destination": f"~/{filename}"})
 
     provisioners.append(
         {
@@ -215,15 +218,14 @@ def generate_packer_config(file_path, providers):
                 "provisioners": provisioners,
             },
             f,
-            sort_keys=False,
+            sort_keys=True,
             indent=2,
         )
 
 
 def build_command(args):
-    packer_file_name = "packer.json"
     generate_packer_config(
-        os.path.join(THIS_DIR, args.platform, "base-box", packer_file_name),
+        os.path.join(THIS_DIR, args.platform, "base-box", PACKER_FILE_NAME),
         args.provider or ALL_PROVIDERS,
     )
     env = copy.copy(os.environ)
@@ -233,7 +235,7 @@ def build_command(args):
     if args.debug_packer:
         packer_args += ["-debug"]
 
-    packer_args += [packer_file_name]
+    packer_args += [PACKER_FILE_NAME]
     subprocess.check_call(
         packer_args, cwd=os.path.join(THIS_DIR, args.platform, "base-box"), env=env
     )
