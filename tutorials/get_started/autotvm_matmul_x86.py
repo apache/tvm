@@ -21,11 +21,10 @@ Optimizing Operators with Templates and AutoTVM
 `Lianmin Zheng <https://github.com/merrymercy>`_,
 `Chris Hoge <https://github.com/hogepodge>`_
 
-In this tutorial, we will now show how the TVM Template Extension (TE) language
-can be used to write scheduling templates that can be searched by AutoTVM to
-find optimal configurations of scheduling variables. This process is called
-Auto-Tuning, and builds on TE to help automate the process of optimizing
-operations.
+In this tutorial, we show how the TVM Tensor Expression (TE) language
+can be used to write schedule templates that can be searched by AutoTVM to
+find the optimal schedule. This process is called Auto-Tuning, which helps
+automate the process of optimizing tensor computation.
 
 This tutorial builds on the previous `tutorial on how to write a matrix
 multiplication using TE <tensor_expr_get_started>`.
