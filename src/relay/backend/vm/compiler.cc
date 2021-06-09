@@ -389,6 +389,8 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
     Expr let_binding = GetRef<Expr>(l);
     const LetNode* let;
     while ((let = let_binding.as<LetNode>())) {
+      ICHECK(!let->value.as<FunctionNode>())
+          << "invariant violated, inner functions should not exist (did you set opt_level = 2?)";
       VisitExpr(let->value);
       var_register_map_.insert({let->var, this->last_register_});
       let_binding = let->body;
