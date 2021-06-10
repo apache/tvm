@@ -98,10 +98,12 @@ RPCEnv::RPCEnv(const std::string& wd) {
     fclose(cmdline);
     std::string android_base_ = "/data/data/" + std::string(cwd) + "/cache";
     struct stat statbuf;
+    // Check if application data directory exist. If not exist usually mean tvm_rpc run from adb
+    // shell terminal.
     if (stat(android_base_.data(), &statbuf) == -1 || !S_ISDIR(statbuf.st_mode)) {
-      android_base_ = ".";
+      // Tmp directory always writable for 'shell' user.
+      android_base_ = "/data/local/tmp";
     }
-
     base_ = android_base_ + "/rpc";
 
 #elif !defined(_WIN32)
