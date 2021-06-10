@@ -1200,7 +1200,7 @@ def FakeQuantizationToInteger():
     return _ffi_api.FakeQuantizationToInteger()
 
 
-def AMPRewrite(mixed_precision_type="float16"):
+def ToMixedPrecision(mixed_precision_type="float16"):
     """
     Automatic mixed precision rewriter. Rewrite an FP32 relay graph into a version
     where as many operations as possible are in FP16.
@@ -1214,4 +1214,4 @@ def AMPRewrite(mixed_precision_type="float16"):
     ret : tvm.transform.Pass
         The registered RewriteFP16 pass.
     """
-    return _ffi_api.AMPRewrite(mixed_precision_type)
+    return _ffi_api.ToMixedPrecision(mixed_precision_type)

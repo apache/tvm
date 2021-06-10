@@ -57,7 +57,7 @@ using ColorFunc = std::function<MixedTypeConversionCategory(const CallNode*)>;
 // A function which maps MIXED_PRECISION_ALWAYS CallNodes to wanted accumulation and output dtypes
 using OutputDtypeFunc = std::function<MixedPrecisionOpOutDType(const CallNode*)>;
 
-class AmpGraphCreator : public MixedModeMutator {
+class AMPGraphCreator : public MixedModeMutator {
  private:
   CachedCastNodes cast_nodes_cache;
   const ColorFunc colorer;
@@ -230,7 +230,7 @@ class AmpGraphCreator : public MixedModeMutator {
  public:
   using MixedModeMutator::VisitExpr_;
 
-  explicit AmpGraphCreator(ColorFunc colorer, OutputDtypeFunc output_dtype_func,
+  explicit AMPGraphCreator(ColorFunc colorer, OutputDtypeFunc output_dtype_func,
                            DataType mixed_precision_type = DataType::Float(16))
       : MixedModeMutator(),
         colorer(colorer),
@@ -329,14 +329,14 @@ class AmpGraphCreator : public MixedModeMutator {
 Expr AMPRewriteGraph(const Expr& expr, const ColorFunc& colorer,
                      const OutputDtypeFunc& output_dtype_func,
                      const DataType& mixed_precision_type) {
-  AmpGraphCreator converter = AmpGraphCreator(colorer, output_dtype_func, mixed_precision_type);
+  AMPGraphCreator converter = AMPGraphCreator(colorer, output_dtype_func, mixed_precision_type);
   auto result = converter.Mutate(expr);
   return result;
 }
 
 namespace transform {
 
-Pass AMPRewrite(DataType mixed_precision_type) {
+Pass ToMixedPrecision(DataType mixed_precision_type) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
         return Downcast<Function>(AMPRewriteGraph(
@@ -344,10 +344,10 @@ Pass AMPRewrite(DataType mixed_precision_type) {
             DefaultMixedPrecisionOpDefinition(mixed_precision_type, DataType::Float(32)),
             mixed_precision_type));
       };
-  return CreateFunctionPass(pass_func, 10, "AMPRewrite", {});
+  return CreateFunctionPass(pass_func, 10, "ToMixedPrecision", {});
 }
 
-TVM_REGISTER_GLOBAL("relay._transform.AMPRewrite").set_body_typed(AMPRewrite);
+TVM_REGISTER_GLOBAL("relay._transform.ToMixedPrecision").set_body_typed(ToMixedPrecision);
 
 }  // namespace transform
 
