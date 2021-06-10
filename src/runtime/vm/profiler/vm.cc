@@ -43,29 +43,31 @@ namespace vm {
 PackedFunc VirtualMachineDebug::GetFunction(const std::string& name,
                                             const ObjectPtr<Object>& sptr_to_self) {
   if (name == "profile") {
-    return TypedPackedFunc<profiling::Report(String)>([sptr_to_self, this](String arg_name) {
-      std::vector<Device> devices;
-      for (auto dev : devices_) {
-        if (dev.device_type > 0) {
-          devices.push_back(dev);
-        }
-      }
+    return TypedPackedFunc<profiling::Report(String, Array<profiling::MetricCollector>)>(
+        [sptr_to_self, this](String arg_name, Array<profiling::MetricCollector> collectors) {
+          std::vector<Device> devices;
+          for (auto dev : devices_) {
+            if (dev.device_type > 0) {
+              devices.push_back(dev);
+            }
+          }
 
-      prof_ = profiling::Profiler(devices);
+          std::vector<profiling::MetricCollector> cs(collectors.begin(), collectors.end());
+          prof_ = profiling::Profiler(devices, cs);
 
-      auto invoke = VirtualMachine::GetFunction("invoke", sptr_to_self);
-      // warmup
-      for (int i = 0; i < 3; i++) {
-        invoke(arg_name);
-      }
+          auto invoke = VirtualMachine::GetFunction("invoke", sptr_to_self);
+          // warmup
+          for (int i = 0; i < 3; i++) {
+            invoke(arg_name);
+          }
 
-      prof_.operator*().Start();
-      invoke(arg_name);
-      prof_.operator*().Stop();
-      auto report = prof_.operator*().Report();
-      prof_ = dmlc::optional<profiling::Profiler>();  // releases hardware counters
-      return report;
-    });
+          prof_.operator*().Start();
+          invoke(arg_name);
+          prof_.operator*().Stop();
+          auto report = prof_.operator*().Report();
+          prof_ = dmlc::optional<profiling::Profiler>();  // releases hardware counters
+          return report;
+        });
   } else {
     return VirtualMachine::GetFunction(name, sptr_to_self);
   }

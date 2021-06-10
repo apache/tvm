@@ -276,10 +276,13 @@ class GraphExecutorDebug : public GraphExecutor {
    * the module compared to GraphRuntimeDebug::RunIndividual as it runs the
    * entire graph in order.
    *
+   * \param collectors Optional user defined `MetricCollector`s to use with this profiling run.
+   *
    * \returns A table of per-op runtimes and total times.
    */
-  profiling::Report Profile() {
-    profiling::Profiler prof(devices_);
+  profiling::Report Profile(Array<profiling::MetricCollector> collectors) {
+    std::vector<profiling::MetricCollector> cs(collectors.begin(), collectors.end());
+    profiling::Profiler prof(devices_, cs);
 
     // warm up. 1 iteration does not seem enough.
     for (int i = 0; i < 3; i++) {
@@ -360,7 +363,10 @@ PackedFunc GraphExecutorDebug::GetFunction(const std::string& name,
       *rv = this->RunIndividual(number, repeat, min_repeat_ms);
     });
   } else if (name == "profile") {
-    return TypedPackedFunc<profiling::Report()>([sptr_to_self, this]() { return this->Profile(); });
+    return TypedPackedFunc<profiling::Report(Array<profiling::MetricCollector>)>(
+        [sptr_to_self, this](Array<profiling::MetricCollector> collectors) {
+          return this->Profile(collectors);
+        });
   } else {
     return GraphExecutor::GetFunction(name, sptr_to_self);
   }

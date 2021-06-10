@@ -77,24 +77,38 @@ def test_graph_executor(target, dev):
     assert "Hash" in str(report)
 
 
-@tvm.testing.requires_cuda
+@tvm.testing.parametrize_targets("cuda", "llvm")
 @pytest.mark.skipif(
-    tvm.get_global_func("runtime.profiling.metrics.papi", allow_missing=True) is None,
+    tvm.get_global_func("runtime.profiling.PAPIMetricCollector", allow_missing=True) is None,
     reason="PAPI profiling not enabled",
 )
-def test_papi_gpu():
+def test_papi(target, dev):
+    target = tvm.target.Target(target)
+    if str(target.kind) == "llvm":
+        metric = "PAPI_FP_OPS"
+    elif str(target.kind) == "cuda":
+        metric = "cuda:::event:shared_load:device=0"
+    else:
+        pytest.skip(f"Target {target.kind} not supported by this test")
     mod, params = mlp.get_workload(1)
 
-    exe = relay.vm.compile(mod, "cuda", params=params)
-    vm = profiler_vm.VirtualMachineProfiler(exe, tvm.gpu())
+    exe = relay.vm.compile(mod, target, params=params)
+    vm = profiler_vm.VirtualMachineProfiler(exe, dev)
 
-    data = np.random.rand(1, 1, 28, 28).astype("float32")
-    report = vm.profile([data], func_name="main")
-    assert "cuda::" in str(report)
+    print(dev.device_type)
+    data = tvm.nd.array(np.random.rand(1, 1, 28, 28).astype("float32"), device=dev)
+    report = vm.profile(
+        [data],
+        func_name="main",
+        collectors=[tvm.runtime.profiling.PAPIMetricCollector({dev: [metric]})],
+    )
+    print(report)
+    assert metric in str(report)
 
-    metric = "cuda:::event:shared_load:device=0"
-    os.environ["TVM_PAPI_GPU_METRICS"] = metric
-    report = vm.profile([data], func_name="main")
     csv = read_csv(report)
     assert metric in csv.keys()
     assert any([float(x) > 0 for x in csv[metric]])
+
+
+if __name__ == "__main__":
+    test_papi("llvm", tvm.cpu())

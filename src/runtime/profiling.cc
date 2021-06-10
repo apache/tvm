@@ -102,16 +102,15 @@ TVM_REGISTER_GLOBAL("profiling.start_timer").set_body_typed(Timer::Start);
 
 namespace profiling {
 
-Profiler::Profiler(std::vector<Device> devs) : devs_(devs) {
+Profiler::Profiler(std::vector<Device> devs, std::vector<MetricCollector> metric_collectors)
+    : devs_(devs), collectors_(metric_collectors) {
   is_running_ = false;
   std::vector<DeviceWrapper> wrapped_devs;
   for (auto dev : devs) {
     wrapped_devs.push_back(DeviceWrapper(make_object<DeviceWrapperNode>(dev)));
   }
-  for (const auto& name : Registry::ListNames()) {
-    if (name.find("runtime.profiling.metrics.") == 0) {
-      collectors_.push_back(Registry::Get(name)->operator()(Array<DeviceWrapper>(wrapped_devs)));
-    }
+  for (auto& x : collectors_) {
+    x->Init(wrapped_devs);
   }
   // reset the thread pool so that PAPI eventset hooks are set in all threads.
   threading::ResetThreadPool();
@@ -483,6 +482,9 @@ TVM_REGISTER_OBJECT_TYPE(DeviceWrapperNode);
 TVM_REGISTER_OBJECT_TYPE(MetricCollectorNode);
 
 TVM_REGISTER_GLOBAL("runtime.profiling.AsCSV").set_body_typed([](Report n) { return n->AsCSV(); });
+TVM_REGISTER_GLOBAL("runtime.profiling.DeviceWrapper").set_body_typed([](Device dev) {
+  return DeviceWrapper(dev);
+});
 }  // namespace profiling
 }  // namespace runtime
 }  // namespace tvm

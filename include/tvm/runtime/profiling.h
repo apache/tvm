@@ -37,6 +37,7 @@
 #include <vector>
 
 namespace tvm {
+
 namespace runtime {
 
 /*! \brief Base class for all implementations.
@@ -150,6 +151,26 @@ class Timer : public ObjectRef {
 Timer DefaultTimer(Device dev);
 
 namespace profiling {
+/*! \brief Wrapper for `Device` because `Device` is not passable across the
+ * PackedFunc interface.
+ */
+struct DeviceWrapperNode : public Object {
+  /*! The device */
+  Device device;
+
+  /*! Constructor */
+  explicit DeviceWrapperNode(Device device) : device(device) {}
+
+  static constexpr const char* _type_key = "runtime.profiling.DeviceWrapper";
+  TVM_DECLARE_BASE_OBJECT_INFO(DeviceWrapperNode, Object);
+};
+
+/*! \brief Wrapper for `Device`. */
+class DeviceWrapper : public ObjectRef {
+ public:
+  explicit DeviceWrapper(Device dev) { data_ = make_object<DeviceWrapperNode>(dev); }
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(DeviceWrapper, ObjectRef, DeviceWrapperNode);
+};
 
 /*! \brief Data collected from a profiling run. Includes per-call metrics and per-device metrics.
  */
@@ -220,6 +241,11 @@ class Report : public ObjectRef {
  */
 class MetricCollectorNode : public Object {
  public:
+  /*! \brief Initialization call. Called before profiling has started. Any
+   * expensive precomputation should happen here.
+   * \param devs The list of devices this collector will be run on.
+   */
+  virtual void Init(Array<DeviceWrapper> devs) = 0;
   /*! \brief Start colling metrics for a function call.
    * \param dev The device the call will be run on.
    * \returns An object used to maintain state of the metric collection. This
@@ -236,7 +262,7 @@ class MetricCollectorNode : public Object {
 
   virtual ~MetricCollectorNode() {}
 
-  static constexpr const char* _type_key = "runtime.profiling.MetricCollectorNode";
+  static constexpr const char* _type_key = "runtime.profiling.MetricCollector";
   TVM_DECLARE_BASE_OBJECT_INFO(MetricCollectorNode, Object);
 };
 
@@ -289,8 +315,9 @@ class Profiler {
    *
    * \param devs The list of devices the profiler will be running on. Should
    *             include all devices used by profiled operators.
+   * \param metric_collectors Additional `MetricCollector`s to use with this profiler.
    */
-  explicit Profiler(std::vector<Device> devs);
+  explicit Profiler(std::vector<Device> devs, std::vector<MetricCollector> metric_collectors);
   /*! \brief Start the profiler.
    *
    * This function should only be called once per object.
@@ -387,26 +414,6 @@ class CountNode : public Object {
  *  \return A textual representation of the shapes. For example: `float32[2], int64[1, 2]`.
  */
 String ShapeString(const std::vector<NDArray>& shapes);
-
-/*! \brief Wrapper for `Device` because `Device` is not passable across the
- * PackedFunc interface.
- */
-struct DeviceWrapperNode : public Object {
-  /*! The device */
-  Device device;
-
-  /*! Constructor */
-  explicit DeviceWrapperNode(Device device) : device(device) {}
-
-  static constexpr const char* _type_key = "DeviceWrapperNode";
-  TVM_DECLARE_BASE_OBJECT_INFO(DeviceWrapperNode, Object);
-};
-
-/*! \brief Wrapper for `Device`. */
-class DeviceWrapper : public ObjectRef {
- public:
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(DeviceWrapper, ObjectRef, DeviceWrapperNode);
-};
 
 }  // namespace profiling
 }  // namespace runtime
