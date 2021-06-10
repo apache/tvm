@@ -1548,8 +1548,8 @@ def dense(data, weight, units=None, out_dtype="", data_transposed=False, weight_
     """
     # Add data_transposed & weight_transposed parameters for some API requires to apply
     # attrs to this function
-    assert data_transposed
-    assert not weight_transposed
+    assert not data_transposed
+    assert weight_transposed
     return _make.dense(data, weight, units, out_dtype)
 
 
