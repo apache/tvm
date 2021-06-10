@@ -121,11 +121,12 @@ TEST(Relay, Sequential) {
   ICHECK(tvm::StructuralEqual()(f, expected));
 }
 
-TEST(PassContextListConfigNames, Basic) {
-  Array<String> configs = relay::transform::PassContext::ListConfigNames();
+TEST(PassContextListConfigs, Basic) {
+  Map<String, Map<String, String>> configs = relay::transform::PassContext::ListConfigs();
   ICHECK_EQ(configs.empty(), false);
-  ICHECK_EQ(std::count(std::begin(configs), std::end(configs), "relay.backend.use_auto_scheduler"),
-            1);
+
+  auto config = configs["relay.backend.use_auto_scheduler"];
+  ICHECK_EQ(config["type"], "IntImm");
 }
 
 int main(int argc, char** argv) {

@@ -183,10 +183,11 @@ def test_instrument_pass_counts():
 
 
 def test_list_pass_configs():
-    config_names = tvm.transform.PassContext.list_config_names()
+    configs = tvm.transform.PassContext.list_configs()
 
-    assert len(config_names) > 0
-    assert "relay.backend.use_auto_scheduler" in config_names
+    assert len(configs) > 0
+    assert "relay.backend.use_auto_scheduler" in configs.keys()
+    assert configs["relay.backend.use_auto_scheduler"]["type"] == "IntImm"
 
 
 def test_enter_pass_ctx_exception():
