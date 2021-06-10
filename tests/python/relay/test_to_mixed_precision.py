@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Unit tests for testing FP32 -> FP16 pass"""
+"""Unit tests for testing AMP pass"""
 from typing import Any, Dict, List
 
 import numpy as np
