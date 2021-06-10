@@ -1129,7 +1129,7 @@ def _matmul():
             op_name="matmul",
             extras={
                 "units": channels,
-                "input_transposed": attr["transpose_a"] or False,
+                "data_transposed": attr["transpose_a"] or False,
                 "weight_transposed": attr["transpose_b"] or False,
             },
             ignores=["transpose_a", "transpose_b", "T"],

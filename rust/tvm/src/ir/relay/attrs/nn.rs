@@ -62,7 +62,7 @@ pub struct MatmulAttrsNode {
     pub base: BaseAttrsNode,
     pub units: IndexExpr,
     pub out_dtype: DataType,
-    pub input_transposed: bool,
+    pub data_transposed: bool,
     pub weight_transposed: bool,
 }
 

@@ -285,7 +285,7 @@ Expr DenseRealize(const Call& ref_call, const Array<Expr>& new_args, const Objec
   *attrs = *ref_attrs;
   DataType out_dtype = cfg->dtype_activation;
   attrs->out_dtype = out_dtype;
-  attrs->input_transposed = false;
+  attrs->data_transposed = false;
   attrs->weight_transposed = true;
 
   Expr ret = Call(ref_call->op, {ldata, rdata}, Attrs(attrs), ref_call->type_args);

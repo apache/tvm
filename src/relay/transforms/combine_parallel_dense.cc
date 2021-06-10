@@ -124,7 +124,7 @@ class ParallelDenseToDenseCombiner : public ParallelOpCombiner {
     const auto dense_attrs = make_object<MatmulAttrs>();
     dense_attrs->units = new_output_dims;
     dense_attrs->out_dtype = origin_attrs->out_dtype;
-    dense_attrs->input_transposed = false;
+    dense_attrs->data_transposed = false;
     dense_attrs->weight_transposed = true;
     return Call(dense_op, {input, new_weight}, Attrs{dense_attrs}, {});
   }

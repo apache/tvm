@@ -1471,7 +1471,7 @@ def bias_add(data, bias, axis=1):
     return _make.bias_add(data, bias, axis)
 
 
-def matmul(data, weight, units=None, out_dtype="", input_transposed=False, weight_transposed=False):
+def matmul(data, weight, units=None, out_dtype="", data_transposed=False, weight_transposed=False):
     """Dense operator.
     Applies a linear transformation. The X & W can be transposed.
 
@@ -1483,7 +1483,7 @@ def matmul(data, weight, units=None, out_dtype="", input_transposed=False, weigh
     ----------
     data : tvm.relay.Expr
         The input data to the operator,
-        of shape `(d_1, d_2, ..., d_n, units_in)`.
+        of shape `(d_1, d_2, ..., d_n, units_in)` or `(d_1, d_2, ..., units_in, d_n)`.
 
     weight : tvm.relay.Expr
         The weight expressions, 2-D matrix,
@@ -1496,6 +1496,9 @@ def matmul(data, weight, units=None, out_dtype="", input_transposed=False, weigh
         Specifies the output data type for mixed precision dense,
         of shape `(d_1, d_2, ..., d_n, units)`.
 
+    data_transposed : bool, optional
+        Whether the input tensor is in transposed format.
+
     weight_transposed : bool, optional
         Whether the weight tensor is in transposed format.
 
@@ -1505,9 +1508,9 @@ def matmul(data, weight, units=None, out_dtype="", input_transposed=False, weigh
         The computed result.
     """
     # With N/T format, the compute will be seen as a dense
-    if not input_transposed and weight_transposed:
+    if not data_transposed and weight_transposed:
         return dense(data, weight, units, out_dtype)
-    return _make.matmul(data, weight, units, out_dtype, input_transposed, weight_transposed)
+    return _make.matmul(data, weight, units, out_dtype, data_transposed, weight_transposed)
 
 
 def dense(data, weight, units=None, out_dtype=""):

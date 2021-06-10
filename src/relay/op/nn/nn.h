@@ -51,7 +51,7 @@ bool MatmulRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   const Array<tvm::PrimExpr>& dshape = data->shape;
   Array<tvm::PrimExpr> oshape = dshape;
   tvm::PrimExpr reduce = dshape[dshape.size() - 1];
-  if (param->input_transposed) {
+  if (param->data_transposed) {
     reduce = dshape[dshape.size() - 2];
     oshape.Set((oshape.size() - 2), dshape[oshape.size() - 1]);
   }

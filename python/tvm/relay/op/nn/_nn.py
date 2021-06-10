@@ -1175,11 +1175,11 @@ def batch_flatten_shape_func(attrs, inputs, _):
 
 
 @script
-def _matmul_shape_func(data_shape, weight_shape, input_transposed, weight_transposed):
+def _matmul_shape_func(data_shape, weight_shape, data_transposed, weight_transposed):
     out = output_tensor((data_shape.shape[0],), "int64")
     for i in const_range(out.shape[0] - 1):
         out[i] = data_shape[i]
-    if input_transposed:
+    if data_transposed:
         out[out.shape[0] - 2] = out[out.shape[0] - 1]
     out[out.shape[0] - 1] = weight_shape[0] if weight_transposed else weight_shape[1]
 
@@ -1192,7 +1192,7 @@ def matmul_shape_func(attrs, inputs, _):
     Shape function for matmul op.
     """
     ret = [
-        _matmul_shape_func(inputs[0], inputs[1], attrs.input_transposed, attrs.weight_transposed)
+        _matmul_shape_func(inputs[0], inputs[1], attrs.data_transposed, attrs.weight_transposed)
     ]
     return ret
 

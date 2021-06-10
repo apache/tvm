@@ -44,7 +44,7 @@ Expr MakeClip(Expr a, double a_min, double a_max);
 
 Expr MakeConcatenate(Expr data, int axis);
 
-Expr MakeMatmul(Expr data, Expr weight, IndexExpr units, DataType out_dtype, bool input_transposed,
+Expr MakeMatmul(Expr data, Expr weight, IndexExpr units, DataType out_dtype, bool data_transposed,
                 bool weight_transposed);
 
 Expr MakeDense(Expr data, Expr weight, IndexExpr units, DataType out_dtype);

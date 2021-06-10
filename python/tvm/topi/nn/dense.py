@@ -26,7 +26,7 @@ def matmul(
     weight,
     bias=None,
     out_dtype=None,
-    input_transposed=False,
+    data_transposed=False,
     weight_transposed=False,
     auto_scheduler_rewritten_layout="",
 ):
@@ -59,7 +59,7 @@ def matmul(
         assert len(bias.shape) == 1
     if out_dtype is None:
         out_dtype = data.dtype
-    if input_transposed:
+    if data_transposed:
         in_dim, batch = data.shape
     else:
         batch, in_dim = data.shape
@@ -77,7 +77,7 @@ def matmul(
     assert in_dim == red_dim
 
     k = te.reduce_axis((0, in_dim), name="k")
-    if input_transposed:
+    if data_transposed:
         if weight_transposed:
             compute_lambda = lambda i, j: te.sum(
                 data[k, i].astype(out_dtype) * weight[j, k].astype(out_dtype), axis=k

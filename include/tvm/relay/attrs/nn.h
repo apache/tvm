@@ -965,7 +965,7 @@ struct AvgPool3DAttrs : public tvm::AttrsNode<AvgPool3DAttrs> {
 struct MatmulAttrs : public tvm::AttrsNode<MatmulAttrs> {
   IndexExpr units;
   DataType out_dtype;
-  bool input_transposed;
+  bool data_transposed;
   bool weight_transposed;
   tvm::String auto_scheduler_rewritten_layout;  // The layout after auto-scheduler's layout rewrite
 
@@ -977,7 +977,7 @@ struct MatmulAttrs : public tvm::AttrsNode<MatmulAttrs> {
         .set_default(NullValue<DataType>())
         .describe("Output data type, set to explicit type under mixed precision setting");
 
-    TVM_ATTR_FIELD(input_transposed)
+    TVM_ATTR_FIELD(data_transposed)
         .set_default(false)
         .describe("Whether the input tensor is in transposed format.");
 

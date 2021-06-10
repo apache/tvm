@@ -165,14 +165,14 @@ Useful for
 // ------------------- relay.nn.matmul
 TVM_REGISTER_NODE_TYPE(MatmulAttrs);
 
-Expr MakeMatmul(Expr data, Expr weight, IndexExpr units, DataType out_dtype, bool input_transposed,
+Expr MakeMatmul(Expr data, Expr weight, IndexExpr units, DataType out_dtype, bool data_transposed,
                 bool weight_transposed) {
   auto attrs = make_object<MatmulAttrs>();
   attrs->units = units;
   attrs->out_dtype = out_dtype;
-  attrs->input_transposed = input_transposed;
+  attrs->data_transposed = data_transposed;
   attrs->weight_transposed = weight_transposed;
-  if (!input_transposed && weight_transposed) {
+  if (!data_transposed && weight_transposed) {
     static const Op& dense_op = Op::Get("nn.dense");
     return Call(dense_op, {data, weight}, Attrs(attrs), {});
   } else {
@@ -229,7 +229,7 @@ Expr MakeDensePack(Expr data, Expr weight, IndexExpr units, DataType out_dtype) 
   auto attrs = make_object<MatmulAttrs>();
   attrs->units = units;
   attrs->out_dtype = out_dtype;
-  attrs->input_transposed = false;
+  attrs->data_transposed = false;
   attrs->weight_transposed = true;
   static const Op& op = Op::Get("nn.contrib_dense_pack");
   return Call(op, {data, weight}, Attrs(attrs), {});

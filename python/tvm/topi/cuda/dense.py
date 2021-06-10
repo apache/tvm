@@ -36,7 +36,7 @@ def _matmul_cublas_common(
     weight,
     bias=None,
     out_dtype=None,
-    input_transposed=False,
+    data_transposed=False,
     weight_transposed=False,
 ):
     assert len(data.shape) == 2 and len(weight.shape) == 2, "only support 2-dim matmul"
@@ -47,7 +47,7 @@ def _matmul_cublas_common(
     assert out_dtype == data.dtype, "Mixed precision not supported."
     batch, in_dim = get_const_tuple(data.shape)
     out_dim, _ = get_const_tuple(weight.shape)
-    matmul = cublas.matmul(data, weight, input_transposed, weight_transposed)
+    matmul = cublas.matmul(data, weight, data_transposed, weight_transposed)
     if all(isinstance(d, int) for d in [batch, in_dim, out_dim]):
         cfg.add_flop(batch * in_dim * out_dim * 2)
     if bias is not None:
@@ -64,12 +64,12 @@ def matmul_cublas(
     weight,
     bias=None,
     out_dtype=None,
-    input_transposed=False,
+    data_transposed=False,
     weight_transposed=False,
 ):
     """Matmul operator on CUDA with CUBLAS"""
     return _matmul_cublas_common(
-        cfg, data, weight, bias, out_dtype, input_transposed, weight_transposed
+        cfg, data, weight, bias, out_dtype, data_transposed, weight_transposed
     )
 
 

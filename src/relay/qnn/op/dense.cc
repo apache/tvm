@@ -79,7 +79,7 @@ Expr MakeQuantizedDense(Expr data, Expr weight, Expr input_zero_point, Expr kern
   auto attrs = make_object<MatmulAttrs>();
   attrs->units = std::move(units);
   attrs->out_dtype = out_dtype;
-  attrs->input_transposed = false;
+  attrs->data_transposed = false;
   attrs->weight_transposed = true;
   static const Op& op = Op::Get("qnn.dense");
   return Call(op, {data, weight, input_zero_point, kernel_zero_point, input_scale, kernel_scale},

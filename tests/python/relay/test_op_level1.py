@@ -439,7 +439,7 @@ def test_matmul():
         x = relay.var("x", relay.TensorType((n, c, w, h), dtype))
         wh, ww = te.size_var("wh"), te.size_var("ww")
         w = relay.var("w", relay.TensorType((wh, ww), dtype))
-        y = relay.nn.matmul(x, w, input_transposed=True)
+        y = relay.nn.matmul(x, w, data_transposed=True)
         yy = run_infer_type(y)
         assert yy.checked_type == relay.TensorType((n, c, h, ww), dtype)
 
@@ -452,7 +452,7 @@ def test_matmul():
 
         x = relay.var("x", shape=(5, 10), dtype=dtype)
         w = relay.var("w", shape=(5, 2), dtype=dtype)
-        z = relay.nn.matmul(x, w, input_transposed=True)
+        z = relay.nn.matmul(x, w, data_transposed=True)
 
         # Check result.
         func = relay.Function([x, w], z)
