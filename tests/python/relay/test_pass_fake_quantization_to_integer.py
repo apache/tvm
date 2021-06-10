@@ -29,8 +29,6 @@ def compare_fq_to_int(expr, args, allow_rounding_error=False):
     mod_int = tvm.relay.transform.FakeQuantizationToInteger()(mod)
     assert not tvm.ir.structural_equal(mod, mod_int)
 
-    mod_int = tvm.relay.transform.FoldConstant()(mod_int)
-
     ex = relay.create_executor("vm", mod=mod, device=tvm.cpu(), target="llvm")
     result = ex.evaluate()(*args).numpy()
 
@@ -274,16 +272,24 @@ def test_fake_quantize_clip():
     compare_fq_to_int(op, [x_np])
 
 
-@pytest.mark.parametrize("operator", [relay.op.add, relay.op.multiply])
+@pytest.mark.parametrize(
+    "operator",
+    [relay.op.add, relay.op.multiply, relay.op.subtract, relay.op.minimum, relay.op.maximum],
+)
 def test_fake_quantize_binary(operator):
     x = relay.var("x", shape=[1, 3, 224, 224], dtype="int8")
-    x = relay.qnn.op.dequantize(x, relay.const(0.1), relay.const(10))
+    x = relay.qnn.op.dequantize(x, relay.const(0.1), relay.const(0))
 
     y = relay.var("y", shape=[1, 3, 224, 224], dtype="int8")
-    y = relay.qnn.op.dequantize(y, relay.const(0.2), relay.const(-10))
+    y = relay.qnn.op.dequantize(y, relay.const(0.2), relay.const(0))
 
     op = operator(x, y)
-    op = relay.qnn.op.quantize(op, relay.const(20.0), relay.const(0), out_dtype="int8")
+    if operator == relay.op.multiply:
+        out_scale = relay.const(20.0)
+    else:
+        out_scale = relay.const(0.1)
+
+    op = relay.qnn.op.quantize(op, out_scale, relay.const(0), out_dtype="int8")
 
     x_np = np.random.randint(-25, 25, size=[1, 3, 224, 224], dtype="int8")
     y_np = np.random.randint(-25, 25, size=[1, 3, 224, 224], dtype="int8")
@@ -291,7 +297,17 @@ def test_fake_quantize_binary(operator):
     compare_fq_to_int(op, [x_np, y_np])
 
 
-@pytest.mark.parametrize("operator", [relay.op.add, relay.op.multiply])
+@pytest.mark.parametrize(
+    "operator",
+    [
+        relay.op.add,
+        relay.op.multiply,
+        relay.op.subtract,
+        relay.op.subtract,
+        relay.op.minimum,
+        relay.op.maximum,
+    ],
+)
 def test_fake_quantize_binary_const(operator):
     x = relay.var("x", shape=[1, 3, 224, 224], dtype="int8")
     x = relay.qnn.op.dequantize(x, relay.const(0.1), relay.const(10))
@@ -299,7 +315,7 @@ def test_fake_quantize_binary_const(operator):
     y = relay.const(1.0)
 
     op = operator(x, y)
-    op = relay.qnn.op.quantize(op, relay.const(20.0), relay.const(0), out_dtype="int8")
+    op = relay.qnn.op.quantize(op, relay.const(0.1), relay.const(10), out_dtype="int8")
 
     x_np = np.random.randint(-25, 25, size=[1, 3, 224, 224], dtype="int8")
 
