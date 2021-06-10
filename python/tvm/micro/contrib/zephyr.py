@@ -633,7 +633,6 @@ class ZephyrQemuTransport(Transport):
         self.pipe_dir = None
         self.qemu_debugger = qemu_debugger
         self._queue = queue.Queue()
-        self._qemu_ready_msg = "Qready"
 
     def timeouts(self):
         return TransportTimeouts(
@@ -714,15 +713,26 @@ class ZephyrQemuTransport(Transport):
             line = str(line)
             _LOG.debug(line)
             if "[QEMU] CPU" in line:
-                self._queue.put(self._qemu_ready_msg)
-                return
+                self._queue.put(True)
+            else:
+                line = re.sub("[^a-zA-Z0-9 \n]", "", line)
+                pattern = r"recipe for target (\w*) failed"
+                if re.search(pattern, line, re.IGNORECASE):
+                    self._queue.put("make failed")
+        self._queue.put("EOF")
 
     def _wait_for_qemu(self):
         threading.Thread(target=self._qemu_check_stdout, daemon=True).start()
         while True:
-            item = self._queue.get()
-            if item == self._qemu_ready_msg:
-                return True
+            try:
+                item = self._queue.get(timeout=120)
+            except:
+                _LOG.error("QEMU setup timeout.")
+
+            if item == True:
+                return
+            elif item == "make failed" or item == "EOF":
+                raise RuntimeError("QEMU setup failed.")
 
 
 class ZephyrDebugger(debugger.GdbDebugger):
