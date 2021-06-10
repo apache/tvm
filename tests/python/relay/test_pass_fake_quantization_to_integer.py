@@ -46,10 +46,10 @@ def test_fake_quantize_conv():
         mod2 = tvm.relay.transform.FoldConstant()(mod2)
 
         ex = relay.create_executor("vm", mod=mod, device=tvm.cpu(), target="llvm")
-        result = ex.evaluate()(x_np, w_np).asnumpy()
+        result = ex.evaluate()(x_np, w_np).numpy()
 
         ex = relay.create_executor("vm", mod=mod2, device=tvm.cpu(), target="llvm")
-        result2 = ex.evaluate()(x_np, w_np).asnumpy()
+        result2 = ex.evaluate()(x_np, w_np).numpy()
 
         assert np.array_equal(result, result2)
 
@@ -76,10 +76,10 @@ def test_fake_transpose_quantize_conv():
     mod2 = tvm.relay.transform.FoldConstant()(mod2)
 
     ex = relay.create_executor("vm", mod=mod, device=tvm.cpu(), target="llvm")
-    result = ex.evaluate()(x_np, w_np).asnumpy()
+    result = ex.evaluate()(x_np, w_np).numpy()
 
     ex = relay.create_executor("vm", mod=mod2, device=tvm.cpu(), target="llvm")
-    result2 = ex.evaluate()(x_np, w_np).asnumpy()
+    result2 = ex.evaluate()(x_np, w_np).numpy()
 
     assert np.array_equal(result, result2)
 
@@ -109,10 +109,10 @@ def test_fake_transpose_quantize_conv_bias_add():
     mod2 = tvm.relay.transform.FoldConstant()(mod2)
 
     ex = relay.create_executor("vm", mod=mod, device=tvm.cpu(), target="llvm")
-    result = ex.evaluate()(x_np, w_np, bias_np).asnumpy()
+    result = ex.evaluate()(x_np, w_np, bias_np).numpy()
 
     ex = relay.create_executor("vm", mod=mod2, device=tvm.cpu(), target="llvm")
-    result2 = ex.evaluate()(x_np, w_np, bias_np).asnumpy()
+    result2 = ex.evaluate()(x_np, w_np, bias_np).numpy()
 
     assert np.array_equal(result, result2)
 
@@ -135,10 +135,10 @@ def test_fake_quantize_maxpool():
     mod2 = tvm.relay.transform.FoldConstant()(mod2)
 
     ex = relay.create_executor("vm", mod=mod, device=tvm.cpu(), target="llvm")
-    result = ex.evaluate()(x_np).asnumpy()
+    result = ex.evaluate()(x_np).numpy()
 
     ex = relay.create_executor("vm", mod=mod2, device=tvm.cpu(), target="llvm")
-    result2 = ex.evaluate()(x_np).asnumpy()
+    result2 = ex.evaluate()(x_np).numpy()
 
     assert np.array_equal(result, result2)
 
@@ -161,10 +161,10 @@ def test_fake_quantize_avgpool():
     mod2 = tvm.relay.transform.FoldConstant()(mod2)
 
     ex = relay.create_executor("vm", mod=mod, device=tvm.cpu(), target="llvm")
-    result = ex.evaluate()(x_np).asnumpy()
+    result = ex.evaluate()(x_np).numpy()
 
     ex = relay.create_executor("vm", mod=mod2, device=tvm.cpu(), target="llvm")
-    result2 = ex.evaluate()(x_np).asnumpy()
+    result2 = ex.evaluate()(x_np).numpy()
 
     assert np.all(np.abs(result - result2) <= 1)
 
@@ -187,10 +187,10 @@ def test_fake_quantize_reshape():
     mod2 = tvm.relay.transform.FoldConstant()(mod2)
 
     ex = relay.create_executor("vm", mod=mod, device=tvm.cpu(), target="llvm")
-    result = ex.evaluate()(x_np).asnumpy()
+    result = ex.evaluate()(x_np).numpy()
 
     ex = relay.create_executor("vm", mod=mod2, device=tvm.cpu(), target="llvm")
-    result2 = ex.evaluate()(x_np).asnumpy()
+    result2 = ex.evaluate()(x_np).numpy()
 
     assert np.array_equal(result, result2)
 
@@ -214,10 +214,10 @@ def test_fake_quantize_transpose_reshape():
     mod2 = tvm.relay.transform.FoldConstant()(mod2)
 
     ex = relay.create_executor("vm", mod=mod, device=tvm.cpu(), target="llvm")
-    result = ex.evaluate()(x_np).asnumpy()
+    result = ex.evaluate()(x_np).numpy()
 
     ex = relay.create_executor("vm", mod=mod2, device=tvm.cpu(), target="llvm")
-    result2 = ex.evaluate()(x_np).asnumpy()
+    result2 = ex.evaluate()(x_np).numpy()
 
     assert np.array_equal(result, result2)
 
@@ -246,10 +246,10 @@ def test_fake_quantize_concat():
     mod2 = tvm.relay.transform.FoldConstant()(mod2)
 
     ex = relay.create_executor("vm", mod=mod, device=tvm.cpu(), target="llvm")
-    result = ex.evaluate()(*inputs_np).asnumpy()
+    result = ex.evaluate()(*inputs_np).numpy()
 
     ex = relay.create_executor("vm", mod=mod2, device=tvm.cpu(), target="llvm")
-    result2 = ex.evaluate()(*inputs_np).asnumpy()
+    result2 = ex.evaluate()(*inputs_np).numpy()
 
     assert np.array_equal(result, result2)
 
@@ -271,9 +271,9 @@ def test_fake_quantize_clip():
     mod2 = tvm.relay.transform.FoldConstant()(mod2)
 
     ex = relay.create_executor("vm", mod=mod, device=tvm.cpu(), target="llvm")
-    result = ex.evaluate()(x_np).asnumpy()
+    result = ex.evaluate()(x_np).numpy()
 
     ex = relay.create_executor("vm", mod=mod2, device=tvm.cpu(), target="llvm")
-    result2 = ex.evaluate()(x_np).asnumpy()
+    result2 = ex.evaluate()(x_np).numpy()
 
     assert np.array_equal(result, result2)

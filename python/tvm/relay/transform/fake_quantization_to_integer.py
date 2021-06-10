@@ -17,6 +17,7 @@
 """Relay functions for rewriting fake quantized ops."""
 import tvm
 from tvm import relay
+from tvm.ir import TensorAffineType, TupleAffineType
 from ..op import register_fake_quantization_to_integer
 
 
@@ -31,7 +32,7 @@ def dequantize(expr, type_map):
     """Remove dequantize op"""
     out = expr.args[0]
     t = type_map[expr]
-    return [out, t.scale, t.zero_point, t.dtype]
+    return [out, t]
 
 
 @register_fake_quantization_to_integer("qnn.quantize")
@@ -54,7 +55,7 @@ def quantize(expr, type_map):
             expr.args[2],
             out_dtype=expr.attrs.out_dtype,
         )
-    return [out, expr.args[1], expr.args[2], expr.attrs.out_dtype]
+    return [out, TensorAffineType(expr.args[1], expr.args[2], expr.attrs.out_dtype)]
 
 
 def register_unary_identity(op_name, op):
@@ -63,7 +64,7 @@ def register_unary_identity(op_name, op):
         arg = expr.args[0]
         t = type_map[arg]
         out = op(arg, **expr.attrs)
-        return [out, t.scale, t.zero_point, t.dtype]
+        return [out, t]
 
     return register_fake_quantization_to_integer(op_name, identity)
 
@@ -81,7 +82,7 @@ def avgpool2d(expr, type_map):
     arg = relay.op.cast(arg, "int32")
     out = relay.op.nn.avg_pool2d(arg, **expr.attrs)
     out = relay.op.cast(out, t.dtype)
-    return [out, t.scale, t.zero_point, t.dtype]
+    return [out, t]
 
 
 @register_fake_quantization_to_integer("nn.bias_add")
@@ -102,7 +103,7 @@ def bias_add(expr, type_map):
             out_dtype=xt.dtype,
         )
     out = relay.op.nn.bias_add(x, b, **expr.attrs)
-    return [out, x_t.scale, x_t.zero_point, x_t.dtype]
+    return [out, x_t]
 
 
 @register_fake_quantization_to_integer("nn.conv2d")
@@ -118,7 +119,7 @@ def conv2d(expr, type_map):
     out = relay.qnn.op.conv2d(
         x, weight, x_t.zero_point, w_t.zero_point, x_t.scale, w_t.scale, **attrs
     )
-    return [out, conv_scale, conv_zp, out.attrs.out_dtype]
+    return [out, TensorAffineType(conv_scale, conv_zp, out.attrs.out_dtype)]
 
 
 @register_fake_quantization_to_integer("concatenate")
@@ -126,8 +127,9 @@ def concat(expr, type_map):
     """Rewrite a concat op"""
     scales = []
     zps = []
-    for arg in expr.args[0].fields:
-        t = type_map[arg]
+
+    tuple_type = type_map[expr.args[0]]
+    for t in tuple_type.types:
         scales.append(t.scale)
         zps.append(t.zero_point)
 
@@ -141,7 +143,7 @@ def concat(expr, type_map):
         out_type.zero_point,
         **expr.attrs,
     )
-    return [out, out_type.scale, out_type.zero_point, out_type.dtype]
+    return [out, out_type]
 
 
 @register_fake_quantization_to_integer("clip")
@@ -163,4 +165,4 @@ def clip(expr, type_map):
         amin = relay.op.round(relay.op.const(amin) / scale + z_p)
         amax = relay.op.round(relay.op.const(amax) / scale + z_p)
         out = relay.op.minimum(relay.op.maximum(arg, amin), amax)
-    return [out, t.scale, t.zero_point, t.dtype]
+    return [out, t]
