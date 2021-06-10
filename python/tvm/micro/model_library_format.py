@@ -227,7 +227,7 @@ def export_model_library_format(mod: executor_factory.ExecutorFactoryModule, fil
     runtime = ["aot"] if is_aot else ["graph"]
 
     metadata = {
-        "version": 2,
+        "version": 3,
         "model_name": mod.libmod_name,
         "export_datetime": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%SZ"),
         "memory": _build_memory_map(mod),
@@ -252,7 +252,7 @@ def export_model_library_format(mod: executor_factory.ExecutorFactoryModule, fil
         f.write(str(mod.ir_mod))
 
     if not is_aot:
-        graph_config_dir_path = tempdir.relpath(os.path.join("runtime-config", "graph"))
+        graph_config_dir_path = tempdir.relpath(os.path.join("executor-config", "graph"))
         os.makedirs(graph_config_dir_path)
         with open(os.path.join(graph_config_dir_path, "graph.json"), "w") as f:
             f.write(mod.get_executor_config())

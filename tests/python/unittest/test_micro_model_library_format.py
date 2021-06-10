@@ -33,7 +33,7 @@ from tvm.contrib import utils
 
 
 def validate_graph_json(extract_dir, factory):
-    with open(os.path.join(extract_dir, "runtime-config", "graph", "graph.json")) as graph_f:
+    with open(os.path.join(extract_dir, "executor-config", "graph", "graph.json")) as graph_f:
         graph_json = graph_f.read()
         assert graph_json == factory.graph_json
 
