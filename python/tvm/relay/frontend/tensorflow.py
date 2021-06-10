@@ -44,6 +44,10 @@ from .tensorflow_ops import _get_more_static_shape
 
 __all__ = ["from_tensorflow"]
 
+# By default, TVM convert `tf.matmul` to `nn.dense` op with data tensor non-transposed and weight
+# tensor transposed
+_USE_DENSE_INSTEAD_OF_MATMUL = True
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -1204,7 +1208,7 @@ class SubGraphProto(GraphProto):
         return func, self._params
 
 
-def from_tensorflow(graph, layout="NHWC", shape=None, outputs=None):
+def from_tensorflow(graph, layout="NHWC", shape=None, outputs=None, use_dense_op=True):
     """Load tensorflow graph which is a python tensorflow graph object into relay.
     The companion parameters will be handled automatically.
 
@@ -1222,6 +1226,11 @@ def from_tensorflow(graph, layout="NHWC", shape=None, outputs=None):
     outputs : List of output tensor names (Optional)
         if not specified then the last node is assumed as graph output.
 
+    use_dense_op : bool (Optional)
+        Ture to convert `tf.matmul` to `nn.dense`, else to `nn.matmul`.
+        The `nn.dense` op requires the data tensor to be non-transposed and weight tensor to be
+        transposed, may insert extra `transpose` to the original graph.
+
     Returns
     -------
     mod : tvm.IRModule
@@ -1230,6 +1239,9 @@ def from_tensorflow(graph, layout="NHWC", shape=None, outputs=None):
     params : dict of str to tvm.nd.NDArray
         Dict of converted parameters stored in tvm.nd.NDArray format
     """
+    global _USE_DENSE_INSTEAD_OF_MATMUL
+    if use_dense_op != _USE_DENSE_INSTEAD_OF_MATMUL:
+        _USE_DENSE_INSTEAD_OF_MATMUL = use_dense_op
 
     g = GraphProto()
     mod, params = g.from_tensorflow(graph, layout, shape, outputs)

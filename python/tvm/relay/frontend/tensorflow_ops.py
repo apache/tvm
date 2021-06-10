@@ -1114,12 +1114,25 @@ def _no_op():
 def _matmul():
     def _impl(inputs, attr, params, mod):
         channels = _infer_channels(inputs[1], not attr["transpose_b"])
-        if attr["transpose_a"]:
-            inputs[0] = _op.transpose(inputs[0], axes=(1, 0))
-        if not attr["transpose_b"]:
-            inputs[1] = _op.transpose(inputs[1], axes=(1, 0))
+        from .tensorflow import _USE_DENSE_INSTEAD_OF_MATMUL
+        if _USE_DENSE_INSTEAD_OF_MATMUL:
+            if attr["transpose_a"]:
+                inputs[0] = _op.transpose(inputs[0], axes=(1, 0))
+            if not attr["transpose_b"]:
+                inputs[1] = _op.transpose(inputs[1], axes=(1, 0))
+            return AttrCvt(
+                op_name="dense",
+                extras={"units": channels},
+                ignores=["transpose_a", "transpose_b", "T"],
+            )(inputs, attr)
         return AttrCvt(
-            op_name="dense", extras={"units": channels}, ignores=["transpose_a", "transpose_b", "T"]
+            op_name="matmul",
+            extras={
+                "units": channels,
+                "input_transposed": attr["transpose_a"] or False,
+                "weight_transposed": attr["transpose_b"] or False,
+            },
+            ignores=["transpose_a", "transpose_b", "T"],
         )(inputs, attr)
 
     return _impl
