@@ -26,7 +26,7 @@ apt-get update --fix-missing
 apt-get install -y linux-tools-common linux-tools-generic
 
 cd /
-git clone https://bitbucket.org/icl/papi.git
+git clone -b stable-6.0 --single-branch https://bitbucket.org/icl/papi.git
 cd papi/src
 export PAPI_CUDA_ROOT=/usr/local/cuda
 ./configure --with-components="$1"
