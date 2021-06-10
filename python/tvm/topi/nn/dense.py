@@ -30,7 +30,7 @@ def matmul(
     weight_transposed=False,
     auto_scheduler_rewritten_layout="",
 ):
-    """The default implementation of dense in topi.
+    """The default implementation of matmul in topi.
 
     Parameters
     ----------
@@ -45,6 +45,12 @@ def matmul(
 
     out_dtype : Optional[str]
         The output type. This is used for mixed precision.
+
+    data_transposed : Optional[bool]
+        Whether the data tensor is in transposed format.
+
+    weight_transposed : Optional[bool]
+        Whether the weight tensor is in transposed format.
 
     auto_scheduler_rewritten_layout: str = ""
         The layout after auto-scheduler's layout rewrite pass.

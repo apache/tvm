@@ -186,7 +186,7 @@ TVM_REGISTER_GLOBAL("relay.op.nn._make.matmul").set_body_typed(MakeMatmul);
 RELAY_REGISTER_OP("nn.matmul")
     .describe(R"code(Applies a linear transformation: :math:`Y = XW`. X & W can be transposed.
 
-- **data**: `(x1, x2, ..., xn, input_dim)`
+- **data**: `(x1, x2, ..., xn, input_dim)` or `(x1, x2, ..., input_dim, xn)`
 - **weight**: `(input_dim, units)` or `(units, input_dim)`
 - **out**: `(x1, x2, ..., xn, units)`.
 

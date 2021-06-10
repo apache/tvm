@@ -1497,7 +1497,7 @@ def matmul(data, weight, units=None, out_dtype="", data_transposed=False, weight
         of shape `(d_1, d_2, ..., d_n, units)`.
 
     data_transposed : bool, optional
-        Whether the input tensor is in transposed format.
+        Whether the data tensor is in transposed format.
 
     weight_transposed : bool, optional
         Whether the weight tensor is in transposed format.
