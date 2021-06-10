@@ -162,16 +162,47 @@ Useful for
     .set_support_level(3)
     .add_type_rel("FIFOBuffer", FIFOBufferRel);
 
-// relay.nn.dense
-TVM_REGISTER_NODE_TYPE(DenseAttrs);
+// ------------------- relay.nn.matmul
+TVM_REGISTER_NODE_TYPE(MatmulAttrs);
 
-// Positional relay function to create dense operator used by frontend FFI.
-Expr MakeDense(Expr data, Expr weight, IndexExpr units, DataType out_dtype) {
-  auto attrs = make_object<DenseAttrs>();
+Expr MakeMatmul(Expr data, Expr weight, IndexExpr units, DataType out_dtype, bool input_transposed,
+                bool weight_transposed) {
+  auto attrs = make_object<MatmulAttrs>();
   attrs->units = units;
   attrs->out_dtype = out_dtype;
-  static const Op& op = Op::Get("nn.dense");
-  return Call(op, {data, weight}, Attrs(attrs), {});
+  attrs->input_transposed = input_transposed;
+  attrs->weight_transposed = weight_transposed;
+  if (!input_transposed && weight_transposed) {
+    static const Op& dense_op = Op::Get("nn.dense");
+    return Call(dense_op, {data, weight}, Attrs(attrs), {});
+  } else {
+    static const Op& matmul_op = Op::Get("nn.matmul");
+    return Call(matmul_op, {data, weight}, Attrs(attrs), {});
+  }
+}
+
+TVM_REGISTER_GLOBAL("relay.op.nn._make.matmul").set_body_typed(MakeMatmul);
+
+RELAY_REGISTER_OP("nn.matmul")
+    .describe(R"code(Applies a linear transformation: :math:`Y = XW`. X & W can be transposed.
+
+- **data**: `(x1, x2, ..., xn, input_dim)`
+- **weight**: `(input_dim, units)` or `(units, input_dim)`
+- **out**: `(x1, x2, ..., xn, units)`.
+
+)code" TVM_ADD_FILELINE)
+    .set_attrs_type<MatmulAttrs>()
+    .set_num_inputs(2)
+    .add_argument("data", "nD Tensor", "Input data.")
+    .add_argument("weight", "2D Tensor", "Weight matrix.")
+    .set_support_level(1)
+    .add_type_rel("Matmul", MatmulRel<MatmulAttrs>);
+// ------------------- relay.nn.matmul
+
+// ------------------- relay.nn.dense
+// Positional relay function to create dense operator used by frontend FFI.
+Expr MakeDense(Expr data, Expr weight, IndexExpr units, DataType out_dtype) {
+  return MakeMatmul(data, weight, units, out_dtype, false, true);
 }
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.dense").set_body_typed(MakeDense);
@@ -184,19 +215,22 @@ RELAY_REGISTER_OP("nn.dense")
 - **out**: `(x1, x2, ..., xn, units)`.
 
 )code" TVM_ADD_FILELINE)
-    .set_attrs_type<DenseAttrs>()
+    .set_attrs_type<MatmulAttrs>()
     .set_num_inputs(2)
     .add_argument("data", "nD Tensor", "Input data.")
     .add_argument("weight", "2D Tensor", "Weight matrix.")
     .set_support_level(1)
-    .add_type_rel("Dense", DenseRel<DenseAttrs>);
+    .add_type_rel("Dense", MatmulRel<MatmulAttrs>);
+// ------------------- relay.nn.dense
 
-// relay.nn.contrib_dense_pack
+// ------------------- relay.nn.contrib_dense_pack
 // Positional relay function to create dense_pack operator used by frontend FFI.
 Expr MakeDensePack(Expr data, Expr weight, IndexExpr units, DataType out_dtype) {
-  auto attrs = make_object<DenseAttrs>();
+  auto attrs = make_object<MatmulAttrs>();
   attrs->units = units;
   attrs->out_dtype = out_dtype;
+  attrs->input_transposed = false;
+  attrs->weight_transposed = true;
   static const Op& op = Op::Get("nn.contrib_dense_pack");
   return Call(op, {data, weight}, Attrs(attrs), {});
 }
@@ -211,12 +245,13 @@ RELAY_REGISTER_OP("nn.contrib_dense_pack")
 - **out**: `(x1, x2, ..., xn, units)`.
 
 )code" TVM_ADD_FILELINE)
-    .set_attrs_type<DenseAttrs>()
+    .set_attrs_type<MatmulAttrs>()
     .set_num_inputs(2)
     .add_argument("data", "nD Tensor", "Input data.")
     .add_argument("weight", "3D Tensor", "Packed weight matrix.")
     .set_support_level(10)
-    .add_type_rel("DensePack", DensePackRel<DenseAttrs>);
+    .add_type_rel("DensePack", DensePackRel<MatmulAttrs>);
+// ------------------- relay.nn.contrib_dense_pack
 
 // relay.leaky_relu
 TVM_REGISTER_NODE_TYPE(LeakyReluAttrs);

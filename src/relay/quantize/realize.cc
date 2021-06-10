@@ -280,11 +280,13 @@ Expr DenseRealize(const Call& ref_call, const Array<Expr>& new_args, const Objec
   }
   Expr rdata = Cast(rhs->data, cfg->dtype_weight);
 
-  const auto ref_attrs = ref_call->attrs.as<DenseAttrs>();
-  auto attrs = make_object<DenseAttrs>();
+  const auto ref_attrs = ref_call->attrs.as<MatmulAttrs>();
+  auto attrs = make_object<MatmulAttrs>();
   *attrs = *ref_attrs;
   DataType out_dtype = cfg->dtype_activation;
   attrs->out_dtype = out_dtype;
+  attrs->input_transposed = false;
+  attrs->weight_transposed = true;
 
   Expr ret = Call(ref_call->op, {ldata, rdata}, Attrs(attrs), ref_call->type_args);
   Expr mul = Multiply(lhs->dom_scale, rhs->dom_scale);

@@ -961,19 +961,29 @@ struct AvgPool3DAttrs : public tvm::AttrsNode<AvgPool3DAttrs> {
   }
 };
 
-/*! \brief Attributes for dense operator */
-struct DenseAttrs : public tvm::AttrsNode<DenseAttrs> {
+/*! \brief Attributes for matmul operator and dense operator */
+struct MatmulAttrs : public tvm::AttrsNode<MatmulAttrs> {
   IndexExpr units;
-  tvm::String auto_scheduler_rewritten_layout;  // The layout after auto-scheduler's layout rewrite
   DataType out_dtype;
+  bool input_transposed;
+  bool weight_transposed;
+  tvm::String auto_scheduler_rewritten_layout;  // The layout after auto-scheduler's layout rewrite
 
-  TVM_DECLARE_ATTRS(DenseAttrs, "relay.attrs.DenseAttrs") {
+  TVM_DECLARE_ATTRS(MatmulAttrs, "relay.attrs.MatmulAttrs") {
     TVM_ATTR_FIELD(units).describe("Number of hidden units of the dense transformation.");
 
     // use 0 bits to indicate none.
     TVM_ATTR_FIELD(out_dtype)
         .set_default(NullValue<DataType>())
         .describe("Output data type, set to explicit type under mixed precision setting");
+
+    TVM_ATTR_FIELD(input_transposed)
+        .set_default(false)
+        .describe("Whether the input tensor is in transposed format.");
+
+    TVM_ATTR_FIELD(weight_transposed)
+        .set_default(false)
+        .describe("Whether the weight tensor is in transposed format.");
   }
 };
 

@@ -56,12 +56,14 @@ pub struct BiasAddAttrsNode {
 
 #[repr(C)]
 #[derive(Object, Debug)]
-#[ref_name = "DenseAttrs"]
-#[type_key = "relay.attrs.DenseAttrs"]
-pub struct DenseAttrsNode {
+#[ref_name = "MatmulAttrs"]
+#[type_key = "relay.attrs.MatmulAttrs"]
+pub struct MatmulAttrsNode {
     pub base: BaseAttrsNode,
     pub units: IndexExpr,
     pub out_dtype: DataType,
+    pub input_transposed: bool,
+    pub weight_transposed: bool,
 }
 
 #[repr(C)]

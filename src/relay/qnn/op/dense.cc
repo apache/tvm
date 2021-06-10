@@ -45,8 +45,8 @@ bool QnnDenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   const auto* data = types[0].as<TensorTypeNode>();
   const auto* weight = types[1].as<TensorTypeNode>();
   if (data == nullptr || weight == nullptr) return false;
-  const auto* param = attrs.as<DenseAttrs>();
-  ICHECK(param != nullptr) << "DenseAttrs cannot be nullptr.";
+  const auto* param = attrs.as<MatmulAttrs>();
+  ICHECK(param != nullptr) << "MatmulAttrs cannot be nullptr.";
   ICHECK(data->dtype == DataType::Int(8) || data->dtype == DataType::UInt(8))
       << "Expected quantized dense type(int8, uint8) for input but was " << data->dtype;
   ICHECK(weight->dtype == DataType::Int(8) || weight->dtype == DataType::UInt(8))
@@ -70,22 +70,24 @@ bool QnnDenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   // Collect the input tensor and output tensor devoid of scale and zero points to reuse Relay
   // Dense infer type function.
   Array<Type> tensor_types = {types[0], types[1], types[6]};
-  return DenseRel<DenseAttrs>(tensor_types, 3, attrs, reporter);
+  return MatmulRel<MatmulAttrs>(tensor_types, 3, attrs, reporter);
 }
 
 // Positional relay function to create quantized dense operator used by frontend FFI.
 Expr MakeQuantizedDense(Expr data, Expr weight, Expr input_zero_point, Expr kernel_zero_point,
                         Expr input_scale, Expr kernel_scale, IndexExpr units, DataType out_dtype) {
-  auto attrs = make_object<DenseAttrs>();
+  auto attrs = make_object<MatmulAttrs>();
   attrs->units = std::move(units);
   attrs->out_dtype = out_dtype;
+  attrs->input_transposed = false;
+  attrs->weight_transposed = true;
   static const Op& op = Op::Get("qnn.dense");
   return Call(op, {data, weight, input_zero_point, kernel_zero_point, input_scale, kernel_scale},
               Attrs(attrs), {});
 }
 
 Expr DenseFirstTerm(const Expr& quantized_data, const Expr& quantized_kernel,
-                    const DenseAttrs* attrs) {
+                    const MatmulAttrs* attrs) {
   return Dense(quantized_data, quantized_kernel, attrs->units, attrs->out_dtype);
 }
 
@@ -161,7 +163,7 @@ Expr QnnDenseCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   const auto in_shape = get_shape(arg_types[0]);
   const int reduction_dim_size = get_const_int(in_shape[1]);
 
-  const auto* qnn_dense_attrs = attrs.as<DenseAttrs>();
+  const auto* qnn_dense_attrs = attrs.as<MatmulAttrs>();
 
   auto term1 = DenseFirstTerm(quantized_data, quantized_kernel, qnn_dense_attrs);
   auto term2 = DenseSecondTerm(quantized_data, kernel_zero_point);
@@ -204,7 +206,7 @@ RELAY_REGISTER_OP("qnn.dense")
 - **weight**: quantized(int8, unit8) `(units, input_dim)`
 - **out**: quantized(int32) `(x1, x2, ..., xn, units)`.
 )code" TVM_ADD_FILELINE)
-    .set_attrs_type<DenseAttrs>()
+    .set_attrs_type<MatmulAttrs>()
     .set_num_inputs(6)
     .add_argument("data", "quantized nD Tensor", "Input data.")
     .add_argument("weight", "quantized 2D Tensor", "Weight matrix.")

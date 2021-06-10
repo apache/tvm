@@ -27,6 +27,7 @@
 #include <tvm/ir/attrs.h>
 #include <tvm/ir/expr.h>
 #include <tvm/relay/type.h>
+#include <tvm/runtime/container.h>
 
 #include <utility>
 
@@ -36,8 +37,8 @@ namespace tvm {
 namespace relay {
 
 template <typename AttrType>
-bool DenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
-              const TypeReporter& reporter) {
+bool MatmulRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+               const TypeReporter& reporter) {
   ICHECK_EQ(types.size(), 3);
   const auto* data = types[0].as<TensorTypeNode>();
   const auto* weight = types[1].as<TensorTypeNode>();
@@ -48,12 +49,19 @@ bool DenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
   ICHECK(static_cast<int>(data->shape.size()) != 0);
 
-  Array<tvm::PrimExpr> dshape = data->shape;
+  const Array<tvm::PrimExpr>& dshape = data->shape;
   Array<tvm::PrimExpr> oshape = dshape;
+  tvm::PrimExpr reduce = dshape[dshape.size() - 1];
+  if (param->input_transposed) {
+    reduce = dshape[dshape.size() - 2];
+    oshape.Set((oshape.size() - 2), dshape[oshape.size() - 1]);
+  }
   if (param->units.defined()) {
     // validate the weight shape is proper if defined
     // Assign weight type
-    Array<IndexExpr> wshape({param->units, dshape[dshape.size() - 1]});
+    const Array<IndexExpr>& wshape = param->weight_transposed
+                                         ? Array<IndexExpr>({param->units, reduce})
+                                         : Array<IndexExpr>({reduce, param->units});
     // It is possible for weight to be nullptr in which case we will use
     // data dtype as the weight dtype. However if weight dtype is explicitly
     // present we will use that.
@@ -70,7 +78,7 @@ bool DenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     oshape.Set((oshape.size() - 1), param->units);
   } else {
     if (weight == nullptr) return false;
-    Array<tvm::PrimExpr> wshape = weight->shape;
+    const Array<tvm::PrimExpr>& wshape = weight->shape;
     // When weight's layout has been rewritten, figure it out based on the
     // total number of elements and input dimensions.
     if (param->auto_scheduler_rewritten_layout.size() != 0) {
@@ -83,11 +91,12 @@ bool DenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     } else {
       ICHECK(static_cast<int>(weight->shape.size()) == 2);
       if (!data->shape.back().as<tir::AnyNode>()) {
-        ICHECK(reporter->AssertEQ(data->shape[data->shape.size() - 1], weight->shape[1]))
-            << "DenseRel: input dimension doesn't match,"
+        ICHECK((param->weight_transposed && reporter->AssertEQ(reduce, weight->shape[1])) ||
+               (!param->weight_transposed && reporter->AssertEQ(reduce, weight->shape[0])))
+            << "MatmulRel: input dimension doesn't match,"
             << " data shape=" << data->shape << ", weight shape=" << weight->shape;
       }
-      oshape.Set((oshape.size() - 1), wshape[0]);
+      oshape.Set((oshape.size() - 1), param->weight_transposed ? wshape[0] : wshape[1]);
     }
   }
 

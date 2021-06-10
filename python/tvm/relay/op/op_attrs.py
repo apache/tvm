@@ -64,9 +64,9 @@ class BiasAddAttrs(Attrs):
     """Atttribute of nn.bias_add"""
 
 
-@tvm._ffi.register_object("relay.attrs.DenseAttrs")
-class DenseAttrs(Attrs):
-    """Attributes for nn.dense"""
+@tvm._ffi.register_object("relay.attrs.MatmulAttrs")
+class MatmulAttrs(Attrs):
+    """Attributes for nn.matmul and nn.dense"""
 
 
 @tvm._ffi.register_object("relay.attrs.SoftmaxAttrs")
