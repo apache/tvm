@@ -36,7 +36,7 @@ def run_module(mod: tvm.runtime.Module, mod_params: Dict[str, Any]) -> List:
         return [result.asnumpy()]
 
 
-def verify_fp32_fp16_output_close(
+def verify_mixed_precision_output_close(
     mod: tvm.runtime.Module,
     mod_params: Dict[str, Any],
     mixed_precision_dtype="float16",
@@ -71,7 +71,30 @@ def test_lstm():
             -10, 10, (1, units)
         ).astype("float32")
 
-    verify_fp32_fp16_output_close(mod, mod_params, rtol=0.01, atol=0.01)
+    verify_mixed_precision_output_close(mod, mod_params, rtol=0.01, atol=0.01)
+
+
+def test_lstm_float64():
+    """Tests if can handle other mixed precision types.
+
+    As a toy example show can convert graph to float64 and have it run.
+
+    It doesn't really make sense to do it, this just shows you can.
+    """
+    units = 3
+    iterations = 5
+    mod, mod_params = lstm.get_workload(iterations=iterations, num_hidden=units)
+
+    # This is an unrolled lstm so each data should be the previous results but
+    # we don't care, we just want to stress test things.
+    for i in range(iterations):
+        mod_params["data" if i == 0 else f"data{i}"] = np.random.uniform(
+            -10, 10, (1, units)
+        ).astype("float32")
+
+    verify_mixed_precision_output_close(
+        mod, mod_params, mixed_precision_dtype="float64", rtol=0.01, atol=0.01
+    )
 
 
 def test_convert_single_conv():
@@ -91,44 +114,7 @@ def test_convert_single_conv():
         "data": np.random.uniform(-1, 1, size=data_shape).astype("float32"),
         "weight": np.random.uniform(-1, 1, size=weight_shape).astype("float32"),
     }
-    fp16_mod = verify_fp32_fp16_output_close(mod, mod_params, atol=0.01, rtol=1e-3)
-
-    expected_mod = tvm.IRModule.from_expr(
-        relay.cast(
-            relay.nn.conv2d(
-                relay.cast(data, "float16"),
-                relay.cast(weight, "float16"),
-                strides=(1, 1),
-                padding=(1, 1),
-                out_dtype="float32",
-            ),
-            "float16",
-        )
-    )
-    expected_mod = tvm.relay.transform.InferType()(expected_mod)
-
-    assert not tvm.ir.structural_equal(fp16_mod, mod)
-    assert tvm.ir.structural_equal(fp16_mod, expected_mod)
-
-
-def test_convert_single_conv_bfloat16():
-    """Stuff"""
-    data_shape = (1, 3, 32, 32)
-    weight_shape = (5, 3, 3, 3)
-    data = relay.var("data", shape=data_shape, dtype="float32")
-    weight = relay.var("weight", shape=weight_shape, dtype="float32")
-    conv = relay.nn.conv2d(data, weight, strides=(1, 1), padding=(1, 1), out_dtype="float32")
-    mod = tvm.IRModule.from_expr(conv)
-    mod = tvm.relay.transform.InferType()(mod)
-
-    mod_params = {
-        "data": np.random.uniform(-1, 1, size=data_shape).astype("float32"),
-        "weight": np.random.uniform(-1, 1, size=weight_shape).astype("float32"),
-    }
-
-    fp16_mod = verify_fp32_fp16_output_close(
-        mod, mod_params, mixed_precision_dtype="bfloat16", atol=0.01, rtol=1e-3
-    )
+    fp16_mod = verify_mixed_precision_output_close(mod, mod_params, atol=0.01, rtol=1e-3)
 
     expected_mod = tvm.IRModule.from_expr(
         relay.cast(
@@ -173,7 +159,7 @@ def test_convert_conv_bn():
         "moving_mean": np.random.uniform(-1, 1, size=bn_shape).astype("float32"),
         "moving_var": np.random.uniform(-1, 1, size=bn_shape).astype("float32"),
     }
-    fp16_mod = verify_fp32_fp16_output_close(mod, mod_params, atol=0.01, rtol=1e-3)
+    fp16_mod = verify_mixed_precision_output_close(mod, mod_params, atol=0.01, rtol=1e-3)
 
     # Creating expected module
     data = relay.cast(relay.var("data", shape=data_shape), "float16")
@@ -207,7 +193,7 @@ def test_do_not_convert_softmax():
     mod_params = {
         "a": np.random.uniform(-1, 1, size=shape).astype("float32"),
     }
-    output_mod = verify_fp32_fp16_output_close(mod, mod_params, atol=0.0, rtol=0)
+    output_mod = verify_mixed_precision_output_close(mod, mod_params, atol=0.0, rtol=0)
     assert tvm.ir.structural_equal(mod, output_mod)
 
 
@@ -229,7 +215,7 @@ def test_green_gray_propagates_simple():
         "data": np.random.uniform(-1, 1, size=data_shape).astype("float32"),
         "weight": np.random.uniform(-1, 1, size=weight_shape).astype("float32"),
     }
-    fp16_mod = verify_fp32_fp16_output_close(mod, mod_params, atol=0.01, rtol=1e-3)
+    fp16_mod = verify_mixed_precision_output_close(mod, mod_params, atol=0.01, rtol=1e-3)
 
     conv_expr = relay.cast(
         relay.nn.conv2d(
@@ -288,7 +274,7 @@ def test_green_red_not_use_extraneous_cast():
         "data": np.random.uniform(-1, 1, size=data_shape).astype("float32"),
         "weight": np.random.uniform(-1, 1, size=weight_shape).astype("float32"),
     }
-    fp16_mod = verify_fp32_fp16_output_close(mod, mod_params, atol=0.01, rtol=1e-3)
+    fp16_mod = verify_mixed_precision_output_close(mod, mod_params, atol=0.01, rtol=1e-3)
 
     # Construct expected structure
     conv = relay.nn.conv2d(
@@ -317,7 +303,7 @@ def test_red_gray_propagates_simple():
     mod_params = {
         "a": np.random.uniform(-1, 1, size=shape).astype("float32"),
     }
-    output_mod = verify_fp32_fp16_output_close(mod, mod_params, atol=0.0, rtol=0.0)
+    output_mod = verify_mixed_precision_output_close(mod, mod_params, atol=0.0, rtol=0.0)
 
     assert tvm.ir.structural_equal(mod, output_mod)
 
@@ -344,7 +330,7 @@ def test_let_statement_simple():
         "data": np.random.uniform(-1, 1, size=[1, 20]).astype("float32"),
         "weight": np.random.uniform(-1, 1, size=[20, 20]).astype("float32"),
     }
-    output_mod = verify_fp32_fp16_output_close(mod, mod_params, atol=0.01, rtol=0.01)
+    output_mod = verify_mixed_precision_output_close(mod, mod_params, atol=0.01, rtol=0.01)
 
     # Construct expected structure
     var1 = relay.var("var1", shape=[1, 20], dtype="float16")
@@ -380,7 +366,7 @@ def test_where_simple():
         "weight": np.random.uniform(-1, 1, size=[20, 20]).astype("float32"),
     }
 
-    output_mod = verify_fp32_fp16_output_close(mod, mod_params, atol=0.01, rtol=0.01)
+    output_mod = verify_mixed_precision_output_close(mod, mod_params, atol=0.01, rtol=0.01)
 
     # Create expected module
     data = relay.cast(relay.var("data", shape=[1, 20]), "float16")
@@ -407,7 +393,7 @@ def test_batch_matmul_simple():
         "data": np.random.uniform(-1, 1, size=[1, 1, 20]).astype("float32"),
         "weight": np.random.uniform(-1, 1, size=[1, 20, 20]).astype("float32"),
     }
-    output_mod = verify_fp32_fp16_output_close(mod, mod_params, atol=0.01, rtol=0.01)
+    output_mod = verify_mixed_precision_output_close(mod, mod_params, atol=0.01, rtol=0.01)
     # Create expected module
     data = relay.cast(relay.var("data", shape=[1, 1, 20]), "float16")
     weight = relay.cast(relay.var("weight", shape=[1, 20, 20]), "float16")
