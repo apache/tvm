@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file amp.h
+ * \file to_mixed_precision.h
  * \brief Utilities and common types used for automatic mixed precision pass.
  */
-#ifndef TVM_RELAY_TRANSFORMS_AMP_H_
-#define TVM_RELAY_TRANSFORMS_AMP_H_
+#ifndef TVM_RELAY_TRANSFORMS_TO_MIXED_PRECISION_H_
+#define TVM_RELAY_TRANSFORMS_TO_MIXED_PRECISION_H_
 
 #include <tvm/ir/op.h>
 #include <tvm/relay/expr.h>
@@ -247,4 +247,4 @@ class DefaultMixedPrecisionOpDefinition {
 
 }  // namespace relay
 }  // namespace tvm
-#endif  // TVM_RELAY_TRANSFORMS_AMP_H_
+#endif  // TVM_RELAY_TRANSFORMS_TO_MIXED_PRECISION_H_

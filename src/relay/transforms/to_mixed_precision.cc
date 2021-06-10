@@ -19,10 +19,10 @@
 
 /*!
  *
- * \file amp.cc
+ * \file to_mixed_precision.cc
  * \brief Automatic mixed precision for relay graphs. i.e. turn a graph into fp16 form.
  */
-#include "amp.h"
+#include "to_mixed_precision.h"
 
 #include <tvm/ir/attrs.h>
 #include <tvm/relay/expr_functor.h>
@@ -57,7 +57,7 @@ using ColorFunc = std::function<MixedTypeConversionCategory(const CallNode*)>;
 // A function which maps MIXED_PRECISION_ALWAYS CallNodes to wanted accumulation and output dtypes
 using OutputDtypeFunc = std::function<MixedPrecisionOpOutDType(const CallNode*)>;
 
-class AMPGraphCreator : public MixedModeMutator {
+class MixedPrecisionPass : public MixedModeMutator {
  private:
   CachedCastNodes cast_nodes_cache;
   const ColorFunc colorer;
@@ -230,8 +230,8 @@ class AMPGraphCreator : public MixedModeMutator {
  public:
   using MixedModeMutator::VisitExpr_;
 
-  explicit AMPGraphCreator(ColorFunc colorer, OutputDtypeFunc output_dtype_func,
-                           DataType mixed_precision_type = DataType::Float(16))
+  explicit MixedPrecisionPass(ColorFunc colorer, OutputDtypeFunc output_dtype_func,
+                              DataType mixed_precision_type = DataType::Float(16))
       : MixedModeMutator(),
         colorer(colorer),
         output_dtype_func(output_dtype_func),
@@ -326,10 +326,11 @@ class AMPGraphCreator : public MixedModeMutator {
   }
 };
 
-Expr AMPRewriteGraph(const Expr& expr, const ColorFunc& colorer,
-                     const OutputDtypeFunc& output_dtype_func,
-                     const DataType& mixed_precision_type) {
-  AMPGraphCreator converter = AMPGraphCreator(colorer, output_dtype_func, mixed_precision_type);
+Expr ToMixedPrecision(const Expr& expr, const ColorFunc& colorer,
+                      const OutputDtypeFunc& output_dtype_func,
+                      const DataType& mixed_precision_type) {
+  MixedPrecisionPass converter =
+      MixedPrecisionPass(colorer, output_dtype_func, mixed_precision_type);
   auto result = converter.Mutate(expr);
   return result;
 }
@@ -339,7 +340,7 @@ namespace transform {
 Pass ToMixedPrecision(DataType mixed_precision_type) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
-        return Downcast<Function>(AMPRewriteGraph(
+        return Downcast<Function>(ToMixedPrecision(
             f, DefaultMixedPrecisionColorer(),
             DefaultMixedPrecisionOpDefinition(mixed_precision_type, DataType::Float(32)),
             mixed_precision_type));
