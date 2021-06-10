@@ -670,7 +670,10 @@ class ZephyrQemuTransport(Transport):
             **self.kwargs,
             stdout=subprocess.PIPE,
         )
-        self._wait_for_qemu()
+        try:
+            self._wait_for_qemu()
+        except Exception as error:
+            raise error
 
         if self.qemu_debugger is not None:
             self.qemu_debugger.start()
@@ -738,7 +741,8 @@ class ZephyrQemuTransport(Transport):
 
             if item == ZephyrQemuMakeResult.QEMU_STARTED:
                 break
-            elif item in [ZephyrQemuMakeResult.QEMU_STARTED, ZephyrQemuMakeResult.EOF]:
+
+            if item in [ZephyrQemuMakeResult.MAKE_FAILED, ZephyrQemuMakeResult.EOF]:
                 raise RuntimeError("QEMU setup failed.")
             else:
                 raise ValueError(f"{item} not expected.")
