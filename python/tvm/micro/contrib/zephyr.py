@@ -32,6 +32,7 @@ import subprocess
 import sys
 import threading
 import queue
+import enum
 
 import yaml
 
@@ -621,6 +622,12 @@ class QemuFdTransport(file_descriptor.FdTransport):
         return num_written
 
 
+class ZephyrQemuMakeResult(enum.Enum):
+    QEMU_STARTED = "qemu_started"
+    MAKE_FAILED = "make_failed"
+    EOF = "eof"
+
+
 class ZephyrQemuTransport(Transport):
     """The user-facing Zephyr QEMU transport class."""
 
@@ -713,12 +720,12 @@ class ZephyrQemuTransport(Transport):
             line = str(line)
             _LOG.debug(line)
             if "[QEMU] CPU" in line:
-                self._queue.put(True)
+                self._queue.put(ZephyrQemuMakeResult.QEMU_STARTED)
             else:
                 line = re.sub("[^a-zA-Z0-9 \n]", "", line)
                 pattern = r"recipe for target (\w*) failed"
                 if re.search(pattern, line, re.IGNORECASE):
-                    self._queue.put("make failed")
+                    self._queue.put(ZephyrQemuMakeResult.MAKE_FAILED)
         self._queue.put("EOF")
 
     def _wait_for_qemu(self):
@@ -726,13 +733,15 @@ class ZephyrQemuTransport(Transport):
         while True:
             try:
                 item = self._queue.get(timeout=120)
-            except:
-                _LOG.error("QEMU setup timeout.")
+            except Exception:
+                raise TimeoutError("QEMU setup timeout.")
 
-            if item == True:
-                return
-            elif item == "make failed" or item == "EOF":
+            if item == ZephyrQemuMakeResult.QEMU_STARTED:
+                break
+            elif item in [ZephyrQemuMakeResult.QEMU_STARTED, ZephyrQemuMakeResult.EOF]:
                 raise RuntimeError("QEMU setup failed.")
+            else:
+                raise ValueError(f"{item} not expected.")
 
 
 class ZephyrDebugger(debugger.GdbDebugger):
