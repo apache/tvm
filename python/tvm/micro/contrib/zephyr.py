@@ -744,8 +744,8 @@ class ZephyrQemuTransport(Transport):
 
             if item in [ZephyrQemuMakeResult.MAKE_FAILED, ZephyrQemuMakeResult.EOF]:
                 raise RuntimeError("QEMU setup failed.")
-            else:
-                raise ValueError(f"{item} not expected.")
+
+            raise ValueError(f"{item} not expected.")
 
 
 class ZephyrDebugger(debugger.GdbDebugger):

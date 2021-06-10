@@ -220,9 +220,9 @@ def test_qemu_make_fail(platform, west_cmd, skip_build, tvm_debug):
     shape = (10,)
     dtype = "float32"
 
-    this_dir = os.path.dirname(__file__)
-    tvm_source_dir = os.path.join(this_dir, "..", "..", "..")
-    runtime_path = os.path.join(tvm_source_dir, "apps", "microtvm", "zephyr", "aot_demo")
+    this_dir = pathlib.Path(__file__).parent
+    tvm_source_dir = this_dir / ".." / ".." / ".."
+    runtime_path = tvm_source_dir / "apps" / "microtvm" / "zephyr" / "aot_demo"
 
     # Construct Relay program.
     x = relay.var("x", relay.TensorType(shape=shape, dtype=dtype))
@@ -249,13 +249,8 @@ def test_qemu_make_fail(platform, west_cmd, skip_build, tvm_debug):
     # Remove a file to create make failure.
     os.remove(file_path)
     transport = session_kw["flasher"].flash(session_kw["binary"])
-    try:
+    with pytest.raises(RuntimeError):
         transport.open()
-    except RuntimeError:
-        # RuntimeError is expected.
-        pass
-    except Exception:
-        assert False
 
 
 if __name__ == "__main__":
