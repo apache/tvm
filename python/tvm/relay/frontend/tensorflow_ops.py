@@ -1113,8 +1113,9 @@ def _no_op():
 
 def _matmul():
     def _impl(inputs, attr, params, mod):
-        channels = _infer_channels(inputs[1], not attr["transpose_b"])
         from .tensorflow import _USE_DENSE_INSTEAD_OF_MATMUL
+
+        channels = _infer_channels(inputs[1], not attr["transpose_b"])
         if _USE_DENSE_INSTEAD_OF_MATMUL:
             if attr["transpose_a"]:
                 inputs[0] = _op.transpose(inputs[0], axes=(1, 0))

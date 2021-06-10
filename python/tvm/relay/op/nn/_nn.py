@@ -1191,9 +1191,7 @@ def matmul_shape_func(attrs, inputs, _):
     """
     Shape function for matmul op.
     """
-    ret = [
-        _matmul_shape_func(inputs[0], inputs[1], attrs.data_transposed, attrs.weight_transposed)
-    ]
+    ret = [_matmul_shape_func(inputs[0], inputs[1], attrs.data_transposed, attrs.weight_transposed)]
     return ret
 
 
