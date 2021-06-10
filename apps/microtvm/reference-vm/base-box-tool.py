@@ -246,8 +246,6 @@ def build_command(args):
 REQUIRED_TEST_CONFIG_KEYS = {
     "vid_hex": str,
     "pid_hex": str,
-    "test_cmd_zephyr": list,
-    "test_cmd_zephyr_aot": list,
 }
 
 
@@ -332,20 +330,17 @@ def do_run_release_test(release_test_dir, provider_name, test_config, test_devic
     def _quote_cmd(cmd):
         return " ".join(shlex.quote(a) for a in cmd)
 
-    test_cmd_zephyr = (
-        _quote_cmd(["cd", tvm_home]) + " && " + _quote_cmd(test_config["test_cmd_zephyr"])
-    )
-    test_cmd_zephyr_aot = (
-        _quote_cmd(["cd", tvm_home]) + " && " + _quote_cmd(test_config["test_cmd_zephyr_aot"])
-    )
-    if test_cmd_zephyr:
-        subprocess.check_call(
-            ["vagrant", "ssh", "-c", f"bash -ec '{test_cmd_zephyr}'"], cwd=release_test_dir
+    test_cmd = (
+        _quote_cmd(["cd", tvm_home])
+        + " && "
+        + _quote_cmd(
+            [
+                "apps/microtvm/reference-vm/zephyr/base-box/base_box_test.sh",
+                test_config["microtvm_platform"],
+            ]
         )
-    if test_cmd_zephyr_aot:
-        subprocess.check_call(
-            ["vagrant", "ssh", "-c", f"bash -ec '{test_cmd_zephyr_aot}'"], cwd=release_test_dir
-        )
+    )
+    subprocess.check_call(["vagrant", "ssh", "-c", f"bash -ec '{test_cmd}'"], cwd=release_test_dir)
 
 
 def test_command(args):
@@ -365,6 +360,7 @@ def test_command(args):
 
         microtvm_test_platform["vid_hex"] = microtvm_test_platform["vid_hex"].lower()
         microtvm_test_platform["pid_hex"] = microtvm_test_platform["pid_hex"].lower()
+        microtvm_test_platform["microtvm_platform"] = args.microtvm_platform
 
     providers = args.provider
     provider_passed = {p: False for p in providers}
