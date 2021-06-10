@@ -16,12 +16,10 @@
 # under the License.
 # pylint: disable=invalid-name, unused-argument, too-many-lines, len-as-condition, broad-except
 """Tensorflow2.x to relay converter ops and helper"""
-import warnings
-
 import tvm
-from .. import op as _op
+from tvm.relay.prelude import StaticTensorArrayOps, get_tensor_array_shape
 
-from tvm.relay.prelude import StaticTensorArrayOps, get_tensor_array_shape, TensorArrayOps
+from .. import op as _op
 from ..ty import Any
 from .common import infer_value as _infer_value
 from .common import infer_type as _infer_type
