@@ -141,7 +141,7 @@ ctx = remote.ext_dev(0) if device == "vta" else remote.cpu(0)
 
 ######################################################################
 # Build the inference graph executor
-# ---------------------------------
+# ----------------------------------
 # Grab vision model from Gluon model zoo and compile with Relay.
 # The compilation steps are:
 #

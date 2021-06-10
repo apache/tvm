@@ -175,7 +175,8 @@ Operator support
 | nn.bias_add            | Supported by BNNS integration only as a bias part of nn.conv2d or nn.dense   |
 |                        | fusion                                                                       |
 +------------------------+------------------------------------------------------------------------------+
-| add                    | Supported by BNNS integration only as a bias part of nn.conv2d or nn.dense fusion |
+| add                    | Supported by BNNS integration only as a bias part of nn.conv2d or nn.dense   |
+|                        | fusion                                                                       |
 +------------------------+------------------------------------------------------------------------------+
 | nn.relu                | Supported by BNNS integration only as a part of nn.conv2d or nn.dense fusion |
 +------------------------+------------------------------------------------------------------------------+
