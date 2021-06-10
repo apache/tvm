@@ -105,7 +105,7 @@ class FuncMutator : public ExprMutator {
 
   std::vector<std::string> target_ops_{
       "nn.conv2d", "nn.conv3d", "nn.contrib_conv2d_winograd_without_weight_transform",
-      "nn.matmul", "nn.dense", "nn.batch_matmul"};
+      "nn.matmul", "nn.dense",  "nn.batch_matmul"};
 };
 
 Expr AutoSchedulerLayoutRewriter::VisitExpr_(const CallNode* n) {
