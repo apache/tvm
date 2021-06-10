@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file fp32_to_fp16.h
- * \brief Utilities and common types used for FP32->FP16 pass.
+ * \file amp.h
+ * \brief Utilities and common types used for automatic mixed precision pass.
  */
-#ifndef TVM_RELAY_TRANSFORMS_FP32_TO_FP16_H_
-#define TVM_RELAY_TRANSFORMS_FP32_TO_FP16_H_
+#ifndef TVM_RELAY_TRANSFORMS_AMP_H_
+#define TVM_RELAY_TRANSFORMS_AMP_H_
 
 #include <tvm/ir/op.h>
 #include <tvm/relay/expr.h>
@@ -247,4 +247,4 @@ class DefaultMixedPrecisionOpDefinition {
 
 }  // namespace relay
 }  // namespace tvm
-#endif  // TVM_RELAY_TRANSFORMS_FP32_TO_FP16_H_
+#endif  // TVM_RELAY_TRANSFORMS_AMP_H_

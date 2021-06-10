@@ -19,10 +19,10 @@
 
 /*!
  *
- * \file fp32_to_fp16.cc
- * \brief Rewrite a graph into an fp16 form.
+ * \file amp.cc
+ * \brief Automatic mixed precision for relay graphs. i.e. turn a graph into fp16 form.
  */
-#include "fp32_to_fp16.h"
+#include "amp.h"
 
 #include <tvm/ir/attrs.h>
 #include <tvm/relay/expr_functor.h>
