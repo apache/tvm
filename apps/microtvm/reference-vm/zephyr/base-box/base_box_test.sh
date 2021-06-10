@@ -23,6 +23,11 @@
 set -e
 set -x
 
+if [ "$#" -lt 1 ]; then
+    echo "Usage: base_box_test.sh <TARGET>"
+    exit -1
+fi
+
 target=$1
 
 pytest tests/micro/zephyr/test_zephyr.py --microtvm-platforms=${target}
