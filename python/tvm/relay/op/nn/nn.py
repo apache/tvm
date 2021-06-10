@@ -1507,15 +1507,12 @@ def matmul(data, weight, units=None, out_dtype="", data_transposed=False, weight
     result : tvm.relay.Expr
         The computed result.
     """
-    # With N/T format, the compute will be seen as a dense
-    if not data_transposed and weight_transposed:
-        return dense(data, weight, units, out_dtype)
     return _make.matmul(data, weight, units, out_dtype, data_transposed, weight_transposed)
 
 
 def dense(data, weight, units=None, out_dtype=""):
     """Dense operator.
-    Applies a linear transformation. This is an alias of matmul with weight transposed.
+    Applies a linear transformation
 
     .. math::
 
