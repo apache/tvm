@@ -156,6 +156,7 @@ else(MSVC)
     string(REGEX REPLACE "\n" "" TF_COMPILE_FLAGS "${TF_COMPILE_FLAGS}")
     message("Use TensorFlow Compile flags=\"${TF_COMPILE_FLAGS}\"")
     set(CMAKE_CXX_FLAGS "${TF_COMPILE_FLAGS} ${CMAKE_CXX_FLAGS}")
+    set(CMAKE_CUDA_FLAGS "${TF_COMPILE_FLAGS} ${CMAKE_CUDA_FLAGS}")
   endif(USE_TF_COMPILE_FLAGS)
 
   set(WARNING_FLAG -Wall)
