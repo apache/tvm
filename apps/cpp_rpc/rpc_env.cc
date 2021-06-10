@@ -39,6 +39,7 @@ int mkdir(const char* path, int /* ignored */) { return _mkdir(path); }
 #include <iostream>
 #include <string>
 #include <vector>
+
 #include "../../src/support/utils.h"
 #include "rpc_env.h"
 
@@ -95,12 +96,13 @@ RPCEnv::RPCEnv(const std::string& wd) {
     auto cmdline = fopen("/proc/self/cmdline", "r");
     fread(cwd, 1, sizeof(cwd), cmdline);
     fclose(cmdline);
-    std::string android_base_ = "/data/data/" + std::string(cwd) +"/cache";
+    std::string android_base_ = "/data/data/" + std::string(cwd) + "/cache";
     struct stat statbuf;
-    if (stat(android_base_.data(), &statbuf) == -1 || !S_ISDIR(statbuf.st_mode)){
-        android_base_ = ".";
+    if (stat(android_base_.data(), &statbuf) == -1 || !S_ISDIR(statbuf.st_mode)) {
+      android_base_ = ".";
     }
-    base_ = android_base_+ "/rpc";
+
+    base_ = android_base_ + "/rpc";
 
 #elif !defined(_WIN32)
     char cwd[PATH_MAX];
