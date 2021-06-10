@@ -22,9 +22,7 @@ from ..op import register_fake_quantization_to_integer
 
 
 def fold_constant(expr):
-    mod = tvm.IRModule.from_expr(expr)
-    mod = relay.transform.FoldConstant()(mod)
-    return mod["main"].body
+    return relay.transform.FoldConstantExpr(expr, tvm.IRModule())
 
 
 @register_fake_quantization_to_integer("qnn.dequantize")
@@ -63,15 +61,18 @@ def register_unary_identity(op_name, op):
         assert len(expr.args) == 1
         arg = expr.args[0]
         t = type_map[arg]
-        out = op(arg, **expr.attrs)
-        return [out, t]
+        return [expr, t]
 
     return register_fake_quantization_to_integer(op_name, identity)
 
 
 register_unary_identity("reshape", relay.op.reshape)
+register_unary_identity("squeeze", relay.op.squeeze)
+register_unary_identity("strided_slice", relay.op.strided_slice)
 register_unary_identity("transpose", relay.op.transpose)
+register_unary_identity("expand_dims", relay.op.expand_dims)
 register_unary_identity("nn.max_pool2d", relay.op.nn.max_pool2d)
+register_unary_identity("nn.batch_flatten", relay.op.nn.batch_flatten)
 
 
 @register_fake_quantization_to_integer("nn.avg_pool2d")
@@ -122,6 +123,22 @@ def conv2d(expr, type_map):
     return [out, TensorAffineType(conv_scale, conv_zp, out.attrs.out_dtype)]
 
 
+@register_fake_quantization_to_integer("nn.dense")
+def dense(expr, type_map):
+    """Rewrite a dense op"""
+    attrs = {**expr.attrs}
+    attrs.pop("out_dtype")
+    x, weight = expr.args
+    x_t = type_map[x]
+    w_t = type_map[weight]
+    dense_scale = fold_constant(x_t.scale * w_t.scale)
+    dense_zp = relay.const(0)
+    out = relay.qnn.op.dense(
+        x, weight, x_t.zero_point, w_t.zero_point, x_t.scale, w_t.scale, **attrs
+    )
+    return [out, TensorAffineType(dense_scale, dense_zp, out.attrs.out_dtype)]
+
+
 @register_fake_quantization_to_integer("concatenate")
 def concat(expr, type_map):
     """Rewrite a concat op"""
@@ -146,6 +163,20 @@ def concat(expr, type_map):
     return [out, out_type]
 
 
+@register_fake_quantization_to_integer("split")
+def split(expr, type_map):
+    """Rewrite a split op"""
+    arg = expr.args[0]
+    t = type_map[arg]
+    attrs = {**expr.attrs}
+    if isinstance(attrs["indices_or_sections"], tvm.tir.IntImm):
+        num_split = attrs["indices_or_sections"].value
+        attrs["indices_or_sections"] = num_split
+    else:
+        num_split = len(attrs["indices_or_sections"]) + 1
+    return [expr, TupleAffineType([t] * num_split)]
+
+
 @register_fake_quantization_to_integer("clip")
 def clip(expr, type_map):
     """Rewrite a clip op"""
@@ -166,3 +197,97 @@ def clip(expr, type_map):
         amax = relay.op.round(relay.op.const(amax) / scale + z_p)
         out = relay.op.minimum(relay.op.maximum(arg, amin), amax)
     return [out, t]
+
+
+@register_fake_quantization_to_integer("nn.pad")
+def pad(expr, type_map):
+    arg = expr.args[0]
+    t = type_map[arg]
+    pad_value = expr.args[1]
+    if pad_value in type_map:
+        pad_t = type_map[pad_value]
+        if not tvm.ir.structural_equal(t, pad_t):
+            pad_value = relay.qnn.op.requantize(
+                pad_value,
+                pad_t.scale,
+                pad_t.zero_point,
+                t.scale,
+                t.zero_point,
+                out_dtype=t.dtype,
+            )
+    else:
+        assert isinstance(pad_value, relay.expr.Constant)
+        pad_value = relay.qnn.op.quantize(pad_value, t.scale, t.zero_point)
+
+    z_p = fold_constant(t.zero_point)
+    out = relay.op.nn.pad(arg, pad_value=pad_value, **expr.attrs)
+    return [out, t]
+
+
+def get_binary_types(expr, type_map):
+    ##Support the case where one input is quantized and the other is a constant float
+    left = expr.args[0]
+    right = expr.args[1]
+    left_t = None
+    right_t = None
+
+    if left in type_map:
+        left_t = type_map[left]
+    if right in type_map:
+        right_t = type_map[right]
+
+    out_t = type_map[expr]
+    if left_t is None and right_t is None:
+        raise TypeError("neither input is quantized!")
+    if left_t is None:
+        assert isinstance(left, relay.expr.Constant)
+        left = relay.qnn.op.quantize(
+            left, right_t.scale, right_t.zero_point, out_dtype=right_t.dtype
+        )
+        left_t = right_t
+        out_t = right_t
+    if right_t is None:
+        assert isinstance(right, relay.expr.Constant)
+        right = relay.qnn.op.quantize(
+            right, left_t.scale, left_t.zero_point, out_dtype=left_t.dtype
+        )
+        right_t = left_t
+        out_t = left_t
+
+    # Handle the case of mismatched inputs
+    if not left_t.dtype == out_t.dtype:
+        out_t = left_t
+
+    return left, right, left_t, right_t, out_t
+
+
+@register_fake_quantization_to_integer("add")
+def add(expr, type_map):
+    left, right, left_t, right_t, out_type = get_binary_types(expr, type_map)
+    out = relay.qnn.op.add(
+        left,
+        right,
+        left_t.scale,
+        left_t.zero_point,
+        right_t.scale,
+        right_t.zero_point,
+        out_type.scale,
+        out_type.zero_point,
+    )
+    return [out, out_type]
+
+
+@register_fake_quantization_to_integer("multiply")
+def multiply(expr, type_map):
+    left, right, left_t, right_t, out_type = get_binary_types(expr, type_map)
+    out = relay.qnn.op.mul(
+        left,
+        right,
+        left_t.scale,
+        left_t.zero_point,
+        right_t.scale,
+        right_t.zero_point,
+        out_type.scale,
+        out_type.zero_point,
+    )
+    return [out, out_type]
