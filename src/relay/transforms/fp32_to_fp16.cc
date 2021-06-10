@@ -57,7 +57,7 @@ using ColorFunc = std::function<MixedTypeConversionCategory(const CallNode*)>;
 // A function which maps MIXED_PRECISION_ALWAYS CallNodes to wanted accumulation and output dtypes
 using OutputDtypeFunc = std::function<MixedPrecisionOpOutDType(const CallNode*)>;
 
-class AmpGraphCreator : public ExprMutator {
+class AmpGraphCreator : public MixedModeMutator {
  private:
   CachedCastNodes cast_nodes_cache;
   const ColorFunc colorer;
@@ -228,9 +228,11 @@ class AmpGraphCreator : public ExprMutator {
   }
 
  public:
+  using MixedModeMutator::VisitExpr_;
+
   explicit AmpGraphCreator(ColorFunc colorer, OutputDtypeFunc output_dtype_func,
                            DataType mixed_precision_type = DataType::Float(16))
-      : ExprMutator(),
+      : MixedModeMutator(),
         colorer(colorer),
         output_dtype_func(output_dtype_func),
         mixed_precision_type(mixed_precision_type) {
@@ -239,32 +241,32 @@ class AmpGraphCreator : public ExprMutator {
                  << mixed_precision_type;
   }
 
-  Expr VisitExpr_(const CallNode* call_node) {
-    MixedTypeConversionCategory initial_category = colorer(call_node);
-    auto new_op = this->Mutate(call_node->op);
+  Expr Rewrite_(const CallNode* pre_call_node, const Expr& post) final {
+    MixedTypeConversionCategory initial_category = colorer(pre_call_node);
+    const CallNode* post_call_node = post.as<CallNode>();
+    if (!post_call_node) {
+      LOG(FATAL) << "Expected a CallNode for the rewrite got " << post;
+    }
 
-    // Mutate arguments to reduced precision form first if possible and keep track of
-    // whether all floating point tensors are in reduced precision form already. This is
-    // useful for propagating conversion conditions.
-    Array<Expr> new_args;
-    Array<Type> new_arg_types;
+    Expr cur_op = post_call_node->op;
+
+    // First check if all the new mutated args are in lower precision form
+    Array<Type> cur_arg_types;
     bool all_args_mixed_type_compatible = true;
-    for (Expr arg : call_node->args) {
-      Expr new_arg = this->Mutate(arg);
-      Type new_arg_type = GetType(new_arg);
-      new_args.push_back(new_arg);
-      new_arg_types.push_back(new_arg_type);
+    for (Expr arg : post_call_node->args) {
+      Type cur_arg_type = GetType(arg);
+      cur_arg_types.push_back(cur_arg_type);
 
       if (initial_category == MIXED_PRECISION_FOLLOW && all_args_mixed_type_compatible) {
         // We can cast Vars and Constants to the right types so don't care about the types.
-        bool is_mixed_type_compatible = IsMixedPrecisionType(new_arg_type, true) ||
+        bool is_mixed_type_compatible = IsMixedPrecisionType(cur_arg_type, true) ||
                                         arg->IsInstance<VarNode>() ||
                                         arg->IsInstance<ConstantNode>();
         all_args_mixed_type_compatible &= is_mixed_type_compatible;
       }
     }
 
-    // Determine the final category for conversion.
+    // Determine the final category we want for conversion
     MixedTypeConversionCategory final_category;
     if (initial_category == MIXED_PRECISION_FOLLOW) {
       final_category =
@@ -276,32 +278,30 @@ class AmpGraphCreator : public ExprMutator {
     // Create the new arguments to the call.
     DataType wanted_arg_dtypes =
         final_category == MIXED_PRECISION_ALWAYS ? mixed_precision_type : DataType::Float(32);
+    auto call_args_and_types = CastAllArgs(post_call_node->args, cur_arg_types, wanted_arg_dtypes);
+    Array<Expr> new_args = call_args_and_types.first;
+    Array<Type> new_arg_types;
 
-    auto call_args_and_types = CastAllArgs(new_args, new_arg_types, wanted_arg_dtypes);
-
-    Array<Expr> call_args = call_args_and_types.first;
-    Array<Type> call_arg_types;
-
-    if (call_node->op.as<FunctionNode>()) {
+    if (pre_call_node->op.as<FunctionNode>()) {
       // Function Nodes don't store type info in the Call, it should be a []
-      call_arg_types = call_node->type_args;
+      new_arg_types = pre_call_node->type_args;
     } else {
-      call_arg_types = call_args_and_types.second;
+      new_arg_types = call_args_and_types.second;
     }
 
     // Finally create the new attributes.
     if (final_category == MIXED_PRECISION_ALWAYS) {
-      MixedPrecisionOpOutDType output_dtypes = output_dtype_func(call_node);
+      MixedPrecisionOpOutDType output_dtypes = output_dtype_func(pre_call_node);
 
-      Attrs new_attrs = GetNewAttrs(call_node, output_dtypes.accumulation_dtype);
-      Expr output = Call(new_op, call_args, new_attrs, call_arg_types, call_node->span);
+      Attrs new_attrs = GetNewAttrs(pre_call_node, output_dtypes.accumulation_dtype);
+      Expr output = Call(cur_op, new_args, new_attrs, new_arg_types, pre_call_node->span);
       if (output_dtypes.accumulation_dtype != output_dtypes.output_dtype) {
         output = CastArg(output, GetType(output), output_dtypes.output_dtype);
       }
       return output;
     }
 
-    return Call(new_op, call_args, call_node->attrs, call_arg_types, call_node->span);
+    return Call(cur_op, new_args, pre_call_node->attrs, new_arg_types, pre_call_node->span);
   }
 
   Expr VisitExpr_(const FunctionNode* func) final {
