@@ -131,6 +131,23 @@ MetalWorkspace::~MetalWorkspace() {
   }
 }
 
+void MetalWorkspace::ReinitializeStreams() {
+  std::vector<Stream*>& threadStreams = MetalThreadEntry::ThreadLocal()->stream;
+  ICHECK_EQ(default_streams_.size(), threadStreams.size());
+  for (size_t i = 0; i < default_streams_.size(); ++i) {
+    if (threadStreams[i] != nullptr && default_streams_[i] != threadStreams[i])
+      delete threadStreams[i];
+    delete default_streams_[i];
+  }
+  default_streams_.resize(devices.size());
+  threadStreams.resize(devices.size());
+  for (size_t i = 0; i < devices.size(); ++i) {
+    Stream* stream = new Stream(devices[i]);
+    default_streams_[i] = stream;
+    threadStreams[i] = stream;
+  }
+}
+
 void MetalWorkspace::Init() {
   if (initialized_) return;
   std::lock_guard<std::mutex> lock(this->mutex);
@@ -141,21 +158,16 @@ void MetalWorkspace::Init() {
   // on iPhone
   id<MTLDevice> d = MTLCreateSystemDefaultDevice();
   devices.push_back(d);
-  Stream* stream = new Stream(d);
-  MetalThreadEntry::ThreadLocal()->stream.push_back(stream);
-  default_streams_.push_back(stream);
 #else
   NSArray<id<MTLDevice> >* devs = MTLCopyAllDevices();
   for (size_t i = 0; i < devs.count; ++i) {
     id<MTLDevice> d = [devs objectAtIndex:i];
     devices.push_back(d);
-    Stream* stream = new Stream(d);
-    MetalThreadEntry::ThreadLocal()->stream.push_back(stream);
-    default_streams_.push_back(stream);
     LOG(INFO) << "Intializing Metal device " << i << ", name=" << [d.name UTF8String];
     warp_size.push_back(GetWarpSize(d));
   }
 #endif
+  ReinitializeStreams();
 }
 
 void MetalWorkspace::SetDevice(Device dev) {
@@ -275,7 +287,10 @@ TVMStreamHandle MetalWorkspace::CreateStream(Device dev) {
 
 void MetalWorkspace::FreeStream(Device dev, TVMStreamHandle stream) {
   ICHECK(stream != nullptr);
+  ICHECK_LT(dev.device_id, devices.size()) << "Invalid device id " << dev.device_id;
   Stream* s = static_cast<Stream*>(stream);
+  if (MetalThreadEntry::ThreadLocal()->stream[dev.device_id] == s)
+    MetalThreadEntry::ThreadLocal()->stream[dev.device_id] = nullptr;
   delete s;
 }
 
@@ -335,6 +350,10 @@ MetalThreadEntry* MetalThreadEntry::ThreadLocal() { return MetalThreadStore::Get
 TVM_REGISTER_GLOBAL("device_api.metal").set_body([](TVMArgs args, TVMRetValue* rv) {
   DeviceAPI* ptr = MetalWorkspace::Global();
   *rv = static_cast<void*>(ptr);
+});
+
+TVM_REGISTER_GLOBAL("metal.ResetGlobalState").set_body_typed([]() {
+  MetalWorkspace::Global()->ReinitializeStreams();
 });
 
 }  // namespace metal
