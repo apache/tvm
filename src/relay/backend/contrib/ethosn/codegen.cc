@@ -24,7 +24,6 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/runtime/module.h>
 
-#include "capabilities.h"
 #include "codegen_ethosn.h"
 #include "ethosn_api.h"
 
@@ -198,19 +197,14 @@ sl::TensorsAndId MakeOps(const sl::TensorAndId<sl::Operand>& op) {
 
 NetworkWithIDs ConstructNetworkVisitor::Construct(const Function& func) {
   // Initialise everything
-#if _ETHOSN_API_VERSION_ >= 2011
   auto ctx = transform::PassContext::Current();
   auto cfg = ctx->GetConfig<EthosnCompilerConfig>("relay.ext.ethos-n.options");
   if (!cfg.defined()) {
     cfg = AttrsWithDefaultValues<EthosnCompilerConfig>();
   }
-#endif
   NetworkWithIDs network_with_ids;
-#if _ETHOSN_API_VERSION_ >= 2011
-  network_ = sl::CreateNetwork(variants[cfg.value()->variant]);
-#else
-  network_ = sl::CreateNetwork();
-#endif
+  network_ = sl::CreateNetwork(sl::GetFwAndHwCapabilities(
+      sl::EthosNVariantFromString(cfg.value()->variant.c_str()), cfg.value()->sram_size_bytes));
   network_with_ids.network = network_;
   operand_table_.clear();
 
@@ -572,11 +566,7 @@ sl::CompilationOptions EthosnCompiler::CreateOptions() {
     cfg = AttrsWithDefaultValues<EthosnCompilerConfig>();
   }
 
-#if _ETHOSN_API_VERSION_ >= 2011
   sl::CompilationOptions options;
-#else
-  sl::CompilationOptions options(variants[cfg.value()->variant]);
-#endif
   options.m_Strategy0 = cfg.value()->strategy0;
   options.m_Strategy1 = cfg.value()->strategy1;
   options.m_Strategy3 = cfg.value()->strategy3;
@@ -590,9 +580,6 @@ sl::CompilationOptions EthosnCompiler::CreateOptions() {
   options.m_BlockConfig8x32 = cfg.value()->block_config_8x32;
   options.m_BlockConfig8x8 = cfg.value()->block_config_8x8;
   options.m_EnableIntermediateCompression = cfg.value()->enable_intermediate_compression;
-#if _ETHOSN_API_VERSION_ == 2008
-  options.m_DebugInfo.m_DumpDebugFiles = cfg.value()->dump_debug_files;
-#endif
   options.m_DisableWinograd = cfg.value()->disable_winograd;
   options.m_DebugInfo.m_DebugDir = cfg.value()->debug_dir;
   options.m_CompilerAlgorithm =
@@ -619,20 +606,18 @@ std::pair<std::vector<uint32_t>, std::vector<uint32_t>> EthosnCompiler::GetInput
   return std::make_pair(input_order, output_order);
 }
 
-#if _ETHOSN_API_VERSION_ >= 2011
 auto ctx = transform::PassContext::Current();
 auto cfg = ctx -> GetConfig<EthosnCompilerConfig>("relay.ext.ethos-n.options").defined()
                ? ctx -> GetConfig<EthosnCompilerConfig>("relay.ext.ethos-n.options")
                : AttrsWithDefaultValues<EthosnCompilerConfig>();
-auto m_Queries = sl::SupportQueries(variants[cfg.value()->variant]);
-#endif
+auto m_Queries = sl::SupportQueries(sl::GetFwAndHwCapabilities(
+    sl::EthosNVariantFromString(cfg.value()->variant.c_str()), cfg.value()->sram_size_bytes));
 
 TVM_REGISTER_GLOBAL("relay.ethos-n.support.conv2d")
     .set_body([](tvm::TVMArgs args, tvm::TVMRetValue* rv) {
       Call call = args[0];
       ConvolutionParams params;
       auto err = EthosnAPI::QnnConv2d(call, &params);
-#if _ETHOSN_API_VERSION_ >= 2011
       if (params.is_depthwise) {
         *rv = !err &&
               m_Queries.IsDepthwiseConvolutionSupported(params.bias_info, params.weights_info,
@@ -641,15 +626,6 @@ TVM_REGISTER_GLOBAL("relay.ethos-n.support.conv2d")
         *rv = !err && m_Queries.IsConvolutionSupported(params.bias_info, params.weights_info,
                                                        params.conv_info, params.activation_info);
       }
-#else
-      if (params.is_depthwise) {
-        *rv = !err && sl::IsDepthwiseConvolutionSupported(params.bias_info, params.weights_info,
-                                                          params.conv_info, params.activation_info);
-      } else {
-        *rv = !err && sl::IsConvolutionSupported(params.bias_info, params.weights_info,
-                                                 params.conv_info, params.activation_info);
-      }
-#endif
     });
 
 TVM_REGISTER_GLOBAL("relay.ethos-n.support.fc")
@@ -657,13 +633,8 @@ TVM_REGISTER_GLOBAL("relay.ethos-n.support.fc")
       Call call = args[0];
       FullyConnectedParams params;
       auto err = EthosnAPI::QnnFullyConnected(call, &params);
-#if _ETHOSN_API_VERSION_ >= 2011
       *rv = !err && m_Queries.IsFullyConnectedSupported(params.bias_info, params.weights_info,
                                                         params.fc_info, params.input_info);
-#else
-      *rv = !err && sl::IsFullyConnectedSupported(params.bias_info, params.weights_info,
-                                                  params.fc_info, params.input_info);
-#endif
     });
 
 TVM_REGISTER_GLOBAL("relay.ethos-n.support.max_pool2d")
@@ -671,11 +642,7 @@ TVM_REGISTER_GLOBAL("relay.ethos-n.support.max_pool2d")
       Call call = args[0];
       MaxPool2DParams params;
       auto err = EthosnAPI::MaxPool2D(call, &params);
-#if _ETHOSN_API_VERSION_ >= 2011
       *rv = !err && m_Queries.IsPoolingSupported(params.pool_info, params.input_info);
-#else
-      *rv = !err && sl::IsPoolingSupported(params.pool_info, params.input_info);
-#endif
     });
 
 TVM_REGISTER_GLOBAL("relay.ethos-n.support.avg_pool2d")
@@ -683,11 +650,7 @@ TVM_REGISTER_GLOBAL("relay.ethos-n.support.avg_pool2d")
       Call call = args[0];
       AvgPool2DParams params;
       auto err = EthosnAPI::AvgPool2D(call, &params);
-#if _ETHOSN_API_VERSION_ >= 2011
       *rv = !err && m_Queries.IsPoolingSupported(params.pool_info, params.input_info);
-#else
-      *rv = !err && sl::IsPoolingSupported(params.pool_info, params.input_info);
-#endif
     });
 
 TVM_REGISTER_GLOBAL("relay.ethos-n.support.reshape")
@@ -695,11 +658,7 @@ TVM_REGISTER_GLOBAL("relay.ethos-n.support.reshape")
       Call call = args[0];
       ReshapeParams params;
       auto err = EthosnAPI::Reshape(call, &params);
-#if _ETHOSN_API_VERSION_ >= 2011
       *rv = !err && m_Queries.IsReshapeSupported(params.new_shape, params.input_info);
-#else
-      *rv = !err && sl::IsReshapeSupported(params.new_shape, params.input_info);
-#endif
     });
 
 TVM_REGISTER_GLOBAL("relay.ethos-n.support.addition")
@@ -707,13 +666,8 @@ TVM_REGISTER_GLOBAL("relay.ethos-n.support.addition")
       Call call = args[0];
       AdditionParams params;
       auto err = EthosnAPI::Addition(call, &params);
-#if _ETHOSN_API_VERSION_ >= 2011
       *rv = !err && m_Queries.IsAdditionSupported(params.lhs_info, params.rhs_info,
                                                   params.output_quantization_info);
-#else
-      *rv = !err && sl::IsAdditionSupported(params.lhs_info, params.rhs_info,
-                                            params.output_quantization_info);
-#endif
     });
 
 TVM_REGISTER_GLOBAL("relay.ethos-n.support.sigmoid")
@@ -721,11 +675,7 @@ TVM_REGISTER_GLOBAL("relay.ethos-n.support.sigmoid")
       Call call = args[0];
       SigmoidParams params;
       auto err = EthosnAPI::Sigmoid(call, &params);
-#if _ETHOSN_API_VERSION_ >= 2011
       *rv = !err && m_Queries.IsSigmoidSupported(params.input_info);
-#else
-      *rv = !err && sl::IsSigmoidSupported(params.input_info);
-#endif
     });
 
 TVM_REGISTER_GLOBAL("relay.ethos-n.support.concatenate")
@@ -733,11 +683,7 @@ TVM_REGISTER_GLOBAL("relay.ethos-n.support.concatenate")
       Call call = args[0];
       ConcatenateParams params;
       auto err = EthosnAPI::Concatenate(call, &params);
-#if _ETHOSN_API_VERSION_ >= 2011
       *rv = !err && m_Queries.IsConcatenationSupported(params.input_infos, params.concat_info);
-#else
-      *rv = !err && sl::IsConcatenationSupported(params.input_infos, params.concat_info);
-#endif
     });
 
 TVM_REGISTER_GLOBAL("relay.ethos-n.support.split")
@@ -745,11 +691,7 @@ TVM_REGISTER_GLOBAL("relay.ethos-n.support.split")
       Call call = args[0];
       SplitParams params;
       auto err = EthosnAPI::Split(call, &params);
-#if _ETHOSN_API_VERSION_ >= 2011
       *rv = !err && m_Queries.IsSplitSupported(params.input_info, params.split_info);
-#else
-      *rv = !err && sl::IsSplitSupported(params.input_info, params.split_info);
-#endif
     });
 
 TVM_REGISTER_GLOBAL("relay.ethos-n.support.depth_to_space")
@@ -757,11 +699,7 @@ TVM_REGISTER_GLOBAL("relay.ethos-n.support.depth_to_space")
       Call call = args[0];
       DepthToSpaceParams params;
       auto err = EthosnAPI::DepthToSpace(call, &params);
-#if _ETHOSN_API_VERSION_ >= 2011
       *rv = !err && m_Queries.IsDepthToSpaceSupported(params.input_info, params.depth_info);
-#else
-      *rv = !err && sl::IsDepthToSpaceSupported(params.input_info, params.depth_info);
-#endif
     });
 
 TVM_REGISTER_GLOBAL("relay.ethos-n.support.relu")
@@ -769,11 +707,7 @@ TVM_REGISTER_GLOBAL("relay.ethos-n.support.relu")
       Call call = args[0];
       ReluParams params;
       auto err = EthosnAPI::Relu(call, &params);
-#if _ETHOSN_API_VERSION_ >= 2011
       *rv = !err && m_Queries.IsReluSupported(params.relu_info, params.input_info);
-#else
-      *rv = !err && sl::IsReluSupported(params.relu_info, params.input_info);
-#endif
     });
 
 TVM_REGISTER_GLOBAL("relay.ethos-n.query").set_body([](tvm::TVMArgs args, tvm::TVMRetValue* rv) {
