@@ -149,12 +149,22 @@ if __name__ == "__main__":
 
     results = []
     configs = [
+        # TODO: need to fix accuracy and add AutoTVM log
         Config(
             "mobilenetv2_1.0",
             nbit_input=8,
             dtype_input="int8",
             nbit_output=32,
             dtype_output="int32",
+            global_scale=4.0,
+            expected_acc=0.666,
+        ),
+        Config(
+            'mobilenetv2_1.0',
+            nbit_input=8,
+            dtype_input='int8',
+            nbit_output=16,
+            dtype_output='int16',
             global_scale=4.0,
             expected_acc=0.666,
         ),
@@ -203,15 +213,6 @@ if __name__ == "__main__":
             global_scale=8.0,
             expected_acc=0.756,
         ),
-        # TODO: need to fix accuracy
-        # Config(
-        #     'mobilenetv2_1.0',
-        #     nbit_input=8,
-        #     dtype_input='int8',
-        #     nbit_output=16,
-        #     dtype_output='int16',
-        #     global_scale=4.0
-        # ),
     ]
 
     for config in configs:
