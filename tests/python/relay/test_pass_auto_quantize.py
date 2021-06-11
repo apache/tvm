@@ -60,13 +60,9 @@ def test_skip_conv():
     conv1_weight = relay.Constant(tvm.nd.array(np_weight)).astype("float32")
     multiplier = relay.sigmoid(relay.var("data", shape=(1, 16, 1, 1)))
 
-    conv0 = relay.nn.conv2d(
-        data, conv0_weight, kernel_size=(3, 3), padding=(1, 1), channels=16
-    )
+    conv0 = relay.nn.conv2d(data, conv0_weight, kernel_size=(3, 3), padding=(1, 1), channels=16)
     act0 = relay.nn.relu(data=conv0)
-    conv1 = relay.nn.conv2d(
-        act0, conv1_weight, kernel_size=(3, 3), padding=(1, 1), channels=16
-    )
+    conv1 = relay.nn.conv2d(act0, conv1_weight, kernel_size=(3, 3), padding=(1, 1), channels=16)
     act1 = relay.nn.relu(data=conv1)
 
     quantize_and_build(act1 * multiplier)
@@ -83,16 +79,12 @@ def test_stop_quantize():
     conv1_weight = relay.Constant(tvm.nd.array(np_weight1)).astype("float32")
     multiplier = relay.sigmoid(relay.var("data", shape=(1, 16, 1, 1)))
 
-    conv0 = relay.nn.conv2d(
-        data, conv0_weight, kernel_size=(3, 3), padding=(1, 1), channels=16
-    )
+    conv0 = relay.nn.conv2d(data, conv0_weight, kernel_size=(3, 3), padding=(1, 1), channels=16)
     act0 = relay.nn.relu(data=conv0)
 
     pool = relay.nn.global_avg_pool2d(data=act0)
 
-    conv1 = relay.nn.conv2d(
-        pool, conv1_weight, kernel_size=(1, 1), padding=(0, 0), channels=16
-    )
+    conv1 = relay.nn.conv2d(pool, conv1_weight, kernel_size=(1, 1), padding=(0, 0), channels=16)
     act1 = relay.nn.relu(data=conv1)
 
     quantize_and_build(act1 * multiplier)
