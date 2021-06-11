@@ -478,10 +478,16 @@ def test_no_match_func_attr():
 
 
 def test_match_call_attr():
+    # String attr
     is_conv2d = is_op("nn.conv2d")(wildcard(), wildcard()).has_attr({"data_layout": "NCHW"})
     x = relay.var("x")
     y = relay.var("y")
     assert is_conv2d.match(relay.op.nn.conv2d(x, y))
+
+    # Array attr
+    is_conv2d = is_op("nn.conv2d")(wildcard(), wildcard()).has_attr({"kernel_size": [3, 3]})
+    out = relay.op.nn.conv2d(x, y, kernel_size=[3, 3])
+    assert is_conv2d.match(out)
 
     # non-operator call
     attr_dict = {"call_attr": "attr"}
@@ -507,6 +513,11 @@ def test_no_match_call_attr():
 
     is_conv2d = is_op("nn.conv2d")(wildcard(), wildcard()).has_attr({"RandomAttr": "NCHW"})
     assert not is_conv2d.match(relay.op.nn.conv2d(x, y))
+
+    # Array attr
+    is_conv2d = is_op("nn.conv2d")(wildcard(), wildcard()).has_attr({"kernel_size": [3, 3]})
+    out = relay.op.nn.conv2d(x, y, kernel_size=[2, 1])
+    assert not is_conv2d.match(out)
 
     # non-operator calls
     call_has_attr = wildcard()(wildcard()).has_attr({"call_attr": "attr"})
