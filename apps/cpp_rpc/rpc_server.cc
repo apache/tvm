@@ -23,9 +23,9 @@
  */
 #include <tvm/runtime/registry.h>
 #if defined(__linux__) || defined(__ANDROID__) || defined(__APPLE__)
+#include <signal.h>
 #include <sys/select.h>
 #include <sys/wait.h>
-#include <signal.h>
 #endif
 #include <chrono>
 #include <future>
