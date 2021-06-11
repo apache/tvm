@@ -277,7 +277,7 @@ within_subsection_order = {
         "low_level_custom_pass.py",
         "use_pass_infra.py",
         "bring_your_own_datatypes.py",
-        "use_pass_instrument.py"
+        "use_pass_instrument.py",
     ],
 }
 

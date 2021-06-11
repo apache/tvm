@@ -274,6 +274,7 @@ seq = tvm.transform.Sequential(
 # Here we use :py::func`tvm.instrument.pass_instrument` decorator to implement
 # a PassInsturment class printing IR before execution of each passes:
 
+
 @tvm.instrument.pass_instrument
 class PrintIR:
     """Print the name of the pass, the IR, only before passes execute."""

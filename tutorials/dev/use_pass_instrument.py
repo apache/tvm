@@ -51,9 +51,7 @@ batch_size = 1
 num_of_image_class = 1000
 image_shape = (3, 224, 224)
 output_shape = (batch_size, num_of_image_class)
-relay_mod, relay_params = resnet.get_workload(
-    num_layers=18, batch_size=1, image_shape=image_shape
-)
+relay_mod, relay_params = resnet.get_workload(num_layers=18, batch_size=1, image_shape=image_shape)
 print(relay_mod.astext(show_meta_data=False))
 
 
