@@ -85,11 +85,12 @@ class Device:
     def __init__(self, connection_type):
         """Keep remote device for lifetime of object."""
         self.connection_type = connection_type
-        if (self.connection_type == Device.ConnectionType.TRACKER
+        if (
+            self.connection_type == Device.ConnectionType.TRACKER
             and not Device.is_tracker_compatible()
         ):
             raise Exception(
-                'Can\'t create Device instance. No environment variables set for the RPC Tracker'
+                "Can't create Device instance. No environment variables set for the RPC Tracker"
             )
 
         if self.connection_type == Device.ConnectionType.TRACKER:
