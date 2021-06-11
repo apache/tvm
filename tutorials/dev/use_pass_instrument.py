@@ -22,16 +22,19 @@ How to Use TVM Pass Instrument
 ==============================
 **Author**: `Chi-Wei Wang <https://github.com/chiwwang>`_
 
-As more and more passes are implemented, it becomes interesting to instrument
+As more and more passes are implemented, it becomes useful to instrument
 passes execution, analyze per-pass effects and observe various events.
-We have extended :py:class:`tvm.transform.PassContext` to accept a list of
-instrument classes. Also a decorator :py:func:`tvm.ir.instrument.pass_instrument` is provided to easily implement instrument classes.
+Pass infrastructure provides instrument mechanism. One can pass a list of
+instrument instances to :py:class:`tvm.transform.PassContext`.
+Also a decorator :py:func:`tvm.instrument.pass_instrument` is provided
+to easily implement instrument classes.
 
 This tutorial demostrates how developers can use ``PassContext`` to instrument
-passes. For more details, please refer to the :ref:`pass-infra`
+passes. Please also refer to the :ref:`pass-infra`.
 """
 import tvm
-from tvm import relay
+import tvm.relay as relay
+from tvm.relay.testing import resnet
 from tvm.contrib.download import download_testdata
 from tvm.relay.build_module import bind_params_by_name
 from tvm.ir.instrument import (
@@ -39,24 +42,19 @@ from tvm.ir.instrument import (
     pass_instrument,
 )
 
+
 ###############################################################################
 # Create An Example Relay Program
 # -------------------------------
-# We create a Relay program from a Pytorch model.
-# Here we pick up ``mobilenet_v2`` from torchvision.
-import torch
-import torchvision
-
-model_name = "mobilenet_v2"
-model = getattr(torchvision.models, model_name)(pretrained=True)
-model = model.eval()
-
-input_shape = [1, 3, 224, 224]
-input_data = torch.randn(input_shape)
-scripted_model = torch.jit.trace(model, input_data).eval()
-
-shape_list = [("input0", input_shape)]
-relay_mod, relay_params = relay.frontend.from_pytorch(scripted_model, shape_list)
+# We use pre-defined resnet-18 network in Relay.
+batch_size = 1
+num_of_image_class = 1000
+image_shape = (3, 224, 224)
+output_shape = (batch_size, num_of_image_class)
+relay_mod, relay_params = resnet.get_workload(
+    num_layers=18, batch_size=1, image_shape=image_shape
+)
+print(relay_mod.astext(show_meta_data=False))
 
 
 ###############################################################################
@@ -75,10 +73,35 @@ print(profiles)
 
 
 ###############################################################################
+# One can also use the current ``PassContext`` and register
+# ``PassInstrument`` instances by ``override_instruments`` method.
+# Note that ``override_instruments`` executes ``exit_pass_ctx`` callbacks
+# if any instrument already exists. Then it switches to new instruments
+# and calls ``enter_pass_ctx`` callbacks of new instruments.
+# Refer to following sections and :py:func:`tvm.instrument.pass_instrument` for these callbacks.
+cur_pass_ctx = tvm.transform.PassContext.current()
+cur_pass_ctx.override_instruments([timing_inst])
+relay_mod = relay.transform.InferType()(relay_mod)
+relay_mod = relay.transform.FoldScaleAxis()(relay_mod)
+profiles = timing_inst.render()
+print(profiles)
+
+
+###############################################################################
+# Register empty list to clear instruments.
+#
+# Note that ``exit_pass_ctx`` of ``PassTimingInstrument`` is called.
+# Profiles are cleared so nothing is printed.
+cur_pass_ctx.override_instruments([])
+profiles = timing_inst.render()
+print(profiles)
+
+
+###############################################################################
 # Create Customized Instrument Class
 # ----------------------------------
 # A customized instrument class can be easily created by
-# :py:func:`tvm.ir.instrument.pass_instrument` decorator.
+# :py:func:`tvm.instrument.pass_instrument` decorator.
 #
 # Let's create an instrument class which calculate the difference of ``CallNode``
 # counting per ``op.name`` before and after passes.
@@ -198,9 +221,10 @@ with tvm.transform.PassContext(opt_level=3, instruments=[call_node_inst, timing_
     profiles = timing_inst.render()
 # Uncomment the next line to see timing-profile results.
 # print(profiles)
-#
+
+
+###############################################################################
 # We can see how many CallNode increase/decrease per op type.
-#
 from pprint import pprint
 
 pprint(call_node_inst.get_pass_to_op_diff())

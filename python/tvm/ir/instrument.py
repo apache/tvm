@@ -93,7 +93,7 @@ def pass_instrument(pi_cls=None):
 
     Examples
     --------
-    The following code block show how to decorate a pass instrument class.
+    The following code block shows how to decorate a pass instrument class.
 
     .. code-block:: python
 
@@ -142,7 +142,8 @@ def pass_instrument(pi_cls=None):
 
 @tvm._ffi.register_object("instrument.PassInstrument")
 class PassTimingInstrument(tvm.runtime.Object):
-    """A wrapper to create a passes time instrument that implemented in C++"""
+    """A wrapper to create a passes time instrument that implemented in C++
+    """
 
     def __init__(self):
         self.__init_handle_by_constructor__(_ffi_instrument_api.MakePassTimingInstrument)
@@ -154,5 +155,19 @@ class PassTimingInstrument(tvm.runtime.Object):
         -------
         string : string
             The rendered string result of time profiles
+
+        Examples
+        --------
+
+        The following code-block shows how to use this instrument.
+
+        .. code-block:: python
+
+            timing_inst = PassTimingInstrument()
+            with tvm.transform.PassContext(instruments=[timing_inst]):
+                relay_mod = relay.transform.InferType()(relay_mod)
+                relay_mod = relay.transform.FoldScaleAxis()(relay_mod)
+                # before exiting the context, get profile results.
+                profiles = timing_inst.render()
         """
         return _ffi_instrument_api.RenderTimePassProfiles()

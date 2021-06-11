@@ -110,7 +110,7 @@ required/disabled passes, etc. For instance, we may have a configuration which
 performs all passes at ``opt_level=3`` with some disabled passes using
 ``disabled_pass=xx`` provided by ``PassContext``. Now we could glob all passes
 at ``opt_level=3`` and exclude those in the disabled pass list. ``PassContext``
-also provides pass-instruments mechanism, which will be introduced latter.
+also provides a way to instrument all passes. See section :ref:`pass_instrument_section_tag`.
 
 This class is designed for users to conveniently write the Python ``with``
 syntax to perform optimizations under a certain configuration. In addition, the
@@ -140,7 +140,6 @@ Python APIs to create a compilation pipeline using pass context.
       TVM_DLL void InstrumentExitPassContext();
       TVM_DLL bool InstrumentBeforePass(const IRModule& mod, const PassInfo& info) const;
       TVM_DLL void InstrumentAfterPass(const IRModule& mod, const PassInfo& info) const;
-      TVM_DLL bool PassEnabled(const PassInfo& info) const;
       /* Other fields are omitted. */
 
      private:
@@ -397,26 +396,14 @@ To allow other C++ modules to apply this pass, we declare a free function in
 
     TVM_DLL Pass FoldConstant();
 
+.. _pass_instrument_section_tag:
+
 Pass Instrument
 ~~~~~~~~~~~~~~~
 
-To instrument passes, four methods are introduced to ``PassContext``.
-
-.. code:: c++
-
-    TVM_DLL void InstrumentEnterPassContext();
-    TVM_DLL void InstrumentExitPassContext();
-    TVM_DLL bool InstrumentBeforePass(const IRModule& mod, const PassInfo& info) const;
-    TVM_DLL void InstrumentAfterPass(const IRModule& mod, const PassInfo& info) const;
-
-The first two methods are called respectively in entering/exiting context scope. The latter two are called while passes is being applied(`src/ir/transform.cc`_).
-
-Note that ``InstrumentBeforePass()`` return a boolean indicating this pass should
-be run or not.
-
-``PassInstrument`` provides callbacks run by these methods. Multiple
-``PassInstrument`` instances can be registed into a single ``PassContext``.
-They are called sequentially in the order of ``instruments`` member.
+``PassInstrument`` provides callbacks run when entering/exiting ``PassContext`` and before/after executing passes.
+Multiple ``PassInstrument`` instances can be registed into a single ``PassContext``.
+Instrument instances are called sequentially in the order of ``instruments`` argument passed to ``PassContext``.
 
 .. code:: c++
 
@@ -441,6 +428,70 @@ They are called sequentially in the order of ``instruments`` member.
     }  // namespace instrument
 
 Python interfaces are provided to implement ``PassInstrument`` quickly.
+
+Following four methods are invoked in the life-cycle of ``PassContext``.
+
+.. code:: c++
+
+    TVM_DLL void InstrumentEnterPassContext();
+    TVM_DLL void InstrumentExitPassContext();
+    TVM_DLL bool InstrumentBeforePass(const IRModule& mod, const PassInfo& info) const;
+    TVM_DLL void InstrumentAfterPass(const IRModule& mod, const PassInfo& info) const;
+
+``InstrumentEnterPassContext`` is called immediately when the scope
+of the ``PassContext`` instance is entered.
+
+``InstrumentExitPassContext`` is called when the scope of ``PassContextNode``
+is being leaved, or exceptions occur during the execution of passes.
+This method is also called when instruments is being overriden by ``override_instruments`` in ::py:class:`tvm.transform.PassContext`.
+
+``InstrumentBeforePass`` is called before pass-execution.
+``InstrumentAfterPass`` is called after pass-executioon if the pass should be run. The behavir is like:
+
+.. code:: c++
+
+      if (pass_ctx.InstrumentBeforePass(ir_module, pass_info)) {
+        new_ir_module = run_pass(ir_module, pass_ctx);
+        pass_ctx.InstrumentAfterPass(new_ir_module, pass_info);
+        return new_ir_module;
+      }
+
+Here is a brief introduction of each methods. See (`src/ir/transform.cc`_) for more details.
+
+- ``InstrumentEnterPassContext``
+
+  * ``EnterPassContext()`` is executed in the order of ``instruments`` passed to the ``PassContext``.
+  * When an exception raises, ``PassContext`` disable the pass instrumentation
+    by clearing all registered ``PassInstrument`` instances.
+  * Then ``PassContext`` execute ``ExitPassContext()`` method of each ``PassInstrument``
+    instances which successfully finished ``EnterPassContext()``
+  * For example, if ``PassInstrument`` A, B, and C are registered to a ``PassContext``
+    and A finished ``EnterPassContext()`` while B throws an exception, then C
+    is never executed; ``ExitPassContext()`` of A is executed.
+
+- ``InstrumentExitPassContext``
+
+  * ``ExitPassContext()`` of each ``PassInstrument`` instances are executed in
+    the order of ``instruments`` passed to the ``PassContext``.
+  * While an exception occurs, ``instruments`` is cleared.
+  * That means, instances registered after the one throwing exceptions do not execute ``ExitPassContext``.
+
+- ``InstrumentBeforePass``
+
+  * ``ShouldRun`` callbakc is executed if the pass is not listed as a required pass.
+    If the pass is a required pass, ``ShouldRun`` will not be executed for that pass.
+  * ``RunBeforePass`` is executed in the order of ``instruments`` if the pass is not blocked by ``ShouldRun``.
+  * Note that ``InstrumentBeforePass`` returns a boolean indicating whether or not the pass should be run.
+  * When an exception occur, it is thrown immediately.
+    We rely on Python Context Manager to exit ``PassContext`` safely
+    (meaning ``ExitPassContext`` of each instruments will be run. For C++, please refer to `include/tvm/support/with.h`_.)
+
+- ``InstrumentAfterPass``
+
+  * ``RunAfterPass`` is executed in the order of ``instruments`` passed to the ``PassContext``.
+  * When an exception occur, it is thrown immediately.
+    We rely on Python Context Manager or ``With`` class(`include/tvm/support/with.h`_) to exit ``PassContext`` safely
+
 
 Python Frontend
 ~~~~~~~~~~~~~~~
@@ -598,20 +649,21 @@ A customizable framework to instrument passes is provided. ``PassInstrument`` cl
         ):
         # ...
 
-One can implement a ``PassInstrument`` by ``pass_instrument`` decorator(`python/tvm/ir/instrument.py`_) with a class implementing following methods:
+One can implement a ``PassInstrument`` by using the ``pass_instrument`` decorator(`python/tvm/ir/instrument.py`_) on a class implementing following methods:
 
 - ``enter_pass_ctx``
 
-  * This callback is run at the moement of entering ``PassContext``.
+  * This callback is run when entering ``PassContext``.
 
 - ``exit_pass_ctx``
 
-  * This callback is run at the moement of exiting ``PassContext``.
+  * This callback is run when exiting ``PassContext``.
 
 - ``should_run``
 
-  * This callback is run before a pass is executed, returning a boolean indicating if the pass should be run.
-  * If a pass is listed as required, this callback will not be executed for that pass.
+  * This callback is run before a pass is executed. It returns a boolean
+    indicating whether or not the pass should be run.
+  * If a pass is listed as required, ``should_run`` will not have effect and not be executed.
 
 - ``run_before_pass``
 
@@ -630,6 +682,8 @@ One can implement a ``PassInstrument`` by ``pass_instrument`` decorator(`python/
 
 .. _include/tvm/ir/transform.h: https://github.com/apache/tvm/blob/main/include/tvm/ir/transform.h
 
+.. _include/tvm/support/with.h: https://github.com/apache/tvm/blob/main/include/tvm/support/with.h
+
 .. _src/relay/ir/transform.cc: https://github.com/apache/tvm/blob/main/src/relay/ir/transform.cc
 
 .. _src/ir/transform.cc: https://github.com/apache/tvm/blob/main/src/ir/transform.cc
@@ -647,4 +701,5 @@ One can implement a ``PassInstrument`` by ``pass_instrument`` decorator(`python/
 .. _src/tir/transforms/unroll_loop.cc: https://github.com/apache/tvm/blob/main/src/tir/transforms/unroll_loop.cc
 
 .. _use pass infra: https://github.com/apache/tvm/blob/main/tutorials/dev/use_pass_infra.py
+
 .. _use pass instrument: https://github.com/apache/tvm/blob/main/tutorials/dev/use_pass_instrument.py

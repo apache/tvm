@@ -23,9 +23,9 @@ tvm.ir
    :autosummary:
 
 
-tvm.ir.instrument
------------------
-.. automodule:: tvm.ir.instrument
+tvm.instrument
+--------------
+.. automodule:: tvm.instrument
    :members:
    :imported-members:
    :autosummary:
