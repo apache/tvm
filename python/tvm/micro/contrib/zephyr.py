@@ -30,8 +30,6 @@ import shlex
 import shutil
 import subprocess
 import sys
-import threading
-import queue
 
 import yaml
 
@@ -632,8 +630,6 @@ class ZephyrQemuTransport(Transport):
         self.fd_transport = None
         self.pipe_dir = None
         self.qemu_debugger = qemu_debugger
-        self._queue = queue.Queue()
-        self._qemu_ready_msg = "Qready"
 
     def timeouts(self):
         return TransportTimeouts(
@@ -662,9 +658,7 @@ class ZephyrQemuTransport(Transport):
             ["make", "run", f"QEMU_PIPE={self.pipe}"],
             cwd=self.base_dir,
             **self.kwargs,
-            stdout=subprocess.PIPE,
         )
-        self._wait_for_qemu()
 
         if self.qemu_debugger is not None:
             self.qemu_debugger.start()
@@ -708,21 +702,6 @@ class ZephyrQemuTransport(Transport):
         if self.fd_transport is None:
             raise TransportClosedError()
         return self.fd_transport.write(data, timeout_sec)
-
-    def _qemu_check_stdout(self):
-        for line in self.proc.stdout:
-            line = str(line)
-            _LOG.debug(line)
-            if "[QEMU] CPU" in line:
-                self._queue.put(self._qemu_ready_msg)
-                return
-
-    def _wait_for_qemu(self):
-        threading.Thread(target=self._qemu_check_stdout, daemon=True).start()
-        while True:
-            item = self._queue.get()
-            if item == self._qemu_ready_msg:
-                return True
 
 
 class ZephyrDebugger(debugger.GdbDebugger):
