@@ -25,7 +25,6 @@
 
 #include "../file_utils.h"
 #include "vulkan_device_api.h"
-#include "vulkan_thread_entry.h"
 
 namespace tvm {
 namespace runtime {
@@ -45,9 +44,8 @@ void VulkanWrappedFunc::Init(VulkanModuleNode* m, ObjectPtr<Object> sptr,
 
 void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
                                    const ArgUnion64* pack_args) const {
-  int device_id = VulkanThreadEntry::ThreadLocal()->device.device_id;
-  ICHECK_LT(device_id, kVulkanMaxNumDevice);
-  const auto& device = VulkanDeviceAPI::Global()->device(device_id);
+  int device_id = VulkanDeviceAPI::Global()->GetActiveDeviceID();
+  auto& device = VulkanDeviceAPI::Global()->device(device_id);
   if (!scache_[device_id]) {
     scache_[device_id] = m_->GetPipeline(device_id, func_name_, num_pack_args_);
   }
@@ -65,17 +63,16 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
   }
   const size_t nbytes_scalars = num_pack_args_ * sizeof(ArgUnion64);
   if (pipeline->use_ubo) {
-    auto ubo = VulkanThreadEntry::ThreadLocal()->GetUniformBuffer(device_id, nbytes_scalars);
-    CHECK(ubo->host_addr) << "The UBO host buffer is not allocated";
+    auto& ubo = device.ThreadLocalUniformBuffer(nbytes_scalars);
     VkDescriptorBufferInfo binfo;
-    binfo.buffer = ubo->vk_buf->buffer;
+    binfo.buffer = ubo.vk_buf.buffer;
     binfo.offset = 0;
     binfo.range = VK_WHOLE_SIZE;
     descriptor_buffers.push_back(binfo);
   }
   if (device.UseImmediate()) {
     // Can safely capture by reference as this lambda is immediately executed on the calling thread.
-    VulkanThreadEntry::ThreadLocal()->Stream(device_id)->Launch([&](VulkanStreamState* state) {
+    device.ThreadLocalStream().Launch([&](VulkanStreamState* state) {
       vkCmdBindPipeline(state->cmd_buffer_, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline->pipeline);
       ICHECK(pipeline->descriptor_update_template != VK_NULL_HANDLE);
       device.descriptor_template_khr_functions->vkCmdPushDescriptorSetWithTemplateKHR(
@@ -83,8 +80,8 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
           descriptor_buffers.data());
 
       if (pipeline->use_ubo) {
-        auto ubo = VulkanThreadEntry::ThreadLocal()->GetUniformBuffer(device_id, nbytes_scalars);
-        memcpy(ubo->host_addr, pack_args, nbytes_scalars);
+        auto& ubo = device.ThreadLocalUniformBuffer(nbytes_scalars);
+        memcpy(ubo.host_addr, pack_args, nbytes_scalars);
       } else if (num_pack_args_ > 0) {
         vkCmdPushConstants(state->cmd_buffer_, pipeline->pipeline_layout,
                            VK_SHADER_STAGE_COMPUTE_BIT, 0, num_pack_args_ * sizeof(ArgUnion64),
@@ -133,14 +130,16 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
   };
   const auto& deferred_kernel = [this, pipeline, wl, pack_args_storage, nbytes_scalars,
                                  device_id](VulkanStreamState* state) {
+    auto& device = VulkanDeviceAPI::Global()->device(device_id);
+
     vkCmdBindPipeline(state->cmd_buffer_, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline->pipeline);
     vkCmdBindDescriptorSets(state->cmd_buffer_, VK_PIPELINE_BIND_POINT_COMPUTE,
                             pipeline->pipeline_layout, 0, 1, &(pipeline->descriptor_set), 0,
                             nullptr);
 
     if (pipeline->use_ubo) {
-      auto ubo = VulkanThreadEntry::ThreadLocal()->GetUniformBuffer(device_id, nbytes_scalars);
-      memcpy(ubo->host_addr, pack_args_storage.data(), nbytes_scalars);
+      auto& ubo = device.ThreadLocalUniformBuffer(nbytes_scalars);
+      memcpy(ubo.host_addr, pack_args_storage.data(), nbytes_scalars);
     } else if (num_pack_args_ > 0) {
       vkCmdPushConstants(state->cmd_buffer_, pipeline->pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT,
                          0, pack_args_storage.size() * sizeof(ArgUnion64),
@@ -164,8 +163,7 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
   for (size_t i = 0; i < descriptor_buffers.size(); ++i) {
     deferred_token.buffers_[i] = descriptor_buffers[i].buffer;
   }
-  VulkanThreadEntry::ThreadLocal()->Stream(device_id)->LaunchDeferred(
-      deferred_initializer, deferred_kernel, deferred_token);
+  device.ThreadLocalStream().LaunchDeferred(deferred_initializer, deferred_kernel, deferred_token);
 }
 
 VulkanModuleNode::~VulkanModuleNode() {
@@ -206,7 +204,7 @@ PackedFunc VulkanModuleNode::GetFunction(const std::string& name,
 std::shared_ptr<VulkanPipeline> VulkanModuleNode::GetPipeline(size_t device_id,
                                                               const std::string& func_name,
                                                               size_t num_pack_args) {
-  const auto& device = VulkanDeviceAPI::Global()->device(device_id);
+  auto& device = VulkanDeviceAPI::Global()->device(device_id);
   std::lock_guard<std::mutex> lock(mutex_);
   const auto& cp = ecache_[device_id][func_name];
   if (cp) {
@@ -286,7 +284,7 @@ std::shared_ptr<VulkanPipeline> VulkanModuleNode::GetPipeline(size_t device_id,
   if (pe->use_ubo) {
     // Use UBO instead of push constants
     push_arg_info(num_buffer, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
-    VulkanThreadEntry::ThreadLocal()->AllocateUniformBuffer(device_id, nbytes_scalars);
+    device.AllocateThreadLocalUniformBuffer(nbytes_scalars);
   }
 
   {
