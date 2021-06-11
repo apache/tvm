@@ -20,13 +20,7 @@ import numpy as np
 import pytest
 import tvm
 from tvm import relay
-from .infrastructure import (
-    Device,
-    get_run_modes,
-    check_test_parameters,
-    build_and_run,
-    verify
-)
+from .infrastructure import Device, get_run_modes, check_test_parameters, build_and_run, verify
 
 
 def _get_model(a_shape, b_shape, dtype, var_names, is_a_constant=False, is_b_constant=False):

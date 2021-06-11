@@ -85,12 +85,18 @@ class Device:
     def __init__(self, connection_type):
         """Keep remote device for lifetime of object."""
         self.connection_type = connection_type
-        if self.connection_type == Device.ConnectionType.TRACKER and not Device.is_tracker_compatible():
-            raise Exception('Can\'t create Device instance. No environment variables set for the RPC Tracker')
+        if (self.connection_type == Device.ConnectionType.TRACKER
+            and not Device.is_tracker_compatible()
+        ):
+            raise Exception(
+                'Can\'t create Device instance. No environment variables set for the RPC Tracker'
+            )
 
         if self.connection_type == Device.ConnectionType.TRACKER:
             self.target = "llvm -mtriple=arm64-apple-darwin"
-            self.fcompile = lambda output, objects, **kwargs: xcode.create_dylib(output, objects, arch="arm64", sdk="iphoneos")
+            self.fcompile = lambda output, objects, **kwargs: xcode.create_dylib(
+                output, objects, arch="arm64", sdk="iphoneos"
+            )
         else:
             self.target = "llvm"
             self.fcompile = None
@@ -101,6 +107,7 @@ class Device:
     def is_tracker_compatible(cls):
         def ok(attr):
             return attr is not None
+
         return ok(cls.host) and ok(cls.port) and ok(cls.device_key)
 
     def _get_remote(self):
@@ -128,8 +135,8 @@ def get_run_modes():
 
 
 def skip_complexity_test(f):
-    skip = os.environ.get('TVM_RUN_COMPLEXITY_TEST') is None
-    return pytest.mark.skipif(skip, reason='Disabled because of huge complexity')(f)
+    skip = os.environ.get("TVM_RUN_COMPLEXITY_TEST") is None
+    return pytest.mark.skipif(skip, reason="Disabled because of huge complexity")(f)
 
 
 def check_test_parameters(mode):

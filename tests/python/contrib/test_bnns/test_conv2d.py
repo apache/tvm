@@ -25,7 +25,7 @@ from .infrastructure import (
     get_run_modes,
     check_test_parameters,
     compare_inference_with_ref,
-    generate_trials
+    generate_trials,
 )
 
 # TODO: Missed cases

@@ -107,7 +107,7 @@ def test_pattern_conv2d_with_non_cons_bias():
     assert not bias_is_fused
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     test_pattern_conv2d_with_bias_add()
     test_pattern_conv2d_with_add()
     test_pattern_conv2d_with_non_cons_weights()
