@@ -16,7 +16,6 @@
 # under the License.
 """BNNS pattern detection check"""
 
-import onnx
 import pytest
 import itertools
 import numpy as np
@@ -35,6 +34,9 @@ from .infrastructure import (
     build_and_run,
     verify,
 )
+
+
+pytest.importorskip("onnx")
 
 
 DTYPE = "float32"
