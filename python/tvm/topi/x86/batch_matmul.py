@@ -139,7 +139,7 @@ def _default_batch_matmul_config(cfg, M, N, K):
 
 def batch_matmul_blas_common(cfg, x, y, out_shape, lib):
     """Computes batch matrix multiplication of `x` and `y` when `x` and `y` are
-    data in batch, using one of BLAS libraries.
+    data in batch, using one of BLAS libraries. Supports broadcasting in batch dimension.
 
     Parameters
     ----------

@@ -160,12 +160,12 @@ def test_quantized_matmul_add():
 def verify_batch_matmul(
     batch_a, batch_b, m, l, n, lib, transa=False, transb=False, iterative=False, dtype="float32"
 ):
-    batch = batch_a
+    batch = max(batch_a, batch_b)
     ashape = (batch_a, l, n) if transa else (batch_a, n, l)
     bshape = (batch_b, m, l) if transb else (batch_b, l, m)
     A = te.placeholder(ashape, name="A", dtype=dtype)
     B = te.placeholder(bshape, name="B", dtype=dtype)
-    C = cblas.batch_matmul(A, B, transa, transb)
+    C = lib.batch_matmul(A, B, transa, transb)
     D = te.compute(C.shape, lambda k, i, j: C[k, i, j], name="D")
     s = te.create_schedule(D.op)
 
@@ -217,9 +217,13 @@ def test_batch_matmul():
     verify_batch_matmul(16, 16, 235, 128, 1024, mkl, False, True)
     verify_batch_matmul(16, 16, 235, 128, 1024, mkl, True, True)
     verify_batch_matmul(16, 1, 235, 128, 1024, cblas)
+    verify_batch_matmul(1, 16, 235, 128, 1024, cblas)
     verify_batch_matmul(16, 1, 235, 128, 1024, cblas, iterative=True)
+    verify_batch_matmul(1, 16, 235, 128, 1024, cblas, iterative=True)
     verify_batch_matmul(16, 1, 235, 128, 1024, mkl)
+    verify_batch_matmul(1, 16, 235, 128, 1024, mkl)
     verify_batch_matmul(16, 1, 235, 128, 1024, mkl, iterative=True)
+    verify_batch_matmul(1, 16, 235, 128, 1024, mkl, iterative=True)
     verify_batch_matmul(1, 1, 1, 16, 3, cblas)
     verify_batch_matmul(1, 1, 1, 16, 3, cblas, True, False)
     verify_batch_matmul(1, 1, 1, 16, 3, cblas, False, False)
