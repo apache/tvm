@@ -103,7 +103,7 @@ sudo udevadm control --reload
 # Poetry
 curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python3
 sed -i "/^# If not running interactively,/ i source \$HOME/.poetry/env" ~/.bashrc
-sed -i "/^# If not running interactively,/ i export ZEPHYR_BASE=$HOME/zephyrproject/zephyr" ~/.bashrc
+sed -i "/^# If not running interactively,/ i export ZEPHYR_BASE=$HOME/zephyr/zephyr" ~/.bashrc
 sed -i "/^# If not running interactively,/ i\\ " ~/.bashrc
 
 # Clean box for packaging as a base box
