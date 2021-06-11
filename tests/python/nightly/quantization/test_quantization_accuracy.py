@@ -133,7 +133,7 @@ def test_quantize_acc(cfg, rec_val):
         dtype_activation=cfg.dtype_output,
         debug_enabled_ops=None,
     )
-    
+
     batch_size = 1
     model, params = get_model(cfg.model, batch_size, qconfig)
     val_data, batch_fn = get_val_data(cfg.model, rec_val=rec_val, batch_size=batch_size)
