@@ -26,6 +26,13 @@
 set -e
 set -o pipefail
 
+QEMU_NAME=qemu-5.1.0
+QEMU_SIG_FILE=${QEMU_NAME}.tar.xz.sig
+QEMU_TAR_FILE=${QEMU_NAME}.tar.xz
+
+# Clean previous build
+rm -rf ${QEMU_NAME} ${QEMU_SIG_FILE} ${QEMU_TAR_FILE}
+
 # Get number of cores for build
 if [ -n "${TVM_CI_NUM_CORES}" ]; then
   num_cores=${TVM_CI_NUM_CORES}
@@ -62,10 +69,11 @@ p5ez/+2k4VAIwIQoP5DoO06waLBffvLIAdPPKYsx71K67OoGG2svc7duC/+5qf1x
 -----END PGP ARMORED FILE-----
 EOF
 curl -OLs https://download.qemu.org/qemu-5.1.0.tar.xz
-gpg --verify qemu-5.1.0.tar.xz.sig
+gpg --verify ${QEMU_SIG_FILE}
 
-tar -xf qemu-5.1.0.tar.xz
-cd qemu-5.1.0
+tar -xf ${QEMU_TAR_FILE}
+
+cd ${QEMU_NAME}
 ./configure --target-list=${target_list}
 make -j${num_cores}
 sudo make install
