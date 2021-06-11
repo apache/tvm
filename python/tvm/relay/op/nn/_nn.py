@@ -894,7 +894,7 @@ def compute_nll_loss(attrs, inputs, out_dtype):
 
 
 reg.register_reduce_schedule("nn.nll_loss")
-reg.register_pattern("nn.nll_loss", OpPattern.OPAQUE)
+reg.register_pattern("nn.nll_loss", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 # depth_to_space
