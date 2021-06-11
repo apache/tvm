@@ -27,7 +27,7 @@ apt-get install -y linux-tools-common linux-tools-generic
 
 cd /
 git clone https://bitbucket.org/icl/papi.git
-cd papi && git checkout 1ab84fe6d
+cd papi && git checkout 1ab84fe6d && cd src
 cd papi/src
 export PAPI_CUDA_ROOT=/usr/local/cuda
 ./configure --with-components="$1"
