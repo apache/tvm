@@ -19,6 +19,8 @@
 
 #include "vulkan_stream.h"
 
+#include "vulkan_device.h"
+
 namespace tvm {
 namespace runtime {
 namespace vulkan {
