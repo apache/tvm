@@ -729,7 +729,7 @@ class ZephyrQemuTransport(Transport):
                 pattern = r"recipe for target (\w*) failed"
                 if re.search(pattern, line, re.IGNORECASE):
                     self._queue.put(ZephyrQemuMakeResult.MAKE_FAILED)
-        self._queue.put("EOF")
+        self._queue.put(ZephyrQemuMakeResult.EOF)
 
     def _wait_for_qemu(self):
         threading.Thread(target=self._qemu_check_stdout, daemon=True).start()

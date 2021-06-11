@@ -249,8 +249,9 @@ def test_qemu_make_fail(platform, west_cmd, skip_build, tvm_debug):
     # Remove a file to create make failure.
     os.remove(file_path)
     transport = session_kw["flasher"].flash(session_kw["binary"])
-    with pytest.raises(RuntimeError):
+    with pytest.raises(RuntimeError) as excinfo:
         transport.open()
+    assert "QEMU setup failed" in str(excinfo.value)
 
 
 if __name__ == "__main__":
