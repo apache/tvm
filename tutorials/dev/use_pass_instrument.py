@@ -91,8 +91,9 @@ print(profiles)
 # Note that ``exit_pass_ctx`` of ``PassTimingInstrument`` is called.
 # Profiles are cleared so nothing is printed.
 cur_pass_ctx.override_instruments([])
-profiles = timing_inst.render()
-print(profiles)
+# Uncomment the call to .render() to see a warning like:
+# Warning: no passes have been profiled, did you enable pass profiling?
+# profiles = timing_inst.render()
 
 
 ###############################################################################
