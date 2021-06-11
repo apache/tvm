@@ -24,6 +24,7 @@ cd "${TVM_HOME}"
 
 apps/microtvm/reference-vm/zephyr/rebuild-tvm.sh
 
+# Build poetry
 cd apps/microtvm/reference-vm/zephyr
 
 poetry env use 3.6
@@ -41,7 +42,7 @@ echo "downloaded and cached for future use."
 echo "------------------------------[ TVM Message ]------------------------------"
 poetry lock -vvv
 poetry install
-poetry run pip3 install -r ~/zephyr/zephyr/scripts/requirements.txt
+poetry run pip3 install -r ${ZEPHYR_BASE}/scripts/requirements.txt
 
 echo "export TVM_LIBRARY_PATH=\"$TVM_HOME\"/build-microtvm" >>~/.profile
 echo "VENV_PATH=\$((cd \"$TVM_HOME\"/apps/microtvm/reference-vm/zephyr && poetry env list --full-path) | sed -E 's/^(.*)[[:space:]]\(Activated\)\$/\1/g')" >>~/.profile
