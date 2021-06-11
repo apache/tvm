@@ -1,4 +1,3 @@
-
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -205,11 +204,10 @@ void MetalWorkspace::FreeDataSpace(Device dev, void* ptr) {
   };
 }
 
-Stream* GetStream(TVMStreamHandle stream, int device_id) {
-  if (stream != nullptr)
-    return static_cast<Stream*>(stream);
-  else
-    return MetalThreadEntry::ThreadLocal()->stream[device_id];
+Stream* CastStreamOrGetCurrent(TVMStreamHandle stream, int device_id) {
+  if (stream != nullptr) return static_cast<Stream*>(stream);
+  ICHECK(MetalThreadEntry::ThreadLocal()->stream[device_id] != nullptr);
+  return MetalThreadEntry::ThreadLocal()->stream[device_id];
 }
 
 void MetalWorkspace::CopyDataFromTo(const void* from, size_t from_offset, void* to,
@@ -219,7 +217,7 @@ void MetalWorkspace::CopyDataFromTo(const void* from, size_t from_offset, void* 
     this->Init();
     Device dev = dev_from;
     if (dev_from.device_type == kDLCPU) dev = dev_to;
-    Stream* s = GetStream(stream, dev.device_id);
+    Stream* s = CastStreamOrGetCurrent(stream, dev.device_id);
     if (s->HasErrorHappened()) {
       LOG(FATAL) << "Error! Some problems on GPU happaned! Cannot copy data to current stream";
     }
@@ -281,6 +279,7 @@ void MetalWorkspace::CopyDataFromTo(const void* from, size_t from_offset, void* 
 }
 
 TVMStreamHandle MetalWorkspace::CreateStream(Device dev) {
+  ICHECK_LT(dev.device_id, devices.size()) << "Invalid device id " << dev.device_id;
   Stream* stream = new Stream(devices[dev.device_id]);
   return static_cast<TVMStreamHandle>(stream);
 }
@@ -296,7 +295,7 @@ void MetalWorkspace::FreeStream(Device dev, TVMStreamHandle stream) {
 
 void MetalWorkspace::StreamSync(Device dev, TVMStreamHandle stream) {
   AUTORELEASEPOOL {
-    Stream* s = GetStream(stream, dev.device_id);
+    Stream* s = CastStreamOrGetCurrent(stream, dev.device_id);
     // commit an empty command buffer and wait until it completes.
     id<MTLCommandBuffer> cb = s->GetCommandBuffer();
     [cb commit];
@@ -308,6 +307,8 @@ void MetalWorkspace::StreamSync(Device dev, TVMStreamHandle stream) {
 }
 
 void MetalWorkspace::SetStream(Device dev, TVMStreamHandle stream) {
+  ICHECK_LT(dev.device_id, devices.size()) << "Invalid device id " << dev.device_id;
+  ICHECK(stream != nullptr);
   MetalThreadEntry::ThreadLocal()->stream[dev.device_id] = static_cast<Stream*>(stream);
 }
 
