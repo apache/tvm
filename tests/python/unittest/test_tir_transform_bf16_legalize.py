@@ -20,7 +20,7 @@ from tvm import te
 
 
 def lower_stmt(sche, params, passfunc):
-    func = tvm.driver.build_module.form_irmodule(sche, params, "main", None)["main"]
+    func = tvm.driver.build_module.schedule_to_module(sche, params, "main", None)["main"]
     func = passfunc()(tvm.IRModule.from_expr(func))["main"]
     stmt = func.body
     return stmt
@@ -42,7 +42,7 @@ def test_promote():
             lambda i: topi.cast(op(topi.cast(a[i], "float"), topi.cast(b[i], "float")), "bfloat16"),
         )
         s = te.create_schedule(c.op)
-        func = tvm.driver.build_module.form_irmodule(s, [a, b, c], "main", None)["main"]
+        func = tvm.driver.build_module.schedule_to_module(s, [a, b, c], "main", None)["main"]
         return func.body
 
     def test_promoted(op):
@@ -111,7 +111,7 @@ def test_eliminate():
             ),
         )
         s = te.create_schedule(c.op)
-        func = tvm.driver.build_module.form_irmodule(s, [a, b, c], "main", None)["main"]
+        func = tvm.driver.build_module.schedule_to_module(s, [a, b, c], "main", None)["main"]
         return func.body
 
     tvm.ir.assert_structural_equal(get_eliminated(), get_target())
@@ -151,7 +151,7 @@ def test_legalize():
         b = te.placeholder((100,), dtype="uint16", name="B")
         c = te.compute((100,), fcompute_after(a, b), name="C")
         s = te.create_schedule(c.op)
-        func = tvm.driver.build_module.form_irmodule(s, [a, b, c], "main", None)["main"]
+        func = tvm.driver.build_module.schedule_to_module(s, [a, b, c], "main", None)["main"]
         tvm.ir.assert_structural_equal(stmt, func.body)
 
     def orig1(a, b):
