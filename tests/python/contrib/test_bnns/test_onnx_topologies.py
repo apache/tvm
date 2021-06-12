@@ -36,7 +36,7 @@ from .infrastructure import (
 )
 
 
-pytest.importorskip("onnx")
+onnx = pytest.importorskip("onnx")
 
 
 DTYPE = "float32"

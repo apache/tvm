@@ -200,7 +200,7 @@ def build_and_run(
 
 def update_lib(lib, device, fcompile):
     """Export the library to the remote/local device."""
-    lib_name = "mod.so"
+    lib_name = "mod.dylib"
     temp = utils.tempdir()
     lib_path = temp.relpath(lib_name)
     lib.export_library(lib_path, fcompile=fcompile)
