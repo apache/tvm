@@ -139,7 +139,7 @@ def _default_batch_matmul_config(cfg, M, N, K):
 
 def batch_matmul_blas_common(cfg, x, y, out_shape, lib):
     """Computes batch matrix multiplication of `x` and `y` when `x` and `y` are
-    data in batch, using one of BLAS libraries.
+    data in batch, using one of BLAS libraries. Supports broadcasting in batch dimension.
 
     Parameters
     ----------
@@ -162,10 +162,10 @@ def batch_matmul_blas_common(cfg, x, y, out_shape, lib):
     assert len(x.shape) == 3 and len(y.shape) == 3, "only support 3-dim batch_matmul"
     XB, M, XK = get_const_tuple(x.shape)
     YB, N, YK = get_const_tuple(y.shape)
-    assert XB == YB, "batch dimension doesn't match"
+    assert (XB == YB) or (YB == 1) or (XB == 1), "batch dimension doesn't match"
     assert XK == YK, "shapes of x and y is inconsistent"
     if out_shape is not None:
-        assert out_shape[0] == XB, "got invalid output shape"
+        assert out_shape[0] in (XB, YB), "got invalid output shape"
         assert out_shape[1] == M, "got invalid output shape"
         assert out_shape[2] == N, "got invalid output shape"
     cfg.add_flop(XB * M * N * XK * 2)
