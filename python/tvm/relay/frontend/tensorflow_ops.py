@@ -1135,10 +1135,6 @@ def _batch_matmul():
 
         is_static = not check_symbolic_shape(orig_shape_x)
 
-        if ndim > 3 and not is_static:
-            shape_of_x = list_shape_of(inputs[0], ndim)
-            shape_of_y = list_shape_of(inputs[1], ndim)
-
         # reshape n-dimensional batch matmul into 3d
         if ndim > 3:
             outer_dims = [orig_shape_x[i] for i in range(0, len(orig_shape_x) - 2)]
@@ -1147,7 +1143,8 @@ def _batch_matmul():
                 new_shape_x = (num_outer_elts, orig_shape_x[-2], orig_shape_x[-1])
                 new_shape_y = (num_outer_elts, orig_shape_y[-2], orig_shape_y[-1])
             else:  # handle dynamic shape (dyn.reshape op)
-                # new shape = [prod(shape[:-2]), -2, -1]
+                shape_of_x = list_shape_of(inputs[0], ndim)
+                shape_of_y = list_shape_of(inputs[1], ndim)
                 new_shape_x = [_op.const(1), shape_of_x[-2], shape_of_x[-1]]
                 new_shape_y = [_op.const(1), shape_of_y[-2], shape_of_y[-1]]
                 for i in range(ndim - 2):
@@ -1157,11 +1154,18 @@ def _batch_matmul():
                 new_shape_y = _op.concatenate(_op.Tuple(new_shape_y), axis=0)
 
             input_x = _op.reshape(input_x, newshape=new_shape_x)
-            input_y = _op.reshape(input_y, newshape=new_shape_y)
+
+            if np.prod(orig_shape_y) < np.prod(new_shape_y):
+                input_y = _op.broadcast_to(input_y, new_shape_y)
+            else:
+                input_y = _op.reshape(input_y, newshape=new_shape_y)
 
         adj_x = attr["adj_x"]
         adj_y = attr["adj_y"]
         input_x = _op.transpose(input_x, axes=[0, 2, 1]) if adj_x else input_x
+        shape_y = _infer_shape(input_y, mod)
+        if len(shape_y) < 3:
+            input_y = _op.reshape(input_y, (1, orig_shape_y[-2], orig_shape_y[-1]))
         input_y = _op.transpose(input_y, axes=[0, 2, 1]) if not adj_y else input_y
         ret = get_relay_op("batch_matmul")(input_x, input_y)
 
