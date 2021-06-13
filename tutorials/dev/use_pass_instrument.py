@@ -71,12 +71,14 @@ print(profiles)
 
 
 ###############################################################################
+# Use Current PassContext With Instruments
+# ----------------------------------------
 # One can also use the current ``PassContext`` and register
 # ``PassInstrument`` instances by ``override_instruments`` method.
-# Note that ``override_instruments`` executes ``exit_pass_ctx`` callbacks
+# Note that ``override_instruments`` executes ``exit_pass_ctx`` method
 # if any instrument already exists. Then it switches to new instruments
-# and calls ``enter_pass_ctx`` callbacks of new instruments.
-# Refer to following sections and :py:func:`tvm.instrument.pass_instrument` for these callbacks.
+# and calls ``enter_pass_ctx`` method of new instruments.
+# Refer to following sections and :py:func:`tvm.instrument.pass_instrument` for these methods.
 cur_pass_ctx = tvm.transform.PassContext.current()
 cur_pass_ctx.override_instruments([timing_inst])
 relay_mod = relay.transform.InferType()(relay_mod)
@@ -227,3 +229,146 @@ with tvm.transform.PassContext(opt_level=3, instruments=[call_node_inst, timing_
 from pprint import pprint
 
 pprint(call_node_inst.get_pass_to_op_diff())
+
+
+###############################################################################
+# Exception Handling
+# ------------------
+# Let's see what happen if exceptions occur in each methods of a ``PassInstrument``.
+#
+# Define ``PassInstrument`` classes  which raise exceptions in enter/exit ``PassContext``:
+class PassExampleBase:
+    def __init__(self, name):
+        self._name = name
+
+    def enter_pass_ctx(self):
+        print(self._name, "enter_pass_ctx")
+
+    def exit_pass_ctx(self):
+        print(self._name, "exit_pass_ctx")
+
+    def should_run(self, mod, info):
+        print(self._name, "should_run")
+        return True
+
+    def run_before_pass(self, mod, pass_info):
+        print(self._name, "run_before_pass")
+
+    def run_after_pass(self, mod, pass_info):
+        print(self._name, "run_after_pass")
+
+
+@pass_instrument
+class PassFine(PassExampleBase):
+    pass
+
+
+@pass_instrument
+class PassBadEnterCtx(PassExampleBase):
+    def enter_pass_ctx(self):
+        print(self._name, " bad enter_pass_ctx!!!")
+        raise ValueError("{} bad enter_pass_ctx".format(self._name))
+
+
+@pass_instrument
+class PassBadExitCtx(PassExampleBase):
+    def exit_pass_ctx(self):
+        print(self._name, "bad exit_pass_ctx!!!")
+        raise ValueError("{} bad exit_pass_ctx".format(self._name))
+
+
+###############################################################################
+# If an exception occur in ``enter_pass_ctx``, ``PassContext`` disable the pass
+# instrumentation. And it will run ``exit_pass_ctx`` of each ``PassInstrument``
+# which successfully finished ``enter_pass_ctx``.
+#
+# In following example, we can see ``exit_pass_ctx`` of `PassFine_0` is executed after exception.
+demo_ctx = tvm.transform.PassContext(
+    instruments=[
+        PassFine("PassFine_0"),
+        PassBadEnterCtx("PassBadEnterCtx"),
+        PassFine("PassFine_1"),
+    ]
+)
+try:
+    with demo_ctx:
+        relay_mod = relay.transform.InferType()(relay_mod)
+except ValueError as ex:
+    print("Catching", str(ex).split("\n")[-1])
+
+###############################################################################
+# Also, all ``PassInstrument`` are cleared.
+# So nothing printed while ``override_instruments`` is called.
+demo_ctx.override_instruments([])  # no PassFine_0 exit_pass_ctx printed....etc
+
+###############################################################################
+# If an exception occur in ``exit_pass_ctx``, pass instrumentation is disabled.
+# Then exception is thrown. That means ``PassInstrument`` registered
+# after the one throwing the exception do not execute ``exit_pass_ctx``.
+demo_ctx = tvm.transform.PassContext(
+    instruments=[
+        PassFine("PassFine_0"),
+        PassBadExitCtx("PassBadExitCtx"),
+        PassFine("PassFine_1"),
+    ]
+)
+try:
+    # PassFine_1 execute enter_pass_ctx, but not exit_pass_ctx.
+    with demo_ctx:
+        relay_mod = relay.transform.InferType()(relay_mod)
+except ValueError as ex:
+    print("Catching", str(ex).split("\n")[-1])
+
+###############################################################################
+# Exceptions occured in ``should_run``, ``run_before_pass``, ``run_after_pass``
+# are not handled explitcitly -- that means, we rely on the context manager
+# (the ``with`` syntax) to exit ``PassContext`` safely.
+#
+# We use ``run_before_pass`` as an example:
+@pass_instrument
+class PassBadRunBefore(PassExampleBase):
+    def run_before_pass(self, mod, pass_info):
+        print(self._name, "bad run_before_pass!!!")
+        raise ValueError("{} bad run_before_pass".format(self._name))
+
+
+demo_ctx = tvm.transform.PassContext(
+    instruments=[
+        PassFine("PassFine_0"),
+        PassBadRunBefore("PassBadRunBefore"),
+        PassFine("PassFine_1"),
+    ]
+)
+try:
+    # All exit_pass_ctx are called.
+    with demo_ctx:
+        relay_mod = relay.transform.InferType()(relay_mod)
+except ValueError as ex:
+    print("Catching", str(ex).split("\n")[-1])
+
+###############################################################################
+# Also note that pass instrumentation is not disable. So if we call
+# ``override_instruments``, the ``exit_pass_ctx`` of old registered ``PassInstrument``
+# is called.
+demo_ctx.override_instruments([])
+
+###############################################################################
+# If we don't wrap pass execution with ``with`` syntax, ``exit_pass_ctx`` is not
+# called. Let try this with current ``PassContext``:
+cur_pass_ctx = tvm.transform.PassContext.current()
+cur_pass_ctx.override_instruments(
+    [
+        PassFine("PassFine_0"),
+        PassBadRunBefore("PassBadRunBefore"),
+        PassFine("PassFine_1"),
+    ]
+)
+
+###############################################################################
+# Then call passes. ``exit_pass_ctx`` is not executed after the exception,
+# as expectation.
+try:
+    # No ``exit_pass_ctx`` got executed.
+    relay_mod = relay.transform.InferType()(relay_mod)
+except ValueError as ex:
+    print("Catching", str(ex).split("\n")[-1])
