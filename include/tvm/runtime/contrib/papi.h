@@ -51,7 +51,7 @@ struct PAPIMetricCollectorNode final : public MetricCollectorNode {
   explicit PAPIMetricCollectorNode() {}
 
   /*! \brief Initialization call.
-   * \param device The devices this collector will be running on
+   * \param devices The devices this collector will be running on
    */
   void Init(Array<DeviceWrapper> devices);
   /*! \brief Called right before a function call. Reads starting values of the
