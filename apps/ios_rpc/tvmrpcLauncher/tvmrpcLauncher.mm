@@ -26,24 +26,29 @@
 #import "RPCArgs.h"
 #import "RPCServer.h"
 
+/*!
+ * Simple listener to
+ */
 @interface EventListenerWrapper : NSObject <RPCServerEventListener>
 @end
 
 @implementation EventListenerWrapper {
-  void (^blk_)(RPCServerStatus);
+  void (^blk_)();
 }
 
-- (instancetype)initWithBlock:(void (^)(RPCServerStatus))blk {
+- (instancetype)initWithBlock:(void (^)())blk {
   blk_ = blk;
   return self;
 }
 
 - (void)onError:(NSString*)msg {
+  blk_();
 }
+
 - (void)onStatusChanged:(RPCServerStatus)status {
-  blk_(status);
+  if (status == RPCServerStatus_Stopped) blk_();
 }
-// void (^disable)(UITextField* field) = ^(UITextField* field) {
+
 @end
 
 @interface tvmrpcLauncher : XCTestCase
@@ -59,11 +64,13 @@
   server.port = args.host_port;
   server.key = @(args.key);
 
-  server.delegate = [[EventListenerWrapper alloc] initWithBlock:^(RPCServerStatus sts) {
-    NSLog(@"Sts : %d", sts);
+  dispatch_semaphore_t s = dispatch_semaphore_create(0);
+  server.delegate = [[EventListenerWrapper alloc] initWithBlock:^{
+    dispatch_semaphore_signal(s);
   }];
 
   [server start];
+  dispatch_semaphore_wait(s, DISPATCH_TIME_FOREVER);
 }
 
 @end

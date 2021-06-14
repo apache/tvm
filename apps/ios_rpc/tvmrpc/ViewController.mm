@@ -29,7 +29,7 @@
   RPCServer* server_;
   // verbose flag to print status info
   bool verbose_;
-  // verbose flag to print status info
+  // Button state. True - push will start connection, false - push will disconnect
   bool to_connect_;
 }
 

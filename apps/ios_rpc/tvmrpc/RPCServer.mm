@@ -115,7 +115,7 @@ static std::string getWiFiAddress() {
 @interface RPCServerBase : RPCServer
 
 /*!
- * Methods to implement on inherited classes
+ * Methods should be implemented in inherited classes
  */
 - (bool)onReadHandler;   // return true - continue feeding, false - stop, try to drain output buffer
 - (bool)onWriteHandler;  // return true - continue draining, false - no data to write
@@ -226,6 +226,16 @@ static std::string getWiFiAddress() {
   [outputStream_ setDelegate:nil];
   inputStream_ = nil;
   outputStream_ = nil;
+}
+
+/// Unimplemented stubs
+- (bool)onReadHandler {
+  return false;
+}
+- (bool)onWriteHandler {
+  return false;
+}
+- (void)onEndEncountered {
 }
 
 /*!
@@ -788,6 +798,12 @@ typedef enum {
   if (mode == RPCServerMode_Proxy) return [[RPCServerProxy alloc] init];
   if (mode == RPCServerMode_Tracker) return [[RPCServerTracker alloc] init];
   return nil;
+}
+
+/// Unimplemented stubs
+- (void)start {
+}
+- (void)stop {
 }
 
 @end
