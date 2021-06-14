@@ -28,6 +28,7 @@
 #include <tvm/tir/expr.h>
 
 #include <algorithm>
+#include <cctype>
 #include <stack>
 
 #include "../runtime/object_internal.h"
