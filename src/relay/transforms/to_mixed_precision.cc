@@ -20,9 +20,9 @@
 /*!
  *
  * \file to_mixed_precision.cc
- * \brief Automatic mixed precision for relay graphs. i.e. turn a graph into fp16 form.
+ * \brief Automatic mixed floating point precision for relay graphs. i.e. turn a graph into fp16.
+ *
  */
-#include "to_mixed_precision.h"
 
 #include <tvm/ir/attrs.h>
 #include <tvm/relay/expr_functor.h>
@@ -48,21 +48,39 @@ struct pair_hash {
   }
 };
 
+// MIXED_PRECISION_ALWAYS ops should always be done in lower precision due to the speed and memory
+// savings. MIXED_PRECISION_FOLLOW ops can be done in lower precision but don't have speedups to
+// justify a cast. MIXED_PRECISION_NEVER colored ops should not be done in lower precision due to
+// numerical reasons.
+enum MixedTypeConversionCategory : int {
+  MIXED_PRECISION_ALWAYS = 0,
+  MIXED_PRECISION_FOLLOW = 1,
+  MIXED_PRECISION_NEVER = 2
+};
+
 // A map of a parent node and a wanted dtype to existing nodes casted to the wanted dtype
 using CachedCastNodes = std::unordered_map<std::pair<const ExprNode*, DataType>, Expr, pair_hash>;
 
-// A function which maps CallNodes to their initial conversion color
-using ColorFunc = std::function<MixedTypeConversionCategory(const CallNode*)>;
-
-// A function which maps MIXED_PRECISION_ALWAYS CallNodes to wanted accumulation and output dtypes
-using OutputDtypeFunc = std::function<MixedPrecisionOpOutDType(const CallNode*)>;
+// Return array is of type : [MixedTypeConversionCategory (int), String, String]
+// The fields are          : [ConversionCategory, accumulation_datatype, output_datatype]
+// Call is a call node, DataType is the mixed precision type
+using FTVMMixedPrecisionConversionType = runtime::TypedPackedFunc<Array<ObjectRef>(
+    const Call& call_node, const std::string& target_dtype_str)>;
 
 class MixedPrecisionPass : public MixedModeMutator {
  private:
   CachedCastNodes cast_nodes_cache;
-  const ColorFunc colorer;
-  const OutputDtypeFunc output_dtype_func;
+
+  // The target datatype we want to convert to e.g. FP16
   const DataType mixed_precision_type;
+
+  // If false, throws a fatal error if an op which is not registered with a
+  // FTVMMixedPrecisionConversionType is encountered.
+  bool ignore_missing_ops;
+
+  // If true, emits a warning if an op which is not registered with a
+  // FTVMMixedPrecisionConversionType is encountered.
+  bool warn_missing_ops;
 
   Attrs GetNewAttrs(const CallNode* call, const DataType& accumulation_dtype) const {
     /* If the accumulation dtype is in the attributes make a copy and mutate the field. */
@@ -234,25 +252,57 @@ class MixedPrecisionPass : public MixedModeMutator {
  public:
   using MixedModeMutator::VisitExpr_;
 
-  explicit MixedPrecisionPass(ColorFunc colorer, OutputDtypeFunc output_dtype_func,
-                              DataType mixed_precision_type = DataType::Float(16))
+  explicit MixedPrecisionPass(DataType mixed_precision_type = DataType::Float(16),
+                              bool ignore_missing_ops = true, bool warn_missing_ops = true)
       : MixedModeMutator(),
-        colorer(colorer),
-        output_dtype_func(output_dtype_func),
-        mixed_precision_type(mixed_precision_type) {
+        mixed_precision_type(mixed_precision_type),
+        ignore_missing_ops(ignore_missing_ops),
+        warn_missing_ops(warn_missing_ops) {
     if (!mixed_precision_type.is_float() && !mixed_precision_type.is_bfloat16())
       LOG(FATAL) << "Only support IEEE floating point mixed precision types and bfloat16 got "
                  << mixed_precision_type;
   }
 
   Expr Rewrite_(const CallNode* pre_call_node, const Expr& post) final {
-    MixedTypeConversionCategory initial_category = colorer(pre_call_node);
     const CallNode* post_call_node = post.as<CallNode>();
     if (!post_call_node) {
       LOG(FATAL) << "Expected a CallNode for the rewrite got " << post;
     }
 
     Expr cur_op = post_call_node->op;
+
+    // Results are: conversion category (int), accumulation dtype (str), output dtype (str)
+    MixedTypeConversionCategory initial_category;
+    DataType accumulation_dtype, output_dtype;
+    if (cur_op.as<FunctionNode>()) {
+      // Avoid messing with functions to avoid changing signature
+      initial_category = MIXED_PRECISION_NEVER;
+      accumulation_dtype = DataType::Float(32);
+      output_dtype = DataType::Float(32);
+    } else if (cur_op.as<OpNode>()) {
+      static auto attr_map =
+          Op::GetAttrMap<FTVMMixedPrecisionConversionType>("FTVMMixedPrecisionConversionType");
+      Op op = Downcast<Op>(cur_op);
+      if (attr_map.count(op)) {
+        FTVMMixedPrecisionConversionType func = attr_map[op];
+        Array<ObjectRef> op_descriptor =
+            func(GetRef<Call>(pre_call_node), DLDataType2String(mixed_precision_type));
+
+        int64_t op_conversion_type = Downcast<Integer>(op_descriptor[0])->value;
+        initial_category = static_cast<MixedTypeConversionCategory>(op_conversion_type);
+        accumulation_dtype = DataType(String2DLDataType(Downcast<String>(op_descriptor[1])));
+        output_dtype = DataType(String2DLDataType(Downcast<String>(op_descriptor[2])));
+      } else {
+        if (!ignore_missing_ops) LOG(FATAL) << "Op " << op->name << " not in conversion lists!";
+        if (warn_missing_ops) LOG(WARNING) << "Op " << op->name << " not in conversion lists!";
+
+        initial_category = MIXED_PRECISION_FOLLOW;
+        accumulation_dtype = DataType::Float(16);
+        output_dtype = DataType::Float(16);
+      }
+    } else {
+      LOG(FATAL) << "Unsupported op type in CallNode: " << pre_call_node->op;
+    }
 
     // First check if all the new mutated args are in lower precision form
     Array<Type> cur_arg_types;
@@ -295,12 +345,10 @@ class MixedPrecisionPass : public MixedModeMutator {
 
     // Finally create the new attributes.
     if (final_category == MIXED_PRECISION_ALWAYS) {
-      MixedPrecisionOpOutDType output_dtypes = output_dtype_func(pre_call_node);
-
-      Attrs new_attrs = GetNewAttrs(pre_call_node, output_dtypes.accumulation_dtype);
+      Attrs new_attrs = GetNewAttrs(pre_call_node, accumulation_dtype);
       Expr output = Call(cur_op, new_args, new_attrs, new_arg_types, pre_call_node->span);
-      if (output_dtypes.accumulation_dtype != output_dtypes.output_dtype) {
-        output = CastArg(output, GetType(output), output_dtypes.output_dtype);
+      if (accumulation_dtype != output_dtype) {
+        output = CastArg(output, GetType(output), output_dtype);
       }
       return output;
     }
@@ -330,24 +378,22 @@ class MixedPrecisionPass : public MixedModeMutator {
   }
 };
 
-Expr ToMixedPrecision(const Expr& expr, const ColorFunc& colorer,
-                      const OutputDtypeFunc& output_dtype_func,
-                      const DataType& mixed_precision_type) {
+Expr ToMixedPrecision(const Expr& expr, const DataType& mixed_precision_type,
+                      bool ignore_missing_ops, bool warn_missing_ops) {
   MixedPrecisionPass converter =
-      MixedPrecisionPass(colorer, output_dtype_func, mixed_precision_type);
+      MixedPrecisionPass(mixed_precision_type, ignore_missing_ops, warn_missing_ops);
   auto result = converter.Mutate(expr);
   return result;
 }
 
 namespace transform {
 
-Pass ToMixedPrecision(DataType mixed_precision_type) {
+Pass ToMixedPrecision(DataType mixed_precision_type, bool ignore_missing_ops,
+                      bool warn_missing_ops) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
-        return Downcast<Function>(ToMixedPrecision(
-            f, DefaultMixedPrecisionColorer(),
-            DefaultMixedPrecisionOpDefinition(mixed_precision_type, DataType::Float(32)),
-            mixed_precision_type));
+        return Downcast<Function>(
+            ToMixedPrecision(f, mixed_precision_type, ignore_missing_ops, warn_missing_ops));
       };
   return CreateFunctionPass(pass_func, 10, "ToMixedPrecision", {});
 }

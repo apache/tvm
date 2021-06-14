@@ -22,7 +22,9 @@ import pytest
 import tvm
 from tvm import relay
 from tvm.relay.testing import lstm
-from tvm.relay.transform import InferType, ToMixedPrecision
+from tvm.relay.transform import InferType, ToMixedPrecision, mixed_precision
+
+mixed_precision.register_default_mixed_precision_attributes()
 
 
 def run_module(mod: tvm.runtime.Module, mod_params: Dict[str, Any]) -> List:
@@ -43,11 +45,11 @@ def verify_mixed_precision_output_close(
     rtol: float = 1e-3,
     atol: float = 0,
 ) -> tvm.runtime.Module:
+
     mod = InferType()(mod)
     result_fp32 = run_module(mod, mod_params)
     fp16_mod = ToMixedPrecision(mixed_precision_dtype)(mod)
     result_fp16 = run_module(fp16_mod, mod_params)
-
     # Ensure the results are close
     for fp32, fp16 in zip(result_fp32, result_fp16):
         np.testing.assert_allclose(fp32, fp16, rtol=rtol, atol=atol)

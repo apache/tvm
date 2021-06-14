@@ -18,10 +18,11 @@
 """The base node types for the Relay language."""
 import tvm._ffi
 import tvm.ir
-from tvm.driver import lower, build
-from tvm.target import get_native_generic_func, GenericFunc
-from tvm.runtime import Object
 import tvm.ir._ffi_api
+from tvm.driver import build, lower
+from tvm.runtime import Object
+from tvm.target import GenericFunc, get_native_generic_func
+
 from . import _make
 
 
@@ -455,6 +456,11 @@ def register_fake_quantization_to_integer(op_name, func=None, level=10):
         The priority level
     """
     return tvm.ir.register_op_attr(op_name, "FTVMFakeQuantizationToInteger", func, level)
+
+
+def register_mixed_precision_conversion(op_name, func=None, level=10):
+    """TODO"""
+    return tvm.ir.register_op_attr(op_name, "FTVMMixedPrecisionConversionType", func, level)
 
 
 @tvm._ffi.register_func("relay.op.compiler._lower")
