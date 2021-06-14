@@ -210,7 +210,7 @@ ObjectRef TargetInternal::ParseType(const std::string& str,
     // Parsing integer
     int v;
     if (!(is >> v)) {
-      std::string lower;
+      std::string lower(str.size(), '\x0');
       std::transform(str.begin(), str.end(), lower.begin(),
                      [](unsigned char c) { return std::tolower(c); });
       // Bool is a subclass of IntImm, so allow textual boolean values.
