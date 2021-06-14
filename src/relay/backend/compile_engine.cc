@@ -31,7 +31,6 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
-#include <tvm/runtime/container.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/te/operation.h>
 #include <tvm/te/schedule.h>
@@ -163,7 +162,7 @@ class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>>
         }
       }
 
-      // Use TOPI schdule if user specificed, or the function has no auto_scheduler schedule.
+      // Use TOPI schedule if user specificed, or the function has no auto_scheduler schedule.
       if (!schedule.defined()) {
         ICHECK(anchor_implementation_.defined());
         schedule = anchor_implementation_.Schedule(anchor_attrs_, tensor_outs, target_);
@@ -763,15 +762,9 @@ class CompileEngineImpl : public CompileEngineNode {
       all_args.push_back(arg);
     }
     // lower the function
-    if (const auto* f = runtime::Registry::Get("relay.backend.lower")) {
-      cache_node->funcs = (*f)(cfunc->schedule, all_args, cache_node->func_name, key->source_func);
-    } else {
-      using tvm::transform::PassContext;
-      With<PassContext> fresh_pass_ctx_scope(PassContext::Create());
+    std::unordered_map<te::Tensor, tir::Buffer> binds;
+    cache_node->funcs = tvm::LowerSchedule(cfunc->schedule, all_args, cache_node->func_name, binds);
 
-      std::unordered_map<te::Tensor, tir::Buffer> binds;
-      cache_node->funcs = tvm::lower(cfunc->schedule, all_args, cache_node->func_name, binds);
-    }
     value->cached_func = CachedFunc(cache_node);
     return value;
   }
@@ -807,7 +800,7 @@ class CompileEngineImpl : public CompileEngineNode {
     With<PassContext> fresh_pass_ctx_scope(PassContext::Create());
 
     std::unordered_map<te::Tensor, tir::Buffer> binds;
-    cache_node->funcs = tvm::lower(spair.first, all_args, cache_node->func_name, binds);
+    cache_node->funcs = tvm::LowerSchedule(spair.first, all_args, cache_node->func_name, binds);
     value->cached_func = CachedFunc(cache_node);
     return value;
   }

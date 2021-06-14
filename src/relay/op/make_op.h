@@ -78,7 +78,8 @@ Expr MakeStack(Expr data, int axis);
 Expr MakeTranspose(Expr data, Array<Integer> axes);
 
 Expr MakeStridedSlice(Expr data, Array<Integer> begin, Array<Integer> end, Array<Integer> strides,
-                      String slice_mode);
+                      String slice_mode,
+                      Optional<Array<Integer>> axes = NullValue<Array<Integer>>());
 
 Expr MakeTile(Expr data, Array<Integer> reps);
 
@@ -107,7 +108,7 @@ Expr MakeArange(Expr start, Expr stop, Expr step, DataType dtype);
 
 Expr MakeShapeOf(Expr data, DataType dtype);
 
-Expr MakeTake(Expr data, Expr indices, Integer axis, String mode);
+Expr MakeTake(Expr data, Expr indices, Integer batch_dims, Integer axis, String mode);
 
 }  // namespace relay
 }  // namespace tvm

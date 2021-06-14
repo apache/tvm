@@ -26,7 +26,6 @@
 #define TVM_PARSER_TOKEN_H_
 
 #include <tvm/ir/span.h>
-#include <tvm/runtime/container.h>
 #include <tvm/runtime/object.h>
 
 #include <fstream>

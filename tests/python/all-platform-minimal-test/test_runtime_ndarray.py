@@ -33,8 +33,8 @@ def test_nd_create():
             assert y.dtype == x.dtype
             assert y.shape == x.shape
             assert isinstance(y, tvm.nd.NDArray)
-            np.testing.assert_equal(x, y.asnumpy())
-            np.testing.assert_equal(x, z.asnumpy())
+            np.testing.assert_equal(x, y.numpy())
+            np.testing.assert_equal(x, z.numpy())
         # no need here, just to test usablity
         dev.sync()
 
@@ -54,8 +54,8 @@ def test_fp16_conversion():
 
         func(x_tvm, y_tvm)
 
-        expected = x_tvm.asnumpy().astype(dst)
-        real = y_tvm.asnumpy()
+        expected = x_tvm.numpy().astype(dst)
+        real = y_tvm.numpy()
 
         tvm.testing.assert_allclose(expected, real)
 

@@ -94,7 +94,7 @@ def run_tvm_model(mod, params, input_name, inp, target="llvm"):
 
     runtime.set_input(input_name, inp)
     runtime.run()
-    return runtime.get_output(0).asnumpy(), runtime
+    return runtime.get_output(0).numpy(), runtime
 
 
 #################################################################################

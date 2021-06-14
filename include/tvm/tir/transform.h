@@ -213,6 +213,17 @@ TVM_DLL Pass InstrumentBoundCheckers();
 TVM_DLL Pass MakePackedAPI(int num_unpacked_args);
 
 /*!
+ * \brief Transform the high-level PrimFunc to a C signature that can be used
+ *   to call the operator directly.
+ *
+ *  The main task of this function is to create code that maps the values in the
+ *  api_args to Var that is required by body
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass MakeUnpackedAPI();
+
+/*!
  * \brief Remap the thread axis
  *
  *  This can be used to get equivalent program which uses
@@ -371,8 +382,9 @@ TVM_DLL Pass ConvertBlocksToOpaque();
 /*!
  * \brief Compact the buffer access region by removing the buffer regions that are not accessed,
  *        i.e. narrowing the buffer shape and adjust the access region if necessary.
- * \example
- *  Before narrowing, `B` is a `[16, 16]` buffer, but only a skinny vector `B[i, 0:16]` is accessed.
+ *
+ * Before narrowing, `B` is a `[16, 16]` buffer, but only a skinny vector `B[i, 0:16]` is accessed.
+ *
  *  \code
  *
  *  for i in range(0, 16):
@@ -405,6 +417,14 @@ TVM_DLL Pass ConvertBlocksToOpaque();
  * \return The pass.
  */
 TVM_DLL Pass CompactBufferAllocation();
+
+/*!
+ * \brief Flatten the multi-dimensional BufferLoad and BufferStore
+ *        to single dimensional Load/Store. Also remove Block to
+ *        ensure that the flattened TIR can not be scheduled again.
+ * \return The pass.
+ */
+TVM_DLL Pass FlattenBuffer();
 
 }  // namespace transform
 }  // namespace tir

@@ -24,7 +24,6 @@
 #include <dmlc/memory_io.h>
 #include <tvm/ir/module.h>
 #include <tvm/runtime/c_runtime_api.h>
-#include <tvm/runtime/container.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/target/codegen.h>
@@ -47,13 +46,9 @@ runtime::Module Build(IRModule mod, Target target) {
           .value()) {
     mod = tir::transform::SkipAssert()(mod);
   }
-  std::string build_f_name;
-  if (target->kind->name == "micro_dev") {
-    build_f_name = "target.build.c";
-  } else {
-    build_f_name = "target.build." + target->kind->name;
-  }
+
   // the build function.
+  std::string build_f_name = "target.build." + target->kind->name;
   const PackedFunc* bf = runtime::Registry::Get(build_f_name);
   ICHECK(bf != nullptr) << build_f_name << " is not enabled";
   return (*bf)(mod, target);

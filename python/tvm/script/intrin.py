@@ -121,7 +121,7 @@ def floormod(x, y, span):
 
 
 @register
-def load(dtype, var, index, predicate=True, span=None):
+def load(dtype, var, index, predicate=None, span=None):
     return tvm.tir.Load(dtype, var, index, predicate, span)
 
 
@@ -149,6 +149,11 @@ def iter_var(var, dom, iter_type, thread_tag, span):
 @register
 def max(a, b, span):  # pylint: disable=redefined-builtin
     return tvm.tir.Max(a, b, span)
+
+
+@register
+def min(a, b, span):  # pylint: disable=redefined-builtin
+    return tvm.tir.Min(a, b, span)
 
 
 def get_axis(begin, end, iter_type, span):

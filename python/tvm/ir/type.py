@@ -71,10 +71,13 @@ class PointerType(Type):
     ----------
     element_type : tvm.ir.Type
         The type of pointer's element.
+
+    storage_scope : str
+        The storage scope into which the pointer addresses.
     """
 
-    def __init__(self, element_type):
-        self.__init_handle_by_constructor__(_ffi_api.PointerType, element_type)
+    def __init__(self, element_type, storage_scope=""):
+        self.__init_handle_by_constructor__(_ffi_api.PointerType, element_type, storage_scope)
 
 
 @tvm._ffi.register_object("TypeVar")

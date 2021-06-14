@@ -105,7 +105,7 @@ seq_len = 128
 # TVM platform identifier. Note that best cpu performance can be achieved by setting -mcpu
 # appropriately for your specific machine. CUDA and ROCm are also supported.
 target = "llvm"
-# Which device to run on. Should be one of tvm.cpu() or tvm.gpu().
+# Which device to run on. Should be one of tvm.cpu() or tvm.cuda().
 dev = tvm.cpu()
 # If true, then a sparse variant of the network will be run and
 # benchmarked.
@@ -198,7 +198,7 @@ def import_graphdef(
             with open(os.path.join(abs_path, relay_params), "wb") as fo:
                 fo.write(runtime.save_param_dict(params))
 
-    return mod, params, shape_dict
+    return mod, dict(params.items()), shape_dict
 
 
 ###############################################################################
@@ -281,7 +281,7 @@ def random_sparse_bert_params(func, params, density, BS_R, BS_C):
     def deepcopy(param_dic):
         ret = {}
         for k, v in param_dic.items():
-            ret[k] = tvm.nd.array(v.asnumpy())
+            ret[k] = tvm.nd.array(v.numpy())
         return ret
 
     new_params = deepcopy(params)

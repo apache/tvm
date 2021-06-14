@@ -58,7 +58,7 @@ def verify_fifo_buffer(buffer_shape, data_shape, axis, dtype="float32"):
         out_tvm = tvm.nd.empty(shape=buffer_shape, device=dev, dtype=dtype)
         f = tvm.build(s, [data, buffer, out], target, name="fifo")
         f(data_tvm, buffer_tvm, out_tvm)
-        tvm.testing.assert_allclose(out_tvm.asnumpy(), out_np)
+        tvm.testing.assert_allclose(out_tvm.numpy(), out_np)
 
     for target, dev in tvm.testing.enabled_targets():
         check_device(target, dev)
@@ -177,9 +177,7 @@ def verify_conv1d_integration():
             conv2d(input_window_tvm, kernel_tvm, output_window_ref_tvm)
             # Incrementally updating the output window should be equivalent to computing it from
             # scratch using the input window
-            tvm.testing.assert_allclose(
-                output_window_tvm.asnumpy(), output_window_ref_tvm.asnumpy()
-            )
+            tvm.testing.assert_allclose(output_window_tvm.numpy(), output_window_ref_tvm.numpy())
 
     for target, dev in tvm.testing.enabled_targets():
         check_device(target, dev)

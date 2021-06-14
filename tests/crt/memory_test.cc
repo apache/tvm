@@ -18,8 +18,8 @@
  */
 
 #include <gtest/gtest.h>
-#include <tvm/runtime/crt/internal/memory/memory.h>
-#include <tvm/runtime/crt/memory.h>
+#include <tvm/runtime/crt/internal/memory/page_allocator.h>
+#include <tvm/runtime/crt/page_allocator.h>
 
 #include "crt_config.h"
 #include "platform.cc"
@@ -37,7 +37,7 @@ class MemoryManagerTest : public ::testing::Test {
   void SetUp() override {
     memset(raw_memory_pool, 0, sizeof(raw_memory_pool));
     memory_pool = (uint8_t*)(ROUND_UP(((uintptr_t)raw_memory_pool), (1 << kPageSizeBytesLog)));
-    MemoryManagerCreate(&interface, memory_pool, kMemoryPoolSizeBytes, kPageSizeBytesLog);
+    PageMemoryManagerCreate(&interface, memory_pool, kMemoryPoolSizeBytes, kPageSizeBytesLog);
     mgr = (MemoryManager*)interface;
     ASSERT_EQ(kNumUsablePages, mgr->ptable.max_pages);
     dev_ = {kDLCPU, 0};

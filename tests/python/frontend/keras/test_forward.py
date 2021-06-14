@@ -93,7 +93,7 @@ def verify_keras_frontend(keras_model, need_transpose=True, layout="NCHW"):
         for name, x in zip(keras_model.input_names, xs):
             m.set_input(name, tvm.nd.array(x.astype(dtype)))
         m.run()
-        return [m.get_output(i).asnumpy() for i in range(m.get_num_outputs())]
+        return [m.get_output(i).numpy() for i in range(m.get_num_outputs())]
 
     def to_channels_first(arr):
         return arr.transpose([0, -1] + list(range(1, arr.ndim - 1)))
@@ -198,6 +198,11 @@ class TestKeras:
         x = keras.layers.Dense(10, activation="relu", kernel_initializer="uniform")(x)
         keras_model = keras.models.Model(data, x)
         verify_keras_frontend(keras_model)
+        # RNN dense
+        data = keras.layers.Input(shape=(1, 32))
+        x = keras.layers.Dense(32, activation="relu", kernel_initializer="uniform")(data)
+        keras_model = keras.models.Model(data, x)
+        verify_keras_frontend(keras_model, need_transpose=False)
 
     def test_forward_permute(self, keras):
         data = keras.layers.Input(shape=(2, 3, 4))
@@ -573,6 +578,20 @@ class TestKeras:
             x = pool_func(data)
             keras_model = keras.models.Model(data, x)
             verify_keras_frontend(keras_model, layout="NDHWC")
+
+    def test_forward_nested_layers(self, keras):
+        sub_model = keras.applications.MobileNet(
+            include_top=False, weights="imagenet", input_shape=(224, 224, 3)
+        )
+        keras_model = keras.Sequential(
+            [
+                sub_model,
+                keras.layers.GlobalAveragePooling2D(),
+                keras.layers.Dense(1024, activation="relu"),
+                keras.layers.Dense(2, activation="sigmoid"),
+            ]
+        )
+        verify_keras_frontend(keras_model)
 
 
 if __name__ == "__main__":

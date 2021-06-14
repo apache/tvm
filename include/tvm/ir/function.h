@@ -26,7 +26,9 @@
 
 #include <tvm/ir/attrs.h>
 #include <tvm/ir/expr.h>
-#include <tvm/runtime/container.h>
+#include <tvm/runtime/container/array.h>
+#include <tvm/runtime/container/map.h>
+#include <tvm/runtime/container/string.h>
 
 #include <string>
 #include <type_traits>

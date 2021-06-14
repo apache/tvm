@@ -26,7 +26,7 @@ from .. import rpc
 
 
 def _convert_to_remote(func, remote):
-    """ convert module function to remote rpc function"""
+    """convert module function to remote rpc function"""
     temp = utils.tempdir()
     path_dso = temp.relpath("tmp_func.tar")
     func.export_library(path_dso)
@@ -377,7 +377,7 @@ def measure_peak_all(target, target_host, host, port):
     if str(target).startswith("opencl"):
         dev = remote.cl()
     elif str(target).startswith("cuda"):
-        dev = remote.gpu()
+        dev = remote.cuda()
     elif str(target).startswith("metal"):
         dev = remote.metal()
     else:

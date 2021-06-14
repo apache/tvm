@@ -172,6 +172,17 @@ class ZephyrCompiler(tvm.micro.Compiler):
             project_dir_conf = os.path.join(self._project_dir, "prj.conf")
             if os.path.exists(project_dir_conf):
                 shutil.copy(project_dir_conf, lib_prj_conf)
+
+            # Copy board-specific Zephyr config file from the project_dir to
+            # the build lib dir so board-specific configs can be found and used by
+            # Zephyr's build system in conjunction with the generic prj.conf configs.
+            board_conf = os.path.join("boards", self._board + ".conf")
+            project_dir_board_conf = os.path.join(self._project_dir, board_conf)
+            if os.path.exists(project_dir_board_conf):
+                os.mkdir(os.path.join(output, "boards"))
+                lib_dir_board_conf = os.path.join(output, board_conf)
+                shutil.copy(project_dir_board_conf, lib_dir_board_conf)
+
         else:
             with open(lib_prj_conf, "w") as prj_conf_f:
                 prj_conf_f.write("CONFIG_CPLUSPLUS=y\n")

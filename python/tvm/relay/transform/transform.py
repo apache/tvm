@@ -1092,6 +1092,29 @@ def DenseToSparse(weight_name, weight_shape):
     return _ffi_api.DenseToSparse(weight_name, weight_shape)
 
 
+def Conv2dToSparse(weight_name, weight_shape, layout):
+    """
+    Rewrite qualified ```nn.conv2d operation``` to ```nn.sparse_conv2d```
+
+    Parameters
+    ----------
+    weight_name: Array[String]
+      Names of weights which qualified sparse contrains
+
+    weight_shape: Array[Array[IntImm]]
+      Weights shape in BSR format.
+
+    layout : str
+        layout of data
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The registered DenseToSparse pass.
+    """
+    return _ffi_api.Conv2dToSparse(weight_name, weight_shape, layout)
+
+
 def SimplifyFCTranspose(target_weight_name):
     """
     Rewrite ```y = nn.dense(x, transpose(w, [1, 0]))``` to ```y = nn.dense(x, wt)```
@@ -1148,3 +1171,31 @@ def AnnotateSpans():
         The regsistered AnnotateSpans pass.
     """
     return _ffi_api.AnnotateSpans()
+
+
+def FakeQuantizationToInteger():
+    # pylint: disable=anomalous-backslash-in-string
+    """
+    Find regions of the graph of the form
+
+    x    w
+    |    |
+    dq   dq
+     \   /
+      op1
+       |
+      op2
+       |
+       q
+
+    where q == qnn.quantize and dq = qnn.dequantize
+    and rewrite them into integer versions of op1 and op2
+
+    Rules for rewriting indivdual ops are in fake_quantization_to_integer.py
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The registered SimplifyExpr pass.
+    """
+    return _ffi_api.FakeQuantizationToInteger()

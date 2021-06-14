@@ -794,17 +794,20 @@ void CodeGenCPU::DefineFunctionRegistry(Array<String> func_names) {
   std::vector<llvm::Constant*> funcs;
   for (auto sym : func_names) {
     symbols.push_back(sym);
-    llvm::GlobalVariable* sym_func = new llvm::GlobalVariable(
-        *module_, ftype_tvm_backend_packed_c_func_, true, llvm::GlobalValue::ExternalLinkage,
-        nullptr, sym.operator std::string());
+    auto* sym_func =
+        llvm::Function::Create(ftype_tvm_backend_packed_c_func_, llvm::GlobalValue::ExternalLinkage,
+                               sym.operator std::string(), module_.get());
+
     funcs.emplace_back(sym_func);
   }
-  llvm::DataLayout layout(module_.get());
   llvm::ArrayType* t_tvm_crt_func_ptrs =
       llvm::ArrayType::get(ftype_tvm_backend_packed_c_func_->getPointerTo(), funcs.size());
+  llvm::DataLayout layout(module_.get());
+
   llvm::GlobalVariable* func_registry_ptrs = new llvm::GlobalVariable(
       *module_, t_tvm_crt_func_ptrs, true, llvm::GlobalValue::InternalLinkage,
       llvm::ConstantArray::get(t_tvm_crt_func_ptrs, funcs), "_tvm_func_registry_ptrs");
+
   uint64_t align = layout.getTypeAllocSize(ftype_tvm_backend_packed_c_func_->getPointerTo());
 #if TVM_LLVM_VERSION >= 100
   func_registry_ptrs->setAlignment(llvm::Align(align));
@@ -815,7 +818,9 @@ void CodeGenCPU::DefineFunctionRegistry(Array<String> func_names) {
       *module_, t_tvm_crt_func_registry_, true, llvm::GlobalVariable::InternalLinkage,
       llvm::ConstantStruct::get(
           t_tvm_crt_func_registry_,
-          {GetConstString(::tvm::target::GenerateFuncRegistryNames(symbols)), func_registry_ptrs}),
+          {GetConstString(::tvm::target::GenerateFuncRegistryNames(symbols)),
+           llvm::ConstantExpr::getBitCast(func_registry_ptrs,
+                                          ftype_tvm_backend_packed_c_func_->getPointerTo())}),
       "_tvm_crt_func_registry");
   llvm::GlobalVariable* module = new llvm::GlobalVariable(
       *module_, t_tvm_crt_module_, true, llvm::GlobalValue::InternalLinkage,

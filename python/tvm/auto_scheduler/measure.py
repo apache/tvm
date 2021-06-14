@@ -84,7 +84,7 @@ class BuildFunc:
 
 @tvm._ffi.register_object("auto_scheduler.MeasureCallback")
 class MeasureCallback(Object):
-    """ The base class of measurement callback functions. """
+    """The base class of measurement callback functions."""
 
 
 @tvm._ffi.register_object("auto_scheduler.PythonBasedMeasureCallback")
@@ -244,7 +244,7 @@ def recover_measure_input(inp, rebuild_state=False):
 
 @tvm._ffi.register_object("auto_scheduler.ProgramBuilder")
 class ProgramBuilder(Object):
-    """ The base class of ProgramBuilders. """
+    """The base class of ProgramBuilders."""
 
     def build(self, measure_inputs, verbose=1):
         """Build programs and return results.
@@ -265,7 +265,7 @@ class ProgramBuilder(Object):
 
 @tvm._ffi.register_object("auto_scheduler.ProgramRunner")
 class ProgramRunner(Object):
-    """ The base class of ProgramRunners. """
+    """The base class of ProgramRunners."""
 
     def run(self, measure_inputs, build_results, verbose=1):
         """Run measurement and return results.
@@ -552,20 +552,18 @@ class LocalRPCMeasureContext:
         if dev.exist:
             cuda_arch = "sm_" + "".join(dev.compute_version.split("."))
             set_cuda_target_arch(cuda_arch)
-        host = "0.0.0.0"
-        self.tracker = Tracker(host, port=9000, port_end=10000, silent=True)
+        self.tracker = Tracker(port=9000, port_end=10000, silent=True)
         device_key = "$local$device$%d" % self.tracker.port
         self.server = Server(
-            host,
             port=self.tracker.port,
             port_end=10000,
             key=device_key,
             silent=True,
-            tracker_addr=(self.tracker.host, self.tracker.port),
+            tracker_addr=("127.0.0.1", self.tracker.port),
         )
         self.runner = RPCRunner(
             device_key,
-            host,
+            "127.0.0.1",
             self.tracker.port,
             priority,
             n_parallel,
@@ -587,7 +585,7 @@ class LocalRPCMeasureContext:
 
 
 class MeasureErrorNo(object):
-    """ Error type for MeasureResult. """
+    """Error type for MeasureResult."""
 
     NO_ERROR = 0  # No error
     INSTANTIATION_ERROR = 1  # Errors happen when apply transform steps from init state
@@ -888,7 +886,7 @@ def _timed_eval_func(
                     random_fill(empty_array)
                     args.append(empty_array)
             if task_inputs_count != len(task_input_names):
-                logger.warning(
+                raise RuntimeError(
                     "task_inputs not fully matched, check if there's any unexpected error"
                 )
             dev.sync()

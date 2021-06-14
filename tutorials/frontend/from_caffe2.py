@@ -107,7 +107,7 @@ import tvm
 from tvm import te
 from tvm.contrib import graph_executor
 
-# context x86 CPU, use tvm.gpu(0) if you run on GPU
+# context x86 CPU, use tvm.cuda(0) if you run on GPU
 dev = tvm.cpu(0)
 # create a runtime executor module
 m = graph_executor.GraphModule(lib["default"](dev))
@@ -117,7 +117,7 @@ m.set_input(input_name, tvm.nd.array(data.astype("float32")))
 m.run()
 # get outputs
 tvm_out = m.get_output(0)
-top1_tvm = np.argmax(tvm_out.asnumpy()[0])
+top1_tvm = np.argmax(tvm_out.numpy()[0])
 
 #####################################################################
 # Look up synset name

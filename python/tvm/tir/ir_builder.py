@@ -374,6 +374,26 @@ class IRBuilder(object):
 
         return WithScope(None, _exit_cb)
 
+    def let(self, var_name, value):
+        """Create a new let stmt binding.
+
+        Parameters
+        ----------
+        var_name : str
+            The name of the variable
+
+        value : PrimExpr
+            The value to be bound
+
+        Returns
+        -------
+        var : tvm.tir.Var
+           The var that can be in for future emits.
+        """
+        var = _expr.Var(var_name, dtype=value.dtype)
+        self.emit(lambda x: _stmt.LetStmt(var, value, x))
+        return var
+
     def allocate(self, dtype, shape, name="buf", scope=None):
         """Create a allocate statement.
 

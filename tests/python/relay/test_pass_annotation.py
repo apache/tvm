@@ -23,12 +23,19 @@ from tvm import relay
 from tvm.contrib import graph_executor
 from tvm.relay.expr_functor import ExprMutator
 from tvm.relay import transform
+from tvm.ir.instrument import pass_instrument
 import tvm.testing
 
 
-def _trace(module, metadata, _):
-    if metadata.name == "ManifestAlloc":
-        pass  # import pdb; pdb.set_trace()
+@tvm.instrument.pass_instrument
+class Trace:
+    def run_before_pass(self, module, pass_info):
+        if pass_info.name == "ManifestAlloc":
+            pass  # import pdb; pdb.set_trace()
+
+    def run_after_pass(self, module, pass_info):
+        if pass_info.name == "ManifestAlloc":
+            pass  # import pdb; pdb.set_trace()
 
 
 def check_graph_executor(
@@ -44,19 +51,19 @@ def check_graph_executor(
         mod = graph_executor.create(graph, lib, contexts)
         mod.set_input(**new_params)
         mod.run()
-        res = mod.get_output(0).asnumpy()
+        res = mod.get_output(0).numpy()
         tvm.testing.assert_allclose(res, ref_res, rtol=1e-5, atol=1e-5)
 
 
 def check_vm_runtime(target, ref_res, device, func, params, config, opt_level, expected_index=None):
-    with tvm.transform.PassContext(opt_level=opt_level, trace=_trace, config=config):
+    with tvm.transform.PassContext(opt_level=opt_level, instruments=[Trace()], config=config):
         mod = tvm.IRModule()
         mod["main"] = func
         exe = relay.vm.compile(mod, target)
         dev = [tvm.cpu(0), tvm.device(device)]
         vm = tvm.runtime.vm.VirtualMachine(exe, dev)
         res = vm.invoke("main", **params)
-        tvm.testing.assert_allclose(res.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
+        tvm.testing.assert_allclose(res.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
 
 def run_opt_pass(expr, passes):
@@ -186,7 +193,7 @@ def check_annotated_graph(annotated_func, expected_func):
 
 
 def test_conv_network():
-    R"""The network is as following:
+    r"""The network is as following:
     data1     data2
       |         |
     conv2d    conv2d
@@ -266,7 +273,7 @@ def test_conv_network():
         storage_ids = []
         device_types = []
         for _, storage_dev_type in smap.items():
-            assert len(storage_dev_type) == 2
+            assert len(storage_dev_type) == 3
             for sid in storage_dev_type[0]:
                 storage_ids.append(sid.value)
             for did in storage_dev_type[1]:
@@ -389,7 +396,7 @@ def run_fusible_network(dev, tgt):
         return func
 
     def test_fuse_log_add(device, tgt):
-        """ Only log and add are fused."""
+        """Only log and add are fused."""
         fallback_device = tvm.device("cpu")
         target = {"cpu": "llvm", device: tgt}
         cpu_dev = fallback_device
@@ -530,7 +537,7 @@ def run_fusible_network(dev, tgt):
 
 
 def run_unpropagatable_graph(dev, tgt):
-    R"""The network is as following:
+    r"""The network is as following:
     a     b  c     d
      \   /    \   /
       add      mul

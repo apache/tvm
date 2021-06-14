@@ -85,7 +85,7 @@ impl Module {
         Ok(Function::new(fhandle))
     }
 
-    /// Imports a dependent module such as `.ptx` for gpu.
+    /// Imports a dependent module such as `.ptx` for cuda gpu.
     pub fn import_module(&self, dependent_module: Module) {
         check_call!(ffi::TVMModImport(self.handle(), dependent_module.handle()))
     }

@@ -164,7 +164,7 @@ class Device(ctypes.Structure):
     _fields_ = [("device_type", ctypes.c_int), ("device_id", ctypes.c_int)]
     MASK2STR = {
         1: "cpu",
-        2: "gpu",
+        2: "cuda",
         4: "opencl",
         5: "aocl",
         6: "sdaccel",
@@ -173,7 +173,6 @@ class Device(ctypes.Structure):
         9: "vpi",
         10: "rocm",
         12: "ext_dev",
-        13: "micro_dev",
         14: "hexagon",
         15: "webgpu",
     }
@@ -182,7 +181,6 @@ class Device(ctypes.Structure):
         "stackvm": 1,
         "cpu": 1,
         "c": 1,
-        "gpu": 2,
         "cuda": 2,
         "nvptx": 2,
         "cl": 4,
@@ -195,7 +193,6 @@ class Device(ctypes.Structure):
         "vpi": 9,
         "rocm": 10,
         "ext_dev": 12,
-        "micro_dev": 13,
         "hexagon": 14,
         "webgpu": 15,
     }
@@ -377,7 +374,7 @@ class Device(ctypes.Structure):
             The version of the SDK
 
         """
-        return self._GetDeviceAttr(self.device_type, self.device_id, 12)
+        return self._GetDeviceAttr(self.device_type, self.device_id, 11)
 
     @property
     def driver_version(self):

@@ -230,7 +230,7 @@ opts = tvm.micro.default_options(
 #     from tvm.micro.contrib import zephyr
 #
 #     repo_root = subprocess.check_output(["git", "rev-parse", "--show-toplevel"], encoding='utf-8').strip()
-#     project_dir = os.path.join(repo_root, "apps", "microtvm", "zephyr", "demo_runtime")
+#     project_dir = os.path.join(repo_root, "apps", "microtvm", "zephyr", "host_driven")
 #     compiler = zephyr.ZephyrCompiler(
 #         project_dir=project_dir,
 #         board=BOARD,
@@ -276,5 +276,5 @@ with tvm.micro.Session(binary=micro_binary, flasher=flasher) as session:
     graph_mod.set_input(input_tensor, tvm.nd.array(np.array([0.5], dtype="float32")))
     graph_mod.run()
 
-    tvm_output = graph_mod.get_output(0).asnumpy()
+    tvm_output = graph_mod.get_output(0).numpy()
     print("result is: " + str(tvm_output))

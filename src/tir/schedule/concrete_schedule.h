@@ -19,9 +19,6 @@
 #ifndef TVM_TIR_SCHEDULE_CONCRETE_SCHEDULE_H_
 #define TVM_TIR_SCHEDULE_CONCRETE_SCHEDULE_H_
 
-#include <tvm/arith/analyzer.h>
-#include <tvm/tir/schedule/schedule.h>
-
 #include <memory>
 #include <utility>
 
@@ -40,6 +37,8 @@ class ConcreteScheduleNode : public ScheduleNode {
  protected:
   /*! \brief The internal state of scheduling */
   ScheduleState state_;
+  /*! \brief The level of error rendering */
+  ScheduleErrorRenderLevel error_render_level_;
   /*! \brief A symbol table that maps random variables to concrete StmtSRef/Integers */
   TSymbolTable symbol_table_;
   /*! \brief A persistent stateless arithmetic analyzer. */
@@ -47,6 +46,7 @@ class ConcreteScheduleNode : public ScheduleNode {
 
  public:
   void VisitAttrs(tvm::AttrVisitor* v) {
+    // `error_render_level_` is not visited
     // `state_` is not visited
     // `symbol_table_` is not visited
     // `analyzer_` is not visitied
@@ -65,18 +65,26 @@ class ConcreteScheduleNode : public ScheduleNode {
   /******** Lookup random variables ********/
   inline Block Get(const BlockRV& block_rv) const final;
   inline For Get(const LoopRV& loop_rv) const final;
-  inline int64_t Get(const IntRV& int_rv) const final;
+  inline PrimExpr Get(const ExprRV& expr_rv) const final;
   inline StmtSRef GetSRef(const BlockRV& block_rv) const final;
   inline StmtSRef GetSRef(const LoopRV& loop_rv) const final;
   void RemoveRV(const BlockRV& block_rv) final { RemoveFromSymbolTable(block_rv); }
   void RemoveRV(const LoopRV& loop_rv) final { RemoveFromSymbolTable(loop_rv); }
-  void RemoveRV(const IntRV& int_rv) final { RemoveFromSymbolTable(int_rv); }
+  void RemoveRV(const ExprRV& expr_rv) final { RemoveFromSymbolTable(expr_rv); }
   using ScheduleNode::GetSRef;
 
  public:
   /******** Block/Loop relation ********/
   BlockRV GetBlock(const String& name, const String& func_name = "main") override;
   Array<LoopRV> GetLoops(const BlockRV& block_rv) override;
+  /******** Schedule: loops manipulation ********/
+  /******** Schedule: compute location ********/
+  void ComputeInline(const BlockRV& block) override;
+  void ReverseComputeInline(const BlockRV& block) override;
+  /******** Schedule: loop binding/annotation ********/
+  /******** Schedule: cache read/write ********/
+  /******** Schedule: reduction ********/
+  /******** Schedule: blockize & tensorize ********/
 
   /******** Utility functions ********/
  protected:
@@ -103,17 +111,17 @@ class ConcreteScheduleNode : public ScheduleNode {
   template <class T>
   inline T CreateRV(const StmtSRef& sref);
   /*!
-   * \brief Add an integer as a random variable into the symbol table
-   * \param number The integer to be added to the symbol table
+   * \brief Add an expr as a random variable into the symbol table
+   * \param expr The expr to be added to the symbol table
    * \return The new random variable created
    */
-  inline IntRV CreateRV(int64_t number);
+  inline ExprRV CreateRV(const PrimExpr& expr);
   /*!
-   * \brief Add integers as random variables into the symbol table
-   * \param numbers The integers to be added to the symbol table
+   * \brief Add expr as random variables into the symbol table
+   * \param exprs The expr to be added to the symbol table
    * \return The new random variables created
    */
-  inline Array<IntRV> CreateRV(const Array<Integer>& numbers);
+  inline Array<ExprRV> CreateRV(const Array<PrimExpr>& exprs);
   /*! \brief Remove a random variable from the symbol table */
   inline void RemoveFromSymbolTable(const ObjectRef& rv);
 };
@@ -134,18 +142,18 @@ inline For ConcreteScheduleNode::Get(const LoopRV& loop_rv) const {
   return GetRef<For>(loop);
 }
 
-inline int64_t ConcreteScheduleNode::Get(const IntRV& int_rv) const {
-  auto it = this->symbol_table_.find(int_rv);
+inline PrimExpr ConcreteScheduleNode::Get(const ExprRV& expr_rv) const {
+  auto it = this->symbol_table_.find(expr_rv);
   if (it == this->symbol_table_.end()) {
-    LOG(FATAL) << "IndexError: Cannot find corresponding IntRV: " << int_rv;
+    LOG(FATAL) << "IndexError: Cannot find corresponding ExprRV: " << expr_rv;
   }
   const ObjectRef& obj = (*it).second;
-  const auto* int_imm = obj.as<IntImmNode>();
-  if (int_imm == nullptr) {
-    LOG(FATAL) << "ValueError: IntRV's corresponding type is invalid: "
+  const auto* expr_node = obj.as<PrimExprNode>();
+  if (expr_node == nullptr) {
+    LOG(FATAL) << "ValueError: ExprRV's corresponding type is invalid: "
                << (obj.defined() ? obj->GetTypeKey() : "None");
   }
-  return int_imm->value;
+  return GetRef<PrimExpr>(expr_node);
 }
 
 inline StmtSRef ConcreteScheduleNode::GetSRef(const BlockRV& block_rv) const {
@@ -208,21 +216,21 @@ template <class T>
 inline T ConcreteScheduleNode::CreateRV(const StmtSRef& sref) {
   T rv;
   this->symbol_table_.Set(rv, sref);
-  return rv;
-}
-
-inline IntRV ConcreteScheduleNode::CreateRV(int64_t number) {
-  Var rv;
-  this->symbol_table_.Set(rv, Integer(number));
   return std::move(rv);
 }
 
-inline Array<IntRV> ConcreteScheduleNode::CreateRV(const Array<Integer>& numbers) {
-  Array<IntRV> result;
-  result.reserve(numbers.size());
-  for (int64_t number : numbers) {
-    Var rv;
-    this->symbol_table_.Set(rv, IntImm(DataType::Int(32), number));
+inline ExprRV ConcreteScheduleNode::CreateRV(const PrimExpr& expr) {
+  ExprRV rv;
+  this->symbol_table_.Set(rv, expr);
+  return std::move(rv);
+}
+
+inline Array<ExprRV> ConcreteScheduleNode::CreateRV(const Array<PrimExpr>& exprs) {
+  Array<ExprRV> result;
+  result.reserve(exprs.size());
+  for (const PrimExpr& expr : exprs) {
+    ExprRV rv;
+    this->symbol_table_.Set(rv, expr);
     result.push_back(rv);
   }
   return result;

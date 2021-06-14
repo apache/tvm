@@ -347,6 +347,17 @@ def MakePackedAPI(num_unpacked_params=0):
     return _ffi_api.MakePackedAPI(num_unpacked_params)
 
 
+def MakeUnpackedAPI():
+    """Transform the PrimFuncs in the module to a C API compatible with internal calls.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.MakeUnpackedAPI()
+
+
 def SplitHostDevice():
     """Split the function into a host function and device functions.
 
@@ -610,3 +621,16 @@ def CompactBufferAllocation():
         The result pass
     """
     return _ffi_api.CompactBufferAllocation()
+
+
+def FlattenBuffer():
+    """Flatten the multi-dimensional BufferLoad and BufferStore
+    to single dimensional Load/Store. Also remove Block to
+    ensure that the flattened TIR can not be scheduled again.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.FlattenBuffer()

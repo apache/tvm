@@ -19,7 +19,8 @@ Introduction
 ============
 **Authors**:
 `Jocelyn Shiue <https://github.com/>`_,
-`Chris Hoge <https://github.com/hogepodge>`_
+`Chris Hoge <https://github.com/hogepodge>`_,
+`Lianmin Zheng <https://github.com/merrymercy>`_
 
 Apache TVM is an open source machine learning compiler framework for CPUs,
 GPUs, and machine learning accelerators. It aims to enable machine learning
@@ -35,11 +36,11 @@ Contents
 
 #. :doc:`Introduction <introduction>`
 #. :doc:`Installing TVM <install>`
-#. :doc:`Compiling and Optimizing a Model with TVMC <tvmc_command_line_driver>`
-#. :doc:`Compiling and Optimizing a Model with the Python AutoScheduler <auto_tuning_with_python>`
-#. :doc:`Working with Operators Using Tensor Expressions <tensor_expr_get_started>`
-#. :doc:`Optimizing Operators with Templates and AutoTVM <autotvm_matmul>`
-#. :doc:`Optimizing Operators with AutoScheduling <tune_matmul_x86>`
+#. :doc:`Compiling and Optimizing a Model with the Command Line Interface <tvmc_command_line_driver>`
+#. :doc:`Compiling and Optimizing a Model with the Python Interface <autotvm_relay_x86>`
+#. :doc:`Working with Operators Using Tensor Expression <tensor_expr_get_started>`
+#. :doc:`Optimizing Operators with Templates and AutoTVM <autotvm_matmul_x86>`
+#. :doc:`Optimizing Operators with Template-free AutoScheduler <auto_scheduler_matmul_x86>`
 #. :doc:`Cross Compilation and Remote Procedure Calls (RPC) <cross_compilation_and_rpc>`
 #. :doc:`Compiling Deep Learning Models for GPUs <relay_quick_start>`
 """
@@ -51,18 +52,18 @@ Contents
 # The diagram below illustrates the steps a machine model takes as it is
 # transformed with the TVM optimizing compiler framework.
 #
-# .. image:: https://raw.githubusercontent.com/hogepodge/web-data/c339ebbbae41f3762873147c1e920a53a08963dd/images/getting_started/overview.png
+# .. image:: https://raw.githubusercontent.com/apache/tvm-site/main/images/tutorial/overview.png
 #   :width: 100%
 #   :alt: A High Level View of TVM
 #
 # 1. Import the model from a framework like *Tensorflow*, *Pytorch*, or *Onnx*.
 #    The importer layer is where TVM can ingest models from other frameworks, like
-#    ONNX, Tensorflow, or PyTorch. The level of support that TVM offers for each
+#    Tensorflow, PyTorch, or ONNX. The level of support that TVM offers for each
 #    frontend varies as we are constantly improving the open source project. If
 #    you're having issues importing your model into TVM, you may want to try
 #    converting it to ONNX.
 #
-# 2. Translate to *Relay*, TVM's high level model language.
+# 2. Translate to *Relay*, TVM's high-level model language.
 #    A model that has been imported into TVM is represented in Relay. Relay is a
 #    functional language and intermediate representation (IR) for neural networks.
 #    It has support for:
@@ -72,46 +73,47 @@ Contents
 #      differentiable language
 #    - Ability to allow the user to mix the two programming styles
 #
-#    Relay applies several high-level optimization to the model, after which
-#    is runs the Relay Fusion Pass. To aid in the process of converting to
-#    Relay, TVM includes a Tensor Operator Inventory (TOPI) that has pre-defined
-#    templates of common computations.
+#    Relay applies graph-level optimization passes to optimize the model.
 #
 # 3. Lower to *Tensor Expression* (TE) representation. Lowering is when a
 #    higher-level representation is transformed into a lower-level
-#    representation. In Relay Fusion Pass, the model is lowered from the
-#    higher-level Relay representation into a smaller set of subgraphs, where
-#    each node is a task. A task is a collection of computation templates,
-#    expressed in TE, where there parameters of the template can control how
-#    the computation is carried out on hardware. The specific ordering of compuation,
-#    defined by parameters to the TE template, is called a schedule.
+#    representation. After applying the high-level optimizations, Relay
+#    runs FuseOps pass to partition the model into many small subgraphs and lowers
+#    the subgraphs to TE representation. Tensor Expression (TE) is a
+#    domain-specific language for describing tensor computations.
+#    TE also provides several *schedule* primitives to specify low-level loop
+#    optimizations, such as tiling, vectorization, parallelization,
+#    unrolling, and fusion.
+#    To aid in the process of converting Relay representation into TE representation,
+#    TVM includes a Tensor Operator Inventory (TOPI) that has pre-defined
+#    templates of common tensor operators (e.g., conv2d, transpose).
 #
-# 4. Search for optimized schedule using *AutoTVM* or *AutoScheduler* for each
-#    task through tuning. Tuning is the process of searching the TE parameter
-#    space for a schedule that is optimized for target hardware. There are
-#    couple of optimization options available, each requiring varying levels of
-#    user interaction. The optimization options include:
+# 4. Search for the best schedule using the auto-tuning module *AutoTVM* or *AutoScheduler*.
+#    A schedule specifies the low-level loop optimizations for an operator or
+#    subgraph defined in TE. Auto-tuning modules search for the best schedule
+#    and compare them with cost models and on-device measurements.
+#    There are two auto-tuning modules in TVM.
 #
-#    - **AutoTVM**: The user specifies a search template for the schedule of a TE task,
-#      or TE subraph. AutoTVM directs the search of the parameter space defined by the
-#      template to produce an optimized configuration. AutoTVM requires users to
-#      define manually templates for each operator as part of the TOPI.
-#    - **Ansor/AutoSchedule**: Using a TVM Operator Inventory (TOPI) of operations,
-#      Ansor can automatically search an optimization space with much less
-#      intervention and guidance from the end user. Ansor depends on TE templates to
-#      guide the search.
+#    - **AutoTVM**: A template-based auto-tuning module. It runs search algorithms
+#      to find the best values for the tunable knobs in a user-defined template.
+#      For common operators, their templates are already provided in TOPI.
+#    - **AutoScheduler (a.k.a. Ansor)**: A template-free auto-tuning module.
+#      It does not require pre-defined schedule templates. Instead, it generates
+#      the search space automatically by analyzing the computation definition.
+#      It then searches for the best schedule in the generated search space.
 #
-# 5. Choose the optimal configuration for the model. After tuning, an optimal schedule
-#    for each task is chosen. Regardless if it is AutoTVM or AutoSchedule,
-#    schedule records in JSON format are produced that are referred to by this step
-#    to build an optimized model.
+# 5. Choose the optimal configurations for model compilation. After tuning, the
+#    auto-tuning module generates tuning records in JSON format. This step
+#    picks the best schedule for each subgraph.
 #
-# 6. Lower to a hardware specific compiler. After selecting an optimized configuration
-#    based on the tuning step, the model is then lowered to a representation
-#    expected by the target compiler for the hardware platform. This is the
-#    final code generation phase with the intention of producing an optimized
-#    model that can be deployed into production. TVM supports a number of
-#    different compiler backends including:
+# 6. Lower to Tensor Intermediate Representation (TIR), TVM's low-level
+#    intermediate representation. After selecting the optimal configurations
+#    based on the tuning step, each TE subgraph is lowered to TIR and be
+#    optimized by low-level optimization passes. Next, the optimized TIR is
+#    lowered to the target compiler of the hardware platform.
+#    This is the final code generation phase to produce an optimized model
+#    that can be deployed into production. TVM supports several different
+#    compiler backends including:
 #
 #    - LLVM, which can target arbitrary microprocessor architecture including
 #      standard x86 and ARM processors, AMDGPU and NVPTX code generation, and any

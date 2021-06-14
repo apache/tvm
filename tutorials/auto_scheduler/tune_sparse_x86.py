@@ -39,6 +39,7 @@ import os
 
 import numpy as np
 import tvm
+import tvm.testing
 from tvm import te, auto_scheduler, runtime, topi
 from tvm.auto_scheduler import _ffi_api
 from tvm.topi.utils import get_const_tuple
@@ -108,7 +109,14 @@ Y_np = np.maximum(np.zeros((M, N), dtype="float32"), Y_np)  # Relu
 target = tvm.target.Target("llvm")
 
 # Register the sparse data to task inputs
-prefix = "sparse_dense_bsr_%d_%d_%d_%d_%.2f_" % (N, K, BS_R, BS_C, density)
+prefix = "sparse_dense_bsr_%d_%d_%d_%d_%d_%d_" % (
+    N,
+    K,
+    BS_R,
+    BS_C,
+    W_sp_np.indices.shape[0],
+    W_sp_np.indptr.shape[0],
+)
 task = tvm.auto_scheduler.SearchTask(
     func=sparse_dense,
     args=(M, N, K, W_sp_np.data.shape, W_sp_np.indices.shape, W_sp_np.indptr.shape, "float32"),
@@ -263,7 +271,7 @@ Y_tvm = tvm.nd.empty(Y_np.shape, device=dev)
 func(X_tvm, W_data_tvm, W_indices_tvm, W_indptr_tvm, B_tvm, Y_tvm)
 
 # Check results
-tvm.testing.assert_allclose(Y_np, Y_tvm.asnumpy(), atol=1e-4, rtol=1e-4)
+tvm.testing.assert_allclose(Y_np, Y_tvm.numpy(), atol=1e-4, rtol=1e-4)
 
 # Evaluate execution time.
 evaluator = func.time_evaluator(func.entry_name, dev, min_repeat_ms=500)

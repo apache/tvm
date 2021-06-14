@@ -40,7 +40,7 @@ def test_no_op():
 
         # In TVM, no-op is currently translated to 0, though it should
         # probably be none or an empty tuple.
-        np.testing.assert_allclose(0, run_relay(g).asnumpy())
+        np.testing.assert_allclose(0, run_relay(g).numpy())
 
 
 if __name__ == "__main__":

@@ -206,7 +206,7 @@ def check_result(
         outs = outs if isinstance(outs, runtime.container.ADT) else [outs]
         results = result if isinstance(result, list) else [result]
         for out, ref in zip(outs, results):
-            tvm.testing.assert_allclose(out.asnumpy(), ref, rtol=tol, atol=tol)
+            tvm.testing.assert_allclose(out.numpy(), ref, rtol=tol, atol=tol)
 
     def check_graph_executor_result():
         compile_engine.get().clear()
@@ -226,7 +226,7 @@ def check_result(
         for idx, shape in enumerate(out_shapes):
             out = tvm.nd.empty(shape, device=device)
             out = rt_mod.get_output(idx, out)
-            tvm.testing.assert_allclose(out.asnumpy(), results[idx], rtol=tol, atol=tol)
+            tvm.testing.assert_allclose(out.numpy(), results[idx], rtol=tol, atol=tol)
 
     check_vm_result()
     check_graph_executor_result()
@@ -459,7 +459,7 @@ def test_extern_dnnl():
     ref_ex = relay.create_executor("graph", mod=ref_mod, device=tvm.cpu())
     ref_res = ref_ex.evaluate()(i_data, w1_data)
     check_result(
-        mod, {"data": i_data, "weight1": w1_data}, (1, 32, 14, 14), ref_res.asnumpy(), tol=1e-5
+        mod, {"data": i_data, "weight1": w1_data}, (1, 32, 14, 14), ref_res.numpy(), tol=1e-5
     )
 
 
@@ -480,7 +480,7 @@ def test_extern_dnnl_mobilenet():
     ref_res = ref_ex.evaluate()(i_data, **params)
     compile_engine.get().clear()
 
-    check_result(mod, {"data": i_data}, (1, 1000), ref_res.asnumpy(), tol=1e-5, params=params)
+    check_result(mod, {"data": i_data}, (1, 1000), ref_res.numpy(), tol=1e-5, params=params)
 
 
 def test_function_lifting():
@@ -923,7 +923,7 @@ def test_dnnl_fuse():
 
         mod = get_partitoned_mod(mod, params, dnnl_patterns)
 
-        check_result(mod, {"data": i_data}, out_shape, ref_res.asnumpy(), tol=1e-5, params=params)
+        check_result(mod, {"data": i_data}, out_shape, ref_res.numpy(), tol=1e-5, params=params)
 
     test_partition()
     test_partition_mobilenet()
@@ -1356,7 +1356,7 @@ def test_extern_opt():
     assert isinstance(t0.body, relay.Constant)
     expected = np.empty([2, 2])
     expected.fill(2)
-    tvm.testing.assert_allclose(t0.body.data.asnumpy(), expected, rtol=1e-5, atol=1e-5)
+    tvm.testing.assert_allclose(t0.body.data.numpy(), expected, rtol=1e-5, atol=1e-5)
 
 
 if __name__ == "__main__":

@@ -90,7 +90,7 @@ def benchmark_fc_int8_acc16():
 
         result = t_evaluator(x, w, y)
         gops_per_sec = gops_per_mm / result.mean / 1e9
-        tvm.testing.assert_allclose(y.asnumpy(), np.dot(a_, b_.T), rtol=1e-5)
+        tvm.testing.assert_allclose(y.numpy(), np.dot(a_, b_.T), rtol=1e-5)
         print(
             "Tensorization: running time: {:.3f} ms, {:.2f} Gops/s, effiency: {:.2f}.".format(
                 result.mean * 1000, gops_per_sec, gops_per_sec / peak

@@ -31,7 +31,7 @@ from ..op import OpPattern
 # resize
 @reg.register_compute("image.resize")
 def compute_resize(attrs, inputs, out_type):
-    """ compute definition for resize op """
+    """compute definition for resize op"""
     size = attrs.size
     layout = attrs.layout
     method = attrs.method

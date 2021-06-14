@@ -39,7 +39,7 @@ def dequantize_test_driver(in_dtype, quant_args, in_data, verify_output_data, ax
         rt_mod.set_input(input_data=in_data)
         rt_mod.set_input(**params)
         rt_mod.run()
-        res = rt_mod.get_output(0).asnumpy()
+        res = rt_mod.get_output(0).numpy()
         np.testing.assert_equal(res, verify_output_data)
         assert res.dtype == np.float32
 
@@ -68,6 +68,15 @@ def test_int8_to_float32():
         .astype("float32")
         .reshape((2, 5))
     )
+    quant_args = {"in_zero_point": -1, "in_scale": 0.5}
+    dequantize_test_driver(
+        in_dtype="int8", quant_args=quant_args, in_data=data, verify_output_data=output, axis=-1
+    )
+
+
+def test_scalar_int8_to_float32():
+    data = np.array(-128).astype("int8")
+    output = np.array(-63.5).astype("float32")
     quant_args = {"in_zero_point": -1, "in_scale": 0.5}
     dequantize_test_driver(
         in_dtype="int8", quant_args=quant_args, in_data=data, verify_output_data=output, axis=-1
@@ -148,6 +157,7 @@ def test_dynamic_dequantize():
 if __name__ == "__main__":
     test_uint8_to_float32()
     test_int8_to_float32()
+    test_scalar_int8_to_float32()
     test_int32_to_float32()
     test_channelwise_axis_1()
     test_channelwise_axis_0()

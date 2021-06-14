@@ -143,7 +143,7 @@ def verify_group_conv2d_NCHWc_int8(
         )
         # print(tvm.lower(s, [A, W, C], simple_mode=True))
         func(a, w, c)
-        tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-3)
+        tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-3)
 
     # for device in ["llvm"]:
     for device in ["llvm -mcpu=skylake-avx512"]:

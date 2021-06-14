@@ -23,7 +23,7 @@
  */
 
 #include <dmlc/memory_io.h>
-#include <tvm/runtime/container.h>
+#include <tvm/runtime/container/adt.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/memory.h>
 #include <tvm/runtime/object.h>
@@ -142,11 +142,23 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
     });
   } else if (name == "get_output") {
     return TypedPackedFunc<NDArray(int64_t)>([this](int64_t index) {
-      return Downcast<NDArray>(Downcast<ADT>(this->return_register_)[index]);
+      if (this->return_register_.as<ADTObj>()) {
+        return Downcast<NDArray>(Downcast<ADT>(this->return_register_)[index]);
+      } else {
+        CHECK_EQ(index, 0) << "VM output contains only one item, but you are trying to get the "
+                           << index << "th.";
+        return Downcast<NDArray>(this->return_register_);
+      }
     });
   } else if (name == "get_num_outputs") {
-    return TypedPackedFunc<int64_t(void)>(
-        [this]() -> int64_t { return Downcast<ADT>(this->return_register_).size(); });
+    return TypedPackedFunc<int64_t(void)>([this]() -> int64_t {
+      // single output is an NDArray not an ADT
+      if (this->return_register_.as<ADTObj>()) {
+        return Downcast<ADT>(this->return_register_).size();
+      } else {
+        return 1;
+      }
+    });
   } else if (name == "init") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       ICHECK_EQ(args.size() % 3, 0);
@@ -461,7 +473,7 @@ void VirtualMachine::RunLoop() {
       case Opcode::InvokeClosure: {
         auto object = ReadRegister(instr.closure);
         const auto* closure = object.as<VMClosureObj>();
-
+        ICHECK(closure);
         std::vector<ObjectRef> args;
         for (auto free_var : closure->free_vars) {
           args.push_back(free_var);

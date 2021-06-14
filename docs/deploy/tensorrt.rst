@@ -124,7 +124,7 @@ have to be built.
 
 .. code:: python
 
-    dev = tvm.gpu(0)
+    dev = tvm.cuda(0)
     loaded_lib = tvm.runtime.load_module('compiled.so')
     gen_module = tvm.contrib.graph_executor.GraphModule(loaded_lib['default'](dev))
     input_data = np.random.uniform(0, 1, input_shape).astype(dtype)
@@ -166,6 +166,14 @@ There are some additional options which can be configured at runtime using envir
   model can use. It is generally best to use the highest value which does not cause you to run out
   of memory. You can use ``TVM_TENSORRT_MAX_WORKSPACE_SIZE`` to override this by specifying the
   workspace size in bytes you would like to use.
+* For models which contain a dynamic batch dimension, the varaible ``TVM_TENSORRT_MULTI_ENGINE``
+  can be used to determine how TensorRT engines will be created at runtime. The default mode,
+  ``TVM_TENSORRT_MULTI_ENGINE=0``, will maintain only one engine in memory at a time. If an input
+  is encountered with a higher batch size, the engine will be rebuilt with the new max_batch_size
+  setting. That engine will be compatible with all batch sizes from 1 to max_batch_size. This mode
+  reduces the amount of memory used at runtime. The second mode, ``TVM_TENSORRT_MULTI_ENGINE=1``
+  will build a unique TensorRT engine which is optimized for each batch size that is encountered.
+  This will give greater performance, but will consume more memory.
 
 
 Operator support
@@ -180,6 +188,8 @@ Operator support
 | tanh                   |                                    |
 +------------------------+------------------------------------+
 | nn.batch_norm          |                                    |
++------------------------+------------------------------------+
+| nn.layer_norm          |                                    |
 +------------------------+------------------------------------+
 | nn.softmax             |                                    |
 +------------------------+------------------------------------+
@@ -253,6 +263,8 @@ Operator support
 +------------------------+------------------------------------+
 | nn.adaptive_avg_pool2d |                                    |
 +------------------------+------------------------------------+
+| nn.batch_matmul        |                                    |
++------------------------+------------------------------------+
 | clip                   | Requires TensorRT 5.1.5 or greater |
 +------------------------+------------------------------------+
 | nn.leaky_relu          | Requires TensorRT 5.1.5 or greater |
@@ -276,6 +288,8 @@ Operator support
 | nn.avg_pool3d          | Requires TensorRT 6.0.1 or greater |
 +------------------------+------------------------------------+
 | nn.conv3d_transpose    | Requires TensorRT 6.0.1 or greater |
++------------------------+------------------------------------+
+| erf                    | Requires TensorRT 7.0.0 or greater |
 +------------------------+------------------------------------+
 
 

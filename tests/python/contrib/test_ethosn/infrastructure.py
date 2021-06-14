@@ -235,12 +235,12 @@ def verify(answers, atol, rtol=1e-07, verify_saturation=True):
         for outs in combinations(answer, 2):
             if verify_saturation:
                 assert (
-                    np.count_nonzero(outs[0].asnumpy() == 255) < 0.25 * outs[0].asnumpy().size
+                    np.count_nonzero(outs[0].numpy() == 255) < 0.25 * outs[0].numpy().size
                 ), "Output is saturated: {}".format(outs[0])
                 assert (
-                    np.count_nonzero(outs[0].asnumpy() == 0) < 0.25 * outs[0].asnumpy().size
+                    np.count_nonzero(outs[0].numpy() == 0) < 0.25 * outs[0].numpy().size
                 ), "Output is saturated: {}".format(outs[0])
-            tvm.testing.assert_allclose(outs[0].asnumpy(), outs[1].asnumpy(), rtol=rtol, atol=atol)
+            tvm.testing.assert_allclose(outs[0].numpy(), outs[1].numpy(), rtol=rtol, atol=atol)
 
 
 def inference_result(outputs):
@@ -326,5 +326,5 @@ def get_ethosn_api_version():
 def get_ethosn_variant():
     ethosn_variant_config = os.getenv("ETHOSN_VARIANT_CONFIG")
     if ethosn_variant_config is not None:
-        return 3
-    return 0
+        return "Ethos-N78_1TOPS_2PLE_RATIO"
+    return "Ethos-N77"

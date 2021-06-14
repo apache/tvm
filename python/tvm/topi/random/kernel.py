@@ -212,11 +212,11 @@ def threefry_generate(gen, out_shape):
     Parameters
     ----------
     gen : Tensor[10, uint64]
-        Generator state. Can be create with :py:func:`tvm.relay.threefry_key`. This should not be
-        reused in another function, otherwise random numbers will be repeated.
+        Generator state. Can be create with :py:func:`tvm.relay.random.threefry_key`. This should
+        not be reused in another function, otherwise random numbers will be repeated.
 
     out_shape : Sequence[int]
-        Output shape of the random numbers. Product of all dimensions must be a multiple of 4.
+        Output shape of the random numbers.
 
     Returns
     -------
@@ -229,9 +229,6 @@ def threefry_generate(gen, out_shape):
     out_len = tir.const(1)
     for s in out_shape:
         out_len *= s
-    assert (
-        out_len.value % 4 == 0
-    ), f"Threefry can only generate arrays who's size is a multiple of 4 ({out_len} was provided)."
     assert (
         out_len.value <= 2 ** 64 - 1
     ), f"Can only generate up to 2^64 random numbers, but {out_len} were requested."
@@ -296,7 +293,14 @@ def threefry_generate(gen, out_shape):
                 _shift_right(irb, gen[8], gen[9], tmp, 8, tmp, 9)
 
         # Compute random values
-        _threefry(irb, tmp, 0, tmp, 4, out_array, 0, out_len // 4)
+        if out_len.value >= 4:
+            _threefry(irb, tmp, 0, tmp, 4, out_array, 0, out_len // 4)
+        if out_len.value % 4 != 0:
+            remaining = irb.allocate(gen.dtype, 4, name="remaining", scope="global")
+            tmp[7] = tmp[7] + tir.Cast(gen.dtype, out_len // 4 * 4)  # increment counter
+            _threefry(irb, tmp, 0, tmp, 4, remaining, 0, 1)
+            with irb.for_range(0, out_len % 4, dtype="uint64", name="i") as i:
+                out_array[out_len // 4 * 4 + i] = remaining[i]
 
         # Update generator state
         out_gen[0] = tmp[0]  # key stays the same
@@ -306,7 +310,13 @@ def threefry_generate(gen, out_shape):
         out_gen[4] = tmp[4]  # path stays the same
         out_gen[5] = tmp[5]
         out_gen[6] = tir.const(0, dtype=gen.dtype)  # unused, leave it as 0
-        out_gen[7] = tmp[7] + tir.Cast(gen.dtype, out_len)  # increment counter
+        if out_len.value % 4 != 0:
+            # increment counter for the remaining
+            # as we will generate 4 random numbers for the remaining, increase 4 here.
+            # the main increment was done before the second _threefry.
+            out_gen[7] = tmp[7] + tir.Cast(gen.dtype, 4)
+        else:
+            out_gen[7] = tmp[7] + tir.Cast(gen.dtype, out_len)  # increment counter
         out_gen[8] = tmp[8]  # path unchanged, so no update here
         out_gen[9] = tmp[9]
 
@@ -352,8 +362,8 @@ def threefry_split(gen):
     Parameters
     ----------
     gen : Tensor[10, uint64]
-        Generator state. Can be create with :py:func:`tvm.relay.threefry_key`. This should not be
-        reused in another function, otherwise random numbers will be repeated.
+        Generator state. Can be create with :py:func:`tvm.relay.random.threefry_key`. This should
+        not be reused in another function, otherwise random numbers will be repeated.
 
     Returns
     -------
@@ -465,4 +475,70 @@ def threefry_test_wrapping(target, device):
     s = tvm.te.create_schedule([f.op])
     out_ary = tvm.nd.array(np.ones((1,), "uint64"), device)
     tvm.build(s, [f], target=target)(out_ary)
-    return out_ary.asnumpy()[0] == 0
+    return out_ary.numpy()[0] == 0
+
+
+def uniform(gen, low, high, out_shape, out_dtype):
+    """Draw samples from a uniform distribution.
+
+    Samples are uniformly distributed over the half-open interval [low, high)
+    (includes low, but excludes high). In other words, any value within the
+    given interval is equally likely to be drawn by uniform.
+
+    Parameters
+    ----------
+    gen : ThreefryKey
+        Generator state. Can be create with :py:func:`tvm.relay.threefry_key`. This should not be
+        reused in another function, otherwise random numbers will be repeated.
+
+    low : Tensor[(), out_dtype]
+        Lower boundary of the output interval. All values generated will be
+        greater than or equal to low.
+
+    high : Tensor[(), out_dtype]
+        Upper boundary of the output interval. All values generated will be
+        less than high.
+
+    out_shape : Sequence[int]
+        Output shape of the random numbers.
+
+    out_dtype : str
+        The output dtype.
+
+    Returns
+    -------
+    new_gen : ThreefryKey
+        New generator state that is distinct from `gen`.
+
+    out : Tensor[out_shape, out_dtype]
+        Tensor of random numbers with shape `out_shape` and type `out_dtype`.
+    """
+    new_gen, random_bits = threefry_generate(gen, out_shape)
+    assert out_dtype in ("float32", "float64"), (
+        "Only support float32 or float64 for now, got %s" % out_dtype
+    )
+    if out_dtype == "float32":
+        random_dtype = "uint32"
+        nbits = 32
+        nfraction = 23
+    elif out_dtype == "float64":
+        random_dtype = "uint64"
+        nbits = 64
+        nfraction = 52
+    nexp = nbits - nfraction - 1
+    random_bits = random_bits.astype(random_dtype)
+
+    fraction = tvm.topi.right_shift(
+        random_bits, tvm.tir.const(nbits - nfraction, dtype=random_dtype)
+    )
+    exponent = tvm.topi.left_shift(
+        tvm.topi.full(out_shape, random_dtype, (1 << (nexp - 1)) - 1),
+        tvm.tir.const(nfraction, dtype=random_dtype),
+    )
+    mantissa = tvm.topi.bitwise_or(fraction, exponent).astype(random_dtype)
+    standard_uniform_values = tvm.topi.reinterpret(mantissa, out_dtype) - tvm.tir.const(
+        1, dtype=out_dtype
+    )
+    uniform_values = tvm.topi.add(tvm.topi.multiply(standard_uniform_values, high - low), low)
+
+    return new_gen, uniform_values

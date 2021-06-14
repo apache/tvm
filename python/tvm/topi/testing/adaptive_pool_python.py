@@ -73,7 +73,7 @@ def _pool3d(in_size, out_size, np_data, np_op):
 
 
 def adaptive_pool_channel_first(np_data, out_size, pool_op, np_op):
-    """ The reference function for adaptive pool, channel first layout """
+    """The reference function for adaptive pool, channel first layout"""
     ishape = np_data.shape
     n, c = ishape[:2]
     oshape = (n, c) + out_size
@@ -87,7 +87,7 @@ def adaptive_pool_channel_first(np_data, out_size, pool_op, np_op):
 
 
 def adaptive_pool_channel_last(np_data, out_size, pool_op, np_op):
-    """ The reference function for adaptive pool, channel last layout """
+    """The reference function for adaptive pool, channel last layout"""
     ishape = np_data.shape
     n, c = ishape[0], ishape[-1]
     oshape = (n,) + out_size + (c,)
@@ -108,7 +108,7 @@ def adaptive_pool_channel_last(np_data, out_size, pool_op, np_op):
 
 
 def adaptive_pool(np_data, out_size, pool_type, layout):
-    """ The reference function for adaptive pool, for 2d and 3d """
+    """The reference function for adaptive pool, for 2d and 3d"""
     if isinstance(out_size, int):
         out_size = (out_size,)
     if len(out_size) == 1:

@@ -84,7 +84,7 @@ TVM_REGISTER_GLOBAL("target.build.aocl")
       return BuildAOCL(mod, target, false);
     });
 
-TVM_REGISTER_GLOBAL("target.build.build.aocl_sw_emu")
+TVM_REGISTER_GLOBAL("target.build.aocl_sw_emu")
     .set_body_typed([](IRModule mod, Target target) -> runtime::Module {
       return BuildAOCL(mod, target, true);
     });

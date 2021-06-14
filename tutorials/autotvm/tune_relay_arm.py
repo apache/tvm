@@ -224,7 +224,7 @@ tuning_option = {
         builder=autotvm.LocalBuilder(build_func="ndk" if use_android else "default"),
         runner=autotvm.RPCRunner(
             device_key,
-            host="0.0.0.0",
+            host="127.0.0.1",
             port=9190,
             number=5,
             timeout=10,
@@ -278,6 +278,10 @@ def tune_tasks(
             tuner_obj = XGBTuner(tsk, loss_type="rank")
         elif tuner == "xgb_knob":
             tuner_obj = XGBTuner(tsk, loss_type="rank", feature_type="knob")
+        elif tuner == "xgb_itervar":
+            tuner_obj = XGBTuner(tsk, loss_type="rank", feature_type="itervar")
+        elif tuner == "xgb_curve":
+            tuner_obj = XGBTuner(tsk, loss_type="rank", feature_type="curve")
         elif tuner == "ga":
             tuner_obj = GATuner(tsk, pop_size=50)
         elif tuner == "random":
@@ -291,7 +295,7 @@ def tune_tasks(
             if os.path.isfile(tmp_log_file):
                 tuner_obj.load_history(autotvm.record.load_from_file(tmp_log_file))
 
-        # do tuning
+        # process tuning
         tsk_trial = min(n_trial, len(tsk.config_space))
         tuner_obj.tune(
             n_trial=tsk_trial,
@@ -343,7 +347,7 @@ def tune_and_evaluate(tuning_opt):
 
         # upload module to device
         print("Upload...")
-        remote = autotvm.measure.request_remote(device_key, "0.0.0.0", 9190, timeout=10000)
+        remote = autotvm.measure.request_remote(device_key, "127.0.0.1", 9190, timeout=10000)
         remote.upload(tmp.relpath(filename))
         rlib = remote.load_module(filename)
 

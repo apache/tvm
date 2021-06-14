@@ -96,7 +96,9 @@ def conv2d_strategy_mali(attrs, inputs, out_type, target):
                 )
             if is_winograd_applicable:
                 strategy.add_implementation(
-                    wrap_compute_conv2d(topi.nn.conv2d_winograd_nhwc),
+                    wrap_compute_conv2d(
+                        topi.nn.conv2d_winograd_nhwc, need_auto_scheduler_layout=True
+                    ),
                     naive_schedule,  # this implementation should never be picked by autotvm
                     name="conv2d_nhwc.winograd",
                     plevel=15,
@@ -155,7 +157,10 @@ def conv2d_winograd_without_weight_transfrom_strategy_mali(attrs, inputs, out_ty
                 "Winograd conv2d NHWC is not enabled for mali without auto_scheduler."
             )
         strategy.add_implementation(
-            wrap_compute_conv2d(topi.nn.conv2d_winograd_nhwc_without_weight_transform),
+            wrap_compute_conv2d(
+                topi.nn.conv2d_winograd_nhwc_without_weight_transform,
+                need_auto_scheduler_layout=True,
+            ),
             naive_schedule,  # this implementation should never be picked by autotvm
             name="conv2d_nhwc_winograd_without_weight_transform",
             plevel=15,

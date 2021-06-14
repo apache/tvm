@@ -82,7 +82,7 @@ def verify_batch_matmul(x_batch, y_batch, M, N, K, dynamic=False, debug=False):
         c = tvm.nd.array(np.zeros(get_const_tuple(out_shape), dtype=dtype), dev)
         f = tvm.build(s, [x, y, out], target, name="dense")
         f(a, b, c)
-        tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
+        tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-5)
 
     for target, dev in tvm.testing.enabled_targets():
         if dynamic and (target == "cuda" or target == "nvptx"):
@@ -125,7 +125,7 @@ def verify_batch_matmul_int8(x_batch, y_batch, M, N, K):
         c = tvm.nd.array(np.zeros(get_const_tuple(out.shape), dtype=out_dtype), dev)
         f = tvm.build(s, [x, y, out], device, name="batch_matmul_int8")
         f(a, b, c)
-        tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
+        tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-5)
 
     for device in ["cuda"]:
         check_device(device)

@@ -17,22 +17,19 @@
 """
 .. _tutorial-tensor-expr-get-started:
 
-Working with Operators Using Tensor Expressions
-===============================================
+Working with Operators Using Tensor Expression
+==============================================
 **Author**: `Tianqi Chen <https://tqchen.github.io>`_
 
 In this tutorial we will turn our attention to how TVM works with Tensor
-Expressions (TE) to create a space to search for performant configurations. TE
+Expression (TE) to define tensor computations and apply loop optimizations. TE
 describes tensor computations in a pure functional language (that is each
 expression has no side effects). When viewed in context of the TVM as a whole,
 Relay describes a computation as a set of operators, and each of these
 operators can be represented as a TE expression where each TE expression takes
-input tensors and produces an output tensor. It's important to note that the
-tensor isn't necessarily a fully materialized array, rather it is a
-representation of a computation. If you want to produce a computation from a
-TE, you will need to use the scheduling features of TVM.
+input tensors and produces an output tensor.
 
-This is an introductory tutorial to the Tensor expression language in TVM. TVM
+This is an introductory tutorial to the Tensor Expression language in TVM. TVM
 uses a domain specific tensor expression for efficient kernel construction. We
 will demonstrate the basic workflow with two examples of using the tensor expression
 language. The first example introduces TE and scheduling with vector
@@ -47,8 +44,8 @@ features of TVM.
 # ---------------------------------------------------------------
 #
 # Let's look at an example in Python in which we will implement a TE for
-# vector addition, followed by a schedule targeted towards a CPU. We begin by initializing a TVM
-# environment.
+# vector addition, followed by a schedule targeted towards a CPU.
+# We begin by initializing a TVM environment.
 
 import tvm
 import tvm.testing
@@ -59,7 +56,8 @@ import numpy as np
 # and specify it. If you're using llvm, you can get this information from the
 # command ``llc --version`` to get the CPU type, and you can check
 # ``/proc/cpuinfo`` for additional extensions that your processor might
-# support. For example, ``tgt = "llvm -mcpu=`skylake`
+# support. For example, you can use "llvm -mcpu=skylake-avx512" for CPUs with
+# AVX-512 instructions.
 
 tgt = tvm.target.Target(target="llvm", host="llvm")
 
@@ -69,7 +67,7 @@ tgt = tvm.target.Target(target="llvm", host="llvm")
 # We describe a vector addition computation. TVM adopts tensor semantics, with
 # each intermediate result represented as a multi-dimensional array. The user
 # needs to describe the computation rule that generates the tensors. We first
-# define a symbolic variable n to represent the shape. We then define two
+# define a symbolic variable ``n`` to represent the shape. We then define two
 # placeholder Tensors, ``A`` and ``B``, with given shape ``(n,)``. We then
 # describe the result tensor ``C``, with a ``compute`` operation. The
 # ``compute`` defines a computation, with the output conforming to the
@@ -79,7 +77,6 @@ tgt = tvm.target.Target(target="llvm", host="llvm")
 # tensors. Remember, no actual computation happens during this phase, as we
 # are only declaring how the computation should be done.
 
-
 n = te.var("n")
 A = te.placeholder((n,), name="A")
 B = te.placeholder((n,), name="B")
@@ -88,10 +85,10 @@ C = te.compute(A.shape, lambda i: A[i] + B[i], name="C")
 ################################################################################
 # .. note:: Lambda Functions
 #
-# The second argument to the ``te.compute`` method is the function that
-# performs the computation. In this example, we're using an anonymous function,
-# also known as a ``lambda`` function, to define the computation, in this case
-# addition on the ``i``th element of ``A`` and ``B``.
+#   The second argument to the ``te.compute`` method is the function that
+#   performs the computation. In this example, we're using an anonymous function,
+#   also known as a ``lambda`` function, to define the computation, in this case
+#   addition on the ``i``th element of ``A`` and ``B``.
 
 ################################################################################
 # Create a Default Schedule for the Computation
@@ -151,7 +148,7 @@ a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
 b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), dev)
 c = tvm.nd.array(np.zeros(n, dtype=C.dtype), dev)
 fadd(a, b, c)
-tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
+tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
 
 ################################################################################
 # To get a comparison of how fast this version is compared to numpy, create a
@@ -220,7 +217,7 @@ print(tvm.lower(s, [A, B, C], simple_mode=True))
 fadd_parallel = tvm.build(s, [A, B, C], tgt, name="myadd_parallel")
 fadd_parallel(a, b, c)
 
-tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
+tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
 
 evaluate_addition(fadd_parallel, tgt, "parallel", log=log)
 
@@ -322,8 +319,6 @@ if run_cuda:
 
     bx, tx = s[C].split(C.op.axis[0], factor=64)
 
-    xXXXXXXXx
-
     ################################################################################
     # Finally we must bind the iteration axis bx and tx to threads in the GPU
     # compute grid. The naive schedule is not valid for GPUs, and these are
@@ -361,7 +356,7 @@ if run_cuda:
     # - We first create a GPU device.
     # - Then tvm.nd.array copies the data to the GPU.
     # - ``fadd`` runs the actual computation
-    # - ``asnumpy()`` copies the GPU array back to the CPU (so we can verify correctness).
+    # - ``numpy()`` copies the GPU array back to the CPU (so we can verify correctness).
     #
     # Note that copying the data to and from the memory on the GPU is a required step.
 
@@ -372,7 +367,7 @@ if run_cuda:
     b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), dev)
     c = tvm.nd.array(np.zeros(n, dtype=C.dtype), dev)
     fadd(a, b, c)
-    tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
+    tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
 
     ################################################################################
     # Inspect the Generated GPU Code
@@ -449,7 +444,7 @@ if tgt.kind.name.startswith("opencl"):
     fadd1.import_module(fadd1_dev)
 
 fadd1(a, b, c)
-tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
+tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
 
 ################################################################################
 # Pack Everything into One Library
@@ -462,7 +457,7 @@ tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 fadd.export_library(temp.relpath("myadd_pack.so"))
 fadd2 = tvm.runtime.load_module(temp.relpath("myadd_pack.so"))
 fadd2(a, b, c)
-tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
+tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
 
 ################################################################################
 # .. note:: Runtime API and Thread-Safety
@@ -494,7 +489,7 @@ if tgt.kind.name.startswith("opencl"):
     b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), dev)
     c = tvm.nd.array(np.zeros(n, dtype=C.dtype), dev)
     fadd_cl(a, b, c)
-    tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
+    tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
 
 ################################################################################
 # .. note:: TE Scheduling Primitives
@@ -593,7 +588,7 @@ np_running_time = timeit.timeit(
 )
 print("Numpy running time: %f" % (np_running_time / np_repeat))
 
-answer = numpy.dot(a.asnumpy(), b.asnumpy())
+answer = numpy.dot(a.numpy(), b.numpy())
 
 ################################################################################
 # Now we write a basic matrix multiplication using TVM TE and verify that it
@@ -613,7 +608,7 @@ func = tvm.build(s, [A, B, C], target=target, name="mmult")
 
 c = tvm.nd.array(numpy.zeros((M, N), dtype=dtype), dev)
 func(a, b, c)
-tvm.testing.assert_allclose(c.asnumpy(), answer, rtol=1e-5)
+tvm.testing.assert_allclose(c.numpy(), answer, rtol=1e-5)
 
 
 def evaluate_operation(s, vars, target, name, optimization, log):
@@ -622,7 +617,7 @@ def evaluate_operation(s, vars, target, name, optimization, log):
 
     c = tvm.nd.array(numpy.zeros((M, N), dtype=dtype), dev)
     func(a, b, c)
-    tvm.testing.assert_allclose(c.asnumpy(), answer, rtol=1e-5)
+    tvm.testing.assert_allclose(c.numpy(), answer, rtol=1e-5)
 
     evaluator = func.time_evaluator(func.entry_name, dev, number=10)
     mean_time = evaluator(a, b, c).mean

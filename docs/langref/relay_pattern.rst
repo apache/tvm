@@ -80,6 +80,17 @@ Here is another example to match an op with a specific attribute:
         y = relay.var('y')
         assert not is_conv2d.match(relay.op.nn.conv2d(x, y))
 
+Or a convolution with a specific kernel size:
+
+.. code-block:: python
+
+    def test_match_kernel_size():
+        is_conv2d = is_op("nn.conv2d")(wildcard(), wildcard()).has_attr({"kernel_size": [3, 3]})
+        x = relay.var('x')
+        y = relay.var('y')
+        assert is_conv2d.match(relay.op.nn.conv2d(x, y, kernel_size=[3, 3]))
+      
+
 
 Matching an Optional Op
 ***********************
@@ -446,7 +457,7 @@ with a single batch_norm op:
             beta = node_map[self.beta][0]
             gamma = node_map[self.gamma][0]
             eps = node_map[self.eps][0]
-            return relay.op.nn.batch_norm(x, gamma, beta, mean, var, epsilon = eps.data.asnumpy().item())[0]
+            return relay.op.nn.batch_norm(x, gamma, beta, mean, var, epsilon = eps.data.numpy().item())[0]
 
         # A graph of arithmetic operators that are functional equivalent to batch_norm.
         x = relay.var('x')

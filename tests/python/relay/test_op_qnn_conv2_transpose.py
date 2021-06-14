@@ -195,7 +195,7 @@ def verify(ref_func, qnn_func, data_shape, data_dtype, kernel_shape, kernel_dtyp
             mod.set_input("data", golden_data)
             mod.set_input(**params)
             mod.run()
-            res = mod.get_output(0).asnumpy()
+            res = mod.get_output(0).numpy()
             return res
 
     golden_inputs = get_inputs(data_shape, data_dtype, kernel_shape, kernel_dtype)

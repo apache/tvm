@@ -343,7 +343,7 @@ m = graph_executor.GraphModule(lib["default"](dev))
 # Run the TVM model, test for accuracy and verify with DGL
 # --------------------------------------------------------
 m.run()
-logits_tvm = m.get_output(0).asnumpy()
+logits_tvm = m.get_output(0).numpy()
 print("Print the first five outputs from TVM execution\n", logits_tvm[:5])
 
 labels = data.labels

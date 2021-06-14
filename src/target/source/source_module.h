@@ -25,9 +25,10 @@
 #ifndef TVM_TARGET_SOURCE_SOURCE_MODULE_H_
 #define TVM_TARGET_SOURCE_SOURCE_MODULE_H_
 
-#include <tvm/runtime/container.h>
 #include <tvm/runtime/module.h>
 #include <tvm/target/target.h>
+
+#include "../../runtime/meta_data.h"
 
 namespace tvm {
 namespace codegen {
@@ -38,7 +39,7 @@ namespace codegen {
  * \param target TVM target.
  */
 runtime::Module CreateCSourceCrtMetadataModule(const Array<runtime::Module>& modules,
-                                               tvm::Target target);
+                                               tvm::Target target, runtime::Metadata metadata);
 
 }  // namespace codegen
 }  // namespace tvm

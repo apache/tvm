@@ -620,9 +620,9 @@ Doc TVMScriptPrinter::VisitStmt_(const AttrStmtNode* op) {
     }
   }
   // concise thread env
-  if (op->node->IsInstance<IterVarNode>() && op->attr_key == "thread_extent") {
+  if (op->node->IsInstance<IterVarNode>() &&
+      (op->attr_key == "thread_extent" || op->attr_key == "virtual_thread")) {
     const auto* iter_var = Downcast<IterVar>(op->node).get();
-    ICHECK(!iter_var->dom.defined());
     var_not_in_headers.insert(iter_var->var.get());
     var_env_map_[iter_var->var] = iter_var->thread_tag;
     if (current_num_ != num_child_ - 1) {
@@ -764,7 +764,11 @@ Doc TVMScriptPrinter::VisitType_(const PrimTypeNode* node) {
 
 Doc TVMScriptPrinter::VisitType_(const PointerTypeNode* node) {
   Doc doc;
-  doc << "ty.Ptr[" << Print(node->element_type) << "]";
+  doc << "ty.Ptr[";
+  if (!node->storage_scope.empty()) {
+    doc << node->storage_scope << " ";
+  }
+  doc << Print(node->element_type) << "]";
   return doc;
 }
 
@@ -1112,12 +1116,12 @@ Doc TVMScriptPrinter::PrintLoopStack() {
   return res;
 }
 
-TVM_REGISTER_GLOBAL("script.AsTVMScript")
-    .set_body_typed<std::string(const ObjectRef&, bool)>([](const ObjectRef& functions,
-                                                            bool show_meta) {
-      ICHECK(functions.as<PrimFuncNode>() != nullptr || functions.as<IRModuleNode>() != nullptr);
-      return "@tvm.script.tir\n" + TVMScriptPrinter(show_meta).Print(functions).str() + "\n";
-    });
+String AsTVMScript(const ObjectRef& mod, bool show_meta) {
+  ICHECK(mod->IsInstance<PrimFuncNode>() || mod->IsInstance<IRModuleNode>());
+  return "@tvm.script.tir\n" + TVMScriptPrinter(show_meta).Print(mod).str() + "\n";
+}
+
+TVM_REGISTER_GLOBAL("script.AsTVMScript").set_body_typed(AsTVMScript);
 
 }  // namespace tir
 }  // namespace tvm
