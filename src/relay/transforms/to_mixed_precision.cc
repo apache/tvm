@@ -170,6 +170,10 @@ class MixedPrecisionPass : public MixedModeMutator {
       return expr;
     }
 
+    if (expr_dtype == wanted_dtype) {
+      return expr;
+    }
+
     const ExprNode* expr_node = expr.as<ExprNode>();
     if (!expr_node) {
       LOG(FATAL) << "Non-expression node found in cast: " << expr;
@@ -181,7 +185,7 @@ class MixedPrecisionPass : public MixedModeMutator {
       return search->second;
     }
 
-    Expr result = expr_dtype == wanted_dtype ? expr : Cast(expr, wanted_dtype);
+    Expr result = Cast(expr, wanted_dtype);
     cast_nodes_cache[{expr_node, wanted_dtype}] = result;
 
     // Reverse the cache result, e.g. if we want to reverse the cast simply point to original node
