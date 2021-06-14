@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""FFI for profiling"""
 from ... import _ffi
 
 _ffi._init_api("runtime.profiling", __name__)

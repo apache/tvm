@@ -268,7 +268,7 @@ class GraphModuleDebug(graph_executor.GraphModule):
         ret = self._run_individual(number, repeat, min_repeat_ms)
         return ret.strip(",").split(",") if ret else []
 
-    def profile(self, collectors=[], **input_dict):
+    def profile(self, collectors=[], **input_dict):  # pylint: disable=dangerous-default-value
         """Run forward execution of the graph and collect overall and per-op
         performance metrics.
 

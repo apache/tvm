@@ -16,10 +16,10 @@
 # under the License.
 """Registration of profiling objects in python."""
 
+from typing import Dict, Sequence
 from ... import _ffi
 from . import _ffi_api
 from .. import Object, Device
-from typing import Dict, Sequence
 
 
 @_ffi.register_object("runtime.profiling.Report")
@@ -51,8 +51,6 @@ class Report(Object):
 @_ffi.register_object("runtime.profiling.MetricCollector")
 class MetricCollector(Object):
     """Interface for user defined profiling metric collection."""
-
-    pass
 
 
 @_ffi.register_object("runtime.profiling.DeviceWrapper")
