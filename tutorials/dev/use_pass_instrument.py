@@ -266,7 +266,7 @@ class PassFine(PassExampleBase):
 @pass_instrument
 class PassBadEnterCtx(PassExampleBase):
     def enter_pass_ctx(self):
-        print(self._name, " bad enter_pass_ctx!!!")
+        print(self._name, "bad enter_pass_ctx!!!")
         raise ValueError("{} bad enter_pass_ctx".format(self._name))
 
 
@@ -321,7 +321,7 @@ except ValueError as ex:
 
 ###############################################################################
 # Exceptions occured in ``should_run``, ``run_before_pass``, ``run_after_pass``
-# are not handled explitcitly -- that means, we rely on the context manager
+# are not handled explicitly -- that means, we rely on the context manager
 # (the ``with`` syntax) to exit ``PassContext`` safely.
 #
 # We use ``run_before_pass`` as an example:
@@ -372,3 +372,7 @@ try:
     relay_mod = relay.transform.InferType()(relay_mod)
 except ValueError as ex:
     print("Catching", str(ex).split("\n")[-1])
+
+###############################################################################
+# Clear instruments.
+cur_pass_ctx.override_instruments([])
