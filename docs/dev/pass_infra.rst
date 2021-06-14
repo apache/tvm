@@ -345,7 +345,7 @@ favorably use Python APIs to create a specific pass object.
     Pass Sequential(tvm::Array<Pass> passes, PassInfo pass_info);
 
 Pass Registration
-~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^
 
 We've covered the concept of different level of passes and the context used for
 compilation. It would be interesting to see how easily users can register
@@ -399,7 +399,7 @@ To allow other C++ modules to apply this pass, we declare a free function in
 .. _pass_instrument_cpp_backend:
 
 Pass Instrument
-~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^
 
 Currently we introduce four instrument point in the life-cycle of ``PassContext``.
 
@@ -525,7 +525,6 @@ PassTimmingInstrument (see `src/ir/instrument.cc`_)
 PrintBefore(TODO)
 
 PrintAfter(TODO)
-
 
 Python Frontend
 ~~~~~~~~~~~~~~~
