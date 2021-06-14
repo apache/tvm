@@ -19,14 +19,16 @@
 /*!
  * \brief Performance counters for profiling via the PAPI library.
  */
-#ifndef TVM_RUNTIME_CONTRIB_PAPI_PAPI_H_
-#define TVM_RUNTIME_CONTRIB_PAPI_PAPI_H_
+#ifndef TVM_RUNTIME_CONTRIB_PAPI_H_
+#define TVM_RUNTIME_CONTRIB_PAPI_H_
 
-#include <tvm/runtime/profiling.h>
 #include <tvm/runtime/container/array.h>
 #include <tvm/runtime/container/map.h>
+#include <tvm/runtime/profiling.h>
 
+#include <string>
 #include <unordered_map>
+#include <vector>
 
 namespace tvm {
 namespace runtime {
@@ -86,10 +88,11 @@ struct PAPIMetricCollectorNode final : public MetricCollectorNode {
 class PAPIMetricCollector : public MetricCollector {
  public:
   explicit PAPIMetricCollector(Map<DeviceWrapper, Array<String>> metrics);
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(PAPIMetricCollector, MetricCollector, PAPIMetricCollectorNode);
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(PAPIMetricCollector, MetricCollector,
+                                        PAPIMetricCollectorNode);
 };
 }  // namespace profiling
 }  // namespace runtime
 }  // namespace tvm
 
-#endif
+#endif  // TVM_RUNTIME_CONTRIB_PAPI_H_
