@@ -1159,13 +1159,11 @@ def _batch_matmul():
 
             input_x = _op.reshape(input_x, newshape=new_shape_x)
             input_y = _op.reshape(input_y, newshape=new_shape_y)
-
+        elif len(orig_shape_y) < 3:
+            input_y = _op.reshape(input_y, (1, orig_shape_y[-2], orig_shape_y[-1]))
         adj_x = attr["adj_x"]
         adj_y = attr["adj_y"]
         input_x = _op.transpose(input_x, axes=[0, 2, 1]) if adj_x else input_x
-        shape_y = _infer_shape(input_y, mod)
-        if len(shape_y) < 3:
-            input_y = _op.reshape(input_y, (1, orig_shape_y[-2], orig_shape_y[-1]))
         input_y = _op.transpose(input_y, axes=[0, 2, 1]) if not adj_y else input_y
         ret = get_relay_op("batch_matmul")(input_x, input_y)
 
