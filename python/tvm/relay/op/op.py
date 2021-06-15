@@ -459,7 +459,25 @@ def register_fake_quantization_to_integer(op_name, func=None, level=10):
 
 
 def register_mixed_precision_conversion(op_name, func=None, level=10):
-    """TODO"""
+    """Register mixed precision conversion function for an op
+
+    Given an op the function should return information on how the value should be
+    converted. Specifically the function should take a call node and the target
+    mixed precision datatype (e.g. FP16) and return the conversion category
+    (see python/tvm/relay/transform/mixed_precision.py) as well as the accumulation
+    and output datatype of the oepration.
+
+    Parameters
+    ----------
+    op_name : str
+        The name of the operator
+
+    func: function (expr: Expr, map: Map<Expr, AffineType>) -> new_expr: Expr
+        The function for translating the op into affine space and integer operators
+
+    level : int
+        The priority level
+    """
     return tvm.ir.register_op_attr(op_name, "FTVMMixedPrecisionConversionType", func, level)
 
 

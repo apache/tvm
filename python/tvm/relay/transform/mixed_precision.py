@@ -14,10 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""TODO"""
+"""Default behavior for ops in mixed_precision pass. Import this file to use."""
+from typing import List
+
+from tvm import relay
 from tvm.relay.op import register_mixed_precision_conversion
 
-# Conversion types
+# MIXED_PRECISION_ALWAYS ops should always be done in lower precision due to the speed and memory
+# savings. MIXED_PRECISION_FOLLOW ops can be done in lower precision but don't have speedups to
+# justify a cast. MIXED_PRECISION_NEVER colored ops should not be done in lower precision due to
+# numerical reasons.
 MIXED_PRECISION_ALWAYS = 0
 MIXED_PRECISION_FOLLOW = 1
 MIXED_PRECISION_NEVER = 2
@@ -134,34 +140,35 @@ def register_func_to_op_list(list_ops=[]):
     return decorator
 
 
-# Functions for FTVMMixedPrecisionConversionType which
-# Take in CallNodes and a DType and returns a conversion type,
-# an accumulation dtype, and an output_dtype.
-def get_generic_dtypes(call_node, mixed_precision_type):
-    # TODO: examine attributes
+def get_generic_out_dtypes(call_node: relay.Call, mixed_precision_type: str) -> List[str]:
+    # Assume support accumulation dtypes <---> has out_dtype attr
     if hasattr(call_node.attrs, "out_dtype"):
         return ["float32", mixed_precision_type]
 
+    # [accumulation_dtype, output_dtype] for the operations
     return [mixed_precision_type, mixed_precision_type]
 
 
+# Functions for FTVMMixedPrecisionConversionType which
+# Take in CallNodes and a DType and returns a conversion type,
+# an accumulation dtype, and an output_dtype.
 @register_func_to_op_list(list_ops=DEFAULT_ALWAYS_LIST)
-def generic_always_op(call_node, mixed_precision_type):
-    return [MIXED_PRECISION_ALWAYS] + get_generic_dtypes(call_node, mixed_precision_type)
+def generic_always_op(call_node: relay.Call, mixed_precision_type: str) -> List:
+    return [MIXED_PRECISION_ALWAYS] + get_generic_out_dtypes(call_node, mixed_precision_type)
 
 
 @register_func_to_op_list(list_ops=DEFAULT_FOLLOW_LIST)
-def generic_follow_op(call_node, mixed_precision_type):
-    return [MIXED_PRECISION_FOLLOW] + get_generic_dtypes(call_node, mixed_precision_type)
+def generic_follow_op(call_node: relay.Call, mixed_precision_type: str) -> List:
+    return [MIXED_PRECISION_FOLLOW] + get_generic_out_dtypes(call_node, mixed_precision_type)
 
 
 @register_func_to_op_list(list_ops=DEFAULT_NEVER_LIST)
-def generic_never_op(call_node, mixed_precision_type):
-    return [MIXED_PRECISION_NEVER] + get_generic_dtypes(call_node, mixed_precision_type)
+def generic_never_op(call_node: relay.Call, mixed_precision_type: str) -> List:
+    return [MIXED_PRECISION_NEVER] + get_generic_out_dtypes(call_node, mixed_precision_type)
 
 
 @register_mixed_precision_conversion("nn.batch_matmul")
-def nn_batch_matmul(call_node, mixed_precision_type):
+def nn_batch_matmul(call_node: relay.Call, mixed_precision_type: str) -> List:
     # TODO(AndrewZhaoLuo): remove when batch_matmul handles accumulation dtypes well.
     # Batched matmul has inconsistent support for mixed precision operations.
     # Many schedules ignore the out_dtype attribute which leads to errors when
