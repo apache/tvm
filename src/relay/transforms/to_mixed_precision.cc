@@ -409,7 +409,7 @@ Pass ToMixedPrecision(DataType mixed_precision_type, int missing_op_mode) {
       [=](Function f, IRModule m, PassContext pc) {
         return Downcast<Function>(ToMixedPrecision(f, mixed_precision_type, missing_op_mode));
       };
-  return CreateFunctionPass(pass_func, 10, "ToMixedPrecision", {});
+  return CreateFunctionPass(pass_func, 0, "ToMixedPrecision", {});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.ToMixedPrecision").set_body_typed(ToMixedPrecision);
