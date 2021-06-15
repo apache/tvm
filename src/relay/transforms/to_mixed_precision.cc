@@ -227,6 +227,7 @@ class MixedPrecisionPass : public MixedModeMutator {
       return all_same ? expr : Tuple(new_expr);
     }
     CHECK(0) << "Unsupported type " << expr_type << " we don't know how to cast for arguments!";
+    return expr;
   }
 
   std::pair<Array<Expr>, Array<Type>> CastAllArgs(const Array<Expr>& cur_args,
@@ -284,13 +285,17 @@ class MixedPrecisionPass : public MixedModeMutator {
         FTVMMixedPrecisionConversionType func = attr_map[op];
         Array<ObjectRef> op_descriptor =
             func(GetRef<Call>(pre_call_node), DLDataType2String(mixed_precision_type));
+        ICHECK(op_descriptor.size() == 3)
+            << "got the wrong number of returned arguments (expected 3) from "
+               "FTVMMixedPrecisionConversionType for "
+            << AsText(op, false);
 
         int64_t op_conversion_type = Downcast<Integer>(op_descriptor[0])->value;
         initial_category = static_cast<MixedTypeConversionCategory>(op_conversion_type);
         accumulation_dtype = DataType(String2DLDataType(Downcast<String>(op_descriptor[1])));
         output_dtype = DataType(String2DLDataType(Downcast<String>(op_descriptor[2])));
       } else {
-        if (!ignore_missing_ops) LOG(FATAL) << "Op " << op->name << " not in conversion lists!";
+        ICHECK(ignore_missing_ops) << "Op " << op->name << " not in conversion lists!";
         if (warn_missing_ops) LOG(WARNING) << "Op " << op->name << " not in conversion lists!";
 
         // If not registered, by default assume is a generic FOLLOW operation.
