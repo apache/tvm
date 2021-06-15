@@ -206,11 +206,11 @@ void MetalWorkspace::CopyDataFromTo(const void* from, size_t from_offset, void* 
   AUTORELEASEPOOL {
     this->Init();
     Device dev = dev_from;
+    if (dev_from.device_type == kDLCPU) dev = dev_to;
     Stream* s = GetStream(stream, dev.device_id);
     if (s->HasErrorHappened()) {
       LOG(FATAL) << "Error! Some problems on GPU happaned! Cannot copy data to current stream";
     }
-    if (dev_from.device_type == kDLCPU) dev = dev_to;
     id<MTLCommandBuffer> cb = s->GetCommandBuffer();
     int from_dev_type = static_cast<int>(dev_from.device_type);
     int to_dev_type = static_cast<int>(dev_to.device_type);
