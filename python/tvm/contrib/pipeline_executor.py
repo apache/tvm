@@ -22,7 +22,7 @@ from tvm.contrib import graph_executor
 
 
 def pipeline_executor_enabled():
-    """ check if pipeline executor enabled. """
+    """check if pipeline executor enabled."""
     pipeline_enabled = False
     try:
         pipelinecreate = tvm._ffi.get_global_func("tvm.pipeline_executor.create")
@@ -69,7 +69,7 @@ def build_pipeline(config):
         string_config[mod_indx] = mod_config["pipeline"]
         build_func = relay.build
         # if there is a self defined build function then use it.
-        if mod_config["build"]:
+        if "build" in mod_config and mod_config["build"]:
             build_func = mod_config.build
 
         # build IRModule
@@ -118,11 +118,8 @@ def create(mods, mod_config):
 
 
 class PipelineModule(object):
-    """Wrapper runtime module.
-
-    This is a thin wrapper of the underlying TVM module.
-    you can also directly call set_input, run, and get_output
-    of underlying module functions
+    """Wrapper runtime module. This is a thin wrapper of the underlying TVM module.
+    you can also directly call set_input, run, and get_output of underlying module functions.
 
     Parameters
     ----------
@@ -153,7 +150,7 @@ class PipelineModule(object):
         self._get_num_outputs = module["get_num_outputs"]
         self._get_num_inputs = module["get_num_inputs"]
 
-    def set_input(self, key, value, params=None, modindx=0):
+    def set_input(self, key, value, modindx=1, params=None):
         """Set inputs to the module via kwargs
 
         Parameters
@@ -167,13 +164,13 @@ class PipelineModule(object):
         params : dict of str to NDArray
            Additional arguments
         """
+        assert modindx >= 1
         if key is not None:
-            self.graph_modules_[modindx].set_input(key, value)
+            self._set_input(key, tvm.nd.array(value, tvm.cpu()), modindx)
 
         if params:
             for param in params:
-                self.graph_modules_[modindx].set_input(**param)
-                indx = indx + 1
+                self.graph_modules_[modindx - 1].set_input(**param)
 
     def run(self):
         """Run forward execution of the graph"""

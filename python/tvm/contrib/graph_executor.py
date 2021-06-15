@@ -156,6 +156,7 @@ class GraphModule(object):
         self._run = module["run"]
         self._get_output = module["get_output"]
         self._get_input = module["get_input"]
+        self._get_input_index = module["get_input_index"]
         self._get_num_outputs = module["get_num_outputs"]
         self._get_input_index = module["get_input_index"]
         self._get_num_inputs = module["get_num_inputs"]

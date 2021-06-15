@@ -34,7 +34,11 @@ void SubGraphRuntime::Stop() { pipeline_stop(runtimes); }
 /*!
  * \brief Run all the operations one by one.
  */
-void SubGraphRuntime::Run() { pipeline_run(runtimes); }
+void SubGraphRuntime::Run() {
+  pipeline_run(runtimes, input_int_map);
+  /* Clear the input map
+   */
+}
 
 void SubGraphRuntime::Init(const Array<tvm::runtime::Module>& modules,
                            const std::string& pipeline_json) {
@@ -52,19 +56,11 @@ void SubGraphRuntime::Init(const Array<tvm::runtime::Module>& modules,
  * \param modIndx The runtime index.
  */
 void SubGraphRuntime::SetInput(int index, DLTensor* data_in, int modIndx) {
-  auto gruntime = runtimes[modIndx];
-  gruntime->runtimePtr->SetInput(index, data_in);
-}
-
-/*!
- * \brief set index-th input to the modIndx-th graph.
- * \param index The input index.
- * \param data_in The input data.
- * \param modIndx The runtime index.
- */
-void SubGraphRuntime::SetInput(const std::string& name, DLTensor* data_in, int modIndx) {
-  auto gruntime = runtimes[modIndx];
-  gruntime->runtimePtr->SetInput(name, data_in);
+  if (1 == modIndx) {
+    runtimes[0]->runtimePtr->SetInput(index, data_in);
+  } else {
+    pipeline_setinput(input_int_map, index, data_in, modIndx);
+  }
 }
 
 /*!
@@ -98,9 +94,15 @@ NDArray SubGraphRuntime::GetInput(int index, int mIndx) const {
   return gruntime->runtimePtr->GetInput(index);
 }
 
-NDArray SubGraphRuntime::GetInput(const std::string& name, int mIndx) const {
-  auto gruntime = runtimes[mIndx];
-  return gruntime->runtimePtr->GetInput(name);
+/*!
+ * \brief Return input index for given input name.
+ * \param name The input name.
+ *
+ * \return int corresponding to given input node name.
+ */
+int SubGraphRuntime::GetInputIndex(const string& name, int mIndx) const {
+  auto gruntime = runtimes[mIndx - 1];
+  return gruntime->runtimePtr->GetInputIndex(name);
 }
 
 /*!
@@ -120,7 +122,8 @@ Array<NDArray> SubGraphRuntime::GetOutput(bool syncPoll) {
 
 PackedFunc SubGraphRuntime::GetFunction(const std::string& name,
                                         const ObjectPtr<Object>& sptr_to_self) {
-  // Return member functions during query.
+  /* Return member functions during query.
+   */
   if (name == "set_input") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       /* Default use first runtime index value.
@@ -130,7 +133,8 @@ PackedFunc SubGraphRuntime::GetFunction(const std::string& name,
         modIndx = static_cast<int>(args[2]);
       }
       if (String::CanConvertFrom(args[0])) {
-        this->SetInput(args[0].operator String(), args[1], modIndx);
+        int index = this->GetInputIndex(args[0].operator String(), modIndx);
+        this->SetInput(index, args[1], modIndx);
       } else {
         this->SetInput(static_cast<int>(args[0]), args[1], modIndx);
       }
@@ -145,17 +149,18 @@ PackedFunc SubGraphRuntime::GetFunction(const std::string& name,
     });
   } else if (name == "get_input") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      int in_idx = 0, graph_idx = 0;
+      int in_idx = 0, mod_idx = 0;
       if (args.num_args == 2) {
-        graph_idx = args[1];
+        mod_idx = args[1];
       }
 
       if (String::CanConvertFrom(args[0])) {
-        *rv = this->GetInput(args[0].operator String(), graph_idx);
+        int index = this->GetInputIndex(args[0].operator String(), mod_idx);
+        *rv = this->GetInput(index, mod_idx);
       } else {
         in_idx = args[0];
         if (in_idx >= 0) {
-          *rv = this->GetInput(in_idx, graph_idx);
+          *rv = this->GetInput(in_idx, mod_idx);
         }
       }
     });

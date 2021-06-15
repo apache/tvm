@@ -37,7 +37,7 @@ def run_modules(mod_configs, dev, target, dname, data, iMod, iName, iData):
         if mod_key in mod_input:
             for input in mod_input[mod_key]:
                 input = mod_input[mod_key][input]
-                m.set_input(input["index"] - 1, input["data"])
+                m.set_input(input["index"], input["data"])
         else:
             m.set_input(dname, data)
 
@@ -53,17 +53,17 @@ def run_modules(mod_configs, dev, target, dname, data, iMod, iName, iData):
             output_data = m.get_output(output["output_indx"] - 1).asnumpy()
             for dep in output["dependent"]:
                 # currnet output use as dependent input,
-                # input_indx indicate the input index number.
-                input_indx = dep["input_indx"]
+                # input_name indicate the input index number.
                 mod_indx = dep["mod_indx"]
+                input_name = dep["input_name"]
                 if mod_indx == 0:
-                    final_output[input_indx] = output_data
+                    final_output[input_name] = output_data
                 else:
                     if mod_indx in mod_input:
-                        mod_input[mod_indx][input_indx] = {"index": input_indx, "data": output_data}
+                        mod_input[mod_indx][input_name] = {"index": input_name, "data": output_data}
                     else:
                         mod_input[mod_indx] = {
-                            input_indx: {"index": input_indx, "data": output_data}
+                            input_name: {"index": input_name, "data": output_data}
                         }
         indx = indx + 1
 
@@ -136,9 +136,9 @@ def run_pipeline(target):
     mconfig1["pipeline"] = {
         "mod_indx": 1,
         "output": [
-            {"output_indx": 1, "dependent": [{"mod_indx": 2, "input_indx": 2}]},
-            {"output_indx": 2, "dependent": [{"mod_indx": 3, "input_indx": 1}]},
-            {"output_indx": 3, "dependent": [{"mod_indx": 0, "input_indx": 1}]},
+            {"output_indx": 1, "dependent": [{"mod_indx": 2, "input_name": "data_0"}]},
+            {"output_indx": 2, "dependent": [{"mod_indx": 3, "input_name": "data_0"}]},
+            {"output_indx": 3, "dependent": [{"mod_indx": 0, "input_name": "1"}]},
         ],
     }
     mod_config[mods[0]] = mconfig1
@@ -149,7 +149,7 @@ def run_pipeline(target):
     mconfig2["pipeline"] = {
         "mod_indx": 2,
         "output": [
-            {"output_indx": 1, "dependent": [{"mod_indx": 3, "input_indx": 2}]},
+            {"output_indx": 1, "dependent": [{"mod_indx": 3, "input_name": "data_1"}]},
         ],
     }
     mod_config[mods[1]] = mconfig2
@@ -160,7 +160,7 @@ def run_pipeline(target):
 
     mconfig3["pipeline"] = {
         "mod_indx": 3,
-        "output": [{"output_indx": 1, "dependent": [{"mod_indx": 0, "input_indx": 2}]}],
+        "output": [{"output_indx": 1, "dependent": [{"mod_indx": 0, "input_name": "2"}]}],
     }
     mod_config[mods[2]] = mconfig3
 
@@ -182,9 +182,10 @@ def run_pipeline(target):
     """
     #Use pipeline executor to pipeline the said pipeline which use different backend
     """
+    d3 = np.full(dshape, 10).astype("float32")
     for data in datas:
         pipeline_module.set_input("data_0", data)
-        pipeline_module.set_input("data_1", data, modindx=1)
+        pipeline_module.set_input("data_1", data, modindx=2)
         pipeline_module.run()
 
     """
@@ -205,15 +206,15 @@ def run_pipeline(target):
     """
     for ref_out, out in zip(outs, pipeline_outputs):
         for ref in ref_out:
-            tvm.testing.assert_allclose(ref_out[ref], out[ref - 1])
+            tvm.testing.assert_allclose(ref_out[ref], out[int(ref) - 1])
 
 
 def test_pipeline():
-    target_list = tvm.testing.enabled_targets()
-    for target in target_list:
-        run_pipeline(target)
+    if pipeline_executor.pipeline_executor_enabled():
+        target_list = tvm.testing.enabled_targets()
+        for target in target_list:
+            run_pipeline(target)
 
 
 if __name__ == "__main__":
-    if pipeline_executor.pipeline_executor_enabled():
-        test_pipeline()
+    test_pipeline()

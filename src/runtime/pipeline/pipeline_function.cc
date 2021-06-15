@@ -39,7 +39,7 @@ void pipeline_pipeline_run(const int& num, const shared_ptr<RuntimeItem>& curRun
     curRunItem->Run();
 
     vector<shared_ptr<OutputData>> outputs;
-    curRunItem->GetOutput2(&outputs);
+    curRunItem->GetOutput(&outputs);
     pipeline_queue_push(nextQueue, &outputs);
     curRunItem->notifyDataReadyToNext();
   }
@@ -53,6 +53,24 @@ thread* pipeline_pipeline_init(SHARED_RUNTIME_VEC* runtimes) {
   return NULL;
 }
 
+RUNTIME_PIPELINE_OUTPUT_CONF
+pipeline_name_to_indx(const Array<Module>& graphRuntimes,
+                      const RUNTIME_PIPELINE_OUTPUT_CONF_STR& pConfStr) {
+  RUNTIME_PIPELINE_OUTPUT_CONF confRet;
+  for (auto outConf : pConfStr) {
+    for (auto conf : outConf.second) {
+      int modIndx = conf.first;
+      if (modIndx) {
+        auto mGetIndex = ((Module)graphRuntimes[modIndx - 1]).GetFunction("get_input_index");
+        confRet[outConf.first][modIndx] = (static_cast<int>(mGetIndex(conf.second))) + 1;
+      } else {
+        confRet[outConf.first][modIndx] = stoi(conf.second);
+      }
+    }
+  }
+  return confRet;
+}
+
 size_t pipeline_init(Array<Module> graphRuntimes, SHARED_RUNTIME_VEC* runtimes,
                      PIPELINE_CONF* pipeline_conf) {
   int outputNum = 0;
@@ -62,7 +80,10 @@ size_t pipeline_init(Array<Module> graphRuntimes, SHARED_RUNTIME_VEC* runtimes,
     /* runtimeIndx start from 1.
      */
     int runtimeIndx = i + 1;
-    auto& pConf = pipeline_conf->at(runtimeIndx);
+    /* get dependency configuration information.
+     */
+    auto pConf = pipeline_name_to_indx(graphRuntimes, pipeline_conf->at(runtimeIndx));
+
     auto runItem = make_shared<RuntimeItem>(graphRuntimes[i], sub_queue, &pConf, runtimeIndx);
     runtimes->push_back(runItem);
     /* set prev and next for RuntimeItem, runtime need these information to
@@ -99,12 +120,23 @@ bool pipeline_queue_poll(QUEUE* queue, RuntimeData* runtimeData) {
   return q_poll<SLOT, RuntimeData>(queue, runtimeData);
 }
 
-void pipeline_run(const SHARED_RUNTIME_VEC& runtimes) {
+void pipeline_run(const SHARED_RUNTIME_VEC& runtimes, const MOD_DLDATA_MAP_PTR indxInputs) {
   shared_ptr<RuntimeItem> runtime = runtimes.front();
   runtime->Run();
-
+  /* Get runtime output
+   */
   vector<shared_ptr<OutputData>> outputs;
-  runtime->GetOutput2(&outputs);
+  runtime->GetOutput(&outputs);
+
+  /* Storage input data for runtimes after first runtime
+   */
+  for (auto modInputs : *indxInputs) {
+    int modIndx = modInputs.first;
+    for (auto inputs : modInputs.second) {
+      outputs.push_back(make_shared<OutputData>(modIndx, inputs.first + 1, inputs.second->data));
+    }
+  }
+
   pipeline_queue_push(runtime->next->queue, &outputs);
   runtime->notifyDataReadyToNext();
   return;
@@ -132,4 +164,22 @@ void pipeline_stop(const SHARED_RUNTIME_VEC& runtimes) {
   if (!runtimes.empty()) {
     runtimes.front()->notifyNextExit();
   }
+}
+
+void pipeline_setinput(MOD_DLDATA_MAP_PTR input_int_map, const int index, const DLTensor* data_in,
+                       const int modIndx) {
+  if (input_int_map->find(modIndx) == input_int_map->end()) {
+    DLDATA_MAP dlmap;
+    dlmap[index] = nullptr;
+    input_int_map->insert({modIndx, dlmap});
+  } else if (input_int_map->at(modIndx).find(index) == input_int_map->at(modIndx).end()) {
+    input_int_map->at(modIndx)[index] = nullptr;
+  }
+
+  TENSOR_DATA tensor_data = input_int_map->at(modIndx)[index];
+  if (tensor_data == nullptr) {
+    tensor_data = make_shared<TensorData>();
+    input_int_map->at(modIndx)[index] = tensor_data;
+  }
+  tensor_data->CreateCopyFrom(data_in, kDLCPU, 0);
 }

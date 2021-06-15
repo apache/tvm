@@ -43,6 +43,7 @@ namespace runtime {
  */
 class TVM_DLL SubGraphRuntime : public ModuleNode {
  public:
+  SubGraphRuntime() { input_int_map = make_shared<MOD_DLDATA_MAP>(); }
   ~SubGraphRuntime() {
     /* stop pipeline threads and release data in deconstructor.
      */
@@ -82,9 +83,20 @@ class TVM_DLL SubGraphRuntime : public ModuleNode {
    * \param data_in The input data.
    */
   void SetInput(int index, DLTensor* data_in, int modIndx);
-  void SetInput(const std::string& name, DLTensor* data_in, int modIndx);
+
+  /*!
+   * \brief get index-th input.
+   * \param index The input index.
+   * \return The input data.
+   */
   NDArray GetInput(int index, int mIndx) const;
-  NDArray GetInput(const std::string& name, int mIndx) const;
+
+  /*!
+   * \brief get input index-th by name.
+   * \param input name.
+   * \return The input index.
+   */
+  int GetInputIndex(const string& name, int mIndx) const;
   /*!
    * \brief Get the number of outputs
    *
@@ -111,7 +123,7 @@ class TVM_DLL SubGraphRuntime : public ModuleNode {
       std::string key;
       reader->BeginObject();
       int mod_indx = 0;
-      unordered_map<int, unordered_map<int, int>> output;
+      unordered_map<int, unordered_map<int, string>> output;
       while (reader->NextObjectItem(&key)) {
         if (key == "mod_indx") {
           reader->Read(&mod_indx);
@@ -120,7 +132,7 @@ class TVM_DLL SubGraphRuntime : public ModuleNode {
           reader->BeginArray();
           while (reader->NextArrayItem()) {
             int output_indx = -1;
-            unordered_map<int, int> depend;
+            unordered_map<int, string> depend;
             reader->BeginObject();
             while (reader->NextObjectItem(&key)) {
               if (key == "output_indx") {
@@ -128,19 +140,20 @@ class TVM_DLL SubGraphRuntime : public ModuleNode {
               }
               if (key == "dependent") {
                 reader->BeginArray();
-                int dep_mod_indx = -1, input_indx = -1;
+                int dep_mod_indx = -1;
+                string inputName;
                 while (reader->NextArrayItem()) {
                   reader->BeginObject();
                   while (reader->NextObjectItem(&key)) {
                     if (key == "mod_indx") {
                       reader->Read(&dep_mod_indx);
                     }
-                    if (key == "input_indx") {
-                      reader->Read(&input_indx);
+                    if (key == "input_name") {
+                      reader->Read(&inputName);
                     }
                   }
-                  if (dep_mod_indx >= 0 && input_indx >= 0) {
-                    depend[dep_mod_indx] = input_indx;
+                  if (dep_mod_indx >= 0) {
+                    depend[dep_mod_indx] = inputName;
                   }
                 }
               }
@@ -162,6 +175,7 @@ class TVM_DLL SubGraphRuntime : public ModuleNode {
   vector<NDArray> output_entry_;
   PIPELINE_CONF pipeline_conf;
   vector<shared_ptr<RuntimeItem>> runtimes;
+  MOD_DLDATA_MAP_PTR input_int_map;
   size_t outpuNumber = 0;
 };
 }  // namespace runtime

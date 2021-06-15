@@ -40,6 +40,7 @@
 using namespace tvm::runtime;
 using namespace std;
 typedef unordered_map<int, unordered_map<int, int>> RUNTIME_PIPELINE_OUTPUT_CONF;
+typedef unordered_map<int, unordered_map<int, string>> RUNTIME_PIPELINE_OUTPUT_CONF_STR;
 /* thread control struction, for single consumer single producer mode.
  */
 class TControl {
@@ -121,9 +122,8 @@ class Dependent {
   bool NeedForward() { return (bFinal || depNum > 0); }
 };
 
-class InputData {
+class TensorData {
  public:
-  Dependent dependent;
   DLTensor* data = nullptr;
 
   DLTensor* CreateCopyFrom(const DLTensor* from, int device_type, int device_id) {
@@ -141,11 +141,22 @@ class InputData {
     TVMArrayCopyFromTo(const_cast<DLTensor*>(from), data, nullptr);
     return data;
   }
-  ~InputData() {
+  ~TensorData() {
     if (data) {
       TVMArrayFree(data);
       data = nullptr;
     }
+  }
+};
+
+class InputData {
+ public:
+  Dependent dependent;
+  TensorData dlData;
+
+  DLTensor* CreateCopyFrom(const DLTensor* from, int device_type, int device_id) {
+    dlData.CreateCopyFrom(from, device_type, device_id);
+    return dlData.data;
   }
 };
 
@@ -165,18 +176,23 @@ class OutputData {
     }
   }
 
+  OutputData(const int modIndx, const int inputIndx, const DLTensor* data) {
+    dltensor = const_cast<DLTensor*>(data);
+    dependent.SetDepModInputIndx(modIndx, inputIndx);
+  }
+
   explicit OutputData(const InputData* pdata) {
     dependent = pdata->dependent;
-    /* caller need make sure pdata->data is avaialble.
+    /* caller need make sure pdata->dlData.data is avaialble.
      */
-    dltensor = pdata->data;
+    dltensor = pdata->dlData.data;
   }
 
   OutputData& operator=(const InputData* pdata) {
     dependent = pdata->dependent;
-    /* caller need make sure pdata->data is avaialble.
+    /* caller need make sure pdata->dlData.data is avaialble.
      */
-    dltensor = pdata->data;
+    dltensor = pdata->dlData.data;
     return *this;
   }
 
@@ -241,7 +257,7 @@ class PipelineData {
     ResetDataList(num);
 
     for (size_t i = 0; i < num; i++) {
-      CreateCopyFrom(dlInput[i]->data, dlInput[i]->dependent, &inputList[i], device_type,
+      CreateCopyFrom(dlInput[i]->dlData.data, dlInput[i]->dependent, &inputList[i], device_type,
                      device_id);
     }
     return;
@@ -290,7 +306,7 @@ class pipelineOutputData {
     /* output may not ordered by index in slot, use a map to index them.
      */
     for (size_t i = 0; i < slot.data.num; i++) {
-      auto dlTensor = slot.data.inputList[i]->data;
+      auto dlTensor = slot.data.inputList[i]->dlData.data;
       int outputIndx = slot.data.inputList[i]->dependent.GetOutputIndx() - 1;
       assert(outputIndx < slot.data.num);
       dataMap[outputIndx] = dlTensor;
@@ -343,6 +359,7 @@ class RuntimeFunction {
   tvm::runtime::PackedFunc set_input;
   tvm::runtime::PackedFunc get_output;
   tvm::runtime::PackedFunc get_input;
+  tvm::runtime::PackedFunc get_input_index;
   tvm::runtime::PackedFunc run;
   explicit RuntimeFunction(const Module& m) {
     module_ = m;
@@ -351,6 +368,7 @@ class RuntimeFunction {
     set_input = module_.GetFunction("set_input");
     get_output = module_.GetFunction("get_output");
     get_input = module_.GetFunction("get_input");
+    get_input_index = module_.GetFunction("get_input_index");
     run = module_.GetFunction("run");
   }
   ~RuntimeFunction() {
@@ -418,6 +436,8 @@ class RuntimeFunction {
 
   NDArray GetInput(int index) const { return get_input(index); }
 
+  int GetInputIndex(const std::string& name) { return get_input_index(name); }
+
   void Run() { run(); }
 };
 
@@ -452,7 +472,7 @@ class RuntimeData {
        */
       int inputIndx = data[i]->dependent.GetDepModInputIndx(runtimeIndx);
       if (inputIndx > 0) {
-        runtimePtr->SetInput(inputIndx - 1, data[i]->data);
+        runtimePtr->SetInput(inputIndx - 1, data[i]->dlData.data);
         /* data getused remove dependent reference for current runtime
          */
         data[i]->dependent.RemoveDependentRef(runtimeIndx);
@@ -538,22 +558,7 @@ class RuntimeItem {
     }
   }
 
-  /*
-   * Here we need to use a container to storage NDArray that from
-   * GetOutput, if just copy the data but not storage NDArray, the
-   * memory of data may get freed, especially for RPC device data,
-   */
-  Array<NDArray> GetOutput(void) {
-    Array<NDArray> outputs;
-    size_t outputsNum = runtimePtr->NumOutputs();
-    for (size_t i = 0; i < outputsNum; i++) {
-      auto output = runtimePtr->GetOutput(i);
-      outputs.push_back(output);
-    }
-    return outputs;
-  }
-
-  void GetOutput2(vector<shared_ptr<OutputData>>* outputs) {
+  void GetOutput(vector<shared_ptr<OutputData>>* outputs) {
     size_t outputsNum = runtimePtr->NumOutputs();
     for (size_t i = 0; i < outputsNum; i++) {
       shared_ptr<OutputData> output =
