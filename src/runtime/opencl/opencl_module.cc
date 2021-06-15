@@ -193,8 +193,8 @@ void OpenCLModuleNode::Init() {
   ICHECK(!parsed_kernels_.empty()) << "The OpenCL module expects a kernel delimited "
                                    << "source from code generation, but no kernel "
                                    << "delimiter was found.";
-  ICHECK_EQ(workspace_->num_registered_kernels, parsed_kernels_.size())
-      << "The number of registered kernels does not match number of parsed kernel sources";
+  ICHECK_EQ(fmap_.size(), parsed_kernels_.size())
+      << "The number of parsed kernel sources does not match the number of kernel functions";
   // zero initialize cl_program pointers for each device kernel
   for (auto& kv : parsed_kernels_) {
     programs_.insert({kv.first, std::vector<cl_program>(workspace_->devices.size(), nullptr)});
