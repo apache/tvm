@@ -1207,6 +1207,21 @@ def ToMixedPrecision(
     Automatic mixed precision rewriter. Rewrite an FP32 relay graph into a version
     where as many operations as possible are in the target mixed_precision_type.
 
+    Parameters
+    ----------
+    mixed_precision_type: str
+      The target datatype to transform operations in the graph to use.
+
+    ignore_missing_ops: bool
+      If false, throws an error if an op not registered with
+      FTVMFakeQuantizationToInteger is encountered during the pass.
+
+    warn_missing_ops: bool
+      If true, emits a warning if an op not registered with
+      FTVMFakeQuantizationToInteger is encountered during the pass.
+      By default, such ops will assume to be of conversion category
+      MIXED_PRECISION_FOLLOW.
+
     Returns
     -------
     ret : tvm.transform.Pass
