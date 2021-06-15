@@ -299,8 +299,8 @@ class MixedPrecisionPass : public MixedModeMutator {
 
         // If not registered, by default assume is a generic FOLLOW operation.
         initial_category = MIXED_PRECISION_FOLLOW;
-        accumulation_dtype = DataType::Float(16);
-        output_dtype = DataType::Float(16);
+        accumulation_dtype = mixed_precision_type;
+        output_dtype = mixed_precision_type;
       }
     } else {
       LOG(FATAL) << "Unsupported op type in CallNode: " << pre_call_node->op;
