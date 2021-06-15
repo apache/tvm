@@ -40,14 +40,14 @@ def _tensorlist_reserve():
         dtype_str = attr.get("element_dtype").name
         elem_shape = _infer_value(inputs[0], params, prelude.mod)
         elem_shape = tuple(elem_shape.asnumpy().astype("int32").flatten())
-
-        if -1 in elem_shape:
-            tensor_array_constructor = prelude.get_global_var("tensor_array", dtype_str)
-            tensor_array = tensor_array_constructor(inputs[1])
-        else:
+        
+        if "shape" in attr:
             static_tensor_array_ops = StaticTensorArrayOps(prelude, dtype_str, elem_shape)
             static_tensor_array_ops.register()
             tensor_array_constructor = static_tensor_array_ops.get_global_var("tensor_array")
+            tensor_array = tensor_array_constructor(inputs[1])
+        else:
+            tensor_array_constructor = prelude.get_global_var("tensor_array", dtype_str)
             tensor_array = tensor_array_constructor(inputs[1])
         return tensor_array
 
@@ -60,6 +60,7 @@ def _tensorlist_set_item():
         input_ta = inputs[0]
         input_ta_shape = get_tensor_array_shape(input_ta, dtype_str, prelude)
         input_t_shape = _infer_type_with_prelude(inputs[2], prelude).shape
+        input_rank = len(input_t_shape)
 
         if input_ta_shape is None:
             tensor_name = "tensor{}".format(input_rank)
@@ -73,8 +74,16 @@ def _tensorlist_set_item():
             tensor_func = static_tensor_array_ops.get_ctor("tensor_constructor")
             v = tensor_func(inputs[2])
             # Write tensor with more static shape
-            actual_shape = _get_more_static_shape(input_t_shape, input_ta_shape)
-            if actual_shape != input_t_shape:
+            # TODO do we need this?
+            # convert shape with -1 to any()
+            input_ta_shape_a = []
+            for dim in input_ta_shape:
+                if dim < 0:
+                    input_ta_shape_a.append(Any())
+                else:
+                    input_ta_shape_a.append(dim)
+            actual_shape = _get_more_static_shape(input_t_shape, input_ta_shape_a)
+            if actual_shape != input_ta_shape_a:
                 new_shape = []
                 num_any_dim = 0
                 for dim in actual_shape:
@@ -83,7 +92,7 @@ def _tensorlist_set_item():
                     new_shape.append(dim if isinstance(dim, int) else -1)
                 if num_any_dim <= 1:
                     v = tensor_func(_op.reshape(inputs[2], new_shape))
-            write_func = prelude.get_global_var_static("tensor_array_write", dtype_str, input_ta_shape)
+            write_func = prelude.get_global_var_static("tensor_array_write", dtype_str, input_ta_shape_a)
             out = write_func(input_ta, inputs[1], v)
         return out
 

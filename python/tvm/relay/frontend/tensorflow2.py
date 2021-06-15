@@ -38,6 +38,7 @@ from ..loops import while_loop as _while_loop
 from .common import infer_type as _infer_type
 
 from .tensorflow_ops import _convert_map as _convert_map_common
+from .tensorflow_ops import _get_more_static_shape
 from .tensorflow2_ops import _convert_map as _convert_map_tf2
 from .tensorflow2_ops import _need_prelude_for_shape_inference
 
@@ -45,6 +46,12 @@ from ..ty import Any
 
 __all__ = ["from_tensorflow"]
 
+# A map to record tensor list write ops and input tl/tensor indices
+# Value is (index of tensor list, index of written node)
+_tensor_list_write_ops = {
+    "TensorListSetItem": (0, 2),
+    
+}
 
 def _infer_type_with_prelude(val, prelude):
     body = _infer_type(val, prelude.mod)
@@ -66,6 +73,11 @@ def set_span(sym, node_name):
             sym = _expr.TupleWrapper(tuple_value, sym.size)
     return sym
 
+def is_tensor_list_constuctor(tf_node):
+    """Check whether is tensor list constructor node."""
+    # TODO how about TensorListFromTensor
+    tl_name = "TensorListReserve"
+    return tf_node.op == tl_name
 
 def convert_const_node(node, shape):
     """convert tf const node into relay const or var"""
@@ -197,6 +209,8 @@ class GraphProto:
         self._output_shapes = {}
         self._tf_node_map = {}
         self._gdef_lib = {}
+        self._tensor_list_shapes = {}
+        self._tensor_list_shape_nodes = {}
 
     def from_tensorflow(
         self, graph, layout="NHWC", shape=None, outputs=None, input_types=None, gdef_lib=None
@@ -215,11 +229,32 @@ class GraphProto:
             graph, layout=layout, shape=shape, outputs=outputs, input_types=input_types
         )
         return func, self._params
+    
+
+    def _analysis_tensor_list_op(self, graph, node, tl_write_nodes, tl_stack_nodes, tl_construct_nodes):
+        if node.op.startswith("TensorList"):
+            if is_tensor_list_constuctor(node):
+                tl_construct_nodes.append(node)
+            else:
+                for tl_write_name, idx in _tensor_list_write_ops.items():
+                    if node.op.startswith(tl_write_name):
+                        tl_write_nodes.append((node, idx))
+                if node.op.startswith("TensorListStack"):
+                    tl_stack_nodes.append(node)
+        elif node.op.startswith("StatelessWhile"):
+            cond_fn_name, body_fn_name = [parse_attr(node.attr).get(x).name for x in ["cond", "body"]]
+            for fn_name in [cond_fn_name, body_fn_name]:
+                subfunction = self._gdef_lib[fn_name]
+                for sub_node in subfunction.node:
+                    self._tf_node_map[sub_node.name] = sub_node
+                    self._analysis_tensor_list_op(subfunction, sub_node, tl_write_nodes, tl_stack_nodes, tl_construct_nodes)
 
     def _get_relay_func(self, graph, layout="NHWC", shape=None, outputs=None, input_types=None):
         if input_types is None:
             input_types = {}
-
+        tl_write_nodes = []
+        tl_stack_nodes = []
+        tl_construct_nodes = []
         self._layout = layout
         for node in graph.node:
             name = node.name
@@ -236,10 +271,124 @@ class GraphProto:
                 self._nodes[node.name] = sym
                 if param:
                     self._params[node.name] = param
+            # recursivly iterate tensorlist op if seen while loop
+            self._analysis_tensor_list_op(graph, node, tl_write_nodes, tl_stack_nodes, tl_construct_nodes)
+
+        # Use tensor list stack to infer static tensor list shape
+        for stack_node in tl_stack_nodes:
+            input_ta_name = stack_node.input[0].split(":")[0].split("^")[-1]
+            input_ta_node = self._tf_node_map[input_ta_name]
+            input_shape_name = stack_node.input[1]
+            input_shape_node = self._tf_node_map[input_shape_name]
+            stack = [self._tf_node_map[stack_node.input[0].split(":")[0]]]
+            # TODO fix logic here
+            # I assume input index is the same as output index, it should be tracking in the sub function to make sure
+            in_idx = -1
+            while stack:
+                cnode = stack.pop(0)
+                if not cnode.op.startswith("TensorList"):
+                    if in_idx and cnode.op.startswith("StatelessWhile"):
+                        stack.append(self._tf_node_map[cnode.input[in_idx].split(":")[0]])
+                    else:
+                        for iname in cnode.input:
+                            if self._tf_node_map[iname.split(":")[0]].op.startswith('StatelessWhile'):
+                                if iname.split(":")[1]:
+                                    in_idx = int(iname.split(":")[1])
+                            stack.append(self._tf_node_map[iname.split(":")[0]])
+                elif cnode.name != stack_node.name:
+                    if is_tensor_list_constuctor(cnode):
+                        #inode = self._tf_node_map[stack_node.input[0].split(":")[0]]
+                        #print("inode.name: ", inode.name)
+                        #tn = stack_node.input[0].split(":")
+                        #output_index = int(tn[1]) if len(tn) > 1 else 0
+                        #self._tensor_list_shape_nodes[cnode.name] = (inode, stack_node.op, output_index)
+
+                        shape_attr = self._parse_attr(input_shape_node.attr)
+                        if "value" not in shape_attr:
+                            continue
+                        raw_elem_shape = tensor_util.MakeNdarray(shape_attr['value'])
+                        elem_shape = []
+                        for dim in raw_elem_shape:
+                            if dim < 0:
+                                elem_shape.append(Any())
+                            else:
+                                elem_shape.append(int(dim))
+                        self._tensor_list_shapes[cnode.name] = elem_shape
+                    break
+
+
+        # TODO why we need to track write node?
+        # Fetch node contains static tensor list shape
+        for item in tl_write_nodes:
+            wnode = item[0]
+            ta_idx, inode_idx = item[1]
+            stack = [self._tf_node_map[wnode.input[ta_idx].split(":")[0]]]
+            while stack:
+                cnode = stack.pop(0)
+                if not cnode.op.startswith("TensorList"):
+                    for iname in cnode.input:
+                        stack.append(self._tf_node_map[iname.split(":")[0]])
+                elif cnode.name != wnode.name:
+                    if is_tensor_list_constuctor(cnode):
+                        inode = self._tf_node_map[wnode.input[inode_idx].split(":")[0]]
+                        tn = wnode.input[inode_idx].split(":")
+                        output_index = int(tn[1]) if len(tn) > 1 else 0
+                        self._tensor_list_shape_nodes[cnode.name] = (inode, wnode.op, output_index)
+                    break
+        print("self._tensor_list_shape_nodes: ", self._tensor_list_shape_nodes)
+        print("self._tensor_list_shapes: ", self._tensor_list_shapes)
+
         for node in graph.node:
             self._backtrack_construct(graph, node.name)
 
         return self._func(graph, outputs)
+
+    def _get_attr(self, buf):
+        """Returns the value of the attr of this buf with the given `name`.
+        Args:
+          buf: attrvalue protobuf.
+        Returns:
+          The value of the attr, as a Python object.
+        Raises:
+          ValueError: If this op does not have an attr with the given `name`.
+        """
+        fields = ["s", "i", "f", "b", "type", "shape", "tensor", "func"]
+
+        x = buf
+
+        ret = []
+
+        try:
+            from tensorflow.python.framework import dtypes
+        except ImportError as e:
+            raise ImportError("Unable to import tensorflow which is required {}".format(e))
+
+        # Treat an empty oneof value as an empty list.
+        if not x.WhichOneof("value"):
+            return ret
+        if x.HasField("list"):
+            for f in fields:
+                if getattr(x.list, f):
+                    if f == "type":
+                        ret += [dtypes.as_dtype(x) for x in list(getattr(x.list, f))]
+                    else:
+                        ret += list(getattr(x.list, f))
+        else:
+            for f in fields:
+                if x.HasField(f):
+                    if f == "type":
+                        ret = dtypes.as_dtype(getattr(x, f))
+                    else:
+                        ret = getattr(x, f)
+        return ret
+
+    def _parse_attr(self, attr_proto):
+        """Convert a list of AttributeProto to a dict, with names as keys."""
+        attrs = {}
+        for key, value in attr_proto.items():
+            attrs[key] = self._get_attr(value)
+
+        return attrs
 
     def _func(self, graph, outputs):
         out = []
@@ -392,8 +541,55 @@ class GraphProto:
             attr["_node_name"] = node.name
             attr["_target_layout"] = self._layout
             inputs = [self._backtrack_construct(graph, iname) for iname in node.input]
-            op = self._convert_operator(graph, node.op, node.name, inputs, attr)
 
+            # infer shape for TensorList op
+            if is_tensor_list_constuctor(node):
+                input_shape_name = node.input[1] if 'TensorListFromTensor' in node.op else node.input[0]
+                input_shape_node = self._tf_node_map[input_shape_name]
+                shape_attr = self._parse_attr(input_shape_node.attr)
+                elem_shape = []
+                if "value" in shape_attr:
+                    raw_elem_shape = tensor_util.MakeNdarray(shape_attr['value'])
+                    
+                    if raw_elem_shape.size == 1 and raw_elem_shape == -1:
+                        elem_shape.append(Any())
+                    else:
+                        for dim in raw_elem_shape:
+                            if dim < 0:
+                                elem_shape.append(Any())
+                            else:
+                                elem_shape.append(dim)
+                print(_get_more_static_shape(elem_shape, [3]))
+                if elem_shape:
+                    attr["shape"] = elem_shape
+                if ("identical_element_shapes" in attr and attr["identical_element_shapes"]) or elem_shape:
+                    #shape_node, wnode_op, output_index = self._tensor_list_shape_nodes[
+                    #    node.name
+                    #]
+                    #name = shape_node.name
+                    #if output_index > 0:
+                    #    name += ":" + str(output_index)
+                    #print('name: ', name)
+                    #converted = self._backtrack_construct(graph, name)
+                    #shape = _infer_shape(converted, self._mod)
+                    shape = elem_shape
+                    print("shape: ", elem_shape)
+                    if node.name in self._tensor_list_shapes:
+                        preset_shape = self._tensor_list_shapes[node.name]
+                        shape = preset_shape
+                    attr["shape"] = shape
+                    #if node.name in self._tensor_list_shapes:
+                    #    preset_shape = self._tensor_list_shapes[node.name]
+                    #    print("preset_shape: ", preset_shape)
+                    #    shape = _get_more_static_shape(shape, preset_shape)
+                    #
+                    #if "shape" in attr:
+                    #    attr["shape"] = _get_more_static_shape(shape, attr["shape"])
+                    #else:
+                    #    attr["shape"] = shape
+                    print("attr[\"shape\"]: ", attr["shape"])
+
+            op = self._convert_operator(graph, node.op, node.name, inputs, attr)
             if isinstance(op, np.ndarray):
                 self._params[node.name] = tvm.nd.array(op)
                 op = [
