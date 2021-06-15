@@ -285,6 +285,12 @@ class GraphExecutorDebug : public GraphExecutor {
     }
 
     profiling::Profiler prof;
+
+    // Update device type encoding
+    for (size_t i = 0; i < devices_.size(); i++) {
+      devices_[i].device_type = static_cast<DLDeviceType>(devices_[i].device_type % kRPCSessMask);
+    }
+
     prof.Start(devices_);
     for (size_t i = 0; i < op_execs_.size(); ++i) {
       if (op_execs_[i]) {
@@ -300,7 +306,8 @@ class GraphExecutorDebug : public GraphExecutor {
         }
 
         uint32_t eid = entry_id(i, 0);
-        const Device& dev = data_entry_[eid]->device;
+        Device dev = data_entry_[eid]->device;
+        dev.device_type = static_cast<DLDeviceType>(dev.device_type % kRPCSessMask);
 
         std::unordered_map<std::string, ObjectRef> metrics;
         for (auto p : nodes_[i].param.attrs) {

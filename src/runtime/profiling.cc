@@ -84,8 +84,7 @@ TVM_REGISTER_GLOBAL("profiling.timer.cpu").set_body_typed([](Device dev) {
 });
 
 Timer Timer::Start(Device dev) {
-  auto f = Registry::Get(std::string("profiling.timer.") +
-                         DeviceName(static_cast<int>(dev.device_type / kRPCSessMask)));
+  auto f = Registry::Get(std::string("profiling.timer.") + DeviceName(dev.device_type));
   if (f == nullptr) {
     Timer t = DefaultTimer(dev);
     t->Start();
@@ -393,8 +392,7 @@ String ReportNode::AsTable(bool sort, bool aggregate) const {
 }
 
 std::string DeviceString(Device dev) {
-  return DeviceName(static_cast<int>(dev.device_type / kRPCSessMask)) +
-         std::to_string(dev.device_id);
+  return DeviceName(dev.device_type) + std::to_string(dev.device_id);
 }
 
 Report Profiler::Report(bool aggregate, bool sort) {
