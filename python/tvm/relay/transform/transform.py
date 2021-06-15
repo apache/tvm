@@ -1210,6 +1210,6 @@ def ToMixedPrecision(
     Returns
     -------
     ret : tvm.transform.Pass
-        The registered RewriteFP16 pass.
+        The registered pass.
     """
     return _ffi_api.ToMixedPrecision(mixed_precision_type, ignore_missing_ops, warn_missing_ops)

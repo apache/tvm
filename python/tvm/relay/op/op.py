@@ -465,7 +465,7 @@ def register_mixed_precision_conversion(op_name, func=None, level=10):
     converted. Specifically the function should take a call node and the target
     mixed precision datatype (e.g. FP16) and return the conversion category
     (see python/tvm/relay/transform/mixed_precision.py) as well as the accumulation
-    and output datatype of the oepration.
+    and output datatype of the operation.
 
     Parameters
     ----------

@@ -71,7 +71,7 @@ class MixedPrecisionPass : public MixedModeMutator {
  private:
   CachedCastNodes cast_nodes_cache;
 
-  // The target datatype we want to convert to e.g. FP16
+  /*! \brief The target datatype we want to convert to e.g. FP16 */
   const DataType mixed_precision_type;
 
   // If false, throws a fatal error if an op which is not registered with a
@@ -193,9 +193,7 @@ class MixedPrecisionPass : public MixedModeMutator {
     }
 
     const ExprNode* expr_node = expr.as<ExprNode>();
-    if (!expr_node) {
-      LOG(FATAL) << "Non-expression node found in cast: " << expr;
-    }
+    CHECK(expr_node) << "Non-expression node found in cast: " << expr;
 
     // Use cached result if possible.
     auto search = cast_nodes_cache.find({expr_node, wanted_dtype});
@@ -227,10 +225,8 @@ class MixedPrecisionPass : public MixedModeMutator {
         all_same &= casted_element.same_as(tuple_element);
       }
       return all_same ? expr : Tuple(new_expr);
-    } else {
-      LOG(FATAL) << "Unsupported type " << expr_type << " we don't know how to cast for arguments!";
-      return expr;
     }
+    CHECK(0) << "Unsupported type " << expr_type << " we don't know how to cast for arguments!";
   }
 
   std::pair<Array<Expr>, Array<Type>> CastAllArgs(const Array<Expr>& cur_args,
@@ -258,16 +254,15 @@ class MixedPrecisionPass : public MixedModeMutator {
         mixed_precision_type(mixed_precision_type),
         ignore_missing_ops(ignore_missing_ops),
         warn_missing_ops(warn_missing_ops) {
-    if (!mixed_precision_type.is_float() && !mixed_precision_type.is_bfloat16())
-      LOG(FATAL) << "Only support IEEE floating point mixed precision types and bfloat16 got "
+    if (!mixed_precision_type.is_float() && !mixed_precision_type.is_bfloat16()) {
+      LOG(FATAL) << "Only support IEEE floating point mixed precision types and bfloat16, but got "
                  << mixed_precision_type;
+    }
   }
 
   Expr Rewrite_(const CallNode* pre_call_node, const Expr& post) final {
     const CallNode* post_call_node = post.as<CallNode>();
-    if (!post_call_node) {
-      LOG(FATAL) << "Expected a CallNode for the rewrite got " << post;
-    }
+    CHECK(post_call_node) << "Expected a CallNode, but got " << post;
 
     Expr cur_op = post_call_node->op;
 
@@ -324,12 +319,10 @@ class MixedPrecisionPass : public MixedModeMutator {
     }
 
     // Determine the final category we want for conversion
-    MixedTypeConversionCategory final_category;
+    MixedTypeConversionCategory final_category = initial_category;
     if (initial_category == MIXED_PRECISION_FOLLOW) {
       final_category =
           all_args_mixed_type_compatible ? MIXED_PRECISION_ALWAYS : MIXED_PRECISION_NEVER;
-    } else {
-      final_category = initial_category;
     }
 
     // Create the new arguments to the call.
