@@ -1200,9 +1200,7 @@ def FakeQuantizationToInteger():
     return _ffi_api.FakeQuantizationToInteger()
 
 
-def ToMixedPrecision(
-    mixed_precision_type="float16", ignore_missing_ops=True, warn_missing_ops=True
-):
+def ToMixedPrecision(mixed_precision_type="float16", missing_op_mode=1):
     """
     Automatic mixed precision rewriter. Rewrite an FP32 relay graph into a version
     where as many operations as possible are in the target mixed_precision_type.
@@ -1212,19 +1210,17 @@ def ToMixedPrecision(
     mixed_precision_type: str
       The target datatype to transform operations in the graph to use.
 
-    ignore_missing_ops: bool
-      If false, throws an error if an op not registered with
-      FTVMFakeQuantizationToInteger is encountered during the pass.
-
-    warn_missing_ops: bool
-      If true, emits a warning if an op not registered with
-      FTVMFakeQuantizationToInteger is encountered during the pass.
-      By default, such ops will assume to be of conversion category
-      MIXED_PRECISION_FOLLOW.
+    missing_op_mode: int
+      Determines how to handle ops not registered with FTVMMixedPrecisionConversionType
+        0: Does not allow any missing ops. Will throw errors when encountering any.
+        1: Allow missing ops but throw warnings.
+        2: Allow missing ops and silently ignore them.
 
     Returns
     -------
     ret : tvm.transform.Pass
         The registered pass.
     """
-    return _ffi_api.ToMixedPrecision(mixed_precision_type, ignore_missing_ops, warn_missing_ops)
+    if missing_op_mode < 0 or missing_op_mode > 2:
+        raise ValueError("Missing op mode is either 0, 1, or 2")
+    return _ffi_api.ToMixedPrecision(mixed_precision_type, missing_op_mode)

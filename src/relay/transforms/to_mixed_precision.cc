@@ -74,13 +74,9 @@ class MixedPrecisionPass : public MixedModeMutator {
   /*! \brief The target datatype we want to convert to e.g. FP16 */
   const DataType mixed_precision_type;
 
-  // If false, throws a fatal error if an op which is not registered with a
-  // FTVMMixedPrecisionConversionType is encountered.
-  bool ignore_missing_ops;
-
-  // If true, emits a warning if an op which is not registered with a
-  // FTVMMixedPrecisionConversionType is encountered.
-  bool warn_missing_ops;
+  // Map of Ops with no associated FTVMMixedPrecisionConversionType to the times they were
+  // encountered. Used for emitting warnings on missing ops in the pass.
+  std::unordered_map<std::string, int> missing_ops;
 
   Attrs GetNewAttrs(const CallNode* call, const DataType& accumulation_dtype) const {
     /* If the accumulation dtype is in the attributes make a copy and mutate the field. */
@@ -249,12 +245,8 @@ class MixedPrecisionPass : public MixedModeMutator {
  public:
   using MixedModeMutator::VisitExpr_;
 
-  explicit MixedPrecisionPass(DataType mixed_precision_type = DataType::Float(16),
-                              bool ignore_missing_ops = true, bool warn_missing_ops = true)
-      : MixedModeMutator(),
-        mixed_precision_type(mixed_precision_type),
-        ignore_missing_ops(ignore_missing_ops),
-        warn_missing_ops(warn_missing_ops) {
+  explicit MixedPrecisionPass(DataType mixed_precision_type = DataType::Float(16))
+      : MixedModeMutator(), mixed_precision_type(mixed_precision_type) {
     if (!mixed_precision_type.is_float() && !mixed_precision_type.is_bfloat16()) {
       LOG(FATAL) << "Only support IEEE floating point mixed precision types and bfloat16, but got "
                  << mixed_precision_type;
@@ -294,8 +286,7 @@ class MixedPrecisionPass : public MixedModeMutator {
         accumulation_dtype = DataType(String2DLDataType(Downcast<String>(op_descriptor[1])));
         output_dtype = DataType(String2DLDataType(Downcast<String>(op_descriptor[2])));
       } else {
-        ICHECK(ignore_missing_ops) << "Op " << op->name << " not in conversion lists!";
-        if (warn_missing_ops) LOG(WARNING) << "Op " << op->name << " not in conversion lists!";
+        missing_ops[op->name] += 1;
 
         // If not registered, by default assume is a generic FOLLOW operation.
         initial_category = MIXED_PRECISION_FOLLOW;
@@ -376,24 +367,47 @@ class MixedPrecisionPass : public MixedModeMutator {
     Expr body = this->Mutate(op->body);
     return Let(var, value, body, op->span);
   }
+
+  // To access map of ops not registered for error reporting
+  friend Expr ToMixedPrecision(const Expr& expr, const DataType& mixed_precision_type,
+                               int missing_op_mode);
 };
 
-Expr ToMixedPrecision(const Expr& expr, const DataType& mixed_precision_type,
-                      bool ignore_missing_ops, bool warn_missing_ops) {
-  MixedPrecisionPass converter =
-      MixedPrecisionPass(mixed_precision_type, ignore_missing_ops, warn_missing_ops);
+Expr ToMixedPrecision(const Expr& expr, const DataType& mixed_precision_type, int missing_op_mode) {
+  /*
+  missing_op_mode:
+
+  0: Does not allow any missing ops. Will throw errors and terminate the pass when encountering any.
+  1: Allow missing ops but throw warnings.
+  2: Allow missing ops and silently ignore them.
+  */
+  ICHECK(missing_op_mode >= 0 && missing_op_mode <= 2)
+      << " missing_op_mode must be either 0, 1, or 2 got " << missing_op_mode;
+
+  MixedPrecisionPass converter = MixedPrecisionPass(mixed_precision_type);
   auto result = converter.Mutate(expr);
+
+  for (auto it = converter.missing_ops.begin();
+       missing_op_mode != 2 && it != converter.missing_ops.end(); it++) {
+    std::string op_name = it->first;
+    int appear_count = it->second;
+
+    LOG(WARNING) << "Op \"" << op_name << "\" not registered "
+                 << "FTVMMixedPrecisionConversionType appears " << appear_count << " in graph.";
+  }
+
+  if (converter.missing_ops.size() != 0 && missing_op_mode == 0) {
+    CHECK(0) << "Missing ops were found, please fix!";
+  }
   return result;
 }
 
 namespace transform {
 
-Pass ToMixedPrecision(DataType mixed_precision_type, bool ignore_missing_ops,
-                      bool warn_missing_ops) {
+Pass ToMixedPrecision(DataType mixed_precision_type, int missing_op_mode) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
-        return Downcast<Function>(
-            ToMixedPrecision(f, mixed_precision_type, ignore_missing_ops, warn_missing_ops));
+        return Downcast<Function>(ToMixedPrecision(f, mixed_precision_type, missing_op_mode));
       };
   return CreateFunctionPass(pass_func, 10, "ToMixedPrecision", {});
 }
