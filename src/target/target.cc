@@ -28,6 +28,7 @@
 #include <tvm/tir/expr.h>
 
 #include <algorithm>
+#include <cctype>
 #include <stack>
 
 #include "../runtime/object_internal.h"
@@ -210,7 +211,17 @@ ObjectRef TargetInternal::ParseType(const std::string& str,
     // Parsing integer
     int v;
     if (!(is >> v)) {
-      throw Error(": Cannot parse into type \"Integer\" from string: " + str);
+      std::string lower(str.size(), '\x0');
+      std::transform(str.begin(), str.end(), lower.begin(),
+                     [](unsigned char c) { return std::tolower(c); });
+      // Bool is a subclass of IntImm, so allow textual boolean values.
+      if (lower == "true") {
+        v = 1;
+      } else if (lower == "false") {
+        v = 0;
+      } else {
+        throw Error(": Cannot parse into type \"Integer\" from string: " + str);
+      }
     }
     return Integer(v);
   } else if (info.type_index == String::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
