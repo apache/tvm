@@ -25,6 +25,7 @@ pytest.importorskip("pty")
 import sys
 import subprocess
 import textwrap
+import csv
 
 import numpy as np
 import pytest
@@ -169,6 +170,45 @@ def test_graph_executor():
 
         out = graph_mod.get_output(0)
         assert (out.numpy() == np.array([6, 10])).all()
+
+
+@tvm.testing.requires_micro
+def test_debug_graph_executor_profile():
+    """Test use of the graph debug executor profile operation with microTVM."""
+    import tvm.micro
+
+    workspace = tvm.micro.Workspace(debug=True)
+    relay_mod = tvm.parser.fromtext(
+        """
+      #[version = "0.0.5"]
+      def @main(%a : Tensor[(1, 2), uint8], %b : Tensor[(1, 2), uint8]) {
+          %0 = %a + %b;
+          %0
+      }"""
+    )
+
+    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
+        factory = tvm.relay.build(relay_mod, target=TARGET)
+
+    with _make_session(workspace, factory.get_lib()) as sess:
+        debug_g_mod = tvm.micro.create_local_debug_executor(
+            factory.get_graph_json(), sess.get_system_lib(), sess.device
+        )
+        A_data = tvm.nd.array(np.array([2, 3], dtype="uint8"), device=sess.device)
+        B_data = tvm.nd.array(np.array([4, 7], dtype="uint8"), device=sess.device)
+        input_dict = {"a": A_data, "b": B_data}
+        timing_results = debug_g_mod.profile(**input_dict).csv()
+        assert len(timing_results) > 0
+
+        # Convert CSV to list
+        lines = timing_results.splitlines()
+        reader = csv.reader(lines)
+        parsed_csv = list(reader)
+
+        # Check Percent value for first op
+        assert "Percent" in parsed_csv[0]
+        percent_ind = parsed_csv[0].index("Percent")
+        assert float(parsed_csv[1][percent_ind]) > 0
 
 
 @tvm.testing.requires_micro
