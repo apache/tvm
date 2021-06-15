@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=line-too-long,unused-argument
 """Default behavior for ops in mixed_precision pass. Import this file to use."""
 from typing import List
 
@@ -132,7 +133,7 @@ DEFAULT_NEVER_LIST = [
 
 
 # Returns a decorator which registers for every given op, the function under FTVMMixedPrecisionConversionType
-def register_func_to_op_list(list_ops=[]):
+def register_func_to_op_list(list_ops):
     def decorator(func):
         for op_name in list_ops:
             register_mixed_precision_conversion(op_name, func=func)
