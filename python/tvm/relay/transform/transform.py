@@ -1207,10 +1207,6 @@ def ToMixedPrecision(
     Automatic mixed precision rewriter. Rewrite an FP32 relay graph into a version
     where as many operations as possible are in the target mixed_precision_type.
 
-    Note this does mutate the original graph putting it in a bad state potentially.
-
-    TODO(AndrewZhaoLuo): don't mutate the original graph.
-
     Returns
     -------
     ret : tvm.transform.Pass
