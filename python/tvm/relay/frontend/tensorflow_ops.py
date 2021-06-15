@@ -1141,7 +1141,11 @@ def _batch_matmul():
             if is_static:
                 num_outer_elts = np.prod(outer_dims)
                 new_shape_x = (num_outer_elts, orig_shape_x[-2], orig_shape_x[-1])
-                new_shape_y = (num_outer_elts, orig_shape_y[-2], orig_shape_y[-1])
+                ndim_y = len(orig_shape_y)
+                if ndim_y > 2:
+                    new_shape_y = (num_outer_elts, orig_shape_y[-2], orig_shape_y[-1])
+                elif ndim_y == 2:
+                    new_shape_y = (1, orig_shape_y[-2], orig_shape_y[-1])
             else:  # handle dynamic shape (dyn.reshape op)
                 shape_of_x = list_shape_of(inputs[0], ndim)
                 shape_of_y = list_shape_of(inputs[1], ndim)
@@ -1154,11 +1158,7 @@ def _batch_matmul():
                 new_shape_y = _op.concatenate(_op.Tuple(new_shape_y), axis=0)
 
             input_x = _op.reshape(input_x, newshape=new_shape_x)
-
-            if np.prod(orig_shape_y) < np.prod(new_shape_y):
-                input_y = _op.broadcast_to(input_y, new_shape_y)
-            else:
-                input_y = _op.reshape(input_y, newshape=new_shape_y)
+            input_y = _op.reshape(input_y, newshape=new_shape_y)
 
         adj_x = attr["adj_x"]
         adj_y = attr["adj_y"]
