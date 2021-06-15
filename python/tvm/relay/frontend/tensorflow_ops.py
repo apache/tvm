@@ -1132,6 +1132,7 @@ def _batch_matmul():
         orig_shape_x = _infer_shape(input_x, mod)
         orig_shape_y = _infer_shape(input_y, mod)
         ndim = len(orig_shape_x)
+        ndim_y = len(orig_shape_y)
 
         is_static = not check_symbolic_shape(orig_shape_x)
 
@@ -1141,7 +1142,6 @@ def _batch_matmul():
             if is_static:
                 num_outer_elts = np.prod(outer_dims)
                 new_shape_x = (num_outer_elts, orig_shape_x[-2], orig_shape_x[-1])
-                ndim_y = len(orig_shape_y)
                 if ndim_y > 2:
                     new_shape_y = (num_outer_elts, orig_shape_y[-2], orig_shape_y[-1])
                 elif ndim_y == 2:
@@ -1159,7 +1159,7 @@ def _batch_matmul():
 
             input_x = _op.reshape(input_x, newshape=new_shape_x)
             input_y = _op.reshape(input_y, newshape=new_shape_y)
-        elif len(orig_shape_y) < 3:
+        elif ndim_y == 2:
             input_y = _op.reshape(input_y, (1, orig_shape_y[-2], orig_shape_y[-1]))
         adj_x = attr["adj_x"]
         adj_y = attr["adj_y"]
