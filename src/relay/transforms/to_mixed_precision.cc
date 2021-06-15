@@ -69,7 +69,7 @@ using FTVMMixedPrecisionConversionType = runtime::TypedPackedFunc<Array<ObjectRe
 
 class MixedPrecisionPass : public MixedModeMutator {
  private:
-  CachedCastNodes cast_nodes_cache;
+  CachedCastNodes cast_nodes_cache_;
 
   /*! \brief The target datatype we want to convert to e.g. FP16 */
   const DataType mixed_precision_type;
@@ -196,17 +196,17 @@ class MixedPrecisionPass : public MixedModeMutator {
     CHECK(expr_node) << "Non-expression node found in cast: " << expr;
 
     // Use cached result if possible.
-    auto search = cast_nodes_cache.find({expr_node, wanted_dtype});
-    if (search != cast_nodes_cache.end()) {
+    auto search = cast_nodes_cache_.find({expr_node, wanted_dtype});
+    if (search != cast_nodes_cache_.end()) {
       return search->second;
     }
 
     Expr result = Cast(expr, wanted_dtype);
-    cast_nodes_cache[{expr_node, wanted_dtype}] = result;
+    cast_nodes_cache_[{expr_node, wanted_dtype}] = result;
 
     // Reverse the cache result, e.g. if we want to reverse the cast simply point to original node
     const ExprNode* new_expr_node = result.as<ExprNode>();
-    cast_nodes_cache[{new_expr_node, expr_dtype}] = expr;
+    cast_nodes_cache_[{new_expr_node, expr_dtype}] = expr;
     return result;
   }
 
