@@ -84,71 +84,71 @@ class MixedPrecisionPass : public MixedModeMutator {
 
   Attrs GetNewAttrs(const CallNode* call, const DataType& accumulation_dtype) const {
     /* If the accumulation dtype is in the attributes make a copy and mutate the field. */
-    Attrs new_attrs = Attrs(call->attrs);
-    if (new_attrs.get() != nullptr) {
+    Attrs cur_attrs = call->attrs;
+    if (cur_attrs.get() != nullptr) {
       // TODO(AndrewZhaoLuo): Figure out a better way to do this
       // modify output_dtype attributes (accumulation dtypes for ops)
-      if (auto attrs = new_attrs.as<Conv1DAttrs>()) {
-        ModifyAttrsOutputDType(attrs, accumulation_dtype);
-      } else if (auto attrs = new_attrs.as<Conv1DTransposeAttrs>()) {
-        ModifyAttrsOutputDType(attrs, accumulation_dtype);
-      } else if (auto attrs = new_attrs.as<Conv2DAttrs>()) {
-        ModifyAttrsOutputDType(attrs, accumulation_dtype);
-      } else if (auto attrs = new_attrs.as<Conv2DTransposeAttrs>()) {
-        ModifyAttrsOutputDType(attrs, accumulation_dtype);
-      } else if (auto attrs = new_attrs.as<Conv2DWinogradAttrs>()) {
-        ModifyAttrsOutputDType(attrs, accumulation_dtype);
-      } else if (auto attrs = new_attrs.as<Conv2DWinogradNNPACKWeightTransformAttrs>()) {
-        ModifyAttrsOutputDType(attrs, accumulation_dtype);
-      } else if (auto attrs = new_attrs.as<DeformableConv2DAttrs>()) {
-        ModifyAttrsOutputDType(attrs, accumulation_dtype);
-      } else if (auto attrs = new_attrs.as<Conv3DAttrs>()) {
-        ModifyAttrsOutputDType(attrs, accumulation_dtype);
-      } else if (auto attrs = new_attrs.as<Conv3DTransposeAttrs>()) {
-        ModifyAttrsOutputDType(attrs, accumulation_dtype);
-      } else if (auto attrs = new_attrs.as<Conv3DWinogradAttrs>()) {
-        ModifyAttrsOutputDType(attrs, accumulation_dtype);
-      } else if (auto attrs = new_attrs.as<DenseAttrs>()) {
-        ModifyAttrsOutputDType(attrs, accumulation_dtype);
-      } else if (auto attrs = new_attrs.as<BatchMatmulAttrs>()) {
-        ModifyAttrsOutputDType(attrs, accumulation_dtype);
+      if (auto attrs = cur_attrs.as<Conv1DAttrs>()) {
+        return ModifyAttrsOutputDType(attrs, accumulation_dtype);
+      } else if (auto attrs = cur_attrs.as<Conv1DTransposeAttrs>()) {
+        return ModifyAttrsOutputDType(attrs, accumulation_dtype);
+      } else if (auto attrs = cur_attrs.as<Conv2DAttrs>()) {
+        return ModifyAttrsOutputDType(attrs, accumulation_dtype);
+      } else if (auto attrs = cur_attrs.as<Conv2DTransposeAttrs>()) {
+        return ModifyAttrsOutputDType(attrs, accumulation_dtype);
+      } else if (auto attrs = cur_attrs.as<Conv2DWinogradAttrs>()) {
+        return ModifyAttrsOutputDType(attrs, accumulation_dtype);
+      } else if (auto attrs = cur_attrs.as<Conv2DWinogradNNPACKWeightTransformAttrs>()) {
+        return ModifyAttrsOutputDType(attrs, accumulation_dtype);
+      } else if (auto attrs = cur_attrs.as<DeformableConv2DAttrs>()) {
+        return ModifyAttrsOutputDType(attrs, accumulation_dtype);
+      } else if (auto attrs = cur_attrs.as<Conv3DAttrs>()) {
+        return ModifyAttrsOutputDType(attrs, accumulation_dtype);
+      } else if (auto attrs = cur_attrs.as<Conv3DTransposeAttrs>()) {
+        return ModifyAttrsOutputDType(attrs, accumulation_dtype);
+      } else if (auto attrs = cur_attrs.as<Conv3DWinogradAttrs>()) {
+        return ModifyAttrsOutputDType(attrs, accumulation_dtype);
+      } else if (auto attrs = cur_attrs.as<DenseAttrs>()) {
+        return ModifyAttrsOutputDType(attrs, accumulation_dtype);
+      } else if (auto attrs = cur_attrs.as<BatchMatmulAttrs>()) {
+        return ModifyAttrsOutputDType(attrs, accumulation_dtype);
       }
 
       // modify dtype attributes (creating new tensors of type dtype)
-      if (auto attrs = new_attrs.as<InitOpAttrs>()) {
-        ModifyAttrsDType(attrs, accumulation_dtype);
+      if (auto attrs = cur_attrs.as<InitOpAttrs>()) {
+        return ModifyAttrsDType(attrs, accumulation_dtype);
       }
     }
 
-    return new_attrs;
+    return cur_attrs;
   }
 
   template <typename T>
-  void ModifyAttrsOutputDType(const T* attrs, const DataType& accumulation_dtype) const {
+  Attrs ModifyAttrsOutputDType(const T* attrs, const DataType& accumulation_dtype) const {
     /*
      Helper template to modify relevant attributes with out_dtype type.
      These represent accumulation dtypes for some operations e.g.
      conv2d might take in fp16 and give a fp32 result.
      Attrs is const because we get it as a const.
      */
-    T* mutable_attrs = const_cast<T*>(attrs);
-
-    DataType cur_type = (mutable_attrs->out_dtype);
-    if (cur_type.is_float() || cur_type.is_void()) mutable_attrs->out_dtype = accumulation_dtype;
+    DataType cur_type = (attrs->out_dtype);
+    ObjectPtr<T> new_attrs = make_object<T>(*attrs);
+    if (cur_type.is_float() || cur_type.is_void()) new_attrs->out_dtype = accumulation_dtype;
+    return Attrs(new_attrs);
   }
 
   template <typename T>
-  void ModifyAttrsDType(const T* attrs, const DataType& accumulation_dtype) const {
+  Attrs ModifyAttrsDType(const T* attrs, const DataType& accumulation_dtype) const {
     /*
      Helper template to modify relevant attributes with dtype type.
      This determines the output dtype for some ops. For example
      zeros creates a tensor of zeros of the specified dtype.
      Attrs is const because we get it as a const.
     */
-    T* mutable_attrs = const_cast<T*>(attrs);
-    DataType cur_type = (mutable_attrs->dtype);
-
-    if (cur_type.is_float() || cur_type.is_void()) mutable_attrs->dtype = accumulation_dtype;
+    DataType cur_type = (attrs->dtype);
+    ObjectPtr<T> new_attrs = make_object<T>(*attrs);
+    if (cur_type.is_float() || cur_type.is_void()) new_attrs->dtype = accumulation_dtype;
+    return Attrs(new_attrs);
   }
 
   Type GetType(const Expr& expr) const {
@@ -271,7 +271,8 @@ class MixedPrecisionPass : public MixedModeMutator {
 
     Expr cur_op = post_call_node->op;
 
-    // Results are: conversion category (int), accumulation dtype (str), output dtype (str)
+    // Get info on the operation being called:
+    // conversion category (int), accumulation dtype (str), output dtype (str)
     MixedTypeConversionCategory initial_category;
     DataType accumulation_dtype, output_dtype;
     if (cur_op.as<FunctionNode>()) {
@@ -284,6 +285,7 @@ class MixedPrecisionPass : public MixedModeMutator {
           Op::GetAttrMap<FTVMMixedPrecisionConversionType>("FTVMMixedPrecisionConversionType");
       Op op = Downcast<Op>(cur_op);
       if (attr_map.count(op)) {
+        // Calculate the conversion category and dtypes from registered attribute.
         FTVMMixedPrecisionConversionType func = attr_map[op];
         Array<ObjectRef> op_descriptor =
             func(GetRef<Call>(pre_call_node), DLDataType2String(mixed_precision_type));
@@ -296,6 +298,7 @@ class MixedPrecisionPass : public MixedModeMutator {
         if (!ignore_missing_ops) LOG(FATAL) << "Op " << op->name << " not in conversion lists!";
         if (warn_missing_ops) LOG(WARNING) << "Op " << op->name << " not in conversion lists!";
 
+        // If not registered, by default assume is a generic FOLLOW operation.
         initial_category = MIXED_PRECISION_FOLLOW;
         accumulation_dtype = DataType::Float(16);
         output_dtype = DataType::Float(16);
