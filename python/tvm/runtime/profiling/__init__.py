@@ -61,21 +61,22 @@ class DeviceWrapper(Object):
         self.__init_handle_by_constructor__(_ffi_api.DeviceWrapper, dev)
 
 
-@_ffi.register_object("runtime.profiling.PAPIMetricCollector")
-class PAPIMetricCollector(MetricCollector):
-    """Collects performance counter information using the Performance
-    Application Programming Interface (PAPI).
-    """
+if _ffi.get_global_func("runtime.profiling.PAPIMetricCollector"):
+    @_ffi.register_object("runtime.profiling.PAPIMetricCollector")
+    class PAPIMetricCollector(MetricCollector):
+        """Collects performance counter information using the Performance
+        Application Programming Interface (PAPI).
+        """
 
-    def __init__(self, metric_names: Dict[Device, Sequence[str]]):
-        """
-        Parameters
-        ----------
-        metric_names : Dict[Device, Sequence[str]]
-            List of per-device metrics to collect. You can find a list of valid
-            metrics by runing `papi_native_avail` from the command line.
-        """
-        wrapped = dict()
-        for dev, names in metric_names.items():
-            wrapped[DeviceWrapper(dev)] = names
-        self.__init_handle_by_constructor__(_ffi_api.PAPIMetricCollector, wrapped)
+        def __init__(self, metric_names: Dict[Device, Sequence[str]]):
+            """
+            Parameters
+            ----------
+            metric_names : Dict[Device, Sequence[str]]
+                List of per-device metrics to collect. You can find a list of valid
+                metrics by runing `papi_native_avail` from the command line.
+            """
+            wrapped = dict()
+            for dev, names in metric_names.items():
+                wrapped[DeviceWrapper(dev)] = names
+            self.__init_handle_by_constructor__(_ffi_api.PAPIMetricCollector, wrapped)
