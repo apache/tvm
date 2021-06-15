@@ -286,9 +286,8 @@ class MixedPrecisionPass : public MixedModeMutator {
         Array<ObjectRef> op_descriptor =
             func(GetRef<Call>(pre_call_node), DLDataType2String(mixed_precision_type));
         ICHECK(op_descriptor.size() == 3)
-            << "got the wrong number of returned arguments (expected 3) from "
-               "FTVMMixedPrecisionConversionType for "
-            << AsText(op, false);
+            << "got the wrong number of returned arguments (expected 3 got " << op_descriptor.size()
+            << ") from FTVMMixedPrecisionConversionType for " << AsText(op, false);
 
         int64_t op_conversion_type = Downcast<Integer>(op_descriptor[0])->value;
         initial_category = static_cast<MixedTypeConversionCategory>(op_conversion_type);
