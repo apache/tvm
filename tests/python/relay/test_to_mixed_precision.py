@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Unit tests for testing AMP pass"""
+"""Unit tests for testing ToMixedPrecision pass"""
 from typing import Any, Dict, List
 
 import numpy as np
@@ -79,7 +79,8 @@ def test_lstm_float64():
 
     As a toy example show can convert graph to float64 and have it run.
 
-    It doesn't really make sense to do it, this just shows you can.
+    It doesn't really make sense to do it, this just shows we can change
+    the target mixed_precision_dtype.
     """
     units = 3
     iterations = 5
@@ -126,6 +127,44 @@ def test_convert_single_conv():
                 out_dtype="float32",
             ),
             "float16",
+        )
+    )
+    expected_mod = tvm.relay.transform.InferType()(expected_mod)
+
+    assert not tvm.ir.structural_equal(fp16_mod, mod)
+    assert tvm.ir.structural_equal(fp16_mod, expected_mod)
+
+
+def test_convert_single_conv_fp64():
+    """As above but checks choosing a mixed_precision_type other than FP16 works"""
+    data_shape = (1, 3, 32, 32)
+    weight_shape = (5, 3, 3, 3)
+    data = relay.var("data", shape=data_shape, dtype="float32")
+    weight = relay.var("weight", shape=weight_shape, dtype="float32")
+    conv = relay.nn.conv2d(data, weight, strides=(1, 1), padding=(1, 1), out_dtype="float32")
+    mod = tvm.IRModule.from_expr(conv)
+    mod = tvm.relay.transform.InferType()(mod)
+
+    mod_params = {
+        "data": np.random.uniform(-1, 1, size=data_shape).astype("float32"),
+        "weight": np.random.uniform(-1, 1, size=weight_shape).astype("float32"),
+    }
+    fp16_mod = verify_mixed_precision_output_close(
+        mod, mod_params, mixed_precision_dtype="float64", atol=0.01, rtol=1e-3
+    )
+
+    # Note we still accumulate to FP32 by default, a user would need to overwrite default
+    # behavior to make this make more sense.
+    expected_mod = tvm.IRModule.from_expr(
+        relay.cast(
+            relay.nn.conv2d(
+                relay.cast(data, "float64"),
+                relay.cast(weight, "float64"),
+                strides=(1, 1),
+                padding=(1, 1),
+                out_dtype="float32",
+            ),
+            "float64",
         )
     )
     expected_mod = tvm.relay.transform.InferType()(expected_mod)
