@@ -45,12 +45,12 @@
 
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
 ci_lint = "tlcpack/ci-lint:v0.66"
-ci_gpu = "tlcpack/ci-gpu:v0.75"
-ci_cpu = "tlcpack/ci-cpu:v0.74"
+ci_gpu = "mbrookhart/ci-gpu:v0.0"
+ci_cpu = "mbrookhart/ci-cpu:v0.0"
 ci_wasm = "tlcpack/ci-wasm:v0.71"
 ci_i386 = "tlcpack/ci-i386:v0.73"
-ci_qemu = "tlcpack/ci-qemu:v0.05"
-ci_arm = "tlcpack/ci-arm:v0.05"
+ci_qemu = "mbrookhart/ci-qemu:v0.0"
+ci_arm = "mbrookhart/ci-arm:v0.0"
 // <--- End of regex-scanned config.
 
 // tvm libraries
