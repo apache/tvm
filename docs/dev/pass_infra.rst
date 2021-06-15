@@ -401,7 +401,7 @@ To allow other C++ modules to apply this pass, we declare a free function in
 Pass Instrument
 ^^^^^^^^^^^^^^^
 
-Currently we introduce four instrument point in the life-cycle of ``PassContext``.
+Currently we introduce four instrument points in the life-cycle of ``PassContext``.
 
 .. code:: c++
 
@@ -685,7 +685,10 @@ A customizable framework to instrument passes is provided. ``PassInstrument`` cl
         ):
         # ...
 
-One can implement a ``PassInstrument`` by using the ``pass_instrument`` decorator(`python/tvm/ir/instrument.py`_) on a class implementing following methods:
+One can implement a ``PassInstrument`` by using the ``pass_instrument``
+decorator(`python/tvm/ir/instrument.py`_) on a class implementing following methods.
+Note that it is recommended to use the ``pass_instrument`` decorator to implement
+``PassInstrument``, instead of overriding or subclassing.
 
 - ``enter_pass_ctx``
 
