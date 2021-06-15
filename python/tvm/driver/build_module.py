@@ -37,96 +37,58 @@ from tvm.target import Target
 from tvm.tir.buffer import Buffer
 from tvm.tir.expr import Var
 
+from . import _ffi_api as ffi
+
 
 def get_binds(args, compact=False, binds=None):
     """Internal function to get binds and arg_list given arguments.
-
     Parameters
     ----------
     args : list of Buffer or Tensor or Var
         The argument lists to the function.
-
     compact : bool
         If the statement has already bound to a compact buffer.
-
     binds : dict of :any:`Tensor` to :any:`Buffer`, optional
         Dictionary that maps the Tensor to Buffer which specified the data layout
         requirement of the function. By default, a new compact buffer is created
         for each tensor in the argument.
-
     Returns
     -------
     binds: dict
         The bind specification
-
     arg_list: list
         The list of symbolic buffers of arguments.
     """
-    binds = {} if binds is None else binds.copy()
-    arg_list = []
-    for x in args:
-        if isinstance(x, tensor.Tensor):
-            any_dim = any(isinstance(i, tvm.tir.Var) for i in x.shape)
-            buffer_type = "auto_broadcast" if any_dim and not compact else ""
-            if x not in binds:
-                buf = tvm.tir.decl_buffer(
-                    x.shape, dtype=x.dtype, name=x.name, buffer_type=buffer_type
-                )
-                binds[x] = buf
-                arg_list.append(buf)
-            else:
-                arg_list.append(binds[x])
-        elif isinstance(x, schedule.Buffer):
-            arg_list.append(x)
-        elif isinstance(x, tvm.tir.Var):
-            arg_list.append(x)
-        else:
-            raise ValueError("args must be Tensor, Buffer or Var")
+    binds, arg_list = ffi.get_binds(args, compact, binds)
     return binds, arg_list
 
 
-def form_irmodule(sch, args, name, binds):
+def schedule_to_module(
+    sch: schedule.Schedule,
+    args: Optional[List[Union[Buffer, tensor.Tensor, Var]]] = None,
+    name: str = "main",
+    binds: Optional[Mapping[tensor.Tensor, Buffer]] = None,
+) -> IRModule:
     """According to the given schedule, form a function.
-
     Parameters
     ----------
     sch : tvm.te.schedule.Schedule
         The given scheduler to form the raw body
-
     args : list of Buffer or Tensor or Var
         The argument lists to the function.
-
     name : str
-        The name of result function.
-
+        The name of result function, default name is "main"
     binds : dict of :any:`Tensor` to :any:`Buffer`, optional
         The binds information
-
     Returns
     -------
     The body formed according to the given schedule
     """
-    # normalize schedule first
-    pass_ctx = PassContext.current()
-    sch = sch.normalize()
-    bounds = schedule.InferBound(sch)
-    stmt = schedule.ScheduleOps(sch, bounds)
-
-    compact = schedule.VerifyCompactBuffer(stmt)
-    binds, arg_list = get_binds(args, compact, binds)
-
-    stmt = schedule.SchedulePostProcRewriteForTensorCore(stmt, sch, binds)
-    func = schedule.SchedulePostProcToPrimFunc(arg_list, stmt, binds)
-
-    func = func.with_attr("global_symbol", name)
-
-    if pass_ctx.config.get("tir.noalias", True):
-        func = func.with_attr("tir.noalias", True)
-    return tvm.IRModule({name: func})
+    return ffi.schedule_to_module(sch, args, name, binds)
 
 
 def lower(
-    inputs: Union[schedule.Schedule, PrimFunc, IRModule],
+    inp: Union[schedule.Schedule, PrimFunc, IRModule],
     args: Optional[List[Union[Buffer, tensor.Tensor, Var]]] = None,
     name: str = "main",
     binds: Optional[Mapping[tensor.Tensor, Buffer]] = None,
@@ -136,7 +98,7 @@ def lower(
 
     Parameters
     ----------
-    input : Union[schedule.Schedule, PrimFunc, IRModule]
+    inputs : Union[schedule.Schedule, PrimFunc, IRModule]
         The TE schedule or TensorIR PrimFunc/IRModule to be built
 
     args : Optional[List[Union[Buffer, tensor.Tensor, Var]]]
@@ -160,90 +122,13 @@ def lower(
     m : IRModule
        The result IRModule
     """
-    # config setup
-    pass_ctx = PassContext.current()
-    instrument_bound_checkers = bool(pass_ctx.config.get("tir.instrument_bound_checkers", False))
-    disable_vectorize = bool(pass_ctx.config.get("tir.disable_vectorize", False))
-    add_lower_pass = pass_ctx.config.get("tir.add_lower_pass", [])
-
-    lower_phase0 = [x[1] for x in add_lower_pass if x[0] == 0]
-    lower_phase1 = [x[1] for x in add_lower_pass if x[0] == 1]
-    lower_phase2 = [x[1] for x in add_lower_pass if x[0] == 2]
-    lower_phase3 = [x[1] for x in add_lower_pass if x[0] > 2]
-
-    # Phase 0
-    pass_list = lower_phase0
-    is_legacy_te_schedule: bool = False
-
-    if isinstance(inputs, schedule.Schedule):
-        if args is None:
-            raise ValueError("args must be given for lowering from TE schedule")
-        mod = form_irmodule(inputs, args, name, binds)
-        is_legacy_te_schedule = True
-    elif isinstance(inputs, PrimFunc):
-        func = inputs.with_attr("global_symbol", name)
-        if pass_ctx.config.get("tir.noalias", True):
-            func = func.with_attr("tir.noalias", True)
-        mod = tvm.IRModule({name: func})
-    elif isinstance(inputs, IRModule):
-        mod = inputs
-    else:
-        raise TypeError(
-            f"tvm.lower expected te.Schedule, PrimFunc or IRModule, but got {type(inputs)}"
-        )
-
-    # Phase 1
-    if is_legacy_te_schedule:
-        pass_list += [
-            tvm.tir.transform.InjectPrefetch(),
-            tvm.tir.transform.StorageFlatten(64, instrument_bound_checkers),
-        ]
-    else:
-        pass_list += [
-            tvm.tir.transform.LowerInitBlock(),
-            tvm.tir.transform.PlanAndUpdateBufferAllocationLocation(),
-            tvm.tir.transform.ConvertBlocksToOpaque(),
-            tvm.tir.transform.CompactBufferAllocation(),
-            tvm.tir.transform.FlattenBuffer(),
-        ]
-    pass_list += [
-        tvm.tir.transform.BF16Legalize(),
-        tvm.tir.transform.NarrowDataType(32),
-        tvm.tir.transform.Simplify(),
-    ]
-
-    pass_list += lower_phase1
-
-    # Phase 2
-    if not simple_mode:
-        pass_list += [(tvm.tir.transform.LoopPartition())]
-
-    pass_list += [
-        tvm.tir.transform.VectorizeLoop(not disable_vectorize),
-        tvm.tir.transform.InjectVirtualThread(),
-        tvm.tir.transform.InjectDoubleBuffer(),
-        tvm.tir.transform.StorageRewrite(),
-        tvm.tir.transform.UnrollLoop(),
-    ]
-    pass_list += lower_phase2
-
-    # Phase 3
-    pass_list += [
-        tvm.tir.transform.Simplify(),
-        tvm.tir.transform.RemoveNoOp(),
-    ]
-
-    pass_list += [tvm.tir.transform.RewriteUnsafeSelect()]
-    pass_list += [tvm.tir.transform.HoistIfThenElse()]
-    pass_list += lower_phase3
-
-    # Instrument BoundCheckers
-    if instrument_bound_checkers:
-        pass_list += [tvm.tir.transform.InstrumentBoundCheckers()]
-
-    optimize = tvm.transform.Sequential(pass_list)
-    mod = optimize(mod)
-    return mod
+    if isinstance(inp, IRModule):
+        return ffi.lower_module(inp, simple_mode)
+    if isinstance(inp, PrimFunc):
+        return ffi.lower_primfunc(inp, name, simple_mode)
+    if isinstance(inp, schedule.Schedule):
+        return ffi.lower_schedule(inp, args, name, binds, simple_mode)
+    raise ValueError("Expected input to be an IRModule, PrimFunc or Schedule, but got, ", type(inp))
 
 
 def _build_for_device(input_mod, target, target_host):
