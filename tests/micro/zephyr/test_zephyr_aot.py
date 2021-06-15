@@ -118,6 +118,8 @@ def _create_header_file(tensor_name, npy_data, output_path):
             header_file.write(f"uint8_t {tensor_name}[] = ")
         elif npy_data.dtype == "float32":
             header_file.write(f"float {tensor_name}[] = ")
+        else:
+            raise ValueError("Data type not expected.")
 
         header_file.write("{")
         for i in np.ndindex(npy_data.shape):
@@ -209,6 +211,47 @@ def test_tflite(platform, west_cmd, skip_build, tvm_debug):
     time = int(result_line[2])
     logging.info(f"Result: {result}\ttime: {time} ms")
     assert result == 8
+
+
+def test_qemu_make_fail(platform, west_cmd, skip_build, tvm_debug):
+    """Testing QEMU make fail."""
+    model, zephyr_board = PLATFORMS[platform]
+    build_config = {"skip_build": skip_build, "debug": tvm_debug}
+    shape = (10,)
+    dtype = "float32"
+
+    this_dir = pathlib.Path(__file__).parent
+    tvm_source_dir = this_dir / ".." / ".." / ".."
+    runtime_path = tvm_source_dir / "apps" / "microtvm" / "zephyr" / "aot_demo"
+
+    # Construct Relay program.
+    x = relay.var("x", relay.TensorType(shape=shape, dtype=dtype))
+    xx = relay.multiply(x, x)
+    z = relay.add(xx, relay.const(np.ones(shape=shape, dtype=dtype)))
+    func = relay.Function([x], z)
+
+    target = tvm.target.target.micro(model, options=["-link-params=1", "--executor=aot"])
+    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
+        lowered = relay.build(func, target)
+
+    # Generate input/output header files
+    model_files_path = os.path.join(runtime_path, "include")
+    _create_header_file((f"input_data"), np.zeros(shape=shape, dtype=dtype), model_files_path)
+    _create_header_file("output_data", np.zeros(shape=shape, dtype=dtype), model_files_path)
+
+    session_kw = _build_session_kw(
+        model, target, zephyr_board, west_cmd, lowered.lib, runtime_path, build_config
+    )
+
+    file_path = os.path.join(session_kw["binary"].base_dir, "zephyr/CMakeFiles/run.dir/build.make")
+    assert os.path.isfile(file_path), f"[{file_path}] does not exist."
+
+    # Remove a file to create make failure.
+    os.remove(file_path)
+    transport = session_kw["flasher"].flash(session_kw["binary"])
+    with pytest.raises(RuntimeError) as excinfo:
+        transport.open()
+    assert "QEMU setup failed" in str(excinfo.value)
 
 
 if __name__ == "__main__":
