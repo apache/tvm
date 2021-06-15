@@ -15,39 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 """TODO"""
-import tvm
-from tvm import relay
-
-from ..op import register_mixed_precision_conversion
+from tvm.relay.op import register_mixed_precision_conversion
 
 # Conversion types
 MIXED_PRECISION_ALWAYS = 0
 MIXED_PRECISION_FOLLOW = 1
 MIXED_PRECISION_NEVER = 2
-
-
-# Functions for FTVMMixedPrecisionConversionType which
-# Take in CallNodes and a DType and returns a conversion type,
-# an accumulation dtype, and an output_dtype.
-def get_generic_dtypes(call_node, mixed_precision_type):
-    # TODO: examine attributes
-    if hasattr(call_node.attrs, "out_dtype"):
-        return ["float32", mixed_precision_type]
-
-    return [mixed_precision_type, mixed_precision_type]
-
-
-def generic_always_op(call_node, mixed_precision_type):
-    return [MIXED_PRECISION_ALWAYS] + get_generic_dtypes(call_node, mixed_precision_type)
-
-
-def generic_follow_op(call_node, mixed_precision_type):
-    return [MIXED_PRECISION_FOLLOW] + get_generic_dtypes(call_node, mixed_precision_type)
-
-
-def generic_never_op(call_node, mixed_precision_type):
-    return [MIXED_PRECISION_NEVER] + get_generic_dtypes(call_node, mixed_precision_type)
-
 
 # Default lists inspired from TF's classifications:
 # github.com/tensorflow/tensorflow/blob/v2.5.0/tensorflow/core/grappler/optimizers/auto_mixed_precision_lists.h
@@ -152,18 +125,45 @@ DEFAULT_NEVER_LIST = [
 ]
 
 
-def register_default_mixed_precision_attributes():
-    for list_of_ops, func in zip(
-        [DEFAULT_ALWAYS_LIST, DEFAULT_FOLLOW_LIST, DEFAULT_NEVER_LIST],
-        [generic_always_op, generic_follow_op, generic_never_op],
-    ):
-        for op_name in list_of_ops:
+# Returns a decorator which registers for every given op, the function under FTVMMixedPrecisionConversionType
+def register_func_to_op_list(list_ops=[]):
+    def decorator(func):
+        for op_name in list_ops:
             register_mixed_precision_conversion(op_name, func=func)
 
-    @register_mixed_precision_conversion("nn.batch_matmul")
-    def nn_batch_matmul(call_node, mixed_precision_type):
-        # TODO(AndrewZhaoLuo): remove when batch_matmul handles accumulation dtypes well.
-        # Batched matmul has inconsistent support for mixed precision operations.
-        # Many schedules ignore the out_dtype attribute which leads to errors when
-        # input types do not match the out_dtype. Therefore, accumulate to output_dtype.
-        return [MIXED_PRECISION_ALWAYS, "float16", "float16"]
+    return decorator
+
+
+# Functions for FTVMMixedPrecisionConversionType which
+# Take in CallNodes and a DType and returns a conversion type,
+# an accumulation dtype, and an output_dtype.
+def get_generic_dtypes(call_node, mixed_precision_type):
+    # TODO: examine attributes
+    if hasattr(call_node.attrs, "out_dtype"):
+        return ["float32", mixed_precision_type]
+
+    return [mixed_precision_type, mixed_precision_type]
+
+
+@register_func_to_op_list(list_ops=DEFAULT_ALWAYS_LIST)
+def generic_always_op(call_node, mixed_precision_type):
+    return [MIXED_PRECISION_ALWAYS] + get_generic_dtypes(call_node, mixed_precision_type)
+
+
+@register_func_to_op_list(list_ops=DEFAULT_FOLLOW_LIST)
+def generic_follow_op(call_node, mixed_precision_type):
+    return [MIXED_PRECISION_FOLLOW] + get_generic_dtypes(call_node, mixed_precision_type)
+
+
+@register_func_to_op_list(list_ops=DEFAULT_NEVER_LIST)
+def generic_never_op(call_node, mixed_precision_type):
+    return [MIXED_PRECISION_NEVER] + get_generic_dtypes(call_node, mixed_precision_type)
+
+
+@register_mixed_precision_conversion("nn.batch_matmul")
+def nn_batch_matmul(call_node, mixed_precision_type):
+    # TODO(AndrewZhaoLuo): remove when batch_matmul handles accumulation dtypes well.
+    # Batched matmul has inconsistent support for mixed precision operations.
+    # Many schedules ignore the out_dtype attribute which leads to errors when
+    # input types do not match the out_dtype. Therefore, accumulate to output_dtype.
+    return [MIXED_PRECISION_ALWAYS, "float16", "float16"]

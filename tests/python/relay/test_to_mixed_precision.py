@@ -24,8 +24,6 @@ from tvm import relay
 from tvm.relay.testing import lstm
 from tvm.relay.transform import InferType, ToMixedPrecision, mixed_precision
 
-mixed_precision.register_default_mixed_precision_attributes()
-
 
 def run_module(mod: tvm.runtime.Module, mod_params: Dict[str, Any]) -> List:
     dev = tvm.device("llvm", 0)
