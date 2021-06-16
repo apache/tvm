@@ -1213,7 +1213,7 @@ def ToMixedPrecision(mixed_precision_type="float16", missing_op_mode=1):
     missing_op_mode: int
       Determines how to handle ops not registered with FTVMMixedPrecisionConversionType
         0: Does not allow any missing ops. Will throw errors when encountering any.
-        1: Allow missing ops but throw warnings.
+        1: Allow missing ops but emit warnings.
         2: Allow missing ops and silently ignore them.
 
     Returns
