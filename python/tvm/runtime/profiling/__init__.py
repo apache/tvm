@@ -61,7 +61,7 @@ class DeviceWrapper(Object):
         self.__init_handle_by_constructor__(_ffi_api.DeviceWrapper, dev)
 
 
-if _ffi.get_global_func("runtime.profiling.PAPIMetricCollector"):
+if _ffi.get_global_func("runtime.profiling.PAPIMetricCollector", allow_missing=True) is not None:
 
     @_ffi.register_object("runtime.profiling.PAPIMetricCollector")
     class PAPIMetricCollector(MetricCollector):
