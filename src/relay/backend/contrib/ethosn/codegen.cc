@@ -26,6 +26,7 @@
 
 #include "codegen_ethosn.h"
 #include "ethosn_api.h"
+#include "ethosn_variant.h"
 
 namespace tvm {
 namespace relay {
@@ -204,7 +205,9 @@ NetworkWithIDs ConstructNetworkVisitor::Construct(const Function& func) {
   }
   NetworkWithIDs network_with_ids;
   network_ = sl::CreateNetwork(sl::GetFwAndHwCapabilities(
-      sl::EthosNVariantFromString(cfg.value()->variant.c_str()), cfg.value()->sram_size_bytes));
+      sl::EthosNVariantFromString(
+          MakeVariant(cfg.value()->variant, cfg.value()->tops, cfg.value()->ple_ratio).c_str()),
+      static_cast<uint32_t>(std::stoul(cfg.value()->sram_size))));
   network_with_ids.network = network_;
   operand_table_.clear();
 
@@ -611,7 +614,9 @@ auto cfg = ctx -> GetConfig<EthosnCompilerConfig>("relay.ext.ethos-n.options").d
                ? ctx -> GetConfig<EthosnCompilerConfig>("relay.ext.ethos-n.options")
                : AttrsWithDefaultValues<EthosnCompilerConfig>();
 auto m_Queries = sl::SupportQueries(sl::GetFwAndHwCapabilities(
-    sl::EthosNVariantFromString(cfg.value()->variant.c_str()), cfg.value()->sram_size_bytes));
+    sl::EthosNVariantFromString(
+        MakeVariant(cfg.value()->variant, cfg.value()->tops, cfg.value()->ple_ratio).c_str()),
+    static_cast<uint32_t>(std::stoul(cfg.value()->sram_size))));
 
 TVM_REGISTER_GLOBAL("relay.ethos-n.support.conv2d")
     .set_body([](tvm::TVMArgs args, tvm::TVMRetValue* rv) {

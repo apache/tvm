@@ -169,7 +169,7 @@ def build_module(mod, target, params=None, enable_acl=True, tvm_ops=0, acl_parti
         mod = tvm.IRModule.from_expr(mod)
     with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
         if enable_acl:
-            mod = arm_compute_lib.partition_for_arm_compute_lib(mod, params)
+            mod, config = arm_compute_lib.partition_for_arm_compute_lib(mod, params)
             tvm_op_count = get_cpu_op_count(mod)
             assert tvm_op_count == tvm_ops, "Got {} TVM operators, expected {}".format(
                 tvm_op_count, tvm_ops

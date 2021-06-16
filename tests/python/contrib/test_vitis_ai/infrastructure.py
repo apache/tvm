@@ -84,7 +84,7 @@ def build_module(
         opt_level=3, config={"relay.ext.vitis_ai.options.target": dpu_target}
     ):
         if enable_vitis_ai:
-            mod = partition_for_vitis_ai(mod, params, dpu_target)
+            mod, config = partition_for_vitis_ai(mod, params, dpu_target)
             tvm_op_count = get_cpu_op_count(mod)
             assert tvm_op_count == tvm_ops, "Got {} TVM operators, expected {}".format(
                 tvm_op_count, tvm_ops

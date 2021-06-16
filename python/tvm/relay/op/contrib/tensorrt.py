@@ -111,9 +111,10 @@ def partition_for_tensorrt(
         See TensorRT documentation for more info.
     Returns
     -------
-    mod_and_config : Tuple[Module, Dict[str, Any]]
-        A tuple of 1) annotated and partitioned module and 2) "relay.ext.tensorrt.options"
-        configuration which should be given to PassContext when building.
+    mod : tvm.Module
+          Annotated and partitioned module.
+    config : dict
+          Configuration which should be given to PassContext when building.
     """
     config = {
         "use_implicit_batch": use_implicit_batch,

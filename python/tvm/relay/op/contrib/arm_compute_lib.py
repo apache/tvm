@@ -55,7 +55,10 @@ def partition_for_arm_compute_lib(mod, params=None, **opts):
 
     Returns
     -------
-    ret : annotated and partitioned module.
+    mod : tvm.Module
+          Annotated and partitioned module.
+    config : dict
+          Configuration which should be given to PassContext when building.
     """
     if params:
         mod["main"] = bind_params_by_name(mod["main"], params)
@@ -69,7 +72,7 @@ def partition_for_arm_compute_lib(mod, params=None, **opts):
         ]
     )
 
-    return seq(mod)
+    return seq(mod), None
 
 
 @register_func("relay.ext.arm_compute_lib.optimize")

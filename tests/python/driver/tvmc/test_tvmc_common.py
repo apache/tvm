@@ -224,7 +224,7 @@ def test_target_from_cli__error_target_not_found():
         _ = tvmc.common.target_from_cli("invalidtarget")
 
 
-def test_target_from_cli__error_no_tvm_target():
+def test_target_from_cli__error_no_tvm_target_ethos_n77():
     with pytest.raises(TVMCException):
         _ = tvmc.common.target_from_cli("ethos-n77")
 
@@ -239,6 +239,11 @@ def test_target_two_tvm_targets():
 
     # No extra targets
     assert 0 == len(extra_targets)
+
+
+def test_target_from_cli__error_no_tvm_target_ethos_n78():
+    with pytest.raises(TVMCException):
+        _ = tvmc.common.target_from_cli("ethos-n78")
 
 
 def test_tokenize_target_with_opts():
@@ -305,11 +310,21 @@ def test_parse_multiple_target():
     assert "llvm" == targets[1]["name"]
 
 
-def test_parse_multiple_target_with_opts():
+def test_parse_multiple_target_with_opts_ethos_n77():
     targets = tvmc.common.parse_target("ethos-n77 -myopt=value, llvm -device=arm_cpu --system-lib")
 
     assert len(targets) == 2
     assert "ethos-n77" == targets[0]["name"]
+    assert "myopt" in targets[0]["opts"]
+    assert "value" == targets[0]["opts"]["myopt"]
+    assert "llvm" == targets[1]["name"]
+
+
+def test_parse_multiple_target_with_opts_ethos_n78():
+    targets = tvmc.common.parse_target("ethos-n78 -myopt=value, llvm -device=arm_cpu --system-lib")
+
+    assert len(targets) == 2
+    assert "ethos-n78" == targets[0]["name"]
     assert "myopt" in targets[0]["opts"]
     assert "value" == targets[0]["opts"]["myopt"]
     assert "llvm" == targets[1]["name"]

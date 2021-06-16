@@ -324,7 +324,4 @@ def get_ethosn_api_version():
 
 
 def get_ethosn_variant():
-    ethosn_variant_config = os.getenv("ETHOSN_VARIANT_CONFIG")
-    if ethosn_variant_config is not None:
-        return "Ethos-N78_1TOPS_2PLE_RATIO"
-    return "Ethos-N77"
+    return os.getenv("ETHOSN_VARIANT_CONFIG", default="Ethos-N77")

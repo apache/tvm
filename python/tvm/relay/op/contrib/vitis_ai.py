@@ -153,7 +153,10 @@ def partition_for_vitis_ai(mod, params=None, dpu=None, **opts):
 
     Returns
     -------
-    ret : Module
+    mod : tvm.Module
+          Annotated and partitioned module.
+    config : dict
+          Configuration which should be given to PassContext when building.
     """
 
     if dpu is None:
@@ -171,4 +174,4 @@ def partition_for_vitis_ai(mod, params=None, dpu=None, **opts):
         ]
     )
 
-    return seq(mod)
+    return seq(mod), None

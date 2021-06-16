@@ -45,7 +45,10 @@ def partition_for_bnns(mod, params=None):
 
     Returns
     -------
-    ret : annotated and partitioned module.
+    mod : tvm.Module
+          Annotated and partitioned module.
+    config : dict
+          Configuration which should be given to PassContext when building.
     """
     if params:
         mod["main"] = bind_params_by_name(mod["main"], params)
@@ -70,7 +73,7 @@ def partition_for_bnns(mod, params=None):
         ]
     )
 
-    return seq(mod)
+    return seq(mod), None
 
 
 def _register_external_op_helper(op_name, supported=True):

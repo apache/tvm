@@ -227,7 +227,9 @@ NetworkWithIDs ConstructNetwork(const IRModule& mod, const GlobalVar& var, const
 /*! \brief Attributes to store the compiler options for Ethos-N */
 struct EthosnCompilerConfigNode : public tvm::AttrsNode<EthosnCompilerConfigNode> {
   String variant;
-  int sram_size_bytes;
+  String sram_size;
+  String tops;
+  String ple_ratio;
   bool strategy0;
   bool strategy1;
   bool strategy3;
@@ -247,9 +249,15 @@ struct EthosnCompilerConfigNode : public tvm::AttrsNode<EthosnCompilerConfigNode
 
   TVM_DECLARE_ATTRS(EthosnCompilerConfigNode, "ext.attrs.EthosnCompilerConfigNode") {
     TVM_ATTR_FIELD(variant).describe("See Ethos-N documentation.").set_default("Ethos-N77");
-    TVM_ATTR_FIELD(sram_size_bytes)
+    TVM_ATTR_FIELD(sram_size)
         .describe("Optionally override the default sram size. See Ethos-N documentation.")
-        .set_default(0);
+        .set_default("0");
+    TVM_ATTR_FIELD(tops)
+        .describe("Valid values 1, 2, 4 and 8. See Ethos-N documentation.")
+        .set_default("1");
+    TVM_ATTR_FIELD(ple_ratio)
+        .describe("Valid values 2 and 4. See Ethos-N documentation.")
+        .set_default("2");
     TVM_ATTR_FIELD(strategy0).set_default(true);
     TVM_ATTR_FIELD(strategy1).set_default(true);
     TVM_ATTR_FIELD(strategy3).set_default(true);

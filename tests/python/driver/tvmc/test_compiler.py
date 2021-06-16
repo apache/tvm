@@ -293,7 +293,7 @@ def test_compile_opencl(tflite_mobilenet_v1_0_25_128):
 
 
 @tvm.testing.requires_ethosn
-def test_compile_tflite_module_with_external_codegen(tflite_mobilenet_v1_1_quant):
+def test_compile_tflite_module_with_external_codegen_ethos_n77(tflite_mobilenet_v1_1_quant):
     pytest.importorskip("tflite")
     tvmc_model = tvmc.load(tflite_mobilenet_v1_1_quant)
     tvmc_package = tvmc.compile(tvmc_model, target="ethos-n77, llvm", dump_code="relay")
@@ -338,6 +338,21 @@ def test_compile_tflite_module_with_external_codegen_cmsisnn(
         assert len(c_source_files) == 3
 
 
+@tvm.testing.requires_ethosn
+def test_compile_tflite_module_with_external_codegen_ethos_n78(tflite_mobilenet_v1_1_quant):
+    pytest.importorskip("tflite")
+    tvmc_model = tvmc.load(tflite_mobilenet_v1_1_quant)
+    tvmc_package = tvmc.compile(tvmc_model, target="ethos-n78, llvm", dump_code="relay")
+    dumps_path = tvmc_package.package_path + ".relay"
+
+    # check for output types
+    assert type(tvmc_package) is TVMCPackage
+    assert type(tvmc_package.graph) is str
+    assert type(tvmc_package.lib_path) is str
+    assert type(tvmc_package.params) is bytearray
+    assert os.path.exists(dumps_path)
+
+
 @pytest.mark.skipif(
     not vitis_ai_available(),
     reason="--target=vitis-ai is not available. TVM built with 'USE_VITIS_AI OFF'",
@@ -369,7 +384,7 @@ def test_compile_tflite_module_with_external_codegen_vitis_ai(tflite_mobilenet_v
 def test_compile_check_configs_composite_target(mock_pkg, mock_pc, mock_fe, mock_ct, mock_relay):
     mock_codegen = {}
     mock_codegen["config_key"] = "relay.ext.mock.options"
-    mock_codegen["pass_pipeline"] = lambda *args, **kwargs: None
+    mock_codegen["pass_pipeline"] = lambda *args, **kwargs: (None, None)
 
     mock_fe.return_value = mock.MagicMock()
     mock_ct.return_value = mock_codegen

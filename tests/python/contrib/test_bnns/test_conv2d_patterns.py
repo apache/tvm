@@ -29,7 +29,7 @@ def partition(exp):
     """Apply BNNS specific partitioning transformation"""
     mod = tvm.IRModule.from_expr(exp)
     with tvm.transform.PassContext(opt_level=3):
-        mod = partition_for_bnns(mod)
+        mod, config = partition_for_bnns(mod)
     return mod
 
 
