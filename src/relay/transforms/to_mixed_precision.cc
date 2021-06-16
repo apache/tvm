@@ -69,14 +69,16 @@ using FTVMMixedPrecisionConversionType = runtime::TypedPackedFunc<Array<ObjectRe
 
 class MixedPrecisionPass : public MixedModeMutator {
  private:
+  /*! \brief A cache of nodes + target dtype to a cast version of the node with target dtype. */
   CachedCastNodes cast_nodes_cache_;
 
   /*! \brief The target datatype we want to convert to e.g. FP16 */
   const DataType mixed_precision_type;
 
-  // Map of Ops with no associated FTVMMixedPrecisionConversionType to the times they were
-  // encountered. Used for emitting warnings on missing ops in the pass.
-  std::unordered_map<std::string, int> missing_ops;
+  /*! \brief Map of Ops with no associated FTVMMixedPrecisionConversionType to the times they were
+   * encountered. Used for emitting warnings on missing ops in the pass.
+   */
+  std::unordered_map<std::string, int> missing_ops_;
 
   Attrs GetNewAttrs(const CallNode* call, const DataType& accumulation_dtype) const {
     /* If the accumulation dtype is in the attributes make a copy and mutate the field. */
@@ -286,7 +288,7 @@ class MixedPrecisionPass : public MixedModeMutator {
         accumulation_dtype = DataType(String2DLDataType(Downcast<String>(op_descriptor[1])));
         output_dtype = DataType(String2DLDataType(Downcast<String>(op_descriptor[2])));
       } else {
-        missing_ops[op->name] += 1;
+        missing_ops_[op->name] += 1;
 
         // If not registered, by default assume is a generic FOLLOW operation.
         initial_category = MIXED_PRECISION_FOLLOW;
@@ -387,17 +389,18 @@ Expr ToMixedPrecision(const Expr& expr, const DataType& mixed_precision_type, in
   MixedPrecisionPass converter = MixedPrecisionPass(mixed_precision_type);
   auto result = converter.Mutate(expr);
 
-  for (auto it = converter.missing_ops.begin();
-       missing_op_mode != 2 && it != converter.missing_ops.end(); it++) {
+  for (auto it = converter.missing_ops_.begin();
+       missing_op_mode != 2 && it != converter.missing_ops_.end(); it++) {
     std::string op_name = it->first;
     int appear_count = it->second;
 
     LOG(WARNING) << "Op \"" << op_name << "\" not registered "
-                 << "FTVMMixedPrecisionConversionType appears " << appear_count << " in graph.";
+                 << "FTVMMixedPrecisionConversionType appears " << appear_count
+                 << " times in graph.";
   }
 
-  if (converter.missing_ops.size() != 0 && missing_op_mode == 0) {
-    CHECK(0) << "Missing ops were found, please fix!";
+  if (converter.missing_ops_.size() != 0 && missing_op_mode == 0) {
+    CHECK(0) << "Missing ops were found!";
   }
   return result;
 }
