@@ -414,7 +414,7 @@ def test_rpc_tracker_register():
         port_end=10000,
         key=device_key,
         tracker_addr=("127.0.0.1", tracker.port),
-        custom_addr="test_addr"  # this is a test address, which is unable to connect
+        custom_addr="test_addr",  # this is a test address, which is unable to connect
     )
     time.sleep(1)
     client = rpc.connect_tracker("127.0.0.1", tracker.port)
