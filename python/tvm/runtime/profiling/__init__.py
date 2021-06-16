@@ -62,6 +62,7 @@ class DeviceWrapper(Object):
 
 
 if _ffi.get_global_func("runtime.profiling.PAPIMetricCollector"):
+
     @_ffi.register_object("runtime.profiling.PAPIMetricCollector")
     class PAPIMetricCollector(MetricCollector):
         """Collects performance counter information using the Performance
