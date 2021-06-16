@@ -1190,7 +1190,7 @@ class Let(PrimExprWithOp):
 
 
 @tvm._ffi.register_object("tir.Any")
-class Any(PrimExpr):
+class Any(PrimExprWithOp):
     """Any node.
 
     span : Optional[Span]

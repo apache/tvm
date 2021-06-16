@@ -59,6 +59,9 @@ bool ExprDeepEqual::operator()(const PrimExpr& lhs, const PrimExpr& rhs) const {
     auto* prhs = rhs.as<IntImmNode>();
     return plhs->dtype == prhs->dtype && plhs->value == prhs->value;
   }
+  if (auto* plhs = lhs.as<AnyNode>()) {
+    return lhs.same_as(rhs);
+  }
   return DeepCmpSEqualHandler().SEqualReduce(lhs, rhs, false);
 }
 
