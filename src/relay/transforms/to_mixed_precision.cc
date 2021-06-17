@@ -67,6 +67,32 @@ using CachedCastNodes = std::unordered_map<std::pair<const ExprNode*, DataType>,
 using FTVMMixedPrecisionConversionType = runtime::TypedPackedFunc<Array<ObjectRef>(
     const Call& call_node, const std::string& target_dtype_str)>;
 
+/*! \brief This class transforms the given relay module into a version where
+ * as many operations as possible operate in the target mixed precision dtype.
+ *
+ * Input : A Relay module with operations registered with FTVMMixedPrecisionConversionType
+ *         functions. These describe when and how the operations will be transformed
+ *         into the target precision dtype.
+ *
+ * Output : A Relay module with some operations transformed according to the below
+ *          methodology.
+ *
+ * Methodology :
+ *      1) Each relay Op is either of conversion category ALWAYS, FOLLOW, NEVER
+ *         defined by the associated FTVMMixedPrecisionConversionType function.
+ *         If an operation is not registered, it by default is assumed to be
+ *         FOLLOW.
+ *      2) ALWAYS operations always convert the input floating point args into
+ *         the target mixed precision dtype. FOLLOW Ops will convert the input
+ *         floating point args back into FP32 unless all floating point args
+ *         are in the target mixed precision dtypes. NEVER ops will always cast
+ *         inputs back into FP32.
+ *      3) Each ALWAYS Op, and FOLLOW Op with mixed precision dtype arguments
+ *         also have an associated accumulation_dtype and output_dtype which
+ *         describe whether a larger dtype is used to accumulate the results
+ *         of the operation. The output_dtype meanwhile describes the dtype
+ *         most Ops should use from this accumulator.
+ */
 class MixedPrecisionPass : public MixedModeMutator {
  private:
   /*! \brief A cache of nodes + target dtype to a cast version of the node with target dtype. */
