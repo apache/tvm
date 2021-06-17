@@ -178,7 +178,6 @@ class MixedPrecisionPass : public MixedModeMutator {
   Type GetType(const Expr& expr) const {
     auto mod = IRModule::FromExpr(expr);
     mod = transform::InferType()(mod);
-
     if (expr.as<FunctionNode>()) {
       return mod->Lookup("main")->checked_type();
     } else {
@@ -286,6 +285,12 @@ class MixedPrecisionPass : public MixedModeMutator {
     CHECK(post_call_node) << "Expected a CallNode, but got " << post;
 
     Expr cur_op = post_call_node->op;
+
+    // Relay's algebraic data types are not supported yet.
+    ICHECK(!cur_op.as<GlobalVarNode>()       // used to declare functions for recursion
+           && !cur_op.as<ConstructorNode>()  // constructing ADT types
+           && !cur_op.as<VarNode>())         // used for calling recursive functions
+        << "Algebraic Data Types (ADT) are not supported yet for mixed precision pass.";
 
     // Get info on the operation being called:
     // conversion category (int), accumulation dtype (str), output dtype (str)
