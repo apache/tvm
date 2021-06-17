@@ -465,15 +465,18 @@ def register_mixed_precision_conversion(op_name, func=None, level=10):
     converted. Specifically the function should take a call node and the target
     mixed precision datatype (e.g. FP16) and return the conversion category
     (see python/tvm/relay/transform/mixed_precision.py) as well as the accumulation
-    and output datatype of the operation.
+    and output datatype of the operation in the mixed precision dtype space.
 
     Parameters
     ----------
     op_name : str
         The name of the operator
 
-    func: function (expr: Expr, map: Map<Expr, AffineType>) -> new_expr: Expr
-        The function for translating the op into affine space and integer operators
+    func: function (call_node: relay.Call, target_dtype: string)
+    -> [conversion category, accumulation dtype, output dtype]: [int, string, string]
+        A function which given a call_node and target_dtype (e.g. FP16) returns the
+        conversion category and associated accumulation/output of the operation
+        when transformed into the mixed precision dtype space.
 
     level : int
         The priority level
