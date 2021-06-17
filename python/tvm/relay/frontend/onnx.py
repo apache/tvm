@@ -613,14 +613,12 @@ class ConvTranspose(OnnxOpConverter):
                 output_padding = attr.get("output_padding", [0] * kndim)
                 strides = attr["strides"]
                 total_pad = [0] * kndim
-                print(kernel_shape, dilations, output_padding, strides)
                 for i in range(kndim):
                     total_pad[i] = (
                         output_padding[i] + ((kernel_shape[i] - 1) * dilations[i] + 1) - strides[i]
                     )
                 left = [p // 2 for p in total_pad]
                 right = [total_pad[i] - left[i] for i in range(kndim)]
-                print(left, right)
                 if "LOWER" in attr["auto_pad"]:
                     pad = left + right
                 else:

@@ -2590,7 +2590,6 @@ def test_conv():
 def verify_convtranspose_with_padding(
     x_shape,
     w_shape,
-    y_shape,
     padding,
     kernel_shape,
     strides,
@@ -2626,12 +2625,12 @@ def verify_convtranspose_with_padding(
             helper.make_tensor_value_info("x", TensorProto.FLOAT, list(x_shape)),
             helper.make_tensor_value_info("W", TensorProto.FLOAT, list(w_shape)),
         ],
-        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, list(y_shape))],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, ["?"] * len(x_shape))],
     )
 
     model = helper.make_model(graph, producer_name="convtranspose_pad_test")
 
-    verify_with_ort(model, [x_shape, w_shape], [y_shape], use_vm=True, convert_to_static=True)
+    verify_with_ort(model, [x_shape, w_shape], use_vm=True, convert_to_static=True)
 
 
 def verify_convtranspose(x_shape, w_shape, y_shape, p, group=1):
@@ -2678,12 +2677,11 @@ def test_convtranspose():
 
     # TODO(mbrookhart): onnxruntime in CI only supports 2D,
     # find something else to test 1D and 3D against
-    for D in [2]:
+    for D in [1, 2, 3]:
         # Convolution with padding
         verify_convtranspose_with_padding(
             (1, 1) + repeat(5, D),
             (1, 1) + repeat(3, D),
-            (1, 1) + repeat(5, D),
             2 * repeat(1, D),
             repeat(3, D),
             repeat(1, D),
@@ -2693,7 +2691,6 @@ def test_convtranspose():
         verify_convtranspose_with_padding(
             (1, 1) + repeat(5, D),
             (1, 1) + repeat(3, D),
-            (1, 1) + repeat(7, D),
             2 * repeat(0, D),
             repeat(3, D),
             repeat(1, D),
@@ -2703,7 +2700,6 @@ def test_convtranspose():
         verify_convtranspose_with_padding(
             (1, 1) + repeat(5, D),
             (1, 1) + repeat(3, D),
-            (1, 1) + repeat(5, D),
             None,
             repeat(3, D),
             repeat(1, D),
@@ -2714,7 +2710,6 @@ def test_convtranspose():
         verify_convtranspose_with_padding(
             (1, 1) + repeat(5, D),
             (1, 1) + repeat(3, D),
-            (1, 1) + repeat(7, D),
             None,
             repeat(3, D),
             repeat(1, D),
@@ -2725,7 +2720,6 @@ def test_convtranspose():
         verify_convtranspose_with_padding(
             (1, 1) + repeat(5, D),
             (1, 1) + repeat(3, D),
-            (1, 1) + repeat(7, D),
             2 * repeat(0, D),
             repeat(3, D),
             repeat(1, D),
@@ -2736,7 +2730,6 @@ def test_convtranspose():
         verify_convtranspose_with_padding(
             (1, 1) + repeat(5, D),
             (1, 1) + repeat(3, D),
-            (1, 1) + repeat(9, D),
             None,
             repeat(3, D),
             repeat(2, D),
@@ -2748,7 +2741,6 @@ def test_convtranspose():
         # verify_convtranspose_with_padding(
         #     (1, 1) + repeat(5, D),
         #     (1, 1) + repeat(3, D),
-        #     (1, 1) + repeat(5, D),
         #     2 * repeat(2, D),
         #     repeat(3, D),
         #     repeat(1, D),
