@@ -1510,7 +1510,7 @@ def matmul(data, weight, units=None, out_dtype="", data_transposed=False, weight
     return _make.matmul(data, weight, units, out_dtype, data_transposed, weight_transposed)
 
 
-def dense(data, weight, units=None, out_dtype="", data_transposed=False, weight_transposed=True):
+def dense(data, weight, units=None, out_dtype=""):
     """Dense operator.
     Applies a linear transformation
 
@@ -1535,21 +1535,11 @@ def dense(data, weight, units=None, out_dtype="", data_transposed=False, weight_
         Specifies the output data type for mixed precision dense,
         of shape `(d_1, d_2, ..., d_n, units)`.
 
-    data_transposed : bool, optional
-        Whether the data tensor is in transposed format. Expected to be False.
-
-    weight_transposed : bool, optional
-        Whether the weight tensor is in transposed format. Expected to be True.
-
     Returns
     -------
     result : tvm.relay.Expr
         The computed result.
     """
-    # Add data_transposed & weight_transposed parameters for some API requires to apply
-    # attrs to this function
-    assert not data_transposed
-    assert weight_transposed
     return _make.dense(data, weight, units, out_dtype)
 
 

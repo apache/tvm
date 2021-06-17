@@ -42,23 +42,28 @@ bool MatmulRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   const auto* data = types[0].as<TensorTypeNode>();
   const auto* weight = types[1].as<TensorTypeNode>();
   if (data == nullptr) return false;
+  ICHECK(static_cast<int>(data->shape.size()) != 0);
 
   const AttrType* param = attrs.as<AttrType>();
   ICHECK(param != nullptr);
-
-  ICHECK(static_cast<int>(data->shape.size()) != 0);
+  bool data_transposed = false;
+  bool weight_transposed = true;
+  if (attrs->IsInstance<MatmulAttrs>()) {
+    data_transposed = param->data_transposed;
+    weight_transposed = param->weight_transposed;
+  }
 
   const Array<tvm::PrimExpr>& dshape = data->shape;
   Array<tvm::PrimExpr> oshape = dshape;
   tvm::PrimExpr reduce = dshape[dshape.size() - 1];
-  if (param->data_transposed) {
+  if (data_transposed) {
     reduce = dshape[dshape.size() - 2];
     oshape.Set((oshape.size() - 2), dshape[oshape.size() - 1]);
   }
   if (param->units.defined()) {
     // validate the weight shape is proper if defined
     // Assign weight type
-    const Array<IndexExpr>& wshape = param->weight_transposed
+    const Array<IndexExpr>& wshape = weight_transposed
                                          ? Array<IndexExpr>({param->units, reduce})
                                          : Array<IndexExpr>({reduce, param->units});
     // It is possible for weight to be nullptr in which case we will use
@@ -90,12 +95,12 @@ bool MatmulRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     } else {
       ICHECK(static_cast<int>(weight->shape.size()) == 2);
       if (!data->shape.back().as<tir::AnyNode>()) {
-        ICHECK((param->weight_transposed && reporter->AssertEQ(reduce, weight->shape[1])) ||
-               (!param->weight_transposed && reporter->AssertEQ(reduce, weight->shape[0])))
+        ICHECK((weight_transposed && reporter->AssertEQ(reduce, weight->shape[1])) ||
+               (!weight_transposed && reporter->AssertEQ(reduce, weight->shape[0])))
             << "MatmulRel: input dimension doesn't match,"
             << " data shape=" << data->shape << ", weight shape=" << weight->shape;
       }
-      oshape.Set((oshape.size() - 1), param->weight_transposed ? wshape[0] : wshape[1]);
+      oshape.Set((oshape.size() - 1), weight_transposed ? wshape[0] : wshape[1]);
     }
   }
 

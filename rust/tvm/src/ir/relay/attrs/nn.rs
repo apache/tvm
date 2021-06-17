@@ -68,6 +68,16 @@ pub struct MatmulAttrsNode {
 
 #[repr(C)]
 #[derive(Object, Debug)]
+#[ref_name = "DenseAttrs"]
+#[type_key = "relay.attrs.DenseAttrs"]
+pub struct DenseAttrsNode {
+    pub base: BaseAttrsNode,
+    pub units: IndexExpr,
+    pub out_dtype: DataType,
+}
+
+#[repr(C)]
+#[derive(Object, Debug)]
 #[ref_name = "GlobalPool2DAttrs"]
 #[type_key = "relay.attrs.GlobalPool2DAttrs"]
 pub struct GlobalPool2DAttrsNode {

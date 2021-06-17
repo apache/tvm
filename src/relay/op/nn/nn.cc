@@ -164,18 +164,22 @@ Useful for
 
 // ------------------- relay.nn.matmul
 TVM_REGISTER_NODE_TYPE(MatmulAttrs);
+TVM_REGISTER_NODE_TYPE(DenseAttrs);
 
 Expr MakeMatmul(Expr data, Expr weight, IndexExpr units, DataType out_dtype, bool data_transposed,
                 bool weight_transposed) {
-  auto attrs = make_object<MatmulAttrs>();
-  attrs->units = units;
-  attrs->out_dtype = out_dtype;
-  attrs->data_transposed = data_transposed;
-  attrs->weight_transposed = weight_transposed;
   if (!data_transposed && weight_transposed) {
+    auto attrs = make_object<DenseAttrs>();
+    attrs->units = units;
+    attrs->out_dtype = out_dtype;
     static const Op& dense_op = Op::Get("nn.dense");
     return Call(dense_op, {data, weight}, Attrs(attrs), {});
   } else {
+    auto attrs = make_object<MatmulAttrs>();
+    attrs->units = units;
+    attrs->out_dtype = out_dtype;
+    attrs->data_transposed = data_transposed;
+    attrs->weight_transposed = weight_transposed;
     static const Op& matmul_op = Op::Get("nn.matmul");
     return Call(matmul_op, {data, weight}, Attrs(attrs), {});
   }
@@ -215,22 +219,20 @@ RELAY_REGISTER_OP("nn.dense")
 - **out**: `(x1, x2, ..., xn, units)`.
 
 )code" TVM_ADD_FILELINE)
-    .set_attrs_type<MatmulAttrs>()
+    .set_attrs_type<DenseAttrs>()
     .set_num_inputs(2)
     .add_argument("data", "nD Tensor", "Input data.")
     .add_argument("weight", "2D Tensor", "Weight matrix.")
     .set_support_level(1)
-    .add_type_rel("Dense", MatmulRel<MatmulAttrs>);
+    .add_type_rel("Dense", MatmulRel<DenseAttrs>);
 // ------------------- relay.nn.dense
 
 // ------------------- relay.nn.contrib_dense_pack
 // Positional relay function to create dense_pack operator used by frontend FFI.
 Expr MakeDensePack(Expr data, Expr weight, IndexExpr units, DataType out_dtype) {
-  auto attrs = make_object<MatmulAttrs>();
+  auto attrs = make_object<DenseAttrs>();
   attrs->units = units;
   attrs->out_dtype = out_dtype;
-  attrs->data_transposed = false;
-  attrs->weight_transposed = true;
   static const Op& op = Op::Get("nn.contrib_dense_pack");
   return Call(op, {data, weight}, Attrs(attrs), {});
 }
@@ -245,12 +247,12 @@ RELAY_REGISTER_OP("nn.contrib_dense_pack")
 - **out**: `(x1, x2, ..., xn, units)`.
 
 )code" TVM_ADD_FILELINE)
-    .set_attrs_type<MatmulAttrs>()
+    .set_attrs_type<DenseAttrs>()
     .set_num_inputs(2)
     .add_argument("data", "nD Tensor", "Input data.")
     .add_argument("weight", "3D Tensor", "Packed weight matrix.")
     .set_support_level(10)
-    .add_type_rel("DensePack", DensePackRel<MatmulAttrs>);
+    .add_type_rel("DensePack", DensePackRel<DenseAttrs>);
 // ------------------- relay.nn.contrib_dense_pack
 
 // relay.leaky_relu

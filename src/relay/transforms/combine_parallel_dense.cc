@@ -70,15 +70,15 @@ class ParallelDenseToBatchCombiner : public ParallelOpBatchCombiner {
     }
 
     CHECK_EQ(num_args, 2);
-    const auto* origin_attrs = branches[0][0]->attrs.as<MatmulAttrs>();
+    const auto* origin_attrs = branches[0][0]->attrs.as<DenseAttrs>();
     ICHECK(origin_attrs);
     return Downcast<Call>(MakeBatchMatmul(new_args[0], new_args[1], origin_attrs->out_dtype));
   }
 
   virtual bool CanOpsBeCombined(const CallNode* a, const CallNode* b) {
     StructuralEqual eq;
-    const auto* attrs_a = a->attrs.as<MatmulAttrs>();
-    const auto* attrs_b = b->attrs.as<MatmulAttrs>();
+    const auto* attrs_a = a->attrs.as<DenseAttrs>();
+    const auto* attrs_b = b->attrs.as<DenseAttrs>();
     ICHECK(attrs_a);
     ICHECK(attrs_b);
     const auto* weight_a = a->args[1]->type_as<TensorTypeNode>();
@@ -103,8 +103,8 @@ class ParallelDenseToDenseCombiner : public ParallelOpCombiner {
 
   bool CanOpsBeCombined(const CallNode* a, const CallNode* b) {
     StructuralEqual eq;
-    const auto* attrs_a = a->attrs.as<MatmulAttrs>();
-    const auto* attrs_b = b->attrs.as<MatmulAttrs>();
+    const auto* attrs_a = a->attrs.as<DenseAttrs>();
+    const auto* attrs_b = b->attrs.as<DenseAttrs>();
     const auto* weight_a = a->args[1]->type_as<TensorTypeNode>();
     const auto* weight_b = b->args[1]->type_as<TensorTypeNode>();
     ICHECK(attrs_a != nullptr && attrs_b != nullptr && weight_a != nullptr && weight_b != nullptr);
@@ -119,13 +119,11 @@ class ParallelDenseToDenseCombiner : public ParallelOpCombiner {
     IndexExpr new_output_dims;
     // concat all weights into one
     std::tie(new_weight, new_output_dims) = TransformWeight(branches);
-    const auto* origin_attrs = branches[0][0]->attrs.as<MatmulAttrs>();
+    const auto* origin_attrs = branches[0][0]->attrs.as<DenseAttrs>();
     ICHECK(origin_attrs);
-    const auto dense_attrs = make_object<MatmulAttrs>();
+    const auto dense_attrs = make_object<DenseAttrs>();
     dense_attrs->units = new_output_dims;
     dense_attrs->out_dtype = origin_attrs->out_dtype;
-    dense_attrs->data_transposed = false;
-    dense_attrs->weight_transposed = true;
     return Call(dense_op, {input, new_weight}, Attrs{dense_attrs}, {});
   }
 
