@@ -84,6 +84,14 @@ def add_compile_parser(subparsers):
         "(only for µTVM targets). Defaults to 'so'.",
     )
     parser.add_argument(
+        "--pass-config",
+        action="append",
+        metavar=("name=value"),
+        help="configurations to be used at compile time. This option can be provided multiple "
+        "times, each one to set one configuration value, "
+        "e.g. '--pass-config relay.backend.use_auto_scheduler=0'.",
+    )
+    parser.add_argument(
         "--target",
         help="compilation targets as comma separated string, inline JSON or path to a JSON file.",
         required=True,
@@ -145,6 +153,7 @@ def drive_compile(args):
         target_host=None,
         desired_layout=args.desired_layout,
         disabled_pass=args.disabled_pass,
+        pass_context_configs=args.pass_config,
     )
 
     return 0
@@ -162,6 +171,7 @@ def compile_model(
     target_host: Optional[str] = None,
     desired_layout: Optional[str] = None,
     disabled_pass: Optional[str] = None,
+    pass_context_configs: Optional[str] = None,
 ):
     """Compile a model from a supported framework into a TVM module.
 
@@ -202,6 +212,9 @@ def compile_model(
     disabled_pass: str, optional
         Comma-separated list of passes which needs to be disabled
         during compilation
+    pass_context_configs: str, optional
+        String containing a set of configurations to be passed to the
+        PassContext.
 
 
     Returns
@@ -212,7 +225,7 @@ def compile_model(
     """
     mod, params = tvmc_model.mod, tvmc_model.params
 
-    config = {}
+    config = common.parse_configs(pass_context_configs)
 
     if desired_layout:
         mod = common.convert_graph_layout(mod, desired_layout)

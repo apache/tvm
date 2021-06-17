@@ -80,6 +80,17 @@ Here is another example to match an op with a specific attribute:
         y = relay.var('y')
         assert not is_conv2d.match(relay.op.nn.conv2d(x, y))
 
+Or a convolution with a specific kernel size:
+
+.. code-block:: python
+
+    def test_match_kernel_size():
+        is_conv2d = is_op("nn.conv2d")(wildcard(), wildcard()).has_attr({"kernel_size": [3, 3]})
+        x = relay.var('x')
+        y = relay.var('y')
+        assert is_conv2d.match(relay.op.nn.conv2d(x, y, kernel_size=[3, 3]))
+      
+
 
 Matching an Optional Op
 ***********************

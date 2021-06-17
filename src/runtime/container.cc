@@ -25,6 +25,7 @@
 #include <tvm/runtime/container/array.h>
 #include <tvm/runtime/container/closure.h>
 #include <tvm/runtime/container/map.h>
+#include <tvm/runtime/container/shape_tuple.h>
 #include <tvm/runtime/container/string.h>
 #include <tvm/runtime/memory.h>
 #include <tvm/runtime/object.h>
@@ -108,7 +109,6 @@ TVM_REGISTER_GLOBAL("runtime.ADT").set_body([](TVMArgs args, TVMRetValue* rv) {
 });
 
 // String
-
 TVM_REGISTER_OBJECT_TYPE(StringObj);
 
 TVM_REGISTER_GLOBAL("runtime.String").set_body_typed([](std::string str) {
@@ -120,7 +120,6 @@ TVM_REGISTER_GLOBAL("runtime.GetFFIString").set_body_typed([](String str) {
 });
 
 // Map
-
 TVM_REGISTER_OBJECT_TYPE(MapNode);
 
 TVM_REGISTER_GLOBAL("runtime.Map").set_body([](TVMArgs args, TVMRetValue* ret) {
@@ -185,7 +184,27 @@ TVM_REGISTER_GLOBAL("runtime.MapItems").set_body([](TVMArgs args, TVMRetValue* r
 TVM_DLL constexpr uint64_t DenseMapNode::kNextProbeLocation[];
 #endif
 
+// Closure
 TVM_REGISTER_OBJECT_TYPE(ClosureObj);
 
+// ShapeTuple
+TVM_REGISTER_OBJECT_TYPE(ShapeTupleObj);
+
+TVM_REGISTER_GLOBAL("runtime.ShapeTuple").set_body([](TVMArgs args, TVMRetValue* rv) {
+  std::vector<ShapeTuple::index_type> shape;
+  for (int i = 0; i < args.size(); i++) {
+    shape.push_back(args[i]);
+  }
+  *rv = ShapeTuple(shape);
+});
+
+TVM_REGISTER_GLOBAL("runtime.GetShapeTupleSize").set_body_typed([](ShapeTuple shape) {
+  return static_cast<int64_t>(shape.size());
+});
+
+TVM_REGISTER_GLOBAL("runtime.GetShapeTupleElem").set_body_typed([](ShapeTuple shape, int idx) {
+  ICHECK_LT(idx, shape.size());
+  return shape[idx];
+});
 }  // namespace runtime
 }  // namespace tvm

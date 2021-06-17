@@ -131,6 +131,8 @@ bool MatchRetValue(const ObjectRef& lhs, const TVMRetValue& rhs) {
         return rhs.operator std::string() == val->value;
       } else if (auto* val = lhs.as<StringObj>()) {
         return rhs.operator std::string() == val->data;
+      } else {
+        ICHECK(false) << "PatternMatcher: Unsupported TVMDataType " << lhs;
       }
       break;
     case kTVMObjectHandle:
@@ -139,6 +141,13 @@ bool MatchRetValue(const ObjectRef& lhs, const TVMRetValue& rhs) {
           return rhs.operator String() == val->value;
         } else if (auto* val = lhs.as<StringObj>()) {
           return rhs.operator String() == val->data;
+        }
+      } else {
+        // Compare the objects for structural equality
+        static auto* structural_equal = runtime::Registry::Get("node.StructuralEqual");
+        ICHECK(structural_equal) << "node.StructuralEqual is not registered.";
+        if ((*structural_equal)(lhs, GetRef<ObjectRef>(rhs.ptr<Object>()), false, true)) {
+          return true;
         }
       }
       break;

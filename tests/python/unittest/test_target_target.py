@@ -299,5 +299,16 @@ def test_check_and_update_host_consist_3():
     assert target.host == host
 
 
+def test_target_attr_bool_value():
+    target0 = Target("llvm --link-params=True")
+    assert target0.attrs["link-params"] == 1
+    target1 = Target("llvm --link-params=true")
+    assert target1.attrs["link-params"] == 1
+    target2 = Target("llvm --link-params=False")
+    assert target2.attrs["link-params"] == 0
+    target3 = Target("llvm --link-params=false")
+    assert target3.attrs["link-params"] == 0
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__] + sys.argv[1:]))

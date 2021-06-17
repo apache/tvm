@@ -26,11 +26,12 @@
 #include <vector>
 
 #include "vulkan_common.h"
-#include "vulkan_device.h"
 
 namespace tvm {
 namespace runtime {
 namespace vulkan {
+
+class VulkanDevice;
 
 class VulkanStreamState {
  public:

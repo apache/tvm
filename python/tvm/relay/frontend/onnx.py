@@ -2465,6 +2465,12 @@ class Clip(OnnxOpConverter):
 
     @classmethod
     def _impl_v11(cls, inputs, attr, params):
+        if len(inputs) == 3 and isinstance(inputs[2], _expr.Constant):
+            attr["max"] = inputs[2].data.asnumpy().item()
+            inputs = inputs[0:2]
+        if len(inputs) >= 2 and isinstance(inputs[1], _expr.Constant):
+            attr["min"] = inputs[1].data.asnumpy().item()
+            inputs = inputs[0:1]
         if "min" in attr and "max" in attr:
             return Clip.convert_attributes(inputs, attr, params)
 
