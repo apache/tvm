@@ -26,6 +26,7 @@ from tvm.topi.utils import get_const_tuple
 from .. import op as reg
 from .. import strategy
 from ..op import OpPattern
+from .image import resize
 
 
 # resize
@@ -79,15 +80,13 @@ def convert_image_resize(attrs, inputs, tinfos, desired_layouts):
     result : tvm.relay.Expr
         The transformed expr
     """
-    # pylint: disable=import-outside-toplevel
-    from tvm import relay
 
     new_attrs = dict(attrs)
     assert len(desired_layouts) == 1, "Only one desired layout is expected"
     desired_layout = str(desired_layouts[0])
     assert desired_layout != "default", "Layout cannot be default"
     new_attrs["layout"] = desired_layout
-    return relay.image.resize(*inputs, **new_attrs)
+    return resize(*inputs, **new_attrs)
 
 
 @script

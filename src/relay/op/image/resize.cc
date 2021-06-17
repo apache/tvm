@@ -47,7 +47,8 @@ Array<Array<Layout> > ResizeInferCorrectLayout(const Attrs& attrs,
     Layout raw_layout(params->layout);
     Layout new_layout = new_in_layouts[0];
     Layout old_layout = old_in_layouts[0];
-    if (!new_layout.Equals(old_layout) && raw_layout.Equals(old_layout)) {
+    if (!new_layout.Equals(old_layout) && raw_layout.Equals(old_layout) &&
+        new_layout->axes.size() == old_layout->axes.size()) {
       // Follow input layout
       params->layout = new_layout.name();
     }
