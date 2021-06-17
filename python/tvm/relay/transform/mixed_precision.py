@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=line-too-long,unused-argument
 """Default behavior for ops in mixed_precision pass. Import this file to use."""
-from typing import List
+from typing import Callable, List
 
 from tvm import relay
 from tvm.relay.op import register_mixed_precision_conversion
@@ -133,7 +133,7 @@ DEFAULT_NEVER_LIST = [
 
 
 # Returns a decorator which registers for every given op, the function under FTVMMixedPrecisionConversionType
-def register_func_to_op_list(list_ops):
+def register_func_to_op_list(list_ops: List):
     def decorator(func):
         for op_name in list_ops:
             register_mixed_precision_conversion(op_name, func=func)
@@ -142,7 +142,11 @@ def register_func_to_op_list(list_ops):
 
 
 def get_generic_out_dtypes(call_node: relay.Call, mixed_precision_type: str) -> List[str]:
-    # Assume support accumulation dtypes <---> has out_dtype attr
+    # Assume support accumulation dtypes <---> has out_dtype attr.
+    # This is because there is no better way right now to tell which ops support accumulating
+    # at different data types.
+    # Some discussion here about making this better is here:
+    # https://discuss.tvm.apache.org/t/rfc-relay-fp32-fp16-model-support/9994/4?u=andrewzhaoluo
     if hasattr(call_node.attrs, "out_dtype"):
         return ["float32", mixed_precision_type]
 
