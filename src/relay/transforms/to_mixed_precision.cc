@@ -73,7 +73,7 @@ class MixedPrecisionPass : public MixedModeMutator {
   CachedCastNodes cast_nodes_cache_;
 
   /*! \brief The target datatype we want to convert to e.g. FP16 */
-  const DataType mixed_precision_type;
+  const DataType mixed_precision_type_;
 
   /*! \brief Map of Ops with no associated FTVMMixedPrecisionConversionType to the times they were
    * encountered. Used for emitting warnings on missing ops in the pass.
@@ -166,7 +166,7 @@ class MixedPrecisionPass : public MixedModeMutator {
      */
     if (const TensorTypeNode* tensor_type = t.as<TensorTypeNode>()) {
       return (!ignore_non_float || (tensor_type->dtype).is_float()) &&
-             tensor_type->dtype == mixed_precision_type;
+             tensor_type->dtype == mixed_precision_type_;
     } else if (const TupleTypeNode* tuple_type = t.as<TupleTypeNode>()) {
       for (Type t : tuple_type->fields) {
         if (!IsMixedPrecisionType(t, ignore_non_float)) return false;
@@ -248,10 +248,10 @@ class MixedPrecisionPass : public MixedModeMutator {
   using MixedModeMutator::VisitExpr_;
 
   explicit MixedPrecisionPass(DataType mixed_precision_type = DataType::Float(16))
-      : MixedModeMutator(), mixed_precision_type(mixed_precision_type) {
-    if (!mixed_precision_type.is_float() && !mixed_precision_type.is_bfloat16()) {
+      : MixedModeMutator(), mixed_precision_type_(mixed_precision_type) {
+    if (!mixed_precision_type_.is_float() && !mixed_precision_type_.is_bfloat16()) {
       LOG(FATAL) << "Only support IEEE floating point mixed precision types and bfloat16, but got "
-                 << mixed_precision_type;
+                 << mixed_precision_type_;
     }
   }
 
@@ -278,7 +278,7 @@ class MixedPrecisionPass : public MixedModeMutator {
         // Calculate the conversion category and dtypes from registered attribute.
         FTVMMixedPrecisionConversionType func = attr_map[op];
         Array<ObjectRef> op_descriptor =
-            func(GetRef<Call>(pre_call_node), DLDataType2String(mixed_precision_type));
+            func(GetRef<Call>(pre_call_node), DLDataType2String(mixed_precision_type_));
         ICHECK(op_descriptor.size() == 3)
             << "got the wrong number of returned arguments (expected 3 got " << op_descriptor.size()
             << ") from FTVMMixedPrecisionConversionType for " << AsText(op, false);
@@ -292,8 +292,8 @@ class MixedPrecisionPass : public MixedModeMutator {
 
         // If not registered, by default assume is a generic FOLLOW operation.
         initial_category = MIXED_PRECISION_FOLLOW;
-        accumulation_dtype = mixed_precision_type;
-        output_dtype = mixed_precision_type;
+        accumulation_dtype = mixed_precision_type_;
+        output_dtype = mixed_precision_type_;
       }
     } else {
       LOG(FATAL) << "Unsupported op type in CallNode: " << pre_call_node->op;
@@ -324,7 +324,7 @@ class MixedPrecisionPass : public MixedModeMutator {
 
     // Create the new arguments to the call.
     DataType wanted_arg_dtypes =
-        final_category == MIXED_PRECISION_ALWAYS ? mixed_precision_type : DataType::Float(32);
+        final_category == MIXED_PRECISION_ALWAYS ? mixed_precision_type_ : DataType::Float(32);
     auto call_args_and_types = CastAllArgs(post_call_node->args, cur_arg_types, wanted_arg_dtypes);
     Array<Expr> new_args = call_args_and_types.first;
     Array<Type> new_arg_types;
