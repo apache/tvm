@@ -508,7 +508,7 @@ def verify_any_conv2d(
     kernel_np = np.random.uniform(size=kernel_shape).astype(dtype)
 
     targets = None
-    if use_cudnn and tvm.get_global_func("tvm.contrib.cudnn.conv.output_shape", True):
+    if use_cudnn and tvm.get_global_func("tvm.contrib.cudnn.conv.output_shape_from_cudnn", True):
         targets = [("cuda -libs=cudnn", tvm.cuda(0))]
 
     check_result([data_np, kernel_np], mod, ref_out_shape, assert_shape=True, targets=targets)
