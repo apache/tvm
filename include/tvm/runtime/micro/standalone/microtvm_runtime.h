@@ -25,19 +25,19 @@
 
 #define TVM_MICRO_RUNTIME_API_API extern "C" __attribute__((visibility("default")))
 
-TVM_MICRO_RUNTIME_API_API void* UTVMRuntimeCreate(const char* json, size_t json_len, void* module);
+TVM_MICRO_RUNTIME_API_API void* MicroTVMRuntimeCreate(const char* json, size_t json_len, void* module);
 
-TVM_MICRO_RUNTIME_API_API void UTVMRuntimeDestroy(void* handle);
+TVM_MICRO_RUNTIME_API_API void MicroTVMRuntimeDestroy(void* handle);
 
-TVM_MICRO_RUNTIME_API_API void UTVMRuntimeSetInput(void* handle, int index, void* tensor);
+TVM_MICRO_RUNTIME_API_API void MicroTVMRuntimeSetInput(void* handle, int index, void* tensor);
 
-TVM_MICRO_RUNTIME_API_API void UTVMRuntimeRun(void* handle);
+TVM_MICRO_RUNTIME_API_API void MicroTVMRuntimeRun(void* handle);
 
-TVM_MICRO_RUNTIME_API_API void UTVMRuntimeGetOutput(void* handle, int index, void* tensor);
+TVM_MICRO_RUNTIME_API_API void MicroTVMRuntimeGetOutput(void* handle, int index, void* tensor);
 
-TVM_MICRO_RUNTIME_API_API void* UTVMRuntimeDSOModuleCreate(const char* so, size_t so_len);
+TVM_MICRO_RUNTIME_API_API void* MicroTVMRuntimeDSOModuleCreate(const char* so, size_t so_len);
 
-TVM_MICRO_RUNTIME_API_API void UTVMRuntimeDSOModuleDestroy(void* module);
+TVM_MICRO_RUNTIME_API_API void MicroTVMRuntimeDSOModuleDestroy(void* module);
 
 #undef TVM_MICRO_RUNTIME_API_API
 
