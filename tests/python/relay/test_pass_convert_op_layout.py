@@ -1797,6 +1797,90 @@ def test_conv_reduce_convert_layout():
     _test_conv_reduce_convert_layout2()
 
 
+def test_image_resize_convert_layout():
+    def _test_image_resize_convert_layout_nchw_to_nhwc():
+        def before():
+            x = relay.var("x", shape=(1, 2, 4, 4))
+            y = relay.image.resize(x, (8, 8))
+            y = relay.Function([x], y)
+            return y
+
+        def expected():
+            x = relay.var("x", shape=(1, 2, 4, 4))
+            x = relay.layout_transform(x, "NCHW", "NHWC")
+            y = relay.image.resize(x, (8, 8), layout="NHWC")
+            y = relay.layout_transform(y, "NHWC", "NCHW")
+            y = relay.Function(relay.analysis.free_vars(y), y)
+            return y
+
+        a = before()
+        a = run_opt_pass(a, transform.ConvertLayout({"image.resize": ["NHWC"]}))
+        b = run_opt_pass(expected(), transform.InferType())
+
+        assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+
+    def _test_image_resize_convert_layout_nhwc_to_nchw():
+        def before():
+            x = relay.var("x", shape=(1, 4, 4, 2))
+            y = relay.image.resize(x, (8, 8), layout="NHWC")
+            y = relay.Function([x], y)
+            return y
+
+        def expected():
+            x = relay.var("x", shape=(1, 4, 4, 2))
+            x = relay.layout_transform(x, "NHWC", "NCHW")
+            y = relay.image.resize(x, (8, 8), layout="NCHW")
+            y = relay.layout_transform(y, "NCHW", "NHWC")
+            y = relay.Function(relay.analysis.free_vars(y), y)
+            return y
+
+        a = before()
+        a = run_opt_pass(a, transform.ConvertLayout({"image.resize": ["NCHW"]}))
+        b = run_opt_pass(expected(), transform.InferType())
+
+        assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+
+    _test_image_resize_convert_layout_nchw_to_nhwc()
+    _test_image_resize_convert_layout_nhwc_to_nchw()
+
+
+def test_conv_image_resize_convert_layout():
+    """Check that layout transforms are propagated through image resize."""
+
+    def before():
+        x = relay.var("x", shape=(1, 56, 56, 64))
+        weight = relay.var("weight", shape=(3, 3, 64, 64))
+        y = relay.nn.conv2d(
+            x,
+            weight,
+            channels=64,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+            data_layout="NHWC",
+            kernel_layout="HWIO",
+        )
+        y = relay.image.resize(y, (112, 112), layout="NHWC")
+        y = relay.Function(analysis.free_vars(y), y)
+        return y
+
+    def expected():
+        x = relay.var("x", shape=(1, 56, 56, 64))
+        w = relay.var("weight", shape=(3, 3, 64, 64))
+        x = relay.layout_transform(x, "NHWC", "NCHW")
+        w = relay.layout_transform(w, "HWIO", "OIHW")
+        y = relay.nn.conv2d(x, w, channels=64, kernel_size=(3, 3), padding=(1, 1))
+        y = relay.image.resize(y, (112, 112), layout="NCHW")
+        y = relay.layout_transform(y, "NCHW", "NHWC")
+        y = relay.Function(analysis.free_vars(y), y)
+        return y
+
+    a = before()
+    a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": ["NCHW", "default"]}))
+    b = run_opt_pass(expected(), transform.InferType())
+
+    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+
+
 if __name__ == "__main__":
     test_qnn_binary_no_convert_layout()
     test_no_convert_layout()
@@ -1828,3 +1912,5 @@ if __name__ == "__main__":
     test_conv_squeeze_convert_layout()
     test_conv_reduce_convert_layout()
     test_conv_strided_slice_axes_convert_layout()
+    test_image_resize_convert_layout()
+    test_conv_image_resize_convert_layout()

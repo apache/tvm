@@ -26,6 +26,7 @@ from tvm.topi.utils import get_const_tuple
 from .. import op as reg
 from .. import strategy
 from ..op import OpPattern
+from .image import resize
 
 
 # resize
@@ -56,6 +57,36 @@ def compute_resize(attrs, inputs, out_type):
 
 
 reg.register_injective_schedule("image.resize")
+
+
+@reg.register_convert_op_layout("image.resize")
+def convert_image_resize(attrs, inputs, tinfos, desired_layouts):
+    """Convert Layout pass registration for image resize op.
+
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current resize op
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    tinfos : list of types
+        List of input and output types
+    desired_layouts : list of layout strings
+        List of layouts defining our desired
+        layout for the data input.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The transformed expr
+    """
+
+    new_attrs = dict(attrs)
+    assert len(desired_layouts) == 1, "Only one desired layout is expected"
+    desired_layout = str(desired_layouts[0])
+    assert desired_layout != "default", "Layout cannot be default"
+    new_attrs["layout"] = desired_layout
+    return resize(*inputs, **new_attrs)
 
 
 @script

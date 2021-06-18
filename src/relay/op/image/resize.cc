@@ -33,6 +33,31 @@ namespace relay {
 
 TVM_REGISTER_NODE_TYPE(ResizeAttrs);
 
+template <typename T>
+Array<Array<Layout> > ResizeInferCorrectLayout(const Attrs& attrs,
+                                               const Array<Layout>& new_in_layouts,
+                                               const Array<Layout>& old_in_layouts,
+                                               const Array<tvm::relay::Type>& old_in_types) {
+  // NOTE: Discard "const" qualifier here.
+  T* params = const_cast<T*>(attrs.as<T>());
+
+  if (new_in_layouts.defined()) {
+    ICHECK_EQ(new_in_layouts.size(), 1);
+
+    Layout raw_layout(params->layout);
+    Layout new_layout = new_in_layouts[0];
+    Layout old_layout = old_in_layouts[0];
+    if (!new_layout.Equals(old_layout) && raw_layout.Equals(old_layout) &&
+        new_layout->axes.size() == old_layout->axes.size()) {
+      // Follow input layout
+      params->layout = new_layout.name();
+    }
+  }
+
+  Layout inferred_layout(params->layout);
+  return Array<Array<Layout> >{{inferred_layout}, {inferred_layout}};
+}
+
 bool ResizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                const TypeReporter& reporter) {
   ICHECK_EQ(types.size(), 2);
@@ -102,6 +127,7 @@ RELAY_REGISTER_OP("image.resize")
     .add_argument("data", "Tensor", "The input tensor.")
     .set_support_level(5)
     .add_type_rel("Resize", ResizeRel)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ResizeInferCorrectLayout<ResizeAttrs>)
     .set_attr<TOpPattern>("TOpPattern", kInjective);
 
 TVM_REGISTER_NODE_TYPE(Resize3dAttrs);
