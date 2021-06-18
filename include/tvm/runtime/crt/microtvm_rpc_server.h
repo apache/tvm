@@ -18,12 +18,12 @@
  */
 
 /*!
- * \file utvm_rpc_server.h
+ * \file microtvm_rpc_server.h
  * \brief MicroTVM RPC Server
  */
 
-#ifndef TVM_RUNTIME_CRT_UTVM_RPC_SERVER_H_
-#define TVM_RUNTIME_CRT_UTVM_RPC_SERVER_H_
+#ifndef TVM_RUNTIME_CRT_MICROTVM_RPC_SERVER_H_
+#define TVM_RUNTIME_CRT_MICROTVM_RPC_SERVER_H_
 
 #include <stdlib.h>
 #include <sys/types.h>
@@ -74,4 +74,4 @@ tvm_crt_error_t UTvmRpcServerLoop(utvm_rpc_server_t server, uint8_t** new_data,
 }
 #endif
 
-#endif  // TVM_RUNTIME_CRT_UTVM_RPC_SERVER_H_
+#endif  // TVM_RUNTIME_CRT_MICROTVM_RPC_SERVER_H_

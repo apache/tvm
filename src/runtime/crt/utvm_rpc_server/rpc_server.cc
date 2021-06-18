@@ -41,7 +41,7 @@
 #include <tvm/runtime/crt/rpc_common/frame_buffer.h>
 #include <tvm/runtime/crt/rpc_common/framing.h>
 #include <tvm/runtime/crt/rpc_common/session.h>
-#include <tvm/runtime/crt/utvm_rpc_server.h>
+#include <tvm/runtime/crt/microtvm_rpc_server.h>
 
 #include "../../minrpc/minrpc_server.h"
 #include "crt_config.h"
