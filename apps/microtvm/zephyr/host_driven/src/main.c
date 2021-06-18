@@ -285,14 +285,14 @@ void main(void) {
   uart_rx_init(&uart_rx_rbuf, tvm_uart);
 
   // Initialize microTVM RPC server, which will receive commands from the UART and execute them.
-  utvm_rpc_server_t server = UTvmRpcServerInit(write_serial, NULL);
+  microtvm_rpc_server_t server = MicroTVMRpcServerInit(write_serial, NULL);
   TVMLogf("microTVM Zephyr runtime - running");
 #ifdef CONFIG_LED
   gpio_pin_set(led0_pin, LED0_PIN, 0);
 #endif
 
   // The main application loop. We continuously read commands from the UART
-  // and dispatch them to UTvmRpcServerLoop().
+  // and dispatch them to MicroTVMRpcServerLoop().
   while (true) {
     uint8_t* data;
     unsigned int key = irq_lock();
@@ -302,7 +302,7 @@ void main(void) {
       size_t bytes_remaining = bytes_read;
       while (bytes_remaining > 0) {
         // Pass the received bytes to the RPC server.
-        tvm_crt_error_t err = UTvmRpcServerLoop(server, &data, &bytes_remaining);
+        tvm_crt_error_t err = MicroTVMRpcServerLoop(server, &data, &bytes_remaining);
         if (err != kTvmErrorNoError && err != kTvmErrorFramingShortPacket) {
           TVMPlatformAbort(err);
         }

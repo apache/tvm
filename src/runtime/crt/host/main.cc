@@ -130,7 +130,7 @@ int main(int argc, char** argv) {
     return 2;
   }
 
-  utvm_rpc_server_t rpc_server = UTvmRpcServerInit(&UTvmWriteFunc, nullptr);
+  microtvm_rpc_server_t rpc_server = MicroTVMRpcServerInit(&UTvmWriteFunc, nullptr);
 
 #ifdef TVM_HOST_USE_GRAPH_EXECUTOR_MODULE
   CHECK_EQ(TVMGraphExecutorModule_Register(), kTvmErrorNoError,
@@ -162,12 +162,12 @@ int main(int argc, char** argv) {
     uint8_t* cursor = &c;
     size_t bytes_to_process = 1;
     while (bytes_to_process > 0) {
-      tvm_crt_error_t err = UTvmRpcServerLoop(rpc_server, &cursor, &bytes_to_process);
+      tvm_crt_error_t err = MicroTVMRpcServerLoop(rpc_server, &cursor, &bytes_to_process);
       if (err == kTvmErrorPlatformShutdown) {
         break;
       } else if (err != kTvmErrorNoError) {
         char buf[1024];
-        snprintf(buf, sizeof(buf), "microTVM runtime: UTvmRpcServerLoop error: %08x", err);
+        snprintf(buf, sizeof(buf), "microTVM runtime: MicroTVMRpcServerLoop error: %08x", err);
         perror(buf);
         return 2;
       }

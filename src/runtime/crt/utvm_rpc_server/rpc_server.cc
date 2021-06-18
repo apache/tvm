@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file utvm_rpc_server.cc
+ * \file rpc_server.cc
  * \brief MicroTVM RPC Server
  */
 
@@ -87,7 +87,7 @@ class MicroIOHandler {
 
 namespace {
 // Stored as globals so that they can be used to report initialization errors.
-utvm_rpc_channel_write_t g_write_func = nullptr;
+microtvm_rpc_channel_write_t g_write_func = nullptr;
 void* g_write_func_ctx = nullptr;
 }  // namespace
 
@@ -109,7 +109,7 @@ class SerialWriteStream : public WriteStream {
 class MicroRPCServer {
  public:
   MicroRPCServer(uint8_t* receive_storage, size_t receive_storage_size_bytes,
-                 utvm_rpc_channel_write_t write_func, void* write_func_ctx)
+                 microtvm_rpc_channel_write_t write_func, void* write_func_ctx)
       : receive_buffer_{receive_storage, receive_storage_size_bytes},
         framer_{&send_stream_},
         session_{&framer_, &receive_buffer_, &HandleCompleteMessageCb, this},
@@ -197,9 +197,9 @@ void* operator new[](size_t count, void* ptr) noexcept { return ptr; }
 
 extern "C" {
 
-static utvm_rpc_server_t g_rpc_server = nullptr;
+static microtvm_rpc_server_t g_rpc_server = nullptr;
 
-utvm_rpc_server_t UTvmRpcServerInit(utvm_rpc_channel_write_t write_func, void* write_func_ctx) {
+microtvm_rpc_server_t MicroTVMRpcServerInit(microtvm_rpc_channel_write_t write_func, void* write_func_ctx) {
   tvm::runtime::micro_rpc::g_write_func = write_func;
   tvm::runtime::micro_rpc::g_write_func_ctx = write_func_ctx;
 
@@ -223,7 +223,7 @@ utvm_rpc_server_t UTvmRpcServerInit(utvm_rpc_channel_write_t write_func, void* w
   }
   auto rpc_server = new (rpc_server_memory) tvm::runtime::micro_rpc::MicroRPCServer(
       receive_buffer, TVM_CRT_MAX_PACKET_SIZE_BYTES, write_func, write_func_ctx);
-  g_rpc_server = static_cast<utvm_rpc_server_t>(rpc_server);
+  g_rpc_server = static_cast<microtvm_rpc_server_t>(rpc_server);
   rpc_server->Initialize();
   return g_rpc_server;
 }
@@ -258,7 +258,7 @@ void TVMLogf(const char* format, ...) {
   }
 }
 
-tvm_crt_error_t UTvmRpcServerLoop(utvm_rpc_server_t server_ptr, uint8_t** new_data,
+tvm_crt_error_t MicroTVMRpcServerLoop(microtvm_rpc_server_t server_ptr, uint8_t** new_data,
                                   size_t* new_data_size_bytes) {
   tvm::runtime::micro_rpc::MicroRPCServer* server =
       static_cast<tvm::runtime::micro_rpc::MicroRPCServer*>(server_ptr);
