@@ -42,7 +42,7 @@ using namespace std::chrono;
 
 extern "C" {
 
-ssize_t UTvmWriteFunc(void* context, const uint8_t* data, size_t num_bytes) {
+ssize_t MicroTVMWriteFunc(void* context, const uint8_t* data, size_t num_bytes) {
   ssize_t to_return = write(STDOUT_FILENO, data, num_bytes);
   fflush(stdout);
   fsync(STDOUT_FILENO);
@@ -130,7 +130,7 @@ int main(int argc, char** argv) {
     return 2;
   }
 
-  microtvm_rpc_server_t rpc_server = MicroTVMRpcServerInit(&UTvmWriteFunc, nullptr);
+  microtvm_rpc_server_t rpc_server = MicroTVMRpcServerInit(&MicroTVMWriteFunc, nullptr);
 
 #ifdef TVM_HOST_USE_GRAPH_EXECUTOR_MODULE
   CHECK_EQ(TVMGraphExecutorModule_Register(), kTvmErrorNoError,

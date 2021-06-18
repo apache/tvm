@@ -47,7 +47,7 @@ typedef void* microtvm_rpc_server_t;
 
 /*! \brief Initialize the TVM RPC Server.
  *
- * Call this on device startup before calling anyother utvm_rpc_server_ functions.
+ * Call this on device startup before calling anyother microtvm_rpc_server_ functions.
  *
  * \param write_func A callback function invoked by the TVM RPC Server to write data back to the
  *                   host. Internally, the TVM RPC Server will block until all data in a reply
