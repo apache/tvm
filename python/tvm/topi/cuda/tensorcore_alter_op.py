@@ -71,7 +71,8 @@ def _batch_matmul_legalize(attrs, inputs, arg_types):
             # no need to pad
             return None
 
-        (dm, dk, dn), extra_flops = pad_to_tensorcore(M, K, N)
+        candidates = [(16, 16, 16), (32, 16, 8), (8, 16, 32)]
+        (dm, dk, dn), extra_flops = pad_to_tensorcore(M, K, N, candidates)
 
         if extra_flops > 2:
             logger.info("batch_matmul pad_to_tensorcore skipped, extra_flops %s", extra_flops)
@@ -145,7 +146,8 @@ def _dense_legalize(attrs, inputs, arg_types):
             # no need to pad
             return None
 
-        (dm, dk, dn), extra_flops_ratio = pad_to_tensorcore(M, K, N)
+        candidates = [(16, 16, 16), (32, 16, 8), (8, 16, 32)]
+        (dm, dk, dn), extra_flops_ratio = pad_to_tensorcore(M, K, N, candidates)
 
         if extra_flops_ratio > 2:
             logger.info("dense pad_to_tensorcore skipped, extra_flops_ratio %s", extra_flops_ratio)
@@ -171,10 +173,8 @@ def _dense_legalize(attrs, inputs, arg_types):
     return None
 
 
-def pad_to_tensorcore(M, K, N):
+def pad_to_tensorcore(M, K, N, candidates):
     """pad shape to enable tensorcore"""
-    candidates = [(16, 16, 16), (32, 16, 8), (8, 16, 32)]
-
     flops = M * K * N
     extra_flops = math.inf
     best_pad = (0, 0, 0)
