@@ -15,8 +15,8 @@
     specific language governing permissions and limitations
     under the License.
 
-Relay Arm:sup:`®` Compute Library Integration
-==============================================
+Relay Arm\ :sup:`®` Compute Library Integration
+===============================================
 **Author**: `Luke Hutton <https://github.com/lhutton1>`_
 
 Introduction
