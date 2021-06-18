@@ -55,11 +55,13 @@ function in this module. Then targets using this node should be added to the
 `TVM_TEST_TARGETS` environment variable in the CI.
 """
 import collections
+import copy
 import functools
 import logging
 import os
 import sys
 import time
+import pickle
 import pytest
 import _pytest
 import numpy as np
@@ -1134,20 +1136,60 @@ def fixture(func=None, *, cache_return_value=False):
 
 
 def _fixture_cache(func):
-    cache = functools.lru_cache(maxsize=None)(func)
+    cache = {}
     num_uses = 0
+
+    # Using functools.lru_cache would require the function arguments
+    # to be hashable, which wouldn't allow caching fixtures that
+    # depend on numpy arrays.  For example, a fixture that takes a
+    # numpy array as input, then calculates uses a slow method to
+    # compute a known correct output for that input.  Therefore,
+    # including a fallback for serializable types.
+    def get_cache_key(*args, **kwargs):
+        try:
+            hash((args, kwargs))
+            return (args, kwargs)
+        except TypeError as e:
+            pass
+
+        try:
+            return pickle.dumps((args, kwargs))
+        except TypeError as e:
+            raise TypeError(
+                "TVM caching of fixtures requires arguments to the fixture "
+                "to be either hashable or serializable"
+            ) from e
 
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
-        yield cache(*args, **kwargs)
+        try:
+            cache_key = get_cache_key(*args, **kwargs)
 
-        nonlocal num_uses
-        num_uses += 1
+            try:
+                cached_value = cache[cache_key]
+            except KeyError:
+                cached_value = cache[cache_key] = func(*args, **kwargs)
 
-        # Clear the cache once all tests that use a particular fixture
-        # have completed.
-        if num_uses == wrapper.num_tests_use_this:
-            cache.cache_clear()
+            try:
+                yield copy.deepcopy(cached_value)
+            except TypeError as e:
+                rfc_url = (
+                    "https://github.com/apache/tvm-rfcs/blob/main/rfcs/"
+                    "0007-parametrized-unit-tests.md#unresolved-questions"
+                )
+                message = (
+                    "TVM caching of fixtures can only be used on serializable data types, not {}.\n"
+                    "Please see {} for details/discussion."
+                ).format(type(cached_value), rfc_url)
+                raise TypeError(message) from e
+
+        finally:
+            # Clear the cache once all tests that use a particular fixture
+            # have completed.
+            nonlocal num_uses
+            num_uses += 1
+            if num_uses == wrapper.num_tests_use_this:
+                cache.clear()
 
     # Set in the pytest_collection_modifyitems()
     wrapper.num_tests_use_this = 0
