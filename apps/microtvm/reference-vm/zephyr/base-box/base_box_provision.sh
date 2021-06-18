@@ -15,29 +15,23 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+#
+#   Using this script we can reuse docker/install scripts to configure the reference 
+#   virtual machine similar to CI QEMU setup.
+#
 
 set -e
+set -x
 
-# Get number of cores for build
-if [ -n "${TVM_CI_NUM_CORES}" ]; then
-  num_cores=${TVM_CI_NUM_CORES}
-else
-  # default setup for Vagrantfile
-  num_cores=2
-fi
+source ~/.profile
 
-cd "$(dirname $0)"
-cd "$(git rev-parse --show-toplevel)"
-BUILD_DIR=build-microtvm
+# Init Zephyr
+cd ~
+# Using most recent commit that passes all the tests.
+~/ubuntu_init_zephyr_project.sh ~/zephyr v2.5-branch --commit dabf23758417fd041fec2a2a821d8f526afac29d
 
-if [ ! -e "${BUILD_DIR}" ]; then
-    mkdir "${BUILD_DIR}"
-fi
-cp cmake/config.cmake "${BUILD_DIR}"
-cd "${BUILD_DIR}"
-sed -i 's/USE_MICRO OFF/USE_MICRO ON/' config.cmake
-sed -i 's/USE_GRAPH_EXECUTOR_DEBUG OFF/USE_GRAPH_EXECUTOR_DEBUG ON/' config.cmake
-sed -i 's/USE_LLVM OFF/USE_LLVM ON/' config.cmake
-cmake ..
-rm -rf standalone_crt host_standalone_crt  # remove stale generated files
-make -j${num_cores}
+# Build QEMU
+sudo ~/ubuntu_install_qemu.sh --target-list arm-softmmu
+
+# Cleanup
+rm -f *.sh

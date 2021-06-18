@@ -15,29 +15,25 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+#
+# Usage: base_box_test.sh <MICROTVM_PLATFORM>
+#     Execute microTVM Zephyr tests.
+#
 
 set -e
+set -x
 
-# Get number of cores for build
-if [ -n "${TVM_CI_NUM_CORES}" ]; then
-  num_cores=${TVM_CI_NUM_CORES}
+if [ "$#" -lt 1 ]; then
+    echo "Usage: base_box_test.sh <MICROTVM_PLATFORM>"
+    exit -1
+fi
+
+microtvm_platform=$1
+
+pytest tests/micro/zephyr/test_zephyr.py --microtvm-platforms=${microtvm_platform}
+
+if [ $microtvm_platform == "stm32f746xx" ]; then
+    echo "NOTE: skipped test_zephyr_aot.py on $microtvm_platform -- known failure"
 else
-  # default setup for Vagrantfile
-  num_cores=2
+    pytest tests/micro/zephyr/test_zephyr_aot.py --microtvm-platforms=${microtvm_platform}
 fi
-
-cd "$(dirname $0)"
-cd "$(git rev-parse --show-toplevel)"
-BUILD_DIR=build-microtvm
-
-if [ ! -e "${BUILD_DIR}" ]; then
-    mkdir "${BUILD_DIR}"
-fi
-cp cmake/config.cmake "${BUILD_DIR}"
-cd "${BUILD_DIR}"
-sed -i 's/USE_MICRO OFF/USE_MICRO ON/' config.cmake
-sed -i 's/USE_GRAPH_EXECUTOR_DEBUG OFF/USE_GRAPH_EXECUTOR_DEBUG ON/' config.cmake
-sed -i 's/USE_LLVM OFF/USE_LLVM ON/' config.cmake
-cmake ..
-rm -rf standalone_crt host_standalone_crt  # remove stale generated files
-make -j${num_cores}

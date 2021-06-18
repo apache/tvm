@@ -104,7 +104,18 @@ CuDNNThreadEntry::CuDNNThreadEntry() {
   auto func = runtime::Registry::Get("device_api.cuda");
   void* ret = (*func)();
   cuda_api = static_cast<runtime::DeviceAPI*>(ret);
-  CUDNN_CALL(cudnnCreate(&handle));
+
+  // If no CuDNN-capable device is present, allow the CuDNNThreadEntry
+  // object to be created.  This is needed for
+  // CuDNNThreadEntry::exists.
+  {
+    cudnnStatus_t create_res = cudnnCreate(&handle);
+    if (create_res == CUDNN_STATUS_NOT_INITIALIZED) {
+      return;
+    }
+    CUDNN_CALL(create_res);
+  }
+
   CUDNN_CALL(cudnnSetStream(handle, stream));
   conv_entry.cuda_api = cuda_api;
 
@@ -117,12 +128,22 @@ CuDNNThreadEntry::CuDNNThreadEntry() {
   });
 }
 
-// If the program is exiting (cuda/cudnn context may not exists), ignore `cudnnDestroy`. 
-CuDNNThreadEntry::~CuDNNThreadEntry() { if(cudnn_context_must_exist) CUDNN_CALL(cudnnDestroy(handle)); }
+CuDNNThreadEntry::~CuDNNThreadEntry() {
+  if (handle && cudnn_context_must_exist) {
+    CUDNN_CALL(cudnnDestroy(handle));
+  }
+}
 
 typedef dmlc::ThreadLocalStore<CuDNNThreadEntry> CuDNNThreadStore;
 
-CuDNNThreadEntry* CuDNNThreadEntry::ThreadLocal() { return CuDNNThreadStore::Get(); }
+CuDNNThreadEntry* CuDNNThreadEntry::ThreadLocal(bool check_exists) {
+  auto* res = CuDNNThreadStore::Get();
+  if (check_exists) {
+    ICHECK(res->exists()) << "CUDNN_STATUS_NOT_INITIALIZED";
+  }
+
+  return res;
+}
 
 // ConvEntry
 
@@ -161,6 +182,10 @@ void ConvEntry::CleanWorkspace() {
 SoftmaxEntry::SoftmaxEntry() { CUDNN_CALL(cudnnCreateTensorDescriptor(&shape_desc)); }
 
 SoftmaxEntry::~SoftmaxEntry() { CUDNN_CALL(cudnnDestroyTensorDescriptor(shape_desc)); }
+
+TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.exists").set_body_typed([]() -> bool {
+  return CuDNNThreadEntry::ThreadLocal(false)->exists();
+});
 
 }  // namespace contrib
 }  // namespace tvm

@@ -1843,6 +1843,9 @@ def test_forward_batch_matmul():
     _test_batch_matmul((1, 2, 3, 4, 5, 6), (1, 2, 3, 4, 6, 5), "float32", True, True)
     _test_batch_matmul((3, 4, 5, 6), (3, 4, 5, 6), "int32", True, False)
     _test_batch_matmul((2, 3, 4, 2, 3, 4, 5, 6), (2, 3, 4, 2, 3, 4, 5, 6), "float32", False, True)
+    _test_batch_matmul((1, 8, 64, 2), (2, 1), "float32", False, False)
+    _test_batch_matmul((1, 8, 8, 64), (64, 1), "float32", False, False)
+    _test_batch_matmul((1, 8, 64), (64, 1), "float32", False, False)
 
 
 @tvm.testing.requires_cuda
@@ -1868,6 +1871,20 @@ def test_forward_batch_matmul_dynamic():
         (None, None, None, 6, 5),
         (2, 3, 4, 5, 6),
         (2, 3, 4, 6, 5),
+        "float32",
+    )
+    _test_batch_matmul_dynamic(
+        (None, None, None, 5, 6),
+        (6, None),
+        (2, 3, 4, 5, 6),
+        (6, 1),
+        "float32",
+    )
+    _test_batch_matmul_dynamic(
+        (None, 5, 6),
+        (6, None),
+        (24, 5, 6),
+        (6, 1),
         "float32",
     )
 
