@@ -269,48 +269,9 @@ class AOTExecutorCodegen : public ExprVisitor {
       }
 
       auto sid_value = sids_table_[sid];
-      if (!use_unpacked_api_) {
-        // Pack the sid inside the TVMValue
-        auto sid_array = te::Var(MakeString("sid_", sid, "_value"), DataType::Handle());
-        tvm::PrimExpr set_tensor =
-            tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_struct_set(),
-                           {sid_array, 0, tir::builtin::kArrData, sid_value});
-        stmts_.push_back(
-            tir::LetStmt(sid_array, StackAlloca("array", 1), tir::Evaluate(set_tensor)));
-        buffer_vars.push_back(sid_array);
-      } else {
-        buffer_vars.push_back(sid_value);
-      }
+      buffer_vars.push_back(sid_value);
     }
     return buffer_vars;
-  }
-
-  /*!
-   * \brief Utility function to return a parameter associated with an expression
-   * \param expr Relay Expression associated with the parameter
-   * \return Variable that represents the DLTensor associated with the parameters
-   */
-  tir::Var PackParam(Expr expr) {
-    int param_sid = param_storage_ids_[params_by_expr_[expr]];
-    auto param_array = te::Var(MakeString("param_", param_sid, "_array"), DataType::Handle());
-
-    // Compose the lookup_call using a local stack
-    Array<tir::Stmt> lookup_call;
-    // Set the param to the value returned by lookup_call
-    auto param_handle = tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::lookup_param(),
-                                       {tir::StringImm(params_by_expr_[expr])});
-
-    if (!use_unpacked_api_) {
-      tvm::PrimExpr set_param_array =
-          tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_struct_set(),
-                         {param_array, 0, tir::builtin::kArrData, param_handle});
-      stmts_.push_back(
-          tir::LetStmt(param_array, StackAlloca("arg_value", 1), tir::Evaluate(set_param_array)));
-    } else {
-      stmts_.push_back(tir::LetStmt(param_array, param_handle, tir::Evaluate(0)));
-    }
-
-    return param_array;
   }
 
   /*!
@@ -322,9 +283,6 @@ class AOTExecutorCodegen : public ExprVisitor {
       // Input variable
       int main_index = std::distance(input_vars_.begin(), input_iter);
       return {main_signature_[main_index]};
-    } else if (params_by_expr_.find(arg) != params_by_expr_.end()) {
-      // Parameter of the network
-      return {PackParam(arg)};
     } else {
       // Storage identifier (i.e., intermediate memory)
       return PackSid(arg);
@@ -340,8 +298,14 @@ class AOTExecutorCodegen : public ExprVisitor {
 
     // Pack the inputs
     for (Expr arg : call->args) {
-      auto var_arg = FindExpr(arg);
-      args.push_back(var_arg[0]);
+      if (params_by_expr_.find(arg) != params_by_expr_.end()) {
+        auto param_handle = tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::lookup_param(),
+                                           {tir::StringImm(params_by_expr_[arg])});
+        args.push_back(param_handle);
+      } else {
+        auto var_arg = FindExpr(arg);
+        args.push_back(var_arg[0]);
+      }
     }
 
     auto ret_expr = Downcast<Expr>(call);
@@ -369,7 +333,7 @@ class AOTExecutorCodegen : public ExprVisitor {
    * TODO(giuseros): we should try to avoid unnecessary copy to the output, e.g., in a
    * copy-on-write fashion.
    */
-  void CopyToOutput(te::Var out, te::Var in, size_t size) {
+  void CopyToOutput(PrimExpr out, PrimExpr in, bool pack_input, size_t size) {
     // Define intermediate DLTensor to load/store the data
     auto tmp0 = te::Var("tmp0", DataType::Handle());
     auto tmp1 = te::Var("tmp1", DataType::Handle());
@@ -381,8 +345,13 @@ class AOTExecutorCodegen : public ExprVisitor {
     PrimExpr tostore = tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_struct_get(),
                                       {out, 0, tir::builtin::kArrData});
     if (use_unpacked_api_) {
-      retval_get = in;
       tostore = out;
+    }
+
+    // Do not pack the input if the flag is set or the caller
+    // explicitly asked to do so (e.g., copying a param to the output)
+    if (use_unpacked_api_ || !pack_input) {
+      retval_get = in;
     }
 
     // Copy the variable from the input to the output
@@ -564,9 +533,16 @@ class AOTExecutorCodegen : public ExprVisitor {
     auto output_iter = std::find(return_sid_.begin(), return_sid_.end(), buffers[0].sid);
     if (output_iter != return_sid_.end()) {
       int output_index = std::distance(return_sid_.begin(), output_iter);
-      auto var_expr = FindExpr(expr);
-      CopyToOutput(main_signature_[input_vars_.size() + output_index], var_expr[0],
-                   buffers[0].size_bytes);
+      if (params_by_expr_.find(expr) != params_by_expr_.end()) {
+        auto param_handle = tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::lookup_param(),
+                                           {tir::StringImm(params_by_expr_[expr])});
+        CopyToOutput(main_signature_[input_vars_.size() + output_index], param_handle,
+                     /*pack_input*/ true, buffers[0].size_bytes);
+      } else {
+        auto var_expr = FindExpr(expr);
+        CopyToOutput(main_signature_[input_vars_.size() + output_index], var_expr[0],
+                     /*pack_input*/ true, buffers[0].size_bytes);
+      }
     }
   }
 
@@ -585,7 +561,9 @@ class AOTExecutorCodegen : public ExprVisitor {
     auto output_iter = std::find(return_sid_.begin(), return_sid_.end(), buffers[0].sid);
     if (output_iter != return_sid_.end()) {
       int output_index = std::distance(return_sid_.begin(), output_iter);
-      CopyToOutput(main_signature_[input_vars_.size() + output_index], PackParam(expr),
+      auto param_handle = tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::lookup_param(),
+                                         {tir::StringImm(params_by_expr_[expr])});
+      CopyToOutput(main_signature_[input_vars_.size() + output_index], param_handle, false,
                    buffers[0].size_bytes);
     }
   }
@@ -626,7 +604,9 @@ class AOTExecutorCodegen : public ExprVisitor {
     throw std::invalid_argument("match case not yet implemented");
   }
 
-  // Create the main PrimFunc to execute the graph
+  // Create the main PrimFunc to execute the graph. Please note that
+  // the packed function calls don't pack their arguments. The AOT
+  // runner function needs to be legalized by the LegalizePackedCalls pass.
   tir::PrimFunc CreateMainFunc(unsigned int relay_params) {
     tir::Stmt body = tir::SeqStmt(stmts_);
 
@@ -765,6 +745,9 @@ class AOTExecutorCodegen : public ExprVisitor {
 
     VisitExpr(func->body);
 
+    // Create the runner function. Please note that the function is not legal yet
+    // because the packed calls arguments are not wrapped in TVMValues. To make this happen we need
+    // to run the LegalizePackedCalls pass.
     auto prim_func = CreateMainFunc(func->params.size());
     UpdateMainWorkspaceSize(prim_func, func);
     LoweredOutput ret;
@@ -794,6 +777,13 @@ class AOTExecutorCodegen : public ExprVisitor {
     // Apply storage rewrite pass to the runner function to do memory planning
     auto storage_rewrite = tir::transform::StorageRewrite();
     mod_run = storage_rewrite(mod_run);
+
+    // Legalize AOT if needed. This means that all the packed calls
+    // need to be wrapped in TVMValues (unless use_unpacked_api is set)
+    if (!use_unpacked_api_) {
+      auto pack_calls = tir::transform::LegalizePackedCalls();
+      mod_run = pack_calls(mod_run);
+    }
 
     // Update the lowered functions
     auto target_host_str = target_host_->str();
