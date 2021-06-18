@@ -35,13 +35,13 @@
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/crt/crt.h>
 #include <tvm/runtime/crt/logging.h>
+#include <tvm/runtime/crt/microtvm_rpc_server.h>
 #include <tvm/runtime/crt/module.h>
 #include <tvm/runtime/crt/page_allocator.h>
 #include <tvm/runtime/crt/platform.h>
 #include <tvm/runtime/crt/rpc_common/frame_buffer.h>
 #include <tvm/runtime/crt/rpc_common/framing.h>
 #include <tvm/runtime/crt/rpc_common/session.h>
-#include <tvm/runtime/crt/microtvm_rpc_server.h>
 
 #include "../../minrpc/minrpc_server.h"
 #include "crt_config.h"
@@ -199,7 +199,8 @@ extern "C" {
 
 static microtvm_rpc_server_t g_rpc_server = nullptr;
 
-microtvm_rpc_server_t MicroTVMRpcServerInit(microtvm_rpc_channel_write_t write_func, void* write_func_ctx) {
+microtvm_rpc_server_t MicroTVMRpcServerInit(microtvm_rpc_channel_write_t write_func,
+                                            void* write_func_ctx) {
   tvm::runtime::micro_rpc::g_write_func = write_func;
   tvm::runtime::micro_rpc::g_write_func_ctx = write_func_ctx;
 
@@ -259,7 +260,7 @@ void TVMLogf(const char* format, ...) {
 }
 
 tvm_crt_error_t MicroTVMRpcServerLoop(microtvm_rpc_server_t server_ptr, uint8_t** new_data,
-                                  size_t* new_data_size_bytes) {
+                                      size_t* new_data_size_bytes) {
   tvm::runtime::micro_rpc::MicroRPCServer* server =
       static_cast<tvm::runtime::micro_rpc::MicroRPCServer*>(server_ptr);
   return server->Loop(new_data, new_data_size_bytes);

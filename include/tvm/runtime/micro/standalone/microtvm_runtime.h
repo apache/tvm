@@ -25,7 +25,8 @@
 
 #define TVM_MICRO_RUNTIME_API_API extern "C" __attribute__((visibility("default")))
 
-TVM_MICRO_RUNTIME_API_API void* MicroTVMRuntimeCreate(const char* json, size_t json_len, void* module);
+TVM_MICRO_RUNTIME_API_API void* MicroTVMRuntimeCreate(const char* json, size_t json_len,
+                                                      void* module);
 
 TVM_MICRO_RUNTIME_API_API void MicroTVMRuntimeDestroy(void* handle);
 

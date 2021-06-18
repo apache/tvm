@@ -30,8 +30,8 @@
 #include <utility>
 #include <vector>
 
-#include "minimal_vector.h"
 #include "microtvm_runtime_api.h"
+#include "minimal_vector.h"
 
 namespace tvm {
 namespace micro {

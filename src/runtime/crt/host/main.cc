@@ -25,8 +25,8 @@
 #include <time.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/crt/logging.h>
-#include <tvm/runtime/crt/page_allocator.h>
 #include <tvm/runtime/crt/microtvm_rpc_server.h>
+#include <tvm/runtime/crt/page_allocator.h>
 #include <unistd.h>
 
 #include <chrono>
@@ -88,8 +88,8 @@ tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
     return kTvmErrorPlatformTimerBadState;
   }
   auto microtvm_stop_time = std::chrono::steady_clock::now();
-  std::chrono::microseconds time_span =
-      std::chrono::duration_cast<std::chrono::microseconds>(microtvm_stop_time - g_microtvm_start_time);
+  std::chrono::microseconds time_span = std::chrono::duration_cast<std::chrono::microseconds>(
+      microtvm_stop_time - g_microtvm_start_time);
   *elapsed_time_seconds = static_cast<double>(time_span.count()) / 1e6;
   g_microtvm_timer_running = 0;
   return kTvmErrorNoError;
@@ -140,9 +140,10 @@ int main(int argc, char** argv) {
   int error = TVMFuncRegisterGlobal("tvm.testing.reset_server",
                                     (TVMFunctionHandle)&testonly_reset_server, 0);
   if (error) {
-    fprintf(stderr,
-            "microTVM runtime: internal error (error#: %x) registering global packedfunc; exiting\n",
-            error);
+    fprintf(
+        stderr,
+        "microTVM runtime: internal error (error#: %x) registering global packedfunc; exiting\n",
+        error);
     return 2;
   }
 
