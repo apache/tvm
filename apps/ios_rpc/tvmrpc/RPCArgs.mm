@@ -50,7 +50,7 @@ struct RPCArgs_cpp {
 
   bool immediate_connect = false;
   bool verbose = false;
-  char server_mode = 0;
+  RPCServerMode server_mode = RPCServerMode_Tracker;
 
   operator RPCArgs() const {
     return RPCArgs{.host_url = host_url.c_str(),
@@ -90,18 +90,18 @@ static void restore_from_cache() {
     return static_cast<int>([defaults integerForKey:ns_key]);
   };
 
-  g_rpc_args.host_url = get_string_from_cache("tmvrpc_url");
-  g_rpc_args.host_port = get_int_from_cache("tmvrpc_port");
-  g_rpc_args.key = get_string_from_cache("tmvrpc_key");
+  g_rpc_args.host_url = get_string_from_cache("RPCArgs_url");
+  g_rpc_args.host_port = get_int_from_cache("RPCArgs_port");
+  g_rpc_args.key = get_string_from_cache("RPCArgs_key");
 }
 
 static void update_in_cache() {
   NSUserDefaults* defaults = [NSUserDefaults standardUserDefaults];
 
   [defaults setObject:[NSString stringWithUTF8String:g_rpc_args.host_url.c_str()]
-               forKey:@"tmvrpc_url"];
-  [defaults setInteger:g_rpc_args.host_port forKey:@"tmvrpc_port"];
-  [defaults setObject:[NSString stringWithUTF8String:g_rpc_args.key.c_str()] forKey:@"tmvrpc_key"];
+               forKey:@"RPCArgs_url"];
+  [defaults setInteger:g_rpc_args.host_port forKey:@"RPCArgs_port"];
+  [defaults setObject:[NSString stringWithUTF8String:g_rpc_args.key.c_str()] forKey:@"RPCArgs_key"];
 }
 
 string GetCmdOption(int argc, char* argv[], string option, bool key = false) {
@@ -139,11 +139,11 @@ void update_rpc_args(int argc, char* argv[]) {
   const string server_mode = GetCmdOption(argc, argv, "--server_mode=", false);
   if (!server_mode.empty()) {
     if (server_mode == "tracker") {
-      args.server_mode = 0;
+      args.server_mode = RPCServerMode_Tracker;
     } else if (server_mode == "proxy") {
-      args.server_mode = 1;
+      args.server_mode = RPCServerMode_Proxy;
     } else if (server_mode == "pure_server") {
-      args.server_mode = 2;
+      args.server_mode = RPCServerMode_PureServer;
     } else {
       LOG(WARNING) << "Wrong server_mode value.";
       LOG(INFO) << kUsage;

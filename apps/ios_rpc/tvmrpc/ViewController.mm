@@ -27,8 +27,6 @@
 @implementation ViewController {
   // server implementation
   RPCServer* server_;
-  // verbose flag to print status info
-  bool verbose_;
   // Button state. True - push will start connection, false - push will disconnect
   bool to_connect_;
 }
@@ -45,7 +43,6 @@
   self.proxyKey.text = @(args.key);
 
   self.ModeSelector.selectedSegmentIndex = args.server_mode;
-  self->verbose_ = args.verbose;
   self->to_connect_ = true;
 
   // Add border to button
@@ -88,13 +85,16 @@
  * \brief Start RPC server
  */
 - (void)open {
+  RPCArgs args = get_current_rpc_args();
+
   RPCServerMode server_mode = static_cast<RPCServerMode>(self.ModeSelector.selectedSegmentIndex);
 
   server_ = [RPCServer serverWithMode:server_mode];
   server_.host = self.proxyURL.text;
   server_.port = self.proxyPort.text.intValue;
   server_.key = self.proxyKey.text;
-  server_.verbose = self->verbose_;
+  server_.custom_addr = [NSString stringWithUTF8String:args.custom_addr];
+  server_.verbose = args.verbose;
   server_.delegate = self;
 
   [server_ start];

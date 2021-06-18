@@ -20,6 +20,8 @@
 #ifndef TVM_APPS_IOS_RPC_ARGS_H_
 #define TVM_APPS_IOS_RPC_ARGS_H_
 
+#import "RPCServer.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -42,15 +44,14 @@ typedef struct RPCArgs_t {
 
   /// Verbose mode. Will print status messages to std out.
   /// 0 - no prints , 1 - print state to output
-  char verbose;
+  bool verbose;
 
   /// Immediate server launch. No UI interaction.
   /// 0 - UI interaction, 1 - automatically connect on launch
-  char immediate_connect;
+  bool immediate_connect;
 
-  /// Server mode:
-  /// 0 - connect to Tracker, 1 - connect to Proxy,  2 - pure RPC server
-  char server_mode;
+  /// Server mode
+  RPCServerMode server_mode;
 } RPCArgs;
 
 /*!

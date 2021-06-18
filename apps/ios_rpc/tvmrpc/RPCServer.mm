@@ -323,7 +323,7 @@ static std::string getWiFiAddress() {
  * Set buffer to send  in packet format [size, data]. Behaviour is same as for toSend.
  */
 - (void)toSendPacked:(NSData*)data {
-  int packet_size = data.length;
+  uint32_t packet_size = data.length;
   [self toSend:[NSData dataWithBytes:&packet_size length:sizeof(packet_size)]];
   [self toSend:data];
 }
@@ -343,12 +343,12 @@ static std::string getWiFiAddress() {
 /*!
  */
 - (NSData*)requestInputDataPacked {
-  int size;
+  uint32_t size;
   if (recvBuffer_.size() < sizeof(size)) {
     requiredToRecv_ = sizeof(size);
     return nil;
   }
-  size = *(int*)recvBuffer_.data();
+  size = *(uint32_t*)recvBuffer_.data();
   if (recvBuffer_.size() < sizeof(size) + size) {
     requiredToRecv_ = sizeof(size) + size;
     return nil;
@@ -428,7 +428,7 @@ typedef enum {
   switch (state_) {
     case RPCServerProxyState_HandshakeToSend: {
       // Send together kRPCMagic and server descriptor because of Proxy
-      int code = tvm::runtime::kRPCMagic;
+      int32_t code = tvm::runtime::kRPCMagic;
       [self toSend:[NSData dataWithBytes:&code length:sizeof(code)]];
 
       std::string full_key = std::string("server:") + self.key.UTF8String;
@@ -460,10 +460,11 @@ typedef enum {
 - (bool)onReadHandler {
   switch (state_) {
     case RPCServerProxyState_HandshakeToRecv: {
-      NSData* data = [self requestInputDataWithSize:sizeof(int)];
+      int32_t code = tvm::runtime::kRPCMagic;
+      NSData* data = [self requestInputDataWithSize:sizeof(code)];
       if (data == nil) return FALSE;
 
-      if (*(int*)data.bytes != tvm::runtime::kRPCMagic) {
+      if (*(int32_t*)data.bytes != tvm::runtime::kRPCMagic) {
         [self notifyError:@"Wrong responce, is not RPC client."];
         [self close];
         return FALSE;
@@ -663,7 +664,7 @@ typedef enum {
 - (bool)onWriteHandler {
   switch (state_) {
     case RPCServerTracker_HandshakeToSend: {
-      int code = tvm::runtime::kRPCTrackerMagic;
+      int32_t code = tvm::runtime::kRPCTrackerMagic;
       [self toSend:[NSData dataWithBytes:&code length:sizeof(code)]];
       self.state = RPCServerTracker_HandshakeToRecv;
       return TRUE;
@@ -683,11 +684,16 @@ typedef enum {
       std::mt19937 gen(std::random_device{}());
       std::uniform_real_distribution<float> dis(0.0, 1.0);
 
+      std::string address_to_report = "null";
+      if (self.custom_addr != nil && self.custom_addr.length != 0) {
+        address_to_report = self.custom_addr.UTF8String;
+      }
+
       std::string matchkey = std::string(self.key.UTF8String) + ":" + std::to_string(dis(gen));
       std::ostringstream ss;
       ss << "[" << static_cast<int>(tvm::runtime::TrackerCode::kPut) << ", \""
-         << self.key.UTF8String << "\", [" << rpc_server_.rpc_port << ", \"" << matchkey
-         << "\"], null]";
+         << self.key.UTF8String << "\", [" << rpc_server_.rpc_port << ", \"" << matchkey << "\"], "
+         << address_to_report << "]";
 
       std::string data_s = ss.str();
       [self toSendPacked:[NSData dataWithBytes:data_s.data() length:data_s.length()]];

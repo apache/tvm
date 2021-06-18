@@ -72,6 +72,8 @@ typedef enum {
 @property(retain) NSString* host;
 /// Port of Proxy/Tracker server. Ignored for PureServer mode.
 @property int port;
+/// Custom address to report into tracker server (optional). Ignored for PureServer/Proxy modes
+@property(retain) NSString* custom_addr;
 /// Triger to enable printing of server state info
 @property BOOL verbose;
 

@@ -42,6 +42,7 @@
 }
 
 - (void)onError:(NSString*)msg {
+  NSLog(msg);
   blk_();
 }
 
@@ -59,7 +60,7 @@
 - (void)testRPC {
   RPCArgs args = get_current_rpc_args();
 
-  RPCServer* server = [RPCServer serverWithMode:static_cast<RPCServerMode>(args.server_mode)];
+  RPCServer* server = [RPCServer serverWithMode:args.server_mode];
   server.host = @(args.host_url);
   server.port = args.host_port;
   server.key = @(args.key);
