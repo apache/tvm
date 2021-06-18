@@ -21,12 +21,12 @@
  * \file Use external cudnn utils function
  */
 #include "cudnn_utils.h"
+#include <tvm/runtime/registry.h>
+#include <dmlc/thread_local.h>
 
 #include <cstdlib>
 #include <thread>
 #include <mutex>
-#include <dmlc/thread_local.h>
-#include <tvm/runtime/registry.h>
 
 namespace tvm {
 namespace contrib {
@@ -97,7 +97,7 @@ const void* CuDNNDataType::GetConst<1>(cudnnDataType_t type) {
 
 // CuDNNThreadEntry
 
-static bool cudnn_context_must_exist = false;
+static bool g_cudnn_ctx_must_exist = false;
 
 CuDNNThreadEntry::CuDNNThreadEntry() {
   auto stream = runtime::CUDAThreadEntry::ThreadLocal()->stream;
@@ -119,17 +119,17 @@ CuDNNThreadEntry::CuDNNThreadEntry() {
   CUDNN_CALL(cudnnSetStream(handle, stream));
   conv_entry.cuda_api = cuda_api;
 
-  cudnn_context_must_exist = true;
+  g_cudnn_ctx_must_exist = true;
   static std::once_flag atexit_once;
   std::call_once(atexit_once, []{
     std::atexit([]{
-      cudnn_context_must_exist = false;
+      g_cudnn_ctx_must_exist = false;
     });
   });
 }
 
 CuDNNThreadEntry::~CuDNNThreadEntry() {
-  if (handle && cudnn_context_must_exist) {
+  if (handle && g_cudnn_ctx_must_exist) {
     CUDNN_CALL(cudnnDestroy(handle));
   }
 }
