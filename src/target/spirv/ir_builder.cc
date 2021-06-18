@@ -310,11 +310,8 @@ Value IRBuilder::NewFunction() { return NewValue(t_void_func_, kFunction); }
 void IRBuilder::CommitKernelFunction(const Value& func, const std::string& name) {
   ICHECK_EQ(func.flag, kFunction);
   ib_.Begin(spv::OpEntryPoint).AddSeq(spv::ExecutionModelGLCompute, func, name);
-  if (workgroup_id_.id != 0) {
-    ib_.Add(workgroup_id_);
-  }
-  if (local_id_.id != 0) {
-    ib_.Add(local_id_);
+  for (auto& it : built_in_tbl_) {
+    ib_.Add(it.second);
   }
   ib_.Commit(&entry_);
 }
@@ -351,73 +348,87 @@ Value IRBuilder::Allocate(const SType& value_type, uint32_t num_elems,
 }
 
 Value IRBuilder::GetWorkgroupID(uint32_t dim_index) {
-  if (workgroup_id_.id == 0) {
-    SType vec3_type = this->GetSType(DataType::Int(32).with_lanes(3));
-    SType ptr_type = this->GetPointerType(vec3_type, spv::StorageClassInput);
-    workgroup_id_ = NewValue(ptr_type, kVectorPtr);
-    SetName(workgroup_id_, "ptr_to_workgroup_id_arr");
-    ib_.Begin(spv::OpVariable)
-        .AddSeq(ptr_type, workgroup_id_, spv::StorageClassInput)
-        .Commit(&global_);
-    this->Decorate(spv::OpDecorate, workgroup_id_, spv::DecorationBuiltIn, spv::BuiltInWorkgroupId);
-  }
-
-  auto it = workgroup_id_tbl_.find(dim_index);
-  if (it != workgroup_id_tbl_.end()) {
-    return it->second;
-  }
-
   std::string name = "blockIdx." + std::string(1, 'x' + dim_index);
-
-  SType pint_type = this->GetPointerType(t_int32_, spv::StorageClassInput);
-  Value global_dim_index = UIntImm(t_int32_, static_cast<int64_t>(dim_index));
-
-  Value ptr = NewValue(pint_type, kNormal);
-  ib_.Begin(spv::OpAccessChain)
-      .AddSeq(pint_type, ptr, workgroup_id_, global_dim_index)
-      .Commit(&function_scope_vars_);
-  SetName(ptr, "ptr_" + name);
-
-  Value output = NewValue(t_int32_, kNormal);
-  ib_.Begin(spv::OpLoad).AddSeq(t_int32_, output, ptr).Commit(&function_scope_vars_);
-  SetName(output, name);
-
-  workgroup_id_tbl_[dim_index] = output;
-  return output;
+  return GetBuiltInValue(spv::BuiltInWorkgroupId, dim_index, name);
 }
 
 Value IRBuilder::GetLocalID(uint32_t dim_index) {
-  if (local_id_.id == 0) {
-    SType vec3_type = this->GetSType(DataType::Int(32).with_lanes(3));
-    SType ptr_type = this->GetPointerType(vec3_type, spv::StorageClassInput);
-    local_id_ = NewValue(ptr_type, kVectorPtr);
-    SetName(local_id_, "ptr_to_thread_id_arr");
-    ib_.Begin(spv::OpVariable).AddSeq(ptr_type, local_id_, spv::StorageClassInput).Commit(&global_);
-    this->Decorate(spv::OpDecorate, local_id_, spv::DecorationBuiltIn,
-                   spv::BuiltInLocalInvocationId);
-  }
-
-  auto it = local_id_tbl_.find(dim_index);
-  if (it != local_id_tbl_.end()) {
-    return it->second;
-  }
-
   std::string name = "threadIdx." + std::string(1, 'x' + dim_index);
+  return GetBuiltInValue(spv::BuiltInLocalInvocationId, dim_index, name);
+}
 
-  SType pint_type = this->GetPointerType(t_int32_, spv::StorageClassInput);
-  Value global_dim_index = UIntImm(t_int32_, static_cast<int64_t>(dim_index));
+Value IRBuilder::GetBuiltInValue(spv::BuiltIn built_in, uint32_t index, const std::string& name) {
+  // Returned cached value if it exists
+  {
+    auto it = built_in_values_tbl_.find({built_in, index});
+    if (it != built_in_values_tbl_.end()) {
+      return it->second;
+    }
+  }
 
-  Value ptr = NewValue(pint_type, kNormal);
+  DataType data_type;
+  DataType global_arr_type;
+  switch (built_in) {
+    case spv::BuiltInLocalInvocationId:
+    case spv::BuiltInWorkgroupId:
+      data_type = DataType::Int(32);
+      global_arr_type = data_type.with_lanes(3);
+      break;
+
+    default:
+      LOG(FATAL) << "No data type defined for SPIR-V Built-In " << built_in;
+  }
+
+  // Look up the decorated array value at global scope.  If it doesn't
+  // exist already, declare it.
+  Value global_array;
+  {
+    auto it = built_in_tbl_.find(built_in);
+    if (it != built_in_tbl_.end()) {
+      global_array = it->second;
+    } else {
+      SType ptr_arr_type = this->GetPointerType(GetSType(global_arr_type), spv::StorageClassInput);
+      global_array = NewValue(ptr_arr_type, kVectorPtr);
+
+      ib_.Begin(spv::OpVariable)
+          .AddSeq(ptr_arr_type, global_array, spv::StorageClassInput)
+          .Commit(&global_);
+      this->Decorate(spv::OpDecorate, global_array, spv::DecorationBuiltIn, built_in);
+
+      switch (built_in) {
+        case spv::BuiltInLocalInvocationId:
+          SetName(global_array, "BuiltInLocalInvocationId");
+          break;
+        case spv::BuiltInWorkgroupId:
+          SetName(global_array, "BuiltInWorkgroupId");
+          break;
+
+        default:
+          break;
+      }
+
+      built_in_tbl_[built_in] = global_array;
+    }
+  }
+
+  // Declare the dereferenced value
+  SType data_stype = GetSType(data_type);
+  SType ptr_type = this->GetPointerType(data_stype, spv::StorageClassInput);
+  Value global_const_index = UIntImm(t_int32_, static_cast<int64_t>(index));
+
+  Value ptr = NewValue(ptr_type, kNormal);
   ib_.Begin(spv::OpAccessChain)
-      .AddSeq(pint_type, ptr, local_id_, global_dim_index)
+      .AddSeq(ptr_type, ptr, global_array, global_const_index)
       .Commit(&function_scope_vars_);
-  SetName(ptr, "ptr_" + name);
 
-  Value output = NewValue(t_int32_, kNormal);
-  ib_.Begin(spv::OpLoad).AddSeq(t_int32_, output, ptr).Commit(&function_scope_vars_);
-  SetName(output, name);
+  Value output = NewValue(data_stype, kNormal);
+  ib_.Begin(spv::OpLoad).AddSeq(data_stype, output, ptr).Commit(&function_scope_vars_);
+  if (name.size()) {
+    SetName(output, name);
+  }
 
-  local_id_tbl_[dim_index] = output;
+  // Store to cache and return
+  built_in_values_tbl_[{built_in, index}] = output;
   return output;
 }
 

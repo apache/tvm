@@ -128,6 +128,7 @@ spirv::Value CodeGenSPIRV::GetThreadIndex(const IterVar& iv, const PrimExpr& ext
     auto* sizeptr = extent.as<tir::IntImmNode>();
     ICHECK(sizeptr) << "SPIRV only allows constant thread group size "
                     << " get " << extent;
+    ICHECK_GE(ts.dim_index, 0) << "vthread should have been optimized out by here";
     ICHECK_LT(ts.dim_index, 3);
     workgroup_size_[ts.dim_index] = static_cast<uint32_t>(sizeptr->value);
   } else {

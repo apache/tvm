@@ -595,6 +595,20 @@ class IRBuilder {
     return val;
   }
 
+  /*! \brief Get a built-in value provided by SPIR-V
+   *
+   *  \param built_in The SPIR-V built-in array to access.  For
+   *  example, spv::BuiltInLocalInvocationId to access the thread
+   *  id.
+   *
+   *  \param index The index of the built-in array to access.
+   *
+   *  \param name The name of the value being accessed.  For
+   *  example, "threadIdx.x".  This is for debug purposes, and is
+   *  used to tag the variable with OpName.
+   */
+  Value GetBuiltInValue(spv::BuiltIn built_in, uint32_t index, const std::string& name = "");
+
   /*!
    * \brief The common function to declare push constants or uniform buffer
    * \param value_types The values in the push constants or uniform buffer
@@ -642,36 +656,31 @@ class IRBuilder {
   SType t_bool_, t_int32_, t_uint32_, t_fp32_, t_void_, t_void_func_;
   /*! \brief quick cache for const one i32 */
   Value const_i32_zero_;
-  /*! \brief Cached pointer to workgroup id array
-   *
-   *  An object decorated with spv::BuildInWorkgroupId, in the global
-   *  definitions of the shader.  This is a pointer to an array of
-   *  workgroup ids.  Accessing element 0 of this array is equivalent
-   *  to cuda's blockIdx.x, element 1 is blockIdx.y, and so on.
-   */
-  Value workgroup_id_;
 
-  /*! \brief Cached map of workgroup ids
+  /*! \brief The cached values for built-in arrays
    *
-   * Values read from the workgroup_id_ array.
+   *  Maps from a tuple of spv::BuiltIn enum to the Value containing
+   *  that built-in array.  For example,
+   *  ``built_in_tbl_[spv::BuiltInLocalInvocationId]`` is the array
+   *  of invocation ids, equivalent to an array of ``threadIdx.x``,
+   *  ``threadIdx.y``, and ``threadIdx.z`` in CUDA.
+   *
+   *  These are declared in the global section of the shader.
    */
-  std::unordered_map<uint32_t, Value> workgroup_id_tbl_;
+  std::unordered_map<spv::BuiltIn, Value> built_in_tbl_;
 
-  /*! \brief Cached pointer to local id array
+  /*! \brief The cached values for built-in values
    *
-   *  An object decorated with spv::BuildInLocalInvocationId, in the
-   *  global definitions of the shader.  This is a pointer to an
-   *  array of local ids.  Accessing element 0 of this array is
-   *  equivalent to cuda's threadIdx.x, element 1 is threadIdx.y,
-   *  and so on.
-   */
-  Value local_id_;
-
-  /*! \brief Cached map of local ids
+   *  Maps from a tuple of (spv::BuiltIn enum, index) to the value
+   *  stored at that index of the built-in array.  For example,
+   *  ``built_in_tbl_[{spv::BuiltInLocalInvocationId, 0}]`` is the
+   *  first index of the invocation id, equivalent to
+   *  ``threadIdx.x`` in CUDA.
    *
-   * Values read from the local_id_ array.
+   *  These are declared in the first block of the function, in the
+   *  ``function_scope_vars_`` section.
    */
-  std::unordered_map<uint32_t, Value> local_id_tbl_;
+  std::map<std::tuple<spv::BuiltIn, uint32_t>, Value> built_in_values_tbl_;
 
   /*! \brief whether push constant is defined */
   Value push_const_;
