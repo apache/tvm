@@ -64,6 +64,24 @@ _BWD_DATA_ALGOS = [
 _ALGO_TYPE = ["fwd", "bwd_filter", "bwd_data"]
 
 
+def exists():
+    """
+    Checks whether the local machine can use CuDNN.
+
+    Returns
+    -------
+        exists: bool
+
+            True if CuDNN support is enabled and a CuDNN-capable GPU
+            exists.  Otherwise, False.
+    """
+    func = tvm.get_global_func("tvm.contrib.cudnn.exists", allow_missing=True)
+    if func is None:
+        return False
+
+    return bool(func())
+
+
 def algo_to_index(algo_type, algo_name):
     """Return a index represents the algorithm, which can be used in
     calling CuDNN function

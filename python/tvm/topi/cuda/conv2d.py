@@ -117,9 +117,15 @@ def conv2d_cudnn(
     else:
         dtype = data.dtype
 
-    cfg.define_knob("algo", range(8))
-    if cfg.is_fallback:  # Let CUDNN choose the best algo
-        cfg["algo"] = OtherOptionEntity(-1)
+    cfg.define_knob("algo", range(cudnn.algo_to_index("fwd", "CUDNN_CONVOLUTION_FWD_ALGO_COUNT")))
+    if cfg.is_fallback:
+        if cudnn.exists():
+            # Let CUDNN choose the best algo, based on benchmarks run
+            # on the local machine.  In the future, this should be
+            # based on parameters stored in the Target.
+            cfg["algo"] = OtherOptionEntity(-1)
+        else:
+            cfg["algo"] = OtherOptionEntity(0)
 
     return cudnn.conv_forward(
         data,
