@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include "tvm/runtime/micro/standalone/utvm_runtime.h"
+#include "tvm/runtime/micro/standalone/microtvm_runtime.h"
 
 #include <cassert>
 

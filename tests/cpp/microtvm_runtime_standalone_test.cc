@@ -38,7 +38,7 @@
 #include <tvm/relay/transform.h>
 #include <tvm/relay/type.h>
 #include <tvm/runtime/executor_info.h>
-#include <tvm/runtime/micro/standalone/utvm_runtime.h>
+#include <tvm/runtime/micro/standalone/microtvm_runtime.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
