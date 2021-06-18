@@ -221,6 +221,16 @@ def conv3d_cudnn(
             * ((KW - 1) * dilation_w + 1)
         )
 
+    cfg.define_knob("algo", range(cudnn.algo_to_index("fwd", "CUDNN_CONVOLUTION_FWD_ALGO_COUNT")))
+    if cfg.is_fallback:
+        if cudnn.exists():
+            # Let CUDNN choose the best algo, based on benchmarks run
+            # on the local machine.  In the future, this should be
+            # based on parameters stored in the Target.
+            cfg["algo"] = OtherOptionEntity(-1)
+        else:
+            cfg["algo"] = OtherOptionEntity(0)
+
     return cudnn.conv_forward(
         data,
         kernel,
@@ -229,7 +239,7 @@ def conv3d_cudnn(
         [dilation_d, dilation_h, dilation_w],
         conv_mode=1,
         tensor_format=tensor_format,
-        algo=-1,  # let CUDNN choose the best algo
+        algo=cfg["algo"].val,
         conv_dtype=dtype,
     )
 
