@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=line-too-long,unused-argument
 """Default behavior for ops in mixed_precision pass. Import this file to use."""
-from typing import Callable, List
+from typing import List
 
 from tvm import relay
 from tvm.relay.op import register_mixed_precision_conversion
@@ -142,6 +142,20 @@ def register_func_to_op_list(list_ops: List):
 
 
 def get_generic_out_dtypes(call_node: relay.Call, mixed_precision_type: str) -> List[str]:
+    """A function which returns output dtypes in a way which works for most ops.
+
+    Parameters
+    ---------
+    call_node: relay.Call
+        The call node containing the op.
+    mixed_precision_type: str
+        The target type to run the operation in.
+    Returns
+    -------
+    output_dtypes : [str, str]
+        A list of two strings. The first represents the datatype used for accumulation
+        in the operation. The second represents the actual output datatype.
+    """
     # Assume support accumulation dtypes <---> has out_dtype attr.
     # This is because there is no better way right now to tell which ops support accumulating
     # at different data types.
