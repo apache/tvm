@@ -54,6 +54,9 @@ namespace relay {
  */
 Doc RelayTextPrinter::PrintOptionalInfo(const Expr& expr) {
   Doc doc;
+  if (!opt_info_memo_.insert(expr).second) {
+    return doc;
+  }
   // default annotations
   if (annotate_ == nullptr) {
     if ((expr.as<ConstantNode>() || expr.as<CallNode>()) && expr->checked_type_.defined()) {
@@ -65,7 +68,6 @@ Doc RelayTextPrinter::PrintOptionalInfo(const Expr& expr) {
       doc << annotated_expr;
     }
   }
-
   return doc;
 }
 
