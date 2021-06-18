@@ -334,6 +334,18 @@ class IRBuilder {
   void Debug(spv::Op op, Args&&... args) {
     ib_.Begin(op).AddSeq(std::forward<Args>(args)...).Commit(&debug_);
   }
+
+  /*!
+   * \brief Set the name of a value or label
+   * \param obj The object to be named
+   * \param name The name of the object
+   * \tparams Obj The type of the object being named.  Typically a Label or Value.
+   */
+  template <typename Obj>
+  void SetName(Obj&& obj, const std::string& name) {
+    Debug(spv::OpName, std::forward<Obj>(obj), name);
+  }
+
   /*!
    * \brief Add Execution mode to a function.
    * \param func The function value
@@ -362,7 +374,7 @@ class IRBuilder {
    */
   template <typename... Args>
   void DeclareGlobal(spv::Op op, Args&&... args) {
-    ib_.Begin(op).AddSeq(std::forward<Args>(args)...).Commit(&decorate_);
+    ib_.Begin(op).AddSeq(std::forward<Args>(args)...).Commit(&global_);
   }
   /*!
    * \brief Make a new instruction and append it to end of function segment.
@@ -630,8 +642,37 @@ class IRBuilder {
   SType t_bool_, t_int32_, t_uint32_, t_fp32_, t_void_, t_void_func_;
   /*! \brief quick cache for const one i32 */
   Value const_i32_zero_;
-  /*! \brief cache value for workgroup_id, local_id */
-  Value workgroup_id_, local_id_;
+  /*! \brief Cached pointer to workgroup id array
+   *
+   *  An object decorated with spv::BuildInWorkgroupId, in the global
+   *  definitions of the shader.  This is a pointer to an array of
+   *  workgroup ids.  Accessing element 0 of this array is equivalent
+   *  to cuda's blockIdx.x, element 1 is blockIdx.y, and so on.
+   */
+  Value workgroup_id_;
+
+  /*! \brief Cached map of workgroup ids
+   *
+   * Values read from the workgroup_id_ array.
+   */
+  std::unordered_map<uint32_t, Value> workgroup_id_tbl_;
+
+  /*! \brief Cached pointer to local id array
+   *
+   *  An object decorated with spv::BuildInLocalInvocationId, in the
+   *  global definitions of the shader.  This is a pointer to an
+   *  array of local ids.  Accessing element 0 of this array is
+   *  equivalent to cuda's threadIdx.x, element 1 is threadIdx.y,
+   *  and so on.
+   */
+  Value local_id_;
+
+  /*! \brief Cached map of local ids
+   *
+   * Values read from the local_id_ array.
+   */
+  std::unordered_map<uint32_t, Value> local_id_tbl_;
+
   /*! \brief whether push constant is defined */
   Value push_const_;
   /*! \brief map from type code to the type */
@@ -667,8 +708,21 @@ class IRBuilder {
   std::vector<uint32_t> decorate_;
   /*! \brief Global segment: types, variables, types */
   std::vector<uint32_t> global_;
-  /*! \brief Function header segment */
+  /*! \brief Function header segment
+   *
+   * Contains the start of function (spv::OpFunction), first label
+   * (spv::OpLabel), and all array allocations (spv::OpVariable).
+   */
   std::vector<uint32_t> func_header_;
+  /*! \brief Function-scope variable declarations
+   *
+   * Contains variable declarations that should be accessible
+   * throughout the entire kernel (e.g. threadIdx.x).  This must be
+   * separate from func_header_, because the function-level
+   * spv::OpVariable declarations must come first in the first block
+   * of a function.
+   */
+  std::vector<uint32_t> function_scope_vars_;
   /*! \brief Function segment */
   std::vector<uint32_t> function_;
 };

@@ -93,6 +93,7 @@ std::vector<uint32_t> IRBuilder::Finalize() {
   data.insert(data.end(), decorate_.begin(), decorate_.end());
   data.insert(data.end(), global_.begin(), global_.end());
   data.insert(data.end(), func_header_.begin(), func_header_.end());
+  data.insert(data.end(), function_scope_vars_.begin(), function_scope_vars_.end());
   data.insert(data.end(), function_.begin(), function_.end());
   return data;
 }
@@ -354,15 +355,35 @@ Value IRBuilder::GetWorkgroupID(uint32_t dim_index) {
     SType vec3_type = this->GetSType(DataType::Int(32).with_lanes(3));
     SType ptr_type = this->GetPointerType(vec3_type, spv::StorageClassInput);
     workgroup_id_ = NewValue(ptr_type, kVectorPtr);
+    SetName(workgroup_id_, "ptr_to_workgroup_id_arr");
     ib_.Begin(spv::OpVariable)
         .AddSeq(ptr_type, workgroup_id_, spv::StorageClassInput)
         .Commit(&global_);
     this->Decorate(spv::OpDecorate, workgroup_id_, spv::DecorationBuiltIn, spv::BuiltInWorkgroupId);
   }
+
+  auto it = workgroup_id_tbl_.find(dim_index);
+  if (it != workgroup_id_tbl_.end()) {
+    return it->second;
+  }
+
+  std::string name = "blockIdx." + std::string(1, 'x' + dim_index);
+
   SType pint_type = this->GetPointerType(t_int32_, spv::StorageClassInput);
-  Value ptr = this->MakeValue(spv::OpAccessChain, pint_type, workgroup_id_,
-                              IntImm(t_int32_, static_cast<int64_t>(dim_index)));
-  return this->MakeValue(spv::OpLoad, t_int32_, ptr);
+  Value global_dim_index = UIntImm(t_int32_, static_cast<int64_t>(dim_index));
+
+  Value ptr = NewValue(pint_type, kNormal);
+  ib_.Begin(spv::OpAccessChain)
+      .AddSeq(pint_type, ptr, workgroup_id_, global_dim_index)
+      .Commit(&function_scope_vars_);
+  SetName(ptr, "ptr_" + name);
+
+  Value output = NewValue(t_int32_, kNormal);
+  ib_.Begin(spv::OpLoad).AddSeq(t_int32_, output, ptr).Commit(&function_scope_vars_);
+  SetName(output, name);
+
+  workgroup_id_tbl_[dim_index] = output;
+  return output;
 }
 
 Value IRBuilder::GetLocalID(uint32_t dim_index) {
@@ -370,14 +391,34 @@ Value IRBuilder::GetLocalID(uint32_t dim_index) {
     SType vec3_type = this->GetSType(DataType::Int(32).with_lanes(3));
     SType ptr_type = this->GetPointerType(vec3_type, spv::StorageClassInput);
     local_id_ = NewValue(ptr_type, kVectorPtr);
+    SetName(local_id_, "ptr_to_thread_id_arr");
     ib_.Begin(spv::OpVariable).AddSeq(ptr_type, local_id_, spv::StorageClassInput).Commit(&global_);
     this->Decorate(spv::OpDecorate, local_id_, spv::DecorationBuiltIn,
                    spv::BuiltInLocalInvocationId);
   }
+
+  auto it = local_id_tbl_.find(dim_index);
+  if (it != local_id_tbl_.end()) {
+    return it->second;
+  }
+
+  std::string name = "threadIdx." + std::string(1, 'x' + dim_index);
+
   SType pint_type = this->GetPointerType(t_int32_, spv::StorageClassInput);
-  Value ptr = this->MakeValue(spv::OpAccessChain, pint_type, local_id_,
-                              UIntImm(t_int32_, static_cast<int64_t>(dim_index)));
-  return this->MakeValue(spv::OpLoad, t_int32_, ptr);
+  Value global_dim_index = UIntImm(t_int32_, static_cast<int64_t>(dim_index));
+
+  Value ptr = NewValue(pint_type, kNormal);
+  ib_.Begin(spv::OpAccessChain)
+      .AddSeq(pint_type, ptr, local_id_, global_dim_index)
+      .Commit(&function_scope_vars_);
+  SetName(ptr, "ptr_" + name);
+
+  Value output = NewValue(t_int32_, kNormal);
+  ib_.Begin(spv::OpLoad).AddSeq(t_int32_, output, ptr).Commit(&function_scope_vars_);
+  SetName(output, name);
+
+  local_id_tbl_[dim_index] = output;
+  return output;
 }
 
 Value IRBuilder::GetConst_(const SType& dtype, const uint64_t* pvalue) {

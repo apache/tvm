@@ -516,9 +516,13 @@ void CodeGenSPIRV::VisitStmt_(const ForNode* op) {
   // Must get init label after making value(to make sure they are correct)
   spirv::Label init_label = builder_->CurrentLabel();
   spirv::Label head_label = builder_->NewLabel();
+  builder_->SetName(head_label, "for_loop_head");
   spirv::Label body_label = builder_->NewLabel();
+  builder_->SetName(body_label, "for_loop_body");
   spirv::Label continue_label = builder_->NewLabel();
+  builder_->SetName(continue_label, "for_loop_continue");
   spirv::Label merge_label = builder_->NewLabel();
+  builder_->SetName(merge_label, "for_loop_merge");
   builder_->MakeInst(spv::OpBranch, head_label);
 
   // Loop head
@@ -643,9 +647,10 @@ void CodeGenSPIRV::VisitStmt_(const AttrStmtNode* op) {
   if (op->attr_key == tir::attr::thread_extent) {
     IterVar iv = Downcast<IterVar>(op->node);
     if (iv->thread_tag.length() != 0) {
+      // Will throw error if rebinding same local variable to a different extent.
+      analyzer_->Bind(iv->var, Range::FromMinExtent(0, op->value));
       if (!var_map_.count(iv->var.get())) {
         var_map_[iv->var.get()] = GetThreadIndex(iv, op->value);
-        analyzer_->Bind(iv->var, Range::FromMinExtent(0, op->value));
       }
     }
   } else if (op->attr_key == tir::attr::storage_scope) {
