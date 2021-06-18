@@ -1717,58 +1717,58 @@ def test_forward_variable():
     _test_variable(np.random.uniform(size=(32, 100)).astype("float32"))
 
 
-# @tvm.testing.parametrize_targets("llvm", "cuda")
-# def test_read_variable_op(target, dev):
-#     """Read Variable op test"""
+@tvm.testing.parametrize_targets("llvm", "cuda")
+def test_read_variable_op(target, dev):
+    """Read Variable op test"""
 
-#     tf.reset_default_graph()
-#     data = np.random.uniform(size=(32, 100)).astype("float32")
-#     input_tensor = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
+    tf.reset_default_graph()
+    data = np.random.uniform(size=(32, 100)).astype("float32")
+    input_tensor = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
 
-#     size = input_tensor.shape.dims[1]
-#     var_data = np.random.uniform(-5, 5, size=[size, size]).astype(np.float32)
-#     input_var = tf.Variable(var_data, name="var1", use_resource=True)
-#     math_ops.matmul(input_tensor, input_var)
+    size = input_tensor.shape.dims[1]
+    var_data = np.random.uniform(-5, 5, size=[size, size]).astype(np.float32)
+    input_var = tf.Variable(var_data, name="var1", use_resource=True)
+    math_ops.matmul(input_tensor, input_var)
 
-#     out_name = ["MatMul:0"]
-#     out_node = ["MatMul"]
-#     in_name = ["Placeholder:0"]
-#     in_node = ["Placeholder"]
-#     in_data = [data]
+    out_name = ["MatMul:0"]
+    out_node = ["MatMul"]
+    in_name = ["Placeholder:0"]
+    in_node = ["Placeholder"]
+    in_data = [data]
 
-#     with tf.Session() as sess:
-#         sess.run(variables.global_variables_initializer())
+    with tf.Session() as sess:
+        sess.run(variables.global_variables_initializer())
 
-#         final_graph_def = sess.graph.as_graph_def(add_shapes=True)
-#         tf_output = run_tf_graph(sess, in_data, in_name, out_name)
+        final_graph_def = sess.graph.as_graph_def(add_shapes=True)
+        tf_output = run_tf_graph(sess, in_data, in_name, out_name)
 
-#         shape_dict = {e: i.shape for e, i in zip(in_name, in_data)}
-#         with pytest.raises(Exception) as execinfo:
-#             mod, params = relay.frontend.from_tensorflow(
-#                 final_graph_def, layout=None, shape=shape_dict, outputs=None
-#             )
+        shape_dict = {e: i.shape for e, i in zip(in_name, in_data)}
+        with pytest.raises(Exception) as execinfo:
+            mod, params = relay.frontend.from_tensorflow(
+                final_graph_def, layout=None, shape=shape_dict, outputs=None
+            )
 
-#         assert execinfo.value.args[0].startswith("Graph is not frozen. Provide a frozen graph")
+        assert execinfo.value.args[0].startswith("Graph is not frozen. Provide a frozen graph")
 
-#         # Now convert the variables to constant and run inference on the converted graph
-#         final_graph_def = tf.graph_util.convert_variables_to_constants(
-#             sess,
-#             sess.graph.as_graph_def(add_shapes=True),
-#             out_node,
-#         )
+        # Now convert the variables to constant and run inference on the converted graph
+        final_graph_def = tf.graph_util.convert_variables_to_constants(
+            sess,
+            sess.graph.as_graph_def(add_shapes=True),
+            out_node,
+        )
 
-#         tvm_output = run_tvm_graph(
-#             final_graph_def,
-#             in_data,
-#             in_node,
-#             target=target,
-#             out_names=out_name,
-#             num_output=len(out_name),
-#         )
-#         for i in range(len(tf_output)):
-#             tvm.testing.assert_allclose(tf_output[i], tvm_output[i], atol=1e-4, rtol=1e-5)
+        tvm_output = run_tvm_graph(
+            final_graph_def,
+            in_data,
+            in_node,
+            target=target,
+            out_names=out_name,
+            num_output=len(out_name),
+        )
+        for i in range(len(tf_output)):
+            tvm.testing.assert_allclose(tf_output[i], tvm_output[i], atol=1e-4, rtol=1e-5)
 
-#         sess.close()
+        sess.close()
 
 
 #######################################################################
@@ -1843,9 +1843,6 @@ def test_forward_batch_matmul():
     _test_batch_matmul((1, 2, 3, 4, 5, 6), (1, 2, 3, 4, 6, 5), "float32", True, True)
     _test_batch_matmul((3, 4, 5, 6), (3, 4, 5, 6), "int32", True, False)
     _test_batch_matmul((2, 3, 4, 2, 3, 4, 5, 6), (2, 3, 4, 2, 3, 4, 5, 6), "float32", False, True)
-    _test_batch_matmul((1, 8, 64, 2), (2, 1), "float32", False, False)
-    _test_batch_matmul((1, 8, 8, 64), (64, 1), "float32", False, False)
-    _test_batch_matmul((1, 8, 64), (64, 1), "float32", False, False)
 
 
 @tvm.testing.requires_cuda
@@ -1871,20 +1868,6 @@ def test_forward_batch_matmul_dynamic():
         (None, None, None, 6, 5),
         (2, 3, 4, 5, 6),
         (2, 3, 4, 6, 5),
-        "float32",
-    )
-    _test_batch_matmul_dynamic(
-        (None, None, None, 5, 6),
-        (6, None),
-        (2, 3, 4, 5, 6),
-        (6, 1),
-        "float32",
-    )
-    _test_batch_matmul_dynamic(
-        (None, 5, 6),
-        (6, None),
-        (24, 5, 6),
-        (6, 1),
         "float32",
     )
 
