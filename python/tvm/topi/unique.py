@@ -243,6 +243,7 @@ def unique(data, is_sorted=True, return_counts=False):
     Examples
     --------
     .. code-block:: python
+
         [output, indices, num_unique] = unique([4, 5, 1, 2, 3, 3, 4, 5], False, False)
         output          =  [4, 5, 1, 2, 3, ?, ?, ?]
         indices         =  [0, 1, 2, 3, 4, ?, ?, ?]

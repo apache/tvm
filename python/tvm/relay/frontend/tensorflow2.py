@@ -37,8 +37,8 @@ from .. import function as _function
 from ..loops import while_loop as _while_loop
 from .common import infer_type as _infer_type
 
-from .tensorflow import _convert_map as _convert_map_common
-from .tensorflow import _need_prelude_for_shape_inference
+from .tensorflow_ops import _convert_map as _convert_map_common
+from .tensorflow_ops import _need_prelude_for_shape_inference
 
 from ..ty import Any
 

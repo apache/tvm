@@ -121,6 +121,14 @@ TEST(Relay, Sequential) {
   ICHECK(tvm::StructuralEqual()(f, expected));
 }
 
+TEST(PassContextListConfigs, Basic) {
+  Map<String, Map<String, String>> configs = relay::transform::PassContext::ListConfigs();
+  ICHECK_EQ(configs.empty(), false);
+
+  auto config = configs["relay.backend.use_auto_scheduler"];
+  ICHECK_EQ(config["type"], "IntImm");
+}
+
 int main(int argc, char** argv) {
   testing::InitGoogleTest(&argc, argv);
   testing::FLAGS_gtest_death_test_style = "threadsafe";

@@ -23,7 +23,7 @@ Optimizing Operators with Auto-scheduling
 In this tutorial, we will show how TVM's Auto Scheduling feature can find
 optimal schedules without the need for writing a custom template.
 
-Different from the template-based :ref:`<autotvm_matmul>` which relies on
+Different from the template-based :doc:`AutoTVM <autotvm_matmul_x86>` which relies on
 manual templates to define the search space, the auto-scheduler does not
 require any templates.  Users only need to write the computation declaration
 without any schedule commands or templates.  The auto-scheduler can

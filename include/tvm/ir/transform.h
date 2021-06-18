@@ -184,6 +184,12 @@ class PassContext : public ObjectRef {
   TVM_DLL static PassContext Current();
 
   /*!
+   * \brief Get all supported configuration names and metadata, registered within the PassContext.
+   * \return Map indexed by the config name, pointing to the metadata map as key-value
+   */
+  TVM_DLL static Map<String, Map<String, String>> ListConfigs();
+
+  /*!
    * \brief Call instrument implementations' callbacks when entering PassContext.
    *        The callbacks are called in order, and if one raises an exception, the rest will not be
    *        called.

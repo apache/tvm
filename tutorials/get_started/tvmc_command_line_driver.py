@@ -494,5 +494,5 @@ capabilities, and set the stage for understanding how TVM works.
 # --help``.
 #
 # In the next tutorial, `Compiling and Optimizing a Model with the Python
-# AutoScheduler <auto_tuning_with_pyton>`_, we will cover the same compilation
+# Interface <auto_tuning_with_pyton>`_, we will cover the same compilation
 # and optimization steps using the Python interface.
