@@ -31,7 +31,7 @@
 #include <vector>
 
 #include "minimal_vector.h"
-#include "utvm_runtime_api.h"
+#include "microtvm_runtime_api.h"
 
 namespace tvm {
 namespace micro {
