@@ -437,6 +437,15 @@ TVM_DLL Pass LowerMatchBuffer();
  */
 TVM_DLL Pass FlattenBuffer();
 
+/*
+ * \brief Flatten the multi-dimensional read/write
+ *  to two dimensional texture Load/Store and realize
+ *  texture buffer allocations.
+ *
+ * \return The Pass
+ */
+TVM_DLL Pass TextureFlatten();
+
 /*!
  *  A pass to merge multiple TIR-level dynamic shared memory allocations into one
  */
