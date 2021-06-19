@@ -42,8 +42,6 @@
 #include "../../arith/ir_visitor_with_analyzer.h"
 #include "../../runtime/thread_storage_scope.h"
 #include "../../runtime/texture.h"
-#include "../ir/buffer_common.h"
-#include "arg_binder.h"
 #include "ir_utils.h"
 
 namespace tvm {
