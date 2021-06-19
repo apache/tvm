@@ -334,6 +334,18 @@ class IRBuilder {
   void Debug(spv::Op op, Args&&... args) {
     ib_.Begin(op).AddSeq(std::forward<Args>(args)...).Commit(&debug_);
   }
+
+  /*!
+   * \brief Set the name of a value or label
+   * \param obj The object to be named
+   * \param name The name of the object
+   * \tparams Obj The type of the object being named.  Typically a Label or Value.
+   */
+  template <typename Obj>
+  void SetName(Obj&& obj, const std::string& name) {
+    Debug(spv::OpName, std::forward<Obj>(obj), name);
+  }
+
   /*!
    * \brief Add Execution mode to a function.
    * \param func The function value
@@ -362,7 +374,7 @@ class IRBuilder {
    */
   template <typename... Args>
   void DeclareGlobal(spv::Op op, Args&&... args) {
-    ib_.Begin(op).AddSeq(std::forward<Args>(args)...).Commit(&decorate_);
+    ib_.Begin(op).AddSeq(std::forward<Args>(args)...).Commit(&global_);
   }
   /*!
    * \brief Make a new instruction and append it to end of function segment.
@@ -583,6 +595,20 @@ class IRBuilder {
     return val;
   }
 
+  /*! \brief Get a built-in value provided by SPIR-V
+   *
+   *  \param built_in The SPIR-V built-in array to access.  For
+   *  example, spv::BuiltInLocalInvocationId to access the thread
+   *  id.
+   *
+   *  \param index The index of the built-in array to access.
+   *
+   *  \param name The name of the value being accessed.  For
+   *  example, "threadIdx.x".  This is for debug purposes, and is
+   *  used to tag the variable with OpName.
+   */
+  Value GetBuiltInValue(spv::BuiltIn built_in, uint32_t index, const std::string& name = "");
+
   /*!
    * \brief The common function to declare push constants or uniform buffer
    * \param value_types The values in the push constants or uniform buffer
@@ -630,8 +656,32 @@ class IRBuilder {
   SType t_bool_, t_int32_, t_uint32_, t_fp32_, t_void_, t_void_func_;
   /*! \brief quick cache for const one i32 */
   Value const_i32_zero_;
-  /*! \brief cache value for workgroup_id, local_id */
-  Value workgroup_id_, local_id_;
+
+  /*! \brief The cached values for built-in arrays
+   *
+   *  Maps from a tuple of spv::BuiltIn enum to the Value containing
+   *  that built-in array.  For example,
+   *  ``built_in_tbl_[spv::BuiltInLocalInvocationId]`` is the array
+   *  of invocation ids, equivalent to an array of ``threadIdx.x``,
+   *  ``threadIdx.y``, and ``threadIdx.z`` in CUDA.
+   *
+   *  These are declared in the global section of the shader.
+   */
+  std::unordered_map<spv::BuiltIn, Value> built_in_tbl_;
+
+  /*! \brief The cached values for built-in values
+   *
+   *  Maps from a tuple of (spv::BuiltIn enum, index) to the value
+   *  stored at that index of the built-in array.  For example,
+   *  ``built_in_tbl_[{spv::BuiltInLocalInvocationId, 0}]`` is the
+   *  first index of the invocation id, equivalent to
+   *  ``threadIdx.x`` in CUDA.
+   *
+   *  These are declared in the first block of the function, in the
+   *  ``function_scope_vars_`` section.
+   */
+  std::map<std::tuple<spv::BuiltIn, uint32_t>, Value> built_in_values_tbl_;
+
   /*! \brief whether push constant is defined */
   Value push_const_;
   /*! \brief map from type code to the type */
@@ -667,8 +717,21 @@ class IRBuilder {
   std::vector<uint32_t> decorate_;
   /*! \brief Global segment: types, variables, types */
   std::vector<uint32_t> global_;
-  /*! \brief Function header segment */
+  /*! \brief Function header segment
+   *
+   * Contains the start of function (spv::OpFunction), first label
+   * (spv::OpLabel), and all array allocations (spv::OpVariable).
+   */
   std::vector<uint32_t> func_header_;
+  /*! \brief Function-scope variable declarations
+   *
+   * Contains variable declarations that should be accessible
+   * throughout the entire kernel (e.g. threadIdx.x).  This must be
+   * separate from func_header_, because the function-level
+   * spv::OpVariable declarations must come first in the first block
+   * of a function.
+   */
+  std::vector<uint32_t> function_scope_vars_;
   /*! \brief Function segment */
   std::vector<uint32_t> function_;
 };
