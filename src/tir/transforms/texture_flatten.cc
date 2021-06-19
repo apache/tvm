@@ -22,27 +22,18 @@
  * \brief Flattens texture from multi-dimensional array to 2D buffer access
  */
 
-#include <tvm/arith/analyzer.h>
-#include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/target/target_info.h>
 #include <tvm/te/operation.h>
-#include <tvm/tir/analysis.h>
-#include <tvm/tir/buffer.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
-#include <tvm/tir/op.h>
 #include <tvm/tir/stmt.h>
-#include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
 #include <unordered_map>
-#include <stack>
 
 #include "../../arith/ir_visitor_with_analyzer.h"
 #include "../../runtime/thread_storage_scope.h"
 #include "../../runtime/texture.h"
-#include "ir_utils.h"
 
 namespace tvm {
 namespace tir {
