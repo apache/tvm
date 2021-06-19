@@ -91,7 +91,7 @@ def get_scalar_from_constant(expr):
     assert value.dtype == np.dtype(np.int32) or value.dtype == np.dtype(
         np.float32
     ), "value must be float32/int32"
-    return np.asscalar(value)
+    return value.item(0)
 
 
 # Helper function for lowering in the abscence of fast Int8 arithmetic units.
