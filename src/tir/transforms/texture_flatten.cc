@@ -48,30 +48,15 @@
 
 namespace tvm {
 namespace tir {
-namespace {
-
 using runtime::IsTextureStorage;
 using runtime::DefaultTextureLayoutSeparator;
 using runtime::ApplyTexture2DFlattening;
 
-inline PrimExpr SimplifyOffset(const Array<PrimExpr>& shape, const Array<PrimExpr>& index) {
-  PrimExpr base = make_const(DataType::Int(32), 0);
-  ICHECK_EQ(shape.size(), index.size());
-  arith::Analyzer ana;
-  if (index.size() > 0) {
-    PrimExpr offset = index[0];
-    for (size_t i = 1; i < index.size(); ++i) {
-      offset = MergeMulMod(&ana, offset * shape[i] + index[i]);
-    }
-    base = base + offset;
-  }
-  return base;
-}
-}
 
 class TextureLoweringBase : public StmtExprMutator {
  public:
-  explicit TextureLoweringBase(const Map<Var, Buffer>& extern_buffer_map) {
+  explicit TextureLoweringBase(const Map<Var, Buffer>& extern_buffer_map, IRVisitorWithAnalyzer* bound_analyzer)
+    : bound_analyzer_{bound_analyzer} {
     for (auto kv : extern_buffer_map) {
       extern_buf_.insert(kv.second);
     }
@@ -92,6 +77,19 @@ class TextureLoweringBase : public StmtExprMutator {
     return StmtExprMutator::VisitStmt_(op);
   }
 
+  inline PrimExpr SimplifyOffset(const Array<PrimExpr>& shape, const Array<PrimExpr>& index) const {
+    PrimExpr base = make_const(DataType::Int(32), 0);
+    ICHECK_EQ(shape.size(), index.size());
+    if (index.size() > 0) {
+      PrimExpr offset = index[0];
+      for (size_t i = 1; i < index.size(); ++i) {
+        offset = bound_analyzer_->Simplify(offset * shape[i] + index[i]);
+      }
+      base = base + offset;
+    }
+    return base;
+  }
+
  protected:
 
   std::string GetStorageScope(const Buffer& buffer) {
@@ -106,18 +104,22 @@ class TextureLoweringBase : public StmtExprMutator {
     return storage_scope;
   }
 
+  // TODO: need docs
   // External buffer
   std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual> extern_buf_;
   // Storage scope
   std::unordered_map<const Object*, std::string> storage_scope_;
+  // Bound analzer
+  IRVisitorWithAnalyzer* bound_analyzer_;
 };
 
 class TextureFlattener : public TextureLoweringBase {
  public:
   using StmtExprMutator::VisitStmt_;
   explicit TextureFlattener(const Map<Var, Buffer>& extern_buffer_map,
-                            const std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual>& extern_buffer_binds_)
-    : TextureLoweringBase(extern_buffer_map), buffer_binds_(extern_buffer_binds_) {;}
+                            const std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual>& extern_buffer_binds_,
+                            IRVisitorWithAnalyzer* bound_analyzer)
+    : TextureLoweringBase(extern_buffer_map, bound_analyzer), buffer_binds_(extern_buffer_binds_) {;}
 
   Stmt VisitStmt_(const BufferRealizeNode* op) final {
     if (extern_buf_.count(op->buffer)) {
@@ -211,6 +213,7 @@ class TextureFlattener : public TextureLoweringBase {
     return args;
   }
 
+  // TODO: Need docs
   // Let binding
   std::unordered_map<Var, PrimExpr, ObjectPtrHash, ObjectPtrEqual> let_binding_;
   std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual> buffer_binds_;
@@ -219,8 +222,9 @@ class TextureFlattener : public TextureLoweringBase {
 
 class ExternalBufferForwarding : public TextureLoweringBase {
  public:
-  explicit ExternalBufferForwarding(const Map<Var, Buffer>& extern_buffer_map)
-    : TextureLoweringBase(extern_buffer_map) {;}
+  explicit ExternalBufferForwarding(const Map<Var, Buffer>& extern_buffer_map,
+                                    IRVisitorWithAnalyzer* bound_analyzer)
+    : TextureLoweringBase(extern_buffer_map, bound_analyzer) {;}
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     Stmt stmt = TextureLoweringBase::VisitStmt_(op);
@@ -307,9 +311,12 @@ class ExternalBufferForwarding : public TextureLoweringBase {
 
 PrimFunc TextureFlatten(PrimFunc func) {
   auto fptr = func.CopyOnWrite();
-  ExternalBufferForwarding forward(fptr->buffer_map);
+
+  IRVisitorWithAnalyzer bound_analyzer;
+  bound_analyzer(fptr->body);
+  ExternalBufferForwarding forward(fptr->buffer_map, &bound_analyzer);
   fptr->body = forward(std::move(fptr->body));
-  fptr->body = TextureFlattener(fptr->buffer_map, forward.GetForwardedBuffers())(std::move(fptr->body));
+  fptr->body = TextureFlattener(fptr->buffer_map, forward.GetForwardedBuffers(), &bound_analyzer)(std::move(fptr->body));
   return func;
 }
 
