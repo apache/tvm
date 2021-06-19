@@ -21,12 +21,13 @@
  * \file Use external cudnn utils function
  */
 #include "cudnn_utils.h"
-#include <tvm/runtime/registry.h>
+
 #include <dmlc/thread_local.h>
+#include <tvm/runtime/registry.h>
 
 #include <cstdlib>
-#include <thread>
 #include <mutex>
+#include <thread>
 
 namespace tvm {
 namespace contrib {
@@ -121,11 +122,7 @@ CuDNNThreadEntry::CuDNNThreadEntry() {
 
   g_cudnn_ctx_must_exist = true;
   static std::once_flag atexit_once;
-  std::call_once(atexit_once, []{
-    std::atexit([]{
-      g_cudnn_ctx_must_exist = false;
-    });
-  });
+  std::call_once(atexit_once, [] { std::atexit([] { g_cudnn_ctx_must_exist = false; }); });
 }
 
 CuDNNThreadEntry::~CuDNNThreadEntry() {
