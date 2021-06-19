@@ -16,6 +16,8 @@
 # under the License.
 
 import re
+import sys
+
 import numpy as np
 
 import tvm
@@ -357,12 +359,63 @@ def test_vulkan_while_if(target, dev):
     tvm.testing.assert_allclose(b.numpy(), [210])
 
 
+@tvm.testing.parametrize_targets("vulkan")
+def test_vulkan_local_threadidx(target, dev):
+    # To access the thread index, the vulkan runtime accesses a global
+    # array of thread indices, storing the result in a local variable.
+    # In CUDA, these are the built-in threadIdx.x variables, which are
+    # globally accessible.  In vulkan, these local variables must be
+    # defined inside a function, but are hoisted up to the function
+    # header to mimic the global CUDA semantics.  Before this
+    # hoisting, this test could trigger spvValidate errors for
+    # potentially undeclared variables.
+
+    def do_compute(A, B, n):
+        ib = tvm.tir.ir_builder.create()
+        A = ib.buffer_ptr(A)
+        B = ib.buffer_ptr(B)
+
+        # One single declaration of te.thread_axis.
+        tx = te.thread_axis("threadIdx.x")
+
+        with ib.for_range(0, 1):
+            # Used inside a for-loop scope, defines local thread_id
+            # variable.
+            ib.scope_attr(tx, "thread_extent", 16)
+            B[tx + 0] = A[tx + 0]
+
+        with ib.for_range(0, 1):
+            # Used in next scope.  If local variable defined at point
+            # of use instead of function header, will fail spvValidate
+            # for access of out-of-scope local variable.
+            ib.scope_attr(tx, "thread_extent", 16)
+            B[tx + 16] = A[tx + 16]
+
+        return ib.get()
+
+    n = te.var("n")
+    A = te.placeholder((n,), name="A", dtype="int32")
+    B = te.placeholder((n,), name="B", dtype="int32")
+
+    B = te.extern(
+        A.shape,
+        [A],
+        lambda ins, outs: do_compute(ins[0], outs[0], n),
+        dtype="int32",
+    )
+    s = te.create_schedule(B.op)
+
+    # Expected failure occurs at build step.
+    func = tvm.build(s, [A, B], target)
+
+    n = 32
+    a_np = np.arange(n).astype(dtype=A.dtype)
+    b_np = np.zeros((n,), dtype="int32")
+    a = tvm.nd.array(a_np, dev)
+    b = tvm.nd.array(b_np, dev)
+    func(a, b)
+    tvm.testing.assert_allclose(b.numpy(), a_np)
+
+
 if __name__ == "__main__":
-    test_vector_comparison()
-    test_vulkan_copy()
-    test_vulkan_vectorize_add()
-    test_vulkan_stress()
-    test_vulkan_constant_passing()
-    test_vulkan_bool_load()
-    test_vulkan_pushconstants()
-    test_vulkan_unique()
+    sys.exit(pytest.main(sys.argv))
