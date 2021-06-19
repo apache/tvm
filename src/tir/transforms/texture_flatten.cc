@@ -19,7 +19,8 @@
 
 /*!
  * \file texture_flatten.cc
- * \brief Flattens texture from multi-dimensional array to 2D buffer access
+ * \brief Flattens texture storage from multi-dimensional array
+ * to 2D (width, height) buffer access
  */
 
 #include <tvm/runtime/registry.h>
@@ -93,15 +94,17 @@ class TextureLoweringBase : public StmtExprMutator {
     return storage_scope;
   }
 
-  // TODO: need docs
-  // External buffer
+  // Set of all external input and output buffers
   std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual> extern_buf_;
-  // Storage scope
+  // Map to track the storage scope of buffer realization and the
+  //  buffer directly.
   std::unordered_map<const Object*, std::string> storage_scope_;
   // Bound analzer
   IRVisitorWithAnalyzer* bound_analyzer_;
 };
 
+// Lower Nd storage access to 2d texture access using lowering convention
+// specified by the buffers storage scope.
 class TextureFlattener : public TextureLoweringBase {
  public:
   using StmtExprMutator::VisitStmt_;
@@ -123,18 +126,19 @@ class TextureFlattener : public TextureLoweringBase {
     op = stmt.as<BufferRealizeNode>();
     Stmt body = this->VisitStmt(op->body);
 
+    // Rewrite any buffer realizations with storage scope to 2d texture allocations
     if (IsTextureStorage(storage_scope)) {
       body = this->VisitStmt(op->body);
       ICHECK(op->bounds.size() >= 3) << "Only 2d RGBA texture is currently supported";
       int vec_length = static_cast<int>(op->bounds.back()->extent.as<IntImmNode>()->value);
-      ICHECK(vec_length == 4 || vec_length == 1) << "FCD of texture must be vector of length 1 or 4 (RGBA)";
+      ICHECK(vec_length == 4 || vec_length == 1) << "Inner dimension of texture must be vector of length 1 or 4 (RGBA)";
 
-      struct Shape {
+      struct ShapeFromRange {
         const Array<Range>& bounds;
         PrimExpr operator[](size_t i) const { return bounds[i]->extent; }
       };
       size_t axis = DefaultTextureLayoutSeparator(op->bounds.size(), storage_scope);
-      auto texture = ApplyTexture2DFlattening<PrimExpr>(Shape{op->bounds}, op->bounds.size(), axis);
+      auto texture = ApplyTexture2DFlattening<PrimExpr>(ShapeFromRange{op->bounds}, op->bounds.size(), axis);
       Array<PrimExpr> args = {texture.width, texture.height};
       stmt = LetStmt(buffer_var, Call(buffer_var.dtype(), builtin::texture2d_alloca(), args), body);
     }
@@ -202,13 +206,19 @@ class TextureFlattener : public TextureLoweringBase {
     return args;
   }
 
-  // TODO: Need docs
-  // Let binding
+  // Bindings to new texture vars with texture pointer scope
   std::unordered_map<Var, PrimExpr, ObjectPtrHash, ObjectPtrEqual> let_binding_;
+  // Bindings from realized buffers to external buffers when the memory transfer
+  // to the realized buffer can be cancelled
   std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual> buffer_binds_;
 };
 
-
+// Populate bindings from internal buffers to external ones of the same scope
+// when it can be proven that the intermediate buffer access is identical
+// to the external access. This can allow for cache_read/write cancellation
+// when the external buffers are identical to the realized ones. Currently doesn't
+// support forwarding external buffers when the realized buffer is conditionally
+// loaded due to padding and other possible access modifying expressions.
 class ExternalBufferForwarding : public TextureLoweringBase {
  public:
   explicit ExternalBufferForwarding(const Map<Var, Buffer>& extern_buffer_map,
@@ -291,16 +301,21 @@ class ExternalBufferForwarding : public TextureLoweringBase {
   }
 
  private:
+  // List of realize_attrs used to mark the last valid attr stmt to use when rewriting
+  // the AST to remove any unecessary buffer realization.
   std::deque<Stmt> realize_attrs_;
+  // Set of buffers which are identical to external buffers and are copied into.
   std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual> extern_buffer_copy_;
+  // Binding from internal identical realized buffer and external buffer.
   std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual> buffer_map_;
+  // Active set of loads on external buffers contained in the scope of a buffer
+  // realize node.
   std::vector<std::vector<PrimExpr>> external_loads_;
 };
 
 
 PrimFunc TextureFlatten(PrimFunc func) {
   auto fptr = func.CopyOnWrite();
-
   IRVisitorWithAnalyzer bound_analyzer;
   bound_analyzer(fptr->body);
   ExternalBufferForwarding forward(fptr->buffer_map, &bound_analyzer);
