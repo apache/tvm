@@ -51,11 +51,10 @@ class CodeGenOpenCL final : public CodeGenC {
                      const std::string& value) final;  // NOLINT(*)
   // the address of load/store
   void PrintVecAddr(const VarNode* buffer, DataType t, PrimExpr base,
-                    std::ostream& os);                                          // NOLINT(*)
-  void PrintRestrict(const Var& v, std::ostream& os) final;                     // NOLINT(*)
-  std::string CastFromTo(std::string value, DataType from, DataType target);    // NOLINT(*)
-  void SetTextureScope(const std::unordered_map<const VarNode*, std::string>&); // NOLINT(*)
-
+                    std::ostream& os);                                           // NOLINT(*)
+  void PrintRestrict(const Var& v, std::ostream& os) final;                      // NOLINT(*)
+  std::string CastFromTo(std::string value, DataType from, DataType target);     // NOLINT(*)
+  void SetTextureScope(const std::unordered_map<const VarNode*, std::string>&);  // NOLINT(*)
 
   // overload visitor
   void VisitStmt_(const AllocateNode* op) final;                     // NOLINT(*)
@@ -64,7 +63,6 @@ class CodeGenOpenCL final : public CodeGenC {
   void VisitExpr_(const CastNode* op, std::ostream& os) final;       // NOLINT(*)
   void VisitExpr_(const FloatImmNode* op, std::ostream& os) final;   // NOLINT(*)
   void VisitStmt_(const StoreNode* op) final;                        // NOLINT(*)
-
 
  private:
   // whether enable fp16 and fp64 extension
