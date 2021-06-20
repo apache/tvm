@@ -346,10 +346,10 @@ def check_network(build_dir, target_name, model_path, image_path):
 
     micro.export_model_library_format(rt_module, mlf_tar_path)
 
-    emitter = stm32.CodeEmitter()
+    emitter = stm32.CodeEmitter(model_name)
     quantization = extract_tflite_quantization(model)
-    emitter.parse_library_format(mlf_tar_path, quantization)
-    emitter.emit_code(target_dir, model_name)
+    emitter.parse_library_format(mlf_tar_path)
+    emitter.emit_code(target_dir, quantization)
 
     #
     # Results
