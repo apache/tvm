@@ -3290,8 +3290,6 @@ which must just be not null. Output will have same shape as ``indices``.
     .set_attr<FTVMCompute>("FTVMCompute", GatherCompute)
     .set_attr<TOpPattern>("TOpPattern", kInjective);
 
-TVM_REGISTER_NODE_TYPE(GatherNDAttrs);
-
 // gather_nd operator
 bool GatherNDRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                  const TypeReporter& reporter) {
@@ -3369,7 +3367,6 @@ When B == 0 (the default case), the output shape will be (Y_0, ..., Y_{K-1}, X_M
 In both cases, if M + B == N, the output shape will simply be (Y_0, ..., Y_{K-1}).
 )code" TVM_ADD_FILELINE)
     .set_num_inputs(2)
-    .set_attrs_type<GatherNDAttrs>()
     .add_argument("data", "Tensor", "The input tensor.")
     .add_argument("indices", "Tensor", "The indices of values to gather.")
     .set_support_level(3)
@@ -3986,8 +3983,7 @@ Expr MakeInvertPermutation(Expr data) {
 TVM_REGISTER_GLOBAL("relay.op._make.invert_permutation").set_body_typed(MakeInvertPermutation);
 
 RELAY_REGISTER_OP("invert_permutation")
-    .describe(
-        R"doc(Computes the inverse permutation of a tensor.)doc" TVM_ADD_FILELINE)
+    .describe(R"doc(Computes the inverse permutation of a tensor.)doc" TVM_ADD_FILELINE)
     .set_num_inputs(1)
     .add_argument("data", "Tensor", "The input tensor.")
     .add_type_rel("Identity", IdentityRel)
