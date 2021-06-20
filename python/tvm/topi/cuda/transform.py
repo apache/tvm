@@ -126,8 +126,12 @@ def invert_permutation(data):
         [data.shape],
         [data],
         lambda ins, outs: _invert_permutation_ir(ins[0], outs[0]),
-        in_buffers=[data_buf,],
-        out_buffers=[out_buf,],
+        in_buffers=[
+            data_buf,
+        ],
+        out_buffers=[
+            out_buf,
+        ],
         name="invert_permutation",
         tag="invert_permutation_gpu",
     )
