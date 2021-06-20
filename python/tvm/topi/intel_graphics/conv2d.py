@@ -580,7 +580,7 @@ def _schedule_cl_spatialpack(s, op):
     temp = s[conv].op.input_tensors[0]
     kernel_vec = s[conv].op.input_tensors[1]
     kernel = s[kernel_vec].op.input_tensors[0]
-    temp_W = s.cache_read(temp, "warp", [conv])
+    temp_W = s.cache_read(temp, "shared", [conv])
     conv_L = s.cache_write(conv, "local")
 
     kernel_L = s.cache_read(kernel_vec, "local", [conv_L])

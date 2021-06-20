@@ -148,6 +148,8 @@ def verify_conv2d_nchw(
 
     if use_cudnn:
         check_target("cuda -model=unknown -libs=cudnn")
+    if ("opencl", tvm.device("opencl")) in tvm.testing.enabled_targets():
+        check_target("opencl -device=intel_graphics")
 
 
 @tvm.testing.uses_gpu

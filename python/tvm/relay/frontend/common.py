@@ -493,7 +493,7 @@ def infer_type(node, mod=None):
 
 def fold_constant(node, mod=None):
     if mod is None:
-        mod = IRModule.from_expr(node)
+        mod = IRModule()
     return _transform.FoldConstantExpr(node, mod)
 
 

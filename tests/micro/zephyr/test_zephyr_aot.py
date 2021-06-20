@@ -41,17 +41,8 @@ _LOG = logging.getLogger(__name__)
 
 PLATFORMS = conftest.PLATFORMS
 
-# If set, build the uTVM binary from scratch on each test.
-# Otherwise, reuses the build from the previous test run.
-BUILD = True
 
-# If set, enable a debug session while the test is running.
-# Before running the test, in a separate shell, you should run:
-#   python -m tvm.exec.microtvm_debug_shell
-DEBUG = False
-
-
-def _build_session_kw(model, target, zephyr_board, west_cmd, mod, runtime_path):
+def _build_session_kw(model, target, zephyr_board, west_cmd, mod, runtime_path, build_config):
     parent_dir = os.path.dirname(__file__)
     filename = os.path.splitext(os.path.basename(__file__))[0]
     prev_build = f"{os.path.join(parent_dir, 'archive')}_{filename}_{zephyr_board}_last_build.micro"
@@ -77,14 +68,14 @@ def _build_session_kw(model, target, zephyr_board, west_cmd, mod, runtime_path):
     opts["lib_opts"]["include_dirs"].append(os.path.join(runtime_path, "include"))
 
     flasher_kw = {}
-    if DEBUG:
+    if build_config["debug"]:
         flasher_kw["debug_rpc_session"] = tvm.rpc.connect("127.0.0.1", 9090)
 
     session_kw = {
         "flasher": compiler.flasher(**flasher_kw),
     }
 
-    if BUILD:
+    if not build_config["skip_build"]:
         session_kw["binary"] = tvm.micro.build_static_runtime(
             workspace,
             compiler,
@@ -127,6 +118,8 @@ def _create_header_file(tensor_name, npy_data, output_path):
             header_file.write(f"uint8_t {tensor_name}[] = ")
         elif npy_data.dtype == "float32":
             header_file.write(f"float {tensor_name}[] = ")
+        else:
+            raise ValueError("Data type not expected.")
 
         header_file.write("{")
         for i in np.ndindex(npy_data.shape):
@@ -159,11 +152,12 @@ def _get_message(fd, expr: str):
             return data
 
 
-def test_tflite(platform, west_cmd):
+def test_tflite(platform, west_cmd, skip_build, tvm_debug):
     """Testing a TFLite model."""
     model, zephyr_board = PLATFORMS[platform]
     input_shape = (1, 32, 32, 3)
     output_shape = (1, 10)
+    build_config = {"skip_build": skip_build, "debug": tvm_debug}
 
     this_dir = os.path.dirname(__file__)
     tvm_source_dir = os.path.join(this_dir, "..", "..", "..")
@@ -203,7 +197,9 @@ def test_tflite(platform, west_cmd):
         "output_data", np.zeros(shape=output_shape, dtype="float32"), model_files_path
     )
 
-    session_kw = _build_session_kw(model, target, zephyr_board, west_cmd, lowered.lib, runtime_path)
+    session_kw = _build_session_kw(
+        model, target, zephyr_board, west_cmd, lowered.lib, runtime_path, build_config
+    )
     transport = session_kw["flasher"].flash(session_kw["binary"])
     transport.open()
     transport.write(b"start\n", timeout_sec=5)
@@ -215,6 +211,47 @@ def test_tflite(platform, west_cmd):
     time = int(result_line[2])
     logging.info(f"Result: {result}\ttime: {time} ms")
     assert result == 8
+
+
+def test_qemu_make_fail(platform, west_cmd, skip_build, tvm_debug):
+    """Testing QEMU make fail."""
+    model, zephyr_board = PLATFORMS[platform]
+    build_config = {"skip_build": skip_build, "debug": tvm_debug}
+    shape = (10,)
+    dtype = "float32"
+
+    this_dir = pathlib.Path(__file__).parent
+    tvm_source_dir = this_dir / ".." / ".." / ".."
+    runtime_path = tvm_source_dir / "apps" / "microtvm" / "zephyr" / "aot_demo"
+
+    # Construct Relay program.
+    x = relay.var("x", relay.TensorType(shape=shape, dtype=dtype))
+    xx = relay.multiply(x, x)
+    z = relay.add(xx, relay.const(np.ones(shape=shape, dtype=dtype)))
+    func = relay.Function([x], z)
+
+    target = tvm.target.target.micro(model, options=["-link-params=1", "--executor=aot"])
+    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
+        lowered = relay.build(func, target)
+
+    # Generate input/output header files
+    model_files_path = os.path.join(runtime_path, "include")
+    _create_header_file((f"input_data"), np.zeros(shape=shape, dtype=dtype), model_files_path)
+    _create_header_file("output_data", np.zeros(shape=shape, dtype=dtype), model_files_path)
+
+    session_kw = _build_session_kw(
+        model, target, zephyr_board, west_cmd, lowered.lib, runtime_path, build_config
+    )
+
+    file_path = os.path.join(session_kw["binary"].base_dir, "zephyr/CMakeFiles/run.dir/build.make")
+    assert os.path.isfile(file_path), f"[{file_path}] does not exist."
+
+    # Remove a file to create make failure.
+    os.remove(file_path)
+    transport = session_kw["flasher"].flash(session_kw["binary"])
+    with pytest.raises(RuntimeError) as excinfo:
+        transport.open()
+    assert "QEMU setup failed" in str(excinfo.value)
 
 
 if __name__ == "__main__":

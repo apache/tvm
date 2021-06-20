@@ -151,6 +151,11 @@ def max(a, b, span):  # pylint: disable=redefined-builtin
     return tvm.tir.Max(a, b, span)
 
 
+@register
+def min(a, b, span):  # pylint: disable=redefined-builtin
+    return tvm.tir.Min(a, b, span)
+
+
 def get_axis(begin, end, iter_type, span):
     ana = tvm.arith.Analyzer()
     extent = ana.simplify(end - begin)
@@ -178,6 +183,11 @@ def scan_axis(begin, end, span):
 @register
 def opaque_axis(begin, end, span):
     return get_axis(begin, end, "opaque", span)
+
+
+@register
+def Select(cond, if_body, else_body, span):  # pylint: disable=invalid-name
+    return tvm.tir.Select(cond, if_body, else_body, span)
 
 
 @register
