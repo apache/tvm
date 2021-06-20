@@ -267,10 +267,10 @@ void GraphExecutor::DefaultLookupLinkedParam(TVMArgs args, TVMRetValue* rv) {
   std::vector<int64_t> shape_vec{template_tensor->shape,
                                  template_tensor->shape + template_tensor->ndim};
 
-  std::unique_ptr<NDArray::Container> container{new NDArray::Container(
-      static_cast<void*>(opaque_handle), shape_vec, template_tensor->dtype, dev)};
+  auto* container = new NDArray::Container(static_cast<void*>(opaque_handle), shape_vec,
+                                           template_tensor->dtype, dev);
   container->SetDeleter(GraphExecutor::LinkedNDArrayDeleter);
-  *rv = NDArray(GetObjectPtr<Object>(container.release()));
+  *rv = NDArray(GetObjectPtr<Object>(container));
 }
 
 void GraphExecutor::SetupStorage() {

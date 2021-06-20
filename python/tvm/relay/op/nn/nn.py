@@ -2236,6 +2236,7 @@ def sparse_add(dense_mat, sparse_mat):
     Examples
     -------
     .. code-block:: python
+
         dense_data = [[ 3.,   4.,   4. ]
                       [ 4.,  2.,  5. ]]
         sparse_data = [4., 8.]

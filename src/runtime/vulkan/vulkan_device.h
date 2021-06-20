@@ -21,14 +21,19 @@
 #define TVM_RUNTIME_VULKAN_VULKAN_DEVICE_H_
 
 #include <tvm/runtime/logging.h>
-#include <tvm/target/target.h>
 
 #include <memory>
+#include <mutex>
+#include <shared_mutex>
 #include <string>
+#include <thread>
+#include <unordered_map>
 #include <vector>
 
+#include "../thread_map.h"
 #include "vulkan/vulkan_core.h"
 #include "vulkan_buffer.h"
+#include "vulkan_stream.h"
 
 namespace tvm {
 namespace runtime {
@@ -156,6 +161,43 @@ class VulkanDevice {
    */
   bool HasExtension(const char* query) const;
 
+  //! \brief Return the VulkanStream for the current CPU thread
+  VulkanStream& ThreadLocalStream();
+
+  //! \brief Return the VulkanStream for the current CPU thread
+  const VulkanStream& ThreadLocalStream() const;
+
+  /*! \brief Return the staging buffer for the current CPU thread
+   *
+   * This function may re-allocate the staging buffer depending on the
+   * size of the previously allocated buffer.
+   *
+   * \param min_size The size in bytes of the staging buffer to be
+   * returned.  The buffer may be larger than requested, depending on
+   * previous use.
+   */
+  VulkanStagingBuffer& ThreadLocalStagingBuffer(size_t min_size);
+
+  /*! \brief Allocate the uniform buffer for the current CPU thread
+   *
+   * \param min_size The minimum size in bytes of the uniformn buffer
+   * to be allocated.  If a larger uniform buffer has already been
+   * allocated, no allocation is performed.
+   */
+  void AllocateThreadLocalUniformBuffer(size_t min_size);
+
+  /*! \brief Return the uniform buffer for the current CPU thread
+   *
+   * Assumes that AllocateThreadLocalUniformBuffer has previously been
+   * called, with a min_size greater than or equal to the min_size of
+   * the current call.  If this is not the case, will throw an
+   * exception.
+   *
+   * \param min_size The minimum size in bytes of the uniform buffer to be
+   * returned.
+   */
+  VulkanUniformBuffer& ThreadLocalUniformBuffer(size_t min_size);
+
   // Cached device properties, queried through Vulkan API.
   VulkanDeviceProperties device_properties{};
 
@@ -183,8 +225,24 @@ class VulkanDevice {
    */
   void do_swap(VulkanDevice&& other);
 
+  /*! \brief Returns a queue family capable of running Vulkan compute
+   * operations
+   */
   uint32_t SelectComputeQueueFamily() const;
+
+  /*! \brief Returns the extensions to be enabled.
+   *
+   * All char* in the returned vector point to static memory
+   * allocations, and do not require cleanup.
+   */
   std::vector<const char*> SelectEnabledExtensions() const;
+
+  /*! \brief Initialize the VkDevice
+   *
+   * Called during VulkanDevice construction.  Assumes that
+   * queue_family_index, device_properties, and enabled_extensions
+   * have been set.
+   */
   void CreateVkDevice(const VulkanInstance& instance);
 
   //! \brief Handle to the Vulkan API physical device
@@ -207,19 +265,30 @@ class VulkanDevice {
   /*! \brief Handle to Vulkan API VkQueue.
    *
    * Work can be executed by submitted to this queue using
-   * VulkanDevice::SubmitQueue.
+   * VulkanDevice::QueueSubmit.
    */
   VkQueue queue{nullptr};
+
+  /*! \brief The VulkanStream for each CPU thread.
+   *
+   * To mimic the semantics of cudaSetDevice and cuLaunchKernel, each
+   * CPU thread must have a separate stream of execution.  The
+   * ThreadMap is declared mutable so that the streams can be lazily
+   * generated.
+   */
+  mutable ThreadMap<VulkanStream> stream_per_thread;
+
+  //! \brief The VulkanStagingBuffer for each CPU thread.
+  ThreadMap<VulkanStagingBuffer> staging_buffer_per_thread;
+
+  //! \brief The VulkanUniformBuffer for each CPU thread.
+  ThreadMap<VulkanUniformBuffer> uniform_buffer_per_thread;
 };
 
 uint32_t FindMemoryType(const VulkanDevice& device, VkBufferCreateInfo info,
                         VkMemoryPropertyFlags req_prop);
 
-VkBufferCreateInfo MakeBufferCreateInfo(const VulkanDevice& device, size_t nbytes,
-                                        VkBufferUsageFlags usage);
-
-VulkanBuffer* CreateBuffer(const VulkanDevice& device, size_t nbytes, VkBufferUsageFlags usage,
-                           uint32_t mem_type_index);
+VkBufferCreateInfo MakeBufferCreateInfo(size_t nbytes, VkBufferUsageFlags usage);
 
 }  // namespace vulkan
 }  // namespace runtime

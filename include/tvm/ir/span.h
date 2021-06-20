@@ -45,6 +45,8 @@ class SourceNameNode : public Object {
   // override attr visitor
   void VisitAttrs(AttrVisitor* v) { v->Visit("name", &name); }
 
+  static constexpr bool _type_has_method_sequal_reduce = true;
+
   bool SEqualReduce(const SourceNameNode* other, SEqualReducer equal) const {
     return equal(name, other->name);
   }
@@ -98,6 +100,7 @@ class SpanNode : public Object {
     v->Visit("end_line", &end_line);
     v->Visit("end_column", &end_column);
   }
+  static constexpr bool _type_has_method_sequal_reduce = true;
 
   bool SEqualReduce(const SpanNode* other, SEqualReducer equal) const {
     return equal(source_name, other->source_name) && equal(line, other->line) &&

@@ -64,8 +64,13 @@ class OpenCLWrappedFunc {
     }
     // setup arguments.
     for (cl_uint i = 0; i < arg_size_.size(); ++i) {
-      auto* arg = static_cast<cl::BufferDescriptor*>(void_args[i]);
-      OPENCL_CALL(clSetKernelArg(kernel, i, arg_size_[i], arg->buffer));
+      void* arg = nullptr;
+      if (args.type_codes[i] == DLDataTypeCode::kDLOpaqueHandle) {
+        arg = static_cast<cl::BufferDescriptor*>(void_args[i])->buffer;
+      } else {
+        arg = void_args[i];
+      }
+      OPENCL_CALL(clSetKernelArg(kernel, i, arg_size_[i], arg));
     }
     cl_command_queue queue = w_->GetQueue(t->device);
     ThreadWorkLoad wl = thread_axis_cfg_.Extract(args);
@@ -193,8 +198,8 @@ void OpenCLModuleNode::Init() {
   ICHECK(!parsed_kernels_.empty()) << "The OpenCL module expects a kernel delimited "
                                    << "source from code generation, but no kernel "
                                    << "delimiter was found.";
-  ICHECK_EQ(workspace_->num_registered_kernels, parsed_kernels_.size())
-      << "The number of registered kernels does not match number of parsed kernel sources";
+  ICHECK_EQ(fmap_.size(), parsed_kernels_.size())
+      << "The number of parsed kernel sources does not match the number of kernel functions";
   // zero initialize cl_program pointers for each device kernel
   for (auto& kv : parsed_kernels_) {
     programs_.insert({kv.first, std::vector<cl_program>(workspace_->devices.size(), nullptr)});
