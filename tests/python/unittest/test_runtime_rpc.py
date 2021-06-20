@@ -401,33 +401,62 @@ def test_rpc_tracker_register():
     # test registration
     tracker = Tracker(port=9000, port_end=10000)
     device_key = "test_device"
-    server = rpc.Server(
+    server1 = rpc.Server(
+        host="127.0.0.1",
         port=9000,
         port_end=10000,
         key=device_key,
         tracker_addr=("127.0.0.1", tracker.port),
     )
+    server2 = rpc.Server(
+        host="127.0.0.1",
+        port=9000,
+        port_end=10000,
+        key=device_key,
+        tracker_addr=("127.0.0.1", tracker.port),
+        custom_addr="test_addr",  # this is a test address, which is unable to connect
+    )
     time.sleep(1)
     client = rpc.connect_tracker("127.0.0.1", tracker.port)
 
+    def exist_address(summary, key, host, port):
+        server_info = summary["server_info"]
+        for device in server_info:
+            if device["key"] == "server:%s" % key:
+                addr = device["addr"]
+                if (host is None or host == addr[0]) and port == addr[1]:
+                    return True
+        return False
+
     summary = client.summary()
-    assert summary["queue_info"][device_key]["free"] == 1
+    assert summary["queue_info"][device_key]["free"] == 2
+    assert exist_address(summary, device_key, "127.0.0.1", server1.port)
+    assert exist_address(summary, device_key, "test_addr", server2.port)
 
     remote = client.request(device_key)
     summary = client.summary()
-    assert summary["queue_info"][device_key]["free"] == 0
+    assert summary["queue_info"][device_key]["free"] == 1
 
     del remote
     time.sleep(1)
 
     summary = client.summary()
-    assert summary["queue_info"][device_key]["free"] == 1
+    assert summary["queue_info"][device_key]["free"] == 2
 
-    server.terminate()
+    server1.terminate()
+    time.sleep(1)
+
+    summary = client.summary()
+    assert summary["queue_info"][device_key]["free"] == 1
+    assert not exist_address(summary, device_key, "127.0.0.1", server1.port)
+    assert exist_address(summary, device_key, "test_addr", server2.port)
+
+    server2.terminate()
     time.sleep(1)
 
     summary = client.summary()
     assert summary["queue_info"][device_key]["free"] == 0
+    assert not exist_address(summary, device_key, "test_addr", server2.port)
 
     tracker.terminate()
 
