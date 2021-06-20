@@ -85,23 +85,23 @@ def _invert_permutation_ir(data, out):
     """
     elem_num = data.shape[0]
 
-    ib = tvm.tir.ir_builder.create()
-    data = ib.buffer_ptr(data)
-    out = ib.buffer_ptr(out)
+    irb = tvm.tir.ir_builder.create()
+    data = irb.buffer_ptr(data)
+    out = irb.buffer_ptr(out)
 
     max_threads = int(Target.current(allow_none=False).max_num_threads)
     nthread_tx = max_threads
     nthread_bx = elem_num // max_threads + 1
-    tx = te.thread_axis("threadIdx.x")
-    bx = te.thread_axis("blockIdx.x")
-    ib.scope_attr(tx, "thread_extent", nthread_tx)
-    ib.scope_attr(bx, "thread_extent", nthread_bx)
-    tid = bx * max_threads + tx
+    thread_x = te.thread_axis("threadIdx.x")
+    block_x = te.thread_axis("blockIdx.x")
+    irb.scope_attr(thread_x, "thread_extent", nthread_tx)
+    irb.scope_attr(block_x, "thread_extent", nthread_bx)
+    tid = block_x * max_threads + thread_x
 
-    with ib.if_scope(tid < elem_num):
+    with irb.if_scope(tid < elem_num):
         r_ind = data[tid]
         out[r_ind] = tid
-    return ib.get()
+    return irb.get()
 
 
 def invert_permutation(data):
