@@ -91,7 +91,13 @@ def call_all_topi_funcs(mod, params, target, opt_level=3):
 
 
 def extract_tasks(
-    mod, params, target, target_host=None, hardware_params=None, include_simple_tasks=False, opt_level=3
+        mod,
+        params,
+        target,
+        target_host=None,
+        hardware_params=None,
+        include_simple_tasks=False,
+        opt_level=3,
 ):
     """Extract tuning tasks from a relay program.
 
@@ -134,7 +140,9 @@ def extract_tasks(
     with env:
         # Wrap build call in a new thread to avoid the conflict
         # between python's multiprocessing and tvm's thread pool
-        build_thread = threading.Thread(target=call_all_topi_funcs, args=(mod, params, target, opt_level))
+        build_thread = threading.Thread(
+            target=call_all_topi_funcs, args=(mod, params, target, opt_level)
+        )
         build_thread.start()
         build_thread.join()
     dispatch_ctx.verbose = old_verbose
