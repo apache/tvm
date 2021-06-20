@@ -91,13 +91,13 @@ def call_all_topi_funcs(mod, params, target, opt_level=3):
 
 
 def extract_tasks(
-        mod,
-        params,
-        target,
-        target_host=None,
-        hardware_params=None,
-        include_simple_tasks=False,
-        opt_level=3,
+    mod,
+    params,
+    target,
+    target_host=None,
+    hardware_params=None,
+    include_simple_tasks=False,
+    opt_level=3,
 ):
     """Extract tuning tasks from a relay program.
 
