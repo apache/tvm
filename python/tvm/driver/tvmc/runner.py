@@ -364,7 +364,7 @@ def run_module(
     if tvmc_package.type == "mlf":
         raise TVMCException(
             "You're trying to run a model saved using the Model Library Format (MLF)."
-            "MLF can only be used to run micro targets (µTVM)."
+            "MLF can only be used to run micro targets (microTVM)."
         )
 
     if hostname:
