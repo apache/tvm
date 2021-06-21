@@ -360,7 +360,7 @@ def run_module(
         )
 
     # Currently only two package formats are supported: "classic" and
-    # "mlf". The later can only be used for micro targets, i.e. with µTVM.
+    # "mlf". The later can only be used for micro targets, i.e. with microTVM.
     if tvmc_package.type == "mlf":
         raise TVMCException(
             "You're trying to run a model saved using the Model Library Format (MLF)."
