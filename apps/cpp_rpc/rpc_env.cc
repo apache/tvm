@@ -39,6 +39,7 @@ int mkdir(const char* path, int /* ignored */) { return _mkdir(path); }
 #include <iostream>
 #include <string>
 #include <vector>
+
 #include "../../src/support/utils.h"
 #include "rpc_env.h"
 
@@ -95,7 +96,16 @@ RPCEnv::RPCEnv(const std::string& wd) {
     auto cmdline = fopen("/proc/self/cmdline", "r");
     fread(cwd, 1, sizeof(cwd), cmdline);
     fclose(cmdline);
-    base_ = "/data/data/" + std::string(cwd) + "/cache/rpc";
+    std::string android_base_ = "/data/data/" + std::string(cwd) + "/cache";
+    struct stat statbuf;
+    // Check if application data directory exist. If not exist, usually means we run tvm_rpc from
+    // adb shell terminal.
+    if (stat(android_base_.data(), &statbuf) == -1 || !S_ISDIR(statbuf.st_mode)) {
+      // Tmp directory is always writable for 'shell' user.
+      android_base_ = "/data/local/tmp";
+    }
+    base_ = android_base_ + "/rpc";
+
 #elif !defined(_WIN32)
     char cwd[PATH_MAX];
     if (getcwd(cwd, sizeof(cwd))) {
