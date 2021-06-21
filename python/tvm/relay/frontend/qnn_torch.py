@@ -642,18 +642,19 @@ def _quantized_conv2d(with_relu=False):
         kernel_size = (weight_shape[2], weight_shape[3])
         out_channels = weight_shape[0]
 
-        if padding[0] != 0 or padding[1] != 0:
-            pad_val = _get_scalar(input_zero_point)
+        pad_val = _get_scalar(input_zero_point)
+        if (padding[0] != 0 or padding[1] != 0) and pad_val != 0:
             inp = _op.nn.pad(
                 inputs[0],
                 pad_width=((0, 0), (0, 0), (padding[0], padding[0]), (padding[1], padding[1])),
                 pad_value=float(pad_val),
             )
+            # padding is (0, 0) because we did explicit pad op with
+            # pad value being zero point above
+            padding = (0, 0)
         else:
             inp = inputs[0]
 
-        # padding is (0, 0) because we did explicit pad op with
-        # pad value being zero point above
         conv_out = relay.qnn.op.conv2d(
             inp,
             weight,
@@ -664,7 +665,7 @@ def _quantized_conv2d(with_relu=False):
             kernel_size=kernel_size,
             dilation=dilation,
             strides=strides,
-            padding=(0, 0),
+            padding=padding,
             groups=groups,
             channels=out_channels,
         )
