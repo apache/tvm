@@ -525,6 +525,8 @@ void CodeGenCUDA::PrintStorageScope(const std::string& scope, std::ostream& os) 
                                 "all global arrays as input instead";
   if (scope == "shared") {
     os << "__shared__ ";
+  } else if (scope == "dyn.shared") {
+    os << "extern __shared__ ";
   }
 }
 
@@ -726,12 +728,17 @@ void CodeGenCUDA::VisitStmt_(const AllocateNode* op) {
     PrintStorageScope(scope, stream);
     PrintType(op->dtype, stream);
   }
-  if ((op->dtype == DataType::Int(4) || op->dtype == DataType::UInt(4) ||
-       op->dtype == DataType::Int(1)) &&
-      scope == "shared") {
-    constant_size = constant_size / (32 / op->dtype.bits());
+
+  if (scope == "dyn.shared") {
+    stream << ' ' << vid << "[];\n";
+  } else {
+    if ((op->dtype == DataType::Int(4) || op->dtype == DataType::UInt(4) ||
+         op->dtype == DataType::Int(1)) &&
+        scope == "shared") {
+      constant_size = constant_size / (32 / op->dtype.bits());
+    }
+    stream << ' ' << vid << '[' << constant_size << "];\n";
   }
-  stream << ' ' << vid << '[' << constant_size << "];\n";
 
   RegisterHandleType(op->buffer_var.get(), op->dtype);
   this->PrintStmt(op->body);

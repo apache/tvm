@@ -42,21 +42,23 @@ enum class StorageRank {
   kGlobal = 0,
   /*! \brief shared memory among thread group */
   kShared = 1,
+  /*! \brief dynamic shared memory among thread group */
+  kDynShared = 2,
   /*!
    * \brief reserved for warp memory.
    *  This is only used by programming model.
    *  There is no such memory usually in GPU.
    *  Instead, we can simulate it by registers and shuffle.
    */
-  kWarp = 2,
+  kWarp = 3,
   /*! \brief thread local memory */
-  kLocal = 3,
+  kLocal = 4,
   /*! \brief wmma scope memory of matrix_a */
-  kWMMAMatrixA = 4,
+  kWMMAMatrixA = 5,
   /*! \brief wmma scope memory of matrix_b */
-  kWMMAMatrixB = 5,
+  kWMMAMatrixB = 6,
   /*! \brief wmma scope memory of accumulator */
-  kWMMAAccumulator = 6,
+  kWMMAAccumulator = 7,
 };
 
 /*!
@@ -96,6 +98,8 @@ struct StorageScope {
         return "global" + tag;
       case StorageRank::kShared:
         return "shared" + tag;
+      case StorageRank::kDynShared:
+        return "dyn.shared" + tag;
       case StorageRank::kWarp:
         return "warp" + tag;
       case StorageRank::kLocal:
@@ -126,6 +130,9 @@ struct StorageScope {
     } else if (s.compare(0, 6, "shared") == 0) {
       r.rank = StorageRank::kShared;
       r.tag = s.substr(6, std::string::npos);
+    } else if (s.compare(0, 10, "dyn.shared") == 0) {
+      r.rank = StorageRank::kDynShared;
+      r.tag = s.substr(10, std::string::npos);
     } else if (s.compare(0, 4, "warp") == 0) {
       r.rank = StorageRank::kWarp;
       r.tag = s.substr(4, std::string::npos);
