@@ -33,6 +33,8 @@
 
 #include <unordered_map>
 
+#include "../../runtime/thread_storage_scope.h"
+
 namespace tvm {
 namespace tir {
 
@@ -60,6 +62,12 @@ class VarUseDefAnalysis : public StmtExprMutator {
         return GetRef<Stmt>(op);
       }
       return AttrStmt(op->node, op->attr_key, value, body);
+    } else if (op->attr_key == attr::storage_scope) {
+      const VarNode* v = op->node.as<VarNode>();
+      ICHECK(v);
+      auto scope = op->value.as<StringImmNode>()->value;
+      alloc_storage_scope_[v] = runtime::StorageScope::Create(scope);
+      return StmtExprMutator::VisitStmt_(op);
     } else {
       return StmtExprMutator::VisitStmt_(op);
     }
@@ -89,6 +97,10 @@ class VarUseDefAnalysis : public StmtExprMutator {
 
   Stmt VisitStmt_(const AllocateNode* op) final {
     this->HandleDef(op->buffer_var.get());
+    if (alloc_storage_scope_[op->buffer_var.get()].rank == runtime::StorageRank::kDynShared) {
+      // CHECK_EQ(dyn_shmem_size_,  PrimExpr(0)) << "Only one dynamic shmem allowed for now";
+      dyn_shmem_size_ = op->constant_allocation_size();
+    }
     return StmtExprMutator::VisitStmt_(op);
   }
 
@@ -176,6 +188,7 @@ class VarUseDefAnalysis : public StmtExprMutator {
   Array<IterVar> thread_axis_;
   Array<PrimExpr> thread_extent_;
   PrimExpr dyn_shmem_size_{0};
+  std::unordered_map<const VarNode*, runtime::StorageScope> alloc_storage_scope_;
   std::unordered_map<const VarNode*, int> use_count_;
   std::unordered_map<const VarNode*, int> def_count_;
 
