@@ -44,8 +44,7 @@ InferCorrectLayoutOutput BinaryConv2DInferCorrectLayout(
   // We always make other operators to fit the layouts of convolution layers
   // So this inference ignores all inputs
   return InferCorrectLayoutOutput(
-      Array<Array<Layout>>{{params->data_layout, params->kernel_layout}, {params->data_layout}},
-      attrs);
+      {{params->data_layout, params->kernel_layout}, {params->data_layout}}, attrs);
 }
 
 bool BitPackRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,

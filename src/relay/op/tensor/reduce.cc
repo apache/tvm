@@ -189,8 +189,7 @@ InferCorrectLayoutOutput ReduceInferCorrectLayout(const Attrs& attrs,
     }
   }
 
-  return InferCorrectLayoutOutput(Array<Array<Layout>>{{inferred_in}, {inferred_out}},
-                                  Attrs(params));
+  return InferCorrectLayoutOutput({{inferred_in}, {inferred_out}}, Attrs(params));
 }
 
 template <typename F>

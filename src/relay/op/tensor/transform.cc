@@ -486,7 +486,7 @@ InferCorrectLayoutOutput TransposeInferCorrectLayout(const Attrs& attrs,
     return InferCorrectLayoutOutput(
         Array<Array<Layout>>({{Layout(in_layout_str)}, {Layout(out_layout_str)}}), new_attrs);
   }
-  return InferCorrectLayoutOutput(Array<Array<Layout>>({{Layout::Undef()}, {Layout::Undef()}}),
+  return InferCorrectLayoutOutput({{Layout::Undef()}, {Layout::Undef()}},
                                   new_attrs);
 }
 
@@ -2241,7 +2241,7 @@ InferCorrectLayoutOutput SqueezeInferCorrectLayout(const Attrs& attrs,
   }
   inferred_output = Layout(kept_axes);
 
-  return InferCorrectLayoutOutput(Array<Array<Layout>>{{inferred_input}, {inferred_output}},
+  return InferCorrectLayoutOutput({{inferred_input}, {inferred_output}},
                                   Attrs(params));
 }
 

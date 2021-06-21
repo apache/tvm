@@ -41,8 +41,7 @@ InferCorrectLayoutOutput Dilation2DInferCorrectLayout(const Attrs& attrs,
   const T* params = attrs.as<T>();
 
   return InferCorrectLayoutOutput(
-      Array<Array<Layout> >{{params->data_layout, params->kernel_layout}, {params->data_layout}},
-      attrs);
+      {{params->data_layout, params->kernel_layout}, {params->data_layout}}, attrs);
 }
 
 // Positional relay function to create dilation2d operator

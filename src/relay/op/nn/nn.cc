@@ -284,8 +284,7 @@ InferCorrectLayoutOutput PReluInferCorrectLayout(const Attrs& attrs,
   if (new_in_layouts.defined()) {
     ICHECK_EQ(new_in_layouts.size(), 2U);
   }
-  return InferCorrectLayoutOutput(Array<Array<Layout>>{{data_layout, Layout("C")}, {data_layout}},
-                                  attrs);
+  return InferCorrectLayoutOutput({{data_layout, Layout("C")}, {data_layout}}, attrs);
 }
 
 // Positional relay function to create prelu operator used by frontend FFI.
@@ -632,9 +631,7 @@ InferCorrectLayoutOutput BatchNormInferCorrectLayout(const Attrs& attrs,
   Layout c_layout = Layout("C");
 
   return InferCorrectLayoutOutput(
-      Array<Array<Layout>>{{ret, c_layout, c_layout, c_layout, c_layout},
-                           {ret, c_layout, c_layout}},
-      Attrs(param));
+      {{ret, c_layout, c_layout, c_layout, c_layout}, {ret, c_layout, c_layout}}, Attrs(param));
 }
 
 bool BatchNormRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
