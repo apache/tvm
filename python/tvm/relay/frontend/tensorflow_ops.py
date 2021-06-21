@@ -2886,6 +2886,7 @@ _convert_map = {
     "GreaterEqual": _broadcast("greater_equal"),
     "Identity": _identity(),
     "IdentityN": _identityn(),
+    "InvertPermutation": AttrCvt("invert_permutation"),
     "IsFinite": AttrCvt("isfinite"),
     "IsInf": AttrCvt("isinf"),
     "IsNan": AttrCvt("isnan"),
