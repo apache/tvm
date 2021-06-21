@@ -18,16 +18,15 @@
 """
 Relay pass transformation infrastructure.
 """
-import types
-import inspect
 import functools
+import inspect
+import types
 import warnings
 
 import tvm.ir
-from tvm import te
+from tvm import relay, te
 from tvm.runtime import ndarray as _nd
 
-from tvm import relay
 from . import _ffi_api
 
 
@@ -1168,7 +1167,7 @@ def AnnotateSpans():
     Returns
     -------
     ret : tvm.transform.Pass
-        The regsistered AnnotateSpans pass.
+        The registered AnnotateSpans pass.
     """
     return _ffi_api.AnnotateSpans()
 
@@ -1199,3 +1198,29 @@ def FakeQuantizationToInteger():
         The registered SimplifyExpr pass.
     """
     return _ffi_api.FakeQuantizationToInteger()
+
+
+def ToMixedPrecision(mixed_precision_type="float16", missing_op_mode=1):
+    """
+    Automatic mixed precision rewriter. Rewrite an FP32 relay graph into a version
+    where as many operations as possible are in the target mixed_precision_type.
+
+    Parameters
+    ----------
+    mixed_precision_type: str
+      The target datatype to transform operations in the graph to use.
+
+    missing_op_mode: int
+      Determines how to handle ops not registered with FTVMMixedPrecisionConversionType
+        0: Does not allow any missing ops. Will throw errors when encountering any.
+        1: Allow missing ops but emit warnings.
+        2: Allow missing ops and silently ignore them.
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The registered pass.
+    """
+    if missing_op_mode < 0 or missing_op_mode > 2:
+        raise ValueError("Missing op mode is either 0, 1, or 2")
+    return _ffi_api.ToMixedPrecision(mixed_precision_type, missing_op_mode)

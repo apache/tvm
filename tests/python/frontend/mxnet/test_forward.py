@@ -14,22 +14,20 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import numpy as np
 import operator
+import random
 
+import numpy as np
+import pytest
 import tvm
-from tvm import te
+import tvm.testing
+from tvm import relay, te
 from tvm.contrib import graph_executor
-from tvm import relay
-import mxnet as mx
 
+import model_zoo
+import mxnet as mx
 from mxnet import gluon
 from mxnet.gluon.model_zoo import vision
-import random
-import pytest
-import model_zoo
-
-import tvm.testing
 
 
 def verify_mxnet_frontend_impl(
@@ -1231,7 +1229,9 @@ def test_forward_instance_norm():
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
                 op_res = intrp.evaluate()(x, gamma, beta)
-                tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy(), rtol=1e-5, atol=1e-5)
+                tvm.testing.assert_allclose(
+                    op_res.asnumpy(), ref_res.asnumpy(), rtol=2e-5, atol=1e-5
+                )
 
     verify((2, 3, 4, 5))
     verify((32, 64, 80, 64))

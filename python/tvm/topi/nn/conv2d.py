@@ -18,13 +18,15 @@
 # pylint: disable=unused-argument, redefined-builtin
 """Conv2D operators"""
 from __future__ import absolute_import as _abs
-from collections import namedtuple
-import tvm
-from tvm import te, auto_scheduler
 
+from collections import namedtuple
+
+import tvm
+from tvm import auto_scheduler, te
+
+from ..utils import get_const_int, get_const_tuple, simplify, tag
 from .pad import pad
 from .utils import get_pad_tuple
-from ..utils import simplify, get_const_tuple, get_const_int, tag
 from .winograd_util import winograd_transform_matrices
 
 # workload description of conv2d
@@ -548,7 +550,9 @@ def conv2d_NCHWc(data, kernel, stride, padding, dilation, layout, out_layout, ou
                 ow * WSTR + kw * dilation_w,
                 idxmod(ic, ic_bn),
             ].astype(out_dtype)
-            * kernel[oc_chunk, idxdiv(ic, ic_bn), kh, kw, idxmod(ic, ic_bn), oc_block],
+            * kernel[oc_chunk, idxdiv(ic, ic_bn), kh, kw, idxmod(ic, ic_bn), oc_block].astype(
+                out_dtype
+            ),
             axis=[ic, kh, kw],
         ),
         name="conv2d_NCHWc",
