@@ -14,8 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Expand Relay IR batch_norm for mapping to Android NNAPI
-"""
+"""Expand Relay IR batch_norm for mapping to Android NNAPI."""
 import tvm
 
 
@@ -23,7 +22,7 @@ NN_BATCH_NORM_OP = tvm.relay.op.get("nn.batch_norm")
 
 
 class ExpandBatchNorm(tvm.relay.ExprMutator):
-    """Expand Relay IR batch_norm for mapping to Android NNAPI"""
+    """Expand Relay IR batch_norm for mapping to Android NNAPI."""
 
     def __call__(self, mod):
         assert isinstance(mod, tvm.IRModule)

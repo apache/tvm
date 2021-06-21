@@ -15,8 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name,missing-class-docstring,missing-function-docstring
-"""The string templates for Android NNAPI codegen
-"""
+"""The string templates for Android NNAPI codegen."""
 import string
 
 ANN_PREFIX = "ANEURALNETWORKS_"

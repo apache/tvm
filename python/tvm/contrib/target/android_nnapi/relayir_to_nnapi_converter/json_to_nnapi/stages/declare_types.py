@@ -14,13 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Declare and define Android NNAPI ANeuralNetworksOperandType
-"""
+"""Declare and define Android NNAPI ANeuralNetworksOperandType."""
 from .. import templates
 
 
 def declare_types(lines, export_obj, options):  # pylint: disable=unused-argument
-    """Declare and define Android NNAPI ANeuralNetworksOperandType"""
+    """Declare and define Android NNAPI ANeuralNetworksOperandType."""
     for t in export_obj["types"]:
         tipe = {
             "name": t["name"],

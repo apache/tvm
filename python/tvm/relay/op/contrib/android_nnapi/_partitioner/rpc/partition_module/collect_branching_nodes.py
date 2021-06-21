@@ -14,13 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Collect nodes that have more than a single child (branching) from a Relay graph
-"""
+"""Collect nodes that have more than a single child (branching) from a Relay graph."""
 import tvm
 
 
 class CollectBranchingNodes:
-    """Collect nodes that have more than a single child (branching) from a Relay graph"""
+    """Collect nodes that have more than a single child (branching) from a Relay graph."""
 
     class _BranchingNodeCollector(tvm.relay.ExprVisitor):
         def __init__(self):
@@ -54,18 +53,17 @@ class CollectBranchingNodes:
                 self._branching_nodes_set.remove(expr)
 
     def collect(self, expr):
-        """Collect nodes that have more than a single child (branching) from a Relay graph
+        """Collect nodes that have more than a single child (branching) from a Relay graph.
 
         Parameters
         ----------
         expr: tvm.relay.Expr
-            The expression whose branching children are to be collected
+            The expression whose branching children are to be collected.
 
         Returns
         -------
         branching_nodes: list of tvm.relay.Expr
-            The expressions where branching happens
-
+            The expressions where branching happens.
         """
         branching_nodes_set = self._BranchingNodeCollector().collect(expr)
         return self._RelayTopologicalSorter(expr).sort(branching_nodes_set)

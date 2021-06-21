@@ -14,8 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""NNAPI ComputeDevice specialization
-"""
+"""NNAPI ComputeDevice specialization."""
 import numpy as np
 import tvm
 from tvm.contrib.target.android_nnapi.relayir_to_nnapi_converter import convert_relayir_to_nnapi
@@ -54,7 +53,7 @@ def _isolate_op_call_node(call, compiler):
 
 
 class NnapiDevice(RPCDevice):
-    """NNAPI ComputeDevice specialization"""
+    """NNAPI ComputeDevice specialization."""
 
     DEV_NAME = "nnapi"
 

@@ -15,23 +15,21 @@
 # specific language governing permissions and limitations
 # under the License.
 """Annotate Android NNAPI functions (in Relay IR) for additional
-attributes required for lowering
-"""
+attributes required for lowering."""
 import tvm
 import tvm.relay
 
 
 class AnnotateNnapiFunctionAttributes:
-    """Tag Android NNAPI compiler-specific attributes to exported Relay IR Functions
+    """Tag Android NNAPI compiler-specific attributes to exported Relay IR Functions.
 
     Parameters
     ----------
     external_compiler: str
-        The name of the BYOC external compiler
+        The name of the BYOC external compiler.
 
     android_nnapi_level: int
-        The targeted Android API level
-
+        The targeted Android API level.
     """
 
     def __init__(self, external_compiler, android_nnapi_level):
@@ -40,18 +38,17 @@ class AnnotateNnapiFunctionAttributes:
         self._android_nnapi_level = android_nnapi_level
 
     def __call__(self, mod):
-        """Tag Android NNAPI compiler-specific attributes to exported Relay IR Functions
+        """Tag Android NNAPI compiler-specific attributes to exported Relay IR Functions.
 
         Parameters
         ----------
         mod: tvm.IRModule
-            The module containing exported functions to be tagged
+            The module containing exported functions to be tagged.
 
         Returns
         -------
         mod: tvm.IRModule
-            The tagged module
-
+            The tagged module.
         """
         assert isinstance(mod, tvm.IRModule)
         ret = tvm.IRModule()

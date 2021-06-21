@@ -14,7 +14,5 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""BYOC External Compiler Implementation for Android NNAPI target
-"""
-
+"""BYOC External Compiler Implementation for Android NNAPI target."""
 from .relayir_to_nnapi_converter import convert_relayir_to_nnapi

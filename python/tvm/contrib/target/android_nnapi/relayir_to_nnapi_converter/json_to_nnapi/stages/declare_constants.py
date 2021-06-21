@@ -14,10 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Declare and define C constants used to set operand values
-"""
+"""Declare and define C constants used to set operand values."""
 from .. import templates
-
 
 C_TYPES_MAP = {
     "int32": "int32_t",
@@ -29,7 +27,7 @@ C_TYPES_MAP = {
 
 
 def declare_constants(lines, export_obj, options):  # pylint: disable=unused-argument
-    """Declare and define C constants used to set operand values"""
+    """Declare and define C constants used to set operand values."""
     for c in export_obj["constants"]:
         tipe = c["type"]
         c_dtype = C_TYPES_MAP[c["dtype"]]

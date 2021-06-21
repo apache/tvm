@@ -15,8 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Convert scalar arguments to a broadcasting operator to its tensor equivalent
-for Android NNAPI conversion
-"""
+for Android NNAPI conversion."""
 import tvm.relay
 
 
@@ -29,8 +28,7 @@ DIVIDE_OP = tvm.relay.op.get("divide")
 
 class ConvertScalarToTensorForBroadcastOperators(tvm.relay.ExprMutator):
     """Convert scalar arguments to a broadcasting operator to its tensor equivalent
-    for Android NNAPI conversion
-    """
+    for Android NNAPI conversion."""
 
     def __init__(self):
         super().__init__()

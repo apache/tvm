@@ -14,8 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""TVM ComputeDevice specialization
-"""
+"""TVM ComputeDevice specialization."""
 import numpy as np
 import tvm
 from ._rpc_device import RPCDevice
@@ -44,7 +43,7 @@ def _isolate_op_call_node(call):
 
 
 class TvmDevice(RPCDevice):
-    """TVM ComputeDevice specialization"""
+    """TVM ComputeDevice specialization."""
 
     DEV_NAME = "tvm"
 

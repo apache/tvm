@@ -15,8 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Convert Relay operators into mathematically equivalent forms
-so that Android NNAPI supports it
-"""
+so that Android NNAPI supports it."""
 import tvm
 from .expand_batch_norm import ExpandBatchNorm as _ExpandBatchNorm
 from .expand_split import ExpandSplit as _ExpandSplit
@@ -24,23 +23,21 @@ from .expand_split import ExpandSplit as _ExpandSplit
 
 class TransformRelayOpForNnapi:
     """Convert Relay operators into mathematically equivalent forms so
-    that Android NNAPI supports it
-    """
+    that Android NNAPI supports it."""
 
     def __call__(self, mod):
         """Convert Relay operators into mathematically equivalent forms
-        so that Android NNAPI supports it
+        so that Android NNAPI supports it.
 
         Parameters
         ----------
         mod: tvm.IRModule
-            The module to be transformed
+            The module to be transformed.
 
         Returns
         -------
         mod: tvm.IRModule
-            The transformed module
-
+            The transformed module.
         """
         assert isinstance(mod, tvm.IRModule)
         for pazz in [_ExpandBatchNorm(), _ExpandSplit()]:

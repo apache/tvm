@@ -14,15 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Remove operators that does not change inference results
-"""
+"""Remove operators that does not change inference results."""
 import tvm
 
 NN_DROPOUT_OP = tvm.relay.op.get("nn.dropout")
 
 
 class PruneInferenceAgnosticOperators:
-    """Remove operators that does not change inference results"""
+    """Remove operators that does not change inference results."""
 
     class _OperatorPruner(tvm.relay.ExprMutator):
         def visit_tuple_getitem(self, op):
@@ -35,18 +34,17 @@ class PruneInferenceAgnosticOperators:
             return super().visit_tuple_getitem(op)
 
     def __call__(self, mod):
-        """Remove operators that does not change inference results
+        """Remove operators that does not change inference results.
 
         Parameters
         ----------
         mod: tvm.IRModule
-            The module to be pruned
+            The module to be pruned.
 
         Returns
         -------
         mod: tvm.IRModule
-            The pruned module
-
+            The pruned module.
         """
         assert isinstance(mod, tvm.IRModule)
         ret = tvm.IRModule()

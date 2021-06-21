@@ -14,41 +14,39 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Implements the errors and assertions function for Android NNAPI Compiler
-"""
+"""Implements the errors and assertions function for Android NNAPI Compiler."""
 
 
 class AndroidNNAPICompilerError(RuntimeError):
-    """Android NNAPI compiler error base class
+    """Android NNAPI compiler error base class.
 
     Parameters
     ----------
     msg: str
-        The error message
+        The error message.
     """
 
 
 class AndroidNNAPICompilerIncompatibleError(AndroidNNAPICompilerError):
-    """Error caused by parsing unsupported Relay AST
+    """Error caused by parsing unsupported Relay AST.
 
     Parameters
     ----------
     msg: str
-        The error message
+        The error message.
     """
 
 
 def assert_anc_compatibility(boolean, *msg):
-    """Check for True or raise an AndroidNNAPICompilerIncompatibleError
+    """Check for True or raise an AndroidNNAPICompilerIncompatibleError.
 
     Parameters
     ----------
     boolean: bool
-        The checking condition
+        The checking condition.
 
     msg: str
-        Optional string message to be raised
-
+        Optional string message to be raised.
     """
     if not boolean:
         raise AndroidNNAPICompilerIncompatibleError(*msg)

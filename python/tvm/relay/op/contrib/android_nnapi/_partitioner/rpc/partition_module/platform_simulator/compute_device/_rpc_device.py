@@ -20,16 +20,15 @@ from ._compute_device import ComputeDevice
 
 
 class RPCDevice(ComputeDevice):  # pylint: disable=abstract-method
-    """Base class for RPC-based ComputeDevice
+    """Base class for RPC-based ComputeDevice.
 
     Parameters
     ----------
     options: dict
-        The partitioner options dict
+        The partitioner options dict.
 
     tracker: tvm.rpc.TrackerSession
-        The tracker managing RPC devices used for profiling
-
+        The tracker managing RPC devices used for profiling.
     """
 
     def __init__(self, options, tracker):

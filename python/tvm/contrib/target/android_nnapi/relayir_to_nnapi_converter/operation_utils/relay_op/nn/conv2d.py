@@ -15,24 +15,22 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=wildcard-import,unused-wildcard-import
-"""Relay IR handler(parser) for tvm.relay.nn.conv2d
-"""
+"""Relay IR handler(parser) for tvm.relay.nn.conv2d."""
 from ....error import *
 from ... import _utils
 from ... import nnapi_op
 
 
 def handler(converter, node):
-    """Handler for tvm.relay.nn.conv2d
+    """Handler for tvm.relay.nn.conv2d.
 
     Parameters
     ----------
     converter: FunctionToJsonConverter
-        the converter object holding export_obj
+        the converter object holding export_obj.
 
     node: relay.Call
-        operation call node
-
+        operation call node.
     """
     args = _utils.name_args(node.args, ["data", "weight"])
     attrs = node.attrs

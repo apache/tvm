@@ -14,6 +14,5 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Platform simulator for cost calculation
-"""
+"""Platform simulator for cost calculation."""
 from .platform_simulator import PlatformSimulator

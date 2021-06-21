@@ -14,13 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Set initialized value to Android NNAPI operands
-"""
+"""Set initialized value to Android NNAPI operands."""
 from .. import templates
 
 
 def initialize_operands(lines, export_obj, options):
-    """Set initialized value to Android NNAPI operands"""
+    """Set initialized value to Android NNAPI operands."""
     for i, op in enumerate(export_obj["operands"]):
         value = op.get("value", None)
         if value is None:

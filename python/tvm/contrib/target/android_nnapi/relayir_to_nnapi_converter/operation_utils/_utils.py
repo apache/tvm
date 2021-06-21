@@ -14,25 +14,24 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Utilities for converting tvm.relay.Call to Android NNAPI Operations
-"""
+"""Utilities for converting tvm.relay.Call to Android NNAPI Operations."""
 
 
 def name_args(args, arg_names):
-    """Put arguments into dict for convenient lookup
+    """Put arguments into dict for convenient lookup.
 
     Parameters
     ----------
     args: array of relay.Expr
-        args of relay.Call
+        args of relay.Call.
 
     arg_names: array of string
-        names of args
+        names of args.
 
     Returns
     -------
     args_map: dict of string to relay.Expr
-        named args dict
+        named args dict.
     """
     assert len(args) == len(arg_names)
     return dict(zip(arg_names, args))

@@ -20,21 +20,20 @@ import tvm
 
 
 def annotate_for_android_nnapi(mod, android_api_level):
-    """Annotate Relay IR Function with attrs required by the Android NNAPI converter
+    """Annotate Relay IR Function with attrs required by the Android NNAPI converter.
 
     Parameters
     ----------
     mod: tvm.IRModule
-        The module to be annotated
+        The module to be annotated.
 
     android_api_level: int
-        The target Android API level
+        The target Android API level.
 
     Returns
     -------
     mod: tvm.IRModule
-        The annotated module
-
+        The annotated module.
     """
     ret = tvm.IRModule()
     gvs = mod.get_global_vars()
@@ -62,15 +61,14 @@ def _minify_c(src):
 
 
 def verify_codegen_eq(res, ans):
-    """Verify generated source code res equals to ans
+    """Verify generated source code res equals to ans.
 
     Parameters
     ----------
     res: str
-        The generated source code
+        The generated source code.
 
     ans: str
-        The answer
-
+        The answer.
     """
     assert _minify_c(res) == _minify_c(ans)

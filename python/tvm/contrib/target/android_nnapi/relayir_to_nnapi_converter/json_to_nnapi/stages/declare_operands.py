@@ -14,13 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Declare Android NNAPI operands
-"""
+"""Declare Android NNAPI operands."""
 from .. import templates
 
 
 def declare_operands(lines, export_obj, options):
-    """Declare Android NNAPI operands"""
+    """Declare Android NNAPI operands."""
     for i, op in enumerate(export_obj["operands"]):
         op_type = export_obj["types"][op["type"]]
         data = {

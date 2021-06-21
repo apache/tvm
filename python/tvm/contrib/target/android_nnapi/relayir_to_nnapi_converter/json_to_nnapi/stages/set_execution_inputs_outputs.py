@@ -15,8 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Sets the inputs and outputs for the generated Android NNAPI
-model
-"""
+model."""
 import re
 from functools import reduce
 from .. import templates
@@ -24,8 +23,7 @@ from .. import templates
 
 def set_execution_inputs_outputs(lines, export_obj, options):
     """Sets the inputs and outputs for the generated Android NNAPI
-    model
-    """
+    model."""
     for i, op_i in enumerate(export_obj["inputs"]):
         op = export_obj["operands"][op_i]
         value = op["value"]

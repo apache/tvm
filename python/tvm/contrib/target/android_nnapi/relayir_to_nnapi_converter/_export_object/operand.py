@@ -14,63 +14,59 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Android NNAPI Operand-related helper methods on ExportObject
-"""
+"""Android NNAPI Operand-related helper methods on ExportObject."""
 
 
 class Operand:
-    """Android NNAPI Operand-related helper methods on ExportObject"""
+    """Android NNAPI Operand-related helper methods on ExportObject."""
 
     def __init__(self, export_obj):
         self._export_obj = export_obj
 
     def get_dtype(self, idx):
-        """Get operand dtype
+        """Get operand dtype.
 
         Parameters
         ----------
         idx: int
-            operand to be queried
+            operand to be queried.
 
         Returns
         -------
         dtype: str
-            dtype of the queried operand
-
+            dtype of the queried operand.
         """
         return self._export_obj["types"][self._export_obj["operands"][idx]["type"]]["type"]
 
     def get_shape(self, idx):
-        """Get operand shape
+        """Get operand shape.
 
         Parameters
         ----------
         idx: int
-            operand to be queried
+            operand to be queried.
 
         Returns
         -------
         shape: tuple of int or None
             shape of the queried operand. None if operand has no shape.
-
         """
         return self._export_obj["types"][self._export_obj["operands"][idx]["type"]].get(
             "shape", None
         )
 
     def get_rank(self, idx):
-        """Get operand rank
+        """Get operand rank.
 
         Parameters
         ----------
         idx: int
-            operand to be queried
+            operand to be queried.
 
         Returns
         -------
         rank: int
-            rank of the queried operand
-
+            rank of the queried operand.
         """
         shape = self.get_shape(idx)
         if shape is None:
@@ -78,18 +74,17 @@ class Operand:
         return len(shape)
 
     def get_value(self, idx):  # pylint: disable=inconsistent-return-statements
-        """Get operand value
+        """Get operand value.
 
         Parameters
         ----------
         idx: int
-            operand to be queried
+            operand to be queried.
 
         Returns
         -------
         value:
             value of the queried operand. None if there's no value.
-
         """
         value_dict = self._export_obj["operands"][idx].get("value", None)
         if value_dict is None:
@@ -102,18 +97,17 @@ class Operand:
         assert False, "Unreachable"
 
     def get_constant(self, idx):
-        """Get operand constant
+        """Get operand constant.
 
         Parameters
         ----------
         idx: int
-            operand to be queried
+            operand to be queried.
 
         Returns
         -------
-        obj:
-            constant object of the queried operand. None if there's no value.
-
+        obj: dict
+            constant dict of the queried operand. None if there's no value.
         """
         value_dict = self._export_obj["operands"][idx].get("value", None)
         if value_dict is None or value_dict["type"] != "constant_idx":
@@ -126,13 +120,12 @@ class Operand:
         Parameters
         ----------
         idx: int
-            the index of the queried operand
+            the index of the queried operand.
 
         Returns
         -------
         b: bool
-            the queried operand is a FuseCode or not
-
+            the queried operand is a FuseCode or not.
         """
         dtype = self.get_dtype(idx)
         if dtype != "INT32":

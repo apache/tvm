@@ -15,8 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """ExportObject, a dict-like structure providing infrastructure for
-Android NNAPI codegen
-"""
+Android NNAPI codegen."""
 import struct
 import copy
 from .error import assert_anc_compatibility
@@ -24,13 +23,12 @@ from ._export_object import Helper as _Helper
 
 
 class ExportObject:
-    """A dict-like structure providing infrastructure for Android NNAPI codegen
+    """A dict-like structure providing infrastructure for Android NNAPI codegen.
 
     Parameters
     ----------------------
     options: dict
-        The converter option dict
-
+        The converter option dict.
     """
 
     _SCALAR_RELAY_NNAPI_TYPE_MAP = {
@@ -69,28 +67,27 @@ class ExportObject:
         self._json[key] = value
 
     def asjson(self):
-        """Return the content of ExportObject as a primitive Python dict
+        """Return the content of ExportObject as a primitive Python dict.
 
         Returns
         -------
         json: dict
-            The content of ExportObject as a primitive Python dict
-
+            The content of ExportObject as a primitive Python dict.
         """
         return copy.deepcopy(self._json)
 
     def get_type_idx(self, tipe):
-        """Register and lookup type index in export_obj["types"]
+        """Register and lookup type index in export_obj["types"].
 
         Parameters
         ----------
         tipe: ((int, ...), str)
-            type (shape, dtype) to look up
+            type (shape, dtype) to look up.
 
         Returns
         -------
         index: int
-            type index in export object
+            type index in export object.
         """
         tipe = (tuple(map(int, tipe[0])), str(tipe[1]))  # canonicalize
         shape, dtype = tipe
@@ -142,7 +139,7 @@ class ExportObject:
         return val
 
     def add_scalar_constant(self, val, dtype):
-        """Add scalar constant to export object
+        """Add scalar constant to export object.
 
         Parameters
         ----------
@@ -150,12 +147,12 @@ class ExportObject:
             value of the constant. Can be defined constant in the NNAPI framework.
 
         dtype: str
-            data type of the constant
+            data type of the constant.
 
         Returns
         -------
         index: int
-            index of the constant in export object constants array
+            index of the constant in export object constants array.
         """
         # canonicalize
         dtype = str(dtype)
@@ -177,20 +174,20 @@ class ExportObject:
         return len(self["constants"]) - 1
 
     def add_array_constant(self, vals, dtype):
-        """Add array constant to export object
+        """Add array constant to export object.
 
         Parameters
         ----------
-        vals: array of values in dtype
+        vals: array of values in dtype.
             values of array
 
         dtype: string
-            data type of array
+            data type of array.
 
         Returns
         -------
         index: int
-            index of added constant in export_obj["constants"]
+            index of added constant in export_obj["constants"].
         """
         # canonicalize
         dtype = str(dtype)
@@ -213,29 +210,29 @@ class ExportObject:
         return len(self["constants"]) - 1
 
     def add_operand(self, type_idx, **kwargs):
-        """Add node to export_obj["operands"] and return its index
+        """Add node to export_obj["operands"] and return its index.
 
         Parameters
         ----------
         type_idx: int
-            index of node type in export_obj["types"]
+            index of node type in export_obj["types"].
 
         kwargs["value"]: dict
-            dict representing node value. See below for more info
+            dict representing node value. See below for more info.
 
         kwargs["value"]["type"]: str
-            type of value. Can be "constant_idx", "memory_ptr"
+            type of value. Can be "constant_idx", "memory_ptr".
 
         kwargs["value"]["value"]:
-            value of initialized value. Should correspond to `kwargs["value"]["type"]`
+            value of initialized value. Should correspond to `kwargs["value"]["type"]`.
 
         kwargs["node"]: relay.Node
-            node to add. Use `None` to prevent operand being added to `node_to_operand_idxs_map`
+            node to add. Use `None` to prevent operand being added to `node_to_operand_idxs_map`.
 
         Returns
         -------
         indices: array of int
-            indices of node in export_obj["operands"]
+            indices of node in export_obj["operands"].
         """
         node = kwargs.get("node", None)
         value = kwargs.get("value", None)
@@ -258,18 +255,18 @@ class ExportObject:
         return ret
 
     def add_operation(self, nnapi_op_name, inputs, outputs):
-        """Add operation to export_obj["operations"]
+        """Add operation to export_obj["operations"].
 
         Parameters
         ----------
         nnapi_op_name: str
-            name of operator to be added in NNAPI
+            name of operator to be added in NNAPI.
 
         inputs: array of int
-            indices of input operands
+            indices of input operands.
 
         outputs: array of int
-            indices of output operands
+            indices of output operands.
         """
         new_op = {
             "input": inputs,
@@ -279,20 +276,20 @@ class ExportObject:
         self["operations"].append(new_op)
 
     def add_ann_memory(self, file_name, size):
-        """Add memory to export_obj["memories"]
+        """Add memory to export_obj["memories"].
 
         Parameters
         ----------
         file_name: str
-            file name or relative path to the underlying file of memory
+            file name or relative path to the underlying file of memory.
 
         size: int
-            size in bytes of the underlying file
+            size in bytes of the underlying file.
 
         Returns
         -------
         idx: int
-            the index of the new memory
+            the index of the new memory.
         """
         new_mem = {
             "file_name": file_name,

@@ -14,8 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Implement the official BYOC partitioning flow for Android NNAPI
-"""
+"""Implement the official BYOC partitioning flow for Android NNAPI."""
 import tvm
 import tvm.relay
 import tvm.relay.op.contrib.register
@@ -107,21 +106,20 @@ def _register_byoc_annotation_rules(external_compiler, android_nnapi_level):
 
 def _prune_android_nnapi_subgraphs(mod, external_compiler):
     """Prune a IRModule for subgraphs that are not suitable to be offloaded
-    to Android NNAPI
+    to Android NNAPI.
 
     Parameters
     ----------
     mod: tvm.IRModule
-        The TVM Module to be pruned
+        The TVM Module to be pruned.
 
     external_compiler: str
-        The name of the Android NNAPI external compiler
+        The name of the Android NNAPI external compiler.
 
     Returns
     -------
     mod: tvm.IRModule
-        The pruned TVM Module
-
+        The pruned TVM Module.
     """
 
     def _func_should_be_pruned(func):
@@ -146,7 +144,7 @@ def _prune_android_nnapi_subgraphs(mod, external_compiler):
 
     def _remove_subgraphs(mod, subgraphs_to_prune):
         class InlineSubgraphs(tvm.relay.ExprMutator):
-            """Inline subgraphs back to the invocation place"""
+            """Inline subgraphs back to the invocation place."""
 
             def __init__(self, subgraphs_to_prune):
                 super().__init__()
@@ -182,27 +180,26 @@ def _prune_android_nnapi_subgraphs(mod, external_compiler):
 
 
 def byoc_partition(mod, params, android_nnapi_level):
-    """Partition a IRModule using rules registered with TVM BYOC
+    """Partition a IRModule using rules registered with TVM BYOC.
 
     Parameters
     ----------
     mod: tvm.IRModule
-        The TVM Module to be partitioned
+        The TVM Module to be partitioned.
 
     params: dict of str to tvm.runtime.NDArray
-        The parameters to mod
+        The parameters to mod.
 
     android_nnapi_level: int
-        The targeted Android API level
+        The targeted Android API level.
 
     Returns
     -------
     mod: tvm.IRModule
-        The partitioned module
+        The partitioned module.
 
     params: dict of str to tvm.runtime.NDArray
-        The transformed parameters to mod
-
+        The transformed parameters to mod.
     """
     assert isinstance(mod, tvm.IRModule)
 

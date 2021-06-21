@@ -14,13 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Create Android NNAPI memories
-"""
+"""Create Android NNAPI memories."""
 from .. import templates
 
 
 def declare_memories(lines, export_obj, options):
-    """Create Android NNAPI memories"""
+    """Create Android NNAPI memories."""
     for m in export_obj["memories"]:
         data = {
             "file_path": "{}/{}".format(options["class"]["base_path"], m["file_name"]),

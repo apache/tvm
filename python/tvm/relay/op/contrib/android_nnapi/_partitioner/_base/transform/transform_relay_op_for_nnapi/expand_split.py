@@ -14,8 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Expand Relay IR split for mapping to Android NNAPI
-"""
+"""Expand Relay IR split for mapping to Android NNAPI."""
 import tvm
 
 
@@ -23,7 +22,7 @@ SPLIT_OP = tvm.relay.op.get("split")
 
 
 class ExpandSplit(tvm.relay.ExprMutator):
-    """Expand Relay IR split for mapping to Android NNAPI"""
+    """Expand Relay IR split for mapping to Android NNAPI."""
 
     def __call__(self, mod):
         assert isinstance(mod, tvm.IRModule)

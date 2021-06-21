@@ -14,6 +14,5 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Partition a TVM Module
-"""
+"""Partition a TVM Module."""
 from .partition_module import PartitionModule

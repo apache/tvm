@@ -15,25 +15,23 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=wildcard-import,unused-wildcard-import
-"""Add an ANEURALNETWORKS_DEPTHWISE_CONV_2D operation with checking
-"""
+"""Add an ANEURALNETWORKS_DEPTHWISE_CONV_2D operation with checking."""
 from .error import *
 
 
 def add_operation(converter, inputs, outputs):
-    """Add an ANEURALNETWORKS_DEPTHWISE_CONV_2D operation with checking
+    """Add an ANEURALNETWORKS_DEPTHWISE_CONV_2D operation with checking.
 
     Parameters
     ----------
     converter: FunctionToJsonConverter
-        the converter object holding export_obj
+        the converter object holding export_obj.
 
     inputs: list of int
-        inputs to the operation
+        inputs to the operation.
 
     outputs: list of int
-        outputs of the operation
-
+        outputs of the operation.
     """
     api_level = converter.options["target"]["api_level"]
     assert_anc_compatibility(

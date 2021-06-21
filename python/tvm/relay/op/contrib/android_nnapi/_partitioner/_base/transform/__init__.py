@@ -15,8 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Namespace for transformation for Android NNAPI that is suitable
-to do during the partitioning step
-"""
+to do during the partitioning step."""
 from .annotate_nnapi_function_attributes import AnnotateNnapiFunctionAttributes
 from .transform_conv2d_weight_layout import TransformConv2dWeightLayout
 from .transform_relay_op_for_nnapi import TransformRelayOpForNnapi

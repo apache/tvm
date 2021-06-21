@@ -14,29 +14,27 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Utilities for ComputeDevices
-"""
+"""Utilities for ComputeDevices."""
 import tvm
 import tvm.relay
 from .._utils import get_node_size  # pylint: disable=unused-import
 
 
 def get_function_output_buffer(func, device):
-    """Get a NDArray for buffering the function output
+    """Get a NDArray for buffering the function output.
 
     Parameters
     ----------
     func: tvm.relay.Function
-        The function for which the buffer is generated
+        The function for which the buffer is generated.
 
     device: tvm.runtime.Device
-        The device on which the generated buffer is allocated
+        The device on which the generated buffer is allocated.
 
     Returns
     -------
     buf: tvm.runtime.NDArray
-        The generated NDArray buffer
-
+        The generated NDArray buffer.
     """
     assert isinstance(func, tvm.relay.Function)
 

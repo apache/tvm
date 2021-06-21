@@ -14,13 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Specify Android NNAPI Model input and output operands
-"""
+"""Specify Android NNAPI model input and output operands."""
 from .. import templates
 
 
 def declare_inputs_outputs(lines, export_obj, options):
-    """Specify Android NNAPI Model input and output operands"""
+    """Specify Android NNAPI model input and output operands."""
     inputs = export_obj["inputs"]
     outputs = export_obj["outputs"]
     data = {

@@ -15,7 +15,5 @@
 # specific language governing permissions and limitations
 # under the License.
 """Transform Relay IR constructs that's not suitable to lower to
-Android NNAPI
-"""
-
+Android NNAPI."""
 from .fix_illegal_pattern_for_nnapi import FixIllegalPatternForNnapi

@@ -14,32 +14,30 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Converts Relay IR subgraph to Android NNAPI source code
-"""
+"""Converts Relay IR subgraph to Android NNAPI source code."""
 import tvm
 from .converter import Converter
 
 
 def convert_relayir_to_nnapi(func):
-    """Converts a Relay IR Function to Android NNAPI C++ source code
+    """Converts a Relay IR Function to Android NNAPI C++ source code.
 
     Parameters
     ----------
     func: tvm.relay.Function
-        The function to be converted to Android NNAPI
+        The function to be converted to Android NNAPI.
 
     Returns
     -------
     code: str
-        The resulting Android NNAPI code
+        The resulting Android NNAPI code.
 
-    Note
-    ----
+    Notes
+    -----
     Certain function attributes should be configured:
 
-    * func.attrs.NnapiClassName: (str) The name of the generated class wrapped around ANN model
-    * func.attrs.NnapiTargetVersion: (int) The targeting API level of Android
-
+    * func.attrs.NnapiClassName: (str) The name of the generated class wrapped around ANN model.
+    * func.attrs.NnapiTargetVersion: (int) The targeting API level of Android.
     """
     assert isinstance(func, tvm.relay.Function)
 

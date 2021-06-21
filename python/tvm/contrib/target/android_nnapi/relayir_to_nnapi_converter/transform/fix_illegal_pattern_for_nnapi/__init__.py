@@ -15,9 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Transform Relay IR patterns that's not suitable to lower to Android
-NNAPI
-"""
-
+NNAPI."""
 import tvm.relay
 from .convert_scalar_to_tensor_for_broadcast_operators import (
     ConvertScalarToTensorForBroadcastOperators,

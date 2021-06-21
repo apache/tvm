@@ -14,12 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Prepare JSON object for Android NNAPI codegen
-"""
+"""Prepare JSON object for Android NNAPI codegen."""
 
 
 def symbolize(lines, export_obj, options):  # pylint: disable=unused-argument
-    """Assign C symbols to JSON objects"""
+    """Assign C symbols to JSON objects."""
 
     def _symbolize_types(types):
         cnts = {

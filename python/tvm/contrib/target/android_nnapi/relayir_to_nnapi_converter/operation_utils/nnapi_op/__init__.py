@@ -14,9 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Namespace for Android NNAPI operation checkers
-"""
-
+"""Namespace for Android NNAPI operation checkers."""
 from . import cast
 from . import conv_2d
 from . import depthwise_conv_2d

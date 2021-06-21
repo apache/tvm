@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Internal namespace for BYOC partitioning for Android NNAPI
-"""
+"""Internal namespace for BYOC partitioning for Android NNAPI."""
 from . import byoc
 from . import rpc

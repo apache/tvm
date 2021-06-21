@@ -15,8 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Partition a Relay IR graph into subgraphs compiled by
-TVM/Android NNAPI compilers using RPC profiling
-"""
+TVM/Android NNAPI compilers using RPC profiling."""
 import copy
 import tvm.relay.transform
 from .. import _base
@@ -25,16 +24,15 @@ from .partition_module import PartitionModule
 
 class Partitioner:
     """Partition a Relay IR graph into subgraphs compiled by
-    TVM/Android NNAPI compilers using RPC profiling
+    TVM/Android NNAPI compilers using RPC profiling.
 
     Parameters
     ----------
     tracker: tvm.rpc.TrackerSession
-        The tracker client managing RPC device sessions
+        The tracker client managing RPC device sessions.
 
     options: dict
-        The partitioner option dict
-
+        The partitioner option dict.
     """
 
     DEFAULT_OPTIONS = {

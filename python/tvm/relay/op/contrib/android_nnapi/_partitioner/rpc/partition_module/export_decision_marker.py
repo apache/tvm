@@ -15,23 +15,21 @@
 # specific language governing permissions and limitations
 # under the License.
 """Color Relay IR nodes to indicate the designated device of
-execution
-"""
+execution."""
 import tvm
 from .platform_simulator import compute_device
 
 
 class ExportDecisionMarker(tvm.relay.ExprVisitor):
-    """A blackbox object telling whether a Relay node should be exported to the queried compiler
+    """A blackbox object telling whether a Relay node should be exported to the queried compiler.
 
     Parameters
     ----------
     options: dict
-        The partitioner option dict
+        The partitioner option dict.
 
     node_transfers: (Internal Format)
-        The artifact of the partitioning algorithm
-
+        The artifact of the partitioning algorithm.
     """
 
     EXPORT_RESULT = {
@@ -71,21 +69,20 @@ class ExportDecisionMarker(tvm.relay.ExprVisitor):
         self._parent_dev = self._saved_devs.pop()
 
     def node_is_exported(self, node, compiler):
-        """Report whether a node is marked as exported
+        """Report whether a node is marked as exported.
 
         Parameters
         ----------
         node: tvm.relay.Node
-            The queried node
+            The queried node.
 
         compiler: str
-            The compiler used to export
+            The compiler used to export.
 
         Returns
         -------
         exported: self.EXPORT_RESULT
-            Whether the node is marked as exported with the compiler
-
+            Whether the node is marked as exported with the compiler.
         """
         if isinstance(node, tvm.ir.Op):
             return self.EXPORT_RESULT["UNSURE"]

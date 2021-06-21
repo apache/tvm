@@ -14,8 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Partition graphs in a given Relay module into those for tvm/android_nnapi compilers
-"""
+"""Partition graphs in a given Relay module into those for tvm/android_nnapi compilers."""
 import tvm
 from .collect_branching_nodes import CollectBranchingNodes
 from .platform_simulator import PlatformSimulator
@@ -24,16 +23,15 @@ from .annotate_for_relay_compiler import AnnotateForRelayCompiler
 
 
 class PartitionModule:
-    """Partition graphs in a given Relay module into those for tvm/android_nnapi compilers
+    """Partition graphs in a given Relay module into those for tvm/android_nnapi compilers.
 
     Parameters
     ----------
     tracker: tvm.rpc.TrackerSession
-        The tracker client managing RPC device sessions
+        The tracker client managing RPC device sessions.
 
     options: dict
-        The partitioner option dict
-
+        The partitioner option dict.
     """
 
     def __init__(self, tracker, options):
@@ -41,18 +39,17 @@ class PartitionModule:
         self._options = options
 
     def __call__(self, mod):
-        """Partition graphs in a given Relay module into those for tvm/android_nnapi compilers
+        """Partition graphs in a given Relay module into those for tvm/android_nnapi compilers.
 
         Parameters
         ----------
         mod: tvm.IRModule
-            The partition target module
+            The partition target module.
 
         Returns
         -------
         mod: tvm.IRModule
-            The partitioned module
-
+            The partitioned module.
         """
         assert isinstance(mod, tvm.IRModule)
         gvs = mod.get_global_vars()

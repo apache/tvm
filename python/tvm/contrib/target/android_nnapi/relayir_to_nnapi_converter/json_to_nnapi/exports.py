@@ -14,8 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Converts (codegen) a JSON object to Android NNAPI source code
-"""
+"""Converts (codegen) a JSON object to Android NNAPI source code."""
 import copy
 from .stages import STAGES
 
@@ -39,7 +38,7 @@ DEFAULT_OPTIONS = {
 
 
 def convert(export_obj, options={}):  # pylint: disable=dangerous-default-value
-    """Convert export_obj to NNAPI codes
+    """Convert export_obj to NNAPI codes.
 
     Parameters
     ----------
@@ -68,7 +67,7 @@ def convert(export_obj, options={}):  # pylint: disable=dangerous-default-value
     Returns
     -------
     code: str
-        The generated code
+        The generated code.
     """
     lines = {
         "tmp": {
@@ -88,7 +87,7 @@ def convert(export_obj, options={}):  # pylint: disable=dangerous-default-value
 
 
 def _set_options(options):
-    """Set options
+    """Set options.
 
     Parameters
     ----------

@@ -15,8 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Namespace for helper objects/methods that's not part of the JSON
-content. This includes the symbol table, checking methods, ...
-"""
+content. This includes the symbol table, checking methods, ..."""
 from .operand import Operand as _Operand
 
 

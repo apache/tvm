@@ -14,25 +14,23 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Common utilities for all Android NNAPI partitioning
-"""
+"""Common utilities for all Android NNAPI partitioning."""
 import tvm
 from . import transform as _transform
 
 
 def pre_partition_transform(mod):
-    """Perform pre-partition transforms on modules
+    """Perform pre-partition transforms on modules.
 
     Parameters
     ----------
     mod: tvm.IRModule
-        The module to be transformed
+        The module to be transformed.
 
     Returns
     -------
     mod: tvm.IRModule
-        The transformed module
-
+        The transformed module.
     """
     mod = tvm.relay.transform.ToGraphNormalForm()(mod)
     mod = tvm.relay.transform.RemoveUnusedFunctions()(mod)
@@ -49,30 +47,29 @@ def pre_partition_transform(mod):
 def post_partition_transform(
     mod, params, android_nnapi_level=29, external_compiler="android_nnapi"
 ):
-    """Perform post-partition transforms on modules
+    """Perform post-partition transforms on modules.
 
     Parameters
     ----------
     mod: tvm.IRModule
-        The module to be transformed
+        The module to be transformed.
 
     params: dict of str to tvm.ndarray
-        The params dict associated to the module
+        The params dict associated to the module.
 
     android_nnapi_level: int
-        The targeted Android API level
+        The targeted Android API level.
 
     external_compiler: str
-        The name of the external Relay compiler
+        The name of the external Relay compiler.
 
     Returns
     -------
     mod: tvm.IRModule
-        The transformed module
+        The transformed module.
 
-    params: dict of str to tvm.ndarray
-        The transformed params
-
+    params: dict of str to NDArray
+        The transformed params.
     """
     mod = _transform.AnnotateNnapiFunctionAttributes(
         external_compiler=external_compiler, android_nnapi_level=android_nnapi_level

@@ -14,8 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Utilities for PlatformSimulator
-"""
+"""Utilities for PlatformSimulator."""
 import functools
 import re
 import tvm
@@ -37,12 +36,11 @@ def _get_type_size(tipe):
 
 
 def get_node_size(node):
-    """Get node size in bytes
+    """Get node size in bytes.
 
     Parameters
     ----------
     node: tvm.relay.Expr
-        The Relay expression whose size is to be calculated
-
+        The Relay expression whose size is to be calculated.
     """
     return _get_type_size(node.checked_type)

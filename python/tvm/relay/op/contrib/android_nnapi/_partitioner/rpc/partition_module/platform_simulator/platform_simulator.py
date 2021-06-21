@@ -14,24 +14,22 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Simulate computation platform and compute runtime costs for a given Relay IR Function
-"""
+"""Simulate computation platform and compute runtime costs for a given Relay IR Function."""
 import tvm
 from . import compute_device
 from . import _utils
 
 
 class PlatformSimulator(tvm.relay.ExprVisitor):
-    """Simulate computation platform and compute runtime costs for a given Relay IR Function
+    """Simulate computation platform and compute runtime costs for a given Relay IR Function.
 
     Parameters
     ----------
     tracker: tvm.rpc.TrackerSession
-        The tracker client managing RPC device sessions
+        The tracker client managing RPC device sessions.
 
     options: dict
-        The partitioner option dict
-
+        The partitioner option dict.
     """
 
     ENABLED_DEVICES = [compute_device.TvmDevice.DEV_NAME, compute_device.NnapiDevice.DEV_NAME]
@@ -80,13 +78,12 @@ class PlatformSimulator(tvm.relay.ExprVisitor):
         return self._node_transfers
 
     def calculate_cost(self, func):
-        """Compute runtime costs for a given Relay IR Function
+        """Compute runtime costs for a given Relay IR Function.
 
         Parameters
         ----------
         func: tvm.relay.Function
-            The function whose cost is to be evaluated
-
+            The function whose cost is to be evaluated.
         """
         self.visit(func)
 

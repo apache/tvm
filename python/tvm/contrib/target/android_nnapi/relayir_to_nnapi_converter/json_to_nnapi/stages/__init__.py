@@ -14,8 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""The steps and pipeline of Android NNAPI codegen
-"""
+"""The steps and pipeline of Android NNAPI codegen."""
 from .symbolize import symbolize
 from .declare_types import declare_types
 from .declare_operands import declare_operands

@@ -14,8 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Namespace for converting tvm.relay.Call to Android NNAPI Operation
-"""
-
+"""Namespace for converting tvm.relay.Call to Android NNAPI Operation."""
 from . import relay_op
 from . import nnapi_op

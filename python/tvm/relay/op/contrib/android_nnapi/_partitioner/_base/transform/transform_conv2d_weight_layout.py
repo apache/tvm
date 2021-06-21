@@ -14,8 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Transform the layout of nn.conv2d weights to preferred layout for exported subgraphs
-"""
+"""Transform the layout of nn.conv2d weights to preferred layout for exported subgraphs."""
 import numpy as np
 import tvm
 
@@ -23,16 +22,15 @@ NN_CONV2D_OP = tvm.relay.op.get("nn.conv2d")
 
 
 class TransformConv2dWeightLayout(tvm.relay.ExprMutator):
-    """Transform the layout of nn.conv2d weights to preferred layout for exported subgraphs
+    """Transform the layout of nn.conv2d weights to preferred layout for exported subgraphs.
 
     Parameters
     ----------------------
     external_compiler: str
-        The name of BYOC external compiler
+        The name of BYOC external compiler.
 
     target_layout: str
-        The target layout for nn.conv2d weights
-
+        The target layout for nn.conv2d weights.
     """
 
     def __init__(self, external_compiler, target_layout):
@@ -41,24 +39,23 @@ class TransformConv2dWeightLayout(tvm.relay.ExprMutator):
         self._target_layout = target_layout
 
     def __call__(self, mod, params):
-        """Transform the layout of nn.conv2d weights to preferred layout for exported subgraphs
+        """Transform the layout of nn.conv2d weights to preferred layout for exported subgraphs.
 
         Parameters
         ----------
         mod: tvm.IRModule
-            The transform target module
+            The transform target module.
 
         params: dict of str to tvm.runtime.NDArray
-            The corresponding parameter inputs to mod
+            The corresponding parameter inputs to mod.
 
         Returns
         -------
         mod: tvm.IRModule
-            The transformed mod
+            The transformed mod.
 
         params: dict of str to tvm.runtime.NDArray
-            The transformed params
-
+            The transformed params.
         """
         assert isinstance(mod, tvm.IRModule)
         assert isinstance(params, dict)

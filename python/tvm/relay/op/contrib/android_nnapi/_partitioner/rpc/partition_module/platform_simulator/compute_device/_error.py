@@ -14,8 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Error encountered during RPC profiling
-"""
+"""Error encountered during RPC profiling."""
 from tvm.contrib.target.android_nnapi.relayir_to_nnapi_converter.error import (
     AndroidNNAPICompilerError,
 )
@@ -31,7 +30,6 @@ class AndroidNNAPICompilerProfilingError(AndroidNNAPICompilerError):
 
     Notes
     -----
-    This error is used internally in the partitioner and
-    does not intend to be handled by other modules.
-
+    This error is used internally in the partitioner and does not intend to be
+    handled by other modules.
     """

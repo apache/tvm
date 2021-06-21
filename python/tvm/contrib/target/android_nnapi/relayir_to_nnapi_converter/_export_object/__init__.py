@@ -14,6 +14,5 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Internal namespaces of ExportObject
-"""
+"""Internal namespaces of ExportObject."""
 from .helper import Helper

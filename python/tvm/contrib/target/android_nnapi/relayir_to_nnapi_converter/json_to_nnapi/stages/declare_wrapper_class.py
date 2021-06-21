@@ -14,8 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Wraps the Android NNAPI Model in a class
-"""
+"""Wraps the Android NNAPI model in a class."""
 from .. import templates
 
 
@@ -32,7 +31,7 @@ C_TYPES_MAP = {
 
 
 def declare_wrapper_class(lines, export_obj, options):
-    """Wraps the Android NNAPI Model in a class"""
+    """Wraps the Android NNAPI model in a class."""
     data = {
         "class": {
             "self": {

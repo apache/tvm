@@ -14,8 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Converts a Relay IR Function into Android NNAPI C++ class
-"""
+"""Converts a Relay IR Function into Android NNAPI C++ class."""
 import copy
 import tvm
 from . import transform
@@ -24,13 +23,12 @@ from .function_to_json_converter import FunctionToJsonConverter
 
 
 class Converter:
-    """Converts a Relay IR Function into Android NNAPI C++ class
+    """Converts a Relay IR Function into Android NNAPI C++ class.
 
     Parameters
-    ----------------------
+    ----------
     options: dict
-        The converter option dict
-
+        The converter option dict.
     """
 
     DEFAULT_OPTIONS = {

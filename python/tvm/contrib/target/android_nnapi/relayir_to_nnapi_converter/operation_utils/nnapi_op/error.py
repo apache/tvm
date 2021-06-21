@@ -16,24 +16,22 @@
 # under the License.
 # pylint: disable=invalid-name,wildcard-import,unused-wildcard-import
 """Namespace for errors encountered during checks of outputting
-Android NNAPI operations
-"""
+Android NNAPI operations."""
 from ...error import *
 
 
 class AndroidNNAPICompilerBadNNAPIOperationError(AndroidNNAPICompilerError):
-    """Error caused by unexpected parse result of the Relay AST
+    """Error caused by unexpected parse result of the Relay AST.
 
     Parameters
     ----------
     msg: str
-        The error message
-
+        The error message.
     """
 
 
 def assert_nnapi_op_check(boolean, *msg):
-    """Check for True or raise an AndroidNNAPICompilerBadNNAPIOperationError
+    """Check for True or raise an AndroidNNAPICompilerBadNNAPIOperationError.
 
     Parameters
     ----------
@@ -42,7 +40,6 @@ def assert_nnapi_op_check(boolean, *msg):
 
     msg: str
         Optional error message to be raised
-
     """
     if not boolean:
         raise AndroidNNAPICompilerBadNNAPIOperationError(*msg)

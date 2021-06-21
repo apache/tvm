@@ -15,23 +15,21 @@
 # specific language governing permissions and limitations
 # under the License.
 """Insert annotation.compiler_begin/compiler_end according to the
-coloring of the Relay IR nodes
-"""
+coloring of the Relay IR nodes."""
 import tvm
 from tvm.relay.op.annotation import compiler_begin, compiler_end
 
 
 class AnnotateForRelayCompiler(tvm.relay.ExprMutator):
-    """Annotate the graph with `annotation.compiler_begin` and `annotation.compiler_end`
+    """Annotate the graph with `annotation.compiler_begin` and `annotation.compiler_end`.
 
     Parameters
     ----------
     options: dict
-        The partitioner option dict
+        The partitioner option dict.
 
     edm: ExportDecisionMaker
-        A object returning True/False about whether a Relay node should be exported
-
+        A object telling whether a Relay node should be exported.
     """
 
     def __init__(self, options, edm):
@@ -42,18 +40,17 @@ class AnnotateForRelayCompiler(tvm.relay.ExprMutator):
         self._in_graph = False
 
     def annotate(self, func):
-        """Annotate the graph with `annotation.compiler_begin` and `annotation.compiler_end`
+        """Annotate the graph with `annotation.compiler_begin` and `annotation.compiler_end`.
 
         Parameters
         ----------
         func: tvm.relay.Function
-            The function to be annotated
+            The function to be annotated.
 
         Returns
         -------
         func: tvm.relay.Function
-            The annotated function
-
+            The annotated function.
         """
         assert isinstance(func, tvm.relay.Function)
         return self.visit(func)
