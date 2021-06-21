@@ -116,7 +116,7 @@ def extract_tasks(
     include_simple_tasks: bool
         Whether to extract simple tasks that do not include complicated ops.
     opt_level : Optional[int]
-        The optimization level of this task extractions.
+        The optimization level of the task extractions.
 
     Returns
     -------
