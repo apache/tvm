@@ -18,10 +18,11 @@
 """The base node types for the Relay language."""
 import tvm._ffi
 import tvm.ir
-from tvm.driver import lower, build
-from tvm.target import get_native_generic_func, GenericFunc
-from tvm.runtime import Object
 import tvm.ir._ffi_api
+from tvm.driver import build, lower
+from tvm.runtime import Object
+from tvm.target import GenericFunc, get_native_generic_func
+
 from . import _make
 
 
@@ -455,6 +456,32 @@ def register_fake_quantization_to_integer(op_name, func=None, level=10):
         The priority level
     """
     return tvm.ir.register_op_attr(op_name, "FTVMFakeQuantizationToInteger", func, level)
+
+
+def register_mixed_precision_conversion(op_name, func=None, level=10):
+    """Register mixed precision conversion function for an op
+
+    Given an op the function should return information on how the value should be
+    converted. Specifically the function should take a call node and the target
+    mixed precision datatype (e.g. FP16) and return the conversion category
+    (see python/tvm/relay/transform/mixed_precision.py) as well as the accumulation
+    and output datatype of the operation in the mixed precision dtype space.
+
+    Parameters
+    ----------
+    op_name : str
+        The name of the operator
+
+    func: function (call_node: relay.Call, target_dtype: string)
+    -> [conversion category, accumulation dtype, output dtype]: [int, string, string]
+        A function which given a call_node and target_dtype (e.g. FP16) returns the
+        conversion category and associated accumulation/output of the operation
+        when transformed into the mixed precision dtype space.
+
+    level : int
+        The priority level
+    """
+    return tvm.ir.register_op_attr(op_name, "FTVMMixedPrecisionConversionType", func, level)
 
 
 @tvm._ffi.register_func("relay.op.compiler._lower")
