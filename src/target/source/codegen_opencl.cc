@@ -39,7 +39,7 @@ class InferTextureAccess : public StmtExprVisitor {
   static constexpr const uint8_t read_access = 1;
   static constexpr const uint8_t write_access = 2;
 
-  explicit InferTextureAccess() {}
+  InferTextureAccess() {}
   std::unordered_map<const VarNode*, std::string> Infer(const Stmt& n) {
     StmtExprVisitor::VisitStmt(n);
     std::unordered_map<const VarNode*, std::string> storage_scope_qualifiers;

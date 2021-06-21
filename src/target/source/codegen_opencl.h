@@ -27,6 +27,7 @@
 #include <tvm/target/codegen.h>
 
 #include <string>
+#include <unordered_map>
 
 #include "codegen_c.h"
 

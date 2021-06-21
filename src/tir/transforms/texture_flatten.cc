@@ -112,9 +112,7 @@ class TextureFlattener : public TextureLoweringBase {
       const std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual>& extern_buffer_binds_,
       IRVisitorWithAnalyzer* bound_analyzer)
       : TextureLoweringBase(extern_buffer_map, bound_analyzer),
-        buffer_binds_(extern_buffer_binds_) {
-    ;
-  }
+        buffer_binds_(extern_buffer_binds_) {}
 
   Stmt VisitStmt_(const BufferRealizeNode* op) final {
     if (extern_buf_.count(op->buffer)) {
@@ -228,9 +226,7 @@ class ExternalBufferForwarding : public TextureLoweringBase {
  public:
   explicit ExternalBufferForwarding(const Map<Var, Buffer>& extern_buffer_map,
                                     IRVisitorWithAnalyzer* bound_analyzer)
-      : TextureLoweringBase(extern_buffer_map, bound_analyzer) {
-    ;
-  }
+      : TextureLoweringBase(extern_buffer_map, bound_analyzer) {}
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     Stmt stmt = TextureLoweringBase::VisitStmt_(op);
