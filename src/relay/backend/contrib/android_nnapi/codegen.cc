@@ -177,7 +177,6 @@ class NNAPICSourceCodegen : public CSourceModuleCodegenBase {
     code_stream_ << "#include <sys/mman.h>\n";
     code_stream_ << "#include <android/NeuralNetworks.h>\n";
     code_stream_ << "#include <tvm/runtime/c_runtime_api.h>\n";
-    code_stream_ << "#include <tvm/runtime/container.h>\n";
     code_stream_ << "#include <tvm/runtime/packed_func.h>\n";
     code_stream_ << "#include <dlpack/dlpack.h>\n";
 

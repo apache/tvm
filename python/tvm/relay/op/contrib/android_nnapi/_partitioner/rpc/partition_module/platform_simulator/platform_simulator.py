@@ -199,7 +199,9 @@ class PlatformSimulator(tvm.relay.ExprVisitor):
             if self._skip_node_on_dev(const, tdev):
                 continue
             self._node_costs[tdev][const] = 0
-            self._node_transfers[tdev][const] = tdev
+            # force constants to be cut out by compiler annotations
+            # the PartitionGraph pass is smart enough to export constants if it should be exported
+            self._node_transfers[tdev][const] = compute_device.TvmDevice.DEV_NAME
 
     def visit_ref_create(self, r):
         raise NotImplementedError(r.type_key)

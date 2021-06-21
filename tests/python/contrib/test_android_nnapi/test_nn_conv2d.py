@@ -51,7 +51,6 @@ def test_codegen_nchw_conv2d():
 #include <sys/mman.h>
 #include <android/NeuralNetworks.h>
 #include <tvm/runtime/c_runtime_api.h>
-#include <tvm/runtime/container.h>
 #include <tvm/runtime/packed_func.h>
 #include <dlpack/dlpack.h>
 #define JSON2NNAPI_CHECK_EQ(a, b) { assert((a) == (b)); }
@@ -569,7 +568,6 @@ def test_codegen_nchw_conv2d_on_api29():
 #include <sys/mman.h>
 #include <android/NeuralNetworks.h>
 #include <tvm/runtime/c_runtime_api.h>
-#include <tvm/runtime/container.h>
 #include <tvm/runtime/packed_func.h>
 #include <dlpack/dlpack.h>
 #define JSON2NNAPI_CHECK_EQ(a, b) { assert((a) == (b)); }
