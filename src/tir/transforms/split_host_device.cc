@@ -175,6 +175,7 @@ class VarUseDefAnalysis : public StmtExprMutator {
   Array<Var> undefined_;
   Array<IterVar> thread_axis_;
   Array<PrimExpr> thread_extent_;
+  PrimExpr dyn_shmem_size_{0};
   std::unordered_map<const VarNode*, int> use_count_;
   std::unordered_map<const VarNode*, int> def_count_;
 
@@ -273,6 +274,8 @@ class HostDeviceSplitter : public StmtMutator {
     for (PrimExpr ext : m.thread_extent_) {
       call_args.push_back(ext);
     }
+    // dynamic shared memory size
+    call_args.push_back(m.dyn_shmem_size_);
     return Evaluate(Call(DataType::Int(32), builtin::tvm_call_packed(), call_args));
   }
 
