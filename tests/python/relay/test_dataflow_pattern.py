@@ -1609,7 +1609,7 @@ def test_rewrite_function_with_fuzzy_body():
             return x + w
 
     out = rewrite(TestRewrite(), expr)
-    assert tvm.ir.structural_equal(x + w, x + w)
+    assert tvm.ir.structural_equal(out, x + w + b)
 
 
 def test_partition_function_with_fuzzy_body():
