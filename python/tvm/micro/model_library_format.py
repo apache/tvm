@@ -225,7 +225,7 @@ _GENERATED_VERSION = 2
 
 
 def _export_graph_model_library_format(
-    mod: executor_factory.GraphExecutorFactoryModule, tempdir: pathlib.Path
+    mod: executor_factory.ExecutorFactoryModule, tempdir: pathlib.Path
 ):
     """Export a tvm.relay.build artifact in Model Library Format.
 
