@@ -150,12 +150,12 @@ inline Expr RequantizeOrUpcast(const Expr& expr, const Expr& expr_scale,
 }
 
 /*! \brief Infer layout for QNN binary broadcast operators */
-inline Array<Array<Layout> > QnnBinaryBroadcastLayout(const Attrs& attrs,
-                                                      const Array<Layout>& new_in_layouts,
-                                                      const Array<Layout>& old_in_layouts,
-                                                      const Array<tvm::relay::Type>& old_in_types) {
+inline InferCorrectLayoutOutput QnnBinaryBroadcastLayout(
+    const Attrs& attrs, const Array<Layout>& new_in_layouts, const Array<Layout>& old_in_layouts,
+    const Array<tvm::relay::Type>& old_in_types) {
   // Use Relay Binary Broadcast Infer correct layout.
-  auto layouts = BinaryBroadcastLayout(attrs, new_in_layouts, old_in_layouts, old_in_types);
+  auto layouts =
+      BinaryBroadcastLayout(attrs, new_in_layouts, old_in_layouts, old_in_types)->inferred_layout;
 
   // Fill the layouts of remaining input tensors - scales and zero points. The layouts of these
   // tensors can be treated as C.
@@ -163,7 +163,7 @@ inline Array<Array<Layout> > QnnBinaryBroadcastLayout(const Attrs& attrs,
   Array<Layout> input_layouts = {layouts[0][0],  layouts[0][1],  channel_layout, channel_layout,
                                  channel_layout, channel_layout, channel_layout, channel_layout};
   Array<Layout> output_layouts = layouts[1];
-  return {input_layouts, output_layouts};
+  return InferCorrectLayoutOutput({input_layouts, output_layouts}, attrs);
 }
 
 static inline bool QnnBroadcastRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,

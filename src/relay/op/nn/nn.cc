@@ -603,7 +603,9 @@ InferCorrectLayoutOutput BatchNormInferCorrectLayout(const Attrs& attrs,
                                                      const Array<Layout>& new_in_layouts,
                                                      const Array<Layout>& old_in_layouts,
                                                      const Array<tvm::relay::Type>& old_in_types) {
-  BatchNormAttrs* param = const_cast<BatchNormAttrs*>(attrs.as<BatchNormAttrs>());
+  const auto* attrs_ptr = attrs.as<BatchNormAttrs>();
+  ICHECK(attrs_ptr);
+  ObjectPtr<BatchNormAttrs> param = make_object<BatchNormAttrs>(*attrs_ptr);
 
   Array<Array<IndexExpr>> old_in_shapes;
   for (auto old_in_t : old_in_types) {
@@ -632,7 +634,7 @@ InferCorrectLayoutOutput BatchNormInferCorrectLayout(const Attrs& attrs,
   return InferCorrectLayoutOutput(
       Array<Array<Layout>>{{ret, c_layout, c_layout, c_layout, c_layout},
                            {ret, c_layout, c_layout}},
-      attrs);
+      Attrs(param));
 }
 
 bool BatchNormRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,

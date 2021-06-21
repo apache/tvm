@@ -172,7 +172,9 @@ static inline InferCorrectLayoutOutput ConcatenateLayout(const Attrs& attrs,
                                                      const Array<Layout>& new_in_layouts,
                                                      const Array<Layout>& old_in_layouts,
                                                      const Array<tvm::relay::Type>& old_in_types) {
-  ConcatenateAttrs* param = const_cast<ConcatenateAttrs*>(attrs.as<ConcatenateAttrs>());
+  const auto* attrs_ptr = attrs.as<ConcatenateAttrs>();
+  ICHECK(attrs_ptr);
+  ObjectPtr<ConcatenateAttrs> param = make_object<ConcatenateAttrs>(*attrs_ptr);
 
   Array<Array<IndexExpr>> old_in_shapes;
   ICHECK_EQ(old_in_types.size(), 1);
@@ -221,7 +223,7 @@ static inline InferCorrectLayoutOutput ConcatenateLayout(const Attrs& attrs,
     }
   }
 
-  return InferCorrectLayoutOutput({Array<Layout>(old_in_layouts.size(), ret), {ret}}, attrs);
+  return InferCorrectLayoutOutput({Array<Layout>(old_in_layouts.size(), ret), {ret}}, Attrs(param));
 }
 
 /*!
