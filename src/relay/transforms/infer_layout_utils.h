@@ -100,6 +100,28 @@ using FInferCorrectLayout = runtime::TypedPackedFunc<Array<Array<Layout>>(
     const Attrs& attrs, const Array<Layout>& new_in_layouts, const Array<Layout>& old_in_layouts,
     const Array<tvm::relay::Type>& old_in_types)>;
 
+class InferCorrectLayoutOutputNode : public Object {
+ public:
+  Array<Array<Layout>> inferred_layout;
+  Attrs new_attrs;
+  TVM_DECLARE_BASE_OBJECT_INFO(InferCorrectLayoutOutputNode, Object);
+};
+
+class InferCorrectLayoutOutput : public ObjectRef {
+ public:
+  InferCorrectLayoutOutput(Array<Array<Layout>> inferred_layout, Attrs new_attrs) {
+    auto n = make_object<InferCorrectLayoutOutputNode>();
+    n->inferred_layout = inferred_layout;
+    n->new_attrs = new_attrs;
+    data_ = n;
+  }
+  TVM_DEFINE_OBJECT_REF_METHODS(InferCorrectLayoutOutput, ObjectRef, InferCorrectLayoutOutputNode);
+};
+
+using FInferLayout = runtime::TypedPackedFunc<InferCorrectLayoutOutput(
+    const Attrs& attrs, const Array<Layout>& new_in_layouts, const Array<Layout>& old_in_layouts,
+    const Array<tvm::relay::Type>& old_in_types)>;
+
 /*! \brief take arbitrary input layout and copy to output */
 inline Array<Array<Layout>> ElemwiseArbitraryLayout(const Attrs& attrs,
                                                     const Array<Layout>& new_in_layouts,

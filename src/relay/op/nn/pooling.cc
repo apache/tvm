@@ -58,6 +58,24 @@ Array<Array<Layout> > PoolInferCorrectLayout(const Attrs& attrs,
   return Array<Array<Layout> >{{inferred_layout}, {inferred_layout}};
 }
 
+template <typename T>
+InferCorrectLayoutOutput PoolInferLayout(const Attrs& attrs, const Array<Layout>& new_in_layouts,
+                                         const Array<Layout>& old_in_layouts,
+                                         const Array<tvm::relay::Type>& old_in_types) {
+  const auto* attrs_ptr = attrs.as<T>();
+  CHECK(attrs_ptr);
+  ObjectPtr<T> params = make_object<T>(*attrs_ptr);
+
+  if (new_in_layouts.defined()) {
+    // Set the pool with the new layout.
+    ICHECK_EQ(new_in_layouts.size(), 1);
+    params->layout = new_in_layouts[0].name();
+  }
+
+  Array<Array<Layout>> inferred_layout{{params->layout}, {params->layout}};
+  return InferCorrectLayoutOutput(inferred_layout, Attrs(params));
+}
+
 IndexExpr calculate_pool_dimension(IndexExpr in_dimension, IndexExpr pad_amount,
                                    IndexExpr pool_size, IndexExpr dilation, IndexExpr stride_size,
                                    bool ceil_mode) {
@@ -210,6 +228,7 @@ RELAY_REGISTER_OP("nn.max_pool2d")
     .set_support_level(2)
     .add_type_rel("MaxPool2D", Pool2DRel<MaxPool2DAttrs>)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", PoolInferCorrectLayout<MaxPool2DAttrs>)
+    .set_attr<FInferLayout>("FInferLayout", PoolInferLayout<MaxPool2DAttrs>)
     .set_attr<FTVMCompute>("FTVMCompute", Pool2DCompute<MaxPool2DAttrs, topi::nn::kMaxPool>);
 
 // AvgPool2D
