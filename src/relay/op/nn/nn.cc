@@ -274,17 +274,18 @@ bool PReluRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 }
 
 template <typename T>
-Array<Array<Layout>> PReluInferCorrectLayout(const Attrs& attrs,
-                                             const Array<Layout>& new_in_layouts,
-                                             const Array<Layout>& old_in_layouts,
-                                             const Array<tvm::relay::Type>& old_in_types) {
+InferCorrectLayoutOutput PReluInferCorrectLayout(const Attrs& attrs,
+                                                 const Array<Layout>& new_in_layouts,
+                                                 const Array<Layout>& old_in_layouts,
+                                                 const Array<tvm::relay::Type>& old_in_types) {
   ICHECK_EQ(old_in_layouts.size(), 2U);
   ICHECK_EQ(old_in_types.size(), 2U);
   Layout data_layout = old_in_layouts[0];
   if (new_in_layouts.defined()) {
     ICHECK_EQ(new_in_layouts.size(), 2U);
   }
-  return Array<Array<Layout>>{{data_layout, Layout("C")}, {data_layout}};
+  return InferCorrectLayoutOutput(Array<Array<Layout>>{{data_layout, Layout("C")}, {data_layout}},
+                                  attrs);
 }
 
 // Positional relay function to create prelu operator used by frontend FFI.
@@ -483,7 +484,6 @@ RELAY_REGISTER_OP("nn.relu")
     .set_support_level(1)
     .add_type_rel("Identity", IdentityRel)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
-    .set_attr<FInferLayout>("FInferLayout", ElemwiseArbitraryLayout2)
     .set_attr<FTVMCompute>("FTVMCompute", [](const Attrs& attrs, const Array<te::Tensor>& inputs,
                                              const Type& out_type) {
       return Array<te::Tensor>{topi::relu(inputs[0], 0.0f)};
@@ -599,10 +599,10 @@ The whole array is rescaled by ``1/(1-p)`` to keep the expected sum of the input
 // batch_norm
 TVM_REGISTER_NODE_TYPE(BatchNormAttrs);
 
-Array<Array<Layout>> BatchNormInferCorrectLayout(const Attrs& attrs,
-                                                 const Array<Layout>& new_in_layouts,
-                                                 const Array<Layout>& old_in_layouts,
-                                                 const Array<tvm::relay::Type>& old_in_types) {
+InferCorrectLayoutOutput BatchNormInferCorrectLayout(const Attrs& attrs,
+                                                     const Array<Layout>& new_in_layouts,
+                                                     const Array<Layout>& old_in_layouts,
+                                                     const Array<tvm::relay::Type>& old_in_types) {
   BatchNormAttrs* param = const_cast<BatchNormAttrs*>(attrs.as<BatchNormAttrs>());
 
   Array<Array<IndexExpr>> old_in_shapes;
@@ -629,8 +629,10 @@ Array<Array<Layout>> BatchNormInferCorrectLayout(const Attrs& attrs,
   // BN has 5 inputs, 3 outputs. The last 4 inputs and last 2 outputs have "C" layout.
   Layout c_layout = Layout("C");
 
-  return Array<Array<Layout>>{{ret, c_layout, c_layout, c_layout, c_layout},
-                              {ret, c_layout, c_layout}};
+  return InferCorrectLayoutOutput(
+      Array<Array<Layout>>{{ret, c_layout, c_layout, c_layout, c_layout},
+                           {ret, c_layout, c_layout}},
+      attrs);
 }
 
 bool BatchNormRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,

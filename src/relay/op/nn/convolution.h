@@ -1243,19 +1243,20 @@ bool DeformableConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& 
 }
 
 template <typename AttrType>
-Array<Array<Layout> > DeformableConvInferCorrectLayout(
+InferCorrectLayoutOutput DeformableConvInferCorrectLayout(
     const Attrs& attrs, const Array<Layout>& new_in_layouts, const Array<Layout>& old_in_layouts,
     const Array<tvm::relay::Type>& old_in_types) {
   const AttrType* params = attrs.as<AttrType>();
 
   // Layout of {data, offet, kernel}, {out}
-  return Array<Array<Layout> >{
+  Array<Array<Layout>> inferred_layout{
       {params->data_layout, params->data_layout, params->kernel_layout},
       {params->out_layout == "" ? params->data_layout : params->out_layout}};
+  return InferCorrectLayoutOutput(inferred_layout, attrs);
 }
 
 template <typename T>
-Array<Array<Layout> > ConvInferCorrectLayout(const Attrs& attrs,
+InferCorrectLayoutOutput ConvInferCorrectLayout(const Attrs& attrs,
                                              const Array<Layout>& new_in_layouts,
                                              const Array<Layout>& old_in_layouts,
                                              const Array<tvm::relay::Type>& old_in_types) {
@@ -1263,26 +1264,10 @@ Array<Array<Layout> > ConvInferCorrectLayout(const Attrs& attrs,
 
   // We always make other operators to fit the layouts of convolution layers
   // So this inference ignores all inputs
-  return Array<Array<Layout> >{
-      {params->data_layout, params->kernel_layout},
-      {params->out_layout == "" ? params->data_layout : params->out_layout}};
-}
-
-template <typename T>
-InferCorrectLayoutOutput ConvInferLayout(const Attrs& attrs,
-                                             const Array<Layout>& new_in_layouts,
-                                             const Array<Layout>& old_in_layouts,
-                                             const Array<tvm::relay::Type>& old_in_types) {
-  const T* attrs_ptr = attrs.as<T>();
-  CHECK(attrs_ptr);
-  ObjectPtr<T> params = make_object<T>(*attrs_ptr);
-
-  // We always make other operators to fit the layouts of convolution layers
-  // So this inference ignores all inputs
   Array<Array<Layout>> inferred_layout{
       {params->data_layout, params->kernel_layout},
       {params->out_layout == "" ? params->data_layout : params->out_layout}};
-  return InferCorrectLayoutOutput(inferred_layout, Attrs(params));
+  return InferCorrectLayoutOutput(inferred_layout, attrs);
 }
 
 }  // namespace relay

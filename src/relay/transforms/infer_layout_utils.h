@@ -85,21 +85,6 @@ inline Layout AdjustSubordinateFactors(const Layout& src_layout, const Layout& o
   return Layout(new_layout);
 }
 
-/*!
- * \brief Infer & correct function of node layout. See \p Layout for layout convention
- * \param attrs The attribute of the node.
- * \param new_in_layouts The layouts of input arguments after alter_op_layout.
- *                       This can be undefined, which means we call this function before alternating
- *                       any operators.
- * \param old_in_layouts The layouts of input arguments before alter_op_layout.
- * \param old_in_types The types of old input arguments.
- * \return infered_layout An array of two elements that are inferred input layouts and
- *                        inferred output layouts.
- */
-using FInferCorrectLayout = runtime::TypedPackedFunc<Array<Array<Layout>>(
-    const Attrs& attrs, const Array<Layout>& new_in_layouts, const Array<Layout>& old_in_layouts,
-    const Array<tvm::relay::Type>& old_in_types)>;
-
 class InferCorrectLayoutOutputNode : public Object {
  public:
   Array<Array<Layout>> inferred_layout;
@@ -118,36 +103,24 @@ class InferCorrectLayoutOutput : public ObjectRef {
   TVM_DEFINE_OBJECT_REF_METHODS(InferCorrectLayoutOutput, ObjectRef, InferCorrectLayoutOutputNode);
 };
 
-using FInferLayout = runtime::TypedPackedFunc<InferCorrectLayoutOutput(
+/*!
+ * \brief Infer & correct function of node layout. See \p Layout for layout convention
+ * \param attrs The attribute of the node.
+ * \param new_in_layouts The layouts of input arguments after alter_op_layout.
+ *                       This can be undefined, which means we call this function before alternating
+ *                       any operators.
+ * \param old_in_layouts The layouts of input arguments before alter_op_layout.
+ * \param old_in_types The types of old input arguments.
+ * \return infered_layout An array of two elements that are inferred input layouts and
+ *                        inferred output layouts.
+ */
+using FInferCorrectLayout = runtime::TypedPackedFunc<InferCorrectLayoutOutput(
     const Attrs& attrs, const Array<Layout>& new_in_layouts, const Array<Layout>& old_in_layouts,
     const Array<tvm::relay::Type>& old_in_types)>;
 
-/*! \brief take arbitrary input layout and copy to output */
-inline Array<Array<Layout>> ElemwiseArbitraryLayout(const Attrs& attrs,
-                                                    const Array<Layout>& new_in_layouts,
-                                                    const Array<Layout>& old_in_layouts,
-                                                    const Array<tvm::relay::Type>& old_in_types) {
-  Layout ret;
-
-  if (new_in_layouts.defined()) {
-    ICHECK_GE(new_in_layouts.size(), 1);
-    ret = new_in_layouts[0];
-  } else {
-    for (size_t i = 0; i < old_in_layouts.size(); ++i) {
-      if (old_in_layouts[i].defined()) {
-        ret = old_in_layouts[i];
-        break;
-      }
-    }
-  }
-
-  return Array<Array<Layout>>{Array<Layout>(old_in_layouts.size(), ret), {ret}};
-}
-
-inline InferCorrectLayoutOutput ElemwiseArbitraryLayout2(const Attrs& attrs,
-                                                    const Array<Layout>& new_in_layouts,
-                                                    const Array<Layout>& old_in_layouts,
-                                                    const Array<tvm::relay::Type>& old_in_types) {
+inline InferCorrectLayoutOutput ElemwiseArbitraryLayout(
+    const Attrs& attrs, const Array<Layout>& new_in_layouts, const Array<Layout>& old_in_layouts,
+    const Array<tvm::relay::Type>& old_in_types) {
   Layout ret;
 
   if (new_in_layouts.defined()) {
@@ -167,10 +140,9 @@ inline InferCorrectLayoutOutput ElemwiseArbitraryLayout2(const Attrs& attrs,
 }
 
 /*! \brief Infer layout for binary broadcast operators */
-inline Array<Array<Layout>> BinaryBroadcastLayout(const Attrs& attrs,
-                                                  const Array<Layout>& new_in_layouts,
-                                                  const Array<Layout>& old_in_layouts,
-                                                  const Array<tvm::relay::Type>& old_in_types) {
+inline Array<Array<Layout>> BinaryBroadcastLayoutHelper(
+    const Attrs& attrs, const Array<Layout>& new_in_layouts, const Array<Layout>& old_in_layouts,
+    const Array<tvm::relay::Type>& old_in_types) {
   Array<Layout> layouts;
   Array<Array<IndexExpr>> old_in_shapes;
   for (auto old_in_t : old_in_types) {
@@ -244,44 +216,13 @@ inline Array<Array<Layout>> BinaryBroadcastLayout(const Attrs& attrs,
   }
 }
 
-inline InferCorrectLayoutOutput BinaryBroadcastLayout2(const Attrs& attrs,
-                                                  const Array<Layout>& new_in_layouts,
-                                                  const Array<Layout>& old_in_layouts,
-                                                  const Array<tvm::relay::Type>& old_in_types) {
-  auto inferred_layout = BinaryBroadcastLayout(attrs, new_in_layouts, old_in_layouts, old_in_types);
+inline InferCorrectLayoutOutput BinaryBroadcastLayout(const Attrs& attrs,
+                                                      const Array<Layout>& new_in_layouts,
+                                                      const Array<Layout>& old_in_layouts,
+                                                      const Array<tvm::relay::Type>& old_in_types) {
+  auto inferred_layout =
+      BinaryBroadcastLayoutHelper(attrs, new_in_layouts, old_in_layouts, old_in_types);
   return InferCorrectLayoutOutput(inferred_layout, attrs);
-}
-
-/*!
- * Call registered FInferCorrectLayout of an op.
- * Parameters are the same as the parameters for FInferCorrectLayout
- * Returns inferred_input_layout, inferred_output_layout, success
- */
-static inline std::tuple<Array<Layout>, Array<Layout>, bool> InferCorrectLayouts(
-    const Call& call, const Array<Layout>& new_in_layouts, const Array<Layout>& old_in_layouts,
-    const Array<tvm::relay::Type>& old_in_types) {
-  static auto finfer_layout = Op::GetAttrMap<FInferCorrectLayout>("FInferCorrectLayout");
-  if (!call->op.as<OpNode>()) {
-    return std::make_tuple<>(Array<Layout>(nullptr), Array<Layout>(nullptr), false);
-  }
-
-  Op op = Downcast<Op>(call->op);
-  if (finfer_layout.count(op)) {
-    Array<Array<Layout>> inferred_layouts;
-    inferred_layouts = finfer_layout[op](call->attrs, new_in_layouts, old_in_layouts, old_in_types);
-    ICHECK_EQ(inferred_layouts.size(), 2)
-        << "FInferCorrectLayout should return an array with size of 2";
-    for (auto x : inferred_layouts) {
-      for (auto y : x) {
-        if (!y.defined()) {  // inference fails
-          return std::make_tuple<>(Array<Layout>(nullptr), Array<Layout>(nullptr), false);
-        }
-      }
-    }
-    return std::make_tuple<>(inferred_layouts[0], inferred_layouts[1], true);
-  } else {
-    return std::make_tuple<>(Array<Layout>(nullptr), Array<Layout>(nullptr), false);
-  }
 }
 
 }  //  namespace relay

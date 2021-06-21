@@ -117,8 +117,7 @@ with the layer input to produce a tensor of outputs.
     .add_argument("weight", "Tensor", "The weight tensor.")
     .set_support_level(2)
     .add_type_rel("Conv2D", Conv2DRel<Conv2DAttrs>)
-    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ConvInferCorrectLayout<Conv2DAttrs>)
-    .set_attr<FInferLayout>("FInferLayout", ConvInferLayout<Conv2DAttrs>);
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ConvInferCorrectLayout<Conv2DAttrs>);
 
 // relay.nn.conv3d
 TVM_REGISTER_NODE_TYPE(Conv3DAttrs);
@@ -507,8 +506,7 @@ RELAY_REGISTER_OP("nn.contrib_conv2d_NCHWc")
     .add_argument("weight", "Tensor", "The weight tensor.")
     .set_support_level(10)
     .add_type_rel("Conv2DNCHWc", Conv2DWinogradRel<Conv2DAttrs>)
-    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ConvInferCorrectLayout<Conv2DAttrs>)
-    .set_attr<FInferLayout>("FInferLayout", ConvInferLayout<Conv2DAttrs>);
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ConvInferCorrectLayout<Conv2DAttrs>);
 
 // Positional relay function to create depthwise conv2d NCHWc operator
 // used by frontend FFI.

@@ -36,6 +36,7 @@
 #include <vector>
 
 #include "../make_op.h"
+#include "../../transforms/infer_layout_utils.h"
 
 namespace tvm {
 namespace relay {
@@ -167,7 +168,7 @@ bool ConcatenateRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
   return true;
 }
 
-static inline Array<Array<Layout>> ConcatenateLayout(const Attrs& attrs,
+static inline InferCorrectLayoutOutput ConcatenateLayout(const Attrs& attrs,
                                                      const Array<Layout>& new_in_layouts,
                                                      const Array<Layout>& old_in_layouts,
                                                      const Array<tvm::relay::Type>& old_in_types) {
@@ -216,11 +217,11 @@ static inline Array<Array<Layout>> ConcatenateLayout(const Attrs& attrs,
     }
 
     if (ret.ndim() <= axis || !ret[axis].IsPrimal()) {
-      return Array<Array<Layout>>{{Layout::Undef()}, {Layout::Undef()}};
+      return InferCorrectLayoutOutput({{Layout::Undef()}, {Layout::Undef()}}, attrs);
     }
   }
 
-  return Array<Array<Layout>>{Array<Layout>(old_in_layouts.size(), ret), {ret}};
+  return InferCorrectLayoutOutput({Array<Layout>(old_in_layouts.size(), ret), {ret}}, attrs);
 }
 
 /*!

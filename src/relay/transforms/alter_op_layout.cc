@@ -116,8 +116,7 @@ Expr AlterOpLayout(const Expr& expr) {
   AlterTransformMemorizer alterMemorizer(make_object<AlterTransformMemorizerNode>());
   auto fcontext = [&](const Call& call) -> ObjectRef { return alterMemorizer; };
 
-  // return ForwardRewrite(expr, LayoutRewriter<AlterTransformMemorizer>, fcontext);
-  return ForwardRewrite(expr, LayoutRewriter2<AlterTransformMemorizer>, fcontext);
+  return ForwardRewrite(expr, LayoutRewriter<AlterTransformMemorizer>, fcontext);
 }
 
 }  // namespace alter_op_layout

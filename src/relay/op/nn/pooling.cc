@@ -41,26 +41,7 @@ TVM_REGISTER_NODE_TYPE(MaxPool2DAttrs);
 TVM_REGISTER_NODE_TYPE(AvgPool2DAttrs);
 
 template <typename T>
-Array<Array<Layout> > PoolInferCorrectLayout(const Attrs& attrs,
-                                             const Array<Layout>& new_in_layouts,
-                                             const Array<Layout>& old_in_layouts,
-                                             const Array<tvm::relay::Type>& old_in_types) {
-  // NOTE: Discard "const" qualifier here.
-  T* params = const_cast<T*>(attrs.as<T>());
-
-  if (new_in_layouts.defined()) {
-    // Set the pool with the new layout.
-    ICHECK_EQ(new_in_layouts.size(), 1);
-    params->layout = new_in_layouts[0].name();
-    LOG(INFO) << "New layout: " << params->layout;
-  }
-
-  Layout inferred_layout(params->layout);
-  return Array<Array<Layout> >{{inferred_layout}, {inferred_layout}};
-}
-
-template <typename T>
-InferCorrectLayoutOutput PoolInferLayout(const Attrs& attrs, const Array<Layout>& new_in_layouts,
+InferCorrectLayoutOutput PoolInferCorrectLayout(const Attrs& attrs, const Array<Layout>& new_in_layouts,
                                          const Array<Layout>& old_in_layouts,
                                          const Array<tvm::relay::Type>& old_in_types) {
   const auto* attrs_ptr = attrs.as<T>();
@@ -71,8 +52,6 @@ InferCorrectLayoutOutput PoolInferLayout(const Attrs& attrs, const Array<Layout>
     // Set the pool with the new layout.
     ICHECK_EQ(new_in_layouts.size(), 1);
     params->layout = new_in_layouts[0].name();
-    LOG(INFO) << "New layout: " << params->layout;
-    LOG(INFO) << params->pool_size;
   }
 
   Array<Array<Layout>> inferred_layout{{params->layout}, {params->layout}};
@@ -231,7 +210,6 @@ RELAY_REGISTER_OP("nn.max_pool2d")
     .set_support_level(2)
     .add_type_rel("MaxPool2D", Pool2DRel<MaxPool2DAttrs>)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", PoolInferCorrectLayout<MaxPool2DAttrs>)
-    .set_attr<FInferLayout>("FInferLayout", PoolInferLayout<MaxPool2DAttrs>)
     .set_attr<FTVMCompute>("FTVMCompute", Pool2DCompute<MaxPool2DAttrs, topi::nn::kMaxPool>);
 
 // AvgPool2D
