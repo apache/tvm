@@ -5585,5 +5585,23 @@ def test_moments():
     tvm.ir.assert_structural_equal(mod["main"].body, mod_golden["main"].body, map_free_vars=True)
 
 
+#######################################################################
+# invert_permutation
+# --------------------
+
+
+def test_invert_permutation():
+    """test InvertPermutation"""
+    tf.reset_default_graph()
+
+    input_shape = [6]
+    x = np.array([3, 4, 0, 2, 1, 5]).astype("int32")
+    with tf.Graph().as_default():
+        in_data = tf.placeholder(shape=input_shape, dtype="int32")
+        tf.invert_permutation(in_data)
+        out_name = "InvertPermutation:0"
+        compare_tf_with_tvm(x, "Placeholder:0", out_name, no_gpu=False)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

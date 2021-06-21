@@ -1759,3 +1759,31 @@ def unique(data, is_sorted=True, return_counts=False):
     if return_counts:
         return TupleWrapper(_make.unique(data, is_sorted, return_counts), 5)
     return TupleWrapper(_make.unique(data, is_sorted, return_counts), 4)
+
+
+def invert_permutation(data):
+    """Computes the inverse permutation of data.
+    This operation computes the inverse of an index permutation.
+    It takes a 1-D integer tensor x, which represents the indices of a zero-based
+    array and swaps each value with its index position.
+
+    For an output tensor y and an input tensor x, this operation computes the following:
+    y[x[i]] = i for i in [0, 1, ..., len(x) - 1]
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The source data to be invert permuated.
+
+    Returns
+    -------
+    ret : relay.Expr
+        Invert permuated data. Has the same type as data.
+
+    Examples
+    --------
+    .. code-block:: python
+        data = [3, 4, 0, 2, 1]
+        relay.invert_permutation(data) = [2, 4, 3, 0, 1]
+    """
+    return _make.invert_permutation(data)
