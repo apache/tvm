@@ -316,7 +316,6 @@ Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const Obj
   InferCorrectLayoutOutput infer_out;
   std::tie(infer_out, success) =
       InferCorrectLayouts(ref_call, Array<Layout>(nullptr), old_in, types);
-  LOG(INFO) << "success1?: " << success;
   old_in = infer_out->inferred_layout[0];
   old_out = infer_out->inferred_layout[1];
   if (!success) {
@@ -338,7 +337,6 @@ Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const Obj
   if (new_call->op->IsInstance<OpNode>()) {
     success = false;
     std::tie(infer_out, success) = InferCorrectLayouts(new_call, new_in, old_in, types);
-    LOG(INFO) << "success2?: " << success;
     new_in2 = infer_out->inferred_layout[0];
     new_out = infer_out->inferred_layout[1];
     if (!success) {
@@ -392,9 +390,6 @@ Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const Obj
     rnode->value = Call(new_call->op, transformed_args, infer_out->new_attrs, {}, ref_call->span);
     rnode->old_layout = old_out[0];
     rnode->new_layout = new_out[0];
-    LOG(INFO) << "ref_call: " << AsText(ref_call, false);
-    LOG(INFO) << "rnode->old_layout: " << rnode->old_layout;
-    LOG(INFO) << "rnode->new_layout: " << rnode->new_layout;
     rnode->memorizer = memorizer;
     return Expr(rnode);
   }

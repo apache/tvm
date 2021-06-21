@@ -111,7 +111,6 @@ InferCorrectLayoutOutput PadInferCorrectLayout(const Attrs& attrs, const Array<L
     }
   }
 
-  LOG(INFO) << "pad :" << is_layout_modified << ", " << params->pad_width;
   // The pad value is always a scalar
   Layout ret_pad_value = Layout("1");
   Array<Array<Layout>> inferred_layout{{ret_data, ret_pad_value}, {ret_data}};
