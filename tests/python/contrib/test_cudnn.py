@@ -14,6 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
+import sys
+
+import pytest
+
 import tvm
 from tvm import te
 from tvm.contrib import cudnn
@@ -21,6 +26,12 @@ from tvm.contrib.nvcc import have_fp16
 import numpy as np
 import tvm.topi.testing
 import tvm.testing
+
+
+requires_cudnn = pytest.mark.skipif(
+    tvm.get_global_func("tvm.contrib.cudnn.conv.output_shape_from_cudnn", True) is None,
+    reason="CuDNN is not enabled",
+)
 
 
 def verify_conv2d(data_dtype, conv_dtype, tensor_format=0, groups=1):
@@ -38,9 +49,6 @@ def verify_conv2d(data_dtype, conv_dtype, tensor_format=0, groups=1):
     height = 32
     width = 32
 
-    if not tvm.get_global_func("tvm.contrib.cudnn.conv.output_shape", True):
-        print("skip because cudnn is not enabled...")
-        return
     if data_dtype == "float16" and not have_fp16(tvm.cuda(0).compute_version):
         print("Skip because gpu does not have fp16 support")
         return
@@ -123,10 +131,6 @@ def verify_conv3d(data_dtype, conv_dtype, tensor_format=0, groups=1):
     height = 32
     width = 32
 
-    if not tvm.get_global_func("tvm.contrib.cudnn.conv.output_shape", True):
-        print("skip because cudnn is not enabled...")
-        return
-
     # schedule
     xshape = [batch, in_channel, depth, height, width]
     wshape = [out_channel, in_channel // groups, filter_d, filter_h, filter_w]
@@ -205,11 +209,8 @@ def verify_softmax_4d(shape, dtype="float32"):
 
 
 @tvm.testing.requires_gpu
+@requires_cudnn
 def test_softmax():
-    if not tvm.get_global_func("tvm.contrib.cudnn.conv.output_shape", True):
-        print("skip because cudnn is not enabled...")
-        return
-
     verify_softmax((32, 10), -1)
     verify_softmax((3, 4), -1)
     verify_softmax((1, 5), -1, "float64")
@@ -217,7 +218,84 @@ def test_softmax():
     verify_softmax_4d((1, 16, 256, 256), "float64")
 
 
+test_kwargs_default_2d = {
+    "tensor_format": 0,
+    "pad": [1, 1],
+    "stride": [1, 1],
+    "dilation": [1, 1],
+    "x_shape": [16, 4, 32, 32],
+    "w_shape": [8, 4, 3, 3],
+    "groups": 1,
+    "conv_dtype": "float32",
+    "data_dtype": "float32",
+}
+test_kwargs_default_3d = {
+    "tensor_format": 0,
+    "pad": [1, 1, 1],
+    "stride": [1, 1, 1],
+    "dilation": [1, 1, 1],
+    "x_shape": [16, 4, 32, 32, 32],
+    "w_shape": [8, 4, 3, 3, 3],
+    "groups": 1,
+    "conv_dtype": "float32",
+    "data_dtype": "float32",
+}
+conv_output_shape_conditions = {
+    "2d_small": test_kwargs_default_2d,
+    "2d_large": {
+        **test_kwargs_default_2d,
+        "x_shape": [16, 32, 512, 1024],
+        "w_shape": [8, 32, 5, 5],
+    },
+    "2d_pad": {**test_kwargs_default_2d, "pad": [2, 3]},
+    "2d_stride": {**test_kwargs_default_2d, "stride": [2, 3]},
+    "2d_dilation": {**test_kwargs_default_2d, "dilation": [2, 3]},
+    "2d_groups": {**test_kwargs_default_2d, "groups": 4, "w_shape": [8, 1, 3, 3]},
+    "2d_NHWC": {
+        **test_kwargs_default_2d,
+        "tensor_format": 1,
+        "x_shape": [16, 32, 32, 4],
+        "w_shape": [8, 3, 3, 4],
+    },
+    "2d_NCHW_VECT_C": {
+        **test_kwargs_default_2d,
+        "tensor_format": 2,
+        "w_shape": [8, 16, 3, 3],
+        "data_dtype": "int8x4",
+    },
+    "3d_small": test_kwargs_default_3d,
+    "3d_large": {
+        **test_kwargs_default_3d,
+        "x_shape": [16, 32, 64, 128, 256],
+        "w_shape": [8, 32, 5, 5, 5],
+    },
+    "3d_pad": {**test_kwargs_default_3d, "pad": [2, 3, 4]},
+    "3d_stride": {**test_kwargs_default_3d, "stride": [2, 3, 4]},
+    "3d_dilation": {**test_kwargs_default_3d, "dilation": [2, 3, 4]},
+    "3d_groups": {**test_kwargs_default_3d, "groups": 4, "w_shape": [8, 1, 3, 3, 3]},
+    "3d_NCHW_VECT_C": {
+        **test_kwargs_default_3d,
+        "tensor_format": 2,
+        "w_shape": [8, 16, 3, 3, 3],
+        "data_dtype": "int8x4",
+    },
+}
+
+
+@pytest.fixture(
+    params=[pytest.param(kwargs, id=name) for name, kwargs in conv_output_shape_conditions.items()]
+)
+def conv_output_shape_kwargs(request):
+    return request.param
+
+
+@tvm.testing.requires_gpu
+@requires_cudnn
+def test_conv_output_shape(conv_output_shape_kwargs):
+    shape_from_cudnn = cudnn._conv_output_shape_from_cudnn(**conv_output_shape_kwargs)
+    shape_from_python = cudnn.conv_output_shape(**conv_output_shape_kwargs)
+    assert shape_from_cudnn == shape_from_python
+
+
 if __name__ == "__main__":
-    test_conv2d()
-    test_conv3d()
-    test_softmax()
+    sys.exit(pytest.main(sys.argv))
