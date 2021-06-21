@@ -483,6 +483,7 @@ RELAY_REGISTER_OP("nn.relu")
     .set_support_level(1)
     .add_type_rel("Identity", IdentityRel)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
+    .set_attr<FInferLayout>("FInferLayout", ElemwiseArbitraryLayout2)
     .set_attr<FTVMCompute>("FTVMCompute", [](const Attrs& attrs, const Array<te::Tensor>& inputs,
                                              const Type& out_type) {
       return Array<te::Tensor>{topi::relu(inputs[0], 0.0f)};

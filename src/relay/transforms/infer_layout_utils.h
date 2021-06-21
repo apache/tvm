@@ -144,6 +144,28 @@ inline Array<Array<Layout>> ElemwiseArbitraryLayout(const Attrs& attrs,
   return Array<Array<Layout>>{Array<Layout>(old_in_layouts.size(), ret), {ret}};
 }
 
+inline InferCorrectLayoutOutput ElemwiseArbitraryLayout2(const Attrs& attrs,
+                                                    const Array<Layout>& new_in_layouts,
+                                                    const Array<Layout>& old_in_layouts,
+                                                    const Array<tvm::relay::Type>& old_in_types) {
+  Layout ret;
+
+  if (new_in_layouts.defined()) {
+    ICHECK_GE(new_in_layouts.size(), 1);
+    ret = new_in_layouts[0];
+  } else {
+    for (size_t i = 0; i < old_in_layouts.size(); ++i) {
+      if (old_in_layouts[i].defined()) {
+        ret = old_in_layouts[i];
+        break;
+      }
+    }
+  }
+
+  Array<Array<Layout>> inferred_layout{Array<Layout>(old_in_layouts.size(), ret), {ret}};
+  return InferCorrectLayoutOutput(inferred_layout, attrs);
+}
+
 /*! \brief Infer layout for binary broadcast operators */
 inline Array<Array<Layout>> BinaryBroadcastLayout(const Attrs& attrs,
                                                   const Array<Layout>& new_in_layouts,
@@ -220,6 +242,14 @@ inline Array<Array<Layout>> BinaryBroadcastLayout(const Attrs& attrs,
     }
     return Array<Array<Layout>>{layouts, {ret}};
   }
+}
+
+inline InferCorrectLayoutOutput BinaryBroadcastLayout2(const Attrs& attrs,
+                                                  const Array<Layout>& new_in_layouts,
+                                                  const Array<Layout>& old_in_layouts,
+                                                  const Array<tvm::relay::Type>& old_in_types) {
+  auto inferred_layout = BinaryBroadcastLayout(attrs, new_in_layouts, old_in_layouts, old_in_types);
+  return InferCorrectLayoutOutput(inferred_layout, attrs);
 }
 
 /*!

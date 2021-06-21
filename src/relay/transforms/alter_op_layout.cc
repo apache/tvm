@@ -71,7 +71,7 @@ class AlterTransformMemorizer : public TransformMemorizer {
    * \param new_args The traversed/recursed args to the call.
    * \return The new Call after calling the packed func.
    */
-  Call CallWithNewLayouts(const Call& ref_call, const std::vector<Expr>& new_args) override {
+  Call CallWithNewLayouts(const Call& ref_call, Attrs new_attrs, const std::vector<Expr>& new_args) override {
     static auto falter_layout = Op::GetAttrMap<FTVMAlterOpLayout>("FTVMAlterOpLayout");
     Op op = Downcast<Op>(ref_call->op);
 
@@ -86,20 +86,22 @@ class AlterTransformMemorizer : public TransformMemorizer {
       // TODO(@kevinthesun, @icemelon9): This won't work if inputs/outputs are dynamic shapes.
       //   Probably we need to disable the AlterOpLayout when compiling dynamic models.
       Expr altered_value =
-          falter_layout[op](ref_call->attrs, new_args, tinfos, ref_call->checked_type());
+          falter_layout[op](new_attrs, new_args, tinfos, ref_call->checked_type());
       if (altered_value.defined()) {
         new_e = altered_value;
         modified = true;
       }
     }
     if (!modified) {
-      new_e = Call(ref_call->op, new_args, ref_call->attrs);
+      new_e = Call(ref_call->op, new_args, new_attrs);
     }
 
     const CallNode* new_call = new_e.as<CallNode>();
     ICHECK(new_call) << "Can only replace the original operator with another call node";
     return GetRef<Call>(new_call);
   }
+
+  using TransformMemorizer::CallWithNewLayouts;
 
   using ContainerType = AlterTransformMemorizerNode;
 };
@@ -114,7 +116,8 @@ Expr AlterOpLayout(const Expr& expr) {
   AlterTransformMemorizer alterMemorizer(make_object<AlterTransformMemorizerNode>());
   auto fcontext = [&](const Call& call) -> ObjectRef { return alterMemorizer; };
 
-  return ForwardRewrite(expr, LayoutRewriter<AlterTransformMemorizer>, fcontext);
+  // return ForwardRewrite(expr, LayoutRewriter<AlterTransformMemorizer>, fcontext);
+  return ForwardRewrite(expr, LayoutRewriter2<AlterTransformMemorizer>, fcontext);
 }
 
 }  // namespace alter_op_layout

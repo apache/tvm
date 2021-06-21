@@ -60,7 +60,8 @@ namespace relay {
       .add_type_rel("Identity", IdentityRel)                                   \
       .set_attr<TOpPattern>("TOpPattern", kElemWise)                           \
       .set_attr<TOpIsStateful>("TOpIsStateful", false)                         \
-      .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
+      .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout) \
+      .set_attr<FInferLayout>("FInferLayout", ElemwiseArbitraryLayout2)
 
 /*! Quick helper macro
  * - Expose a positional make function to construct the node.
@@ -84,7 +85,8 @@ namespace relay {
       .add_type_rel("Broadcast", BroadcastRel)                                          \
       .set_attr<TOpPattern>("TOpPattern", kBroadcast)                                   \
       .set_attr<TOpIsStateful>("TOpIsStateful", false)                                  \
-      .set_attr<FInferCorrectLayout>("FInferCorrectLayout", BinaryBroadcastLayout)
+      .set_attr<FInferCorrectLayout>("FInferCorrectLayout", BinaryBroadcastLayout) \
+      .set_attr<FInferLayout>("FInferLayout", BinaryBroadcastLayout2)
 
 // Comparisons
 #define RELAY_REGISTER_CMP_OP(OpName)                                                   \
@@ -99,7 +101,8 @@ namespace relay {
       .add_type_rel("BroadcastComp", BroadcastCompRel)                                  \
       .set_attr<TOpPattern>("TOpPattern", kBroadcast)                                   \
       .set_attr<TOpIsStateful>("TOpIsStateful", false)                                  \
-      .set_attr<FInferCorrectLayout>("FInferCorrectLayout", BinaryBroadcastLayout)
+      .set_attr<FInferCorrectLayout>("FInferCorrectLayout", BinaryBroadcastLayout) \
+      .set_attr<FInferLayout>("FInferLayout", BinaryBroadcastLayout2)
 
 /*! \brief A helper class for matching and rewriting operators. */
 template <typename R>

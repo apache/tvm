@@ -81,10 +81,9 @@ class ConvertTransformMemorizer : public TransformMemorizer {
    * \param new_args The traversed/recursed args to the call.
    * \return The new Call after calling the packed func.
    */
-  Call CallWithNewLayouts(const Call& ref_call, const std::vector<Expr>& new_args) override {
+  Call CallWithNewLayouts(const Call& ref_call, Attrs new_attrs, const std::vector<Expr>& new_args) override {
     static auto fconvert_layout = Op::GetAttrMap<FTVMConvertOpLayout>("FTVMConvertOpLayout");
     Op op = Downcast<Op>(ref_call->op);
-
     Expr new_e;
     bool modified = false;
     if (fconvert_layout.count(op)) {
@@ -106,7 +105,7 @@ class ConvertTransformMemorizer : public TransformMemorizer {
 
         Array<String> op_desired_layouts = desired_layouts.at(op->name);
         Expr altered_value =
-            fconvert_layout[op](ref_call->attrs, new_args, tinfos, op_desired_layouts);
+            fconvert_layout[op](new_attrs, new_args, tinfos, op_desired_layouts);
         if (altered_value.defined()) {
           new_e = altered_value;
           modified = true;
@@ -116,13 +115,15 @@ class ConvertTransformMemorizer : public TransformMemorizer {
       }
     }
     if (!modified) {
-      new_e = Call(ref_call->op, new_args, ref_call->attrs);
+      new_e = Call(ref_call->op, new_args, new_attrs);
     }
 
     const CallNode* new_call = new_e.as<CallNode>();
     ICHECK(new_call) << "Can only replace the original operator with another call node";
     return Call(new_call->op, new_call->args, new_call->attrs, new_call->type_args, ref_call->span);
   }
+
+  using TransformMemorizer::CallWithNewLayouts;
 
   using ContainerType = ConvertTransformMemorizerNode;
 };

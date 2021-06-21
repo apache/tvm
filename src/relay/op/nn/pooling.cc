@@ -52,6 +52,7 @@ Array<Array<Layout> > PoolInferCorrectLayout(const Attrs& attrs,
     // Set the pool with the new layout.
     ICHECK_EQ(new_in_layouts.size(), 1);
     params->layout = new_in_layouts[0].name();
+    LOG(INFO) << "New layout: " << params->layout;
   }
 
   Layout inferred_layout(params->layout);
@@ -70,6 +71,8 @@ InferCorrectLayoutOutput PoolInferLayout(const Attrs& attrs, const Array<Layout>
     // Set the pool with the new layout.
     ICHECK_EQ(new_in_layouts.size(), 1);
     params->layout = new_in_layouts[0].name();
+    LOG(INFO) << "New layout: " << params->layout;
+    LOG(INFO) << params->pool_size;
   }
 
   Array<Array<Layout>> inferred_layout{{params->layout}, {params->layout}};

@@ -1268,6 +1268,23 @@ Array<Array<Layout> > ConvInferCorrectLayout(const Attrs& attrs,
       {params->out_layout == "" ? params->data_layout : params->out_layout}};
 }
 
+template <typename T>
+InferCorrectLayoutOutput ConvInferLayout(const Attrs& attrs,
+                                             const Array<Layout>& new_in_layouts,
+                                             const Array<Layout>& old_in_layouts,
+                                             const Array<tvm::relay::Type>& old_in_types) {
+  const T* attrs_ptr = attrs.as<T>();
+  CHECK(attrs_ptr);
+  ObjectPtr<T> params = make_object<T>(*attrs_ptr);
+
+  // We always make other operators to fit the layouts of convolution layers
+  // So this inference ignores all inputs
+  Array<Array<Layout>> inferred_layout{
+      {params->data_layout, params->kernel_layout},
+      {params->out_layout == "" ? params->data_layout : params->out_layout}};
+  return InferCorrectLayoutOutput(inferred_layout, Attrs(params));
+}
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_OP_NN_CONVOLUTION_H_
