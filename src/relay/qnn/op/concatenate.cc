@@ -118,8 +118,9 @@ InferCorrectLayoutOutput QnnConcatenateLayout(const Attrs& attrs,
   }
 
   // Use Relay Concatenate Infer Correct layout to infer the layouts for data tensors.
-  auto layouts =
-      ConcatenateLayout(attrs, relay_new_in_layouts, relay_old_in_layouts, {old_in_types[0]})->inferred_layout;
+  auto concat_new_layout =
+      ConcatenateLayout(attrs, relay_new_in_layouts, relay_old_in_layouts, {old_in_types[0]});
+  auto layouts = concat_new_layout->inferred_layout;
 
   // Fill the layouts of remaining input tensors - scales and zero points. The layouts of these
   // tensors can be treated as channel layout. Total number of these tensors are 2 * num of data
@@ -131,7 +132,7 @@ InferCorrectLayoutOutput QnnConcatenateLayout(const Attrs& attrs,
     input_layouts.push_back(channel_layout);
   }
   Array<Layout> output_layouts = layouts[1];
-  return InferCorrectLayoutOutput({input_layouts, output_layouts}, attrs);
+  return InferCorrectLayoutOutput({input_layouts, output_layouts}, concat_new_layout->new_attrs);
 }
 
 Expr MakeQnnConcatenate(Expr data, Expr input_scales, Expr input_zero_points, Expr output_scale,
