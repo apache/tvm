@@ -296,7 +296,6 @@ def test_sub_index_simplify():
     ck.verify(x - x, 0)
     ck.verify(a - a, 0)
     ck.verify(a - b, a - b)
-    ck.verify(a - b, c - c)
     ck.verify(x * y - x, x * (y + (-1)))
     ck.verify(x * y - 10 * x, x * (y + (-10)))
     ck.verify(y * x - x * z, x * (y - z))
