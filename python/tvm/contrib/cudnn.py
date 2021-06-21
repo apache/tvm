@@ -227,6 +227,101 @@ def conv_output_shape(
     oshape: list
         output shape
     """
+
+    assert len(x_shape) == len(w_shape)
+    assert len(x_shape) in (4, 5)
+
+    if tensor_format == 0:
+        n_output = x_shape[0]
+        c_output = w_shape[0]
+        x_chan = x_shape[1]
+        w_chan_input = w_shape[1]
+        x_shape = x_shape[2:]
+        w_shape = w_shape[2:]
+
+    elif tensor_format == 1:
+        n_output = x_shape[0]
+        c_output = w_shape[0]
+        x_chan = x_shape[-1]
+        w_chan_input = w_shape[-1]
+        assert len(x_shape) == 4, "CuDNN layout NHWC is only well-defined for 4d tensors"
+        x_shape = x_shape[1:-1]
+        w_shape = w_shape[1:-1]
+
+    elif tensor_format == 2:
+        n_output = x_shape[0]
+        c_output = w_shape[0]
+        x_chan = x_shape[1]
+        w_chan_input = w_shape[1]
+        w_lanes = tvm.runtime.DataType(conv_dtype).lanes
+        assert w_lanes == 1
+        x_shape = x_shape[2:]
+        w_shape = w_shape[2:]
+
+    else:
+        raise ValueError("Unknown CuDNN tensor format: '{}'".format(tensor_format))
+
+    x_lanes = tvm.runtime.DataType(data_dtype).lanes
+    assert x_chan * x_lanes == w_chan_input * groups, (
+        "Mismatched dimensions, data has {} channels/group "
+        "(dimension {} with {} lanes/value, {} groups), "
+        "but weights require {} input channels/group"
+    ).format(x_chan // groups, x_chan, x_lanes, groups, w_chan_input)
+
+    output_dims = []
+    for x_shape_i, w_shape_i, pad_i, stride_i, dilation_i in zip(
+        x_shape, w_shape, pad, stride, dilation
+    ):
+        output_dim = 1 + (x_shape_i + 2 * pad_i - (((w_shape_i - 1) * dilation_i) + 1)) // stride_i
+        output_dims.append(output_dim)
+
+    if tensor_format in [0, 2]:
+        output = [n_output, c_output, *output_dims]
+    elif tensor_format == 1:
+        output = [n_output, *output_dims, c_output]
+    else:
+        raise ValueError("Unknown CuDNN tensor format: '{}'".format(tensor_format))
+
+    return output
+
+
+def _conv_output_shape_from_cudnn(
+    tensor_format, pad, stride, dilation, x_shape, w_shape, data_dtype, conv_dtype, groups=1
+):
+    """Get output shape of 2D or 3D convolution.  The output of this
+    function should be identical to that of conv_output_shape, but
+    requires a GPU with CuDNN to be present.  This is maintained for
+    testing purposes to validate the output of conv_output_shape.
+
+    Paramters
+    ---------
+    tensor_format: int
+        0: CUDNN_TENSOR_NCHW
+        1: CUDNN_TENSOR_NHWC
+        2: CUDNN_TENSOR_NCHW_VECT_C
+    pad: int or list
+        padding
+    stride: int or list
+        stride
+    dilation: int or list
+        dilation
+    x_shape: list
+        input shape
+    w_shape: list
+        weight shape
+    data_dtype: str
+        data type
+    conv_dtype: str
+        convolution type
+    groups: int
+        number of groups
+
+    Returns
+    -------
+    oshape: list
+        output shape
+
+    """
     dims = len(x_shape)
     assert dims in (4, 5)
 
@@ -235,7 +330,7 @@ def conv_output_shape(
     )
     oshape = np.zeros((dims), dtype=np.int32)
 
-    func = tvm._ffi.get_global_func("tvm.contrib.cudnn.conv.output_shape")
+    func = tvm._ffi.get_global_func("tvm.contrib.cudnn.conv.output_shape_from_cudnn")
     func(
         tensor_format,
         dims - 2,
