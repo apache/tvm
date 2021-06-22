@@ -40,7 +40,7 @@ DEFAULT_ALWAYS_LIST = [
     "nn.conv2d_transpose",
     "nn.conv3d_transpose",
     "nn.dense",
-    # "nn.batch_matmul", # Handled by a special case
+    "nn.batch_matmul",
 ]
 DEFAULT_FOLLOW_LIST = [
     # These ops add new data or change shape
@@ -186,12 +186,3 @@ def generic_follow_op(call_node: relay.Call, mixed_precision_type: str) -> List:
 @register_func_to_op_list(list_ops=DEFAULT_NEVER_LIST)
 def generic_never_op(call_node: relay.Call, mixed_precision_type: str) -> List:
     return [MIXED_PRECISION_NEVER] + get_generic_out_dtypes(call_node, mixed_precision_type)
-
-
-@register_mixed_precision_conversion("nn.batch_matmul")
-def nn_batch_matmul(call_node: relay.Call, mixed_precision_type: str) -> List:
-    # TODO(AndrewZhaoLuo): remove when batch_matmul handles accumulation dtypes well.
-    # Batched matmul has inconsistent support for mixed precision operations.
-    # Many schedules ignore the out_dtype attribute which leads to errors when
-    # input types do not match the out_dtype. Therefore, accumulate to output_dtype.
-    return [MIXED_PRECISION_ALWAYS, "float16", "float16"]
