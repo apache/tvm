@@ -162,7 +162,9 @@ def get_generic_out_dtypes(call_node: relay.Call, mixed_precision_type: str) -> 
     # Some discussion here about making this better is here:
     # https://discuss.tvm.apache.org/t/rfc-relay-fp32-fp16-model-support/9994/4?u=andrewzhaoluo
     if hasattr(call_node.attrs, "out_dtype"):
-        return ["float32", mixed_precision_type]
+        # TODO (AndrewZhaoLuo): evaluate consistent support for mixed_type accumulators
+        # return ["float32", mixed_precision_type]
+        return [mixed_precision_type, mixed_precision_type]
 
     # [accumulation_dtype, output_dtype] for the operations
     return [mixed_precision_type, mixed_precision_type]
