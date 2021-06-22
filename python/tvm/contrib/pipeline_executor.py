@@ -87,15 +87,15 @@ def build_pipeline(config):
     return mods, string_config
 
 
-def create(mods, mod_config):
+def create(pipeline_mods, mod_config):
     """Create a pipeline runtime executor.
 
     Parameters
     ----------
-    mods : List[IRModule]
+    pipeline_mods : List[IRModule]
         list of IRModule
 
-    mod_config : Dict[IRModule, Dict[str, Any]]
+    mod_config : Dict[int, Dict[str, Any]]
         modules and modules dependency configuration informaiton.
 
     Returns
@@ -103,7 +103,6 @@ def create(mods, mod_config):
     submodule : PipelineModule
         Runtime pipeline module.
     """
-    pipeline_mods, string_config = build_pipeline(mod_config)
 
     mods = []
     for pipeline_mod in pipeline_mods:
@@ -113,7 +112,7 @@ def create(mods, mod_config):
 
         mods.append(mod)
 
-    submodule = PipelineModule(mods, json.dumps(string_config))
+    submodule = PipelineModule(mods, json.dumps(mod_config))
     return submodule
 
 

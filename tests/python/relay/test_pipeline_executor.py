@@ -177,7 +177,9 @@ def run_pipeline(target):
     #build and create pipeline module
     """
     with relay.build_config(opt_level=3):
-        pipeline_module = pipeline_executor.create(mods, mod_config)
+        pipeline_mods, string_config = pipeline_executor.build_pipeline(mod_config)
+
+    pipeline_module = pipeline_executor.create(pipeline_mods, string_config)
 
     """
     #Use pipeline executor to pipeline the said pipeline which use different backend
