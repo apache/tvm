@@ -3144,8 +3144,9 @@ class QLinearAdd(OnnxOpConverter):
 
         dtype = infer_type(a).checked_type.dtype
 
-        ## Onnxruntime doesn't actually do this op in integer, they dequantize to fp32 and then requantize afer
-        ## see https://github.com/microsoft/onnxruntime/blob/master/onnxruntime/core/mlas/lib/qladd.cpp
+        ## Onnxruntime doesn't actually do this op in integer, they dequantize to fp32
+        ## and then requantize afer
+        ## https://github.com/microsoft/onnxruntime/blob/master/onnxruntime/core/mlas/lib/qladd.cpp
         a = _qnn.op.dequantize(
             inputs[0], a_scale, a_zero_point
         )  # , c_scale, c_zero_point, out_dtype = dtype)
