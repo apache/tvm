@@ -31,7 +31,7 @@ namespace tvm {
 namespace runtime {
 namespace micro_rpc {
 
-struct utvm_session_start_payload_t {
+struct microtvm_session_start_payload_t {
   uint8_t version;
 };
 
@@ -85,7 +85,7 @@ tvm_crt_error_t Session::StartSession() {
 
   RegenerateNonce();
   SetSessionId(local_nonce_, 0);
-  utvm_session_start_payload_t payload = {Session::kVersion};
+  microtvm_session_start_payload_t payload = {Session::kVersion};
   tvm_crt_error_t to_return = SendInternal(MessageType::kStartSessionInit,
                                            reinterpret_cast<uint8_t*>(&payload), sizeof(payload));
   if (to_return == 0) {
@@ -182,7 +182,7 @@ void Session::ClearReceiveBuffer() {
 void Session::SendSessionStartReply(const SessionHeader& header) {
   RegenerateNonce();
   SetSessionId(InitiatorNonce(header.session_id), local_nonce_);
-  utvm_session_start_payload_t payload = {Session::kVersion};
+  microtvm_session_start_payload_t payload = {Session::kVersion};
   tvm_crt_error_t to_return = SendInternal(MessageType::kStartSessionReply,
                                            reinterpret_cast<uint8_t*>(&payload), sizeof(payload));
   state_ = State::kSessionEstablished;
@@ -195,7 +195,7 @@ void Session::ProcessStartSessionInit(const SessionHeader& header) {
     return;
   }
 
-  utvm_session_start_payload_t payload;
+  microtvm_session_start_payload_t payload;
   int bytes_read = receive_buffer_->Read(reinterpret_cast<uint8_t*>(&payload), sizeof(payload));
   if (bytes_read != sizeof(payload)) {
     return;
@@ -235,7 +235,7 @@ void Session::ProcessStartSessionReply(const SessionHeader& header) {
     return;
   }
 
-  utvm_session_start_payload_t payload;
+  microtvm_session_start_payload_t payload;
   int bytes_read = receive_buffer_->Read(reinterpret_cast<uint8_t*>(&payload), sizeof(payload));
   if (bytes_read != sizeof(payload)) {
     return;
