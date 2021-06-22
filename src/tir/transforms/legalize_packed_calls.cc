@@ -60,30 +60,41 @@ class PackedCallLegalizer : public StmtExprMutator {
     if (call) {
       if (call->op.same_as(builtin::tvm_call_cpacked())) {
         Array<PrimExpr> packed_args{call->args[0]};
+        std::vector<tir::Var> tvm_values;
         for (unsigned i = 1; i < call->args.size(); i++) {
           // No need to pack inputs of the prim_func
           if (inputs_[call->args[i]] == true) {
             packed_args.push_back(call->args[i]);
           } else {
             // Pack the argument inside a TVMValue
-            auto sid_array = tir::Var("tvm_value", DataType::Handle());
-            tir::Stmt set_struct_stmt = tir::Evaluate(
+            std::stringstream ss;
+            ss << "tvm_value_" << tvm_value_index_++;
+            auto sid_array = tir::Var(ss.str(), DataType::Handle());
+            tvm_values.push_back(sid_array);
+
+            new_stmts.push_back(tir::Evaluate(
                 tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_struct_set(),
-                               {sid_array, 0, tir::builtin::kArrData, call->args[i]}));
-            new_stmts.push_back(LetStmt(sid_array, StackAlloca("array", 1), set_struct_stmt));
+                               {sid_array, 0, tir::builtin::kArrData, call->args[i]})));
             packed_args.push_back(sid_array);
           }
         }
-        // Finally, evaluate the packed call and return a sequential statement
+        // Evaluate the packed call
         new_stmts.push_back(tir::Evaluate(tir::Call(call->dtype, call->op, packed_args)));
-        return tir::SeqStmt(new_stmts);
+        tir::Stmt call_stmt = tir::SeqStmt(new_stmts);
+
+        // Allocate the TVMValues on the stack and define the variables
+        for (auto v : tvm_values) {
+          call_stmt = LetStmt(v, StackAlloca("array", 1), call_stmt);
+        }
+        return call_stmt;
       }
     }
     return StmtExprMutator::VisitStmt_(op);
   }
 
  private:
-  InputMap inputs_;  // Store the inputs to the primfunc that don't need to be packed.
+  InputMap inputs_;      // Store the inputs to the primfunc that don't need to be packed.
+  int tvm_value_index_;  // Index of the actual tvm_value variable
 };
 
 namespace transform {
@@ -102,6 +113,8 @@ Pass LegalizePackedCalls() {
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.LegalizePackedCalls", {});
 }
+
+TVM_REGISTER_GLOBAL("tir.transform.LegalizePackedCalls").set_body_typed(LegalizePackedCalls);
 }  // namespace transform
 
 }  // namespace tir
