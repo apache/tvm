@@ -38,7 +38,7 @@ target_lib="linux-arm64-v8a-neon"
 # target_lib="${target_lib}-asserts"
 
 extract_dir="arm_compute-${compute_lib_version}-bin-linux"
-install_path="/opt/arm/acl"
+install_path="/opt/acl"
 
 tmpdir=$(mktemp -d)
 
@@ -54,6 +54,7 @@ cd "$tmpdir"
 curl -sL "${compute_lib_download_url}" -o "${compute_lib_file_name}"
 tar xzf "${compute_lib_file_name}"
 
+rm -rf "${install_path}"
 mkdir -p "${install_path}"
 cp -r "${extract_dir}/include" "${install_path}/"
 cp -r "${extract_dir}/arm_compute" "${install_path}/include/"
