@@ -15,13 +15,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+set +e
+set -o pipefail
 
+echo "Install all missing stub packages"
+mypy --install-types
 
 echo "Checking MyPy Type defs in auto_scheduler package."
 mypy  --check-untyped-defs python/tvm/auto_scheduler
 
 echo "Checking MyPy Type defs in runtime package."
-mypy  --check-untyped-defs python/tvm/runtime
+mypy  --check-untyped-defs python/tvm/runtime 
 
 
 
