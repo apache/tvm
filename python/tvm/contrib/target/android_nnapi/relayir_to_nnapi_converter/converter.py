@@ -28,14 +28,17 @@ class Converter:
     Parameters
     ----------
     options: dict
-        The converter option dict.
+        The converter option dict. See below for available options.
+
+    options["class"]["self"]["name"]: str
+        The name of the C++ class wrapping the Android NNAPI model. Defaults to "AnnGraph".
+
+    options["target"]["api_level"]: int
+        The targeting Android API level. Defaults to 29.
     """
 
     DEFAULT_OPTIONS = {
         "class": {
-            # The base_path option is here for loading weights from external storage directly
-            # However, the feature is disabled for now due to its complexity to setup
-            "base_path": "/sdcard/r2n/AnnGraph/",
             "self": {
                 "name": "AnnGraph",
             },
@@ -71,7 +74,6 @@ class Converter:
             export_obj=export_obj.asjson(),
             options={
                 "class": {
-                    "base_path": self._options["class"]["base_path"],
                     "name": self._options["class"]["self"]["name"],
                 },
             },
