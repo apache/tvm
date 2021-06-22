@@ -20,6 +20,7 @@ from __future__ import absolute_import as _abs
 import tvm
 from tvm import te
 from tvm import topi
+from tvm.te import hybrid
 from . import cpp
 from . import tag
 from .utils import within_index, make_idx, const_vector
@@ -941,3 +942,31 @@ def adv_index(data, indices):
         Output tensor
     """
     return cpp.adv_index(data, indices)
+
+
+@hybrid.script
+def invert_permutation(data):
+    """Computes the inverse permutation of data.
+
+    Parameters
+    ----------
+    data : tvm.te.Tensor
+        Input data
+
+    Returns
+    -------
+    result : tvm.te.Tensor
+        Output tensor
+
+    Examples
+    --------
+    .. code-block:: python
+        data = [3, 4, 0, 2, 1]
+        topi.invert_permutation(data) = [2, 4, 3, 0, 1]
+    """
+    result = output_tensor(data.shape, data.dtype)
+    nums = data.shape[0]
+    for ind in range(nums):
+        r_ind = data[ind]
+        result[r_ind] = ind
+    return result
