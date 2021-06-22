@@ -111,7 +111,7 @@ def get_runtime_libs(executor: str) -> str:
     source (i.e. not header) files.
     """
     if executor == "host-driven":
-        crt_runtime_lib_names = ["utvm_rpc_server", "utvm_rpc_common", "common"]
+        crt_runtime_lib_names = ["microtvm_rpc_server", "microtvm_rpc_common", "common"]
     elif executor == "aot":
         crt_runtime_lib_names = ["aot_executor", "common"]
     else:

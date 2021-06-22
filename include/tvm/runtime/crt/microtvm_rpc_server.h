@@ -18,12 +18,12 @@
  */
 
 /*!
- * \file utvm_rpc_server.h
+ * \file microtvm_rpc_server.h
  * \brief MicroTVM RPC Server
  */
 
-#ifndef TVM_RUNTIME_CRT_UTVM_RPC_SERVER_H_
-#define TVM_RUNTIME_CRT_UTVM_RPC_SERVER_H_
+#ifndef TVM_RUNTIME_CRT_MICROTVM_RPC_SERVER_H_
+#define TVM_RUNTIME_CRT_MICROTVM_RPC_SERVER_H_
 
 #include <stdlib.h>
 #include <sys/types.h>
@@ -40,14 +40,15 @@ extern "C" {
  * \param num_bytes Number of bytes avaiable in data.
  * \return The number of bytes written.
  */
-typedef ssize_t (*utvm_rpc_channel_write_t)(void* context, const uint8_t* data, size_t num_bytes);
+typedef ssize_t (*microtvm_rpc_channel_write_t)(void* context, const uint8_t* data,
+                                                size_t num_bytes);
 
 /*! \brief Opaque pointer type to TVM RPC Server. */
-typedef void* utvm_rpc_server_t;
+typedef void* microtvm_rpc_server_t;
 
 /*! \brief Initialize the TVM RPC Server.
  *
- * Call this on device startup before calling anyother utvm_rpc_server_ functions.
+ * Call this on device startup before calling anyother microtvm_rpc_server_ functions.
  *
  * \param write_func A callback function invoked by the TVM RPC Server to write data back to the
  *                   host. Internally, the TVM RPC Server will block until all data in a reply
@@ -56,7 +57,8 @@ typedef void* utvm_rpc_server_t;
  * \return A pointer to the TVM RPC Server. The pointer is allocated in the same memory space as
  *         the TVM workspace.
  */
-utvm_rpc_server_t UTvmRpcServerInit(utvm_rpc_channel_write_t write_func, void* write_func_ctx);
+microtvm_rpc_server_t MicroTVMRpcServerInit(microtvm_rpc_channel_write_t write_func,
+                                            void* write_func_ctx);
 
 /*! \brief Do any tasks suitable for the main thread, and maybe process new incoming data.
  *
@@ -67,11 +69,11 @@ utvm_rpc_server_t UTvmRpcServerInit(utvm_rpc_channel_write_t write_func, void* w
  *     updated to the number of unprocessed bytes remaining in `new_data` (usually 0).
  * \return An error code indicating the outcome of the server main loop iteration.
  */
-tvm_crt_error_t UTvmRpcServerLoop(utvm_rpc_server_t server, uint8_t** new_data,
-                                  size_t* new_data_size_bytes);
+tvm_crt_error_t MicroTVMRpcServerLoop(microtvm_rpc_server_t server, uint8_t** new_data,
+                                      size_t* new_data_size_bytes);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // TVM_RUNTIME_CRT_UTVM_RPC_SERVER_H_
+#endif  // TVM_RUNTIME_CRT_MICROTVM_RPC_SERVER_H_

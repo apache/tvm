@@ -17,7 +17,7 @@
  * under the License.
  */
 
-#include "utvm_runtime_api.h"
+#include "microtvm_runtime_api.h"
 
 #include <stdlib.h>
 

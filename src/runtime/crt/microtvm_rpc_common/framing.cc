@@ -34,8 +34,9 @@
 // framer in its implementation.
 #ifdef TVM_CRT_FRAMER_ENABLE_LOGS
 #include <cstdio>
-#define TVM_FRAMER_DEBUG_LOG(msg, ...) fprintf(stderr, "utvm framer: " msg " \n", ##__VA_ARGS__)
-#define TVM_UNFRAMER_DEBUG_LOG(msg, ...) fprintf(stderr, "utvm unframer: " msg " \n", ##__VA_ARGS__)
+#define TVM_FRAMER_DEBUG_LOG(msg, ...) fprintf(stderr, "microTVM framer: " msg " \n", ##__VA_ARGS__)
+#define TVM_UNFRAMER_DEBUG_LOG(msg, ...) \
+  fprintf(stderr, "microTVM unframer: " msg " \n", ##__VA_ARGS__)
 #else
 #define TVM_FRAMER_DEBUG_LOG(msg, ...)
 #define TVM_UNFRAMER_DEBUG_LOG(msg, ...)

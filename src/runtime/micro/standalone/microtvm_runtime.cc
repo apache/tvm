@@ -16,38 +16,38 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include "tvm/runtime/micro/standalone/utvm_runtime.h"
+#include "tvm/runtime/micro/standalone/microtvm_runtime.h"
 
 #include <cassert>
 
-#include "utvm_graph_executor.h"
+#include "microtvm_graph_executor.h"
 
-void* UTVMRuntimeCreate(const char* json, size_t json_len, void* module) {
+void* MicroTVMRuntimeCreate(const char* json, size_t json_len, void* module) {
   return new tvm::micro::MicroGraphExecutor(std::string(json, json + json_len),
                                             reinterpret_cast<tvm::micro::DSOModule*>(module));
 }
 
-void UTVMRuntimeDestroy(void* handle) {
+void MicroTVMRuntimeDestroy(void* handle) {
   delete reinterpret_cast<tvm::micro::MicroGraphExecutor*>(handle);
 }
 
-void UTVMRuntimeSetInput(void* handle, int index, void* tensor) {
+void MicroTVMRuntimeSetInput(void* handle, int index, void* tensor) {
   reinterpret_cast<tvm::micro::MicroGraphExecutor*>(handle)->SetInput(
       index, reinterpret_cast<DLTensor*>(tensor));
 }
 
-void UTVMRuntimeRun(void* handle) {
+void MicroTVMRuntimeRun(void* handle) {
   reinterpret_cast<tvm::micro::MicroGraphExecutor*>(handle)->Run();
 }
 
-void UTVMRuntimeGetOutput(void* handle, int index, void* tensor) {
+void MicroTVMRuntimeGetOutput(void* handle, int index, void* tensor) {
   reinterpret_cast<tvm::micro::MicroGraphExecutor*>(handle)->CopyOutputTo(
       index, reinterpret_cast<DLTensor*>(tensor));
 }
-void* UTVMRuntimeDSOModuleCreate(const char* so, size_t so_len) {
+void* MicroTVMRuntimeDSOModuleCreate(const char* so, size_t so_len) {
   return new tvm::micro::DSOModule(std::string(so, so + so_len));
 }
 
-void UTVMRuntimeDSOModuleDestroy(void* module) {
+void MicroTVMRuntimeDSOModuleDestroy(void* module) {
   delete reinterpret_cast<tvm::micro::DSOModule*>(module);
 }

@@ -334,8 +334,8 @@ def check_result(
             tvm.testing.assert_allclose(out.numpy(), results[idx], rtol=TOL, atol=TOL)
 
 
-def test_byoc_utvm(platform, west_cmd, skip_build, tvm_debug):
-    """This is a simple test case to check BYOC capabilities of uTVM"""
+def test_byoc_microtvm(platform, west_cmd, skip_build, tvm_debug):
+    """This is a simple test case to check BYOC capabilities of microTVM"""
     model, zephyr_board = PLATFORMS[platform]
     build_config = {"skip_build": skip_build, "debug": tvm_debug}
     x = relay.var("x", shape=(10, 10))
