@@ -114,9 +114,9 @@ class ZephyrCompiler(tvm.micro.Compiler):
         self._qemu = "qemu" in board
 
         # For Zephyr boards that run emulated by default but don't have the prefix "qemu_" in their
-        # board names, a suffix "-qemu" is added by users of µTVM when specifying the board name to
-        # inform that the QEMU transporter must be used just like for the boards with the prefix.
-        # Zephyr does not recognize the suffix, so we trim it off before passing it.
+        # board names, a suffix "-qemu" is added by users of microTVM when specifying the board
+        # name to inform that the QEMU transporter must be used just like for the boards with
+        # the prefix. Zephyr does not recognize the suffix, so we trim it off before passing it.
         if "-qemu" in board:
             board = board.replace("-qemu", "")
 

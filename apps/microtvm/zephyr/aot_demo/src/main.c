@@ -83,26 +83,26 @@ void timer_expiry_function(struct k_timer* timer_id) { return; }
 
 #define MILLIS_TIL_EXPIRY 200
 #define TIME_TIL_EXPIRY (K_MSEC(MILLIS_TIL_EXPIRY))
-struct k_timer g_utvm_timer;
-uint32_t g_utvm_start_time;
-int g_utvm_timer_running = 0;
+struct k_timer g_microtvm_timer;
+uint32_t g_microtvm_start_time;
+int g_microtvm_timer_running = 0;
 
 // Called to start system timer.
 tvm_crt_error_t TVMPlatformTimerStart() {
-  if (g_utvm_timer_running) {
+  if (g_microtvm_timer_running) {
     TVMLogf("timer already running");
     return kTvmErrorPlatformTimerBadState;
   }
 
-  k_timer_start(&g_utvm_timer, TIME_TIL_EXPIRY, TIME_TIL_EXPIRY);
-  g_utvm_start_time = k_cycle_get_32();
-  g_utvm_timer_running = 1;
+  k_timer_start(&g_microtvm_timer, TIME_TIL_EXPIRY, TIME_TIL_EXPIRY);
+  g_microtvm_start_time = k_cycle_get_32();
+  g_microtvm_timer_running = 1;
   return kTvmErrorNoError;
 }
 
 // Called to stop system timer.
 tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
-  if (!g_utvm_timer_running) {
+  if (!g_microtvm_timer_running) {
     TVMLogf("timer not running");
     return kTvmErrorSystemErrorMask | 2;
   }
@@ -110,11 +110,11 @@ tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
   uint32_t stop_time = k_cycle_get_32();
 
   // compute how long the work took
-  uint32_t cycles_spent = stop_time - g_utvm_start_time;
-  if (stop_time < g_utvm_start_time) {
+  uint32_t cycles_spent = stop_time - g_microtvm_start_time;
+  if (stop_time < g_microtvm_start_time) {
     // we rolled over *at least* once, so correct the rollover it was *only*
     // once, because we might still use this result
-    cycles_spent = ~((uint32_t)0) - (g_utvm_start_time - stop_time);
+    cycles_spent = ~((uint32_t)0) - (g_microtvm_start_time - stop_time);
   }
 
   uint32_t ns_spent = (uint32_t)k_cyc_to_ns_floor64(cycles_spent);
@@ -122,13 +122,13 @@ tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
 
   // need to grab time remaining *before* stopping. when stopped, this function
   // always returns 0.
-  int32_t time_remaining_ms = k_timer_remaining_get(&g_utvm_timer);
-  k_timer_stop(&g_utvm_timer);
+  int32_t time_remaining_ms = k_timer_remaining_get(&g_microtvm_timer);
+  k_timer_stop(&g_microtvm_timer);
   // check *after* stopping to prevent extra expiries on the happy path
   if (time_remaining_ms < 0) {
     return kTvmErrorSystemErrorMask | 3;
   }
-  uint32_t num_expiries = k_timer_status_get(&g_utvm_timer);
+  uint32_t num_expiries = k_timer_status_get(&g_microtvm_timer);
   uint32_t timer_res_ms = ((num_expiries * MILLIS_TIL_EXPIRY) + time_remaining_ms);
   double approx_num_cycles =
       (double)k_ticks_to_cyc_floor32(1) * (double)k_ms_to_ticks_ceil32(timer_res_ms);
@@ -140,7 +140,7 @@ tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
     *elapsed_time_seconds = hw_clock_res_us / 1e6;
   }
 
-  g_utvm_timer_running = 0;
+  g_microtvm_timer_running = 0;
   return kTvmErrorNoError;
 }
 
@@ -172,7 +172,7 @@ void main(void) {
   g_cmd_buf_ind = 0;
   memset((char*)cmd_buf, 0, sizeof(cmd_buf));
   TVMPlatformUARTInit();
-  k_timer_init(&g_utvm_timer, NULL, NULL);
+  k_timer_init(&g_microtvm_timer, NULL, NULL);
   // Wake up host side.
   TVMPlatformWriteSerial(g_wakeup_sequence, sizeof(g_wakeup_sequence));
 

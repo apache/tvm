@@ -340,7 +340,7 @@ class CcompilerAnnotator(ExprMutator):
 
 @pytest.mark.parametrize("use_calculated_workspaces", [True, False])
 @pytest.mark.parametrize("target_options", [""])
-def test_byoc_utvm(use_calculated_workspaces, target_options):
+def test_byoc_microtvm(use_calculated_workspaces, target_options):
     """This is a simple test case to check BYOC capabilities of AOT"""
     x = relay.var("x", shape=(10, 10))
     w0 = relay.var("w0", shape=(10, 10))

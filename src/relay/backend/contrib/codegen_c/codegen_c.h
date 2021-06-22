@@ -220,7 +220,7 @@ class CodegenCBase {
       // This segment would be generated in C++ because of the usage
       // of tvm::runtime::Array. This is not ideal, but this to demonstrate
       // constant copying process used packed imports in other external
-      // codegen. Moreover, in uTVM we dont expect this part to be generated.
+      // codegen. Moreover, in microTVM we dont expect this part to be generated.
       code_stream_ << "#ifdef __cplusplus\n";
       code_stream_ << "int " << func_name
                    << "_init_wrapper_(tvm::runtime::Array<tvm::runtime::NDArray> arr) {\n";

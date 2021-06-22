@@ -34,7 +34,7 @@ if(USE_MICRO)
     # Build an isolated build directory, separate from the TVM tree.
     list(APPEND CRT_FILE_COPY_JOBS
          "3rdparty/libcrc/include *.h -> include"
-         "3rdparty/libcrc/src crcccitt.c -> src/runtime/crt/utvm_rpc_common"
+         "3rdparty/libcrc/src crcccitt.c -> src/runtime/crt/microtvm_rpc_common"
          "3rdparty/libcrc/tab gentab_ccitt.inc -> src/runtime/crt/tab"
          "3rdparty/dlpack/include *.h -> include"
          "3rdparty/dmlc-core/include *.h -> include"
@@ -49,8 +49,8 @@ if(USE_MICRO)
          "src/runtime/crt/host crt_config.h -> template/host"
          "src/runtime/crt/host *.cc -> template/host"
          "src/runtime/crt/memory *.c -> src/runtime/crt/memory"
-         "src/runtime/crt/utvm_rpc_common *.cc -> src/runtime/crt/utvm_rpc_common"
-         "src/runtime/crt/utvm_rpc_server *.cc -> src/runtime/crt/utvm_rpc_server"
+         "src/runtime/crt/microtvm_rpc_common *.cc -> src/runtime/crt/microtvm_rpc_common"
+         "src/runtime/crt/microtvm_rpc_server *.cc -> src/runtime/crt/microtvm_rpc_server"
          "src/runtime/minrpc *.h -> src/runtime/minrpc"
          "src/support generic_arena.h -> src/support"
          "src/runtime/crt crt_config-template.h -> template"
@@ -98,7 +98,7 @@ if(USE_MICRO)
     set(make_quiet )
     endif(${VERBOSE})
 
-    list(APPEND crt_libraries memory graph_executor aot_executor utvm_rpc_server utvm_rpc_common common)  # NOTE: listed in link order.
+    list(APPEND crt_libraries memory graph_executor aot_executor microtvm_rpc_server microtvm_rpc_common common)  # NOTE: listed in link order.
     foreach(crt_lib_name IN LISTS crt_libraries)
       list(APPEND crt_library_paths "host_standalone_crt/lib${crt_lib_name}.a")
     endforeach()
@@ -166,7 +166,7 @@ if(USE_MICRO)
 
   tvm_crt_define_targets()
 
-  set(TVM_CRT_LINKER_LIB host_standalone_crt_utvm_rpc_common)
+  set(TVM_CRT_LINKER_LIB host_standalone_crt_microtvm_rpc_common)
   if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
   list(APPEND TVM_RUNTIME_LINKER_LIBS -Wl,--whole-archive ${TVM_CRT_LINKER_LIB} -Wl,--no-whole-archive)
   elseif("${CMAKE_CXX_COMPILER_ID}" MATCHES ".*Clang")
