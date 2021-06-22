@@ -118,6 +118,18 @@ stage("Sanity Check") {
   }
 }
 
+//Run MyPy for Type checking
+stage("MyPy Type Check") {
+  timeout(time: max_time, unit: 'MINUTES') {
+    node('CPU') {
+      ws(per_exec_ws("tvm/sanity")) {
+        init_git()
+        sh "${docker_run} ${ci_lint}  ./tests/scripts/task_mypy.sh"
+      }
+    }
+  }
+}
+
 // Run make. First try to do an incremental make from a previous workspace in hope to
 // accelerate the compilation. If something wrong, clean the workspace and then
 // build from scratch.
