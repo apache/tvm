@@ -20,7 +20,4 @@ set -e
 set -u
 set -o pipefail
 
-# h5py is pinned to minor than 3 due to issues with
-# tensorflow:
-# https://github.com/tensorflow/tensorflow/issues/44467
-pip3 install tensorflow==2.3.1 keras==2.4.3 "h5py<3.0"
+pip3 install tensorflow==2.4.2
