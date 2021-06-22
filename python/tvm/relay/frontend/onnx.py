@@ -981,7 +981,7 @@ class Reshape(OnnxOpConverter):
     @classmethod
     def _impl_v5(cls, inputs, attr, params):
         if get_name(inputs[1]) in params:
-            shape = tuple(params[inputs[1].name_hint].asnumpy().astype("int32"))
+            shape = tuple(params[inputs[1].name_hint].numpy().astype("int32"))
             out = _op.reshape(inputs[0], shape)
         else:
             out = _op.reshape(*inputs)
@@ -1143,11 +1143,11 @@ class Upsample(OnnxOpConverter):
             assert len(inputs) == 2, "Upsample op takes 2 inputs, {} given".format(len(inputs))
 
             if get_name(inputs[1]) in params:
-                scales = params[inputs[1].name_hint].asnumpy()
+                scales = params[inputs[1].name_hint].numpy()
             else:
                 scales = inputs[1]
         if isinstance(scales, _expr.Constant):
-            scales = list(scales.data.asnumpy())
+            scales = list(scales.data.numpy())
         if not isinstance(scales, _expr.Expr):
             assert scales[0] == 1.0 and scales[1] == 1.0
 
@@ -1224,7 +1224,7 @@ class CumSum(OnnxOpConverter):
         dim = inputs[1]
 
         if dim is not None:
-            dim = int(infer_value(dim, params).asnumpy())
+            dim = int(infer_value(dim, params).numpy())
 
         exclusive = attr.get("exclusive", 0)
         reverse = attr.get("reverse", 0)
@@ -1341,7 +1341,30 @@ class Slice(OnnxOpConverter):
         axes = inputs[3]
         steps = inputs[4]
 
-        data_rank = len(infer_shape(inputs[0]))
+        ishape = infer_shape(inputs[0])
+        data_rank = len(ishape)
+
+        def has_static_axes():
+            return (
+                isinstance(axes, _expr.Constant)
+                and isinstance(starts, _expr.Constant)
+                and isinstance(ends, _expr.Constant)
+                and (steps is None or isinstance(steps, _expr.Constant))
+            )
+
+        if axes is not None and has_static_axes():
+            axes_np = axes.data.asnumpy().astype("int64")
+            begin_np = starts.data.asnumpy().astype("int64")
+            end_np = ends.data.asnumpy().astype("int64")
+            if steps is None:
+                strides_np = np.ones_like(begin_np).astype("int64")
+            else:
+                strides_np = steps.data.asnumpy().astype("int64")
+
+            if all([isinstance(ishape[i], int) for i in axes_np]):
+                return _op.strided_slice(
+                    inputs[0], list(begin_np), list(end_np), list(strides_np), axes=list(axes_np)
+                )
 
         # Update the starts and ends according to axes if required.
         if axes is not None:
@@ -1376,7 +1399,7 @@ def normalize_gather_indices(data, indices, axis):
     s = _op.take(_op.shape_of(data, dtype=ind_dtype), _op.const(axis))
     cond = fold_constant(indices < _op.const(0, ind_dtype))
     if isinstance(cond, _expr.Constant):
-        val = cond.data.asnumpy()
+        val = cond.data.numpy()
         if val.size == 1:
             cond = val.item()
             if cond:
@@ -1414,10 +1437,21 @@ class GatherND(OnnxOpConverter):
     """Operator converter for GatherND."""
 
     @classmethod
+    def _impl_common(cls, data, indices, batch_dims=0):
+        indices_dims = len(infer_shape(indices))
+        indices_shape = infer_shape(indices)
+        indices = _op.transpose(indices, axes=[-1] + list(range(indices_dims - 1)))
+        index_rank = indices_shape[-1]
+        return _op.gather_nd(data, indices, batch_dims, index_rank)
+
+    @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        indices_dims = len(infer_shape(inputs[1]))
-        indices = _op.transpose(inputs[1], axes=[-1] + list(range(indices_dims - 1)))
-        return _op.gather_nd(inputs[0], indices)
+        return cls._impl_common(inputs[0], inputs[1])
+
+    @classmethod
+    def _impl_v12(cls, inputs, attr, params):
+        batch_dims = attr.get("batch_dims", 0)
+        return cls._impl_common(inputs[0], inputs[1], batch_dims)
 
 
 class Scatter(OnnxOpConverter):
@@ -1439,6 +1473,27 @@ class ScatterND(OnnxOpConverter):
         return _op.scatter_nd(
             inputs[0], _op.transpose(inputs[1], axes[-1:] + axes[:-1]), inputs[2], "update"
         )
+
+
+class EyeLike(OnnxOpConverter):
+    """Operator converter for EyeLike."""
+
+    @classmethod
+    def _impl_v9(cls, inputs, attr, params):
+        in_checked_type = infer_type(inputs[0]).checked_type
+        in_dtype = in_checked_type.dtype
+        in_shape = list(get_const_tuple(in_checked_type.shape))
+        dtype = attr.get("dtype", None)
+        if dtype is None:
+            dtype = in_dtype
+        else:
+            dtype = get_type(dtype)
+        zeros = _op.zeros(in_shape, dtype)
+        dim = in_shape[0]
+        indices = _op.arange(_op.const(0), _op.const(dim), dtype="int32")
+        ones = _op.full(_op.const(1), (dim,), dtype=dtype)
+        k = _op.const(attr.get("k", 0), dtype="int32")
+        return _op.scatter_nd(zeros, _op.stack([indices, indices + k], axis=0), ones, "update")
 
 
 class Greater(OnnxOpConverter):
@@ -2410,6 +2465,12 @@ class Clip(OnnxOpConverter):
 
     @classmethod
     def _impl_v11(cls, inputs, attr, params):
+        if len(inputs) == 3 and isinstance(inputs[2], _expr.Constant):
+            attr["max"] = inputs[2].data.asnumpy().item()
+            inputs = inputs[0:2]
+        if len(inputs) >= 2 and isinstance(inputs[1], _expr.Constant):
+            attr["min"] = inputs[1].data.asnumpy().item()
+            inputs = inputs[0:1]
         if "min" in attr and "max" in attr:
             return Clip.convert_attributes(inputs, attr, params)
 
@@ -2703,11 +2764,7 @@ class NonMaxSuppression(OnnxOpConverter):
             boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold
         )
 
-        three = _op.const(np.array([3]), dtype="int64")
-        begin = _op.const(np.array([0, 0]), dtype="int64")
-        end = _op.concatenate([nms_out[1], three], axis=0)
-        strides = _op.const(np.array([1, 1]), dtype="int64")
-        return _op.strided_slice(nms_out[0], begin, end, strides)
+        return _op.strided_slice(nms_out[0], _op.const([0], dtype="int64"), nms_out[1])
 
 
 class ATen(OnnxOpConverter):
@@ -2834,7 +2891,7 @@ class QLinearConv(OnnxOpConverter):
     def _impl_v10(cls, inputs, attr, params):
         def get_scalar(x, dtype="float32"):
             if isinstance(x, _expr.Var) and x.name_hint in params:
-                return _op.const(params[x.name_hint].asnumpy(), dtype)
+                return _op.const(params[x.name_hint].numpy(), dtype)
             rank = len(infer_shape(x))
             assert rank <= 1, "QLinearConv scale and zero_point input must be scalars"
             if rank == 1:
@@ -2946,6 +3003,39 @@ class BitShift(OnnxOpConverter):
         else:
             raise ValueError("Unsupported Shift Direction: " + direction)
         return out
+
+
+class Unique(OnnxOpConverter):
+    """Operator converter for unique"""
+
+    @classmethod
+    def _impl_v11(cls, inputs, attr, params):
+        if len(inputs) != 1:
+            raise ValueError("Unique expects 1 input")
+
+        data = inputs[0]
+        axis = attr.get("axis", None)
+        if axis is None:  # If axis is None, flatten the input before calling unique
+            data = _op.reshape(data, _op.const([-1]))
+        else:
+            data_shape = infer_shape(data)
+            if len(data_shape) != 1:
+                raise ValueError("TVM only supports 1D Unique operator.")
+        is_sorted = attr.get("sorted", 1)  # sorted is 0 or 1, 1 by default
+
+        # ONNX documentation lists return_counts as optional but there is no input to specify
+        # whether it is returned. Therefore we'll just always return it.
+        unique = _op.unique(data, is_sorted=(is_sorted == 1), return_counts=True)
+        num_unique = unique[3]
+
+        trim_unique_lambda = lambda input: _op.strided_slice(input, _op.const([0]), num_unique)
+
+        unique_vals = trim_unique_lambda(unique[0])
+        indices = trim_unique_lambda(unique[1])
+        inverse_indices = unique[2]
+        counts = trim_unique_lambda(unique[4])
+        # ONNX unique returns unique, indices, inverse_indices, (optional) counts
+        return _expr.TupleWrapper(_expr.Tuple([unique_vals, indices, inverse_indices, counts]), 4)
 
 
 # compatible operators that do NOT require any conversion.
@@ -3095,6 +3185,7 @@ def _get_convert_map(opset):
         "Scatter": Scatter.get_converter(opset),
         "ScatterElements": Scatter.get_converter(opset),
         "ScatterND": ScatterND.get_converter(opset),
+        "EyeLike": EyeLike.get_converter(opset),
         "Squeeze": AttrCvt("squeeze", {"axes": "axis"}),
         "Unsqueeze": Unsqueeze.get_converter(opset),
         "Pad": Pad.get_converter(opset),
@@ -3111,6 +3202,7 @@ def _get_convert_map(opset):
         "NonZero": NonZero.get_converter(opset),
         "Range": Range.get_converter(opset),
         "CumSum": CumSum.get_converter(opset),
+        "Unique": Unique.get_converter(opset),
         # defs/control_flow
         "Loop": Loop.get_converter(opset),
         "If": If.get_converter(opset),
@@ -3299,6 +3391,12 @@ class GraphProto:
                 outputs_num = 1
             else:
                 outputs_num = len(op)
+
+            if outputs_num == 1:
+                op = fold_constant(op)
+            else:
+                op = _expr.TupleWrapper(fold_constant(op.astuple()), len(op))
+
             if outputs_num > 1:
                 # ONNX supports optional outputs for some nodes.
                 # This block searches for missing outputs in the ONNX graph
@@ -3320,8 +3418,8 @@ class GraphProto:
                     # Create the new op with valid outputs
                     if len(outputs) == 1:
                         op = outputs[0]
-                    else:
-                        op = _expr.TupleWrapper(outputs, len(outputs))
+                    elif len(outputs) != outputs_num:
+                        op = _expr.TupleWrapper(_expr.Tuple(outputs), len(outputs))
                     # Drop invalid outputs for the onnx node
                     outputs_num = len(outputs)
                     node_output = [output for output in node_output if output != ""]
@@ -3330,10 +3428,10 @@ class GraphProto:
             ), "Number of output mismatch {} vs {} in {}.".format(
                 len(node_output), outputs_num, op_name
             )
+
             if outputs_num == 1:
-                self._nodes[node_output[0]] = fold_constant(op)
+                self._nodes[node_output[0]] = op
             else:
-                op = _expr.TupleWrapper(fold_constant(op.astuple()), len(op))
                 for k, i in zip(list(node_output), range(len(node_output))):
                     self._nodes[k] = op[i]
 

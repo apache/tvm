@@ -75,7 +75,7 @@ def test_alter_op():
 
 
 def test_alter_return_none():
-    """Test doing nothing by returning 'None' """
+    """Test doing nothing by returning 'None'"""
 
     def before():
         x = relay.var("x", shape=(1, 64, 56, 56))
@@ -316,7 +316,7 @@ def test_alter_layout_resnet():
 
 
 def test_alter_layout_broadcast_op():
-    """Test boradcast operators """
+    """Test boradcast operators"""
 
     def before():
         x = relay.var("x", shape=(1, 64, 56, 56))
@@ -553,7 +553,7 @@ def test_alter_layout_scalar_regression():
 
 
 def test_alter_layout_concatenate():
-    """ NCHW, NHWC and corner case concatenate layout transform."""
+    """NCHW, NHWC and corner case concatenate layout transform."""
 
     def alter_conv2d(attrs, inputs, tinfos, out_type):
         data, weight = inputs
@@ -635,7 +635,7 @@ def test_alter_layout_concatenate():
 
 
 def test_alter_layout_nchw_upsamping_op():
-    """Test upsamping operators """
+    """Test upsamping operators"""
 
     def before():
         x = relay.var("x", shape=(1, 32, 28, 28))
@@ -674,7 +674,7 @@ def test_alter_layout_nchw_upsamping_op():
 
 
 def test_alter_layout_nchw_dyn_upsamping_op():
-    """Test upsamping operators """
+    """Test upsamping operators"""
 
     def before():
         x = relay.var("x", shape=(1, 32, 28, 28))
@@ -766,8 +766,63 @@ def test_alter_layout_strided_slice():
                 result_before = ex_before.evaluate()(np_data, np_weight)
                 result_new = ex_new.evaluate()(np_data, np_weight)
                 tvm.testing.assert_allclose(
-                    result_before.asnumpy(), result_new.asnumpy(), rtol=1e-5, atol=1e-5
+                    result_before.numpy(), result_new.numpy(), rtol=1e-5, atol=1e-5
                 )
+
+
+@tvm.testing.uses_gpu
+def test_alter_layout_strided_slice_axes_nhwc():
+    """Test rewriting strided_slice with axes during alter_iop_layout"""
+
+    def before():
+        x = relay.var("x", shape=(1, 28, 28, 32))
+        weight = relay.var("weight", shape=(3, 3, 32, 32))
+        y = relay.nn.conv2d(
+            x,
+            weight,
+            channels=32,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+            data_layout="NHWC",
+            kernel_layout="HWIO",
+        )
+        y = relay.strided_slice(y, begin=[0, 16], end=[1, 32], strides=[1, 1], axes=[0, 3])
+        y = relay.Function(analysis.free_vars(y), y)
+        return y
+
+    def alter_conv2d(attrs, inputs, tinfos, out_type):
+        data, weight = inputs
+        new_attrs = dict(attrs)
+        new_attrs["data_layout"] = "NHWC4c"
+        return relay.nn.conv2d(data, weight, **new_attrs)
+
+    def expected():
+        x = relay.var("x", shape=(1, 28, 28, 32))
+        weight = relay.var("weight", shape=(3, 3, 32, 32))
+        x = relay.layout_transform(x, "NHWC", "NHWC4c")
+        y = relay.op.nn.conv2d(
+            x,
+            weight,
+            channels=32,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+            data_layout="NHWC4c",
+            kernel_layout="HWIO",
+        )
+        y = relay.strided_slice(y, begin=[0, 4], end=[1, 8], strides=[1, 1], axes=[0, 3])
+        y = relay.layout_transform(y, "NHWC4c", "NHWC")
+        y = relay.Function(analysis.free_vars(y), y)
+        return y
+
+    with TempOpAttr("nn.conv2d", "FTVMAlterOpLayout", alter_conv2d):
+        a = run_opt_pass(before(), transform.AlterOpLayout())
+        b = run_opt_pass(expected(), transform.InferType())
+
+    mod_before = tvm.IRModule()
+    mod_new = tvm.IRModule()
+    mod_before["main"] = a
+    mod_new["main"] = b
+    assert tvm.ir.structural_equal(mod_before, mod_new)
 
 
 def test_alter_layout_depthwise_conv2d():
@@ -855,7 +910,7 @@ def test_alter_layout_prelu():
 
 
 def test_alter_layout_pad():
-    """ Check NCHW, NHWC and corner case for pad layout conversion"""
+    """Check NCHW, NHWC and corner case for pad layout conversion"""
 
     def alter_conv2d(attrs, inputs, tinfos, out_type):
         data, weight = inputs
@@ -951,7 +1006,7 @@ def test_alter_layout_pad():
 
 
 def test_alter_layout_pool():
-    """ Check NCHW, NHWC pool layout conversion"""
+    """Check NCHW, NHWC pool layout conversion"""
 
     def alter_conv2d(attrs, inputs, tinfos, out_type):
         data, weight = inputs
@@ -1019,7 +1074,7 @@ def test_alter_layout_pool():
 
 
 def test_alter_layout_sum():
-    """ Check NCHW, NHWC sum layout conversion"""
+    """Check NCHW, NHWC sum layout conversion"""
 
     def alter_conv2d(attrs, inputs, tinfos, out_type):
         data, weight = inputs
@@ -1088,7 +1143,7 @@ def test_alter_layout_sum():
 
 
 def test_alter_layout_nhwc_arm():
-    """ Check that AlterOplayout does not alter NHWC data layout. """
+    """Check that AlterOplayout does not alter NHWC data layout."""
 
     def alter_conv2d(attrs, inputs, tinfos, out_type):
         from tvm import topi
@@ -1125,7 +1180,7 @@ def test_alter_layout_nhwc_arm():
 
 
 def test_alter_layout_nhwc_int8_aarch64():
-    """ Check that AlterOplayout does not alter NHWC data layout. """
+    """Check that AlterOplayout does not alter NHWC data layout."""
     from tvm import autotvm
 
     expected_workload_shape = (20, 42, 4, 16)
@@ -1298,3 +1353,4 @@ if __name__ == "__main__":
     test_alter_layout_nhwc_int8_aarch64()
     test_alter_op_with_global_var()
     test_alter_op_dense()
+    test_alter_layout_strided_slice_axes_nhwc()

@@ -73,7 +73,7 @@ def tune_network(network, target):
             module = graph_executor.GraphModule(lib["default"](dev))
             module.set_input("data", data)
             module.run()
-            return module.get_output(0).asnumpy()
+            return module.get_output(0).numpy()
 
         np.random.seed(0)
         if network == "mlp":

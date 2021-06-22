@@ -93,11 +93,14 @@ struct SoftmaxEntry {
 struct CuDNNThreadEntry {
   CuDNNThreadEntry();
   ~CuDNNThreadEntry();
+
+  bool exists() const { return handle; }
+
   cudnnHandle_t handle{nullptr};
   ConvEntry conv_entry;
   SoftmaxEntry softmax_entry;
   runtime::DeviceAPI* cuda_api{nullptr};
-  static CuDNNThreadEntry* ThreadLocal();
+  static CuDNNThreadEntry* ThreadLocal(bool check_exists = true);
 };  // CuDNNThreadEntry
 
 }  // namespace contrib

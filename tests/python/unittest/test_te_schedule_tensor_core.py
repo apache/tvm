@@ -270,7 +270,7 @@ def test_tensor_core_batch_matmal():
         func(a, b, c)
         a_np = a_np.transpose((0, 1, 3, 2, 4)).reshape(batch_size, n, n)
         b_np = b_np.transpose((0, 1, 3, 2, 4)).reshape(batch_size, n, n)
-        c_np = c.asnumpy().transpose((0, 1, 3, 2, 4)).reshape(batch_size, n, n)
+        c_np = c.numpy().transpose((0, 1, 3, 2, 4)).reshape(batch_size, n, n)
         np.testing.assert_allclose(
             c_np, np.matmul(a_np.astype(C.dtype), b_np.astype(C.dtype)), rtol=1e-4, atol=1e-4
         )
@@ -448,9 +448,7 @@ def test_tensor_core_batch_conv():
             kernel_h, kernel_w, in_channels, out_channels
         )
         c_np = (
-            c.asnumpy()
-            .transpose((0, 4, 1, 2, 3, 5))
-            .reshape(batch_size, height, width, out_channels)
+            c.numpy().transpose((0, 4, 1, 2, 3, 5)).reshape(batch_size, height, width, out_channels)
         )
         c_std = conv2d_nhwc_python(
             a_np.astype(Conv.dtype), w_np.astype(Conv.dtype), (stride_h, stride_w), (pad_h, pad_w)

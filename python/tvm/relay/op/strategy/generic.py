@@ -175,7 +175,7 @@ def fast_softmax_strategy(attrs, inputs, out_type, target):
     strategy = _op.OpStrategy()
     strategy.add_implementation(
         wrap_compute_softmax(topi.nn.fast_softmax),
-        naive_schedule,
+        wrap_topi_schedule(topi.generic.schedule_fast_softmax),
         name="fast_softmax.generic",
     )
     return strategy
@@ -842,6 +842,29 @@ def schedule_sparse_transpose(attrs, outs, target):
         return topi.generic.schedule_sparse_transpose(outs)
 
 
+# sparse conv2d
+def wrap_compute_sparse_conv2d(topi_compute):
+    """wrap sparse conv2d topi compute"""
+
+    def _compute_sparse_conv2d(attrs, inputs, out_type):
+        return [topi_compute(inputs[0], inputs[1], inputs[2], inputs[3], attrs["layout"])]
+
+    return _compute_sparse_conv2d
+
+
+@override_native_generic_func("sparse_conv2d_strategy")
+def sparse_conv2d_strategy(attrs, inputs, out_type, target):
+    """sparse conv2d generic strategy"""
+    logger.warning("sparse conv2d is not optimized for this platform.")
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_sparse_conv2d(topi.nn.sparse_conv2d),
+        wrap_topi_schedule(topi.generic.schedule_sparse_conv2d),
+        name="sparse_conv2d.generic",
+    )
+    return strategy
+
+
 # sort
 def wrap_compute_sort(topi_compute):
     """Wrap sort topi compute"""
@@ -1072,7 +1095,15 @@ def wrap_compute_all_class_nms(topi_compute):
         max_output_size = inputs[2]
         iou_threshold = inputs[3]
         score_threshold = inputs[4]
-        return topi_compute(inputs[0], inputs[1], max_output_size, iou_threshold, score_threshold)
+        output_format = attrs.output_format
+        return topi_compute(
+            inputs[0],
+            inputs[1],
+            max_output_size,
+            iou_threshold,
+            score_threshold,
+            output_format,
+        )
 
     return _compute_nms
 
@@ -1495,6 +1526,28 @@ def threefry_split_strategy(attrs, inputs, out_type, target):
     return strategy
 
 
+# uniform
+def wrap_compute_uniform(topi_compute):
+    """Wrap uniform topi compute"""
+
+    def _compute_uniform(attrs, inputs, _):
+        return list(topi_compute(inputs[0], inputs[1], inputs[2], attrs.out_shape, attrs.out_dtype))
+
+    return _compute_uniform
+
+
+@override_native_generic_func("uniform_strategy")
+def uniform_strategy(attrs, inputs, out_type, target):
+    """uniform generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_uniform(topi.random.uniform),
+        wrap_topi_schedule(topi.generic.schedule_extern),
+        name="uniform.generic",
+    )
+    return strategy
+
+
 def wrap_compute_scanop(topi_compute):
     """Wrap scanop style topi compute"""
 
@@ -1545,5 +1598,34 @@ def unique_strategy(attrs, inputs, out_type, target):
         wrap_compute_unique(topi.unique),
         wrap_topi_schedule(topi.generic.schedule_unique),
         name="unique.generic",
+    )
+    return strategy
+
+
+@generic_func
+def schedule_transpose(attrs, outs, target):
+    """schedule transpose"""
+    with target:
+        return schedule_injective(attrs, outs, target)
+
+
+# invert_permutation
+def wrap_compute_invert_permutation(topi_compute):
+    """wrap invert_permutation topi compute"""
+
+    def _compute_invert_permutation(attrs, inputs, out_type):
+        return [topi_compute(inputs[0])]
+
+    return _compute_invert_permutation
+
+
+@override_native_generic_func("invert_permutation_strategy")
+def invert_permutation_strategy(attrs, inputs, out_type, target):
+    """invert_permutation generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_invert_permutation(topi.invert_permutation),
+        wrap_topi_schedule(topi.generic.schedule_injective),
+        name="invert_permutation.generic",
     )
     return strategy

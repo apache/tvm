@@ -16,6 +16,8 @@
 # under the License.
 
 import re
+import sys
+
 import numpy as np
 
 import tvm
@@ -28,7 +30,7 @@ def check_mod(mod, x_np, res_np):
     target = "vulkan"
     dev = tvm.device(target, 0)
     ex = relay.create_executor("vm", mod=mod, device=dev, target=target)
-    res = ex.evaluate()(x_np).asnumpy()
+    res = ex.evaluate()(x_np).numpy()
     tvm.testing.assert_allclose(res, res_np, atol=1e-5)
 
 
@@ -79,9 +81,9 @@ def test_vulkan_copy():
         dev = tvm.vulkan(0)
         a_np = np.random.uniform(size=(n,)).astype(A.dtype)
         a = tvm.nd.empty((n,), A.dtype, dev).copyfrom(a_np)
-        b_np = a.asnumpy()
+        b_np = a.numpy()
         tvm.testing.assert_allclose(a_np, b_np)
-        tvm.testing.assert_allclose(a_np, a.asnumpy())
+        tvm.testing.assert_allclose(a_np, a.numpy())
 
     for _ in range(100):
         dtype = np.random.choice(["float32", "float16", "int8", "int32"])
@@ -106,7 +108,7 @@ def test_vulkan_vectorize_add():
         a = tvm.nd.empty((n,), A.dtype, dev).copyfrom(np.random.uniform(size=(n, lanes)))
         c = tvm.nd.empty((n,), B.dtype, dev)
         fun(a, c)
-        tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + 1)
+        tvm.testing.assert_allclose(c.numpy(), a.numpy() + 1)
 
     check_vulkan("float32", 64, 2)
     check_vulkan("float16", 64, 2)
@@ -158,7 +160,7 @@ def test_vulkan_stress():
                 f(a, b, c)
 
             for ((_, ref), c) in zip(fs, cs):
-                tvm.testing.assert_allclose(c.asnumpy(), ref(a.asnumpy(), b.asnumpy()))
+                tvm.testing.assert_allclose(c.numpy(), ref(a.numpy(), b.numpy()))
 
         ts = [threading.Thread(target=worker) for _ in range(np.random.randint(1, 10))]
         for t in ts:
@@ -214,7 +216,7 @@ def test_vulkan_bool_load():
     b = tvm.nd.array(b_np, dev)
     func(a, b)
     ref = a_np.astype(np.int32)
-    tvm.testing.assert_allclose(b.asnumpy(), ref)
+    tvm.testing.assert_allclose(b.numpy(), ref)
 
 
 @tvm.testing.requires_vulkan
@@ -255,7 +257,7 @@ def test_vulkan_unique():
     dtype = "int32"
     x = relay.var("x", shape=(relay.Any(),), dtype=dtype)
     mod = tvm.IRModule()
-    [unique, _, num_unique] = relay.unique(x, is_sorted=True)
+    [unique, _, _, num_unique] = relay.unique(x, is_sorted=True)
     mod["main"] = relay.Function([x], relay.op.strided_slice(unique, begin=[0], end=num_unique))
     x_np = np.random.randint(0, high=10, size=(10,)).astype(dtype)
     res_np = np.unique(x_np)
@@ -289,7 +291,7 @@ def test_vulkan_constant_passing():
         b = tvm.nd.array(np.zeros(n, dtype=B.dtype), dev)
         f_add(*scalars, a, b)
 
-        tvm.testing.assert_allclose(a.asnumpy() + sum(scalars), b.asnumpy())
+        tvm.testing.assert_allclose(a.numpy() + sum(scalars), b.numpy())
 
     # f_add has 3+num_int_params scalar parameters.  The other three
     # are length_n, stride1, and stride2.
@@ -349,20 +351,71 @@ def test_vulkan_while_if(target, dev):
     a = tvm.nd.array(np.array([5], dtype=A.dtype), dev)
     b = tvm.nd.array(np.zeros(n, dtype=A.dtype), dev)
     func(a, b)
-    tvm.testing.assert_allclose(b.asnumpy(), [55])
+    tvm.testing.assert_allclose(b.numpy(), [55])
 
     a = tvm.nd.array(np.array([-5], dtype=A.dtype), dev)
     b = tvm.nd.array(np.zeros(n, dtype=A.dtype), dev)
     func(a, b)
-    tvm.testing.assert_allclose(b.asnumpy(), [210])
+    tvm.testing.assert_allclose(b.numpy(), [210])
+
+
+@tvm.testing.parametrize_targets("vulkan")
+def test_vulkan_local_threadidx(target, dev):
+    # To access the thread index, the vulkan runtime accesses a global
+    # array of thread indices, storing the result in a local variable.
+    # In CUDA, these are the built-in threadIdx.x variables, which are
+    # globally accessible.  In vulkan, these local variables must be
+    # defined inside a function, but are hoisted up to the function
+    # header to mimic the global CUDA semantics.  Before this
+    # hoisting, this test could trigger spvValidate errors for
+    # potentially undeclared variables.
+
+    def do_compute(A, B, n):
+        ib = tvm.tir.ir_builder.create()
+        A = ib.buffer_ptr(A)
+        B = ib.buffer_ptr(B)
+
+        # One single declaration of te.thread_axis.
+        tx = te.thread_axis("threadIdx.x")
+
+        with ib.for_range(0, 1):
+            # Used inside a for-loop scope, defines local thread_id
+            # variable.
+            ib.scope_attr(tx, "thread_extent", 16)
+            B[tx + 0] = A[tx + 0]
+
+        with ib.for_range(0, 1):
+            # Used in next scope.  If local variable defined at point
+            # of use instead of function header, will fail spvValidate
+            # for access of out-of-scope local variable.
+            ib.scope_attr(tx, "thread_extent", 16)
+            B[tx + 16] = A[tx + 16]
+
+        return ib.get()
+
+    n = te.var("n")
+    A = te.placeholder((n,), name="A", dtype="int32")
+    B = te.placeholder((n,), name="B", dtype="int32")
+
+    B = te.extern(
+        A.shape,
+        [A],
+        lambda ins, outs: do_compute(ins[0], outs[0], n),
+        dtype="int32",
+    )
+    s = te.create_schedule(B.op)
+
+    # Expected failure occurs at build step.
+    func = tvm.build(s, [A, B], target)
+
+    n = 32
+    a_np = np.arange(n).astype(dtype=A.dtype)
+    b_np = np.zeros((n,), dtype="int32")
+    a = tvm.nd.array(a_np, dev)
+    b = tvm.nd.array(b_np, dev)
+    func(a, b)
+    tvm.testing.assert_allclose(b.numpy(), a_np)
 
 
 if __name__ == "__main__":
-    test_vector_comparison()
-    test_vulkan_copy()
-    test_vulkan_vectorize_add()
-    test_vulkan_stress()
-    test_vulkan_constant_passing()
-    test_vulkan_bool_load()
-    test_vulkan_pushconstants()
-    test_vulkan_unique()
+    sys.exit(pytest.main(sys.argv))

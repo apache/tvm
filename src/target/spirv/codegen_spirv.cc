@@ -23,7 +23,6 @@
  */
 #include "codegen_spirv.h"
 
-#include <tvm/runtime/container.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
@@ -37,6 +36,8 @@
 namespace tvm {
 namespace codegen {
 
+CodeGenSPIRV::CodeGenSPIRV(Target target) : spirv_support_(target) {}
+
 runtime::VulkanShader CodeGenSPIRV::BuildFunction(const PrimFunc& f, const std::string& name) {
   this->InitFuncState();
   ICHECK(f->HasNonzeroAttr(tir::attr::kNoAlias)) << "SPIRV only takes restricted memory model";
@@ -44,7 +45,8 @@ runtime::VulkanShader CodeGenSPIRV::BuildFunction(const PrimFunc& f, const std::
   uint32_t num_buffer = 0;
 
   // Currently, all storage and uniform buffer arguments are passed as
-  // a single descriptor set at index 0.
+  // a single descriptor set at index 0.  If ever non-zero, must
+  // ensure it is less than maxBoundDescriptorSets.
   const uint32_t descriptor_set = 0;
 
   for (Var arg : f->params) {
@@ -114,7 +116,7 @@ void CodeGenSPIRV::InitFuncState() {
   var_map_.clear();
   storage_info_.clear();
   analyzer_.reset(new arith::Analyzer());
-  builder_.reset(new spirv::IRBuilder());
+  builder_.reset(new spirv::IRBuilder(spirv_support_));
   builder_->InitHeader();
 }
 
@@ -126,6 +128,7 @@ spirv::Value CodeGenSPIRV::GetThreadIndex(const IterVar& iv, const PrimExpr& ext
     auto* sizeptr = extent.as<tir::IntImmNode>();
     ICHECK(sizeptr) << "SPIRV only allows constant thread group size "
                     << " get " << extent;
+    ICHECK_GE(ts.dim_index, 0) << "vthread should have been optimized out by here";
     ICHECK_LT(ts.dim_index, 3);
     workgroup_size_[ts.dim_index] = static_cast<uint32_t>(sizeptr->value);
   } else {
@@ -514,9 +517,13 @@ void CodeGenSPIRV::VisitStmt_(const ForNode* op) {
   // Must get init label after making value(to make sure they are correct)
   spirv::Label init_label = builder_->CurrentLabel();
   spirv::Label head_label = builder_->NewLabel();
+  builder_->SetName(head_label, "for_loop_head");
   spirv::Label body_label = builder_->NewLabel();
+  builder_->SetName(body_label, "for_loop_body");
   spirv::Label continue_label = builder_->NewLabel();
+  builder_->SetName(continue_label, "for_loop_continue");
   spirv::Label merge_label = builder_->NewLabel();
+  builder_->SetName(merge_label, "for_loop_merge");
   builder_->MakeInst(spv::OpBranch, head_label);
 
   // Loop head
@@ -641,9 +648,10 @@ void CodeGenSPIRV::VisitStmt_(const AttrStmtNode* op) {
   if (op->attr_key == tir::attr::thread_extent) {
     IterVar iv = Downcast<IterVar>(op->node);
     if (iv->thread_tag.length() != 0) {
+      // Will throw error if rebinding same local variable to a different extent.
+      analyzer_->Bind(iv->var, Range::FromMinExtent(0, op->value));
       if (!var_map_.count(iv->var.get())) {
         var_map_[iv->var.get()] = GetThreadIndex(iv, op->value);
-        analyzer_->Bind(iv->var, Range::FromMinExtent(0, op->value));
       }
     }
   } else if (op->attr_key == tir::attr::storage_scope) {

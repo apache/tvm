@@ -71,9 +71,7 @@ void SpanChecker::VisitExpr_(const MatchNode* op) { ExprVisitor::VisitExpr_(op);
 void SpanChecker::VisitSpan(const Span& sp) {
   if (!sp.defined()) {
     Span span;
-    int i = 0;
     for (auto spans = this->span_stack.rbegin(); spans != this->span_stack.rend(); spans++) {
-      i += 1;
       span = this->span_stack.back();
       if (span.defined()) {
         diag_ctx.Emit(Diagnostic::Warning(span) << "found null-span, i-nodes deep from this span.");

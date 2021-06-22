@@ -496,7 +496,7 @@ def test_reduction_and_dummy_fuse_split():
 
     args = [tvm.nd.empty((), "int32")] + [tvm.nd.array(np.ones((n,), dtype="int32"))]
     f(*args)
-    assert args[0].asnumpy() == n
+    assert args[0].numpy() == n
 
     n = 10
     X = te.placeholder(shape=(n,), dtype="int32", name="X")
@@ -510,7 +510,7 @@ def test_reduction_and_dummy_fuse_split():
         tvm.nd.array(np.ones((n,), dtype="int32"))
     ]
     f(*args)
-    assert np.all(args[0].asnumpy() == n)
+    assert np.all(args[0].numpy() == n)
 
 
 def test_schedule_compute_inline():

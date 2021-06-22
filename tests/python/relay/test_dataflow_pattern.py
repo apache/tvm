@@ -478,10 +478,16 @@ def test_no_match_func_attr():
 
 
 def test_match_call_attr():
+    # String attr
     is_conv2d = is_op("nn.conv2d")(wildcard(), wildcard()).has_attr({"data_layout": "NCHW"})
     x = relay.var("x")
     y = relay.var("y")
     assert is_conv2d.match(relay.op.nn.conv2d(x, y))
+
+    # Array attr
+    is_conv2d = is_op("nn.conv2d")(wildcard(), wildcard()).has_attr({"kernel_size": [3, 3]})
+    out = relay.op.nn.conv2d(x, y, kernel_size=[3, 3])
+    assert is_conv2d.match(out)
 
     # non-operator call
     attr_dict = {"call_attr": "attr"}
@@ -507,6 +513,11 @@ def test_no_match_call_attr():
 
     is_conv2d = is_op("nn.conv2d")(wildcard(), wildcard()).has_attr({"RandomAttr": "NCHW"})
     assert not is_conv2d.match(relay.op.nn.conv2d(x, y))
+
+    # Array attr
+    is_conv2d = is_op("nn.conv2d")(wildcard(), wildcard()).has_attr({"kernel_size": [3, 3]})
+    out = relay.op.nn.conv2d(x, y, kernel_size=[2, 1])
+    assert not is_conv2d.match(out)
 
     # non-operator calls
     call_has_attr = wildcard()(wildcard()).has_attr({"call_attr": "attr"})
@@ -899,9 +910,7 @@ class BatchnormCallback(DFPatternCallback):
         beta = node_map[self.beta][0]
         gamma = node_map[self.gamma][0]
         eps = node_map[self.eps][0]
-        return relay.op.nn.batch_norm(x, gamma, beta, mean, var, epsilon=eps.data.asnumpy().item())[
-            0
-        ]
+        return relay.op.nn.batch_norm(x, gamma, beta, mean, var, epsilon=eps.data.numpy().item())[0]
 
 
 def test_fuse_batchnorm():
@@ -1600,7 +1609,7 @@ def test_rewrite_function_with_fuzzy_body():
             return x + w
 
     out = rewrite(TestRewrite(), expr)
-    assert tvm.ir.structural_equal(x + w, x + w)
+    assert tvm.ir.structural_equal(out, x + w + b)
 
 
 def test_partition_function_with_fuzzy_body():

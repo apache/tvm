@@ -165,12 +165,18 @@ def extract_main_workspace_sizebytes(extract_dir):
 
 
 def compile_and_run(
-    mod, input_list, output_list, use_calculated_workspaces, params=None, workspace_byte_alignment=8
+    mod,
+    input_list,
+    output_list,
+    target_options,
+    use_calculated_workspaces,
+    params=None,
+    workspace_byte_alignment=8,
 ):
     """
     This method verifies the generated source
     """
-    target = f"c -runtime=c --link-params --executor=aot --workspace-byte-alignment={workspace_byte_alignment}"
+    target = f"c -runtime=c --link-params --executor=aot --workspace-byte-alignment={workspace_byte_alignment} {target_options}"
     cflags = f"-DTVM_RUNTIME_ALLOC_ALIGNMENT_BYTES={workspace_byte_alignment} "
 
     # The calculated workspaces will not account for stack allocator tags used for debugging
@@ -243,5 +249,5 @@ def generate_ref_data(mod, input_data, params=None, target="llvm"):
     grt_mod.set_input(**input_data)
     grt_mod.run()
     output_count = grt_mod.get_num_outputs()
-    out = [grt_mod.get_output(i).asnumpy() for i in range(output_count)]
+    out = [grt_mod.get_output(i).numpy() for i in range(output_count)]
     return out

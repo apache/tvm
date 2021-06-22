@@ -471,7 +471,7 @@ def _get_default_config(cfg, data, kernel, strides, padding, out_dtype, layout):
 
 
 def _get_conv3d_workload(data, kernel, stride, padding, out_dtype, data_layout="NCHW"):
-    """ Get the workload structure. """
+    """Get the workload structure."""
     if data_layout == "NCDHW":
         _, CI, ID, IH, IW = get_const_tuple(data.shape)
         CO, CIG, KD, KH, KW = get_const_tuple(kernel.shape)

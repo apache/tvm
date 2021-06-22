@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import re
 import numpy as np
 import pytest
 import scipy
@@ -61,8 +62,8 @@ def get_tvm_output_with_vm(
     ex = relay.create_executor("vm", mod=mod, device=device, target=target)
     result = ex.evaluate()(*input_data, **params)
     if isinstance(result, tvm.runtime.NDArray):
-        return result.asnumpy()
-    return [r.asnumpy() for r in result]
+        return result.numpy()
+    return [r.numpy() for r in result]
 
 
 def get_tvm_output(
@@ -108,11 +109,11 @@ def get_tvm_output(
         tvm_output_list = []
         for i, _ in enumerate(output_shape):
             tvm_output = m.get_output(i)
-            tvm_output_list.append(tvm_output.asnumpy())
+            tvm_output_list.append(tvm_output.numpy())
         return tvm_output_list
     else:
         tvm_output = m.get_output(0)
-        return tvm_output.asnumpy()
+        return tvm_output.numpy()
 
 
 def get_onnxruntime_output(model, inputs):
@@ -215,6 +216,12 @@ def make_constant_node(name, data_type, dims, vals):
         inputs=[],
         outputs=[name],
         value=helper.make_tensor(name=name, data_type=data_type, dims=dims, vals=vals),
+    )
+
+
+def is_version_greater_than(ver):
+    return "".join(re.findall(r"(\d+\.)(\d+\.)(\d)", onnx.__version__)[0]) > "".join(
+        re.findall(r"(\d+\.)(\d+\.)(\d)", ver)[0]
     )
 
 
@@ -634,7 +641,7 @@ def test_dynamic_gather():
     for target, device in tvm.testing.enabled_targets():
         ex = relay.create_executor("vm", mod=mod, device=device, target=target)
         result = ex.evaluate()(x, **params)
-        tvm.testing.assert_allclose(out_np, result.asnumpy(), rtol=1e-5, atol=1e-5)
+        tvm.testing.assert_allclose(out_np, result.numpy(), rtol=1e-5, atol=1e-5)
 
 
 def verify_gatherelements(in_shape, indices, axis):
@@ -1002,11 +1009,15 @@ def test_isnan():
     _test_finite_ops((2, 4, 5, 6), np.isnan, {}, "float32", "IsNaN", {})
 
 
-def verify_gather_nd(in_shape, indices, out_shape, dtype="float32"):
+def verify_gather_nd(in_shape, indices, out_shape, dtype="float32", batch_dims=0, opset=11):
     x = np.random.uniform(size=in_shape).astype(dtype)
     indices = np.array(indices, dtype="int64")
 
     y = helper.make_node("GatherND", ["in", "indices"], ["out"])
+
+    if opset >= 12:
+        batch_dims_attr = helper.make_attribute("batch_dims", batch_dims)
+        y.attribute.append(batch_dims_attr)
 
     graph = helper.make_graph(
         [y],
@@ -1024,7 +1035,7 @@ def verify_gather_nd(in_shape, indices, out_shape, dtype="float32"):
         ],
     )
     model = helper.make_model(graph, producer_name="gather_test")
-    verify_with_ort_with_inputs(model, [x, indices], [out_shape])
+    verify_with_ort_with_inputs(model, [x, indices], [out_shape], opset=opset)
 
 
 @tvm.testing.uses_gpu
@@ -1033,6 +1044,16 @@ def test_gather_nd():
     verify_gather_nd([2, 2], [[1], [0]], [2, 2])
     verify_gather_nd([2, 2, 2], [[0, 1], [1, 0]], [2, 2])
     verify_gather_nd([2, 2, 2], [[[0, 1]], [[1, 0]]], [2, 1, 2])
+
+    if is_version_greater_than("1.6.0"):
+        verify_gather_nd([2, 2, 2], [[1], [0]], [2, 2], batch_dims=1, opset=12)
+        verify_gather_nd(
+            (3, 2, 2, 3, 4),
+            np.random.randint(low=0, high=2, size=(3, 2, 3), dtype="int64"),
+            (3, 2),
+            batch_dims=2,
+            opset=12,
+        )
 
 
 @tvm.testing.uses_gpu
@@ -1170,7 +1191,7 @@ def verify_simple_dynamic_model(a_shape, b_shape, target, dev):
         # relu
         out_np[out_np < 0] = 0
 
-        tvm_out = ex.evaluate()(a_array, b_array).asnumpy()
+        tvm_out = ex.evaluate()(a_array, b_array).numpy()
         tvm.testing.assert_allclose(out_np, tvm_out, rtol=1e-5, atol=1e-5)
 
     mul_node = helper.make_node("MatMul", ["a", "b"], ["out"])
@@ -4108,6 +4129,7 @@ def test_softplus():
     verify_softplus(input_data)
 
 
+@tvm.testing.uses_gpu
 def test_cumsum():
     def verify_cumsum(indata, axis, exclusive=0, reverse=0, type="float32"):
         cumsum_node = onnx.helper.make_node(
@@ -4184,6 +4206,30 @@ def test_cumsum():
     verify_cumsum(data, 1, 1, 1, type="int32")
 
 
+@tvm.testing.uses_gpu
+def test_eyelike():
+    def verify_eyelike(indata):
+        node = helper.make_node(
+            "EyeLike",
+            inputs=["X"],
+            outputs=["Y"],
+        )
+
+        graph = helper.make_graph(
+            [node],
+            "eyelike_test",
+            inputs=[helper.make_tensor_value_info("X", TensorProto.FLOAT, list(indata.shape))],
+            outputs=[helper.make_tensor_value_info("Y", TensorProto.FLOAT, list(indata.shape))],
+        )
+
+        model = helper.make_model(graph, producer_name="eyelike_test")
+
+        verify_with_ort_with_inputs(model, [indata], dtype="float32", opset=9)
+
+    input_data = np.zeros((5, 5), dtype=np.float32)
+    verify_eyelike(input_data)
+
+
 """
   The following parameterized tests loads the tests that ONNX ships as
   serialized ONNX files, inputs, and outputs. The goal of this test
@@ -4220,9 +4266,6 @@ unsupported_onnx_tests = [
     "test_cumsum_2d_negative_axis/",
     "test_det_2d/",
     "test_det_nd/",
-    "test_eyelike_populate_off_main_diagonal/",
-    "test_eyelike_with_dtype/",
-    "test_eyelike_without_dtype/",
     "test_matmulinteger/",
     "test_maxpool_2d_same_lower/",
     "test_maxpool_2d_same_upper/",
@@ -4256,17 +4299,32 @@ unsupported_onnx_tests = [
     "test_tfidfvectorizer_tf_onlybigrams_levelempty/",
     "test_tfidfvectorizer_tf_onlybigrams_skip5/",
     "test_tfidfvectorizer_tf_uniandbigrams_skip5/",
-    "test_unique_not_sorted_without_axis/",
     "test_unique_sorted_with_axis/",
     "test_unique_sorted_with_axis_3d/",
     "test_unique_sorted_with_negative_axis/",
-    "test_unique_sorted_without_axis/",
     "test_upsample_nearest/",
 ]
 
 
+targets = [tgt for (tgt, _) in tvm.testing.enabled_targets()]
+
+target_skips = {
+    "cuda": [
+        "test_mod_mixed_sign_float16/",
+        "test_qlinearconv/",
+        "test_resize_upsample_sizes_nearest/",
+    ]
+}
+
+
+@pytest.mark.parametrize("target", targets)
 @pytest.mark.parametrize("test", onnx_test_folders)
-def test_onnx_nodes(test):
+def test_onnx_nodes(test, target):
+    if target in target_skips:
+        for failure in target_skips[target]:
+            if failure in test:
+                pytest.skip()
+                break
     for failure in unsupported_onnx_tests:
         if failure in test:
             pytest.skip()
@@ -4292,12 +4350,14 @@ def test_onnx_nodes(test):
                 outputs.append(numpy_helper.to_array(new_tensor))
             else:
                 raise ImportError(str(tensor) + " not labeled as an import or an output")
-        tvm_val = get_tvm_output_with_vm(onnx_model, inputs, "llvm", tvm.cpu(0))
-        if len(outputs) == 1:
-            tvm.testing.assert_allclose(outputs[0], tvm_val, rtol=rtol, atol=atol)
-        else:
-            for output, val in zip(outputs, tvm_val):
-                tvm.testing.assert_allclose(output, val, rtol=rtol, atol=atol)
+
+    dev = tvm.device(target, 0)
+    tvm_val = get_tvm_output_with_vm(onnx_model, inputs, target, dev)
+    if len(outputs) == 1:
+        tvm.testing.assert_allclose(outputs[0], tvm_val, rtol=rtol, atol=atol)
+    else:
+        for output, val in zip(outputs, tvm_val):
+            tvm.testing.assert_allclose(output, val, rtol=rtol, atol=atol)
 
 
 def test_wrong_input():
@@ -4661,4 +4721,5 @@ if __name__ == "__main__":
     test_wrong_input()
     test_aten()
     test_reverse_sequence()
+    test_eyelike()
     test_qlinearconv()

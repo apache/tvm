@@ -131,7 +131,7 @@ def verify_conv2d_hwnc(
         func(a, w, c)
 
         rtol = 1e-3
-        tvm.testing.assert_allclose(c.asnumpy().transpose((2, 0, 1, 3)), c_np, rtol=rtol)
+        tvm.testing.assert_allclose(c.numpy().transpose((2, 0, 1, 3)), c_np, rtol=rtol)
 
     check_target("cuda")
 

@@ -24,7 +24,7 @@
 #ifndef TVM_RUNTIME_VM_VM_H_
 #define TVM_RUNTIME_VM_VM_H_
 
-#include <tvm/runtime/container.h>
+#include <tvm/runtime/container/closure.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/packed_func.h>

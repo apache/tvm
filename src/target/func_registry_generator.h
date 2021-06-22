@@ -24,7 +24,8 @@
 #ifndef TVM_TARGET_FUNC_REGISTRY_GENERATOR_H_
 #define TVM_TARGET_FUNC_REGISTRY_GENERATOR_H_
 
-#include <tvm/runtime/container.h>
+#include <tvm/runtime/container/array.h>
+#include <tvm/runtime/container/string.h>
 
 #include <string>
 #include <vector>

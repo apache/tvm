@@ -168,6 +168,17 @@ reg.register_schedule("nn.sparse_transpose", strategy.schedule_sparse_transpose)
 reg.register_pattern("nn.sparse_transpose", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
+# sparse_conv2d
+@reg.register_compute("nn.sparse_conv2d")
+def compute_sparse_conv2d(attrs, inputs, out_type):
+    """Compute definition of sparse_conv2d"""
+    return [topi.nn.sparse_conv2d(inputs[0], inputs[1], inputs[2], inputs[3], attrs["layout"])]
+
+
+reg.register_strategy("nn.sparse_conv2d", strategy.sparse_conv2d_strategy)
+reg.register_pattern("nn.sparse_conv2d", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
 # conv1d
 reg.register_strategy("nn.conv1d", strategy.conv1d_strategy)
 reg.register_pattern("nn.conv1d", OpPattern.OUT_ELEMWISE_FUSABLE)

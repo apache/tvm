@@ -217,9 +217,7 @@ def assert_equal(tvm_result, torch_result):
         for tvm_res, pt_res in zip(tvm_result, torch_result):
             assert_equal(tvm_res, pt_res)
     elif isinstance(torch_result, torch.Tensor):
-        tvm.testing.assert_allclose(
-            tvm_result.asnumpy(), torch_result.numpy(), rtol=1e-4, atol=1e-4
-        )
+        tvm.testing.assert_allclose(tvm_result.numpy(), torch_result.numpy(), rtol=1e-4, atol=1e-4)
 
 
 def run_and_compare(mod, params, pt_result, target, device):

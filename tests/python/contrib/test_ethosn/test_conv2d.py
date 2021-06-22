@@ -188,10 +188,6 @@ def test_conv2d_failure():
     _scale_error_msg = (
         "Overall scale (of the input * weights / output) should be in the range [0, 1)"
     )
-    if tei.get_ethosn_api_version() == 2008:
-        _scale_error_msg = (
-            "Overall scale (of the input * weights / output) should be in the range [0, 1}"
-        )
 
     trials = [
         (

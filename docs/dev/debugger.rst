@@ -146,7 +146,7 @@ How to use Debugger?
     m.set_input(**params)
     # execute
     m.run()
-    tvm_out = m.get_output(0, tvm.nd.empty(out_shape, dtype)).asnumpy()
+    tvm_out = m.get_output(0, tvm.nd.empty(out_shape, dtype)).numpy()
 
 The outputs are dumped to a temporary folder in ``/tmp`` folder or the
 folder specified while creating the runtime.

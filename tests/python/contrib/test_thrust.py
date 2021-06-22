@@ -59,8 +59,8 @@ def test_stable_sort_by_key():
 
             ref_keys_out = np.sort(keys_np)
             ref_values_out = np.array([values_np[i] for i in np.argsort(keys_np)])
-            tvm.testing.assert_allclose(keys_out.asnumpy(), ref_keys_out, rtol=1e-5)
-            tvm.testing.assert_allclose(values_out.asnumpy(), ref_values_out, rtol=1e-5)
+            tvm.testing.assert_allclose(keys_out.numpy(), ref_keys_out, rtol=1e-5)
+            tvm.testing.assert_allclose(values_out.numpy(), ref_values_out, rtol=1e-5)
 
 
 def test_exclusive_scan():
@@ -99,9 +99,9 @@ def test_exclusive_scan():
                 f(values_in, values_out, reduction_out)
 
                 ref_values_out = np.cumsum(values_np, axis=-1, dtype="int32") - values_np
-                tvm.testing.assert_allclose(values_out.asnumpy(), ref_values_out, rtol=1e-5)
+                tvm.testing.assert_allclose(values_out.numpy(), ref_values_out, rtol=1e-5)
                 ref_reduction_out = np.sum(values_np, axis=-1)
-                tvm.testing.assert_allclose(reduction_out.asnumpy(), ref_reduction_out, rtol=1e-5)
+                tvm.testing.assert_allclose(reduction_out.numpy(), ref_reduction_out, rtol=1e-5)
 
 
 def test_inclusive_scan():
@@ -133,7 +133,7 @@ def test_inclusive_scan():
                 f(values_in, values_out)
 
                 ref_values_out = np.cumsum(values_np, axis=-1, dtype=out_dtype)
-                tvm.testing.assert_allclose(values_out.asnumpy(), ref_values_out, rtol=1e-5)
+                tvm.testing.assert_allclose(values_out.numpy(), ref_values_out, rtol=1e-5)
 
 
 if __name__ == "__main__":

@@ -22,7 +22,7 @@ from tvm.topi.utils import nchw_pack_layout
 
 
 def upsample_nearest(arr, scale):
-    """ Populate the array by scale factor"""
+    """Populate the array by scale factor"""
     h, w = arr.shape
     out_h = int(round(h * scale[0]))
     out_w = int(round(w * scale[1]))
@@ -36,7 +36,7 @@ def upsample_nearest(arr, scale):
 
 
 def upsampling_python(data, scale, layout="NCHW"):
-    """ Python version of scaling using nearest neighbour """
+    """Python version of scaling using nearest neighbour"""
 
     ishape = data.shape
     if layout == "NCHW":
@@ -87,7 +87,7 @@ def upsampling_python(data, scale, layout="NCHW"):
 
 
 def upsample3d_nearest(arr, scale):
-    """ Populate the array by scale factor"""
+    """Populate the array by scale factor"""
     d, h, w = arr.shape
     out_d = int(round(d * scale[0]))
     out_h = int(round(h * scale[1]))
@@ -104,7 +104,7 @@ def upsample3d_nearest(arr, scale):
 
 
 def upsampling3d_python(data, scale, layout="NCDHW"):
-    """ Python version of 3D scaling using nearest neighbour """
+    """Python version of 3D scaling using nearest neighbour"""
 
     ishape = data.shape
     if layout == "NCDHW":

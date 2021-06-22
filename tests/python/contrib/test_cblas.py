@@ -67,7 +67,7 @@ def verify_matmul_add(m, l, n, lib, transa=False, transb=False, dtype="float32")
         bb = 10.0
         f(a, b, d, bb)
         tvm.testing.assert_allclose(
-            d.asnumpy(), get_numpy(a.asnumpy(), b.asnumpy(), bb, transa, transb), rtol=1e-5
+            d.numpy(), get_numpy(a.numpy(), b.numpy(), bb, transa, transb), rtol=1e-5
         )
 
     verify("llvm")
@@ -138,8 +138,8 @@ def verify_quantized_matmul_add(m, l, n, transa=False, transb=False):
         bb = 10
         f(a, b, d, bb)
         tvm.testing.assert_allclose(
-            d.asnumpy(),
-            get_numpy(a.asnumpy().astype("int32"), b.asnumpy().astype("int32"), bb, transa, transb),
+            d.numpy(),
+            get_numpy(a.numpy().astype("int32"), b.numpy().astype("int32"), bb, transa, transb),
             rtol=1e-5,
         )
 
@@ -158,13 +158,14 @@ def test_quantized_matmul_add():
 
 
 def verify_batch_matmul(
-    batch, m, l, n, lib, transa=False, transb=False, iterative=False, dtype="float32"
+    batch_a, batch_b, m, l, n, lib, transa=False, transb=False, iterative=False, dtype="float32"
 ):
-    ashape = (batch, l, n) if transa else (batch, n, l)
-    bshape = (batch, m, l) if transb else (batch, l, m)
+    batch = max(batch_a, batch_b)
+    ashape = (batch_a, l, n) if transa else (batch_a, n, l)
+    bshape = (batch_b, m, l) if transb else (batch_b, l, m)
     A = te.placeholder(ashape, name="A", dtype=dtype)
     B = te.placeholder(bshape, name="B", dtype=dtype)
-    C = cblas.batch_matmul(A, B, transa, transb)
+    C = lib.batch_matmul(A, B, transa, transb)
     D = te.compute(C.shape, lambda k, i, j: C[k, i, j], name="D")
     s = te.create_schedule(D.op)
 
@@ -199,7 +200,7 @@ def verify_batch_matmul(
         d = tvm.nd.array(np.zeros((batch, n, m), dtype=D.dtype), dev)
         f(a, b, d)
         tvm.testing.assert_allclose(
-            d.asnumpy(), get_numpy(a.asnumpy(), b.asnumpy(), transa, transb), rtol=1e-5
+            d.numpy(), get_numpy(a.numpy(), b.numpy(), transa, transb), rtol=1e-5
         )
 
     verify("llvm")
@@ -207,24 +208,32 @@ def verify_batch_matmul(
 
 
 def test_batch_matmul():
-    verify_batch_matmul(16, 235, 128, 1024, cblas)
-    verify_batch_matmul(16, 235, 128, 1024, cblas, True, False)
-    verify_batch_matmul(16, 235, 128, 1024, cblas, False, True)
-    verify_batch_matmul(16, 235, 128, 1024, cblas, True, True)
-    verify_batch_matmul(16, 235, 128, 1024, mkl)
-    verify_batch_matmul(16, 235, 128, 1024, mkl, True, False)
-    verify_batch_matmul(16, 235, 128, 1024, mkl, False, True)
-    verify_batch_matmul(16, 235, 128, 1024, mkl, True, True)
-    verify_batch_matmul(1, 1, 16, 3, cblas)
-    verify_batch_matmul(1, 1, 16, 3, cblas, True, False)
-    verify_batch_matmul(1, 1, 16, 3, cblas, False, False)
-    verify_batch_matmul(1, 1, 16, 3, cblas, True, True)
-    verify_batch_matmul(1, 1, 16, 3, cblas, iterative=True)
-    verify_batch_matmul(1, 1, 16, 3, mkl)
-    verify_batch_matmul(1, 1, 16, 3, mkl, True, False)
-    verify_batch_matmul(1, 1, 16, 3, mkl, False, False)
-    verify_batch_matmul(1, 1, 16, 3, mkl, True, True)
-    verify_batch_matmul(1, 1, 16, 3, mkl, iterative=True)
+    verify_batch_matmul(16, 16, 235, 128, 1024, cblas)
+    verify_batch_matmul(16, 16, 235, 128, 1024, cblas, True, False)
+    verify_batch_matmul(16, 16, 235, 128, 1024, cblas, False, True)
+    verify_batch_matmul(16, 16, 235, 128, 1024, cblas, True, True)
+    verify_batch_matmul(16, 16, 235, 128, 1024, mkl)
+    verify_batch_matmul(16, 16, 235, 128, 1024, mkl, True, False)
+    verify_batch_matmul(16, 16, 235, 128, 1024, mkl, False, True)
+    verify_batch_matmul(16, 16, 235, 128, 1024, mkl, True, True)
+    verify_batch_matmul(16, 1, 235, 128, 1024, cblas)
+    verify_batch_matmul(1, 16, 235, 128, 1024, cblas)
+    verify_batch_matmul(16, 1, 235, 128, 1024, cblas, iterative=True)
+    verify_batch_matmul(1, 16, 235, 128, 1024, cblas, iterative=True)
+    verify_batch_matmul(16, 1, 235, 128, 1024, mkl)
+    verify_batch_matmul(1, 16, 235, 128, 1024, mkl)
+    verify_batch_matmul(16, 1, 235, 128, 1024, mkl, iterative=True)
+    verify_batch_matmul(1, 16, 235, 128, 1024, mkl, iterative=True)
+    verify_batch_matmul(1, 1, 1, 16, 3, cblas)
+    verify_batch_matmul(1, 1, 1, 16, 3, cblas, True, False)
+    verify_batch_matmul(1, 1, 1, 16, 3, cblas, False, False)
+    verify_batch_matmul(1, 1, 1, 16, 3, cblas, True, True)
+    verify_batch_matmul(1, 1, 1, 16, 3, cblas, iterative=True)
+    verify_batch_matmul(1, 1, 1, 16, 3, mkl)
+    verify_batch_matmul(1, 1, 1, 16, 3, mkl, True, False)
+    verify_batch_matmul(1, 1, 1, 16, 3, mkl, False, False)
+    verify_batch_matmul(1, 1, 1, 16, 3, mkl, True, True)
+    verify_batch_matmul(1, 1, 1, 16, 3, mkl, iterative=True)
 
 
 if __name__ == "__main__":

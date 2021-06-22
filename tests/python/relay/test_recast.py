@@ -126,7 +126,37 @@ def test_recast_concat():
     assert tvm.ir.structural_equal(expected, post)
 
 
+def test_recast_relu():
+    """Recast a ReLU operator which does not have attributes."""
+
+    def before():
+        x = relay.var("x", shape=[8, 8, 8, 8])
+        w = relay.var("w", shape=[8, 8, 3, 3])
+        c = relay.nn.conv2d(x, w, padding=(1, 1), out_dtype="float32")
+        r = relay.nn.relu(c)
+        return relay.Function([x, w], r)
+
+    def expected():
+        x = relay.var("x", shape=[8, 8, 8, 8])
+        w = relay.var("w", shape=[8, 8, 3, 3])
+        x_fp16 = relay.cast(x, "float16")
+        w_fp16 = relay.cast(w, "float16")
+        c = relay.nn.conv2d(x_fp16, w_fp16, padding=(1, 1), out_dtype="float16")
+        c_float32 = relay.cast(c, "float32")
+        c_float16 = relay.cast(c_float32, "float16")
+        r = relay.nn.relu(c_float16)
+        r_float32 = relay.cast(r, "float32")
+        return relay.Function([x, w], r_float32)
+
+    pre = before()
+    post = recast(pre, "float16", "float16", ops=["nn.conv2d", "nn.relu"])
+    expected = expected()
+    assert tvm.ir.structural_equal(expected, post)
+
+
 if __name__ == "__main__":
     test_recast_simple()
     test_recast_medium()
     test_recast_skip()
+    test_recast_concat()
+    test_recast_relu()

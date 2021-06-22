@@ -38,9 +38,9 @@ namespace runtime {
 
 struct Registry::Manager {
   // map storing the functions.
-  // We deliberately used raw pointer
-  // This is because PackedFunc can contain callbacks into the host languge(python)
-  // and the resource can become invalid because of indeterminstic order of destruction and forking.
+  // We deliberately used raw pointer.
+  // This is because PackedFunc can contain callbacks into the host language (Python) and the
+  // resource can become invalid because of indeterministic order of destruction and forking.
   // The resources will only be recycled during program exit.
   std::unordered_map<std::string, Registry*> fmap;
   // mutex

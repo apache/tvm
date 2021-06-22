@@ -781,7 +781,7 @@ def test_fuse_dynamic_squeeze_slice_take():
 
     np_result = np.squeeze(input_data[0][:, input_data[1][0], :], axis=0)
 
-    assert np.allclose(result.asnumpy(), np_result)
+    assert np.allclose(result.numpy(), np_result)
 
 
 if __name__ == "__main__":

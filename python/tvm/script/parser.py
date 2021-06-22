@@ -749,14 +749,17 @@ class TVMScriptParser(Transformer):
                 node.call.func_name.span,
             )
 
-        if isinstance(func, Intrin) and func.stmt:
-            return call_with_error_reporting(
-                self.report_error,
-                node.call.func_name.span,
-                func.handle,
-                arg_list,
-                node.call.func_name.span,
-            )
+        if isinstance(func, Intrin):
+            if func.stmt:
+                return call_with_error_reporting(
+                    self.report_error,
+                    node.call.func_name.span,
+                    func.handle,
+                    arg_list,
+                    node.call.func_name.span,
+                )
+            else:
+                self.report_error(f"This intrinsic cannot be used as a statement.", node.call.span)
         elif isinstance(func, WithScopeHandler) and func.concise_scope and not func.def_symbol:
             func.enter_scope(node, self.context, arg_list, node.call.func_name.span)
             func.body = self.parse_body(node)
@@ -765,7 +768,11 @@ class TVMScriptParser(Transformer):
             func.handle(node, self.context, arg_list, node.call.func_name.span)
             return
 
-        self.report_error(f"Invalid Expr stmt {type(func).__name__}.", node.call.func_name.span)
+        self.report_error(
+            "Unexpected statement. Expected an assert, an intrinsic, a with statement, or a "
+            f"special statement, but got {type(func).__name__}.",
+            node.call.func_name.span,
+        )
 
     def transform_Slice(self, node):
         start = self.transform(node.start)
@@ -785,7 +792,9 @@ class TVMScriptParser(Transformer):
 
         symbol = self.transform(node.params[0])
         if symbol is None:
-            self.report_error(f"Variable {node.value.id} is not defined.", node.params[0].span)
+            self.report_error(
+                f"Variable {node.params[0].id.name} is not defined.", node.params[0].span
+            )
 
         indexes = [self.transform(x) for x in node.params[1].values]
         if isinstance(symbol, tvm.tir.expr.Var):
@@ -844,7 +853,7 @@ class TVMScriptParser(Transformer):
             self.report_error("Unsupported Attribute expression.", node.object.span)
         if not hasattr(symbol, node.field.name):
             self.report_error(
-                f"Type {type(symbol)} does not have a field called `{node.field}`.", node.span
+                f"Type {type(symbol)} does not have a field called `{node.field.name}`.", node.span
             )
         res = getattr(symbol, node.field.name)
         return res

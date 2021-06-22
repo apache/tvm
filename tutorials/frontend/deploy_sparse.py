@@ -281,7 +281,7 @@ def random_sparse_bert_params(func, params, density, BS_R, BS_C):
     def deepcopy(param_dic):
         ret = {}
         for k, v in param_dic.items():
-            ret[k] = tvm.nd.array(v.asnumpy())
+            ret[k] = tvm.nd.array(v.numpy())
         return ret
 
     new_params = deepcopy(params)

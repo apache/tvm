@@ -171,7 +171,7 @@ if __name__ == "__main__":
     f(a, b, c)
 
     tvm.testing.assert_allclose(
-        c.asnumpy(), np.dot(a_np.astype("int32"), b_np.T.astype("int32")), rtol=1e-5
+        c.numpy(), np.dot(a_np.astype("int32"), b_np.T.astype("int32")), rtol=1e-5
     )
 
     num_ops = 2 * l * m * n

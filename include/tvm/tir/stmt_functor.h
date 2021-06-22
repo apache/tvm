@@ -27,7 +27,6 @@
 #define TVM_TIR_STMT_FUNCTOR_H_
 
 #include <tvm/node/functor.h>
-#include <tvm/runtime/container.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/expr_functor.h>
 #include <tvm/tir/stmt.h>
@@ -351,6 +350,14 @@ TVM_DLL Stmt Substitute(Stmt stmt, std::function<Optional<PrimExpr>(const Var& v
  * \return The result.
  */
 TVM_DLL PrimExpr Substitute(PrimExpr expr, std::function<Optional<PrimExpr>(const Var& var)> vmap);
+
+/*!
+ * \brief Substitute the var specified by vmap.
+ * \param region The object whose vars are to be substituted
+ * \param vmap The map of new values.
+ * \return The result.
+ */
+TVM_DLL Array<Range> Substitute(const Array<Range>& region, const Map<Var, PrimExpr>& vmap);
 
 /*!
  * \brief Sugar for substitute via a given map.

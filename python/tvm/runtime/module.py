@@ -45,7 +45,8 @@ class Module(object):
         self.entry_name = "__tvm_main__"
 
     def __del__(self):
-        check_call(_LIB.TVMModFree(self.handle))
+        if _LIB:
+            check_call(_LIB.TVMModFree(self.handle))
 
     def __hash__(self):
         return ctypes.cast(self.handle, ctypes.c_void_p).value
@@ -469,9 +470,6 @@ def load_module(path, fmt=""):
         files = [tar_temp.relpath(x) for x in tar_temp.listdir()]
         _cc.create_shared(path + ".so", files, cc=cc)
         path += ".so"
-    # TODO(weberlo): we should probably use a more distinctive suffix for microTVM object files
-    elif path.endswith(".obj"):
-        fmt = "micro_dev"
     # Redirect to the load API
     return _ffi_api.ModuleLoadFromFile(path, fmt)
 

@@ -18,16 +18,15 @@
 """
 Relay pass transformation infrastructure.
 """
-import types
-import inspect
 import functools
+import inspect
+import types
 import warnings
 
 import tvm.ir
-from tvm import te
+from tvm import relay, te
 from tvm.runtime import ndarray as _nd
 
-from tvm import relay
 from . import _ffi_api
 
 
@@ -1092,6 +1091,29 @@ def DenseToSparse(weight_name, weight_shape):
     return _ffi_api.DenseToSparse(weight_name, weight_shape)
 
 
+def Conv2dToSparse(weight_name, weight_shape, layout):
+    """
+    Rewrite qualified ```nn.conv2d operation``` to ```nn.sparse_conv2d```
+
+    Parameters
+    ----------
+    weight_name: Array[String]
+      Names of weights which qualified sparse contrains
+
+    weight_shape: Array[Array[IntImm]]
+      Weights shape in BSR format.
+
+    layout : str
+        layout of data
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The registered DenseToSparse pass.
+    """
+    return _ffi_api.Conv2dToSparse(weight_name, weight_shape, layout)
+
+
 def SimplifyFCTranspose(target_weight_name):
     """
     Rewrite ```y = nn.dense(x, transpose(w, [1, 0]))``` to ```y = nn.dense(x, wt)```
@@ -1145,6 +1167,60 @@ def AnnotateSpans():
     Returns
     -------
     ret : tvm.transform.Pass
-        The regsistered AnnotateSpans pass.
+        The registered AnnotateSpans pass.
     """
     return _ffi_api.AnnotateSpans()
+
+
+def FakeQuantizationToInteger():
+    # pylint: disable=anomalous-backslash-in-string
+    """
+    Find regions of the graph of the form
+
+    x    w
+    |    |
+    dq   dq
+     \   /
+      op1
+       |
+      op2
+       |
+       q
+
+    where q == qnn.quantize and dq = qnn.dequantize
+    and rewrite them into integer versions of op1 and op2
+
+    Rules for rewriting indivdual ops are in fake_quantization_to_integer.py
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The registered SimplifyExpr pass.
+    """
+    return _ffi_api.FakeQuantizationToInteger()
+
+
+def ToMixedPrecision(mixed_precision_type="float16", missing_op_mode=1):
+    """
+    Automatic mixed precision rewriter. Rewrite an FP32 relay graph into a version
+    where as many operations as possible are in the target mixed_precision_type.
+
+    Parameters
+    ----------
+    mixed_precision_type: str
+      The target datatype to transform operations in the graph to use.
+
+    missing_op_mode: int
+      Determines how to handle ops not registered with FTVMMixedPrecisionConversionType
+        0: Does not allow any missing ops. Will throw errors when encountering any.
+        1: Allow missing ops but emit warnings.
+        2: Allow missing ops and silently ignore them.
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The registered pass.
+    """
+    if missing_op_mode < 0 or missing_op_mode > 2:
+        raise ValueError("Missing op mode is either 0, 1, or 2")
+    return _ffi_api.ToMixedPrecision(mixed_precision_type, missing_op_mode)

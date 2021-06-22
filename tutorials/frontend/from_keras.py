@@ -105,7 +105,7 @@ with tvm.transform.PassContext(opt_level=3):
 # ---------------
 dtype = "float32"
 tvm_out = executor.evaluate()(tvm.nd.array(data.astype(dtype)), **params)
-top1_tvm = np.argmax(tvm_out.asnumpy()[0])
+top1_tvm = np.argmax(tvm_out.numpy()[0])
 
 #####################################################################
 # Look up synset name

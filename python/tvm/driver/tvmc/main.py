@@ -53,7 +53,7 @@ def register_parser(make_subparser):
 
 
 def _main(argv):
-    """ TVM command line interface. """
+    """TVM command line interface."""
 
     parser = argparse.ArgumentParser(
         prog="tvmc",

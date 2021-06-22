@@ -98,7 +98,7 @@ with tvm.transform.PassContext(opt_level=1):
 # Execute on TVM
 # ---------------------------------------------
 dtype = "float32"
-tvm_output = intrp.evaluate()(tvm.nd.array(x.astype(dtype)), **params).asnumpy()
+tvm_output = intrp.evaluate()(tvm.nd.array(x.astype(dtype)), **params).numpy()
 
 ######################################################################
 # Display results

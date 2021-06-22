@@ -44,7 +44,7 @@ def find_example_resource():
 
 
 def main(args):
-    """Main funciton"""
+    """Main function"""
     if args.tracker:
         url, port = args.tracker.split(":")
         port = int(port)

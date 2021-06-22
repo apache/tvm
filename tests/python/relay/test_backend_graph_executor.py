@@ -44,8 +44,8 @@ def check_rts(expr, args, expected_result, mod=None):
     graph = relay.create_executor("graph", mod=mod)
     eval_result = intrp.evaluate(expr)(*args)
     rts_result = graph.evaluate(expr)(*args)
-    tvm.testing.assert_allclose(eval_result.asnumpy(), rts_result.asnumpy())
-    tvm.testing.assert_allclose(eval_result.asnumpy(), expected_result)
+    tvm.testing.assert_allclose(eval_result.numpy(), rts_result.numpy())
+    tvm.testing.assert_allclose(eval_result.numpy(), expected_result)
 
 
 def test_add_op_scalar():
@@ -107,7 +107,7 @@ def test_with_params():
     mod.set_input(**params)
     mod.set_input(x=x_data)
     mod.run()
-    res = mod.get_output(0).asnumpy()
+    res = mod.get_output(0).numpy()
     ref_res = np.exp(y_data + x_data)
     tvm.testing.assert_allclose(res, ref_res, atol=1e-5, rtol=1e-5)
 
@@ -198,9 +198,9 @@ def test_reshape_nop():
         )
     )
     z2_np = np.abs(x_data).reshape(1, 40)
-    tvm.testing.assert_allclose(gmod.get_output(0).asnumpy(), z0_np)
-    tvm.testing.assert_allclose(gmod.get_output(1).asnumpy(), z1_np)
-    tvm.testing.assert_allclose(gmod.get_output(2).asnumpy(), z2_np)
+    tvm.testing.assert_allclose(gmod.get_output(0).numpy(), z0_np)
+    tvm.testing.assert_allclose(gmod.get_output(1).numpy(), z1_np)
+    tvm.testing.assert_allclose(gmod.get_output(2).numpy(), z2_np)
 
 
 @tvm.testing.uses_gpu
@@ -236,7 +236,7 @@ def test_gru_like():
             m.set_input("y", tvm.nd.array(y.astype(dtype)))
             m.set_input(**params)
             m.run()
-            out = m.get_output(0, tvm.nd.empty(out_shape, dtype)).asnumpy()
+            out = m.get_output(0, tvm.nd.empty(out_shape, dtype)).numpy()
             ref = unit_numpy(x, y)
             tvm.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
 
@@ -261,7 +261,7 @@ def test_compile_nested_tuples():
 
     ref = x_data + 1
     for i in range(mod.get_num_outputs()):
-        out = mod.get_output(i).asnumpy()
+        out = mod.get_output(i).numpy()
         tvm.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
         ref = ref + 1
 
@@ -279,12 +279,12 @@ def test_graph_executor_nested_tuples():
     data = [np.random.uniform(size=(2, 3)).astype("float32") for _ in "xyzw"]
     out = f(*data)
     assert len(out) == 2
-    tvm.testing.assert_allclose(out[0].asnumpy(), data[0])
+    tvm.testing.assert_allclose(out[0].numpy(), data[0])
     assert len(out[1]) == 2
-    tvm.testing.assert_allclose(out[1][0].asnumpy(), data[1])
+    tvm.testing.assert_allclose(out[1][0].numpy(), data[1])
     assert len(out[1][1]) == 2
-    tvm.testing.assert_allclose(out[1][1][0].asnumpy(), data[2])
-    tvm.testing.assert_allclose(out[1][1][1].asnumpy(), data[3])
+    tvm.testing.assert_allclose(out[1][1][0].numpy(), data[2])
+    tvm.testing.assert_allclose(out[1][1][1].numpy(), data[3])
 
 
 if __name__ == "__main__":

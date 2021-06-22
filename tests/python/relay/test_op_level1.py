@@ -72,7 +72,7 @@ def test_unary_op():
                     continue
                 intrp = relay.create_executor("graph", device=dev, target=target)
                 op_res = intrp.evaluate(func)(data)
-                np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=0.01)
+                np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=0.01)
 
     for opfunc, ref in [
         (tvm.relay.log, np.log),
@@ -134,7 +134,7 @@ def test_binary_op():
                     continue
                 intrp = relay.create_executor("graph", device=dev, target=target)
                 op_res = intrp.evaluate(func)(x_data, y_data)
-                np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=0.01, atol=1e-3)
+                np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=0.01, atol=1e-3)
 
     for opfunc, ref in [
         (relay.add, np.add),
@@ -165,7 +165,7 @@ def test_expand_dims():
             ref_res = data.reshape(oshape)
             intrp = relay.create_executor("graph", device=dev, target=target)
             op_res = intrp.evaluate(func)(data)
-            np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=0.01)
+            np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=0.01)
 
     for dtype in ["float16", "float32"]:
         verify_expand_dims((3, 10), dtype, (3, 10, 1, 1), 2, 2)
@@ -198,7 +198,7 @@ def test_bias_add():
                 continue
             intrp = relay.create_executor("graph", device=dev, target=target)
             op_res = intrp.evaluate(func)(x_data, y_data)
-            np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=rtol)
+            np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=rtol)
 
 
 def test_bias_add_type_failure():
@@ -242,7 +242,7 @@ def test_softmax():
         for target, dev in tvm.testing.enabled_targets():
             intrp = relay.create_executor("graph", device=dev, target=target)
             op_res = intrp.evaluate(func)(x_data)
-            np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+            np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
 
 @tvm.testing.uses_gpu
@@ -263,7 +263,7 @@ def test_log_softmax():
         for target, dev in tvm.testing.enabled_targets():
             intrp = relay.create_executor("graph", device=dev, target=target)
             op_res = intrp.evaluate(func)(x_data)
-            np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+            np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
 
 @tvm.testing.uses_gpu
@@ -320,9 +320,9 @@ def test_concatenate():
             intrp1 = relay.create_executor("graph", device=dev, target=target)
             intrp2 = relay.create_executor("debug", device=dev, target=target)
             op_res1 = intrp1.evaluate(func)(x_data, y_data, t_data)
-            tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=0.01)
+            tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=0.01)
             op_res2 = intrp2.evaluate(func)(x_data, y_data, t_data)
-            tvm.testing.assert_allclose(op_res2.asnumpy(), ref_res, rtol=0.01)
+            tvm.testing.assert_allclose(op_res2.numpy(), ref_res, rtol=0.01)
 
 
 def test_dropout():
@@ -343,7 +343,7 @@ def test_dropout():
         for backend in ["debug", "graph"]:
             intrp = relay.create_executor("debug", device=dev, target=target)
             op_res = intrp.evaluate(func)()
-            tvm.testing.assert_allclose(op_res.asnumpy(), in_np, rtol=0.01)
+            tvm.testing.assert_allclose(op_res.numpy(), in_np, rtol=0.01)
 
 
 def test_batch_norm():
@@ -464,9 +464,9 @@ def test_dense():
             intrp1 = relay.create_executor("graph", device=dev, target=target)
             intrp2 = relay.create_executor("debug", device=dev, target=target)
             op_res1 = intrp1.evaluate(func)(x_data, w_data)
-            tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5)
+            tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5)
             op_res2 = intrp2.evaluate(func)(x_data, w_data)
-            tvm.testing.assert_allclose(op_res2.asnumpy(), ref_res, rtol=1e-5)
+            tvm.testing.assert_allclose(op_res2.numpy(), ref_res, rtol=1e-5)
 
 
 def test_dense_dtype():

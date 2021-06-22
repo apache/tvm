@@ -176,13 +176,23 @@ class NDArray(NDArrayBase):
 
     def __repr__(self):
         res = "<tvm.nd.NDArray shape={0}, {1}>\n".format(self.shape, self.device)
-        res += self.asnumpy().__repr__()
+        res += self.numpy().__repr__()
         return res
 
     def __str__(self):
-        return str(self.asnumpy())
+        return str(self.numpy())
 
     def asnumpy(self):
+        """Convert this array to numpy array. This API will be deprecated in TVM v0.8 release.
+        Please use `numpy` instead."""
+        warnings.warn(
+            "NDArray.asnumpy() will be deprecated in TVM v0.8 release. "
+            "Please use NDArray.numpy() instead.",
+            DeprecationWarning,
+        )
+        return self.numpy()
+
+    def numpy(self):
         """Convert this array to numpy array
 
         Returns
@@ -258,13 +268,10 @@ def device(dev_type, dev_id=0):
       assert tvm.device("cuda", 0) == tvm.cuda(0)
     """
     if isinstance(dev_type, string_types):
-        if "-device=micro_dev" in dev_type:
-            dev_type = Device.STR2MASK["micro_dev"]
-        else:
-            dev_type = dev_type.split()[0]
-            if dev_type not in Device.STR2MASK:
-                raise ValueError("Unknown device type %s" % dev_type)
-            dev_type = Device.STR2MASK[dev_type]
+        dev_type = dev_type.split()[0]
+        if dev_type not in Device.STR2MASK:
+            raise ValueError("Unknown device type %s" % dev_type)
+        dev_type = Device.STR2MASK[dev_type]
     return Device(dev_type, dev_id)
 
 
@@ -498,22 +505,6 @@ def ext_dev(dev_id=0):
     device by plugin device API as ext_dev.
     """
     return Device(12, dev_id)
-
-
-def micro_dev(dev_id=0):
-    """Construct a micro device
-
-    Parameters
-    ----------
-    dev_id : int, optional
-        The integer device id
-
-    Returns
-    -------
-    dev : Device
-        The created device
-    """
-    return Device(13, dev_id)
 
 
 def hexagon(dev_id=0):

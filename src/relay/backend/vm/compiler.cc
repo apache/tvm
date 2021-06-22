@@ -389,6 +389,8 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
     Expr let_binding = GetRef<Expr>(l);
     const LetNode* let;
     while ((let = let_binding.as<LetNode>())) {
+      ICHECK(!let->value.as<FunctionNode>())
+          << "invariant violated, inner functions should not exist (did you set opt_level = 2?)";
       VisitExpr(let->value);
       var_register_map_.insert({let->var, this->last_register_});
       let_binding = let->body;
@@ -489,6 +491,9 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
           << "internal error: all variables should be in the register mapping";
       argument_registers.push_back(reg->second);
     }
+
+    // Extract functions attrs
+    op_attrs[op_index] = func->attrs->dict;
 
     Emit(Instruction::InvokePacked(op_index, argument_registers.size(), outputs.size(),
                                    argument_registers));
@@ -978,6 +983,9 @@ void VMCompiler::Lower(IRModule mod, const TargetsMap& targets, const tvm::Targe
 
 transform::Sequential MemoryOpt(tvm::Target host_target, TargetsMap targets) {
   Array<Pass> pass_seqs;
+  // Remove unused functions
+  Array<runtime::String> entry_functions{"main"};
+  pass_seqs.push_back(transform::RemoveUnusedFunctions(entry_functions));
   // Manifest the allocations.
   pass_seqs.push_back(transform::ManifestAlloc(host_target, targets));
 
@@ -1153,25 +1161,24 @@ void VMCompiler::Codegen() {
   if (cached_funcs.size() == 0) {
     return;
   }
-  std::unordered_map<std::string, IRModule> funcs;
+  Map<Target, IRModule> funcs;
 
   for (auto& cfunc : cached_funcs) {
-    std::string target_str = cfunc->target->str();
+    Target target = cfunc->target;
     // NOTE: because module, is mutable, we need to make an
     // explicit copy of the IRModule.
     IRModule mod = cfunc->funcs;
     mod.CopyOnWrite();
 
-    if (target_str == "ext_dev") {
+    if (target->kind->device_type == kDLExtDev) {
       // Collect metadata in functions that are handled by external codegen.
       ICHECK(mod->ContainGlobalVar(cfunc->func_name));
       Function func = Downcast<Function>(mod->Lookup(cfunc->func_name));
       backend::UpdateConstants(func, &params_);
-      continue;
-    } else if (funcs.count(target_str) == 0) {
-      funcs.emplace(target_str, mod);
+    } else if (funcs.count(target) == 0) {
+      funcs.Set(target, mod);
     } else {
-      funcs[target_str]->Update(mod);
+      funcs[target]->Update(mod);
     }
   }
 
@@ -1179,11 +1186,7 @@ void VMCompiler::Codegen() {
   auto ext_mods = compile_engine->LowerExternalFunctions();
   runtime::Module lib;
   if (funcs.size() > 0) {
-    Map<String, IRModule> build_funcs;
-    for (const auto& i : funcs) {
-      build_funcs.Set(i.first, i.second);
-    }
-    lib = tvm::build(build_funcs, target_host_);
+    lib = tvm::build(funcs, target_host_);
   } else {
     // There is no function handled by TVM. We create a virtual main module
     // to make sure a DSO module will be also available.

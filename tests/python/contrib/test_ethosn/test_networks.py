@@ -123,15 +123,11 @@ def test_mobilenet_v1():
     # version or a change in the Ethos-N codegen. To update this requires running
     # on hardware that isn't available in CI.
     _compile_hash = {"bfb5a50607edb50009c58ae9d4287e4d"}
-    if tei.get_ethosn_variant() == 3:
+    if tei.get_ethosn_variant() == "Ethos-N78_1TOPS_2PLE_RATIO":
         _compile_hash = {"896c28b4f06341ea638ead3a593e1aed"}
-    if tei.get_ethosn_api_version() == 2008:
-        _compile_hash = {"47e216d8ab2bf491708ccf5620bc0d02"}
-        if tei.get_ethosn_variant() == 3:
-            _compile_hash = {"2436f523e263f66a063cef902f2f43d7"}
     if tei.get_ethosn_api_version() == 2011:
         _compile_hash = {"9298b6c51e2a82f70e91dd11dd6af412"}
-        if tei.get_ethosn_variant() == 3:
+        if tei.get_ethosn_variant() == "Ethos-N78_1TOPS_2PLE_RATIO":
             _compile_hash = {"407eb47346c8afea2d15e8f0d1c079f2"}
     _test_image_network(
         model_url="https://storage.googleapis.com/download.tensorflow.org/"
@@ -153,15 +149,11 @@ def test_inception_v3():
     # version or a change in the Ethos-N codegen. To update this requires running
     # on hardware that isn't available in CI.
     _compile_hash = {"96116d7e6c7385de0688074a3f889983"}
-    if tei.get_ethosn_variant() == 3:
+    if tei.get_ethosn_variant() == "Ethos-N78_1TOPS_2PLE_RATIO":
         _compile_hash = {"551cde850c6ef960d19be4f317fb8e68"}
-    if tei.get_ethosn_api_version() == 2008:
-        _compile_hash = {"8c9d75659cd7bc9ff6dd6d490d28f9b2"}
-        if tei.get_ethosn_variant() == 3:
-            _compile_hash = {"cdd4d7f6453d722ea73224ff9d6a115a"}
     if tei.get_ethosn_api_version() == 2011:
         _compile_hash = {"d44eece5027ff56e5e7fcf014367378d"}
-        if tei.get_ethosn_variant() == 3:
+        if tei.get_ethosn_variant() == "Ethos-N78_1TOPS_2PLE_RATIO":
             _compile_hash = {"1ba555b4bc60c428018a0f2de9d90532"}
     _test_image_network(
         model_url="https://storage.googleapis.com/download.tensorflow.org/"
@@ -182,17 +174,11 @@ def test_inception_v4():
     # version or a change in the Ethos-N codegen. To update this requires running
     # on hardware that isn't available in CI.
     _compile_hash = {"b34aec2a48c591818761ed6b42c133e5"}
-    if tei.get_ethosn_variant() == 3:
+    if tei.get_ethosn_variant() == "Ethos-N78_1TOPS_2PLE_RATIO":
         _compile_hash = {"30f078bd42757e8686eafa1f28d0d352"}
-    if tei.get_ethosn_api_version() == 2008:
-        if not tei.get_ethosn_variant() == 0:
-            pytest.skip(
-                "Ethos-N78 20.08 does not support inception_v4 in the default configuration."
-            )
-        _compile_hash = {"798292bfa596ca7c32086396b494b46c"}
     if tei.get_ethosn_api_version() == 2011:
         _compile_hash = {"53f126cf654d4cf61ebb23c767f6740b"}
-        if tei.get_ethosn_variant() == 3:
+        if tei.get_ethosn_variant() == "Ethos-N78_1TOPS_2PLE_RATIO":
             _compile_hash = {"851665c060cf4719248919d17325ae02"}
     _test_image_network(
         model_url="https://storage.googleapis.com/download.tensorflow.org/"
@@ -213,15 +199,11 @@ def test_ssd_mobilenet_v1():
     # version or a change in the Ethos-N codegen. To update this requires running
     # on hardware that isn't available in CI.
     _compile_hash = {"c312edfc9a946ed4dc7c049d472dae6e", "3183f0fa5eba8f6b9557d14eaf47842d"}
-    if tei.get_ethosn_variant() == 3:
+    if tei.get_ethosn_variant() == "Ethos-N78_1TOPS_2PLE_RATIO":
         _compile_hash = {"deee52e136327436411fc725624ae2ea", "6526509d3cbee014e38c79e22bb29d7f"}
-    if tei.get_ethosn_api_version() == 2008:
-        _compile_hash = {"5999f26e140dee0d7866491997ef78c5", "24e3a690a7e95780052792d5626c85be"}
-        if tei.get_ethosn_variant() == 3:
-            _compile_hash = {"da871b3f03a93df69d704ed44584d6cd", "9f52411d301f3cba3f6e4c0f1c558e87"}
     if tei.get_ethosn_api_version() == 2011:
         _compile_hash = {"6e8c4586bdd26527c642a4f016f52284", "057c5efb094c79fbe4483b561147f1d2"}
-        if tei.get_ethosn_variant() == 3:
+        if tei.get_ethosn_variant() == "Ethos-N78_1TOPS_2PLE_RATIO":
             _compile_hash = {"dc687e60a4b6750fe740853f22aeb2dc", "1949d86100004eca41099c8e6fa919ab"}
     _test_image_network(
         model_url="https://storage.googleapis.com/download.tensorflow.org/"

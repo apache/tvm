@@ -29,8 +29,6 @@
 
 #include <string>
 
-#include "tvm/runtime/container.h"
-
 namespace tvm {
 namespace relay {
 
@@ -1008,6 +1006,18 @@ struct SparseDenseAttrs : public tvm::AttrsNode<SparseDenseAttrs> {
 /*! \brief Attributes for sparse_transpose operator */
 struct SparseTransposeAttrs : public tvm::AttrsNode<SparseTransposeAttrs> {
   TVM_DECLARE_ATTRS(SparseTransposeAttrs, "relay.attrs.SparseTransposeAttrs") {}
+};
+
+/*! \brief Attributes for sparse_dense operator */
+struct SparseConv2DAttrs : public tvm::AttrsNode<SparseConv2DAttrs> {
+  std::string layout;
+
+  TVM_DECLARE_ATTRS(SparseConv2DAttrs, "relay.attrs.SparseConv2DAttrs") {
+    TVM_ATTR_FIELD(layout).set_default("NHWC").describe(
+        "Dimension ordering of input data. Can be 'NCHW', 'NHWC'"
+        "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
+        "dimensions respectively.");
+  }
 };
 
 /*! \brief Attributes for FIFO buffer operator */

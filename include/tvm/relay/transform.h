@@ -30,7 +30,6 @@
 #include <tvm/relay/function.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
-#include <tvm/runtime/container.h>
 #include <tvm/target/target.h>
 
 #include <string>

@@ -27,7 +27,6 @@
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/transform.h>
-#include <tvm/runtime/container.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/object.h>
 

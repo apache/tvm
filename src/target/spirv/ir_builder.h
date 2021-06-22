@@ -30,12 +30,16 @@
 // clang-format off
 #include <algorithm>
 #include <map>
+#include <set>
 #include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
+#include <tuple>
 #include <spirv.hpp>
 // clang-format on
+
+#include "spirv_support.h"
 
 namespace tvm {
 namespace codegen {
@@ -268,6 +272,14 @@ class InstrBuilder {
  */
 class IRBuilder {
  public:
+  /*!
+   * \brief Initialize the codegen based on a specific feature set.
+   *
+   * \param support The features in SPIRV that are supported by the
+   * target device.
+   */
+  explicit IRBuilder(const SPIRVSupport& support);
+
   /*! \brief Initialize header */
   void InitHeader();
   /*! \brief Initialize the predefined contents */
@@ -278,29 +290,21 @@ class IRBuilder {
    * \return The finalized binary instruction.
    */
   Value ExtInstImport(const std::string& name) {
+    auto it = ext_inst_tbl_.find(name);
+    if (it != ext_inst_tbl_.end()) {
+      return it->second;
+    }
     Value val = NewValue(SType(), kExtInst);
-    ib_.Begin(spv::OpExtInstImport).AddSeq(val, name).Commit(&header_);
+    ib_.Begin(spv::OpExtInstImport).AddSeq(val, name).Commit(&extended_instruction_section_);
+    ext_inst_tbl_[name] = val;
     return val;
   }
   /*!
    * \brief Get the final binary built from the builder
    * \return The finalized binary instruction.
    */
-  std::vector<uint32_t> Finalize() {
-    std::vector<uint32_t> data;
-    // set bound
-    const int kBoundLoc = 3;
-    header_[kBoundLoc] = id_counter_;
-    data.insert(data.end(), header_.begin(), header_.end());
-    data.insert(data.end(), entry_.begin(), entry_.end());
-    data.insert(data.end(), exec_mode_.begin(), exec_mode_.end());
-    data.insert(data.end(), debug_.begin(), debug_.end());
-    data.insert(data.end(), decorate_.begin(), decorate_.end());
-    data.insert(data.end(), global_.begin(), global_.end());
-    data.insert(data.end(), func_header_.begin(), func_header_.end());
-    data.insert(data.end(), function_.begin(), function_.end());
-    return data;
-  }
+  std::vector<uint32_t> Finalize();
+
   /*!
    * \brief Create new label
    * \return The created new label
@@ -330,6 +334,18 @@ class IRBuilder {
   void Debug(spv::Op op, Args&&... args) {
     ib_.Begin(op).AddSeq(std::forward<Args>(args)...).Commit(&debug_);
   }
+
+  /*!
+   * \brief Set the name of a value or label
+   * \param obj The object to be named
+   * \param name The name of the object
+   * \tparams Obj The type of the object being named.  Typically a Label or Value.
+   */
+  template <typename Obj>
+  void SetName(Obj&& obj, const std::string& name) {
+    Debug(spv::OpName, std::forward<Obj>(obj), name);
+  }
+
   /*!
    * \brief Add Execution mode to a function.
    * \param func The function value
@@ -358,7 +374,7 @@ class IRBuilder {
    */
   template <typename... Args>
   void DeclareGlobal(spv::Op op, Args&&... args) {
-    ib_.Begin(op).AddSeq(std::forward<Args>(args)...).Commit(&decorate_);
+    ib_.Begin(op).AddSeq(std::forward<Args>(args)...).Commit(&global_);
   }
   /*!
    * \brief Make a new instruction and append it to end of function segment.
@@ -429,10 +445,12 @@ class IRBuilder {
    * \param value_type the content value type.
    * \param num_elems number of elements in array
    *   num_elems = 0 means runtime array with BufferBlock Decoration
+   * \param interface_block if this array type for interface blocks(input, output, uniform,
+   *   storage buffer).
    *
    * \return The corresponding spirv type.
    */
-  SType GetStructArrayType(const SType& value_type, uint32_t num_elems);
+  SType GetStructArrayType(const SType& value_type, uint32_t num_elems, bool interface_block);
   /*!
    * \brief Get a struct array access with a given index.
    * \param ptr_type The pointer type.
@@ -577,6 +595,20 @@ class IRBuilder {
     return val;
   }
 
+  /*! \brief Get a built-in value provided by SPIR-V
+   *
+   *  \param built_in The SPIR-V built-in array to access.  For
+   *  example, spv::BuiltInLocalInvocationId to access the thread
+   *  id.
+   *
+   *  \param index The index of the built-in array to access.
+   *
+   *  \param name The name of the value being accessed.  For
+   *  example, "threadIdx.x".  This is for debug purposes, and is
+   *  used to tag the variable with OpName.
+   */
+  Value GetBuiltInValue(spv::BuiltIn built_in, uint32_t index, const std::string& name = "");
+
   /*!
    * \brief The common function to declare push constants or uniform buffer
    * \param value_types The values in the push constants or uniform buffer
@@ -599,6 +631,19 @@ class IRBuilder {
   Value GetConst_(const SType& dtype, const uint64_t* pvalue);
   // declare type
   SType DeclareType(const DataType& dtype);
+
+  // Declare the appropriate SPIR-V capabilities and extensions to use
+  // this data type.
+  void AddCapabilityFor(const DataType& dtype);
+
+  /*! \brief SPIRV-related capabilities of the target
+   *
+   * This SPIRVSupport object is owned by the same CodeGenSPIRV
+   * object that owns the IRBuilder.  Therefore, safe to use a
+   * reference as the CodeGenSPIRV will live longer.
+   */
+  const SPIRVSupport& spirv_support_;
+
   /*! \brief internal instruction builder  */
   InstrBuilder ib_;
   /*! \brief Current label */
@@ -611,21 +656,58 @@ class IRBuilder {
   SType t_bool_, t_int32_, t_uint32_, t_fp32_, t_void_, t_void_func_;
   /*! \brief quick cache for const one i32 */
   Value const_i32_zero_;
-  /*! \brief cache value for workgroup_id, local_id */
-  Value workgroup_id_, local_id_;
+
+  /*! \brief The cached values for built-in arrays
+   *
+   *  Maps from a tuple of spv::BuiltIn enum to the Value containing
+   *  that built-in array.  For example,
+   *  ``built_in_tbl_[spv::BuiltInLocalInvocationId]`` is the array
+   *  of invocation ids, equivalent to an array of ``threadIdx.x``,
+   *  ``threadIdx.y``, and ``threadIdx.z`` in CUDA.
+   *
+   *  These are declared in the global section of the shader.
+   */
+  std::unordered_map<spv::BuiltIn, Value> built_in_tbl_;
+
+  /*! \brief The cached values for built-in values
+   *
+   *  Maps from a tuple of (spv::BuiltIn enum, index) to the value
+   *  stored at that index of the built-in array.  For example,
+   *  ``built_in_tbl_[{spv::BuiltInLocalInvocationId, 0}]`` is the
+   *  first index of the invocation id, equivalent to
+   *  ``threadIdx.x`` in CUDA.
+   *
+   *  These are declared in the first block of the function, in the
+   *  ``function_scope_vars_`` section.
+   */
+  std::map<std::tuple<spv::BuiltIn, uint32_t>, Value> built_in_values_tbl_;
+
   /*! \brief whether push constant is defined */
   Value push_const_;
   /*! \brief map from type code to the type */
   std::unordered_map<uint32_t, SType> pod_type_tbl_;
   /*! \brief map from value to array type */
-  std::map<std::pair<uint32_t, uint32_t>, SType> struct_array_type_tbl_;
+  std::map<std::tuple<uint32_t, uint32_t, bool>, SType> struct_array_type_tbl_;
   /*! \brief map from value to its pointer type */
   std::map<std::pair<uint32_t, spv::StorageClass>, SType> pointer_type_tbl_;
   /*! \brief map from constant int to its value */
   std::map<std::pair<uint32_t, uint64_t>, Value> const_tbl_;
-  /*! \brief Header segment, include import */
+  /*! \brief map from name of a ExtInstImport to its value */
+  std::map<std::string, Value> ext_inst_tbl_;
+
+  /*! \brief Header segment
+   *
+   * 5 words long, described in "First Words of Physical Layout"
+   * section of SPIR-V documentation.
+   */
   std::vector<uint32_t> header_;
-  /*! \brief engtry point segment */
+  /*! \brief SPIR-V capabilities used by this module. */
+  std::set<spv::Capability> capabilities_used_;
+  /*! \brief SPIR-V extensions used by this module. */
+  std::set<std::string> extensions_used_;
+  /*! \brief entry point segment */
+  std::vector<uint32_t> extended_instruction_section_;
+  /*! \brief entry point segment */
   std::vector<uint32_t> entry_;
   /*! \brief Header segment */
   std::vector<uint32_t> exec_mode_;
@@ -635,8 +717,21 @@ class IRBuilder {
   std::vector<uint32_t> decorate_;
   /*! \brief Global segment: types, variables, types */
   std::vector<uint32_t> global_;
-  /*! \brief Function header segment */
+  /*! \brief Function header segment
+   *
+   * Contains the start of function (spv::OpFunction), first label
+   * (spv::OpLabel), and all array allocations (spv::OpVariable).
+   */
   std::vector<uint32_t> func_header_;
+  /*! \brief Function-scope variable declarations
+   *
+   * Contains variable declarations that should be accessible
+   * throughout the entire kernel (e.g. threadIdx.x).  This must be
+   * separate from func_header_, because the function-level
+   * spv::OpVariable declarations must come first in the first block
+   * of a function.
+   */
+  std::vector<uint32_t> function_scope_vars_;
   /*! \brief Function segment */
   std::vector<uint32_t> function_;
 };

@@ -154,7 +154,7 @@ def test_buffer_broadcast():
         b = tvm.nd.array(np.random.uniform(size=(2, 1, 1)).astype(B.dtype), dev)
         c = tvm.nd.array(np.zeros((2, 4, 3), dtype=C.dtype), dev)
         fadd(a, b, c)
-        tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
+        tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
 
     check()
 
@@ -183,7 +183,7 @@ def test_buffer_broadcast_expr():
         b = tvm.nd.array(np.random.uniform(size=(2, 4)).astype(B.dtype), dev)
         c = tvm.nd.array(np.zeros((2, 4), dtype=C.dtype), dev)
         fadd(a, b, c, 4, 1)
-        tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
+        tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
 
     def check_no_stride():
         fadd = tvm.build(
@@ -194,7 +194,7 @@ def test_buffer_broadcast_expr():
         b = tvm.nd.array(np.random.uniform(size=(2, 4)).astype(B.dtype), dev)
         c = tvm.nd.array(np.zeros((2, 4), dtype=C.dtype), dev)
         fadd(a, b, c, 4, 1)
-        tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
+        tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
 
     def check_auto_bind():
         # Let build bind buffers
@@ -204,7 +204,7 @@ def test_buffer_broadcast_expr():
         b = tvm.nd.array(np.random.uniform(size=(2, 4)).astype(B.dtype), dev)
         c = tvm.nd.array(np.zeros((2, 4), dtype=C.dtype), dev)
         fadd(a, b, c, 4, 1)
-        tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
+        tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
 
     check_stride()
     check_no_stride()
