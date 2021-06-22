@@ -20,6 +20,12 @@ set -e
 set -u
 set -o pipefail
 
-echo "Checking MyPy Type defs in python module."
-mypy  --check-untyped-defs python/
+echo "Checking MyPy Type defs in auto_scheduler package."
+mypy  --check-untyped-defs python/tvm/auto_scheduler
+
+echo "Checking MyPy Type defs in runtime package."
+mypy  --check-untyped-defs python/tvm/runtime
+
+
+
 
