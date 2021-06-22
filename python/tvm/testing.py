@@ -548,6 +548,26 @@ def requires_cuda(*args):
     return _compose(args, _requires_cuda)
 
 
+def requires_nvptx(*args):
+    """Mark a test as requiring the NVPTX compilation on the CUDA runtime
+
+    This also marks the test as requiring a cuda gpu, and requiring
+    LLVM support.
+
+    Parameters
+    ----------
+    f : function
+        Function to mark
+
+    """
+    _requires_nvptx = [
+        pytest.mark.skipif(not device_enabled("nvptx"), reason="NVPTX support not enabled"),
+        *requires_llvm(),
+        *requires_gpu(),
+    ]
+    return _compose(args, _requires_nvptx)
+
+
 def requires_cudagraph(*args):
     """Mark a test as requiring the CUDA Graph Feature
 
@@ -718,7 +738,7 @@ def _target_to_requirement(target):
     if target.startswith("vulkan"):
         return requires_vulkan()
     if target.startswith("nvptx"):
-        return [*requires_llvm(), *requires_gpu()]
+        return requires_nvptx()
     if target.startswith("metal"):
         return requires_metal()
     if target.startswith("opencl"):
@@ -753,6 +773,7 @@ def _pytest_target_params(targets, excluded_targets=None, xfail_targets=None):
                             reason='Known failing test for target "{}"'.format(t["target_kind"])
                         )
                     )
+
                 target_marks.append((t["target"], extra_marks))
 
     else:
@@ -971,8 +992,10 @@ def parameter(*values, ids=None):
 
     """
 
+    # Optional cls parameter in case a parameter is defined inside a
+    # class scope.
     @pytest.fixture(params=values, ids=ids)
-    def as_fixture(request):
+    def as_fixture(*_cls, request):
         return request.param
 
     return as_fixture
@@ -1030,7 +1053,9 @@ def parameters(*value_sets):
     outputs = []
     for param_values in zip(*value_sets):
 
-        def fixture_func(request):
+        # Optional cls parameter in case a parameter is defined inside a
+        # class scope.
+        def fixture_func(*_cls, request):
             return request.param
 
         fixture_func.parametrize_group = parametrize_group
@@ -1137,7 +1162,11 @@ def fixture(func=None, *, cache_return_value=False):
 
 def _fixture_cache(func):
     cache = {}
-    num_uses = 0
+
+    # Can't use += on a bound method's property.  Therefore, this is a
+    # list rather than a variable so that it can be accessed from the
+    # pytest_collection_modifyitems().
+    num_uses_remaining = [0]
 
     # Using functools.lru_cache would require the function arguments
     # to be hashable, which wouldn't allow caching fixtures that
@@ -1186,13 +1215,12 @@ def _fixture_cache(func):
         finally:
             # Clear the cache once all tests that use a particular fixture
             # have completed.
-            nonlocal num_uses
-            num_uses += 1
-            if num_uses == wrapper.num_tests_use_this:
+            num_uses_remaining[0] -= 1
+            if not num_uses_remaining[0]:
                 cache.clear()
 
     # Set in the pytest_collection_modifyitems()
-    wrapper.num_tests_use_this = 0
+    wrapper.num_uses_remaining = num_uses_remaining
 
     return wrapper
 
@@ -1210,8 +1238,8 @@ def _count_num_fixture_uses(items):
         for fixturedefs in item._fixtureinfo.name2fixturedefs.values():
             # Only increment the active fixturedef, in a name has been overridden.
             fixturedef = fixturedefs[-1]
-            if hasattr(fixturedef.func, "num_tests_use_this"):
-                fixturedef.func.num_tests_use_this += 1
+            if hasattr(fixturedef.func, "num_uses_remaining"):
+                fixturedef.func.num_uses_remaining[0] += 1
 
 
 def _remove_global_fixture_definitions(items):
