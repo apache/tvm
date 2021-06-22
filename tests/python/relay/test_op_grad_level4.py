@@ -106,11 +106,17 @@ def test_not_equal_grad():
 def test_strided_slice_grad():
     def check(sh, dtype, begin, end, strides, slice_mode):
         x = relay.var("x", shape=sh, dtype=dtype)
-        check_grad(relay.Function([x], relay.strided_slice(x, begin=begin, end=end, strides=strides, slice_mode=slice_mode)))
+        f = relay.Function(
+            [x],
+            relay.strided_slice(x, begin=begin, end=end, strides=strides, slice_mode=slice_mode),
+        )
+        check_grad(f)
 
     check((2, 3, 4), "float32", (0, 1, 0), (-1, -1, 1), (1, 1, 1), "size")
     check((2, 3, 4), "float32", (0, 1, 0), (2, 3, 1), (1, 1, 1), "end")
+    # check that strides are properly ignored when using "size" mode
     check((2, 3, 4), "float32", (0, 0, 0), (-1, -1, -1), (1, 1, 2), "size")
+    check((2, 3, 4), "float32", (0, 0, 0), (2, 3, 4), (1, 1, 2), "end")
 
 
 if __name__ == "__main__":
