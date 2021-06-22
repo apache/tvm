@@ -460,7 +460,7 @@ def _get_numpy(relay_const_scalar):
 
 
 def _get_scalar(relay_const_scalar):
-    return np.asscalar(_get_numpy(relay_const_scalar))
+    return _get_numpy(relay_const_scalar).item(0)
 
 
 def _do_bias_and_requantize(

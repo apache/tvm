@@ -391,10 +391,10 @@ class PyTorchOpConverter:
         stride = inputs[4]
 
         target_begin, is_begin_const = try_infer_value(
-            inputs[2], lambda ret: np.asscalar(ret.astype(np.int))
+            inputs[2], lambda ret: ret.astype(np.int).item(0)
         )
         target_end, is_end_const = try_infer_value(
-            inputs[3], lambda ret: np.asscalar(ret.astype(np.int))
+            inputs[3], lambda ret: ret.astype(np.int).item(0)
         )
 
         # A fast path when slicing is nop.
@@ -1306,7 +1306,7 @@ class PyTorchOpConverter:
         for i, shape in enumerate(shape_inp):
             if isinstance(shape, _expr.Expr):
                 val = _infer_value_simulated(shape, {})
-                new_shape[i] = np.asscalar(val.numpy())
+                new_shape[i] = val.numpy().item(0)
 
         return _op.transform.reshape(data, new_shape)
 
