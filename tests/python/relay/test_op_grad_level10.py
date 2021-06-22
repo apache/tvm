@@ -78,28 +78,25 @@ def test_one_hot_grad():
     indices_shape = (3, 4)
     depth = 5
     axis = -1
-    indices_dtype = "int32"
-    dtype = "float32"
-    inputs = [
-        np.random.randint(depth, size=indices_shape, dtype=indices_dtype),
-        np.array(np.random.randn() * 1e-5).astype(dtype),
-        np.array(np.random.randn() * 1e-5).astype(dtype),
-    ]
-    test_inputs = inputs[1:]
+    indices_dtype = "int64"
+    dtype = "float64"
+   
+    for indices_dtype in ["int32", "int64"]:
+        for val_dtype in ["float32", "float64"]:
+            inputs = [
+                np.random.randint(depth, size=indices_shape, dtype=indices_dtype),
+                np.array(np.random.randn() * 1e-5).astype(dtype),
+                np.array(np.random.randn() * 1e-5).astype(dtype),
+            ]
+            test_inputs = inputs[1:]
 
-    indices = relay.var("indices", shape=indices_shape, dtype=indices_dtype)
-    on_val = relay.var("on_val", shape=tuple(), dtype=dtype)
-    off_val = relay.var("off_val", shape=tuple(), dtype=dtype)
-    y = relay.one_hot(indices, on_val, off_val, depth, axis, dtype)
-    f = run_infer_type(relay.Function([indices, on_val, off_val], y))
+            indices = relay.var("indices", shape=indices_shape, dtype=indices_dtype)
+            on_val = relay.var("on_val", shape=tuple(), dtype=dtype)
+            off_val = relay.var("off_val", shape=tuple(), dtype=dtype)
+            y = relay.one_hot(indices, on_val, off_val, depth, axis, dtype)
+            f = relay.Function([indices, on_val, off_val], y)
 
-    @pass_instrument
-    class Bruh:
-        def run_before_pass(self, mod, info):
-            print("bruh", info.name)
-
-    with transform.PassContext(instruments=[Bruh()]):
-        check_grad(f, inputs=inputs, test_inputs=test_inputs, mode="first_order")
+            check_grad(f, inputs=inputs, test_inputs=test_inputs)
 
 
 if __name__ == "__main__":
