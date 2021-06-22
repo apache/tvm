@@ -49,8 +49,6 @@ def verify_mixed_precision_output_close(
     fp16_mod = ToMixedPrecision(mixed_precision_dtype)(mod)
     result_fp16 = run_module(fp16_mod, mod_params)
 
-    breakpoint()
-
     # Ensure the results are close
     for fp32, fp16 in zip(result_fp32, result_fp16):
         np.testing.assert_allclose(fp32, fp16, rtol=rtol, atol=atol)
