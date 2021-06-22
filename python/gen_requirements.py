@@ -201,7 +201,10 @@ CONSTRAINTS = [
     ("coremltools", None),
     ("cpplint", None),
     ("decorator", None),
-    ("docutils", None),
+    (
+        "docutils",
+        "<0.17",
+    ),  # Work around https://github.com/readthedocs/sphinx_rtd_theme/issues/1115
     ("future", None),
     ("image", None),
     ("matplotlib", None),
