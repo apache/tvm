@@ -124,6 +124,7 @@ stage("MyPy Type Check") {
     node('CPU') {
       ws(per_exec_ws("tvm/sanity")) {
         init_git()
+        sh "${docker_run} ${ci_lint}  mypy --install-types"
         sh "${docker_run} ${ci_lint}  ./tests/scripts/task_mypy.sh"
       }
     }
