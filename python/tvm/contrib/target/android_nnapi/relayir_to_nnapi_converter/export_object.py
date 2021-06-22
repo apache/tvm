@@ -195,8 +195,8 @@ class ExportObject:
             dtype in ["float16", "float32", "int32", "uint32", "bool"],
             f"Unsupported data type { dtype }",
         )
-        assert len(vals) > 0, "Array constant should not be empty"
-        vals = list(map(lambda v: self._canonicalize_scalar_constant(dtype, v), vals))
+        assert vals, "Array constant should not be empty"
+        vals = [self._canonicalize_scalar_constant(dtype, v) for v in vals]
 
         new_const = {
             "type": "array",

@@ -53,6 +53,7 @@ class Converter:
 
     def convert(self, func):
         """Converts a Relay IR Function into Android NNAPI C++ class source code
+
         Parameters
         ----------
         func: tvm.relay.Function
@@ -62,7 +63,6 @@ class Converter:
         -------
         code: str
             The C++ class source code describing func in Android NNAPI
-
         """
         assert isinstance(func, tvm.relay.Function)
         func = transform.FixIllegalPatternForNnapi()(func)

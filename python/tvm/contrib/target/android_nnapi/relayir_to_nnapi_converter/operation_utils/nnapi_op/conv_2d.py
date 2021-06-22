@@ -134,7 +134,7 @@ def add_operation(converter, inputs, outputs):
     stride["h"] = ins[8]["value"]
 
     # check inputs[9]
-    assert_nnapi_op_check(converter.export_obj.helper.operand.is_FuseCode(inputs[9]))
+    assert_nnapi_op_check(converter.export_obj.helper.operand.is_fuse_code(inputs[9]))
 
     if api_level >= 29:
         # check inputs[10]

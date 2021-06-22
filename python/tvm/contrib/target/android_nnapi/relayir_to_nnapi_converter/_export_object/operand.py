@@ -73,7 +73,7 @@ class Operand:
             return 0
         return len(shape)
 
-    def get_value(self, idx):  # pylint: disable=inconsistent-return-statements
+    def get_value(self, idx):
         """Get operand value.
 
         Parameters
@@ -92,9 +92,8 @@ class Operand:
 
         if value_dict["type"] == "constant_idx":
             return self._export_obj["constants"][value_dict["value"]]["value"]
-        if value_dict["type"] == "memory_ptr":
-            return value_dict["value"]
-        assert False, "Unreachable"
+        assert value_dict["type"] == "memory_ptr"
+        return value_dict["value"]
 
     def get_constant(self, idx):
         """Get operand constant.
@@ -114,7 +113,7 @@ class Operand:
             return None
         return self._export_obj["constants"][value_dict["value"]]
 
-    def is_FuseCode(self, idx):  # pylint: disable=invalid-name
+    def is_fuse_code(self, idx):
         """Check whether the operand pointed by idx is a FuseCode
 
         Parameters
@@ -134,11 +133,9 @@ class Operand:
         if shape is not None:
             return False
         value = self.get_value(idx)
-        if value not in {
+        return value in {
             "ANEURALNETWORKS_FUSED_NONE",
             "ANEURALNETWORKS_FUSED_RELU",
             "ANEURALNETWORKS_FUSED_RELU1",
             "ANEURALNETWORKS_FUSED_RELU6",
-        }:
-            return False
-        return True
+        }

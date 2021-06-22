@@ -141,7 +141,7 @@ def add_operation(converter, inputs, outputs):
     assert_nnapi_op_check(depth_multiplier >= 0)
 
     # check inputs[10]
-    assert_nnapi_op_check(converter.export_obj.helper.operand.is_FuseCode(inputs[10]))
+    assert_nnapi_op_check(converter.export_obj.helper.operand.is_fuse_code(inputs[10]))
 
     if api_level >= 29:
         # check inputs[11]
