@@ -246,16 +246,6 @@ class GraphModule(object):
 
     def get_input_index(self, name):
         """Get inputs index via input name.
-
-        Parameters
-        ----------
-        name : str
-           The input key name
-
-        Returns
-        -------
-        index: int
-            The input index. -1 will be returned if the given input name is not found.
         """
         return self._get_input_index(name)
 

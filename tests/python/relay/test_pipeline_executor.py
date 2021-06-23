@@ -177,7 +177,8 @@ def run_pipeline(target):
     #build and create pipeline module
     """
     with relay.build_config(opt_level=3):
-        pipeline_mods, string_config = pipeline_executor.build_pipeline(mod_config)
+        pipeline_mods, string_config = pipeline_executor.build_pipeline(mod_config,
+                                                                        "/scratch/hj/data/")
 
     pipeline_module = pipeline_executor.create(pipeline_mods, string_config)
 
@@ -187,7 +188,7 @@ def run_pipeline(target):
     d3 = np.full(dshape, 10).astype("float32")
     for data in datas:
         pipeline_module.set_input("data_0", data)
-        pipeline_module.set_input("data_1", data, modindx=2)
+        pipeline_module.set_input("data_1", data, mod_idx=2)
         pipeline_module.run()
 
     """

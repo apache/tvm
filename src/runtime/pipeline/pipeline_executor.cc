@@ -22,30 +22,22 @@
  */
 #include "pipeline_executor.h"
 
-#include <tvm/runtime/registry.h>
-
 namespace tvm {
 namespace runtime {
 
-/*!
- *\bief Stop pipeline run.
- */
-void SubGraphRuntime::Stop() { pipeline_stop(runtimes); }
+/*! \bief Stop pipeline run. */
+void SubGraphRuntime::Stop() { pipeline_stop(runtimes_); }
 /*!
  * \brief Run all the operations one by one.
  */
-void SubGraphRuntime::Run() {
-  pipeline_run(runtimes, input_int_map);
-  /* Clear the input map
-   */
-}
+void SubGraphRuntime::Run() { pipeline_run(runtimes_, input_int_map_); }
 
 void SubGraphRuntime::Init(const Array<tvm::runtime::Module>& modules,
                            const std::string& pipeline_json) {
   std::istringstream is(pipeline_json);
   dmlc::JSONReader reader(&is);
   this->Load(&reader);
-  outpuNumber = pipeline_init(modules, &runtimes, &pipeline_conf);
+  outpuNumber_ = pipeline_init(modules, &runtimes_, pipeline_conf_, mod_conf_);
   return;
 }
 
@@ -55,11 +47,11 @@ void SubGraphRuntime::Init(const Array<tvm::runtime::Module>& modules,
  * \param data_in The input data.
  * \param modIndx The runtime index.
  */
-void SubGraphRuntime::SetInput(int index, DLTensor* data_in, int modIndx) {
-  if (1 == modIndx) {
-    runtimes[0]->runtimePtr->SetInput(index, data_in);
+void SubGraphRuntime::SetInput(int index, DLTensor* data_in, int mod_idx) {
+  if (1 == mod_idx) {
+    runtimes_[0]->runtimePtr->SetInput(index, data_in);
   } else {
-    pipeline_setinput(input_int_map, index, data_in, modIndx);
+    pipeline_setinput(input_int_map_, index, data_in, mod_idx);
   }
 }
 
@@ -68,7 +60,7 @@ void SubGraphRuntime::SetInput(int index, DLTensor* data_in, int modIndx) {
  *
  * \return The number of outputs from last pipeline.
  */
-int SubGraphRuntime::NumOutputs() const { return outpuNumber; }
+int SubGraphRuntime::NumOutputs() const { return outpuNumber_; }
 
 /*!
  * \brief Get the number of inputs
@@ -77,7 +69,7 @@ int SubGraphRuntime::NumOutputs() const { return outpuNumber; }
  */
 int SubGraphRuntime::NumInputs() const {
   int inputsNum = 0;
-  for (auto runtime : runtimes) {
+  for (auto runtime : runtimes_) {
     inputsNum += runtime->runtimePtr->NumInputs();
   }
   return inputsNum;
@@ -90,7 +82,7 @@ int SubGraphRuntime::NumInputs() const {
  * \return NDArray corresponding to given input node index.
  */
 NDArray SubGraphRuntime::GetInput(int index, int mIndx) const {
-  auto gruntime = runtimes[mIndx];
+  auto gruntime = runtimes_[mIndx];
   return gruntime->runtimePtr->GetInput(index);
 }
 
@@ -101,7 +93,7 @@ NDArray SubGraphRuntime::GetInput(int index, int mIndx) const {
  * \return int corresponding to given input node name.
  */
 int SubGraphRuntime::GetInputIndex(const string& name, int mIndx) const {
-  auto gruntime = runtimes[mIndx - 1];
+  auto gruntime = runtimes_[mIndx - 1];
   return gruntime->runtimePtr->GetInputIndex(name);
 }
 
@@ -112,7 +104,7 @@ int SubGraphRuntime::GetInputIndex(const string& name, int mIndx) const {
  */
 Array<NDArray> SubGraphRuntime::GetOutput(bool syncPoll) {
   Array<NDArray> nd;
-  if (pipeline_poll(&output_entry_, runtimes, syncPoll)) {
+  if (pipeline_poll(&output_entry_, runtimes_, syncPoll)) {
     for (auto output : output_entry_) {
       nd.push_back(output);
     }
@@ -122,12 +114,9 @@ Array<NDArray> SubGraphRuntime::GetOutput(bool syncPoll) {
 
 PackedFunc SubGraphRuntime::GetFunction(const std::string& name,
                                         const ObjectPtr<Object>& sptr_to_self) {
-  /* Return member functions during query.
-   */
   if (name == "set_input") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      /* Default use first runtime index value.
-       */
+      // Default use first runtime index value.
       int modIndx = 0;
       if (args.num_args == 3) {
         modIndx = static_cast<int>(args[2]);

@@ -22,7 +22,12 @@ from tvm.contrib import graph_executor
 
 
 def pipeline_executor_enabled():
-    """check if pipeline executor enabled."""
+    """check if pipeline executor enabled.
+    Return
+    ------
+    enable: bool
+        return pipeline executor get enabled or not
+    """
     pipeline_enabled = False
     try:
         pipelinecreate = tvm._ffi.get_global_func("tvm.pipeline_executor.create")
@@ -34,19 +39,39 @@ def pipeline_executor_enabled():
     return pipeline_enabled
 
 
-def build_pipeline(config):
+def write_file(file_name, data, mode):
+    """write data into file
+
+    Parameters
+    ----------
+    file_name: str
+        file name
+    data: str
+        data
+    mode: str
+        file open mode
+    """
+    if file_name:
+        with open(file_name, mode) as file_handle:
+            file_handle.write(data)
+
+    return
+
+
+def build_pipeline(mod_n_configs, export_path=None):
     """build module list that can use for pipeline execution.
 
     Parameters
     ----------
-
-    config: Dict[IRModule, Dict[str, Any]]
+    mod_n_configs: Dict[IRModule, Dict[str, Any]]
         build configuration informaton, structure like following.
         {IRModule: {"target":target,
                     "target_host":target_host,
                     "params":params,
                     "mod_name"mod_name,
                     "build":build}}
+    export_path: str
+        export build result into file
 
     Returns
     -------
@@ -56,21 +81,25 @@ def build_pipeline(config):
         pipeline configuration
     """
     mods = {}
-    config_len = len(config)
+    config_len = len(mod_n_configs)
     string_config = [{} for _ in range(config_len)]
-    for ir_mod in config:
+    for _, (ir_mod, mod_config) in enumerate(mod_n_configs.items()):
+        # init lib_name and json_name params with empty
+        lib_name = ""
+        json_name = ""
+        params_name = ""
         # Get module configuration
-        mod_config = config[ir_mod]
         assert "pipeline" in mod_config and "mod_indx" in mod_config["pipeline"]
         # Get module index in pipeline configuration
-        mod_indx = mod_config["pipeline"]["mod_indx"] - 1
+        mconf = mod_config["pipeline"].copy()
+        # Get mod device config
+        dev = mod_config["dev"]
+        mod_indx = mconf["mod_indx"] - 1
         assert mod_indx < config_len
-        # Create pipeline configuration
-        string_config[mod_indx] = mod_config["pipeline"]
         build_func = relay.build
         # if there is a self defined build function then use it.
         if "build" in mod_config and mod_config["build"]:
-            build_func = mod_config.build
+            build_func = mod_config["build"]
 
         # build IRModule
         mod = build_func(
@@ -81,7 +110,28 @@ def build_pipeline(config):
             mod_name=mod_config["mod_name"],
         )
 
-        mods[mod] = {"dev": mod_config["dev"]}
+        if export_path:
+            graph, lib, params = mod
+            lib_name = "{}/lib{}.so".format(export_path, mod_indx)
+            json_name = "{}/json{}".format(export_path, mod_indx)
+            params_name = "{}/params{}".format(export_path, mod_indx)
+            lib.export_library(lib_name)
+            write_file(json_name, graph, "w")
+            write_file(params_name, relay.save_param_dict(params), "wb")
+
+        mconf["lib_name"] = lib_name
+        mconf["json_name"] = json_name
+        mconf["params_name"] = params_name
+        mconf["dev"] = "{},{}".format(dev.device_type, dev.device_id)
+        # Create pipeline configuration
+        string_config[mod_indx] = mconf
+        # associate mod with device
+        mods[mod] = {"dev": dev}
+
+    if export_path:
+        write_file("{}/config".format(export_path), json.dumps(string_config), "w")
+        #with open("{}/config".format(export_path), "w") as config_file:
+        #    config_file.write(json.dumps(string_config))
 
     # return IRModule list and pipeline configuration
     return mods, string_config
@@ -109,10 +159,11 @@ def create(pipeline_mods, mod_config):
         mod = graph_executor.GraphModule(
             pipeline_mod["default"](pipeline_mods[pipeline_mod]["dev"])
         )
-
-        mods.append(mod)
+    
+        mods.append(mod.module)
 
     submodule = PipelineModule(mods, json.dumps(mod_config))
+    #submodule = PipelineModule(pipeline_mods, json.dumps(mod_config))
     return submodule
 
 
@@ -130,16 +181,16 @@ class PipelineModule(object):
 
     """
 
-    def __init__(self, graph_modules, pipeline_config):
+    def __init__(self, modules, pipeline_config):
         mods = []
-        for module in graph_modules:
-            mods.append(module.module)
+        for module in modules:
+            mods.append(module)
 
         pipelinecreate = tvm._ffi.get_global_func("tvm.pipeline_executor.create")
         assert pipelinecreate
         module = pipelinecreate(mods, pipeline_config)
 
-        self.graph_modules_ = graph_modules
+        self.graph_modules_ = modules
 
         self._set_input = module["set_input"]
         self._run = module["run"]
@@ -149,27 +200,29 @@ class PipelineModule(object):
         self._get_num_outputs = module["get_num_outputs"]
         self._get_num_inputs = module["get_num_inputs"]
 
-    def set_input(self, key, value, modindx=1, params=None):
+    def set_input(self, key, value, mod_idx=1, params=None):
         """Set inputs to the module via kwargs
 
         Parameters
         ----------
         key : array_like
-           The input key
+            The input key
 
         value : array_like.
-           The input key
+            The input key
+
+        mod_idx : int
+            the submodule index
 
         params : dict of str to NDArray
-           Additional arguments
+            Additional arguments
         """
-        assert modindx >= 1
-        if key is not None:
-            self._set_input(key, tvm.nd.array(value, tvm.cpu()), modindx)
+        assert mod_idx >= 1
+        self._set_input(key, tvm.nd.array(value, tvm.cpu()), mod_idx)
 
         if params:
             for param in params:
-                self.graph_modules_[modindx - 1].set_input(**param)
+                self.graph_modules_[mod_idx - 1].set_input(**param)
 
     def run(self):
         """Run forward execution of the graph"""

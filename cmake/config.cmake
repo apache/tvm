@@ -101,6 +101,7 @@ set(USE_STACKVM_RUNTIME OFF)
 
 # Whether enable tiny embedded graph executor.
 set(USE_GRAPH_EXECUTOR ON)
+
 # Whether enable subgraph runtime.
 set(USE_PIPELINE_EXECUTOR OFF)
 

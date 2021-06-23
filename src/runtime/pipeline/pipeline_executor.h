@@ -43,7 +43,7 @@ namespace runtime {
  */
 class TVM_DLL SubGraphRuntime : public ModuleNode {
  public:
-  SubGraphRuntime() { input_int_map = make_shared<MOD_DLDATA_MAP>(); }
+  SubGraphRuntime() { input_int_map_ = make_shared<MOD_DLDATA_MAP>(); }
   ~SubGraphRuntime() {
     /* stop pipeline threads and release data in deconstructor.
      */
@@ -82,7 +82,7 @@ class TVM_DLL SubGraphRuntime : public ModuleNode {
    * \param index The input index.
    * \param data_in The input data.
    */
-  void SetInput(int index, DLTensor* data_in, int modIndx);
+  void SetInput(int index, DLTensor* data_in, int mod_idx);
 
   /*!
    * \brief get index-th input.
@@ -123,11 +123,33 @@ class TVM_DLL SubGraphRuntime : public ModuleNode {
       std::string key;
       reader->BeginObject();
       int mod_indx = 0;
+      std::string libName;
+      std::string jsonName;
+      std::string paramsName;
+      std::string dev;
       unordered_map<int, unordered_map<int, string>> output;
+      unordered_map<int, unordered_map<string, string>> lib;
       while (reader->NextObjectItem(&key)) {
         if (key == "mod_indx") {
           reader->Read(&mod_indx);
         }
+
+        if (key == "lib_name") {
+          reader->Read(&libName);
+        }
+
+        if (key == "json_name") {
+          reader->Read(&jsonName);
+        }
+
+        if (key == "params_name") {
+          reader->Read(&paramsName);
+        }
+
+        if (key == "dev") {
+          reader->Read(&dev);
+        }
+
         if (key == "output") {
           reader->BeginArray();
           while (reader->NextArrayItem()) {
@@ -166,17 +188,20 @@ class TVM_DLL SubGraphRuntime : public ModuleNode {
         }
       }
       if (mod_indx >= 0) {
-        pipeline_conf[mod_indx] = output;
+        pipeline_conf_[mod_indx] = output;
+        mod_conf_[mod_indx] = {
+            {"lib_name", libName}, {"json_name", jsonName}, {"params", paramsName}, {"dev", dev}};
       }
     }
   }
 
  protected:
   vector<NDArray> output_entry_;
-  PIPELINE_CONF pipeline_conf;
-  vector<shared_ptr<RuntimeItem>> runtimes;
-  MOD_DLDATA_MAP_PTR input_int_map;
-  size_t outpuNumber = 0;
+  PIPELINE_CONF pipeline_conf_;
+  MOD_CONF mod_conf_;
+  vector<shared_ptr<RuntimeItem>> runtimes_;
+  MOD_DLDATA_MAP_PTR input_int_map_;
+  size_t outpuNumber_ = 0;
 };
 }  // namespace runtime
 }  // namespace tvm

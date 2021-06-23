@@ -18,6 +18,13 @@
  */
 #ifndef TVM_RUNTIME_PIPELINE_PIPELINE_FUNCTION_H_
 #define TVM_RUNTIME_PIPELINE_PIPELINE_FUNCTION_H_
+
+#include <dlpack/dlpack.h>
+#include <tvm/runtime/module.h>
+#include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/registry.h>
+
+#include <fstream>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -29,13 +36,15 @@ using namespace std;
 using namespace tvm::runtime;
 typedef vector<shared_ptr<RuntimeItem>> SHARED_RUNTIME_VEC;
 typedef unordered_map<int, unordered_map<int, unordered_map<int, string>>> PIPELINE_CONF;
+typedef unordered_map<int, unordered_map<string, string>> MOD_CONF;
 typedef shared_ptr<TensorData> TENSOR_DATA;
 typedef unordered_map<int, TENSOR_DATA> DLDATA_MAP;
 typedef unordered_map<int, DLDATA_MAP> MOD_DLDATA_MAP;
 typedef shared_ptr<MOD_DLDATA_MAP> MOD_DLDATA_MAP_PTR;
 
-size_t pipeline_init(Array<Module> graphRuntimes, SHARED_RUNTIME_VEC* runtimes,
-                     PIPELINE_CONF* pipeline_conf);
+vector<Module> pipeline_get_graphRuntime(Array<Module> modules, const MOD_CONF& mod_conf);
+size_t pipeline_init(Array<Module> modules, SHARED_RUNTIME_VEC* runtimes,
+                     const PIPELINE_CONF& pipeline_conf, const MOD_CONF& mod_conf);
 void pipeline_run(const SHARED_RUNTIME_VEC& runtimes, const MOD_DLDATA_MAP_PTR indxInputs);
 inline void pipeline_queue_push(QUEUE* queue, vector<shared_ptr<OutputData>>* outputs);
 bool pipeline_queue_poll(QUEUE* queue, RuntimeData* runtimeData);

@@ -20,7 +20,7 @@
 
 #include <utility>
 using namespace tvm::runtime;
-
+using namespace std;
 void pipeline_pipeline_run(const int& num, const shared_ptr<RuntimeItem>& curRunItem) {
   QUEUE* curQueue = curRunItem->queue;
   QUEUE* nextQueue = curRunItem->next->queue;
@@ -71,9 +71,66 @@ pipeline_name_to_indx(const Array<Module>& graphRuntimes,
   return confRet;
 }
 
-size_t pipeline_init(Array<Module> graphRuntimes, SHARED_RUNTIME_VEC* runtimes,
-                     PIPELINE_CONF* pipeline_conf) {
+vector<Module> pipeline_graph_runtime(Array<Module> modules, const MOD_CONF& mod_conf) {
+  const PackedFunc* graphRuntimeCreate = Registry::Get("tvm.graph_executor.create");
+  vector<Module> ret;
+  // if modules not empty just return in vector container
+  if (!modules.empty()) {
+    for (auto mod : modules) {
+      ret.push_back(mod);
+    }
+  } else {// if modules is empty, need to build the graph runtime
+    ret.resize(mod_conf.size());
+    for (auto mconf : mod_conf) {
+      // load lib
+      auto lib = Module::LoadFromFile(mconf.second["lib_name"].c_str());
+
+      // read json
+      ifstream ifJson(mconf.second["json_name"].c_str());
+      if (ifJson.fail()) {
+        throw std::runtime_error("json file not found!");
+      }
+      const std::string json((istreambuf_iterator<char>(ifJson)), istreambuf_iterator<char>());
+
+      // create graph runtime
+      istringstream istr(mconf.second["dev"]);
+      string str;
+      int deviceType = 1, deviceId = 0;
+      while(getline(istr, str, ';')) {
+          istringstream istrDev(str);
+          string stemp;
+          if (getline(istrDev, stemp)) {
+              deviceType = stoi(stemp);
+          }
+          if (getline(istrDev, stemp)) {
+              deviceId = stoi(stemp);
+          }
+      }
+      Module graphModule = (*graphRuntimeCreate)(json, lib, deviceType, deviceId);
+
+      // load parameter
+      TVMByteArray params_arr;
+      ifstream ifParam(mconf.second["params"].c_str());
+      if (ifParam.fail()) {
+        throw std::runtime_error("params file not found!");
+      }
+      const std::string params((istreambuf_iterator<char>(ifParam)), istreambuf_iterator<char>());
+      params_arr.data = params.c_str();
+      params_arr.size = params.length();
+      auto load_params = graphModule.GetFunction("load_params");
+      load_params(params_arr);
+
+      // put into return vector
+      ret[mconf.first - 1] = graphModule;
+    }
+  }
+  return ret;
+}
+
+size_t pipeline_init(Array<Module> modules, SHARED_RUNTIME_VEC* runtimes,
+                     const PIPELINE_CONF& pipeline_conf, const MOD_CONF& mod_conf) {
   int outputNum = 0;
+  vector<Module> graphRuntimes = pipeline_graph_runtime(modules, mod_conf);
   int len = graphRuntimes.size();
   for (int i = 0; i < len; i++) {
     QUEUE* sub_queue = createQueue<SLOT>(NULL, SUB_Q_SIZE);
@@ -82,7 +139,7 @@ size_t pipeline_init(Array<Module> graphRuntimes, SHARED_RUNTIME_VEC* runtimes,
     int runtimeIndx = i + 1;
     /* get dependency configuration information.
      */
-    auto pConf = pipeline_name_to_indx(graphRuntimes, pipeline_conf->at(runtimeIndx));
+    auto pConf = pipeline_name_to_indx(graphRuntimes, pipeline_conf.at(runtimeIndx));
 
     auto runItem = make_shared<RuntimeItem>(graphRuntimes[i], sub_queue, &pConf, runtimeIndx);
     runtimes->push_back(runItem);
