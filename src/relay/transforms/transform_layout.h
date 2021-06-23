@@ -150,6 +150,7 @@ class TransformMemorizer : public ObjectRef {
    * \brief Defines the call transformation for derived passes. The new layouts are defined by
    * used for different targets using a packed func.
    * \param ref_call The original call.
+   * \param new_attrs Updated attributes consistent with new layouts.
    * \param new_args The traversed/recursed args to the call.
    * \return The new Call after calling the packed func.
    */
@@ -211,7 +212,8 @@ class LayoutAlternatedExpr : public ObjectRef {
 /*!
  * Call registered FInferCorrectLayout of an op.
  * Parameters are the same as the parameters for FInferCorrectLayout
- * Returns inferred_input_layout, inferred_output_layout, success
+ * Returns inferred_input_layout, inferred_output_layout, updated attributes, and a flag
+ * indicating whether or not layout conversion is successful.
  */
 static inline std::tuple<InferCorrectLayoutOutput, bool> InferCorrectLayouts(
     const Call& call, const Array<Layout>& new_in_layouts, const Array<Layout>& old_in_layouts,
@@ -243,6 +245,25 @@ static inline std::tuple<InferCorrectLayoutOutput, bool> InferCorrectLayouts(
   }
 }
 
+/*
+ * \brief Used with ForwardRewrite to transform the expr. The input args are same as
+ *        FForwardRewrite.
+ * \param ref_call The reference old call type to be rewritten.
+ *                 We can make use of the op and type information.
+ * \param new_args The new arguments (some of them could be TempExpr).
+ * \param ctx  Optional context information about ref_call.
+ * \tparam TransformMemorizerT The derived TransformMemorizer type.
+ * \return The rewriten result call, can also return nullptr,
+ *         which indicate the rewriter should use the default fallback
+ *         rule that realizes all its input and compose the call.
+ *
+ * \note The ctx can be used to provide extra information during transformation. The ctx is
+ *       templated to reuse across AlterOpLayout and ConvertLayout pass. The steps are
+ *       - Extract the original layouts.
+ *       - Use ctx transformation to get a Call with new layouts - CallWithNewLayouts.
+ *       - Extract the new layouts from the returned Call.
+ *       - Transform the original call to reuse the new layouts using TransformMemorizer.
+ */
 template <class TransformMemorizerT>
 Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const ObjectRef& ctx) {
   std::vector<LayoutAlternatedExpr<TransformMemorizerT>> inputs;

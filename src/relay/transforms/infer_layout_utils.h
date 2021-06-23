@@ -85,6 +85,12 @@ inline Layout AdjustSubordinateFactors(const Layout& src_layout, const Layout& o
   return Layout(new_layout);
 }
 
+/*
+ * \brief An output structure to hold results from FInferCorrectLayout calls.
+ * \tparam inferred_layout An array of two elements, inferred input layouts and
+ *                         inferred output layouts.
+ * \tparam new_attrs Updated attributes consistent with new inferred layouts
+ */
 class InferCorrectLayoutOutputNode : public Object {
  public:
   Array<Array<Layout>> inferred_layout;
@@ -111,8 +117,8 @@ class InferCorrectLayoutOutput : public ObjectRef {
  *                       any operators.
  * \param old_in_layouts The layouts of input arguments before alter_op_layout.
  * \param old_in_types The types of old input arguments.
- * \return infered_layout An array of two elements that are inferred input layouts and
- *                        inferred output layouts.
+ * \return infer_layout_output Inferred layouts and updated attributes stored in
+ *                             InferCorrectLayoutOutput above.
  */
 using FInferCorrectLayout = runtime::TypedPackedFunc<InferCorrectLayoutOutput(
     const Attrs& attrs, const Array<Layout>& new_in_layouts, const Array<Layout>& old_in_layouts,

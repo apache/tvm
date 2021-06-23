@@ -78,6 +78,7 @@ class ConvertTransformMemorizer : public TransformMemorizer {
    * \brief Defines the call transformation for ConvertLayout pass. The new layouts should be the
    * desired layout as specified by the user.
    * \param ref_call The original call.
+   * \param new_attrs Updated attributes consistent with new layouts.
    * \param new_args The traversed/recursed args to the call.
    * \return The new Call after calling the packed func.
    */
@@ -124,7 +125,6 @@ class ConvertTransformMemorizer : public TransformMemorizer {
   }
 
   using TransformMemorizer::CallWithNewLayouts;
-
   using ContainerType = ConvertTransformMemorizerNode;
 };
 

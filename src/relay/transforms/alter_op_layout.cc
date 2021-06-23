@@ -68,6 +68,7 @@ class AlterTransformMemorizer : public TransformMemorizer {
    * \brief Defines the call transformation for AlterOpLayout pass. The new layouts are defined by
    * used for different targets using a packed func.
    * \param ref_call The original call.
+   * \param new_attrs Updated attributes consistent with new layouts.
    * \param new_args The traversed/recursed args to the call.
    * \return The new Call after calling the packed func.
    */
@@ -102,7 +103,6 @@ class AlterTransformMemorizer : public TransformMemorizer {
   }
 
   using TransformMemorizer::CallWithNewLayouts;
-
   using ContainerType = AlterTransformMemorizerNode;
 };
 
