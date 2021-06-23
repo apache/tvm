@@ -30,6 +30,7 @@
 #include <tvm/relay/feature.h>
 #include <tvm/relay/interpreter.h>
 #include <tvm/relay/pattern_functor.h>
+#include <tvm/relay/qnn/transform.h>
 #include <tvm/relay/transform.h>
 #include <tvm/runtime/container/map.h>
 #include <tvm/runtime/device_api.h>
@@ -903,7 +904,7 @@ IRModule Prepare(IRModule mod, Device device, Target target) {
   tec::DeviceMap device_map;
 
   // Run minimal transforms on module to establish invariants needed by interpreter.
-  transform::Sequential seq({transform::SimplifyInference(),
+  transform::Sequential seq({transform::SimplifyInference(), qnn::transform::Legalize(),
                              // FuseOps will mark wrapped calls to prim-ops with the 'Primitive'
                              // attribute.
                              transform::FuseOps(/*fuse_opt_level=*/0), transform::ToANormalForm(),

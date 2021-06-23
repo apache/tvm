@@ -298,6 +298,31 @@ def test_fold_dropout():
     assert tvm.ir.structural_equal(run_infer_type(before_mod["main"]), after_mod["main"])
 
 
+def test_fold_qnn_quantize():
+    t = relay.TensorType([1, 2, 3], "int8")
+
+    def before():
+        data = tvm.nd.array(np.array([1.0, 2.0, 3.0], dtype="float32"))
+        const_fp = relay.const(data, dtype="float32")
+        const_i8 = relay.qnn.op.quantize(const_fp, output_scale=relay.const(0.5), output_zero_point=relay.const(0))
+        x = relay.var("x", t)
+        add = relay.op.add(x, const_i8)
+        func = relay.Function([x], add)
+        return func
+
+    def expected():
+        data = tvm.nd.array(np.array([2, 4, 6], dtype="int8"))
+        const_i8 = relay.const(data, dtype="int8")
+        x = relay.var("x", t)
+        add = relay.op.add(x, const_i8)
+        func = relay.Function([x], add)
+        return func
+
+    zz = run_opt_pass(before(), transform.FoldConstant())
+    zexpected = run_opt_pass(expected(), transform.InferType())
+    assert tvm.ir.structural_equal(zz, zexpected)
+
+
 if __name__ == "__main__":
     test_fold_const()
     test_fold_let()
@@ -307,3 +332,4 @@ if __name__ == "__main__":
     test_fold_batch_norm()
     test_fold_ndarray_size()
     test_fold_dropout()
+    test_fold_qnn_quantize()

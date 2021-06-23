@@ -26,6 +26,7 @@
 #include <tvm/relay/interpreter.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
+#include <tvm/relay/qnn/attrs.h>
 #include <tvm/relay/transform.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/object.h>
@@ -168,9 +169,13 @@ class ConstantFolder : public MixedModeMutator {
 
     // We should think about potentially constant evaluation over these ops too.
     static auto fnoncomputational = Op::GetAttrMap<TNonComputational>("TNonComputational");
+    static auto qnn_canonicalize = Op::GetAttrMap<FTVMLegalize>("FTVMQnnCanonicalize");
     if (const auto* call_node = call->op.as<OpNode>()) {
       Op op = GetRef<Op>(call_node);
-      if ((fnoncomputational.count(op) && fnoncomputational[op]) || (call->op == device_copy_op_)) {
+
+      bool is_no_qnn_canonicalized = !qnn_canonicalize.count(op);
+      bool is_no_computational = fnoncomputational.count(op) && fnoncomputational[op];
+      if ((is_no_computational && is_no_qnn_canonicalized) || call->op == device_copy_op_) {
         return GetRef<Call>(call);
       }
     }
