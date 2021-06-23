@@ -54,6 +54,7 @@ except ImportError:
 
 from tvm.contrib.download import download_testdata
 import tvm.relay.testing.tf as tf_testing
+from tvm.relay.testing import tflite as test_tflite
 from packaging import version as package_version
 
 from PIL import Image
@@ -868,74 +869,177 @@ def test_forward_l2_pool2d():
 # -----------
 
 
-def _test_tflite2_quantized_convolution(
-    input_shape, kernel_shape, dilations, strides, padding, data_format
+def _test_tflite2_quantized_conv2d(
+    input_shape,
+    weights_shape,
+    dilations,
+    strides,
+    padding,
+    dtype="int8",
+    quantize_per_channel=False,
 ):
     """One iteration of TFLite2 quantized convolution with given shapes and attributes"""
-    data_format = "channels_last" if "NHWC" else "channels_first"
-    data = np.random.uniform(0, 1, input_shape).astype("float32")
-    kernel = np.random.uniform(0, 1, kernel_shape).astype("float32")
 
-    data_in = tf.keras.layers.Input(shape=data.shape[1:])
-    conv = tf.keras.layers.Conv2D(
-        filters=kernel_shape[3],
-        kernel_size=(kernel_shape[0], kernel_shape[1]),
-        strides=strides,
-        padding=padding,
-        data_format=data_format,
-        activation="relu",
-        use_bias=False,
-    )(data_in)
-    keras_model = tf.keras.models.Model(data_in, conv)
-    keras_model.layers[1].set_weights([kernel])
+    dtype_min, dtype_max = test_tflite.get_range_for_dtype_str(dtype)
+    channels = weights_shape[0]
 
-    # To create quantized values with dynamic range of activations, needs representative dataset
-    def representative_data_gen():
-        for i in range(1):
-            yield [data]
+    input_scale = np.random.random() * 0.1
+    input_zp = np.random.randint(dtype_min, dtype_max)
+    in_tensor = test_tflite.Tensor(
+        data_type=dtype,
+        shape=input_shape,
+        quantization=test_tflite.Quantization(scale=[input_scale], zero_point=[input_zp]),
+    )
 
-    tflite_model_quant = _quantize_keras_model(keras_model, representative_data_gen)
+    # Weights in TFLite 2 are symmetric, i.e the zero point is at 0
+    if quantize_per_channel:
+        weights_scale = [np.random.random() * 0.1 for i in range(channels)]
+        weights_zp = [0 for i in range(channels)]
+    else:
+        weights_scale = [np.random.random() * 0.1]
+        weights_zp = [0]
+    weights_quantization = test_tflite.Quantization(
+        scale=weights_scale, zero_point=weights_zp, quantized_dimension=0
+    )
 
-    tflite_output = run_tflite_graph(tflite_model_quant, data)
-    tvm_output = run_tvm_graph(tflite_model_quant, data, data_in.name.replace(":0", ""))
+    # populate weights with random data
+    weights_buffer_data = test_tflite.make_buffer_data(dtype, -128, 128, weights_shape)
+    weights_tensor = test_tflite.Tensor(
+        data_type=dtype,
+        shape=weights_shape,
+        quantization=weights_quantization,
+        buffer_data=weights_buffer_data,
+    )  # OC,KH,KW,C
+
+    # populate bias with random data
+    bias_buffer_data = test_tflite.make_buffer_data("int32", -10000, 10000, [channels])
+    bias_tensor = test_tflite.Tensor(
+        data_type="int32",
+        shape=[channels],
+        buffer_data=bias_buffer_data,
+    )
+
+    output_scale, output_zp = test_tflite.get_output_qnn_params(
+        weights_shape, input_scale, input_zp, weights_scale, 0
+    )
+
+    # The actual shape gets decided by the type inference
+    out_tensor = test_tflite.Tensor(
+        data_type=dtype,
+        shape=[],
+        quantization=test_tflite.Quantization(scale=[output_scale], zero_point=[output_zp]),
+    )
+
+    inputs = [in_tensor, weights_tensor, bias_tensor]
+    outputs = [out_tensor]
+
+    tflite_model = test_tflite.generate_tflite_model(
+        inputs=inputs,
+        outputs=outputs,
+        operator=test_tflite.Conv2DOperator(
+            padding=padding,
+            stride_w=strides[1],
+            stride_h=strides[0],
+            fused_activation_function=test_tflite.ActivationFunction.NONE,
+            dilation_w=dilations[1],
+            dilation_h=dilations[0],
+        ),
+    )
+
+    input_data = np.random.randint(dtype_min, high=dtype_max, size=input_shape, dtype=dtype)
+
+    tvm_output = run_tvm_graph(tflite_model, input_data, "x-1")
+    tflite_output = run_tflite_graph(tflite_model, input_data)
+
     tvm.testing.assert_allclose(
-        np.squeeze(tvm_output[0]), np.squeeze(tflite_output[0]), rtol=1e-2, atol=1e-2
+        np.squeeze(tvm_output[0]), np.squeeze(tflite_output[0]), rtol=1, atol=1
     )
 
 
-def _test_tflite2_quantized_depthwise_convolution(
-    input_shape, kernel_shape, dilations, strides, padding, data_format, depth_multiplier
+def _test_tflite2_quantized_depthwise2d(
+    input_shape,
+    weights_shape,
+    dilations,
+    strides,
+    padding,
+    dtype="int8",
+    quantize_per_channel=False,
 ):
     """One iteration of TFLite2 quantized depthwise convolution with given shapes and attributes"""
 
-    data_format = "channels_last" if "NHWC" else "channels_first"
-    data = np.random.uniform(0, 1, input_shape).astype("float32")
-    kernel = np.random.uniform(0, 1, kernel_shape).astype("float32")
+    dtype_min, dtype_max = test_tflite.get_range_for_dtype_str(dtype)
+    channels = weights_shape[3]
 
-    data_in = tf.keras.layers.Input(shape=data.shape[1:])
-    conv = tf.keras.layers.DepthwiseConv2D(
-        kernel_size=(kernel_shape[0], kernel_shape[1]),
-        strides=strides,
-        padding=padding,
-        data_format=data_format,
-        activation="relu",
-        use_bias=False,
-        depth_multiplier=depth_multiplier,
-    )(data_in)
-    keras_model = tf.keras.models.Model(data_in, conv)
-    keras_model.layers[1].set_weights([kernel])
+    input_scale = np.random.random() * 0.1
+    input_zp = np.random.randint(dtype_min, dtype_max)
+    in_tensor = test_tflite.Tensor(
+        data_type=dtype,
+        shape=input_shape,
+        quantization=test_tflite.Quantization(scale=[input_scale], zero_point=[input_zp]),
+    )
 
-    # To create quantized values with dynamic range of activations, needs representative dataset
-    def representative_data_gen():
-        for i in range(1):
-            yield [data]
+    # Weights in TFLite 2 are symmetric, i.e the zero point is at 0
+    if quantize_per_channel:
+        weights_scale = [np.random.random() * 0.1 for i in range(channels)]
+        weights_zp = [0 for i in range(channels)]
+        q_dim = 3
+    else:
+        weights_scale = [np.random.random() * 0.1]
+        weights_zp = [0]
+        q_dim = 0
+    weights_quantization = test_tflite.Quantization(
+        scale=weights_scale, zero_point=weights_zp, quantized_dimension=q_dim
+    )
 
-    tflite_model_quant = _quantize_keras_model(keras_model, representative_data_gen)
+    # populate weights with random data
+    weights_buffer_data = test_tflite.make_buffer_data(dtype, -128, 128, weights_shape)
+    weights_tensor = test_tflite.Tensor(
+        data_type=dtype,
+        shape=weights_shape,
+        quantization=weights_quantization,
+        buffer_data=weights_buffer_data,
+    )  # 1,KH,KW,C
 
-    tflite_output = run_tflite_graph(tflite_model_quant, data)
-    tvm_output = run_tvm_graph(tflite_model_quant, data, data_in.name.replace(":0", ""))
+    # populate bias with random data
+    bias_buffer_data = test_tflite.make_buffer_data("int32", -10000, 10000, [channels])
+    bias_tensor = test_tflite.Tensor(
+        data_type="int32", shape=[channels], buffer_data=bias_buffer_data
+    )
+
+    output_scale, output_zp = test_tflite.get_output_qnn_params(
+        weights_shape, input_scale, input_zp, weights_scale, 0, is_depthwise=True
+    )
+
+    # The actual shape gets decided by the type inference
+    out_tensor = test_tflite.Tensor(
+        data_type=dtype,
+        shape=[],
+        quantization=test_tflite.Quantization(scale=[output_scale], zero_point=[output_zp]),
+    )
+
+    inputs = [in_tensor, weights_tensor, bias_tensor]
+    outputs = [out_tensor]
+
+    tflite_model = test_tflite.generate_tflite_model(
+        inputs=inputs,
+        outputs=outputs,
+        operator=test_tflite.DepthwiseConv2DOperator(
+            padding=padding,
+            stride_w=strides[1],
+            stride_h=strides[0],
+            fused_activation_function=test_tflite.ActivationFunction.NONE,
+            dilation_w=dilations[1],
+            dilation_h=dilations[0],
+        ),
+    )
+
+    input_data = np.random.randint(dtype_min, high=dtype_max, size=input_shape, dtype=dtype)
+
+    tvm_output = run_tvm_graph(tflite_model, input_data, "x-1")
+    tflite_output = run_tflite_graph(tflite_model, input_data)
+
     tvm.testing.assert_allclose(
-        np.squeeze(tvm_output[0]), np.squeeze(tflite_output[0]), rtol=1e-2, atol=1e-2
+        np.squeeze(tvm_output[0]), np.squeeze(tflite_output[0]), rtol=1, atol=1
     )
 
 
@@ -1175,14 +1279,18 @@ def test_forward_convolution():
             [1, 17, 17, 124], [1, 1, 124, 19], [1, 1], [1, 1], "SAME", "NHWC", quantized=True
         )
 
-        # Disable as tests are flaky - https://github.com/apache/tvm/issues/6064
-        # depthwise convolution
-        # _test_tflite2_quantized_depthwise_convolution([1, 8, 8, 128], [1, 1, 128, 1], [1, 1], [1, 1],
-        #                                               'SAME', 'NHWC', 1)
-        # _test_tflite2_quantized_depthwise_convolution([1, 17, 17, 12], [3, 3, 12, 1], [1, 1], [2, 2],
-        #                                               'VALID', 'NHWC', 1)
-        # _test_tflite2_quantized_depthwise_convolution([1, 24, 24, 3], [7, 7, 3, 8], [1, 1], [2, 2],
-        #                                               'SAME', 'NHWC', 8)
+        # int8 TFLite 2 depthwise conv2d
+        _test_tflite2_quantized_depthwise2d([1, 12, 8, 3], [1, 2, 3, 3], [1, 1], [1, 1], "VALID")
+        # int8 TFLite 2 depthwise conv2d with per channel quantization
+        _test_tflite2_quantized_depthwise2d(
+            [1, 41, 55, 17], [1, 5, 3, 17], [2, 3], [1, 1], "SAME", quantize_per_channel=True
+        )
+        # int8 TFLite 2 conv2d
+        _test_tflite2_quantized_conv2d([1, 21, 33, 7], [5, 3, 3, 7], [1, 2], [3, 1], "SAME")
+        # int8 TFLite 2 conv2d with per channel quantization
+        _test_tflite2_quantized_conv2d(
+            [1, 11, 17, 3], [5, 3, 3, 3], [2, 1], [1, 1], "VALID", quantize_per_channel=True
+        )
 
 
 #######################################################################
