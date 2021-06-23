@@ -41,9 +41,10 @@ TVM_REGISTER_NODE_TYPE(MaxPool2DAttrs);
 TVM_REGISTER_NODE_TYPE(AvgPool2DAttrs);
 
 template <typename T>
-InferCorrectLayoutOutput PoolInferCorrectLayout(const Attrs& attrs, const Array<Layout>& new_in_layouts,
-                                         const Array<Layout>& old_in_layouts,
-                                         const Array<tvm::relay::Type>& old_in_types) {
+InferCorrectLayoutOutput PoolInferCorrectLayout(const Attrs& attrs,
+                                                const Array<Layout>& new_in_layouts,
+                                                const Array<Layout>& old_in_layouts,
+                                                const Array<tvm::relay::Type>& old_in_types) {
   const auto* attrs_ptr = attrs.as<T>();
   CHECK(attrs_ptr);
   ObjectPtr<T> params = make_object<T>(*attrs_ptr);

@@ -35,8 +35,8 @@
 #include <utility>
 #include <vector>
 
-#include "../make_op.h"
 #include "../../transforms/infer_layout_utils.h"
+#include "../make_op.h"
 
 namespace tvm {
 namespace relay {
@@ -168,10 +168,9 @@ bool ConcatenateRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
   return true;
 }
 
-static inline InferCorrectLayoutOutput ConcatenateLayout(const Attrs& attrs,
-                                                     const Array<Layout>& new_in_layouts,
-                                                     const Array<Layout>& old_in_layouts,
-                                                     const Array<tvm::relay::Type>& old_in_types) {
+static inline InferCorrectLayoutOutput ConcatenateLayout(
+    const Attrs& attrs, const Array<Layout>& new_in_layouts, const Array<Layout>& old_in_layouts,
+    const Array<tvm::relay::Type>& old_in_types) {
   const auto* attrs_ptr = attrs.as<ConcatenateAttrs>();
   ICHECK(attrs_ptr);
   ObjectPtr<ConcatenateAttrs> param = make_object<ConcatenateAttrs>(*attrs_ptr);

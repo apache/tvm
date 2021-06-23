@@ -39,9 +39,10 @@ namespace relay {
 // relay.nn.pad
 TVM_REGISTER_NODE_TYPE(PadAttrs);
 
-InferCorrectLayoutOutput PadInferCorrectLayout(const Attrs& attrs, const Array<Layout>& new_in_layouts,
-                                           const Array<Layout>& old_in_layouts,
-                                           const Array<tvm::relay::Type>& old_in_types) {
+InferCorrectLayoutOutput PadInferCorrectLayout(const Attrs& attrs,
+                                               const Array<Layout>& new_in_layouts,
+                                               const Array<Layout>& old_in_layouts,
+                                               const Array<tvm::relay::Type>& old_in_types) {
   const auto* attrs_ptr = attrs.as<PadAttrs>();
   CHECK(attrs_ptr);
   ObjectPtr<PadAttrs> params = make_object<PadAttrs>(*attrs_ptr);

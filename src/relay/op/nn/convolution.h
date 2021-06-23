@@ -1257,9 +1257,9 @@ InferCorrectLayoutOutput DeformableConvInferCorrectLayout(
 
 template <typename T>
 InferCorrectLayoutOutput ConvInferCorrectLayout(const Attrs& attrs,
-                                             const Array<Layout>& new_in_layouts,
-                                             const Array<Layout>& old_in_layouts,
-                                             const Array<tvm::relay::Type>& old_in_types) {
+                                                const Array<Layout>& new_in_layouts,
+                                                const Array<Layout>& old_in_layouts,
+                                                const Array<tvm::relay::Type>& old_in_types) {
   const T* params = attrs.as<T>();
 
   // We always make other operators to fit the layouts of convolution layers

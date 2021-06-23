@@ -71,7 +71,8 @@ class AlterTransformMemorizer : public TransformMemorizer {
    * \param new_args The traversed/recursed args to the call.
    * \return The new Call after calling the packed func.
    */
-  Call CallWithNewLayouts(const Call& ref_call, Attrs new_attrs, const std::vector<Expr>& new_args) override {
+  Call CallWithNewLayouts(const Call& ref_call, Attrs new_attrs,
+                          const std::vector<Expr>& new_args) override {
     static auto falter_layout = Op::GetAttrMap<FTVMAlterOpLayout>("FTVMAlterOpLayout");
     Op op = Downcast<Op>(ref_call->op);
 
@@ -85,8 +86,7 @@ class AlterTransformMemorizer : public TransformMemorizer {
       }
       // TODO(@kevinthesun, @icemelon9): This won't work if inputs/outputs are dynamic shapes.
       //   Probably we need to disable the AlterOpLayout when compiling dynamic models.
-      Expr altered_value =
-          falter_layout[op](new_attrs, new_args, tinfos, ref_call->checked_type());
+      Expr altered_value = falter_layout[op](new_attrs, new_args, tinfos, ref_call->checked_type());
       if (altered_value.defined()) {
         new_e = altered_value;
         modified = true;

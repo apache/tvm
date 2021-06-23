@@ -139,7 +139,6 @@ inline InferCorrectLayoutOutput ElemwiseArbitraryLayout(
   return InferCorrectLayoutOutput(inferred_layout, attrs);
 }
 
-/*! \brief Infer layout for binary broadcast operators */
 inline Array<Array<Layout>> BinaryBroadcastLayoutHelper(
     const Attrs& attrs, const Array<Layout>& new_in_layouts, const Array<Layout>& old_in_layouts,
     const Array<tvm::relay::Type>& old_in_types) {
@@ -216,6 +215,7 @@ inline Array<Array<Layout>> BinaryBroadcastLayoutHelper(
   }
 }
 
+/*! \brief Infer layout for binary broadcast operators */
 inline InferCorrectLayoutOutput BinaryBroadcastLayout(const Attrs& attrs,
                                                       const Array<Layout>& new_in_layouts,
                                                       const Array<Layout>& old_in_layouts,

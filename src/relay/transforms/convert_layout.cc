@@ -81,7 +81,8 @@ class ConvertTransformMemorizer : public TransformMemorizer {
    * \param new_args The traversed/recursed args to the call.
    * \return The new Call after calling the packed func.
    */
-  Call CallWithNewLayouts(const Call& ref_call, Attrs new_attrs, const std::vector<Expr>& new_args) override {
+  Call CallWithNewLayouts(const Call& ref_call, Attrs new_attrs,
+                          const std::vector<Expr>& new_args) override {
     static auto fconvert_layout = Op::GetAttrMap<FTVMConvertOpLayout>("FTVMConvertOpLayout");
     Op op = Downcast<Op>(ref_call->op);
     Expr new_e;
@@ -104,8 +105,7 @@ class ConvertTransformMemorizer : public TransformMemorizer {
         }
 
         Array<String> op_desired_layouts = desired_layouts.at(op->name);
-        Expr altered_value =
-            fconvert_layout[op](new_attrs, new_args, tinfos, op_desired_layouts);
+        Expr altered_value = fconvert_layout[op](new_attrs, new_args, tinfos, op_desired_layouts);
         if (altered_value.defined()) {
           new_e = altered_value;
           modified = true;

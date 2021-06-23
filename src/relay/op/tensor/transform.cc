@@ -486,8 +486,7 @@ InferCorrectLayoutOutput TransposeInferCorrectLayout(const Attrs& attrs,
     return InferCorrectLayoutOutput(
         Array<Array<Layout>>({{Layout(in_layout_str)}, {Layout(out_layout_str)}}), new_attrs);
   }
-  return InferCorrectLayoutOutput({{Layout::Undef()}, {Layout::Undef()}},
-                                  new_attrs);
+  return InferCorrectLayoutOutput({{Layout::Undef()}, {Layout::Undef()}}, new_attrs);
 }
 
 Array<te::Tensor> TransposeCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
@@ -2241,8 +2240,7 @@ InferCorrectLayoutOutput SqueezeInferCorrectLayout(const Attrs& attrs,
   }
   inferred_output = Layout(kept_axes);
 
-  return InferCorrectLayoutOutput({{inferred_input}, {inferred_output}},
-                                  Attrs(params));
+  return InferCorrectLayoutOutput({{inferred_input}, {inferred_output}}, Attrs(params));
 }
 
 RELAY_REGISTER_OP("squeeze")
