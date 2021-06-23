@@ -1,0 +1,55 @@
+FROM nvidia/cuda:10.0-devel-ubuntu18.04
+
+#FROM ubuntu:18.04
+
+ENV http_proxy $HTTP_PROXY
+ENV https_proxy $HTTPS_PROXY
+
+# 1. Prepare dependence.
+RUN apt-get update && apt-get install -y wget git vim python3 python3-dev python3-setuptools gcc libtinfo-dev zlib1g-dev build-essential cmake libedit-dev libxml2-dev
+RUN echo deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-9 main\
+     >> /etc/apt/sources.list.d/llvm.list
+RUN echo deb-src http://apt.llvm.org/bionic/ llvm-toolchain-bionic-9 main\
+     >> /etc/apt/sources.list.d/llvm.list
+RUN echo deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic main\
+     >> /etc/apt/sources.list.d/llvm.list
+RUN echo deb-src http://apt.llvm.org/bionic/ llvm-toolchain-bionic main\
+     >> /etc/apt/sources.list.d/llvm.list
+RUN wget -q -O - http://apt.llvm.org/llvm-snapshot.gpg.key| apt-key add -
+RUN apt-get update && apt-get install -y llvm-9 clang-9 libclang-9-dev
+
+# 2. Prepare Python sitpackage
+RUN apt-get install -y python3-pip && pip3 install --upgrade pip
+RUN pip3 install numpy scipy decorator attrs tornado psutil tensorflow pytest
+
+# 3. Install cuda && cudnn.
+RUN  wget -q http://developer.download.nvidia.com/compute/redist/cudnn/v7.6.0/cudnn-10.0-linux-x64-v7.6.0.64.tgz && \
+    tar --no-same-owner -xzf cudnn-10.0-linux-x64-v7.6.0.64.tgz -C /usr/local && \
+    rm cudnn-10.0-linux-x64-v7.6.0.64.tgz && \
+    ldconfig
+
+# 4. Install TVM
+WORKDIR /workspace/
+RUN git clone --recursive https://github.com/apache/tvm tvm
+WORKDIR /workspace/tvm/
+RUN mkdir build && cp cmake/config.cmake build
+RUN cd build && echo set\(USE_LLVM llvm-config-9\) >> config.cmake && \
+    echo set\(USE_CUDA on\) >> config.cmake && \
+    echo set\(USE_CUDNN on\) >> config.cmake && \
+    cmake .. && make -j4
+
+# 5. Init
+WORKDIR /workspace/tvm/
+ENV TVM_HOME=/workspace/tvm
+ENV PYTHONPATH=$TVM_HOME/python:${PYTHONPATH}
+ENV PATH=/usr/local/nvidia/bin:${PATH}
+ENV PATH=/usr/local/cuda/bin:${PATH}
+ENV CPLUS_INCLUDE_PATH=/usr/local/cuda/include:${CPLUS_INCLUDE_PATH}
+ENV C_INCLUDE_PATH=/usr/local/cuda/include:${C_INCLUDE_PATH}
+ENV LIBRARY_PATH=/usr/local/cuda/lib64:/usr/local/cuda/compat:${LIBRARY_PATH}
+ENV LD_LIBRARY_PATH=/usr/local/cuda/lib64:/usr/local/cuda/compat:${LD_LIBRARY_PATH}
+ENV LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu/:${LD_LIBRARY_PATH}
+
+# 6. Run the test code
+ADD ./inference_cuda_test.py /workspace/
+# RUN python3 /workspace/inference_cuda_test.py
