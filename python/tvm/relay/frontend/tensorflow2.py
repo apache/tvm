@@ -211,6 +211,8 @@ class GraphProto:
         self._gdef_lib = {}
         self._tensor_list_shapes = {}
         self._tensor_list_shape_nodes = {}
+        self._sub_map = {}
+        self._sub_input_idx_map = {}
 
     def from_tensorflow(
         self, graph, layout="NHWC", shape=None, outputs=None, input_types=None, gdef_lib=None
@@ -231,23 +233,31 @@ class GraphProto:
         return func, self._params
     
 
-    def _analysis_tensor_list_op(self, graph, node, tl_write_nodes, tl_stack_nodes, tl_construct_nodes):
+    def _analysis_tensor_list_op(self, graph, node, tl_write_nodes, tl_stack_nodes, tl_construct_nodes, sub_func_name = "", root_node = ""):
+        if sub_func_name and sub_func_name not in self._sub_input_idx_map:
+            self._sub_input_idx_map[sub_func_name] = {}
+        if node.op == "Placeholder":
+            # record placeholder node
+            self._sub_map[sub_func_name] = node
+            self._sub_input_idx_map[sub_func_name][node.name] = len(self._sub_input_idx_map[sub_func_name])
         if node.op.startswith("TensorList"):
             if is_tensor_list_constuctor(node):
                 tl_construct_nodes.append(node)
             else:
                 for tl_write_name, idx in _tensor_list_write_ops.items():
                     if node.op.startswith(tl_write_name):
-                        tl_write_nodes.append((node, idx))
+                        tl_write_nodes.append((node, idx, sub_func_name, root_node))
                 if node.op.startswith("TensorListStack"):
                     tl_stack_nodes.append(node)
         elif node.op.startswith("StatelessWhile"):
+            root_node = node.name
             cond_fn_name, body_fn_name = [parse_attr(node.attr).get(x).name for x in ["cond", "body"]]
             for fn_name in [cond_fn_name, body_fn_name]:
                 subfunction = self._gdef_lib[fn_name]
+                sub_func_name = fn_name
                 for sub_node in subfunction.node:
                     self._tf_node_map[sub_node.name] = sub_node
-                    self._analysis_tensor_list_op(subfunction, sub_node, tl_write_nodes, tl_stack_nodes, tl_construct_nodes)
+                    self._analysis_tensor_list_op(subfunction, sub_node, tl_write_nodes, tl_stack_nodes, tl_construct_nodes, sub_func_name=sub_func_name, root_node = root_node)
 
     def _get_relay_func(self, graph, layout="NHWC", shape=None, outputs=None, input_types=None):
         if input_types is None:
@@ -272,7 +282,8 @@ class GraphProto:
                 if param:
                     self._params[node.name] = param
             # recursivly iterate tensorlist op if seen while loop
-            self._analysis_tensor_list_op(graph, node, tl_write_nodes, tl_stack_nodes, tl_construct_nodes)
+            else:
+                self._analysis_tensor_list_op(graph, node, tl_write_nodes, tl_stack_nodes, tl_construct_nodes)
 
         # Use tensor list stack to infer static tensor list shape
         for stack_node in tl_stack_nodes:
@@ -322,12 +333,25 @@ class GraphProto:
         for item in tl_write_nodes:
             wnode = item[0]
             ta_idx, inode_idx = item[1]
+            sub_func_name = item[2]
+            root_name = item[3]
+            print("write node name: ", wnode.name)
+            print("sub_func_name: ", sub_func_name)
+            print("root_name :", root_name)
             stack = [self._tf_node_map[wnode.input[ta_idx].split(":")[0]]]
             while stack:
                 cnode = stack.pop(0)
+                print("cnode name: ", cnode.name)
+                print("cnode op: ", cnode.op)
+                
                 if not cnode.op.startswith("TensorList"):
-                    for iname in cnode.input:
-                        stack.append(self._tf_node_map[iname.split(":")[0]])
+                    if cnode.op == "Placeholder" and sub_func_name:
+                       # need to map subfunction
+                        input_idx = self._sub_input_idx_map[sub_func_name][cnode.name]
+                        stack.append(self._tf_node_map[self._tf_node_map[root_name].input[input_idx].split(":")[0]])
+                    else:
+                        for iname in cnode.input:
+                            stack.append(self._tf_node_map[iname.split(":")[0]])
                 elif cnode.name != wnode.name:
                     if is_tensor_list_constuctor(cnode):
                         inode = self._tf_node_map[wnode.input[inode_idx].split(":")[0]]
@@ -563,15 +587,18 @@ class GraphProto:
                 if elem_shape:
                     attr["shape"] = elem_shape
                 if ("identical_element_shapes" in attr and attr["identical_element_shapes"]) or elem_shape:
-                    #shape_node, wnode_op, output_index = self._tensor_list_shape_nodes[
-                    #    node.name
-                    #]
-                    #name = shape_node.name
-                    #if output_index > 0:
-                    #    name += ":" + str(output_index)
-                    #print('name: ', name)
+                    shape_node, wnode_op, output_index = self._tensor_list_shape_nodes[
+                        node.name
+                    ]
+                    name = shape_node.name
+                    if output_index > 0:
+                        name += ":" + str(output_index)
+                    print('name: ', name)
+                    # TODO why we need to _backtrack_construct here?
                     #converted = self._backtrack_construct(graph, name)
                     #shape = _infer_shape(converted, self._mod)
+                    #print(shape)
+                    #input()
                     shape = elem_shape
                     print("shape: ", elem_shape)
                     if node.name in self._tensor_list_shapes:

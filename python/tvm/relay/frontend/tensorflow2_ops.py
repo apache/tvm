@@ -58,6 +58,7 @@ def _tensorlist_set_item():
     def _impl(inputs, attr, params, prelude):
         dtype_str = attr.get("element_dtype").name
         input_ta = inputs[0]
+        print("input_ta: " ,input_ta)
         input_ta_shape = get_tensor_array_shape(input_ta, dtype_str, prelude)
         input_t_shape = _infer_type_with_prelude(inputs[2], prelude).shape
         input_rank = len(input_t_shape)
