@@ -28,7 +28,8 @@
 ROOTDIR = $(CURDIR)
 
 # Specify an alternate output directory relative to ROOTDIR.  Defaults
-# to "build"
+# to "build".  Can also be a space-separated list of build
+# directories, each with a different configuation.
 TVM_BUILD_PATH ?= build
 TVM_BUILD_PATH := $(abspath $(TVM_BUILD_PATH))
 
@@ -41,28 +42,41 @@ VTA_HW_PATH ?= $(ROOTDIR)/3rdparty/vta-hw
 
 
 
-all: cmake_all
+all: $(addsuffix /all,$(TVM_BUILD_PATH))
 
+runtime: $(addsuffix /runtime,$(TVM_BUILD_PATH))
+vta: $(addsuffix /vta,$(TVM_BUILD_PATH))
+cpptest: $(addsuffix /cpptest,$(TVM_BUILD_PATH))
+crttest: $(addsuffix /crttest,$(TVM_BUILD_PATH))
 
-# Delegate to the cmake build system, with a few aliases for backwards
-# compatibility.
-$(TVM_BUILD_PATH)/config.cmake: | $(ROOTDIR)/cmake/config.cmake
+# Set up a default config.cmake inside the build directory.
+# filter-out used to avoid circular dependency.
+%/config.cmake: | $(filter-out %/config.cmake,$(ROOTDIR)/cmake/config.cmake)
 	@echo "No config.cmake found in $(TVM_BUILD_PATH), using default config.cmake"
-	@mkdir -p $(TVM_BUILD_PATH)
+	@mkdir -p $(@D)
 	@cp $| $@
 
-$(TVM_BUILD_PATH)/CMakeCache.txt: $(TVM_BUILD_PATH)/config.cmake
-	@cd $(TVM_BUILD_PATH) && cmake $(ROOTDIR)
 
-# Cannot use .PHONY here as that disables the implicit rule.
+# Cannot use .PHONY with a pattern rule, using FORCE instead.  For
+# now, force cmake to be re-run with each compile to mimic previous
+# behavior.  This may be relaxed in the future with the
+# CONFIGURE_DEPENDS option for GLOB (requres cmake >= 3.12).
 FORCE:
-cmake_%: $(TVM_BUILD_PATH)/CMakeCache.txt FORCE
-	@$(MAKE) -C $(TVM_BUILD_PATH) $*
+%/CMakeCache.txt: %/config.cmake FORCE
+	@cd $(@D) && cmake $(ROOTDIR)
 
-runtime: cmake_runtime
-vta: cmake_vta
-cpptest: cmake_cpptest
-crttest: cmake_crttest
+
+# Since the pattern stem is already being used for the directory name,
+# cannot also have it refer to the command passed to cmake.
+# Therefore, explicitly listing out the delegated.
+CMAKE_TARGETS = all runtime vta cpptest crttest
+
+define GEN_CMAKE_RULE
+%/$(CMAKE_TARGET): %/CMakeCache.txt
+	@$$(MAKE) -C $$(@D) $(CMAKE_TARGET)
+endef
+$(foreach CMAKE_TARGET,$(CMAKE_TARGETS),$(eval $(GEN_CMAKE_RULE)))
+
 
 
 # Dev tools for formatting, linting, and documenting.  NOTE: lint

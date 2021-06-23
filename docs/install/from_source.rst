@@ -139,6 +139,8 @@ The configuration of TVM can be modified by editing `config.cmake` and/or by pas
     makefile assumes that the ``build`` directory inside tvm should be
     used.  Paths specified by ``TVM_BUILD_PATH`` can be either
     absolute paths or paths relative to the base tvm directory.
+    ``TVM_BUILD_PATH`` can also be set to a list of space-separated
+    paths, in which case all paths listed will be built.
 
     If an alternate build directory is used, then the environment
     variable ``TVM_LIBRARY_PATH`` should be set at runtime, pointing
@@ -154,6 +156,9 @@ The configuration of TVM can be modified by editing `config.cmake` and/or by pas
 
      # Alternate location, "build_debug"
      TVM_BUILD_PATH=build_debug make
+
+     # Build both "build_release" and "build_debug"
+     TVM_BUILD_PATH="build_debug build_release" make
 
      # Use debug build
      TVM_LIBRARY_PATH=~/tvm/build_debug python3
