@@ -41,7 +41,7 @@ InferCorrectLayoutOutput UpsamplingInferCorrectLayout(const Attrs& attrs,
                                                       const Array<Layout>& old_in_layouts,
                                                       const Array<tvm::relay::Type>& old_in_types) {
   const auto* attrs_ptr = attrs.as<T>();
-  CHECK(attrs_ptr);
+  ICHECK(attrs_ptr);
   ObjectPtr<T> params = make_object<T>(*attrs_ptr);
 
   if (new_in_layouts.defined()) {
