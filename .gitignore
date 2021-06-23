@@ -234,6 +234,9 @@ conda/pkg
 .envrc
 *.nix
 
+# Docker files
+.sudo_as_admin_successful
+
 # Downloaded models/datasets
 .tvm_test_data
 .dgl
