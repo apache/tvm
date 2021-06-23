@@ -49,7 +49,7 @@ BUILD_DIR = "build"
 #   get_data
 # =========================================================
 def get_data(in_data_shapes, in_data_dtypes):
-    """ Generate a uint8 image."""
+    """Generate a uint8 image."""
     assert len(in_data_shapes) == 1, "Only single input models are supported."
     in_data = OrderedDict()
     for shape_name, shape in in_data_shapes.items():

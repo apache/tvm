@@ -43,6 +43,7 @@ AI_TOOLS_REVISION = "v1"
 
 DBAR = "=" * 60
 
+
 def _fix_name(node_name):
     """ Replace ':' with '_' in names like 'InputImg:0' """
     return node_name.replace(":", "_")
@@ -55,8 +56,10 @@ def get_input_tensor_name(node_name):
 def get_output_tensor_name(node_name, idx):
     return _fix_name(node_name) + "_" + str(idx)
 
+
 def get_tensor_data_name(tensor_name):
     return tensor_name + ".dltensor.data"
+
 
 def get_node_args_name(node_name):
     return _fix_name(node_name) + "_args"
@@ -124,7 +127,6 @@ def _get_tensor_elts(dims):
 def get_tensor_size(dims, dltype):
     size = _get_tensor_elts(dims)
     return size * _get_type_size(dltype)
-
 
 
 def _emit_tensor_shape(dl_tensor_name, ndim, shape, strides, out_c):
@@ -214,9 +216,7 @@ def emit_tensor_init(dl_tensor_name, tensor, quantization_map, out_c):
     #
     # Contents
     #
-    out_c.write(
-        f"AI_ALIGNED({8}) AI_STATIC ai_tensor {dl_tensor_name} = {{ \n"
-    )
+    out_c.write(f"AI_ALIGNED({8}) AI_STATIC ai_tensor {dl_tensor_name} = {{ \n")
     out_c.write(f"  .dltensor = {{ \n")
     out_c.write(f"  .data = (ai_ptr)(NULL), \n")
     #
@@ -245,7 +245,9 @@ def emit_tensor_init(dl_tensor_name, tensor, quantization_map, out_c):
 class BaseEmitter:
     """Base code emitter class."""
 
-    def __init__(self, model_name, include_activations=True, include_inputs=True, include_outputs=True):
+    def __init__(
+        self, model_name, include_activations=True, include_inputs=True, include_outputs=True
+    ):
         """Initialize the Emitter instance.
 
         Parameters
@@ -335,7 +337,6 @@ class BaseEmitter:
         self.params_ = {}
         self.lib_ = None
 
-
     def _parse_model(self):
         """Parse the module graph. Build internal data structures."""
 
@@ -355,10 +356,6 @@ class BaseEmitter:
             else:
                 print("### Error: JSON key {} not supported".format(key))
                 assert False
-
-
-
-
 
     def parse_library_format(self, model_library_format_path):
         """Parse the module. Build internal data structures.
@@ -415,8 +412,6 @@ class BaseEmitter:
 
         self._parse_model()
 
-
-
     def parse_model(self, module):
         """Parse the module. Build internal data structures.
 
@@ -448,9 +443,6 @@ class BaseEmitter:
 
         self._parse_model()
 
-
-
-
     def _tensor_is_output(self, nid, idx):
 
         for out in self.outputs_:
@@ -459,8 +451,6 @@ class BaseEmitter:
             if out_nid == nid and out_idx == idx:
                 return True
         return False
-
-
 
     def _get_tensor_from_node(self, nid, idx):
         #
@@ -486,8 +476,6 @@ class BaseEmitter:
 
         return tensor
 
-
-
     def _get_node_input_name(self, arg):
         arg_nid = arg[0]
         arg_idx = arg[1]
@@ -504,10 +492,6 @@ class BaseEmitter:
             # activation
             dl_tensor_name = get_output_tensor_name(arg_name, arg_idx)
         return dl_tensor_name
-
-
-
-
 
     def compute_data_placement(self):
         """ Compute inputs, outputs, weight, activation sizes"""
@@ -720,8 +704,6 @@ class BaseEmitter:
 
         self.activations_size_ = offset
 
-
-
     def _emit_tensor_activation(self, dl_tensor_name, tensor, out_c):
 
         storage_id = tensor["storage_id"]
@@ -731,8 +713,6 @@ class BaseEmitter:
         out_c.write(f"  // \n")
         out_c.write(f"  {dl_tensor_name}.dltensor.data = (ai_ptr)(activations + {offset}); \n")
         out_c.write(f"\n")
-
-
 
     def _emit_activation_init(self, name, out_c):
         """ Emits buffer initialization code for activation tensors."""
@@ -779,8 +759,6 @@ class BaseEmitter:
         out_c.write(f"}} \n")
         out_c.write(f"\n")
 
-
-
     def _emit_params_init(self, name, out_c):
         """ Emits buffer initialization code for params tensors."""
         out_c.write(f"// {DBAR} \n")
@@ -812,8 +790,6 @@ class BaseEmitter:
         out_c.write(f"}} \n")
         out_c.write(f"\n")
 
-
-
     def emit_init(self, out_c):
         """ Emits buffer initialization code."""
         #
@@ -824,11 +800,6 @@ class BaseEmitter:
         # {name}_configure_weights
         #
         self._emit_params_init(self.model_name_, out_c)
-
-
-
-
-
 
     def emit_operator_proto(self, node, out_c):
         """Emit operator C prototype."""
@@ -845,10 +816,6 @@ class BaseEmitter:
         out_c.write(
             f"TVM_DLL int32_t {func_name}(void * args, void * arg_type_ids, int32_t num_args); \n"
         )
-
-
-
-
 
     def emit_operator_call(self, node, out_c):
         """Emit operator code at call site."""
@@ -898,7 +865,9 @@ class BaseEmitter:
             # If this input is not an activation or a parameter => find the input
             #
             if dl_tensor_name not in self.weights_ and dl_tensor_name not in self.activations_:
-                assert dl_tensor_name in self.input_data_, (f"Tensor {dl_tensor_name} not registered ?")
+                assert (
+                    dl_tensor_name in self.input_data_
+                ), f"Tensor {dl_tensor_name} not registered ?"
                 input_idx = 0
                 for dl_entry_name in self.input_data_:
                     if dl_entry_name == dl_tensor_name:
@@ -967,9 +936,7 @@ class BaseEmitter:
         out_c.write(f'  printf ("  {func_name}  ... \\r\\n"); \n')
         out_c.write(f"#endif \n")
 
-        out_c.write(
-            f"  if ({func_name} ({dl_args_name}, {dl_arg_types_name}, {num_args})) {{ \n"
-        )
+        out_c.write(f"  if ({func_name} ({dl_args_name}, {dl_arg_types_name}, {num_args})) {{ \n")
         out_c.write(f'    TVMAPISetLastError("Invalid handle");\n')
         out_c.write(f"    return AI_STATUS_ERROR; \n")
 
@@ -998,9 +965,6 @@ class BaseEmitter:
                 )
 
         out_c.write(f"#endif \n")
-
-
-
 
     def emit_params_data(self, target_dir):
         """ Emits the network_data[c,h] files with parameters."""
@@ -1087,7 +1051,6 @@ class BaseEmitter:
         out_h.close()
         out_c.close()
 
-
     def emit_open(self, out_h, out_c):
         """Emits the network.h file with a few network defines and
         writes the header part of the network.c file."""
@@ -1119,13 +1082,11 @@ class BaseEmitter:
         out_c.write(f"\n")
 
         out_c.write(f'#include "dlpack/dlpack.h" \n')
-        #out_c.write(f'#include "tvm/runtime/c_runtime_api.h" \n')
+        # out_c.write(f'#include "tvm/runtime/c_runtime_api.h" \n')
         out_c.write(f'#include "tvm/runtime/c_backend_api.h" \n')
         out_c.write(f'#include "{name}.h" \n')
         out_c.write(f'#include "{name}_data.h" \n')
         out_c.write(f"\n")
-
-
 
     def emit_close(self, out_h, out_c):
         """ Emits the ai_model_info structure. """
@@ -1183,10 +1144,6 @@ class BaseEmitter:
         out_c.write(f"}};\n")
         out_c.write(f"\n")
 
-
-
-
-
     def emit_params_buffers(self, quantization_map, out_c):
         """ Emits all parameter tensors."""
         name = self.model_name_
@@ -1197,9 +1154,6 @@ class BaseEmitter:
             tensor = self.weights_[dl_tensor_name]
             emit_tensor_init(dl_tensor_name, tensor, quantization_map, out_c)
         out_c.write(f"\n")
-
-
-
 
     def emit_activation_buffers(self, quantization_map, out_c):
         """ Emits activation tensors, including inputs/outputs."""
@@ -1270,10 +1224,6 @@ class BaseEmitter:
             out_c.write(f"\n")
 
 
-
-
-
-
 def _preprocess_code(src):
     """ Hack the C code implementing the model. """
 
@@ -1286,6 +1236,7 @@ def _preprocess_code(src):
         dst = dst + line + "\n"
 
     return dst
+
 
 def write_operators_lib(model_name, lib, target_dir):
     """Write the C code into a file."""

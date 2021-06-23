@@ -63,7 +63,7 @@ class CodeEmitter(BaseEmitter):
         super().__init__(model_name, include_activations, include_inputs, include_outputs)
 
     def emit_network(self, out_c):
-        """ Emits prototypes for the network operator functions."""
+        """Emits prototypes for the network operator functions."""
 
         name = self.model_name_
 
@@ -79,7 +79,7 @@ class CodeEmitter(BaseEmitter):
         out_c.write(f"\n")
 
     def emit_run(self, out_h, out_c):
-        """ Emits the run function code."""
+        """Emits the run function code."""
 
         name = self.model_name_
 
@@ -138,7 +138,7 @@ class CodeEmitter(BaseEmitter):
         out_c.write(f"\n")
 
     def emit_create_destroy(self, out_h, out_c):
-        """ Emits the create/destroy functions."""
+        """Emits the create/destroy functions."""
         name = self.model_name_
         out_h.write(f"AI_API_ENTRY \n")
         out_h.write(f"ai_status ai_{name}_create ( \n")
@@ -183,7 +183,7 @@ class CodeEmitter(BaseEmitter):
         out_c.write(f"}} \n")
 
     def emit_code(self, dest_dir, quantization_map=None):
-        """ Emits the C code implementing the model. """
+        """Emits the C code implementing the model. """
 
         model_name = self.model_name_
 
