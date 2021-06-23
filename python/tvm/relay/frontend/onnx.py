@@ -2058,6 +2058,52 @@ class LSTM(RNN):
     """Operator converter for LSTM"""
 
     @classmethod
+    def generate_lstm_forward(X_steps, H_t, C_t, W, R, B, p_i, p_f, p_o, f_act, g_act, h_act):
+        """Create an unrolled lstm loop.
+
+        See https://github.com/onnx/onnx/blob/master/docs/Operators.md for math.
+        """
+        h_list = []
+        for step in X_steps:
+            step = _op.squeeze(step, axis=[0])
+            gates = _op.nn.dense(step, W) + _op.nn.dense(H_t, R)
+            if B is not None:
+                WB, RB = _op.split(B, 2)
+                gates += WB + RB
+            i, o, f, c = _op.split(gates, 4, axis=-1)
+
+            if p_i != 0:
+                i = f_act(i + p_i * C_t)
+            else:
+                i = f_act(i)
+
+            if p_f != 0:
+                f = f_act(f + p_f * C_t)
+            else:
+                f = f_act(f)
+
+            c = g_act(c)
+            C = f * C_t + i * c
+            if p_o != 0:
+                o = f_act(o + p_o * C)
+            else:
+                o = f_act(o)
+
+            H = o * h_act(C)
+
+            H_t = H
+            C_t = C
+            h_list.append(_op.expand_dims(H, axis=0))
+
+        # Concatenate outputs and add back in direction axis.
+        concatenated = _op.concatenate(h_list, 0)
+        output = _op.expand_dims(concatenated, axis=1)
+        H_t = _op.expand_dims(H_t, axis=0)
+        C_t = _op.expand_dims(C_t, axis=0)
+
+        return output, H_t, C_t
+
+    @classmethod
     def _impl_v7(cls, inputs, attr, params):
         # Unpack inputs, note that if optional and not provided then value will be None.
         X = inputs[0]
@@ -2066,20 +2112,15 @@ class LSTM(RNN):
         B = inputs[3]
         # Sequence length currently unused as it can be inferred from shapes.
         # sequence_lens = inputs['sequence_lens']
-        h_0 = inputs[5]
-        c_0 = inputs[6]
+        H_0 = inputs[5]
+        C_0 = inputs[6]
         P = inputs[7]
 
         num_directions = infer_shape(W)[0]
         W_dtype = infer_type(W).checked_type.dtype
 
-        if num_directions != 1:
+        if num_directions not in [1, 2]:
             raise NotImplementedError("Bidirectional LSTMs not yet supported.")
-        # Remove num_directions axis from weights.
-        W = _op.squeeze(W, axis=[0])
-        R = _op.squeeze(R, axis=[0])
-        if B is not None:
-            B = _op.squeeze(B, axis=[0])
 
         X_shape = infer_shape(X)
         hidden_size = infer_shape(R)[-1]
@@ -2087,21 +2128,14 @@ class LSTM(RNN):
 
         # Initialize state if not provided.
         # Otherwise remove bidirectional axis.
-        if h_0 is None:
-            h_0 = _op.zeros((batch_size, hidden_size), W_dtype)
-        else:
-            h_0 = _op.squeeze(h_0, axis=[0])
-        if c_0 is None:
-            c_0 = _op.zeros((batch_size, hidden_size), W_dtype)
-        else:
-            c_0 = _op.squeeze(c_0, axis=[0])
-
+        if H_0 is None:
+            H_0 = _op.zeros((num_directions, batch_size, hidden_size), W_dtype)
+        if C_0 is None:
+            C_0 = _op.zeros((num_directions, batch_size, hidden_size), W_dtype)
         if P is not None:
-            P = _op.squeeze(P, axis=[0])
-            p_i, p_o, p_f = _op.split(P, 3)
-        H_t = h_0
-        C_t = c_0
-        h_list = []
+            p_i, p_o, p_f = _op.split(P, 3, axis=1)
+        else:
+            p_i = p_o = p_f = _op.zeros((num_directions, hidden_size), W_dtype)
 
         if "activations" in attr:
             activations = attr["activations"]
@@ -2134,37 +2168,35 @@ class LSTM(RNN):
             h_act = _op.tanh
 
         X_steps = _op.split(X, indices_or_sections=X_shape[0], axis=0)
-        for step in X_steps:
-            step = _op.squeeze(step, axis=[0])
-            gates = _op.nn.dense(step, W) + _op.nn.dense(H_t, R)
-            if B is not None:
-                WB, RB = _op.split(B, 2)
-                gates += WB + RB
-            i, o, f, c = _op.split(gates, 4, axis=-1)
-            if P is not None:
-                i = f_act(i + p_i * C_t)
-                f = f_act(f + p_f * C_t)
+        result_output = []
+        result_H = []
+        result_C = []
 
-            else:
-                i = f_act(i)
-                f = f_act(f)
-            c = g_act(c)
-            C = f * C_t + i * c
-            if P is not None:
-                o = f_act(o + p_o * C)
-            else:
-                o = f_act(o)
-            H = o * h_act(C)
-            H_t = H
-            C_t = C
-            h_list.append(_op.expand_dims(H, axis=0))
-        # Concatenate outputs and add back in direction axis.
-        concatenated = _op.concatenate(h_list, 0)
-        output = _op.expand_dims(concatenated, axis=1)
-        H_t = _op.expand_dims(H_t, axis=0)
-        C_t = _op.expand_dims(C_t, axis=0)
+        for i in range(num_directions):
+            output, H, C = LSTM.generate_lstm_forward(
+                X=X_steps if i == 0 else X_steps[::-1],
+                H_t=H_0[i],
+                C_t=C_0[i],
+                W=W[i],
+                R=R[i],
+                B=B[i],
+                p_i=p_i[i],
+                p_f=p_f[i],
+                p_o=p_o[i],
+                f_act=f_act,
+                g_act=g_act,
+                h_act=h_act,
+            )
 
-        return _expr.TupleWrapper(_expr.Tuple((output, H_t, C_t)), 3)
+            result_output.append(output)
+            result_H.append(H)
+            result_C.append(C)
+
+        output = _op.concatenate(output, axis=1)
+        H = _op.concatenate(result_H, axis=0)
+        C = _op.concatenate(result_C, axis=0)
+
+        return output, H, C
 
 
 class GRU(RNN):
