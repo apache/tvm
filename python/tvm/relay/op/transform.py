@@ -1751,6 +1751,7 @@ def invert_permutation(data):
     Examples
     --------
     .. code-block:: python
+
         data = [3, 4, 0, 2, 1]
         relay.invert_permutation(data) = [2, 4, 3, 0, 1]
     """
