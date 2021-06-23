@@ -21,4 +21,4 @@ set -u
 set -o pipefail
 
 # NOTE: install docutils < 0.17 to work around https://github.com/readthedocs/sphinx_rtd_theme/issues/1115
-pip3 install sphinx sphinx-gallery==0.4.0 autodocsumm sphinx_rtd_theme sphinx_autodoc_annotation matplotlib Image "commonmark>=0.7.3" "docutils>=0.11" "docutils<0.17"
+pip3 install sphinx sphinx-gallery==0.4.0 autodocsumm sphinx_rtd_theme sphinx_autodoc_annotation matplotlib Image "commonmark>=0.7.3" "docutils>=0.11,<0.17"
