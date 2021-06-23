@@ -45,7 +45,7 @@ DBAR = "=" * 60
 
 
 def _fix_name(node_name):
-    """ Replace ':' with '_' in names like 'InputImg:0' """
+    """Replace ':' with '_' in names like 'InputImg:0'"""
     return node_name.replace(":", "_")
 
 
@@ -494,7 +494,7 @@ class BaseEmitter:
         return dl_tensor_name
 
     def compute_data_placement(self):
-        """ Compute inputs, outputs, weight, activation sizes"""
+        """Compute inputs, outputs, weight, activation sizes."""
 
         self.inputs_ = self.arg_nodes_.copy()
 
@@ -715,7 +715,7 @@ class BaseEmitter:
         out_c.write(f"\n")
 
     def _emit_activation_init(self, name, out_c):
-        """ Emits buffer initialization code for activation tensors."""
+        """Emits buffer initialization code for activation tensors."""
         out_c.write(f"// {DBAR} \n")
         out_c.write(f"//   {name}_configure_activations \n")
         out_c.write(f"// {DBAR} \n")
@@ -760,7 +760,7 @@ class BaseEmitter:
         out_c.write(f"\n")
 
     def _emit_params_init(self, name, out_c):
-        """ Emits buffer initialization code for params tensors."""
+        """Emits buffer initialization code for params tensors."""
         out_c.write(f"// {DBAR} \n")
         out_c.write(f"//   {name}_configure_weights \n")
         out_c.write(f"// {DBAR} \n")
@@ -791,7 +791,7 @@ class BaseEmitter:
         out_c.write(f"\n")
 
     def emit_init(self, out_c):
-        """ Emits buffer initialization code."""
+        """Emits buffer initialization code."""
         #
         # {name}_configure_activations
         #
@@ -967,7 +967,7 @@ class BaseEmitter:
         out_c.write(f"#endif \n")
 
     def emit_params_data(self, target_dir):
-        """ Emits the network_data[c,h] files with parameters."""
+        """Emits the network_data[c,h] files with parameters."""
         name = self.model_name_
         name_upper = self.model_name_.upper()
 
@@ -1089,7 +1089,7 @@ class BaseEmitter:
         out_c.write(f"\n")
 
     def emit_close(self, out_h, out_c):
-        """ Emits the ai_model_info structure. """
+        """Emits the ai_model_info structure."""
 
         name = self.model_name_
         name_upper = name.upper()
@@ -1145,7 +1145,7 @@ class BaseEmitter:
         out_c.write(f"\n")
 
     def emit_params_buffers(self, quantization_map, out_c):
-        """ Emits all parameter tensors."""
+        """Emits all parameter tensors."""
         name = self.model_name_
         out_c.write(f"// \n")
         out_c.write(f"// Weights: {name}\n")
@@ -1156,7 +1156,7 @@ class BaseEmitter:
         out_c.write(f"\n")
 
     def emit_activation_buffers(self, quantization_map, out_c):
-        """ Emits activation tensors, including inputs/outputs."""
+        """Emits activation tensors, including inputs/outputs."""
 
         name = self.model_name_
 
@@ -1225,7 +1225,7 @@ class BaseEmitter:
 
 
 def _preprocess_code(src):
-    """ Hack the C code implementing the model. """
+    """Hack the C code implementing the model."""
 
     dst = "#include <stdio.h>\n" "#include <math.h>\n" '#include "stm32lib.h"\n\n' ""
     for line in src.splitlines():

@@ -183,7 +183,7 @@ class CodeEmitter(BaseEmitter):
         out_c.write(f"}} \n")
 
     def emit_code(self, dest_dir, quantization_map=None):
-        """Emits the C code implementing the model. """
+        """Emits the C code implementing the model."""
 
         model_name = self.model_name_
 
