@@ -34,18 +34,9 @@ from .. import op as _op
 from .. import qnn as _qnn
 from .. import ty as _ty
 from .. import vision as _vision
-from .common import (
-    AttrCvt,
-    Renamer,
-    fold_constant,
-    get_name,
-    get_relay_op,
-    infer_channels,
-    infer_shape,
-    infer_type,
-    infer_value,
-    new_var,
-)
+from .common import (AttrCvt, Renamer, fold_constant, get_name, get_relay_op,
+                     infer_channels, infer_shape, infer_type, infer_value,
+                     new_var)
 
 __all__ = ["from_onnx"]
 
@@ -2066,8 +2057,9 @@ class LSTM(RNN):
         See https://github.com/onnx/onnx/blob/master/docs/Operators.md for math.
         """
         h_list = []
-        for i in len(X_steps):
-            step = X_steps[i] if not backwards else X_steps[-(i + 1)]
+        seq_length = len(X_steps)
+        for i in range(seq_length):
+            step = X_steps[i] if not backwards else X_steps[seq_length-(i + 1)]
             step = _op.squeeze(step, axis=[0])
             gates = _op.nn.dense(step, W) + _op.nn.dense(H_t, R)
             if B is not None:
