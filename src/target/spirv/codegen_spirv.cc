@@ -140,20 +140,27 @@ spirv::Value CodeGenSPIRV::GetThreadIndex(const IterVar& iv, const PrimExpr& ext
 spirv::Value CodeGenSPIRV::CreateStorageSync(const CallNode* op) {
   const std::string& sync = op->args[0].as<StringImmNode>()->value;
   spirv::Value value;
-  if (sync == "warp") {
-    return value;
-  } else if (sync == "shared") {
-    auto type_int = builder_->GetSType(DataType::Int(32));
-    builder_->MakeInst(
-        spv::OpControlBarrier,
-        builder_->IntImm(type_int, static_cast<int64_t>(spv::ScopeWorkgroup)),
-        builder_->IntImm(type_int, static_cast<int64_t>(spv::ScopeWorkgroup)),
-        builder_->IntImm(type_int,
-                         static_cast<int64_t>(spv::MemorySemanticsSequentiallyConsistentMask |
-                                              spv::MemorySemanticsWorkgroupMemoryMask)));
+
+  uint32_t vulkan_api_version = spirv_support_.vulkan_api_version;
+
+  int64_t sync_scope;
+  int64_t memory_semantics;
+  if ((sync == "warp") && (vulkan_api_version >= VK_API_VERSION_1_1)) {
+    sync_scope = spv::ScopeSubgroup;
+    memory_semantics =
+        spv::MemorySemanticsSequentiallyConsistentMask | spv::MemorySemanticsSubgroupMemoryMask;
+  } else if ((sync == "shared") || (sync == "warp")) {
+    sync_scope = spv::ScopeWorkgroup;
+    memory_semantics =
+        spv::MemorySemanticsSequentiallyConsistentMask | spv::MemorySemanticsWorkgroupMemoryMask;
   } else {
     LOG(FATAL) << "Do not support sync " << sync;
   }
+
+  auto type_int = builder_->GetSType(DataType::Int(32));
+  builder_->MakeInst(spv::OpControlBarrier, builder_->IntImm(type_int, sync_scope),
+                     builder_->IntImm(type_int, sync_scope),
+                     builder_->IntImm(type_int, memory_semantics));
   return value;
 }
 
