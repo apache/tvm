@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, unused-argument
-"""Backend compiler related feature registration"""
+"""Gradient definitions for Relay operators"""
 from tvm.topi.nn.utils import get_pad_tuple
 from tvm.topi.utils import get_const_tuple
 from tvm.error import OpError
@@ -527,10 +527,7 @@ def softmax_grad(orig, grad):
 @register_gradient("nn.log_softmax")
 def log_softmax_grad(orig, grad):
     """Gradient of log_softmax"""
-    x = orig.args[0]
-    sm = _nn.softmax(x, axis=orig.attrs.axis)
-    grad = grad / sm
-    return softmax_grad(sm, grad)
+    return [grad - _sum(grad, axis=orig.attrs.axis, keepdims=True) * exp(orig)]
 
 
 @register_gradient("nn.bias_add")
@@ -594,6 +591,12 @@ def shape_of_grad(orig, grad):
 def cast_grad(orig, grad):
     x = orig.args[0]
     return [cast_like(grad, x)]
+
+
+@register_gradient("cast_like")
+def cast_like_grad(orig, grad):
+    x, like = orig.args
+    return [cast_like(grad, x), zeros_like(like)]
 
 
 @register_gradient("nn.batch_flatten")
@@ -873,3 +876,52 @@ def less_equal_grad(orig, grad):
     Returns the gradient of less_equal.
     """
     return [zeros_like(orig.args[0]), zeros_like(orig.args[1])]
+
+
+@register_gradient("not_equal")
+def not_equal_grad(orig, grad):
+    """
+    Returns the gradient of not_equal (just zeros).
+    """
+    return [zeros_like(orig.args[0]), zeros_like(orig.args[1])]
+
+
+@register_gradient("strided_slice")
+def strided_slice_grad(orig, grad):
+    """
+    Returns the gradient of strided_slice, which is equal to grad where the
+    input was sliced and zero elsewhere.
+    """
+    assert orig.attrs.axes is None, "grad for strided_slice with axes is not yet supported"
+    x = orig.args[0]
+    begin = get_const_tuple(orig.attrs.begin)
+    end = get_const_tuple(orig.attrs.end)
+    strides = get_const_tuple(orig.attrs.strides)
+    if orig.attrs.slice_mode == "size":
+        # convert sizes to ending indices and ignore strides
+        end = list(end)
+        for i, (start, size) in enumerate(zip(begin, end)):
+            if size == -1:
+                end[i] = int(x.checked_type.shape[i])
+            else:
+                end[i] = start + size
+        strides = None
+    else:
+        assert orig.attrs.slice_mode == "end"
+    return [strided_set(zeros_like(x), grad, begin, end, strides)]
+
+
+@register_gradient("one_hot")
+def one_hot_grad(orig, grad):
+    """
+    Returns the gradient of one_hot, which is the sum of grad at on and off
+    indices for on_value and off_value respectively.
+    """
+    indices, on_value, off_value = orig.args
+
+    g_zeros = zeros_like(grad)
+    on_mask = equal(orig, on_value)
+    grad_on = _sum(where(on_mask, grad, g_zeros))
+    grad_off = _sum(where(on_mask, g_zeros, grad))
+
+    return [zeros_like(indices), cast_like(grad_on, on_value), cast_like(grad_off, off_value)]
