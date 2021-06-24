@@ -31,7 +31,7 @@
 namespace tvm {
 namespace relay {
 
-TVM_REGISTER_NODE_TYPE(ResizeAttrs);
+TVM_REGISTER_NODE_TYPE(Resize2DAttrs);
 
 template <typename T>
 InferCorrectLayoutOutput ResizeInferCorrectLayout(const Attrs& attrs,
@@ -58,15 +58,15 @@ InferCorrectLayoutOutput ResizeInferCorrectLayout(const Attrs& attrs,
   return InferCorrectLayoutOutput({params->layout}, {params->layout}, Attrs(params));
 }
 
-bool ResizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
-               const TypeReporter& reporter) {
+bool Resize2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                 const TypeReporter& reporter) {
   ICHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) return false;
 
   static const Layout kNCHW("NCHW");
 
-  const ResizeAttrs* param = attrs.as<ResizeAttrs>();
+  const Resize2DAttrs* param = attrs.as<Resize2DAttrs>();
   ICHECK(param != nullptr);
   const Layout in_layout(param->layout);
   auto layout_converter = tir::BijectiveLayout(in_layout, kNCHW);
@@ -90,10 +90,10 @@ bool ResizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
 // Positional relay function to create image operator
 // used by frontend FFI.
-Expr MakeResize(Expr data, Array<IndexExpr> size, String layout, String method,
-                String coordinate_transformation_mode, String rounding_method, double bicubic_alpha,
-                int bicubic_exclude, DataType out_dtype) {
-  auto attrs = make_object<ResizeAttrs>();
+Expr MakeResize2D(Expr data, Array<IndexExpr> size, String layout, String method,
+                  String coordinate_transformation_mode, String rounding_method,
+                  double bicubic_alpha, int bicubic_exclude, DataType out_dtype) {
+  auto attrs = make_object<Resize2DAttrs>();
   attrs->size = std::move(size);
   attrs->layout = std::move(layout);
   attrs->method = std::move(method);
@@ -102,13 +102,13 @@ Expr MakeResize(Expr data, Array<IndexExpr> size, String layout, String method,
   attrs->bicubic_alpha = bicubic_alpha;
   attrs->bicubic_exclude = bicubic_exclude;
   attrs->out_dtype = out_dtype;
-  static const Op& op = Op::Get("image.resize");
+  static const Op& op = Op::Get("image.resize2d");
   return Call(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relay.op.image._make.resize").set_body_typed(MakeResize);
+TVM_REGISTER_GLOBAL("relay.op.image._make.resize2d").set_body_typed(MakeResize2D);
 
-RELAY_REGISTER_OP("image.resize")
+RELAY_REGISTER_OP("image.resize2d")
     .describe(R"code(Perform resize to input array with nearest neighbour or bilinear interpolation.
 
 - **data**: data is 4D array of shape
@@ -122,17 +122,17 @@ RELAY_REGISTER_OP("image.resize")
            for layout NHWC
            (batch_size, size[0], size[1], channels)
 )code" TVM_ADD_FILELINE)
-    .set_attrs_type<ResizeAttrs>()
+    .set_attrs_type<Resize2DAttrs>()
     .set_num_inputs(1)
     .add_argument("data", "Tensor", "The input tensor.")
     .set_support_level(5)
-    .add_type_rel("Resize", ResizeRel)
-    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ResizeInferCorrectLayout<ResizeAttrs>)
+    .add_type_rel("Resize2D", Resize2DRel)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ResizeInferCorrectLayout<Resize2DAttrs>)
     .set_attr<TOpPattern>("TOpPattern", kInjective);
 
-TVM_REGISTER_NODE_TYPE(Resize3dAttrs);
+TVM_REGISTER_NODE_TYPE(Resize3DAttrs);
 
-bool Resize3dRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+bool Resize3DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                  const TypeReporter& reporter) {
   ICHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
@@ -140,7 +140,7 @@ bool Resize3dRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
   static const Layout kNCDHW("NCDHW");
 
-  const Resize3dAttrs* param = attrs.as<Resize3dAttrs>();
+  const Resize3DAttrs* param = attrs.as<Resize3DAttrs>();
   ICHECK(param != nullptr);
   const Layout in_layout(param->layout);
   auto layout_converter = tir::BijectiveLayout(in_layout, kNCDHW);
@@ -165,9 +165,9 @@ bool Resize3dRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
 // Positional relay function to create image operator
 // used by frontend FFI.
-Expr MakeResize3d(Expr data, Array<IndexExpr> size, String layout, String method,
+Expr MakeResize3D(Expr data, Array<IndexExpr> size, String layout, String method,
                   String coordinate_transformation_mode, DataType out_dtype) {
-  auto attrs = make_object<Resize3dAttrs>();
+  auto attrs = make_object<Resize3DAttrs>();
   attrs->size = std::move(size);
   attrs->layout = std::move(layout);
   attrs->method = std::move(method);
@@ -177,7 +177,7 @@ Expr MakeResize3d(Expr data, Array<IndexExpr> size, String layout, String method
   return Call(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relay.op.image._make.resize3d").set_body_typed(MakeResize3d);
+TVM_REGISTER_GLOBAL("relay.op.image._make.resize3d").set_body_typed(MakeResize3D);
 
 RELAY_REGISTER_OP("image.resize3d")
     .describe(R"code(
@@ -194,11 +194,11 @@ Perform resize3d to input array with nearest neighbour or bilinear interpolation
            for layout NDHWC
            (batch_size, size[0], size[1], size[2], channels)
 )code" TVM_ADD_FILELINE)
-    .set_attrs_type<Resize3dAttrs>()
+    .set_attrs_type<Resize3DAttrs>()
     .set_num_inputs(1)
     .add_argument("data", "Tensor", "The input tensor.")
     .set_support_level(5)
-    .add_type_rel("Resize3d", Resize3dRel)
+    .add_type_rel("Resize3d", Resize3DRel)
     .set_attr<TOpPattern>("TOpPattern", kInjective);
 
 TVM_REGISTER_NODE_TYPE(CropAndResizeAttrs);

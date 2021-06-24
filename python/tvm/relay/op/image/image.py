@@ -20,7 +20,7 @@ from ..dyn.image import _make as _dyn_make
 from ...expr import Expr, Constant
 
 
-def resize(
+def resize2d(
     data,
     size,
     layout="NCHW",
@@ -31,7 +31,7 @@ def resize(
     bicubic_exclude=0,
     out_dtype=None,
 ):
-    """Image resize operator.
+    """Image resize2d operator.
 
     This operator takes data as input and does 2D scaling to the given scale factor.
     In the default case, where the data_layout is `NCHW`
@@ -82,7 +82,7 @@ def resize(
     if isinstance(size, Constant):
         size = list(size.data.numpy().astype("int32"))
     if isinstance(size, Expr):
-        return _dyn_make.resize(
+        return _dyn_make.resize2d(
             data,
             size,
             layout,
@@ -93,7 +93,7 @@ def resize(
             bicubic_exclude,
             out_dtype,
         )
-    return _make.resize(
+    return _make.resize2d(
         data,
         size,
         layout,

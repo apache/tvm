@@ -26,13 +26,13 @@ from tvm.topi.utils import get_const_tuple
 from .. import op as reg
 from .. import strategy
 from ..op import OpPattern
-from .image import resize
+from .image import resize2d
 
 
 # resize
-@reg.register_compute("image.resize")
-def compute_resize(attrs, inputs, out_type):
-    """compute definition for resize op"""
+@reg.register_compute("image.resize2d")
+def compute_resize2d(attrs, inputs, out_type):
+    """compute definition for resize2d op"""
     size = attrs.size
     layout = attrs.layout
     method = attrs.method
@@ -42,7 +42,7 @@ def compute_resize(attrs, inputs, out_type):
     bicubic_exclude = attrs.bicubic_exclude
     out_dtype = attrs.out_dtype
     return [
-        topi.image.resize(
+        topi.image.resize2d(
             inputs[0],
             size,
             layout,
@@ -56,12 +56,12 @@ def compute_resize(attrs, inputs, out_type):
     ]
 
 
-reg.register_injective_schedule("image.resize")
+reg.register_injective_schedule("image.resize2d")
 
 
-@reg.register_convert_op_layout("image.resize")
-def convert_image_resize(attrs, inputs, tinfos, desired_layouts):
-    """Convert Layout pass registration for image resize op.
+@reg.register_convert_op_layout("image.resize2d")
+def convert_image_resize2d(attrs, inputs, tinfos, desired_layouts):
+    """Convert Layout pass registration for image resize2d op.
 
     Parameters
     ----------
@@ -86,11 +86,11 @@ def convert_image_resize(attrs, inputs, tinfos, desired_layouts):
     desired_layout = str(desired_layouts[0])
     assert desired_layout != "default", "Layout cannot be default"
     new_attrs["layout"] = desired_layout
-    return resize(*inputs, **new_attrs)
+    return resize2d(*inputs, **new_attrs)
 
 
 @script
-def _resize_shape_func(image_shape, size, batch_axis, height_axis, width_axis, channel_axis):
+def _resize2d_shape_func(image_shape, size, batch_axis, height_axis, width_axis, channel_axis):
     out = output_tensor((4,), "int64")
     out[batch_axis] = int64(image_shape[0])
     out[height_axis] = int64(size[0])
@@ -99,10 +99,10 @@ def _resize_shape_func(image_shape, size, batch_axis, height_axis, width_axis, c
     return out
 
 
-@reg.register_shape_func("image.resize", False)
-def resize_shape_func(attrs, inputs, _):
+@reg.register_shape_func("image.resize2d", False)
+def resize2d_shape_func(attrs, inputs, _):
     """
-    Shape function for resize op.
+    Shape function for resize2d op.
     """
     layout = attrs.layout
     height_axis = width_axis = channel_axis = 1
@@ -117,7 +117,7 @@ def resize_shape_func(attrs, inputs, _):
             channel_axis = i
     size = get_const_tuple(attrs.size)
     return [
-        _resize_shape_func(
+        _resize2d_shape_func(
             inputs[0],
             convert(size),
             convert(batch_axis),

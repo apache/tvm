@@ -33,7 +33,7 @@ namespace tvm {
 namespace relay {
 
 /*! \brief Attributes used in image resize operator */
-struct ResizeAttrs : public tvm::AttrsNode<ResizeAttrs> {
+struct Resize2DAttrs : public tvm::AttrsNode<Resize2DAttrs> {
   Array<IndexExpr> size;
   std::string layout;
   std::string method;
@@ -43,7 +43,7 @@ struct ResizeAttrs : public tvm::AttrsNode<ResizeAttrs> {
   int bicubic_exclude;
   DataType out_dtype;
 
-  TVM_DECLARE_ATTRS(ResizeAttrs, "relay.attrs.ResizeAttrs") {
+  TVM_DECLARE_ATTRS(Resize2DAttrs, "relay.attrs.Resize2DAttrs") {
     TVM_ATTR_FIELD(size).set_default(NullValue<Array<IndexExpr> >()).describe("Output Size.");
     TVM_ATTR_FIELD(layout).set_default("NCHW").describe(
         "Dimension ordering of input data. Can be 'NCHW', 'NHWC', etc."
@@ -80,14 +80,14 @@ struct ResizeAttrs : public tvm::AttrsNode<ResizeAttrs> {
 };
 
 /*! \brief Attributes used in image resize3d operator */
-struct Resize3dAttrs : public tvm::AttrsNode<Resize3dAttrs> {
+struct Resize3DAttrs : public tvm::AttrsNode<Resize3DAttrs> {
   Array<IndexExpr> size;
   String layout;
   String method;
   String coordinate_transformation_mode;
   DataType out_dtype;
 
-  TVM_DECLARE_ATTRS(Resize3dAttrs, "relay.attrs.Resize3dAttrs") {
+  TVM_DECLARE_ATTRS(Resize3DAttrs, "relay.attrs.Resize3DAttrs") {
     TVM_ATTR_FIELD(size).set_default(NullValue<Array<IndexExpr> >()).describe("Output Size.");
     TVM_ATTR_FIELD(layout).set_default("NCDHW").describe(
         "Dimension ordering of input data. Can be 'NCDHW', 'NDHWC', etc."

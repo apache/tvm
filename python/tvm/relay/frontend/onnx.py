@@ -457,6 +457,7 @@ class Conv(OnnxOpConverter):
 
         kernel_type = infer_type(inputs[1])
         kernel_shapes = [get_const_tuple(kernel_type.checked_type.shape)]
+        print(input_shape, kernel_shapes)
         if "kernel_shape" not in attr:
             attr["kernel_shape"] = kernel_shapes[0][2:]
 
@@ -1364,7 +1365,13 @@ class Slice(OnnxOpConverter):
         ends = inputs[2]
         axes = inputs[3]
         steps = inputs[4]
-
+        print("----------Slice------------")
+        print(inputs[0])
+        print(inputs[1])
+        print(inputs[2])
+        print(inputs[3])
+        print(inputs[4])
+        print("----------/Slice------------")
         ishape = infer_shape(inputs[0])
         data_rank = len(ishape)
 
@@ -2398,13 +2405,16 @@ class Resize(OnnxOpConverter):
 
         scale = inputs[1]
         size = _op.cast(shape_of(inputs[0]), infer_type(scale).checked_type.dtype) * scale
-        layout = "NCHW"  # ONNX assumes NCHW layout
+        ndims = len(infer_shape(inputs[0]))
+        layout = {3: "NCW", 4: "NCHW", 5: "NCDHW"}[ndims]
         out_size = fold_constant(_op.strided_slice(size, [2], [4]))
-        return _op.image.resize(inputs[0], out_size, layout, method, "asymmetric")
+        return _op.image.resize2d(inputs[0], out_size, layout, method, "asymmetric")
 
     @classmethod
     def _impl_v11(cls, inputs, attr, params):
-        layout = "NCHW"  # ONNX assumes NCHW layout
+        print({**attr})
+        ndims = len(infer_shape(inputs[0]))
+        layout = {3: "NCH", 4: "NCHW", 5: "NCDHW"}[ndims]
 
         mode = attr.get("mode").decode("ascii")
         if mode == "nearest":
@@ -2435,7 +2445,7 @@ class Resize(OnnxOpConverter):
             size = _op.cast(shape_of(inputs[0]), infer_type(scale).checked_type.dtype) * scale
         out_size = fold_constant(_op.strided_slice(size, [2], [4]))
 
-        return _op.image.resize(
+        return _op.image.resize2d(
             inputs[0], out_size, layout, method, coord_trans, nearest_mode, alpha, exclude
         )
 

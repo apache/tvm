@@ -615,7 +615,7 @@ def resize_bicubic(
     return _cast_output(value, data.dtype, out_dtype=out_dtype)
 
 
-def resize(
+def resize2d(
     data,
     size,
     layout="NCHW",

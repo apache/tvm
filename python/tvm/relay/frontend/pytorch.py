@@ -1826,7 +1826,7 @@ class PyTorchOpConverter:
                 coord_trans = "half_pixel"
 
             def func(x):
-                return _op.image.resize(x, out_size, "NCHW", method, coord_trans)
+                return _op.image.resize2d(x, out_size, "NCHW", method, coord_trans)
 
             if self.is_quantized_tensor(data):
                 # input qparams are manually appended by us
@@ -2203,7 +2203,7 @@ class PyTorchOpConverter:
         else:
             coord_trans = "half_pixel"
 
-        return _op.image.resize(data, out_size, "NCHW", method, coord_trans)
+        return _op.image.resize2d(data, out_size, "NCHW", method, coord_trans)
 
     def numel(self, inputs, input_types):
         return _op.ndarray_size(inputs[0])
