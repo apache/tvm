@@ -48,6 +48,8 @@ _ProjectOption = collections.namedtuple(
 
 
 class ProjectOption(_ProjectOption):
+    """Class used to keep the metadata associated to project options."""
+
     def __new__(cls, name, **kw):
         """Override __new__ to force all options except name to be specified as kwargs."""
         assert "name" not in kw
