@@ -34,18 +34,9 @@ from .. import op as _op
 from .. import qnn as _qnn
 from .. import ty as _ty
 from .. import vision as _vision
-from .common import (
-    AttrCvt,
-    Renamer,
-    fold_constant,
-    get_name,
-    get_relay_op,
-    infer_channels,
-    infer_shape,
-    infer_type,
-    infer_value,
-    new_var,
-)
+from .common import (AttrCvt, Renamer, fold_constant, get_name, get_relay_op,
+                     infer_channels, infer_shape, infer_type, infer_value,
+                     new_var)
 
 __all__ = ["from_onnx"]
 
@@ -2172,17 +2163,25 @@ class LSTM(RNN):
         result_H = []
         result_C = []
 
+        H_ts = _op.split(Hp_0, num_directions)
+        C_ts = _op.split(Cp_0, num_directions)
+        Ws = _op.split(Wp, num_directions)
+        Rs = _op.split(Rp, num_directions)
+        Bs = _op.split(Bp, num_directions)
+        p_is = _op.split(p_i, num_directions)
+        p_fs = _op.split(p_f, num_directions)
+        p_os = _op.split(p_o, num_directions)
         for i in range(num_directions):
             output, H, C = LSTM.generate_lstm_forward(
                 X=X_steps if i == 0 else X_steps[::-1],
-                H_t=Hp_0[i],
-                C_t=Cp_0[i],
-                W=Wp[i],
-                R=Rp[i],
-                B=Bp[i],
-                p_i=p_i[i],
-                p_f=p_f[i],
-                p_o=p_o[i],
+                H_t=H_ts[i],
+                C_t=C_ts[i],
+                W=Ws[i],
+                R=Rs[i],
+                B=Bs[i],
+                p_i=p_is[i],
+                p_f=p_fs[i],
+                p_o=p_os[i],
                 f_act=f_act,
                 g_act=g_act,
                 h_act=h_act,
