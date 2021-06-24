@@ -38,7 +38,11 @@ class ArgumentSplitter : public ExprRewriter {
     if (call->op == concat_op_) {
       auto op = call->args[0].as<TupleNode>();
       const auto param = call->attrs.as<ConcatenateAttrs>();
-      const int limit = max_function_args_ - 1;  // one buffer with output
+      int outputsNum = 1;
+      if (const auto* tuple_type = call->checked_type().as<TupleTypeNode>()) {
+        outputsNum = tuple_type->fields.size();
+      }
+      const int limit = max_function_args_ - outputsNum;
       int argsNum = op->fields.size();
       if (argsNum < limit) return post;
       int splitNum = argsNum / limit;
@@ -80,7 +84,7 @@ Pass SplitArgs(int max_function_args) {
       [=](Function f, IRModule m, PassContext pc) {
         return Downcast<Function>(SplitArgs(f, max_function_args));
       };
-  return CreateFunctionPass(pass_func, 1, "SplitArgs", {});
+  return CreateFunctionPass(pass_func, 1, "SplitArgs", {"InferType"});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.SplitArgs").set_body_typed(SplitArgs);
