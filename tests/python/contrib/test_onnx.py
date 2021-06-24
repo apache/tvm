@@ -523,11 +523,12 @@ def test_lrn():
         x_data = np.random.uniform(size=xshape).astype(dtype)
         verify_results(func, [x_data], "test_lrn", rtol=1e-5, atol=1e-5)
 
-    isize = [(1,1,480,640), (1,3,224,224)]
-    sizes = [1,3]
+    isize = [(1, 1, 480, 640), (1 ,3, 224, 224)]
+    sizes = [1, 3]
     for i in isize:
         for s in sizes:
             verify_lrn(i, s)
+
 
 if __name__ == "__main__":
     test_add()
