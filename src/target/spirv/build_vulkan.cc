@@ -26,8 +26,12 @@
 #include <libspirv.h>
 #include <tvm/tir/transform.h>
 
+#include <fstream>
+#include <sstream>
+
 #include "../../runtime/vulkan/vulkan_module.h"
 #include "../../runtime/vulkan/vulkan_shader.h"
+#include "../../support/utils.h"
 #include "../build_common.h"
 #include "codegen_spirv.h"
 
@@ -121,7 +125,23 @@ runtime::Module BuildSPIRV(IRModule mod, Target target, bool webgpu_restriction)
 
     VulkanShader shader = cg.BuildFunction(f, entry);
 
-    spirv_tools.ValidateShader(shader.data);
+    if (auto path = std::getenv("TVM_VULKAN_DEBUG_SHADER_SAVEPATH")) {
+      if (*path) {
+        std::stringstream ss;
+        ss << path << "/" << f_name << "_";
+        std::string prefix = ss.str();
+
+        std::ofstream(prefix + "tir.txt") << f;
+        std::ofstream(prefix + "spv.txt") << spirv_tools.BinaryToText(shader.data);
+        std::ofstream(prefix + "spv.spv", std::ios::binary)
+            .write(reinterpret_cast<const char*>(shader.data.data()),
+                   sizeof(shader.data[0]) * shader.data.size());
+      }
+    }
+
+    if (!support::BoolEnvironmentVar("TVM_VULKAN_DISABLE_SHADER_VALIDATION")) {
+      spirv_tools.ValidateShader(shader.data);
+    }
 
     if (webgpu_restriction) {
       for (auto param : f->params) {
