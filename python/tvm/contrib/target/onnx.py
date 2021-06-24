@@ -630,12 +630,7 @@ class LRN(OpConverter):
                 "Only axis = 1 is supported by Onnx." % (attrs.get_int("axis"))
             )
 
-        return {
-            "alpha": attrs.alpha,
-            "beta": attrs.beta,
-            "bias": attrs.bias,
-            "size": attrs.size
-        }
+        return {"alpha": attrs.alpha, "beta": attrs.beta, "bias": attrs.bias, "size": attrs.size}
 
 
 relay_to_onnx_op_mapping = {
