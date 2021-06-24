@@ -3301,124 +3301,130 @@ def verify_rnn(
 
 @tvm.testing.uses_gpu
 def test_lstm():
-    # No bias.
-    verify_rnn(
-        seq_length=2, batch_size=1, input_size=16, hidden_size=32, use_bias=False, rnn_type="LSTM"
-    )
-    # large batch.
-    verify_rnn(
-        seq_length=4, batch_size=8, input_size=16, hidden_size=32, use_bias=True, rnn_type="LSTM"
-    )
-    # Non power of two.
-    verify_rnn(
-        seq_length=3, batch_size=3, input_size=16, hidden_size=40, use_bias=True, rnn_type="LSTM"
-    )
-    # Long sequence.
-    verify_rnn(
-        seq_length=8, batch_size=1, input_size=16, hidden_size=32, use_bias=True, rnn_type="LSTM"
-    )
-    # Large hidden.
-    verify_rnn(
-        seq_length=2, batch_size=1, input_size=16, hidden_size=128, use_bias=True, rnn_type="LSTM"
-    )
-    # Large input.
-    verify_rnn(
-        seq_length=2, batch_size=1, input_size=64, hidden_size=32, use_bias=True, rnn_type="LSTM"
-    )
+    for directions in [1, 2]:
+        # No bias.
+        verify_rnn(
+            seq_length=2,
+            batch_size=1,
+            input_size=16,
+            hidden_size=32,
+            use_bias=False,
+            rnn_type="LSTM",
+            directions=directions,
+        )
+        # large batch.
+        verify_rnn(
+            seq_length=4,
+            batch_size=8,
+            input_size=16,
+            hidden_size=32,
+            use_bias=True,
+            rnn_type="LSTM",
+            directions=directions,
+        )
+        # Non power of two.
+        verify_rnn(
+            seq_length=3,
+            batch_size=3,
+            input_size=16,
+            hidden_size=40,
+            use_bias=True,
+            rnn_type="LSTM",
+            directions=directions,
+        )
+        # Long sequence.
+        verify_rnn(
+            seq_length=8,
+            batch_size=1,
+            input_size=16,
+            hidden_size=32,
+            use_bias=True,
+            rnn_type="LSTM",
+            directions=directions,
+        )
+        # Large hidden.
+        verify_rnn(
+            seq_length=2,
+            batch_size=1,
+            input_size=16,
+            hidden_size=128,
+            use_bias=True,
+            rnn_type="LSTM",
+            directions=directions,
+        )
+        # Large input.
+        verify_rnn(
+            seq_length=2,
+            batch_size=1,
+            input_size=64,
+            hidden_size=32,
+            use_bias=True,
+            rnn_type="LSTM",
+            directions=directions,
+        )
 
-    # Different activation testing.
-    # Default value hardsigmoid.
-    verify_rnn(
-        seq_length=2,
-        batch_size=1,
-        input_size=16,
-        hidden_size=32,
-        use_bias=False,
-        activations=["HardSigmoid", "Tanh", "Tanh"],
-        rnn_type="LSTM",
-    )
-    # Multiple parameterized activations.
-    verify_rnn(
-        seq_length=2,
-        batch_size=1,
-        input_size=16,
-        hidden_size=32,
-        use_bias=False,
-        activations=["HardSigmoid", "LeakyRelu", "Tanh"],
-        alphas=[2.0, 0.5],
-        betas=[0.3],
-        rnn_type="LSTM",
-    )
-    # All parameterized with new Affine activation.
-    verify_rnn(
-        seq_length=2,
-        batch_size=1,
-        input_size=16,
-        hidden_size=32,
-        use_bias=False,
-        activations=["HardSigmoid", "LeakyRelu", "Affine"],
-        alphas=[2.0, 0.5, 0.8],
-        betas=[0.3, 0.1],
-        rnn_type="LSTM",
-    )
+        # Different activation testing.
+        # Default value hardsigmoid.
+        verify_rnn(
+            seq_length=2,
+            batch_size=1,
+            input_size=16,
+            hidden_size=32,
+            use_bias=False,
+            activations=["HardSigmoid", "Tanh", "Tanh"],
+            rnn_type="LSTM",
+            directions=directions,
+        )
+        # Multiple parameterized activations.
+        verify_rnn(
+            seq_length=2,
+            batch_size=1,
+            input_size=16,
+            hidden_size=32,
+            use_bias=False,
+            activations=["HardSigmoid", "LeakyRelu", "Tanh"],
+            alphas=[2.0, 0.5],
+            betas=[0.3],
+            rnn_type="LSTM",
+            directions=directions,
+        )
+        # All parameterized with new Affine activation.
+        verify_rnn(
+            seq_length=2,
+            batch_size=1,
+            input_size=16,
+            hidden_size=32,
+            use_bias=False,
+            activations=["HardSigmoid", "LeakyRelu", "Affine"],
+            alphas=[2.0, 0.5, 0.8],
+            betas=[0.3, 0.1],
+            rnn_type="LSTM",
+            directions=directions,
+        )
 
-    # Testing with initial state and peepholes
-    verify_rnn(
-        seq_length=2,
-        batch_size=1,
-        input_size=16,
-        hidden_size=32,
-        use_bias=True,
-        use_initial_state=True,
-        rnn_type="LSTM",
-    )
+        # Testing with initial state and peepholes
+        verify_rnn(
+            seq_length=2,
+            batch_size=1,
+            input_size=16,
+            hidden_size=32,
+            use_bias=True,
+            use_initial_state=True,
+            rnn_type="LSTM",
+            directions=directions,
+        )
 
-    verify_rnn(
-        seq_length=2,
-        batch_size=1,
-        input_size=16,
-        hidden_size=32,
-        use_bias=True,
-        use_initial_state=True,
-        use_peep=True,
-        rnn_type="LSTM",
-    )
-
-    # Testing for bidirectionality
-    verify_rnn(
-        seq_length=3,
-        batch_size=3,
-        input_size=16,
-        hidden_size=40,
-        use_bias=True,
-        rnn_type="LSTM",
-        directions=2,
-    )
-
-    verify_rnn(
-        seq_length=2,
-        batch_size=1,
-        input_size=16,
-        hidden_size=32,
-        use_bias=False,
-        activations=["HardSigmoid", "LeakyRelu", "Affine"],
-        alphas=[2.0, 0.5, 0.8],
-        betas=[0.3, 0.1],
-        rnn_type="LSTM",
-        directions=2,
-    )
-
-    verify_rnn(
-        seq_length=2,
-        batch_size=1,
-        input_size=16,
-        hidden_size=32,
-        use_bias=True,
-        use_initial_state=True,
-        use_peep=True,
-        rnn_type="LSTM",
-        directions=2,
-    )
+        verify_rnn(
+            seq_length=2,
+            batch_size=1,
+            input_size=16,
+            hidden_size=32,
+            use_bias=True,
+            use_initial_state=True,
+            use_peep=True,
+            rnn_type="LSTM",
+            directions=directions,
+        )
 
 
 @tvm.testing.uses_gpu
