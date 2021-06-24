@@ -622,12 +622,19 @@ class LRN(OpConverter):
 
     @classmethod
     def convert_attributes(cls, attrs):
+        """axis attr is not supported as an argument in onnx.
+        Onnx only supports axis=1 (channels)."""
+        if attrs.get_int("axis") != 1:
+            raise RuntimeError(
+                "Unsupported axis %s in operator relay lrn operator. "
+                "Only axis = 1 is supported by Onnx." % (attrs.get_int("axis"))
+            )
+
         return {
             "alpha": attrs.alpha,
             "beta": attrs.beta,
             "bias": attrs.bias,
             "size": attrs.size
-            # axis?
         }
 
 
