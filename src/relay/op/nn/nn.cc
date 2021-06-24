@@ -167,13 +167,13 @@ TVM_REGISTER_NODE_TYPE(MatmulAttrs);
 
 Expr MakeMatmul(Expr data, Expr weight, IndexExpr units, DataType out_dtype, bool data_transposed,
                 bool weight_transposed) {
-    auto attrs = make_object<MatmulAttrs>();
-    attrs->units = units;
-    attrs->out_dtype = out_dtype;
-    attrs->data_transposed = data_transposed;
-    attrs->weight_transposed = weight_transposed;
-    static const Op& matmul_op = Op::Get("nn.matmul");
-    return Call(matmul_op, {data, weight}, Attrs(attrs), {});
+  auto attrs = make_object<MatmulAttrs>();
+  attrs->units = units;
+  attrs->out_dtype = out_dtype;
+  attrs->data_transposed = data_transposed;
+  attrs->weight_transposed = weight_transposed;
+  static const Op& matmul_op = Op::Get("nn.matmul");
+  return Call(matmul_op, {data, weight}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.matmul").set_body_typed(MakeMatmul);

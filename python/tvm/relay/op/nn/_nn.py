@@ -59,7 +59,7 @@ def legalize_matmul(attrs, inputs, types):
     Parameters
     ----------
     attrs : tvm.ir.Attrs
-        Attributes of current convolution
+        Attributes of current matmul
     inputs : list of tvm.relay.Expr
         The args of the Relay expr to be legalized
     types : list of types
@@ -1191,7 +1191,14 @@ def matmul_shape_func(attrs, inputs, _):
     """
     Shape function for matmul op.
     """
-    ret = [_matmul_shape_func(inputs[0], inputs[1], attrs.data_transposed, attrs.weight_transposed)]
+    ret = [
+        _matmul_shape_func(
+            inputs[0],
+            inputs[1],
+            expr.IntImm("bool", attrs.data_transposed),
+            expr.IntImm("bool", attrs.weight_transposed),
+        )
+    ]
     return ret
 
 
@@ -1200,7 +1207,14 @@ def dense_shape_func(attrs, inputs, _):
     """
     Shape function for dense op.
     """
-    ret = [_matmul_shape_func(inputs[0], inputs[1], False, True)]
+    ret = [
+        _matmul_shape_func(
+            inputs[0],
+            inputs[1],
+            expr.IntImm("bool", False),
+            expr.IntImm("bool", True),
+        )
+    ]
     return ret
 
 
