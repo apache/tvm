@@ -3279,6 +3279,9 @@ def verify_rnn(
     if activations is not None:
         activations_attr = helper.make_attribute("activations", activations)
         rnn_node.attribute.append(activations_attr)
+    if directions == 2:
+        direction_attr = helper.make_attribute("direction", "bidirectional")
+        rnn_node.attribute.append(direction_attr)
     if alphas is not None:
         alphas_attr = helper.make_attribute("activation_alpha", alphas)
         rnn_node.attribute.append(alphas_attr)
