@@ -46,6 +46,53 @@ namespace tvm {
 namespace relay {
 namespace backend {
 
+/*!
+ * \brief The static storage information produced by memory planning.
+ */
+class StorageInfoNode : public Object {
+ public:
+  /*! \brief The set of storage ids where the expression is stored. */
+  std::vector<int64_t> storage_ids;
+  /* \brief The type of "virtual devices" these expressions are stored on. */
+  std::vector<DLDeviceType> device_types;
+  /* \brief The sizes of each storage element. */
+  std::vector<int64_t> storage_sizes_in_bytes;
+
+  // TODO(@jroesch): expose the fields
+  void VisitAttrs(AttrVisitor* v) {}
+
+  static constexpr const char* _type_key = "relay.StorageInfo";
+  TVM_DECLARE_FINAL_OBJECT_INFO(StorageInfoNode, Object);
+};
+
+/*! \brief The storage information for a single expression. */
+class StorageInfo : public ObjectRef {
+ public:
+  StorageInfo(std::vector<int64_t> storage_ids, std::vector<DLDeviceType> device_types,
+              std::vector<int64_t> storage_sizes_in_bytes);
+  TVM_DEFINE_OBJECT_REF_METHODS(StorageInfo, ObjectRef, StorageInfoNode);
+};
+
+/*!
+ * \brief The result of static memory planning.
+ */
+class StaticMemoryPlanNode : public Object {
+ public:
+  Map<Expr, StorageInfo> expr_to_storage_info;
+
+  void VisitAttrs(AttrVisitor* v) { v->Visit("expr_to_storage_info", &expr_to_storage_info); }
+
+  static constexpr const char* _type_key = "relay.StaticMemoryPlan";
+  TVM_DECLARE_FINAL_OBJECT_INFO(StaticMemoryPlanNode, Object);
+};
+
+/*! \brief The result of running static memory planning. */
+class StaticMemoryPlan : public ObjectRef {
+ public:
+  explicit StaticMemoryPlan(Map<Expr, StorageInfo> expr_to_storage_info);
+  TVM_DEFINE_OBJECT_REF_METHODS(StaticMemoryPlan, ObjectRef, StaticMemoryPlanNode);
+};
+
 struct FunctionInfoNode : public Object {
   Map<Target, Integer> workspace_sizes;
   Map<Target, Integer> io_sizes;
