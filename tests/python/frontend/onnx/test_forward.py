@@ -2410,6 +2410,7 @@ def verify_conv(
     kernel_shape,
     strides,
     dilations,
+    group=1,
     auto_pad="NOTSET",
     unset_pad=False,
 ):
@@ -2422,7 +2423,7 @@ def verify_conv(
             # Default values for other attributes:
             strides=strides,
             dilations=dilations,
-            # groups=1
+            group=group,
         )
     elif padding is None:
         ## autopadding with unset default attributes
@@ -2438,6 +2439,7 @@ def verify_conv(
             outputs=["y"],
             # Default values for other attributes:
             auto_pad=auto_pad,
+            group=group,
             **kwargs,
         )
     else:
@@ -2449,7 +2451,7 @@ def verify_conv(
             # Default values for other attributes:
             strides=strides,
             dilations=dilations,
-            # groups=1
+            group=group,
             pads=padding,
         )
 
@@ -2557,6 +2559,20 @@ def test_conv():
             repeat(3, D),
             repeat(1, D),
             repeat(2, D),
+        )
+
+    # TODO(jwfromm): Merge with other tests once group_conv3d is supported.
+    for D in [1, 2]:
+        # Group Convolution
+        verify_conv(
+            (1, 8) + repeat(5, D),
+            (8, 1) + repeat(3, D),
+            (1, 8) + repeat(5, D),
+            2 * repeat(1, D),
+            repeat(3, D),
+            repeat(1, D),
+            repeat(1, D),
+            group=8,
         )
 
 
@@ -4641,85 +4657,85 @@ def test_qlinearconv():
 
 
 if __name__ == "__main__":
-    test_flatten()
-    test_reshape()
-    test_shape()
-    test_expand()
-    test_power()
-    test_squeeze()
-    test_unsqueeze()
-    test_slice()
-    test_floor()
-    test_ceil()
-    test_round()
-    test_isinf()
-    test_isnan()
-    test_clip()
-    test_clip_min_max_as_inputs()
-    test_onehot()
-    test_gemm()
-    test_matmul()
-    test_gather()
-    test_gatherelements()
-    test_gather_nd()
-    test_scatter()
-    test_lrn()
-    test_instance_norm()
-    test_upsample()
-    test_forward_min()
-    test_forward_max()
-    test_forward_mean()
-    test_forward_hardsigmoid()
-    test_forward_arg_min_max()
-    test_softmax()
-    test_constantofshape()
-    test_all_reduce_funcs()
-    test_pad()
-    test_split()
-    test_binary_ops()
-    test_unary_ops()
-    test_leaky_relu()
-    test_elu()
-    test_selu()
-    test_prelu()
-    test_ThresholdedRelu()
-    test_LogSoftmax()
-    test_resnet()
-    test_inception()
-    test_densenet()
-    test_sign()
-    test_not()
-    test_and()
-    test_tile()
-    test_erf()
-    test_where()
-    test_or()
-    test_depth_to_space()
-    test_space_to_depth()
-    test_batch_norm()
-    test_batch_norm_dynamic_subgraph()
+    # test_flatten()
+    # test_reshape()
+    # test_shape()
+    # test_expand()
+    # test_power()
+    # test_squeeze()
+    # test_unsqueeze()
+    # test_slice()
+    # test_floor()
+    # test_ceil()
+    # test_round()
+    # test_isinf()
+    # test_isnan()
+    # test_clip()
+    # test_clip_min_max_as_inputs()
+    # test_onehot()
+    # test_gemm()
+    # test_matmul()
+    # test_gather()
+    # test_gatherelements()
+    # test_gather_nd()
+    # test_scatter()
+    # test_lrn()
+    # test_instance_norm()
+    # test_upsample()
+    # test_forward_min()
+    # test_forward_max()
+    # test_forward_mean()
+    # test_forward_hardsigmoid()
+    # test_forward_arg_min_max()
+    # test_softmax()
+    # test_constantofshape()
+    # test_all_reduce_funcs()
+    # test_pad()
+    # test_split()
+    # test_binary_ops()
+    # test_unary_ops()
+    # test_leaky_relu()
+    # test_elu()
+    # test_selu()
+    # test_prelu()
+    # test_ThresholdedRelu()
+    # test_LogSoftmax()
+    # test_resnet()
+    # test_inception()
+    # test_densenet()
+    # test_sign()
+    # test_not()
+    # test_and()
+    # test_tile()
+    # test_erf()
+    # test_where()
+    # test_or()
+    # test_depth_to_space()
+    # test_space_to_depth()
+    # test_batch_norm()
+    # test_batch_norm_dynamic_subgraph()
     test_conv()
-    test_convtranspose()
-    test_unsqueeze_constant()
-    test_pooling()
-    test_lppool()
-    test_lstm()
-    test_gru()
-    test_resize()
-    test_nonzero()
-    test_topk()
-    test_mod()
-    test_xor()
-    test_max_roi_pool()
-    test_roi_align()
-    test_range()
-    test_loop()
-    test_size()
-    test_maxunpool()
-    test_softplus()
-    test_cumsum()
-    test_wrong_input()
-    test_aten()
-    test_reverse_sequence()
-    test_eyelike()
-    test_qlinearconv()
+    # test_convtranspose()
+    # test_unsqueeze_constant()
+    # test_pooling()
+    # test_lppool()
+    # test_lstm()
+    # test_gru()
+    # test_resize()
+    # test_nonzero()
+    # test_topk()
+    # test_mod()
+    # test_xor()
+    # test_max_roi_pool()
+    # test_roi_align()
+    # test_range()
+    # test_loop()
+    # test_size()
+    # test_maxunpool()
+    # test_softplus()
+    # test_cumsum()
+    # test_wrong_input()
+    # test_aten()
+    # test_reverse_sequence()
+    # test_eyelike()
+    # test_qlinearconv()
