@@ -198,7 +198,7 @@ def decl_buffer(
 
     Returns
     -------
-    buffer : Buffer
+    buffer : tvm.tir.Buffer
         The created buffer
 
     Example
