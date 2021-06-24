@@ -631,4 +631,3 @@ if __name__ == "__main__":
     test_one_hot()
     test_ndarray_size()
     test_matrix_set_diag()
-    test_nll_loss(tvm.device("cpu"), tvm.target.Target("llvm"))

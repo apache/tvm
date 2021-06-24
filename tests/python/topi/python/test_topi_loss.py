@@ -36,7 +36,8 @@ def verify_nll_loss(
     nll_loss_result = topi.nn.nll_loss(predictions, targets, weights, reduction, ignore_index)
 
     with tvm.target.Target(target):
-        s = tvm.te.create_schedule(nll_loss_result.op)
+        fschedule = tvm.topi.testing.get_reduce_schedule(target)
+        s = fschedule([nll_loss_result])
     fn = tvm.build(s, [predictions, targets, weights, nll_loss_result], target, name="nll_loss")
 
     predictions_npy = np.random.uniform(size=prediction_shape).astype(dtype)
