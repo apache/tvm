@@ -3381,6 +3381,42 @@ def test_lstm():
         rnn_type="LSTM",
     )
 
+    # Testing for bidirectionality
+    verify_rnn(
+        seq_length=3,
+        batch_size=3,
+        input_size=16,
+        hidden_size=40,
+        use_bias=True,
+        rnn_type="LSTM",
+        directions=2,
+    )
+
+    verify_rnn(
+        seq_length=2,
+        batch_size=1,
+        input_size=16,
+        hidden_size=32,
+        use_bias=False,
+        activations=["HardSigmoid", "LeakyRelu", "Affine"],
+        alphas=[2.0, 0.5, 0.8],
+        betas=[0.3, 0.1],
+        rnn_type="LSTM",
+        directions=2,
+    )
+
+    verify_rnn(
+        seq_length=2,
+        batch_size=1,
+        input_size=16,
+        hidden_size=32,
+        use_bias=True,
+        use_initial_state=True,
+        use_peep=True,
+        rnn_type="LSTM",
+        directions=2,
+    )
+
 
 @tvm.testing.uses_gpu
 def test_gru():
