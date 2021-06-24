@@ -2173,7 +2173,7 @@ class LSTM(RNN):
         p_os = _op.split(p_o, num_directions)
         for i in range(num_directions):
             output, H, C = LSTM.generate_lstm_forward(
-                X=X_steps if i == 0 else X_steps[::-1],
+                X_steps=X_steps if i == 0 else X_steps[::-1],
                 H_t=H_ts[i],
                 C_t=C_ts[i],
                 W=Ws[i],
