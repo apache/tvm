@@ -390,6 +390,7 @@ def gpu(dev_id=0):
 
         deprecated:: 0.9.0
         Use :py:func:`tvm.cuda` instead.
+
     Parameters
     ----------
     dev_id : int, optional
