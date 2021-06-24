@@ -18,9 +18,6 @@
 set +e
 set -o pipefail
 
-echo "Install all missing stub packages"
-mypy --install-types
-
 echo "Checking MyPy Type defs in auto_scheduler package."
 mypy  --check-untyped-defs python/tvm/auto_scheduler
 
