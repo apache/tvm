@@ -2181,16 +2181,24 @@ class LSTM(RNN):
         p_fs = _op.split(p_f, num_directions)
         p_os = _op.split(p_o, num_directions)
         for i in range(num_directions):
+            H_t = _op.squeeze(H_ts[i], axis=0)
+            C_t = _op.squeeze(C_ts[i], axis=0)
+            W = _op.squeeze(Ws[i], axis=0)
+            R = _op.squeeze(Rs[i], axis=0)
+            B = _op.squeeze(Bs[i], axis=0)
+            p_i = _op.squeeze(p_is[i], axis=0)
+            p_f = _op.squeeze(p_fs[i], axis=0)
+            p_o = _op.squeeze(p_os[i], axis=0)
             output, H, C = LSTM.generate_lstm_forward(
                 X_steps=X_steps if i == 0 else X_steps[::-1],
-                H_t=H_ts[i],
-                C_t=C_ts[i],
-                W=Ws[i],
-                R=Rs[i],
-                B=Bs[i],
-                p_i=p_is[i],
-                p_f=p_fs[i],
-                p_o=p_os[i],
+                H_t=H_t,
+                C_t=C_t,
+                W=W,
+                R=R,
+                B=B,
+                p_i=p_i,
+                p_f=p_f,
+                p_o=p_o,
                 f_act=f_act,
                 g_act=g_act,
                 h_act=h_act,
@@ -2200,11 +2208,11 @@ class LSTM(RNN):
             result_H.append(H)
             result_C.append(C)
 
-        output = _op.concatenate(output, axis=1)
+        output = _op.concatenate(result_output, axis=1)
         H = _op.concatenate(result_H, axis=0)
         C = _op.concatenate(result_C, axis=0)
 
-        return output, H, C
+        return _expr.TupleWrapper(_expr.Tuple((output, H, C)), 3)
 
 
 class GRU(RNN):
