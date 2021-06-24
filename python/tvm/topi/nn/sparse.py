@@ -568,24 +568,26 @@ def _sparse_conv2d_bsr_compute_nchw(data, weight_data, weight_indices, weight_in
 
 def sparse_conv2d(dense_data, sparse_data, sparse_indices, sparse_indptr, layout="NHWC"):
     """
-    Computes sparse-conv2d(1*1) of `data` and
-    `(weight_data, weight_indices, weight_indptr)
+    Computes sparse-conv2d(1*1) of ``data`` and
+    ``(weight_data, weight_indices, weight_indptr)``
 
     Parameters
     ----------
     dense_data : tvm.te.Tensor
-        4-D with shape [M, H, W, K] (layout=NHWC)
-        4-D with shape [M, K, H, W] (layout=NCHW)
+        4-D with shape ``[M, H, W, K]`` (layout=NHWC)
+
+        4-D with shape ``[M, K, H, W]`` (layout=NCHW)
 
     sparse_data : tvm.te.Tensor
-        2-D with shape [num_blocks, bs_r] (BSR)
-        3-D with shape [num_blocks, bs_r, bs_c] (BSR)
+        2-D with shape ``[num_blocks, bs_r]`` (BSR)
+
+        3-D with shape ``[num_blocks, bs_r, bs_c]`` (BSR)
 
     sparse_indices : tvm.te.Tensor
-        1-D with shape [num_blocks] (BSR)
+        1-D with shape ``[num_blocks]`` (BSR)
 
     sparse_indptr : tvm.te.Tensor
-        1-D with shape [(N + 1) // bs_r] (BSR)
+        1-D with shape ``[(N + 1) // bs_r]`` (BSR)
 
     layout : str
         layout of data

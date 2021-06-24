@@ -23,13 +23,13 @@ def ir_transform(stmt, preorder, postorder, only_enable=None):
 
     Parameters
     ----------
-    stmt : Stmt
+    stmt : tvm.tir.Stmt
         The input to be transformed.
 
     preorder: function
         The function called in before recursive mutation
         If preorder returns None, then the transform will proceed to recursive call.
-        If preorder returns a not None Stmt/Expr, the transformer will simply return it and
+        If preorder returns a not None tvm.tir.Stmt/Expr, the transformer will simply return it and
         won't do further recursion.
 
     postorder : function
@@ -40,7 +40,7 @@ def ir_transform(stmt, preorder, postorder, only_enable=None):
 
     Returns
     -------
-    result : Stmt
+    result : tvm.tir.Stmt
         The result.
     """
     return _ffi_api.IRTransform(stmt, preorder, postorder, only_enable)
@@ -71,7 +71,7 @@ def substitute(node, vmap):
 
     Returns
     -------
-    result : Stmt
+    result : tvm.tir.Stmt
         The result.
     """
     return _ffi_api.Substitute(node, vmap)

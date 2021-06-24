@@ -96,7 +96,7 @@ class ComputeDAG(Object):
 
     Parameters
     ----------
-    compute : Union[List[Tensor], str, Schedule]
+    compute : Union[List[Tensor], str, tvm.te.Schedule]
         Input/output tensors or workload key for a compute declaration.
     """
 

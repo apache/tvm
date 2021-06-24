@@ -109,15 +109,18 @@ class Dependency(Object):
 
 @register_object("tir.BlockScope")
 class BlockScope(Object):
-    """An object corresponds to each block sref in the sref tree,
-       which tracks the producer-consumer dependency between blocks.
+    """An object corresponds to each block sref in the sref tree, which
+    tracks the producer-consumer dependency between blocks.
 
     Glossary:
-    - Block scope: A contiguous subtree of the sref tree, rooted at each block sref,
-    whose components are:
-        - scope root: a block sref
-        - internal srefs: loop srefs
-        - scope leaves: block srefs
+
+    - Block scope: A contiguous subtree of the sref tree, rooted at
+      each block sref, whose components are:
+
+      - scope root: a block sref
+      - internal srefs: loop srefs
+      - scope leaves: block srefs
+
     - Child block: The scope leaf blocks under the scope root or a specific internal sref
     """
 

@@ -36,14 +36,15 @@ make cython3
 echo "PreCheck sphinx doc generation WARNINGS.."
 cd docs
 make clean
-TVM_TUTORIAL_EXEC_PATTERN=none make html 2>1 | tee /tmp/$$.log.txt
+TVM_TUTORIAL_EXEC_PATTERN=none make html 2>&1 | tee /tmp/$$.log.txt
 
-grep -v -E "__mro__|UserWarning|FutureWarning|tensorflow|Keras|pytorch|TensorFlow|403" < /tmp/$$.log.txt > /tmp/$$.logclean.txt || true
+grep -v -E "__mro__|UserWarning|FutureWarning|tensorflow|Keras|pytorch|TensorFlow|403|git describe|scikit-learn version" < /tmp/$$.log.txt > /tmp/$$.logclean.txt || true
 echo "---------Sphinx Log----------"
 cat /tmp/$$.logclean.txt
 echo "-----------------------------"
 if grep --quiet -E "WARN" < /tmp/$$.logclean.txt; then
-    echo "WARNINIG found in the log, please fix them."
+    echo "WARNING found in the log, please fix them."
+    grep -E "WARN" < /tmp/$$.logclean.txt
     echo "You can reproduce locally by running ./tests/scripts/task_sphinx_precheck.sh"
     exit 1
 fi

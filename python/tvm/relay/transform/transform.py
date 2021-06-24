@@ -1177,18 +1177,20 @@ def FakeQuantizationToInteger():
     """
     Find regions of the graph of the form
 
-    x    w
-    |    |
-    dq   dq
-     \   /
-      op1
-       |
-      op2
-       |
-       q
+    .. code-block:: text
 
-    where q == qnn.quantize and dq = qnn.dequantize
-    and rewrite them into integer versions of op1 and op2
+        x    w
+        |    |
+        dq   dq
+         \   /
+          op1
+           |
+          op2
+           |
+           q
+
+    where ``q == qnn.quantize`` and ``dq = qnn.dequantize``
+    and rewrite them into integer versions of ``op1`` and ``op2``
 
     Rules for rewriting indivdual ops are in fake_quantization_to_integer.py
 
