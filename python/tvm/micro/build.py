@@ -158,11 +158,12 @@ def default_options(crt_config_include_dir, standalone_crt_dir=None):
     Dict :
         A dictionary containing 3 subkeys, each whose value is _build_default_compiler_options()
         plus additional customization.
-         - "bin_opts" - passed as "options" to Compiler.binary() when building MicroBinary.
-         - "lib_opts" - passed as "options" to Compiler.library() when building bundled CRT
-           libraries (or otherwise, non-generated libraries).
-         - "generated_lib_opts" - passed as "options" to Compiler.library() when building the
-           generated library.
+
+        - "bin_opts" - passed as "options" to Compiler.binary() when building MicroBinary.
+        - "lib_opts" - passed as "options" to Compiler.library() when building bundled CRT
+          libraries (or otherwise, non-generated libraries).
+        - "generated_lib_opts" - passed as "options" to Compiler.library() when building the
+          generated library.
     """
     bin_opts = _build_default_compiler_options(standalone_crt_dir)
     bin_opts["include_dirs"].append(crt_config_include_dir)

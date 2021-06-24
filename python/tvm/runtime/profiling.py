@@ -26,7 +26,7 @@ _ffi._init_api("runtime.profiling", __name__)
 class Report(Object):
     """A container for information gathered during a profiling run.
 
-    Fields
+    Attributes
     ----------
     calls : Array[Dict[str, Object]]
         Per-call profiling metrics (function name, runtime, device, ...).

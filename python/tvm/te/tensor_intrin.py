@@ -82,12 +82,12 @@ def decl_tensor_intrin(
         .. note::
              **Parameters**
 
-             - **ins** (list of :any:`Buffer`) - Placeholder for each inputs
-             - **outs** (list of :any:`Buffer`) - Placeholder for each outputs
+             - **ins** (list of :any:`tvm.tir.Buffer`) - Placeholder for each inputs
+             - **outs** (list of :any:`tvm.tir.Buffer`) - Placeholder for each outputs
 
              **Returns**
 
-             - **stmt** (:any:`Stmt`, or tuple of three stmts)
+             - **stmt** (:any:`tvm.tir.Stmt`, or tuple of three stmts)
              - If a single stmt is returned, it represents the body
              - If tuple of three stmts are returned they corresponds to body,
                reduce_init, reduce_update
@@ -95,7 +95,7 @@ def decl_tensor_intrin(
     name: str, optional
         The name of the intrinsic.
 
-    binds: dict of :any:`Tensor` to :any:`Buffer`, optional
+    binds: dict of :any:`Tensor` to :any:`tvm.tir.Buffer`, optional
         Dictionary that maps the Tensor to Buffer which specified the data layout
         requirement of the function. By default, a new compact buffer is created
         for each tensor in the argument.
