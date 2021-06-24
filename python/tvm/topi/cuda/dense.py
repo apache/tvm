@@ -104,7 +104,7 @@ def schedule_dense_small_batch(cfg, outs):
     s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
-        if op.tag == "dense":
+        if op.tag == "dense" or op.tag == "matmul":
             _schedule_dense_small_batch(cfg, s, op.output(0))
 
     traverse_inline(s, outs[0].op, _callback)

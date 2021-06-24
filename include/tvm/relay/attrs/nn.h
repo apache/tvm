@@ -961,7 +961,7 @@ struct AvgPool3DAttrs : public tvm::AttrsNode<AvgPool3DAttrs> {
   }
 };
 
-/*! \brief Attributes for matmul operator and dense operator */
+/*! \brief Attributes for matmul operator */
 struct MatmulAttrs : public tvm::AttrsNode<MatmulAttrs> {
   IndexExpr units;
   DataType out_dtype;

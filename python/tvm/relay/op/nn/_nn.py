@@ -53,7 +53,7 @@ reg.register_pattern("nn.log_softmax", OpPattern.OPAQUE)
 
 
 @reg.register_legalize("nn.matmul")
-def leaglize_matmul(attrs, inputs, types):
+def legalize_matmul(attrs, inputs, types):
     """Legalize matmul op.
 
     Parameters

@@ -557,6 +557,35 @@ def dense_grad(orig, grad):
     ]
 
 
+@register_gradient("nn.matmul")
+def matmul_grad(orig, grad):
+    """Returns [grad' @ weight, data @ grad']"""
+    data, weight = orig.args
+    if (orig.attrs["data_transposed"], orig.attrs["weight_transposed"]) == (True, True):
+        return [
+            collapse_sum_like(
+                _nn.matmul(weight, grad, data_transposed=True, weight_transposed=True), data
+            ),
+            collapse_sum_like(
+                _nn.matmul(grad, data, data_transposed=True, weight_transposed=True), weight
+            ),
+        ]
+    if (orig.attrs["data_transposed"], orig.attrs["weight_transposed"]) == (True, False):
+        return [
+            collapse_sum_like(_nn.matmul(weight, grad, weight_transposed=True), data),
+            collapse_sum_like(_nn.matmul(data, grad), weight),
+        ]
+    if (orig.attrs["data_transposed"], orig.attrs["weight_transposed"]) == (False, True):
+        # Keep using Dense op here for not involving extra ops
+        # TODO(jcf94): Merge all to nn.matmul when it is finally ready
+        return dense_grad(orig, grad)
+    # (orig.attrs["data_transposed"], orig.attrs["weight_transposed"]) == (False, False)
+    return [
+        collapse_sum_like(_nn.matmul(grad, weight, weight_transposed=True), data),
+        collapse_sum_like(_nn.matmul(data, grad, data_transposed=True), weight),
+    ]
+
+
 @register_gradient("nn.batch_matmul")
 def batch_matmul_grad(orig, grad):
     """gradient for nn.batch_matmul: in einsum LHS_bik,RHS_bjk->RES_bij

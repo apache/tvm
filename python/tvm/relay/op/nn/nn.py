@@ -1507,6 +1507,8 @@ def matmul(data, weight, units=None, out_dtype="", data_transposed=False, weight
     result : tvm.relay.Expr
         The computed result.
     """
+    if not data_transposed and weight_transposed:
+        return dense(data, weight, units, out_dtype)
     return _make.matmul(data, weight, units, out_dtype, data_transposed, weight_transposed)
 
 

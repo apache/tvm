@@ -370,6 +370,28 @@ def conv1d_strategy_cpu(attrs, inputs, out_type, target):
     return strategy
 
 
+@matmul_strategy.register("cpu")
+def matmul_strategy_cpu(attrs, inputs, out_type, target):
+    """matmul x86 strategy"""
+    strategy = _op.OpStrategy()
+    if is_auto_scheduler_enabled():
+        strategy.add_implementation(
+            wrap_compute_matmul(topi.nn.matmul, need_auto_scheduler_layout=True),
+            naive_schedule,
+            name="matmul.generic",
+            plevel=11,
+        )
+    else:
+        logger.warning("Matmul other than NT format is not optimized for x86.")
+        strategy.add_implementation(
+            wrap_compute_matmul(topi.nn.matmul),
+            naive_schedule,
+            name="matmul.generic",
+        )
+
+    return strategy
+
+
 @dense_strategy.register("cpu")
 def dense_strategy_cpu(attrs, inputs, out_type, target):
     """dense x86 strategy"""

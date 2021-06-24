@@ -164,17 +164,9 @@ Useful for
 
 // ------------------- relay.nn.matmul
 TVM_REGISTER_NODE_TYPE(MatmulAttrs);
-TVM_REGISTER_NODE_TYPE(DenseAttrs);
 
 Expr MakeMatmul(Expr data, Expr weight, IndexExpr units, DataType out_dtype, bool data_transposed,
                 bool weight_transposed) {
-  if (!data_transposed && weight_transposed) {
-    auto attrs = make_object<DenseAttrs>();
-    attrs->units = units;
-    attrs->out_dtype = out_dtype;
-    static const Op& dense_op = Op::Get("nn.dense");
-    return Call(dense_op, {data, weight}, Attrs(attrs), {});
-  } else {
     auto attrs = make_object<MatmulAttrs>();
     attrs->units = units;
     attrs->out_dtype = out_dtype;
@@ -182,7 +174,6 @@ Expr MakeMatmul(Expr data, Expr weight, IndexExpr units, DataType out_dtype, boo
     attrs->weight_transposed = weight_transposed;
     static const Op& matmul_op = Op::Get("nn.matmul");
     return Call(matmul_op, {data, weight}, Attrs(attrs), {});
-  }
 }
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.matmul").set_body_typed(MakeMatmul);
@@ -204,9 +195,15 @@ RELAY_REGISTER_OP("nn.matmul")
 // ------------------- relay.nn.matmul
 
 // ------------------- relay.nn.dense
+TVM_REGISTER_NODE_TYPE(DenseAttrs);
+
 // Positional relay function to create dense operator used by frontend FFI.
 Expr MakeDense(Expr data, Expr weight, IndexExpr units, DataType out_dtype) {
-  return MakeMatmul(data, weight, units, out_dtype, false, true);
+  auto attrs = make_object<DenseAttrs>();
+  attrs->units = units;
+  attrs->out_dtype = out_dtype;
+  static const Op& op = Op::Get("nn.dense");
+  return Call(op, {data, weight}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.dense").set_body_typed(MakeDense);

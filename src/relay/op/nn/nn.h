@@ -46,11 +46,13 @@ bool MatmulRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
   const AttrType* param = attrs.as<AttrType>();
   ICHECK(param != nullptr);
+  // Default set to dense layout
   bool data_transposed = false;
   bool weight_transposed = true;
-  if (attrs->IsInstance<MatmulAttrs>()) {
-    data_transposed = param->data_transposed;
-    weight_transposed = param->weight_transposed;
+  const auto& mattrs = attrs.as<MatmulAttrs>();
+  if (mattrs != nullptr) {
+    data_transposed = mattrs->data_transposed;
+    weight_transposed = mattrs->weight_transposed;
   }
 
   const Array<tvm::PrimExpr>& dshape = data->shape;
@@ -63,9 +65,8 @@ bool MatmulRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   if (param->units.defined()) {
     // validate the weight shape is proper if defined
     // Assign weight type
-    const Array<IndexExpr>& wshape = weight_transposed
-                                         ? Array<IndexExpr>({param->units, reduce})
-                                         : Array<IndexExpr>({reduce, param->units});
+    const Array<IndexExpr>& wshape = weight_transposed ? Array<IndexExpr>({param->units, reduce})
+                                                       : Array<IndexExpr>({reduce, param->units});
     // It is possible for weight to be nullptr in which case we will use
     // data dtype as the weight dtype. However if weight dtype is explicitly
     // present we will use that.
