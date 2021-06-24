@@ -2116,8 +2116,8 @@ class LSTM(RNN):
         Cp_0 = inputs[6]
         Pp = inputs[7]
 
-        num_directions = infer_shape(W)[0]
-        W_dtype = infer_type(W).checked_type.dtype
+        num_directions = infer_shape(Wp)[0]
+        W_dtype = infer_type(Wp).checked_type.dtype
 
         if num_directions not in [1, 2]:
             raise ValueError("num_directions must be either 1 or 2!")
