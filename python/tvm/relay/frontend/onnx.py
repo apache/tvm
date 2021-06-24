@@ -2132,6 +2132,8 @@ class LSTM(RNN):
             Hp_0 = _op.zeros((num_directions, batch_size, hidden_size), W_dtype)
         if Cp_0 is None:
             Cp_0 = _op.zeros((num_directions, batch_size, hidden_size), W_dtype)
+        if Bp is None:
+            Bp = _op.zeros((num_directions, hidden_size * 8), W_dtype)
         if Pp is not None:
             p_i, p_o, p_f = _op.split(Pp, 3, axis=1)
         else:
@@ -2181,14 +2183,14 @@ class LSTM(RNN):
         p_fs = _op.split(p_f, num_directions)
         p_os = _op.split(p_o, num_directions)
         for i in range(num_directions):
-            H_t = _op.squeeze(H_ts[i], axis=0)
-            C_t = _op.squeeze(C_ts[i], axis=0)
-            W = _op.squeeze(Ws[i], axis=0)
-            R = _op.squeeze(Rs[i], axis=0)
-            B = _op.squeeze(Bs[i], axis=0)
-            p_i = _op.squeeze(p_is[i], axis=0)
-            p_f = _op.squeeze(p_fs[i], axis=0)
-            p_o = _op.squeeze(p_os[i], axis=0)
+            H_t = _op.squeeze(H_ts[i], axis=[0])
+            C_t = _op.squeeze(C_ts[i], axis=[0])
+            W = _op.squeeze(Ws[i], axis=[0])
+            R = _op.squeeze(Rs[i], axis=[0])
+            B = _op.squeeze(Bs[i], axis=[0])
+            p_i = _op.squeeze(p_is[i], axis=[0])
+            p_f = _op.squeeze(p_fs[i], axis=[0])
+            p_o = _op.squeeze(p_os[i], axis=[0])
             output, H, C = LSTM.generate_lstm_forward(
                 X_steps=X_steps if i == 0 else X_steps[::-1],
                 H_t=H_t,
