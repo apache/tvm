@@ -69,6 +69,13 @@ def test_cast_grad():
     check_grad(fwd_func)
 
 
+def test_cast_like_grad():
+    data = relay.var("data", shape=(10, 4), dtype="float32")
+    like = relay.var("like", shape=(1,), dtype="float64")
+    fwd_func = relay.Function([data, like], relay.cast_like(data, like))
+    check_grad(fwd_func)
+
+
 def test_copy_grad():
     data = relay.var("data", relay.TensorType((10, 4), "float64"))
     fwd_func = relay.Function([data], relay.copy(data))
