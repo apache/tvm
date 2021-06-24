@@ -276,5 +276,14 @@ def test_span():
     assert "Add1" in txt
 
 
+def test_optional_info():
+    c = relay.const(1)
+    call = relay.add(c, c)
+    m = tvm.IRModule.from_expr(call)
+    m = relay.transform.InferType()(m)
+    txt = astext(m)
+    assert txt.count("/* ty=int32 */") == 3
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

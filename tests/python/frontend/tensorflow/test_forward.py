@@ -1851,6 +1851,9 @@ def test_forward_batch_matmul():
     _test_batch_matmul((1, 2, 3, 4, 5, 6), (1, 2, 3, 4, 6, 5), "float32", True, True)
     _test_batch_matmul((3, 4, 5, 6), (3, 4, 5, 6), "int32", True, False)
     _test_batch_matmul((2, 3, 4, 2, 3, 4, 5, 6), (2, 3, 4, 2, 3, 4, 5, 6), "float32", False, True)
+    _test_batch_matmul((1, 8, 64, 2), (2, 1), "float32", False, False)
+    _test_batch_matmul((1, 8, 8, 64), (64, 1), "float32", False, False)
+    _test_batch_matmul((1, 8, 64), (64, 1), "float32", False, False)
 
 
 @tvm.testing.requires_cuda
@@ -1876,6 +1879,20 @@ def test_forward_batch_matmul_dynamic():
         (None, None, None, 6, 5),
         (2, 3, 4, 5, 6),
         (2, 3, 4, 6, 5),
+        "float32",
+    )
+    _test_batch_matmul_dynamic(
+        (None, None, None, 5, 6),
+        (6, None),
+        (2, 3, 4, 5, 6),
+        (6, 1),
+        "float32",
+    )
+    _test_batch_matmul_dynamic(
+        (None, 5, 6),
+        (6, None),
+        (24, 5, 6),
+        (6, 1),
         "float32",
     )
 
@@ -5558,6 +5575,24 @@ def test_moments():
     """
     mod_golden = tvm.parser.parse('#[version = "0.0.5"]\n' + program)
     tvm.ir.assert_structural_equal(mod["main"].body, mod_golden["main"].body, map_free_vars=True)
+
+
+#######################################################################
+# invert_permutation
+# --------------------
+
+
+def test_invert_permutation():
+    """test InvertPermutation"""
+    tf.reset_default_graph()
+
+    input_shape = [6]
+    x = np.array([3, 4, 0, 2, 1, 5]).astype("int32")
+    with tf.Graph().as_default():
+        in_data = tf.placeholder(shape=input_shape, dtype="int32")
+        tf.invert_permutation(in_data)
+        out_name = "InvertPermutation:0"
+        compare_tf_with_tvm(x, "Placeholder:0", out_name, no_gpu=False)
 
 
 if __name__ == "__main__":

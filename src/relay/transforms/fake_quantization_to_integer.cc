@@ -146,7 +146,7 @@ class SubgraphExtractor : public ExprVisitor {
     return subgraph;
   }
   const AffineTypeMap GetAffineTypes() { return affine_types_; }
-  void VisitExpr(const Expr& expr) {
+  void VisitExpr(const Expr& expr) override {
     if (expr.as<CallNode>() == nullptr && expr.as<OpNode>() == nullptr &&
         expr.as<TupleNode>() == nullptr) {
       is_fake_quantized_ = false;

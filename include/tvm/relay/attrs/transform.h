@@ -148,7 +148,7 @@ struct GatherNDAttrs : public tvm::AttrsNode<GatherNDAttrs> {
   Integer batch_dims;
   Optional<Integer> index_rank;
 
-  TVM_DECLARE_ATTRS(GatherAttrs, "relay.attrs.GatherNDAttrs") {
+  TVM_DECLARE_ATTRS(GatherNDAttrs, "relay.attrs.GatherNDAttrs") {
     TVM_ATTR_FIELD(batch_dims).set_default(Integer(0)).describe("The number of batch dimensions.");
     TVM_ATTR_FIELD(index_rank)
         .set_default(NullValue<Integer>())

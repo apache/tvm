@@ -46,7 +46,7 @@ from .workload_registry import register_workload_tensors
 logger = logging.getLogger("auto_scheduler")
 
 
-def call_all_topi_funcs(mod, params, target):
+def call_all_topi_funcs(mod, params, target, opt_level=3):
     """Call all TOPI compute to extract auto_scheduler tasks in a Relay program"""
     # pylint: disable=import-outside-toplevel
     from tvm import relay
@@ -57,7 +57,7 @@ def call_all_topi_funcs(mod, params, target):
     autotvm.GLOBAL_SCOPE.silent = True
 
     with transform.PassContext(
-        opt_level=3,
+        opt_level=opt_level,
         config={
             "relay.backend.use_auto_scheduler": True,
             "relay.backend.disable_compile_engine_cache": True,
@@ -91,7 +91,13 @@ def call_all_topi_funcs(mod, params, target):
 
 
 def extract_tasks(
-    mod, params, target, target_host=None, hardware_params=None, include_simple_tasks=False
+    mod,
+    params,
+    target,
+    target_host=None,
+    hardware_params=None,
+    include_simple_tasks=False,
+    opt_level=3,
 ):
     """Extract tuning tasks from a relay program.
 
@@ -109,6 +115,8 @@ def extract_tasks(
         Hardware parameters used for the search tasks
     include_simple_tasks: bool
         Whether to extract simple tasks that do not include complicated ops.
+    opt_level : Optional[int]
+        The optimization level of the task extractions.
 
     Returns
     -------
@@ -132,7 +140,9 @@ def extract_tasks(
     with env:
         # Wrap build call in a new thread to avoid the conflict
         # between python's multiprocessing and tvm's thread pool
-        build_thread = threading.Thread(target=call_all_topi_funcs, args=(mod, params, target))
+        build_thread = threading.Thread(
+            target=call_all_topi_funcs, args=(mod, params, target, opt_level)
+        )
         build_thread.start()
         build_thread.join()
     dispatch_ctx.verbose = old_verbose

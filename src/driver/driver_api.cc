@@ -92,21 +92,61 @@ tir::Buffer BufferWithOffsetAlignment(Array<PrimExpr> shape, DataType dtype, std
                      offset_factor, buffer_type);
 }
 
-void GetBinds(const Array<te::Tensor>& args, bool compact,
+void GetBinds(const Array<ObjectRef>& args, bool compact,
               const std::unordered_map<te::Tensor, tir::Buffer>& binds,
               Map<te::Tensor, tir::Buffer>* out_binds, Array<ObjectRef>* out_arg_list) {
   *out_binds = binds;
 
-  for (const auto& x : args) {
-    if (out_binds->find(x) == out_binds->end()) {
-      auto buf = BufferWithOffsetAlignment(x->shape, x->dtype, x->op->name, -1, 0, compact);
-      out_binds->Set(x, buf);
-      out_arg_list->push_back(buf);
+  for (const ObjectRef& x : args) {
+    if (const te::TensorNode* tensor_node = x.as<te::TensorNode>()) {
+      te::Tensor x_ref = GetRef<te::Tensor>(tensor_node);
+      if (out_binds->find(x_ref) == out_binds->end()) {
+        tir::Buffer buf =
+            BufferWithOffsetAlignment(x_ref->shape, x_ref->dtype, x_ref->op->name, -1, 0, compact);
+        out_binds->Set(x_ref, buf);
+        out_arg_list->push_back(buf);
+      } else {
+        out_arg_list->push_back((*out_binds)[x_ref]);
+      }
+    } else if (x.as<te::BufferNode>() || x.as<tir::VarNode>()) {
+      out_arg_list->push_back(x);
     } else {
-      out_arg_list->push_back((*out_binds)[x]);
+      LOG(FATAL)
+          << "Expected type of the elements of args to be te::Tensor, te::Buffer or tir::Var, "
+          << "but got a " << x->GetTypeKey();
     }
   }
 }
+
+void GetBinds(const Array<te::Tensor>& args, bool compact,
+              const std::unordered_map<te::Tensor, tir::Buffer>& binds,
+              Map<te::Tensor, tir::Buffer>* out_binds, Array<ObjectRef>* out_arg_list) {
+  Array<ObjectRef> ref_args;
+  for (ObjectRef x : args) {
+    ref_args.push_back(x);
+  }
+  GetBinds(ref_args, compact, binds, out_binds, out_arg_list);
+}
+
+TVM_REGISTER_GLOBAL("driver.get_binds")
+    .set_body_typed([](const Array<ObjectRef>& args, bool compact,
+                       const Map<te::Tensor, tir::Buffer>& binds) {
+      std::unordered_map<te::Tensor, tir::Buffer> c_binds;
+      // Check to make sure binds is not null before doing the conversion;
+      if (binds.get() != nullptr) {
+        for (auto kv : binds) {
+          c_binds.insert({kv.first, kv.second});
+        }
+      }
+      Map<te::Tensor, tir::Buffer> out_binds;
+      Array<ObjectRef> out_arg_list;
+      GetBinds(args, compact, c_binds, &out_binds, &out_arg_list);
+
+      // TVM object system doesn't have a pair object, so we'll put both ret values in an array
+      // and return that.
+      Array<ObjectRef> out_arr = {out_binds, out_arg_list};
+      return out_arr;
+    });
 
 transform::Pass BindTarget(Target target) {
   auto fpass = [target](tir::PrimFunc f, IRModule m, transform::PassContext ctx) {
@@ -127,62 +167,207 @@ transform::Pass Filter(FCond fcond) {
   return tir::transform::CreatePrimFuncPass(fpass, 0, "Filter", {});
 }
 
-IRModule lower(te::Schedule sch, const Array<te::Tensor>& args, const std::string& name,
-               const std::unordered_map<te::Tensor, tir::Buffer>& binds) {
-  Array<ObjectRef> out_arg_list;
-  auto pass_ctx = transform::PassContext::Current();
+Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition, bool for_te_schedule) {
+  transform::PassContext pass_ctx = transform::PassContext::Current();
 
-  sch = sch.normalize();
-
-  // Before TIR transformation.
-  auto bounds = te::InferBound(sch);
-  auto stmt = te::ScheduleOps(sch, bounds, false);
-  bool compact = te::VerifyCompactBuffer(stmt);
-
-  Map<te::Tensor, tir::Buffer> out_binds;
-  GetBinds(args, compact, binds, &out_binds, &out_arg_list);
-
-  // build the function
-  tir::PrimFunc f = te::SchedulePostProcToPrimFunc(out_arg_list, std::move(stmt), out_binds);
-  f = WithAttr(std::move(f), "global_symbol", runtime::String(name));
-
-  bool noalias = pass_ctx->GetConfig<Bool>("tir.noalias", Bool(true)).value();
   bool disable_vectorize = pass_ctx->GetConfig<Bool>("tir.disable_vectorize", Bool(false)).value();
   bool instrument_bound_checkers =
       pass_ctx->GetConfig<Bool>("tir.instrument_bound_checkers", Bool(false)).value();
 
-  if (noalias) {
-    f = WithAttr(std::move(f), "tir.noalias", Bool(true));
+  // Get any user-added passes
+  Array<Array<ObjectRef>> add_lower_pass =
+      pass_ctx->GetConfig<Array<Array<ObjectRef>>>("tir.add_lower_pass", Array<Array<ObjectRef>>())
+          .value();
+
+  Array<transform::Pass> user_lower_phase0 = Array<transform::Pass>();
+  Array<transform::Pass> user_lower_phase1 = Array<transform::Pass>();
+  Array<transform::Pass> user_lower_phase2 = Array<transform::Pass>();
+  Array<transform::Pass> user_lower_phase3 = Array<transform::Pass>();
+
+  // phase pasees is of the form
+  // [[phase_number, pass], [phase_number, pass]... ]
+  for (Array<ObjectRef> phase_pass : add_lower_pass) {
+    const IntImmNode* phase_num = phase_pass[0].as<IntImmNode>();
+    ICHECK(phase_num)
+        << "Expected the first entry in the inner Array of tir.add_lower_pass to be an integer";
+    int phase_num_val = phase_num->value;
+
+    CHECK_GE(phase_num_val, 0);
+
+    const tvm::transform::PassNode* pass_node = phase_pass[1].as<tvm::transform::PassNode>();
+    tvm::transform::Pass pass = GetRef<tvm::transform::Pass>(pass_node);
+    // Copy the pass into the correct phase
+    if (phase_num_val == 0) {
+      user_lower_phase0.push_back(pass);
+    } else if (phase_num_val == 1) {
+      user_lower_phase1.push_back(pass);
+    } else if (phase_num_val == 2) {
+      user_lower_phase2.push_back(pass);
+    } else if (phase_num_val >= 3) {
+      user_lower_phase3.push_back(pass);
+    }
   }
 
-  auto mod = IRModule(Map<GlobalVar, BaseFunc>({{GlobalVar(name), f}}));
-  auto pass_list = Array<tvm::transform::Pass>();
+  // Construct the pass list, inserting the user provided passes at the end of the phase
 
-  // Phase 0
-  pass_list.push_back(tir::transform::InjectPrefetch());
-  pass_list.push_back(tir::transform::StorageFlatten(64, instrument_bound_checkers));
-  // Phase 1
+  // PHASE 0
+  Array<tvm::transform::Pass> pass_list = user_lower_phase0;
+
+  // PHASE 1
+  if (for_te_schedule) {
+    pass_list.push_back(tir::transform::InjectPrefetch());
+    pass_list.push_back(tir::transform::StorageFlatten(64, instrument_bound_checkers));
+  } else {
+    pass_list.push_back(tir::transform::LowerInitBlock());
+    pass_list.push_back(tir::transform::PlanAndUpdateBufferAllocationLocation());
+    pass_list.push_back(tir::transform::ConvertBlocksToOpaque());
+    pass_list.push_back(tir::transform::CompactBufferAllocation());
+    pass_list.push_back(tir::transform::FlattenBuffer());
+  }
   pass_list.push_back(tir::transform::BF16Legalize());
   pass_list.push_back(tir::transform::NarrowDataType(32));
   pass_list.push_back(tir::transform::Simplify());
-  pass_list.push_back(tir::transform::LoopPartition());
+
+  // Add user-defined phase-1 passes
+  pass_list.insert(pass_list.end(), user_lower_phase1.begin(), user_lower_phase1.end());
+
+  // PHASE 2
+  if (!disable_loop_partition) {
+    pass_list.push_back(tir::transform::LoopPartition());
+  }
+
   pass_list.push_back(tir::transform::VectorizeLoop(!disable_vectorize));
   pass_list.push_back(tir::transform::InjectVirtualThread());
   pass_list.push_back(tir::transform::InjectDoubleBuffer());
   pass_list.push_back(tir::transform::StorageRewrite());
   pass_list.push_back(tir::transform::UnrollLoop());
-  // Phase 2
+
+  // Add user-defined phase-2 passes
+  pass_list.insert(pass_list.end(), user_lower_phase2.begin(), user_lower_phase2.end());
+
+  // PHASE 3
   pass_list.push_back(tir::transform::Simplify());
   pass_list.push_back(tir::transform::RemoveNoOp());
   pass_list.push_back(tir::transform::RewriteUnsafeSelect());
+  pass_list.push_back(tir::transform::HoistIfThenElse());
+
+  // Add user-defined phase-3 passes
+  pass_list.insert(pass_list.end(), user_lower_phase3.begin(), user_lower_phase3.end());
+
   if (instrument_bound_checkers) {
     pass_list.push_back(tir::transform::InstrumentBoundCheckers());
   }
-  // run
-  auto optimize = transform::Sequential(pass_list);
+  return pass_list;
+}
+
+IRModule LowerWithPassList(IRModule mod, Array<tvm::transform::Pass> pass_list) {
+  auto optimize = tvm::transform::Sequential(pass_list);
   mod = optimize(std::move(mod));
   return mod;
 }
+
+IRModule ScheduleToModule(te::Schedule sch, const Array<ObjectRef>& args, const std::string& name,
+                          const std::unordered_map<te::Tensor, tir::Buffer>& binds) {
+  // Convert te schedule to IRModule
+  Array<ObjectRef> out_arg_list;
+  transform::PassContext pass_ctx = transform::PassContext::Current();
+
+  sch = sch.normalize();
+
+  // Before TIR transformation.
+  Map<tir::IterVar, Range> bounds = te::InferBound(sch);
+  tir::Stmt stmt = te::ScheduleOps(sch, std::move(bounds), false);
+  bool compact = te::VerifyCompactBuffer(stmt);
+
+  Map<te::Tensor, tir::Buffer> out_binds;
+  GetBinds(args, compact, binds, &out_binds, &out_arg_list);
+
+  // Build the function
+  // At this point binds is only te::Tensors
+  tir::PrimFunc f = te::SchedulePostProcToPrimFunc(out_arg_list, std::move(stmt), out_binds);
+  f = WithAttr(std::move(f), "global_symbol", runtime::String(name));
+
+  bool noalias = pass_ctx->GetConfig<Bool>("tir.noalias", Bool(true)).value();
+
+  if (noalias) {
+    f = WithAttr(std::move(f), "tir.noalias", Bool(true));
+  }
+  return IRModule(Map<GlobalVar, BaseFunc>({{GlobalVar(name), f}}));
+}
+
+TVM_REGISTER_GLOBAL("driver.schedule_to_module")
+    .set_body_typed([](te::Schedule sch, const Array<ObjectRef>& args, const String& name,
+                       const Map<te::Tensor, tir::Buffer>& binds) {
+      std::unordered_map<te::Tensor, tir::Buffer> c_binds;
+      // Check to make sure binds is not null before doing the conversion;
+      if (binds.get() != nullptr) {
+        for (auto kv : binds) {
+          c_binds.insert({kv.first, kv.second});
+        }
+      }
+      IRModule mod = ScheduleToModule(std::move(sch), args, name, c_binds);
+      return mod;
+    });
+
+IRModule LowerModule(IRModule mod, bool simple_mode) {
+  Array<transform::Pass> pass_list = CreatePassList(simple_mode, false);
+  return LowerWithPassList(std::move(mod), pass_list);
+}
+
+TVM_REGISTER_GLOBAL("driver.lower_module").set_body_typed([](IRModule mod, bool simple_mode) {
+  return LowerModule(std::move(mod), simple_mode);
+});
+
+IRModule LowerPrimFunc(tir::PrimFunc func, const std::string& name, bool simple_mode) {
+  transform::PassContext pass_ctx = transform::PassContext::Current();
+  tir::PrimFunc f = WithAttr(std::move(func), "global_symbol", runtime::String(name));
+
+  bool noalias = pass_ctx->GetConfig<Bool>("tir.noalias", Bool(true)).value();
+
+  if (noalias) {
+    f = WithAttr(std::move(f), "tir.noalias", Bool(true));
+  }
+  IRModule mod = IRModule(Map<GlobalVar, BaseFunc>({{GlobalVar(name), f}}));
+
+  // Get the pass list
+  Array<transform::Pass> pass_list = CreatePassList(simple_mode, false);
+  return LowerWithPassList(std::move(mod), pass_list);
+}
+
+TVM_REGISTER_GLOBAL("driver.lower_primfunc")
+    .set_body_typed([](te::PrimFunc func, const String& name, bool simple_mode) {
+      return LowerPrimFunc(std::move(func), name, simple_mode);
+    });
+
+IRModule LowerSchedule(te::Schedule sch, const Array<te::Tensor>& args, const std::string& name,
+                       const std::unordered_map<te::Tensor, tir::Buffer>& binds, bool simple_mode) {
+  Array<ObjectRef> ref_args;
+  for (ObjectRef x : args) {
+    ref_args.push_back(x);
+  }
+  return LowerSchedule(std::move(sch), ref_args, name, binds);
+}
+
+IRModule LowerSchedule(te::Schedule sch, const Array<ObjectRef>& args, const std::string& name,
+                       const std::unordered_map<te::Tensor, tir::Buffer>& binds, bool simple_mode) {
+  IRModule mod = ScheduleToModule(std::move(sch), args, name, binds);
+  // Get the legacy TE pass list
+  Array<transform::Pass> pass_list = CreatePassList(simple_mode, true);
+  return LowerWithPassList(mod, pass_list);
+}
+
+TVM_REGISTER_GLOBAL("driver.lower_schedule")
+    .set_body_typed([](te::Schedule sch, const Array<ObjectRef>& args, const String& name,
+                       const Map<te::Tensor, tir::Buffer>& binds, bool simple_mode) {
+      std::unordered_map<te::Tensor, tir::Buffer> c_binds;
+      // Check to make sure binds is not null before doing the conversion;
+      if (binds.get() != nullptr) {
+        for (auto kv : binds) {
+          c_binds.insert({kv.first, kv.second});
+        }
+      }
+      return LowerSchedule(std::move(sch), args, name, c_binds, simple_mode);
+    });
 
 std::pair<IRModule, IRModule> SplitDevHostFuncs(IRModule mod_mixed, const Target& target_arg,
                                                 const Target& target_host_arg,

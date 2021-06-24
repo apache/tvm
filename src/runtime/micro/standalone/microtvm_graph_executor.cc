@@ -17,7 +17,7 @@
  * under the License.
  */
 
-#include "utvm_graph_executor.h"
+#include "microtvm_graph_executor.h"
 
 #include <dlfcn.h>
 

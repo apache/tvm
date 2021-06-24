@@ -186,6 +186,11 @@ def opaque_axis(begin, end, span):
 
 
 @register
+def Select(cond, if_body, else_body, span):  # pylint: disable=invalid-name
+    return tvm.tir.Select(cond, if_body, else_body, span)
+
+
+@register
 class EvaluateIntrin(Intrin):
     def __init__(self):
         def evaluate(value, span):
