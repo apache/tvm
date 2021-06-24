@@ -89,7 +89,7 @@ inline Layout AdjustSubordinateFactors(const Layout& src_layout, const Layout& o
  * \brief An output structure to hold results from FInferCorrectLayout calls.
  * \tparam inferred_layout An array of two elements, inferred input layouts and
  *                         inferred output layouts.
- * \tparam new_attrs Updated attributes consistent with new inferred layouts
+ * \tparam new_attrs Updated attributes consistent with inferred layouts
  */
 class InferCorrectLayoutOutputNode : public Object {
  public:

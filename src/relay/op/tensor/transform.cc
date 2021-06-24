@@ -483,10 +483,15 @@ InferCorrectLayoutOutput TransposeInferCorrectLayout(const Attrs& attrs,
       ICHECK_LT(axis->value, in_layout_str.length());
       out_layout_str += in_layout_str[axis->value];
     }
-    return InferCorrectLayoutOutput(
-        Array<Array<Layout>>({{Layout(in_layout_str)}, {Layout(out_layout_str)}}), new_attrs);
+    try {
+      return InferCorrectLayoutOutput({{Layout(in_layout_str)}, {Layout(out_layout_str)}},
+                                      new_attrs);
+    } catch (const tvm::Error& e) {
+      // If the layout string is invalid for any reason, give up.
+      return InferCorrectLayoutOutput({{Layout::Undef()}, {Layout::Undef()}}, attrs);
+    }
   }
-  return InferCorrectLayoutOutput({{Layout::Undef()}, {Layout::Undef()}}, new_attrs);
+  return InferCorrectLayoutOutput({{Layout::Undef()}, {Layout::Undef()}}, attrs);
 }
 
 Array<te::Tensor> TransposeCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
