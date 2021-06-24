@@ -34,18 +34,9 @@ from .. import op as _op
 from .. import qnn as _qnn
 from .. import ty as _ty
 from .. import vision as _vision
-from .common import (
-    AttrCvt,
-    Renamer,
-    fold_constant,
-    get_name,
-    get_relay_op,
-    infer_channels,
-    infer_shape,
-    infer_type,
-    infer_value,
-    new_var,
-)
+from .common import (AttrCvt, Renamer, fold_constant, get_name, get_relay_op,
+                     infer_channels, infer_shape, infer_type, infer_value,
+                     new_var)
 
 __all__ = ["from_onnx"]
 
@@ -2149,8 +2140,8 @@ class LSTM(RNN):
 
         if "activations" in attr:
             activations = attr["activations"]
-            if len(activations) != 3:
-                raise NotImplementedError("LSTM assumes 3 activation functions are provided")
+            if len(activations) != 3 * num_directions:
+                raise NotImplementedError(f"LSTM assumes 3 * num_directions activation functions are provided")
             alpha_loc = 0
             alphas = attr.get("activation_alpha", [])
             if isinstance(alphas, float):
