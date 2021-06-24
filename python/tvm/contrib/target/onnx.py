@@ -618,7 +618,7 @@ class ConstantOfShapeOnes(ConstantOfShapeZeros):
 
 
 class LRN(OpConverter):
-    """ Operator converter for LRN."""
+    """Operator converter for LRN."""
 
     @classmethod
     def convert_attributes(cls, attrs):
@@ -627,7 +627,7 @@ class LRN(OpConverter):
             "beta": attrs.beta,
             "bias": attrs.bias,
             "size": attrs.size
-            #axis?
+            # axis?
         }
 
 
