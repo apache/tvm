@@ -2141,7 +2141,9 @@ class LSTM(RNN):
         if "activations" in attr:
             activations = attr["activations"]
             if len(activations) != 3 * num_directions:
-                raise NotImplementedError(f"LSTM assumes 3 * num_directions activation functions are provided")
+                raise NotImplementedError(
+                    f"LSTM assumes 3 * num_directions activation functions are provided"
+                )
             alpha_loc = 0
             alphas = attr.get("activation_alpha", [])
             if isinstance(alphas, float):
@@ -2151,7 +2153,7 @@ class LSTM(RNN):
             if isinstance(betas, float):
                 betas = [betas]
             acts = []
-            for i in range(3):
+            for i in range(3 * num_directions):
                 alpha = None
                 beta = None
                 activation = activations[i]
@@ -2162,11 +2164,8 @@ class LSTM(RNN):
                     beta = betas[beta_loc]
                     beta_loc += 1
                 acts.append(cls._activation_helper(activation, alpha, beta))
-            f_act, g_act, h_act = acts
         else:
-            f_act = _op.sigmoid
-            g_act = _op.tanh
-            h_act = _op.tanh
+            acts = [_op.sigmoid, _op.tanh, _op.tanh] * num_directions
 
         X_steps = _op.split(X, indices_or_sections=X_shape[0], axis=0)
         result_output = []
@@ -2190,6 +2189,8 @@ class LSTM(RNN):
             p_i = _op.squeeze(p_is[i], axis=[0])
             p_f = _op.squeeze(p_fs[i], axis=[0])
             p_o = _op.squeeze(p_os[i], axis=[0])
+
+            f_act, g_act, h_act = acts[i * 3 : (i + 1) * 3]
             output, H, C = LSTM.generate_lstm(
                 X_steps=X_steps,
                 H_t=H_t,
