@@ -54,11 +54,16 @@ fpgas), we need to add a new marker in `tests/python/pytest.ini` and a new
 function in this module. Then targets using this node should be added to the
 `TVM_TEST_TARGETS` environment variable in the CI.
 """
+import collections
+import copy
+import functools
 import logging
 import os
 import sys
 import time
+import pickle
 import pytest
+import _pytest
 import numpy as np
 import tvm
 import tvm.arith
@@ -66,6 +71,7 @@ import tvm.tir
 import tvm.te
 import tvm._ffi
 from tvm.contrib import nvcc
+from tvm.error import TVMError
 
 
 def assert_allclose(actual, desired, rtol=1e-7, atol=1e-7):
@@ -366,24 +372,44 @@ def check_int_constraints_trans_consistency(constraints_trans, vranges=None):
     )
 
 
-def _get_targets():
-    target_str = os.environ.get("TVM_TEST_TARGETS", "")
+def _get_targets(target_str=None):
+    if target_str is None:
+        target_str = os.environ.get("TVM_TEST_TARGETS", "")
+
     if len(target_str) == 0:
         target_str = DEFAULT_TEST_TARGETS
-    targets = set()
-    for dev in target_str.split(";"):
-        if len(dev) == 0:
-            continue
-        target_kind = dev.split()[0]
-        if tvm.runtime.enabled(target_kind) and tvm.device(target_kind, 0).exist:
-            targets.add(dev)
-    if len(targets) == 0:
-        logging.warning(
-            "None of the following targets are supported by this build of TVM: %s."
-            " Try setting TVM_TEST_TARGETS to a supported target. Defaulting to llvm.",
-            target_str,
+
+    target_names = set(t.strip() for t in target_str.split(";") if t.strip())
+
+    targets = []
+    for target in target_names:
+        target_kind = target.split()[0]
+        is_enabled = tvm.runtime.enabled(target_kind)
+        is_runnable = is_enabled and tvm.device(target_kind).exist
+        targets.append(
+            {
+                "target": target,
+                "target_kind": target_kind,
+                "is_enabled": is_enabled,
+                "is_runnable": is_runnable,
+            }
         )
-        return {"llvm"}
+
+    if all(not t["is_runnable"] for t in targets):
+        if tvm.runtime.enabled("llvm"):
+            logging.warning(
+                "None of the following targets are supported by this build of TVM: %s."
+                " Try setting TVM_TEST_TARGETS to a supported target. Defaulting to llvm.",
+                target_str,
+            )
+            return _get_targets("llvm")
+
+        raise TVMError(
+            "None of the following targets are supported by this build of TVM: %s."
+            " Try setting TVM_TEST_TARGETS to a supported target."
+            " Cannot default to llvm, as it is not enabled." % target_str
+        )
+
     return targets
 
 
@@ -425,22 +451,22 @@ def device_enabled(target):
     nodes and `target="llvm"` on cpu test nodes.
     """
     assert isinstance(target, str), "device_enabled requires a target as a string"
-    target_kind = target.split(" ")[
-        0
-    ]  # only check if device name is found, sometime there are extra flags
-    return any([target_kind in test_target for test_target in _get_targets()])
+    # only check if device name is found, sometime there are extra flags
+    target_kind = target.split(" ")[0]
+    return any(target_kind == t["target_kind"] for t in _get_targets() if t["is_runnable"])
 
 
 def enabled_targets():
-    """Get all enabled targets with associated contexts.
+    """Get all enabled targets with associated devices.
 
     In most cases, you should use :py:func:`tvm.testing.parametrize_targets` instead of
     this function.
 
-    In this context, enabled means that TVM was built with support for this
-    target and the target name appears in the TVM_TEST_TARGETS environment
-    variable. If TVM_TEST_TARGETS is not set, it defaults to variable
-    DEFAULT_TEST_TARGETS in this module.
+    In this context, enabled means that TVM was built with support for
+    this target, the target name appears in the TVM_TEST_TARGETS
+    environment variable, and a suitable device for running this
+    target exists.  If TVM_TEST_TARGETS is not set, it defaults to
+    variable DEFAULT_TEST_TARGETS in this module.
 
     If you use this function in a test, you **must** decorate the test with
     :py:func:`tvm.testing.uses_gpu` (otherwise it will never be run on the gpu).
@@ -449,8 +475,9 @@ def enabled_targets():
     -------
     targets: list
         A list of pairs of all enabled devices and the associated context
+
     """
-    return [(tgt, tvm.device(tgt)) for tgt in _get_targets()]
+    return [(t["target"], tvm.device(t["target"])) for t in _get_targets() if t["is_runnable"]]
 
 
 def _compose(args, decs):
@@ -519,6 +546,26 @@ def requires_cuda(*args):
         *requires_gpu(),
     ]
     return _compose(args, _requires_cuda)
+
+
+def requires_nvptx(*args):
+    """Mark a test as requiring the NVPTX compilation on the CUDA runtime
+
+    This also marks the test as requiring a cuda gpu, and requiring
+    LLVM support.
+
+    Parameters
+    ----------
+    f : function
+        Function to mark
+
+    """
+    _requires_nvptx = [
+        pytest.mark.skipif(not device_enabled("nvptx"), reason="NVPTX support not enabled"),
+        *requires_llvm(),
+        *requires_gpu(),
+    ]
+    return _compose(args, _requires_nvptx)
 
 
 def requires_cudagraph(*args):
@@ -691,7 +738,7 @@ def _target_to_requirement(target):
     if target.startswith("vulkan"):
         return requires_vulkan()
     if target.startswith("nvptx"):
-        return [*requires_llvm(), *requires_gpu()]
+        return requires_nvptx()
     if target.startswith("metal"):
         return requires_metal()
     if target.startswith("opencl"):
@@ -701,11 +748,90 @@ def _target_to_requirement(target):
     return []
 
 
-def parametrize_targets(*args):
-    """Parametrize a test over all enabled targets.
+def _pytest_target_params(targets, excluded_targets=None, xfail_targets=None):
+    # Include unrunnable targets here.  They get skipped by the
+    # pytest.mark.skipif in _target_to_requirement(), showing up as
+    # skipped tests instead of being hidden entirely.
+    if targets is None:
+        if excluded_targets is None:
+            excluded_targets = set()
 
-    Use this decorator when you want your test to be run over a variety of
-    targets and devices (including cpu and gpu devices).
+        if xfail_targets is None:
+            xfail_targets = set()
+
+        target_marks = []
+        for t in _get_targets():
+            # Excluded targets aren't included in the params at all.
+            if t["target_kind"] not in excluded_targets:
+
+                # Known failing targets are included, but are marked
+                # as expected to fail.
+                extra_marks = []
+                if t["target_kind"] in xfail_targets:
+                    extra_marks.append(
+                        pytest.mark.xfail(
+                            reason='Known failing test for target "{}"'.format(t["target_kind"])
+                        )
+                    )
+
+                target_marks.append((t["target"], extra_marks))
+
+    else:
+        target_marks = [(target, []) for target in targets]
+
+    return [
+        pytest.param(target, marks=_target_to_requirement(target) + extra_marks)
+        for target, extra_marks in target_marks
+    ]
+
+
+def _auto_parametrize_target(metafunc):
+    """Automatically applies parametrize_targets
+
+    Used if a test function uses the "target" fixture, but isn't
+    already marked with @tvm.testing.parametrize_targets.  Intended
+    for use in the pytest_generate_tests() handler of a conftest.py
+    file.
+
+    """
+    if "target" in metafunc.fixturenames:
+        parametrized_args = [
+            arg.strip()
+            for mark in metafunc.definition.iter_markers("parametrize")
+            for arg in mark.args[0].split(",")
+        ]
+
+        if "target" not in parametrized_args:
+            # Check if the function is marked with either excluded or
+            # known failing targets.
+            excluded_targets = getattr(metafunc.function, "tvm_excluded_targets", [])
+            xfail_targets = getattr(metafunc.function, "tvm_known_failing_targets", [])
+            metafunc.parametrize(
+                "target",
+                _pytest_target_params(None, excluded_targets, xfail_targets),
+                scope="session",
+            )
+
+
+def parametrize_targets(*args):
+    """Parametrize a test over a specific set of targets.
+
+    Use this decorator when you want your test to be run over a
+    specific set of targets and devices.  It is intended for use where
+    a test is applicable only to a specific target, and is
+    inapplicable to any others (e.g. verifying target-specific
+    assembly code matches known assembly code).  In most
+    circumstances, :py:func:`tvm.testing.exclude_targets` or
+    :py:func:`tvm.testing.known_failing_targets` should be used
+    instead.
+
+    If used as a decorator without arguments, the test will be
+    parametrized over all targets in
+    :py:func:`tvm.testing.enabled_targets`.  This behavior is
+    automatically enabled for any target that accepts arguments of
+    ``target`` or ``dev``, so the explicit use of the bare decorator
+    is no longer needed, and is maintained for backwards
+    compatibility.
 
     Parameters
     ----------
@@ -718,31 +844,421 @@ def parametrize_targets(*args):
 
     Example
     -------
-    >>> @tvm.testing.parametrize
-    >>> def test_mytest(target, dev):
-    >>>     ...  # do something
-
-    Or
-
-    >>> @tvm.testing.parametrize("llvm", "cuda")
+    >>> @tvm.testing.parametrize_targets("llvm", "cuda")
     >>> def test_mytest(target, dev):
     >>>     ...  # do something
     """
 
     def wrap(targets):
         def func(f):
-            params = [
-                pytest.param(target, tvm.device(target, 0), marks=_target_to_requirement(target))
-                for target in targets
-            ]
-            return pytest.mark.parametrize("target,dev", params)(f)
+            return pytest.mark.parametrize(
+                "target", _pytest_target_params(targets), scope="session"
+            )(f)
 
         return func
 
     if len(args) == 1 and callable(args[0]):
-        targets = [t for t, _ in enabled_targets()]
-        return wrap(targets)(args[0])
+        return wrap(None)(args[0])
     return wrap(args)
+
+
+def exclude_targets(*args):
+    """Exclude a test from running on a particular target.
+
+    Use this decorator when you want your test to be run over a
+    variety of targets and devices (including cpu and gpu devices),
+    but want to exclude some particular target or targets.  For
+    example, a test may wish to be run against all targets in
+    tvm.testing.enabled_targets(), except for a particular target that
+    does not support the capabilities.
+
+    Applies pytest.mark.skipif to the targets given.
+
+    Parameters
+    ----------
+    f : function
+        Function to parametrize. Must be of the form `def test_xxxxxxxxx(target, dev)`:,
+        where `xxxxxxxxx` is any name.
+    targets : list[str]
+        Set of targets to exclude.
+
+    Example
+    -------
+    >>> @tvm.testing.exclude_targets("cuda")
+    >>> def test_mytest(target, dev):
+    >>>     ...  # do something
+
+    Or
+
+    >>> @tvm.testing.exclude_targets("llvm", "cuda")
+    >>> def test_mytest(target, dev):
+    >>>     ...  # do something
+
+    """
+
+    def wraps(func):
+        func.tvm_excluded_targets = args
+        return func
+
+    return wraps
+
+
+def known_failing_targets(*args):
+    """Skip a test that is known to fail on a particular target.
+
+    Use this decorator when you want your test to be run over a
+    variety of targets and devices (including cpu and gpu devices),
+    but know that it fails for some targets.  For example, a newly
+    implemented runtime may not support all features being tested, and
+    should be excluded.
+
+    Applies pytest.mark.xfail to the targets given.
+
+    Parameters
+    ----------
+    f : function
+        Function to parametrize. Must be of the form `def test_xxxxxxxxx(target, dev)`:,
+        where `xxxxxxxxx` is any name.
+    targets : list[str]
+        Set of targets to skip.
+
+    Example
+    -------
+    >>> @tvm.testing.known_failing_targets("cuda")
+    >>> def test_mytest(target, dev):
+    >>>     ...  # do something
+
+    Or
+
+    >>> @tvm.testing.known_failing_targets("llvm", "cuda")
+    >>> def test_mytest(target, dev):
+    >>>     ...  # do something
+
+    """
+
+    def wraps(func):
+        func.tvm_known_failing_targets = args
+        return func
+
+    return wraps
+
+
+def parameter(*values, ids=None):
+    """Convenience function to define pytest parametrized fixtures.
+
+    Declaring a variable using ``tvm.testing.parameter`` will define a
+    parametrized pytest fixture that can be used by test
+    functions. This is intended for cases that have no setup cost,
+    such as strings, integers, tuples, etc.  For cases that have a
+    significant setup cost, please use :py:func:`tvm.testing.fixture`
+    instead.
+
+    If a test function accepts multiple parameters defined using
+    ``tvm.testing.parameter``, then the test will be run using every
+    combination of those parameters.
+
+    The parameter definition applies to all tests in a module.  If a
+    specific test should have different values for the parameter, that
+    test should be marked with ``@pytest.mark.parametrize``.
+
+    Parameters
+    ----------
+    values
+       A list of parameter values.  A unit test that accepts this
+       parameter as an argument will be run once for each parameter
+       given.
+
+    ids : List[str], optional
+       A list of names for the parameters.  If None, pytest will
+       generate a name from the value.  These generated names may not
+       be readable/useful for composite types such as tuples.
+
+    Returns
+    -------
+    function
+       A function output from pytest.fixture.
+
+    Example
+    -------
+    >>> size = tvm.testing.parameter(1, 10, 100)
+    >>> def test_using_size(size):
+    >>>     ... # Test code here
+
+    Or
+
+    >>> shape = tvm.testing.parameter((5,10), (512,1024), ids=['small','large'])
+    >>> def test_using_size(shape):
+    >>>     ... # Test code here
+
+    """
+
+    # Optional cls parameter in case a parameter is defined inside a
+    # class scope.
+    @pytest.fixture(params=values, ids=ids)
+    def as_fixture(*_cls, request):
+        return request.param
+
+    return as_fixture
+
+
+_parametrize_group = 0
+
+
+def parameters(*value_sets):
+    """Convenience function to define pytest parametrized fixtures.
+
+    Declaring a variable using tvm.testing.parameters will define a
+    parametrized pytest fixture that can be used by test
+    functions. Like :py:func:`tvm.testing.parameter`, this is intended
+    for cases that have no setup cost, such as strings, integers,
+    tuples, etc.  For cases that have a significant setup cost, please
+    use :py:func:`tvm.testing.fixture` instead.
+
+    Unlike :py:func:`tvm.testing.parameter`, if a test function
+    accepts multiple parameters defined using a single call to
+    ``tvm.testing.parameters``, then the test will only be run once
+    for each set of parameters, not for all combinations of
+    parameters.
+
+    These parameter definitions apply to all tests in a module.  If a
+    specific test should have different values for some parameters,
+    that test should be marked with ``@pytest.mark.parametrize``.
+
+    Parameters
+    ----------
+    values : List[tuple]
+       A list of parameter value sets.  Each set of values represents
+       a single combination of values to be tested.  A unit test that
+       accepts parameters defined will be run once for every set of
+       parameters in the list.
+
+    Returns
+    -------
+    List[function]
+       Function outputs from pytest.fixture.  These should be unpacked
+       into individual named parameters.
+
+    Example
+    -------
+    >>> size, dtype = tvm.testing.parameters( (16,'float32'), (512,'float16') )
+    >>> def test_feature_x(size, dtype):
+    >>>     # Test code here
+    >>>     assert( (size,dtype) in [(16,'float32'), (512,'float16')])
+
+    """
+    global _parametrize_group
+    parametrize_group = _parametrize_group
+    _parametrize_group += 1
+
+    outputs = []
+    for param_values in zip(*value_sets):
+
+        # Optional cls parameter in case a parameter is defined inside a
+        # class scope.
+        def fixture_func(*_cls, request):
+            return request.param
+
+        fixture_func.parametrize_group = parametrize_group
+        fixture_func.parametrize_values = param_values
+        outputs.append(pytest.fixture(fixture_func))
+
+    return outputs
+
+
+def _parametrize_correlated_parameters(metafunc):
+    parametrize_needed = collections.defaultdict(list)
+
+    for name, fixturedefs in metafunc.definition._fixtureinfo.name2fixturedefs.items():
+        fixturedef = fixturedefs[-1]
+        if hasattr(fixturedef.func, "parametrize_group") and hasattr(
+            fixturedef.func, "parametrize_values"
+        ):
+            group = fixturedef.func.parametrize_group
+            values = fixturedef.func.parametrize_values
+            parametrize_needed[group].append((name, values))
+
+    for parametrize_group in parametrize_needed.values():
+        if len(parametrize_group) == 1:
+            name, values = parametrize_group[0]
+            metafunc.parametrize(name, values, indirect=True)
+        else:
+            names = ",".join(name for name, values in parametrize_group)
+            value_sets = zip(*[values for name, values in parametrize_group])
+            metafunc.parametrize(names, value_sets, indirect=True)
+
+
+def fixture(func=None, *, cache_return_value=False):
+    """Convenience function to define pytest fixtures.
+
+    This should be used as a decorator to mark functions that set up
+    state before a function.  The return value of that fixture
+    function is then accessible by test functions as that accept it as
+    a parameter.
+
+    Fixture functions can accept parameters defined with
+    :py:func:`tvm.testing.parameter`.
+
+    By default, the setup will be performed once for each unit test
+    that uses a fixture, to ensure that unit tests are independent.
+    If the setup is expensive to perform, then the
+    cache_return_value=True argument can be passed to cache the setup.
+    The fixture function will be run only once (or once per parameter,
+    if used with tvm.testing.parameter), and the same return value
+    will be passed to all tests that use it.  If the environment
+    variable TVM_TEST_DISABLE_CACHE is set to a non-zero value, it
+    will disable this feature and no caching will be performed.
+
+    Example
+    -------
+    >>> @tvm.testing.fixture
+    >>> def cheap_setup():
+    >>>     return 5 # Setup code here.
+    >>>
+    >>> def test_feature_x(target, dev, cheap_setup)
+    >>>     assert(cheap_setup == 5) # Run test here
+
+    Or
+
+    >>> size = tvm.testing.parameter(1, 10, 100)
+    >>>
+    >>> @tvm.testing.fixture
+    >>> def cheap_setup(size):
+    >>>     return 5*size # Setup code here, based on size.
+    >>>
+    >>> def test_feature_x(cheap_setup):
+    >>>     assert(cheap_setup in [5, 50, 500])
+
+    Or
+
+    >>> @tvm.testing.fixture(cache_return_value=True)
+    >>> def expensive_setup():
+    >>>     time.sleep(10) # Setup code here
+    >>>     return 5
+    >>>
+    >>> def test_feature_x(target, dev, expensive_setup):
+    >>>     assert(expensive_setup == 5)
+
+    """
+
+    force_disable_cache = bool(int(os.environ.get("TVM_TEST_DISABLE_CACHE", "0")))
+    cache_return_value = cache_return_value and not force_disable_cache
+
+    # Deliberately at function scope, so that caching can track how
+    # many times the fixture has been used.  If used, the cache gets
+    # cleared after the fixture is no longer needed.
+    scope = "function"
+
+    def wraps(func):
+        if cache_return_value:
+            func = _fixture_cache(func)
+        func = pytest.fixture(func, scope=scope)
+        return func
+
+    if func is None:
+        return wraps
+
+    return wraps(func)
+
+
+def _fixture_cache(func):
+    cache = {}
+
+    # Can't use += on a bound method's property.  Therefore, this is a
+    # list rather than a variable so that it can be accessed from the
+    # pytest_collection_modifyitems().
+    num_uses_remaining = [0]
+
+    # Using functools.lru_cache would require the function arguments
+    # to be hashable, which wouldn't allow caching fixtures that
+    # depend on numpy arrays.  For example, a fixture that takes a
+    # numpy array as input, then calculates uses a slow method to
+    # compute a known correct output for that input.  Therefore,
+    # including a fallback for serializable types.
+    def get_cache_key(*args, **kwargs):
+        try:
+            hash((args, kwargs))
+            return (args, kwargs)
+        except TypeError as e:
+            pass
+
+        try:
+            return pickle.dumps((args, kwargs))
+        except TypeError as e:
+            raise TypeError(
+                "TVM caching of fixtures requires arguments to the fixture "
+                "to be either hashable or serializable"
+            ) from e
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            cache_key = get_cache_key(*args, **kwargs)
+
+            try:
+                cached_value = cache[cache_key]
+            except KeyError:
+                cached_value = cache[cache_key] = func(*args, **kwargs)
+
+            try:
+                yield copy.deepcopy(cached_value)
+            except TypeError as e:
+                rfc_url = (
+                    "https://github.com/apache/tvm-rfcs/blob/main/rfcs/"
+                    "0007-parametrized-unit-tests.md#unresolved-questions"
+                )
+                message = (
+                    "TVM caching of fixtures can only be used on serializable data types, not {}.\n"
+                    "Please see {} for details/discussion."
+                ).format(type(cached_value), rfc_url)
+                raise TypeError(message) from e
+
+        finally:
+            # Clear the cache once all tests that use a particular fixture
+            # have completed.
+            num_uses_remaining[0] -= 1
+            if not num_uses_remaining[0]:
+                cache.clear()
+
+    # Set in the pytest_collection_modifyitems()
+    wrapper.num_uses_remaining = num_uses_remaining
+
+    return wrapper
+
+
+def _count_num_fixture_uses(items):
+    # Helper function, counts the number of tests that use each cached
+    # fixture.  Should be called from pytest_collection_modifyitems().
+    for item in items:
+        is_skipped = item.get_closest_marker("skip") or any(
+            mark.args[0] for mark in item.iter_markers("skipif")
+        )
+        if is_skipped:
+            continue
+
+        for fixturedefs in item._fixtureinfo.name2fixturedefs.values():
+            # Only increment the active fixturedef, in a name has been overridden.
+            fixturedef = fixturedefs[-1]
+            if hasattr(fixturedef.func, "num_uses_remaining"):
+                fixturedef.func.num_uses_remaining[0] += 1
+
+
+def _remove_global_fixture_definitions(items):
+    # Helper function, removes fixture definitions from the global
+    # variables of the modules they were defined in.  This is intended
+    # to improve readability of error messages by giving a NameError
+    # if a test function accesses a pytest fixture but doesn't include
+    # it as an argument.  Should be called from
+    # pytest_collection_modifyitems().
+
+    modules = set(item.module for item in items)
+
+    for module in modules:
+        for name in dir(module):
+            obj = getattr(module, name)
+            if hasattr(obj, "_pytestfixturefunction") and isinstance(
+                obj._pytestfixturefunction, _pytest.fixtures.FixtureFunctionMarker
+            ):
+                delattr(module, name)
 
 
 def identity_after(x, sleep):
