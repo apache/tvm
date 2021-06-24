@@ -47,7 +47,8 @@ capabilities, and set the stage for understanding how TVM works.
 #
 # TVMC is a Python application, part of the TVM Python package.
 # When you install TVM using a Python package, you will get TVMC as
-# as a command line application called ``tvmc``.
+# as a command line application called ``tvmc``. The location of this command
+# will vary depending on your platform and installation method.
 #
 # Alternatively, if you have TVM as a Python module on your
 # ``$PYTHONPATH``,you can access the command line driver functionality
@@ -100,6 +101,14 @@ capabilities, and set the stage for understanding how TVM works.
 #   compile --help`` for more information.
 #
 
+################################################################################
+# .. note:: Adding ONNX Support to TVM
+#
+#    TVM relies on the ONNX python library being available on your system. You
+#    can install ONNX using the command ``pip3 install --user onnx``. You may
+#    remove the ``--user`` option if you have root access and want to install
+#    ONNX globally.
+#
 
 ################################################################################
 # Compiling an ONNX Model to the TVM Runtime
@@ -183,6 +192,10 @@ capabilities, and set the stage for understanding how TVM works.
 #
 # For our ResNet 50 V2 model, the input is expected to be in ImageNet format.
 # Here is an example of a script to pre-process an image for ResNet 50 V2.
+#
+# You will need to have a supported version of the Python Image Library
+# installed. You can use ``pip3 install --user pillow`` to satisfy this
+# requirement for the script.
 #
 # .. code-block:: python
 #    :caption: preprocess.py
