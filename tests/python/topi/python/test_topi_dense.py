@@ -44,8 +44,8 @@ _dense_implementations = {
         (topi.x86.dense_pack, topi.x86.schedule_dense_pack),
     ],
     "gpu": [
-        (topi.cuda.dense_small_batch, topi.cuda.schedule_dense_small_batch),
-        (topi.cuda.dense_large_batch, topi.cuda.schedule_dense_large_batch),
+        (topi.gpu.dense_small_batch, topi.gpu.schedule_dense_small_batch),
+        (topi.gpu.dense_large_batch, topi.gpu.schedule_dense_large_batch),
     ],
     "mali": [(topi.mali.dense, topi.mali.schedule_dense)],
     "bifrost": [(topi.bifrost.dense, topi.bifrost.schedule_dense)],
