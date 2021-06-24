@@ -441,7 +441,7 @@ capabilities, and set the stage for understanding how TVM works.
 #   --output predictions.npz \
 #   resnet50-v2-7-tvm_autotuned.tar
 #
-#   python postproccess.py
+#   python postprocess.py
 #
 # Verifying that the predictions are the same:
 #
@@ -473,8 +473,8 @@ capabilities, and set the stage for understanding how TVM works.
 #   resnet50-v2-7-tvm_autotuned.tar
 #
 #   # Execution time summary:
-#   # mean (s)   max (s)    min (s)    std (s)
-#   # 0.09219    0.11573    0.08985    0.00315
+#   # mean (ms)   max (ms)    min (ms)    std (ms)
+#   #     92.19     115.73       89.85        3.15
 #
 #   tvmc run \
 #   --inputs imagenet_cat.npz \
@@ -484,8 +484,8 @@ capabilities, and set the stage for understanding how TVM works.
 #   resnet50-v2-7-tvm.tar
 #
 #   # Execution time summary:
-#   # mean (s)   max (s)    min (s)    std (s)
-#   # 0.19332    0.21997    0.18504    0.00711
+#   # mean (ms)   max (ms)    min (ms)    std (ms)
+#   #    193.32     219.97      185.04        7.11
 #
 
 
