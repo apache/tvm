@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import re
+
 import numpy as np
 import pytest
 import scipy
@@ -3175,88 +3176,105 @@ def verify_rnn(
     use_initial_state=False,
     use_peep=False,
     linear_before_reset=False,
+    directions=1,
 ):
     if rnn_type == "LSTM":
         multiplier = 4
     elif rnn_type == "GRU":
         multiplier = 3
     else:
-        raise NotImplementedError("%s RNNs not yet supported." % rnn_type)
-    x_np = np.random.uniform(size=(seq_length, batch_size, input_size)).astype("float32")
-    w_np = np.random.uniform(size=(1, multiplier * hidden_size, input_size)).astype("float32")
-    r_np = np.random.uniform(size=(1, multiplier * hidden_size, hidden_size)).astype("float32")
-    input_names = ["X", "W", "R"]
-    input_tensors = [
-        helper.make_tensor_value_info("X", TensorProto.FLOAT, list(x_np.shape)),
-        helper.make_tensor_value_info("W", TensorProto.FLOAT, list(w_np.shape)),
-        helper.make_tensor_value_info("R", TensorProto.FLOAT, list(r_np.shape)),
-    ]
-    input_values = [x_np, w_np, r_np]
+        raise NotImplementedError(f"{rnn_type} RNNs not yet supported.")
 
-    if use_bias:
-        b_np = np.random.uniform(size=(1, multiplier * 2 * hidden_size)).astype("float32")
-        input_names.append("B")
-        input_tensors.append(
-            helper.make_tensor_value_info("B", TensorProto.FLOAT, [1, multiplier * 2 * hidden_size])
+    if directions not in [1, 2]:
+        raise ValueError(f"Direction should be either 1 or 2 (for bidirectional LSTMs)")
+
+    def get_inputs():
+        input_names = []
+        input_values = []
+        input_tensors = []
+
+        def register(np_arr, name, shape=None):
+            input_values.append(np_arr)
+            input_names.append(name)
+
+            # Map of numpy dtypes to the protobuf equivalent
+            dtype_map = {
+                "float32": TensorProto.FLOAT,
+                "int32": TensorProto.INT32,
+                "int8": TensorProto.INT8,
+            }
+
+            if np_arr.dtype.name not in dtype_map:
+                raise ValueError(f"Unknown dtype we don't know how to handle {np.dtype.name}")
+            if shape is None:
+                shape = list(np_arr.shape)
+            proto_type = dtype_map[np_arr.dtype.name]
+            input_tensors.append(helper.make_tensor_value_info(name, proto_type, shape))
+
+        x_np = np.random.uniform(size=(seq_length, batch_size, input_size)).astype("float32")
+        w_np = np.random.uniform(size=(directions, multiplier * hidden_size, input_size)).astype(
+            "float32"
         )
-        input_values.append(b_np)
-
-    if use_initial_state:
-        assert use_bias == True, "Initial states must have bias specified."
-        sequence_np = np.repeat(seq_length, batch_size).astype("int32")
-        input_names.append("sequence_lens")
-        input_tensors.append(
-            helper.make_tensor_value_info("sequence_lens", TensorProto.INT32, [batch_size])
+        r_np = np.random.uniform(size=(directions, multiplier * hidden_size, hidden_size)).astype(
+            "float32"
         )
-        input_values.append(sequence_np)
+        register(x_np, "X")
+        register(w_np, "W")
+        register(r_np, "R")
 
-        initial_h_np = np.random.uniform(size=(1, batch_size, hidden_size)).astype("float32")
-        input_names.append("initial_h")
-        input_tensors.append(
-            helper.make_tensor_value_info(
-                "initial_h", TensorProto.FLOAT, [1, batch_size, hidden_size]
+        if use_bias:
+            b_np = np.random.uniform(size=(directions, multiplier * 2 * hidden_size)).astype(
+                "float32"
             )
-        )
-        input_values.append(initial_h_np)
+            register(b_np, "B")
+
+        if use_initial_state:
+            assert use_bias == True, "Initial states must have bias specified."
+            sequence_np = np.repeat(seq_length, batch_size).astype("int32")
+            register(sequence_np, "sequence_lens")
+
+            initial_h_np = np.random.uniform(size=(directions, batch_size, hidden_size)).astype(
+                "float32"
+            )
+            register(initial_h_np, "initial_h")
+
+            if rnn_type == "LSTM":
+                initial_c_np = np.random.uniform(size=(directions, batch_size, hidden_size)).astype(
+                    "float32"
+                )
+                register(initial_c_np, "initial_c")
+
+        if use_peep and rnn_type == "LSTM":
+            assert use_initial_state == True, "Peepholes require initial state to be specified."
+            p_np = np.random.uniform(size=(directions, 3 * hidden_size)).astype("float32")
+            register(p_np, "P")
+
+        return input_names, input_tensors, input_values
+
+    input_names, input_tensors, input_values = get_inputs()
+
+    def get_outputs():
+        output_names = []
+        graph_outputs = []
+        output_shapes = []
+
+        def register(name, shape, proto_type):
+            output_names.append(name)
+            graph_outputs.append(helper.make_tensor_value_info(name, proto_type, list(shape)))
+            output_shapes.append(list(shape))
+
+        register("Y", [seq_length, directions, batch_size, hidden_size], TensorProto.FLOAT)
+        register("Y_h", [directions, batch_size, hidden_size], TensorProto.FLOAT)
 
         if rnn_type == "LSTM":
-            initial_c_np = np.random.uniform(size=(1, batch_size, hidden_size)).astype("float32")
-            input_names.append("initial_c")
-            input_tensors.append(
-                helper.make_tensor_value_info(
-                    "initial_c", TensorProto.FLOAT, [1, batch_size, hidden_size]
-                )
-            )
-            input_values.append(initial_c_np)
+            register("Y_c", [directions, batch_size, hidden_size], TensorProto.FLOAT)
 
-    if use_peep and rnn_type == "LSTM":
-        assert use_initial_state == True, "Peepholes require initial state to be specified."
-        p_np = np.random.uniform(size=(1, 3 * hidden_size)).astype("float32")
-        input_names.append("P")
-        input_tensors.append(
-            helper.make_tensor_value_info("P", TensorProto.FLOAT, [1, 3 * hidden_size])
-        )
-        input_values.append(p_np)
+        return output_names, graph_outputs, output_shapes
 
-    Y_shape = [seq_length, 1, batch_size, hidden_size]
-    Y_h_shape = [1, batch_size, hidden_size]
-    outputs = ["Y", "Y_h"]
-    graph_outputs = [
-        helper.make_tensor_value_info("Y", TensorProto.FLOAT, list(Y_shape)),
-        helper.make_tensor_value_info("Y_h", TensorProto.FLOAT, list(Y_h_shape)),
-    ]
-    output_shapes = [Y_shape, Y_h_shape]
-
-    if rnn_type == "LSTM":
-        Y_c_shape = [1, batch_size, hidden_size]
-        outputs.append("Y_c")
-        graph_outputs.append(
-            helper.make_tensor_value_info("Y_c", TensorProto.FLOAT, list(Y_c_shape))
-        )
-        output_shapes.append(Y_c_shape)
+    output_names, graph_outputs, output_shapes = get_outputs()
 
     rnn_node = helper.make_node(
-        rnn_type, inputs=input_names, outputs=outputs, hidden_size=hidden_size
+        rnn_type, inputs=input_names, outputs=output_names, hidden_size=hidden_size
     )
     if activations is not None:
         activations_attr = helper.make_attribute("activations", activations)
