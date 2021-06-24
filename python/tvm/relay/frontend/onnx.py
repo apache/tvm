@@ -2058,13 +2058,16 @@ class LSTM(RNN):
     """Operator converter for LSTM"""
 
     @classmethod
-    def generate_lstm_forward(cls, X_steps, H_t, C_t, W, R, B, p_i, p_f, p_o, f_act, g_act, h_act):
+    def generate_lstm(
+        cls, X_steps, H_t, C_t, W, R, B, p_i, p_f, p_o, f_act, g_act, h_act, backwards=False
+    ):
         """Create an unrolled lstm loop.
 
         See https://github.com/onnx/onnx/blob/master/docs/Operators.md for math.
         """
         h_list = []
-        for step in X_steps:
+        for i in len(X_steps):
+            step = X_steps[i] if not backwards else X_steps[-(i + 1)]
             step = _op.squeeze(step, axis=[0])
             gates = _op.nn.dense(step, W) + _op.nn.dense(H_t, R)
             if B is not None:
@@ -2191,8 +2194,8 @@ class LSTM(RNN):
             p_i = _op.squeeze(p_is[i], axis=[0])
             p_f = _op.squeeze(p_fs[i], axis=[0])
             p_o = _op.squeeze(p_os[i], axis=[0])
-            output, H, C = LSTM.generate_lstm_forward(
-                X_steps=X_steps if i == 0 else X_steps[::-1],
+            output, H, C = LSTM.generate_lstm(
+                X_steps=X_steps,
                 H_t=H_t,
                 C_t=C_t,
                 W=W,
@@ -2204,6 +2207,7 @@ class LSTM(RNN):
                 f_act=f_act,
                 g_act=g_act,
                 h_act=h_act,
+                backwards=i == 1,
             )
 
             result_output.append(output)
