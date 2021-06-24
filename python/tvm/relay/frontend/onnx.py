@@ -2107,20 +2107,20 @@ class LSTM(RNN):
     def _impl_v7(cls, inputs, attr, params):
         # Unpack inputs, note that if optional and not provided then value will be None.
         X = inputs[0]
-        W = inputs[1]
-        R = inputs[2]
-        B = inputs[3]
+        Wp = inputs[1]
+        Rp = inputs[2]
+        Bp = inputs[3]
         # Sequence length currently unused as it can be inferred from shapes.
         # sequence_lens = inputs['sequence_lens']
-        H_0 = inputs[5]
-        C_0 = inputs[6]
-        P = inputs[7]
+        Hp_0 = inputs[5]
+        Cp_0 = inputs[6]
+        Pp = inputs[7]
 
         num_directions = infer_shape(W)[0]
         W_dtype = infer_type(W).checked_type.dtype
 
         if num_directions not in [1, 2]:
-            raise NotImplementedError("Bidirectional LSTMs not yet supported.")
+            raise ValueError("num_directions must be either 1 or 2!")
 
         X_shape = infer_shape(X)
         hidden_size = infer_shape(R)[-1]
@@ -2128,11 +2128,11 @@ class LSTM(RNN):
 
         # Initialize state if not provided.
         # Otherwise remove bidirectional axis.
-        if H_0 is None:
-            H_0 = _op.zeros((num_directions, batch_size, hidden_size), W_dtype)
-        if C_0 is None:
-            C_0 = _op.zeros((num_directions, batch_size, hidden_size), W_dtype)
-        if P is not None:
+        if Hp_0 is None:
+            Hp_0 = _op.zeros((num_directions, batch_size, hidden_size), W_dtype)
+        if Cp_0 is None:
+            Cp_0 = _op.zeros((num_directions, batch_size, hidden_size), W_dtype)
+        if Pp is not None:
             p_i, p_o, p_f = _op.split(P, 3, axis=1)
         else:
             p_i = p_o = p_f = _op.zeros((num_directions, hidden_size), W_dtype)
@@ -2175,11 +2175,11 @@ class LSTM(RNN):
         for i in range(num_directions):
             output, H, C = LSTM.generate_lstm_forward(
                 X=X_steps if i == 0 else X_steps[::-1],
-                H_t=H_0[i],
-                C_t=C_0[i],
-                W=W[i],
-                R=R[i],
-                B=B[i],
+                H_t=Hp_0[i],
+                C_t=Cp_0[i],
+                W=Wp[i],
+                R=Rp[i],
+                B=Bp[i],
                 p_i=p_i[i],
                 p_f=p_f[i],
                 p_o=p_o[i],
