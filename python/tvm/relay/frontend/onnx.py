@@ -2123,7 +2123,7 @@ class LSTM(RNN):
             raise ValueError("num_directions must be either 1 or 2!")
 
         X_shape = infer_shape(X)
-        hidden_size = infer_shape(R)[-1]
+        hidden_size = infer_shape(Rp)[-1]
         batch_size = X_shape[1]
 
         # Initialize state if not provided.
@@ -2133,7 +2133,7 @@ class LSTM(RNN):
         if Cp_0 is None:
             Cp_0 = _op.zeros((num_directions, batch_size, hidden_size), W_dtype)
         if Pp is not None:
-            p_i, p_o, p_f = _op.split(P, 3, axis=1)
+            p_i, p_o, p_f = _op.split(Pp, 3, axis=1)
         else:
             p_i = p_o = p_f = _op.zeros((num_directions, hidden_size), W_dtype)
 
