@@ -34,9 +34,18 @@ from .. import op as _op
 from .. import qnn as _qnn
 from .. import ty as _ty
 from .. import vision as _vision
-from .common import (AttrCvt, Renamer, fold_constant, get_name, get_relay_op,
-                     infer_channels, infer_shape, infer_type, infer_value,
-                     new_var)
+from .common import (
+    AttrCvt,
+    Renamer,
+    fold_constant,
+    get_name,
+    get_relay_op,
+    infer_channels,
+    infer_shape,
+    infer_type,
+    infer_value,
+    new_var,
+)
 
 __all__ = ["from_onnx"]
 
@@ -2049,7 +2058,7 @@ class LSTM(RNN):
     """Operator converter for LSTM"""
 
     @classmethod
-    def generate_lstm_forward(X_steps, H_t, C_t, W, R, B, p_i, p_f, p_o, f_act, g_act, h_act):
+    def generate_lstm_forward(cls, X_steps, H_t, C_t, W, R, B, p_i, p_f, p_o, f_act, g_act, h_act):
         """Create an unrolled lstm loop.
 
         See https://github.com/onnx/onnx/blob/master/docs/Operators.md for math.
