@@ -24,6 +24,8 @@
 	cython cython3 cyclean \
         clean
 
+.SECONDEXPANSION:
+
 # Remember the root directory, to be usable by submake invocation.
 ROOTDIR = $(CURDIR)
 
@@ -49,12 +51,19 @@ vta: $(addsuffix /vta,$(TVM_BUILD_PATH))
 cpptest: $(addsuffix /cpptest,$(TVM_BUILD_PATH))
 crttest: $(addsuffix /crttest,$(TVM_BUILD_PATH))
 
-# Set up a default config.cmake inside the build directory.
-# filter-out used to avoid circular dependency.
-%/config.cmake: | $(filter-out %/config.cmake,$(ROOTDIR)/cmake/config.cmake)
+# If there is a config.cmake in the tvm directory, preferentially use
+# it.  Otherwise, copy the default cmake/config.cmake.
+ifeq ($(wildcard config.cmake),config.cmake)
+%/config.cmake: | config.cmake
+	@echo "No config.cmake found in $(TVM_BUILD_PATH), using config.cmake in root tvm directory"
+	@mkdir -p $(@D)
+else
+# filter-out used to avoid circular dependency
+%/config.cmake: | $$(filter-out %/config.cmake,$(ROOTDIR)/cmake/config.cmake)
 	@echo "No config.cmake found in $(TVM_BUILD_PATH), using default config.cmake"
 	@mkdir -p $(@D)
 	@cp $| $@
+endif
 
 
 # Cannot use .PHONY with a pattern rule, using FORCE instead.  For
