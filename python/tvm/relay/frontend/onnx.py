@@ -34,9 +34,18 @@ from .. import op as _op
 from .. import qnn as _qnn
 from .. import ty as _ty
 from .. import vision as _vision
-from .common import (AttrCvt, Renamer, fold_constant, get_name, get_relay_op,
-                     infer_channels, infer_shape, infer_type, infer_value,
-                     new_var)
+from .common import (
+    AttrCvt,
+    Renamer,
+    fold_constant,
+    get_name,
+    get_relay_op,
+    infer_channels,
+    infer_shape,
+    infer_type,
+    infer_value,
+    new_var,
+)
 
 __all__ = ["from_onnx"]
 
@@ -2059,7 +2068,7 @@ class LSTM(RNN):
         h_list = []
         seq_length = len(X_steps)
         for i in range(seq_length):
-            step = X_steps[i] if not backwards else X_steps[seq_length-(i + 1)]
+            step = X_steps[i] if not backwards else X_steps[seq_length - (i + 1)]
             step = _op.squeeze(step, axis=[0])
             gates = _op.nn.dense(step, W) + _op.nn.dense(H_t, R)
             if B is not None:
@@ -2089,6 +2098,10 @@ class LSTM(RNN):
             H_t = H
             C_t = C
             h_list.append(_op.expand_dims(H, axis=0))
+
+        if backwards:
+            # Canonical view is hidden states from the first token not last
+            h_list = h_list[::-1]
 
         # Concatenate outputs and add back in direction axis.
         concatenated = _op.concatenate(h_list, 0)
