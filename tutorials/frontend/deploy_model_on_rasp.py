@@ -162,7 +162,7 @@ data_shape = (batch_size,) + image_shape
 ######################################################################
 # Compile The Graph
 # -----------------
-# To compile the graph, we call the :any:`relay.build` function
+# To compile the graph, we call the :py:func:`relay.build` function
 # with the graph configuration and parameters. However, You cannot to
 # deploy a x86 program on a device with ARM instruction set. It means
 # Relay also needs to know the compilation option of target device,

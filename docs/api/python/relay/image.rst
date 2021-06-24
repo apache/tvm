@@ -22,4 +22,5 @@ tvm.relay.image
 .. automodule:: tvm.relay.image
    :members:
    :imported-members:
+   :exclude-members: Expr, Constant
    :autosummary:

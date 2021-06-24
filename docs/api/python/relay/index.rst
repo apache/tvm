@@ -26,4 +26,5 @@ tvm.relay
       TypeVar, GlobalTypeVar, TypeConstraint, FuncType, TupleType, IncompleteType,
       TypeCall, TypeRelation, TensorType, RelayRefType, GlobalVar, SourceName,
       Span, Var, Op, Constructor
+    :noindex: TypeData
     :autosummary:

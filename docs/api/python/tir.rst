@@ -37,6 +37,7 @@ tvm.tir.analysis
 .. automodule:: tvm.tir.analysis
    :members:
    :imported-members:
+   :noindex: Buffer, Stmt
    :autosummary:
 
 

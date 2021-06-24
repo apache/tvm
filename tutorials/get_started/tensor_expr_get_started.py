@@ -512,7 +512,7 @@ if tgt.kind.name.startswith("opencl"):
 #     before it moves on to the next stage.
 #
 #   A complete description of these primitives can be found in the
-# [Schedule Primitives](https://tvm.apache.org/docs/tutorials/language/schedule_primitives.html) docs page.
+#   [Schedule Primitives](https://tvm.apache.org/docs/tutorials/language/schedule_primitives.html) docs page.
 
 ################################################################################
 # Example 2: Manually Optimizing Matrix Multiplication with TE
@@ -521,14 +521,20 @@ if tgt.kind.name.startswith("opencl"):
 # Now we will consider a second, more advanced example, demonstrating how with
 # just 18 lines of python code TVM speeds up a common matrix multiplication operation by 18x.
 #
-# **Matrix multiplication is a compute intensive operation. There are two important optimizations for good CPU performance:**
-# 1. Increase the cache hit rate of memory access. Both complex numerical
-#    computation and hot-spot memory access can be accelerated by a high cache hit
-#    rate. This requires us to transform the origin memory access pattern to a pattern that fits the cache policy.
-# 2. SIMD (Single instruction multi-data), also known as the vector processing
-#    unit. On each cycle instead of processing a single value, SIMD can process a small batch of data.
-#    This requires us to transform the data access pattern in the loop
-#    body in uniform pattern so that the LLVM backend can lower it to SIMD.
+# **Matrix multiplication is a compute intensive operation. There are
+# two important optimizations for good CPU performance:**
+#
+# 1. Increase the cache hit rate of memory access. Both complex
+#    numerical computation and hot-spot memory access can be
+#    accelerated by a high cache hit rate. This requires us to
+#    transform the origin memory access pattern to a pattern that fits
+#    the cache policy.
+#
+# 2. SIMD (Single instruction multi-data), also known as the vector
+#    processing unit. On each cycle instead of processing a single
+#    value, SIMD can process a small batch of data.  This requires us
+#    to transform the data access pattern in the loop body in uniform
+#    pattern so that the LLVM backend can lower it to SIMD.
 #
 # The techniques used in this tutorial are a subset of tricks mentioned in this
 # `repository <https://github.com/flame/how-to-optimize-gemm>`_. Some of them

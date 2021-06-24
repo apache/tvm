@@ -23,6 +23,7 @@ Installing TVM
 
 Depending on your needs and your working environment, there are a few different
 methods for installing TVM. These include:
+
 * Installing from source
 * Installing from third-party binary package.
 """
