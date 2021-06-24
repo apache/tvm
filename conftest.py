@@ -14,13 +14,31 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import tvm.testing
+import pytest
 from pytest import ExitCode
+
+import tvm
+import tvm.testing
 
 
 def pytest_configure(config):
     print("enabled targets:", "; ".join(map(lambda x: x[0], tvm.testing.enabled_targets())))
     print("pytest marker:", config.option.markexpr)
+
+
+@pytest.fixture
+def dev(target):
+    return tvm.device(target)
+
+
+def pytest_generate_tests(metafunc):
+    tvm.testing._auto_parametrize_target(metafunc)
+    tvm.testing._parametrize_correlated_parameters(metafunc)
+
+
+def pytest_collection_modifyitems(config, items):
+    tvm.testing._count_num_fixture_uses(items)
+    tvm.testing._remove_global_fixture_definitions(items)
 
 
 def pytest_sessionfinish(session, exitstatus):
