@@ -618,17 +618,17 @@ class ConstantOfShapeOnes(ConstantOfShapeZeros):
 
 
 class LRN(OpConverter):
-  """ Operator converter for LRN."""
+    """ Operator converter for LRN."""
 
-  @classmethod
-  def convert_attributes(cls, attrs):
-    return {
-      'alpha': attrs.alpha,
-      'beta': attrs.beta,
-      'bias': attrs.bias,
-      'size': attrs.size
-      #axis?
-    }
+    @classmethod
+    def convert_attributes(cls, attrs):
+        return {
+            "alpha": attrs.alpha,
+            "beta": attrs.beta,
+            "bias": attrs.bias,
+            "size": attrs.size
+            #axis?
+        }
 
 
 relay_to_onnx_op_mapping = {
