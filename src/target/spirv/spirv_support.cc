@@ -35,6 +35,10 @@ SPIRVSupport::SPIRVSupport(tvm::Target target) {
   ICHECK_EQ(target->kind->device_type, kDLVulkan)
       << "SPIRVSupport can only be checked for vulkan device type";
 
+  if (target->GetAttr<Integer>("vulkan_api_version")) {
+    vulkan_api_version = target->GetAttr<Integer>("vulkan_api_version").value();
+  }
+
   if (target->GetAttr<Integer>("supported_subgroup_operations")) {
     supported_subgroup_operations =
         target->GetAttr<Integer>("supported_subgroup_operations").value();
