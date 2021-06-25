@@ -2306,7 +2306,7 @@ class GRU(RNN):
         # Otherwise remove bidirectional axis.
         if Hp_0 is None:
             Hp_0 = _op.zeros((num_directions, batch_size, hidden_size), W_dtype)
-        if Bp is not None:
+        if Bp is None:
             Bp = _op.zeros((num_directions, hidden_size * 6), W_dtype)
 
         if "activations" in attr:
