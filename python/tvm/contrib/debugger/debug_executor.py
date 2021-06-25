@@ -25,6 +25,7 @@ import tvm._ffi
 from tvm._ffi.base import string_types
 from tvm.contrib import graph_executor
 from . import debug_result
+from tvm.rpc import base
 
 _DUMP_ROOT_PREFIX = "tvmdbg_"
 _DUMP_PATH_PREFIX = "_tvmdbg_"
@@ -105,6 +106,7 @@ class GraphModuleDebug(graph_executor.GraphModule):
         self._profile = module["profile"]
         graph_executor.GraphModule.__init__(self, module)
         self._create_debug_env(graph_json_str, device)
+        self._device = device[0]
 
     def _format_device(self, device):
         return str(device[0]).upper().replace("(", ":").replace(")", "")
@@ -281,6 +283,9 @@ class GraphModuleDebug(graph_executor.GraphModule):
         timing_results : str
             Per-operator and whole graph timing results in a table format.
         """
+        if self._device.device_type > base.RPC_SESS_MASK:
+            raise NotImplementedError("Profile not suppored for remote devices.")
+
         if input_dict:
             self.set_input(**input_dict)
 
