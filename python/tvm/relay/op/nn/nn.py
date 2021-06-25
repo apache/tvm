@@ -1490,7 +1490,7 @@ def matmul(data, weight, units=None, out_dtype="", data_transposed=False, weight
         of shape `(units_in, units)` or `(units, units_in)`.
 
     units : int, optional
-        Number of hidden units of the dense transformation.
+        Number of hidden units of the matmul transformation.
 
     out_dtype : str, optional
         Specifies the output data type for mixed precision dense,

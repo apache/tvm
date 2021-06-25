@@ -700,7 +700,7 @@ def conv1d_transpose_strategy_cuda(attrs, inputs, out_type, target):
 
 @matmul_strategy.register(["cuda", "gpu"])
 def matmul_strategy_cuda(attrs, inputs, out_type, target):
-    """dense cuda strategy"""
+    """Matmul cuda strategy"""
     strategy = _op.OpStrategy()
 
     if is_auto_scheduler_enabled():
