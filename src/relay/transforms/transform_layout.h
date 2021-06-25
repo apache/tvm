@@ -220,7 +220,7 @@ static inline std::tuple<InferCorrectLayoutOutput, bool> InferCorrectLayouts(
     const Array<tvm::relay::Type>& old_in_types) {
   static auto finfer_layout = Op::GetAttrMap<FInferCorrectLayout>("FInferCorrectLayout");
   auto null_res = std::make_tuple(
-      InferCorrectLayoutOutput({Array<Layout>(nullptr), Array<Layout>(nullptr)}, Attrs(nullptr)),
+      InferCorrectLayoutOutput({Array<Layout>(nullptr), Array<Layout>(nullptr), Attrs(nullptr)}),
       false);
   if (!call->op.as<OpNode>()) {
     return null_res;
@@ -229,10 +229,7 @@ static inline std::tuple<InferCorrectLayoutOutput, bool> InferCorrectLayouts(
   Op op = Downcast<Op>(call->op);
   if (finfer_layout.count(op)) {
     auto out = finfer_layout[op](call->attrs, new_in_layouts, old_in_layouts, old_in_types);
-    Array<Array<Layout>> inferred_layouts = out->inferred_layout;
-    ICHECK_EQ(inferred_layouts.size(), 2)
-        << "FInferCorrectLayout should return an array with size of 2";
-    for (auto x : inferred_layouts) {
+    for (auto x : {out->input_layouts, out->output_layouts}) {
       for (auto y : x) {
         if (!y.defined()) {  // inference fails
           return null_res;
@@ -337,8 +334,8 @@ Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const Obj
   InferCorrectLayoutOutput infer_out;
   std::tie(infer_out, success) =
       InferCorrectLayouts(ref_call, Array<Layout>(nullptr), old_in, types);
-  old_in = infer_out->inferred_layout[0];
-  old_out = infer_out->inferred_layout[1];
+  old_in = infer_out->input_layouts;
+  old_out = infer_out->output_layouts;
   if (!success) {
     return Expr(nullptr);
   }
@@ -358,8 +355,8 @@ Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const Obj
   if (new_call->op->IsInstance<OpNode>()) {
     success = false;
     std::tie(infer_out, success) = InferCorrectLayouts(new_call, new_in, old_in, types);
-    new_in2 = infer_out->inferred_layout[0];
-    new_out = infer_out->inferred_layout[1];
+    new_in2 = infer_out->input_layouts;
+    new_out = infer_out->output_layouts;
     if (!success) {
       return Expr(nullptr);
     }

@@ -87,23 +87,26 @@ inline Layout AdjustSubordinateFactors(const Layout& src_layout, const Layout& o
 
 /*
  * \brief An output structure to hold results from FInferCorrectLayout calls.
- * \tparam inferred_layout An array of two elements, inferred input layouts and
- *                         inferred output layouts.
- * \tparam new_attrs Updated attributes consistent with inferred layouts
+ * \tparam input_layouts Inferred input layouts.
+ * \tparam output_layouts Inferred output layouts.
+ * \tparam new_attrs Updated attributes consistent with inferred layouts.
  */
 class InferCorrectLayoutOutputNode : public Object {
  public:
-  Array<Array<Layout>> inferred_layout;
+  Array<Layout> input_layouts;
+  Array<Layout> output_layouts;
   Attrs new_attrs;
   TVM_DECLARE_BASE_OBJECT_INFO(InferCorrectLayoutOutputNode, Object);
 };
 
 class InferCorrectLayoutOutput : public ObjectRef {
  public:
-  InferCorrectLayoutOutput(Array<Array<Layout>> inferred_layout, Attrs new_attrs) {
+  InferCorrectLayoutOutput(Array<Layout> input_layouts, Array<Layout> output_layouts,
+                           Attrs new_attrs) {
     auto n = make_object<InferCorrectLayoutOutputNode>();
-    n->inferred_layout = inferred_layout;
-    n->new_attrs = new_attrs;
+    n->input_layouts = std::move(input_layouts);
+    n->output_layouts = std::move(output_layouts);
+    n->new_attrs = std::move(new_attrs);
     data_ = n;
   }
   TVM_DEFINE_OBJECT_REF_METHODS(InferCorrectLayoutOutput, ObjectRef, InferCorrectLayoutOutputNode);
@@ -141,8 +144,7 @@ inline InferCorrectLayoutOutput ElemwiseArbitraryLayout(
     }
   }
 
-  Array<Array<Layout>> inferred_layout{Array<Layout>(old_in_layouts.size(), ret), {ret}};
-  return InferCorrectLayoutOutput(inferred_layout, attrs);
+  return InferCorrectLayoutOutput({ret}, {ret}, attrs);
 }
 
 inline Array<Array<Layout>> BinaryBroadcastLayoutHelper(
@@ -228,7 +230,7 @@ inline InferCorrectLayoutOutput BinaryBroadcastLayout(const Attrs& attrs,
                                                       const Array<tvm::relay::Type>& old_in_types) {
   auto inferred_layout =
       BinaryBroadcastLayoutHelper(attrs, new_in_layouts, old_in_layouts, old_in_types);
-  return InferCorrectLayoutOutput(inferred_layout, attrs);
+  return InferCorrectLayoutOutput(inferred_layout[0], inferred_layout[1], attrs);
 }
 
 }  //  namespace relay
