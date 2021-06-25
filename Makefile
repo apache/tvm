@@ -91,6 +91,9 @@ scalalint:
 
 lint: cpplint pylint jnilint
 
+mypy:
+	tests/scripts/task_mypy.sh
+
 doc:
 	doxygen docs/Doxyfile
 
