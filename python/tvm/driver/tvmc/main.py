@@ -27,6 +27,9 @@ import tvm
 
 from tvm.driver.tvmc.common import TVMCException
 
+import multiprocessing as mp
+from sys import platform
+import os
 
 REGISTERED_PARSER = []
 
@@ -91,6 +94,19 @@ def _main(argv):
 
 
 def main():
+    if platform == "darwin":
+        # This fixes a crash on macOS. Note, that for tvmc to run
+        # safely on macOS the user needs to set the environment variable
+        # OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES _before_ the process
+        # is run. See this analysis for more information:
+        # https://wefearchange.org/2018/11/forkmacos.rst.html
+        mp.set_start_method("fork", force=True)
+        if os.environ.get("OBJC_DISABLE_INITIALIZE_FORK_SAFETY") != "YES":
+            sys.stderr.write("We suggest you set the environment variable\n"
+                    "OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES\n"
+                    "when running tvmc on macOS. More details here: "
+                    "https://wefearchange.org/2018/11/forkmacos.rst.html")
+
     sys.exit(_main(sys.argv[1:]))
 
 
