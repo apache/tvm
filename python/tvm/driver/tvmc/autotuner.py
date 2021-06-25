@@ -261,7 +261,7 @@ def drive_tune(args):
                 "need to provide an RPC tracker key (--rpc-key) for remote tuning"
             )
     else:
-        rpc_host_name = None
+        rpc_hostname = None
         rpc_port = None
 
     tune_model(
@@ -271,7 +271,7 @@ def drive_tune(args):
         prior_records=args.tuning_records,
         enable_autoscheduler=args.enable_autoscheduler,
         rpc_key=args.rpc_key,
-        hostname=rpc_host_name,
+        hostname=rpc_hostname,
         port=rpc_port,
         trials=args.trials,
         target_host=args.target_host,
@@ -331,7 +331,7 @@ def tune_model(
         faster kernels for compatible model-target pairs.
     rpc_key : str, optional
         The RPC tracker key of the target device. Required when rpc_tracker is provided.
-    host_name : str, optional
+    hostname : str, optional
         The IP address of an RPC tracker, used when benchmarking remotely.
     port : int or str, optional
         The port of the RPC tracker to connect to. Defaults to 9090.
