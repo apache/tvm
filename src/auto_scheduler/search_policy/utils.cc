@@ -158,17 +158,15 @@ State DoMultiLevelTiling(const State& state, int stage_id, const std::string& fo
   std::vector<Iterator> space_outer, space_inner, reduce_outer, reduce_inner;
   Array<Iterator> split_res;
 
-  for (const auto c : format) {
-    if (tolower(c) == 's') {
-      space_levels.emplace_back();
-    } else if (tolower(c) == 'r') {
-      reduce_levels.emplace_back();
-    } else {
-      LOG(FATAL) << "Invalid multi-level tiling format: " << format;
-    }
+  std::string format_lower;
+  std::transform(format.begin(), format.end(), format_lower.begin(), ::tolower);
+  size_t n_space = std::count(format_lower.begin(), format_lower.end(), 's');
+  size_t n_reduce = std::count(format_lower.begin(), format_lower.end(), 'r');
+  if (n_space + n_reduce != format.size()) {
+    LOG(FATAL) << "Invalid multi-level tiling format: " << format;
   }
-  size_t n_space = space_levels.size();
-  size_t n_reduce = reduce_levels.size();
+  space_levels.resize(n_space);
+  reduce_levels.resize(n_reduce);
 
   spatial_split_step_ids->clear();
 
