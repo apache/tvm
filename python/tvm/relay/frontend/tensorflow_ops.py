@@ -350,8 +350,6 @@ def _conv(opname):
             flip_layout = True
 
         inputs_data = inputs[0] if opname != "conv_transpose" else inputs[2]
-        print("in _conv()")
-        print("inputs_data: ", inputs_data)
         # NCHW Layout require weights transpose
         weights_shape = _infer_shape(inputs[1], mod)
         if attr["data_format"] == "NCHW":
@@ -363,7 +361,6 @@ def _conv(opname):
                 tmp_shape = [tmp_shape[ii] for ii in (2, 3, 0, 1)]
                 inputs[1] = _op.transpose(inputs[1], axes=(2, 3, 0, 1))
             weights_shape = tmp_shape
-
         input_shape = _infer_shape(inputs_data, mod)
         if attr["_target_layout"] == "NCHW" and attr["data_format"] == "NHWC":
             input_shape = [input_shape[ii] for ii in (0, 3, 1, 2)]

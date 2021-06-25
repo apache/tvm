@@ -75,7 +75,6 @@ def set_span(sym, node_name):
 
 def is_tensor_list_constuctor(tf_node):
     """Check whether is tensor list constructor node."""
-    # TODO how about TensorListFromTensor
     tl_name = "TensorListReserve"
     return tf_node.op == tl_name
 
@@ -256,6 +255,9 @@ class GraphProto:
                 subfunction = self._gdef_lib[fn_name]
                 sub_func_name = fn_name
                 for sub_node in subfunction.node:
+                    # bypass const node
+                    if sub_node.op == "Const":
+                        continue
                     self._tf_node_map[sub_node.name] = sub_node
                     self._analysis_tensor_list_op(subfunction, sub_node, tl_write_nodes, tl_stack_nodes, tl_construct_nodes, sub_func_name=sub_func_name, root_node = root_node)
 
@@ -308,12 +310,6 @@ class GraphProto:
                             stack.append(self._tf_node_map[iname.split(":")[0]])
                 elif cnode.name != stack_node.name:
                     if is_tensor_list_constuctor(cnode):
-                        #inode = self._tf_node_map[stack_node.input[0].split(":")[0]]
-                        #print("inode.name: ", inode.name)
-                        #tn = stack_node.input[0].split(":")
-                        #output_index = int(tn[1]) if len(tn) > 1 else 0
-                        #self._tensor_list_shape_nodes[cnode.name] = (inode, stack_node.op, output_index)
-
                         shape_attr = self._parse_attr(input_shape_node.attr)
                         if "value" not in shape_attr:
                             continue
@@ -335,14 +331,9 @@ class GraphProto:
             ta_idx, inode_idx = item[1]
             sub_func_name = item[2]
             root_name = item[3]
-            print("write node name: ", wnode.name)
-            print("sub_func_name: ", sub_func_name)
-            print("root_name :", root_name)
             stack = [self._tf_node_map[wnode.input[ta_idx].split(":")[0]]]
             while stack:
                 cnode = stack.pop(0)
-                print("cnode name: ", cnode.name)
-                print("cnode op: ", cnode.op)
                 
                 if not cnode.op.startswith("TensorList"):
                     if cnode.op == "Placeholder" and sub_func_name:
@@ -359,8 +350,6 @@ class GraphProto:
                         output_index = int(tn[1]) if len(tn) > 1 else 0
                         self._tensor_list_shape_nodes[cnode.name] = (inode, wnode.op, output_index)
                     break
-        print("self._tensor_list_shape_nodes: ", self._tensor_list_shape_nodes)
-        print("self._tensor_list_shapes: ", self._tensor_list_shapes)
 
         for node in graph.node:
             self._backtrack_construct(graph, node.name)
@@ -549,8 +538,8 @@ class GraphProto:
             CallNode(Op(add), [Var(x, ty=TensorType([], float32)), Constant(1.0)], (nullptr), [])
 
         """
-
         input_op_name = node_name.split(":")[0].split("^")[-1]
+        
         if input_op_name not in self._nodes:
             node = self._tf_node_map[input_op_name]
             attr = parse_attr(node.attr)
@@ -583,7 +572,6 @@ class GraphProto:
                                 elem_shape.append(Any())
                             else:
                                 elem_shape.append(dim)
-                print(_get_more_static_shape(elem_shape, [3]))
                 if elem_shape:
                     attr["shape"] = elem_shape
                 if ("identical_element_shapes" in attr and attr["identical_element_shapes"]) or elem_shape:
@@ -593,28 +581,22 @@ class GraphProto:
                     name = shape_node.name
                     if output_index > 0:
                         name += ":" + str(output_index)
-                    print('name: ', name)
                     # TODO why we need to _backtrack_construct here?
                     #converted = self._backtrack_construct(graph, name)
                     #shape = _infer_shape(converted, self._mod)
-                    #print(shape)
-                    #input()
                     shape = elem_shape
-                    print("shape: ", elem_shape)
                     if node.name in self._tensor_list_shapes:
                         preset_shape = self._tensor_list_shapes[node.name]
                         shape = preset_shape
                     attr["shape"] = shape
                     #if node.name in self._tensor_list_shapes:
                     #    preset_shape = self._tensor_list_shapes[node.name]
-                    #    print("preset_shape: ", preset_shape)
                     #    shape = _get_more_static_shape(shape, preset_shape)
                     #
                     #if "shape" in attr:
                     #    attr["shape"] = _get_more_static_shape(shape, attr["shape"])
                     #else:
                     #    attr["shape"] = shape
-                    print("attr[\"shape\"]: ", attr["shape"])
 
             op = self._convert_operator(graph, node.op, node.name, inputs, attr)
             if isinstance(op, np.ndarray):
@@ -684,7 +666,7 @@ def _convert_loop(module, graph, inputs, attr, node_name, nodes, prelude, gdef_l
         None,
     )
     loop_inputs = convert_vars(inputs, while_func.signature.input_arg)
-
+    
     def cond_fn(*loop_inputs):
         return _convert_function(
             module, graph, loop_inputs, attr, cond_fn_name, prelude, gdef_lib=gdef_lib

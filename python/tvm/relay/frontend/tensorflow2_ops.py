@@ -42,7 +42,8 @@ def _tensorlist_reserve():
         elem_shape = tuple(elem_shape.asnumpy().astype("int32").flatten())
         
         if "shape" in attr:
-            static_tensor_array_ops = StaticTensorArrayOps(prelude, dtype_str, elem_shape)
+            shape = attr["shape"]
+            static_tensor_array_ops = StaticTensorArrayOps(prelude, dtype_str, shape)
             static_tensor_array_ops.register()
             tensor_array_constructor = static_tensor_array_ops.get_global_var("tensor_array")
             tensor_array = tensor_array_constructor(inputs[1])
@@ -58,7 +59,6 @@ def _tensorlist_set_item():
     def _impl(inputs, attr, params, prelude):
         dtype_str = attr.get("element_dtype").name
         input_ta = inputs[0]
-        print("input_ta: " ,input_ta)
         input_ta_shape = get_tensor_array_shape(input_ta, dtype_str, prelude)
         input_t_shape = _infer_type_with_prelude(inputs[2], prelude).shape
         input_rank = len(input_t_shape)
