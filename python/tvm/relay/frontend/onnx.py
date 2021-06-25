@@ -2324,7 +2324,7 @@ class GRU(RNN):
             if isinstance(betas, float):
                 betas = [betas]
             acts = []
-            for i in range(2):
+            for i in range(2 * num_directions):
                 alpha = None
                 beta = None
                 activation = activations[i]
