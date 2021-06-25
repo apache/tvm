@@ -20,6 +20,82 @@ from ..dyn.image import _make as _dyn_make
 from ...expr import Expr, Constant
 
 
+def resize1d(
+    data,
+    size,
+    layout="NCW",
+    method="linear",
+    coordinate_transformation_mode="half_pixel",
+    rounding_method="",
+    bicubic_alpha=-0.5,
+    bicubic_exclude=0,
+    out_dtype=None,
+):
+    """Image resize1d operator.
+
+    This operator takes data as input and does 1D scaling to the given scale factor.
+    In the default case, where the data_layout is `NCW`
+    with data of shape (n, c, w)
+    out will have a shape (n, c, size[0])
+
+    method indicates the algorithm to be used while calculating the out value
+    and method can be one of ("linear", "nearest_neighbor", "cubic")
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data to the operator.
+
+    size: Tuple of Int or Expr
+        The out size to which the image will be resized.
+
+    layout : str, optional
+        Layout of the input.
+
+    method : str, optional
+        Scale method to used [nearest_neighbor, linear, cubic].
+
+    coordinate_transformation_mode : string, optional
+        Describes how to transform the coordinate in the resized tensor
+        to the coordinate in the original tensor.
+        Refer to the ONNX Resize operator specification for details.
+        [half_pixel, align_corners, asymmetric]
+
+    rounding_method: string, optional
+        indicates how to find the "nearest" pixel in nearest_neighbor method
+        [round, floor, ceil]
+
+    bicubic_alpha: float
+        Spline Coefficient for Bicubic Interpolation
+
+    bicubic_exclude: int
+            Flag to exclude exterior of the image during bicubic interpolation
+
+    out_dtype : str, optional
+        Type to return. If left None returns the same type as input.
+
+    Returns
+    -------
+    result: relay.Expr
+        The resized result.
+    """
+    if isinstance(size, Constant):
+        size = list(size.data.numpy().astype("int32"))
+    if isinstance(size, Expr):
+        raise NotImplementedError("dyn.resize1d is not yet implemented, got size", size)
+    return _make.resize1d(
+        data,
+        size,
+        layout,
+        method,
+        coordinate_transformation_mode,
+        rounding_method,
+        bicubic_alpha,
+        bicubic_exclude,
+        out_dtype,
+    )
+
+
 def resize2d(
     data,
     size,
