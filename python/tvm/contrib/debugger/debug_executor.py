@@ -24,8 +24,8 @@ import tvm._ffi
 
 from tvm._ffi.base import string_types
 from tvm.contrib import graph_executor
-from . import debug_result
 from tvm.rpc import base
+from . import debug_result
 
 _DUMP_ROOT_PREFIX = "tvmdbg_"
 _DUMP_PATH_PREFIX = "_tvmdbg_"

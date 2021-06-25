@@ -173,7 +173,7 @@ def test_graph_executor():
 
 
 @tvm.testing.requires_micro
-@pytest.mark.xfail
+@pytest.mark.xfail(raises=NotImplementedError)
 def test_debug_graph_executor_profile():
     """Test use of the graph debug executor profile operation with microTVM."""
     import tvm.micro
