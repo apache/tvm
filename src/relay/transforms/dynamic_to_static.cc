@@ -119,7 +119,7 @@ class DynamicToStaticMutator : public MixedModeMutator {
              }
              return MakeResize2D(call_node->args[0], size_prim, param->layout, param->method,
                                  param->coordinate_transformation_mode, param->rounding_method,
-                                 param->bicubic_alpha, param->bicubic_exclude, param->out_dtype);
+                                 param->cubic_alpha, param->cubic_exclude, param->out_dtype);
            }
            return Expr(nullptr);
          }},

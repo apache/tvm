@@ -31,8 +31,6 @@
 namespace tvm {
 namespace relay {
 
-TVM_REGISTER_NODE_TYPE(Resize2DAttrs);
-
 template <typename T>
 InferCorrectLayoutOutput ResizeInferCorrectLayout(const Attrs& attrs,
                                                   const Array<Layout>& new_in_layouts,
@@ -57,6 +55,81 @@ InferCorrectLayoutOutput ResizeInferCorrectLayout(const Attrs& attrs,
 
   return InferCorrectLayoutOutput({params->layout}, {params->layout}, Attrs(params));
 }
+
+TVM_REGISTER_NODE_TYPE(Resize1DAttrs);
+
+bool Resize1DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                 const TypeReporter& reporter) {
+  ICHECK_EQ(types.size(), 2);
+  const auto* data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) return false;
+
+  static const Layout kNCW("NCW");
+
+  const Resize1DAttrs* param = attrs.as<Resize1DAttrs>();
+  ICHECK(param != nullptr);
+  const Layout in_layout(param->layout);
+  auto layout_converter = tir::BijectiveLayout(in_layout, kNCW);
+  ICHECK(layout_converter.defined())
+      << "Resize only support input layouts that are convertible from NCW."
+      << " But got " << in_layout;
+
+  auto oshape = layout_converter.ForwardShape(data->shape);
+  oshape.Set(2, param->size[0]);
+
+  DataType out_dtype = param->out_dtype;
+  if (out_dtype.bits() == 0) {
+    out_dtype = data->dtype;
+  }
+
+  // assign output type
+  reporter->Assign(types[1], TensorType(layout_converter.BackwardShape(oshape), out_dtype));
+  return true;
+}
+
+// Positional relay function to create image operator
+// used by frontend FFI.
+Expr MakeResize1D(Expr data, Array<IndexExpr> size, String layout, String method,
+                  String coordinate_transformation_mode, String rounding_method, double cubic_alpha,
+                  int cubic_exclude, DataType out_dtype) {
+  auto attrs = make_object<Resize1DAttrs>();
+  attrs->size = std::move(size);
+  attrs->layout = std::move(layout);
+  attrs->method = std::move(method);
+  attrs->coordinate_transformation_mode = coordinate_transformation_mode;
+  attrs->rounding_method = rounding_method;
+  attrs->cubic_alpha = cubic_alpha;
+  attrs->cubic_exclude = cubic_exclude;
+  attrs->out_dtype = out_dtype;
+  static const Op& op = Op::Get("image.resize1d");
+  return Call(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op.image._make.resize1d").set_body_typed(MakeResize1D);
+
+RELAY_REGISTER_OP("image.resize1d")
+    .describe(R"code(Perform resize to input array with nearest neighbour or bilinear interpolation.
+
+- **data**: data is 3D array of shape
+            (batch_size, channels, in_width) for NCW
+            (batch_size, in_width, channels) for NWC
+
+- **out**: Output is 3D array of shape
+           for layout NCW
+           (batch_size, channels, size[0])
+
+           for layout NWC
+           (batch_size, size[0], channels)
+)code" TVM_ADD_FILELINE)
+    .set_attrs_type<Resize1DAttrs>()
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .set_support_level(5)
+    .add_type_rel("Resize1D", Resize1DRel)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ResizeInferCorrectLayout<Resize1DAttrs>)
+    .set_attr<TOpPattern>("TOpPattern", kInjective);
+
+TVM_REGISTER_NODE_TYPE(Resize2DAttrs);
 
 bool Resize2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                  const TypeReporter& reporter) {
@@ -91,16 +164,16 @@ bool Resize2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 // Positional relay function to create image operator
 // used by frontend FFI.
 Expr MakeResize2D(Expr data, Array<IndexExpr> size, String layout, String method,
-                  String coordinate_transformation_mode, String rounding_method,
-                  double bicubic_alpha, int bicubic_exclude, DataType out_dtype) {
+                  String coordinate_transformation_mode, String rounding_method, double cubic_alpha,
+                  int cubic_exclude, DataType out_dtype) {
   auto attrs = make_object<Resize2DAttrs>();
   attrs->size = std::move(size);
   attrs->layout = std::move(layout);
   attrs->method = std::move(method);
   attrs->coordinate_transformation_mode = coordinate_transformation_mode;
   attrs->rounding_method = rounding_method;
-  attrs->bicubic_alpha = bicubic_alpha;
-  attrs->bicubic_exclude = bicubic_exclude;
+  attrs->cubic_alpha = cubic_alpha;
+  attrs->cubic_exclude = cubic_exclude;
   attrs->out_dtype = out_dtype;
   static const Op& op = Op::Get("image.resize2d");
   return Call(op, {data}, Attrs(attrs), {});

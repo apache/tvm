@@ -38,8 +38,8 @@ def compute_resize1d(attrs, inputs, out_type):
     method = attrs.method
     coord_trans = attrs.coordinate_transformation_mode
     rounding_method = attrs.rounding_method
-    bicubic_alpha = attrs.bicubic_alpha
-    bicubic_exclude = attrs.bicubic_exclude
+    cubic_alpha = attrs.cubic_alpha
+    cubic_exclude = attrs.cubic_exclude
     out_dtype = attrs.out_dtype
     return [
         topi.image.resize1d(
@@ -49,8 +49,8 @@ def compute_resize1d(attrs, inputs, out_type):
             method,
             coord_trans,
             rounding_method,
-            bicubic_alpha,
-            bicubic_exclude,
+            cubic_alpha,
+            cubic_exclude,
             out_dtype,
         )
     ]
@@ -132,8 +132,8 @@ def compute_resize2d(attrs, inputs, out_type):
     method = attrs.method
     coord_trans = attrs.coordinate_transformation_mode
     rounding_method = attrs.rounding_method
-    bicubic_alpha = attrs.bicubic_alpha
-    bicubic_exclude = attrs.bicubic_exclude
+    cubic_alpha = attrs.cubic_alpha
+    cubic_exclude = attrs.cubic_exclude
     out_dtype = attrs.out_dtype
     return [
         topi.image.resize2d(
@@ -143,8 +143,8 @@ def compute_resize2d(attrs, inputs, out_type):
             method,
             coord_trans,
             rounding_method,
-            bicubic_alpha,
-            bicubic_exclude,
+            cubic_alpha,
+            cubic_exclude,
             out_dtype,
         )
     ]
@@ -168,7 +168,6 @@ def convert_image_resize2d(attrs, inputs, tinfos, desired_layouts):
     desired_layouts : list of layout strings
         List of layouts defining our desired
         layout for the data input.
-
     Returns
     -------
     result : tvm.relay.Expr

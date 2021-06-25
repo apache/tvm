@@ -67,15 +67,15 @@ bool Resize2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 // Positional relay function to create image operator
 // used by frontend FFI.
 Expr MakeResize2D(Expr data, Expr size, String layout, String method,
-                  String coordinate_transformation_mode, String rounding_method,
-                  double bicubic_alpha, double bicubic_exclude, DataType out_dtype) {
+                  String coordinate_transformation_mode, String rounding_method, double cubic_alpha,
+                  double cubic_exclude, DataType out_dtype) {
   auto attrs = make_object<Resize2DAttrs>();
   attrs->layout = std::move(layout);
   attrs->method = std::move(method);
   attrs->coordinate_transformation_mode = coordinate_transformation_mode;
   attrs->rounding_method = rounding_method;
-  attrs->bicubic_alpha = bicubic_alpha;
-  attrs->bicubic_exclude = bicubic_exclude;
+  attrs->cubic_alpha = cubic_alpha;
+  attrs->cubic_exclude = cubic_exclude;
   attrs->out_dtype = out_dtype;
   static const Op& op = Op::Get("dyn.image.resize2d");
   return Call(op, {data, size}, Attrs(attrs), {});

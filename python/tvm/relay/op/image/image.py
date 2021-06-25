@@ -27,8 +27,8 @@ def resize1d(
     method="linear",
     coordinate_transformation_mode="half_pixel",
     rounding_method="",
-    bicubic_alpha=-0.5,
-    bicubic_exclude=0,
+    cubic_alpha=-0.5,
+    cubic_exclude=0,
     out_dtype=None,
 ):
     """Image resize1d operator.
@@ -65,11 +65,11 @@ def resize1d(
         indicates how to find the "nearest" pixel in nearest_neighbor method
         [round, floor, ceil]
 
-    bicubic_alpha: float
-        Spline Coefficient for Bicubic Interpolation
+    cubic_alpha: float
+        Spline Coefficient for cubic interpolation
 
-    bicubic_exclude: int
-            Flag to exclude exterior of the image during bicubic interpolation
+    cubic_exclude: int
+            Flag to exclude exterior of the image during cubic interpolation
 
     out_dtype : str, optional
         Type to return. If left None returns the same type as input.
@@ -90,8 +90,8 @@ def resize1d(
         method,
         coordinate_transformation_mode,
         rounding_method,
-        bicubic_alpha,
-        bicubic_exclude,
+        cubic_alpha,
+        cubic_exclude,
         out_dtype,
     )
 
@@ -103,8 +103,8 @@ def resize2d(
     method="bilinear",
     coordinate_transformation_mode="half_pixel",
     rounding_method="",
-    bicubic_alpha=-0.5,
-    bicubic_exclude=0,
+    cubic_alpha=-0.5,
+    cubic_exclude=0,
     out_dtype=None,
 ):
     """Image resize2d operator.
@@ -115,7 +115,7 @@ def resize2d(
     out will have a shape (n, c, size[0], size[1])
 
     method indicates the algorithm to be used while calculating the out value
-    and method can be one of ("bilinear", "nearest_neighbor", "bicubic")
+    and method can be one of ("linear", "nearest_neighbor", "cubic")
 
     Parameters
     ----------
@@ -129,7 +129,7 @@ def resize2d(
         Layout of the input.
 
     method : str, optional
-        Scale method to used [nearest_neighbor, bilinear, bicubic].
+        Scale method to used [nearest_neighbor, linear, cubic].
 
     coordinate_transformation_mode : string, optional
         Describes how to transform the coordinate in the resized tensor
@@ -141,10 +141,10 @@ def resize2d(
         indicates how to find the "nearest" pixel in nearest_neighbor method
         [round, floor, ceil]
 
-    bicubic_alpha: float
-        Spline Coefficient for Bicubic Interpolation
+    cubic_alpha: float
+        Spline Coefficient for bicubic interpolation
 
-    bicubic_exclude: int
+    cubic_exclude: int
             Flag to exclude exterior of the image during bicubic interpolation
 
     out_dtype : str, optional
@@ -165,8 +165,8 @@ def resize2d(
             method,
             coordinate_transformation_mode,
             rounding_method,
-            bicubic_alpha,
-            bicubic_exclude,
+            cubic_alpha,
+            cubic_exclude,
             out_dtype,
         )
     return _make.resize2d(
@@ -176,8 +176,8 @@ def resize2d(
         method,
         coordinate_transformation_mode,
         rounding_method,
-        bicubic_alpha,
-        bicubic_exclude,
+        cubic_alpha,
+        cubic_exclude,
         out_dtype,
     )
 

@@ -2395,9 +2395,9 @@ class Resize(OnnxOpConverter):
         if mode == "nearest":
             method = "nearest_neighbor"
         elif mode == "linear":
-            method = "bilinear"
+            method = "linear"
         elif mode == "cubic":
-            method = "bicubic"
+            method = "cubic"
         else:
             raise tvm.error.OpAttributeInvalid(
                 'Value {} in attribute "mode" of operator Resize is not valid.'.format(mode)
@@ -2406,23 +2406,28 @@ class Resize(OnnxOpConverter):
         scale = inputs[1]
         size = _op.cast(shape_of(inputs[0]), infer_type(scale).checked_type.dtype) * scale
         ndims = len(infer_shape(inputs[0]))
-        layout = {3: "NCW", 4: "NCHW", 5: "NCDHW"}[ndims]
-        out_size = fold_constant(_op.strided_slice(size, [2], [4]))
-        return _op.image.resize2d(inputs[0], out_size, layout, method, "asymmetric")
+        if ndims == 3:
+            out_size = fold_constant(_op.strided_slice(size, [2], [3]))
+            return _op.image.resize1d(inputs[0], out_size, "NCW", method, "asymmetric")
+        elif ndims == 4:
+            out_size = fold_constant(_op.strided_slice(size, [2], [4]))
+            return _op.image.resize2d(inputs[0], out_size, "NCHW", method, "asymmetric")
+        elif ndims == 5:
+            out_size = fold_constant(_op.strided_slice(size, [2], [5]))
+            return _op.image.resize3d(inputs[0], out_size, "NCDHW", method, "asymmetric")
+        else:
+            raise NotImplementedError("Resize only supports 3, 4, or 5 dims")
 
     @classmethod
     def _impl_v11(cls, inputs, attr, params):
-        print({**attr})
         ndims = len(infer_shape(inputs[0]))
-        layout = {3: "NCH", 4: "NCHW", 5: "NCDHW"}[ndims]
-
         mode = attr.get("mode").decode("ascii")
         if mode == "nearest":
             method = "nearest_neighbor"
         elif mode == "linear":
-            method = "bilinear"
+            method = "linear"
         elif mode == "cubic":
-            method = "bicubic"
+            method = "cubic"
         else:
             raise tvm.error.OpAttributeInvalid(
                 'Value {} in attribute "mode" of operator Resize is not valid.'.format(mode)
@@ -2445,9 +2450,23 @@ class Resize(OnnxOpConverter):
             size = _op.cast(shape_of(inputs[0]), infer_type(scale).checked_type.dtype) * scale
         out_size = fold_constant(_op.strided_slice(size, [2], [4]))
 
-        return _op.image.resize2d(
-            inputs[0], out_size, layout, method, coord_trans, nearest_mode, alpha, exclude
-        )
+        if ndims == 3:
+            out_size = fold_constant(_op.strided_slice(size, [2], [3]))
+            return _op.image.resize1d(
+                inputs[0], out_size, "NCW", method, coord_trans, nearest_mode, alpha, exclude
+            )
+        elif ndims == 4:
+            out_size = fold_constant(_op.strided_slice(size, [2], [4]))
+            return _op.image.resize2d(
+                inputs[0], out_size, "NCHW", method, coord_trans, nearest_mode, alpha, exclude
+            )
+        elif ndims == 5:
+            out_size = fold_constant(_op.strided_slice(size, [2], [5]))
+            return _op.image.resize3d(
+                inputs[0], out_size, "NCDHW", method, coord_trans, nearest_mode, alpha, exclude
+            )
+        else:
+            raise NotImplementedError("Resize only supports 3, 4, or 5 dims")
 
 
 class NonZero(OnnxOpConverter):

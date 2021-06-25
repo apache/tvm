@@ -163,6 +163,281 @@ def _cubic_kernel(inputs, w):
     return sum([a_i * w_i for a_i, w_i in zip(inputs, w)])
 
 
+def _resize_1d(
+    indices,
+    data,
+    image_width,
+    target_width,
+    boxes=None,
+    box_indices=None,
+    method=None,
+    extrapolation_value=None,
+    layout="NCW",
+    coordinate_transformation_mode="align_corners",
+    rounding_method="",
+    alpha=-0.5,
+    exclude_outside=0,
+    out_dtype=None,
+):
+
+    """Perform resize operation on the data with selected method and options.
+
+    Parameters
+    ----------
+    indices : tuple
+        The indices of input data
+
+    data : tvm.te.Tensor
+        inputs is a 3-D tensor with shape
+        [batch, channel, in_width]
+        or  [batch, in_width, channel]
+
+    image_width : integer
+        Input image width
+
+    target_width : integer
+        The target resized image width
+
+    boxes : tvm.te.Tensor, optional
+        A 2-D tensor of shape [num_boxes, 4]. Each row of the tensor specifies
+        the coordinates of a box.
+
+    box_indices : tvm.te.Tensor, optional
+        A 1-D tensor of shape [num_boxes], box_indices[i] specifies the data that
+        the i-th box refers to.
+
+    extrapolation_value: float, optional
+        Value used for extrapolation, when applicable.
+
+    layout: string, optional
+        "NCW", "NWC", or "NCWc".
+
+    coordinate_transformation_mode: string, optional
+        Describes how to transform the coordinate in the resized tensor
+        to the coordinate in the original tensor.
+        Refer to the ONNX Resize operator specification for details.
+        Available options are "half_pixel", "align_corners" and "asymmetric".
+
+    rounding_method: string, optional
+        indicates how to find the "nearest" pixel in nearest_neighbor method
+        [round, floor, ceil]
+
+    alpha: float, optional
+        Bicubic spline coefficient
+
+    exclude_oiutside: bool, optional:
+        Exclude values outside the image fdor bicubic interpolation
+
+    out_dtype: string, optional
+        Type to return. If left None will be same as input type.
+
+    Returns
+    -------
+    output : out_dtype
+        The computed result with type out_dtype
+    """
+
+    def _cast_output(value, data_dtype="float32", out_dtype=None):
+        if out_dtype:
+            dtype = out_dtype
+        else:
+            dtype = data_dtype
+        return value.astype(dtype)
+
+    n, c, x, cc, inum, ic = get_1d_indices(indices, layout)
+    box_idx = box_indices(n) if box_indices is not None else n
+    if boxes is not None:
+        # TODO(mbrookhart): Find an example of this
+        raise NotImplementedError("resize1d with image boxes not yet implemented")
+    else:
+        in_x = get_inx(
+            x,
+            image_width,
+            target_width,
+            coordinate_transformation_mode,
+        )
+
+    if method == "nearest_neighbor":
+        if rounding_method == "":
+            if coordinate_transformation_mode == "align_corners":
+                rounding_method = "round"
+            else:
+                rounding_method = "floor"
+
+        closest_x_index = get_closest_index(in_x, rounding_method, boxes)
+
+        value = get_1d_pixel(
+            data,
+            layout,
+            boxes,
+            image_width,
+            box_idx,
+            c,
+            closest_x_index,
+            cc,
+            inum,
+            ic,
+        )
+    elif method == "linear":
+        x_int = te.floor(in_x).astype("int32")
+
+        x_lerp = in_x - x_int
+
+        p = [0 for i in range(2)]
+        for i in range(2):
+            p[i] = get_1d_pixel(
+                data,
+                layout,
+                boxes,
+                image_width,
+                box_idx,
+                c,
+                x_int + i,
+                cc,
+                inum,
+                ic,
+            )
+
+        value = _lerp(*p, x_lerp)
+
+    elif method == "cubic":
+        xint = te.floor(in_x).astype("int32")
+        xfract = in_x - te.floor(in_x)
+
+        # Get the surrounding values
+        p = [0 for i in range(4)]
+        for i in range(4):
+            p[i] = get_1d_pixel(
+                data,
+                layout,
+                boxes,
+                image_width,
+                box_idx,
+                c,
+                xint + i - 1,
+                cc,
+                inum,
+                ic,
+            )
+
+        wx = _cubic_spline_weights(xfract, alpha)
+        if exclude_outside:
+            for i in range(4):
+                wx[i] = te.if_then_else(
+                    te.any(xint - 1 + i < 0, xint + i > image_width), 0.0, wx[i]
+                )
+            sum_wx = sum(wx)
+            wx = [w / sum_wx for w in wx]
+        value = _cubic_kernel(p, wx)
+
+    else:
+        raise ValueError("Unknown resize method:", method)
+
+    if extrapolation_value is not None:
+        # use extrapolation_value if in_x is out of boundary
+        value = tvm.tir.if_then_else(
+            in_x < 0,
+            extrapolation_value,
+            tvm.tir.if_then_else(in_x > image_width - 1, extrapolation_value, value),
+        )
+    return _cast_output(value, data.dtype, out_dtype=out_dtype)
+
+
+def resize1d(
+    data,
+    size,
+    layout="NCW",
+    method="linear",
+    coordinate_transformation_mode="half_pixel",
+    rounding_method="",
+    bicubic_alpha=-0.5,
+    bicubic_exclude=0,
+    out_dtype=None,
+    output_shape=None,
+):
+    """Perform resize operation on the data.
+
+    Parameters
+    ----------
+    data : tvm.te.Tensor
+        inputs is a 3-D tensor with shape
+        [batch, channel in_width]
+        or  [batch in_width, channel]
+
+    size: Tuple
+        Output resolution scale to
+
+    layout: string, optional
+        "NCW", "NWC", or "NCWc".
+
+    coordinate_transformation_mode: string, optional
+        Describes how to transform the coordinate in the resized tensor
+        to the coordinate in the original tensor.
+        Refer to the ONNX Resize operator specification for details.
+        Available options are "half_pixel", "align_corners" and "asymmetric".
+
+    method: {"linear", "nearest_neighbor", "cubic"}
+        Method to be used for resizing.
+
+    out_dtype: string, optional
+        Type to return. If left None will be same as input type.
+
+    output_shape: tvm.tir.container.Array, optional
+        Shape to return. If left None will be inferred
+        (If shape is determined dynamically, pass out_dtype.shape as output_shape)
+
+    Returns
+    -------
+    output : tvm.te.Tensor
+        4-D with shape [batch, chananel, in_width*scale]
+        or [batch, in_width*scale, channel]
+        or 5-D with shape [batch, channel-major, in_width*scale, channel-minor]
+    """
+    method = method.lower()
+    if layout == "NWC":
+        in_n, in_w, in_c = data.shape
+        if output_shape is None:
+            output_shape = [in_n, size[0], in_c]
+    elif layout == "NCW":
+        in_n, in_c, in_w = data.shape
+        if output_shape is None:
+            output_shape = [in_n, in_c, size[0]]
+    elif ncw_pack_layout(layout):  # for NCWinic
+        in_n, in_c, in_w, in_inum, in_ic = data.shape
+        if output_shape is None:
+            output_shape = [in_n, in_c, size[0], in_inum, in_ic]
+    elif ncw_xc_layout(layout):  # for NCWxc
+        in_n, in_c, in_w, in_cc = data.shape
+        if output_shape is None:
+            output_shape = [in_n, in_c, size[0], in_cc]
+    else:
+        raise ValueError("%s layout is not supported." % layout)
+
+    if isinstance(size, tuple):
+        size = list(size)
+
+    for i in range(1):
+        if isinstance(size[i], int):
+            size[i] = tvm.tir.IntImm("int32", size[i])
+
+    def compute_func(*indices):
+        return _resize_1d(
+            indices,
+            data,
+            in_w,
+            size[0],
+            method=method,
+            layout=layout,
+            coordinate_transformation_mode=coordinate_transformation_mode,
+            rounding_method=rounding_method,
+            alpha=bicubic_alpha,
+            exclude_outside=bicubic_exclude,
+            out_dtype=out_dtype,
+        )
+
+    return te.compute(output_shape, compute_func, name="resize", tag=tag.INJECTIVE)
+
+
 def _resize_2d(
     indices,
     data,
@@ -300,7 +575,7 @@ def _resize_2d(
             inum,
             ic,
         )
-    elif method == "bilinear":
+    elif method == "linear":
         y_int = te.floor(in_y).astype("int32")
         x_int = te.floor(in_x).astype("int32")
 
@@ -329,7 +604,7 @@ def _resize_2d(
         bottom = _lerp(*p[1], x_lerp)
         value = _lerp(top, bottom, y_lerp)
 
-    elif method == "bicubic":
+    elif method == "cubic":
         xint = te.floor(in_x).astype("int32")
         xfract = in_x - te.floor(in_x)
 
@@ -397,7 +672,7 @@ def resize2d(
     data,
     size,
     layout="NCHW",
-    method="bilinear",
+    method="linear",
     coordinate_transformation_mode="half_pixel",
     rounding_method="",
     bicubic_alpha=-0.5,
@@ -426,7 +701,7 @@ def resize2d(
         Refer to the ONNX Resize operator specification for details.
         Available options are "half_pixel", "align_corners" and "asymmetric".
 
-    method: {"bilinear", "nearest_neighbor", "bicubic"}
+    method: {"linear", "nearest_neighbor", "cubic"}
         Method to be used for resizing.
 
     out_dtype: string, optional
@@ -561,6 +836,8 @@ def crop_and_resize(
         image_w = data.shape[3].astype("int32")
     else:
         raise ValueError("%s layout is not supported." % layout)
+    if method == "bilinear":
+        method = "linear"
 
     def compute_func(*indices):
         return _resize_2d(
@@ -610,7 +887,7 @@ def resize3d(
         Refer to the ONNX Resize operator specification for details.
 
         Available options are "half_pixel", "align_corners" and "asymmetric".
-    method: {"trilinear", "nearest_neighbor"}
+    method: {"linear", "nearest_neighbor"}
         Method to be used for resizing.
 
     out_dtype: string, optional
