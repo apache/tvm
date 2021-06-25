@@ -34,9 +34,18 @@ from .. import op as _op
 from .. import qnn as _qnn
 from .. import ty as _ty
 from .. import vision as _vision
-from .common import (AttrCvt, Renamer, fold_constant, get_name, get_relay_op,
-                     infer_channels, infer_shape, infer_type, infer_value,
-                     new_var)
+from .common import (
+    AttrCvt,
+    Renamer,
+    fold_constant,
+    get_name,
+    get_relay_op,
+    infer_channels,
+    infer_shape,
+    infer_type,
+    infer_value,
+    new_var,
+)
 
 __all__ = ["from_onnx"]
 
@@ -2258,6 +2267,10 @@ class GRU(RNN):
             H_t = ((_expr.const(1, dtype=W_dtype) - z) * h) + (z * H_t)
             h_list.append(_op.expand_dims(H_t, axis=0))
 
+        if backwards:
+            # Canonical view is hidden states from the first token not last
+            h_list = h_list[::-1]
+
         # Concatenate outputs and add back in direction axis.
         concatenated = _op.concatenate(h_list, 0)
         output = _op.expand_dims(concatenated, axis=1)
@@ -2328,6 +2341,7 @@ class GRU(RNN):
         result_output = []
         result_H = []
 
+        X_steps = _op.split(X, indices_or_sections=X_shape[0], axis=0)
         H_ts = _op.split(Hp_0, num_directions)
         Ws = _op.split(Wp, num_directions)
         Rs = _op.split(Rp, num_directions)
@@ -2340,7 +2354,7 @@ class GRU(RNN):
             B = _op.squeeze(Bs[i], axis=[0])
             f_act, g_act = acts[i * 2 : (i + 1) * 2]
             output, H = GRU.generate_gru(
-                X_steps=X,
+                X_steps=X_steps,
                 H_t=H_t,
                 W=W,
                 R=R,
