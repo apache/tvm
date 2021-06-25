@@ -85,10 +85,10 @@ def test_tvmc_export_package_mlf(tflite_mobilenet_v1_1_quant, tmpdir_factory):
     assert str(exp.value) == expected_reason, on_error
 
 
-def test_tvmc_import_package_mlf(tflite_mobilenet_v1_1_quant, tflite_tvmc_compiler):
+def test_tvmc_import_package_mlf_graph(tflite_mobilenet_v1_1_quant, tflite_compile_model):
     pytest.importorskip("tflite")
 
-    tflite_compiled_model_mlf = tflite_tvmc_compiler(
+    tflite_compiled_model_mlf = tflite_compile_model(
         tflite_mobilenet_v1_1_quant, output_format="mlf"
     )
 
@@ -101,15 +101,17 @@ def test_tvmc_import_package_mlf(tflite_mobilenet_v1_1_quant, tflite_tvmc_compil
 
     assert tvmc_package.lib_name is None, ".lib_name must not be set in the MLF archive."
     assert tvmc_package.lib_path is None, ".lib_path must not be set in the MLF archive."
-    assert tvmc_package.graph is not None, ".graph must be set in the MLF archive."
+    assert (
+        tvmc_package.graph is not None
+    ), ".graph must be set in the MLF archive for Graph executor."
     assert tvmc_package.params is not None, ".params must be set in the MLF archive."
     assert tvmc_package.type == "mlf", ".type must be set to 'mlf' in the MLF format."
 
 
-def test_tvmc_import_package_mlf_aot(tflite_mobilenet_v1_1_quant, tflite_tvmc_compiler):
+def test_tvmc_import_package_mlf_aot(tflite_mobilenet_v1_1_quant, tflite_compile_model):
     pytest.importorskip("tflite")
 
-    tflite_compiled_model_mlf = tflite_tvmc_compiler(
+    tflite_compiled_model_mlf = tflite_compile_model(
         tflite_mobilenet_v1_1_quant,
         target="c --executor=aot",
         output_format="mlf",
@@ -125,6 +127,6 @@ def test_tvmc_import_package_mlf_aot(tflite_mobilenet_v1_1_quant, tflite_tvmc_co
 
     assert tvmc_package.lib_name is None, ".lib_name must not be set in the MLF archive."
     assert tvmc_package.lib_path is None, ".lib_path must not be set in the MLF archive."
-    assert tvmc_package.graph is None, ".graph must not be set in the MLF archive for AOT."
+    assert tvmc_package.graph is None, ".graph must not be set in the MLF archive for AOT executor."
     assert tvmc_package.params is not None, ".params must be set in the MLF archive."
     assert tvmc_package.type == "mlf", ".type must be set to 'mlf' in the MLF format."

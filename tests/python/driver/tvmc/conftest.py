@@ -149,7 +149,7 @@ def onnx_mnist():
 
 
 @pytest.fixture
-def tflite_tvmc_compiler(tmpdir_factory):
+def tflite_compile_model(tmpdir_factory):
     """Support function that returns a TFLite compiled module"""
 
     def model_compiler(model_file, **overrides):

@@ -72,14 +72,14 @@ def test_get_top_results_keep_results():
 
 
 def test_run_tflite_module__with_profile__valid_input(
-    tflite_mobilenet_v1_1_quant, tflite_tvmc_compiler, imagenet_cat
+    tflite_mobilenet_v1_1_quant, tflite_compile_model, imagenet_cat
 ):
     # some CI environments wont offer TFLite, so skip in case it is not present
     pytest.importorskip("tflite")
 
     inputs = np.load(imagenet_cat)
 
-    tflite_compiled_model = tflite_tvmc_compiler(tflite_mobilenet_v1_1_quant)
+    tflite_compiled_model = tflite_compile_model(tflite_mobilenet_v1_1_quant)
     result = tvmc.run(
         tflite_compiled_model,
         inputs=inputs,
