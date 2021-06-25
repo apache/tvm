@@ -108,6 +108,7 @@ ALLOW_SPECIFIC_FILE = {
     "KEYS",
     "DISCLAIMER",
     "Jenkinsfile",
+    "mypy.ini",
     # cargo config
     "rust/runtime/tests/test_wasm32/.cargo/config",
     "rust/tvm-graph-rt/tests/test_wasm32/.cargo/config",
