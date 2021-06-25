@@ -3429,83 +3429,119 @@ def test_lstm():
 
 @tvm.testing.uses_gpu
 def test_gru():
-    # No bias.
-    verify_rnn(
-        seq_length=2, batch_size=1, input_size=16, hidden_size=32, use_bias=False, rnn_type="GRU"
-    )
-    # large batch.
-    verify_rnn(
-        seq_length=4,
-        batch_size=8,
-        input_size=16,
-        hidden_size=32,
-        use_bias=True,
-        rnn_type="GRU",
-        linear_before_reset=True,
-    )
-    # Non power of two.
-    verify_rnn(
-        seq_length=3, batch_size=3, input_size=16, hidden_size=40, use_bias=True, rnn_type="GRU"
-    )
-    # Long sequence.
-    verify_rnn(
-        seq_length=8, batch_size=1, input_size=16, hidden_size=32, use_bias=True, rnn_type="GRU"
-    )
-    # Large hidden.
-    verify_rnn(
-        seq_length=2, batch_size=1, input_size=16, hidden_size=128, use_bias=True, rnn_type="GRU"
-    )
-    # Large input.
-    verify_rnn(
-        seq_length=2, batch_size=1, input_size=64, hidden_size=32, use_bias=True, rnn_type="GRU"
-    )
+    for directions in [1, 2]:
+        # No bias.
+        verify_rnn(
+            seq_length=2,
+            batch_size=1,
+            input_size=16,
+            hidden_size=32,
+            use_bias=False,
+            rnn_type="GRU",
+            directions=directions,
+        )
+        # large batch.
+        verify_rnn(
+            seq_length=4,
+            batch_size=8,
+            input_size=16,
+            hidden_size=32,
+            use_bias=True,
+            rnn_type="GRU",
+            linear_before_reset=True,
+            directions=directions,
+        )
+        # Non power of two.
+        verify_rnn(
+            seq_length=3,
+            batch_size=3,
+            input_size=16,
+            hidden_size=40,
+            use_bias=True,
+            rnn_type="GRU",
+            directions=directions,
+        )
+        # Long sequence.
+        verify_rnn(
+            seq_length=8,
+            batch_size=1,
+            input_size=16,
+            hidden_size=32,
+            use_bias=True,
+            rnn_type="GRU",
+            directions=directions,
+        )
+        # Large hidden.
+        verify_rnn(
+            seq_length=2,
+            batch_size=1,
+            input_size=16,
+            hidden_size=128,
+            use_bias=True,
+            rnn_type="GRU",
+            directions=directions,
+        )
+        # Large input.
+        verify_rnn(
+            seq_length=2,
+            batch_size=1,
+            input_size=64,
+            hidden_size=32,
+            use_bias=True,
+            rnn_type="GRU",
+            directions=directions,
+        )
 
-    # Different activation testing.
-    # Default value hardsigmoid.
-    verify_rnn(
-        seq_length=2,
-        batch_size=1,
-        input_size=16,
-        hidden_size=32,
-        use_bias=False,
-        activations=["HardSigmoid", "Softsign"],
-        rnn_type="GRU",
-    )
-    # Multiple parameterized activations.
-    verify_rnn(
-        seq_length=2,
-        batch_size=1,
-        input_size=16,
-        hidden_size=32,
-        use_bias=False,
-        activations=["HardSigmoid", "LeakyRelu"],
-        alphas=[2.0, 0.5],
-        betas=[0.3],
-        rnn_type="GRU",
-    )
-    # All parameterized with new Affine activation.
-    verify_rnn(
-        seq_length=2,
-        batch_size=1,
-        input_size=16,
-        hidden_size=32,
-        use_bias=False,
-        activations=["HardSigmoid", "Affine"],
-        alphas=[2.0, 0.8],
-        betas=[0.3, 0.1],
-        rnn_type="GRU",
-    )
+        # Different activation testing.
+        # Default value hardsigmoid.
+        verify_rnn(
+            seq_length=2,
+            batch_size=1,
+            input_size=16,
+            hidden_size=32,
+            use_bias=False,
+            activations=["HardSigmoid", "Softsign"] * directions,
+            rnn_type="GRU",
+            directions=directions,
+        )
+        # Multiple parameterized activations.
+        verify_rnn(
+            seq_length=2,
+            batch_size=1,
+            input_size=16,
+            hidden_size=32,
+            use_bias=False,
+            activations=["HardSigmoid", "LeakyRelu"] * directions,
+            alphas=[2.0, 0.5] * directions,
+            betas=[0.3, 0] * directions,
+            rnn_type="GRU",
+            directions=directions,
+        )
+        # All parameterized with new Affine activation.
+        verify_rnn(
+            seq_length=2,
+            batch_size=1,
+            input_size=16,
+            hidden_size=32,
+            use_bias=False,
+            activations=["HardSigmoid", "Affine"] * directions,
+            alphas=[2.0, 0.8] * directions,
+            betas=[0.3, 0.1] * directions,
+            rnn_type="GRU",
+            directions=directions,
+        )
 
-    # Testing with initial state
-    verify_rnn(
-        seq_length=2,
-        batch_size=1,
-        input_size=16,
-        hidden_size=32,
-        use_bias=True,
-        use_initial_state=True,
-        rnn_type="GRU",
-    )
+        # Testing with initial state
+        verify_rnn(
+            seq_length=2,
+            batch_size=1,
+            input_size=16,
+            hidden_size=32,
+            use_bias=True,
+            use_initial_state=True,
+            rnn_type="GRU",
+            directions=directions,
+        )
 
 
 @tvm.testing.uses_gpu
