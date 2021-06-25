@@ -61,7 +61,7 @@ def test_lstm():
 
     Has internal functions and let statements the pass must work on.
     """
-    # TODO(AndrewZhaoLuo): investigate why non-even units cause failure in codegen
+    # TODO(AndrewZhaoLuo): investigate why non-even units cause failure in codegen for CUDA
     # See discussion here: https://github.com/apache/tvm/issues/8294#issuecomment-866190408
     units = 4
     iterations = 5
