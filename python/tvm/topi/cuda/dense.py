@@ -121,17 +121,20 @@ def matmul_default_cuda(
     data_transposed=False,
     weight_transposed=False,
 ):
+    """Matmul operator on cuda"""
     return nn.matmul(data, weight, bias, out_dtype, data_transposed, weight_transposed)
 
 
 @autotvm.register_topi_schedule("matmul_default.cuda")
 def schedule_matmul_default_cuda(cfg, outs):
-    # Temporary use this as a basic schedule for matmul
+    """Schedule matmul on cuda"""
     outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
     s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
         if op.tag == "matmul":
+            # Temporary use this as a basic schedule for matmul
+            # TODO(jcf94): Add a more general schedule for matmul
             _schedule_dense_small_batch(cfg, s, op.output(0))
 
     traverse_inline(s, outs[0].op, _callback)
