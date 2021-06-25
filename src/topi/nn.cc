@@ -65,6 +65,10 @@ TVM_REGISTER_GLOBAL("topi.nn.batch_to_space_nd").set_body([](TVMArgs args, TVMRe
   *rv = batch_to_space_nd(args[0], args[1], args[2], args[3]);
 });
 
+TVM_REGISTER_GLOBAL("topi.nn.nll_loss").set_body([](TVMArgs args, TVMRetValue* rv) {
+  *rv = nll_loss(args[0], args[1], args[2], args[3], args[4]);
+});
+
 /* Ops from nn/dense.h */
 TVM_REGISTER_GLOBAL("topi.nn.dense").set_body([](TVMArgs args, TVMRetValue* rv) {
   *rv = nn::dense(args[0], args[1], args[2], args[3]);
