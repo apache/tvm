@@ -38,7 +38,7 @@
 #include <tvm/relay/transform.h>
 #include <tvm/relay/type.h>
 #include <tvm/runtime/executor_info.h>
-#include <tvm/runtime/micro/standalone/utvm_runtime.h>
+#include <tvm/runtime/micro/standalone/microtvm_runtime.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
@@ -107,23 +107,23 @@ TEST(MicroStandaloneRuntime, BuildModule) {
   const auto ret = system(ss.c_str());
   ASSERT_EQ(ret, 0);
   // Now, execute the minimal runtime.
-  auto* dsoModule = UTVMRuntimeDSOModuleCreate(so_fname.c_str(), so_fname.size());
+  auto* dsoModule = MicroTVMRuntimeDSOModuleCreate(so_fname.c_str(), so_fname.size());
   ASSERT_NE(dsoModule, nullptr);
-  auto* handle = UTVMRuntimeCreate(json.c_str(), json.size(), dsoModule);
+  auto* handle = MicroTVMRuntimeCreate(json.c_str(), json.size(), dsoModule);
   ASSERT_NE(handle, nullptr);
 
-  UTVMRuntimeSetInput(handle, 0, const_cast<DLTensor*>(A.operator->()));
-  UTVMRuntimeSetInput(handle, 1, const_cast<DLTensor*>(B.operator->()));
-  UTVMRuntimeSetInput(handle, 2, const_cast<DLTensor*>(C.operator->()));
-  UTVMRuntimeRun(handle);
+  MicroTVMRuntimeSetInput(handle, 0, const_cast<DLTensor*>(A.operator->()));
+  MicroTVMRuntimeSetInput(handle, 1, const_cast<DLTensor*>(B.operator->()));
+  MicroTVMRuntimeSetInput(handle, 2, const_cast<DLTensor*>(C.operator->()));
+  MicroTVMRuntimeRun(handle);
   auto Y = tvm::runtime::NDArray::Empty({2, 3}, {kDLFloat, 32, 1}, {kDLCPU, 0});
-  UTVMRuntimeGetOutput(handle, 0, const_cast<DLTensor*>(Y.operator->()));
+  MicroTVMRuntimeGetOutput(handle, 0, const_cast<DLTensor*>(Y.operator->()));
   auto* pY = (float*)Y->data;
   for (int i = 0; i < 6; ++i) {
     CHECK_LT(fabs(pY[i] - (i + (i + 1) + (i + 2))), 1e-4);
   }
-  UTVMRuntimeDestroy(handle);
-  UTVMRuntimeDSOModuleDestroy(dsoModule);
+  MicroTVMRuntimeDestroy(handle);
+  MicroTVMRuntimeDSOModuleDestroy(dsoModule);
 }
 
 #endif

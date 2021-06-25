@@ -17,8 +17,8 @@
  * under the License.
  */
 
-#ifndef TVM_RUNTIME_MICRO_STANDALONE_UTVM_GRAPH_EXECUTOR_H_
-#define TVM_RUNTIME_MICRO_STANDALONE_UTVM_GRAPH_EXECUTOR_H_
+#ifndef TVM_RUNTIME_MICRO_STANDALONE_MICROTVM_GRAPH_EXECUTOR_H_
+#define TVM_RUNTIME_MICRO_STANDALONE_MICROTVM_GRAPH_EXECUTOR_H_
 
 #include <dlpack/dlpack.h>
 
@@ -30,8 +30,8 @@
 #include <utility>
 #include <vector>
 
+#include "microtvm_runtime_api.h"
 #include "minimal_vector.h"
-#include "utvm_runtime_api.h"
 
 namespace tvm {
 namespace micro {
@@ -164,4 +164,4 @@ class MicroGraphExecutor {
 }  // namespace micro
 }  // namespace tvm
 
-#endif  // TVM_RUNTIME_MICRO_STANDALONE_UTVM_GRAPH_EXECUTOR_H_
+#endif  // TVM_RUNTIME_MICRO_STANDALONE_MICROTVM_GRAPH_EXECUTOR_H_

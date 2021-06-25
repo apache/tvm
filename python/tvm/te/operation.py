@@ -226,12 +226,12 @@ def extern(
         .. note::
              **Parameters**
 
-             - **ins** (list of :any:`Buffer`) - Placeholder for each inputs
-             - **outs** (list of :any:`Buffer`) - Placeholder for each outputs
+             - **ins** (list of :any:`tvm.tir.Buffer`) - Placeholder for each inputs
+             - **outs** (list of :any:`tvm.tir.Buffer`) - Placeholder for each outputs
 
              **Returns**
 
-             - **stmt** (:any:`Stmt`) - The statement that carries out array computation.
+             - **stmt** (:any:`tvm.tir.Stmt`) - The statement that carries out array computation.
 
     name: str, optional
         The name hint of the tensor
@@ -240,10 +240,10 @@ def extern(
         The data types of outputs,
         by default dtype will be same as inputs.
 
-    in_buffers: Buffer or list of Buffer, optional
+    in_buffers: tvm.tir.Buffer or list of tvm.tir.Buffer, optional
         Input buffers.
 
-    out_buffers: Buffer or list of Buffers, optional
+    out_buffers: tvm.tir.Buffer or list of tvm.tir.Buffer, optional
         Output buffers.
 
 

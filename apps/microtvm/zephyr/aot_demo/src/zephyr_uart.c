@@ -23,7 +23,7 @@
 
 #include "crt_config.h"
 
-static const struct device* g_utvm_uart;
+static const struct device* g_microtvm_uart;
 #define RING_BUF_SIZE_BYTES (TVM_CRT_MAX_PACKET_SIZE_BYTES + 100)
 
 // Ring buffer used to store data read from the UART on rx interrupt.
@@ -68,7 +68,7 @@ uint32_t TVMPlatformUartRxRead(uint8_t* data, uint32_t data_size_bytes) {
 
 uint32_t TVMPlatformWriteSerial(const char* data, uint32_t size) {
   for (uint32_t i = 0; i < size; i++) {
-    uart_poll_out(g_utvm_uart, data[i]);
+    uart_poll_out(g_microtvm_uart, data[i]);
   }
   return size;
 }
@@ -76,6 +76,6 @@ uint32_t TVMPlatformWriteSerial(const char* data, uint32_t size) {
 // Initialize UART
 void TVMPlatformUARTInit() {
   // Claim console device.
-  g_utvm_uart = device_get_binding(DT_LABEL(DT_CHOSEN(zephyr_console)));
-  uart_rx_init(&uart_rx_rbuf, g_utvm_uart);
+  g_microtvm_uart = device_get_binding(DT_LABEL(DT_CHOSEN(zephyr_console)));
+  uart_rx_init(&uart_rx_rbuf, g_microtvm_uart);
 }

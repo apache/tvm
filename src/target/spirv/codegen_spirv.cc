@@ -128,6 +128,7 @@ spirv::Value CodeGenSPIRV::GetThreadIndex(const IterVar& iv, const PrimExpr& ext
     auto* sizeptr = extent.as<tir::IntImmNode>();
     ICHECK(sizeptr) << "SPIRV only allows constant thread group size "
                     << " get " << extent;
+    ICHECK_GE(ts.dim_index, 0) << "vthread should have been optimized out by here";
     ICHECK_LT(ts.dim_index, 3);
     workgroup_size_[ts.dim_index] = static_cast<uint32_t>(sizeptr->value);
   } else {
@@ -139,20 +140,27 @@ spirv::Value CodeGenSPIRV::GetThreadIndex(const IterVar& iv, const PrimExpr& ext
 spirv::Value CodeGenSPIRV::CreateStorageSync(const CallNode* op) {
   const std::string& sync = op->args[0].as<StringImmNode>()->value;
   spirv::Value value;
-  if (sync == "warp") {
-    return value;
-  } else if (sync == "shared") {
-    auto type_int = builder_->GetSType(DataType::Int(32));
-    builder_->MakeInst(
-        spv::OpControlBarrier,
-        builder_->IntImm(type_int, static_cast<int64_t>(spv::ScopeWorkgroup)),
-        builder_->IntImm(type_int, static_cast<int64_t>(spv::ScopeWorkgroup)),
-        builder_->IntImm(type_int,
-                         static_cast<int64_t>(spv::MemorySemanticsSequentiallyConsistentMask |
-                                              spv::MemorySemanticsWorkgroupMemoryMask)));
+
+  uint32_t vulkan_api_version = spirv_support_.vulkan_api_version;
+
+  int64_t sync_scope;
+  int64_t memory_semantics;
+  if ((sync == "warp") && (vulkan_api_version >= VK_API_VERSION_1_1)) {
+    sync_scope = spv::ScopeSubgroup;
+    memory_semantics =
+        spv::MemorySemanticsSequentiallyConsistentMask | spv::MemorySemanticsSubgroupMemoryMask;
+  } else if ((sync == "shared") || (sync == "warp")) {
+    sync_scope = spv::ScopeWorkgroup;
+    memory_semantics =
+        spv::MemorySemanticsSequentiallyConsistentMask | spv::MemorySemanticsWorkgroupMemoryMask;
   } else {
     LOG(FATAL) << "Do not support sync " << sync;
   }
+
+  auto type_int = builder_->GetSType(DataType::Int(32));
+  builder_->MakeInst(spv::OpControlBarrier, builder_->IntImm(type_int, sync_scope),
+                     builder_->IntImm(type_int, sync_scope),
+                     builder_->IntImm(type_int, memory_semantics));
   return value;
 }
 
@@ -516,9 +524,13 @@ void CodeGenSPIRV::VisitStmt_(const ForNode* op) {
   // Must get init label after making value(to make sure they are correct)
   spirv::Label init_label = builder_->CurrentLabel();
   spirv::Label head_label = builder_->NewLabel();
+  builder_->SetName(head_label, "for_loop_head");
   spirv::Label body_label = builder_->NewLabel();
+  builder_->SetName(body_label, "for_loop_body");
   spirv::Label continue_label = builder_->NewLabel();
+  builder_->SetName(continue_label, "for_loop_continue");
   spirv::Label merge_label = builder_->NewLabel();
+  builder_->SetName(merge_label, "for_loop_merge");
   builder_->MakeInst(spv::OpBranch, head_label);
 
   // Loop head
@@ -643,9 +655,10 @@ void CodeGenSPIRV::VisitStmt_(const AttrStmtNode* op) {
   if (op->attr_key == tir::attr::thread_extent) {
     IterVar iv = Downcast<IterVar>(op->node);
     if (iv->thread_tag.length() != 0) {
+      // Will throw error if rebinding same local variable to a different extent.
+      analyzer_->Bind(iv->var, Range::FromMinExtent(0, op->value));
       if (!var_map_.count(iv->var.get())) {
         var_map_[iv->var.get()] = GetThreadIndex(iv, op->value);
-        analyzer_->Bind(iv->var, Range::FromMinExtent(0, op->value));
       }
     }
   } else if (op->attr_key == tir::attr::storage_scope) {

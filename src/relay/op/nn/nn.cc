@@ -1068,6 +1068,7 @@ Dilate data with given dilation value (0 by default).
     .set_support_level(10)
     .add_type_rel("Dilate", DilateRel);
 
+// relay.nn.cross_entropy_with_logits
 // Positional relay function to create cross_entropy_with_logits operator used by frontend FFI.
 Expr MakeCrossEntropyWithLogits(Expr predictions, Expr targets) {
   static const Op& op = Op::Get("nn.cross_entropy_with_logits");
@@ -1090,6 +1091,85 @@ Accept logits.
 
 // Depth to space and space to depth
 TVM_REGISTER_NODE_TYPE(SubPixelAttrs);
+
+// relay.nn.nll_loss
+TVM_REGISTER_NODE_TYPE(NLLLossAttrs);
+
+bool NLLLossRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                const TypeReporter& reporter) {
+  ICHECK_EQ(types.size(), 4) << "NLLLossRel expects 4 types, but " << types.size()
+                             << " were provided.";
+  const auto* predictions = types[0].as<TensorTypeNode>();
+  const auto* targets = types[1].as<TensorTypeNode>();
+  const auto* weights = types[2].as<TensorTypeNode>();
+  const NLLLossAttrs* param = attrs.as<NLLLossAttrs>();
+  if (predictions == nullptr || targets == nullptr || weights == nullptr) return false;
+  if (!(predictions->shape.size() - targets->shape.size() == 1)) {
+    reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
+                                     << "NLLLossRel: predictions should be one"
+                                     << " dimension larger than targets,"
+                                     << "predictions shape = " << predictions->shape
+                                     << ", targets shape = " << targets->shape);
+    return false;
+  }
+  if (!(weights->shape.size() == 1)) {
+    reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
+                                     << "NLLLossRel: weights should be a one dimension"
+                                     << " Tensor with its length the number of classes,"
+                                     << " but Tensor of dimension " << weights->shape.size()
+                                     << " were provided.");
+    return false;
+  }
+  if (!reporter->AssertEQ(predictions->shape[1], weights->shape[0])) {
+    reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
+                                     << "NLLLossRel: the second dimension of predictions"
+                                     << " should be the number of classes, "
+                                     << "which is the length of weights, "
+                                     << "predictions shape = " << predictions->shape
+                                     << ", weights shape = " << weights->shape);
+    return false;
+  }
+  if (!(predictions->dtype == weights->dtype && predictions->dtype.is_float())) {
+    reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
+                                     << "NLLLossRel: predictions and weights should"
+                                     << " be of the same floating type.");
+    return false;
+  }
+  if (!targets->dtype.is_int()) {
+    reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
+                                     << "NLLLossRel: targets should be of int type.");
+    return false;
+  }
+  // assign output type
+  if (param->reduction == "none") {
+    reporter->Assign(types[3], TensorType(targets->shape, predictions->dtype));
+  } else {
+    reporter->Assign(types[3], TensorType({}, predictions->dtype));
+  }
+  return true;
+}
+
+// Handler to create a call to the padding op used by front-end FFI
+Expr MakeNLLLoss(Expr predictions, Expr targets, Expr weights, String reduction, int ignore_index) {
+  auto attrs = make_object<NLLLossAttrs>();
+  attrs->reduction = reduction;
+  attrs->ignore_index = ignore_index;
+  static const Op& op = Op::Get("nn.nll_loss");
+  return Call(op, {predictions, targets, weights}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op.nn._make.nll_loss").set_body_typed(MakeNLLLoss);
+
+RELAY_REGISTER_OP("nn.nll_loss")
+    .describe(R"code(
+Negative log likelihood loss for given prediction and target.
+)code" TVM_ADD_FILELINE)
+    .set_attrs_type<NLLLossAttrs>()
+    .set_num_inputs(3)
+    .add_argument("predictions", "Tensor", "The prediction tensor.")
+    .add_argument("targets", "Tensor", "The target tensor.")
+    .add_argument("weights", "Tensor", "The weight of each target values.")
+    .add_type_rel("NLLLoss", NLLLossRel);
 
 bool DepthToSpaceRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                      const TypeReporter& reporter) {

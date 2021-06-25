@@ -81,7 +81,7 @@ def add_compile_parser(subparsers):
         choices=["so", "mlf"],
         default="so",
         help="output format. Use 'so' for shared object or 'mlf' for Model Library Format "
-        "(only for µTVM targets). Defaults to 'so'.",
+        "(only for microTVM targets). Defaults to 'so'.",
     )
     parser.add_argument(
         "--pass-config",
