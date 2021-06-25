@@ -177,7 +177,9 @@ State DoMultiLevelTiling(const State& state, int stage_id, const std::string& fo
           ? GetIterNameSetParam(stage->op->attrs, SearchPolicyKey::no_split_at_inner)
           : std::set<std::string>();
 
-  for (const auto& iter : state->stages[stage_id]->iters) {
+  auto func = [&](std::vector<std::vector<Iterator>> & levels, const)
+
+      for (const auto& iter : state->stages[stage_id]->iters) {
     if (!no_split_at_inner_name_set.count(iter->name)) {
       if (iter->iter_kind == IteratorKind::kSpatial) {
         ICHECK_GE(n_space, 1);
