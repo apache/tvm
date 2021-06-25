@@ -572,3 +572,8 @@ class ThreefryGenerateAttrs(Attrs):
 @tvm._ffi.register_object("relay.attrs.UniformAttrs")
 class UniformAttrs(Attrs):
     """Attributes used in UniformAttrs operators"""
+
+
+@tvm._ffi.register_object("relay.attrs.NLLLossAttrs")
+class NLLLossAttrs(Attrs):
+    """Attributes for nn.nll_loss"""

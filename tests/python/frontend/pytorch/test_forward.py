@@ -3875,6 +3875,29 @@ def test_unique():
     verify_trace_model(test_fn(True, False, True), [in_data], targets)
 
 
+def test_forward_nll_loss():
+    torch.set_grad_enabled(False)
+    N, C = 10, 3
+    predictions = torch.rand((N, C)).float()
+    targets = torch.randint(0, 3, (N,))
+    weights = torch.tensor([1, 2, 3]).float()
+    verify_model(torch.nn.NLLLoss().eval(), input_data=[predictions, targets])
+    verify_model(torch.nn.NLLLoss(weight=weights).eval(), input_data=[predictions, targets])
+    verify_model(torch.nn.NLLLoss(ignore_index=1).eval(), input_data=[predictions, targets])
+    verify_model(torch.nn.NLLLoss(reduction="sum").eval(), input_data=[predictions, targets])
+    verify_model(torch.nn.NLLLoss(reduction="none").eval(), input_data=[predictions, targets])
+
+    # multidimension nll loss (aten::nll_loss2d)
+    d1, d2 = 2, 3
+    predictions = torch.rand((N, C, d1, d2)).float()
+    targets = torch.randint(0, 3, (N, d1, d2))
+    verify_model(torch.nn.NLLLoss().eval(), input_data=[predictions, targets])
+    verify_model(torch.nn.NLLLoss(weight=weights).eval(), input_data=[predictions, targets])
+    verify_model(torch.nn.NLLLoss(ignore_index=1).eval(), input_data=[predictions, targets])
+    verify_model(torch.nn.NLLLoss(reduction="sum").eval(), input_data=[predictions, targets])
+    verify_model(torch.nn.NLLLoss(reduction="none").eval(), input_data=[predictions, targets])
+
+
 if __name__ == "__main__":
     # some structural tests
     test_forward_traced_function()
@@ -4017,6 +4040,7 @@ if __name__ == "__main__":
     test_unique()
     test_hard_swish()
     test_hard_sigmoid()
+    test_forward_nll_loss()
 
     # Model tests
     test_resnet18()

@@ -577,6 +577,47 @@ def test_matrix_set_diag():
     _verify((2, 3, 4), (2, 4, 3), "int32", (-1, 2), "RIGHT_RIGHT")
 
 
+@tvm.testing.parametrize_targets
+def test_nll_loss(dev, target):
+    def _get_oshape(target_shape, reduction):
+        if reduction == "none":
+            return target_shape
+        else:
+            return []
+
+    def _verify(prediction_shape, reduction="mean", ignore_index=-100, dtype="float32"):
+        C = prediction_shape[1]
+        target_shape = prediction_shape[:1] + prediction_shape[2:]
+
+        predictions = relay.var("predictions", relay.TensorType(prediction_shape, dtype))
+        targets = relay.var("targets", relay.TensorType(target_shape, "int32"))
+        weights = relay.var("weights", relay.TensorType((C,), dtype))
+        out = relay.nn.nll_loss(predictions, targets, weights, reduction, ignore_index)
+        checked = run_infer_type(out)
+        assert checked.checked_type == relay.ty.TensorType(
+            _get_oshape(target_shape, reduction), dtype
+        )
+        func = relay.Function([predictions, targets, weights], out)
+        predictions_np = np.random.uniform(size=prediction_shape).astype(dtype)
+        targets_np = np.random.randint(0, C, target_shape).astype("int32")
+        weights_np = np.random.uniform(size=(C,)).astype(dtype)
+        out_np = tvm.topi.testing.nll_loss(
+            predictions_np, targets_np, weights_np, reduction, ignore_index
+        )
+
+        for kind in ["graph", "debug"]:
+            intrp = relay.create_executor(kind, device=dev, target=target)
+            out_relay = intrp.evaluate(func)(predictions_np, targets_np, weights_np)
+            tvm.testing.assert_allclose(out_relay.asnumpy(), out_np)
+
+    _verify((10, 5))
+    _verify((10, 5, 2, 2))
+    _verify((10, 5), reduction="sum")
+    _verify((10, 5), reduction="none")
+    _verify((10, 5), ignore_index=3)
+    _verify((10, 5), dtype="float64")
+
+
 if __name__ == "__main__":
     test_adaptive_pool()
     test_collapse_sum_like()
