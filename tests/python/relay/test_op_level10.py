@@ -18,14 +18,11 @@
 """
 import numpy as np
 import tvm
-from tvm import te
+import tvm.testing
 import tvm.topi.testing
-from tvm import relay
+from tvm import relay, te, topi
 from tvm.relay import transform
 from tvm.relay.testing import run_infer_type
-from tvm import topi
-import tvm.topi.testing
-import tvm.testing
 
 
 @tvm.testing.uses_gpu
