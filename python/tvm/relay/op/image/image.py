@@ -230,6 +230,82 @@ def resize3d(
     return _make.resize3d(data, size, layout, method, coordinate_transformation_mode, out_dtype)
 
 
+def resize3d(
+    data,
+    size,
+    layout="NCDHW",
+    method="linear",
+    coordinate_transformation_mode="half_pixel",
+    rounding_method="",
+    cubic_alpha=-0.5,
+    cubic_exclude=0,
+    out_dtype=None,
+):
+    """Image resize3d operator.
+
+    This operator takes data as input and does 3D scaling to the given scale factor.
+    In the default case, where the data_layout is `NCDHW`
+    with data of shape `(n, c, d, h, w)`
+    out will have a shape `(n, c, size[0], size[1], size[2])`
+
+    method indicates the algorithm to be used while calculating the out value
+    and method can be one of ("linear", "nearest_neighbor", "cubic")
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data to the operator.
+
+    size: Tuple of Int or Expr
+        The out size to which the image will be resized.
+
+    layout : str, optional
+        Layout of the input.
+
+    method : str, optional
+        Scale method to used [nearest_neighbor, linear, cubic].
+
+    coordinate_transformation_mode : string, optional
+        Describes how to transform the coordinate in the resized tensor
+        to the coordinate in the original tensor.
+        Refer to the ONNX Resize operator specification for details.
+        [half_pixel, align_corners, asymmetric]
+
+    rounding_method: string, optional
+        indicates how to find the "nearest" pixel in nearest_neighbor method
+        [round, floor, ceil]
+
+    cubic_alpha: float
+        Spline Coefficient for cubic interpolation
+
+    cubic_exclude: int
+            Flag to exclude exterior of the image during cubic interpolation
+
+    out_dtype : str, optional
+        Type to return. If left None returns the same type as input.
+
+    Returns
+    -------
+    result: relay.Expr
+        The resized result.
+    """
+    if isinstance(size, Constant):
+        size = list(size.data.numpy().astype("int32"))
+    if isinstance(size, Expr):
+        raise NotImplementedError("dyn.resize3d is not yet implemented, got size", size)
+    return _make.resize3d(
+        data,
+        size,
+        layout,
+        method,
+        coordinate_transformation_mode,
+        rounding_method,
+        cubic_alpha,
+        cubic_exclude,
+        out_dtype,
+    )
+
+
 def crop_and_resize(
     data,
     boxes,

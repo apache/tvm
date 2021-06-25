@@ -223,12 +223,28 @@ def resize2d_shape_func(attrs, inputs, _):
 
 @reg.register_compute("image.resize3d")
 def compute_resize3d(attrs, inputs, out_type):
+    """compute definition for resize3d op"""
     size = attrs.size
     layout = attrs.layout
     method = attrs.method
     coord_trans = attrs.coordinate_transformation_mode
+    rounding_method = attrs.rounding_method
+    cubic_alpha = attrs.cubic_alpha
+    cubic_exclude = attrs.cubic_exclude
     out_dtype = attrs.out_dtype
-    return [topi.image.resize3d(inputs[0], size, layout, method, coord_trans, out_dtype)]
+    return [
+        topi.image.resize3d(
+            inputs[0],
+            size,
+            layout,
+            method,
+            coord_trans,
+            rounding_method,
+            cubic_alpha,
+            cubic_exclude,
+            out_dtype,
+        )
+    ]
 
 
 reg.register_injective_schedule("image.resize3d")

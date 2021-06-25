@@ -3584,7 +3584,7 @@ def test_resize():
 
         verify_with_ort(model, [ishape], [oshape], use_vm=True, opset=11, freeze_params=True)
 
-    for ndim in [1, 2]:
+    for ndim in [1, 2, 3]:
         method = "nearest"
         for coord_trans in ["asymmetric", "align_corners", "half_pixel"]:
             # upsampling
