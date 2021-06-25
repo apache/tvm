@@ -114,8 +114,7 @@ InferCorrectLayoutOutput PadInferCorrectLayout(const Attrs& attrs,
 
   // The pad value is always a scalar
   Layout ret_pad_value = Layout("1");
-  Array<Array<Layout>> inferred_layout{{ret_data, ret_pad_value}, {ret_data}};
-  return InferCorrectLayoutOutput(inferred_layout, Attrs(params));
+  return InferCorrectLayoutOutput({ret_data, ret_pad_value}, {ret_data}, Attrs(params));
 }
 
 bool PadRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,

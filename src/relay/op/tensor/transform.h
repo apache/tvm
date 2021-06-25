@@ -218,11 +218,11 @@ static inline InferCorrectLayoutOutput ConcatenateLayout(
     }
 
     if (ret.ndim() <= axis || !ret[axis].IsPrimal()) {
-      return InferCorrectLayoutOutput({{Layout::Undef()}, {Layout::Undef()}}, attrs);
+      return InferCorrectLayoutOutput({Layout::Undef()}, {Layout::Undef()}, attrs);
     }
   }
 
-  return InferCorrectLayoutOutput({Array<Layout>(old_in_layouts.size(), ret), {ret}}, Attrs(param));
+  return InferCorrectLayoutOutput(Array<Layout>(old_in_layouts.size(), ret), {ret}, Attrs(param));
 }
 
 /*!

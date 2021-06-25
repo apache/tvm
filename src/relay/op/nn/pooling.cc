@@ -55,8 +55,7 @@ InferCorrectLayoutOutput PoolInferCorrectLayout(const Attrs& attrs,
     params->layout = new_in_layouts[0].name();
   }
 
-  Array<Array<Layout>> inferred_layout{{params->layout}, {params->layout}};
-  return InferCorrectLayoutOutput(inferred_layout, Attrs(params));
+  return InferCorrectLayoutOutput({params->layout}, {params->layout}, Attrs(params));
 }
 
 IndexExpr calculate_pool_dimension(IndexExpr in_dimension, IndexExpr pad_amount,

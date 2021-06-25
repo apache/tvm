@@ -93,17 +93,20 @@ InferCorrectLayoutOutput QnnConvInferCorrectLayout(const Attrs& attrs,
                                                    const Array<Layout>& old_in_layouts,
                                                    const Array<tvm::relay::Type>& old_in_types) {
   // Use Relay Conv2D Infer correct layout.
-  auto layouts =
-      ConvInferCorrectLayout<Conv2DAttrs>(attrs, new_in_layouts, old_in_layouts, old_in_types)
-          ->inferred_layout;
+  auto conv_new_layouts =
+      ConvInferCorrectLayout<Conv2DAttrs>(attrs, new_in_layouts, old_in_layouts, old_in_types);
 
   // Fill the layouts of remaining input tensors - scales and zero points. The layouts of these
   // tensors can be treated as channel layout.
   Layout channel_layout = Layout("C");
-  Array<Layout> input_layouts = {layouts[0][0],  layouts[0][1],  channel_layout,
-                                 channel_layout, channel_layout, channel_layout};
-  Array<Layout> output_layouts = layouts[1];
-  return InferCorrectLayoutOutput({input_layouts, output_layouts}, attrs);
+  Array<Layout> input_layouts = {conv_new_layouts->input_layouts[0],
+                                 conv_new_layouts->input_layouts[1],
+                                 channel_layout,
+                                 channel_layout,
+                                 channel_layout,
+                                 channel_layout};
+  Array<Layout> output_layouts = conv_new_layouts->output_layouts;
+  return InferCorrectLayoutOutput(input_layouts, output_layouts, attrs);
 }
 
 bool is_depthwise(const Conv2DAttrs* param) {

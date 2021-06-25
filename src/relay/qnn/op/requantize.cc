@@ -108,7 +108,7 @@ InferCorrectLayoutOutput RequantizeInferCorrectLayout(const Attrs& attrs,
     output_layouts = {undef};
   }
 
-  return InferCorrectLayoutOutput({input_layouts, output_layouts}, Attrs(param));
+  return InferCorrectLayoutOutput(input_layouts, output_layouts, Attrs(param));
 }
 
 // Lowering of qnn.requantize op

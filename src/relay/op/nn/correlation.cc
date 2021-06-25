@@ -42,7 +42,7 @@ InferCorrectLayoutOutput CorrelationInferCorrectLayout(
     const Array<tvm::relay::Type>& old_in_types) {
   const auto* params = attrs.as<CorrelationAttrs>();
   Layout layout{params->layout};
-  return InferCorrectLayoutOutput({{layout, layout}, {layout}}, attrs);
+  return InferCorrectLayoutOutput({layout, layout}, {layout}, attrs);
 }
 
 // Positional relay function to create correlation operator

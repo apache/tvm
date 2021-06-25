@@ -55,8 +55,7 @@ InferCorrectLayoutOutput ResizeInferCorrectLayout(const Attrs& attrs,
     }
   }
 
-  Array<Array<Layout>> inferred_layout{{params->layout}, {params->layout}};
-  return InferCorrectLayoutOutput(inferred_layout, Attrs(params));
+  return InferCorrectLayoutOutput({params->layout}, {params->layout}, Attrs(params));
 }
 
 bool ResizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,

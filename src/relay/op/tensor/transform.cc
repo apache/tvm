@@ -484,14 +484,13 @@ InferCorrectLayoutOutput TransposeInferCorrectLayout(const Attrs& attrs,
       out_layout_str += in_layout_str[axis->value];
     }
     try {
-      return InferCorrectLayoutOutput({{Layout(in_layout_str)}, {Layout(out_layout_str)}},
-                                      new_attrs);
+      return InferCorrectLayoutOutput({Layout(in_layout_str)}, {Layout(out_layout_str)}, new_attrs);
     } catch (const tvm::Error& e) {
       // If the layout string is invalid for any reason, give up.
-      return InferCorrectLayoutOutput({{Layout::Undef()}, {Layout::Undef()}}, attrs);
+      return InferCorrectLayoutOutput({Layout::Undef()}, {Layout::Undef()}, attrs);
     }
   }
-  return InferCorrectLayoutOutput({{Layout::Undef()}, {Layout::Undef()}}, attrs);
+  return InferCorrectLayoutOutput({Layout::Undef()}, {Layout::Undef()}, attrs);
 }
 
 Array<te::Tensor> TransposeCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
@@ -2245,7 +2244,7 @@ InferCorrectLayoutOutput SqueezeInferCorrectLayout(const Attrs& attrs,
   }
   inferred_output = Layout(kept_axes);
 
-  return InferCorrectLayoutOutput({{inferred_input}, {inferred_output}}, Attrs(params));
+  return InferCorrectLayoutOutput({inferred_input}, {inferred_output}, Attrs(params));
 }
 
 RELAY_REGISTER_OP("squeeze")
@@ -2501,7 +2500,7 @@ InferCorrectLayoutOutput StridedSliceInferCorrectLayout(
   ICHECK_GE(old_in_shapes.size(), 1);
 
   auto layout = old_in_layouts[0];
-  InferCorrectLayoutOutput out_default{{{Layout::Undef()}, {Layout::Undef()}}, attrs};
+  InferCorrectLayoutOutput out_default{{Layout::Undef()}, {Layout::Undef()}, attrs};
 
   if (layout.defined() && new_in_layouts.defined()) {
     ICHECK_GE(new_in_layouts.size(), 1);
@@ -2673,9 +2672,9 @@ InferCorrectLayoutOutput StridedSliceInferCorrectLayout(
       params->begin = new_begin;
       params->end = new_end;
     }
-    return InferCorrectLayoutOutput({{layout}, {layout}}, Attrs(params));
+    return InferCorrectLayoutOutput({layout}, {layout}, Attrs(params));
   }
-  return InferCorrectLayoutOutput({{layout}, {layout}}, attrs);
+  return InferCorrectLayoutOutput({layout}, {layout}, attrs);
 }
 
 Array<te::Tensor> StridedSliceCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
@@ -3003,16 +3002,16 @@ InferCorrectLayoutOutput SliceLikeInferCorrectLayout(const Attrs& attrs,
     }
     if (!new_axes.empty()) {
       params->axes = std::move(new_axes);
-      return InferCorrectLayoutOutput({{new_layout, new_layout}, {new_layout}}, Attrs(params));
+      return InferCorrectLayoutOutput({new_layout, new_layout}, {new_layout}, Attrs(params));
     }
   }
 
   if (old_in_layouts.defined()) {
     ICHECK_EQ(old_in_layouts.size(), 2);
-    return InferCorrectLayoutOutput({{old_in_layouts[0], old_in_layouts[1]}, {old_in_layouts[1]}},
+    return InferCorrectLayoutOutput({old_in_layouts[0], old_in_layouts[1]}, {old_in_layouts[1]},
                                     attrs);
   }
-  return InferCorrectLayoutOutput({{Layout::Undef(), Layout::Undef()}, {Layout::Undef()}}, attrs);
+  return InferCorrectLayoutOutput({Layout::Undef(), Layout::Undef()}, {Layout::Undef()}, attrs);
 }
 
 Array<te::Tensor> SliceLikeCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,

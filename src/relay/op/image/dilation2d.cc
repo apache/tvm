@@ -39,9 +39,8 @@ InferCorrectLayoutOutput Dilation2DInferCorrectLayout(const Attrs& attrs,
                                                       const Array<Layout>& old_in_layouts,
                                                       const Array<tvm::relay::Type>& old_in_types) {
   const T* params = attrs.as<T>();
-
-  return InferCorrectLayoutOutput(
-      {{params->data_layout, params->kernel_layout}, {params->data_layout}}, attrs);
+  return InferCorrectLayoutOutput({params->data_layout, params->kernel_layout},
+                                  {params->data_layout}, attrs);
 }
 
 // Positional relay function to create dilation2d operator

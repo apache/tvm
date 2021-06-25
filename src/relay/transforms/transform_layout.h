@@ -220,7 +220,7 @@ static inline std::tuple<InferCorrectLayoutOutput, bool> InferCorrectLayouts(
     const Array<tvm::relay::Type>& old_in_types) {
   static auto finfer_layout = Op::GetAttrMap<FInferCorrectLayout>("FInferCorrectLayout");
   auto null_res = std::make_tuple(
-      InferCorrectLayoutOutput({Array<Layout>(nullptr), Array<Layout>(nullptr), Attrs(nullptr)}),
+      InferCorrectLayoutOutput(Array<Layout>(nullptr), Array<Layout>(nullptr), Attrs(nullptr)),
       false);
   if (!call->op.as<OpNode>()) {
     return null_res;
@@ -229,9 +229,9 @@ static inline std::tuple<InferCorrectLayoutOutput, bool> InferCorrectLayouts(
   Op op = Downcast<Op>(call->op);
   if (finfer_layout.count(op)) {
     auto out = finfer_layout[op](call->attrs, new_in_layouts, old_in_layouts, old_in_types);
-    for (auto x : {out->input_layouts, out->output_layouts}) {
-      for (auto y : x) {
-        if (!y.defined()) {  // inference fails
+    for (auto inferred_layouts : {out->input_layouts, out->output_layouts}) {
+      for (auto layout : inferred_layouts) {
+        if (!layout.defined()) {  // inference fails
           return null_res;
         }
       }

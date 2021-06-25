@@ -144,10 +144,10 @@ inline InferCorrectLayoutOutput ElemwiseArbitraryLayout(
     }
   }
 
-  return InferCorrectLayoutOutput({ret}, {ret}, attrs);
+  return InferCorrectLayoutOutput(Array<Layout>(old_in_layouts.size(), ret), {ret}, attrs);
 }
 
-inline Array<Array<Layout>> BinaryBroadcastLayoutHelper(
+inline std::pair<Array<Layout>, Array<Layout>> BinaryBroadcastLayoutHelper(
     const Attrs& attrs, const Array<Layout>& new_in_layouts, const Array<Layout>& old_in_layouts,
     const Array<tvm::relay::Type>& old_in_types) {
   Array<Layout> layouts;
@@ -163,9 +163,12 @@ inline Array<Array<Layout>> BinaryBroadcastLayoutHelper(
     layouts.Assign(old_in_layouts.begin(), old_in_layouts.end());
   }
 
+  std::pair<Array<Layout>, Array<Layout>> out_default{{Layout::Undef(), Layout::Undef()},
+                                                      {Layout::Undef()}};
+
   if (!layouts[0].defined() && !layouts[1].defined()) {
     // both undefined, infer fails
-    return Array<Array<Layout>>{{Layout::Undef(), Layout::Undef()}, {Layout::Undef()}};
+    return out_default;
   } else if (!layouts[0].defined() || !layouts[1].defined()) {
     // only one is defined, use shape information to help infer
     int defined_idx = layouts[0].defined() ? 0 : 1;
@@ -175,17 +178,17 @@ inline Array<Array<Layout>> BinaryBroadcastLayoutHelper(
       layouts.Set(undef_idx, layouts[defined_idx].SubLayout(old_in_shapes[defined_idx].size() -
                                                                 old_in_shapes[undef_idx].size(),
                                                             old_in_shapes[undef_idx].size()));
-      return Array<Array<Layout>>{layouts, {layouts[defined_idx]}};
+      return {layouts, {layouts[defined_idx]}};
     } else {
       // only know the tensor with smaller dimensions,
       // so we cannot infer the final broadcasted output.
       // fails in this case.
-      return Array<Array<Layout>>{{Layout::Undef(), Layout::Undef()}, {Layout::Undef()}};
+      return out_default;
     }
   } else if (layouts[0].defined() && layouts[1].defined() &&
              (layouts[0].ndim() == 0 || layouts[1].ndim() == 0)) {
     int scalar = layouts[0].ndim() == 0 ? 0 : 1;
-    return Array<Array<Layout>>{layouts, {layouts[1 - scalar]}};
+    return {layouts, {layouts[1 - scalar]}};
   } else {
     // Set the layout of the larger dimension. If one dimension size is lower, we call expand dims
     // while transforming layout.
@@ -219,7 +222,7 @@ inline Array<Array<Layout>> BinaryBroadcastLayoutHelper(
       // add(a, b)
       layouts.Set(small_idx, ret);
     }
-    return Array<Array<Layout>>{layouts, {ret}};
+    return {layouts, {ret}};
   }
 }
 
@@ -230,7 +233,7 @@ inline InferCorrectLayoutOutput BinaryBroadcastLayout(const Attrs& attrs,
                                                       const Array<tvm::relay::Type>& old_in_types) {
   auto inferred_layout =
       BinaryBroadcastLayoutHelper(attrs, new_in_layouts, old_in_layouts, old_in_types);
-  return InferCorrectLayoutOutput(inferred_layout[0], inferred_layout[1], attrs);
+  return InferCorrectLayoutOutput(inferred_layout.first, inferred_layout.second, attrs);
 }
 
 }  //  namespace relay

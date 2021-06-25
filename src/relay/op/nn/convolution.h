@@ -1247,12 +1247,9 @@ InferCorrectLayoutOutput DeformableConvInferCorrectLayout(
     const Attrs& attrs, const Array<Layout>& new_in_layouts, const Array<Layout>& old_in_layouts,
     const Array<tvm::relay::Type>& old_in_types) {
   const AttrType* params = attrs.as<AttrType>();
-
-  // Layout of {data, offet, kernel}, {out}
-  Array<Array<Layout>> inferred_layout{
+  return InferCorrectLayoutOutput(
       {params->data_layout, params->data_layout, params->kernel_layout},
-      {params->out_layout == "" ? params->data_layout : params->out_layout}};
-  return InferCorrectLayoutOutput(inferred_layout, attrs);
+      {params->out_layout == "" ? params->data_layout : params->out_layout}, attrs);
 }
 
 template <typename T>
@@ -1261,13 +1258,11 @@ InferCorrectLayoutOutput ConvInferCorrectLayout(const Attrs& attrs,
                                                 const Array<Layout>& old_in_layouts,
                                                 const Array<tvm::relay::Type>& old_in_types) {
   const T* params = attrs.as<T>();
-
   // We always make other operators to fit the layouts of convolution layers
   // So this inference ignores all inputs
-  Array<Array<Layout>> inferred_layout{
+  return InferCorrectLayoutOutput(
       {params->data_layout, params->kernel_layout},
-      {params->out_layout == "" ? params->data_layout : params->out_layout}};
-  return InferCorrectLayoutOutput(inferred_layout, attrs);
+      {params->out_layout == "" ? params->data_layout : params->out_layout}, attrs);
 }
 
 }  // namespace relay

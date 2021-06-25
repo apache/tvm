@@ -62,7 +62,7 @@ InferCorrectLayoutOutput UpsamplingInferCorrectLayout(const Attrs& attrs,
   Layout inferred_layout(params->layout);
   Layout param_layout("NCHW");
   return InferCorrectLayoutOutput(
-      {{inferred_layout, param_layout, param_layout}, {inferred_layout}}, Attrs(params));
+      {inferred_layout, param_layout, param_layout}, {inferred_layout}, Attrs(params));
 }
 
 }  // namespace dyn

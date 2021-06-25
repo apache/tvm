@@ -58,8 +58,7 @@ InferCorrectLayoutOutput UpsamplingInferCorrectLayout(const Attrs& attrs,
     }
   }
 
-  Array<Array<Layout>> inferred_layout{{params->layout}, {params->layout}};
-  return InferCorrectLayoutOutput(inferred_layout, Attrs(params));
+  return InferCorrectLayoutOutput({params->layout}, {params->layout}, Attrs(params));
 }
 
 }  // namespace relay

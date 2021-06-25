@@ -71,7 +71,7 @@ InferCorrectLayoutOutput ROIAlignInferCorrectLayout(const Attrs& attrs,
   // Layout inference needs to define the layout for all inputs and output data layouts.
   // For roi_align, the second inputs is 2-D tensor with shape [num_roi, 5].
   // So, we set the layout as "N5".
-  return InferCorrectLayoutOutput({{data_layout, Layout("N5")}, {data_layout}}, attrs);
+  return InferCorrectLayoutOutput({data_layout, Layout("N5")}, {data_layout}, attrs);
 }
 
 Expr MakeROIAlign(Expr data, Expr rois, Array<IndexExpr> pooled_size, double spatial_scale,
@@ -144,7 +144,7 @@ InferCorrectLayoutOutput ROIPoolInferCorrectLayout(const Attrs& attrs,
   // Layout inference needs to define the layout for all inputs and output data layouts.
   // For roi_pool, the second inputs is 2-D tensor with shape [num_roi, 5].
   // So, we set the layout as "N5".
-  return InferCorrectLayoutOutput({{data_layout, Layout("N5")}, {data_layout}}, attrs);
+  return InferCorrectLayoutOutput({data_layout, Layout("N5")}, {data_layout}, attrs);
 }
 
 Expr MakeROIPool(Expr data, Expr rois, Array<IndexExpr> pooled_size, double spatial_scale,
