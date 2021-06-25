@@ -702,15 +702,21 @@ def conv1d_transpose_strategy_cuda(attrs, inputs, out_type, target):
 def matmul_strategy_cuda(attrs, inputs, out_type, target):
     """dense cuda strategy"""
     strategy = _op.OpStrategy()
-    # Temporary use this as a basic schedule
-    strategy.add_implementation(
-        wrap_compute_matmul(topi.nn.matmul),
-        wrap_topi_schedule(topi.cuda.schedule_dense_small_batch),
-        name="dense_small_batch.cuda",
-    )
 
-    if not is_auto_scheduler_enabled():
+    if is_auto_scheduler_enabled():
+        strategy.add_implementation(
+            wrap_compute_matmul(topi.nn.matmul),
+            naive_schedule,
+            name="matmul.cuda",
+        )
+    else:
         logger.warning("Matmul other than NT format is not optimized for cuda.")
+        # Temporary use this as a basic schedule
+        strategy.add_implementation(
+            wrap_compute_matmul(topi.cuda.matmul_default_cuda),
+            wrap_topi_schedule(topi.cuda.schedule_matmul_default_cuda),
+            name="matmul_default.cuda",
+        )
 
     if target.kind.name == "cuda" and "cublas" in target.libs:
         strategy.add_implementation(

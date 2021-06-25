@@ -104,7 +104,34 @@ def schedule_dense_small_batch(cfg, outs):
     s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
-        if op.tag == "dense" or op.tag == "matmul":
+        if op.tag == "dense":
+            _schedule_dense_small_batch(cfg, s, op.output(0))
+
+    traverse_inline(s, outs[0].op, _callback)
+    return s
+
+
+@autotvm.register_topi_compute("matmul_default.cuda")
+def matmul_default_cuda(
+    cfg,
+    data,
+    weight,
+    bias=None,
+    out_dtype=None,
+    data_transposed=False,
+    weight_transposed=False,
+):
+    return nn.matmul(data, weight, bias, out_dtype, data_transposed, weight_transposed)
+
+
+@autotvm.register_topi_schedule("matmul_default.cuda")
+def schedule_matmul_default_cuda(cfg, outs):
+    # Temporary use this as a basic schedule for matmul
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
+
+    def _callback(op):
+        if op.tag == "matmul":
             _schedule_dense_small_batch(cfg, s, op.output(0))
 
     traverse_inline(s, outs[0].op, _callback)
