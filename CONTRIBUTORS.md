@@ -142,6 +142,7 @@ We do encourage everyone to work anything they are interested in.
 - [Luis Vega](https://github.com/vegaluisjose): @vegaluisjose
 - [Thomas Viehmann](https://github.com/t-vi): @t-vi
 - [Yao Wang](https://github.com/kevinthesun): @kevinthesun
+- [Yuchen Wang](https://github.com/wyc-ruiker): @wyc-ruiker
 - [Leyuan Wang](https://github.com/Laurawly): @Laurawly
 - [Alex Weaver](https://github.com/alex-weaver): @alex-weaver
 - [Logan Weber](https://github.com/weberlo): @weberlo
