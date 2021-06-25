@@ -3442,8 +3442,14 @@ def _test_forward_combined_nms(
     clip_boxes=False,
     dtype="float32",
 ):
+    def get_random_scores(size, dtype):
+        size1d = np.prod(size)
+        scores = np.linspace(0, 1, num=size1d)
+        np.random.shuffle(scores)
+        return scores.reshape(size).astype(dtype)
+
     boxes = np.random.uniform(-1, 2, size=bx_shape).astype(dtype)
-    scores = np.random.uniform(size=score_shape).astype(dtype)
+    scores = get_random_scores(score_shape, dtype)
     max_output_size = np.int32(out_size)
     tf.reset_default_graph()
     in_data_1 = tf.placeholder(dtype, boxes.shape, name="in_data_1")
