@@ -2234,6 +2234,10 @@ class GRU(RNN):
     def generate_gru(
         cls, X_steps, H_t, W, R, B, linear_before_reset, f_act, g_act, W_dtype, backwards=False
     ):
+        """Create an unrolled gru loop.
+
+        See https://github.com/onnx/onnx/blob/master/docs/Operators.md for math.
+        """
         h_list = []
         seq_length = len(X_steps)
         for i in range(seq_length):
