@@ -164,6 +164,8 @@ State DoMultiLevelTiling(const State& state, int stage_id, const std::string& fo
   if (n_space + n_reduce != format.size()) {
     LOG(FATAL) << "Invalid multi-level tiling format: " << format;
   }
+  space_levels.resize(n_space);
+  reduce_levels.resize(n_reduce);
 
   spatial_split_step_ids->clear();
 
@@ -176,7 +178,6 @@ State DoMultiLevelTiling(const State& state, int stage_id, const std::string& fo
 
   auto sr_levels = [&](int size, const Iterator& iter, std::vector<std::vector<Iterator>>& levels) {
     ICHECK_GE(size, 1);
-    levels.resize(size);
     if (size == 1) {
       levels[0].push_back(iter);
     } else {
@@ -211,34 +212,19 @@ State DoMultiLevelTiling(const State& state, int stage_id, const std::string& fo
     }
   }
 
-  auto fill_levels = [&](std::vector<std::vector<Iterator>>& levels,
-                         std::vector<Iterator>& fill, ) {
-
+  auto fill_levels = [&](std::vector<Iterator>& levels_iter, std::vector<Iterator>& fill) {
+    if (!fill.empty()) {
+      levels_iter.insert(levels_iter.begin(), std::make_move_iterator(fill.begin()),
+                         std::make_move_iterator(fill.end()));
+    }
   };
-  if (!space_outer.empty()) {
-    ICHECK(!space_levels.empty());
-    space_levels.front().insert(space_levels.front().begin(),
-                                std::make_move_iterator(space_outer.begin()),
-                                std::make_move_iterator(space_outer.end()));
+  if (!space_levels.empty()) {
+    fill_levels(space_levels.front(), space_outer);
+    fill_levels(space_levels.back(), space_inner);
   }
-  if (!space_inner.empty()) {
-    ICHECK(!space_levels.empty());
-    space_levels.back().insert(space_levels.back().begin(),
-                               std::make_move_iterator(space_inner.begin()),
-                               std::make_move_iterator(space_inner.end()));
-  }
-
-  if (!reduce_outer.empty()) {
-    ICHECK(!reduce_levels.empty());
-    reduce_levels.front().insert(reduce_levels.front().begin(),
-                                 std::make_move_iterator(reduce_outer.begin()),
-                                 std::make_move_iterator(reduce_outer.end()));
-  }
-  if (!reduce_inner.empty()) {
-    ICHECK(!reduce_levels.empty());
-    reduce_levels.back().insert(reduce_levels.back().begin(),
-                                std::make_move_iterator(reduce_inner.begin()),
-                                std::make_move_iterator(reduce_inner.end()));
+  if (!reduce_levels.empty()) {
+    fill_levels(reduce_levels.front(), reduce_outer);
+    fill_levels(reduce_levels.back(), reduce_inner);
   }
 
   Array<Iterator> order;
