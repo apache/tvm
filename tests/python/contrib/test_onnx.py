@@ -515,6 +515,21 @@ def test_expand_dims():
     verify_expand_dims((1, 1, 1001), 2, 2)
 
 
+def test_lrn():
+    def verify_lrn(xshape, size, dtype="float32"):
+        x = relay.var("x", relay.ty.TensorType(xshape, dtype))
+        y = relay.nn.lrn(x, size=size, axis=1, alpha=1.0, beta=1.0, bias=1.0)
+        func = relay.Function([x], y)
+        x_data = np.random.uniform(size=xshape).astype(dtype)
+        verify_results(func, [x_data], "test_lrn", rtol=1e-5, atol=1e-5)
+
+    isize = [(1, 1, 480, 640), (1, 3, 224, 224)]
+    sizes = [1, 3]
+    for i in isize:
+        for s in sizes:
+            verify_lrn(i, s)
+
+
 if __name__ == "__main__":
     test_add()
     test_bias_add()
@@ -538,3 +553,4 @@ if __name__ == "__main__":
     test_layout_transform()
     test_clip()
     test_expand_dims()
+    test_lrn()

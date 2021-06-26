@@ -617,6 +617,22 @@ class ConstantOfShapeOnes(ConstantOfShapeZeros):
         return {"value": 1}
 
 
+class LRN(OpConverter):
+    """Operator converter for LRN."""
+
+    @classmethod
+    def convert_attributes(cls, attrs):
+        """axis attr is not supported as an argument in onnx.
+        Onnx only supports axis=1 (channels)."""
+        if attrs.get_int("axis") != 1:
+            raise RuntimeError(
+                "Unsupported axis %s in operator relay lrn operator. "
+                "Only axis = 1 is supported by Onnx." % (attrs.get_int("axis"))
+            )
+
+        return {"alpha": attrs.alpha, "beta": attrs.beta, "bias": attrs.bias, "size": attrs.size}
+
+
 relay_to_onnx_op_mapping = {
     "reshape": Reshape,
     "nn.conv2d": Conv,
@@ -650,6 +666,7 @@ relay_to_onnx_op_mapping = {
     "layout_transform": LayoutTransform,
     "clip": Clip,
     "expand_dims": Expand,
+    "nn.lrn": LRN,
 }
 
 
