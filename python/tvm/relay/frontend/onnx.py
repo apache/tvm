@@ -2406,17 +2406,19 @@ class Resize(OnnxOpConverter):
         scale = inputs[1]
         size = _op.cast(shape_of(inputs[0]), infer_type(scale).checked_type.dtype) * scale
         ndims = len(infer_shape(inputs[0]))
+        out = None
         if ndims == 3:
             out_size = fold_constant(_op.strided_slice(size, [2], [3]))
-            return _op.image.resize1d(inputs[0], out_size, "NCW", method, "asymmetric")
+            out = _op.image.resize1d(inputs[0], out_size, "NCW", method, "asymmetric")
         elif ndims == 4:
             out_size = fold_constant(_op.strided_slice(size, [2], [4]))
-            return _op.image.resize2d(inputs[0], out_size, "NCHW", method, "asymmetric")
+            out = _op.image.resize2d(inputs[0], out_size, "NCHW", method, "asymmetric")
         elif ndims == 5:
             out_size = fold_constant(_op.strided_slice(size, [2], [5]))
-            return _op.image.resize3d(inputs[0], out_size, "NCDHW", method, "asymmetric")
+            out = _op.image.resize3d(inputs[0], out_size, "NCDHW", method, "asymmetric")
         else:
             raise NotImplementedError("Resize only supports 3, 4, or 5 dims")
+        return out
 
     @classmethod
     def _impl_v11(cls, inputs, attr, params):
@@ -2449,24 +2451,26 @@ class Resize(OnnxOpConverter):
             assert len(scale_shape) != 0, "One of scale or size should be passed."
             size = _op.cast(shape_of(inputs[0]), infer_type(scale).checked_type.dtype) * scale
         out_size = fold_constant(_op.strided_slice(size, [2], [4]))
-
+        out = None
         if ndims == 3:
             out_size = fold_constant(_op.strided_slice(size, [2], [3]))
-            return _op.image.resize1d(
+            out = _op.image.resize1d(
                 inputs[0], out_size, "NCW", method, coord_trans, nearest_mode, alpha, exclude
             )
         elif ndims == 4:
             out_size = fold_constant(_op.strided_slice(size, [2], [4]))
-            return _op.image.resize2d(
+            out = _op.image.resize2d(
                 inputs[0], out_size, "NCHW", method, coord_trans, nearest_mode, alpha, exclude
             )
         elif ndims == 5:
             out_size = fold_constant(_op.strided_slice(size, [2], [5]))
-            return _op.image.resize3d(
+            out = _op.image.resize3d(
                 inputs[0], out_size, "NCDHW", method, coord_trans, nearest_mode, alpha, exclude
             )
         else:
             raise NotImplementedError("Resize only supports 3, 4, or 5 dims")
+
+        return out
 
 
 class NonZero(OnnxOpConverter):

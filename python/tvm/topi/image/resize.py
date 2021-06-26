@@ -62,6 +62,7 @@ def get_2d_indices(indices, layout="NCHW"):
 
 
 def get_3d_indices(indices, layout="NCDHW"):
+    """Get 3d indices"""
     if layout == "NDHWC":
         n, z, y, x, c = indices
         cc = None
@@ -150,6 +151,7 @@ def get_iny_inx(
 
 
 def get_closest_index(in_x, rounding_method, boxes):
+    """get the closest index to a value based on a certain rounding method"""
     if rounding_method == "round" or boxes is not None:
         closest_x_index = te.round(in_x).astype("int32")
     elif rounding_method == "round_prefer_floor":
@@ -275,13 +277,12 @@ def _resize_1d(
     if boxes is not None:
         # TODO(mbrookhart): Find an example of this
         raise NotImplementedError("resize1d with image boxes not yet implemented")
-    else:
-        in_x = get_inx(
-            x,
-            image_width,
-            target_width,
-            coordinate_transformation_mode,
-        )
+    in_x = get_inx(
+        x,
+        image_width,
+        target_width,
+        coordinate_transformation_mode,
+    )
 
     if method == "nearest_neighbor":
         if rounding_method == "":
@@ -986,10 +987,9 @@ def _resize_3d(
     if boxes is not None:
         # TODO(mbrookhart): Find an example of this
         raise NotImplementedError("resize1d with image boxes not yet implemented")
-    else:
-        in_z = get_inx(z, image_depth, target_depth, coordinate_transformation_mode)
-        in_y = get_inx(y, image_height, target_height, coordinate_transformation_mode)
-        in_x = get_inx(x, image_width, target_width, coordinate_transformation_mode)
+    in_z = get_inx(z, image_depth, target_depth, coordinate_transformation_mode)
+    in_y = get_inx(y, image_height, target_height, coordinate_transformation_mode)
+    in_x = get_inx(x, image_width, target_width, coordinate_transformation_mode)
 
     if method == "nearest_neighbor":
         if rounding_method == "":
@@ -1181,7 +1181,8 @@ def resize3d(
     output : tvm.te.Tensor
         4-D with shape [batch, channel, in_depth*scale, in_height*scale, in_width*scale]
         or [batch, in_depth*scale, in_height*scale, in_width*scale, channel]
-        or 5-D with shape [batch, channel-major, in_depth*scale, in_height*scale, in_width*scale, channel-minor]
+        or 5-D with shape
+        [batch, channel-major, in_depth*scale, in_height*scale, in_width*scale, channel-minor]
     """
     method = method.lower()
     if layout == "NDHWC":
