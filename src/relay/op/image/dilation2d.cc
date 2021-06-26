@@ -34,13 +34,13 @@ namespace relay {
 TVM_REGISTER_NODE_TYPE(Dilation2DAttrs);
 
 template <typename T>
-Array<Array<Layout> > Dilation2DInferCorrectLayout(const Attrs& attrs,
-                                                   const Array<Layout>& new_in_layouts,
-                                                   const Array<Layout>& old_in_layouts,
-                                                   const Array<tvm::relay::Type>& old_in_types) {
+InferCorrectLayoutOutput Dilation2DInferCorrectLayout(const Attrs& attrs,
+                                                      const Array<Layout>& new_in_layouts,
+                                                      const Array<Layout>& old_in_layouts,
+                                                      const Array<tvm::relay::Type>& old_in_types) {
   const T* params = attrs.as<T>();
-
-  return Array<Array<Layout> >{{params->data_layout, params->kernel_layout}, {params->data_layout}};
+  return InferCorrectLayoutOutput({params->data_layout, params->kernel_layout},
+                                  {params->data_layout}, attrs);
 }
 
 // Positional relay function to create dilation2d operator

@@ -418,13 +418,13 @@ bool TransposeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   return true;
 }
 
-Array<Array<Layout>> TransposeInferCorrectLayout(const Attrs& attrs,
-                                                 const Array<Layout>& new_in_layouts,
-                                                 const Array<Layout>& old_in_layouts,
-                                                 const Array<tvm::relay::Type>& old_in_types) {
-  // Discard "const" qualifier.
-  auto* params = const_cast<TransposeAttrs*>(attrs.as<TransposeAttrs>());
-  ICHECK(params != nullptr);
+InferCorrectLayoutOutput TransposeInferCorrectLayout(const Attrs& attrs,
+                                                     const Array<Layout>& new_in_layouts,
+                                                     const Array<Layout>& old_in_layouts,
+                                                     const Array<tvm::relay::Type>& old_in_types) {
+  const auto* attrs_ptr = attrs.as<TransposeAttrs>();
+  ICHECK(attrs_ptr);
+  ObjectPtr<TransposeAttrs> params = make_object<TransposeAttrs>(*attrs_ptr);
 
   std::string in_layout_str = "";
   std::string out_layout_str = "";
@@ -477,19 +477,20 @@ Array<Array<Layout>> TransposeInferCorrectLayout(const Attrs& attrs,
   }
 
   // Infer the output layout string based on the input layout and the axes.
+  Attrs new_attrs(params);
   if (in_layout_str != "") {
     for (auto axis : params->axes) {
       ICHECK_LT(axis->value, in_layout_str.length());
       out_layout_str += in_layout_str[axis->value];
     }
     try {
-      return Array<Array<Layout>>({{Layout(in_layout_str)}, {Layout(out_layout_str)}});
+      return InferCorrectLayoutOutput({Layout(in_layout_str)}, {Layout(out_layout_str)}, new_attrs);
     } catch (const tvm::Error& e) {
       // If the layout string is invalid for any reason, give up.
-      return Array<Array<Layout>>({{Layout::Undef()}, {Layout::Undef()}});
+      return InferCorrectLayoutOutput({Layout::Undef()}, {Layout::Undef()}, attrs);
     }
   }
-  return Array<Array<Layout>>({{Layout::Undef()}, {Layout::Undef()}});
+  return InferCorrectLayoutOutput({Layout::Undef()}, {Layout::Undef()}, attrs);
 }
 
 Array<te::Tensor> TransposeCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
@@ -2234,12 +2235,13 @@ Array<te::Tensor> SqueezeCompute(const Attrs& attrs, const Array<te::Tensor>& in
   return {topi::squeeze(inputs[0], param->axis)};
 }
 
-Array<Array<Layout>> SqueezeInferCorrectLayout(const Attrs& attrs,
-                                               const Array<Layout>& new_in_layouts,
-                                               const Array<Layout>& old_in_layouts,
-                                               const Array<tvm::relay::Type>& old_in_types) {
-  // NOTE: Discard "const" qualifier here.
-  SqueezeAttrs* params = const_cast<SqueezeAttrs*>(attrs.as<SqueezeAttrs>());
+InferCorrectLayoutOutput SqueezeInferCorrectLayout(const Attrs& attrs,
+                                                   const Array<Layout>& new_in_layouts,
+                                                   const Array<Layout>& old_in_layouts,
+                                                   const Array<tvm::relay::Type>& old_in_types) {
+  const auto* attrs_ptr = attrs.as<SqueezeAttrs>();
+  ICHECK(attrs_ptr);
+  ObjectPtr<SqueezeAttrs> params = make_object<SqueezeAttrs>(*attrs_ptr);
 
   Layout inferred_input = new_in_layouts.defined() ? new_in_layouts[0] : old_in_layouts[0];
   Layout inferred_output = inferred_input;
@@ -2294,7 +2296,7 @@ Array<Array<Layout>> SqueezeInferCorrectLayout(const Attrs& attrs,
   }
   inferred_output = Layout(kept_axes);
 
-  return Array<Array<Layout>>{{inferred_input}, {inferred_output}};
+  return InferCorrectLayoutOutput({inferred_input}, {inferred_output}, Attrs(params));
 }
 
 RELAY_REGISTER_OP("squeeze")
@@ -2535,10 +2537,9 @@ bool StridedSliceRel(const Array<Type>& types, int num_inputs, const Attrs& attr
   return true;
 }
 
-Array<Array<Layout>> StridedSliceInferCorrectLayout(const Attrs& attrs,
-                                                    const Array<Layout>& new_in_layouts,
-                                                    const Array<Layout>& old_in_layouts,
-                                                    const Array<tvm::relay::Type>& old_in_types) {
+InferCorrectLayoutOutput StridedSliceInferCorrectLayout(
+    const Attrs& attrs, const Array<Layout>& new_in_layouts, const Array<Layout>& old_in_layouts,
+    const Array<tvm::relay::Type>& old_in_types) {
   Array<Array<IndexExpr>> old_in_shapes;
   for (auto old_in_t : old_in_types) {
     ICHECK(old_in_t.as<TensorTypeNode>());
@@ -2551,14 +2552,17 @@ Array<Array<Layout>> StridedSliceInferCorrectLayout(const Attrs& attrs,
   ICHECK_GE(old_in_shapes.size(), 1);
 
   auto layout = old_in_layouts[0];
+  InferCorrectLayoutOutput out_default{{Layout::Undef()}, {Layout::Undef()}, attrs};
+
   if (layout.defined() && new_in_layouts.defined()) {
     ICHECK_GE(new_in_layouts.size(), 1);
     auto new_layout = new_in_layouts[0];
     auto shape = old_in_shapes[0];
 
-    // NOTE: Discard "const" qualifier here.
-    auto* params = const_cast<StridedSliceAttrs*>(attrs.as<StridedSliceAttrs>());
-    ICHECK(params != nullptr);
+    const auto* attrs_ptr = attrs.as<StridedSliceAttrs>();
+    ICHECK(attrs_ptr);
+    ObjectPtr<StridedSliceAttrs> params = make_object<StridedSliceAttrs>(*attrs_ptr);
+
     Array<Integer> begin, end, strides;
     if (params->begin && params->end && params->strides) {
       for (Integer i : params->strides.value()) {
@@ -2587,7 +2591,7 @@ Array<Array<Layout>> StridedSliceInferCorrectLayout(const Attrs& attrs,
         new_layout_name.rfind(old_layout_name, 0) != 0) {
       if (old_layout_name.size() != new_layout_name.size()) {
         // Not support NHW4c -> NCHW
-        return {{Layout::Undef()}, {Layout::Undef()}};
+        return out_default;
       } else {
         if (params->axes) {
           auto axes = params->axes.value();
@@ -2607,7 +2611,7 @@ Array<Array<Layout>> StridedSliceInferCorrectLayout(const Attrs& attrs,
           for (size_t i = 0; i < new_layout_name.size(); ++i) {
             auto index = layout.IndexOf(new_layout[i]);
             if (index == -1) {
-              return {{Layout::Undef()}, {Layout::Undef()}};
+              return out_default;
             }
 
             size_t new_index = static_cast<size_t>(index);
@@ -2652,7 +2656,7 @@ Array<Array<Layout>> StridedSliceInferCorrectLayout(const Attrs& attrs,
           const LayoutAxis& axis = layout[old_idx];
           if (!axis.IsPrimal()) {
             // original layout that contains splitted axes is not supported
-            return {{Layout::Undef()}, {Layout::Undef()}};
+            return out_default;
           }
 
           auto factor = new_layout.FactorOf(axis);
@@ -2665,7 +2669,7 @@ Array<Array<Layout>> StridedSliceInferCorrectLayout(const Attrs& attrs,
             int64_t ed = end[i];
             if (bg % factor || ed % factor) {
               // transform to original layout
-              return {{Layout::Undef()}, {Layout::Undef()}};
+              return out_default;
             }
             new_begin.push_back(IntImm(begin[0]->dtype, (bg / factor)));
             new_end.push_back(IntImm(end[0]->dtype, (ed / factor)));
@@ -2678,7 +2682,7 @@ Array<Array<Layout>> StridedSliceInferCorrectLayout(const Attrs& attrs,
           const LayoutAxis& axis = layout[i];
           if (!axis.IsPrimal()) {
             // original layout that contains splitted axes is not supported
-            return {{Layout::Undef()}, {Layout::Undef()}};
+            return out_default;
           }
           auto factor = new_layout.FactorOf(axis);
           if (factor == -1) {
@@ -2689,7 +2693,7 @@ Array<Array<Layout>> StridedSliceInferCorrectLayout(const Attrs& attrs,
               auto stride = strides[i];
               // arbitrary stride is not supported
               if (stride.defined() && stride->value != 1) {
-                return {{Layout::Undef()}, {Layout::Undef()}};
+                return out_default;
               }
             }
             int64_t bg = begin[i].defined() ? begin[i]->value : 0;
@@ -2708,7 +2712,7 @@ Array<Array<Layout>> StridedSliceInferCorrectLayout(const Attrs& attrs,
 
             if (bg % factor || ed % factor) {
               // transform to original layout
-              return {{Layout::Undef()}, {Layout::Undef()}};
+              return out_default;
             }
             new_begin.push_back(IntImm(begin[0]->dtype, (bg / factor)));
             new_end.push_back(IntImm(end[0]->dtype, (ed / factor)));
@@ -2720,8 +2724,9 @@ Array<Array<Layout>> StridedSliceInferCorrectLayout(const Attrs& attrs,
       params->begin = new_begin;
       params->end = new_end;
     }
+    return InferCorrectLayoutOutput({layout}, {layout}, Attrs(params));
   }
-  return {{layout}, {layout}};
+  return InferCorrectLayoutOutput({layout}, {layout}, attrs);
 }
 
 Array<te::Tensor> StridedSliceCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
@@ -3020,10 +3025,10 @@ Expr MakeSliceLike(Expr data, Expr shape_like, Array<Integer> axes) {
   return Call(op, {data, shape_like}, Attrs(attrs), {});
 }
 
-Array<Array<Layout>> SliceLikeInferCorrectLayout(const Attrs& attrs,
-                                                 const Array<Layout>& new_in_layouts,
-                                                 const Array<Layout>& old_in_layouts,
-                                                 const Array<tvm::relay::Type>& old_in_types) {
+InferCorrectLayoutOutput SliceLikeInferCorrectLayout(const Attrs& attrs,
+                                                     const Array<Layout>& new_in_layouts,
+                                                     const Array<Layout>& old_in_layouts,
+                                                     const Array<tvm::relay::Type>& old_in_types) {
   Array<Integer> new_axes;
   if (old_in_layouts.defined() && new_in_layouts.defined()) {
     ICHECK_EQ(new_in_layouts.size(), 2);
@@ -3034,9 +3039,9 @@ Array<Array<Layout>> SliceLikeInferCorrectLayout(const Attrs& attrs,
     auto old_layout = old_in_layouts[0];
     auto new_layout = new_in_layouts[0];
 
-    // Discard "const" qualifier.
-    auto* params = const_cast<SliceLikeAttrs*>(attrs.as<SliceLikeAttrs>());
-    ICHECK(params != nullptr);
+    const auto* attrs_ptr = attrs.as<SliceLikeAttrs>();
+    ICHECK(attrs_ptr);
+    ObjectPtr<SliceLikeAttrs> params = make_object<SliceLikeAttrs>(*attrs_ptr);
 
     for (auto axis : params->axes) {
       auto new_axis = new_layout.IndexOf(old_layout[axis->value]);
@@ -3049,15 +3054,16 @@ Array<Array<Layout>> SliceLikeInferCorrectLayout(const Attrs& attrs,
     }
     if (!new_axes.empty()) {
       params->axes = std::move(new_axes);
-      return Array<Array<Layout>>({{new_layout, new_layout}, {new_layout}});
+      return InferCorrectLayoutOutput({new_layout, new_layout}, {new_layout}, Attrs(params));
     }
   }
 
   if (old_in_layouts.defined()) {
     ICHECK_EQ(old_in_layouts.size(), 2);
-    return {{old_in_layouts[0], old_in_layouts[1]}, {old_in_layouts[1]}};
+    return InferCorrectLayoutOutput({old_in_layouts[0], old_in_layouts[1]}, {old_in_layouts[1]},
+                                    attrs);
   }
-  return Array<Array<Layout>>({{Layout::Undef(), Layout::Undef()}, {Layout::Undef()}});
+  return InferCorrectLayoutOutput({Layout::Undef(), Layout::Undef()}, {Layout::Undef()}, attrs);
 }
 
 Array<te::Tensor> SliceLikeCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,

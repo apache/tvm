@@ -1320,15 +1320,38 @@ def test_alter_op_dense():
         y = relay.Function(analysis.free_vars(y), y)
         return y
 
-    for target, _ in tvm.testing.enabled_targets():
-        with tvm.target.Target(target):
-            with TempOpAttr(
-                "nn.dense", "FTVMAlterOpLayout", topi.x86.dense_alter_op._alter_dense_layout
-            ):
-                a = before()
-                a = run_opt_pass(a, transform.AlterOpLayout())
-                b = run_opt_pass(expected(), transform.InferType())
-                assert tvm.ir.structural_equal(a, b)
+    target = "llvm"
+    with tvm.target.Target(target):
+        with TempOpAttr(
+            "nn.dense", "FTVMAlterOpLayout", topi.x86.dense_alter_op._alter_dense_layout
+        ):
+            a = before()
+            a = run_opt_pass(a, transform.AlterOpLayout())
+            b = run_opt_pass(expected(), transform.InferType())
+            assert tvm.ir.structural_equal(a, b)
+
+
+def test_not_inplace_modify():
+    def func():
+        x = relay.var("x", shape=(1, 64, 56, 56))
+        weight = relay.var("weight", shape=(64, 64, 3, 3))
+        y = relay.nn.conv2d(x, weight, channels=64, kernel_size=(3, 3), padding=(1, 1))
+        y = relay.nn.relu(y)
+        y = relay.nn.max_pool2d(y, pool_size=[2, 2], strides=[2, 2], padding=[0, 0, 0, 0])
+        y = relay.Function([x, weight], y)
+        return y
+
+    def alter_conv2d(attrs, inputs, tinfos, out_type):
+        data, weight = inputs
+        new_attrs = dict(attrs)
+        new_attrs["data_layout"] = "NCHW16c"
+        new_attrs["kernel_layout"] = "OIHW16i"
+        return relay.nn.conv2d(data, weight, **new_attrs)
+
+    with TempOpAttr("nn.conv2d", "FTVMAlterOpLayout", alter_conv2d):
+        before = func()
+        run_opt_pass(before, [transform.AlterOpLayout()])
+        assert before.body.attrs.layout == "NCHW"
 
 
 if __name__ == "__main__":
@@ -1354,3 +1377,4 @@ if __name__ == "__main__":
     test_alter_op_with_global_var()
     test_alter_op_dense()
     test_alter_layout_strided_slice_axes_nhwc()
+    test_not_inplace_modify()
