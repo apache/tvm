@@ -22,6 +22,7 @@
 #include <cstdlib>
 #include <utility>
 
+#include "../../support/utils.h"
 #include "vulkan_common.h"
 
 namespace tvm {
@@ -32,10 +33,7 @@ VulkanInstance::VulkanInstance() {
   const auto layers = []() {
     std::vector<const char*> layers;
 
-    const char* validation_enabled_env = std::getenv("TVM_VULKAN_ENABLE_VALIDATION_LAYERS");
-    bool validation_enabled = validation_enabled_env && *validation_enabled_env;
-
-    if (validation_enabled) {
+    if (support::BoolEnvironmentVar("TVM_VULKAN_ENABLE_VALIDATION_LAYERS")) {
       uint32_t inst_layer_prop_count;
       VULKAN_CALL(vkEnumerateInstanceLayerProperties(&inst_layer_prop_count, nullptr));
       std::vector<VkLayerProperties> inst_layer_prop(inst_layer_prop_count);
