@@ -39,11 +39,13 @@ namespace relay {
 // relay.nn.pad
 TVM_REGISTER_NODE_TYPE(PadAttrs);
 
-Array<Array<Layout>> PadInferCorrectLayout(const Attrs& attrs, const Array<Layout>& new_in_layouts,
-                                           const Array<Layout>& old_in_layouts,
-                                           const Array<tvm::relay::Type>& old_in_types) {
-  // NOTE: Discard "const" qualifier here.
-  PadAttrs* params = const_cast<PadAttrs*>(attrs.as<PadAttrs>());
+InferCorrectLayoutOutput PadInferCorrectLayout(const Attrs& attrs,
+                                               const Array<Layout>& new_in_layouts,
+                                               const Array<Layout>& old_in_layouts,
+                                               const Array<tvm::relay::Type>& old_in_types) {
+  const auto* attrs_ptr = attrs.as<PadAttrs>();
+  CHECK(attrs_ptr);
+  ObjectPtr<PadAttrs> params = make_object<PadAttrs>(*attrs_ptr);
 
   Layout ret_data;
   // If new_in_layouts are defined, this code tries to modify the layout.
@@ -112,7 +114,7 @@ Array<Array<Layout>> PadInferCorrectLayout(const Attrs& attrs, const Array<Layou
 
   // The pad value is always a scalar
   Layout ret_pad_value = Layout("1");
-  return Array<Array<Layout>>{{ret_data, ret_pad_value}, {ret_data}};
+  return InferCorrectLayoutOutput({ret_data, ret_pad_value}, {ret_data}, Attrs(params));
 }
 
 bool PadRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
