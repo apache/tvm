@@ -157,10 +157,10 @@ State DoMultiLevelTiling(const State& state, int stage_id, const std::string& fo
   std::vector<std::vector<Iterator>> reduce_levels;
   std::vector<Iterator> space_outer, space_inner, reduce_outer, reduce_inner;
 
-  std::string format_lower;
-  std::transform(format.begin(), format.end(), format_lower.begin(), ::tolower);
-  size_t n_space = std::count(format_lower.begin(), format_lower.end(), 's');
-  size_t n_reduce = std::count(format_lower.begin(), format_lower.end(), 'r');
+  size_t n_space =
+      std::count(format.begin(), format.end(), 's') + std::count(format.begin(), format.end(), 'S');
+  size_t n_reduce =
+      std::count(format.begin(), format.end(), 'r') + std::count(format.begin(), format.end(), 'R');
   if (n_space + n_reduce != format.size()) {
     LOG(FATAL) << "Invalid multi-level tiling format: " << format;
   }
@@ -230,12 +230,12 @@ State DoMultiLevelTiling(const State& state, int stage_id, const std::string& fo
   Array<Iterator> order;
   int space_ct = 0, reduce_ct = 0;
 
-  for (const auto c : format_lower) {
-    if (c == 's') {
+  for (const auto c : format) {
+    if (c == 's' || c == 'S') {
       order.insert(order.end(), std::make_move_iterator(space_levels[space_ct].begin()),
                    std::make_move_iterator(space_levels[space_ct].end()));
       space_ct++;
-    } else if (c == 'r') {
+    } else if (c == 'r' || c == 'R') {
       order.insert(order.end(), std::make_move_iterator(reduce_levels[reduce_ct].begin()),
                    std::make_move_iterator(reduce_levels[reduce_ct].end()));
       reduce_ct++;
