@@ -153,6 +153,8 @@ State DoMultiLevelTiling(const State& state, int stage_id, const std::string& fo
   if (spatial_split_step_ids == nullptr) {
     spatial_split_step_ids = &temp_split_step_ids;
   }
+  spatial_split_step_ids->clear();
+
   std::vector<std::vector<Iterator>> space_levels;
   std::vector<std::vector<Iterator>> reduce_levels;
   std::vector<Iterator> space_outer, space_inner, reduce_outer, reduce_inner;
@@ -166,8 +168,6 @@ State DoMultiLevelTiling(const State& state, int stage_id, const std::string& fo
   }
   space_levels.resize(n_space);
   reduce_levels.resize(n_reduce);
-
-  spatial_split_step_ids->clear();
 
   State tmp_s = state;
   const Stage& stage = state->stages[stage_id];
@@ -229,7 +229,6 @@ State DoMultiLevelTiling(const State& state, int stage_id, const std::string& fo
 
   Array<Iterator> order;
   int space_ct = 0, reduce_ct = 0;
-
   for (const auto c : format) {
     if (c == 's' || c == 'S') {
       order.insert(order.end(), std::make_move_iterator(space_levels[space_ct].begin()),
