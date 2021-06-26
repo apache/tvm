@@ -3383,8 +3383,8 @@ def test_lstm():
             hidden_size=32,
             use_bias=False,
             activations=["HardSigmoid", "LeakyRelu", "Tanh"] * directions,
-            alphas=[2.0, 0.5, 0] * directions,
-            betas=[0.3, 0, 0] * directions,
+            alphas=[2.0, 0.5, 0.0] * directions,
+            betas=[0.3, 0.0, 0.0] * directions,
             rnn_type="LSTM",
             directions=directions,
         )
@@ -3397,7 +3397,7 @@ def test_lstm():
             use_bias=False,
             activations=["HardSigmoid", "LeakyRelu", "Affine"] * directions,
             alphas=[2.0, 0.5, 0.8] * directions,
-            betas=[0.3, 0.1, 0] * directions,
+            betas=[0.3, 0.1, 0.0] * directions,
             rnn_type="LSTM",
             directions=directions,
         )
@@ -3513,7 +3513,7 @@ def test_gru():
             use_bias=False,
             activations=["HardSigmoid", "LeakyRelu"] * directions,
             alphas=[2.0, 0.5] * directions,
-            betas=[0.3, 0] * directions,
+            betas=[0.3, 0.0] * directions,
             rnn_type="GRU",
             directions=directions,
         )
