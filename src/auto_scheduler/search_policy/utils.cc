@@ -159,8 +159,8 @@ State DoMultiLevelTiling(const State& state, int stage_id, const std::string& fo
 
   std::string format_lower;
   std::transform(format.begin(), format.end(), format_lower.begin(), ::tolower);
-  size_t n_space = std::count(format_lower.begin(), format_lower.end(), 's');
-  size_t n_reduce = std::count(format_lower.begin(), format_lower.end(), 'r');
+  int n_space = std::count(format_lower.begin(), format_lower.end(), 's');
+  int n_reduce = std::count(format_lower.begin(), format_lower.end(), 'r');
   if (n_space + n_reduce != format.size()) {
     LOG(FATAL) << "Invalid multi-level tiling format: " << format;
   }
@@ -182,7 +182,7 @@ State DoMultiLevelTiling(const State& state, int stage_id, const std::string& fo
     } else {
       Array<Iterator> split_res =
           tmp_s.split(stage_id, iter, Array<Optional<Integer>>(size - 1, NullOpt));
-      for (size_t i = 0; i < size; i++) {
+      for (int i = 0; i < size; i++) {
         levels[i].push_back(split_res[i]);
       }
       if (iter->iter_kind == IteratorKind::kSpatial) {
