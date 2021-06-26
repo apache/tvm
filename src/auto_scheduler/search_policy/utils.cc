@@ -159,8 +159,8 @@ State DoMultiLevelTiling(const State& state, int stage_id, const std::string& fo
 
   std::string format_lower;
   std::transform(format.begin(), format.end(), format_lower.begin(), ::tolower);
-  int n_space = std::count(format_lower.begin(), format_lower.end(), 's');
-  int n_reduce = std::count(format_lower.begin(), format_lower.end(), 'r');
+  size_t n_space = std::count(format_lower.begin(), format_lower.end(), 's');
+  size_t n_reduce = std::count(format_lower.begin(), format_lower.end(), 'r');
   if (n_space + n_reduce != format.size()) {
     LOG(FATAL) << "Invalid multi-level tiling format: " << format;
   }
@@ -174,7 +174,7 @@ State DoMultiLevelTiling(const State& state, int stage_id, const std::string& fo
           ? GetIterNameSetParam(stage->op->attrs, SearchPolicyKey::no_split_at_inner)
           : std::set<std::string>();
 
-  auto srlevels = [&](int size, const Iterator& iter, std::vector<std::vector<Iterator>>& levels) {
+  auto sr_levels = [&](int size, const Iterator& iter, std::vector<std::vector<Iterator>>& levels) {
     ICHECK_GE(size, 1);
     levels.resize(size);
     if (size == 1) {
@@ -194,9 +194,9 @@ State DoMultiLevelTiling(const State& state, int stage_id, const std::string& fo
   for (const auto& iter : state->stages[stage_id]->iters) {
     if (!no_split_at_inner_name_set.count(iter->name)) {
       if (iter->iter_kind == IteratorKind::kSpatial) {
-        srlevels(n_space, iter, space_levels);
+        sr_levels(n_space, iter, space_levels);
       } else if (iter->iter_kind == IteratorKind::kReduction) {
-        srlevels(n_reduce, iter, reduce_levels);
+        sr_levels(n_reduce, iter, reduce_levels);
       } else {
         LOG(FATAL) << "Invalid iter type: " << int(iter->iter_kind);
       }
@@ -211,6 +211,10 @@ State DoMultiLevelTiling(const State& state, int stage_id, const std::string& fo
     }
   }
 
+  auto fill_levels = [&](std::vector<std::vector<Iterator>>& levels,
+                         std::vector<Iterator>& fill, ) {
+
+  };
   if (!space_outer.empty()) {
     ICHECK(!space_levels.empty());
     space_levels.front().insert(space_levels.front().begin(),
@@ -239,12 +243,13 @@ State DoMultiLevelTiling(const State& state, int stage_id, const std::string& fo
 
   Array<Iterator> order;
   int space_ct = 0, reduce_ct = 0;
-  for (const auto c : format) {
-    if (tolower(c) == 's') {
+
+  for (const auto c : format_lower) {
+    if (c == 's') {
       order.insert(order.end(), std::make_move_iterator(space_levels[space_ct].begin()),
                    std::make_move_iterator(space_levels[space_ct].end()));
       space_ct++;
-    } else if (tolower(c) == 'r') {
+    } else if (c == 'r') {
       order.insert(order.end(), std::make_move_iterator(reduce_levels[reduce_ct].begin()),
                    std::make_move_iterator(reduce_levels[reduce_ct].end()));
       reduce_ct++;
