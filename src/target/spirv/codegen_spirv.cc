@@ -358,6 +358,12 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
   } else if (op->op.same_as(builtin::popcount())) {
     return builder_->MakeValue(spv::OpBitCount, builder_->GetSType(op->dtype),
                                MakeValue(op->args[0]));
+  } else if (op->op.same_as(builtin::call_extern()) ||
+             op->op.same_as(builtin::call_pure_extern())) {
+    ICHECK_GE(op->args.size(), 1U);
+    LOG(FATAL) << "SPIR-V shader cannot make extern calls.  Graph contains extern \""
+               << Downcast<StringImm>(op->args[0]) << "\"";
+    return spirv::Value();
   } else {
     LOG(FATAL) << "Unresolved call  " << op->op;
     return spirv::Value();
