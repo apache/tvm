@@ -157,7 +157,7 @@ State DoMultiLevelTiling(const State& state, int stage_id, const std::string& fo
   std::vector<std::vector<Iterator>> reduce_levels;
   std::vector<Iterator> space_outer, space_inner, reduce_outer, reduce_inner;
 
-  std::string format_lower;
+  std::string format_lower = format;
   std::transform(format.begin(), format.end(), format_lower.begin(), ::tolower);
   size_t n_space = std::count(format_lower.begin(), format_lower.end(), 's');
   size_t n_reduce = std::count(format_lower.begin(), format_lower.end(), 'r');
