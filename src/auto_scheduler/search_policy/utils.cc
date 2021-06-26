@@ -156,7 +156,6 @@ State DoMultiLevelTiling(const State& state, int stage_id, const std::string& fo
   std::vector<std::vector<Iterator>> space_levels;
   std::vector<std::vector<Iterator>> reduce_levels;
   std::vector<Iterator> space_outer, space_inner, reduce_outer, reduce_inner;
-  Array<Iterator> split_res;
 
   std::string format_lower;
   std::transform(format.begin(), format.end(), format_lower.begin(), ::tolower);
@@ -165,8 +164,6 @@ State DoMultiLevelTiling(const State& state, int stage_id, const std::string& fo
   if (n_space + n_reduce != format.size()) {
     LOG(FATAL) << "Invalid multi-level tiling format: " << format;
   }
-  space_levels.resize(n_space);
-  reduce_levels.resize(n_reduce);
 
   spatial_split_step_ids->clear();
 
@@ -177,33 +174,29 @@ State DoMultiLevelTiling(const State& state, int stage_id, const std::string& fo
           ? GetIterNameSetParam(stage->op->attrs, SearchPolicyKey::no_split_at_inner)
           : std::set<std::string>();
 
-  auto func = [&](std::vector<std::vector<Iterator>> & levels, const)
+  auto srlevels = [&](int size, const Iterator& iter, std::vector<std::vector<Iterator>>& levels) {
+    ICHECK_GE(size, 1);
+    levels.resize(size);
+    if (size == 1) {
+      levels[0].push_back(iter);
+    } else {
+      Array<Iterator> split_res =
+          tmp_s.split(stage_id, iter, Array<Optional<Integer>>(size - 1, NullOpt));
+      for (size_t i = 0; i < size; i++) {
+        levels[i].push_back(split_res[i]);
+      }
+      if (iter->iter_kind == IteratorKind::kSpatial) {
+        spatial_split_step_ids->push_back(tmp_s->transform_steps.size() - 1);
+      }
+    }
+  };
 
-      for (const auto& iter : state->stages[stage_id]->iters) {
+  for (const auto& iter : state->stages[stage_id]->iters) {
     if (!no_split_at_inner_name_set.count(iter->name)) {
       if (iter->iter_kind == IteratorKind::kSpatial) {
-        ICHECK_GE(n_space, 1);
-
-        if (n_space == 1) {
-          space_levels[0].push_back(iter);
-        } else {
-          split_res = tmp_s.split(stage_id, iter, Array<Optional<Integer>>(n_space - 1, NullOpt));
-          for (size_t i = 0; i < n_space; i++) {
-            space_levels[i].push_back(split_res[i]);
-          }
-          spatial_split_step_ids->push_back(tmp_s->transform_steps.size() - 1);
-        }
+        srlevels(n_space, iter, space_levels);
       } else if (iter->iter_kind == IteratorKind::kReduction) {
-        ICHECK_GE(n_reduce, 1);
-
-        if (n_reduce == 1) {
-          reduce_levels[0].push_back(iter);
-        } else {
-          split_res = tmp_s.split(stage_id, iter, Array<Optional<Integer>>(n_reduce - 1, NullOpt));
-          for (size_t i = 0; i < n_reduce; i++) {
-            reduce_levels[i].push_back(split_res[i]);
-          }
-        }
+        srlevels(n_reduce, iter, reduce_levels);
       } else {
         LOG(FATAL) << "Invalid iter type: " << int(iter->iter_kind);
       }
