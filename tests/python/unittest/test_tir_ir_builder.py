@@ -497,13 +497,57 @@ def test_while_binary_search():
     check_target("vulkan", searchsorted_ir_gpu)
 
 
+@tvm.testing.requires_gpu
+def test_dyn_shared():
+    n = te.size_var("n")
+    dtype = "float32"
+    A = te.placeholder((n,), name="A")
+
+    def test_device_ir(A, C):
+        n = A.shape[0]
+        ib = tvm.tir.ir_builder.create()
+        tx = te.thread_axis("threadIdx.x")
+        ib.scope_attr(tx, "thread_extent", n)
+        Aptr = ib.buffer_ptr(A)
+        Cptr = ib.buffer_ptr(C)
+        Cptr[tx] = Aptr[tx] + 1
+        body = ib.get()
+        return body
+
+    C = te.extern(
+        A.shape,
+        [A],
+        lambda ins, outs: test_device_ir(ins[0], outs[0]),
+        name="vector_add",
+        dtype=dtype,
+    )
+    s = te.create_schedule(C.op)
+
+    def check_target(target):
+        n = 1024
+        if not tvm.testing.device_enabled(target):
+            return
+        # build and invoke the kernel.
+        fadd = tvm.build(s, [A, C], target)
+        dev = tvm.device(target, 0)
+        # launch the kernel.
+        for n in [512, 1024]:
+            a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
+            c = tvm.nd.array(np.zeros(n, dtype=C.dtype), dev)
+            fadd(a, c)
+            tvm.testing.assert_allclose(c.numpy(), a.numpy() + 1)
+
+    check_target("cuda")
+
+
 if __name__ == "__main__":
-    test_prefetch()
-    test_if()
-    test_for()
-    test_cpu()
-    test_gpu()
-    test_while_vectorize()
-    test_while_collatz()
-    test_while_mandel()
-    test_while_binary_search()
+    # test_prefetch()
+    # test_if()
+    # test_for()
+    # test_cpu()
+    # test_gpu()
+    # test_while_vectorize()
+    # test_while_collatz()
+    # test_while_mandel()
+    # test_while_binary_search()
+    test_dyn_shared()
