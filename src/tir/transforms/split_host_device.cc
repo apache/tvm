@@ -99,7 +99,11 @@ class VarUseDefAnalysis : public StmtExprMutator {
     this->HandleDef(op->buffer_var.get());
     if (alloc_storage_scope_[op->buffer_var.get()].rank == runtime::StorageRank::kDynShared) {
       // CHECK_EQ(dyn_shmem_size_,  PrimExpr(0)) << "Only one dynamic shmem allowed for now";
-      dyn_shmem_size_ = op->constant_allocation_size();
+      dyn_shmem_size_ = op->extents[0];
+      for (size_t i = 1; i < op->extents.size(); ++i) {
+        dyn_shmem_size_ *= op->extents[i];
+      }
+      dyn_shmem_size_ = dyn_shmem_size_ * (op->dtype.bytes());
     }
     return StmtExprMutator::VisitStmt_(op);
   }

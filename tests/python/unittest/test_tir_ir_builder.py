@@ -510,32 +510,41 @@ def test_dyn_shared():
         ib.scope_attr(tx, "thread_extent", n)
         Aptr = ib.buffer_ptr(A)
         Cptr = ib.buffer_ptr(C)
-        Cptr[tx] = Aptr[tx] + 1
-        body = ib.get()
-        return body
+        temp = ib.allocate(dtype, (n,), scope="dyn.shared")
+        temp[tx] = Aptr[tx]
+        # depth = tvm.tir.log2(n)
+        depth = 9
+        with ib.for_range(0, depth) as i:
+            ib.emit(tvm.tir.Call(None, "tir.tvm_storage_sync", tvm.runtime.convert(["shared"])))
+            d = n >> (i + 1)
+            with ib.if_scope(tx < d):
+                temp[tx] += temp[tx + d]
+
+        Cptr[0] = temp[0]
+        return ib.get()
 
     C = te.extern(
-        A.shape,
+        (1,),
         [A],
         lambda ins, outs: test_device_ir(ins[0], outs[0]),
-        name="vector_add",
+        name="reduce",
         dtype=dtype,
     )
     s = te.create_schedule(C.op)
 
     def check_target(target):
-        n = 1024
         if not tvm.testing.device_enabled(target):
             return
-        # build and invoke the kernel.
-        fadd = tvm.build(s, [A, C], target)
+
+        freduce = tvm.build(s, [A, C], target)
         dev = tvm.device(target, 0)
-        # launch the kernel.
-        for n in [512, 1024]:
+
+        for n in [512]:
             a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
-            c = tvm.nd.array(np.zeros(n, dtype=C.dtype), dev)
-            fadd(a, c)
-            tvm.testing.assert_allclose(c.numpy(), a.numpy() + 1)
+            c = tvm.nd.array(np.zeros(1, dtype=C.dtype), dev)
+            freduce(a, c)
+            tvm.testing.assert_allclose(c.numpy()[0], np.sum(a.numpy()))
+            print(c.numpy()[0], np.sum(a.numpy()))
 
     check_target("cuda")
 

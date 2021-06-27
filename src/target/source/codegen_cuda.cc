@@ -705,9 +705,8 @@ void CodeGenCUDA::VisitStmt_(const AllocateNode* op) {
   std::string vid = AllocVarID(op->buffer_var.get());
 
   this->PrintIndent();
-  int32_t constant_size = op->constant_allocation_size();
-  ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation for now";
   std::string scope = GetPtrStorageScope(op->buffer_var);
+  const VarNode* buffer = op->buffer_var.as<VarNode>();
   if (scope.find("wmma.") == 0) {
     if (scope == "wmma.matrix_a" || scope == "wmma.matrix_b") {
       ICHECK(op->dtype == DataType::Float(16) || op->dtype == DataType::Int(8) ||
@@ -721,8 +720,6 @@ void CodeGenCUDA::VisitStmt_(const AllocateNode* op) {
              op->dtype == DataType::Int(32))
           << "Accumulator only support half, float and int type for now";
     }
-    const VarNode* buffer = op->buffer_var.as<VarNode>();
-    constant_size = GetWmmaFragmentSize(scope, buffer, constant_size);
     PrintWmmaScope(scope, op->dtype, buffer, stream);
   } else {
     PrintStorageScope(scope, stream);
@@ -732,6 +729,12 @@ void CodeGenCUDA::VisitStmt_(const AllocateNode* op) {
   if (scope == "dyn.shared") {
     stream << ' ' << vid << "[];\n";
   } else {
+    int32_t constant_size = op->constant_allocation_size();
+    ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation for now";
+
+    if (scope.find("wmma.") == 0) {
+      constant_size = GetWmmaFragmentSize(scope, buffer, constant_size);
+    }
     if ((op->dtype == DataType::Int(4) || op->dtype == DataType::UInt(4) ||
          op->dtype == DataType::Int(1)) &&
         scope == "shared") {
