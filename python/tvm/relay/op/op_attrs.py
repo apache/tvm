@@ -577,3 +577,8 @@ class UniformAttrs(Attrs):
 @tvm._ffi.register_object("relay.attrs.NLLLossAttrs")
 class NLLLossAttrs(Attrs):
     """Attributes for nn.nll_loss"""
+
+
+@tvm._ffi.register_object("relay.attrs.FixedPointMultiplyAttrs")
+class FixedPointMultiplyAttrs(Attrs):
+    """Attributes used in fixed_point_multiply operators"""
