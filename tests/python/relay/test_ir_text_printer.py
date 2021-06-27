@@ -31,7 +31,6 @@ SEMVER = '#[version = "0.0.5"]\n'
 def astext(program, unify_free_vars=False):
     text = program.astext()
 
-    print(text)
     if isinstance(program, Expr):
         roundtrip_program = tvm.parser.parse_expr(text)
     else:
