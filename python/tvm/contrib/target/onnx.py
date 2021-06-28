@@ -24,6 +24,7 @@ import numpy
 import onnx
 import onnx.utils
 from onnx import numpy_helper, OperatorSetIdProto, defs
+from onnx import TensorProto
 import tvm
 from tvm import relay
 import tvm._ffi
@@ -634,6 +635,16 @@ class LRN(OpConverter):
         return {"alpha": attrs.alpha, "beta": attrs.beta, "bias": attrs.bias, "size": attrs.size}
 
 
+class Cast(OpConverter):
+    """ Operator converter for Cast."""
+
+    @classmethod
+    def convert_attributes(cls, attrs):
+        return {
+            'to': getattr(TensorProto, attrs.dtype.upper())
+        }
+
+
 relay_to_onnx_op_mapping = {
     "reshape": Reshape,
     "nn.conv2d": Conv,
@@ -671,6 +682,7 @@ relay_to_onnx_op_mapping = {
     "sigmoid": rename("Sigmoid"),
     "copy": rename("Identity"),
     "round": rename("Round"),
+    "cast": Cast,
 }
 
 
