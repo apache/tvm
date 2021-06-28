@@ -542,6 +542,7 @@ def test_depthwise_conv2d():
     depthwise_conv2d_with_workload_nhwc(4, 256, 64, 2, 5, 2, "SAME")
     depthwise_conv2d_with_workload_nhwc(1, 728, 32, 1, 3, 1, "VALID")
     depthwise_conv2d_with_workload_nhwc(4, 256, 64, 2, 5, 2, "VALID")
+    depthwise_conv2d_with_workload_nhwc(1, 192, 28, 1, 3, 2, "SAME")
 
     # dilation = 2
     # disabled because it uses too large shared memory on cuda
