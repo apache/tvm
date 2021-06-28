@@ -41,7 +41,7 @@ class UnsupportedInModelLibraryFormatError(Exception):
     """Raised when export_model_library_format does not support the given Module tree."""
 
 
-def _populate_codegen_dir(mod, codegen_dir: str):
+def _populate_codegen_dir(mod, codegen_dir: str, module_name: str = None):
     """Populate the codegen sub-directory as part of a Model Library Format export.
 
     Parameters
@@ -50,6 +50,9 @@ def _populate_codegen_dir(mod, codegen_dir: str):
         Module which should be written to codegen_dir.
     codegen_dir : str
         Path to the codegen directory on disk.
+    module_name: Optional[str]
+        Name used to prefix the generated source files
+
     """
     dso_modules = mod._collect_dso_modules()
     dso_module_handles = [m.handle.value for m in dso_modules]
@@ -61,17 +64,19 @@ def _populate_codegen_dir(mod, codegen_dir: str):
 
     mod_indices = {"lib": 0, "src": 0}
     host_codegen_dir = os.path.join(codegen_dir, "host")
+    lib_name = f"{module_name}_lib" if module_name else "lib"
+
     for dso_mod in dso_modules:
         if dso_mod.type_key == "c":
             index = mod_indices["src"]
             mod_indices["src"] += 1
             parent_dir = os.path.join(host_codegen_dir, "src")
-            file_name = os.path.join(parent_dir, f"lib{index}.c")
+            file_name = os.path.join(parent_dir, f"{lib_name}{index}.c")
         elif dso_mod.type_key == "llvm":
             index = mod_indices["lib"]
             mod_indices["lib"] += 1
             parent_dir = os.path.join(host_codegen_dir, "lib")
-            file_name = os.path.join(parent_dir, f"lib{index}.o")
+            file_name = os.path.join(parent_dir, f"{lib_name}{index}.o")
         else:
             assert (
                 False
@@ -104,7 +109,6 @@ def _build_sid_map(graph_json):
         A list with one entry per storage id describing that memory.
     """
     graph = json.loads(graph_json)
-
     seen_storage_ids = set()
     memory_map = []
     for node_id, storage_id in enumerate(graph["attrs"]["storage_id"][1]):
@@ -221,7 +225,7 @@ def _make_tar(source_dir, tar_file_path):
         tar_f.add(str(source_dir), arcname=".", filter=reset)
 
 
-_GENERATED_VERSION = 2
+_GENERATED_VERSION = 3
 
 
 def _export_graph_model_library_format(
@@ -254,7 +258,7 @@ def _export_graph_model_library_format(
 
     codegen_dir = tempdir / "codegen"
     codegen_dir.mkdir()
-    _populate_codegen_dir(mod.lib, codegen_dir)
+    _populate_codegen_dir(mod.lib, codegen_dir, mod.libmod_name)
 
     parameters_dir = tempdir / "parameters"
     parameters_dir.mkdir()

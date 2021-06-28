@@ -63,7 +63,7 @@ We do encourage everyone to work anything they are interested in.
 - [Trevor Morris](https://github.com/trevor-m): @trevor-m - byoc, compiler
 - [Leandro Nunes](https://github.com/leandron): @leandron - tvmc
 - [Krzysztof Parzyszek](https://github.com/kparzysz-quic): @kparzysz-quic - hexagon, llvm
-- [Andrew Reusch](https://github.com/areusch): @areusch - runtime, µTVM
+- [Andrew Reusch](https://github.com/areusch): @areusch - runtime, microTVM
 - [Jared Roesch](https://github.com/jroesch) (PMC): @jroesch - relay
 - [Siju Samuel](https://github.com/siju-samuel): @siju-samuel - frontends
 - [Junru Shao](https://github.com/junrushao1994) @junrushao1994 - relay, compiler
@@ -142,6 +142,7 @@ We do encourage everyone to work anything they are interested in.
 - [Luis Vega](https://github.com/vegaluisjose): @vegaluisjose
 - [Thomas Viehmann](https://github.com/t-vi): @t-vi
 - [Yao Wang](https://github.com/kevinthesun): @kevinthesun
+- [Yuchen Wang](https://github.com/wyc-ruiker): @wyc-ruiker
 - [Leyuan Wang](https://github.com/Laurawly): @Laurawly
 - [Alex Weaver](https://github.com/alex-weaver): @alex-weaver
 - [Logan Weber](https://github.com/weberlo): @weberlo
