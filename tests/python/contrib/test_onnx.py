@@ -517,6 +517,7 @@ def test_expand_dims():
 
 def test_lrn():
     """LRN unit test."""
+
     def verify_lrn(xshape, size, dtype="float32"):
         x = relay.var("x", relay.ty.TensorType(xshape, dtype))
         y = relay.nn.lrn(x, size=size, axis=1, alpha=1.0, beta=1.0, bias=1.0)
@@ -533,6 +534,7 @@ def test_lrn():
 
 def test_sigmoid():
     """Sigmoid unit test."""
+
     def verify_sigmoid(dshape, dtype="float32"):
         x = relay.var("x", relay.ty.TensorType(dshape, dtype))
         y = relay.sigmoid(x)
@@ -540,7 +542,7 @@ def test_sigmoid():
         x_data = np.random.uniform(size=dshape).astype(dtype)
         verify_results(func, [x_data], "test_sigmoid", rtol=1e-4, atol=1e-4)
 
-    isize = [(1,3,480,640), (1,3,224,224)]
+    isize = [(1, 3, 480, 640), (1, 3, 224, 224)]
 
     for i in isize:
         verify_sigmoid(i)
@@ -548,6 +550,7 @@ def test_sigmoid():
 
 def test_copy():
     """Copy unit test."""
+
     def verify_copy(dshape, dtype="float32"):
         x = relay.var("x", relay.ty.TensorType(dshape, dtype))
         y = relay.copy(x)
@@ -555,7 +558,7 @@ def test_copy():
         x_data = np.random.uniform(size=dshape).astype(dtype)
         verify_results(func, [x_data], "test_copy", rtol=1e-4, atol=1e-4)
 
-    isize = [(1,3,480,640), (1,3,224,224)]
+    isize = [(1, 3, 480, 640), (1, 3, 224, 224)]
 
     for i in isize:
         verify_copy(i)
@@ -563,6 +566,7 @@ def test_copy():
 
 def test_round():
     """Round unit test."""
+
     def verify_round(dshape, dtype="float32"):
         x = relay.var("x", relay.ty.TensorType(dshape, dtype))
         y = relay.round(x)
@@ -570,7 +574,7 @@ def test_round():
         x_data = np.random.uniform(size=dshape).astype(dtype)
         verify_results(func, [x_data], "test_round", rtol=1e-4, atol=1e-4)
 
-    isize = [(1,3,480,640), (1,3,224,224)]
+    isize = [(1, 3, 480, 640), (1, 3, 224, 224)]
 
     for i in isize:
         verify_round(i)
@@ -578,6 +582,7 @@ def test_round():
 
 def test_cast():
     """Cast unit test."""
+
     def verify_cast(dshape, dtype):
         x = relay.var("x", relay.ty.TensorType(dshape, "float32"))
         y = relay.cast(x, dtype)
@@ -585,8 +590,8 @@ def test_cast():
         x_data = np.random.uniform(size=dshape).astype("float32")
         verify_results(func, [x_data], "test_cast", rtol=1e-4, atol=1e-4)
 
-    isize = [(1,3,480,640), (1,3,224,224)]
-    out_dtypes = ['int8', 'int16', 'uint8', 'uint16']
+    isize = [(1, 3, 480, 640), (1, 3, 224, 224)]
+    out_dtypes = ["int8", "int16", "uint8", "uint16"]
 
     for i in isize:
         for o_dtype in out_dtypes:
