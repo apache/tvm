@@ -545,6 +545,21 @@ def test_sigmoid():
         verify_sigmoid(i)
 
 
+def test_copy():
+    """Copy unit test."""
+    def verify_copy(dshape, dtype="float32"):
+        x = relay.var("x", relay.ty.TensorType(dshape, dtype))
+        y = relay.copy(x)
+        func = relay.Function([x], y)
+        x_data = np.random.uniform(size=dshape).astype(dtype)
+        verify_results(func, [x_data], "test_copy", rtol=1e-4, atol=1e-4)
+
+    isize = [(1,3,480,640), (1,3,224,224)]
+
+    for i in isize:
+        verify_copy(i)
+
+
 if __name__ == "__main__":
     test_add()
     test_bias_add()
@@ -570,3 +585,4 @@ if __name__ == "__main__":
     test_expand_dims()
     test_lrn()
     test_sigmoid()
+    test_copy()
