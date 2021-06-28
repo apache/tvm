@@ -639,9 +639,7 @@ class Cast(OpConverter):
 
     @classmethod
     def convert_attributes(cls, attrs):
-        return {
-            'to': getattr(TensorProto, attrs.dtype.upper())
-        }
+        return {"to": getattr(TensorProto, attrs.dtype.upper())}
 
 
 relay_to_onnx_op_mapping = {
