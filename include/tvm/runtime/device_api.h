@@ -232,7 +232,9 @@ constexpr int kRPCSessMask = 128;
  * \return the device name.
  */
 inline const char* DeviceName(int type) {
-  switch (type) {
+  int device_type = type % kRPCSessMask;
+
+  switch (device_type) {
     case kDLCPU:
       return "cpu";
     case kDLCUDA:
