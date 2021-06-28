@@ -669,6 +669,7 @@ relay_to_onnx_op_mapping = {
     "nn.lrn": LRN,
     "sigmoid": rename("Sigmoid"),
     "copy": rename("Identity"),
+    "round": rename("Round"),
 }
 
 
