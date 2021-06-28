@@ -605,7 +605,9 @@ def run_through_rpc(
     return MeasureResult(costs, errno, tstamp - tic + build_result.time_cost, tstamp)
 
 
-class default_module_loader:
+class DefaultModuleLoader:
+    """See default_module_loader(). A pickleable emulation of the original function closure."""
+
     def __init__(self, pre_load_function=None) -> None:
         self.pre_load_function = pre_load_function
 
@@ -626,7 +628,6 @@ class default_module_loader:
             remote.remove("")
 
 
-'''
 def default_module_loader(pre_load_function=None):
     """Returns a default function that can be passed as module_loader to run_through_rpc.
 
@@ -642,24 +643,8 @@ def default_module_loader(pre_load_function=None):
         A function that can be passed as module_loader to run_through_rpc.
     """
 
-    @contextlib.contextmanager
-    def default_module_loader_mgr(remote_kwargs, build_result):
-        remote = request_remote(**remote_kwargs)
-        if pre_load_function is not None:
-            pre_load_function(remote, build_result)
-
-        remote.upload(build_result.filename)
-        try:
-            yield remote, remote.load_module(os.path.split(build_result.filename)[1])
-
-        finally:
-            # clean up remote files
-            remote.remove(build_result.filename)
-            remote.remove(os.path.splitext(build_result.filename)[0] + ".so")
-            remote.remove("")
-
-    return default_module_loader_mgr
-'''
+    # This was a function with a closure before but that couldn't be pickled!
+    return DefaultModuleLoader(pre_load_function)
 
 
 def request_remote(device_key, host=None, port=None, priority=1, timeout=60):
