@@ -41,7 +41,7 @@ def test_fastmath(target, dev):
             graph, lib, params = relay.build(mod, target=target, params=None)
 
         # Check that the op related to fast math have been convered to function in lib
-        func_name = "fused_" + name
+        func_name = "tvmgen_default_fused_" + name
         # When there're multiple targets in tvm.testing.parametrize_targets, the function
         # built will have a "_1" in function name
         assert func_name in graph

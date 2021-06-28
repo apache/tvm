@@ -34,6 +34,7 @@ from . import ty as _ty
 from . import expr as _expr
 from . import function as _function
 from .transform import InferType
+from .backend.utils import mangle_module_name
 from .backend import executor_factory as _executor_factory
 from .backend import interpreter as _interpreter
 from .backend.vm import VMExecutor
@@ -85,7 +86,9 @@ class BuildModule(object):
         self._get_params_func = self.mod["get_params"]
         self._get_function_metadata = self.mod["get_function_metadata"]
 
-    def build(self, mod, target=None, target_host=None, params=None, executor="graph"):
+    def build(
+        self, mod, target=None, target_host=None, params=None, executor="graph", mod_name=None
+    ):
         """
         Parameters
         ----------
@@ -114,6 +117,9 @@ class BuildModule(object):
             The type of executor to be used in order to run the model:
             - If "graph" is specified, then the graph_executor will be used
             - If "aot" is specified, then the aot_executor will be used
+
+        mod_name: Optional[str]
+            The module name we will build
 
         Returns
         -------
@@ -145,7 +151,9 @@ class BuildModule(object):
         old_autotvm_silent = autotvm.GLOBAL_SCOPE.silent
         autotvm.GLOBAL_SCOPE.silent = use_auto_scheduler
 
-        self._build(mod, target, target_host, executor)
+        mod_name = mangle_module_name(mod_name)
+
+        self._build(mod, target, target_host, executor, mod_name)
         autotvm.GLOBAL_SCOPE.silent = old_autotvm_silent
 
         # Get artifacts
@@ -295,6 +303,7 @@ def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"
     """
     # pylint: enable=line-too-long
     # fmt: on
+
     if not isinstance(ir_mod, (IRModule, _function.Function)):
         raise ValueError("Type of input parameter mod must be tvm.IRModule")
 
@@ -330,7 +339,7 @@ def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"
     with tophub_context:
         bld_mod = BuildModule()
         executor_config, runtime_mod, params = bld_mod.build(
-            mod=ir_mod, target=target, params=params, executor=executor
+            mod=ir_mod, target=target, params=params, executor=executor, mod_name=mod_name
         )
         func_metadata = bld_mod.get_function_metadata()
 

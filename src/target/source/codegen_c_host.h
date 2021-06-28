@@ -42,6 +42,8 @@ class CodeGenCHost final : public CodeGenC {
 
   void AddFunction(const PrimFunc& f);
 
+  void DefineModuleName();
+
   /*! \brief Add linked parameters, if they are present. */
   void DeclareParameters(Map<String, LinkedParam> params);
   void LinkParameters(Map<String, LinkedParam> params);

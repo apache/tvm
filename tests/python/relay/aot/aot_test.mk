@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# Makefile to build ethosu_test_runner
 # Setup build environment
 #
 AOT_ROOT ?= $(TVM_ROOT)/src/runtime/crt/aot
@@ -47,7 +46,7 @@ CRT_SRCS = $(shell find $(CRT_ROOT))
 
 aot_test_runner: $(build_dir)/aot_test_runner
 
-source_libs= $(wildcard $(build_dir)/../codegen/host/src/lib*.c)
+source_libs= $(wildcard $(build_dir)/../codegen/host/src/*.c)
 lib_objs =$(source_libs:.c=.o) 
 
 $(build_dir)/aot_test_runner: $(build_dir)/test.c  $(build_dir)/aot_executor.o  $(source_libs) $(build_dir)/stack_allocator.o $(build_dir)/crt_backend_api.o

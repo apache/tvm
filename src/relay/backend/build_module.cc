@@ -58,7 +58,7 @@ struct BuildOutput {
 struct ExecutorCodegen {
   void Init(runtime::Module* m, TargetsMap targets) { CallFunc("init", m, targets); }
 
-  void Codegen(const Function& func) { CallFunc("codegen", func); }
+  void Codegen(const Function& func, String mod_name) { CallFunc("codegen", func, mod_name); }
 
   virtual void UpdateOutput(BuildOutput* ret) = 0;
 
@@ -177,8 +177,8 @@ class RelayBuildModule : public runtime::ModuleNode {
           [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetModule(); });
     } else if (name == "build") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        ICHECK_EQ(args.num_args, 4);
-        this->Build(args[0], args[1], args[2], args[3]);
+        ICHECK_EQ(args.num_args, 5);
+        this->Build(args[0], args[1], args[2], args[3], args[4]);
       });
     } else if (name == "list_params") {
       return PackedFunc(
@@ -279,13 +279,13 @@ class RelayBuildModule : public runtime::ModuleNode {
    * \param target_host Host target device
    */
   void Build(IRModule mod, const TargetsMap& targets, const tvm::Target& target_host,
-             const String executor) {
+             const String executor, const String mod_name) {
     // Create protected variable targets_ from ground up
     targets_ = targets;
     target_host_ = target_host;
     executor_ = executor;
     CheckAndUpdateHostConsistency(&targets_, &target_host_);
-    BuildRelay(mod, params_);
+    BuildRelay(mod, params_, mod_name);
     // Clear compile engine so that tuning schedules can be changed between runs. See issue #6096.
     CompileEngine::Global()->Clear();
   }
@@ -508,7 +508,8 @@ class RelayBuildModule : public runtime::ModuleNode {
    * \param params The parameters.
    */
   void BuildRelay(IRModule relay_module,
-                  const std::unordered_map<std::string, tvm::runtime::NDArray>& params) {
+                  const std::unordered_map<std::string, tvm::runtime::NDArray>& params,
+                  const String mod_name) {
     Target target_host = GetTargetHost();
     // If no target_host has been set, we choose a default one, which is
     // llvm if "codegen.LLVMModuleCreate" is accessible.
@@ -527,7 +528,7 @@ class RelayBuildModule : public runtime::ModuleNode {
     // Generate code for the updated function.
     executor_codegen_ = MakeExecutorCodegen(executor_);
     executor_codegen_->Init(nullptr, targets_);
-    executor_codegen_->Codegen(func);
+    executor_codegen_->Codegen(func, mod_name);
     executor_codegen_->UpdateOutput(&ret_);
     ret_.params = executor_codegen_->GetParams();
 

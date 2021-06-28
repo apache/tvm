@@ -270,9 +270,10 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
     function_metadata_.Set(String(runtime::symbol::tvm_module_main), FunctionInfo(fi_node));
   }
 
-  LoweredOutput Codegen(relay::Function func) {
+  LoweredOutput Codegen(relay::Function func, String mod_name) {
     auto pf = GetPackedFunc("relay.backend.GraphPlanMemory");
     storage_device_map_ = (*pf)(func);
+    mod_name_ = mod_name;
     UpdateMainWorkspaceSize(func);
     // First we convert all the parameters into input nodes.
     for (auto param : func->params) {
@@ -547,7 +548,7 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
     if (func->GetAttr<String>(attr::kCompiler).defined()) {
       target = Target("ext_dev");
       CCacheKey key = (*pf0)(func, target);
-      CachedFunc ext_func = (*pf1)(compile_engine_, key);
+      CachedFunc ext_func = (*pf1)(compile_engine_, key, mod_name_);
       ICHECK(ext_func.defined()) << "External function is not defined.";
       UpdateConstants(func, &params_);
       return GraphAddCallNode(op, ext_func->func_name, ext_func->func_name, attrs);
@@ -573,7 +574,7 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
     // Normal Relay Function
 
     CCacheKey key = (*pf0)(func, target);
-    CachedFunc lowered_func = (*pf1)(compile_engine_, key);
+    CachedFunc lowered_func = (*pf1)(compile_engine_, key, mod_name_);
     if (!lowered_funcs_.count(target->str())) {
       lowered_funcs_[target->str()] = IRModule(Map<GlobalVar, BaseFunc>({}));
     }
@@ -724,6 +725,8 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
   std::unordered_map<std::string, int64_t> param_storage_ids_;
   /*! \brief plan memory of device result */
   Map<Expr, Array<IntegerArray>> storage_device_map_;
+  /*! \brief the module name we use to mangle the function names */
+  String mod_name_;
   /*! \brief lowered funcs */
   std::unordered_map<std::string, IRModule> lowered_funcs_;
   /*! \brief lowered funcs */
@@ -756,7 +759,8 @@ class GraphExecutorCodegenModule : public runtime::ModuleNode {
     } else if (name == "codegen") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         Function func = args[0];
-        this->output_ = this->codegen_->Codegen(func);
+        String mod_name = args[1];
+        this->output_ = this->codegen_->Codegen(func, mod_name);
       });
     } else if (name == "get_graph_json") {
       return PackedFunc(

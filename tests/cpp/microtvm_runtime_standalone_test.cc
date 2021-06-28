@@ -92,7 +92,7 @@ TEST(MicroStandaloneRuntime, BuildModule) {
 
   Target llvm_tgt = Target("llvm");
   targets.Set(0, llvm_tgt);
-  build_f(func, targets, llvm_tgt, runtime::kTvmExecutorGraph);
+  build_f(func, targets, llvm_tgt, runtime::kTvmExecutorGraph, "");
   std::string json = json_f();
   tvm::runtime::Module mod = mod_f();
   std::string o_fname = std::tmpnam(nullptr);
