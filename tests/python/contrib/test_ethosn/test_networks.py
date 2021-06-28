@@ -122,7 +122,7 @@ def test_mobilenet_v1():
     # codegen, which could come about from either a change in Support Library
     # version or a change in the Ethos-N codegen. To update this requires running
     # on hardware that isn't available in CI.
-    _compile_hash = {"bfb5a50607edb50009c58ae9d4287e4d"}
+    _compile_hash = {"5d3cee6ecc488c40ecf533c5cbacc534"}
     if tei.get_ethosn_variant() == "Ethos-N78_1TOPS_2PLE_RATIO":
         _compile_hash = {"896c28b4f06341ea638ead3a593e1aed"}
     if tei.get_ethosn_api_version() == 2011:
@@ -148,7 +148,7 @@ def test_inception_v3():
     # codegen, which could come about from either a change in Support Library
     # version or a change in the Ethos-N codegen. To update this requires running
     # on hardware that isn't available in CI.
-    _compile_hash = {"96116d7e6c7385de0688074a3f889983"}
+    _compile_hash = {"1bc66e83c3de5a9773a719b179c65b1a"}
     if tei.get_ethosn_variant() == "Ethos-N78_1TOPS_2PLE_RATIO":
         _compile_hash = {"551cde850c6ef960d19be4f317fb8e68"}
     if tei.get_ethosn_api_version() == 2011:
@@ -173,7 +173,7 @@ def test_inception_v4():
     # codegen, which could come about from either a change in Support Library
     # version or a change in the Ethos-N codegen. To update this requires running
     # on hardware that isn't available in CI.
-    _compile_hash = {"b34aec2a48c591818761ed6b42c133e5"}
+    _compile_hash = {"578b8ee279911b49912a77a64f5ff620"}
     if tei.get_ethosn_variant() == "Ethos-N78_1TOPS_2PLE_RATIO":
         _compile_hash = {"30f078bd42757e8686eafa1f28d0d352"}
     if tei.get_ethosn_api_version() == 2011:
@@ -198,7 +198,7 @@ def test_ssd_mobilenet_v1():
     # codegen, which could come about from either a change in Support Library
     # version or a change in the Ethos-N codegen. To update this requires running
     # on hardware that isn't available in CI.
-    _compile_hash = {"c312edfc9a946ed4dc7c049d472dae6e", "3183f0fa5eba8f6b9557d14eaf47842d"}
+    _compile_hash = {"cd335229a2052f30273f127a233bd319", "95dedc29d911cdc6b28207ca08e42470"}
     if tei.get_ethosn_variant() == "Ethos-N78_1TOPS_2PLE_RATIO":
         _compile_hash = {"deee52e136327436411fc725624ae2ea", "6526509d3cbee014e38c79e22bb29d7f"}
     if tei.get_ethosn_api_version() == 2011:
