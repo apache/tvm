@@ -516,6 +516,7 @@ def test_expand_dims():
 
 
 def test_lrn():
+    """LRN unit test."""
     def verify_lrn(xshape, size, dtype="float32"):
         x = relay.var("x", relay.ty.TensorType(xshape, dtype))
         y = relay.nn.lrn(x, size=size, axis=1, alpha=1.0, beta=1.0, bias=1.0)
