@@ -389,6 +389,33 @@ def matmul_strategy_cpu(attrs, inputs, out_type, target):
             name="matmul.generic",
         )
 
+    same_type = inputs[0].dtype == inputs[1].dtype == out_type.dtype
+    dtype = inputs[0].dtype
+    u8s8s32 = dtype == "uint8" and inputs[1].dtype == "int8" and out_type.dtype == "int32"
+    if "cblas" in target.libs:
+        with SpecializedCondition(same_type and dtype in ["float32", "float64"]):
+            strategy.add_implementation(
+                wrap_compute_matmul(topi.x86.matmul_cblas),
+                wrap_topi_schedule(topi.x86.schedule_matmul_cblas),
+                name="matmul_cblas.x86",
+                plevel=13,
+            )
+    if "mkl" in target.libs:
+        with SpecializedCondition(same_type and dtype in ["float32", "float64"] or u8s8s32):
+            strategy.add_implementation(
+                wrap_compute_matmul(topi.x86.matmul_mkl),
+                wrap_topi_schedule(topi.x86.schedule_matmul_mkl),
+                name="matmul_mkl.x86",
+                plevel=14,
+            )
+    if "mkldnn" in target.libs:
+        with SpecializedCondition(same_type and dtype == "float32"):
+            strategy.add_implementation(
+                wrap_compute_matmul(topi.x86.matmul_mkldnn),
+                wrap_topi_schedule(topi.x86.schedule_matmul_mkldnn),
+                name="matmul_mkldnn.x86",
+                plevel=15,
+            )
     return strategy
 
 
