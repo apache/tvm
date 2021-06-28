@@ -47,9 +47,10 @@ void CodeGenCHost::Init(bool output_ssa, bool emit_asserts, std::string target_s
   decl_stream << "#include \"tvm/runtime/c_runtime_api.h\"\n";
   decl_stream << "#include \"tvm/runtime/c_backend_api.h\"\n";
   decl_stream << "#include <math.h>\n";
-  decl_stream << "void* " << module_name_ << " = NULL;\n";
   CodeGenC::Init(output_ssa);
 }
+
+void CodeGenCHost::DefineModuleName() { decl_stream << "void* " << module_name_ << " = NULL;\n"; }
 
 void CodeGenCHost::AddFunction(const PrimFunc& f) {
   auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
@@ -389,8 +390,7 @@ runtime::Module BuildCHost(IRModule mod, Target target) {
     // Make sure that the executor function is the last one to be code generated so that all the
     // symbols are available to tvm_run_func
     auto fun_name = std::string(kv.first->name_hint);
-    const bool is_aot_executor_fn =
-        (fun_name.rfind(::tvm::runtime::symbol::tvm_run_func_prefix, 0) == 0);
+    bool is_aot_executor_fn = kv.second->GetAttr<Bool>("runner_function", Bool(false)).value();
 
     if (is_aot_executor_fn) {
       aot_executor_fn = Downcast<PrimFunc>(kv.second);
