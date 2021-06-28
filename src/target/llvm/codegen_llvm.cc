@@ -527,10 +527,11 @@ void CodeGenLLVM::GetAlignment(DataType t, const VarNode* buf_var, const PrimExp
 llvm::GlobalVariable* CodeGenLLVM::AllocateSharedMemory(DataType dtype,
                                                         size_t size,
                                                         unsigned int shared_address_space,
-                                                        int alignment) {
+                                                        int alignment,
+                                                        llvm::GlobalValue::LinkageTypes linkage) {
   llvm::Type* type = llvm::ArrayType::get(DTypeToLLVMType(dtype), size);
   llvm::GlobalVariable* global = new llvm::GlobalVariable(
-      *module_, type, false, llvm::GlobalValue::ExternalLinkage, nullptr, "shmem", nullptr,
+      *module_, type, false, linkage, nullptr, "shmem", nullptr,
       llvm::GlobalValue::NotThreadLocal, shared_address_space);
 #if TVM_LLVM_VERSION >= 100
   global->setAlignment(llvm::Align(alignment));
