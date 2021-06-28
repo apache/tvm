@@ -61,7 +61,7 @@ class CodeGenNVPTX : public CodeGenLLVM {
       llvm::Type* type = llvm::ArrayType::get(DTypeToLLVMType(op->dtype), 0);
       // Allocate shared memory in global, address_space = 3
       llvm::GlobalVariable* global = new llvm::GlobalVariable(
-          *module_, type, false, llvm::GlobalValue::ExternalLinkage, nullptr, ".shared", nullptr,
+          *module_, type, false, llvm::GlobalValue::ExternalLinkage, nullptr, "buf", nullptr,
           llvm::GlobalValue::NotThreadLocal, shared_address_space);
 #if TVM_LLVM_VERSION >= 100
       global->setAlignment(llvm::Align(info.alignment));
