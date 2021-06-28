@@ -681,22 +681,6 @@ optimization pipeline and debug Relay and tir passes, please refer to the
 Pass Instrument
 ^^^^^^^^^^^^^^^
 
-A customizable framework to instrument passes is provided. ``PassInstrument`` classes can be registered while constructing ``PassContext``.
-
-.. code:: python
-
-    @tvm._ffi.register_object("transform.PassContext")
-    class PassContext(tvm.runtime.Object):
-        def __init__(
-            self,
-            opt_level=2,
-            required_pass=None,
-            disabled_pass=None,
-            instruments=None,
-            config=None,
-        ):
-        # ...
-
 One can implement a ``PassInstrument`` by using the ``pass_instrument``
 decorator(`python/tvm/ir/instrument.py`_) on a class implementing following methods.
 Note that it is recommended to use the ``pass_instrument`` decorator to implement
@@ -712,9 +696,8 @@ Note that it is recommended to use the ``pass_instrument`` decorator to implemen
 
 - ``should_run``
 
-  * This method is run before a pass is executed. It returns a boolean
+  * This method is run before a pass is executed, returning a boolean
     indicating whether or not the pass should be run.
-  * If a pass is listed as required, ``should_run`` will not have effect and not be executed.
 
 - ``run_before_pass``
 
@@ -723,6 +706,9 @@ Note that it is recommended to use the ``pass_instrument`` decorator to implemen
 - ``run_after_pass``
 
   * This method is run right after a pass has been executed.
+
+``PassInstrument`` instances can be registered through ``instruments`` argument in
+:py:class:`tvm.transform.PassContext`.
 
 `use pass instrument`_ tutorial provides examples for how to implement ``PassInstrument`` with Python APIs.
 
@@ -736,16 +722,12 @@ For example, if passes are run without explicitly creating a new ``PassContext``
 one can still register ``PassInstrument`` into the global ``PassContext`` by:
 
 .. code:: python
-    # Get current PassContext
+
     cur_pass_ctx = tvm.transform.PassContext.current()
-    # Register new PassInstrument instance
-    cur_pass_ctx.override_instruments([pass_inst0, pass_inst1])
-    # Run Passes
-    mod = Pass1(mod)
-    mod = Pass2(mod)
-    # Get instrument results...e.t.c.
-    result0 = pass_inst0.get_result()
-    result1 = pass_inst1.get_result()
+    # override PassInstrument instances
+    cur_pass_ctx.override_instruments([pass_inst])
+    mod = pass_seq(mod)
+    result = pass_inst.get_result()
 
 Note that when ``override_instruments`` is called, the ``exit_pass_ctx`` method of
 old ``PassInstrument`` instances are called. Then the ``enter_pass_ctx`` method of
