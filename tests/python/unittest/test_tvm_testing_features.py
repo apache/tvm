@@ -210,5 +210,44 @@ class TestAutomaticMarks:
         self.check_marks(request, target)
 
 
+@pytest.mark.skipif(
+    bool(int(os.environ.get("TVM_TEST_DISABLE_CACHE", "0"))),
+    reason="Cannot test cache behavior while caching is disabled",
+)
+class TestCacheableTypes:
+    class EmptyClass:
+        pass
+
+    @tvm.testing.fixture(cache_return_value=True)
+    def uncacheable_fixture(self):
+        return self.EmptyClass()
+
+    @pytest.mark.xfail(reason="Requests cached fixture of uncacheable type", strict=True)
+    def test_uses_uncacheable(self, uncacheable_fixture):
+        pass
+
+    class ImplementsReduce:
+        def __reduce__(self):
+            return super().__reduce__()
+
+    @tvm.testing.fixture(cache_return_value=True)
+    def fixture_with_reduce(self):
+        return self.ImplementsReduce()
+
+    def test_uses_reduce(self, fixture_with_reduce):
+        pass
+
+    class ImplementsDeepcopy:
+        def __deepcopy__(self, memo):
+            return type(self)()
+
+    @tvm.testing.fixture(cache_return_value=True)
+    def fixture_with_deepcopy(self):
+        return self.ImplementsDeepcopy()
+
+    def test_uses_deepcopy(self, fixture_with_deepcopy):
+        pass
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main(sys.argv))
