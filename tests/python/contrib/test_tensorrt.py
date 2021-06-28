@@ -1183,9 +1183,9 @@ def test_dynamic_offload():
         var1 = relay.var("tensorrt_0_i0", shape=(data_shape), dtype="float32")
         kernel_trt = relay.var("tensorrt_0_i1", shape=(k_shape), dtype="float32")
         out1 = relay.nn.conv2d(var1, kernel_trt, channels=k_shape[0], kernel_size=k_shape[2:4])
-        f1 = GlobalVar("tensorrt_0")
+        f1 = GlobalVar("tvmgen_default_tensorrt_0")
         func = relay.Function([var1, kernel_trt], out1)
-        func = set_func_attr(func, "tensorrt", "tensorrt_0")
+        func = set_func_attr(func, "tensorrt", "tvmgen_default_tensorrt_0")
         mod[f1] = func
         mod = relay.transform.InferType()(mod)
 
@@ -1408,7 +1408,7 @@ def test_empty_subgraph():
     var1 = relay.var("tensorrt_0_i0", shape=(x_shape), dtype="float32")
     f1 = GlobalVar("tensorrt_0")
     func = relay.Function([var1], var1)
-    func = set_func_attr(func, "tensorrt", "tensorrt_0")
+    func = set_func_attr(func, "tensorrt", "tvmgen_default_tensorrt_0")
     mod[f1] = func
     mod = relay.transform.InferType()(mod)
 

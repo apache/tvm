@@ -85,7 +85,7 @@ def test_export_model_library_format_c(target):
 
         with open(os.path.join(extract_dir, "metadata.json")) as json_f:
             metadata = json.load(json_f)
-            assert metadata["version"] == 2
+            assert metadata["version"] == 3
             assert metadata["model_name"] == "add"
             export_datetime = datetime.datetime.strptime(
                 metadata["export_datetime"], "%Y-%m-%d %H:%M:%SZ"
@@ -115,8 +115,8 @@ def test_export_model_library_format_c(target):
                 in metadata["memory"]["functions"]["operator_functions"][0]["function_name"]
             )
 
-        assert os.path.exists(os.path.join(extract_dir, "codegen", "host", "src", "lib0.c"))
-        assert os.path.exists(os.path.join(extract_dir, "codegen", "host", "src", "lib1.c"))
+        assert os.path.exists(os.path.join(extract_dir, "codegen", "host", "src", "add_lib0.c"))
+        assert os.path.exists(os.path.join(extract_dir, "codegen", "host", "src", "add_lib1.c"))
 
         if executor == "graph":
             validate_graph_json(extract_dir, factory)
@@ -165,7 +165,7 @@ def test_export_model_library_format_llvm():
 
         with open(os.path.join(extract_dir, "metadata.json")) as json_f:
             metadata = json.load(json_f)
-            assert metadata["version"] == 2
+            assert metadata["version"] == 3
             assert metadata["model_name"] == "add"
             export_datetime = datetime.datetime.strptime(
                 metadata["export_datetime"], "%Y-%m-%d %H:%M:%SZ"
@@ -194,7 +194,7 @@ def test_export_model_library_format_llvm():
                 in metadata["memory"]["functions"]["operator_functions"][0]["function_name"]
             )
 
-        assert os.path.exists(os.path.join(extract_dir, "codegen", "host", "lib", "lib0.o"))
+        assert os.path.exists(os.path.join(extract_dir, "codegen", "host", "lib", "add_lib0.o"))
 
         validate_graph_json(extract_dir, factory)
 
@@ -244,7 +244,7 @@ def test_export_model_library_format_workspace(target):
 
     with open(os.path.join(extract_dir, "metadata.json")) as json_f:
         metadata = json.load(json_f)
-        assert metadata["version"] == 2
+        assert metadata["version"] == 3
         assert metadata["model_name"] == "qnn_conv2d"
         export_datetime = datetime.datetime.strptime(
             metadata["export_datetime"], "%Y-%m-%d %H:%M:%SZ"

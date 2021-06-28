@@ -44,6 +44,7 @@
 #include <utility>
 #include <vector>
 
+#include "../../runtime/meta_data.h"
 #include "../transforms/pass_utils.h"
 #include "utils.h"
 
@@ -611,11 +612,14 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
 class CompileEngineImpl : public CompileEngineNode {
  public:
   // Lower the function.
-  CachedFunc Lower(const CCacheKey& key) { return LowerInternal(key)->cached_func; }
+  CachedFunc Lower(const CCacheKey& key, std::function<String(String)> mangle_fn) {
+    return LowerInternal(key, mangle_fn)->cached_func;
+  }
 
   // For now, build one module per function.
   PackedFunc JIT(const CCacheKey& key) final {
-    CCacheValue value = LowerInternal(key);
+    auto mangle_fn = [](String name) { return name; };
+    CCacheValue value = LowerInternal(key, mangle_fn);
     if (value->packed_func != nullptr) return value->packed_func;
     // build the function.
     tvm::runtime::Module m;
@@ -710,7 +714,7 @@ class CompileEngineImpl : public CompileEngineNode {
 
  private:
   // implement lowered func
-  CCacheValue LowerInternal(const CCacheKey& key) {
+  CCacheValue LowerInternal(const CCacheKey& key, std::function<String(String)> mangle_fn) {
     std::lock_guard<std::mutex> lock(mutex_);
     CCacheValue value;
     auto it = cache_.find(key);
@@ -754,8 +758,8 @@ class CompileEngineImpl : public CompileEngineNode {
         return value;
       }
     }
+    cache_node->func_name = GetUniqueName(mangle_fn(cache_node->func_name));
 
-    cache_node->func_name = GetUniqueName(cache_node->func_name);
     // NOTE: array will copy on write.
     Array<te::Tensor> all_args = cache_node->inputs;
     for (te::Tensor arg : cache_node->outputs) {
@@ -869,7 +873,12 @@ TVM_REGISTER_GLOBAL("relay.backend._CompileEngineClear").set_body_typed([](Compi
 });
 
 TVM_REGISTER_GLOBAL("relay.backend._CompileEngineLower")
-    .set_body_typed([](CompileEngine self, CCacheKey key) { return self->Lower(key); });
+    .set_body_typed([](CompileEngine self, CCacheKey key, const String mod_name) {
+      auto mangle_fn = [mod_name](String name) {
+        return runtime::get_name_mangled(mod_name, name);
+      };
+      return self->Lower(key, mangle_fn);
+    });
 
 TVM_REGISTER_GLOBAL("relay.backend._CompileEngineLowerShapeFunc")
     .set_body_typed([](CompileEngine self, CCacheKey key) { return self->LowerShapeFunc(key); });

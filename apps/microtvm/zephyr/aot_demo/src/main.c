@@ -41,7 +41,7 @@
 #define WORKSPACE_SIZE (270 * 1024)
 
 static uint8_t g_aot_memory[WORKSPACE_SIZE];
-extern tvm_model_t network;
+extern tvm_model_t tvmgen_default_network;
 tvm_workspace_t app_workspace;
 
 // Wakeup sequence used to wake up QEMU on the host.
@@ -205,7 +205,7 @@ void main(void) {
 
   double elapsed_time = 0;
   TVMPlatformTimerStart();
-  int ret_val = tvm_runtime_run(&network, inputs, outputs);
+  int ret_val = tvm_runtime_run(&tvmgen_default_network, inputs, outputs);
   TVMPlatformTimerStop(&elapsed_time);
 
   if (ret_val != 0) {

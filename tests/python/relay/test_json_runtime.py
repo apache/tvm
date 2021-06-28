@@ -104,8 +104,8 @@ def test_conv2d():
         out = relay.nn.conv2d(data0, weight0, kernel_size=(3, 3), padding=(1, 1))
 
         func = relay.Function([data0, weight0], out)
-        func = set_func_attr(func, "dnnl", "dnnl_0")
-        glb_var = relay.GlobalVar("dnnl_0")
+        func = set_func_attr(func, "dnnl", "tvmgen_default_dnnl_0")
+        glb_var = relay.GlobalVar("tvmgen_default_dnnl_0")
         mod = tvm.IRModule()
         mod[glb_var] = func
         mod = transform.InferType()(mod)
@@ -139,8 +139,8 @@ def test_conv2d():
         out = relay.nn.conv2d(data0, weight0, kernel_size=(3, 3), padding=(1, 1), groups=32)
 
         func = relay.Function([data0, weight0], out)
-        func = set_func_attr(func, "dnnl", "dnnl_0")
-        glb_var = relay.GlobalVar("dnnl_0")
+        func = set_func_attr(func, "dnnl", "tvmgen_default_dnnl_0")
+        glb_var = relay.GlobalVar("tvmgen_default_dnnl_0")
         mod = tvm.IRModule()
         mod[glb_var] = func
         mod = transform.InferType()(mod)
@@ -183,8 +183,8 @@ def test_add():
         out = relay.add(data0, data1)
 
         func = relay.Function([data0, data1], out)
-        func = set_func_attr(func, "dnnl", "dnnl_0")
-        glb_var = relay.GlobalVar("dnnl_0")
+        func = set_func_attr(func, "dnnl", "tvmgen_default_dnnl_0")
+        glb_var = relay.GlobalVar("tvmgen_default_dnnl_0")
         mod = tvm.IRModule()
         mod[glb_var] = func
         mod = transform.InferType()(mod)
@@ -226,8 +226,8 @@ def test_relu():
         out = relay.nn.relu(data0)
 
         func = relay.Function([data0], out)
-        func = set_func_attr(func, "dnnl", "dnnl_0")
-        glb_var = relay.GlobalVar("dnnl_0")
+        func = set_func_attr(func, "dnnl", "tvmgen_default_dnnl_0")
+        glb_var = relay.GlobalVar("tvmgen_default_dnnl_0")
         mod = tvm.IRModule()
         mod[glb_var] = func
         mod = transform.InferType()(mod)
@@ -276,8 +276,8 @@ def test_dense():
         out = relay.nn.dense(a, b)
 
         func = relay.Function([a, b], out)
-        func = set_func_attr(func, "dnnl", "dnnl_0")
-        glb_var = relay.GlobalVar("dnnl_0")
+        func = set_func_attr(func, "dnnl", "tvmgen_default_dnnl_0")
+        glb_var = relay.GlobalVar("tvmgen_default_dnnl_0")
         mod = tvm.IRModule()
         mod[glb_var] = func
         mod = transform.InferType()(mod)
@@ -325,8 +325,8 @@ def test_bn():
         out = bn[0]
 
         func = relay.Function([data, gamma, beta, moving_mean, moving_var], out)
-        func = set_func_attr(func, "dnnl", "dnnl_0")
-        glb_var = relay.GlobalVar("dnnl_0")
+        func = set_func_attr(func, "dnnl", "tvmgen_default_dnnl_0")
+        glb_var = relay.GlobalVar("tvmgen_default_dnnl_0")
         mod = tvm.IRModule()
         mod[glb_var] = func
         mod = transform.InferType()(mod)
@@ -471,8 +471,8 @@ def test_composite():
         arg_2 = relay.var("arg_2", shape=w1shape, dtype=dtype)
         call = relay.Call(func, [arg_1, arg_2])
         p_func = relay.Function([arg_1, arg_2], call)
-        p_func = set_func_attr(p_func, "dnnl", "dnnl_0")
-        glb_var = relay.GlobalVar("dnnl_0")
+        p_func = set_func_attr(p_func, "dnnl", "tvmgen_default_dnnl_0")
+        glb_var = relay.GlobalVar("tvmgen_default_dnnl_0")
         mod = tvm.IRModule()
         mod[glb_var] = p_func
         mod = transform.InferType()(mod)
@@ -521,8 +521,8 @@ def test_composite():
         arg_3 = relay.var("arg_3", shape=bshape, dtype=dtype)
         call = relay.Call(func, [arg_1, arg_2, arg_3])
         p_func = relay.Function([arg_1, arg_2, arg_3], call)
-        p_func = set_func_attr(p_func, "dnnl", "dnnl_0")
-        glb_var = relay.GlobalVar("dnnl_0")
+        p_func = set_func_attr(p_func, "dnnl", "tvmgen_default_dnnl_0")
+        glb_var = relay.GlobalVar("tvmgen_default_dnnl_0")
         mod = tvm.IRModule()
         mod[glb_var] = p_func
         mod = transform.InferType()(mod)
