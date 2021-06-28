@@ -98,17 +98,17 @@ def lower(
 
     Parameters
     ----------
-    inputs : Union[schedule.Schedule, PrimFunc, IRModule]
+    inp : Union[tvm.te.schedule.Schedule, tvm.tir.PrimFunc, IRModule]
         The TE schedule or TensorIR PrimFunc/IRModule to be built
 
-    args : Optional[List[Union[Buffer, tensor.Tensor, Var]]]
+    args : Optional[List[Union[tvm.tir.Buffer, tensor.Tensor, Var]]]
         The argument lists to the function for TE schedule.
         It should be None if we want to lower TensorIR.
 
     name : str
         The name of result function.
 
-    binds : Optional[Mapping[tensor.Tensor, Buffer]]
+    binds : Optional[Mapping[tensor.Tensor, tvm.tir.Buffer]]
         Dictionary that maps the Tensor to Buffer which specified the data layout
         requirement of the function. By default, a new compact buffer is created
         for each tensor in the argument.
@@ -233,10 +233,10 @@ def build(
 
     Parameters
     ----------
-    inputs : Union[schedule.Schedule, PrimFunc, IRModule, Mapping[str, IRModule]]
+    inputs : Union[tvm.te.schedule.Schedule, tvm.tir.PrimFunc, IRModule, Mapping[str, IRModule]]
         The input to be built
 
-    args : Optional[List[Union[Buffer, tensor.Tensor, Var]]]
+    args : Optional[List[Union[tvm.tir.Buffer, tensor.Tensor, Var]]]
         The argument lists to the function.
 
     target : Optional[Union[str, Target]]
@@ -254,7 +254,7 @@ def build(
     name : Optional[str]
         The name of result function.
 
-    binds : Optional[Mapping[tensor.Tensor, Buffer]]
+    binds : Optional[Mapping[tensor.Tensor, tvm.tir.Buffer]]
         Dictionary that maps the binding of symbolic buffer to Tensor.
         By default, a new buffer is created for each tensor in the argument.
 

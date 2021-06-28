@@ -2410,6 +2410,7 @@ def verify_conv(
     kernel_shape,
     strides,
     dilations,
+    group=1,
     auto_pad="NOTSET",
     unset_pad=False,
 ):
@@ -2422,7 +2423,7 @@ def verify_conv(
             # Default values for other attributes:
             strides=strides,
             dilations=dilations,
-            # groups=1
+            group=group,
         )
     elif padding is None:
         ## autopadding with unset default attributes
@@ -2438,6 +2439,7 @@ def verify_conv(
             outputs=["y"],
             # Default values for other attributes:
             auto_pad=auto_pad,
+            group=group,
             **kwargs,
         )
     else:
@@ -2449,7 +2451,7 @@ def verify_conv(
             # Default values for other attributes:
             strides=strides,
             dilations=dilations,
-            # groups=1
+            group=group,
             pads=padding,
         )
 
@@ -2557,6 +2559,20 @@ def test_conv():
             repeat(3, D),
             repeat(1, D),
             repeat(2, D),
+        )
+
+    # TODO(jwfromm): Merge with other tests once group_conv3d is supported.
+    for D in [1, 2]:
+        # Group Convolution
+        verify_conv(
+            (1, 8) + repeat(5, D),
+            (8, 1) + repeat(3, D),
+            (1, 8) + repeat(5, D),
+            2 * repeat(1, D),
+            repeat(3, D),
+            repeat(1, D),
+            repeat(1, D),
+            group=8,
         )
 
 
