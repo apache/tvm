@@ -25,10 +25,6 @@
 #include <dmlc/thread_local.h>
 #include <tvm/runtime/registry.h>
 
-#include <cstdlib>
-#include <mutex>
-#include <thread>
-
 namespace tvm {
 namespace contrib {
 
@@ -98,8 +94,6 @@ const void* CuDNNDataType::GetConst<1>(cudnnDataType_t type) {
 
 // CuDNNThreadEntry
 
-static bool g_cudnn_ctx_must_exist = false;
-
 CuDNNThreadEntry::CuDNNThreadEntry() {
   auto stream = runtime::CUDAThreadEntry::ThreadLocal()->stream;
   auto func = runtime::Registry::Get("device_api.cuda");
@@ -119,17 +113,9 @@ CuDNNThreadEntry::CuDNNThreadEntry() {
 
   CUDNN_CALL(cudnnSetStream(handle, stream));
   conv_entry.cuda_api = cuda_api;
-
-  g_cudnn_ctx_must_exist = true;
-  static std::once_flag atexit_once;
-  std::call_once(atexit_once, [] { std::atexit([] { g_cudnn_ctx_must_exist = false; }); });
 }
 
-CuDNNThreadEntry::~CuDNNThreadEntry() {
-  if (handle && g_cudnn_ctx_must_exist) {
-    CUDNN_CALL(cudnnDestroy(handle));
-  }
-}
+CuDNNThreadEntry::~CuDNNThreadEntry() {}
 
 typedef dmlc::ThreadLocalStore<CuDNNThreadEntry> CuDNNThreadStore;
 
