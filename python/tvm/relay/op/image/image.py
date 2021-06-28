@@ -100,7 +100,7 @@ def resize2d(
     data,
     size,
     layout="NCHW",
-    method="bilinear",
+    method="linear",
     coordinate_transformation_mode="half_pixel",
     rounding_method="",
     cubic_alpha=-0.5,

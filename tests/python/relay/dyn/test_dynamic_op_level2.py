@@ -87,7 +87,7 @@ def test_dyn_upsampling_infer_type_const():
 @tvm.testing.uses_gpu
 def test_dyn_upsampling3d_run():
     def verify_upsampling3d(
-        dshape, scale_d, scale_h, scale_w, layout, method, coord_trans="half_pixel"
+        dshape, scale_d, scale_h, scale_w, layout, method, coord_trans="asymmetric"
     ):
 
         if layout == "NCDHW":
@@ -99,6 +99,9 @@ def test_dyn_upsampling3d_run():
             x_data = np.random.uniform(size=(n, d, h, w, c)).astype("float32")
 
         if method == "nearest_neighbor":
+            assert (
+                coord_trans == "asymmetric"
+            ), "topi reference only support asymmetric nearest neighbor"
             ref_res = tvm.topi.testing.upsampling3d_python(
                 x_data, (scale_d, scale_h, scale_w), layout
             )

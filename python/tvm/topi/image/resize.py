@@ -1184,6 +1184,7 @@ def resize3d(
         or 5-D with shape
         [batch, channel-major, in_depth*scale, in_height*scale, in_width*scale, channel-minor]
     """
+
     method = method.lower()
     if layout == "NDHWC":
         in_n, in_d, in_h, in_w, in_c = data.shape

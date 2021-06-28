@@ -457,7 +457,7 @@ class Conv(OnnxOpConverter):
 
         kernel_type = infer_type(inputs[1])
         kernel_shapes = [get_const_tuple(kernel_type.checked_type.shape)]
-        print(input_shape, kernel_shapes)
+
         if "kernel_shape" not in attr:
             attr["kernel_shape"] = kernel_shapes[0][2:]
 
@@ -1200,7 +1200,13 @@ class Upsample(OnnxOpConverter):
 
             layout = "NCDHW"
             out = _op.nn.upsampling3d(
-                inputs[0], scale_d, scale_h, scale_w, layout=layout, method=method
+                inputs[0],
+                scale_d,
+                scale_h,
+                scale_w,
+                layout=layout,
+                method=method,
+                coordinate_transformation_mode="asymmetric",
             )
         # in 2d case, use dynamic op
         else:
@@ -1365,13 +1371,7 @@ class Slice(OnnxOpConverter):
         ends = inputs[2]
         axes = inputs[3]
         steps = inputs[4]
-        print("----------Slice------------")
-        print(inputs[0])
-        print(inputs[1])
-        print(inputs[2])
-        print(inputs[3])
-        print(inputs[4])
-        print("----------/Slice------------")
+
         ishape = infer_shape(inputs[0])
         data_rank = len(ishape)
 

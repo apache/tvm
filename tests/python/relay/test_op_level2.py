@@ -1448,6 +1448,7 @@ def _test_upsampling(layout, method, align_corners=False):
         align_corners=align_corners,
     )
     func = relay.Function([x], y)
+
     data = np.random.uniform(size=dshape).astype(dtype)
     if method == "nearest_neighbor":
         ref = tvm.topi.testing.upsampling_python(data, (scale_h, scale_w), layout)
@@ -1518,8 +1519,12 @@ def _test_upsampling3d(layout, method, coordinate_transformation_mode="half_pixe
         coordinate_transformation_mode=coordinate_transformation_mode,
     )
     func = relay.Function([x], y)
+
     data = np.random.uniform(size=dshape).astype(dtype)
     if method == "nearest_neighbor":
+        assert (
+            coordinate_transformation_mode == "asymmetric"
+        ), "topi reference only support asymmetric nearest neighbor"
         ref = tvm.topi.testing.upsampling3d_python(data, (scale_d, scale_h, scale_w), layout)
     else:
         ref = tvm.topi.testing.trilinear_resize3d_python(
@@ -1535,9 +1540,9 @@ def _test_upsampling3d(layout, method, coordinate_transformation_mode="half_pixe
 
 @tvm.testing.uses_gpu
 def test_upsampling3d():
-    _test_upsampling3d("NCDHW", "nearest_neighbor")
+    _test_upsampling3d("NCDHW", "nearest_neighbor", "asymmetric")
     _test_upsampling3d("NCDHW", "trilinear", "align_corners")
-    _test_upsampling3d("NDHWC", "nearest_neighbor")
+    _test_upsampling3d("NDHWC", "nearest_neighbor", "asymmetric")
     _test_upsampling3d("NDHWC", "trilinear", "align_corners")
 
 

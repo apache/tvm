@@ -139,6 +139,11 @@ class DeformableConv2DAttrs(Attrs):
     """Attributes for nn.deformable_conv2d"""
 
 
+@tvm._ffi.register_object("relay.attrs.Resize1DAttrs")
+class Resize1DAttrs(Attrs):
+    """Attributes for image.resize1d"""
+
+
 @tvm._ffi.register_object("relay.attrs.Resize2DAttrs")
 class Resize2DAttrs(Attrs):
     """Attributes for image.resize2d"""

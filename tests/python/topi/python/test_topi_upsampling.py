@@ -213,7 +213,7 @@ def verify_upsampling3d(
         scale_w,
         layout=layout,
         method=method,
-        coordinate_transformation_mode="half_pixel",
+        coordinate_transformation_mode="asymmetric",
     )
 
     if method == "trilinear":
@@ -223,7 +223,7 @@ def verify_upsampling3d(
             int(round(in_width * scale_w)),
         )
         b_np = tvm.topi.testing.trilinear_resize3d_python(
-            a_np, out_size, layout, coordinate_transformation_mode="half_pixel"
+            a_np, out_size, layout, coordinate_transformation_mode="asymmetric"
         )
     else:
         b_np = tvm.topi.testing.upsampling3d_python(a_np, (scale_d, scale_h, scale_w), layout)

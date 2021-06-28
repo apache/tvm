@@ -30,12 +30,12 @@ def test_resize_infer_type():
     n, c, h, w = te.size_var("n"), te.size_var("c"), te.size_var("h"), te.size_var("w")
     x = relay.var("x", relay.TensorType((n, c, h, w), "int8"))
     th, tw = te.var("th"), te.var("tw")
-    z = relay.image.resize(x, (th, tw))
+    z = relay.image.resize2d(x, (th, tw))
     zz = run_infer_type(z)
     assert zz.checked_type == relay.TensorType((n, c, th, tw), "int8")
 
     x = relay.var("x", relay.TensorType((n, c, h, w), "int8"))
-    z = relay.image.resize(x, (100, 200), "NCHW", "bilinear", "align_corners")
+    z = relay.image.resize2d(x, (100, 200), "NCHW", "linear", "align_corners")
     assert "size=" in z.astext()
     zz = run_infer_type(z)
     assert zz.checked_type == relay.TensorType((n, c, 100, 200), "int8")
@@ -51,12 +51,14 @@ def test_resize():
 
         x_data = np.random.uniform(size=dshape).astype("float32")
 
-        if method == "bilinear":
+        if method == "linear":
             ref_res = tvm.topi.testing.bilinear_resize_python(x_data, size, layout, coord_trans)
         else:
             ref_res = tvm.topi.testing.upsampling_python(x_data, (scale, scale), layout)
         x = relay.var("x", relay.TensorType(dshape, "float32"))
-        z = relay.image.resize(x, size, layout, method, coordinate_transformation_mode=coord_trans)
+        z = relay.image.resize2d(
+            x, size, layout, method, coordinate_transformation_mode=coord_trans
+        )
         assert "size=" in z.astext()
         zz = run_infer_type(z)
         assert zz.checked_type == relay.TensorType(ref_res.shape, "float32")
@@ -68,7 +70,7 @@ def test_resize():
                 op_res = intrp.evaluate(func)(x_data)
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-3, atol=1e-4)
 
-    for method in ["nearest_neighbor", "bilinear"]:
+    for method in ["nearest_neighbor", "linear"]:
         for coord_trans in ["asymmetric"]:  # TOPI testing function only support asymmetric
             for layout in ["NHWC", "NCHW"]:
                 verify_resize((1, 4, 4, 4), 2, method, layout, coord_trans)
@@ -92,7 +94,7 @@ def test_resize3d_infer_type():
     assert zz.checked_type == relay.TensorType((n, c, td, th, tw), "int8")
 
     x = relay.var("x", relay.TensorType((n, c, d, h, w), "int8"))
-    z = relay.image.resize3d(x, (10, 10, 20), "NCDHW", "trilinear", "align_corners")
+    z = relay.image.resize3d(x, (10, 10, 20), "NCDHW", "linear", "align_corners")
     assert "size=" in z.astext()
     zz = run_infer_type(z)
     assert zz.checked_type == relay.TensorType((n, c, 10, 10, 20), "int8")
@@ -107,7 +109,7 @@ def test_resize3d(target, dev):
             size = (dshape[2] * scale, dshape[3] * scale, dshape[4] * scale)
 
         x_data = np.random.uniform(size=dshape).astype("float32")
-        if method == "trilinear":
+        if method == "linear":
             ref_res = tvm.topi.testing.trilinear_resize3d_python(x_data, size, layout)
         else:
             ref_res = tvm.topi.testing.upsampling3d_python(x_data, (scale, scale, scale), layout)
@@ -123,7 +125,7 @@ def test_resize3d(target, dev):
             op_res = intrp.evaluate(func)(x_data)
             tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-4, atol=1e-6)
 
-    for method in ["trilinear", "nearest_neighbor"]:
+    for method in ["linear", "nearest_neighbor"]:
         for layout in ["NDHWC", "NCDHW"]:
             verify_resize((1, 4, 4, 4, 4), 2, method, layout)
 

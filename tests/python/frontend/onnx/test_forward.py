@@ -1370,7 +1370,7 @@ def verify_upsample3d_trilinear():
         in_array,
         (3 * scale, 3 * scale, 3 * scale),
         "NCDHW",
-        coordinate_transformation_mode="half_pixel",
+        coordinate_transformation_mode="asymmetric",
     )
 
     ref_array = np.array(scales)
