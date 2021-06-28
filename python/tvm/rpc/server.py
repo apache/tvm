@@ -143,7 +143,7 @@ def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr):
         listen_sock: Socket
             The socket used by listening process.
 
-        tracker_conn : connnection to tracker
+        tracker_conn : connection to tracker
             Tracker connection
 
         ping_period : float, optional
@@ -216,7 +216,7 @@ def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr):
                 if magic != base.RPC_TRACKER_MAGIC:
                     raise RuntimeError("%s is not RPC Tracker" % str(tracker_addr))
                 # report status of current queue
-                cinfo = {"key": "server:" + rpc_key}
+                cinfo = {"key": "server:" + rpc_key, "addr": (custom_addr, port)}
                 base.sendjson(tracker_conn, [TrackerCode.UPDATE_INFO, cinfo])
                 assert base.recvjson(tracker_conn) == TrackerCode.SUCCESS
 

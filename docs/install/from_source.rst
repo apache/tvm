@@ -129,6 +129,40 @@ The configuration of TVM can be modified by editing `config.cmake` and/or by pas
       cmake .. -G Ninja
       ninja
 
+  - There is also a makefile in the top-level tvm directory that can
+    automate several of these steps.  It will create the build
+    directory, copy the default ``config.cmake`` to the build
+    directory, run cmake, then run make.
+
+    The build directory can be specified using the environment
+    variable ``TVM_BUILD_PATH``.  If ``TVM_BUILD_PATH`` is unset, the
+    makefile assumes that the ``build`` directory inside tvm should be
+    used.  Paths specified by ``TVM_BUILD_PATH`` can be either
+    absolute paths or paths relative to the base tvm directory.
+    ``TVM_BUILD_PATH`` can also be set to a list of space-separated
+    paths, in which case all paths listed will be built.
+
+    If an alternate build directory is used, then the environment
+    variable ``TVM_LIBRARY_PATH`` should be set at runtime, pointing
+    to the location of the compiled ``libtvm.so`` and
+    ``libtvm_runtime.so``.  If not set, tvm will look relative to the
+    location of the tvm python module.  Unlike ``TVM_BUILD_PATH``,
+    this must be an absolute path.
+
+  .. code:: bash
+
+     # Build in the "build" directory
+     make
+
+     # Alternate location, "build_debug"
+     TVM_BUILD_PATH=build_debug make
+
+     # Build both "build_release" and "build_debug"
+     TVM_BUILD_PATH="build_debug build_release" make
+
+     # Use debug build
+     TVM_LIBRARY_PATH=~/tvm/build_debug python3
+
 If everything goes well, we can go to :ref:`python-package-installation`
 
 .. _build-with-conda:

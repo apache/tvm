@@ -49,3 +49,4 @@ from .depth_to_space import *
 from .space_to_depth import *
 from .space_to_batch_nd import *
 from .batch_to_space_nd import *
+from .loss import *

@@ -191,7 +191,7 @@ fn renderer(state: &mut DiagnosticState, diag_ctx: DiagnosticContext) {
     let config = codespan_reporting::term::Config::default();
     for diagnostic in diag_ctx.diagnostics.clone() {
         match source_map.source_map.get(&diagnostic.span.source_name) {
-            Err(err) => panic!(err),
+            Err(err) => panic!("{}", err),
             Ok(source) => {
                 state.add_source(source);
                 let diagnostic = state.to_diagnostic(diagnostic);

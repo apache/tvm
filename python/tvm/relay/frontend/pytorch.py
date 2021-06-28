@@ -391,10 +391,10 @@ class PyTorchOpConverter:
         stride = inputs[4]
 
         target_begin, is_begin_const = try_infer_value(
-            inputs[2], lambda ret: np.asscalar(ret.astype(np.int))
+            inputs[2], lambda ret: ret.astype(np.int).item(0)
         )
         target_end, is_end_const = try_infer_value(
-            inputs[3], lambda ret: np.asscalar(ret.astype(np.int))
+            inputs[3], lambda ret: ret.astype(np.int).item(0)
         )
 
         # A fast path when slicing is nop.
@@ -1306,7 +1306,7 @@ class PyTorchOpConverter:
         for i, shape in enumerate(shape_inp):
             if isinstance(shape, _expr.Expr):
                 val = _infer_value_simulated(shape, {})
-                new_shape[i] = np.asscalar(val.numpy())
+                new_shape[i] = val.numpy().item(0)
 
         return _op.transform.reshape(data, new_shape)
 
@@ -2311,6 +2311,20 @@ class PyTorchOpConverter:
             unique_sliced = _op.strided_slice(unique, begin=[0], end=num_uniq, slice_mode="size")
             return (unique_sliced, inverse_indices)
 
+    def nll_loss(self, inputs, input_types):
+        assert len(inputs) == 5
+        [predictions, targets, weights, reduction, ignore_index] = inputs
+        num_class = self.infer_shape(predictions)[1]
+        if reduction == 0:
+            reduction = "none"
+        elif reduction == 1:
+            reduction = "mean"
+        else:
+            reduction = "sum"
+        if weights is None:
+            weights = _op.full(_expr.const(1), (num_class,), dtype=input_types[0])
+        return _op.nn.nll_loss(predictions, targets, weights, reduction, ignore_index)
+
     # Operator mappings
     def create_convert_map(self):
         self.convert_map = {
@@ -2523,6 +2537,8 @@ class PyTorchOpConverter:
             "aten::argsort": self.argsort,
             "aten::sort": self.sort,
             "aten::_unique2": self.unique,
+            "aten::nll_loss": self.nll_loss,
+            "aten::nll_loss2d": self.nll_loss,
         }
 
     def update_convert_map(self, custom_map):

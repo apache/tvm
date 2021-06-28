@@ -62,7 +62,14 @@ class GenericTupleType(TypeGeneric):
         return ConcreteType(tvm.ir.TupleType([vtype.evaluate() for vtype in vtypes]))
 
 
+int8 = ConcreteType("int8")
+int16 = ConcreteType("int16")
 int32 = ConcreteType("int32")
+int64 = ConcreteType("int64")
+float16 = ConcreteType("float16")
+float32 = ConcreteType("float32")
+float64 = ConcreteType("float64")
+boolean = ConcreteType("bool")
 handle = ConcreteType("handle")
 Ptr = GenericPtrType()
 Tuple = GenericTupleType()

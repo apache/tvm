@@ -32,8 +32,14 @@ from tvm import relay
 from tvm.relay import transform
 from tvm.contrib import utils, graph_executor
 from tvm.relay.backend import compile_engine
+from tvm.relay.backend.utils import mangle_module_name
 from tvm.contrib import utils
 from tvm.micro import export_model_library_format
+
+
+def mangle_name(mod_name, name):
+    mod_name = mangle_module_name(mod_name)
+    return mod_name + "_" + name
 
 
 def subprocess_with_stdout_and_log(cmd, cwd, logfile, stdout):
@@ -56,28 +62,16 @@ def subprocess_with_stdout_and_log(cmd, cwd, logfile, stdout):
                     print(text, end="")
 
 
-def create_main(test_name, input_list, output_list, output_path, workspace_bytes):
-    file_path = pathlib.Path(f"{output_path}/" + test_name).resolve()
-    # create header file
-    raw_path = file_path.with_suffix(".c").resolve()
-    with open(raw_path, "w") as main_file:
-        main_file.write("#include <stdio.h>\n")
-        main_file.write("#include <math.h>\n")
-        main_file.write('#include "tvm/runtime/crt/internal/aot_executor/aot_executor.h"\n')
-        main_file.write('#include "tvm/runtime/crt/stack_allocator.h"\n')
-        main_file.write(f"#define WORKSPACE_SIZE ({workspace_bytes})\n")
-        main_file.write("static uint8_t g_aot_memory[WORKSPACE_SIZE];\n")
+def emit_main_network_definition(main_file, mod_name):
+    main_file.write(f'extern tvm_model_t {mangle_name(mod_name,"network")};\n')
 
-        for i in range(0, len(input_list)):
-            main_file.write('#include "input_data%i.h"\n' % i)
-        for i in range(0, len(output_list)):
-            main_file.write('#include "expected_output_data%i.h"\n' % i)
-            main_file.write('#include "output_data%i.h"\n' % i)
 
-        main_file.write("extern tvm_model_t network;\n")
-        main_file.write("tvm_workspace_t app_workspace;\n")
-        main_file.write(
-            """
+def emit_main_prologue(main_file, workspace_bytes):
+    main_file.write(f"#define WORKSPACE_SIZE ({workspace_bytes})\n")
+    main_file.write("static uint8_t g_aot_memory[WORKSPACE_SIZE];\n")
+    main_file.write("tvm_workspace_t app_workspace;\n")
+    main_file.write(
+        """
 tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLDevice dev, void** out_ptr) {
     return StackMemoryManager_Allocate(&app_workspace, num_bytes, out_ptr);
 }
@@ -91,48 +85,102 @@ void  TVMPlatformAbort(tvm_crt_error_t code) { }
 void TVMLogf(const char* msg, ...) { }
 
 TVM_DLL int TVMFuncRegisterGlobal(const char* name, TVMFunctionHandle f, int override) {}
+int main(){\n
      
         """
-        )
-        main_file.write("int main(){\n")
-        main_file.write("void* inputs[%i] = { " % (len(input_list)))
+    )
 
-        for i in range(0, len(input_list)):
-            main_file.write("input_data%i, " % i)
-        main_file.write("};\n")
 
-        main_file.write("void* outputs[%i]  = { " % (len(output_list)))
-        for i in range(0, len(output_list)):
-            main_file.write("output_data%i, " % i)
-        main_file.write("};\n")
+def emit_main_data(main_file, input_list, output_list, mod_name):
+    for i in range(0, len(input_list)):
+        main_file.write(f'#include "{mangle_name(mod_name,"input_data")}{i}.h"\n')
 
-        main_file.write("StackMemoryManager_Init(&app_workspace, g_aot_memory, WORKSPACE_SIZE);")
-        main_file.write("tvm_runtime_run(&network, inputs, outputs);")
+    for i in range(0, len(output_list)):
+        main_file.write(f'#include "{mangle_name(mod_name,"expected_output_data")}{i}.h"\n')
+        main_file.write(f'#include "{mangle_name(mod_name,"output_data")}{i}.h"\n')
 
-        for i in range(0, len(output_list)):
-            is_float_dtype = output_list[i].dtype == "float32"
-            main_file.write("for (int i = 0; i<output_data%i_len; i++){\n" % i)
-            if is_float_dtype:
-                main_file.write(
-                    'if (fabs(output_data%s[i]-expected_output_data%s[i]) > 0.001f){printf("ko\\n");return -1;}\n'
-                    % (i, i)
-                )
-            else:
-                main_file.write(
-                    'if (output_data%s[i]!=expected_output_data%s[i]){printf("ko\\n");return -1;}\n'
-                    % (i, i)
-                )
-            main_file.write("}\n")
 
-        main_file.write('printf("ok\\n");')
-        main_file.write("return 0;")
+def emit_main_run(main_file, input_list, output_list, mod_name):
+    num_outputs = len(output_list)
+    num_inputs = len(input_list)
+
+    main_file.write(f'void* {mangle_name(mod_name,"inputs")}[{num_inputs}] = {{ ')
+
+    for i in range(0, len(input_list)):
+        main_file.write(f'{mangle_name(mod_name,"input_data")}{i}, ')
+    main_file.write("};\n")
+
+    main_file.write(f'void* {mangle_name(mod_name,"outputs")}[{num_outputs}]  = {{ ')
+    for i in range(0, len(output_list)):
+        main_file.write(f'{mangle_name(mod_name,"output_data")}{i}, ')
+    main_file.write("};\n")
+    main_file.write(
+        f'tvm_runtime_run(&{mangle_name(mod_name,"network")}, {mangle_name(mod_name,"inputs")}, {mangle_name(mod_name,"outputs")});'
+    )
+
+
+def emit_main_compare(main_file, output_list, mod_name):
+    for i in range(0, len(output_list)):
+        is_float_dtype = output_list[i].dtype == "float32"
+        main_file.write(f'for (int i = 0; i<{mangle_name(mod_name,"output_data")}{i}_len; i++){{\n')
+        if is_float_dtype:
+            main_file.write(
+                f'if (fabs({mangle_name(mod_name,"output_data")}{i}[i]-{mangle_name(mod_name,"expected_output_data")}{i}[i]) > 0.001f){{printf("ko\\n");return -1;}}\n'
+            )
+        else:
+            main_file.write(
+                f'if ({mangle_name(mod_name,"output_data")}{i}[i]!={mangle_name(mod_name, "expected_output_data")}{i}[i]){{printf("ko\\n");return -1;}}\n'
+            )
         main_file.write("}\n")
+
+
+def emit_main_init_memory_manager(main_file):
+    main_file.write("StackMemoryManager_Init(&app_workspace, g_aot_memory, WORKSPACE_SIZE);")
+
+
+def emit_main_epilogue(main_file):
+    main_file.write('printf("ok\\n");')
+    main_file.write("return 0;")
+    main_file.write("}\n")
+
+
+def emit_main_common_includes(main_file):
+    main_file.write("#include <stdio.h>\n")
+    main_file.write("#include <math.h>\n")
+    main_file.write('#include "tvm/runtime/crt/internal/aot_executor/aot_executor.h"\n')
+    main_file.write('#include "tvm/runtime/crt/stack_allocator.h"\n')
+
+
+def create_main(test_name, input_list_map, output_list_map, output_path, workspace_bytes):
+    file_path = pathlib.Path(f"{output_path}/" + test_name).resolve()
+    # create header file
+    raw_path = file_path.with_suffix(".c").resolve()
+    with open(raw_path, "w") as main_file:
+        emit_main_common_includes(main_file)
+
+        for k in input_list_map:
+            emit_main_network_definition(main_file, k)
+
+        emit_main_prologue(main_file, workspace_bytes)
+
+        for k in input_list_map:
+            emit_main_data(main_file, input_list_map[k], output_list_map[k], k)
+
+        emit_main_init_memory_manager(main_file)
+
+        for k in input_list_map:
+            emit_main_run(main_file, input_list_map[k], output_list_map[k], k)
+
+        for k in input_list_map:
+            emit_main_compare(main_file, output_list_map[k], k)
+
+        emit_main_epilogue(main_file)
 
 
 def create_header_file(tensor_name, npy_data, output_path):
     """
     This method generates a header file containing the data contained in the numpy array provided.
-    It is used to capture the tensor data (for both inputs and expected outputs) to be bundled into the standalone ethosu_test_runner.
+    It is used to capture the tensor data (for both inputs and expected outputs) to be bundled into the standalone application.
     """
     file_path = pathlib.Path(f"{output_path}/" + tensor_name).resolve()
     # create header file
@@ -172,6 +220,7 @@ def compile_and_run(
     use_calculated_workspaces,
     params=None,
     workspace_byte_alignment=8,
+    mod_name=None,
 ):
     """
     This method verifies the generated source
@@ -184,7 +233,7 @@ def compile_and_run(
         cflags += "-DTVM_CRT_STACK_ALLOCATOR_ENABLE_LIFO_CHECK "
 
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        lib = tvm.relay.build(mod, target, target_host=target, params=params)
+        lib = tvm.relay.build(mod, target, target_host=target, params=params, mod_name=mod_name)
 
     tmp_path = utils.tempdir()
     tmp_dir = tmp_path.temp_dir
@@ -203,17 +252,21 @@ def compile_and_run(
         workspace_bytes = 16384 * 1024
 
     for i in range(len(input_list)):
-        create_header_file((f"input_data{i}"), input_list[i], build_path)
+        create_header_file((f'{mangle_name(mod_name, "input_data")}{i}'), input_list[i], build_path)
 
     for i in range(len(output_list)):
         create_header_file(
-            (f"output_data{i}"),
+            (f'{mangle_name(mod_name,"output_data")}{i}'),
             np.zeros(output_list[i].shape, output_list[i].dtype),
             build_path,
         )
-        create_header_file((f"expected_output_data{i}"), output_list[i], build_path)
+        create_header_file(
+            (f'{mangle_name(mod_name, "expected_output_data")}{i}'), output_list[i], build_path
+        )
 
-    create_main("test.c", input_list, output_list, build_path, workspace_bytes)
+    create_main(
+        "test.c", {mod_name: input_list}, {mod_name: output_list}, build_path, workspace_bytes
+    )
 
     # Verify that compiles fine
     file_dir = os.path.dirname(os.path.abspath(__file__))
@@ -223,6 +276,66 @@ def compile_and_run(
         + build_path
         + f" TVM_ROOT={file_dir}/../../../.."
     )
+
+    compile_log_path = os.path.join(build_path, "test_compile.log")
+    ret = subprocess_with_stdout_and_log(make_cmd, ".", compile_log_path, False)
+    assert ret == 0
+
+    # Verify that runs fine
+    run_log_path = os.path.join(build_path, "test_run.log")
+    ret = subprocess_with_stdout_and_log("./aot_test_runner", build_path, run_log_path, False)
+    assert ret == 0
+
+
+def compile_and_run_multiple_models(
+    mod_map, input_list_map, output_list_map, target_options, param_map
+):
+    """
+    This method verifies the generated source
+    """
+    target = f"c -runtime=c --link-params --executor=aot {target_options}"
+    tmp_path = utils.tempdir()
+    tmp_dir = tmp_path.temp_dir
+
+    base_path = os.path.join(tmp_dir, "test")
+    build_path = os.path.join(base_path, "build")
+    os.makedirs(build_path, exist_ok=True)
+    for mod_name, mod in mod_map.items():
+
+        with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
+            lib = tvm.relay.build(
+                mod, target, target_host=target, params=param_map[mod_name], mod_name=mod_name
+            )
+
+        tar_file = os.path.join(base_path, "test.tar")
+        export_model_library_format(lib, tar_file)
+        t = tarfile.open(tar_file)
+        t.extractall(base_path)
+
+        input_list = input_list_map[mod_name]
+        output_list = output_list_map[mod_name]
+
+        for i in range(len(input_list_map[mod_name])):
+            create_header_file(
+                (f'{mangle_name(mod_name,"input_data")}{i}'), input_list[i], build_path
+            )
+
+        for i in range(len(output_list_map[mod_name])):
+            create_header_file(
+                (f'{mangle_name(mod_name,"output_data")}{i}'),
+                np.zeros(output_list[i].shape, output_list[i].dtype),
+                build_path,
+            )
+            create_header_file(
+                (f'{mangle_name(mod_name,"expected_output_data")}{i}'), output_list[i], build_path
+            )
+
+    create_main("test.c", input_list_map, output_list_map, build_path, workspace_bytes=16384 * 1024)
+
+    # Verify that compiles fine
+    file_dir = os.path.dirname(os.path.abspath(__file__))
+    makefile = os.path.join(file_dir, "aot_test.mk")
+    make_cmd = f"make -f {makefile} build_dir=" + build_path + f" TVM_ROOT={file_dir}/../../../.."
 
     compile_log_path = os.path.join(build_path, "test_compile.log")
     ret = subprocess_with_stdout_and_log(make_cmd, ".", compile_log_path, False)
