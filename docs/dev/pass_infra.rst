@@ -401,7 +401,11 @@ To allow other C++ modules to apply this pass, we declare a free function in
 Pass Instrument
 ^^^^^^^^^^^^^^^
 
-Currently we introduce four instrument points in the life-cycle of ``PassContext``.
+Pass Instrument is a mechanism to analyze the pass itself. For example,
+we can use the infrastructure to know how much time and memory a pass requires
+or how a pass can transform the IR module.
+
+We introduce four instrument points in the life-cycle of ``PassContext``.
 
 .. code:: c++
 
@@ -419,7 +423,7 @@ This method is also called when instruments is being overriden by ``override_ins
 See :ref:`pass_instrument_overriden`.
 
 ``InstrumentBeforePass`` is called before execution.
-``InstrumentAfterPass`` is called after executioon if the pass should be run. The behavior is like:
+``InstrumentAfterPass`` is called after execution if the pass should be run. The behavior is like:
 
 .. code:: c++
 
@@ -520,11 +524,19 @@ Built-in Instrument
 
 There are several built-in instruments. Those marked with *TODO* are not implemented yet.
 
-PassTimmingInstrument (see `src/ir/instrument.cc`_)
+- PassTimingInstrument (see `src/ir/instrument.cc`_)
 
-PrintBefore(TODO)
+  * Profile the execution time of passes.
 
-PrintAfter(TODO)
+- PrintIRBefore(TODO)
+
+  * Print the IR module before the pass transforms it. :py:func:`tvm.transform.PrintIR`
+    can also serve this purpose if we insert it around passes. However,
+    with the ``PassInstrument``, we don't need to modify the sequence of passes.
+
+- PrintAfter(TODO)
+
+  * Print the IR module after the pass transforms it.
 
 Python Frontend
 ~~~~~~~~~~~~~~~
