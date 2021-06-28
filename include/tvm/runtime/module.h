@@ -231,7 +231,7 @@ constexpr const char* tvm_param_prefix = "__tvm_param__";
 /*! \brief A PackedFunc that looks up linked parameters by storage_id. */
 constexpr const char* tvm_lookup_linked_param = "_lookup_linked_param";
 /*! \brief The main AOT executor function */
-constexpr const char* tvm_run_func_prefix = "tvm__run_func";
+constexpr const char* tvm_run_func_suffix = "run_model";
 }  // namespace symbol
 
 // implementations of inline functions.
