@@ -292,6 +292,10 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
                        const Var& loop_var, const Stmt& body);
   // add alias information.
   void AddAliasInfo(llvm::Instruction* load, const VarNode* buffer, PrimExpr index);
+
+  llvm::GlobalVariable* AllocateSharedMemory(DataType dtype, size_t size,
+                                             unsigned int shared_address_space, int alignment);
+
   // The IRBuilder.
   using IRBuilder = llvm::IRBuilder<llvm::ConstantFolder, llvm::IRBuilderDefaultInserter>;
   // The current function

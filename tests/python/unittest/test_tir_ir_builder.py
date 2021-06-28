@@ -507,11 +507,15 @@ def test_dyn_shared():
     def test_device_ir(A, B):
         n = A.shape[0]
         ib = tvm.tir.ir_builder.create()
+
         tx = te.thread_axis("threadIdx.x")
         ib.scope_attr(tx, "thread_extent", n)
+
+        temp = ib.allocate(dtype, (n,), scope="dyn.shared")
+
         Aptr = ib.buffer_ptr(A)
         Bptr = ib.buffer_ptr(B)
-        temp = ib.allocate(dtype, (n,), scope="dyn.shared")
+
         temp[tx] = Aptr[tx]
         depth = tvm.tir.log2(cast(n, "float32"))
 
@@ -534,8 +538,8 @@ def test_dyn_shared():
     s = te.create_schedule(B.op)
 
     def check_target(target):
-        if not tvm.testing.device_enabled(target):
-            return
+        # if not tvm.testing.device_enabled(target):
+        #     return
 
         freduce = tvm.build(s, [A, B], target)
         dev = tvm.device(target, 0)
@@ -546,7 +550,8 @@ def test_dyn_shared():
             freduce(a, b)
             tvm.testing.assert_allclose(b.numpy()[0], np.sum(a.numpy()), 1e-4, 1e-4)
 
-    check_target("cuda")
+    for target in ["cuda", "nvptx"]:
+        check_target(target)
 
 
 if __name__ == "__main__":

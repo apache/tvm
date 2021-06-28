@@ -57,18 +57,7 @@ class CodeGenNVPTX : public CodeGenLLVM {
     auto storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(op->buffer_var));
     if (storage_scope.rank == runtime::StorageRank::kDynShared) {
       // Shared memory: address space  == 3
-      const unsigned shared_address_space = 3;
-      llvm::Type* type = llvm::ArrayType::get(DTypeToLLVMType(op->dtype), 0);
-      // Allocate shared memory in global, address_space = 3
-      llvm::GlobalVariable* global = new llvm::GlobalVariable(
-          *module_, type, false, llvm::GlobalValue::ExternalLinkage, nullptr, "buf", nullptr,
-          llvm::GlobalValue::NotThreadLocal, shared_address_space);
-#if TVM_LLVM_VERSION >= 100
-      global->setAlignment(llvm::Align(info.alignment));
-#else
-      global->setAlignment(info.alignment);
-#endif
-      buf = global;
+      buf = AllocateSharedMemory(op->dtype, 0, 3, info.alignment);
     } else {
       int32_t constant_size = op->constant_allocation_size();
       ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation in GPU";
@@ -93,19 +82,7 @@ class CodeGenNVPTX : public CodeGenLLVM {
       } else {
         ICHECK(storage_scope.rank == runtime::StorageRank::kShared)
             << "Can only allocate shared or local memory inside kernel";
-        // Shared memory: address space  == 3
-        const unsigned shared_address_space = 3;
-        llvm::Type* type = llvm::ArrayType::get(DTypeToLLVMType(op->dtype), constant_size);
-        // Allocate shared memory in global, address_space = 3
-        llvm::GlobalVariable* global = new llvm::GlobalVariable(
-            *module_, type, false, llvm::GlobalValue::PrivateLinkage, nullptr, ".shared", nullptr,
-            llvm::GlobalValue::NotThreadLocal, shared_address_space);
-#if TVM_LLVM_VERSION >= 100
-        global->setAlignment(llvm::Align(info.alignment));
-#else
-        global->setAlignment(info.alignment);
-#endif
-        buf = global;
+        buf = AllocateSharedMemory(op->dtype, constant_size, 3, info.alignment);
       }
     }
 
