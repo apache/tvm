@@ -667,6 +667,7 @@ relay_to_onnx_op_mapping = {
     "clip": Clip,
     "expand_dims": Expand,
     "nn.lrn": LRN,
+    "sigmoid": rename("Sigmoid"),
 }
 
 
