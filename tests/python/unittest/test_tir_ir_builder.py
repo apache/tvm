@@ -18,6 +18,7 @@ import tvm
 from tvm import te
 import numpy as np
 import tvm.testing
+from tvm.topi.math import cast
 
 
 def test_for():
@@ -503,48 +504,47 @@ def test_dyn_shared():
     dtype = "float32"
     A = te.placeholder((n,), name="A")
 
-    def test_device_ir(A, C):
+    def test_device_ir(A, B):
         n = A.shape[0]
         ib = tvm.tir.ir_builder.create()
         tx = te.thread_axis("threadIdx.x")
         ib.scope_attr(tx, "thread_extent", n)
         Aptr = ib.buffer_ptr(A)
-        Cptr = ib.buffer_ptr(C)
+        Bptr = ib.buffer_ptr(B)
         temp = ib.allocate(dtype, (n,), scope="dyn.shared")
         temp[tx] = Aptr[tx]
-        # depth = tvm.tir.log2(n)
-        depth = 9
+        depth = tvm.tir.log2(cast(n, "float32"))
+
         with ib.for_range(0, depth) as i:
             ib.emit(tvm.tir.Call(None, "tir.tvm_storage_sync", tvm.runtime.convert(["shared"])))
             d = n >> (i + 1)
             with ib.if_scope(tx < d):
                 temp[tx] += temp[tx + d]
 
-        Cptr[0] = temp[0]
+        Bptr[0] = temp[0]
         return ib.get()
 
-    C = te.extern(
+    B = te.extern(
         (1,),
         [A],
         lambda ins, outs: test_device_ir(ins[0], outs[0]),
         name="reduce",
         dtype=dtype,
     )
-    s = te.create_schedule(C.op)
+    s = te.create_schedule(B.op)
 
     def check_target(target):
         if not tvm.testing.device_enabled(target):
             return
 
-        freduce = tvm.build(s, [A, C], target)
+        freduce = tvm.build(s, [A, B], target)
         dev = tvm.device(target, 0)
 
-        for n in [512]:
+        for n in [512, 1024]:
             a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
-            c = tvm.nd.array(np.zeros(1, dtype=C.dtype), dev)
-            freduce(a, c)
-            tvm.testing.assert_allclose(c.numpy()[0], np.sum(a.numpy()))
-            print(c.numpy()[0], np.sum(a.numpy()))
+            b = tvm.nd.array(np.zeros(1, dtype=B.dtype), dev)
+            freduce(a, b)
+            tvm.testing.assert_allclose(b.numpy()[0], np.sum(a.numpy()), 1e-4, 1e-4)
 
     check_target("cuda")
 
