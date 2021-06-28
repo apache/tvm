@@ -85,7 +85,7 @@ def test_export_model_library_format_c(target):
 
         with open(os.path.join(extract_dir, "metadata.json")) as json_f:
             metadata = json.load(json_f)
-            assert metadata["version"] == 2
+            assert metadata["version"] == 3
             assert metadata["model_name"] == "add"
             export_datetime = datetime.datetime.strptime(
                 metadata["export_datetime"], "%Y-%m-%d %H:%M:%SZ"
@@ -165,7 +165,7 @@ def test_export_model_library_format_llvm():
 
         with open(os.path.join(extract_dir, "metadata.json")) as json_f:
             metadata = json.load(json_f)
-            assert metadata["version"] == 2
+            assert metadata["version"] == 3
             assert metadata["model_name"] == "add"
             export_datetime = datetime.datetime.strptime(
                 metadata["export_datetime"], "%Y-%m-%d %H:%M:%SZ"
@@ -244,7 +244,7 @@ def test_export_model_library_format_workspace(target):
 
     with open(os.path.join(extract_dir, "metadata.json")) as json_f:
         metadata = json.load(json_f)
-        assert metadata["version"] == 2
+        assert metadata["version"] == 3
         assert metadata["model_name"] == "qnn_conv2d"
         export_datetime = datetime.datetime.strptime(
             metadata["export_datetime"], "%Y-%m-%d %H:%M:%SZ"

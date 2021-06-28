@@ -21,10 +21,9 @@ Model Library Format
 About Model Library Format
 --------------------------
 
-TVM traditionally exports generated libraries as Dynamic Shared Objects
-(e.g. DLLs (Windows) or .so (linux)). Inference can be performed on those libraries by loading them
-into an executable using ``libtvm_runtime.so``. This process is very dependent on services provided
-by traditional OS.
+TVM traditionally exports generated libraries as Dynamic Shared Objects (e.g. DLLs (Windows) or .so
+(linux)). Inferences can be performed using those libraries by loading them into an executable using
+``libtvm_runtime.so``. This process is very dependent on services provided by traditional OS.
 
 For deployment to unconventional platforms (e.g. those lacking traditional OS), the microTVM project
 can be used to export a generated library in pieces. In this case, microTVM provides another output
@@ -81,7 +80,7 @@ These components are described below:
  * ``<target>`` - Identifies the TVM target on which the code should run. Currently, only ``host``
    is supported.
  * ``<unique_name>`` - A unique slug identifying this file. Currently ``lib<n>``, with ``<n>>` an
-   autoincrementing integer.
+   auto-incrementing integer.
  * ``<format>`` - Suffix identifying the filename format. Currently ``c`` or ``o``.
 
 An example directory tree for a CPU-only model is shown below:
@@ -102,7 +101,7 @@ An example directory tree for a CPU-only model is shown below:
 ``executor-config``
 ^^^^^^^^^^^^^^^^^^^
 
-Contains machine-parseable configuration for executors which can drive model inference. Currently,
+Contains machine-parsable configuration for executors which can drive model inference. Currently,
 only the GraphExecutor produces configuration for this directory, in ``graph/graph.json``. This
 file should be read in and the resulting string supplied to the ``GraphExecutor()`` constructor for
 parsing.
@@ -134,7 +133,7 @@ Metadata is a dictionary with these keys:
   `Memory Usage Summary`_.
 - ``model_name``: The name of this model (e.g. the ``name`` parameter supplied to
   ``tvm.relay.build``).
-- ``runtimes``: A list of runtimes supported by this model. Currently, this list is always
+- ``executors``: A list of executors supported by this model. Currently, this list is always
   ``["graph"]``.
 - ``target``: A dictionary mapping ``device_type`` (the underlying integer, as a string) to the
   sub-target which describes that relay backend used for that ``device_type``.
