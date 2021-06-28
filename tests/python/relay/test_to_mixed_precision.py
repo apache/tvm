@@ -248,7 +248,7 @@ def test_green_gray_propagates_simple():
         "data": np.random.uniform(-1, 1, size=data_shape).astype("float32"),
         "weight": np.random.uniform(-1, 1, size=weight_shape).astype("float32"),
     }
-    fp16_mod = verify_mixed_precision_output_close(mod, mod_params, atol=0.01, rtol=1e-3)
+    fp16_mod = verify_mixed_precision_output_close(mod, mod_params, atol=0.01, rtol=0.01)
 
     conv_expr = relay.nn.conv2d(
         relay.cast(data, "float16"),
