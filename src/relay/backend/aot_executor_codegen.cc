@@ -49,7 +49,7 @@ namespace backend {
  * Struct to contain information about the intermediate tensors in the
  * runner function
  */
-struct StorageInfo {
+struct TempStorageInfo {
   /*! \brief storage integer identifier of the particular intermediate buffer */
   int sid;
   /*! \brief exact size of the temporary */
@@ -60,7 +60,7 @@ struct StorageInfo {
 
 using IntegerArray = Array<Integer>;
 using TargetsMap = std::unordered_map<int, Target>;
-using StorageMap = std::unordered_map<Expr, std::vector<StorageInfo>, runtime::ObjectPtrHash,
+using StorageMap = std::unordered_map<Expr, std::vector<TempStorageInfo>, runtime::ObjectPtrHash,
                                       runtime::ObjectPtrEqual>;
 
 /**
@@ -116,7 +116,7 @@ class AOTOnDemandAllocator : public ExprVisitor {
   }
 
   void VisitExpr_(const TupleNode* op) final {
-    std::vector<StorageInfo> field_sids;
+    std::vector<TempStorageInfo> field_sids;
     Expr expr = GetRef<Expr>(op);
     for (Expr field : op->fields) {
       auto sid = GetStorage(field);
@@ -179,7 +179,7 @@ class AOTOnDemandAllocator : public ExprVisitor {
    * \param expr The expression.
    * \return The corresponding token.
    */
-  std::vector<StorageInfo> GetStorage(const Expr& expr) {
+  std::vector<TempStorageInfo> GetStorage(const Expr& expr) {
     this->VisitExpr(expr);
     auto it = storage_device_map_.find(expr);
     ICHECK(it != storage_device_map_.end());
@@ -191,14 +191,14 @@ class AOTOnDemandAllocator : public ExprVisitor {
    * \param expr The expression.
    */
   void CreateStorage(const ExprNode* op) {
-    std::vector<StorageInfo> buffers;
+    std::vector<TempStorageInfo> buffers;
     Expr expr = GetRef<Expr>(op);
     int device_type = node_device_map_.count(GetRef<Expr>(op)) ? node_device_map_[expr]->value : 0;
     if (const auto* tuple_type = op->checked_type().as<TupleTypeNode>()) {
       for (Type t : tuple_type->fields) {
         const auto* ttype = t.as<TensorTypeNode>();
         ICHECK(ttype);
-        StorageInfo buffer;
+        TempStorageInfo buffer;
         buffer.sid = next_available_sid_++;
         buffer.size_bytes = GetMemorySizeBytes(ttype);
         buffer.dev_type = device_type;
@@ -207,7 +207,7 @@ class AOTOnDemandAllocator : public ExprVisitor {
     } else {
       const auto* ttype = op->checked_type().as<TensorTypeNode>();
       ICHECK(ttype);
-      StorageInfo buffer;
+      TempStorageInfo buffer;
       buffer.sid = next_available_sid_++;
       buffer.size_bytes = GetMemorySizeBytes(ttype);
       buffer.dev_type = device_type;
@@ -706,7 +706,6 @@ class AOTExecutorCodegen : public ExprVisitor {
   std::vector<int> return_sid_;
   /*! \brief the module name we use to mangle the function names */
   String mod_name_;
-
 
  public:
   AOTExecutorCodegen(runtime::Module* mod, const TargetsMap& targets, Target target_host)

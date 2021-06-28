@@ -37,11 +37,11 @@ from tvm.contrib import utils
 from tvm.micro import export_model_library_format
 
 
-<<<<<<< HEAD
 def mangle_name(mod_name, name):
     mod_name = mangle_module_name(mod_name)
     return mod_name + "_" + name
-=======
+
+
 def convert_to_relay(
     tflite_model_buf,
     input_data,
@@ -80,7 +80,6 @@ def convert_to_relay(
     )
     mod["main"] = relay.build_module.bind_params_by_name(mod["main"], params)
     return mod, params
->>>>>>> 7d02e64f6... Fix an issue with storage-rewrite pass and packed functions
 
 
 def subprocess_with_stdout_and_log(cmd, cwd, logfile, stdout):
