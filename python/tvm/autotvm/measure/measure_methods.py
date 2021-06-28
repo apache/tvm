@@ -644,6 +644,7 @@ def default_module_loader(pre_load_function=None):
     """
 
     # This was a function with a closure before but that couldn't be pickled!
+    # We need pickle to work for using python's multiprocessing on some platforms.
     return DefaultModuleLoader(pre_load_function)
 
 
