@@ -560,6 +560,21 @@ def test_copy():
         verify_copy(i)
 
 
+def test_round():
+    """Round unit test."""
+    def verify_round(dshape, dtype="float32"):
+        x = relay.var("x", relay.ty.TensorType(dshape, dtype))
+        y = relay.round(x)
+        func = relay.Function([x], y)
+        x_data = np.random.uniform(size=dshape).astype(dtype)
+        verify_results(func, [x_data], "test_round", rtol=1e-4, atol=1e-4)
+
+    isize = [(1,3,480,640), (1,3,224,224)]
+
+    for i in isize:
+        verify_round(i)
+
+
 if __name__ == "__main__":
     test_add()
     test_bias_add()
@@ -586,3 +601,4 @@ if __name__ == "__main__":
     test_lrn()
     test_sigmoid()
     test_copy()
+    test_round()
