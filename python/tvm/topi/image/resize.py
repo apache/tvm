@@ -141,15 +141,6 @@ def get_inx(x, image_width, target_width, coordinate_transformation_mode):
     return in_x
 
 
-def get_iny_inx(
-    y, x, image_height, image_width, target_height, target_width, coordinate_transformation_mode
-):
-    """Infer input x,y from output x,y with various coordinate transformation methods"""
-    in_x = get_inx(x, image_width, target_width, coordinate_transformation_mode)
-    in_y = get_inx(y, image_height, target_height, coordinate_transformation_mode)
-    return in_y, in_x
-
-
 def get_closest_index(in_x, rounding_method, boxes):
     """get the closest index to a value based on a certain rounding method"""
     if rounding_method == "round" or boxes is not None:
@@ -172,6 +163,7 @@ def get_closest_index(in_x, rounding_method, boxes):
 
 
 def _lerp(A, B, t):
+    """Perform Linear interpolation in 1D"""
     return A * (1.0 - t) + B * t
 
 
@@ -568,15 +560,8 @@ def _resize_2d(
         in_y = y1 * (image_height - 1) + h_scale * y
         in_x = x1 * (image_width - 1) + w_scale * x
     else:
-        in_y, in_x = get_iny_inx(
-            y,
-            x,
-            image_height,
-            image_width,
-            target_height,
-            target_width,
-            coordinate_transformation_mode,
-        )
+        in_x = get_inx(x, image_width, target_width, coordinate_transformation_mode)
+        in_y = get_inx(y, image_height, target_height, coordinate_transformation_mode)
 
     if method == "nearest_neighbor":
         if rounding_method == "":

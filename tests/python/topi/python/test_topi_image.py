@@ -24,7 +24,7 @@ import tvm.topi.testing
 from tvm.contrib.pickle_memoize import memoize
 
 
-def verify_resize(
+def verify_resize2d(
     batch,
     in_channel,
     in_height,
@@ -33,7 +33,7 @@ def verify_resize(
     out_width,
     layout="NCHW",
     coord_trans="align_corners",
-    method="bilinear",
+    method="linear",
 ):
     if layout == "NCHW":
         A = te.placeholder((batch, in_channel, in_height, in_width), name="A", dtype="float32")
@@ -47,14 +47,14 @@ def verify_resize(
         a_np = np.random.uniform(size=(batch, in_height, in_width, in_channel)).astype(dtype)
     else:
         raise NotImplementedError("Layout not supported {} ".format(layout))
-    B = topi.image.resize(
+    B = topi.image.resize2d(
         A,
         (out_height, out_width),
         layout=layout,
         coordinate_transformation_mode=coord_trans,
         method=method,
     )
-    if method == "bilinear":
+    if method == "linear":
         b_np = tvm.topi.testing.bilinear_resize_python(
             a_np, (out_height, out_width), layout, coord_trans
         )
@@ -82,19 +82,19 @@ def verify_resize(
 
 
 @tvm.testing.uses_gpu
-def test_resize():
+def test_resize2d():
     # Scale NCHW
-    verify_resize(4, 16, 32, 32, 50, 50, "NCHW")
+    verify_resize2d(4, 16, 32, 32, 50, 50, "NCHW")
     # Scale NCHW + Align Corners
-    verify_resize(6, 32, 64, 64, 20, 20, "NCHW")
+    verify_resize2d(6, 32, 64, 64, 20, 20, "NCHW")
     # Scale NHWC
-    verify_resize(4, 16, 32, 32, 50, 50, "NHWC")
+    verify_resize2d(4, 16, 32, 32, 50, 50, "NHWC")
     # Scale NHWC + Align Corners
-    verify_resize(6, 32, 64, 64, 20, 20, "NHWC")
-    for method in ["nearest_neighbor", "bilinear"]:
-        for coord_trans in ["asymmetric"]:  # TOPI testing function only support asymmetric
-            for layout in ["NCHW", "NHWC"]:
-                verify_resize(4, 16, 32, 32, 50, 50, layout, coord_trans, method=method)
+    verify_resize2d(6, 32, 64, 64, 20, 20, "NHWC")
+    for layout in ["NCHW", "NHWC"]:
+        verify_resize2d(4, 16, 32, 32, 50, 50, layout, "asymmetric", method="nearest_neighbor")
+        verify_resize2d(4, 16, 32, 32, 50, 50, layout, "half_pixel", method="linear")
+        verify_resize2d(4, 16, 32, 32, 50, 50, layout, "asymmetric", method="linear")
 
 
 def verify_resize3d(
@@ -107,8 +107,8 @@ def verify_resize3d(
     out_height,
     out_width,
     layout="NCDHW",
-    coordinate_transformation_mode="half_pixel",
-    method="trilinear",
+    coordinate_transformation_mode="asymmetric",
+    method="linear",
 ):
     if layout == "NCDHW":
         A = te.placeholder(
@@ -139,7 +139,7 @@ def verify_resize3d(
         method=method,
     )
 
-    if method == "trilinear":
+    if method == "linear":
         b_np = tvm.topi.testing.trilinear_resize3d_python(
             a_np, (out_depth, out_height, out_width), layout, coordinate_transformation_mode
         )
@@ -150,7 +150,6 @@ def verify_resize3d(
         b_np = tvm.topi.testing.upsampling3d_python(a_np, (scale_d, scale_h, scale_w), layout)
 
     def check_target(target, dev):
-        print("Running on target: %s" % target)
         with tvm.target.Target(target):
             s = tvm.topi.testing.get_injective_schedule(target)(B)
         a = tvm.nd.array(a_np, dev)
@@ -167,14 +166,15 @@ def verify_resize3d(
 @tvm.testing.uses_gpu
 def test_resize3d():
     # Trilinear
-    verify_resize3d(4, 8, 16, 16, 16, 25, 25, 25, "NCDHW")
-    verify_resize3d(1, 8, 16, 16, 16, 25, 25, 25, "NDHWC")
+    verify_resize3d(3, 16, 32, 32, 32, 10, 10, 10, "NCDHW", "half_pixel")
+    verify_resize3d(3, 16, 32, 32, 32, 10, 10, 10, "NDHWC", "half_pixel")
     verify_resize3d(3, 16, 32, 32, 32, 10, 10, 10, "NCDHW", "align_corners")
     verify_resize3d(3, 16, 32, 32, 32, 10, 10, 10, "NDHWC", "align_corners")
     verify_resize3d(3, 16, 32, 32, 32, 10, 10, 10, "NCDHW", "asymmetric")
     verify_resize3d(3, 16, 32, 32, 32, 10, 10, 10, "NDHWC", "asymmetric")
 
     # Nearest neighbor
+    # Test kernel only supports asymmetric
     verify_resize3d(4, 8, 16, 16, 16, 25, 25, 25, "NCDHW", method="nearest_neighbor")
     verify_resize3d(4, 8, 16, 16, 16, 25, 25, 25, "NDHWC", method="nearest_neighbor")
 
