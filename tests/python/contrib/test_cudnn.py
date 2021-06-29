@@ -177,7 +177,7 @@ def test_conv3d():
 
 
 def verify_softmax(shape, axis, dtype="float32", log_softmax=False):
-    cudnn_op = cudnn.log_softmx if log_softmax else cudnn.softmax
+    cudnn_op = cudnn.log_softmax if log_softmax else cudnn.softmax
     testing_op = (
         tvm.topi.testing.log_softmax_python if log_softmax else tvm.topi.testing.softmax_python
     )
@@ -197,7 +197,7 @@ def verify_softmax(shape, axis, dtype="float32", log_softmax=False):
 
 
 def verify_softmax_4d(shape, dtype="float32", log_softmax=False):
-    cudnn_op = cudnn.log_softmx if log_softmax else cudnn.softmax
+    cudnn_op = cudnn.log_softmax if log_softmax else cudnn.softmax
     testing_op = (
         tvm.topi.testing.log_softmax_python if log_softmax else tvm.topi.testing.softmax_python
     )
