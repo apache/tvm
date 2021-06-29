@@ -42,6 +42,46 @@ def mangle_name(mod_name, name):
     return mod_name + "_" + name
 
 
+def convert_to_relay(
+    tflite_model_buf,
+    input_data,
+    input_node,
+):
+    """Convert a tflite model buffer in a Relay module"""
+
+    def convert_to_list(x):
+        if not isinstance(x, list):
+            x = [x]
+        return x
+
+    # TFLite.Model.Model has changed to TFLite.Model from 1.14 to 2.1
+    try:
+        import tflite.Model
+
+        tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model_buf, 0)
+    except AttributeError:
+        import tflite
+
+        tflite_model = tflite.Model.GetRootAsModel(tflite_model_buf, 0)
+    except ImportError:
+        raise ImportError("The tflite package must be installed")
+
+    input_data = convert_to_list(input_data)
+    input_node = convert_to_list(input_node)
+
+    shape_dict = {}
+    dtype_dict = {}
+    for i, e in enumerate(input_node):
+        shape_dict[e] = input_data[i].shape
+        dtype_dict[e] = input_data[i].dtype.name
+
+    mod, params = relay.frontend.from_tflite(
+        tflite_model, shape_dict=shape_dict, dtype_dict=dtype_dict
+    )
+    mod["main"] = relay.build_module.bind_params_by_name(mod["main"], params)
+    return mod, params
+
+
 def subprocess_with_stdout_and_log(cmd, cwd, logfile, stdout):
     """
     This method runs a process and logs the output to both a log file and stdout
@@ -221,6 +261,7 @@ def compile_and_run(
     params=None,
     workspace_byte_alignment=8,
     mod_name=None,
+    enable_op_fusion=True,
 ):
     """
     This method verifies the generated source
@@ -232,7 +273,11 @@ def compile_and_run(
     if not use_calculated_workspaces:
         cflags += "-DTVM_CRT_STACK_ALLOCATOR_ENABLE_LIFO_CHECK "
 
-    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
+    config = {"tir.disable_vectorize": True}
+    if not enable_op_fusion:
+        config["relay.FuseOps.max_depth"] = 1
+
+    with tvm.transform.PassContext(opt_level=3, config=config):
         lib = tvm.relay.build(mod, target, target_host=target, params=params, mod_name=mod_name)
 
     tmp_path = utils.tempdir()
