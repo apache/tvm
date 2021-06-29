@@ -48,7 +48,7 @@ reg.register_pattern("nn.fast_softmax", OpPattern.OPAQUE)
 
 
 # log_softmax
-reg.register_schedule("nn.log_softmax", strategy.schedule_log_softmax)
+reg.register_strategy("nn.log_softmax", strategy.log_softmax_strategy)
 reg.register_pattern("nn.log_softmax", OpPattern.OPAQUE)
 
 
