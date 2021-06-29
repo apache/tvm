@@ -209,6 +209,12 @@ class TVM_DLL StmtMutator : protected StmtFunctor<Stmt(const Stmt&)> {
    */
   template <typename TNode>
   ObjectPtr<TNode> CopyOnWrite(const TNode* node) {
+    static_assert(std::is_base_of<StmtNode, TNode>::value,
+                  "StmtMutator:: CopyOnWrite requires us to track uniqueness of all parent "
+                  "nodes during the recursion. Because the child classes do not necessarily "
+                  "check the Array, Expr and other structures during the visit, it is only safe to "
+                  "call this function with StmtNodes for now. "
+                  "Please create a new node directly in other cases.");
     if (allow_copy_on_write_) {
       // return the old node.
       return runtime::GetObjectPtr<TNode>(const_cast<TNode*>(node));
