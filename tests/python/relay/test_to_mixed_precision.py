@@ -48,6 +48,7 @@ def verify_mixed_precision_output_close(
     result_fp32 = run_module(mod, mod_params)
     fp16_mod = ToMixedPrecision(mixed_precision_dtype)(mod)
     result_fp16 = run_module(fp16_mod, mod_params)
+
     # Ensure the results are close
     for fp32, fp16 in zip(result_fp32, result_fp16):
         np.testing.assert_allclose(fp32, fp16, rtol=rtol, atol=atol)
@@ -60,7 +61,9 @@ def test_lstm():
 
     Has internal functions and let statements the pass must work on.
     """
-    units = 3
+    # TODO(AndrewZhaoLuo): investigate why non-even units cause failure in codegen for CUDA
+    # See discussion here: https://github.com/apache/tvm/issues/8294#issuecomment-866190408
+    units = 4
     iterations = 5
     mod, mod_params = lstm.get_workload(iterations=iterations, num_hidden=units)
 
@@ -118,16 +121,13 @@ def test_convert_single_conv():
     fp16_mod = verify_mixed_precision_output_close(mod, mod_params, atol=0.01, rtol=1e-3)
 
     expected_mod = tvm.IRModule.from_expr(
-        relay.cast(
-            relay.nn.conv2d(
-                relay.cast(data, "float16"),
-                relay.cast(weight, "float16"),
-                strides=(1, 1),
-                padding=(1, 1),
-                out_dtype="float32",
-            ),
-            "float16",
-        )
+        relay.nn.conv2d(
+            relay.cast(data, "float16"),
+            relay.cast(weight, "float16"),
+            strides=(1, 1),
+            padding=(1, 1),
+            out_dtype="float16",
+        ),
     )
     expected_mod = tvm.relay.transform.InferType()(expected_mod)
 
@@ -156,16 +156,13 @@ def test_convert_single_conv_fp64():
     # Note we still accumulate to FP32 by default, a user would need to overwrite default
     # behavior to make this make more sense.
     expected_mod = tvm.IRModule.from_expr(
-        relay.cast(
-            relay.nn.conv2d(
-                relay.cast(data, "float64"),
-                relay.cast(weight, "float64"),
-                strides=(1, 1),
-                padding=(1, 1),
-                out_dtype="float32",
-            ),
-            "float64",
-        )
+        relay.nn.conv2d(
+            relay.cast(data, "float64"),
+            relay.cast(weight, "float64"),
+            strides=(1, 1),
+            padding=(1, 1),
+            out_dtype="float64",
+        ),
     )
     expected_mod = tvm.relay.transform.InferType()(expected_mod)
 
@@ -198,15 +195,12 @@ def test_convert_conv_bn():
         "moving_mean": np.random.uniform(-1, 1, size=bn_shape).astype("float32"),
         "moving_var": np.random.uniform(-1, 1, size=bn_shape).astype("float32"),
     }
-    fp16_mod = verify_mixed_precision_output_close(mod, mod_params, atol=0.01, rtol=1e-3)
+    fp16_mod = verify_mixed_precision_output_close(mod, mod_params, atol=0.025, rtol=0.01)
 
     # Creating expected module
     data = relay.cast(relay.var("data", shape=data_shape), "float16")
     weight = relay.cast(relay.var("weight", shape=weight_shape), "float16")
-    conv = relay.cast(
-        relay.nn.conv2d(data, weight, strides=(1, 1), padding=(1, 1), out_dtype="float32"),
-        "float16",
-    )
+    conv = relay.nn.conv2d(data, weight, strides=(1, 1), padding=(1, 1), out_dtype="float16")
 
     bn_shape = [5]
     gamma = relay.cast(relay.var("gamma", shape=bn_shape), "float16")
@@ -254,17 +248,14 @@ def test_green_gray_propagates_simple():
         "data": np.random.uniform(-1, 1, size=data_shape).astype("float32"),
         "weight": np.random.uniform(-1, 1, size=weight_shape).astype("float32"),
     }
-    fp16_mod = verify_mixed_precision_output_close(mod, mod_params, atol=0.01, rtol=1e-3)
+    fp16_mod = verify_mixed_precision_output_close(mod, mod_params, atol=0.01, rtol=0.01)
 
-    conv_expr = relay.cast(
-        relay.nn.conv2d(
-            relay.cast(data, "float16"),
-            relay.cast(weight, "float16"),
-            strides=(1, 1),
-            padding=(1, 1),
-            out_dtype="float32",
-        ),
-        "float16",
+    conv_expr = relay.nn.conv2d(
+        relay.cast(data, "float16"),
+        relay.cast(weight, "float16"),
+        strides=(1, 1),
+        padding=(1, 1),
+        out_dtype="float16",
     )
     expected_mod = tvm.IRModule.from_expr(conv_expr + conv_expr)
     expected_mod = tvm.relay.transform.InferType()(expected_mod)
@@ -316,12 +307,15 @@ def test_green_red_not_use_extraneous_cast():
     fp16_mod = verify_mixed_precision_output_close(mod, mod_params, atol=0.01, rtol=1e-3)
 
     # Construct expected structure
-    conv = relay.nn.conv2d(
-        relay.cast(data, "float16"),
-        relay.cast(weight, "float16"),
-        strides=(1, 1),
-        padding=(1, 1),
-        out_dtype="float32",
+    conv = relay.cast(
+        relay.nn.conv2d(
+            relay.cast(data, "float16"),
+            relay.cast(weight, "float16"),
+            strides=(1, 1),
+            padding=(1, 1),
+            out_dtype="float16",
+        ),
+        "float32",
     )
     result = relay.nn.softmax(conv)
     expected_mod = tvm.IRModule.from_expr(result)
@@ -380,12 +374,12 @@ def test_let_statement_simple():
     r2 = var2 + var2
     let2 = relay.Let(
         var2,
-        relay.cast(relay.nn.dense(r1, weight, units=20, out_dtype="float32"), "float16"),
+        relay.nn.dense(r1, weight, units=20, out_dtype="float16"),
         r2,
     )
     let1 = relay.Let(
         var1,
-        relay.cast(relay.nn.dense(data, weight, units=20, out_dtype="float32"), "float16"),
+        relay.nn.dense(data, weight, units=20, out_dtype="float16"),
         let2,
     )
     expected_mod = tvm.IRModule.from_expr(let1)
@@ -410,7 +404,7 @@ def test_where_simple():
     # Create expected module
     data = relay.cast(relay.var("data", shape=[1, 20]), "float16")
     weight = relay.cast(relay.var("weight", shape=[20, 20]), "float16")
-    a = relay.cast(relay.nn.dense(data, weight, units=20, out_dtype="float32"), "float16")
+    a = relay.nn.dense(data, weight, units=20, out_dtype="float16")
     b = relay.where(data, a, a)
     expected_mod = tvm.IRModule.from_expr(b)
     expected_mod = InferType()(expected_mod)
