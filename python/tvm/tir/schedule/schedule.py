@@ -164,8 +164,7 @@ class Schedule(Object):
     ########## Lookup ##########
 
     def get(
-        self,
-        rand_var_or_sref: Union[RAND_VAR_TYPE, StmtSRef],
+        self, rand_var_or_sref: Union[RAND_VAR_TYPE, StmtSRef],
     ) -> Optional[Union[int, Block, For]]:
         """Returns:
         - the corresponding Block that a BlockRV evaluates to;
@@ -219,11 +218,7 @@ class Schedule(Object):
 
     ########## Block/Loop relation ##########
 
-    def get_block(
-        self,
-        name: str,
-        func_name: str = "main",
-    ) -> BlockRV:
+    def get_block(self, name: str, func_name: str = "main",) -> BlockRV:
         """Retrieve a block in a specific function with its name
         Parameters
         ----------
@@ -238,9 +233,7 @@ class Schedule(Object):
             IndexError is raised if 0 or multiple blocks exist with the specific name.
         """
         return _ffi_api_schedule.ScheduleGetBlock(  # pylint: disable=no-member
-            self,
-            name,
-            func_name,
+            self, name, func_name,
         )
 
     def get_loops(self, block: BlockRV) -> List[LoopRV]:
