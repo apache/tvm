@@ -38,7 +38,7 @@
 #include "posix_board_if.h"
 #endif
 
-#define WORKSPACE_SIZE (270 * 1024)
+#define WORKSPACE_SIZE (128 * 1024)
 
 static uint8_t g_aot_memory[WORKSPACE_SIZE];
 extern tvm_model_t network;
@@ -215,12 +215,15 @@ void main(void) {
 
   size_t max_ind = -1;
   float max_val = -FLT_MAX;
+  TVMLogf("#result_data*1000:");
   for (size_t i = 0; i < output_data_len; i++) {
     if (output_data[i] >= max_val) {
       max_ind = i;
       max_val = output_data[i];
+      TVMLogf(" %d", (int)(output_data[i]*1000));
     }
   }
+  TVMLogf("\n");
   TVMLogf("#result:%d:%d\n", max_ind, (uint32_t)(elapsed_time * 1000));
 #ifdef CONFIG_ARCH_POSIX
   posix_exit(0);

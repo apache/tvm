@@ -277,6 +277,7 @@ def intel_graphics(model="unknown", options=None):
 MICRO_SUPPORTED_MODELS = {
     "host": [],
     "stm32f746xx": ["-mcpu=cortex-m7", "-march=armv7e-m"],
+    "stm32f4xx": ["-mcpu=cortex-m4", "-march=armv7e-m"],
     "nrf5340dk": ["-mcpu=cortex-m33"],
     "mps2_an521": ["-mcpu=cortex-m33"],
 }
