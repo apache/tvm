@@ -40,13 +40,14 @@ namespace profiling {
  * variety of platforms including cpu, cuda and rocm.
  *
  * PAPI is avaliable at https://bitbucket.org/icl/papi/src/master/.
- *
- * Users can change the metrics collected for by setting the environment
- * variable `TVM_PAPI_${device_name}_METRICS` with a semicolon seperated list
- * of metrics. Use the `papi_native_avail` tool to find the name of all
- * available metrics.
  */
 struct PAPIMetricCollectorNode final : public MetricCollectorNode {
+  /*! \brief Construct a metric collector that collects a specific set of metrics.
+   *
+   * \param metrics A mapping from a device type to the metrics that should be
+   * collected on that device. You can find the names of available metrics by
+   * running `papi_native_avail`.
+   */
   explicit PAPIMetricCollectorNode(Map<DeviceWrapper, Array<String>> metrics);
   explicit PAPIMetricCollectorNode() {}
 

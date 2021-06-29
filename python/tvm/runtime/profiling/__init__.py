@@ -26,7 +26,7 @@ from .. import Object, Device
 class Report(Object):
     """A container for information gathered during a profiling run.
 
-    Fields
+    Attributes
     ----------
     calls : Array[Dict[str, Object]]
         Per-call profiling metrics (function name, runtime, device, ...).
@@ -61,6 +61,7 @@ class DeviceWrapper(Object):
         self.__init_handle_by_constructor__(_ffi_api.DeviceWrapper, dev)
 
 
+# We only enable this class when TVM is build with PAPI support
 if _ffi.get_global_func("runtime.profiling.PAPIMetricCollector", allow_missing=True) is not None:
 
     @_ffi.register_object("runtime.profiling.PAPIMetricCollector")
@@ -69,7 +70,7 @@ if _ffi.get_global_func("runtime.profiling.PAPIMetricCollector", allow_missing=T
         Application Programming Interface (PAPI).
         """
 
-        def __init__(self, metric_names: Dict[Device, Sequence[str]]):
+        def __init__(self, metric_names: Dict[Device, Sequence[str]] = {}):
             """
             Parameters
             ----------

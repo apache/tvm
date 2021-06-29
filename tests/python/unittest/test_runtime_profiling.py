@@ -95,7 +95,6 @@ def test_papi(target, dev):
     exe = relay.vm.compile(mod, target, params=params)
     vm = profiler_vm.VirtualMachineProfiler(exe, dev)
 
-    print(dev.device_type)
     data = tvm.nd.array(np.random.rand(1, 1, 28, 28).astype("float32"), device=dev)
     report = vm.profile(
         [data],
