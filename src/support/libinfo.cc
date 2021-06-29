@@ -23,6 +23,10 @@
 #define TVM_INFO_GIT_COMMIT_HASH "NOT-FOUND"
 #endif
 
+#ifndef TVM_INFO_GIT_COMMIT_TIME
+#define TVM_INFO_GIT_COMMIT_TIME "NOT-FOUND"
+#endif
+
 #ifndef TVM_INFO_LLVM_VERSION
 #define TVM_INFO_LLVM_VERSION "NOT-FOUND"
 #endif
@@ -224,6 +228,7 @@ namespace tvm {
 TVM_DLL Map<String, String> GetLibInfo() {
   Map<String, String> result = {
       {"GIT_COMMIT_HASH", TVM_INFO_GIT_COMMIT_HASH},
+      {"GIT_COMMIT_TIME", TVM_INFO_GIT_COMMIT_TIME},
       {"USE_CUDA", TVM_INFO_USE_CUDA},
       {"USE_OPENCL", TVM_INFO_USE_OPENCL},
       {"USE_VULKAN", TVM_INFO_USE_VULKAN},
