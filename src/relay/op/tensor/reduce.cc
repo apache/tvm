@@ -115,12 +115,13 @@ Array<Integer> GetExcludeAxes(size_t indim, const Array<Integer>& inaxis) {
 }
 
 // Return the modified layout for AlterOpLayout pass.
-Array<Array<Layout>> ReduceInferCorrectLayout(const Attrs& attrs,
-                                              const Array<Layout>& new_in_layouts,
-                                              const Array<Layout>& old_in_layouts,
-                                              const Array<tvm::relay::Type>& old_in_types) {
-  // NOTE: Discard "const" qualifier here.
-  ReduceAttrs* params = const_cast<ReduceAttrs*>(attrs.as<ReduceAttrs>());
+InferCorrectLayoutOutput ReduceInferCorrectLayout(const Attrs& attrs,
+                                                  const Array<Layout>& new_in_layouts,
+                                                  const Array<Layout>& old_in_layouts,
+                                                  const Array<tvm::relay::Type>& old_in_types) {
+  const auto* attrs_ptr = attrs.as<ReduceAttrs>();
+  ICHECK(attrs_ptr);
+  ObjectPtr<ReduceAttrs> params = make_object<ReduceAttrs>(*attrs_ptr);
 
   // Get the reduce axes.
   Array<Array<IndexExpr>> old_in_shapes;
@@ -188,7 +189,7 @@ Array<Array<Layout>> ReduceInferCorrectLayout(const Attrs& attrs,
     }
   }
 
-  return Array<Array<Layout>>{{inferred_in}, {inferred_out}};
+  return InferCorrectLayoutOutput({inferred_in}, {inferred_out}, Attrs(params));
 }
 
 template <typename F>

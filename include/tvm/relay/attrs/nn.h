@@ -1424,6 +1424,19 @@ struct BatchToSpaceNDAttrs : public tvm::AttrsNode<BatchToSpaceNDAttrs> {
   }
 };  // struct BatchToSpaceNDAttrs
 
+/*! \brief Attributes used in NLLLoss operator */
+struct NLLLossAttrs : public tvm::AttrsNode<NLLLossAttrs> {
+  std::string reduction;
+  int ignore_index;
+
+  TVM_DECLARE_ATTRS(NLLLossAttrs, "relay.attrs.NLLLossAttrs") {
+    TVM_ATTR_FIELD(reduction).set_default("mean").describe(
+        "The reduction method to apply to the output. Can be"
+        "'none', 'mean' or 'sum'.");
+    TVM_ATTR_FIELD(ignore_index).describe("The target value to ignore.");
+  }
+};  // struct NLLLossAttrs
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_ATTRS_NN_H_

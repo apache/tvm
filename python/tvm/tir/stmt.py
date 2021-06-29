@@ -77,7 +77,7 @@ class AssertStmt(Stmt):
     message : PrimExpr
         The error message.
 
-    body : Stmt
+    body : tvm.tir.Stmt
         The body statement.
 
     span : Optional[Span]

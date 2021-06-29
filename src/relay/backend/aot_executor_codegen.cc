@@ -375,11 +375,12 @@ class AOTExecutorCodegen : public ExprVisitor {
     auto pf0 = GetPackedFunc("relay.backend._make_CCacheKey");
     auto pf1 = GetPackedFunc("relay.backend._CompileEngineLower");
     Target target;
+
     // Handle external function
     if (func->GetAttr<String>(attr::kCompiler).defined()) {
       target = Target("ext_dev");
       CCacheKey key = (*pf0)(func, target);
-      CachedFunc ext_func = (*pf1)(compile_engine_, key);
+      CachedFunc ext_func = (*pf1)(compile_engine_, key, mod_name_);
       ICHECK(ext_func.defined()) << "External function is not defined.";
       UpdateConstants(func, &params_);
 
@@ -410,7 +411,7 @@ class AOTExecutorCodegen : public ExprVisitor {
       target = targets_[call_dev_type];
     }
     CCacheKey key = (*pf0)(func, target);
-    CachedFunc lowered_func = (*pf1)(compile_engine_, key);
+    CachedFunc lowered_func = (*pf1)(compile_engine_, key, mod_name_);
     if (!lowered_funcs_.count(target->str())) {
       lowered_funcs_[target->str()] = IRModule(Map<GlobalVar, BaseFunc>({}));
     }
@@ -533,7 +534,10 @@ class AOTExecutorCodegen : public ExprVisitor {
 
     // Define the PrimFunc attributes
     Map<String, ObjectRef> dict_attrs;
-    dict_attrs.Set("global_symbol", runtime::String(runtime::symbol::tvm_run_func_prefix));
+    String run_func_name =
+        runtime::get_name_mangled(mod_name_, runtime::symbol::tvm_run_func_suffix);
+    dict_attrs.Set("global_symbol", run_func_name);
+    dict_attrs.Set("runner_function", Bool(true));
 
     // Make the PrimFunc
     return tir::PrimFunc(main_signature_, body, VoidType(), Map<tir::Var, tir::Buffer>(),
@@ -586,6 +590,8 @@ class AOTExecutorCodegen : public ExprVisitor {
   std::vector<tir::Stmt> stmts_;
   /*! \brief the list of return sids (note that the function might return more then one output */
   IntegerArray return_sid_;
+  /*! \brief the module name we use to mangle the function names */
+  String mod_name_;
 
  public:
   AOTExecutorCodegen(runtime::Module* mod, const TargetsMap& targets, Target target_host)
@@ -595,10 +601,11 @@ class AOTExecutorCodegen : public ExprVisitor {
         use_unpacked_api_(target_host->GetAttr<Bool>("unpacked-api").value_or(Bool(false))),
         compile_engine_(CompileEngine::Global()) {}
 
-  LoweredOutput Codegen(relay::Function func) {
+  LoweredOutput Codegen(relay::Function func, String mod_name) {
     // Get the module, storage map and token sizes
     auto pf = GetPackedFunc("relay.backend.GraphPlanMemory");
     storage_device_map_ = (*pf)(func);
+    mod_name_ = mod_name;
 
     for (auto input : func->params) {
       input_vars_.push_back(input);
@@ -645,15 +652,15 @@ class AOTExecutorCodegen : public ExprVisitor {
     auto target_host_str = target_host_->str();
     if (ret.lowered_funcs.find(target_host_str) != ret.lowered_funcs.end()) {
       ret.lowered_funcs[target_host_str]->Add(
-          GlobalVar(::tvm::runtime::symbol::tvm_run_func_prefix), prim_func);
+          GlobalVar(::tvm::runtime::symbol::tvm_run_func_suffix), prim_func);
     } else {
       Map<GlobalVar, BaseFunc> symbol_map;
-      symbol_map.Set(GlobalVar(::tvm::runtime::symbol::tvm_run_func_prefix), prim_func);
+      symbol_map.Set(GlobalVar(::tvm::runtime::symbol::tvm_run_func_suffix), prim_func);
       ret.lowered_funcs.Set(target_host_str, IRModule(symbol_map));
     }
     ret.function_metadata = std::move(function_metadata_);
-    ret.metadata =
-        runtime::Metadata(input_vars_.size(), return_sid_.size(), runtime::kTvmExecutorAot);
+    ret.metadata = runtime::Metadata(input_vars_.size(), return_sid_.size(),
+                                     runtime::kTvmExecutorAot, mod_name);
     return ret;
   }
 };
@@ -673,7 +680,8 @@ class AOTExecutorCodegenModule : public runtime::ModuleNode {
     } else if (name == "codegen") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         Function func = args[0];
-        this->output_ = codegen(func);
+        String mod_name = args[1];
+        this->output_ = codegen(func, mod_name);
       });
     } else if (name == "list_params_name") {
       return PackedFunc(
@@ -724,7 +732,9 @@ class AOTExecutorCodegenModule : public runtime::ModuleNode {
                                                     targets, target_host);
   }
 
-  LoweredOutput codegen(Function func) { return this->codegen_->Codegen(func); }
+  LoweredOutput codegen(Function func, String mod_name) {
+    return this->codegen_->Codegen(func, mod_name);
+  }
 
   Array<runtime::String> list_params_name() {
     Array<runtime::String> ret;

@@ -36,11 +36,13 @@ namespace qnn {
 
 TVM_REGISTER_NODE_TYPE(RequantizeAttrs);
 
-Array<Array<Layout>> RequantizeInferCorrectLayout(const Attrs& attrs,
-                                                  const Array<Layout>& new_in_layouts,
-                                                  const Array<Layout>& old_in_layouts,
-                                                  const Array<tvm::relay::Type>& old_in_types) {
-  RequantizeAttrs* param = const_cast<RequantizeAttrs*>(attrs.as<RequantizeAttrs>());
+InferCorrectLayoutOutput RequantizeInferCorrectLayout(const Attrs& attrs,
+                                                      const Array<Layout>& new_in_layouts,
+                                                      const Array<Layout>& old_in_layouts,
+                                                      const Array<tvm::relay::Type>& old_in_types) {
+  const auto* attrs_ptr = attrs.as<RequantizeAttrs>();
+  ICHECK(attrs_ptr);
+  ObjectPtr<RequantizeAttrs> param = make_object<RequantizeAttrs>(*attrs_ptr);
 
   Array<Array<IndexExpr>> old_in_shapes;
   for (auto old_in_t : old_in_types) {
@@ -106,7 +108,7 @@ Array<Array<Layout>> RequantizeInferCorrectLayout(const Attrs& attrs,
     output_layouts = {undef};
   }
 
-  return Array<Array<Layout>>{input_layouts, output_layouts};
+  return InferCorrectLayoutOutput(input_layouts, output_layouts, Attrs(param));
 }
 
 // Lowering of qnn.requantize op

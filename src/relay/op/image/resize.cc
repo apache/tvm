@@ -34,12 +34,13 @@ namespace relay {
 TVM_REGISTER_NODE_TYPE(ResizeAttrs);
 
 template <typename T>
-Array<Array<Layout> > ResizeInferCorrectLayout(const Attrs& attrs,
-                                               const Array<Layout>& new_in_layouts,
-                                               const Array<Layout>& old_in_layouts,
-                                               const Array<tvm::relay::Type>& old_in_types) {
-  // NOTE: Discard "const" qualifier here.
-  T* params = const_cast<T*>(attrs.as<T>());
+InferCorrectLayoutOutput ResizeInferCorrectLayout(const Attrs& attrs,
+                                                  const Array<Layout>& new_in_layouts,
+                                                  const Array<Layout>& old_in_layouts,
+                                                  const Array<tvm::relay::Type>& old_in_types) {
+  const auto* attrs_ptr = attrs.as<T>();
+  CHECK(attrs_ptr);
+  ObjectPtr<T> params = make_object<T>(*attrs_ptr);
 
   if (new_in_layouts.defined()) {
     ICHECK_EQ(new_in_layouts.size(), 1);
@@ -54,8 +55,7 @@ Array<Array<Layout> > ResizeInferCorrectLayout(const Attrs& attrs,
     }
   }
 
-  Layout inferred_layout(params->layout);
-  return Array<Array<Layout> >{{inferred_layout}, {inferred_layout}};
+  return InferCorrectLayoutOutput({params->layout}, {params->layout}, Attrs(params));
 }
 
 bool ResizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,

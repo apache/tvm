@@ -69,3 +69,4 @@ from .grid_sample_python import affine_grid_python, grid_sample_nchw_python
 from .matrix_set_diag import matrix_set_diag
 from .space_to_batch_nd import space_to_batch_nd_python
 from .batch_to_space_nd import batch_to_space_nd_python
+from .nll_loss import nll_loss
