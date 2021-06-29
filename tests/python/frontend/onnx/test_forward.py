@@ -3595,14 +3595,17 @@ def test_resize():
             verify([1, 16] + [32] * ndim, [], [1, 1] + [0.5] * ndim, method, coord_trans)
             verify([1, 16] + [32] * ndim, [], [1, 1] + [2] * ndim, method, coord_trans)
 
-        method = "linear"
-        # upsampling
-        verify([1, 16] + [32] * ndim, [1, 16] + [64] * ndim, [], method)
-        # downsampling
-        verify([1, 16] + [32] * ndim, [1, 16] + [16] * ndim, [], method)
-        # scales are specified instead of sizes
-        verify([1, 16] + [32] * ndim, [], [1, 1] + [0.5] * ndim, method)
-        verify([1, 16] + [32] * ndim, [], [1, 1] + [2] * ndim, method)
+        if ndim == 2:
+            ## TODO(mbrookhart): ONNX Runtime in CI only supports 2D linear resize
+            ## Remove this condition when updating CI
+            method = "linear"
+            # upsampling
+            verify([1, 16] + [32] * ndim, [1, 16] + [64] * ndim, [], method)
+            # downsampling
+            verify([1, 16] + [32] * ndim, [1, 16] + [16] * ndim, [], method)
+            # scales are specified instead of sizes
+            verify([1, 16] + [32] * ndim, [], [1, 1] + [0.5] * ndim, method)
+            verify([1, 16] + [32] * ndim, [], [1, 1] + [2] * ndim, method)
 
         if ndim == 2:
             # ONNX Runtime only supports cubic interpolation for 2D images
