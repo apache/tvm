@@ -70,7 +70,9 @@ if _ffi.get_global_func("runtime.profiling.PAPIMetricCollector", allow_missing=T
         Application Programming Interface (PAPI).
         """
 
-        def __init__(self, metric_names: Dict[Device, Sequence[str]] = {}):
+        def __init__(
+            self, metric_names: Dict[Device, Sequence[str]] = {}
+        ):  # pylint: disable=dangerous-default-value
             """
             Parameters
             ----------
