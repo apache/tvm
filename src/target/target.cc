@@ -418,20 +418,6 @@ Target::Target(const Map<String, ObjectRef>& config) {
 
 Target::Target(Target target, Target host) {
   ObjectPtr<TargetNode> n = make_object<TargetNode>(*target.get());
-
-  // It's ok to add a host to target with a defined host if it's the exact same target.
-  // We do a check if target's host and the the parameter host are the same pointers.
-  // However, for multiprocessing in python some methods involve serializing and
-  // reserializing objects which breaks pointer equality. Therefore we need
-  // a method of seeing if the two objects are similar. This does not exist
-  // so we see if the human readable strings of the targets are the same.
-  CHECK(!n->host.defined() || n->host.same_as(host) ||
-
-        // TODO (AndrewZhaoLuo): create a deep equality for TargetNodes
-        n->host.as<TargetNode>()->str() == host.as<TargetNode>()->str())
-      << "ValueError: Adding a host to a target whose host field has been defined";
-
-  // add target host into host field
   n->host = std::move(host);
   data_ = std::move(n);
 }

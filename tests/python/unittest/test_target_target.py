@@ -211,17 +211,6 @@ def test_target_host_single_string_with_tag():
     assert tgt.host.attrs["registers_per_block"] == 32768
 
 
-def test_target_host_warning():
-    """
-    Confirm that constructing a target with invalid
-    attributes fails as expected.
-    """
-    with pytest.raises(
-        ValueError, match="Adding a host to a target whose host field has been defined"
-    ):
-        tvm.target.Target("cuda --host nvidia/jetson-nano", "llvm")
-
-
 def test_target_host_merge_0():
     tgt = tvm.target.Target(tvm.target.Target("cuda --host nvidia/jetson-nano"), None)
     assert tgt.kind.name == "cuda"
