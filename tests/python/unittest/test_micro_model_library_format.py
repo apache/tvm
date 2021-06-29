@@ -56,7 +56,7 @@ def test_export_operator_model_library_format():
 
     with open(os.path.join(extract_dir, "metadata.json")) as json_f:
         metadata = json.load(json_f)
-        assert metadata["version"] == 2
+        assert metadata["version"] == 3
         assert metadata["model_name"] == "add"
         export_datetime = datetime.datetime.strptime(
             metadata["export_datetime"], "%Y-%m-%d %H:%M:%SZ"
