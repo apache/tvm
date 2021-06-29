@@ -21,6 +21,8 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/var.h>
 
+#include <string>
+
 #include "text_printer.h"
 
 namespace tvm {
@@ -41,19 +43,23 @@ class ModelLibraryFormatPrinter : public ::tvm::runtime::ModuleNode {
     return doc.str();
   }
 
+  TVMRetValue GetVarName(tir::Var var) {
+    TVMRetValue rv;
+    std::string var_name;
+    if (text_printer_.GetVarName(var, &var_name)) {
+      rv = var_name;
+    }
+
+    return rv;
+  }
+
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) override {
     if (name == "print") {
       return TypedPackedFunc<std::string(ObjectRef)>(
           [sptr_to_self, this](ObjectRef node) { return Print(node); });
     } else if (name == "get_var_name") {
-      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        ICHECK_EQ(args.size(), 1) << "usage: get_var_name(Var v)";
-
-        std::string var_name;
-        if (text_printer_.GetVarName(args[0], &var_name)) {
-          *rv = var_name;
-        }
-      });
+      return TypedPackedFunc<TVMRetValue(tir::Var)>(
+        [sptr_to_self, this](tir::Var var) { return GetVarName(var); });
     } else {
       return PackedFunc();
     }
