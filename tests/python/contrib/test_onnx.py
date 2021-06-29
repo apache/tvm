@@ -176,14 +176,16 @@ def test_conv2d():
 
 def test_conv2d_transpose():
     """Conv2d_Transpose unit tests."""
+
     def verify_conv2d_transpose(
         dtype, scale, dshape, kshape,
         padding=(1, 1), groups=1, dilation=(1, 1), **attrs
     ):
         x = relay.var("x", shape=dshape, dtype=dtype)
         w = relay.var("w", shape=kshape, dtype=dtype)
-        y = relay.nn.conv2d_transpose(x, w, padding=padding,
-                dilation=dilation, groups=groups, **attrs)
+        y = relay.nn.conv2d_transpose(
+            x, w, padding=padding, dilation=dilation, groups=groups, **attrs
+        )
         func = relay.Function([x, w], y)
         data = np.random.uniform(-scale, scale, size=dshape).astype(dtype)
         kernel = np.random.uniform(-scale, scale, size=kshape).astype(dtype)
@@ -192,36 +194,38 @@ def test_conv2d_transpose():
     dshape = (1, 3, 224, 224)
     kshape = (3, 10, 3, 3)
     verify_conv2d_transpose(
-        "float32", 1, dshape, kshape, padding=(1, 1),
-        channels=10, kernel_size=(3, 3)
+        "float32", 1, dshape, kshape, padding=(1, 1), channels=10, kernel_size=(3, 3)
     )
 
     dshape = (1, 3, 224, 224)
     kshape = (3, 10, 3, 3)
     verify_conv2d_transpose(
-        "float32", 1, dshape, kshape, padding=(2, 2),
-        channels=10, kernel_size=(3, 3)
+        "float32", 1, dshape, kshape, padding=(2, 2), channels=10, kernel_size=(3, 3)
     )
 
     dshape = (1, 3, 18, 18)
     kshape = (3, 10, 2, 2)
     verify_conv2d_transpose(
-        "float32", 1, dshape, kshape, padding=(2, 2),
-        channels=10, kernel_size=(2, 2), dilation=(1, 1),
+        "float32",
+        1,
+        dshape,
+        kshape,
+        padding=(2, 2),
+        channels=10,
+        kernel_size=(2, 2),
+        dilation=(1, 1),
     )
 
     dshape = (1, 3, 18, 18)
     kshape = (3, 10, 4, 4)
     verify_conv2d_transpose(
-        "float32", 1, dshape, kshape, padding=(1, 1),
-        channels=10, kernel_size=(4, 4)
+        "float32", 1, dshape, kshape, padding=(1, 1), channels=10, kernel_size=(4, 4)
     )
 
     dshape = (1, 3, 18, 18)
     kshape = (3, 10, 4, 4)
     verify_conv2d_transpose(
-        "float32", 1, dshape, kshape, padding=(1, 1),
-        channels=10, kernel_size=(4, 4)
+        "float32", 1, dshape, kshape, padding=(1, 1), channels=10, kernel_size=(4, 4)
     )
 
 
