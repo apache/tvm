@@ -29,6 +29,8 @@
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 
+#include <limits>
+#include <string>
 #include <vector>
 
 namespace tvm {
@@ -159,6 +161,27 @@ inline int GetTempAllocaAlignment(DataType type, int32_t const_size) {
     }
   }
   return align;
+}
+
+/*!
+ * \brief Create an int32 constant
+ * \param index the value of the constant
+ * \return the PrimExpr that represents the constant
+ */
+inline PrimExpr ConstInt32(size_t index) {
+  ICHECK_LE(index, std::numeric_limits<int>::max());
+  return make_const(DataType::Int(32), static_cast<int>(index));
+}
+
+/*!
+ * \brief Allocate TVMValues on the stack
+ * \param type type of allocation
+ * \param num number of TVMValues to allocate
+ * \return PrimExpr representing the TVMValue
+ */
+inline PrimExpr StackAlloca(std::string type, size_t num) {
+  Array<PrimExpr> args = {StringImm(type), ConstInt32(num)};
+  return Call(DataType::Handle(), builtin::tvm_stack_alloca(), args);
 }
 
 /*!
