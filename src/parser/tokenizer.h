@@ -62,7 +62,9 @@ bool IsNumeric(char c) {
          !IsWhitespace(c);
 }
 
-bool IsIdentLetter(char c) { return '_' == c || ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z'); }
+bool IsIdentLetter(char c) {
+  return '_' == c || c == '/' || ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z');
+}
 
 bool IsIdent(char c) { return IsIdentLetter(c) || IsDigit(c); }
 
