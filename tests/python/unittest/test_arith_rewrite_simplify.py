@@ -275,7 +275,7 @@ def test_add_index_simplify():
 def test_sub_index_simplify():
     ck = RewriteChecker()
     x, y, z = te.var("x"), te.var("y"), te.var("z")
-    a, b, c = tvm.tir.Any(), tvm.tir.Any(), tvm.tir.Any()
+    a, b = tvm.tir.Any(), tvm.tir.Any()
 
     ck.verify(x + y - y, x)
     ck.verify(x + y - x, y)

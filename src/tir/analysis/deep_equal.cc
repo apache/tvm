@@ -60,7 +60,7 @@ bool ExprDeepEqual::operator()(const PrimExpr& lhs, const PrimExpr& rhs) const {
     return plhs->dtype == prhs->dtype && plhs->value == prhs->value;
   }
   if (lhs.as<AnyNode>()) {
-    return lhs.same_as(rhs);
+    return false;
   }
   return DeepCmpSEqualHandler().SEqualReduce(lhs, rhs, false);
 }
