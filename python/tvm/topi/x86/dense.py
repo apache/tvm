@@ -325,7 +325,7 @@ def dense_cblas(cfg, data, weight, bias=None, out_dtype=None):
 
 @autotvm.register_topi_schedule("dense_cblas.x86")
 def schedule_dense_cblas(_, outs):
-    """Create schedule for dense_cblas"""
+    """Create schedule for dense_cblas. This is an alias of matmul_nt operator."""
     return schedule_matmul_blas_common(outs)
 
 
@@ -337,7 +337,7 @@ def dense_mkl(cfg, data, weight, bias=None, out_dtype=None):
 
 @autotvm.register_topi_schedule("dense_mkl.x86")
 def schedule_dense_mkl(_, outs):
-    """Create schedule for dense_mkl"""
+    """Create schedule for dense_mkl. This is an alias of matmul_nt operator."""
     return schedule_matmul_blas_common(outs)
 
 
@@ -349,7 +349,7 @@ def dense_mkldnn(cfg, data, weight, bias=None, out_dtype=None):
 
 @autotvm.register_topi_schedule("dense_mkldnn.x86")
 def schedule_dense_mkldnn(_, outs):
-    """Create schedule for dense_mkldnn"""
+    """Create schedule for dense_mkldnn. This is an alias of matmul_nt operator."""
     return schedule_matmul_blas_common(outs)
 
 
@@ -365,7 +365,7 @@ def matmul_cblas(
 
 @autotvm.register_topi_schedule("matmul_cblas.x86")
 def schedule_matmul_cblas(_, outs):
-    """Create schedule for matmul_cblas"""
+    """Create schedule for matmul_cblas."""
     return schedule_matmul_blas_common(outs)
 
 
@@ -381,7 +381,7 @@ def matmul_mkl(
 
 @autotvm.register_topi_schedule("matmul_mkl.x86")
 def schedule_matmul_mkl(_, outs):
-    """Create schedule for matmul_mkl"""
+    """Create schedule for matmul_mkl."""
     return schedule_matmul_blas_common(outs)
 
 
@@ -397,5 +397,5 @@ def matmul_mkldnn(
 
 @autotvm.register_topi_schedule("matmul_mkldnn.x86")
 def schedule_matmul_mkldnn(_, outs):
-    """Create schedule for matmul_mkldnn"""
+    """Create schedule for matmul_mkldnn."""
     return schedule_matmul_blas_common(outs)

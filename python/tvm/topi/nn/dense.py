@@ -87,25 +87,25 @@ def matmul(
         compute_lambda = lambda i, j: te.sum(
             tensor_a[k, i].astype(out_dtype) * tensor_b[j, k].astype(out_dtype), axis=k
         )
-        compute_name = "T_matmul"
+        compute_name = "T_matmul_TT"
         compute_tag = "matmul"
     elif (transpose_a, transpose_b) == (True, False):
         compute_lambda = lambda i, j: te.sum(
             tensor_a[k, i].astype(out_dtype) * tensor_b[k, j].astype(out_dtype), axis=k
         )
-        compute_name = "T_matmul"
+        compute_name = "T_matmul_TN"
         compute_tag = "matmul"
     elif (transpose_a, transpose_b) == (False, True):
         compute_lambda = lambda i, j: te.sum(
             tensor_a[i, k].astype(out_dtype) * tensor_b[j, k].astype(out_dtype), axis=k
         )
-        compute_name = "T_dense"
+        compute_name = "T_matmul_NT"
         compute_tag = "dense"
     else:  # (transpose_a, transpose_b) == (False, False):
         compute_lambda = lambda i, j: te.sum(
             tensor_a[i, k].astype(out_dtype) * tensor_b[k, j].astype(out_dtype), axis=k
         )
-        compute_name = "T_matmul"
+        compute_name = "T_matmul_NN"
         compute_tag = "matmul"
 
     mat = te.compute(
@@ -154,8 +154,8 @@ def matmul_legalize(attrs, inputs, types):
 
 def dense(data, weight, bias=None, out_dtype=None, auto_scheduler_rewritten_layout=""):
     """The default implementation of dense in topi.
-    This is an alias of matmul operator for data tensor in non-transposed format and weight tensor
-    in transposed format.
+    This is an alias of matmul_nt operator for data tensor in non-transposed format and weight
+    tensor in transposed format.
 
     Parameters
     ----------
