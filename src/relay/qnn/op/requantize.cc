@@ -269,13 +269,16 @@ bool RequantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     if (types[i].as<IncompleteTypeNode>()) {
       return false;
     }
-  }
+  } 
   const auto in_dtype = data->dtype;
-  ICHECK(in_dtype == DataType::Int(8) || in_dtype == DataType::UInt(8) ||
-         in_dtype == DataType::Int(32))
-      << "Input type should be one of [int8, uint8, int32] but was " << in_dtype;
+  //ICHECK(in_dtype == DataType::Int(8) || in_dtype == DataType::UInt(8) ||
+  //       in_dtype == DataType::Int(32))
+  //    << "Input type should be one of [int8, uint8, int32] but was " << in_dtype;
 
   const RequantizeAttrs* requantize_attrs = attrs.as<RequantizeAttrs>();
+  
+  std::cout << "data shape:" << data->shape << std::endl;
+
   int axis = requantize_attrs->axis;
   axis = (axis == -1) ? data->shape.size() - 1 : axis;
   ICHECK_LT(axis, static_cast<int>(data->shape.size()))
@@ -292,9 +295,9 @@ bool RequantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   const Array<tvm::PrimExpr> oshape = data->shape;
   // assign output type
   auto out_dtype = requantize_attrs->out_dtype;
-  ICHECK(out_dtype == DataType::Int(8) || out_dtype == DataType::UInt(8) ||
-         out_dtype == DataType::Int(32))
-      << "Output type should be one of [int8, uint8, int32] but was " << out_dtype;
+  //ICHECK(out_dtype == DataType::Int(8) || out_dtype == DataType::UInt(8) ||
+  //       out_dtype == DataType::Int(32))
+  //    << "Output type should be one of [int8, uint8, int32] but was " << out_dtype;
   reporter->Assign(types[5], TensorType(oshape, out_dtype));
   return true;
 }
