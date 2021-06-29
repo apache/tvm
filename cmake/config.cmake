@@ -299,3 +299,10 @@ set(USE_LIBBACKTRACE AUTO)
 # not be included in the final executable. This would make the corresponding
 # runtime functions to be unavailable to the program.
 set(BUILD_STATIC_RUNTIME OFF)
+
+
+# Caches the build so that building is faster when switching between branches.
+# If you switch branches, build and then encounter a linking error, you may
+# need to regenerate the build tree through "make .." (the cache will
+# still provide significant speedups).
+set(USE_CCACHE ON)

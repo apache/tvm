@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.2)
 project(tvm C CXX)
 
-# Utility functions
+#Utility functions
 include(cmake/utils/Utils.cmake)
 include(cmake/utils/FindCUDA.cmake)
 include(cmake/utils/FindOpenCL.cmake)
@@ -18,10 +18,10 @@ else()
   endif()
 endif()
 
-# NOTE: do not modify this file to change option values.
-# You can create a config.cmake at build folder
-# and add set(OPTION VALUE) to override these build options.
-# Alernatively, use cmake -DOPTION=VALUE through command-line.
+#NOTE : do not modify this file to change option values.
+#You can create a config.cmake at build folder
+#and add set(OPTION VALUE) to override these build options.
+#Alernatively, use cmake - DOPTION = VALUE through command - line.
 tvm_option(USE_CUDA "Build with CUDA" OFF)
 tvm_option(USE_OPENCL "Build with OpenCL" OFF)
 tvm_option(USE_VULKAN "Build with Vulkan" OFF)
@@ -50,7 +50,11 @@ tvm_option(USE_ETHOSN "Build with Arm Ethos-N" OFF)
 tvm_option(INDEX_DEFAULT_I64 "Defaults the index datatype to int64" ON)
 tvm_option(USE_LIBBACKTRACE "Build libbacktrace to supply linenumbers on stack traces" AUTO)
 tvm_option(BUILD_STATIC_RUNTIME "Build static version of libtvm_runtime" OFF)
+<<<<<<< HEAD
 tvm_option(USE_PAPI "Use Performance Application Programming Interface (PAPI) to read performance counters" OFF)
+=======
+tvm_option(USE_CCACHE "Cache the build so that building after switching branches is faster" ON)
+>>>>>>> c4efaf3c0... Add USE_CCACHE
 
 # 3rdparty libraries
 tvm_option(DLPACK_PATH "Path to DLPACK" "3rdparty/dlpack/include")
@@ -59,7 +63,7 @@ tvm_option(RANG_PATH "Path to RANG" "3rdparty/rang/include")
 tvm_option(COMPILER_RT_PATH "Path to COMPILER-RT" "3rdparty/compiler-rt")
 tvm_option(PICOJSON_PATH "Path to PicoJSON" "3rdparty/picojson")
 
-# Contrib library options
+#Contrib library options
 tvm_option(USE_BYODT_POSIT "Build with BYODT software emulated posit custom datatype" OFF)
 tvm_option(USE_BLAS "The blas library to be linked" none)
 tvm_option(USE_MKL "MKL root path when use MKL blas" OFF)
@@ -88,7 +92,7 @@ tvm_option(USE_TENSORRT_RUNTIME "Build with TensorRT runtime" OFF)
 tvm_option(USE_RUST_EXT "Build with Rust based compiler extensions, STATIC, DYNAMIC, or OFF" OFF)
 tvm_option(USE_VITIS_AI "Build with VITIS-AI Codegen support" OFF)
 
-# include directories
+#include directories
 include_directories(${CMAKE_INCLUDE_PATH})
 include_directories("include")
 include_directories(SYSTEM ${DLPACK_PATH})
@@ -97,24 +101,24 @@ include_directories(SYSTEM ${RANG_PATH})
 include_directories(SYSTEM ${COMPILER_RT_PATH})
 include_directories(SYSTEM ${PICOJSON_PATH})
 
-# initial variables
+#initial variables
 set(TVM_LINKER_LIBS "")
 set(TVM_RUNTIME_LINKER_LIBS "")
 
-# Generic compilation options
+#Generic compilation options
 if(MSVC)
   add_definitions(-DWIN32_LEAN_AND_MEAN)
   add_definitions(-D_CRT_SECURE_NO_WARNINGS)
   add_definitions(-D_SCL_SECURE_NO_WARNINGS)
   add_definitions(-D_ENABLE_EXTENDED_ALIGNED_STORAGE)
   add_definitions(-DNOMINMAX)
-  # regeneration does not work well with msbuild custom rules.
+#regeneration does not work well with msbuild custom rules.
   set(CMAKE_SUPPRESS_REGENERATION ON)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /bigobj")
 
-  # MSVC already errors on undefined symbols, no additional flag needed.
+#MSVC already errors on undefined symbols, no additional flag needed.
   set(TVM_NO_UNDEFINED_SYMBOLS "")
 
   if(USE_MSVC_MT)
@@ -122,31 +126,32 @@ if(MSVC)
         CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
         CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO)
       if(${flag_var} MATCHES "/MD")
-        string(REGEX REPLACE "/MD" "/MT" ${flag_var} "${${flag_var}}")
+        string(REGEX REPLACE "/MD" "/MT" ${
+  flag_var} "${${flag_var}}")
       endif(${flag_var} MATCHES "/MD")
     endforeach(flag_var)
   endif()
-  # Disable common MSVC warnings
-  # Integer conversion warnings(e.g. int64 to int)
+#Disable common MSVC warnings
+#Integer conversion warnings(e.g.int64 to int)
   add_compile_options(/wd4244)
   add_compile_options(/wd4267)
-  # Signed unsigned constant comparison
+#Signed unsigned constant comparison
   add_compile_options(/wd4018)
-  # Aligned alloc may not met(need c++17)
+#Aligned alloc may not met(need c++ 17)
   add_compile_options(/wd4316)
-  # unreferenced local variables(usually in exception catch)
+#unreferenced local variables(usually in exception catch)
   add_compile_options(/wd4101)
-  # always inline keyword not necessary
+#always inline keyword not necessary
   add_compile_options(/wd4180)
-  # DLL interface warning in c++
+#DLL interface warning in c++
   add_compile_options(/wd4251)
-  # destructor was implicitly defined as deleted
+#destructor was implicitly defined as deleted
   add_compile_options(/wd4624)
-  # unary minus operator applied to unsigned type, result still unsigned
+#unary minus operator applied to unsigned type, result still unsigned
   add_compile_options(/wd4146)
-  # 'inline': used more than once
+#'inline' : used more than once
   add_compile_options(/wd4141)
-  # unknown pragma
+#unknown pragma
   add_compile_options(/wd4068)
 else(MSVC)
   set(WARNING_FLAG -Wall)
@@ -170,9 +175,9 @@ else(MSVC)
     set(CMAKE_CXX_FLAGS "-faligned-new ${CMAKE_CXX_FLAGS}")
   endif()
 
-  # ld option to warn if symbols are undefined (e.g. libtvm_runtime.so
-  # using symbols only present in libtvm.so).  Not needed for MSVC,
-  # since this is already the default there.
+#ld option to warn if symbols are undefined(e.g.libtvm_runtime.so
+#using symbols only present in libtvm.so).Not needed for MSVC,
+#since this is already the default there.
   if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin" OR ${CMAKE_SYSTEM_NAME} MATCHES "iOS")
     set(TVM_NO_UNDEFINED_SYMBOLS "-Wl,-undefined,error")
   else()
@@ -180,13 +185,13 @@ else(MSVC)
   endif()
   message(STATUS "Forbidding undefined symbols in shared library, using ${TVM_NO_UNDEFINED_SYMBOLS} on platform ${CMAKE_SYSTEM_NAME}")
 
-  # Detect if we're compiling for Hexagon.
+#Detect if we're compiling for Hexagon.
   set(TEST_FOR_HEXAGON_CXX
       "#ifndef __hexagon__"
       "#error"
       "#endif"
       "int main() {}"
-      # Define _start_main to avoid linking errors with -fPIC.
+#Define _start_main to avoid linking errors with - fPIC.
       "extern \"C\" void _start_main() {}")
   set(TEST_FOR_HEXAGON_DIR
       "${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeTmp")
@@ -200,7 +205,7 @@ else(MSVC)
     message(STATUS "Building for Hexagon")
   endif()
 
-  # Detect if we're compiling for Android.
+#Detect if we're compiling for Android.
   set(TEST_FOR_ANDROID_CXX
       "#ifndef __ANDROID__"
       "#error"
@@ -219,24 +224,24 @@ else(MSVC)
   endif()
 endif(MSVC)
 
-# Hexagon has dlopen built into QuRT (no need for static library).
+#Hexagon has dlopen built into QuRT(no need for static library).
 if(NOT BUILD_FOR_HEXAGON)
   list(APPEND TVM_RUNTIME_LINKER_LIBS ${CMAKE_DL_LIBS})
 endif()
 
 if(BUILD_FOR_ANDROID)
-  # EmuTLS on Android is in libgcc. Without it linked in, libtvm_runtime.so
-  # won't load on Android due to missing __emutls_XXX symbols.
+#EmuTLS on Android is in libgcc.Without it linked in, libtvm_runtime.so
+#won't load on Android due to missing __emutls_XXX symbols.
   list(APPEND TVM_RUNTIME_LINKER_LIBS "gcc")
 endif()
 
-# add source group
+#add source group
 FILE(GLOB_RECURSE GROUP_SOURCE "src/*.cc")
 FILE(GLOB_RECURSE GROUP_INCLUDE "src/*.h" "include/*.h")
 assign_source_group("Source" ${GROUP_SOURCE})
 assign_source_group("Include" ${GROUP_INCLUDE})
 
-# Source file lists
+#Source file lists
 file(GLOB_RECURSE COMPILER_SRCS
     src/auto_scheduler/*.cc
     src/node/*.cc
@@ -654,4 +659,12 @@ if(APPLE AND TVM_IS_DEBUG_BUILD)
       COMMENT "Running dsymutil"
       VERBATIM
 		  )
+endif()
+
+if(USE_CCACHE)
+  find_program(CCACHE_FOUND ccache)
+  if(CCACHE_FOUND)
+    message(STATUS "Enabling ccache")
+    set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ccache)
+  endif(CCACHE_FOUND)
 endif()
