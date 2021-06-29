@@ -60,7 +60,7 @@ def matmul(
     output : tvm.te.Tensor
         2-D with shape [batch, out_dim]
     """
-    assert len(tensor_a.shape) == 2, "only support 2-dim dense"
+    assert len(tensor_a.shape) == 2, "only support 2-dim matmul"
     if bias is not None:
         assert len(bias.shape) == 1
     if out_dtype is None:
@@ -100,6 +100,7 @@ def matmul(
             tensor_a[i, k].astype(out_dtype) * tensor_b[j, k].astype(out_dtype), axis=k
         )
         compute_name = "T_matmul_NT"
+        # TODO(jcf94): Remove `dense` when `matmul` is finally ready
         compute_tag = "dense"
     else:  # (transpose_a, transpose_b) == (False, False):
         compute_lambda = lambda i, j: te.sum(

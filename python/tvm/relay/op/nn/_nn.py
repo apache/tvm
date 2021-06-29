@@ -1199,9 +1199,7 @@ def _matmul_shape_func(tensor_a_shape, tensor_b_shape, transpose_a, transpose_b)
 
 @reg.register_shape_func("nn.matmul", False)
 def matmul_shape_func(attrs, inputs, _):
-    """
-    Shape function for matmul op.
-    """
+    """Shape function for matmul op."""
     ret = [
         _matmul_shape_func(
             inputs[0],
@@ -1215,8 +1213,8 @@ def matmul_shape_func(attrs, inputs, _):
 
 @reg.register_shape_func("nn.dense", False)
 def dense_shape_func(attrs, inputs, _):
-    """
-    Shape function for dense op.
+    """Shape function for dense op. This is an alias of matmul_nt operator for data tensor in
+    non-transposed format and weight tensor in transposed format.
     """
     ret = [
         _matmul_shape_func(
