@@ -419,6 +419,11 @@ TVM_DLL Pass ConvertBlocksToOpaque();
 TVM_DLL Pass CompactBufferAllocation();
 
 /*!
+ * This pass legalizes packed calls by wrapping their arguments into TVMValues
+ */
+TVM_DLL Pass LegalizePackedCalls();
+
+/*!
  * \brief Flatten the multi-dimensional BufferLoad and BufferStore
  *        to single dimensional Load/Store. Also remove Block to
  *        ensure that the flattened TIR can not be scheduled again.
