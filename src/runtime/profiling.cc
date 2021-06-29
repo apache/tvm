@@ -442,19 +442,20 @@ Report Profiler::Report(bool aggregate, bool sort) {
   }
 
   // the last couple of call frames are the overall times
-  double overall_time = 0;
+  double overall_time_us = 0;
   std::unordered_map<String, Map<String, ObjectRef>> device_metrics;
   for (size_t i = 0; i < devs_.size(); i++) {
     auto row = rows[rows.size() - 1];
     rows.pop_back();
     device_metrics[Downcast<String>(row["Device"])] = row;
-    overall_time = std::max(overall_time, row["Duration (us)"].as<DurationNode>()->microseconds);
+    overall_time_us =
+        std::max(overall_time_us, row["Duration (us)"].as<DurationNode>()->microseconds);
   }
 
   // Calculate percentages
   for (auto& row : rows) {
     row["Percent"] = ObjectRef(make_object<PercentNode>(
-        row["Duration (us)"].as<DurationNode>()->microseconds / overall_time * 100));
+        row["Duration (us)"].as<DurationNode>()->microseconds / overall_time_us * 100));
   }
 
   // convert to map

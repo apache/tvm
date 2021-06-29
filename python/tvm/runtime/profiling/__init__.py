@@ -70,16 +70,15 @@ if _ffi.get_global_func("runtime.profiling.PAPIMetricCollector", allow_missing=T
         Application Programming Interface (PAPI).
         """
 
-        def __init__(
-            self, metric_names: Dict[Device, Sequence[str]] = {}
-        ):  # pylint: disable=dangerous-default-value
+        def __init__(self, metric_names: Optional[Dict[Device, Sequence[str]]] = None):
             """
             Parameters
             ----------
-            metric_names : Dict[Device, Sequence[str]]
+            metric_names : Optional[Dict[Device, Sequence[str]]]
                 List of per-device metrics to collect. You can find a list of valid
                 metrics by runing `papi_native_avail` from the command line.
             """
+            metric_names = {} if metric_names is None else metric_names
             wrapped = dict()
             for dev, names in metric_names.items():
                 wrapped[DeviceWrapper(dev)] = names

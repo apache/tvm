@@ -268,13 +268,13 @@ class GraphModuleDebug(graph_executor.GraphModule):
         ret = self._run_individual(number, repeat, min_repeat_ms)
         return ret.strip(",").split(",") if ret else []
 
-    def profile(self, collectors=[], **input_dict):  # pylint: disable=dangerous-default-value
+    def profile(self, collectors=None, **input_dict):
         """Run forward execution of the graph and collect overall and per-op
         performance metrics.
 
         Parameters
         ----------
-        collectors : Sequence[MetricCollector]
+        collectors : Optional[Sequence[MetricCollector]]
             Extra metrics to collect.
 
         input_dict : dict of str to NDArray
@@ -285,6 +285,7 @@ class GraphModuleDebug(graph_executor.GraphModule):
         timing_results : str
             Per-operator and whole graph timing results in a table format.
         """
+        collectors = [] if collectors is None else collectors
         if input_dict:
             self.set_input(**input_dict)
 
