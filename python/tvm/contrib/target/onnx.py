@@ -347,7 +347,12 @@ class Pad(OpConverter):
             after.append(axis_pads[1])
         pads = before + after
         pads = numpy.asarray(pads, dtype=pads[0].dtype)
-        return {"pads": pads, "mode": attrs.get_str("pad_mode"), "constant_value": attrs.pad_value}
+        return {
+            "pads": pads,
+            "mode": attrs.get_str("pad_mode"),
+            #"constant_value": float(attrs.get_str("pad_value")),
+            "constant_value": 0,
+        }
 
     @classmethod
     def convert(cls, node_entry, model_container, node_dict):
@@ -367,7 +372,12 @@ class Pad(OpConverter):
             add_input(value, name, "value", model_container),
         ]
 
-        node = onnx.helper.make_node(cls.__name__, input_names, node_entry["output_names"])
+        node = onnx.helper.make_node(
+            cls.__name__,
+            input_names,
+            node_entry["output_names"],
+            mode=attrs["mode"]
+        )
         model_container.add_nodes([node])
 
 
