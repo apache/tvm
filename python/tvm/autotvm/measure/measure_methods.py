@@ -639,8 +639,8 @@ def default_module_loader(pre_load_function=None):
 
     Returns
     -------
-    ModuleLoader :
-        A function that can be passed as module_loader to run_through_rpc.
+    DefaultModuleLoader :
+        A callable that can be passed as module_loader to run_through_rpc.
     """
 
     # This was a function with a closure before but that couldn't be pickled!
