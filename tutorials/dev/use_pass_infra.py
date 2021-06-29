@@ -268,7 +268,7 @@ seq = tvm.transform.Sequential(
 #
 # There is a more flexible debugging mechanism. One can implement a ``PassInstrument``
 # class to execute arbitrary code not only before and/or after each pass but also
-# at entering/exiting ``PassContext``. See :ref:`pass_instrument_section_tag`
+# at entering/exiting ``PassContext``. See :ref:`pass_instrument_cpp_backend`
 # for more details.
 #
 # Here we use :py::func`tvm.instrument.pass_instrument` decorator to implement
