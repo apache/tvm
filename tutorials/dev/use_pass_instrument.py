@@ -23,11 +23,12 @@ How to Use TVM Pass Instrument
 **Author**: `Chi-Wei Wang <https://github.com/chiwwang>`_
 
 As more and more passes are implemented, it becomes useful to instrument
-passes execution, analyze per-pass effects and observe various events.
-Pass infrastructure provides instrument mechanism. One can pass a list of
-instrument instances to :py:class:`tvm.transform.PassContext`.
-Also a decorator :py:func:`tvm.instrument.pass_instrument` is provided
-to easily implement instrument classes.
+pass execution, analyze per-pass effects, and observe various events.
+
+We can instrument passes by providing a list of :py:class:`tvm.ir.instrument.PassInstrument`
+instances to :py:class:`tvm.transform.PassContext`. We provide a pass instrument
+for collecting timing information (:py:class:`tvm.ir.instrument.PassTimingInstrument`),
+but an extension mechanism is available via the :py:func:`tvm.instrument.pass_instrument` decorator.
 
 This tutorial demostrates how developers can use ``PassContext`` to instrument
 passes. Please also refer to the :ref:`pass-infra`.
@@ -52,21 +53,23 @@ num_of_image_class = 1000
 image_shape = (3, 224, 224)
 output_shape = (batch_size, num_of_image_class)
 relay_mod, relay_params = resnet.get_workload(num_layers=18, batch_size=1, image_shape=image_shape)
+print("Printing the IR module...")
 print(relay_mod.astext(show_meta_data=False))
 
 
 ###############################################################################
 # Create PassContext With Instruments
 # -----------------------------------
-# It is as simple as passing ``instruments`` argument to ``PassContext`` constructor.
-# A built-in ``PassTimingInstrument`` is used to profile the execution time of
-# each passes.
+# To run all passes with an instrument, pass it via the ``instruments`` argument to
+# the ``PassContext`` constructor. A built-in ``PassTimingInstrument`` is used to
+# profile the execution time of each passes.
 timing_inst = PassTimingInstrument()
 with tvm.transform.PassContext(instruments=[timing_inst]):
     relay_mod = relay.transform.InferType()(relay_mod)
     relay_mod = relay.transform.FoldScaleAxis()(relay_mod)
     # before exiting the context, get profile results.
     profiles = timing_inst.render()
+print("Printing results of timing profile...")
 print(profiles)
 
 
@@ -84,11 +87,12 @@ cur_pass_ctx.override_instruments([timing_inst])
 relay_mod = relay.transform.InferType()(relay_mod)
 relay_mod = relay.transform.FoldScaleAxis()(relay_mod)
 profiles = timing_inst.render()
+print("Printing results of timing profile...")
 print(profiles)
 
 
 ###############################################################################
-# Register empty list to clear instruments.
+# Register empty list to clear existing instruments.
 #
 # Note that ``exit_pass_ctx`` of ``PassTimingInstrument`` is called.
 # Profiles are cleared so nothing is printed.
@@ -101,13 +105,14 @@ cur_pass_ctx.override_instruments([])
 ###############################################################################
 # Create Customized Instrument Class
 # ----------------------------------
-# A customized instrument class can be easily created by
+# A customized instrument class can be created using the
 # :py:func:`tvm.instrument.pass_instrument` decorator.
 #
-# Let's create an instrument class which calculate the difference of ``CallNode``
-# counting per ``op.name`` before and after passes.
+# Let's create an instrument class which calculates the change in number of
+# occurrences of each operator caused by each pass. We can look at ``op.name`` to
+# find the name of each operator. And we do this before and after passes to calculate the difference.
 
-# decorate the class
+
 @pass_instrument
 class RelayCallNodeDiffer:
     def __init__(self):
@@ -149,26 +154,26 @@ class RelayCallNodeDiffer:
 
     @staticmethod
     def _count_nodes(mod):
+        """Count the number of occurrences of each operator in the module"""
         ret = {}
 
         def visit(node):
             if isinstance(node, relay.expr.Call):
-                try:
+                if hasattr(node.op, "name"):
                     op_name = node.op.name
-                except AttributeError:
+                else:
                     # Some CallNode may not have 'name' such as relay.Function
                     return
-                try:
-                    ret[op_name] += 1
-                except KeyError:
-                    ret[op_name] = 1
+                ret[op_name] = ret.get(op_name, 0) + 1
 
         relay.analysis.post_order_visit(mod["main"], visit)
         return ret
 
     @staticmethod
     def _diff(d_after, d_before):
-        # d_after - d_before
+        """Calculate the difference of two dictionary along their keys.
+        The result is values in d_after minus values in d_before.
+        """
         ret = {}
         key_after, key_before = set(d_after), set(d_before)
         for k in key_before & key_after:
@@ -185,13 +190,7 @@ class RelayCallNodeDiffer:
 ###############################################################################
 # Apply Passes and Multiple Instrument Classes
 # --------------------------------------------
-# Apply any pass you wish. Here :py:class:`tvm.relay.transform.ConvertLayout`
-# and :py:class:`tvm.relay.transform.FoldConstant` are used.
-#
-# ``ConvertLayout`` might add ``layout_transform`` Op while ``FoldConstant`` can
-# reduce the number of ``CallNode``.
-#
-# We can also use multiple instrument classes in a ``PassContext``.
+# We can use multiple instrument classes in a ``PassContext``.
 # However, it should be noted that instrument methods are executed sequentially,
 # obeying the order of ``instruments`` argument.
 # So for instrument classes like ``PassTimingInstrument``, it is inevitable to
@@ -201,11 +200,6 @@ call_node_inst = RelayCallNodeDiffer()
 desired_layouts = {
     "nn.conv2d": ["NHWC", "HWIO"],
 }
-# Because layout_transform may be added as a successor of Constant,
-# we run FoldConstant twice.
-# Though it is obvious only the FoldConstant after the ConvertLayout matter,
-# we want to show how many layout_transform is added as a successor of
-# Constant.
 pass_seq = tvm.transform.Sequential(
     [
         relay.transform.FoldConstant(),
@@ -213,7 +207,6 @@ pass_seq = tvm.transform.Sequential(
         relay.transform.FoldConstant(),
     ]
 )
-# bind parameters to make VarNode as ConstantNode.
 relay_mod["main"] = bind_params_by_name(relay_mod["main"], relay_params)
 # timing_inst is put after call_node_inst.
 # So the execution time of ``call_node.inst.run_after_pass()`` is also counted.
@@ -228,15 +221,16 @@ with tvm.transform.PassContext(opt_level=3, instruments=[call_node_inst, timing_
 # We can see how many CallNode increase/decrease per op type.
 from pprint import pprint
 
+print("Printing the change in number of occurrences of each operator caused by each pass...")
 pprint(call_node_inst.get_pass_to_op_diff())
 
 
 ###############################################################################
 # Exception Handling
 # ------------------
-# Let's see what happen if exceptions occur in each methods of a ``PassInstrument``.
+# Let's see what happens if an exception occurs in a method of a ``PassInstrument``.
 #
-# Define ``PassInstrument`` classes  which raise exceptions in enter/exit ``PassContext``:
+# Define ``PassInstrument`` classes which raise exceptions in enter/exit ``PassContext``:
 class PassExampleBase:
     def __init__(self, name):
         self._name = name
@@ -278,8 +272,8 @@ class PassBadExitCtx(PassExampleBase):
 
 
 ###############################################################################
-# If an exception occur in ``enter_pass_ctx``, ``PassContext`` disable the pass
-# instrumentation. And it will run ``exit_pass_ctx`` of each ``PassInstrument``
+# If an exception occurs in ``enter_pass_ctx``, ``PassContext`` will disable the pass
+# instrumentation. And it will run the ``exit_pass_ctx`` of each ``PassInstrument``
 # which successfully finished ``enter_pass_ctx``.
 #
 # In following example, we can see ``exit_pass_ctx`` of `PassFine_0` is executed after exception.
@@ -297,13 +291,13 @@ except ValueError as ex:
     print("Catching", str(ex).split("\n")[-1])
 
 ###############################################################################
-# Also, all ``PassInstrument`` are cleared.
-# So nothing printed while ``override_instruments`` is called.
+# Exceptions in ``PassInstrument`` instances cause all instruments of the current ``PassContext``
+# to be cleared, so nothing is printed when ``override_instruments`` is called.
 demo_ctx.override_instruments([])  # no PassFine_0 exit_pass_ctx printed....etc
 
 ###############################################################################
-# If an exception occur in ``exit_pass_ctx``, pass instrumentation is disabled.
-# Then exception is thrown. That means ``PassInstrument`` registered
+# If an exception occurs in ``exit_pass_ctx``, then the pass instrument is disabled.
+# Then exception is propagated. That means ``PassInstrument`` instances registered
 # after the one throwing the exception do not execute ``exit_pass_ctx``.
 demo_ctx = tvm.transform.PassContext(
     instruments=[
@@ -321,8 +315,8 @@ except ValueError as ex:
 
 ###############################################################################
 # Exceptions occured in ``should_run``, ``run_before_pass``, ``run_after_pass``
-# are not handled explicitly -- that means, we rely on the context manager
-# (the ``with`` syntax) to exit ``PassContext`` safely.
+# are not handled explicitly -- we rely on the context manager (the ``with`` syntax)
+# to exit ``PassContext`` safely.
 #
 # We use ``run_before_pass`` as an example:
 @pass_instrument

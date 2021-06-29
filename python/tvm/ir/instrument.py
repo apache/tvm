@@ -93,7 +93,6 @@ def pass_instrument(pi_cls=None):
 
     Examples
     --------
-    The following code block shows how to decorate a pass instrument class.
 
     .. code-block:: python
 
@@ -157,8 +156,6 @@ class PassTimingInstrument(tvm.runtime.Object):
 
         Examples
         --------
-
-        The following code-block shows how to use this instrument.
 
         .. code-block:: python
 
