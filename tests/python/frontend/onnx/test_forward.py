@@ -2675,9 +2675,9 @@ def test_convtranspose():
     def repeat(N, D):
         return tuple([N for _ in range(D)])
 
-    # TODO(mbrookhart): onnxruntime in CI only supports 2D,
-    # find something else to test 1D and 3D against
-    for D in [1, 2, 3]:
+    # TODO(mbrookhart): onnxruntime in CI only supports 2D, and 1D and 3D
+    # Once onnxruntime update is complete
+    for D in [2]:
         # Convolution with padding
         verify_convtranspose_with_padding(
             (1, 1) + repeat(5, D),
