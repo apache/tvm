@@ -68,9 +68,7 @@ def matmul_cublas(
     transpose_b=False,
 ):
     """Matmul operator on CUDA with CUBLAS"""
-    return _matmul_cublas_common(
-        cfg, tensor_a, tensor_b, bias, out_dtype, transpose_a, transpose_b
-    )
+    return _matmul_cublas_common(cfg, tensor_a, tensor_b, bias, out_dtype, transpose_a, transpose_b)
 
 
 @autotvm.register_topi_schedule("matmul_cublas.cuda")
@@ -81,7 +79,7 @@ def schedule_matmul_cublas(_, outs):
 
 @autotvm.register_topi_compute("dense_cublas.cuda")
 def dense_cublas(cfg, data, weight, bias=None, out_dtype=None):
-    """Dense operator on CUDA with CUBLAS"""
+    """Dense operator on CUDA with CUBLAS. This is an alias of matmul_nt operator."""
     return _matmul_cublas_common(cfg, data, weight, bias, out_dtype, False, True)
 
 

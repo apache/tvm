@@ -319,7 +319,7 @@ def schedule_matmul_blas_common(outs):
 
 @autotvm.register_topi_compute("dense_cblas.x86")
 def dense_cblas(cfg, data, weight, bias=None, out_dtype=None):
-    """Compute dense using a cblas"""
+    """Compute dense using cblas. This is an alias of matmul_nt operator."""
     return matmul_blas_common(cfg, data, weight, bias, out_dtype, False, True, cblas)
 
 
@@ -331,7 +331,7 @@ def schedule_dense_cblas(_, outs):
 
 @autotvm.register_topi_compute("dense_mkl.x86")
 def dense_mkl(cfg, data, weight, bias=None, out_dtype=None):
-    """Compute dense using mkl"""
+    """Compute dense using mkl. This is an alias of matmul_nt operator."""
     return matmul_blas_common(cfg, data, weight, bias, out_dtype, False, True, mkl)
 
 
@@ -343,7 +343,7 @@ def schedule_dense_mkl(_, outs):
 
 @autotvm.register_topi_compute("dense_mkldnn.x86")
 def dense_mkldnn(cfg, data, weight, bias=None, out_dtype=None):
-    """Compute dense using mkldnn"""
+    """Compute dense using mkldnn. This is an alias of matmul_nt operator."""
     return matmul_blas_common(cfg, data, weight, bias, out_dtype, False, True, mkldnn)
 
 
@@ -357,7 +357,7 @@ def schedule_dense_mkldnn(_, outs):
 def matmul_cblas(
     cfg, tensor_a, tensor_b, bias=None, out_dtype=None, transpose_a=False, transpose_b=False
 ):
-    """Compute matmul using a cblas"""
+    """Compute matmul using cblas."""
     return matmul_blas_common(
         cfg, tensor_a, tensor_b, bias, out_dtype, transpose_a, transpose_b, cblas
     )
@@ -373,7 +373,7 @@ def schedule_matmul_cblas(_, outs):
 def matmul_mkl(
     cfg, tensor_a, tensor_b, bias=None, out_dtype=None, transpose_a=False, transpose_b=False
 ):
-    """Compute matmul using mkl"""
+    """Compute matmul using mkl."""
     return matmul_blas_common(
         cfg, tensor_a, tensor_b, bias, out_dtype, transpose_a, transpose_b, mkl
     )
@@ -389,7 +389,7 @@ def schedule_matmul_mkl(_, outs):
 def matmul_mkldnn(
     cfg, tensor_a, tensor_b, bias=None, out_dtype=None, transpose_a=False, transpose_b=False
 ):
-    """Compute matmul using mkldnn"""
+    """Compute matmul using mkldnn."""
     return matmul_blas_common(
         cfg, tensor_a, tensor_b, bias, out_dtype, transpose_a, transpose_b, mkldnn
     )

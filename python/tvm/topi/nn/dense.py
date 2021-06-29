@@ -154,6 +154,8 @@ def matmul_legalize(attrs, inputs, types):
 
 def dense(data, weight, bias=None, out_dtype=None, auto_scheduler_rewritten_layout=""):
     """The default implementation of dense in topi.
+    This is an alias of matmul operator for data tensor in non-transposed format and weight tensor
+    in transposed format.
 
     Parameters
     ----------

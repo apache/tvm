@@ -700,7 +700,7 @@ def conv1d_transpose_strategy_cuda(attrs, inputs, out_type, target):
 
 @matmul_strategy.register(["cuda", "gpu"])
 def matmul_strategy_cuda(attrs, inputs, out_type, target):
-    """Matmul cuda strategy"""
+    """Matmul cuda strategy."""
     strategy = _op.OpStrategy()
 
     if is_auto_scheduler_enabled():
@@ -710,7 +710,9 @@ def matmul_strategy_cuda(attrs, inputs, out_type, target):
             name="matmul.cuda",
         )
     else:
-        logger.warning("Matmul other than NT format is not optimized for cuda.")
+        logger.warning(
+            "Matmul is not optimized for cuda. Recommend to use cublas for better performance."
+        )
         # Temporary use this as a basic schedule
         strategy.add_implementation(
             wrap_compute_matmul(topi.cuda.matmul_default_cuda),

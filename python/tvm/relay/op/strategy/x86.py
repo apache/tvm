@@ -382,7 +382,10 @@ def matmul_strategy_cpu(attrs, inputs, out_type, target):
             plevel=11,
         )
     else:
-        logger.warning("Matmul other than NT format is not optimized for x86.")
+        logger.warning(
+            "Matmul is not optimized for x86. "
+            "Recommend to use cblas/mkl/mkldnn for better performance."
+        )
         strategy.add_implementation(
             wrap_compute_matmul(topi.nn.matmul),
             naive_schedule,

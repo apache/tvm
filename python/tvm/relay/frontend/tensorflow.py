@@ -46,11 +46,12 @@ __all__ = ["from_tensorflow"]
 
 # The default configurations of Relay TensorFlow frontend.
 TF_DEFAULT_CONFIGS = {
-  # By default, TVM converts `tf.matmul` to `transpose(weight) + nn.dense`, which introduces
-  # unnecessary overhead in weight transpose. Change this flag to False to directly convert to
-  # `nn.matmul` to get rid of the overhead.
-  # However, please note that `nn.matmul` is in experimental so it may have some performance issues.
-  "use_dense": True,
+    # By default, TVM converts `tf.matmul` to `transpose(weight) + nn.dense`, which introduces
+    # unnecessary overhead in weight transpose. Change this flag to False to directly convert to
+    # `nn.matmul` to get rid of the overhead.
+    # However, please note that `nn.matmul` is in experimental so it may have some performance
+    # issues.
+    "use_dense": True,
 }
 
 # compatible operators that do NOT require any conversion.
