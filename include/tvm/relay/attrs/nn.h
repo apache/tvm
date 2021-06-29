@@ -979,11 +979,11 @@ struct MatmulAttrs : public tvm::AttrsNode<MatmulAttrs> {
 
     TVM_ATTR_FIELD(transpose_a)
         .set_default(false)
-        .describe("Whether the input tensor is in transposed format.");
+        .describe("Whether the first input tensor is in transposed format.");
 
     TVM_ATTR_FIELD(transpose_b)
         .set_default(false)
-        .describe("Whether the weight tensor is in transposed format.");
+        .describe("Whether the second input tensor is in transposed format.");
   }
 };
 
