@@ -18,14 +18,11 @@
 """
 import numpy as np
 import tvm
-from tvm import te
+import tvm.testing
 import tvm.topi.testing
-from tvm import relay
+from tvm import relay, te, topi
 from tvm.relay import transform
 from tvm.relay.testing import run_infer_type
-from tvm import topi
-import tvm.topi.testing
-import tvm.testing
 
 
 @tvm.testing.uses_gpu
@@ -608,7 +605,7 @@ def test_nll_loss(dev, target):
         for kind in ["graph", "debug"]:
             intrp = relay.create_executor(kind, device=dev, target=target)
             out_relay = intrp.evaluate(func)(predictions_np, targets_np, weights_np)
-            tvm.testing.assert_allclose(out_relay.asnumpy(), out_np, rtol=1e-4, atol=1e-5)
+            tvm.testing.assert_allclose(out_relay.asnumpy(), out_np, rtol=1e-6, atol=1e-6)
 
     _verify((10, 5))
     _verify((10, 5, 2, 2))
