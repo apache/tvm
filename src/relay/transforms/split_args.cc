@@ -57,12 +57,12 @@ class ArgumentSplitter : public ExprRewriter {
           args.push_back(op->fields[j + startIdx]);
         }
         Tuple tuple(args);
-        Expr body = Concat(tuple, param->axis);
+        Expr body = MakeConcatenate(tuple, param->axis);
         splitted[i] = StopFusion(body);
       }
       tvm::Array<Expr> tupleArgs(splitted);
       Tuple tuple(tupleArgs);
-      return Concat(tuple, param->axis);
+      return MakeConcatenate(tuple, param->axis);
     }
     return post;
   }

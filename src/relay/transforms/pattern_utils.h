@@ -700,13 +700,6 @@ Expr StopFusion(Expr data);
 
 Expr CastHint(Expr data, DataType dtype);
 
-inline Expr Concat(Expr x, int axis = 0) {
-  static const Op& op = Op::Get("concatenate");
-  auto attrs = make_object<ConcatenateAttrs>();
-  attrs->axis = axis;
-  return Call(op, {x}, Attrs(attrs), {});
-}
-
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_TRANSFORMS_PATTERN_UTILS_H_
