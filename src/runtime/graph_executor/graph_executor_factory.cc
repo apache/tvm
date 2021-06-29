@@ -53,6 +53,10 @@ PackedFunc GraphExecutorFactory::GetFunction(
       }
       *rv = this->ExecutorCreate(devices);
     });
+  } else if (name == "get_json") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      *rv = this->graph_json_;
+    });
   } else if (name == "debug_create") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       ICHECK_GE(args.size(), 2);
