@@ -350,8 +350,6 @@ class Pad(OpConverter):
         return {
             "pads": pads,
             "mode": attrs.get_str("pad_mode"),
-            #"constant_value": float(attrs.get_str("pad_value")),
-            "constant_value": 0,
         }
 
     @classmethod
@@ -363,20 +361,16 @@ class Pad(OpConverter):
         attrs = cls.convert_attributes(node_entry["relay_node"].attrs)
 
         name = node_entry["name"]
-        data = numpy.asarray(attrs["pads"], dtype=attrs["pads"][0].dtype).astype(numpy.int64)
-        value = numpy.dtype(node_entry["types"][0].dtype).type(attrs["constant_value"])
+        pad_data = numpy.asarray(attrs["pads"], dtype=attrs["pads"][0].dtype).astype(numpy.int64)
 
         input_names = [
             node_entry["input_names"][0],
-            add_input(data, name, "pads", model_container),
-            add_input(value, name, "value", model_container),
+            add_input(pad_data, name, "pads", model_container),
+            node_entry["input_names"][1],
         ]
 
         node = onnx.helper.make_node(
-            cls.__name__,
-            input_names,
-            node_entry["output_names"],
-            mode=attrs["mode"]
+            cls.__name__, input_names, node_entry["output_names"], mode=attrs["mode"]
         )
         model_container.add_nodes([node])
 
