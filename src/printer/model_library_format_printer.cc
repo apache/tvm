@@ -59,7 +59,7 @@ class ModelLibraryFormatPrinter : public ::tvm::runtime::ModuleNode {
           [sptr_to_self, this](ObjectRef node) { return Print(node); });
     } else if (name == "get_var_name") {
       return TypedPackedFunc<TVMRetValue(tir::Var)>(
-        [sptr_to_self, this](tir::Var var) { return GetVarName(var); });
+          [sptr_to_self, this](tir::Var var) { return GetVarName(var); });
     } else {
       return PackedFunc();
     }
