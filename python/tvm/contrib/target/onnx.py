@@ -139,6 +139,20 @@ class Conv(OpConverter):
         }
 
 
+class ConvTranspose(OpConverter):
+    """Operator converter for ConvTranspose."""
+
+    @classmethod
+    def convert_attributes(cls, attrs):
+        return {
+            "group": attrs.get_int("groups"),
+            "pads": attrs.get_int_tuple("padding"),
+            "strides": attrs.get_int_tuple("strides"),
+            "dilations": attrs.get_int_tuple("dilation"),
+            "kernel_shape": attrs.get_int_tuple("kernel_size"),
+            "output_padding": attrs.get_int_tuple("output_padding"),
+        }
+
 class MaxPool(OpConverter):
     """Operator converter for MaxPool."""
 
@@ -646,6 +660,7 @@ class Cast(OpConverter):
 relay_to_onnx_op_mapping = {
     "reshape": Reshape,
     "nn.conv2d": Conv,
+    "nn.conv2d_transpose": ConvTranspose,
     "add": rename("Add"),
     "nn.relu": rename("Relu"),
     "transpose": Transpose,
