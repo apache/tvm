@@ -198,8 +198,7 @@ class Target(Object):
                 new_target[tgt] = mod
             target = new_target
         else:
-            target = Target(target)
-            target.host = host
+            target = Target(target, host)
             host = target.host
         return target, host
 
