@@ -16,7 +16,7 @@
 # under the License.
 """RPC Tracker, tracks and distributes the TVM RPC resources.
 
-This folder implemements the tracker server logic.
+This folder implements the tracker server logic.
 
 Note
 ----

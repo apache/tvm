@@ -36,7 +36,7 @@ v0.7 brings many major features. The community works together to refactor the in
 * Intial Hexagon support
 * Bring your own codegen (BYOC) support
 
-The community also continues to bring high quality improvements to the existing modules including, but not limited to: better frontend coverage, performance, quantization, uTVM and dynamic shape support.
+The community also continues to bring high quality improvements to the existing modules including, but not limited to: better frontend coverage, performance, quantization, microTVM and dynamic shape support.
 
 ## New Features
 ### Automatic Scheduling (Experimental)

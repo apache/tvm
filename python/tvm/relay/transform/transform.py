@@ -28,6 +28,7 @@ from tvm import relay, te
 from tvm.runtime import ndarray as _nd
 
 from . import _ffi_api
+from ..backend.utils import mangle_module_name
 
 
 def build_config(opt_level=2, required_pass=None, disabled_pass=None, trace=None):
@@ -713,7 +714,7 @@ def LambdaLift():
     return _ffi_api.LambdaLift()
 
 
-def PartitionGraph():
+def PartitionGraph(mod_name="default"):
     """Partition a Relay program into regions that can be executed on different
     backends.
 
@@ -722,7 +723,8 @@ def PartitionGraph():
     ret: tvm.transform.Pass
         The registered pass that partitions the Relay program.
     """
-    return _ffi_api.PartitionGraph()
+    mod_name = mangle_module_name(mod_name)
+    return _ffi_api.PartitionGraph(mod_name)
 
 
 def AnnotateTarget(targets, include_non_call_ops=True):
@@ -1177,18 +1179,20 @@ def FakeQuantizationToInteger():
     """
     Find regions of the graph of the form
 
-    x    w
-    |    |
-    dq   dq
-     \   /
-      op1
-       |
-      op2
-       |
-       q
+    .. code-block:: text
 
-    where q == qnn.quantize and dq = qnn.dequantize
-    and rewrite them into integer versions of op1 and op2
+        x    w
+        |    |
+        dq   dq
+         \   /
+          op1
+           |
+          op2
+           |
+           q
+
+    where ``q == qnn.quantize`` and ``dq = qnn.dequantize``
+    and rewrite them into integer versions of ``op1`` and ``op2``
 
     Rules for rewriting indivdual ops are in fake_quantization_to_integer.py
 

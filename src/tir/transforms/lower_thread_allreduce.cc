@@ -425,7 +425,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     while (reduce_align > 1) {
       reduce_align = reduce_align >> 1;
       in_warp_seq.emplace_back(freduce(reduce_align));
-      seq.emplace_back(SyncThread("warp"));
+      in_warp_seq.emplace_back(SyncThread("warp"));
     }
     if (in_warp_seq.size() != 0) {
       Stmt warp_body = SeqStmt::Flatten(in_warp_seq);

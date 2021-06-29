@@ -429,6 +429,23 @@ def test_no_duplication():
     assert counts["nn.dense"] == 3, "We expect 3 dense (1 forward, two backward)"
 
 
+def test_no_duplication_tuples():
+    x = tvm.relay.Var("x", type_annotation=tvm.relay.TensorType([12, 12]))
+    y = tvm.relay.Var("y", type_annotation=tvm.relay.TensorType([12, 12]))
+    xy = tvm.relay.nn.dense(x, y)
+
+    t = relay.Tuple([xy, xy])
+
+    m = tvm.relay.sum(xy, keepdims=True)
+    s = tvm.relay.sum(relay.TupleGetItem(t, 0) - m)
+    fn = tvm.relay.Function([x, y], s)
+    fn = run_infer_type(fn)
+    gr = tvm.relay.transform.gradient(fn, mode="first_order")
+
+    counts = count_ops(gr)
+    assert counts["nn.dense"] == 3, "We expect 3 dense (1 forward, two backward)"
+
+
 def test_global_function():
     m = tvm.IRModule()
     shape = (10, 10)

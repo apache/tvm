@@ -86,5 +86,38 @@ def test_less_equal_grad():
     check_grad(fwd_func, inputs=inputs, test_inputs=inputs, eps=1e-6)
 
 
+def test_not_equal_grad():
+    x_type = relay.TensorType((2, 3, 4), "float32")
+    y_type = relay.TensorType((3, 1), "float32")
+    # We need to generate inputs far apart to get correct numerical gradients
+    # (otherwise adding epsilon may change comparison result). The gradient
+    # should always be zero for both inputs.
+    inputs = [
+        np.random.choice([-1, 1], size=x_type.concrete_shape).astype(x_type.dtype),
+        np.random.choice([-2, 2], size=y_type.concrete_shape).astype(y_type.dtype),
+    ]
+
+    x = relay.var("x", type_annotation=x_type)
+    y = relay.var("y", type_annotation=y_type)
+    fwd_func = relay.Function([x, y], relay.not_equal(x, y))
+    check_grad(fwd_func, inputs=inputs, test_inputs=inputs, eps=1e-6)
+
+
+def test_strided_slice_grad():
+    def check(sh, dtype, begin, end, strides, slice_mode):
+        x = relay.var("x", shape=sh, dtype=dtype)
+        f = relay.Function(
+            [x],
+            relay.strided_slice(x, begin=begin, end=end, strides=strides, slice_mode=slice_mode),
+        )
+        check_grad(f)
+
+    check((2, 3, 4), "float32", (0, 1, 0), (-1, -1, 1), (1, 1, 1), "size")
+    check((2, 3, 4), "float32", (0, 1, 0), (2, 3, 1), (1, 1, 1), "end")
+    # check that strides are properly ignored when using "size" mode
+    check((2, 3, 4), "float32", (0, 0, 0), (-1, -1, -1), (1, 1, 2), "size")
+    check((2, 3, 4), "float32", (0, 0, 0), (2, 3, 4), (1, 1, 2), "end")
+
+
 if __name__ == "__main__":
     pytest.main()

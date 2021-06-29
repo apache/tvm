@@ -41,12 +41,13 @@ TVM_REGISTER_NODE_TYPE(MaxPool2DAttrs);
 TVM_REGISTER_NODE_TYPE(AvgPool2DAttrs);
 
 template <typename T>
-Array<Array<Layout> > PoolInferCorrectLayout(const Attrs& attrs,
-                                             const Array<Layout>& new_in_layouts,
-                                             const Array<Layout>& old_in_layouts,
-                                             const Array<tvm::relay::Type>& old_in_types) {
-  // NOTE: Discard "const" qualifier here.
-  T* params = const_cast<T*>(attrs.as<T>());
+InferCorrectLayoutOutput PoolInferCorrectLayout(const Attrs& attrs,
+                                                const Array<Layout>& new_in_layouts,
+                                                const Array<Layout>& old_in_layouts,
+                                                const Array<tvm::relay::Type>& old_in_types) {
+  const auto* attrs_ptr = attrs.as<T>();
+  ICHECK(attrs_ptr);
+  ObjectPtr<T> params = make_object<T>(*attrs_ptr);
 
   if (new_in_layouts.defined()) {
     // Set the pool with the new layout.
@@ -54,8 +55,7 @@ Array<Array<Layout> > PoolInferCorrectLayout(const Attrs& attrs,
     params->layout = new_in_layouts[0].name();
   }
 
-  Layout inferred_layout(params->layout);
-  return Array<Array<Layout> >{{inferred_layout}, {inferred_layout}};
+  return InferCorrectLayoutOutput({params->layout}, {params->layout}, Attrs(params));
 }
 
 IndexExpr calculate_pool_dimension(IndexExpr in_dimension, IndexExpr pad_amount,

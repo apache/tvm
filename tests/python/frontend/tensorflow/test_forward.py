@@ -3427,8 +3427,14 @@ def _test_forward_combined_nms(
     clip_boxes=False,
     dtype="float32",
 ):
+    def get_random_scores(size, dtype):
+        size1d = np.prod(size)
+        scores = np.linspace(0, 1, num=size1d)
+        np.random.shuffle(scores)
+        return scores.reshape(size).astype(dtype)
+
     boxes = np.random.uniform(-1, 2, size=bx_shape).astype(dtype)
-    scores = np.random.uniform(size=score_shape).astype(dtype)
+    scores = get_random_scores(score_shape, dtype)
     max_output_size = np.int32(out_size)
     tf.reset_default_graph()
     in_data_1 = tf.placeholder(dtype, boxes.shape, name="in_data_1")
@@ -5567,6 +5573,24 @@ def test_moments():
     """
     mod_golden = tvm.parser.parse('#[version = "0.0.5"]\n' + program)
     tvm.ir.assert_structural_equal(mod["main"].body, mod_golden["main"].body, map_free_vars=True)
+
+
+#######################################################################
+# invert_permutation
+# --------------------
+
+
+def test_invert_permutation():
+    """test InvertPermutation"""
+    tf.reset_default_graph()
+
+    input_shape = [6]
+    x = np.array([3, 4, 0, 2, 1, 5]).astype("int32")
+    with tf.Graph().as_default():
+        in_data = tf.placeholder(shape=input_shape, dtype="int32")
+        tf.invert_permutation(in_data)
+        out_name = "InvertPermutation:0"
+        compare_tf_with_tvm(x, "Placeholder:0", out_name, no_gpu=False)
 
 
 if __name__ == "__main__":
