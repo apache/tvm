@@ -3722,11 +3722,21 @@ def from_onnx(model, shape=None, dtype="float32", opset=None, freeze_params=Fals
         pass
     g = GraphProto(shape, dtype, freeze_params)
     graph = model.graph
+
+    try:
+        opset_in_model = model.opset_import[0].version if model.opset_import else 1
+    except AttributeError:
+        opset_in_model = 1
+
     if opset is None:
-        try:
-            opset = model.opset_import[0].version if model.opset_import else 1
-        except AttributeError:
-            opset = 1
+        opset = opset_in_model
+    elif opset < opset_in_model:
+        warnings.warn(
+            ""
+            f"You are overwritting original opset ver = {opset_in_model} by lower ver = {opset}. "
+            f"That might cause model conversion errors."
+        )
+
     # Use the graph proto as a scope so that ops can access other nodes if needed.
     with g:
         mod, params = g.from_onnx(graph, opset)
