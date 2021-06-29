@@ -281,24 +281,24 @@ def schedule_dense_pack(cfg, outs):
     return s
 
 
-def matmul_blas_common(cfg, data, weight, bias, out_dtype, data_transposed, weight_transposed, lib):
+def matmul_blas_common(cfg, tensor_a, tensor_b, bias, out_dtype, transpose_a, transpose_b, lib):
     """Compute matmul/dense using a BLAS library"""
-    M, K = get_const_tuple(data.shape)
-    N, _ = get_const_tuple(weight.shape)
+    M, K = get_const_tuple(tensor_a.shape)
+    N, _ = get_const_tuple(tensor_b.shape)
     if isinstance(M, int) and isinstance(K, int) and isinstance(N, int):
         cfg.add_flop(M * K * N * 2)
-    if data.dtype == "uint8" and weight.dtype == "int8" and out_dtype == "int32":
+    if tensor_a.dtype == "uint8" and tensor_b.dtype == "int8" and out_dtype == "int32":
         if not hasattr(lib, "matmul_u8s8s32"):
             raise NotImplementedError(
-                f"Matmul/Dense with {lib.__name__} for {data.dtype} is not supported "
+                f"Matmul/Dense with {lib.__name__} for {tensor_a.dtype} is not supported "
                 "(matmulu8s8s32 not imlemented)"
             )
-        C = lib.matmul_u8s8s32(data, weight, data_transposed, weight_transposed, dtype=out_dtype)
-    elif data.dtype == "float32" or data.dtype == "float64":
-        C = lib.matmul(data, weight, data_transposed, weight_transposed)
+        C = lib.matmul_u8s8s32(tensor_a, tensor_b, transpose_a, transpose_b, dtype=out_dtype)
+    elif tensor_a.dtype == "float32" or tensor_a.dtype == "float64":
+        C = lib.matmul(tensor_a, tensor_b, transpose_a, transpose_b)
     else:
         raise NotImplementedError(
-            f"Matmul/Dense with {lib.__name__} for {data.dtype} is not supported"
+            f"Matmul/Dense with {lib.__name__} for {tensor_a.dtype} is not supported"
         )
 
     if bias is not None:
@@ -355,11 +355,11 @@ def schedule_dense_mkldnn(_, outs):
 
 @autotvm.register_topi_compute("matmul_cblas.x86")
 def matmul_cblas(
-    cfg, data, weight, bias=None, out_dtype=None, data_transposed=False, weight_transposed=False
+    cfg, tensor_a, tensor_b, bias=None, out_dtype=None, transpose_a=False, transpose_b=False
 ):
     """Compute matmul using a cblas"""
     return matmul_blas_common(
-        cfg, data, weight, bias, out_dtype, data_transposed, weight_transposed, cblas
+        cfg, tensor_a, tensor_b, bias, out_dtype, transpose_a, transpose_b, cblas
     )
 
 
@@ -371,11 +371,11 @@ def schedule_matmul_cblas(_, outs):
 
 @autotvm.register_topi_compute("matmul_mkl.x86")
 def matmul_mkl(
-    cfg, data, weight, bias=None, out_dtype=None, data_transposed=False, weight_transposed=False
+    cfg, tensor_a, tensor_b, bias=None, out_dtype=None, transpose_a=False, transpose_b=False
 ):
     """Compute matmul using mkl"""
     return matmul_blas_common(
-        cfg, data, weight, bias, out_dtype, data_transposed, weight_transposed, mkl
+        cfg, tensor_a, tensor_b, bias, out_dtype, transpose_a, transpose_b, mkl
     )
 
 
@@ -387,11 +387,11 @@ def schedule_matmul_mkl(_, outs):
 
 @autotvm.register_topi_compute("matmul_mkldnn.x86")
 def matmul_mkldnn(
-    cfg, data, weight, bias=None, out_dtype=None, data_transposed=False, weight_transposed=False
+    cfg, tensor_a, tensor_b, bias=None, out_dtype=None, transpose_a=False, transpose_b=False
 ):
     """Compute matmul using mkldnn"""
     return matmul_blas_common(
-        cfg, data, weight, bias, out_dtype, data_transposed, weight_transposed, mkldnn
+        cfg, tensor_a, tensor_b, bias, out_dtype, transpose_a, transpose_b, mkldnn
     )
 
 

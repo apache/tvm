@@ -199,12 +199,12 @@ def test_dense_grad():
     verify_dense_grad((5, 4), (3, 4))
 
 
-def verify_matmul_grad(d_shape, w_shape, d_transposed, w_transposed):
-    data = relay.var("data", relay.TensorType(d_shape, "float32"))
-    weight = relay.var("weight", relay.TensorType(w_shape, "float32"))
+def verify_matmul_grad(a_shape, b_shape, transpose_a, transpose_b):
+    tensor_a = relay.var("tensor_a", relay.TensorType(a_shape, "float32"))
+    tensor_b = relay.var("tensor_b", relay.TensorType(b_shape, "float32"))
     fwd_func = relay.Function(
-        [data, weight],
-        relay.nn.matmul(data, weight, data_transposed=d_transposed, weight_transposed=w_transposed),
+        [tensor_a, tensor_b],
+        relay.nn.matmul(tensor_a, tensor_b, transpose_a=transpose_a, transpose_b=transpose_b),
     )
     check_grad(fwd_func)
 

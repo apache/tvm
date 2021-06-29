@@ -725,8 +725,8 @@ def wrap_compute_matmul(topi_compute, need_auto_scheduler_layout=False):
             inputs[1],
             None,
             out_dtype,
-            attrs.data_transposed,
-            attrs.weight_transposed,
+            attrs.transpose_a,
+            attrs.transpose_b,
         ]
         if need_auto_scheduler_layout:
             args.append(get_auto_scheduler_rewritten_layout(attrs))

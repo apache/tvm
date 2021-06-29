@@ -165,31 +165,31 @@ Useful for
 // ------------------- relay.nn.matmul
 TVM_REGISTER_NODE_TYPE(MatmulAttrs);
 
-Expr MakeMatmul(Expr data, Expr weight, IndexExpr units, DataType out_dtype, bool data_transposed,
-                bool weight_transposed) {
+Expr MakeMatmul(Expr tensor_a, Expr tensor_b, IndexExpr units, DataType out_dtype, bool transpose_a,
+                bool transpose_b) {
   auto attrs = make_object<MatmulAttrs>();
   attrs->units = units;
   attrs->out_dtype = out_dtype;
-  attrs->data_transposed = data_transposed;
-  attrs->weight_transposed = weight_transposed;
+  attrs->transpose_a = transpose_a;
+  attrs->transpose_b = transpose_b;
   static const Op& matmul_op = Op::Get("nn.matmul");
-  return Call(matmul_op, {data, weight}, Attrs(attrs), {});
+  return Call(matmul_op, {tensor_a, tensor_b}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.matmul").set_body_typed(MakeMatmul);
 
 RELAY_REGISTER_OP("nn.matmul")
-    .describe(R"code(Applies a linear transformation: :math:`Y = XW`. X & W can be transposed.
+    .describe(R"code(Applies a linear transformation: :math:`C = A * B`. A & B can be transposed.
 
-- **data**: `(x1, x2, ..., xn, input_dim)` or `(x1, x2, ..., input_dim, xn)`
-- **weight**: `(input_dim, units)` or `(units, input_dim)`
+- **tensor_a**: `(x1, x2, ..., xn, input_dim)` or `(x1, x2, ..., input_dim, xn)`
+- **tensor_b**: `(input_dim, units)` or `(units, input_dim)`
 - **out**: `(x1, x2, ..., xn, units)`.
 
 )code" TVM_ADD_FILELINE)
     .set_attrs_type<MatmulAttrs>()
     .set_num_inputs(2)
-    .add_argument("data", "nD Tensor", "Input data.")
-    .add_argument("weight", "2D Tensor", "Weight matrix.")
+    .add_argument("tensor_a", "nD Tensor", "The first input Tensor.")
+    .add_argument("tensor_b", "2D Tensor", "The second input Tensor.")
     .set_support_level(1)
     .add_type_rel("Matmul", MatmulRel<MatmulAttrs>);
 // ------------------- relay.nn.matmul

@@ -556,30 +556,30 @@ def dense_grad(orig, grad):
 
 @register_gradient("nn.matmul")
 def matmul_grad(orig, grad):
-    """Returns [grad' @ weight, data @ grad']"""
-    data, weight = orig.args
-    if (orig.attrs["data_transposed"], orig.attrs["weight_transposed"]) == (True, True):
+    """Returns [grad' @ tensor_b, tensor_a @ grad']"""
+    tensor_a, tensor_b = orig.args
+    if (orig.attrs["transpose_a"], orig.attrs["transpose_b"]) == (True, True):
         return [
             collapse_sum_like(
-                _nn.matmul(weight, grad, data_transposed=True, weight_transposed=True), data
+                _nn.matmul(tensor_b, grad, transpose_a=True, transpose_b=True), tensor_a
             ),
             collapse_sum_like(
-                _nn.matmul(grad, data, data_transposed=True, weight_transposed=True), weight
+                _nn.matmul(grad, tensor_a, transpose_a=True, transpose_b=True), tensor_b
             ),
         ]
-    if (orig.attrs["data_transposed"], orig.attrs["weight_transposed"]) == (True, False):
+    if (orig.attrs["transpose_a"], orig.attrs["transpose_b"]) == (True, False):
         return [
-            collapse_sum_like(_nn.matmul(weight, grad, weight_transposed=True), data),
-            collapse_sum_like(_nn.matmul(data, grad), weight),
+            collapse_sum_like(_nn.matmul(tensor_b, grad, transpose_b=True), tensor_a),
+            collapse_sum_like(_nn.matmul(tensor_a, grad), tensor_b),
         ]
-    if (orig.attrs["data_transposed"], orig.attrs["weight_transposed"]) == (False, True):
+    if (orig.attrs["transpose_a"], orig.attrs["transpose_b"]) == (False, True):
         # Keep using Dense op here for not involving extra ops
         # TODO(jcf94): Merge all to nn.matmul when it is finally ready
         return dense_grad(orig, grad)
-    # (orig.attrs["data_transposed"], orig.attrs["weight_transposed"]) == (False, False)
+    # (orig.attrs["transpose_a"], orig.attrs["transpose_b"]) == (False, False)
     return [
-        collapse_sum_like(_nn.matmul(grad, weight, weight_transposed=True), data),
-        collapse_sum_like(_nn.matmul(data, grad, data_transposed=True), weight),
+        collapse_sum_like(_nn.matmul(grad, tensor_b, transpose_b=True), tensor_a),
+        collapse_sum_like(_nn.matmul(tensor_a, grad, transpose_a=True), tensor_b),
     ]
 
 

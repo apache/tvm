@@ -32,22 +32,22 @@ logger = logging.getLogger("topi")
 
 def _matmul_cublas_common(
     cfg,
-    data,
-    weight,
+    tensor_a,
+    tensor_b,
     bias=None,
     out_dtype=None,
-    data_transposed=False,
-    weight_transposed=False,
+    transpose_a=False,
+    transpose_b=False,
 ):
-    assert len(data.shape) == 2 and len(weight.shape) == 2, "only support 2-dim matmul"
+    assert len(tensor_a.shape) == 2 and len(tensor_b.shape) == 2, "only support 2-dim matmul"
     if bias is not None:
         assert len(bias.shape) == 1
     if out_dtype is None:
-        out_dtype = data.dtype
-    assert out_dtype == data.dtype, "Mixed precision not supported."
-    batch, in_dim = get_const_tuple(data.shape)
-    out_dim, _ = get_const_tuple(weight.shape)
-    matmul = cublas.matmul(data, weight, data_transposed, weight_transposed)
+        out_dtype = tensor_a.dtype
+    assert out_dtype == tensor_a.dtype, "Mixed precision not supported."
+    batch, in_dim = get_const_tuple(tensor_a.shape)
+    out_dim, _ = get_const_tuple(tensor_b.shape)
+    matmul = cublas.matmul(tensor_a, tensor_b, transpose_a, transpose_b)
     if all(isinstance(d, int) for d in [batch, in_dim, out_dim]):
         cfg.add_flop(batch * in_dim * out_dim * 2)
     if bias is not None:
@@ -60,16 +60,16 @@ def _matmul_cublas_common(
 @autotvm.register_topi_compute("matmul_cublas.cuda")
 def matmul_cublas(
     cfg,
-    data,
-    weight,
+    tensor_a,
+    tensor_b,
     bias=None,
     out_dtype=None,
-    data_transposed=False,
-    weight_transposed=False,
+    transpose_a=False,
+    transpose_b=False,
 ):
     """Matmul operator on CUDA with CUBLAS"""
     return _matmul_cublas_common(
-        cfg, data, weight, bias, out_dtype, data_transposed, weight_transposed
+        cfg, tensor_a, tensor_b, bias, out_dtype, transpose_a, transpose_b
     )
 
 
@@ -114,15 +114,15 @@ def schedule_dense_small_batch(cfg, outs):
 @autotvm.register_topi_compute("matmul_default.cuda")
 def matmul_default_cuda(
     cfg,
-    data,
-    weight,
+    tensor_a,
+    tensor_b,
     bias=None,
     out_dtype=None,
-    data_transposed=False,
-    weight_transposed=False,
+    transpose_a=False,
+    transpose_b=False,
 ):
     """Matmul operator on cuda"""
-    return nn.matmul(data, weight, bias, out_dtype, data_transposed, weight_transposed)
+    return nn.matmul(tensor_a, tensor_b, bias, out_dtype, transpose_a, transpose_b)
 
 
 @autotvm.register_topi_schedule("matmul_default.cuda")

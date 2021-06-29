@@ -22,22 +22,22 @@ from .. import tag
 
 
 def matmul(
-    data,
-    weight,
+    tensor_a,
+    tensor_b,
     bias=None,
     out_dtype=None,
-    data_transposed=False,
-    weight_transposed=False,
+    transpose_a=False,
+    transpose_b=False,
     auto_scheduler_rewritten_layout="",
 ):
     """The default implementation of matmul in topi.
 
     Parameters
     ----------
-    data : tvm.te.Tensor
+    tensor_a : tvm.te.Tensor
         2-D with shape [batch, in_dim]
 
-    weight : tvm.te.Tensor
+    tensor_b : tvm.te.Tensor
         2-D with shape [out_dim, in_dim]
 
     bias : Optional[tvm.te.Tensor]
@@ -46,13 +46,13 @@ def matmul(
     out_dtype : Optional[str]
         The output type. This is used for mixed precision.
 
-    data_transposed : Optional[bool]
-        Whether the data tensor is in transposed format.
+    transpose_a : Optional[bool] = False
+        Whether the tensor_a is in transposed format.
 
-    weight_transposed : Optional[bool]
-        Whether the weight tensor is in transposed format.
+    transpose_b : Optional[bool] = False
+        Whether the tensor_b is in transposed format.
 
-    auto_scheduler_rewritten_layout: str = ""
+    auto_scheduler_rewritten_layout: Optional[str] = ""
         The layout after auto-scheduler's layout rewrite pass.
 
     Returns
@@ -60,61 +60,60 @@ def matmul(
     output : tvm.te.Tensor
         2-D with shape [batch, out_dim]
     """
-    assert len(data.shape) == 2, "only support 2-dim dense"
+    assert len(tensor_a.shape) == 2, "only support 2-dim dense"
     if bias is not None:
         assert len(bias.shape) == 1
     if out_dtype is None:
-        out_dtype = data.dtype
-    if data_transposed:
-        in_dim, batch = data.shape
+        out_dtype = tensor_a.dtype
+    if transpose_a:
+        in_dim, batch = tensor_a.shape
     else:
-        batch, in_dim = data.shape
+        batch, in_dim = tensor_a.shape
 
     if auto_scheduler_rewritten_layout:
         # Infer shape for the rewritten layout
         out_dim, red_dim = auto_scheduler.get_shape_from_rewritten_layout(
-            auto_scheduler_rewritten_layout, ["j", "k"] if weight_transposed else ["k", "j"]
+            auto_scheduler_rewritten_layout, ["j", "k"] if transpose_b else ["k", "j"]
         )
-        auto_scheduler.remove_index_check(weight)
-    elif weight_transposed:
-        out_dim, red_dim = weight.shape
+        auto_scheduler.remove_index_check(tensor_b)
+    elif transpose_b:
+        out_dim, red_dim = tensor_b.shape
     else:
-        red_dim, out_dim = weight.shape
+        red_dim, out_dim = tensor_b.shape
     assert in_dim == red_dim
 
     k = te.reduce_axis((0, in_dim), name="k")
-    if data_transposed:
-        if weight_transposed:
-            compute_lambda = lambda i, j: te.sum(
-                data[k, i].astype(out_dtype) * weight[j, k].astype(out_dtype), axis=k
-            )
-            compute_name = "T_matmul_TT"
-        else:
-            compute_lambda = lambda i, j: te.sum(
-                data[k, i].astype(out_dtype) * weight[k, j].astype(out_dtype), axis=k
-            )
-            compute_name = "T_matmul_TN"
+    if (transpose_a, transpose_b) == (True, True):
+        compute_lambda = lambda i, j: te.sum(
+            tensor_a[k, i].astype(out_dtype) * tensor_b[j, k].astype(out_dtype), axis=k
+        )
+        compute_name = "T_matmul"
         compute_tag = "matmul"
-    else:
-        if weight_transposed:
-            compute_lambda = lambda i, j: te.sum(
-                data[i, k].astype(out_dtype) * weight[j, k].astype(out_dtype), axis=k
-            )
-            compute_name = "T_dense"
-            compute_tag = "dense"
-        else:
-            compute_lambda = lambda i, j: te.sum(
-                data[i, k].astype(out_dtype) * weight[k, j].astype(out_dtype), axis=k
-            )
-            compute_name = "T_matmul"
-            compute_tag = "matmul"
+    elif (transpose_a, transpose_b) == (True, False):
+        compute_lambda = lambda i, j: te.sum(
+            tensor_a[k, i].astype(out_dtype) * tensor_b[k, j].astype(out_dtype), axis=k
+        )
+        compute_name = "T_matmul"
+        compute_tag = "matmul"
+    elif (transpose_a, transpose_b) == (False, True):
+        compute_lambda = lambda i, j: te.sum(
+            tensor_a[i, k].astype(out_dtype) * tensor_b[j, k].astype(out_dtype), axis=k
+        )
+        compute_name = "T_dense"
+        compute_tag = "dense"
+    else:  # (transpose_a, transpose_b) == (False, False):
+        compute_lambda = lambda i, j: te.sum(
+            tensor_a[i, k].astype(out_dtype) * tensor_b[k, j].astype(out_dtype), axis=k
+        )
+        compute_name = "T_matmul"
+        compute_tag = "matmul"
 
     mat = te.compute(
         (batch, out_dim),
         compute_lambda,
         name=compute_name,
         tag=compute_tag,
-        attrs={"layout_free_placeholders": [weight]},
+        attrs={"layout_free_placeholders": [tensor_b]},
     )
 
     if bias is not None:

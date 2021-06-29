@@ -44,9 +44,14 @@ from .tensorflow_ops import _get_more_static_shape
 
 __all__ = ["from_tensorflow"]
 
-# By default, TVM convert `tf.matmul` to `nn.dense` op with data tensor non-transposed and weight
-# tensor transposed
-_USE_DENSE_INSTEAD_OF_MATMUL = True
+# The default configurations of Relay TensorFlow frontend.
+TF_DEFAULT_CONFIGS = {
+  # By default, TVM converts `tf.matmul` to `transpose(weight) + nn.dense`, which introduces
+  # unnecessary overhead in weight transpose. Change this flag to False to directly convert to
+  # `nn.matmul` to get rid of the overhead.
+  # However, please note that `nn.matmul` is in experimental so it may have some performance issues.
+  "use_dense": True,
+}
 
 # compatible operators that do NOT require any conversion.
 _identity_list = []
@@ -1226,7 +1231,7 @@ def from_tensorflow(graph, layout="NHWC", shape=None, outputs=None, use_dense_op
     outputs : List of output tensor names (Optional)
         if not specified then the last node is assumed as graph output.
 
-    use_dense_op : bool (Optional)
+    use_dense_op : bool (Optional) = True
         Ture to convert `tf.matmul` to `nn.dense`, else to `nn.matmul`.
         The `nn.dense` op requires the data tensor to be non-transposed and weight tensor to be
         transposed, may insert extra `transpose` to the original graph.
@@ -1239,9 +1244,8 @@ def from_tensorflow(graph, layout="NHWC", shape=None, outputs=None, use_dense_op
     params : dict of str to tvm.nd.NDArray
         Dict of converted parameters stored in tvm.nd.NDArray format
     """
-    global _USE_DENSE_INSTEAD_OF_MATMUL
-    if use_dense_op != _USE_DENSE_INSTEAD_OF_MATMUL:
-        _USE_DENSE_INSTEAD_OF_MATMUL = use_dense_op
+    global TF_DEFAULT_CONFIGS
+    TF_DEFAULT_CONFIGS["use_dense"] = use_dense_op
 
     g = GraphProto()
     mod, params = g.from_tensorflow(graph, layout, shape, outputs)

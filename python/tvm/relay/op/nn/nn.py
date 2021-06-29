@@ -1471,35 +1471,35 @@ def bias_add(data, bias, axis=1):
     return _make.bias_add(data, bias, axis)
 
 
-def matmul(data, weight, units=None, out_dtype="", data_transposed=False, weight_transposed=False):
+def matmul(tensor_a, tensor_b, units=None, out_dtype="", transpose_a=False, transpose_b=False):
     """Matmul operator.
-    Applies a linear transformation. The X & W can be transposed.
+    Applies a linear transformation. The A & B can be transposed.
 
     .. math::
 
-        `Y = X * W`
+        `C = A * B`
 
     Parameters
     ----------
     data : tvm.relay.Expr
-        The input data to the operator,
+        The first input of the operator,
         of shape `(d_1, d_2, ..., d_n, units_in)` or `(d_1, d_2, ..., units_in, d_n)`.
 
     weight : tvm.relay.Expr
-        The weight expressions, 2-D matrix,
+        The second input expressions, 2-D matrix,
         of shape `(units_in, units)` or `(units, units_in)`.
 
-    units : int, optional
+    units : Optional[int]
         Number of hidden units of the matmul transformation.
 
-    out_dtype : str, optional
-        Specifies the output data type for mixed precision dense,
+    out_dtype : Optional[str]
+        Specifies the output data type for mixed precision matmul,
         of shape `(d_1, d_2, ..., d_n, units)`.
 
-    data_transposed : bool, optional
+    transpose_a : Optional[bool] = False
         Whether the data tensor is in transposed format.
 
-    weight_transposed : bool, optional
+    transpose_b : Optional[bool] = False
         Whether the weight tensor is in transposed format.
 
     Returns
@@ -1507,9 +1507,12 @@ def matmul(data, weight, units=None, out_dtype="", data_transposed=False, weight
     result : tvm.relay.Expr
         The computed result.
     """
-    if not data_transposed and weight_transposed:
-        return dense(data, weight, units, out_dtype)
-    return _make.matmul(data, weight, units, out_dtype, data_transposed, weight_transposed)
+    # Since currently `nn.dense` has better topi schedule support, will prefer to use `dense`
+    # rather than `matmul` for better compatibility
+    if not transpose_a and transpose_b:
+        # TODO(jcf94): Remove this when `nn.matmul` is finnaly ready
+        return dense(tensor_a, tensor_b, units, out_dtype)
+    return _make.matmul(tensor_a, tensor_b, units, out_dtype, transpose_a, transpose_b)
 
 
 def dense(data, weight, units=None, out_dtype=""):
