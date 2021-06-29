@@ -284,5 +284,14 @@ def test_optional_info():
     assert txt.count("/* ty=int32 */") == 3
 
 
+def test_slash_in_identifier():
+    x = relay.var("base/x")
+    y = relay.var("base/y")
+    z = x + y
+    txt = astext(z)
+    assert "base/x" in txt
+    assert "base/y" in txt
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
