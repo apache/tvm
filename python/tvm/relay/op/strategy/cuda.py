@@ -705,7 +705,12 @@ def dense_strategy_cuda(attrs, inputs, out_type, target):
     data, weights = inputs
     b, i = get_const_tuple(data.shape)
     o, _ = get_const_tuple(weights.shape)
-    if data.dtype == "int8" and weights.dtype == "int8" and out_type.dtype == "int32":
+    if (
+        target.kind.name == "cuda"
+        and data.dtype == "int8"
+        and weights.dtype == "int8"
+        and out_type.dtype == "int32"
+    ):
         strategy.add_implementation(
             wrap_compute_dense(topi.cuda.dense_int8),
             wrap_topi_schedule(topi.cuda.schedule_dense_int8),
@@ -713,16 +718,16 @@ def dense_strategy_cuda(attrs, inputs, out_type, target):
         )
     else:
         strategy.add_implementation(
-            wrap_compute_dense(topi.cuda.dense_small_batch),
-            wrap_topi_schedule(topi.cuda.schedule_dense_small_batch),
-            name="dense_small_batch.cuda",
+            wrap_compute_dense(topi.gpu.dense_small_batch),
+            wrap_topi_schedule(topi.gpu.schedule_dense_small_batch),
+            name="dense_small_batch.gpu",
         )
 
         with SpecializedCondition(b >= 32):
             strategy.add_implementation(
-                wrap_compute_dense(topi.cuda.dense_large_batch),
-                wrap_topi_schedule(topi.cuda.schedule_dense_large_batch),
-                name="dense_large_batch.cuda",
+                wrap_compute_dense(topi.gpu.dense_large_batch),
+                wrap_topi_schedule(topi.gpu.schedule_dense_large_batch),
+                name="dense_large_batch.gpu",
                 plevel=5,
             )
         if target.kind.name == "cuda":

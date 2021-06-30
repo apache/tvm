@@ -115,7 +115,7 @@ def test_task_extraction_for_dense_int8_cuda():
 
     mod, params = get_net(1, 16, 32, "float32", "float32")
     tasks = autotvm.task.extract_from_program(mod, target=target, params=params, ops=(dense,))
-    assert len(tasks) == 1 and tasks[0].name == "dense_small_batch.cuda"
+    assert len(tasks) == 1 and tasks[0].name == "dense_small_batch.gpu"
 
     mod, params = get_net(1, 16, 32, "int8", "int32")
     tasks = autotvm.task.extract_from_program(mod, target=target, params=params, ops=(dense,))
