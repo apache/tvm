@@ -45,10 +45,18 @@ Array<PrimExpr> SimplifyArray(arith::Analyzer* ana, Array<PrimExpr> array) {
   return array;
 }
 
-Buffer decl_buffer(Array<PrimExpr> shape, DataType dtype, String name, Span span) {
+Buffer decl_buffer(Array<PrimExpr> shape, DataType dtype, String name, String storage_scope,
+                   Span span) {
   DataType storage_dtype = (dtype == DataType::Bool() ? DataType::Int(8) : dtype);
-  return Buffer(Var(name, PointerType(PrimType(storage_dtype)), span), dtype, shape,
+  return Buffer(Var(name, PointerType(PrimType(storage_dtype), storage_scope), span), dtype, shape,
                 Array<PrimExpr>(), PrimExpr(), name, "", 0, 0, kDefault, span);
+}
+
+String GetStorageScope(Var buffer_var) {
+  auto type = buffer_var->type_annotation;
+  const auto* ptr_type = type.as<PointerTypeNode>();
+  ICHECK(ptr_type) << "The provided variable is not of pointer type";
+  return ptr_type->storage_scope;
 }
 
 // Split the given expression w.r.t the add operator

@@ -364,13 +364,16 @@ class ProducerRealize(Stmt):
     body : Stmt
         The realize body
 
+    storage_scope : str
+        The storage scope associated with this realization
+
     span : Optional[Span]
         The location of this itervar in the source code.
     """
 
-    def __init__(self, producer, bounds, condition, body, span=None):
+    def __init__(self, producer, bounds, condition, body, storage_scope="", span=None):
         self.__init_handle_by_constructor__(
-            _ffi_api.ProducerRealize, producer, bounds, condition, body, span
+            _ffi_api.ProducerRealize, producer, bounds, condition, body, storage_scope, span
         )
 
 

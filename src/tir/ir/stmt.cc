@@ -377,7 +377,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 // ProducerRealize
 ProducerRealize::ProducerRealize(DataProducer producer, Region bounds, PrimExpr condition,
-                                 Stmt body, Span span) {
+                                 Stmt body, String storage_scope, Span span) {
   for (size_t i = 0; i < bounds.size(); ++i) {
     ICHECK(bounds[i]->min.defined());
     ICHECK(bounds[i]->extent.defined());
@@ -394,13 +394,14 @@ ProducerRealize::ProducerRealize(DataProducer producer, Region bounds, PrimExpr 
   node->condition = std::move(condition);
   node->body = std::move(body);
   node->span = std::move(span);
+  node->storage_scope = std::move(storage_scope);
   data_ = std::move(node);
 }
 
 TVM_REGISTER_GLOBAL("tir.ProducerRealize")
     .set_body_typed([](DataProducer producer, Region bounds, PrimExpr condition, Stmt body,
-                       Span span) {
-      return ProducerRealize(producer, bounds, condition, body, span);
+                       String storage_scope, Span span) {
+      return ProducerRealize(producer, bounds, condition, body, storage_scope, span);
     });
 
 TVM_REGISTER_NODE_TYPE(ProducerRealizeNode);
