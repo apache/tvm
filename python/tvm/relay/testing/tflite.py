@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """
-TFLite model generation infrastructure that uses flatbuffers
+TensorFlow Lite model generation infrastructure that uses flatbuffers
 ============================================================
 """
 import json
@@ -26,7 +26,7 @@ from typing import List, Dict, Optional, Any, Tuple, Union
 import numpy as np
 from tvm.contrib.download import download
 
-# We are currently usig TFLite 2.4.2 schema to write the model buffers
+# We are currently using TensorFlow Lite 2.4.2 schema to write the model buffers
 SCHEMA_URL = (
     "https://raw.githubusercontent.com/tensorflow/tensorflow/v2.4.2/"
     "tensorflow/lite/schema/schema.fbs"
@@ -145,7 +145,7 @@ def generate_tflite_model(
     outputs: List[Tensor],
     operator: Operator,
 ) -> bytes:
-    """Generate a Tensor Flow Lite model
+    """Generate a TensorFlow Lite model
 
     Parameters
     ----------
@@ -158,7 +158,7 @@ def generate_tflite_model(
 
     Returns
     ------------
-    Tensor Flow Lite model as bytes
+    TensorFlow Lite model as bytes
     """
     tmp_dir = tempfile.gettempdir()
 
