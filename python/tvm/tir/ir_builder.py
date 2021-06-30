@@ -394,7 +394,7 @@ class IRBuilder(object):
         self.emit(lambda x: _stmt.LetStmt(var, value, x))
         return var
 
-    def allocate(self, dtype, shape, name="buf", scope=None):
+    def allocate(self, dtype, shape, name="buf", scope=""):
         """Create a allocate statement.
 
         Parameters
