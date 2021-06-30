@@ -17,7 +17,7 @@
 # under the License.
 
 set -e
-
+architecture_type = $(uname -i)
 # Install cross-compiler when not building natively.
 # Depending on the architecture selected to compile for,
 # you may need to install an alternative cross-compiler.
