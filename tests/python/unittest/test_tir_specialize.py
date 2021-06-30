@@ -150,7 +150,7 @@ def test_specialize_nothing():
     assert func.same_as(matmul)  # Pointer the same
 
 
-def test_tensor_dimension_invariant_code_matmul():
+def test_specialize_matmul():
     a, _, _, n = matmul.params
     # fully specialized
     func = matmul.specialize({a: tir.decl_buffer((128, 128))})
@@ -163,7 +163,7 @@ def test_tensor_dimension_invariant_code_matmul():
     tvm.ir.assert_structural_equal(func, matmul_m_8x)
 
 
-def test_tensor_dimension_invariant_code_elemwise():
+def test_specialize_elemwise():
     a, c = element_wise.params
     C = element_wise.buffer_map[c]
     # fully specialized
@@ -174,7 +174,7 @@ def test_tensor_dimension_invariant_code_elemwise():
     tvm.ir.assert_structural_equal(func, element_wise_128_n)
 
 
-def test_tensor_dimension_invariant_code_mem_copy():
+def test_specialize_mem_copy():
     a, _, m, n, p, q = mem_copy.params
     # fully specialized
     func = mem_copy.specialize({a: tir.decl_buffer((16, 16), strides=[8, 1], elem_offset=4)})
@@ -186,8 +186,14 @@ def test_tensor_dimension_invariant_code_mem_copy():
     tvm.ir.assert_structural_equal(func, mem_copy_m_n_p_n)
 
 
+def test_specialize_recursive_load():
+    # TODO(Siyuan): add recursive Load testcase, e.g. A[C[i]]
+    pass
+
+
 if __name__ == "__main__":
     test_specialize_nothing()
-    test_tensor_dimension_invariant_code_matmul()
-    test_tensor_dimension_invariant_code_elemwise()
-    test_tensor_dimension_invariant_code_mem_copy()
+    test_specialize_matmul()
+    test_specialize_elemwise()
+    test_specialize_mem_copy()
+    test_specialize_recursive_load()

@@ -89,7 +89,7 @@ class PrimFunc(BaseFunc):
         return PrimFunc(self.params, new_body, self.ret_type, self.buffer_map, self.attrs, span)
 
     def specialize(self, param_map: Mapping[Var, Union[PrimExpr, Buffer]]):
-        """Metaprogramming usage: specialize parameters of PrimFunc
+        """Specialize parameters of PrimFunc
 
         Parameters
         ----------

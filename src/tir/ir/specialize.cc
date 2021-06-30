@@ -218,6 +218,23 @@ class PrimFuncSpecializer : public StmtExprMutator {
   std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual> buffer_map_;
 };
 
+/*!
+ * \brief Update Specialize var map with buffer matching.
+ * \param func The function to be specialized.
+ * \param param The given function parameter
+ * \param specific_buf The matching buffer.
+ * \param var_map The var mapping to be updated.
+ * \note This function will match target buffer's shape, strides and element_offset
+ *   For example, we define a buffer in PrimFunc:
+ *   A = tir.match_buffer(a, [m, n])
+ *
+ *   Then we match it with a buffer B =  tir.decl_buffer((8, 16))
+ *
+ *   It means we have two var mappings here: m = 8 and n = 16
+ *
+ *   If the buffer signature is not a Var, the mapping will fail.
+ *   e.g. A = tir.match_buffer(a, [m * 2, n + 1])
+ */
 void UpdateSpecializeVarMap(const PrimFunc& func, const Var& param, const Buffer& specific_buf,
                             VarMap* var_map) {
   // preliminaries
@@ -275,6 +292,13 @@ void UpdateSpecializeVarMap(const PrimFunc& func, const Var& param, const Buffer
       << " vs. " << specific_buf->offset_factor << ".";
 }
 
+/*!
+ * \brief Update Specialize var map with parameter value.
+ * \param func The function to be specialized.
+ * \param param The given function parameter
+ * \param specific_expr The parameter value.
+ * \param var_map The var mapping to be updated.
+ */
 void UpdateSpecializeVarMap(const PrimFunc& func, const Var& param, const PrimExpr& specific_expr,
                             VarMap* var_map) {
   // check param is in PrimFunc's parameters
@@ -286,26 +310,28 @@ void UpdateSpecializeVarMap(const PrimFunc& func, const Var& param, const PrimEx
   (*var_map)[param] = specific_expr;
 }
 
+/**************** Implementation ****************/
+
+PrimFunc Specialize(PrimFunc func, const Map<Var, ObjectRef>& param_map) {
+  VarMap var_map;
+  for (const auto& kv : param_map) {
+    const Var& param = kv.first;
+    const ObjectRef& instance = kv.second;
+    if (instance->IsInstance<BufferNode>()) {
+      UpdateSpecializeVarMap(func, param, Downcast<Buffer>(instance), &var_map);
+    } else if (instance->IsInstance<PrimExprNode>()) {
+      UpdateSpecializeVarMap(func, param, Downcast<PrimExpr>(instance), &var_map);
+    } else {
+      LOG(FATAL) << "TypeError: specialize expected instance to be Buffer or PrimExpr, but got "
+                 << instance->GetTypeKey();
+    }
+  }
+  return PrimFuncSpecializer::Specialize(func, std::move(var_map));
+}
+
 /**************** FFI ****************/
 
-TVM_REGISTER_GLOBAL("tir.Specialize")
-    .set_body_typed<PrimFunc(PrimFunc, Map<Var, ObjectRef>)>([](PrimFunc func,
-                                                                Map<Var, ObjectRef> param_map) {
-      VarMap var_map;
-      for (const auto& kv : param_map) {
-        const Var& param = kv.first;
-        const ObjectRef& instance = kv.second;
-        if (instance->IsInstance<BufferNode>()) {
-          UpdateSpecializeVarMap(func, param, Downcast<Buffer>(instance), &var_map);
-        } else if (instance->IsInstance<PrimExprNode>()) {
-          UpdateSpecializeVarMap(func, param, Downcast<PrimExpr>(instance), &var_map);
-        } else {
-          LOG(FATAL) << "TypeError: specialize expected instance to be Buffer or PrimExpr, but got "
-                     << instance->GetTypeKey();
-        }
-      }
-      return PrimFuncSpecializer::Specialize(std::move(func), std::move(var_map));
-    });
+TVM_REGISTER_GLOBAL("tir.Specialize").set_body_typed(Specialize);
 
 }  // namespace tir
 }  // namespace tvm
