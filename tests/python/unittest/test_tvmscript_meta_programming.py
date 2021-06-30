@@ -117,30 +117,37 @@ def element_wise_128_n(a: ty.handle, c: ty.handle) -> None:
 
 
 @tvm.script.tir
-def mem_copy(a: ty.handle, b: ty.handle, m: ty.int32, n: ty.int32) -> None:
-    A = tir.match_buffer(a, (m, n), "float32")
-    B = tir.match_buffer(b, (m, n), "float32")
+def mem_copy(
+    a: ty.handle, b: ty.handle, m: ty.int32, n: ty.int32, p: ty.int32, q: ty.int32
+) -> None:
+    A = tir.match_buffer(a, (m, n), "float32", strides=[p, 1], elem_offset=q)
+    B = tir.match_buffer(b, (m, n), "float32", strides=[p, 1], elem_offset=q)
 
     with tir.block([m, n], "") as [vi, vj]:
         B[vi, vj] = A[vi, vj]
 
 
 @tvm.script.tir
-def mem_copy_16_16(a: ty.handle, b: ty.handle) -> None:
-    A = tir.match_buffer(a, (16, 16), "float32")
-    B = tir.match_buffer(b, (16, 16), "float32")
+def mem_copy_16_16_8_4(a: ty.handle, b: ty.handle) -> None:
+    A = tir.match_buffer(a, (16, 16), "float32", strides=[8, 1], elem_offset=4)
+    B = tir.match_buffer(b, (16, 16), "float32", strides=[8, 1], elem_offset=4)
 
     with tir.block([16, 16], "") as [vi, vj]:
         B[vi, vj] = A[vi, vj]
 
 
 @tvm.script.tir
-def mem_copy_m_16(a: ty.handle, b: ty.handle, m: ty.int32) -> None:
-    A = tir.match_buffer(a, (m, 16), "float32")
-    B = tir.match_buffer(b, (m, 16), "float32")
+def mem_copy_m_n_p_n(a: ty.handle, b: ty.handle, m: ty.int32, n: ty.int32, p: ty.int32) -> None:
+    A = tir.match_buffer(a, (m, n), "float32", strides=[p, 1], elem_offset=n)
+    B = tir.match_buffer(b, (m, n), "float32", strides=[p, 1], elem_offset=n)
 
-    with tir.block([m, 16], "") as [vi, vj]:
+    with tir.block([m, n], "") as [vi, vj]:
         B[vi, vj] = A[vi, vj]
+
+
+def test_specialize_nothing():
+    func = matmul.specialize({})
+    assert func.same_as(matmul)  # Pointer the same
 
 
 def test_tensor_dimension_invariant_code_matmul():
@@ -168,18 +175,19 @@ def test_tensor_dimension_invariant_code_elemwise():
 
 
 def test_tensor_dimension_invariant_code_mem_copy():
-    a, _, m, n = mem_copy.params
+    a, _, m, n, p, q = mem_copy.params
     # fully specialized
-    func = mem_copy.specialize({a: tir.decl_buffer((16, 16))})
-    tvm.ir.assert_structural_equal(func, mem_copy_16_16)
-    func = mem_copy.specialize({n: 16, m: 16})
-    tvm.ir.assert_structural_equal(func, mem_copy_16_16)
+    func = mem_copy.specialize({a: tir.decl_buffer((16, 16), strides=[8, 1], elem_offset=4)})
+    tvm.ir.assert_structural_equal(func, mem_copy_16_16_8_4)
+    func = mem_copy.specialize({n: 16, m: 16, p: 8, q: 4})
+    tvm.ir.assert_structural_equal(func, mem_copy_16_16_8_4)
     # partially specialized
-    func = mem_copy.specialize({n: 16})
-    tvm.ir.assert_structural_equal(func, mem_copy_m_16)
+    func = mem_copy.specialize({q: n})
+    tvm.ir.assert_structural_equal(func, mem_copy_m_n_p_n)
 
 
 if __name__ == "__main__":
+    test_specialize_nothing()
     test_tensor_dimension_invariant_code_matmul()
     test_tensor_dimension_invariant_code_elemwise()
     test_tensor_dimension_invariant_code_mem_copy()
