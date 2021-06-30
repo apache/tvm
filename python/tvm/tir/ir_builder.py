@@ -416,7 +416,7 @@ class IRBuilder(object):
         buffer : BufferVar
             The buffer var representing the buffer.
         """
-        buffer_var = _expr.Var(name, PointerType(PrimType(dtype)))
+        buffer_var = _expr.Var(name, PointerType(PrimType(dtype), scope))
         if not isinstance(shape, (list, tuple, _container.Array)):
             shape = [shape]
         if scope:
