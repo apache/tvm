@@ -33,6 +33,7 @@ batch_size = tvm.testing.parameter(1, 2, 128)
 in_dim, out_dim = tvm.testing.parameters((1024, 1000))
 in_dtype, out_dtype = tvm.testing.parameters(
     ("float32", "float32"),
+    ("float16", "float16"),
     ("int8", "int32"),
 )
 
@@ -90,25 +91,37 @@ def test_dense(
 ):
     target = tvm.target.Target(target)
 
-    if (
-        in_dtype == "int8"
-        and target.kind.name == "cuda"
-        and not tvm.contrib.nvcc.have_int8(dev.compute_version)
-    ):
-        pytest.xfail("CUDA int8 intrinsics not available")
+    if target.kind.name == "cuda":
+        if in_dtype == "int8" and not tvm.contrib.nvcc.have_int8(dev.compute_version):
+            pytest.xfail("CUDA int8 intrinsics not available")
 
-    if (
-        in_dtype == "int8"
-        and target.kind.name == "vulkan"
-        and not target.attrs.get("supports_int8", False)
-    ):
-        pytest.xfail("Vulkan int8 driver support not available")
+        if in_dtype == "float16" and not tvm.contrib.nvcc.have_fp16(dev.compute_version):
+            pytest.xfail("CUDA float16 intrinsics not available")
+
+    if target.kind.name == "vulkan":
+        if in_dtype == "int8" and (
+            not target.attrs.get("supports_int8", False)
+            or not target.attrs.get("supports_8bit_buffer", False)
+        ):
+            pytest.xfail("Vulkan int8 driver support not available")
+        if in_dtype == "float16" and (
+            not target.attrs.get("supports_float16", False)
+            or not target.attrs.get("supports_16bit_buffer", False)
+        ):
+            pytest.xfail("Vulkan float16 driver support not available")
 
     if (
         target.kind.name not in ["llvm", "c"]
         and len(set(target.keys) & set(_dense_implementations)) == 0
     ):
         pytest.xfail("No implementation for tvm.topi.testing.dispatch to find")
+
+    if "int" in in_dtype:
+        tol = {"atol": 0, "rtol": 0}
+    elif in_dtype == "float32":
+        tol = {"rtol": 1e-5, "atol": 1e-5}
+    elif in_dtype == "float16":
+        tol = {"rtol": 5e-2, "atol": 1e-5}
 
     A = te.placeholder((batch_size, in_dim), name="A", dtype=in_dtype)
     B = te.placeholder((out_dim, in_dim), name="B", dtype=in_dtype)
@@ -131,7 +144,7 @@ def test_dense(
         d = tvm.nd.array(np.zeros(get_const_tuple(D.shape), dtype=out_dtype), dev)
         f = tvm.build(s, [A, B, C, D], target, name="dense")
         f(a, b, c, d)
-        tvm.testing.assert_allclose(d.numpy(), d_np, rtol=1e-5)
+        tvm.testing.assert_allclose(d.numpy(), d_np, **tol)
 
 
 @pytest.mark.parametrize("target,in_dtype,out_dtype", [("cuda", "int8", "int32")])
