@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import os
 import re
 
 import numpy as np
@@ -4798,9 +4799,10 @@ def verify_qlinearadd(a_shape, b_shape, c_shape):
         def get_next(self):
             return next(self.data, None)
 
-    model_fp32 = "/tmp/model.onnx"
+    d = tvm.contrib.utils.tempdir()
+    model_fp32 = os.path.join(d.temp_dir, "model.onnx")
     onnx.save_model(model, model_fp32)
-    model_quant = "/tmp/model.quant.onnx"
+    model_quant = os.path.join(d.temp_dir, "model.quant.onnx")
     quantized_model = quantize_static(model_fp32, model_quant, RandomDataReader())
     # opt_level=1 will cause error with qnn lowering
     model = onnx.load(model_quant)
