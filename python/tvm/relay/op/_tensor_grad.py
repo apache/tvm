@@ -554,6 +554,35 @@ def dense_grad(orig, grad):
     ]
 
 
+@register_gradient("nn.matmul")
+def matmul_grad(orig, grad):
+    """Returns [grad' @ tensor_b, tensor_a @ grad']"""
+    tensor_a, tensor_b = orig.args
+    if (orig.attrs["transpose_a"], orig.attrs["transpose_b"]) == (True, True):
+        return [
+            collapse_sum_like(
+                _nn.matmul(tensor_b, grad, transpose_a=True, transpose_b=True), tensor_a
+            ),
+            collapse_sum_like(
+                _nn.matmul(grad, tensor_a, transpose_a=True, transpose_b=True), tensor_b
+            ),
+        ]
+    if (orig.attrs["transpose_a"], orig.attrs["transpose_b"]) == (True, False):
+        return [
+            collapse_sum_like(_nn.matmul(tensor_b, grad, transpose_b=True), tensor_a),
+            collapse_sum_like(_nn.matmul(tensor_a, grad), tensor_b),
+        ]
+    if (orig.attrs["transpose_a"], orig.attrs["transpose_b"]) == (False, True):
+        # Keep using Dense op here for not involving extra ops
+        # TODO(jcf94): Merge all to nn.matmul when it is finally ready
+        return dense_grad(orig, grad)
+    # (orig.attrs["transpose_a"], orig.attrs["transpose_b"]) == (False, False)
+    return [
+        collapse_sum_like(_nn.matmul(grad, tensor_b, transpose_b=True), tensor_a),
+        collapse_sum_like(_nn.matmul(tensor_a, grad, transpose_a=True), tensor_b),
+    ]
+
+
 @register_gradient("nn.batch_matmul")
 def batch_matmul_grad(orig, grad):
     """gradient for nn.batch_matmul: in einsum LHS_bik,RHS_bjk->RES_bij

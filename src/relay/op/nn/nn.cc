@@ -162,7 +162,39 @@ Useful for
     .set_support_level(3)
     .add_type_rel("FIFOBuffer", FIFOBufferRel);
 
-// relay.nn.dense
+// ------------------- relay.nn.matmul
+TVM_REGISTER_NODE_TYPE(MatmulAttrs);
+
+Expr MakeMatmul(Expr tensor_a, Expr tensor_b, IndexExpr units, DataType out_dtype, bool transpose_a,
+                bool transpose_b) {
+  auto attrs = make_object<MatmulAttrs>();
+  attrs->units = units;
+  attrs->out_dtype = out_dtype;
+  attrs->transpose_a = transpose_a;
+  attrs->transpose_b = transpose_b;
+  static const Op& matmul_op = Op::Get("nn.matmul");
+  return Call(matmul_op, {tensor_a, tensor_b}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op.nn._make.matmul").set_body_typed(MakeMatmul);
+
+RELAY_REGISTER_OP("nn.matmul")
+    .describe(R"code(Applies a linear transformation: :math:`C = A * B`. A & B can be transposed.
+
+- **tensor_a**: `(x1, x2, ..., xn, input_dim)` or `(x1, x2, ..., input_dim, xn)`
+- **tensor_b**: `(input_dim, units)` or `(units, input_dim)`
+- **out**: `(x1, x2, ..., xn, units)`.
+
+)code" TVM_ADD_FILELINE)
+    .set_attrs_type<MatmulAttrs>()
+    .set_num_inputs(2)
+    .add_argument("tensor_a", "nD Tensor", "The first input Tensor.")
+    .add_argument("tensor_b", "2D Tensor", "The second input Tensor.")
+    .set_support_level(1)
+    .add_type_rel("Matmul", MatmulRel<MatmulAttrs>);
+// ------------------- relay.nn.matmul
+
+// ------------------- relay.nn.dense
 TVM_REGISTER_NODE_TYPE(DenseAttrs);
 
 // Positional relay function to create dense operator used by frontend FFI.
@@ -189,9 +221,10 @@ RELAY_REGISTER_OP("nn.dense")
     .add_argument("data", "nD Tensor", "Input data.")
     .add_argument("weight", "2D Tensor", "Weight matrix.")
     .set_support_level(1)
-    .add_type_rel("Dense", DenseRel<DenseAttrs>);
+    .add_type_rel("Dense", MatmulRel<DenseAttrs>);
+// ------------------- relay.nn.dense
 
-// relay.nn.contrib_dense_pack
+// ------------------- relay.nn.contrib_dense_pack
 // Positional relay function to create dense_pack operator used by frontend FFI.
 Expr MakeDensePack(Expr data, Expr weight, IndexExpr units, DataType out_dtype) {
   auto attrs = make_object<DenseAttrs>();
@@ -217,6 +250,7 @@ RELAY_REGISTER_OP("nn.contrib_dense_pack")
     .add_argument("weight", "3D Tensor", "Packed weight matrix.")
     .set_support_level(10)
     .add_type_rel("DensePack", DensePackRel<DenseAttrs>);
+// ------------------- relay.nn.contrib_dense_pack
 
 // relay.leaky_relu
 TVM_REGISTER_NODE_TYPE(LeakyReluAttrs);

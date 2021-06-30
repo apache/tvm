@@ -117,6 +117,7 @@ def run_tvm_graph(
     disabled_pass=None,
     ignore_in_shape=False,
     serialize=False,
+    use_dense_op=True,
 ):
     """Generic function to compile on relay and execute on tvm"""
     input_data = convert_to_list(input_data)
@@ -131,7 +132,11 @@ def run_tvm_graph(
             e: i.shape if hasattr(i, "shape") else () for e, i in zip(input_node, input_data)
         }
     mod, params = relay.frontend.from_tensorflow(
-        graph_def, layout=layout, shape=shape_dict, outputs=out_names
+        graph_def,
+        layout=layout,
+        shape=shape_dict,
+        outputs=out_names,
+        use_dense_op=use_dense_op,
     )
     dev = tvm.device(target, 0)
     if mode == "debug":
@@ -213,6 +218,7 @@ def compare_tf_with_tvm(
     add_shapes_to_graph_def=True,
     targets=None,
     ignore_in_shape=False,
+    use_dense_op=True,
 ):
     """Generic function to generate and compare tensorflow and TVM output"""
 
@@ -260,6 +266,7 @@ def compare_tf_with_tvm(
                 mode=mode,
                 cuda_layout=cuda_layout,
                 ignore_in_shape=ignore_in_shape,
+                use_dense_op=use_dense_op,
             )
             # since the names from tensorflow and relay runs are not exactly same,
             # first len(tf_output) will be compared
@@ -1810,7 +1817,8 @@ def _test_matmul(i, j, k, dtype, outer=None):
 
                 A_np = np.random.uniform(high=5.0, size=A_shape).astype(dtype)
                 B_np = np.random.uniform(high=5.0, size=B_shape).astype(dtype)
-                compare_tf_with_tvm([A_np, B_np], [A.name, B.name], result.name)
+                compare_tf_with_tvm([A_np, B_np], [A.name, B.name], result.name, use_dense_op=True)
+                compare_tf_with_tvm([A_np, B_np], [A.name, B.name], result.name, use_dense_op=False)
 
 
 def test_forward_matmul():

@@ -36,31 +36,44 @@ namespace tvm {
 namespace relay {
 
 template <typename AttrType>
-bool DenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
-              const TypeReporter& reporter) {
+bool MatmulRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+               const TypeReporter& reporter) {
   ICHECK_EQ(types.size(), 3);
-  const auto* data = types[0].as<TensorTypeNode>();
-  const auto* weight = types[1].as<TensorTypeNode>();
-  if (data == nullptr) return false;
+  const auto* tensor_a = types[0].as<TensorTypeNode>();
+  const auto* tensor_b = types[1].as<TensorTypeNode>();
+  if (tensor_a == nullptr) return false;
+  ICHECK(static_cast<int>(tensor_a->shape.size()) != 0);
 
   const AttrType* param = attrs.as<AttrType>();
   ICHECK(param != nullptr);
+  // Default set to dense layout
+  bool transpose_a = false;
+  bool transpose_b = true;
+  const auto& mattrs = attrs.as<MatmulAttrs>();
+  if (mattrs != nullptr) {
+    transpose_a = mattrs->transpose_a;
+    transpose_b = mattrs->transpose_b;
+  }
 
-  ICHECK(static_cast<int>(data->shape.size()) != 0);
-
-  Array<tvm::PrimExpr> dshape = data->shape;
+  const Array<tvm::PrimExpr>& dshape = tensor_a->shape;
   Array<tvm::PrimExpr> oshape = dshape;
+  tvm::PrimExpr reduce = dshape[dshape.size() - 1];
+  if (transpose_a) {
+    reduce = dshape[dshape.size() - 2];
+    oshape.Set((oshape.size() - 2), dshape[oshape.size() - 1]);
+  }
   if (param->units.defined()) {
-    // validate the weight shape is proper if defined
-    // Assign weight type
-    Array<IndexExpr> wshape({param->units, dshape[dshape.size() - 1]});
-    // It is possible for weight to be nullptr in which case we will use
-    // data dtype as the weight dtype. However if weight dtype is explicitly
+    // validate the tensor_b shape is proper if defined
+    // Assign tensor_b type
+    const Array<IndexExpr>& wshape = transpose_b ? Array<IndexExpr>({param->units, reduce})
+                                                 : Array<IndexExpr>({reduce, param->units});
+    // It is possible for tensor_b to be nullptr in which case we will use
+    // data dtype as the tensor_b dtype. However if tensor_b dtype is explicitly
     // present we will use that.
-    auto weight_dtype = (weight == nullptr ? data->dtype : weight->dtype);
+    auto tensor_b_dtype = (tensor_b == nullptr ? tensor_a->dtype : tensor_b->dtype);
     if (param->auto_scheduler_rewritten_layout.size() == 0) {
       // Normal case: assign result to reporter
-      reporter->Assign(types[1], TensorType(wshape, weight_dtype));
+      reporter->Assign(types[1], TensorType(wshape, tensor_b_dtype));
     } else {
       // If the layout is rewritten by auto-scheduler,
       // we just forcly apply the layout provided by auto-scheduler and
@@ -69,31 +82,32 @@ bool DenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     }
     oshape.Set((oshape.size() - 1), param->units);
   } else {
-    if (weight == nullptr) return false;
-    Array<tvm::PrimExpr> wshape = weight->shape;
-    // When weight's layout has been rewritten, figure it out based on the
+    if (tensor_b == nullptr) return false;
+    const Array<tvm::PrimExpr>& wshape = tensor_b->shape;
+    // When tensor_b's layout has been rewritten, figure it out based on the
     // total number of elements and input dimensions.
     if (param->auto_scheduler_rewritten_layout.size() != 0) {
-      PrimExpr weight_elements = 1;
+      PrimExpr tensor_b_elements = 1;
       for (size_t i = 0; i < wshape.size(); i++) {
-        weight_elements = weight_elements * wshape[i];
+        tensor_b_elements = tensor_b_elements * wshape[i];
       }
-      oshape.Set(oshape.size() - 1, weight_elements / dshape[dshape.size() - 1]);
-      // Otherwise just pull it out of the weight shape directly.
+      oshape.Set(oshape.size() - 1, tensor_b_elements / dshape[dshape.size() - 1]);
+      // Otherwise just pull it out of the tensor_b shape directly.
     } else {
-      ICHECK(static_cast<int>(weight->shape.size()) == 2);
-      if (!data->shape.back().as<tir::AnyNode>()) {
-        ICHECK(reporter->AssertEQ(data->shape[data->shape.size() - 1], weight->shape[1]))
-            << "DenseRel: input dimension doesn't match,"
-            << " data shape=" << data->shape << ", weight shape=" << weight->shape;
+      ICHECK(static_cast<int>(tensor_b->shape.size()) == 2);
+      if (!tensor_a->shape.back().as<tir::AnyNode>()) {
+        ICHECK((transpose_b && reporter->AssertEQ(reduce, tensor_b->shape[1])) ||
+               (!transpose_b && reporter->AssertEQ(reduce, tensor_b->shape[0])))
+            << "MatmulRel: input dimension doesn't match,"
+            << " tensor_a shape=" << tensor_a->shape << ", tensor_b shape=" << tensor_b->shape;
       }
-      oshape.Set((oshape.size() - 1), wshape[0]);
+      oshape.Set((oshape.size() - 1), transpose_b ? wshape[0] : wshape[1]);
     }
   }
 
   DataType out_dtype = param->out_dtype;
   if (out_dtype.bits() == 0) {
-    out_dtype = data->dtype;
+    out_dtype = tensor_a->dtype;
   }
   // assign output type
   reporter->Assign(types[2], TensorType(oshape, out_dtype));

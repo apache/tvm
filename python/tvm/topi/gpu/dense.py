@@ -49,6 +49,36 @@ def schedule_dense_small_batch(cfg, outs):
     return s
 
 
+@autotvm.register_topi_compute("matmul_default.gpu")
+def matmul_default(
+    cfg,
+    tensor_a,
+    tensor_b,
+    bias=None,
+    out_dtype=None,
+    transpose_a=False,
+    transpose_b=False,
+):
+    """Matmul operator on GPU"""
+    return nn.matmul(tensor_a, tensor_b, bias, out_dtype, transpose_a, transpose_b)
+
+
+@autotvm.register_topi_schedule("matmul_default.gpu")
+def schedule_matmul_default(cfg, outs):
+    """Schedule matmul on GPU"""
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
+
+    def _callback(op):
+        if op.tag == "matmul":
+            # Temporary use this as a basic schedule for matmul
+            # TODO(jcf94): Add a more general schedule for matmul
+            _schedule_dense_small_batch(cfg, s, op.output(0))
+
+    traverse_inline(s, outs[0].op, _callback)
+    return s
+
+
 def _schedule_dense_small_batch(cfg, s, C):
     A, weights = C.op.input_tensors
     _, in_dim_weights = get_const_tuple(weights.shape)
