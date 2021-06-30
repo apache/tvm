@@ -225,7 +225,7 @@ def _make_tar(source_dir, tar_file_path):
         tar_f.add(str(source_dir), arcname=".", filter=reset)
 
 
-_GENERATED_VERSION = 3
+_GENERATED_VERSION = 4
 
 
 def _export_graph_model_library_format(
