@@ -1,0 +1,40 @@
+repos:
+    - repo: https://github.com/pre-commit/pre-commit-hooks
+      rev: v2.5.0
+      hooks:
+        - id: check-added-large-files
+        - id: check-merge-conflict
+        - id: check-yaml
+        - id: end-of-file-fixer
+    - repo: local
+      hooks:
+        -   id: run-file-types
+            name: Checking File Types...
+            entry: python3 tests/lint/check_file_type.py
+            language: system
+            always_run: true
+            pass_filenames: false
+        -   id: run-headers-check
+            name: Checking ASF License Headers...
+            entry: tests/lint/check_asf_header.sh --local
+            language: system
+            always_run: true
+            pass_filenames: false
+        -   id: run-black
+            name: Checking Black ...
+            entry: tests/lint/python_format.sh
+            language: system
+            always_run: true
+            pass_filenames: false
+        -   id: run-python-linting
+            name: Checking Python Linting ...
+            entry: tests/lint/pylint.sh
+            language: system
+            always_run: true
+            pass_filenames: false
+        -   id: run-mypy
+            name: Type Checking with MyPy ...
+            entry: tests/scripts/task_mypy.sh
+            language: system
+            always_run: true
+            pass_filenames: false
