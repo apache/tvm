@@ -175,7 +175,8 @@ class SchedulePostProc : public StmtExprMutator {
         thread_extent_scope_.erase(op->node.get());
         return ret;
       }
-    } else if (op->attr_key == tir::attr::double_buffer_scope) {
+    } else if (op->attr_key == tir::attr::realize_scope ||
+               op->attr_key == tir::attr::double_buffer_scope) {
       auto it = replace_op_.find(op->node.get());
       if (it != replace_op_.end()) {
         if (it->second.defined()) {
