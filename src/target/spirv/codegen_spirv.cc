@@ -63,6 +63,7 @@ runtime::VulkanShader CodeGenSPIRV::BuildFunction(const PrimFunc& f, const std::
         }
         spirv::Value arg_value = builder_->BufferArgument(builder_->GetSType(value_storage_type),
                                                           descriptor_set, num_buffer);
+        builder_->SetName(arg_value, arg->name_hint);
         storage_info_[arg.get()].UpdateContentType(value_storage_type);
         var_map_[arg.get()] = arg_value;
       } else {
@@ -144,15 +145,21 @@ spirv::Value CodeGenSPIRV::CreateStorageSync(const CallNode* op) {
   uint32_t vulkan_api_version = spirv_support_.vulkan_api_version;
 
   int64_t sync_scope;
-  int64_t memory_semantics;
+  int64_t memory_semantics = spv::MemorySemanticsSequentiallyConsistentMask;
   if ((sync == "warp") && (vulkan_api_version >= VK_API_VERSION_1_1)) {
+    // Synchronize control at the Subgroup level, but memory at the
+    // Workgroup level.  This is because different invocations in a
+    // subgroup may have each modified memory that exists at the
+    // workgroup scope.  This should be changed if/when tir exposes
+    // more information as to which memory access needs to be
+    // synchronized.
     sync_scope = spv::ScopeSubgroup;
-    memory_semantics =
-        spv::MemorySemanticsSequentiallyConsistentMask | spv::MemorySemanticsSubgroupMemoryMask;
+    memory_semantics |=
+        spv::MemorySemanticsSubgroupMemoryMask | spv::MemorySemanticsWorkgroupMemoryMask;
+
   } else if ((sync == "shared") || (sync == "warp")) {
     sync_scope = spv::ScopeWorkgroup;
-    memory_semantics =
-        spv::MemorySemanticsSequentiallyConsistentMask | spv::MemorySemanticsWorkgroupMemoryMask;
+    memory_semantics |= spv::MemorySemanticsWorkgroupMemoryMask;
   } else {
     LOG(FATAL) << "Do not support sync " << sync;
   }
@@ -161,6 +168,7 @@ spirv::Value CodeGenSPIRV::CreateStorageSync(const CallNode* op) {
   builder_->MakeInst(spv::OpControlBarrier, builder_->IntImm(type_int, sync_scope),
                      builder_->IntImm(type_int, sync_scope),
                      builder_->IntImm(type_int, memory_semantics));
+
   return value;
 }
 
@@ -642,14 +650,16 @@ void CodeGenSPIRV::VisitStmt_(const AllocateNode* op) {
   if (info.scope.rank == runtime::StorageRank::kLocal) {
     buf =
         builder_->Allocate(etype, static_cast<uint32_t>(constant_size), spv::StorageClassFunction);
-  } else {
-    // shared memory
-    ICHECK(info.scope.rank == runtime::StorageRank::kShared)
-        << "Can only allocate shared or local memory inside kernel";
+  } else if (info.scope.rank == runtime::StorageRank::kShared) {
     // Shared memory
     buf =
         builder_->Allocate(etype, static_cast<uint32_t>(constant_size), spv::StorageClassWorkgroup);
+  } else {
+    LOG(FATAL) << "Can only allocate shared or local memory inside kernel";
   }
+
+  builder_->SetName(buf, op->buffer_var->name_hint);
+
   ICHECK(!info.content_fixed);
   info.UpdateContentType(op->dtype);
   ICHECK(!var_map_.count(op->buffer_var.get()));

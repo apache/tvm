@@ -550,7 +550,8 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
     }
 
     CCacheKey key(func, target);
-    auto cfunc = engine_->Lower(key);
+    auto mangle_fn = [](String name) { return name; };
+    auto cfunc = engine_->Lower(key, mangle_fn);
 
     auto op_index = -1;
     if (func->GetAttr<String>(attr::kCompiler).defined()) {

@@ -1,4 +1,3 @@
-#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -14,25 +13,26 @@
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
-# under the License.
+# under the License
 
-set -e
-set -u
-set -o pipefail
+import tvm
+import tvm.testing
+import tvm.relay as relay
+import tvm.relay.backend.utils as utils
+import pytest
 
-# Script to setup additional python env.
-#
-# Use the following command to install the
-# package to /workspace/.local, these additional
-# packages will have precedence over the system packages.
-#
-# command: python3 -m pip install --user <package>==<version>
-#
-echo "Addtiional setup in" ${CI_IMAGE_NAME}
 
-python3 -m pip install --user tlcpack-sphinx-addon==0.2.1 synr==0.3.0
+def test_mangle_mod_name():
+    assert utils.mangle_module_name("default") == "tvmgen_default"
+    assert utils.mangle_module_name("ccompiler") == "tvmgen_ccompiler"
+    assert utils.mangle_module_name("1234"), "tvmgen_1234"
+    assert utils.mangle_module_name(""), "tvmgen"
+    assert utils.mangle_module_name(None), "tvmgen"
 
-# Rebuild standalone_crt in build/ tree. This file is not currently archived by pack_lib() in
-# Jenkinsfile. We expect config.cmake to be present from pack_lib().
-# TODO(areusch): Make pack_lib() pack all the data dependencies of TVM.
-(cd build && cmake .. && make standalone_crt)
+    with pytest.raises(ValueError):
+        utils.mangle_module_name("\u018e")
+        utils.mangle_module_name("\xf1")
+
+
+if __name__ == "__main__":
+    pytest.main([__file__])
