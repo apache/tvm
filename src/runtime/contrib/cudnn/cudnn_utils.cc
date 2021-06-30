@@ -115,11 +115,7 @@ CuDNNThreadEntry::CuDNNThreadEntry() {
   conv_entry.cuda_api = cuda_api;
 }
 
-CuDNNThreadEntry::~CuDNNThreadEntry() {
-  if (handle) {
-    CUDNN_CALL(cudnnDestroy(handle));
-  }
-}
+CuDNNThreadEntry::~CuDNNThreadEntry() {}
 
 typedef dmlc::ThreadLocalStore<CuDNNThreadEntry> CuDNNThreadStore;
 
