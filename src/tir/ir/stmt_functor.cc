@@ -58,6 +58,11 @@ void StmtVisitor::VisitStmt_(const AllocateNode* op) {
   this->VisitExpr(op->condition);
 }
 
+void StmtVisitor::VisitStmt_(const AllocateConstNode* op) {
+  VisitArray(op->extents, [this](const PrimExpr& e) { this->VisitExpr(e); });
+  this->VisitStmt(op->body);
+}
+
 void StmtVisitor::VisitStmt_(const StoreNode* op) {
   this->VisitExpr(op->value);
   this->VisitExpr(op->index);
@@ -315,6 +320,20 @@ Stmt StmtMutator::VisitStmt_(const AllocateNode* op) {
     n->extents = std::move(extents);
     n->body = std::move(body);
     n->condition = std::move(condition);
+    return Stmt(n);
+  }
+}
+
+Stmt StmtMutator::VisitStmt_(const AllocateConstNode* op) {
+  Array<PrimExpr> extents = Internal::Mutate(this, op->extents);
+  Stmt body = this->VisitStmt(op->body);
+
+  if (extents.same_as(op->extents) && body.same_as(op->body)) {
+    return GetRef<Stmt>(op);
+  } else {
+    auto n = CopyOnWrite(op);
+    n->extents = std::move(extents);
+    n->body = std::move(body);
     return Stmt(n);
   }
 }

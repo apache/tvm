@@ -409,6 +409,68 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->Print(op->body);
     });
 
+// Const
+AllocateConst::AllocateConst(Var buffer_var, ::tvm::runtime::NDArray data, DataType dtype,
+                             Array<PrimExpr> extents, Stmt body, Span span) {
+  CHECK(IsPointerType(buffer_var->type_annotation, dtype))
+      << "The allocated data type (" << dtype
+      << ") does not match the type annotation of the buffer " << buffer_var << " ("
+      << buffer_var->type_annotation
+      << "). The data type should be an element of the pointer type.";
+
+  for (size_t i = 0; i < extents.size(); ++i) {
+    ICHECK(extents[i].defined());
+    ICHECK(extents[i].dtype().is_scalar());
+  }
+  ICHECK(body.defined());
+
+  ObjectPtr<AllocateConstNode> node = make_object<AllocateConstNode>();
+  node->buffer_var = std::move(buffer_var);
+  node->dtype = dtype;
+  node->extents = std::move(extents);
+  node->body = std::move(body);
+  node->span = std::move(span);
+  node->data = data;
+  data_ = std::move(node);
+}
+
+int32_t AllocateConstNode::constant_allocation_size(const Array<PrimExpr>& extents) {
+  int64_t result = 1;
+  for (size_t i = 0; i < extents.size(); ++i) {
+    if (const IntImmNode* int_size = extents[i].as<IntImmNode>()) {
+      result *= int_size->value;
+      if (result > std::numeric_limits<int32_t>::max()) {
+        return 0;
+      }
+    } else {
+      return 0;
+    }
+  }
+  return static_cast<int32_t>(result);
+}
+
+TVM_REGISTER_GLOBAL("tir.AllocateConst")
+    .set_body_typed([](Var buffer_var, ::tvm::runtime::NDArray data, DataType type,
+                       Array<PrimExpr> extents, Stmt body, Span span) {
+      return AllocateConst(buffer_var, data, type, extents, body, span);
+    });
+
+TVM_REGISTER_NODE_TYPE(AllocateConstNode);
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<AllocateConstNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* op = static_cast<const AllocateConstNode*>(node.get());
+      p->PrintIndent();
+      p->stream << "constant " << op->buffer_var << "[" << op->dtype;
+      for (size_t i = 0; i < op->extents.size(); ++i) {
+        p->stream << " * ";
+        p->Print(op->extents[i]);
+      }
+      p->stream << "]";
+      p->stream << "\n";
+      p->Print(op->body);
+    });
+
 // ProducerRealize
 ProducerRealize::ProducerRealize(DataProducer producer, Region bounds, PrimExpr condition,
                                  Stmt body, String storage_scope, Span span) {

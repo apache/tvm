@@ -586,6 +586,73 @@ class Allocate : public Stmt {
 };
 
 /*!
+ * \brief Allocate a buffer that can be used in body.
+ */
+class AllocateConstNode : public StmtNode {
+ public:
+  /*! \brief The buffer variable. */
+  Var buffer_var;
+  /*! \brief The data associated to the constant. */
+  ::tvm::runtime::NDArray data;
+  /*! \brief The type of the buffer. */
+  DataType dtype;
+  /*! \brief The extents of the buffer. */
+  Array<PrimExpr> extents;
+  /*! \brief The body to be executed. */
+  Stmt body;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("buffer_var", &buffer_var);
+    v->Visit("dtype", &dtype);
+    v->Visit("extents", &extents);
+    v->Visit("body", &body);
+    v->Visit("span", &span);
+  }
+
+  bool SEqualReduce(const AllocateConstNode* other, SEqualReducer equal) const {
+    return equal.DefEqual(buffer_var, other->buffer_var) && equal(dtype, other->dtype) &&
+           equal(extents, other->extents) && equal(data, other->data) && equal(body, other->body);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce.DefHash(buffer_var);
+    hash_reduce(dtype);
+    hash_reduce(extents);
+    hash_reduce(body);
+    hash_reduce(data);
+  }
+
+  /*!
+   * \brief If the buffer size is constant, return the size.
+   *        Otherwise return 0.
+   * \return The result.
+   */
+  int32_t constant_allocation_size() const { return constant_allocation_size(extents); }
+  /*!
+   * \brief If the buffer size is constant, return the size.
+   *        Otherwise return 0.
+   * \param extents The extents of the buffer.
+   * \return The result.
+   */
+  TVM_DLL static int32_t constant_allocation_size(const Array<PrimExpr>& extents);
+
+  static constexpr const char* _type_key = "tir.AllocateConst";
+  TVM_DECLARE_FINAL_OBJECT_INFO(AllocateConstNode, StmtNode);
+};
+
+/*!
+ * \brief Managed reference to AllocateNode.
+ * \sa AllocateNode
+ */
+class AllocateConst : public Stmt {
+ public:
+  TVM_DLL AllocateConst(Var buffer_var, ::tvm::runtime::NDArray data, DataType dtype,
+                        Array<PrimExpr> extents, Stmt body, Span span = Span());
+
+  TVM_DEFINE_OBJECT_REF_METHODS(AllocateConst, Stmt, AllocateConstNode);
+};
+
+/*!
  * \brief The container of seq statement.
  *        Represent a sequence of statements.
  */

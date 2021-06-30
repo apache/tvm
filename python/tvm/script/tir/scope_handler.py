@@ -23,6 +23,7 @@ import tvm.tir
 from tvm.runtime import Object
 from tvm.ir import Span, Range
 from tvm.tir import Stmt, PrimExpr, IterVar, Var, Buffer, BufferRegion, ForKind
+import numpy as np
 
 from .node import BufferSlice
 from .utils import buffer_slice_to_region
@@ -151,6 +152,52 @@ class Allocate(WithScopeHandler):
         ):
             """Setup buffer var for a given type."""
             buffer_ptr_type = tvm.ir.PointerType(tvm.ir.PrimType(dtype), scope)
+            self.buffer_var = tvm.tir.Var(name, buffer_ptr_type, span)
+
+        setup_buffer_var(*arg_list, span=tvm_span_from_synr(var_span))
+        context.update_symbol(name, self.buffer_var, node)
+
+
+@register
+class AllocateConst(WithScopeHandler):
+    """With scope handler tir.allocate(data, extents, dtype, condition)"""
+
+    def __init__(self):
+        def allocate_const(raw_data, dtype, shape, span=None):
+            list_data = []
+            for i in raw_data:
+                list_data.append(i.value)
+            nd_data = tvm.nd.array(np.asarray(list_data, dtype=dtype))
+
+            n = tvm.tir.AllocateConst(self.buffer_var, nd_data, dtype, shape, self.body, span=span)
+            return n
+
+        super().__init__(allocate_const, concise_scope=True, def_symbol=True)
+        self.buffer_var = None
+
+    def enter_scope(
+        self,
+        node: synr.ast.Node,
+        context: ContextMaintainer,
+        arg_list: List[Any],
+        span: synr.ast.Span,
+    ):
+        # define buffer vars in symbol table
+        if isinstance(node, ast.With):
+            vars = WithScopeHandler.get_optional_vars(node, context)
+            if len(vars) != 1:
+                context.report_error("Unexpected number of vars", node.span)
+            name = vars[0].id.name
+            var_span = vars[0].id.span
+        elif isinstance(node, ast.Assign):
+            name = node.lhs.id.name
+            var_span = node.lhs.id.span
+        else:
+            raise Exception("Internal Bug")
+
+        def setup_buffer_var(data, dtype, shape, span: Span = None):
+            """Setup buffer var for a given type."""
+            buffer_ptr_type = tvm.ir.PointerType(tvm.ir.PrimType(dtype))
             self.buffer_var = tvm.tir.Var(name, buffer_ptr_type, span)
 
         setup_buffer_var(*arg_list, span=tvm_span_from_synr(var_span))
