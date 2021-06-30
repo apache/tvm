@@ -60,6 +60,7 @@ def matmul(
     output : tvm.te.Tensor
         2-D with shape [batch, out_dim]
     """
+    # TODO(jcf94): Add multi-dim support for tensor_a
     assert len(tensor_a.shape) == 2, "only support 2-dim matmul"
     if bias is not None:
         assert len(bias.shape) == 1
@@ -73,7 +74,7 @@ def matmul(
     if auto_scheduler_rewritten_layout:
         # Infer shape for the rewritten layout
         out_dim, red_dim = auto_scheduler.get_shape_from_rewritten_layout(
-            auto_scheduler_rewritten_layout, ["j", "k"] if transpose_b else ["k", "j"]
+            auto_scheduler_rewritten_layout, ["j", "k"]
         )
         auto_scheduler.remove_index_check(tensor_b)
     elif transpose_b:
