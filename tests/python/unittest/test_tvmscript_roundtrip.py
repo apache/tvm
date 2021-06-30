@@ -17,7 +17,10 @@
 
 import tvm
 from tvm import tir
+from tvm import ir
 from tvm.script import ty
+
+import numpy as np
 
 
 @tvm.script.tir
@@ -25,6 +28,7 @@ class Module1:
     def mmult(A: ty.handle, B: ty.handle, C: ty.handle) -> None:
         # function attr dict
         tir.func_attr({"global_symbol": "mmult", "tir.noalias": True})
+
         # buffer definition
         C_global = tir.buffer_decl([1024, 1024], elem_offset=0, align=128, offset_factor=1)
         packedB = tir.buffer_decl([32, 1024, 32], elem_offset=0, align=128, offset_factor=1)
@@ -2889,6 +2893,25 @@ def test_opaque_block():
 
 
 @tvm.script.tir
+def constant(a: ty.handle, c: ty.handle) -> None:
+    A = tir.match_buffer(a, (10), "int32")
+    C = tir.match_buffer(c, (10), "int32")
+    B = tir.alloc_buffer((10), "int32")
+    K = tir.allocate_const([1, 1, 1, 1, 1, 1, 1, 1, 1, 1], "int32", [10])
+    for x in tir.serial(0, 10):
+        B[x] = A[x] + tir.load("int32", K, x)
+
+    for x in tir.serial(0, 10):
+        C[x] = B[x]
+
+
+def test_const():
+    func = constant
+    rt_func = tvm.script.from_source(tvm.script.asscript(func, True))
+    tvm.ir.assert_structural_equal(func, rt_func)
+
+
+@tvm.script.tir
 def rank0(a: ty.handle) -> None:
     A = tir.match_buffer(a, (), "float32")
     B = tir.alloc_buffer((), "float32")
@@ -2977,3 +3000,4 @@ if __name__ == "__main__":
     test_block_elements()
     test_opaque_block()
     test_abs()
+    test_const()

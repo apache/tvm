@@ -322,6 +322,7 @@ class TIRTextPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc VisitStmt_(const BufferStoreNode* op) override;
   Doc VisitStmt_(const BufferRealizeNode* op) override;
   Doc VisitStmt_(const AllocateNode* op) override;
+  Doc VisitStmt_(const AllocateConstNode* op) override;
   Doc VisitStmt_(const IfThenElseNode* op) override;
   Doc VisitStmt_(const SeqStmtNode* op) override;
   Doc VisitStmt_(const EvaluateNode* op) override;
@@ -359,6 +360,7 @@ class TIRTextPrinter : public StmtFunctor<Doc(const Stmt&)>,
   static Doc PrintConstScalar(DataType dtype, const T& data);
   Doc GetUniqueName(std::string prefix);
   Doc AllocVar(const Var& var);
+  Doc AllocConst(const AllocateConst& var);
   Doc AllocBuf(const Buffer& buffer);
   /*!
    * \brief special method to render vectors of docs with a separator
