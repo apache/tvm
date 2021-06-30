@@ -1032,6 +1032,14 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
     StmtExprVisitor::VisitStmt_(op);
   }
 
+  void VisitStmt_(const AllocateConstNode* op) final {
+    const Array<PrimExpr>& extents = op->extents;
+    PrimExpr extent = extents.size() ? extents[extents.size() - 1] : NullValue<PrimExpr>();
+    OnArrayDeclaration(op->buffer_var, op->dtype, extent, BufferVarInfo::kAllocateNode);
+
+    StmtExprVisitor::VisitStmt_(op);
+  }
+
   void VisitExpr_(const LetNode* op) final {
     HandleLetNode(op->var);
     StmtExprVisitor::VisitExpr_(op);
@@ -1346,6 +1354,27 @@ class VectorTypeRewriter : public StmtExprMutator {
     extents.Set(extents.size() - 1,
                 extents[extents.size() - 1] / make_const(extents[0].dtype(), factor));
     return Allocate(new_buffer_var, info.new_element_dtype, extents, op->condition, op->body);
+  }
+
+  Stmt VisitStmt_(const AllocateConstNode* op) final {
+    Stmt stmt = StmtExprMutator::VisitStmt_(op);
+    op = stmt.as<AllocateConstNode>();
+
+    auto it = rewrite_map_.find(op->buffer_var.get());
+    if (it == rewrite_map_.end()) {
+      return stmt;
+    }
+
+    const auto& info = it->second;
+
+    Var new_buffer_var = info.new_buffer_var;
+
+    int factor = info.new_element_dtype.lanes() / op->dtype.lanes();
+
+    Array<PrimExpr> extents = op->extents;
+    extents.Set(extents.size() - 1,
+                extents[extents.size() - 1] / make_const(extents[0].dtype(), factor));
+    return AllocateConst(new_buffer_var, op->data, info.new_element_dtype, extents, op->body);
   }
 
   /* Update the parameters and all remaining variable references

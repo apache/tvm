@@ -85,7 +85,9 @@ namespace transform {
 Pass SplitArgs(int max_function_args) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
-        return Downcast<Function>(SplitArgs(f, max_function_args));
+        ICHECK(m->attrs.defined());
+        ICHECK(m->attrs->dict.defined());
+        return WithAttrs(Downcast<Function>(SplitArgs(f, max_function_args)), {m->attrs->dict});
       };
   return CreateFunctionPass(pass_func, 1, "SplitArgs", {"InferType"});
 }

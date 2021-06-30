@@ -635,7 +635,7 @@ def test_fuse_take():
         out = relay.op.take(concat, indices=relay.const([0], dtype="int64"))
         return relay.Function(relay.analysis.free_vars(out), out)
 
-    def expected():
+    def expected(link_params):
         shape1 = (tvm.tir.const(10, "int64"), tvm.tir.const(1, "int64"))
         shape2 = (tvm.tir.const(1, "int64"),)
         x = relay.var("x", shape=shape1)
@@ -643,19 +643,23 @@ def test_fuse_take():
         p1 = relay.var("p1", shape=shape2, dtype="int64")
         c = relay.const([0], dtype="int64")
         concat = relay.concatenate([p0, p0], axis=-1)
-        out = relay.op.take(concat, indices=p1)
+        out = relay.op.take(concat, indices=c if link_params else p1)
 
-        f0 = relay.Function([p0, p1], out)
+        f0 = relay.Function([p0] if link_params else [p0, p1], out)
         f0 = f0.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
 
-        y = relay.Call(f0, [x, c])
+        y = relay.Call(f0, [x] if link_params else [x, c])
         return relay.Function([x], y)
 
-    orig = before()
-    m = fuse2(tvm.IRModule.from_expr(orig))
-    relay.build(m, "llvm")
-    after = run_opt_pass(expected(), transform.InferType())
-    assert tvm.ir.structural_equal(m["main"], after)
+    for link_params in [False, True]:
+        after = run_opt_pass(expected(link_params), transform.InferType())
+        with tvm.transform.PassContext(
+            opt_level=2, config={"relay.FuseOps.link_params": link_params}
+        ):
+            m = run_opt_pass(before(), transform.InferType())
+            m = run_opt_pass(m, transform.FuseOps())
+        assert tvm.ir.structural_equal(m, after)
+        relay.build(m, "llvm")
 
 
 def test_fuse_gather_nd():
@@ -668,7 +672,7 @@ def test_fuse_gather_nd():
         out = relay.gather_nd(concat, indices=relay.expr.const([[0, 1], [1, 0]], dtype="int64"))
         return relay.Function(relay.analysis.free_vars(out), out)
 
-    def expected():
+    def expected(link_params):
         shape1 = (tvm.tir.const(10, "int64"), tvm.tir.const(1, "int64"))
         shape2 = (tvm.tir.const(2, "int64"), tvm.tir.const(2, "int64"))
         x = relay.var("x", shape=shape1)
@@ -676,19 +680,23 @@ def test_fuse_gather_nd():
         p1 = relay.var("p1", shape=shape2, dtype="int64")
         c = relay.const([[0, 1], [1, 0]], dtype="int64")
         concat = relay.concatenate([p0, p0], axis=-1)
-        out = relay.gather_nd(concat, indices=p1)
+        out = relay.gather_nd(concat, indices=c if link_params else p1)
 
-        f0 = relay.Function([p0, p1], out)
+        f0 = relay.Function([p0] if link_params else [p0, p1], out)
         f0 = f0.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
 
-        y = relay.Call(f0, [x, c])
+        y = relay.Call(f0, [x] if link_params else [x, c])
         return relay.Function([x], y)
 
-    orig = before()
-    m = fuse2(tvm.IRModule.from_expr(orig))
-    relay.build(m, "llvm")
-    after = run_opt_pass(expected(), transform.InferType())
-    assert tvm.ir.structural_equal(m["main"], after)
+    for link_params in [False, True]:
+        after = run_opt_pass(expected(link_params), transform.InferType())
+        with tvm.transform.PassContext(
+            opt_level=2, config={"relay.FuseOps.link_params": link_params}
+        ):
+            m = run_opt_pass(before(), transform.InferType())
+            m = run_opt_pass(m, transform.FuseOps())
+        assert tvm.ir.structural_equal(m, after)
+        relay.build(m, "llvm")
 
 
 @tvm.testing.uses_gpu

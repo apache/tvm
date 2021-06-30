@@ -545,22 +545,20 @@ class AOTExecutorCodegen : public MixedModeVisitor {
 
   void VisitExpr_(const ConstantNode* op) override {
     Expr expr = GetRef<Expr>(op);
-    size_t index = params_.size();
-    std::string name = "p" + std::to_string(index);
     StorageInfo& sinfo = storage_device_map_[expr];
-    param_storage_ids_[name] = sinfo->storage_ids[0];
-    params_[name] = op->data;
-    params_by_expr_.Set(expr, name);
+    std::stringstream ss;
+    ss << "constant_" << constant_map_.size();
+
+    tir::Var constant(ss.str(), PointerType(PrimType(DataType(op->data->dtype))));
+    constant_map_[constant.operator->()] = op;
 
     // If the Constant node is an output node we need to copy the content of the parameter to the
     // output A Var node can only produce a single output
     auto output_iter = std::find(return_sid_.begin(), return_sid_.end(), sinfo->storage_ids[0]);
     if (output_iter != return_sid_.end()) {
       int output_index = std::distance(return_sid_.begin(), output_iter);
-      auto param_handle = tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::lookup_param(),
-                                         {tir::StringImm(params_by_expr_[expr])});
-      CopyToOutput(GetBufferVarForIO(input_vars_.size() + output_index), param_handle, false,
-                   sinfo->storage_sizes_in_bytes[0]);
+      CopyToOutput(main_signature_[input_vars_.size() + output_index], constant,
+                   /* pack_input */ false, sinfo->storage_sizes_in_bytes[0]);
     }
   }
 
@@ -638,6 +636,20 @@ class AOTExecutorCodegen : public MixedModeVisitor {
         }
         allocated[sid] = true;
       }
+    }
+
+    for (auto kv : constant_map_) {
+      auto buffer_var = GetRef<tir::Var>(kv.first);
+      auto dtype = DataType(kv.second->data->dtype);
+
+      int ndim = kv.second->data->ndim;
+      Array<PrimExpr> extents;
+
+      for (int i = 0; i < ndim; i++) {
+        int shape = kv.second->data->shape[i];
+        extents.push_back(tir::make_const(DataType::Int(32), shape));
+      }
+      body = tir::AllocateConst(buffer_var, kv.second->data, dtype, extents, body);
     }
 
     // Define the PrimFunc attributes
@@ -795,6 +807,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
   Map<Expr, String> params_by_expr_;
   /*! \brief mapping between parameter names ("p0", "p1", etc..) and storage identifiers*/
   std::unordered_map<std::string, int64_t> param_storage_ids_;
+  std::unordered_map<const tir::VarNode*, const ConstantNode*> constant_map_;
 
   /*! \brief plan memory of device result */
   StorageMap storage_device_map_;

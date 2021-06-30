@@ -160,7 +160,7 @@ class Allocate(WithScopeHandler):
 
 @register
 class AllocateConst(WithScopeHandler):
-    """With scope handler tir.allocate(data, extents, dtype, condition)"""
+    """With scope handler tir.allocate_const(data, extents, dtype, condition)"""
 
     def __init__(self):
         def allocate_const(raw_data, dtype, shape, span=None):
@@ -168,7 +168,6 @@ class AllocateConst(WithScopeHandler):
             for i in raw_data:
                 list_data.append(i.value)
             nd_data = tvm.nd.array(np.asarray(list_data, dtype=dtype))
-
             n = tvm.tir.AllocateConst(self.buffer_var, nd_data, dtype, shape, self.body, span=span)
             return n
 
@@ -183,15 +182,17 @@ class AllocateConst(WithScopeHandler):
         span: synr.ast.Span,
     ):
         # define buffer vars in symbol table
-        if isinstance(node, ast.With):
+        if isinstance(node, synr.ast.With):
             vars = WithScopeHandler.get_optional_vars(node, context)
             if len(vars) != 1:
-                context.report_error("Unexpected number of vars", node.span)
+                context.report_error(f"Unexpected number of vars: 1 vs. {len(vars)}", node.span)
             name = vars[0].id.name
             var_span = vars[0].id.span
-        elif isinstance(node, ast.Assign):
-            name = node.lhs.id.name
-            var_span = node.lhs.id.span
+        elif isinstance(node, synr.ast.Assign):
+            if len(node.lhs) != 1:
+                context.report_error(f"Unexpected number of vars: 1 vs. {len(node.lhs)}", node.span)
+            name = node.lhs[0].id.name
+            var_span = node.lhs[0].id.span
         else:
             raise Exception("Internal Bug")
 

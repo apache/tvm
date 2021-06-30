@@ -22,7 +22,6 @@ import tvm
 from tvm import tir
 from tvm.script import tir as T
 from tvm import ir
-from tvm.script import ty
 
 import numpy as np
 
@@ -2922,29 +2921,29 @@ def test_opaque_block():
     assert len(root_block.body.body[1].block.iter_vars) == 0
 
 
-@tvm.script.tir
-def constant(a: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, (10), "int32")
-    C = tir.match_buffer(c, (10), "int32")
-    B = tir.alloc_buffer((10), "int32")
-    K = tir.allocate_const([1, 1, 1, 1, 1, 1, 1, 1, 1, 1], "int32", [10])
-    for x in tir.serial(0, 10):
-        B[x] = A[x] + tir.load("int32", K, x)
+@T.prim_func
+def constant(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (10), "int32")
+    C = T.match_buffer(c, (10), "int32")
+    B = T.alloc_buffer((10), "int32")
+    K = T.allocate_const([1, 1, 1, 1, 1, 1, 1, 1, 1, 1], "int32", [10])
+    for x in T.serial(0, 10):
+        B[x] = A[x] + T.load("int32", K, x)
 
-    for x in tir.serial(0, 10):
+    for x in T.serial(0, 10):
         C[x] = B[x]
 
 
 def test_const():
     func = constant
-    rt_func = tvm.script.from_source(tvm.script.asscript(func, True))
+    rt_func = tvm.script.from_source(func.script(show_meta=True))
     tvm.ir.assert_structural_equal(func, rt_func)
 
 
-@tvm.script.tir
-def rank0(a: ty.handle) -> None:
-    A = tir.match_buffer(a, (), "float32")
-    B = tir.alloc_buffer((), "float32")
+@T.prim_func
+def rank0(a: T.handle) -> None:
+    A = T.match_buffer(a, (), "float32")
+    B = T.alloc_buffer((), "float32")
     A[()] = 2
     B[()] = A[()]
 

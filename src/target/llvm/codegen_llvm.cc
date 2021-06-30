@@ -1480,6 +1480,16 @@ void CodeGenLLVM::VisitStmt_(const IfThenElseNode* op) {
   builder_->SetInsertPoint(end_block);
 }
 
+void CodeGenLLVM::VisitStmt_(const AllocateConstNode* op) {
+  auto array = NDArrayToLLVMArray(ctx_, op->data);
+  std::string symbol_name = op->buffer_var->name_hint;
+  llvm::GlobalVariable* param_symbol = new llvm::GlobalVariable(
+      *module_, array->getType(), true, llvm::GlobalValue::InternalLinkage, array, symbol_name);
+
+  var_map_[op->buffer_var.operator->()] = param_symbol;
+  this->VisitStmt(op->body);
+}
+
 void CodeGenLLVM::VisitStmt_(const AllocateNode* op) {
   ICHECK(!is_zero(op->condition));
   llvm::Value* buf = nullptr;

@@ -1267,7 +1267,9 @@ class DeviceCapturer : public ExprMutator {
 /*! \brief Rewrite the "on_device" calls (and implicitly re-type-check). */
 tvm::transform::Pass Rewrite() {
   auto pass_func = [](Function f, IRModule m, transform::PassContext ctxt) {
-    return Downcast<Function>(RewriteOnDevices(std::move(m)).Mutate(f));
+    ICHECK(m->attrs.defined());
+    ICHECK(m->attrs->dict.defined());
+    return WithAttrs(Downcast<Function>(RewriteOnDevices(std::move(m)).Mutate(f)), {m->attrs->dict});
   };
   return tvm::relay::transform::CreateFunctionPass(pass_func, 0, "PlanDevicesRewrite", {});
 }
