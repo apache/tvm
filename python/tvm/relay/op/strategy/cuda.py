@@ -715,9 +715,9 @@ def matmul_strategy_cuda(attrs, inputs, out_type, target):
         )
         # Temporary use this as a basic schedule
         strategy.add_implementation(
-            wrap_compute_matmul(topi.cuda.matmul_default_cuda),
-            wrap_topi_schedule(topi.cuda.schedule_matmul_default_cuda),
-            name="matmul_default.cuda",
+            wrap_compute_matmul(topi.gpu.matmul_default),
+            wrap_topi_schedule(topi.gpu.schedule_matmul_default),
+            name="matmul_default.gpu",
         )
 
     if target.kind.name == "cuda" and "cublas" in target.libs:
