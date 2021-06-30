@@ -52,6 +52,32 @@ reg.register_schedule("nn.log_softmax", strategy.schedule_log_softmax)
 reg.register_pattern("nn.log_softmax", OpPattern.OPAQUE)
 
 
+@reg.register_legalize("nn.matmul")
+def legalize_matmul(attrs, inputs, types):
+    """Legalize matmul op.
+
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current matmul
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    types : list of types
+        List of input and output types
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The legalized expr
+    """
+    return topi.nn.matmul_legalize(attrs, inputs, types)
+
+
+# matmul
+reg.register_strategy("nn.matmul", strategy.matmul_strategy)
+reg.register_pattern("nn.matmul", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
 @reg.register_legalize("nn.dense")
 def legalize_dense(attrs, inputs, types):
     """Legalize dense op.
@@ -1160,21 +1186,44 @@ def batch_flatten_shape_func(attrs, inputs, _):
 
 
 @script
-def _dense_shape_func(data_shape, weight_shape):
-    out = output_tensor((data_shape.shape[0],), "int64")
+def _matmul_shape_func(tensor_a_shape, tensor_b_shape, transpose_a, transpose_b):
+    out = output_tensor((tensor_a_shape.shape[0],), "int64")
     for i in const_range(out.shape[0] - 1):
-        out[i] = data_shape[i]
-    out[out.shape[0] - 1] = weight_shape[0]
+        out[i] = tensor_a_shape[i]
+    if transpose_a:
+        out[out.shape[0] - 2] = out[out.shape[0] - 1]
+    out[out.shape[0] - 1] = tensor_b_shape[0] if transpose_b else tensor_b_shape[1]
 
     return out
 
 
+@reg.register_shape_func("nn.matmul", False)
+def matmul_shape_func(attrs, inputs, _):
+    """Shape function for matmul op."""
+    ret = [
+        _matmul_shape_func(
+            inputs[0],
+            inputs[1],
+            expr.IntImm("bool", attrs.transpose_a),
+            expr.IntImm("bool", attrs.transpose_b),
+        )
+    ]
+    return ret
+
+
 @reg.register_shape_func("nn.dense", False)
 def dense_shape_func(attrs, inputs, _):
+    """Shape function for dense op. This is an alias of matmul_nt operator for data tensor in
+    non-transposed format and weight tensor in transposed format.
     """
-    Shape function for dense op.
-    """
-    ret = [_dense_shape_func(inputs[0], inputs[1])]
+    ret = [
+        _matmul_shape_func(
+            inputs[0],
+            inputs[1],
+            expr.IntImm("bool", False),
+            expr.IntImm("bool", True),
+        )
+    ]
     return ret
 
 

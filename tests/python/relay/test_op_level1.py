@@ -410,6 +410,66 @@ def test_batch_norm():
 
 
 @pytest.mark.xfail
+def test_matmul_type_check():
+    dtype = "float16"
+    n, c, h, w = 2, 2, 2, 2
+    x = relay.var("x", relay.TensorType((n, c, h, w), dtype))
+    # it should fail since it does not match with m(2)
+    mismatch_w = 3
+    w = relay.var("w", relay.TensorType((mismatch_w, 2), dtype))
+    y = relay.nn.matmul(x, w)
+    yy = run_infer_type(y)
+
+
+@tvm.testing.uses_gpu
+def test_matmul():
+    for dtype in ["float16", "float32"]:
+        # Matmul accuracy for float16 is poor
+        if dtype == "float16":
+            continue
+        n, c, h, w = te.size_var("n"), te.size_var("c"), te.size_var("h"), te.size_var("w")
+        x = relay.var("x", relay.TensorType((n, c, h, w), dtype))
+        w = relay.var("w", relay.TensorType((2, w), dtype))
+        y = relay.nn.matmul(x, w, units=2, transpose_b=True)
+        assert "units=2" in y.astext()
+        yy = run_infer_type(y)
+        assert yy.checked_type == relay.TensorType((n, c, h, 2), dtype)
+
+        n, c, h, w = te.size_var("n"), te.size_var("c"), te.size_var("h"), 2
+        x = relay.var("x", relay.TensorType((n, c, w, h), dtype))
+        wh, ww = te.size_var("wh"), te.size_var("ww")
+        w = relay.var("w", relay.TensorType((wh, ww), dtype))
+        y = relay.nn.matmul(x, w, transpose_a=True)
+        yy = run_infer_type(y)
+        assert yy.checked_type == relay.TensorType((n, c, h, ww), dtype)
+
+        n, c, h, w = te.size_var("n"), te.size_var("c"), te.size_var("h"), 2
+        x = relay.var("x", relay.TensorType((n, c, h, w), dtype))
+        w = relay.var("w", relay.IncompleteType())
+        y = relay.nn.matmul(x, w, units=2)
+        yy = run_infer_type(y)
+        assert yy.checked_type == relay.TensorType((n, c, h, 2), dtype)
+
+        x = relay.var("x", shape=(5, 10), dtype=dtype)
+        w = relay.var("w", shape=(5, 2), dtype=dtype)
+        z = relay.nn.matmul(x, w, transpose_a=True)
+
+        # Check result.
+        func = relay.Function([x, w], z)
+        x_data = np.random.rand(5, 10).astype(dtype)
+        w_data = np.random.rand(5, 2).astype(dtype)
+        ref_res = np.dot(x_data.transpose(), w_data)
+
+        for target, dev in tvm.testing.enabled_targets():
+            intrp1 = relay.create_executor("graph", device=dev, target=target)
+            intrp2 = relay.create_executor("debug", device=dev, target=target)
+            op_res1 = intrp1.evaluate(func)(x_data, w_data)
+            tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5)
+            op_res2 = intrp2.evaluate(func)(x_data, w_data)
+            tvm.testing.assert_allclose(op_res2.numpy(), ref_res, rtol=1e-5)
+
+
+@pytest.mark.xfail
 def test_dense_type_check():
     dtype = "float16"
     n, c, h, w = 2, 2, 2, 2
@@ -426,7 +486,7 @@ def test_dense():
     for dtype in ["float16", "float32"]:
         # Dense accuracy for float16 is poor
         if dtype == "float16":
-            return
+            continue
         n, c, h, w = te.size_var("n"), te.size_var("c"), te.size_var("h"), te.size_var("w")
         x = relay.var("x", relay.TensorType((n, c, h, w), dtype))
         w = relay.var("w", relay.TensorType((2, w), dtype))
@@ -506,6 +566,7 @@ if __name__ == "__main__":
     test_log_softmax()
     test_dropout()
     test_batch_norm()
+    test_matmul()
     test_dense()
     test_bitserial_dense()
     test_dense_dtype()

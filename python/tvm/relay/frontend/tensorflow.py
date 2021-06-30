@@ -44,6 +44,16 @@ from .tensorflow_ops import _get_more_static_shape
 
 __all__ = ["from_tensorflow"]
 
+# The default configurations of Relay TensorFlow frontend.
+TF_DEFAULT_CONFIGS = {
+    # By default, TVM converts `tf.matmul` to `transpose(weight) + nn.dense`, which introduces
+    # unnecessary overhead in weight transpose. Change this flag to False to directly convert to
+    # `nn.matmul` to get rid of the overhead.
+    # However, please note that `nn.matmul` is in experimental so it may have some performance
+    # issues.
+    "use_dense": True,
+}
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -1204,7 +1214,7 @@ class SubGraphProto(GraphProto):
         return func, self._params
 
 
-def from_tensorflow(graph, layout="NHWC", shape=None, outputs=None):
+def from_tensorflow(graph, layout="NHWC", shape=None, outputs=None, use_dense_op=True):
     """Load tensorflow graph which is a python tensorflow graph object into relay.
     The companion parameters will be handled automatically.
 
@@ -1222,6 +1232,11 @@ def from_tensorflow(graph, layout="NHWC", shape=None, outputs=None):
     outputs : List of output tensor names (Optional)
         if not specified then the last node is assumed as graph output.
 
+    use_dense_op : bool (Optional) = True
+        Ture to convert `tf.matmul` to `nn.dense`, else to `nn.matmul`.
+        The `nn.dense` op requires the data tensor to be non-transposed and weight tensor to be
+        transposed, may insert extra `transpose` to the original graph.
+
     Returns
     -------
     mod : tvm.IRModule
@@ -1230,6 +1245,8 @@ def from_tensorflow(graph, layout="NHWC", shape=None, outputs=None):
     params : dict of str to tvm.nd.NDArray
         Dict of converted parameters stored in tvm.nd.NDArray format
     """
+    global TF_DEFAULT_CONFIGS
+    TF_DEFAULT_CONFIGS["use_dense"] = use_dense_op
 
     g = GraphProto()
     mod, params = g.from_tensorflow(graph, layout, shape, outputs)
