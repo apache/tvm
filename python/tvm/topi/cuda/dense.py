@@ -28,18 +28,24 @@ from ..utils import traverse_inline, get_const_tuple
 logger = logging.getLogger("topi")
 
 
-@autotvm.register_topi_compute("dense_cublas.cuda")
-def dense_cublas(cfg, data, weight, bias=None, out_dtype=None):
-    """Dense operator on CUDA with CUBLAS"""
-    assert len(data.shape) == 2 and len(weight.shape) == 2, "only support 2-dim dense"
+def _matmul_cublas_common(
+    cfg,
+    tensor_a,
+    tensor_b,
+    bias=None,
+    out_dtype=None,
+    transpose_a=False,
+    transpose_b=False,
+):
+    assert len(tensor_a.shape) == 2 and len(tensor_b.shape) == 2, "only support 2-dim matmul"
     if bias is not None:
         assert len(bias.shape) == 1
     if out_dtype is None:
-        out_dtype = data.dtype
-    assert out_dtype == data.dtype, "Mixed precision not supported."
-    batch, in_dim = get_const_tuple(data.shape)
-    out_dim, _ = get_const_tuple(weight.shape)
-    matmul = cublas.matmul(data, weight, False, True)
+        out_dtype = tensor_a.dtype
+    assert out_dtype == tensor_a.dtype, "Mixed precision not supported."
+    batch, in_dim = get_const_tuple(tensor_a.shape)
+    out_dim, _ = get_const_tuple(tensor_b.shape)
+    matmul = cublas.matmul(tensor_a, tensor_b, transpose_a, transpose_b)
     if all(isinstance(d, int) for d in [batch, in_dim, out_dim]):
         cfg.add_flop(batch * in_dim * out_dim * 2)
     if bias is not None:
@@ -47,6 +53,32 @@ def dense_cublas(cfg, data, weight, bias=None, out_dtype=None):
             (batch, out_dim), lambda i, j: matmul[i, j] + bias[j], tag=tag.BROADCAST
         )
     return matmul
+
+
+@autotvm.register_topi_compute("matmul_cublas.cuda")
+def matmul_cublas(
+    cfg,
+    tensor_a,
+    tensor_b,
+    bias=None,
+    out_dtype=None,
+    transpose_a=False,
+    transpose_b=False,
+):
+    """Matmul operator on CUDA with CUBLAS"""
+    return _matmul_cublas_common(cfg, tensor_a, tensor_b, bias, out_dtype, transpose_a, transpose_b)
+
+
+@autotvm.register_topi_schedule("matmul_cublas.cuda")
+def schedule_matmul_cublas(_, outs):
+    """Schedule matmul operator using CUBLAS"""
+    return generic.schedule_extern(outs)
+
+
+@autotvm.register_topi_compute("dense_cublas.cuda")
+def dense_cublas(cfg, data, weight, bias=None, out_dtype=None):
+    """Dense operator on CUDA with CUBLAS. This is an alias of matmul_nt operator."""
+    return _matmul_cublas_common(cfg, data, weight, bias, out_dtype, False, True)
 
 
 @autotvm.register_topi_schedule("dense_cublas.cuda")
