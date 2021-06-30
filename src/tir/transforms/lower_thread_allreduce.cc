@@ -388,7 +388,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     size_t size = shared_bufs.size();
     PrimExpr buf_index = BufIndex(reduce_index, group_index, reduce_extent);
     // make reduction
-    auto freduce = [&](int offset) {
+    auto fload = [&](int offset) {
       Array<PrimExpr> a, b;
       for (size_t i = 0; i < size; ++i) {
         b.push_back(Load(types[i], shared_bufs[i],
@@ -397,11 +397,18 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
         a.push_back(Load(types[i], shared_bufs[i], buf_index, const_true()));
       }
       Array<PrimExpr> ret = (*combiner)(a, b);
+      return ret;
+    };
+    auto fstore = [&](const Array<PrimExpr>& ret) {
       std::vector<Stmt> stores(size);
       for (size_t i = 0; i < size; ++i) {
         stores[i] = Store(shared_bufs[i], ret[i], buf_index, const_true());
       }
       return SeqStmt::Flatten(stores);
+    };
+    auto freduce = [&](int offset) {
+      auto ret = fload(offset);
+      return fstore(ret);
     };
     // Step one, check for
     if (reduce_align > reduce_extent) {
@@ -420,15 +427,47 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       seq.emplace_back(SyncThread("shared"));
     }
     // in warp synchronization.
-    std::vector<Stmt> in_warp_seq;
-    PrimExpr in_warp_cond = reduce_index < (reduce_align >> 1);
-    while (reduce_align > 1) {
-      reduce_align = reduce_align >> 1;
-      in_warp_seq.emplace_back(freduce(reduce_align));
-      in_warp_seq.emplace_back(SyncThread("warp"));
-    }
-    if (in_warp_seq.size() != 0) {
+    if (reduce_align > 1) {
+      PrimExpr in_warp_cond = reduce_index < (reduce_align >> 1);
+
+      std::vector<Stmt> in_warp_seq;
+
+      while (reduce_align > 1) {
+        reduce_align = reduce_align >> 1;
+
+        // freduce can read/write to the same memory location.  For
+        // example, with reduce_align of 4, threadIdx 3 reads from
+        // memory location 7 as threadIdx 7 is writing to it.
+        // Therefore, we need to separate out the load from the store
+        // with a memory barrier in-between.  This isn't necessary for
+        // the earlier normal synchronization, because those are each
+        // protected by an if-statement.  The if-statement is avoided
+        // here to reduce thread divergence.
+        auto loads = fload(reduce_align);
+
+        Array<Var> in_warp_local_vars;
+        for (auto expr : loads) {
+          Var var(
+              "w_" + std::to_string(reduce_align) + "_" + std::to_string(in_warp_local_vars.size()),
+              expr->dtype);
+          in_warp_local_vars.push_back(var);
+        }
+
+        std::vector<Stmt> in_let_statement;
+        in_let_statement.emplace_back(SyncThread("warp"));
+        in_let_statement.emplace_back(
+            fstore({in_warp_local_vars.begin(), in_warp_local_vars.end()}));
+        in_let_statement.emplace_back(SyncThread("warp"));
+
+        Stmt body = SeqStmt::Flatten(in_let_statement);
+        for (size_t i = 0; i < size; i++) {
+          body = LetStmt(in_warp_local_vars[i], loads[i], body);
+        }
+        in_warp_seq.push_back(body);
+      }
+
       Stmt warp_body = SeqStmt::Flatten(in_warp_seq);
+
       seq.emplace_back(IfThenElse(in_warp_cond, warp_body));
       seq.emplace_back(SyncThread("shared"));
     }
