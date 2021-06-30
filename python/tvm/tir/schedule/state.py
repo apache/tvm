@@ -74,8 +74,8 @@ class ScheduleState(Object):
     debug_mode: int
 
     def __init__(
-        self, 
-        func_or_mod: Union[PrimFunc, IRModule], 
+        self,
+        func_or_mod: Union[PrimFunc, IRModule],
         debug_mode: Union[bool, int] = False,
     ):
         """Construct a schedule state from an IRModule or a PrimFunc
@@ -205,8 +205,8 @@ class ScheduleState(Object):
         if block_sref_reuse is None:
             block_sref_reuse = {}
         _ffi_api_schedule.ScheduleStateReplace(  # type: ignore # pylint: disable=no-member
-            self, 
-            src_sref, 
-            tgt_stmt, 
+            self,
+            src_sref,
+            tgt_stmt,
             block_sref_reuse,
         )
