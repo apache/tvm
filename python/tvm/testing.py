@@ -414,7 +414,7 @@ def _get_targets(target_str=None):
 
 
 DEFAULT_TEST_TARGETS = (
-    "llvm;cuda;opencl;metal;rocm;vulkan;nvptx;"
+    "llvm;cuda;opencl;metal;rocm;vulkan -from_device=0;nvptx;"
     "llvm -device=arm_cpu;opencl -device=mali,aocl_sw_emu"
 )
 
