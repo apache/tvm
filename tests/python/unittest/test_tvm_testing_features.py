@@ -25,7 +25,10 @@ import tvm.testing
 # This file tests features in tvm.testing, such as verifying that
 # cached fixtures are run an appropriate number of times.  As a
 # result, the order of the tests is important.  Use of --last-failed
-# or --failed-first while debugging this file is not advised.
+# or --failed-first while debugging this file is not advised.  If
+# these tests are distributed/parallelized using pytest-xdist or
+# similar, all tests in this file should run sequentially on the same
+# node.  (See https://stackoverflow.com/a/59504228)
 
 
 class TestTargetAutoParametrization:
@@ -143,6 +146,38 @@ class TestFixtureCaching:
             assert self.cached_calls == len(self.param1_vals) * len(self.param2_vals)
         else:
             assert self.cached_calls == len(self.param1_vals)
+
+
+class TestBrokenFixture:
+    # Tests that use a fixture that throws an exception fail, and are
+    # marked as setup failures.  The tests themselves are never run.
+    # This behavior should be the same whether or not the fixture
+    # results are cached.
+
+    num_uses_broken_uncached_fixture = 0
+    num_uses_broken_cached_fixture = 0
+
+    @tvm.testing.fixture
+    def broken_uncached_fixture(self):
+        raise RuntimeError("Intentionally broken fixture")
+
+    @pytest.mark.xfail(True, reason="Broken fixtures should result in a failing setup", strict=True)
+    def test_uses_broken_uncached_fixture(self, broken_uncached_fixture):
+        type(self).num_uses_broken_fixture += 1
+
+    def test_num_uses_uncached(self):
+        assert self.num_uses_broken_uncached_fixture == 0
+
+    @tvm.testing.fixture(cache_return_value=True)
+    def broken_cached_fixture(self):
+        raise RuntimeError("Intentionally broken fixture")
+
+    @pytest.mark.xfail(True, reason="Broken fixtures should result in a failing setup", strict=True)
+    def test_uses_broken_cached_fixture(self, broken_cached_fixture):
+        type(self).num_uses_broken_cached_fixture += 1
+
+    def test_num_uses_cached(self):
+        assert self.num_uses_broken_cached_fixture == 0
 
 
 if __name__ == "__main__":
