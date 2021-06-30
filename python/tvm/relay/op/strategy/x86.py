@@ -379,7 +379,7 @@ def matmul_strategy_cpu(attrs, inputs, out_type, target):
     dtype = inputs[0].dtype
     u8s8s32 = dtype == "uint8" and inputs[1].dtype == "int8" and out_type.dtype == "int32"
     if "cblas" in target.libs:
-        length_before = len(strategy.specializations)
+        length_before = len(strategy.specializations) if strategy.specializations else 0
         with SpecializedCondition(same_type and dtype in ["float32", "float64"]):
             strategy.add_implementation(
                 wrap_compute_matmul(topi.x86.matmul_cblas),
@@ -387,12 +387,13 @@ def matmul_strategy_cpu(attrs, inputs, out_type, target):
                 name="matmul_cblas.x86",
                 plevel=13,
             )
-        if length_before == len(strategy.specializations):
+        length_after = len(strategy.specializations) if strategy.specializations else 0
+        if length_before == length_after:
             logger.warning(
                 "Currently cblas only support the data type to be float32 or float64. Skip."
             )
     if "mkl" in target.libs:
-        length_before = len(strategy.specializations)
+        length_before = len(strategy.specializations) if strategy.specializations else 0
         with SpecializedCondition(same_type and dtype in ["float32", "float64"] or u8s8s32):
             strategy.add_implementation(
                 wrap_compute_matmul(topi.x86.matmul_mkl),
@@ -400,13 +401,14 @@ def matmul_strategy_cpu(attrs, inputs, out_type, target):
                 name="matmul_mkl.x86",
                 plevel=14,
             )
-        if length_before == len(strategy.specializations):
+        length_after = len(strategy.specializations) if strategy.specializations else 0
+        if length_before == length_after:
             logger.warning(
                 "Currently mkl only support the data type to be float32, float64 or input with "
                 "uint8 and int8 while output wiht int32. Skip."
             )
     if "mkldnn" in target.libs:
-        length_before = len(strategy.specializations)
+        length_before = len(strategy.specializations) if strategy.specializations else 0
         with SpecializedCondition(same_type and dtype == "float32"):
             strategy.add_implementation(
                 wrap_compute_matmul(topi.x86.matmul_mkldnn),
@@ -414,7 +416,8 @@ def matmul_strategy_cpu(attrs, inputs, out_type, target):
                 name="matmul_mkldnn.x86",
                 plevel=15,
             )
-        if length_before == len(strategy.specializations):
+        length_after = len(strategy.specializations) if strategy.specializations else 0
+        if length_before == length_after:
             logger.warning("Currently mkldnn only support the data type to be float32. Skip.")
 
     if is_auto_scheduler_enabled():
@@ -426,7 +429,7 @@ def matmul_strategy_cpu(attrs, inputs, out_type, target):
         )
     else:
         # If no cblas/mkl/mkldnn strategy choosed
-        if not len(strategy.specializations):
+        if not strategy.specializations:
             logger.warning(
                 "Matmul is not optimized for x86. "
                 "Recommend to use cblas/mkl/mkldnn for better performance."
