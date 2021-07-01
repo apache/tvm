@@ -172,7 +172,7 @@ class Runner(object):
         raise NotImplementedError()
 
 
-def measure_option(builder, runner):
+def measure_option(builder, runner, ref_input=None):
     """
     Set options for measure. To measure a config, we will build it and run it.
     So we have to set options for these two steps.
@@ -184,6 +184,8 @@ def measure_option(builder, runner):
         Specify how to build programs
     runner: Runner
         Specify how to run programs
+    ref_input: list of np.arrays
+        Fixed input supplied to tuning (defaults to random)
 
     Examples
     --------
@@ -226,6 +228,9 @@ def measure_option(builder, runner):
             runner = LocalRunner()
         else:
             raise ValueError("Invalid runner: " + runner)
+
+    if ref_input is not None:
+        runner.ref_input = ref_input
 
     opt = {
         "builder": builder,

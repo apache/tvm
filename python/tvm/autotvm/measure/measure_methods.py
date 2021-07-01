@@ -236,6 +236,7 @@ class RPCRunner(Runner):
         self.number = number
         self.repeat = repeat
         self.min_repeat_ms = min_repeat_ms
+        self._ref_input = None
 
         self.enable_cpu_cache_flush = enable_cpu_cache_flush
         self.cooldown_interval = cooldown_interval
@@ -246,7 +247,7 @@ class RPCRunner(Runner):
     @property
     def ref_input(self):
         """Fixed input for tuning special operators."""
-        return self._ref_input if hasattr(self, "_ref_input") else None
+        return self._ref_input
 
     @ref_input.setter
     def ref_input(self, val):
