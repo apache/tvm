@@ -45,7 +45,7 @@ class BlockRV(Object):
 
 ExprRV = PrimExpr  #  A random variable that evaluates to an integer
 
-RAND_VAR_TYPE = Union[ExprRV, BlockRV, LoopRV]  # pylint: disable=invalid-name
+RAND_VAR_TYPE = Union[ExprRV, BlockRV, LoopRV]  # type: ignore # pylint: disable=invalid-name
 
 
 @_register_object("tir.Schedule")
@@ -105,9 +105,9 @@ class Schedule(Object):
                 'error_render_level can be "detail", "fast", or "none", but got: '
                 + f"{error_render_level}"
             )
-        error_render_level = Schedule.ERROR_RENDER_LEVEL.get(error_render_level)
+        error_render_level = Schedule.ERROR_RENDER_LEVEL.get(error_render_level)  # type: ignore
         self.__init_handle_by_constructor__(
-            _ffi_api_schedule.ConcreteSchedule,  # pylint: disable=no-member
+            _ffi_api_schedule.ConcreteSchedule,  # type: ignore # pylint: disable=no-member
             func_or_mod,
             debug_mode,
             error_render_level,
@@ -118,12 +118,12 @@ class Schedule(Object):
     @property
     def mod(self) -> IRModule:
         """Returns the AST of the module being scheduled"""
-        return _ffi_api_schedule.ScheduleModule(self)  # pylint: disable=no-member
+        return _ffi_api_schedule.ScheduleModule(self)  # type: ignore # pylint: disable=no-member
 
     @property
     def state(self) -> ScheduleState:
         """Returns the ScheduleState in the current schedule class"""
-        return _ffi_api_schedule.ScheduleGetState(self)  # pylint: disable=no-member
+        return _ffi_api_schedule.ScheduleGetState(self)  # type: ignore # pylint: disable=no-member
 
     def copy(self) -> "Schedule":
         """Returns a copy of the schedule, including both the state and the symbol table,
@@ -137,7 +137,7 @@ class Schedule(Object):
         copy : Schedule
             A new copy of the schedule
         """
-        return _ffi_api_schedule.ScheduleCopy(self)  # pylint: disable=no-member
+        return _ffi_api_schedule.ScheduleCopy(self)  # type: ignore # pylint: disable=no-member
 
     def seed(self, seed: int) -> None:
         """Seed the randomness
@@ -146,7 +146,7 @@ class Schedule(Object):
         seed : int
             The new random seed, -1 if use device random, otherwise non-negative
         """
-        return _ffi_api_schedule.ScheduleSeed(self, seed)  # pylint: disable=no-member
+        return _ffi_api_schedule.ScheduleSeed(self, seed)  # type: ignore # pylint: disable=no-member
 
     def show(self, rand_var: RAND_VAR_TYPE) -> str:
         """Returns a string representation of the value that the random variable evaluates to
@@ -184,7 +184,7 @@ class Schedule(Object):
         """
         if isinstance(rand_var_or_sref, StmtSRef):
             return rand_var_or_sref.stmt
-        result = _ffi_api_schedule.ScheduleGet(self, rand_var_or_sref)  # pylint: disable=no-member
+        result = _ffi_api_schedule.ScheduleGet(self, rand_var_or_sref)  # type: ignore # pylint: disable=no-member
         if isinstance(result, IntImm):
             result = result.value
         return result
@@ -204,7 +204,7 @@ class Schedule(Object):
         result : Optional[StmtSRef]
             The correpsonding result
         """
-        return _ffi_api_schedule.ScheduleGetSRef(  # pylint: disable=no-member
+        return _ffi_api_schedule.ScheduleGetSRef(  # type: ignore # pylint: disable=no-member
             self, rand_var_or_stmt
         )
 
@@ -215,7 +215,7 @@ class Schedule(Object):
         rand_var : Union[BlockRV, LoopRV, ExprRV]
             The random variable to be removed
         """
-        return _ffi_api_schedule.ScheduleRemoveRV(self, rand_var)  # pylint: disable=no-member
+        return _ffi_api_schedule.ScheduleRemoveRV(self, rand_var)  # type: ignore # pylint: disable=no-member
 
     ########## Block/Loop relation ##########
 
@@ -237,7 +237,7 @@ class Schedule(Object):
             The block retrieved
             IndexError is raised if 0 or multiple blocks exist with the specific name.
         """
-        return _ffi_api_schedule.ScheduleGetBlock(  # pylint: disable=no-member
+        return _ffi_api_schedule.ScheduleGetBlock(  # type: ignore # pylint: disable=no-member
             self,
             name,
             func_name,
@@ -254,7 +254,7 @@ class Schedule(Object):
         loops : List[LoopRV]
             A list of loops above the given block in its scope, from outer to inner
         """
-        return _ffi_api_schedule.ScheduleGetLoops(self, block)  # pylint: disable=no-member
+        return _ffi_api_schedule.ScheduleGetLoops(self, block)  # type: ignore # pylint: disable=no-member
 
     ########## Schedule: loops manipulation ##########
     ########## Schedule: compute location ##########
@@ -313,7 +313,7 @@ class Schedule(Object):
                     C[vi, vj] = A[vi, vj] * 2.0 + 1.0
 
         """
-        _ffi_api_schedule.ScheduleComputeInline(self, block)  # pylint: disable=no-member
+        _ffi_api_schedule.ScheduleComputeInline(self, block)  # type: ignore # pylint: disable=no-member
 
     def reverse_compute_inline(self, block: BlockRV) -> None:
         """Inline a block into its only producer. It requires:
@@ -373,7 +373,7 @@ class Schedule(Object):
                     C[vi, vj] = A[vi, vj] * 2.0 + 1.0
 
         """
-        _ffi_api_schedule.ScheduleReverseComputeInline(self, block)  # pylint: disable=no-member
+        _ffi_api_schedule.ScheduleReverseComputeInline(self, block)  # type: ignore # pylint: disable=no-member
 
     ########## Schedule: loop binding/annotation ##########
     ########## Schedule: cache read/write ##########
