@@ -33,15 +33,27 @@ License
 -------
 © Contributors Licensed under an [Apache-2.0](LICENSE) license.
 
-Contribute to TVM
------------------
-TVM adopts apache committer model, we aim to create an open source project that is maintained and owned by the community.
-Check out the [Contributor Guide](https://tvm.apache.org/docs/contribute/).
+## 如何使用TVM编译PaddlePaddle模型
 
-Acknowledgement
----------------
-We learned a lot from the following projects when building TVM.
-- [Halide](https://github.com/halide/Halide): Part of TVM's TIR and arithmetic simplification module
-  originates from Halide. We also learned and adapted some part of lowering pipeline from Halide.
-- [Loopy](https://github.com/inducer/loopy): use of integer set analysis and its loop transformation primitives.
-- [Theano](https://github.com/Theano/Theano): the design inspiration of symbolic scan operator for recurrence.
+```
+import paddle
+paddle.enable_static()
+from tvm import relay
+import tvm
+import numpy as np
+
+# 加载Paddle模型
+place = paddle.CPUPlace()
+exe = paddle.static.Executor(place)
+[prog, feeds, outs] = paddle.static.load_inference_model('model/inference', exe)
+
+# 将Paddle模型转为TVM Relay IR(Function and Parameters)
+mod, params = relay.frontend.from_paddle(prog)
+
+with tvm.transform.PassContext(opt_level=1):
+    intrp = relay.build_module.create_executor("graph", mod, tvm.cpu(0), 'llvm')
+
+# 进行推理
+input_data = np.random.rand(1, 3, 224, 224).astype('float32')
+tvm_outputs = itrp.evaluate()(tvm.nd.array(input_data), **params).asnumpy()
+```
