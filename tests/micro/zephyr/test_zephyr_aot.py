@@ -213,6 +213,7 @@ def test_tflite(platform, west_cmd, skip_build, tvm_debug):
     assert result == 8
 
 
+@pytest.mark.parametrize("platform", ["host", "mps2_an521"])
 def test_qemu_make_fail(platform, west_cmd, skip_build, tvm_debug):
     """Testing QEMU make fail."""
     model, zephyr_board = PLATFORMS[platform]
