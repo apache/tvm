@@ -418,9 +418,6 @@ Target::Target(const Map<String, ObjectRef>& config) {
 
 Target::Target(Target target, Target host) {
   ObjectPtr<TargetNode> n = make_object<TargetNode>(*target.get());
-  CHECK(!n->host.defined() || n->host.same_as(host))
-      << "ValueError: Adding a host to a target whose host field has been defined";
-  // add target host into host field
   n->host = std::move(host);
   data_ = std::move(n);
 }
