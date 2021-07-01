@@ -37,6 +37,44 @@
 namespace tvm {
 namespace tir {
 
+class RemapStorageScope final : public StmtExprMutator {
+ public:
+  explicit RemapStorageScope(const std::unordered_map<const VarNode*, Var>& new_var_remap)
+      : new_var_remap_(new_var_remap) {}
+
+  PrimExpr VisitExpr_(const VarNode* op) final {
+    auto it = new_var_remap_.find(op);
+    LOG(INFO) << "Visit " << op->name_hint;
+    if (it == new_var_remap_.end()) {
+      return GetRef<Var>(op);
+    }
+    LOG(INFO) << "Remapped " << op->name_hint;
+    return it->second;
+  }
+
+  Stmt VisitStmt_(const AllocateNode* op) final {
+    LOG(INFO) << "Visit alloc node with buffer " << op->buffer_var->name_hint;
+    auto remapped = StmtExprMutator::VisitExpr(op->buffer_var);
+    auto body = StmtExprMutator::VisitStmt(op->body);
+    return Allocate(Downcast<Var>(remapped), op->dtype, op->extents, op->condition, body);
+  }
+
+  Stmt VisitStmt_(const StoreNode* op) final {
+    auto remapped = StmtExprMutator::VisitExpr(op->buffer_var);
+    return Store(Downcast<Var>(remapped), StmtExprMutator::VisitExpr(op->value),
+                 StmtExprMutator::VisitExpr(op->index), StmtExprMutator::VisitExpr(op->predicate));
+  }
+
+  PrimExpr VisitExpr_(const LoadNode* op) final {
+    auto remapped = StmtExprMutator::VisitExpr(op->buffer_var);
+    return Load(op->dtype, Downcast<Var>(remapped), StmtExprMutator::VisitExpr(op->index),
+                StmtExprMutator::VisitExpr(op->predicate));
+  }
+
+ private:
+  std::unordered_map<const VarNode*, Var> new_var_remap_;
+};
+
 class ThreadAllreduceBuilder final : public StmtExprMutator {
  public:
   explicit ThreadAllreduceBuilder(const TargetNode* target)
@@ -85,13 +123,14 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     if (it != alloc_remap_.end()) {
       const AllocateNode* repl = it->second.as<AllocateNode>();
       if (warp_allocs_.count(repl)) {
-        stmt = Allocate(UpdateStorageScope(repl->buffer_var, "local"), repl->dtype, repl->extents,
-                        repl->condition, op->body);
+        stmt = Allocate(repl->buffer_var, repl->dtype, repl->extents, repl->condition, op->body);
+        new_var_remap_[repl->buffer_var.get()] = UpdateStorageScope(repl->buffer_var, "local");
       } else {
         // use volatile access to shared buffer.
         stmt = AttrStmt(repl->buffer_var, attr::volatile_scope, 1, op->body);
-        stmt = Allocate(UpdateStorageScope(repl->buffer_var, "shared"), repl->dtype, repl->extents,
-                        repl->condition, stmt);
+        stmt = Allocate(repl->buffer_var, repl->dtype, repl->extents, repl->condition, stmt);
+	LOG(INFO) << "make remap for " << repl->buffer_var->name_hint;
+        new_var_remap_[repl->buffer_var.get()] = UpdateStorageScope(repl->buffer_var, "shared");
       }
       return stmt;
     } else {
@@ -107,6 +146,8 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       return StmtExprMutator::VisitExpr_(op);
     }
   }
+
+  std::unordered_map<const VarNode*, Var> new_var_remap_;
 
  private:
   // Thread entry
@@ -365,8 +406,9 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     for (auto var : local_vars) {
       const AllocateNode* repl = var.as<AllocateNode>();
       if (repl) {
-        body = Allocate(UpdateStorageScope(repl->buffer_var, "local"), repl->dtype, repl->extents,
-                        repl->condition, body);
+        body = Allocate(repl->buffer_var, repl->dtype, repl->extents, repl->condition, body);
+	LOG(INFO) << "make remap forr " << repl->buffer_var->name_hint;
+        new_var_remap_[repl->buffer_var.get()] = UpdateStorageScope(repl->buffer_var, "local");
       }
     }
 
@@ -590,7 +632,9 @@ Pass LowerThreadAllreduce() {
     auto target = f->GetAttr<Target>(tvm::attr::kTarget);
     ICHECK(target.defined()) << "LowerThreadAllreduce: Require the target attribute";
     const TargetNode* target_node = target.as<TargetNode>();
-    n->body = ThreadAllreduceBuilder(target_node)(n->body);
+    ThreadAllreduceBuilder thread_all_reduce(target_node);
+    auto reduce_body = thread_all_reduce(n->body);
+    n->body = RemapStorageScope(thread_all_reduce.new_var_remap_)(reduce_body);
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerThreadAllreduce", {});
