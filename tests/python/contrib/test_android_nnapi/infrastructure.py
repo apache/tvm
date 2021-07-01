@@ -44,31 +44,31 @@ def annotate_for_android_nnapi(mod, android_api_level):
     return ret
 
 
-def _minify_c(src):
-    ret = src
-    # strip comments
-    ret = re.sub(r"//.*", "", ret)
-    ret = re.sub(r"/\*.*\*/", "", ret)
-
-    # strip meaning less spaces. assumes no here docs
-    ret = re.sub(r"^[\t ]+", "", ret, 0, re.M)
-    ret = re.sub(r" +$", "", ret, 0, re.M)
-    ret = re.sub(r"[\t ]+", " ", ret, 0)
-    ret = re.sub(r" *([;,{}()=]) *", r"\1", ret)
-
-    ret = re.sub(r"\n", "", ret)
-    return ret
-
-
-def verify_codegen_eq(res, ans):
-    """Verify generated source code res equals to ans.
+def is_compilable(mod, android_api_level):
+    """Check if a module is compilable.
 
     Parameters
     ----------
-    res: str
-        The generated source code.
+    mod: runtime.Module
+        The module to be checked for compilability.
 
-    ans: str
-        The answer.
+    android_api_level: int
+        The targeting Android API level for testing of compilability.
+
+    Returns
+    -------
+    result: bool
+        Whether the module is compilable.
     """
-    assert _minify_c(res) == _minify_c(ans)
+    tempdir = tvm.contrib.utils.tempdir()
+    temp_lib_path = tempdir.relpath("lib.so")
+    kwargs = {}
+    kwargs["options"] = [
+        "--target={}".format(f"aarch64-linux-android{android_api_level}"), # use aarch64 for testing
+        "-O0", # disable opt for testing
+        "-lneuralnetworks",
+        "-shared",
+        "-fPIC",
+    ]
+    mod.export_library(temp_lib_path, fcompile=tvm.contrib.ndk.create_shared, **kwargs)
+    return True
