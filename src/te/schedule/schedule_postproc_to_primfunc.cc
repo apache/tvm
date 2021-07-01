@@ -49,7 +49,7 @@ namespace tvm {
 namespace te {
 
 // create a buffer for tensor.
-Buffer CreateBufferFor(const Tensor& tensor, String storage_scope = "") {
+Buffer CreateBufferFor(const Tensor& tensor, String storage_scope = "global") {
   std::string name = tensor->op->name;
   if (tensor->op->num_outputs() != 1) {
     name += ".v" + std::to_string(tensor->value_index);
@@ -122,11 +122,12 @@ class TensorToBufferMapper : public StmtExprMutator {
   }
 
  private:
-  Buffer GetOrAllocBuffer(const Tensor& tensor, String storage_scope = "") {
+  Buffer GetOrAllocBuffer(const Tensor& tensor, String storage_scope = "global") {
     return GetBuffer(tensor, storage_scope, true);
   }
 
-  Buffer GetBuffer(const Tensor& tensor, String storage_scope = "", bool allow_alloc = false) {
+  Buffer GetBuffer(const Tensor& tensor, String storage_scope = "global",
+                   bool allow_alloc = false) {
     auto it = buffer_map_.find(tensor);
     if (it != buffer_map_.end()) return it->second;
     ICHECK(allow_alloc) << "Cannot find the Realization point of tensor " << tensor;

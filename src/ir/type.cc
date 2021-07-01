@@ -44,6 +44,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     });
 
 PointerType::PointerType(Type element_type, String storage_scope) {
+  ICHECK(storage_scope != "");
   ObjectPtr<PointerTypeNode> n = make_object<PointerTypeNode>();
   n->element_type = std::move(element_type);
   n->storage_scope = std::move(storage_scope);
@@ -53,7 +54,7 @@ PointerType::PointerType(Type element_type, String storage_scope) {
 TVM_REGISTER_NODE_TYPE(PointerTypeNode);
 
 TVM_REGISTER_GLOBAL("ir.PointerType")
-    .set_body_typed([](Type element_type, String storage_scope = "") {
+    .set_body_typed([](Type element_type, String storage_scope = "global") {
       return PointerType(element_type, storage_scope);
     });
 

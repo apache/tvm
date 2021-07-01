@@ -85,13 +85,13 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     if (it != alloc_remap_.end()) {
       const AllocateNode* repl = it->second.as<AllocateNode>();
       if (warp_allocs_.count(repl)) {
-        stmt = Allocate(repl->buffer_var, repl->dtype, repl->extents, repl->condition, op->body);
-        stmt = AttrStmt(repl->buffer_var, attr::storage_scope, StringImm("local"), stmt);
+        stmt = Allocate(UpdateStorageScope(repl->buffer_var, "local"), repl->dtype, repl->extents,
+                        repl->condition, op->body);
       } else {
         // use volatile access to shared buffer.
         stmt = AttrStmt(repl->buffer_var, attr::volatile_scope, 1, op->body);
-        stmt = Allocate(repl->buffer_var, repl->dtype, repl->extents, repl->condition, stmt);
-        stmt = AttrStmt(repl->buffer_var, attr::storage_scope, StringImm("shared"), stmt);
+        stmt = Allocate(UpdateStorageScope(repl->buffer_var, "shared"), repl->dtype, repl->extents,
+                        repl->condition, stmt);
       }
       return stmt;
     } else {
@@ -365,8 +365,8 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     for (auto var : local_vars) {
       const AllocateNode* repl = var.as<AllocateNode>();
       if (repl) {
-        body = Allocate(repl->buffer_var, repl->dtype, repl->extents, repl->condition, body);
-        body = AttrStmt(repl->buffer_var, attr::storage_scope, StringImm("local"), body);
+        body = Allocate(UpdateStorageScope(repl->buffer_var, "local"), repl->dtype, repl->extents,
+                        repl->condition, body);
       }
     }
 

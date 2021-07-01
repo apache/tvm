@@ -184,7 +184,7 @@ class PointerType : public Type {
    * \param element_type The type of the element which the pointer points to.
    * \param storage_scope The storage scope into which the pointer addresses
    */
-  TVM_DLL explicit PointerType(Type element_type, String storage_scope = "");
+  TVM_DLL explicit PointerType(Type element_type, String storage_scope = "global");
 
   TVM_DEFINE_OBJECT_REF_METHODS(PointerType, Type, PointerTypeNode);
 };

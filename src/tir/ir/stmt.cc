@@ -61,6 +61,12 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 // AttrStmt
 AttrStmt::AttrStmt(ObjectRef node, String attr_key, PrimExpr value, Stmt body, Span span) {
+  if (attr_key == attr::storage_scope) {
+    const VarNode* buf = node.as<VarNode>();
+    CHECK(buf);
+    CHECK(value.as<StringImmNode>()->value == GetStorageScope(GetRef<Var>(buf)))
+        << value.as<StringImmNode>()->value << ", " << GetStorageScope(GetRef<Var>(buf));
+  }
   auto n = make_object<AttrStmtNode>();
   n->node = node;
   n->attr_key = std::move(attr_key);
