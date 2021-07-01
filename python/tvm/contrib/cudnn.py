@@ -582,3 +582,29 @@ def softmax(x, axis=-1):
         ),
         name="y",
     )
+
+
+def log_softmax(x, axis=-1):
+    """Compute log_softmax using CuDNN
+
+    Parameters
+    ----------
+    x : tvm.te.Tensor
+        The input tensor
+
+    axis : int
+        The axis to compute log softmax over
+
+    Returns
+    -------
+    ret : tvm.te.Tensor
+        The result tensor
+    """
+    return te.extern(
+        x.shape,
+        [x],
+        lambda ins, outs: tvm.tir.call_packed(
+            "tvm.contrib.cudnn.log_softmax.forward", ins[0], outs[0], axis
+        ),
+        name="y",
+    )
