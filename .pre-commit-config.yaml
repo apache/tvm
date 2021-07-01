@@ -15,17 +15,28 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# https://pre-commit.com/
+# Pre-commit hook
+# See documentation at: https://pre-commit.com/
 #
-#   How to configure:
-#       $ pip install pre-commit
-#       $ pre-commit install
-#   How to prevent running it:
-#       $ git commit --no-verify
+# Pre-commit hook to run the sanity checks from Jenkins locally.
+#
+# Requirements:
+#   - How to configure:
+#        $ pip install pre-commit
+#        $ pre-commit install
+#   - How to prevent running it:
+#        $ git commit --no-verify
+#
+# Working versions required:
+#   $ pip3 install cpplint pylint==2.4.4 mypy==0.902 black==20.8b1
+#
 
+default_language_version:
+    python: python3.8
+fail_fast: True
 repos:
     - repo: https://github.com/pre-commit/pre-commit-hooks
-      rev: v2.5.0
+      rev: v2.3.0
       hooks:
         - id: check-added-large-files
         - id: check-merge-conflict
@@ -34,33 +45,40 @@ repos:
         - id: trailing-whitespace
     - repo: local
       hooks:
-        -   id: run-file-types
-            name: Checking File Types...
-            entry: python3 tests/lint/check_file_type.py
+        -   id: run-unit-tests
+            name: Running Minimal Unit-Tests ...
+            entry: python -m pytest -v tests/python/all-platform-minimal-test
             language: system
-            always_run: true
-            pass_filenames: false
-        -   id: run-headers-check
-            name: Checking ASF License Headers...
-            entry: tests/lint/check_asf_header.sh --local
-            language: system
+            verbose: false
             always_run: true
             pass_filenames: false
         -   id: run-black
-            name: Checking Black ...
+            name: Running Black...
             entry: tests/lint/python_format.sh
             language: system
             always_run: true
-            pass_filenames: false
-        -   id: run-python-linting
-            name: Checking Python Linting ...
-            entry: tests/lint/pylint.sh
+        -   id: run-file-types
+            name: Checking File Types...
+            entry: python3 tests/lint/check_file_type.py
+            language: python
+            always_run: true
+        -   id: run-headers-check
+            name: Checking ASF License Headers ...
+            entry: tests/lint/check_asf_header.sh --local
             language: system
             always_run: true
-            pass_filenames: false
+        -   id: run-headers-check
+            name: Linting the C++ code ...
+            entry: tests/lint/cpplint.sh
+            language: system
+            always_run: False
+        -   id: run-clang-format
+            name: Checking Clang format ...
+            entry: tests/lint/clang_format.sh
+            language: system
+            always_run: False
         -   id: run-mypy
-            name: Type Checking with MyPy ...
+            name: Type Checking with MyPY ...
             entry: tests/scripts/task_mypy.sh
             language: system
             always_run: true
-            pass_filenames: false
