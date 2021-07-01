@@ -15,8 +15,6 @@
     specific language governing permissions and limitations
     under the License.
 
-.. _vta-index:
-
 Profiling Deep Learning Models
 ====================================
 

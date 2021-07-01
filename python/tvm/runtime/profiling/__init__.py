@@ -16,7 +16,7 @@
 # under the License.
 """Registration of profiling objects in python."""
 
-from typing import Dict, Sequence
+from typing import Dict, Sequence, Optional
 from ... import _ffi
 from . import _ffi_api
 from .. import Object, Device
