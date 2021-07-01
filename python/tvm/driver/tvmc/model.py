@@ -45,6 +45,7 @@ and finally run.
 """
 import os
 import tarfile
+import json
 from typing import Optional, Union, List, Dict, Callable, TextIO
 import numpy as np
 
@@ -332,8 +333,11 @@ class TVMCPackage(object):
             # Model Library Format (MLF)
             self.lib_name = None
             self.lib_path = None
+            with open(temp.relpath("metadata.json")) as metadata_json:
+                metadata = json.load(metadata_json)
 
-            graph = temp.relpath("runtime-config/graph/graph.json")
+            is_graph_runtime = "graph" in metadata["runtimes"]
+            graph = temp.relpath("runtime-config/graph/graph.json") if is_graph_runtime else None
             params = temp.relpath("parameters/default.params")
 
             self.type = "mlf"
@@ -357,8 +361,11 @@ class TVMCPackage(object):
         with open(params, "rb") as param_file:
             self.params = bytearray(param_file.read())
 
-        with open(graph) as graph_file:
-            self.graph = graph_file.read()
+        if graph is not None:
+            with open(graph) as graph_file:
+                self.graph = graph_file.read()
+        else:
+            self.graph = None
 
 
 class TVMCResult(object):

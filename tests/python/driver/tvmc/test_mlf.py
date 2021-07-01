@@ -17,6 +17,7 @@
 
 import pytest
 import os
+import shlex
 
 import tvm
 from tvm.driver import tvmc
@@ -24,7 +25,10 @@ from tvm.driver.tvmc.main import _main
 from tvm.driver.tvmc.model import TVMCPackage, TVMCException
 
 
-def test_tvmc_cl_compile_run_mlf(tflite_mobilenet_v1_1_quant, tmpdir_factory):
+@pytest.mark.parametrize(
+    "target,pass_configs", [["llvm", []], ["c --executor=aot", ["tir.disable_vectorize=1"]]]
+)
+def test_tvmc_cl_compile_run_mlf(tflite_mobilenet_v1_1_quant, tmpdir_factory, target, pass_configs):
     pytest.importorskip("tflite")
 
     output_dir = tmpdir_factory.mktemp("mlf")
@@ -32,10 +36,9 @@ def test_tvmc_cl_compile_run_mlf(tflite_mobilenet_v1_1_quant, tmpdir_factory):
     output_file = os.path.join(output_dir, "mock.tar")
 
     # Compile the input model and generate a Model Library Format (MLF) archive.
-    tvmc_cmd = (
-        f"tvmc compile {input_model} --target='llvm' --output {output_file} --output-format mlf"
-    )
-    tvmc_args = tvmc_cmd.split(" ")[1:]
+    pass_config_args = " ".join([f"--pass-config {pass_config}" for pass_config in pass_configs])
+    tvmc_cmd = f"tvmc compile {input_model} --target='{target}' {pass_config_args} --output {output_file} --output-format mlf"
+    tvmc_args = shlex.split(tvmc_cmd)[1:]
     _main(tvmc_args)
     assert os.path.exists(output_file), "Could not find the exported MLF archive."
 
@@ -82,8 +85,12 @@ def test_tvmc_export_package_mlf(tflite_mobilenet_v1_1_quant, tmpdir_factory):
     assert str(exp.value) == expected_reason, on_error
 
 
-def test_tvmc_import_package_mlf(tflite_compiled_model_mlf):
+def test_tvmc_import_package_mlf_graph(tflite_mobilenet_v1_1_quant, tflite_compile_model):
     pytest.importorskip("tflite")
+
+    tflite_compiled_model_mlf = tflite_compile_model(
+        tflite_mobilenet_v1_1_quant, output_format="mlf"
+    )
 
     # Compile and export a model to a MLF archive so it can be imported.
     exported_tvmc_package = tflite_compiled_model_mlf
@@ -94,6 +101,32 @@ def test_tvmc_import_package_mlf(tflite_compiled_model_mlf):
 
     assert tvmc_package.lib_name is None, ".lib_name must not be set in the MLF archive."
     assert tvmc_package.lib_path is None, ".lib_path must not be set in the MLF archive."
-    assert tvmc_package.graph is not None, ".graph must be set in the MLF archive."
+    assert (
+        tvmc_package.graph is not None
+    ), ".graph must be set in the MLF archive for Graph executor."
+    assert tvmc_package.params is not None, ".params must be set in the MLF archive."
+    assert tvmc_package.type == "mlf", ".type must be set to 'mlf' in the MLF format."
+
+
+def test_tvmc_import_package_mlf_aot(tflite_mobilenet_v1_1_quant, tflite_compile_model):
+    pytest.importorskip("tflite")
+
+    tflite_compiled_model_mlf = tflite_compile_model(
+        tflite_mobilenet_v1_1_quant,
+        target="c --executor=aot",
+        output_format="mlf",
+        pass_context_configs=["tir.disable_vectorize=1"],
+    )
+
+    # Compile and export a model to a MLF archive so it can be imported.
+    exported_tvmc_package = tflite_compiled_model_mlf
+    archive_path = exported_tvmc_package.package_path
+
+    # Import the MLF archive. TVMCPackage constructor will call import_package method.
+    tvmc_package = TVMCPackage(archive_path)
+
+    assert tvmc_package.lib_name is None, ".lib_name must not be set in the MLF archive."
+    assert tvmc_package.lib_path is None, ".lib_path must not be set in the MLF archive."
+    assert tvmc_package.graph is None, ".graph must not be set in the MLF archive for AOT executor."
     assert tvmc_package.params is not None, ".params must be set in the MLF archive."
     assert tvmc_package.type == "mlf", ".type must be set to 'mlf' in the MLF format."
