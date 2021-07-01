@@ -135,6 +135,7 @@ def test_dense(
 
 
 @pytest.mark.parametrize("target,in_dtype,out_dtype", [("cuda", "int8", "int32")])
+@tvm.testing.requires_gpu
 def test_dense_cuda_int8(
     target,
     dev,
