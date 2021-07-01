@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=wildcard-import,unused-wildcard-import
-"""Converts a Relay IR Function to its Android NNAPI equivalence."""
+"""Compile a Relay IR Function to its Android NNAPI equivalence."""
 import copy
 import tvm
 import tvm.relay
@@ -24,13 +24,13 @@ from .operation_utils import relay_op
 from .export_object import ExportObject
 
 
-class FunctionToJsonConverter(tvm.relay.ExprVisitor):
-    """Converts a Relay IR Function to an imtermediate JSON format for json2nnapi.
+class FunctionToJsonCompiler(tvm.relay.ExprVisitor):
+    """Compile a Relay IR Function to an imtermediate JSON format for json2nnapi.
 
     Parameters
     ----------
     options: dict
-        The converter option dict.
+        The compiler option dict.
     """
 
     def __init__(self, options):
@@ -39,12 +39,12 @@ class FunctionToJsonConverter(tvm.relay.ExprVisitor):
         self._export_obj = ExportObject(self._options)
 
     def __call__(self, func):
-        """Converts a Relay IR Function to an imtermediate JSON format for json2nnapi.
+        """Compile a Relay IR Function to an imtermediate JSON format for json2nnapi.
 
         Parameters
         ----------
         func: tvm.relay.Function
-            The Relay IR Function to be converted.
+            The Relay IR Function to be compiled.
 
         Returns
         -------
@@ -88,12 +88,12 @@ class FunctionToJsonConverter(tvm.relay.ExprVisitor):
 
     @property
     def export_obj(self):
-        """The associated ExportObject of this converter instance."""
+        """The associated ExportObject of this compiler instance."""
         return self._export_obj
 
     @property
     def options(self):
-        """The associated converter option dict."""
+        """The associated compiler option dict."""
         return self._options
 
     def visit_function(self, f):

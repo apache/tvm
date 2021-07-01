@@ -14,21 +14,21 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Converts a Relay IR Function into Android NNAPI C++ class."""
+"""Compile a Relay IR Function into Android NNAPI C++ class."""
 import copy
 import tvm
 from . import transform
 from . import json_to_nnapi
-from .function_to_json_converter import FunctionToJsonConverter
+from .function_to_json_compiler import FunctionToJsonCompiler
 
 
-class Converter:
-    """Converts a Relay IR Function into Android NNAPI C++ class.
+class Compiler:
+    """Compile a Relay IR Function into Android NNAPI C++ class.
 
     Parameters
     ----------
     options: dict
-        The converter option dict. See below for available options.
+        The compiler option dict. See below for available options.
 
     options["class"]["self"]["name"]: str
         The name of the C++ class wrapping the Android NNAPI model. Defaults to "AnnGraph".
@@ -51,13 +51,13 @@ class Converter:
     def __init__(self, options):
         self._options = self._expand_options(options)
 
-    def convert(self, func):
-        """Converts a Relay IR Function into Android NNAPI C++ class source code
+    def codegen(self, func):
+        """Compile a Relay IR Function into Android NNAPI C++ class source code
 
         Parameters
         ----------
         func: tvm.relay.Function
-            The Relay IR Function to be converted
+            The Relay IR Function to be compiled
 
         Returns
         -------
@@ -68,10 +68,10 @@ class Converter:
         func = transform.FixIllegalPatternForNnapi()(func)
 
         mod = tvm.IRModule({"main": func})
-        export_obj = FunctionToJsonConverter(self._options)(mod["main"])
+        export_obj = FunctionToJsonCompiler(self._options)(mod["main"])
 
-        ret = json_to_nnapi.convert(
-            export_obj=export_obj.asjson(),
+        ret = json_to_nnapi.codegen(
+            export_json=export_obj.asjson(),
             options={
                 "class": {
                     "name": self._options["class"]["self"]["name"],

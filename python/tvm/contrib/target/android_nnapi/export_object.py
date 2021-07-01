@@ -26,9 +26,9 @@ class ExportObject:
     """A dict-like structure providing infrastructure for Android NNAPI codegen.
 
     Parameters
-    ----------------------
+    ----------
     options: dict
-        The converter option dict.
+        The compiler option dict.
     """
 
     _SCALAR_RELAY_NNAPI_TYPE_MAP = {

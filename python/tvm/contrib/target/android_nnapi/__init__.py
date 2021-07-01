@@ -16,23 +16,24 @@
 # under the License.
 """BYOC External Compiler Implementation for Android NNAPI target."""
 import tvm
-from .relayir_to_nnapi_converter import Converter as _Converter
+from .compiler import Compiler
 
-def _get_c_type(tipe): 
+
+def _get_c_type(tipe):
     """Get matching C type for Relay types."""
     dtype = str(tipe.dtype)
-    if dtype == "float32": 
+    if dtype == "float32":
         return "float"
-    if dtype == "float16": 
+    if dtype == "float16":
         return "uint16_t"
-    if dtype == "int32": 
+    if dtype == "int32":
         return "int32_t"
     assert dtype == "int64", f"{dtype} is unsupported"
     return "int64_t"
 
 
 @tvm.register_func("relay.ext.android_nnapi")
-def _codegen(func): 
+def _codegen(func):
     """Codegen Relay IR to Android NNAPI.
 
     Parameters
@@ -67,8 +68,8 @@ def _codegen(func):
 namespace {
 """
 
-    sid = str(func.attrs.global_symbol);
-    class_name = sid + "_class";
+    sid = str(func.attrs.global_symbol)
+    class_name = sid + "_class"
     options = {
         "class": {
             "self": {
@@ -79,21 +80,29 @@ namespace {
             "api_level": int(func.attrs.NnapiTargetVersion),
         },
     }
-    code += _Converter(options).convert(func)
+    code += Compiler(options).codegen(func)
     code += "\n"
 
     instance_name = sid + "_model"
     code += f"  {class_name} {instance_name};\n"
 
-    sid_impl_name = sid + "_";
-    code += f"  void {sid_impl_name}(::tvm::runtime::TVMArgs args, ::tvm::runtime::TVMRetValue *rv) {{\n"
-    code += f"    CHECK_EQ(args.num_args, {len(func.params) + 1}) << \"num_args is expected to be {len(func.params) + 1}\";\n"
+    sid_impl_name = sid + "_"
+    code += f"  void {sid_impl_name}"
+    code += "(::tvm::runtime::TVMArgs args, ::tvm::runtime::TVMRetValue *rv) {\n"
+    code += f"    CHECK_EQ(args.num_args, {len(func.params) + 1})"
+    code += f'<< "num_args is expected to be {len(func.params) + 1}";\n'
     code += f"    {instance_name}.execute(\n"
-    for i, p in enumerate(func.params): 
-        assert isinstance(p.checked_type, tvm.relay.TensorType), "Function parameter is expected to be a tensor"
-        code += f"      reinterpret_cast< {_get_c_type(p.checked_type)}* >(args[{i}].operator DLTensor*()->data), \n"
-    assert isinstance(func.body.checked_type, tvm.relay.TensorType), "Function output is expected to be a tensor"
-    code += f"      reinterpret_cast< {_get_c_type(func.body.checked_type)}* >(args[{len(func.params)}].operator DLTensor*()->data)\n"
+    for i, p in enumerate(func.params):
+        assert isinstance(
+            p.checked_type, tvm.relay.TensorType
+        ), "Function parameter is expected to be a tensor"
+        code += f"      reinterpret_cast< {_get_c_type(p.checked_type)}* >"
+        code += f"(args[{i}].operator DLTensor*()->data), \n"
+    assert isinstance(
+        func.body.checked_type, tvm.relay.TensorType
+    ), "Function output is expected to be a tensor"
+    code += f"      reinterpret_cast< {_get_c_type(func.body.checked_type)}* >"
+    code += f"(args[{len(func.params)}].operator DLTensor*()->data)\n"
     code += f"    );\n"
     code += "    *rv = 0;\n"
     code += f"  }} // {sid_impl_name}\n"

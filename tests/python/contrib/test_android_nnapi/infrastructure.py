@@ -20,7 +20,7 @@ import tvm
 
 
 def annotate_for_android_nnapi(mod, android_api_level):
-    """Annotate Relay IR Function with attrs required by the Android NNAPI converter.
+    """Annotate Relay IR Function with attrs required by the Android NNAPI compiler.
 
     Parameters
     ----------
@@ -64,8 +64,10 @@ def is_compilable(mod, android_api_level):
     temp_lib_path = tempdir.relpath("lib.so")
     kwargs = {}
     kwargs["options"] = [
-        "--target={}".format(f"aarch64-linux-android{android_api_level}"), # use aarch64 for testing
-        "-O0", # disable opt for testing
+        "--target={}".format(
+            f"aarch64-linux-android{android_api_level}"
+        ),  # use aarch64 for testing
+        "-O0",  # disable opt for testing
         "-lneuralnetworks",
         "-shared",
         "-fPIC",

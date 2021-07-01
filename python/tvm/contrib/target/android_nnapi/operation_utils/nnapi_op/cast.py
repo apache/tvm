@@ -19,13 +19,13 @@
 from .error import *
 
 
-def add_operation(converter, inputs, outputs):
+def add_operation(compiler, inputs, outputs):
     """Add an ANEURALNETWORKS_CAST operation with checking.
 
     Parameters
     ----------
-    converter: FunctionToJsonConverter
-        the converter object holding export_obj.
+    compiler: FunctionToJsonCompiler
+        the compiler object holding export_obj.
 
     inputs: list of int
         inputs to the operation.
@@ -33,7 +33,7 @@ def add_operation(converter, inputs, outputs):
     outputs: list of int
         outputs of the operation.
     """
-    api_level = converter.options["target"]["api_level"]
+    api_level = compiler.options["target"]["api_level"]
     assert_anc_compatibility(
         api_level >= 29,
         f"Target Android API level { api_level } is too low to support the operation",
@@ -45,13 +45,13 @@ def add_operation(converter, inputs, outputs):
 
     # check inputs[0]
     ins[0] = {}
-    ins[0]["dtype"] = converter.export_obj.helper.operand.get_dtype(inputs[0])
+    ins[0]["dtype"] = compiler.export_obj.helper.operand.get_dtype(inputs[0])
     assert_nnapi_op_check(
         ins[0]["dtype"] == "TENSOR_FLOAT16"
         or ins[0]["dtype"] == "TENSOR_FLOAT32"
         or ins[0]["dtype"] == "TENSOR_INT32"
     )
-    ins[0]["shape"] = converter.export_obj.helper.operand.get_shape(inputs[0])
+    ins[0]["shape"] = compiler.export_obj.helper.operand.get_shape(inputs[0])
 
     # check outputs
     assert_nnapi_op_check(len(outputs) == 1)
@@ -59,13 +59,13 @@ def add_operation(converter, inputs, outputs):
 
     # check outputs[0]
     outs[0] = {}
-    outs[0]["dtype"] = converter.export_obj.helper.operand.get_dtype(outputs[0])
+    outs[0]["dtype"] = compiler.export_obj.helper.operand.get_dtype(outputs[0])
     assert_nnapi_op_check(
         outs[0]["dtype"] == "TENSOR_FLOAT16"
         or outs[0]["dtype"] == "TENSOR_FLOAT32"
         or outs[0]["dtype"] == "TENSOR_INT32"
     )
-    outs[0]["shape"] = converter.export_obj.helper.operand.get_shape(outputs[0])
+    outs[0]["shape"] = compiler.export_obj.helper.operand.get_shape(outputs[0])
     assert_nnapi_op_check(outs[0]["shape"] == ins[0]["shape"])
 
-    converter.export_obj.add_operation("CAST", inputs, outputs)
+    compiler.export_obj.add_operation("CAST", inputs, outputs)

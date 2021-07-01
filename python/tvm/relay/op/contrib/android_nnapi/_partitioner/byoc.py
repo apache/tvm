@@ -31,13 +31,13 @@ def _register_byoc_annotation_rules(external_compiler, android_nnapi_level):
         return
     _BYOC_ANNOTATION_RULES_REGISTERED = True
 
-    from tvm.contrib.target.android_nnapi.relayir_to_nnapi_converter import (  # pylint: disable=import-outside-toplevel
-        Converter as RelayFunctionToAndroidNNAPIConverter,
+    from tvm.contrib.target.android_nnapi import (  # pylint: disable=import-outside-toplevel
+        Compiler as RelayFunctionToAndroidNNAPICompiler,
     )
-    from tvm.contrib.target.android_nnapi.relayir_to_nnapi_converter.error import (  # pylint: disable=line-too-long,import-outside-toplevel
+    from tvm.contrib.target.android_nnapi.error import (  # pylint: disable=line-too-long,import-outside-toplevel
         AndroidNNAPICompilerIncompatibleError,
     )
-    import tvm.contrib.target.android_nnapi.relayir_to_nnapi_converter.operation_utils.relay_op as relay_op_handler_root  # pylint: disable=line-too-long,import-outside-toplevel
+    import tvm.contrib.target.android_nnapi.operation_utils.relay_op as relay_op_handler_root  # pylint: disable=line-too-long,import-outside-toplevel
 
     def _isolate_op_call_node(call, compiler):
         func_params = []
@@ -74,13 +74,11 @@ def _register_byoc_annotation_rules(external_compiler, android_nnapi_level):
             mod["main"].body.op
         )  # op may be a GlobalVar, hence the if
         options = {
-            "target": {
-                "api_level": android_nnapi_level
-            }, 
+            "target": {"api_level": android_nnapi_level},
         }
         assert isinstance(external_func, tvm.relay.Function)
         try:
-            RelayFunctionToAndroidNNAPIConverter(options).convert(external_func)
+            RelayFunctionToAndroidNNAPICompiler(options).codegen(external_func)
         except AndroidNNAPICompilerIncompatibleError:
             return False
         return True

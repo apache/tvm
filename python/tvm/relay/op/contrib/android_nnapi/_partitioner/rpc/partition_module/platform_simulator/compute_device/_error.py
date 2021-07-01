@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Error encountered during RPC profiling."""
-from tvm.contrib.target.android_nnapi.relayir_to_nnapi_converter.error import (
+from tvm.contrib.target.android_nnapi.error import (
     AndroidNNAPICompilerError,
 )
 

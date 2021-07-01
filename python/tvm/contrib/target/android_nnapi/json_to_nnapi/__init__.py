@@ -14,12 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Converts (codegen) a JSON object to Android NNAPI source code."""
+"""Codegen a JSON object to Android NNAPI source code."""
 import copy
-from .stages import STAGES
+from .stages import STAGES as _STAGES
 
 
-DEFAULT_OPTIONS = {
+_DEFAULT_OPTIONS = {
     "class": {
         "base_path": "/sdcard/nnapi_result",
         "name": "AnnGraph",
@@ -37,12 +37,12 @@ DEFAULT_OPTIONS = {
 }
 
 
-def convert(export_obj, options={}):  # pylint: disable=dangerous-default-value
-    """Convert export_obj to NNAPI codes.
+def codegen(export_json, options={}):  # pylint: disable=dangerous-default-value
+    """Codegen export_json to NNAPI codes.
 
     Parameters
     ----------
-    export_obj: dict
+    export_json: dict
         The json representation of a NNAPI model.
 
     options["class"]["base_path"]: str
@@ -78,10 +78,10 @@ def convert(export_obj, options={}):  # pylint: disable=dangerous-default-value
         "result": "",
     }
     options = _set_options(options)
-    _export_obj = copy.deepcopy(export_obj)
+    _export_json = copy.deepcopy(export_json)
 
-    for s in STAGES:
-        lines, _export_obj = s(lines, _export_obj, options)
+    for s in _STAGES:
+        lines, _export_json = s(lines, _export_json, options)
 
     return lines["result"]
 
@@ -111,6 +111,6 @@ def _set_options(options):
             else:
                 cur_opts[k] = copy.deepcopy(v)
 
-    _recursive_merge(options, DEFAULT_OPTIONS)
+    _recursive_merge(options, _DEFAULT_OPTIONS)
 
     return options

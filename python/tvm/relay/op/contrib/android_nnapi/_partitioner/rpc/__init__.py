@@ -19,7 +19,7 @@ from .partitioner import Partitioner as _Partitioner
 
 
 def rpc_partition(mod, params, tracker, options={}):  # pylint: disable=dangerous-default-value
-    """Partition Relay IR graph into NNAPI convertible graph.
+    """Partition Relay IR graph into NNAPI compilable graph.
 
     Parameters
     ----------

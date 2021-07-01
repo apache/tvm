@@ -21,13 +21,13 @@ from ... import _utils
 from ... import nnapi_op
 
 
-def handler(converter, node):
+def handler(compiler, node):
     """Handler for tvm.relay.nn.conv2d.
 
     Parameters
     ----------
-    converter: FunctionToJsonConverter
-        the converter object holding export_obj.
+    compiler: FunctionToJsonCompiler
+        the compiler object holding export_obj.
 
     node: relay.Call
         operation call node.
@@ -39,15 +39,15 @@ def handler(converter, node):
     output_dims = int(args["weight"].checked_type.shape[attrs.kernel_layout.index("O")])
     input_dims = int(args["weight"].checked_type.shape[attrs.kernel_layout.index("I")])
     if ngroups == 1:  # classic convolution
-        _1_group_handler(converter, node)
+        _1_group_handler(compiler, node)
     elif ngroups == channel_dims and channel_dims == output_dims and input_dims == 1:
-        _depthwise_handler(converter, node)
+        _depthwise_handler(compiler, node)
     else:
-        _grouped_handler(converter, node)
+        _grouped_handler(compiler, node)
 
 
-def _1_group_handler(converter, node):
-    api_level = converter.options["target"]["api_level"]
+def _1_group_handler(compiler, node):
+    api_level = compiler.options["target"]["api_level"]
     args = _utils.name_args(node.args, ["data", "weight"])
     attrs = node.attrs
     nnapi = {}
@@ -63,39 +63,39 @@ def _1_group_handler(converter, node):
     )
 
     # generate nnapi node of "data"
-    converter.visit(args["data"])
+    compiler.visit(args["data"])
 
     # change layout of "data" to NNAPI's NHWC
     assert_anc_compatibility(
         len(attrs.data_layout) == 4, f"Unrecognized layout { attrs.data_layout }"
     )
     if attrs.data_layout == "NHWC" or (api_level >= 29 and attrs.data_layout == "NCHW"):
-        nnapi["inputs"] += converter.export_obj.helper.node_to_operand_idxs_map[args["data"]]
+        nnapi["inputs"] += compiler.export_obj.helper.node_to_operand_idxs_map[args["data"]]
     else:
         # START: add TRANSPOSE
         transpose_idxs = list(map(attrs.data_layout.index, ["N", "H", "W", "C"]))
         inputs = []
-        inputs += converter.export_obj.helper.node_to_operand_idxs_map[args["data"]]
-        inputs += converter.export_obj.add_operand(
-            type_idx=converter.export_obj.get_type_idx(((4,), "int32")),
+        inputs += compiler.export_obj.helper.node_to_operand_idxs_map[args["data"]]
+        inputs += compiler.export_obj.add_operand(
+            type_idx=compiler.export_obj.get_type_idx(((4,), "int32")),
             value={
                 "type": "constant_idx",
-                "value": converter.export_obj.add_array_constant(
+                "value": compiler.export_obj.add_array_constant(
                     vals=transpose_idxs,
                     dtype="int32",
                 ),
             },
         )
         outputs = []
-        outputs += converter.export_obj.add_operand(
-            type_idx=converter.export_obj.get_type_idx(
+        outputs += compiler.export_obj.add_operand(
+            type_idx=compiler.export_obj.get_type_idx(
                 (
                     tuple(map(lambda ele: args["data"].checked_type.shape[ele], transpose_idxs)),
                     args["data"].checked_type.dtype,
                 )
             )
         )
-        nnapi_op.transpose.add_operation(converter, inputs, outputs)
+        nnapi_op.transpose.add_operation(compiler, inputs, outputs)
         nnapi["inputs"] += outputs
         # END: add TRANSPOSE
     # END: handle input[0]
@@ -105,46 +105,46 @@ def _1_group_handler(converter, node):
     assert_anc_compatibility(args["weight"].checked_type.dtype == args["data"].checked_type.dtype)
 
     # generate nnapi node for weight
-    converter.visit(args["weight"])
+    compiler.visit(args["weight"])
 
     # change layout of "weight" to NNAPI's OHWI
     assert_anc_compatibility(
         len(attrs.kernel_layout) == 4, f"Unrecognized layout { attrs.kernel_layout }"
     )
     if attrs.kernel_layout == "OHWI":
-        nnapi["inputs"] += converter.export_obj.helper.node_to_operand_idxs_map[args["weight"]]
+        nnapi["inputs"] += compiler.export_obj.helper.node_to_operand_idxs_map[args["weight"]]
     else:
         # START: add TRANSPOSE
         transpose_idxs = list(map(attrs.kernel_layout.index, ["O", "H", "W", "I"]))
         inputs = []
-        inputs += converter.export_obj.helper.node_to_operand_idxs_map[args["weight"]]
-        inputs += converter.export_obj.add_operand(
-            type_idx=converter.export_obj.get_type_idx(((4,), "int32")),
+        inputs += compiler.export_obj.helper.node_to_operand_idxs_map[args["weight"]]
+        inputs += compiler.export_obj.add_operand(
+            type_idx=compiler.export_obj.get_type_idx(((4,), "int32")),
             value={
                 "type": "constant_idx",
-                "value": converter.export_obj.add_array_constant(
+                "value": compiler.export_obj.add_array_constant(
                     vals=transpose_idxs,
                     dtype="int32",
                 ),
             },
         )
         outputs = []
-        outputs += converter.export_obj.add_operand(
-            type_idx=converter.export_obj.get_type_idx(
+        outputs += compiler.export_obj.add_operand(
+            type_idx=compiler.export_obj.get_type_idx(
                 (
                     tuple(map(lambda ele: args["weight"].checked_type.shape[ele], transpose_idxs)),
                     args["weight"].checked_type.dtype,
                 )
             )
         )
-        nnapi_op.transpose.add_operation(converter, inputs, outputs)
+        nnapi_op.transpose.add_operation(compiler, inputs, outputs)
         nnapi["inputs"] += outputs
         # END: add TRANSPOSE
     # END: handle input[1]
 
     # START: handle input[2]
     # add empty bias since CONV_2D needs it
-    bias_shape = (converter.export_obj.helper.operand.get_shape(nnapi["inputs"][1])[0],)
+    bias_shape = (compiler.export_obj.helper.operand.get_shape(nnapi["inputs"][1])[0],)
     if args["data"].checked_type.dtype == "float32" or args["data"].checked_type.dtype == "float16":
         bias_dtype = args["data"].checked_type.dtype
     else:
@@ -153,11 +153,11 @@ def _1_group_handler(converter, node):
                 args['data'].dtype was { args['data'].checked_type.dtype }"
         )
     bias_type = (bias_shape, bias_dtype)
-    nnapi["inputs"] += converter.export_obj.add_operand(
-        type_idx=converter.export_obj.get_type_idx(bias_type),
+    nnapi["inputs"] += compiler.export_obj.add_operand(
+        type_idx=compiler.export_obj.get_type_idx(bias_type),
         value={
             "type": "constant_idx",
-            "value": converter.export_obj.add_array_constant(
+            "value": compiler.export_obj.add_array_constant(
                 vals=[0.0] * bias_shape[0],
                 dtype=bias_dtype,
             ),
@@ -167,11 +167,11 @@ def _1_group_handler(converter, node):
 
     # START: handle input[3:7]
     def _add_int32_scalar_constant(ele):
-        return converter.export_obj.add_operand(
-            type_idx=converter.export_obj.get_type_idx(((), "int32")),
+        return compiler.export_obj.add_operand(
+            type_idx=compiler.export_obj.get_type_idx(((), "int32")),
             value={
                 "type": "constant_idx",
-                "value": converter.export_obj.add_scalar_constant(
+                "value": compiler.export_obj.add_scalar_constant(
                     val=int(ele),
                     dtype="int32",
                 ),
@@ -204,11 +204,11 @@ def _1_group_handler(converter, node):
 
     # START: handle input[9]
     # add ANEURALNETWORKS_FUSED_NONE activation since CONV_2D needs it
-    nnapi["inputs"] += converter.export_obj.add_operand(
-        type_idx=converter.export_obj.get_type_idx(((), "int32")),
+    nnapi["inputs"] += compiler.export_obj.add_operand(
+        type_idx=compiler.export_obj.get_type_idx(((), "int32")),
         value={
             "type": "constant_idx",
-            "value": converter.export_obj.add_scalar_constant(
+            "value": compiler.export_obj.add_scalar_constant(
                 val="ANEURALNETWORKS_FUSED_NONE",
                 dtype="int32",
             ),
@@ -220,11 +220,11 @@ def _1_group_handler(converter, node):
     if api_level >= 29:
         # START: handle input[10]
         if attrs.data_layout == "NCHW":
-            nnapi["inputs"] += converter.export_obj.add_operand(
-                type_idx=converter.export_obj.get_type_idx(((), "bool")),
+            nnapi["inputs"] += compiler.export_obj.add_operand(
+                type_idx=compiler.export_obj.get_type_idx(((), "bool")),
                 value={
                     "type": "constant_idx",
-                    "value": converter.export_obj.add_scalar_constant(
+                    "value": compiler.export_obj.add_scalar_constant(
                         val="true",
                         dtype="bool",
                     ),
@@ -232,11 +232,11 @@ def _1_group_handler(converter, node):
             )
             nnapi_output_layout = "NCHW"
         else:
-            nnapi["inputs"] += converter.export_obj.add_operand(
-                type_idx=converter.export_obj.get_type_idx(((), "bool")),
+            nnapi["inputs"] += compiler.export_obj.add_operand(
+                type_idx=compiler.export_obj.get_type_idx(((), "bool")),
                 value={
                     "type": "constant_idx",
-                    "value": converter.export_obj.add_scalar_constant(
+                    "value": compiler.export_obj.add_scalar_constant(
                         val="false",
                         dtype="bool",
                     ),
@@ -261,16 +261,16 @@ def _1_group_handler(converter, node):
         attrs_out_dtype == args["data"].checked_type.dtype
         and attrs_out_layout == nnapi_output_layout
     ):
-        nnapi["outputs"] += converter.export_obj.add_operand(
-            type_idx=converter.export_obj.get_type_idx(
+        nnapi["outputs"] += compiler.export_obj.add_operand(
+            type_idx=compiler.export_obj.get_type_idx(
                 (node.checked_type.shape, node.checked_type.dtype)
             )
         )
         node_operands = nnapi["outputs"]
     else:
         if attrs_out_layout == nnapi_output_layout:
-            nnapi["outputs"] += converter.export_obj.add_operand(
-                type_idx=converter.export_obj.get_type_idx(
+            nnapi["outputs"] += compiler.export_obj.add_operand(
+                type_idx=compiler.export_obj.get_type_idx(
                     (node.checked_type.shape, args["data"].checked_type.dtype)
                 )
             )
@@ -278,8 +278,8 @@ def _1_group_handler(converter, node):
         else:
             transpose_idxs = list(map(attrs_out_layout.index, ["N", "H", "W", "C"]))
             nhwc_shape = tuple(map(lambda ele: node.checked_type.shape[ele], transpose_idxs))
-            nnapi["outputs"] += converter.export_obj.add_operand(
-                type_idx=converter.export_obj.get_type_idx(
+            nnapi["outputs"] += compiler.export_obj.add_operand(
+                type_idx=compiler.export_obj.get_type_idx(
                     (nhwc_shape, args["data"].checked_type.dtype)
                 )
             )
@@ -288,23 +288,23 @@ def _1_group_handler(converter, node):
             rev_transpose_idxs = list(map("NHWC".index, attrs_out_layout))
             inputs = []
             inputs += nnapi["outputs"]
-            inputs += converter.export_obj.add_operand(
-                type_idx=converter.export_obj.get_type_idx(((4,), "int32")),
+            inputs += compiler.export_obj.add_operand(
+                type_idx=compiler.export_obj.get_type_idx(((4,), "int32")),
                 value={
                     "type": "constant_idx",
-                    "value": converter.export_obj.add_array_constant(
+                    "value": compiler.export_obj.add_array_constant(
                         vals=rev_transpose_idxs,
                         dtype="int32",
                     ),
                 },
             )
             outputs = []
-            outputs += converter.export_obj.add_operand(
-                type_idx=converter.export_obj.get_type_idx(
+            outputs += compiler.export_obj.add_operand(
+                type_idx=compiler.export_obj.get_type_idx(
                     (node.checked_type.shape, args["data"].checked_type.dtype)
                 )
             )
-            nnapi_op.transpose.add_operation(converter, inputs, outputs)
+            nnapi_op.transpose.add_operation(compiler, inputs, outputs)
             # END: add TRANSPOSE
 
             last_outputs = outputs
@@ -316,26 +316,26 @@ def _1_group_handler(converter, node):
             inputs = []
             inputs += last_outputs
             outputs = []
-            outputs += converter.export_obj.add_operand(
-                type_idx=converter.export_obj.get_type_idx(
+            outputs += compiler.export_obj.add_operand(
+                type_idx=compiler.export_obj.get_type_idx(
                     (node.checked_type.shape, node.checked_type.dtype)
                 )
             )
-            nnapi_op.cast.add_operation(converter, inputs, outputs)
+            nnapi_op.cast.add_operation(compiler, inputs, outputs)
             # END: add CAST
 
             node_operands = outputs
 
     # register operands to node
-    converter.export_obj.helper.node_to_operand_idxs_map[node] = node_operands
+    compiler.export_obj.helper.node_to_operand_idxs_map[node] = node_operands
     # END: handle output[0]
     # END: handle outputs
 
-    nnapi_op.conv_2d.add_operation(converter, nnapi["inputs"], nnapi["outputs"])
+    nnapi_op.conv_2d.add_operation(compiler, nnapi["inputs"], nnapi["outputs"])
 
 
-def _depthwise_handler(converter, node):
-    api_level = converter.options["target"]["api_level"]
+def _depthwise_handler(compiler, node):
+    api_level = compiler.options["target"]["api_level"]
     args = _utils.name_args(node.args, ["data", "weight"])
     attrs = node.attrs
     nnapi = {}
@@ -346,39 +346,39 @@ def _depthwise_handler(converter, node):
 
     # START: handle input[0]
     # generate nnapi node of "data"
-    converter.visit(args["data"])
+    compiler.visit(args["data"])
 
     # change layout of "data" to NNAPI's NHWC
     assert_anc_compatibility(
         len(attrs.data_layout) == 4, f"Unrecognized layout { attrs.data_layout }"
     )
     if attrs.data_layout == "NHWC" or (api_level >= 29 and attrs.data_layout == "NCHW"):
-        nnapi["inputs"] += converter.export_obj.helper.node_to_operand_idxs_map[args["data"]]
+        nnapi["inputs"] += compiler.export_obj.helper.node_to_operand_idxs_map[args["data"]]
     else:
         # START: add TRANSPOSE
         transpose_idxs = list(map(attrs.data_layout.index, ["N", "H", "W", "C"]))
         inputs = []
-        inputs += converter.export_obj.helper.node_to_operand_idxs_map[args["data"]]
-        inputs += converter.export_obj.add_operand(
-            type_idx=converter.export_obj.get_type_idx(((4,), "int32")),
+        inputs += compiler.export_obj.helper.node_to_operand_idxs_map[args["data"]]
+        inputs += compiler.export_obj.add_operand(
+            type_idx=compiler.export_obj.get_type_idx(((4,), "int32")),
             value={
                 "type": "constant_idx",
-                "value": converter.export_obj.add_array_constant(
+                "value": compiler.export_obj.add_array_constant(
                     vals=transpose_idxs,
                     dtype="int32",
                 ),
             },
         )
         outputs = []
-        outputs += converter.export_obj.add_operand(
-            type_idx=converter.export_obj.get_type_idx(
+        outputs += compiler.export_obj.add_operand(
+            type_idx=compiler.export_obj.get_type_idx(
                 (
                     tuple(map(lambda ele: args["data"].checked_type.shape[ele], transpose_idxs)),
                     args["data"].checked_type.dtype,
                 )
             )
         )
-        nnapi_op.transpose.add_operation(converter, inputs, outputs)
+        nnapi_op.transpose.add_operation(compiler, inputs, outputs)
         nnapi["inputs"] += outputs
         # END: add TRANSPOSE
     # END: handle input[0]
@@ -388,46 +388,46 @@ def _depthwise_handler(converter, node):
     assert_anc_compatibility(args["weight"].checked_type.dtype == args["data"].checked_type.dtype)
 
     # generate nnapi node for weight
-    converter.visit(args["weight"])
+    compiler.visit(args["weight"])
 
     # change layout of "weight" to NNAPI's IHWO
     assert_anc_compatibility(
         len(attrs.kernel_layout) == 4, f"Unrecognized layout { attrs.kernel_layout }"
     )
     if attrs.kernel_layout == "IHWO":
-        nnapi["inputs"] += converter.export_obj.helper.node_to_operand_idxs_map[args["weight"]]
+        nnapi["inputs"] += compiler.export_obj.helper.node_to_operand_idxs_map[args["weight"]]
     else:
         # START: add TRANSPOSE
         transpose_idxs = list(map(attrs.kernel_layout.index, ["I", "H", "W", "O"]))
         inputs = []
-        inputs += converter.export_obj.helper.node_to_operand_idxs_map[args["weight"]]
-        inputs += converter.export_obj.add_operand(
-            type_idx=converter.export_obj.get_type_idx(((4,), "int32")),
+        inputs += compiler.export_obj.helper.node_to_operand_idxs_map[args["weight"]]
+        inputs += compiler.export_obj.add_operand(
+            type_idx=compiler.export_obj.get_type_idx(((4,), "int32")),
             value={
                 "type": "constant_idx",
-                "value": converter.export_obj.add_array_constant(
+                "value": compiler.export_obj.add_array_constant(
                     vals=transpose_idxs,
                     dtype="int32",
                 ),
             },
         )
         outputs = []
-        outputs += converter.export_obj.add_operand(
-            type_idx=converter.export_obj.get_type_idx(
+        outputs += compiler.export_obj.add_operand(
+            type_idx=compiler.export_obj.get_type_idx(
                 (
                     tuple(map(lambda ele: args["weight"].checked_type.shape[ele], transpose_idxs)),
                     args["weight"].checked_type.dtype,
                 )
             )
         )
-        nnapi_op.transpose.add_operation(converter, inputs, outputs)
+        nnapi_op.transpose.add_operation(compiler, inputs, outputs)
         nnapi["inputs"] += outputs
         # END: add TRANSPOSE
     # END: handle input[1]
 
     # START: handle input[2]
     # add empty bias
-    bias_shape = (converter.export_obj.helper.operand.get_shape(nnapi["inputs"][1])[3],)
+    bias_shape = (compiler.export_obj.helper.operand.get_shape(nnapi["inputs"][1])[3],)
     if args["data"].checked_type.dtype == "float32" or args["data"].checked_type.dtype == "float16":
         bias_dtype = args["data"].checked_type.dtype
     else:
@@ -436,11 +436,11 @@ def _depthwise_handler(converter, node):
                 DEPTHWISE_CONV_2D. args['data'].dtype was { args['data'].checked_type.dtype }"
         )
     bias_type = (bias_shape, bias_dtype)
-    nnapi["inputs"] += converter.export_obj.add_operand(
-        type_idx=converter.export_obj.get_type_idx(bias_type),
+    nnapi["inputs"] += compiler.export_obj.add_operand(
+        type_idx=compiler.export_obj.get_type_idx(bias_type),
         value={
             "type": "constant_idx",
-            "value": converter.export_obj.add_array_constant(
+            "value": compiler.export_obj.add_array_constant(
                 vals=[0.0] * bias_shape[0],
                 dtype=bias_dtype,
             ),
@@ -450,11 +450,11 @@ def _depthwise_handler(converter, node):
 
     # START: handle input[3:7]
     def _add_int32_scalar_constant(ele):
-        return converter.export_obj.add_operand(
-            type_idx=converter.export_obj.get_type_idx(((), "int32")),
+        return compiler.export_obj.add_operand(
+            type_idx=compiler.export_obj.get_type_idx(((), "int32")),
             value={
                 "type": "constant_idx",
-                "value": converter.export_obj.add_scalar_constant(
+                "value": compiler.export_obj.add_scalar_constant(
                     val=int(ele),
                     dtype="int32",
                 ),
@@ -488,17 +488,17 @@ def _depthwise_handler(converter, node):
     # START: handle input[9]
     def _scope():
         if api_level >= 29 and attrs.data_layout == "NCHW":
-            depth_in = converter.export_obj.helper.operand.get_shape(nnapi["inputs"][0])[1]
+            depth_in = compiler.export_obj.helper.operand.get_shape(nnapi["inputs"][0])[1]
         else:
-            depth_in = converter.export_obj.helper.operand.get_shape(nnapi["inputs"][0])[3]
-        depth_out = converter.export_obj.helper.operand.get_shape(nnapi["inputs"][1])[3]
+            depth_in = compiler.export_obj.helper.operand.get_shape(nnapi["inputs"][0])[3]
+        depth_out = compiler.export_obj.helper.operand.get_shape(nnapi["inputs"][1])[3]
         assert depth_out % depth_in == 0
         depth_multiplier = int(depth_out // depth_in)
-        nnapi["inputs"] += converter.export_obj.add_operand(
-            type_idx=converter.export_obj.get_type_idx(((), "int32")),
+        nnapi["inputs"] += compiler.export_obj.add_operand(
+            type_idx=compiler.export_obj.get_type_idx(((), "int32")),
             value={
                 "type": "constant_idx",
-                "value": converter.export_obj.add_scalar_constant(
+                "value": compiler.export_obj.add_scalar_constant(
                     val=depth_multiplier,
                     dtype="int32",
                 ),
@@ -510,11 +510,11 @@ def _depthwise_handler(converter, node):
 
     # START: handle input[10]
     # add ANEURALNETWORKS_FUSED_NONE activation since CONV_2D needs it
-    nnapi["inputs"] += converter.export_obj.add_operand(
-        type_idx=converter.export_obj.get_type_idx(((), "int32")),
+    nnapi["inputs"] += compiler.export_obj.add_operand(
+        type_idx=compiler.export_obj.get_type_idx(((), "int32")),
         value={
             "type": "constant_idx",
-            "value": converter.export_obj.add_scalar_constant(
+            "value": compiler.export_obj.add_scalar_constant(
                 val="ANEURALNETWORKS_FUSED_NONE",
                 dtype="int32",
             ),
@@ -526,11 +526,11 @@ def _depthwise_handler(converter, node):
     if api_level >= 29:
         # START: handle input[11]
         if attrs.data_layout == "NCHW":
-            nnapi["inputs"] += converter.export_obj.add_operand(
-                type_idx=converter.export_obj.get_type_idx(((), "bool")),
+            nnapi["inputs"] += compiler.export_obj.add_operand(
+                type_idx=compiler.export_obj.get_type_idx(((), "bool")),
                 value={
                     "type": "constant_idx",
-                    "value": converter.export_obj.add_scalar_constant(
+                    "value": compiler.export_obj.add_scalar_constant(
                         val="true",
                         dtype="bool",
                     ),
@@ -538,11 +538,11 @@ def _depthwise_handler(converter, node):
             )
             nnapi_output_layout = "NCHW"
         else:
-            nnapi["inputs"] += converter.export_obj.add_operand(
-                type_idx=converter.export_obj.get_type_idx(((), "bool")),
+            nnapi["inputs"] += compiler.export_obj.add_operand(
+                type_idx=compiler.export_obj.get_type_idx(((), "bool")),
                 value={
                     "type": "constant_idx",
-                    "value": converter.export_obj.add_scalar_constant(
+                    "value": compiler.export_obj.add_scalar_constant(
                         val="false",
                         dtype="bool",
                     ),
@@ -567,16 +567,16 @@ def _depthwise_handler(converter, node):
         attrs_out_dtype == args["data"].checked_type.dtype
         and attrs_out_layout == nnapi_output_layout
     ):
-        nnapi["outputs"] += converter.export_obj.add_operand(
-            type_idx=converter.export_obj.get_type_idx(
+        nnapi["outputs"] += compiler.export_obj.add_operand(
+            type_idx=compiler.export_obj.get_type_idx(
                 (node.checked_type.shape, node.checked_type.dtype)
             )
         )
         node_operands = nnapi["outputs"]
     else:
         if attrs_out_layout == nnapi_output_layout:
-            nnapi["outputs"] += converter.export_obj.add_operand(
-                type_idx=converter.export_obj.get_type_idx(
+            nnapi["outputs"] += compiler.export_obj.add_operand(
+                type_idx=compiler.export_obj.get_type_idx(
                     (node.checked_type.shape, args["data"].checked_type.dtype)
                 )
             )
@@ -584,8 +584,8 @@ def _depthwise_handler(converter, node):
         else:
             transpose_idxs = list(map(attrs_out_layout.index, ["N", "H", "W", "C"]))
             nhwc_shape = tuple(map(lambda ele: node.checked_type.shape[ele], transpose_idxs))
-            nnapi["outputs"] += converter.export_obj.add_operand(
-                type_idx=converter.export_obj.get_type_idx(
+            nnapi["outputs"] += compiler.export_obj.add_operand(
+                type_idx=compiler.export_obj.get_type_idx(
                     (nhwc_shape, args["data"].checked_type.dtype)
                 )
             )
@@ -594,23 +594,23 @@ def _depthwise_handler(converter, node):
             rev_transpose_idxs = list(map("NHWC".index, attrs_out_layout))
             inputs = []
             inputs += nnapi["outputs"]
-            inputs += converter.export_obj.add_operand(
-                type_idx=converter.export_obj.get_type_idx(((4,), "int32")),
+            inputs += compiler.export_obj.add_operand(
+                type_idx=compiler.export_obj.get_type_idx(((4,), "int32")),
                 value={
                     "type": "constant_idx",
-                    "value": converter.export_obj.add_array_constant(
+                    "value": compiler.export_obj.add_array_constant(
                         vals=rev_transpose_idxs,
                         dtype="int32",
                     ),
                 },
             )
             outputs = []
-            outputs += converter.export_obj.add_operand(
-                type_idx=converter.export_obj.get_type_idx(
+            outputs += compiler.export_obj.add_operand(
+                type_idx=compiler.export_obj.get_type_idx(
                     (node.checked_type.shape, args["data"].checked_type.dtype)
                 )
             )
-            nnapi_op.transpose.add_operation(converter, inputs, outputs)
+            nnapi_op.transpose.add_operation(compiler, inputs, outputs)
             # END: add TRANSPOSE
 
             last_outputs = outputs
@@ -622,26 +622,26 @@ def _depthwise_handler(converter, node):
             inputs = []
             inputs += last_outputs
             outputs = []
-            outputs += converter.export_obj.add_operand(
-                type_idx=converter.export_obj.get_type_idx(
+            outputs += compiler.export_obj.add_operand(
+                type_idx=compiler.export_obj.get_type_idx(
                     (node.checked_type.shape, node.checked_type.dtype)
                 )
             )
-            nnapi_op.cast.add_operation(converter, inputs, outputs)
+            nnapi_op.cast.add_operation(compiler, inputs, outputs)
             # END: add CAST
 
             node_operands = outputs
 
     # register operands to node
-    converter.export_obj.helper.node_to_operand_idxs_map[node] = node_operands
+    compiler.export_obj.helper.node_to_operand_idxs_map[node] = node_operands
     # END: handle output[0]
     # END: handle outputs
 
-    nnapi_op.depthwise_conv_2d.add_operation(converter, nnapi["inputs"], nnapi["outputs"])
+    nnapi_op.depthwise_conv_2d.add_operation(compiler, nnapi["inputs"], nnapi["outputs"])
 
 
-def _grouped_handler(converter, node):
-    api_level = converter.options["target"]["api_level"]
+def _grouped_handler(compiler, node):
+    api_level = compiler.options["target"]["api_level"]
     args = _utils.name_args(node.args, ["data", "weight"])
     attrs = node.attrs
     nnapi = {}
@@ -652,39 +652,39 @@ def _grouped_handler(converter, node):
 
     # START: handle input[0]
     # generate nnapi node of "data"
-    converter.visit(args["data"])
+    compiler.visit(args["data"])
 
     # change layout of "data" to NNAPI's NHWC
     assert_anc_compatibility(
         len(attrs.data_layout) == 4, f"Unrecognized layout { attrs.data_layout }"
     )
     if attrs.data_layout == "NHWC" or (api_level >= 29 and attrs.data_layout == "NCHW"):
-        nnapi["inputs"] += converter.export_obj.helper.node_to_operand_idxs_map[args["data"]]
+        nnapi["inputs"] += compiler.export_obj.helper.node_to_operand_idxs_map[args["data"]]
     else:
         # START: add TRANSPOSE
         transpose_idxs = list(map(attrs.data_layout.index, ["N", "H", "W", "C"]))
         inputs = []
-        inputs += converter.export_obj.helper.node_to_operand_idxs_map[args["data"]]
-        inputs += converter.export_obj.add_operand(
-            type_idx=converter.export_obj.get_type_idx(((4,), "int32")),
+        inputs += compiler.export_obj.helper.node_to_operand_idxs_map[args["data"]]
+        inputs += compiler.export_obj.add_operand(
+            type_idx=compiler.export_obj.get_type_idx(((4,), "int32")),
             value={
                 "type": "constant_idx",
-                "value": converter.export_obj.add_array_constant(
+                "value": compiler.export_obj.add_array_constant(
                     vals=transpose_idxs,
                     dtype="int32",
                 ),
             },
         )
         outputs = []
-        outputs += converter.export_obj.add_operand(
-            type_idx=converter.export_obj.get_type_idx(
+        outputs += compiler.export_obj.add_operand(
+            type_idx=compiler.export_obj.get_type_idx(
                 (
                     tuple(map(lambda ele: args["data"].checked_type.shape[ele], transpose_idxs)),
                     args["data"].checked_type.dtype,
                 )
             )
         )
-        nnapi_op.transpose.add_operation(converter, inputs, outputs)
+        nnapi_op.transpose.add_operation(compiler, inputs, outputs)
         nnapi["inputs"] += outputs
         # END: add TRANSPOSE
     # END: handle input[0]
@@ -694,46 +694,46 @@ def _grouped_handler(converter, node):
     assert_anc_compatibility(args["weight"].checked_type.dtype == args["data"].checked_type.dtype)
 
     # generate nnapi node for weight
-    converter.visit(args["weight"])
+    compiler.visit(args["weight"])
 
     # change layout of "weight" to NNAPI's OHWI
     assert_anc_compatibility(
         len(attrs.kernel_layout) == 4, f"Unrecognized layout { attrs.kernel_layout }"
     )
     if attrs.kernel_layout == "OHWI":
-        nnapi["inputs"] += converter.export_obj.helper.node_to_operand_idxs_map[args["weight"]]
+        nnapi["inputs"] += compiler.export_obj.helper.node_to_operand_idxs_map[args["weight"]]
     else:
         # START: add TRANSPOSE
         transpose_idxs = list(map(attrs.kernel_layout.index, ["O", "H", "W", "I"]))
         inputs = []
-        inputs += converter.export_obj.helper.node_to_operand_idxs_map[args["weight"]]
-        inputs += converter.export_obj.add_operand(
-            type_idx=converter.export_obj.get_type_idx(((4,), "int32")),
+        inputs += compiler.export_obj.helper.node_to_operand_idxs_map[args["weight"]]
+        inputs += compiler.export_obj.add_operand(
+            type_idx=compiler.export_obj.get_type_idx(((4,), "int32")),
             value={
                 "type": "constant_idx",
-                "value": converter.export_obj.add_array_constant(
+                "value": compiler.export_obj.add_array_constant(
                     vals=transpose_idxs,
                     dtype="int32",
                 ),
             },
         )
         outputs = []
-        outputs += converter.export_obj.add_operand(
-            type_idx=converter.export_obj.get_type_idx(
+        outputs += compiler.export_obj.add_operand(
+            type_idx=compiler.export_obj.get_type_idx(
                 (
                     tuple(map(lambda ele: args["weight"].checked_type.shape[ele], transpose_idxs)),
                     args["weight"].checked_type.dtype,
                 )
             )
         )
-        nnapi_op.transpose.add_operation(converter, inputs, outputs)
+        nnapi_op.transpose.add_operation(compiler, inputs, outputs)
         nnapi["inputs"] += outputs
         # END: add TRANSPOSE
     # END: handle input[1]
 
     # START: handle input[2]
     # add empty bias
-    bias_shape = (converter.export_obj.helper.operand.get_shape(nnapi["inputs"][1])[0],)
+    bias_shape = (compiler.export_obj.helper.operand.get_shape(nnapi["inputs"][1])[0],)
     if args["data"].checked_type.dtype == "float32" or args["data"].checked_type.dtype == "float16":
         bias_dtype = args["data"].checked_type.dtype
     else:
@@ -742,11 +742,11 @@ def _grouped_handler(converter, node):
                 args['data'].dtype was { args['data'].checked_type.dtype }"
         )
     bias_type = (bias_shape, bias_dtype)
-    nnapi["inputs"] += converter.export_obj.add_operand(
-        type_idx=converter.export_obj.get_type_idx(bias_type),
+    nnapi["inputs"] += compiler.export_obj.add_operand(
+        type_idx=compiler.export_obj.get_type_idx(bias_type),
         value={
             "type": "constant_idx",
-            "value": converter.export_obj.add_array_constant(
+            "value": compiler.export_obj.add_array_constant(
                 vals=[0.0] * bias_shape[0],
                 dtype=bias_dtype,
             ),
@@ -756,11 +756,11 @@ def _grouped_handler(converter, node):
 
     # START: handle input[3:7]
     def _add_int32_scalar_constant(ele):
-        return converter.export_obj.add_operand(
-            type_idx=converter.export_obj.get_type_idx(((), "int32")),
+        return compiler.export_obj.add_operand(
+            type_idx=compiler.export_obj.get_type_idx(((), "int32")),
             value={
                 "type": "constant_idx",
-                "value": converter.export_obj.add_scalar_constant(
+                "value": compiler.export_obj.add_scalar_constant(
                     val=int(ele),
                     dtype="int32",
                 ),
@@ -792,11 +792,11 @@ def _grouped_handler(converter, node):
     # END: handle input[7:9]
 
     # START: handle input[9]
-    nnapi["inputs"] += converter.export_obj.add_operand(
-        type_idx=converter.export_obj.get_type_idx(((), "int32")),
+    nnapi["inputs"] += compiler.export_obj.add_operand(
+        type_idx=compiler.export_obj.get_type_idx(((), "int32")),
         value={
             "type": "constant_idx",
-            "value": converter.export_obj.add_scalar_constant(
+            "value": compiler.export_obj.add_scalar_constant(
                 val=int(attrs.groups),
                 dtype="int32",
             ),
@@ -806,11 +806,11 @@ def _grouped_handler(converter, node):
 
     # START: handle input[10]
     # add ANEURALNETWORKS_FUSED_NONE activation since CONV_2D needs it
-    nnapi["inputs"] += converter.export_obj.add_operand(
-        type_idx=converter.export_obj.get_type_idx(((), "int32")),
+    nnapi["inputs"] += compiler.export_obj.add_operand(
+        type_idx=compiler.export_obj.get_type_idx(((), "int32")),
         value={
             "type": "constant_idx",
-            "value": converter.export_obj.add_scalar_constant(
+            "value": compiler.export_obj.add_scalar_constant(
                 val="ANEURALNETWORKS_FUSED_NONE",
                 dtype="int32",
             ),
@@ -821,11 +821,11 @@ def _grouped_handler(converter, node):
     # START: handle input[11]
     nnapi_output_layout = "NHWC"
     if attrs.data_layout == "NCHW":
-        nnapi["inputs"] += converter.export_obj.add_operand(
-            type_idx=converter.export_obj.get_type_idx(((), "bool")),
+        nnapi["inputs"] += compiler.export_obj.add_operand(
+            type_idx=compiler.export_obj.get_type_idx(((), "bool")),
             value={
                 "type": "constant_idx",
-                "value": converter.export_obj.add_scalar_constant(
+                "value": compiler.export_obj.add_scalar_constant(
                     val="true",
                     dtype="bool",
                 ),
@@ -833,11 +833,11 @@ def _grouped_handler(converter, node):
         )
         nnapi_output_layout = "NCHW"
     else:
-        nnapi["inputs"] += converter.export_obj.add_operand(
-            type_idx=converter.export_obj.get_type_idx(((), "bool")),
+        nnapi["inputs"] += compiler.export_obj.add_operand(
+            type_idx=compiler.export_obj.get_type_idx(((), "bool")),
             value={
                 "type": "constant_idx",
-                "value": converter.export_obj.add_scalar_constant(
+                "value": compiler.export_obj.add_scalar_constant(
                     val="false",
                     dtype="bool",
                 ),
@@ -856,16 +856,16 @@ def _grouped_handler(converter, node):
         attrs_out_dtype == args["data"].checked_type.dtype
         and attrs_out_layout == nnapi_output_layout
     ):
-        nnapi["outputs"] += converter.export_obj.add_operand(
-            type_idx=converter.export_obj.get_type_idx(
+        nnapi["outputs"] += compiler.export_obj.add_operand(
+            type_idx=compiler.export_obj.get_type_idx(
                 (node.checked_type.shape, node.checked_type.dtype)
             )
         )
         node_operands = nnapi["outputs"]
     else:
         if attrs_out_layout == nnapi_output_layout:
-            nnapi["outputs"] += converter.export_obj.add_operand(
-                type_idx=converter.export_obj.get_type_idx(
+            nnapi["outputs"] += compiler.export_obj.add_operand(
+                type_idx=compiler.export_obj.get_type_idx(
                     (node.checked_type.shape, args["data"].checked_type.dtype)
                 )
             )
@@ -873,8 +873,8 @@ def _grouped_handler(converter, node):
         else:
             transpose_idxs = list(map(attrs_out_layout.index, ["N", "H", "W", "C"]))
             nhwc_shape = tuple(map(lambda ele: node.checked_type.shape[ele], transpose_idxs))
-            nnapi["outputs"] += converter.export_obj.add_operand(
-                type_idx=converter.export_obj.get_type_idx(
+            nnapi["outputs"] += compiler.export_obj.add_operand(
+                type_idx=compiler.export_obj.get_type_idx(
                     (nhwc_shape, args["data"].checked_type.dtype)
                 )
             )
@@ -883,23 +883,23 @@ def _grouped_handler(converter, node):
             rev_transpose_idxs = list(map("NHWC".index, attrs_out_layout))
             inputs = []
             inputs += nnapi["outputs"]
-            inputs += converter.export_obj.add_operand(
-                type_idx=converter.export_obj.get_type_idx(((4,), "int32")),
+            inputs += compiler.export_obj.add_operand(
+                type_idx=compiler.export_obj.get_type_idx(((4,), "int32")),
                 value={
                     "type": "constant_idx",
-                    "value": converter.export_obj.add_array_constant(
+                    "value": compiler.export_obj.add_array_constant(
                         vals=rev_transpose_idxs,
                         dtype="int32",
                     ),
                 },
             )
             outputs = []
-            outputs += converter.export_obj.add_operand(
-                type_idx=converter.export_obj.get_type_idx(
+            outputs += compiler.export_obj.add_operand(
+                type_idx=compiler.export_obj.get_type_idx(
                     (node.checked_type.shape, args["data"].checked_type.dtype)
                 )
             )
-            nnapi_op.transpose.add_operation(converter, inputs, outputs)
+            nnapi_op.transpose.add_operation(compiler, inputs, outputs)
             # END: add TRANSPOSE
 
             last_outputs = outputs
@@ -911,19 +911,19 @@ def _grouped_handler(converter, node):
             inputs = []
             inputs += last_outputs
             outputs = []
-            outputs += converter.export_obj.add_operand(
-                type_idx=converter.export_obj.get_type_idx(
+            outputs += compiler.export_obj.add_operand(
+                type_idx=compiler.export_obj.get_type_idx(
                     (node.checked_type.shape, node.checked_type.dtype)
                 )
             )
-            nnapi_op.cast.add_operation(converter, inputs, outputs)
+            nnapi_op.cast.add_operation(compiler, inputs, outputs)
             # END: add CAST
 
             node_operands = outputs
 
     # register operands to node
-    converter.export_obj.helper.node_to_operand_idxs_map[node] = node_operands
+    compiler.export_obj.helper.node_to_operand_idxs_map[node] = node_operands
     # END: handle output[0]
     # END: handle outputs
 
-    nnapi_op.grouped_conv_2d.add_operation(converter, nnapi["inputs"], nnapi["outputs"])
+    nnapi_op.grouped_conv_2d.add_operation(compiler, nnapi["inputs"], nnapi["outputs"])

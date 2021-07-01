@@ -17,8 +17,8 @@
 """NNAPI ComputeDevice specialization."""
 import numpy as np
 import tvm
-from tvm.contrib.target.android_nnapi.relayir_to_nnapi_converter import Converter as RelayFunctionToAndroidNNAPIConverter
-from tvm.contrib.target.android_nnapi.relayir_to_nnapi_converter.error import (
+from tvm.contrib.target.android_nnapi import Compiler as RelayFunctionToAndroidNNAPICompiler
+from tvm.contrib.target.android_nnapi.error import (
     AndroidNNAPICompilerIncompatibleError,
 )
 from ....._base import post_partition_transform
@@ -111,7 +111,7 @@ class NnapiDevice(RPCDevice):
             )  # op may be a GlobalVar, hence the if
             assert isinstance(external_func, tvm.relay.Function)
 
-            # try converting first to see if there's any problem
+            # try compiling first to see if there's any problem
             # if there's any incompatible case, an error would be thrown
             options = {
                 "target": {
@@ -119,10 +119,10 @@ class NnapiDevice(RPCDevice):
                 },
             }
             try:
-                RelayFunctionToAndroidNNAPIConverter(options).convert(external_func)
+                RelayFunctionToAndroidNNAPICompiler(options).codegen(external_func)
             except AndroidNNAPICompilerIncompatibleError as err:
                 raise AndroidNNAPICompilerProfilingError(
-                    f"Relay operator unsupported by Android NNAPI converter: { str(err) }"
+                    f"Relay operator unsupported by Android NNAPI compiler: { str(err) }"
                 )
 
             # build binary

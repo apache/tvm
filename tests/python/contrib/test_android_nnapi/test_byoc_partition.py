@@ -19,7 +19,7 @@ import unittest.mock
 import tvm
 import tvm.relay
 import tvm.relay.op.contrib.android_nnapi
-import tvm.contrib.target.android_nnapi.relayir_to_nnapi_converter.operation_utils.relay_op as relay_op_handler_root
+import tvm.contrib.target.android_nnapi.operation_utils.relay_op as relay_op_handler_root
 
 
 def test_byoc_partition():
@@ -32,7 +32,7 @@ def test_byoc_partition():
     mock_root_handler.nn.conv2d = lambda: None
     mock_root_handler.nn.conv2d.handler = relay_op_handler_root.nn.conv2d.handler
     with unittest.mock.patch(
-        "tvm.contrib.target.android_nnapi.relayir_to_nnapi_converter.operation_utils.relay_op",
+        "tvm.contrib.target.android_nnapi.operation_utils.relay_op",
         new=mock_root_handler,
     ):
         mod, _ = tvm.relay.op.contrib.android_nnapi.byoc_partition_for_android_nnapi(mod, {}, 29)
