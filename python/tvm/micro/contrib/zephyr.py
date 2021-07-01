@@ -408,6 +408,7 @@ class ZephyrFlasher(tvm.micro.compiler.Flasher):
     BOARD_USB_FIND_KW = {
         "nucleo_f746zg": {"idVendor": 0x0483, "idProduct": 0x374B},
         "stm32f746g_disco": {"idVendor": 0x0483, "idProduct": 0x374B},
+        "nucleo_l4r5zi": {"idVendor": 0x0483, "idProduct": 0x374B},
     }
 
     def openocd_serial(self, cmake_entries):

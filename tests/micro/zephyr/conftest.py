@@ -27,6 +27,7 @@ PLATFORMS = {
     "stm32f746xx_nucleo": ("stm32f746xx", "nucleo_f746zg"),
     "stm32f746xx_disco": ("stm32f746xx", "stm32f746g_disco"),
     "nrf5340dk": ("nrf5340dk", "nrf5340dk_nrf5340_cpuapp"),
+    "stm32l4r5zi_nucleo": ("stm32l4r5zi", "nucleo_l4r5zi"),
     "mps2_an521": ("mps2_an521", "mps2_an521-qemu"),
 }
 
