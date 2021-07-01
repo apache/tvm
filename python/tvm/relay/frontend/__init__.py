@@ -31,4 +31,5 @@ from .tensorflow import from_tensorflow
 from .darknet import from_darknet
 from .pytorch import from_pytorch
 from .caffe import from_caffe
+from .paddlepaddle import from_paddle
 from .change_datatype import ChangeDatatype
