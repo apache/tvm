@@ -176,9 +176,12 @@ def _get_workload(data, kernel, stride, padding, dilation, out_dtype, data_layou
     else:
         KH, KW, CIG, CO = get_const_tuple(kernel.shape)
 
-    pt, pl, pb, pr = get_pad_tuple(padding, (get_const_int(KH), get_const_int(KW)))
     dilation_h, dilation_w = (
         dilation if isinstance(dilation, (tuple, list)) else (dilation, dilation)
+    )
+    pt, pl, pb, pr = get_pad_tuple(
+        padding,
+        (get_const_int((KH - 1) * dilation_h + 1), get_const_int((KW - 1) * dilation_w + 1)),
     )
     GRPS = CI // CIG
     if isinstance(stride, (tuple, list)):
