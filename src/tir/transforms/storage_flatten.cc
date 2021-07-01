@@ -197,6 +197,7 @@ class StorageFlattener : public StmtExprMutator {
         strides = Array<PrimExpr>(rstrides.rbegin(), rstrides.rend());
       }
 
+      LOG(INFO) << "skey: " << skey.to_string();
       e.buffer = Buffer(Var(op->buffer->data->name_hint, op->buffer->data->type_annotation),
                         op->buffer->dtype, shape, strides, PrimExpr(), op->buffer->name,
                         skey.to_string(), align, 0, kDefault);
@@ -225,6 +226,9 @@ class StorageFlattener : public StmtExprMutator {
         ret = Allocate(e.buffer->data, storage_type, shape,
                        make_const(DataType::Bool(e.buffer->dtype.lanes()), true), body);
       }
+      CHECK(e.buffer->scope == GetStorageScope(e.buffer->data))
+          << e.buffer->scope << ", " << GetStorageScope(e.buffer->data) << ", "
+          << GetStorageScope(op->buffer->data);
       ret = AttrStmt(e.buffer->data, attr::storage_scope, StringImm(e.buffer->scope), ret);
 
       if (create_bound_attributes_ && ShapeIsValid(e.buffer->shape)) {
