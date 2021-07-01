@@ -140,6 +140,10 @@ class Target(Object):
         return int(self.attrs["thread_warp_size"])
 
     @property
+    def max_function_args(self):
+        return int(self.attrs.get("max_function_args", -1))
+
+    @property
     def device_name(self):
         return str(self.attrs.get("device", ""))
 
