@@ -47,7 +47,8 @@ capabilities, and set the stage for understanding how TVM works.
 #
 # TVMC is a Python application, part of the TVM Python package.
 # When you install TVM using a Python package, you will get TVMC as
-# as a command line application called ``tvmc``.
+# as a command line application called ``tvmc``. The location of this command
+# will vary depending on your platform and installation method.
 #
 # Alternatively, if you have TVM as a Python module on your
 # ``$PYTHONPATH``,you can access the command line driver functionality
@@ -69,6 +70,13 @@ capabilities, and set the stage for understanding how TVM works.
 # these commands in this tutorial, but first we need to download a pre-trained
 # model to work with.
 #
+
+
+################################################################################
+# .. note:: Supported operating systems
+#
+#   TVMC is only supported on Linux. Currently macOS and Windows default
+#   threading models do not support the model used for tuning by TVMC.
 
 
 ################################################################################
@@ -100,6 +108,14 @@ capabilities, and set the stage for understanding how TVM works.
 #   compile --help`` for more information.
 #
 
+################################################################################
+# .. note:: Adding ONNX Support to TVM
+#
+#    TVM relies on the ONNX python library being available on your system. You
+#    can install ONNX using the command ``pip3 install --user onnx``. You may
+#    remove the ``--user`` option if you have root access and want to install
+#    ONNX globally.
+#
 
 ################################################################################
 # Compiling an ONNX Model to the TVM Runtime
@@ -183,6 +199,10 @@ capabilities, and set the stage for understanding how TVM works.
 #
 # For our ResNet 50 V2 model, the input is expected to be in ImageNet format.
 # Here is an example of a script to pre-process an image for ResNet 50 V2.
+#
+# You will need to have a supported version of the Python Image Library
+# installed. You can use ``pip3 install --user pillow`` to satisfy this
+# requirement for the script.
 #
 # .. code-block:: python
 #    :caption: preprocess.py
@@ -428,7 +448,7 @@ capabilities, and set the stage for understanding how TVM works.
 #   --output predictions.npz \
 #   resnet50-v2-7-tvm_autotuned.tar
 #
-#   python postproccess.py
+#   python postprocess.py
 #
 # Verifying that the predictions are the same:
 #
@@ -460,8 +480,8 @@ capabilities, and set the stage for understanding how TVM works.
 #   resnet50-v2-7-tvm_autotuned.tar
 #
 #   # Execution time summary:
-#   # mean (s)   max (s)    min (s)    std (s)
-#   # 0.09219    0.11573    0.08985    0.00315
+#   # mean (ms)   max (ms)    min (ms)    std (ms)
+#   #     92.19     115.73       89.85        3.15
 #
 #   tvmc run \
 #   --inputs imagenet_cat.npz \
@@ -471,8 +491,8 @@ capabilities, and set the stage for understanding how TVM works.
 #   resnet50-v2-7-tvm.tar
 #
 #   # Execution time summary:
-#   # mean (s)   max (s)    min (s)    std (s)
-#   # 0.19332    0.21997    0.18504    0.00711
+#   # mean (ms)   max (ms)    min (ms)    std (ms)
+#   #    193.32     219.97      185.04        7.11
 #
 
 
