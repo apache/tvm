@@ -188,6 +188,44 @@ class LinkedParam : public ObjectRef {
 };
 
 /*!
+ * \brief Specialize parameters of PrimFunc.
+ * \param func The PrimFunc to be specialized.
+ * \param param_map The mapping from function params to the instance.
+ * \return The new function with parameter specialized.
+ * \note We can define a Meta TIR function with symbolic shape:
+ *
+ * \code
+ *  @tvm.script.tir
+ *  def mem_copy(a: ty.handle, b: ty.handle, m: ty.int32, n: ty.int32) -> None:
+ *      A = tir.match_buffer(a, (m, n), "float32")
+ *      B = tir.match_buffer(b, (m, n), "float32")
+ *
+ *      with tir.block([m, n], "") as [vi, vj]:
+ *          B[vi, vj] = A[vi, vj]
+ * \endcode
+ *
+ * Then we can make it specialized with given shapes or buffers.
+ *
+ * \code
+ *  a, _, m, n = mem_copy.params
+ *  func = mem_copy.specialize({a: tir.decl_buffer((16, 16))})
+ *  # or
+ *  func = mem_copy.specialize({n: 16, m: 16})
+ * \endcode
+ *
+ * \code {.language-id}
+ *  @tvm.script.tir
+ *  def mem_copy_16_16(a: ty.handle, b: ty.handle) -> None:
+ *      A = tir.match_buffer(a, (16, 16), "float32")
+ *      B = tir.match_buffer(b, (16, 16), "float32")
+ *
+ *      with tir.block([16, 16], "") as [vi, vj]:
+ *          B[vi, vj] = A[vi, vj]
+ * \endcode
+ */
+PrimFunc Specialize(PrimFunc func, const Map<Var, ObjectRef>& param_map);
+
+/*!
  * \brief PrimFunc specific attribute names.
  *
  * \sa tvm::attr
