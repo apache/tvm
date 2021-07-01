@@ -123,7 +123,7 @@ def softmax_common(x, axis, use_fast_exp):
 
 
 @tvm.te.tag_scope(tag="log_softmax_output")
-def log_softmax(x):
+def log_softmax(x, axis=-1):
     """Perform log softmax activation on the data
 
     Parameters
@@ -136,8 +136,9 @@ def log_softmax(x):
     output : tvm.te.Tensor
         2-D output with same shape
     """
-
     assert len(x.shape) == 2, "only support 2-dim log softmax"
+    # pylint: disable=R1714
+    assert axis == -1 or axis == len(x.shape) - 1, "only support last axis log softmax"
     m, n = x.shape
     k = te.reduce_axis((0, n), name="k")
     max_elem = te.compute((m,), lambda i: tvm.te.max(x[i, k], axis=k))
