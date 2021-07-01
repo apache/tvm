@@ -24,29 +24,29 @@ remote devices, recording the running time costs, and checking the correctness o
 
 import contextlib
 import logging
-import shutil
 import os
+import shutil
+import tempfile
 import threading
 import time
 import typing
-from random import getrandbits
 from collections import namedtuple
-import tempfile
+from random import getrandbits
 
 import tvm._ffi
 import tvm.ir.transform
-from tvm import nd, rpc as _rpc
-from tvm.error import TVMError
+from tvm import nd
+from tvm import rpc as _rpc
+from tvm.contrib import ndk, nvcc, stackvm, tar
 from tvm.driver import build
-from tvm.contrib import nvcc, ndk, tar, stackvm
+from tvm.error import TVMError
 from tvm.target import Target
 
-from ..utils import get_const_tuple
 from ..env import AutotvmGlobalScope
 from ..task.space import InstantiationError
-
-from .measure import MeasureResult, MeasureErrorNo, Builder, Runner
+from ..utils import get_const_tuple
 from .local_executor import LocalExecutor
+from .measure import Builder, MeasureErrorNo, MeasureResult, Runner
 
 logger = logging.getLogger("autotvm")
 
@@ -393,8 +393,8 @@ class LocalRunner(RPCRunner):
 
     def set_task(self, task):
         # pylint: disable=import-outside-toplevel
-        from ...rpc.tracker import Tracker
         from ...rpc.server import Server
+        from ...rpc.tracker import Tracker
 
         self.task = task
         tracker = Tracker(port=9000, port_end=10000, silent=True)
@@ -605,26 +605,17 @@ def run_through_rpc(
     return MeasureResult(costs, errno, tstamp - tic + build_result.time_cost, tstamp)
 
 
-def default_module_loader(pre_load_function=None):
-    """Returns a default function that can be passed as module_loader to run_through_rpc.
+class DefaultModuleLoader:
+    """See default_module_loader(). A pickleable emulation of the original function closure."""
 
-    Parameters
-    ----------
-    pre_load_function : Optional[Function[tvm.rpc.Session, tvm.runtime.Module]]
-        Invoked after a session is established and before the default code-loading RPC calls are
-        issued. Allows performing pre-upload actions, e.g. resetting the remote runtime environment.
-
-    Returns
-    -------
-    ModuleLoader :
-        A function that can be passed as module_loader to run_through_rpc.
-    """
+    def __init__(self, pre_load_function=None) -> None:
+        self.pre_load_function = pre_load_function
 
     @contextlib.contextmanager
-    def default_module_loader_mgr(remote_kwargs, build_result):
+    def __call__(self, remote_kwargs, build_result):
         remote = request_remote(**remote_kwargs)
-        if pre_load_function is not None:
-            pre_load_function(remote, build_result)
+        if self.pre_load_function is not None:
+            self.pre_load_function(remote, build_result)
 
         remote.upload(build_result.filename)
         try:
@@ -636,7 +627,25 @@ def default_module_loader(pre_load_function=None):
             remote.remove(os.path.splitext(build_result.filename)[0] + ".so")
             remote.remove("")
 
-    return default_module_loader_mgr
+
+def default_module_loader(pre_load_function=None):
+    """Returns a default function that can be passed as module_loader to run_through_rpc.
+
+    Parameters
+    ----------
+    pre_load_function : Optional[Function[tvm.rpc.Session, tvm.runtime.Module]]
+        Invoked after a session is established and before the default code-loading RPC calls are
+        issued. Allows performing pre-upload actions, e.g. resetting the remote runtime environment.
+
+    Returns
+    -------
+    DefaultModuleLoader :
+        A callable that can be passed as module_loader to run_through_rpc.
+    """
+
+    # This was a function with a closure before but that couldn't be pickled!
+    # We need pickle to work for using python's multiprocessing on some platforms.
+    return DefaultModuleLoader(pre_load_function)
 
 
 def request_remote(device_key, host=None, port=None, priority=1, timeout=60):
