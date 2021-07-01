@@ -96,7 +96,7 @@ TVM_DLL Array<Var> UndefinedVars(const PrimExpr& expr);
 TVM_DLL CallEffectKind SideEffect(const PrimExpr& expr);
 
 /*!
- * \brief Whether e expression used any var in variable set..
+ * \brief Whether e expression used any var in variable set.
  * \param expr The expression to be checked.
  * \param vset_contains The check function to see if var is in the vset.
  * \return Whether e uses vset.
