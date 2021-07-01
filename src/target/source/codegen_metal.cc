@@ -43,7 +43,7 @@ void CodeGenMetal::InitFuncState(const PrimFunc& f) {
   }
 }
 
-CodeGenMetal::CodeGenMetal() {
+CodeGenMetal::CodeGenMetal(Target target) : target_(target) {
   decl_stream << "#include <metal_stdlib>\n";
   decl_stream << "using namespace metal;\n\n";
   decl_stream << "union __TVMArgUnion {\n"
@@ -67,6 +67,11 @@ void CodeGenMetal::AddFunction(const PrimFunc& f) {
 
   // Buffer arguments
   size_t num_buffer = 0;
+  int limit = target_->GetAttr<Integer>("max_function_args").value();
+  if (static_cast<int>(f->params.size()) > limit) {
+    LOG(WARNING) << "Probably you won't be able to execute your kernel due to high number of "
+                    "buffers in the kernel";
+  }
   for (size_t i = 0; i < f->params.size(); ++i, ++num_buffer) {
     Var v = f->params[i];
     if (!v.dtype().is_handle()) break;
@@ -332,7 +337,7 @@ runtime::Module BuildMetal(IRModule mod, Target target) {
   for (auto kv : mod->functions) {
     ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodeGenMetal: Can only take PrimFunc";
     code << "// Function: " << kv.first->name_hint << std::endl;
-    CodeGenMetal cg;
+    CodeGenMetal cg(target);
     cg.Init(output_ssa);
     auto f = Downcast<PrimFunc>(kv.second);
     auto calling_conv = f->GetAttr<Integer>(tvm::attr::kCallingConv);
