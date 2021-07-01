@@ -2696,26 +2696,6 @@ def test_convtranspose():
             repeat(1, D),
             repeat(1, D),
         )
-        # Convolution with autopadding
-        verify_convtranspose_with_padding(
-            (1, 1) + repeat(5, D),
-            (1, 1) + repeat(3, D),
-            None,
-            repeat(3, D),
-            repeat(1, D),
-            repeat(1, D),
-            auto_pad="SAME_UPPER",
-        )
-        # Convolution with valid autopadding
-        verify_convtranspose_with_padding(
-            (1, 1) + repeat(5, D),
-            (1, 1) + repeat(3, D),
-            None,
-            repeat(3, D),
-            repeat(1, D),
-            repeat(1, D),
-            auto_pad="VALID",
-        )
         # Convolution with unset padding
         verify_convtranspose_with_padding(
             (1, 1) + repeat(5, D),
@@ -2726,16 +2706,38 @@ def test_convtranspose():
             repeat(1, D),
             True,
         )
-        # Convolution with non uniform stride
-        verify_convtranspose_with_padding(
-            (1, 1) + repeat(5, D),
-            (1, 1) + repeat(3, D),
-            None,
-            repeat(3, D),
-            repeat(2, D),
-            repeat(1, D),
-            auto_pad="SAME_UPPER",
-        )
+        ## TODO(mbrookhart): renable autopad tests when CI ONNX
+        ## and ONNX runtime match versions
+        # # Convolution with autopadding
+        # verify_convtranspose_with_padding(
+        #     (1, 1) + repeat(5, D),
+        #     (1, 1) + repeat(3, D),
+        #     None,
+        #     repeat(3, D),
+        #     repeat(1, D),
+        #     repeat(1, D),
+        #     auto_pad="SAME_UPPER",
+        # )
+        # # Convolution with valid autopadding
+        # verify_convtranspose_with_padding(
+        #     (1, 1) + repeat(5, D),
+        #     (1, 1) + repeat(3, D),
+        #     None,
+        #     repeat(3, D),
+        #     repeat(1, D),
+        #     repeat(1, D),
+        #     auto_pad="VALID",
+        # )
+        # # Convolution with non uniform stride
+        # verify_convtranspose_with_padding(
+        #     (1, 1) + repeat(5, D),
+        #     (1, 1) + repeat(3, D),
+        #     None,
+        #     repeat(3, D),
+        #     repeat(2, D),
+        #     repeat(1, D),
+        #     auto_pad="SAME_UPPER",
+        # )
         # Convolution with dilation
         # TODO(mbrookhart): Relay doesn't currently support convtranspose with dilation
         # verify_convtranspose_with_padding(
