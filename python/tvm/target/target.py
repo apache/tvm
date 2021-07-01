@@ -15,14 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 """Target data structure."""
+import json
 import os
 import re
-import json
 import warnings
-import tvm._ffi
 
-from tvm.runtime import Object
+import tvm._ffi
 from tvm._ffi import register_func as _register_func
+from tvm.runtime import Object
+
 from . import _ffi_api
 
 
@@ -138,6 +139,10 @@ class Target(Object):
     @property
     def thread_warp_size(self):
         return int(self.attrs["thread_warp_size"])
+
+    @property
+    def max_function_args(self):
+        return int(self.attrs.get("max_function_args", -1))
 
     @property
     def device_name(self):

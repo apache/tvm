@@ -347,10 +347,15 @@ TVM_REGISTER_TARGET_KIND("opencl", kDLOpenCL)
     .add_attr_option<Integer>("thread_warp_size", Integer(1))
     .set_default_keys({"opencl", "gpu"});
 
+// The metal has some limitations on the number of input parameters. This is why attribute
+// `max_function_args` was introduced. It specifies the maximum number of kernel argumetns. More
+// information about this limitation can be found here:
+// https://developer.apple.com/documentation/metal/buffers/about_argument_buffers?language=objc
 TVM_REGISTER_TARGET_KIND("metal", kDLMetal)
     .add_attr_option<Bool>("system-lib")
     .add_attr_option<Integer>("max_num_threads", Integer(256))
     .add_attr_option<Integer>("thread_warp_size", Integer(16))
+    .add_attr_option<Integer>("max_function_args", Integer(31))
     .set_default_keys({"metal", "gpu"});
 
 TVM_REGISTER_TARGET_KIND("vulkan", kDLVulkan)
