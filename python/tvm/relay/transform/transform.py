@@ -1228,3 +1228,14 @@ def ToMixedPrecision(mixed_precision_type="float16", missing_op_mode=1):
     if missing_op_mode < 0 or missing_op_mode > 2:
         raise ValueError("Missing op mode is either 0, 1, or 2")
     return _ffi_api.ToMixedPrecision(mixed_precision_type, missing_op_mode)
+
+
+def SplitArgs(max_function_args):
+    """Split function with huge number of arguments to smaller pieces.
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The registered pass for constant folding.
+    """
+    return _ffi_api.SplitArgs(max_function_args)

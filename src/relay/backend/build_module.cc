@@ -365,6 +365,12 @@ class RelayBuildModule : public runtime::ModuleNode {
     pass_seqs.push_back(transform::FastMath());
     pass_seqs.push_back(transform::FoldConstant());
 
+    if (targets.size() == 1) {
+      const auto& target = (*targets.begin()).second;
+      pass_seqs.push_back(
+          transform::SplitArgs(target->GetAttr<Integer>("max_function_args", -1).value()));
+    }
+
     // Create a sequential pass and perform optimizations.
     transform::Pass seq = transform::Sequential(pass_seqs);
     if (targets.size() == 1) {
