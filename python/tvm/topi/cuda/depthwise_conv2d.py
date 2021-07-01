@@ -169,11 +169,11 @@ def schedule_depthwise_conv2d_nhwc(outs):
 
         b, h, w, c = s[Output].op.axis
 
-        # num_thread here could be 728, it is larger than cuda.max_num_threads
-        num_thread = tvm.arith.Analyzer().simplify(temp.shape[3]).value
-        target = tvm.target.Target.current()
-        if target and (target.kind.name not in ["cuda", "nvptx"]):
-            num_thread = target.max_num_threads
+        # make sure the size of our parallelism is not larger than the number of threads
+        num_thread = min(
+            tvm.arith.Analyzer().simplify(temp.shape[3]).value,
+            tvm.target.Target.current().max_num_threads,
+        )
         xoc, xic = s[Output].split(c, factor=num_thread)
         s[Output].reorder(xoc, b, h, w, xic)
         xo, yo, _, _ = s[Output].tile(h, w, x_factor=2, y_factor=2)
