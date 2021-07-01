@@ -654,8 +654,7 @@ def test_inverse_affine_iter_map():
     l1_0, l1_1 = isplit(l1, 4)
     l0_1_l1_1_fused = ifuse([l0_1, l1_1])
 
-    iter_map = tvm.arith.detect_iter_map([l0_1_l1_1_fused[0], l0_0[0], l1_0[0]],
-                                    var_dom([l0, l1]))
+    iter_map = tvm.arith.detect_iter_map([l0_1_l1_1_fused[0], l0_0[0], l1_0[0]], var_dom([l0, l1]))
     outputs = [tvm.tir.Var("output_{}".format(i), "int32") for i in range(len(iter_map))]
     res = tvm.arith.inverse_affine_iter_map(iter_map, outputs)
     print(res)
@@ -673,15 +672,17 @@ def test_inverse_affine_iter_map():
 
     l0_1_l2_1_l1_1_l2_0_fused = ifuse([l0_1, l2_1, l1_1, l2_0])
 
-    iter_map = tvm.arith.detect_iter_map([l0_1_l2_1_l1_1_l2_0_fused[0], l0_0[0], l2_2[0], l1_0[0]],
-                                         var_dom([l0, l1, l2]))
+    iter_map = tvm.arith.detect_iter_map(
+        [l0_1_l2_1_l1_1_l2_0_fused[0], l0_0[0], l2_2[0], l1_0[0]], var_dom([l0, l1, l2])
+    )
     outputs = [tvm.tir.Var("output_{}".format(i), "int32") for i in range(len(iter_map))]
     res = tvm.arith.inverse_affine_iter_map(iter_map, outputs)
     assert len(res) == 3
     l0_inverse = floormod(floordiv(outputs[0], 64), 16) + outputs[1] * 16
     l1_inverse = floormod(floordiv(outputs[0], 4), 4) + outputs[3] * 4
-    l2_inverse = floormod(outputs[0], 4) * 16 + floormod(floordiv(outputs[0], 16), 4) * 4 \
-                 + outputs[2]
+    l2_inverse = (
+        floormod(outputs[0], 4) * 16 + floormod(floordiv(outputs[0], 16), 4) * 4 + outputs[2]
+    )
 
     assert analyzer.simplify(res[l0[0]] - l0_inverse) == 0
     assert analyzer.simplify(res[l1[0]] - l1_inverse) == 0

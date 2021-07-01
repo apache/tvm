@@ -1395,7 +1395,7 @@ class InverseAffineIterMapTransformer {
     std::vector<const IterMapExprNode*> post_dfs_order = ReverseTopologyOrder(iter_map);
 
     // initialize back propagation accumulator
-    for (const IterMapExprNode* node: post_dfs_order) {
+    for (const IterMapExprNode* node : post_dfs_order) {
       backprop_.Set(GetRef<IterMapExpr>(node), Integer(0));
     }
     for (size_t i = 0; i < iter_map.size(); i++) {
@@ -1403,7 +1403,7 @@ class InverseAffineIterMapTransformer {
     }
 
     // run back propagation
-    for (const IterMapExprNode* node: post_dfs_order) {
+    for (const IterMapExprNode* node : post_dfs_order) {
       if (node->IsInstance<IterSumExprNode>()) {
         Visit_(Downcast<IterSumExpr>(GetRef<IterMapExpr>(node)));
       } else {
@@ -1435,10 +1435,10 @@ class InverseAffineIterMapTransformer {
     ICHECK(!splits.empty());
 
     for (const IterSplitExpr& split : splits) {
-      backprop_.Set(split, backprop_.at(split) + floormod(floordiv(input, split->scale), split->extent));
+      backprop_.Set(split,
+                    backprop_.at(split) + floormod(floordiv(input, split->scale), split->extent));
     }
   }
-
 
   std::vector<const IterMapExprNode*> ReverseTopologyOrder(const Array<IterSumExpr>& iter_map) {
     std::vector<const IterMapExprNode*> post_dfs_order;
@@ -1516,7 +1516,7 @@ class InverseAffineIterMapTransformer {
 
   Analyzer* analyzer_;
   Map<IterMapExpr, PrimExpr> backprop_;  // the accumulator of backpropgation
-  Map<Var, PrimExpr> inverse_;  // the result of inverse transformation
+  Map<Var, PrimExpr> inverse_;           // the result of inverse transformation
 };
 
 Map<Var, PrimExpr> InverseAffineIterMap(const Array<IterSumExpr>& iter_map,

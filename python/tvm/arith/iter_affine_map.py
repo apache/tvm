@@ -176,7 +176,7 @@ def subspace_divide(bindings, input_iters, sub_iters, predicate=True, require_bi
 
 
 def inverse_affine_iter_map(iter_map, outputs):
-    """ Apply the inverse of the affine transformation to the outputs.
+    """Apply the inverse of the affine transformation to the outputs.
     Similar to the back-propagation, starting from the outputs, it visits the DAG of the expressions
     in reverse topology order and applies the inverse of the affine transformation until it reaches
     the input. The affine iter map is required to be bijective.
