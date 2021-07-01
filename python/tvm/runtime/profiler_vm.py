@@ -50,7 +50,7 @@ class VirtualMachineProfiler(vm.VirtualMachine):
         warnings.warn("get_stat has been removed, use profile instead")
         return ""
 
-    def profile(self, *args, func_name="main", collectors=[], **kwargs):
+    def profile(self, *args, func_name="main", collectors=None, **kwargs):
         """Profile a function call.
 
         Parameters
@@ -58,7 +58,7 @@ class VirtualMachineProfiler(vm.VirtualMachine):
         func_name : str
             The name of the function.
 
-        collectors : Sequence[MetricCollector]
+        collectors : Optional[Sequence[MetricCollector]]
             Extra metrics to collect.
 
         args : list[tvm.runtime.NDArray] or list[np.ndarray]
@@ -72,6 +72,7 @@ class VirtualMachineProfiler(vm.VirtualMachine):
         timing_results : str
             Overall and per-op timing results formatted in a table.
         """
+        collectors = [] if collectors is None else collectors
         if args or kwargs:
             self.set_input(func_name, *args, **kwargs)
         return self._profile(func_name, collectors)

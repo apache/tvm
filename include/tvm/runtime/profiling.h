@@ -313,6 +313,10 @@ class Profiler {
    *
    * The profiler should be constructed before you do any warmup iterations.
    *
+   * \note
+   * Calling this constructor will reset the TVM threadpool. It is necessary in
+   * order to install thread handlers required by certain collectors.
+   *
    * \param devs The list of devices the profiler will be running on. Should
    *             include all devices used by profiled operators.
    * \param metric_collectors Additional `MetricCollector`s to use with this profiler.
