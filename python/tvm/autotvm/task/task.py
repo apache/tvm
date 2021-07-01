@@ -21,6 +21,8 @@ Task can be constructed from tuple of func, args, and kwargs.
 func is a state-less function, or a string that
 registers the standard task.
 """
+import functools
+
 import numpy as np
 
 from tvm import runtime
@@ -411,6 +413,7 @@ def template(task_name, func=None):
     """
 
     def _decorate(f):
+        @functools.wraps(f)
         def wrapper(*args, **kwargs):
             assert not kwargs, "Do not support kwargs in template function call"
             workload = args_to_workload(args, task_name)

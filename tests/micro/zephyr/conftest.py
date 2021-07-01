@@ -44,6 +44,17 @@ def pytest_addoption(parser):
     parser.addoption(
         "--west-cmd", default="west", help="Path to `west` command for flashing device."
     )
+    parser.addoption(
+        "--skip-build",
+        action="store_true",
+        help="If set true, reuses build from the previous test run. Otherwise, build from the scratch.",
+    )
+    parser.addoption(
+        "--tvm-debug",
+        action="store_true",
+        default=False,
+        help="If set true, enable a debug session while the test is running. Before running the test, in a separate shell, you should run: <python -m tvm.exec.microtvm_debug_shell>",
+    )
 
 
 def pytest_generate_tests(metafunc):
@@ -54,3 +65,13 @@ def pytest_generate_tests(metafunc):
 @pytest.fixture
 def west_cmd(request):
     return request.config.getoption("--west-cmd")
+
+
+@pytest.fixture
+def skip_build(request):
+    return request.config.getoption("--skip-build")
+
+
+@pytest.fixture
+def tvm_debug(request):
+    return request.config.getoption("--tvm-debug")

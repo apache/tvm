@@ -44,6 +44,9 @@ Expr MakeClip(Expr a, double a_min, double a_max);
 
 Expr MakeConcatenate(Expr data, int axis);
 
+Expr MakeMatmul(Expr tensor_a, Expr tensor_b, IndexExpr units, DataType out_dtype, bool transpose_a,
+                bool transpose_b);
+
 Expr MakeDense(Expr data, Expr weight, IndexExpr units, DataType out_dtype);
 
 Expr MakeBatchMatmul(Expr lhs, Expr rhs, DataType out_dtype);
@@ -78,7 +81,8 @@ Expr MakeStack(Expr data, int axis);
 Expr MakeTranspose(Expr data, Array<Integer> axes);
 
 Expr MakeStridedSlice(Expr data, Array<Integer> begin, Array<Integer> end, Array<Integer> strides,
-                      String slice_mode);
+                      String slice_mode,
+                      Optional<Array<Integer>> axes = NullValue<Array<Integer>>());
 
 Expr MakeTile(Expr data, Array<Integer> reps);
 

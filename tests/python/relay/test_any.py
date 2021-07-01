@@ -25,6 +25,7 @@ from tvm.relay.loops import while_loop
 from tvm.relay.testing import run_infer_type as infer_type
 
 from utils.assert_diagnostic import DiagnosticTesting
+from utils import ref_funcs
 
 
 def int32(val):
@@ -507,7 +508,7 @@ def verify_any_conv2d(
     kernel_np = np.random.uniform(size=kernel_shape).astype(dtype)
 
     targets = None
-    if use_cudnn and tvm.get_global_func("tvm.contrib.cudnn.conv.output_shape", True):
+    if use_cudnn and tvm.get_global_func("tvm.contrib.cudnn.conv.output_shape_from_cudnn", True):
         targets = [("cuda -libs=cudnn", tvm.cuda(0))]
 
     check_result([data_np, kernel_np], mod, ref_out_shape, assert_shape=True, targets=targets)
@@ -1031,7 +1032,7 @@ def verify_any_strided_slice(
     mod = tvm.IRModule()
     data = relay.var("data", shape=data_shape, dtype="float32")
     if const_attrs:
-        data = relay.var("data", shape=data_np_shape, dtype="float32")
+        data = relay.var("data", shape=data_shape, dtype="float32")
         begin = relay.const(np_begin)
         end = relay.const(np_end)
         strides = relay.const(np_strides)
@@ -1610,7 +1611,8 @@ def test_all_class_non_max_suppression():
         max_output_boxes_per_class,
         iou_threshold,
         score_threshold,
-        expected_indices,
+        expected,
+        output_format="onnx",
     ):
         batch_size = boxes_np.shape[0]
         num_classes = scores_np.shape[1]
@@ -1621,23 +1623,23 @@ def test_all_class_non_max_suppression():
         )
 
         nms_out = relay.vision.all_class_non_max_suppression(
-            boxes,
-            scores,
-            max_output_boxes_per_class,
-            iou_threshold,
-            score_threshold,
+            boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold, output_format
         )
 
-        three = relay.const(np.array([3]), dtype="int64")
-        begin = relay.const(np.array([0, 0]), dtype="int64")
-        end = relay.op.concatenate([nms_out[1], three], axis=0)
-        strides = relay.const(np.array([1, 1]), dtype="int64")
-        out = relay.op.strided_slice(nms_out[0], begin, end, strides)
-
-        mod = tvm.IRModule()
-        mod["main"] = relay.Function([boxes, scores], out)
-
-        check_result([boxes_np, scores_np], mod, [expected_indices])
+        if output_format == "onnx":
+            three = relay.const(np.array([3]), dtype="int64")
+            begin = relay.const(np.array([0, 0]), dtype="int64")
+            end = relay.op.concatenate([nms_out[1], three], axis=0)
+            strides = relay.const(np.array([1, 1]), dtype="int64")
+            out = relay.op.strided_slice(nms_out[0], begin, end, strides)
+            mod = tvm.IRModule()
+            mod["main"] = relay.Function([boxes, scores], out)
+            check_result([boxes_np, scores_np], mod, [expected])
+        else:
+            out = nms_out.tuple_value
+            mod = tvm.IRModule()
+            mod["main"] = relay.Function([boxes, scores], out)
+            check_result([boxes_np, scores_np], mod, expected)
 
     boxes = np.array(
         [
@@ -1665,6 +1667,39 @@ def test_all_class_non_max_suppression():
 
     verify_all_class_non_max_suppression(
         boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold, expected
+    )
+
+    expected = [
+        np.array(
+            [[[0, 4], [0, 2], [1, 4], [1, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0]]]
+        ),
+        np.array(
+            [
+                [
+                    0.9,
+                    0.6,
+                    0.9,
+                    0.8,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                ]
+            ]
+        ),
+        np.array([4]),
+    ]
+
+    verify_all_class_non_max_suppression(
+        boxes,
+        scores,
+        max_output_boxes_per_class,
+        iou_threshold,
+        score_threshold,
+        expected,
+        output_format="tensorflow",
     )
 
     boxes = np.array(
@@ -1701,6 +1736,53 @@ def test_all_class_non_max_suppression():
     verify_all_class_non_max_suppression(
         boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold, expected
     )
+
+
+@tvm.testing.uses_gpu
+def test_gather_nd():
+    def verify_gather_nd(data_shape, indices_shape, data_shape_np, indices_shape_np, batch_dims=0):
+        x = relay.var("x", relay.TensorType(data_shape, "float32"))
+        y = relay.var("y", relay.TensorType(indices_shape, "int32"))
+        z = relay.gather_nd(x, y, batch_dims, indices_shape[0])
+
+        mod = tvm.IRModule()
+        mod["main"] = relay.Function([x, y], z)
+
+        data_np = np.random.uniform(size=data_shape_np).astype("float32")
+        indices_np = np.random.randint(low=0, high=2, size=indices_shape_np, dtype="int32")
+
+        ref_res = ref_funcs.gather_nd(data_np, indices_np, batch_dims)
+        check_result([data_np, indices_np], mod, [ref_res])
+
+    verify_gather_nd((2, 2), (2, relay.Any()), (2, 2), (2, 3))
+    verify_gather_nd((relay.Any(), 2), (2, relay.Any()), (2, 2), (2, 3))
+    verify_gather_nd((relay.Any(), 2), (1, relay.Any()), (10, 2), (1, 10), 1)
+    verify_gather_nd(
+        (relay.Any(), 2, 2, 3, 4), (3, relay.Any(), relay.Any()), (3, 2, 2, 3, 4), (3, 3, 2), 2
+    )
+
+
+@tvm.testing.uses_gpu
+def test_scatter_nd():
+    def verify_scatter_nd(data_np, indices_np, updates_np, ref_res):
+        indices_shape = (2, relay.Any())
+        updates_shape = (relay.Any(),)
+        data = relay.var("data", shape=data_np.shape, dtype=str(data_np.dtype))
+        indices = relay.var("indices", relay.TensorType(indices_shape, str(indices_np.dtype)))
+        updates = relay.var("updates", relay.TensorType(updates_shape, str(updates_np.dtype)))
+
+        out = relay.op.scatter_nd(data, indices, updates, "add")
+
+        mod = tvm.IRModule()
+        mod["main"] = relay.Function([data, indices, updates], out)
+
+        check_result([data_np, indices_np, updates_np], mod, [ref_res])
+
+    data = np.zeros((2, 2)).astype("int64")
+    indices = np.array([[1, 1, 0], [0, 1, 0]])
+    updates = np.array([2, 3, 0])
+    out = np.array([[0, 0], [2, 3]])
+    verify_scatter_nd(data, indices, updates, out)
 
 
 if __name__ == "__main__":

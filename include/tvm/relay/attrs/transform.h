@@ -146,11 +146,18 @@ struct GatherAttrs : public tvm::AttrsNode<GatherAttrs> {
 
 struct GatherNDAttrs : public tvm::AttrsNode<GatherNDAttrs> {
   Integer batch_dims;
+  Optional<Integer> index_rank;
 
-  TVM_DECLARE_ATTRS(GatherAttrs, "relay.attrs.GatherNDAttrs") {
+  TVM_DECLARE_ATTRS(GatherNDAttrs, "relay.attrs.GatherNDAttrs") {
     TVM_ATTR_FIELD(batch_dims).set_default(Integer(0)).describe("The number of batch dimensions.");
+    TVM_ATTR_FIELD(index_rank)
+        .set_default(NullValue<Integer>())
+        .describe(
+            "The size of an indexing tuple, which is a fixed value. Only needed when the number of "
+            "indexting tuples is dynamic.");
   }
 };
+
 struct TakeAttrs : public tvm::AttrsNode<TakeAttrs> {
   Integer batch_dims;
   Integer axis;
@@ -303,6 +310,7 @@ struct StridedSliceAttrs : public tvm::AttrsNode<StridedSliceAttrs> {
   Optional<Array<Integer>> end;
   Optional<Array<Integer>> strides;
   std::string slice_mode;
+  Optional<Array<Integer>> axes;
 
   TVM_DECLARE_ATTRS(StridedSliceAttrs, "relay.attrs.StridedSliceAttrs") {
     TVM_ATTR_FIELD(begin).describe("Indices for begin of slice, begin index is also inclusive");
@@ -317,6 +325,9 @@ struct StridedSliceAttrs : public tvm::AttrsNode<StridedSliceAttrs> {
             "size - The input strides will be ignored, input end in this mode indicates the size"
             "of a slice starting at the location specified by begin. If end[i] is -1,"
             "all remaining elements in that dimension are included in the slice");
+    TVM_ATTR_FIELD(axes).describe(
+        "Axes along which slicing is applied. When it is specified, the length of begin, end, "
+        "strides, and axes must be equal.");
   }
 };
 

@@ -192,17 +192,62 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
           << "}\n";
   }
 
+  void GenerateEntrypointForUnpackedAPI(const std::string& run_func) {
+    code_ << "TVM_DLL int32_t " << run_func << "(";
+    int total_args = (metadata_->num_inputs + metadata_->num_outputs);
+    for (int i = 0; i < total_args; ++i) {
+      code_ << "arg" << i;
+      if (i + 1 != total_args) {
+        code_ << ",";
+      }
+    }
+    code_ << ");\n";
+    code_ << "static int32_t " << ::tvm::runtime::symbol::tvm_module_main;
+    code_ << "(void* args, void* type_code, int num_args, void* out_value, void* "
+             "out_type_code, void* resource_handle) {\n";
+    code_ << "return " << run_func << "(";
+    for (int i = 0; i < metadata_->num_inputs; ++i) {
+      code_ << "((DLTensor*)(((TVMValue*)args)[" << i << "].v_handle))[0].data,";
+    }
+    for (int i = 0; i < metadata_->num_outputs; ++i) {
+      int j = metadata_->num_inputs + i;
+      code_ << "((DLTensor*)(((TVMValue*)args)[" << j << "].v_handle))[0].data";
+      if (i + 1 != metadata_->num_outputs) {
+        code_ << ",";
+      }
+    }
+    code_ << ");\n";
+    code_ << "}\n";
+  }
+
+  void GenerateEntrypointForPackedAPI(const std::string& run_func) {
+    code_ << "TVM_DLL int32_t " << run_func;
+    code_ << "(void* args, void* type_code, int num_args, void* out_value, void* "
+             "out_type_code, void* resource_handle);\n";
+    code_ << "static int32_t " << ::tvm::runtime::symbol::tvm_module_main;
+    code_ << "(void* args, void* type_code, int num_args, void* out_value, void* "
+             "out_type_code, void* resource_handle) {\n";
+    code_ << "return " << run_func;
+    code_ << "(args, type_code, num_args, out_value, out_type_code, resource_handle);\n";
+    code_ << "}\n";
+  }
+
   void GenerateAOTDescriptor() {
+    const std::string run_func = ::tvm::runtime::symbol::tvm_run_func_suffix;
+    const std::string run_func_mangled = runtime::get_name_mangled(metadata_->mod_name, run_func);
+    const std::string network_mangled = runtime::get_name_mangled(metadata_->mod_name, "network");
     code_ << "#include \"tvm/runtime/crt/internal/aot_executor/aot_executor.h\"\n";
     code_ << "#include \"tvm/runtime/c_runtime_api.h\"\n";
     code_ << "#ifdef __cplusplus\n";
     code_ << "extern \"C\"\n";
     code_ << "#endif\n";
-    code_ << "TVM_DLL int32_t " << ::tvm::runtime::symbol::tvm_run_func_prefix;
-    code_ << "(void* args, void* type_code, int num_args, void* out_value, void* "
-             "out_type_code, void* resource_handle);\n";
-    code_ << "const tvm_model_t network = {\n"
-          << "    .run_func = &" << ::tvm::runtime::symbol::tvm_run_func_prefix << ",\n"
+    if (target_->GetAttr<Bool>("unpacked-api").value_or(Bool(false))) {
+      GenerateEntrypointForUnpackedAPI(run_func_mangled);
+    } else {
+      GenerateEntrypointForPackedAPI(run_func_mangled);
+    }
+    code_ << "const tvm_model_t " << network_mangled << " = {\n"
+          << "    .run_func = &" << ::tvm::runtime::symbol::tvm_module_main << ",\n"
           << "    .num_input_tensors = " << metadata_->num_inputs << ",\n"
           << "    .num_output_tensors = " << metadata_->num_outputs << ", \n"
           << "};\n";

@@ -109,7 +109,7 @@ impl Object {
             let mut index = 0;
             unsafe {
                 if TVMObjectTypeKey2Index(cstring.as_ptr(), &mut index) != 0 {
-                    panic!(crate::get_last_error())
+                    panic!("{}", crate::get_last_error())
                 }
             }
             return index;

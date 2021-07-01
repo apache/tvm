@@ -23,7 +23,6 @@
  */
 #include "codegen_spirv.h"
 
-#include <tvm/runtime/container.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
@@ -64,6 +63,7 @@ runtime::VulkanShader CodeGenSPIRV::BuildFunction(const PrimFunc& f, const std::
         }
         spirv::Value arg_value = builder_->BufferArgument(builder_->GetSType(value_storage_type),
                                                           descriptor_set, num_buffer);
+        builder_->SetName(arg_value, arg->name_hint);
         storage_info_[arg.get()].UpdateContentType(value_storage_type);
         var_map_[arg.get()] = arg_value;
       } else {
@@ -129,6 +129,7 @@ spirv::Value CodeGenSPIRV::GetThreadIndex(const IterVar& iv, const PrimExpr& ext
     auto* sizeptr = extent.as<tir::IntImmNode>();
     ICHECK(sizeptr) << "SPIRV only allows constant thread group size "
                     << " get " << extent;
+    ICHECK_GE(ts.dim_index, 0) << "vthread should have been optimized out by here";
     ICHECK_LT(ts.dim_index, 3);
     workgroup_size_[ts.dim_index] = static_cast<uint32_t>(sizeptr->value);
   } else {
@@ -140,20 +141,34 @@ spirv::Value CodeGenSPIRV::GetThreadIndex(const IterVar& iv, const PrimExpr& ext
 spirv::Value CodeGenSPIRV::CreateStorageSync(const CallNode* op) {
   const std::string& sync = op->args[0].as<StringImmNode>()->value;
   spirv::Value value;
-  if (sync == "warp") {
-    return value;
-  } else if (sync == "shared") {
-    auto type_int = builder_->GetSType(DataType::Int(32));
-    builder_->MakeInst(
-        spv::OpControlBarrier,
-        builder_->IntImm(type_int, static_cast<int64_t>(spv::ScopeWorkgroup)),
-        builder_->IntImm(type_int, static_cast<int64_t>(spv::ScopeWorkgroup)),
-        builder_->IntImm(type_int,
-                         static_cast<int64_t>(spv::MemorySemanticsSequentiallyConsistentMask |
-                                              spv::MemorySemanticsWorkgroupMemoryMask)));
+
+  uint32_t vulkan_api_version = spirv_support_.vulkan_api_version;
+
+  int64_t sync_scope;
+  int64_t memory_semantics = spv::MemorySemanticsSequentiallyConsistentMask;
+  if ((sync == "warp") && (vulkan_api_version >= VK_API_VERSION_1_1)) {
+    // Synchronize control at the Subgroup level, but memory at the
+    // Workgroup level.  This is because different invocations in a
+    // subgroup may have each modified memory that exists at the
+    // workgroup scope.  This should be changed if/when tir exposes
+    // more information as to which memory access needs to be
+    // synchronized.
+    sync_scope = spv::ScopeSubgroup;
+    memory_semantics |=
+        spv::MemorySemanticsSubgroupMemoryMask | spv::MemorySemanticsWorkgroupMemoryMask;
+
+  } else if ((sync == "shared") || (sync == "warp")) {
+    sync_scope = spv::ScopeWorkgroup;
+    memory_semantics |= spv::MemorySemanticsWorkgroupMemoryMask;
   } else {
     LOG(FATAL) << "Do not support sync " << sync;
   }
+
+  auto type_int = builder_->GetSType(DataType::Int(32));
+  builder_->MakeInst(spv::OpControlBarrier, builder_->IntImm(type_int, sync_scope),
+                     builder_->IntImm(type_int, sync_scope),
+                     builder_->IntImm(type_int, memory_semantics));
+
   return value;
 }
 
@@ -351,6 +366,12 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
   } else if (op->op.same_as(builtin::popcount())) {
     return builder_->MakeValue(spv::OpBitCount, builder_->GetSType(op->dtype),
                                MakeValue(op->args[0]));
+  } else if (op->op.same_as(builtin::call_extern()) ||
+             op->op.same_as(builtin::call_pure_extern())) {
+    ICHECK_GE(op->args.size(), 1U);
+    LOG(FATAL) << "SPIR-V shader cannot make extern calls.  Graph contains extern \""
+               << Downcast<StringImm>(op->args[0]) << "\"";
+    return spirv::Value();
   } else {
     LOG(FATAL) << "Unresolved call  " << op->op;
     return spirv::Value();
@@ -517,9 +538,13 @@ void CodeGenSPIRV::VisitStmt_(const ForNode* op) {
   // Must get init label after making value(to make sure they are correct)
   spirv::Label init_label = builder_->CurrentLabel();
   spirv::Label head_label = builder_->NewLabel();
+  builder_->SetName(head_label, "for_loop_head");
   spirv::Label body_label = builder_->NewLabel();
+  builder_->SetName(body_label, "for_loop_body");
   spirv::Label continue_label = builder_->NewLabel();
+  builder_->SetName(continue_label, "for_loop_continue");
   spirv::Label merge_label = builder_->NewLabel();
+  builder_->SetName(merge_label, "for_loop_merge");
   builder_->MakeInst(spv::OpBranch, head_label);
 
   // Loop head
@@ -625,14 +650,16 @@ void CodeGenSPIRV::VisitStmt_(const AllocateNode* op) {
   if (info.scope.rank == runtime::StorageRank::kLocal) {
     buf =
         builder_->Allocate(etype, static_cast<uint32_t>(constant_size), spv::StorageClassFunction);
-  } else {
-    // shared memory
-    ICHECK(info.scope.rank == runtime::StorageRank::kShared)
-        << "Can only allocate shared or local memory inside kernel";
+  } else if (info.scope.rank == runtime::StorageRank::kShared) {
     // Shared memory
     buf =
         builder_->Allocate(etype, static_cast<uint32_t>(constant_size), spv::StorageClassWorkgroup);
+  } else {
+    LOG(FATAL) << "Can only allocate shared or local memory inside kernel";
   }
+
+  builder_->SetName(buf, op->buffer_var->name_hint);
+
   ICHECK(!info.content_fixed);
   info.UpdateContentType(op->dtype);
   ICHECK(!var_map_.count(op->buffer_var.get()));
@@ -644,9 +671,10 @@ void CodeGenSPIRV::VisitStmt_(const AttrStmtNode* op) {
   if (op->attr_key == tir::attr::thread_extent) {
     IterVar iv = Downcast<IterVar>(op->node);
     if (iv->thread_tag.length() != 0) {
+      // Will throw error if rebinding same local variable to a different extent.
+      analyzer_->Bind(iv->var, Range::FromMinExtent(0, op->value));
       if (!var_map_.count(iv->var.get())) {
         var_map_[iv->var.get()] = GetThreadIndex(iv, op->value);
-        analyzer_->Bind(iv->var, Range::FromMinExtent(0, op->value));
       }
     }
   } else if (op->attr_key == tir::attr::storage_scope) {

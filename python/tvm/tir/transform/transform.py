@@ -347,6 +347,17 @@ def MakePackedAPI(num_unpacked_params=0):
     return _ffi_api.MakePackedAPI(num_unpacked_params)
 
 
+def MakeUnpackedAPI():
+    """Transform the PrimFuncs in the module to a C API compatible with internal calls.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.MakeUnpackedAPI()
+
+
 def SplitHostDevice():
     """Split the function into a host function and device functions.
 
@@ -438,6 +449,17 @@ def LowerTVMBuiltin():
         The result pass
     """
     return _ffi_api.LowerTVMBuiltin()
+
+
+def LegalizePackedCalls():
+    """Legalize packed calls to have its arguments wrapped in TVMValues
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.LegalizePackedCalls()
 
 
 def LowerIntrin():
@@ -576,12 +598,16 @@ def ConvertBlocksToOpaque():
 
 
 def CompactBufferAllocation():
-    """Compact the buffer access region. by removing the buffer regions that are not accessed,
-    i.e. narrowing the buffer shape and adjust the access region if necessary.
+    """Compact the buffer access region. by removing the buffer regions
+    that are not accessed, i.e. narrowing the buffer shape and adjust
+    the access region if necessary.
 
     Example
     -------
-    Before narrowing, `B` is a `[16, 16]` buffer, but only a skinny vector `B[i, 0:16]` is accessed.
+
+    Before narrowing, ``B`` is a ``[16, 16]`` buffer, but only a
+    skinny vector ``B[i, 0:16]`` is accessed.
+
     .. code-block:: python
 
         for i in range(0, 16):
@@ -591,9 +617,12 @@ def CompactBufferAllocation():
                     B[i, j] = A[i, j] + 1
                 for j in range(0, 16):
                     C[i, j] = B[i, j] + 1
-    This pass narrows the buffer shape and adjust its accessed region accordingly.
-    In this particular case, because only a `1 * 16` vector of `B` is accessed,
-    the pass narrows `B` to shape `[1, 16]`, and changes the access to `B[i, j]` to `B[0, j]`.
+
+    This pass narrows the buffer shape and adjust its accessed region
+    accordingly.  In this particular case, because only a ``1 * 16``
+    vector of ``B`` is accessed, the pass narrows ``B`` to shape ``[1,
+    16]``, and changes the access to ``B[i, j]`` to ``B[0, j]``.
+
     .. code-block:: python
 
         for i in range(0, 16):
@@ -608,6 +637,7 @@ def CompactBufferAllocation():
     -------
     fpass : tvm.transform.Pass
         The result pass
+
     """
     return _ffi_api.CompactBufferAllocation()
 

@@ -176,6 +176,8 @@ class RelayTextPrinter : public ExprFunctor<Doc(const Expr&)>,
   std::vector<Doc> doc_stack_{};
   /*! \brief Set for introduced vars */
   std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual> var_memo_;
+  /*! \brief Set for exprs have been printed optional information */
+  std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual> opt_info_memo_;
   /*! \brief Map for result and memo_ diffs for visited expression */
   std::unordered_map<Expr, Doc, ObjectPtrHash, ObjectPtrEqual> result_memo_;
   /*! \brief Map from Expr to Doc */
@@ -358,6 +360,8 @@ class TIRTextPrinter : public StmtFunctor<Doc(const Stmt&)>,
   static Doc PrintSep(const std::vector<Doc>& vec, const Doc& sep);
   Doc PrintBody(const Stmt& body, bool indent = true);
 };
+
+String AsTVMScript(const ObjectRef& mod, bool show_meta = false);
 
 }  // namespace tir
 }  // namespace tvm

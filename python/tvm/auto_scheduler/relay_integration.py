@@ -24,6 +24,7 @@ Integrate auto_scheduler into relay. It implements the following items:
 
 import logging
 import threading
+from copy import deepcopy
 
 import tvm
 from tvm import autotvm, transform
@@ -45,7 +46,7 @@ from .workload_registry import register_workload_tensors
 logger = logging.getLogger("auto_scheduler")
 
 
-def call_all_topi_funcs(mod, params, target):
+def call_all_topi_funcs(mod, params, target, opt_level=3):
     """Call all TOPI compute to extract auto_scheduler tasks in a Relay program"""
     # pylint: disable=import-outside-toplevel
     from tvm import relay
@@ -56,7 +57,7 @@ def call_all_topi_funcs(mod, params, target):
     autotvm.GLOBAL_SCOPE.silent = True
 
     with transform.PassContext(
-        opt_level=3,
+        opt_level=opt_level,
         config={
             "relay.backend.use_auto_scheduler": True,
             "relay.backend.disable_compile_engine_cache": True,
@@ -64,7 +65,10 @@ def call_all_topi_funcs(mod, params, target):
         disabled_pass={"AutoSchedulerLayoutRewrite"},
     ):
         try:
-            opt_mod, _ = relay.optimize(mod, target, params)
+            # TODO(jwfromm) Remove this once AlterOpLayout bug that mutates
+            # source module is fixed. Until then, create a clone.
+            mod_clone = deepcopy(mod)
+            opt_mod, _ = relay.optimize(mod_clone, target, params)
             grc = graph_executor_codegen.GraphExecutorCodegen(None, target)
             grc.codegen(opt_mod["main"])
         except tvm.TVMError:
@@ -72,17 +76,28 @@ def call_all_topi_funcs(mod, params, target):
                 "Get errors with GraphExecutorCodegen for task extraction. "
                 "Fallback to VMCompiler."
             )
+            mod_clone = deepcopy(mod)
             compiler = relay.vm.VMCompiler()
             if params:
                 compiler.set_params(params)
-            mod = tvm.IRModule.from_expr(mod) if isinstance(mod, relay.Function) else mod
-            compiler.lower(mod, target)
+            mod_clone = (
+                tvm.IRModule.from_expr(mod_clone)
+                if isinstance(mod_clone, relay.Function)
+                else mod_clone
+            )
+            compiler.lower(mod_clone, target)
 
     autotvm.GLOBAL_SCOPE.silent = old_autotvm_silent
 
 
 def extract_tasks(
-    mod, params, target, target_host=None, hardware_params=None, include_simple_tasks=False
+    mod,
+    params,
+    target,
+    target_host=None,
+    hardware_params=None,
+    include_simple_tasks=False,
+    opt_level=3,
 ):
     """Extract tuning tasks from a relay program.
 
@@ -100,6 +115,8 @@ def extract_tasks(
         Hardware parameters used for the search tasks
     include_simple_tasks: bool
         Whether to extract simple tasks that do not include complicated ops.
+    opt_level : Optional[int]
+        The optimization level of the task extractions.
 
     Returns
     -------
@@ -123,7 +140,9 @@ def extract_tasks(
     with env:
         # Wrap build call in a new thread to avoid the conflict
         # between python's multiprocessing and tvm's thread pool
-        build_thread = threading.Thread(target=call_all_topi_funcs, args=(mod, params, target))
+        build_thread = threading.Thread(
+            target=call_all_topi_funcs, args=(mod, params, target, opt_level)
+        )
         build_thread.start()
         build_thread.join()
     dispatch_ctx.verbose = old_verbose

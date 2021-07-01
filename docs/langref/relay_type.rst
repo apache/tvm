@@ -43,7 +43,7 @@ Relay to be ahead-of-time compiled and provides much more information about
 tensors for optimizations further in the compilation pipeline. Such optimizations
 can be implemented as passes, which are Relay-to-Relay AST transformations, and
 may use the inferred types (e.g., shape information) for making decisions about
-program transformations. For instance, :code:`src/relay/pass/fuse_ops.cc` gives
+program transformations. For instance, :code:`src/relay/transforms/fuse_ops.cc` gives
 an implementation of a pass that uses inferred tensor shapes to replace invocations
 of operators in a Relay program with fused operator implementations.
 

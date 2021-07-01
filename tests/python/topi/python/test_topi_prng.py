@@ -112,6 +112,12 @@ def test_threefry_generate(target, dev):
     # check that gen out does not equal input
     assert (a != gen).any(), "Output generator should be different from input generator"
 
+    # check that we can generate data whose total number of elements is not a multiple of 4.
+    a, rands = threefry_generate(target, dev, gen, (7,))
+    assert (
+        rands.shape[0] == 7 and len(rands.shape) == 1
+    ), "Output shape should match requested shape"
+
     # test enough generates to go over generate limit
     gen = np.array(
         [0, 0, 0, 0, 0, 0, 0, 2 ** 64 - 2, 1 << 63, 0], dtype="uint64"

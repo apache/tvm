@@ -25,10 +25,10 @@
 #define TVM_PARSER_TOKENIZER_H_
 
 #include <tvm/node/serialization.h>
-#include <tvm/runtime/container.h>
 #include <tvm/runtime/object.h>
 
 #include <fstream>
+#include <limits>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -62,7 +62,9 @@ bool IsNumeric(char c) {
          !IsWhitespace(c);
 }
 
-bool IsIdentLetter(char c) { return '_' == c || ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z'); }
+bool IsIdentLetter(char c) {
+  return '_' == c || c == '/' || ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z');
+}
 
 bool IsIdent(char c) { return IsIdentLetter(c) || IsDigit(c); }
 
@@ -172,44 +174,53 @@ struct Tokenizer {
   Token ParseNumber(bool is_pos, bool is_float, std::string number) {
     ICHECK(number.size() > 0) << "an empty string is an invalid number";
 
-    try {
-      if (is_float) {
-        throw std::invalid_argument("is_float");
-      }
+    if (!is_float) {
       auto token = NewToken(TokenType::kInteger);
       size_t index = 0;
-      int value = std::stoi(number, &index);
-      if (number.size() > index) {
-        throw std::invalid_argument("floating point");
+      int64_t value = 0;
+      try {
+        value = std::stoll(number, &index);
+      } catch (const std::invalid_argument& err) {
+        this->diag_ctx.Emit(Diagnostic::Error(token->span) << "invalid number `" << number << "`");
+      } catch (const std::out_of_range& err) {
+        this->diag_ctx.Emit(Diagnostic::Error(token->span) << "invalid number `" << number << "`");
       }
-      value = is_pos ? value : -value;
-      token->data = tvm::Integer(value);
-      return token;
-    } catch (const std::invalid_argument& ia) {
-      auto token = NewToken(TokenType::kFloat);
-
-      auto suffix_pos = number.rfind("f");
-
-      auto literal_text = number.substr(0, suffix_pos);
-
-      auto suffix = number.substr(suffix_pos + 1, number.size() - suffix_pos);
-
-      int width = 32;
-
-      if (suffix.size()) {
-        try {
-          width = std::stoi(suffix);
-        } catch (const std::invalid_argument& err) {
-          this->diag_ctx.Emit(Diagnostic::Error(token->span)
-                              << "invalid numeric suffix `" << suffix << "`");
+      if (number.size() <= index) {
+        value = is_pos ? value : -value;
+        if (value > std::numeric_limits<int32_t>::max()) {
+          token->data = tvm::IntImm(DataType::Int(64), value);
+        } else {
+          token->data = tvm::IntImm(DataType::Int(32), value);
         }
+        return token;
       }
-
-      double value = stod(literal_text);
-      value = is_pos ? value : -value;
-      token->data = tvm::FloatImm(DataType::Float(width), value);
-      return token;
     }
+    auto token = NewToken(TokenType::kFloat);
+
+    auto suffix_pos = number.rfind("f");
+
+    auto literal_text = number.substr(0, suffix_pos);
+
+    auto suffix = number.substr(suffix_pos + 1, number.size() - suffix_pos);
+
+    int width = 32;
+
+    if (suffix.size()) {
+      try {
+        width = std::stoi(suffix);
+      } catch (const std::invalid_argument& err) {
+        this->diag_ctx.Emit(Diagnostic::Error(token->span)
+                            << "invalid numeric suffix `" << suffix << "`");
+      } catch (const std::out_of_range& err) {
+        this->diag_ctx.Emit(Diagnostic::Error(token->span)
+                            << "invalid numeric suffix `" << suffix << "`");
+      }
+    }
+
+    double value = stod(literal_text);
+    value = is_pos ? value : -value;
+    token->data = tvm::FloatImm(DataType::Float(width), value);
+    return token;
   }
 
   Token ParseNumber(bool is_pos) {

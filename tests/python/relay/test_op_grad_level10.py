@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import pytest
+import numpy as np
 
 from tvm import relay
 from tvm.relay.testing import check_grad
@@ -70,6 +71,29 @@ def test_batch_matmul_grad():
 def test_reverse_reshape_grad():
     x = relay.var("x", shape=(3, 4, 5), dtype="float64")
     check_grad(relay.Function([x], relay.op.reverse_reshape(x, (-1, 0))))
+
+
+def test_one_hot_grad():
+    indices_shape = (3, 4)
+    depth = 5
+    axis = -1
+
+    for indices_dtype in ["int32", "int64"]:
+        for val_dtype in ["float32", "float64"]:
+            inputs = [
+                np.random.randint(depth, size=indices_shape, dtype=indices_dtype),
+                np.array(np.random.randn() * 1e-5).astype(val_dtype),
+                np.array(np.random.randn() * 1e-5).astype(val_dtype),
+            ]
+            test_inputs = inputs[1:]
+
+            indices = relay.var("indices", shape=indices_shape, dtype=indices_dtype)
+            on_val = relay.var("on_val", shape=tuple(), dtype=val_dtype)
+            off_val = relay.var("off_val", shape=tuple(), dtype=val_dtype)
+            y = relay.one_hot(indices, on_val, off_val, depth, axis, val_dtype)
+            f = relay.Function([indices, on_val, off_val], y)
+
+            check_grad(f, inputs=inputs, test_inputs=test_inputs)
 
 
 if __name__ == "__main__":

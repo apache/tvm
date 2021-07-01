@@ -53,10 +53,6 @@ class Workspace:
         return self.tempdir.temp_dir
 
 
-# Required C runtime libraries, in link order.
-CRT_RUNTIME_LIB_NAMES = ["utvm_rpc_server", "utvm_rpc_common", "common"]
-
-
 STANDALONE_CRT_DIR = None
 
 
@@ -110,9 +106,17 @@ def get_standalone_crt_lib(name: str) -> str:
     return os.path.join(get_standalone_crt_dir(), "src", "runtime", "crt", name)
 
 
-def get_runtime_libs() -> str:
-    """Return abspath to all CRT directories which contain source (i.e. not header) files."""
-    return [get_standalone_crt_lib(n) for n in CRT_RUNTIME_LIB_NAMES]
+def get_runtime_libs(executor: str) -> str:
+    """Return abspath to all CRT directories in link order which contain
+    source (i.e. not header) files.
+    """
+    if executor == "host-driven":
+        crt_runtime_lib_names = ["microtvm_rpc_server", "microtvm_rpc_common", "common"]
+    elif executor == "aot":
+        crt_runtime_lib_names = ["aot_executor", "common"]
+    else:
+        raise ValueError(f"Incorrect executor: {executor}")
+    return [get_standalone_crt_lib(n) for n in crt_runtime_lib_names]
 
 
 RUNTIME_SRC_REGEX = re.compile(r"^.*\.cc?$", re.IGNORECASE)
@@ -154,11 +158,12 @@ def default_options(crt_config_include_dir, standalone_crt_dir=None):
     Dict :
         A dictionary containing 3 subkeys, each whose value is _build_default_compiler_options()
         plus additional customization.
-         - "bin_opts" - passed as "options" to Compiler.binary() when building MicroBinary.
-         - "lib_opts" - passed as "options" to Compiler.library() when building bundled CRT
-           libraries (or otherwise, non-generated libraries).
-         - "generated_lib_opts" - passed as "options" to Compiler.library() when building the
-           generated library.
+
+        - "bin_opts" - passed as "options" to Compiler.binary() when building MicroBinary.
+        - "lib_opts" - passed as "options" to Compiler.library() when building bundled CRT
+          libraries (or otherwise, non-generated libraries).
+        - "generated_lib_opts" - passed as "options" to Compiler.library() when building the
+          generated library.
     """
     bin_opts = _build_default_compiler_options(standalone_crt_dir)
     bin_opts["include_dirs"].append(crt_config_include_dir)
@@ -188,6 +193,7 @@ def build_static_runtime(
     compiler,
     module,
     compiler_options,
+    executor=None,
     extra_libs=None,
 ):
     """Build the on-device runtime, statically linking the given modules.
@@ -206,6 +212,10 @@ def build_static_runtime(
         used. This dict contains the `options` parameter passed to Compiler.library() and
         Compiler.binary() at various stages in the compilation process.
 
+    executor : Optional[str]
+        Executor used for runtime. Based on this we determine the libraries that need to be
+        linked with runtime.
+
     extra_libs : Optional[List[MicroLibrary|str]]
         If specified, extra libraries to be compiled into the binary. If a MicroLibrary, it is
         included into the binary directly. If a string, the path to a directory; all direct children
@@ -221,8 +231,11 @@ def build_static_runtime(
     os.makedirs(mod_build_dir)
     mod_src_dir = workspace.relpath(os.path.join("src", "module"))
 
+    if not executor:
+        executor = "host-driven"
+
     libs = []
-    for mod_or_src_dir in (extra_libs or []) + get_runtime_libs():
+    for mod_or_src_dir in (extra_libs or []) + get_runtime_libs(executor):
         if isinstance(mod_or_src_dir, MicroLibrary):
             libs.append(mod_or_src_dir)
             continue

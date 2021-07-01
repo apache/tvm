@@ -35,11 +35,12 @@ class ProducerToBufferTransformer : public StmtExprMutator {
       : tensor2buffers_(tensor2buffers) {}
 
   PrimExpr VisitExpr_(const ProducerLoadNode* op) final {
-    te::Tensor tensor = Downcast<te::Tensor>(op->producer);
+    auto visited_op = Downcast<ProducerLoad>(StmtExprMutator::VisitExpr_(op));
+    te::Tensor tensor = Downcast<te::Tensor>(visited_op->producer);
     auto it = tensor2buffers_.find(tensor);
     ICHECK(it != tensor2buffers_.end()) << "IndexError: Cannot find the tensor " << tensor;
     const Buffer& buffer = it->second;
-    return BufferLoad(buffer, op->indices);
+    return BufferLoad(buffer, visited_op->indices);
   }
 
  private:
@@ -100,6 +101,12 @@ BlockRealize GenerateBlockFromTensor(const te::ComputeOp& compute_op, const te::
   };
   f_push_block_vars(compute_op->axis);
   f_push_block_vars(compute_op->reduce_axis);
+
+  // If we have a rank 0 tensor then we manifest it as a rank 1 buffer with a single element.
+  if (compute_op->axis.size() == 0) {
+    iter_vars.push_back(IterVar(Range::FromMinExtent(0, 1), Var(), IterVarType::kDataPar));
+    bindings.push_back(Var());
+  }
 
   // Step 2. Declare buffer and update op2buffers
   Buffer buffer = decl_buffer(tensor->shape, tensor->dtype, tensor->GetNameHint());

@@ -104,7 +104,7 @@ class WithScopeHandler(ScopeHandler):
 
 @register
 class Allocate(WithScopeHandler):
-    """ With scope handler tir.allocate(extents, dtype, scope, condition) """
+    """With scope handler tir.allocate(extents, dtype, scope, condition)"""
 
     def __init__(self):
         def allocate(extents, dtype, scope, condition=True, span=None):
@@ -149,7 +149,7 @@ class Allocate(WithScopeHandler):
 
 @register
 class LaunchThread(WithScopeHandler):
-    """ With scope handler tir.launch_thread(env_var, extent) """
+    """With scope handler tir.launch_thread(env_var, extent)"""
 
     def __init__(self):
         def launch_thread(env_var, extent, span):
@@ -175,7 +175,7 @@ class LaunchThread(WithScopeHandler):
 
 @register
 class Realize(WithScopeHandler):
-    """ With scope handler tir.realize(buffer_bounds, scope, condition) """
+    """With scope handler tir.realize(buffer_bounds, scope, condition)"""
 
     def __init__(self):
         def realize(
@@ -205,7 +205,7 @@ class Realize(WithScopeHandler):
 
 @register
 class Attr(WithScopeHandler):
-    """ With scope handler tir.attr(attr_node, attr_key, value) """
+    """With scope handler tir.attr(attr_node, attr_key, value)"""
 
     def __init__(self):
         def attr(attr_node, attr_key, value, span):
@@ -218,7 +218,7 @@ class Attr(WithScopeHandler):
 
 @register
 class AssertHandler(WithScopeHandler):
-    """ With scope handler tir.Assert(condition, message) """
+    """With scope handler tir.Assert(condition, message)"""
 
     def __init__(self):
         def Assert(condition, message, span):
@@ -229,7 +229,7 @@ class AssertHandler(WithScopeHandler):
 
 @register
 class Let(WithScopeHandler):
-    """ With scope handler tir.let(var, value) """
+    """With scope handler tir.let(var, value)"""
 
     def __init__(self):
         def let(var, value, span):
@@ -240,7 +240,7 @@ class Let(WithScopeHandler):
 
 @register
 class Block(WithScopeHandler):
-    """ With scope handler tir.block(extents, name) as iter_vars"""
+    """With scope handler tir.block(extents, name) as iter_vars"""
 
     def __init__(self):
         def block(axes=None, name_hint: str = "", span: Optional[Span] = None):
@@ -359,7 +359,7 @@ class Block(WithScopeHandler):
 
 @register
 class InitBlock(WithScopeHandler):
-    """ With scope handler tir.init()"""
+    """With scope handler tir.init()"""
 
     def __init__(self):
         def init(span: Span = None):
@@ -490,7 +490,7 @@ class ForScopeHandler(ScopeHandler):
 
 @register
 class Serial(ForScopeHandler):
-    """ For scope handler tir.serial(begin, end, annotations)"""
+    """For scope handler tir.serial(begin, end, annotations)"""
 
     def __init__(self):
         def serial(
@@ -506,7 +506,7 @@ class Serial(ForScopeHandler):
 
 @register
 class Parallel(ForScopeHandler):
-    """ For scope handler tir.parallel(begin, end, annotations)"""
+    """For scope handler tir.parallel(begin, end, annotations)"""
 
     def __init__(self):
         def parallel(
@@ -524,7 +524,7 @@ class Parallel(ForScopeHandler):
 
 @register
 class Vectorized(ForScopeHandler):
-    """ For scope handler tir.vectorized(begin, end, annotations)"""
+    """For scope handler tir.vectorized(begin, end, annotations)"""
 
     def __init__(self):
         def vectorized(
@@ -542,7 +542,7 @@ class Vectorized(ForScopeHandler):
 
 @register
 class Unroll(ForScopeHandler):
-    """ For scope handler tir.unroll(begin, end, annotations)"""
+    """For scope handler tir.unroll(begin, end, annotations)"""
 
     def __init__(self):
         def unroll(
@@ -560,7 +560,7 @@ class Unroll(ForScopeHandler):
 
 @register
 class ThreadBinding(ForScopeHandler):
-    """ For scope handler tir.thread_binding(begin, end, thread, annotations)"""
+    """For scope handler tir.thread_binding(begin, end, thread, annotations)"""
 
     def __init__(self):
         def thread_binding(
@@ -606,7 +606,7 @@ class RangeHandler(ForScopeHandler):
 
 @register
 class Grid(ForScopeHandler):
-    """ For scope handler tir.grid(extents)"""
+    """For scope handler tir.grid(extents)"""
 
     def __init__(self):
         def grid(*extents: List[PrimExpr], span: Span):

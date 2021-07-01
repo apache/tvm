@@ -85,17 +85,77 @@ class Op(RelayExpr):
         """
         _ffi_api.OpResetAttr(self, attr_name)
 
+    def add_type_rel(self, rel_name, type_rel_func=None):
+        """Attach the type function corresponding to the return type.
 
-def register_op(op_name):
-    """Register an operator by name
+        Parameters
+        ----------
+        rel_name : str
+            The type relation name to register.
 
-    Parameters
-    ----------
-    op_name : str
-        The name of new operator
-    """
+        type_rel_func : Optional[function (args: List[Type], attrs: Attrs) -> Type]
+            The backing relation function which can solve an arbitrary relation on variables.
+            Differences with type_rel_func in C++:
 
-    _ffi_api.RegisterOp(op_name)
+            1) When type_rel_func is not None
+
+               a) OpAddTypeRel on C++ side will adjust type_rel_func with TypeReporter to
+                  calling convention of relay type system.
+
+               b) type_rel_func returns output argument's type, return None means can't
+                  infer output's type.
+
+               c) only support single output operators for now, the last argument is output tensor.
+
+            2) when type_rel_func is None, will call predefined type_rel_funcs in relay
+                   according to ``tvm.relay.type_relation.`` + rel_name.
+
+        """
+        _ffi_api.OpAddTypeRel(self, rel_name, type_rel_func)
+
+    def add_argument(self, name, type, description):  # pylint: disable=redefined-builtin
+        """Add arguments information to the function.
+
+        Parameters
+        ----------
+        name : str
+            The argument name.
+        type : str
+            The argument type.
+        description : str
+            The argument description.
+        """
+        _ffi_api.OpAddArgument(self, name, type, description)
+
+    def set_support_level(self, level):
+        """Set the support level of op.
+
+        Parameters
+        ----------
+        level : int
+            The support level.
+        """
+        _ffi_api.OpSetSupportLevel(self, level)
+
+    def set_num_inputs(self, n):
+        """Set the support level of op.
+
+        Parameters
+        ----------
+        n : int
+            The input number.
+        """
+        _ffi_api.OpSetNumInputs(self, n)
+
+    def set_attrs_type_key(self, key):
+        """Set the attribute type key of op.
+
+        Parameters
+        ----------
+        key : str
+            The type key.
+        """
+        _ffi_api.OpSetAttrsTypeKey(self, key)
 
 
 def register_op_attr(op_name, attr_key, value=None, level=10):

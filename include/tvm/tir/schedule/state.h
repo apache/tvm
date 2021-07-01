@@ -64,15 +64,11 @@ struct BlockInfo {
  * \brief The bitmask of the debug flag in the ScheduleStateNode.
  * \sa ScheduleStateNode
  */
-enum class ScheduleDebugMask : int32_t {
+enum ScheduleDebugMask : uint32_t {
   /*! \brief Verify the correctness of the sref tree */
   kVerifySRefTree = 1,
-  /*! \brief Verify the correctness of affine_binding */
-  kVerifyAffineBinding = 2,
-  /*! \brief Verify the correctness of region_cover */
-  kVerifyRegionCover = 4,
-  /*! \brief Verify the correctness of stage_pipeline */
-  kVerifyStagePipeline = 8,
+  /*! \brief Verify the correctness of affine_binding, region_cover and stage_pipeline */
+  kVerifyCachedFlags = 2,
 };
 
 /*!
@@ -135,9 +131,8 @@ class ScheduleStateNode : public Object {
   /*!
    * \brief Trigger the verification according to the `debug_mode` bitmask.
    * 1) If the bitmask `kVerifySRefTree` is on, verify the correctness of the sref tree.
-   * 2) If the bitmask `kVerifyAffineBinding` is on, verify the correctness of `affine_binding`
-   * 3) If the bitmask `kVerifyRegionCover` is on, verify the correctness of `region_cover`
-   * 4) If the bitmask `kVerifyStagePipeline` is on, verify the correctness of `stage_pipeline`
+   * 2) If the bitmask `kVerifyCachedFlags` is on, verify the correctness of `affine_binding`,
+   * `region_cover` and `stage_pipeline`
    */
   TVM_DLL void DebugVerify() const;
 

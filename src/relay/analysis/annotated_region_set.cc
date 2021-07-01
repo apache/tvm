@@ -21,7 +21,6 @@
 
 #include <tvm/ir/error.h>
 #include <tvm/relay/expr.h>
-#include <tvm/runtime/container.h>
 
 #include <unordered_map>
 #include <vector>

@@ -563,6 +563,40 @@ def schedule_softmax(outs):
     return _default_schedule(outs, False)
 
 
+def schedule_fast_softmax(outs):
+    """Schedule for fast_softmax
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of fast_softmax
+          in the format of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
+
+
+def schedule_matmul(outs):
+    """Schedule for matmul
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of matmul
+          in the format of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
+
+
 def schedule_dense(outs):
     """Schedule for dense
 

@@ -23,11 +23,13 @@ import tvm.relay as relay
 from tvm import topi
 from tvm import te
 from tvm.contrib import graph_executor
+from tvm.topi import testing
 
 
-def test_fastmath():
+@tvm.testing.parametrize_targets("llvm", "cuda")
+def test_fastmath(target, dev):
     def test_apply(relay_op, name, f_numpy, low, high, step, dtype="float32"):
-        a_np = np.arange(low, high, step).astype(dtype)
+        a_np = np.arange(low, high, step).astype(dtype).reshape((1, -1))
         b_np = f_numpy(a_np)
 
         x = relay.var("x", shape=a_np.shape, dtype="float32")
@@ -36,13 +38,14 @@ def test_fastmath():
         mod = tvm.IRModule.from_expr(func)
 
         with tvm.transform.PassContext(opt_level=3, required_pass=["FastMath"]):
-            graph, lib, params = relay.build(mod, target="llvm", params=None)
+            graph, lib, params = relay.build(mod, target=target, params=None)
 
         # Check that the op related to fast math have been convered to function in lib
-        func_name = "fused_" + name
-        assert lib.get_function(func_name)
+        func_name = "tvmgen_default_fused_" + name
+        # When there're multiple targets in tvm.testing.parametrize_targets, the function
+        # built will have a "_1" in function name
+        assert func_name in graph
 
-        dev = tvm.cpu(0)
         m = graph_executor.create(graph, lib, dev)
         # Set inputs
         m.set_input("x", tvm.nd.array(a_np, dev))
@@ -56,6 +59,14 @@ def test_fastmath():
     test_apply(relay.exp, "fast_exp", np.exp, low=-88, high=88, step=0.01)
     test_apply(relay.erf, "fast_erf", scipy.special.erf, low=-10, high=10, step=0.01)
     test_apply(relay.tanh, "fast_tanh", np.tanh, low=-10, high=10, step=0.01)
+    test_apply(
+        relay.nn.fast_softmax,
+        "nn_fast_softmax",
+        tvm.topi.testing.softmax_python,
+        low=-10,
+        high=10,
+        step=0.01,
+    )
 
 
 if __name__ == "__main__":

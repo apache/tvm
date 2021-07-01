@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """This file defines ScheduleState, the core data structure of TensorIR scheduling."""
+from collections import namedtuple
 from enum import IntEnum
 from typing import Dict, Optional, Union
 
@@ -25,6 +26,8 @@ from tvm.tir import Block, BlockRealize, For, PrimFunc
 
 from . import _ffi_api_schedule
 from .block_scope import BlockScope, StmtSRef
+
+CachedFlags = namedtuple("CachedFlags", ["affine_binding", "region_cover", "stage_pipeline"])
 
 
 class ScheduleDebugMask(IntEnum):
@@ -38,18 +41,12 @@ class ScheduleDebugMask(IntEnum):
     ----------
     VERIFY_SREF_TREE : int = 1
         Verify the correctness of the sref tree
-    VERIFY_AFFINE_BINDING : int = 2
-        Verify the correctness of affine_binding
-    VERIFY_REGION_COVER : int = 4
-        Verify the correctness of region_cover
-    VERIFY_STAGE_PIPELINE: int = 8
-        Verify the correctness of stage_pipeline
+    VERIFY_CACHED_FLAGS : int = 2
+        Verify the correctness of affine_binding, region_cover and stage_pipeline
     """
 
     VERIFY_SREF_TREE = 1
-    VERIFY_AFFINE_BINDING = 2
-    VERIFY_REGION_COVER = 4
-    VERIFY_STAGE_PIPELINE = 8
+    VERIFY_CACHED_FLAGS = 2
 
 
 @register_object("tir.ScheduleState")
@@ -103,7 +100,7 @@ class ScheduleState(Object):
         if not isinstance(debug_mode, int):
             raise TypeError(f"`debug_mode` should be integer or boolean, but gets: {debug_mode}")
         self.__init_handle_by_constructor__(
-            _ffi_api_schedule.ScheduleState,  # pylint: disable=no-member
+            _ffi_api_schedule.ScheduleState,  # type: ignore # pylint: disable=no-member
             func_or_mod,
             debug_mode,
         )
@@ -121,7 +118,7 @@ class ScheduleState(Object):
         sref : StmtSRef
             The corresponding sref
         """
-        return _ffi_api_schedule.ScheduleStateGetSRef(self, stmt)  # pylint: disable=no-member
+        return _ffi_api_schedule.ScheduleStateGetSRef(self, stmt)  # type: ignore # pylint: disable=no-member
 
     def get_block_scope(self, block_sref: StmtSRef) -> BlockScope:
         """Get the BlockScope correpsonding to the block sref
@@ -136,8 +133,38 @@ class ScheduleState(Object):
         sref : StmtSRef
             The corresponding sref
         """
-        return _ffi_api_schedule.ScheduleStateGetBlockScope(  # pylint: disable=no-member
+        return _ffi_api_schedule.ScheduleStateGetBlockScope(  # type: ignore # pylint: disable=no-member
             self, block_sref
+        )
+
+    def _get_cached_flags(self, block_sref: StmtSRef) -> CachedFlags:
+        """Get the cached flags of the corresponding block
+
+        Parameters
+        ----------
+        block_sref : StmtSRef
+            The block sref to be retrieved
+
+        Returns
+        -------
+        flags : CachedFlags
+            Three flags: affine_binding, region_cover, stage_pipeline
+
+        Note
+        -------
+        It is an API intended for internal testing use.
+        """
+        (
+            affine_binding,
+            region_cover,
+            stage_pipeline,
+        ) = _ffi_api_schedule.ScheduleStateGetCachedFlags(  # type: ignore # pylint: disable=no-member
+            self, block_sref
+        )
+        return CachedFlags(
+            affine_binding=bool(affine_binding.value),
+            region_cover=bool(region_cover.value),
+            stage_pipeline=bool(stage_pipeline.value),
         )
 
     def replace(
@@ -177,7 +204,7 @@ class ScheduleState(Object):
         """
         if block_sref_reuse is None:
             block_sref_reuse = {}
-        _ffi_api_schedule.ScheduleStateReplace(  # pylint: disable=no-member
+        _ffi_api_schedule.ScheduleStateReplace(  # type: ignore # pylint: disable=no-member
             self,
             src_sref,
             tgt_stmt,

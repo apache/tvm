@@ -37,6 +37,7 @@ from tvm.runtime.ndarray import empty
 from tvm.relay import _build_module
 from tvm.target import Target
 from tvm.tir import expr as _expr
+from .utils import mangle_module_name
 
 
 class GraphExecutorCodegen(object):
@@ -80,7 +81,8 @@ class GraphExecutorCodegen(object):
         params : Dict[str, tvm.nd.NDArray]
             Additional constant parameters.
         """
-        self._codegen(func)
+        default_mod_name = mangle_module_name("default")
+        self._codegen(func, default_mod_name)
         graph_json = self._get_graph_json()
         lowered_func = self._get_irmodule()
         param_names = self._list_params_name()

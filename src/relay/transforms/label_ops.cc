@@ -19,7 +19,6 @@
 #include <tvm/ir/attrs.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
-#include <tvm/runtime/container.h>
 
 namespace tvm {
 namespace relay {

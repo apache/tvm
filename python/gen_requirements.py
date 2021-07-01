@@ -195,13 +195,16 @@ CONSTRAINTS = [
     ("astroid", None),
     ("attrs", None),
     ("autodocsumm", None),
-    ("black", None),
+    ("black", "==20.8b1"),
     ("cloudpickle", None),
     ("commonmark", ">=0.7.3"),  # From PR #213.
     ("coremltools", None),
     ("cpplint", None),
     ("decorator", None),
-    ("docutils", None),
+    (
+        "docutils",
+        "<0.17",
+    ),  # Work around https://github.com/readthedocs/sphinx_rtd_theme/issues/1115
     ("future", None),
     ("image", None),
     ("matplotlib", None),

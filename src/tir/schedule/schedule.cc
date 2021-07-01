@@ -56,7 +56,7 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleCopy")  //
 /**************** (FFI) Constructor ****************/
 
 TVM_REGISTER_GLOBAL("tir.schedule.ConcreteSchedule")
-    .set_body_typed([](ObjectRef obj, int debug_mode) -> Schedule {
+    .set_body_typed([](ObjectRef obj, int debug_mode, int error_render_level) -> Schedule {
       IRModule mod{nullptr};
       if (const auto* func = obj.as<PrimFuncNode>()) {
         mod = IRModule({{GlobalVar("main"), GetRef<BaseFunc>(func)}});
@@ -66,7 +66,8 @@ TVM_REGISTER_GLOBAL("tir.schedule.ConcreteSchedule")
         LOG(FATAL) << "TypeError: Expects `IRModule` or `PrimFunc`, but gets: "
                    << obj->GetTypeKey();
       }
-      return Schedule::Concrete(mod, debug_mode);
+      return Schedule::Concrete(mod, debug_mode,
+                                static_cast<ScheduleErrorRenderLevel>(error_render_level));
     });
 
 /******** (FFI) Lookup random variables ********/
@@ -121,6 +122,16 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetBlock")
     .set_body_method<Schedule>(&ScheduleNode::GetBlock);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetLoops")
     .set_body_method<Schedule>(&ScheduleNode::GetLoops);
+/******** (FFI) loops manipulation ********/
+/******** (FFI) compute location ********/
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleComputeInline")
+    .set_body_method<Schedule>(&ScheduleNode::ComputeInline);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleReverseComputeInline")
+    .set_body_method<Schedule>(&ScheduleNode::ReverseComputeInline);
+/******** (FFI) loop binding/annotation ********/
+/******** (FFI) cache read/write ********/
+/******** (FFI) reduction ********/
+/******** (FFI) blockize & tensorize ********/
 
 }  // namespace tir
 }  // namespace tvm
