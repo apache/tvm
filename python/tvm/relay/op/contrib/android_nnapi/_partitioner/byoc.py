@@ -32,7 +32,7 @@ def _register_byoc_annotation_rules(external_compiler, android_nnapi_level):
     _BYOC_ANNOTATION_RULES_REGISTERED = True
 
     from tvm.contrib.target.android_nnapi.relayir_to_nnapi_converter import (  # pylint: disable=import-outside-toplevel
-        convert_relayir_to_nnapi,
+        Converter as RelayFunctionToAndroidNNAPIConverter,
     )
     from tvm.contrib.target.android_nnapi.relayir_to_nnapi_converter.error import (  # pylint: disable=line-too-long,import-outside-toplevel
         AndroidNNAPICompilerIncompatibleError,
@@ -73,12 +73,14 @@ def _register_byoc_annotation_rules(external_compiler, android_nnapi_level):
         external_func = (lambda op: op if isinstance(op, tvm.relay.Function) else mod[op])(
             mod["main"].body.op
         )  # op may be a GlobalVar, hence the if
+        options = {
+            "target": {
+                "api_level": android_nnapi_level
+            }, 
+        }
         assert isinstance(external_func, tvm.relay.Function)
-        external_func = external_func.with_attr(
-            "NnapiClassName", f"{ external_func.attrs.global_symbol }_0"
-        )  # NnapiClassName is required for the converter
         try:
-            convert_relayir_to_nnapi(external_func)
+            RelayFunctionToAndroidNNAPIConverter(options).convert(external_func)
         except AndroidNNAPICompilerIncompatibleError:
             return False
         return True

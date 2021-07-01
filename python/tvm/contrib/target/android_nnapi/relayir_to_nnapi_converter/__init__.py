@@ -15,44 +15,4 @@
 # specific language governing permissions and limitations
 # under the License.
 """Converts Relay IR subgraph to Android NNAPI source code."""
-import tvm
 from .converter import Converter
-
-
-def convert_relayir_to_nnapi(func):
-    """Converts a Relay IR Function to Android NNAPI C++ source code.
-
-    Parameters
-    ----------
-    func: tvm.relay.Function
-        The function to be converted to Android NNAPI.
-
-    Returns
-    -------
-    code: str
-        The resulting Android NNAPI code.
-
-    Notes
-    -----
-    Certain function attributes should be configured:
-
-    * func.attrs.NnapiClassName: (str) The name of the generated class wrapped around ANN model.
-    * func.attrs.NnapiTargetVersion: (int) The targeting API level of Android.
-    """
-    assert isinstance(func, tvm.relay.Function)
-
-    options = {
-        "class": {
-            "self": {
-                "name": str(func.attrs.NnapiClassName),
-            },
-        },
-        "target": {
-            "api_level": int(func.attrs.NnapiTargetVersion),
-        },
-    }
-    converter = Converter(options)
-    return converter.convert(func)
-
-
-tvm.register_func("relay.ext.android_nnapi.convert_relayir_to_nnapi", convert_relayir_to_nnapi)
