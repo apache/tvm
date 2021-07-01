@@ -171,7 +171,7 @@ def compile_model(
     target_host: Optional[str] = None,
     desired_layout: Optional[str] = None,
     disabled_pass: Optional[str] = None,
-    pass_context_configs: Optional[str] = None,
+    pass_context_configs: Optional[List[str]] = None,
 ):
     """Compile a model from a supported framework into a TVM module.
 
@@ -212,8 +212,8 @@ def compile_model(
     disabled_pass: str, optional
         Comma-separated list of passes which needs to be disabled
         during compilation
-    pass_context_configs: str, optional
-        String containing a set of configurations to be passed to the
+    pass_context_configs: list[str], optional
+        List of strings containing a set of configurations to be passed to the
         PassContext.
 
 
