@@ -45,10 +45,7 @@ def test_resize2d():
             size = (dshape[2] * scale, dshape[3] * scale)
         size = np.array(size).astype("int64")
         x_data = np.random.uniform(size=dshape).astype("float32")
-        if method == "linear":
-            ref_res = tvm.topi.testing.bilinear_resize_python(x_data, size, layout)
-        else:
-            ref_res = tvm.topi.testing.upsampling_python(x_data, (scale, scale), layout)
+
         x = relay.var("x", relay.TensorType(dshape, "float32"))
         size_var = relay.var("size", relay.TensorType((2,), "int64"))
 
@@ -59,6 +56,10 @@ def test_resize2d():
 
         zz = run_infer_type(z)
         func = relay.Function([x, size_var], z)
+
+        ref_res = tvm.topi.testing.resize2d_python(
+            x_data, (scale, scale), layout, method, coord_trans
+        )
 
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["vm", "debug"]:

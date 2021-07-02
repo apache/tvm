@@ -51,10 +51,9 @@ def test_resize():
 
         x_data = np.random.uniform(size=dshape).astype("float32")
 
-        if method == "linear":
-            ref_res = tvm.topi.testing.bilinear_resize_python(x_data, size, layout, coord_trans)
-        else:
-            ref_res = tvm.topi.testing.upsampling_python(x_data, (scale, scale), layout)
+        ref_res = tvm.topi.testing.resize2d_python(
+            x_data, (scale, scale), layout, method, coord_trans
+        )
         x = relay.var("x", relay.TensorType(dshape, "float32"))
         z = relay.image.resize2d(
             x, size, layout, method, coordinate_transformation_mode=coord_trans
@@ -63,7 +62,6 @@ def test_resize():
         zz = run_infer_type(z)
         assert zz.checked_type == relay.TensorType(ref_res.shape, "float32")
         func = relay.Function([x], z)
-
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, device=dev, target=target)
@@ -71,7 +69,7 @@ def test_resize():
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-3, atol=1e-4)
 
     for method in ["nearest_neighbor", "linear"]:
-        for coord_trans in ["asymmetric"]:  # TOPI testing function only support asymmetric
+        for coord_trans in ["asymmetric", "align_corners", "half_pixel"]:
             for layout in ["NHWC", "NCHW"]:
                 verify_resize((1, 4, 4, 4), 2, method, layout, coord_trans)
                 verify_resize((2, 8, 17, 20), 3, method, layout, coord_trans)
@@ -109,10 +107,9 @@ def test_resize3d(target, dev):
             size = (dshape[2] * scale, dshape[3] * scale, dshape[4] * scale)
 
         x_data = np.random.uniform(size=dshape).astype("float32")
-        if method == "linear":
-            ref_res = tvm.topi.testing.trilinear_resize3d_python(x_data, size, layout)
-        else:
-            ref_res = tvm.topi.testing.upsampling3d_python(x_data, (scale, scale, scale), layout)
+        ref_res = tvm.topi.testing.resize3d_python(
+            x_data, (scale, scale, scale), layout, method, "align_corners"
+        )
         x = relay.var("x", relay.TensorType(dshape, "float32"))
         z = relay.image.resize3d(x, size, layout, method, "align_corners")
         assert "size=" in z.astext()
@@ -125,9 +122,10 @@ def test_resize3d(target, dev):
             op_res = intrp.evaluate(func)(x_data)
             tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-4, atol=1e-6)
 
-    for method in ["linear", "nearest_neighbor"]:
-        for layout in ["NDHWC", "NCDHW"]:
-            verify_resize((1, 4, 4, 4, 4), 2, method, layout)
+    for method in ["nearest_neighbor", "linear"]:
+        for coord_trans in ["asymmetric", "align_corners", "half_pixel"]:
+            for layout in ["NDHWC", "NCDHW"]:
+                verify_resize((1, 4, 4, 4, 4), 2, method, layout)
 
 
 @tvm.testing.uses_gpu

@@ -270,12 +270,9 @@ def test_dynamic_to_static_resize2d():
         assert zz.op == relay.op.get("image.resize2d")
 
         x_data = np.random.uniform(low=-1, high=1, size=shape).astype("float32")
-
-        if method == "linear":
-            ref_res = tvm.topi.testing.bilinear_resize_python(x_data, size, layout)
-        else:
-            ref_res = tvm.topi.testing.upsampling_python(x_data, (scale, scale), layout)
-        verify_func(func2, [x_data], ref_res, rtol=1e-4, atol=1e-6)
+        ref_res = tvm.topi.testing.resize2d_python(
+            x_data, (scale, scale), layout, method, coord_trans
+        )
 
     for method in ["linear", "nearest_neighbor"]:
         for layout in ["NCHW", "NHWC"]:
@@ -347,7 +344,9 @@ def test_dynamic_to_static_upsampling():
         assert zz.op == relay.op.get("nn.upsampling")
 
         x_data = np.random.uniform(size=data_shape).astype(dtype)
-        ref_res = tvm.topi.testing.upsampling_python(x_data, (scale_h_val, scale_w_val), "NCHW")
+        ref_res = tvm.topi.testing.resize2d_python(
+            x_data, (scale, scale), "NCHW", "nearest_neighbor", "asymmetric"
+        )
         verify_func(func2, [x_data], ref_res)
 
     verify_upsampling((1, 16, 32, 32), 2, 2, "int8")
@@ -371,8 +370,12 @@ def test_dynamic_to_static_upsampling3d():
         assert zz.op == relay.op.get("nn.upsampling3d")
 
         x_data = np.random.uniform(size=data_shape).astype(dtype)
-        ref_res = tvm.topi.testing.upsampling3d_python(
-            x_data, (scale_d_val, scale_h_val, scale_w_val), "NCDHW"
+        ref_res = tvm.topi.testing.resize3d_python(
+            x_data,
+            (scale_d_val, scale_h_val, scale_w_val),
+            "NCDHW",
+            "nearest_neighbor",
+            "asymmetric",
         )
         verify_func(func2, [x_data], ref_res)
 
