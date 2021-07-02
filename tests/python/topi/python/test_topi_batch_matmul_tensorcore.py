@@ -103,7 +103,6 @@ def verify_batch_matmul(x_batch, y_batch, M, N, K, dtype):
 @tvm.testing.requires_tensorcore
 def test_batch_matmul():
     for dtype in ["float16", "int8", "int4"]:
-        print(dtype)
         verify_batch_matmul(1, 1, 16, 16, 32, dtype)
         verify_batch_matmul(5, 5, 16, 16, 32, dtype)
         verify_batch_matmul(5, 5, 16, 32, 32, dtype)
