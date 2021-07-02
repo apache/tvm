@@ -59,12 +59,7 @@ def pytest_addoption(parser):
 
 
 def pytest_generate_tests(metafunc):
-    parametrized_args = [
-        arg.strip()
-        for mark in metafunc.definition.iter_markers("parametrize")
-        for arg in mark.args[0].split(",")
-    ]
-    if "platform" not in parametrized_args:
+    if "platform" in metafunc.fixturenames:
         metafunc.parametrize("platform", metafunc.config.getoption("microtvm_platforms").split(","))
 
 
