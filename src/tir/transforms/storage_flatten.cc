@@ -157,10 +157,8 @@ class StorageFlattener : public StmtExprMutator {
       // deduce current storage scope.
       StorageScope skey;
       std::string strkey = GetStorageScope(op->buffer->data);
-      if (strkey.length() == 0) {
-        if (curr_thread_scope_.size() != 0) {
-          skey.rank = runtime::DefaultStorageRank(curr_thread_scope_.back().rank);
-        }
+      if(curr_thread_scope_.size() != 0 && (strkey == "" || strkey == "global")) {
+        skey.rank = runtime::DefaultStorageRank(curr_thread_scope_.back().rank);
       } else {
         skey = StorageScope::Create(strkey);
       }
@@ -197,9 +195,10 @@ class StorageFlattener : public StmtExprMutator {
         strides = Array<PrimExpr>(rstrides.rbegin(), rstrides.rend());
       }
 
-      LOG(INFO) << "skey: " << skey.to_string();
-      e.buffer = Buffer(Var(op->buffer->data->name_hint, op->buffer->data->type_annotation),
-                        op->buffer->dtype, shape, strides, PrimExpr(), op->buffer->name,
+      auto* ptr_type = op->buffer->data->type_annotation.as<PointerTypeNode>();
+      ICHECK(ptr_type);
+      auto new_var = Var(op->buffer->data->name_hint, PointerType(ptr_type->element_type, skey.to_string()));
+      e.buffer = Buffer(new_var, op->buffer->dtype, shape, strides, PrimExpr(), op->buffer->name,
                         skey.to_string(), align, 0, kDefault);
 
       buf_map_[key] = e;
@@ -226,9 +225,6 @@ class StorageFlattener : public StmtExprMutator {
         ret = Allocate(e.buffer->data, storage_type, shape,
                        make_const(DataType::Bool(e.buffer->dtype.lanes()), true), body);
       }
-      CHECK(e.buffer->scope == GetStorageScope(e.buffer->data))
-          << e.buffer->scope << ", " << GetStorageScope(e.buffer->data) << ", "
-          << GetStorageScope(op->buffer->data);
       ret = AttrStmt(e.buffer->data, attr::storage_scope, StringImm(e.buffer->scope), ret);
 
       if (create_bound_attributes_ && ShapeIsValid(e.buffer->shape)) {
