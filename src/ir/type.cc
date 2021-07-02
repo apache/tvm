@@ -44,7 +44,6 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     });
 
 PointerType::PointerType(Type element_type, String storage_scope) {
-  ICHECK(storage_scope != "");
   ObjectPtr<PointerTypeNode> n = make_object<PointerTypeNode>();
   n->element_type = std::move(element_type);
   n->storage_scope = std::move(storage_scope);
