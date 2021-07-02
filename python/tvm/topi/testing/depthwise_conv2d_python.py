@@ -67,17 +67,15 @@ def depthwise_conv2d_python_nchw(input_np, filter_np, stride, padding):
                 ]
     elif padding == "SAME":
         out_channel = in_channel * channel_multiplier
-        out_height = np.int(np.ceil(float(in_height) / float(stride_h)))
-        out_width = np.int(np.ceil(float(in_width) / float(stride_w)))
+        out_height = int(np.ceil(float(in_height) / float(stride_h)))
+        out_width = int(np.ceil(float(in_width) / float(stride_w)))
         output_np = np.zeros((batch, out_channel, out_height, out_width))
-        pad_along_height = np.int(
-            np.max((out_height - 1) * stride_h + filter_height - in_height, 0)
-        )
-        pad_along_width = np.int(np.max((out_width - 1) * stride_w + filter_width - in_width, 0))
-        pad_top_tvm = np.int(np.ceil(float(pad_along_height) / 2))
-        pad_left_tvm = np.int(np.ceil(float(pad_along_width) / 2))
-        pad_top_scipy = np.int(np.ceil(float(filter_height - 1) / 2))
-        pad_left_scipy = np.int(np.ceil(float(filter_width - 1) / 2))
+        pad_along_height = int(np.max((out_height - 1) * stride_h + filter_height - in_height, 0))
+        pad_along_width = int(np.max((out_width - 1) * stride_w + filter_width - in_width, 0))
+        pad_top_tvm = int(np.ceil(float(pad_along_height) / 2))
+        pad_left_tvm = int(np.ceil(float(pad_along_width) / 2))
+        pad_top_scipy = int(np.ceil(float(filter_height - 1) / 2))
+        pad_left_scipy = int(np.ceil(float(filter_width - 1) / 2))
         index_h = pad_top_scipy - pad_top_tvm
         index_w = pad_left_scipy - pad_left_tvm
         for i in range(batch):
@@ -138,17 +136,15 @@ def depthwise_conv2d_python_nhwc(input_np, filter_np, stride, padding):
                 ]
     if padding == "SAME":
         out_channel = in_channel * channel_multiplier
-        out_height = np.int(np.ceil(float(in_height) / float(stride_h)))
-        out_width = np.int(np.ceil(float(in_width) / float(stride_w)))
+        out_height = int(np.ceil(float(in_height) / float(stride_h)))
+        out_width = int(np.ceil(float(in_width) / float(stride_w)))
         output_np = np.zeros((batch, out_height, out_width, out_channel))
-        pad_along_height = np.int(
-            np.max((out_height - 1) * stride_h + filter_height - in_height, 0)
-        )
-        pad_along_width = np.int(np.max((out_width - 1) * stride_w + filter_width - in_width, 0))
-        pad_top_tvm = np.int(np.ceil(float(pad_along_height) / 2))
-        pad_left_tvm = np.int(np.ceil(float(pad_along_width) / 2))
-        pad_top_scipy = np.int(np.ceil(float(filter_height - 1) / 2))
-        pad_left_scipy = np.int(np.ceil(float(filter_width - 1) / 2))
+        pad_along_height = int(np.max((out_height - 1) * stride_h + filter_height - in_height, 0))
+        pad_along_width = int(np.max((out_width - 1) * stride_w + filter_width - in_width, 0))
+        pad_top_tvm = int(np.ceil(float(pad_along_height) / 2))
+        pad_left_tvm = int(np.ceil(float(pad_along_width) / 2))
+        pad_top_scipy = int(np.ceil(float(filter_height - 1) / 2))
+        pad_left_scipy = int(np.ceil(float(filter_width - 1) / 2))
         index_h = pad_top_scipy - pad_top_tvm
         index_w = pad_left_scipy - pad_left_tvm
         for i in range(batch):
