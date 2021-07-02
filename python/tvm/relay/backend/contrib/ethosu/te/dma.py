@@ -103,7 +103,7 @@ def read_compute(
 
 
 def write_compute(
-    tensor: te.Tensor, zero_point: int, scale: float, layout: Optional[str] = None
+    tensor: te.Tensor, zero_point: int, scale: float, layout: Optional[str] = None, attrs: dict = None
 ) -> te.Tensor:
     """A tensor expression which represents a write.
 
@@ -117,6 +117,8 @@ def write_compute(
         The scale of the tensor.
     layout : Optional[str]
         The layout of the tensor, either NHWC or NHCWB16.
+    attrs : dict, optional
+        Additional attributes to add to the compute op.
 
     Returns
     -------
@@ -124,6 +126,9 @@ def write_compute(
         The tensor having been written.
 
     """
+
+    if not attrs:
+        attrs = {}
 
     write_attrs = {
         "op": "ethosu_write",
@@ -135,6 +140,7 @@ def write_compute(
         assert layout in {"NHWC", "NHCWB16"}
         write_attrs["layout"] = layout
 
+    write_attrs = {**write_attrs, **attrs}
     return te.compute(
         tensor.shape,
         lambda *i: tensor(*i),
@@ -304,7 +310,7 @@ def dma_ifm_compute(
 
 
 def dma_ofm_compute(
-    ofm: te.Tensor, layout: str, zero_point: int, scale: float, channels: int
+    ofm: te.Tensor, layout: str, zero_point: int, scale: float, channels: int, attrs: dict = None
 ) -> te.Tensor:
     """A sequence of compute operators representing the DMA capabilities for an OFM.
 
@@ -320,6 +326,9 @@ def dma_ofm_compute(
         The scale of the data.
     channels : int
         The number of valid channels for the data.
+    attrs : dict, optional
+        Additional attributes to add to the write compute op.
+
 
     Returns
     -------
@@ -327,5 +336,7 @@ def dma_ofm_compute(
         The dma-ed OFM tensor.
 
     """
+    if not attrs:
+        attrs = {}
     convert_to_nhcwb16_ofm = convert_to_nhcwb16_compute(ofm, layout, channels)
-    return write_compute(convert_to_nhcwb16_ofm, zero_point, scale, layout=layout)
+    return write_compute(convert_to_nhcwb16_ofm, zero_point, scale, layout=layout, attrs=attrs)
