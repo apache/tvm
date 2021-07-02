@@ -974,9 +974,8 @@ bool BatchMatmulRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
     ICHECK(reporter->AssertEQ(x->shape[2], y_shape[2]))
         << "BatchDot: shapes of x and y is inconsistent, "
         << " x shape=" << x->shape << ", y shape=" << y_shape;
-
-    oshape.Set(2, y_shape[1]);
   }
+  oshape.Set(2, y_shape[1]);
 
   DataType out_dtype = param->out_dtype;
   if (out_dtype.bits() == 0) {
