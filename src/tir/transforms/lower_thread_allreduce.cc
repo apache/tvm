@@ -52,8 +52,8 @@ class RemapStorageScope final : public StmtExprMutator {
 
   Stmt VisitStmt_(const AllocateNode* op) final {
     auto remapped = Downcast<Var>(StmtExprMutator::VisitExpr(op->buffer_var));
-    auto body = StmtExprMutator::VisitStmt(op->body);
-    auto stmt = Allocate(remapped, op->dtype, op->extents, op->condition, body);
+    auto stmt = Allocate(remapped, op->dtype, op->extents, op->condition,
+                         StmtExprMutator::VisitStmt(op->body));
     return AttrStmt(remapped, attr::storage_scope, StringImm(GetStorageScope(remapped)), stmt);
   }
 
@@ -127,7 +127,6 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
         // use volatile access to shared buffer.
         stmt = AttrStmt(repl->buffer_var, attr::volatile_scope, 1, op->body);
         stmt = Allocate(repl->buffer_var, repl->dtype, repl->extents, repl->condition, stmt);
-        LOG(INFO) << "make remap for " << repl->buffer_var->name_hint;
         new_var_remap_[repl->buffer_var.get()] = UpdateStorageScope(repl->buffer_var, "shared");
       }
       return stmt;
@@ -405,7 +404,6 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       const AllocateNode* repl = var.as<AllocateNode>();
       if (repl) {
         body = Allocate(repl->buffer_var, repl->dtype, repl->extents, repl->condition, body);
-        LOG(INFO) << "make remap forr " << repl->buffer_var->name_hint;
         new_var_remap_[repl->buffer_var.get()] = UpdateStorageScope(repl->buffer_var, "local");
       }
     }
