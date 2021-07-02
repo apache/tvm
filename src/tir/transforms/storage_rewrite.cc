@@ -75,8 +75,6 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
   };
   // The scope of each allocation
   struct AllocEntry {
-    // Scope used for allocation.
-    StorageScope storage_scope;
     // scope level
     size_t level{0};
     // allocation stmt
@@ -86,13 +84,8 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
   void VisitStmt_(const AllocateNode* op) final {
     size_t level = scope_.size();
     const VarNode* buf = op->buffer_var.get();
-    auto it = alloc_info_.find(buf);
-    ICHECK(it != alloc_info_.end()) << "Could not find buffer `" << buf->name_hint
-                                    << "` in the list of allocated buffers. Perhaps you are "
-                                       "missing a storage_scope attr for this buffer.";
-    ICHECK(it->second.alloc == nullptr);
-    it->second.alloc = op;
-    it->second.level = level;
+    alloc_info_[buf].alloc = op;
+    alloc_info_[buf].level = level;
     StmtExprVisitor::VisitStmt_(op);
   }
   void VisitStmt_(const StoreNode* op) final {
@@ -180,10 +173,6 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
       VisitNewScope(op);
     } else if (op->attr_key == attr::virtual_thread) {
       VisitNewScope(op);
-    } else if (op->attr_key == attr::storage_scope) {
-      const VarNode* buf = op->node.as<VarNode>();
-      alloc_info_[buf].storage_scope = StorageScope::Create(op->value.as<StringImmNode>()->value);
-      StmtExprVisitor::VisitStmt_(op);
     } else {
       StmtExprVisitor::VisitStmt_(op);
     }
@@ -409,10 +398,8 @@ class StoragePlanRewriter : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
-    if (op->attr_key == attr::storage_scope) {
-      return this->VisitStmt(op->body);
-    } else if (op->attr_key == attr::thread_extent || op->attr_key == attr::virtual_thread ||
-               attr::IsPragmaKey(op->attr_key)) {
+    if (op->attr_key == attr::thread_extent || op->attr_key == attr::virtual_thread ||
+        attr::IsPragmaKey(op->attr_key)) {
       // remake all the allocation at the attach scope.
       if (attach_map_.count(op)) {
         auto& svec = attach_map_[op];
@@ -716,7 +703,8 @@ class StoragePlanRewriter : public StmtExprMutator {
 
         for (const VarNode* var : it->second.gen) {
           ICHECK(alloc_info.count(var));
-          const AllocEntry& ae = alloc_info.at(var);
+          const AllocateNode* alloc = alloc_info.at(var).alloc;
+          auto storage_scope = StorageScope::Create(GetStorageScope(GetRef<Var>(var)));
           StorageEntry* dst_entry = nullptr;
           // inplace detection
           if (detect_inplace) {
@@ -726,13 +714,12 @@ class StoragePlanRewriter : public StmtExprMutator {
               if (!inplace_flag.count(src) && alloc_map_.count(src)) {
                 InplaceOpVerifier visitor;
                 StorageEntry* src_entry = alloc_map_.at(src);
-                if (src_entry->scope == ae.storage_scope &&
+                if (src_entry->scope == storage_scope &&
                     src_entry->attach_scope_ == thread_scope_ &&
-                    src_entry->elem_type == ae.alloc->dtype.element_of() &&
+                    src_entry->elem_type == alloc->dtype.element_of() &&
                     visitor.Check(s.stmt, var, src)) {
-                  uint64_t const_nbits =
-                      static_cast<uint64_t>(ae.alloc->constant_allocation_size()) *
-                      ae.alloc->dtype.bits() * ae.alloc->dtype.lanes();
+                  uint64_t const_nbits = static_cast<uint64_t>(alloc->constant_allocation_size()) *
+                                         alloc->dtype.bits() * alloc->dtype.lanes();
                   if (src_entry->const_nbits == const_nbits && !inplace_found) {
                     // successfully inplace
                     dst_entry = src_entry;
@@ -744,9 +731,9 @@ class StoragePlanRewriter : public StmtExprMutator {
             }
           }
           if (dst_entry == nullptr) {
-            dst_entry = FindAlloc(ae.alloc, thread_scope_, ae.storage_scope);
+            dst_entry = FindAlloc(alloc, thread_scope_, storage_scope);
           }
-          dst_entry->allocs.emplace_back(ae.alloc);
+          dst_entry->allocs.emplace_back(alloc);
           alloc_map_[var] = dst_entry;
         }
       }
