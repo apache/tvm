@@ -45,26 +45,26 @@ def add_operation(compiler, inputs, outputs):
 
     # check inputs[0]
     ins[0] = {}
-    ins[0]["dtype"] = compiler.export_obj.helper.operand.get_dtype(inputs[0])
+    ins[0]["dtype"] = compiler.export_obj.json_analyzer.operand.get_dtype(inputs[0])
     if ins[0]["dtype"] == "TENSOR_FLOAT16":
         assert_nnapi_op_check(api_level >= 29)
     else:
         assert_nnapi_op_check(ins[0]["dtype"] == "TENSOR_FLOAT32")
-    ins[0]["shape"] = compiler.export_obj.helper.operand.get_shape(inputs[0])
-    ins[0]["rank"] = compiler.export_obj.helper.operand.get_rank(inputs[0])
+    ins[0]["shape"] = compiler.export_obj.json_analyzer.operand.get_shape(inputs[0])
+    ins[0]["rank"] = compiler.export_obj.json_analyzer.operand.get_rank(inputs[0])
     assert_nnapi_op_check(ins[0]["rank"] <= 4)
 
     # check inputs[1]
     ins[1] = {}
-    ins[1]["dtype"] = compiler.export_obj.helper.operand.get_dtype(inputs[1])
+    ins[1]["dtype"] = compiler.export_obj.json_analyzer.operand.get_dtype(inputs[1])
     assert_nnapi_op_check(ins[1]["dtype"] == "TENSOR_INT32")
-    ins[1]["rank"] = compiler.export_obj.helper.operand.get_rank(inputs[1])
+    ins[1]["rank"] = compiler.export_obj.json_analyzer.operand.get_rank(inputs[1])
     assert_nnapi_op_check(ins[1]["rank"] == 1)
-    ins[1]["constant"] = compiler.export_obj.helper.operand.get_constant(inputs[1])
+    ins[1]["constant"] = compiler.export_obj.json_analyzer.operand.get_constant(inputs[1])
     assert_nnapi_op_check(
         ins[1]["constant"]["type"] == "array" and len(ins[1]["constant"]["value"]) == ins[0]["rank"]
     )
-    ins[1]["value"] = compiler.export_obj.helper.operand.get_value(inputs[1])
+    ins[1]["value"] = compiler.export_obj.json_analyzer.operand.get_value(inputs[1])
 
     # check outputs
     assert_nnapi_op_check(len(outputs) == 1)
@@ -72,9 +72,9 @@ def add_operation(compiler, inputs, outputs):
 
     # check outputs[0]
     outs[0] = {}
-    outs[0]["dtype"] = compiler.export_obj.helper.operand.get_dtype(outputs[0])
+    outs[0]["dtype"] = compiler.export_obj.json_analyzer.operand.get_dtype(outputs[0])
     assert_nnapi_op_check(outs[0]["dtype"] == ins[0]["dtype"])
-    outs[0]["shape"] = compiler.export_obj.helper.operand.get_shape(outputs[0])
+    outs[0]["shape"] = compiler.export_obj.json_analyzer.operand.get_shape(outputs[0])
     assert_nnapi_op_check(outs[0]["shape"] == [ins[0]["shape"][i] for i in ins[1]["value"]])
 
     compiler.export_obj.add_operation("TRANSPOSE", inputs, outputs)

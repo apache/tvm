@@ -16,7 +16,6 @@
 # under the License.
 # pylint: disable=wildcard-import,unused-wildcard-import
 """Compile a Relay IR Function to its Android NNAPI equivalence."""
-import copy
 import tvm
 import tvm.relay
 from .error import *
@@ -53,22 +52,19 @@ class FunctionToJsonCompiler(tvm.relay.ExprVisitor):
         """
         assert isinstance(func, tvm.relay.Function)
         self.visit(func.body)
-        self._export_obj.helper.node_to_operand_idxs_map[func] = copy.deepcopy(
-            self._export_obj.helper.node_to_operand_idxs_map[func.body]
-        )
 
         # identify Android NNAPI model inputs
         for p in func.params:
-            for i in self._export_obj.helper.node_to_operand_idxs_map[
+            for i in self._export_obj.get_node_operand_idxs(
                 p
-            ]:  # param may be a tuple, which results in multiple indices
+            ):  # param may be a tuple, which results in multiple indices
                 if i not in self._export_obj["inputs"]:
                     self._export_obj["inputs"].append(i)
 
         # identify Android NNAPI model outputs
-        for i in self._export_obj.helper.node_to_operand_idxs_map[
-            func
-        ]:  # again, the output may be a tuple, which results in multiple indices
+        for i in self._export_obj.get_node_operand_idxs(
+            func.body
+        ):  # again, the output may be a tuple, which results in multiple indices
             if i not in self._export_obj["outputs"]:
                 self._export_obj["outputs"].append(i)
         # for now, let's force the function to return a single value,
@@ -81,7 +77,7 @@ class FunctionToJsonCompiler(tvm.relay.ExprVisitor):
             assert "value" not in op
             op["value"] = {
                 "type": "memory_ptr",
-                "value": "out",  # no real formatting since len(outs) == 1
+                "value": "out",  # no formatting since len(outs) == 1
             }
 
         return self._export_obj
@@ -96,13 +92,21 @@ class FunctionToJsonCompiler(tvm.relay.ExprVisitor):
         """The associated compiler option dict."""
         return self._options
 
-    def visit_function(self, f):
-        raise AndroidNNAPICompilerIncompatibleError(
-            f"Conversion of tvm.relay.Function not supported"
+    def visit(self, expr):
+        assert_anc_compatibility(
+            isinstance(
+                expr,
+                (
+                    tvm.relay.Call,
+                    tvm.relay.Var,
+                    tvm.relay.Tuple,
+                    tvm.relay.TupleGetItem,
+                    tvm.relay.Constant,
+                ),
+            ),
+            f"{type(expr)} is not supported",
         )
-
-    def visit_let(self, let):
-        raise AndroidNNAPICompilerIncompatibleError(f"Conversion of tvm.relay.Let not supported")
+        return super().visit(expr)
 
     def visit_call(self, call):
         if isinstance(call.op, tvm.ir.Op):
@@ -130,49 +134,37 @@ class FunctionToJsonCompiler(tvm.relay.ExprVisitor):
             },
         )
 
-    def visit_type(self, typ):
-        raise AndroidNNAPICompilerIncompatibleError(f"Conversion of tvm.relay.Type not supported")
-
-    def visit_if(self, i):
-        raise AndroidNNAPICompilerIncompatibleError(f"Conversion of tvm.relay.If not supported")
-
     def visit_tuple(self, tup):
         field_idxs = []
         for f in tup.fields:
             self.visit(f)
-            field_idxs += self._export_obj.helper.node_to_operand_idxs_map[f]
-        self._export_obj.helper.node_to_operand_idxs_map[tup] = copy.deepcopy(field_idxs)
+            field_idxs += self._export_obj.get_node_operand_idxs(f)
+        self._export_obj.register_node_operand_idxs(tup, field_idxs)
 
     def visit_tuple_getitem(self, t):
-        self.visit(tgi.tuple_value)
-        self._export_obj.helper.node_to_operand_idxs_map[tgi] = [
-            self._export_obj.helper.node_to_operand_idxs_map[tgi.tuple_value][tgi.index]
-        ]
-
-    def visit_global_var(self, _):
-        raise AndroidNNAPICompilerIncompatibleError(
-            f"Conversion of tvm.relay.GlobalVar not supported"
+        assert_anc_compatibility(
+            isinstance(t.tuple_value, tvm.relay.Tuple),
+            f"Getting tuple item from {type(t.tuple_value)} is not supported",
         )
-
-    def visit_op(self, _):
-        assert False, "Unreachable"
+        self.visit(t.tuple_value)
+        self._export_obj.register_node_operand_idxs(
+            t, [self._export_obj.get_node_operand_idxs(t.tuple_value)[t.index]]
+        )
 
     def visit_constant(self, const):
         assert_anc_compatibility(
             isinstance(const.checked_type, tvm.relay.TensorType),
-            f"Unsupported type { const.checked_type.type_key }",
+            f"Unsupported type {type(const.checked_type)}",
         )
         shape, dtype = const.data.shape, const.data.dtype
         type_idx = self._export_obj.get_type_idx((shape, dtype))
 
         if shape == ():
             const_idx = self._export_obj.add_scalar_constant(const.data.asnumpy().item(), dtype)
-        elif isinstance(shape, tuple):
-            assert_anc_compatibility(len(shape) == 1, "Only flat array constants are supported")
-            constants = list(map(lambda i: i.item(), const.data.asnumpy()))
-            const_idx = self._export_obj.add_array_constant(constants, dtype)
         else:
-            assert False, "Unreachable"
+            assert_anc_compatibility(len(shape) == 1, "Only flat array constants are supported")
+            constants = [i.item() for i in const.data.asnumpy()]
+            const_idx = self._export_obj.add_array_constant(constants, dtype)
 
         self._export_obj.add_operand(
             type_idx=type_idx,
@@ -182,24 +174,3 @@ class FunctionToJsonCompiler(tvm.relay.ExprVisitor):
             },
             node=const,
         )
-
-    def visit_ref_create(self, _):
-        raise AndroidNNAPICompilerIncompatibleError(
-            f"Conversion of Relay IR reference not supported"
-        )
-
-    def visit_ref_write(self, _):
-        raise AndroidNNAPICompilerIncompatibleError(
-            f"Conversion of Relay IR reference not supported"
-        )
-
-    def visit_ref_read(self, _):
-        raise AndroidNNAPICompilerIncompatibleError(
-            f"Conversion of Relay IR reference not supported"
-        )
-
-    def visit_constructor(self, _):
-        raise AndroidNNAPICompilerIncompatibleError(f"Conversion of Relay IR ADT not supported")
-
-    def visit_match(self, _):
-        raise AndroidNNAPICompilerIncompatibleError(f"Conversion of Relay IR ADT not supported")

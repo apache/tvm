@@ -45,13 +45,13 @@ def add_operation(compiler, inputs, outputs):
 
     # check inputs[0]
     ins[0] = {}
-    ins[0]["dtype"] = compiler.export_obj.helper.operand.get_dtype(inputs[0])
+    ins[0]["dtype"] = compiler.export_obj.json_analyzer.operand.get_dtype(inputs[0])
     assert_nnapi_op_check(
         ins[0]["dtype"] == "TENSOR_FLOAT16"
         or ins[0]["dtype"] == "TENSOR_FLOAT32"
         or ins[0]["dtype"] == "TENSOR_INT32"
     )
-    ins[0]["shape"] = compiler.export_obj.helper.operand.get_shape(inputs[0])
+    ins[0]["shape"] = compiler.export_obj.json_analyzer.operand.get_shape(inputs[0])
 
     # check outputs
     assert_nnapi_op_check(len(outputs) == 1)
@@ -59,13 +59,13 @@ def add_operation(compiler, inputs, outputs):
 
     # check outputs[0]
     outs[0] = {}
-    outs[0]["dtype"] = compiler.export_obj.helper.operand.get_dtype(outputs[0])
+    outs[0]["dtype"] = compiler.export_obj.json_analyzer.operand.get_dtype(outputs[0])
     assert_nnapi_op_check(
         outs[0]["dtype"] == "TENSOR_FLOAT16"
         or outs[0]["dtype"] == "TENSOR_FLOAT32"
         or outs[0]["dtype"] == "TENSOR_INT32"
     )
-    outs[0]["shape"] = compiler.export_obj.helper.operand.get_shape(outputs[0])
+    outs[0]["shape"] = compiler.export_obj.json_analyzer.operand.get_shape(outputs[0])
     assert_nnapi_op_check(outs[0]["shape"] == ins[0]["shape"])
 
     compiler.export_obj.add_operation("CAST", inputs, outputs)

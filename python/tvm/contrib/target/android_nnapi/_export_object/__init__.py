@@ -15,4 +15,4 @@
 # specific language governing permissions and limitations
 # under the License.
 """Internal namespaces of ExportObject."""
-from .helper import Helper
+from .json_analyzer import JSONAnalyzer

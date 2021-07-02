@@ -19,7 +19,7 @@ Android NNAPI codegen."""
 import struct
 import copy
 from .error import assert_anc_compatibility
-from ._export_object import Helper as _Helper
+from ._export_object import JSONAnalyzer as _JSONAnalyzer
 
 
 class ExportObject:
@@ -48,7 +48,8 @@ class ExportObject:
     }
 
     def __init__(self, options):
-        self.helper = _Helper(self)
+        self._node_to_operand_idxs_map = {}
+        self._type_to_idx_map = {}
         self._json = {
             "constants": [],
             "inputs": [],
@@ -58,6 +59,7 @@ class ExportObject:
             "outputs": [],
             "types": [],
         }
+        self.json_analyzer = _JSONAnalyzer(self._json)
         self._options = options
 
     def __getitem__(self, key):
@@ -93,16 +95,14 @@ class ExportObject:
         shape, dtype = tipe
         assert_anc_compatibility(
             dtype in ["bool", "float16", "float32", "int32", "uint32"],
-            "Unsupported data type { dtype }",
+            f"Unsupported data type {dtype}",
         )
 
-        if self.helper.type_to_idx_map.get(tipe, None) is None:  # create new type
-            shape, dtype = tipe
-
+        if tipe not in self._type_to_idx_map:  # create new type
             if dtype == "bool":
                 assert_anc_compatibility(
                     self._options["target"]["api_level"] >= 29,
-                    f"Boolean is not supported for Android API{ self._options['target']['api_level'] }",  # pylint: disable=line-too-long
+                    f"Boolean is not supported for Android API{self._options['target']['api_level']}",  # pylint: disable=line-too-long
                 )
 
             new_type = {}
@@ -113,8 +113,39 @@ class ExportObject:
                 new_type["type"] = self._TENSOR_RELAY_NNAPI_TYPE_MAP[dtype]
 
             self["types"].append(new_type)
-            self.helper.type_to_idx_map[tipe] = len(self["types"]) - 1
-        return self.helper.type_to_idx_map[tipe]
+            self._type_to_idx_map[tipe] = len(self["types"]) - 1
+        return self._type_to_idx_map[tipe]
+
+    def register_node_operand_idxs(self, node, idxs):
+        """Register in the internal symbol table about the Android NNAPI
+        Operand indices of a given node.
+
+        Parameters
+        ----------
+        node: tvm.relay.Node
+            The node to be registered.
+
+        idxs: list of int
+            The corresponding Android NNAPI Operand indices of the node.
+        """
+        assert node not in self._node_to_operand_idxs_map
+        self._node_to_operand_idxs_map[node] = copy.deepcopy(idxs)
+
+    def get_node_operand_idxs(self, node):
+        """Query the internal symbol table to find Android NNAPI Operand indices for a given node.
+
+        Parameters
+        ----------
+        node: tvm.relay.Node
+            The node to be queried.
+
+        Returns
+        -------
+        idxs: list of int
+            The indices which is mapped to the queried node.
+        """
+        assert node in self._node_to_operand_idxs_map, f"Node {node} not found in the symbol table"
+        return self._node_to_operand_idxs_map[node]
 
     @staticmethod
     def _canonicalize_scalar_constant(dtype, val):
@@ -122,20 +153,19 @@ class ExportObject:
         # e.g. macro-defined values
         if not isinstance(val, str):
             if dtype == "float16":
-                if isinstance(val, float):
-                    val = hex(
-                        struct.unpack("H", struct.pack("e", val))[0]
-                    )  # for float16 we use uint16_t in C, hence the conversion
+                assert isinstance(val, float)
+                val = hex(
+                    struct.unpack("H", struct.pack("e", val))[0]
+                )  # for float16 we use uint16_t in C, hence the conversion
             elif dtype == "float32":
                 val = float(val)
             elif dtype == "int32":
                 val = int(val)
             elif dtype == "uint32":
                 val = int(val)
-            elif dtype == "bool":
-                val = bool(val)
             else:
-                assert False, "Unreachable"
+                assert dtype == "bool"
+                val = bool(val)
         return val
 
     def add_scalar_constant(self, val, dtype):
@@ -158,7 +188,7 @@ class ExportObject:
         dtype = str(dtype)
         assert_anc_compatibility(
             dtype in ["float16", "float32", "int32", "uint32", "bool"],
-            f"Unsupported data type { dtype }",
+            f"Unsupported data type {dtype}",
         )
         val = self._canonicalize_scalar_constant(dtype, val)
 
@@ -178,8 +208,8 @@ class ExportObject:
 
         Parameters
         ----------
-        vals: array of values in dtype.
-            values of array
+        vals: list of values in dtype
+            values of array.
 
         dtype: string
             data type of array.
@@ -223,7 +253,7 @@ class ExportObject:
         kwargs["value"]["type"]: str
             type of value. Can be "constant_idx", "memory_ptr".
 
-        kwargs["value"]["value"]:
+        kwargs["value"]["value"]: dict
             value of initialized value. Should correspond to `kwargs["value"]["type"]`.
 
         kwargs["node"]: relay.Node
@@ -242,16 +272,20 @@ class ExportObject:
         }
 
         if value is not None:
-            new_op["value"] = value
+            new_op["value"] = copy.deepcopy(value)
 
-        if node is not None and self.helper.node_to_operand_idxs_map.get(node, None) is not None:
-            assert self["operands"][self.helper.node_to_operand_idxs_map[node][0]] == new_op
-            return self.helper.node_to_operand_idxs_map[node]
+        if node is not None and node in self._node_to_operand_idxs_map:
+            old_node_idxs = self.get_node_operand_idxs(node)
+            assert (
+                len(old_node_idxs) == 1
+            )  # Nodes registered with add_operand should be single indexed
+            assert self["operands"][old_node_idxs[0]] == new_op
+            return old_node_idxs
 
         self["operands"].append(new_op)
         ret = [len(self["operands"]) - 1]
         if node is not None:
-            self.helper.node_to_operand_idxs_map[node] = ret
+            self.register_node_operand_idxs(node, ret)
         return ret
 
     def add_operation(self, nnapi_op_name, inputs, outputs):
@@ -262,16 +296,16 @@ class ExportObject:
         nnapi_op_name: str
             name of operator to be added in NNAPI.
 
-        inputs: array of int
+        inputs: list of int
             indices of input operands.
 
-        outputs: array of int
+        outputs: list of int
             indices of output operands.
         """
         new_op = {
-            "input": inputs,
+            "input": copy.deepcopy(inputs),
             "op": nnapi_op_name,
-            "output": outputs,
+            "output": copy.deepcopy(outputs),
         }
         self["operations"].append(new_op)
 

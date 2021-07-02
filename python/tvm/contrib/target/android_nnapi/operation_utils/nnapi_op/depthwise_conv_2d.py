@@ -48,121 +48,121 @@ def add_operation(compiler, inputs, outputs):
 
     # check inputs[0]
     ins[0] = {}
-    ins[0]["dtype"] = compiler.export_obj.helper.operand.get_dtype(inputs[0])
+    ins[0]["dtype"] = compiler.export_obj.json_analyzer.operand.get_dtype(inputs[0])
     if ins[0]["dtype"] == "TENSOR_FLOAT16":
         assert_nnapi_op_check(api_level >= 29)
     else:
         assert_nnapi_op_check(ins[0]["dtype"] == "TENSOR_FLOAT32")
-    ins[0]["rank"] = compiler.export_obj.helper.operand.get_rank(inputs[0])
+    ins[0]["rank"] = compiler.export_obj.json_analyzer.operand.get_rank(inputs[0])
     assert_nnapi_op_check(ins[0]["rank"] == 4)
-    ins[0]["shape"] = compiler.export_obj.helper.operand.get_shape(inputs[0])
+    ins[0]["shape"] = compiler.export_obj.json_analyzer.operand.get_shape(inputs[0])
 
     # check inputs[1]
     ins[1] = {}
-    ins[1]["dtype"] = compiler.export_obj.helper.operand.get_dtype(inputs[1])
+    ins[1]["dtype"] = compiler.export_obj.json_analyzer.operand.get_dtype(inputs[1])
     if ins[1]["dtype"] == "TENSOR_FLOAT16":
         assert_nnapi_op_check(api_level >= 29)
     else:
         assert_nnapi_op_check(ins[1]["dtype"] == "TENSOR_FLOAT32")
     assert_nnapi_op_check(ins[1]["dtype"] == ins[0]["dtype"])
-    ins[1]["rank"] = compiler.export_obj.helper.operand.get_rank(inputs[1])
+    ins[1]["rank"] = compiler.export_obj.json_analyzer.operand.get_rank(inputs[1])
     assert_nnapi_op_check(ins[1]["rank"] == 4)
-    ins[1]["shape"] = compiler.export_obj.helper.operand.get_shape(inputs[1])
+    ins[1]["shape"] = compiler.export_obj.json_analyzer.operand.get_shape(inputs[1])
     felter = dict(zip(["di", "fh", "fw", "do"], ins[1]["shape"]))
     assert_nnapi_op_check(felter["di"] == 1)
 
     # check inputs[2]
     ins[2] = {}
-    ins[2]["dtype"] = compiler.export_obj.helper.operand.get_dtype(inputs[2])
+    ins[2]["dtype"] = compiler.export_obj.json_analyzer.operand.get_dtype(inputs[2])
     assert_nnapi_op_check(ins[2]["dtype"] == ins[1]["dtype"] and ins[2]["dtype"] == ins[0]["dtype"])
-    ins[2]["rank"] = compiler.export_obj.helper.operand.get_rank(inputs[2])
+    ins[2]["rank"] = compiler.export_obj.json_analyzer.operand.get_rank(inputs[2])
     assert_nnapi_op_check(ins[2]["rank"] == 1)
-    ins[2]["constant"] = compiler.export_obj.helper.operand.get_constant(inputs[2])
+    ins[2]["constant"] = compiler.export_obj.json_analyzer.operand.get_constant(inputs[2])
     assert_nnapi_op_check(
         ins[2]["constant"]["type"] == "array" and len(ins[2]["constant"]["value"]) == felter["do"]
     )
 
     # check inputs[3]
     ins[3] = {}
-    ins[3]["dtype"] = compiler.export_obj.helper.operand.get_dtype(inputs[3])
+    ins[3]["dtype"] = compiler.export_obj.json_analyzer.operand.get_dtype(inputs[3])
     assert_nnapi_op_check(ins[3]["dtype"] == "INT32")
-    ins[3]["value"] = compiler.export_obj.helper.operand.get_value(inputs[3])
+    ins[3]["value"] = compiler.export_obj.json_analyzer.operand.get_value(inputs[3])
     assert_nnapi_op_check(ins[3]["value"] >= 0)
     padding = {}
     padding["l"] = ins[3]["value"]
 
     # check inputs[4]
     ins[4] = {}
-    ins[4]["dtype"] = compiler.export_obj.helper.operand.get_dtype(inputs[4])
+    ins[4]["dtype"] = compiler.export_obj.json_analyzer.operand.get_dtype(inputs[4])
     assert_nnapi_op_check(ins[4]["dtype"] == "INT32")
-    ins[4]["value"] = compiler.export_obj.helper.operand.get_value(inputs[4])
+    ins[4]["value"] = compiler.export_obj.json_analyzer.operand.get_value(inputs[4])
     assert_nnapi_op_check(ins[4]["value"] >= 0)
     padding["r"] = ins[4]["value"]
 
     # check inputs[5]
     ins[5] = {}
-    ins[5]["dtype"] = compiler.export_obj.helper.operand.get_dtype(inputs[5])
+    ins[5]["dtype"] = compiler.export_obj.json_analyzer.operand.get_dtype(inputs[5])
     assert_nnapi_op_check(ins[5]["dtype"] == "INT32")
-    ins[5]["value"] = compiler.export_obj.helper.operand.get_value(inputs[5])
+    ins[5]["value"] = compiler.export_obj.json_analyzer.operand.get_value(inputs[5])
     assert_nnapi_op_check(ins[5]["value"] >= 0)
     padding["t"] = ins[5]["value"]
 
     # check inputs[6]
     ins[6] = {}
-    ins[6]["dtype"] = compiler.export_obj.helper.operand.get_dtype(inputs[6])
+    ins[6]["dtype"] = compiler.export_obj.json_analyzer.operand.get_dtype(inputs[6])
     assert_nnapi_op_check(ins[6]["dtype"] == "INT32")
-    ins[6]["value"] = compiler.export_obj.helper.operand.get_value(inputs[6])
+    ins[6]["value"] = compiler.export_obj.json_analyzer.operand.get_value(inputs[6])
     assert_nnapi_op_check(ins[6]["value"] >= 0)
     padding["b"] = ins[6]["value"]
 
     # check inputs[7]
     ins[7] = {}
-    ins[7]["dtype"] = compiler.export_obj.helper.operand.get_dtype(inputs[7])
+    ins[7]["dtype"] = compiler.export_obj.json_analyzer.operand.get_dtype(inputs[7])
     assert_nnapi_op_check(ins[7]["dtype"] == "INT32")
-    ins[7]["value"] = compiler.export_obj.helper.operand.get_value(inputs[7])
+    ins[7]["value"] = compiler.export_obj.json_analyzer.operand.get_value(inputs[7])
     assert_nnapi_op_check(ins[7]["value"] >= 0)
     stride = {}
     stride["w"] = ins[7]["value"]
 
     # check inputs[8]
     ins[8] = {}
-    ins[8]["dtype"] = compiler.export_obj.helper.operand.get_dtype(inputs[8])
+    ins[8]["dtype"] = compiler.export_obj.json_analyzer.operand.get_dtype(inputs[8])
     assert_nnapi_op_check(ins[8]["dtype"] == "INT32")
-    ins[8]["value"] = compiler.export_obj.helper.operand.get_value(inputs[8])
+    ins[8]["value"] = compiler.export_obj.json_analyzer.operand.get_value(inputs[8])
     assert_nnapi_op_check(ins[8]["value"] >= 0)
     stride["h"] = ins[8]["value"]
 
     # check inputs[9]
     ins[9] = {}
-    ins[9]["dtype"] = compiler.export_obj.helper.operand.get_dtype(inputs[9])
+    ins[9]["dtype"] = compiler.export_obj.json_analyzer.operand.get_dtype(inputs[9])
     assert_nnapi_op_check(ins[9]["dtype"] == "INT32")
-    ins[9]["value"] = compiler.export_obj.helper.operand.get_value(inputs[9])
+    ins[9]["value"] = compiler.export_obj.json_analyzer.operand.get_value(inputs[9])
     depth_multiplier = ins[9]["value"]
     assert_nnapi_op_check(depth_multiplier >= 0)
 
     # check inputs[10]
-    assert_nnapi_op_check(compiler.export_obj.helper.operand.is_fuse_code(inputs[10]))
+    assert_nnapi_op_check(compiler.export_obj.json_analyzer.operand.is_fuse_code(inputs[10]))
 
     if api_level >= 29:
         # check inputs[11]
         ins[11] = {}
-        ins[11]["dtype"] = compiler.export_obj.helper.operand.get_dtype(inputs[11])
+        ins[11]["dtype"] = compiler.export_obj.json_analyzer.operand.get_dtype(inputs[11])
         assert_nnapi_op_check(ins[11]["dtype"] == "BOOL")
-        ins[11]["value"] = compiler.export_obj.helper.operand.get_value(inputs[11])
+        ins[11]["value"] = compiler.export_obj.json_analyzer.operand.get_value(inputs[11])
         assert_nnapi_op_check(ins[11]["value"] == "false" or ins[11]["value"] == "true")
 
         # check inputs[12]
         ins[12] = {}
-        ins[12]["dtype"] = compiler.export_obj.helper.operand.get_dtype(inputs[12])
+        ins[12]["dtype"] = compiler.export_obj.json_analyzer.operand.get_dtype(inputs[12])
         assert_nnapi_op_check(ins[12]["dtype"] == "INT32")
-        ins[12]["value"] = compiler.export_obj.helper.operand.get_value(inputs[12])
+        ins[12]["value"] = compiler.export_obj.json_analyzer.operand.get_value(inputs[12])
         assert_nnapi_op_check(ins[12]["value"] >= 1)
 
         # check inputs[13]
         ins[13] = {}
-        ins[13]["dtype"] = compiler.export_obj.helper.operand.get_dtype(inputs[13])
+        ins[13]["dtype"] = compiler.export_obj.json_analyzer.operand.get_dtype(inputs[13])
         assert_nnapi_op_check(ins[13]["dtype"] == "INT32")
-        ins[13]["value"] = compiler.export_obj.helper.operand.get_value(inputs[13])
+        ins[13]["value"] = compiler.export_obj.json_analyzer.operand.get_value(inputs[13])
         assert_nnapi_op_check(ins[13]["value"] >= 1)
 
     # check shapes
@@ -189,11 +189,11 @@ def add_operation(compiler, inputs, outputs):
 
     # check outputs[0]
     outs[0] = {}
-    outs[0]["dtype"] = compiler.export_obj.helper.operand.get_dtype(outputs[0])
+    outs[0]["dtype"] = compiler.export_obj.json_analyzer.operand.get_dtype(outputs[0])
     assert_nnapi_op_check(
         outs[0]["dtype"] == ins[0]["dtype"] and outs[0]["dtype"] == ins[1]["dtype"]
     )
-    outs[0]["shape"] = compiler.export_obj.helper.operand.get_shape(outputs[0])
+    outs[0]["shape"] = compiler.export_obj.json_analyzer.operand.get_shape(outputs[0])
 
     if api_level >= 29 and ins[11]["value"] == "true":
         out_data_shape = {

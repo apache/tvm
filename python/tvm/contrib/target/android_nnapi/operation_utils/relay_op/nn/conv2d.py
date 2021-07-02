@@ -67,15 +67,15 @@ def _1_group_handler(compiler, node):
 
     # change layout of "data" to NNAPI's NHWC
     assert_anc_compatibility(
-        len(attrs.data_layout) == 4, f"Unrecognized layout { attrs.data_layout }"
+        len(attrs.data_layout) == 4, f"Unrecognized layout {attrs.data_layout}"
     )
     if attrs.data_layout == "NHWC" or (api_level >= 29 and attrs.data_layout == "NCHW"):
-        nnapi["inputs"] += compiler.export_obj.helper.node_to_operand_idxs_map[args["data"]]
+        nnapi["inputs"] += compiler.export_obj.get_node_operand_idxs(args["data"])
     else:
         # START: add TRANSPOSE
         transpose_idxs = list(map(attrs.data_layout.index, ["N", "H", "W", "C"]))
         inputs = []
-        inputs += compiler.export_obj.helper.node_to_operand_idxs_map[args["data"]]
+        inputs += compiler.export_obj.get_node_operand_idxs(args["data"])
         inputs += compiler.export_obj.add_operand(
             type_idx=compiler.export_obj.get_type_idx(((4,), "int32")),
             value={
@@ -109,15 +109,15 @@ def _1_group_handler(compiler, node):
 
     # change layout of "weight" to NNAPI's OHWI
     assert_anc_compatibility(
-        len(attrs.kernel_layout) == 4, f"Unrecognized layout { attrs.kernel_layout }"
+        len(attrs.kernel_layout) == 4, f"Unrecognized layout {attrs.kernel_layout}"
     )
     if attrs.kernel_layout == "OHWI":
-        nnapi["inputs"] += compiler.export_obj.helper.node_to_operand_idxs_map[args["weight"]]
+        nnapi["inputs"] += compiler.export_obj.get_node_operand_idxs(args["weight"])
     else:
         # START: add TRANSPOSE
         transpose_idxs = list(map(attrs.kernel_layout.index, ["O", "H", "W", "I"]))
         inputs = []
-        inputs += compiler.export_obj.helper.node_to_operand_idxs_map[args["weight"]]
+        inputs += compiler.export_obj.get_node_operand_idxs(args["weight"])
         inputs += compiler.export_obj.add_operand(
             type_idx=compiler.export_obj.get_type_idx(((4,), "int32")),
             value={
@@ -144,13 +144,13 @@ def _1_group_handler(compiler, node):
 
     # START: handle input[2]
     # add empty bias since CONV_2D needs it
-    bias_shape = (compiler.export_obj.helper.operand.get_shape(nnapi["inputs"][1])[0],)
+    bias_shape = (compiler.export_obj.json_analyzer.operand.get_shape(nnapi["inputs"][1])[0],)
     if args["data"].checked_type.dtype == "float32" or args["data"].checked_type.dtype == "float16":
         bias_dtype = args["data"].checked_type.dtype
     else:
         raise AndroidNNAPICompilerIncompatibleError(
             f"Unable to determine bias data type for CONV_2D. \
-                args['data'].dtype was { args['data'].checked_type.dtype }"
+                args['data'].dtype was {args['data'].checked_type.dtype}"
         )
     bias_type = (bias_shape, bias_dtype)
     nnapi["inputs"] += compiler.export_obj.add_operand(
@@ -194,7 +194,7 @@ def _1_group_handler(compiler, node):
             relay_paddings[2],
         ]
     else:
-        raise AndroidNNAPICompilerIncompatibleError(f"Unexpected padding format { attrs.padding }")
+        raise AndroidNNAPICompilerIncompatibleError(f"Unexpected padding format {attrs.padding}")
     # END: handle input[3:7]
 
     # START: handle input[7:9]
@@ -327,7 +327,7 @@ def _1_group_handler(compiler, node):
             node_operands = outputs
 
     # register operands to node
-    compiler.export_obj.helper.node_to_operand_idxs_map[node] = node_operands
+    compiler.export_obj.register_node_operand_idxs(node, node_operands)
     # END: handle output[0]
     # END: handle outputs
 
@@ -350,15 +350,15 @@ def _depthwise_handler(compiler, node):
 
     # change layout of "data" to NNAPI's NHWC
     assert_anc_compatibility(
-        len(attrs.data_layout) == 4, f"Unrecognized layout { attrs.data_layout }"
+        len(attrs.data_layout) == 4, f"Unrecognized layout {attrs.data_layout}"
     )
     if attrs.data_layout == "NHWC" or (api_level >= 29 and attrs.data_layout == "NCHW"):
-        nnapi["inputs"] += compiler.export_obj.helper.node_to_operand_idxs_map[args["data"]]
+        nnapi["inputs"] += compiler.export_obj.get_node_operand_idxs(args["data"])
     else:
         # START: add TRANSPOSE
         transpose_idxs = list(map(attrs.data_layout.index, ["N", "H", "W", "C"]))
         inputs = []
-        inputs += compiler.export_obj.helper.node_to_operand_idxs_map[args["data"]]
+        inputs += compiler.export_obj.get_node_operand_idxs(args["data"])
         inputs += compiler.export_obj.add_operand(
             type_idx=compiler.export_obj.get_type_idx(((4,), "int32")),
             value={
@@ -392,15 +392,15 @@ def _depthwise_handler(compiler, node):
 
     # change layout of "weight" to NNAPI's IHWO
     assert_anc_compatibility(
-        len(attrs.kernel_layout) == 4, f"Unrecognized layout { attrs.kernel_layout }"
+        len(attrs.kernel_layout) == 4, f"Unrecognized layout {attrs.kernel_layout}"
     )
     if attrs.kernel_layout == "IHWO":
-        nnapi["inputs"] += compiler.export_obj.helper.node_to_operand_idxs_map[args["weight"]]
+        nnapi["inputs"] += compiler.export_obj.get_node_operand_idxs(args["weight"])
     else:
         # START: add TRANSPOSE
         transpose_idxs = list(map(attrs.kernel_layout.index, ["I", "H", "W", "O"]))
         inputs = []
-        inputs += compiler.export_obj.helper.node_to_operand_idxs_map[args["weight"]]
+        inputs += compiler.export_obj.get_node_operand_idxs(args["weight"])
         inputs += compiler.export_obj.add_operand(
             type_idx=compiler.export_obj.get_type_idx(((4,), "int32")),
             value={
@@ -427,13 +427,13 @@ def _depthwise_handler(compiler, node):
 
     # START: handle input[2]
     # add empty bias
-    bias_shape = (compiler.export_obj.helper.operand.get_shape(nnapi["inputs"][1])[3],)
+    bias_shape = (compiler.export_obj.json_analyzer.operand.get_shape(nnapi["inputs"][1])[3],)
     if args["data"].checked_type.dtype == "float32" or args["data"].checked_type.dtype == "float16":
         bias_dtype = args["data"].checked_type.dtype
     else:
         raise AndroidNNAPICompilerIncompatibleError(
             f"Unable to determine bias data type for \
-                DEPTHWISE_CONV_2D. args['data'].dtype was { args['data'].checked_type.dtype }"
+                DEPTHWISE_CONV_2D. args['data'].dtype was {args['data'].checked_type.dtype}"
         )
     bias_type = (bias_shape, bias_dtype)
     nnapi["inputs"] += compiler.export_obj.add_operand(
@@ -477,7 +477,7 @@ def _depthwise_handler(compiler, node):
             relay_paddings[2],
         ]
     else:
-        raise AndroidNNAPICompilerIncompatibleError(f"Unexpected padding format { attrs.padding }")
+        raise AndroidNNAPICompilerIncompatibleError(f"Unexpected padding format {attrs.padding}")
     # END: handle input[3:7]
 
     # START: handle input[7:9]
@@ -488,10 +488,10 @@ def _depthwise_handler(compiler, node):
     # START: handle input[9]
     def _scope():
         if api_level >= 29 and attrs.data_layout == "NCHW":
-            depth_in = compiler.export_obj.helper.operand.get_shape(nnapi["inputs"][0])[1]
+            depth_in = compiler.export_obj.json_analyzer.operand.get_shape(nnapi["inputs"][0])[1]
         else:
-            depth_in = compiler.export_obj.helper.operand.get_shape(nnapi["inputs"][0])[3]
-        depth_out = compiler.export_obj.helper.operand.get_shape(nnapi["inputs"][1])[3]
+            depth_in = compiler.export_obj.json_analyzer.operand.get_shape(nnapi["inputs"][0])[3]
+        depth_out = compiler.export_obj.json_analyzer.operand.get_shape(nnapi["inputs"][1])[3]
         assert depth_out % depth_in == 0
         depth_multiplier = int(depth_out // depth_in)
         nnapi["inputs"] += compiler.export_obj.add_operand(
@@ -633,7 +633,7 @@ def _depthwise_handler(compiler, node):
             node_operands = outputs
 
     # register operands to node
-    compiler.export_obj.helper.node_to_operand_idxs_map[node] = node_operands
+    compiler.export_obj.register_node_operand_idxs(node, node_operands)
     # END: handle output[0]
     # END: handle outputs
 
@@ -656,15 +656,15 @@ def _grouped_handler(compiler, node):
 
     # change layout of "data" to NNAPI's NHWC
     assert_anc_compatibility(
-        len(attrs.data_layout) == 4, f"Unrecognized layout { attrs.data_layout }"
+        len(attrs.data_layout) == 4, f"Unrecognized layout {attrs.data_layout}"
     )
     if attrs.data_layout == "NHWC" or (api_level >= 29 and attrs.data_layout == "NCHW"):
-        nnapi["inputs"] += compiler.export_obj.helper.node_to_operand_idxs_map[args["data"]]
+        nnapi["inputs"] += compiler.export_obj.get_node_operand_idxs(args["data"])
     else:
         # START: add TRANSPOSE
         transpose_idxs = list(map(attrs.data_layout.index, ["N", "H", "W", "C"]))
         inputs = []
-        inputs += compiler.export_obj.helper.node_to_operand_idxs_map[args["data"]]
+        inputs += compiler.export_obj.get_node_operand_idxs(args["data"])
         inputs += compiler.export_obj.add_operand(
             type_idx=compiler.export_obj.get_type_idx(((4,), "int32")),
             value={
@@ -698,15 +698,15 @@ def _grouped_handler(compiler, node):
 
     # change layout of "weight" to NNAPI's OHWI
     assert_anc_compatibility(
-        len(attrs.kernel_layout) == 4, f"Unrecognized layout { attrs.kernel_layout }"
+        len(attrs.kernel_layout) == 4, f"Unrecognized layout {attrs.kernel_layout}"
     )
     if attrs.kernel_layout == "OHWI":
-        nnapi["inputs"] += compiler.export_obj.helper.node_to_operand_idxs_map[args["weight"]]
+        nnapi["inputs"] += compiler.export_obj.get_node_operand_idxs(args["weight"])
     else:
         # START: add TRANSPOSE
         transpose_idxs = list(map(attrs.kernel_layout.index, ["O", "H", "W", "I"]))
         inputs = []
-        inputs += compiler.export_obj.helper.node_to_operand_idxs_map[args["weight"]]
+        inputs += compiler.export_obj.get_node_operand_idxs(args["weight"])
         inputs += compiler.export_obj.add_operand(
             type_idx=compiler.export_obj.get_type_idx(((4,), "int32")),
             value={
@@ -733,13 +733,13 @@ def _grouped_handler(compiler, node):
 
     # START: handle input[2]
     # add empty bias
-    bias_shape = (compiler.export_obj.helper.operand.get_shape(nnapi["inputs"][1])[0],)
+    bias_shape = (compiler.export_obj.json_analyzer.operand.get_shape(nnapi["inputs"][1])[0],)
     if args["data"].checked_type.dtype == "float32" or args["data"].checked_type.dtype == "float16":
         bias_dtype = args["data"].checked_type.dtype
     else:
         raise AndroidNNAPICompilerIncompatibleError(
             f"Unable to determine bias type for GROUPED_CONV_2D. \
-                args['data'].dtype was { args['data'].checked_type.dtype }"
+                args['data'].dtype was {args['data'].checked_type.dtype}"
         )
     bias_type = (bias_shape, bias_dtype)
     nnapi["inputs"] += compiler.export_obj.add_operand(
@@ -783,7 +783,7 @@ def _grouped_handler(compiler, node):
             relay_paddings[2],
         ]
     else:
-        raise AndroidNNAPICompilerIncompatibleError(f"Unexpected padding format { attrs.padding }")
+        raise AndroidNNAPICompilerIncompatibleError(f"Unexpected padding format {attrs.padding}")
     # END: handle input[3:7]
 
     # START: handle input[7:9]
@@ -922,7 +922,7 @@ def _grouped_handler(compiler, node):
             node_operands = outputs
 
     # register operands to node
-    compiler.export_obj.helper.node_to_operand_idxs_map[node] = node_operands
+    compiler.export_obj.register_node_operand_idxs(node, node_operands)
     # END: handle output[0]
     # END: handle outputs
 
