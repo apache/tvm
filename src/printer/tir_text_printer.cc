@@ -734,5 +734,15 @@ Doc TIRTextPrinter::PrintBody(const Stmt& body, bool indent) {
   return doc;
 }
 
+bool TIRTextPrinter::GetVarName(Var v, std::string* s) {
+  auto it = memo_var_.find(v);
+  if (it == memo_var_.end()) {
+    return false;
+  }
+
+  *s = it->second.str();
+  return true;
+}
+
 }  // namespace tir
 }  // namespace tvm

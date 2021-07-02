@@ -24,6 +24,7 @@ import warnings
 
 import tvm.tir
 
+from tvm.runtime import Module
 from tvm.runtime import ndarray
 from tvm.ir import container
 from tvm.ir import CallingConv
@@ -372,12 +373,32 @@ def build(
             create_csource_crt_metadata_module = tvm._ffi.get_global_func(
                 "runtime.CreateCSourceCrtMetadataModule"
             )
-            return create_csource_crt_metadata_module([rt_mod_host], target_host)
+            to_return = create_csource_crt_metadata_module([rt_mod_host], target_host)
 
-        if target_host.kind.name == "llvm":
+        elif target_host.kind.name == "llvm":
             create_llvm_crt_metadata_module = tvm._ffi.get_global_func(
                 "runtime.CreateLLVMCrtMetadataModule"
             )
-            return create_llvm_crt_metadata_module([rt_mod_host], target_host)
+            to_return = create_llvm_crt_metadata_module([rt_mod_host], target_host)
+    else:
+        to_return = rt_mod_host
 
-    return rt_mod_host
+    return OperatorModule.from_module(to_return, ir_module_by_target=target_input_mod, name=name)
+
+
+class OperatorModule(Module):
+    """Wraps the Module returned by tvm.build() and captures additional outputs of that function."""
+
+    @classmethod
+    def from_module(cls, mod, **kwargs):
+        # NOTE(areusch): It is generally unsafe to continue using `mod` from this point forward.
+        # If an exception occurs in cls.__init__, handle will be deleted. For this reason,
+        # set mod.handle to None.
+        handle = mod.handle
+        mod.handle = None
+        return cls(handle, **kwargs)
+
+    def __init__(self, handle, ir_module_by_target=None, name=None):
+        super(OperatorModule, self).__init__(handle)
+        self.ir_module_by_target = ir_module_by_target
+        self.name = name
