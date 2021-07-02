@@ -51,31 +51,31 @@ class CodeGenNVPTX : public CodeGenLLVM {
 
     int32_t constant_size = op->constant_allocation_size();
     ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation in GPU";
-    StorageInfo& info = alloc_storage_info_[op->buffer_var.get()];
-    if (constant_size % 4 == 0 && info.alignment == 0) {
-      info.alignment = GetTempAllocaAlignment(op->dtype, constant_size);
+    int& alignment = alloc_storage_alignment_[op->buffer_var.get()];
+    if (constant_size % 4 == 0 && alignment == 0) {
+      alignment = GetTempAllocaAlignment(op->dtype, constant_size);
     }
     // maximum necessary alignment in the NV devices
-    if (info.alignment > 16) {
-      info.alignment = 16;
+    if (alignment > 16) {
+      alignment = 16;
     }
-
-    if (info.scope.rank == runtime::StorageRank::kLocal) {
+    auto storage_scope = runtime::StorageScope::Create(GetStorageScope(op->buffer_var));
+    if (storage_scope.rank == runtime::StorageRank::kLocal) {
       // const int local_address_space = 5;
       // TODO(tqchen): for higher version of LLVM, local address space can be set.
       llvm::AllocaInst* alloca = WithFunctionEntry([&]() {
         return builder_->CreateAlloca(DTypeToLLVMType(op->dtype), ConstInt32(constant_size));
       });
-      if (alloca->getAlignment() < static_cast<uint32_t>(info.alignment)) {
+      if (alloca->getAlignment() < static_cast<uint32_t>(alignment)) {
 #if TVM_LLVM_VERSION >= 100
-        alloca->setAlignment(llvm::Align(info.alignment));
+        alloca->setAlignment(llvm::Align(alignment));
 #else
-        alloca->setAlignment(info.alignment);
+        alloca->setAlignment(alignment);
 #endif
       }
       buf = alloca;
     } else {
-      ICHECK(info.scope.rank == runtime::StorageRank::kShared)
+      ICHECK(storage_scope.rank == runtime::StorageRank::kShared)
           << "Can only allocate shared or local memory inside kernel";
       // Shared memory: address space  == 3
       const unsigned shared_address_space = 3;
@@ -85,9 +85,9 @@ class CodeGenNVPTX : public CodeGenLLVM {
           *module_, type, false, llvm::GlobalValue::PrivateLinkage, nullptr, ".shared", nullptr,
           llvm::GlobalValue::NotThreadLocal, shared_address_space);
 #if TVM_LLVM_VERSION >= 100
-      global->setAlignment(llvm::Align(info.alignment));
+      global->setAlignment(llvm::Align(alignment));
 #else
-      global->setAlignment(info.alignment);
+      global->setAlignment(alignment);
 #endif
       buf = global;
     }
