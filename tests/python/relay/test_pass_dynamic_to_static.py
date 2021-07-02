@@ -345,7 +345,7 @@ def test_dynamic_to_static_upsampling():
 
         x_data = np.random.uniform(size=data_shape).astype(dtype)
         ref_res = tvm.topi.testing.resize2d_python(
-            x_data, (scale, scale), "NCHW", "nearest_neighbor", "asymmetric"
+            x_data, (scale_h_val, scale_w_val), "NCHW", "nearest_neighbor", "asymmetric"
         )
         verify_func(func2, [x_data], ref_res)
 
