@@ -26,7 +26,56 @@ from tvm import relay, te
 from tvm.relay.testing import run_infer_type
 
 
-def test_resize_infer_type():
+def test_resize1d_infer_type():
+    n, c, w = te.size_var("n"), te.size_var("c"), te.size_var("w")
+    x = relay.var("x", relay.TensorType((n, c, w), "int8"))
+    tw = te.var("tw")
+    z = relay.image.resize1d(x, (tw,))
+    zz = run_infer_type(z)
+    assert zz.checked_type == relay.TensorType((n, c, tw), "int8")
+
+    x = relay.var("x", relay.TensorType((n, c, w), "int8"))
+    z = relay.image.resize1d(x, (200,), "NCW", "linear", "align_corners")
+    assert "size=" in z.astext()
+    zz = run_infer_type(z)
+    assert zz.checked_type == relay.TensorType((n, c, 200), "int8")
+
+
+@tvm.testing.uses_gpu
+def test_resize1d():
+    def verify_resize(dshape, scale, method, layout, coord_trans):
+        if layout == "NWC":
+            size = (dshape[1] * scale,)
+        else:
+            size = (dshape[2] * scale,)
+
+        x_data = np.random.uniform(size=dshape).astype("float32")
+
+        ref_res = tvm.topi.testing.resize1d_python(x_data, (scale,), layout, method, coord_trans)
+        x = relay.var("x", relay.TensorType(dshape, "float32"))
+        z = relay.image.resize1d(
+            x, size, layout, method, coordinate_transformation_mode=coord_trans
+        )
+        assert "size=" in z.astext()
+        zz = run_infer_type(z)
+        assert zz.checked_type == relay.TensorType(ref_res.shape, "float32")
+        func = relay.Function([x], z)
+        for target, dev in tvm.testing.enabled_targets():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, device=dev, target=target)
+                op_res = intrp.evaluate(func)(x_data)
+                tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-3, atol=1e-4)
+
+    for method in ["nearest_neighbor", "linear", "cubic"]:
+        for coord_trans in ["asymmetric", "align_corners", "half_pixel"]:
+            for layout in ["NWC", "NCW"]:
+                verify_resize((1, 4, 4), 2, method, layout, coord_trans)
+                verify_resize((2, 8, 17), 3, method, layout, coord_trans)
+                verify_resize((2, 8, 17), 3, method, layout, coord_trans)
+                verify_resize((3, 4, 5), 5, method, layout, coord_trans)
+
+
+def test_resize2d_infer_type():
     n, c, h, w = te.size_var("n"), te.size_var("c"), te.size_var("h"), te.size_var("w")
     x = relay.var("x", relay.TensorType((n, c, h, w), "int8"))
     th, tw = te.var("th"), te.var("tw")
@@ -42,7 +91,7 @@ def test_resize_infer_type():
 
 
 @tvm.testing.uses_gpu
-def test_resize():
+def test_resize2d():
     def verify_resize(dshape, scale, method, layout, coord_trans):
         if layout == "NHWC":
             size = (dshape[1] * scale, dshape[2] * scale)
@@ -68,7 +117,7 @@ def test_resize():
                 op_res = intrp.evaluate(func)(x_data)
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-3, atol=1e-4)
 
-    for method in ["nearest_neighbor", "linear"]:
+    for method in ["nearest_neighbor", "linear", "cubic"]:
         for coord_trans in ["asymmetric", "align_corners", "half_pixel"]:
             for layout in ["NHWC", "NCHW"]:
                 verify_resize((1, 4, 4, 4), 2, method, layout, coord_trans)
@@ -122,7 +171,7 @@ def test_resize3d(target, dev):
             op_res = intrp.evaluate(func)(x_data)
             tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-4, atol=1e-6)
 
-    for method in ["nearest_neighbor", "linear"]:
+    for method in ["nearest_neighbor", "linear", "cubic"]:
         for coord_trans in ["asymmetric", "align_corners", "half_pixel"]:
             for layout in ["NDHWC", "NCDHW"]:
                 verify_resize((1, 4, 4, 4, 4), 2, method, layout)

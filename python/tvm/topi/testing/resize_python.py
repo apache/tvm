@@ -108,6 +108,75 @@ def resize3d_linear(data_in, scale, coordinate_transformation_mode):
     return data_out
 
 
+def resize3d_cubic(data_in, scale, coordinate_transformation_mode):
+    """Tricubic 3d scaling using python"""
+    d, h, w = data_in.shape
+    new_d, new_h, new_w = [int(round(i * s)) for i, s in zip(data_in.shape, scale)]
+    data_out = np.ones((new_d, new_h, new_w))
+
+    def _cubic_spline_weights(t, alpha=-0.5):
+        """create cubic spline weights in 1D"""
+        t2 = t * t
+        t3 = t * t * t
+        w1 = alpha * (t3 - 2 * t2 + t)
+        w2 = (alpha + 2) * t3 - (3 + alpha) * t2 + 1
+        w3 = -(alpha + 2) * t3 + (3 + 2 * alpha) * t2 - alpha * t
+        w4 = -alpha * t3 + alpha * t2
+        return [w1, w2, w3, w4]
+
+    def _cubic_kernel(inputs, w):
+        """perform cubic interpolation in 1D"""
+        return sum([a_i * w_i for a_i, w_i in zip(inputs, w)])
+
+    def _get_input_value(z, y, x):
+        z = max(min(z, d - 1), 0)
+        y = max(min(y, h - 1), 0)
+        x = max(min(x, w - 1), 0)
+        return data_in[z][y][x]
+
+    for m in range(new_d):
+        for j in range(new_h):
+            for k in range(new_w):
+                in_z = get_inx(m, d, new_d, coordinate_transformation_mode)
+                in_y = get_inx(j, h, new_h, coordinate_transformation_mode)
+                in_x = get_inx(k, w, new_w, coordinate_transformation_mode)
+                zint = math.floor(in_z)
+                zfract = in_z - math.floor(in_z)
+
+                yint = math.floor(in_y)
+                yfract = in_y - math.floor(in_y)
+
+                xint = math.floor(in_x)
+                xfract = in_x - math.floor(in_x)
+
+                # Get the surrounding values
+                p = [[[0 for i in range(4)] for j in range(4)] for k in range(4)]
+                for kk in range(4):
+                    for jj in range(4):
+                        for ii in range(4):
+                            p[kk][jj][ii] = _get_input_value(
+                                zint + kk - 1,
+                                yint + jj - 1,
+                                xint + ii - 1,
+                            )
+
+                wz = _cubic_spline_weights(zfract)
+                wy = _cubic_spline_weights(yfract)
+                wx = _cubic_spline_weights(xfract)
+
+                l = [[0 for i in range(4)] for j in range(4)]
+                for jj in range(4):
+                    for ii in range(4):
+                        l[jj][ii] = _cubic_kernel(p[jj][ii], wx)
+                col0 = _cubic_kernel(l[0], wy)
+                col1 = _cubic_kernel(l[1], wy)
+                col2 = _cubic_kernel(l[2], wy)
+                col3 = _cubic_kernel(l[3], wy)
+                data_out[m][j][k] = _cubic_kernel([col0, col1, col2, col3], wz)
+
+    return data_out
+
+
 def resize3d_ncdhw(
     data, scale, method="nearest_neighbor", coordinate_transformation_mode="align_corners"
 ):
@@ -133,8 +202,35 @@ def resize3d_ncdhw(
                 output_np[b, c, :, :, :] = resize3d_linear(
                     data[b, c, :, :, :], scale, coordinate_transformation_mode
                 )
+            elif method == "cubic":
+                output_np[b, c, :, :, :] = resize3d_cubic(
+                    data[b, c, :, :, :], scale, coordinate_transformation_mode
+                )
             else:
                 raise ValueError("Unknown resize method", method)
+
+    return output_np
+
+
+def resize1d_python(
+    data,
+    scale,
+    layout="NCW",
+    method="nearest_neighbor",
+    coordinate_transformation_mode="align_corners",
+):
+    """Python version of 3D scaling using nearest neighbour"""
+
+    if layout == "NWC":
+        data = data.transpose([0, 2, 1])
+
+    data = np.expand_dims(data, axis=[2, 3])
+    output_np = resize3d_ncdhw(data, (1, 1) + scale, method, coordinate_transformation_mode)
+    output_np = np.squeeze(output_np, axis=2)
+    output_np = np.squeeze(output_np, axis=2)
+
+    if layout == "NWC":
+        output_np = output_np.transpose([0, 2, 1])
 
     return output_np
 
@@ -159,7 +255,6 @@ def resize2d_python(
         )
 
     data = np.expand_dims(data, axis=2)
-
     output_np = resize3d_ncdhw(data, (1,) + scale, method, coordinate_transformation_mode)
     output_np = np.squeeze(output_np, axis=2)
 

@@ -1085,10 +1085,10 @@ def _resize_3d(
                 wy = [w / sum_wy for w in wy]
                 wx = [w / sum_wx for w in wx]
 
-            l = [[0 for i in range(2)] for j in range(2)]
-            for j in range(2):
-                for i in range(2):
-                    l[j][i] = _cubic_kerel(p[j][i], wx)
+            l = [[0 for i in range(4)] for j in range(4)]
+            for j in range(4):
+                for i in range(4):
+                    l[j][i] = _cubic_kernel(p[j][i], wx)
             col0 = _cubic_kernel(l[0], wy)
             col1 = _cubic_kernel(l[1], wy)
             col2 = _cubic_kernel(l[2], wy)
