@@ -53,7 +53,7 @@ PointerType::PointerType(Type element_type, String storage_scope) {
 TVM_REGISTER_NODE_TYPE(PointerTypeNode);
 
 TVM_REGISTER_GLOBAL("ir.PointerType")
-    .set_body_typed([](Type element_type, String storage_scope = "global") {
+    .set_body_typed([](Type element_type, String storage_scope = "") {
       return PointerType(element_type, storage_scope);
     });
 

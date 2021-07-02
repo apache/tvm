@@ -48,7 +48,6 @@ Array<PrimExpr> SimplifyArray(arith::Analyzer* ana, Array<PrimExpr> array) {
 Buffer decl_buffer(Array<PrimExpr> shape, DataType dtype, String name, String storage_scope,
                    Span span) {
   DataType storage_dtype = (dtype == DataType::Bool() ? DataType::Int(8) : dtype);
-  if (storage_scope == "") storage_scope = "global";
   return Buffer(Var(name, PointerType(PrimType(storage_dtype), storage_scope), span), dtype, shape,
                 Array<PrimExpr>(), PrimExpr(), name, "", 0, 0, kDefault, span);
 }
