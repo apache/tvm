@@ -241,7 +241,10 @@ void StorageAccessVisitor::VisitExpr_(const CallNode* op) {
 }
 
 StorageScope StorageAccessVisitor::GetScope(Var buffer_var) const {
-  return StorageScope::Create(GetStorageScope(buffer_var));
+  if (buffer_var->type_annotation.as<PointerTypeNode>()) {
+    return StorageScope::Create(GetStorageScope(buffer_var));
+  }
+  return StorageScope();  // global by default
 }
 
 }  // namespace tir
