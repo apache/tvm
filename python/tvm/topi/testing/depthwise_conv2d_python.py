@@ -70,9 +70,7 @@ def depthwise_conv2d_python_nchw(input_np, filter_np, stride, padding):
         out_height = int(np.ceil(float(in_height) / float(stride_h)))
         out_width = int(np.ceil(float(in_width) / float(stride_w)))
         output_np = np.zeros((batch, out_channel, out_height, out_width))
-        pad_along_height = int(
-            np.max((out_height - 1) * stride_h + filter_height - in_height, 0)
-        )
+        pad_along_height = int(np.max((out_height - 1) * stride_h + filter_height - in_height, 0))
         pad_along_width = int(np.max((out_width - 1) * stride_w + filter_width - in_width, 0))
         pad_top_tvm = int(np.ceil(float(pad_along_height) / 2))
         pad_left_tvm = int(np.ceil(float(pad_along_width) / 2))
