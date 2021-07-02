@@ -197,7 +197,8 @@ class Buffer : public ObjectRef {
  * \sa Buffer for complete constructor.
  */
 TVM_DLL Buffer decl_buffer(Array<PrimExpr> shape, DataType dtype = DataType::Float(32),
-                           String name = "buffer", String storage_scope = "global", Span span = Span());
+                           String name = "buffer", String storage_scope = "global",
+                           Span span = Span());
 
 /*!
  * \brief Return the storage scope associated with a buffer variable.

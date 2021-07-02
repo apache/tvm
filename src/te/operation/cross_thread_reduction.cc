@@ -1,3 +1,4 @@
+
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -177,7 +178,8 @@ Stmt MakeCrossThreadReduction(const ComputeOpNode* self, const Stage& stage,
   std::vector<Var> res_handles(size);
   for (size_t idx = 0; idx < size; ++idx) {
     DataType dtype = reduces[idx]->dtype;
-    res_handles[idx] = Var("reduce_temp" + std::to_string(idx), PointerType(PrimType(dtype), "local"));
+    res_handles[idx] =
+        Var("reduce_temp" + std::to_string(idx), PointerType(PrimType(dtype), "local"));
     freduce_args.push_back(res_handles[idx]);
   }
 
