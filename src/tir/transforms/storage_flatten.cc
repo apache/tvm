@@ -157,12 +157,13 @@ class StorageFlattener : public StmtExprMutator {
       // deduce current storage scope.
       StorageScope skey;
       std::string strkey = GetStorageScope(op->buffer->data);
-      if (curr_thread_scope_.size() != 0 && (strkey == "" || strkey == "global")) {
-        skey.rank = runtime::DefaultStorageRank(curr_thread_scope_.back().rank);
+      if (strkey.length() == 0) {
+        if (curr_thread_scope_.size() != 0) {
+          skey.rank = runtime::DefaultStorageRank(curr_thread_scope_.back().rank);
+        }
       } else {
         skey = StorageScope::Create(strkey);
       }
-
       // use small alignment for small arrays
       auto dtype = op->buffer->dtype;
       int32_t const_size = AllocateNode::constant_allocation_size(shape);

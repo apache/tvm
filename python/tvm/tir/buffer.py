@@ -140,7 +140,7 @@ def decl_buffer(
     data=None,
     strides=None,
     elem_offset=None,
-    scope="global",
+    scope="",
     data_alignment=-1,
     offset_factor=0,
     buffer_type="",
