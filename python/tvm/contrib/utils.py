@@ -19,6 +19,7 @@ import atexit
 import contextlib
 import datetime
 import os
+import pathlib
 import tempfile
 import threading
 import shutil
@@ -118,6 +119,18 @@ class TempDirectory(object):
                 shutil.rmtree(self.temp_dir, ignore_errors=True)
                 self.TEMPDIRS.remove(self.temp_dir)
             self.temp_dir = None
+
+    @property
+    def path(self):
+        return pathlib.Path(self.temp_dir)
+
+    def __div__(self, other):
+        if not isinstance(other, (str, pathlib.Path)):
+            raise TypeError(
+                "TempDirectory / operator: must supply str or pathlib.Path; got %r" % (other,)
+            )
+
+        return self.path / other
 
     def __del__(self):
         temp_dirs = getattr(self, "TEMPDIRS", None)
