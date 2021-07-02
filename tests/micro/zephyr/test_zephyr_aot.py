@@ -214,9 +214,6 @@ def test_tflite(platform, west_cmd, skip_build, tvm_debug):
 
 
 def test_qemu_make_fail(platform, west_cmd, skip_build, tvm_debug):
-    if platform not in ["host", "mps2_an521"]:
-        pytest.skip(msg="Only for QEMU targets.")
-
     """Testing QEMU make fail."""
     model, zephyr_board = PLATFORMS[platform]
     build_config = {"skip_build": skip_build, "debug": tvm_debug}
