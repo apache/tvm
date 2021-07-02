@@ -38,6 +38,7 @@ def get_inx(x, image_width, target_width, coordinate_transformation_mode):
 
 
 def get_index(x, image_width, target_width, coordinate_transformation_mode):
+    """get and round the nearest index for nearest_neighbor"""
     in_x = get_inx(x, image_width, target_width, coordinate_transformation_mode)
     if coordinate_transformation_mode == "align_corners":
         # round prefer ceil
@@ -134,6 +135,19 @@ def resize3d_cubic(data_in, scale, coordinate_transformation_mode):
         x = max(min(x, w - 1), 0)
         return data_in[z][y][x]
 
+    def _get_patch(zint, yint, xint):
+        # Get the surrounding values
+        p = [[[0 for i in range(4)] for j in range(4)] for k in range(4)]
+        for kk in range(4):
+            for jj in range(4):
+                for ii in range(4):
+                    p[kk][jj][ii] = _get_input_value(
+                        zint + kk - 1,
+                        yint + jj - 1,
+                        xint + ii - 1,
+                    )
+        return p
+
     for m in range(new_d):
         for j in range(new_h):
             for k in range(new_w):
@@ -149,25 +163,17 @@ def resize3d_cubic(data_in, scale, coordinate_transformation_mode):
                 xint = math.floor(in_x)
                 xfract = in_x - math.floor(in_x)
 
-                # Get the surrounding values
-                p = [[[0 for i in range(4)] for j in range(4)] for k in range(4)]
-                for kk in range(4):
-                    for jj in range(4):
-                        for ii in range(4):
-                            p[kk][jj][ii] = _get_input_value(
-                                zint + kk - 1,
-                                yint + jj - 1,
-                                xint + ii - 1,
-                            )
-
                 wz = _cubic_spline_weights(zfract)
                 wy = _cubic_spline_weights(yfract)
                 wx = _cubic_spline_weights(xfract)
+
+                p = _get_patch(zint, yint, xint)
 
                 l = [[0 for i in range(4)] for j in range(4)]
                 for jj in range(4):
                     for ii in range(4):
                         l[jj][ii] = _cubic_kernel(p[jj][ii], wx)
+
                 col0 = _cubic_kernel(l[0], wy)
                 col1 = _cubic_kernel(l[1], wy)
                 col2 = _cubic_kernel(l[2], wy)
@@ -180,6 +186,7 @@ def resize3d_cubic(data_in, scale, coordinate_transformation_mode):
 def resize3d_ncdhw(
     data, scale, method="nearest_neighbor", coordinate_transformation_mode="align_corners"
 ):
+    """reference kernel for 3D image resizing"""
     ishape = data.shape
 
     oshape = (
