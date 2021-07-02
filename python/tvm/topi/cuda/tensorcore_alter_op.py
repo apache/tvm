@@ -95,7 +95,7 @@ def _batch_matmul_legalize(attrs, inputs, arg_types):
         y_ = relay.nn.pad(y, pad_width=((0, 0), (0, dn), (0, dk)))
     else:
         y_ = y
-    out_ = relay.nn.batch_matmul(x_, y_)
+    out_ = relay.nn.batch_matmul(x_, y_, attrs.out_dtype)
     if dm or dn:
         original_out_shape = [x.value for x in output_tensor.shape]
         out = relay.strided_slice(out_, begin=[0, 0, 0], end=original_out_shape)
@@ -122,6 +122,7 @@ def _dense_legalize(attrs, inputs, arg_types):
     result : tvm.relay.Expr
         The legalized expr
     """
+    new_attrs = {k: attrs[k] for k in attrs.keys()}
     # Collect the input tensors.
     x_tensor, y_tensor = arg_types[0], arg_types[1]
     dtype = x_tensor.dtype
@@ -178,7 +179,7 @@ def _dense_legalize(attrs, inputs, arg_types):
         y_ = relay.nn.pad(y, pad_width=((0, dn), (0, dk)))
     else:
         y_ = y
-    out_ = relay.nn.dense(x_, y_)
+    out_ = relay.nn.dense(x_, y_, **new_attrs)
     if dm or dn:
         original_out_shape = [x.value for x in output_tensor.shape]
         out = relay.strided_slice(out_, begin=[0, 0], end=original_out_shape)
