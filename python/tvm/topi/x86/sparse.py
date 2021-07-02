@@ -65,7 +65,7 @@ def schedule_sparse_dense(outs):
 
 
 @autotvm.register_topi_compute('conv3x3_spNHWC.x86')
-def spconv2d_3x3_nhwc(cfg, Data, Wdat, Wind, Wptr):
+def spconv2d_3x3_nhwc(cfg, Data, Wdat, Wind, Wptr, layout="NHWC"):
     '''# My SpConv2d_3x3_gemm
 
         Data: N,H,W,C -> NHW,33C

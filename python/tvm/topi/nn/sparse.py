@@ -598,14 +598,15 @@ def sparse_conv2d(dense_data, sparse_data, sparse_indices, sparse_indptr, layout
         4-D with shape [M, H, W, N] (layout=NHWC)
         4-D with shape [M, N, H ,W] (layout=NCHW)
     """
-    if layout == "NHWC":
-        return _sparse_conv2d_bsr_compute_nhwc(
-            dense_data, sparse_data, sparse_indices, sparse_indptr
-        )
-    elif layout == "NCHW":
-        return _sparse_conv2d_bsr_compute_nchw(
-            dense_data, sparse_data, sparse_indices, sparse_indptr
-        )
+    if kernel_size == 1:
+        if layout == "NHWC":
+            return _sparse_conv2d_bsr_compute_nhwc(
+                dense_data, sparse_data, sparse_indices, sparse_indptr
+            )
+        elif layout == "NCHW":
+            return _sparse_conv2d_bsr_compute_nchw(
+                dense_data, sparse_data, sparse_indices, sparse_indptr
+            )
     else:
         raise ValueError("Unsupport Layout %s" % layout)
 
