@@ -4709,6 +4709,7 @@ target_skips = {
 
 @pytest.mark.parametrize("target", targets)
 @pytest.mark.parametrize("test", onnx_test_folders)
+@tvm.testing.uses_gpu
 def test_onnx_nodes(test, target):
     if target in target_skips:
         for failure in target_skips[target]:
