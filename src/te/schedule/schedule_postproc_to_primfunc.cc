@@ -126,8 +126,7 @@ class TensorToBufferMapper : public StmtExprMutator {
     return GetBuffer(tensor, storage_scope, true);
   }
 
-  Buffer GetBuffer(const Tensor& tensor, String storage_scope = "",
-                   bool allow_alloc = false) {
+  Buffer GetBuffer(const Tensor& tensor, String storage_scope = "", bool allow_alloc = false) {
     auto it = buffer_map_.find(tensor);
     if (it != buffer_map_.end()) return it->second;
     ICHECK(allow_alloc) << "Cannot find the Realization point of tensor " << tensor;
