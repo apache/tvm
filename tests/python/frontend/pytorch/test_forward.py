@@ -3853,15 +3853,6 @@ def test_masked_select():
         verify_trace_model(test_fn, [x, mask], ["llvm", "cuda", "nvptx"])
 
 
-def test_mm():
-    def test_fn(x, y):
-        return torch.mm(x, y)
-
-    x = torch.randn((100, 200))
-    y = torch.randn((200, 100))
-    verify_trace_model(test_fn, [x, y], ["llvm", "cuda"])
-
-
 def test_unique():
     def test_fn(is_sorted, return_inverse, return_counts):
         return lambda x: torch.unique(x, is_sorted, return_inverse, return_counts)
@@ -4044,7 +4035,6 @@ if __name__ == "__main__":
     test_hard_swish()
     test_hard_sigmoid()
     test_forward_nll_loss()
-    test_mm()
 
     # Model tests
     test_resnet18()
