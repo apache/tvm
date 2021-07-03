@@ -1886,9 +1886,6 @@ class PyTorchOpConverter:
         assert len(inputs) == 1
         return _op.cast(inputs[0], "float32")
 
-    def mm(self, inputs, input_types):
-        return _op.nn.dense(inputs[0], inputs[1])
-
     def bitwise_not(self, inputs, input_types):
         data = inputs[0]
         # The input tensor must be of integral or Boolean types.
