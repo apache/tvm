@@ -657,7 +657,6 @@ def test_inverse_affine_iter_map():
     iter_map = tvm.arith.detect_iter_map([l0_1_l1_1_fused[0], l0_0[0], l1_0[0]], var_dom([l0, l1]))
     outputs = [tvm.tir.Var("output_{}".format(i), "int32") for i in range(len(iter_map))]
     res = tvm.arith.inverse_affine_iter_map(iter_map, outputs)
-    print(res)
     assert len(res) == 2
     l0_inverse = floormod(floordiv(outputs[0], 4), 16) + outputs[1] * 16
     l1_inverse = floormod(outputs[0], 4) + outputs[2] * 4
