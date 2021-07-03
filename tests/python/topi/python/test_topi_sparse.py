@@ -57,12 +57,7 @@ def verify_dynamic_csrmv(batch, in_dim, out_dim, dtype, use_bias=True):
 
     a_np, b_np, c_np, d_np = get_ref_data()
 
-    def check_device(device):
-        dev = tvm.device(device, 0)
-        if not tvm.testing.device_enabled(device):
-            print("Skip because %s is not enabled" % device)
-            return
-        print("Running on target: %s" % device)
+    def check_device(target, dev):
         a = tvmsp.array(a_np, dev)
         _nr, _nc, _n = a.shape[0], a.shape[1], a.data.shape[0]
         assert a.shape[0] == a.indptr.shape[0] - 1
@@ -72,12 +67,12 @@ def verify_dynamic_csrmv(batch, in_dim, out_dim, dtype, use_bias=True):
         assert a.data.dtype == A.data.dtype
         assert a.indices.dtype == A.indices.dtype
         assert a.indptr.dtype == A.indptr.dtype
-        f = tvm.build(s, [nr, A.data, A.indices, A.indptr, B, C, D], device, name="csrmv")
+        f = tvm.build(s, [nr, A.data, A.indices, A.indptr, B, C, D], target, name="csrmv")
         f(_nr, a.data, a.indices, a.indptr, b, c, d)
         tvm.testing.assert_allclose(d.numpy(), d_np, rtol=1e-4, atol=1e-4)
 
-    for device in ["llvm"]:
-        check_device(device)
+    for target, dev in tvm.testing.enabled_targets():
+        check_device(target, dev)
 
 
 def verify_dynamic_csrmm(batch, in_dim, out_dim, dtype, use_bias=True):
@@ -102,25 +97,20 @@ def verify_dynamic_csrmm(batch, in_dim, out_dim, dtype, use_bias=True):
 
     a_np, b_np, c_np, d_np = get_ref_data()
 
-    def check_device(device):
-        dev = tvm.device(device, 0)
-        if not tvm.testing.device_enabled(device):
-            print("Skip because %s is not enabled" % device)
-            return
-        print("Running on target: %s" % device)
+    def check_device(target, dev):
         a = tvmsp.array(a_np, dev)
         _nr, _nc, _n = a.shape[0], a.shape[1], a.data.shape[0]
         assert a.shape[0] == a.indptr.shape[0] - 1
         b = tvm.nd.array(b_np, dev)
         c = tvm.nd.array(c_np, dev)
         d = tvm.nd.array(np.zeros((_nr, out_dim), dtype=dtype), dev)
-        f = tvm.build(s, [nr, A.data, A.indices, A.indptr, B, C, D], device, name="csrmm")
+        f = tvm.build(s, [nr, A.data, A.indices, A.indptr, B, C, D], target, name="csrmm")
 
         f(_nr, a.data, a.indices, a.indptr, b, c, d)
         tvm.testing.assert_allclose(d.numpy(), d_np, rtol=1e-2, atol=1e-2)
 
-    for device in ["llvm"]:
-        check_device(device)
+    for target, dev in tvm.testing.enabled_targets():
+        check_device(target, dev)
 
 
 def verify_dense_si(batch, in_dim, out_dim, use_bias=True, dtype="float32"):
@@ -437,14 +427,9 @@ def test_sparse_dense_bsr_randomized():
         W_indptr = te.placeholder(shape=W_sp_np.indptr.shape, dtype=str(W_sp_np.indptr.dtype))
         X = te.placeholder(shape=X_np.shape, dtype=str(X_np.dtype))
 
-        def check_device(device):
-            dev = tvm.device(device, 0)
-            if not tvm.testing.device_enabled(device):
-                print("Skip because %s is not enabled" % device)
-                return
-            print("Running on target: %s" % device)
-            fcompute, fschedule = tvm.topi.testing.dispatch(device, _sparse_dense_implement)
-            with tvm.target.Target(device):
+        def check_device(target, dev):
+            fcompute, fschedule = tvm.topi.testing.dispatch(target, _sparse_dense_implement)
+            with tvm.target.Target(target):
                 Y = fcompute(X, W_data, W_indices, W_indptr)
                 s = fschedule([Y])
                 func = tvm.build(s, [X, W_data, W_indices, W_indptr, Y])
@@ -458,8 +443,8 @@ def test_sparse_dense_bsr_randomized():
                 )
                 tvm.testing.assert_allclose(Y_tvm.numpy(), Y_np, atol=1e-5, rtol=1e-5)
 
-        for device in ["llvm", "cuda"]:
-            check_device(device)
+        for target, dev in tvm.testing.enabled_targets():
+            check_device(target, dev)
 
 
 @tvm.testing.parametrize_targets("cuda", "rocm")
@@ -576,14 +561,9 @@ def verify_sparse_conv2d_bsr(M, H, W, N, K, BS_R, BS_C, density, layout):
     Y = topi.nn.sparse_conv2d(X, W_data, W_indices, W_indptr, layout)
     s = te.create_schedule(Y.op)
 
-    def check_device(device):
-        dev = tvm.device(device, 0)
-        if not tvm.testing.device_enabled(device):
-            print("Skip because %s is not enabled" % device)
-            return
-        print("Running on target: %s" % device)
+    def check_device(target, dev):
 
-        func = tvm.build(s, [X, W_data, W_indices, W_indptr, Y])
+        func = tvm.build(s, [X, W_data, W_indices, W_indptr, Y], target)
         Y_tvm = tvm.nd.array(np.zeros(Y_np.shape, dtype="float32"))
         func(
             tvm.nd.array(X_np, dev),
@@ -594,7 +574,8 @@ def verify_sparse_conv2d_bsr(M, H, W, N, K, BS_R, BS_C, density, layout):
         )
         tvm.testing.assert_allclose(Y_tvm.numpy(), Y_np.astype("float32"), atol=1e-4, rtol=1e-4)
 
-    check_device("llvm")
+    for target, dev in tvm.testing.enabled_targets():
+        check_device(target, dev)
 
 
 def test_sparse_conv2d_bsr():

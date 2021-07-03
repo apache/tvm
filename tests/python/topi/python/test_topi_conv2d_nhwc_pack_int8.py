@@ -26,7 +26,7 @@ from tvm import topi
 import tvm.topi.testing
 from tvm.contrib.pickle_memoize import memoize
 from tvm.topi.utils import get_const_tuple
-
+import tvm.testing
 
 def verify_conv2d_1x1_nhwc_pack_int8(
     batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation=1
@@ -51,26 +51,25 @@ def verify_conv2d_1x1_nhwc_pack_int8(
 
     a_np, w_np, b_np = get_ref_data()
 
-    def check_device(device):
-        dev = tvm.device(device, 0)
-        if not tvm.testing.device_enabled(device):
-            print("Skip because %s is not enabled" % device)
+    def check_device(target, dev):
+        if not tvm.testing.device_enabled(target):
+            print("Skip because %s is not enabled" % target)
             return
-        print("Running on target: %s" % device)
+        print("Running on target: %s" % target)
 
-        with tvm.target.Target(device):
+        with tvm.target.Target(target):
             B = topi.nn.conv2d(A, W, stride, padding, dilation, layout="NHWC", out_dtype="int32")
             s = topi.x86.schedule_conv2d_nhwc_pack_int8([B])
         a = tvm.nd.array(a_np, dev)
         w = tvm.nd.array(w_np, dev)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), dev)
-        func = tvm.build(s, [A, W, B], device)
+        func = tvm.build(s, [A, W, B], target)
         func(a, w, b)
         tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-5)
 
     # for device in ['llvm -mcpu=skylake-avx512']:
-    for device in ["llvm"]:
-        check_device(device)
+    for target, dev in tvm.testing.enabled_targets():
+        check_device(target, dev)
 
 
 # TODO(@llyfacebook): Please fix https://github.com/apache/tvm/issues/4122 to enable this test.

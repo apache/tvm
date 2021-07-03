@@ -175,8 +175,7 @@ def verify_conv2d_NHWC_gemm_int8(
 
     a_np, w_np, b_np, c_np = get_ref_data()
 
-    def check_target(target):
-        dev = tvm.device(target, 0)
+    def check_target(target, dev):
         if not tvm.testing.device_enabled(target):
             print("Skip because %s is not enabled" % target)
             return
@@ -222,7 +221,8 @@ def verify_conv2d_NHWC_gemm_int8(
             func(a, w, c)
         tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-5)
 
-    check_target("llvm")
+    for target, dev in tvm.testing.enabled_targets():
+        check_target(target, dev)
 
 
 oc_block_factor = 4

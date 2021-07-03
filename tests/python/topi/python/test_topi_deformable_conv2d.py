@@ -92,14 +92,13 @@ def verify_deformable_conv2d_nchw(
 
     a_np, offset_np, w_np, c_np = get_ref_data()
 
-    def check_device(device):
-        dev = tvm.device(device, 0)
-        if not tvm.testing.device_enabled(device):
-            print("Skip because %s is not enabled" % device)
+    def check_device(target, dev):
+        if not tvm.testing.device_enabled(target):
+            print("Skip because %s is not enabled" % target)
             return
-        print("Running on target: %s" % device)
-        fcompute, fschedule = tvm.topi.testing.dispatch(device, _deformable_conv2d_nchw_implement)
-        with tvm.target.Target(device):
+        print("Running on target: %s" % target)
+        fcompute, fschedule = tvm.topi.testing.dispatch(target, _deformable_conv2d_nchw_implement)
+        with tvm.target.Target(target):
             C = fcompute(A, Offset, W, stride, padding, dilation, deformable_groups, groups, dtype)
             s = fschedule([C])
 
@@ -108,12 +107,12 @@ def verify_deformable_conv2d_nchw(
             w = tvm.nd.array(w_np, dev)
             c = tvm.nd.empty(c_np.shape, dtype=c_np.dtype, device=dev)
 
-            func = tvm.build(s, [A, Offset, W, C], device)
+            func = tvm.build(s, [A, Offset, W, C], target)
             func(a, offset, w, c)
             tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-5)
 
-    for device in ["llvm", "cuda"]:
-        check_device(device)
+    for target, dev in tvm.testing.enabled_targets():
+        check_device(target, dev)
 
 
 def verify_deformable_conv2d_nhwc(

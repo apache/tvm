@@ -44,7 +44,7 @@ def verify_space_to_batch_nd(input_shape, block_shape, pad_before, pad_after, pa
 
     def check_target(target, dev):
         print("Running on target: %s" % target)
-        with tvm.target.create(target):
+        with tvm.target.Target(target):
             s = tvm.topi.testing.get_injective_schedule(target)(B)
         a = tvm.nd.array(a_np, dev)
         b = tvm.nd.array(np.zeros(out_shape, dtype=dtype), dev)

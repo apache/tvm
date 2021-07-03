@@ -110,14 +110,12 @@ def verify_batch_matmul_int8(x_batch, y_batch, M, N, K):
     # get the test data
     a_np, b_np, c_np = get_ref_data()
 
-    def check_device(device):
-        dev = tvm.device(device, 0)
+    def check_device(target, dev):
         if device == "cuda" and not tvm.contrib.nvcc.have_int8(dev.compute_version):
             print("Skip because int8 intrinsics are not available")
             return
 
-        print("Running on target: %s" % device)
-        with tvm.target.Target(device):
+        with tvm.target.Target(target):
             out = topi.cuda.batch_matmul_int8(x, y, None, out_dtype)
             s = topi.cuda.schedule_batch_matmul_int8([out])
         a = tvm.nd.array(a_np, dev)
@@ -127,8 +125,8 @@ def verify_batch_matmul_int8(x_batch, y_batch, M, N, K):
         f(a, b, c)
         tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-5)
 
-    for device in ["cuda"]:
-        check_device(device)
+    for target, dev in tvm.testing.enabled_targets():
+        check_device(target, dev)
 
 
 @tvm.testing.uses_gpu

@@ -46,24 +46,19 @@ def verify_reorg(batch, in_size, in_channel, stride):
 
     a_np, b_np = get_ref_data_reorg()
 
-    def check_device(device):
+    def check_device(target, dev):
         """Cheching devices is enabled or not"""
-        dev = tvm.device(device, 0)
-        if not tvm.testing.device_enabled(device):
-            print("Skip because %s is not enabled" % device)
-            return
-        print("Running on target: %s" % device)
-        with tvm.target.Target(device):
-            s_func = tvm.topi.testing.dispatch(device, _reorg_schedule)
+        with tvm.target.Target(target):
+            s_func = tvm.topi.testing.dispatch(target, _reorg_schedule)
             s = s_func([B])
         a = tvm.nd.array(a_np, dev)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), dev)
-        func = tvm.build(s, [A, B], device)
+        func = tvm.build(s, [A, B], target)
         func(a, b)
         tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-5)
 
-    for device in ["llvm", "cuda"]:
-        check_device(device)
+    for target, dev in tvm.testing.enabled_targets():
+        check_device(target, dev)
 
 
 @tvm.testing.uses_gpu

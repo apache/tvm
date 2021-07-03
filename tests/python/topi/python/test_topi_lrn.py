@@ -42,23 +42,18 @@ def verify_lrn(shape, size, axis, bias, alpha, beta):
     a_np = np.random.uniform(size=shape).astype(dtype)
     b_np = tvm.topi.testing.lrn_python(a_np, size, axis, bias, alpha, beta)
 
-    def check_device(device):
-        if not tvm.testing.device_enabled(device):
-            print("Skip because %s is not enabled" % device)
-            return
-        print("Running on target: %s" % device)
-        with tvm.target.Target(device):
-            s_func = tvm.topi.testing.dispatch(device, _lrn_schedule)
+    def check_device(target, dev):
+        with tvm.target.Target(target):
+            s_func = tvm.topi.testing.dispatch(target, _lrn_schedule)
             s = s_func([B])
-        dev = tvm.device(device, 0)
         a = tvm.nd.array(a_np, dev)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=dtype), dev)
-        f = tvm.build(s, [A, B], device)
+        f = tvm.build(s, [A, B], target)
         f(a, b)
         tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-5)
 
-    for device in ["llvm", "cuda", "opencl", "metal", "rocm", "vulkan", "nvptx"]:
-        check_device(device)
+    for target, dev in tvm.testing.enabled_targets():
+        check_device(target, dev)
 
 
 @tvm.testing.uses_gpu

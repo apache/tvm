@@ -794,7 +794,7 @@ def verify_adv_index(data_shape, index_shapes):
             print("Skip because %s is not enabled" % target)
             return
         print("Running on target: %s" % target)
-        with tvm.target.create(target):
+        with tvm.target.Target(target):
             s = tvm.topi.testing.get_injective_schedule(target)(out)
 
         func = tvm.build(s, [data] + indices + [out], target, name="adv_index")

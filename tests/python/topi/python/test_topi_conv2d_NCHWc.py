@@ -51,7 +51,7 @@ def _transform_bias(bias, bn):
     bias = np.transpose(bias, (0, 2, 3, 1))
     return bias
 
-
+@tvm.testing.requires_llvm
 def verify_conv2d_NCHWc(
     batch,
     in_channel,
@@ -115,13 +115,8 @@ def verify_conv2d_NCHWc(
 
     a_np, w_np, b_np, c_np = get_ref_data()
 
-    def check_device(device):
-        dev = tvm.device(device, 0)
-        if not tvm.testing.device_enabled(device):
-            print("Skip because %s is not enabled" % device)
-            return
-        print("Running on target: %s" % device)
-        with tvm.target.Target(device):
+    def check_device(target, dev):
+        with tvm.target.Target(target):
             C = topi.x86.conv2d_NCHWc(
                 A,
                 W,
@@ -146,7 +141,7 @@ def verify_conv2d_NCHWc(
             func = tvm.build(
                 s,
                 [A, W, bias, C],
-                device,
+                target,
                 name="relu_%d_%d_%d_%d_%d_%d_%d_%d"
                 % (batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation),
             )
@@ -155,7 +150,7 @@ def verify_conv2d_NCHWc(
             func = tvm.build(
                 s,
                 [A, W, C],
-                device,
+                target,
                 name="relu_%d_%d_%d_%d_%d_%d_%d_%d"
                 % (batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation),
             )
@@ -163,9 +158,9 @@ def verify_conv2d_NCHWc(
         tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-3)
 
     # test llvm only for now since conv2d_NCHWc implement is missing in other backend.
-    for device in ["llvm"]:
-        with autotvm.tophub.context(device):  # load tophub pre-tuned parameters
-            check_device(device)
+    for target, device in tvm.testing.enabled_targets():
+        with autotvm.tophub.context(target):  # load tophub pre-tuned parameters
+            check_device(target, device)
 
 
 def test_conv2d_NCHWc():
