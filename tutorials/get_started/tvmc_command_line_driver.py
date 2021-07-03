@@ -73,13 +73,6 @@ capabilities, and set the stage for understanding how TVM works.
 
 
 ################################################################################
-# .. note:: Supported operating systems
-#
-#   TVMC is only supported on Linux. Currently macOS and Windows default
-#   threading models do not support the model used for tuning by TVMC.
-
-
-################################################################################
 # Obtaining the Model
 # -------------------
 #
