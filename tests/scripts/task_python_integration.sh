@@ -63,6 +63,8 @@ run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME} tests/python/integration
 if python -c "import tvm; from tvm.relay.op.contrib.ethosn import ethosn_available; print(ethosn_available().name)" -eq "SW_ONLY"; then
   ETHOSN_VARIANT_CONFIG=ETHOSN78_1TOPS_4PLE_448KSRAM run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-contrib-test_ethosn tests/python/contrib/test_ethosn
 fi
+# Set Android NDK Clang for Android NNAPI testing
+export TVM_NDK_CC="${ANDROID_NDK_HOME}"/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++
 run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-contrib tests/python/contrib
 
 # forked is needed because the global registry gets contaminated
