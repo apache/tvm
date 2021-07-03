@@ -144,6 +144,7 @@ ALLOW_SPECIFIC_FILE = {
     "apps/microtvm/zephyr/host_driven/boards/nucleo_f746zg.conf",
     "apps/microtvm/zephyr/host_driven/boards/stm32f746g_disco.conf",
     "apps/microtvm/zephyr/host_driven/boards/mps2_an521.conf",
+    "apps/microtvm/zephyr/host_driven/boards/nucleo_l4r5zi.conf",
     "apps/microtvm/zephyr/host_driven/qemu-hack",
     "apps/microtvm/zephyr/aot_demo/prj.conf",
     "apps/microtvm/zephyr/aot_demo/boards/qemu_x86.conf",
@@ -153,6 +154,7 @@ ALLOW_SPECIFIC_FILE = {
     "apps/microtvm/zephyr/aot_demo/boards/nucleo_f746zg.conf",
     "apps/microtvm/zephyr/aot_demo/boards/stm32f746g_disco.conf",
     "apps/microtvm/zephyr/aot_demo/boards/mps2_an521.conf",
+    "apps/microtvm/zephyr/aot_demo/boards/nucleo_l4r5zi.conf",
     "apps/microtvm/zephyr/aot_demo/qemu-hack",
     # microTVM Virtual Machines
     "apps/microtvm/reference-vm/zephyr/Vagrantfile",
