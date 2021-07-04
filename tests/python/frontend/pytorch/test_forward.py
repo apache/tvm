@@ -3898,6 +3898,25 @@ def test_forward_nll_loss():
     verify_model(torch.nn.NLLLoss(reduction="none").eval(), input_data=[predictions, targets])
 
 
+@tvm.testing.uses_gpu
+def test_forward_flip():
+    torch.set_grad_enabled(False)
+
+    class Flip(Module):
+        def __init__(self, axis=0):
+            super().__init__()
+            self.axis = axis
+
+        def forward(self, x):
+            return x.flip([self.axis])
+
+    input = torch.randn(2, 3, 4)
+    verify_model(Flip(axis=0), input_data=input)
+    verify_model(Flip(axis=1), input_data=input)
+    verify_model(Flip(axis=2), input_data=input)
+    verify_model(Flip(axis=-1), input_data=input)
+
+
 if __name__ == "__main__":
     # some structural tests
     test_forward_traced_function()
@@ -4041,6 +4060,7 @@ if __name__ == "__main__":
     test_hard_swish()
     test_hard_sigmoid()
     test_forward_nll_loss()
+    test_forward_flip()
 
     # Model tests
     test_resnet18()
