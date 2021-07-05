@@ -1075,7 +1075,7 @@ def _resize(method):
 
         # Ignore the new attributes from TF2.0, for now.
         return AttrCvt(
-            op_name="resize", ignores=["Tdim", "half_pixel_centers"], extras={"method": method}
+            op_name="resize2d", ignores=["Tdim", "half_pixel_centers"], extras={"method": method}
         )(inputs, attr)
 
     return _impl
@@ -2943,8 +2943,8 @@ _convert_map = {
     "Relu": AttrCvt("relu"),
     "Relu6": _relu6(),
     "Reshape": _reshape(),
-    "ResizeBicubic": _resize("bilinear"),
-    "ResizeBilinear": _resize("bilinear"),
+    "ResizeBicubic": _resize("cubic"),
+    "ResizeBilinear": _resize("linear"),
     "ResizeNearestNeighbor": _resize("nearest_neighbor"),
     "ReverseV2": _reverse_v2(),
     "RightShift": AttrCvt("right_shift"),
