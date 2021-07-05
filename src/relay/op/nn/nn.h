@@ -24,11 +24,12 @@
 #ifndef TVM_RELAY_OP_NN_NN_H_
 #define TVM_RELAY_OP_NN_NN_H_
 
+#include <tvm/auto_scheduler/compute_dag.h>
 #include <tvm/ir/attrs.h>
 #include <tvm/ir/expr.h>
 #include <tvm/relay/type.h>
-#include <tvm/auto_scheduler/compute_dag.h>
 
+#include <algorithm>
 #include <utility>
 
 #include "../op_common.h"

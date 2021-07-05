@@ -28,6 +28,7 @@ from tvm.relay.testing.temp_op_attr import TempOpAttr
 def legalize_qnn_batch_matmul(attrs, inputs, types):
     return None
 
+
 def make_requantize_params(input_scale, output_scale, output_zero_point, out_dtype):
     config = {
         "input_scale": input_scale,
@@ -36,6 +37,7 @@ def make_requantize_params(input_scale, output_scale, output_zero_point, out_dty
         "out_dtype": out_dtype,
     }
     return config
+
 
 def make_configuration(
     quantized_x,
@@ -67,9 +69,10 @@ def make_configuration(
     }
     return config
 
-def make_int_configuration(xzero_point_zero = True, 
-                            yzero_point_zero = True, 
-                            requantize_output=False, per_channel=False):
+
+def make_int_configuration(
+    xzero_point_zero=True, yzero_point_zero=True, requantize_output=False, per_channel=False
+):
     x_shape, y_shape, output_shape = (1, 4, 5), (1, 3, 5), (1, 4, 3)
     if xzero_point_zero == True:
         x_zero_point = 0
@@ -84,55 +87,54 @@ def make_int_configuration(xzero_point_zero = True,
     in_dtype = "int8"
     out_dtype = "int32" if not requantize_output else "int8"
     quantized_x_np = (
-        np.array([1, 3, 5, 7, 9,         # sum = 25
-                  11, 13, 15, -19, -21,  # sum = -1
-                  1, 3, 5, 7, 9,         # sum = 25
-                  11, 13, -17, 17, -21]) # sum = 3
+        np.array(
+            [
+                1,
+                3,
+                5,
+                7,
+                9,  # sum = 25
+                11,
+                13,
+                15,
+                -19,
+                -21,  # sum = -1
+                1,
+                3,
+                5,
+                7,
+                9,  # sum = 25
+                11,
+                13,
+                -17,
+                17,
+                -21,
+            ]
+        )  # sum = 3
         .astype(in_dtype)
         .reshape(x_shape)
     )
     quantized_y_np = (
-        np.array(
-            [
-                1, 3, 5, 7, 9,
-                11, 13, 15, 17, 19,
-                1, 3, 5, 7, 9
-            ]
-        )
+        np.array([1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 1, 3, 5, 7, 9])
         .astype(in_dtype)
         .reshape(y_shape)
     )
     x_scale = 0.5
     y_scale = 0.5
     output_scale = 2.0
-    
+
     if requantize_output:
         assert xzero_point_zero is True
         assert yzero_point_zero is True
-        output = np.array([20,  51,  20,
-                          -26, -27, -26,
-                           20,  51,  20,
-                           -14, -10, -14])
+        output = np.array([20, 51, 20, -26, -27, -26, 20, 51, 20, -14, -10, -14])
     elif xzero_point_zero is False and yzero_point_zero is False:
-        output = np.array([220,  520,  220,
-                          -168, -128, -168,
-                           220,  520,  220,
-                          -72,    8,  -72])
+        output = np.array([220, 520, 220, -168, -128, -168, 220, 520, 220, -72, 8, -72])
     elif xzero_point_zero is True and yzero_point_zero is False:
-        output = np.array([190,  440,  190,
-                          -198, -208, -198,
-                           190,  440,  190,
-                          -102,  -72, -102])
+        output = np.array([190, 440, 190, -198, -208, -198, 190, 440, 190, -102, -72, -102])
     elif xzero_point_zero is False and yzero_point_zero is True:
-        output = np.array([190,  490,  190,
-                          -172, -132, -172,
-                           190,  490,  190,
-                           -80,    0,  -80])
+        output = np.array([190, 490, 190, -172, -132, -172, 190, 490, 190, -80, 0, -80])
     else:
-        output = np.array([165,  415,  165,
-                          -197, -207, -197,
-                           165,  415,  165,
-                          -105,  -75, -105])
+        output = np.array([165, 415, 165, -197, -207, -197, 165, 415, 165, -105, -75, -105])
 
     requant_params = (
         make_requantize_params(x_scale * y_scale, output_scale, -1, "int8")
@@ -155,25 +157,22 @@ def make_int_configuration(xzero_point_zero = True,
         requantize=requant_params,
     )
 
+
 def qnn_batch_matmul_driver(test_configuration):
     in_dtype = test_configuration["dtype"]
     out_dtype = test_configuration["out_dtype"]
     quantized_x_name = "quantized_x"
     quantized_y_name = "quantized_y"
     expected_out_dtype = test_configuration["out_dtype"]
-    quantized_x = relay.var(
-        quantized_x_name, shape=test_configuration["x_shape"], dtype=in_dtype
-    )
-    quantized_y = relay.var(
-        quantized_y_name, shape=test_configuration["y_shape"], dtype=in_dtype
-    )
+    quantized_x = relay.var(quantized_x_name, shape=test_configuration["x_shape"], dtype=in_dtype)
+    quantized_y = relay.var(quantized_y_name, shape=test_configuration["y_shape"], dtype=in_dtype)
     mod = relay.qnn.op.batch_matmul(
         quantized_x,
         quantized_y,
         relay.const(test_configuration["x_zero_point"], "int32"),
         relay.const(test_configuration["y_zero_point"], "int32"),
         relay.const(test_configuration["x_scale"], "float32"),
-        relay.const(test_configuration["y_scale"], "float32")
+        relay.const(test_configuration["y_scale"], "float32"),
     )
     if test_configuration["requantize"] is not None:
         requantize_config = test_configuration["requantize"]
@@ -209,17 +208,20 @@ def test_qnn_batch_matmul_xzp0_yzp0():
         int32_output_params = make_int_configuration(xzero_point_zero=True, yzero_point_zero=True)
         qnn_batch_matmul_driver(int32_output_params)
 
+
 def test_qnn_batch_matmul_xzp0():
     with TempOpAttr("qnn.batch_matmul", "FTVMQnnLegalize", legalize_qnn_batch_matmul):
 
         int32_output_params = make_int_configuration(xzero_point_zero=True, yzero_point_zero=False)
         qnn_batch_matmul_driver(int32_output_params)
 
+
 def test_qnn_batch_matmul_yzp0():
     with TempOpAttr("qnn.batch_matmul", "FTVMQnnLegalize", legalize_qnn_batch_matmul):
 
         int32_output_params = make_int_configuration(xzero_point_zero=False, yzero_point_zero=True)
         qnn_batch_matmul_driver(int32_output_params)
+
 
 def test_qnn_batch_matmul():
     with TempOpAttr("qnn.batch_matmul", "FTVMQnnLegalize", legalize_qnn_batch_matmul):
@@ -231,9 +233,7 @@ def test_qnn_batch_matmul():
 def test_qnn_batch_matmul_with_requantized_output():
     with TempOpAttr("qnn.dense", "FTVMQnnLegalize", legalize_qnn_batch_matmul):
 
-        int8_requantized_output_params = make_int_configuration(
-            requantize_output=True
-        )
+        int8_requantized_output_params = make_int_configuration(requantize_output=True)
         qnn_batch_matmul_driver(int8_requantized_output_params)
 
 

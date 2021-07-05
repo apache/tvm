@@ -521,7 +521,9 @@ def batch_matmul_strategy_cpu(attrs, inputs, out_type, target):
     strategy = _op.OpStrategy()
     if is_dynamic(out_type) or is_auto_scheduler_enabled():
         strategy.add_implementation(
-            wrap_compute_batch_matmul(topi.nn.batch_matmul, need_auto_scheduler_layout=True, need_out_dtype=True),
+            wrap_compute_batch_matmul(
+                topi.nn.batch_matmul, need_auto_scheduler_layout=True, need_out_dtype=True
+            ),
             wrap_topi_schedule(topi.generic.nn.schedule_batch_matmul),
             name="batch_matmul.generic",
             plevel=10,

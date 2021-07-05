@@ -38,7 +38,7 @@ namespace qnn {
 // relay.op.qnn.batch_matmul
 
 bool QnnBatchMatmulRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
-                 const TypeReporter& reporter) {
+                       const TypeReporter& reporter) {
   // Expected Types: x, y, x_zero_point, y_zero_point, x_scale, y_scale,
   // out_type
   ICHECK_EQ(types.size(), 7);
@@ -60,10 +60,10 @@ bool QnnBatchMatmulRel(const Array<Type>& types, int num_inputs, const Attrs& at
       return false;
     }
   }
-  ICHECK(IsScalarType(types[2], DataType::Int(32)));                  // x_zero_point
-  ICHECK(IsScalarType(types[3], DataType::Int(32)));                  // y_zero_point
-  ICHECK(IsScalarType(types[4], DataType::Float(32)));                // x_scale
-  ICHECK(IsScalarType(types[5], DataType::Float(32)));                // y_scale
+  ICHECK(IsScalarType(types[2], DataType::Int(32)));    // x_zero_point
+  ICHECK(IsScalarType(types[3], DataType::Int(32)));    // y_zero_point
+  ICHECK(IsScalarType(types[4], DataType::Float(32)));  // x_scale
+  ICHECK(IsScalarType(types[5], DataType::Float(32)));  // y_scale
 
   ICHECK(param->out_dtype.bits() > 0) << "Output dtype bits should be greater than 0.";
 
@@ -74,31 +74,29 @@ bool QnnBatchMatmulRel(const Array<Type>& types, int num_inputs, const Attrs& at
 }
 
 // Positional relay function to create quantized batch_matmul operator used by frontend FFI.
-Expr MakeQuantizedBatchMatmul(Expr x, Expr y, Expr x_zero_point, Expr y_zero_point,
-                        Expr x_scale, Expr y_scale, DataType out_dtype) {
+Expr MakeQuantizedBatchMatmul(Expr x, Expr y, Expr x_zero_point, Expr y_zero_point, Expr x_scale,
+                              Expr y_scale, DataType out_dtype) {
   auto attrs = make_object<BatchMatmulAttrs>();
   attrs->out_dtype = out_dtype;
   static const Op& op = Op::Get("qnn.batch_matmul");
-  return Call(op, {x, y, x_zero_point, y_zero_point, x_scale, y_scale},
-              Attrs(attrs), {});
+  return Call(op, {x, y, x_zero_point, y_zero_point, x_scale, y_scale}, Attrs(attrs), {});
 }
 
 Expr BatchMatmulFirstTerm(const Expr& quantized_x, const Expr& quantized_y,
-                    const BatchMatmulAttrs* attrs) {
+                          const BatchMatmulAttrs* attrs) {
   return MakeBatchMatmul(quantized_x, quantized_y, attrs->out_dtype);
 }
 
 Expr BatchMatmulSecondTerm(const Expr& x_quantized_data, const Expr& y_zero_point) {
   Array<Integer> axes = {2};
-  return Multiply(y_zero_point,
-                  Sum(Cast(x_quantized_data, DataType::Int(32)), axes, true, false));
+  return Multiply(y_zero_point, Sum(Cast(x_quantized_data, DataType::Int(32)), axes, true, false));
 }
 
 Expr BatchMatmulThirdTerm(const Expr& y_quantized_data, const Expr& x_zero_point,
                           int broadcast_dim_size) {
   Array<Integer> axes = {2};
-  auto reducemult = Multiply(x_zero_point,
-                  Sum(Cast(y_quantized_data, DataType::Int(32)), axes, true, false));
+  auto reducemult =
+      Multiply(x_zero_point, Sum(Cast(y_quantized_data, DataType::Int(32)), axes, true, false));
   Array<Integer> newshape;
   newshape = {1, 1, broadcast_dim_size};
   return Reshape(reducemult, newshape);
@@ -109,8 +107,8 @@ Expr BatchMatmulFourthTerm(int x_zero_point_int, int y_zero_point_int, int reduc
   return MakeConstantScalar(DataType::Int(32), scalar_term);
 }
 
-Expr BatchMatmulCombineTerms(const Expr& term1, const Expr& term2, 
-                             const Expr& term3, const Expr& term4) {
+Expr BatchMatmulCombineTerms(const Expr& term1, const Expr& term2, const Expr& term3,
+                             const Expr& term4) {
   auto data1_term = Subtract(term1, term2);
   auto data2_term = Subtract(term4, term3);
   return Add(data1_term, data2_term);
@@ -132,10 +130,10 @@ Expr BatchMatmulCombineTerms(const Expr& term1, const Expr& term2,
  *       quantized tensor of default dtype of int32, with scale equaling to the
  *       product of scales of input tensors, and a zero point of zero.
  *
- *       The lowering for asymmetric quantized batch_matmul looks similar to 
+ *       The lowering for asymmetric quantized batch_matmul looks similar to
  *       quantized conv2d and dense and originally was discussed here:
  *       https://discuss.tvm.apache.org/t/tf-lite-quantized-conv2d-operator-conversion/2651/7
- * 
+ *
  *       The computation gets unrolled into following 4 terms
  *          C(m, n) = Sigma(k) (X(m, k) * Y(n, k))
  *
@@ -152,7 +150,7 @@ Expr BatchMatmulCombineTerms(const Expr& term1, const Expr& term2,
  *       input type.
  */
 Expr QnnBatchMatmulCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
-                          const Array<tvm::relay::Type>& arg_types) {
+                                const Array<tvm::relay::Type>& arg_types) {
   ICHECK_EQ(new_args.size(), 6);
   Expr quantized_x = new_args[0];
   Expr quantized_y = new_args[1];

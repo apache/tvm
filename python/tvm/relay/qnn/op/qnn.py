@@ -682,14 +682,7 @@ def subtract(
     )
 
 
-def batch_matmul(
-    x,
-    y,
-    x_zero_point,
-    y_zero_point,
-    x_scale,
-    y_scale,
-    out_dtype="int32"):
+def batch_matmul(x, y, x_zero_point, y_zero_point, x_scale, y_scale, out_dtype="int32"):
     r"""
     Computes batch matrix multiplication of `x` and `y` when `x` and `y` are data
     in batch.
@@ -722,7 +715,7 @@ def batch_matmul(
     result: tvm.relay.Expr
         The computed result.
     """
-    return _make.batch_matmul(x, y, x_zero_point, y_zero_point, x_scale, y_scale,out_dtype)
+    return _make.batch_matmul(x, y, x_zero_point, y_zero_point, x_scale, y_scale, out_dtype)
 
 
 # register fuse pattern for qnn ops
