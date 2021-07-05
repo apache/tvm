@@ -66,21 +66,25 @@ def verify_conv2d_nhwc(batch, in_channel, in_size, num_filter, kernel, stride, p
 
     a_np, w_np, b_np = get_ref_data()
 
-    def check_device(target, dev):
-        print("Running on target: %s" % target)
-        with tvm.target.Target(target):
-            fcompute, fschedule = tvm.topi.testing.dispatch(target, _conv2d_nhwc_implement)
+    def check_device(device):
+        if not tvm.testing.device_enabled(device):
+            print("Skip because %s is not enabled" % device)
+            return
+        print("Running on target: %s" % device)
+        with tvm.target.Target(device):
+            fcompute, fschedule = tvm.topi.testing.dispatch(device, _conv2d_nhwc_implement)
             B = fcompute(A, W, stride, padding, dilation, dtype)
             s = fschedule([B])
+        dev = tvm.device(device, 0)
         a = tvm.nd.array(a_np, dev)
         w = tvm.nd.array(w_np, dev)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), dev)
-        func = tvm.build(s, [A, W, B], target)
+        func = tvm.build(s, [A, W, B], device)
         func(a, w, b)
         tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-5)
 
-    for target, dev in tvm.testing.enabled_targets():
-        check_device(target, dev)
+    for device in ["llvm", "cuda"]:
+        check_device(device)
 
 
 @tvm.testing.uses_gpu
