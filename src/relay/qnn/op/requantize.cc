@@ -159,6 +159,10 @@ Expr RequantizeLower(const Expr& input_tensor, const Expr& input_scale,
       std::tie(fixed_point_multiplier, shift) = GetFixedPointMultiplierShift(double_multiplier);
 
       const bool is_upward_rounding = (param->rounding == "UPWARD");
+      if (param->rounding == "TOEVEN"){
+        LOG(WARNING) << "Rounding to even is not supported by target it is approximated by TONEAREST\n";
+      }
+    
 
       // When using upward rounding (i.e., x.5 rounded to x+1), leverage
       // the FixedPointMultiply operator
@@ -241,9 +245,9 @@ Expr RequantizeQnnCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   auto out_dtype = out_tensor_type->dtype;
 
   // Check rounding validity.
-  ICHECK(param->rounding == "UPWARD" || param->rounding == "TONEAREST")
-      << "QNN requantize supports two rounding modes - UPWARD and "
-      << "TONEAREST";
+  ICHECK(param->rounding == "UPWARD" || param->rounding == "TONEAREST" || param->rounding == "TOEVEN")
+      << "QNN requantize supports rounding modes - UPWARD and "
+      << "TONEAREST and TOEVEN";
   return RequantizeLower(quantized_data, input_scale, input_zero_point, output_scale,
                          output_zero_point, param, input_shape, out_dtype);
 }
