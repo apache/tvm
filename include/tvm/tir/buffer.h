@@ -183,6 +183,7 @@ class Buffer : public ObjectRef {
   TVM_DLL Stmt vstore(Array<PrimExpr> begin, PrimExpr value) const;
 
   TVM_DEFINE_OBJECT_REF_METHODS(Buffer, ObjectRef, BufferNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferNode);
 };
 
 /*!

@@ -1877,9 +1877,6 @@ class PyTorchOpConverter:
         assert len(inputs) == 1
         return _op.cast(inputs[0], "float32")
 
-    def mm(self, inputs, input_types):
-        return _op.nn.dense(inputs[0], inputs[1])
-
     def bitwise_not(self, inputs, input_types):
         data = inputs[0]
         # The input tensor must be of integral or Boolean types.
@@ -2325,6 +2322,11 @@ class PyTorchOpConverter:
             weights = _op.full(_expr.const(1), (num_class,), dtype=input_types[0])
         return _op.nn.nll_loss(predictions, targets, weights, reduction, ignore_index)
 
+    def flip(self, inputs, input_types):
+        data = inputs[0]
+        axis = inputs[1]
+        return _op.transform.reverse(data, axis=axis[0])
+
     # Operator mappings
     def create_convert_map(self):
         self.convert_map = {
@@ -2539,6 +2541,7 @@ class PyTorchOpConverter:
             "aten::_unique2": self.unique,
             "aten::nll_loss": self.nll_loss,
             "aten::nll_loss2d": self.nll_loss,
+            "aten::flip": self.flip,
         }
 
     def update_convert_map(self, custom_map):
