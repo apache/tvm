@@ -29,6 +29,7 @@ _batch_matmul_implement = {
     "gpu": (topi.cuda.batch_matmul_tensorcore, topi.cuda.schedule_batch_matmul_tensorcore),
 }
 
+
 def convert_int32_into_int4(a_int32):
     """convert int32 values into int4
     Parameters
@@ -70,7 +71,7 @@ def verify_batch_matmul(x_batch, y_batch, M, N, K, dtype):
             b_np = np.random.randint(low=-8, high=7, size=(y_batch, N, K))
         elif dtype == "int8":
             a_np = np.random.randint(low=-128, high=127, size=(x_batch, M, K)).astype(dtype)
-            b_np = np.random.randint(low=-128, high=127, size=(y_batch, N, K)).astype(dtype)    
+            b_np = np.random.randint(low=-128, high=127, size=(y_batch, N, K)).astype(dtype)
         else:
             a_np = np.random.uniform(size=(x_batch, M, K)).astype(dtype)
             b_np = np.random.uniform(size=(y_batch, N, K)).astype(dtype)

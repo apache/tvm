@@ -72,7 +72,7 @@ def _batch_matmul_legalize(attrs, inputs, arg_types):
             return None
         candidates = [(16, 16, 16), (32, 16, 8), (8, 16, 32)]
     elif dtype in ["int4", "uint4"]:
-        if (M % 8 == 0 and K % 32 == 0 and N % 8 == 0):
+        if M % 8 == 0 and K % 32 == 0 and N % 8 == 0:
             # no need to pad
             return None
 
@@ -156,7 +156,7 @@ def _dense_legalize(attrs, inputs, arg_types):
 
         candidates = [(16, 16, 16), (32, 16, 8), (8, 16, 32)]
     elif dtype in ["int4", "uint4"]:
-        if (M % 8 == 0 and K % 32 == 0 and N % 8 == 0):
+        if M % 8 == 0 and K % 32 == 0 and N % 8 == 0:
             # no need to pad
             return None
         candidates = [(8, 32, 8)]

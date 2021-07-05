@@ -29,7 +29,7 @@ def dense(x, y, bias, use_bias=False, use_relu=False, out_dtype=None):
 
     y : numpy.ndarray
         2-D with shape [N, K]
-    
+
     bias: numpy.ndarray
         1-D with shape [M,]
 

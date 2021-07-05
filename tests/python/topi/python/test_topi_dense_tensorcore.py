@@ -45,9 +45,7 @@ def convert_int32_into_int4(a_int32):
     for k in range(K):
         for l in range(L // 8):
             for m in range(min(8, L - l * 8)):
-                a_int4[k, l] = a_int4[k, l] | (
-                    (a_int32[k, l * 8 + m] & 0xF) << ((7 - m) * 4)
-                )
+                a_int4[k, l] = a_int4[k, l] | ((a_int32[k, l * 8 + m] & 0xF) << ((7 - m) * 4))
     return a_int4
 
 
@@ -61,14 +59,12 @@ def convert_int32_into_int4_bias(a_int32):
     ------
     a_int4 : int
     """
-    L, = a_int32.shape
+    (L,) = a_int32.shape
     assert L % 8 == 0
     a_int4 = np.zeros(shape=(L // 8), dtype=np.int32)
     for l in range(L // 8):
         for m in range(min(8, L - l * 8)):
-            a_int4[l] = a_int4[l] | (
-                (a_int32[l * 8 + m] & 0xF) << ((7 - m) * 4)
-            )
+            a_int4[l] = a_int4[l] | ((a_int32[l * 8 + m] & 0xF) << ((7 - m) * 4))
     return a_int4
 
 
@@ -137,7 +133,7 @@ def test_dense_tensorcore():
         verify_dense(256, 1024, 1024, dtype, use_bias=True)
         verify_dense(1000, 1024, 1024, dtype, use_bias=False)
         verify_dense(256, 2048, 1000, dtype, use_bias=False)
-    #TODO: need fix int4 use_bias=True, wyc-ruiker
+    # TODO: need fix int4 use_bias=True, wyc-ruiker
     verify_dense(16, 32, 16, "int4", use_bias=False)
     verify_dense(256, 1024, 1024, "int4", use_bias=False)
     verify_dense(1000, 1024, 1024, "int4", use_bias=False)

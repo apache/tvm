@@ -73,14 +73,14 @@ def dense_tensorcore_cuda(data, weight, bias=None, out_dtype=None):
             "must be multiple of (16, 16, 16) or (32, 16, 8) or (8, 16, 32) for now"
         )
     else:
-        assert(batch % 8 == 0 and in_dim % 32 == 0 and out_dim % 8 == 0), "The shape of (batch, in_dim, out_dim) must be multiple of (8, 32, 8)"
+        assert(
+            batch % 8 == 0 and in_dim % 32 == 0 and out_dim % 8 == 0
+        ), "The shape of (batch, in_dim, out_dim) must be multiple of (8, 32, 8)"
 
     k = te.reduce_axis((0, in_dim), name="k")
     matmul = te.compute(
         (batch, out_dim),
-        lambda i, j: te.sum(
-            data[i, k].astype(out_dtype) * weight[j, k].astype(out_dtype), axis=k
-        ),
+        lambda i, j: te.sum(data[i, k].astype(out_dtype) * weight[j, k].astype(out_dtype), axis=k),
         name="T_dense",
         tag="dense_tensorcore",
     )
