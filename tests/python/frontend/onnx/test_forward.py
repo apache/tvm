@@ -4074,9 +4074,11 @@ def verify_if(cond_array, num_outputs):
 
         expected.append(np.random.randn(5).astype("float32"))
 
-        nodes.append(onnx.helper.make_node(
-            "Constant", inputs=[], outputs=[name], value=numpy_helper.from_array(expected[-1])
-        ))
+        nodes.append(
+            onnx.helper.make_node(
+                "Constant", inputs=[], outputs=[name], value=numpy_helper.from_array(expected[-1])
+            )
+        )
 
     if_outputs = []
     graph_outputs = []
@@ -4097,11 +4099,7 @@ def verify_if(cond_array, num_outputs):
     else_body = onnx.helper.make_graph(else_nodes, "else_body", [], else_outs)
 
     if_node = onnx.helper.make_node(
-        "If",
-        inputs=["cond"],
-        outputs=if_outputs,
-        then_branch=then_body,
-        else_branch=else_body
+        "If", inputs=["cond"], outputs=if_outputs, then_branch=then_body, else_branch=else_body
     )
 
     if_graph = onnx.helper.make_graph(
