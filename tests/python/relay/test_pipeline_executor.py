@@ -177,8 +177,9 @@ def run_pipeline(target):
     #build and create pipeline module
     """
     with relay.build_config(opt_level=3):
-        pipeline_mods, string_config = pipeline_executor.build_pipeline(mod_config,
-                                                                        "/scratch/hj/data/")
+        pipeline_mods, string_config = pipeline_executor.build_pipeline(
+            mod_config, "/scratch/hj/data/"
+        )
 
     pipeline_module = pipeline_executor.create(pipeline_mods, string_config)
 

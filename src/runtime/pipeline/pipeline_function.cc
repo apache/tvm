@@ -79,7 +79,9 @@ vector<Module> pipeline_graph_runtime(Array<Module> modules, const MOD_CONF& mod
     for (auto mod : modules) {
       ret.push_back(mod);
     }
-  } else {// if modules is empty, need to build the graph runtime
+
+    // if modules is empty, need to build the graph runtime from mod_conf
+  } else {
     ret.resize(mod_conf.size());
     for (auto mconf : mod_conf) {
       // load lib
@@ -96,15 +98,15 @@ vector<Module> pipeline_graph_runtime(Array<Module> modules, const MOD_CONF& mod
       istringstream istr(mconf.second["dev"]);
       string str;
       int deviceType = 1, deviceId = 0;
-      while(getline(istr, str, ';')) {
-          istringstream istrDev(str);
-          string stemp;
-          if (getline(istrDev, stemp)) {
-              deviceType = stoi(stemp);
-          }
-          if (getline(istrDev, stemp)) {
-              deviceId = stoi(stemp);
-          }
+      while (getline(istr, str, ';')) {
+        istringstream istrDev(str);
+        string stemp;
+        if (getline(istrDev, stemp)) {
+          deviceType = stoi(stemp);
+        }
+        if (getline(istrDev, stemp)) {
+          deviceId = stoi(stemp);
+        }
       }
       Module graphModule = (*graphRuntimeCreate)(json, lib, deviceType, deviceId);
 

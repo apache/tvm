@@ -117,6 +117,58 @@ class TVM_DLL SubGraphRuntime : public ModuleNode {
    */
   Array<NDArray> GetOutput(bool syncPoll = true);
 
+ protected:
+  vector<NDArray> output_entry_;
+  PIPELINE_CONF pipeline_conf_;
+  MOD_CONF mod_conf_;
+  vector<shared_ptr<RuntimeItem>> runtimes_;
+  MOD_DLDATA_MAP_PTR input_int_map_;
+  size_t outpuNumber_ = 0;
+
+  unordered_map<int, string> LoadDependent(dmlc::JSONReader* reader) {
+    unordered_map<int, string> ret;
+    reader->BeginArray();
+    while (reader->NextArrayItem()) {
+      std::string key;
+      reader->BeginObject();
+      string inputName;
+      int dep_mod_indx;
+      while (reader->NextObjectItem(&key)) {
+        if (key == "mod_indx") {
+          reader->Read(&dep_mod_indx);
+        }
+        if (key == "input_name") {
+          reader->Read(&inputName);
+        }
+      }
+      ret[dep_mod_indx] = inputName;
+    }
+    return ret;
+  }
+
+  unordered_map<int, unordered_map<int, string>> LoadOutput(dmlc::JSONReader* reader) {
+    reader->BeginArray();
+    unordered_map<int, unordered_map<int, string>> ret;
+    while (reader->NextArrayItem()) {
+      std::string key;
+      reader->BeginObject();
+      string inputName;
+      int output_indx;
+      unordered_map<int, string> dep;
+      while (reader->NextObjectItem(&key)) {
+        if (key == "output_indx") {
+          reader->Read(&output_indx);
+        }
+
+        if (key == "dependent") {
+          dep = LoadDependent(reader);
+        }
+      }
+      ret[output_indx] = dep;
+    }
+    return ret;
+  }
+
   void Load(dmlc::JSONReader* reader) {
     reader->BeginArray();
     while (reader->NextArrayItem()) {
@@ -133,7 +185,6 @@ class TVM_DLL SubGraphRuntime : public ModuleNode {
         if (key == "mod_indx") {
           reader->Read(&mod_indx);
         }
-
         if (key == "lib_name") {
           reader->Read(&libName);
         }
@@ -151,57 +202,14 @@ class TVM_DLL SubGraphRuntime : public ModuleNode {
         }
 
         if (key == "output") {
-          reader->BeginArray();
-          while (reader->NextArrayItem()) {
-            int output_indx = -1;
-            unordered_map<int, string> depend;
-            reader->BeginObject();
-            while (reader->NextObjectItem(&key)) {
-              if (key == "output_indx") {
-                reader->Read(&output_indx);
-              }
-              if (key == "dependent") {
-                reader->BeginArray();
-                int dep_mod_indx = -1;
-                string inputName;
-                while (reader->NextArrayItem()) {
-                  reader->BeginObject();
-                  while (reader->NextObjectItem(&key)) {
-                    if (key == "mod_indx") {
-                      reader->Read(&dep_mod_indx);
-                    }
-                    if (key == "input_name") {
-                      reader->Read(&inputName);
-                    }
-                  }
-                  if (dep_mod_indx >= 0) {
-                    depend[dep_mod_indx] = inputName;
-                  }
-                }
-              }
-            }
-
-            if (output_indx >= 0) {
-              output[output_indx] = depend;
-            }
-          }
+          output = LoadOutput(reader);
         }
       }
-      if (mod_indx >= 0) {
-        pipeline_conf_[mod_indx] = output;
-        mod_conf_[mod_indx] = {
-            {"lib_name", libName}, {"json_name", jsonName}, {"params", paramsName}, {"dev", dev}};
-      }
+      pipeline_conf_[mod_indx] = output;
+      mod_conf_[mod_indx] = {
+          {"lib_name", libName}, {"json_name", jsonName}, {"params", paramsName}, {"dev", dev}};
     }
   }
-
- protected:
-  vector<NDArray> output_entry_;
-  PIPELINE_CONF pipeline_conf_;
-  MOD_CONF mod_conf_;
-  vector<shared_ptr<RuntimeItem>> runtimes_;
-  MOD_DLDATA_MAP_PTR input_int_map_;
-  size_t outpuNumber_ = 0;
 };
 }  // namespace runtime
 }  // namespace tvm

@@ -55,8 +55,6 @@ def write_file(file_name, data, mode):
         with open(file_name, mode) as file_handle:
             file_handle.write(data)
 
-    return
-
 
 def build_pipeline(mod_n_configs, export_path=None):
     """build module list that can use for pipeline execution.
@@ -130,8 +128,8 @@ def build_pipeline(mod_n_configs, export_path=None):
 
     if export_path:
         write_file("{}/config".format(export_path), json.dumps(string_config), "w")
-        #with open("{}/config".format(export_path), "w") as config_file:
-        #    config_file.write(json.dumps(string_config))
+        # with open("{}/config".format(export_path), "w") as config_file:
+        # config_file.write(json.dumps(string_config))
 
     # return IRModule list and pipeline configuration
     return mods, string_config
@@ -159,11 +157,10 @@ def create(pipeline_mods, mod_config):
         mod = graph_executor.GraphModule(
             pipeline_mod["default"](pipeline_mods[pipeline_mod]["dev"])
         )
-    
         mods.append(mod.module)
 
     submodule = PipelineModule(mods, json.dumps(mod_config))
-    #submodule = PipelineModule(pipeline_mods, json.dumps(mod_config))
+    # submodule = PipelineModule(pipeline_mods, json.dumps(mod_config))
     return submodule
 
 
