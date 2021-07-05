@@ -26,36 +26,36 @@ from ... import op as reg
 
 
 # resize
-@reg.register_compute("dyn.image.resize")
-def compute_resize(attrs, inputs, out_type):
+@reg.register_compute("dyn.image.resize2d")
+def compute_resize2d(attrs, inputs, out_type):
     layout = attrs.layout
     method = attrs.method
     coord_trans = attrs.coordinate_transformation_mode
     rounding_method = attrs.rounding_method
-    bicubic_alpha = attrs.bicubic_alpha
-    bicubic_exclude = attrs.bicubic_exclude
+    cubic_alpha = attrs.cubic_alpha
+    cubic_exclude = attrs.cubic_exclude
     out_dtype = attrs.out_dtype
     return [
-        tvm.topi.image.resize(
+        tvm.topi.image.resize2d(
             inputs[0],
             inputs[1],
             layout,
             method,
             coord_trans,
             rounding_method,
-            bicubic_alpha,
-            bicubic_exclude,
+            cubic_alpha,
+            cubic_exclude,
             out_dtype,
             out_type.shape,
         )
     ]
 
 
-reg.register_injective_schedule("dyn.image.resize")
+reg.register_injective_schedule("dyn.image.resize2d")
 
 
 @script
-def _resize_shape_func(dshape, size, ndim, height_axis, width_axis):
+def _resize2d_shape_func(dshape, size, ndim, height_axis, width_axis):
     out = output_tensor((ndim,), "int64")
     for i in const_range(ndim):
         out[i] = int64(dshape[i])
@@ -64,15 +64,15 @@ def _resize_shape_func(dshape, size, ndim, height_axis, width_axis):
     return out
 
 
-@reg.register_shape_func("dyn.image.resize", True)
-def resize_shape_func(attrs, inputs, _):
+@reg.register_shape_func("dyn.image.resize2d", True)
+def resize2d_shape_func(attrs, inputs, _):
     """
     Shape function for dyn.image.resize op.
     """
     layout = attrs.layout
     if nchw_pack_layout(layout) or nchw_xc_layout(layout):
         out = [
-            _resize_shape_func(
+            _resize2d_shape_func(
                 inputs[0].shape, inputs[1], convert(len(inputs[0].shape)), convert(2), convert(3)
             )
         ]
@@ -84,7 +84,7 @@ def resize_shape_func(attrs, inputs, _):
             if letter == "W":
                 width_axis = i
         out = [
-            _resize_shape_func(
+            _resize2d_shape_func(
                 inputs[0].shape,
                 inputs[1],
                 convert(len(inputs[0].shape)),

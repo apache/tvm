@@ -206,12 +206,15 @@ def verify_UpsampleLayerParams(input_dim, scale, mode):
     dtype = "float32"
 
     a_np = np.full(input_dim, 1, dtype=dtype)
+
     if mode == "NN":
-        b_np = tvm.topi.testing.upsampling_python(a_np, (scale, scale))
+        method = "nearest_neighbor"
+        coord_trans = "asymmetric"
     else:
-        new_h = input_dim[2] * scale
-        new_w = input_dim[3] * scale
-        b_np = tvm.topi.testing.bilinear_resize_python(a_np, (new_h, new_w), "NCHW")
+        method = "linear"
+        coord_trans = "align_corners"
+
+    b_np = tvm.topi.testing.resize2d_python(a_np, (scale, scale), "NCHW", method, coord_trans)
 
     input = [("input", datatypes.Array(*input_dim))]
     output = [("output", datatypes.Array(*b_np.shape))]

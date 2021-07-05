@@ -1366,11 +1366,12 @@ def verify_upsample3d_trilinear():
     y = helper.make_node("Upsample", ["in", "scales"], ["out"], mode="linear")
     scales = [1.0, 1.0, 2.0, 2.0, 2.0]
     in_array = np.random.uniform(size=in_shape).astype(np.float32)
-    out_array = tvm.topi.testing.trilinear_resize3d_python(
+    out_array = tvm.topi.testing.resize3d_python(
         in_array,
-        (3 * scale, 3 * scale, 3 * scale),
+        (scale, scale, scale),
         "NCDHW",
-        coordinate_transformation_mode="half_pixel",
+        "linear",
+        coordinate_transformation_mode="asymmetric",
     )
 
     ref_array = np.array(scales)
@@ -3548,7 +3549,7 @@ def test_gru():
 
 @tvm.testing.uses_gpu
 def test_resize():
-    def verify(ishape, oshape, scales, mode, coord_trans):
+    def verify(ishape, oshape, scales, mode, coord_trans="asymmetric", alpha=0.5, exclude=False):
         nodes = [
             make_constant_node("roi", onnx.TensorProto.FLOAT, (0,), []),
             make_constant_node("scales", onnx.TensorProto.FLOAT, (len(scales),), scales),
@@ -3566,6 +3567,8 @@ def test_resize():
                 outputs=["Y"],
                 mode=mode,
                 coordinate_transformation_mode=coord_trans,
+                cubic_coeff_a=alpha,
+                exclude_outside=exclude,
             )
         )
 
@@ -3582,29 +3585,69 @@ def test_resize():
 
         verify_with_ort(model, [ishape], [oshape], use_vm=True, opset=11, freeze_params=True)
 
-    # upsampling
-    verify([1, 16, 32, 32], [1, 16, 64, 64], [], "nearest", "asymmetric")
-    verify([1, 16, 32, 32], [1, 16, 64, 64], [], "linear", "asymmetric")
-    verify([1, 16, 32, 32], [1, 16, 64, 64], [], "nearest", "align_corners")
-    verify([1, 16, 32, 32], [1, 16, 64, 64], [], "linear", "align_corners")
-    verify([1, 16, 32, 32], [1, 16, 64, 64], [], "nearest", "half_pixel")
-    verify([1, 16, 32, 32], [1, 16, 64, 64], [], "linear", "half_pixel")
+    for ndim in [1, 2, 3]:
+        method = "nearest"
+        for coord_trans in ["asymmetric", "align_corners", "half_pixel"]:
+            # upsampling
+            verify([1, 16] + [32] * ndim, [1, 16] + [64] * ndim, [], method, coord_trans)
+            # downsampling
+            verify([1, 16] + [32] * ndim, [1, 16] + [16] * ndim, [], method, coord_trans)
+            # scales are specified instead of sizes
+            verify([1, 16] + [32] * ndim, [], [1, 1] + [0.5] * ndim, method, coord_trans)
+            verify([1, 16] + [32] * ndim, [], [1, 1] + [2] * ndim, method, coord_trans)
 
-    # downsampling
-    verify([1, 16, 32, 32], [1, 16, 16, 16], [], "nearest", "asymmetric")
-    verify([1, 16, 32, 32], [1, 16, 16, 16], [], "linear", "asymmetric")
-    verify([1, 16, 32, 32], [1, 16, 16, 16], [], "nearest", "align_corners")
-    verify([1, 16, 32, 32], [1, 16, 16, 16], [], "linear", "align_corners")
-    verify([1, 16, 32, 32], [1, 16, 16, 16], [], "nearest", "half_pixel")
-    verify([1, 16, 32, 32], [1, 16, 16, 16], [], "linear", "half_pixel")
+        if ndim == 2:
+            ## TODO(mbrookhart): ONNX Runtime in CI only supports 2D linear resize
+            ## Remove this condition when updating CI
+            method = "linear"
+            # upsampling
+            verify([1, 16] + [32] * ndim, [1, 16] + [64] * ndim, [], method)
+            # downsampling
+            verify([1, 16] + [32] * ndim, [1, 16] + [16] * ndim, [], method)
+            # scales are specified instead of sizes
+            verify([1, 16] + [32] * ndim, [], [1, 1] + [0.5] * ndim, method)
+            verify([1, 16] + [32] * ndim, [], [1, 1] + [2] * ndim, method)
 
-    # scales are specified instead of sizes
-    verify([1, 16, 32, 32], [], [1, 1, 2, 2], "nearest", "asymmetric")
-    verify([1, 16, 32, 32], [], [1, 1, 2, 2], "linear", "asymmetric")
-    verify([1, 16, 32, 32], [], [1, 1, 2, 2], "nearest", "align_corners")
-    verify([1, 16, 32, 32], [], [1, 1, 2, 2], "linear", "align_corners")
-    verify([1, 16, 32, 32], [], [1, 1, 0.5, 0.5], "linear", "half_pixel")
-    verify([1, 16, 32, 32], [], [1, 1, 0.5, 0.5], "nearest", "half_pixel")
+        if ndim == 2:
+            # ONNX Runtime only supports cubic interpolation for 2D images
+            method = "cubic"
+            for alpha in [0.5, 0.75]:
+                for exclude in [True, False]:
+                    # upsampling
+                    verify(
+                        [1, 16] + [32] * ndim,
+                        [1, 16] + [64] * ndim,
+                        [],
+                        method,
+                        alpha=alpha,
+                        exclude=exclude,
+                    )
+                    # downsampling
+                    verify(
+                        [1, 16] + [32] * ndim,
+                        [1, 16] + [16] * ndim,
+                        [],
+                        method,
+                        alpha=alpha,
+                        exclude=exclude,
+                    )
+                    # scales are specified instead of sizes
+                    verify(
+                        [1, 16] + [32] * ndim,
+                        [],
+                        [1, 1] + [0.5] * ndim,
+                        method,
+                        alpha=alpha,
+                        exclude=exclude,
+                    )
+                    verify(
+                        [1, 16] + [32] * ndim,
+                        [],
+                        [1, 1] + [2] * ndim,
+                        method,
+                        alpha=alpha,
+                        exclude=exclude,
+                    )
 
     def verify_opset_10(ishape, scales, mode):
         nodes = [
