@@ -2537,6 +2537,7 @@ class PyTorchOpConverter:
             "aten::hardsigmoid": self.hard_sigmoid,
             "aten::cumsum": self.cumsum,
             "aten::masked_fill": self.masked_fill,
+            "aten::masked_fill_": self.masked_fill,
             "aten::masked_select": self.masked_select,
             "aten::argsort": self.argsort,
             "aten::sort": self.sort,
