@@ -73,7 +73,7 @@ def dense_tensorcore_cuda(data, weight, bias=None, out_dtype=None):
             "must be multiple of (16, 16, 16) or (32, 16, 8) or (8, 16, 32) for now"
         )
     else:
-        assert(
+        assert (
             batch % 8 == 0 and in_dim % 32 == 0 and out_dim % 8 == 0
         ), "The shape of (batch, in_dim, out_dim) must be multiple of (8, 32, 8)"
 

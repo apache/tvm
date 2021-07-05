@@ -306,7 +306,7 @@ def batch_matmul_tensorcore_cuda(x, y, out_dtype=None):
             or (M % 32 == 0 and K % 16 == 0 and N % 8 == 0)
         ), "The shape of (M, K, N) must be multiple of (16, 16, 16) or (32, 16, 8) or (8, 16, 32)"
     else:
-        assert(
+        assert (
             M % 8 == 0 and K % 32 == 0 and N % 8 == 0
         ), "The shape of (M, K, N) must be multiple of (8, 32, 8)"
 
