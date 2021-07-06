@@ -104,7 +104,7 @@ void CodeGenLLVM::AddFunction(const PrimFunc& f) { this->AddFunctionInternal(f, 
 void CodeGenLLVM::InitFuncState() {
   var_map_.clear();
   alias_var_set_.clear();
-  alloc_storage_alignment_.clear();
+  alloc_storage_info_.clear();
   volatile_buf_.clear();
   analyzer_.reset(new arith::Analyzer());
 }
@@ -165,9 +165,9 @@ void CodeGenLLVM::AddFunctionInternal(const PrimFunc& f, bool ret_void) {
 #if TVM_LLVM_VERSION >= 50
   for (size_t i = 0; i < f->params.size(); ++i) {
     const Var& var = f->params[i];
-    auto f = alloc_storage_alignment_.find(var.get());
-    if (f != alloc_storage_alignment_.end()) {
-      unsigned align = f->second;
+    auto f = alloc_storage_info_.find(var.get());
+    if (f != alloc_storage_info_.end()) {
+      unsigned align = f->second.alignment;
       if (align > 1) {
         auto attr = llvm::Attribute::get(*ctx_, llvm::Attribute::Alignment, align);
         function_->addParamAttr(i, attr);
@@ -498,12 +498,12 @@ void CodeGenLLVM::AddAliasInfo(llvm::Instruction* inst, const VarNode* buffer, P
 void CodeGenLLVM::GetAlignment(DataType t, const VarNode* buf_var, const PrimExpr& index,
                                int* p_alignment, int* p_native_bits) {
   int max_align_bits = t.bits();
-  auto it = alloc_storage_alignment_.find(buf_var);
-  if (it != alloc_storage_alignment_.end()) {
-    const int alignment = it->second;
+  auto it = alloc_storage_info_.find(buf_var);
+  if (it != alloc_storage_info_.end()) {
+    const StorageInfo& info = it->second;
     *p_native_bits =
         NativeVectorBits(runtime::StorageScope::Create(GetStorageScope(GetRef<Var>(buf_var))));
-    max_align_bits = alignment * 8;
+    max_align_bits = info.alignment * 8;
   } else {
     *p_native_bits = native_vector_bits_;
   }
@@ -1354,25 +1354,25 @@ void CodeGenLLVM::VisitStmt_(const AllocateNode* op) {
 
   int32_t constant_size = op->constant_allocation_size();
   ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation";
-  int& alignment = alloc_storage_alignment_[op->buffer_var.get()];
-  if (constant_size % 4 == 0 && alignment == 0) {
-    alignment = GetTempAllocaAlignment(op->dtype, constant_size);
+  StorageInfo& info = alloc_storage_info_[op->buffer_var.get()];
+  if (constant_size % 4 == 0 && info.alignment == 0) {
+    info.alignment = GetTempAllocaAlignment(op->dtype, constant_size);
   }
   // maximum necessary alignment in the NV devices
-  if (alignment > 16) {
-    alignment = 16;
+  if (info.alignment > 16) {
+    info.alignment = 16;
   }
   llvm::AllocaInst* alloca = WithFunctionEntry([&]() {
     return builder_->CreateAlloca(DTypeToLLVMType(op->dtype), ConstInt32(constant_size));
   });
-  if (alloca->getAlignment() < static_cast<uint32_t>(alignment)) {
+  if (alloca->getAlignment() < static_cast<uint32_t>(info.alignment)) {
 #if TVM_LLVM_VERSION >= 100
-    alloca->setAlignment(llvm::Align(alignment));
+    alloca->setAlignment(llvm::Align(info.alignment));
 #else
-    alloca->setAlignment(alignment);
+    alloca->setAlignment(info.alignment);
 #endif
   }
-  alignment = alloca->getAlignment();
+  info.alignment = alloca->getAlignment();
   buf = alloca;
 
   buf = builder_->CreatePointerCast(
@@ -1394,10 +1394,10 @@ void CodeGenLLVM::VisitStmt_(const AttrStmtNode* op) {
   } else if (op->attr_key == tir::attr::storage_alignment) {
     const VarNode* v = op->node.as<VarNode>();
     ICHECK(v);
-    alloc_storage_alignment_[v] = static_cast<int>(op->value.as<IntImmNode>()->value);
-    if (var_map_.count(v) && alloc_storage_alignment_[v] > 1) {
+    alloc_storage_info_[v].alignment = static_cast<int>(op->value.as<IntImmNode>()->value);
+    if (var_map_.count(v) && alloc_storage_info_[v].alignment > 1) {
       builder_->CreateAlignmentAssumption(*data_layout_, GetVarValue(v),
-                                          alloc_storage_alignment_[v]);
+                                          alloc_storage_info_[v].alignment);
     }
   } else if (op->attr_key == tir::attr::volatile_scope) {
     const VarNode* v = op->node.as<VarNode>();
@@ -1422,8 +1422,9 @@ void CodeGenLLVM::VisitStmt_(const LetStmtNode* op) {
   }
   var_map_[v] = MakeValue(op->value);
   analyzer_->Bind(op->var, op->value);
-  if (alloc_storage_alignment_.count(v) && alloc_storage_alignment_[v] > 1) {
-    builder_->CreateAlignmentAssumption(*data_layout_, GetVarValue(v), alloc_storage_alignment_[v]);
+  if (alloc_storage_info_.count(v) && alloc_storage_info_[v].alignment > 1) {
+    builder_->CreateAlignmentAssumption(*data_layout_, GetVarValue(v),
+                                        alloc_storage_info_[v].alignment);
   }
   this->VisitStmt(op->body);
 }

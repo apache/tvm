@@ -161,6 +161,11 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   void VisitStmt_(const EvaluateNode* op) override;
 
  protected:
+  /*! \brief The storage information */
+  struct StorageInfo {
+    /*! \brief The alignment of allocation */
+    int alignment{0};
+  };
   /*!
    * \brief Execute falloca at the beginning of the
    *  currrent function and obtain its return value.
@@ -320,8 +325,8 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   std::vector<std::unique_ptr<llvm::Module> > link_modules_;
   /*! \brief native vector bits of current targetx*/
   int native_vector_bits_{0};
-  /*! \brief the alignment of allocation */
-  std::unordered_map<const VarNode*, int> alloc_storage_alignment_;
+  /*! \brief the storage scope of allocation */
+  std::unordered_map<const VarNode*, StorageInfo> alloc_storage_info_;
   // The definition of local variable.
   std::unordered_map<const VarNode*, llvm::Value*> var_map_;
   // global strings
