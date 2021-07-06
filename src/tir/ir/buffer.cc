@@ -52,20 +52,6 @@ Buffer decl_buffer(Array<PrimExpr> shape, DataType dtype, String name, String st
                 Array<PrimExpr>(), PrimExpr(), name, "", 0, 0, kDefault, span);
 }
 
-String GetPtrStorageScope(Var buffer_var) {
-  auto type = buffer_var->type_annotation;
-  const auto* ptr_type = type.as<PointerTypeNode>();
-  ICHECK(ptr_type) << "The provided variable is not of pointer type";
-  return ptr_type->storage_scope;
-}
-
-Var WithStorageScope(Var buffer_var, String storage_scope) {
-  auto* ptr_type = buffer_var->type_annotation.as<PointerTypeNode>();
-  ICHECK(ptr_type) << "The provided variable is not of pointer type";
-  return Var(buffer_var->name_hint, PointerType(ptr_type->element_type, storage_scope),
-             buffer_var->span);
-}
-
 // Split the given expression w.r.t the add operator
 inline std::vector<const PrimExpr*> ExprSplitAddition(const PrimExpr& expr) {
   using namespace tir;

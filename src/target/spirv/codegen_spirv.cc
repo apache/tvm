@@ -23,7 +23,6 @@
  */
 #include "codegen_spirv.h"
 
-#include <tvm/tir/buffer.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
@@ -33,6 +32,7 @@
 #include "../../runtime/pack_args.h"
 #include "../../runtime/vulkan/vulkan_common.h"
 #include "../../runtime/vulkan/vulkan_shader.h"
+#include "../../tir/transforms/ir_utils.h"
 
 namespace tvm {
 namespace codegen {
