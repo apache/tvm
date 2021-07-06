@@ -44,14 +44,14 @@ def convert_graph_layout(mod, desired_layout):
 
     Parameters
     ----------
-    mod : tvm.relay.Module
+    mod : tvm.IRModule
         The relay module to convert.
     desired_layout : str
         The layout to convert to.
 
     Returns
     -------
-    mod : tvm.relay.Module
+    mod : tvm.IRModule
         The converted module.
     """
 
