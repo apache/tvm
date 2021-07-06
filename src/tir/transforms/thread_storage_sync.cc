@@ -286,7 +286,7 @@ class ThreadSyncInserter : public StmtExprMutator {
 
   // Get current storage scope.
   StorageScope GetScope(Var buffer_var) const {
-    return StorageScope::Create(GetStorageScope(buffer_var));
+    return StorageScope::Create(GetPtrStorageScope(buffer_var));
   }
 
   // private functions.

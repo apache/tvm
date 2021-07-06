@@ -54,8 +54,8 @@ class RemapStorageScope final : public StmtExprMutator {
 
   Stmt VisitStmt_(const AllocateNode* op) final {
     auto remapped = Downcast<Var>(StmtExprMutator::VisitExpr(op->buffer_var));
-    auto new_scope = GetStorageScope(remapped);
-    if (new_scope != GetStorageScope(op->buffer_var)) {
+    auto new_scope = GetPtrStorageScope(remapped);
+    if (new_scope != GetPtrStorageScope(op->buffer_var)) {
       Stmt body = StmtExprMutator::VisitStmt(op->body);
       if (new_scope == "shared") {
         // use volatile access to shared buffer.

@@ -156,7 +156,7 @@ class StorageFlattener : public StmtExprMutator {
       }
       // deduce current storage scope.
       StorageScope skey;
-      std::string strkey = GetStorageScope(op->buffer->data);
+      std::string strkey = GetPtrStorageScope(op->buffer->data);
       if (strkey.length() == 0) {
         if (curr_thread_scope_.size() != 0) {
           skey.rank = runtime::DefaultStorageRank(curr_thread_scope_.back().rank);

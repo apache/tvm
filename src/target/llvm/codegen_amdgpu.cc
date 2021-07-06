@@ -84,7 +84,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
     if (info.alignment > 16) {
       info.alignment = 16;
     }
-    auto storage_scope = runtime::StorageScope::Create(GetStorageScope(op->buffer_var));
+    auto storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(op->buffer_var));
     if (storage_scope.rank == runtime::StorageRank::kLocal) {
       // const int local_address_space = 5;
       // TODO(tqchen): for higher version of LLVM, local address space can be set.
