@@ -36,8 +36,8 @@ def verify_depthwise_conv2d_back_weight(
     stride_w = stride_h
     padding_w = padding_h
 
-    out_h = np.int((in_h + 2 * padding_h - filter_h) / stride_h + 1)
-    out_w = np.int((in_w + 2 * padding_w - filter_w) / stride_w + 1)
+    out_h = int((in_h + 2 * padding_h - filter_h) / stride_h + 1)
+    out_w = int((in_w + 2 * padding_w - filter_w) / stride_w + 1)
     out_channel = in_channel * channel_multiplier
 
     oshape = [batch, out_h, out_w, out_channel]
