@@ -103,5 +103,46 @@ def test_get_valid_counts_script_func():
     _check_get_valid_counts_with_numpy(f, (1, 2500, 6), 0.0, 0, 1)
 
 
+@tvm.script.tir
+def ops_with_buffer_slice_indices(data: ty.handle, index: ty.handle) -> None:
+    data_buf = tir.match_buffer(data, (1, 5, 6), "float16")
+    index_buf = tir.match_buffer(index, (1,), "int32")
+    copy_buf = tir.alloc_buffer((1, 5), "float16")
+
+    with tir.block([1, 5], "init") as [vi, vj]:
+        copy_buf[vi, vj] = data_buf[vi, vj, index_buf[0]]
+
+
+@tvm.script.tir
+def substituted_ops_with_buffer_slice_indices(data: ty.handle, index: ty.handle) -> None:
+    index_buf = tir.match_buffer(
+        index, [1], dtype="int32", elem_offset=0, align=128, offset_factor=1
+    )
+    data_buf = tir.match_buffer(
+        data, [1, 5, 6], dtype="float16", elem_offset=0, align=128, offset_factor=1
+    )
+
+    # body
+    with tir.block([], "root"):
+        tir.reads([])
+        tir.writes([])
+        copy_buf = tir.alloc_buffer(
+            [1, 5], dtype="float16", elem_offset=0, align=128, offset_factor=1
+        )
+        for i0, i1 in tir.grid(1, 5):
+            with tir.block([1, 5], "init") as [vi, vj]:
+                tir.bind(vi, i0)
+                tir.bind(vj, i1)
+                tir.reads([data_buf[vi, vj, 0:6], index_buf[0]])
+                tir.writes([copy_buf[vi, vj]])
+                copy_buf[vi, vj] = data_buf[vi, vj, index_buf[0]]
+
+
+def test_buffer_slice_indices_func():
+    new_func = tvm.script.from_source(tvm.script.asscript(ops_with_buffer_slice_indices))
+    tvm.ir.assert_structural_equal(new_func, ops_with_buffer_slice_indices)
+
+
 if __name__ == "__main__":
     test_get_valid_counts_script_func()
+    test_buffer_slice_indices_func()
