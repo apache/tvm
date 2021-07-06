@@ -59,7 +59,7 @@ String GetStorageScope(Var buffer_var) {
   return ptr_type->storage_scope;
 }
 
-Var UpdateStorageScope(Var buffer_var, String storage_scope) {
+Var WithStorageScope(Var buffer_var, String storage_scope) {
   auto* ptr_type = buffer_var->type_annotation.as<PointerTypeNode>();
   ICHECK(ptr_type) << "The provided variable is not of pointer type";
   return Var(buffer_var->name_hint, PointerType(ptr_type->element_type, storage_scope),

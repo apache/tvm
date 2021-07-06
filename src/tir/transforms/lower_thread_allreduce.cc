@@ -130,10 +130,10 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       const AllocateNode* repl = it->second.as<AllocateNode>();
       if (warp_allocs_.count(repl)) {
         stmt = Allocate(repl->buffer_var, repl->dtype, repl->extents, repl->condition, op->body);
-        new_var_remap_[repl->buffer_var.get()] = UpdateStorageScope(repl->buffer_var, "local");
+        new_var_remap_[repl->buffer_var.get()] = WithStorageScope(repl->buffer_var, "local");
       } else {
         stmt = Allocate(repl->buffer_var, repl->dtype, repl->extents, repl->condition, op->body);
-        new_var_remap_[repl->buffer_var.get()] = UpdateStorageScope(repl->buffer_var, "shared");
+        new_var_remap_[repl->buffer_var.get()] = WithStorageScope(repl->buffer_var, "shared");
       }
       return stmt;
     } else {
@@ -410,7 +410,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       const AllocateNode* repl = var.as<AllocateNode>();
       if (repl) {
         body = Allocate(repl->buffer_var, repl->dtype, repl->extents, repl->condition, body);
-        new_var_remap_[repl->buffer_var.get()] = UpdateStorageScope(repl->buffer_var, "local");
+        new_var_remap_[repl->buffer_var.get()] = WithStorageScope(repl->buffer_var, "local");
       }
     }
 
