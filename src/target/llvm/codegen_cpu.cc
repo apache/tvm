@@ -463,9 +463,9 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
     }
     // Add alignment attribute if needed.
 #if TVM_LLVM_VERSION >= 50
-    auto f = alloc_storage_alignment_.find(var.get());
-    if (f != alloc_storage_alignment_.end()) {
-      unsigned align = f->second;
+    auto f = alloc_storage_info_.find(var.get());
+    if (f != alloc_storage_info_.end()) {
+      unsigned align = f->second.alignment;
       if (align > 1) {
         auto attr = llvm::Attribute::get(*ctx_, llvm::Attribute::Alignment, align);
         fcompute->addParamAttr(idx, attr);

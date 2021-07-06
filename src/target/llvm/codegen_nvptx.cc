@@ -51,13 +51,13 @@ class CodeGenNVPTX : public CodeGenLLVM {
 
     int32_t constant_size = op->constant_allocation_size();
     ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation in GPU";
-    int& alignment = alloc_storage_alignment_[op->buffer_var.get()];
-    if (constant_size % 4 == 0 && alignment == 0) {
-      alignment = GetTempAllocaAlignment(op->dtype, constant_size);
+    StorageInfo& info = alloc_storage_info_[op->buffer_var.get()];
+    if (constant_size % 4 == 0 && info.alignment == 0) {
+      info.alignment = GetTempAllocaAlignment(op->dtype, constant_size);
     }
     // maximum necessary alignment in the NV devices
-    if (alignment > 16) {
-      alignment = 16;
+    if (info.alignment > 16) {
+      info.alignment = 16;
     }
     auto storage_scope = runtime::StorageScope::Create(GetStorageScope(op->buffer_var));
     if (storage_scope.rank == runtime::StorageRank::kLocal) {
@@ -66,11 +66,11 @@ class CodeGenNVPTX : public CodeGenLLVM {
       llvm::AllocaInst* alloca = WithFunctionEntry([&]() {
         return builder_->CreateAlloca(DTypeToLLVMType(op->dtype), ConstInt32(constant_size));
       });
-      if (alloca->getAlignment() < static_cast<uint32_t>(alignment)) {
+      if (alloca->getAlignment() < static_cast<uint32_t>(info.alignment)) {
 #if TVM_LLVM_VERSION >= 100
-        alloca->setAlignment(llvm::Align(alignment));
+        alloca->setAlignment(llvm::Align(info.alignment));
 #else
-        alloca->setAlignment(alignment);
+        alloca->setAlignment(info.alignment);
 #endif
       }
       buf = alloca;
@@ -85,9 +85,9 @@ class CodeGenNVPTX : public CodeGenLLVM {
           *module_, type, false, llvm::GlobalValue::PrivateLinkage, nullptr, ".shared", nullptr,
           llvm::GlobalValue::NotThreadLocal, shared_address_space);
 #if TVM_LLVM_VERSION >= 100
-      global->setAlignment(llvm::Align(alignment));
+      global->setAlignment(llvm::Align(info.alignment));
 #else
-      global->setAlignment(alignment);
+      global->setAlignment(info.alignment);
 #endif
       buf = global;
     }
