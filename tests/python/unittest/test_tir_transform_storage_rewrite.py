@@ -228,6 +228,47 @@ def test_storage_combine():
     assert num_alloc[0] == 1
 
 
+def test_storage_combine_with_vectorization():
+    n = 1024
+    A = te.placeholder((n,), name="A")
+    B = te.placeholder((n,), name="B")
+    C = te.compute((n,), lambda i: A[i] + B[i], name="C")
+    s = te.create_schedule(C.op)
+    AA = s.cache_read(A, "global:tag", readers=[C])
+    BB = s.cache_read(B, "global:tag", readers=[C])
+    CC = s.cache_write(C, "global:tag")
+    s[CC].vectorize(s[CC].op.axis[0])
+    bounds = tvm.te.schedule.InferBound(s)
+    stmt = tvm.te.schedule.ScheduleOps(s, bounds)
+    func = tvm.te.schedule.SchedulePostProcToPrimFunc([A, B, C], stmt, None)
+    mod = tvm.IRModule.from_expr(func)
+    mod = tvm.tir.transform.StorageFlatten(64)(mod)
+    mod = tvm.tir.transform.VectorizeLoop()(mod)
+    mod = tvm.tir.transform.StorageRewrite()(mod)
+    mod = tvm.tir.transform.Simplify()(mod)
+    stmt = mod["main"].body
+    num_alloc = [0]
+
+    def verify(v):
+        # find add op
+        if (
+            isinstance(v, tvm.tir.Add)
+            and isinstance(v.a, tvm.tir.Load)
+            and isinstance(v.b, tvm.tir.Load)
+        ):
+            lhs_ramp = v.a.index
+            rhs_ramp = v.b.index
+            # these two ramp load should not overlap
+            assert lhs_ramp.lanes == n
+            assert rhs_ramp.lanes == n
+            assert lhs_ramp.base >= rhs_ramp.base + n or rhs_ramp.base >= lhs_ramp.base + n
+        elif isinstance(v, tvm.tir.Allocate):
+            num_alloc[0] += 1
+
+    tvm.tir.stmt_functor.post_order_visit(stmt, verify)
+    assert num_alloc[0] == 1
+
+
 def test_storage_share_gpu():
     m = te.var("m")
     A = [te.placeholder((m), name="A")]
@@ -648,6 +689,7 @@ if __name__ == "__main__":
     test_parallel_alloc()
     test_while_alloc()
     test_storage_combine()
+    test_storage_combine_with_vectorization()
     test_storage_share_gpu()
     test_inplace_rule2()
 
