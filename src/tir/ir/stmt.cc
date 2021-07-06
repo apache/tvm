@@ -62,12 +62,15 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 // AttrStmt
 AttrStmt::AttrStmt(ObjectRef node, String attr_key, PrimExpr value, Stmt body, Span span) {
   // TODO(masahi): Enable this invariant check
-  // if (attr_key == attr::storage_scope) {
-  //   const VarNode* buf = node.as<VarNode>();
-  //   ICHECK(buf);
-  //   ICHECK(value.as<StringImmNode>()->value == GetStorageScope(GetRef<Var>(buf)))
-  //       << value.as<StringImmNode>()->value << ", " << GetStorageScope(GetRef<Var>(buf));
-  // }
+  if (attr_key == attr::storage_scope) {
+    const VarNode* buf = node.as<VarNode>();
+    ICHECK(buf);
+    auto attr_scope = value.as<StringImmNode>()->value;
+    auto buffer_scope = GetPtrStorageScope(GetRef<Var>(buf));
+    ICHECK(attr_scope == buffer_scope)
+        << "Storage scopes attached to AttrStmt and buffer var are different. " << attr_scope
+        << ", " << buffer_scope;
+  }
   auto n = make_object<AttrStmtNode>();
   n->node = node;
   n->attr_key = std::move(attr_key);
