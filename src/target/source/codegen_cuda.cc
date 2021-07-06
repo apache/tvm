@@ -705,7 +705,7 @@ void CodeGenCUDA::VisitStmt_(const AllocateNode* op) {
   this->PrintIndent();
   int32_t constant_size = op->constant_allocation_size();
   ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation for now";
-  std::string scope = GetStorageScope(op->buffer_var);
+  std::string scope = GetPtrStorageScope(op->buffer_var);
   if (scope.find("wmma.") == 0) {
     if (scope == "wmma.matrix_a" || scope == "wmma.matrix_b") {
       ICHECK(op->dtype == DataType::Float(16) || op->dtype == DataType::Int(8) ||

@@ -58,7 +58,7 @@ class RemapStorageScope final : public StmtExprMutator {
       auto it = new_var_remap_.find(buf);
       if (it != new_var_remap_.end()) {
         auto remapped = it->second;
-        auto new_scope = GetStorageScope(remapped);
+        auto new_scope = GetPtrStorageScope(remapped);
         return AttrStmt(remapped, attr::storage_scope, StringImm(new_scope),
                         StmtMutator::VisitStmt(op->body));
       }

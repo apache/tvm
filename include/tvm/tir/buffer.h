@@ -204,7 +204,7 @@ TVM_DLL Buffer decl_buffer(Array<PrimExpr> shape, DataType dtype = DataType::Flo
  * \param buffer_var The input buffer variable.
  * \return A string representing the storage scope of this buffer variable.
  */
-TVM_DLL String GetStorageScope(Var buffer_var);
+TVM_DLL String GetPtrStorageScope(Var buffer_var);
 TVM_DLL Var WithStorageScope(Var buffer_var, String storage_scope);
 
 /*!

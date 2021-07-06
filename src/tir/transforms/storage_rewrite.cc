@@ -706,7 +706,7 @@ class StoragePlanRewriter : public StmtExprMutator {
         for (const VarNode* var : it->second.gen) {
           ICHECK(alloc_info.count(var));
           const AllocateNode* alloc = alloc_info.at(var).alloc;
-          auto storage_scope = StorageScope::Create(GetStorageScope(GetRef<Var>(var)));
+          auto storage_scope = StorageScope::Create(GetPtrStorageScope(GetRef<Var>(var)));
           StorageEntry* dst_entry = nullptr;
           // inplace detection
           if (detect_inplace) {
@@ -923,7 +923,7 @@ class VectorAllocRewriter : public StmtExprMutator {
         // create a new buffer var
         DataType new_dtype = tvec[0];
         Var new_buffer_var(op->buffer_var->name_hint,
-                           PointerType(PrimType(new_dtype), GetStorageScope(op->buffer_var)));
+                           PointerType(PrimType(new_dtype), GetPtrStorageScope(op->buffer_var)));
         // update the remap req.
         var_remap_.Set(op->buffer_var, new_buffer_var);
         return Allocate(new_buffer_var, new_dtype, extents, op->condition, op->body);

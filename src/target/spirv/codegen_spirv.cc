@@ -647,7 +647,7 @@ void CodeGenSPIRV::VisitStmt_(const AllocateNode* op) {
   ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation in GPU";
 
   spirv::Value buf;
-  auto storage_scope = runtime::StorageScope::Create(GetStorageScope(op->buffer_var));
+  auto storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(op->buffer_var));
   spirv::SType etype = builder_->GetSType(op->dtype);
   if (storage_scope.rank == runtime::StorageRank::kLocal) {
     buf =

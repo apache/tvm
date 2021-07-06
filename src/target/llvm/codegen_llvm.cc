@@ -502,7 +502,7 @@ void CodeGenLLVM::GetAlignment(DataType t, const VarNode* buf_var, const PrimExp
   if (it != alloc_storage_info_.end()) {
     const StorageInfo& info = it->second;
     *p_native_bits =
-        NativeVectorBits(runtime::StorageScope::Create(GetStorageScope(GetRef<Var>(buf_var))));
+        NativeVectorBits(runtime::StorageScope::Create(GetPtrStorageScope(GetRef<Var>(buf_var))));
     max_align_bits = info.alignment * 8;
   } else {
     *p_native_bits = native_vector_bits_;
