@@ -21,16 +21,19 @@
  * TODO
  * \file remap_pointer_storage_scope.h
  */
+#ifndef TVM_TIR_TRANSFORMS_REMAP_POINTER_STORAGE_SCOPE_H_
+#define TVM_TIR_TRANSFORMS_REMAP_POINTER_STORAGE_SCOPE_H_
+
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
 
-#include <unordered_set>
+#include <unordered_map>
 
 namespace tvm {
 namespace tir {
 
-class RemapStorageScope final : public StmtExprMutator {
+class RemapStorageScope : public StmtExprMutator {
  public:
   explicit RemapStorageScope(const std::unordered_map<const VarNode*, String>& new_storage_scopes);
 
@@ -46,3 +49,4 @@ class RemapStorageScope final : public StmtExprMutator {
 
 }  // namespace tir
 }  // namespace tvm
+#endif  // TVM_TIR_TRANSFORMS_REMAP_POINTER_STORAGE_SCOPE_H_
