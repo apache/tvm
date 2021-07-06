@@ -29,7 +29,7 @@ def test_const():
 def test_scalar_dtype_inference():
     for data in [
         True,
-        np.bool(1),
+        bool(1),
         np.uint8(1),
         np.uint16(1),
         np.uint32(1),
@@ -48,7 +48,7 @@ def test_scalar_dtype_inference():
 
     for data in [
         True,
-        np.bool(1),
+        bool(1),
         np.uint8(1),
         np.uint16(1),
         np.uint32(1),
