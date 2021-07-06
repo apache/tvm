@@ -34,7 +34,11 @@ class RemapStorageScope final : public StmtExprMutator {
  public:
   explicit RemapStorageScope(const std::unordered_map<const VarNode*, String>& new_storage_scopes);
 
-  virtual Stmt VisitStmt_(const AttrStmtNode* op);
+  virtual PrimExpr VisitExpr_(const VarNode*);
+  virtual PrimExpr VisitExpr_(const LoadNode*);
+  virtual Stmt VisitStmt_(const AttrStmtNode*);
+  virtual Stmt VisitStmt_(const AllocateNode*);
+  virtual Stmt VisitStmt_(const StoreNode*);
 
  private:
   std::unordered_map<const VarNode*, Var> new_var_remap_;
