@@ -37,6 +37,8 @@
 namespace tvm {
 namespace tir {
 
+namespace {
+
 class RemapStorageScope final : public StmtExprMutator {
  public:
   explicit RemapStorageScope(const std::unordered_map<const VarNode*, Var>& new_var_remap)
@@ -80,6 +82,8 @@ class RemapStorageScope final : public StmtExprMutator {
  private:
   std::unordered_map<const VarNode*, Var> new_var_remap_;
 };
+
+}  // namespace
 
 class ThreadAllreduceBuilder final : public StmtExprMutator {
  public:
