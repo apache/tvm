@@ -33,31 +33,16 @@
 
 #include "../../runtime/thread_storage_scope.h"
 #include "ir_utils.h"
+#include "remap_pointer_storage_scope.h"
 
 namespace tvm {
 namespace tir {
 
-namespace {
-
-Var WithStorageScope(Var buffer_var, String storage_scope) {
-  auto* ptr_type = buffer_var->type_annotation.as<PointerTypeNode>();
-  ICHECK(ptr_type) << "The provided variable is not of pointer type";
-  return Var(buffer_var->name_hint, PointerType(ptr_type->element_type, storage_scope),
-             buffer_var->span);
-}
-
-class RemapStorageScope final : public StmtExprMutator {
+class RemapStorageScopeAllReduce final : public RemapStorageScope {
  public:
-  explicit RemapStorageScope(const std::unordered_map<const VarNode*, Var>& new_var_remap)
-      : new_var_remap_(new_var_remap) {}
-
-  PrimExpr VisitExpr_(const VarNode* op) final {
-    auto it = new_var_remap_.find(op);
-    if (it == new_var_remap_.end()) {
-      return GetRef<Var>(op);
-    }
-    return it->second;
-  }
+  explicit RemapStorageScopeAllReduce(
+      const std::unordered_map<const VarNode*, String>& new_storage_scopes)
+      : RemapStorageScope(new_storage_scopes) {}
 
   Stmt VisitStmt_(const AllocateNode* op) final {
     auto remapped = Downcast<Var>(StmtExprMutator::VisitExpr(op->buffer_var));
@@ -73,24 +58,7 @@ class RemapStorageScope final : public StmtExprMutator {
     }
     return StmtExprMutator::VisitStmt_(op);
   }
-
-  Stmt VisitStmt_(const StoreNode* op) final {
-    auto remapped = StmtExprMutator::VisitExpr(op->buffer_var);
-    return Store(Downcast<Var>(remapped), StmtExprMutator::VisitExpr(op->value),
-                 StmtExprMutator::VisitExpr(op->index), StmtExprMutator::VisitExpr(op->predicate));
-  }
-
-  PrimExpr VisitExpr_(const LoadNode* op) final {
-    auto remapped = StmtExprMutator::VisitExpr(op->buffer_var);
-    return Load(op->dtype, Downcast<Var>(remapped), StmtExprMutator::VisitExpr(op->index),
-                StmtExprMutator::VisitExpr(op->predicate));
-  }
-
- private:
-  std::unordered_map<const VarNode*, Var> new_var_remap_;
 };
-
-}  // namespace
 
 class ThreadAllreduceBuilder final : public StmtExprMutator {
  public:
@@ -141,10 +109,10 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       const AllocateNode* repl = it->second.as<AllocateNode>();
       if (warp_allocs_.count(repl)) {
         stmt = Allocate(repl->buffer_var, repl->dtype, repl->extents, repl->condition, op->body);
-        new_var_remap_[repl->buffer_var.get()] = WithStorageScope(repl->buffer_var, "local");
+        new_storage_scopes_[repl->buffer_var.get()] = "local";
       } else {
         stmt = Allocate(repl->buffer_var, repl->dtype, repl->extents, repl->condition, op->body);
-        new_var_remap_[repl->buffer_var.get()] = WithStorageScope(repl->buffer_var, "shared");
+        new_storage_scopes_[repl->buffer_var.get()] = "shared";
       }
       return stmt;
     } else {
@@ -161,7 +129,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     }
   }
 
-  std::unordered_map<const VarNode*, Var> new_var_remap_;
+  std::unordered_map<const VarNode*, String> new_storage_scopes_;
 
  private:
   // Thread entry
@@ -421,7 +389,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       const AllocateNode* repl = var.as<AllocateNode>();
       if (repl) {
         body = Allocate(repl->buffer_var, repl->dtype, repl->extents, repl->condition, body);
-        new_var_remap_[repl->buffer_var.get()] = WithStorageScope(repl->buffer_var, "local");
+        new_storage_scopes_[repl->buffer_var.get()] = "local";
       }
     }
 
@@ -647,7 +615,7 @@ Pass LowerThreadAllreduce() {
     const TargetNode* target_node = target.as<TargetNode>();
     ThreadAllreduceBuilder thread_all_reduce(target_node);
     auto reduce_body = thread_all_reduce(n->body);
-    n->body = RemapStorageScope(thread_all_reduce.new_var_remap_)(reduce_body);
+    n->body = RemapStorageScopeAllReduce(thread_all_reduce.new_storage_scopes_)(reduce_body);
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerThreadAllreduce", {});

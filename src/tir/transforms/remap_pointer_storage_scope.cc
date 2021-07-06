@@ -28,7 +28,7 @@
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
-#include <unordered_set>
+#include <unordered_map>
 
 #include "../../runtime/thread_storage_scope.h"
 #include "ir_utils.h"
