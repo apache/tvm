@@ -41,44 +41,10 @@
 #include "../../arith/pattern_match.h"
 #include "../../runtime/thread_storage_scope.h"
 #include "ir_utils.h"
+#include "remap_pointer_storage_scope.h"
 
 namespace tvm {
 namespace tir {
-
-namespace {
-
-Var WithStorageScope(Var buffer_var, String storage_scope) {
-  auto* ptr_type = buffer_var->type_annotation.as<PointerTypeNode>();
-  ICHECK(ptr_type) << "The provided variable is not of pointer type";
-  return Var(buffer_var->name_hint, PointerType(ptr_type->element_type, storage_scope),
-             buffer_var->span);
-}
-
-class RemapStorageScope final : public StmtExprMutator {
- public:
-  explicit RemapStorageScope(const std::unordered_map<const VarNode*, Var>& new_var_remap)
-      : new_var_remap_(new_var_remap) {}
-
-  Stmt VisitStmt_(const AttrStmtNode* op) {
-    using runtime::StorageScope;
-    if (op->attr_key == attr::storage_scope) {
-      const VarNode* buf = op->node.as<VarNode>();
-      auto it = new_var_remap_.find(buf);
-      if (it != new_var_remap_.end()) {
-        auto remapped = it->second;
-        auto new_scope = GetPtrStorageScope(remapped);
-        return AttrStmt(remapped, attr::storage_scope, StringImm(new_scope),
-                        StmtMutator::VisitStmt(op->body));
-      }
-    }
-    return StmtMutator::VisitStmt_(op);
-  }
-
- private:
-  std::unordered_map<const VarNode*, Var> new_var_remap_;
-};
-
-}  // namespace
 
 // Rewrite Rule
 //
@@ -392,7 +358,7 @@ class WarpMemoryRewriter : private StmtMutator {
     return stmt;
   }
 
-  std::unordered_map<const VarNode*, Var> new_var_remap_;
+  std::unordered_map<const VarNode*, String> new_storage_scopes_;
 
  private:
   Stmt VisitStmt_(const AllocateNode* op) {
@@ -412,7 +378,7 @@ class WarpMemoryRewriter : private StmtMutator {
       StorageScope scope = StorageScope::Create(op->value.as<StringImmNode>()->value);
       if (scope.rank == runtime::StorageRank::kWarp) {
         warp_buffer_.insert(buf);
-        new_var_remap_[buf] = WithStorageScope(GetRef<Var>(buf), "local");
+        new_storage_scopes_[buf] = "local";
       }
     }
     return StmtMutator::VisitStmt_(op);
@@ -435,7 +401,7 @@ Pass LowerWarpMemory() {
     int warp_size = target.value()->GetAttr<Integer>("thread_warp_size", 1).value();
     WarpMemoryRewriter warp_memory_rewriter(warp_size);
     auto stmt = warp_memory_rewriter.Rewrite(std::move(n->body));
-    n->body = RemapStorageScope(warp_memory_rewriter.new_var_remap_)(stmt);
+    n->body = RemapStorageScope(warp_memory_rewriter.new_storage_scopes_)(stmt);
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerWarpMemory", {});

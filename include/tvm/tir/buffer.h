@@ -199,8 +199,6 @@ class Buffer : public ObjectRef {
 TVM_DLL Buffer decl_buffer(Array<PrimExpr> shape, DataType dtype = DataType::Float(32),
                            String name = "buffer", String storage_scope = "", Span span = Span());
 
-
-
 /*!
  * \brief Base node for data producers.
  *
