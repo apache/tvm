@@ -493,13 +493,13 @@ class VarDef(SpecialStmt):
 
 @register
 class BufferVarDef(SpecialStmt):
-    """Special function for defining a Var"""
+    """Special function for defining a Var of pointer type"""
 
     def __init__(self):
         def buffer_var(dtype, storage_scope, span):
             assert isinstance(
                 self.node, ast.Assign
-            ), f"VarDef expected ast.Assign but got {type(self.node)}"
+            ), f"BufferVarDef expected ast.Assign but got {type(self.node)}"
             ptr_type = tvm.ir.PointerType(tvm.ir.PrimType(dtype), storage_scope)
             v = te.var(self.node.lhs.id.name, ptr_type, span=span)
             self.context.update_symbol(v.name, v, self.node)
