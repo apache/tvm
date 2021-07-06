@@ -2254,7 +2254,7 @@ def verify_where(condition, x, y, dtype, outdata, dynamic=False):
 
 @tvm.testing.uses_gpu
 def test_where():
-    condition = np.array([[1, 0], [1, 1]], dtype=np.bool)
+    condition = np.array([[1, 0], [1, 1]], dtype=bool)
     x = np.array([[1, 2], [3, 4]], dtype=np.int64)
     y = np.array([[9, 8], [7, 6]], dtype=np.int64)
     outdata = np.where(condition, x, y)
@@ -2275,7 +2275,7 @@ def test_where():
     outdata = np.where(condition, x, y)
     verify_where(condition, x, y, TensorProto.FLOAT, outdata)
 
-    condition = np.array(1, dtype=np.bool)
+    condition = np.array(1, dtype=bool)
     x = np.array([[1, 2], [3, 4]], dtype=np.float32)
     y = np.array([[5, 6], [7, 8]], dtype=np.float32)
     outdata = np.where(condition, x, y)
@@ -3965,7 +3965,7 @@ def verify_cond_loop():
 
     trip_count = np.array(5).astype(np.int64)
     res_y = np.array([13]).astype(np.float32)
-    cond = np.array(1).astype(np.bool)
+    cond = np.array(1).astype(bool)
     loop_graph = onnx.helper.make_graph(
         [loop_node],
         "loop_outer",
@@ -3983,7 +3983,7 @@ def verify_cond_loop():
 
     # Set a high trip count so that condition trips first.
     trip_count = np.array(40).astype(np.int64)
-    cond = np.array(1).astype(np.bool)
+    cond = np.array(1).astype(bool)
     input_vals = [trip_count, cond, y]
     verify_with_ort_with_inputs(loop_model, input_vals, use_vm=True, freeze_params=True)
 
@@ -4021,7 +4021,7 @@ def verify_count_loop():
 
     trip_count = np.array(5).astype(np.int64)
     res_y = np.array([13]).astype(np.float32)
-    cond = np.array(1).astype(np.bool)
+    cond = np.array(1).astype(bool)
     loop_graph = onnx.helper.make_graph(
         [loop_node],
         "loop_outer",
@@ -4038,7 +4038,7 @@ def verify_count_loop():
     loop_model = onnx.helper.make_model(loop_graph)
 
     trip_count = np.array(5).astype(np.int64)
-    cond = np.array(1).astype(np.bool)
+    cond = np.array(1).astype(bool)
     input_vals = [trip_count, cond, y]
     verify_with_ort_with_inputs(loop_model, input_vals, use_vm=True, freeze_params=True)
 
@@ -4075,7 +4075,7 @@ def verify_tensor_loop():
     )
 
     trip_count = np.array(5).astype(np.int64)
-    cond = np.array(1).astype(np.bool)
+    cond = np.array(1).astype(bool)
     loop_graph = onnx.helper.make_graph(
         [loop_node],
         "loop_outer",
@@ -4092,7 +4092,7 @@ def verify_tensor_loop():
     loop_model = onnx.helper.make_model(loop_graph)
 
     trip_count = np.array(5).astype(np.int64)
-    cond = np.array(1).astype(np.bool)
+    cond = np.array(1).astype(bool)
     input_vals = [trip_count, cond, y]
     verify_with_ort_with_inputs(
         loop_model, input_vals, use_vm=True, freeze_params=True, convert_to_static=True

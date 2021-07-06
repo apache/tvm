@@ -189,7 +189,7 @@ def test_where():
 
     x_np = np.array(1.0, dtype)
     y_np = np.array(-1.0, dtype)
-    cond_np = np.array([1, 0, 1], dtype=np.bool)
+    cond_np = np.array([1, 0, 1], dtype=bool)
 
     verify(x_np, y_np, cond_np)
 
@@ -201,7 +201,7 @@ def test_where():
 
     x_np = np.array([[1, 2], [3, 4]], dtype)
     y_np = np.array([[5, 6], [7, 8]], dtype)
-    cond_np = np.array([[1], [0]], dtype=np.bool)
+    cond_np = np.array([[1], [0]], dtype=bool)
 
     verify(x_np, y_np, cond_np)
     verify(x_np, y_np, cond_np.T)
@@ -213,7 +213,7 @@ def test_where():
     verify(x_np, y_np, cond_np)
 
     x_np, y_np = np.ogrid[:3, :4]
-    cond_np = np.where(x_np < y_np, x_np, 10 + y_np).astype(np.bool)
+    cond_np = np.where(x_np < y_np, x_np, 10 + y_np).astype(bool)
 
     verify(x_np.astype(dtype), y_np.astype(dtype), cond_np)
 
