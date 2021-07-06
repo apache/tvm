@@ -284,7 +284,7 @@ Constructor IRModuleNode::LookupTag(const int32_t tag) {
   return (*it).second;
 }
 
-struct Renamer : relay::ExprMutator, TypeMutator {
+struct Renamer : relay::MixedModeMutator, TypeMutator {
   Map<String, GlobalVar> defs;
   Map<String, GlobalTypeVar> types;
   std::unordered_map<int32_t, Constructor> ctors;
@@ -319,6 +319,29 @@ struct Renamer : relay::ExprMutator, TypeMutator {
   relay::Expr VisitExpr_(const GlobalVarNode* node) override { return defs.at(node->name_hint); }
 
   Type VisitType_(const GlobalTypeVarNode* node) override { return types.at(node->name_hint); }
+
+  relay::Expr VisitExpr_(const relay::LetNode* op) final {
+    auto pre_visit = [this](const relay::LetNode* op) {
+      // Rely on the Memoizer to cache pre-visit values
+      this->VisitExpr(op->var);
+      this->VisitExpr(op->value);
+    };
+    auto post_visit = [this](const relay::LetNode* op) {
+      // Rely on the Memoizer to cache pre-visit values
+      relay::Var var = Downcast<relay::Var>(this->VisitExpr(op->var));
+      relay::Expr value = this->VisitExpr(op->value);
+      // Visit body and cache the op
+      relay::Expr body = this->VisitExpr(op->body);
+      auto expr = GetRef<relay::Expr>(op);
+      if (var.same_as(op->var) && value.same_as(op->value) && body.same_as(op->body)) {
+        this->memo_[expr] = expr;
+      } else {
+        this->memo_[expr] = relay::Let(var, value, body);
+      }
+    };
+    relay::ExpandANormalForm(op, pre_visit, post_visit);
+    return memo_[GetRef<relay::Expr>(op)];
+  }
 };
 
 void IRModuleNode::Update(const IRModule& mod) {
