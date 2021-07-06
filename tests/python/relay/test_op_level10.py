@@ -18,14 +18,11 @@
 """
 import numpy as np
 import tvm
-from tvm import te
+import tvm.testing
 import tvm.topi.testing
-from tvm import relay
+from tvm import relay, te, topi
 from tvm.relay import transform
 from tvm.relay.testing import run_infer_type
-from tvm import topi
-import tvm.topi.testing
-import tvm.testing
 
 
 @tvm.testing.uses_gpu
@@ -362,9 +359,11 @@ def test_batch_matmul():
     verify_batch_matmul((30, 16, 32), (30, 20, 32), (30, 16, 20))
 
 
-def verify_dynamic_batch_matmul(x_shape, y_shape, out_shape, dtype="float32"):
-    x = relay.var("x", relay.TensorType(x_shape, dtype))
-    y = relay.var("y", relay.TensorType((relay.Any(),) * len(y_shape), dtype))
+def verify_dynamic_batch_matmul(
+    x_shape, y_shape, out_shape, x_var_shape, y_var_shape, dtype="float32"
+):
+    x = relay.var("x", relay.TensorType(x_var_shape, dtype))
+    y = relay.var("y", relay.TensorType(y_var_shape, dtype))
     z = relay.nn.batch_matmul(x, y)
 
     func = relay.Function([x, y], z)
@@ -383,10 +382,31 @@ def verify_dynamic_batch_matmul(x_shape, y_shape, out_shape, dtype="float32"):
 # TODO(mbrookhart): enable once VM supports heterogenous execution
 # @tvm.testing.uses_gpu
 def test_dynamic_batch_matmul():
-    verify_dynamic_batch_matmul((1, 16, 32), (1, 16, 32), (1, 16, 16))
-    verify_dynamic_batch_matmul((5, 16, 32), (5, 16, 32), (5, 16, 16))
-    verify_dynamic_batch_matmul((5, 16, 32), (5, 20, 32), (5, 16, 20))
-    verify_dynamic_batch_matmul((30, 16, 32), (30, 20, 32), (30, 16, 20))
+    verify_dynamic_batch_matmul(
+        (1, 16, 32), (1, 16, 32), (1, 16, 16), (1, 16, 32), (relay.Any(),) * 3
+    )
+    verify_dynamic_batch_matmul(
+        (5, 16, 32), (5, 16, 32), (5, 16, 16), (5, 16, 32), (relay.Any(),) * 3
+    )
+    verify_dynamic_batch_matmul(
+        (5, 16, 32), (5, 20, 32), (5, 16, 20), (5, 16, 32), (relay.Any(),) * 3
+    )
+    verify_dynamic_batch_matmul(
+        (30, 16, 32), (30, 20, 32), (30, 16, 20), (30, 16, 32), (relay.Any(),) * 3
+    )
+
+    verify_dynamic_batch_matmul(
+        (1, 16, 32), (1, 16, 32), (1, 16, 16), (relay.Any(), 16, 32), (relay.Any(), 16, 32)
+    )
+    verify_dynamic_batch_matmul(
+        (5, 16, 32), (5, 16, 32), (5, 16, 16), (relay.Any(), 16, 32), (relay.Any(), 16, 32)
+    )
+    verify_dynamic_batch_matmul(
+        (5, 16, 32), (5, 20, 32), (5, 16, 20), (relay.Any(), 16, 32), (relay.Any(), 20, 32)
+    )
+    verify_dynamic_batch_matmul(
+        (30, 16, 32), (30, 20, 32), (30, 16, 20), (relay.Any(), 16, 32), (relay.Any(), 20, 32)
+    )
 
 
 @tvm.testing.uses_gpu
@@ -608,7 +628,7 @@ def test_nll_loss(dev, target):
         for kind in ["graph", "debug"]:
             intrp = relay.create_executor(kind, device=dev, target=target)
             out_relay = intrp.evaluate(func)(predictions_np, targets_np, weights_np)
-            tvm.testing.assert_allclose(out_relay.asnumpy(), out_np, rtol=1e-4, atol=1e-5)
+            tvm.testing.assert_allclose(out_relay.asnumpy(), out_np, rtol=1e-6, atol=1e-6)
 
     _verify((10, 5))
     _verify((10, 5, 2, 2))

@@ -35,9 +35,7 @@ from .deformable_conv2d_python import deformable_conv2d_nchw_python, deformable_
 from .depthwise_conv2d_python import depthwise_conv2d_python_nchw, depthwise_conv2d_python_nhwc
 from .dilate_python import dilate_python
 from .softmax_python import softmax_python, log_softmax_python
-from .upsampling_python import upsampling_python, upsampling3d_python
-from .bilinear_resize_python import bilinear_resize_python
-from .trilinear_resize3d_python import trilinear_resize3d_python
+from .resize_python import resize1d_python, resize2d_python, resize3d_python
 from .reorg_python import reorg_python
 from .roi_align_python import roi_align_nchw_python, roi_align_nhwc_python
 from .roi_pool_python import roi_pool_nchw_python

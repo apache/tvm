@@ -1275,7 +1275,7 @@ def test_any_ndarray_size():
     verify_any_ndarray_size((1, 2, 3, 4))
 
 
-def verify_any_resize(data_shape, scale, layout, static_data_shape, ref_out_shape):
+def verify_any_resize2d(data_shape, scale, layout, static_data_shape, ref_out_shape):
     mod = tvm.IRModule()
     dtype = "float32"
     data = relay.var("data", shape=data_shape, dtype=dtype)
@@ -1283,7 +1283,7 @@ def verify_any_resize(data_shape, scale, layout, static_data_shape, ref_out_shap
         size = (data_shape[1] * scale, data_shape[2] * scale)
     else:
         size = (data_shape[2] * scale, data_shape[3] * scale)
-    y = relay.image.resize(data, size, layout)
+    y = relay.image.resize2d(data, size, layout)
     mod["main"] = relay.Function([data], y)
     data_np = np.random.uniform(size=static_data_shape).astype(dtype)
     check_result([data_np], mod, ref_out_shape, assert_shape=True)
@@ -1291,14 +1291,14 @@ def verify_any_resize(data_shape, scale, layout, static_data_shape, ref_out_shap
 
 @tvm.testing.uses_gpu
 def test_any_resize():
-    verify_any_resize(
+    verify_any_resize2d(
         data_shape=(relay.Any(), 4, 4, 4),
         scale=2,
         layout="NHWC",
         static_data_shape=(1, 4, 4, 4),
         ref_out_shape=(1, 8, 8, 4),
     )
-    verify_any_resize(
+    verify_any_resize2d(
         data_shape=(relay.Any(), 8, 17, 20),
         scale=3,
         layout="NCHW",

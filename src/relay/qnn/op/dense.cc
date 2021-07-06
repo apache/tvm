@@ -70,7 +70,7 @@ bool QnnDenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   // Collect the input tensor and output tensor devoid of scale and zero points to reuse Relay
   // Dense infer type function.
   Array<Type> tensor_types = {types[0], types[1], types[6]};
-  return DenseRel<DenseAttrs>(tensor_types, 3, attrs, reporter);
+  return MatmulRel<DenseAttrs>(tensor_types, 3, attrs, reporter);
 }
 
 // Positional relay function to create quantized dense operator used by frontend FFI.

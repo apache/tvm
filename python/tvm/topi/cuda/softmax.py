@@ -164,3 +164,13 @@ def softmax_cudnn(x, axis=-1):
 def schedule_softmax_cudnn(outs):
     """Schedule for softmax cudnn op"""
     return generic.schedule_extern(outs)
+
+
+def log_softmax_cudnn(x, axis=-1):
+    """Perform log_softmax on the data using cudnn"""
+    return cudnn.log_softmax(x, axis)
+
+
+def schedule_log_softmax_cudnn(outs):
+    """Schedule for log_softmax cudnn op"""
+    return generic.schedule_extern(outs)

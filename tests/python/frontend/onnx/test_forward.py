@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import os
 import re
 
 import numpy as np
@@ -120,7 +121,7 @@ def get_tvm_output(
 def get_onnxruntime_output(model, inputs):
     import onnxruntime.backend
 
-    rep = onnxruntime.backend.prepare(model, "CPU")
+    rep = onnxruntime.backend.prepare(model.SerializeToString(), "CPU")
     if isinstance(inputs, list) and len(inputs) == 1:
         inp = inputs[0]
     else:
@@ -149,6 +150,7 @@ def verify_with_ort_with_inputs(
 ):
     if opset is not None:
         model.opset_import[0].version = opset
+
     ort_out = get_onnxruntime_output(model, inputs)
 
     if targets is None:
@@ -1364,11 +1366,12 @@ def verify_upsample3d_trilinear():
     y = helper.make_node("Upsample", ["in", "scales"], ["out"], mode="linear")
     scales = [1.0, 1.0, 2.0, 2.0, 2.0]
     in_array = np.random.uniform(size=in_shape).astype(np.float32)
-    out_array = tvm.topi.testing.trilinear_resize3d_python(
+    out_array = tvm.topi.testing.resize3d_python(
         in_array,
-        (3 * scale, 3 * scale, 3 * scale),
+        (scale, scale, scale),
         "NCDHW",
-        coordinate_transformation_mode="half_pixel",
+        "linear",
+        coordinate_transformation_mode="asymmetric",
     )
 
     ref_array = np.array(scales)
@@ -3546,7 +3549,7 @@ def test_gru():
 
 @tvm.testing.uses_gpu
 def test_resize():
-    def verify(ishape, oshape, scales, mode, coord_trans):
+    def verify(ishape, oshape, scales, mode, coord_trans="asymmetric", alpha=0.5, exclude=False):
         nodes = [
             make_constant_node("roi", onnx.TensorProto.FLOAT, (0,), []),
             make_constant_node("scales", onnx.TensorProto.FLOAT, (len(scales),), scales),
@@ -3564,6 +3567,8 @@ def test_resize():
                 outputs=["Y"],
                 mode=mode,
                 coordinate_transformation_mode=coord_trans,
+                cubic_coeff_a=alpha,
+                exclude_outside=exclude,
             )
         )
 
@@ -3580,29 +3585,69 @@ def test_resize():
 
         verify_with_ort(model, [ishape], [oshape], use_vm=True, opset=11, freeze_params=True)
 
-    # upsampling
-    verify([1, 16, 32, 32], [1, 16, 64, 64], [], "nearest", "asymmetric")
-    verify([1, 16, 32, 32], [1, 16, 64, 64], [], "linear", "asymmetric")
-    verify([1, 16, 32, 32], [1, 16, 64, 64], [], "nearest", "align_corners")
-    verify([1, 16, 32, 32], [1, 16, 64, 64], [], "linear", "align_corners")
-    verify([1, 16, 32, 32], [1, 16, 64, 64], [], "nearest", "half_pixel")
-    verify([1, 16, 32, 32], [1, 16, 64, 64], [], "linear", "half_pixel")
+    for ndim in [1, 2, 3]:
+        method = "nearest"
+        for coord_trans in ["asymmetric", "align_corners", "half_pixel"]:
+            # upsampling
+            verify([1, 16] + [32] * ndim, [1, 16] + [64] * ndim, [], method, coord_trans)
+            # downsampling
+            verify([1, 16] + [32] * ndim, [1, 16] + [16] * ndim, [], method, coord_trans)
+            # scales are specified instead of sizes
+            verify([1, 16] + [32] * ndim, [], [1, 1] + [0.5] * ndim, method, coord_trans)
+            verify([1, 16] + [32] * ndim, [], [1, 1] + [2] * ndim, method, coord_trans)
 
-    # downsampling
-    verify([1, 16, 32, 32], [1, 16, 16, 16], [], "nearest", "asymmetric")
-    verify([1, 16, 32, 32], [1, 16, 16, 16], [], "linear", "asymmetric")
-    verify([1, 16, 32, 32], [1, 16, 16, 16], [], "nearest", "align_corners")
-    verify([1, 16, 32, 32], [1, 16, 16, 16], [], "linear", "align_corners")
-    verify([1, 16, 32, 32], [1, 16, 16, 16], [], "nearest", "half_pixel")
-    verify([1, 16, 32, 32], [1, 16, 16, 16], [], "linear", "half_pixel")
+        if ndim == 2:
+            ## TODO(mbrookhart): ONNX Runtime in CI only supports 2D linear resize
+            ## Remove this condition when updating CI
+            method = "linear"
+            # upsampling
+            verify([1, 16] + [32] * ndim, [1, 16] + [64] * ndim, [], method)
+            # downsampling
+            verify([1, 16] + [32] * ndim, [1, 16] + [16] * ndim, [], method)
+            # scales are specified instead of sizes
+            verify([1, 16] + [32] * ndim, [], [1, 1] + [0.5] * ndim, method)
+            verify([1, 16] + [32] * ndim, [], [1, 1] + [2] * ndim, method)
 
-    # scales are specified instead of sizes
-    verify([1, 16, 32, 32], [], [1, 1, 2, 2], "nearest", "asymmetric")
-    verify([1, 16, 32, 32], [], [1, 1, 2, 2], "linear", "asymmetric")
-    verify([1, 16, 32, 32], [], [1, 1, 2, 2], "nearest", "align_corners")
-    verify([1, 16, 32, 32], [], [1, 1, 2, 2], "linear", "align_corners")
-    verify([1, 16, 32, 32], [], [1, 1, 0.5, 0.5], "linear", "half_pixel")
-    verify([1, 16, 32, 32], [], [1, 1, 0.5, 0.5], "nearest", "half_pixel")
+        if ndim == 2:
+            # ONNX Runtime only supports cubic interpolation for 2D images
+            method = "cubic"
+            for alpha in [0.5, 0.75]:
+                for exclude in [True, False]:
+                    # upsampling
+                    verify(
+                        [1, 16] + [32] * ndim,
+                        [1, 16] + [64] * ndim,
+                        [],
+                        method,
+                        alpha=alpha,
+                        exclude=exclude,
+                    )
+                    # downsampling
+                    verify(
+                        [1, 16] + [32] * ndim,
+                        [1, 16] + [16] * ndim,
+                        [],
+                        method,
+                        alpha=alpha,
+                        exclude=exclude,
+                    )
+                    # scales are specified instead of sizes
+                    verify(
+                        [1, 16] + [32] * ndim,
+                        [],
+                        [1, 1] + [0.5] * ndim,
+                        method,
+                        alpha=alpha,
+                        exclude=exclude,
+                    )
+                    verify(
+                        [1, 16] + [32] * ndim,
+                        [],
+                        [1, 1] + [2] * ndim,
+                        method,
+                        alpha=alpha,
+                        exclude=exclude,
+                    )
 
     def verify_opset_10(ishape, scales, mode):
         nodes = [
@@ -4753,6 +4798,64 @@ def test_qlinearconv():
         repeat(1, D),
         repeat(2, D),
     )
+
+
+def verify_qlinearadd(a_shape, b_shape, c_shape):
+
+    a_array = np.random.random(a_shape).astype("float32")
+    b_array = np.random.random(b_shape).astype("float32")
+
+    input_nodes = [
+        helper.make_tensor_value_info("a", TensorProto.FLOAT, list(a_shape)),
+        helper.make_tensor_value_info("b", TensorProto.FLOAT, list(b_shape)),
+    ]
+    input_names = [
+        "a",
+        "b",
+    ]
+    input_values = [a_array, b_array]
+
+    node = helper.make_node("QLinearAdd", inputs=input_names, outputs=["C"])
+
+    node = helper.make_node("Add", ["a", "b"], ["C"])
+    graph = helper.make_graph(
+        [node],
+        "qlinearadd_test",
+        inputs=input_nodes,
+        outputs=[helper.make_tensor_value_info("C", TensorProto.FLOAT, list(c_shape))],
+    )
+    model = helper.make_model(graph, producer_name="qlinearconv_test")
+    from onnxruntime.quantization import quantize_static, CalibrationDataReader, QuantType
+
+    class RandomDataReader(CalibrationDataReader):
+        def __init__(self, n=10):
+            self.data = iter(
+                [
+                    {
+                        "a": np.random.random(a_shape).astype("float32"),
+                        "b": np.random.random(b_shape).astype("float32"),
+                    }
+                    for _ in range(n)
+                ]
+            )
+
+        def get_next(self):
+            return next(self.data, None)
+
+    d = tvm.contrib.utils.tempdir()
+    model_fp32 = os.path.join(d.temp_dir, "model.onnx")
+    onnx.save_model(model, model_fp32)
+    model_quant = os.path.join(d.temp_dir, "model.quant.onnx")
+    quantized_model = quantize_static(model_fp32, model_quant, RandomDataReader())
+    # opt_level=1 will cause error with qnn lowering
+    model = onnx.load(model_quant)
+    verify_with_ort_with_inputs(model, input_values, opt_level=2)
+
+
+def test_qlinearadd():
+    verify_qlinearadd([4, 2], [4, 2], [4, 2])
+    verify_qlinearadd([4, 2], [2], [4, 2])
+    verify_qlinearadd([5, 1, 7], [2, 7], [5, 2, 7])
 
 
 if __name__ == "__main__":

@@ -40,7 +40,23 @@ from .backend import interpreter as _interpreter
 from .backend.vm import VMExecutor
 
 
-def _update_target(target):
+def build_target_by_device_type_map(target):
+    """Build a map from DLDevice device_type to a Target used with that device.
+
+    At runtime, TVM assigns target code to DLDevices by determining a device_type for each Target.
+    This function handles this process at compile time and, as a side effect, validates that exactly
+    one target maps to one device_type.
+
+    Parameters
+    ----------
+    target : Target or str or dict
+       If a Target or str: assumes that exactly one device type is present in the model.
+       If a dict: keys are tvm.ndarray.device, values are the targets used for each device.
+
+    Returns
+    -------
+
+    """
     target = target if target else Target.current()
     if target is None:
         raise ValueError("Target is not set in env or passed as argument.")
@@ -132,7 +148,7 @@ class BuildModule(object):
         params : dict
             The parameters of the final graph.
         """
-        target = _update_target(target)
+        target = build_target_by_device_type_map(target)
         target, target_host = Target.check_and_update_host_consist(
             target, target_host, target_is_dict_key=False
         )
@@ -187,7 +203,7 @@ class BuildModule(object):
         params : dict
             The parameters of the final graph.
         """
-        target = _update_target(target)
+        target = build_target_by_device_type_map(target)
 
         # Setup the params.
         if params:
@@ -316,7 +332,7 @@ def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"
             "instead of deprecated parameter mod (tvm.relay.function.Function)",
             DeprecationWarning,
         )
-    target = _update_target(target)
+    target = build_target_by_device_type_map(target)
     if isinstance(target_host, (str, Target)):
         target_host = Target(target_host)
     elif target_host:
@@ -395,7 +411,7 @@ def optimize(mod, target=None, params=None):
             DeprecationWarning,
         )
 
-    target = _update_target(target)
+    target = build_target_by_device_type_map(target)
 
     # If current dispatch context is fallback context (the default root context),
     # then load pre-tuned parameters from TopHub

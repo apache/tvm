@@ -1798,7 +1798,7 @@ class PyTorchOpConverter:
                 else:
                     out_size.append(size)
         else:
-            scale_index = 3 if method in ["bilinear", "trilinear"] else 2
+            scale_index = 3 if method == "linear" else 2
             scales = inputs[scale_index]
             assert scales is not None, "neither out size nor scale provided"
             assert isinstance(scales, list)
@@ -1813,7 +1813,7 @@ class PyTorchOpConverter:
             data = inputs[0]
             out_size = self.get_upsample_out_size(inputs, method)
 
-            if len(inputs) > 2 and method == "bilinear":
+            if len(inputs) > 2 and method == "linear":
                 align_corners = inputs[2]
             else:
                 align_corners = False
@@ -1826,7 +1826,7 @@ class PyTorchOpConverter:
                 coord_trans = "half_pixel"
 
             def func(x):
-                return _op.image.resize(x, out_size, "NCHW", method, coord_trans)
+                return _op.image.resize2d(x, out_size, "NCHW", method, coord_trans)
 
             if self.is_quantized_tensor(data):
                 # input qparams are manually appended by us
@@ -1845,7 +1845,7 @@ class PyTorchOpConverter:
             data = inputs[0]
             out_size = self.get_upsample_out_size(inputs, method)
 
-            if len(inputs) > 2 and method == "trilinear":
+            if len(inputs) > 2 and method == "linear":
                 align_corners = inputs[2]
             else:
                 align_corners = False
@@ -1876,9 +1876,6 @@ class PyTorchOpConverter:
     def Float(self, inputs, input_types):
         assert len(inputs) == 1
         return _op.cast(inputs[0], "float32")
-
-    def mm(self, inputs, input_types):
-        return _op.nn.dense(inputs[0], inputs[1])
 
     def bitwise_not(self, inputs, input_types):
         data = inputs[0]
@@ -2195,6 +2192,8 @@ class PyTorchOpConverter:
         method = inputs[3]
         if method.startswith("nearest"):
             method = "nearest_neighbor"
+        elif method[0:2] == "bi":
+            method = method[2:]
 
         if method == "nearest_neighbor":
             coord_trans = "asymmetric"
@@ -2203,7 +2202,7 @@ class PyTorchOpConverter:
         else:
             coord_trans = "half_pixel"
 
-        return _op.image.resize(data, out_size, "NCHW", method, coord_trans)
+        return _op.image.resize2d(data, out_size, "NCHW", method, coord_trans)
 
     def numel(self, inputs, input_types):
         return _op.ndarray_size(inputs[0])
@@ -2324,6 +2323,11 @@ class PyTorchOpConverter:
         if weights is None:
             weights = _op.full(_expr.const(1), (num_class,), dtype=input_types[0])
         return _op.nn.nll_loss(predictions, targets, weights, reduction, ignore_index)
+
+    def flip(self, inputs, input_types):
+        data = inputs[0]
+        axis = inputs[1]
+        return _op.transform.reverse(data, axis=axis[0])
 
     # Operator mappings
     def create_convert_map(self):
@@ -2473,9 +2477,9 @@ class PyTorchOpConverter:
             "aten::clamp": self.clamp,
             "aten::clamp_": self.clamp,
             "aten::detach": self.identity,
-            "aten::upsample_bilinear2d": self.make_upsample("bilinear"),
+            "aten::upsample_bilinear2d": self.make_upsample("linear"),
             "aten::upsample_nearest2d": self.make_upsample("nearest_neighbor"),
-            "aten::upsample_trilinear3d": self.make_upsample3d("trilinear"),
+            "aten::upsample_trilinear3d": self.make_upsample3d("linear"),
             "aten::upsample_nearest3d": self.make_upsample3d("nearest_neighbor"),
             "aten::expand_as": self.expand_as,
             "aten::lt": self.make_elemwise("less"),
@@ -2533,12 +2537,14 @@ class PyTorchOpConverter:
             "aten::hardsigmoid": self.hard_sigmoid,
             "aten::cumsum": self.cumsum,
             "aten::masked_fill": self.masked_fill,
+            "aten::masked_fill_": self.masked_fill,
             "aten::masked_select": self.masked_select,
             "aten::argsort": self.argsort,
             "aten::sort": self.sort,
             "aten::_unique2": self.unique,
             "aten::nll_loss": self.nll_loss,
             "aten::nll_loss2d": self.nll_loss,
+            "aten::flip": self.flip,
         }
 
     def update_convert_map(self, custom_map):

@@ -457,6 +457,7 @@ class Conv(OnnxOpConverter):
 
         kernel_type = infer_type(inputs[1])
         kernel_shapes = [get_const_tuple(kernel_type.checked_type.shape)]
+
         if "kernel_shape" not in attr:
             attr["kernel_shape"] = kernel_shapes[0][2:]
 
@@ -1199,7 +1200,13 @@ class Upsample(OnnxOpConverter):
 
             layout = "NCDHW"
             out = _op.nn.upsampling3d(
-                inputs[0], scale_d, scale_h, scale_w, layout=layout, method=method
+                inputs[0],
+                scale_d,
+                scale_h,
+                scale_w,
+                layout=layout,
+                method=method,
+                coordinate_transformation_mode="asymmetric",
             )
         # in 2d case, use dynamic op
         else:
@@ -2388,9 +2395,9 @@ class Resize(OnnxOpConverter):
         if mode == "nearest":
             method = "nearest_neighbor"
         elif mode == "linear":
-            method = "bilinear"
+            method = "linear"
         elif mode == "cubic":
-            method = "bicubic"
+            method = "cubic"
         else:
             raise tvm.error.OpAttributeInvalid(
                 'Value {} in attribute "mode" of operator Resize is not valid.'.format(mode)
@@ -2398,21 +2405,31 @@ class Resize(OnnxOpConverter):
 
         scale = inputs[1]
         size = _op.cast(shape_of(inputs[0]), infer_type(scale).checked_type.dtype) * scale
-        layout = "NCHW"  # ONNX assumes NCHW layout
-        out_size = fold_constant(_op.strided_slice(size, [2], [4]))
-        return _op.image.resize(inputs[0], out_size, layout, method, "asymmetric")
+        ndims = len(infer_shape(inputs[0]))
+        out = None
+        if ndims == 3:
+            out_size = fold_constant(_op.strided_slice(size, [2], [3]))
+            out = _op.image.resize1d(inputs[0], out_size, "NCW", method, "asymmetric")
+        elif ndims == 4:
+            out_size = fold_constant(_op.strided_slice(size, [2], [4]))
+            out = _op.image.resize2d(inputs[0], out_size, "NCHW", method, "asymmetric")
+        elif ndims == 5:
+            out_size = fold_constant(_op.strided_slice(size, [2], [5]))
+            out = _op.image.resize3d(inputs[0], out_size, "NCDHW", method, "asymmetric")
+        else:
+            raise NotImplementedError("Resize only supports 3, 4, or 5 dims")
+        return out
 
     @classmethod
     def _impl_v11(cls, inputs, attr, params):
-        layout = "NCHW"  # ONNX assumes NCHW layout
-
+        ndims = len(infer_shape(inputs[0]))
         mode = attr.get("mode").decode("ascii")
         if mode == "nearest":
             method = "nearest_neighbor"
         elif mode == "linear":
-            method = "bilinear"
+            method = "linear"
         elif mode == "cubic":
-            method = "bicubic"
+            method = "cubic"
         else:
             raise tvm.error.OpAttributeInvalid(
                 'Value {} in attribute "mode" of operator Resize is not valid.'.format(mode)
@@ -2434,10 +2451,26 @@ class Resize(OnnxOpConverter):
             assert len(scale_shape) != 0, "One of scale or size should be passed."
             size = _op.cast(shape_of(inputs[0]), infer_type(scale).checked_type.dtype) * scale
         out_size = fold_constant(_op.strided_slice(size, [2], [4]))
+        out = None
+        if ndims == 3:
+            out_size = fold_constant(_op.strided_slice(size, [2], [3]))
+            out = _op.image.resize1d(
+                inputs[0], out_size, "NCW", method, coord_trans, nearest_mode, alpha, exclude
+            )
+        elif ndims == 4:
+            out_size = fold_constant(_op.strided_slice(size, [2], [4]))
+            out = _op.image.resize2d(
+                inputs[0], out_size, "NCHW", method, coord_trans, nearest_mode, alpha, exclude
+            )
+        elif ndims == 5:
+            out_size = fold_constant(_op.strided_slice(size, [2], [5]))
+            out = _op.image.resize3d(
+                inputs[0], out_size, "NCDHW", method, coord_trans, nearest_mode, alpha, exclude
+            )
+        else:
+            raise NotImplementedError("Resize only supports 3, 4, or 5 dims")
 
-        return _op.image.resize(
-            inputs[0], out_size, layout, method, coord_trans, nearest_mode, alpha, exclude
-        )
+        return out
 
 
 class NonZero(OnnxOpConverter):
@@ -2973,6 +3006,8 @@ class QuantizeLinear(OnnxOpConverter):
         data, scale, zp = inputs
         out_dtype = infer_type(zp).checked_type.dtype
         axis = attr.get("axis", 1)
+        if len(infer_shape(data)) < 2:
+            axis = 0
         return _qnn.op.quantize(data, scale, _op.cast(zp, "int32"), axis, out_dtype)
 
 
@@ -3033,10 +3068,11 @@ class QLinearConv(OnnxOpConverter):
         weight = inputs[3]
         w_scale = get_scalar(inputs[4])
         w_zero_point = get_scalar(inputs[5], "int32")
-        y_scale = get_scalar(inputs[6])
+        y_scale = fold_constant(get_scalar(inputs[6]))
         y_zero_point = get_scalar(inputs[7], "int32")
 
         input_shape = infer_shape(data)
+
         ndim = len(input_shape)
         kernel_type = infer_type(weight)
         kernel_shapes = [get_const_tuple(kernel_type.checked_type.shape)]
@@ -3114,6 +3150,44 @@ class QLinearConv(OnnxOpConverter):
             out = _qnn.op.dequantize(out, requantize_scale, _op.const(0, dtype="int32"), axis=0)
             out = _qnn.op.quantize(out, y_scale, y_zero_point, axis=0, out_dtype=out_dtype)
         return out
+
+
+class QLinearAdd(OnnxOpConverter):
+    """Operator converter for QLinearAdd from Microsoft onnxruntime contrib opset."""
+
+    @classmethod
+    def _impl_v10(cls, inputs, attr, params):
+        def get_scalar(x, dtype="float32"):
+            if isinstance(x, _expr.Var) and x.name_hint in params:
+                return _op.const(params[x.name_hint].numpy(), dtype)
+            rank = len(infer_shape(x))
+            assert rank <= 1, "QLinearConv scale and zero_point input must be scalars"
+            if rank == 1:
+                x = _op.squeeze(x, [0])
+            return _op.cast(x, dtype)
+
+        a = inputs[0]
+        a_scale = get_scalar(inputs[1])
+        a_zero_point = get_scalar(inputs[2], "int32")
+        b = inputs[3]
+        b_scale = get_scalar(inputs[4])
+        b_zero_point = get_scalar(inputs[5], "int32")
+        c_scale = get_scalar(inputs[6])
+        c_zero_point = get_scalar(inputs[7], "int32")
+
+        dtype = infer_type(a).checked_type.dtype
+
+        ## Onnxruntime doesn't actually do this op in integer, they dequantize to fp32
+        ## and then requantize afer
+        ## https://github.com/microsoft/onnxruntime/blob/master/onnxruntime/core/mlas/lib/qladd.cpp
+        a = _qnn.op.dequantize(
+            inputs[0], a_scale, a_zero_point
+        )  # , c_scale, c_zero_point, out_dtype = dtype)
+        b = _qnn.op.dequantize(
+            inputs[3], b_scale, b_zero_point
+        )  # , c_scale, c_zero_point, out_dtype = dtype)
+        out = _op.add(a, b)
+        return _qnn.op.quantize(out, c_scale, c_zero_point, out_dtype=dtype)
 
 
 class BitShift(OnnxOpConverter):
@@ -3343,6 +3417,7 @@ def _get_convert_map(opset):
         "DynamicQuantizeLinear": DynamicQuantizeLinear.get_converter(opset),
         "ReverseSequence": ReverseSequence.get_converter(opset),
         "QLinearConv": QLinearConv.get_converter(opset),
+        "QLinearAdd": QLinearAdd.get_converter(opset),
     }
 
 
