@@ -113,7 +113,7 @@ class Allocate(WithScopeHandler):
             body = tvm.tir.Allocate(
                 self.buffer_var, dtype, extents, condition, self.body, span=span
             )
-            return tvm.tir.AttrStmt(self.buffer_var, "storage_scope", scope, body, span=span)
+            return body
 
         super().__init__(allocate, concise_scope=True, def_symbol=True)
         self.buffer_var = None
