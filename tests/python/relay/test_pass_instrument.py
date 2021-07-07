@@ -251,9 +251,6 @@ def test_exit_pass_ctx_exception():
         def exit_pass_ctx(self):
             events.append(self.id + " exit ctx")
 
-        def exit_pass_ctx(self):
-            events.append(self.id + " exit ctx")
-
     @pass_instrument
     class PIBroken(PI):
         def __init__(self, id):
