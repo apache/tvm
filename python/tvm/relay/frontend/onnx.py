@@ -2879,7 +2879,10 @@ class If(OnnxOpConverter):
             graph_scope._nodes.update({var.name_hint: var})
 
         # Now we can construct the relay if statement and return.
-        return _expr.If(cond, then_expr, else_expr)
+        ret = _expr.If(cond, then_expr, else_expr)
+        if len(then_branch.output) > 1:
+            ret = _expr.TupleWrapper(ret, len(then_branch.output))
+        return ret
 
 
 class NonMaxSuppression(OnnxOpConverter):
