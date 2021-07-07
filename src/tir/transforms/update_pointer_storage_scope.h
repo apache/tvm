@@ -18,11 +18,11 @@
  */
 
 /*!
- * TODO
- * \file remap_pointer_storage_scope.h
+ * \file update_pointer_storage_scope.h
+ * \brief A pass to update storage scopes for buffer variables.
  */
-#ifndef TVM_TIR_TRANSFORMS_REMAP_POINTER_STORAGE_SCOPE_H_
-#define TVM_TIR_TRANSFORMS_REMAP_POINTER_STORAGE_SCOPE_H_
+#ifndef TVM_TIR_TRANSFORMS_UPDATE_POINTER_STORAGE_SCOPE_H_
+#define TVM_TIR_TRANSFORMS_UPDATE_POINTER_STORAGE_SCOPE_H_
 
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
@@ -33,9 +33,10 @@
 namespace tvm {
 namespace tir {
 
-class RemapStorageScope : public StmtExprMutator {
+class UpdatePointerStorageScope : public StmtExprMutator {
  public:
-  explicit RemapStorageScope(const std::unordered_map<const VarNode*, String>& new_storage_scopes);
+  explicit UpdatePointerStorageScope(
+      const std::unordered_map<const VarNode*, String>& new_storage_scopes);
 
   virtual PrimExpr VisitExpr_(const VarNode*);
   virtual PrimExpr VisitExpr_(const LoadNode*);
@@ -49,4 +50,4 @@ class RemapStorageScope : public StmtExprMutator {
 
 }  // namespace tir
 }  // namespace tvm
-#endif  // TVM_TIR_TRANSFORMS_REMAP_POINTER_STORAGE_SCOPE_H_
+#endif  // TVM_TIR_TRANSFORMS_UPDATE_POINTER_STORAGE_SCOPE_H_

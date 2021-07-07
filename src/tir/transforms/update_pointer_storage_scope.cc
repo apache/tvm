@@ -18,10 +18,10 @@
  */
 
 /*!
- * TODO
- * \file remap_pointer_storage_scope.cc
+ * \file update_pointer_storage_scope.cc
+ * \brief A pass to update storage scopes for buffer variables.
  */
-#include "remap_pointer_storage_scope.h"
+#include "update_pointer_storage_scope.h"
 
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
@@ -43,14 +43,14 @@ Var WithStorageScope(const VarNode* buffer_var, String storage_scope) {
              buffer_var->span);
 }
 
-RemapStorageScope::RemapStorageScope(
+UpdatePointerStorageScope::UpdatePointerStorageScope(
     const std::unordered_map<const VarNode*, String>& new_storage_scopes) {
   for (auto kv : new_storage_scopes) {
     new_var_remap_[kv.first] = WithStorageScope(kv.first, kv.second);
   }
 }
 
-PrimExpr RemapStorageScope::VisitExpr_(const VarNode* op) {
+PrimExpr UpdatePointerStorageScope::VisitExpr_(const VarNode* op) {
   auto it = new_var_remap_.find(op);
   if (it == new_var_remap_.end()) {
     return GetRef<Var>(op);
@@ -58,13 +58,13 @@ PrimExpr RemapStorageScope::VisitExpr_(const VarNode* op) {
   return it->second;
 }
 
-PrimExpr RemapStorageScope::VisitExpr_(const LoadNode* op) {
+PrimExpr UpdatePointerStorageScope::VisitExpr_(const LoadNode* op) {
   auto remapped = StmtExprMutator::VisitExpr(op->buffer_var);
   return Load(op->dtype, Downcast<Var>(remapped), StmtExprMutator::VisitExpr(op->index),
               StmtExprMutator::VisitExpr(op->predicate));
 }
 
-Stmt RemapStorageScope::VisitStmt_(const AttrStmtNode* op) {
+Stmt UpdatePointerStorageScope::VisitStmt_(const AttrStmtNode* op) {
   using runtime::StorageScope;
   if (op->attr_key == attr::storage_scope) {
     const VarNode* buf = op->node.as<VarNode>();
@@ -76,13 +76,13 @@ Stmt RemapStorageScope::VisitStmt_(const AttrStmtNode* op) {
   return StmtMutator::VisitStmt_(op);
 }
 
-Stmt RemapStorageScope::VisitStmt_(const AllocateNode* op) {
+Stmt UpdatePointerStorageScope::VisitStmt_(const AllocateNode* op) {
   auto remapped = Downcast<Var>(StmtExprMutator::VisitExpr(op->buffer_var));
   return Allocate(remapped, op->dtype, op->extents, StmtExprMutator::VisitExpr(op->condition),
                   StmtExprMutator::VisitStmt(op->body));
 }
 
-Stmt RemapStorageScope::VisitStmt_(const StoreNode* op) {
+Stmt UpdatePointerStorageScope::VisitStmt_(const StoreNode* op) {
   auto remapped = StmtExprMutator::VisitExpr(op->buffer_var);
   return Store(Downcast<Var>(remapped), StmtExprMutator::VisitExpr(op->value),
                StmtExprMutator::VisitExpr(op->index), StmtExprMutator::VisitExpr(op->predicate));
