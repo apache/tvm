@@ -788,7 +788,7 @@ def scatter_nd(data, indices, updates, mode):
             fused_shape *= i
 
         # For now we avoid parallizing over dimensions indexed by `indices` as
-        # there may be repeated indices and hadling parallel accumulation can
+        # there may be repeated indices and handling parallel accumulation can
         # be hard. So we parallelize over X_M .. X_{N-1} instead. This will
         # work well when these dimensions are large enough to saturate memory
         # bandwidth, but performance will be bad when these dimensions are
@@ -801,12 +801,14 @@ def scatter_nd(data, indices, updates, mode):
         bdim = ceil_div(fused_updates_dimension, tdim)
         ib.scope_attr(bx, "thread_extent", bdim)
 
-        with ib.for_range(0, ceil_div(fused_shape, bdim)) as i:
-            index = i * fused_updates_dimension + bx * tdim + tx
+        # Copy data into the output. This loop writes to the same portions of
+        # memory as the following loop, so we do not need a memory sync.
+        with ib.for_range(0, ceil_div(fused_shape, bdim * tdim), name="i") as i:
+            index = i * bdim * tdim + bx * tdim + tx
             with ib.if_scope(index < fused_shape):
                 out[index] = data[index]
 
-        with ib.for_range(0, fused_indices_dimension) as i:
+        with ib.for_range(0, fused_indices_dimension, name="i") as i:
             j = bx * tdim + tx
             with ib.if_scope(j < fused_updates_dimension):
                 offset = fused_updates_dimension

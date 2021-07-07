@@ -203,7 +203,7 @@ def _verify_scatter_nd_inputs(data, indices, updates):
     mdim = int(indices.shape[0])
     assert mdim <= len(data.shape), (
         f"The first dimension of the indices ({mdim}) must be less than or equal to "
-        f"the length of the shape of the output ({len(shape)})."
+        f"the length of the shape of the output ({len(data.shape)})."
     )
     for i in range(len(indices.shape) - 1):
         if isinstance(indices.shape[i + 1], expr.Var) or isinstance(updates.shape[i], expr.Var):
