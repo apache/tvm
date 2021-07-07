@@ -61,16 +61,6 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 // AttrStmt
 AttrStmt::AttrStmt(ObjectRef node, String attr_key, PrimExpr value, Stmt body, Span span) {
-  if (attr_key == attr::storage_scope) {
-    const VarNode* buf = node.as<VarNode>();
-    ICHECK(buf);
-    const auto* ptr_type = buf->type_annotation.as<PointerTypeNode>();
-    ICHECK(ptr_type) << "The provided variable is not of pointer type";
-    auto attr_scope = value.as<StringImmNode>()->value;
-    ICHECK_EQ(attr_scope, ptr_type->storage_scope)
-        << "Storage scopes attached to AttrStmt and buffer var are different. " << attr_scope
-        << ", " << ptr_type->storage_scope;
-  }
   auto n = make_object<AttrStmtNode>();
   n->node = node;
   n->attr_key = std::move(attr_key);
