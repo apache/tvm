@@ -305,6 +305,7 @@ def verify_poolnd(
 
     padding_before = padding[:n]
     padding_after = padding[n:]
+    channel_last = layout[-1] == 'C'
     ref_np = tvm.topi.testing.poolnd_python(
         input_np,
         kernel,
@@ -315,6 +316,7 @@ def verify_poolnd(
         pool_type,
         count_include_pad,
         ceil_mode,
+        channel_last=channel_last,
     )
 
     np.testing.assert_equal(tuple(output_shape), tuple(ref_np.shape))
@@ -355,7 +357,7 @@ def verify_pool3d(
         padding,
         pool_type,
         ceil_mode,
-        layout="NCDHW",
+        layout=layout,
         count_include_pad=count_include_pad,
     )
 
@@ -519,10 +521,179 @@ def test_pool3d():
         "max",
         True,
     )
+    # Test channel last layouts
+    verify_pool3d(
+        [1, 32, 32, 32, 16],
+        [2, 2, 2],
+        [2, 2, 2],
+        [1, 1, 1],
+        [0, 0, 0, 0, 0, 0],
+        "avg",
+        False,
+        True,
+        layout="NDHWC",
+    )
+    verify_pool3d(
+        [1, 31, 31, 31, 16],
+        [3, 3, 3],
+        [3, 3, 3],
+        [1, 1, 1],
+        [1, 1, 2, 2, 2, 1],
+        "avg",
+        False,
+        True,
+        layout="NDHWC",
+    )
+    verify_pool3d(
+        [1, 32, 32, 32, 16],
+        [2, 2, 2],
+        [2, 2, 2],
+        [1, 1, 1],
+        [1, 1, 2, 2, 2, 1],
+        "avg",
+        False,
+        False,
+        layout="NDHWC",
+    )
+    verify_pool3d(
+        [1, 31, 31, 31, 16],
+        [4, 4, 4],
+        [4, 4, 4],
+        [1, 1, 1],
+        [3, 3, 3, 3, 3, 3],
+        "avg",
+        False,
+        False,
+        layout="NDHWC",
+    )
+    verify_pool3d(
+        [1, 31, 31, 31, 16],
+        [4, 4, 4],
+        [4, 4, 4],
+        [1, 1, 1],
+        [0, 0, 0, 0, 0, 0],
+        "avg",
+        False,
+        False,
+        layout="NDHWC",
+    )
+    verify_pool3d(
+        [1, 32, 32, 32, 16],
+        [2, 2, 2],
+        [2, 2, 2],
+        [1, 1, 1],
+        [0, 0, 0, 0, 0, 0],
+        "max",
+        False,
+        layout="NDHWC",
+    )
+    verify_pool3d(
+        [1, 31, 31, 31, 16],
+        [3, 3, 3],
+        [3, 3, 3],
+        [1, 1, 1],
+        [2, 2, 1, 1, 1, 2],
+        "max",
+        False,
+        layout="NDHWC",
+    )
+    verify_pool3d(
+        [1, 31, 31, 31, 16],
+        [3, 3, 3],
+        [3, 3, 3],
+        [1, 1, 1],
+        [2, 2, 1, 1, 1, 2],
+        "max",
+        True,
+        layout="NDHWC",
+    )
+
+    verify_pool3d(
+        [1, 31, 31, 31, 16],
+        [3, 3, 3],
+        [3, 3, 3],
+        [1, 1, 1],
+        [2, 1, 0, 5, 4, 3],
+        "avg",
+        False,
+        True,
+        layout="NDHWC",
+    )
+    verify_pool3d(
+        [1, 32, 32, 32, 16],
+        [2, 2, 2],
+        [2, 2, 2],
+        [1, 1, 1],
+        [0, 5, 4, 3, 2, 1],
+        "avg",
+        False,
+        False,
+        layout="NDHWC",
+    )
+    verify_pool3d(
+        [1, 31, 31, 31, 16],
+        [3, 3, 3],
+        [3, 3, 3],
+        [1, 1, 1],
+        [1, 0, 5, 4, 3, 2],
+        "max",
+        False,
+        layout="NDHWC",
+    )
+    verify_pool3d(
+        [1, 31, 31, 31, 16],
+        [3, 3, 3],
+        [3, 3, 3],
+        [1, 1, 1],
+        [3, 2, 1, 0, 5, 4],
+        "max",
+        True,
+        layout="NDHWC",
+    )
+
+    # Test non-1 dilation
+    verify_pool3d(
+        [1, 16, 31, 31, 31],
+        [3, 3, 3],
+        [3, 3, 3],
+        [3, 3, 3],
+        [2, 1, 0, 5, 4, 3],
+        "avg",
+        False,
+        True,
+    )
+    verify_pool3d(
+        [1, 16, 32, 32, 32],
+        [2, 2, 2],
+        [2, 2, 2],
+        [2, 2, 2],
+        [0, 5, 4, 3, 2, 1],
+        "avg",
+        False,
+        False,
+    )
+    verify_pool3d(
+        [1, 16, 31, 31, 31],
+        [3, 3, 3],
+        [3, 3, 3],
+        [2, 1, 3],
+        [1, 0, 5, 4, 3, 2],
+        "max",
+        False,
+    )
+    verify_pool3d(
+        [1, 16, 31, 31, 31],
+        [3, 3, 3],
+        [3, 3, 3],
+        [2, 2, 3],
+        [3, 2, 1, 0, 5, 4],
+        "max",
+        True,
+    )
 
 
 def verify_pool2d(
-    input_shape, kernel, stride, dilation, padding, pool_type, ceil_mode, count_include_pad=True
+    input_shape, kernel, stride, dilation, padding, pool_type, ceil_mode, count_include_pad=True, layout="NCHW"
 ):
     verify_poolnd(
         2,
@@ -533,7 +704,7 @@ def verify_pool2d(
         padding,
         pool_type,
         ceil_mode,
-        layout="NCHW",
+        layout=layout,
         count_include_pad=count_include_pad,
     )
 
@@ -697,7 +868,177 @@ def test_pool2d():
         "max",
         True,
     )
+    # Test channel last
+    verify_pool2d(
+        [1, 32, 32, 16],
+        [2, 2],
+        [2, 2],
+        [1, 1],
+        [0, 0, 0, 0],
+        "avg",
+        False,
+        True,
+        layout="NHWC",
+    )
+    verify_pool2d(
+        [1, 31, 31, 16],
+        [3, 3],
+        [3, 3],
+        [1, 1],
+        [1, 2, 1, 2],
+        "avg",
+        False,
+        True,
+        layout="NHWC",
+    )
+    verify_pool2d(
+        [1, 32, 32, 16],
+        [2, 2],
+        [2, 2],
+        [1, 1],
+        [1, 2, 1, 2],
+        "avg",
+        False,
+        False,
+        layout="NHWC",
+    )
+    verify_pool2d(
+        [1, 31, 31, 16],
+        [4, 4],
+        [4, 4],
+        [1, 1],
+        [3, 3, 3, 3],
+        "avg",
+        False,
+        False,
+        layout="NHWC",
+    )
+    verify_pool2d(
+        [1, 31, 31, 16],
+        [4, 4],
+        [4, 4],
+        [1, 1],
+        [0, 0, 0, 0],
+        "avg",
+        False,
+        False,
+        layout="NHWC",
+    )
+    verify_pool2d(
+        [1, 32, 32, 16],
+        [2, 3],
+        [2, 2],
+        [1, 1],
+        [0, 0, 0, 0],
+        "max",
+        False,
+        layout="NHWC",
+    )
+    verify_pool2d(
+        [1, 31, 31, 16],
+        [3, 3],
+        [3, 3],
+        [1, 1],
+        [2, 1, 2, 1],
+        "max",
+        False,
+        layout="NHWC",
+    )
+    verify_pool2d(
+        [1, 31, 31, 16],
+        [3, 3],
+        [3, 3],
+        [1, 1],
+        [2, 1, 2, 1],
+        "max",
+        True,
+        layout="NHWC",
+    )
 
+    verify_pool2d(
+        [1, 31, 31, 16],
+        [3, 3],
+        [3, 3],
+        [1, 1],
+        [2, 1, 0, 3],
+        "avg",
+        False,
+        True,
+        layout="NHWC",
+    )
+    verify_pool2d(
+        [1, 32, 32, 16],
+        [2, 3],
+        [2, 2],
+        [1, 1],
+        [0, 3, 2, 1],
+        "avg",
+        False,
+        False,
+        layout="NHWC",
+    )
+    verify_pool2d(
+        [1, 31, 31, 16],
+        [3, 3],
+        [3, 3],
+        [1, 1],
+        [1, 0, 3, 2],
+        "max",
+        False,
+        layout="NHWC",
+    )
+    verify_pool2d(
+        [1, 31, 31, 16],
+        [3, 3],
+        [3, 3],
+        [1, 1],
+        [3, 2, 1, 0],
+        "max",
+        True,
+        layout="NHWC",
+    )
+    verify_pool2d(
+        [1, 31, 31, 16],
+        [3, 3],
+        [3, 3],
+        [2, 1],
+        [2, 1, 0, 3],
+        "avg",
+        False,
+        True,
+        layout="NHWC",
+    )
+    verify_pool2d(
+        [1, 32, 32, 16],
+        [2, 3],
+        [2, 2],
+        [2, 3],
+        [0, 3, 2, 1],
+        "avg",
+        False,
+        False,
+        layout="NHWC",
+    )
+    verify_pool2d(
+        [1, 31, 31, 16],
+        [3, 3],
+        [3, 3],
+        [3, 3],
+        [1, 0, 3, 2],
+        "max",
+        False,
+        layout="NHWC",
+    )
+    verify_pool2d(
+        [1, 31, 31, 16],
+        [3, 3],
+        [3, 3],
+        [2, 2],
+        [3, 2, 1, 0],
+        "max",
+        True,
+        layout="NHWC",
+    )
 
 def verify_pool1d(
     input_shape,
@@ -719,7 +1060,7 @@ def verify_pool1d(
         padding,
         pool_type,
         ceil_mode,
-        layout="NCW",
+        layout=layout,
         count_include_pad=count_include_pad,
     )
 
@@ -882,6 +1223,177 @@ def test_pool1d():
         [3, 0],
         "max",
         True,
+    )
+    # Test Channel last
+    verify_pool1d(
+        [1, 32, 16],
+        [2],
+        [2],
+        [1],
+        [0, 0],
+        "avg",
+        False,
+        True,
+        layout="NWC",
+    )
+    verify_pool1d(
+        [1, 31, 16],
+        [3],
+        [3],
+        [1],
+        [1, 2],
+        "avg",
+        False,
+        True,
+        layout="NWC",
+    )
+    verify_pool1d(
+        [1, 32, 16],
+        [2],
+        [2],
+        [1],
+        [1, 2],
+        "avg",
+        False,
+        False,
+        layout="NWC",
+    )
+    verify_pool1d(
+        [1, 31, 16],
+        [4],
+        [4],
+        [1],
+        [3, 3],
+        "avg",
+        False,
+        False,
+        layout="NWC",
+    )
+    verify_pool1d(
+        [1, 31, 16],
+        [4],
+        [4],
+        [1],
+        [0, 0],
+        "avg",
+        False,
+        False,
+        layout="NWC",
+    )
+    verify_pool1d(
+        [1, 32, 16],
+        [2],
+        [2],
+        [1],
+        [0, 0],
+        "max",
+        False,
+        layout="NWC",
+    )
+    verify_pool1d(
+        [1, 31, 16],
+        [3],
+        [3],
+        [1],
+        [2, 1],
+        "max",
+        False,
+        layout="NWC",
+    )
+    verify_pool1d(
+        [1, 31, 16],
+        [3],
+        [3],
+        [1],
+        [2, 1],
+        "max",
+        True,
+        layout="NWC",
+    )
+
+    verify_pool1d(
+        [1, 31, 16],
+        [3],
+        [3],
+        [1],
+        [2, 5],
+        "avg",
+        False,
+        True,
+        layout="NWC",
+    )
+    verify_pool1d(
+        [1, 31, 16],
+        [2],
+        [2],
+        [1],
+        [0, 3],
+        "avg",
+        False,
+        False,
+        layout="NWC",
+    )
+    verify_pool1d(
+        [1, 31, 16],
+        [3],
+        [3],
+        [1],
+        [1, 4],
+        "max",
+        False,
+        layout="NWC",
+    )
+    verify_pool1d(
+        [1, 31, 16],
+        [3],
+        [3],
+        [1],
+        [3, 0],
+        "max",
+        True,
+        layout="NWC",
+    )
+    verify_pool1d(
+        [1, 31, 16],
+        [3],
+        [3],
+        [2],
+        [2, 5],
+        "avg",
+        False,
+        True,
+        layout="NWC",
+    )
+    verify_pool1d(
+        [1, 32, 16],
+        [2],
+        [2],
+        [3],
+        [0, 3],
+        "avg",
+        False,
+        False,
+        layout="NWC",
+    )
+    verify_pool1d(
+        [1, 31, 16],
+        [3],
+        [3],
+        [2],
+        [1, 4],
+        "max",
+        False,
+        layout="NWC",
+    )
+    verify_pool1d(
+        [1, 31, 16],
+        [3],
+        [3],
+        [3],
+        [3, 0],
+        "max",
+        True,
+        layout="NWC",
     )
 
 

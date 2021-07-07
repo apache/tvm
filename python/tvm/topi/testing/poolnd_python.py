@@ -90,8 +90,16 @@ def poolnd_python(
     count_include_pad: bool = True,
     ceil_mode: bool = False,
     dtype: str = "float32",
+    channel_last: bool = False,
 ) -> np.array:
     """Ground truth pooling operator impelmented in numpy."""
+    if channel_last:
+        # Transpose data
+        new_shape = [i for i in range(np_data.ndim)]
+        last_dim = new_shape.pop()
+        new_shape.insert(1, last_dim)
+        np_data = np_data.transpose(new_shape)
+
     out_shape = [np_data.shape[0], np_data.shape[1]]
     for dim in range(2, len(np_data.shape)):
         i = dim - 2
@@ -158,4 +166,10 @@ def poolnd_python(
         else:
             raise ValueError("Pool type {} is not supported".format(pool_type))
 
+    if channel_last:
+        # Transpose back data
+        new_shape = [i for i in range(np_data.ndim)]
+        new_shape.remove(1)
+        new_shape.append(1)
+        ret_np = ret_np.transpose(new_shape)
     return ret_np
