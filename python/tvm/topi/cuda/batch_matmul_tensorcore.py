@@ -107,9 +107,11 @@ def schedule_batch_matmul_tensorcore(cfg, outs):
                 wmma_n = 32
             elif wmma_m == 32:
                 wmma_n = 8
-        else:
+        elif data_dtype in ["int4", "uint4"]:
             wmma_m = wmma_n = 8
             wmma_k = 32
+        else:
+            raise ValueError('data dtype %s is not yet supported' % data_dtype)
 
         warp_size = 32
         block_row_warps = cfg["block_row_warps"].val

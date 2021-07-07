@@ -90,7 +90,11 @@ def _batch_matmul_legalize(attrs, inputs, arg_types):
     x_ = relay.nn.pad(x, pad_width=((0, 0), (0, dm), (0, dk))) if dm or dk else x
     y_ = relay.nn.pad(y, pad_width=((0, 0), (0, dn), (0, dk))) if dn or dk else y
     out_ = relay.nn.batch_matmul(x_, y_, attrs.out_dtype)
-    out = relay.strided_slice(out_, begin=[0, 0, 0], end=[x.value for x in output_tensor.shape]) if dm or dn else out_
+    out = (
+        relay.strided_slice(out_, begin=[0, 0, 0], end=[x.value for x in output_tensor.shape])
+        if dm or dn
+        else out_
+    )
     return out
 
 
@@ -161,20 +165,14 @@ def _dense_legalize(attrs, inputs, arg_types):
 
     logger.info("dense pad_to_tensorcore, extra_flops_ratio %s", extra_flops_ratio)
 
-    if dm or dk:
-        x_ = relay.nn.pad(x, pad_width=((0, dm), (0, dk)))
-    else:
-        x_ = x
-    if dn or dk:
-        y_ = relay.nn.pad(y, pad_width=((0, dn), (0, dk)))
-    else:
-        y_ = y
+    x_ = relay.nn.pad(x, pad_width=((0, dm), (0, dk))) if dm or dk else x
+    y_ = relay.nn.pad(y, pad_width=((0, dn), (0, dk))) if dn or dk else y
     out_ = relay.nn.dense(x_, y_, **new_attrs)
-    if dm or dn:
-        original_out_shape = [x.value for x in output_tensor.shape]
-        out = relay.strided_slice(out_, begin=[0, 0], end=original_out_shape)
-    else:
-        out = out_
+    out = (
+        relay.strided_slice(out_, begin=[0, 0], end=[x.value for x in output_tensor.shape])
+        if dm or dn
+        else out_
+    )
     return out
 
 
