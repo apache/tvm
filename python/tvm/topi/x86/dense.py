@@ -28,7 +28,7 @@ from tvm.contrib import mkldnn
 
 from .utils import get_fp32_len
 from .injective import schedule_injective_from_existing
-from .. import tag
+from .. import generic, tag
 from ..utils import traverse_inline, get_const_tuple
 
 
@@ -326,7 +326,7 @@ def dense_cblas(cfg, data, weight, bias=None, out_dtype=None):
 @autotvm.register_topi_schedule("dense_cblas.x86")
 def schedule_dense_cblas(_, outs):
     """Create schedule for dense_cblas. This is an alias of matmul_nt operator."""
-    return schedule_matmul_blas_common(outs)
+    return generic.schedule_extern(outs)
 
 
 @autotvm.register_topi_compute("dense_mkl.x86")
@@ -350,7 +350,7 @@ def dense_mkldnn(cfg, data, weight, bias=None, out_dtype=None):
 @autotvm.register_topi_schedule("dense_mkldnn.x86")
 def schedule_dense_mkldnn(_, outs):
     """Create schedule for dense_mkldnn. This is an alias of matmul_nt operator."""
-    return schedule_matmul_blas_common(outs)
+    return generic.schedule_extern(outs)
 
 
 @autotvm.register_topi_compute("matmul_cblas.x86")
