@@ -432,7 +432,7 @@ This definition would result in a module entry mapping the identifier :code:`@ac
 with the parameters, return type, and body above. Any reference to the identifier :code:`@ackermann` elsewhere in the
 code could then look up the identifier in the module and replace the function definition as needed.
 
-See :py:class:`~tvm.relay.Module` for the definition and documentation of a module.
+See :py:class:`~tvm.IRModule` for the definition and documentation of a module.
 
 Constant
 ========

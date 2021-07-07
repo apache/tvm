@@ -68,7 +68,7 @@ class Frontend(ABC):
 
         Returns
         -------
-        mod : tvm.relay.Module
+        mod : tvm.IRModule
             The produced relay module.
         params : dict
             The parameters (weights) for the relay module.

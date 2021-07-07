@@ -478,7 +478,7 @@ Users can build a pass through decoration like the following:
        x = relay.var("x", tp)
        gv = relay.GlobalVar("abs")
        func = relay.Function([x], relay.abs(x))
-       new_mod = relay.Module({gv: func})
+       new_mod = tvm.IRModule({gv: func})
        new_mod.update(mod)
        return new_mod
 
@@ -494,7 +494,7 @@ function.
 
 .. code:: python
 
-    mod = relay.Module()
+    mod = tvm.IRModule()
     mod = module_pass(mod)
 
 Correspondingly, we also offer such functionality for ``function_pass``. For
