@@ -51,11 +51,8 @@ Stmt MakePipeline(const Stage& s, const std::unordered_map<IterVar, Range>& dom_
   if (consumer.defined() && !is_no_op(consumer)) {
     pipeline = SeqStmt({producer, consumer});
   }
-  pipeline = s->op->BuildRealize(s, dom_map, pipeline, s->scope);
-  // use attribute to mark scope of the operation.
-  pipeline = AttrStmt(s->op, tir::attr::realize_scope, StringImm(s->scope), pipeline);
 
-  return pipeline;
+  return s->op->BuildRealize(s, dom_map, pipeline, s->scope);
 }
 
 // inject the operator's realization on the stmt.
