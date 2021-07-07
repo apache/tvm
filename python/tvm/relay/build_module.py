@@ -544,6 +544,10 @@ def create_executor(kind="debug", mod=None, device=None, target="llvm", params=N
     target : :py:class:`tvm.Target`
         The corresponding context
 
+    params : dict of str to NDArray
+         Input parameters to the graph that do not change
+         during inference time.
+
     Returns
     -------
     executor : :py:class:`~tvm.relay.backend.interpreter.Executor`
@@ -555,10 +559,9 @@ def create_executor(kind="debug", mod=None, device=None, target="llvm", params=N
     else:
         device = _nd.device(str(target), 0)
 
-    # print("params " + params)
     if params is not None:
-     mod = IRModule.from_expr(bind_params_by_name(mod["main"], params))
-    
+        mod = IRModule.from_expr(bind_params_by_name(mod["main"], params))
+
     if isinstance(target, str):
         target = Target(target)
     if kind == "debug":
