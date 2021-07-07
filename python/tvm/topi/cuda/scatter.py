@@ -802,8 +802,12 @@ def scatter_nd(data, indices, updates, mode):
         ib.scope_attr(bx, "thread_extent", bdim)
 
         with ib.for_range(0, ceil_div(fused_shape, bdim)) as i:
-            index = i * fused_updates_dimension + bx * tdim + tx
-            with ib.if_scope(index < fused_shape):
+            # The (i * fused_updates_dimension + bx*tdim + tx < fused_shape)
+            # would cause an int32 overflow when i is a very big number.
+            # So we use "i < (fused_shape - bx*tdim - tx) / fused_updates_dimension"
+            # here to avoid the error.
+            index = tvm.tir.Div(fused_shape - bx*tdim - tx, fused_updates_dimension)
+            with ib.if_scope(i < index):
                 out[index] = data[index]
 
         with ib.for_range(0, fused_indices_dimension) as i:
