@@ -78,10 +78,7 @@ class StorageFlattener : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
-    if (op->attr_key == attr::realize_scope) {
-      return this->VisitStmt(op->body);
-    } else if (op->attr_key == attr::double_buffer_scope &&
-               op->node->IsInstance<tir::BufferNode>()) {
+    if (op->attr_key == attr::double_buffer_scope && op->node->IsInstance<tir::BufferNode>()) {
       auto buffer = Downcast<tir::Buffer>(op->node);
       Stmt body = this->VisitStmt(op->body);
       auto it = buf_map_.find(buffer);
