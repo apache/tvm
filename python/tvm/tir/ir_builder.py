@@ -436,7 +436,7 @@ class IRBuilder(object):
             The name of the pointer.
 
         scope : str, optional
-            The scope of the buffer.
+            The scope of the pointer.
 
         Returns
         -------

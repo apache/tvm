@@ -41,7 +41,7 @@
 #include "../../arith/pattern_match.h"
 #include "../../runtime/thread_storage_scope.h"
 #include "ir_utils.h"
-#include "remap_pointer_storage_scope.h"
+#include "update_pointer_storage_scope.h"
 
 namespace tvm {
 namespace tir {
@@ -401,7 +401,7 @@ Pass LowerWarpMemory() {
     int warp_size = target.value()->GetAttr<Integer>("thread_warp_size", 1).value();
     WarpMemoryRewriter warp_memory_rewriter(warp_size);
     auto stmt = warp_memory_rewriter.Rewrite(std::move(n->body));
-    n->body = RemapStorageScope(warp_memory_rewriter.new_storage_scopes_)(stmt);
+    n->body = UpdatePointerStorageScope(warp_memory_rewriter.new_storage_scopes_)(stmt);
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerWarpMemory", {});

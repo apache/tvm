@@ -33,16 +33,16 @@
 
 #include "../../runtime/thread_storage_scope.h"
 #include "ir_utils.h"
-#include "remap_pointer_storage_scope.h"
+#include "update_pointer_storage_scope.h"
 
 namespace tvm {
 namespace tir {
 
-class RemapStorageScopeAllReduce final : public RemapStorageScope {
+class UpdatePointerStorageScopeAllReduce final : public UpdatePointerStorageScope {
  public:
-  explicit RemapStorageScopeAllReduce(
+  explicit UpdatePointerStorageScopeAllReduce(
       const std::unordered_map<const VarNode*, String>& new_storage_scopes)
-      : RemapStorageScope(new_storage_scopes) {}
+      : UpdatePointerStorageScope(new_storage_scopes) {}
 
   Stmt VisitStmt_(const AllocateNode* op) final {
     auto remapped = Downcast<Var>(StmtExprMutator::VisitExpr(op->buffer_var));
@@ -615,7 +615,8 @@ Pass LowerThreadAllreduce() {
     const TargetNode* target_node = target.as<TargetNode>();
     ThreadAllreduceBuilder thread_all_reduce(target_node);
     auto reduce_body = thread_all_reduce(n->body);
-    n->body = RemapStorageScopeAllReduce(thread_all_reduce.new_storage_scopes_)(reduce_body);
+    n->body =
+        UpdatePointerStorageScopeAllReduce(thread_all_reduce.new_storage_scopes_)(reduce_body);
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerThreadAllreduce", {});
