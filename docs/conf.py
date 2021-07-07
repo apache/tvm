@@ -273,7 +273,12 @@ within_subsection_order = {
         "tune_network_x86.py",
         "tune_network_cuda.py",
     ],
-    "dev": ["low_level_custom_pass.py", "use_pass_infra.py", "bring_your_own_datatypes.py"],
+    "dev": [
+        "low_level_custom_pass.py",
+        "use_pass_infra.py",
+        "use_pass_instrument.py",
+        "bring_your_own_datatypes.py",
+    ],
 }
 
 
