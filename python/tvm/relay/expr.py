@@ -23,7 +23,7 @@ import numpy as _np
 import tvm._ffi
 from tvm._ffi import base as _base
 from tvm.runtime import NDArray, ndarray as _nd
-from tvm.ir import RelayExpr, GlobalVar
+from tvm.ir import RelayExpr, GlobalVar, Node
 
 from .base import RelayNode
 from . import _ffi_api
@@ -538,3 +538,25 @@ def bind(expr, binds):
         The expression or function after binding.
     """
     return _ffi_api.Bind(expr, binds)
+
+
+@tvm._ffi.register_object("relay.StorageInfo")
+class StorageInfo(Node):
+    """StorageInfo
+
+    The static storage information produced by memory planning.
+    Contains the storage ids where expressions are stored, the
+    type of the "virtual devices" the expressions are stored on,
+    and the sizes of each storage element."""
+
+    @property
+    def storage_ids(self):
+        return _ffi_api.StorageInfoStorageIds(self)
+
+    @property
+    def device_types(self):
+        return _ffi_api.StorageInfoDeviceTypes(self)
+
+    @property
+    def storage_sizes(self):
+        return _ffi_api.StorageInfoStorageSizes(self)

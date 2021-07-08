@@ -114,6 +114,10 @@ struct FunctionInfoNode : public Object {
 
 class FunctionInfo : public ObjectRef {
  public:
+  FunctionInfo(Map<Target, Integer> workspace_sizes, Map<Target, Integer> io_sizes,
+               Map<Target, Integer> constant_sizes, Map<Target, tir::PrimFunc> tir_primfuncs,
+               Map<Target, Function> relay_primfuncs);
+
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(FunctionInfo, ObjectRef, FunctionInfoNode);
 };
 

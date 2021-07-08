@@ -53,7 +53,18 @@ bool IsOnDeviceNode(const ExprNode* node) {
 bool IsDeviceCopyNode(const ExprNode* node) {
   if (!node->IsInstance<CallNode>()) return false;
   const auto* call_node = static_cast<const CallNode*>(node);
-  return call_node->attrs.as<DeviceCopyAttrs>();
+
+  if (call_node->attrs.as<DeviceCopyAttrs>()) {
+    return true;
+  }
+
+  auto tir_call_attrs = call_node->attrs.as<TIRCallAttrs>();
+  if (tir_call_attrs) {
+    auto metadata = tir_call_attrs->metadata;
+    return metadata.count("source_device") == 1 && metadata.count("dst_device") == 1;
+  }
+
+  return false;
 }
 
 }  // namespace
@@ -395,16 +406,31 @@ class DeviceInfo {
           const auto* call_node = static_cast<const CallNode*>(node);
           auto attrs = call_node->attrs.as<DeviceCopyAttrs>();
 
-          num_device_copy_ops_++;
-          dev_type_ = attrs->src_dev_type;
-          for (auto& arg : call->args) {
-            Visit(arg);
-            // restore the type for remaining arguments
+          if (attrs) {
+            num_device_copy_ops_++;
             dev_type_ = attrs->src_dev_type;
+            for (auto& arg : call->args) {
+              Visit(arg);
+              // restore the type for remaining arguments
+              dev_type_ = attrs->src_dev_type;
+            }
+            device_tag_[call] = attrs->dst_dev_type;
+            // update the out_dev_type_, which should be the dst_dev_type of last copy
+            out_dev_type_ = attrs->dst_dev_type;
+          } else {
+            auto attrs = call_node->attrs.as<TIRCallAttrs>();
+            CHECK(attrs) << "must be non-null";
+            num_device_copy_ops_++;
+            dev_type_ = Downcast<tvm::Integer>(attrs->metadata["source_device"]);
+            for (auto& arg : call->args) {
+              Visit(arg);
+              // restore the type for remaining arguments
+              dev_type_ = Downcast<tvm::Integer>(attrs->metadata["source_device"]);
+            }
+            device_tag_[call] = Downcast<tvm::Integer>(attrs->metadata["dst_device"]);
+            // update the out_dev_type_, which should be the dst_dev_type of last copy
+            out_dev_type_ = Downcast<tvm::Integer>(attrs->metadata["dst_device"]);
           }
-          device_tag_[call] = attrs->dst_dev_type;
-          // update the out_dev_type_, which should be the dst_dev_type of last copy
-          out_dev_type_ = attrs->dst_dev_type;
         } else {
           for (auto& arg : call->args) {
             int cur_dev_type = dev_type_;

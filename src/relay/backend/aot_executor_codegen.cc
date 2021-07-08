@@ -439,7 +439,7 @@ class AOTExecutorCodegen : public ExprVisitor {
       fi_node->tir_primfuncs.Set(primfunc_target, primfunc);
       fi_node->relay_primfuncs.Set(primfunc_target, relay_func);
     }
-    function_metadata_.Set(cfunc->func_name, FunctionInfo(fi_node));
+    function_metadata_.Set(cfunc->prim_fn_var->name_hint, FunctionInfo(fi_node));
   }
 
   void VisitExpr_(const CallNode* op) override {
@@ -465,20 +465,18 @@ class AOTExecutorCodegen : public ExprVisitor {
                  << "(i.e functions composed of fusable operator invocations)";
     }
 
-    auto pf0 = GetPackedFunc("relay.backend._make_CCacheKey");
-    auto pf1 = GetPackedFunc("relay.backend._CompileEngineLower");
     Target target;
 
     // Handle external function
     if (func->GetAttr<String>(attr::kCompiler).defined()) {
       target = Target("ext_dev");
-      CCacheKey key = (*pf0)(func, target);
-      CachedFunc ext_func = (*pf1)(compile_engine_, key, mod_name_);
+      CCacheKey key = CCacheKey(func, target);
+      CachedFunc ext_func = compile_engine_->Lower(key, mod_name_);
       ICHECK(ext_func.defined()) << "External function is not defined.";
       UpdateConstants(func, &params_);
 
       // Generate the TIR function call
-      CreateFuncCall(GetRef<Call>(op), ext_func->func_name);
+      CreateFuncCall(GetRef<Call>(op), ext_func->prim_fn_var->name_hint);
       return;
     }
 
@@ -503,8 +501,10 @@ class AOTExecutorCodegen : public ExprVisitor {
       }
       target = targets_[call_dev_type];
     }
-    CCacheKey key = (*pf0)(func, target);
-    CachedFunc lowered_func = (*pf1)(compile_engine_, key, mod_name_);
+
+    CCacheKey key = CCacheKey(func, target);
+    CachedFunc lowered_func = compile_engine_->Lower(key, mod_name_);
+
     if (!lowered_funcs_.count(target->str())) {
       lowered_funcs_[target->str()] = IRModule(Map<GlobalVar, BaseFunc>({}));
     }
@@ -513,7 +513,7 @@ class AOTExecutorCodegen : public ExprVisitor {
     UpdateFunctionMetadata(lowered_func, func, target);
 
     // Generate the TIR function call
-    CreateFuncCall(GetRef<Call>(op), lowered_func->func_name);
+    CreateFuncCall(GetRef<Call>(op), lowered_func->prim_fn_var->name_hint);
   }
 
   void VisitExpr_(const VarNode* op) override {

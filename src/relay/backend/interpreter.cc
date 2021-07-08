@@ -32,6 +32,7 @@
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/object.h>
 
+#include "../transforms/pass_utils.h"
 #include "compile_engine.h"
 
 namespace tvm {
@@ -381,7 +382,7 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
     } else {
       m = build(cfunc->funcs, cfunc->target, Target(nullptr));
     }
-    shape_func = m.GetFunction(cfunc->func_name);
+    shape_func = m.GetFunction(cfunc->prim_fn_var->name_hint);
     shape_func.CallPacked(TVMArgs(values.data(), codes.data(), arity), &rv);
 
     // Get output shapes

@@ -429,7 +429,7 @@ class CompileEngine(Object):
             res += "------------------------------------\n"
             res += "target={}\n".format(k.target)
             res += "use_count={}\n".format(v.use_count)
-            res += "func_name={}\n".format(v.cached_func.func_name)
+            res += "func_name={}\n".format(v.cached_func.prim_fn_var.name_hint)
             res += "----relay function----\n"
             res += k.source_func.astext() + "\n"
             res += "----tir function----- \n"
@@ -444,7 +444,7 @@ class CompileEngine(Object):
             res += "------------------------------------\n"
             res += "target={}\n".format(k.target)
             res += "use_count={}\n".format(v.use_count)
-            res += "func_name={}\n".format(v.cached_func.func_name)
+            res += "func_name={}\n".format(v.cached_func.prim_fn_var.name_hint)
             res += "----relay function----\n"
             res += k.source_func.astext() + "\n"
             res += "----tir function----- \n"

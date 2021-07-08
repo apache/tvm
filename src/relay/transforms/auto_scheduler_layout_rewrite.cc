@@ -126,7 +126,7 @@ Expr AutoSchedulerLayoutRewriter::VisitExpr_(const CallNode* n) {
       CHECK(f) << "Could not find auto_scheduler.enter_layout_rewrite function.";
       (*f)();
 
-      CreateSchedule(GetRef<Function>(func), Target::Current());
+      PrimFuncFor(GetRef<Function>(func), Target::Current(), [](std::string name) { return name; });
 
       f = runtime::Registry::Get("auto_scheduler.exit_layout_rewrite");
       CHECK(f) << "Could not find ansor.exit_layout_rewrite function.";
