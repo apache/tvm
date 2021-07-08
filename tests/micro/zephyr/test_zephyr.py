@@ -38,7 +38,6 @@ import tvm.testing
 import tvm.relay as relay
 from tvm.relay.testing import byoc
 
-from tvm.micro.contrib import zephyr
 from tvm.contrib import utils
 from tvm.relay.expr_functor import ExprMutator
 from tvm.relay.op.annotation import compiler_begin, compiler_end
