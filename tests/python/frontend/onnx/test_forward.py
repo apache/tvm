@@ -22,7 +22,6 @@ import pytest
 import scipy
 import torch
 import torchvision
-from deckhand import ONNXModel
 import tvm
 import tvm.testing
 import tvm.topi.testing
