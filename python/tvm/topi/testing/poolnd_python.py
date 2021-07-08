@@ -18,10 +18,60 @@
 """Ground truth max and average pooling operators in python."""
 import itertools
 import math
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 import numpy as np
 import tvm
+
+
+def _get_supported_layout(dims: int):
+    """
+    Returns layout that is supported by poolnd_python based on number of
+    dimensions of input tensor
+    """
+    assert dims in [3, 4, 5], f"{dims}-dimensional tensor is not supported"
+    if dims == 3:
+        return "NCW"
+    elif dims == 4:
+        return "NCHW"
+    elif dims == 5:
+        return "NCDHW"
+
+
+def _convert_to_layout(
+    input: np.ndarray,
+    layout: str,
+) -> np.ndarray:
+    """
+    Converts back to original layout after the algorithm is finished
+    """
+    supported_layout = _get_supported_layout(input.ndim)
+    if layout is not None and supported_layout != layout:
+        # Generate transpose list
+        transpose_list = []
+        for d in layout:
+            transpose_list.append(supported_layout.index(d))
+        return input.transpose(transpose_list)
+    else:
+        return input
+
+
+def _convert_from_layout(
+    input: np.ndarray,
+    layout: str,
+) -> np.ndarray:
+    """
+    Converts tensor to one of suppored layouts
+    """
+    supported_layout = _get_supported_layout(input.ndim)
+    if layout is not None and supported_layout != layout:
+        # Generate transpose list
+        transpose_list = []
+        for d in supported_layout:
+            transpose_list.append(layout.index(d))
+        return input.transpose(transpose_list)
+    else:
+        return input
 
 
 def get_slice(
@@ -90,15 +140,11 @@ def poolnd_python(
     count_include_pad: bool = True,
     ceil_mode: bool = False,
     dtype: str = "float32",
-    channel_last: bool = False,
+    layout: Optional[str] = None,
 ) -> np.array:
     """Ground truth pooling operator impelmented in numpy."""
-    if channel_last:
-        # Transpose data
-        new_shape = [i for i in range(np_data.ndim)]
-        last_dim = new_shape.pop()
-        new_shape.insert(1, last_dim)
-        np_data = np_data.transpose(new_shape)
+
+    np_data = _convert_from_layout(np_data, layout)
 
     out_shape = [np_data.shape[0], np_data.shape[1]]
     for dim in range(2, len(np_data.shape)):
@@ -166,10 +212,4 @@ def poolnd_python(
         else:
             raise ValueError("Pool type {} is not supported".format(pool_type))
 
-    if channel_last:
-        # Transpose back data
-        new_shape = [i for i in range(np_data.ndim)]
-        new_shape.remove(1)
-        new_shape.append(1)
-        ret_np = ret_np.transpose(new_shape)
-    return ret_np
+    return _convert_to_layout(ret_np, layout)

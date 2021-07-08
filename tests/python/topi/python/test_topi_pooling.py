@@ -305,7 +305,6 @@ def verify_poolnd(
 
     padding_before = padding[:n]
     padding_after = padding[n:]
-    channel_last = layout[-1] == 'C'
     ref_np = tvm.topi.testing.poolnd_python(
         input_np,
         kernel,
@@ -316,7 +315,7 @@ def verify_poolnd(
         pool_type,
         count_include_pad,
         ceil_mode,
-        channel_last=channel_last,
+        layout=layout,
     )
 
     np.testing.assert_equal(tuple(output_shape), tuple(ref_np.shape))
