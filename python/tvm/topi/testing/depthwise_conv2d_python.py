@@ -89,6 +89,63 @@ def depthwise_conv2d_python_nchw(input_np, filter_np, stride, padding):
     return output_np
 
 
+def depthwise_conv2d_python_nchwc(input_np, filter_np, stride, padding):
+    """Depthwise convolution operator in NCHWc layout.
+
+    Parameters
+    ----------
+    input_np : numpy.ndarray
+        5-D with shape [batch, in_channel_chunk, in_height, in_width, in_channel_block]
+
+    filter_np : numpy.ndarray
+        6-D with shape [out_channel_chunk, channel_multiplier_chunk,
+                        filter_height, filter_width,
+                        channel_multiplier_block, out_channel_block]
+
+    stride : list / tuple of 2 ints
+        [stride_height, stride_width]
+
+    padding : str
+        'VALID' or 'SAME'
+
+    Returns
+    -------
+    output_np : np.ndarray
+        5-D with shape [batch, out_channel_chunk, out_height, out_width, out_channel_block]
+    """
+    # Transform to NCHW
+    batch_size, in_channel_chunk, in_height, in_width, in_channel_block = input_np.shape
+    input_nchw = input_np.transpose(0, 1, 4, 2, 3).reshape(
+        (batch_size, in_channel_chunk * in_channel_block, in_height, in_width)
+    )
+
+    (
+        out_channel_chunk,
+        channel_multiplier_chunk,
+        filter_height,
+        filter_width,
+        channel_multiplier_block,
+        out_channel_block,
+    ) = filter_np.shape
+    filter_nchw = filter_np.transpose(0, 5, 1, 4, 2, 3).reshape(
+        (
+            out_channel_chunk * out_channel_block,
+            channel_multiplier_chunk * channel_multiplier_block,
+            filter_height,
+            filter_width,
+        )
+    )
+
+    # Perform conv2d
+    output_np = depthwise_conv2d_python_nchw(input_nchw, filter_nchw, stride, padding)
+
+    # Transform back
+    batch_size, out_channel, out_height, out_width = output_np.shape
+    return output_np.reshape(
+        (batch_size, out_channel_chunk, out_channel_block, out_height, out_width)
+    ).transpose(0, 1, 3, 4, 2)
+
+
 def depthwise_conv2d_python_nhwc(input_np, filter_np, stride, padding):
     """Depthwise convolution operator in nchw layout.
 
