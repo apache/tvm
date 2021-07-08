@@ -127,7 +127,7 @@ def schedule_conv2d_nhwc_spatial_pack(cfg, outs):
 def _schedule_spatial_pack(cfg, s, op, layout):
     """schedule the spatial packing for conv2d"""
 
-    assert layout == "NCHW" or layout == "NHWC"
+    assert layout in ("NCHW", "NHWC")
 
     output = op.output(0)
     conv = op.input_tensors[0]
