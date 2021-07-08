@@ -733,6 +733,7 @@ class BackwardTransformer : public ObjectRef {
   }
   using ContainerType = BackwardTransformerNode;
 };
+
 /*!
  * \brief Transform the expr to consider the scaling.
  *
@@ -768,6 +769,7 @@ Expr BackwardTransformerNode::Transform(const Expr& expr, Message message, Expr 
     return this->Mutate(expr);
   }
 }
+
 //----------------------------------------------
 // Per operator defs for FScaleAxisForward
 //----------------------------------------------
