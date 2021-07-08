@@ -22,6 +22,7 @@
  * \brief The expression AST nodes of Relay.
  */
 #include <tvm/ir/module.h>
+#include <tvm/relay/analysis.h>
 #include <tvm/relay/expr.h>
 
 namespace tvm {
@@ -140,6 +141,8 @@ Let::Let(Var var, Expr value, Expr body, Span span) {
   n->value = std::move(value);
   n->body = std::move(body);
   n->span = std::move(span);
+  n->saved_deleter_ = n->deleter_;
+  n->deleter_ = LetNode::Deleter_;
   data_ = std::move(n);
 }
 
@@ -273,6 +276,9 @@ inline void Dismantle(const Expr& expr) {
     }
   };
   fpush_to_stack(expr);
+  int i = 0;
+  int j = 0;
+  int k = 0;
   while (stack.size() > 0) {
     const auto& node = stack.top().first;
     if (stack.top().second) {
@@ -280,20 +286,32 @@ inline void Dismantle(const Expr& expr) {
       // +1 ref in stack/deque;
       if (node.use_count() < 3) {
         if (auto* op = const_cast<CallNode*>(node.as<CallNode>())) {
+          k++;
           op->args = Array<Expr>();
+        } else if (auto* op = const_cast<LetNode*>(node.as<LetNode>())) {
+          j++;
+          op->body = Expr();
         }
       }
       // eject
       stack.pop();
+      i++;
     } else {
       stack.top().second = true;
-
       // special handling
       if (const CallNode* op = node.as<CallNode>()) {
         // do not process args if used elsewhere
         if (op->args.use_count() < 2) {
           for (auto it = op->args.rbegin(); it != op->args.rend(); ++it) {
             fpush_to_stack(*it);
+          }
+        } else if (node.use_count() < 3) {
+          // If the args are referenced multiple times but the
+          // Call node isn't, clear the args and assume we'll get the body
+          // on other branches
+          if (auto* op = const_cast<CallNode*>(node.as<CallNode>())) {
+            k++;
+            op->args = Array<Expr>();
           }
         }
       } else if (const TupleNode* op = node.as<TupleNode>()) {
@@ -308,11 +326,24 @@ inline void Dismantle(const Expr& expr) {
         if (op->tuple.use_count() < 2) {
           fpush_to_stack(op->tuple);
         }
+      } else if (const LetNode* op = node.as<LetNode>()) {
+        if (op->body.use_count() < 2) {
+          fpush_to_stack(op->body);
+        } else if (node.use_count() < 3) {
+          // If the body is referenced multiple times but the
+          // Let node isn't, clear the body and assume we'll get the body
+          // on other branches
+          if (auto* op = const_cast<LetNode*>(node.as<LetNode>())) {
+            j++;
+            op->body = Expr();
+          }
+        }
       }
     }
   }
+  std::cout << "Dismantler visited " << i << " nodes and dismanted " << j << " LetNodes and " << k
+            << " CallNodes" << std::endl;
 }
-
 /*
  * Non-recursive destructor
  */
@@ -330,10 +361,34 @@ Call::~Call() {
  */
 void CallNode::Deleter_(Object* ptr) {
   auto p = reinterpret_cast<CallNode*>(ptr);
-  // resore original deleter
-  p->deleter_ = p->saved_deleter_;
   // create Call reference in order to invoke ~Call
   auto c = GetRef<Call>(p);
+  // resore original deleter
+  p->deleter_ = p->saved_deleter_;
+}
+
+/*
+ * Non-recursive destructor
+ */
+Let::~Let() {
+  // attempt to dismantle if referenced one or zero times
+  if (this->use_count() < 2) {
+    Dismantle(*this);
+  } else {
+    std::cout << "failed to call Dismantle, use_count " << this->use_count() << std::endl;
+  }
+}
+
+/*
+ * LetNode's deleter
+ */
+void LetNode::Deleter_(Object* ptr) {
+  auto p = reinterpret_cast<LetNode*>(ptr);
+  // create Let reference in order to invoke ~Let
+  std::cout << "in LetNode Deleter" << std::endl;
+  auto c = GetRef<Let>(p);
+  // Call the saved deleter
+  p->deleter_ = p->saved_deleter_;
 }
 
 }  // namespace relay
