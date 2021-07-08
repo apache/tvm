@@ -277,9 +277,9 @@ class MissingTask(TaskTemplate):
 
     def __call__(self, *args, **kwargs):
         raise RuntimeError(
-            f"Attempting to invoke unknown task {self._taskname}."
+            f"Attempting to invoke a missing task {self._taskname}."
             "It is possible that the function is registered in a "
-            "Python module that is not imported in this run."
+            "Python module that is not imported in this run, or the log is out-of-date."
         )
 
 
