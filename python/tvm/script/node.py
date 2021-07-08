@@ -108,20 +108,19 @@ class BufferSlice(ObjectGeneric):
                     span,
                 )
 
-        slices: List[Slice] = []
+        slices: List[Union[Slice, BufferSlice]] = []
         for index in indices:
             if isinstance(index, Slice):
                 check_index(index.start)
                 check_index(index.stop)
                 slices.append(index)
-            elif isinstance(index, BufferSlice):
-                for s in index.slices:
-                    if isinstance(s, Slice):
-                        check_index(s.start)
-                slices.append(index)
             elif isinstance(index, (PrimExpr, int)):
                 check_index(index)
                 slices.append(Slice(index))
+            elif isinstance(index, BufferSlice):
+                buffer_load = index.asobject()
+                check_index(buffer_load)
+                slices.append(Slice(buffer_load))
             else:
                 report_error(
                     "Unsupported index type for BufferSlice, "
@@ -138,27 +137,18 @@ class BufferSlice(ObjectGeneric):
     def __str__(self):
         regions: List[str] = []
         for s in self.slices:
-            if isinstance(s, Slice):
-                if s.stop is None:
-                    regions.append(str(s.start))
-                else:
-                    regions.append(str(s.start) + ": " + str(s.stop))
-            elif isinstance(s, BufferSlice):
-                regions.append(s.buffer.name + "[" + str(s.start) + "]")
+            if s.stop is None:
+                regions.append(str(s.start))
+            else:
+                regions.append(str(s.start) + ": " + str(s.stop))
 
         return self.buffer.name + "[" + ", ".join(regions) + "]"
 
     def asobject(self) -> BufferLoad:
         """Convert object."""
-        indices: List[PrimExpr] = []
         for s in self.slices:
-            if isinstance(s, Slice):
-                if s.stop is not None:
-                    self.report_error("BufferLoad only accepts elementwise access", self.span)
-                indices.append(s.start)
-            elif isinstance(s, BufferSlice):
-                args: List[PrimExpr] = []
-                for idx in s.slices:
-                    args.append(idx.start)
-                indices.append(BufferLoad(s.buffer, args, span=s.span))
+            if s.stop is not None:
+                self.report_error("BufferLoad only accepts elementwise access", self.span)
+
+        indices = [s.start for s in self.slices]
         return BufferLoad(self.buffer, indices, span=self.span)
