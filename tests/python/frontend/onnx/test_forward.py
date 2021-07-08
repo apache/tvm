@@ -4913,6 +4913,24 @@ def test_random_uniform():
         vals_2 = get_random_uniform(shape=[10], seed=1)
         assert all(vals_1 == vals_2)
 
+        # Test against an expected output with a fixed seed.
+        real = get_random_uniform(shape=[10], seed=5)
+        expected = np.asarray(
+            [
+                0.8614111,
+                0.46572232,
+                0.6007328,
+                0.21619737,
+                0.6361222,
+                0.7298056,
+                0.13094282,
+                0.03556716,
+                0.32997167,
+                0.2977605,
+            ]
+        )
+        tvm.testing.assert_allclose(real, expected, rtol=1e-5)
+
 
 if __name__ == "__main__":
     test_flatten()
