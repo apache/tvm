@@ -67,7 +67,7 @@ AttrStmt::AttrStmt(ObjectRef node, String attr_key, PrimExpr value, Stmt body, S
     const auto* ptr_type = buf->type_annotation.as<PointerTypeNode>();
     ICHECK(ptr_type) << "The provided variable is not of pointer type";
     auto attr_scope = value.as<StringImmNode>()->value;
-    ICHECK(attr_scope == ptr_type->storage_scope)
+    ICHECK_EQ(attr_scope, ptr_type->storage_scope)
         << "Storage scopes attached to AttrStmt and buffer var are different. " << attr_scope
         << ", " << ptr_type->storage_scope;
   }

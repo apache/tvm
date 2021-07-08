@@ -493,7 +493,7 @@ class VarDef(SpecialStmt):
 
 @register
 class BufferVarDef(SpecialStmt):
-    """Special function for defining a Var of pointer type"""
+    """Special function for defining a variable of pointer type"""
 
     def __init__(self):
         def buffer_var(dtype, storage_scope, span):
