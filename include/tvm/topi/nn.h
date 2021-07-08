@@ -690,6 +690,52 @@ inline Tensor nll_loss(const Tensor& predictions, const Tensor& targets, const T
     return T;
   }
 }
+
+/*!
+ * \brief Creates an operation that performs im2col with an NCHW-layout
+ *
+ * \param I The 4-D input tensor
+ * \param kernel_size A static tuple for kernel size, such as (3,3)
+ * \param dilation A static tuple for dilation, default is (1,1)
+ * \param padding A static tuple for padding, padding value is zero
+  * \param stride A static tuple for strides, default is (1,1)
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return A Tensor whose op member is the im2col operation (NCHW layout)
+ */
+
+inline tvm::te::Tensor im2col(const tvm::te::Tensor& data, 
+                                   const tvm::Array<tvm::PrimExpr>& kernel_size,
+                                   const tvm::Array<tvm::PrimExpr>& dilation,
+                                   const tvm::Array<tvm::PrimExpr>& padding,
+                                   const tvm::Array<tvm::PrimExpr>& stride,
+                                   std::string name = "T_im2col",
+                                   std::string tag = kElementWise) {
+
+  ICHECK_EQ(4, data->shape.size());
+
+  tvm::Array<tvm::PrimExpr> output_shape{
+      data->shape[0],                                                    // B
+      data->shape[1],                                                    // C
+      data->shape[2],                                                    // H
+      data->shape[3],                                                    // W
+      // indexdiv(I->shape[2] - W->shape[2] + 2 * pad_h, stride_h) + 1,  // H
+      // indexdiv(I->shape[3] - W->shape[3] + 2 * pad_w, stride_w) + 1   // W
+  };
+
+  // tvm::Array<tvm::PrimExpr> output_shape;
+  //   for (size_t i = 0; i < dyn_output_shape->size(); i++) {
+  //     output_shape.push_back((*dyn_output_shape)[i]);
+  // }
+
+  auto T = data;
+  auto l = [&](tvm::tir::Var b, tvm::tir::Var c, tvm::tir::Var h, tvm::tir::Var w) {
+    return T(b, c, h, w);
+  };
+  return tvm::te::compute(output_shape, l, name, tag);
+}
+
 }  // namespace topi
 }  // namespace tvm
 #endif  // TVM_TOPI_NN_H_

@@ -272,5 +272,72 @@ RELAY_REGISTER_OP("nn.mirror_pad")
     .add_type_rel("MirrorPad", MirrorPadRel)
     .set_attr<TOpPattern>("TOpPattern", kInjective);
 
+
+Array<te::Tensor> Im2colCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
+                             const Type& out_type) {
+  const auto* param = attrs.as<Im2colAttrs>();
+  ICHECK(param != nullptr);
+
+  return tvm::Array<tvm::te::Tensor>{topi::im2col(inputs[0], param->kernel_size,
+        param->dilation, param->padding, param->stride)};
+}
+
+
+bool Im2colRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                const TypeReporter& reporter) {
+  // types: [input, output]
+
+  ICHECK_EQ(types.size(), 2) << "Expects two types, one for the input and another for the output";
+
+  const auto* input = types[0].as<TensorTypeNode>();
+  if (input == nullptr)
+    return false;
+
+  if (input->shape.size() != 4) {
+    reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
+        << "Im2lossRel: input data should be 4 dimensions, NxCxHxW.");
+    return false;
+  }
+
+  const Im2colAttrs* param = attrs.as<Im2colAttrs>();
+  if (param == nullptr)
+    return false;
+
+  // assign output type
+  reporter->Assign(types[1], TensorType(input->shape, input->dtype));
+
+  return true;
+}
+
+// Handler to create a call to the im2col op used by front-end FFI
+Expr MakeIm2col(Expr data, Array<IndexExpr> kernel_size, Array<IndexExpr> dilation, 
+    Array<IndexExpr> padding, Array<IndexExpr> stride) {
+  auto attrs = make_object<Im2colAttrs>();
+
+  attrs->kernel_size = std::move(kernel_size);
+  attrs->dilation = std::move(dilation);
+  attrs->padding = std::move(padding);
+  attrs->stride = std::move(stride);
+
+  static const Op& op = Op::Get("nn.im2col");
+  return Call(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_NODE_TYPE(Im2colAttrs);
+TVM_REGISTER_GLOBAL("relay.op.nn._make.im2col")
+    .set_body_typed(MakeIm2col);
+
+RELAY_REGISTER_OP("nn.im2col")
+    .describe(R"code(Im2col for 4-D NCHW tensor.
+
+)code" TVM_ADD_FILELINE)
+    .set_attrs_type<Im2colAttrs>()
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "Input data.")
+    .set_support_level(2)
+    .add_type_rel("Im2col", Im2colRel)
+    .set_attr<TOpPattern>("TOpPattern", kOpaque)
+    .set_attr<FTVMCompute>("FTVMCompute", Im2colCompute);
+
 }  // namespace relay
 }  // namespace tvm

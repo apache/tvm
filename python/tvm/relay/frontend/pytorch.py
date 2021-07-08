@@ -2329,6 +2329,48 @@ class PyTorchOpConverter:
         axis = inputs[1]
         return _op.transform.reverse(data, axis=axis[0])
 
+    def grid_sampler(self, inputs, input_types):
+        data = inputs[0]
+        grid = inputs[1]
+
+        # Torch grid shape is [batch, out_height, out_width, 2], but
+        # TVM grid is [batch, 2, out_height, out_width], so here grid need to be converted
+        grid = _op.transform.transpose(grid, axes=[0, 3, 1, 2])
+
+        return _op.image.grid_sample(data, grid, "bilinear", "NCHW")
+
+    def aten_is(self, inputs, input_types):
+        return _expr.const(inputs[0] is inputs[1])
+
+    def aten_isnot(self, inputs, input_types):
+        return _expr.const(inputs[0] is not inputs[1])
+
+    def unchecked_cast(self, inputs, input_types):
+        return _expr.const(inputs[0])
+
+    def im2col(self, inputs, input_types):
+        from tvm import te
+        from tvm.topi.nn import get_const_tuple
+
+        #  F.unfold(input, 3, dilation=1, padding=1, stride=1)
+        print("xxxx8888 im2col", inputs, input_types)
+        # [Var(i0, ty=TensorType([2, 3, 32, 32], float32)), [3, 3], [1, 1], [1, 1], [1, 1]]
+        #  ['float32', 'ListType', 'ListType', 'ListType', 'ListType']
+        # input, _pair(kernel_size),_pair(dilation), _pair(padding), _pair(stride)
+
+        # torch.unfold setup kerenl_size, dilation, padding, stride as pars before call im2col
+        data = inputs[0]
+        kernel_size = inputs[1]
+        dilation = inputs[2]
+        padding = inputs[3]
+        stride = inputs[4]
+
+        return _op.nn.im2col(data, kernel_size, dilation, padding, stride)
+
+    def dim(self, inputs, input_types):
+        shape = self.infer_shape_with_prelude(inputs[0])
+        return len(shape)
+
     # Operator mappings
     def create_convert_map(self):
         self.convert_map = {
@@ -2545,6 +2587,12 @@ class PyTorchOpConverter:
             "aten::nll_loss": self.nll_loss,
             "aten::nll_loss2d": self.nll_loss,
             "aten::flip": self.flip,
+            "aten::grid_sampler": self.grid_sampler,
+            "aten::__is__": self.aten_is,
+            "aten::__isnot__": self.aten_isnot,
+            "prim::unchecked_cast": self.unchecked_cast,
+            "aten::im2col": self.im2col,
+            "aten::dim": self.dim,
         }
 
     def update_convert_map(self, custom_map):
@@ -2562,6 +2610,7 @@ class PyTorchOpConverter:
             "prim::RaiseException",
             "prim::If",
             "prim::Loop",
+            "prim::Uninitialized",
         ]
         known_ops += list(self.convert_map.keys())
         known_ops += list(qnn_torch.convert_map.keys())
@@ -2576,14 +2625,31 @@ class PyTorchOpConverter:
         """Translate Torch "Block", used for prim::If and prim::Loop"""
         ops = _get_operator_nodes(block.nodes())
         ret_names = _get_input_names(block.returnNode())
+        if isinstance(ops, (list, tuple)) and len(ops) == 0:
+            return None
         return self.convert_operators(ops, outputs, ret_names)
 
     def convert_if(self, if_node, outputs):
         """Translate Torch prim::If to Relay If"""
+
+        # (Pdb) type(if_node) -- <class 'torch._C.Node'>
+        # (Pdb) print(if_node)
+        # %15 : Tensor = prim::If(%14) # /home/dell/anaconda3/envs/pytorch/lib/python3.6/site-packages/torch/nn/functional.py:3624:4
+        #   block0():
+        #     %16 : Tensor = aten::im2col(%input.1, %5, %6, %7, %8) # /home/dell/anaconda3/envs/pytorch/lib/python3.6/site-packages/torch/nn/functional.py:3631:15
+        #     -> (%16)
+        #   block1():
+        #      = prim::RaiseException(%10) # /home/dell/anaconda3/envs/pytorch/lib/python3.6/site-packages/torch/nn/functional.py:3636:8
+        #     -> (%12)
+
         cond = outputs[if_node.inputsAt(0).debugName()]
         blocks = list(if_node.blocks())
         true_branch = self.convert_block(blocks[0], outputs)
         false_branch = self.convert_block(blocks[1], outputs)
+        if true_branch is None:
+            true_branch = false_branch
+        if false_branch is None:
+            false_branch = true_branch
         assert len(true_branch) == 1 and len(false_branch) == 1
         return _expr.If(cond, true_branch[0], false_branch[0])
 
@@ -2751,6 +2817,9 @@ class PyTorchOpConverter:
                 unpacked_names = _get_output_names(op_node)
                 assert len(loop_out) == len(unpacked_names)
                 outputs.update(zip(unpacked_names, loop_out))
+            elif operator == "prim::Uninitialized":
+                logging.warning("Uninitialized is ignored")
+                outputs[node_name] = None
             else:
                 relay_op = self.convert_map[operator]
                 relay_out = relay_op(
