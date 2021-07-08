@@ -27,7 +27,6 @@ from tvm.contrib import mkl
 from tvm.contrib import mkldnn
 
 from .utils import get_fp32_len
-from .injective import schedule_injective_from_existing
 from .. import generic, tag
 from ..utils import traverse_inline, get_const_tuple
 
