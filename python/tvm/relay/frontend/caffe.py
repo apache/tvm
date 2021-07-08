@@ -771,7 +771,7 @@ def from_caffe(init_net, predict_net, shape_dict, dtype_dict):
 
     Returns
     -------
-    mod : tvm.relay.Module
+    mod : tvm.IRModule
         The relay module for compilation.
 
     params : dict of str to tvm.NDArray

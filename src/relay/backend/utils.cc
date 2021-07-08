@@ -39,6 +39,30 @@ StorageInfo::StorageInfo(std::vector<int64_t> storage_ids, std::vector<DLDeviceT
   data_ = std::move(n);
 }
 
+TVM_REGISTER_GLOBAL("relay.ir.StorageInfoStorageIds").set_body_typed([](StorageInfo si) {
+  Array<tvm::Integer> ids;
+  for (auto id : si->storage_ids) {
+    ids.push_back(id);
+  }
+  return ids;
+});
+
+TVM_REGISTER_GLOBAL("relay.ir.StorageInfoDeviceTypes").set_body_typed([](StorageInfo si) {
+  Array<tvm::Integer> device_types;
+  for (auto id : si->device_types) {
+    device_types.push_back(id);
+  }
+  return device_types;
+});
+
+TVM_REGISTER_GLOBAL("relay.ir.StorageInfoStorageSizes").set_body_typed([](StorageInfo si) {
+  Array<tvm::Integer> storage_sizes_in_bytes;
+  for (auto id : si->storage_sizes_in_bytes) {
+    storage_sizes_in_bytes.push_back(id);
+  }
+  return storage_sizes_in_bytes;
+});
+
 TVM_REGISTER_NODE_TYPE(StaticMemoryPlanNode);
 
 StaticMemoryPlan::StaticMemoryPlan(Map<Expr, StorageInfo> expr_to_storage_info) {
@@ -72,6 +96,29 @@ int64_t CalculateRelayExprSizeBytes(const Type& expr_type) {
 }
 
 TVM_REGISTER_NODE_TYPE(FunctionInfoNode);
+
+FunctionInfo::FunctionInfo(Map<Target, Integer> workspace_sizes, Map<Target, Integer> io_sizes,
+                           Map<Target, Integer> constant_sizes,
+                           Map<Target, tir::PrimFunc> tir_primfuncs,
+                           Map<Target, Function> relay_primfuncs) {
+  ObjectPtr<FunctionInfoNode> n = make_object<FunctionInfoNode>();
+  n->workspace_sizes = std::move(workspace_sizes);
+  n->io_sizes = std::move(io_sizes);
+  n->constant_sizes = std::move(constant_sizes);
+  n->tir_primfuncs = std::move(tir_primfuncs);
+  n->relay_primfuncs = std::move(relay_primfuncs);
+  data_ = std::move(n);
+}
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<FunctionInfoNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      auto* node = static_cast<const FunctionInfoNode*>(ref.get());
+      p->stream << "FunctionInfoNode(\n"
+                << "workspace_sizes=" << node->workspace_sizes << ",\n  io_sizes=" << node->io_sizes
+                << ",\n  constant_sizes=" << node->constant_sizes
+                << ",\n  tir_primfuncs=" << node->tir_primfuncs
+                << ",\n  relay_primfuncs=" << node->relay_primfuncs << ")";
+    });
 
 }  // namespace backend
 }  // namespace relay

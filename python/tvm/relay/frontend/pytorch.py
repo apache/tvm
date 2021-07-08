@@ -3290,7 +3290,7 @@ def from_pytorch(script_module, input_infos, custom_convert_map=None, default_dt
 
     Returns
     -------
-    mod : tvm.relay.Module
+    mod : tvm.IRModule
         The module that optimizations will be performed on.
 
     params : dict of str to tvm.runtime.NDArray
