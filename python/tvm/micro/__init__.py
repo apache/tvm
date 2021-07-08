@@ -26,4 +26,4 @@ from .session import (
     Session,
     SessionTerminatedError,
 )
-from .transport import TransportLogger, DebugWrapperTransport, SubprocessTransport
+from .transport import TransportLogger
