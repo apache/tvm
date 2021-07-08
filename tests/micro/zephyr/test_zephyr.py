@@ -58,6 +58,19 @@ def _make_sess_from_op(model, zephyr_board, west_cmd, op_name, sched, arg_bufs, 
     return _make_session(model, target, zephyr_board, west_cmd, mod, build_config)
 
 
+TEMPLATE_PROJECT_DIR = (
+        pathlib.Path(__file__).parent
+        / ".."
+        / ".."
+        / ".."
+        / "apps"
+        / "microtvm"
+        / "zephyr"
+        / "template_project"
+    ).resolve()
+
+
+
 def _make_session(model, target, zephyr_board, west_cmd, mod, build_config):
     parent_dir = os.path.dirname(__file__)
     filename = os.path.splitext(os.path.basename(__file__))[0]
@@ -71,20 +84,25 @@ def _make_session(model, target, zephyr_board, west_cmd, mod, build_config):
         os.makedirs(workspace_parent)
     workspace = tvm.micro.Workspace(debug=True, root=workspace_root)
 
-    template_project_dir = (
-        pathlib.Path(__file__).parent / ".." / ".." / ".." / "apps" / "microtvm" / "zephyr" / "demo_runtime").resolve()
     project = tvm.micro.generate_project(
-        str(template_project_dir), mod, workspace.relpath("project"), {"zephyr_board": zephyr_board,
-                                                                       "west_cmd": west_cmd,
-                                                                       "verbose": 1})
+        str(TEMPLATE_PROJECT_DIR),
+        mod,
+        workspace.relpath("project"),
+        {
+            "project_type": "host_driven",
+            "west_cmd": west_cmd,
+            "verbose": 0,
+            "zephyr_board": zephyr_board,
+        },
+    )
     project.build()
     project.flash()
     return tvm.micro.Session(project.transport())
 
 
-def _make_add_sess(model, zephyr_board, west_cmd, build_config):
-    A = tvm.te.placeholder((2,), dtype="int8")
-    B = tvm.te.placeholder((1,), dtype="int8")
+def _make_add_sess(model, zephyr_board, west_cmd, build_config, dtype="int8"):
+    A = tvm.te.placeholder((2,), dtype=dtype)
+    B = tvm.te.placeholder((1,), dtype=dtype)
     C = tvm.te.compute(A.shape, lambda i: A[i] + B[0], name="C")
     sched = tvm.te.create_schedule(C.op)
     return _make_sess_from_op(model, zephyr_board, west_cmd, "add", sched, [A, B, C], build_config)
@@ -92,7 +110,7 @@ def _make_add_sess(model, zephyr_board, west_cmd, build_config):
 
 # The same test code can be executed on both the QEMU simulation and on real hardware.
 @tvm.testing.requires_micro
-def test_compile_runtime(platform, west_cmd, skip_build, tvm_debug):
+def test_add_uint(platform, west_cmd, skip_build, tvm_debug):
     """Test compiling the on-device runtime."""
 
     model, zephyr_board = PLATFORMS[platform]
@@ -112,6 +130,43 @@ def test_compile_runtime(platform, west_cmd, skip_build, tvm_debug):
         assert (C_data.numpy() == np.array([6, 7])).all()
 
     with _make_add_sess(model, zephyr_board, west_cmd, build_config) as sess:
+        test_basic_add(sess)
+
+
+def has_fpu(zephyr_board):
+    sys.path.insert(0, str(TEMPLATE_PROJECT_DIR))
+    try:
+        import microtvm_api_server
+    finally:
+        sys.path.pop(0)
+
+    return microtvm_api_server.Handler._has_fpu(zephyr_board)
+
+
+# The same test code can be executed on both the QEMU simulation and on real hardware.
+@tvm.testing.requires_micro
+def test_add_float(platform, west_cmd, skip_build, tvm_debug):
+    """Test compiling the on-device runtime."""
+    model, zephyr_board = PLATFORMS[platform]
+    if not has_fpu(zephyr_board):
+        pytest.skip(f"FPU not enabled for {platform}")
+
+    build_config = {"skip_build": skip_build, "debug": tvm_debug}
+
+    # NOTE: run test in a nested function so cPython will delete arrays before closing the session.
+    def test_basic_add(sess):
+        A_data = tvm.nd.array(np.array([2.5, 3.5], dtype="float32"), device=sess.device)
+        assert (A_data.numpy() == np.array([2.5, 3.5])).all()
+        B_data = tvm.nd.array(np.array([4.5], dtype="float32"), device=sess.device)
+        assert (B_data.numpy() == np.array([4.5])).all()
+        C_data = tvm.nd.array(np.array([0, 0], dtype="float32"), device=sess.device)
+        assert (C_data.numpy() == np.array([0, 0])).all()
+
+        system_lib = sess.get_system_lib()
+        system_lib.get_function("add")(A_data, B_data, C_data)
+        assert (C_data.numpy() == np.array([7, 8])).all()
+
+    with _make_add_sess(model, zephyr_board, west_cmd, build_config, dtype="float32") as sess:
         test_basic_add(sess)
 
 

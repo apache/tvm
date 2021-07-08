@@ -1,3 +1,4 @@
+#!/bin/bash -e
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,14 +16,23 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# This file is specific to the QEMU-emulated RISCV64 microTVM board.
+# Zephyr insists on running qemu with a -pidfile option, but that option doesn't appear to
+# work given the way we've configured docker (the underlying filesystem doesn't suppor the
+# file locking it needs to). This script strips any -pidfile option, then invokes qemu.
 
-# For TVMPlatformGenerateRandom(). Remember, these values do not need to be truly random.
-CONFIG_TEST_RANDOM_GENERATOR=y
-CONFIG_TIMER_RANDOM_GENERATOR=y
+ARGS=( "$(basename $0)" )
+while [ "$#" -gt 0 ]; do
+    if [ "$1" == "-pidfile" ]; then
+        shift
+    else
+        ARGS=( "${ARGS[@]}" "$1" )
+    fi
+    shift
+done
 
-# Default 512, for operations with large floating point data. 
-CONFIG_MAIN_STACK_SIZE=2048
+# For debugging
+if [ "${TVM_QEMU_GDBSERVER_PORT}" != "" ]; then
+    ARGS=( "${ARGS[@]}" -gdb "tcp::${TVM_QEMU_GDBSERVER_PORT}" -S )
+fi
 
-# For models with floating point.
-CONFIG_FPU=y
+"${ARGS[@]}"

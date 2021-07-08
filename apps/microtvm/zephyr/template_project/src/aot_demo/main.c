@@ -46,8 +46,7 @@ extern tvm_model_t tvmgen_default_network;
 tvm_workspace_t app_workspace;
 
 // Wakeup sequence used to wake up QEMU on the host.
-const unsigned char g_wakeup_sequence[12] = {0xfe, 0xff, 0xfd, 0x03, 0x00, 0x00,
-                                             0x00, 0x00, 0x00, 0x02, 0x66, 0x77};
+const unsigned char g_wakeup_sequence[] = "#wakeup\n";
 const char g_start_cmd[] = "start\n";
 
 size_t TVMPlatformFormatMessage(char* out_buf, size_t out_buf_size_bytes, const char* fmt,

@@ -24,7 +24,7 @@ PLATFORMS = {
     "host": ("host", "qemu_x86"),
     "host_riscv32": ("host", "qemu_riscv32"),
     "host_riscv64": ("host", "qemu_riscv64"),
-    "mps2_an521": ("mps2_an521", "mps2_an521-qemu"),
+    "mps2_an521": ("mps2_an521", "mps2_an521"),
     "nrf5340dk": ("nrf5340dk", "nrf5340dk_nrf5340_cpuapp"),
     "stm32f746xx_disco": ("stm32f746xx", "stm32f746g_disco"),
     "stm32f746xx_nucleo": ("stm32f746xx", "nucleo_f746zg"),

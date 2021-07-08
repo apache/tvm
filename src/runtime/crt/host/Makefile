@@ -32,7 +32,7 @@ QUIET ?= @
 
 PWD = $(shell pwd)
 BUILD_DIR = build
-CRT_LIB_NAMES = utvm_rpc_server utvm_rpc_common graph_executor graph_executor_module common memory
+CRT_LIB_NAMES = microtvm_rpc_server microtvm_rpc_common graph_executor graph_executor_module common memory
 CRT_LIBS = $(patsubst %, $(BUILD_DIR)/crt/lib%.a, $(CRT_LIB_NAMES))
 
 CRT_INCLUDES = $(glob crt/include/**)
