@@ -46,7 +46,6 @@ if(USE_MICRO)
          "src/runtime/crt/graph_executor *.c -> src/runtime/crt/graph_executor"
          "src/runtime/crt/aot_executor *.c -> src/runtime/crt/aot_executor"
          "src/runtime/crt/graph_executor_module *.c -> src/runtime/crt/graph_executor_module"
-         "src/runtime/crt/host crt_config.h -> template/host"
          "src/runtime/crt/host *.cc -> template/host"
          "src/runtime/crt/memory *.c -> src/runtime/crt/memory"
          "src/runtime/crt/microtvm_rpc_common *.cc -> src/runtime/crt/microtvm_rpc_common"
@@ -104,7 +103,7 @@ if(USE_MICRO)
     endforeach()
 
     set(make_common_args
-        "CRT_CONFIG=template/host/crt_config.h"
+        "CRT_CONFIG=${CMAKE_SOURCE_DIR}/src/runtime/micro/crt_config.h"
         "BUILD_DIR=${host_build_dir_abspath}"
         "EXTRA_CFLAGS=-fPIC"
         "EXTRA_CXXFLAGS=-fPIC"
@@ -145,7 +144,7 @@ if(USE_MICRO)
         string(REPLACE ".cc" "" __execname ${__srcname})
         add_executable(${__execname} ${__srcpath})
         list(APPEND TEST_EXECS ${__execname})
-        target_include_directories(${__execname} PUBLIC ${GTEST_INCLUDE_DIR} ${CMAKE_CURRENT_BINARY_DIR}/standalone_crt/include ${CMAKE_SOURCE_DIR}/src/runtime/crt/host)
+        target_include_directories(${__execname} PUBLIC ${GTEST_INCLUDE_DIR} ${CMAKE_CURRENT_BINARY_DIR}/standalone_crt/include ${CMAKE_SOURCE_DIR}/src/runtime/micro)
         target_compile_options(${__execname} PRIVATE -pthread)
         target_link_libraries(${__execname} ${cmake_crt_libraries} ${GTEST_LIB} pthread)
         set_target_properties(${__execname} PROPERTIES EXCLUDE_FROM_ALL 1)
