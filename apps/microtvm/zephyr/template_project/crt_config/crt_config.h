@@ -42,7 +42,7 @@
 #define TVM_CRT_MAX_REGISTERED_MODULES 2
 
 /*! Maximum packet size, in bytes, including the length header. */
-#define TVM_CRT_MAX_PACKET_SIZE_BYTES (1 * 1024)
+#define TVM_CRT_MAX_PACKET_SIZE_BYTES 8192
 
 /*! Maximum supported string length in dltype, e.g. "int8", "int16", "float32" */
 #define TVM_CRT_MAX_STRLEN_DLTYPE 10
@@ -58,5 +58,7 @@
 
 /*! \brief Number of pages on device. */
 #define TVM_CRT_MAX_PAGES 300
+
+// #define TVM_CRT_FRAMER_ENABLE_LOGS
 
 #endif  // TVM_RUNTIME_CRT_CONFIG_H_
