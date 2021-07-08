@@ -344,7 +344,7 @@ def conv2d_spatial_pack_nhwc(cfg, data, kernel, strides, padding, dilation, out_
         conv = te.compute(
             ovshape,
             lambda n, oho, owo, oco, ohi, owi, oci: te.sum(
-                data_vec[n, oho, owo, kh, kw, ohi, owi, ic].astype(out_dtype)
+                data_vec[n, oho, owo, kh, kw, ic, ohi, owi].astype(out_dtype)
                 * kernel_vec[oco, kh, kw, ic, oci].astype(out_dtype),
                 axis=[ic, kh, kw],
             ),
