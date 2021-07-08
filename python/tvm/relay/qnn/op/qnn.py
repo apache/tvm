@@ -699,6 +699,8 @@ def batch_matmul(x, y, x_zero_point, y_zero_point, x_scale, y_scale, out_dtype="
         `A = scale_a x (QA - zp_A)`
         where QA is quantized tensor, scale_a and zp_A are quantization
         params.
+    y : tvm.relay.Expr
+        The second quantized input.
     x_zero_point: tvm.relay.Expr
         The first input zero point.
     y_zero_point: tvm.relay.Expr
