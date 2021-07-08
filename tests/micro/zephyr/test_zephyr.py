@@ -21,6 +21,7 @@ import datetime
 import glob
 import logging
 import os
+import pathlib
 import subprocess
 import sys
 import logging
@@ -70,50 +71,15 @@ def _make_session(model, target, zephyr_board, west_cmd, mod, build_config):
         os.makedirs(workspace_parent)
     workspace = tvm.micro.Workspace(debug=True, root=workspace_root)
 
-    test_dir = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))
-    tvm_source_dir = os.path.join(test_dir, "..", "..", "..")
-    runtime_path = os.path.join(tvm_source_dir, "apps", "microtvm", "zephyr", "host_driven")
-    compiler = zephyr.ZephyrCompiler(
-        project_dir=runtime_path,
-        board=zephyr_board,
-        zephyr_toolchain_variant="zephyr",
-        west_cmd=west_cmd,
-    )
-
-    opts = tvm.micro.default_options(os.path.join(runtime_path, "crt"))
-    # TODO(weberlo) verify this is necessary
-    opts["bin_opts"]["ccflags"] = ["-std=gnu++14"]
-    opts["lib_opts"]["ccflags"] = ["-std=gnu++14"]
-
-    flasher_kw = {}
-    if build_config["debug"]:
-        flasher_kw["debug_rpc_session"] = tvm.rpc.connect("127.0.0.1", 9090)
-
-    session_kw = {
-        "flasher": compiler.flasher(**flasher_kw),
-    }
-
-    if not build_config["skip_build"]:
-        session_kw["binary"] = tvm.micro.build_static_runtime(
-            # the x86 compiler *expects* you to give the exact same dictionary for both
-            # lib_opts and bin_opts. so the library compiler is mutating lib_opts and
-            # the binary compiler is expecting those mutations to be in bin_opts.
-            # TODO(weberlo) fix this very bizarre behavior
-            workspace,
-            compiler,
-            mod,
-            opts,
-        )
-        if os.path.exists(prev_build):
-            os.unlink(prev_build)
-        session_kw["binary"].archive(prev_build, metadata_only=True)
-    else:
-        unarchive_dir = utils.tempdir()
-        session_kw["binary"] = tvm.micro.MicroBinary.unarchive(
-            prev_build, unarchive_dir.relpath("binary")
-        )
-
-    return tvm.micro.Session(**session_kw)
+    template_project_dir = (
+        pathlib.Path(__file__).parent / ".." / ".." / ".." / "apps" / "microtvm" / "zephyr" / "demo_runtime").resolve()
+    project = tvm.micro.generate_project(
+        str(template_project_dir), mod, workspace.relpath("project"), {"zephyr_board": zephyr_board,
+                                                                       "west_cmd": west_cmd,
+                                                                       "verbose": 1})
+    project.build()
+    project.flash()
+    return tvm.micro.Session(project.transport())
 
 
 def _make_add_sess(model, zephyr_board, west_cmd, build_config):
