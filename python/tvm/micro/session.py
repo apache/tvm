@@ -96,12 +96,11 @@ class Session:
             return bytes([])
 
     def _wrap_transport_write(self, data, timeout_microsec):
-        try:
-            return self.transport.write(
-                data, float(timeout_microsec) / 1e6 if timeout_microsec is not None else None
-            )
-        except IoTimeoutError:
-            return 0
+        self.transport.write(
+            data, float(timeout_microsec) / 1e6 if timeout_microsec is not None else None
+        )
+
+        return len(data)  # TODO(areusch): delete
 
     def __enter__(self):
         """Initialize this session and establish an RPC session with the on-device RPC server.

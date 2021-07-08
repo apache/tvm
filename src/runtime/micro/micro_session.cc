@@ -56,10 +56,12 @@ class CallbackWriteStream : public WriteStream {
     bytes.data = (const char*)data;
     bytes.size = data_size_bytes;
     if (write_timeout_ == ::std::chrono::microseconds::zero()) {
-      return static_cast<int64_t>(fsend_(bytes, nullptr));
+      fsend_(bytes, nullptr);
     } else {
-      return static_cast<int64_t>(fsend_(bytes, write_timeout_.count()));
+      fsend_(bytes, write_timeout_.count());
     }
+
+    return static_cast<ssize_t>(data_size_bytes);
   }
 
   void PacketDone(bool is_valid) override {}
@@ -143,15 +145,16 @@ class MicroTransportChannel : public RPCChannel {
       }
 
       ::std::string chunk;
+      size_t bytes_needed = unframer_.BytesNeeded();
+      CHECK_GT(bytes_needed, 0) << "unframer unexpectedly needs no data";
       if (timeout != nullptr) {
         ::std::chrono::microseconds iter_timeout{
             ::std::max(::std::chrono::microseconds{0},
                        ::std::chrono::duration_cast<::std::chrono::microseconds>(
                            end_time - ::std::chrono::steady_clock::now()))};
-        chunk =
-            frecv_(size_t(kReceiveBufferSizeBytes), iter_timeout.count()).operator std::string();
+        chunk = frecv_(bytes_needed, iter_timeout.count()).operator std::string();
       } else {
-        chunk = frecv_(size_t(kReceiveBufferSizeBytes), nullptr).operator std::string();
+        chunk = frecv_(bytes_needed, nullptr).operator std::string();
       }
       pending_chunk_ = chunk;
       if (pending_chunk_.size() == 0) {

@@ -23,45 +23,9 @@ import logging
 import string
 import typing
 
+from .project_api.server import IoTimeoutError, TransportClosedError, TransportTimeouts
+
 _LOG = logging.getLogger(__name__)
-
-
-class TransportClosedError(Exception):
-    """Raised when a transport can no longer be used due to underlying I/O problems."""
-
-
-class IoTimeoutError(Exception):
-    """Raised when the I/O operation could not be completed before the timeout.
-
-    Specifically:
-     - when no data could be read before the timeout
-     - when some of the write data could be written before the timeout
-
-    Note the asymmetric behavior of read() vs write(), since in one case the total length of the
-    data to transfer is known.
-    """
-
-
-# Timeouts supported by the underlying C++ MicroSession.
-#
-# session_start_retry_timeout_sec : float
-#     Number of seconds to wait for the device to send a kSessionStartReply after sending the
-#     initial session start message. After this time elapses another
-#     kSessionTerminated-kSessionStartInit train is sent. 0 disables this.
-# session_start_timeout_sec : float
-#     Total number of seconds to wait for the session to be established. After this time, the
-#     client gives up trying to establish a session and raises an exception.
-# session_established_timeout_sec : float
-#     Number of seconds to wait for a reply message after a session has been established. 0
-#     disables this.
-TransportTimeouts = collections.namedtuple(
-    "TransportTimeouts",
-    [
-        "session_start_retry_timeout_sec",
-        "session_start_timeout_sec",
-        "session_established_timeout_sec",
-    ],
-)
 
 
 def debug_transport_timeouts(session_start_retry_timeout_sec=0):
@@ -263,7 +227,7 @@ class TransportLogger(Transport):
     def write(self, data, timeout_sec):
         timeout_str = f"{timeout_sec:5.2f}s" if timeout_sec is not None else " None "
         try:
-            bytes_written = self.child.write(data, timeout_sec)
+            self.child.write(data, timeout_sec)
         except IoTimeoutError:
             self.logger.log(
                 self.level,
@@ -286,14 +250,14 @@ class TransportLogger(Transport):
             )
             raise err
 
-        hex_lines = self._to_hex(data[:bytes_written])
+        hex_lines = self._to_hex(data)
         if len(hex_lines) > 1:
             self.logger.log(
                 self.level,
                 "%s: write {%s}        <- [%3d B]:\n%s",
                 self.name,
                 timeout_str,
-                bytes_written,
+                len(data),
                 "\n".join(hex_lines),
             )
         else:
@@ -302,11 +266,10 @@ class TransportLogger(Transport):
                 "%s: write {%s}        <- [%3d B]: %s",
                 self.name,
                 timeout_str,
-                bytes_written,
+                len(data),
                 hex_lines[0],
             )
 
-        return bytes_written
 
 
 TransportContextManager = typing.ContextManager[Transport]
