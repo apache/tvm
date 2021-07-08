@@ -803,9 +803,9 @@ def scatter_nd(data, indices, updates, mode):
 
         # Copy data into the output. This loop writes to the same portions of
         # memory as the following loop, so we do not need a memory sync.
-        with ib.for_range(0, ceil_div(fused_shape, bdim * tdim), name="i") as i:
-            index = i * bdim * tdim + bx * tdim + tx
-            with ib.if_scope(index < fused_shape):
+        with ib.for_range(0, ceil_div(fused_shape, fused_updates_dimension), name="i") as i:
+            index = i * fused_updates_dimension + bx * tdim + tx
+            with ib.if_scope(bx * tdim + tx < fused_updates_dimension):
                 out[index] = data[index]
 
         with ib.for_range(0, fused_indices_dimension, name="i") as i:
