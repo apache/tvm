@@ -47,6 +47,8 @@ if(USE_MICRO)
          "src/runtime/crt/aot_executor *.c -> src/runtime/crt/aot_executor"
          "src/runtime/crt/graph_executor_module *.c -> src/runtime/crt/graph_executor_module"
          "src/runtime/crt/host *.cc -> template/host"
+         "src/runtime/crt/host *.py -> template/host"
+         "src/runtime/crt/host Makefile -> template/host"
          "src/runtime/crt/memory *.c -> src/runtime/crt/memory"
          "src/runtime/crt/microtvm_rpc_common *.cc -> src/runtime/crt/microtvm_rpc_common"
          "src/runtime/crt/microtvm_rpc_server *.cc -> src/runtime/crt/microtvm_rpc_server"
