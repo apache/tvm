@@ -223,8 +223,12 @@ class LLVMModuleNode final : public runtime::ModuleNode {
         found_linked_params = true;
         continue;
       }
-      ICHECK(kv.second->IsInstance<PrimFuncNode>())
-          << "Can only lower IR Module with PrimFuncs, but got " << kv.second->GetTypeKey();
+      if (!kv.second->IsInstance<PrimFuncNode>()) {
+        // (@jroesch): we relax constraints here, Relay functions will just be ignored.
+        DLOG(INFO) << "Can only lower IR Module with PrimFuncs, but got "
+                   << kv.second->GetTypeKey();
+        continue;
+      }
       auto f = Downcast<PrimFunc>(kv.second);
       auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
       ICHECK(global_symbol.defined());
@@ -234,7 +238,8 @@ class LLVMModuleNode final : public runtime::ModuleNode {
       }
       funcs.push_back(f);
     }
-    ICHECK(funcs.size() > 0 || (could_have_linked_params && found_linked_params));
+    // TODO(@jroesch): follow up on this condition.
+    // ICHECK(funcs.size() > 0 || (could_have_linked_params && found_linked_params));
     // TODO(tqchen): remove the entry function behavior as it does not
     // makes sense when we start to use multiple modules.
     cg->Init("TVMMod", tm_.get(), ctx_.get(), system_lib, system_lib, target_c_runtime);

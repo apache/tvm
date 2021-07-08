@@ -25,6 +25,7 @@
 #include <tvm/node/structural_equal.h>
 #include <tvm/node/structural_hash.h>
 #include <tvm/relay/analysis.h>
+#include <tvm/relay/attrs/annotation.h>
 #include <tvm/relay/attrs/device_copy.h>
 #include <tvm/relay/attrs/memory.h>
 #include <tvm/relay/expr.h>
@@ -43,6 +44,7 @@
 #include "../backend/compile_engine.h"
 #include "../op/memory/memory.h"
 #include "../op/vm/vm.h"
+#include "./pass_utils.h"
 #include "let_list.h"
 #include "pattern_utils.h"
 
@@ -66,8 +68,17 @@ inline Expr AllocTensor(const Expr& storage, tvm::relay::Expr shape, DataType dt
 
 // Check if the primitive function contains only reshape ops.
 bool IsReshapeOnly(const Expr& expr) {
-  if (auto* func = expr.as<FunctionNode>()) {
+  if (const FunctionNode* func = expr.as<FunctionNode>()) {
     return func->HasNonzeroAttr(attr::kReshapeOnly);
+  }
+  if (const CallNode* call = expr.as<CallNode>()) {
+    if (call->attrs.defined()) {
+      if (auto tir_call_attrs = call->attrs.as<TIRCallAttrs>()) {
+        Map<String, ObjectRef> metadata = tir_call_attrs->metadata;
+        return metadata.count(attr::kReshapeOnly) &&
+               (Downcast<tvm::Integer>(metadata[attr::kReshapeOnly])->value == 1);
+      }
+    }
   }
   return false;
 }
