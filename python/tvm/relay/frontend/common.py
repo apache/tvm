@@ -527,6 +527,7 @@ def infer_value(input_val, params, mod=None):
     assert all(
         var.name_hint in params.keys() for var in analysis.free_vars(input_val)
     ), "All inputs to infer must be available in params."
+    assert tvm.runtime.enabled("llvm"), "LLVM must be enabled to infer value."
     try:
         # TODO(kevinthesun): Use VM for all cases.
         # pylint: disable=import-outside-toplevel
