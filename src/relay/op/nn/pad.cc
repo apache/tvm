@@ -308,7 +308,14 @@ bool Im2colRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     return false;
 
   // assign output type
-  reporter->Assign(types[1], TensorType(input->shape, input->dtype));
+  tvm::Array<tvm::PrimExpr> output_shape;
+  output_shape.push_back(input->shape[0]);
+  output_shape.push_back(27);
+  output_shape.push_back(256);
+  // output_shape.push_back(K);
+  // output_shape.push_back(L);
+
+  reporter->Assign(types[1], TensorType(output_shape, input->dtype));
 
   return true;
 }

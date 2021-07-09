@@ -776,6 +776,7 @@ inline tvm::te::Tensor im2col(const tvm::te::Tensor& data,
   output_shape.push_back(N);
   output_shape.push_back(K);
   output_shape.push_back(L);
+  std::cout << "output shape: " << output_shape << std::endl;
 
   auto pad_value = tvm::tir::make_const(data->dtype, 0);
 
@@ -814,18 +815,21 @@ inline tvm::te::Tensor im2col(const tvm::te::Tensor& data,
     // indices: [ax0, ax1, (ax2 - 1), (ax3 - 1)]
 
     indices.push_back(nkl[0]);            // B
+
+    // C =  k % input_c,
     indices.push_back(indexmod(nkl[1], input_c));  // C
 
     // H need remove padding_h and limit range
-    tvm::PrimExpr sh = stride_h * indexdiv(nkl[2], output_w) + dilation_h * indexmod(indexmod(nkl[1], input_c), kernel_w);
+    // stride_h * (l / output_w) + dilation_h * ((k / input_c) / kernel_w),
+    tvm::PrimExpr sh = stride_h * indexdiv(nkl[2], output_w) + dilation_h * indexdiv(indexdiv(nkl[1], input_c), kernel_w);
     indices.push_back(sh - padding_h);
     condition.push_back(sh >= padding_h);
     condition.push_back(analyzer.Simplify(sh < input_h + padding_h));
 
     // W need remove padding_w and limit range
+    // stride_w * (l % output_w) + dilation_w * ((k // input_c) % kernel_w),
     tvm::PrimExpr sw = stride_w * indexmod(nkl[2], output_w) + dilation_w * (indexmod(indexdiv(nkl[1], input_c), kernel_w)); 
     indices.push_back(sw - padding_w);
-
     condition.push_back(sw >= padding_w);
     condition.push_back(analyzer.Simplify(sw < input_w + padding_w));
 
