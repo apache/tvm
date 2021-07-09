@@ -37,10 +37,10 @@
 #include <utility>
 
 #include "../../support/str_escape.h"
-#include "crt_config.h"
 #include "../rpc/rpc_channel.h"
 #include "../rpc/rpc_endpoint.h"
 #include "../rpc/rpc_session.h"
+#include "crt_config.h"
 
 namespace tvm {
 namespace runtime {

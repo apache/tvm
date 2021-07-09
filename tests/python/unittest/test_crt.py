@@ -54,7 +54,9 @@ def _make_sess_from_op(workspace, op_name, sched, arg_bufs):
 
 def _make_session(workspace, mod):
     template_project_dir = os.path.join(tvm.micro.get_standalone_crt_dir(), "template", "host")
-    project = tvm.micro.generate_project(template_project_dir, mod, workspace.relpath("project"), {"verbose": 1})
+    project = tvm.micro.generate_project(
+        template_project_dir, mod, workspace.relpath("project"), {"verbose": 1}
+    )
     project.build()
     project.flash()
     return tvm.micro.Session(project.transport())
@@ -219,4 +221,4 @@ def test_platform_timer():
 
 
 if __name__ == "__main__":
-     sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

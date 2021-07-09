@@ -25,7 +25,6 @@ import typing
 from tvm.contrib import utils
 
 from .._ffi import libinfo
-from . import model_library_format
 
 
 _LOG = logging.getLogger(__name__)
