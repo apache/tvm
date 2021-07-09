@@ -75,7 +75,13 @@ def _build_project(model, target, zephyr_board, west_cmd, mod, build_config, ext
         str(template_project_dir),
         mod,
         project_dir,
-        {"extra_files_tar": extra_files_tar, "project_type": "aot_demo", "west_cmd": west_cmd, "verbose": 0, "zephyr_board": zephyr_board},
+        {
+            "extra_files_tar": extra_files_tar,
+            "project_type": "aot_demo",
+            "west_cmd": west_cmd,
+            "verbose": 0,
+            "zephyr_board": zephyr_board,
+        },
     )
     project.build()
     return project, project_dir
@@ -109,7 +115,7 @@ def _create_header_file(tensor_name, npy_data, output_path, tar_file):
     header_file.write("};\n\n")
 
     header_file_bytes = bytes(header_file.getvalue(), "utf-8")
-    raw_path = (pathlib.Path(output_path) / f"{tensor_name}.h")
+    raw_path = pathlib.Path(output_path) / f"{tensor_name}.h"
     ti = tarfile.TarInfo(name=str(raw_path))
     ti.size = len(header_file_bytes)
     ti.mode = 0o644
@@ -189,7 +195,9 @@ def test_tflite(platform, west_cmd, skip_build, tvm_debug):
         with tarfile.open(tar_temp_file.name, "w:gz") as tf:
             with tempfile.TemporaryDirectory() as tar_temp_dir:
                 model_files_path = os.path.join(tar_temp_dir.name, "include")
-                header_path = generate_c_interface_header(lowered.libmod_name, ["input_1"], ["output"], model_files_path)
+                header_path = generate_c_interface_header(
+                    lowered.libmod_name, ["input_1"], ["output"], model_files_path
+                )
                 tf.addfile(header_path, arcname=os.path.relpath(header_path, tar_temp_dir.name))
 
             _create_header_file("input_data", sample, "include", tf)
@@ -198,7 +206,13 @@ def test_tflite(platform, west_cmd, skip_build, tvm_debug):
             )
 
         project, _ = _build_project(
-            model, target, zephyr_board, west_cmd, lowered, build_config, extra_files_tar=temp_file.name
+            model,
+            target,
+            zephyr_board,
+            west_cmd,
+            lowered,
+            build_config,
+            extra_files_tar=temp_file.name,
         )
 
     project.flash()
@@ -244,10 +258,18 @@ def test_qemu_make_fail(platform, west_cmd, skip_build, tvm_debug):
             _create_header_file("output_data", np.zeros(shape=shape, dtype=dtype), "include", tf)
 
         project, project_dir = _build_project(
-            model, target, zephyr_board, west_cmd, lowered, build_config, extra_files_tar=temp_file.name
+            model,
+            target,
+            zephyr_board,
+            west_cmd,
+            lowered,
+            build_config,
+            extra_files_tar=temp_file.name,
         )
 
-    file_path = pathlib.Path(project_dir) / "build" / "zephyr" / "CMakeFiles" / "run.dir" / "build.make"
+    file_path = (
+        pathlib.Path(project_dir) / "build" / "zephyr" / "CMakeFiles" / "run.dir" / "build.make"
+    )
     assert file_path.is_file(), f"[{file_path}] does not exist."
 
     # Remove a file to create make failure.

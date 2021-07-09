@@ -66,7 +66,6 @@ class BaseTestHandler(project_api.server.ProjectAPIHandler):
 
 
 class Transport:
-
     def readable(self):
         return True
 
@@ -98,21 +97,26 @@ class Transport:
 
 
 class ClientServerFixture:
-
     def __init__(self, handler):
         self.handler = handler
         self.client_to_server = Transport()
         self.server_to_client = Transport()
 
-        self.server = project_api.server.ProjectAPIServer(self.client_to_server, self.server_to_client, handler)
+        self.server = project_api.server.ProjectAPIServer(
+            self.client_to_server, self.server_to_client, handler
+        )
         self.client = project_api.client.ProjectAPIClient(
-            self.server_to_client, self.client_to_server, testonly_did_write_request=self._process_server_request
+            self.server_to_client,
+            self.client_to_server,
+            testonly_did_write_request=self._process_server_request,
         )
 
         self.expect_failure = False
 
     def _process_server_request(self):
-        assert self.server.serve_one_request() == (not self.expect_failure), "Server failed to process request"
+        assert self.server.serve_one_request() == (
+            not self.expect_failure
+        ), "Server failed to process request"
 
 
 def test_server_info_query():
@@ -198,7 +202,9 @@ def test_open_transport():
 
     with mock.patch.object(BaseTestHandler, "open_transport", return_value=timeouts) as patch:
         fixture = ClientServerFixture(BaseTestHandler())
-        assert fixture.client.open_transport(options={"bar": "baz"}) == {"timeouts": dict(timeouts._asdict())}
+        assert fixture.client.open_transport(options={"bar": "baz"}) == {
+            "timeouts": dict(timeouts._asdict())
+        }
         fixture.handler.open_transport.assert_called_once_with({"bar": "baz"})
 
 
@@ -257,7 +263,9 @@ class ProjectAPITestError(Exception):
 
 
 def test_method_raises_error():
-    with mock.patch.object(BaseTestHandler, "close_transport", side_effect=ProjectAPITestError) as patch:
+    with mock.patch.object(
+        BaseTestHandler, "close_transport", side_effect=ProjectAPITestError
+    ) as patch:
         fixture = ClientServerFixture(BaseTestHandler())
         with pytest.raises(project_api.server.ServerError) as exc_info:
             fixture.client.close_transport()
@@ -279,14 +287,14 @@ def test_extra_param():
     fixture = ClientServerFixture(BaseTestHandler())
 
     # test one with has_preprocssing and one without
-    assert hasattr(fixture.server, '_dispatch_build') == False
+    assert hasattr(fixture.server, "_dispatch_build") == False
     with pytest.raises(project_api.server.JSONRPCError) as exc_info:
         fixture.client._request_reply("build", {"invalid_param_name": None, "options": {}})
 
     assert exc_info.value.code == project_api.server.ErrorCode.INVALID_PARAMS
     assert "build: extra parameters: invalid_param_name" in str(exc_info.value)
 
-    assert hasattr(fixture.server, '_dispatch_open_transport') == True
+    assert hasattr(fixture.server, "_dispatch_open_transport") == True
     with pytest.raises(project_api.server.JSONRPCError) as exc_info:
         fixture.client._request_reply("open_transport", {"invalid_param_name": None, "options": {}})
 
@@ -298,14 +306,14 @@ def test_missing_param():
     fixture = ClientServerFixture(BaseTestHandler())
 
     # test one with has_preprocssing and one without
-    assert hasattr(fixture.server, '_dispatch_build') == False
+    assert hasattr(fixture.server, "_dispatch_build") == False
     with pytest.raises(project_api.server.JSONRPCError) as exc_info:
         fixture.client._request_reply("build", {})
 
     assert exc_info.value.code == project_api.server.ErrorCode.INVALID_PARAMS
     assert "build: parameter options not given" in str(exc_info.value)
 
-    assert hasattr(fixture.server, '_dispatch_open_transport') == True
+    assert hasattr(fixture.server, "_dispatch_open_transport") == True
     with pytest.raises(project_api.server.JSONRPCError) as exc_info:
         fixture.client._request_reply("open_transport", {})
 
@@ -318,12 +326,14 @@ def test_incorrect_param_type():
 
     # The error message given at the JSON-RPC server level doesn't make sense when preprocessing is
     # used. Only test without preprocessing here.
-    assert hasattr(fixture.server, '_dispatch_build') == False
+    assert hasattr(fixture.server, "_dispatch_build") == False
     with pytest.raises(project_api.server.JSONRPCError) as exc_info:
         fixture.client._request_reply("build", {"options": None})
 
     assert exc_info.value.code == project_api.server.ErrorCode.INVALID_PARAMS
-    assert "build: parameter options: want <class 'dict'>, got <class 'NoneType'>" in str(exc_info.value)
+    assert "build: parameter options: want <class 'dict'>, got <class 'NoneType'>" in str(
+        exc_info.value
+    )
 
 
 def test_invalid_request():
@@ -345,54 +355,66 @@ def test_invalid_request():
 
     # Parseable JSON with the wrong schema gets a reply.
     assert _request_reply(b"1") == {
-        "error": {"code": project_api.server.ErrorCode.INVALID_REQUEST,
-                  "data": None,
-                  "message": "request: want dict; got 1"},
+        "error": {
+            "code": project_api.server.ErrorCode.INVALID_REQUEST,
+            "data": None,
+            "message": "request: want dict; got 1",
+        },
         "id": None,
         "jsonrpc": "2.0",
     }
 
     # Incorrect JSON-RPC spec version.
     assert _request_reply(b'{"jsonrpc": 1.0}') == {
-        "error": {"code": project_api.server.ErrorCode.INVALID_REQUEST,
-                  "data": None,
-                  "message": 'request["jsonrpc"]: want "2.0"; got 1.0'},
+        "error": {
+            "code": project_api.server.ErrorCode.INVALID_REQUEST,
+            "data": None,
+            "message": 'request["jsonrpc"]: want "2.0"; got 1.0',
+        },
         "id": None,
         "jsonrpc": "2.0",
     }
 
     # Method not a str
     assert _request_reply(b'{"jsonrpc": "2.0", "method": 123}') == {
-        "error": {"code": project_api.server.ErrorCode.INVALID_REQUEST,
-                  "data": None,
-                  "message": 'request["method"]: want str; got 123'},
+        "error": {
+            "code": project_api.server.ErrorCode.INVALID_REQUEST,
+            "data": None,
+            "message": 'request["method"]: want str; got 123',
+        },
         "id": None,
         "jsonrpc": "2.0",
     }
 
     # Method name has invalid characters
     assert _request_reply(b'{"jsonrpc": "2.0", "method": "bar!"}') == {
-        "error": {"code": project_api.server.ErrorCode.INVALID_REQUEST,
-                  "data": None,
-                  "message": 'request["method"]: should match regex ^[a-zA-Z0-9_]+$; got \'bar!\''},
+        "error": {
+            "code": project_api.server.ErrorCode.INVALID_REQUEST,
+            "data": None,
+            "message": "request[\"method\"]: should match regex ^[a-zA-Z0-9_]+$; got 'bar!'",
+        },
         "id": None,
         "jsonrpc": "2.0",
     }
 
     # params not a dict
     assert _request_reply(b'{"jsonrpc": "2.0", "method": "bar", "params": 123}') == {
-        "error": {"code": project_api.server.ErrorCode.INVALID_REQUEST,
-                  "data": None,
-                  "message": 'request["params"]: want dict; got <class \'int\'>'},
+        "error": {
+            "code": project_api.server.ErrorCode.INVALID_REQUEST,
+            "data": None,
+            "message": "request[\"params\"]: want dict; got <class 'int'>",
+        },
         "id": None,
         "jsonrpc": "2.0",
     }
 
     # id not valid
     assert _request_reply(b'{"jsonrpc": "2.0", "method": "bar", "params": {}, "id": {}}') == {
-        "error": {"code": project_api.server.ErrorCode.INVALID_REQUEST,
-                  "data": None,
-                  "message": 'request["id"]: want str, number, null; got {}'},
+        "error": {
+            "code": project_api.server.ErrorCode.INVALID_REQUEST,
+            "data": None,
+            "message": 'request["id"]: want str, number, null; got {}',
+        },
         "id": None,
         "jsonrpc": "2.0",
     }

@@ -18,12 +18,16 @@
 """Defines abstractions and implementations of the RPC transport used with micro TVM."""
 
 import abc
-import collections
 import logging
 import string
 import typing
 
-from .project_api.server import IoTimeoutError, TransportClosedError, TransportTimeouts
+from .project_api.server import IoTimeoutError, TransportTimeouts
+from .project_api.server import TransportClosedError
+
+
+_ = TransportClosedError  # work around pylint unused-import error
+
 
 _LOG = logging.getLogger(__name__)
 
@@ -269,7 +273,6 @@ class TransportLogger(Transport):
                 len(data),
                 hex_lines[0],
             )
-
 
 
 TransportContextManager = typing.ContextManager[Transport]

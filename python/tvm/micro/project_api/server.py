@@ -27,6 +27,8 @@ _LOG = logging.getLogger(__name__)
 
 
 _ProjectOption = collections.namedtuple("ProjectOption", ("name", "choices", "help"))
+
+
 class ProjectOption(_ProjectOption):
     def __new__(cls, name, **kw):
         """Override __new__ to force all options except name to be specified as kwargs."""
@@ -36,7 +38,9 @@ class ProjectOption(_ProjectOption):
         return super().__new__(cls, **kw)
 
 
-ServerInfo = collections.namedtuple('ServerInfo', ('platform_name', 'is_template', 'model_library_format_path', 'project_options'))
+ServerInfo = collections.namedtuple(
+    "ServerInfo", ("platform_name", "is_template", "model_library_format_path", "project_options")
+)
 
 
 # Timeouts supported by the underlying C++ MicroSession.
@@ -63,6 +67,7 @@ TransportTimeouts = collections.namedtuple(
 
 class ErrorCode(enum.IntEnum):
     """Enumerates error codes which can be returned. Includes JSON-RPC standard and custom codes."""
+
     # Custom (in reserved error code space).
     SERVER_ERROR = -32000  # A generic error was raised while processing the request.
 
@@ -84,18 +89,19 @@ class JSONRPCError(Exception):
         self.client_context = client_context
 
     def to_json(self):
-        return {"code": self.code,
-                "message": self.message,
-                "data": self.data,
+        return {
+            "code": self.code,
+            "message": self.message,
+            "data": self.data,
         }
 
     def __str__(self):
-        data_str = ''
+        data_str = ""
         if self.data:
             if isinstance(self.data, dict) and self.data.get("traceback"):
                 data_str = f'\n{self.data["traceback"]}'
             else:
-                data_str = f'\n{self.data!r}'
+                data_str = f"\n{self.data!r}"
         return f"JSON-RPC error # {self.code}: {self.message}" + data_str
 
     @classmethod
@@ -108,16 +114,20 @@ class JSONRPCError(Exception):
             if ErrorCode(json_error["code"]) == ErrorCode.SERVER_ERROR:
                 found_server_error = True
         except ValueError:
-             ServerError.from_json(client_context, json_error)
+            ServerError.from_json(client_context, json_error)
 
         if found_server_error:
             return ServerError.from_json(client_context, json_error)
 
-        return cls(json_error["code"], json_error["message"], json_error.get("data", None), client_context=client_context)
+        return cls(
+            json_error["code"],
+            json_error["message"],
+            json_error.get("data", None),
+            client_context=client_context,
+        )
 
 
 class ServerError(JSONRPCError):
-
     @classmethod
     def from_exception(cls, exc, **kw):
         to_return = cls(**kw)
@@ -156,13 +166,13 @@ class ServerError(JSONRPCError):
             #      <copy of the line>
             # We want to place a comment on the first line of the outermost frame to indicate this is the
             # server-side stack frame.
-            first_frame_list = traceback_list[1].split('\n')
+            first_frame_list = traceback_list[1].split("\n")
             self.data["traceback"] = (
-                traceback_list[0] +
-                f"{first_frame_list[0]}  # <--- Outermost server-side stack frame\n" +
-                "\n".join(first_frame_list[1:]) +
-                "".join(traceback_list[2:])
-                )
+                traceback_list[0]
+                + f"{first_frame_list[0]}  # <--- Outermost server-side stack frame\n"
+                + "\n".join(first_frame_list[1:])
+                + "".join(traceback_list[2:])
+            )
 
     @classmethod
     def from_json(cls, client_context, json_error):
@@ -175,7 +185,9 @@ class ServerError(JSONRPCError):
                     client_context=client_context,
                 )
 
-        return cls(json_error["message"], data=json_error.get("data"), client_context=client_context)
+        return cls(
+            json_error["message"], data=json_error.get("data"), client_context=client_context
+        )
 
 
 class TransportClosedError(ServerError):
@@ -228,7 +240,13 @@ class ProjectAPIHandler(metaclass=abc.ABCMeta):
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def generate_project(self, model_library_format_path : pathlib.Path, standalone_crt_dir : pathlib.Path, project_dir : pathlib.Path, options : dict):
+    def generate_project(
+        self,
+        model_library_format_path: pathlib.Path,
+        standalone_crt_dir: pathlib.Path,
+        project_dir: pathlib.Path,
+        options: dict,
+    ):
         """Generate a project from the given artifacts, copying ourselves to that project.
 
         Parameters
@@ -247,7 +265,7 @@ class ProjectAPIHandler(metaclass=abc.ABCMeta):
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def build(self, options : dict):
+    def build(self, options: dict):
         """Build the project, enabling the flash() call to made.
 
         Parameters
@@ -258,7 +276,7 @@ class ProjectAPIHandler(metaclass=abc.ABCMeta):
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def flash(self, options : dict):
+    def flash(self, options: dict):
         """Program the project onto the device.
 
         Parameters
@@ -269,7 +287,7 @@ class ProjectAPIHandler(metaclass=abc.ABCMeta):
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def open_transport(self, options : dict) -> TransportTimeouts:
+    def open_transport(self, options: dict) -> TransportTimeouts:
         """Open resources needed for the transport layer.
 
         This function might e.g. open files or serial ports needed in write_transport or read_transport.
@@ -296,7 +314,7 @@ class ProjectAPIHandler(metaclass=abc.ABCMeta):
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def read_transport(self, n : int, timeout_sec : typing.Union[float, type(None)]) -> bytes:
+    def read_transport(self, n: int, timeout_sec: typing.Union[float, type(None)]) -> bytes:
         """Read data from the transport.
 
         Parameters
@@ -325,7 +343,7 @@ class ProjectAPIHandler(metaclass=abc.ABCMeta):
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def write_transport(self, data : bytes, timeout_sec : float):
+    def write_transport(self, data: bytes, timeout_sec: float):
         """Write data to the transport.
 
         This function should either write all bytes in `data` or raise an exception.
@@ -351,7 +369,6 @@ class ProjectAPIHandler(metaclass=abc.ABCMeta):
         raise NotImplementedError()
 
 
-
 class ProjectAPIServer:
     """Base class for Project API Servers.
 
@@ -365,8 +382,9 @@ class ProjectAPIServer:
 
     _PROTOCOL_VERSION = 1
 
-    def __init__(self, read_file : typing.BinaryIO, write_file : typing.BinaryIO,
-                 handler : ProjectAPIHandler):
+    def __init__(
+        self, read_file: typing.BinaryIO, write_file: typing.BinaryIO, handler: ProjectAPIHandler
+    ):
         """Initialize a new ProjectAPIServer.
 
         Parameters
@@ -379,8 +397,10 @@ class ProjectAPIServer:
             A class which extends the abstract class ProjectAPIHandler and implements the server RPC
             functions.
         """
-        self._read_file = io.TextIOWrapper(read_file, encoding='UTF-8', errors='strict')
-        self._write_file = io.TextIOWrapper(write_file, encoding='UTF-8', errors='strict', write_through=True)
+        self._read_file = io.TextIOWrapper(read_file, encoding="UTF-8", errors="strict")
+        self._write_file = io.TextIOWrapper(
+            write_file, encoding="UTF-8", errors="strict", write_through=True
+        )
         self._handler = handler
 
     def serve_forever(self):
@@ -404,14 +424,14 @@ class ProjectAPIServer:
         """
         try:
             line = self._read_file.readline()
-            _LOG.debug('read request <- %s', line)
+            _LOG.debug("read request <- %s", line)
             if not line:
                 return False
 
             request = json.loads(line)
 
         except EOFError:
-            _LOG.error('EOF')
+            _LOG.error("EOF")
             return False
 
         except Exception as exc:
@@ -435,25 +455,27 @@ class ProjectAPIServer:
                 message = f"calling method {request['method']}"
 
             exc = ServerError.from_exception(exc, message=message)
-            request_id = None if not isinstance(request, dict) else request.get('id')
+            request_id = None if not isinstance(request, dict) else request.get("id")
             self._reply_error(request_id, exc)
             return did_validate
 
         return True
 
-    VALID_METHOD_RE = re.compile('^[a-zA-Z0-9_]+$')
+    VALID_METHOD_RE = re.compile("^[a-zA-Z0-9_]+$")
 
     def _validate_request(self, request):
         if type(request) is not dict:
-            raise JSONRPCError(ErrorCode.INVALID_REQUEST, f"request: want dict; got {request!r}", None)
+            raise JSONRPCError(
+                ErrorCode.INVALID_REQUEST, f"request: want dict; got {request!r}", None
+            )
 
-        jsonrpc = request.get('jsonrpc')
+        jsonrpc = request.get("jsonrpc")
         if jsonrpc != "2.0":
             raise JSONRPCError(
                 ErrorCode.INVALID_REQUEST, f'request["jsonrpc"]: want "2.0"; got {jsonrpc!r}', None
             )
 
-        method = request.get('method')
+        method = request.get("method")
         if type(method) != str:
             raise JSONRPCError(
                 ErrorCode.INVALID_REQUEST, f'request["method"]: want str; got {method!r}', None
@@ -463,16 +485,16 @@ class ProjectAPIServer:
             raise JSONRPCError(
                 ErrorCode.INVALID_REQUEST,
                 f'request["method"]: should match regex {self.VALID_METHOD_RE.pattern}; got {method!r}',
-                None
+                None,
             )
 
-        params = request.get('params')
+        params = request.get("params")
         if type(params) != dict:
             raise JSONRPCError(
                 ErrorCode.INVALID_REQUEST, f'request["params"]: want dict; got {type(params)}', None
             )
 
-        request_id = request.get('id')
+        request_id = request.get("id")
         if type(request_id) not in (str, int, type(None)):
             raise JSONRPCError(
                 ErrorCode.INVALID_REQUEST,
@@ -481,72 +503,87 @@ class ProjectAPIServer:
             )
 
     def _dispatch_request(self, request):
-        method = request['method']
+        method = request["method"]
 
         interface_method = getattr(ProjectAPIHandler, method, None)
         if interface_method is None:
             raise JSONRPCError(
-                ErrorCode.METHOD_NOT_FOUND, f'{request["method"]}: no such method', None)
+                ErrorCode.METHOD_NOT_FOUND, f'{request["method"]}: no such method', None
+            )
 
         has_preprocessing = True
-        dispatch_method = getattr(self, f'_dispatch_{method}', None)
+        dispatch_method = getattr(self, f"_dispatch_{method}", None)
         if dispatch_method is None:
             dispatch_method = getattr(self._handler, method)
             has_preprocessing = False
 
-        request_params = request['params']
+        request_params = request["params"]
         params = {}
 
         for var_name, var_type in typing.get_type_hints(interface_method).items():
-            if var_name == 'self' or var_name == 'return':
+            if var_name == "self" or var_name == "return":
                 continue
 
             # NOTE: types can only be JSON-compatible types, so var_type is expected to be of type 'type'.
             if var_name not in request_params:
-                raise JSONRPCError(ErrorCode.INVALID_PARAMS, f'method {request["method"]}: parameter {var_name} not given', None)
+                raise JSONRPCError(
+                    ErrorCode.INVALID_PARAMS,
+                    f'method {request["method"]}: parameter {var_name} not given',
+                    None,
+                )
 
             param = request_params[var_name]
             if not has_preprocessing and not isinstance(param, var_type):
                 raise JSONRPCError(
                     ErrorCode.INVALID_PARAMS,
-                    f'method {request["method"]}: parameter {var_name}: want {var_type!r}, got {type(param)!r}', None)
+                    f'method {request["method"]}: parameter {var_name}: want {var_type!r}, got {type(param)!r}',
+                    None,
+                )
 
             params[var_name] = param
 
-        extra_params = [p for p in request['params'] if p not in params]
+        extra_params = [p for p in request["params"] if p not in params]
         if extra_params:
-            raise JSONRPCError(ErrorCode.INVALID_PARAMS,
-                               f'{request["method"]}: extra parameters: {", ".join(extra_params)}',
-                               None)
+            raise JSONRPCError(
+                ErrorCode.INVALID_PARAMS,
+                f'{request["method"]}: extra parameters: {", ".join(extra_params)}',
+                None,
+            )
 
         return_value = dispatch_method(**params)
-        self._write_reply(request['id'], result=return_value)
+        self._write_reply(request["id"], result=return_value)
 
     def _write_reply(self, request_id, result=None, error=None):
         reply_dict = {
-            'jsonrpc': "2.0",
-            'id': request_id,
+            "jsonrpc": "2.0",
+            "id": request_id,
         }
 
         if error is not None:
-            assert result is None, f'Want either result= or error=, got result={result!r} and error={error!r})'
+            assert (
+                result is None
+            ), f"Want either result= or error=, got result={result!r} and error={error!r})"
             reply_dict["error"] = error
         else:
             reply_dict["result"] = result
 
         reply_str = json.dumps(reply_dict)
-        _LOG.debug('write reply -> %r', reply_dict)
+        _LOG.debug("write reply -> %r", reply_dict)
         self._write_file.write(reply_str)
-        self._write_file.write('\n')
+        self._write_file.write("\n")
 
     def _reply_error(self, request_id, exception):
         self._write_reply(request_id, error=exception.to_json())
 
-    def _dispatch_generate_project(self, model_library_format_path, standalone_crt_dir, project_dir, options):
-        return self._handler.generate_project(pathlib.Path(model_library_format_path),
-                                              pathlib.Path(standalone_crt_dir),
-                                              pathlib.Path(project_dir),
-                                              options)
+    def _dispatch_generate_project(
+        self, model_library_format_path, standalone_crt_dir, project_dir, options
+    ):
+        return self._handler.generate_project(
+            pathlib.Path(model_library_format_path),
+            pathlib.Path(standalone_crt_dir),
+            pathlib.Path(project_dir),
+            options,
+        )
 
     def _dispatch_server_info_query(self, tvm_version):
         query_reply = self._handler.server_info_query(tvm_version)
@@ -563,7 +600,7 @@ class ProjectAPIServer:
 
     def _dispatch_read_transport(self, n, timeout_sec):
         reply_data = self._handler.read_transport(n, timeout_sec)
-        return {'data': str(base64.b85encode(reply_data), 'utf-8')}
+        return {"data": str(base64.b85encode(reply_data), "utf-8")}
 
     def _dispatch_write_transport(self, data, timeout_sec):
         self._handler.write_transport(base64.b85decode(data), timeout_sec)
@@ -682,7 +719,7 @@ def write_with_timeout(fd, data, timeout_sec):
     return num_written
 
 
-def main(handler : ProjectAPIHandler, argv : typing.List[str] = None):
+def main(handler: ProjectAPIHandler, argv: typing.List[str] = None):
     """Start a Project API server.
 
     Parameters
@@ -696,16 +733,27 @@ def main(handler : ProjectAPIHandler, argv : typing.List[str] = None):
         argv = sys.argv[1:]
 
     parser = argparse.ArgumentParser(description="Generic TVM Project API server entry point")
-    parser.add_argument("--read-fd", type=int, required=True, help="Numeric file descriptor where RPC requests should be read.")
-    parser.add_argument("--write-fd", type=int, required=True, help="Numeric file descriptor where RPC replies should be written.")
-    parser.add_argument("--debug", action="store_true", help="When given, configure logging at DEBUG level.")
+    parser.add_argument(
+        "--read-fd",
+        type=int,
+        required=True,
+        help="Numeric file descriptor where RPC requests should be read.",
+    )
+    parser.add_argument(
+        "--write-fd",
+        type=int,
+        required=True,
+        help="Numeric file descriptor where RPC replies should be written.",
+    )
+    parser.add_argument(
+        "--debug", action="store_true", help="When given, configure logging at DEBUG level."
+    )
     args = parser.parse_args()
 
-    logging.basicConfig(level='DEBUG' if args.debug else 'INFO',
-                        stream=sys.stderr)
+    logging.basicConfig(level="DEBUG" if args.debug else "INFO", stream=sys.stderr)
 
-    read_file = os.fdopen(args.read_fd, 'rb', buffering=0)
-    write_file = os.fdopen(args.write_fd, 'wb', buffering=0)
+    read_file = os.fdopen(args.read_fd, "rb", buffering=0)
+    write_file = os.fdopen(args.write_fd, "wb", buffering=0)
 
     server = ProjectAPIServer(read_file, write_file, handler)
     server.serve_forever()

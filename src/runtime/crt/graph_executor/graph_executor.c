@@ -265,8 +265,8 @@ int TVMGraphExecutorGraphAttr_Load(TVMGraphExecutorGraphAttr* attr, JSONReader* 
         break;
       }
       DLDevice dev = {kDLCPU, 0};
-      tvm_crt_error_t err =
-          TVMPlatformMemoryAllocate(TVM_CRT_MAX_STRLEN_DLTYPE * num_items, dev, (void**)&attr->dltype);
+      tvm_crt_error_t err = TVMPlatformMemoryAllocate(TVM_CRT_MAX_STRLEN_DLTYPE * num_items, dev,
+                                                      (void**)&attr->dltype);
       if (err != kTvmErrorNoError) {
         fprintf(stderr, "memory allocate error: %08x", err);
         return -1;
@@ -792,8 +792,8 @@ int TVMGraphExecutor_LoadParams(TVMGraphExecutor* executor, const char* param_bl
   // read names
   char* names = NULL;
   DLDevice dev = {kDLCPU, 0};
-  tvm_crt_error_t err =
-      TVMPlatformMemoryAllocate(TVM_CRT_MAX_STRLEN_FUNCTION_NAME * executor->nodes_count, dev, (void**)&names);
+  tvm_crt_error_t err = TVMPlatformMemoryAllocate(
+      TVM_CRT_MAX_STRLEN_FUNCTION_NAME * executor->nodes_count, dev, (void**)&names);
   if (err != kTvmErrorNoError) {
     fprintf(stderr, "memory allocate error: %08x", err);
     status = -1;
@@ -827,7 +827,8 @@ int TVMGraphExecutor_LoadParams(TVMGraphExecutor* executor, const char* param_bl
   }
 
   for (idx = 0; idx < size; idx++) {
-    int32_t in_idx = TVMGraphExecutor_GetInputIndex(executor, names + TVM_CRT_MAX_STRLEN_FUNCTION_NAME * idx);
+    int32_t in_idx =
+        TVMGraphExecutor_GetInputIndex(executor, names + TVM_CRT_MAX_STRLEN_FUNCTION_NAME * idx);
     CHECK_GT(in_idx, 0, "Found param for non-existent input: %s\n",
              names + TVM_CRT_MAX_STRLEN_FUNCTION_NAME * idx);
     uint32_t eid = TVMGraphExecutor_GetEntryId(executor, executor->input_nodes[in_idx], 0);

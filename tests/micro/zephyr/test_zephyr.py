@@ -59,16 +59,15 @@ def _make_sess_from_op(model, zephyr_board, west_cmd, op_name, sched, arg_bufs, 
 
 
 TEMPLATE_PROJECT_DIR = (
-        pathlib.Path(__file__).parent
-        / ".."
-        / ".."
-        / ".."
-        / "apps"
-        / "microtvm"
-        / "zephyr"
-        / "template_project"
-    ).resolve()
-
+    pathlib.Path(__file__).parent
+    / ".."
+    / ".."
+    / ".."
+    / "apps"
+    / "microtvm"
+    / "zephyr"
+    / "template_project"
+).resolve()
 
 
 def _make_session(model, target, zephyr_board, west_cmd, mod, build_config):

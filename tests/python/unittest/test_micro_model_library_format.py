@@ -383,7 +383,6 @@ def test_export_byoc_c_module():
     mod = tvm.relay.transform.PartitionGraph("mod_name")(mod)
     mod = tvm.relay.transform.InferType()(mod)
 
-
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         factory = tvm.relay.build(mod, tvm.target.target.micro("host"))
 
@@ -391,21 +390,24 @@ def test_export_byoc_c_module():
     mlf_tar_path = temp_dir.relpath("lib.tar")
 
     from tvm import micro
+
     micro.export_model_library_format(factory, mlf_tar_path)
 
     with tarfile.open(mlf_tar_path, "r:*") as tf:
         tar_members = [ti.name for ti in tf.getmembers()]
         print("tar members", tar_members)
-        assert './metadata.json' in tar_members
+        assert "./metadata.json" in tar_members
         with tf.extractfile("./metadata.json") as f:
             metadata = json.load(f)
         main_md = metadata["memory"]["functions"]["main"]
-        assert main_md == [{
-            "constants_size_bytes": 0,
-            "device": 1,
-            "io_size_bytes": 4800,
-            "workspace_size_bytes": 800,
-        }]
+        assert main_md == [
+            {
+                "constants_size_bytes": 0,
+                "device": 1,
+                "io_size_bytes": 4800,
+                "workspace_size_bytes": 800,
+            }
+        ]
 
 
 if __name__ == "__main__":

@@ -408,24 +408,28 @@ def compile_and_run(
     include_path = os.path.join(base_path, "include")
     os.mkdir(include_path)
     crt_root = tvm.micro.get_standalone_crt_dir()
-    shutil.copy2(os.path.join(crt_root, "template", "crt_config-template.h"),
-                 os.path.join(include_path, "crt_config.h"))
+    shutil.copy2(
+        os.path.join(crt_root, "template", "crt_config-template.h"),
+        os.path.join(include_path, "crt_config.h"),
+    )
 
     for key in inputs:
-        create_header_file(f'{mangle_name(mod_name, "input_data")}_{key}',
-                           inputs[key],
-                           os.path.join(base_path, "include"))
+        create_header_file(
+            f'{mangle_name(mod_name, "input_data")}_{key}',
+            inputs[key],
+            os.path.join(base_path, "include"),
+        )
 
     for i in range(len(output_list)):
         create_header_file(
             f'{mangle_name(mod_name,"output_data")}{i}',
             np.zeros(output_list[i].shape, output_list[i].dtype),
-            os.path.join(base_path, "include")
+            os.path.join(base_path, "include"),
         )
         create_header_file(
             f'{mangle_name(mod_name, "expected_output_data")}{i}',
             output_list[i],
-            os.path.join(base_path, "include")
+            os.path.join(base_path, "include"),
         )
 
     create_main(
@@ -485,8 +489,10 @@ def compile_and_run_multiple_models(
     include_path = os.path.join(base_path, "include")
     os.mkdir(include_path)
     crt_root = tvm.micro.get_standalone_crt_dir()
-    shutil.copy2(os.path.join(crt_root, "template", "crt_config-template.h"),
-                 os.path.join(include_path, "crt_config.h"))
+    shutil.copy2(
+        os.path.join(crt_root, "template", "crt_config-template.h"),
+        os.path.join(include_path, "crt_config.h"),
+    )
 
     for mod_name, mod in mod_map.items():
 
