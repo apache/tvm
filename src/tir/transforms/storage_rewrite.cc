@@ -506,7 +506,7 @@ class StoragePlanRewriter : public StmtExprMutator {
   // Remap the index
   PrimExpr RemapIndex(DataType dtype, PrimExpr index, StorageEntry* e) {
     if (e->bits_offset == 0) return index;
-    uint64_t elem_bits = dtype.bits() * dtype.lanes();
+    uint64_t elem_bits = dtype.bits();
     ICHECK_EQ(e->bits_offset % elem_bits, 0U);
     return make_const(index.dtype(), e->bits_offset / elem_bits) + index;
   }
