@@ -247,7 +247,7 @@ def schedule_conv2d_spatial_pack_nchw(cfg, s, data_vec, kernel_vec, conv, output
     return s
 
 
-def conv2d_spatial_pack_nhwc(cfg, data, kernel, strides, padding, dilation, out_dtype):
+def conv2d_spatial_pack_nhwc(cfg, data, kernel, strides, padding, dilation, out_dtype, num_tile=2):
     """Spatial pack compute for Conv2d NHWC"""
     out_dtype = out_dtype or data.dtype
 
@@ -276,9 +276,16 @@ def conv2d_spatial_pack_nhwc(cfg, data, kernel, strides, padding, dilation, out_
     n, oc, oh, ow = cfg.axis(N), cfg.axis(OC), cfg.axis(OH), cfg.axis(OW)
     ic, kh, kw = cfg.reduce_axis(IC), cfg.reduce_axis(KH), cfg.reduce_axis(KW)
 
-    oco, oci = cfg.define_split("tile_co", oc, num_outputs=2)
-    oho, ohi = cfg.define_split("tile_oh", oh, num_outputs=2)
-    owo, owi = cfg.define_split("tile_ow", ow, num_outputs=2)
+    if num_tile == 2:  # for arm cpu
+        oco, oci = cfg.define_split("tile_co", oc, num_outputs=2)
+        oho, ohi = cfg.define_split("tile_oh", oh, num_outputs=2)
+        owo, owi = cfg.define_split("tile_ow", ow, num_outputs=2)
+    elif num_tile == 3:  # for mali gpu
+        oco, _, oci = cfg.define_split("tile_co", oc, num_outputs=3)
+        oho, _, ohi = cfg.define_split("tile_oh", oh, num_outputs=3)
+        owo, _, owi = cfg.define_split("tile_ow", ow, num_outputs=3)
+    else:
+        raise RuntimeError("Invalid num_tile")
 
     cfg.define_reorder(
         "reorder_conv",
