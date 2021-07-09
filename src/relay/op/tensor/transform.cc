@@ -2355,7 +2355,7 @@ bool BroadCastToRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
 
   DataType out_dtype;
   if (auto ttype = types[0].as<TensorTypeNode>()) {
-    out_dtype = types[0].as<TensorTypeNode>()->dtype;
+    out_dtype = ttype->dtype;
   } else {
     ICHECK(types[0].as<IncompleteTypeNode>())
         << "Broadcast: expect to be TensorType but get " << types[0];
