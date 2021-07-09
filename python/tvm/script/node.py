@@ -108,7 +108,7 @@ class BufferSlice(ObjectGeneric):
                     span,
                 )
 
-        slices: List[Slice] = []
+        slices: List[Union[Slice, BufferSlice]] = []
         for index in indices:
             if isinstance(index, Slice):
                 check_index(index.start)
@@ -117,6 +117,10 @@ class BufferSlice(ObjectGeneric):
             elif isinstance(index, (PrimExpr, int)):
                 check_index(index)
                 slices.append(Slice(index))
+            elif isinstance(index, BufferSlice):
+                buffer_load = index.asobject()
+                check_index(buffer_load)
+                slices.append(Slice(buffer_load))
             else:
                 report_error(
                     "Unsupported index type for BufferSlice, "
