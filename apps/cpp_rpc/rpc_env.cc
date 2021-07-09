@@ -290,7 +290,8 @@ void CreateShared(const std::string& output, const std::vector<std::string>& fil
 }
 
 std::string BuildSharedLibrary(std::string file) {
-  if (support::EndsWith(file, ".so") || support::EndsWith(file, ".dll")) {
+  if (support::EndsWith(file, ".so") || support::EndsWith(file, ".dll") ||
+      support::EndsWith(file, ".dylib")) {
     return file;
   }
 
