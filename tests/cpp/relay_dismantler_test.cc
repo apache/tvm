@@ -57,24 +57,24 @@ TEST(Relay, OutOfStack_add) {
 }
 
 TEST(Relay, OutOfStack_anormal_add) {
-  // auto foo = [] {
-  auto add_op = relay::Op::Get("add");
-  auto c_data = tvm::runtime::NDArray::Empty({1}, {kDLFloat, 32, 1}, {kDLCPU, 0});
-  auto c1 = relay::Constant(c_data);
-  auto y1 = relay::Var("y", Type());
-  Expr body;
-  for (int i = 0; i < 1e6; i++) {
-    if (!body.as<ExprNode>()) {
-      body = Downcast<Expr>(y1);
+  auto foo = [] {
+    auto add_op = relay::Op::Get("add");
+    auto c_data = tvm::runtime::NDArray::Empty({1}, {kDLFloat, 32, 1}, {kDLCPU, 0});
+    auto c1 = relay::Constant(c_data);
+    auto y1 = relay::Var("y", Type());
+    Expr body;
+    for (int i = 0; i < 1e6; i++) {
+      if (!body.as<ExprNode>()) {
+        body = Downcast<Expr>(y1);
+      }
+      auto y0 = relay::Var("y", Type());
+      body = relay::Let(y1, relay::Call(add_op, {y0, c1}), body);
+      y1 = y0;
     }
-    auto y0 = relay::Var("y", Type());
-    body = relay::Let(y1, relay::Call(add_op, {y0, c1}), body);
-    y1 = y0;
-  }
-  body = relay::Let(y1, relay::Call(add_op, {c1, c1}), body);
-  relay::Function func = relay::Function({}, body, relay::Type(), {});
-  //};
-  // ASSERT_EXIT((foo(), exit(0)), ::testing::ExitedWithCode(0), ".*");
+    body = relay::Let(y1, relay::Call(add_op, {c1, c1}), body);
+    relay::Function func = relay::Function({}, body, relay::Type(), {});
+  };
+  ASSERT_EXIT((foo(), exit(0)), ::testing::ExitedWithCode(0), ".*");
 }
 
 TEST(Relay, OutOfStack_cast) {

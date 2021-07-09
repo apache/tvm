@@ -276,9 +276,6 @@ inline void Dismantle(const Expr& expr) {
     }
   };
   fpush_to_stack(expr);
-  int i = 0;
-  int j = 0;
-  int k = 0;
   while (stack.size() > 0) {
     const auto& node = stack.top().first;
     if (stack.top().second) {
@@ -286,16 +283,13 @@ inline void Dismantle(const Expr& expr) {
       // +1 ref in stack/deque;
       if (node.use_count() < 3) {
         if (auto* op = const_cast<CallNode*>(node.as<CallNode>())) {
-          k++;
           op->args = Array<Expr>();
         } else if (auto* op = const_cast<LetNode*>(node.as<LetNode>())) {
-          j++;
           op->body = Expr();
         }
       }
       // eject
       stack.pop();
-      i++;
     } else {
       stack.top().second = true;
       // special handling
@@ -310,7 +304,6 @@ inline void Dismantle(const Expr& expr) {
           // Call node isn't, clear the args and assume we'll get the body
           // on other branches
           if (auto* op = const_cast<CallNode*>(node.as<CallNode>())) {
-            k++;
             op->args = Array<Expr>();
           }
         }
@@ -334,15 +327,12 @@ inline void Dismantle(const Expr& expr) {
           // Let node isn't, clear the body and assume we'll get the body
           // on other branches
           if (auto* op = const_cast<LetNode*>(node.as<LetNode>())) {
-            j++;
             op->body = Expr();
           }
         }
       }
     }
   }
-  std::cout << "Dismantler visited " << i << " nodes and dismanted " << j << " LetNodes and " << k
-            << " CallNodes" << std::endl;
 }
 /*
  * Non-recursive destructor
@@ -374,8 +364,6 @@ Let::~Let() {
   // attempt to dismantle if referenced one or zero times
   if (this->use_count() < 2) {
     Dismantle(*this);
-  } else {
-    std::cout << "failed to call Dismantle, use_count " << this->use_count() << std::endl;
   }
 }
 
@@ -385,7 +373,6 @@ Let::~Let() {
 void LetNode::Deleter_(Object* ptr) {
   auto p = reinterpret_cast<LetNode*>(ptr);
   // create Let reference in order to invoke ~Let
-  std::cout << "in LetNode Deleter" << std::endl;
   auto c = GetRef<Let>(p);
   // Call the saved deleter
   p->deleter_ = p->saved_deleter_;
