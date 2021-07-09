@@ -145,13 +145,28 @@ class DependencyGraph::Creator : private MixedModeVisitor {
   }
 
   void VisitExpr_(const LetNode* l) final {
-    DependencyGraph::Node* n = graph_.expr_node[GetRef<Expr>(l)];
-    DependencyGraph::Node* b = NewNode(true);
-    Depend(n, b);
-    Depend(b, l->var);
-    Depend(b, l->value);
-    Depend(b, l->body);
-    graph_.post_dfs_order.push_back(b);
+    std::unordered_map<const LetNode*, DependencyGraph::Node*> b_map;
+    auto pre_visit = [this, &b_map](const LetNode* l) {
+      Expr e = GetRef<Expr>(l);
+      if (graph_.expr_node.count(e) == 0) {
+        graph_.expr_node[e] = NewNode(false);
+      }
+      visited_.insert(e);
+      DependencyGraph::Node* n = graph_.expr_node[e];
+      DependencyGraph::Node* b = NewNode(true);
+      Depend(n, b);
+      Depend(b, l->var);
+      Depend(b, l->value);
+      b_map[l] = b;
+    };
+    auto post_visit = [this, &b_map](const LetNode* l) {
+      ICHECK(b_map.count(l));
+      DependencyGraph::Node* b = b_map[l];
+      Depend(b, l->body);
+      this->visit_counter_[l] += 1;
+      graph_.post_dfs_order.push_back(b);
+    };
+    ExpandANormalForm(l, pre_visit, post_visit);
   }
 
   void VisitExpr_(const MatchNode* m) final {
