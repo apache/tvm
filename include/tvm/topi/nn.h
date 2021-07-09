@@ -162,6 +162,9 @@ inline tvm::te::Tensor pad(const tvm::te::Tensor& t, const tvm::Array<tvm::PrimE
       pad_after.push_back(pad_before[i]);
     }
   }
+  // t->shape: [2, 3, 16, 16]
+  // pad_before: [0, 0, 1, 1]
+  // pad_after: [0, 0, 1, 1]
 
   arith::Analyzer analyzer;
   ICHECK_GE(pad_before.size(), 1);
@@ -177,6 +180,8 @@ inline tvm::te::Tensor pad(const tvm::te::Tensor& t, const tvm::Array<tvm::PrimE
   }
 
   tvm::Array<tvm::PrimExpr> output_shape;
+
+  // dyn_output_shape: == null  
   if (dyn_output_shape == nullptr) {
     for (size_t i = 0; i < t->shape.size(); ++i) {
       if (i >= pad_before.size()) {
@@ -191,6 +196,7 @@ inline tvm::te::Tensor pad(const tvm::te::Tensor& t, const tvm::Array<tvm::PrimE
       output_shape.push_back((*dyn_output_shape)[i]);
     }
   }
+  // output_shape: [2, 3, 18, 18]
 
   if (!pad_value.defined()) {
     pad_value = tvm::tir::make_const(t->dtype, 0);
@@ -227,6 +233,16 @@ inline tvm::te::Tensor pad(const tvm::te::Tensor& t, const tvm::Array<tvm::PrimE
                                                 ovars[i] - pad_before[i])));
       }
     }
+
+    std::cout << "Pad --------- ovars:" << ovars << std::endl;
+    std::cout << "Pad --------- sel:" << sel << std::endl;
+    std::cout << "Pad --------- inices:" << indices << std::endl;
+
+    // pad ovars: [ax0, ax1, ax2, ax3]
+    // pad sel: [(ax2 >= 1), (ax2 < 17), (ax3 >= 1), (ax3 < 17)]
+    // pad indices: [ax0, ax1, (ax2 - 1), (ax3 - 1)]
+
+
     if (sel.size() != 0) {
       if (pad_mode == "constant") {
         return tvm::if_then_else(
@@ -271,8 +287,8 @@ inline tvm::te::Tensor conv2d_nchw(const tvm::te::Tensor& I, const tvm::te::Tens
                                    std::string tag = kConv2dNCHW) {
   ICHECK_EQ(4, I->shape.size());
   ICHECK_EQ(4, W->shape.size());
-  auto pH = I->shape[2];
-  auto pW = I->shape[3];
+  // auto pH = I->shape[2];
+  // auto pW = I->shape[3];
   tvm::Array<tvm::PrimExpr> output_shape{
       I->shape[0],                                                    // B
       W->shape[0],                                                    // O
@@ -704,35 +720,124 @@ inline Tensor nll_loss(const Tensor& predictions, const Tensor& targets, const T
  *
  * \return A Tensor whose op member is the im2col operation (NCHW layout)
  */
-
 inline tvm::te::Tensor im2col(const tvm::te::Tensor& data, 
                                    const tvm::Array<tvm::PrimExpr>& kernel_size,
                                    const tvm::Array<tvm::PrimExpr>& dilation,
                                    const tvm::Array<tvm::PrimExpr>& padding,
                                    const tvm::Array<tvm::PrimExpr>& stride,
                                    std::string name = "T_im2col",
-                                   std::string tag = kElementWise) {
-
+                                   std::string tag = kElementWise) {  // ElementWise
   ICHECK_EQ(4, data->shape.size());
+  ICHECK_EQ(2, kernel_size.size());
+  ICHECK_EQ(2, dilation.size());
+  ICHECK_EQ(2, padding.size());
+  ICHECK_EQ(2, stride.size());
 
-  tvm::Array<tvm::PrimExpr> output_shape{
-      data->shape[0],                                                    // B
-      data->shape[1],                                                    // C
-      data->shape[2],                                                    // H
-      data->shape[3],                                                    // W
-      // indexdiv(I->shape[2] - W->shape[2] + 2 * pad_h, stride_h) + 1,  // H
-      // indexdiv(I->shape[3] - W->shape[3] + 2 * pad_w, stride_w) + 1   // W
-  };
-
-  // tvm::Array<tvm::PrimExpr> output_shape;
-  //   for (size_t i = 0; i < dyn_output_shape->size(); i++) {
-  //     output_shape.push_back((*dyn_output_shape)[i]);
+  // tvm::Array<tvm::PrimExpr> padding_int32;
+  // for (const auto& ele : padding) {
+  //   padding_int32.push_back(tvm::cast(tvm::DataType::Int(32), ele));
   // }
 
-  auto T = data;
-  auto l = [&](tvm::tir::Var b, tvm::tir::Var c, tvm::tir::Var h, tvm::tir::Var w) {
-    return T(b, c, h, w);
+  auto input_b = data->shape[0];
+  auto input_c = data->shape[1];
+  auto input_h = data->shape[2];
+  auto input_w = data->shape[3];
+
+  auto kernel_h = tvm::cast(tvm::DataType::Int(32), kernel_size[0]);
+  auto kernel_w = tvm::cast(tvm::DataType::Int(32), kernel_size[1]);
+  std::cout << "kernel_h: " << kernel_h << ", kernel_w:" << kernel_w << std::endl;
+
+  auto dilation_h = tvm::cast(tvm::DataType::Int(32), dilation[0]);
+  auto dilation_w = tvm::cast(tvm::DataType::Int(32), dilation[1]);
+  std::cout << "dilation_h: " << dilation_h << ", dilation_w:" << dilation_w << std::endl;
+
+  auto padding_h = tvm::cast(tvm::DataType::Int(32), padding[0]);
+  auto padding_w = tvm::cast(tvm::DataType::Int(32), padding[1]);
+  std::cout << "padding_h: " << padding_h << ", padding_w:" << padding_w << std::endl;
+
+  auto stride_h = tvm::cast(tvm::DataType::Int(32), stride[0]);
+  auto stride_w = tvm::cast(tvm::DataType::Int(32), stride[1]);
+  std::cout << "stride_h: " << stride_h << ", stride_w:" << stride_w << std::endl;
+
+
+  auto dilated_kernel_h = (kernel_h - 1) * dilation_h + 1;
+  auto dilated_kernel_w = (kernel_w - 1) * dilation_w + 1;
+
+  // Paded size
+  auto output_h = (input_h + 2 * padding_h - dilated_kernel_h)/stride_h + 1;
+  auto output_w = (input_w + 2 * padding_w - dilated_kernel_w)/stride_w + 1;
+
+  // Final output size
+  auto N = input_b;
+  auto K = input_c * kernel_h * kernel_w;
+  auto L = output_h * output_w;
+
+  tvm::Array<tvm::PrimExpr> output_shape;
+  output_shape.push_back(N);
+  output_shape.push_back(K);
+  output_shape.push_back(L);
+
+  auto pad_value = tvm::tir::make_const(data->dtype, 0);
+
+  arith::Analyzer analyzer;
+  /*
+        # start im2col
+        input_b, input_c, input_h, input_w = data_shape
+        dilation_h, dilation_w = dilation
+        padding_h, padding_w = padding
+
+        dilated_kernel_h = (kernel_h - 1) * dilation_h + 1
+        dilated_kernel_w = (kernel_w - 1) * dilation_w + 1
+
+        output_h = (input_h + 2 * padding_h - dilated_kernel_h)//stride_h + 1
+        output_w = (input_w + 2 * padding_w - dilated_kernel_w)//stride_w + 1
+
+
+        im2col_data = te.compute(
+            (N, K, L),
+            lambda n, k, l: data[
+                n,
+                k % input_c,
+                stride_h * (l / output_w) + dilation_h * ((k / input_c) / kernel_w),
+                stride_w * (l % output_w) + dilation_w * ((k // input_c) % kernel_w),
+            ],
+            name="im2col_data",
+        )
+  */
+
+  auto l = [&](tvm::Array<tvm::tir::Var> nkl) {
+    tvm::Array<tvm::PrimExpr> indices;
+    tvm::Array<tvm::PrimExpr> condition;
+
+    // ovars: [ax0, ax1, ax2, ax3]
+    // condition: [(ax2 >= 1), (ax2 < 17), (ax3 >= 1), (ax3 < 17)]
+    // indices: [ax0, ax1, (ax2 - 1), (ax3 - 1)]
+
+    indices.push_back(nkl[0]);            // B
+    indices.push_back(indexmod(nkl[1], input_c));  // C
+
+    // H need remove padding_h and limit range
+    tvm::PrimExpr sh = stride_h * indexdiv(nkl[2], output_w) + dilation_h * indexmod(indexmod(nkl[1], input_c), kernel_w);
+    indices.push_back(sh - padding_h);
+    condition.push_back(sh >= padding_h);
+    condition.push_back(analyzer.Simplify(sh < input_h + padding_h));
+
+    // W need remove padding_w and limit range
+    tvm::PrimExpr sw = stride_w * indexmod(nkl[2], output_w) + dilation_w * (indexmod(indexdiv(nkl[1], input_c), kernel_w)); 
+    indices.push_back(sw - padding_w);
+
+    condition.push_back(sw >= padding_w);
+    condition.push_back(analyzer.Simplify(sw < input_w + padding_w));
+
+    std::cout << "im2col --------- NKL:" << nkl << std::endl;
+    std::cout << "im2col --------- condition:" << condition << std::endl;
+    std::cout << "im2col --------- inices:" << indices << std::endl;
+
+    return tvm::if_then_else(
+        foldl([](PrimExpr a, PrimExpr b, Span span) { return tvm::logical_and(a, b, span); }, const_true(1), condition),
+        data(indices), pad_value);
   };
+
   return tvm::te::compute(output_shape, l, name, tag);
 }
 

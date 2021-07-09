@@ -2349,16 +2349,7 @@ class PyTorchOpConverter:
         return _expr.const(inputs[0])
 
     def im2col(self, inputs, input_types):
-        from tvm import te
-        from tvm.topi.nn import get_const_tuple
-
-        #  F.unfold(input, 3, dilation=1, padding=1, stride=1)
-        print("xxxx8888 im2col", inputs, input_types)
-        # [Var(i0, ty=TensorType([2, 3, 32, 32], float32)), [3, 3], [1, 1], [1, 1], [1, 1]]
-        #  ['float32', 'ListType', 'ListType', 'ListType', 'ListType']
-        # input, _pair(kernel_size),_pair(dilation), _pair(padding), _pair(stride)
-
-        # torch.unfold setup kerenl_size, dilation, padding, stride as pars before call im2col
+        # torch.unfold setup kerenl_size, dilation, padding, stride as pars before calling im2col
         data = inputs[0]
         kernel_size = inputs[1]
         dilation = inputs[2]
