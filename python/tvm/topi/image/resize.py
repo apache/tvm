@@ -75,10 +75,9 @@ def get_3d_indices(indices, layout="NCDHW"):
     return n, c, z, y, x, cc
 
 
-def get_1d_pixel(data, layout, boxes, image_width, n, c, x, cc, ib, ic):
+def get_1d_pixel(data, layout, image_width, n, c, x, cc, ib, ic):
     """Get 1d pixel"""
-    if boxes is None:
-        x = tvm.te.max(tvm.te.min(x, image_width - 1), 0)
+    x = tvm.te.max(tvm.te.min(x, image_width - 1), 0)
     if layout == "NWC":
         return data(n, x, c).astype("float")
     if layout == "NCW":
@@ -91,11 +90,10 @@ def get_1d_pixel(data, layout, boxes, image_width, n, c, x, cc, ib, ic):
     return data(n, c, x, cc).astype("float")
 
 
-def get_2d_pixel(data, layout, boxes, image_height, image_width, n, c, y, x, cc, ib, ic):
+def get_2d_pixel(data, layout, image_height, image_width, n, c, y, x, cc, ib, ic):
     """Get 2d pixel"""
-    if boxes is None:
-        y = tvm.te.max(tvm.te.min(y, image_height - 1), 0)
-        x = tvm.te.max(tvm.te.min(x, image_width - 1), 0)
+    y = tvm.te.max(tvm.te.min(y, image_height - 1), 0)
+    x = tvm.te.max(tvm.te.min(x, image_width - 1), 0)
     if layout == "NHWC":
         return data(n, y, x, c).astype("float")
     if layout == "NCHW":
@@ -288,7 +286,6 @@ def _resize_1d(
         value = get_1d_pixel(
             data,
             layout,
-            boxes,
             image_width,
             box_idx,
             c,
@@ -307,7 +304,6 @@ def _resize_1d(
             p[i] = get_1d_pixel(
                 data,
                 layout,
-                boxes,
                 image_width,
                 box_idx,
                 c,
@@ -329,7 +325,6 @@ def _resize_1d(
             p[i] = get_1d_pixel(
                 data,
                 layout,
-                boxes,
                 image_width,
                 box_idx,
                 c,
@@ -576,7 +571,6 @@ def _resize_2d(
         value = get_2d_pixel(
             data,
             layout,
-            boxes,
             image_height,
             image_width,
             box_idx,
@@ -600,7 +594,6 @@ def _resize_2d(
                 p[j][i] = get_2d_pixel(
                     data,
                     layout,
-                    boxes,
                     image_height,
                     image_width,
                     box_idx,
@@ -630,7 +623,6 @@ def _resize_2d(
                 p[j][i] = get_2d_pixel(
                     data,
                     layout,
-                    boxes,
                     image_height,
                     image_width,
                     box_idx,
