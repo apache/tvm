@@ -17,7 +17,6 @@
 """Wrapping existing transformations."""
 # pylint: disable=invalid-name
 from typing import Optional
-from tvm import tir
 from tvm.ir.transform import Pass
 from . import _ffi_api
 from . import function_pass as _fpass
@@ -97,7 +96,7 @@ def StorageFlatten(cache_line_size: int, create_bound_attribute: bool = False) -
     return _ffi_api.StorageFlatten(cache_line_size, create_bound_attribute)  # type: ignore
 
 
-def InjectCopyIntrin(pragma_key: str, fintrin: tir.function) -> Pass:
+def InjectCopyIntrin(pragma_key: str, fintrin) -> Pass:
     """Inject virtual thread loops.
 
     Parameters

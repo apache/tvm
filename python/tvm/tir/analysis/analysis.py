@@ -16,17 +16,17 @@
 # under the License.
 """Wrapping existing analysis utils."""
 # pylint: disable=invalid-name
-from typing import Dict
+from typing import Dict, List
 
-from tvm.tir.stmt import Block
+from tvm.tir.stmt import Block, BufferRegion
 from tvm.tir.stmt import PrimExpr
+from tvm.tir.expr import Var
 from . import _ffi_api
 from ..function import PrimFunc
 from .. import Buffer, Stmt
-from tvm.tir.expr import Var
 
 
-def expr_deep_equal(lhs: PrimExpr, rhs: PrimExpr) -> None:
+def expr_deep_equal(lhs: PrimExpr, rhs: PrimExpr) -> bool:
     """Deeply compare two nested expressions.
 
     Parameters
@@ -63,7 +63,7 @@ def expr_deep_equal(lhs: PrimExpr, rhs: PrimExpr) -> None:
     return _ffi_api.expr_deep_equal(lhs, rhs)  # type: ignore
 
 
-def verify_ssa(func: PrimFunc) -> None:
+def verify_ssa(func: PrimFunc) -> bool:
     """Verify if the func is in SSA form.
 
     Parameters
@@ -79,7 +79,7 @@ def verify_ssa(func: PrimFunc) -> None:
     return _ffi_api.verify_ssa(func)  # type: ignore
 
 
-def verify_memory(func: PrimFunc) -> None:
+def verify_memory(func: PrimFunc) -> bool:
     """Verify if func contains illegal host side direct memory access.
 
     Parameters
@@ -114,7 +114,9 @@ def verify_gpu_code(func: PrimFunc, constraints: Dict[str, int]) -> None:
     return _ffi_api.verify_gpu_code(func, constraints)  # type: ignore
 
 
-def get_block_access_region(block: Block, buffer_var_map: Dict[Var, Buffer]) -> None:
+def get_block_access_region(
+    block: Block, buffer_var_map: Dict[Var, Buffer]
+) -> List[List[BufferRegion]]:
     """Detect which regions of tensors in this block are read or written to.
        Regions are sorted by order of appearance in the AST.
 
@@ -137,7 +139,7 @@ def get_block_access_region(block: Block, buffer_var_map: Dict[Var, Buffer]) -> 
     return _ffi_api.get_block_access_region(block, buffer_var_map)  # type: ignore
 
 
-def calculate_workspace_bytes(func: PrimFunc, workspace_byte_alignment: int):
+def calculate_workspace_bytes(func: PrimFunc, workspace_byte_alignment: int) -> int:
     """Calculate the workspace size in bytes needed by the TIR allocates inside the TIR
     PrimFunc.
 

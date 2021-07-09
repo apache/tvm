@@ -24,7 +24,6 @@ import tvm._ffi
 from tvm.ir.transform import Pass, PassInfo
 
 from . import _ffi_api
-from ..function import PrimFunc
 
 
 @tvm._ffi.register_object("tir.PrimFuncPass")
@@ -49,7 +48,9 @@ def _wrap_class_function_pass(pass_cls, pass_info):
             def _pass_func(func, mod, ctx):
                 return inst.transform_function(func, mod, ctx)
 
-            self.__init_handle_by_constructor__(_ffi_api.CreatePrimFuncPass, _pass_func, pass_info)  # type: ignore
+            self.__init_handle_by_constructor__(
+                _ffi_api.CreatePrimFuncPass, _pass_func, pass_info  # type: ignore
+            )
 
             self._inst = inst
 
