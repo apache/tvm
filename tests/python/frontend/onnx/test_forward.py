@@ -1366,11 +1366,12 @@ def verify_upsample3d_trilinear():
     y = helper.make_node("Upsample", ["in", "scales"], ["out"], mode="linear")
     scales = [1.0, 1.0, 2.0, 2.0, 2.0]
     in_array = np.random.uniform(size=in_shape).astype(np.float32)
-    out_array = tvm.topi.testing.trilinear_resize3d_python(
+    out_array = tvm.topi.testing.resize3d_python(
         in_array,
-        (3 * scale, 3 * scale, 3 * scale),
+        (scale, scale, scale),
         "NCDHW",
-        coordinate_transformation_mode="half_pixel",
+        "linear",
+        coordinate_transformation_mode="asymmetric",
     )
 
     ref_array = np.array(scales)
@@ -2253,7 +2254,7 @@ def verify_where(condition, x, y, dtype, outdata, dynamic=False):
 
 @tvm.testing.uses_gpu
 def test_where():
-    condition = np.array([[1, 0], [1, 1]], dtype=np.bool)
+    condition = np.array([[1, 0], [1, 1]], dtype=bool)
     x = np.array([[1, 2], [3, 4]], dtype=np.int64)
     y = np.array([[9, 8], [7, 6]], dtype=np.int64)
     outdata = np.where(condition, x, y)
@@ -2274,7 +2275,7 @@ def test_where():
     outdata = np.where(condition, x, y)
     verify_where(condition, x, y, TensorProto.FLOAT, outdata)
 
-    condition = np.array(1, dtype=np.bool)
+    condition = np.array(1, dtype=bool)
     x = np.array([[1, 2], [3, 4]], dtype=np.float32)
     y = np.array([[5, 6], [7, 8]], dtype=np.float32)
     outdata = np.where(condition, x, y)
@@ -3548,7 +3549,7 @@ def test_gru():
 
 @tvm.testing.uses_gpu
 def test_resize():
-    def verify(ishape, oshape, scales, mode, coord_trans):
+    def verify(ishape, oshape, scales, mode, coord_trans="asymmetric", alpha=0.5, exclude=False):
         nodes = [
             make_constant_node("roi", onnx.TensorProto.FLOAT, (0,), []),
             make_constant_node("scales", onnx.TensorProto.FLOAT, (len(scales),), scales),
@@ -3566,6 +3567,8 @@ def test_resize():
                 outputs=["Y"],
                 mode=mode,
                 coordinate_transformation_mode=coord_trans,
+                cubic_coeff_a=alpha,
+                exclude_outside=exclude,
             )
         )
 
@@ -3582,29 +3585,69 @@ def test_resize():
 
         verify_with_ort(model, [ishape], [oshape], use_vm=True, opset=11, freeze_params=True)
 
-    # upsampling
-    verify([1, 16, 32, 32], [1, 16, 64, 64], [], "nearest", "asymmetric")
-    verify([1, 16, 32, 32], [1, 16, 64, 64], [], "linear", "asymmetric")
-    verify([1, 16, 32, 32], [1, 16, 64, 64], [], "nearest", "align_corners")
-    verify([1, 16, 32, 32], [1, 16, 64, 64], [], "linear", "align_corners")
-    verify([1, 16, 32, 32], [1, 16, 64, 64], [], "nearest", "half_pixel")
-    verify([1, 16, 32, 32], [1, 16, 64, 64], [], "linear", "half_pixel")
+    for ndim in [1, 2, 3]:
+        method = "nearest"
+        for coord_trans in ["asymmetric", "align_corners", "half_pixel"]:
+            # upsampling
+            verify([1, 16] + [32] * ndim, [1, 16] + [64] * ndim, [], method, coord_trans)
+            # downsampling
+            verify([1, 16] + [32] * ndim, [1, 16] + [16] * ndim, [], method, coord_trans)
+            # scales are specified instead of sizes
+            verify([1, 16] + [32] * ndim, [], [1, 1] + [0.5] * ndim, method, coord_trans)
+            verify([1, 16] + [32] * ndim, [], [1, 1] + [2] * ndim, method, coord_trans)
 
-    # downsampling
-    verify([1, 16, 32, 32], [1, 16, 16, 16], [], "nearest", "asymmetric")
-    verify([1, 16, 32, 32], [1, 16, 16, 16], [], "linear", "asymmetric")
-    verify([1, 16, 32, 32], [1, 16, 16, 16], [], "nearest", "align_corners")
-    verify([1, 16, 32, 32], [1, 16, 16, 16], [], "linear", "align_corners")
-    verify([1, 16, 32, 32], [1, 16, 16, 16], [], "nearest", "half_pixel")
-    verify([1, 16, 32, 32], [1, 16, 16, 16], [], "linear", "half_pixel")
+        if ndim == 2:
+            ## TODO(mbrookhart): ONNX Runtime in CI only supports 2D linear resize
+            ## Remove this condition when updating CI
+            method = "linear"
+            # upsampling
+            verify([1, 16] + [32] * ndim, [1, 16] + [64] * ndim, [], method)
+            # downsampling
+            verify([1, 16] + [32] * ndim, [1, 16] + [16] * ndim, [], method)
+            # scales are specified instead of sizes
+            verify([1, 16] + [32] * ndim, [], [1, 1] + [0.5] * ndim, method)
+            verify([1, 16] + [32] * ndim, [], [1, 1] + [2] * ndim, method)
 
-    # scales are specified instead of sizes
-    verify([1, 16, 32, 32], [], [1, 1, 2, 2], "nearest", "asymmetric")
-    verify([1, 16, 32, 32], [], [1, 1, 2, 2], "linear", "asymmetric")
-    verify([1, 16, 32, 32], [], [1, 1, 2, 2], "nearest", "align_corners")
-    verify([1, 16, 32, 32], [], [1, 1, 2, 2], "linear", "align_corners")
-    verify([1, 16, 32, 32], [], [1, 1, 0.5, 0.5], "linear", "half_pixel")
-    verify([1, 16, 32, 32], [], [1, 1, 0.5, 0.5], "nearest", "half_pixel")
+        if ndim == 2:
+            # ONNX Runtime only supports cubic interpolation for 2D images
+            method = "cubic"
+            for alpha in [0.5, 0.75]:
+                for exclude in [True, False]:
+                    # upsampling
+                    verify(
+                        [1, 16] + [32] * ndim,
+                        [1, 16] + [64] * ndim,
+                        [],
+                        method,
+                        alpha=alpha,
+                        exclude=exclude,
+                    )
+                    # downsampling
+                    verify(
+                        [1, 16] + [32] * ndim,
+                        [1, 16] + [16] * ndim,
+                        [],
+                        method,
+                        alpha=alpha,
+                        exclude=exclude,
+                    )
+                    # scales are specified instead of sizes
+                    verify(
+                        [1, 16] + [32] * ndim,
+                        [],
+                        [1, 1] + [0.5] * ndim,
+                        method,
+                        alpha=alpha,
+                        exclude=exclude,
+                    )
+                    verify(
+                        [1, 16] + [32] * ndim,
+                        [],
+                        [1, 1] + [2] * ndim,
+                        method,
+                        alpha=alpha,
+                        exclude=exclude,
+                    )
 
     def verify_opset_10(ishape, scales, mode):
         nodes = [
@@ -3922,7 +3965,7 @@ def verify_cond_loop():
 
     trip_count = np.array(5).astype(np.int64)
     res_y = np.array([13]).astype(np.float32)
-    cond = np.array(1).astype(np.bool)
+    cond = np.array(1).astype(bool)
     loop_graph = onnx.helper.make_graph(
         [loop_node],
         "loop_outer",
@@ -3940,7 +3983,7 @@ def verify_cond_loop():
 
     # Set a high trip count so that condition trips first.
     trip_count = np.array(40).astype(np.int64)
-    cond = np.array(1).astype(np.bool)
+    cond = np.array(1).astype(bool)
     input_vals = [trip_count, cond, y]
     verify_with_ort_with_inputs(loop_model, input_vals, use_vm=True, freeze_params=True)
 
@@ -3978,7 +4021,7 @@ def verify_count_loop():
 
     trip_count = np.array(5).astype(np.int64)
     res_y = np.array([13]).astype(np.float32)
-    cond = np.array(1).astype(np.bool)
+    cond = np.array(1).astype(bool)
     loop_graph = onnx.helper.make_graph(
         [loop_node],
         "loop_outer",
@@ -3995,7 +4038,7 @@ def verify_count_loop():
     loop_model = onnx.helper.make_model(loop_graph)
 
     trip_count = np.array(5).astype(np.int64)
-    cond = np.array(1).astype(np.bool)
+    cond = np.array(1).astype(bool)
     input_vals = [trip_count, cond, y]
     verify_with_ort_with_inputs(loop_model, input_vals, use_vm=True, freeze_params=True)
 
@@ -4032,7 +4075,7 @@ def verify_tensor_loop():
     )
 
     trip_count = np.array(5).astype(np.int64)
-    cond = np.array(1).astype(np.bool)
+    cond = np.array(1).astype(bool)
     loop_graph = onnx.helper.make_graph(
         [loop_node],
         "loop_outer",
@@ -4049,7 +4092,7 @@ def verify_tensor_loop():
     loop_model = onnx.helper.make_model(loop_graph)
 
     trip_count = np.array(5).astype(np.int64)
-    cond = np.array(1).astype(np.bool)
+    cond = np.array(1).astype(bool)
     input_vals = [trip_count, cond, y]
     verify_with_ort_with_inputs(
         loop_model, input_vals, use_vm=True, freeze_params=True, convert_to_static=True
@@ -4065,29 +4108,41 @@ def test_loop():
     verify_tensor_loop()
 
 
-def verify_if(cond_array):
+def verify_if(cond_array, num_outputs):
     # Given a bool scalar input cond.
     # return constant tensor x if cond is True, otherwise return constant tensor y.
-    then_out = onnx.helper.make_tensor_value_info("then_out", onnx.TensorProto.FLOAT, [5])
-    else_out = onnx.helper.make_tensor_value_info("else_out", onnx.TensorProto.FLOAT, [5])
 
-    x = np.array([1, 2, 3, 4, 5]).astype(np.float32)
-    y = np.array([5, 4, 3, 2, 1]).astype(np.float32)
+    def append_constant_nodes(nodes, outputs, expected, name):
+        outputs.append(onnx.helper.make_tensor_value_info(name, onnx.TensorProto.FLOAT, [5]))
 
-    then_const_node = onnx.helper.make_node(
-        "Constant", inputs=[], outputs=["then_out"], value=numpy_helper.from_array(x)
-    )
+        expected.append(np.random.randn(5).astype("float32"))
 
-    else_const_node = onnx.helper.make_node(
-        "Constant", inputs=[], outputs=["else_out"], value=numpy_helper.from_array(y)
-    )
+        nodes.append(
+            onnx.helper.make_node(
+                "Constant", inputs=[], outputs=[name], value=numpy_helper.from_array(expected[-1])
+            )
+        )
 
-    then_body = onnx.helper.make_graph([then_const_node], "then_body", [], [then_out])
+    if_outputs = []
+    graph_outputs = []
 
-    else_body = onnx.helper.make_graph([else_const_node], "else_body", [], [else_out])
+    then_nodes, then_outs, then_expected = [], [], []
+    else_nodes, else_outs, else_expected = [], [], []
+
+    for i in range(num_outputs):
+        append_constant_nodes(then_nodes, then_outs, then_expected, "then_out{}".format(i))
+        append_constant_nodes(else_nodes, else_outs, else_expected, "else_out{}".format(i))
+
+        if_outputs.append("res{}".format(i))
+        graph_outputs.append(
+            onnx.helper.make_tensor_value_info("res{}".format(i), onnx.TensorProto.FLOAT, [5]),
+        )
+
+    then_body = onnx.helper.make_graph(then_nodes, "then_body", [], then_outs)
+    else_body = onnx.helper.make_graph(else_nodes, "else_body", [], else_outs)
 
     if_node = onnx.helper.make_node(
-        "If", inputs=["cond"], outputs=["res"], then_branch=then_body, else_branch=else_body
+        "If", inputs=["cond"], outputs=if_outputs, then_branch=then_body, else_branch=else_body
     )
 
     if_graph = onnx.helper.make_graph(
@@ -4096,9 +4151,7 @@ def verify_if(cond_array):
         inputs=[
             onnx.helper.make_tensor_value_info("cond", onnx.TensorProto.BOOL, []),
         ],
-        outputs=[
-            onnx.helper.make_tensor_value_info("res", onnx.TensorProto.FLOAT, [5]),
-        ],
+        outputs=graph_outputs,
     )
 
     if_model = onnx.helper.make_model(if_graph)
@@ -4106,12 +4159,14 @@ def verify_if(cond_array):
         cond = np.array([1]).astype("bool")
     else:
         cond = np.array(1).astype("bool")
-    correct_out = x if cond else y
+    correct_out = then_expected if cond else else_expected
 
     # TODO(jwfromm): Onnxruntime 1.0.0 is buggy with If statements. Replace this with
     # verify_with_ort once we update versions.
     for target, dev in tvm.testing.enabled_targets():
         tvm_out = get_tvm_output_with_vm(if_model, [cond], target, dev, freeze_params=True)
+        if not isinstance(tvm_out, list):
+            tvm_out = [tvm_out]
         for i in range(len(tvm_out)):
             tvm.testing.assert_allclose(correct_out[i], tvm_out[i], rtol=1e-05, atol=1e-05)
 
@@ -4119,8 +4174,10 @@ def verify_if(cond_array):
 @tvm.testing.uses_gpu
 def test_if():
     # Confirm that if works with cond as an array or scalar.
-    verify_if(cond_array=False)
-    verify_if(cond_array=True)
+    verify_if(cond_array=False, num_outputs=1)
+    verify_if(cond_array=False, num_outputs=2)
+    verify_if(cond_array=True, num_outputs=1)
+    verify_if(cond_array=True, num_outputs=2)
 
 
 @tvm.testing.uses_gpu
