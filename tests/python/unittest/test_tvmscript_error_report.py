@@ -291,8 +291,36 @@ def error_index_type() -> None:
         A[vi, vj] = A[vi, 0.0] + 1  # error
 
 
+def error_bufferslice_index_type() -> None:
+    A = tir.alloc_buffer((1,), "float32")
+    B = tir.alloc_buffer((16, 16), "float32")
+    C = tir.alloc_buffer((16, 16), "float32")
+    with tir.block([16, 16]) as [vi, vj]:
+        C[vi, vj] = B[vi, A[0]]  # error
+
+
 def test_error_index_type():
     check_error(error_index_type, 4)
+    check_error(error_bufferslice_index_type, 6)
+
+
+def error_index_with_stop() -> None:
+    A = tir.alloc_buffer((128, 128), "float32")
+    with tir.block([16, 16]) as [vi, vj]:
+        A[vi, vj] = A[vi, 1:10] + 1  # error
+
+
+def error_bufferslice_index_with_stop() -> None:
+    A = tir.alloc_buffer((1,), "int32")
+    B = tir.alloc_buffer((16, 16), "float32")
+    C = tir.alloc_buffer((16, 16), "float32")
+    with tir.block([16, 16]) as [vi, vj]:
+        C[vi, vj] = B[vi, A[0:1]]  # error
+
+
+def test_error_index_with_stop_slice():
+    check_error(error_index_with_stop, 4)
+    check_error(error_bufferslice_index_with_stop, 6)
 
 
 def mismatch_args() -> None:
@@ -383,5 +411,6 @@ if __name__ == "__main__":
     test_opaque_access_during_complete()
     test_convert_slice_to_bufferload()
     test_error_index_type()
+    test_error_index_with_stop_slice()
     test_mismatch_args()
     test_tvm_exception_catch()
