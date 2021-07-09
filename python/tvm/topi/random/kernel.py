@@ -15,9 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 """Pseudorandom number kernels."""
+import numpy as np
+
 import tvm
 import tvm.topi
-import numpy as np
+
 from ... import tir
 from ...tir import ir_builder
 
