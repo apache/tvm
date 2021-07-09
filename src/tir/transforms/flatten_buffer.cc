@@ -127,7 +127,7 @@ class BufferFlattener : public StmtExprMutator {
   }
 
   static Stmt MakeAllocStmt(const Buffer& buffer, Stmt body) {
-    String storage_scope = buffer->scope;
+    String storage_scope = buffer.scope();
     if (storage_scope.empty()) {
       storage_scope = "global";
     }

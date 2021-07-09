@@ -260,7 +260,6 @@ def decl_buffer(
         strides,
         elem_offset,
         name,
-        scope,
         data_alignment,
         offset_factor,
         buffer_type,

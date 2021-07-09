@@ -323,7 +323,7 @@ class BF16LowerRewriter : public StmtExprMutator {
         DataType dtype = DataType::UInt(16, oldbuf->dtype.lanes());
         Var buffer_var = Var(oldbuf->data->name_hint, PointerType(PrimType(dtype)));
         auto newbuf = Buffer(buffer_var, dtype, oldbuf->shape, oldbuf->strides, oldbuf->elem_offset,
-                             oldbuf->name, oldbuf->scope, oldbuf->data_alignment,
+                             oldbuf->name, oldbuf->data_alignment,
                              oldbuf->offset_factor, oldbuf->buffer_type);
         buffer_remap_[oldbuf] = newbuf;
         var_remap_[oldbuf->data] = buffer_var;
