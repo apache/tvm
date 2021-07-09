@@ -79,7 +79,7 @@ These components are described below:
 
  * ``<target>`` - Identifies the TVM target on which the code should run. Currently, only ``host``
    is supported.
- * ``<unique_name>`` - A unique slug identifying this file. Currently ``lib<n>``, with ``<n>>` an
+ * ``<unique_name>`` - A unique slug identifying this file. Currently ``lib<n>``, with ``<n>>`` an
    auto-incrementing integer.
  * ``<format>`` - Suffix identifying the filename format. Currently ``c`` or ``o``.
 
@@ -93,6 +93,7 @@ An example directory tree for a CPU-only model is shown below:
 
       - ``lib0.o`` - LLVM module (if ``llvm`` target is used)
       - ``lib1.o`` - LLVM CRT Metadata Module (if ``llvm`` target is used)
+
     - ``src/`` - Generated C source
 
       - ``lib0.c`` - C module (if ``c`` target is used)
