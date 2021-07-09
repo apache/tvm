@@ -68,13 +68,18 @@ def test_task_runner_with_ref_input():
     measure_option = autotvm.measure_option(builder="local", runner="local", ref_input=refinp)
 
     class DummyExecutor(measure.executor.Executor):
+        def __init__(self):
+            self.ran_dummy_executor = False
+
         def submit(self, func, *args, **kwargs):
-            sig = Signature.from_callable(measure.measure_methods.run_through_rpc)
+            self.ran_dummy_executor = True
+            sig = Signature.from_callable(func)
             assert sig.bind(*args, **kwargs).arguments["ref_input"] == refinp
             return measure.local_executor.LocalFutureNoFork(None)
 
     measure_option["runner"].executor = DummyExecutor()
     measure_option["runner"].run([None], [None])
+    assert measure_option["runner"].executor.ran_dummy_executor
 
 
 if __name__ == "__main__":

@@ -246,7 +246,10 @@ class RPCRunner(Runner):
 
     @property
     def ref_input(self):
-        """Fixed input for tuning special operators."""
+        """
+        Fixed input for tuning special operators, e.g., sparse operators
+        requiring indices as input.
+        """
         return self._ref_input
 
     @ref_input.setter
