@@ -65,7 +65,8 @@ def test_task_tuner_without_measurement_spawn():
 def test_task_runner_with_ref_input():
     """test runner ref_input without measurement"""
     refinp = [np.random.rand(128, 128) for i in range(3)]
-    measure_option = autotvm.measure_option(builder="local", runner="local", ref_input=refinp)
+    runner = measure.LocalRunner()
+    runner.ref_input = refinp
 
     class DummyExecutor(measure.executor.Executor):
         def __init__(self):
@@ -77,9 +78,9 @@ def test_task_runner_with_ref_input():
             assert sig.bind(*args, **kwargs).arguments["ref_input"] == refinp
             return measure.local_executor.LocalFutureNoFork(None)
 
-    measure_option["runner"].executor = DummyExecutor()
-    measure_option["runner"].run([None], [None])
-    assert measure_option["runner"].executor.ran_dummy_executor
+    runner.executor = DummyExecutor()
+    runner.run([None], [None])
+    assert runner.executor.ran_dummy_executor
 
 
 if __name__ == "__main__":
