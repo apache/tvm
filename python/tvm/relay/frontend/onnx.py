@@ -2099,6 +2099,14 @@ class Expand(OnnxOpConverter):
             new_shape = _op.maximum(in_shape, shape)
             return new_shape
 
+        try:
+            # Try to use the values in the shape tensors to
+            # deternmine the shape
+            shape_tensor_name = inputs[1].name_hint
+            shape = _expr.const(params[shape_tensor_name])
+        except (AttributeError, KeyError):
+            pass
+
         shape = fold_constant(expand_shape(in_shape, shape))
         return _op.broadcast_to(inputs[0], shape=shape)
 
