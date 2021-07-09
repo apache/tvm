@@ -1471,6 +1471,50 @@ def bias_add(data, bias, axis=1):
     return _make.bias_add(data, bias, axis)
 
 
+def matmul(tensor_a, tensor_b, units=None, out_dtype="", transpose_a=False, transpose_b=False):
+    """Matmul operator.
+    Applies a linear transformation. The A & B can be transposed.
+
+    .. math::
+
+        `C = A * B`
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The first input of the operator,
+        of shape `(d_1, d_2, ..., d_n, units_in)` or `(d_1, d_2, ..., units_in, d_n)`.
+
+    weight : tvm.relay.Expr
+        The second input expressions, 2-D matrix,
+        of shape `(units_in, units)` or `(units, units_in)`.
+
+    units : Optional[int]
+        Number of hidden units of the matmul transformation.
+
+    out_dtype : Optional[str]
+        Specifies the output data type for mixed precision matmul,
+        of shape `(d_1, d_2, ..., d_n, units)`.
+
+    transpose_a : Optional[bool] = False
+        Whether the data tensor is in transposed format.
+
+    transpose_b : Optional[bool] = False
+        Whether the weight tensor is in transposed format.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    # Since currently `nn.dense` has better topi schedule support, will prefer to use `dense`
+    # rather than `matmul` for better compatibility
+    if not transpose_a and transpose_b:
+        # TODO(jcf94): Remove this when `nn.matmul` is finnaly ready
+        return dense(tensor_a, tensor_b, units, out_dtype)
+    return _make.matmul(tensor_a, tensor_b, units, out_dtype, transpose_a, transpose_b)
+
+
 def dense(data, weight, units=None, out_dtype=""):
     """Dense operator.
     Applies a linear transformation
@@ -2236,6 +2280,7 @@ def sparse_add(dense_mat, sparse_mat):
     Examples
     -------
     .. code-block:: python
+
         dense_data = [[ 3.,   4.,   4. ]
                       [ 4.,  2.,  5. ]]
         sparse_data = [4., 8.]
@@ -2971,6 +3016,42 @@ def cross_entropy_with_logits(predictions, targets):
       The computed result.
     """
     return _make.cross_entropy_with_logits(predictions, targets)
+
+
+def nll_loss(predictions, targets, weights, reduction="mean", ignore_index=-100):
+    """Negative log likelihood loss.
+
+    output{n, i_1, i_2, ..., i_k} = -p * w
+      where t = target{n, i_1, i_2, ..., i_k}
+            p = predictions{n, t, i_1, i_2, i_k}
+            w = weights{n, i_1, i_2, ..., i_k} if t != ignore_index else 0
+
+    result = reduction(output)
+
+    Parameters
+    ----------
+    predictions : tvm.relay.Expr
+      The predictions.
+
+    targets : tvm.relay.Expr
+      The target value of each prediction.
+
+    weights : tvm.relay.Expr
+      The weight of each target value.
+
+    reduction : string
+      The reduction method to apply to the output.
+      Possible values are "mean", "sum" and "none".
+
+    ignore_index : int
+      The target value to ignore.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+      The computed result.
+    """
+    return _make.nll_loss(predictions, targets, weights, reduction, ignore_index)
 
 
 def depth_to_space(data, block_size, layout="NCHW", mode="DCR"):

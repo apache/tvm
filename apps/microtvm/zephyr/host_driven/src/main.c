@@ -39,7 +39,7 @@
 #include <sys/printk.h>
 #include <sys/ring_buffer.h>
 #include <tvm/runtime/crt/logging.h>
-#include <tvm/runtime/crt/utvm_rpc_server.h>
+#include <tvm/runtime/crt/microtvm_rpc_server.h>
 #include <unistd.h>
 #include <zephyr.h>
 
@@ -61,6 +61,7 @@ static const struct device* led0_pin;
 
 static size_t g_num_bytes_requested = 0;
 static size_t g_num_bytes_written = 0;
+static size_t g_num_bytes_in_rx_buffer = 0;
 
 // Called by TVM to write serial data to the UART.
 ssize_t write_serial(void* unused_context, const uint8_t* data, size_t size) {
@@ -99,6 +100,7 @@ size_t TVMPlatformFormatMessage(char* out_buf, size_t out_buf_size_bytes, const 
 
 // Called by TVM when an internal invariant is violated, and execution cannot continue.
 void TVMPlatformAbort(tvm_crt_error_t error) {
+  TVMLogf("TVMError: %x", error);
   sys_reboot(SYS_REBOOT_COLD);
 #ifdef CONFIG_LED
   gpio_pin_set(led0_pin, LED0_PIN, 1);
@@ -144,14 +146,14 @@ tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
 
 #define MILLIS_TIL_EXPIRY 200
 #define TIME_TIL_EXPIRY (K_MSEC(MILLIS_TIL_EXPIRY))
-K_TIMER_DEFINE(g_utvm_timer, /* expiry func */ NULL, /* stop func */ NULL);
+K_TIMER_DEFINE(g_microtvm_timer, /* expiry func */ NULL, /* stop func */ NULL);
 
-uint32_t g_utvm_start_time;
-int g_utvm_timer_running = 0;
+uint32_t g_microtvm_start_time;
+int g_microtvm_timer_running = 0;
 
 // Called to start system timer.
 tvm_crt_error_t TVMPlatformTimerStart() {
-  if (g_utvm_timer_running) {
+  if (g_microtvm_timer_running) {
     TVMLogf("timer already running");
     return kTvmErrorPlatformTimerBadState;
   }
@@ -159,15 +161,15 @@ tvm_crt_error_t TVMPlatformTimerStart() {
 #ifdef CONFIG_LED
   gpio_pin_set(led0_pin, LED0_PIN, 1);
 #endif
-  k_timer_start(&g_utvm_timer, TIME_TIL_EXPIRY, TIME_TIL_EXPIRY);
-  g_utvm_start_time = k_cycle_get_32();
-  g_utvm_timer_running = 1;
+  k_timer_start(&g_microtvm_timer, TIME_TIL_EXPIRY, TIME_TIL_EXPIRY);
+  g_microtvm_start_time = k_cycle_get_32();
+  g_microtvm_timer_running = 1;
   return kTvmErrorNoError;
 }
 
 // Called to stop system timer.
 tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
-  if (!g_utvm_timer_running) {
+  if (!g_microtvm_timer_running) {
     TVMLogf("timer not running");
     return kTvmErrorSystemErrorMask | 2;
   }
@@ -178,11 +180,11 @@ tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
 #endif
 
   // compute how long the work took
-  uint32_t cycles_spent = stop_time - g_utvm_start_time;
-  if (stop_time < g_utvm_start_time) {
+  uint32_t cycles_spent = stop_time - g_microtvm_start_time;
+  if (stop_time < g_microtvm_start_time) {
     // we rolled over *at least* once, so correct the rollover it was *only*
     // once, because we might still use this result
-    cycles_spent = ~((uint32_t)0) - (g_utvm_start_time - stop_time);
+    cycles_spent = ~((uint32_t)0) - (g_microtvm_start_time - stop_time);
   }
 
   uint32_t ns_spent = (uint32_t)k_cyc_to_ns_floor64(cycles_spent);
@@ -190,14 +192,14 @@ tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
 
   // need to grab time remaining *before* stopping. when stopped, this function
   // always returns 0.
-  int32_t time_remaining_ms = k_timer_remaining_get(&g_utvm_timer);
-  k_timer_stop(&g_utvm_timer);
+  int32_t time_remaining_ms = k_timer_remaining_get(&g_microtvm_timer);
+  k_timer_stop(&g_microtvm_timer);
   // check *after* stopping to prevent extra expiries on the happy path
   if (time_remaining_ms < 0) {
     TVMLogf("negative time remaining");
     return kTvmErrorSystemErrorMask | 3;
   }
-  uint32_t num_expiries = k_timer_status_get(&g_utvm_timer);
+  uint32_t num_expiries = k_timer_status_get(&g_microtvm_timer);
   uint32_t timer_res_ms = ((num_expiries * MILLIS_TIL_EXPIRY) + time_remaining_ms);
   double approx_num_cycles =
       (double)k_ticks_to_cyc_floor32(1) * (double)k_ms_to_ticks_ceil32(timer_res_ms);
@@ -209,38 +211,42 @@ tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
     *elapsed_time_seconds = hw_clock_res_us / 1e6;
   }
 
-  g_utvm_timer_running = 0;
+  g_microtvm_timer_running = 0;
   return kTvmErrorNoError;
 }
 
 // Ring buffer used to store data read from the UART on rx interrupt.
-#define RING_BUF_SIZE_BYTES 4 * 1024
-RING_BUF_DECLARE(uart_rx_rbuf, RING_BUF_SIZE_BYTES);
-
-// Small buffer used to read data from the UART into the ring buffer.
-static uint8_t uart_data[8];
+// This ring buffer size is only required for testing with QEMU and not for physical hardware.
+#define RING_BUF_SIZE_BYTES (TVM_CRT_MAX_PACKET_SIZE_BYTES + 100)
+RING_BUF_ITEM_DECLARE_SIZE(uart_rx_rbuf, RING_BUF_SIZE_BYTES);
 
 // UART interrupt callback.
 void uart_irq_cb(const struct device* dev, void* user_data) {
-  while (uart_irq_update(dev) && uart_irq_is_pending(dev)) {
+  uart_irq_update(dev);
+  if (uart_irq_is_pending(dev)) {
     struct ring_buf* rbuf = (struct ring_buf*)user_data;
     if (uart_irq_rx_ready(dev) != 0) {
-      for (;;) {
-        // Read a small chunk of data from the UART.
-        int bytes_read = uart_fifo_read(dev, uart_data, sizeof(uart_data));
-        if (bytes_read < 0) {
-          TVMPlatformAbort((tvm_crt_error_t)0xbeef1);
-        } else if (bytes_read == 0) {
-          break;
-        }
-        // Write it into the ring buffer.
-        int bytes_written = ring_buf_put(rbuf, uart_data, bytes_read);
-        if (bytes_read != bytes_written) {
-          TVMPlatformAbort((tvm_crt_error_t)0xbeef2);
-        }
-        // CHECK_EQ(bytes_read, bytes_written, "bytes_read: %d; bytes_written: %d", bytes_read,
-        //         bytes_written);
+      uint8_t* data;
+      uint32_t size;
+      size = ring_buf_put_claim(rbuf, &data, RING_BUF_SIZE_BYTES);
+      int rx_size = uart_fifo_read(dev, data, size);
+      // Write it into the ring buffer.
+      g_num_bytes_in_rx_buffer += rx_size;
+
+      if (g_num_bytes_in_rx_buffer > RING_BUF_SIZE_BYTES) {
+        TVMPlatformAbort((tvm_crt_error_t)0xbeef3);
       }
+
+      if (rx_size < 0) {
+        TVMPlatformAbort((tvm_crt_error_t)0xbeef1);
+      }
+
+      int err = ring_buf_put_finish(rbuf, rx_size);
+      if (err != 0) {
+        TVMPlatformAbort((tvm_crt_error_t)0xbeef2);
+      }
+      // CHECK_EQ(bytes_read, bytes_written, "bytes_read: %d; bytes_written: %d", bytes_read,
+      // bytes_written);
     }
   }
 }
@@ -250,17 +256,6 @@ void uart_rx_init(struct ring_buf* rbuf, const struct device* dev) {
   uart_irq_callback_user_data_set(dev, uart_irq_cb, (void*)rbuf);
   uart_irq_rx_enable(dev);
 }
-
-// Used to read data from the UART.
-int uart_rx_buf_read(struct ring_buf* rbuf, uint8_t* data, size_t data_size_bytes) {
-  unsigned int key = irq_lock();
-  int bytes_read = ring_buf_get(rbuf, data, data_size_bytes);
-  irq_unlock(key);
-  return bytes_read;
-}
-
-// Buffer used to read from the UART rx ring buffer and feed it to the UTvmRpcServerLoop.
-static uint8_t main_rx_buf[RING_BUF_SIZE_BYTES];
 
 // The main function of this application.
 extern void __stdout_hook_install(int (*hook)(int));
@@ -290,22 +285,24 @@ void main(void) {
   uart_rx_init(&uart_rx_rbuf, tvm_uart);
 
   // Initialize microTVM RPC server, which will receive commands from the UART and execute them.
-  utvm_rpc_server_t server = UTvmRpcServerInit(write_serial, NULL);
+  microtvm_rpc_server_t server = MicroTVMRpcServerInit(write_serial, NULL);
   TVMLogf("microTVM Zephyr runtime - running");
 #ifdef CONFIG_LED
   gpio_pin_set(led0_pin, LED0_PIN, 0);
 #endif
 
   // The main application loop. We continuously read commands from the UART
-  // and dispatch them to UTvmRpcServerLoop().
+  // and dispatch them to MicroTVMRpcServerLoop().
   while (true) {
-    int bytes_read = uart_rx_buf_read(&uart_rx_rbuf, main_rx_buf, sizeof(main_rx_buf));
+    uint8_t* data;
+    unsigned int key = irq_lock();
+    uint32_t bytes_read = ring_buf_get_claim(&uart_rx_rbuf, &data, RING_BUF_SIZE_BYTES);
     if (bytes_read > 0) {
+      g_num_bytes_in_rx_buffer -= bytes_read;
       size_t bytes_remaining = bytes_read;
-      uint8_t* cursor = main_rx_buf;
       while (bytes_remaining > 0) {
         // Pass the received bytes to the RPC server.
-        tvm_crt_error_t err = UTvmRpcServerLoop(server, &cursor, &bytes_remaining);
+        tvm_crt_error_t err = MicroTVMRpcServerLoop(server, &data, &bytes_remaining);
         if (err != kTvmErrorNoError && err != kTvmErrorFramingShortPacket) {
           TVMPlatformAbort(err);
         }
@@ -317,7 +314,12 @@ void main(void) {
           g_num_bytes_requested = 0;
         }
       }
+      int err = ring_buf_get_finish(&uart_rx_rbuf, bytes_read);
+      if (err != 0) {
+        TVMPlatformAbort((tvm_crt_error_t)0xbeef6);
+      }
     }
+    irq_unlock(key);
   }
 
 #ifdef CONFIG_ARCH_POSIX

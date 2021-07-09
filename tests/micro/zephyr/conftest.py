@@ -24,10 +24,11 @@ PLATFORMS = {
     "host": ("host", "qemu_x86"),
     "host_riscv32": ("host", "qemu_riscv32"),
     "host_riscv64": ("host", "qemu_riscv64"),
-    "stm32f746xx_nucleo": ("stm32f746xx", "nucleo_f746zg"),
-    "stm32f746xx_disco": ("stm32f746xx", "stm32f746g_disco"),
-    "nrf5340dk": ("nrf5340dk", "nrf5340dk_nrf5340_cpuapp"),
     "mps2_an521": ("mps2_an521", "mps2_an521-qemu"),
+    "nrf5340dk": ("nrf5340dk", "nrf5340dk_nrf5340_cpuapp"),
+    "stm32f746xx_disco": ("stm32f746xx", "stm32f746g_disco"),
+    "stm32f746xx_nucleo": ("stm32f746xx", "nucleo_f746zg"),
+    "stm32l4r5zi_nucleo": ("stm32l4r5zi", "nucleo_l4r5zi"),
 }
 
 
@@ -44,6 +45,17 @@ def pytest_addoption(parser):
     parser.addoption(
         "--west-cmd", default="west", help="Path to `west` command for flashing device."
     )
+    parser.addoption(
+        "--skip-build",
+        action="store_true",
+        help="If set true, reuses build from the previous test run. Otherwise, build from the scratch.",
+    )
+    parser.addoption(
+        "--tvm-debug",
+        action="store_true",
+        default=False,
+        help="If set true, enable a debug session while the test is running. Before running the test, in a separate shell, you should run: <python -m tvm.exec.microtvm_debug_shell>",
+    )
 
 
 def pytest_generate_tests(metafunc):
@@ -54,3 +66,13 @@ def pytest_generate_tests(metafunc):
 @pytest.fixture
 def west_cmd(request):
     return request.config.getoption("--west-cmd")
+
+
+@pytest.fixture
+def skip_build(request):
+    return request.config.getoption("--skip-build")
+
+
+@pytest.fixture
+def tvm_debug(request):
+    return request.config.getoption("--tvm-debug")

@@ -226,10 +226,10 @@ within_subsection_order = {
         "introduction.py",
         "install.py",
         "tvmc_command_line_driver.py",
-        "auto_tuning_with_python.py",
+        "autotvm_relay_x86.py",
         "tensor_expr_get_started.py",
-        "autotvm_matmul.py",
-        "autoschedule_matmul.py",
+        "autotvm_matmul_x86.py",
+        "auto_scheduler_matmul_x86.py",
         "cross_compilation_and_rpc.py",
         "relay_quick_start.py",
     ],
@@ -246,7 +246,7 @@ within_subsection_order = {
     ],
     "language": [
         "schedule_primitives.py",
-        "reduciton.py",
+        "reduction.py",
         "intrin_math.py",
         "scan.py",
         "extern_op.py",
@@ -273,7 +273,12 @@ within_subsection_order = {
         "tune_network_x86.py",
         "tune_network_cuda.py",
     ],
-    "dev": ["low_level_custom_pass.py", "use_pass_infra.py", "bring_your_own_datatypes.py"],
+    "dev": [
+        "low_level_custom_pass.py",
+        "use_pass_infra.py",
+        "use_pass_instrument.py",
+        "bring_your_own_datatypes.py",
+    ],
 }
 
 

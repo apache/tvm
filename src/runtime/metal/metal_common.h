@@ -163,6 +163,7 @@ class MetalWorkspace final : public DeviceAPI {
   void SetStream(Device dev, TVMStreamHandle stream) final;
   void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final;
   void FreeWorkspace(Device dev, void* data) final;
+  void ReinitializeStreams();
 
   // get the global workspace
   static MetalWorkspace* Global();

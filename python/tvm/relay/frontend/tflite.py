@@ -251,7 +251,30 @@ class OperatorConverter(object):
             raise ImportError("The tflite package must be installed")
 
         op_code_list_idx = op.OpcodeIndex()
-        op_code_id = self.model.OperatorCodes(op_code_list_idx).BuiltinCode()
+
+        op_c = self.model.OperatorCodes(op_code_list_idx)
+        # In TFlite 2.4.x there was a change where the type of the field that contained
+        # the builtin code changed from int8 to int32 in the flat buffer representation.
+        # However to retain support for old flat buffers that were created, they retained
+        # the original 8 bit encoding for the operator but in a new field accessed by the
+        # DeprecatedBuiltinCode method.
+        # This means that the API function BuiltinCode() is used on an operator
+        # which was originally encoded as an 8 bit quantity it would look for the
+        # code in the new int32 field in the schema and this creates the need
+        # for the check for the magic number of 127 which is indicated by
+        # BuiltinOperator.PLACEHOLDER_FOR_GREATER_OP_CODES
+        # Remember however that this value came into existence only after Tensorflow
+        # lite 2.4.x and hence encase it in a try -except block.
+        # Phew !
+        try:
+            if op_c.BuiltinCode() < BuiltinOperator.PLACEHOLDER_FOR_GREATER_OP_CODES:
+                opc = op_c.DeprecatedBuiltinCode()
+            else:
+                opc = op_c.BuiltinCode()
+        except AttributeError:
+            opc = op_c.BuiltinCode()
+
+        op_code_id = opc
         try:
             op_code_str = self.builtin_op_code[op_code_id]
         except KeyError:
@@ -607,7 +630,7 @@ class OperatorConverter(object):
         # Options - align_corners (bool)
         resize_options = None
         align_corners = False
-        bilinear_method = method == "bilinear"
+        bilinear_method = method == "linear"
         if bilinear_method:
             assert op.BuiltinOptionsType() == BuiltinOptions.ResizeBilinearOptions
             resize_options = ResizeBilinearOptions()
@@ -624,7 +647,7 @@ class OperatorConverter(object):
         coord_trans = "align_corners" if align_corners else "asymmetric"
         if bilinear_method and input_tensor.qnn_params:
             in_expr = self.dequantize(in_expr, input_tensor)
-        out = _op.image.resize(
+        out = _op.image.resize2d(
             in_expr, target_size, "NHWC", method, coordinate_transformation_mode=coord_trans
         )
         if bilinear_method and output_tensor.qnn_params:
@@ -633,7 +656,7 @@ class OperatorConverter(object):
 
     def convert_resize_bilinear(self, op):
         """Convert TFLite RESIZE_BILINEAR"""
-        return self._convert_resize("bilinear", op)
+        return self._convert_resize("linear", op)
 
     def convert_resize_nearest_neighbor(self, op):
         """Convert TFLite RESIZE_NEAREST_NEIGHBOR"""
@@ -3496,7 +3519,7 @@ def get_scalar_from_constant(expr):
     assert value.dtype == np.dtype(np.int32) or value.dtype == np.dtype(
         np.float32
     ), "value must be float32/int32"
-    return np.asscalar(value)
+    return value.item(0)
 
 
 def get_tensor_from_constant(expr):

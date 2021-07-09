@@ -100,7 +100,7 @@ class ScheduleState(Object):
         if not isinstance(debug_mode, int):
             raise TypeError(f"`debug_mode` should be integer or boolean, but gets: {debug_mode}")
         self.__init_handle_by_constructor__(
-            _ffi_api_schedule.ScheduleState,  # pylint: disable=no-member
+            _ffi_api_schedule.ScheduleState,  # type: ignore # pylint: disable=no-member
             func_or_mod,
             debug_mode,
         )
@@ -118,7 +118,7 @@ class ScheduleState(Object):
         sref : StmtSRef
             The corresponding sref
         """
-        return _ffi_api_schedule.ScheduleStateGetSRef(self, stmt)  # pylint: disable=no-member
+        return _ffi_api_schedule.ScheduleStateGetSRef(self, stmt)  # type: ignore # pylint: disable=no-member
 
     def get_block_scope(self, block_sref: StmtSRef) -> BlockScope:
         """Get the BlockScope correpsonding to the block sref
@@ -133,7 +133,7 @@ class ScheduleState(Object):
         sref : StmtSRef
             The corresponding sref
         """
-        return _ffi_api_schedule.ScheduleStateGetBlockScope(  # pylint: disable=no-member
+        return _ffi_api_schedule.ScheduleStateGetBlockScope(  # type: ignore # pylint: disable=no-member
             self, block_sref
         )
 
@@ -158,7 +158,7 @@ class ScheduleState(Object):
             affine_binding,
             region_cover,
             stage_pipeline,
-        ) = _ffi_api_schedule.ScheduleStateGetCachedFlags(  # pylint: disable=no-member
+        ) = _ffi_api_schedule.ScheduleStateGetCachedFlags(  # type: ignore # pylint: disable=no-member
             self, block_sref
         )
         return CachedFlags(
@@ -204,7 +204,7 @@ class ScheduleState(Object):
         """
         if block_sref_reuse is None:
             block_sref_reuse = {}
-        _ffi_api_schedule.ScheduleStateReplace(  # pylint: disable=no-member
+        _ffi_api_schedule.ScheduleStateReplace(  # type: ignore # pylint: disable=no-member
             self,
             src_sref,
             tgt_stmt,

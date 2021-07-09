@@ -46,7 +46,7 @@ from .workload_registry import register_workload_tensors
 logger = logging.getLogger("auto_scheduler")
 
 
-def call_all_topi_funcs(mod, params, target):
+def call_all_topi_funcs(mod, params, target, opt_level=3):
     """Call all TOPI compute to extract auto_scheduler tasks in a Relay program"""
     # pylint: disable=import-outside-toplevel
     from tvm import relay
@@ -57,7 +57,7 @@ def call_all_topi_funcs(mod, params, target):
     autotvm.GLOBAL_SCOPE.silent = True
 
     with transform.PassContext(
-        opt_level=3,
+        opt_level=opt_level,
         config={
             "relay.backend.use_auto_scheduler": True,
             "relay.backend.disable_compile_engine_cache": True,
@@ -91,7 +91,13 @@ def call_all_topi_funcs(mod, params, target):
 
 
 def extract_tasks(
-    mod, params, target, target_host=None, hardware_params=None, include_simple_tasks=False
+    mod,
+    params,
+    target,
+    target_host=None,
+    hardware_params=None,
+    include_simple_tasks=False,
+    opt_level=3,
 ):
     """Extract tuning tasks from a relay program.
 
@@ -109,6 +115,8 @@ def extract_tasks(
         Hardware parameters used for the search tasks
     include_simple_tasks: bool
         Whether to extract simple tasks that do not include complicated ops.
+    opt_level : Optional[int]
+        The optimization level of the task extractions.
 
     Returns
     -------
@@ -132,7 +140,9 @@ def extract_tasks(
     with env:
         # Wrap build call in a new thread to avoid the conflict
         # between python's multiprocessing and tvm's thread pool
-        build_thread = threading.Thread(target=call_all_topi_funcs, args=(mod, params, target))
+        build_thread = threading.Thread(
+            target=call_all_topi_funcs, args=(mod, params, target, opt_level)
+        )
         build_thread.start()
         build_thread.join()
     dispatch_ctx.verbose = old_verbose
@@ -308,6 +318,7 @@ def auto_schedule_topi(func_name, outs):
         A tuned schedule or none (if not tuned) in the final build mode;
         None in the tracing mode so that the fallback topi schedule will be used.
     """
+
     # pylint: disable=import-outside-toplevel
     from tvm.auto_scheduler.measure import (
         prepare_input_map,
@@ -364,6 +375,15 @@ def auto_schedule_topi(func_name, outs):
         raise ValueError("Invalid tracing mode: " + env.tracing_mode)
 
     return schedule
+
+
+@tvm._ffi.register_func("auto_scheduler.relay_integration.te_compiler_update_weights")
+def te_compiler_update_weights(function_weights):
+    """A callback for updating the weights of extracted tasks."""
+    env = TracingEnvironment.current
+    if env is not None:
+        for key in env.wkl_key_to_weight:
+            env.wkl_key_to_weight[key] = function_weights[key[0]]
 
 
 def tensor_no_check_call(self, *indices):

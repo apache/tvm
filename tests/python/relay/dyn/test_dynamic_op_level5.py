@@ -27,38 +27,39 @@ import tvm.topi.testing
 import tvm.testing
 
 
-def test_resize_infer_type():
+def test_resize2d_infer_type():
     n, c, h, w = te.size_var("n"), te.size_var("c"), te.size_var("h"), te.size_var("w")
     x = relay.var("x", relay.TensorType((n, c, h, w), "int8"))
     size = relay.var("size", relay.TensorType((2,), "int8"))
-    z = relay.image.resize(x, size)
+    z = relay.image.resize2d(x, size)
     zz = run_infer_type(z)
     assert zz.checked_type == relay.TensorType((n, c, relay.Any(), relay.Any()), "int8")
 
 
 @tvm.testing.uses_gpu
-def test_resize():
-    def verify_resize(dshape, scale, method, layout):
+def test_resize2d():
+    def verify_resize2d(dshape, scale, method, layout):
         if layout == "NHWC":
             size = (dshape[1] * scale, dshape[2] * scale)
         else:
             size = (dshape[2] * scale, dshape[3] * scale)
         size = np.array(size).astype("int64")
         x_data = np.random.uniform(size=dshape).astype("float32")
-        if method == "bilinear":
-            ref_res = tvm.topi.testing.bilinear_resize_python(x_data, size, layout)
-        else:
-            ref_res = tvm.topi.testing.upsampling_python(x_data, (scale, scale), layout)
+
         x = relay.var("x", relay.TensorType(dshape, "float32"))
         size_var = relay.var("size", relay.TensorType((2,), "int64"))
 
         coord_trans = "asymmetric" if method == "nearest_neighbor" else "align_corners"
-        z = relay.image.resize(
+        z = relay.image.resize2d(
             x, size_var, layout, method, coordinate_transformation_mode=coord_trans
         )
 
         zz = run_infer_type(z)
         func = relay.Function([x, size_var], z)
+
+        ref_res = tvm.topi.testing.resize2d_python(
+            x_data, (scale, scale), layout, method, coord_trans
+        )
 
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["vm", "debug"]:
@@ -67,10 +68,10 @@ def test_resize():
                 op_res = intrp.evaluate()(x_data, size)
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-4, atol=1e-6)
 
-    for method in ["bilinear", "nearest_neighbor"]:
+    for method in ["linear", "nearest_neighbor"]:
         for layout in ["NCHW", "NHWC"]:
-            verify_resize((1, 4, 4, 4), 2, method, layout)
-            verify_resize((2, 8, 17, 20), 7, method, layout)
+            verify_resize2d((1, 4, 4, 4), 2, method, layout)
+            verify_resize2d((2, 8, 17, 20), 7, method, layout)
 
 
 if __name__ == "__main__":

@@ -243,22 +243,23 @@ def unique(data, is_sorted=True, return_counts=False):
     Examples
     --------
     .. code-block:: python
+
         [output, indices, num_unique] = unique([4, 5, 1, 2, 3, 3, 4, 5], False, False)
-        output          =  [4, 5, 1, 2, 3, ?, ?, ?]
-        indices         =  [0, 1, 2, 3, 4, ?, ?, ?]
+        output          =  [4, 5, 1, 2, 3, _, _, _]
+        indices         =  [0, 1, 2, 3, 4, _, _, _]
         inverse_indices =  [0, 1, 2, 3, 4, 4, 0, 1]
         num_unique      =  [5]
 
         [output, indices, num_unique, counts] = unique([4, 5, 1, 2, 3, 3, 4, 5], False, True)
-        output          =  [4, 5, 1, 2, 3, ?, ?, ?]
-        indices         =  [0, 1, 2, 3, 4, ?, ?, ?]
+        output          =  [4, 5, 1, 2, 3, _, _, _]
+        indices         =  [0, 1, 2, 3, 4, _, _, _]
         inverse_indices =  [0, 1, 2, 3, 4, 4, 0, 1]
         num_unique      =  [5]
-        counts          =  [2, 2, 1, 1, 2, ?, ?, ?]
+        counts          =  [2, 2, 1, 1, 2, _, _, _]
 
         [output, indices, num_unique] = unique([4, 5, 1, 2, 3, 3, 4, 5], True)
-        output          =  [1, 2, 3, 4, 5, ?, ?, ?]
-        indices         =  [2, 3, 4, 0, 1, ?, ?, ?]
+        output          =  [1, 2, 3, 4, 5, _, _, _]
+        indices         =  [2, 3, 4, 0, 1, _, _, _]
         inverse_indices =  [3, 4, 0, 1, 2, 2, 3, 4]
         num_unique      =  [5]
     """

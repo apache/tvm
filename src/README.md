@@ -21,14 +21,17 @@ Header files in include are public APIs that share across modules.
 There can be internal header files within each module that sit in src.
 
 ## Modules
-- support: Internal support utilities.
-- runtime: Minimum runtime related codes.
-- node: base infra for IR/AST nodes that is dialect independent.
-- ir: Common IR infrastructure.
-- tir: Tensor-level IR.
-- te: tensor expression DSL
 - arith: Arithmetic expression and set simplification.
-- relay: Relay IR, high-level optimization.
-- autotvm: The auto-tuning module.
+- auto\_scheduler: The template-free auto-tuning module.
+- autotvm: The template-based auto-tuning module.
 - contrib: Contrib extension libraries.
 - driver: Compilation driver APIs.
+- ir: Common IR infrastructure.
+- node: The base infra for IR/AST nodes that is dialect independent.
+- relay: Relay IR, high-level optimizations.
+- runtime: Minimum runtime related codes.
+- support: Internal support utilities.
+- target: Hardwaer target.
+- tir: Tensor IR, low-level optimizations.
+- te: Tensor expression DSL.
+- topi: Tensor Operator Inventory.

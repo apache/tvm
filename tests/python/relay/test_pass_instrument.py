@@ -182,6 +182,14 @@ def test_instrument_pass_counts():
     assert passes_counter.run_after_count == 0
 
 
+def test_list_pass_configs():
+    configs = tvm.transform.PassContext.list_configs()
+
+    assert len(configs) > 0
+    assert "relay.backend.use_auto_scheduler" in configs.keys()
+    assert configs["relay.backend.use_auto_scheduler"]["type"] == "IntImm"
+
+
 def test_enter_pass_ctx_exception():
     events = []
 
@@ -239,9 +247,6 @@ def test_exit_pass_ctx_exception():
     class PI:
         def __init__(self, id):
             self.id = id
-
-        def exit_pass_ctx(self):
-            events.append(self.id + " exit ctx")
 
         def exit_pass_ctx(self):
             events.append(self.id + " exit ctx")

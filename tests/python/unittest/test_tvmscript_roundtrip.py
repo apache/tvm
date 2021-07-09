@@ -2888,6 +2888,64 @@ def test_opaque_block():
     assert len(root_block.body.body[1].block.iter_vars) == 0
 
 
+@tvm.script.tir
+def rank0(a: ty.handle) -> None:
+    A = tir.match_buffer(a, (), "float32")
+    B = tir.alloc_buffer((), "float32")
+    A[()] = 2
+    B[()] = A[()]
+
+
+def test_rank0_buffers():
+    func = rank0
+    rt_func = tvm.script.from_source(tvm.script.asscript(func, True))
+    tvm.ir.assert_structural_equal(func, rt_func)
+
+
+@tvm.script.tir
+def rank0_block(a: ty.handle) -> None:
+    A = tir.match_buffer(a, (), "float32")
+    B = tir.alloc_buffer((), "float32")
+    tir.store(B.data, 0, tir.load("float32", A.data, 0))
+
+    with tir.block([], "update") as []:
+        tir.reads([A[()]])
+        tir.writes([B[()]])
+        for i in range(0, 1):
+            B[()] = A[()]
+
+
+def test_rank0_blocks():
+    func = rank0_block
+    rt_func = tvm.script.from_source(tvm.script.asscript(func, True))
+    tvm.ir.assert_structural_equal(func, rt_func)
+
+
+@tvm.script.tir
+def select(a: ty.handle) -> None:
+    A = tir.match_buffer(a, (), "float32")
+    A[()] = tir.Select(True, 1, 2)
+
+
+def test_select():
+    func = select
+    rt_func = tvm.script.from_source(tvm.script.asscript(func, True))
+    tvm.ir.assert_structural_equal(func, rt_func)
+
+
+@tvm.script.tir
+def minmax(a: ty.handle) -> None:
+    A = tir.match_buffer(a, (), "float32")
+    A[()] = tir.min(1, 2)
+    A[()] = tir.max(1, 2)
+
+
+def test_minmax():
+    func = minmax
+    rt_func = tvm.script.from_source(tvm.script.asscript(func, True))
+    tvm.ir.assert_structural_equal(func, rt_func)
+
+
 if __name__ == "__main__":
     test_opt_gemm_normalize()
     test_opt_gemm_mod_host()

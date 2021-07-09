@@ -21,6 +21,8 @@ Task can be constructed from tuple of func, args, and kwargs.
 func is a state-less function, or a string that
 registers the standard task.
 """
+import functools
+
 import numpy as np
 
 from tvm import runtime
@@ -59,7 +61,7 @@ def serialize_args(args):
             return ("TENSOR", get_const_tuple(x.shape), x.dtype)
         if isinstance(x, (tuple, list, container.Array)):
             return tuple([_encode(a) for a in x])
-        if isinstance(x, (str, int, float, np.int, np.float, expr.Var, expr.Any)):
+        if isinstance(x, (str, int, float, expr.Var, expr.Any)):
             return x
         if isinstance(x, (expr.StringImm, expr.IntImm, expr.FloatImm)):
             return x.value
@@ -411,6 +413,7 @@ def template(task_name, func=None):
     """
 
     def _decorate(f):
+        @functools.wraps(f)
         def wrapper(*args, **kwargs):
             assert not kwargs, "Do not support kwargs in template function call"
             workload = args_to_workload(args, task_name)
