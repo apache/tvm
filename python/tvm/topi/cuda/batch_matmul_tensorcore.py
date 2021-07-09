@@ -29,10 +29,10 @@ from .tensor_intrin import (
 
 
 @autotvm.register_topi_compute("batch_matmul_tensorcore.cuda")
-def batch_matmul_tensorcore(cfg, x, y, out_shape=None):
+def batch_matmul_tensorcore(cfg, x, y, out_shape=None, out_dtype=None):
     """batch matmul tensorcore operator on cuda"""
     # todo: deal with out_shape for broadcast, liuxin.ai
-    return batch_matmul_tensorcore_cuda(x, y)
+    return batch_matmul_tensorcore_cuda(x, y, out_dtype)
 
 
 @autotvm.register_topi_schedule("batch_matmul_tensorcore.cuda")
@@ -57,10 +57,8 @@ def schedule_batch_matmul_tensorcore(cfg, outs):
         A, B = s[C].op.input_tensors
         batch, m_dim, k_dim = get_const_tuple(A.shape)
         batch, n_dim, k_dim = get_const_tuple(B.shape)
+        data_dtype = A.dtype
         out_dtype = C.dtype
-        # inline astype fp16
-        s[A].compute_inline()
-        s[B].compute_inline()
 
         # Explicit memory access
         AS = s.cache_read(A, "shared", [C])
@@ -94,15 +92,28 @@ def schedule_batch_matmul_tensorcore(cfg, outs):
         cfg.define_knob("vec", [1, 2, 4, 8])
 
         # Ensure that the default parameters are applicable when autotvm is not in use
-        if m_dim % 32 == 0 and n_dim % 8 == 0:
-            cfg.define_knob("wmma_m", [32, 16, 8])
-        elif m_dim % 16 == 0 and n_dim % 16 == 0:
-            cfg.define_knob("wmma_m", [16, 8, 32])
-        elif m_dim % 8 == 0 and n_dim % 32 == 0:
-            cfg.define_knob("wmma_m", [8, 16, 32])
+        if data_dtype in ["float16", "uint8", "int8"]:
+            if m_dim % 32 == 0 and n_dim % 8 == 0:
+                cfg.define_knob("wmma_m", [32, 16, 8])
+            elif m_dim % 16 == 0 and n_dim % 16 == 0:
+                cfg.define_knob("wmma_m", [16, 8, 32])
+            elif m_dim % 8 == 0 and n_dim % 32 == 0:
+                cfg.define_knob("wmma_m", [8, 16, 32])
+            wmma_k = 16
+            wmma_m = cfg["wmma_m"].val
+            if wmma_m == 16:
+                wmma_n = 16
+            elif wmma_m == 8:
+                wmma_n = 32
+            elif wmma_m == 32:
+                wmma_n = 8
+        elif data_dtype in ["int4", "uint4"]:
+            wmma_m = wmma_n = 8
+            wmma_k = 32
+        else:
+            raise ValueError("data dtype %s is not yet supported" % data_dtype)
 
         warp_size = 32
-        wmma_k = 16
         block_row_warps = cfg["block_row_warps"].val
         block_col_warps = cfg["block_col_warps"].val
         warp_row_tiles = cfg["warp_row_tiles"].val
@@ -110,15 +121,7 @@ def schedule_batch_matmul_tensorcore(cfg, outs):
         chunk = cfg["chunk"].val
         offset = cfg["offset"].val
         offsetCS = cfg["offsetCS"].val
-        wmma_m = cfg["wmma_m"].val
         vec = cfg["vec"].val
-
-        if wmma_m == 16:
-            wmma_n = 16
-        elif wmma_m == 8:
-            wmma_n = 32
-        elif wmma_m == 32:
-            wmma_n = 8
 
         # Define the stride of intrin functions
         AS_align = chunk * wmma_k + offset
@@ -211,10 +214,8 @@ def schedule_batch_matmul_tensorcore(cfg, outs):
         shared_shedule(BS, BS_align)
 
         shape = (wmma_m, wmma_n, wmma_k)
-        # TODO: add checking here, datatype casting may cause precision loss
-        in_dtype = "float16"
-        AL_gemm = te.placeholder((wmma_m, wmma_k), name="AL_gemm", dtype=in_dtype)
-        BL_gemm = te.placeholder((wmma_n, wmma_k), name="BL_gemm", dtype=in_dtype)
+        AL_gemm = te.placeholder((wmma_m, wmma_k), name="AL_gemm", dtype=data_dtype)
+        BL_gemm = te.placeholder((wmma_n, wmma_k), name="BL_gemm", dtype=data_dtype)
         k_gemm = te.reduce_axis((0, wmma_k), name="k_gemm")
         CL_compute = te.compute(
             (wmma_m, wmma_n),
@@ -236,7 +237,7 @@ def schedule_batch_matmul_tensorcore(cfg, outs):
                 "row_major",
                 (wmma_m, wmma_k),
                 (wmma_m, wmma_k),
-                "float16",
+                data_dtype,
             ),
         )
         s[BF].tensorize(
@@ -248,7 +249,7 @@ def schedule_batch_matmul_tensorcore(cfg, outs):
                 "col_major",
                 (wmma_n, wmma_k),
                 (wmma_n, wmma_k),
-                "float16",
+                data_dtype,
             ),
         )
         s[CF].tensorize(
@@ -270,7 +271,7 @@ def schedule_batch_matmul_tensorcore(cfg, outs):
     return s
 
 
-def batch_matmul_tensorcore_cuda(x, y):
+def batch_matmul_tensorcore_cuda(x, y, out_dtype=None):
     """Computes batch matrix multiplication of `x` and `y` when `x` and `y` are
     data in batch.
 
@@ -294,22 +295,26 @@ def batch_matmul_tensorcore_cuda(x, y):
     assert x_shape[2] == y_shape[2], "shapes of x and y is inconsistent"
     batch, M, K = x.shape
     N = y.shape[1]
-    out_dtype = x.dtype
 
-    assert (
-        (M % 8 == 0 and K % 16 == 0 and N % 32 == 0)
-        or (M % 16 == 0 and K % 16 == 0 and N % 16 == 0)
-        or (M % 32 == 0 and K % 16 == 0 and N % 8 == 0)
-    ), "The shape of (M, K, N) must be multiple of (16, 16, 16) or (32, 16, 8) or (8, 16, 32)"
+    if out_dtype is None:
+        out_dtype = x.dtype
 
-    x_16 = te.compute((batch, M, K), lambda b, i, k: x[b, i, k].astype("float16"))
-    y_16 = te.compute((batch, N, K), lambda b, j, k: y[b, j, k].astype("float16"))
+    assert x.dtype == y.dtype
+    assert x.dtype in ["float16", "uint8", "int8", "uint4", "int4"]
+    if x.dtype in ["float16", "uint8", "int8"]:
+        assert (
+            (M % 8 == 0 and K % 16 == 0 and N % 32 == 0)
+            or (M % 16 == 0 and K % 16 == 0 and N % 16 == 0)
+            or (M % 32 == 0 and K % 16 == 0 and N % 8 == 0)
+        ), "The shape of (M, K, N) must be multiple of (16, 16, 16) or (32, 16, 8) or (8, 16, 32)"
+    else:
+        assert (
+            M % 8 == 0 and K % 32 == 0 and N % 8 == 0
+        ), "The shape of (M, K, N) must be multiple of (8, 32, 8)"
 
     k = te.reduce_axis((0, K), name="k")
     return te.compute(
         (batch, M, N),
-        lambda b, i, j: te.sum(
-            x_16[b, i, k].astype(out_dtype) * y_16[b, j, k].astype(out_dtype), axis=k
-        ),
+        lambda b, i, j: te.sum(x[b, i, k].astype(out_dtype) * y[b, j, k].astype(out_dtype), axis=k),
         tag="batch_matmul_tensorcore",
     )
