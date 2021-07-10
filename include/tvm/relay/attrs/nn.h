@@ -1484,7 +1484,7 @@ struct Im2colAttrs : public tvm::AttrsNode<Im2colAttrs> {
         .set_default(Array<IndexExpr>({1, 1}))
         .describe("The strides.");
   }
-};  // struct Im2colAttrs for im2col
+};  // struct Im2colAttrs
 
 }  // namespace relay
 }  // namespace tvm

@@ -3912,6 +3912,29 @@ def test_forward_flip():
     verify_model(Flip(axis=-1), input_data=input)
 
 
+@tvm.testing.uses_gpu
+def test_forward_im2col():
+    torch.set_grad_enabled(False)
+
+    class Im2col3x3(Module):
+        def __init__(self):
+            super(Im2col3x3, self).__init__()
+
+        def forward(self, x):
+            return F.unfold(x, 3, dilation=1, padding=1, stride=1)
+
+    class Im2col5x5(Module):
+        def __init__(self):
+            super(Im2col5x5, self).__init__()
+
+        def forward(self, x):
+            return F.unfold(x, 5, dilation=1, padding=1, stride=2)
+
+    input = torch.randn(2, 3, 32, 32)
+    verify_model(Im2col3x3(), input_data=input)
+    verify_model(Im2col5x5(), input_data=input)
+
+
 if __name__ == "__main__":
     # some structural tests
     test_forward_traced_function()
@@ -4055,6 +4078,7 @@ if __name__ == "__main__":
     test_hard_sigmoid()
     test_forward_nll_loss()
     test_forward_flip()
+    test_forward_im2col()
 
     # Model tests
     test_resnet18()

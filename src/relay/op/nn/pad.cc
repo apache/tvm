@@ -278,11 +278,6 @@ Array<te::Tensor> Im2colCompute(const Attrs& attrs, const Array<te::Tensor>& inp
   const auto* param = attrs.as<Im2colAttrs>();
   ICHECK(param != nullptr);
 
-  std::cout << "im2col kerne_size:" << param->kernel_size << std::endl;
-  std::cout << "im2col dilation_size:" << param->dilation << std::endl;
-  std::cout << "im2col padding_size:" << param->padding << std::endl;
-  std::cout << "im2col stride_size:" << param->stride << std::endl;
-
   return Array<te::Tensor>{topi::im2col(inputs[0], param->kernel_size, param->dilation, param->padding, param->stride)};
 }
 
