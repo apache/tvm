@@ -2329,6 +2329,15 @@ class PyTorchOpConverter:
         axis = inputs[1]
         return _op.transform.reverse(data, axis=axis[0])
 
+    def grid_sampler(self, inputs, input_types):
+        data = inputs[0]
+        grid = inputs[1]
+
+        # Torch grid shape is like [batch, out_height, out_width, 2], but
+        # TVM grid is [batch, 2, out_height, out_width], so here grid need to be converted
+        grid = _op.transform.transpose(grid, axes=[0, 3, 1, 2])
+        return _op.image.grid_sample(data, grid, method="bilinear", layout="NCHW")
+
     # Operator mappings
     def create_convert_map(self):
         self.convert_map = {
@@ -2545,6 +2554,7 @@ class PyTorchOpConverter:
             "aten::nll_loss": self.nll_loss,
             "aten::nll_loss2d": self.nll_loss,
             "aten::flip": self.flip,
+            "aten::grid_sampler": self.grid_sampler,
         }
 
     def update_convert_map(self, custom_map):
