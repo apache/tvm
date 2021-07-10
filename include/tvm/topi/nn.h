@@ -729,7 +729,7 @@ inline Tensor nll_loss(const Tensor& predictions, const Tensor& targets, const T
         name="im2col_data",
     )
  */
-inline tvm::te::Tensor im2col(const tvm::te::Tensor& data, 
+inline tvm::te::Tensor im2col(const tvm::te::Tensor& data,
                                    const tvm::Array<tvm::PrimExpr>& kernel_size,
                                    const tvm::Array<tvm::PrimExpr>& dilation,
                                    const tvm::Array<tvm::PrimExpr>& padding,
@@ -802,13 +802,14 @@ inline tvm::te::Tensor im2col(const tvm::te::Tensor& data,
     // k % kernel_w;
     // stride_w * (l % output_w) + dilation_w * w_offset,
     tvm::PrimExpr w_offset = indexmod(k, kernel_w);
-    tvm::PrimExpr s_w = stride_w * indexmod(l, output_w) + dilation_w * w_offset - padding_w; 
+    tvm::PrimExpr s_w = stride_w * indexmod(l, output_w) + dilation_w * w_offset - padding_w;
     indices.push_back(s_w);         // W, source width
     condition.push_back(s_w >= 0);
     condition.push_back(s_w < input_w);
 
     return tvm::if_then_else(
-        foldl([](PrimExpr a, PrimExpr b, Span span) { return tvm::logical_and(a, b, span); }, const_true(1), condition),
+        foldl([](PrimExpr a, PrimExpr b, Span span) { return tvm::logical_and(a, b, span); },
+            const_true(1), condition),
         data(indices), pad_value);
   };
 

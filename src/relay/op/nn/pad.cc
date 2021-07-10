@@ -278,7 +278,8 @@ Array<te::Tensor> Im2colCompute(const Attrs& attrs, const Array<te::Tensor>& inp
   const auto* param = attrs.as<Im2colAttrs>();
   ICHECK(param != nullptr);
 
-  return Array<te::Tensor>{topi::im2col(inputs[0], param->kernel_size, param->dilation, param->padding, param->stride)};
+  return Array<te::Tensor>{topi::im2col(inputs[0], param->kernel_size,
+      param->dilation, param->padding, param->stride)};
 }
 
 
@@ -301,8 +302,8 @@ bool Im2colRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   if (param == nullptr)
     return false;
 
-  // Calculate outout shape
-  auto kernel_h = tvm::cast(tvm::DataType::Int(32), param->kernel_size[0]); // tvm::PrimExpr
+  // Calculate output shape
+  auto kernel_h = tvm::cast(tvm::DataType::Int(32), param->kernel_size[0]);
   auto kernel_w = tvm::cast(tvm::DataType::Int(32), param->kernel_size[1]);
   auto dilation_h = tvm::cast(tvm::DataType::Int(32), param->dilation[0]);
   auto dilation_w = tvm::cast(tvm::DataType::Int(32), param->dilation[1]);
@@ -317,9 +318,9 @@ bool Im2colRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   auto output_w = (input->shape[3] + 2 * padding_w - dilated_kernel_w)/stride_w + 1;
 
   tvm::Array<tvm::PrimExpr> output_shape;
-  output_shape.push_back(input->shape[0]);  // N
-  output_shape.push_back(input->shape[1] * kernel_h * kernel_w);  // K
-  output_shape.push_back(output_h * output_w); // L 
+  output_shape.push_back(input->shape[0]);    // N
+  output_shape.push_back(input->shape[1] * kernel_h * kernel_w);    // K
+  output_shape.push_back(output_h * output_w);    // L
 
   // assign output type
   reporter->Assign(types[1], TensorType(output_shape, input->dtype));
@@ -328,7 +329,7 @@ bool Im2colRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 }
 
 // Handler to create a call to the im2col op used by front-end FFI
-Expr MakeIm2col(Expr data, Array<IndexExpr> kernel_size, Array<IndexExpr> dilation, 
+Expr MakeIm2col(Expr data, Array<IndexExpr> kernel_size, Array<IndexExpr> dilation,
     Array<IndexExpr> padding, Array<IndexExpr> stride) {
   auto attrs = make_object<Im2colAttrs>();
 
