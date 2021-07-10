@@ -728,14 +728,14 @@ inline Tensor nll_loss(const Tensor& predictions, const Tensor& targets, const T
         ],
         name="im2col_data",
     )
- */
+*/
 inline tvm::te::Tensor im2col(const tvm::te::Tensor& data,
                                    const tvm::Array<tvm::PrimExpr>& kernel_size,
                                    const tvm::Array<tvm::PrimExpr>& dilation,
                                    const tvm::Array<tvm::PrimExpr>& padding,
                                    const tvm::Array<tvm::PrimExpr>& stride,
                                    std::string name = "T_im2col",
-                                   std::string tag = kElementWise) {  // ElementWise
+                                   std::string tag = kElementWise) {
   ICHECK_EQ(4, data->shape.size());
   ICHECK_EQ(2, kernel_size.size());
   ICHECK_EQ(2, dilation.size());
