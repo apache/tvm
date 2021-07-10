@@ -733,17 +733,12 @@ inline tvm::te::Tensor im2col(const tvm::te::Tensor& data,
   ICHECK_EQ(2, padding.size());
   ICHECK_EQ(2, stride.size());
 
-  // tvm::Array<tvm::PrimExpr> padding_int32;
-  // for (const auto& ele : padding) {
-  //   padding_int32.push_back(tvm::cast(tvm::DataType::Int(32), ele));
-  // }
-
   auto input_b = data->shape[0];
   auto input_c = data->shape[1];
   auto input_h = data->shape[2];
   auto input_w = data->shape[3];
 
-  auto kernel_h = tvm::cast(tvm::DataType::Int(32), kernel_size[0]);
+  auto kernel_h = tvm::cast(tvm::DataType::Int(32), kernel_size[0]); // tvm::PrimExpr
   auto kernel_w = tvm::cast(tvm::DataType::Int(32), kernel_size[1]);
   std::cout << "kernel_h: " << kernel_h << ", kernel_w:" << kernel_w << std::endl;
 
@@ -759,11 +754,10 @@ inline tvm::te::Tensor im2col(const tvm::te::Tensor& data,
   auto stride_w = tvm::cast(tvm::DataType::Int(32), stride[1]);
   std::cout << "stride_h: " << stride_h << ", stride_w:" << stride_w << std::endl;
 
-
   auto dilated_kernel_h = (kernel_h - 1) * dilation_h + 1;
   auto dilated_kernel_w = (kernel_w - 1) * dilation_w + 1;
 
-  // Paded size
+  // Output size after padding
   auto output_h = (input_h + 2 * padding_h - dilated_kernel_h)/stride_h + 1;
   auto output_w = (input_w + 2 * padding_w - dilated_kernel_w)/stride_w + 1;
 
@@ -771,6 +765,9 @@ inline tvm::te::Tensor im2col(const tvm::te::Tensor& data,
   auto N = input_b;
   auto K = input_c * kernel_h * kernel_w;
   auto L = output_h * output_w;
+  std::cout << "N: " << N << std::endl;
+  std::cout << "K: " << K << std::endl;
+  std::cout << "L: " << L << std::endl;
 
   tvm::Array<tvm::PrimExpr> output_shape;
   output_shape.push_back(N);
@@ -782,7 +779,29 @@ inline tvm::te::Tensor im2col(const tvm::te::Tensor& data,
 
   arith::Analyzer analyzer;
   /*
-        # start im2col
+  const int64_t output_channels = channels * kernel_h * kernel_w;
+
+  for (int64_t c = 0; c < output_channels; ++c) {
+    int64_t s_c = c / kernel_h / kernel_w;
+
+    int64_t h_offset = (c / kernel_w) % kernel_h;
+    int64_t w_offset = c % kernel_w;
+
+    for (int64_t h = 0; h < output_height; ++h) {
+      int64_t s_h = h * stride_h - pad_h + h_offset * dilation_h;
+
+      for (int64_t w = 0; w < output_width; ++w) {
+        int64_t s_w = w * stride_w - pad_w + w_offset * dilation_w;
+
+        // data_output[c, h, w]
+        data_output[(c * output_height + h) * output_width + w] =
+            (s_h >= 0 && s_w >= 0 && s_h < height && s_w < width)
+            ? data_input[(s_c * height + s_h) * width + s_w]  // data_input[s_c, s_h, s_w]
+            : static_cast<T>(0);
+      }
+    }
+  }
+
         input_b, input_c, input_h, input_w = data_shape
         dilation_h, dilation_w = dilation
         padding_h, padding_w = padding
@@ -793,47 +812,48 @@ inline tvm::te::Tensor im2col(const tvm::te::Tensor& data,
         output_h = (input_h + 2 * padding_h - dilated_kernel_h)//stride_h + 1
         output_w = (input_w + 2 * padding_w - dilated_kernel_w)//stride_w + 1
 
-
         im2col_data = te.compute(
             (N, K, L),
             lambda n, k, l: data[
                 n,
-                k % input_c,
-                stride_h * (l / output_w) + dilation_h * ((k / input_c) / kernel_w),
-                stride_w * (l % output_w) + dilation_w * ((k // input_c) % kernel_w),
+                k / kernel_h / kernel_w,
+                stride_h * (l / output_w) + dilation_h * ((k // input_w) % kernel_h) - padding_h,
+                stride_w * (l % output_w) + dilation_w * (k % kernel_w) - padding_w,
             ],
             name="im2col_data",
         )
   */
 
-  auto l = [&](tvm::Array<tvm::tir::Var> nkl) {
+  auto l = [&](tvm::Array<tvm::tir::Var> args) {
+    tvm::tir::Var n = args[0];
+    tvm::tir::Var k = args[1];
+    tvm::tir::Var l = args[2];
+
     tvm::Array<tvm::PrimExpr> indices;
     tvm::Array<tvm::PrimExpr> condition;
 
-    // ovars: [ax0, ax1, ax2, ax3]
-    // condition: [(ax2 >= 1), (ax2 < 17), (ax3 >= 1), (ax3 < 17)]
-    // indices: [ax0, ax1, (ax2 - 1), (ax3 - 1)]
+    indices.push_back(n);            // B
 
-    indices.push_back(nkl[0]);            // B
+    // source chanel s_c =  k / kernel_h / kernel_w
+    tvm::PrimExpr s_c = indexdiv(indexdiv(k, kernel_h), kernel_w);
+    indices.push_back(s_c);
 
-    // C =  k % input_c,
-    indices.push_back(indexmod(nkl[1], input_c));  // C
+    // (k / kernel_w) % kernel_h
+    // stride_h * (l / output_w) + dilation_h * h_offset,
+    tvm::PrimExpr h_offset = indexmod(indexdiv(k, kernel_w), kernel_h);
+    tvm::PrimExpr s_h = stride_h * indexdiv(l, output_w) + dilation_h * h_offset - padding_h;
+    indices.push_back(s_h);
+    condition.push_back(s_h >= 0);
+    condition.push_back(s_h < input_h);
 
-    // H need remove padding_h and limit range
-    // stride_h * (l / output_w) + dilation_h * ((k / input_c) / kernel_w),
-    tvm::PrimExpr sh = stride_h * indexdiv(nkl[2], output_w) + dilation_h * indexdiv(indexdiv(nkl[1], input_c), kernel_w);
-    indices.push_back(sh - padding_h);
-    condition.push_back(sh >= padding_h);
-    condition.push_back(analyzer.Simplify(sh < input_h + padding_h));
+    // k % kernel_w;
+    // stride_w * (l % output_w) + dilation_w * w_offset,
+    tvm::PrimExpr w_offset = indexmod(k, kernel_w);
+    tvm::PrimExpr s_w = stride_w * indexmod(l, output_w) + dilation_w * w_offset - padding_w; 
+    indices.push_back(s_w);
+    condition.push_back(s_w >= 0);
+    condition.push_back(s_w < input_w);
 
-    // W need remove padding_w and limit range
-    // stride_w * (l % output_w) + dilation_w * ((k // input_c) % kernel_w),
-    tvm::PrimExpr sw = stride_w * indexmod(nkl[2], output_w) + dilation_w * (indexmod(indexdiv(nkl[1], input_c), kernel_w)); 
-    indices.push_back(sw - padding_w);
-    condition.push_back(sw >= padding_w);
-    condition.push_back(analyzer.Simplify(sw < input_w + padding_w));
-
-    std::cout << "im2col --------- NKL:" << nkl << std::endl;
     std::cout << "im2col --------- condition:" << condition << std::endl;
     std::cout << "im2col --------- inices:" << indices << std::endl;
 
