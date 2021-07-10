@@ -3932,10 +3932,11 @@ def test_forward_im2col():
             super(Im2col5x5, self).__init__()
 
         def forward(self, x):
-            # !!! Warning !!!
+            # !!!!!! Warning !!!!!!
             # DO NOT use 
             #     return F.unfold(x, kernel_size=5, dilation=1, padding=1, stride=2)
-            # F.unfold() broken TVM if rules in torch script mode.
+            # F.unfold() broken TVM if conditional expression in torch script mode.
+
             return torch._C._nn.im2col(x, (5,5), (1,1), (1,1), (2,2))
 
     input = torch.randn(2, 3, 32, 32)
@@ -3966,10 +3967,11 @@ def test_forward_grid_sampler():
 
             # Torch grid_sample default: mode='bilinear', padding_mode='zeros', align_corners=False
             # tvm seems align corners as True
-            # !!! Warning !!!
+            
+            # !!!!!! Warning !!!!!!
             # DO NOT use 
             #    return F.grid_sample(input, grid, mode='bilinear', padding_mode='zeros', align_corners=True)
-            # for F.grid_sample brokern TVM if rules in torch script mode
+            # for F.grid_sample brokern TVM if conditional expression in torch script mode
             return torch.grid_sampler(input, grid, 0, 0, True)
 
     model = GridSampler(16, 32)
