@@ -45,7 +45,7 @@ Var WithStorageScope(const VarNode* buffer_var, String storage_scope) {
 
 UpdatePointerStorageScope::UpdatePointerStorageScope(
     const std::unordered_map<const VarNode*, String>& new_storage_scopes) {
-  for (auto kv : new_storage_scopes) {
+  for (auto& kv : new_storage_scopes) {
     new_var_remap_[kv.first] = WithStorageScope(kv.first, kv.second);
   }
 }
@@ -65,7 +65,6 @@ PrimExpr UpdatePointerStorageScope::VisitExpr_(const LoadNode* op) {
 }
 
 Stmt UpdatePointerStorageScope::VisitStmt_(const AttrStmtNode* op) {
-  using runtime::StorageScope;
   if (op->attr_key == attr::storage_scope) {
     const VarNode* buf = op->node.as<VarNode>();
     auto remapped = Downcast<Var>(StmtExprMutator::VisitExpr(GetRef<Var>(buf)));
