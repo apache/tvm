@@ -730,12 +730,11 @@ inline Tensor nll_loss(const Tensor& predictions, const Tensor& targets, const T
     )
 */
 inline tvm::te::Tensor im2col(const tvm::te::Tensor& data,
-                                   const tvm::Array<tvm::PrimExpr>& kernel_size,
-                                   const tvm::Array<tvm::PrimExpr>& dilation,
-                                   const tvm::Array<tvm::PrimExpr>& padding,
-                                   const tvm::Array<tvm::PrimExpr>& stride,
-                                   std::string name = "T_im2col",
-                                   std::string tag = kElementWise) {
+                              const tvm::Array<tvm::PrimExpr>& kernel_size,
+                              const tvm::Array<tvm::PrimExpr>& dilation,
+                              const tvm::Array<tvm::PrimExpr>& padding,
+                              const tvm::Array<tvm::PrimExpr>& stride,
+                              std::string name = "T_im2col", std::string tag = kElementWise) {
   ICHECK_EQ(4, data->shape.size());
   ICHECK_EQ(2, kernel_size.size());
   ICHECK_EQ(2, dilation.size());
@@ -763,8 +762,8 @@ inline tvm::te::Tensor im2col(const tvm::te::Tensor& data,
   auto dilated_kernel_w = (kernel_w - 1) * dilation_w + 1;
 
   // Output size after padding
-  auto output_h = (input_h + 2 * padding_h - dilated_kernel_h)/stride_h + 1;
-  auto output_w = (input_w + 2 * padding_w - dilated_kernel_w)/stride_w + 1;
+  auto output_h = (input_h + 2 * padding_h - dilated_kernel_h) / stride_h + 1;
+  auto output_w = (input_w + 2 * padding_w - dilated_kernel_w) / stride_w + 1;
 
   // Result output size
   auto N = input_b;
@@ -785,17 +784,17 @@ inline tvm::te::Tensor im2col(const tvm::te::Tensor& data,
     tvm::Array<tvm::PrimExpr> indices;
     tvm::Array<tvm::PrimExpr> condition;
 
-    indices.push_back(n);            // B, souce batch
+    indices.push_back(n);  // B, souce batch
 
     // source chanel s_c =  k / kernel_h / kernel_w
     tvm::PrimExpr s_c = indexdiv(indexdiv(k, kernel_h), kernel_w);
-    indices.push_back(s_c);         // C, source channel
+    indices.push_back(s_c);  // C, source channel
 
     // (k / kernel_w) % kernel_h
     // stride_h * (l / output_w) + dilation_h * h_offset,
     tvm::PrimExpr h_offset = indexmod(indexdiv(k, kernel_w), kernel_h);
     tvm::PrimExpr s_h = stride_h * indexdiv(l, output_w) + dilation_h * h_offset - padding_h;
-    indices.push_back(s_h);         // H, souce height
+    indices.push_back(s_h);  // H, souce height
     condition.push_back(s_h >= 0);
     condition.push_back(s_h < input_h);
 
@@ -803,19 +802,18 @@ inline tvm::te::Tensor im2col(const tvm::te::Tensor& data,
     // stride_w * (l % output_w) + dilation_w * w_offset,
     tvm::PrimExpr w_offset = indexmod(k, kernel_w);
     tvm::PrimExpr s_w = stride_w * indexmod(l, output_w) + dilation_w * w_offset - padding_w;
-    indices.push_back(s_w);         // W, source width
+    indices.push_back(s_w);  // W, source width
     condition.push_back(s_w >= 0);
     condition.push_back(s_w < input_w);
 
     return tvm::if_then_else(
         foldl([](PrimExpr a, PrimExpr b, Span span) { return tvm::logical_and(a, b, span); },
-            const_true(1), condition),
+              const_true(1), condition),
         data(indices), pad_value);
   };
 
   return tvm::te::compute(output_shape, l, name, tag);
 }
-
 }  // namespace topi
 }  // namespace tvm
 #endif  // TVM_TOPI_NN_H_

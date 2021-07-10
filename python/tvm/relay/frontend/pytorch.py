@@ -2339,11 +2339,12 @@ class PyTorchOpConverter:
         return _op.image.grid_sample(data, grid, method="bilinear", layout="NCHW")
 
     def im2col(self, inputs, input_types):
-        # torch F.unfold set kerenl_size, dilation, padding, stride as pairs before calling im2col
-        # but it brokern TVM "if condition expression", so please USE torch._C._nn.im2col instead
-        # of F.unfold and make sure giving paired parameters. Please reference test_forward_im2col
-        # in file tests/python/frontend/pytorch/test_forward.py.
-        
+        r"""
+        Torch F.unfold set kerenl_size, dilation, padding, stride as pairs before calling im2col
+        but it brokern TVM "if condition expression", so please USE torch._C._nn.im2col instead
+        of F.unfold and make sure giving paired parameters. Please reference test_forward_im2col
+        in file tests/python/frontend/pytorch/test_forward.py.
+        """
         data = inputs[0]
         kernel_size = inputs[1]
         dilation = inputs[2]
