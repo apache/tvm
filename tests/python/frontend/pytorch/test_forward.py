@@ -3912,6 +3912,48 @@ def test_forward_flip():
     verify_model(Flip(axis=-1), input_data=input)
 
 
+@tvm.testing.uses_gpu
+def test_forward_grid_sampler():
+    torch.set_grad_enabled(False)
+
+    class GridSampler(Module):
+        def __init__(self, output_h, output_w):
+            super(GridSampler, self).__init__()
+            self.output_h = output_h
+            self.output_w = output_w
+
+            # normalize to [-1.0, 1.0]
+            h = torch.arange(0, output_h) / (output_h - 1.0) * 2.0 - 1.0
+            w = torch.arange(0, output_w) / (output_w - 1.0) * 2.0 - 1.0
+            grid = torch.zeros(output_h, output_w, 2)
+            grid[:, :, 0] = w.unsqueeze(0).repeat(output_h, 1)
+            grid[:, :, 1] = h.unsqueeze(0).repeat(output_w, 1).transpose(0, 1)
+            self.grid = grid.unsqueeze(0)
+
+        def forward(self, input):
+            batch = input.size(0)
+            grid = self.grid.repeat(batch, 1, 1, 1).to(input.device)
+
+            # Torch grid_sample default: mode='bilinear', padding_mode='zeros', align_corners=False
+            # tvm seems align corners as True
+            
+            # ***********************************************************************************
+            #
+            # !!! DO NOT USE !!!
+            # F.grid_sample(input, grid, mode='bilinear', padding_mode='zeros', align_corners=True)
+            # for it broken TVM "if conditional expression" in torch script mode
+            #
+            # ***********************************************************************************
+
+            return torch.grid_sampler(input, grid, 0, 0, True)
+
+    model = GridSampler(16, 32)
+    input = torch.randn(2, 3, 32, 32)
+
+    verify_model(model, input_data=input)
+    verify_script_model(model.eval(), [(2, 3, 32, 32)], _get_default_vm_targets())
+
+
 if __name__ == "__main__":
     # some structural tests
     test_forward_traced_function()
@@ -4055,6 +4097,7 @@ if __name__ == "__main__":
     test_hard_sigmoid()
     test_forward_nll_loss()
     test_forward_flip()
+    test_forward_grid_sampler()
 
     # Model tests
     test_resnet18()
