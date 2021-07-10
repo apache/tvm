@@ -134,6 +134,17 @@ class Buffer(Object):
         begin = (begin,) if isinstance(begin, (int, PrimExpr)) else begin
         return _ffi_api.BufferVStore(self, begin, value)  # type: ignore
 
+    def scope(self):
+        """Return the storage scope associated with this buffer.
+        Returns
+        -------
+        scope : str
+            The storage scope associated with this buffer.
+        """
+        if self.data.type_annotation.storage_scope == "":
+            return "global"
+        return self.data.type_annotation.storage_scope
+
 
 def decl_buffer(
     shape,
