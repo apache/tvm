@@ -2340,12 +2340,14 @@ class PyTorchOpConverter:
         return _op.image.grid_sample(data, grid, "bilinear", "NCHW")
 
     def aten_is(self, inputs, input_types):
+        # request by grid_sampler
         return _expr.const(inputs[0] is inputs[1])
 
     def aten_isnot(self, inputs, input_types):
         return _expr.const(inputs[0] is not inputs[1])
 
     def unchecked_cast(self, inputs, input_types):
+        # request by grid_sampler
         return _expr.const(inputs[0])
 
     def im2col(self, inputs, input_types):
@@ -2579,11 +2581,11 @@ class PyTorchOpConverter:
             "aten::nll_loss2d": self.nll_loss,
             "aten::flip": self.flip,
             "aten::grid_sampler": self.grid_sampler,
-            "aten::__is__": self.aten_is,
-            "aten::__isnot__": self.aten_isnot,
-            "prim::unchecked_cast": self.unchecked_cast,
+            # "aten::__is__": self.aten_is,
+            # "aten::__isnot__": self.aten_isnot,
+            # "prim::unchecked_cast": self.unchecked_cast,
             "aten::im2col": self.im2col,
-            "aten::dim": self.dim,
+            # "aten::dim": self.dim,
         }
 
     def update_convert_map(self, custom_map):
