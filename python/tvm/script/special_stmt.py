@@ -456,6 +456,7 @@ class BlockMatchBufferRegion(SpecialStmt):
                 )
             buffer_region = buffer_slice_to_region(source)
             shape = [r.extent for r in buffer_region.region]
+            scope = buffer_region.buffer.data.type_annotation.storage_scope
             buffer = tvm.tir.decl_buffer(
                 shape,
                 buffer_region.buffer.dtype,
@@ -463,7 +464,7 @@ class BlockMatchBufferRegion(SpecialStmt):
                 data=None,
                 strides=strides,
                 elem_offset=elem_offset,
-                scope=buffer_region.buffer.scope,
+                scope=scope,
                 data_alignment=align,
                 offset_factor=offset_factor,
                 span=span,

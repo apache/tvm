@@ -315,6 +315,9 @@ Stmt Buffer::vstore(Array<PrimExpr> begin, PrimExpr value) const {
 String Buffer::scope() const {
   const auto* ptr_type = (*this)->data->type_annotation.as<PointerTypeNode>();
   ICHECK(ptr_type) << "Buffer variable is not of pointer type";
+  if (ptr_type->storage_scope.empty()) {
+    return "global";
+  }
   return ptr_type->storage_scope;
 }
 
@@ -439,11 +442,11 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 TVM_REGISTER_NODE_TYPE(BufferNode);
 
 TVM_REGISTER_GLOBAL("tir.Buffer").set_body([](TVMArgs args, TVMRetValue* ret) {
-  ICHECK_EQ(args.size(), 11);
-  auto buffer_type = args[9].operator String();
+  ICHECK_EQ(args.size(), 10);
+  auto buffer_type = args[8].operator String();
   BufferType type = (buffer_type == "auto_broadcast") ? kAutoBroadcast : kDefault;
-  *ret = Buffer(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], type,
-                args[10]);
+  *ret =
+      Buffer(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], type, args[9]);
 });
 
 TVM_REGISTER_GLOBAL("tir.BufferAccessPtr").set_body_method(&Buffer::access_ptr);
