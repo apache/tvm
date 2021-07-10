@@ -3929,7 +3929,7 @@ def test_forward_im2col():
             #
             # ***********************************************************************************
 
-            return torch._C._nn.im2col(x, (3, 3), (1,1), (1,1), (1,1))
+            return torch._C._nn.im2col(x, (3, 3), (1, 1), (1, 1), (1, 1))
 
     class Im2col5x5(Module):
         def __init__(self):
@@ -3944,7 +3944,7 @@ def test_forward_im2col():
             #
             # ***********************************************************************************
 
-            return torch._C._nn.im2col(x, (5,5), (1,1), (1,1), (2,2))
+            return torch._C._nn.im2col(x, (5, 5), (1, 1), (1, 1), (2, 2))
 
     input = torch.randn(2, 3, 32, 32)
     verify_script_model(Im2col5x5().eval(), [(2, 3, 32, 32)], _get_default_vm_targets())
@@ -3974,7 +3974,7 @@ def test_forward_grid_sampler():
 
             # Torch grid_sample default: mode='bilinear', padding_mode='zeros', align_corners=False
             # tvm seems align corners as True
-            
+
             # ***********************************************************************************
             #
             # !!! DO NOT USE !!!
