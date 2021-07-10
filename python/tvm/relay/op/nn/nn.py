@@ -3681,4 +3681,3 @@ def im2col(data, kernel_size, dilation, padding, stride):
     """
 
     return _make.im2col(data, kernel_size, dilation, padding, stride)
-    
