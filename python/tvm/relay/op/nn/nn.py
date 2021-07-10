@@ -3646,3 +3646,39 @@ def batch_to_space_nd(data, block_shape, crops):
     """
 
     return _make.batch_to_space_nd(data, block_shape, crops)
+
+
+def im2col(data, kernel_size, dilation, padding, stride):
+    r"""im2col.
+
+    This operator convert 4-D NCHW data with im2col for PyTorch unfold.
+
+    Please reference
+    `https://pytorch.org/docs/stable/generated/torch.nn.Unfold.html#torch.nn.Unfold`
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data is 4-D NCHW format.
+
+    kernel_size : Tuple[int]
+        Specified the slide window height and width.
+
+    dilation : Tuple[int]
+        Specifies the dilation rate for slide window.
+
+    padding : Tuple[int]
+        Specifies the padding size with top/bottom and left/right.
+
+    strides : Tuple[int]
+        Specifies the strides for slide window.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result, 3-D NKL format, K is "C * kernel_height * kernel_width".
+
+    """
+
+    return _make.im2col(data, kernel_size, dilation, padding, stride)
+    

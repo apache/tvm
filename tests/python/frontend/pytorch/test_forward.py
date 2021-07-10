@@ -3913,6 +3913,44 @@ def test_forward_flip():
 
 
 @tvm.testing.uses_gpu
+def test_forward_im2col():
+    torch.set_grad_enabled(False)
+
+    class Im2col3x3(Module):
+        def __init__(self):
+            super(Im2col3x3, self).__init__()
+
+        def forward(self, x):
+            # ***********************************************************************************
+            #
+            # !!! DO NOT USE !!!
+            # F.unfold(x, kernel_size=3, dilation=1, padding=1, stride=1)
+            # for it broken TVM "if conditional expression" in torch script mode
+            #
+            # ***********************************************************************************
+
+            return torch._C._nn.im2col(x, (3, 3), (1,1), (1,1), (1,1))
+
+    class Im2col5x5(Module):
+        def __init__(self):
+            super(Im2col5x5, self).__init__()
+
+        def forward(self, x):
+            # ***********************************************************************************
+            #
+            # !!! DO NOT USE !!!
+            # F.unfold(x, kernel_size=5, dilation=1, padding=1, stride=2)
+            # for it broken TVM "if conditional expression" in torch script mode
+            #
+            # ***********************************************************************************
+
+            return torch._C._nn.im2col(x, (5,5), (1,1), (1,1), (2,2))
+
+    input = torch.randn(2, 3, 32, 32)
+    verify_script_model(Im2col5x5().eval(), [(2, 3, 32, 32)], _get_default_vm_targets())
+
+
+@tvm.testing.uses_gpu
 def test_forward_grid_sampler():
     torch.set_grad_enabled(False)
 

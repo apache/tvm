@@ -272,5 +272,90 @@ RELAY_REGISTER_OP("nn.mirror_pad")
     .add_type_rel("MirrorPad", MirrorPadRel)
     .set_attr<TOpPattern>("TOpPattern", kInjective);
 
+
+Array<te::Tensor> Im2colCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
+                             const Type& out_type) {
+  const auto* param = attrs.as<Im2colAttrs>();
+  ICHECK(param != nullptr);
+
+  return Array<te::Tensor>{topi::im2col(inputs[0], param->kernel_size, param->dilation, param->padding, param->stride)};
+}
+
+
+bool Im2colRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                const TypeReporter& reporter) {
+  // types: [input, output]
+  ICHECK_EQ(types.size(), 2) << "Expects two types, one for the input and another for the output";
+
+  const auto* input = types[0].as<TensorTypeNode>();
+  if (input == nullptr)
+    return false;
+
+  if (input->shape.size() != 4) {
+    reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
+        << "Im2lossRel: input data should be 4 dimensions, NxCxHxW.");
+    return false;
+  }
+
+  const Im2colAttrs* param = attrs.as<Im2colAttrs>();
+  if (param == nullptr)
+    return false;
+
+  // Calculate outout shape
+  auto kernel_h = tvm::cast(tvm::DataType::Int(32), param->kernel_size[0]); // tvm::PrimExpr
+  auto kernel_w = tvm::cast(tvm::DataType::Int(32), param->kernel_size[1]);
+  auto dilation_h = tvm::cast(tvm::DataType::Int(32), param->dilation[0]);
+  auto dilation_w = tvm::cast(tvm::DataType::Int(32), param->dilation[1]);
+  auto padding_h = tvm::cast(tvm::DataType::Int(32), param->padding[0]);
+  auto padding_w = tvm::cast(tvm::DataType::Int(32), param->padding[1]);
+  auto stride_h = tvm::cast(tvm::DataType::Int(32), param->stride[0]);
+  auto stride_w = tvm::cast(tvm::DataType::Int(32), param->stride[1]);
+  auto dilated_kernel_h = (kernel_h - 1) * dilation_h + 1;
+  auto dilated_kernel_w = (kernel_w - 1) * dilation_w + 1;
+  // Output size after padding
+  auto output_h = (input->shape[2] + 2 * padding_h - dilated_kernel_h)/stride_h + 1;
+  auto output_w = (input->shape[3] + 2 * padding_w - dilated_kernel_w)/stride_w + 1;
+
+  tvm::Array<tvm::PrimExpr> output_shape;
+  output_shape.push_back(input->shape[0]);  // N
+  output_shape.push_back(input->shape[1] * kernel_h * kernel_w);  // K
+  output_shape.push_back(output_h * output_w); // L 
+
+  // assign output type
+  reporter->Assign(types[1], TensorType(output_shape, input->dtype));
+
+  return true;
+}
+
+// Handler to create a call to the im2col op used by front-end FFI
+Expr MakeIm2col(Expr data, Array<IndexExpr> kernel_size, Array<IndexExpr> dilation, 
+    Array<IndexExpr> padding, Array<IndexExpr> stride) {
+  auto attrs = make_object<Im2colAttrs>();
+
+  attrs->kernel_size = std::move(kernel_size);
+  attrs->dilation = std::move(dilation);
+  attrs->padding = std::move(padding);
+  attrs->stride = std::move(stride);
+
+  static const Op& op = Op::Get("nn.im2col");
+  return Call(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_NODE_TYPE(Im2colAttrs);
+TVM_REGISTER_GLOBAL("relay.op.nn._make.im2col")
+    .set_body_typed(MakeIm2col);
+
+RELAY_REGISTER_OP("nn.im2col")
+    .describe(R"code(Im2col for 4-D NCHW tensor.
+
+)code" TVM_ADD_FILELINE)
+    .set_attrs_type<Im2colAttrs>()
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "Input data.")
+    .set_support_level(2)
+    .add_type_rel("Im2col", Im2colRel)
+    .set_attr<TOpPattern>("TOpPattern", kOpaque)
+    .set_attr<FTVMCompute>("FTVMCompute", Im2colCompute);
+
 }  // namespace relay
 }  // namespace tvm

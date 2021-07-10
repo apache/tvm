@@ -1308,3 +1308,6 @@ def dilate_shape_func(attrs, inputs, _):
 reg.register_shape_func("nn.bias_add", False, elemwise_shape_func)
 reg.register_shape_func("nn.softmax", False, elemwise_shape_func)
 reg.register_shape_func("nn.relu", False, elemwise_shape_func)
+
+
+reg.register_broadcast_schedule("nn.im2col")
