@@ -3921,18 +3921,25 @@ def test_forward_im2col():
             super(Im2col3x3, self).__init__()
 
         def forward(self, x):
-            return F.unfold(x, 3, dilation=1, padding=1, stride=1)
+            # !!! Warning !!!
+            # DO NOT use 
+            #     return F.unfold(x, kernel_size=3, dilation=1, padding=1, stride=2)
+            # F.unfold() broken TVM if rules in torch script mode.
+            return torch._C._nn.im2col(x, (3, 3), (1,1), (1,1), (1,1))
 
     class Im2col5x5(Module):
         def __init__(self):
             super(Im2col5x5, self).__init__()
 
         def forward(self, x):
-            return F.unfold(x, 5, dilation=1, padding=1, stride=2)
+            # !!! Warning !!!
+            # DO NOT use 
+            #     return F.unfold(x, kernel_size=5, dilation=1, padding=1, stride=2)
+            # F.unfold() broken TVM if rules in torch script mode.
+            return torch._C._nn.im2col(x, (5,5), (1,1), (1,1), (2,2))
 
     input = torch.randn(2, 3, 32, 32)
-    verify_model(Im2col3x3(), input_data=input)
-    verify_model(Im2col5x5(), input_data=input)
+    verify_script_model(Im2col5x5().eval(), [(2, 3, 32, 32)], _get_default_vm_targets())
 
 
 @tvm.testing.uses_gpu
@@ -3959,11 +3966,17 @@ def test_forward_grid_sampler():
 
             # Torch grid_sample default: mode='bilinear', padding_mode='zeros', align_corners=False
             # tvm seems align corners as True
-            return F.grid_sample(input, grid, mode='bilinear', padding_mode='zeros', align_corners=True)
+            # !!! Warning !!!
+            # DO NOT use 
+            #    return F.grid_sample(input, grid, mode='bilinear', padding_mode='zeros', align_corners=True)
+            # for F.grid_sample brokern TVM if rules in torch script mode
+            return torch.grid_sampler(input, grid, 0, 0, True)
 
     model = GridSampler(16, 32)
     input = torch.randn(2, 3, 32, 32)
+
     verify_model(model, input_data=input)
+    verify_script_model(model.eval(), [(2, 3, 32, 32)], _get_default_vm_targets())
 
 
 if __name__ == "__main__":
