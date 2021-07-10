@@ -1471,18 +1471,10 @@ struct Im2colAttrs : public tvm::AttrsNode<Im2colAttrs> {
   Array<IndexExpr> stride;
 
   TVM_DECLARE_ATTRS(Im2colAttrs, "relay.attrs.Im2colAttrs") {
-    TVM_ATTR_FIELD(kernel_size)
-        .set_default(Array<IndexExpr>({3, 3}))
-        .describe("The kernel size.");
-    TVM_ATTR_FIELD(dilation)
-        .set_default(Array<IndexExpr>({1, 1}))
-        .describe("The dilation size.");
-    TVM_ATTR_FIELD(padding)
-        .set_default(Array<IndexExpr>({1, 1}))
-        .describe("The padding size.");
-    TVM_ATTR_FIELD(stride)
-        .set_default(Array<IndexExpr>({1, 1}))
-        .describe("The strides.");
+    TVM_ATTR_FIELD(kernel_size).set_default(Array<IndexExpr>({3, 3})).describe("The kernel size.");
+    TVM_ATTR_FIELD(dilation).set_default(Array<IndexExpr>({1, 1})).describe("The dilation size.");
+    TVM_ATTR_FIELD(padding).set_default(Array<IndexExpr>({1, 1})).describe("The padding size.");
+    TVM_ATTR_FIELD(stride).set_default(Array<IndexExpr>({1, 1})).describe("The strides.");
   }
 };  // struct Im2colAttrs
 
