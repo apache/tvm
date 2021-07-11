@@ -29,6 +29,10 @@ This page is organized as follows:
   The sections after are specific guides focused on each logical component, organized
   by the component's name.
 
+- The :ref:`Device/Target Interactions <tvm-target-specific-overview>`
+  page describes how TVM interacts with each supported physical device
+  and code-generation target.
+
 - Feel free to also check out the :ref:`dev-how-to` for useful development tips.
 
 This guide provides a few complementary views of the architecture.
@@ -244,10 +248,17 @@ for learning-based optimizations.
    :maxdepth: 1
 
    runtime
+
+
+.. toctree::
+   :maxdepth: 1
+
    debugger
    virtual_machine
    introduction_to_module_serialization
    device_target_interactions
+
+
 
 tvm/node
 --------

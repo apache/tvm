@@ -24,6 +24,7 @@ import warnings
 
 import tvm.tir
 
+from tvm.runtime import Module
 from tvm.runtime import ndarray
 from tvm.ir import container
 from tvm.ir import CallingConv
@@ -98,17 +99,17 @@ def lower(
 
     Parameters
     ----------
-    inputs : Union[schedule.Schedule, PrimFunc, IRModule]
+    inp : Union[tvm.te.schedule.Schedule, tvm.tir.PrimFunc, IRModule]
         The TE schedule or TensorIR PrimFunc/IRModule to be built
 
-    args : Optional[List[Union[Buffer, tensor.Tensor, Var]]]
+    args : Optional[List[Union[tvm.tir.Buffer, tensor.Tensor, Var]]]
         The argument lists to the function for TE schedule.
         It should be None if we want to lower TensorIR.
 
     name : str
         The name of result function.
 
-    binds : Optional[Mapping[tensor.Tensor, Buffer]]
+    binds : Optional[Mapping[tensor.Tensor, tvm.tir.Buffer]]
         Dictionary that maps the Tensor to Buffer which specified the data layout
         requirement of the function. By default, a new compact buffer is created
         for each tensor in the argument.
@@ -233,10 +234,10 @@ def build(
 
     Parameters
     ----------
-    inputs : Union[schedule.Schedule, PrimFunc, IRModule, Mapping[str, IRModule]]
+    inputs : Union[tvm.te.schedule.Schedule, tvm.tir.PrimFunc, IRModule, Mapping[str, IRModule]]
         The input to be built
 
-    args : Optional[List[Union[Buffer, tensor.Tensor, Var]]]
+    args : Optional[List[Union[tvm.tir.Buffer, tensor.Tensor, Var]]]
         The argument lists to the function.
 
     target : Optional[Union[str, Target]]
@@ -254,7 +255,7 @@ def build(
     name : Optional[str]
         The name of result function.
 
-    binds : Optional[Mapping[tensor.Tensor, Buffer]]
+    binds : Optional[Mapping[tensor.Tensor, tvm.tir.Buffer]]
         Dictionary that maps the binding of symbolic buffer to Tensor.
         By default, a new buffer is created for each tensor in the argument.
 
@@ -372,12 +373,32 @@ def build(
             create_csource_crt_metadata_module = tvm._ffi.get_global_func(
                 "runtime.CreateCSourceCrtMetadataModule"
             )
-            return create_csource_crt_metadata_module([rt_mod_host], target_host)
+            to_return = create_csource_crt_metadata_module([rt_mod_host], target_host)
 
-        if target_host.kind.name == "llvm":
+        elif target_host.kind.name == "llvm":
             create_llvm_crt_metadata_module = tvm._ffi.get_global_func(
                 "runtime.CreateLLVMCrtMetadataModule"
             )
-            return create_llvm_crt_metadata_module([rt_mod_host], target_host)
+            to_return = create_llvm_crt_metadata_module([rt_mod_host], target_host)
+    else:
+        to_return = rt_mod_host
 
-    return rt_mod_host
+    return OperatorModule.from_module(to_return, ir_module_by_target=target_input_mod, name=name)
+
+
+class OperatorModule(Module):
+    """Wraps the Module returned by tvm.build() and captures additional outputs of that function."""
+
+    @classmethod
+    def from_module(cls, mod, **kwargs):
+        # NOTE(areusch): It is generally unsafe to continue using `mod` from this point forward.
+        # If an exception occurs in cls.__init__, handle will be deleted. For this reason,
+        # set mod.handle to None.
+        handle = mod.handle
+        mod.handle = None
+        return cls(handle, **kwargs)
+
+    def __init__(self, handle, ir_module_by_target=None, name=None):
+        super(OperatorModule, self).__init__(handle)
+        self.ir_module_by_target = ir_module_by_target
+        self.name = name

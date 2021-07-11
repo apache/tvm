@@ -286,10 +286,10 @@ def matmul(N, L, M, dtype):
 # When proposing the next batch of configs, the tuner can take different
 # strategies. Some of the tuner strategies provided by TVM include:
 #
-# * :any:`RandomTuner`: Enumerate the space in a random order
-# * :any:`GridSearchTuner`: Enumerate the space in a grid search order
-# * :any:`GATuner`: Using genetic algorithm to search through the space
-# * :any:`XGBTuner`: Uses a model based method. Train a XGBoost model to
+# * :any:`tvm.autotvm.tuner.RandomTuner`: Enumerate the space in a random order
+# * :any:`tvm.autotvm.tuner.GridSearchTuner`: Enumerate the space in a grid search order
+# * :any:`tvm.autotvm.tuner.GATuner`: Using genetic algorithm to search through the space
+# * :any:`tvm.autotvm.tuner.XGBTuner`: Uses a model based method. Train a XGBoost model to
 #   predict the speed of lowered IR and pick the next batch according to the
 #   prediction.
 #

@@ -77,5 +77,11 @@ uint32_t TVMPlatformWriteSerial(const char* data, uint32_t size) {
 void TVMPlatformUARTInit() {
   // Claim console device.
   g_microtvm_uart = device_get_binding(DT_LABEL(DT_CHOSEN(zephyr_console)));
+  const struct uart_config config = {.baudrate = 115200,
+                                     .parity = UART_CFG_PARITY_NONE,
+                                     .stop_bits = UART_CFG_STOP_BITS_1,
+                                     .data_bits = UART_CFG_DATA_BITS_8,
+                                     .flow_ctrl = UART_CFG_FLOW_CTRL_NONE};
+  uart_configure(g_microtvm_uart, &config);
   uart_rx_init(&uart_rx_rbuf, g_microtvm_uart);
 }

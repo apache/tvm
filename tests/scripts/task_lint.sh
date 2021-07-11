@@ -50,3 +50,6 @@ tests/lint/jnilint.sh
 
 echo "Checking C++ documentation..."
 tests/lint/cppdocs.sh
+
+echo "Type checking with MyPy ..."
+tests/scripts/task_mypy.sh

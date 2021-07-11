@@ -41,25 +41,6 @@ def download_and_untar(model_url, model_sub_path, temp_dir):
     return os.path.join(temp_dir, model_sub_path)
 
 
-def get_sample_compiled_module(target_dir, package_filename, output_format="so"):
-    """Support function that returns a TFLite compiled module"""
-    base_url = "https://storage.googleapis.com/download.tensorflow.org/models"
-    model_url = "mobilenet_v1_2018_08_02/mobilenet_v1_1.0_224_quant.tgz"
-    model_file = download_and_untar(
-        "{}/{}".format(base_url, model_url),
-        "mobilenet_v1_1.0_224_quant.tflite",
-        temp_dir=target_dir,
-    )
-
-    tvmc_model = tvmc.frontends.load_model(model_file)
-    return tvmc.compiler.compile_model(
-        tvmc_model,
-        target="llvm",
-        package_path=os.path.join(target_dir, package_filename),
-        output_format=output_format,
-    )
-
-
 # PyTest fixtures
 
 
@@ -167,40 +148,17 @@ def onnx_mnist():
     return model_file
 
 
-@pytest.fixture(scope="session")
-def tflite_compiled_model(tmpdir_factory):
+@pytest.fixture
+def tflite_compile_model(tmpdir_factory):
+    """Support function that returns a TFLite compiled module"""
 
-    # Not all CI environments will have TFLite installed
-    # so we need to safely skip this fixture that will
-    # crash the tests that rely on it.
-    # As this is a pytest.fixture, we cannot take advantage
-    # of pytest.importorskip. Using the block below instead.
-    try:
-        import tflite
-    except ImportError:
-        print("Cannot import tflite, which is required by tflite_compiled_module_as_tarfile.")
-        return ""
+    def model_compiler(model_file, **overrides):
+        package_path = tmpdir_factory.mktemp("data").join("mock.tar")
+        tvmc_model = tvmc.frontends.load_model(model_file)
+        args = {"target": "llvm", **overrides}
+        return tvmc.compiler.compile_model(tvmc_model, package_path=package_path, **args)
 
-    target_dir = tmpdir_factory.mktemp("data")
-    return get_sample_compiled_module(target_dir, "mock.tar")
-
-
-@pytest.fixture(scope="session")
-def tflite_compiled_model_mlf(tmpdir_factory):
-
-    # Not all CI environments will have TFLite installed
-    # so we need to safely skip this fixture that will
-    # crash the tests that rely on it.
-    # As this is a pytest.fixture, we cannot take advantage
-    # of pytest.importorskip. Using the block below instead.
-    try:
-        import tflite
-    except ImportError:
-        print("Cannot import tflite, which is required by tflite_compiled_module_as_tarfile.")
-        return ""
-
-    target_dir = tmpdir_factory.mktemp("data")
-    return get_sample_compiled_module(target_dir, "mock.tar", "mlf")
+    return model_compiler
 
 
 @pytest.fixture(scope="session")

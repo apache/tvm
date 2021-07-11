@@ -70,7 +70,7 @@ def prim_func_pass(pass_func=None, opt_level=None, name=None, required=None):
 
     Parameters
     ----------
-    pass_func : Optional[Callable[(PrimFunc, IRModule, PassContext) -> PrimFunc]]
+    pass_func : Optional[Callable[(tvm.tir.PrimFunc, IRModule, PassContext) -> tvm.tir.PrimFunc]]
         The transformation function or class.
 
     opt_level : int

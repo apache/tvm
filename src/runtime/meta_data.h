@@ -41,6 +41,14 @@
 namespace tvm {
 namespace runtime {
 
+inline String get_name_mangled(const String& module_name, const String& name) {
+  std::stringstream ss;
+  ICHECK(module_name.defined());
+  ICHECK(name.defined());
+  ss << module_name << "_" << name;
+  return ss.str();
+}
+
 /*!
  * \brief Structure that can be optionally used by the executor codegen
  */
@@ -53,6 +61,8 @@ class MetadataNode : public Object {
   /*! \brief the executor to be used to run the model */
   String executor = kTvmExecutorGraph;
 
+  String mod_name = "";
+
   static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
   static constexpr const char* _type_key = "MetadataObj";
   TVM_DECLARE_FINAL_OBJECT_INFO(MetadataNode, Object);
@@ -63,11 +73,12 @@ class MetadataNode : public Object {
  */
 class Metadata : public ObjectRef {
  public:
-  TVM_DLL Metadata(int num_inputs, int num_outputs, String executor) {
+  TVM_DLL Metadata(int num_inputs, int num_outputs, String executor, String mod_name) {
     auto n = make_object<MetadataNode>();
     n->num_inputs = num_inputs;
     n->num_outputs = num_outputs;
     n->executor = executor;
+    n->mod_name = mod_name;
     data_ = std::move(n);
   }
 
