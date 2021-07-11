@@ -3992,6 +3992,26 @@ def test_forward_grid_sampler():
     verify_script_model(model.eval(), [(2, 3, 32, 32)], _get_default_vm_targets())
 
 
+@tvm.testing.uses_gpu
+def test_forward_float():
+    torch.set_grad_enabled(False)
+
+    def convert_i(i: int) -> float:
+        return float(i)
+
+    class FloatModel(Module):
+        def __init__(self):
+            super(FloatModel, self).__init__()
+
+        def forward(self, x):
+            f = convert_i(10)
+            return f * x
+
+    model = FloatModel()
+
+    verify_script_model(model.eval(), [(2, 3, 32, 32)], _get_default_vm_targets())
+
+
 if __name__ == "__main__":
     # some structural tests
     test_forward_traced_function()
@@ -4136,6 +4156,7 @@ if __name__ == "__main__":
     test_forward_nll_loss()
     test_forward_flip()
     test_forward_grid_sampler()
+    test_forward_float()
 
     # Model tests
     test_resnet18()
