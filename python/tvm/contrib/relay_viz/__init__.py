@@ -1,4 +1,20 @@
-
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+"""Relay IR Visualizer"""
 import logging
 import copy
 import tvm
@@ -8,8 +24,9 @@ _LOGGER = logging.getLogger(__name__)
 
 # TODO: add python typing hint for arguments.
 
+
 def _dft_render_cb(plotter, node_to_id, relay_param):
-    """ a callback to Add nodes and edges to the plotter.
+    """a callback to Add nodes and edges to the plotter.
 
     Parameters
     ----------
@@ -34,7 +51,8 @@ def _dft_render_cb(plotter, node_to_id, relay_param):
                     shape = tuple(map(int, node.type_annotation.shape))
                     dtype = node.type_annotation.dtype
                     node_detail = "name_hint: {}\nshape: {}\ndtype: {}".format(
-                        name_hint, shape, dtype)
+                        name_hint, shape, dtype
+                    )
                 else:
                     node_detail = str(node.type_annotation)
             plotter.node(node_id, node_type, node_detail)
@@ -51,14 +69,16 @@ def _dft_render_cb(plotter, node_to_id, relay_param):
             if isinstance(node.op, tvm.ir.Op):
                 op_name = node.op.name
                 if node.attrs:
-                    node_details = ["{}: {}".format(k, node.attrs.get_str(k))
-                                    for k in node.attrs.keys()]
+                    node_details = [
+                        "{}: {}".format(k, node.attrs.get_str(k)) for k in node.attrs.keys()
+                    ]
             elif isinstance(node.op, relay.Function):
                 func_attrs = node.op.attrs
                 op_name = "Anonymous Func"
                 if func_attrs:
-                    node_details = ["{}: {}".format(k, func_attrs.get_str(k))
-                                    for k in func_attrs.keys()]
+                    node_details = [
+                        "{}: {}".format(k, func_attrs.get_str(k)) for k in func_attrs.keys()
+                    ]
                     if "Composite" in func_attrs.keys():
                         op_name = func_attrs["Composite"]
             else:
@@ -82,17 +102,20 @@ def _dft_render_cb(plotter, node_to_id, relay_param):
             _LOGGER.warning(unknown_info)
             plotter.node(node_id, unknown_type, unknown_info)
 
+
 class PlotterBackend:
+    """Enumeration for available plotters."""
+
     BOKEH = "bokeh"
 
-class RelayVisualizer:
 
-    def __init__(self,
-                 relay_mod,
-                 relay_param=None,
-                 plotter_be=PlotterBackend.BOKEH,
-                 render_cb=_dft_render_cb):
-        """
+class RelayVisualizer:
+    """Relay IR Visualizer"""
+
+    def __init__(
+        self, relay_mod, relay_param=None, plotter_be=PlotterBackend.BOKEH, render_cb=_dft_render_cb
+    ):
+        """Visualize Relay IR.
 
         Parameters
         ----------
@@ -113,7 +136,9 @@ class RelayVisualizer:
         self._relay_param = relay_param if relay_param is not None else {}
 
         relay.analysis.post_order_visit(
-            relay_mod["main"], lambda node: self._traverse_expr(node))
+            relay_mod["main"],
+            lambda node: self._traverse_expr(node),  # pylint: disable=unnecessary-lambda
+        )
 
     def _traverse_expr(self, node):
         # based on https://github.com/apache/tvm/pull/4370
@@ -126,10 +151,11 @@ class RelayVisualizer:
         self._render_cb(self._plotter, copy.copy(self._node_to_id), self._relay_param)
         return self._plotter.render(filename=filename)
 
+
 def get_plotter(backend):
     if backend == PlotterBackend.BOKEH:
-        from ._bokeh import BokehPlotter
-        return BokehPlotter()
-    else:
-        raise ValueError("Unknown plotter backend {}".format(backend))
+        from ._bokeh import BokehPlotter  # pylint: disable=import-outside-toplevel
 
+        return BokehPlotter()
+
+    raise ValueError("Unknown plotter backend {}".format(backend))
