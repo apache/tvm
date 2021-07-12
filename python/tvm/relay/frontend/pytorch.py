@@ -2340,17 +2340,18 @@ class PyTorchOpConverter:
         h_act = _op.tanh
 
         # Input hiddens
-        H_t = hidden[0] # (batch, hidden_size)
-        C_t = hidden[1] # (batch, hidden_size)
+        H_t = hidden[0]  # (batch, hidden_size)
+        C_t = hidden[1]  # (batch, hidden_size)
         for x_t in input_seqs:
             # x_t shape = (batch, feature size)
-            gates = _op.nn.dense(x_t, weights[0]) + _op.nn.dense(H_t, weights[1])    # (batch, 4 * hidden_size)
+            # gates shape = (batch, 4 * hidden_size)
+            gates = _op.nn.dense(x_t, weights[0]) + _op.nn.dense(H_t, weights[1])
             # Add biases
             if weights[2] is not None:
                 gates += weights[2]
             if weights[3] is not None:
                 gates += weights[3]
-            i, f, c, o = _op.split(gates, 4, axis=-1)   # (batch, hidden_size)
+            i, f, c, o = _op.split(gates, 4, axis=-1)  # (batch, hidden_size)
 
             i = f_act(i)
             f = f_act(f)
@@ -2374,32 +2375,40 @@ class PyTorchOpConverter:
         _op.reverse_sequence
         seq_len = len(input_seq)
         for i in range(seq_len):
-            rev_input_seq.append(input_seq[seq_len - 1 - i])    # [seq_num, (batch, hidden_size)]
+            rev_input_seq.append(input_seq[seq_len - 1 - i])  # [seq_num, (batch, hidden_size)]
         rev_outputs = self.lstm_cell(rev_input_seq, hidden_pair[1], weights_pair[1])
 
         final_outputs = []  # [seq_num, (batch, 2 * hidden_size)]
         for j in range(seq_len):
-            final_outputs.append(_op.concatenate([ fw_outputs[0][j], rev_outputs[0][seq_len - 1 - j] ], -1))
+            final_outputs.append(
+                _op.concatenate([fw_outputs[0][j], rev_outputs[0][seq_len - 1 - j]], -1)
+            )
 
         return final_outputs, (fw_outputs[1], rev_outputs[1])
 
-    def lstm_layers(self, input, hiddens, weights, bidirectional, dtype, dropout_p = 0.0):
+    def lstm_layers(self, input, hiddens, weights, bidirectional, dtype, dropout_p=0.0):
         hidden_layers_num = len(hiddens)
         assert len(weights) == hidden_layers_num
 
         # split input sequence to samples set
-        input_seqs = self.unbind((input, 0), dtype) # [seq_num, (batch, feature_size)]
+        input_seqs = self.unbind((input, 0), dtype)  # [seq_num, (batch, feature_size)]
         output_hiddens = []
         for k in range(hidden_layers_num):
             hiddens_input = hiddens[k]
             weights_input = weights[k]
 
-            outputs = self.bidir_lstm_cell(input_seqs, hiddens_input, weights_input) if bidirectional else self.lstm_cell(input_seqs, hiddens_input, weights_input)
+            outputs = (
+                self.bidir_lstm_cell(input_seqs, hiddens_input, weights_input)
+                if bidirectional
+                else self.lstm_cell(input_seqs, hiddens_input, weights_input)
+            )
 
             output_hiddens.append(outputs[1])
-            input_seqs = outputs[0]  # [seq_num, (batch, feature_size)] or [seq_num, (batch, 2*feature_size)] for bidirectional
+            # input_seqs shape = [seq_num, (batch, feature_size)] or [seq_num, (batch, 2*feature_size)] for bidirectional
+            input_seqs = outputs[0]
 
-            if dropout_p != 0 and k < hidden_layers_num - 1: # TODO (vvchernov): in pytorch implementation train is also checked
+            # TODO (vvchernov): in pytorch implementation train is also checked (see https://github.com/pytorch/pytorch/blob/70c8daf43946b53af6493d058899ef952d27d339/aten/src/ATen/native/RNN.cpp#L1054)
+            if dropout_p != 0 and k < hidden_layers_num - 1:
                 # for input in input_seqs:
                 #     input = _op.dropout(input, dropout_p)
                 raise NotImplementedError("Dropout for LSTM has not been supported yet!")
@@ -2417,14 +2426,13 @@ class PyTorchOpConverter:
         # Description of LSTM in pytorch: https://pytorch.org/docs/stable/generated/torch.nn.LSTM.html
         # https://github.com/pytorch/pytorch/blob/70c8daf43946b53af6493d058899ef952d27d339/aten/src/ATen/native/RNN.cpp#L1396 and dependencies were used
         # TODO (vvchernov): support dropout
-        # TODO (vvchernov): test bidirectional LSTM regime
-        assert len(inputs) == 9, 'Input of size 9 is expected'
+        assert len(inputs) == 9, "Input of size 9 is expected"
         # Unpack inputs, note that if optional and not provided then value will be None.
         _X = inputs[0]
         # _X shape (seq_num, batch, feature_size) or (batch, seq_num, feature_size)
 
         hidden_states = inputs[1]
-        assert len(hidden_states) == 2, 'lstm expects two hidden states'
+        assert len(hidden_states) == 2, "lstm expects two hidden states"
         h_0 = hidden_states[0]
         c_0 = hidden_states[1]
         # H0 C0 shape (hidden_layers_num, batch, hidden_size)
@@ -2443,7 +2451,7 @@ class PyTorchOpConverter:
         # Scalar inputs
         has_biases = inputs[3]
         num_layers = inputs[4]
-        dropout_p = inputs[5]   # dropout probability, if 0.0 it means there is no dropout
+        dropout_p = inputs[5]  # dropout probability, if 0.0 it means there is no dropout
         # train = inputs[6]
         bidirectional = inputs[7]
         batch_first = inputs[8]
@@ -2455,29 +2463,40 @@ class PyTorchOpConverter:
         weights = []
         if has_biases:
             if bidirectional:
-                assert len(_weights) % 8 == 0, 'got an incorrect number of LSTM weights'
+                assert len(_weights) % 8 == 0, "got an incorrect number of LSTM weights"
                 for i in range(0, len(_weights), 8):
-                    weights.append(((_weights[i], _weights[i+1], _weights[i+2], _weights[i+3]),
-                                    (_weights[i+4], _weights[i+5], _weights[i+6], _weights[i+7])))
+                    weights.append(
+                        (
+                            (_weights[i], _weights[i + 1], _weights[i + 2], _weights[i + 3]),
+                            (_weights[i + 4], _weights[i + 5], _weights[i + 6], _weights[i + 7]),
+                        )
+                    )
             else:
-                assert len(_weights) % 4 == 0, 'got an incorrect number of LSTM weights'
+                assert len(_weights) % 4 == 0, "got an incorrect number of LSTM weights"
                 for i in range(0, len(_weights), 4):
-                    weights.append((_weights[i], _weights[i+1], _weights[i+2], _weights[i+3]))
+                    weights.append((_weights[i], _weights[i + 1], _weights[i + 2], _weights[i + 3]))
         else:
             if bidirectional:
-                assert len(_weights) % 4 == 0, 'got an incorrect number of LSTM weights'
+                assert len(_weights) % 4 == 0, "got an incorrect number of LSTM weights"
                 for i in range(0, len(_weights), 4):
-                    weights.append(((_weights[i], _weights[i+1], None, None),
-                                    (_weights[i+2], _weights[i+3], None, None)))
+                    weights.append(
+                        (
+                            (_weights[i], _weights[i + 1], None, None),
+                            (_weights[i + 2], _weights[i + 3], None, None),
+                        )
+                    )
             else:
-                assert len(_weights) % 2 == 0, 'got an incorrect number of LSTM weights'
+                assert len(_weights) % 2 == 0, "got an incorrect number of LSTM weights"
                 for i in range(0, len(_weights), 2):
-                    weights.append((_weights[i], _weights[i+1], None, None))
-        assert len(weights) == num_layers, 'For stacked LSTM number of weights tuples should be the same as number of layers!'
+                    weights.append((_weights[i], _weights[i + 1], None, None))
+        assert (
+            len(weights) == num_layers
+        ), "For stacked LSTM number of weights tuples should be the same as number of layers!"
 
         X = _op.transpose(_X, (1, 0, 2)) if batch_first else _X
-        X_dtype = input_types[0] # _infer_type(X).checked_type.dtype # TODO (vvchernov): which data type should be used? from input or weights (use weights[0][0])?
-        X_shape = _infer_shape(X)   # (seq_num, batch, feature_size)
+        # TODO (vvchernov): Which data type should be used? from input or weights (use _weights[0])? Also _infer_type(X).checked_type.dtype can be used
+        X_dtype = input_types[0]
+        X_shape = _infer_shape(X)  # (seq_num, batch, feature_size)
 
         hidden_size = _infer_shape(_weights[1])[-1]
         batch_size = X_shape[1]
@@ -2502,13 +2521,18 @@ class PyTorchOpConverter:
         hiddens = []
         for i in range(num_layers):
             if bidirectional:
-                hiddens.append(((layers_h[2*i], layers_c[2*i]), (layers_h[2*i+1], layers_c[2*i+1])))
+                hiddens.append(
+                    ((layers_h[2 * i], layers_c[2 * i]), (layers_h[2 * i + 1], layers_c[2 * i + 1]))
+                )
             else:
                 hiddens.append((layers_h[i], layers_c[i]))
 
-        outputs = self.lstm_layers(X, hiddens, weights, bidirectional, dtype=X_dtype, dropout_p=dropout_p)
+        outputs = self.lstm_layers(
+            X, hiddens, weights, bidirectional, dtype=X_dtype, dropout_p=dropout_p
+        )
 
-        output = outputs[0]  # (seq_num, batch, hidden_size) or (seq_num, batch, 2*feature_size) for bidirectional
+        # output shape = (seq_num, batch, hidden_size) or (seq_num, batch, 2*feature_size) for bidirectional
+        output = outputs[0]
 
         hy = []
         cy = []
