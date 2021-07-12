@@ -78,7 +78,7 @@ def _tensorlist_set_item():
             # convert shape with -1 to any()
             input_ta_shape_a = []
             for dim in input_ta_shape:
-                if isinstance(dim, int) or isinstance(dim, tvm.tir.expr.IntImm):
+                if isinstance(dim, (int, tvm.tir.expr.IntImm)):
                     if dim < 0:
                         input_ta_shape_a.append(Any())
                     else:

@@ -145,11 +145,11 @@ def _get_more_static_shape_rank(shape0, shape1):
     num_sym_dim0 = 0
     num_sym_dim1 = 0
     for dim0 in list(shape0):
-        if not [isinstance(dim0, int) or isinstance(dim0, tvm.tir.expr.IntImm)]:
+        if not [isinstance(dim0, (int, tvm.tir.expr.IntImm))]:
             num_sym_dim0 += 1
 
     for dim1 in list(shape1):
-        if not [isinstance(dim1, int) or isinstance(dim1, tvm.tir.expr.IntImm)]:
+        if not [isinstance(dim0, (int, tvm.tir.expr.IntImm))]:
             num_sym_dim1 += 1
 
     if num_sym_dim0 < num_sym_dim1:
