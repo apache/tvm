@@ -55,7 +55,9 @@ class XGBTuner(ModelBasedTuner):
         The cost model predicts relative rank score.
 
     num_threads: int, optional
-        The number of threads.  optimizer: str or ModelOptimizer, optional
+        The number of threads.
+
+    optimizer: str or ModelOptimizer, optional
         If is 'sa', use a default simulated annealing optimizer.
         Otherwise it should be a ModelOptimizer object.
 

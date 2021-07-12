@@ -24,6 +24,7 @@ import numpy
 import onnx
 import onnx.utils
 from onnx import numpy_helper, OperatorSetIdProto, defs
+from onnx import TensorProto
 import tvm
 from tvm import relay
 import tvm._ffi
@@ -138,6 +139,21 @@ class Conv(OpConverter):
         }
 
 
+class ConvTranspose(OpConverter):
+    """Operator converter for ConvTranspose."""
+
+    @classmethod
+    def convert_attributes(cls, attrs):
+        return {
+            "group": attrs.get_int("groups"),
+            "pads": attrs.get_int_tuple("padding"),
+            "strides": attrs.get_int_tuple("strides"),
+            "dilations": attrs.get_int_tuple("dilation"),
+            "kernel_shape": attrs.get_int_tuple("kernel_size"),
+            "output_padding": attrs.get_int_tuple("output_padding"),
+        }
+
+
 class MaxPool(OpConverter):
     """Operator converter for MaxPool."""
 
@@ -147,6 +163,7 @@ class MaxPool(OpConverter):
             "pads": attrs.get_int_tuple("padding"),
             "strides": attrs.get_int_tuple("strides"),
             "kernel_shape": attrs.get_int_tuple("pool_size"),
+            "ceil_mode": 1 if attrs.ceil_mode else 0,
         }
 
 
@@ -330,7 +347,10 @@ class Pad(OpConverter):
             after.append(axis_pads[1])
         pads = before + after
         pads = numpy.asarray(pads, dtype=pads[0].dtype)
-        return {"pads": pads, "mode": attrs.get_str("pad_mode"), "constant_value": attrs.pad_value}
+        return {
+            "pads": pads,
+            "mode": attrs.get_str("pad_mode"),
+        }
 
     @classmethod
     def convert(cls, node_entry, model_container, node_dict):
@@ -341,16 +361,17 @@ class Pad(OpConverter):
         attrs = cls.convert_attributes(node_entry["relay_node"].attrs)
 
         name = node_entry["name"]
-        data = numpy.asarray(attrs["pads"], dtype=attrs["pads"][0].dtype).astype(numpy.int64)
-        value = numpy.dtype(node_entry["types"][0].dtype).type(attrs["constant_value"])
+        pad_data = numpy.asarray(attrs["pads"], dtype=attrs["pads"][0].dtype).astype(numpy.int64)
 
         input_names = [
             node_entry["input_names"][0],
-            add_input(data, name, "pads", model_container),
-            add_input(value, name, "value", model_container),
+            add_input(pad_data, name, "pads", model_container),
+            node_entry["input_names"][1],
         ]
 
-        node = onnx.helper.make_node(cls.__name__, input_names, node_entry["output_names"])
+        node = onnx.helper.make_node(
+            cls.__name__, input_names, node_entry["output_names"], mode=attrs["mode"]
+        )
         model_container.add_nodes([node])
 
 
@@ -633,9 +654,18 @@ class LRN(OpConverter):
         return {"alpha": attrs.alpha, "beta": attrs.beta, "bias": attrs.bias, "size": attrs.size}
 
 
+class Cast(OpConverter):
+    """ Operator converter for Cast."""
+
+    @classmethod
+    def convert_attributes(cls, attrs):
+        return {"to": getattr(TensorProto, attrs.dtype.upper())}
+
+
 relay_to_onnx_op_mapping = {
     "reshape": Reshape,
     "nn.conv2d": Conv,
+    "nn.conv2d_transpose": ConvTranspose,
     "add": rename("Add"),
     "nn.relu": rename("Relu"),
     "transpose": Transpose,
@@ -667,6 +697,10 @@ relay_to_onnx_op_mapping = {
     "clip": Clip,
     "expand_dims": Expand,
     "nn.lrn": LRN,
+    "sigmoid": rename("Sigmoid"),
+    "copy": rename("Identity"),
+    "round": rename("Round"),
+    "cast": Cast,
 }
 
 
