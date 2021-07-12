@@ -2370,10 +2370,14 @@ class PyTorchOpConverter:
     def bidir_lstm_cell(self, input_seq, hidden_pair, weights_pair):
         fw_outputs = self.lstm_cell(input_seq, hidden_pair[0], weights_pair[0])
 
-        input_seq.reverse() # [seq_num, (batch, hidden_size)]
-        rev_outputs = self.lstm_cell(input_seq, hidden_pair[1], weights_pair[1])
+        rev_input_seq = []
+        _op.reverse_sequence
+        seq_len = len(input_seq)
+        for i in range(seq_len):
+            rev_input_seq.append(input_seq[seq_len - 1 - i])    # [seq_num, (batch, hidden_size)]
+        rev_outputs = self.lstm_cell(rev_input_seq, hidden_pair[1], weights_pair[1])
 
-        return _op.concatenate([_op.stack(fw_outputs[0], 0), _op.stack(rev_outputs[0], 1)], -1), (fw_outputs[1], rev_outputs[1])
+        return _op.concatenate([_op.stack(fw_outputs[0], 0), _op.stack(rev_outputs[0], 0)], -1), (fw_outputs[1], rev_outputs[1])
 
     def lstm_layers(self, input, hiddens, weights, bidirectional, dtype, dropout_p = 0.0):
         hidden_layers_num = len(hiddens)
@@ -2442,7 +2446,6 @@ class PyTorchOpConverter:
         num_directions = 1
         if bidirectional:
             num_directions = 2
-            raise NotImplementedError("Bidirectional LSTMs have not been supported yet!")
 
         weights = []
         if has_biases:
@@ -2471,7 +2474,7 @@ class PyTorchOpConverter:
         X_dtype = input_types[0] # _infer_type(X).checked_type.dtype # TODO (vvchernov): which data type should be used? from input or weights (use weights[0][0])?
         X_shape = _infer_shape(X)   # (seq_num, batch, feature_size)
 
-        hidden_size = _infer_shape(weights[0][1])[-1]
+        hidden_size = _infer_shape(_weights[1])[-1]
         batch_size = X_shape[1]
 
         # Initialize hidden states if not provided.
