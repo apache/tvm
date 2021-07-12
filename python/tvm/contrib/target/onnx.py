@@ -24,6 +24,7 @@ import numpy
 import onnx
 import onnx.utils
 from onnx import numpy_helper, OperatorSetIdProto, defs
+from onnx import TensorProto
 import tvm
 from tvm import relay
 import tvm._ffi
@@ -135,6 +136,21 @@ class Conv(OpConverter):
             "strides": attrs.get_int_tuple("strides"),
             "dilations": attrs.get_int_tuple("dilation"),
             "kernel_shape": attrs.get_int_tuple("kernel_size"),
+        }
+
+
+class ConvTranspose(OpConverter):
+    """Operator converter for ConvTranspose."""
+
+    @classmethod
+    def convert_attributes(cls, attrs):
+        return {
+            "group": attrs.get_int("groups"),
+            "pads": attrs.get_int_tuple("padding"),
+            "strides": attrs.get_int_tuple("strides"),
+            "dilations": attrs.get_int_tuple("dilation"),
+            "kernel_shape": attrs.get_int_tuple("kernel_size"),
+            "output_padding": attrs.get_int_tuple("output_padding"),
         }
 
 
@@ -638,9 +654,18 @@ class LRN(OpConverter):
         return {"alpha": attrs.alpha, "beta": attrs.beta, "bias": attrs.bias, "size": attrs.size}
 
 
+class Cast(OpConverter):
+    """ Operator converter for Cast."""
+
+    @classmethod
+    def convert_attributes(cls, attrs):
+        return {"to": getattr(TensorProto, attrs.dtype.upper())}
+
+
 relay_to_onnx_op_mapping = {
     "reshape": Reshape,
     "nn.conv2d": Conv,
+    "nn.conv2d_transpose": ConvTranspose,
     "add": rename("Add"),
     "nn.relu": rename("Relu"),
     "transpose": Transpose,
@@ -672,6 +697,10 @@ relay_to_onnx_op_mapping = {
     "clip": Clip,
     "expand_dims": Expand,
     "nn.lrn": LRN,
+    "sigmoid": rename("Sigmoid"),
+    "copy": rename("Identity"),
+    "round": rename("Round"),
+    "cast": Cast,
 }
 
 
