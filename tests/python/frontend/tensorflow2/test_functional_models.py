@@ -529,34 +529,58 @@ def test_tensorlist_2d():
 
         run_model_graph(TensorList2D)
         run_func_graph(TensorList2D, runtime="vm")
-    run_test((3, 4,))
-    run_test((-1, -1,))
+
+    run_test(
+        (
+            3,
+            4,
+        )
+    )
+    run_test(
+        (
+            -1,
+            -1,
+        )
+    )
 
 
 def test_tensorlist_stack_2d():
-    class TensorListStack2D(tf.Module):
-        def get_input(self):
-            in_tens = np.ones((2, 3, 4), dtype="float32")
-            in_tens[1, :, :] = np.zeros((3, 4), dtype="float32")
-            return in_tens
+    def run_test(elem_shape):
+        class TensorListStack2D(tf.Module):
+            def get_input(self):
+                in_tens = np.ones((2, 3, 4), dtype="float32")
+                in_tens[1, :, :] = np.zeros((3, 4), dtype="float32")
+                return in_tens
 
-        """2D array as input"""
+            """2D array as input"""
 
-        @tf.function(input_signature=[tf.TensorSpec(shape=(2, 3, 4), dtype=tf.float32)])
-        def func(self, x):
-            elem_shape = (3, 4)
-            dtype = tf.float32
-            tl = tf.raw_ops.TensorListReserve(
-                element_shape=elem_shape, num_elements=2, element_dtype=dtype
-            )
-            tl = tf.raw_ops.TensorListFromTensor(tensor=x, element_shape=elem_shape)
-            output = tf.raw_ops.TensorListStack(
-                input_handle=tl, element_shape=elem_shape, element_dtype=dtype
-            )
-            return output
+            @tf.function(input_signature=[tf.TensorSpec(shape=(2, 3, 4), dtype=tf.float32)])
+            def func(self, x):
+                dtype = tf.float32
+                tl = tf.raw_ops.TensorListReserve(
+                    element_shape=elem_shape, num_elements=2, element_dtype=dtype
+                )
+                tl = tf.raw_ops.TensorListFromTensor(tensor=x, element_shape=elem_shape)
+                output = tf.raw_ops.TensorListStack(
+                    input_handle=tl, element_shape=elem_shape, element_dtype=dtype
+                )
+                return output
 
-    run_model_graph(TensorListStack2D)
-    run_func_graph(TensorListStack2D, runtime="vm")
+        run_model_graph(TensorListStack2D)
+        run_func_graph(TensorListStack2D, runtime="vm")
+
+    run_test(
+        (
+            3,
+            4,
+        )
+    )
+    run_test(
+        (
+            -1,
+            -1,
+        )
+    )
 
 
 if __name__ == "__main__":

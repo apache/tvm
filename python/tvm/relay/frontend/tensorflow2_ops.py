@@ -40,7 +40,7 @@ def _tensorlist_reserve():
         dtype_str = attr.get("element_dtype").name
         elem_shape = _infer_value(inputs[0], params, prelude.mod)
         elem_shape = tuple(elem_shape.asnumpy().astype("int32").flatten())
-        
+
         if elem_shape or "shape" in attr:
             shape = attr["shape"] if "shape" in attr else elem_shape
             static_tensor_array_ops = StaticTensorArrayOps(prelude, dtype_str, shape)
@@ -95,7 +95,9 @@ def _tensorlist_set_item():
                     new_shape.append(dim if isinstance(dim, int) else -1)
                 if num_any_dim <= 1:
                     v = tensor_func(_op.reshape(inputs[2], new_shape))
-            write_func = prelude.get_global_var_static("tensor_array_write", dtype_str, input_ta_shape_a)
+            write_func = prelude.get_global_var_static(
+                "tensor_array_write", dtype_str, input_ta_shape_a
+            )
             out = write_func(input_ta, inputs[1], v)
         return out
 
@@ -133,7 +135,9 @@ def _tensorlist_stack():
         else:
             static_tensor_array_ops = StaticTensorArrayOps(prelude, dtype_str, input_ta_shape)
             static_tensor_array_ops.register()
-            stack_func = prelude.get_global_var_static("tensor_array_stack", dtype_str, input_ta_shape)
+            stack_func = prelude.get_global_var_static(
+                "tensor_array_stack", dtype_str, input_ta_shape
+            )
             out_tensor = stack_func(inputs[0])
             out_shape = (Any(),) + input_ta_shape
             static_tensor_array_ops = StaticTensorArrayOps(prelude, dtype_str, out_shape)

@@ -50,8 +50,8 @@ __all__ = ["from_tensorflow"]
 # Value is (index of tensor list, index of written node)
 _tensor_list_write_ops = {
     "TensorListSetItem": (0, 2),
-    
 }
+
 
 def _infer_type_with_prelude(val, prelude):
     body = _infer_type(val, prelude.mod)
@@ -73,10 +73,12 @@ def set_span(sym, node_name):
             sym = _expr.TupleWrapper(tuple_value, sym.size)
     return sym
 
+
 def is_tensor_list_constuctor(tf_node):
     """Check whether is tensor list constructor node."""
     tl_name = "TensorListReserve"
     return tf_node.op == tl_name
+
 
 def convert_const_node(node, shape):
     """convert tf const node into relay const or var"""
@@ -230,7 +232,6 @@ class GraphProto:
             graph, layout=layout, shape=shape, outputs=outputs, input_types=input_types
         )
         return func, self._params
-    
 
     def _analysis_tensor_list_op(
         self,
@@ -282,7 +283,6 @@ class GraphProto:
                         root_node=root_node,
                     )
 
-
     def _get_relay_func(self, graph, layout="NHWC", shape=None, outputs=None, input_types=None):
         if input_types is None:
             input_types = {}
@@ -307,7 +307,9 @@ class GraphProto:
                     self._params[node.name] = param
             # recursivly iterate tensorlist op if seen while loop
             else:
-                self._analysis_tensor_list_op(graph, node, tl_write_nodes, tl_stack_nodes, tl_construct_nodes)
+                self._analysis_tensor_list_op(
+                    graph, node, tl_write_nodes, tl_stack_nodes, tl_construct_nodes
+                )
 
         # Use tensor list stack to infer static tensor list shape
         for stack_node in tl_stack_nodes:
@@ -567,7 +569,7 @@ class GraphProto:
 
         """
         input_op_name = node_name.split(":")[0].split("^")[-1]
-        
+
         if input_op_name not in self._nodes:
             node = self._tf_node_map[input_op_name]
             attr = parse_attr(node.attr)
@@ -682,7 +684,7 @@ def _convert_loop(module, graph, inputs, attr, node_name, nodes, prelude, gdef_l
         None,
     )
     loop_inputs = convert_vars(inputs, while_func.signature.input_arg)
-    
+
     def cond_fn(*loop_inputs):
         return _convert_function(
             module, graph, loop_inputs, attr, cond_fn_name, prelude, gdef_lib=gdef_lib

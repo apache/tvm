@@ -124,9 +124,6 @@ def _get_more_static_shape(shape0, shape1):
     """Compare two shapes with the same rank,
     and return the one with fewer symbolic dimension.
     """
-    if len(shape0) != len(shape1):
-        print("WARNING!! rank is different")
-    
     assert len(shape0) == len(shape1)
     num_sym_dim0 = 0
     num_sym_dim1 = 0
@@ -139,6 +136,7 @@ def _get_more_static_shape(shape0, shape1):
     if num_sym_dim0 < num_sym_dim1:
         return shape0
     return shape1
+
 
 def _get_more_static_shape_rank(shape0, shape1):
     """Compare two shapes with different rank,
@@ -360,6 +358,7 @@ def _conv(opname):
             flip_layout = True
 
         inputs_data = inputs[0] if opname != "conv_transpose" else inputs[2]
+
         # NCHW Layout require weights transpose
         weights_shape = _infer_shape(inputs[1], mod)
         if attr["data_format"] == "NCHW":
@@ -371,6 +370,7 @@ def _conv(opname):
                 tmp_shape = [tmp_shape[ii] for ii in (2, 3, 0, 1)]
                 inputs[1] = _op.transpose(inputs[1], axes=(2, 3, 0, 1))
             weights_shape = tmp_shape
+
         input_shape = _infer_shape(inputs_data, mod)
         if attr["_target_layout"] == "NCHW" and attr["data_format"] == "NHWC":
             input_shape = [input_shape[ii] for ii in (0, 3, 1, 2)]
