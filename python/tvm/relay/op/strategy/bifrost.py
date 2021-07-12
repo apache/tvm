@@ -65,6 +65,14 @@ def conv2d_strategy_bifrost(attrs, inputs, out_type, target):
                     wrap_topi_schedule(topi.bifrost.schedule_conv2d_nchw_spatial_pack),
                     name="conv2d_nchw_spatial_pack.bifrost",
                 )
+        elif layout == "NHWC":
+            assert kernel_layout == "HWIO"
+            # For now just reuse general Mali strategy.
+            strategy.add_implementation(
+                wrap_compute_conv2d(topi.mali.conv2d_nhwc_spatial_pack),
+                wrap_topi_schedule(topi.mali.schedule_conv2d_nhwc_spatial_pack),
+                name="conv2d_nhwc_spatial_pack.bifrost",
+            )
         else:
             raise RuntimeError("Unsupported conv2d layout {} for Mali(Bifrost)".format(layout))
     elif is_depthwise_conv2d(data.shape, layout, kernel.shape, kernel_layout, groups):
