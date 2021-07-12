@@ -68,15 +68,15 @@ def schedule_injective_from_existing(sch, out):
         # Adjust block and thread to make sure they are dividable so that vectorize can be
         # correctly applied.
         if vector_width > 1 and const_size % vector_width == 0:
-            remain_size = const_size // vector_width
+            remain_total_size = const_size // vector_width
             cand_sizes = []
-            for curr_size in [num_thread, max_block]:
+            for max_size in [num_thread, max_block]:
                 cand_sizes.append(
-                    curr_size
-                    if remain_size % curr_size == 0
-                    else find_nearest_small_factor(remain_size, curr_size)
+                    max_size
+                    if remain_total_size % max_size == 0
+                    else find_nearest_small_factor(remain_total_size, max_size)
                 )
-                remain_size //= cand_sizes[-1]
+                remain_total_size //= cand_sizes[-1]
 
             # If the product of candidate dividable (block * thread) is too small,
             # then the performance may be worse even half2 is enabled. Note that 0.7
