@@ -171,13 +171,9 @@ Expr QnnBatchMatmulCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
 
   // Get all the terms as described in the comments.
   auto term1 = BatchMatmulFirstTerm(quantized_x, quantized_y, qnn_batch_matmul_attrs);
-  PrettyPrint(term1);
   auto term2 = BatchMatmulSecondTerm(quantized_x, y_zero_point);
-  PrettyPrint(term2);
   auto term3 = BatchMatmulThirdTerm(quantized_y, x_zero_point, broadcast_dim_size);
-  PrettyPrint(term3);
   auto term4 = BatchMatmulFourthTerm(x_zero_point_int, y_zero_point_int, reduction_dim_size);
-  PrettyPrint(term4);
 
   // Combine those 4 terms depending on the zero points to get the best lowering.
   if (x_zero_point_int == 0 && y_zero_point_int == 0) {
