@@ -68,7 +68,10 @@ _depthwise_conv2d_implement = {
 }
 
 
-in_dtype, out_dtype = tvm.testing.parameters(("float32", "float32"))
+in_dtype, out_dtype = tvm.testing.parameters(
+    ("float32", "float32"),
+    ("float16", "float16"),
+)
 
 
 @tvm.testing.fixture
@@ -133,6 +136,12 @@ def ref_data(
     use_scale_shift,
     apply_relu,
 ):
+    # scipy.signal.convolve2d does not support float16 data types, and
+    # the python fallback is too slow for general use.  Computing
+    # ref_data in float32 will have fewer rounding errors than the TVM
+    # float16 compute, but those vary based on schedule anyways.
+    conv_dtype = "float32" if in_dtype == "float16" else in_dtype
+
     input_np = np.random.uniform(size=input_shape).astype(in_dtype)
     filter_np = np.random.uniform(size=filter_shape).astype(in_dtype)
     scale_np = np.random.uniform(size=scale_shape).astype(out_dtype)
@@ -151,7 +160,9 @@ def ref_data(
         reshape = (1, scale_shape[0], 1, 1, scale_shape[1])
 
     dilated_filter_np = tvm.topi.testing.dilate_python(filter_np, dilation)
-    output_np = np_depthwise_conv2d(input_np, dilated_filter_np, stride, padding)
+    output_np = np_depthwise_conv2d(
+        input_np.astype(conv_dtype), dilated_filter_np.astype(conv_dtype), stride, padding
+    ).astype(out_dtype)
 
     if use_scale_shift:
         output_np = output_np * scale_np.reshape(reshape) + shift_np.reshape(reshape)
@@ -211,6 +222,23 @@ class BaseDepthwiseConv2D:
         padding,
         dilation,
     ):
+        if (
+            target.kind.name == "cuda"
+            and in_dtype == "float16"
+            and not tvm.contrib.nvcc.have_fp16(dev.compute_version)
+        ):
+            pytest.xfail("CUDA float16 intrinsics not available")
+
+        if (
+            target.kind.name == "vulkan"
+            and in_dtype == "float16"
+            and (
+                not target.attrs.get("supports_float16", False)
+                or not target.attrs.get("supports_16bit_buffer", False)
+            )
+        ):
+            pytest.xfail("Vulkan float16 driver support not available")
+
         # Transform the padding argument from 'str' to 'tuple' to
         # match the "workload" tuple in TopHub.  Which padding_args to
         # use for each layout chosen to reproduce previous behavior.
@@ -275,6 +303,22 @@ class BaseDepthwiseConv2D:
                     input_np, filter_np, scale_np, shift_np, output_np = request.getfixturevalue(
                         "ref_data"
                     )
+                    if "int" in out_dtype:
+                        tol = {"atol": 0, "rtol": 0}
+                    elif out_dtype == "float32":
+                        tol = {"rtol": 1e-4, "atol": 1e-5}
+                    elif out_dtype == "float16":
+                        # A summation in float16 with a single accumulator very
+                        # quickly runs into large rounding errors.  At some point,
+                        # this tolerance should be schedule-dependent for to avoid
+                        # false negatives.
+                        num_values_summed = kernel * kernel
+                        gap_size = (
+                            np.nextafter(output_np.max(), np.inf, dtype=output_np.dtype)
+                            - output_np.max()
+                        )
+                        tol = {"rtol": 1e-3, "atol": num_values_summed * gap_size / 2}
+
                     input_tvm = tvm.nd.array(input_np, dev)
                     filter_tvm = tvm.nd.array(filter_np, dev)
                     scale_tvm = tvm.nd.array(scale_np, dev)
@@ -285,7 +329,7 @@ class BaseDepthwiseConv2D:
                     )
 
                     f(input_tvm, filter_tvm, scale_tvm, shift_tvm, output_tvm)
-                    tvm.testing.assert_allclose(output_np, output_tvm.numpy(), rtol=1e-5)
+                    tvm.testing.assert_allclose(output_np, output_tvm.numpy(), **tol)
 
 
 class TestDepthwiseConv2D(BaseDepthwiseConv2D):
