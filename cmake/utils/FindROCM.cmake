@@ -55,6 +55,7 @@ macro(find_rocm use_rocm)
     endif()
     find_library(ROCM_MIOPEN_LIBRARY MIOpen ${__rocm_sdk}/lib)
     find_library(ROCM_ROCBLAS_LIBRARY rocblas ${__rocm_sdk}/lib)
+    find_library(ROCM_HSA_LIBRARY hsa-runtime64 ${__rocm_sdk}/lib)
 
     if(ROCM_HIPHCC_LIBRARY)
       set(ROCM_FOUND TRUE)
