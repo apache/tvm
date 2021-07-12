@@ -26,72 +26,19 @@
 #include <tvm/runtime/container/map.h>
 #include <tvm/runtime/profiling.h>
 
-#include <string>
-#include <unordered_map>
-#include <vector>
-
 namespace tvm {
 namespace runtime {
 namespace profiling {
 
-/*! \brief MetricCollectorNode for PAPI metrics.
+/*! \brief Construct a metric collector that collects data from hardware
+ * performance counters using the Performance Application Programming Interface
+ * (PAPI).
  *
- * PAPI (Performance Application Programming Interface) collects metrics on a
- * variety of platforms including cpu, cuda and rocm.
- *
- * PAPI is avaliable at https://bitbucket.org/icl/papi/src/master/.
+ * \param metrics A mapping from a device type to the metrics that should be
+ * collected on that device. You can find the names of available metrics by
+ * running `papi_native_avail`.
  */
-struct PAPIMetricCollectorNode final : public MetricCollectorNode {
-  /*! \brief Construct a metric collector that collects a specific set of metrics.
-   *
-   * \param metrics A mapping from a device type to the metrics that should be
-   * collected on that device. You can find the names of available metrics by
-   * running `papi_native_avail`.
-   */
-  explicit PAPIMetricCollectorNode(Map<DeviceWrapper, Array<String>> metrics);
-  explicit PAPIMetricCollectorNode() {}
-
-  /*! \brief Initialization call.
-   * \param devices The devices this collector will be running on
-   */
-  void Init(Array<DeviceWrapper> devices);
-  /*! \brief Called right before a function call. Reads starting values of the
-   * measured metrics.
-   *
-   * \param dev The device the function will be run on.
-   * \returns A `PAPIEventSetNode` containing values for the counters at the
-   * start of the call. Passed to a corresponding `Stop` call.
-   */
-  ObjectRef Start(Device dev) final;
-  /*! \brief Called right after a function call. Reads ending values of the
-   * measured metrics. Computes the change in each metric from the
-   * corresponding `Start` call.
-   *
-   * \param obj `PAPIEventSetNode` created by a call to `Start`.
-   * \returns A mapping from metric name to value.
-   */
-  Map<String, ObjectRef> Stop(ObjectRef obj) final;
-
-  ~PAPIMetricCollectorNode() final;
-
-  /*! \brief Device-specific event sets. Contains the running counters (the int values) for that
-   * device. */
-  std::unordered_map<Device, int> event_sets;
-  /*! \brief Device-specific metric names. Order of names matches the order in the corresponding
-   * `event_set`. */
-  std::unordered_map<Device, std::vector<std::string>> papi_metric_names;
-
-  static constexpr const char* _type_key = "runtime.profiling.PAPIMetricCollector";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PAPIMetricCollectorNode, MetricCollectorNode);
-};
-
-/*! \brief Wrapper for `PAPIMetricCollectorNode`. */
-class PAPIMetricCollector : public MetricCollector {
- public:
-  explicit PAPIMetricCollector(Map<DeviceWrapper, Array<String>> metrics);
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(PAPIMetricCollector, MetricCollector,
-                                        PAPIMetricCollectorNode);
-};
+TVM_DLL MetricCollector CreatePAPIMetricCollector(Map<DeviceWrapper, Array<String>> metrics);
 }  // namespace profiling
 }  // namespace runtime
 }  // namespace tvm
