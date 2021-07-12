@@ -175,6 +175,60 @@ def test_conv2d():
     verify_conv2d("float32", 1, dshape, kshape, padding=(1, 1), channels=10, kernel_size=(4, 4))
 
 
+def test_conv2d_transpose():
+    """Conv2d_Transpose unit tests."""
+
+    def verify_conv2d_transpose(
+        dtype, scale, dshape, kshape, padding=(1, 1), groups=1, dilation=(1, 1), **attrs
+    ):
+        x = relay.var("x", shape=dshape, dtype=dtype)
+        w = relay.var("w", shape=kshape, dtype=dtype)
+        y = relay.nn.conv2d_transpose(
+            x, w, padding=padding, dilation=dilation, groups=groups, **attrs
+        )
+        func = relay.Function([x, w], y)
+        data = np.random.uniform(-scale, scale, size=dshape).astype(dtype)
+        kernel = np.random.uniform(-scale, scale, size=kshape).astype(dtype)
+        verify_results(func, [data, kernel], "test_conv2d_transpose", rtol=1e-5, atol=1e-5)
+
+    dshape = (1, 3, 224, 224)
+    kshape = (3, 10, 3, 3)
+    verify_conv2d_transpose(
+        "float32", 1, dshape, kshape, padding=(1, 1), channels=10, kernel_size=(3, 3)
+    )
+
+    dshape = (1, 3, 224, 224)
+    kshape = (3, 10, 3, 3)
+    verify_conv2d_transpose(
+        "float32", 1, dshape, kshape, padding=(2, 2), channels=10, kernel_size=(3, 3)
+    )
+
+    dshape = (1, 3, 18, 18)
+    kshape = (3, 10, 2, 2)
+    verify_conv2d_transpose(
+        "float32",
+        1,
+        dshape,
+        kshape,
+        padding=(2, 2),
+        channels=10,
+        kernel_size=(2, 2),
+        dilation=(1, 1),
+    )
+
+    dshape = (1, 3, 18, 18)
+    kshape = (3, 10, 4, 4)
+    verify_conv2d_transpose(
+        "float32", 1, dshape, kshape, padding=(1, 1), channels=10, kernel_size=(4, 4)
+    )
+
+    dshape = (1, 3, 18, 18)
+    kshape = (3, 10, 4, 4)
+    verify_conv2d_transpose(
+        "float32", 1, dshape, kshape, padding=(1, 1), channels=10, kernel_size=(4, 4)
+    )
+
+
 def test_reshape():
     def verify_reshape(shape, newshape):
         x = relay.var("x", relay.TensorType(shape, "float32"))
@@ -519,6 +573,8 @@ def test_expand_dims():
 
 
 def test_lrn():
+    """LRN unit test."""
+
     def verify_lrn(xshape, size, dtype="float32"):
         x = relay.var("x", relay.ty.TensorType(xshape, dtype))
         y = relay.nn.lrn(x, size=size, axis=1, alpha=1.0, beta=1.0, bias=1.0)
@@ -533,10 +589,77 @@ def test_lrn():
             verify_lrn(i, s)
 
 
+def test_sigmoid():
+    """Sigmoid unit test."""
+
+    def verify_sigmoid(dshape, dtype="float32"):
+        x = relay.var("x", relay.ty.TensorType(dshape, dtype))
+        y = relay.sigmoid(x)
+        func = relay.Function([x], y)
+        x_data = np.random.uniform(size=dshape).astype(dtype)
+        verify_results(func, [x_data], "test_sigmoid", rtol=1e-4, atol=1e-4)
+
+    isize = [(1, 3, 480, 640), (1, 3, 224, 224)]
+
+    for i in isize:
+        verify_sigmoid(i)
+
+
+def test_copy():
+    """Copy unit test."""
+
+    def verify_copy(dshape, dtype="float32"):
+        x = relay.var("x", relay.ty.TensorType(dshape, dtype))
+        y = relay.copy(x)
+        func = relay.Function([x], y)
+        x_data = np.random.uniform(size=dshape).astype(dtype)
+        verify_results(func, [x_data], "test_copy", rtol=1e-4, atol=1e-4)
+
+    isize = [(1, 3, 480, 640), (1, 3, 224, 224)]
+
+    for i in isize:
+        verify_copy(i)
+
+
+def test_round():
+    """Round unit test."""
+
+    def verify_round(dshape, dtype="float32"):
+        x = relay.var("x", relay.ty.TensorType(dshape, dtype))
+        y = relay.round(x)
+        func = relay.Function([x], y)
+        x_data = np.random.uniform(size=dshape).astype(dtype)
+        verify_results(func, [x_data], "test_round", rtol=1e-4, atol=1e-4)
+
+    isize = [(1, 3, 480, 640), (1, 3, 224, 224)]
+
+    for i in isize:
+        verify_round(i)
+
+
+def test_cast():
+    """Cast unit test."""
+
+    def verify_cast(dshape, dtype):
+        x = relay.var("x", relay.ty.TensorType(dshape, "float32"))
+        y = relay.cast(x, dtype)
+        func = relay.Function([x], y)
+        x_data = np.random.uniform(size=dshape).astype("float32")
+        verify_results(func, [x_data], "test_cast", rtol=1e-4, atol=1e-4)
+
+    isize = [(1, 3, 480, 640), (1, 3, 224, 224)]
+    out_dtypes = ["int8", "int16", "uint8", "uint16"]
+
+    for i in isize:
+        for o_dtype in out_dtypes:
+            verify_cast(i, o_dtype)
+
+
 if __name__ == "__main__":
     test_add()
     test_bias_add()
     test_conv2d()
+    test_conv2d_transpose()
     test_reshape()
     test_transpose()
     test_dense()
@@ -557,3 +680,7 @@ if __name__ == "__main__":
     test_clip()
     test_expand_dims()
     test_lrn()
+    test_sigmoid()
+    test_copy()
+    test_round()
+    test_cast()
