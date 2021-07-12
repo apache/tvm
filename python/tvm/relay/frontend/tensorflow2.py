@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-argument, too-many-lines, len-as-condition, broad-except
+# pylint: disable=invalid-name, unused-argument, too-many-lines, len-as-condition, broad-except, too-many-nested-blocks
 """Tensorflow2.x graph to relay converter.
 
 If model is constructed using tf2.x API, then use this converter:
@@ -285,7 +285,6 @@ class GraphProto:
 
     def _infer_static_shape_stack_node(self, tl_stack_nodes):
         for stack_node in tl_stack_nodes:
-            input_ta_name = stack_node.input[0].split(":")[0].split("^")[-1]
             if len(stack_node.input) < 2:
                 # Stack node does not have shape
                 continue
