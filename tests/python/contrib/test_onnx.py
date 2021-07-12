@@ -655,6 +655,25 @@ def test_cast():
             verify_cast(i, o_dtype)
 
 
+def test_resize():
+    """Resize unit test."""
+
+    def verify_resize(dshape, outsize, method=None, dtype="float32"):
+        x = relay.var("x", relay.ty.TensorType(dshape, dtype))
+        y = relay.image.resize2d(x, outsize, layout="NCHW", method=method)
+        func = relay.Function([x], y)
+        x_data = np.random.uniform(size=dshape).astype(dtype)
+        verify_results(func, [x_data], "test_resize", rtol=1e-4, atol=1e-4)
+
+    isize = [(1,3,480,640)]
+    osize = [(240,320), (960,1280)]
+    method = ['nearest_neighbor', 'linear', 'cubic']
+
+    for i in isize:
+        for j in osize:
+            for k in method:
+                verify_resize(i, j, k)
+
 if __name__ == "__main__":
     test_add()
     test_bias_add()
@@ -684,3 +703,4 @@ if __name__ == "__main__":
     test_copy()
     test_round()
     test_cast()
+    test_resize()
