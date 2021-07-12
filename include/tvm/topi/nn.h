@@ -692,42 +692,42 @@ inline Tensor nll_loss(const Tensor& predictions, const Tensor& targets, const T
 }
 
 /*!
- * \brief Creates an operation that performs im2col with an NCHW-layout
- *
- * \param data The 4-D input tensor
- * \param kernel_size A static tuple for kernel size, such as (3,3)
- * \param dilation A static tuple for dilation, default is (1,1)
- * \param padding A static tuple for padding, padding value is zero
-  * \param stride A static tuple for strides, default is (1,1)
- * \param name The name of the operation
- * \param tag The tag to mark the operation
- *
- * \return A Tensor whose op member is the im2col operation (NCHW layout)
+* \brief Creates an operation that performs im2col with an NCHW-layout
+*
+* \param data The 4-D input tensor
+* \param kernel_size A static tuple for kernel size, such as (3,3)
+* \param dilation A static tuple for dilation, default is (1,1)
+* \param padding A static tuple for padding, padding value is zero
+* \param stride A static tuple for strides, default is (1,1)
+* \param name The name of the operation
+* \param tag The tag to mark the operation
+*
+* \return A Tensor whose op member is the im2col operation (NCHW layout)
 
- Pseudo code:
-    input_b, input_c, input_h, input_w = data_shape
-    dilation_h, dilation_w = dilation
-    padding_h, padding_w = padding
+Pseudo code:
+  input_b, input_c, input_h, input_w = data_shape
+  dilation_h, dilation_w = dilation
+  padding_h, padding_w = padding
 
-    dilated_kernel_h = (kernel_h - 1) * dilation_h + 1
-    dilated_kernel_w = (kernel_w - 1) * dilation_w + 1
+  dilated_kernel_h = (kernel_h - 1) * dilation_h + 1
+  dilated_kernel_w = (kernel_w - 1) * dilation_w + 1
 
-    output_h = (input_h + 2 * padding_h - dilated_kernel_h)//stride_h + 1
-    output_w = (input_w + 2 * padding_w - dilated_kernel_w)//stride_w + 1
+  output_h = (input_h + 2 * padding_h - dilated_kernel_h)//stride_h + 1
+  output_w = (input_w + 2 * padding_w - dilated_kernel_w)//stride_w + 1
 
-    h_offset = (k // input_w) % kernel_h
-    w_offset = k % kernel_w
+  h_offset = (k // input_w) % kernel_h
+  w_offset = k % kernel_w
 
-    im2col_data = te.compute(
-        (N, K, L),
-        lambda n, k, l: data[
-            n,
-            k / kernel_h / kernel_w,
-            stride_h * (l / output_w) + dilation_h * h_offset - padding_h,
-            stride_w * (l % output_w) + dilation_w * w_offset - padding_w,
-        ],
-        name="im2col_data",
-    )
+  im2col_data = te.compute(
+      (N, K, L),
+      lambda n, k, l: data[
+          n,
+          k / kernel_h / kernel_w,
+          stride_h * (l / output_w) + dilation_h * h_offset - padding_h,
+          stride_w * (l % output_w) + dilation_w * w_offset - padding_w,
+      ],
+      name="im2col_data",
+  )
 */
 inline tvm::te::Tensor im2col(const tvm::te::Tensor& data,
                               const tvm::Array<tvm::PrimExpr>& kernel_size,
