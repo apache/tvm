@@ -17,12 +17,11 @@
 """Wrapping existing transformations."""
 # pylint: disable=invalid-name
 from typing import Optional
-from tvm.ir.transform import Pass
 from . import _ffi_api
 from . import function_pass as _fpass
 
 
-def Apply(ftransform) -> Pass:
+def Apply(ftransform):
     """Apply ftransform to each function in the Module.
 
     This function is a thin wrapper around tvm.tir.transform.prim_func_pass
@@ -41,7 +40,7 @@ def Apply(ftransform) -> Pass:
     def _transform(func, mod, ctx):
         return ftransform(func)
 
-    return _fpass.prim_func_pass(_transform, opt_level=0, name="Apply")
+    return _fpass.prim_func_pass(_transform, opt_level=0, name="Apply")  # type: ignore
 
 
 def Filter(fcond):
@@ -61,7 +60,7 @@ def Filter(fcond):
     def _transform(func, mod, ctx):
         return func if fcond(func) else None
 
-    return _fpass.prim_func_pass(_transform, opt_level=0, name="Filter")
+    return _fpass.prim_func_pass(_transform, opt_level=0, name="Filter")  # type: ignore
 
 
 def InjectPrefetch():
@@ -75,7 +74,7 @@ def InjectPrefetch():
     return _ffi_api.InjectPrefetch()  # type: ignore
 
 
-def StorageFlatten(cache_line_size: int, create_bound_attribute: bool = False) -> Pass:
+def StorageFlatten(cache_line_size, create_bound_attribute: bool = False):
     """Flatten the multi-dimensional read/write to 1D.
 
 
@@ -96,7 +95,7 @@ def StorageFlatten(cache_line_size: int, create_bound_attribute: bool = False) -
     return _ffi_api.StorageFlatten(cache_line_size, create_bound_attribute)  # type: ignore
 
 
-def InjectCopyIntrin(pragma_key: str, fintrin) -> Pass:
+def InjectCopyIntrin(pragma_key: str, fintrin):
     """Inject virtual thread loops.
 
     Parameters
@@ -126,7 +125,7 @@ def CoProcSync():
     return _ffi_api.CoProcSync()  # type: ignore
 
 
-def LiftAttrScope(attr_key: str) -> Pass:
+def LiftAttrScope(attr_key: str):
     """Lift common attrs with attr_key to outer scope.
 
     Parameters
@@ -153,7 +152,7 @@ def LoopPartition():
     return _ffi_api.LoopPartition()  # type: ignore
 
 
-def VectorizeLoop(enable_vectorize: bool = True) -> Pass:
+def VectorizeLoop(enable_vectorize: bool = True):
     """Lower vectorization loops.
 
     Parameters
@@ -332,7 +331,7 @@ def LowerCustomDatatypes():
     return _ffi_api.LowerCustomDatatypes()  # type: ignore
 
 
-def MakePackedAPI(num_unpacked_params: int = 0) -> Pass:
+def MakePackedAPI(num_unpacked_params: int = 0):
     """Transform the PrimFuncs in the module to a packed func API.
 
     Parameters
@@ -421,7 +420,7 @@ def LowerThreadAllreduce():
 
 
 def InferFragment():
-    """Infer the TensorCore fragment infomation using tensor intrinsic.
+    """Infer the TensorCore fragment infomation using tensor intrinsics.
 
     Returns
     -------
@@ -501,7 +500,7 @@ def CombineContextCall():
     return _ffi_api.CombineContextCall()  # type: ignore
 
 
-def NarrowDataType(target_bits: int) -> Pass:
+def NarrowDataType(target_bits: int):
     """Narrow down PrimExpr datatype in stmt to target_bits.
 
     Parameters
@@ -533,7 +532,7 @@ def VerifyMemory():
 
 
 # pylint: disable=no-else-return,inconsistent-return-statements
-def HoistIfThenElse(variant: Optional[str] = None) -> Pass:
+def HoistIfThenElse(variant: Optional[str] = None):
     """Hoist loop-invariant IfThenElse nodes to outside the eligible loops.
 
     Parameters
@@ -563,7 +562,7 @@ def HoistIfThenElse(variant: Optional[str] = None) -> Pass:
 
 
 def LowerInitBlock():
-    """Lower block init stmt into IfThenElse stmts
+    """Lower block init stmt into IfThenElse statements.
 
     Returns
     -------
