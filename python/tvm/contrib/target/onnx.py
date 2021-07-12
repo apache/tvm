@@ -147,6 +147,7 @@ class MaxPool(OpConverter):
             "pads": attrs.get_int_tuple("padding"),
             "strides": attrs.get_int_tuple("strides"),
             "kernel_shape": attrs.get_int_tuple("pool_size"),
+            "ceil_mode": 1 if attrs.ceil_mode else 0,
         }
 
 
@@ -330,7 +331,10 @@ class Pad(OpConverter):
             after.append(axis_pads[1])
         pads = before + after
         pads = numpy.asarray(pads, dtype=pads[0].dtype)
-        return {"pads": pads, "mode": attrs.get_str("pad_mode"), "constant_value": attrs.pad_value}
+        return {
+            "pads": pads,
+            "mode": attrs.get_str("pad_mode"),
+        }
 
     @classmethod
     def convert(cls, node_entry, model_container, node_dict):
@@ -341,16 +345,17 @@ class Pad(OpConverter):
         attrs = cls.convert_attributes(node_entry["relay_node"].attrs)
 
         name = node_entry["name"]
-        data = numpy.asarray(attrs["pads"], dtype=attrs["pads"][0].dtype).astype(numpy.int64)
-        value = numpy.dtype(node_entry["types"][0].dtype).type(attrs["constant_value"])
+        pad_data = numpy.asarray(attrs["pads"], dtype=attrs["pads"][0].dtype).astype(numpy.int64)
 
         input_names = [
             node_entry["input_names"][0],
-            add_input(data, name, "pads", model_container),
-            add_input(value, name, "value", model_container),
+            add_input(pad_data, name, "pads", model_container),
+            node_entry["input_names"][1],
         ]
 
-        node = onnx.helper.make_node(cls.__name__, input_names, node_entry["output_names"])
+        node = onnx.helper.make_node(
+            cls.__name__, input_names, node_entry["output_names"], mode=attrs["mode"]
+        )
         model_container.add_nodes([node])
 
 
