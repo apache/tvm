@@ -3946,7 +3946,10 @@ def test_forward_im2col():
 
             return torch._C._nn.im2col(x, (5, 5), (1, 1), (1, 1), (2, 2))
 
+    model = Im2col3x3()
     input = torch.randn(2, 3, 32, 32)
+    verify_model(model, input_data=input)
+
     verify_script_model(Im2col5x5().eval(), [(2, 3, 32, 32)], _get_default_vm_targets())
 
 
