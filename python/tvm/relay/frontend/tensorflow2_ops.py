@@ -23,7 +23,7 @@ from .. import op as _op
 from ..ty import Any
 from .common import infer_value as _infer_value
 from .common import infer_type as _infer_type
-from .tensorflow_ops import _get_more_static_shape
+from .tensorflow_ops import _get_more_static_shape_rank
 
 
 def _infer_type_with_prelude(val, prelude):
@@ -41,8 +41,8 @@ def _tensorlist_reserve():
         elem_shape = _infer_value(inputs[0], params, prelude.mod)
         elem_shape = tuple(elem_shape.asnumpy().astype("int32").flatten())
         
-        if "shape" in attr:
-            shape = attr["shape"]
+        if elem_shape or "shape" in attr:
+            shape = attr["shape"] if "shape" in attr else elem_shape
             static_tensor_array_ops = StaticTensorArrayOps(prelude, dtype_str, shape)
             static_tensor_array_ops.register()
             tensor_array_constructor = static_tensor_array_ops.get_global_var("tensor_array")
@@ -75,15 +75,17 @@ def _tensorlist_set_item():
             tensor_func = static_tensor_array_ops.get_ctor("tensor_constructor")
             v = tensor_func(inputs[2])
             # Write tensor with more static shape
-            # TODO do we need this?
             # convert shape with -1 to any()
             input_ta_shape_a = []
             for dim in input_ta_shape:
-                if dim < 0:
-                    input_ta_shape_a.append(Any())
+                if isinstance(dim, int) or isinstance(dim, tvm.tir.expr.IntImm):
+                    if dim < 0:
+                        input_ta_shape_a.append(Any())
+                    else:
+                        input_ta_shape_a.append(dim)
                 else:
                     input_ta_shape_a.append(dim)
-            actual_shape = _get_more_static_shape(input_t_shape, input_ta_shape_a)
+            actual_shape = _get_more_static_shape_rank(input_t_shape, input_ta_shape_a)
             if actual_shape != input_ta_shape_a:
                 new_shape = []
                 num_any_dim = 0

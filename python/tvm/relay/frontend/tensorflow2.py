@@ -38,7 +38,7 @@ from ..loops import while_loop as _while_loop
 from .common import infer_type as _infer_type
 
 from .tensorflow_ops import _convert_map as _convert_map_common
-from .tensorflow_ops import _get_more_static_shape
+from .tensorflow_ops import _get_more_static_shape_rank
 from .tensorflow2_ops import _convert_map as _convert_map_tf2
 from .tensorflow2_ops import _need_prelude_for_shape_inference
 
@@ -232,13 +232,24 @@ class GraphProto:
         return func, self._params
     
 
-    def _analysis_tensor_list_op(self, graph, node, tl_write_nodes, tl_stack_nodes, tl_construct_nodes, sub_func_name = "", root_node = ""):
+    def _analysis_tensor_list_op(
+        self,
+        graph,
+        node,
+        tl_write_nodes,
+        tl_stack_nodes,
+        tl_construct_nodes,
+        sub_func_name="",
+        root_node="",
+    ):
         if sub_func_name and sub_func_name not in self._sub_input_idx_map:
             self._sub_input_idx_map[sub_func_name] = {}
         if node.op == "Placeholder":
-            # record placeholder node
+            # record placeholder node in sub functions
             self._sub_map[sub_func_name] = node
-            self._sub_input_idx_map[sub_func_name][node.name] = len(self._sub_input_idx_map[sub_func_name])
+            self._sub_input_idx_map[sub_func_name][node.name] = len(
+                self._sub_input_idx_map[sub_func_name]
+            )
         if node.op.startswith("TensorList"):
             if is_tensor_list_constuctor(node):
                 tl_construct_nodes.append(node)
@@ -250,7 +261,9 @@ class GraphProto:
                     tl_stack_nodes.append(node)
         elif node.op.startswith("StatelessWhile"):
             root_node = node.name
-            cond_fn_name, body_fn_name = [parse_attr(node.attr).get(x).name for x in ["cond", "body"]]
+            cond_fn_name, body_fn_name = [
+                parse_attr(node.attr).get(x).name for x in ["cond", "body"]
+            ]
             for fn_name in [cond_fn_name, body_fn_name]:
                 subfunction = self._gdef_lib[fn_name]
                 sub_func_name = fn_name
@@ -259,7 +272,16 @@ class GraphProto:
                     if sub_node.op == "Const":
                         continue
                     self._tf_node_map[sub_node.name] = sub_node
-                    self._analysis_tensor_list_op(subfunction, sub_node, tl_write_nodes, tl_stack_nodes, tl_construct_nodes, sub_func_name=sub_func_name, root_node = root_node)
+                    self._analysis_tensor_list_op(
+                        subfunction,
+                        sub_node,
+                        tl_write_nodes,
+                        tl_stack_nodes,
+                        tl_construct_nodes,
+                        sub_func_name=sub_func_name,
+                        root_node=root_node,
+                    )
+
 
     def _get_relay_func(self, graph, layout="NHWC", shape=None, outputs=None, input_types=None):
         if input_types is None:
@@ -291,11 +313,12 @@ class GraphProto:
         for stack_node in tl_stack_nodes:
             input_ta_name = stack_node.input[0].split(":")[0].split("^")[-1]
             input_ta_node = self._tf_node_map[input_ta_name]
-            input_shape_name = stack_node.input[1]
+            if len(stack_node.input) < 2:
+                # Stack node does not have shape
+                continue
+            input_shape_name = stack_node.input[1].split(":")[0]
             input_shape_node = self._tf_node_map[input_shape_name]
             stack = [self._tf_node_map[stack_node.input[0].split(":")[0]]]
-            # TODO fix logic here
-            # I assume input index is the same as output index, it should be tracking in the sub function to make sure
             in_idx = -1
             while stack:
                 cnode = stack.pop(0)
@@ -304,7 +327,10 @@ class GraphProto:
                         stack.append(self._tf_node_map[cnode.input[in_idx].split(":")[0]])
                     else:
                         for iname in cnode.input:
-                            if self._tf_node_map[iname.split(":")[0]].op.startswith('StatelessWhile'):
+                            if self._tf_node_map[iname.split(":")[0]].op.startswith(
+                                "StatelessWhile"
+                            ):
+                                # identify input index based on output index
                                 if iname.split(":")[1]:
                                     in_idx = int(iname.split(":")[1])
                             stack.append(self._tf_node_map[iname.split(":")[0]])
@@ -313,7 +339,7 @@ class GraphProto:
                         shape_attr = self._parse_attr(input_shape_node.attr)
                         if "value" not in shape_attr:
                             continue
-                        raw_elem_shape = tensor_util.MakeNdarray(shape_attr['value'])
+                        raw_elem_shape = tensor_util.MakeNdarray(shape_attr["value"])
                         elem_shape = []
                         for dim in raw_elem_shape:
                             if dim < 0:
@@ -323,8 +349,6 @@ class GraphProto:
                         self._tensor_list_shapes[cnode.name] = elem_shape
                     break
 
-
-        # TODO why we need to track write node?
         # Fetch node contains static tensor list shape
         for item in tl_write_nodes:
             wnode = item[0]
@@ -334,12 +358,16 @@ class GraphProto:
             stack = [self._tf_node_map[wnode.input[ta_idx].split(":")[0]]]
             while stack:
                 cnode = stack.pop(0)
-                
+
                 if not cnode.op.startswith("TensorList"):
                     if cnode.op == "Placeholder" and sub_func_name:
-                       # need to map subfunction
+                        # need to map subfunction
                         input_idx = self._sub_input_idx_map[sub_func_name][cnode.name]
-                        stack.append(self._tf_node_map[self._tf_node_map[root_name].input[input_idx].split(":")[0]])
+                        stack.append(
+                            self._tf_node_map[
+                                self._tf_node_map[root_name].input[input_idx].split(":")[0]
+                            ]
+                        )
                     else:
                         for iname in cnode.input:
                             stack.append(self._tf_node_map[iname.split(":")[0]])
@@ -557,13 +585,16 @@ class GraphProto:
 
             # infer shape for TensorList op
             if is_tensor_list_constuctor(node):
-                input_shape_name = node.input[1] if 'TensorListFromTensor' in node.op else node.input[0]
+                input_shape_name = (
+                    node.input[1] if "TensorListFromTensor" in node.op else node.input[0]
+                )
+                input_shape_name = input_shape_name.split(":")[0]
                 input_shape_node = self._tf_node_map[input_shape_name]
                 shape_attr = self._parse_attr(input_shape_node.attr)
                 elem_shape = []
                 if "value" in shape_attr:
-                    raw_elem_shape = tensor_util.MakeNdarray(shape_attr['value'])
-                    
+                    raw_elem_shape = tensor_util.MakeNdarray(shape_attr["value"])
+
                     if raw_elem_shape.size == 1 and raw_elem_shape == -1:
                         elem_shape.append(Any())
                     else:
@@ -574,29 +605,14 @@ class GraphProto:
                                 elem_shape.append(dim)
                 if elem_shape:
                     attr["shape"] = elem_shape
-                if ("identical_element_shapes" in attr and attr["identical_element_shapes"]) or elem_shape:
-                    shape_node, wnode_op, output_index = self._tensor_list_shape_nodes[
-                        node.name
-                    ]
-                    name = shape_node.name
-                    if output_index > 0:
-                        name += ":" + str(output_index)
-                    # TODO why we need to _backtrack_construct here?
-                    #converted = self._backtrack_construct(graph, name)
-                    #shape = _infer_shape(converted, self._mod)
+                if (
+                    "identical_element_shapes" in attr and attr["identical_element_shapes"]
+                ) or elem_shape:
                     shape = elem_shape
                     if node.name in self._tensor_list_shapes:
                         preset_shape = self._tensor_list_shapes[node.name]
-                        shape = preset_shape
+                        shape = _get_more_static_shape_rank(shape, preset_shape)
                     attr["shape"] = shape
-                    #if node.name in self._tensor_list_shapes:
-                    #    preset_shape = self._tensor_list_shapes[node.name]
-                    #    shape = _get_more_static_shape(shape, preset_shape)
-                    #
-                    #if "shape" in attr:
-                    #    attr["shape"] = _get_more_static_shape(shape, attr["shape"])
-                    #else:
-                    #    attr["shape"] = shape
 
             op = self._convert_operator(graph, node.op, node.name, inputs, attr)
             if isinstance(op, np.ndarray):
