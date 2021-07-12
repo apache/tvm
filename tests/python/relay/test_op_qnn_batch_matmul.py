@@ -77,12 +77,12 @@ def make_int_configuration(
     if xzero_point_zero == True:
         x_zero_point = 0
     else:
-        x_zero_point = -1
+        x_zero_point = -123
 
     if yzero_point_zero == True:
         y_zero_point = 0
     else:
-        y_zero_point = -1
+        y_zero_point = -123
 
     in_dtype = "int8"
     out_dtype = "int32" if not requantize_output else "int8"
@@ -128,11 +128,13 @@ def make_int_configuration(
         assert yzero_point_zero is True
         output = np.array([20, 51, 20, -26, -27, -26, 20, 51, 20, -14, -10, -14])
     elif xzero_point_zero is False and yzero_point_zero is False:
-        output = np.array([220, 520, 220, -168, -128, -168, 220, 520, 220, -72, 8, -72])
+        output = np.array(
+            [81960, 88360, 81960, 78400, 84540, 78400, 81960, 88360, 81960, 78984, 85164, 78984]
+        )
     elif xzero_point_zero is True and yzero_point_zero is False:
-        output = np.array([190, 440, 190, -198, -208, -198, 190, 440, 190, -102, -72, -102])
+        output = np.array([3240, 3490, 3240, -320, -330, -320, 3240, 3490, 3240, 264, 294, 264])
     elif xzero_point_zero is False and yzero_point_zero is True:
-        output = np.array([190, 490, 190, -172, -132, -172, 190, 490, 190, -80, 0, -80])
+        output = np.array([3240, 9640, 3240, 2878, 9018, 2878, 3240, 9640, 3240, 2970, 9150, 2970])
     else:
         output = np.array([165, 415, 165, -197, -207, -197, 165, 415, 165, -105, -75, -105])
 
