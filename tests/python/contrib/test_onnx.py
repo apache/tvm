@@ -27,6 +27,7 @@ import onnxruntime as rt
 import tvm
 from tvm import relay
 from tvm.contrib.target.onnx import to_onnx
+from tvm.relay.testing import run_infer_type
 
 
 def func_to_onnx(func, name):
@@ -270,14 +271,16 @@ def test_batch_norm():
 
 
 def test_pad():
+    """Pad unit test."""
+
     def verify_pad():
-        for dtype in ["float16", "float32"]:
-            dshape = (4, 10, 7, 7)
-            x = relay.var("x", shape=dshape, dtype=dtype)
-            y = relay.nn.pad(x, ((1, 1), (2, 2), (3, 3), (4, 4)))
-            func = relay.Function([x], y)
-            x_data = np.random.uniform(size=dshape).astype(dtype)
-            verify_results(func, [x_data], "test_pad", rtol=1e-5, atol=1e-5)
+        dshape = (4, 10, 7, 7)
+        x = relay.var("x", shape=dshape, dtype="int32")
+        y = relay.nn.pad(x, ((1, 1), (2, 2), (3, 3), (4, 4)))
+        func = relay.Function([x], y)
+        func = run_infer_type(func)
+        x_data = np.random.randint(low=-255, high=255, size=dshape).astype(np.int32)
+        verify_results(func, [x_data], "test_pad", rtol=1e-5, atol=1e-5)
 
     verify_pad()
 
