@@ -670,9 +670,9 @@ class Resize(OpConverter):
         method = attrs.get_str("method")
         if method == "nearest_neighbor":
             mode = b"nearest"
-        elif "linear" in method: # linear / bilinear
+        elif "linear" in method:  # linear / bilinear
             mode = b"linear"
-        elif "cubic" in method: # cubic / bicubic
+        elif "cubic" in method:  # cubic / bicubic
             mode = b"cubic"
 
         coord_trans = attrs.get_str("coordinate_transformation_mode")
@@ -711,7 +711,7 @@ class Resize(OpConverter):
         input_shape = input_node["types"][0].shape
 
         # (TBD) needed in opset 11
-        roi = [0]*len(input_shape) + [1]*len(input_shape)
+        roi = [0] * len(input_shape) + [1] * len(input_shape)
         roi_array = numpy.asarray(roi).astype(numpy.float64)
         roi_node = add_input(roi_array, name, "roi", model_container)
 

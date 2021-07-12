@@ -665,14 +665,15 @@ def test_resize():
         x_data = np.random.uniform(size=dshape).astype(dtype)
         verify_results(func, [x_data], "test_resize", rtol=1e-4, atol=1e-4)
 
-    isize = [(1,3,480,640)]
-    osize = [(240,320), (960,1280)]
-    method = ['nearest_neighbor', 'linear', 'cubic']
+    isize = [(1, 3, 480, 640)]
+    osize = [(240, 320), (960, 1280)]
+    method = ["nearest_neighbor", "linear", "cubic"]
 
     for i in isize:
         for j in osize:
             for k in method:
                 verify_resize(i, j, k)
+
 
 if __name__ == "__main__":
     test_add()
