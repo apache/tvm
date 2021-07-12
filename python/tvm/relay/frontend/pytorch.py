@@ -2331,8 +2331,11 @@ class PyTorchOpConverter:
         axis = inputs[1]
         return _op.transform.reverse(data, axis=axis[0])
 
-    def lstm_cell(self, input_seqs, hidden, weights):
-        assert len(weights) == 4
+    def lstm_cell(self, input_seqs, hidden, weights, has_proj=False):
+        if has_proj:
+            assert len(weights) == 5
+        else:
+            assert len(weights) == 4
         outputs_list = []
         # Default activations types
         f_act = _op.sigmoid
@@ -2361,6 +2364,9 @@ class PyTorchOpConverter:
             C = f * C_t + i * c
             H = o * h_act(C)
 
+            if has_proj:
+                H = _op.nn.dense(H, weights[4])
+
             H_t = H
             C_t = C
             outputs_list.append(H)  # [seq_num, (batch, hidden_size)]
@@ -2368,15 +2374,15 @@ class PyTorchOpConverter:
 
         return (outputs_list, hidden_outputs)
 
-    def bidir_lstm_cell(self, input_seq, hidden_pair, weights_pair):
-        fw_outputs = self.lstm_cell(input_seq, hidden_pair[0], weights_pair[0])
+    def bidir_lstm_cell(self, input_seq, hidden_pair, weights_pair, has_proj=False):
+        fw_outputs = self.lstm_cell(input_seq, hidden_pair[0], weights_pair[0], has_proj)
 
         rev_input_seq = []
         _op.reverse_sequence
         seq_len = len(input_seq)
         for i in range(seq_len):
             rev_input_seq.append(input_seq[seq_len - 1 - i])  # [seq_num, (batch, hidden_size)]
-        rev_outputs = self.lstm_cell(rev_input_seq, hidden_pair[1], weights_pair[1])
+        rev_outputs = self.lstm_cell(rev_input_seq, hidden_pair[1], weights_pair[1], has_proj)
 
         final_outputs = []  # [seq_num, (batch, 2 * hidden_size)]
         for j in range(seq_len):
@@ -2386,7 +2392,9 @@ class PyTorchOpConverter:
 
         return final_outputs, (fw_outputs[1], rev_outputs[1])
 
-    def lstm_layers(self, input, hiddens, weights, bidirectional, dtype, dropout_p=0.0):
+    def lstm_layers(
+        self, input, hiddens, weights, bidirectional, dtype, dropout_p=0.0, has_proj=False
+    ):
         hidden_layers_num = len(hiddens)
         assert len(weights) == hidden_layers_num
 
@@ -2398,9 +2406,9 @@ class PyTorchOpConverter:
             weights_input = weights[k]
 
             outputs = (
-                self.bidir_lstm_cell(input_seqs, hiddens_input, weights_input)
+                self.bidir_lstm_cell(input_seqs, hiddens_input, weights_input, has_proj)
                 if bidirectional
-                else self.lstm_cell(input_seqs, hiddens_input, weights_input)
+                else self.lstm_cell(input_seqs, hiddens_input, weights_input, has_proj)
             )
 
             output_hiddens.append(outputs[1])
@@ -2424,7 +2432,8 @@ class PyTorchOpConverter:
 
     def lstm(self, inputs, input_types):
         # Description of LSTM in pytorch: https://pytorch.org/docs/stable/generated/torch.nn.LSTM.html
-        # https://github.com/pytorch/pytorch/blob/70c8daf43946b53af6493d058899ef952d27d339/aten/src/ATen/native/RNN.cpp#L1396 and dependencies were used
+        # https://github.com/pytorch/pytorch/blob/70c8daf43946b53af6493d058899ef952d27d339/aten/src/ATen/native/RNN.cpp#L1396 (projection is unsupported) and dependencies were used
+        # https://github.com/pytorch/pytorch/blob/master/aten/src/ATen/native/RNN.cpp#L1483 (projection is supported) and dependencies were used
         # TODO (vvchernov): support dropout
         assert len(inputs) == 9, "Input of size 9 is expected"
         # Unpack inputs, note that if optional and not provided then value will be None.
@@ -2435,18 +2444,33 @@ class PyTorchOpConverter:
         assert len(hidden_states) == 2, "lstm expects two hidden states"
         h_0 = hidden_states[0]
         c_0 = hidden_states[1]
-        # H0 C0 shape (hidden_layers_num, batch, hidden_size)
+        # H0 shape (hidden_layers_num, batch, proj_size) if projection else (hidden_layers_num, batch, hidden_size)
+        # C0 shape (hidden_layers_num, batch, hidden_size)
 
         _weights = inputs[2]
+        # If no projection
         # Wi layer[0] shape (4 * hidden_size, feature_size)
         # Wh layer[0] shape (4 * hidden_size, hidden_size)
         # Bi layer[0] shape (4 * hidden_size)
         # Bh layer[0] shape (4 * hidden_size)
 
-        # Wi layer[>0] shape (4 * hidden_size, hidden_size)
+        # Wi layer[>0] shape (4 * hidden_size, hidden_size * num_directions)
         # Wh layer[>0] shape (4 * hidden_size, hidden_size)
         # Bi layer[>0] shape (4 * hidden_size)
         # Bh layer[>0] shape (4 * hidden_size)
+
+        # If projection
+        # Wi layer[0] shape (4 * hidden_size, feature_size)
+        # Wh layer[0] shape (4 * hidden_size, proj_size)
+        # Bi layer[0] shape (4 * hidden_size)
+        # Bh layer[0] shape (4 * hidden_size)
+        # P  layer[0] shape (proj_size, hidden_size)
+
+        # Wi layer[>0] shape (4 * hidden_size, proj_size * num_directions)
+        # Wh layer[>0] shape (4 * hidden_size, proj_size)
+        # Bi layer[>0] shape (4 * hidden_size)
+        # Bh layer[>0] shape (4 * hidden_size)
+        # P  layer[>0] shape (proj_size, hidden_size)
 
         # Scalar inputs
         has_biases = inputs[3]
@@ -2460,35 +2484,72 @@ class PyTorchOpConverter:
         if bidirectional:
             num_directions = 2
 
+        rsd = len(_weights) % num_layers
+        assert rsd == 0, "The number of weights must be a multiple of the number of layers!"
+        rsd = (len(_weights) / num_layers) % num_directions
+        assert (
+            rsd == 0
+        ), "The number of weights in layer must be a multiple of the number of directions!"
+        has_proj = False
+        proj_size = 0
+        weights_num = int(len(_weights) / num_layers / num_directions)
+        if has_biases:
+            if weights_num == 5:
+                has_proj = True
+                proj_size = _infer_shape(_weights[4])[0]
+            else:
+                assert weights_num == 4, "The weights number in layer is expected equal to 4"
+        else:
+            if weights_num == 3:
+                has_proj = True
+                proj_size = _infer_shape(_weights[2])[0]
+            else:
+                assert weights_num == 2, "The weights number in layer is expected equal to 2"
+
         weights = []
         if has_biases:
             if bidirectional:
-                assert len(_weights) % 8 == 0, "got an incorrect number of LSTM weights"
-                for i in range(0, len(_weights), 8):
-                    weights.append(
-                        (
-                            (_weights[i], _weights[i + 1], _weights[i + 2], _weights[i + 3]),
-                            (_weights[i + 4], _weights[i + 5], _weights[i + 6], _weights[i + 7]),
-                        )
-                    )
+                rsd = len(_weights) % (2 * weights_num)
+                assert rsd == 0, "got an incorrect number of LSTM weights"
+                for i in range(0, len(_weights), 2 * weights_num):
+                    fw_weights = []
+                    rev_weights = []
+                    for j in range(weights_num):
+                        fw_weights.append(_weights[i + j])
+                        rev_weights.append(_weights[i + j + weights_num])
+                    weights.append((fw_weights, rev_weights))
             else:
-                assert len(_weights) % 4 == 0, "got an incorrect number of LSTM weights"
-                for i in range(0, len(_weights), 4):
-                    weights.append((_weights[i], _weights[i + 1], _weights[i + 2], _weights[i + 3]))
+                assert len(_weights) % weights_num == 0, "got an incorrect number of LSTM weights"
+                for i in range(0, len(_weights), weights_num):
+                    fw_weights = []
+                    for j in range(weights_num):
+                        fw_weights.append(_weights[i + j])
+                    weights.append(fw_weights)
         else:
             if bidirectional:
-                assert len(_weights) % 4 == 0, "got an incorrect number of LSTM weights"
-                for i in range(0, len(_weights), 4):
-                    weights.append(
-                        (
-                            (_weights[i], _weights[i + 1], None, None),
-                            (_weights[i + 2], _weights[i + 3], None, None),
-                        )
-                    )
+                rsd = len(_weights) % (2 * weights_num)
+                assert rsd == 0, "got an incorrect number of LSTM weights"
+                for i in range(0, len(_weights), 2 * weights_num):
+                    fw_weights = []
+                    rev_weights = []
+                    for j in range(weights_num + 2):
+                        if j == 2 or j == 3:
+                            fw_weights.append(None)
+                            rev_weights.append(None)
+                        else:
+                            fw_weights.append(_weights[i + j])
+                            rev_weights.append(_weights[i + j + weights_num])
+                    weights.append((fw_weights, rev_weights))
             else:
-                assert len(_weights) % 2 == 0, "got an incorrect number of LSTM weights"
-                for i in range(0, len(_weights), 2):
-                    weights.append((_weights[i], _weights[i + 1], None, None))
+                assert len(_weights) % weights_num == 0, "got an incorrect number of LSTM weights"
+                for i in range(0, len(_weights), weights_num):
+                    fw_weights = []
+                    for j in range(weights_num + 2):
+                        if j == 2 or j == 3:
+                            fw_weights.append(None)
+                        else:
+                            fw_weights.append(_weights[i + j])
+                    weights.append(fw_weights)
         assert (
             len(weights) == num_layers
         ), "For stacked LSTM number of weights tuples should be the same as number of layers!"
@@ -2498,7 +2559,7 @@ class PyTorchOpConverter:
         X_dtype = input_types[0]
         X_shape = _infer_shape(X)  # (seq_num, batch, feature_size)
 
-        hidden_size = _infer_shape(_weights[1])[-1]
+        hidden_size = _infer_shape(_weights[2])[-1] / 4
         batch_size = X_shape[1]
 
         # Initialize hidden states if not provided.
@@ -2506,7 +2567,10 @@ class PyTorchOpConverter:
         layers_c = []
         hidden_layers_num = num_directions * num_layers
         if h_0 is None:
-            h_0 = _op.zeros((batch_size, hidden_size), X_dtype)
+            if has_proj:
+                h_0 = _op.zeros((batch_size, proj_size), X_dtype)
+            else:
+                h_0 = _op.zeros((batch_size, hidden_size), X_dtype)
             for i in range(hidden_layers_num):
                 layers_h.append(h_0)
         else:
@@ -2528,7 +2592,13 @@ class PyTorchOpConverter:
                 hiddens.append((layers_h[i], layers_c[i]))
 
         outputs = self.lstm_layers(
-            X, hiddens, weights, bidirectional, dtype=X_dtype, dropout_p=dropout_p
+            X,
+            hiddens,
+            weights,
+            bidirectional,
+            dtype=X_dtype,
+            dropout_p=dropout_p,
+            has_proj=has_proj,
         )
 
         # output shape = (seq_num, batch, hidden_size) or (seq_num, batch, 2*feature_size) for bidirectional

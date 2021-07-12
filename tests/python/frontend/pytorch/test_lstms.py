@@ -34,7 +34,7 @@ model_feature_size = 5
 model_hidden_size = 10
 model_num_layers = 2
 seqs_length = 15
-projection_size = 5
+projection_size = 7
 batch_size = 3
 
 
@@ -112,21 +112,41 @@ class LSTM_Model(nn.Module):
     def gen_rnd_weights(self):
         """
         Generate random weigths for the model
-        For first weights group:
-            Wi (4*model_hidden_size, model_feature_size)
-            Wh (4*model_hidden_size, model_hidden_size)
-            Bi (4*model_hidden_size)
-            Bh (4*model_hidden_size)
-        For first bidirectional weights group:
-            Wi (4*model_hidden_size, model_feature_size)
-            Wh (4*model_hidden_size, model_hidden_size)
-            Bi (4*model_hidden_size)
-            Bh (4*model_hidden_size)
-        For other weights group:
-            Wi (4*model_hidden_size, model_hidden_size)
-            Wh (4*model_hidden_size, model_hidden_size)
-            Bi (4*model_hidden_size)
-            Bh (4*model_hidden_size)
+        Without projection:
+            For first weights group:
+                Wi (4*model_hidden_size, model_feature_size)
+                Wh (4*model_hidden_size, model_hidden_size)
+                Bi (4*model_hidden_size)
+                Bh (4*model_hidden_size)
+            For first bidirectional weights group:
+                Wi (4*model_hidden_size, model_feature_size)
+                Wh (4*model_hidden_size, model_hidden_size)
+                Bi (4*model_hidden_size)
+                Bh (4*model_hidden_size)
+            For other weights group:
+                Wi (4*model_hidden_size, model_hidden_size)
+                Wh (4*model_hidden_size, model_hidden_size)
+                Bi (4*model_hidden_size)
+                Bh (4*model_hidden_size)
+        With projection:
+            For first weights group:
+                Wi (4*model_hidden_size, model_feature_size)
+                Wh (4*model_hidden_size, proj_size)
+                Bi (4*model_hidden_size)
+                Bh (4*model_hidden_size)
+                P  (proj_size, model_hidden_size)
+            For first bidirectional weights group:
+                Wi (4*model_hidden_size, model_feature_size)
+                Wh (4*model_hidden_size, proj_size)
+                Bi (4*model_hidden_size)
+                Bh (4*model_hidden_size)
+                P  (proj_size, model_hidden_size)
+            For other weights group:
+                Wi (4*model_hidden_size, proj_size * num_directions)
+                Wh (4*model_hidden_size, proj_size)
+                Bi (4*model_hidden_size)
+                Bh (4*model_hidden_size)
+                P  (proj_size, model_hidden_size)
         """
         for weight_group in self.lstm.all_weights:
             for weight in weight_group:
@@ -167,7 +187,8 @@ if __name__ == "__main__":
         type=str,
         default="uni",
         help="Type of lstm layer for test. There are several options: uni (unidirectional), b (bidirectional), "
-        "p (projection), s (stacked), sb (stacked bidirectional), spb (stacked projection bidirectional)",
+        "p (with projection), s (stacked), sb (stacked bidirectional), sp (stacked with projection), "
+        "bp (bidirectional with projection), sbp (stacked bidirectional with projection)",
     )
     parser.add_argument(
         "-f",
@@ -259,7 +280,25 @@ if __name__ == "__main__":
             rnd_weights_init=args.rnd_weights,
         )
         hidden_layers_num = 2 * args.layer_num
-    elif args.lstm_type == "spb":
+    elif args.lstm_type == "sp":
+        model = LSTM_Model(
+            device,
+            batch_first=args.batch_first,
+            layer_num=args.layer_num,
+            proj_size=args.projection_size,
+            rnd_weights_init=args.rnd_weights,
+        )
+        hidden_layers_num = args.layer_num
+    elif args.lstm_type == "bp":
+        model = LSTM_Model(
+            device,
+            batch_first=args.batch_first,
+            bidirectional=True,
+            proj_size=args.projection_size,
+            rnd_weights_init=args.rnd_weights,
+        )
+        hidden_layers_num = 2 * args.layer_num
+    elif args.lstm_type == "sbp":
         model = LSTM_Model(
             device,
             batch_first=args.batch_first,
