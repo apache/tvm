@@ -66,7 +66,7 @@ We do encourage everyone to work anything they are interested in.
 - [Andrew Reusch](https://github.com/areusch): @areusch - runtime, microTVM
 - [Jared Roesch](https://github.com/jroesch) (PMC): @jroesch - relay
 - [Siju Samuel](https://github.com/siju-samuel): @siju-samuel - frontends
-- [Junru Shao](https://github.com/junrushao1994) @junrushao1994 - relay, compiler
+- [Junru Shao](https://github.com/junrushao1994) (PMC): @junrushao1994 - relay, compiler
 - [Haichen Shen](https://github.com/icemelon9) (PMC): @icemelon9 - relay, topi
 - [Siva](https://github.com/srkreddy1238): @srkreddy1238 - frontends, golang
 - [Zhixun Tan](https://github.com/phisiart): @phisiart - opengl, web
