@@ -298,6 +298,11 @@ bool Im2colRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   const Im2colAttrs* param = attrs.as<Im2colAttrs>();
   if (param == nullptr) return false;
 
+  ICHECK_EQ(param->kernel_size.size(), 2) << "Expects two parameters for kernel height and width";
+  ICHECK_EQ(param->dilation.size(), 2) << "Expects two parameters for dilation height and width";
+  ICHECK_EQ(param->padding.size(), 2) << "Expects two parameters for padding height and width";
+  ICHECK_EQ(param->stride.size(), 2) << "Expects two parameters for stride height and width";
+
   // Calculate output shape
   auto kernel_h = tvm::cast(tvm::DataType::Int(32), param->kernel_size[0]);
   auto kernel_w = tvm::cast(tvm::DataType::Int(32), param->kernel_size[1]);
