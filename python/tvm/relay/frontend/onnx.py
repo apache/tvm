@@ -438,7 +438,7 @@ def autopad(
     # pad N and C with zeros
     pad = _op.concatenate([_op.const(np.zeros([2, 2], dtype="int64"), dtype="int64"), pad], axis=0)
 
-    if not isinstance(pad_value, _expr.Var):
+    if isinstance(pad_value, int) or isinstance(pad_value, float):
         pad_value = _op.const(pad_value)
 
     return _op.nn.pad(data, fold_constant(pad), pad_value, pad_type)
