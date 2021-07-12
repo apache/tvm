@@ -90,6 +90,8 @@ class PrimFuncNode : public BaseFuncNode {
    *  will make program analysis much easier.
    */
   Map<tir::Var, Buffer> buffer_map;
+  /*! \brief The resource handle to be used by the function when accessing platform resources */
+  tir::Var resource_handle;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("params", &params);
@@ -97,6 +99,7 @@ class PrimFuncNode : public BaseFuncNode {
     v->Visit("ret_type", &ret_type);
     v->Visit("buffer_map", &buffer_map);
     v->Visit("attrs", &attrs);
+    v->Visit("resource_handle", &resource_handle);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
   }
@@ -105,7 +108,7 @@ class PrimFuncNode : public BaseFuncNode {
     // visit params and buffer_map first as they contains defs.
     return equal.DefEqual(params, other->params) && equal(buffer_map, other->buffer_map) &&
            equal(ret_type, other->ret_type) && equal(body, other->body) &&
-           equal(attrs, other->attrs);
+           equal(attrs, other->attrs) && equal.DefEqual(resource_handle, other->resource_handle);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -114,6 +117,7 @@ class PrimFuncNode : public BaseFuncNode {
     hash_reduce(ret_type);
     hash_reduce(body);
     hash_reduce(attrs);
+    hash_reduce.DefHash(resource_handle);
   }
   /*!
    * \brief Return the derived function annotation of this function.
@@ -141,11 +145,14 @@ class PrimFunc : public BaseFunc {
    * \param ret_type The return type of the function.
    * \param buffer_map The buffer map for parameter buffer unpacking.
    * \param attrs Additional function attributes.
+   * \param resource_handle Handle for passing resources to the function
    * \param span The location of this object in the source code.
    */
   TVM_DLL PrimFunc(Array<tir::Var> params, Stmt body, Type ret_type = VoidType(),
                    Map<tir::Var, Buffer> buffer_map = Map<tir::Var, Buffer>(),
-                   DictAttrs attrs = NullValue<DictAttrs>(), Span span = Span());
+                   DictAttrs attrs = NullValue<DictAttrs>(),
+                   tir::Var resource_handle = tir::Var("resource_handle", DataType::Handle()),
+                   Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(PrimFunc, BaseFunc, PrimFuncNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(PrimFuncNode);

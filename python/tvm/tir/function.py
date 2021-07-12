@@ -48,13 +48,31 @@ class PrimFunc(BaseFunc):
     attrs: Optional[tvm.Attrs]
         Attributes of the function, can be None
 
+    resource_handle: Optional[tvm.tir.Var]
+        The resource handle to be used by the function when accessing platform resources,
+        if not passed a Var will be created for it
+
     span : Optional[Span]
         The location of this itervar in the source code.
     """
 
-    def __init__(self, params, body, ret_type=None, buffer_map=None, attrs=None, span=None):
+    def __init__(
+        self,
+        params,
+        body,
+        ret_type=None,
+        buffer_map=None,
+        attrs=None,
+        resource_handle=None,
+        span=None,
+    ):
         param_list = []
         buffer_map = {} if buffer_map is None else buffer_map
+
+        # This is bound later as it relies on the FFI API having defined "Var"
+        if resource_handle is None:
+            resource_handle = Var("resource_handle", dtype="handle")
+
         for x in params:
             x = tvm.runtime.convert(x) if not isinstance(x, Object) else x
             if isinstance(x, Buffer):
@@ -67,7 +85,7 @@ class PrimFunc(BaseFunc):
                 raise TypeError("params can only contain Var or Buffer")
 
         self.__init_handle_by_constructor__(
-            _ffi_api.PrimFunc, param_list, body, ret_type, buffer_map, attrs, span  # type: ignore
+            _ffi_api.PrimFunc, param_list, body, ret_type, buffer_map, attrs, resource_handle, span  # type: ignore
         )
 
     def with_body(self, new_body, span=None):

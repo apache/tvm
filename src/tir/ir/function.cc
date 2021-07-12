@@ -37,7 +37,8 @@ LinkedParam::LinkedParam(int64_t id, ::tvm::runtime::NDArray param) {
 
 // Get the function type of a PrimFunc
 PrimFunc::PrimFunc(Array<tir::Var> params, Stmt body, Type ret_type,
-                   Map<tir::Var, Buffer> buffer_map, DictAttrs attrs, Span span) {
+                   Map<tir::Var, Buffer> buffer_map, DictAttrs attrs, tir::Var resource_handle,
+                   Span span) {
   // Assume void-return type for now
   // TODO(tvm-team) consider type deduction from body.
   if (!ret_type.defined()) {
@@ -50,6 +51,7 @@ PrimFunc::PrimFunc(Array<tir::Var> params, Stmt body, Type ret_type,
   n->buffer_map = std::move(buffer_map);
   n->attrs = std::move(attrs);
   n->checked_type_ = n->func_type_annotation();
+  n->resource_handle = std::move(resource_handle);
   n->span = std::move(span);
   data_ = std::move(n);
 }
@@ -81,8 +83,9 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 TVM_REGISTER_GLOBAL("tir.PrimFunc")
     .set_body_typed([](Array<tir::Var> params, Stmt body, Type ret_type,
-                       Map<tir::Var, Buffer> buffer_map, DictAttrs attrs, Span span) {
-      return PrimFunc(params, body, ret_type, buffer_map, attrs, span);
+                       Map<tir::Var, Buffer> buffer_map, DictAttrs attrs, tir::Var resource_handle,
+                       Span span) {
+      return PrimFunc(params, body, ret_type, buffer_map, attrs, resource_handle, span);
     });
 
 }  // namespace tir

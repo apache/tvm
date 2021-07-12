@@ -57,8 +57,9 @@ def test_fails_if_no_target(mod_without_attrs):
 def test_device_setup(mod, target, dev):
     mod = tvm.tir.transform.Apply(lambda f: f.with_attr("target", tvm.target.Target(target)))(mod)
     f = tvm.tir.transform.MakeUnpackedAPI()(mod)["main"]
-    assert len(f.params) == 1
+    assert len(f.params) == 2
     assert f.params[0].name == "arg0"
+    assert f.params[1].name == "resource_handle"
     assert f.body.node == "default"
     assert f.body.attr_key == "device_id"
     assert f.body.value == 0
@@ -76,15 +77,18 @@ def test_no_buffers_no_device_setup():
     mod = tvm.tir.transform.Apply(lambda f: f.with_attr("global_symbol", "main"))(mod)
 
     f = tvm.tir.transform.MakeUnpackedAPI()(mod)["main"]
-    assert len(f.params) == 1
+    assert len(f.params) == 2
+    assert f.params[0].name == "arg0"
+    assert f.params[1].name == "resource_handle"
     assert f.body.var.name == "A"
     assert f.body.value.name == "arg0"
 
 
 def test_argument_mapping(mod):
     f = tvm.tir.transform.MakeUnpackedAPI()(mod)["main"]
-    assert len(f.params) == 1
+    assert len(f.params) == 2
     assert f.params[0].name == "arg0"
+    assert f.params[1].name == "resource_handle"
     assert f.body.body.body.var.name == "A"
     assert f.body.body.body.value.name == "arg0"
 
@@ -100,9 +104,10 @@ def test_argument_mapping_multiple():
     mod = tvm.tir.transform.Apply(lambda f: f.with_attr("global_symbol", "main"))(mod)
 
     f = tvm.tir.transform.MakeUnpackedAPI()(mod)["main"]
-    assert len(f.params) == 2
+    assert len(f.params) == 3
     assert f.params[0].name == "arg0"
     assert f.params[1].name == "arg1"
+    assert f.params[2].name == "resource_handle"
     assert f.body.body.body.var.name == "A"
     assert f.body.body.body.value.name == "arg0"
     assert f.body.body.body.body.var.name == "B"
@@ -119,9 +124,10 @@ def test_argument_mapping_multiple_matching():
     mod = tvm.tir.transform.Apply(lambda f: f.with_attr("global_symbol", "main"))(mod)
 
     f = tvm.tir.transform.MakeUnpackedAPI()(mod)["main"]
-    assert len(f.params) == 2
+    assert len(f.params) == 3
     assert f.params[0].name == "arg0"
     assert f.params[1].name == "arg1"
+    assert f.params[2].name == "resource_handle"
     assert f.body.body.body.var.name == "A"
     assert f.body.body.body.value.name == "arg0"
     assert f.body.body.body.body.condition.a.name == "A"
@@ -139,10 +145,11 @@ def test_body():
     mod = tvm.tir.transform.Apply(lambda f: f.with_attr("target", tvm.target.Target("llvm")))(mod)
     mod = tvm.tir.transform.Apply(lambda f: f.with_attr("global_symbol", "main"))(mod)
     f = tvm.tir.transform.MakeUnpackedAPI()(mod)["main"]
-    assert len(f.params) == 3
+    assert len(f.params) == 4
     assert f.params[0].name == "arg0"
     assert f.params[1].name == "arg1"
     assert f.params[2].name == "arg2"
+    assert f.params[3].name == "resource_handle"
     assert f.body.body.body.var.name == "A"
     assert f.body.body.body.value.name == "arg2"
     assert f.body.body.body.body.var.name == "B"

@@ -310,6 +310,7 @@ class AOTExecutorCodegen : public ExprVisitor {
     auto calling_pattern = tvm::tir::builtin::tvm_call_cpacked();
     if (use_unpacked_api_) {
       calling_pattern = tvm::tir::builtin::call_extern();
+      args.push_back(resource_handle_);
     }
 
     create_func_call_stmts.push_back(
@@ -643,7 +644,7 @@ class AOTExecutorCodegen : public ExprVisitor {
 
     // Make the PrimFunc
     return tir::PrimFunc(main_signature_, body, VoidType(), Map<tir::Var, tir::Buffer>(),
-                         DictAttrs(dict_attrs));
+                         DictAttrs(dict_attrs), resource_handle_);
   }
 
  protected:
@@ -651,6 +652,8 @@ class AOTExecutorCodegen : public ExprVisitor {
   runtime::Module* mod_;
   /*! \brief list of input expressions (i.e., variable passed by the user) */
   std::vector<Var> input_vars_;
+  /*! \brief resource handle to be passed into operator functions */
+  tir::Var resource_handle_;
   /*! \brief input and output variables belonging to the main function signature */
   Array<tir::Var> main_signature_;
   /*! \brief target device */
@@ -699,6 +702,7 @@ class AOTExecutorCodegen : public ExprVisitor {
  public:
   AOTExecutorCodegen(runtime::Module* mod, const TargetsMap& targets, Target target_host)
       : mod_(mod),
+        resource_handle_("resource_handle", DataType::Handle()),
         targets_(targets),
         target_host_(target_host),
         use_unpacked_api_(target_host->GetAttr<Bool>("unpacked-api").value_or(Bool(false))),

@@ -80,6 +80,9 @@ PrimFunc MakeUnpackedAPI(PrimFunc&& func) {
     args.push_back(v_arg);
   }
 
+  // Add resource handle to function parameters
+  args.push_back(func_ptr->resource_handle);
+
   // Bind variables then bind buffers to them to ensure correct ordering
   for (const auto& kv : var_def) {
     binder.Bind(kv.second, kv.first, kv.first->name_hint, true);

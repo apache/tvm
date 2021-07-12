@@ -161,7 +161,7 @@ PrimFunc MakePackedAPI(PrimFunc&& func, int num_unpacked_args) {
   };
   // ---------------------------
   // start of logics
-  // add signiture for packed arguments.
+  // add signature for packed arguments.
   if (pack_args) {
     args.push_back(v_packed_args);
     args.push_back(v_packed_arg_type_ids);
