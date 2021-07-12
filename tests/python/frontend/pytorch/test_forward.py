@@ -4156,6 +4156,7 @@ if __name__ == "__main__":
     test_forward_nll_loss()
     test_forward_flip()
     test_forward_grid_sampler()
+    test_forward_im2col()
     test_forward_float()
 
     # Model tests
