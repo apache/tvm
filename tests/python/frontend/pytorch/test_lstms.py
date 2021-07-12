@@ -71,7 +71,8 @@ class LSTM_Model(nn.Module):
                                 proj_size=proj_size,
                                 batch_first=batch_first).to(device)
         else:
-            print('WARNING: projection is not supported for torch version less than 1.8.0!')
+            if proj_size > 0:
+                print('WARNING: projection is not supported for torch version less than 1.8.0!')
             self.lstm = nn.LSTM(input_size=model_feature_size,
                                 hidden_size=model_hidden_size,
                                 num_layers=layer_num,

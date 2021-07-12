@@ -2377,26 +2377,31 @@ class PyTorchOpConverter:
             rev_input_seq.append(input_seq[seq_len - 1 - i])    # [seq_num, (batch, hidden_size)]
         rev_outputs = self.lstm_cell(rev_input_seq, hidden_pair[1], weights_pair[1])
 
-        return _op.concatenate([_op.stack(fw_outputs[0], 0), _op.stack(rev_outputs[0], 0)], -1), (fw_outputs[1], rev_outputs[1])
+        final_outputs = []  # [seq_num, (batch, 2 * hidden_size)]
+        for j in range(seq_len):
+            final_outputs.append(_op.concatenate([ fw_outputs[0][j], rev_outputs[0][seq_len - 1 - j] ], -1))
+
+        return final_outputs, (fw_outputs[1], rev_outputs[1])
 
     def lstm_layers(self, input, hiddens, weights, bidirectional, dtype, dropout_p = 0.0):
         hidden_layers_num = len(hiddens)
         assert len(weights) == hidden_layers_num
 
         # split input sequence to samples set
-        input = self.unbind((input, 0), dtype) # [seq_num, (batch, feature_size)]
+        input_seqs = self.unbind((input, 0), dtype) # [seq_num, (batch, feature_size)]
         output_hiddens = []
         for k in range(hidden_layers_num):
             hiddens_input = hiddens[k]
             weights_input = weights[k]
 
-            outputs = self.bidir_lstm_cell(input, hiddens_input, weights_input) if bidirectional else self.lstm_cell(input, hiddens_input, weights_input)
+            outputs = self.bidir_lstm_cell(input_seqs, hiddens_input, weights_input) if bidirectional else self.lstm_cell(input_seqs, hiddens_input, weights_input)
 
             output_hiddens.append(outputs[1])
-            input = outputs[0]  # [seq_num, (batch, feature_size)] or [seq_num, (batch, 2*feature_size)] for bidirectional
+            input_seqs = outputs[0]  # [seq_num, (batch, feature_size)] or [seq_num, (batch, 2*feature_size)] for bidirectional
 
             if dropout_p != 0 and k < hidden_layers_num - 1: # TODO (vvchernov): in pytorch implementation train is also checked
-                # input = _op.dropout(input, dropout_p)
+                # for input in input_seqs:
+                #     input = _op.dropout(input, dropout_p)
                 raise NotImplementedError("Dropout for LSTM has not been supported yet!")
         final_hiddens = []
         if bidirectional:
@@ -2406,7 +2411,7 @@ class PyTorchOpConverter:
         else:
             final_hiddens = output_hiddens
 
-        return _op.stack(input, 0), final_hiddens
+        return _op.stack(input_seqs, 0), final_hiddens
 
     def lstm(self, inputs, input_types):
         # Description of LSTM in pytorch: https://pytorch.org/docs/stable/generated/torch.nn.LSTM.html
