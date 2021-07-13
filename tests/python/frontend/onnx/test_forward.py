@@ -2729,7 +2729,7 @@ def test_convtranspose():
         verify_convtranspose_with_padding(
             (1, 1) + repeat(5, D),
             (1, 1) + repeat(3, D),
-            (1, 1) + repeat(10, D),
+            (1, 1) + repeat(9, D),
             None,
             repeat(3, D),
             repeat(2, D),

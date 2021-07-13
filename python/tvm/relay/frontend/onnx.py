@@ -391,6 +391,7 @@ def autopad(
     dilations,
     ndim,
     pad_type="constant",
+    deconv=False,
     mode="SAME_UPPER",
     pad_value=0.0,
 ):
@@ -410,6 +411,7 @@ def autopad(
 
     # set up integer constants
     zero = _op.const(0, dtype="int64")
+    one = _op.const(1, dtype="int64")
     two = _op.const(2, dtype="int64")
 
     # Calculate total padding
@@ -419,6 +421,8 @@ def autopad(
     right = _op.maximum(dilated_kernel_shape - mod, zero)
 
     total_pad = _op.where(_op.equal(mod, zero), left, right)
+    if deconv:
+        total_pad = _op.const(np.array(kernel_shape), dtype="int64") - one - total_pad
 
     # split total padding into before and after
     pad_before = _op.floor_divide(total_pad, two)
@@ -544,20 +548,17 @@ class ConvTranspose(OnnxOpConverter):
         if "auto_pad" in attr:
             attr["auto_pad"] = attr["auto_pad"].decode("utf-8")
             if attr["auto_pad"] in ("SAME_UPPER", "SAME_LOWER"):
-                strides = attr.get("strides", [1] * (ndim - 2))
-                kernel_shape = attr["kernel_shape"]
-                dilations = attr.get("dilations", [1] * (ndim - 2))
-                dilated_kernel_shape = [
-                    (kernel - 1) * dilation + 1 for kernel, dilation in zip(kernel_shape, dilations)
-                ]
-                pads = [k - s for k, s in zip(dilated_kernel_shape, strides)]
-                # Convert total padding into separate padding.
-                left = np.floor_divide(pads, 2)
-                right = pads - left
-                if attr["auto_pad"] == "SAME_UPPER":
-                    attr["pads"] = list(right) + list(left)
-                else:
-                    attr["pads"] = list(left) + list(right)
+                # Warning: Convolution does not yet support dynamic shapes,
+                # one will need to run dynamic_to_static on this model after import
+                data = autopad(
+                    data,
+                    attr.get("strides", [1] * (ndim - 2)),
+                    attr["kernel_shape"],
+                    attr.get("dilations", [1] * (ndim - 2)),
+                    ndim,
+                    deconv=True,
+                    mode=attr["auto_pad"],
+                )
             elif attr["auto_pad"] == "VALID":
                 attr["pads"] = tuple([0 for i in range(ndim - 2)])
             elif attr["auto_pad"] == "NOTSET":
