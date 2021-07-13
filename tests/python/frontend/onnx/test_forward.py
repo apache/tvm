@@ -4908,7 +4908,7 @@ def test_random_uniform():
         assert list(vals.shape) == [100]
         assert all(vals >= -100) and all(vals <= 100)
 
-        # Check that fixed seed produces the same values.
+        # Check that a fixed seed produces the same values when run twice.
         vals_1 = get_random_uniform(shape=[10], seed=1)
         vals_2 = get_random_uniform(shape=[10], seed=1)
         assert all(vals_1 == vals_2)
