@@ -118,7 +118,9 @@ struct StorageScope {
    */
   static StorageScope Create(const std::string& s) {
     StorageScope r;
-    if (s.compare(0, 6, "global") == 0) {
+    if (s.empty()) {
+      r.rank = StorageRank::kGlobal;
+    } else if (s.compare(0, 6, "global") == 0) {
       r.rank = StorageRank::kGlobal;
       r.tag = s.substr(6, std::string::npos);
     } else if (s.compare(0, 6, "shared") == 0) {
