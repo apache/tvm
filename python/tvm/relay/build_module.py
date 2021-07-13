@@ -511,7 +511,7 @@ class GraphExecutor(_interpreter.Executor):
         return _graph_wrapper
 
 
-def create_executor(kind="debug", mod=None, device=None, target="llvm"):
+def create_executor(kind="debug", mod=None, device=None, target="llvm", params=None):
     """Factory function to create an executor.
 
     Example
@@ -544,6 +544,10 @@ def create_executor(kind="debug", mod=None, device=None, target="llvm"):
     target : :py:class:`tvm.Target`
         The corresponding context
 
+    params : dict of str to NDArray
+         Input parameters to the graph that do not change
+         during inference time.
+
     Returns
     -------
     executor : :py:class:`~tvm.relay.backend.interpreter.Executor`
@@ -554,6 +558,9 @@ def create_executor(kind="debug", mod=None, device=None, target="llvm"):
         assert device.device_type == _nd.device(str(target), 0).device_type
     else:
         device = _nd.device(str(target), 0)
+
+    if params is not None:
+        mod = IRModule.from_expr(bind_params_by_name(mod["main"], params))
 
     if isinstance(target, str):
         target = Target(target)
