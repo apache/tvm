@@ -678,25 +678,34 @@ class MatMul(OnnxOpConverter):
         # When performing a batch matmul, we need to properly handle N-dim shapes.
         if a_rank > 2 or b_rank > 2:
 
-            def flatten_to_3d(x, x_shape):
+            def flatten_to_nd(x, x_shape, nd=3):
                 ndims = infer_shape(x_shape)[0]
+                if ndims == nd:
+                    return x
                 newshape = _op.concatenate(
                     [
                         _expr.const([-1], dtype=infer_type(x_shape).checked_type.dtype),
-                        _op.strided_slice(x_shape, [ndims - 2], [ndims]),
+                        _op.strided_slice(x_shape, [ndims - nd + 1], [ndims]),
                     ],
                     0,
                 )
                 out = _op.reshape(x, fold_constant(newshape))
                 return out
 
-            # Convert a and b into 3 dimensional tensors.
-            a = flatten_to_3d(inputs[0], a_shape)
-            b = flatten_to_3d(inputs[1], b_shape)
-            # Transpose matrix dimensions of b.
-            b = _op.transpose(b, [0, 2, 1])
-            # Perform a batch matmul.
-            output = _op.nn.batch_matmul(a, b)
+            b_type = infer_type(inputs[1])
+            # Convert to dense if the second matrix is 2d and non-dynamic
+            if b_rank == 2 and not _ty.is_dynamic(b_type.checked_type):
+                a = flatten_to_nd(inputs[0], a_shape, 2)
+                b = _op.transpose(inputs[1])
+                output = _op.nn.dense(a, b)
+            else:
+                # Convert a and b into 3 dimensional tensors.
+                a = flatten_to_nd(inputs[0], a_shape, 3)
+                b = flatten_to_nd(inputs[1], b_shape, 3)
+                # Transpose matrix dimensions of b.
+                b = _op.transpose(b, [0, 2, 1])
+                # Perform a batch matmul.
+                output = _op.nn.batch_matmul(a, b)
             # Determine the output batch dimension.
             if a_rank > b_rank:
                 out_batch = _op.strided_slice(a_shape, [0], [a_rank - 2])
