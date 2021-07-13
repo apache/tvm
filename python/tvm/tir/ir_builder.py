@@ -141,7 +141,7 @@ class IRBuilder(object):
     """
 
     def __init__(self):
-        self._seq_stack = [[]]
+        self._seq_stack = [[]]  # type: ignore
         self.nidx = 0
 
     def _pop_seq(self):
