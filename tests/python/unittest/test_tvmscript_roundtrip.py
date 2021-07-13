@@ -277,8 +277,8 @@ class Module3:
             }
         )
         # var definition
-        C_global = tir.var("handle")
-        packedB = tir.var("handle")
+        C_global = tir.buffer_var("float32", "global")
+        packedB = tir.buffer_var("float32", "global")
         # body
         assert num_args == 3, "mmult: num_args should be 3"
         arg0: ty.handle = tir.tvm_struct_get(args, 0, 12, dtype="handle")

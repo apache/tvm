@@ -35,7 +35,7 @@ def compacted_elementwise_func(a: ty.handle, c: ty.handle) -> None:
         with tir.block([]):
             tir.reads(A[i, 0:16])
             tir.writes(C[i, 0:16])
-            B = tir.alloc_buffer([1, 16], "float32")
+            B = tir.alloc_buffer([1, 16], "float32", scope="global")
             for j in range(0, 16):
                 with tir.block() as []:
                     tir.reads(A[i, j])
@@ -111,7 +111,7 @@ def compacted_symbolic_func(a: ty.handle, c: ty.handle, n: ty.int32, m: ty.int32
         with tir.block([]):
             tir.reads(A[i, m])
             tir.writes(C[i, m])
-            B = tir.alloc_buffer((m,), "float32")
+            B = tir.alloc_buffer((m,), "float32", scope="global")
             for j in range(0, m):
                 with tir.block([]) as []:
                     tir.reads(A[i, j])
@@ -190,8 +190,8 @@ def compacted_multi_alloc_func(a: ty.handle, d: ty.handle) -> None:
         with tir.block([]) as []:
             tir.reads(A[i])
             tir.writes(D[i])
-            B = tir.alloc_buffer((32,))
-            C = tir.alloc_buffer((32,))
+            B = tir.alloc_buffer((32,), scope="global")
+            C = tir.alloc_buffer((32,), scope="global")
             B[i] = A[i] + 1.0
             C[i] = A[i] + B[i]
             D[i] = C[i] * 2.0
