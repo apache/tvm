@@ -455,5 +455,7 @@ TVM_REGISTER_GLOBAL("tir.BufferVLoad").set_body_method(&Buffer::vload);
 
 TVM_REGISTER_GLOBAL("tir.BufferVStore").set_body_method(&Buffer::vstore);
 
+TVM_REGISTER_GLOBAL("tir.BufferStorageScope").set_body_method(&Buffer::scope);
+
 }  // namespace tir
 }  // namespace tvm

@@ -141,9 +141,7 @@ class Buffer(Object):
         scope : str
             The storage scope associated with this buffer.
         """
-        if self.data.type_annotation.storage_scope == "":
-            return "global"
-        return self.data.type_annotation.storage_scope
+        return _ffi_api.BufferStorageScope(self)  # type: ignore
 
 
 def decl_buffer(
