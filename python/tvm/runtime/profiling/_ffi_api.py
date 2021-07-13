@@ -14,35 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Registration of profiling objects in python."""
-
-from .. import _ffi
-from . import Object
+"""FFI for profiling"""
+from ... import _ffi
 
 _ffi._init_api("runtime.profiling", __name__)
-
-
-@_ffi.register_object("runtime.profiling.Report")
-class Report(Object):
-    """A container for information gathered during a profiling run.
-
-    Attributes
-    ----------
-    calls : Array[Dict[str, Object]]
-        Per-call profiling metrics (function name, runtime, device, ...).
-
-    device_metrics : Dict[Device, Dict[str, Object]]
-        Per-device metrics collected over the entire run.
-    """
-
-    def csv(self):
-        """Convert this profiling report into CSV format.
-
-        This only includes calls and not overall metrics.
-
-        Returns
-        -------
-        csv : str
-            `calls` in CSV format.
-        """
-        return AsCSV(self)
