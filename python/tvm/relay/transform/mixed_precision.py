@@ -141,7 +141,7 @@ def register_func_to_op_list(list_ops: List):
     return decorator
 
 
-def get_generic_out_dtypes(call_node: relay.Call, mixed_precision_type: str) -> List[str]:
+def get_generic_out_dtypes(call_node: "relay.Call", mixed_precision_type: str) -> List[str]:
     """A function which returns output dtypes in a way which works for most ops.
 
     Parameters
@@ -174,15 +174,15 @@ def get_generic_out_dtypes(call_node: relay.Call, mixed_precision_type: str) -> 
 # Take in CallNodes and a DType and returns a conversion type,
 # an accumulation dtype, and an output_dtype.
 @register_func_to_op_list(list_ops=DEFAULT_ALWAYS_LIST)
-def generic_always_op(call_node: relay.Call, mixed_precision_type: str) -> List:
+def generic_always_op(call_node: "relay.Call", mixed_precision_type: str) -> List:
     return [MIXED_PRECISION_ALWAYS] + get_generic_out_dtypes(call_node, mixed_precision_type)
 
 
 @register_func_to_op_list(list_ops=DEFAULT_FOLLOW_LIST)
-def generic_follow_op(call_node: relay.Call, mixed_precision_type: str) -> List:
+def generic_follow_op(call_node: "relay.Call", mixed_precision_type: str) -> List:
     return [MIXED_PRECISION_FOLLOW] + get_generic_out_dtypes(call_node, mixed_precision_type)
 
 
 @register_func_to_op_list(list_ops=DEFAULT_NEVER_LIST)
-def generic_never_op(call_node: relay.Call, mixed_precision_type: str) -> List:
+def generic_never_op(call_node: "relay.Call", mixed_precision_type: str) -> List:
     return [MIXED_PRECISION_NEVER] + get_generic_out_dtypes(call_node, mixed_precision_type)
