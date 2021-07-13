@@ -25,7 +25,7 @@ from ..utils import traverse_inline, get_const_tuple, get_max_power2_factor
 
 
 @autotvm.register_topi_compute("batch_matmul.x86")
-def batch_matmul(cfg, x, y, out_shape=None):
+def batch_matmul(cfg, x, y, out_shape=None, out_dtype=None):
     """Computes batch matrix multiplication of `x` and `y` when `x` and `y` are
     data in batch. Supports broadcasting in batch dimension.
 
@@ -60,11 +60,24 @@ def batch_matmul(cfg, x, y, out_shape=None):
         _default_batch_matmul_config(cfg, M, N, K)
 
     k = te.reduce_axis((0, K), name="k")
-    C = te.compute(
-        (B, M, N),
-        lambda b, i, j: te.sum(x[b if XB != 1 else 0, i, k] * y[b if YB != 1 else 0, j, k], axis=k),
-        tag="batch_matmul",
-    )
+    if out_dtype is None or out_dtype == x.dtype:
+        C = te.compute(
+            (B, M, N),
+            lambda b, i, j: te.sum(
+                x[b if XB != 1 else 0, i, k] * y[b if YB != 1 else 0, j, k], axis=k
+            ),
+            tag="batch_matmul",
+        )
+    else:
+        C = te.compute(
+            (B, M, N),
+            lambda b, i, j: te.sum(
+                x[b if XB != 1 else 0, i, k].astype(out_dtype)
+                * y[b if YB != 1 else 0, j, k].astype(out_dtype),
+                axis=k,
+            ),
+            tag="batch_matmul",
+        )
     return C
 
 

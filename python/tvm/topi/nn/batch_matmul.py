@@ -21,7 +21,7 @@ from tvm import te, auto_scheduler
 from ..utils import get_const_tuple
 
 
-def batch_matmul(x, y, oshape=None, auto_scheduler_rewritten_layout=""):
+def batch_matmul(x, y, oshape=None, auto_scheduler_rewritten_layout="", out_dtype=None):
     """Computes batch matrix multiplication of `x` and `y` when `x` and `y` are
     data in batch. Supports broadcasting for batch dimension.
 
@@ -67,12 +67,26 @@ def batch_matmul(x, y, oshape=None, auto_scheduler_rewritten_layout=""):
         N = y.shape[1]
         oshape = (batch, M, N)
 
-    output = te.compute(
-        oshape,
-        lambda b, i, j: te.sum(x[b if XB != 1 else 0, i, k] * y[b if YB != 1 else 0, j, k], axis=k),
-        tag="batch_matmul",
-        attrs={"layout_free_placeholders": [y]},
-    )
+    if out_dtype is None or out_dtype == x.dtype:
+        output = te.compute(
+            oshape,
+            lambda b, i, j: te.sum(
+                x[b if XB != 1 else 0, i, k] * y[b if YB != 1 else 0, j, k], axis=k
+            ),
+            tag="batch_matmul",
+            attrs={"layout_free_placeholders": [y]},
+        )
+    else:
+        output = te.compute(
+            oshape,
+            lambda b, i, j: te.sum(
+                x[b if XB != 1 else 0, i, k].astype(out_dtype)
+                * y[b if YB != 1 else 0, j, k].astype(out_dtype),
+                axis=k,
+            ),
+            tag="batch_matmul",
+            attrs={"layout_free_placeholders": [y]},
+        )
 
     if auto_scheduler_rewritten_layout:
         output = auto_scheduler.rewrite_compute_body(output, auto_scheduler_rewritten_layout)
