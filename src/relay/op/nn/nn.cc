@@ -935,57 +935,6 @@ If the input has size k on axis 1, then both gamma and beta have shape (k,).
 // relay.nn.batch_matmul
 TVM_REGISTER_NODE_TYPE(BatchMatmulAttrs);
 
-bool BatchMatmulRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
-                    const TypeReporter& reporter) {
-  ICHECK_EQ(types.size(), 3);
-  const auto* x = types[0].as<TensorTypeNode>();
-  const auto* y = types[1].as<TensorTypeNode>();
-  if (x == nullptr || y == nullptr) return false;
-
-  const auto* param = attrs.as<BatchMatmulAttrs>();
-  Array<PrimExpr> y_shape;
-  if (param->auto_scheduler_rewritten_layout.size() == 0) {
-    y_shape = y->shape;
-  } else {
-    y_shape = auto_scheduler::GetShapeFromRewrittenLayout(param->auto_scheduler_rewritten_layout,
-                                                          {"b", "j", "k"});
-  }
-
-  ICHECK(x->shape.size() == 3 && y_shape.size() == 3);
-  bool is_dyn = false;
-  Array<tvm::PrimExpr> oshape;
-  for (size_t i = 0; i < 3; ++i) {
-    if (x->shape[i].as<tir::AnyNode>() != nullptr || y_shape[i].as<tir::AnyNode>() != nullptr) {
-      is_dyn = true;
-      oshape.push_back(Any());
-    } else {
-      if (i == 0) {
-        oshape.push_back(max(x->shape[i], y_shape[i]));
-      } else {
-        oshape.push_back(x->shape[i]);
-      }
-    }
-  }
-  if (!is_dyn) {
-    ICHECK(reporter->AssertEQ(x->shape[0], y_shape[0]) || reporter->AssertEQ(x->shape[0], 1) ||
-           reporter->AssertEQ(y_shape[0], 1))
-        << "BatchDot: batch dimensions don't match, "
-        << " x shape=" << x->shape << ", y shape=" << y_shape;
-    ICHECK(reporter->AssertEQ(x->shape[2], y_shape[2]))
-        << "BatchDot: shapes of x and y is inconsistent, "
-        << " x shape=" << x->shape << ", y shape=" << y_shape;
-  }
-  oshape.Set(2, y_shape[1]);
-
-  DataType out_dtype = param->out_dtype;
-  if (out_dtype.bits() == 0) {
-    out_dtype = x->dtype;
-  }
-  // assign output type
-  reporter->Assign(types[2], TensorType(oshape, out_dtype));
-  return true;
-}
-
 // Positional relay function to create batch_matmul operator used by frontend FFI.
 Expr MakeBatchMatmul(Expr x, Expr y, DataType out_dtype) {
   auto attrs = make_object<BatchMatmulAttrs>();
@@ -1013,7 +962,7 @@ are data in batch.
     .add_argument("x", "3D Tensor", "First input.")
     .add_argument("y", "3D Tensor", "Second input.")
     .set_support_level(10)
-    .add_type_rel("BatchMatmul", BatchMatmulRel);
+    .add_type_rel("BatchMatmul", BatchMatmulRel<BatchMatmulAttrs>);
 
 // relay.nn.cross_entropy
 bool CrossEntropyRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
