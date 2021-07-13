@@ -67,7 +67,7 @@ class PrimFunc(BaseFunc):
                 raise TypeError("params can only contain Var or Buffer")
 
         self.__init_handle_by_constructor__(
-            _ffi_api.PrimFunc, param_list, body, ret_type, buffer_map, attrs, span
+            _ffi_api.PrimFunc, param_list, body, ret_type, buffer_map, attrs, span  # type: ignore
         )
 
     def with_body(self, new_body, span=None):
@@ -137,4 +137,4 @@ class PrimFunc(BaseFunc):
         func : PrimFunc
             The new function with parameter specialized
         """
-        return _ffi_api.Specialize(self, param_map)
+        return _ffi_api.Specialize(self, param_map)  # type: ignore
