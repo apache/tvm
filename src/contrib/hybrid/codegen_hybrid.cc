@@ -315,10 +315,6 @@ void CodeGenHybrid::VisitStmt_(const AttrStmtNode* op) {
     indent_ += tab_;
     PrintStmt(op->body);
     indent_ -= tab_;
-  } else if (op->attr_key == tir::attr::realize_scope) {
-    auto v = Downcast<Operation>(op->node);
-    alloc_storage_scope_[v] = op->value.as<StringImmNode>()->value;
-    PrintStmt(op->body);
   } else {
     // For now we ignore the unsupported AttrStmt
     PrintStmt(op->body);
@@ -327,8 +323,7 @@ void CodeGenHybrid::VisitStmt_(const AttrStmtNode* op) {
 
 void CodeGenHybrid::VisitStmt_(const ProducerRealizeNode* op) {
   auto tensor = Downcast<Tensor>(op->producer);
-  ICHECK(alloc_storage_scope_.count(tensor->op));
-  if (!alloc_storage_scope_[tensor->op].empty()) {
+  if (!op->storage_scope.empty()) {
     PrintIndent();
     stream << GetTensorID(tensor) << " = allocate((";
     for (size_t i = 0; i < op->bounds.size(); ++i) {
@@ -339,7 +334,7 @@ void CodeGenHybrid::VisitStmt_(const ProducerRealizeNode* op) {
     stream << "), '";
     PrintType(tensor->dtype, stream);
     stream << "', '";
-    stream << alloc_storage_scope_[tensor->op] << "')\n";
+    stream << op->storage_scope << "')\n";
   }
   PrintStmt(op->body);
 }

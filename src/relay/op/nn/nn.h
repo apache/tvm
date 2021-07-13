@@ -24,10 +24,12 @@
 #ifndef TVM_RELAY_OP_NN_NN_H_
 #define TVM_RELAY_OP_NN_NN_H_
 
+#include <tvm/auto_scheduler/compute_dag.h>
 #include <tvm/ir/attrs.h>
 #include <tvm/ir/expr.h>
 #include <tvm/relay/type.h>
 
+#include <algorithm>
 #include <utility>
 
 #include "../op_common.h"
@@ -131,6 +133,58 @@ bool DensePackRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   DataType out_dtype = param->out_dtype;
   if (out_dtype.bits() == 0) {
     out_dtype = data->dtype;
+  }
+  // assign output type
+  reporter->Assign(types[2], TensorType(oshape, out_dtype));
+  return true;
+}
+
+template <typename AttrType>
+bool BatchMatmulRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                    const TypeReporter& reporter) {
+  ICHECK_EQ(types.size(), 3);
+  const auto* x = types[0].as<TensorTypeNode>();
+  const auto* y = types[1].as<TensorTypeNode>();
+  if (x == nullptr || y == nullptr) return false;
+
+  const AttrType* param = attrs.as<AttrType>();
+  Array<PrimExpr> y_shape;
+  if (param->auto_scheduler_rewritten_layout.size() == 0) {
+    y_shape = y->shape;
+  } else {
+    y_shape = auto_scheduler::GetShapeFromRewrittenLayout(param->auto_scheduler_rewritten_layout,
+                                                          {"b", "j", "k"});
+  }
+
+  ICHECK(x->shape.size() == 3 && y_shape.size() == 3);
+  bool is_dyn = false;
+  Array<tvm::PrimExpr> oshape;
+  for (size_t i = 0; i < 3; ++i) {
+    if (x->shape[i].as<tir::AnyNode>() != nullptr || y_shape[i].as<tir::AnyNode>() != nullptr) {
+      is_dyn = true;
+      oshape.push_back(Any());
+    } else {
+      if (i == 0) {
+        oshape.push_back(max(x->shape[i], y_shape[i]));
+      } else {
+        oshape.push_back(x->shape[i]);
+      }
+    }
+  }
+  if (!is_dyn) {
+    ICHECK(reporter->AssertEQ(x->shape[0], y_shape[0]) || reporter->AssertEQ(x->shape[0], 1) ||
+           reporter->AssertEQ(y_shape[0], 1))
+        << "BatchDot: batch dimensions don't match, "
+        << " x shape=" << x->shape << ", y shape=" << y_shape;
+    ICHECK(reporter->AssertEQ(x->shape[2], y_shape[2]))
+        << "BatchDot: shapes of x and y is inconsistent, "
+        << " x shape=" << x->shape << ", y shape=" << y_shape;
+  }
+  oshape.Set(2, y_shape[1]);
+
+  DataType out_dtype = param->out_dtype;
+  if (out_dtype.bits() == 0) {
+    out_dtype = x->dtype;
   }
   // assign output type
   reporter->Assign(types[2], TensorType(oshape, out_dtype));

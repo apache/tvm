@@ -26,6 +26,7 @@
 #include <tvm/ir/module.h>
 #include <tvm/node/serialization.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/tir/buffer.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/expr_functor.h>
 #include <tvm/tir/function.h>
@@ -1013,8 +1014,17 @@ Doc TVMScriptPrinter::PrintPrimFunc(const PrimFunc& primFunc) {
       return memo_var_[GetRef<Var>(a)].str() < memo_var_[GetRef<Var>(b)].str();
     });
     for (const auto& var : vars) {
-      header_var << Doc::NewLine() << Print(GetRef<Var>(var)) << " = tir.var(";
-      header_var << PrintDType(var->dtype) << ")";
+      auto type = GetRef<Var>(var)->type_annotation;
+      if (auto* ptr_type = type.as<PointerTypeNode>()) {
+        auto* prim_type = ptr_type->element_type.as<PrimTypeNode>();
+        ICHECK(prim_type);
+        header_var << Doc::NewLine() << Print(GetRef<Var>(var)) << " = tir.buffer_var(";
+        header_var << PrintDType(prim_type->dtype) << ", "
+                   << Doc::StrLiteral(ptr_type->storage_scope) << ")";
+      } else {
+        header_var << Doc::NewLine() << Print(GetRef<Var>(var)) << " = tir.var(";
+        header_var << PrintDType(var->dtype) << ")";
+      }
     }
   }
   doc << Doc::Indent(4, header_attr << header_var << header_buf << body);
