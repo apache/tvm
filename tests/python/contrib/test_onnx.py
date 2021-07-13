@@ -666,7 +666,8 @@ def test_resize():
             layout="NCHW",
             method=method,
             coordinate_transformation_mode=coord_trans,
-            rounding_method=rounding_method)
+            rounding_method=rounding_method,
+        )
         func = relay.Function([x], y)
         x_data = np.random.uniform(size=dshape).astype(dtype)
         verify_results(func, [x_data], "test_resize", rtol=1e-4, atol=1e-4)
