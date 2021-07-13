@@ -87,10 +87,9 @@ AnnotatedRegion AnnotatedRegionSetNode::MakeRegion(const std::string& func_name,
 
 class AnnotatedRegionSet::Creator : protected MixedModeVisitor {
  public:
-  Creator(const Op& region_begin_op, const Op& region_end_op)
-      : begin_op_(region_begin_op), end_op_(region_end_op) {}
-  Creator(const Op& region_begin_op, const Op& region_end_op, const std::string& func_name)
-      : begin_op_(region_begin_op), end_op_(region_end_op), func_name(func_name) {}
+  Creator(const Op& region_begin_op, const Op& region_end_op,
+          const std::string& func_name = "default")
+      : begin_op_(region_begin_op), end_op_(region_end_op), func_name_(func_name) {}
 
   AnnotatedRegionSet Create(const Expr& expr) {
     VisitExpr(expr);
@@ -148,7 +147,7 @@ class AnnotatedRegionSet::Creator : protected MixedModeVisitor {
       ICHECK(!region.defined());
 
       // Create a new region.
-      region = region_set_->MakeRegion(func_name, target);
+      region = region_set_->MakeRegion(func_name_, target);
       region->nodes_.insert(GetRef<Call>(call));
       region->ins_.push_back(GetRef<Call>(call));
     } else {
@@ -217,13 +216,9 @@ class AnnotatedRegionSet::Creator : protected MixedModeVisitor {
   const Op begin_op_;
   /*! \brief Region 'end' annotation operator. */
   const Op end_op_;
-  /*! \brief The function name.*/
-  const std::string func_name;
+  /*! \brief The unique function name that is used to be the name of this region set. */
+  const std::string func_name_;
 };
-
-AnnotatedRegionSet AnnotatedRegionSet::Create(const Expr& expr, const Op& begin, const Op& end) {
-  return Creator(begin, end).Create(expr);
-}
 
 AnnotatedRegionSet AnnotatedRegionSet::Create(const Expr& expr, const Op& begin, const Op& end,
                                               const std::string& func_name) {

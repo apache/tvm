@@ -261,22 +261,12 @@ class AnnotatedRegionSet : public ObjectRef {
    * \param expr The relay expr from which to construct the set.
    * \param begin Region begin annotation operator.
    * \param end Region end annotation operator.
-   *
-   * \return The created RegionSet for the expression.
-   */
-  static AnnotatedRegionSet Create(const Expr& expr, const Op& begin, const Op& end);
-
-  /*! \brief Create a RegionSet from a relay expression.
-   *
-   * \param expr The relay expr from which to construct the set.
-   * \param begin Region begin annotation operator.
-   * \param end Region end annotation operator.
    * \param func_name function name
    *
    * \return The created RegionSet for the expression.
    */
   static AnnotatedRegionSet Create(const Expr& expr, const Op& begin, const Op& end,
-                                   const std::string& func_name);
+                                   const std::string& func_name = "default");
 
  private:
   /*! \brief Helper class to construct a RegionSet from an expr.*/
