@@ -577,7 +577,8 @@ class StringImm(ConstExpr):
             return self.value != other.value
         return self.value != other
 
-    __hash__ = PrimExpr.__hash__
+    def __hash__(self):
+        return PrimExpr.__hash__(self)
 
 
 @tvm._ffi.register_object("tir.Cast")
