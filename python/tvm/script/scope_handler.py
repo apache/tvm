@@ -140,7 +140,7 @@ class Allocate(WithScopeHandler):
 
         def setup_buffer_var(extents, dtype, scope, condition=True, span: Span = None):
             """Setup buffer var for a given type."""
-            buffer_ptr_type = tvm.ir.PointerType(tvm.ir.PrimType(dtype))
+            buffer_ptr_type = tvm.ir.PointerType(tvm.ir.PrimType(dtype), scope)
             self.buffer_var = tvm.tir.Var(name, buffer_ptr_type, span)
 
         setup_buffer_var(*arg_list, span=tvm_span_from_synr(var_span))

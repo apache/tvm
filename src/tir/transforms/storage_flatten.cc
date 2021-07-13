@@ -78,11 +78,7 @@ class StorageFlattener : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
-    if (op->attr_key == attr::realize_scope) {
-      storage_scope_[op->node.get()] = op->value.as<StringImmNode>()->value;
-      return this->VisitStmt(op->body);
-    } else if (op->attr_key == attr::double_buffer_scope &&
-               op->node->IsInstance<tir::BufferNode>()) {
+    if (op->attr_key == attr::double_buffer_scope && op->node->IsInstance<tir::BufferNode>()) {
       auto buffer = Downcast<tir::Buffer>(op->node);
       Stmt body = this->VisitStmt(op->body);
       auto it = buf_map_.find(buffer);
@@ -156,10 +152,8 @@ class StorageFlattener : public StmtExprMutator {
         shape.push_back(r->extent);
       }
       // deduce current storage scope.
-      auto it = storage_scope_.find(op->buffer.get());
-      ICHECK(it != storage_scope_.end()) << "Cannot find storage scope of " << op->buffer;
       StorageScope skey;
-      const std::string& strkey = it->second;
+      std::string strkey = GetPtrStorageScope(op->buffer->data);
       if (strkey.length() == 0) {
         if (curr_thread_scope_.size() != 0) {
           skey.rank = runtime::DefaultStorageRank(curr_thread_scope_.back().rank);
@@ -167,7 +161,6 @@ class StorageFlattener : public StmtExprMutator {
       } else {
         skey = StorageScope::Create(strkey);
       }
-
       // use small alignment for small arrays
       auto dtype = op->buffer->dtype;
       int32_t const_size = AllocateNode::constant_allocation_size(shape);
@@ -200,8 +193,11 @@ class StorageFlattener : public StmtExprMutator {
         strides = Array<PrimExpr>(rstrides.rbegin(), rstrides.rend());
       }
 
-      e.buffer = Buffer(Var(op->buffer->data->name_hint, op->buffer->data->type_annotation),
-                        op->buffer->dtype, shape, strides, PrimExpr(), op->buffer->name,
+      auto* ptr_type = op->buffer->data->type_annotation.as<PointerTypeNode>();
+      ICHECK(ptr_type);
+      auto new_var =
+          Var(op->buffer->data->name_hint, PointerType(ptr_type->element_type, skey.to_string()));
+      e.buffer = Buffer(new_var, op->buffer->dtype, shape, strides, PrimExpr(), op->buffer->name,
                         skey.to_string(), align, 0, kDefault);
 
       buf_map_[key] = e;
@@ -491,8 +487,6 @@ class StorageFlattener : public StmtExprMutator {
   std::unordered_map<Buffer, BufferEntry, ObjectPtrHash, ObjectPtrEqual> buf_map_;
   // Dimension alignment
   std::unordered_map<Buffer, std::vector<DimAlignInfo>, ObjectPtrHash, ObjectPtrEqual> dim_align_;
-  // Storage scope
-  std::unordered_map<const Object*, std::string> storage_scope_;
   // The current thread scope.
   std::vector<ThreadScope> curr_thread_scope_;
   // Collects shapes.

@@ -40,6 +40,8 @@
 
 #include "../../arith/pattern_match.h"
 #include "../../runtime/thread_storage_scope.h"
+#include "ir_utils.h"
+#include "update_pointer_storage_scope.h"
 
 namespace tvm {
 namespace tir {
@@ -356,6 +358,8 @@ class WarpMemoryRewriter : private StmtMutator {
     return stmt;
   }
 
+  std::unordered_map<const VarNode*, String> new_storage_scopes_;
+
  private:
   Stmt VisitStmt_(const AllocateNode* op) {
     auto ret = StmtMutator::VisitStmt_(op);
@@ -374,9 +378,7 @@ class WarpMemoryRewriter : private StmtMutator {
       StorageScope scope = StorageScope::Create(op->value.as<StringImmNode>()->value);
       if (scope.rank == runtime::StorageRank::kWarp) {
         warp_buffer_.insert(buf);
-        Stmt ret = StmtMutator::VisitStmt_(op);
-        op = ret.as<AttrStmtNode>();
-        return AttrStmt(op->node, op->attr_key, StringImm("local"), op->body);
+        new_storage_scopes_[buf] = "local";
       }
     }
     return StmtMutator::VisitStmt_(op);
@@ -397,7 +399,9 @@ Pass LowerWarpMemory() {
     auto target = f->GetAttr<Target>(tvm::attr::kTarget);
     ICHECK(target.defined()) << "LowerWarpMemory: Require the target attribute";
     int warp_size = target.value()->GetAttr<Integer>("thread_warp_size", 1).value();
-    n->body = WarpMemoryRewriter(warp_size).Rewrite(std::move(n->body));
+    WarpMemoryRewriter warp_memory_rewriter(warp_size);
+    auto stmt = warp_memory_rewriter.Rewrite(std::move(n->body));
+    n->body = UpdatePointerStorageScope(warp_memory_rewriter.new_storage_scopes_)(stmt);
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerWarpMemory", {});

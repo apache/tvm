@@ -163,8 +163,6 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
  protected:
   /*! \brief The storage information */
   struct StorageInfo {
-    /*! \brief The storage scope */
-    runtime::StorageScope scope;
     /*! \brief The alignment of allocation */
     int alignment{0};
   };

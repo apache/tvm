@@ -722,7 +722,8 @@ class AOTExecutorCodegen : public ExprVisitor {
     // Define the storage allocator ids
     for (auto kv : storage_device_map_) {
       for (auto sid : kv.second->storage_ids) {
-        te::Var buffer_var(MakeString("sid_", sid), PointerType(PrimType(DataType::Int(8))));
+        te::Var buffer_var(MakeString("sid_", sid),
+                           PointerType(PrimType(DataType::Int(8)), "global"));
         sids_table_[sid] = buffer_var;
       }
     }
