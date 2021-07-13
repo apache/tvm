@@ -18,7 +18,6 @@
 """Default behavior for ops in mixed_precision pass. Import this file to use."""
 from typing import List
 
-from tvm import relay
 from tvm.relay.op import register_mixed_precision_conversion
 
 # MIXED_PRECISION_ALWAYS ops should always be done in lower precision due to the speed and memory
