@@ -258,26 +258,29 @@ class SpscTaskQueue {
 class ThreadPool {
  public:
   ThreadPool() : num_workers_(tvm::runtime::threading::MaxConcurrency()) {
-    for (int i = 0; i < num_workers_; ++i) {
-      // The SpscTaskQueue only hosts ONE item at a time
-      queues_.emplace_back(std::unique_ptr<SpscTaskQueue>(new SpscTaskQueue()));
-    }
     const char* exclude_worker0 = getenv("TVM_EXCLUDE_WORKER0");
     if (exclude_worker0 && atoi(exclude_worker0) == 0) {
       exclude_worker0_ = false;
     }
-    threads_ = std::unique_ptr<tvm::runtime::threading::ThreadGroup>(
-        new tvm::runtime::threading::ThreadGroup(
-            num_workers_, [this](int worker_id) { this->RunWorker(worker_id); },
-            exclude_worker0_ /* include_main_thread */));
-    num_workers_used_ = threads_->Configure(threading::ThreadGroup::kBig, 0, exclude_worker0_);
+    Init();
   }
+
   ~ThreadPool() {
     for (std::unique_ptr<SpscTaskQueue>& q : queues_) {
       q->SignalForKill();
     }
     threads_.reset();
   }
+
+  void Reset() {
+    for (std::unique_ptr<SpscTaskQueue>& q : queues_) {
+      q->SignalForKill();
+    }
+    queues_.clear();
+    threads_.reset();
+    Init();
+  }
+
   int Launch(FTVMParallelLambda flambda, void* cdata, int num_task, int need_sync) {
     ParallelLauncher* launcher = ParallelLauncher::ThreadLocal();
     ICHECK(!launcher->is_worker)
@@ -323,6 +326,19 @@ class ThreadPool {
   }
 
  private:
+  // Shared initialization code
+  void Init() {
+    for (int i = 0; i < num_workers_; ++i) {
+      // The SpscTaskQueue only hosts ONE item at a time
+      queues_.emplace_back(std::unique_ptr<SpscTaskQueue>(new SpscTaskQueue()));
+    }
+    threads_ = std::unique_ptr<tvm::runtime::threading::ThreadGroup>(
+        new tvm::runtime::threading::ThreadGroup(
+            num_workers_, [this](int worker_id) { this->RunWorker(worker_id); },
+            exclude_worker0_ /* include_main_thread */));
+    num_workers_used_ = threads_->Configure(threading::ThreadGroup::kBig, 0, exclude_worker0_);
+  }
+
   // Internal worker function.
   void RunWorker(int worker_id) {
     SpscTaskQueue* queue = queues_[worker_id].get();
@@ -358,6 +374,10 @@ TVM_REGISTER_GLOBAL("runtime.config_threadpool").set_body([](TVMArgs args, TVMRe
   int nthreads = args[1];
   ThreadPool::ThreadLocal()->UpdateWorkerConfiguration(mode, nthreads);
 });
+
+namespace threading {
+void ResetThreadPool() { tvm::runtime::ThreadPool::ThreadLocal()->Reset(); }
+}  // namespace threading
 
 }  // namespace runtime
 }  // namespace tvm
