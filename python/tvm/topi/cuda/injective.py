@@ -82,7 +82,7 @@ def schedule_injective_from_existing(sch, out):
             # then the performance may be worse even half2 is enabled. Note that 0.7
             # is just a heuristic ratio and may not be optimal for all workloads.
             if np.prod(cand_sizes) / (max_block * num_thread) >= 0.7:
-                max_block, num_thread = cand_sizes
+                num_thread, max_block = cand_sizes
 
         need_block_split = const_size > max_block * num_thread * vector_width
     except ValueError:
