@@ -1173,8 +1173,7 @@ def verify_batch_matmul(a_shape, b_shape, out_shape, target, dev):
     verify_with_ort_with_inputs(model, [a_array, b_array], use_vm=True, targets=[target])
 
 
-# TODO(mbrookhart, electriclilies): Add CUDA as a target once batch matmul is fixed
-@tvm.testing.parametrize_targets("llvm")
+@tvm.testing.uses_gpu
 def test_batch_matmul(target, dev):
     verify_batch_matmul((2, 3, 4, 3), (2, 3, 3, 4), (2, 3, 4, 4), target, dev)
     verify_batch_matmul((2, 4, 3), (3, 4), (2, 4, 4), target, dev)
@@ -1183,6 +1182,8 @@ def test_batch_matmul(target, dev):
     verify_batch_matmul((4, 3), (2, 3, 4), (2, 4, 4), target, dev)
     verify_batch_matmul((2, 4, 3), (1, 3, 4), (2, 4, 4), target, dev)
     verify_batch_matmul((1, 4, 3), (2, 3, 4), (2, 4, 4), target, dev)
+    verify_batch_matmul((4, 32, 16), (16, 32), (4, 32, 32), target, dev)
+    verify_batch_matmul((4, 32, 16, 32), (32, 16), (4, 32, 16, 16), target, dev)
 
 
 def verify_simple_dynamic_model(a_shape, b_shape, target, dev):
@@ -1221,7 +1222,6 @@ def verify_simple_dynamic_model(a_shape, b_shape, target, dev):
     b_anys = [relay.Any()] * len(b_shape)
 
     mod, params = relay.frontend.from_onnx(model, {"a": a_anys, "b": b_anys})
-
     ex = relay.create_executor("vm", mod=mod, device=dev, target=target)
     verify_model(ex, a_shape, b_shape)
     verify_model(ex, [a * 2 for a in a_shape], [b * 2 for b in b_shape])
@@ -4955,3 +4955,4 @@ if __name__ == "__main__":
     test_reverse_sequence()
     test_eyelike()
     test_qlinearconv()
+    test_batch_matmul()
