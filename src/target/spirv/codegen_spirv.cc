@@ -32,6 +32,7 @@
 #include "../../runtime/pack_args.h"
 #include "../../runtime/vulkan/vulkan_common.h"
 #include "../../runtime/vulkan/vulkan_shader.h"
+#include "../../tir/transforms/ir_utils.h"
 
 namespace tvm {
 namespace codegen {
@@ -644,13 +645,14 @@ void CodeGenSPIRV::VisitStmt_(const AllocateNode* op) {
   ICHECK(!op->dtype.is_handle());
   int32_t constant_size = op->constant_allocation_size();
   ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation in GPU";
+
   spirv::Value buf;
-  StorageInfo& info = storage_info_[op->buffer_var.get()];
+  auto storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(op->buffer_var));
   spirv::SType etype = builder_->GetSType(op->dtype);
-  if (info.scope.rank == runtime::StorageRank::kLocal) {
+  if (storage_scope.rank == runtime::StorageRank::kLocal) {
     buf =
         builder_->Allocate(etype, static_cast<uint32_t>(constant_size), spv::StorageClassFunction);
-  } else if (info.scope.rank == runtime::StorageRank::kShared) {
+  } else if (storage_scope.rank == runtime::StorageRank::kShared) {
     // Shared memory
     buf =
         builder_->Allocate(etype, static_cast<uint32_t>(constant_size), spv::StorageClassWorkgroup);
@@ -660,8 +662,10 @@ void CodeGenSPIRV::VisitStmt_(const AllocateNode* op) {
 
   builder_->SetName(buf, op->buffer_var->name_hint);
 
+  StorageInfo& info = storage_info_[op->buffer_var.get()];
   ICHECK(!info.content_fixed);
   info.UpdateContentType(op->dtype);
+
   ICHECK(!var_map_.count(op->buffer_var.get()));
   var_map_[op->buffer_var.get()] = buf;
   this->VisitStmt(op->body);
@@ -677,10 +681,6 @@ void CodeGenSPIRV::VisitStmt_(const AttrStmtNode* op) {
         var_map_[iv->var.get()] = GetThreadIndex(iv, op->value);
       }
     }
-  } else if (op->attr_key == tir::attr::storage_scope) {
-    const VarNode* v = op->node.as<VarNode>();
-    ICHECK(v);
-    storage_info_[v].scope = runtime::StorageScope::Create(op->value.as<StringImmNode>()->value);
   } else if (op->attr_key == tir::attr::volatile_scope) {
     const VarNode* v = op->node.as<VarNode>();
     ICHECK(v);

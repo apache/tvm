@@ -201,5 +201,11 @@ class IRConvertSSA final : public StmtExprMutator {
 
 Stmt ConvertSSA(Stmt stmt) { return IRConvertSSA()(std::move(stmt)); }
 
+String GetPtrStorageScope(Var buffer_var) {
+  const auto* ptr_type = buffer_var->type_annotation.as<PointerTypeNode>();
+  ICHECK(ptr_type) << "The provided variable is not of pointer type";
+  return ptr_type->storage_scope;
+}
+
 }  // namespace tir
 }  // namespace tvm

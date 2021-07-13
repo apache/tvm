@@ -35,7 +35,7 @@ namespace tir {
 
 void StorageAccessVisitor::VisitExpr_(const LoadNode* op) {
   const VarNode* buf = op->buffer_var.as<VarNode>();
-  StorageScope scope = GetScope(buf);
+  StorageScope scope = GetScope(op->buffer_var);
   if (Enabled(buf, scope)) {
     ICHECK(allow_append_) << op << " " << scope.to_string();
     AccessEntry e;
@@ -56,7 +56,7 @@ void StorageAccessVisitor::VisitStmt_(const StoreNode* op) {
   ICHECK_EQ(curr_stmt_.access.size(), 0U);
   curr_stmt_.stmt = op;
   const VarNode* buf = op->buffer_var.as<VarNode>();
-  StorageScope scope = GetScope(buf);
+  StorageScope scope = GetScope(op->buffer_var);
   if (Enabled(buf, scope)) {
     AccessEntry e;
     e.threads = env_threads();
@@ -90,11 +90,7 @@ void StorageAccessVisitor::VisitStmt_(const EvaluateNode* op) {
 }
 
 void StorageAccessVisitor::VisitStmt_(const AttrStmtNode* op) {
-  if (op->attr_key == attr::storage_scope) {
-    const VarNode* buf = op->node.as<VarNode>();
-    storage_scope_[buf] = StorageScope::Create(op->value.as<StringImmNode>()->value);
-    StmtExprVisitor::VisitStmt_(op);
-  } else if (op->attr_key == attr::double_buffer_write) {
+  if (op->attr_key == attr::double_buffer_write) {
     ICHECK(double_buffer_write_ == nullptr);
     double_buffer_write_ = op->node.as<VarNode>();
     scope_.push_back(std::vector<StmtEntry>());
@@ -208,7 +204,7 @@ void StorageAccessVisitor::VisitExpr_(const CallNode* op) {
     PrimExpr offset = op->args[2];
     PrimExpr extent = op->args[3];
     const IntImmNode* flag = op->args[4].as<IntImmNode>();
-    StorageScope scope = GetScope(buffer);
+    StorageScope scope = GetScope(GetRef<Var>(buffer));
     // The buffer scope.
     if (Enabled(buffer, scope)) {
       ICHECK(allow_append_);
@@ -244,12 +240,11 @@ void StorageAccessVisitor::VisitExpr_(const CallNode* op) {
   }
 }
 
-StorageScope StorageAccessVisitor::GetScope(const VarNode* buf) const {
-  auto it = storage_scope_.find(buf);
-  StorageScope s;
-  s.rank = StorageRank::kGlobal;
-  if (it == storage_scope_.end()) return s;
-  return it->second;
+StorageScope StorageAccessVisitor::GetScope(Var buffer_var) const {
+  if (buffer_var->type_annotation.as<PointerTypeNode>()) {
+    return StorageScope::Create(GetPtrStorageScope(buffer_var));
+  }
+  return StorageScope();  // global by default
 }
 
 }  // namespace tir

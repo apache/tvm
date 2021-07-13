@@ -252,7 +252,7 @@ def decl_buffer(
         # Bool is represented as uint1 in the IR, but stored as int8
         storage_type = PrimType(dtype)
         storage_type = PrimType("int8") if storage_type.dtype == "bool" else storage_type
-        data = Var(name, PointerType(storage_type), span)
+        data = Var(name, PointerType(storage_type, scope), span)
     return _ffi_api.Buffer(  # type: ignore
         data,
         dtype,

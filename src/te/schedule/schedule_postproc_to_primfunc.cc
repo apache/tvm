@@ -49,12 +49,12 @@ namespace tvm {
 namespace te {
 
 // create a buffer for tensor.
-Buffer CreateBufferFor(const Tensor& tensor) {
+Buffer CreateBufferFor(const Tensor& tensor, String storage_scope = "") {
   std::string name = tensor->op->name;
   if (tensor->op->num_outputs() != 1) {
     name += ".v" + std::to_string(tensor->value_index);
   }
-  Buffer buffer = decl_buffer(tensor->shape, tensor->dtype, name);
+  Buffer buffer = decl_buffer(tensor->shape, tensor->dtype, name, storage_scope);
   return buffer;
 }
 
@@ -67,10 +67,7 @@ class TensorToBufferMapper : public StmtExprMutator {
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     auto ret = StmtExprMutator::VisitStmt_(op);
     op = ret.as<AttrStmtNode>();
-    // TODO(tvm-team): remove realize_scope, turn the info into
-    // Buffer's scope field in this pass.
-    if (op->attr_key == tir::attr::realize_scope ||
-        op->attr_key == tir::attr::double_buffer_scope) {
+    if (op->attr_key == tir::attr::double_buffer_scope) {
       Stmt body = op->body;
       Operation operation = Downcast<Operation>(op->node);
       for (int i = operation->num_outputs(); i != 0; --i) {
@@ -95,7 +92,7 @@ class TensorToBufferMapper : public StmtExprMutator {
 
   Stmt VisitStmt_(const ProducerRealizeNode* op) final {
     Tensor tensor = Downcast<Tensor>(op->producer);
-    Buffer buffer = GetOrAllocBuffer(tensor);
+    Buffer buffer = GetOrAllocBuffer(tensor, op->storage_scope);
 
     auto ret = StmtExprMutator::VisitStmt_(op);
     op = ret.as<ProducerRealizeNode>();
@@ -122,14 +119,16 @@ class TensorToBufferMapper : public StmtExprMutator {
   }
 
  private:
-  Buffer GetOrAllocBuffer(const Tensor& tensor) { return GetBuffer(tensor, true); }
+  Buffer GetOrAllocBuffer(const Tensor& tensor, String storage_scope = "") {
+    return GetBuffer(tensor, storage_scope, true);
+  }
 
-  Buffer GetBuffer(const Tensor& tensor, bool allow_alloc = false) {
+  Buffer GetBuffer(const Tensor& tensor, String storage_scope = "", bool allow_alloc = false) {
     auto it = buffer_map_.find(tensor);
     if (it != buffer_map_.end()) return it->second;
     ICHECK(allow_alloc) << "Cannot find the Realization point of tensor " << tensor;
 
-    auto buffer = CreateBufferFor(tensor);
+    auto buffer = CreateBufferFor(tensor, storage_scope);
     buffer_map_[tensor] = buffer;
     return buffer;
   }

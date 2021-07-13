@@ -492,6 +492,22 @@ class VarDef(SpecialStmt):
 
 
 @register
+class BufferVarDef(SpecialStmt):
+    """Special function for defining a variable of pointer type"""
+
+    def __init__(self):
+        def buffer_var(dtype, storage_scope, span):
+            assert isinstance(
+                self.node, ast.Assign
+            ), f"BufferVarDef expected ast.Assign but got {type(self.node)}"
+            ptr_type = tvm.ir.PointerType(tvm.ir.PrimType(dtype), storage_scope)
+            v = te.var(self.node.lhs.id.name, ptr_type, span=span)
+            self.context.update_symbol(v.name, v, self.node)
+
+        super().__init__(buffer_var, def_symbol=True)
+
+
+@register
 class EnvThread(SpecialStmt):
     """Bind a var to thread env"""
 

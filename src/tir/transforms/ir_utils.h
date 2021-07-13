@@ -191,6 +191,12 @@ inline PrimExpr StackAlloca(std::string type, size_t num) {
  */
 Stmt ConvertSSA(Stmt stmt);
 
+/*!
+ * \brief Return the storage scope associated with a buffer variable.
+ * \param buffer_var The input buffer variable.
+ * \return A string representing the storage scope of this buffer variable.
+ */
+String GetPtrStorageScope(Var buffer_var);
 }  // namespace tir
 }  // namespace tvm
 #endif  // TVM_TIR_TRANSFORMS_IR_UTILS_H_

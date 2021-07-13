@@ -33,9 +33,32 @@
 
 #include "../../runtime/thread_storage_scope.h"
 #include "ir_utils.h"
+#include "update_pointer_storage_scope.h"
 
 namespace tvm {
 namespace tir {
+
+class UpdatePointerStorageScopeAllReduce final : public UpdatePointerStorageScope {
+ public:
+  explicit UpdatePointerStorageScopeAllReduce(
+      const std::unordered_map<const VarNode*, String>& new_storage_scopes)
+      : UpdatePointerStorageScope(new_storage_scopes) {}
+
+  Stmt VisitStmt_(const AllocateNode* op) final {
+    auto remapped = Downcast<Var>(StmtExprMutator::VisitExpr(op->buffer_var));
+    auto new_scope = GetPtrStorageScope(remapped);
+    if (new_scope != GetPtrStorageScope(op->buffer_var)) {
+      Stmt body = StmtExprMutator::VisitStmt(op->body);
+      if (new_scope == "shared") {
+        // use volatile access to shared buffer.
+        body = AttrStmt(remapped, attr::volatile_scope, 1, body);
+      }
+      body = Allocate(remapped, op->dtype, op->extents, op->condition, body);
+      return AttrStmt(remapped, attr::storage_scope, StringImm(new_scope), body);
+    }
+    return StmtExprMutator::VisitStmt_(op);
+  }
+};
 
 class ThreadAllreduceBuilder final : public StmtExprMutator {
  public:
@@ -86,12 +109,10 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       const AllocateNode* repl = it->second.as<AllocateNode>();
       if (warp_allocs_.count(repl)) {
         stmt = Allocate(repl->buffer_var, repl->dtype, repl->extents, repl->condition, op->body);
-        stmt = AttrStmt(repl->buffer_var, attr::storage_scope, StringImm("local"), stmt);
+        new_storage_scopes_[repl->buffer_var.get()] = "local";
       } else {
-        // use volatile access to shared buffer.
-        stmt = AttrStmt(repl->buffer_var, attr::volatile_scope, 1, op->body);
-        stmt = Allocate(repl->buffer_var, repl->dtype, repl->extents, repl->condition, stmt);
-        stmt = AttrStmt(repl->buffer_var, attr::storage_scope, StringImm("shared"), stmt);
+        stmt = Allocate(repl->buffer_var, repl->dtype, repl->extents, repl->condition, op->body);
+        new_storage_scopes_[repl->buffer_var.get()] = "shared";
       }
       return stmt;
     } else {
@@ -107,6 +128,8 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       return StmtExprMutator::VisitExpr_(op);
     }
   }
+
+  std::unordered_map<const VarNode*, String> new_storage_scopes_;
 
  private:
   // Thread entry
@@ -366,7 +389,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       const AllocateNode* repl = var.as<AllocateNode>();
       if (repl) {
         body = Allocate(repl->buffer_var, repl->dtype, repl->extents, repl->condition, body);
-        body = AttrStmt(repl->buffer_var, attr::storage_scope, StringImm("local"), body);
+        new_storage_scopes_[repl->buffer_var.get()] = "local";
       }
     }
 
@@ -590,7 +613,10 @@ Pass LowerThreadAllreduce() {
     auto target = f->GetAttr<Target>(tvm::attr::kTarget);
     ICHECK(target.defined()) << "LowerThreadAllreduce: Require the target attribute";
     const TargetNode* target_node = target.as<TargetNode>();
-    n->body = ThreadAllreduceBuilder(target_node)(n->body);
+    ThreadAllreduceBuilder thread_all_reduce(target_node);
+    auto reduce_body = thread_all_reduce(n->body);
+    n->body =
+        UpdatePointerStorageScopeAllReduce(thread_all_reduce.new_storage_scopes_)(reduce_body);
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerThreadAllreduce", {});
