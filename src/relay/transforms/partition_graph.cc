@@ -116,9 +116,10 @@ class Partitioner : public MixedModeMutator {
     for (auto f : module->functions) {
       GlobalVar f_var = f.first;
       BaseFunc f_func = f.second;
+      std::string f_name = f_var.as<GlobalVarNode>()->name_hint;
 
       // Creating regionset per function in the module.
-      auto region_set = AnnotatedRegionSet::Create(f_func, CompilerBeginOp(), CompilerEndOp());
+      auto region_set = AnnotatedRegionSet::Create(f_func, CompilerBeginOp(), CompilerEndOp(), f_name);
       regions_sets_[region_set] = f_func;
     }
   }
@@ -301,7 +302,7 @@ class Partitioner : public MixedModeMutator {
     }
 
     std::string target = end_node->attrs.as<CompilerAttrs>()->compiler;
-    std::string name = target + "_" + std::to_string(region->GetID());
+    std::string name = target + "_" + std::to_string(region->GetID()) + region->GetName();
 
     // Constant propagation
     if (!params_bind.empty()) {
