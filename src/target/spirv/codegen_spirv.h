@@ -116,8 +116,6 @@ class CodeGenSPIRV : public ExprFunctor<spirv::Value(const PrimExpr&)>,
  protected:
   /*! \brief The storage information */
   struct StorageInfo {
-    /*! \brief The storage scope */
-    runtime::StorageScope scope;
     /*! \brief Whether it is volatile */
     bool is_volatile{false};
     /*! \brief Whether it is volatile */
