@@ -64,12 +64,14 @@ class LSTM_Model(nn.Module):
         layer_num=1,
         bidirectional=False,
         proj_size=0,
+        use_bias=True,
         rnd_weights_init=False,
     ):
         super().__init__()
 
         self.device = device
         self.batch_first = batch_first
+        self.use_bias = use_bias
 
         # Network defition
         if check_torch_version_for_proj_in_lstm():
@@ -80,16 +82,19 @@ class LSTM_Model(nn.Module):
                 bidirectional=bidirectional,
                 proj_size=proj_size,
                 batch_first=batch_first,
+                bias=use_bias,
             ).to(device)
         else:
             if proj_size > 0:
-                print("WARNING: projection is not supported for torch version less than 1.8.0!")
+                print("ERROR: projection is not supported for torch version less than 1.8.0!")
+                sys.exit()
             self.lstm = nn.LSTM(
                 input_size=model_feature_size,
                 hidden_size=model_hidden_size,
                 num_layers=layer_num,
                 bidirectional=bidirectional,
                 batch_first=batch_first,
+                bias=use_bias,
             ).to(device)
 
         if rnd_weights_init:
@@ -111,7 +116,7 @@ class LSTM_Model(nn.Module):
 
     def gen_rnd_weights(self):
         """
-        Generate random weigths for the model
+        Generate random weigths for the model with biases
         Without projection:
             For first weights group:
                 Wi (4*model_hidden_size, model_feature_size)
@@ -147,6 +152,7 @@ class LSTM_Model(nn.Module):
                 Bi (4*model_hidden_size)
                 Bh (4*model_hidden_size)
                 P  (proj_size, model_hidden_size)
+        For generation of random weigths for the model without biases Bi and Bh are skipped
         """
         for weight_group in self.lstm.all_weights:
             for weight in weight_group:
@@ -219,6 +225,13 @@ if __name__ == "__main__":
         help="Batch first parameter used for LSTM layer initialization",
     )
     parser.add_argument(
+        "-bias",
+        "--use_bias",
+        action="store_false",
+        default=True,
+        help="Skip using biases weights for LSTM layer",
+    )
+    parser.add_argument(
         "-w",
         "--rnd_weights",
         action="store_true",
@@ -238,6 +251,7 @@ if __name__ == "__main__":
     if not hasattr(args, "out_dir"):
         args.out_dir = Path.cwd().joinpath("output")
         args.out_dir.mkdir(exist_ok=True, parents=True)
+    has_proj = "p" in args.lstm_type
 
     device = torch.device("cpu")
     hidden_layers_num = 1
@@ -247,6 +261,7 @@ if __name__ == "__main__":
             device,
             batch_first=args.batch_first,
             rnd_weights_init=args.rnd_weights,
+            use_bias=args.use_bias,
         )
     elif args.lstm_type == "b":
         model = LSTM_Model(
@@ -254,6 +269,7 @@ if __name__ == "__main__":
             batch_first=args.batch_first,
             bidirectional=True,
             rnd_weights_init=args.rnd_weights,
+            use_bias=args.use_bias,
         )
         hidden_layers_num = 2
     elif args.lstm_type == "p":
@@ -262,6 +278,7 @@ if __name__ == "__main__":
             batch_first=args.batch_first,
             proj_size=args.projection_size,
             rnd_weights_init=args.rnd_weights,
+            use_bias=args.use_bias,
         )
     elif args.lstm_type == "s":
         model = LSTM_Model(
@@ -269,6 +286,7 @@ if __name__ == "__main__":
             batch_first=args.batch_first,
             layer_num=args.layer_num,
             rnd_weights_init=args.rnd_weights,
+            use_bias=args.use_bias,
         )
         hidden_layers_num = args.layer_num
     elif args.lstm_type == "sb":
@@ -278,6 +296,7 @@ if __name__ == "__main__":
             bidirectional=True,
             layer_num=args.layer_num,
             rnd_weights_init=args.rnd_weights,
+            use_bias=args.use_bias,
         )
         hidden_layers_num = 2 * args.layer_num
     elif args.lstm_type == "sp":
@@ -287,6 +306,7 @@ if __name__ == "__main__":
             layer_num=args.layer_num,
             proj_size=args.projection_size,
             rnd_weights_init=args.rnd_weights,
+            use_bias=args.use_bias,
         )
         hidden_layers_num = args.layer_num
     elif args.lstm_type == "bp":
@@ -296,6 +316,7 @@ if __name__ == "__main__":
             bidirectional=True,
             proj_size=args.projection_size,
             rnd_weights_init=args.rnd_weights,
+            use_bias=args.use_bias,
         )
         hidden_layers_num = 2 * args.layer_num
     elif args.lstm_type == "sbp":
@@ -306,6 +327,7 @@ if __name__ == "__main__":
             layer_num=args.layer_num,
             proj_size=args.projection_size,
             rnd_weights_init=args.rnd_weights,
+            use_bias=args.use_bias,
         )
         hidden_layers_num = 2 * args.layer_num
     else:
@@ -316,11 +338,14 @@ if __name__ == "__main__":
 
     # Get golden output from original model
     input_hidden_shape = (hidden_layers_num, batch_size, model_hidden_size)
+    input_hidden_shape_with_proj = (hidden_layers_num, batch_size, projection_size)
     dummy_input, input_shape = model.get_dummy_input()
     golden_output_batch = model.forward(dummy_input.to(device)).detach().cpu().numpy()
 
     dtype = "float32"
     h_zeros = np.zeros(input_hidden_shape, dtype=dtype)
+    if has_proj:
+        h_zeros = np.zeros(input_hidden_shape_with_proj, dtype=dtype)
     c_zeros = np.zeros(input_hidden_shape, dtype=dtype)
 
     tvm_output = None
@@ -338,10 +363,18 @@ if __name__ == "__main__":
         with tvm.transform.PassContext(opt_level=3):
             lib = relay.build(mod, target=target, params=params)
     elif args.format == "onnx":
+        if has_proj:
+            print(
+                "ERROR: torch.onnx.export does not support conversion LSTM with projection "
+                "from pytorch! TODO: waiting for the support and correct test after that."
+            )
+            sys.exit()
         onnx_fpath = args.out_dir.joinpath("model_{}.onnx".format(args.lstm_type))
 
         with torch.no_grad():
             h0 = torch.rand(input_hidden_shape)
+            if has_proj:
+                h0 = torch.rand(input_hidden_shape_with_proj)
             c0 = torch.rand(input_hidden_shape)
             input_names = ["input", "h0", "c0"]
 
@@ -352,6 +385,12 @@ if __name__ == "__main__":
 
         # Import model to Relay
         shape_dict = {"input": input_shape, "h0": input_hidden_shape, "c0": input_hidden_shape}
+        if has_proj:
+            shape_dict = {
+                "input": input_shape,
+                "h0": input_hidden_shape_with_proj,
+                "c0": input_hidden_shape,
+            }
         mod, params = relay.frontend.from_onnx(onnx_model, shape_dict)
 
         # Model compilation by tvm

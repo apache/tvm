@@ -2539,23 +2539,21 @@ class PyTorchOpConverter:
                 for i in range(0, len(_weights), 2 * weights_num):
                     fw_weights = []
                     rev_weights = []
-                    for j in range(weights_num + 2):
-                        if j in (2, 3):
-                            fw_weights.append(None)
-                            rev_weights.append(None)
-                        else:
-                            fw_weights.append(_weights[i + j])
-                            rev_weights.append(_weights[i + j + weights_num])
+                    k = i + weights_num
+                    if has_proj:
+                        fw_weights = [_weights[i], _weights[i + 1], None, None, _weights[i + 2]]
+                        rev_weights = [_weights[k], _weights[k + 1], None, None, _weights[k + 2]]
+                    else:
+                        fw_weights = [_weights[i], _weights[i + 1], None, None]
+                        rev_weights = [_weights[k], _weights[k + 1], None, None]
                     weights.append((fw_weights, rev_weights))
             else:
                 assert len(_weights) % weights_num == 0, "got an incorrect number of LSTM weights"
                 for i in range(0, len(_weights), weights_num):
-                    fw_weights = []
-                    for j in range(weights_num + 2):
-                        if j in (2, 3):
-                            fw_weights.append(None)
-                        else:
-                            fw_weights.append(_weights[i + j])
+                    if has_proj:
+                        fw_weights = [_weights[i], _weights[i + 1], None, None, _weights[i + 2]]
+                    else:
+                        fw_weights = [_weights[i], _weights[i + 1], None, None]
                     weights.append(fw_weights)
         assert (
             len(weights) == num_layers
@@ -2567,7 +2565,7 @@ class PyTorchOpConverter:
         X_dtype = input_types[0]
         X_shape = _infer_shape(X)  # (seq_num, batch, feature_size)
 
-        hidden_size = _infer_shape(_weights[2])[-1] / 4
+        hidden_size = _infer_shape(_weights[0])[0] / 4
         batch_size = X_shape[1]
 
         # Initialize hidden states if not provided.
