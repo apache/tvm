@@ -23,5 +23,5 @@ mypy  --check-untyped-defs python/tvm/tir/schedule
 echo "Checking MyPy Type defs in the analysis package."
 mypy  --check-untyped-defs python/tvm/tir/analysis/
 
-echo "Checking MyPy Type defs in the transofrm package."
+echo "Checking MyPy Type defs in the transform package."
 mypy  --check-untyped-defs python/tvm/tir/transform/

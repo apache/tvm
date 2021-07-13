@@ -85,7 +85,14 @@ class PrimFunc(BaseFunc):
                 raise TypeError("params can only contain Var or Buffer")
 
         self.__init_handle_by_constructor__(
-            _ffi_api.PrimFunc, param_list, body, ret_type, buffer_map, attrs, resource_handle, span  # type: ignore
+            _ffi_api.PrimFunc,  # type: ignore
+            param_list,
+            body,
+            ret_type,
+            buffer_map,
+            attrs,
+            resource_handle,
+            span,
         )
 
     def with_body(self, new_body, span=None):
