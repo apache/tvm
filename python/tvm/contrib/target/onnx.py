@@ -674,6 +674,8 @@ class Resize(OpConverter):
             mode = b"linear"
         elif "cubic" in method:  # cubic / bicubic
             mode = b"cubic"
+        else:
+            raise RuntimeError("Unsupported method %s in operator Resize" % method)
 
         coord_trans = attrs.get_str("coordinate_transformation_mode")
         if coord_trans == "half_pixel":
@@ -682,14 +684,23 @@ class Resize(OpConverter):
             coord_trans = b"align_corners"
         elif coord_trans == "asymmetric":
             coord_trans = b"asymmetric"
+        else:
+            raise RuntimeError(
+                    "Unsupported coordinate transform mode %s in operator Resize" % coord_trans
+            )
 
         rounding_method = attrs.get_str("rounding_method")
         if rounding_method == "round":
-            rounding_method = b"round_prefer_floor"
+            rounding_method = b"round_prefer_ceil"
+            #rounding_method = b"round_prefer_floor"
         elif rounding_method == "floor":
             rounding_method = b"floor"
         elif rounding_method == "ceil":
             rounding_method = b"ceil"
+        else:
+            raise RuntimeError(
+                    "Unsupported rounding method %s in operator Resize" % rounding_method
+            )
 
         size = attrs.get_int_tuple("size")
 
