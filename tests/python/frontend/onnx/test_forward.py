@@ -4420,7 +4420,6 @@ import glob
 onnx_test_folders = sorted(glob.glob("/".join(f.split("/")[0:-1]) + "/backend/test/data/node/*/"))
 
 unsupported_onnx_tests = [
-    "test_basic_convinteger/",
     "test_cast_DOUBLE_to_FLOAT16/",
     "test_cast_FLOAT_to_STRING/",
     "test_cast_STRING_to_FLOAT/",
@@ -4428,7 +4427,6 @@ unsupported_onnx_tests = [
     "test_compress_1/",
     "test_compress_default_axis/",
     "test_compress_negative_axis/",
-    "test_convinteger_with_padding/",
     "test_convtranspose_dilations/",
     "test_convtranspose_output_shape/",
     "test_cumsum_1d/",
@@ -4872,6 +4870,161 @@ def test_qlinearadd():
     verify_qlinearadd([5, 1, 7], [2, 7], [5, 2, 7])
 
 
+def verify_convinteger(
+    x_shape,
+    w_shape,
+    y_shape,
+    padding,
+    kernel_shape,
+    strides,
+    dilations,
+    auto_pad="NOTSET",
+    dtype="uint8",
+):
+
+    x_array = np.random.randint(low=0, high=255, size=x_shape).astype(dtype)
+    w_array = np.random.uniform(low=0, high=255, size=w_shape).astype(dtype)
+    x_zero_point_array = np.random.randint(0, 255, size=[]).astype(dtype)
+    w_zero_point_array = np.random.randint(0, 255, size=[]).astype(dtype)
+
+    ONNX_DTYPE = mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(dtype)]
+    input_nodes = [
+        helper.make_tensor_value_info("x", ONNX_DTYPE, list(x_shape)),
+        helper.make_tensor_value_info("w", ONNX_DTYPE, list(w_shape)),
+        helper.make_tensor_value_info("x_zero_point", ONNX_DTYPE, []),
+        helper.make_tensor_value_info("w_zero_point", ONNX_DTYPE, []),
+    ]
+    input_names = [
+        "x",
+        "w",
+        "x_zero_point",
+        "w_zero_point",
+    ]
+    input_values = [x_array, w_array, x_zero_point_array, w_zero_point_array]
+
+    if padding is None:
+        ## autopadding with unset default attributes
+        kwargs = {}
+        if not all([s == 1 for s in strides]):
+            kwargs["strides"] = strides
+        if not all([d == 1 for d in dilations]):
+            kwargs["dilations"] = dilations
+
+        node = helper.make_node(
+            "ConvInteger",
+            inputs=input_names,
+            outputs=["y"],
+            # Default values for other attributes:
+            auto_pad=auto_pad,
+            **kwargs,
+        )
+    else:
+        node = helper.make_node(
+            "ConvInteger",
+            inputs=input_names,
+            outputs=["y"],
+            kernel_shape=kernel_shape,
+            # Default values for other attributes:
+            strides=strides,
+            dilations=dilations,
+            # groups=1
+            pads=padding,
+        )
+
+    graph = helper.make_graph(
+        [node],
+        "convinteger_test",
+        inputs=input_nodes,
+        outputs=[helper.make_tensor_value_info("y", TensorProto.INT32, list(y_shape))],
+    )
+    model = helper.make_model(graph, producer_name="convinteger_test")
+    # opt_level=1 will cause error
+    verify_with_ort_with_inputs(model, input_values, opt_level=2)
+
+
+def test_convinteger():
+    def repeat(N, D):
+        return tuple([N for _ in range(D)])
+
+    # only support 2D ConvInteger because we only support qnn.conv2d for now.
+    D = 2
+
+    # Convolution with padding
+    verify_convinteger(
+        (1, 1) + repeat(5, D),
+        (1, 1) + repeat(3, D),
+        (1, 1) + repeat(5, D),
+        2 * repeat(1, D),
+        repeat(3, D),
+        repeat(1, D),
+        repeat(1, D),
+    )
+
+    # Convolution with asymmetric padding
+    verify_convinteger(
+        (1, 1) + repeat(5, D),
+        (1, 1) + repeat(3, D),
+        (1, 1) + repeat(4, D),
+        repeat(0, D) + repeat(1, D),
+        repeat(3, D),
+        repeat(1, D),
+        repeat(1, D),
+    )
+    # Convolution without padding
+    verify_convinteger(
+        (1, 1) + repeat(5, D),
+        (1, 1) + repeat(3, D),
+        (1, 1) + repeat(3, D),
+        2 * repeat(0, D),
+        repeat(3, D),
+        repeat(1, D),
+        repeat(1, D),
+    )
+    # Convolution with autopadding
+    verify_convinteger(
+        (1, 1) + repeat(5, D),
+        (1, 1) + repeat(3, D),
+        (1, 1) + repeat(5, D),
+        None,
+        repeat(3, D),
+        repeat(1, D),
+        repeat(1, D),
+        auto_pad="SAME_UPPER",
+    )
+    # Convolution with valid autopadding
+    verify_convinteger(
+        (1, 1) + repeat(5, D),
+        (1, 1) + repeat(3, D),
+        (1, 1) + repeat(3, D),
+        None,
+        repeat(3, D),
+        repeat(1, D),
+        repeat(1, D),
+        auto_pad="VALID",
+    )
+    # Convolution with non uniform stride
+    verify_convinteger(
+        (1, 1) + repeat(5, D),
+        (1, 1) + repeat(3, D),
+        (1, 1) + repeat(3, D),
+        None,
+        repeat(3, D),
+        repeat(2, D),
+        repeat(1, D),
+        auto_pad="SAME_UPPER",
+    )
+    # Convolution with dilation
+    verify_convinteger(
+        (1, 1) + repeat(5, D),
+        (1, 1) + repeat(3, D),
+        (1, 1) + repeat(5, D),
+        2 * repeat(2, D),
+        repeat(3, D),
+        repeat(1, D),
+        repeat(2, D),
+    )
+
+
 if __name__ == "__main__":
     test_flatten()
     test_reshape()
@@ -4955,4 +5108,5 @@ if __name__ == "__main__":
     test_reverse_sequence()
     test_eyelike()
     test_qlinearconv()
+    test_convinteger()
     test_batch_matmul()
