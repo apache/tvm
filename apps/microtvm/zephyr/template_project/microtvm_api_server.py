@@ -71,7 +71,7 @@ CMAKE_BOOL_MAP = dict(
 )
 
 
-class CMakeCache(collections.Mapping):
+class CMakeCache(collections.abc.Mapping):
     def __init__(self, path):
         self._path = path
         self._dict = None
@@ -90,7 +90,7 @@ class CMakeCache(collections.Mapping):
 
     def _read_cmake_cache(self):
         """Read a CMakeCache.txt-like file and return a dictionary of values."""
-        entries = collections.OrderedDict()
+        entries = collections.abc.OrderedDict()
         with open(self._path, encoding="utf-8") as f:
             for line in f:
                 m = CACHE_ENTRY_RE.match(line.rstrip("\n"))
