@@ -1184,8 +1184,13 @@ void VMCompiler::Codegen() {
     }
   }
 
+  // TODO(mikepapdim) replace compiler engine with TE
   auto compile_engine = CompileEngine::Global();
+
   auto ext_mods = compile_engine->LowerExternalFunctions();
+
+  //targets = target
+
   runtime::Module lib;
   if (funcs.size() > 0) {
     lib = tvm::build(funcs, target_host_);
@@ -1196,8 +1201,8 @@ void VMCompiler::Codegen() {
   }
   lib = codegen::CreateMetadataModule(params_, lib, ext_mods, target_host_, runtime::Metadata());
   exec_->SetLib(lib);
-  CompileEngine::Global()->Clear();
-}
+  CompileEngine::Global()->Clear();  //TODO(mikepapadim)replace compiler engine with TE
+} 
 
 ExprDeviceMap VMCompiler::AnalyzeContext() const {
   Device default_device;
