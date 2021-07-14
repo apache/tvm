@@ -511,7 +511,7 @@ def test_dyn_shared():
         tx = te.thread_axis("threadIdx.x")
         ib.scope_attr(tx, "thread_extent", n)
 
-        temp = ib.allocate(dtype, (n,), scope="dyn.shared")
+        temp = ib.allocate(dtype, (n,), scope="dyn.shared")  # n is symbolic size
 
         Aptr = ib.buffer_ptr(A)
         Bptr = ib.buffer_ptr(B)
@@ -538,8 +538,8 @@ def test_dyn_shared():
     s = te.create_schedule(B.op)
 
     def check_target(target):
-        # if not tvm.testing.device_enabled(target):
-        #     return
+        if not tvm.testing.device_enabled(target):
+            return
 
         freduce = tvm.build(s, [A, B], target)
         dev = tvm.device(target, 0)
