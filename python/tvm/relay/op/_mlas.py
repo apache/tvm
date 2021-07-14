@@ -18,6 +18,7 @@
 """Strategy and AlterOpLayout functions of MLAS operators"""
 import tvm
 from tvm import relay, topi
+from tvm.te.hybrid import script
 from .strategy import wrap_topi_schedule
 from . import op as reg
 
@@ -74,19 +75,24 @@ def _alter_batch_matmul_layout(attrs, inputs, tinfos, out_type):
         and tinfos[1].dtype == "float32"
         and out_type.dtype == "float32"
     ):
-        # if matrix B is constant, use packed matmul
-        if isinstance(inputs[1], relay.expr.Constant):
-            b_shape = inputs[1].data.shape
-            assert len(b_shape) == 3
-            batch, N, K = b_shape[0], b_shape[1], b_shape[2]
-            # batch_B must be 1
-            if batch == 1:
-                packed_b = relay.op.mlas_packb(inputs[1], K, N)
-                output = relay.op.mlas_matmul(inputs[0], packed_b, True, K, N)
-                return output
-        # if matrix A, B are not constant and no other libs are enabled, use normal matmul
-        if not any([item in target.libs for item in ["mkl", "clbas", "mkldnn"]]):
-            return relay.op.mlas_matmul(inputs[0], inputs[1], False)
+        # mlas is only used for static tensors
+        if not (
+            any([isinstance(dim, tvm.tir.Any) for dim in tinfos[0].shape])
+            or any([isinstance(dim, tvm.tir.Any) for dim in tinfos[1].shape])
+        ):
+            # if matrix B is constant, use packed matmul
+            if isinstance(inputs[1], relay.expr.Constant):
+                b_shape = inputs[1].data.shape
+                assert len(b_shape) == 3
+                batch, N, K = b_shape[0], b_shape[1], b_shape[2]
+                # batch_B must be 1
+                if batch == 1:
+                    packed_b = relay.op.mlas_packb(inputs[1], K, N)
+                    output = relay.op.mlas_matmul(inputs[0], packed_b, True, K, N)
+                    return output
+            # if matrix A, B are not constant and no other libs are enabled, use normal matmul
+            if not any([item in target.libs for item in ["mkl", "clbas", "mkldnn"]]):
+                return relay.op.mlas_matmul(inputs[0], inputs[1], False)
     return None
 
 
@@ -123,3 +129,37 @@ reg.register_strategy("mlas_packb", mlas_packb_strategy)
 
 # Dense AlterOpLayout
 # See tvm.topi.x86.dense_alter_op
+
+
+@script
+def _mlas_matmul_shape_func(tensor_a_shape, tensor_b_shape):
+    out = output_tensor((tensor_a_shape.shape[0],), "int64")
+    if tensor_a_shape.shape[0] == 3:
+        out[0] = tensor_a_shape[0]
+        out[1] = tensor_a_shape[1]
+        out[2] = tensor_b_shape[1]
+    else:
+        out[0] = tensor_a_shape[0]
+        out[1] = tensor_b_shape[0]
+    return out
+
+
+@script
+def _mlas_matmul_packb_shape_func(tensor_a_shape, N):
+    out = output_tensor((tensor_a_shape.shape[0],), "int64")
+    if tensor_a_shape.shape[0] == 3:
+        out[0] = tensor_a_shape[0]
+        out[1] = tensor_a_shape[1]
+        out[2] = N
+    else:
+        out[0] = tensor_a_shape[0]
+        out[1] = N
+    return out
+
+
+@reg.register_shape_func("mlas_matmul", False)
+def matmul_shape_func(attrs, inputs, _):
+    """Shape function for matmul op."""
+    if attrs.packb:
+        return [_mlas_matmul_packb_shape_func(inputs[0], tvm.tir.expr.IntImm("int64", attrs.N))]
+    return [_mlas_matmul_shape_func(inputs[0], inputs[1])]
