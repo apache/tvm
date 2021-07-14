@@ -2751,7 +2751,7 @@ class Loop(OnnxOpConverter):
             with subgraph_scope:
                 loop_outputs = subgraph_scope.from_onnx(
                     body, graph_scope.opset, get_output_expr=True
-            )
+                )
             loop_outputs = _expr.TupleWrapper(loop_outputs, len(body.output))
 
         for i in range(num_scan_outputs):
