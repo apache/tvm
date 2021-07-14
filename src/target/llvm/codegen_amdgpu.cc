@@ -76,6 +76,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
     auto storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(op->buffer_var));
 
     if (storage_scope.rank == runtime::StorageRank::kDynShared) {
+      LOG(WARNING) << "Dynamic shared memory support for rocm is experimental.";
       buf = AllocateSharedMemory(op->dtype, 0, 3, std::min(info.alignment, 16),
                                  llvm::GlobalValue::ExternalLinkage);
     } else {

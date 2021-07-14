@@ -34,6 +34,7 @@
 #include <unordered_map>
 
 #include "../../runtime/thread_storage_scope.h"
+#include "ir_utils.h"
 
 namespace tvm {
 namespace tir {
@@ -91,14 +92,16 @@ class VarUseDefAnalysis : public StmtExprMutator {
 
   Stmt VisitStmt_(const AllocateNode* op) final {
     this->HandleDef(op->buffer_var.get());
-    auto storage_scope = runtime::StorageScope::Create(GetStorageScope(op->buffer_var));
+    auto storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(op->buffer_var));
     if (storage_scope.rank == runtime::StorageRank::kDynShared) {
-      // CHECK_EQ(dyn_shmem_size_,  PrimExpr(0)) << "Only one dynamic shmem allowed for now";
+      ICHECK_EQ(use_dyn_shmem_, false) << "Only one dynamic shared memory allocation is allowed.";
+      ICHECK_GT(op->extents.size(), 0);
       dyn_shmem_size_ = op->extents[0];
       for (size_t i = 1; i < op->extents.size(); ++i) {
         dyn_shmem_size_ *= op->extents[i];
       }
       dyn_shmem_size_ = dyn_shmem_size_ * (op->dtype.bytes());
+      use_dyn_shmem_ = true;
     }
     return StmtExprMutator::VisitStmt_(op);
   }
@@ -193,6 +196,7 @@ class VarUseDefAnalysis : public StmtExprMutator {
  private:
   ExprDeepEqual deep_equal_;
   std::unordered_map<Var, const LetNode*, ObjectPtrHash, ObjectPtrEqual> let_binding_;
+  bool use_dyn_shmem_{false};
 };
 
 Array<Var> UndefinedVars(const Stmt& stmt, const Array<Var>& args) {
@@ -285,7 +289,6 @@ class HostDeviceSplitter : public StmtMutator {
     for (PrimExpr ext : m.thread_extent_) {
       call_args.push_back(ext);
     }
-    // dynamic shared memory size
     call_args.push_back(m.dyn_shmem_size_);
     return Evaluate(Call(DataType::Int(32), builtin::tvm_call_packed(), call_args));
   }
