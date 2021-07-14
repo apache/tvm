@@ -441,7 +441,10 @@ def autopad(
     # pad N and C with zeros
     pad = _op.concatenate([_op.const(np.zeros([2, 2], dtype="int64"), dtype="int64"), pad], axis=0)
 
-    return _op.nn.pad(data, fold_constant(pad), _op.const(pad_value), pad_type)
+    if isinstance(pad_value, (float, int)):
+        pad_value = _op.const(pad_value)
+
+    return _op.nn.pad(data, fold_constant(pad), pad_value, pad_type)
 
 
 class Conv(OnnxOpConverter):
@@ -678,25 +681,34 @@ class MatMul(OnnxOpConverter):
         # When performing a batch matmul, we need to properly handle N-dim shapes.
         if a_rank > 2 or b_rank > 2:
 
-            def flatten_to_3d(x, x_shape):
+            def flatten_to_nd(x, x_shape, nd=3):
                 ndims = infer_shape(x_shape)[0]
+                if ndims == nd:
+                    return x
                 newshape = _op.concatenate(
                     [
                         _expr.const([-1], dtype=infer_type(x_shape).checked_type.dtype),
-                        _op.strided_slice(x_shape, [ndims - 2], [ndims]),
+                        _op.strided_slice(x_shape, [ndims - nd + 1], [ndims]),
                     ],
                     0,
                 )
                 out = _op.reshape(x, fold_constant(newshape))
                 return out
 
-            # Convert a and b into 3 dimensional tensors.
-            a = flatten_to_3d(inputs[0], a_shape)
-            b = flatten_to_3d(inputs[1], b_shape)
-            # Transpose matrix dimensions of b.
-            b = _op.transpose(b, [0, 2, 1])
-            # Perform a batch matmul.
-            output = _op.nn.batch_matmul(a, b)
+            b_type = infer_type(inputs[1])
+            # Convert to dense if the second matrix is 2d and non-dynamic
+            if b_rank == 2 and not _ty.is_dynamic(b_type.checked_type):
+                a = flatten_to_nd(inputs[0], a_shape, 2)
+                b = _op.transpose(inputs[1])
+                output = _op.nn.dense(a, b)
+            else:
+                # Convert a and b into 3 dimensional tensors.
+                a = flatten_to_nd(inputs[0], a_shape, 3)
+                b = flatten_to_nd(inputs[1], b_shape, 3)
+                # Transpose matrix dimensions of b.
+                b = _op.transpose(b, [0, 2, 1])
+                # Perform a batch matmul.
+                output = _op.nn.batch_matmul(a, b)
             # Determine the output batch dimension.
             if a_rank > b_rank:
                 out_batch = _op.strided_slice(a_shape, [0], [a_rank - 2])
@@ -3193,6 +3205,79 @@ class QLinearAdd(OnnxOpConverter):
         return _qnn.op.quantize(out, c_scale, c_zero_point, out_dtype=dtype)
 
 
+class ConvInteger(OnnxOpConverter):
+    """Operator converter for ConvInteger."""
+
+    @classmethod
+    def _impl_v10(cls, inputs, attr, params):
+        data = inputs[0]
+        weight = inputs[1]
+        data_zp = inputs[2]
+        weight_zp = inputs[3]
+        if data_zp is None:
+            data_zp = _expr.const(0, "int32")
+        if weight_zp is None:
+            weight_zp = _expr.const(0, "int32")
+
+        input_type = infer_type(data)
+        input_shape = get_const_tuple(input_type.checked_type.shape)
+
+        ndim = len(input_shape)
+        kernel_type = infer_type(weight)
+        kernel_shape = get_const_tuple(kernel_type.checked_type.shape)
+        if "kernel_shape" not in attr:
+            attr["kernel_shape"] = kernel_shape[2:]
+
+        if "auto_pad" in attr:
+            attr["auto_pad"] = attr["auto_pad"].decode("utf-8")
+            if attr["auto_pad"] in ("SAME_UPPER", "SAME_LOWER"):
+                # Warning: Convolution does not yet support dynamic shapes,
+                # one will need to run dynamic_to_static on this model after import
+                data = autopad(
+                    data,
+                    attr.get("strides", [1] * (ndim - 2)),
+                    attr["kernel_shape"],
+                    attr.get("dilations", [1] * (ndim - 2)),
+                    ndim,
+                    pad_value=data_zp,
+                    mode=attr["auto_pad"],
+                )
+            elif attr["auto_pad"] == "VALID":
+                attr["pads"] = tuple([0 for i in range(ndim - 2)])
+            elif attr["auto_pad"] == "NOTSET":
+                pass
+            else:
+                msg = 'Value {} in attribute "auto_pad" of operator Conv is invalid.'
+                raise tvm.error.OpAttributeInvalid(msg.format(attr["auto_pad"]))
+            attr.pop("auto_pad")
+
+        out_channels = kernel_shape[0]
+        dilation = attr.get("dilations", [1] * (ndim - 2))
+        strides = attr.get("strides", [1] * (ndim - 2))
+        padding = attr["pads"] if "pads" in attr else 0
+        groups = attr["group"] if "group" in attr else 1
+
+        if ndim != 4:
+            raise tvm.error.OpAttributeInvalid(
+                "Only 2D kernels are supported for operator ConvInteger."
+            )
+
+        return _qnn.op.conv2d(
+            data,
+            weight,
+            _op.cast(data_zp, "int32"),
+            _op.cast(weight_zp, "int32"),
+            _expr.const(1.0, "float32"),
+            _expr.const(1.0, "float32"),
+            kernel_size=attr["kernel_shape"],
+            channels=out_channels,
+            strides=strides,
+            padding=padding,
+            dilation=dilation,
+            groups=groups,
+        )
+
+
 class BitShift(OnnxOpConverter):
     """Operator converter for NonZero"""
 
@@ -3421,6 +3506,7 @@ def _get_convert_map(opset):
         "ReverseSequence": ReverseSequence.get_converter(opset),
         "QLinearConv": QLinearConv.get_converter(opset),
         "QLinearAdd": QLinearAdd.get_converter(opset),
+        "ConvInteger": ConvInteger.get_converter(opset),
     }
 
 

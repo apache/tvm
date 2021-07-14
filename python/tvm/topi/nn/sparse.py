@@ -31,7 +31,7 @@ def sparse_dense_sp_rhs(data, weight_data, weight_indices, weight_indptr):
     Parameters
     ----------
     data : tvm.te.Tensor
-        2-D with shape [M, K], float32
+        2-D with shape [M, K]
 
     weight_data : tvm.te.Tensor
         1-D with shape [nnz] (CSR) or
@@ -78,7 +78,7 @@ def sparse_dense_sp_lhs(data_data, data_indices, data_indptr, weight):
         1-D with shape [(M + 1) // bs_r] (BSR)
 
     weight:
-        2-D with shape [N, K], float32
+        2-D with shape [N, K]
 
     Returns
     -------
@@ -105,7 +105,7 @@ def sparse_dense(dense_data, sparse_data, sparse_indices, sparse_indptr, sparse_
     Parameters
     ----------
     dense_data : tvm.te.Tensor
-        2-D with shape [M, K], float32
+        2-D with shape [M, K]
 
     sparse_data : tvm.te.Tensor
         1-D with shape [nnz] (CSR) or
@@ -239,7 +239,7 @@ def sparse_transpose(sparse_data, sparse_indices, sparse_indptr):
     Parameters
     ----------
     sparse_data : tvm.te.Tensor
-        1-D with shape [nonzeros], dtype of 'float32'
+        1-D with shape [nonzeros]
 
     sparse_indices : tvm.te.Tensor
         1-D with shape [nonzeros], dtype of 'int32'
@@ -250,7 +250,7 @@ def sparse_transpose(sparse_data, sparse_indices, sparse_indptr):
     Returns
     -------
     out_data : tvm.te.Tensor
-        1-D with shape [nonzeros], dtype of 'float32'
+        1-D with shape [nonzeros]
 
     out_indices : tvm.te.Tensor
         1-D with shape [nonzeros], dtype of 'int32'
@@ -275,7 +275,7 @@ def sparse_transpose(sparse_data, sparse_indices, sparse_indptr):
             ins[0], ins[1], ins[2], outs[0], outs[1], outs[2]
         ),
         tag="sparse_transpose_csr",
-        dtype=["float32", "int32", "int32"],
+        dtype=[sparse_data.dtype, "int32", "int32"],
         name="out",
     )
 

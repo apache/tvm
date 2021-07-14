@@ -636,7 +636,7 @@ def test_hoisting_block_scope_4():
 
 def test_hoisting_block_scope_5():
     ib = tvm.tir.ir_builder.create()
-    data = ib.pointer("float32", name="data")
+    data = ib.pointer("float32", name="data", scope="global")
     l = te.var("l")
     m = te.var("m")
     n = te.var("n")

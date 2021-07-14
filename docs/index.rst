@@ -78,6 +78,7 @@ For Developers
    :caption: MISC
 
    vta/index
+   profiling/index
 
 
 Index
