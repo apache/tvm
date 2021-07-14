@@ -316,7 +316,7 @@ tests in TVM. The easiest way to install GTest is from source.
        cd googletest
        mkdir build
        cd build
-       cmake -DMAKE_SHARED_LIBS=ON ..
+       cmake -DBUILD_SHARED_LIBS=ON ..
        make
        sudo make install
 
