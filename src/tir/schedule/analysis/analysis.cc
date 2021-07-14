@@ -298,5 +298,35 @@ Array<StmtSRef> GetChildBlocks(const ScheduleState& self, const StmtSRef& parent
   throw;
 }
 
+Array<Stmt> GetChildren(const Stmt& stmt) {
+  /*! \note Nested SeqStmt is not allowed in schedule. */
+  Stmt body;
+  if (const auto* block = stmt.as<BlockNode>()) {
+    body = block->body;
+  } else if (const auto* loop = stmt.as<ForNode>()) {
+    body = loop->body;
+  } else {
+    LOG(FATAL) << "The Stmt can only be a Block or a For";
+  }
+  if (const auto* seq = body.as<SeqStmtNode>()) {
+    Array<Stmt> ret;
+    for (const Stmt& child : seq->seq) {
+      ICHECK(!child->IsInstance<SeqStmtNode>()) << "Nested SeqStmt is not allowed in schedule.";
+      if (child->IsInstance<BlockRealizeNode>()) {
+        ret.push_back(child.as<BlockRealizeNode>()->block);
+      } else {
+        ret.push_back(child);
+      }
+    }
+    return ret;
+  } else {
+    if (body->IsInstance<BlockRealizeNode>()) {
+      return Array<Stmt>{body.as<BlockRealizeNode>()->block};
+    } else {
+      return Array<Stmt>{body};
+    }
+  }
+}
+
 }  // namespace tir
 }  // namespace tvm

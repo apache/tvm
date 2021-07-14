@@ -152,6 +152,18 @@ class ScheduleNode : public runtime::Object {
    */
   virtual StmtSRef GetSRef(const LoopRV& loop_rv) const = 0;
   /*!
+   * \brief Get the block srefs corresponding to an array of BlockRVs
+   * \param block_rvs The BlockRVs to be looked up
+   * \return The corresponding block srefs
+   */
+  virtual Array<StmtSRef> GetSRefs(const Array<BlockRV>& block_rvs) const = 0;
+  /*!
+   * \brief Get the loop srefs corresponding to an array of LoopRVs
+   * \param loop_rvs The LoopRVs to be looked up
+   * \return The corresponding loop srefs
+   */
+  virtual Array<StmtSRef> GetSRefs(const Array<LoopRV>& loop_rvs) const = 0;
+  /*!
    * \brief Get the block/loop sref corresponding to the specific statement
    * \param stmt The statement to be looked up
    * \return The corresponding block/loop sref
@@ -196,6 +208,25 @@ class ScheduleNode : public runtime::Object {
    */
   virtual Array<LoopRV> GetLoops(const BlockRV& block_rv) = 0;
   /******** Schedule: loops manipulation ********/
+  /*!
+   * \brief Fuse consecutive loops into one. It requires:
+   * 1) The loops can't have annotations or thread bindings.
+   * 2) The (i+1)-th loop must be the only child of the i-th loop.
+   * 3) All loops must start with 0.
+   * \param loop_rvs The loops to be fused
+   * \return The fused loop
+   */
+  virtual LoopRV Fuse(const Array<LoopRV>& loop_rvs) = 0;
+  /*!
+   * \brief Split a specified loop into two or more with the specific factor.It requires:
+   * 1) The loop can't have annotation or thread binding.
+   * 2) The loop must start with 0.
+   * \param loop_rv The loop to be split
+   * \param factors The tiling factors, and at most one of which is -1, which means that
+   * factor is inferred.
+   * \return The loops after splitting
+   */
+  virtual Array<LoopRV> Split(const LoopRV& loop_rv, const Array<ExprRV>& factors) = 0;
   /******** Schedule: compute location ********/
   /*!
    * \brief Inline a block into its consumer(s). It requires:
