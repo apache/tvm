@@ -593,9 +593,7 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
   StaticMemoryPlan memory_plan_;
   /*! \brief the module name we use to mangle the function names */
   String mod_name_;
-  /*! \brief lowered funcs */
-  std::unordered_map<std::string, IRModule> lowered_funcs_;
-  /*! \brief lowered funcs */
+  /*! \brief function metadata */
   Map<String, FunctionInfo> function_metadata_;
   /*! \brief name map */
   std::unordered_map<std::string, size_t> name_map_;
