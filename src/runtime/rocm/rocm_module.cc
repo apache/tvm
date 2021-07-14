@@ -167,7 +167,6 @@ class ROCMWrappedFunc {
     ThreadWorkLoad wl = thread_axis_cfg_.Extract(args);
     void* config[] = {HIP_LAUNCH_PARAM_BUFFER_POINTER, packed_args, HIP_LAUNCH_PARAM_BUFFER_SIZE,
                       &packed_nbytes, HIP_LAUNCH_PARAM_END};
-    LOG(INFO) << "dynamic shared mem size: " << wl.dyn_shmem_size;
     // HIP supports only extra_args.
     ROCM_DRIVER_CALL(hipModuleLaunchKernel(fcache_[device_id], wl.grid_dim(0), wl.grid_dim(1),
                                            wl.grid_dim(2), wl.block_dim(0), wl.block_dim(1),
