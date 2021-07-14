@@ -2153,7 +2153,6 @@ def _get_default_vm_targets():
 
 def verify_script_model(pt_model, ishapes, targets, idtype=None):
     script_module = torch.jit.script(pt_model)
-
     verify_model_vm(script_module, ishapes, idtype=idtype, targets=targets)
 
 
@@ -3916,9 +3915,13 @@ def test_forward_flip():
 def test_forward_im2col():
     torch.set_grad_enabled(False)
 
-    class Im2col3x3(Module):
-        def __init__(self):
-            super(Im2col3x3, self).__init__()
+    class Im2col(Module):
+        def __init__(self, kernel_size, dilation, padding, stride):
+            super(Im2col, self).__init__()
+            self.kernel_size = (kernel_size, kernel_size)
+            self.dilation = (dilation, dilation)
+            self.padding = (padding, padding)
+            self.stride = (stride, stride)
 
         def forward(self, x):
             # ***********************************************************************************
@@ -3928,29 +3931,14 @@ def test_forward_im2col():
             # for it broken TVM "if conditional expression" in torch script mode
             #
             # ***********************************************************************************
+            return torch._C._nn.im2col(
+                x, self.kernel_size, self.dilation, self.padding, self.stride
+            )
 
-            return torch._C._nn.im2col(x, (3, 3), (1, 1), (1, 1), (1, 1))
-
-    class Im2col5x5(Module):
-        def __init__(self):
-            super(Im2col5x5, self).__init__()
-
-        def forward(self, x):
-            # ***********************************************************************************
-            #
-            # !!! DO NOT USE !!!
-            # F.unfold(x, kernel_size=5, dilation=1, padding=1, stride=2)
-            # for it broken TVM "if conditional expression" in torch script mode
-            #
-            # ***********************************************************************************
-
-            return torch._C._nn.im2col(x, (5, 5), (1, 1), (1, 1), (2, 2))
-
-    model = Im2col3x3()
     input = torch.randn(2, 3, 32, 32)
-    verify_model(model, input_data=input)
-
-    verify_script_model(Im2col5x5().eval(), [(2, 3, 32, 32)], _get_default_vm_targets())
+    verify_model(Im2col(5, 1, 1, 2), input_data=input)
+    verify_model(Im2col(3, 1, 2, 1), input_data=input)
+    verify_model(Im2col(5, 1, 2, 2), input_data=input)
 
 
 @tvm.testing.uses_gpu
