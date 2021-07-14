@@ -169,9 +169,10 @@ class ROCMWrappedFunc {
                       &packed_nbytes, HIP_LAUNCH_PARAM_END};
     LOG(INFO) << "dynamic shared mem size: " << wl.dyn_shmem_size;
     // HIP supports only extra_args.
-    ROCM_DRIVER_CALL(hipModuleLaunchKernel(
-        fcache_[device_id], wl.grid_dim(0), wl.grid_dim(1), wl.grid_dim(2), wl.block_dim(0),
-        wl.block_dim(1), wl.block_dim(2), wl.dyn_shmem_size, strm, nullptr, reinterpret_cast<void**>(&config)));
+    ROCM_DRIVER_CALL(hipModuleLaunchKernel(fcache_[device_id], wl.grid_dim(0), wl.grid_dim(1),
+                                           wl.grid_dim(2), wl.block_dim(0), wl.block_dim(1),
+                                           wl.block_dim(2), wl.dyn_shmem_size, strm, nullptr,
+                                           reinterpret_cast<void**>(&config)));
   }
 
  private:

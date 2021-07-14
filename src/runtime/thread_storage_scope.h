@@ -189,7 +189,7 @@ struct ThreadScope {
 struct ThreadWorkLoad {
   // array, first three are thread configuration.
   size_t work_size[6];
-  // TODO
+  // Dynamic shared memory allocation size in bytes.
   size_t dyn_shmem_size{0};
   /*!
    * \param i The block dimension.
