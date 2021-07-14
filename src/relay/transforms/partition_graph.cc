@@ -119,7 +119,7 @@ class Partitioner : public MixedModeMutator {
       BaseFunc f_func = f.second;
       std::string f_name = f_var.as<GlobalVarNode>()->name_hint;
       while (func_names.find(f_name) != func_names.end()) {
-          f_name += "_a";
+        f_name += "_a";
       }
       func_names.insert(f_name);
 

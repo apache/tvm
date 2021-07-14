@@ -115,6 +115,7 @@ def _test_image_network(
     if run:
         tei.run(m, inputs, output_count, npu=True)
 
+
 @pytest.mark.xfail
 def test_mobilenet_v1():
     # If this test is failing due to a hash mismatch, please notify @mbaret and
@@ -141,6 +142,7 @@ def test_mobilenet_v1():
         run=True,
     )
 
+
 @pytest.mark.xfail
 def test_inception_v3():
     # If this test is failing due to a hash mismatch, please notify @mbaret and
@@ -166,6 +168,7 @@ def test_inception_v3():
         npu_partitions=1,
     )
 
+
 @pytest.mark.xfail
 def test_inception_v4():
     # If this test is failing due to a hash mismatch, please notify @mbaret and
@@ -190,6 +193,7 @@ def test_inception_v4():
         host_ops=3,
         npu_partitions=1,
     )
+
 
 @pytest.mark.xfail
 def test_ssd_mobilenet_v1():
