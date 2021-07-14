@@ -240,7 +240,7 @@ namespace attr {
  *
  * Call(f,
  *      [arg1, arg2, ..., arg_n,
- *       work_size_1, work_size_2, ... work_size_m])
+ *       work_size_1, work_size_2, ... work_size_m, dyn_shmem_size])
  *
  * Here n = len(arg), m = len(work_size) = len(device_thread_axis).
  *
