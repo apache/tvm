@@ -113,10 +113,15 @@ struct RegionFuncMetadata {
 class Partitioner : public MixedModeMutator {
  public:
   explicit Partitioner(const IRModule& module) : module_(module) {
+    std::set<std::string> func_names;
     for (auto f : module->functions) {
       GlobalVar f_var = f.first;
       BaseFunc f_func = f.second;
       std::string f_name = f_var.as<GlobalVarNode>()->name_hint;
+      while (func_names.find(f_name) != func_names.end()) {
+          f_name += "_a";
+      }
+      func_names.insert(f_name);
 
       // Creating regionset per function in the module.
       auto region_set =
