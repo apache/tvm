@@ -36,7 +36,6 @@
 #include <string>
 #include <vector>
 
-#include "compile_engine.h"
 #include "te_compiler.h"
 #include "utils.h"
 
@@ -184,7 +183,7 @@ class GraphOpNode : public GraphNode {
  */
 class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<GraphNodeRef>> {
  public:
-  GraphExecutorCodegen(runtime::Module* mod, const TargetMap& targets) : mod_(mod) {
+  GraphExecutorCodegen(runtime::Module* mod, const tec::TargetMap& targets) : mod_(mod) {
     targets_ = targets;
   }
 
@@ -234,7 +233,7 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
                                          // TODO(@areusch, @jroesch): We should refactor this to
                                          // execute as a further pass, instead writing data to the
                                          // lowering process directly.
-                                         UpdateFunctionMetadata(func, this->function_metadata_);
+                                         tec::UpdateFunctionMetadata(func, this->function_metadata_);
                                        });
 
     function_metadata_.Set(runtime::symbol::tvm_module_main, lowered_module.main_func_info);
@@ -580,7 +579,7 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
   /*! \brief variable map */
   std::unordered_map<const Object*, std::vector<GraphNodeRef>> var_map_;
   /*! \brief target device */
-  TargetMap targets_;
+  tec::TargetMap targets_;
   /*!
    * \brief parameters (i.e. ConstantNodes found in the graph).
    * These are take as inputs to the GraphExecutor.
@@ -609,7 +608,7 @@ class GraphExecutorCodegenModule : public runtime::ModuleNode {
                                     << "runtime::Module mod and Map<int, Target> targets";
         void* mod = args[0];
         Map<Integer, tvm::Target> tmp = args[1];
-        TargetMap targets;
+        tec::TargetMap targets;
         for (const auto& it : tmp) {
           auto dev_type = it.first.as<tir::IntImmNode>();
           ICHECK(dev_type);
