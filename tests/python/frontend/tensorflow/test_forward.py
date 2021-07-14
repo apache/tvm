@@ -325,6 +325,8 @@ def _test_pooling(input_shape, **kwargs):
     if is_gpu_available():
         if len(input_shape) == 4:
             input_shape = [input_shape[ii] for ii in (0, 3, 1, 2)]
+            if isinstance(kwargs["padding"], list):
+                kwargs["padding"] = [kwargs["padding"][ii] for ii in (0, 3, 1, 2)]
             kwargs["data_format"] = "NCHW"
             _test_pooling_iteration(input_shape, **kwargs)
 
