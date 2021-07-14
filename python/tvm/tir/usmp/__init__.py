@@ -18,4 +18,3 @@
 """Namespace for Unified Static Memory Planner"""
 
 from . import transform
-from . import analysis
