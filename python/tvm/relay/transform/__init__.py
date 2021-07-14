@@ -16,8 +16,9 @@
 # under the License.
 # pylint: disable=wildcard-import, redefined-builtin, invalid-name
 """The Relay IR namespace containing transformations."""
+# transformation passes
+from .transform import *
 from . import fake_quantization_to_integer, mixed_precision
 from .recast import recast
 
-# transformation passes
-from .transform import *
+
