@@ -23,17 +23,8 @@ def pytest_addoption(parser):
         "--arduino-cmd", default="arduino-cli", help="Path to `arduino-cli` command for flashing device."
     )
     parser.addoption(
-        "--skip-build",
-        action="store_true",
-        help="If set true, reuses build from the previous test run. Otherwise, build from the scratch.",
+        "--run-hardware-tests", action="store_true", help="Run tests that require physical hardware."
     )
-    parser.addoption(
-        "--tvm-debug",
-        action="store_true",
-        default=False,
-        help="If set true, enable a debug session while the test is running. Before running the test, in a separate shell, you should run: <python -m tvm.exec.microtvm_debug_shell>",
-    )
-
 
 def pytest_generate_tests(metafunc):
     if "platform" in metafunc.fixturenames:
@@ -43,3 +34,7 @@ def pytest_generate_tests(metafunc):
 @pytest.fixture
 def arduino_cmd(request):
     return request.config.getoption("--arduino-cmd")
+
+@pytest.fixture
+def run_hardware_tests(request):
+    return request.config.getoption("--run-hardware-tests")

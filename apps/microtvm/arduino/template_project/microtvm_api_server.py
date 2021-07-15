@@ -28,21 +28,21 @@ IS_TEMPLATE = not (API_SERVER_DIR / MODEL_LIBRARY_FORMAT_RELPATH).exists()
 MODEL_LIBRARY_FORMAT_PATH = "" if IS_TEMPLATE else API_SERVER_DIR / MODEL_LIBRARY_FORMAT_RELPATH
 _LOG = logging.getLogger(__name__)
 
-print("Checking if I'm a template:")
-print("Yes!" if IS_TEMPLATE else "No!")
+class InvalidPortException(Exception):
+    """Raised when the given port could not be opened"""
 
-class BoardError(Exception):
-    """Raised when an attached board cannot be opened (i.e. missing /dev nodes, etc)."""
-
+class SketchUploadException(Exception):
+    """Raised when a sketch cannot be uploaded for an unknown reason."""
 
 class BoardAutodetectFailed(Exception):
-    """Raised when no attached hardware is found matching the board= given to ZephyrCompiler."""
+    """Raised when no attached hardware is found matching the requested board"""
 
 
 PROJECT_OPTIONS = [
     server.ProjectOption("verbose", help="Run build with verbose output"),
     server.ProjectOption("arduino_cmd", help="Path to the arduino-cli tool."),
     server.ProjectOption("arduino_board", help="Name of the Arduino board to build for"),
+    server.ProjectOption("port", help="Port to use for connecting to hardware")
 ]
 
 BOARD_PROPERTIES = {
@@ -63,6 +63,7 @@ class Handler(server.ProjectAPIHandler):
     def __init__(self):
         super(Handler, self).__init__()
         self._proc = None
+        self.port = None
 
     def server_info_query(self):
         return server.ServerInfo(
@@ -260,7 +261,6 @@ class Handler(server.ProjectAPIHandler):
 
     def _get_fqbn(self, options):
         o = BOARD_PROPERTIES[options['arduino_board']]
-        print(o['package'])
         return f"{o['package']}:{o['architecture']}:{o['board']}"
 
 
@@ -269,7 +269,7 @@ class Handler(server.ProjectAPIHandler):
         print(BUILD_DIR)
 
         compile_cmd = [
-            options['arduino_cmd'], "compile",
+            options['arduino_cmd'], "compile", "./project/",
             "--fqbn", self._get_fqbn(options),
             "--build-path", BUILD_DIR.resolve()
         ]
@@ -278,14 +278,59 @@ class Handler(server.ProjectAPIHandler):
             compile_cmd.append("--verbose")
 
         # Specify project to compile
-        compile_cmd.append("./project/")
         print(compile_cmd)
         print(API_SERVER_DIR)
-        subprocess.check_call(compile_cmd)
+        output = subprocess.check_call(compile_cmd)
+        assert(output == 0)
+
+    # We run the command `arduino-cli board list`, which produces
+    # outputs of the form:
+    '''
+    Port         Type              Board Name FQBN                          Core
+    /dev/ttyS4   Serial Port       Unknown
+    /dev/ttyUSB0 Serial Port (USB) Spresense  SPRESENSE:spresense:spresense SPRESENSE:spresense
+    '''
+    def _auto_detect_port(self, options):
+        list_cmd = [options['arduino_cmd'], "board", "list"]
+        list_cmd_output = subprocess.check_output(list_cmd).decode('utf-8')
+        # Remove header and new lines at bottom
+        port_options = list_cmd_output.split("\n")[1:-2]
+
+        # Select the first compatible board
+        fqbn = self._get_fqbn(options)
+        for port_option in port_options:
+            if fqbn in port_option:
+                return port_option.split(" ")[0]
+
+        # If no compatible boards, raise an error
+        raise BoardAutodetectFailed
+
+
+    def _get_arduino_port(self, options):
+        if not self.port:
+            if 'port' in options and options['port']:
+                self.port = options['port']
+            else:
+                self.port = self._auto_detect_port(options)
+
+        return self.port
 
 
     def flash(self, options):
-        raise NotImplementedError
+        port = self._get_arduino_port(options)
+
+        upload_cmd = [
+            options["arduino_cmd"], "upload", "./project",
+            "--fqbn", self._get_fqbn(options),
+            "--input-dir", BUILD_DIR.resolve(),
+            "--port", port,
+        ]
+        output = subprocess.check_call(upload_cmd)
+
+        if output == 2:
+            raise InvalidPortException
+        elif output > 0:
+            raise SketchUploadException
 
 
     def open_transport(self, options):

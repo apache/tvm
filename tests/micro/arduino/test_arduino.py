@@ -122,5 +122,14 @@ def test_compile_yes_no_project(platform, arduino_cmd):
     assert(first_build_file is not None)
 
 
+def test_upload_yes_no_project(platform, arduino_cmd, run_hardware_tests):
+    if not run_hardware_tests:
+        pytest.skip("skipping hardware tests")
+
+    workspace, project = _generate_yes_no_project(platform, arduino_cmd)
+    project.build()
+    project.flash()
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__] + sys.argv[1:]))
