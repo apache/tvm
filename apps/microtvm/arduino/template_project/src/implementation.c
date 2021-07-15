@@ -1,11 +1,11 @@
 #ifndef IMPLEMENTATION
 #define IMPLEMENTATION
 
-#include "standalone_crt/include/tvm/runtime/crt/graph_executor.h"
+#include "Arduino.h"
 #include "standalone_crt/include/tvm/runtime/c_runtime_api.h"
+#include "standalone_crt/include/tvm/runtime/crt/graph_executor.h"
 #include "standalone_crt/include/tvm/runtime/crt/logging.h"
 #include "standalone_crt/include/tvm/runtime/crt/stack_allocator.h"
-#include "Arduino.h"
 
 size_t TVMPlatformFormatMessage(char* out_buf, size_t out_buf_size_bytes, const char* fmt,
                                 va_list args) {
@@ -24,7 +24,7 @@ void TVMLogf(const char* msg, ...) {
 
 // Blink code for debugging purposes
 void TVMPlatformAbort(tvm_crt_error_t error) {
-  //pinMode(LED_BUILTIN, OUTPUT);
+  // pinMode(LED_BUILTIN, OUTPUT);
   for (;;) {
     digitalWrite(LED_BUILTIN, HIGH);
     delay(250);
@@ -75,15 +75,15 @@ tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
   }
   g_utvm_timer_running = 0;
   unsigned long g_utvm_stop_time = micros() - g_utvm_start_time;
-  *elapsed_time_seconds = ((double) g_utvm_stop_time) / 1e6;
+  *elapsed_time_seconds = ((double)g_utvm_stop_time) / 1e6;
   return kTvmErrorNoError;
 }
 
 unsigned int random_seed = 0;
 tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
   for (size_t i = 0; i < num_bytes; ++i) {
-    buffer[i] = (uint8_t)4; // Chosen by fair die roll
-                            // Guaranteed to be random
+    buffer[i] = (uint8_t)4;  // Chosen by fair die roll
+                             // Guaranteed to be random
   }
   return kTvmErrorNoError;
 }

@@ -20,213 +20,65 @@ import serial.tools.list_ports
 
 from tvm.micro.project_api import server
 
+MODEL_LIBRARY_FORMAT_RELPATH = "src/model/model.tar"
 
+API_SERVER_DIR = pathlib.Path(os.path.dirname(__file__) or os.path.getcwd())
+BUILD_DIR = API_SERVER_DIR / "build"
+IS_TEMPLATE = not (API_SERVER_DIR / MODEL_LIBRARY_FORMAT_RELPATH).exists()
+MODEL_LIBRARY_FORMAT_PATH = "" if IS_TEMPLATE else API_SERVER_DIR / MODEL_LIBRARY_FORMAT_RELPATH
 _LOG = logging.getLogger(__name__)
 
 
-API_SERVER_DIR = pathlib.Path(os.path.dirname(__file__) or os.path.getcwd())
+class InvalidPortException(Exception):
+    """Raised when the given port could not be opened"""
 
 
-BUILD_DIR = API_SERVER_DIR / "build"
-
-
-MODEL_LIBRARY_FORMAT_RELPATH = "src/model/model.tar"
-
-
-IS_TEMPLATE = not (API_SERVER_DIR / MODEL_LIBRARY_FORMAT_RELPATH).exists()
-
-
-def check_call(cmd_args, *args, **kwargs):
-    cwd_str = "" if "cwd" not in kwargs else f" (in cwd: {kwargs['cwd']})"
-    _LOG.info("run%s: %s", cwd_str, " ".join(shlex.quote(a) for a in cmd_args))
-    return subprocess.check_call(cmd_args, *args, **kwargs)
-
-
-CACHE_ENTRY_RE = re.compile(r"(?P<name>[^:]+):(?P<type>[^=]+)=(?P<value>.*)")
-
-
-CMAKE_BOOL_MAP = dict(
-    [(k, True) for k in ("1", "ON", "YES", "TRUE", "Y")]
-    + [(k, False) for k in ("0", "OFF", "NO", "FALSE", "N", "IGNORE", "NOTFOUND", "")]
-)
-
-
-class CMakeCache(collections.abc.Mapping):
-    def __init__(self, path):
-        self._path = path
-        self._dict = None
-
-    def __iter__(self):
-        return iter(self._dict)
-
-    def __getitem__(self, key):
-        if self._dict is None:
-            self._dict = self._read_cmake_cache()
-
-        return self._dict[key]
-
-    def __len__(self):
-        return len(self._dict)
-
-    def _read_cmake_cache(self):
-        """Read a CMakeCache.txt-like file and return a dictionary of values."""
-        entries = collections.abc.OrderedDict()
-        with open(self._path, encoding="utf-8") as f:
-            for line in f:
-                m = CACHE_ENTRY_RE.match(line.rstrip("\n"))
-                if not m:
-                    continue
-
-                if m.group("type") == "BOOL":
-                    value = CMAKE_BOOL_MAP[m.group("value").upper()]
-                else:
-                    value = m.group("value")
-
-                entries[m.group("name")] = value
-
-        return entries
-
-
-CMAKE_CACHE = CMakeCache(BUILD_DIR / "CMakeCache.txt")
-
-
-class BoardError(Exception):
-    """Raised when an attached board cannot be opened (i.e. missing /dev nodes, etc)."""
+class SketchUploadException(Exception):
+    """Raised when a sketch cannot be uploaded for an unknown reason."""
 
 
 class BoardAutodetectFailed(Exception):
-    """Raised when no attached hardware is found matching the board= given to ZephyrCompiler."""
-
-
-'''def _get_flash_runner():
-    flash_runner = CMAKE_CACHE.get("ZEPHYR_BOARD_FLASH_RUNNER")
-    if flash_runner is not None:
-        return flash_runner
-
-    with open(CMAKE_CACHE["ZEPHYR_RUNNERS_YAML"]) as f:
-        doc = yaml.load(f, Loader=yaml.FullLoader)
-    return doc["flash-runner"]
-
-
-def _get_device_args(options, cmake_entries):
-    flash_runner = _get_flash_runner()
-
-    if flash_runner == "nrfjprog":
-        return _get_nrf_device_args(options)
-
-    if flash_runner == "openocd":
-        return _get_openocd_device_args(options)
-
-    raise BoardError(
-        f"Don't know how to find serial terminal for board {CMAKE_CACHE['BOARD']} with flash "
-        f"runner {flash_runner}"
-    )'''
-
-
-# kwargs passed to usb.core.find to find attached boards for the openocd flash runner.
-BOARD_USB_FIND_KW = {
-    "nucleo_l4r5zi": {"idVendor": 0x0483, "idProduct": 0x374B},
-    "nucleo_f746zg": {"idVendor": 0x0483, "idProduct": 0x374B},
-    "stm32f746g_disco": {"idVendor": 0x0483, "idProduct": 0x374B},
-}
-
-
-def openocd_serial(options):
-    """Find the serial port to use for a board with OpenOCD flash strategy."""
-    if "openocd_serial" in options:
-        return options["openocd_serial"]
-
-    import usb  # pylint: disable=import-outside-toplevel
-
-    find_kw = BOARD_USB_FIND_KW[CMAKE_CACHE["BOARD"]]
-    boards = usb.core.find(find_all=True, **find_kw)
-    serials = []
-    for b in boards:
-        serials.append(b.serial_number)
-
-    if len(serials) == 0:
-        raise BoardAutodetectFailed(f"No attached USB devices matching: {find_kw!r}")
-    serials.sort()
-
-    autodetected_openocd_serial = serials[0]
-    _LOG.debug("zephyr openocd driver: autodetected serial %s", serials[0])
-
-    return autodetected_openocd_serial
-
-
-def _get_openocd_device_args(options):
-    return ["--serial", openocd_serial(options)]
-
-
-def _get_nrf_device_args(options):
-    nrfjprog_args = ["nrfjprog", "--ids"]
-    nrfjprog_ids = subprocess.check_output(nrfjprog_args, encoding="utf-8")
-    if not nrfjprog_ids.strip("\n"):
-        raise BoardAutodetectFailed(f'No attached boards recognized by {" ".join(nrfjprog_args)}')
-
-    boards = nrfjprog_ids.split("\n")[:-1]
-    if len(boards) > 1:
-        if options["nrfjprog_snr"] is None:
-            raise BoardError(
-                "Multiple boards connected; specify one with nrfjprog_snr=: " f'{", ".join(boards)}'
-            )
-
-        if str(options["nrfjprog_snr"]) not in boards:
-            raise BoardError(
-                f"nrfjprog_snr ({options['nrfjprog_snr']}) not found in {nrfjprog_args}: {boards}"
-            )
-
-        return ["--snr", options["nrfjprog_snr"]]
-
-    if not boards:
-        return []
-
-    return ["--snr", boards[0]]
+    """Raised when no attached hardware is found matching the requested board"""
 
 
 PROJECT_OPTIONS = [
-    server.ProjectOption(
-        "gdbserver_port", help=("If given, port number to use when running the " "local gdbserver")
-    ),
-    server.ProjectOption(
-        "openocd_serial",
-        help=("When used with OpenOCD targets, serial # of the " "attached board to use"),
-    ),
-    server.ProjectOption(
-        "nrfjprog_snr",
-        help=(
-            "When used with nRF targets, serial # of the " "attached board to use, from nrfjprog"
-        ),
-    ),
     server.ProjectOption("verbose", help="Run build with verbose output"),
-    server.ProjectOption(
-        "west_cmd",
-        help=(
-            "Path to the west tool. If given, supersedes both the zephyr_base "
-            "option and ZEPHYR_BASE environment variable."
-        ),
-    ),
-    server.ProjectOption("zephyr_base", help="Path to the zephyr base directory."),
-    server.ProjectOption("zephyr_board", help="Name of the Zephyr board to build for"),
+    server.ProjectOption("arduino_cmd", help="Path to the arduino-cli tool."),
+    server.ProjectOption("arduino_board", help="Name of the Arduino board to build for"),
+    server.ProjectOption("port", help="Port to use for connecting to hardware"),
 ]
+
+BOARD_PROPERTIES = {
+    "spresense": {
+        "package": "SPRESENSE",
+        "architecture": "spresense",
+        "board": "spresense",
+    },
+    "nano33ble": {
+        "package": "arduino",
+        "architecture": "mbed_nano",
+        "board": "nano33ble",
+    },
+}
 
 
 class Handler(server.ProjectAPIHandler):
     def __init__(self):
         super(Handler, self).__init__()
         self._proc = None
+        self._port = None
+        self._serial = None
 
     def server_info_query(self):
         return server.ServerInfo(
             platform_name="arduino",
             is_template=IS_TEMPLATE,
-            model_library_format_path=""
-            if IS_TEMPLATE
-            else (API_SERVER_DIR / MODEL_LIBRARY_FORMAT_RELPATH),
+            model_library_format_path=MODEL_LIBRARY_FORMAT_PATH,
             project_options=PROJECT_OPTIONS,
         )
 
     CRT_COPY_ITEMS = ("include", "src")
+
     def _copy_standalone_crt(self, source_dir, standalone_crt_dir):
         # Copy over the standalone_crt directory
         output_crt_dir = source_dir / "standalone_crt"
@@ -247,12 +99,13 @@ class Handler(server.ProjectAPIHandler):
         "src/runtime/crt/microtvm_rpc_server",
         "src/runtime/crt/tab",
     ]
+
     def _remove_unused_components(self, source_dir):
         for component in self.UNUSED_COMPONENTS:
             shutil.rmtree(source_dir / "standalone_crt" / component)
 
-
     GRAPH_JSON_TEMPLATE = 'static const char* graph_json = "{}";\n'
+
     def _compile_graph_json(self, model_dir, obj):
         graph_json = json.dumps(obj).replace('"', '\\"')
         output = self.GRAPH_JSON_TEMPLATE.format(graph_json)
@@ -260,32 +113,23 @@ class Handler(server.ProjectAPIHandler):
         with open(graph_json_path, "w") as out_file:
             out_file.write(output)
 
-
     def _disassemble_mlf(self, mlf_tar_path, source_dir):
         mlf_unpacking_dir = tempfile.TemporaryDirectory()
-        print(mlf_tar_path)
-        with tarfile.open(mlf_tar_path, 'r:') as tar:
+        with tarfile.open(mlf_tar_path, "r:") as tar:
             tar.extractall(mlf_unpacking_dir.name)
-        print("Unpacked tar")
 
         # Copy C files
         # TODO are the defaultlib0.c the same?
         model_dir = source_dir / "model"
         model_dir.mkdir()
         for source, dest in [
-                ("codegen/host/src/default_lib0.c", "default_lib0.c"),
-                ("codegen/host/src/default_lib1.c", "default_lib1.c"),
-                ]:
-            shutil.copy(
-                os.path.join(mlf_unpacking_dir.name, source),
-               model_dir / dest
-            )
+            ("codegen/host/src/default_lib0.c", "default_lib0.c"),
+            ("codegen/host/src/default_lib1.c", "default_lib1.c"),
+        ]:
+            shutil.copy(os.path.join(mlf_unpacking_dir.name, source), model_dir / dest)
 
         # Load graph.json, serialize to c format, and extact parameters
-        with open(
-                os.path.join(mlf_unpacking_dir.name,
-                "runtime-config/graph/graph.json")
-                ) as f:
+        with open(os.path.join(mlf_unpacking_dir.name, "runtime-config/graph/graph.json")) as f:
             graph_data = json.load(f)
         self._compile_graph_json(model_dir, graph_data)
 
@@ -296,10 +140,8 @@ class Handler(server.ProjectAPIHandler):
         c_arr_str = str(l)
         return "{" + c_arr_str[1:-1] + "}"
 
-
     def _print_c_str(self, s):
         return '"{}"'.format(s)
-
 
     DL_DATA_TYPE_REFERENCE = {
         "uint8": "{kDLUInt, 8, 0}",
@@ -314,11 +156,12 @@ class Handler(server.ProjectAPIHandler):
         "float32": "{kDLFloat, 32, 0}",
         "float64": "{kDLFloat, 64, 0}",
     }
+
     def _populate_parameters_file(self, graph, source_dir):
         graph_types = graph["attrs"]["dltype"]
         graph_shapes = graph["attrs"]["shape"]
-        assert(graph_types[0] == "list_str")
-        assert(graph_shapes[0] == "list_shape")
+        assert graph_types[0] == "list_str"
+        assert graph_shapes[0] == "list_shape"
 
         template_values = {
             "input_data_dimension": len(graph_shapes[1][0]),
@@ -331,7 +174,7 @@ class Handler(server.ProjectAPIHandler):
         }
 
         # Apply template values
-        with open(source_dir / "parameters.h", 'r') as f:
+        with open(source_dir / "parameters.h", "r") as f:
             template_params = Template(f.read())
 
         parameters_h = template_params.substitute(template_values)
@@ -339,11 +182,8 @@ class Handler(server.ProjectAPIHandler):
         with open(source_dir / "parameters.h", "w") as f:
             f.write(parameters_h)
 
+    POSSIBLE_BASE_PATHS = ["src/standalone_crt/include/", "src/standalone_crt/crt_config/"]
 
-    POSSIBLE_BASE_PATHS = [
-        "src/standalone_crt/include/",
-        "src/standalone_crt/crt_config/"
-    ]
     def _find_modified_include_path(self, project_dir, file_path, import_path):
 
         # If the import already works, don't modify it
@@ -385,7 +225,6 @@ class Handler(server.ProjectAPIHandler):
                 with filename.open("w") as file:
                     file.writelines(lines)
 
-
     def generate_project(self, model_library_format_path, standalone_crt_dir, project_dir, options):
         # Copy template folder to project_dir, creating project/ and src/
         # directories in the process. Also copies this file, microtvm_api_server.py,
@@ -403,90 +242,126 @@ class Handler(server.ProjectAPIHandler):
         # Unpack the MLF and copy the relevant files
         graph = self._disassemble_mlf(model_library_format_path, source_dir)
 
+        shutil.copy2(model_library_format_path, source_dir / "model")
+
         # Populate our parameters file
         self._populate_parameters_file(graph, source_dir)
 
         # Recursively change imports
         self._convert_imports(project_dir, source_dir)
 
+    def _get_fqbn(self, options):
+        o = BOARD_PROPERTIES[options["arduino_board"]]
+        return f"{o['package']}:{o['architecture']}:{o['board']}"
+
     def build(self, options):
         BUILD_DIR.mkdir()
+        print(BUILD_DIR)
 
-        cmake_args = ["cmake", ".."]
+        compile_cmd = [
+            options["arduino_cmd"],
+            "compile",
+            "./project/",
+            "--fqbn",
+            self._get_fqbn(options),
+            "--build-path",
+            BUILD_DIR.resolve(),
+        ]
+
         if options.get("verbose"):
-            cmake_args.append("-DCMAKE_VERBOSE_MAKEFILE:BOOL=TRUE")
+            compile_cmd.append("--verbose")
 
-        if options.get("zephyr_base"):
-            cmake_args.append(f"-DZEPHYR_BASE:STRING={options['zephyr_base']}")
+        # Specify project to compile
+        output = subprocess.check_call(compile_cmd)
+        assert output == 0
 
-        cmake_args.append(f"-DBOARD:STRING={options['zephyr_board']}")
+    # We run the command `arduino-cli board list`, which produces
+    # outputs of the form:
+    """
+    Port         Type              Board Name FQBN                          Core
+    /dev/ttyS4   Serial Port       Unknown
+    /dev/ttyUSB0 Serial Port (USB) Spresense  SPRESENSE:spresense:spresense SPRESENSE:spresense
+    """
 
-        check_call(cmake_args, cwd=BUILD_DIR)
+    def _auto_detect_port(self, options):
+        list_cmd = [options["arduino_cmd"], "board", "list"]
+        list_cmd_output = subprocess.check_output(list_cmd).decode("utf-8")
+        # Remove header and new lines at bottom
+        port_options = list_cmd_output.split("\n")[1:-2]
 
-        args = ["make", "-j2"]
-        if options.get("verbose"):
-            args.append("VERBOSE=1")
-        check_call(args, cwd=BUILD_DIR)
+        # Select the first compatible board
+        fqbn = self._get_fqbn(options)
+        for port_option in port_options:
+            if fqbn in port_option:
+                return port_option.split(" ")[0]
 
-    @classmethod
-    def _is_qemu(cls, options):
-        return "qemu" in options["zephyr_board"]
+        # If no compatible boards, raise an error
+        raise BoardAutodetectFailed
+
+    def _get_arduino_port(self, options):
+        if not self._port:
+            if "port" in options and options["port"]:
+                self._port = options["port"]
+            else:
+                self._port = self._auto_detect_port(options)
+
+        return self._port
+
+    def _get_baudrate(self, options):
+        return 115200
 
     def flash(self, options):
-        if self._is_qemu(options):
-            return  # NOTE: qemu requires no flash step--it is launched from open_transport.
+        port = self._get_arduino_port(options)
 
-        zephyr_board = options["zephyr_board"]
+        upload_cmd = [
+            options["arduino_cmd"],
+            "upload",
+            "./project",
+            "--fqbn",
+            self._get_fqbn(options),
+            "--input-dir",
+            BUILD_DIR.resolve(),
+            "--port",
+            port,
+        ]
+        output = subprocess.check_call(upload_cmd)
 
-        # The nRF5340DK requires an additional `nrfjprog --recover` before each flash cycle.
-        # This is because readback protection is enabled by default when this device is flashed.
-        # Otherwise, flashing may fail with an error such as the following:
-        #  ERROR: The operation attempted is unavailable due to readback protection in
-        #  ERROR: your device. Please use --recover to unlock the device.
-        if zephyr_board.startswith("nrf5340dk") and _get_flash_runner() == "nrfjprog":
-            recover_args = ["nrfjprog", "--recover"]
-            recover_args.extend(_get_nrf_device_args(options))
-            self._subprocess_env.run(recover_args, cwd=build_dir)
-
-        check_call(["make", "flash"], cwd=API_SERVER_DIR / "build")
-
-    def _open_qemu_transport(self, options):
-        zephyr_board = options["zephyr_board"]
-        # For Zephyr boards that run emulated by default but don't have the prefix "qemu_" in their
-        # board names, a suffix "-qemu" is added by users of µTVM when specifying the board name to
-        # inform that the QEMU transporter must be used just like for the boards with the prefix.
-        # Zephyr does not recognize the suffix, so we trim it off before passing it.
-        if "-qemu" in zephyr_board:
-            zephyr_board = zephyr_board.replace("-qemu", "")
-
-        return ZephyrQemuTransport(options)
+        if output == 2:
+            raise InvalidPortException
+        elif output > 0:
+            raise SketchUploadException
 
     def open_transport(self, options):
-        if self._is_qemu(options):
-            transport = self._open_qemu_transport(options)
-        else:
-            transport = ZephyrSerialTransport(options)
+        # Zephyr example doesn't throw an error in this case
+        if self._serial is not None:
+            return
 
-        to_return = transport.open()
-        self._transport = transport
-        return to_return
+        port = self._get_arduino_port(options)
+        baudrate = self._get_baudrate(options)
+        self._serial = serial.Serial(port, baudrate=baudrate, timeout=5)
+        return server.TransportTimeouts(
+            session_start_retry_timeout_sec=2.0,
+            session_start_timeout_sec=5.0,
+            session_established_timeout_sec=5.0,
+        )
 
     def close_transport(self):
-        if self._transport is not None:
-            self._transport.close()
-            self._transport = None
+        if self._serial is None:
+            return
+        self._serial.close()
+        self._serial = None
 
     def read_transport(self, n, timeout_sec):
-        if self._transport is None:
+        # It's hard to set timeout_sec, so we just throw it away
+        # TODO fix this
+        if self._serial is None:
             raise server.TransportClosedError()
-
-        return self._transport.read(n, timeout_sec)
+        return self._serial.read(n)
 
     def write_transport(self, data, timeout_sec):
-        if self._transport is None:
+        if self._serial is None:
             raise server.TransportClosedError()
-
-        return self._transport.write(data, timeout_sec)
+        return self._serial.write(data, timeout_sec)
 
 
 if __name__ == "__main__":
