@@ -1008,7 +1008,7 @@ def conv_shape_func(attrs, inputs, _):
     padding = get_const_tuple(attrs.padding)
     dilation = get_const_tuple(attrs.dilation)
 
-    if (attrs["data_layout"] == "NCHW" and attrs["kernel_layout"] == "OIHW"):
+    if attrs["data_layout"] == "NCHW" and attrs["kernel_layout"] == "OIHW":
         return [
             _conv_shape_func_nchw(
                 inputs[0],
