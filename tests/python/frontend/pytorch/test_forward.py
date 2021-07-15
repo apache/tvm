@@ -3924,9 +3924,7 @@ def test_forward_im2col():
             self.stride = (stride, stride)
 
         def forward(self, x):
-            return F.unfold(
-                x, self.kernel_size, self.dilation, self.padding, self.stride
-            )
+            return F.unfold(x, self.kernel_size, self.dilation, self.padding, self.stride)
 
     input = torch.randn(2, 3, 32, 32)
     verify_model(Im2col(5, 1, 1, 2), input_data=input)
