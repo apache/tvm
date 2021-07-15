@@ -1310,4 +1310,4 @@ reg.register_shape_func("nn.softmax", False, elemwise_shape_func)
 reg.register_shape_func("nn.relu", False, elemwise_shape_func)
 
 
-reg.register_broadcast_schedule("nn.im2col")
+reg.register_injective_schedule("nn.im2col")

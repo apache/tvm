@@ -3924,7 +3924,7 @@ def test_forward_im2col():
             self.stride = (stride, stride)
 
         def forward(self, x):
-            return torch._C._nn.im2col(
+            return F.unfold(
                 x, self.kernel_size, self.dilation, self.padding, self.stride
             )
 

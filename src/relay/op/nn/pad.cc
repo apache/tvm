@@ -355,7 +355,7 @@ RELAY_REGISTER_OP("nn.im2col")
     .add_argument("data", "Tensor", "Input data.")
     .set_support_level(2)
     .add_type_rel("Im2col", Im2colRel)
-    .set_attr<TOpPattern>("TOpPattern", kOpaque)
+    .set_attr<TOpPattern>("TOpPattern", kInjective)
     .set_attr<FTVMCompute>("FTVMCompute", Im2colCompute);
 
 }  // namespace relay
