@@ -98,6 +98,7 @@ def verify_conv2d(data_dtype, conv_dtype, tensor_format=0, groups=1):
 
 
 @tvm.testing.requires_gpu
+@requires_cudnn
 def test_conv2d():
     verify_conv2d("float32", "float32", tensor_format=0)
     verify_conv2d("float16", "float32", tensor_format=1)
@@ -171,6 +172,7 @@ def verify_conv3d(data_dtype, conv_dtype, tensor_format=0, groups=1):
 
 
 @tvm.testing.requires_gpu
+@requires_cudnn
 def test_conv3d():
     verify_conv3d("float32", "float32", tensor_format=0)
     verify_conv3d("float32", "float32", tensor_format=0, groups=2)
