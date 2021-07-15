@@ -101,6 +101,7 @@ def test_task_extraction_cuda():
 
     mod, params = get_network("mlp")
     tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], params, target)
+
     assert len(tasks) == 1
     assert sum(task_weights) == 2
 

@@ -183,6 +183,7 @@ class Buffer : public ObjectRef {
   TVM_DLL Stmt vstore(Array<PrimExpr> begin, PrimExpr value) const;
 
   TVM_DEFINE_OBJECT_REF_METHODS(Buffer, ObjectRef, BufferNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferNode);
 };
 
 /*!
@@ -190,12 +191,13 @@ class Buffer : public ObjectRef {
  * \param shape The shape of the buffer,
  * \param dtype The content data type.
  * \param name The name of the buffer
+ * \param storage_scope The storage scope associated with this buffer
  * \param span The location of this object in the source code.
  * \return The created buffer.
  * \sa Buffer for complete constructor.
  */
 TVM_DLL Buffer decl_buffer(Array<PrimExpr> shape, DataType dtype = DataType::Float(32),
-                           String name = "buffer", Span span = Span());
+                           String name = "buffer", String storage_scope = "", Span span = Span());
 
 /*!
  * \brief Base node for data producers.

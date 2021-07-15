@@ -62,9 +62,17 @@ TVM_REGISTER_GLOBAL("relay.ir.Function")
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<FunctionNode>([](const ObjectRef& ref, ReprPrinter* p) {
-      auto* node = static_cast<const FunctionNode*>(ref.get());
-      p->stream << "FunctionNode(" << node->params << ", " << node->ret_type << ", " << node->body
-                << ", " << node->type_params << ", " << node->attrs << ")";
+      // TODO(@jroesch): previously this had a debug printer, the debug printer
+      // can cause exponential behavior and is currently dangerous, for these
+      // cases we need some kind of de-duping.
+      //
+      // See old implementation:
+      //
+      // auto* node = static_cast<const FunctionNode*>(ref.get());
+      // p->stream << "FunctionNode(" << node->params << ", " << node->ret_type << ", " <<
+      // node->body
+      //           << ", " << node->type_params << ", " << node->attrs << ")";
+      p->stream << PrettyPrint(ref);
     });
 
 }  // namespace relay

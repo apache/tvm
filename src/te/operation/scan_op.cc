@@ -234,7 +234,7 @@ void ScanOpNode::GatherBound(const Operation& self,
 }
 
 Stmt ScanOpNode::BuildRealize(const Stage& stage, const std::unordered_map<IterVar, Range>& dom_map,
-                              const Stmt& body) const {
+                              const Stmt& body, String storage_scope) const {
   arith::Analyzer analyzer;
   ICHECK_EQ(stage->op.get(), this);
   Range sdom = dom_map.at(this->scan_axis);
@@ -250,7 +250,7 @@ Stmt ScanOpNode::BuildRealize(const Stage& stage, const std::unordered_map<IterV
       IterVar sp_ax = this->spatial_axis_[sp_idx];
       bounds.push_back(dom_map.at(sp_ax));
     }
-    ret = tir::ProducerRealize(t, bounds, const_true(), ret);
+    ret = tir::ProducerRealize(t, bounds, const_true(), ret, storage_scope);
   }
   return ret;
 }

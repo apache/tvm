@@ -181,12 +181,15 @@ def fast_softmax_strategy(attrs, inputs, out_type, target):
     return strategy
 
 
-# log_softmax
-@generic_func
-def schedule_log_softmax(attrs, outs, target):
-    """Schedule log_softmax op"""
-    with target:
-        return topi.generic.schedule_softmax(outs)
+@override_native_generic_func("log_softmax_strategy")
+def log_softmax_strategy(attrs, inputs, out_type, target):
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_softmax(topi.nn.log_softmax),
+        wrap_topi_schedule(topi.generic.schedule_softmax),
+        name="log_softmax.generic",
+    )
+    return strategy
 
 
 # lrn
@@ -709,6 +712,42 @@ def dilation2d_strategy(attrs, inputs, out_type, target):
         )
     else:
         raise RuntimeError("Unsupported dilation2d layout {}".format(layout))
+    return strategy
+
+
+# matmul
+def wrap_compute_matmul(topi_compute, need_auto_scheduler_layout=False):
+    """wrap matmul topi compute"""
+
+    def _compute_matmul(attrs, inputs, out_type):
+        """Compute definition of matmul"""
+        out_dtype = attrs.out_dtype
+        out_dtype = inputs[0].dtype if out_dtype == "" else out_dtype
+        args = [
+            inputs[0],
+            inputs[1],
+            None,
+            out_dtype,
+            attrs.transpose_a,
+            attrs.transpose_b,
+        ]
+        if need_auto_scheduler_layout:
+            args.append(get_auto_scheduler_rewritten_layout(attrs))
+        return [topi_compute(*args)]
+
+    return _compute_matmul
+
+
+@override_native_generic_func("matmul_strategy")
+def matmul_strategy(attrs, inputs, out_type, target):
+    """matmul generic strategy"""
+    logger.warning("matmul is not optimized for this platform.")
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_matmul(topi.nn.matmul),
+        wrap_topi_schedule(topi.generic.schedule_matmul),
+        name="matmul.generic",
+    )
     return strategy
 
 

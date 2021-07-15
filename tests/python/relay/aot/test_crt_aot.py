@@ -370,7 +370,8 @@ def test_byoc_microtvm(use_calculated_workspaces, target_options):
     mod = tvm.IRModule()
     ann = CcompilerAnnotator()
     mod["main"] = ann.visit(f)
-    mod = tvm.relay.transform.PartitionGraph()(mod)
+
+    mod = tvm.relay.transform.PartitionGraph("mod_name")(mod)
     mod = tvm.relay.transform.InferType()(mod)
 
     x_data = np.random.rand(10, 10).astype("float32")
@@ -383,7 +384,133 @@ def test_byoc_microtvm(use_calculated_workspaces, target_options):
     output_list = generate_ref_data(mod, map_inputs)
     input_list = [map_inputs["x"]]
     input_list.extend([map_inputs["w{}".format(i)] for i in range(8)])
-    compile_and_run(mod, input_list, output_list, target_options, use_calculated_workspaces)
+    compile_and_run(
+        mod, input_list, output_list, target_options, use_calculated_workspaces, mod_name="my_mod"
+    )
+
+
+@pytest.mark.parametrize("target_options", ["--unpacked-api=0", "--unpacked-api=1"])
+def test_add_name_mangling_with_params(target_options):
+    x = relay.var("x", shape=(1, 10))
+    y = relay.var("y", shape=(1, 10))
+    z = relay.add(x, y)
+    func = relay.Function([x, y], z)
+
+    x_in = np.ones((1, 10)).astype("float32")
+    y_in = np.random.uniform(size=(1, 10)).astype("float32")
+
+    params = {"x": x_in}
+    inputs = {"y": y_in}
+    output_list = generate_ref_data(func, inputs, params)
+
+    input_list = [y_in]
+    compile_and_run(
+        func,
+        input_list,
+        output_list,
+        target_options,
+        use_calculated_workspaces=False,
+        params=params,
+        mod_name="my_mod",
+    )
+
+
+@pytest.mark.parametrize("target_options", ["--unpacked-api=0", "--unpacked-api=1"])
+def test_multiple_models(target_options):
+    # Identity model without params
+    x = relay.var("x", "float32")
+    mod1 = relay.Function([x], x)
+    one = np.array(1.0, "float32")
+    inputs1 = {"x": one}
+    output_list1 = generate_ref_data(mod1, inputs1)
+    input_list1 = [one]
+    params1 = None
+
+    # Convolution model
+    RELAY_MODEL = """
+#[version = "0.0.5"]
+def @main(%data : Tensor[(1, 3, 64, 64), uint8], %weight : Tensor[(8, 3, 5, 5), int8]) {
+    %1 = nn.conv2d(
+         %data,
+         %weight,
+         padding=[2, 2],
+         channels=8,
+         kernel_size=[5, 5],
+         data_layout="NCHW",
+         kernel_layout="OIHW",
+         out_dtype="int32");
+  %1
+}
+"""
+    mod2 = tvm.parser.fromtext(RELAY_MODEL)
+    main_func = mod2["main"]
+    shape_dict = {p.name_hint: p.checked_type.concrete_shape for p in main_func.params}
+    type_dict = {p.name_hint: p.checked_type.dtype for p in main_func.params}
+
+    weight_data = np.ones(shape_dict["weight"]).astype(type_dict["weight"])
+    input_data = np.ones(shape_dict["data"]).astype(type_dict["data"])
+
+    params2 = {"weight": weight_data}
+    inputs2 = {"data": input_data}
+    output_list2 = generate_ref_data(mod2, inputs2, params2)
+    input_list2 = [input_data]
+
+    input_list_map = {"mod1": input_list1, "mod2": input_list2}
+    output_list_map = {"mod1": output_list1, "mod2": output_list2}
+    mod_map = {"mod1": mod1, "mod2": mod2}
+    param_map = {"mod1": params1, "mod2": params2}
+
+    compile_and_run_multiple_models(
+        mod_map, input_list_map, output_list_map, target_options, param_map
+    )
+
+
+def test_quant_mobilenet_tfl():
+    """Since in AOT we pass directly the output buffer from the user, in quantized networks sharing the output buffers is not possible.
+    This is because the output data type is int8 and the intermediate buffer are int32 or int16. We use mobilenet quantized to stress this
+    situation and verify that the output buffer sharing is disabled in AOT."""
+    pytest.importorskip("tflite")
+
+    import tvm.relay.testing.tf as tf_testing
+
+    tflite_model_file = tf_testing.get_workload_official(
+        "https://storage.googleapis.com/download.tensorflow.org/"
+        "models/mobilenet_v1_2018_08_02/mobilenet_v1_1.0_224_quant.tgz",
+        "mobilenet_v1_1.0_224_quant.tflite",
+    )
+    with open(tflite_model_file, "rb") as f:
+        tflite_model_buf = f.read()
+    data_shape = (1, 224, 224, 3)
+    in_min, in_max = (0, 255)
+    data = np.random.randint(in_min, high=in_max, size=data_shape, dtype="uint8")
+    mod, params = convert_to_relay(tflite_model_buf, data, "input")
+    inputs = {"input": data}
+    output_list = generate_ref_data(mod, inputs, params)
+    input_list = [inputs["input"]]
+    compile_and_run(mod, input_list, output_list, "--unpacked-api=0", True, params)
+
+
+@pytest.mark.parametrize("target_options", ["--unpacked-api=0", "--unpacked-api=1"])
+def test_transpose(target_options):
+    """Test that non-inpleaceable operations (e.g., transpose) do not happen in-place."""
+
+    dtype = "float32"
+    x = relay.var("x", shape=(10, 5), dtype=dtype)
+    y = relay.var("y", shape=(10, 5), dtype=dtype)
+    t = relay.var("z", shape=(), dtype=dtype)
+    a = relay.add(x, y)
+    b = relay.transpose(a)
+    z = relay.add(b, t)
+    # Check result.
+    func = relay.Function([x, y, t], z)
+    x_data = np.random.rand(10, 5).astype(dtype)
+    y_data = np.random.rand(10, 5).astype(dtype)
+    t_data = np.random.uniform(size=()).astype(dtype)
+    inputs = {"x": x_data, "y": y_data, "z": t_data}
+
+    output_list = generate_ref_data(func, inputs)
+    input_list = [inputs["x"], inputs["y"], inputs["z"]]
+    compile_and_run(func, input_list, output_list, target_options, True, enable_op_fusion=False)
 
 
 if __name__ == "__main__":

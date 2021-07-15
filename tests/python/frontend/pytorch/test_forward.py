@@ -3870,6 +3870,48 @@ def test_unique():
     verify_trace_model(test_fn(True, False, True), [in_data], targets)
 
 
+def test_forward_nll_loss():
+    torch.set_grad_enabled(False)
+    N, C = 10, 3
+    predictions = torch.rand((N, C)).float()
+    targets = torch.randint(0, 3, (N,))
+    weights = torch.tensor([1, 2, 3]).float()
+    verify_model(torch.nn.NLLLoss().eval(), input_data=[predictions, targets])
+    verify_model(torch.nn.NLLLoss(weight=weights).eval(), input_data=[predictions, targets])
+    verify_model(torch.nn.NLLLoss(ignore_index=1).eval(), input_data=[predictions, targets])
+    verify_model(torch.nn.NLLLoss(reduction="sum").eval(), input_data=[predictions, targets])
+    verify_model(torch.nn.NLLLoss(reduction="none").eval(), input_data=[predictions, targets])
+
+    # multidimension nll loss (aten::nll_loss2d)
+    d1, d2 = 2, 3
+    predictions = torch.rand((N, C, d1, d2)).float()
+    targets = torch.randint(0, 3, (N, d1, d2))
+    verify_model(torch.nn.NLLLoss().eval(), input_data=[predictions, targets])
+    verify_model(torch.nn.NLLLoss(weight=weights).eval(), input_data=[predictions, targets])
+    verify_model(torch.nn.NLLLoss(ignore_index=1).eval(), input_data=[predictions, targets])
+    verify_model(torch.nn.NLLLoss(reduction="sum").eval(), input_data=[predictions, targets])
+    verify_model(torch.nn.NLLLoss(reduction="none").eval(), input_data=[predictions, targets])
+
+
+@tvm.testing.uses_gpu
+def test_forward_flip():
+    torch.set_grad_enabled(False)
+
+    class Flip(Module):
+        def __init__(self, axis=0):
+            super().__init__()
+            self.axis = axis
+
+        def forward(self, x):
+            return x.flip([self.axis])
+
+    input = torch.randn(2, 3, 4)
+    verify_model(Flip(axis=0), input_data=input)
+    verify_model(Flip(axis=1), input_data=input)
+    verify_model(Flip(axis=2), input_data=input)
+    verify_model(Flip(axis=-1), input_data=input)
+
+
 if __name__ == "__main__":
     # some structural tests
     test_forward_traced_function()
@@ -4011,6 +4053,8 @@ if __name__ == "__main__":
     test_unique()
     test_hard_swish()
     test_hard_sigmoid()
+    test_forward_nll_loss()
+    test_forward_flip()
 
     # Model tests
     test_resnet18()

@@ -53,7 +53,7 @@ sudo sed -i '/deb-src/s/^# //' /etc/apt/sources.list
 apt update
 apt-get -y build-dep qemu
 
-gpg --keyserver keys.gnupg.net --recv-keys 0x3353C9CEF108B584
+gpg --keyserver keyserver.ubuntu.com --recv-keys 0x3353C9CEF108B584
 cat <<EOF | gpg --dearmor >qemu-5.1.0.tar.xz.sig
 -----BEGIN PGP ARMORED FILE-----
 Comment: Use "gpg --dearmor" for unpacking

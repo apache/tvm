@@ -173,3 +173,30 @@ def subspace_divide(bindings, input_iters, sub_iters, predicate=True, require_bi
         Empty array if no match can be found.
     """
     return _ffi_api.SubspaceDivide(bindings, input_iters, sub_iters, predicate, require_bijective)
+
+
+def inverse_affine_iter_map(iter_map, outputs):
+    """Apply the inverse of the affine transformation to the outputs.
+    Similar to the back-propagation, starting from the outputs, it visits the DAG of the expressions
+    in reverse topology order and applies the inverse of the affine transformation until it reaches
+    the input. The affine iter map is required to be bijective.
+
+    For example, iter_map = [l0 // 16, l0 % 16], outputs = [output_0, output_1],
+    the affine transformation specified by `iter_map` will be applied to `outputs` and the result
+    will be {l0: ((output_0*16) + output_1)}.
+
+    See also :any:`detect_iter_map`.
+
+    Parameters
+    ----------
+    iter_map : List[IterSumExpr]
+        The bijective affine iter map.
+    outputs : List[PrimExpr]
+        The outputs of the affine transformation.
+
+    Returns
+    -------
+    results : Map[Var, PrimExpr]
+        The map from the input to the transformed result.
+    """
+    return _ffi_api.InverseAffineIterMap(iter_map, outputs)

@@ -18,7 +18,6 @@
 """Default behavior for ops in mixed_precision pass. Import this file to use."""
 from typing import List
 
-from tvm import relay
 from tvm.relay.op import register_mixed_precision_conversion
 
 # MIXED_PRECISION_ALWAYS ops should always be done in lower precision due to the speed and memory
@@ -40,7 +39,7 @@ DEFAULT_ALWAYS_LIST = [
     "nn.conv2d_transpose",
     "nn.conv3d_transpose",
     "nn.dense",
-    # "nn.batch_matmul", # Handled by a special case
+    "nn.batch_matmul",
 ]
 DEFAULT_FOLLOW_LIST = [
     # These ops add new data or change shape
@@ -141,7 +140,7 @@ def register_func_to_op_list(list_ops: List):
     return decorator
 
 
-def get_generic_out_dtypes(call_node: relay.Call, mixed_precision_type: str) -> List[str]:
+def get_generic_out_dtypes(call_node: "relay.Call", mixed_precision_type: str) -> List[str]:
     """A function which returns output dtypes in a way which works for most ops.
 
     Parameters
@@ -162,7 +161,9 @@ def get_generic_out_dtypes(call_node: relay.Call, mixed_precision_type: str) -> 
     # Some discussion here about making this better is here:
     # https://discuss.tvm.apache.org/t/rfc-relay-fp32-fp16-model-support/9994/4?u=andrewzhaoluo
     if hasattr(call_node.attrs, "out_dtype"):
-        return ["float32", mixed_precision_type]
+        # TODO (AndrewZhaoLuo): evaluate consistent support for mixed_type accumulators
+        # return ["float32", mixed_precision_type]
+        return [mixed_precision_type, mixed_precision_type]
 
     # [accumulation_dtype, output_dtype] for the operations
     return [mixed_precision_type, mixed_precision_type]
@@ -172,24 +173,15 @@ def get_generic_out_dtypes(call_node: relay.Call, mixed_precision_type: str) -> 
 # Take in CallNodes and a DType and returns a conversion type,
 # an accumulation dtype, and an output_dtype.
 @register_func_to_op_list(list_ops=DEFAULT_ALWAYS_LIST)
-def generic_always_op(call_node: relay.Call, mixed_precision_type: str) -> List:
+def generic_always_op(call_node: "relay.Call", mixed_precision_type: str) -> List:
     return [MIXED_PRECISION_ALWAYS] + get_generic_out_dtypes(call_node, mixed_precision_type)
 
 
 @register_func_to_op_list(list_ops=DEFAULT_FOLLOW_LIST)
-def generic_follow_op(call_node: relay.Call, mixed_precision_type: str) -> List:
+def generic_follow_op(call_node: "relay.Call", mixed_precision_type: str) -> List:
     return [MIXED_PRECISION_FOLLOW] + get_generic_out_dtypes(call_node, mixed_precision_type)
 
 
 @register_func_to_op_list(list_ops=DEFAULT_NEVER_LIST)
-def generic_never_op(call_node: relay.Call, mixed_precision_type: str) -> List:
+def generic_never_op(call_node: "relay.Call", mixed_precision_type: str) -> List:
     return [MIXED_PRECISION_NEVER] + get_generic_out_dtypes(call_node, mixed_precision_type)
-
-
-@register_mixed_precision_conversion("nn.batch_matmul")
-def nn_batch_matmul(call_node: relay.Call, mixed_precision_type: str) -> List:
-    # TODO(AndrewZhaoLuo): remove when batch_matmul handles accumulation dtypes well.
-    # Batched matmul has inconsistent support for mixed precision operations.
-    # Many schedules ignore the out_dtype attribute which leads to errors when
-    # input types do not match the out_dtype. Therefore, accumulate to output_dtype.
-    return [MIXED_PRECISION_ALWAYS, "float16", "float16"]

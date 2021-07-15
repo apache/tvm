@@ -29,6 +29,7 @@ import numpy as np
 import tvm
 import tvm.rpc
 import tvm.micro
+import tvm.testing
 import tvm.relay as relay
 
 from tvm.micro.contrib import zephyr
@@ -152,6 +153,7 @@ def _get_message(fd, expr: str):
             return data
 
 
+@tvm.testing.requires_micro
 def test_tflite(platform, west_cmd, skip_build, tvm_debug):
     """Testing a TFLite model."""
     model, zephyr_board = PLATFORMS[platform]
@@ -181,7 +183,9 @@ def test_tflite(platform, west_cmd, skip_build, tvm_debug):
         tflite_model, shape_dict={"input_1": input_shape}, dtype_dict={"input_1 ": "float32"}
     )
 
-    target = tvm.target.target.micro(model, options=["-link-params=1", "--executor=aot"])
+    target = tvm.target.target.micro(
+        model, options=["-link-params=1", "--executor=aot", "--unpacked-api=1"]
+    )
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         lowered = relay.build(relay_mod, target, params=params)
 
@@ -213,7 +217,11 @@ def test_tflite(platform, west_cmd, skip_build, tvm_debug):
     assert result == 8
 
 
+@tvm.testing.requires_micro
 def test_qemu_make_fail(platform, west_cmd, skip_build, tvm_debug):
+    if platform not in ["host", "mps2_an521"]:
+        pytest.skip(msg="Only for QEMU targets.")
+
     """Testing QEMU make fail."""
     model, zephyr_board = PLATFORMS[platform]
     build_config = {"skip_build": skip_build, "debug": tvm_debug}
