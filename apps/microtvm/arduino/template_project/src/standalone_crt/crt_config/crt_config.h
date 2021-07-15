@@ -21,8 +21,8 @@
  * \file tvm/runtime/crt/host/crt_config.h
  * \brief CRT configuration for the host-linked CRT.
  */
-#ifndef TVM_RUNTIME_CRT_HOST_CRT_CONFIG_H_
-#define TVM_RUNTIME_CRT_HOST_CRT_CONFIG_H_
+#ifndef TVM_RUNTIME_MICRO_CRT_CONFIG_H_
+#define TVM_RUNTIME_MICRO_CRT_CONFIG_H_
 
 /*! Log level of the CRT runtime */
 #define TVM_CRT_LOG_LEVEL TVM_CRT_LOG_LEVEL_DEBUG
@@ -35,9 +35,9 @@
 /*! Maximum supported arguments in generated functions */
 #define TVM_CRT_MAX_ARGS 10
 /*! Maximum supported string length in dltype, e.g. "int8", "int16", "float32" */
-#define TVM_CRT_STRLEN_DLTYPE 10
+#define TVM_CRT_MAX_STRLEN_DLTYPE 10
 /*! Maximum supported string length in function names */
-#define TVM_CRT_STRLEN_NAME 80
+#define TVM_CRT_MAX_STRLEN_FUNCTION_NAME 80
 
 /*! Maximum number of registered modules. */
 #define TVM_CRT_MAX_REGISTERED_MODULES 2
@@ -53,4 +53,4 @@
 
 // #define TVM_CRT_FRAMER_ENABLE_LOGS
 
-#endif  // TVM_RUNTIME_CRT_HOST_CRT_CONFIG_H_
+#endif  // TVM_RUNTIME_MICRO_CRT_CONFIG_H_
