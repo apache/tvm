@@ -25,21 +25,23 @@ TVM traditionally exports generated libraries as Dynamic Shared Objects (e.g. DL
 (linux)). Inferences can be performed using those libraries by loading them into an executable using
 ``libtvm_runtime.so``. This process is very dependent on services provided by traditional OS.
 
-For deployment to unconventional platforms (e.g. those lacking traditional OS), the microTVM project
-can be used to export a generated library in pieces. In this case, microTVM provides another output
-format, Model Library Format. Model Library Format is a tarball containing a file for each part of
-the TVM compiler output.
+For deployment to unconventional platforms (e.g. those lacking traditional OS), TVM provides another
+output format, Model Library Format. Initially, the microTVM project is the primary use case for this
+format. Should it become useful in other use cases (and in particular, should it become possible to
+export BYOC artifacts in Model Library Format), it could be used as a general-purpose TVM export
+format.  Model Library Format is a tarball containing a file for each piece of the TVM compiler
+output.
 
-What can be Exported
---------------------
+What can be Exported?
+---------------------
 
 At the time of writing, export is limited to full models built with ``tvm.relay.build``.
 
 Directory Layout
 ----------------
 
-Model Library Format is traditionally contained within a tarball. All paths are relative to the root
-of the tarball:
+Model Library Format is contained within a tarball. All paths are relative to the root of the
+tarball:
 
 - ``/`` - Root of the tarball
 
@@ -140,7 +142,7 @@ Metadata is a dictionary with these keys:
   sub-target which describes that relay backend used for that ``device_type``.
 - ``version``: A numeric version number that identifies the format used in this Model Library
   Format. This number is incremented when the metadata structure or on-disk structure changes.
-  This document reflects version ``3``.
+  This document reflects version ``5``.
 
 Memory Usage Summary
 ^^^^^^^^^^^^^^^^^^^^
