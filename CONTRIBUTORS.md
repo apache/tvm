@@ -77,7 +77,7 @@ We do encourage everyone to work anything they are interested in.
 - [Jian Weng](https://github.com/were): @were: - hybrid script
 - [Zhao Wu](https://github.com/FrozenGene): @FrozenGene - runtime, topi, frontends
 - [Eddie Yan](https://github.com/eqy) (PMC): @eqy - runtime, autotvm, rpc, topi
-- [Hao Yu](https://github.com/comaniac): @comaniac - relay, byoc, auto_scheduler
+- [Hao Yu](https://github.com/comaniac): @comaniac (PMC) - relay, byoc, auto_scheduler
 - [Lianmin Zheng](https://github.com/merrymercy) (PMC): @merrymercy - autotvm, auto_scheduler, topi, relay
 
 ## Reviewers
