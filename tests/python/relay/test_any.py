@@ -545,6 +545,40 @@ def test_any_conv2d():
         (1, 64, 224, 224),
         use_cudnn=True,
     )
+    verify_any_conv2d(
+        (relay.Any(), 224, 224, 64),
+        (3, 3, 64, 64),
+        (1, 1),
+        (1, 1),
+        (1, 1),
+        (1, 224, 224, 64),
+        (1, 224, 224, 64),
+        data_layout="NHWC",
+        kernel_layout="HWIO",
+    )
+    verify_any_conv2d(
+        (relay.Any(), 224, 224, 64),
+        (3, 3, 64, 64),
+        (1, 1),
+        (1, 1),
+        (2, 2),
+        (2, 224, 224, 64),
+        (2, 222, 222, 64),
+        data_layout="NHWC",
+        kernel_layout="HWIO",
+    )
+    verify_any_conv2d(
+        (relay.Any(), 224, 224, 64),
+        (3, 3, 64, 64),
+        (1, 1),
+        (1, 1),
+        (1, 1),
+        (1, 224, 224, 64),
+        (1, 224, 224, 64),
+        data_layout="NHWC",
+        kernel_layout="HWIO",
+        use_cudnn=True,
+    )
 
 
 def verify_any_conv2d_NCHWc(
