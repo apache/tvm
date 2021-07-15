@@ -43,7 +43,10 @@ class BlockRV(Object):
     """A random variable that refers to a block"""
 
 
-ExprRV = Union[PrimExpr]  #  A random variable that evaluates to an integer
+# It is a workaround for mypy: https://github.com/python/mypy/issues/7866#issuecomment-549454370
+# This feature is not supported until python 3.10:
+# https://docs.python.org/3.10/whatsnew/3.10.html#pep-613-typealias
+ExprRV = Union[PrimExpr]  # A random variable that evaluates to an integer
 
 RAND_VAR_TYPE = Union[ExprRV, BlockRV, LoopRV]  # type: ignore # pylint: disable=invalid-name
 
@@ -318,7 +321,7 @@ class Schedule(Object):
     def split(
         self,
         loop: LoopRV,
-        factors: List[Optional[ExprRV]],
+        factors: List[Union[ExprRV, None]],
     ) -> List[LoopRV]:
         """Split a loop into a list of consecutive loops. It requires:
         1) The loop can't have annotation or thread binding.
@@ -331,7 +334,7 @@ class Schedule(Object):
         loop : LoopRV
             The loop to be split
 
-        factors: List[Optional[ExprRV]]
+        factors: List[Union[ExprRV, None]]
             The splitting factors
 
         Returns
@@ -379,6 +382,7 @@ class Schedule(Object):
                         B[vi, vj] = A[vi, vj] * 2.0
 
         """
+        # it will be checked later in C++ implementation that there is at most one None or -1 in `factors`
         for i, factor in enumerate(factors):
             if factor is None:
                 factors[i] = -1

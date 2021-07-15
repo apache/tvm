@@ -29,9 +29,7 @@ class PredicateUpdater : public StmtMutator {
    */
   explicit PredicateUpdater(const PrimExpr& predicate, arith::Analyzer* ana)
       : predicate_(predicate) {
-    if (!ana->CanProve(predicate)) {
-      add_predicate_ = true;
-    }
+    add_predicate_ = !ana->CanProve(predicate));
   }
 
  private:
@@ -52,6 +50,7 @@ class PredicateUpdater : public StmtMutator {
   /*! \brief whether to add predicate */
   bool add_predicate_;
 };
+
 /*! \brief Substitute vars and collect the reuse mapping of opaque blocks */
 class IRSubstituteAndCollectOpaqueBlock : public StmtExprMutator {
  public:
@@ -152,8 +151,7 @@ class NotLoopError : public ScheduleError {
   explicit NotLoopError(IRModule mod, String type) : mod_(mod), type_(type) {}
 
   String FastErrorString() const final {
-    return "ScheduleError: this primitive only operates on a "
-           "loop";
+    return "ScheduleError: this primitive only operates on a loop";
   }
 
   String DetailRenderTemplate() const final {
@@ -348,10 +346,8 @@ Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
   if (infer_index != -1) {
     inferred_factors.Set(infer_index,
                          analyzer.Simplify(floordiv(loop->extent + tot_length - 1, tot_length)));
-  } else {
-    if (!analyzer.CanProve(tot_length >= loop->extent)) {
-      throw WrongFactorProductError(self->mod, GetRef<For>(loop));
-    }
+  } else if (!analyzer.CanProve(tot_length >= loop->extent)) {
+    throw WrongFactorProductError(self->mod, GetRef<For>(loop));
   }
   // Step 3. Replace all occurrence of the original loop var with new variables
   std::vector<Var> new_loop_vars;
