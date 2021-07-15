@@ -2750,7 +2750,7 @@ class Loop(OnnxOpConverter):
                 """
             )
 
-        # Construct variables and intial empty tensors for any scan outputs.
+        # Construct variables and initial empty tensors for any scan outputs.
         scan_output_vars = []
         scan_output_init = []
         for i in range(num_scan_outputs):
