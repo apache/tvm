@@ -12,7 +12,7 @@ import conftest
 
 PLATFORMS = conftest.PLATFORMS
 
-def _make_session(model, target, arduino_board, arduino_cmd, mod, build_config):
+def _generate_project(model, target, arduino_board, arduino_cmd, mod, build_config):
     parent_dir = os.path.dirname(__file__)
     filename = os.path.splitext(os.path.basename(__file__))[0]
     prev_build = f"{os.path.join(parent_dir, 'archive')}_{filename}_{arduino_board}_last_build.micro"
@@ -24,8 +24,7 @@ def _make_session(model, target, arduino_board, arduino_cmd, mod, build_config):
     if not os.path.exists(workspace_parent):
         os.makedirs(workspace_parent)
     workspace = tvm.micro.Workspace(debug=True, root=workspace_root)
-    print("Outputing workspace root:")
-    print(workspace_root)
+
     template_project_dir = (
         pathlib.Path(__file__).parent
         / ".."
@@ -42,15 +41,12 @@ def _make_session(model, target, arduino_board, arduino_cmd, mod, build_config):
         workspace.relpath("project"),
         {"arduino_board": arduino_board, "arduino_cmd": arduino_cmd, "verbose": 0},
     )
-    #project.build()
-    #project.flash()
-    #return tvm.micro.Session(project.transport())
+    return (workspace, project)
 
 
 # This is bad, don't do this
 TARGET = "c -keys=cpu -link-params=1 -mcpu=cortex-m33 -model=nrf5340dk -runtime=c -system-lib=1"
-
-def test_generate_yes_no_project(platform, arduino_cmd):
+def _generate_yes_no_project(platform, arduino_cmd):
     current_dir = os.path.dirname(__file__)
     model, arduino_board = PLATFORMS[platform]
     #target = tvm.target.target.micro(model, options=["-link-params=1"])
@@ -63,7 +59,67 @@ def test_generate_yes_no_project(platform, arduino_cmd):
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         mod = relay.build(mod, TARGET, params=params)
 
-    session = _make_session(model, TARGET, arduino_board, arduino_cmd, mod, build_config)
+    return _generate_project(model, TARGET, arduino_board, arduino_cmd, mod, build_config)
+    #project.build()
+    #project.flash()
+    #return tvm.micro.Session(project.transport())
+
+
+def test_generate_yes_no_project(platform, arduino_cmd):
+    workspace, project = _generate_yes_no_project(platform, arduino_cmd)
+
+    # Ensure top-level directory structure looks good
+    assert(os.listdir(workspace.path) == ['project'])
+
+    project_dir = pathlib.Path(workspace.path) / "project"
+    assert(set([
+        'microtvm_api_server.py', 'project.ino', 'src']
+    ).issubset(os.listdir(project_dir)))
+
+    source_dir = project_dir / "src"
+    assert(set(os.listdir(source_dir)) == set([
+        'model', 'standalone_crt', 'implementation.c',
+        'model.cpp', 'model.h', 'parameters.h'
+    ]))
+
+
+    # Ensure model was connected and graph_json compiled
+    model_dir = source_dir / "model"
+    assert(set(os.listdir(model_dir)) == set([
+        'default_lib0.c', 'default_lib1.c', 'graph_json.c', 'model.tar'
+    ]))
+    with (model_dir / "graph_json.c").open() as f:
+        graph_json_c = f.read()
+        assert("static const char* graph_json" in graph_json_c)
+
+
+    # Ensure parameters.h was templated with correct information
+    # for our yes/no model
+    with (source_dir / "parameters.h").open() as f:
+        parameters_h = f.read()
+        assert("INPUT_DATA_SHAPE[] = {1, 1960};" in parameters_h)
+
+
+    # Check one file to ensure imports were rerouted
+    runtime_c_path = source_dir / "standalone_crt" / "src" / "runtime"
+    load_json_path = runtime_c_path / "crt" / "graph_executor" / "load_json.c"
+    assert(load_json_path.exists())
+
+    with (load_json_path).open() as f:
+        load_json_c = f.read()
+        assert('#include "stdlib.h"' in load_json_c)
+        assert('include/tvm/runtime/crt/platform.h' in load_json_c)
+
+
+def test_compile_yes_no_project(platform, arduino_cmd):
+    workspace, project = _generate_yes_no_project(platform, arduino_cmd)
+    project.build()
+
+    # Make sure build_dir is not empty
+    build_dir = pathlib.Path(workspace.path) / "project" / "build"
+    assert(build_dir.exists())
+    first_build_file = next(build_dir.iterdir(), None)
+    assert(first_build_file is not None)
 
 
 if __name__ == "__main__":

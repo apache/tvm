@@ -5,14 +5,14 @@ import tvm.target.target
 # The models that should pass this configuration. Maps a short, identifying platform string to
 # (model, zephyr_board).
 PLATFORMS = {
-    "spresense_main": ("cxd5602gg", "spresense"),
+    "spresense": ("cxd5602gg", "spresense"),
 }
 
 
 def pytest_addoption(parser):
     parser.addoption(
         "--microtvm-platforms",
-        default="spresense_main",
+        default="spresense",
         choices=PLATFORMS.keys(),
         help=(
             "Specify a comma-separated list of test models (i.e. as passed to tvm.target.micro()) "

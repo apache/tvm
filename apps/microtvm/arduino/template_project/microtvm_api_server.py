@@ -23,6 +23,7 @@ from tvm.micro.project_api import server
 MODEL_LIBRARY_FORMAT_RELPATH = "src/model/model.tar"
 
 API_SERVER_DIR = pathlib.Path(os.path.dirname(__file__) or os.path.getcwd())
+BUILD_DIR = API_SERVER_DIR / "build"
 IS_TEMPLATE = not (API_SERVER_DIR / MODEL_LIBRARY_FORMAT_RELPATH).exists()
 MODEL_LIBRARY_FORMAT_PATH = "" if IS_TEMPLATE else API_SERVER_DIR / MODEL_LIBRARY_FORMAT_RELPATH
 _LOG = logging.getLogger(__name__)
@@ -43,6 +44,19 @@ PROJECT_OPTIONS = [
     server.ProjectOption("arduino_cmd", help="Path to the arduino-cli tool."),
     server.ProjectOption("arduino_board", help="Name of the Arduino board to build for"),
 ]
+
+BOARD_PROPERTIES = {
+    "spresense": {
+        "package": "SPRESENSE",
+        "architecture": "spresense",
+        "board": "spresense",
+    },
+    "nano33ble_sense": {
+        "package": "arduino",
+        "architecture": "mbed_nano",
+        "board": "nano33ble",
+    }
+}
 
 
 class Handler(server.ProjectAPIHandler):
@@ -235,8 +249,6 @@ class Handler(server.ProjectAPIHandler):
         # Unpack the MLF and copy the relevant files
         graph = self._disassemble_mlf(model_library_format_path, source_dir)
 
-        # Copy the MLF tarball to the model directory for use as a flag
-        # Very ugly - TODO ask Andrew why this is
         shutil.copy2(model_library_format_path, source_dir / "model")
 
         # Populate our parameters file
@@ -245,8 +257,31 @@ class Handler(server.ProjectAPIHandler):
         # Recursively change imports
         self._convert_imports(project_dir, source_dir)
 
+
+    def _get_fqbn(self, options):
+        o = BOARD_PROPERTIES[options['arduino_board']]
+        print(o['package'])
+        return f"{o['package']}:{o['architecture']}:{o['board']}"
+
+
     def build(self, options):
-        raise NotImplementedError
+        BUILD_DIR.mkdir()
+        print(BUILD_DIR)
+
+        compile_cmd = [
+            options['arduino_cmd'], "compile",
+            "--fqbn", self._get_fqbn(options),
+            "--build-path", BUILD_DIR.resolve()
+        ]
+
+        if options.get("verbose"):
+            compile_cmd.append("--verbose")
+
+        # Specify project to compile
+        compile_cmd.append("./project/")
+        print(compile_cmd)
+        print(API_SERVER_DIR)
+        subprocess.check_call(compile_cmd)
 
 
     def flash(self, options):
