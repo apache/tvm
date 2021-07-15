@@ -4870,6 +4870,66 @@ def test_qlinearadd():
     verify_qlinearadd([5, 1, 7], [2, 7], [5, 2, 7])
 
 
+def get_random_uniform(shape, dtype="float32", high=1.0, low=0.0, seed=None, target="llvm"):
+    ONNX_DTYPE = mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(dtype)]
+    node = helper.make_node(
+        "RandomUniform", [], ["out"], shape=shape, dtype=ONNX_DTYPE, high=high, low=low
+    )
+    if seed is not None:
+        seed_attr = helper.make_attribute("seed", seed)
+        node.attribute.append(seed_attr)
+
+    graph = helper.make_graph(
+        [node],
+        "random_uniform_test",
+        inputs=[],
+        outputs=[helper.make_tensor_value_info("out", ONNX_DTYPE, shape)],
+    )
+    model = helper.make_model(graph, producer_name="random_uniform_test")
+    return get_tvm_output_with_vm(model, [], target=target, device=tvm.device(target, 0))
+
+
+def test_random_uniform():
+    targets = [tgt for (tgt, _) in tvm.testing.enabled_targets()]
+    for target in targets:
+        # Check that function runs and produces proper shape.
+        vals = get_random_uniform([10], dtype="float32", target=target)
+        assert list(vals.shape) == [10]
+        assert vals.dtype == "float32"
+
+        # Test N-D tensor generation.
+        vals = get_random_uniform([1, 3, 100, 100], dtype="float32", target=target)
+        assert list(vals.shape) == [1, 3, 100, 100]
+
+        # Check that bounds aren't exceeded.
+        vals = get_random_uniform(shape=[100], high=100, low=-100)
+        assert list(vals.shape) == [100]
+        assert all(vals >= -100) and all(vals <= 100)
+
+        # Check that a fixed seed produces the same values when run twice.
+        vals_1 = get_random_uniform(shape=[10], seed=1)
+        vals_2 = get_random_uniform(shape=[10], seed=1)
+        assert all(vals_1 == vals_2)
+
+        # Test against an expected output with a fixed seed.
+        real = get_random_uniform(shape=[10], seed=5)
+        expected = np.asarray(
+            [
+                0.8614111,
+                0.46572232,
+                0.6007328,
+                0.21619737,
+                0.6361222,
+                0.7298056,
+                0.13094282,
+                0.03556716,
+                0.32997167,
+                0.2977605,
+            ]
+        )
+        tvm.testing.assert_allclose(real, expected, rtol=1e-5)
+
+
 def verify_convinteger(
     x_shape,
     w_shape,
@@ -5108,5 +5168,6 @@ if __name__ == "__main__":
     test_reverse_sequence()
     test_eyelike()
     test_qlinearconv()
+    test_random_uniform()
     test_convinteger()
     test_batch_matmul()
