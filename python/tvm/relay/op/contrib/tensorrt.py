@@ -717,6 +717,9 @@ def pad_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if nn.pad is supported by TensorRT."""
 
     attrs, args = expr.attrs, expr.args
+    if len(attrs.pad_width) != 4 or len(attrs.pad_width) != 5:
+        logger.info("nn.pad: can only pad 4D or 5D inputs.")
+        return False
     if any([x.checked_type.dtype != "float32" for x in args]):
         logger.info("Only float32 inputs are supported for TensorRT.")
         return False
