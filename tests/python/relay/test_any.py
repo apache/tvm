@@ -511,7 +511,8 @@ def verify_any_conv2d(
         padding,
         dilation,
         kernel_size=kernel_shape[2:4] if kernel_layout == "OIHW" else kernel_shape[0:2],
-        data_layout=data_layout, kernel_layout=kernel_layout,
+        data_layout=data_layout,
+        kernel_layout=kernel_layout,
     )
     mod["main"] = relay.Function([data, kernel], y)
     data_np = np.random.uniform(size=static_data_shape).astype(dtype)
