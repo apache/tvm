@@ -291,7 +291,7 @@ bool Im2colRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
   if (input->shape.size() != 4) {
     reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
-                                     << "Im2lossRel: input data should be 4 dimensions, NxCxHxW.");
+                                     << "Im2colRel: input data should be 4 dimensions, NxCxHxW.");
     return false;
   }
 
