@@ -806,7 +806,7 @@ def scatter_nd(data, indices, updates, mode):
         with ib.new_scope():
             bidx = te.thread_axis("blockIdx.x")
             tidx = te.thread_axis("threadIdx.x")
-            gridDim = fused_indices_dimension           # 32 * 600 = 19200
+            gridDim = fused_indices_dimension  # 32 * 600 = 19200
             blockDim = fused_updates_dimension
             ib.scope_attr(bidx, "thread_extent", gridDim)
             ib.scope_attr(tidx, "thread_extent", blockDim)
@@ -815,14 +815,17 @@ def scatter_nd(data, indices, updates, mode):
             with ib.if_scope(j < fused_updates_dimension):
                 offset = fused_updates_dimension
                 findex = j
-                for l in reversed(range(indices_ptr.shape[0].value)):       # 2, 1, 0
+                for l in reversed(range(indices_ptr.shape[0].value)):  # 2, 1, 0
                     # indices[i * l * fused_indices_dimension] = indices[l, y_0, ... y_{k-1}]
                     findex += offset * indices[bidx + l * fused_indices_dimension]
                     offset *= data_ptr.shape[l]
                 if mode == "update":
                     out[findex] = updates[bidx * fused_updates_dimension + tidx]
                 elif mode == "add":
-                    out[findex] = atomic_add(tvm.tir.call_intrin("handle", "tir.address_of", out[findex]), updates[bidx * fused_updates_dimension + j])
+                    out[findex] = atomic_add(
+                        tvm.tir.call_intrin("handle", "tir.address_of", out[findex]),
+                        updates[bidx * fused_updates_dimension + j],
+                    )
                 else:
                     raise NotImplementedError("scatter_nd mode not in [update, add]:", mode)
 
