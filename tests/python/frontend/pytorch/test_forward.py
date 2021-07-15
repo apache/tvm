@@ -3991,9 +3991,6 @@ def test_forward_float():
         return float(i)
 
     class FloatModel(Module):
-        def __init__(self):
-            super(FloatModel, self).__init__()
-
         def forward(self, x):
             f = convert_i(10)
             return f * x
