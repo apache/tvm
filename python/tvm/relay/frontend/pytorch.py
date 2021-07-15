@@ -1875,9 +1875,7 @@ class PyTorchOpConverter:
 
     def Float(self, inputs, input_types):
         assert len(inputs) == 1
-        if isinstance(inputs[0], _expr.Expr):
-            return inputs[0]
-        return float(inputs[0])
+        return _op.cast(inputs[0], "float32")
 
     def bitwise_not(self, inputs, input_types):
         data = inputs[0]

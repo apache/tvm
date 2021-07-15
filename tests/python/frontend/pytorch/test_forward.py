@@ -3924,13 +3924,6 @@ def test_forward_im2col():
             self.stride = (stride, stride)
 
         def forward(self, x):
-            # ***********************************************************************************
-            #
-            # !!! DO NOT USE !!!
-            # F.unfold(x, kernel_size=3, dilation=1, padding=1, stride=1)
-            # for it broken TVM "if conditional expression" in torch script mode
-            #
-            # ***********************************************************************************
             return torch._C._nn.im2col(
                 x, self.kernel_size, self.dilation, self.padding, self.stride
             )
@@ -3966,38 +3959,11 @@ def test_forward_grid_sampler():
             # Torch grid_sample default: mode='bilinear', padding_mode='zeros', align_corners=False
             # tvm seems align corners as True
 
-            # ***********************************************************************************
-            #
-            # !!! DO NOT USE !!!
-            # F.grid_sample(input, grid, mode='bilinear', padding_mode='zeros', align_corners=True)
-            # for it broken TVM "if conditional expression" in torch script mode
-            #
-            # ***********************************************************************************
-
             return torch.grid_sampler(input, grid, 0, 0, True)
 
     model = GridSampler(16, 32)
     input = torch.randn(2, 3, 32, 32)
-
     verify_model(model, input_data=input)
-    verify_script_model(model.eval(), [(2, 3, 32, 32)], _get_default_vm_targets())
-
-
-@tvm.testing.uses_gpu
-def test_forward_float():
-    torch.set_grad_enabled(False)
-
-    def convert_i(i: int) -> float:
-        return float(i)
-
-    class FloatModel(Module):
-        def forward(self, x):
-            f = convert_i(10)
-            return f * x
-
-    model = FloatModel()
-
-    verify_script_model(model.eval(), [(2, 3, 32, 32)], _get_default_vm_targets())
 
 
 if __name__ == "__main__":
