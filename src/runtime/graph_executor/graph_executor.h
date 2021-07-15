@@ -138,6 +138,12 @@ class TVM_DLL GraphExecutor : public ModuleNode {
    * \return NDArray corresponding to given input node index.
    */
   NDArray GetInput(int index) const;
+/*!
+ * \brief set index-th output to the graph without copying the data.
+ * \param index The output index.
+ * \param data_ref The output data that is referred.
+ */
+  void SetOutputZeroCopy(int index, DLTensor* data_ref);
   /*!
    * \brief Return NDArray for given output index.
    * \param index The output index.
