@@ -1,5 +1,5 @@
 import collections
-import glob
+import functools
 import json
 import logging
 import os
@@ -230,7 +230,6 @@ class Handler(server.ProjectAPIHandler):
     def _copy_standalone_crt(self, source_dir, standalone_crt_dir):
         # Copy over the standalone_crt directory
         output_crt_dir = source_dir / "standalone_crt"
-        output_crt_dir.mkdir()
         for item in self.CRT_COPY_ITEMS:
             src_path = os.path.join(standalone_crt_dir, item)
             dst_path = output_crt_dir / item
@@ -238,6 +237,20 @@ class Handler(server.ProjectAPIHandler):
                 shutil.copytree(src_path, dst_path)
             else:
                 shutil.copy2(src_path, dst_path)
+
+    UNUSED_COMPONENTS = [
+        "include/dmlc",
+        "src/support",
+        "src/runtime/minrpc",
+        "src/runtime/crt/aot_executor",
+        "src/runtime/crt/microtvm_rpc_common",
+        "src/runtime/crt/microtvm_rpc_server",
+        "src/runtime/crt/tab",
+    ]
+    def _remove_unused_components(self, source_dir):
+        for component in self.UNUSED_COMPONENTS:
+            shutil.rmtree(source_dir / "standalone_crt" / component)
+
 
     GRAPH_JSON_TEMPLATE = 'static const char* graph_json = "{}";\n'
     def _compile_graph_json(self, model_dir, obj):
@@ -326,44 +339,29 @@ class Handler(server.ProjectAPIHandler):
         with open(source_dir / "parameters.h", "w") as f:
             f.write(parameters_h)
 
-    C_STD_LIBS = ["assert.h", "complex.h", "ctype.h", "errno.h", "fenv.h",
-            "float.h", "inttypes.h", "iso646.h", "limits.h", "locale.h",
-            "math.h", "setjmp.h", "signal.h", "stdalign.h", "stdarg.h",
-            "stdatomic.h", "stdbool.h", "stddef.h", "stdint.h", "stdio.h",
-            "stdlib.h", "stdnoreturn.h", "string.h", "tgmath.h", "threads.h",
-            "time.h", "uchar.h", "wchar.h", "wctype.h"]
 
-    # This list is LONG, TODO find a better way
-    CPP_STD_LIBS = ["utility"]
-
-    POSSIBLE_BASE_PATHS = ["src/standalone_crt/include/"]
-    # /home/.../project/src/standalone_crt/include/tvm/runtime/crt/graph_executor/load_json.c
-    # tvm/runtime/crt/platform.h
+    POSSIBLE_BASE_PATHS = [
+        "src/standalone_crt/include/",
+        "src/standalone_crt/crt_config/"
+    ]
     def _find_modified_include_path(self, project_dir, file_path, import_path):
-        # If the import is a C standard library, don't modify it
-        if import_path in self.C_STD_LIBS or import_path in self.CPP_STD_LIBS:
-            return import_path
 
         # If the import already works, don't modify it
-        print("Checking existance!")
-        if (file_path / import_path).exists():
-            print("Import path succeeded!")
+        if (file_path.parents[0] / import_path).exists():
             return import_path
 
         relative_path = file_path.relative_to(project_dir)
-        print(relative_path)
         up_dirs_path = "../" * str(relative_path).count("/")
 
         for base_path in self.POSSIBLE_BASE_PATHS:
             full_potential_path = project_dir / base_path / import_path
-            print(full_potential_path)
             if full_potential_path.exists():
                 new_include = up_dirs_path + base_path + import_path
-                print(f"Replaced {import_path} with {new_include}")
                 return new_include
 
-        print(f"Error! Could not find {import_path}")
-        print(file_path)
+        # If we can't find the file, just leave it untouched
+        # It's probably a standard C/C++ header
+        return import_path
 
     # Arduino only supports imports relative to the top-level project,
     # so we need to adjust each import to meet this convention
@@ -375,22 +373,17 @@ class Handler(server.ProjectAPIHandler):
 
                 for i in range(len(lines)):
                     # Check if line has an include
-                    result = re.search(r"#include\s*<([^>]*)>", lines[i])
+                    result = re.search(r"#include\s*[<\"]([^>]*)[>\"]", lines[i])
                     if not result:
                         continue
-                    print(lines[i])
-                    print(result.groups()[0])
                     new_include = self._find_modified_include_path(
                         project_dir, filename, result.groups()[0]
                     )
 
-                    lines[i] = f'#include "{new_include}"'
+                    lines[i] = f'#include "{new_include}"\n'
 
                 with filename.open("w") as file:
                     file.writelines(lines)
-
-                print(filename)
-        print("---")
 
 
     def generate_project(self, model_library_format_path, standalone_crt_dir, project_dir, options):
@@ -405,6 +398,7 @@ class Handler(server.ProjectAPIHandler):
 
         # Copy standalone_crt into src folder
         self._copy_standalone_crt(source_dir, standalone_crt_dir)
+        self._remove_unused_components(source_dir)
 
         # Unpack the MLF and copy the relevant files
         graph = self._disassemble_mlf(model_library_format_path, source_dir)

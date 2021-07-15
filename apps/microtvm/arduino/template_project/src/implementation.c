@@ -2,11 +2,24 @@
 #define IMPLEMENTATION
 
 #include "standalone_crt/include/tvm/runtime/crt/graph_executor.h"
+#include "standalone_crt/include/tvm/runtime/c_runtime_api.h"
+#include "standalone_crt/include/tvm/runtime/crt/logging.h"
+#include "standalone_crt/include/tvm/runtime/crt/stack_allocator.h"
 #include "Arduino.h"
 
 size_t TVMPlatformFormatMessage(char* out_buf, size_t out_buf_size_bytes, const char* fmt,
                                 va_list args) {
   return 0;
+}
+
+void TVMLogf(const char* msg, ...) {
+  /*char buffer[256];
+  int size;
+  va_list args;
+  va_start(args, msg);
+  size = vsprintf(buffer, msg, args);
+  va_end(args);
+  TVMPlatformWriteSerial(buffer, (uint32_t)size);*/
 }
 
 // Blink code for debugging purposes
