@@ -10,6 +10,17 @@ from tvm import micro, relay
 
 import conftest
 
+'''
+This unit test simulates a simple user workflow, where we:
+1. Generate a base sketch using a simple audio model
+2. Modify the .ino file, much like a user would
+3. Compile the sketch for the target platform
+-- If physical hardware is present --
+4. Upload the sketch to a connected board
+5. Open a serial connection to the board
+6. Use serial connection to ensure model behaves correctly
+'''
+
 PLATFORMS = conftest.PLATFORMS
 
 def _generate_project(model, target, arduino_board, arduino_cmd, mod, build_config):
@@ -46,7 +57,9 @@ def _generate_project(model, target, arduino_board, arduino_cmd, mod, build_conf
 
 # This is bad, don't do this
 TARGET = "c -keys=cpu -link-params=1 -mcpu=cortex-m33 -model=nrf5340dk -runtime=c -system-lib=1"
-def _generate_yes_no_project(platform, arduino_cmd):
+
+@pytest.fixture(scope="module")
+def yes_no_project(platform, arduino_cmd):
     current_dir = os.path.dirname(__file__)
     model, arduino_board = PLATFORMS[platform]
     #target = tvm.target.target.micro(model, options=["-link-params=1"])
@@ -60,18 +73,22 @@ def _generate_yes_no_project(platform, arduino_cmd):
         mod = relay.build(mod, TARGET, params=params)
 
     return _generate_project(model, TARGET, arduino_board, arduino_cmd, mod, build_config)
-    #project.build()
-    #project.flash()
     #return tvm.micro.Session(project.transport())
 
 
-def test_generate_yes_no_project(platform, arduino_cmd):
-    workspace, project = _generate_yes_no_project(platform, arduino_cmd)
+@pytest.fixture(scope="module")
+def project(yes_no_project):
+    workspace, project = yes_no_project
+    return project
 
-    # Ensure top-level directory structure looks good
-    assert(os.listdir(workspace.path) == ['project'])
 
-    project_dir = pathlib.Path(workspace.path) / "project"
+@pytest.fixture(scope="module")
+def project_dir(yes_no_project):
+    workspace, project = yes_no_project
+    return pathlib.Path(workspace.path) / "project"
+
+
+def test_project_folder_structure(project_dir):
     assert(set([
         'microtvm_api_server.py', 'project.ino', 'src']
     ).issubset(os.listdir(project_dir)))
@@ -83,8 +100,8 @@ def test_generate_yes_no_project(platform, arduino_cmd):
     ]))
 
 
-    # Ensure model was connected and graph_json compiled
-    model_dir = source_dir / "model"
+def test_project_model_integrity(project_dir):
+    model_dir = project_dir / "src" / "model"
     assert(set(os.listdir(model_dir)) == set([
         'default_lib0.c', 'default_lib1.c', 'graph_json.c', 'model.tar'
     ]))
@@ -93,15 +110,17 @@ def test_generate_yes_no_project(platform, arduino_cmd):
         assert("static const char* graph_json" in graph_json_c)
 
 
+def test_parameter_header_templating(project_dir):
     # Ensure parameters.h was templated with correct information
     # for our yes/no model
-    with (source_dir / "parameters.h").open() as f:
+    with (project_dir / "src" / "parameters.h").open() as f:
         parameters_h = f.read()
         assert("INPUT_DATA_SHAPE[] = {1, 1960};" in parameters_h)
 
 
+def test_import_rerouting(project_dir):
     # Check one file to ensure imports were rerouted
-    runtime_c_path = source_dir / "standalone_crt" / "src" / "runtime"
+    runtime_c_path = project_dir / "src" / "standalone_crt" / "src" / "runtime"
     load_json_path = runtime_c_path / "crt" / "graph_executor" / "load_json.c"
     assert(load_json_path.exists())
 
@@ -111,24 +130,26 @@ def test_generate_yes_no_project(platform, arduino_cmd):
         assert('include/tvm/runtime/crt/platform.h' in load_json_c)
 
 
-def test_compile_yes_no_project(platform, arduino_cmd):
-    workspace, project = _generate_yes_no_project(platform, arduino_cmd)
+@pytest.fixture(scope="module")
+def do_compile(project):
     project.build()
 
-    # Make sure build_dir is not empty
-    build_dir = pathlib.Path(workspace.path) / "project" / "build"
+
+def test_compile_yes_no_project(project_dir, project, do_compile):
+    build_dir = project_dir / "build"
     assert(build_dir.exists())
     first_build_file = next(build_dir.iterdir(), None)
     assert(first_build_file is not None)
 
 
-def test_upload_yes_no_project(platform, arduino_cmd, run_hardware_tests):
-    if not run_hardware_tests:
-        pytest.skip("skipping hardware tests")
-
-    workspace, project = _generate_yes_no_project(platform, arduino_cmd)
-    project.build()
+@pytest.fixture(scope="module")
+def do_upload(project):
     project.flash()
+
+
+def test_upload_yes_no_project(project_dir, project, do_compile, do_upload):
+    pass
+    # Test upload
 
 
 if __name__ == "__main__":

@@ -51,7 +51,7 @@ BOARD_PROPERTIES = {
         "architecture": "spresense",
         "board": "spresense",
     },
-    "nano33ble_sense": {
+    "nano33ble": {
         "package": "arduino",
         "architecture": "mbed_nano",
         "board": "nano33ble",

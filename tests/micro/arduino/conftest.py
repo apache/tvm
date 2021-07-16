@@ -6,18 +6,15 @@ import tvm.target.target
 # (model, zephyr_board).
 PLATFORMS = {
     "spresense": ("cxd5602gg", "spresense"),
+    "nano33ble": ("nRF52840", "nano33ble"),
 }
-
 
 def pytest_addoption(parser):
     parser.addoption(
-        "--microtvm-platforms",
+        "--platform",
         default="spresense",
         choices=PLATFORMS.keys(),
-        help=(
-            "Specify a comma-separated list of test models (i.e. as passed to tvm.target.micro()) "
-            "for microTVM tests."
-        ),
+        help="Target platform for microTVM tests.",
     )
     parser.addoption(
         "--arduino-cmd", default="arduino-cli", help="Path to `arduino-cli` command for flashing device."
@@ -26,15 +23,15 @@ def pytest_addoption(parser):
         "--run-hardware-tests", action="store_true", help="Run tests that require physical hardware."
     )
 
-def pytest_generate_tests(metafunc):
-    if "platform" in metafunc.fixturenames:
-        metafunc.parametrize("platform", metafunc.config.getoption("microtvm_platforms").split(","))
+# TODO re-add parameterization
+@pytest.fixture(scope="session")
+def platform(request):
+    return request.config.getoption("--platform")
 
-
-@pytest.fixture
+@pytest.fixture(scope="session")
 def arduino_cmd(request):
     return request.config.getoption("--arduino-cmd")
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def run_hardware_tests(request):
     return request.config.getoption("--run-hardware-tests")
