@@ -40,7 +40,7 @@ def test_basic():
 
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([n], stmt))
     mod = tvm.tir.transform.LoopPartition()(mod)
-    stmt = tvm.tir.transform.Simplify()(mod)["main"].body
+    stmt = tvm.tir.transform.Simplify()(mod)["main"]
 
     assert not any(collect_visit(stmt.body.body[0], lambda x: isinstance(x, tvm.tir.IfThenElse)))
     assert any(collect_visit(stmt.body.body[1], lambda x: isinstance(x, tvm.tir.IfThenElse)))
@@ -156,7 +156,7 @@ def test_thread_axis():
 
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
     mod = tvm.tir.transform.LoopPartition()(mod)
-    stmt = tvm.tir.transform.Simplify()(mod)["main"].body
+    stmt = tvm.tir.transform.Simplify()(mod)["main"]
 
     assert not any(collect_visit(stmt.body.body[0], lambda x: isinstance(x, tvm.tir.IfThenElse)))
 
