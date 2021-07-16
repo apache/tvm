@@ -59,7 +59,4 @@
 /*! \brief Number of pages on device. */
 #define TVM_CRT_MAX_PAGES 300
 
-/*! \brief Enable stack allocation alignment. */
-#define TVM_CRT_STACK_ALLOCATOR_ENABLE_LIFO_CHECK
-
 #endif  // TVM_RUNTIME_CRT_CONFIG_H_
