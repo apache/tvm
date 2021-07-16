@@ -376,7 +376,7 @@ def verify_depth_to_space(inshape, outshape, mode, blockSize):
 @tvm.testing.uses_gpu
 def test_depth_to_space():
     # current onnx.checker use OpSet-1 version of DepthToSpace, which doesn't have a mode argument.
-    # TO-DO, we can add mode arguement to test CRD mode and DCR mode
+    # TO-DO, we can add mode argument to test CRD mode and DCR mode
     # in the future when we update to a newer onnx version.
     verify_depth_to_space((1, 8, 2, 3), (1, 2, 4, 6), mode="CRD", blockSize=2)
 
@@ -2490,7 +2490,7 @@ def test_conv():
             repeat(1, D),
             repeat(1, D),
         )
-        # Convolution with assymetric padding
+        # Convolution with asymmetric padding
         verify_conv(
             (1, 1) + repeat(5, D),
             (1, 1) + repeat(3, D),
@@ -4043,7 +4043,7 @@ def verify_count_loop():
     verify_with_ort_with_inputs(loop_model, input_vals, use_vm=True, freeze_params=True)
 
 
-def verify_tensor_loop():
+def verify_tensor_loop(shapeless_output=False):
     y_in = helper.make_tensor_value_info("y_in", TensorProto.FLOAT, [3, 3, 3, 3])
     y_out = helper.make_tensor_value_info("y_out", TensorProto.FLOAT, [3, 3, 3, 3])
     scan_out = helper.make_tensor_value_info("scan_out", TensorProto.FLOAT, [3, 3, 3, 3])
@@ -4076,6 +4076,13 @@ def verify_tensor_loop():
 
     trip_count = np.array(5).astype(np.int64)
     cond = np.array(1).astype(bool)
+
+    # Allow testing of malformed nodes since pytorch likes to create these.
+    if shapeless_output:
+        scan_shape = None
+    else:
+        scan_shape = [5, 3, 3, 3, 3]
+
     loop_graph = onnx.helper.make_graph(
         [loop_node],
         "loop_outer",
@@ -4086,7 +4093,7 @@ def verify_tensor_loop():
         ],
         outputs=[
             onnx.helper.make_tensor_value_info("res_y", onnx.TensorProto.FLOAT, [3, 3, 3, 3]),
-            onnx.helper.make_tensor_value_info("res_scan", onnx.TensorProto.FLOAT, [5, 3, 3, 3, 3]),
+            onnx.helper.make_tensor_value_info("res_scan", onnx.TensorProto.FLOAT, scan_shape),
         ],
     )
     loop_model = onnx.helper.make_model(loop_graph)
@@ -4106,6 +4113,8 @@ def test_loop():
     verify_count_loop()
     # Test a loop that uses an array output.
     verify_tensor_loop()
+    # Test a loop that is malformed and has no output shape defined.
+    verify_tensor_loop(shapeless_output=True)
 
 
 def verify_if(cond_array, num_outputs):
@@ -4747,7 +4756,7 @@ def test_qlinearconv():
         bias=True,
     )
 
-    # Convolution with assymetric padding
+    # Convolution with asymmetric padding
     verify_qlinearconv(
         (1, 1) + repeat(5, D),
         (1, 1) + repeat(3, D),
@@ -4868,6 +4877,66 @@ def test_qlinearadd():
     verify_qlinearadd([4, 2], [4, 2], [4, 2])
     verify_qlinearadd([4, 2], [2], [4, 2])
     verify_qlinearadd([5, 1, 7], [2, 7], [5, 2, 7])
+
+
+def get_random_uniform(shape, dtype="float32", high=1.0, low=0.0, seed=None, target="llvm"):
+    ONNX_DTYPE = mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(dtype)]
+    node = helper.make_node(
+        "RandomUniform", [], ["out"], shape=shape, dtype=ONNX_DTYPE, high=high, low=low
+    )
+    if seed is not None:
+        seed_attr = helper.make_attribute("seed", seed)
+        node.attribute.append(seed_attr)
+
+    graph = helper.make_graph(
+        [node],
+        "random_uniform_test",
+        inputs=[],
+        outputs=[helper.make_tensor_value_info("out", ONNX_DTYPE, shape)],
+    )
+    model = helper.make_model(graph, producer_name="random_uniform_test")
+    return get_tvm_output_with_vm(model, [], target=target, device=tvm.device(target, 0))
+
+
+def test_random_uniform():
+    targets = [tgt for (tgt, _) in tvm.testing.enabled_targets()]
+    for target in targets:
+        # Check that function runs and produces proper shape.
+        vals = get_random_uniform([10], dtype="float32", target=target)
+        assert list(vals.shape) == [10]
+        assert vals.dtype == "float32"
+
+        # Test N-D tensor generation.
+        vals = get_random_uniform([1, 3, 100, 100], dtype="float32", target=target)
+        assert list(vals.shape) == [1, 3, 100, 100]
+
+        # Check that bounds aren't exceeded.
+        vals = get_random_uniform(shape=[100], high=100, low=-100)
+        assert list(vals.shape) == [100]
+        assert all(vals >= -100) and all(vals <= 100)
+
+        # Check that a fixed seed produces the same values when run twice.
+        vals_1 = get_random_uniform(shape=[10], seed=1)
+        vals_2 = get_random_uniform(shape=[10], seed=1)
+        assert all(vals_1 == vals_2)
+
+        # Test against an expected output with a fixed seed.
+        real = get_random_uniform(shape=[10], seed=5)
+        expected = np.asarray(
+            [
+                0.8614111,
+                0.46572232,
+                0.6007328,
+                0.21619737,
+                0.6361222,
+                0.7298056,
+                0.13094282,
+                0.03556716,
+                0.32997167,
+                0.2977605,
+            ]
+        )
+        tvm.testing.assert_allclose(real, expected, rtol=1e-5)
 
 
 def verify_convinteger(
@@ -5108,5 +5177,6 @@ if __name__ == "__main__":
     test_reverse_sequence()
     test_eyelike()
     test_qlinearconv()
+    test_random_uniform()
     test_convinteger()
     test_batch_matmul()

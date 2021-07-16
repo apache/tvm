@@ -396,7 +396,7 @@ def parse_shape_string(inputs_string):
     """
 
     # Create a regex pattern that extracts each separate input mapping.
-    pattern = r"\w+\:\s*\[\-?\d+(?:\,\s*\-?\d+)*\]"
+    pattern = r"(?:\w+\/)?\w+\:\s*\[\-?\d+(?:\,\s*\-?\d+)*\]"
     input_mappings = re.findall(pattern, inputs_string)
     if not input_mappings:
         raise argparse.ArgumentTypeError(
