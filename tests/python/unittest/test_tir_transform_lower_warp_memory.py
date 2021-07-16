@@ -72,8 +72,8 @@ def test_lower_warp_memory_correct_indices():
 
     bounds = tvm.te.schedule.InferBound(s)
     ir = tvm.te.schedule.ScheduleOps(s, bounds)
-    inner_func = ir.body.body.body.body
-    store_A_warp = inner_func.body.seq[0].body.body
+    inner_func = ir.body.body.body
+    store_A_warp = inner_func.seq[0].body.body
     indices = list(store_A_warp.indices)
 
     # A.warp is actually many buffers, one for each warp, although they are all called A.warp
