@@ -34,6 +34,7 @@ from .. import op as _op
 from .. import qnn as _qnn
 from .. import ty as _ty
 from .. import vision as _vision
+from .. import random as _random
 from .common import (
     AttrCvt,
     Renamer,
@@ -2741,24 +2742,24 @@ class Loop(OnnxOpConverter):
         loop_var_names = [v.name_hint for v in loop_vars]
 
         num_scan_outputs = len(body.output) - (1 + num_deps)
-        # TODO (jwfromm) Test with strided slice once type unifier for this case is fixed.
-        if num_scan_outputs != 0 and "Slice" in [n.op_type for n in body.node]:
-            warnings.warn(
-                """
-                Using scan outputs in a loop with strided slice
-                currently may cause errors during compilation.
-                """
-            )
 
         # Construct variables and initial empty tensors for any scan outputs.
+        # To do this, we'll figure out the output shapes of the body subgraph by importing
+        # it and doing type inference.
         scan_output_vars = []
         scan_output_init = []
+        if num_scan_outputs > 0:
+            with subgraph_scope:
+                loop_outputs = subgraph_scope.from_onnx(
+                    body, graph_scope.opset, get_output_expr=True
+                )
+            loop_outputs = _expr.TupleWrapper(loop_outputs, len(body.output))
+
         for i in range(num_scan_outputs):
-            name, shape, dtype, _ = get_info(body.output[i + 1 + num_deps])
-            if dtype is None:
-                dtype = infer_type(loop_deps[i]).checked_type.dtype
-            if dtype == "float":
-                dtype = "float32"
+            name, _, _, _ = get_info(body.output[i + 1 + num_deps])
+            output_node = infer_type(loop_outputs[i + 1 + num_deps])
+            shape = get_const_tuple(output_node.checked_type.shape)
+            dtype = output_node.checked_type.dtype
             scan_output_vars.append(
                 _expr.var(name, shape=([_ty.Any()] * (len(shape) + 1)), dtype=dtype)
             )
@@ -3329,6 +3330,30 @@ class Unique(OnnxOpConverter):
         return _expr.TupleWrapper(_expr.Tuple([unique_vals, indices, inverse_indices, counts]), 4)
 
 
+class RandomUniform(OnnxOpConverter):
+    """Operator converter for random_uniform"""
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        dtype = get_type(attr.get("dtype", 1))
+        high = attr.get("high", 1.0)
+        low = attr.get("low", 0.0)
+        seed = attr.get("seed", None)
+        shape = attr["shape"]
+
+        assert dtype in [
+            "float32",
+            "float64",
+        ], "Only float random value generation is currently supported."
+
+        if seed is None:
+            seed = np.random.randint(1e6)
+        key = _random.threefry_key(seed)
+        output = _op.random.uniform(key, shape, dtype=dtype, low=low, high=high)
+        _, vals = _expr.TupleWrapper(output, 2)
+        return vals
+
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -3507,6 +3532,8 @@ def _get_convert_map(opset):
         "QLinearConv": QLinearConv.get_converter(opset),
         "QLinearAdd": QLinearAdd.get_converter(opset),
         "ConvInteger": ConvInteger.get_converter(opset),
+        # Random number generation.
+        "RandomUniform": RandomUniform.get_converter(opset),
     }
 
 

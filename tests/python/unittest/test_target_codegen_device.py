@@ -45,7 +45,7 @@ def test_large_uint_imm():
         assert a.numpy()[0] == value + 3
 
     check_target("cuda")
-    check_target("vulkan")
+    check_target("vulkan -from_device=0")
 
 
 @tvm.testing.requires_gpu
