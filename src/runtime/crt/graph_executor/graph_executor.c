@@ -130,7 +130,7 @@ int TVMGraphExecutorNode_Load(TVMGraphExecutorNode* node, JSONReader* reader) {
       }
       bitmask |= 2;
     } else if (!strcmp(key, "inputs")) {
-      size_t count = node->inputs_count;
+      size_t count = 0;
       reader->BeginArray(reader);
       size_t num_inputs = 0;
       if (reader->ArrayLength(reader, &num_inputs) != 0) {
@@ -1092,6 +1092,8 @@ int TVMGraphExecutor_SetupOpExecs(TVMGraphExecutor* executor) {
       TVMGraphExecutor_CreateTVMOp(executor, &(inode->param), args, args_count, inode->inputs_count,
                                    &pf);
       executor->op_execs[nid] = pf;
+    } else {
+      memset(&executor->op_execs[nid], 0, sizeof(TVMPackedFunc));
     }
   }
   return status;
