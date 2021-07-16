@@ -376,7 +376,7 @@ def verify_depth_to_space(inshape, outshape, mode, blockSize):
 @tvm.testing.uses_gpu
 def test_depth_to_space():
     # current onnx.checker use OpSet-1 version of DepthToSpace, which doesn't have a mode argument.
-    # TO-DO, we can add mode arguement to test CRD mode and DCR mode
+    # TO-DO, we can add mode argument to test CRD mode and DCR mode
     # in the future when we update to a newer onnx version.
     verify_depth_to_space((1, 8, 2, 3), (1, 2, 4, 6), mode="CRD", blockSize=2)
 
@@ -2490,7 +2490,7 @@ def test_conv():
             repeat(1, D),
             repeat(1, D),
         )
-        # Convolution with assymetric padding
+        # Convolution with asymmetric padding
         verify_conv(
             (1, 1) + repeat(5, D),
             (1, 1) + repeat(3, D),
@@ -4043,7 +4043,7 @@ def verify_count_loop():
     verify_with_ort_with_inputs(loop_model, input_vals, use_vm=True, freeze_params=True)
 
 
-def verify_tensor_loop():
+def verify_tensor_loop(shapeless_output=False):
     y_in = helper.make_tensor_value_info("y_in", TensorProto.FLOAT, [3, 3, 3, 3])
     y_out = helper.make_tensor_value_info("y_out", TensorProto.FLOAT, [3, 3, 3, 3])
     scan_out = helper.make_tensor_value_info("scan_out", TensorProto.FLOAT, [3, 3, 3, 3])
@@ -4076,6 +4076,13 @@ def verify_tensor_loop():
 
     trip_count = np.array(5).astype(np.int64)
     cond = np.array(1).astype(bool)
+
+    # Allow testing of malformed nodes since pytorch likes to create these.
+    if shapeless_output:
+        scan_shape = None
+    else:
+        scan_shape = [5, 3, 3, 3, 3]
+
     loop_graph = onnx.helper.make_graph(
         [loop_node],
         "loop_outer",
@@ -4086,7 +4093,7 @@ def verify_tensor_loop():
         ],
         outputs=[
             onnx.helper.make_tensor_value_info("res_y", onnx.TensorProto.FLOAT, [3, 3, 3, 3]),
-            onnx.helper.make_tensor_value_info("res_scan", onnx.TensorProto.FLOAT, [5, 3, 3, 3, 3]),
+            onnx.helper.make_tensor_value_info("res_scan", onnx.TensorProto.FLOAT, scan_shape),
         ],
     )
     loop_model = onnx.helper.make_model(loop_graph)
@@ -4106,6 +4113,8 @@ def test_loop():
     verify_count_loop()
     # Test a loop that uses an array output.
     verify_tensor_loop()
+    # Test a loop that is malformed and has no output shape defined.
+    verify_tensor_loop(shapeless_output=True)
 
 
 def verify_if(cond_array, num_outputs):
@@ -4747,7 +4756,7 @@ def test_qlinearconv():
         bias=True,
     )
 
-    # Convolution with assymetric padding
+    # Convolution with asymmetric padding
     verify_qlinearconv(
         (1, 1) + repeat(5, D),
         (1, 1) + repeat(3, D),
