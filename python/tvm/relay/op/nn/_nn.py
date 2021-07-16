@@ -1059,7 +1059,9 @@ def _conv_transpose_shape_func(dshape, kshape, strides, padding, dilation, outpu
 
     for i in const_range(dshape.shape[0] - 2):
         dilated_k = (kshape[i + 2] - 1) * dilation[i] + 1
-        out[i + 2] = strides[i] * (dshape[i + 2] -1) + dilated_k - 2 * padding[i] + output_padding[i]
+        out[i + 2] = (
+            strides[i] * (dshape[i + 2] -1) + dilated_k - 2 * padding[i] + output_padding[i]
+        )
     return out
 
 
