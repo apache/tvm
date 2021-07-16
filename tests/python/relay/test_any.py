@@ -496,13 +496,24 @@ def verify_any_conv2d(
     dilation,
     static_data_shape,
     ref_out_shape,
+    data_layout="NCHW",
+    kernel_layout="OIHW",
     use_cudnn=False,
 ):
     mod = tvm.IRModule()
     dtype = "float32"
     data = relay.var("data", shape=data_shape, dtype=dtype)
     kernel = relay.var("kernel", shape=kernel_shape, dtype=dtype)
-    y = relay.nn.conv2d(data, kernel, strides, padding, dilation, kernel_size=kernel_shape[2:4])
+    y = relay.nn.conv2d(
+        data,
+        kernel,
+        strides,
+        padding,
+        dilation,
+        kernel_size=kernel_shape[2:4] if kernel_layout == "OIHW" else kernel_shape[0:2],
+        data_layout=data_layout,
+        kernel_layout=kernel_layout,
+    )
     mod["main"] = relay.Function([data, kernel], y)
     data_np = np.random.uniform(size=static_data_shape).astype(dtype)
     kernel_np = np.random.uniform(size=kernel_shape).astype(dtype)
@@ -544,6 +555,28 @@ def test_any_conv2d():
         (1, 64, 224, 224),
         (1, 64, 224, 224),
         use_cudnn=True,
+    )
+    verify_any_conv2d(
+        (relay.Any(), 224, 224, 64),
+        (3, 3, 64, 64),
+        (1, 1),
+        (1, 1),
+        (1, 1),
+        (1, 224, 224, 64),
+        (1, 224, 224, 64),
+        data_layout="NHWC",
+        kernel_layout="HWIO",
+    )
+    verify_any_conv2d(
+        (relay.Any(), 224, 224, 64),
+        (3, 3, 64, 64),
+        (1, 1),
+        (1, 1),
+        (2, 2),
+        (2, 224, 224, 64),
+        (2, 222, 222, 64),
+        data_layout="NHWC",
+        kernel_layout="HWIO",
     )
 
 
