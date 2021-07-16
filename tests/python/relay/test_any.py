@@ -578,18 +578,6 @@ def test_any_conv2d():
         data_layout="NHWC",
         kernel_layout="HWIO",
     )
-    verify_any_conv2d(
-        (relay.Any(), 224, 224, 64),
-        (3, 3, 64, 64),
-        (1, 1),
-        (1, 1),
-        (1, 1),
-        (1, 224, 224, 64),
-        (1, 224, 224, 64),
-        data_layout="NHWC",
-        kernel_layout="HWIO",
-        use_cudnn=True,
-    )
 
 
 def verify_any_conv2d_NCHWc(
