@@ -1017,14 +1017,11 @@ def conv_shape_func(attrs, inputs, _):
         shape_func = _conv_shape_func_nhwc_hwoi
     else:
         raise ValueError(
-            "Unsupported data/kernel layout: %s, %s" % (
-                attrs["data_layout"], attrs["kernel_layout"]
-            )
+            "Unsupported data/kernel layout: %s, %s"
+            % (attrs["data_layout"], attrs["kernel_layout"])
         )
 
-    return [
-        shape_func(inputs[0], inputs[1], convert(strides), convert(padding), convert(dilation))
-    ]
+    return [shape_func(inputs[0], inputs[1], convert(strides), convert(padding), convert(dilation))]
 
 
 reg.register_shape_func("nn.conv1d", False, conv_shape_func)
