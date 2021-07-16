@@ -116,6 +116,7 @@ def _test_image_network(
         tei.run(m, inputs, output_count, npu=True)
 
 
+@pytest.mark.xfail
 def test_mobilenet_v1():
     # If this test is failing due to a hash mismatch, please notify @mbaret and
     # @Leo-arm. The hash is there to catch any changes in the behaviour of the
@@ -142,6 +143,7 @@ def test_mobilenet_v1():
     )
 
 
+@pytest.mark.xfail
 def test_inception_v3():
     # If this test is failing due to a hash mismatch, please notify @mbaret and
     # @Leo-arm. The hash is there to catch any changes in the behaviour of the
@@ -167,6 +169,7 @@ def test_inception_v3():
     )
 
 
+@pytest.mark.xfail
 def test_inception_v4():
     # If this test is failing due to a hash mismatch, please notify @mbaret and
     # @Leo-arm. The hash is there to catch any changes in the behaviour of the
@@ -192,6 +195,7 @@ def test_inception_v4():
     )
 
 
+@pytest.mark.xfail
 def test_ssd_mobilenet_v1():
     # If this test is failing due to a hash mismatch, please notify @mbaret and
     # @Leo-arm. The hash is there to catch any changes in the behaviour of the
