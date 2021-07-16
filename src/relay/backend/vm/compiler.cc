@@ -80,6 +80,7 @@ namespace vm {
 using namespace tvm::runtime;
 using namespace tvm::runtime::vm;
 using namespace relay::transform;
+using namespace tec;
 
 // (@jroesch): VM passes, eventually declare as passes.
 bool IsClosure(const Function& func);
@@ -465,7 +466,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
 
   void EmitShapeFunc(Function func, Array<Expr> inputs, Array<Expr> outputs) {
     // Lower shape function
-    tec::CCacheKey key(func, target_host_);
+    CCacheKey key(func, target_host_);
     auto cfunc = compiler_->LowerShapeFunc(key); //TODO: replace with TE 
     int op_index = -1;
     // pick the only function inside the context
@@ -550,7 +551,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
       }
     }
 
-    tec::CCacheKey key(func, target);
+    CCacheKey key(func, target);
     auto mangle_fn = [](String name) { return name; };
     auto cfunc = compiler_->Lower(key, mangle_fn); //TODO: replace with TE 
 
@@ -859,7 +860,8 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
   /*! \brief Total number of virtual registers allocated. */
   size_t registers_num_;
   /*! \brief Compiler engine to lower primitive functions. */
-  tvm::relay::tec::TECompiler compiler_;  /*! \brief Global shared meta data */
+  TECompiler compiler_;  
+  /*! \brief Global shared meta data */
   VMCompilerContext* context_;
   /*! \brief Target devices. */
   std::unordered_map<int, tvm::Target> targets_;
@@ -1184,7 +1186,7 @@ void VMCompiler::Codegen() {
     }
   }
 
-  tvm::relay::tec::TECompiler compiler;
+  TECompiler compiler;
   auto ext_mods = compiler->LowerExternalFunctions();
 
   //targets = target
