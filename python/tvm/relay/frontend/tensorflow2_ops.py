@@ -41,7 +41,7 @@ def _detect_tf2_ops(_graph):
         return True
 
     for fn in _graph.library.function:
-        if _check_tf2_nodes(fn.node_def):
+        if _check_subgraph(fn.node_def):
             return True
 
     return False

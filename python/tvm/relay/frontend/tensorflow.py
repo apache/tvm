@@ -1250,8 +1250,7 @@ def from_tensorflow(graph, layout="NHWC", shape=None, outputs=None, use_dense_op
     global TF_DEFAULT_CONFIGS
     TF_DEFAULT_CONFIGS["use_dense"] = use_dense_op
 
-    tf2_needed = _detect_tf2_control_flow(graph)
-    print("TF2 needed?", tf2_needed)
+    tf2_needed = _detect_tf2_ops(graph)
     if not tf2_needed:
         g = GraphProto()
         mod, params = g.from_tensorflow(graph, layout, shape, outputs)
