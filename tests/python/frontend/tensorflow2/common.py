@@ -23,7 +23,7 @@ from tvm import relay
 
 from tvm.runtime.vm import VirtualMachine
 import tvm.contrib.graph_executor as runtime
-from tvm.relay.frontend.tensorflow2 import from_tensorflow
+from tvm.relay.frontend.tensorflow import from_tensorflow
 import tvm.testing
 from tvm.relay.testing.tf import vmobj_to_list as vmobj_to_list
 

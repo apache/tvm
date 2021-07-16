@@ -26,6 +26,26 @@ from .common import infer_type as _infer_type
 from .tensorflow_ops import _get_more_static_shape_rank
 
 
+def _detect_tf2_ops(_graph):
+    tensorlist_ops = ["TensorListFromTensor", "TensorListGetItem",  "TensorListReserve", "TensorListSetItem", "TensorListStack"]
+    control_flow_ops = ["If", "StatelessIf", "While", "StatelessWhile"]
+    tf2_ops = set(tensorlist_ops+control_flow_ops)
+
+    def _check_subgraph(nodes):
+        for node in nodes:
+            if node.op in tf2_ops:
+                return True
+        return False
+
+    if _check_subgraph(_graph.node):
+        return True
+
+    for fn in _graph.library.function:
+        if _check_tf2_nodes(fn.node_def):
+            return True
+
+    return False
+
 def _infer_type_with_prelude(val, prelude):
     body = _infer_type(val, prelude.mod)
     return body.checked_type

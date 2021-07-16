@@ -41,6 +41,7 @@ from .common import infer_value as _infer_value
 from .tensorflow_ops import _convert_map
 from .tensorflow_ops import _need_prelude_for_shape_inference
 from .tensorflow_ops import _get_more_static_shape
+from .tensorflow2_ops import _detect_tf2_ops
 
 __all__ = ["from_tensorflow"]
 
@@ -1217,6 +1218,7 @@ class SubGraphProto(GraphProto):
 def from_tensorflow(graph, layout="NHWC", shape=None, outputs=None, use_dense_op=True):
     """Load tensorflow graph which is a python tensorflow graph object into relay.
     The companion parameters will be handled automatically.
+    If loaded graph has Tf2 ops offload it to Tf2 frontend.
 
     Parameters
     ----------
@@ -1248,6 +1250,13 @@ def from_tensorflow(graph, layout="NHWC", shape=None, outputs=None, use_dense_op
     global TF_DEFAULT_CONFIGS
     TF_DEFAULT_CONFIGS["use_dense"] = use_dense_op
 
-    g = GraphProto()
-    mod, params = g.from_tensorflow(graph, layout, shape, outputs)
+    tf2_needed = _detect_tf2_control_flow(graph)
+    print("TF2 needed?", tf2_needed)
+    if not tf2_needed:
+        g = GraphProto()
+        mod, params = g.from_tensorflow(graph, layout, shape, outputs)
+    else:
+        from tvm.relay.frontend.tensorflow2 import from_tensorflow as _from_tensorflow2
+        mod, params = _from_tensorflow2(graph, layout, shape, outputs)
+
     return mod, params
