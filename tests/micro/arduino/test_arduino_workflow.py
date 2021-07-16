@@ -211,7 +211,6 @@ TENSORFLOW_EVALUATIONS = {
     "unknown": [-128,-125,-128,125],
 }
 MAX_PREDICTION_DIFFERENCE = 2
-@pytest.mark.requires_hardware
 def test_project_inference_correctness(serial_output):
     predictions = {line[0]: line[2:] for line in serial_output}
 
@@ -226,7 +225,6 @@ def test_project_inference_correctness(serial_output):
 
 MAX_INFERENCE_TIME_US = 200 * 1000
 MAX_INFERENCE_TIME_RANGE_US = 1000
-@pytest.mark.requires_hardware
 def test_project_inference_runtime(serial_output):
     runtimes_us = [line[1] for line in serial_output]
 
