@@ -45,12 +45,12 @@
 #include <vector>
 
 #include "../../../target/source/codegen_source_base.h"
-#include "../../backend/compile_engine.h"
 #include "../../op/op_common.h"
 #include "../../transforms/pass_utils.h"
 #include "../te_compiler_cache.h"
 #include "../utils.h"
 #include "compiler.h"
+#include "../te_compiler.h"
 
 namespace tvm {
 namespace relay {
@@ -254,7 +254,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
                      ExprDeviceMap expr_device_map)
       : last_register_(0),
         registers_num_(0),
-        engine_(CompileEngine::Global()), //TODO: replace with TE 
+        // engine_(CompileEngine::Global()), //TODO: replace with TE 
         context_(context),
         target_host_(target_host),
         expr_device_map_(std::move(expr_device_map)) {
@@ -465,8 +465,8 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
 
   void EmitShapeFunc(Function func, Array<Expr> inputs, Array<Expr> outputs) {
     // Lower shape function
-    CCacheKey key(func, target_host_);
-    auto cfunc = engine_->LowerShapeFunc(key); //TODO: replace with TE 
+    tec::CCacheKey key(func, target_host_);
+    auto cfunc = compiler_->LowerShapeFunc(key); //TODO: replace with TE 
     int op_index = -1;
     // pick the only function inside the context
     ICHECK_EQ(cfunc->funcs->functions.size(), 1);
@@ -550,9 +550,9 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
       }
     }
 
-    CCacheKey key(func, target);
+    tec::CCacheKey key(func, target);
     auto mangle_fn = [](String name) { return name; };
-    auto cfunc = engine_->Lower(key, mangle_fn); //TODO: replace with TE 
+    auto cfunc = compiler_->Lower(key, mangle_fn); //TODO: replace with TE 
 
     auto op_index = -1;
     if (func->GetAttr<String>(attr::kCompiler).defined()) {
@@ -859,8 +859,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
   /*! \brief Total number of virtual registers allocated. */
   size_t registers_num_;
   /*! \brief Compiler engine to lower primitive functions. */
-  CompileEngine engine_; //TODO: replace with TE 
-  /*! \brief Global shared meta data */
+  tvm::relay::tec::TECompiler compiler_;  /*! \brief Global shared meta data */
   VMCompilerContext* context_;
   /*! \brief Target devices. */
   std::unordered_map<int, tvm::Target> targets_;
@@ -1185,10 +1184,8 @@ void VMCompiler::Codegen() {
     }
   }
 
-  // TODO(mikepapdim) replace compiler engine with TE
-  auto compile_engine = CompileEngine::Global();
-
-  auto ext_mods = compile_engine->LowerExternalFunctions();
+  tvm::relay::tec::TECompiler compiler;
+  auto ext_mods = compiler->LowerExternalFunctions();
 
   //targets = target
 
@@ -1202,7 +1199,6 @@ void VMCompiler::Codegen() {
   }
   lib = codegen::CreateMetadataModule(params_, lib, ext_mods, target_host_, runtime::Metadata());
   exec_->SetLib(lib);
-  CompileEngine::Global()->Clear();  //TODO(mikepapadim)replace compiler engine with TE
 } 
 
 ExprDeviceMap VMCompiler::AnalyzeContext() const {

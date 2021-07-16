@@ -43,9 +43,9 @@
 
 #include "../../../runtime/vm/naive_allocator.h"
 #include "../../../runtime/vm/profiler/vm.h"
-#include "../../backend/compile_engine.h"
 #include "../../transforms/pass_utils.h"
 #include "../te_compiler_cache.h"
+#include "../te_compiler.h"
 
 
 namespace tvm {
@@ -82,7 +82,7 @@ struct VMCompilerContext {
   // Device type for constants
   std::vector<Index> const_device_type;
   // List of cached functions
-  std::vector<CachedFunc> cached_funcs;
+  std::vector<tec::CachedFunc> cached_funcs;
   // The functions that have been lowered.
   std::unordered_map<tir::PrimFunc, size_t, ObjectPtrHash, ObjectPtrEqual> seen_funcs;
 };
