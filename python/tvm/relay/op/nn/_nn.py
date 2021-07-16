@@ -1008,40 +1008,23 @@ def conv_shape_func(attrs, inputs, _):
     padding = get_const_tuple(attrs.padding)
     dilation = get_const_tuple(attrs.dilation)
 
+    shape_func = None
     if attrs["data_layout"] == "NCHW" and attrs["kernel_layout"] == "OIHW":
-        return [
-            _conv_shape_func_nchw(
-                inputs[0],
-                inputs[1],
-                convert(strides),
-                convert(padding),
-                convert(dilation),
+        shape_func = _conv_shape_func_nchw
+    elif attrs["data_layout"] == "NHWC" and attrs["kernel_layout"] == "HWIO":
+        shape_func = _conv_shape_func_nhwc_hwio
+    elif attrs["data_layout"] == "NHWC" and attrs["kernel_layout"] == "HWOI":
+        shape_func = _conv_shape_func_nhwc_hwoi
+    else:
+        raise ValueError(
+            "Unsupported data/kernel layout: %s, %s" % (
+                attrs["data_layout"], attrs["kernel_layout"]
             )
-        ]
-    if attrs["data_layout"] == "NHWC":
-        if attrs["kernel_layout"] == "HWIO":
-            return [
-                _conv_shape_func_nhwc_hwio(
-                    inputs[0],
-                    inputs[1],
-                    convert(strides),
-                    convert(padding),
-                    convert(dilation),
-                )
-            ]
-        if attrs["kernel_layout"] == "HWOI":
-            return [
-                _conv_shape_func_nhwc_hwoi(
-                    inputs[0],
-                    inputs[1],
-                    convert(strides),
-                    convert(padding),
-                    convert(dilation),
-                )
-            ]
-    raise ValueError(
-        "Unsupported data/kernel layout: %s, %s" % (attrs["data_layout"], attrs["kernel_layout"])
-    )
+        )
+
+    return [
+        shape_func(inputs[0], inputs[1], convert(strides), convert(padding), convert(dilation))
+    ]
 
 
 reg.register_shape_func("nn.conv1d", False, conv_shape_func)
