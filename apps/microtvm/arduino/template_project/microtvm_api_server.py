@@ -63,7 +63,8 @@ class Handler(server.ProjectAPIHandler):
     def __init__(self):
         super(Handler, self).__init__()
         self._proc = None
-        self.port = None
+        self._port = None
+        self._serial = None
 
     def server_info_query(self):
         return server.ServerInfo(
@@ -110,10 +111,8 @@ class Handler(server.ProjectAPIHandler):
 
     def _disassemble_mlf(self, mlf_tar_path, source_dir):
         mlf_unpacking_dir = tempfile.TemporaryDirectory()
-        print(mlf_tar_path)
         with tarfile.open(mlf_tar_path, 'r:') as tar:
             tar.extractall(mlf_unpacking_dir.name)
-        print("Unpacked tar")
 
         # Copy C files
         # TODO are the defaultlib0.c the same?
@@ -278,8 +277,6 @@ class Handler(server.ProjectAPIHandler):
             compile_cmd.append("--verbose")
 
         # Specify project to compile
-        print(compile_cmd)
-        print(API_SERVER_DIR)
         output = subprocess.check_call(compile_cmd)
         assert(output == 0)
 
@@ -307,13 +304,17 @@ class Handler(server.ProjectAPIHandler):
 
 
     def _get_arduino_port(self, options):
-        if not self.port:
+        if not self._port:
             if 'port' in options and options['port']:
-                self.port = options['port']
+                self._port = options['port']
             else:
-                self.port = self._auto_detect_port(options)
+                self._port = self._auto_detect_port(options)
 
-        return self.port
+        return self._port
+
+
+    def _get_baudrate(self, options):
+        return 115200
 
 
     def flash(self, options):
@@ -334,19 +335,39 @@ class Handler(server.ProjectAPIHandler):
 
 
     def open_transport(self, options):
-        raise NotImplementedError
+        # Zephyr example doesn't throw an error in this case
+        if self._serial is not None:
+            return
+
+        port = self._get_arduino_port(options)
+        baudrate = self._get_baudrate(options)
+        self._serial = serial.Serial(port, baudrate=baudrate, timeout=5)
+        return server.TransportTimeouts(
+            session_start_retry_timeout_sec=2.0,
+            session_start_timeout_sec=5.0,
+            session_established_timeout_sec=5.0,
+        )
 
 
     def close_transport(self):
-        raise NotImplementedError
+        if self._serial is None:
+            return
+        self._serial.close()
+        self._serial = None
 
 
     def read_transport(self, n, timeout_sec):
-        raise NotImplementedError
+        # It's hard to set timeout_sec, so we just throw it away
+        # TODO fix this
+        if self._serial is None:
+            raise server.TransportClosedError()
+        return self._serial.read(n)
 
 
     def write_transport(self, data, timeout_sec):
-        raise NotImplementedError
+        if self._serial is None:
+            raise server.TransportClosedError()
+        return self._serial.write(data, timeout_sec)
 
 
 if __name__ == "__main__":

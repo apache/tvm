@@ -1,6 +1,7 @@
 import datetime
 import os
 import pathlib
+import shutil
 import sys
 
 import pytest
@@ -130,26 +131,115 @@ def test_import_rerouting(project_dir):
         assert('include/tvm/runtime/crt/platform.h' in load_json_c)
 
 
+# Build on top of the generated project by replacing the
+# top-level .ino fileand adding data input files, much
+# like a user would
 @pytest.fixture(scope="module")
-def do_compile(project):
-    project.build()
+def modified_project(project_dir, project):
+    testdata_dir = pathlib.Path(os.path.dirname(__file__)) / "testdata"
+
+    shutil.copy2(testdata_dir / "project.ino", project_dir / "project.ino")
+
+    project_data_dir = project_dir / "src" / "data"
+    project_data_dir.mkdir()
+    for sample in ["yes.c", "no.c", "silence.c", "unknown.c"]:
+        shutil.copy2(testdata_dir / sample, project_data_dir / sample)
+
+    return project
 
 
-def test_compile_yes_no_project(project_dir, project, do_compile):
+@pytest.fixture(scope="module")
+def compiled_project(modified_project):
+    modified_project.build()
+    return modified_project
+
+
+def test_compile_yes_no_project(project_dir, project, compiled_project):
     build_dir = project_dir / "build"
     assert(build_dir.exists())
     first_build_file = next(build_dir.iterdir(), None)
     assert(first_build_file is not None)
 
 
+'''------------------------------------------------------------
+If we're not running on real hardware, no further tests are run
+------------------------------------------------------------'''
+
+
 @pytest.fixture(scope="module")
-def do_upload(project):
-    project.flash()
+def uploaded_project(compiled_project, run_hardware_tests):
+    if not run_hardware_tests:
+        pytest.skip()
+
+    compiled_project.flash()
+    return compiled_project
 
 
-def test_upload_yes_no_project(project_dir, project, do_compile, do_upload):
-    pass
-    # Test upload
+''' Sample serial output:
+
+category,runtime,yes,no,silence,unknown
+yes,56762,115,-123,-125,-123,
+no,56762,-128,4,-123,-9,
+silence,56792,-128,-118,107,-117,
+unknown,56792,-128,-125,-128,125,
+'''
+SERIAL_OUTPUT_HEADERS = "category,runtime,yes,no,silence,unknown"
+@pytest.fixture(scope="module")
+def serial_output(uploaded_project):
+    transport = uploaded_project.transport()
+    transport.open()
+    out = transport.read(2048, -1)
+    out_str = out.decode('utf-8')
+    out_lines = out_str.split("\r\n")
+
+    assert(SERIAL_OUTPUT_HEADERS in out_lines)
+    headers_index = out_lines.index(SERIAL_OUTPUT_HEADERS)
+    data_lines = out_lines[headers_index + 1:headers_index + 5]
+    split_lines = [line.split(",") for line in data_lines]
+
+    return [
+        [line[0]] +
+        list(map(int, line[1:6]))
+        for line in split_lines
+    ]
+
+
+TENSORFLOW_EVALUATIONS = {
+    "yes": [115,-123,-125,-123],
+    "no": [-128,4,-123,-9],
+    "silence": [-128,-118,107,-117],
+    "unknown": [-128,-125,-128,125],
+}
+MAX_PREDICTION_DIFFERENCE = 2
+@pytest.mark.requires_hardware
+def test_project_inference_correctness(serial_output):
+    predictions = {line[0]: line[2:] for line in serial_output}
+
+    for sample, prediction in predictions.items():
+        # Due to rounding issues, we don't get the *exact* same
+        # values as Tensorflow gives, but they're pretty close
+
+        reference_prediction = TENSORFLOW_EVALUATIONS[sample]
+        deltas = [prediction[i] - reference_prediction[i] for i in range(4)]
+        assert max(deltas) < MAX_PREDICTION_DIFFERENCE
+
+
+MAX_INFERENCE_TIME_US = 200 * 1000
+MAX_INFERENCE_TIME_RANGE_US = 1000
+@pytest.mark.requires_hardware
+def test_project_inference_runtime(serial_output):
+    runtimes_us = [line[1] for line in serial_output]
+
+    # Inference time will vary based on architecture
+    # and clock speed. However, anything more than 200 ms
+    # is way too long. Each inference takes ~60 ms on the
+    # Sony spresense, running at 156 MHz
+    assert max(runtimes_us) < MAX_INFERENCE_TIME_US
+
+    # Clock speeds should be consistent for each input. On
+    # the Sony spresense, they vary by <100 us.
+    range_runtimes_us = max(runtimes_us) - min(runtimes_us)
+    assert range_runtimes_us < MAX_INFERENCE_TIME_RANGE_US
 
 
 if __name__ == "__main__":
