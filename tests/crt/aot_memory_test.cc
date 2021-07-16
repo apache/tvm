@@ -24,33 +24,46 @@
 
 // Check with LIFO checks enabled for stack allocator
 #define TVM_CRT_STACK_ALLOCATOR_ENABLE_LIFO_CHECK
+
+/*
+ * Align memory pointer
+ */
+uint32_t align_memory_ptr(uint8_t* memory_ptr) {
+  uint32_t miss_alignment = (uintptr_t)memory_ptr % TVM_RUNTIME_ALLOC_ALIGNMENT_BYTES;
+  uint32_t offset = (TVM_RUNTIME_ALLOC_ALIGNMENT_BYTES - miss_alignment) & (TVM_RUNTIME_ALLOC_ALIGNMENT_BYTES - 1);
+  memory_ptr += offset;
+  return offset;
+}
+
 /*
  * Tests allocations are properly aligned when allocated
  */
 TEST(AOTMemory, Allocate) {
   static uint8_t model_memory[96];
   tvm_workspace_t tvm_runtime_workspace;
+  uint8_t* model_memory_ptr = model_memory;
+  uint32_t offset = align_memory_ptr(model_memory_ptr);
+  ASSERT_EQ(StackMemoryManager_Init(&tvm_runtime_workspace, model_memory_ptr, 96 - offset), kTvmErrorNoError);
 
-  ASSERT_EQ(StackMemoryManager_Init(&tvm_runtime_workspace, model_memory, 96), kTvmErrorNoError);
   void* block_one = NULL;
   ASSERT_EQ(StackMemoryManager_Allocate_Body(&tvm_runtime_workspace, 1, &block_one, 1),
             kTvmErrorNoError);
-  ASSERT_EQ(block_one, &model_memory[0]);
+  ASSERT_EQ(block_one, &model_memory_ptr[0]);
 
   void* block_two = NULL;
   ASSERT_EQ(StackMemoryManager_Allocate_Body(&tvm_runtime_workspace, 2, &block_two, 1),
             kTvmErrorNoError);
-  ASSERT_EQ(block_two, &model_memory[16 + STACK_ALLOCATOR_TAG_SIZE_BYTES]);
+  ASSERT_EQ(block_two, &model_memory_ptr[16 + STACK_ALLOCATOR_TAG_SIZE_BYTES]);
 
   void* two_blocks = NULL;
   ASSERT_EQ(StackMemoryManager_Allocate_Body(&tvm_runtime_workspace, 24, &two_blocks, 1),
             kTvmErrorNoError);
-  ASSERT_EQ(two_blocks, &model_memory[32 + 2 * STACK_ALLOCATOR_TAG_SIZE_BYTES]);
+  ASSERT_EQ(two_blocks, &model_memory_ptr[32 + 2 * STACK_ALLOCATOR_TAG_SIZE_BYTES]);
 
   void* block_three = NULL;
   ASSERT_EQ(StackMemoryManager_Allocate_Body(&tvm_runtime_workspace, 1, &block_three, 1),
             kTvmErrorNoError);
-  ASSERT_EQ(block_three, &model_memory[64 + 3 * STACK_ALLOCATOR_TAG_SIZE_BYTES]);
+  ASSERT_EQ(block_three, &model_memory_ptr[64 + 3 * STACK_ALLOCATOR_TAG_SIZE_BYTES]);
 }
 
 /*
@@ -59,29 +72,31 @@ TEST(AOTMemory, Allocate) {
 TEST(AOTMemory, Free) {
   static uint8_t model_memory[80];
   tvm_workspace_t tvm_runtime_workspace;
-  ASSERT_EQ(StackMemoryManager_Init(&tvm_runtime_workspace, model_memory, 80), kTvmErrorNoError);
+  uint8_t* model_memory_ptr = model_memory;
+  uint32_t offset = align_memory_ptr(model_memory_ptr);
+  ASSERT_EQ(StackMemoryManager_Init(&tvm_runtime_workspace, model_memory_ptr, 80-offset), kTvmErrorNoError);
 
   void* block_one = NULL;
   ASSERT_EQ(StackMemoryManager_Allocate_Body(&tvm_runtime_workspace, 1, &block_one, 1),
             kTvmErrorNoError);
-  ASSERT_EQ(block_one, &model_memory[0]);
+  ASSERT_EQ(block_one, &model_memory_ptr[0]);
 
   void* block_two = NULL;
   ASSERT_EQ(StackMemoryManager_Allocate_Body(&tvm_runtime_workspace, 1, &block_two, 1),
             kTvmErrorNoError);
-  ASSERT_EQ(block_two, &model_memory[16 + STACK_ALLOCATOR_TAG_SIZE_BYTES]);
+  ASSERT_EQ(block_two, &model_memory_ptr[16 + STACK_ALLOCATOR_TAG_SIZE_BYTES]);
   ASSERT_EQ(kTvmErrorNoError, StackMemoryManager_Free_Body(&tvm_runtime_workspace, block_two, 1));
 
   void* two_blocks = NULL;
   ASSERT_EQ(StackMemoryManager_Allocate_Body(&tvm_runtime_workspace, 2, &two_blocks, 1),
             kTvmErrorNoError);
-  ASSERT_EQ(two_blocks, &model_memory[16 + STACK_ALLOCATOR_TAG_SIZE_BYTES]);
+  ASSERT_EQ(two_blocks, &model_memory_ptr[16 + STACK_ALLOCATOR_TAG_SIZE_BYTES]);
   ASSERT_EQ(kTvmErrorNoError, StackMemoryManager_Free_Body(&tvm_runtime_workspace, two_blocks, 1));
 
   void* block_three = NULL;
   ASSERT_EQ(StackMemoryManager_Allocate_Body(&tvm_runtime_workspace, 1, &block_three, 1),
             kTvmErrorNoError);
-  ASSERT_EQ(block_three, &model_memory[16 + STACK_ALLOCATOR_TAG_SIZE_BYTES]);
+  ASSERT_EQ(block_three, &model_memory_ptr[16 + STACK_ALLOCATOR_TAG_SIZE_BYTES]);
 }
 
 /*
@@ -90,17 +105,19 @@ TEST(AOTMemory, Free) {
 TEST(AOTMemory, OverAllocate) {
   static uint8_t model_memory[72];
   tvm_workspace_t tvm_runtime_workspace;
-  ASSERT_EQ(StackMemoryManager_Init(&tvm_runtime_workspace, model_memory, 80), kTvmErrorNoError);
+  uint8_t* model_memory_ptr = model_memory;
+  uint32_t offset = align_memory_ptr(model_memory_ptr);
+  ASSERT_EQ(StackMemoryManager_Init(&tvm_runtime_workspace, model_memory_ptr, 80-offset), kTvmErrorNoError);
 
   void* block_one = NULL;
   ASSERT_EQ(StackMemoryManager_Allocate_Body(&tvm_runtime_workspace, 1, &block_one, 1),
             kTvmErrorNoError);
-  ASSERT_EQ(block_one, &model_memory[0]);
+  ASSERT_EQ(block_one, &model_memory_ptr[0]);
 
   void* block_two = NULL;
   ASSERT_EQ(StackMemoryManager_Allocate_Body(&tvm_runtime_workspace, 1, &block_two, 1),
             kTvmErrorNoError);
-  ASSERT_EQ(block_two, &model_memory[16 + STACK_ALLOCATOR_TAG_SIZE_BYTES]);
+  ASSERT_EQ(block_two, &model_memory_ptr[16 + STACK_ALLOCATOR_TAG_SIZE_BYTES]);
 
   void* two_blocks = NULL;
   ASSERT_EQ(StackMemoryManager_Allocate_Body(&tvm_runtime_workspace, 64, &two_blocks, 1),
@@ -114,20 +131,44 @@ TEST(AOTMemory, OverAllocate) {
 TEST(AOTMemory, FreeOutOfOrder) {
   static uint8_t model_memory[80];
   tvm_workspace_t tvm_runtime_workspace;
-  ASSERT_EQ(StackMemoryManager_Init(&tvm_runtime_workspace, model_memory, 80), kTvmErrorNoError);
+  uint8_t* model_memory_ptr = model_memory;
+  uint32_t offset = align_memory_ptr(model_memory_ptr);
+  ASSERT_EQ(StackMemoryManager_Init(&tvm_runtime_workspace, model_memory_ptr, 80-offset), kTvmErrorNoError);
 
   void* block_one = NULL;
   ASSERT_EQ(StackMemoryManager_Allocate_Body(&tvm_runtime_workspace, 1, &block_one, 1),
             kTvmErrorNoError);
-  ASSERT_EQ(block_one, &model_memory[0]);
+  ASSERT_EQ(block_one, &model_memory_ptr[0]);
 
   void* block_two = NULL;
   ASSERT_EQ(StackMemoryManager_Allocate_Body(&tvm_runtime_workspace, 1, &block_two, 1),
             kTvmErrorNoError);
-  ASSERT_EQ(block_two, &model_memory[16 + STACK_ALLOCATOR_TAG_SIZE_BYTES]);
+  ASSERT_EQ(block_two, &model_memory_ptr[16 + STACK_ALLOCATOR_TAG_SIZE_BYTES]);
 
   ASSERT_EQ(StackMemoryManager_Free_Body(&tvm_runtime_workspace, block_one, 1),
             kTvmErrorPlatformStackAllocBadFree);
+}
+
+/*
+ * Test for initial memory misalignment
+ */
+TEST(AOTMemory, InitialMissAlignment) {
+  static uint8_t model_memory[80];
+  tvm_workspace_t tvm_runtime_workspace;
+  uint8_t* model_memory_ptr = model_memory;
+
+  uint32_t mem_alignment = (uintptr_t)model_memory_ptr % TVM_RUNTIME_ALLOC_ALIGNMENT_BYTES;
+  if (mem_alignment == 0) {
+    model_memory_ptr += 1;
+    ASSERT_EQ(StackMemoryManager_Init(&tvm_runtime_workspace, model_memory_ptr, 79), kTvmErrorNoError);
+  } else {
+    ASSERT_EQ(StackMemoryManager_Init(&tvm_runtime_workspace, model_memory_ptr, 80), kTvmErrorNoError);
+  }
+
+  uint32_t next_alloc_offset = (uintptr_t)tvm_runtime_workspace.next_alloc % TVM_RUNTIME_ALLOC_ALIGNMENT_BYTES;
+  uint32_t workspace_offset = (uintptr_t)tvm_runtime_workspace.workspace % TVM_RUNTIME_ALLOC_ALIGNMENT_BYTES;
+  ASSERT_EQ(next_alloc_offset, 0);
+  ASSERT_EQ(workspace_offset, 0);
 }
 
 int main(int argc, char** argv) {

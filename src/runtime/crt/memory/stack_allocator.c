@@ -79,8 +79,12 @@ tvm_crt_error_t StackMemoryManager_Free(tvm_workspace_t* tvm_runtime_workspace, 
 
 tvm_crt_error_t StackMemoryManager_Init(tvm_workspace_t* tvm_runtime_workspace,
                                         uint8_t* g_aot_memory, size_t workspace_size) {
-  tvm_runtime_workspace->next_alloc = g_aot_memory;
-  tvm_runtime_workspace->workspace = g_aot_memory;
-  tvm_runtime_workspace->workspace_size = workspace_size;
+  // Calculate g_aot_memory misalignment and offset
+  uint32_t miss_alignment = (uintptr_t)g_aot_memory % TVM_RUNTIME_ALLOC_ALIGNMENT_BYTES;
+  uint32_t offset = (TVM_RUNTIME_ALLOC_ALIGNMENT_BYTES - miss_alignment) & (TVM_RUNTIME_ALLOC_ALIGNMENT_BYTES - 1);
+
+  tvm_runtime_workspace->next_alloc = g_aot_memory + offset;
+  tvm_runtime_workspace->workspace = g_aot_memory + offset;
+  tvm_runtime_workspace->workspace_size = workspace_size - offset;
   return kTvmErrorNoError;
 }
