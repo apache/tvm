@@ -964,7 +964,8 @@ reg.register_injective_schedule("nn.batch_to_space_nd")
 
 
 @script
-def _conv_shape_func(dshape, kshape, strides, padding, dilation):
+def _conv_shape_func_nchw(dshape, kshape, strides, padding, dilation):
+    """Shape function for conv*d op with nchw & oihw layout."""
     out = output_tensor((dshape.shape[0],), "int64")
     out[0] = dshape[0]
     out[1] = kshape[0]
@@ -975,23 +976,52 @@ def _conv_shape_func(dshape, kshape, strides, padding, dilation):
     return out
 
 
+@script
+def _conv_shape_func_nhwc_hwio(dshape, kshape, strides, padding, dilation):
+    """Shape function for conv*d op with nhwc & hwio layout."""
+    out = output_tensor((dshape.shape[0],), "int64")
+    out[0] = dshape[0]
+    out[dshape.shape[0] - 1] = kshape[kshape.shape[0] - 1]
+
+    for i in const_range(dshape.shape[0] - 2):
+        dilated_k = (kshape[i] - 1) * dilation[i] + 1
+        out[i + 1] = (dshape[i + 1] + 2 * padding[i] - dilated_k) // strides[i] + 1
+    return out
+
+
+@script
+def _conv_shape_func_nhwc_hwoi(dshape, kshape, strides, padding, dilation):
+    """Shape function for conv*d op with nhwc & hwoi layout."""
+    out = output_tensor((dshape.shape[0],), "int64")
+    out[0] = dshape[0]
+    out[dshape.shape[0] - 1] = kshape[kshape.shape[0] - 2]
+
+    for i in const_range(dshape.shape[0] - 2):
+        dilated_k = (kshape[i] - 1) * dilation[i] + 1
+        out[i + 1] = (dshape[i + 1] + 2 * padding[i] - dilated_k) // strides[i] + 1
+    return out
+
+
 def conv_shape_func(attrs, inputs, _):
-    """
-    Shape function for contrib_conv2d_NCHWc op.
-    """
+    """Shape function for conv*d op."""
     strides = get_const_tuple(attrs.strides)
     padding = get_const_tuple(attrs.padding)
     dilation = get_const_tuple(attrs.dilation)
 
-    return [
-        _conv_shape_func(
-            inputs[0],
-            inputs[1],
-            convert(strides),
-            convert(padding),
-            convert(dilation),
+    shape_func = None
+    if attrs["data_layout"] == "NCHW" and attrs["kernel_layout"] == "OIHW":
+        shape_func = _conv_shape_func_nchw
+    elif attrs["data_layout"] == "NHWC" and attrs["kernel_layout"] == "HWIO":
+        shape_func = _conv_shape_func_nhwc_hwio
+    elif attrs["data_layout"] == "NHWC" and attrs["kernel_layout"] == "HWOI":
+        shape_func = _conv_shape_func_nhwc_hwoi
+    else:
+        raise ValueError(
+            "Unsupported data/kernel layout: %s, %s"
+            % (attrs["data_layout"], attrs["kernel_layout"])
         )
-    ]
+
+    return [shape_func(inputs[0], inputs[1], convert(strides), convert(padding), convert(dilation))]
 
 
 reg.register_shape_func("nn.conv1d", False, conv_shape_func)
@@ -1307,4 +1337,5 @@ def dilate_shape_func(attrs, inputs, _):
 
 reg.register_shape_func("nn.bias_add", False, elemwise_shape_func)
 reg.register_shape_func("nn.softmax", False, elemwise_shape_func)
+reg.register_shape_func("nn.fast_softmax", False, elemwise_shape_func)
 reg.register_shape_func("nn.relu", False, elemwise_shape_func)
