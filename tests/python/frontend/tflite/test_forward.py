@@ -4412,7 +4412,7 @@ def test_forward_mediapipe_hand_landmark():
 # --------------
 def test_prevent_tensorflow_dynamic_range():
     """
-    Should prevent runnung "dynamic range quantization" optimized TFLite graph
+    Should prevent running "dynamic range quantization" optimized TFLite graph
     """
     data_array = np.random.randint(0, 2, (1, 1024, 1024)).astype(dtype=np.float32)
     filter_array = np.random.randint(0, 2, (1024, 1024)).astype(dtype=np.float32)

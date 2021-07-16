@@ -2743,7 +2743,7 @@ class Loop(OnnxOpConverter):
 
         num_scan_outputs = len(body.output) - (1 + num_deps)
 
-        # Construct variables and intial empty tensors for any scan outputs.
+        # Construct variables and initial empty tensors for any scan outputs.
         # To do this, we'll figure out the output shapes of the body subgraph by importing
         # it and doing type inference.
         scan_output_vars = []

@@ -163,7 +163,7 @@ def _get_quant_param_for_input(input_value):
     """
     We want to know the input scale and zp of this input_value, since
     input quant params are not explicitly passed around in torch (they
-    are embeded in a QTensor data structure, not visible statically).
+    are embedded in a QTensor data structure, not visible statically).
     We know that it is quantized using output scale and zp
     of some previous quantized op. The purpose of this function
     is to find that pair of parameters.
