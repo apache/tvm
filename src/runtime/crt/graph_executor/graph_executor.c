@@ -102,7 +102,7 @@ void TVMGraphExecutorNode_LoadAttrs(TVMGraphExecutorNode* node, JSONReader* read
       bitmask |= 8;
     } else {
       // TODO determine if suppressing these warnings is OK
-      //fprintf(stderr, "do not support key %s", key);
+      // fprintf(stderr, "do not support key %s", key);
     }
   }
   if (bitmask != (1 | 2 | 4 | 8)) {
