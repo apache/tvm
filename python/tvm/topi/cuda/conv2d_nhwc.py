@@ -43,12 +43,15 @@ def schedule_conv2d_nhwc_direct(cfg, s, Conv):
     AL = s.cache_read(AA, "local", [OL])
     WL = s.cache_read(WW, "local", [OL])
 
+    # Currently Conv2d NHWC only support dynamic shpe in batch
+    dynamic_batch = isinstance(s[output].op.axis[0].dom.extent, tvm.tir.expr.Var)
+
     # Schedule for autotvm
-    cfg.define_knob("tile_n", [2, 4, 8])
+    cfg.define_knob("tile_n", [1] if dynamic_batch else [2, 4, 8])
     cfg.define_knob("tile_c", [2, 4, 8])
-    cfg.define_knob("num_thread_n", [4, 8, 16])
+    cfg.define_knob("num_thread_n", [1] if dynamic_batch else [4, 8, 16])
     cfg.define_knob("num_thread_c", [4, 8, 16])
-    cfg.define_knob("vthread_n", [1, 2])
+    cfg.define_knob("vthread_n", [1] if dynamic_batch else [1, 2])
     cfg.define_knob("vthread_c", [1, 2])
     cfg.define_knob("step", [16, 3, 32, 64])
 

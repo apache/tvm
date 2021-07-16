@@ -273,7 +273,9 @@ def conv2d_spatial_pack_nhwc(cfg, data, kernel, strides, padding, dilation, out_
     data_pad = nn.pad(data, [0, pad_top, pad_left, 0], [0, pad_down, pad_right, 0])
 
     # ==================== define configuration space ====================
-    n, oc, oh, ow = cfg.axis(N), cfg.axis(OC), cfg.axis(OH), cfg.axis(OW)
+    # If it has dynamic shape in batch, we fix the split factor to 1
+    n = cfg.axis(N) if isinstance(N, int) else cfg.axis(1)
+    oc, oh, ow = cfg.axis(OC), cfg.axis(OH), cfg.axis(OW)
     ic, kh, kw = cfg.reduce_axis(IC), cfg.reduce_axis(KH), cfg.reduce_axis(KW)
 
     if num_tile == 2:  # for arm cpu
