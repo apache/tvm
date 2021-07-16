@@ -117,7 +117,7 @@ def _in_while_loop(control_flow_node_map, op_name):
     Parameters
     ----------
     control_flow_node_map : Dict[str, Set[str]]
-        A dictionay contains the unique control flow execution frame name to
+        A dictionary contains the unique control flow execution frame name to
         a set of primitive operators mapping.
 
     op_name : str
@@ -139,7 +139,7 @@ class RewriteSubgraph(ExprMutator):
     Parameters
     ----------
     rewrite_map : Dict[expr, expr]
-        A dictionay contains a set of expr to var mapping.
+        A dictionary contains a set of expr to var mapping.
     """
 
     def __init__(self, rewrite_map):

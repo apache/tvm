@@ -376,7 +376,7 @@ def verify_depth_to_space(inshape, outshape, mode, blockSize):
 @tvm.testing.uses_gpu
 def test_depth_to_space():
     # current onnx.checker use OpSet-1 version of DepthToSpace, which doesn't have a mode argument.
-    # TO-DO, we can add mode arguement to test CRD mode and DCR mode
+    # TO-DO, we can add mode argument to test CRD mode and DCR mode
     # in the future when we update to a newer onnx version.
     verify_depth_to_space((1, 8, 2, 3), (1, 2, 4, 6), mode="CRD", blockSize=2)
 
@@ -2490,7 +2490,7 @@ def test_conv():
             repeat(1, D),
             repeat(1, D),
         )
-        # Convolution with assymetric padding
+        # Convolution with asymmetric padding
         verify_conv(
             (1, 1) + repeat(5, D),
             (1, 1) + repeat(3, D),
@@ -4756,7 +4756,7 @@ def test_qlinearconv():
         bias=True,
     )
 
-    # Convolution with assymetric padding
+    # Convolution with asymmetric padding
     verify_qlinearconv(
         (1, 1) + repeat(5, D),
         (1, 1) + repeat(3, D),

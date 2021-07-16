@@ -3471,7 +3471,7 @@ def prepare_dense_matrix_from_sparse(sparse_tensor, sparse_tensor_value, sparse_
     indices_list = []
 
     # Below function iterates through each applicable indices per dimension
-    # based on format type specified and finaly produce the dense matrix and the NZ indices.
+    # based on format type specified and finally produce the dense matrix and the NZ indices.
     def _def_prepare_dense_matrix_from_sparse(indices, level, prev_idx):
         if level == len(indices):
             start_pos = 0

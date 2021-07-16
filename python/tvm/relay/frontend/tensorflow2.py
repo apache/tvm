@@ -512,7 +512,7 @@ def _convert_function(
 
     Examples
     --------
-    a tf function "x+1", is implemented as a subgraph in the libary section of the graph.
+    a tf function "x+1", is implemented as a subgraph in the library section of the graph.
     this subgraph is converted to a relay function such as
         fn (%x: float32) {
         add(%x, 1f) /* Identity */
