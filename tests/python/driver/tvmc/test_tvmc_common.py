@@ -177,6 +177,11 @@ def test_shape_parser():
     shape_dict = tvmc.common.parse_shape_string(shape_string)
     # Convert to strings to allow comparison with Any.
     assert str(shape_dict) == "{'input': [?, 3, 224, 224]}"
+    # Check that multiple valid gpu inputs are parsed correctly.
+    shape_string = "gpu_0/data_0:[1, -1,224,224] gpu_1/data_1:[7, 7]"
+    shape_dict = tvmc.common.parse_shape_string(shape_string)
+    expected = "{'gpu_0/data_0': [1, ?, 224, 224], 'gpu_1/data_1': [7, 7]}"
+    assert str(shape_dict) == expected
 
     # Check that invalid pattern raises expected error.
     shape_string = "input:[a,10]"
@@ -184,6 +189,22 @@ def test_shape_parser():
         tvmc.common.parse_shape_string(shape_string)
     # Check that input with invalid separators raises error.
     shape_string = "input:5,10 input2:10,10"
+    with pytest.raises(argparse.ArgumentTypeError):
+        tvmc.common.parse_shape_string(shape_string)
+    # Check that input with a invalid slash raises error.
+    shape_string = "gpu_0/data_0:5,10 /:10,10"
+    with pytest.raises(argparse.ArgumentTypeError):
+        tvmc.common.parse_shape_string(shape_string)
+    # Check that input with a invalid slash raises error.
+    shape_string = "gpu_0/data_0:5,10 data/:10,10"
+    with pytest.raises(argparse.ArgumentTypeError):
+        tvmc.common.parse_shape_string(shape_string)
+    # Check that input with a invalid slash raises error.
+    shape_string = "gpu_0/data_0:5,10 /data:10,10"
+    with pytest.raises(argparse.ArgumentTypeError):
+        tvmc.common.parse_shape_string(shape_string)
+    # Check that input with invalid slashes raises error.
+    shape_string = "gpu_0/invalid/data_0:5,10 data_1:10,10"
     with pytest.raises(argparse.ArgumentTypeError):
         tvmc.common.parse_shape_string(shape_string)
 
