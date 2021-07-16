@@ -107,7 +107,7 @@ def lower(
         It should be None if we want to lower TensorIR.
 
     name : str
-        The name of result function.
+        The name of the result function.
 
     binds : Optional[Mapping[tensor.Tensor, tvm.tir.Buffer]]
         Dictionary that maps the Tensor to Buffer which specified the data layout

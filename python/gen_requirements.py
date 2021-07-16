@@ -16,7 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""TVM Python requriements.txt generator.
+"""TVM Python requirements.txt generator.
 
 This script generates a set of requirements.txt files (stored in `./requirements`) that describe
 TVM's Python dependencies.
