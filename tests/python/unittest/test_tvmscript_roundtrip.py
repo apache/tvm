@@ -2946,6 +2946,20 @@ def test_minmax():
     tvm.ir.assert_structural_equal(func, rt_func)
 
 
+@tvm.script.tir
+def abs(a: ty.handle) -> None:
+    A = tir.match_buffer(a, (128, 128), "float32")
+
+    with tir.block([128, 128], "A") as [vi, vj]:
+        A[vi, vj] = tir.abs(A[vi, vj])
+
+
+def test_abs():
+    func = abs
+    rt_func = tvm.script.from_source(tvm.script.asscript(func, True))
+    tvm.ir.assert_structural_equal(func, rt_func)
+
+
 if __name__ == "__main__":
     test_opt_gemm_normalize()
     test_opt_gemm_mod_host()
@@ -2962,3 +2976,4 @@ if __name__ == "__main__":
     test_for_thread_binding()
     test_block_elements()
     test_opaque_block()
+    test_abs()
