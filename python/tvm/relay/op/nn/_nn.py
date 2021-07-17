@@ -1055,7 +1055,7 @@ def conv2d_NCHWc_shape_func(attrs, inputs, _):
 def _conv_transpose_shape_func(dshape, kshape, strides, padding, dilation, output_padding):
     out = output_tensor((dshape.shape[0],), "int64")
     out[0] = dshape[0]
-    out[1] = kshape[0]
+    out[1] = kshape[1]
 
     for i in const_range(dshape.shape[0] - 2):
         dilated_k = (kshape[i + 2] - 1) * dilation[i] + 1

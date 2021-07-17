@@ -610,7 +610,7 @@ def test_any_conv2d_NCHWc():
     )
 
 
-def verify_any_conv1d_transpose_nchw(
+def verify_any_conv1d_transpose_ncw(
     data_shape,
     kernel_shape,
     strides,
@@ -642,27 +642,27 @@ def verify_any_conv1d_transpose_nchw(
 
 
 @tvm.testing.uses_gpu
-def test_any_conv1d_transpose_nchw():
-    verify_any_conv1d_transpose_nchw(
+def test_any_conv1d_transpose_ncw():
+    verify_any_conv1d_transpose_ncw(
         (relay.Any(), 64, 224),
-        (64, 64, 3),
+        (64, 192, 3),
         (1,),
         (1,),
         (1,),
         1,
         (2, 64, 224),
-        (2, 64, 224),
+        (2, 192, 224),
         (0, 0),
     )
-    verify_any_conv1d_transpose_nchw(
+    verify_any_conv1d_transpose_ncw(
         (relay.Any(), 32, 224),
-        (32, 32, 3),
+        (32, 64, 3),
         (2,),
         (1,),
         (1,),
         1,
         (1, 32, 224),
-        (1, 32, 448),
+        (1, 64, 448),
         (1, 1),
     )
 
