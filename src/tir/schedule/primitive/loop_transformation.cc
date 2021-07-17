@@ -99,10 +99,9 @@ class IterMapSimplifyBlockBinding : public StmtExprMutator {
   static For SimplifyBindings(const Stmt& stmt, const Array<StmtSRef>& loop_srefs,
                               Map<Block, Block>* opaque_blocks) {
     Map<Var, Range> loop_var2extent;
-    MapNode* loop_var2extent_mutable = loop_var2extent.CopyOnWrite();
     for (const StmtSRef& sref : loop_srefs) {
       const ForNode* loop = TVM_SREF_TO_FOR(loop, sref);
-      loop_var2extent_mutable->at(loop->loop_var) = Range::FromMinExtent(loop->min, loop->extent);
+      loop_var2extent.Set(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
     }
     return Downcast<For>(IterMapSimplifyBlockBinding(loop_var2extent, opaque_blocks)(stmt));
   }
