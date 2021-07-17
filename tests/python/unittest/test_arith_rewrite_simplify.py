@@ -275,6 +275,7 @@ def test_add_index_simplify():
 def test_sub_index_simplify():
     ck = RewriteChecker()
     x, y, z = te.var("x"), te.var("y"), te.var("z")
+    a, b = tvm.tir.Any(), tvm.tir.Any()
 
     ck.verify(x + y - y, x)
     ck.verify(x + y - x, y)
@@ -293,6 +294,8 @@ def test_sub_index_simplify():
 
     # mul co-efficient foldng
     ck.verify(x - x, 0)
+    ck.verify(a - a, 0)
+    ck.verify(a - b, a - b)
     ck.verify(x * y - x, x * (y + (-1)))
     ck.verify(x * y - 10 * x, x * (y + (-10)))
     ck.verify(y * x - x * z, x * (y - z))
