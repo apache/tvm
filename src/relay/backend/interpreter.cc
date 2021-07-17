@@ -34,6 +34,7 @@
 
 #include "../transforms/pass_utils.h"
 #include "compile_engine.h"
+#include "te_compiler.h"
 
 namespace tvm {
 namespace relay {
@@ -214,9 +215,7 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
                     PatternFunctor<bool(const Pattern& p, const ObjectRef& v)> {
  public:
   Interpreter(IRModule mod, Device device, Target target)
-      : mod_(mod), device_(device), target_(target), debug_op_(Op::Get("debug")) {
-    engine_ = CompileEngine::Global();
-  }
+      : mod_(mod), device_(device), target_(target), debug_op_(Op::Get("debug")) {}
 
   template <typename T>
   T WithFrame(const Frame& fr, const std::function<T()>& f) {
@@ -286,7 +285,7 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
 
   Array<Shape> ComputeDynamicShape(const Function& func, const Array<ObjectRef>& args) {
     CCacheKey key(func, Target("llvm"));
-    auto cfunc = engine_->LowerShapeFunc(key);
+    auto cfunc = compiler_->LowerShapeFunc(key);
     size_t arity = cfunc->inputs.size() + cfunc->outputs.size();
 
     std::vector<TVMValue> values(arity);
@@ -485,7 +484,7 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
       out_shapes = ComputeDynamicShape(func, args);
     }
 
-    PackedFunc packed_func = engine_->JIT(CCacheKey(func, target_));
+    PackedFunc packed_func = compiler_->JIT(CCacheKey(func, target_));
     TVMRetValue rv;
     if (const TupleTypeNode* rtype = func->body->checked_type().as<TupleTypeNode>()) {
       ICHECK(!is_dyn || out_shapes.size() == rtype->fields.size());
@@ -555,11 +554,11 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
     // We should not find operators after running fusion,
     // and operator lowering.
     //
-    // We have some functions cotaining chunks of operators
+    // We have some functions containing chunks of operators
     // which will be loaded into operator map.
     if (const auto* op_node = call->op.as<OpNode>()) {
       LOG(FATAL) << "found " << op_node->name
-                 << "; operators should be removed by future passes; try "
+                 << "; operators should have been removed by previous passes; try "
                     "fusing and lowering";
     }
     if (auto con = call->op.as<ConstructorNode>()) {
@@ -569,9 +568,9 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
     ObjectRef fn_val = Eval(call->op);
     if (const InterpreterClosureObj* closure_node = fn_val.as<InterpreterClosureObj>()) {
       auto closure = GetRef<InterpreterClosure>(closure_node);
-      return this->Invoke(closure, args);
+      return Invoke(closure, args);
     } else if (const RecClosureObj* closure_node = fn_val.as<RecClosureObj>()) {
-      return this->Invoke(closure_node->clos, args, closure_node->bind);
+      return Invoke(closure_node->clos, args, closure_node->bind);
     } else {
       LOG(FATAL) << "internal error: type error, expected function value in the call "
                  << "position";
@@ -710,17 +709,17 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
   Target target_;
   // Object stack.
   Stack stack_;
-  // Backend compile engine.
-  CompileEngine engine_;
+  // TE-to-TIR lowerer (compiler).
+  TECompiler compiler_;
   // Cache ops that need to be frequently used later to reduce lookup overhead.
   const Op& debug_op_;
 };
 
 TypedPackedFunc<ObjectRef(Expr)> CreateInterpreter(IRModule mod, Device device, Target target) {
   if (mod.defined()) {
-    // eta expand to support constructors in argument position
-    transform::Sequential seq({transform::EtaExpand(
-                                   /* expand_constructor */ true, /* expand_global_var */ false),
+    transform::Sequential seq({// eta expand to support constructors in argument position
+                               transform::EtaExpand(
+                                   /*expand_constructor=*/true, /*expand_global_var=*/false),
                                transform::InferType()});
 
     transform::PassContext pass_ctx = transform::PassContext::Current();

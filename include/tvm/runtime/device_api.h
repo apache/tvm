@@ -291,7 +291,14 @@ inline Device RemoveRPCSessionMask(Device dev) {
   return dev;
 }
 
-inline std::ostream& operator<<(std::ostream& os, DLDevice dev);
+inline std::ostream& operator<<(std::ostream& os, DLDevice dev) {  // NOLINT(*)
+  if (tvm::runtime::IsRPCSessionDevice(dev)) {
+    os << "remote[" << tvm::runtime::GetRPCSessionIndex(dev) << "]-";
+    dev = tvm::runtime::RemoveRPCSessionMask(dev);
+  }
+  os << tvm::runtime::DeviceName(static_cast<int>(dev.device_type)) << "(" << dev.device_id << ")";
+  return os;
+}
 
 /*!
  * \brief Add a RPC session mask to a Device.
@@ -308,14 +315,6 @@ inline Device AddRPCSessionMask(Device dev, int session_table_index) {
   return dev;
 }
 
-inline std::ostream& operator<<(std::ostream& os, DLDevice dev) {  // NOLINT(*)
-  if (IsRPCSessionDevice(dev)) {
-    os << "remote[" << GetRPCSessionIndex(dev) << "]-";
-    dev = RemoveRPCSessionMask(dev);
-  }
-  os << runtime::DeviceName(static_cast<int>(dev.device_type)) << "(" << dev.device_id << ")";
-  return os;
-}
 }  // namespace runtime
 }  // namespace tvm
 
