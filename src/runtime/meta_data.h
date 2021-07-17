@@ -104,6 +104,7 @@ struct FunctionInfo {
   std::string name;
   std::vector<DLDataType> arg_types;
   std::vector<std::string> thread_axis_tags;
+  bool use_dyn_shared_memory{false};
 
   void Save(dmlc::JSONWriter* writer) const;
   void Load(dmlc::JSONReader* reader);
