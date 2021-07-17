@@ -76,7 +76,7 @@ using ProcessFn = std::function<void(Function)>;
 
 /*!
  * \brief A compiler which lowers primitive Relay functions to tensor expressions
- * and schdules them into TIR functions.
+ * and schedules them into TIR functions.
  */
 class TECompilerNode : public Object {
  public:
@@ -178,10 +178,11 @@ Target GetTargetFromInteger(DLDeviceType dev_type, TargetMap targets);
  * This is the "back half" of the Relay compiler which lowers "primitive functions"
  * to TE expressions, schedules them, and then to TIR.
  *
- * /param module The IRModule.
- * /param targets The mapping for devices to targets.
- * /param device_map An analysis result mapping each sub-expression to a device.
- * /return The lowered module, see above.
+ * \param compiler The TE-to-TIR compliler (which caches lowered functions)
+ * \param module The IRModule.
+ * \param targets The mapping for devices to targets.
+ * \param device_map An analysis result mapping each sub-expression to a device.
+ * \return The lowered module, see above.
  */
 // TODO(@electriclilies): Not sure if this default initialization is correct...
 LoweredModule LowerTE(
