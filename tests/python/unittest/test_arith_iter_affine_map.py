@@ -288,9 +288,11 @@ def test_predicate():
     # zero iter
     xo = tvm.tir.Var("xo", "int32"), 1
     xi = tvm.tir.Var("xi", "int32"), 129
-    y  = tvm.tir.Var("y",  "int32"), 128
+    y = tvm.tir.Var("y", "int32"), 128
 
-    res = tvm.arith.detect_iter_map([xo[0] * 129 + xi[0], y[0]], var_dom([xo, xi, y]), xo[0] * 129 + xi[0] < 128)
+    res = tvm.arith.detect_iter_map(
+        [xo[0] * 129 + xi[0], y[0]], var_dom([xo, xi, y]), xo[0] * 129 + xi[0] < 128
+    )
 
 
 def convert_division(divisions):
