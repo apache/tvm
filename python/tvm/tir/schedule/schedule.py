@@ -279,7 +279,7 @@ class Schedule(Object):
         Examples
         --------
 
-        Before fuse, in TensorIR, the IR is:
+        Before applying fuse, in TensorIR, the IR is:
 
         .. code-block:: python
 
@@ -287,14 +287,15 @@ class Schedule(Object):
             def before_fuse(a: ty.handle, b: ty.handle) -> None:
                 A = tir.match_buffer(a, (128, 128))
                 B = tir.match_buffer(b, (128, 128))
-                with tir.block([128, 128], "B") as [vi, vj]:
-                    B[vi, vj] = A[vi, vj] * 2.0
+                for i, j in tir.grid(128, 128):
+                    with tir.block([128, 128], "B") as [vi, vj]:
+                        B[vi, vj] = A[vi, vj] * 2.0
 
         Create the schedule and do fuse:
 
         .. code-block:: python
 
-            sch = tir.Schedule(before_fuse, debug_mode=True)
+            sch = tir.Schedule(before_fuse)
             i, j = sch.get_loops(sch.get_block("B"))
             sch.fuse(i, j)
             print(tvm.script.asscript(sch.mod["main"]))
@@ -306,13 +307,12 @@ class Schedule(Object):
             @tvm.script.tir
             def after_fuse(a: ty.handle, b: ty.handle) -> None:
                 A = tir.match_buffer(a, (128, 128))
-                B = tir.match_buffer(b, [128, 128])
-                for i0_i1_fused in tir.serial(0, 16384):
+                B = tir.match_buffer(b, (128, 128))
+                # the 2 loops are fused into 1
+                for i_j_fused in tir.serial(0, 16384):
                     with tir.block([128, 128], "B") as [vi, vj]:
-                        tir.bind(vi, tir.floordiv(i0_i1_fused, 128))
-                        tir.bind(vj, tir.floormod(i0_i1_fused, 128))
-                        tir.reads([A[vi, vj]])
-                        tir.writes([B[vi, vj]])
+                        tir.bind(vi, tir.floordiv(i_j_fused, 128))
+                        tir.bind(vj, tir.floormod(i_j_fused, 128))
                         B[vi, vj] = A[vi, vj] * 2.0
 
         """
@@ -329,6 +329,7 @@ class Schedule(Object):
         Predicates may be added to ensure the total loop numbers keeps unchanged.
         In `factors`, at most one of the factors can be None or -1,
         which will be automatically inferred.
+
         Parameters
         ----------
         loop : LoopRV
@@ -336,6 +337,10 @@ class Schedule(Object):
 
         factors: List[Union[ExprRV, None]]
             The splitting factors
+            Potential inputs are:
+            - None or -1
+            - ExprRV
+            - Nonnegative constant integers
 
         Returns
         ----------
@@ -353,14 +358,15 @@ class Schedule(Object):
             def before_split(a: ty.handle, b: ty.handle) -> None:
                 A = tir.match_buffer(a, (128, 128))
                 B = tir.match_buffer(b, (128, 128))
-                with tir.block([128, 128], "B") as [vi, vj]:
-                    B[vi, vj] = A[vi, vj] * 2.0
+                for i, j in tir.grid(128, 128):
+                    with tir.block([128, 128], "B") as [vi, vj]:
+                        B[vi, vj] = A[vi, vj] * 2.0
 
         Create the schedule and do fuse:
 
         .. code-block:: python
 
-            sch = tir.Schedule(before_split, debug_mode=True)
+            sch = tir.Schedule(before_split)
             i, j = sch.get_loops(sch.get_block("B"))
             sch.split(i, factors=[2, 64])
             print(tvm.script.asscript(sch.mod["main"]))
@@ -372,13 +378,12 @@ class Schedule(Object):
             @tvm.script.tir
             def after_split(a: ty.handle, b: ty.handle) -> None:
                 A = tir.match_buffer(a, (128, 128))
-                B = tir.match_buffer(b, [128, 128])
-                for i0_outer, i0_inner, i1 in tir.grid(2, 64, 128):
+                B = tir.match_buffer(b, (128, 128))
+                # the original loop is split into 2 loops
+                for i0, i1, j in tir.grid(2, 64, 128):
                     with tir.block([128, 128], "B") as [vi, vj]:
-                        tir.bind(vi, ((i0_outer*64) + i0_inner))
-                        tir.bind(vj, i1)
-                        tir.reads([A[vi, vj]])
-                        tir.writes([B[vi, vj]])
+                        tir.bind(vi, ((i0*64) + i1))
+                        tir.bind(vj, j)
                         B[vi, vj] = A[vi, vj] * 2.0
 
         """

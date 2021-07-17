@@ -453,17 +453,4 @@ def test_split_symbolic():
 
 
 if __name__ == "__main__":
-    test_fuse()
-    test_fuse_with_opaque_block()
-    test_fuse_with_opaque_access()
-    test_fuse_symbolic()
-    test_split()
-    test_split_with_inferred_factor()
-    test_split_with_opaque_block()
-    test_split_with_opaque_access()
-    test_split_with_predicate()
-    test_split_symbolic()
-    test_fuse_fail_not_only_child()
-    test_fuse_split_fail_with_annotation()
-    test_fuse_split_fail_not_start_with_zero()
-    test_fuse_split_fail_with_thread_binding()
+    pytest.main([__file__])

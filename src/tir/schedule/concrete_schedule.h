@@ -68,8 +68,8 @@ class ConcreteScheduleNode : public ScheduleNode {
   inline PrimExpr Get(const ExprRV& expr_rv) const final;
   inline StmtSRef GetSRef(const BlockRV& block_rv) const final;
   inline StmtSRef GetSRef(const LoopRV& loop_rv) const final;
-  inline Array<StmtSRef> GetSRefs(const Array<BlockRV>& rvs) const final;
-  inline Array<StmtSRef> GetSRefs(const Array<LoopRV>& rvs) const final;
+  inline Array<StmtSRef> GetSRefs(const Array<BlockRV>& rvs) const;
+  inline Array<StmtSRef> GetSRefs(const Array<LoopRV>& rvs) const;
   void RemoveRV(const BlockRV& block_rv) final { RemoveFromSymbolTable(block_rv); }
   void RemoveRV(const LoopRV& loop_rv) final { RemoveFromSymbolTable(loop_rv); }
   void RemoveRV(const ExprRV& expr_rv) final { RemoveFromSymbolTable(expr_rv); }
@@ -81,7 +81,7 @@ class ConcreteScheduleNode : public ScheduleNode {
   Array<LoopRV> GetLoops(const BlockRV& block_rv) override;
   /******** Schedule: loops manipulation ********/
   LoopRV Fuse(const Array<LoopRV>& loop_rvs) override;
-  Array<LoopRV> Split(const LoopRV& loop_rv, const Array<ExprRV>& factors) override;
+  Array<LoopRV> Split(const LoopRV& loop_rv, const Array<Optional<ExprRV>>& factors) override;
   /******** Schedule: compute location ********/
   void ComputeInline(const BlockRV& block) override;
   void ReverseComputeInline(const BlockRV& block) override;
@@ -153,7 +153,7 @@ inline PrimExpr ConcreteScheduleNode::Get(const ExprRV& expr_rv) const {
       LOG(FATAL) << "IndexError: Cannot find corresponding ExprRV: " << var;
     }
     const ObjectRef& obj = (*it).second;
-    const auto* int_imm = obj.as<IntImmNode>();
+    const auto* int_imm = TVM_TYPE_AS(int_imm, obj, IntImmNode);
     if (int_imm == nullptr) {
       LOG(FATAL) << "ValueError: ExprRV's corresponding type is invalid: "
                  << (obj.defined() ? obj->GetTypeKey() : "None");

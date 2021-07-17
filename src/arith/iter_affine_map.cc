@@ -1092,13 +1092,12 @@ Array<PrimExpr> IterMapSimplify(const Array<PrimExpr>& indices, const Map<Var, R
       DetectIterMap(indices, input_iters, input_pred, require_bijective, &analyzer);
   if (rewrite.empty()) {
     return indices;
-  } else {
-    Array<PrimExpr> res;
-    res.reserve(rewrite.size());
-    IterMapToExprNormalizer converter(&analyzer);
-    for (const auto& expr : rewrite) res.push_back(converter.Convert(expr));
-    return res;
   }
+  Array<PrimExpr> res;
+  res.reserve(rewrite.size());
+  IterMapToExprNormalizer converter(&analyzer);
+  for (const auto& expr : rewrite) res.push_back(converter.Convert(expr));
+  return res;
 }
 
 /*!

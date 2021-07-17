@@ -26,7 +26,7 @@ namespace tir {
 
 /******** Schedule: loops manipulation ********/
 /*!
- * Split a loop into several consecutive loops. It requires:
+ * Split a loop into a list of consecutive loops. It requires:
  * 1) The loop can't have annotation or thread binding.
  * 2) The loop must start with 0.
  * \param self The state of the schedule
@@ -37,7 +37,7 @@ namespace tir {
 TVM_DLL Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
                               const Array<PrimExpr>& factors);
 /*!
- * \brief Fuse consecutive loops. It requires:
+ * \brief Fuse a list of consecutive loops into one. It requires:
  * 1) The loops can't have annotations or thread bindings.
  * 2) The inner loop must be the only child of the outer loop.
  * 3) All loops must start with 0.
