@@ -324,7 +324,6 @@ def test_fuse():
     block_b = sch.get_block("B")
     i, j, k = sch.get_loops(block_b)
     sch.fuse(i, j, k)
-    assert sch.state._get_cached_flags(sch.get_sref(block_b)).stage_pipeline
     tvm.ir.assert_structural_equal(elementwise_fused, sch.mod["main"])
 
 
@@ -335,7 +334,6 @@ def test_split():
     sch.split(i, factors=[2, 1, 64])
     sch.split(j, factors=[4, 32])
     sch.split(k, factors=[16, 8])
-    assert sch.state._get_cached_flags(sch.get_sref(block_b)).stage_pipeline
     tvm.ir.assert_structural_equal(elementwise_split_case0, sch.mod["main"])
 
 
@@ -356,7 +354,6 @@ def test_split_with_predicate():
     sch.split(i, factors=[1000, 2, 3])
     sch.split(j, factors=[None, 129])
     sch.split(k, factors=[3, None])
-    assert sch.state._get_cached_flags(sch.get_sref(block_b)).stage_pipeline
     tvm.ir.assert_structural_equal(elementwise_split_with_predicate, sch.mod["main"])
 
 
