@@ -121,6 +121,11 @@ def floormod(x, y, span):
 
 
 @register
+def abs(x, span):
+    return tvm.tir.abs(x, span)
+
+
+@register
 def load(dtype, var, index, predicate=None, span=None):
     return tvm.tir.Load(dtype, var, index, predicate, span)
 
