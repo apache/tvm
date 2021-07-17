@@ -388,9 +388,6 @@ class Schedule(Object):
 
         """
         # it will be checked later in C++ implementation that there is at most one None or -1 in `factors`
-        for i, factor in enumerate(factors):
-            if factor is None:
-                factors[i] = -1
         return _ffi_api_schedule.ScheduleSplit(self, loop, factors)  # type: ignore # pylint: disable=no-member
 
     ########## Schedule: compute location ##########
