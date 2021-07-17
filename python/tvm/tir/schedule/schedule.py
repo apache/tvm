@@ -387,7 +387,8 @@ class Schedule(Object):
                         B[vi, vj] = A[vi, vj] * 2.0
 
         """
-        # it will be checked later in C++ implementation that there is at most one None or -1 in `factors`
+        # it will be checked later in C++ implementation
+        # sthat there is at most one None or -1 in `factors`
         return _ffi_api_schedule.ScheduleSplit(self, loop, factors)  # type: ignore # pylint: disable=no-member
 
     ########## Schedule: compute location ##########

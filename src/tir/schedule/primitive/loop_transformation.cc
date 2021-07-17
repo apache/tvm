@@ -358,8 +358,7 @@ StmtSRef Fuse(ScheduleState self, const Array<StmtSRef>& loop_srefs) {
   arith::Analyzer analyzer;
   // Step 1. check correctness
   for (const StmtSRef& sref : loop_srefs) {
-    const auto* loop = sref->StmtAs<ForNode>();
-    ICHECK(loop) << "the input sref does not point to a loop";
+    const ForNode* loop = TVM_SREF_TO_FOR(loop, sref);
     if (!loop->annotations.empty() || loop->thread_binding.defined()) {
       throw HasAnnotationOrThreadBindingError(self->mod, GetRef<For>(loop));
     }
