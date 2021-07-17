@@ -84,11 +84,6 @@ class SubstituteVarAndCollectOpaqueBlock : public StmtExprMutator {
   Map<Block, Block>* opaque_blocks_;
 };
 
-Stmt SubstituteAndCollectOpaqueBlock(Stmt stmt, Map<Block, Block>* opaque_blocks,
-                                     std::function<Optional<PrimExpr>(const Var&)> vmap) {
-  return SubstituteVarAndCollectOpaqueBlock(vmap, opaque_blocks)(std::move(stmt));
-}
-
 /*! \brief Simplify the binding of block realize and update the opaque block reuse mapping */
 class IterMapSimplifyBlockBinding : public StmtExprMutator {
  public:
