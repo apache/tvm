@@ -42,23 +42,21 @@ enum class StorageRank {
   kGlobal = 0,
   /*! \brief shared memory among thread group */
   kShared = 1,
-  /*! \brief dynamic shared memory among thread group */
-  kDynShared = 2,
   /*!
    * \brief reserved for warp memory.
    *  This is only used by programming model.
    *  There is no such memory usually in GPU.
    *  Instead, we can simulate it by registers and shuffle.
    */
-  kWarp = 3,
+  kWarp = 2,
   /*! \brief thread local memory */
-  kLocal = 4,
+  kLocal = 3,
   /*! \brief wmma scope memory of matrix_a */
-  kWMMAMatrixA = 5,
+  kWMMAMatrixA = 4,
   /*! \brief wmma scope memory of matrix_b */
-  kWMMAMatrixB = 6,
+  kWMMAMatrixB = 5,
   /*! \brief wmma scope memory of accumulator */
-  kWMMAAccumulator = 7,
+  kWMMAAccumulator = 6,
 };
 
 /*!
@@ -98,8 +96,6 @@ struct StorageScope {
         return "global" + tag;
       case StorageRank::kShared:
         return "shared" + tag;
-      case StorageRank::kDynShared:
-        return "dyn.shared" + tag;
       case StorageRank::kWarp:
         return "warp" + tag;
       case StorageRank::kLocal:
@@ -130,9 +126,6 @@ struct StorageScope {
     } else if (s.compare(0, 6, "shared") == 0) {
       r.rank = StorageRank::kShared;
       r.tag = s.substr(6, std::string::npos);
-    } else if (s.compare(0, 10, "dyn.shared") == 0) {
-      r.rank = StorageRank::kDynShared;
-      r.tag = s.substr(10, std::string::npos);
     } else if (s.compare(0, 4, "warp") == 0) {
       r.rank = StorageRank::kWarp;
       r.tag = s.substr(4, std::string::npos);
@@ -205,8 +198,10 @@ struct ThreadWorkLoad {
 /*! \brief Thread axis configuration */
 class ThreadAxisConfig {
  public:
-  void Init(size_t base, const std::vector<std::string>& thread_axis_tags) {
+  void Init(size_t base, const std::vector<std::string>& thread_axis_tags,
+            bool use_dyn_shared_memory = false) {
     base_ = base;
+    use_dyn_shared_memory_ = use_dyn_shared_memory;
     std::vector<bool> filled(6, false);
     for (size_t i = 0; i < thread_axis_tags.size(); ++i) {
       const std::string& tag = thread_axis_tags[i];
@@ -232,7 +227,9 @@ class ThreadAxisConfig {
         w.work_size[arg_index_map_[i]] = size;
       }
     }
-    w.dyn_shmem_size = static_cast<size_t>(x.values[base_ + arg_index_map_.size()].v_int64);
+    if (use_dyn_shared_memory_) {
+      w.dyn_shmem_size = static_cast<size_t>(x.values[base_ + arg_index_map_.size()].v_int64);
+    }
     return w;
   }
   // return the work dim
@@ -245,6 +242,8 @@ class ThreadAxisConfig {
   size_t work_dim_;
   /*! \brief The index mapping. */
   std::vector<uint32_t> arg_index_map_;
+  /*! \brief Whether or not use dynamic shared memory. */
+  bool use_dyn_shared_memory_{false};
 };
 
 }  // namespace runtime

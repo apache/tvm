@@ -93,7 +93,7 @@ class VarUseDefAnalysis : public StmtExprMutator {
   Stmt VisitStmt_(const AllocateNode* op) final {
     this->HandleDef(op->buffer_var.get());
     auto storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(op->buffer_var));
-    if (storage_scope.rank == runtime::StorageRank::kDynShared) {
+    if (storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == ".dyn") {
       ICHECK_EQ(use_dyn_shmem_, false) << "Only one dynamic shared memory allocation is allowed.";
       ICHECK_GT(op->extents.size(), 0);
       dyn_shmem_size_ = op->extents[0];
@@ -190,13 +190,13 @@ class VarUseDefAnalysis : public StmtExprMutator {
   Array<IterVar> thread_axis_;
   Array<PrimExpr> thread_extent_;
   PrimExpr dyn_shmem_size_{0};
+  bool use_dyn_shmem_{false};
   std::unordered_map<const VarNode*, int> use_count_;
   std::unordered_map<const VarNode*, int> def_count_;
 
  private:
   ExprDeepEqual deep_equal_;
   std::unordered_map<Var, const LetNode*, ObjectPtrHash, ObjectPtrEqual> let_binding_;
-  bool use_dyn_shmem_{false};
 };
 
 Array<Var> UndefinedVars(const Stmt& stmt, const Array<Var>& args) {
@@ -278,6 +278,10 @@ class HostDeviceSplitter : public StmtMutator {
         WithAttr(std::move(device_func), tvm::attr::kGlobalSymbol, runtime::String(kernel_symbol));
     device_func = WithAttr(std::move(device_func), tir::attr::kNoAlias, Integer(1));
     device_func = WithAttr(std::move(device_func), tvm::attr::kTarget, device_target_);
+    if (m.use_dyn_shmem_) {
+      device_func =
+          WithAttr(std::move(device_func), tir::attr::kDeviceUseDynSharedMemory, Integer(1));
+    }
     (*device_mod_)->Add(GlobalVar(kernel_symbol), device_func);
 
     // generate calls to the device function
@@ -289,7 +293,9 @@ class HostDeviceSplitter : public StmtMutator {
     for (PrimExpr ext : m.thread_extent_) {
       call_args.push_back(ext);
     }
-    call_args.push_back(m.dyn_shmem_size_);
+    if (m.use_dyn_shmem_) {
+      call_args.push_back(m.dyn_shmem_size_);
+    }
     return Evaluate(Call(DataType::Int(32), builtin::tvm_call_packed(), call_args));
   }
 

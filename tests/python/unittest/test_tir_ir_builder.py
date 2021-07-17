@@ -511,7 +511,7 @@ def test_dyn_shared():
         tx = te.thread_axis("threadIdx.x")
         ib.scope_attr(tx, "thread_extent", n)
 
-        temp = ib.allocate(dtype, (n,), scope="dyn.shared")  # n is symbolic size
+        temp = ib.allocate(dtype, (n,), scope="shared.dyn")  # n is symbolic size
 
         Aptr = ib.buffer_ptr(A)
         Bptr = ib.buffer_ptr(B)
@@ -555,13 +555,13 @@ def test_dyn_shared():
 
 
 if __name__ == "__main__":
-    test_prefetch()
-    test_if()
-    test_for()
-    test_cpu()
-    test_gpu()
-    test_while_vectorize()
-    test_while_collatz()
-    test_while_mandel()
-    test_while_binary_search()
+    # test_prefetch()
+    # test_if()
+    # test_for()
+    # test_cpu()
+    # test_gpu()
+    # test_while_vectorize()
+    # test_while_collatz()
+    # test_while_mandel()
+    # test_while_binary_search()
     test_dyn_shared()

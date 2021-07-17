@@ -55,7 +55,7 @@ class CodeGenNVPTX : public CodeGenLLVM {
     }
 
     auto storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(op->buffer_var));
-    if (storage_scope.rank == runtime::StorageRank::kDynShared) {
+    if (storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == ".dyn") {
       // Shared memory: address space  == 3
       buf =
           AllocateSharedMemory(op->dtype, 0, 3, info.alignment, llvm::GlobalValue::ExternalLinkage);
