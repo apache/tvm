@@ -79,11 +79,9 @@ tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
   return kTvmErrorNoError;
 }
 
-unsigned int random_seed = 0;
 tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
-  for (size_t i = 0; i < num_bytes; ++i) {
-    buffer[i] = (uint8_t)4;  // Chosen by fair die roll
-                             // Guaranteed to be random
+  for (size_t i = 0; i < num_bytes; i++) {
+    buffer[i] = rand();
   }
   return kTvmErrorNoError;
 }

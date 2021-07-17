@@ -26,7 +26,6 @@ API_SERVER_DIR = pathlib.Path(os.path.dirname(__file__) or os.path.getcwd())
 BUILD_DIR = API_SERVER_DIR / "build"
 IS_TEMPLATE = not (API_SERVER_DIR / MODEL_LIBRARY_FORMAT_RELPATH).exists()
 MODEL_LIBRARY_FORMAT_PATH = "" if IS_TEMPLATE else API_SERVER_DIR / MODEL_LIBRARY_FORMAT_RELPATH
-_LOG = logging.getLogger(__name__)
 
 
 class InvalidPortException(Exception):
@@ -103,6 +102,15 @@ class Handler(server.ProjectAPIHandler):
     def _remove_unused_components(self, source_dir):
         for component in self.UNUSED_COMPONENTS:
             shutil.rmtree(source_dir / "standalone_crt" / component)
+
+    # We need to remove these duplicate copies of unit tests from the
+    # tree to avoid pytest finding two copies
+    PYTEST_FILE_REGEX = r"(?:test_.*\.py)|(?:.*_test\.py)"
+
+    def _remove_unit_tests(self, source_dir):
+        for file_path in source_dir.rglob(f"*.py"):
+            if re.match(self.PYTEST_FILE_REGEX, file_path.name):
+                file_path.unlink()
 
     GRAPH_JSON_TEMPLATE = 'static const char* graph_json = "{}";\n'
 
@@ -229,7 +237,8 @@ class Handler(server.ProjectAPIHandler):
         # Copy template folder to project_dir, creating project/ and src/
         # directories in the process. Also copies this file, microtvm_api_server.py,
         # in case TVM needs to call it from the new location
-        shutil.copytree(API_SERVER_DIR, project_dir, dirs_exist_ok=True)
+        if IS_TEMPLATE:
+            shutil.copytree(API_SERVER_DIR, project_dir, dirs_exist_ok=True)
 
         # Reference key directories with pathlib
         project_dir = pathlib.Path(project_dir)
@@ -238,6 +247,7 @@ class Handler(server.ProjectAPIHandler):
         # Copy standalone_crt into src folder
         self._copy_standalone_crt(source_dir, standalone_crt_dir)
         self._remove_unused_components(source_dir)
+        self._remove_unit_tests(project_dir)
 
         # Unpack the MLF and copy the relevant files
         graph = self._disassemble_mlf(model_library_format_path, source_dir)

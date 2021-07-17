@@ -3,6 +3,7 @@ import os
 import pathlib
 import shutil
 import sys
+import time
 
 import pytest
 import tflite
@@ -38,7 +39,7 @@ def _generate_project(model, target, arduino_board, arduino_cmd, mod, build_conf
     workspace_parent = os.path.dirname(workspace_root)
     if not os.path.exists(workspace_parent):
         os.makedirs(workspace_parent)
-    workspace = tvm.micro.Workspace(debug=True, root=workspace_root)
+    workspace = tvm.micro.Workspace(debug=False, root=workspace_root)
 
     template_project_dir = (
         pathlib.Path(__file__).parent
@@ -189,6 +190,9 @@ SERIAL_OUTPUT_HEADERS = "category,runtime,yes,no,silence,unknown"
 
 @pytest.fixture(scope="module")
 def serial_output(uploaded_project):
+    # Give time for the board to open a serial connection
+    time.sleep(1)
+
     transport = uploaded_project.transport()
     transport.open()
     out = transport.read(2048, -1)
@@ -238,7 +242,9 @@ def test_project_inference_runtime(serial_output):
     assert max(runtimes_us) < MAX_INFERENCE_TIME_US
 
     # Clock speeds should be consistent for each input. On
-    # the Sony spresense, they vary by <100 us.
+    # the Sony spresense, they vary by <100 us. Note that
+    # running with other attached hardware (like the
+    # Spresense extension board) may cause this check to fail
     range_runtimes_us = max(runtimes_us) - min(runtimes_us)
     assert range_runtimes_us < MAX_INFERENCE_TIME_RANGE_US
 
