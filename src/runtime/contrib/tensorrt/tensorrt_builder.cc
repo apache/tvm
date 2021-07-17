@@ -163,10 +163,19 @@ TensorRTEngineAndContext TensorRTBuilder::BuildEngine() {
     auto profile = builder_->createOptimizationProfile();
     for (int i = 0; i < network_->getNbInputs(); ++i) {
       auto name = network_->getInput(i)->getName();
-      auto dims = network_->getInput(i)->getDimensions();
-      profile->setDimensions(name, nvinfer1::OptProfileSelector::kMIN, dims);
+      const uint32_t entry_id = entry_id_map_[name];
+      std::vector<int64_t> shape(data_entry_[entry_id]->shape,
+                                 data_entry_[entry_id]->shape + data_entry_[entry_id]->ndim);
+      auto dims = VectorToTrtDims(shape);
+
       profile->setDimensions(name, nvinfer1::OptProfileSelector::kOPT, dims);
       profile->setDimensions(name, nvinfer1::OptProfileSelector::kMAX, dims);
+      // Set minimum batch size to 1 when dynamic batching is used.
+      if (network_->getInput(i)->getDimensions().nbDims >= 1 &&
+          network_->getInput(i)->getDimensions().d[0] == -1) {
+        dims.d[0] = 1;
+      }
+      profile->setDimensions(name, nvinfer1::OptProfileSelector::kMIN, dims);
     }
     config_->addOptimizationProfile(profile);
   }
