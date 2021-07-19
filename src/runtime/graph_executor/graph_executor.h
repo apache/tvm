@@ -120,6 +120,12 @@ class TVM_DLL GraphExecutor : public ModuleNode {
    */
   void SetInputZeroCopy(int index, DLTensor* data_ref);
   /*!
+   * \brief set index-th output to the graph without copying the data.
+   * \param index The output index.
+   * \param data_ref The output data that is referred.
+   */
+  void SetOutputZeroCopy(int index, DLTensor* data_ref);
+  /*!
    * \brief Get the number of outputs
    *
    * \return The number of outputs from graph.
@@ -138,12 +144,6 @@ class TVM_DLL GraphExecutor : public ModuleNode {
    * \return NDArray corresponding to given input node index.
    */
   NDArray GetInput(int index) const;
-/*!
- * \brief set index-th output to the graph without copying the data.
- * \param index The output index.
- * \param data_ref The output data that is referred.
- */
-  void SetOutputZeroCopy(int index, DLTensor* data_ref);
   /*!
    * \brief Return NDArray for given output index.
    * \param index The output index.
@@ -406,6 +406,8 @@ class TVM_DLL GraphExecutor : public ModuleNode {
   std::unordered_map<std::string, uint32_t> input_map_;
   /*! \brief Used for quick node input DLTensor* lookup given an input eid. */
   std::vector<std::vector<DLTensor*>> input_dltensors_;
+  /*! \brief Used for quick node output DLTensor* lookup given an input eid. */
+  std::vector<DLTensor*> output_dltensors_;
   /*! \brief Used for quick entry indexing. */
   std::vector<uint32_t> node_row_ptr_;
   /*! \brief Output entries. */
