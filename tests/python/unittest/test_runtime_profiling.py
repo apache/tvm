@@ -19,6 +19,7 @@ import pytest
 from io import StringIO
 import csv
 import os
+import json
 
 import tvm.testing
 from tvm.runtime import profiler_vm
@@ -107,6 +108,22 @@ def test_papi(target, dev):
     csv = read_csv(report)
     assert metric in csv.keys()
     assert any([float(x) > 0 for x in csv[metric]])
+
+
+@tvm.testing.requires_llvm
+def test_json():
+    mod, params = mlp.get_workload(1)
+
+    exe = relay.vm.compile(mod, "llvm", params=params)
+    vm = profiler_vm.VirtualMachineProfiler(exe, tvm.cpu())
+
+    data = np.random.rand(1, 1, 28, 28).astype("float32")
+    report = vm.profile(data, func_name="main")
+    parsed = json.loads(report.json())
+    assert "device_metrics" in parsed
+    assert "calls" in parsed
+    assert "Duration (us)" in parsed["calls"][0]
+    assert "microseconds" in parsed["calls"][0]["Duration (us)"]
 
 
 if __name__ == "__main__":
