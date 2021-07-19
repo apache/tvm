@@ -113,7 +113,10 @@ const PackedFunc* ModuleNode::GetFuncFromEnv(const std::string& name) {
   if (pf == nullptr) {
     const PackedFunc* f = Registry::Get(name);
     ICHECK(f != nullptr) << "Cannot find function " << name
-                         << " in the imported modules or global registry";
+                         << " in the imported modules or global registry."
+                         << " If this involves ops from a contrib library like"
+                         << " cuDNN, ensure TVM was built with the relevant"
+                         << " library.";
     return f;
   } else {
     import_cache_.insert(std::make_pair(name, std::make_shared<PackedFunc>(pf)));
