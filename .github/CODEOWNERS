@@ -47,9 +47,9 @@
 **/parser/** @jroesch @slyubomirsky
 
 # Runtime
-**/runtime/**  @vinx13 @tqchen @FronzenGene @liangfu @areusch @tmoreau89 @ajtulloch @masahi @kazum @ZihengJiang
+**/runtime/**  @vinx13 @tqchen @FronzenGene @liangfu @areusch @tmoreau89 @ajtulloch @masahi @kazum @ZihengJiang  @junrushao1994
 
-# utvm
+# micro TVM
 **/micro/** @areusch @liangfu @tmoreau89
 
 
