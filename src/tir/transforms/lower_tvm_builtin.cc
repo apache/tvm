@@ -193,7 +193,6 @@ class BuiltinLower : public StmtExprMutator {
       return StmtExprMutator::VisitExpr_(op);
     }
   }
-
   // call shape
   PrimExpr MakeShape(const CallNode* op) {
     // if args.size() == 0, it represents a scalar shape ()

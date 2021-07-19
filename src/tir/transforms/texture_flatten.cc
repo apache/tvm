@@ -89,6 +89,11 @@ class TextureLoweringBase : public StmtExprMutator {
       storage_scope = it->second;
     } else {
       storage_scope = buffer->scope;
+      if (storage_scope == "global" || storage_scope == "") {
+        if (auto* ptr = buffer->data->type_annotation.as<PointerTypeNode>()) {
+          storage_scope = ptr->storage_scope;
+        }
+      }
     }
     return storage_scope;
   }

@@ -54,7 +54,6 @@ Buffer decl_buffer(Array<PrimExpr> shape, DataType dtype, String name, String st
                 Array<PrimExpr>(), PrimExpr(), name, 0, 0, kDefault, span);
 }
 
-namespace {
 // Split the given expression w.r.t the add operator
 inline std::vector<const PrimExpr*> ExprSplitAddition(const PrimExpr& expr) {
   using namespace tir;
@@ -286,7 +285,6 @@ inline PrimExpr BufferOffset(const BufferNode* n, Array<PrimExpr> index, DataTyp
     return offset;
   }
 }
-}  // namespace
 
 PrimExpr Buffer::vload(Array<PrimExpr> begin, DataType dtype) const {
   // specially handle bool, stored as DataType::Int(8)
