@@ -88,7 +88,7 @@ class FlexBufferDecoder(object):
 
     def decode_keys(self, end, size, byte_width):
         """Decodes the flexbuffer type vector. Map keys are stored in this form"""
-        # Keys are strings here. The format is all strings seperated by null, followed by back
+        # Keys are strings here. The format is all strings separated by null, followed by back
         # offsets for each of the string. For example, (str1)\0(str1)\0(offset1)(offset2) The end
         # pointer is pointing at the end of all strings
         keys = list()

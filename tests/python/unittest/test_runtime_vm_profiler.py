@@ -29,7 +29,9 @@ def test_basic(dev, target):
         return
 
     exe = relay.vm.compile(mod, target, params=params)
-    vm = profiler_vm.VirtualMachineProfiler(exe, dev)
+    code, lib = exe.save()
+    des_exe = tvm.runtime.vm.Executable.load_exec(code, lib)
+    vm = profiler_vm.VirtualMachineProfiler(des_exe, dev)
 
     data = np.random.rand(1, 1, 28, 28).astype("float32")
     res = vm.profile(tvm.nd.array(data), func_name="main")
