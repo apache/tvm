@@ -255,7 +255,6 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
                      ExprDeviceMap expr_device_map)
       : last_register_(0),
         registers_num_(0),
-        // engine_(CompileEngine::Global()), //TODO: replace with TE 
         context_(context),
         target_host_(target_host),
         expr_device_map_(std::move(expr_device_map)) {
@@ -467,7 +466,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
   void EmitShapeFunc(Function func, Array<Expr> inputs, Array<Expr> outputs) {
     // Lower shape function
     CCacheKey key(func, target_host_);
-    auto cfunc = compiler_->LowerShapeFunc(key); //TODO: replace with TE 
+    auto cfunc = compiler_->LowerShapeFunc(key);
     int op_index = -1;
     // pick the only function inside the context
     ICHECK_EQ(cfunc->funcs->functions.size(), 1);
@@ -553,7 +552,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
 
     CCacheKey key(func, target);
     auto mangle_fn = [](String name) { return name; };
-    auto cfunc = compiler_->Lower(key, mangle_fn); //TODO: replace with TE 
+    auto cfunc = compiler_->Lower(key, mangle_fn);
 
     auto op_index = -1;
     if (func->GetAttr<String>(attr::kCompiler).defined()) {
@@ -1188,8 +1187,6 @@ void VMCompiler::Codegen() {
 
   TECompiler compiler;
   auto ext_mods = compiler->LowerExternalFunctions();
-
-  //targets = target
 
   runtime::Module lib;
   if (funcs.size() > 0) {
