@@ -115,7 +115,7 @@ class IterMapSimplifyBlockBinding : public StmtExprMutator {
       Block block = op->block;
       BlockRealize realize = Downcast<BlockRealize>(StmtMutator::VisitStmt_(op));
       for (const std::pair<ObjectRef, ObjectRef>& entry : *opaque_blocks_) {
-        if (entry.second.same_as(op->block)) {
+        if (entry.second.same_as(block)) {
           opaque_blocks_->at(entry.first) = realize->block;
           break;
         }
@@ -303,7 +303,7 @@ Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
   PrimExpr substitute_value = 0;
   std::vector<Var> new_loop_vars;
   new_loop_vars.reserve(n);
-  for (size_t i = 0; i < n; i++) {
+  for (int i = 0; i < n; i++) {
     const PrimExpr& factor = inferred_factors[i];
     Var var = loop->loop_var.copy_with_suffix("_" + std::to_string(i));
     substitute_value = substitute_value * factor + var;

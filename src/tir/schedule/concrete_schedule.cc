@@ -278,7 +278,7 @@ Array<LoopRV> ConcreteScheduleNode::Split(const LoopRV& loop_rv,
   Array<PrimExpr> factors;
   factors.reserve(factor_rvs.size());
   for (const Optional<ExprRV>& factor_rv : factor_rvs) {
-    if (factor_rv.defined()) {
+    if (!factor_rv.defined()) {
       factors.push_back(Integer(-1));
     } else {
       factors.push_back(this->Get(factor_rv.value()));
