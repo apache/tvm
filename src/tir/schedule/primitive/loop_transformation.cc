@@ -86,8 +86,7 @@ class SubstituteVarAndCollectOpaqueBlock : public StmtExprMutator {
 /*! \brief Simplify the binding of block realize and update the opaque block reuse mapping */
 class IterMapSimplifyBlockBinding : public StmtExprMutator {
  public:
-  explicit IterMapSimplifyBlockBinding(MapNode* opaque_blocks,
-                                       Map<Var, Range> loop_var2extent)
+  explicit IterMapSimplifyBlockBinding(MapNode* opaque_blocks, Map<Var, Range> loop_var2extent)
       : opaque_blocks_(opaque_blocks), loop_var2extent_(loop_var2extent) {}
 
   static For SimplifyBindings(Stmt stmt, const Array<StmtSRef>& loop_srefs,
@@ -320,8 +319,7 @@ Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
           return NullOpt;
         }
       },
-      &opaque_block_reuse
-  )(std::move(new_stmt));
+      &opaque_block_reuse)(std::move(new_stmt));
   // Step 4. Update predicate to guard the loop
   new_stmt =
       BlockPredicateAppender(/*predicate=*/substitute_value < loop->extent, &analyzer)(new_stmt);
@@ -407,9 +405,8 @@ StmtSRef Fuse(ScheduleState self, const Array<StmtSRef>& loop_srefs) {
   }
   fused_extent = analyzer.Simplify(fused_extent);
   new_stmt = For(fused_var, 0, fused_extent, ForKind::kSerial, new_stmt);
-  new_stmt = IterMapSimplifyBlockBinding::SimplifyBindings(std::move(new_stmt), GetLoops
-                                                           (loop_srefs[0]),
-                                                           &opaque_block_reuse);
+  new_stmt = IterMapSimplifyBlockBinding::SimplifyBindings(
+      std::move(new_stmt), GetLoops(loop_srefs[0]), &opaque_block_reuse);
   self->Replace(loop_srefs[0], new_stmt, opaque_block_reuse);
   return self->stmt2ref.at(new_stmt.get());
 }
