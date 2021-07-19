@@ -108,6 +108,13 @@ class TVM_DLL GraphExecutor : public ModuleNode {
   int GetInputIndex(const std::string& name);
 
   /*!
+   * \brief Get the output index given the name of output.
+   * \param name The name of the output.
+   * \return The index of output.
+   */
+  int GetOutputIndex(const std::string& name);
+
+  /*!
    * \brief set index-th input to the graph.
    * \param index The input index.
    * \param data_in The input data.
@@ -404,6 +411,8 @@ class TVM_DLL GraphExecutor : public ModuleNode {
   std::vector<uint32_t> input_nodes_;
   /*! \brief Map of input names to input indices. */
   std::unordered_map<std::string, uint32_t> input_map_;
+  /*! \brief Map of input names to output indices. */
+  std::unordered_map<std::string, uint32_t> output_map_;
   /*! \brief Used for quick node input DLTensor* lookup given an input eid. */
   std::vector<std::vector<DLTensor*>> input_dltensors_;
   /*! \brief Used for quick node output DLTensor* lookup given an input eid. */
