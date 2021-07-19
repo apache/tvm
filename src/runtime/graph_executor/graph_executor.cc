@@ -91,6 +91,11 @@ void GraphExecutor::Init(const std::string& graph_json, tvm::runtime::Module mod
     std::string& name = nodes_[nid].name;
     input_map_[name] = i;
   }
+  for (size_t i = 0; i < outputs_.size(); i++) {
+    const uint32_t nid = outputs_[i].node_id;
+    std::string& name = nodes_[nid].name;
+    output_map_[name] = i;
+  }
 }
 /*!
  * \brief Get the input index given the name of input.
@@ -100,6 +105,18 @@ void GraphExecutor::Init(const std::string& graph_json, tvm::runtime::Module mod
 int GraphExecutor::GetInputIndex(const std::string& name) {
   auto it = input_map_.find(name);
   if (it != input_map_.end()) {
+    return it->second;
+  }
+  return -1;
+}
+/*!
+ * \brief Get the output index given the name of output.
+ * \param name The name of the output.
+ * \return The index of output.
+ */
+int GraphExecutor::GetOutputIndex(const std::string& name) {
+  auto it = output_map_.find(name);
+  if (it != output_map_.end()) {
     return it->second;
   }
   return -1;
@@ -498,7 +515,12 @@ PackedFunc GraphExecutor::GetFunction(const std::string& name,
     });
   } else if (name == "set_output_zero_copy") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      this->SetOutputZeroCopy(args[0], args[1]);
+      if (String::CanConvertFrom(args[0])) {
+        int in_idx = this->GetOutputIndex(args[0].operator String());
+        if (in_idx >= 0) this->SetOutputZeroCopy(in_idx, args[1]);
+      } else {
+        this->SetOutputZeroCopy(args[0], args[1]);
+      }
     });
   } else if (name == "get_output") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
