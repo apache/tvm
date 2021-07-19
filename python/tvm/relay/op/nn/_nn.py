@@ -1082,27 +1082,22 @@ def conv2d_NCHWc_shape_func(attrs, inputs, _):
 
 
 @script
-def _conv2d_transpose_nchw_shape_func(dshape, kshape, strides, padding, dilation, output_padding):
+def _conv_transpose_shape_func(dshape, kshape, strides, padding, dilation, output_padding):
     out = output_tensor((dshape.shape[0],), "int64")
-    kheight = kshape[2]
-    kwidth = kshape[3]
-    dilated_kh = (kheight - 1) * dilation[0] + 1
-    dilated_kw = (kwidth - 1) * dilation[1] + 1
-
-    out_height = strides[0] * (dshape[2] - 1) + dilated_kh - 2 * padding[0] + output_padding[0]
-    out_width = strides[1] * (dshape[3] - 1) + dilated_kw - 2 * padding[1] + output_padding[1]
-
     out[0] = dshape[0]
     out[1] = kshape[1]
-    out[2] = out_height
-    out[3] = out_width
+
+    for i in const_range(dshape.shape[0] - 2):
+        dilated_k = (kshape[i + 2] - 1) * dilation[i] + 1
+        out[i + 2] = (
+            strides[i] * (dshape[i + 2] - 1) + dilated_k - 2 * padding[i] + output_padding[i]
+        )
     return out
 
 
-@reg.register_shape_func("nn.conv2d_transpose", False)
-def conv2d_transpose_nchw_shape_func(attrs, inputs, _):
+def conv_transpose_shape_func(attrs, inputs, _):
     """
-    Shape function for conv2d_transpose op.
+    Shape function for contrib_conv2d_NCHWc op.
     """
     strides = get_const_tuple(attrs.strides)
     padding = get_const_tuple(attrs.padding)
@@ -1110,7 +1105,7 @@ def conv2d_transpose_nchw_shape_func(attrs, inputs, _):
     output_padding = get_const_tuple(attrs.output_padding)
 
     return [
-        _conv2d_transpose_nchw_shape_func(
+        _conv_transpose_shape_func(
             inputs[0],
             inputs[1],
             convert(strides),
@@ -1119,6 +1114,10 @@ def conv2d_transpose_nchw_shape_func(attrs, inputs, _):
             convert(output_padding),
         )
     ]
+
+
+reg.register_shape_func("nn.conv1d_transpose", False, conv_transpose_shape_func)
+reg.register_shape_func("nn.conv2d_transpose", False, conv_transpose_shape_func)
 
 
 @script
@@ -1339,3 +1338,5 @@ reg.register_shape_func("nn.bias_add", False, elemwise_shape_func)
 reg.register_shape_func("nn.softmax", False, elemwise_shape_func)
 reg.register_shape_func("nn.fast_softmax", False, elemwise_shape_func)
 reg.register_shape_func("nn.relu", False, elemwise_shape_func)
+reg.register_shape_func("nn.leaky_relu", False, elemwise_shape_func)
+reg.register_shape_func("nn.prelu", False, elemwise_shape_func)
