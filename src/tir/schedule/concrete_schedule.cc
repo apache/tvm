@@ -278,7 +278,11 @@ Array<LoopRV> ConcreteScheduleNode::Split(const LoopRV& loop_rv,
   Array<PrimExpr> factors;
   factors.reserve(factor_rvs.size());
   for (const Optional<ExprRV>& factor_rv : factor_rvs) {
-    factors.push_back(this->Get(factor_rv.value_or(Integer(-1))));
+    if (factor_rv.defined()) {
+      factors.push_back(Integer(-1));
+    } else {
+      factors.push_back(this->Get(factor_rv.value()));
+    }
   }
   Array<StmtSRef> results;
   TVM_TIR_SCHEDULE_BEGIN();

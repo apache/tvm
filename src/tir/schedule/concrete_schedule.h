@@ -154,15 +154,9 @@ inline PrimExpr ConcreteScheduleNode::Get(const ExprRV& expr_rv) const {
     }
     const ObjectRef& obj = (*it).second;
     const auto* int_imm = TVM_TYPE_AS(int_imm, obj, IntImmNode);
-    if (int_imm == nullptr) {
-      LOG(FATAL) << "ValueError: ExprRV's corresponding type is invalid: "
-                 << (obj.defined() ? obj->GetTypeKey() : "None");
-    }
     return Integer(int_imm->value);
   });
-  PrimExpr simplified = this->analyzer_->Simplify(transformed);
-  CHECK(is_const_int(transformed)) << "ValueError: The ExprRV does not have a specific value";
-  return simplified;
+  return this->analyzer_->Simplify(transformed);
 }
 
 inline StmtSRef ConcreteScheduleNode::GetSRef(const BlockRV& block_rv) const {
