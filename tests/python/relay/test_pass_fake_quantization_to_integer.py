@@ -116,6 +116,27 @@ def test_fake_transpose_quantize_conv_bias_add():
     compare_fq_to_int(op, [x_np, w_np, bias_np])
 
 
+def test_fake_transpose_quantize_conv_bias_add_mismatch():
+    x = relay.var("x", shape=[1, 224, 224, 3], dtype="int8")
+    w = relay.var("w", shape=[16, 3, 5, 5], dtype="int8")
+    bias = relay.var("bias", shape=[16], dtype="int32")
+    one = relay.const(1.0)
+    two = relay.const(2.0)
+    zero = relay.const(0)
+
+    x = relay.qnn.op.dequantize(x, relay.const(2.0), zero)
+    x = relay.transpose(x, [0, 3, 1, 2])
+    op = relay.op.nn.conv2d(x, relay.qnn.op.dequantize(w, relay.const(0.5), zero))
+    op = relay.op.nn.bias_add(op, relay.qnn.op.dequantize(bias, two, zero))
+    op = relay.qnn.op.quantize(op, one, zero)
+
+    x_np = np.random.randint(-128, 127, size=[1, 224, 224, 3], dtype="int8")
+    w_np = np.random.randint(-128, 127, size=[16, 3, 5, 5], dtype="int8")
+    bias_np = np.random.randint(-32768, 32767, size=[16], dtype="int32")
+
+    compare_fq_to_int(op, [x_np, w_np, bias_np])
+
+
 def test_fake_quantize_maxpool():
     x = relay.var("x", shape=[1, 3, 224, 224], dtype="int8")
 

@@ -101,7 +101,7 @@ def bias_add(expr, type_map):
             b_t.zero_point,
             in_scale,
             in_zero_point,
-            out_dtype=xt.dtype,
+            out_dtype=x_t.dtype,
         )
     out = relay.op.nn.bias_add(x, b, **expr.attrs)
     return [out, x_t]
