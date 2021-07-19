@@ -140,6 +140,28 @@ void GraphExecutor::SetInputZeroCopy(int index, DLTensor* data_ref) {
   }
 }
 /*!
+ * \brief set index-th output to the graph without copying the data.
+ * \param index The output index.
+ * \param data_ref The output data that is referred.
+ */
+void GraphExecutor::SetOutputZeroCopy(int index, DLTensor* data_ref) {
+  ICHECK_LT(static_cast<size_t>(index), outputs_.size());
+  uint32_t eid = this->entry_id(outputs_[index]);
+  DLTensor* old_t = const_cast<DLTensor*>(data_entry_[eid].operator->());
+  // check the consistency of output
+  ICHECK_EQ(data_alignment_[eid], details::GetDataAlignment(*data_ref));
+  ICHECK_EQ(reinterpret_cast<size_t>(data_ref->data) % kAllocAlignment, 0);
+  ICHECK_EQ(old_t->ndim, static_cast<size_t>(data_ref->ndim));
+  ICHECK_EQ(old_t->device.device_type, data_ref->device.device_type);
+  ICHECK_EQ(old_t->device.device_id, data_ref->device.device_id);
+  for (auto i = 0; i < data_ref->ndim; ++i) {
+    ICHECK_EQ(old_t->shape[i], data_ref->shape[i]);
+  }
+  // Update the data pointer for output op
+  ICHECK_LT(static_cast<size_t>(index), output_dltensors_.size());
+  output_dltensors_[index]->data = data_ref->data;
+}
+/*!
  * \brief Get the number of outputs
  *
  * \return The number of outputs from graph.
@@ -363,6 +385,10 @@ void GraphExecutor::SetupOpExecs() {
     uint32_t nid = input_nodes_[i];
     input_node_eids.insert(entry_id(nid, 0));
   }
+  std::unordered_set<uint32_t> output_node_id;
+  for (size_t i = 0; i < outputs_.size(); i++) {
+    output_node_id.insert(outputs_[i].node_id);
+  }
 
   // setup the array and requirements.
   for (uint32_t nid = 0; nid < this->GetNumOfNodes(); ++nid) {
@@ -387,6 +413,13 @@ void GraphExecutor::SetupOpExecs() {
       // check if op input is model input
       if (input_node_eids.count(eid) > 0) {
         input_dltensors_[eid].push_back(static_cast<DLTensor*>(op_args->arg_values[i].v_handle));
+      }
+    }
+    // check if op output is model output
+    if (output_node_id.count(nid) > 0) {
+      for (uint32_t index = inode.inputs.size();
+           index < inode.param.num_outputs + inode.param.num_inputs; ++index) {
+        output_dltensors_.push_back(static_cast<DLTensor*>(op_args->arg_values[index].v_handle));
       }
     }
   }
@@ -462,6 +495,10 @@ PackedFunc GraphExecutor::GetFunction(const std::string& name,
       } else {
         this->SetInputZeroCopy(args[0], args[1]);
       }
+    });
+  } else if (name == "set_output_zero_copy") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      this->SetOutputZeroCopy(args[0], args[1]);
     });
   } else if (name == "get_output") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
