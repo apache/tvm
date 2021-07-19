@@ -89,7 +89,7 @@ conda/** @tqchen @junrushao1994 @comaniac
 cmake/** @jroesch @tqchen @areusch @junrushao1994 @comaniac
 
 # rust bindings
-rust/** jroesch @nhynes @nhynes
+rust/** @jroesch @nhynes @nhynes
 
 # docs
 docs/**  @comaniac @junrushao1994 @tqchen @jroesch @areusch @yzhliu @merrymercy @icemelon9
