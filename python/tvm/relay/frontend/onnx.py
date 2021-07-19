@@ -585,6 +585,70 @@ class ConvTranspose(OnnxOpConverter):
             out = _op.nn.bias_add(out, inputs[2])
         return out
 
+    @classmethod
+    def _impl_v11(cls, inputs, attr, params):
+        # get number of channels
+        out_type = infer_type(inputs[1])
+        out_shapes = [get_const_tuple(out_type.checked_type.shape)]
+        channels = out_shapes[0][1]
+        attr["channels"] = channels
+        groups = attr.get("group", 1)
+
+        if "kernel_shape" not in attr:
+            attr["kernel_shape"] = out_shapes[0][2:]
+
+        attr["groups"] = groups
+        # infer pads for auto_pad
+        data = inputs[0]
+        input_shape = infer_shape(data)
+        ndim = len(input_shape)
+        if "auto_pad" in attr:
+            attr["auto_pad"] = attr["auto_pad"].decode("utf-8")
+            if attr["auto_pad"] in ("SAME_UPPER", "SAME_LOWER"):
+                # Warning: Convolution does not yet support dynamic shapes,
+                # one will need to run dynamic_to_static on this model after import
+                kernel_shape = attr["kernel_shape"]
+                kndim = len(kernel_shape)
+                dilations = attr.get("dilations", [1] * kndim)
+                output_padding = attr.get("output_padding", [0] * kndim)
+                strides = attr["strides"]
+                total_pad = [0] * kndim
+                for i in range(kndim):
+                    total_pad[i] = (
+                        output_padding[i] + ((kernel_shape[i] - 1) * dilations[i] + 1) - strides[i]
+                    )
+                left = [p // 2 for p in total_pad]
+                right = [total_pad[i] - left[i] for i in range(kndim)]
+                if "LOWER" in attr["auto_pad"]:
+                    pad = left + right
+                else:
+                    pad = right + left
+                attr["pads"] = pad
+            elif attr["auto_pad"] == "VALID":
+                attr["pads"] = tuple([0 for i in range(ndim - 2)])
+            elif attr["auto_pad"] == "NOTSET":
+                pass
+            else:
+                msg = 'Value {} in attribute "auto_pad" of operator Conv is invalid.'
+                raise tvm.error.OpAttributeInvalid(msg.format(attr["auto_pad"]))
+            attr.pop("auto_pad")
+
+        out = AttrCvt(
+            op_name=dimension_picker("conv", "_transpose"),
+            transforms={
+                "kernel_shape": "kernel_size",
+                "dilations": ("dilation", 1),
+                "pads": ("padding", 0),
+                "group": ("groups", 1),
+            },
+            disables=["output_shape"],
+            custom_check=dimension_constraint(),
+        )([data, inputs[1]], attr, params)
+        use_bias = len(inputs) == 3
+        if use_bias:
+            out = _op.nn.bias_add(out, inputs[2])
+        return out
+
 
 class GlobalAveragePool(OnnxOpConverter):
     """Operator converter for GlobalAveragePool"""
@@ -2742,24 +2806,24 @@ class Loop(OnnxOpConverter):
         loop_var_names = [v.name_hint for v in loop_vars]
 
         num_scan_outputs = len(body.output) - (1 + num_deps)
-        # TODO (jwfromm) Test with strided slice once type unifier for this case is fixed.
-        if num_scan_outputs != 0 and "Slice" in [n.op_type for n in body.node]:
-            warnings.warn(
-                """
-                Using scan outputs in a loop with strided slice
-                currently may cause errors during compilation.
-                """
-            )
 
-        # Construct variables and intial empty tensors for any scan outputs.
+        # Construct variables and initial empty tensors for any scan outputs.
+        # To do this, we'll figure out the output shapes of the body subgraph by importing
+        # it and doing type inference.
         scan_output_vars = []
         scan_output_init = []
+        if num_scan_outputs > 0:
+            with subgraph_scope:
+                loop_outputs = subgraph_scope.from_onnx(
+                    body, graph_scope.opset, get_output_expr=True
+                )
+            loop_outputs = _expr.TupleWrapper(loop_outputs, len(body.output))
+
         for i in range(num_scan_outputs):
-            name, shape, dtype, _ = get_info(body.output[i + 1 + num_deps])
-            if dtype is None:
-                dtype = infer_type(loop_deps[i]).checked_type.dtype
-            if dtype == "float":
-                dtype = "float32"
+            name, _, _, _ = get_info(body.output[i + 1 + num_deps])
+            output_node = infer_type(loop_outputs[i + 1 + num_deps])
+            shape = get_const_tuple(output_node.checked_type.shape)
+            dtype = output_node.checked_type.dtype
             scan_output_vars.append(
                 _expr.var(name, shape=([_ty.Any()] * (len(shape) + 1)), dtype=dtype)
             )

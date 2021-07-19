@@ -354,7 +354,8 @@ def test_concat_v2():
         @tf.function(input_signature=[tf.TensorSpec(shape=(1, 30), dtype=tf.float32)])
         def func(self, x):
             a, b, c = tf.split(x, 3, axis=1)
-            return tf.raw_ops.ConcatV2(values=[a, b, c], axis=1)
+            axis = tf.add(tf.constant(1, dtype="int32"), tf.constant(0, dtype="int32"))
+            return tf.raw_ops.ConcatV2(values=[a, b, c], axis=axis)
 
     run_all(ConcatV2)
 
