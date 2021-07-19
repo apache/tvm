@@ -173,7 +173,9 @@ def compare(input, gold_data, rtol=1e-5, atol=1e-5):
     tvm.testing.assert_allclose(input, gold_data, rtol=rtol, atol=atol)
 
 
-def check_lstm_with_type(lstm_type):
+def check_lstm_with_type(
+    lstm_type, target=tvm.target.Target("llvm -mcpu=core-avx2"), dev=tvm.cpu(0)
+):
     has_proj = "p" in lstm_type
 
     device = torch.device("cpu")
@@ -285,8 +287,6 @@ def check_lstm_with_type(lstm_type):
                         mod, params = relay.frontend.from_pytorch(traced_script_module, shape_list)
 
                         # Model compilation by tvm
-                        target = tvm.target.Target("llvm -mcpu=core-avx2")
-                        dev = tvm.cpu(0)
                         with tvm.transform.PassContext(opt_level=3):
                             lib = relay.build(mod, target=target, params=params)
                     elif format == "onnx":
@@ -326,8 +326,6 @@ def check_lstm_with_type(lstm_type):
                         mod, params = relay.frontend.from_onnx(onnx_model, shape_dict)
 
                         # Model compilation by tvm
-                        target = tvm.target.Target("llvm -mcpu=core-avx2")
-                        dev = tvm.cpu(0)
                         with tvm.transform.PassContext(opt_level=1):
                             lib = relay.build(mod, target=target, params=params)
 
@@ -348,15 +346,17 @@ def check_lstm_with_type(lstm_type):
                     compare(tvm_output, golden_output_batch)
 
 
+@tvm.testing.uses_gpu
 def test_lstms():
-    check_lstm_with_type("uni")
-    check_lstm_with_type("p")
-    check_lstm_with_type("s")
-    check_lstm_with_type("b")
-    check_lstm_with_type("bp")
-    check_lstm_with_type("sp")
-    check_lstm_with_type("sb")
-    check_lstm_with_type("sbp")
+    for target, dev in tvm.testing.enabled_targets():
+        check_lstm_with_type("uni", target, dev)
+        check_lstm_with_type("p", target, dev)
+        check_lstm_with_type("s", target, dev)
+        check_lstm_with_type("b", target, dev)
+        check_lstm_with_type("bp", target, dev)
+        check_lstm_with_type("sp", target, dev)
+        check_lstm_with_type("sb", target, dev)
+        check_lstm_with_type("sbp", target, dev)
 
 
 if __name__ == "__main__":
