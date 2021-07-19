@@ -44,7 +44,7 @@ uint32_t memory_align(uint8_t** memory_ptr) {
  */
 uint32_t memory_add_misalignment(uint8_t** memory_ptr) {
   uint32_t extra = (uintptr_t)(*memory_ptr) % TVM_RUNTIME_ALLOC_ALIGNMENT_BYTES;
-  if (extra != 0) {
+  if (extra == 0) {
     *memory_ptr += 1;
     return 1;
   }
