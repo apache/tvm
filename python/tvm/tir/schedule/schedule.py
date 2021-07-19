@@ -327,7 +327,7 @@ class Schedule(Object):
         1) The loop can't have annotation or thread binding.
         2) The loop must start with 0.
         Predicates may be added to ensure the total loop numbers keeps unchanged.
-        In `factors`, at most one of the factors can be None or -1,
+        In `factors`, at most one of the factors can be None,
         which will be automatically inferred.
 
         Parameters
@@ -338,7 +338,7 @@ class Schedule(Object):
         factors: List[Union[ExprRV, None]]
             The splitting factors
             Potential inputs are:
-            - None or -1
+            - None
             - ExprRV
             - Nonnegative constant integers
 
@@ -388,7 +388,7 @@ class Schedule(Object):
 
         """
         # it will be checked later in C++ implementation
-        # that there is at most one None or -1 in `factors`
+        # that there is at most one None in `factors`
         return _ffi_api_schedule.ScheduleSplit(self, loop, factors)  # type: ignore # pylint: disable=no-member
 
     ########## Schedule: compute location ##########

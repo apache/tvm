@@ -28,28 +28,19 @@ class BlockPredicateAppender : public StmtMutator {
    * \brief Constructor
    * \param to_append The predicate to be appended to BlockRealizeNode
    */
-  explicit BlockPredicateAppender(const PrimExpr& to_append, arith::Analyzer* analyzer)
-      : to_append_(to_append) {
-    add_predicate_ = !analyzer->CanProve(to_append);
-  }
+  explicit BlockPredicateAppender(const PrimExpr& to_append) : to_append_(to_append) {}
 
  private:
   // For each direct child of type BlockRealizeNode, append the predicate
   Stmt VisitStmt_(const BlockRealizeNode* realize) final {
     // We do not recursively do this
-    if (add_predicate_) {
-      ObjectPtr<BlockRealizeNode> n = CopyOnWrite(realize);
-      n->predicate = n->predicate && to_append_;
-      return BlockRealize(n);
-    } else {
-      return GetRef<BlockRealize>(realize);
-    }
+    ObjectPtr<BlockRealizeNode> n = CopyOnWrite(realize);
+    n->predicate = n->predicate && to_append_;
+    return BlockRealize(n);
   }
 
   /*! \brief The predicate to be appended */
   const PrimExpr& to_append_;
-  /*! \brief Whether to add predicate */
-  bool add_predicate_;
 };
 
 /*! \brief Substitute vars and collect the reuse mapping of opaque blocks */
@@ -278,32 +269,13 @@ Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
   if (!analyzer.CanProve(loop->min == 0)) {
     throw LoopNotStartWithZeroError(self->mod, GetRef<For>(loop));
   }
-  PrimExpr tot_length = 1;
-  int infer_index = -1;
+  // Step 2. Replace all occurrences of the original loop var with new variables
   int n = factors.size();
-  for (int i = 0; i < n; i++) {
-    if (!analyzer.CanProve(factors[i] == -1)) {
-      tot_length *= factors[i];
-    } else if (infer_index != -1) {
-      throw NotSingleInferFactorError(self->mod);
-    } else {
-      infer_index = i;
-    }
-  }
-  // Step 2. infer factors if needed
-  Array<PrimExpr> inferred_factors(factors);
-  if (infer_index != -1) {
-    inferred_factors.Set(infer_index,
-                         analyzer.Simplify(floordiv(loop->extent + tot_length - 1, tot_length)));
-  } else if (!analyzer.CanProve(tot_length >= loop->extent)) {
-    throw WrongFactorProductError(self->mod, GetRef<For>(loop));
-  }
-  // Step 3. Replace all occurrences of the original loop var with new variables
   PrimExpr substitute_value = 0;
   std::vector<Var> new_loop_vars;
   new_loop_vars.reserve(n);
   for (int i = 0; i < n; i++) {
-    const PrimExpr& factor = inferred_factors[i];
+    const PrimExpr& factor = factors[i];
     Var var = loop->loop_var.copy_with_suffix("_" + std::to_string(i));
     substitute_value = substitute_value * factor + var;
     analyzer.Bind(var, Range::FromMinExtent(0, factor));
@@ -320,14 +292,15 @@ Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
         }
       },
       &opaque_block_reuse)(std::move(new_stmt));
-  // Step 4. Update predicate to guard the loop
-  new_stmt =
-      BlockPredicateAppender(/*predicate=*/substitute_value < loop->extent, &analyzer)(new_stmt);
-  // Step 5. Generate nested loops to replace the original loop and simplify the binding
-  for (int i = n - 1; i >= 0; i--) {
-    new_stmt = For(new_loop_vars[i], 0, inferred_factors[i], ForKind::kSerial, new_stmt);
+  // Step 3. Update predicate to guard the loop
+  PrimExpr predicate = substitute_value < loop->extent;
+  if (!analyzer.CanProve(predicate)) {
+    new_stmt = BlockPredicateAppender(/*predicate=*/predicate)(std::move(new_stmt));
   }
-
+  // Step 4. Generate nested loops to replace the original loop and simplify the binding
+  for (int i = n - 1; i >= 0; i--) {
+    new_stmt = For(new_loop_vars[i], 0, factors[i], ForKind::kSerial, new_stmt);
+  }
   new_stmt = IterMapSimplifyBlockBinding::SimplifyBindings(std::move(new_stmt), GetLoops(loop_sref),
                                                            &opaque_block_reuse);
   self->Replace(loop_sref, new_stmt, opaque_block_reuse);

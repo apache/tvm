@@ -343,7 +343,7 @@ def test_split_with_inferred_factor():
     i, j, k = sch.get_loops(block_b)
     sch.split(i, factors=[None, 1, 64])
     sch.split(j, factors=[2, None, 64])
-    sch.split(k, factors=[2, 1, -1])
+    sch.split(k, factors=[2, 1, None])
     tvm.ir.assert_structural_equal(elementwise_split_case1, sch.mod["main"])
 
 
