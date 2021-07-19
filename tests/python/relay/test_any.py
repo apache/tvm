@@ -643,6 +643,63 @@ def test_any_conv2d_NCHWc():
     )
 
 
+def verify_any_conv1d_transpose_ncw(
+    data_shape,
+    kernel_shape,
+    strides,
+    padding,
+    dilation,
+    groups,
+    static_data_shape,
+    ref_out_shape,
+    output_padding,
+):
+    mod = tvm.IRModule()
+    dtype = "float32"
+    data = relay.var("data", shape=data_shape, dtype=dtype)
+    kernel = relay.var("kernel", shape=kernel_shape, dtype=dtype)
+    y = relay.nn.conv1d_transpose(
+        data,
+        kernel,
+        strides,
+        padding,
+        dilation,
+        groups,
+        kernel_size=kernel_shape[2:],
+        output_padding=output_padding,
+    )
+    mod["main"] = relay.Function([data, kernel], y)
+    data_np = np.random.uniform(size=static_data_shape).astype(dtype)
+    kernel_np = np.random.uniform(size=kernel_shape).astype(dtype)
+    check_result([data_np, kernel_np], mod, ref_out_shape, assert_shape=True)
+
+
+@tvm.testing.uses_gpu
+def test_any_conv1d_transpose_ncw():
+    verify_any_conv1d_transpose_ncw(
+        (relay.Any(), 64, 224),
+        (64, 192, 3),
+        (1,),
+        (1,),
+        (1,),
+        1,
+        (2, 64, 224),
+        (2, 192, 224),
+        (0, 0),
+    )
+    verify_any_conv1d_transpose_ncw(
+        (relay.Any(), 32, 224),
+        (32, 64, 3),
+        (2,),
+        (1,),
+        (1,),
+        1,
+        (1, 32, 224),
+        (1, 64, 448),
+        (1, 1),
+    )
+
+
 def verify_any_conv2d_transpose_nchw(
     data_shape,
     kernel_shape,
@@ -930,6 +987,72 @@ def verify_any_softmax(data_shape, axis, static_data_shape, ref_out_shape):
 def test_any_softmax():
     verify_any_softmax(any_dims(3), -1, (1, 2, 3), (1, 2, 3))
     verify_any_softmax(any_dims(4), 2, (13, 11, 3, 1), (13, 11, 3, 1))
+
+
+def verify_any_relu(data_shape, static_data_shape, ref_out_shape):
+    mod = tvm.IRModule()
+    dtype = "float32"
+    data = relay.var("data", shape=data_shape, dtype=dtype)
+    y = relay.nn.relu(data)
+    mod["main"] = relay.Function([data], y)
+    data_np = np.random.uniform(size=static_data_shape).astype(dtype)
+    check_result([data_np], mod, ref_out_shape, assert_shape=True)
+
+
+@tvm.testing.uses_gpu
+def test_any_relu():
+    verify_any_relu(any_dims(3), (1, 2, 3), (1, 2, 3))
+    verify_any_relu(any_dims(4), (13, 11, 3, 1), (13, 11, 3, 1))
+
+
+def verify_any_prelu(data_shape, alpha, static_data_shape, ref_out_shape):
+    mod = tvm.IRModule()
+    dtype = "float32"
+    data = relay.var("data", shape=data_shape, dtype=dtype)
+    alpha = relay.const(np.array([alpha]), dtype=dtype)
+    y = relay.nn.prelu(data, alpha)
+    mod["main"] = relay.Function([data], y)
+    data_np = np.random.uniform(size=static_data_shape).astype(dtype)
+    check_result([data_np], mod, ref_out_shape, assert_shape=True)
+
+
+@tvm.testing.uses_gpu
+def test_any_prelu():
+    verify_any_prelu(any_dims(3), 1, (1, 2, 3), (1, 2, 3))
+    verify_any_prelu(any_dims(4), 2, (13, 11, 3, 1), (13, 11, 3, 1))
+
+
+def verify_any_leaky_relu(data_shape, alpha, static_data_shape, ref_out_shape):
+    mod = tvm.IRModule()
+    dtype = "float32"
+    data = relay.var("data", shape=data_shape, dtype=dtype)
+    y = relay.nn.leaky_relu(data, alpha)
+    mod["main"] = relay.Function([data], y)
+    data_np = np.random.uniform(size=static_data_shape).astype(dtype)
+    check_result([data_np], mod, ref_out_shape, assert_shape=True)
+
+
+@tvm.testing.uses_gpu
+def test_any_leaky_relu():
+    verify_any_leaky_relu(any_dims(3), 0.1, (1, 2, 3), (1, 2, 3))
+    verify_any_leaky_relu(any_dims(4), 0.2, (13, 11, 3, 1), (13, 11, 3, 1))
+
+
+def verify_any_bias_add(data_shape, static_data_shape, ref_out_shape):
+    mod = tvm.IRModule()
+    dtype = "float32"
+    data = relay.var("data", shape=data_shape, dtype=dtype)
+    bias = relay.const(np.random.randn(1), dtype=dtype)
+    y = relay.nn.bias_add(data, bias)
+    mod["main"] = relay.Function([data], y)
+    data_np = np.random.uniform(size=static_data_shape).astype(dtype)
+    check_result([data_np], mod, ref_out_shape, assert_shape=True)
+
+
+@tvm.testing.uses_gpu
+def test_any_bias_add():
+    verify_any_bias_add(any_dims(3), (1, 2, 3), (1, 2, 3))
+    verify_any_bias_add(any_dims(4), (13, 11, 3, 1), (13, 11, 3, 1))
 
 
 def verify_any_topk(data_shape, kval, np_dshape, dtype, ret_type="indices", const_k=False):
