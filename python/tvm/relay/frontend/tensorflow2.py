@@ -76,8 +76,7 @@ def set_span(sym, node_name):
 
 def is_tensor_list_constuctor(tf_node):
     """Check whether is tensor list constructor node."""
-    tl_name = "TensorListReserve"
-    return tf_node.op == tl_name
+    return tf_node.op == "TensorListReserve"
 
 
 def convert_const_node(node, shape):
@@ -245,12 +244,14 @@ class GraphProto:
     ):
         if sub_func_name and sub_func_name not in self._sub_input_idx_map:
             self._sub_input_idx_map[sub_func_name] = {}
+
         if node.op == "Placeholder":
             # record placeholder node in sub functions
             self._sub_map[sub_func_name] = node
             self._sub_input_idx_map[sub_func_name][node.name] = len(
                 self._sub_input_idx_map[sub_func_name]
             )
+
         if node.op.startswith("TensorList"):
             if is_tensor_list_constuctor(node):
                 tl_construct_nodes.append(node)
@@ -306,6 +307,7 @@ class GraphProto:
                                 if iname.split(":")[1]:
                                     in_idx = int(iname.split(":")[1])
                             stack.append(self._tf_node_map[iname.split(":")[0]])
+                # identify the corresponding constructor node and add shape to _tensor_list_shapes
                 elif cnode.name != stack_node.name:
                     if is_tensor_list_constuctor(cnode):
                         shape_attr = parse_attr(input_shape_node.attr)
@@ -343,6 +345,7 @@ class GraphProto:
                     else:
                         for iname in cnode.input:
                             stack.append(self._tf_node_map[iname.split(":")[0]])
+                # identify the corresponding constructor node and add it to _tensor_list_shape_nodes
                 elif cnode.name != wnode.name:
                     if is_tensor_list_constuctor(cnode):
                         inode = self._tf_node_map[wnode.input[inode_idx].split(":")[0]]
@@ -471,6 +474,8 @@ class GraphProto:
                 gdef_lib=self._gdef_lib,
             )
         elif op_name in _convert_map_common:
+            # assert op are exclusive
+            assert (not set(_convert_map_common.keys()) & set(_convert_map_tf2.keys())) == True
             if _need_prelude_for_shape_inference(op_name):
                 sym = _convert_map_common[op_name](inputs, attrs, self._params, self._prelude)
             else:
