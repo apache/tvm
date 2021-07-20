@@ -32,6 +32,8 @@
 #include <iterator>
 #include <stack>
 
+#include "../../arith/pattern_match.h"
+
 namespace tvm {
 namespace tir {
 
@@ -181,7 +183,12 @@ inline PrimExpr MergeMulMod(arith::Analyzer* analyzer, const PrimExpr& base) {
   //                     a list that contain all the elements that match Mod.
   // The elements in the Mod will be used to match against the elements in Mul.
   // The result will then be split and pushed back to these two lists.
-  PrimExpr simplified_base = analyzer->Simplify(base);
+  PrimExpr simplified_base = base;
+  arith::PVar<PrimExpr> x, y;
+  if ((floordiv(x, y) * y + floormod(x, y)).Match(simplified_base)) {
+    simplified_base = x.Eval();
+  }
+  simplified_base = analyzer->Simplify(simplified_base);
   std::vector<const PrimExpr*> eles = ExprSplitAddition(simplified_base);
   std::list<PrimExpr> mult_exprs;
   std::list<std::pair<PrimExpr, PrimExpr> > mod_exprs;
