@@ -1,27 +1,120 @@
-# Github owner file
-# List of code reviewers for TVM modules
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 
-# Global reviewers
-*        @dmlc/tvm-committers
+# Github code owners file
+# This file is used as a convenient tool to map
+# committers' areas of expertise and faciliate the review process.
+#
+# This may not be the non-comprehensive list and is meant to be
+# updated over time.
 
-# LLVM backends
-src/codegen/llvm/*          @aatluri
+# Per ASF policy, committer have global write permission.
+# We normally recommend committers to shepherd code in their area of expertise.
+*        @apache/tvm-committers
 
-# ROCM runtime
-src/runtime/rocm/*    @aatluri
 
-# SGX support
-src/runtime/sgx/*       @nhynes
-apps/sgx/*              @nhynes
+# automation related
+**/auto_scheduler/**  @merrymercy @jcf94 @comaniac @junrushao1994 @vinx13
+**/autotvm/**  @merrymercy @jcf94 @comaniac @junrushao1994 @vinx13
 
-# JVM language
-jvm/*   @yzhliu
+# TIR
+**/tir/**      @junrushao1994 @vinx13 @tqchen @kparzysz-quic @ZihengJiang @masahi @were
 
-# WebGL backends
-src/runtime/opengl/*    @phisiart
-src/codegen/*opengl*    @phisiart
+# TE
+**/te/**      @junrushao1994 @vinx13 @tqchen @kparzysz-quic @ZihengJiang @masahi @were
+
+# Target
+**/target/**  @junrushao1994 @vinx13 @tqchen @kparzysz-quic @ZihengJiang @masahi
+
+# ARITH and simplifier
+**/arith/** @tqchen @junrushao1994 @vinx13
+
+# parser
+**/parser/** @jroesch @slyubomirsky
+
+# Runtime
+**/runtime/**  @vinx13 @tqchen @FronzenGene @liangfu @areusch @tmoreau89 @ajtulloch @masahi @kazum @ZihengJiang  @junrushao1994
+
+# micro TVM
+**/micro/** @areusch @liangfu @tmoreau89
+
+
+# VTA
+vta/**    @tmoreau89 @vegaluisjose
+
+
+# relay
+**/relay/** @jroesch @slyubomirsky @icemelon9 @MarisaKirisame @ZihengJiang @yzhliu @vinx13 @mbrookhart @jwfromm @zhiics @anijain2305 @wweic @eqy @junrushao1994
+
+
+# quantization and QNN
+**/qnn/**  @jwfromm @anijain2305 @ZihengJiang
+
+
+# BYOC
+src/relay/backend/contrib/** @zhiics @trevor-m @comaniac @mbaret
+
 
 # TOPI
-topi/python/topi/*  @Laurawly @Huyuwei
+**/topi/**  @Laurawly @Huyuwei @kevinthesun @jwfromm @vinx13 @masahi @FronzenGene @yzhliu @mbrookhart @ZihengJiang @jcf94 
+
+# frontends
+python/tvm/relay/frontend/**  @jwfromm @mbrookhart @srkreddy1238 @siju-samuel @Huyuwei @hlu1 @kazum @PariksheetPinjari909
 
 
+# TVMC
+python/tvm/driver/tvmc/**  @leandron
+
+# Docker
+docker/** @areusch @leandron @jroesch
+
+# Conda
+conda/** @tqchen @junrushao1994 @comaniac
+
+# CMake
+cmake/** @jroesch @tqchen @areusch @junrushao1994 @comaniac
+
+# rust bindings
+rust/** @jroesch @nhynes @nhynes
+
+# docs
+docs/**  @comaniac @junrushao1994 @tqchen @jroesch @areusch @yzhliu @merrymercy @icemelon9
+tutorials/**  @comaniac @junrushao1994 @tqchen @jroesch @areusch @yzhliu @merrymercy @icemelon9
+
+# Tests
+tests/**  @comaniac @junrushao1994 @tqchen @jroesch @areusch @yzhliu @merrymercy @icemelon9
+
+# JVM language
+jvm/**   @yzhliu
+
+# Golang
+golang/** @srkreddy1238
+
+
+# WASM
+web/** @tqchen @jroesch
+
+
+# Fallbacks
+include/**  @tqchen @jroesch @yzhliu @icemelon9 @junrushao1994 @comaniac @zhiics
+src/** @tqchen @jroesch @yzhliu @icemelon9 @junrushao1994 @comaniac @zhiics
+apps/** @tqchen @jroesch @yzhliu @icemelon9 @junrushao1994 @comaniac @zhiics
+python/** @tqchen @jroesch @yzhliu @icemelon9 @junrushao1994 @comaniac @zhiics
+
+# Thirdparty license audit
+3rdparty/**  @tqchen @jroesch
+licenses/**  @tqchen @jroesch
