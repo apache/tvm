@@ -446,6 +446,7 @@ void GraphExecutor::SetupOpExecs() {
         input_dltensors_[eid].push_back(static_cast<DLTensor*>(op_args->arg_values[i].v_handle));
       }
     }
+
     // check if op output is model output
     if (output_node_id.count(nid) > 0) {
       for (uint32_t index = inode.inputs.size();
