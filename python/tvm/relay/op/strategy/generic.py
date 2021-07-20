@@ -1363,6 +1363,59 @@ def wrap_compute_scatter_nd(topi_compute):
     return _compute_scatter_nd
 
 
+# bitserial_conv1d
+def wrap_compute_bitserial_conv1d(topi_compute):
+    """wrap bitserial_conv1d topi compute"""
+
+    def compute_bitserial_conv1d(attrs, inputs, out_dtype):
+        """Compute definition for bitserial conv1d."""
+        padding = get_const_tuple(attrs.padding)
+        strides = attrs.strides
+        activation_bits = attrs.activation_bits
+        weight_bits = attrs.weight_bits
+        pack_dtype = attrs.pack_dtype
+        out_dtype = attrs.out_dtype
+        unipolar = attrs.unipolar
+        return [
+            topi_compute(
+                inputs[0],
+                inputs[1],
+                strides,
+                padding,
+                activation_bits,
+                weight_bits,
+                pack_dtype,
+                out_dtype,
+                unipolar,
+            )
+        ]
+
+    return compute_bitserial_conv1d
+
+
+@override_native_generic_func("bitserial_conv1d_strategy")
+def bitserial_conv1d_strategy(attrs, inputs, out_type, target):
+    """bitserial_conv1d generic strategy"""
+    logger.warning("bitserial_conv1d is not optimized for this platform.")
+    strategy = _op.OpStrategy()
+    layout = attrs.data_layout
+    if layout == "NCW":
+        strategy.add_implementation(
+            wrap_compute_bitserial_conv1d(topi.nn.bitserial_conv1d_ncw),
+            wrap_topi_schedule(topi.generic.schedule_bitserial_conv1d_ncw),
+            name="bitserial_conv1d_ncw.generic",
+        )
+    elif layout == "NWC":
+        strategy.add_implementation(
+            wrap_compute_bitserial_conv1d(topi.nn.bitserial_conv1d_nwc),
+            wrap_topi_schedule(topi.generic.schedule_bitserial_conv1d_nwc),
+            name="bitserial_conv1d_nwc.generic",
+        )
+    else:
+        raise ValueError("Data layout {} not supported.".format(layout))
+    return strategy
+
+
 # bitserial_conv2d
 def wrap_compute_bitserial_conv2d(topi_compute):
     """wrap bitserial_conv2d topi compute"""

@@ -480,6 +480,40 @@ def schedule_deformable_conv2d_nhwc(outs):
     return _default_schedule(outs, False)
 
 
+def schedule_bitserial_conv1d_ncw(outs):
+    """Schedule for bitserial_conv1d_ncw
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of bitserial_conv1d_ncw
+          in the format of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
+
+
+def schedule_bitserial_conv1d_nwc(outs):
+    """Schedule for bitserial_conv1d_nwc
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of bitserial_conv1d_ncw
+          in the format of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
+
+
 def schedule_bitserial_conv2d_nchw(outs):
     """Schedule for bitserial_conv2d_nchw
 
