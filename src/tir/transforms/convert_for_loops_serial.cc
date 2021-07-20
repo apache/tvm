@@ -18,18 +18,17 @@
  */
 
 /*!
- * \file tir/analysis/usmp/convert_for_loops_serial.cc
+ * \file tir/transforms/convert_for_loops_serial.cc
  * \brief Convert all for loops to serial for lesser memory consumption
  */
 #include <tvm/arith/analyzer.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/stmt_functor.h>
-#include <tvm/tir/usmp/transform.h>
+#include <tvm/tir/transform.h>
 
 namespace tvm {
 namespace tir {
-namespace usmp {
 
 class ForLoopSerialConverter : public StmtExprMutator {
  public:
@@ -52,11 +51,25 @@ Stmt ForLoopSerialConverter::operator()(const PrimFunc& func) {
   return this->VisitStmt(func->body);
 }
 
-Stmt ConvertForLoopsToSerial(const PrimFunc& func) { return ForLoopSerialConverter()(func); }
+PrimFunc ConvertForLoopsToSerial(PrimFunc func) {
+  PrimFuncNode* fptr = func.CopyOnWrite();
+  fptr->body = ForLoopSerialConverter()(func);
+  return func;
+}
 
-TVM_REGISTER_GLOBAL("tir.usmp.transform.for_loop_serial_converter")
-    .set_body_typed([](PrimFunc func) { return (ConvertForLoopsToSerial(func)); });
+namespace transform {
 
-}  // namespace usmp
+Pass ConvertForLoopsToSerial() {
+  auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+    return ConvertForLoopsToSerial(std::move(f));
+  };
+  return CreatePrimFuncPass(pass_func, 0, "tir.ConvertForLoopsToSerial", {});
+}
+
+TVM_REGISTER_GLOBAL("tir.transform.ConvertForLoopsToSerial")
+    .set_body_typed(ConvertForLoopsToSerial);
+
+}  // namespace transform
+
 }  // namespace tir
 }  // namespace tvm

@@ -47,13 +47,15 @@ def fused_nn_conv2d_add_fixed_point_multiply_clip_cast_cast_2(placeholder_30: ty
 
 def test_nn_conv2d_add_fixed_point_multiply_clip_cast_cast_2():
     primfunc = fused_nn_conv2d_add_fixed_point_multiply_clip_cast_cast_2
-    primfunc = tvm.tir.usmp.transform.for_loop_serial_converter(primfunc)
+    mod = tvm.IRModule.from_expr(primfunc)
+    mod = tvm.tir.transform.ConvertForLoopsToSerial()(mod)
 
     def verify_serial_loops(stmt):
         if isinstance(stmt, tvm.tir.For):
             assert stmt.kind == tvm.tir.ForKind.SERIAL
 
-    stmt_functor.post_order_visit(primfunc.body, verify_serial_loops)
+    for _, primfunc in mod.functions.items():
+        stmt_functor.post_order_visit(primfunc.body, verify_serial_loops)
 
 
 if __name__ == "__main__":
