@@ -112,3 +112,7 @@ RUN bash /install/ubuntu_install_androidsdk.sh
 ENV ANDROID_HOME=/opt/android-sdk-linux/
 ENV ANDROID_NDK_HOME=/opt/android-sdk-linux/ndk/21.3.6528147/
 
+# ONNX dependencies
+COPY install/ubuntu_install_onnx.sh /install/ubuntu_install_onnx.sh
+RUN bash /install/ubuntu_install_onnx.sh
+
