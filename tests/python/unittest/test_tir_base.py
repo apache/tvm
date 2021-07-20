@@ -17,6 +17,8 @@
 import tvm
 from tvm import tir
 from tvm.ir.transform import PassContext
+import itertools
+import numpy as np
 
 
 def build_tir_func(func):
@@ -30,15 +32,25 @@ def build_tir_func(func):
 
 
 def test_scalar_add():
-    a = tir.Var("a", "float32")
-    b = tir.Var("b", "float32")
-    c = a + b
-    c = tir.ret(c)
-    c = tir.Evaluate(c)
-    func = tir.PrimFunc([a, b], c)
-    func = build_tir_func(func)
-    out = func(1.0, 2.0)
-    assert out == 3.0
+    # All these types should be interchangeable with each other
+    # E.g. float16 + float32 upconverts the float16 --> float32
+    # Meanwhile if an int or float or together the int will be
+    # cast to the float type.
+    lhs_types = ["float32", "float16", "int32", "int64"]
+    rhs_types = ["float32", "float16"]
+    for lhs_type, rhs_type in itertools.product(lhs_types, rhs_types):
+        # Input vars should be float32, we will cast to test for upcasting between them
+        lhs_input = tir.Var("lhs", "float32")
+        rhs_input = tir.Var("rhs", "float32")
+        lhs = tir.Cast(lhs_type, lhs_input)
+        rhs = tir.Cast(rhs_type, rhs_input)
+        output = lhs + rhs
+        output = tir.ret(output)
+        output = tir.Evaluate(output)
+        func = tir.PrimFunc([lhs_input, rhs_input], output)
+        func = build_tir_func(func)
+        out = func(1.0, 2.0)
+        assert out == 3.0
 
 
 def test_control_flow_jump():
