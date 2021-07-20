@@ -159,10 +159,10 @@ Expr RequantizeLower(const Expr& input_tensor, const Expr& input_scale,
       std::tie(fixed_point_multiplier, shift) = GetFixedPointMultiplierShift(double_multiplier);
 
       const bool is_upward_rounding = (param->rounding == "UPWARD");
-      if (param->rounding == "TOEVEN"){
-        LOG(WARNING) << "Rounding to even is not supported by target it is approximated by TONEAREST\n";
+      if (param->rounding == "TOEVEN") {
+        LOG(WARNING)
+            << "Rounding to even is not supported by target it is approximated by TONEAREST\n";
       }
-    
 
       // When using upward rounding (i.e., x.5 rounded to x+1), leverage
       // the FixedPointMultiply operator
@@ -245,7 +245,8 @@ Expr RequantizeQnnCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   auto out_dtype = out_tensor_type->dtype;
 
   // Check rounding validity.
-  ICHECK(param->rounding == "UPWARD" || param->rounding == "TONEAREST" || param->rounding == "TOEVEN")
+  ICHECK(param->rounding == "UPWARD" || param->rounding == "TONEAREST" ||
+         param->rounding == "TOEVEN")
       << "QNN requantize supports rounding modes - UPWARD and "
       << "TONEAREST and TOEVEN";
   return RequantizeLower(quantized_data, input_scale, input_zero_point, output_scale,
@@ -275,14 +276,14 @@ bool RequantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     if (types[i].as<IncompleteTypeNode>()) {
       return false;
     }
-  } 
+  }
   const auto in_dtype = data->dtype;
-  //ICHECK(in_dtype == DataType::Int(8) || in_dtype == DataType::UInt(8) ||
+  // ICHECK(in_dtype == DataType::Int(8) || in_dtype == DataType::UInt(8) ||
   //       in_dtype == DataType::Int(32))
   //    << "Input type should be one of [int8, uint8, int32] but was " << in_dtype;
 
   const RequantizeAttrs* requantize_attrs = attrs.as<RequantizeAttrs>();
-  
+
   std::cout << "data shape:" << data->shape << std::endl;
 
   int axis = requantize_attrs->axis;
@@ -301,7 +302,7 @@ bool RequantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   const Array<tvm::PrimExpr> oshape = data->shape;
   // assign output type
   auto out_dtype = requantize_attrs->out_dtype;
-  //ICHECK(out_dtype == DataType::Int(8) || out_dtype == DataType::UInt(8) ||
+  // ICHECK(out_dtype == DataType::Int(8) || out_dtype == DataType::UInt(8) ||
   //       out_dtype == DataType::Int(32))
   //    << "Output type should be one of [int8, uint8, int32] but was " << out_dtype;
   reporter->Assign(types[5], TensorType(oshape, out_dtype));

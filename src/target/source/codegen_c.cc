@@ -390,7 +390,7 @@ void CodeGenC::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
       case 8:
       case 16:
       case 32:
-        case 64: {
+      case 64: {
         os << "int" << t.bits() << "_t";
         return;
       }
@@ -672,7 +672,7 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       const StringImmNode* str = op->args[0].as<StringImmNode>();
       ICHECK(str != nullptr);
       os << "__tvm_param__" << str->value;
-    } else if (op->op.same_as(builtin::popcount())){
+    } else if (op->op.same_as(builtin::popcount())) {
       std::cout << "Generating popcount" << std::endl;
       os << "__builtin_popcount(";
       this->PrintExpr(op->args[0], os);

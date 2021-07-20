@@ -221,7 +221,8 @@ class ZephyrCompiler(tvm.micro.Compiler):
         build_dir = os.path.join(output, "__tvm_build")
         os.mkdir(build_dir)
         self._subprocess_env.run(
-            [os.getenv("CMAKE", "cmake"), "..", f"-DBOARD={self._board}"] + self._options_to_cmake_args(options),
+            [os.getenv("CMAKE", "cmake"), "..", f"-DBOARD={self._board}"]
+            + self._options_to_cmake_args(options),
             cwd=build_dir,
         )
         num_cpus = multiprocessing.cpu_count()
@@ -409,7 +410,7 @@ class ZephyrFlasher(tvm.micro.compiler.Flasher):
         "nucleo_l4r5zi": {"idVendor": 0x0483, "idProduct": 0x374B},
         "nucleo_f746zg": {"idVendor": 0x0483, "idProduct": 0x374B},
         "stm32f746g_disco": {"idVendor": 0x0483, "idProduct": 0x374B},
-        "stm32f429i_disc1": {"idVendor": 0x0483, "idProduct": 0x374B}
+        "stm32f429i_disc1": {"idVendor": 0x0483, "idProduct": 0x374B},
     }
 
     def openocd_serial(self, cmake_entries):

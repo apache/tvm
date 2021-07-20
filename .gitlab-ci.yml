@@ -21,6 +21,11 @@ before_script:
   - apt-get update
   - apt-get install -y build-essential cmake ninja-build 
 
+sca:
+  script:
+    - pip3 install black
+	  - black .
+
 test:
   script:
     - mkdir build 

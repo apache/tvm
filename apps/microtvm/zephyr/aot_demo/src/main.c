@@ -220,7 +220,7 @@ void main(void) {
     if (output_data[i] >= max_val) {
       max_ind = i;
       max_val = output_data[i];
-      TVMLogf(" %d", (int)(output_data[i]*1000));
+      TVMLogf(" %d", (int)(output_data[i] * 1000));
     }
   }
   TVMLogf("\n");
