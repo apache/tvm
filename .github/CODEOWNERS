@@ -70,7 +70,7 @@ src/relay/backend/contrib/** @zhiics @trevor-m @comaniac @mbaret
 
 
 # TOPI
-**/topi/**  @Laurawly @Huyuwei @kevinthesun @jwfromm @vinx13 @masahi @FronzenGene @yzhliu @mbrookhart @ZihengJiang
+**/topi/**  @Laurawly @Huyuwei @kevinthesun @jwfromm @vinx13 @masahi @FronzenGene @yzhliu @mbrookhart @ZihengJiang @jcf94 
 
 # frontends
 python/tvm/relay/frontend/**  @jwfromm @mbrookhart @srkreddy1238 @siju-samuel @Huyuwei @hlu1 @kazum @PariksheetPinjari909
