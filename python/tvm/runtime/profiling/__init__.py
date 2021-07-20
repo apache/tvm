@@ -54,6 +54,33 @@ class Report(Object):
 
         .. code-block:
 
+            {
+              "calls": [
+                {
+                  "Duration (us)": {
+                    "microseconds": 12.3
+                  },
+                  "Name": "fused_dense",
+                  "Count": {
+                    "count": 1
+                  },
+                  "Percent": {
+                    "percent": 10.3
+                  }
+                }
+              ],
+              "device_metrics": {
+                "cpu": {
+                  "Duration (us)": {
+                    "microseconds": 334.2
+                  },
+                  "Percent": {
+                    "percent": 100
+                  }
+                }
+              }
+            }
+
            {"calls":
               [
                 {"Duration (us)": {"microseconds": 12.3}

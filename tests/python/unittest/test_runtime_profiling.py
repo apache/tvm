@@ -124,6 +124,11 @@ def test_json():
     assert "calls" in parsed
     assert "Duration (us)" in parsed["calls"][0]
     assert "microseconds" in parsed["calls"][0]["Duration (us)"]
+    assert len(parsed["calls"]) > 0
+    for call in parsed["calls"]:
+        assert isinstance(call["Name"], str)
+        assert isinstance(call["Count"]["count"], int)
+        assert isinstance(call["Duration (us)"]["microseconds"], float)
 
 
 if __name__ == "__main__":

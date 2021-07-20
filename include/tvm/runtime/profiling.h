@@ -205,25 +205,36 @@ class ReportNode : public Object {
    *  `aggregate` is true.
    */
   String AsTable(bool sort = true, bool aggregate = true) const;
-  /*! \brief Convert this report to json.
+  /*! \brief Convert this report to JSON.
    *
-   * Output json will be of this format:
+   * Output JSON will be of this format:
    * \code
-   * {"calls":
-   *    [
-   *      {"Duration (us)": {"microseconds": 12.3}
-   *       ,"Name": "fused_dense"
-   *       ,"Count": {"count":1}
-   *       ,"Percent": {"percent": 10.3}
-   *       }
+   *  {
+   *    "calls": [
+   *      {
+   *        "Duration (us)": {
+   *          "microseconds": 12.3
+   *        },
+   *        "Name": "fused_dense",
+   *        "Count": {
+   *          "count": 1
+   *        },
+   *        "Percent": {
+   *          "percent": 10.3
+   *        }
+   *      }
    *    ],
-   *  "device_metrics":
-   *    {"cpu":
-   *      {"Duration (us)": {"microseconds": 334.2}
-   *      ,"Percent": {"percent": 100.0}
+   *    "device_metrics": {
+   *      "cpu": {
+   *        "Duration (us)": {
+   *          "microseconds": 334.2
+   *        },
+   *        "Percent": {
+   *          "percent": 100
+   *        }
    *      }
    *    }
-   * }
+   *  }
    * \endcode
    */
   String AsJSON() const;
