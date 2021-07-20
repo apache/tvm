@@ -122,24 +122,6 @@ int GraphExecutor::GetOutputIndex(const std::string& name) {
   return -1;
 }
 /*!
- * \brief Check the legality of DLTensor* of external DLTensor*.
- * \param exeternal The exeternal DLTensor*
- * \param eid The data_enrty_ index
- */
-void GraphExecutor::CheckExeternalDltensor(const DLTensor* exeternal, uint32_t eid) const {
-  const DLTensor* internal = data_entry_[eid].operator->();
-
-  // check the consistency of input
-  ICHECK_EQ(data_alignment_[eid], details::GetDataAlignment(*exeternal));
-  ICHECK_EQ(reinterpret_cast<size_t>(exeternal->data) % kAllocAlignment, 0);
-  ICHECK_EQ(internal->ndim, static_cast<size_t>(exeternal->ndim));
-  ICHECK_EQ(internal->device.device_type, exeternal->device.device_type);
-  ICHECK_EQ(internal->device.device_id, exeternal->device.device_id);
-  for (auto i = 0; i < exeternal->ndim; ++i) {
-    ICHECK_EQ(internal->shape[i], exeternal->shape[i]);
-  }
-}
-/*!
  * \brief set index-th input to the graph.
  * \param index The input index.
  * \param data_in The input data.
@@ -150,6 +132,23 @@ void GraphExecutor::SetInput(int index, DLTensor* data_in) {
   data_entry_[eid].CopyFrom(data_in);
 }
 /*!
+ * \brief Check the legality of external DLTensor*.
+ * \param external The external DLTensor*.
+ * \param eid The data_enrty_ index.
+ */
+void GraphExecutor::CheckExternalDLTensor(const DLTensor* external, uint32_t eid) const {
+  const DLTensor* internal = data_entry_[eid].operator->();
+
+  ICHECK_EQ(data_alignment_[eid], details::GetDataAlignment(*external));
+  ICHECK_EQ(reinterpret_cast<size_t>(external->data) % kAllocAlignment, 0);
+  ICHECK_EQ(internal->ndim, static_cast<size_t>(external->ndim));
+  ICHECK_EQ(internal->device.device_type, external->device.device_type);
+  ICHECK_EQ(internal->device.device_id, external->device.device_id);
+  for (auto i = 0; i < external->ndim; ++i) {
+    ICHECK_EQ(internal->shape[i], external->shape[i]);
+  }
+}
+/*!
  * \brief set index-th input to the graph without copying the data.
  * \param index The input index.
  * \param data_ref The input data that is referred.
@@ -157,10 +156,8 @@ void GraphExecutor::SetInput(int index, DLTensor* data_in) {
 void GraphExecutor::SetInputZeroCopy(int index, DLTensor* data_ref) {
   ICHECK_LT(static_cast<size_t>(index), input_nodes_.size());
   uint32_t eid = this->entry_id(input_nodes_[index], 0);
-
   // check the consistency of input
-  CheckExeternalDltensor(data_ref, eid);
-
+  CheckExternalDLTensor(data_ref, eid);
   // Update the data pointer for each argument of each op
   for (DLTensor* t : input_dltensors_[eid]) {
     t->data = data_ref->data;
@@ -174,13 +171,26 @@ void GraphExecutor::SetInputZeroCopy(int index, DLTensor* data_ref) {
 void GraphExecutor::SetOutputZeroCopy(int index, DLTensor* data_ref) {
   ICHECK_LT(static_cast<size_t>(index), outputs_.size());
   ICHECK_LT(static_cast<size_t>(index), output_dltensors_.size());
-  uint32_t eid = this->entry_id(outputs_[index]);
+  const NodeEntry& output_node = outputs_[index];
+  uint32_t eid = this->entry_id(output_node);
 
   // check the consistency of output
-  CheckExeternalDltensor(data_ref, eid);
+  CheckExternalDLTensor(data_ref, eid);
 
   // Update the data pointer for output op
   output_dltensors_[index]->data = data_ref->data;
+  // Update the input of the op connected to the output
+  for (auto node : nodes_) {
+    auto it = std::find(node.inputs.begin(), node.inputs.end(), output_node);
+    if (it != node.inputs.end()) {
+      int input_nid = GetInputIndex(node.name);
+      int index = it - node.inputs.begin();
+      uint32_t eid = this->entry_id(input_nodes_[input_nid], index);
+      for (DLTensor* t : input_dltensors_[eid]) {
+        t->data = data_ref->data;
+      }
+    }
+  }
 }
 /*!
  * \brief Get the number of outputs
