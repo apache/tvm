@@ -206,12 +206,15 @@ class LaunchParamConfig {
     for (size_t i = 0; i < launch_param_tags.size(); ++i) {
       const std::string& tag = launch_param_tags[i];
       if (tag == kUseDynamicSharedMemoryTag) {
+        ICHECK_EQ(i, launch_param_tags.size() - 1)
+            << "kUseDynamicSharedMemoryTag should be the last tag in launch_param_tags.";
         use_dyn_shared_memory_ = true;
         continue;
+      } else {
+        ThreadScope ts = ThreadScope::Create(tag);
+        arg_index_map_.push_back(ts.rank * 3 + ts.dim_index);
+        filled[ts.rank * 3 + ts.dim_index] = true;
       }
-      ThreadScope ts = ThreadScope::Create(tag);
-      arg_index_map_.push_back(ts.rank * 3 + ts.dim_index);
-      filled[ts.rank * 3 + ts.dim_index] = true;
     }
     work_dim_ = 1;
     for (int i = 0; i < 3; ++i) {
