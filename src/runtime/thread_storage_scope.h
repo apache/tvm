@@ -209,7 +209,6 @@ class LaunchParamConfig {
         ICHECK_EQ(i, launch_param_tags.size() - 1)
             << "kUseDynamicSharedMemoryTag should be the last tag in launch_param_tags.";
         use_dyn_shared_memory_ = true;
-        continue;
       } else {
         ThreadScope ts = ThreadScope::Create(tag);
         arg_index_map_.push_back(ts.rank * 3 + ts.dim_index);
