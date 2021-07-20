@@ -44,7 +44,6 @@ void FunctionInfo::Save(dmlc::JSONWriter* writer) const {
   writer->WriteObjectKeyValue("name", name);
   writer->WriteObjectKeyValue("arg_types", sarg_types);
   writer->WriteObjectKeyValue("launch_param_tags", launch_param_tags);
-  writer->WriteObjectKeyValue("use_dyn_shared_memory", use_dyn_shared_memory);
   writer->EndObject();
 }
 
@@ -53,8 +52,9 @@ void FunctionInfo::Load(dmlc::JSONReader* reader) {
   std::vector<std::string> sarg_types;
   helper.DeclareField("name", &name);
   helper.DeclareField("arg_types", &sarg_types);
-  helper.DeclareField("launch_param_tags", &launch_param_tags);
-  helper.DeclareOptionalField("use_dyn_shared_memory", &use_dyn_shared_memory);
+  helper.DeclareOptionalField("launch_param_tags", &launch_param_tags);
+  helper.DeclareOptionalField("thread_axis_tags",
+                              &launch_param_tags);  // for backward compatibility
   helper.ReadAllFields(reader);
   arg_types.resize(sarg_types.size());
   for (size_t i = 0; i < arg_types.size(); ++i) {
@@ -66,14 +66,12 @@ void FunctionInfo::Save(dmlc::Stream* writer) const {
   writer->Write(name);
   writer->Write(arg_types);
   writer->Write(launch_param_tags);
-  writer->Write(use_dyn_shared_memory);
 }
 
 bool FunctionInfo::Load(dmlc::Stream* reader) {
   if (!reader->Read(&name)) return false;
   if (!reader->Read(&arg_types)) return false;
   if (!reader->Read(&launch_param_tags)) return false;
-  if (!reader->Read(&use_dyn_shared_memory)) return false;
   return true;
 }
 

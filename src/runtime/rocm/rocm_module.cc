@@ -147,13 +147,12 @@ class ROCMWrappedFunc {
  public:
   // initialize the ROCM function.
   void Init(ROCMModuleNode* m, ObjectPtr<Object> sptr, const std::string& func_name,
-            size_t num_void_args, const std::vector<std::string>& launch_param_tags,
-            bool use_dyn_shared_memory) {
+            size_t num_void_args, const std::vector<std::string>& launch_param_tags) {
     m_ = m;
     sptr_ = sptr;
     func_name_ = func_name;
     std::fill(fcache_.begin(), fcache_.end(), nullptr);
-    launch_param_config_.Init(num_void_args, launch_param_tags, use_dyn_shared_memory);
+    launch_param_config_.Init(num_void_args, launch_param_tags);
   }
   // invoke the function with void arguments
   void operator()(TVMArgs args, TVMRetValue* rv, void* packed_args, size_t packed_nbytes) const {
@@ -197,8 +196,7 @@ PackedFunc ROCMModuleNode::GetFunction(const std::string& name,
   if (it == fmap_.end()) return PackedFunc();
   const FunctionInfo& info = it->second;
   ROCMWrappedFunc f;
-  f.Init(this, sptr_to_self, name, info.arg_types.size(), info.launch_param_tags,
-         info.use_dyn_shared_memory);
+  f.Init(this, sptr_to_self, name, info.arg_types.size(), info.launch_param_tags);
   return PackFuncPackedArg(f, info.arg_types);
 }
 

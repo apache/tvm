@@ -538,8 +538,8 @@ def test_dyn_shared():
     s = te.create_schedule(B.op)
 
     def check_target(target):
-        if not tvm.testing.device_enabled(target):
-            return
+        # if not tvm.testing.device_enabled(target):
+        #     return
 
         freduce = tvm.build(s, [A, B], target)
         dev = tvm.device(target, 0)
@@ -555,13 +555,13 @@ def test_dyn_shared():
 
 
 if __name__ == "__main__":
-    test_prefetch()
-    test_if()
-    test_for()
-    test_cpu()
-    test_gpu()
-    test_while_vectorize()
-    test_while_collatz()
-    test_while_mandel()
-    test_while_binary_search()
+    # test_prefetch()
+    # test_if()
+    # test_for()
+    # test_cpu()
+    # test_gpu()
+    # test_while_vectorize()
+    # test_while_collatz()
+    # test_while_mandel()
+    # test_while_binary_search()
     test_dyn_shared()
