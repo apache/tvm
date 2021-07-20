@@ -81,14 +81,14 @@ class IterMapSimplifyBlockBinding : public StmtExprMutator {
       : opaque_blocks_(opaque_blocks), loop_var2extent_(loop_var2extent) {}
 
   static For SimplifyBindings(Stmt stmt, const Array<StmtSRef>& loop_srefs,
-                              Map<Block, Block>* opaque_blocks) {
+                              MapNode* opaque_blocks) {
     Map<Var, Range> loop_var2extent;
     for (const StmtSRef& sref : loop_srefs) {
       const ForNode* loop = TVM_SREF_TO_FOR(loop, sref);
       loop_var2extent.Set(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
     }
-    return Downcast<For>(IterMapSimplifyBlockBinding(opaque_blocks->CopyOnWrite(),
-                                                     std::move(loop_var2extent))(std::move(stmt)));
+    return Downcast<For>(
+        IterMapSimplifyBlockBinding(opaque_blocks, std::move(loop_var2extent))(std::move(stmt)));
   }
 
  private:
@@ -302,7 +302,7 @@ Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
     new_stmt = For(new_loop_vars[i], 0, factors[i], ForKind::kSerial, new_stmt);
   }
   new_stmt = IterMapSimplifyBlockBinding::SimplifyBindings(std::move(new_stmt), GetLoops(loop_sref),
-                                                           &opaque_block_reuse);
+                                                           opaque_block_reuse.CopyOnWrite());
   self->Replace(loop_sref, new_stmt, opaque_block_reuse);
   Array<StmtSRef> result_srefs;
   result_srefs.reserve(n);
@@ -347,7 +347,8 @@ StmtSRef Fuse(ScheduleState self, const Array<StmtSRef>& loop_srefs) {
   }
   // Step 2. Create fused loop var and replace the original loop vars
   std::string suffix;
-  for (size_t i = 1; i < loops.size(); i++) {
+  int n = loops.size();
+  for (int i = 1; i < n; i++) {
     suffix += "_" + loops[i]->loop_var->name_hint;
   }
   suffix += "_fused";
@@ -362,7 +363,7 @@ StmtSRef Fuse(ScheduleState self, const Array<StmtSRef>& loop_srefs) {
   Stmt new_stmt = loops.back()->body;
   Map<Block, Block> opaque_block_reuse;
   auto f_substitute = [&](const Var& v) -> Optional<PrimExpr> {
-    for (size_t i = 0; i < loops.size(); i++) {
+    for (int i = 0; i < n; i++) {
       if (v.same_as(loops[i]->loop_var)) {
         return substitute_value[i];
       }
@@ -373,13 +374,13 @@ StmtSRef Fuse(ScheduleState self, const Array<StmtSRef>& loop_srefs) {
       SubstituteVarAndCollectOpaqueBlock(f_substitute, &opaque_block_reuse)(std::move(new_stmt));
   // Step 3. Generate a loop to replace the original loops
   PrimExpr fused_extent = 1;
-  for (size_t i = 0; i < loops.size(); i++) {
+  for (int i = 0; i < n; i++) {
     fused_extent *= loops[i]->extent;
   }
   fused_extent = analyzer.Simplify(fused_extent);
   new_stmt = For(fused_var, 0, fused_extent, ForKind::kSerial, new_stmt);
   new_stmt = IterMapSimplifyBlockBinding::SimplifyBindings(
-      std::move(new_stmt), GetLoops(loop_srefs[0]), &opaque_block_reuse);
+      std::move(new_stmt), GetLoops(loop_srefs[0]), opaque_block_reuse.CopyOnWrite());
   self->Replace(loop_srefs[0], new_stmt, opaque_block_reuse);
   return self->stmt2ref.at(new_stmt.get());
 }

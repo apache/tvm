@@ -333,12 +333,10 @@ Array<LoopRV> ConcreteScheduleNode::Split(const LoopRV& loop_rv,
       tot_length *= factor;
     }
   }
-  arith::Analyzer analyzer;
   if (infer_index != -1) {
     factors.Set(infer_index,
-                analyzer.Simplify(floordiv(loop->extent + tot_length - 1, tot_length)));
-  } else if (!analyzer.CanProve(tot_length >= loop->extent)) {
-    LOG(INFO) << infer_index;
+                this->analyzer_->Simplify(floordiv(loop->extent + tot_length - 1, tot_length)));
+  } else if (!this->analyzer_->CanProve(tot_length >= loop->extent)) {
     throw WrongFactorProductError(state_->mod, GetRef<For>(loop));
   }
   results = tir::Split(state_, loop_sref, factors);
