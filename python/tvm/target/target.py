@@ -278,13 +278,14 @@ def intel_graphics(model="unknown", options=None):
     opts = _merge_opts(opts, options)
     return Target(" ".join(["opencl"] + opts))
 
+
 MICRO_SUPPORTED_MODELS = {
     "host": [],
-    "zynq_mp_r5": ["-mcpu=cortex-r5"],
     "mps2_an521": ["-mcpu=cortex-m33"],
     "nrf5340dk": ["-mcpu=cortex-m33"],
     "stm32f746xx": ["-mcpu=cortex-m7", "-march=armv7e-m"],
     "stm32l4r5zi": ["-mcpu=cortex-m4"],
+    "zynq_mp_r5": ["-mcpu=cortex-r5"],
 }
 
 
