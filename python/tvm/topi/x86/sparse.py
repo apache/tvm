@@ -159,3 +159,65 @@ def schedule_spconv2d_3x3_nhwc(cfg, outs):
 
     traverse_inline(s, outs[0].op, _callback)
     return s
+
+
+@autotvm.register_topi_compute('conv3x3_spNCHW.x86')
+def spconv2d_3x3_nchw(cfg, Data, Wdat, Wind, Wptr):
+    N, CI, H, W = [i.value for i in Data.shape]
+    NNZ, VL, bsrC = [i.value for i in Wdat.shape]
+    CO = (Wptr.shape[0].value - 1) * VL
+    assert bsrC == 1
+    
+    cfg.add_flop(N*H*W * (NNZ * VL * bsrC * 2 - CO))
+    cfg.define_split("tile_hw", H*W, num_outputs=3)
+    cfg.define_split("tile_ckk", CI*9, num_outputs=3)
+    
+    @partial(te.compute, (N, CI*3*3, H*W), name='im2col')
+    def Im2Col(n, ckk, hw):
+        jh, jw = hw // W, hw % W
+        ic, kh, kw = ckk // 9, ckk // 3 % 3, ckk % 3
+        ih, iw = jh + kh - 1, jw + kw - 1
+        return tir.if_then_else(
+            tir.all(0 <= ih, ih < H, 0 <= iw, iw < W),
+            Data[n, ic, ih, iw], 0)
+    
+    @partial(te.compute, (N, CO // VL, VL, bsrC, H*W), name='CC', tag='conv3x3_spNCHW')
+    def CC(n, fo, fi, k, hw):
+        row_start, row_end = Wptr[fo], Wptr[fo+1]
+        elem_idx = te.reduce_axis((0, row_end - row_start), name='elem_idx')
+        elem = row_start + elem_idx
+        return te.sum(Im2Col[n, Wind[elem] * bsrC + k, hw] * Wdat[elem, fi, k],
+                      axis=elem_idx)
+    
+    return reshape(CC, [N, CO, H, W])
+
+
+@autotvm.register_topi_schedule('conv3x3_spNCHW.x86')
+def schedule_spconv2d_3x3_nchw(cfg, outs):
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
+    
+    def _callback(op):
+        if op.tag == 'conv3x3_spNCHW':
+            CC = op
+            Wptr, Wind, im2col, Wdat = op.input_tensors
+            Data, = im2col.op.input_tensors
+            
+            n, fo, fi, bc, hw = s[CC].op.axis
+            kk, = s[CC].op.reduce_axis
+            hw1, hw2, hw3 = cfg["tile_hw"].apply(s, CC, hw)
+            s[CC].reorder(n, hw1, fo, hw2, kk, fi, bc, hw3)
+            s[CC].unroll(fi)
+            s[CC].unroll(bc)
+            s[CC].vectorize(hw3)
+
+            s[im2col].compute_at(s[CC], hw1)
+            n, ckk, hw = s[im2col].op.axis
+            ckk1, ckk2, ckk3 = cfg["tile_ckk"].apply(s, im2col, ckk)
+            hw2, hw3 = s[im2col].split(hw, factor=cfg["tile_hw"].size[-1])
+            s[im2col].reorder(n, ckk1, ckk2, hw2, ckk3, hw3)
+            s[im2col].unroll(ckk3)
+            s[im2col].vectorize(hw3)
+
+    traverse_inline(s, outs[0].op, _callback)
+    return s
