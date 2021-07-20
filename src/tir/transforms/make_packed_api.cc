@@ -119,12 +119,12 @@ PrimFunc MakePackedAPI(PrimFunc&& func, int num_unpacked_args) {
   const Stmt nop = Evaluate(0);
   int num_args = static_cast<int>(func_ptr->params.size());
   ICHECK_LE(num_unpacked_args, num_args);
-
-  bool pack_args = true;
+  bool pack_args = (num_unpacked_args == -1) || (num_args > num_unpacked_args);
   if (num_unpacked_args == -1) {
-    pack_args = false;
+    // reset to zero
     num_unpacked_args = 0;
   }
+  ICHECK_GE(num_unpacked_args, 0);
   int num_packed_args = num_args - num_unpacked_args;
   // Data field definitions
   // The packed fields
@@ -159,7 +159,6 @@ PrimFunc MakePackedAPI(PrimFunc&& func, int num_unpacked_args) {
     }
     return res;
   };
-
   // ---------------------------
   // start of logics
   // add signiture for packed arguments.
@@ -287,7 +286,7 @@ PrimFunc MakePackedAPI(PrimFunc&& func, int num_unpacked_args) {
 namespace transform {
 
 Pass MakePackedAPI(int num_unpacked_args) {
-  // return unpacked arguments while `num_unpacked_args` is -1
+  // packed arguments anyway while `num_unpacked_args` is -1
   auto pass_func = [num_unpacked_args](IRModule m, PassContext ctx) {
     IRModuleNode* mptr = m.CopyOnWrite();
     std::vector<std::pair<GlobalVar, PrimFunc> > updates;

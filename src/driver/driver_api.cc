@@ -388,7 +388,7 @@ std::pair<IRModule, IRModule> SplitDevHostFuncs(IRModule mod_mixed, const Target
   if (target->GetAttr<Bool>("unpacked-api").value_or(Bool(false))) {
     mixed_pass_list.push_back(tir::transform::MakeUnpackedAPI());
   } else {
-    mixed_pass_list.push_back(tir::transform::MakePackedAPI(0));
+    mixed_pass_list.push_back(tir::transform::MakePackedAPI(-1));
   }
 
   mixed_pass_list.push_back(tir::transform::SplitHostDevice());
