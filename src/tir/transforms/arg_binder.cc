@@ -88,7 +88,7 @@ void ArgBinder::BindArray(const Array<PrimExpr>& arg, const Array<PrimExpr>& val
 
 void ArgBinder::BindBuffer(const Buffer& arg, const Buffer& value, const std::string& arg_name,
                            bool fuzzy_match) {
-  ICHECK_EQ(arg->scope, value->scope) << "Argument " << arg_name << " Buffer bind scope mismatch";
+  ICHECK_EQ(arg.scope(), value.scope()) << "Argument " << arg_name << " Buffer bind scope mismatch";
   ICHECK_EQ(arg->dtype, value->dtype)
       << "Argument " << arg_name << " Buffer bind data type mismatch";
   if (value->data_alignment % arg->data_alignment != 0) {

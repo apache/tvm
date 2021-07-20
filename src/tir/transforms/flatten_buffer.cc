@@ -127,10 +127,7 @@ class BufferFlattener : public StmtExprMutator {
   }
 
   static Stmt MakeAllocStmt(const Buffer& buffer, Stmt body) {
-    String storage_scope = buffer->scope;
-    if (storage_scope.empty()) {
-      storage_scope = "global";
-    }
+    String storage_scope = buffer.scope();
     PrimExpr area = BufferArea(buffer);
     body = Allocate(buffer->data, buffer->dtype, {area}, const_true(), std::move(body));
     body = AttrStmt(buffer->data, attr::storage_scope, StringImm(storage_scope), std::move(body));

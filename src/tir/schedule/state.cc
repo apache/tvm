@@ -43,7 +43,7 @@ Array<arith::IntSet> AnalyzeRegionUpperBound(const BufferRegion& region,
       AsIntSet(LoopDomainOfSRefTreePath(
           /*low_inclusive=*/dom_low_inclusive,
           /*high_exclusive=*/dom_high_exclusive,
-          /*extra_relax_scope=*/runtime::StorageScope::Create(region->buffer->scope))));
+          /*extra_relax_scope=*/runtime::StorageScope::Create(region->buffer.scope()))));
 }
 
 /*!
@@ -67,7 +67,7 @@ Array<arith::IntSet> AnalyzeRegionLowerBound(const BlockRealize& realize,
           LoopDomainOfSRefTreePath(
               /*low_inclusive=*/dom_low_inclusive,
               /*high_exclusive=*/dom_high_exclusive,
-              /*extra_relax_scope=*/runtime::StorageScope::Create(region->buffer->scope)),
+              /*extra_relax_scope=*/runtime::StorageScope::Create(region->buffer.scope())),
           /*predicate=*/realize->predicate, /*analyzer=*/analyzer)) {
     return result.value();
   }
