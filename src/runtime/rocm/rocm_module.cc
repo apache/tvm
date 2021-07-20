@@ -153,7 +153,7 @@ class ROCMWrappedFunc {
     sptr_ = sptr;
     func_name_ = func_name;
     std::fill(fcache_.begin(), fcache_.end(), nullptr);
-    thread_axis_cfg_.Init(num_void_args, launch_param_tags, use_dyn_shared_memory);
+    launch_param_config_.Init(num_void_args, launch_param_tags, use_dyn_shared_memory);
   }
   // invoke the function with void arguments
   void operator()(TVMArgs args, TVMRetValue* rv, void* packed_args, size_t packed_nbytes) const {
@@ -165,7 +165,7 @@ class ROCMWrappedFunc {
 
     hipStream_t strm = static_cast<hipStream_t>(ROCMThreadEntry::ThreadLocal()->stream);
 
-    ThreadWorkLoad wl = thread_axis_cfg_.Extract(args);
+    ThreadWorkLoad wl = launch_param_config_.Extract(args);
     void* config[] = {HIP_LAUNCH_PARAM_BUFFER_POINTER, packed_args, HIP_LAUNCH_PARAM_BUFFER_SIZE,
                       &packed_nbytes, HIP_LAUNCH_PARAM_END};
     // HIP supports only extra_args.
@@ -186,7 +186,7 @@ class ROCMWrappedFunc {
   // mark as mutable, to enable lazy initialization
   mutable std::array<hipFunction_t, kMaxNumGPUs> fcache_;
   // thread axis configuration
-  ThreadAxisConfig thread_axis_cfg_;
+  LaunchParamConfig launch_param_config_;
 };
 
 PackedFunc ROCMModuleNode::GetFunction(const std::string& name,

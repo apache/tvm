@@ -186,7 +186,7 @@ class MetalWrappedFunc {
     num_buffer_args_ = num_buffer_args;
     num_pack_args_ = num_pack_args;
     std::fill(scache_.begin(), scache_.end(), (id<MTLComputePipelineState>)nil);
-    thread_axis_cfg_.Init(num_buffer_args + num_pack_args, launch_param_tags);
+    launch_param_config_.Init(num_buffer_args + num_pack_args, launch_param_tags);
     metal::MetalThreadEntry* t = metal::MetalThreadEntry::ThreadLocal();
     int dev_id = t->device.device_id;
     scache_[dev_id] = m->GetPipelineState(dev_id, func_name);
@@ -201,7 +201,7 @@ class MetalWrappedFunc {
       if (scache_[device_id] == nil) {
         scache_[device_id] = m_->GetPipelineState(device_id, func_name_);
       }
-      ThreadWorkLoad wl = thread_axis_cfg_.Extract(args);
+      ThreadWorkLoad wl = launch_param_config_.Extract(args);
       int blockSize = wl.block_dim(0) * wl.block_dim(1) * wl.block_dim(2);
       auto maxTotalThreadsPerThreadgroup = scache_[device_id].maxTotalThreadsPerThreadgroup;
       CHECK_LE(blockSize, maxTotalThreadsPerThreadgroup);
@@ -243,7 +243,7 @@ class MetalWrappedFunc {
   // mark as mutable, to enable lazy initialization
   mutable std::array<id<MTLComputePipelineState>, kMetalMaxNumDevice> scache_;
   // thread axis configuration
-  ThreadAxisConfig thread_axis_cfg_;
+  LaunchParamConfig launch_param_config_;
 };
 
 PackedFunc MetalModuleNode::GetFunction(const std::string& name,

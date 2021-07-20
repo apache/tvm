@@ -39,7 +39,7 @@ void VulkanWrappedFunc::Init(VulkanModuleNode* m, ObjectPtr<Object> sptr,
   func_name_ = func_name;
   num_buffer_args_ = num_buffer_args;
   num_pack_args_ = num_pack_args;
-  thread_axis_cfg_.Init(num_buffer_args + num_pack_args, launch_param_tags);
+  launch_param_config_.Init(num_buffer_args + num_pack_args, launch_param_tags);
 }
 
 void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
@@ -50,7 +50,7 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
     scache_[device_id] = m_->GetPipeline(device_id, func_name_, num_pack_args_);
   }
   const auto& pipeline = scache_[device_id];
-  ThreadWorkLoad wl = thread_axis_cfg_.Extract(args);
+  ThreadWorkLoad wl = launch_param_config_.Extract(args);
   std::vector<VkDescriptorBufferInfo> descriptor_buffers;
   descriptor_buffers.resize(num_buffer_args_);
   for (size_t i = 0; i < num_buffer_args_; ++i) {

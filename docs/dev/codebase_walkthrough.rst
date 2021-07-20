@@ -204,7 +204,7 @@ The ``PackedFunc``'s overloaded ``operator()`` will be called, which in turn cal
          fcache_[device_id] = m_->GetFunc(device_id, func_name_);
        }
        CUstream strm = static_cast<CUstream>(CUDAThreadEntry::ThreadLocal()->stream);
-       ThreadWorkLoad wl = thread_axis_cfg_.Extract(args);
+       ThreadWorkLoad wl = launch_param_config_.Extract(args);
        CUresult result = cuLaunchKernel(
            fcache_[device_id],
            wl.grid_dim(0),

@@ -47,7 +47,7 @@ class OpenCLWrappedFunc {
     entry_ = entry;
     func_name_ = func_name;
     arg_size_ = arg_size;
-    thread_axis_cfg_.Init(arg_size.size(), launch_param_tags);
+    launch_param_config_.Init(arg_size.size(), launch_param_tags);
   }
   // invoke the function with void arguments
   void operator()(TVMArgs args, TVMRetValue* rv, void** void_args) const {
@@ -73,8 +73,8 @@ class OpenCLWrappedFunc {
       OPENCL_CALL(clSetKernelArg(kernel, i, arg_size_[i], arg));
     }
     cl_command_queue queue = w_->GetQueue(t->device);
-    ThreadWorkLoad wl = thread_axis_cfg_.Extract(args);
-    cl_uint work_dim = static_cast<cl_uint>(thread_axis_cfg_.work_dim());
+    ThreadWorkLoad wl = launch_param_config_.Extract(args);
+    cl_uint work_dim = static_cast<cl_uint>(launch_param_config_.work_dim());
     for (cl_uint i = 0; i < work_dim; ++i) {
       wl.work_size[i] *= wl.work_size[i + 3];
     }
@@ -97,7 +97,7 @@ class OpenCLWrappedFunc {
   // convert code for void argument
   std::vector<size_t> arg_size_;
   // thread axis config
-  ThreadAxisConfig thread_axis_cfg_;
+  LaunchParamConfig launch_param_config_;
 };
 
 OpenCLModuleNode::~OpenCLModuleNode() {

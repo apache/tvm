@@ -159,7 +159,7 @@ class CUDAWrappedFunc {
     sptr_ = sptr;
     func_name_ = func_name;
     std::fill(fcache_.begin(), fcache_.end(), nullptr);
-    thread_axis_cfg_.Init(num_void_args, launch_param_tags, use_dyn_shared_memory);
+    launch_param_config_.Init(num_void_args, launch_param_tags, use_dyn_shared_memory);
   }
   // invoke the function with void arguments
   void operator()(TVMArgs args, TVMRetValue* rv, void** void_args) const {
@@ -169,7 +169,7 @@ class CUDAWrappedFunc {
       fcache_[device_id] = m_->GetFunc(device_id, func_name_);
     }
     CUstream strm = static_cast<CUstream>(CUDAThreadEntry::ThreadLocal()->stream);
-    ThreadWorkLoad wl = thread_axis_cfg_.Extract(args);
+    ThreadWorkLoad wl = launch_param_config_.Extract(args);
     CUresult result = cuLaunchKernel(fcache_[device_id], wl.grid_dim(0), wl.grid_dim(1),
                                      wl.grid_dim(2), wl.block_dim(0), wl.block_dim(1),
                                      wl.block_dim(2), wl.dyn_shmem_size, strm, void_args, nullptr);
@@ -203,7 +203,7 @@ class CUDAWrappedFunc {
   // mark as mutable, to enable lazy initialization
   mutable std::array<CUfunction, kMaxNumGPUs> fcache_;
   // thread axis configuration
-  ThreadAxisConfig thread_axis_cfg_;
+  LaunchParamConfig launch_param_config_;
 };
 
 class CUDAPrepGlobalBarrier {

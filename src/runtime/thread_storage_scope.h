@@ -196,7 +196,7 @@ struct ThreadWorkLoad {
   inline size_t grid_dim(size_t i) const { return work_size[i]; }
 };
 /*! \brief Thread axis configuration */
-class ThreadAxisConfig {
+class LaunchParamConfig {
  public:
   void Init(size_t base, const std::vector<std::string>& launch_param_tags,
             bool use_dyn_shared_memory = false) {

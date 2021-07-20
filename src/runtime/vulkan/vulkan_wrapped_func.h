@@ -76,7 +76,7 @@ class VulkanWrappedFunc {
   // Device state cache per device.
   // mark as mutable, to enable lazy initialization
   // thread axis configuration
-  ThreadAxisConfig thread_axis_cfg_;
+  LaunchParamConfig launch_param_config_;
 
   mutable std::array<std::shared_ptr<VulkanPipeline>, kVulkanMaxNumDevice> scache_;
 };
