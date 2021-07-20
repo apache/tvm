@@ -164,7 +164,8 @@ void GraphExecutor::SetInputZeroCopy(int index, DLTensor* data_ref) {
 void GraphExecutor::SetOutputZeroCopy(int index, DLTensor* data_ref) {
   ICHECK_LT(static_cast<size_t>(index), outputs_.size());
   uint32_t eid = this->entry_id(outputs_[index]);
-  DLTensor* old_t = const_cast<DLTensor*>(data_entry_[eid].operator->());
+  const DLTensor* old_t = data_entry_[eid].operator->();
+
   // check the consistency of output
   ICHECK_EQ(data_alignment_[eid], details::GetDataAlignment(*data_ref));
   ICHECK_EQ(reinterpret_cast<size_t>(data_ref->data) % kAllocAlignment, 0);
@@ -174,6 +175,7 @@ void GraphExecutor::SetOutputZeroCopy(int index, DLTensor* data_ref) {
   for (auto i = 0; i < data_ref->ndim; ++i) {
     ICHECK_EQ(old_t->shape[i], data_ref->shape[i]);
   }
+
   // Update the data pointer for output op
   ICHECK_LT(static_cast<size_t>(index), output_dltensors_.size());
   output_dltensors_[index]->data = data_ref->data;
