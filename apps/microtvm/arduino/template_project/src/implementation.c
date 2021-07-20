@@ -79,13 +79,9 @@ tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
   return kTvmErrorNoError;
 }
 
-unsigned int random_seed = 0;
-// Arduino's built-in RNG is implemented differently on each
-// platform, and varies widely in quality + speed. Might be
-// worth implementing our own RNG.
 tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
   for (size_t i = 0; i < num_bytes; i++) {
-    buffer[i] = (uint8_t)random(256);
+    buffer[i] = rand();
   }
   return kTvmErrorNoError;
 }
