@@ -278,60 +278,6 @@ def test_onnx(platform, west_cmd, skip_build, tvm_debug):
         assert np.argmax(result) == 9
 
 
-class CcompilerAnnotator(ExprMutator):
-    """
-    This is used to create external functions for ccompiler.
-    A simple annotator that creates the following program:
-           |
-      -- begin --
-           |
-          add
-           |
-        subtract
-           |
-        multiply
-           |
-       -- end --
-           |
-    """
-
-    def __init__(self):
-        super(CcompilerAnnotator, self).__init__()
-        self.in_compiler = 0
-
-    def visit_call(self, call):
-        if call.op.name == "add":  # Annotate begin at args
-            if self.in_compiler == 1:
-                lhs = compiler_begin(super().visit(call.args[0]), "ccompiler")
-                rhs = compiler_begin(super().visit(call.args[1]), "ccompiler")
-                op = relay.add(lhs, rhs)
-                self.in_compiler = 2
-                return op
-        elif call.op.name == "subtract":
-            if self.in_compiler == 1:
-                lhs = super().visit(call.args[0])
-                rhs = super().visit(call.args[1])
-                if isinstance(lhs, relay.expr.Var):
-                    lhs = compiler_begin(lhs, "ccompiler")
-                if isinstance(rhs, relay.expr.Var):
-                    rhs = compiler_begin(rhs, "ccompiler")
-                return relay.subtract(lhs, rhs)
-        elif call.op.name == "multiply":  # Annotate end at output
-            self.in_compiler = 1
-            lhs = super().visit(call.args[0])
-            rhs = super().visit(call.args[1])
-            if isinstance(lhs, relay.expr.Var):
-                lhs = compiler_begin(lhs, "ccompiler")
-            if isinstance(rhs, relay.expr.Var):
-                rhs = compiler_begin(rhs, "ccompiler")
-            op = relay.multiply(lhs, rhs)
-            if self.in_compiler == 2:
-                op = compiler_end(op, "ccompiler")
-            self.in_compiler = 0
-            return op
-        return super().visit_call(call)
-
-
 def check_result(
     relay_mod, model, zephyr_board, west_cmd, map_inputs, out_shape, result, build_config
 ):
@@ -391,7 +337,7 @@ def test_byoc_microtvm(platform, west_cmd, skip_build, tvm_debug):
     r = relay.concatenate((q0, q1, q2), axis=0)
     f = relay.Function([x, w0, w1, w2, w3, w4, w5, w6, w7], r)
     mod = tvm.IRModule()
-    ann = CcompilerAnnotator()
+    ann = tvm.testing.CcompilerAnnotator()
     mod["main"] = ann.visit(f)
     mod = tvm.relay.transform.PartitionGraph()(mod)
     mod = tvm.relay.transform.InferType()(mod)
