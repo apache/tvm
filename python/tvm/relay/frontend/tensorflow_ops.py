@@ -1483,7 +1483,13 @@ def _identityn():
 def _concatV2():
     def _impl(inputs, attr, params, mod):
         pop_node = inputs.pop(len(inputs) - 1)
-        axis = int(_get_num_param(params, pop_node))
+        try:
+            axis = int(_get_num_param(params, pop_node))
+        except (IndexError, KeyError, AttributeError):
+            try:
+                axis = int(_infer_value(pop_node, params, mod).numpy())
+            except Exception:
+                axis = int(pop_node)
         return AttrCvt(op_name="concatenate", ignores=["T", "N", "Tidx"], extras={"axis": axis})(
             [inputs], attr
         )
@@ -2244,7 +2250,7 @@ def _stridedSlice():
                             if begin[index] < 0
                             else begin[index]
                         )
-                        m_end[final_index] = begin[index] + 1
+                        m_end[final_index] = m_begin[final_index] + 1
                         m_stride[final_index] = 1
                         fshape_indices.append(-2)
                     else:
