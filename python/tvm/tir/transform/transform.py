@@ -338,7 +338,8 @@ def MakePackedAPI(num_unpacked_params: int = 0):
     ----------
     num_unpacked_params : int
         Number of parameters that we hope to directly pass via normal arguments
-        following the PackedFunc input signature.
+        following the PackedFunc input signature. If it is specified as -1, the
+        pass will return function with unpacked arguments.
 
     Returns
     -------
