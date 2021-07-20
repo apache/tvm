@@ -391,6 +391,12 @@ class TVM_DLL GraphExecutor : public ModuleNode {
   /*! \brief Setup the executors. */
   void SetupOpExecs();
   /*!
+   * \brief Check the legality of DLTensor* of external DLTensor*.
+   * \param exeternal The exeternal DLTensor*
+   * \param eid The data_enrty_ index
+   */
+  void CheckExeternalDltensor(const DLTensor* external, uint32_t eid) const;
+  /*!
    * \brief Create an execution function given input.
    * \param attrs The node attributes.
    * \param args The arguments to the functor, including inputs and outputs.

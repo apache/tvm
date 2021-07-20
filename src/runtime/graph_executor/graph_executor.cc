@@ -122,6 +122,24 @@ int GraphExecutor::GetOutputIndex(const std::string& name) {
   return -1;
 }
 /*!
+ * \brief Check the legality of DLTensor* of external DLTensor*.
+ * \param exeternal The exeternal DLTensor*
+ * \param eid The data_enrty_ index
+ */
+void GraphExecutor::CheckExeternalDltensor(const DLTensor* exeternal, uint32_t eid) const {
+  const DLTensor* internal = data_entry_[eid].operator->();
+
+  // check the consistency of input
+  ICHECK_EQ(data_alignment_[eid], details::GetDataAlignment(*exeternal));
+  ICHECK_EQ(reinterpret_cast<size_t>(exeternal->data) % kAllocAlignment, 0);
+  ICHECK_EQ(internal->ndim, static_cast<size_t>(exeternal->ndim));
+  ICHECK_EQ(internal->device.device_type, exeternal->device.device_type);
+  ICHECK_EQ(internal->device.device_id, exeternal->device.device_id);
+  for (auto i = 0; i < exeternal->ndim; ++i) {
+    ICHECK_EQ(internal->shape[i], exeternal->shape[i]);
+  }
+}
+/*!
  * \brief set index-th input to the graph.
  * \param index The input index.
  * \param data_in The input data.
@@ -139,17 +157,9 @@ void GraphExecutor::SetInput(int index, DLTensor* data_in) {
 void GraphExecutor::SetInputZeroCopy(int index, DLTensor* data_ref) {
   ICHECK_LT(static_cast<size_t>(index), input_nodes_.size());
   uint32_t eid = this->entry_id(input_nodes_[index], 0);
-  const DLTensor* old_t = data_entry_[eid].operator->();
 
   // check the consistency of input
-  ICHECK_EQ(data_alignment_[eid], details::GetDataAlignment(*data_ref));
-  ICHECK_EQ(reinterpret_cast<size_t>(data_ref->data) % kAllocAlignment, 0);
-  ICHECK_EQ(old_t->ndim, static_cast<size_t>(data_ref->ndim));
-  ICHECK_EQ(old_t->device.device_type, data_ref->device.device_type);
-  ICHECK_EQ(old_t->device.device_id, data_ref->device.device_id);
-  for (auto i = 0; i < data_ref->ndim; ++i) {
-    ICHECK_EQ(old_t->shape[i], data_ref->shape[i]);
-  }
+  CheckExeternalDltensor(data_ref, eid);
 
   // Update the data pointer for each argument of each op
   for (DLTensor* t : input_dltensors_[eid]) {
@@ -163,21 +173,13 @@ void GraphExecutor::SetInputZeroCopy(int index, DLTensor* data_ref) {
  */
 void GraphExecutor::SetOutputZeroCopy(int index, DLTensor* data_ref) {
   ICHECK_LT(static_cast<size_t>(index), outputs_.size());
+  ICHECK_LT(static_cast<size_t>(index), output_dltensors_.size());
   uint32_t eid = this->entry_id(outputs_[index]);
-  const DLTensor* old_t = data_entry_[eid].operator->();
 
   // check the consistency of output
-  ICHECK_EQ(data_alignment_[eid], details::GetDataAlignment(*data_ref));
-  ICHECK_EQ(reinterpret_cast<size_t>(data_ref->data) % kAllocAlignment, 0);
-  ICHECK_EQ(old_t->ndim, static_cast<size_t>(data_ref->ndim));
-  ICHECK_EQ(old_t->device.device_type, data_ref->device.device_type);
-  ICHECK_EQ(old_t->device.device_id, data_ref->device.device_id);
-  for (auto i = 0; i < data_ref->ndim; ++i) {
-    ICHECK_EQ(old_t->shape[i], data_ref->shape[i]);
-  }
+  CheckExeternalDltensor(data_ref, eid);
 
   // Update the data pointer for output op
-  ICHECK_LT(static_cast<size_t>(index), output_dltensors_.size());
   output_dltensors_[index]->data = data_ref->data;
 }
 /*!
@@ -518,8 +520,8 @@ PackedFunc GraphExecutor::GetFunction(const std::string& name,
   } else if (name == "set_output_zero_copy") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       if (String::CanConvertFrom(args[0])) {
-        int in_idx = this->GetOutputIndex(args[0].operator String());
-        if (in_idx >= 0) this->SetOutputZeroCopy(in_idx, args[1]);
+        int out_idx = this->GetOutputIndex(args[0].operator String());
+        if (out_idx >= 0) this->SetOutputZeroCopy(out_idx, args[1]);
       } else {
         this->SetOutputZeroCopy(args[0], args[1]);
       }
