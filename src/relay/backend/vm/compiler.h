@@ -44,9 +44,8 @@
 #include "../../../runtime/vm/naive_allocator.h"
 #include "../../../runtime/vm/profiler/vm.h"
 #include "../../transforms/pass_utils.h"
-#include "../te_compiler_cache.h"
 #include "../te_compiler.h"
-
+#include "../te_compiler_cache.h"
 
 namespace tvm {
 namespace relay {
