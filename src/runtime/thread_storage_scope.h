@@ -198,13 +198,13 @@ struct ThreadWorkLoad {
 /*! \brief Thread axis configuration */
 class ThreadAxisConfig {
  public:
-  void Init(size_t base, const std::vector<std::string>& thread_axis_tags,
+  void Init(size_t base, const std::vector<std::string>& launch_param_tags,
             bool use_dyn_shared_memory = false) {
     base_ = base;
     use_dyn_shared_memory_ = use_dyn_shared_memory;
     std::vector<bool> filled(6, false);
-    for (size_t i = 0; i < thread_axis_tags.size(); ++i) {
-      const std::string& tag = thread_axis_tags[i];
+    for (size_t i = 0; i < launch_param_tags.size(); ++i) {
+      const std::string& tag = launch_param_tags[i];
       ThreadScope ts = ThreadScope::Create(tag);
       arg_index_map_.push_back(ts.rank * 3 + ts.dim_index);
       filled[ts.rank * 3 + ts.dim_index] = true;

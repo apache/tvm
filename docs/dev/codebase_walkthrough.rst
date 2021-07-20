@@ -183,7 +183,7 @@ The first time you invoke the compiled module with ``fadd(a, b, c)``, ``GetFunct
      auto it = fmap_.find(name);
      const FunctionInfo& info = it->second;
      CUDAWrappedFunc f;
-     f.Init(this, sptr_to_self, name, info.arg_types.size(), info.thread_axis_tags);
+     f.Init(this, sptr_to_self, name, info.arg_types.size(), info.launch_param_tags);
      return PackFuncVoidAddr(f, info.arg_types);
    }
 

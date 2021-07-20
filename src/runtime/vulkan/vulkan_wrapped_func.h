@@ -58,7 +58,7 @@ class VulkanWrappedFunc {
  public:
   void Init(VulkanModuleNode* m, ObjectPtr<Object> sptr, const std::string& func_name,
             size_t num_buffer_args, size_t num_pack_args,
-            const std::vector<std::string>& thread_axis_tags);
+            const std::vector<std::string>& launch_param_tags);
 
   void operator()(TVMArgs args, TVMRetValue* rv, const ArgUnion64* pack_args) const;
 
