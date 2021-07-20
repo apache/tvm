@@ -148,11 +148,9 @@ class CopyIntrinInjector : public StmtMutator {
       dst_strides.push_back(make_const(DataType::Int(32), 1));
     }
     Buffer dst = Buffer(store->buffer_var, store->value.dtype(), dst_shape, dst_strides,
-                        store_strides[loop_var_size], store->buffer_var->name_hint,
-                        GetStorageScope(store->buffer_var.get()), 0, 0, kDefault);
+                        store_strides[loop_var_size], store->buffer_var->name_hint, 0, 0, kDefault);
     Buffer src = Buffer(load->buffer_var, load->dtype, src_shape, src_strides, src_elem_offset,
-                        load->buffer_var->name_hint, GetStorageScope(load->buffer_var.get()), 0, 0,
-                        kDefault);
+                        load->buffer_var->name_hint, 0, 0, kDefault);
     *out = flower_copy_fromto_(src, dst, pad_before, pad_after, pad_value);
     ICHECK(out->defined()) << "flower function did not return correct stmt";
     return true;

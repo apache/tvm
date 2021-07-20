@@ -203,7 +203,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
       std::unordered_map<const VarNode*, arith::IntSet> dom_map;
       for (const ForNode* loop : ancestor_loops_) {
         const VarNode* loop_var = loop->loop_var.get();
-        if (NeedRelaxThread(GetRef<For>(loop), runtime::StorageScope::Create(buffer->scope))) {
+        if (NeedRelaxThread(GetRef<For>(loop), runtime::StorageScope::Create(buffer.scope()))) {
           dom_map[loop_var] = IntSetFromMinExtent(loop->min, loop->extent);
         }
       }

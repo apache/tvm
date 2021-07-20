@@ -302,8 +302,8 @@ Doc TVMScriptPrinter::AllocBufferDeclaration(const Buffer& buf) {
   } else {
     doc << ", elem_offset=" << Print(buf->elem_offset);
   }
-  if (buf->scope != "global") {
-    doc << ", scope=" << Doc::StrLiteral(buf->scope);
+  if (buf.scope() != "global") {
+    doc << ", scope=" << Doc::StrLiteral(buf.scope());
   }
   if (buf->data_alignment != -1) {
     doc << ", align=" << buf->data_alignment;

@@ -463,7 +463,7 @@ class BlockMatchBufferRegion(SpecialStmt):
                 data=None,
                 strides=strides,
                 elem_offset=elem_offset,
-                scope=buffer_region.buffer.scope,
+                scope=buffer_region.buffer.scope(),
                 data_alignment=align,
                 offset_factor=offset_factor,
                 span=span,

@@ -198,7 +198,7 @@ class StorageFlattener : public StmtExprMutator {
       auto new_var =
           Var(op->buffer->data->name_hint, PointerType(ptr_type->element_type, skey.to_string()));
       e.buffer = Buffer(new_var, op->buffer->dtype, shape, strides, PrimExpr(), op->buffer->name,
-                        skey.to_string(), align, 0, kDefault);
+                        align, 0, kDefault);
 
       buf_map_[key] = e;
       Stmt body = this->VisitStmt(op->body);
@@ -224,7 +224,7 @@ class StorageFlattener : public StmtExprMutator {
         ret = Allocate(e.buffer->data, storage_type, shape,
                        make_const(DataType::Bool(e.buffer->dtype.lanes()), true), body);
       }
-      ret = AttrStmt(e.buffer->data, attr::storage_scope, StringImm(e.buffer->scope), ret);
+      ret = AttrStmt(e.buffer->data, attr::storage_scope, StringImm(skey.to_string()), ret);
 
       if (create_bound_attributes_ && ShapeIsValid(e.buffer->shape)) {
         ret = AttrStmt(e.buffer->data, tir::attr::buffer_bound,
