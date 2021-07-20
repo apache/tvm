@@ -475,7 +475,7 @@ class GraphProto:
             )
         elif op_name in _convert_map_common:
             # assert op are exclusive
-            assert (not set(_convert_map_common.keys()) & set(_convert_map_tf2.keys())) == True
+            assert not set(_convert_map_common.keys()) & set(_convert_map_tf2.keys())
             if _need_prelude_for_shape_inference(op_name):
                 sym = _convert_map_common[op_name](inputs, attrs, self._params, self._prelude)
             else:
