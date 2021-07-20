@@ -122,7 +122,7 @@ PrimFunc MakePackedAPI(PrimFunc&& func, int num_unpacked_args) {
 
   bool pack_args = true;
   if (num_unpacked_args == -1) {
-    pack_args = false; 
+    pack_args = false;
     num_unpacked_args = 0;
   }
   int num_packed_args = num_args - num_unpacked_args;

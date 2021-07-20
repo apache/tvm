@@ -36,7 +36,6 @@ def test_scalar_add():
     c = tir.ret(c)
     c = tir.Evaluate(c)
     func = tir.PrimFunc([a, b], c)
-    print(func)
     func = build_tir_func(func)
     out = func(1.0, 2.0)
     assert out == 3.0
