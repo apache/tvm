@@ -225,7 +225,7 @@ def _make_tar(source_dir, tar_file_path):
         tar_f.add(str(source_dir), arcname=".", filter=reset)
 
 
-_GENERATED_VERSION = 4
+_GENERATED_VERSION = 5
 
 
 def _export_graph_model_library_format(
@@ -241,7 +241,7 @@ def _export_graph_model_library_format(
         Temporary directory to populate with Model Library Format contents.
     """
     is_aot = isinstance(mod, executor_factory.AOTExecutorFactoryModule)
-    runtime = ["aot"] if is_aot else ["graph"]
+    executor = ["aot"] if is_aot else ["graph"]
 
     metadata = {
         "version": _GENERATED_VERSION,
@@ -249,7 +249,7 @@ def _export_graph_model_library_format(
         "export_datetime": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%SZ"),
         "memory": _build_memory_map(mod),
         "target": {int(k): str(v) for k, v in mod.target.items()},
-        "runtimes": runtime,
+        "executors": executor,
         "style": "full-model",
     }
 
@@ -272,7 +272,7 @@ def _export_graph_model_library_format(
         f.write(str(mod.ir_mod))
 
     if not is_aot:
-        graph_config_dir = tempdir / "runtime-config" / "graph"
+        graph_config_dir = tempdir / "executor-config" / "graph"
         graph_config_dir.mkdir(parents=True)
         with open(graph_config_dir / "graph.json", "w") as f:
             f.write(mod.get_executor_config())
@@ -363,7 +363,7 @@ def _export_operator_model_library_format(mod: build_module.OperatorModule, temp
         "export_datetime": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%SZ"),
         "memory": memory_map,
         "target": {k: str(v) for k, v in targets.items()},
-        "runtimes": [],
+        "executors": [],
         "style": "operator",
     }
     with open(tempdir / "metadata.json", "w") as metadata_f:
