@@ -206,6 +206,9 @@ class TVM_DLL GraphExecutor : public ModuleNode {
     uint32_t node_id;
     uint32_t index;
     uint32_t version;
+    inline bool operator==(const NodeEntry& other) const {
+      return node_id == other.node_id && index == other.index && version == other.version;
+    }
     // JSON Loader
     void Load(dmlc::JSONReader* reader) {
       reader->BeginArray();
@@ -391,11 +394,11 @@ class TVM_DLL GraphExecutor : public ModuleNode {
   /*! \brief Setup the executors. */
   void SetupOpExecs();
   /*!
-   * \brief Check the legality of DLTensor* of external DLTensor*.
-   * \param exeternal The exeternal DLTensor*
-   * \param eid The data_enrty_ index
+   * \brief Check the legality of external DLTensor*.
+   * \param external The external DLTensor*.
+   * \param eid The data_enrty_ index.
    */
-  void CheckExeternalDltensor(const DLTensor* external, uint32_t eid) const;
+  void CheckExternalDLTensor(const DLTensor* external, uint32_t eid) const;
   /*!
    * \brief Create an execution function given input.
    * \param attrs The node attributes.
