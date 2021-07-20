@@ -477,6 +477,8 @@ def test_forward_Deconvolution():
             stride=2,
             dilation=1,
             group=100,
+            weight_filler=dict(type="xavier"),
+            bias_filler=dict(type="xavier"),
         ),
     )
 
