@@ -575,12 +575,18 @@ def sparse_conv2d_strategy_cpu(attrs, inputs, out_type, target):
             wrap_topi_schedule(topi.generic.schedule_sparse_conv2d),
             name="sparse_conv2d.generic",
         )
-    elif attrs["kernel_size"] == 3 and attrs["layout"] == "NHWC":
-        strategy.add_implementation(
-            wrap_compute_sparse_conv2d(topi.x86.spconv2d_3x3_nhwc),
-            wrap_topi_schedule(topi.x86.schedule_spconv2d_3x3_nhwc),
-            name="conv3x3_spNHWC.x86",
-        )
+    elif attrs["kernel_size"] == 3:
+        if attrs["layout"] == "NHWC":
+            strategy.add_implementation(
+                wrap_compute_sparse_conv2d(topi.x86.spconv2d_3x3_nhwc),
+                wrap_topi_schedule(topi.x86.schedule_spconv2d_3x3_nhwc),
+                name="conv3x3_spNHWC.x86",
+            )
+        elif attrs["layout"] == "NCHW":
+            strategy.add_implementation(
+                wrap_compute_sparse_conv2d(topi.x86.spconv2d_3x3_nchw),
+                wrap_topi_schedule(topi.x86.schedule_spconv2d_3x3_nchw),
+            )
     return strategy
 
 
