@@ -373,9 +373,10 @@ class TVM_DLL GraphExecutor : public ModuleNode {
         bitmask |= 4;
       } else if (key == "heads") {
         reader->Read(&outputs_);
-        std::sort(
-            outputs_.begin(), outputs_.end(),
-            [&](const NodeEntry& a, const NodeEntry& b) -> bool { return a.node_id < b.node_id; });
+        std::sort(outputs_.begin(), outputs_.end(),
+                  [&](const NodeEntry& a, const NodeEntry& b) -> bool {
+                    return a.node_id == b.node_id ? a.index < b.index : a.node_id < b.node_id;
+                  });
         bitmask |= 8;
       } else if (key == "attrs") {
         reader->Read(&attrs_);
