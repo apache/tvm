@@ -36,9 +36,10 @@ namespace relay {
 TVM_REGISTER_NODE_TYPE(BitPackAttrs);
 
 template <typename T>
-InferCorrectLayoutOutput BinaryConv2DInferCorrectLayout(
-    const Attrs& attrs, const Array<Layout>& new_in_layouts, const Array<Layout>& old_in_layouts,
-    const Array<tvm::relay::Type>& old_in_types) {
+InferCorrectLayoutOutput BinaryConvInferCorrectLayout(const Attrs& attrs,
+                                                      const Array<Layout>& new_in_layouts,
+                                                      const Array<Layout>& old_in_layouts,
+                                                      const Array<tvm::relay::Type>& old_in_types) {
   const T* params = attrs.as<T>();
 
   // We always make other operators to fit the layouts of convolution layers
@@ -114,6 +115,84 @@ efficient implementation of bitserial operations.
     .add_argument("data", "Tensor", "Input data.")
     .set_support_level(2)
     .add_type_rel("BitPack", BitPackRel);
+
+// relay.nn.bitserial_conv1d
+TVM_REGISTER_NODE_TYPE(BinaryConv1DAttrs);
+
+bool BinaryConv1DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                     const TypeReporter& reporter) {
+  ICHECK_EQ(types.size(), 3);
+  const auto* data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) return false;
+
+  const BinaryConv1DAttrs* param = attrs.as<BinaryConv1DAttrs>();
+  ICHECK(param != nullptr);
+
+  static const Layout kNCW("NCW");
+
+  const Layout in_layout(param->data_layout);
+  const auto trans_in_layout = tir::BijectiveLayout(in_layout, kNCW);
+  Array<IndexExpr> dshape_ncw = trans_in_layout.ForwardShape(data->shape);
+  ICHECK(param->channels.defined());
+  ICHECK(param->kernel_size.defined());
+  Array<IndexExpr> oshape({dshape_ncw[0], param->channels, 0});
+  IndexExpr pad_w;
+  GetPaddingWidth(param->padding, &pad_w);
+  oshape.Set(2, (dshape_ncw[2] + pad_w - param->kernel_size[0]) / param->strides[0] + 1);
+  DataType out_dtype = param->out_dtype;
+  oshape = trans_in_layout.BackwardShape(oshape);
+  // assign output type
+  reporter->Assign(types[2], TensorType(oshape, out_dtype));
+  return true;
+}
+
+// Positional relay function to create binaryconv1d operator
+// used by frontend FFI.
+Expr MakeBinaryConv1D(Expr data, Expr weight, Array<IndexExpr> strides, Array<IndexExpr> padding,
+                      IndexExpr channels, Array<IndexExpr> kernel_size, int activation_bits,
+                      int weight_bits, String data_layout, String kernel_layout,
+                      DataType pack_dtype, DataType out_dtype, bool unipolar) {
+  auto attrs = make_object<BinaryConv1DAttrs>();
+  attrs->strides = std::move(strides);
+  attrs->padding = std::move(padding);
+  attrs->channels = std::move(channels);
+  attrs->kernel_size = std::move(kernel_size);
+  attrs->activation_bits = activation_bits;
+  attrs->weight_bits = weight_bits;
+  attrs->data_layout = std::move(data_layout);
+  attrs->kernel_layout = std::move(kernel_layout);
+  attrs->pack_dtype = std::move(pack_dtype);
+  attrs->out_dtype = std::move(out_dtype);
+  attrs->unipolar = unipolar;
+  static const Op& op = Op::Get("nn.bitserial_conv1d");
+  return Call(op, {data, weight}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op.nn._make.bitserial_conv1d").set_body_typed(MakeBinaryConv1D);
+
+RELAY_REGISTER_OP("nn.bitserial_conv1d")
+    .describe(R"code(1D convolution using packed binary computation.
+
+This layer creates a convolution kernel that is convolved with the
+layer input using bitserial computation. This enables faster processing
+on some platforms.
+
+- **data**:   3D input tensor that can be either `NCW` or `NWC` layout.
+
+- **weight**: Weight tensor that can either be prepacked (4D) or unpacked (3D).
+              When data is NCW, weight is expected to be OIW or OIWi.
+              When data is NWC weight is expected to be WIO or WIOi.
+
+- **out**:    Output with same layout as input.
+)code" TVM_ADD_FILELINE)
+    .set_attrs_type<BinaryConv1DAttrs>()
+    .set_num_inputs(2)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("weight", "Tensor", "The weight tensor.")
+    .set_support_level(2)
+    .add_type_rel("BinaryConv1D", BinaryConv1DRel)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
+                                   BinaryConvInferCorrectLayout<BinaryConv1DAttrs>);
 
 // relay.nn.bitserial_conv2d
 TVM_REGISTER_NODE_TYPE(BinaryConv2DAttrs);
@@ -192,7 +271,7 @@ on some platforms.
     .set_support_level(2)
     .add_type_rel("BinaryConv2D", BinaryConv2DRel)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
-                                   BinaryConv2DInferCorrectLayout<BinaryConv2DAttrs>);
+                                   BinaryConvInferCorrectLayout<BinaryConv2DAttrs>);
 
 // relay.nn.bitserial_dense
 TVM_REGISTER_NODE_TYPE(BinaryDenseAttrs);

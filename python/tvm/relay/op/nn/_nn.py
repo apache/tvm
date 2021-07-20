@@ -849,6 +849,32 @@ reg.register_schedule("nn.bitpack", strategy.schedule_bitpack)
 reg.register_pattern("nn.bitpack", OpPattern.INJECTIVE)
 
 
+# bitserial_conv1d
+reg.register_strategy("nn.bitserial_conv1d", strategy.bitserial_conv1d_strategy)
+reg.register_pattern("nn.bitserial_conv1d", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
+@reg.register_legalize("nn.bitserial_conv1d")
+def legalize_bitserial_conv1d(attrs, inputs, types):
+    """Legalize bitserial_conv1d op.
+
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current convolution
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    types : list of types
+        List of input and output types
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The legalized expr
+    """
+    return topi.nn.bitserial_conv1d_legalize(attrs, inputs, types)
+
+
 # bitserial_conv2d
 reg.register_strategy("nn.bitserial_conv2d", strategy.bitserial_conv2d_strategy)
 reg.register_pattern("nn.bitserial_conv2d", OpPattern.OUT_ELEMWISE_FUSABLE)

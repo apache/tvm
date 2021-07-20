@@ -1723,6 +1723,17 @@ def test_depthwise_conv2d_int8():
 
 
 @tvm.testing.uses_gpu
+def test_bitserial_conv1d_infer_type():
+    # Basic shape test with ambiguous batch.
+    n, c, w = te.size_var("n"), 32, 224
+    x = relay.var("x", relay.ty.TensorType((n, c, w), "int16"))
+    w = relay.var("w", relay.ty.TensorType((32, 32, 3), "int16"))
+    y = relay.nn.bitserial_conv1d(x, w, kernel_size=(3,), padding=(0,), channels=32)
+    yy = run_infer_type(y)
+    assert yy.checked_type == relay.TensorType((n, 32, 222), "int16")
+
+
+@tvm.testing.uses_gpu
 def test_bitserial_conv2d_infer_type():
     # Basic shape test with ambiguous batch.
     n, c, h, w = te.size_var("n"), 32, 224, 224
@@ -1877,6 +1888,7 @@ if __name__ == "__main__":
     test_conv3d_run()
     test_conv3d_ndhwc_run()
     test_conv3d_winograd()
+    test_bitserial_conv1d_infer_type()
     test_bitserial_conv2d_infer_type()
     test_batch_flatten()
     test_upsampling()
