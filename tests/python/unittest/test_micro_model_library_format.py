@@ -27,6 +27,7 @@ import pytest
 import tvm
 import tvm.relay
 from tvm.relay.backend import executor_factory
+from tvm.relay.testing import byoc
 import tvm.runtime.module
 import tvm.testing
 from tvm.contrib import utils
@@ -343,6 +344,68 @@ def test_export_non_dso_exportable():
         assert str(exc.exception) == (
             "Don't know how to export non-c or non-llvm modules; found: ffi_testing"
         )
+
+
+@tvm.testing.requires_micro
+def test_export_byoc_c_module():
+    """Test BYOC flow when it produces DSO-exportable modules.
+
+    NOTE the general BYOC flow is not fully supported by Model Library Format right now.
+    """
+    x = tvm.relay.var("x", shape=(10, 10))
+    w0 = tvm.relay.var("w0", shape=(10, 10))
+    w1 = tvm.relay.var("w1", shape=(10, 10))
+    w2 = tvm.relay.var("w2", shape=(10, 10))
+    w3 = tvm.relay.var("w3", shape=(10, 10))
+    w4 = tvm.relay.var("w4", shape=(10, 10))
+    w5 = tvm.relay.var("w5", shape=(10, 10))
+    w6 = tvm.relay.var("w6", shape=(10, 10))
+    w7 = tvm.relay.var("w7", shape=(10, 10))
+
+    # C compiler
+    z0 = tvm.relay.add(x, w0)
+    p0 = tvm.relay.subtract(z0, w1)
+    q0 = tvm.relay.multiply(p0, w2)
+
+    z1 = tvm.relay.add(x, w3)
+    p1 = tvm.relay.subtract(z1, w4)
+    q1 = tvm.relay.multiply(p1, w5)
+
+    # Other parts on TVM
+    z2 = tvm.relay.add(x, w6)
+    q2 = tvm.relay.subtract(z2, w7)
+
+    r = tvm.relay.concatenate((q0, q1, q2), axis=0)
+    f = tvm.relay.Function([x, w0, w1, w2, w3, w4, w5, w6, w7], r)
+    mod = tvm.IRModule()
+    ann = byoc.CcompilerAnnotator()
+    mod["main"] = ann.visit(f)
+    mod = tvm.relay.transform.PartitionGraph("mod_name")(mod)
+    mod = tvm.relay.transform.InferType()(mod)
+
+
+    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
+        factory = tvm.relay.build(mod, tvm.target.target.micro("host"))
+
+    temp_dir = utils.tempdir()
+    mlf_tar_path = temp_dir.relpath("lib.tar")
+
+    from tvm import micro
+    micro.export_model_library_format(factory, mlf_tar_path)
+
+    with tarfile.open(mlf_tar_path, "r:*") as tf:
+        tar_members = [ti.name for ti in tf.getmembers()]
+        print("tar members", tar_members)
+        assert './metadata.json' in tar_members
+        with tf.extractfile("./metadata.json") as f:
+            metadata = json.load(f)
+        main_md = metadata["memory"]["functions"]["main"]
+        assert main_md == [{
+            "constants_size_bytes": 0,
+            "device": 1,
+            "io_size_bytes": 4800,
+            "workspace_size_bytes": 800,
+        }]
 
 
 if __name__ == "__main__":

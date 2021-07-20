@@ -170,9 +170,12 @@ def _build_function_memory_map(function_metadata):
             target_local_entries[func_name] = list()
 
         for func_name, finfo in function_metadata.items():
-            if func_name == MAIN_FUNC_NAME_STR:
+            # Skip a few unsupported cases:
+            # 1. The main function metadata is exported elsewhere.
+            # 2. BYOC operator implementations do not currently export useful FunctionInfo.
+            if func_name == MAIN_FUNC_NAME_STR or not finfo.tir_primfuncs:
                 continue
-            assert len(finfo.constant_sizes.items()) == num_targets
+            assert len(finfo.constant_sizes.items()) == num_targets, f"{func_name}: found {finfo.constant_sizes!r} vs {num_targets}"
             assert len(finfo.io_sizes.items()) == num_targets
             target = finfo.workspace_sizes.items()[i][0]
             workspace_size = finfo.workspace_sizes.items()[i][1]
