@@ -41,24 +41,24 @@ using runtime::StorageScope;
 class StorageAccessInfoLower : public StmtExprMutator {
  public:
   Stmt VisitStmt_(const AllocateNode* op) final {
-    // Lower allocate to device allocate when needed.
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    op = stmt.as<AllocateNode>();
     auto scope = StorageScope::Create(GetPtrStorageScope(op->buffer_var));
-    ICHECK(storage_info_.find(op->buffer_var.get()) == storage_info_.end())
-        << "Double allocation of " << scope.to_string();
     if (scope.tag.length() != 0) {
       auto info = GetMemoryInfo(GetPtrStorageScope(op->buffer_var));
       ICHECK(info.defined()) << "Cannot find memory info of " << scope.to_string();
+      ICHECK(storage_info_.find(op->buffer_var.get()) == storage_info_.end())
+          << "Double allocation of " << scope.to_string();
       storage_info_[op->buffer_var.get()] = info;
 
+      // Lower allocate to device allocate when needed.
+      Stmt stmt = StmtExprMutator::VisitStmt_(op);
+      op = stmt.as<AllocateNode>();
       if (info->head_address.defined()) {
         return LetStmt(op->buffer_var, info->head_address, op->body);
       } else {
         return op->body;
       }
     } else {
-      return stmt;
+      return StmtExprMutator::VisitStmt_(op);
     }
   }
 
