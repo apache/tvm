@@ -119,7 +119,12 @@ PrimFunc MakePackedAPI(PrimFunc&& func, int num_unpacked_args) {
   const Stmt nop = Evaluate(0);
   int num_args = static_cast<int>(func_ptr->params.size());
   ICHECK_LE(num_unpacked_args, num_args);
-
+  bool pack_args = (num_unpacked_args == -1) || (num_args > num_unpacked_args);
+  if (num_unpacked_args == -1) {
+    // reset to zero
+    num_unpacked_args = 0;
+  }
+  ICHECK_GE(num_unpacked_args, 0);
   int num_packed_args = num_args - num_unpacked_args;
   // Data field definitions
   // The packed fields
@@ -154,11 +159,10 @@ PrimFunc MakePackedAPI(PrimFunc&& func, int num_unpacked_args) {
     }
     return res;
   };
-
   // ---------------------------
   // start of logics
   // add signiture for packed arguments.
-  if (num_packed_args != 0) {
+  if (pack_args) {
     args.push_back(v_packed_args);
     args.push_back(v_packed_arg_type_ids);
     args.push_back(v_num_packed_args);
@@ -214,13 +218,13 @@ PrimFunc MakePackedAPI(PrimFunc&& func, int num_unpacked_args) {
   }
 
   // allow return value if the function is packed.
-  if (num_packed_args != 0) {
+  if (pack_args) {
     args.push_back(v_out_ret_value);
     args.push_back(v_out_ret_tcode);
     args.push_back(v_resource_handle);
   }
 
-  size_t expected_nargs = num_unpacked_args + (num_packed_args != 0 ? 6 : 0);
+  size_t expected_nargs = num_unpacked_args + (pack_args ? 6 : 0);
   ICHECK_EQ(args.size(), expected_nargs);
 
   // Arg definitions are defined before buffer binding to avoid the use before
@@ -282,6 +286,7 @@ PrimFunc MakePackedAPI(PrimFunc&& func, int num_unpacked_args) {
 namespace transform {
 
 Pass MakePackedAPI(int num_unpacked_args) {
+  // packed arguments anyway while `num_unpacked_args` is -1
   auto pass_func = [num_unpacked_args](IRModule m, PassContext ctx) {
     IRModuleNode* mptr = m.CopyOnWrite();
     std::vector<std::pair<GlobalVar, PrimFunc> > updates;
