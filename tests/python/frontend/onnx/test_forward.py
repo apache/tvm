@@ -2675,9 +2675,8 @@ def test_convtranspose():
     def repeat(N, D):
         return tuple([N for _ in range(D)])
 
-    # TODO(mbrookhart): onnxruntime in CI only supports 2D, and 1D and 3D
     # Once onnxruntime update is complete
-    for D in [2]:
+    for D in [1, 2, 3]:
         # Convolution with padding
         verify_convtranspose_with_padding(
             (1, 1) + repeat(5, D),
@@ -2706,38 +2705,36 @@ def test_convtranspose():
             repeat(1, D),
             True,
         )
-        ## TODO(mbrookhart): renable autopad tests when CI ONNX
-        ## and ONNX runtime match versions
-        # # Convolution with autopadding
-        # verify_convtranspose_with_padding(
-        #     (1, 1) + repeat(5, D),
-        #     (1, 1) + repeat(3, D),
-        #     None,
-        #     repeat(3, D),
-        #     repeat(1, D),
-        #     repeat(1, D),
-        #     auto_pad="SAME_UPPER",
-        # )
-        # # Convolution with valid autopadding
-        # verify_convtranspose_with_padding(
-        #     (1, 1) + repeat(5, D),
-        #     (1, 1) + repeat(3, D),
-        #     None,
-        #     repeat(3, D),
-        #     repeat(1, D),
-        #     repeat(1, D),
-        #     auto_pad="VALID",
-        # )
-        # # Convolution with non uniform stride
-        # verify_convtranspose_with_padding(
-        #     (1, 1) + repeat(5, D),
-        #     (1, 1) + repeat(3, D),
-        #     None,
-        #     repeat(3, D),
-        #     repeat(2, D),
-        #     repeat(1, D),
-        #     auto_pad="SAME_UPPER",
-        # )
+        # Convolution with autopadding
+        verify_convtranspose_with_padding(
+            (1, 1) + repeat(5, D),
+            (1, 1) + repeat(3, D),
+            None,
+            repeat(3, D),
+            repeat(1, D),
+            repeat(1, D),
+            auto_pad="SAME_UPPER",
+        )
+        # Convolution with valid autopadding
+        verify_convtranspose_with_padding(
+            (1, 1) + repeat(5, D),
+            (1, 1) + repeat(3, D),
+            None,
+            repeat(3, D),
+            repeat(1, D),
+            repeat(1, D),
+            auto_pad="VALID",
+        )
+        # Convolution with non uniform stride
+        verify_convtranspose_with_padding(
+            (1, 1) + repeat(5, D),
+            (1, 1) + repeat(3, D),
+            None,
+            repeat(3, D),
+            repeat(2, D),
+            repeat(1, D),
+            auto_pad="SAME_UPPER",
+        )
         # Convolution with dilation
         # TODO(mbrookhart): Relay doesn't currently support convtranspose with dilation
         # verify_convtranspose_with_padding(
@@ -3597,17 +3594,14 @@ def test_resize():
             verify([1, 16] + [32] * ndim, [], [1, 1] + [0.5] * ndim, method, coord_trans)
             verify([1, 16] + [32] * ndim, [], [1, 1] + [2] * ndim, method, coord_trans)
 
-        if ndim == 2:
-            ## TODO(mbrookhart): ONNX Runtime in CI only supports 2D linear resize
-            ## Remove this condition when updating CI
-            method = "linear"
-            # upsampling
-            verify([1, 16] + [32] * ndim, [1, 16] + [64] * ndim, [], method)
-            # downsampling
-            verify([1, 16] + [32] * ndim, [1, 16] + [16] * ndim, [], method)
-            # scales are specified instead of sizes
-            verify([1, 16] + [32] * ndim, [], [1, 1] + [0.5] * ndim, method)
-            verify([1, 16] + [32] * ndim, [], [1, 1] + [2] * ndim, method)
+        method = "linear"
+        # upsampling
+        verify([1, 16] + [32] * ndim, [1, 16] + [64] * ndim, [], method)
+        # downsampling
+        verify([1, 16] + [32] * ndim, [1, 16] + [16] * ndim, [], method)
+        # scales are specified instead of sizes
+        verify([1, 16] + [32] * ndim, [], [1, 1] + [0.5] * ndim, method)
+        verify([1, 16] + [32] * ndim, [], [1, 1] + [2] * ndim, method)
 
         if ndim == 2:
             # ONNX Runtime only supports cubic interpolation for 2D images
