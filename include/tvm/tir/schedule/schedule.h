@@ -196,6 +196,25 @@ class ScheduleNode : public runtime::Object {
    */
   virtual Array<LoopRV> GetLoops(const BlockRV& block_rv) = 0;
   /******** Schedule: loops manipulation ********/
+  /*!
+   * \brief Fuse a list of consecutive loops into one. It requires:
+   * 1) The loops can't have annotations or thread bindings.
+   * 2) The (i+1)-th loop must be the only child of the i-th loop.
+   * 3) All loops must start with 0.
+   * \param loop_rvs The loops to be fused
+   * \return The new loop after fusion
+   */
+  virtual LoopRV Fuse(const Array<LoopRV>& loop_rvs) = 0;
+  /*!
+   * \brief Split a loop into a list of consecutive loops. It requires:
+   * 1) The loop can't have annotation or thread binding.
+   * 2) The loop must start with 0.
+   * \param loop_rv The loop to be split
+   * \param factors The tiling factors, and at most one of which is -1, which means that
+   * factor is inferred.
+   * \return The new loops after split
+   */
+  virtual Array<LoopRV> Split(const LoopRV& loop_rv, const Array<Optional<ExprRV>>& factors) = 0;
   /******** Schedule: compute location ********/
   /*!
    * \brief Inline a block into its consumer(s). It requires:

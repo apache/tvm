@@ -68,6 +68,8 @@ class ConcreteScheduleNode : public ScheduleNode {
   inline PrimExpr Get(const ExprRV& expr_rv) const final;
   inline StmtSRef GetSRef(const BlockRV& block_rv) const final;
   inline StmtSRef GetSRef(const LoopRV& loop_rv) const final;
+  inline Array<StmtSRef> GetSRefs(const Array<BlockRV>& rvs) const;
+  inline Array<StmtSRef> GetSRefs(const Array<LoopRV>& rvs) const;
   void RemoveRV(const BlockRV& block_rv) final { RemoveFromSymbolTable(block_rv); }
   void RemoveRV(const LoopRV& loop_rv) final { RemoveFromSymbolTable(loop_rv); }
   void RemoveRV(const ExprRV& expr_rv) final { RemoveFromSymbolTable(expr_rv); }
@@ -78,6 +80,8 @@ class ConcreteScheduleNode : public ScheduleNode {
   BlockRV GetBlock(const String& name, const String& func_name = "main") override;
   Array<LoopRV> GetLoops(const BlockRV& block_rv) override;
   /******** Schedule: loops manipulation ********/
+  LoopRV Fuse(const Array<LoopRV>& loop_rvs) override;
+  Array<LoopRV> Split(const LoopRV& loop_rv, const Array<Optional<ExprRV>>& factors) override;
   /******** Schedule: compute location ********/
   void ComputeInline(const BlockRV& block) override;
   void ReverseComputeInline(const BlockRV& block) override;
@@ -143,17 +147,16 @@ inline For ConcreteScheduleNode::Get(const LoopRV& loop_rv) const {
 }
 
 inline PrimExpr ConcreteScheduleNode::Get(const ExprRV& expr_rv) const {
-  auto it = this->symbol_table_.find(expr_rv);
-  if (it == this->symbol_table_.end()) {
-    LOG(FATAL) << "IndexError: Cannot find corresponding ExprRV: " << expr_rv;
-  }
-  const ObjectRef& obj = (*it).second;
-  const auto* expr_node = obj.as<PrimExprNode>();
-  if (expr_node == nullptr) {
-    LOG(FATAL) << "ValueError: ExprRV's corresponding type is invalid: "
-               << (obj.defined() ? obj->GetTypeKey() : "None");
-  }
-  return GetRef<PrimExpr>(expr_node);
+  PrimExpr transformed = Substitute(expr_rv, [this](const Var& var) -> Optional<PrimExpr> {
+    auto it = this->symbol_table_.find(var);
+    if (it == this->symbol_table_.end()) {
+      LOG(FATAL) << "IndexError: Cannot find corresponding ExprRV: " << var;
+    }
+    const ObjectRef& obj = (*it).second;
+    const auto* int_imm = TVM_TYPE_AS(int_imm, obj, IntImmNode);
+    return Integer(int_imm->value);
+  });
+  return this->analyzer_->Simplify(transformed);
 }
 
 inline StmtSRef ConcreteScheduleNode::GetSRef(const BlockRV& block_rv) const {
@@ -196,6 +199,24 @@ inline StmtSRef ConcreteScheduleNode::GetSRef(const LoopRV& loop_rv) const {
     LOG(FATAL) << "ValueError: The StmtSRef has expired";
   }
   return GetRef<StmtSRef>(sref);
+}
+
+template <class T>
+inline Array<StmtSRef> GetSRefsHelper(const ConcreteScheduleNode* sch, const Array<T>& rvs) {
+  Array<StmtSRef> result;
+  result.reserve(rvs.size());
+  for (const T& rv : rvs) {
+    result.push_back(sch->GetSRef(rv));
+  }
+  return result;
+}
+
+inline Array<StmtSRef> ConcreteScheduleNode::GetSRefs(const Array<BlockRV>& rvs) const {
+  return GetSRefsHelper(this, rvs);
+}
+
+inline Array<StmtSRef> ConcreteScheduleNode::GetSRefs(const Array<LoopRV>& rvs) const {
+  return GetSRefsHelper(this, rvs);
 }
 
 /******** Adding/Removing elements in the symbol table ********/
