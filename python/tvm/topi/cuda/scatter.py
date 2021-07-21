@@ -772,7 +772,9 @@ def scatter_nd(data, indices, updates, mode):
         updates = ib.buffer_ptr(updates_ptr)
         out = ib.buffer_ptr(out_ptr)
 
-        atomic_add_return = ib.allocate(updates.dtype, (1,), name="atomic_add_return", scope="local")
+        atomic_add_return = ib.allocate(
+            updates.dtype, (1,), name="atomic_add_return", scope="local"
+        )
 
         fused_indices_dimension = 1
         for i in indices_ptr.shape[1:]:
@@ -785,6 +787,17 @@ def scatter_nd(data, indices, updates, mode):
         fused_shape = 1
         for i in data_ptr.shape:
             fused_shape *= i
+
+        # For now we avoid parallizing over dimensions indexed by `indices` as
+        # there may be repeated indices and hadling parallel accumulation can
+        # be hard. So we parallelize over X_M .. X_{N-1} instead. This will
+        # work well when these dimensions are large enough to saturate memory
+        # bandwidth, but performance will be bad when these dimensions are
+        # small.
+
+        # For better performance, we introduce blockIdx.y to implement for-loops
+        # within one thread.
+        # Atomic_add guarantees correctness when mode=="add"
 
         max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
         tdim = min(max_threads, fused_updates_dimension)
@@ -814,14 +827,18 @@ def scatter_nd(data, indices, updates, mode):
             with ib.if_scope(j < fused_updates_dimension):
                 offset = fused_updates_dimension
                 index = j
+                up_index = by * fused_updates_dimension + j
                 for l in reversed(range(indices_ptr.shape[0].value)):
                     # indices[by * l * fused_indices_dimension] = indices[l, y_0, ... y_{k-1}]
                     index += offset * indices[by + l * fused_indices_dimension]
                     offset *= data_ptr.shape[l]
                 if mode == "update":
-                    out[index] = updates[by * fused_updates_dimension + j]
+                    out[index] = updates[up_index]
                 elif mode == "add":
-                    atomic_add_return[0] = atomic_add(tvm.tir.call_intrin("handle", "tir.address_of", out[index]), updates[by * fused_updates_dimension + j])
+                    atomic_add_return[0] = atomic_add(
+                        tvm.tir.call_intrin("handle", "tir.address_of", out[index]),
+                        updates[up_index],
+                    )
                 else:
                     raise NotImplementedError("scatter_nd mode not in [update, add]:", mode)
 
