@@ -1439,8 +1439,8 @@ def test_extern_opt():
     tvm.testing.assert_allclose(t0.body.data.numpy(), expected, rtol=1e-5, atol=1e-5)
 
 
-# Test to make sure type definition and imports are preserved during the BYOC pipeline
-def test_static_tensor_array_gather_partition():
+def test_preserve_type_import():
+    """Test to make sure type definition and imports are preserved during the BYOC pipeline"""
     from tvm.relay.prelude import Prelude, StaticTensorArrayOps
 
     def run(dtype, shape):
