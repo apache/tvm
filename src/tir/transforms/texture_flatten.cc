@@ -52,21 +52,6 @@ class TextureLoweringBase : public StmtExprMutator {
     }
   }
 
-  virtual Stmt VisitStmt_(const AttrStmtNode* op) {
-    if (op->attr_key == attr::realize_scope) {
-      std::string realize_scope = op->value.as<StringImmNode>()->value;
-      // If realize_scope for external buffer is unset, infer from buffer scope
-      if (realize_scope == "" && op->body->IsInstance<BufferRealizeNode>()) {
-        const auto* realize = Downcast<BufferRealize>(op->body).get();
-        if (extern_buf_.count(realize->buffer)) {
-          realize_scope = realize->buffer->scope;
-        }
-      }
-      storage_scope_[op->node.get()] = realize_scope;
-    }
-    return StmtExprMutator::VisitStmt_(op);
-  }
-
   inline PrimExpr SimplifyOffset(const Array<PrimExpr>& shape, const Array<PrimExpr>& index) const {
     PrimExpr base = make_const(DataType::Int(32), 0);
     ICHECK_EQ(shape.size(), index.size());
@@ -82,27 +67,13 @@ class TextureLoweringBase : public StmtExprMutator {
 
  protected:
   std::string GetStorageScope(const Buffer& buffer) {
-    std::string storage_scope;
-    auto it = storage_scope_.find(buffer.get());
-    // If buffer has a realize_scope attr return it
-    if (it != storage_scope_.end()) {
-      storage_scope = it->second;
-    } else {
-      storage_scope = buffer->scope;
-      if (storage_scope == "global" || storage_scope == "") {
-        if (auto* ptr = buffer->data->type_annotation.as<PointerTypeNode>()) {
-          storage_scope = ptr->storage_scope;
-        }
-      }
-    }
-    return storage_scope;
+    auto* ptr = buffer->data->type_annotation.as<PointerTypeNode>();
+    ICHECK(ptr) << "Buffer Var's type annotation must be of PointerType";
+    return ptr->storage_scope;
   }
 
   // Set of all external input and output buffers
   std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual> extern_buf_;
-  // Map to track the storage scope of buffer realization and the
-  //  buffer directly.
-  std::unordered_map<const Object*, std::string> storage_scope_;
   // Bound analzer
   IRVisitorWithAnalyzer* bound_analyzer_;
 };
@@ -114,10 +85,8 @@ class TextureFlattener : public TextureLoweringBase {
   using StmtExprMutator::VisitStmt_;
   explicit TextureFlattener(
       const Map<Var, Buffer>& extern_buffer_map,
-      const std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual>& extern_buffer_binds_,
       IRVisitorWithAnalyzer* bound_analyzer)
-      : TextureLoweringBase(extern_buffer_map, bound_analyzer),
-        buffer_binds_(extern_buffer_binds_) {}
+      : TextureLoweringBase(extern_buffer_map, bound_analyzer) {}
 
   Stmt VisitStmt_(const BufferRealizeNode* op) final {
     if (extern_buf_.count(op->buffer)) {
@@ -172,15 +141,10 @@ class TextureFlattener : public TextureLoweringBase {
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
     PrimExpr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<BufferLoadNode>();
-    // Replace with identitcal external buffer if one exists
-    auto buffer = op->buffer;
-    if (buffer_binds_.count(op->buffer)) {
-      buffer = buffer_binds_[op->buffer];
-    }
     // Lower to two dimensional access
-    std::string storage_scope = GetStorageScope(buffer);
+    std::string storage_scope = GetStorageScope(op->buffer);
     if (IsTextureStorage(storage_scope)) {
-      Array<PrimExpr> args = GetTextureAccessArgs(op, buffer);
+      Array<PrimExpr> args = GetTextureAccessArgs(op, op->buffer);
       args.push_back(op->indices.back());
       expr = Call(op->buffer->dtype, builtin::texture2d_load(), args);
     }
@@ -216,119 +180,13 @@ class TextureFlattener : public TextureLoweringBase {
 
   // Bindings to new texture vars with texture pointer scope
   std::unordered_map<Var, PrimExpr, ObjectPtrHash, ObjectPtrEqual> let_binding_;
-  // Bindings from realized buffers to external buffers when the memory transfer
-  // to the realized buffer can be cancelled
-  std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual> buffer_binds_;
-};
-
-// Populate bindings from internal buffers to external ones of the same scope
-// when it can be proven that the intermediate buffer access is identical
-// to the external access. This can allow for cache_read/write cancellation
-// when the external buffers are identical to the realized ones. Currently doesn't
-// support forwarding external buffers when the realized buffer is conditionally
-// loaded due to padding and other possible access modifying expressions.
-class ExternalBufferForwarding : public TextureLoweringBase {
- public:
-  explicit ExternalBufferForwarding(const Map<Var, Buffer>& extern_buffer_map,
-                                    IRVisitorWithAnalyzer* bound_analyzer)
-      : TextureLoweringBase(extern_buffer_map, bound_analyzer) {}
-
-  Stmt VisitStmt_(const AttrStmtNode* op) final {
-    Stmt stmt = TextureLoweringBase::VisitStmt_(op);
-    if (op->attr_key == attr::realize_scope) {
-      if (op->body->IsInstance<BufferRealizeNode>()) {
-        const auto* realize = Downcast<BufferRealize>(op->body).get();
-        std::string realize_scope = GetStorageScope(realize->buffer);
-        if (IsTextureStorage(realize_scope) && extern_buffer_copy_.count(realize->buffer)) {
-          return realize_attrs_.back();
-        } else {
-          if (realize_attrs_.size()) {
-            realize_attrs_.pop_back();
-          }
-          realize_attrs_.push_back(stmt);
-        }
-        return stmt;
-      }
-    }
-
-    return stmt;
-  }
-
-  Stmt VisitStmt_(const BufferStoreNode* op) final {
-    ICHECK_EQ(external_loads_.size(), 0) << "Found external loads bound to a different store";
-    if (auto* call_node = op->value.as<CallNode>()) {
-      // Path to supporting external cache_read canceling when padding has induced
-      // a conditional load into the cache_read buffer. We may be able to elide the
-      // conditional completely due to hardware support for returning 0 when OOB
-      if (call_node->op.same_as(builtin::if_then_else())) {
-        external_loads_.emplace_back();
-      }
-    }
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    op = stmt.as<BufferStoreNode>();
-
-    auto check_identity = [this](const BufferStoreNode* store, const BufferLoad& load) {
-      if (extern_buf_.count(load->buffer)) {
-        // If the buffer to load and the buffer to store to are both texture
-        // check for identical access
-        if (IsTextureStorage(GetStorageScope(load->buffer)) &&
-            IsTextureStorage(GetStorageScope(store->buffer))) {
-          auto store_index = SimplifyOffset(store->buffer->shape, store->indices);
-          auto load_index = SimplifyOffset(load->buffer->shape, load->indices);
-          if (arith::Analyzer().CanProve(store_index == load_index)) {
-            extern_buffer_copy_.insert(store->buffer);
-            buffer_map_.insert({store->buffer, load->buffer});
-          }
-        }
-      }
-    };
-
-    if (auto load_node = op->value.as<BufferLoadNode>()) {
-      check_identity(op, GetRef<BufferLoad>(load_node));
-    } else if (external_loads_.size()) {
-      // Stored value is not a load, check for external loads collected
-      // when visiting the store node's value, e.g. from if_then_else
-      for (auto& expr : external_loads_.back()) {
-        check_identity(op, Downcast<BufferLoad>(expr));
-      }
-      external_loads_.pop_back();
-    }
-    return stmt;
-  }
-
-  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
-    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
-    if (external_loads_.size() && extern_buf_.count(op->buffer)) {
-      external_loads_.back().push_back(expr);
-    }
-    return expr;
-  }
-
-  const std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual>& GetForwardedBuffers() {
-    return buffer_map_;
-  }
-
- private:
-  // List of realize_attrs used to mark the last valid attr stmt to use when rewriting
-  // the AST to remove any unecessary buffer realization.
-  std::deque<Stmt> realize_attrs_;
-  // Set of buffers which are identical to external buffers and are copied into.
-  std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual> extern_buffer_copy_;
-  // Binding from internal identical realized buffer and external buffer.
-  std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual> buffer_map_;
-  // Active set of loads on external buffers contained in the scope of a buffer
-  // realize node.
-  std::vector<std::vector<PrimExpr>> external_loads_;
 };
 
 PrimFunc TextureFlatten(PrimFunc func) {
   auto fptr = func.CopyOnWrite();
   IRVisitorWithAnalyzer bound_analyzer;
   bound_analyzer(fptr->body);
-  ExternalBufferForwarding forward(fptr->buffer_map, &bound_analyzer);
-  fptr->body = forward(std::move(fptr->body));
-  fptr->body = TextureFlattener(fptr->buffer_map, forward.GetForwardedBuffers(),
-                                &bound_analyzer)(std::move(fptr->body));
+  fptr->body = TextureFlattener(fptr->buffer_map, &bound_analyzer)(std::move(fptr->body));
   return func;
 }
 
