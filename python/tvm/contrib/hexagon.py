@@ -185,7 +185,6 @@ def lower_vtcm_(get_alloc, get_free, def_align, func, mod, ctx):  # pylint: disa
             if scope == "local.vtcm":
                 vtcm_buffers.append(stmt.node)
 
-
     def mutate(stmt):
         """Insert calls to VTCM allocation and deallocation routines."""
         if isinstance(stmt, tvm.tir.AttrStmt):
