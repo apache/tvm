@@ -1959,7 +1959,7 @@ def test_scatter_nd(target, dev):
     out[1, :] += updates[0, :]
     out[0, :] += updates[1, :]
     out[0, :] += updates[2, :]
-    verify_scatter_nd(data, indices, updates, out)
+    verify_scatter_nd(data, indices, updates, out, mode="add")
     verify_scatter_nd_with_stack(data, indices, updates, out)
 
     for mode in ["add", "update"]:
