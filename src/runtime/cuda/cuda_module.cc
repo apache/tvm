@@ -201,7 +201,7 @@ class CUDAWrappedFunc {
   // Device function cache per device.
   // mark as mutable, to enable lazy initialization
   mutable std::array<CUfunction, kMaxNumGPUs> fcache_;
-  // thread axis configuration
+  // launch parameters configuration
   LaunchParamConfig launch_param_config_;
 };
 

@@ -73,11 +73,10 @@ class VulkanWrappedFunc {
   size_t num_buffer_args_;
   // number of packed arguments.
   size_t num_pack_args_;
+  // launch parameters configuration
+  LaunchParamConfig launch_param_config_;
   // Device state cache per device.
   // mark as mutable, to enable lazy initialization
-  // thread axis configuration
-  LaunchParamConfig launch_param_config_;
-
   mutable std::array<std::shared_ptr<VulkanPipeline>, kVulkanMaxNumDevice> scache_;
 };
 

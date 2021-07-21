@@ -242,7 +242,7 @@ class MetalWrappedFunc {
   // Device state cache per device.
   // mark as mutable, to enable lazy initialization
   mutable std::array<id<MTLComputePipelineState>, kMetalMaxNumDevice> scache_;
-  // thread axis configuration
+  // launch parameters configuration
   LaunchParamConfig launch_param_config_;
 };
 

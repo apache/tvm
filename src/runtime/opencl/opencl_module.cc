@@ -96,7 +96,7 @@ class OpenCLWrappedFunc {
   std::string func_name_;
   // convert code for void argument
   std::vector<size_t> arg_size_;
-  // thread axis config
+  // launch parameters config
   LaunchParamConfig launch_param_config_;
 };
 

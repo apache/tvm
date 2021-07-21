@@ -184,7 +184,7 @@ class ROCMWrappedFunc {
   // Device function cache per device.
   // mark as mutable, to enable lazy initialization
   mutable std::array<hipFunction_t, kMaxNumGPUs> fcache_;
-  // thread axis configuration
+  // launch parameters configuration
   LaunchParamConfig launch_param_config_;
 };
 

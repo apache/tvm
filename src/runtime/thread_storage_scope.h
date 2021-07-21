@@ -19,7 +19,7 @@
 
 /*!
  * \file thread_storage_scope.h
- * \brief Extract thread axis configuration from TVMArgs.
+ * \brief Extract launch parameters configuration from TVMArgs.
  */
 #ifndef TVM_RUNTIME_THREAD_STORAGE_SCOPE_H_
 #define TVM_RUNTIME_THREAD_STORAGE_SCOPE_H_
