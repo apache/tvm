@@ -655,6 +655,50 @@ def test_cast():
             verify_cast(i, o_dtype)
 
 
+def test_resize():
+    """Resize unit test."""
+
+    def verify_resize(dshape, outsize, method, coord_trans, rounding_method, dtype="float32"):
+        x = relay.var("x", relay.ty.TensorType(dshape, dtype))
+        y = relay.image.resize2d(
+            x,
+            outsize,
+            layout="NCHW",
+            method=method,
+            coordinate_transformation_mode=coord_trans,
+            rounding_method=rounding_method,
+        )
+        func = relay.Function([x], y)
+        x_data = np.random.uniform(size=dshape).astype(dtype)
+        verify_results(func, [x_data], "test_resize", rtol=1e-4, atol=1e-4)
+
+    method = ["nearest_neighbor", "linear", "cubic"]
+    coord_trans = ["half_pixel", "align_corners", "asymmetric"]
+    rounding_method = ["round", "floor", "ceil"]
+
+    isize = (1, 3, 480, 640)
+
+    # Downsample
+    osize = (240, 320)
+    for i in method:
+        for j in coord_trans:
+            for k in rounding_method:
+                if (i == "nearest_neighbor" and j == "align_corners") or (
+                    i == "cubic" and j in ["half_pixel", "align_corners"]
+                ):
+                    continue
+                verify_resize(isize, osize, method=i, coord_trans=j, rounding_method=k)
+
+    # Upsample
+    osize = (960, 1280)
+    for i in method:
+        for j in coord_trans:
+            for k in rounding_method:
+                if (i == "nearest_neighbor" and j == "align_corners") or (i == "cubic"):
+                    continue
+                verify_resize(isize, osize, method=i, coord_trans=j, rounding_method=k)
+
+
 if __name__ == "__main__":
     test_add()
     test_bias_add()
@@ -684,3 +728,4 @@ if __name__ == "__main__":
     test_copy()
     test_round()
     test_cast()
+    test_resize()
