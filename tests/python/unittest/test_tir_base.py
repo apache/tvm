@@ -41,6 +41,16 @@ def test_scalar_add():
     assert out == 3.0
 
 
+def test_ret_const():
+    a = tir.const(0)
+    b = tir.ret(a)
+    b = tir.Evaluate(b)
+    func = tir.PrimFunc([], b)
+    func = build_tir_func(func)
+    out = func()
+    assert out == 0
+
+
 def test_control_flow_jump():
     ib = tvm.tir.ir_builder.create()
     a = tir.Var("a", "float32")
@@ -57,4 +67,5 @@ def test_control_flow_jump():
 
 if __name__ == "__main__":
     test_scalar_add()
+    test_ret_const()
     test_control_flow_jump()
