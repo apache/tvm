@@ -26,11 +26,15 @@
 // Check with LIFO checks enabled for stack allocator
 #define TVM_CRT_STACK_ALLOCATOR_ENABLE_LIFO_CHECK
 
+// Number of memory misalignment in bytes
+#define NUM_MEMORY_MISALIGNMENT_BYTES 1
+
 /*!
  * Align memory pointer.
+ * This function modifies memory_ptr to adjust alignment.
  * \return Number of memory offset.
  */
-uint32_t memory_align(uint8_t** memory_ptr) {
+static uint32_t align_pointer(uint8_t** memory_ptr) {
   uint32_t extra = (uintptr_t)(*memory_ptr) % TVM_RUNTIME_ALLOC_ALIGNMENT_BYTES;
   uint32_t offset =
       (TVM_RUNTIME_ALLOC_ALIGNMENT_BYTES - extra) & (TVM_RUNTIME_ALLOC_ALIGNMENT_BYTES - 1);
@@ -40,12 +44,13 @@ uint32_t memory_align(uint8_t** memory_ptr) {
 
 /*!
  * Add misalignment to memory pointer.
+ * This function modifies memory_ptr.
  * \return Number of memory offset.
  */
-uint32_t memory_add_misalignment(uint8_t** memory_ptr) {
+static uint32_t misalign_pointer(uint8_t** memory_ptr) {
   uint32_t extra = (uintptr_t)(*memory_ptr) % TVM_RUNTIME_ALLOC_ALIGNMENT_BYTES;
   if (extra == 0) {
-    *memory_ptr += 1;
+    *memory_ptr += NUM_MEMORY_MISALIGNMENT_BYTES;
     return 1;
   }
   return 0;
@@ -58,8 +63,9 @@ TEST(AOTMemory, Allocate) {
   static uint8_t model_memory[128];
   tvm_workspace_t tvm_runtime_workspace;
   uint8_t* model_memory_ptr = model_memory;
-  uint32_t offset = memory_align(&model_memory_ptr);
-  ASSERT_EQ(StackMemoryManager_Init(&tvm_runtime_workspace, model_memory_ptr, 128 - offset),
+  uint32_t offset = align_pointer(&model_memory_ptr);
+  ASSERT_EQ(StackMemoryManager_Init(&tvm_runtime_workspace, model_memory_ptr,
+                                    sizeof(model_memory) - offset),
             kTvmErrorNoError);
 
   void* block_one = NULL;
@@ -90,8 +96,9 @@ TEST(AOTMemory, Free) {
   static uint8_t model_memory[80];
   tvm_workspace_t tvm_runtime_workspace;
   uint8_t* model_memory_ptr = model_memory;
-  uint32_t offset = memory_align(&model_memory_ptr);
-  ASSERT_EQ(StackMemoryManager_Init(&tvm_runtime_workspace, model_memory_ptr, 80 - offset),
+  uint32_t offset = align_pointer(&model_memory_ptr);
+  ASSERT_EQ(StackMemoryManager_Init(&tvm_runtime_workspace, model_memory_ptr,
+                                    sizeof(model_memory) - offset),
             kTvmErrorNoError);
 
   void* block_one = NULL;
@@ -121,11 +128,12 @@ TEST(AOTMemory, Free) {
  * Tests we return NULL if we over allocate.
  */
 TEST(AOTMemory, OverAllocate) {
-  static uint8_t model_memory[72];
+  static uint8_t model_memory[80];
   tvm_workspace_t tvm_runtime_workspace;
   uint8_t* model_memory_ptr = model_memory;
-  uint32_t offset = memory_align(&model_memory_ptr);
-  ASSERT_EQ(StackMemoryManager_Init(&tvm_runtime_workspace, model_memory_ptr, 80 - offset),
+  uint32_t offset = align_pointer(&model_memory_ptr);
+  ASSERT_EQ(StackMemoryManager_Init(&tvm_runtime_workspace, model_memory_ptr,
+                                    sizeof(model_memory) - offset),
             kTvmErrorNoError);
 
   void* block_one = NULL;
@@ -151,8 +159,9 @@ TEST(AOTMemory, FreeOutOfOrder) {
   static uint8_t model_memory[80];
   tvm_workspace_t tvm_runtime_workspace;
   uint8_t* model_memory_ptr = model_memory;
-  uint32_t offset = memory_align(&model_memory_ptr);
-  ASSERT_EQ(StackMemoryManager_Init(&tvm_runtime_workspace, model_memory_ptr, 80 - offset),
+  uint32_t offset = align_pointer(&model_memory_ptr);
+  ASSERT_EQ(StackMemoryManager_Init(&tvm_runtime_workspace, model_memory_ptr,
+                                    sizeof(model_memory) - offset),
             kTvmErrorNoError);
 
   void* block_one = NULL;
@@ -177,16 +186,15 @@ TEST(AOTMemory, InitialMemoryMisAlignment) {
   tvm_workspace_t tvm_runtime_workspace;
   uint8_t* model_memory_ptr = model_memory;
 
-  uint32_t offset = memory_add_misalignment(&model_memory_ptr);
-  ASSERT_EQ(StackMemoryManager_Init(&tvm_runtime_workspace, model_memory_ptr, 80 - offset),
+  uint32_t offset = misalign_pointer(&model_memory_ptr);
+  ASSERT_EQ(StackMemoryManager_Init(&tvm_runtime_workspace, model_memory_ptr,
+                                    sizeof(model_memory) - offset),
             kTvmErrorNoError);
-
-  uint32_t next_alloc_offset =
-      (uintptr_t)tvm_runtime_workspace.next_alloc % TVM_RUNTIME_ALLOC_ALIGNMENT_BYTES;
-  uint32_t workspace_offset =
-      (uintptr_t)tvm_runtime_workspace.workspace % TVM_RUNTIME_ALLOC_ALIGNMENT_BYTES;
-  ASSERT_EQ(next_alloc_offset, 0);
-  ASSERT_EQ(workspace_offset, 0);
+  ASSERT_EQ(tvm_runtime_workspace.next_alloc,
+            &model_memory_ptr[TVM_RUNTIME_ALLOC_ALIGNMENT_BYTES - NUM_MEMORY_MISALIGNMENT_BYTES]);
+  ASSERT_EQ(tvm_runtime_workspace.workspace_size,
+            sizeof(model_memory) - offset -
+                (TVM_RUNTIME_ALLOC_ALIGNMENT_BYTES - NUM_MEMORY_MISALIGNMENT_BYTES));
 }
 
 int main(int argc, char** argv) {

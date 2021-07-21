@@ -82,11 +82,12 @@ tvm_crt_error_t StackMemoryManager_Init(tvm_workspace_t* tvm_runtime_workspace,
   // We need to round up g_aot_memory in case it is not aligned to
   // TVM_RUNTIME_ALLOC_ALIGNMENT_BYTES.
   uintptr_t unaligned_mask = TVM_RUNTIME_ALLOC_ALIGNMENT_BYTES - 1;
-  uint32_t offset = TVM_RUNTIME_ALLOC_ALIGNMENT_BYTES - ((uintptr_t)g_aot_memory & unaligned_mask);
-  g_aot_memory = (uint8_t*)(((uintptr_t)g_aot_memory + unaligned_mask) & ~unaligned_mask);
+  uint8_t* memory_aligned =
+      (uint8_t*)(((uintptr_t)g_aot_memory + unaligned_mask) & ~unaligned_mask);
+  uint32_t offset = (uintptr_t)(memory_aligned - g_aot_memory);
 
-  tvm_runtime_workspace->next_alloc = g_aot_memory;
-  tvm_runtime_workspace->workspace = g_aot_memory;
+  tvm_runtime_workspace->next_alloc = memory_aligned;
+  tvm_runtime_workspace->workspace = memory_aligned;
   tvm_runtime_workspace->workspace_size = workspace_size - offset;
   return kTvmErrorNoError;
 }
