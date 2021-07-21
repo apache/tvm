@@ -780,5 +780,32 @@ def test_static_tensor_get_data():
     run("int32", [2, 3])
 
 
+@tvm.testing.uses_gpu
+def test_static_tensor_array_gather_partition():
+    def run(dtype, shape):
+        mod = tvm.IRModule()
+        p = Prelude(mod)
+        static_tensor_array_ops = StaticTensorArrayOps(p, dtype, shape)
+        static_tensor_array_ops.register()
+
+        tensor_array = p.get_global_var_static("tensor_array", dtype, shape)
+        tensor = p.get_tensor_ctor_static("tensor_constructor", dtype, shape)
+        write = p.get_global_var_static("tensor_array_write", dtype, shape)
+        gather = p.get_global_var_static("tensor_array_gather", dtype, shape)
+        v = relay.var("v")
+        indice = relay.var("indice")
+        init_tensor_array = tensor_array(relay.const(3))
+        tensor_array1 = write(init_tensor_array, relay.const(0), tensor(v))
+        tensor_array2 = write(tensor_array1, relay.const(1), tensor(v))
+        tensor_array3 = write(tensor_array2, relay.const(2), tensor(v))
+        out = gather(tensor_array3, indice)
+        mod["main"] = relay.Function([v, indice], out)
+        from tvm.relay.op.contrib.tensorrt import partition_for_tensorrt
+
+        mod, config = partition_for_tensorrt(mod, params=None, remove_no_mac_subgraphs=True)
+
+    run("float32", [2, 3])
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
