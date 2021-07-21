@@ -186,15 +186,19 @@ TEST(AOTMemory, InitialMemoryMisAlignment) {
   tvm_workspace_t tvm_runtime_workspace;
   uint8_t* model_memory_ptr = model_memory;
 
+  // Add misaslignment to memory pointer
   uint32_t offset = misalign_pointer(&model_memory_ptr);
+
+  // Calculate expected offset
+  uint8_t* misaligned_ptr = model_memory_ptr;
+  uint32_t alignment_offset = align_pointer(&misaligned_ptr);
+
   ASSERT_EQ(StackMemoryManager_Init(&tvm_runtime_workspace, model_memory_ptr,
                                     sizeof(model_memory) - offset),
             kTvmErrorNoError);
-  ASSERT_EQ(tvm_runtime_workspace.next_alloc,
-            &model_memory_ptr[TVM_RUNTIME_ALLOC_ALIGNMENT_BYTES - NUM_MEMORY_MISALIGNMENT_BYTES]);
-  ASSERT_EQ(tvm_runtime_workspace.workspace_size,
-            sizeof(model_memory) - offset -
-                (TVM_RUNTIME_ALLOC_ALIGNMENT_BYTES - NUM_MEMORY_MISALIGNMENT_BYTES));
+
+  ASSERT_EQ(tvm_runtime_workspace.next_alloc, &model_memory_ptr[alignment_offset]);
+  ASSERT_EQ(tvm_runtime_workspace.workspace_size, sizeof(model_memory) - offset - alignment_offset);
 }
 
 int main(int argc, char** argv) {
