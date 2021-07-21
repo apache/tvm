@@ -83,9 +83,8 @@ class TextureLoweringBase : public StmtExprMutator {
 class TextureFlattener : public TextureLoweringBase {
  public:
   using StmtExprMutator::VisitStmt_;
-  explicit TextureFlattener(
-      const Map<Var, Buffer>& extern_buffer_map,
-      IRVisitorWithAnalyzer* bound_analyzer)
+  explicit TextureFlattener(const Map<Var, Buffer>& extern_buffer_map,
+                            IRVisitorWithAnalyzer* bound_analyzer)
       : TextureLoweringBase(extern_buffer_map, bound_analyzer) {}
 
   Stmt VisitStmt_(const BufferRealizeNode* op) final {
