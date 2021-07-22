@@ -1171,7 +1171,7 @@ void VMCompiler::Codegen() {
     if (target->kind->device_type == kDLExtDev) {
       // Collect metadata in functions that are handled by external codegen.
       auto name = cfunc->prim_fn_var->name_hint;
-      // ICHECK(mod->ContainGlobalVar(name));
+      ICHECK(mod->ContainGlobalVar(name));
       Function func = Downcast<Function>(mod->Lookup(name));
       backend::UpdateConstants(func, &params_);
     } else if (funcs.count(target) == 0) {
