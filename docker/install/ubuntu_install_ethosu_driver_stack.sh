@@ -24,6 +24,7 @@ fvp_dir="/opt/arm/FVP_Corstone_SSE-300_Ethos-U55"
 cmake_dir="/opt/arm/cmake"
 ethosu_dir="/opt/arm/ethosu"
 ethosu_driver_ver="21.05"
+cmsis_ver="5.7.0"
 
 mkdir -p /opt/arm
 
@@ -75,7 +76,6 @@ curl --retry 64 -sSL ${gcc_arm_url} | tar -C /opt/arm/gcc-arm-none-eabi --strip-
 export PATH="/opt/arm/gcc-arm-none-eabi/bin:${PATH}"
 
 # Clone Arm(R) Ethos(TM)-U NPU driver stack
-cd /
 mkdir "${ethosu_dir}"
 cd "${ethosu_dir}"
 git clone "https://review.mlplatform.org/ml/ethos-u/ethos-u-core-driver" core_driver
@@ -91,4 +91,4 @@ git checkout tags/${ethosu_driver_ver}
 cd "${ethosu_dir}"
 git clone "https://github.com/ARM-software/CMSIS_5.git" cmsis
 cd cmsis
-git checkout -f tags/5.7.0
+git checkout -f tags/${cmsis_ver}

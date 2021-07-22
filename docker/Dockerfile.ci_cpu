@@ -118,4 +118,4 @@ COPY install/ubuntu_install_vela.sh /install/ubuntu_install_vela.sh
 RUN bash /install/ubuntu_install_vela.sh
 
 # Update PATH
-ENV PATH /opt/arm/bin:/opt/arm/gcc-arm-none-eabi/bin:$PATH
+ENV PATH /opt/arm/gcc-arm-none-eabi/bin:$PATH
