@@ -16,7 +16,6 @@
 # under the License.
 """Definition of adreno operator strategy."""
 # pylint: disable=invalid-name,unused-argument,wildcard-import,unused-wildcard-import
-import re
 from tvm import topi
 from .generic import *
 from .. import op as _op
@@ -28,7 +27,6 @@ def conv2d_strategy_adreno(attrs, inputs, out_type, target):
     strategy = _op.OpStrategy()
     data, kernel = inputs
     dilation_h, dilation_w = attrs.get_int_tuple("dilation")
-    stride_h, stride_w = attrs.get_int_tuple("strides")
     groups = attrs.groups
     data_layout = attrs.data_layout
     kernel_layout = attrs.kernel_layout
