@@ -129,15 +129,13 @@ TEST(Relay, BuildModule) {
   ICHECK(mod.defined()) << "Module must be defined";
   tvm::runtime::Module run_mod = (*pfr)(json, mod, (int)dev.device_type, (int)dev.device_id);
   auto set_input_f = run_mod.GetFunction("set_input_zero_copy", false);
-  auto set_output_f = run_mod.GetFunction("set_output_zero_copy", false);
   auto run_f = run_mod.GetFunction("run", false);
+  auto get_output_f = run_mod.GetFunction("get_output", false);
   set_input_f("a", const_cast<DLTensor*>(A.operator->()));
   set_input_f("b", const_cast<DLTensor*>(B.operator->()));
   set_input_f("c", const_cast<DLTensor*>(C.operator->()));
-  auto Y = tvm::runtime::NDArray::Empty({2, 3}, {kDLFloat, 32, 1}, {kDLCPU, 0});
-  set_output_f(0, Y);
   run_f();
-  // tvm::runtime::NDArray Y = get_output_f(0);
+  tvm::runtime::NDArray Y = get_output_f(0);
   auto pY = (float*)Y->data;
   for (int i = 0; i < 6; ++i) {
     ICHECK_LT(fabs(pY[i] - (i + (i + 1) + (i + 2))), 1e-4);
@@ -147,8 +145,10 @@ TEST(Relay, BuildModule) {
     pB[i] = i + 3;
   }
   run_f();
+  tvm::runtime::NDArray Y2 = get_output_f(0);
+  auto pY2 = (float*)Y2->data;
   for (int i = 0; i < 6; ++i) {
-    ICHECK_LT(fabs(pY[i] - (i + (i + 3) + (i + 2))), 1e-4);
+    ICHECK_LT(fabs(pY2[i] - (i + (i + 3) + (i + 2))), 1e-4);
   }
   // attach a different input and run it again
   auto C2 = tvm::runtime::NDArray::Empty({2, 3}, {kDLFloat, 32, 1}, {kDLCPU, 0});
@@ -158,8 +158,10 @@ TEST(Relay, BuildModule) {
   }
   set_input_f("c", const_cast<DLTensor*>(C2.operator->()));
   run_f();
+  tvm::runtime::NDArray Y3 = get_output_f(0);
+  auto pY3 = (float*)Y3->data;
   for (int i = 0; i < 6; ++i) {
-    ICHECK_LT(fabs(pY[i] - (i + (i + 3) + (i + 4))), 1e-4);
+    ICHECK_LT(fabs(pY3[i] - (i + (i + 3) + (i + 4))), 1e-4);
   }
 }
 
