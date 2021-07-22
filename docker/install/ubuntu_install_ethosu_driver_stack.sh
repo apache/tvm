@@ -23,6 +23,7 @@ set -o pipefail
 fvp_dir="/opt/arm/FVP_Corstone_SSE-300_Ethos-U55"
 cmake_dir="/opt/arm/cmake"
 ethosu_dir="/opt/arm/ethosu"
+ethosu_driver_ver="21.05"
 
 mkdir -p /opt/arm
 
@@ -79,12 +80,12 @@ mkdir "${ethosu_dir}"
 cd "${ethosu_dir}"
 git clone "https://review.mlplatform.org/ml/ethos-u/ethos-u-core-driver" core_driver
 cd core_driver
-git checkout tags/21.05
+git checkout tags/${ethosu_driver_ver}
 
 cd "${ethosu_dir}"
 git clone "https://review.mlplatform.org/ml/ethos-u/ethos-u-core-platform" core_platform
 cd core_platform
-git checkout tags/21.05
+git checkout tags/${ethosu_driver_ver}
 
 # Clone CMSIS
 cd "${ethosu_dir}"
