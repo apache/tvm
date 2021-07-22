@@ -360,13 +360,15 @@ TVM_REGISTER_NODE_TYPE(AllocateNode);
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<AllocateNode>([](const ObjectRef& node, ReprPrinter* p) {
       auto* op = static_cast<const AllocateNode*>(node.get());
+      const auto* ptr_type = op->buffer_var->type_annotation.as<PointerTypeNode>();
+      ICHECK(ptr_type) << "The provided variable is not of pointer type";
       p->PrintIndent();
       p->stream << "allocate " << op->buffer_var << "[" << op->dtype;
       for (size_t i = 0; i < op->extents.size(); ++i) {
         p->stream << " * ";
         p->Print(op->extents[i]);
       }
-      p->stream << "]";
+      p->stream << "], storage_scope = " << ptr_type->storage_scope;
       if (!is_one(op->condition)) {
         p->stream << " if ";
         p->Print(op->condition);
