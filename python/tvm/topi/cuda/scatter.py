@@ -823,10 +823,12 @@ def scatter_nd(data, indices, updates, mode):
                     with ib.if_scope(j < fused_updates_dimension):
                         offset = fused_updates_dimension
                         index = j  # This is x_M, .. x_{N-1} part of the index into out.
-                        # Build up the indices[0, y_0, .. y_{K-1}], .. indices[M-1, y_0, .. y_{K-1}] part
-                        # of the index into out.
+                        # Build up the
+                        # indices[0, y_0, .. y_{K-1}], ... indices[M-1, y_0, .. y_{K-1}]
+                        # part of the index into out.
                         for l in reversed(range(indices_ptr.shape[0].value)):
-                            # indices[i * l * fused_indices_dimension] = indices[l, y_0, ... y_{k-1}]
+                            # indices[i * l * fused_indices_dimension] = indices[l, y_0,
+                            #                                                   ... y_{k-1}]
                             index += offset * indices[i + l * fused_indices_dimension]
                             offset *= data_ptr.shape[l]
                         out[index] += updates[i * fused_updates_dimension + j]
@@ -844,8 +846,8 @@ def scatter_nd(data, indices, updates, mode):
                 with ib.if_scope(j < fused_updates_dimension):
                     offset = fused_updates_dimension
                     index = j  # This is x_M, .. x_{N-1} part of the index into out.
-                    # Build up the indices[0, y_0, .. y_{K-1}], .. indices[M-1, y_0, .. y_{K-1}] part
-                    # of the index into out.
+                    # Build up the indices[0, y_0, .. y_{K-1}], .. indices[M-1, y_0, .. y_{K-1}]
+                    # part of the index into out.
                     up_index = by * fused_updates_dimension + j
                     for l in reversed(range(indices_ptr.shape[0].value)):
                         # indices[by * l * fused_indices_dimension] = indices[l, y_0, ... y_{k-1}]
