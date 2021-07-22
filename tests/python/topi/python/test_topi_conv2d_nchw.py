@@ -33,6 +33,7 @@ from tvm.topi.x86.conv2d_avx_common import _fallback_schedule
 import tvm.testing
 
 dtype = tvm.testing.parameter("float16", "float32")
+random_seed = tvm.testing.parameter(0)
 
 
 @tvm.testing.fixture
@@ -52,6 +53,7 @@ def bias_shape(num_filter):
 
 @tvm.testing.fixture(cache_return_value=True)
 def ref_data(
+    random_seed,
     input_shape,
     weight_shape,
     bias_shape,
@@ -62,6 +64,8 @@ def ref_data(
     add_bias,
     apply_relu,
 ):
+    np.random.seed(random_seed)
+
     # scipy.signal.convolve2d does not support float16 data types, and
     # the python fallback is too slow for general use.  Computing
     # ref_data in float32 will have fewer rounding errors than the TVM

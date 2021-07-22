@@ -28,6 +28,8 @@ from tvm.topi.utils import get_const_tuple
 
 from common import Int8Fallback
 
+random_seed = tvm.testing.parameter(0)
+
 use_bias = tvm.testing.parameter(True, False)
 batch_size = tvm.testing.parameter(1, 2, 128)
 in_dim, out_dim = tvm.testing.parameters((1024, 1000))
@@ -56,7 +58,9 @@ _dense_implementations = {
 
 
 @tvm.testing.fixture(cache_return_value=True)
-def dense_ref_data(batch_size, in_dim, out_dim, use_bias, in_dtype, out_dtype):
+def dense_ref_data(random_seed, batch_size, in_dim, out_dim, use_bias, in_dtype, out_dtype):
+    np.random.seed(random_seed)
+
     if "float" in in_dtype:
         a_np = np.random.uniform(size=(batch_size, in_dim)).astype(in_dtype)
         b_np = np.random.uniform(size=(out_dim, in_dim)).astype(in_dtype)

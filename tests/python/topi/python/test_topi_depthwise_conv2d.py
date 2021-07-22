@@ -67,6 +67,7 @@ _depthwise_conv2d_implement = {
     },
 }
 
+random_seed = tvm.testing.parameter(0)
 
 in_dtype, out_dtype = tvm.testing.parameters(
     ("float32", "float32"),
@@ -123,6 +124,7 @@ def shift_shape(scale_shape):
 
 @tvm.testing.fixture(cache_return_value=True)
 def ref_data(
+    random_seed,
     in_dtype,
     out_dtype,
     layout,
@@ -136,6 +138,8 @@ def ref_data(
     use_scale_shift,
     apply_relu,
 ):
+    np.random.seed(random_seed)
+
     # scipy.signal.convolve2d does not support float16 data types, and
     # the python fallback is too slow for general use.  Computing
     # ref_data in float32 will have fewer rounding errors than the TVM
