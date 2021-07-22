@@ -195,6 +195,7 @@ class TECompilerImpl : public TECompilerNode {
       auto target = Target("ext_dev");
       auto global_var = GlobalVar(func_name);
       global_var->checked_type_ = key->source_func->checked_type();
+      ir_module->Add(global_var, key->source_func);
       value->cached_func = CachedFunc(target, global_var, {}, {}, te::Schedule(), {}, ir_module);
       return value;
     }

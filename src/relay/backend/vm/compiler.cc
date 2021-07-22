@@ -47,8 +47,6 @@
 #include "../../../target/source/codegen_source_base.h"
 #include "../../op/op_common.h"
 #include "../../transforms/pass_utils.h"
-#include "../te_compiler.h"
-#include "../te_compiler_cache.h"
 #include "../utils.h"
 #include "compiler.h"
 
@@ -466,7 +464,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
   void EmitShapeFunc(Function func, Array<Expr> inputs, Array<Expr> outputs) {
     // Lower shape function
     CCacheKey key(func, target_host_);
-    auto cfunc = compiler_->LowerShapeFunc(key);
+    auto cfunc = context_->compiler->LowerShapeFunc(key);
     int op_index = -1;
     // pick the only function inside the context
     ICHECK_EQ(cfunc->funcs->functions.size(), 1);
@@ -552,7 +550,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
 
     CCacheKey key(func, target);
     auto mangle_fn = [](String name) { return name; };
-    auto cfunc = compiler_->Lower(key, mangle_fn);
+    auto cfunc = context_->compiler->Lower(key, mangle_fn);
 
     auto op_index = -1;
     if (func->GetAttr<String>(attr::kCompiler).defined()) {
@@ -858,8 +856,6 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
   size_t last_register_;
   /*! \brief Total number of virtual registers allocated. */
   size_t registers_num_;
-  /*! \brief Compiler engine to lower primitive functions. */
-  TECompiler compiler_;
   /*! \brief Global shared meta data */
   VMCompilerContext* context_;
   /*! \brief Target devices. */
@@ -1185,8 +1181,7 @@ void VMCompiler::Codegen() {
     }
   }
 
-  TECompiler compiler;
-  auto ext_mods = compiler->LowerExternalFunctions();
+  auto ext_mods = context_.compiler->LowerExternalFunctions();
 
   runtime::Module lib;
   if (funcs.size() > 0) {

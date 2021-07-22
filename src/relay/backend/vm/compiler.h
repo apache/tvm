@@ -76,6 +76,8 @@ struct VMCompilerContext {
   TagMap tag_map;
   // Map from global var to a unique integer
   GlobalMap global_map;
+  // TEcompiler for lowering
+  tec::TECompiler compiler;
   // List of constants
   std::vector<NDArray> constants;
   // Device type for constants
