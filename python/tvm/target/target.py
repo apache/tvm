@@ -263,6 +263,7 @@ def mali(model="unknown", options=None):
     opts = _merge_opts(opts, options)
     return Target(" ".join(["opencl"] + opts))
 
+
 def adreno(model="unknown", options=None):
     """Returns a Qualcomm GPU target.
 
@@ -276,6 +277,7 @@ def adreno(model="unknown", options=None):
     opts = ["-device=adreno", "-model=%s" % model]
     opts = _merge_opts(opts, options)
     return Target(" ".join(["opencl"] + opts))
+
 
 def intel_graphics(model="unknown", options=None):
     """Returns an Intel Graphics target.
