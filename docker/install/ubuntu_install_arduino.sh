@@ -24,9 +24,8 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get update --fix-missing
 apt-get install -y ca-certificates
 
-# Install arduino-cli
-ARDUINO_SDK_VERSION=0.18.3
-wget -O - https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh -s ${ARDUINO_SDK_VERSION}
+# Install arduino-cli latest version
+wget -O - https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh -s
 
 # Board manager URLs, separated by semicolons
 BOARD_MANAGER_URLS=https://github.com/sonydevworld/spresense-arduino-compatible/releases/download/generic/package_spresense_index.json
