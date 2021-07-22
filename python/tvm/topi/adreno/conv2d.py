@@ -187,7 +187,7 @@ def compute_conv2d_NCHWc_KCRSk(Input, Filter, stride, padding, dilation, out_dty
         )
     return te.compute(
         conv.shape,
-        lambda n, fc, y, x, fb: conv[n, fc, y, x, fb].astype("float16"),
+        lambda n, fc, y, x, fb: conv[n, fc, y, x, fb].astype(out_dtype),
         tag="cast_from_acc" + kwargs["accumulator"][-2:],
     )
 
@@ -444,7 +444,7 @@ def compute_depthwise_conv2d_NCHWc_KCRSk(
         )
     return te.compute(
         conv.shape,
-        lambda n, ffc, y, x, ffb: conv[n, ffc, y, x, ffb].astype("float16"),
+        lambda n, ffc, y, x, ffb: conv[n, ffc, y, x, ffb].astype(out_dtype),
         tag="cast_from_acc" + kwargs["accumulator"][-2:],
     )
 
