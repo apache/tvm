@@ -73,7 +73,6 @@ TVM_REGISTER_GLOBAL("relay.backend.lower_call")
       return (*f)(outs, impl);
     });
 
-
 TEST(Relay, BuildModule) {
   auto tensor_type = relay::TensorType({2, 3}, DataType::Float(32));
   auto a = relay::Var("a", tensor_type);
