@@ -812,7 +812,7 @@ def scatter_nd(data, indices, updates, mode):
                 out[index] = data[index]
 
         with ib.new_scope():
-            if updates.dtype == 'int64' and mode == 'add':
+            if updates.dtype == "int64" and mode == "add":
                 bdim_x = ceil_div(fused_updates_dimension, tdim)
                 bx = te.thread_axis("blockIdx.x")
                 tx = te.thread_axis("threadIdx.x")
@@ -843,7 +843,7 @@ def scatter_nd(data, indices, updates, mode):
                 j = bx * tdim + tx
                 with ib.if_scope(j < fused_updates_dimension):
                     offset = fused_updates_dimension
-                    index = j # This is x_M, .. x_{N-1} part of the index into out.
+                    index = j  # This is x_M, .. x_{N-1} part of the index into out.
                     # Build up the indices[0, y_0, .. y_{K-1}], .. indices[M-1, y_0, .. y_{K-1}] part
                     # of the index into out.
                     up_index = by * fused_updates_dimension + j
