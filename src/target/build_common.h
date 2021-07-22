@@ -53,7 +53,12 @@ inline std::unordered_map<std::string, runtime::FunctionInfo> ExtractFuncInfo(co
     if (auto opt = f->GetAttr<Array<tir::IterVar>>(tir::attr::kDeviceThreadAxis)) {
       auto thread_axis = opt.value();
       for (size_t i = 0; i < thread_axis.size(); ++i) {
-        info.thread_axis_tags.push_back(thread_axis[i]->thread_tag);
+        info.launch_param_tags.push_back(thread_axis[i]->thread_tag);
+      }
+    }
+    if (auto opt = f->GetAttr<Integer>(tir::attr::kDeviceUseDynSharedMemory)) {
+      if (opt.value()) {
+        info.launch_param_tags.push_back(runtime::kUseDynamicSharedMemoryTag);
       }
     }
     auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);

@@ -72,51 +72,45 @@ class CodeGenAMDGPU : public CodeGenLLVM {
   void VisitStmt_(const AllocateNode* op) final {
     ICHECK(!is_zero(op->condition));
     llvm::Value* buf = nullptr;
-
-    int32_t constant_size = op->constant_allocation_size();
-    ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation in GPU";
-
     StorageInfo& info = alloc_storage_info_[op->buffer_var.get()];
-    if (constant_size % 4 == 0 && info.alignment == 0) {
-      info.alignment = GetTempAllocaAlignment(op->dtype, constant_size);
-    }
-    // maximum necessary alignment in the AMD devices
-    if (info.alignment > 16) {
-      info.alignment = 16;
-    }
     auto storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(op->buffer_var));
-    if (storage_scope.rank == runtime::StorageRank::kLocal) {
-      // const int local_address_space = 5;
-      // TODO(tqchen): for higher version of LLVM, local address space can be set.
-      llvm::AllocaInst* alloca = WithFunctionEntry([&]() {
-        return builder_->CreateAlloca(DTypeToLLVMType(op->dtype), ConstInt32(constant_size));
-      });
-      if (alloca->getAlignment() < static_cast<uint32_t>(info.alignment)) {
-#if TVM_LLVM_VERSION >= 100
-        alloca->setAlignment(llvm::Align(info.alignment));
-#else
-        alloca->setAlignment(info.alignment);
-#endif
-      }
-      buf = alloca;
+
+    if (storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == ".dyn") {
+      LOG(WARNING) << "Dynamic shared memory support for rocm is experimental.";
+      buf = AllocateSharedMemory(op->dtype, 0, 3, std::min(info.alignment, 16),
+                                 llvm::GlobalValue::ExternalLinkage);
     } else {
-      ICHECK(storage_scope.rank == runtime::StorageRank::kShared)
-          << "Can only allocate shared or local memory inside kernel";
-      // Shared memory: address space  == 3
-      const unsigned shared_address_space = 3;
-      llvm::Type* type = llvm::ArrayType::get(DTypeToLLVMType(op->dtype), constant_size);
-      // Allocate shared memory in global, address_space = 3
-      llvm::GlobalVariable* global = new llvm::GlobalVariable(
-          *module_, type, false, llvm::GlobalValue::PrivateLinkage, nullptr, ".shared", nullptr,
-          llvm::GlobalValue::NotThreadLocal, shared_address_space);
-      if (global->getAlignment() < static_cast<uint32_t>(info.alignment)) {
-#if TVM_LLVM_VERSION >= 100
-        global->setAlignment(llvm::Align(info.alignment));
-#else
-        global->setAlignment(info.alignment);
-#endif
+      int32_t constant_size = op->constant_allocation_size();
+      ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation in GPU";
+
+      if (constant_size % 4 == 0 && info.alignment == 0) {
+        info.alignment = GetTempAllocaAlignment(op->dtype, constant_size);
       }
-      buf = global;
+      // maximum necessary alignment in the AMD devices
+      if (info.alignment > 16) {
+        info.alignment = 16;
+      }
+      if (storage_scope.rank == runtime::StorageRank::kLocal) {
+        // const int local_address_space = 5;
+        // TODO(tqchen): for higher version of LLVM, local address space can be set.
+        llvm::AllocaInst* alloca = WithFunctionEntry([&]() {
+          return builder_->CreateAlloca(DTypeToLLVMType(op->dtype), ConstInt32(constant_size));
+        });
+        if (alloca->getAlignment() < static_cast<uint32_t>(info.alignment)) {
+#if TVM_LLVM_VERSION >= 100
+          alloca->setAlignment(llvm::Align(info.alignment));
+#else
+          alloca->setAlignment(info.alignment);
+#endif
+        }
+        buf = alloca;
+      } else {
+        ICHECK(storage_scope.rank == runtime::StorageRank::kShared)
+            << "Can only allocate shared or local memory inside kernel";
+        // Shared memory: address space  == 3
+        buf = AllocateSharedMemory(op->dtype, constant_size, 3, info.alignment,
+                                   llvm::GlobalValue::PrivateLinkage);
+      }
     }
 
     buf = builder_->CreatePointerCast(
