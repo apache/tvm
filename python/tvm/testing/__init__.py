@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
 # pylint: disable=redefined-builtin, wildcard-import
 """Utility Python functions for TVM testing"""
 from .utils import assert_allclose, assert_prim_expr_equal, check_bool_expr_is_true

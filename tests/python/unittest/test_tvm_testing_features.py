@@ -199,7 +199,7 @@ class TestBrokenFixture:
 class TestAutomaticMarks:
     @staticmethod
     def check_marks(request, target):
-        parameter = tvm.testing._pytest_target_params([target])[0]
+        parameter = tvm.testing.testing._pytest_target_params([target])[0]
         required_marks = [decorator.mark for decorator in parameter.marks]
         applied_marks = list(request.node.iter_markers())
 
