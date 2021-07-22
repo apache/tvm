@@ -28,6 +28,7 @@
 #include <tvm/driver/driver_api.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
+#include <tvm/relay/qnn/transform.h>
 #include <tvm/relay/transform.h>
 #include <tvm/relay/type.h>
 #include <tvm/target/codegen.h>
@@ -44,7 +45,12 @@
 
 namespace tvm {
 namespace relay {
+namespace transform {
+Pass InlinePrimitives();
+}
+
 namespace backend {
+using Pass = tvm::transform::Pass;
 
 /*!
  * \brief The static storage information produced by memory planning.
@@ -409,6 +415,15 @@ inline bool IsCompileEngineCacheDisabled() {
       ->GetConfig<Bool>("relay.backend.disable_compile_engine_cache", Bool(false))
       .value();
 }
+
+/*!
+ * \brief Get a shared optimization pass prefix between vm and graph executor.
+ *
+ * \param targets The device type to `Target` mapping.
+ * \param is_vm A boolean indicating if the passes are used for vm or graph executor.
+ * \return An array of passes.
+ */
+Array<Pass> GetPrefixOpts(const Map<tvm::Integer, tvm::Target>& targets, bool is_vm);
 
 }  // namespace backend
 }  // namespace relay
