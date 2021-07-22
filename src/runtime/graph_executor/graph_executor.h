@@ -31,6 +31,7 @@
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 
+#include <algorithm>
 #include <memory>
 #include <string>
 #include <unordered_map>
