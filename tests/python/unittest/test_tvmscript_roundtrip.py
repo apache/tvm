@@ -2960,6 +2960,20 @@ def test_abs():
     tvm.ir.assert_structural_equal(func, rt_func)
 
 
+@tvm.script.tir
+def printer(a: ty.handle) -> None:
+    A = tir.match_buffer(a, (), "float32")
+    A[()] = tir.min(2.2, 5.2)
+    A[()] = tir.max(tir.float32(2.2), tir.float32(5.2))
+    A[()] = tir.min(2.2, 5.0)
+
+
+def test_script_printer():
+    func = printer
+    rt_func = tvm.script.from_source(tvm.script.asscript(func, True))
+    tvm.ir.assert_structural_equal(func, rt_func)
+
+
 if __name__ == "__main__":
     test_opt_gemm_normalize()
     test_opt_gemm_mod_host()
@@ -2977,3 +2991,4 @@ if __name__ == "__main__":
     test_block_elements()
     test_opaque_block()
     test_abs()
+    test_script_printer()
