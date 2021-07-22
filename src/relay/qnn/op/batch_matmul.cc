@@ -84,7 +84,9 @@ Expr MakeQuantizedBatchMatmul(Expr x, Expr y, Expr x_zero_point, Expr y_zero_poi
 
 Expr BatchMatmulFirstTerm(const Expr& quantized_x, const Expr& quantized_y,
                           const BatchMatmulAttrs* attrs) {
-  return MakeBatchMatmul(quantized_x, quantized_y, attrs->out_dtype);
+  ICHECK(attrs->transpose_a == false && attrs->transpose_b == true)
+      << "Currently qnn.batch_matmul only support NT format.";
+  return MakeBatchMatmul(quantized_x, quantized_y, attrs->out_dtype, false, true);
 }
 
 Expr BatchMatmulSecondTerm(const Expr& x_quantized_data, const Expr& y_zero_point) {

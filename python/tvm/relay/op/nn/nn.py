@@ -2137,32 +2137,41 @@ def group_norm(data, gamma, beta, num_groups, axis=1, epsilon=1e-5, center=True,
     return _make.group_norm(data, gamma, beta, num_groups, axis, epsilon, center, scale)
 
 
-def batch_matmul(x, y, out_dtype=""):
+def batch_matmul(tensor_a, tensor_b, out_dtype="", transpose_a=False, transpose_b=True):
     r"""
-    Computes batch matrix multiplication of `x` and `y` when `x` and `y` are data
+    Computes batch matrix multiplication of `A` and `B` when `A` and `B` are data
     in batch.
+    
+    The A & B can be transposed. For legacy reason, we use NT format(tensor_a non-transposed
+    and tensor_b transposed) by default.
 
     .. math::
 
-        \mbox{batch_matmul}(x, y)[i, :, :] = \mbox{matmul}(x[i, :, :], y[i, :, :]^T)
+        \mbox{batch_matmul}(A, B)[i, :, :] = \mbox{matmul}(A[i, :, :], B[i, :, :])
 
     Parameters
     ----------
-    x : tvm.relay.Expr
+    tensor_a : tvm.relay.Expr
         The first input.
 
-    y : tvm.relay.Expr
+    tensor_b : tvm.relay.Expr
         The second input.
 
-    out_dtype : str, optional
+    out_dtype : Optional[str]
         Specifies the output data type for mixed precision batch matmul
+
+    transpose_a : Optional[bool] = False
+        Whether the data tensor is in transposed format.
+
+    transpose_b : Optional[bool] = True
+        Whether the weight tensor is in transposed format.
 
     Returns
     -------
     result: tvm.relay.Expr
         The computed result.
     """
-    return _make.batch_matmul(x, y, out_dtype)
+    return _make.batch_matmul(tensor_a, tensor_b, out_dtype, transpose_a, transpose_b)
 
 
 # pylint: disable=no-else-return,inconsistent-return-statements
