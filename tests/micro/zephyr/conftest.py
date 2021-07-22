@@ -29,6 +29,7 @@ PLATFORMS = {
     "stm32f746xx_disco": ("stm32f746xx", "stm32f746g_disco"),
     "stm32f746xx_nucleo": ("stm32f746xx", "nucleo_f746zg"),
     "stm32l4r5zi_nucleo": ("stm32l4r5zi", "nucleo_l4r5zi"),
+    "zynq_mp_r5": ("zynq_mp_r5", "qemu_cortex_r5"),
 }
 
 
