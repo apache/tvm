@@ -172,21 +172,26 @@ void GraphExecutor::SetOutputZeroCopy(int index, DLTensor* data_ref) {
   ICHECK_LT(static_cast<size_t>(index), outputs_.size());
   ICHECK_LT(static_cast<size_t>(index), output_dltensors_.size());
   const NodeEntry& output_node = outputs_[index];
-  uint32_t eid = this->entry_id(output_node);
+  uint32_t output_node_eid = this->entry_id(output_node);
 
   // check the consistency of output
-  CheckExternalDLTensor(data_ref, eid);
+  CheckExternalDLTensor(data_ref, output_node_eid);
 
   // Update the data pointer for output op
-  output_dltensors_[index]->data = data_ref->data;
+  for (DLTensor* t : output_dltensors_[output_node.node_id]) {
+    t->data = data_ref->data;
+  }
+
   // Update the input of the op connected to the output
-  for (auto node : nodes_) {
-    if (std::find(node.inputs.begin(), node.inputs.end(), output_node) != node.inputs.end()) {
-      int input_nid = GetInputIndex(node.name);
-      auto it = std::find(input_nodes_.begin(), input_nodes_.end(), input_nid);
-      if (it != input_nodes_.end()) {
-        int input_index = it - input_nodes_.begin();
-        SetInputZeroCopy(input_index, data_ref);
+  for (size_t input_nid = 0; input_nid < nodes_.size(); input_nid++) {
+    if (std::find(nodes_[input_nid].inputs.begin(), nodes_[input_nid].inputs.end(), output_node) !=
+        nodes_[input_nid].inputs.end()) {
+      uint32_t input_eid = this->entry_id(input_nid, 0);
+      // check the consistency of input
+      CheckExternalDLTensor(data_ref, input_eid);
+      // Update the data pointer for each argument of each op
+      for (DLTensor* t : input_dltensors_[input_eid]) {
+        t->data = data_ref->data;
       }
     }
   }
@@ -410,6 +415,7 @@ void GraphExecutor::SetupStorage() {
 void GraphExecutor::SetupOpExecs() {
   op_execs_.resize(this->GetNumOfNodes());
   input_dltensors_.resize(num_node_entries());
+  output_dltensors_.resize(num_node_entries());
   std::unordered_set<uint32_t> input_node_eids;
   for (size_t i = 0; i < input_nodes_.size(); i++) {
     uint32_t nid = input_nodes_[i];
@@ -440,17 +446,15 @@ void GraphExecutor::SetupOpExecs() {
 
     for (size_t i = 0; i < inode.inputs.size(); i++) {
       uint32_t eid = this->entry_id(inode.inputs[i]);
-      // check if op input is model input
-      if (input_node_eids.count(eid) > 0) {
-        input_dltensors_[eid].push_back(static_cast<DLTensor*>(op_args->arg_values[i].v_handle));
-      }
+      input_dltensors_[eid].push_back(static_cast<DLTensor*>(op_args->arg_values[i].v_handle));
     }
 
     // check if op output is model output
     if (output_node_id.count(nid) > 0) {
       for (uint32_t index = inode.inputs.size();
            index < inode.param.num_outputs + inode.param.num_inputs; ++index) {
-        output_dltensors_.push_back(static_cast<DLTensor*>(op_args->arg_values[index].v_handle));
+        output_dltensors_[nid].push_back(
+            static_cast<DLTensor*>(op_args->arg_values[index].v_handle));
       }
     }
   }

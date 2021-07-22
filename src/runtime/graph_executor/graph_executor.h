@@ -368,6 +368,7 @@ class TVM_DLL GraphExecutor : public ModuleNode {
         bitmask |= 1;
       } else if (key == "arg_nodes") {
         reader->Read(&input_nodes_);
+        std::sort(input_nodes_.begin(), input_nodes_.end());
         bitmask |= 2;
       } else if (key == "node_row_ptr") {
         reader->Read(&node_row_ptr_);
@@ -430,7 +431,7 @@ class TVM_DLL GraphExecutor : public ModuleNode {
   /*! \brief Used for quick node input DLTensor* lookup given an input eid. */
   std::vector<std::vector<DLTensor*>> input_dltensors_;
   /*! \brief Used for quick node output DLTensor* lookup given an input eid. */
-  std::vector<DLTensor*> output_dltensors_;
+  std::vector<std::vector<DLTensor*>> output_dltensors_;
   /*! \brief Used for quick entry indexing. */
   std::vector<uint32_t> node_row_ptr_;
   /*! \brief Output entries. */
