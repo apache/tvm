@@ -512,7 +512,7 @@ class StoragePlanRewriter : public StmtExprMutator {
       // try to find merge, for tagged memory
       for (size_t i = 0; i < vec.size(); ++i) {
         StorageEntry* e = vec[i];
-        if (e->scope.tag.length() != 0) {
+        if (e->scope.tag.length() != 0 && e->scope.tag != ".dyn") {
           ICHECK_NE(e->const_nbits, 0U) << "Special tagged memory must be const size";
           for (size_t j = 0; j < i; ++j) {
             if (e->scope == vec[j]->scope) {
@@ -546,7 +546,7 @@ class StoragePlanRewriter : public StmtExprMutator {
                               make_const(DataType::Int(32), 1), e->allocs[0]->extents);
           e->new_alloc =
               Allocate(e->alloc_var, alloc_type, {sz}, e->allocs[0]->condition, Evaluate(0));
-          if (e->scope.tag.length() != 0) {
+          if (e->scope.tag.length() != 0 && e->scope.tag != ".dyn") {
             MemoryInfo info = GetMemoryInfo(e->scope.to_string());
             uint64_t total_elem = e->const_nbits / e->elem_type.bits();
             ICHECK_LE(total_elem * e->elem_type.bits(), info->max_num_bits)
@@ -587,7 +587,7 @@ class StoragePlanRewriter : public StmtExprMutator {
           combo_size = analyzer_.Simplify(combo_size);
           e->new_alloc =
               Allocate(e->alloc_var, alloc_type, {combo_size}, const_true(), Evaluate(0));
-          if (e->scope.tag.length() != 0) {
+          if (e->scope.tag.length() != 0 && e->scope.tag != ".dyn") {
             MemoryInfo info = GetMemoryInfo(e->scope.to_string());
             uint64_t total_elem = e->const_nbits / e->elem_type.bits();
             ICHECK_LE(total_elem * e->elem_type.bits(), info->max_num_bits)

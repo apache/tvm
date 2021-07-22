@@ -99,11 +99,14 @@ Module MetadataModuleCreate(
     const std::unordered_map<std::string, NDArray>& metadata,
     const std::unordered_map<std::string, std::vector<std::string>>& sym_vars);
 
+/*! \brief A tag to specify whether or not dynamic shared memory is used */
+constexpr const char* kUseDynamicSharedMemoryTag = "tir.use_dyn_shared_memory";
+
 /*! \brief function information needed by device */
 struct FunctionInfo {
   std::string name;
   std::vector<DLDataType> arg_types;
-  std::vector<std::string> thread_axis_tags;
+  std::vector<std::string> launch_param_tags;
 
   void Save(dmlc::JSONWriter* writer) const;
   void Load(dmlc::JSONReader* reader);

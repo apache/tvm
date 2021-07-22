@@ -240,9 +240,11 @@ namespace attr {
  *
  * Call(f,
  *      [arg1, arg2, ..., arg_n,
- *       work_size_1, work_size_2, ... work_size_m])
+ *       work_size_1, work_size_2, ... work_size_m, dyn_shmem_size])
  *
  * Here n = len(arg), m = len(work_size) = len(device_thread_axis).
+ *
+ * When kDeviceUseDynSharedMemory is not set, dyn_shmem_size argument is omitted.
  *
  * The list of device_thread_axis indicates how can be bind the
  * work_size arguments to the corresponding threads.
@@ -250,6 +252,13 @@ namespace attr {
  * \sa tvm::CallingConv::kDeviceKernelLaunch
  */
 constexpr const char* kDeviceThreadAxis = "tir.device_thread_axis";
+
+/*!
+ * \brief Whether or not use dynamic shared memory.
+ *
+ * Type: Integer
+ */
+constexpr const char* kDeviceUseDynSharedMemory = "tir.device_use_dyn_shared_memory";
 
 /*!
  * \brief Whether to set noalias rule on the function arguments.

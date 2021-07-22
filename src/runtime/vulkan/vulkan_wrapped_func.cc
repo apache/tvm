@@ -33,13 +33,13 @@ namespace vulkan {
 void VulkanWrappedFunc::Init(VulkanModuleNode* m, ObjectPtr<Object> sptr,
                              const std::string& func_name, size_t num_buffer_args,
                              size_t num_pack_args,
-                             const std::vector<std::string>& thread_axis_tags) {
+                             const std::vector<std::string>& launch_param_tags) {
   m_ = m;
   sptr_ = sptr;
   func_name_ = func_name;
   num_buffer_args_ = num_buffer_args;
   num_pack_args_ = num_pack_args;
-  thread_axis_cfg_.Init(num_buffer_args + num_pack_args, thread_axis_tags);
+  launch_param_config_.Init(num_buffer_args + num_pack_args, launch_param_tags);
 }
 
 void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
@@ -50,7 +50,7 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
     scache_[device_id] = m_->GetPipeline(device_id, func_name_, num_pack_args_);
   }
   const auto& pipeline = scache_[device_id];
-  ThreadWorkLoad wl = thread_axis_cfg_.Extract(args);
+  ThreadWorkLoad wl = launch_param_config_.Extract(args);
   std::vector<VkDescriptorBufferInfo> descriptor_buffers;
   descriptor_buffers.resize(num_buffer_args_);
   for (size_t i = 0; i < num_buffer_args_; ++i) {
@@ -197,7 +197,7 @@ PackedFunc VulkanModuleNode::GetFunction(const std::string& name,
   VulkanWrappedFunc f;
   size_t num_buffer_args = NumBufferArgs(info.arg_types);
   f.Init(this, sptr_to_self, name, num_buffer_args, info.arg_types.size() - num_buffer_args,
-         info.thread_axis_tags);
+         info.launch_param_tags);
   return PackFuncNonBufferArg(std::move(f), info.arg_types);
 }
 

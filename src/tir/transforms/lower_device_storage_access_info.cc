@@ -67,7 +67,7 @@ class StorageAccessInfoLower : public StmtExprMutator {
       StorageScope scope = StorageScope::Create(op->value.as<StringImmNode>()->value);
       StorageEntry e;
       e.scope = scope;
-      if (scope.tag.length() != 0) {
+      if (scope.tag.length() != 0 && scope.tag != ".dyn") {
         e.info = GetMemoryInfo(op->value.as<StringImmNode>()->value);
         ICHECK(e.info.defined()) << "Cannot find memory info of " << scope.to_string();
       }
