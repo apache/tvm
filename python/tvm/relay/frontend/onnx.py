@@ -23,6 +23,7 @@ import warnings
 import numpy as np
 import tvm
 from tvm.ir import IRModule
+from tvm.relay.op.tensor import concatenate
 from tvm.topi.utils import get_const_tuple
 
 from ... import nd as _nd
@@ -2316,7 +2317,7 @@ class LSTM_dev(RNN):
 
     @classmethod
     def generate_lstm(
-        cls, X_steps, H_t, C_t, W, R, B, p_i, p_f, p_o, f_act, g_act, h_act, backwards=False
+        cls, X_steps, H_t, C_t, W, R, WB, RB, p_i, p_f, p_o, f_act, g_act, h_act, backwards=False
     ):
         """Create an unrolled lstm loop.
 
@@ -2328,11 +2329,9 @@ class LSTM_dev(RNN):
             step = X_steps[i] if not backwards else X_steps[seq_length - (i + 1)]
             step = _op.squeeze(step, axis=[0])
             gates = _op.nn.dense(step, W) + _op.nn.dense(H_t, R)
-            if B is not None:
-                WB, RB = _op.split(B, 2)
+            if WB is not None and RB is not None:
                 gates += WB + RB
             i, o, f, c = _op.split(gates, 4, axis=-1)
-
             if p_i != 0:
                 i = f_act(i + p_i * C_t)
             else:
@@ -2344,17 +2343,17 @@ class LSTM_dev(RNN):
                 f = f_act(f)
 
             c = g_act(c)
-            C = f * C_t + i * c
+            C_t = f * C_t + i * c
             if p_o != 0:
-                o = f_act(o + p_o * C)
+                o = f_act(o + p_o * C_t)
             else:
                 o = f_act(o)
 
-            H = o * h_act(C)
+            H_t = o * h_act(C_t)
 
-            H_t = H
-            C_t = C
-            h_list.append(_op.expand_dims(H, axis=0))
+            #H_t = H
+            h_list.append(_op.expand_dims(H_t, axis=0))
+            #h_list.append(H_t)
 
         if backwards:
             # Canonical view is hidden states from the first token not last
@@ -2430,8 +2429,11 @@ class LSTM_dev(RNN):
                     beta = betas[beta_loc]
                     beta_loc += 1
                 acts.append(cls._activation_helper(activation, alpha, beta))
+            f_act, g_act, h_act = acts
         else:
-            acts = [_op.sigmoid, _op.tanh, _op.tanh] * num_directions
+            f_act = _op.sigmoid
+            g_act = _op.tanh
+            h_act = _op.tanh
 
         X_steps = _op.split(X, indices_or_sections=X_shape[0], axis=0)
         result_output = []
@@ -2451,19 +2453,20 @@ class LSTM_dev(RNN):
             C_t = _op.squeeze(C_ts[i], axis=[0])
             W = _op.squeeze(Ws[i], axis=[0])
             R = _op.squeeze(Rs[i], axis=[0])
-            B = _op.squeeze(Bs[i], axis=[0])
+            #B = _op.squeeze(Bs[i], axis=[0])
+            WB, RB = _op.split(Bs[i], 2, -1)
             p_i = _op.squeeze(p_is[i], axis=[0])
             p_f = _op.squeeze(p_fs[i], axis=[0])
             p_o = _op.squeeze(p_os[i], axis=[0])
 
-            f_act, g_act, h_act = acts[i * 3 : (i + 1) * 3]
-            output, H, C = LSTM.generate_lstm(
+            output, H, C = LSTM_dev.generate_lstm(
                 X_steps=X_steps,
                 H_t=H_t,
                 C_t=C_t,
                 W=W,
                 R=R,
-                B=B,
+                WB=WB,
+                RB=RB,
                 p_i=p_i,
                 p_f=p_f,
                 p_o=p_o,
@@ -3700,7 +3703,7 @@ def _get_convert_map(opset):
         "Flatten": Flatten.get_converter(opset),
         "LRN": LRN.get_converter(opset),
         # Recurrent Layers
-        "LSTM": LSTM.get_converter(opset),
+        "LSTM": LSTM_dev.get_converter(opset),
         "GRU": GRU.get_converter(opset),
         # defs/vision
         "MaxRoiPool": MaxRoiPool.get_converter(opset),
