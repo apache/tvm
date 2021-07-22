@@ -181,13 +181,12 @@ void GraphExecutor::SetOutputZeroCopy(int index, DLTensor* data_ref) {
   output_dltensors_[index]->data = data_ref->data;
   // Update the input of the op connected to the output
   for (auto node : nodes_) {
-    auto it = std::find(node.inputs.begin(), node.inputs.end(), output_node);
-    if (it != node.inputs.end()) {
+    if (std::find(node.inputs.begin(), node.inputs.end(), output_node) != node.inputs.end()) {
       int input_nid = GetInputIndex(node.name);
-      int index = it - node.inputs.begin();
-      uint32_t eid = this->entry_id(input_nodes_[input_nid], index);
-      for (DLTensor* t : input_dltensors_[eid]) {
-        t->data = data_ref->data;
+      auto it = std::find(input_nodes_.begin(), input_nodes_.end(), input_nid);
+      if (it != input_nodes_.end()) {
+        int input_index = it - input_nodes_.begin();
+        SetInputZeroCopy(input_index, data_ref);
       }
     }
   }
