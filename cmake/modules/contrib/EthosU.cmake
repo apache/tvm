@@ -14,6 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""external backend codegen modules for relay."""
-from . import cmsisnn
-from . import ethosu
+
+if(USE_ETHOSU)
+  file(GLOB ETHOSU_RELAY_CONTRIB_SRC src/relay/backend/contrib/ethosu/*)
+  list(APPEND COMPILER_SRCS ${ETHOSU_RELAY_CONTRIB_SRC})
+endif(USE_ETHOSU)

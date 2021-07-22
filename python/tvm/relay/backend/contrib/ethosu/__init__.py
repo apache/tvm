@@ -14,6 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""external backend codegen modules for relay."""
-from . import cmsisnn
-from . import ethosu
+"""Arm(R) Ethos(TM)-U NPU codegen modules for relay."""
+from . import util
+from . import legalize
+from . import preprocess
+from . import errors
+from . import vela_api
+from .util import partition_for_ethosu

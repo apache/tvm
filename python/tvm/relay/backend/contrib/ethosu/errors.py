@@ -14,6 +14,25 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""external backend codegen modules for relay."""
-from . import cmsisnn
-from . import ethosu
+# pylint: disable=super-init-not-called
+"""This module is to hold all type of errors associated Arm(R) Ethos(TM)-U NPU Codegen"""
+
+
+class EthosUCodegenError(Exception):
+    """Base class for all exceptions related to Codegen"""
+
+    def __init__(self, data):
+        self.message = "EthosUCodegenError:" + data
+
+    def __str__(self):
+        return self.message
+
+
+class UnsupportedLayout(EthosUCodegenError):
+    """Raised when unsupported layout is encountered in the codegen"""
+
+    def __init__(self, layout):
+        super().__init__(f"Unsupported Layout {layout}")
+
+    def __str__(self):
+        return self.message

@@ -14,6 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""external backend codegen modules for relay."""
-from . import cmsisnn
-from . import ethosu
+# pylint: disable=invalid-name, unused-argument, import-outside-toplevel
+"""Set of passes to pre-process the IRModule prior to codegen"""
+from . import _ffi_api
+
+
+def preprocess_ext_io():
+    """This function make the number of inputs going to / outputs coming out to/from
+    external function set to one. This is achieved via concatenation
+    of inputs and splitting of outputs in around the call to the external function.
+    """
+    return _ffi_api.PreprocessExternalFuncIO()

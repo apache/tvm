@@ -14,6 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""external backend codegen modules for relay."""
-from . import cmsisnn
-from . import ethosu
+"""Tensor Expressions for the NPU"""
+
+from .convolution import *
