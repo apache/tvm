@@ -99,11 +99,10 @@ class TextureFlattener : public TextureLoweringBase {
 
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<BufferRealizeNode>();
-    Stmt body = this->VisitStmt(op->body);
 
     // Rewrite any buffer realizations with storage scope to 2d texture allocations
     if (IsTextureStorage(storage_scope)) {
-      body = this->VisitStmt(op->body);
+      Stmt body = this->VisitStmt(op->body);
       ICHECK(op->bounds.size() >= 3) << "Only 2d RGBA texture is currently supported";
       int vec_length = static_cast<int>(op->bounds.back()->extent.as<IntImmNode>()->value);
       ICHECK(vec_length == 4 || vec_length == 1)
