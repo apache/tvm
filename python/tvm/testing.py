@@ -795,15 +795,32 @@ def _auto_parametrize_target(metafunc):
 
     """
     if "target" in metafunc.fixturenames:
-        parametrized_args = [
-            arg.strip()
-            for mark in metafunc.definition.iter_markers("parametrize")
-            for arg in mark.args[0].split(",")
-        ]
+        for mark in metafunc.definition.iter_markers("parametrize"):
+            args = [arg.strip() for arg in mark.args[0].split(",") if arg.strip()]
 
-        if "target" not in parametrized_args:
-            # Check if the function is marked with either excluded or
-            # known failing targets.
+            if "target" in args:
+                # Test explicitly called @pytest.mark.parametrize to
+                # set the targets.  Make sure that it gets the
+                # appropriate additional marks for that target.
+                param_sets = mark.args[1]
+
+                if len(args) == 1:
+                    targets = param_sets
+                else:
+                    target_i = args.index("target")
+                    targets = [param_set[target_i] for param_set in param_sets]
+
+                new_param_sets = [
+                    pytest.param(*param_set, marks=_target_to_requirement(target))
+                    for target, param_set in zip(targets, param_sets)
+                ]
+                param_sets[:] = new_param_sets
+                break
+
+        else:
+            # No existing parametrization, time to add one, checking
+            # if the function is marked with either excluded or known
+            # failing targets.
             excluded_targets = getattr(metafunc.function, "tvm_excluded_targets", [])
             xfail_targets = getattr(metafunc.function, "tvm_known_failing_targets", [])
             metafunc.parametrize(
@@ -849,17 +866,14 @@ def parametrize_targets(*args):
     >>>     ...  # do something
     """
 
-    def wrap(targets):
-        def func(f):
-            return pytest.mark.parametrize(
-                "target", _pytest_target_params(targets), scope="session"
-            )(f)
-
-        return func
-
+    # Backwards compatibility, when used as a decorator with no
+    # arguments implicitly parametrizes over "target".  The
+    # parametrization is now handled by _auto_parametrize_target, so
+    # this use case can just return the decorated function.
     if len(args) == 1 and callable(args[0]):
-        return wrap(None)(args[0])
-    return wrap(args)
+        return args
+
+    return pytest.mark.parametrize("target", args, scope="session")
 
 
 def exclude_targets(*args):
