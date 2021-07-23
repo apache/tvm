@@ -284,12 +284,12 @@ TEST(BuildModule, ZeroCopy) {
   }
 
   // // Initialize graph executor.
-  int cpu_dev_ty = static_cast<int>(kDLCPU);
-  int cpu_dev_id = 0;
+  int device_type = static_cast<int>(kDLCPU);
+  int device_id = 0;
 
   const runtime::PackedFunc* graph_executor =
       tvm::runtime::Registry::Get("tvm.graph_executor.create");
-  runtime::Module mod = (*graph_executor)(json, module, cpu_dev_ty, cpu_dev_id);
+  runtime::Module mod = (*graph_executor)(json, module, device_type, device_id);
 
   // test FFI for module.
   auto test_ffi = PackedFunc([](TVMArgs args, TVMRetValue* rv) {
@@ -302,7 +302,6 @@ TEST(BuildModule, ZeroCopy) {
 
   PackedFunc set_input = mod.GetFunction("set_input", false);
   PackedFunc run = mod.GetFunction("run", false);
-  PackedFunc get_output = mod.GetFunction("get_output", false);
   PackedFunc set_output_zero_copy = mod.GetFunction("set_output_zero_copy", false);
   set_input("A", a_val);
   set_input("B", b_val);
@@ -314,7 +313,6 @@ TEST(BuildModule, ZeroCopy) {
   set_output_zero_copy(1, out1);
 
   run();
-  // print_data_entry();
   float* p_out0 = (float*)out0->data;
   float* p_out1 = (float*)out1->data;
 
