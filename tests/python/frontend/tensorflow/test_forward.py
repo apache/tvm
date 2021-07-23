@@ -124,7 +124,7 @@ def run_tvm_graph(
     disabled_pass=None,
     ignore_in_shape=False,
     serialize=False,
-    convert_config={},
+    convert_config=None,
 ):
     """Generic function to compile on relay and execute on tvm"""
     input_data = convert_to_list(input_data)
@@ -225,7 +225,7 @@ def compare_tf_with_tvm(
     add_shapes_to_graph_def=True,
     targets=None,
     ignore_in_shape=False,
-    convert_config={},
+    convert_config=None,
 ):
     """Generic function to generate and compare tensorflow and TVM output"""
 
@@ -1811,8 +1811,12 @@ def _test_matmul(i, j, k, dtype, outer=None):
 
                 A_np = np.random.uniform(high=5.0, size=A_shape).astype(dtype)
                 B_np = np.random.uniform(high=5.0, size=B_shape).astype(dtype)
-                compare_tf_with_tvm([A_np, B_np], [A.name, B.name], result.name, {"use_dense_op": True})
-                compare_tf_with_tvm([A_np, B_np], [A.name, B.name], result.name, {"use_dense_op": False})
+                compare_tf_with_tvm(
+                    [A_np, B_np], [A.name, B.name], result.name, {"use_dense": True}
+                )
+                compare_tf_with_tvm(
+                    [A_np, B_np], [A.name, B.name], result.name, {"use_dense": False}
+                )
 
 
 def test_forward_matmul():
@@ -1831,10 +1835,10 @@ def _test_batch_matmul(A_shape, B_shape, dtype, adjoint_a=False, adjoint_b=False
         A_np = np.random.uniform(high=5.0, size=A_shape).astype(dtype)
         B_np = np.random.uniform(high=5.0, size=B_shape).astype(dtype)
         compare_tf_with_tvm(
-            [A_np, B_np], [A.name, B.name], result.name, {"use_nt_batch_matmul_op": True}
+            [A_np, B_np], [A.name, B.name], result.name, {"use_nt_batch_matmul": True}
         )
         compare_tf_with_tvm(
-            [A_np, B_np], [A.name, B.name], result.name, {"use_nt_batch_matmul_op": False}
+            [A_np, B_np], [A.name, B.name], result.name, {"use_nt_batch_matmul": False}
         )
 
 

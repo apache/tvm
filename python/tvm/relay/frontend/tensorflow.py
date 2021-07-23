@@ -56,7 +56,7 @@ TF_DEFAULT_CONFIGS = {
     # Change this flag to False to directly convert to `nn.batch_matmul`.
     # Note that `nn.batch_matmul` with format other than NT is in experimental, it may have some
     # performance issues.
-    "use_nt_batch_matmul_op": True,
+    "use_nt_batch_matmul": True,
 }
 
 # compatible operators that do NOT require any conversion.
@@ -1219,7 +1219,7 @@ class SubGraphProto(GraphProto):
         return func, self._params
 
 
-def from_tensorflow(graph, layout="NHWC", shape=None, outputs=None, convert_config={}):
+def from_tensorflow(graph, layout="NHWC", shape=None, outputs=None, convert_config=None):
     """Load tensorflow graph which is a python tensorflow graph object into relay.
     The companion parameters will be handled automatically.
 
@@ -1237,13 +1237,13 @@ def from_tensorflow(graph, layout="NHWC", shape=None, outputs=None, convert_conf
     outputs : List of output tensor names (Optional)
         if not specified then the last node is assumed as graph output.
 
-    convert_config : Dict[str, Any]
+    convert_config : Optional[Dict[str, Any]]
         Default config:
-            use_dense_op : bool = True
+            use_dense : bool = True
                 Ture to convert `tf.matmul` to `nn.dense`, else to `nn.matmul`.
                 The `nn.dense` op requires the data tensor to be non-transposed and weight tensor
                 to be transposed, may insert extra `transpose` to the original graph.
-            use_nt_batch_matmul_op : bool = True
+            use_nt_batch_matmul : bool = True
                 True to convert `tf.batch_matmul` to `nn.batch_matmul` strict to NT format
                 (transpose_a=False, transpose_b=True).
 

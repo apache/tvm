@@ -16,9 +16,12 @@
 # under the License.
 """Batch matrix multiplication"""
 # pylint: disable=invalid-name
+import logging
 import tvm
 from tvm import te, auto_scheduler
 from ..utils import get_const_tuple
+
+logger = logging.getLogger("topi")
 
 
 def batch_matmul(
@@ -94,6 +97,12 @@ def batch_matmul(
         oshape = (batch, XI, YJ)
     if out_dtype is None:
         out_dtype = tensor_a.dtype
+        if tensor_a.dtype != tensor_b.dtype:
+            logger.warning(
+                "tensor_a has different data type with tensor_b: %s, %s",
+                tensor_a.dtype,
+                tensor_b.dtype,
+            )
 
     if (transpose_a, transpose_b) == (True, True):
         compute_lambda = lambda b, i, j: te.sum(

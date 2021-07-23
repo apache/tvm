@@ -1176,7 +1176,7 @@ def _batch_matmul():
         adj_x = attr["adj_x"]
         adj_y = attr["adj_y"]
 
-        if TF_DEFAULT_CONFIGS["use_nt_batch_matmul_op"]:
+        if TF_DEFAULT_CONFIGS["use_nt_batch_matmul"]:
             # Strictly convert all batch_matmul to NT format
             input_x = _op.transpose(input_x, axes=[0, 2, 1]) if adj_x else input_x
             input_y = _op.transpose(input_y, axes=[0, 2, 1]) if not adj_y else input_y
