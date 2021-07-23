@@ -255,14 +255,14 @@ class BlockScopeNode : public Object {
 class BlockScope : public ObjectRef {
  public:
   /*! \brief The constructor creating an empty block scope with on dependency information */
-  TVM_DLL BlockScope();
+  TVM_DLL explicit BlockScope();
   /*!
    * \brief Create the object with the specific leaf blocks, and compute the dependency information
    * between the leaf blocks.
    * \param child_block_srefs The srefs to the leaf blocks
    * \note We assume the leaf blocks are given in pre-DFS order
    */
-  TVM_DLL BlockScope(const Array<StmtSRef>& child_block_srefs);
+  TVM_DLL explicit BlockScope(const Array<StmtSRef>& child_block_srefs);
 
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(BlockScope, ObjectRef, BlockScopeNode);
 };

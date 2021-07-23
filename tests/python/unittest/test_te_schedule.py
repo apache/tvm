@@ -218,7 +218,7 @@ def test_rfactor():
     assert set(BF.op.body[0].axis) == set([k2])
     assert s[B].op.body[0].axis[0].dom.extent == n
     assert len(s[B].all_iter_vars) == 2
-    # schedule with splot
+    # schedule with split
     s = te.create_schedule(B.op)
     ko, ki = s[B].split(k1, factor=4)
     xo, xi = s[B].split(B.op.axis[0], factor=8)

@@ -242,6 +242,17 @@ class ScheduleNode : public runtime::Object {
   /******** Schedule: loop binding/annotation ********/
   /******** Schedule: cache read/write ********/
   /******** Schedule: reduction ********/
+  /*!
+   * \brief Factor a reduction block by the specified loop
+   * \details See python/tvm/tir/schedule/schedule.py
+   * \param loop_rv The loop outside block we want to do rfactor
+   * \param factor_axis The position where the new dimension is placed in the new introduced rfactor
+   *                    buffer. Suppose the original reduction block writes to buffer `B` with
+   *                    ndim(B) dimensions, then `factor_axis` should be in range `[-ndim(B) - 1,
+   *                    ndim(B)]`, and the negative index will be normalized to a non-negative one
+   * \return The rfactor block
+   */
+  virtual BlockRV RFactor(const LoopRV& loop_rv, int factor_axis) = 0;
   /******** Schedule: blockize & tensorize ********/
 };
 
