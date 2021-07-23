@@ -254,7 +254,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
           << ") {";
     code_ << "return " << run_func << "(";
     for (const auto& input : metadata_->inputs) {
-      code_ << "inputs->" << input->name_hint() << ",";
+      code_ << "inputs->" << input << ",";
     }
     if (metadata_->num_outputs == 1) {
       code_ << "outputs->output";

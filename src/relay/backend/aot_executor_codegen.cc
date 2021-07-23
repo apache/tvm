@@ -783,8 +783,11 @@ class AOTExecutorCodegen : public ExprVisitor {
     }
     ret.function_metadata = std::move(function_metadata_);
 
+    std::vector<String> input_var_names(input_vars_.size());
+    std::transform(input_vars_.begin(), input_vars_.end(), input_var_names.begin(),
+                   [](Var input_var) -> String { return input_var->name_hint(); });
     ret.metadata =
-        runtime::Metadata(input_vars_, return_sid_.size(), runtime::kTvmExecutorAot, mod_name);
+        runtime::Metadata(input_var_names, return_sid_.size(), runtime::kTvmExecutorAot, mod_name);
     return ret;
   }
 };

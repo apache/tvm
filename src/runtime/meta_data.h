@@ -26,7 +26,6 @@
 
 #include <dmlc/io.h>
 #include <dmlc/json.h>
-#include <tvm/relay/expr.h>
 #include <tvm/runtime/executor_info.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/ndarray.h>
@@ -56,7 +55,7 @@ inline String get_name_mangled(const String& module_name, const String& name) {
 class MetadataNode : public Object {
  public:
   /*! \brief input information for the main function */
-  Array<tvm::relay::Var> inputs;
+  Array<String> inputs;
   /*! \brief number of outputs of the main function */
   int num_outputs = 1;
   /*! \brief the executor to be used to run the model */
@@ -74,8 +73,7 @@ class MetadataNode : public Object {
  */
 class Metadata : public ObjectRef {
  public:
-  TVM_DLL Metadata(Array<tvm::relay::Var> inputs, int num_outputs, String executor,
-                   String mod_name) {
+  TVM_DLL Metadata(Array<String> inputs, int num_outputs, String executor, String mod_name) {
     auto n = make_object<MetadataNode>();
     n->inputs = inputs;
     n->num_outputs = num_outputs;
