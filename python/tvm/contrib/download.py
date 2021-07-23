@@ -16,14 +16,16 @@
 # under the License.
 """Helper utility for downloading"""
 
+import logging
 import os
 from pathlib import Path
-import sys
 import tempfile
 import time
 
+LOG = logging.getLogger("download")
 
-def download(url, path, overwrite=False, size_compare=False, verbose=False, retries=3):
+
+def download(url, path, overwrite=False, size_compare=False, retries=3):
     """Downloads the file from the internet.
     Set the input options correctly to overwrite or do the size comparison
 
@@ -33,19 +35,18 @@ def download(url, path, overwrite=False, size_compare=False, verbose=False, retr
         Download url.
 
     path : str
-        Local file path to save downloaded file
+        Local file path to save downloaded file.
 
     overwrite : bool, optional
-        Whether to overwrite existing file
+        Whether to overwrite existing file, defaults to False.
 
     size_compare : bool, optional
-        Whether to do size compare to check downloaded file.
-
-    verbose: bool, optional
-        If status messages should be printed.
+        Whether to do size compare to check downloaded file, defaults
+        to False
 
     retries: int, optional
-        Number of time to retry download, default at 3.
+        Number of time to retry download, defaults to 3.
+
     """
     # pylint: disable=import-outside-toplevel
     import urllib.request as urllib2
@@ -62,19 +63,14 @@ def download(url, path, overwrite=False, size_compare=False, verbose=False, retr
                 res_get = urllib2.urlopen(url)
             url_file_size = int(res_get.headers["Content-Length"])
             if url_file_size != file_size:
-                if verbose:
-                    print(f"Existing file {path} has incorrect size, downloading fresh copy")
-                download(
-                    url, path, overwrite=True, size_compare=False, verbose=verbose, retries=retries
-                )
+                LOG.warning("Existing file %s has incorrect size, downloading fresh copy", path)
+                download(url, path, overwrite=True, size_compare=False, retries=retries)
                 return
 
-        if verbose:
-            print(f"File {path} exists, skipping.")
+        LOG.info("File %s exists, skipping.", path)
         return
 
-    if verbose:
-        print(f"Downloading from url {url} to {path}")
+    LOG.info("Downloading from url %s to %s", url, path)
 
     # Stateful start time
     start_time = time.time()
@@ -89,14 +85,20 @@ def download(url, path, overwrite=False, size_compare=False, verbose=False, retr
         duration = time.time() - start_time
         progress_bytes = int(count * block_size)
         progress_megabytes = progress_bytes / (1024.0 * 1024)
-        speed_kBps = int(progress_bytes / (1024 * duration))
+        speed_kbps = int(progress_bytes / (1024 * duration))
         percent = min(int(count * block_size * 100 / total_size), 100)
-        sys.stdout.write(
-            f"\r...{percent:d}%, {progress_megabytes:.2f} MB, {speed_kBps} kB/s, {duration:.1f} seconds passed"
-        )
-        sys.stdout.flush()
 
-    reporthook = _download_progress if verbose else None
+        # Temporarily suppress newlines on the output stream.
+        prev_terminator = logging.StreamHandler.terminator
+        logging.StreamHandler.terminator = ""
+        LOG.debug(
+            "\r...%d%%, %.2f MB, %d KB/s, %d seconds passed",
+            percent,
+            progress_megabytes,
+            speed_kbps,
+            duration,
+        )
+        logging.StreamHandler.terminator = prev_terminator
 
     with tempfile.TemporaryDirectory() as tempdir:
         tempdir = Path(tempdir)
@@ -105,9 +107,9 @@ def download(url, path, overwrite=False, size_compare=False, verbose=False, retr
         for i_retry in range(retries):
             # pylint: disable=broad-except
             try:
-                urllib2.urlretrieve(url, download_loc, reporthook=reporthook)
-                if verbose:
-                    print("")
+
+                urllib2.urlretrieve(url, download_loc, reporthook=_download_progress)
+                LOG.debug("")
                 download_loc.rename(path)
                 return
 
@@ -115,10 +117,8 @@ def download(url, path, overwrite=False, size_compare=False, verbose=False, retr
                 if i_retry == retries - 1:
                     raise err
 
-                print(
-                    "\n".join(
-                        [repr(err), f"Download attempt {i_retry}/{retries} failed, retrying."]
-                    )
+                LOG.warning(
+                    "%s\nDownload attempt %d/%d failed, retrying.", repr(err), i_retry, retries
                 )
 
 
@@ -129,7 +129,7 @@ else:
 TEST_DATA_ROOT_PATH.mkdir(parents=True, exist_ok=True)
 
 
-def download_testdata(url, relpath, module=None, overwrite=False, verbose=False):
+def download_testdata(url, relpath, module=None, overwrite=False):
     """Downloads the test data from the internet.
 
     Parameters
@@ -143,13 +143,16 @@ def download_testdata(url, relpath, module=None, overwrite=False, verbose=False)
     module : Union[str, list, tuple], optional
         Subdirectory paths under test data folder.
 
-    verbose : bool
-        If the download status should print to terminal.
+    overwrite : bool, defaults to False
+        If True, will download a fresh copy of the file regardless of
+        the cache.  If False, will only download the file if a cached
+        version is missing.
 
     Returns
     -------
     abspath : str
         Absolute file path of downloaded file
+
     """
     global TEST_DATA_ROOT_PATH
     if module is None:
@@ -161,5 +164,5 @@ def download_testdata(url, relpath, module=None, overwrite=False, verbose=False)
     else:
         raise ValueError("Unsupported module: " + module)
     abspath = Path(TEST_DATA_ROOT_PATH, module_path, relpath)
-    download(url, abspath, overwrite=overwrite, size_compare=False, verbose=verbose)
+    download(url, abspath, overwrite=overwrite, size_compare=False)
     return str(abspath)
