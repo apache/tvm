@@ -31,7 +31,6 @@
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 
-#include <algorithm>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -368,17 +367,12 @@ class TVM_DLL GraphExecutor : public ModuleNode {
         bitmask |= 1;
       } else if (key == "arg_nodes") {
         reader->Read(&input_nodes_);
-        std::sort(input_nodes_.begin(), input_nodes_.end());
         bitmask |= 2;
       } else if (key == "node_row_ptr") {
         reader->Read(&node_row_ptr_);
         bitmask |= 4;
       } else if (key == "heads") {
         reader->Read(&outputs_);
-        std::sort(outputs_.begin(), outputs_.end(),
-                  [&](const NodeEntry& a, const NodeEntry& b) -> bool {
-                    return a.node_id == b.node_id ? a.index < b.index : a.node_id < b.node_id;
-                  });
         bitmask |= 8;
       } else if (key == "attrs") {
         reader->Read(&attrs_);
