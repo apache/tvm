@@ -2139,11 +2139,10 @@ def group_norm(data, gamma, beta, num_groups, axis=1, epsilon=1e-5, center=True,
 
 def batch_matmul(tensor_a, tensor_b, out_dtype="", transpose_a=False, transpose_b=True):
     r"""
-    Computes batch matrix multiplication of `A` and `B` when `A` and `B` are data
-    in batch.
-    
-    The A & B can be transposed. For legacy reason, we use NT format(tensor_a non-transposed
-    and tensor_b transposed) by default.
+    Compute batch matrix multiplication of `tensor_a` and `tensor_b`.
+
+    Both `tensor_a` and `tensor_b` can be transposed. For legacy reason, we use NT format
+    (transpose_a=False, transpose_b=True) by default.
 
     .. math::
 
@@ -2158,13 +2157,13 @@ def batch_matmul(tensor_a, tensor_b, out_dtype="", transpose_a=False, transpose_
         The second input.
 
     out_dtype : Optional[str]
-        Specifies the output data type for mixed precision batch matmul
+        Specifies the output data type for mixed precision batch matmul.
 
     transpose_a : Optional[bool] = False
-        Whether the data tensor is in transposed format.
+        Whether the first tensor is in transposed format.
 
     transpose_b : Optional[bool] = True
-        Whether the weight tensor is in transposed format.
+        Whether the second tensor is in transposed format.
 
     Returns
     -------

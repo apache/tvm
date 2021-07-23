@@ -30,42 +30,41 @@ def batch_matmul(
     transpose_b=True,
     auto_scheduler_rewritten_layout="",
 ):
-    """Computes batch matrix multiplication of `A` and `B` when `A` and `B` are
-    data in batch. Supports broadcasting for batch dimension.
+    """Compute batch matrix multiplication of `tensor_a` and `tensor_b`.
 
-    The A & B can be transposed. For legacy reason, we use NT format(tensor_a non-transposed
-    and tensor_b transposed) by default.
+    Both `tensor_a` and `tensor_b` can be transposed. For legacy reason, we use NT format
+    (transpose_a=False, transpose_b=True) by default.
 
     Parameters
     ----------
     tensor_a : tvm.te.Tensor
-        3-D with shape [batch, M, K] or [batch, K, M]
+        3-D with shape [batch, M, K] or [batch, K, M].
 
     tensor_b : tvm.te.Tensor
-        3-D with shape [batch, K, N] or [batch, N, K]
+        3-D with shape [batch, K, N] or [batch, N, K].
 
     oshape : List[Optional]
         Explicit intended output shape of the computation. Can be useful in cases
         with dynamic input shapes.
 
-    auto_scheduler_rewritten_layout: Optional[str] = ""
-        The layout after auto-scheduler's layout rewrite pass.
-
     out_dtype : Optional[str]
-        Specifies the output data type for mixed precision batch matmul
+        Specifies the output data type for mixed precision batch matmul.
 
     transpose_a : Optional[bool] = False
-        Whether the data tensor is in transposed format.
+        Whether the first tensor is in transposed format.
 
     transpose_b : Optional[bool] = True
-        Whether the weight tensor is in transposed format.
+        Whether the second tensor is in transposed format.
+
+    auto_scheduler_rewritten_layout: Optional[str] = ""
+        The layout after auto-scheduler's layout rewrite pass.
 
     Returns
     -------
     output : tvm.te.Tensor
         3-D with shape [batch, M, N]
     """
-    assert len(tensor_a.shape) == 3, "only support 3-dim batch_matmul"
+    assert len(tensor_a.shape) == 3, "tensor_a only support 3-dim"
     if transpose_a:
         XB, XK, XI = get_const_tuple(tensor_a.shape)
     else:
@@ -77,13 +76,13 @@ def batch_matmul(
         )
         auto_scheduler.remove_index_check(tensor_b)
     else:
-        assert len(tensor_b.shape) == 3, "only support 3-dim batch_matmul"
+        assert len(tensor_b.shape) == 3, "tensor_b only support 3-dim"
         if transpose_b:
             YB, YJ, YK = get_const_tuple(tensor_b.shape)
         else:
             YB, YK, YJ = get_const_tuple(tensor_b.shape)
 
-    assert XK == YK or isinstance(YK, tvm.tir.expr.Var), "shapes of x and y is inconsistent"
+    assert XK == YK or isinstance(YK, tvm.tir.expr.Var), "shapes of x and y are inconsistent"
     k = te.reduce_axis((0, XK), name="k")
     if oshape is None:
         assert XB == YB or XB == 1 or YB == 1, "batch dimension doesn't match"

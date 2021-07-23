@@ -949,21 +949,23 @@ Expr MakeBatchMatmul(Expr tensor_a, Expr tensor_b, DataType out_dtype, bool tran
 TVM_REGISTER_GLOBAL("relay.op.nn._make.batch_matmul").set_body_typed(MakeBatchMatmul);
 
 RELAY_REGISTER_OP("nn.batch_matmul")
-    .describe(R"code(Computes matrix multiplication of `x` and `y` when `x` and `y`
-are data in batch.
+    .describe(R"code(Compute batch matrix multiplication of `tensor_a` and `tensor_b`.
+
+Both `tensor_a` and `tensor_b` can be transposed. For legacy reason, we use NT format
+(transpose_a=False, transpose_b=True) by default.
 
 .. math::
 
-  batch\_matmul(x, y)[i, :, :] = matmul(x[i, :, :], y[i, :, :]^T)
+  batch\_matmul(A, B)[i, :, :] = matmul(A[i, :, :], B[i, :, :]^T)
 
-- **x**: `(b, m, k)`
-- **y**: `(b, n, k)`
+- **tensor_a**: `(b, m, k)` or `(b, k, m)`
+- **tensor_b**: `(b, k, n)` or `(b, n, k)`
 - **out**: `(b, m, n)`.
 
 )code" TVM_ADD_FILELINE)
     .set_num_inputs(2)
-    .add_argument("tensor_a", "3D Tensor", "First input.")
-    .add_argument("tensor_b", "3D Tensor", "Second input.")
+    .add_argument("tensor_a", "3D Tensor", "The first input.")
+    .add_argument("tensor_b", "3D Tensor", "The second input.")
     .set_support_level(10)
     .add_type_rel("BatchMatmul", BatchMatmulRel<BatchMatmulAttrs>);
 // ------------------- relay.nn.batch_matmul

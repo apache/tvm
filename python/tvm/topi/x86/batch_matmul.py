@@ -28,19 +28,34 @@ from ..utils import traverse_inline, get_const_tuple, get_max_power2_factor
 def batch_matmul(
     cfg, tensor_a, tensor_b, out_shape=None, out_dtype=None, transpose_a=False, transpose_b=True
 ):
-    """Computes batch matrix multiplication of `x` and `y` when `x` and `y` are
-    data in batch. Supports broadcasting in batch dimension.
+    """Compute batch matrix multiplication of `tensor_a` and `tensor_b`.
+
+    Both `tensor_a` and `tensor_b` can be transposed. For legacy reason, we use NT format
+    (transpose_a=False, transpose_b=True) by default.
 
     Parameters
     ----------
     cfg : ConfigSpace
-        Autotvm tuning space config file
-    x : tvm.te.Tensor
-        3-D with shape [batch, M, K]
-    y : tvm.te.Tensor
-        3-D with shape [batch, N, K]
-    out_shape : tuple or None
-        Shape of the outputs
+        Autotvm tuning space config file.
+
+    tensor_a : tvm.te.Tensor
+        3-D with shape [batch, M, K] or [batch, K, M].
+
+    tensor_b : tvm.te.Tensor
+        3-D with shape [batch, K, N] or [batch, N, K].
+
+    out_shape : List[Optional]
+        Explicit intended output shape of the computation. Can be useful in cases
+        with dynamic input shapes.
+
+    out_dtype : Optional[str]
+        Specifies the output data type for mixed precision batch matmul.
+
+    transpose_a : Optional[bool] = False
+        Whether the first tensor is in transposed format.
+
+    transpose_b : Optional[bool] = True
+        Whether the second tensor is in transposed format.
 
     Returns
     -------
