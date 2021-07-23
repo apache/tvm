@@ -2363,15 +2363,13 @@ class PyTorchOpConverter:
             c = g_act(c)
             o = f_act(o)
 
-            C = f * C_t + i * c
-            H = o * h_act(C)
+            C_t = f * C_t + i * c
+            H_t = o * h_act(C_t)
 
             if has_proj:
-                H = _op.nn.dense(H, weights[4])
+                H_t = _op.nn.dense(H_t, weights[4])
 
-            H_t = H
-            C_t = C
-            outputs_list.append(H)  # [seq_num, (batch, hidden_size)]
+            outputs_list.append(H_t)  # [seq_num, (batch, hidden_size)]
         hidden_outputs = (H_t, C_t)
 
         return (outputs_list, hidden_outputs)
