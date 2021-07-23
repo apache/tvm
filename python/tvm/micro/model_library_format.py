@@ -25,8 +25,8 @@ import re
 import tarfile
 import typing
 
-from .._ffi import get_global_func
 from tvm.ir.type import TupleType
+from .._ffi import get_global_func
 from .interface_api import generate_c_interface_header
 from ..contrib import utils
 from ..driver import build_module
