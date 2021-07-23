@@ -235,6 +235,7 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
     Doc doc;
     std::ostringstream os;
     if (dtype.is_float() || dtype.is_float16() || dtype.is_bfloat16()) {
+      os.setf(std::ios::showpoint);
       os.precision(17);
     }
     os << data[0];
@@ -242,6 +243,8 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
       doc << Doc::Text(os.str());
     } else if (dtype == DataType::Bool()) {
       doc << Doc::Text(data[0] ? "True" : "False");
+    } else if (dtype == DataType::Float(32)) {
+      doc << Doc::Text(os.str());
     } else {
       doc << "tir." << runtime::DLDataType2String(dtype) << "(" << Doc::Text(os.str()) << ")";
     }
@@ -302,8 +305,8 @@ Doc TVMScriptPrinter::AllocBufferDeclaration(const Buffer& buf) {
   } else {
     doc << ", elem_offset=" << Print(buf->elem_offset);
   }
-  if (buf->scope != "global") {
-    doc << ", scope=" << Doc::StrLiteral(buf->scope);
+  if (buf.scope() != "global") {
+    doc << ", scope=" << Doc::StrLiteral(buf.scope());
   }
   if (buf->data_alignment != -1) {
     doc << ", align=" << buf->data_alignment;
