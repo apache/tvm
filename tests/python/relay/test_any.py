@@ -950,15 +950,9 @@ def verify_any_batch_matmul(
 # TODO(mbrookhart): enable once VM supports heterogenous execution
 # @tvm.testing.uses_gpu
 def test_any_batch_matmul():
-    verify_any_batch_matmul(
-        (1, 16, 32), (1, 16, 32), (1, 16, 16), (1, 16, 32), (relay.Any(),) * 3
-    )
-    verify_any_batch_matmul(
-        (5, 16, 32), (5, 16, 32), (5, 16, 16), (5, 16, 32), (relay.Any(),) * 3
-    )
-    verify_any_batch_matmul(
-        (5, 16, 32), (5, 20, 32), (5, 16, 20), (5, 16, 32), (relay.Any(),) * 3
-    )
+    verify_any_batch_matmul((1, 16, 32), (1, 16, 32), (1, 16, 16), (1, 16, 32), (relay.Any(),) * 3)
+    verify_any_batch_matmul((5, 16, 32), (5, 16, 32), (5, 16, 16), (5, 16, 32), (relay.Any(),) * 3)
+    verify_any_batch_matmul((5, 16, 32), (5, 20, 32), (5, 16, 20), (5, 16, 32), (relay.Any(),) * 3)
     verify_any_batch_matmul(
         (30, 16, 32), (30, 20, 32), (30, 16, 20), (30, 16, 32), (relay.Any(),) * 3
     )
