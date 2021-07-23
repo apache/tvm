@@ -1440,7 +1440,7 @@ def test_extern_opt():
 
 
 def test_preserve_type_import():
-    """Test to make sure type definition and imports are preserved during the BYOC pipeline"""
+    """Test to make sure type definition and imports are preserved during the BYOC pipeline."""
     from tvm.relay.prelude import Prelude, StaticTensorArrayOps
 
     def run(dtype, shape):
