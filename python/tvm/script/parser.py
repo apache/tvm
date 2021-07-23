@@ -826,6 +826,11 @@ class TVMScriptParser(Transformer):
                     "Array access index expected int or IntImm, but got " + type(index),
                     node.span,
                 )
+            if int(index) >= len(symbol):
+                self.report_error(
+                    f"Array access out of bound, size: {len(symbol)}, got index {index}.",
+                    node.span,
+                )
             return symbol[int(index)]
         else:
             self.report_error(

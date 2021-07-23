@@ -93,7 +93,7 @@ class MatchBufferLower : public StmtExprMutator {
       const BufferRegion& source = it->second;
 
       auto n = CopyOnWrite(op);
-      n->indices = ConvertIndices(op->indices, MatchBufferRegion(buffer, source));
+      n->indices = MatchBufferRegion(buffer, source).ConvertIndices(op->indices);
       n->buffer = source->buffer;
       return Stmt(n);
     }
@@ -110,7 +110,7 @@ class MatchBufferLower : public StmtExprMutator {
     } else {
       const Buffer& buffer = it->first;
       const BufferRegion& source = it->second;
-      Array<PrimExpr> indices = ConvertIndices(op->indices, MatchBufferRegion(buffer, source));
+      Array<PrimExpr> indices = MatchBufferRegion(buffer, source).ConvertIndices(op->indices);
       return BufferLoad(source->buffer, indices);
     }
   }
@@ -122,7 +122,7 @@ class MatchBufferLower : public StmtExprMutator {
       return buffer_region;
     } else {
       const BufferRegion& source = it->second;
-      Region region = ConvertRegion(buffer_region->region, MatchBufferRegion(buffer, source));
+      Region region = MatchBufferRegion(buffer, source).ConvertRegion(buffer_region->region);
       return BufferRegion(source->buffer, std::move(region));
     }
   }
@@ -195,51 +195,6 @@ class MatchBufferLower : public StmtExprMutator {
       const Range& range = source->region[i + offset];
       Bind(buffer->shape[i], range->extent, buffer->name + ".shape_" + std::to_string(i));
     }
-  }
-
-  Array<PrimExpr> ConvertIndices(const Array<PrimExpr> indices,
-                                 const MatchBufferRegion& match_buffer) {
-    const Buffer& target = match_buffer->buffer;
-    const BufferRegion& source = match_buffer->source;
-    ICHECK_EQ(indices.size(), target->shape.size());
-
-    Array<PrimExpr> result;
-    result.reserve(source->region.size());
-    size_t offset = source->region.size() - indices.size();
-    for (size_t i = 0; i < offset; ++i) {
-      const Range& range = source->region[i];
-      ICHECK(analyzer_.CanProve(range->extent == 1));
-      result.push_back(range->min);
-    }
-    for (size_t i = 0; i < indices.size(); ++i) {
-      const Range& range = source->region[i + offset];
-      const PrimExpr& index = indices[i];
-      result.push_back(range->min + index);
-    }
-    return result;
-  }
-
-  Region ConvertRegion(const Region region, const MatchBufferRegion& match_buffer) {
-    const Buffer& target = match_buffer->buffer;
-    const BufferRegion& source = match_buffer->source;
-    ICHECK_EQ(region.size(), target->shape.size());
-
-    Region result;
-    result.reserve(source->region.size());
-    size_t offset = source->region.size() - region.size();
-    for (size_t i = 0; i < offset; ++i) {
-      const Range& source_range = source->region[i];
-      ICHECK(analyzer_.CanProve(source_range->extent == 1));
-      result.push_back(Range::FromMinExtent(source_range->min, 1));
-    }
-    for (size_t i = 0; i < region.size(); ++i) {
-      const Range& source_range = source->region[i + offset];
-      const Range& target_range = region[i];
-      ICHECK(analyzer_.CanProve(source_range->extent >= target_range->min + target_range->extent));
-      result.push_back(
-          Range::FromMinExtent(source_range->min + target_range->min, target_range->extent));
-    }
-    return result;
   }
 
   void Bind(const PrimExpr& arg, PrimExpr value, const std::string& arg_name = "argument") {
