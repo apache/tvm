@@ -2345,9 +2345,12 @@ class PyTorchOpConverter:
         H_t = hidden[0]  # (batch, hidden_size)
         C_t = hidden[1]  # (batch, hidden_size)
         for x_t in input_seqs:
-            # x_t shape = (batch, feature size)
+            # x_t shape = (batch, feature size), step shape = (batch, feature size + hidden_size)
+            step = _op.concatenate([x_t, H_t], axis=1)
+            W = _op.concatenate([weights[0], weights[1]], axis = 1)
+            # Instead of _op.nn.dense(x_t, weights[0]) + _op.nn.dense(H_t, weights[1]) we have _op.nn.dense(step, W)
             # gates shape = (batch, 4 * hidden_size)
-            gates = _op.nn.dense(x_t, weights[0]) + _op.nn.dense(H_t, weights[1])
+            gates = _op.nn.dense(step, W)
             # Add biases
             if weights[2] is not None:
                 gates += weights[2]
