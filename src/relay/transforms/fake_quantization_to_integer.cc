@@ -92,9 +92,14 @@ class SubgraphExtractor : public ExprVisitor {
   }
   const AffineTypeMap GetAffineTypes() { return affine_types_; }
   void VisitExpr(const Expr& expr) override {
+    // When looking for fake quantized subgraphs, we only support data-flow regions of the graph,
+    // i.e. call nodes/tuples/constants/etc. If we see anything else (like control flow) we
+    // abort the rewrite.
     if (expr.as<CallNode>() == nullptr && expr.as<OpNode>() == nullptr &&
         expr.as<TupleNode>() == nullptr && expr.as<TupleGetItemNode>() == nullptr &&
         expr.as<ConstantNode>() == nullptr) {
+      LOG(INFO) << "FakeQuantizationToInteger found a non-dataflow op inside"
+                << " a fake quantize region, aborting this rewrite";
       is_fake_quantized_ = false;
     } else {
       ExprVisitor::VisitExpr(expr);
@@ -172,7 +177,7 @@ class SubgraphMutator : public ExprMutator {
       }
       // Call the rewrite
       Array<ObjectRef> vals = fqfq[op](expr, affine_types_);
-      // Save teh outputs of the rewrite
+      // Save the outputs of the rewrite
       ICHECK(vals.size() == 2)
           << "got the wrong number of returned arguments from FTVMFakeQuantizationToInteger for "
           << AsText(op, false);

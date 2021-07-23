@@ -205,7 +205,11 @@ def pad(expr, type_map):
     arg = expr.args[0]
     t = type_map[arg]
     pad_value = expr.args[1]
+    ## TF2ONNX will sometimes implement the pad_value as a constant without a quantize
+    ## To support that, the pass lets branches that terminate in a constant through
     if pad_value in type_map:
+        ## if the pad value is calcuated from a dequantize op, it should be in the type map
+        ## and we need to make sure it's affine type matches the arg
         pad_t = type_map[pad_value]
         if not tvm.ir.structural_equal(t, pad_t):
             pad_value = relay.qnn.op.requantize(
@@ -217,6 +221,7 @@ def pad(expr, type_map):
                 out_dtype=t.dtype,
             )
     else:
+        ## If the pad-value is a constant, we need to quantize it
         assert isinstance(pad_value, relay.expr.Constant)
         pad_value = relay.qnn.op.quantize(pad_value, t.scale, t.zero_point)
 
