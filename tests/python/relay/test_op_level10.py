@@ -354,12 +354,12 @@ def test_batch_matmul():
     zz = run_infer_type(z)
     assert zz.checked_type == relay.TensorType((b, m, n), "float32")
 
-    verify_batch_matmul((1, 16, 32), (1, 16, 32), (1, 16, 16))
-    verify_batch_matmul((5, 16, 32), (5, 16, 32), (5, 16, 16))
-    verify_batch_matmul((5, 16, 32), (5, 20, 32), (5, 16, 20))
-    verify_batch_matmul((30, 16, 32), (30, 20, 32), (30, 16, 20))
-    verify_batch_matmul((1, 32, 16), (1, 16, 32), (1, 16, 16), trans_x=True)
-    verify_batch_matmul((5, 16, 32), (5, 32, 16), (5, 16, 16), trans_y=False)
+    verify_batch_matmul((1, 16, 32), (1, 16, 32), (1, 16, 16), trans_x=False, trans_y=True)
+    verify_batch_matmul((5, 16, 32), (5, 16, 32), (5, 16, 16), trans_x=False, trans_y=True)
+    verify_batch_matmul((5, 16, 32), (5, 20, 32), (5, 16, 20), trans_x=False, trans_y=True)
+    verify_batch_matmul((30, 16, 32), (30, 20, 32), (30, 16, 20), trans_x=False, trans_y=True)
+    verify_batch_matmul((1, 32, 16), (1, 16, 32), (1, 16, 16), trans_x=True, trans_y=True)
+    verify_batch_matmul((5, 16, 32), (5, 32, 16), (5, 16, 16), trans_x=False, trans_y=False)
     verify_batch_matmul((5, 32, 16), (5, 32, 20), (5, 16, 20), trans_x=True, trans_y=False)
 
 

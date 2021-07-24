@@ -1279,8 +1279,8 @@ def dense_pack_shape_func(attrs, inputs, _):
 def _batch_matmul_shape_func(tensor_a_shape, tensor_b_shape, transpose_a, transpose_b):
     out = output_tensor((tensor_a_shape.shape[0],), "int64")
     out[0] = max(tensor_a_shape[0], tensor_b_shape[0])
-    out[1] = tensor_a_shape[2 if transpose_a else 1]
-    out[2] = tensor_b_shape[1 if transpose_b else 2]
+    out[1] = tensor_a_shape[2] if transpose_a else tensor_a_shape[1]
+    out[2] = tensor_b_shape[1] if transpose_b else tensor_b_shape[2]
 
     return out
 
