@@ -47,6 +47,63 @@ class Report(Object):
         """
         return _ffi_api.AsCSV(self)
 
+    def json(self):
+        """Convert this profiling report into JSON format.
+
+        Example output:
+
+        .. code-block:
+
+            {
+              "calls": [
+                {
+                  "Duration (us)": {
+                    "microseconds": 12.3
+                  },
+                  "Name": "fused_dense",
+                  "Count": {
+                    "count": 1
+                  },
+                  "Percent": {
+                    "percent": 10.3
+                  }
+                }
+              ],
+              "device_metrics": {
+                "cpu": {
+                  "Duration (us)": {
+                    "microseconds": 334.2
+                  },
+                  "Percent": {
+                    "percent": 100
+                  }
+                }
+              }
+            }
+
+           {"calls":
+              [
+                {"Duration (us)": {"microseconds": 12.3}
+                 ,"Name": "fused_dense"
+                 ,"Count": {"count":1}
+                 ,"Percent": {"percent": 10.3}
+                 }
+              ],
+            "device_metrics":
+              {"cpu":
+                {"Duration (us)": {"microseconds": 334.2}
+                ,"Percent": {"percent": 100.0}
+                }
+              }
+           }
+
+        Returns
+        -------
+        json : str
+            Formatted JSON
+        """
+        return _ffi_api.AsJSON(self)
+
 
 @_ffi.register_object("runtime.profiling.MetricCollector")
 class MetricCollector(Object):

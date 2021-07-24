@@ -228,6 +228,71 @@ String ReportNode::AsCSV() const {
   return s.str();
 }
 
+namespace {
+void print_metric(std::ostream& os, ObjectRef o) {
+  if (o.as<StringObj>()) {
+    os << "\"" << Downcast<String>(o) << "\"";
+  } else if (const CountNode* n = o.as<CountNode>()) {
+    os << "{\"count\":" << std::to_string(n->value) << "}";
+  } else if (const DurationNode* n = o.as<DurationNode>()) {
+    os << "{\"microseconds\":" << std::to_string(n->microseconds) << "}";
+  } else if (const PercentNode* n = o.as<PercentNode>()) {
+    os << "{\"percent\":" << std::to_string(n->percent) << "}";
+  } else {
+    LOG(FATAL) << "Unprintable type " << o->GetTypeKey();
+  }
+}
+}  // namespace
+
+String ReportNode::AsJSON() const {
+  std::ostringstream s;
+  // DMLC's JSONWriter does not allow us to write a key value pair without
+  // implementing Write for the value. We want a specific write for the value,
+  // so we would have to implement a custom data structure for each type of
+  // value we want to print. Instead we construct the json by hand because it
+  // is easier.
+  s << "{";
+  s << "\"calls\":[";
+  for (size_t i = 0; i < calls.size(); i++) {
+    size_t j = 0;
+    s << "{";
+    for (const auto& kv : calls[i]) {
+      s << "\"" << kv.first << "\":";
+      print_metric(s, kv.second);
+      if (j < calls[i].size() - 1) {
+        s << ",";
+      }
+      j++;
+    }
+    s << "}";
+    if (i < calls.size() - 1) {
+      s << ",";
+    }
+  }
+  s << "],";
+  s << "\"device_metrics\":{";
+  size_t i = 0;
+  for (const auto& dev_kv : device_metrics) {
+    size_t j = 0;
+    s << "\"" << dev_kv.first << "\":{";
+    for (const auto& metric_kv : dev_kv.second) {
+      s << "\"" << metric_kv.first << "\":";
+      print_metric(s, metric_kv.second);
+      if (j < dev_kv.second.size() - 1) {
+        s << ",";
+      }
+      j++;
+    }
+    s << "}";
+    if (i < device_metrics.size() - 1) {
+      s << ",";
+    }
+    i++;
+  }
+  s << "}}";
+  return s.str();
+}
+
 String ReportNode::AsTable(bool sort, bool aggregate) const {
   // aggregate calls by op hash (or op name if hash is not set) + argument shapes
   std::vector<Map<String, ObjectRef>> aggregated_calls;
@@ -483,6 +548,9 @@ TVM_REGISTER_OBJECT_TYPE(DeviceWrapperNode);
 TVM_REGISTER_OBJECT_TYPE(MetricCollectorNode);
 
 TVM_REGISTER_GLOBAL("runtime.profiling.AsCSV").set_body_typed([](Report n) { return n->AsCSV(); });
+TVM_REGISTER_GLOBAL("runtime.profiling.AsJSON").set_body_typed([](Report n) {
+  return n->AsJSON();
+});
 TVM_REGISTER_GLOBAL("runtime.profiling.DeviceWrapper").set_body_typed([](Device dev) {
   return DeviceWrapper(dev);
 });
