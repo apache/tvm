@@ -1366,16 +1366,17 @@ TVM_DLL std::ostream& operator<<(std::ostream& os, ForKind kind);
 inline const char* ForKind2String(ForKind t) {
   switch (t) {
     case ForKind::kSerial:
-      return "Serial";
+      return "serial";
     case ForKind::kParallel:
-      return "Parallel";
+      return "parallel";
     case ForKind::kVectorized:
-      return "Vectorized";
+      return "vectorized";
     case ForKind::kUnrolled:
-      return "Unrolled";
+      return "unroll";
     case ForKind::kThreadBinding:
-      return "ThreadBinding";
+      return "thread_binding";
   }
+  LOG(FATAL) << "Unknown ForKind";
   return "Unknown";
 }
 

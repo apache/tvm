@@ -80,7 +80,6 @@ class NotSerialLoopKindError : public ScheduleError {
 
   String DetailRenderTemplate() const final {
     String str_kind = ForKind2String(loop_->kind);
-    ICHECK_NE(str_kind, "Unknown");
     std::ostringstream os;
     os << "ScheduleError: The input loop {0} of rfactor is required to be `Serial`. However, the "
           "kind of {0} is `"
