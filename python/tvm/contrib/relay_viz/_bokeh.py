@@ -29,6 +29,7 @@ from bokeh.layouts import (
 )
 from bokeh.models import (
     ColumnDataSource,
+    CustomJS,
     Text,
     Rect,
     # NodesAndLinkedEdges,
@@ -79,6 +80,8 @@ class NodeDescriptor:
 class GraphShaper:
     """Provide the bounding-box, and node location, height, width given by pygraphviz."""
 
+    _px_per_inch = 72
+
     def __init__(self, nx_digraph, prog="neato", args=""):
         agraph = nx.nx_agraph.to_agraph(nx_digraph)
         agraph.layout(prog=prog, args=args)
@@ -119,11 +122,11 @@ class GraphShaper:
 
     def get_node_height(self, node_name):
         height_str = self._get_node_attr(node_name, "height", "20")
-        return float(height_str)
+        return float(height_str)*self._px_per_inch
 
     def get_node_width(self, node_name):
         width_str = self._get_node_attr(node_name, "width", "20")
-        return float(width_str)
+        return float(width_str)*self._px_per_inch
 
     def _get_node_attr(self, node_name, attr_name, default_val):
         try:
@@ -186,8 +189,8 @@ class BokehPlotter(Plotter):
 
         plot = Plot(
             title=graph_name,
-            plot_width=1600,
-            plot_height=900,
+            width=1600,
+            height=900,
             align="center",
             sizing_mode="stretch_both",
             margin=(0, 0, 0, 50),
@@ -247,7 +250,7 @@ class BokehPlotter(Plotter):
         plot.add_tools(PanTool(), TapTool(), inspect_tool, hover_tool, ResetTool(), SaveTool())
         plot.toolbar.active_scroll = inspect_tool
 
-    def _create_node_type_toggler(self, plot, node_to_pos):
+    def _add_node_type_label(self, plot, node_to_pos):
 
         source = ColumnDataSource(
             {
@@ -263,14 +266,17 @@ class BokehPlotter(Plotter):
             text="text",
             text_align="center",
             text_baseline="middle",
-            text_font_size={"value": "1.5em"},
+            text_font_size={"value": "11px"},
         )
-        node_annotation = plot.add_glyph(source, text_glyph, visible=False)
-
-        # widgets
-        toggler = Toggle(label="Toggle Type", align="end", default_size=100, button_type="primary")
-        toggler.js_link("active", node_annotation, "visible")
-        return toggler
+        node_annotation = plot.add_glyph(source, text_glyph)
+        plot.x_range.js_on_change("start", CustomJS(
+            args=dict(plot=plot, node_annotation=node_annotation),
+            code="""
+                 node_annotation.visible = plot.width/(this.end - this.start) >= 1.0
+                 var new_val = Math.round(11 * Math.sqrt(plot.width/(this.end - this.start)))
+                 node_annotation.glyph.text_font_size = {value: `${new_val}px`}
+                 """
+            ))
 
     def _create_graph(self, plot, shaper, node_to_pos):
 
@@ -306,9 +312,8 @@ class BokehPlotter(Plotter):
         )
 
         # decide rect size
-        px_per_inch = 72
-        rect_w = [shaper.get_node_width(n) * px_per_inch for n in node_to_pos]
-        rect_h = [shaper.get_node_height(n) * px_per_inch for n in node_to_pos]
+        rect_w = [shaper.get_node_width(n) for n in node_to_pos]
+        rect_h = [shaper.get_node_height(n) for n in node_to_pos]
 
         # get type-color map
         type_to_color = self._get_type_to_color_map()
@@ -327,7 +332,7 @@ class BokehPlotter(Plotter):
 
     def _create_layout_dom(self, plot):
 
-        shaper = GraphShaper(self._digraph, prog="dot", args="-Grankdir=TB -Gsplines=ortho")
+        shaper = GraphShaper(self._digraph, prog="dot", args="-Grankdir=TB -Gsplines=ortho -Nordering=in")
 
         node_to_pos = {}
         for node in self._digraph:
@@ -342,15 +347,8 @@ class BokehPlotter(Plotter):
         # add graph
         plot.renderers.append(graph)
 
-        node_type_toggler = self._create_node_type_toggler(plot, node_to_pos)
-
-        layout_dom = layout(
-            [
-                [Spacer(sizing_mode="stretch_width"), node_type_toggler],
-                [plot],
-            ]
-        )
-        return layout_dom
+        self._add_node_type_label(plot, node_to_pos)
+        return plot
 
     def _save_html(self, filename, layout_dom):
 
