@@ -823,8 +823,8 @@ def batch_matmul_strategy_cuda(attrs, inputs, out_type, target):
         x.dtype == "int8"
         and y.dtype == "int8"
         and out_type.dtype == "int32"
-        and attrs["transpose_a"] == False
-        and attrs["transpose_b"] == True
+        and not attrs["transpose_a"]
+        and attrs["transpose_b"]
     ):
         strategy.add_implementation(
             wrap_compute_batch_matmul(topi.cuda.batch_matmul_int8, need_out_dtype=True),
@@ -849,8 +849,8 @@ def batch_matmul_strategy_cuda(attrs, inputs, out_type, target):
     if (
         target.kind.name == "cuda"
         and nvcc.have_tensorcore(target=target)
-        and attrs["transpose_a"] == False
-        and attrs["transpose_b"] == True
+        and not attrs["transpose_a"]
+        and attrs["transpose_b"]
     ):
         x, y = inputs
         _, M, K = get_const_tuple(x.shape)

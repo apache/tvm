@@ -62,8 +62,9 @@ def _batch_matmul_legalize(attrs, inputs, arg_types):
         or isinstance(K, tir.expr.Any)
         or isinstance(N, tir.expr.Any)
     ):
-        # Dynamic shape cannot support alter op layout
-        return
+        # Dynamic shape do not support alter op layout now
+        return None
+
     M = M.value
     K = K.value
     N = N.value

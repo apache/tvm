@@ -62,6 +62,16 @@ def batch_matmul(
     output : tvm.te.Tensor
         3-D with shape [batch, M, N]
     """
+    if cfg.is_fallback:
+        if transpose_a:
+            _, K, M = get_const_tuple(tensor_a.shape)
+        else:
+            _, M, K = get_const_tuple(tensor_a.shape)
+        if transpose_b:
+            _, N, _ = get_const_tuple(tensor_b.shape)
+        else:
+            _, _, N = get_const_tuple(tensor_b.shape)
+        _default_batch_matmul_config(cfg, M, N, K)
     return nn.batch_matmul(
         tensor_a,
         tensor_b,
@@ -199,6 +209,7 @@ def batch_matmul_cblas(
     cfg, tensor_a, tensor_b, out_shape=None, out_dtype=None, transpose_a=False, transpose_b=True
 ):
     """Compute batch_matmul using cblas"""
+    del out_dtype  # Unused argument
     return batch_matmul_blas_common(
         cfg, tensor_a, tensor_b, out_shape, transpose_a, transpose_b, cblas
     )
@@ -215,6 +226,7 @@ def batch_matmul_mkl(
     cfg, tensor_a, tensor_b, out_shape=None, out_dtype=None, transpose_a=False, transpose_b=True
 ):
     """Compute batch_matmul using mkl"""
+    del out_dtype  # Unused argument
     return batch_matmul_blas_common(
         cfg, tensor_a, tensor_b, out_shape, transpose_a, transpose_b, mkl
     )
