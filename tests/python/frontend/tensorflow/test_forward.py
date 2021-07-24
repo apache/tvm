@@ -5624,6 +5624,4 @@ def test_invert_permutation():
 
 
 if __name__ == "__main__":
-    # pytest.main([__file__])
-    test_forward_matmul()
-    test_forward_batch_matmul()
+    pytest.main([__file__])

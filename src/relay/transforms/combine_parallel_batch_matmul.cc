@@ -68,10 +68,13 @@ class ParallelBatchMatmulCombiner : public ParallelOpCombiner {
     // shape[2] is the contraction axis and automatically consistent
     // if it were valid batch_matmul ops
 
-    // This pass only support the original NT format now
     // TODO(jcf94): Add full support of layout format
-    if (attrs_a->transpose_a == true || attrs_a->transpose_b == false ||
-        attrs_b->transpose_a == true || attrs_b->transpose_b == false) {
+    if (!(attrs_a->transpose_a == false && attrs_a->transpose_b == true &&
+          attrs_b->transpose_a == false && attrs_b->transpose_b == true)) {
+      LOG(WARNING) << "For legacy reason, this pass only supports"
+                   << " (transpose_a=false, transpose_b=true) now, skip combining these two with:"
+                   << " batch_matmul_a: " << attrs_a->transpose_a << ", " << attrs_a->transpose_b
+                   << " batch_matmul_b: " << attrs_b->transpose_a << ", " << attrs_b->transpose_b;
       return false;
     }
 
@@ -93,7 +96,8 @@ class ParallelBatchMatmulCombiner : public ParallelOpCombiner {
 
     const auto* origin_attrs = branches[0][0]->attrs.as<BatchMatmulAttrs>();
     ICHECK(origin_attrs);
-    return Downcast<Call>(MakeBatchMatmul(data, new_weight, origin_attrs->out_dtype, false, true));
+    return Downcast<Call>(MakeBatchMatmul(data, new_weight, origin_attrs->out_dtype,
+                                          origin_attrs->transpose_a, origin_attrs->transpose_b));
   }
 
   bool IsArgCompatible(const CallNode* a, const CallNode* b, size_t index) { return true; }
