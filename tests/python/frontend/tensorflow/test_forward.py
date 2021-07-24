@@ -1812,10 +1812,10 @@ def _test_matmul(i, j, k, dtype, outer=None):
                 A_np = np.random.uniform(high=5.0, size=A_shape).astype(dtype)
                 B_np = np.random.uniform(high=5.0, size=B_shape).astype(dtype)
                 compare_tf_with_tvm(
-                    [A_np, B_np], [A.name, B.name], result.name, {"use_dense": True}
+                    [A_np, B_np], [A.name, B.name], result.name, convert_config={"use_dense": True}
                 )
                 compare_tf_with_tvm(
-                    [A_np, B_np], [A.name, B.name], result.name, {"use_dense": False}
+                    [A_np, B_np], [A.name, B.name], result.name, convert_config={"use_dense": False}
                 )
 
 
@@ -1835,10 +1835,16 @@ def _test_batch_matmul(A_shape, B_shape, dtype, adjoint_a=False, adjoint_b=False
         A_np = np.random.uniform(high=5.0, size=A_shape).astype(dtype)
         B_np = np.random.uniform(high=5.0, size=B_shape).astype(dtype)
         compare_tf_with_tvm(
-            [A_np, B_np], [A.name, B.name], result.name, {"use_nt_batch_matmul": True}
+            [A_np, B_np],
+            [A.name, B.name],
+            result.name,
+            convert_config={"use_nt_batch_matmul": True},
         )
         compare_tf_with_tvm(
-            [A_np, B_np], [A.name, B.name], result.name, {"use_nt_batch_matmul": False}
+            [A_np, B_np],
+            [A.name, B.name],
+            result.name,
+            convert_config={"use_nt_batch_matmul": False},
         )
 
 
@@ -1852,10 +1858,23 @@ def _test_batch_matmul_dynamic(
 
         A_np = np.random.uniform(high=5.0, size=A_np_shape).astype(dtype)
         B_np = np.random.uniform(high=5.0, size=B_np_shape).astype(dtype)
-        # for now, in TOPI, only cublas's implementation support dynamic shape
+        # for now, in TOPI, only llvm & cublas's implementation support dynamic shape
         # TODO add more backends support in TOPI
         compare_tf_with_tvm(
-            [A_np, B_np], [A.name, B.name], result.name, mode="vm", targets=["cuda -libs=cublas"]
+            [A_np, B_np],
+            [A.name, B.name],
+            result.name,
+            mode="vm",
+            targets=["llvm", "cuda -libs=cublas"],
+            convert_config={"use_nt_batch_matmul": True},
+        )
+        compare_tf_with_tvm(
+            [A_np, B_np],
+            [A.name, B.name],
+            result.name,
+            mode="vm",
+            targets=["llvm", "cuda -libs=cublas"],
+            convert_config={"use_nt_batch_matmul": False},
         )
 
 
@@ -1874,7 +1893,6 @@ def test_forward_batch_matmul():
     _test_batch_matmul((1, 8, 64), (64, 1), "float32", False, False)
 
 
-@tvm.testing.requires_cuda
 def test_forward_batch_matmul_dynamic():
     _test_batch_matmul_dynamic((None, 5, 4), (None, 4, 5), (3, 5, 4), (3, 4, 5), "int32")
     _test_batch_matmul_dynamic(

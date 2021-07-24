@@ -1256,7 +1256,8 @@ def from_tensorflow(graph, layout="NHWC", shape=None, outputs=None, convert_conf
         Dict of converted parameters stored in tvm.nd.NDArray format
     """
     global TF_DEFAULT_CONFIGS
-    TF_DEFAULT_CONFIGS.update(convert_config)
+    if convert_config is not None:
+        TF_DEFAULT_CONFIGS.update(convert_config)
 
     g = GraphProto()
     mod, params = g.from_tensorflow(graph, layout, shape, outputs)

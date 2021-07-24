@@ -140,7 +140,7 @@ def schedule_batch_matmul(cfg, outs):
 
 
 @autotvm.register_topi_compute("batch_matmul_cublas.cuda")
-def batch_matmul_cublas(cfg, x, y, out_shape=None):
+def batch_matmul_cublas(cfg, x, y, out_shape=None, transpose_a=False, transpose_b=True):
     """Computes batch matrix multiplication of `x` and `y` when `x` and `y` are
     data in batch.
 
@@ -160,11 +160,17 @@ def batch_matmul_cublas(cfg, x, y, out_shape=None):
     output : tvm.te.Tensor
         3-D with shape [batch, M, N]
     """
-    b, m, k = get_const_tuple(x.shape)
-    b, n, k = get_const_tuple(y.shape)
+    if transpose_a:
+        b, k, m = get_const_tuple(x.shape)
+    else:
+        b, m, k = get_const_tuple(x.shape)
+    if transpose_b:
+        b, n, k = get_const_tuple(y.shape)
+    else:
+        b, k, n = get_const_tuple(y.shape)
     if all([isinstance(s, int) for s in [b, m, n, k]]):
         cfg.add_flop(b * m * k * n * 2)
-    return cublas.batch_matmul(x, y, False, True)
+    return cublas.batch_matmul(x, y, transa=transpose_a, transb=transpose_b)
 
 
 @autotvm.register_topi_schedule("batch_matmul_cublas.cuda")
