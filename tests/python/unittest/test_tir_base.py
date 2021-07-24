@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+import pytest
 from tvm import tir
 from tvm.ir.transform import PassContext
 
@@ -65,7 +66,13 @@ def test_control_flow_jump():
     assert out == 1.0
 
 
+def test_exception():
+    with pytest.raises(tvm.TVMError):
+        x = tir.Var(name=1, dtype="int")
+
+
 if __name__ == "__main__":
     test_scalar_add()
     test_ret_const()
     test_control_flow_jump()
+    test_exception()
