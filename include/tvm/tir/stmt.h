@@ -1363,7 +1363,7 @@ TVM_DLL PrimExpr TypeAnnotation(DataType dtype, Span span = Span());
 TVM_DLL std::ostream& operator<<(std::ostream& os, ForKind kind);
 
 // inline implementations
-inline const char* IterVarType2String(ForKind t) {
+inline const char* ForKind2String(ForKind t) {
   switch (t) {
     case ForKind::kSerial:
       return "Serial";

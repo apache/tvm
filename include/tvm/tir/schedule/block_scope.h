@@ -255,7 +255,7 @@ class BlockScopeNode : public Object {
 class BlockScope : public ObjectRef {
  public:
   /*! \brief The constructor creating an empty block scope with on dependency information */
-  TVM_DLL explicit BlockScope();
+  TVM_DLL BlockScope();
   /*!
    * \brief Create the object with the specific leaf blocks, and compute the dependency information
    * between the leaf blocks.

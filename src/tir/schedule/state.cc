@@ -709,8 +709,7 @@ class SRefUpdater : public StmtVisitor {
   void UpdateBlockInfo(const StmtSRef& block_sref) {
     using TIter = std::unordered_map<StmtSRef, BlockInfo, ObjectPtrHash, ObjectPtrEqual>::iterator;
     // The caller is responsible for correcting the flags
-    Array<StmtSRef> child_block_srefs = GetChildBlockSRefOnSRefTree(self_, block_sref);
-    BlockInfo new_info((BlockScope(child_block_srefs)));
+    BlockInfo new_info((BlockScope(GetChildBlockSRefOnSRefTree(self_, block_sref))));
     std::pair<TIter, bool> insert_result = self_->block_info.emplace(block_sref, new_info);
     bool inserted = insert_result.second;
     BlockInfo& info = insert_result.first->second;

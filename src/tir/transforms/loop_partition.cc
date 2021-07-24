@@ -219,7 +219,7 @@ class PartitionFinder : public StmtExprVisitor {
   void VisitExpr_(const CallNode* op) final {
     if (op->op.same_as(builtin::likely())) {
       PrimExpr cond = op->args[0];
-      if (UsesVar(cond, [this](const VarNode* var) {return var == current_var_.get(); })) {
+      if (UsesVar(cond, [this](const VarNode* var) { return var == current_var_.get(); })) {
         // For cond, find out the interval, if exists, in which we can prove that cond is
         // true. Also find the interval, if exists, in which we can prove that cond is
         // false.
