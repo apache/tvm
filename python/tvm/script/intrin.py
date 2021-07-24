@@ -37,67 +37,67 @@ class Intrin:
 
 @register
 def bool(imm, span):
-    return tvm.tir.Cast("bool", imm, span)
+    return imm.astype("bool", span)
 
 
 @register
 def int8(imm, span):
-    return tvm.tir.Cast("int8", imm, span)
+    return imm.astype("int8", span)
 
 
 @register
 def int16(imm, span):
-    return tvm.tir.Cast("int16", imm, span)
+    return imm.astype("int16", span)
 
 
 @register
 def int32(imm, span):
-    return tvm.tir.Cast("int32", imm, span)
+    return imm.astype("int32", span)
 
 
 @register
 def int64(imm, span):
-    return tvm.tir.Cast("int64", imm, span)
+    return imm.astype("int64", span)
 
 
 @register
 def uint8(imm, span):
-    return tvm.tir.Cast("uint8", imm, span)
+    return imm.astype("uint8", span)
 
 
 @register
 def uint16(imm, span):
-    return tvm.tir.Cast("uint16", imm, span)
+    return imm.astype("uint16", span)
 
 
 @register
 def uint32(imm, span):
-    return tvm.tir.Cast("uint32", imm, span)
+    return imm.astype("uint32", span)
 
 
 @register
 def uint64(imm, span):
-    return tvm.tir.Cast("uint64", imm, span)
+    return imm.astype("uint64", span)
 
 
 @register
 def float8(imm, span):
-    return tvm.tir.Cast("float8", imm, span)
+    return imm.astype("float8", span)
 
 
 @register
 def float16(imm, span):
-    return tvm.tir.Cast("float16", imm, span)
+    return imm.astype("float16", span)
 
 
 @register
 def float32(imm, span):
-    return tvm.tir.Cast("float32", imm, span)
+    return imm.astype("float32", span)
 
 
 @register
 def float64(imm, span):
-    return tvm.tir.Cast("float64", imm, span)
+    return imm.astype("float64", span)
 
 
 @register
