@@ -36,12 +36,12 @@ def transformed_matmul(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
         with tir.block([128, 128, tir.reduce_axis(0, 128)], "update") as [vi, vj, vk]:
             tir.bind(vi, i0)
             tir.bind(vj, i1)
-            tir.bind(vk, (((i2_outer*32) + (i2_inner_outer*4)) + i2_inner_inner))
+            tir.bind(vk, (((i2_outer * 32) + (i2_inner_outer * 4)) + i2_inner_inner))
             tir.reads([C[vi, vj], A[vi, vk], B[vj, vk]])
             tir.writes([C[vi, vj]])
             with tir.init():
                 C[vi, vj] = 0.0
-            C[vi, vj] = (C[vi, vj] + (A[vi, vk]*B[vj, vk]))
+            C[vi, vj] = C[vi, vj] + (A[vi, vk] * B[vj, vk])
 
 
 @tvm.script.tir
@@ -52,7 +52,9 @@ def matmul_rfactor(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
     C_rf = tir.alloc_buffer([4, 128, 128])
 
     for i0, i1, i2_outer, i2_inner_outer, i2_inner_inner in tir.grid(128, 128, 4, 8, 4):
-        with tir.block([4, 128, 128, tir.reduce_axis(0, 4), tir.reduce_axis(0, 8)], "update_rf") as [vi2_inner_inner, vi, vj, vi2_outer, vi2_inner_outer]:
+        with tir.block(
+            [4, 128, 128, tir.reduce_axis(0, 4), tir.reduce_axis(0, 8)], "update_rf"
+        ) as [vi2_inner_inner, vi, vj, vi2_outer, vi2_inner_outer]:
             tir.bind(vi2_inner_inner, i2_inner_inner)
             tir.bind(vi, i0)
             tir.bind(vj, i1)
@@ -60,16 +62,23 @@ def matmul_rfactor(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
             tir.bind(vi2_inner_outer, i2_inner_outer)
             with tir.init():
                 C_rf[vi2_inner_inner, vi, vj] = 0.0
-            C_rf[vi2_inner_inner, vi, vj] = (C_rf[vi2_inner_inner, vi, vj] + (A[vi, (((vi2_outer*32) + (vi2_inner_outer*4)) + vi2_inner_inner)]*B[vj, (((vi2_outer*32) + (vi2_inner_outer*4)) + vi2_inner_inner)]))
+            C_rf[vi2_inner_inner, vi, vj] = C_rf[vi2_inner_inner, vi, vj] + (
+                A[vi, (((vi2_outer * 32) + (vi2_inner_outer * 4)) + vi2_inner_inner)]
+                * B[vj, (((vi2_outer * 32) + (vi2_inner_outer * 4)) + vi2_inner_inner)]
+            )
 
     for i0_1, i1_1, i2_inner_inner_1 in tir.grid(128, 128, 4):
-        with tir.block([tir.reduce_axis(0, 4), 128, 128], "update") as [vi2_inner_inner_1, vi_1, vj_1]:
+        with tir.block([tir.reduce_axis(0, 4), 128, 128], "update") as [
+            vi2_inner_inner_1,
+            vi_1,
+            vj_1
+        ]:
             tir.bind(vi2_inner_inner_1, i2_inner_inner_1)
             tir.bind(vi_1, i0_1)
             tir.bind(vj_1, i1_1)
             with tir.init():
                 C[vi_1, vj_1] = 0.0
-            C[vi_1, vj_1] = (C[vi_1, vj_1] + C_rf[vi2_inner_inner_1, vi_1, vj_1])
+            C[vi_1, vj_1] = C[vi_1, vj_1] + C_rf[vi2_inner_inner_1, vi_1, vj_1]
 
 
 @tvm.script.tir
@@ -148,7 +157,7 @@ def square_sum_rfactor(a: ty.handle, c: ty.handle) -> None:
             tir.bind(i, i1)
             with tir.init():
                 C_rf[b, vi2] = 0.0
-            C_rf[b, vi2] = (C_rf[b, vi2] + (A[b, i, vi2]*A[b, i, vi2]))
+            C_rf[b, vi2] = C_rf[b, vi2] + (A[b, i, vi2] * A[b, i, vi2])
 
     for i0_1, i2_1 in tir.grid(16, 256):
         with tir.block([tir.reduce_axis(0, 256), 16], "C") as [vi2_1, b_1]:
@@ -156,7 +165,7 @@ def square_sum_rfactor(a: ty.handle, c: ty.handle) -> None:
             tir.bind(b_1, i0_1)
             with tir.init():
                 C[b_1] = 0.0
-            C[b_1] = (C[b_1] + C_rf[b_1, vi2_1])
+            C[b_1] = C[b_1] + C_rf[b_1, vi2_1]
 
 
 @tvm.script.tir
@@ -174,7 +183,7 @@ def transformed_square_sum_square_root(a: ty.handle, d: ty.handle) -> None:
             tir.writes([C[b]])
             with tir.init():
                 C[b] = 0.0
-            C[b] = (C[b] + (A[b, i, j]*A[b, i, j]))
+            C[b] = C[b] + (A[b, i, j] * A[b, i, j])
     for i0_1 in tir.serial(0, 16):
         with tir.block([16], "D") as [b_1]:
             tir.bind(b_1, i0_1)
@@ -191,14 +200,19 @@ def square_sum_square_root_rfactor(a: ty.handle, d: ty.handle) -> None:
     C_rf = tir.alloc_buffer([1, 16])
 
     for i0, i1_i2_fused_outer, i1_i2_fused_inner in tir.grid(16, 65536, 1):
-        with tir.block([1, 16, tir.reduce_axis(0, 256), tir.reduce_axis(0, 256)], "C_rf") as [vi1_i2_fused_inner, b, i, j]:
+        with tir.block([1, 16, tir.reduce_axis(0, 256), tir.reduce_axis(0, 256)], "C_rf") as [
+            vi1_i2_fused_inner,
+            b,
+            i,
+            j
+        ]:
             tir.bind(vi1_i2_fused_inner, i1_i2_fused_inner)
             tir.bind(b, i0)
             tir.bind(i, tir.floordiv(i1_i2_fused_outer, 256))
             tir.bind(j, tir.floormod(i1_i2_fused_outer, 256))
             with tir.init():
                 C_rf[vi1_i2_fused_inner, b] = 0.0
-            C_rf[vi1_i2_fused_inner, b] = (C_rf[vi1_i2_fused_inner, b] + (A[b, i, j]*A[b, i, j]))
+            C_rf[vi1_i2_fused_inner, b] = C_rf[vi1_i2_fused_inner, b] + (A[b, i, j] * A[b, i, j])
 
     for i0_1, i1_i2_fused_inner_1 in tir.grid(16, 1):
         with tir.block([tir.reduce_axis(0, 1), 16], "C") as [vi1_i2_fused_inner_1, b_1]:
@@ -206,7 +220,7 @@ def square_sum_square_root_rfactor(a: ty.handle, d: ty.handle) -> None:
             tir.bind(b_1, i0_1)
             with tir.init():
                 C[b_1] = 0.0
-            C[b_1] = (C[b_1] + C_rf[vi1_i2_fused_inner_1, b_1])
+            C[b_1] = C[b_1] + C_rf[vi1_i2_fused_inner_1, b_1]
 
     for i0_2 in tir.serial(0, 16):
         with tir.block([16], "D") as [b_2]:
@@ -330,12 +344,12 @@ def rowsum_zero_dim_rfactor(a: ty.handle, b: ty.handle) -> None:
     with tir.block([128], "B_rf") as [vi0]:
         with tir.init():
             B_rf[vi0] = 0.0
-        B_rf[vi0] = (B_rf[vi0] + A[vi0])
+        B_rf[vi0] = B_rf[vi0] + A[vi0]
 
     with tir.block([tir.reduce_axis(0, 128)], "B") as [vi0_1]:
         with tir.init():
             B[()] = 0.0
-        B[()] = (B[()] + B_rf[vi0_1])
+        B[()] = B[()] + B_rf[vi0_1]
 
 
 @tvm.script.tir
@@ -400,7 +414,7 @@ def multiple_reduction_blocks_rfactor(a: ty.handle, f: ty.handle) -> None:
             tir.bind(vk1i, k1i)
             with tir.init():
                 C_rf[ci, cj, vk1o] = 0.0
-            C_rf[ci, cj, vk1o] = (C_rf[ci, cj, vk1o] + A[ci, cj, ((vk1o*4) + vk1i)])
+            C_rf[ci, cj, vk1o] = C_rf[ci, cj, vk1o] + A[ci, cj, ((vk1o * 4) + vk1i)]
     for i_1 in tir.serial(0, 16):
         for j1_1 in tir.serial(0, 16):
             for k1o_1 in tir.serial(0, 4):
@@ -410,7 +424,7 @@ def multiple_reduction_blocks_rfactor(a: ty.handle, f: ty.handle) -> None:
                     tir.bind(cj_1, j1_1)
                     with tir.init():
                         C[ci_1, cj_1] = 0.0
-                    C[ci_1, cj_1] = (C[ci_1, cj_1] + C_rf[ci_1, cj_1, vk1o_1])
+                    C[ci_1, cj_1] = C[ci_1, cj_1] + C_rf[ci_1, cj_1, vk1o_1]
             for k2o, k2i in tir.grid(4, 4):
                 with tir.block([16, 16, tir.reduce_axis(0, 16)], "D") as [di, dj, dk]:
                     tir.bind(di, i_1)
@@ -418,7 +432,7 @@ def multiple_reduction_blocks_rfactor(a: ty.handle, f: ty.handle) -> None:
                     tir.bind(dk, ((k2o*4) + k2i))
                     with tir.init():
                         D[di, dj] = 0.0
-                    D[di, dj] = ((D[di, dj] + A[di, dj, dk]) + C[di, dj])
+                    D[di, dj] = (D[di, dj] + A[di, dj, dk]) + C[di, dj]
         for j2 in tir.serial(0, 16):
             for k3o, k3i in tir.grid(4, 4):
                 with tir.block([16, 16, tir.reduce_axis(0, 16)], "E") as [ei, ej, ek]:
@@ -427,7 +441,7 @@ def multiple_reduction_blocks_rfactor(a: ty.handle, f: ty.handle) -> None:
                     tir.bind(ek, ((k3o*4) + k3i))
                     with tir.init():
                         E[ei, ej] = 0.0
-                    E[ei, ej] = ((E[ei, ej] + A[ei, ej, ek]) + D[ei, ej])
+                    E[ei, ej] = (E[ei, ej] + A[ei, ej, ek]) + D[ei, ej]
             for k4o, k4i in tir.grid(4, 4):
                 with tir.block([16, 16, tir.reduce_axis(0, 16)], "F") as [fi, fj, fk]:
                     tir.bind(fi, i_1)
@@ -435,7 +449,7 @@ def multiple_reduction_blocks_rfactor(a: ty.handle, f: ty.handle) -> None:
                     tir.bind(fk, ((k4o*4) + k4i))
                     with tir.init():
                         F[fi, fj] = 0.0
-                    F[fi, fj] = ((F[fi, fj] + A[fi, fj, fk]) + E[fi, fj])
+                    F[fi, fj] = (F[fi, fj] + A[fi, fj, fk]) + E[fi, fj]
 
 
 # pylint: enable=no-member,invalid-name,unused-variable
@@ -609,12 +623,12 @@ def test_reduction_rfactor_wrong_loops2():
 def test_reduction_rfactor_zero_dim():
     s = tir.Schedule(rowsum_zero_dim, debug_mode=True)
     B = s.get_block("B")
-    k, = s.get_loops(B)
+    (k,) = s.get_loops(B)
     s.rfactor(k, 0)
     tvm.ir.assert_structural_equal(s.mod["main"], rowsum_zero_dim_rfactor)
 
     func = tvm.build(s.mod["main"], target="llvm")
-    a_np = np.random.uniform(size=(128, )).astype("float32")
+    a_np = np.random.uniform(size=(128,)).astype("float32")
     a = tvm.nd.array(a_np)
     b = tvm.nd.array(np.array(1, dtype="float32"))
     func(a, b)

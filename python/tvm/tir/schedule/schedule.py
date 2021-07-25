@@ -533,7 +533,7 @@ class Schedule(Object):
 
             for i in range(128):                    # loop i is a data parallel loop
                 for j in range(128):                # loop j is a reduction loop
-                    for k in range(128):            # loop j is a reduction loop
+                    for k in range(128):            # loop k is a reduction loop
                         B[i] = B[i] + A[i, j, k]
 
 
@@ -654,7 +654,7 @@ class Schedule(Object):
         where `B` is the buffer that the reduction block writes to.
         Negative indexing is normalized according to numpy convention.
         """
-        return _ffi_api_schedule.ScheduleRFactor(self, loop, factor_axis)  # pylint: disable=no-member
+        return _ffi_api_schedule.ScheduleRFactor(self, loop, factor_axis)  # type: ignore # pylint: disable=no-member
 
     ########## Schedule: blockize & tensorize ##########
 

@@ -243,8 +243,17 @@ class ScheduleNode : public runtime::Object {
   /******** Schedule: cache read/write ********/
   /******** Schedule: reduction ********/
   /*!
-   * \brief Factor a reduction block by the specified loop
-   * \details See python/tvm/tir/schedule/schedule.py
+   * \brief Factorize an associative reduction block by the specified loop.
+   * \details An associative reduction cannot be parallelized directly,
+   * because it leads to potential race condition during accumulation.
+     Alternatively, the reduction could be factorized on a loop with the following steps:
+     - Step 1: evenly slice the reduction into `n` separate chunks, where `n` is the loop extent
+     - Step 2: compute the chunks separately and write the result into `n` intermediate buffers;
+     - Step 3: accumulate the `n` separate buffer into the result buffer.
+     Note that the Step 2 above introduces opportunities for parallelization.
+     RFactor is a schedule primitive that implements the transformation described above.
+
+
    * \param loop_rv The loop outside block we want to do rfactor
    * \param factor_axis The position where the new dimension is placed in the new introduced rfactor
    *                    buffer. Suppose the original reduction block writes to buffer `B` with
