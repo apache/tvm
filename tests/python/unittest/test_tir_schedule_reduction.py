@@ -71,7 +71,7 @@ def matmul_rfactor(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
         with tir.block([tir.reduce_axis(0, 4), 128, 128], "update") as [
             vi2_inner_inner_1,
             vi_1,
-            vj_1
+            vj_1,
         ]:
             tir.bind(vi2_inner_inner_1, i2_inner_inner_1)
             tir.bind(vi_1, i0_1)
@@ -204,7 +204,7 @@ def square_sum_square_root_rfactor(a: ty.handle, d: ty.handle) -> None:
             vi1_i2_fused_inner,
             b,
             i,
-            j
+            j,
         ]:
             tir.bind(vi1_i2_fused_inner, i1_i2_fused_inner)
             tir.bind(b, i0)
@@ -429,7 +429,7 @@ def multiple_reduction_blocks_rfactor(a: ty.handle, f: ty.handle) -> None:
                 with tir.block([16, 16, tir.reduce_axis(0, 16)], "D") as [di, dj, dk]:
                     tir.bind(di, i_1)
                     tir.bind(dj, j1_1)
-                    tir.bind(dk, ((k2o*4) + k2i))
+                    tir.bind(dk, (k2o * 4) + k2i)
                     with tir.init():
                         D[di, dj] = 0.0
                     D[di, dj] = (D[di, dj] + A[di, dj, dk]) + C[di, dj]
@@ -438,7 +438,7 @@ def multiple_reduction_blocks_rfactor(a: ty.handle, f: ty.handle) -> None:
                 with tir.block([16, 16, tir.reduce_axis(0, 16)], "E") as [ei, ej, ek]:
                     tir.bind(ei, i_1)
                     tir.bind(ej, j2)
-                    tir.bind(ek, ((k3o*4) + k3i))
+                    tir.bind(ek, (k3o * 4) + k3i)
                     with tir.init():
                         E[ei, ej] = 0.0
                     E[ei, ej] = (E[ei, ej] + A[ei, ej, ek]) + D[ei, ej]
@@ -446,7 +446,7 @@ def multiple_reduction_blocks_rfactor(a: ty.handle, f: ty.handle) -> None:
                 with tir.block([16, 16, tir.reduce_axis(0, 16)], "F") as [fi, fj, fk]:
                     tir.bind(fi, i_1)
                     tir.bind(fj, j2)
-                    tir.bind(fk, ((k4o*4) + k4i))
+                    tir.bind(fk, (k4o * 4) + k4i)
                     with tir.init():
                         F[fi, fj] = 0.0
                     F[fi, fj] = (F[fi, fj] + A[fi, fj, fk]) + E[fi, fj]
