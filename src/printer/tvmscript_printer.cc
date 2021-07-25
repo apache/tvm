@@ -26,6 +26,7 @@
 #include <tvm/ir/module.h>
 #include <tvm/node/serialization.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/tir/buffer.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/expr_functor.h>
 #include <tvm/tir/function.h>
@@ -115,6 +116,7 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc VisitExpr_(const IntImmNode* op) override;
   Doc VisitExpr_(const FloatImmNode* op) override;
   Doc VisitExpr_(const StringImmNode* op) override;
+  Doc VisitExpr_(const ProducerLoadNode* op) override;
   Doc VisitExpr_(const BufferLoadNode* op) override;
   Doc VisitExpr_(const LoadNode* op) override;
   Doc VisitExpr_(const RampNode* op) override;
@@ -300,8 +302,8 @@ Doc TVMScriptPrinter::AllocBufferDeclaration(const Buffer& buf) {
   } else {
     doc << ", elem_offset=" << Print(buf->elem_offset);
   }
-  if (buf->scope != "global") {
-    doc << ", scope=" << Doc::StrLiteral(buf->scope);
+  if (buf.scope() != "global") {
+    doc << ", scope=" << Doc::StrLiteral(buf.scope());
   }
   if (buf->data_alignment != -1) {
     doc << ", align=" << buf->data_alignment;
@@ -387,19 +389,19 @@ Doc TVMScriptPrinter::Print(const ObjectRef& node) {
   } else if (node->IsInstance<MatchBufferRegionNode>()) {
     return PrintMatchBufferRegion(node.as<MatchBufferRegionNode>());
   } else {
-    meta_collector_.Collect(node);
-    return this->meta_.GetMetaNode(node);
+    LOG(FATAL) << "Do not know how to print " << node->GetTypeKey();
+    return Doc();
   }
 }
 
 Doc TVMScriptPrinter::VisitExprDefault_(const Object* op) {
-  meta_collector_.Collect(GetRef<ObjectRef>(op));
-  return this->meta_.GetMetaNode(GetRef<ObjectRef>(op));
+  LOG(FATAL) << "Do not know how to print " << op->GetTypeKey();
+  return Doc();
 }
 
 Doc TVMScriptPrinter::VisitStmtDefault_(const Object* op) {
-  meta_collector_.Collect(GetRef<ObjectRef>(op));
-  return this->meta_.GetMetaNode(GetRef<ObjectRef>(op));
+  LOG(FATAL) << "Do not know how to print " << op->GetTypeKey();
+  return Doc();
 }
 
 Doc TVMScriptPrinter::VisitExpr_(const IntImmNode* op) {
@@ -414,11 +416,7 @@ Doc TVMScriptPrinter::VisitExpr_(const StringImmNode* op) { return Doc::StrLiter
 
 Doc TVMScriptPrinter::VisitExpr_(const CastNode* op) {
   Doc doc;
-  if (cast(op->dtype, op->value)->IsInstance<CastNode>()) {
-    doc << Print(op->value) << ".astype(" << PrintDType(op->dtype) << ")";
-  } else {
-    doc << "tir.cast(" << Print(op->value) << ", " << PrintDType(op->dtype) << ")";
-  }
+  doc << "tir.cast(" << Print(op->value) << ", " << PrintDType(op->dtype) << ")";
   return doc;
 }
 
@@ -480,14 +478,24 @@ Doc TVMScriptPrinter::VisitExpr_(const NotNode* op) {
 
 Doc TVMScriptPrinter::VisitExpr_(const SelectNode* op) {
   Doc doc;
-  doc << "tir.select(" << Print(op->condition) << ", " << Print(op->true_value) << ", "
+  doc << "tir.Select(" << Print(op->condition) << ", " << Print(op->true_value) << ", "
       << Print(op->false_value) << ")";
   return doc;
 }
 
+Doc TVMScriptPrinter::VisitExpr_(const ProducerLoadNode* op) {
+  LOG(FATAL) << "Cannot print a tir.ProducerLoad as it is not valid in TIR Primfuncs. You need to "
+                "lower this function first.";
+  return Doc();
+}
+
 Doc TVMScriptPrinter::VisitExpr_(const BufferLoadNode* op) {
   Doc doc;
-  doc << Print(op->buffer) << Print(op->indices);
+  if (op->indices.size() == 0) {
+    doc << Print(op->buffer) << "[()]";
+  } else {
+    doc << Print(op->buffer) << Print(op->indices);
+  }
   return doc;
 }
 
@@ -661,12 +669,8 @@ Doc TVMScriptPrinter::VisitStmt_(const AssertStmtNode* op) {
 
 Doc TVMScriptPrinter::VisitStmt_(const StoreNode* op) {
   Doc doc;
-  if (!is_one(op->predicate) || op->value.dtype().lanes() != 1) {
-    doc << "tir.store(" << Print(op->buffer_var) << ", " << Print(op->index) << ", "
-        << Print(op->value) << ", " << Print(op->predicate) << ")";
-  } else {
-    doc << Print(op->buffer_var) << "[" << Print(op->index) << "] = " << Print(op->value);
-  }
+  doc << "tir.store(" << Print(op->buffer_var) << ", " << Print(op->index) << ", "
+      << Print(op->value) << ", " << Print(op->predicate) << ")";
   return doc;
 }
 
@@ -786,7 +790,11 @@ Doc TVMScriptPrinter::VisitType_(const TupleTypeNode* node) {
 
 Doc TVMScriptPrinter::VisitStmt_(const BufferStoreNode* op) {
   Doc doc;
-  doc << Print(op->buffer) << Print(op->indices) << " = " << Print(op->value);
+  if (op->indices.size() == 0) {
+    doc << Print(op->buffer) << "[()] = " << Print(op->value);
+  } else {
+    doc << Print(op->buffer) << Print(op->indices) << " = " << Print(op->value);
+  }
   return doc;
 }
 
@@ -1006,8 +1014,17 @@ Doc TVMScriptPrinter::PrintPrimFunc(const PrimFunc& primFunc) {
       return memo_var_[GetRef<Var>(a)].str() < memo_var_[GetRef<Var>(b)].str();
     });
     for (const auto& var : vars) {
-      header_var << Doc::NewLine() << Print(GetRef<Var>(var)) << " = tir.var(";
-      header_var << PrintDType(var->dtype) << ")";
+      auto type = GetRef<Var>(var)->type_annotation;
+      if (auto* ptr_type = type.as<PointerTypeNode>()) {
+        auto* prim_type = ptr_type->element_type.as<PrimTypeNode>();
+        ICHECK(prim_type);
+        header_var << Doc::NewLine() << Print(GetRef<Var>(var)) << " = tir.buffer_var(";
+        header_var << PrintDType(prim_type->dtype) << ", "
+                   << Doc::StrLiteral(ptr_type->storage_scope) << ")";
+      } else {
+        header_var << Doc::NewLine() << Print(GetRef<Var>(var)) << " = tir.var(";
+        header_var << PrintDType(var->dtype) << ")";
+      }
     }
   }
   doc << Doc::Indent(4, header_attr << header_var << header_buf << body);
@@ -1051,17 +1068,21 @@ Doc TVMScriptPrinter::PrintBuffer(const BufferNode* op) {
 
 Doc TVMScriptPrinter::PrintBufferRegion(const BufferRegionNode* op) {
   Doc doc;
-  doc << Print(op->buffer) << "[";
-  for (size_t i = 0; i < op->region.size(); ++i) {
-    if (i != 0) doc << ", ";
-    const auto& range = op->region[i];
-    if (!is_one(range->extent)) {
-      doc << Print(range->min) << ":" << Print(range->min + range->extent);
-    } else {
-      doc << Print(range->min);
+  if (op->region.size() == 0) {
+    doc << Print(op->buffer) << "[()]";
+  } else {
+    doc << Print(op->buffer) << "[";
+    for (size_t i = 0; i < op->region.size(); ++i) {
+      if (i != 0) doc << ", ";
+      const auto& range = op->region[i];
+      if (!is_one(range->extent)) {
+        doc << Print(range->min) << ":" << Print(range->min + range->extent);
+      } else {
+        doc << Print(range->min);
+      }
     }
+    doc << "]";
   }
-  doc << "]";
   return doc;
 }
 

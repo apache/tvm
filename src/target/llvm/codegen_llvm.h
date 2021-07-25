@@ -163,8 +163,6 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
  protected:
   /*! \brief The storage information */
   struct StorageInfo {
-    /*! \brief The storage scope */
-    runtime::StorageScope scope;
     /*! \brief The alignment of allocation */
     int alignment{0};
   };
@@ -294,6 +292,11 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
                        const Var& loop_var, const Stmt& body);
   // add alias information.
   void AddAliasInfo(llvm::Instruction* load, const VarNode* buffer, PrimExpr index);
+
+  llvm::GlobalVariable* AllocateSharedMemory(DataType dtype, size_t size,
+                                             unsigned int shared_address_space, int alignment,
+                                             llvm::GlobalValue::LinkageTypes linkage);
+
   // The IRBuilder.
   using IRBuilder = llvm::IRBuilder<llvm::ConstantFolder, llvm::IRBuilderDefaultInserter>;
   // The current function

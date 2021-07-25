@@ -434,13 +434,15 @@ Pattern Rewriting
 
 If you would like to replace the matched pattern with another subgraph, you can leverage
 the ``rewrite`` transformation. Here is an example of rewriting a series of arithmetic operators
-with a single batch_norm op:
+with a single batch_norm op. The constructor parameter ``require_type`` indicates whether InferType
+is required to be run before the callback.
 
 .. code-block:: python
 
     class BatchnormCallback(DFPatternCallback):
         # A callback class to rewrite the matched pattern to a batch_norm op.
-        def __init__(self):
+        def __init__(self, require_type=False):
+            super().__init__(require_type)
             self.x = wildcard()
             self.var = wildcard()
             self.mean = wildcard()

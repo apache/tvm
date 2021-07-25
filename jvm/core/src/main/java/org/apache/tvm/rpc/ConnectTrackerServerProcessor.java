@@ -243,7 +243,8 @@ public class ConnectTrackerServerProcessor implements ServerProcessor {
 
   // handcrafted JSON
   private String generateCinfo(String key) {
-    String cinfo = "{\"key\" : " + "\"server:" + key + "\"}";
+    String cinfo = "{\"key\" : " + "\"server:" + key + "\", \"addr\": [null, \""
+        + serverPort + "\"]}";
     return "[" + RPC.TrackerCode.UPDATE_INFO + ", " + cinfo + "]";
   }
 

@@ -19,7 +19,7 @@ Provides support to run compiled networks both locally and remotely.
 """
 import json
 import logging
-from typing import Optional, Dict, List, Union
+from typing import Dict, List, Optional, Union
 
 import numpy as np
 import tvm
@@ -30,11 +30,10 @@ from tvm.contrib.debugger import debug_executor
 from tvm.relay.param_dict import load_param_dict
 
 from . import common
-from .model import TVMCPackage, TVMCResult
 from .common import TVMCException
 from .main import register_parser
+from .model import TVMCPackage, TVMCResult
 from .result_utils import get_top_results
-
 
 # pylint: disable=invalid-name
 logger = logging.getLogger("TVMC")
@@ -51,7 +50,7 @@ def add_run_parser(subparsers):
     #      like 'webgpu', etc (@leandron)
     parser.add_argument(
         "--device",
-        choices=["cpu", "cuda", "cl"],
+        choices=["cpu", "cuda", "cl", "metal", "vulkan"],
         default="cpu",
         help="target device to run the compiled module. Defaults to 'cpu'",
     )
@@ -360,11 +359,11 @@ def run_module(
         )
 
     # Currently only two package formats are supported: "classic" and
-    # "mlf". The later can only be used for micro targets, i.e. with µTVM.
+    # "mlf". The later can only be used for micro targets, i.e. with microTVM.
     if tvmc_package.type == "mlf":
         raise TVMCException(
             "You're trying to run a model saved using the Model Library Format (MLF)."
-            "MLF can only be used to run micro targets (µTVM)."
+            "MLF can only be used to run micro targets (microTVM)."
         )
 
     if hostname:
@@ -391,6 +390,10 @@ def run_module(
         dev = session.cuda()
     elif device == "cl":
         dev = session.cl()
+    elif device == "metal":
+        dev = session.metal()
+    elif device == "vulkan":
+        dev = session.vulkan()
     else:
         assert device == "cpu"
         dev = session.cpu()

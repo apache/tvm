@@ -20,7 +20,6 @@ set -e
 set -u
 set -o pipefail
 
-apt-get update && apt-get install -y --no-install-recommends curl
 
 export RUSTUP_HOME=/opt/rust
 export CARGO_HOME=/opt/rust

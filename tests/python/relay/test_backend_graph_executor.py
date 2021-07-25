@@ -130,22 +130,22 @@ def test_plan_memory():
     mod = relay.transform.FuseOps(0)(mod)
     func = mod["main"]
     mod = relay.transform.InferType()(mod)
-    smap = relay.backend._backend.GraphPlanMemory(func)
+    memory_plan = relay.backend._backend.GraphPlanMemory(func)
     storage_ids = set()
     device_types = set()
     storage_sizes = {}
-    for k, v in smap.items():
-        assert len(v) == 3
-        for x in v[0]:
-            storage_ids.add(x.value)
-            storage_sizes[x.value] = v[2]
-        for x in v[1]:
-            device_types.add(x.value)
+
+    for k, v in memory_plan.expr_to_storage_info.items():
+        for x in v.storage_ids:
+            storage_ids.add(x)
+            storage_sizes[x] = v.storage_sizes
+        for x in v.device_types:
+            device_types.add(x)
 
     # Current rule requires vars have unique storage id
     # because we don't do inplace, we will need another
     # two alternating temporary space.
-    assert len(storage_ids) == 4
+    assert len(storage_ids) == 4, f"found storage_ids: {storage_ids}"
     assert len(device_types) == 1
     assert len(storage_sizes) == 4
 
@@ -288,11 +288,4 @@ def test_graph_executor_nested_tuples():
 
 
 if __name__ == "__main__":
-    test_reshape_nop()
-    test_plan_memory()
-    test_with_params()
-    test_add_op_scalar()
-    test_add_op_tensor()
-    test_add_op_broadcast()
-    test_gru_like()
-    test_compile_nested_tuples()
+    sys.exit(pytest.main([file] + sys.argv[1:]))

@@ -50,6 +50,7 @@ tvm_option(USE_ETHOSN "Build with Arm Ethos-N" OFF)
 tvm_option(INDEX_DEFAULT_I64 "Defaults the index datatype to int64" ON)
 tvm_option(USE_LIBBACKTRACE "Build libbacktrace to supply linenumbers on stack traces" AUTO)
 tvm_option(BUILD_STATIC_RUNTIME "Build static version of libtvm_runtime" OFF)
+tvm_option(USE_PAPI "Use Performance Application Programming Interface (PAPI) to read performance counters" OFF)
 
 # 3rdparty libraries
 tvm_option(DLPACK_PATH "Path to DLPACK" "3rdparty/dlpack/include")
@@ -172,7 +173,7 @@ else(MSVC)
   # ld option to warn if symbols are undefined (e.g. libtvm_runtime.so
   # using symbols only present in libtvm.so).  Not needed for MSVC,
   # since this is already the default there.
-  if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+  if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin" OR ${CMAKE_SYSTEM_NAME} MATCHES "iOS")
     set(TVM_NO_UNDEFINED_SYMBOLS "-Wl,-undefined,error")
   else()
     set(TVM_NO_UNDEFINED_SYMBOLS "-Wl,--no-undefined")
@@ -407,6 +408,7 @@ include(cmake/modules/contrib/ArmComputeLib.cmake)
 include(cmake/modules/contrib/TensorRT.cmake)
 include(cmake/modules/contrib/VitisAI.cmake)
 include(cmake/modules/contrib/Verilator.cmake)
+include(cmake/modules/contrib/PAPI.cmake)
 include(cmake/modules/Git.cmake)
 include(cmake/modules/LibInfo.cmake)
 include(cmake/modules/RustExt.cmake)

@@ -263,7 +263,7 @@ def get_relay_op(op_name):
         The Relay operator name.
     """
     if "." in op_name:
-        # explicit hierachical modules
+        # explicit hierarchical modules
         op = _op
         try:
             for opn in op_name.split("."):
@@ -527,6 +527,7 @@ def infer_value(input_val, params, mod=None):
     assert all(
         var.name_hint in params.keys() for var in analysis.free_vars(input_val)
     ), "All inputs to infer must be available in params."
+    assert tvm.runtime.enabled("llvm"), "LLVM must be enabled to infer value."
     try:
         # TODO(kevinthesun): Use VM for all cases.
         # pylint: disable=import-outside-toplevel
@@ -553,7 +554,7 @@ def infer_value(input_val, params, mod=None):
 
 
 def infer_value_simulated(input_val, params):
-    """Extention to infer_value that can be used when some input
+    """Extension to infer_value that can be used when some input
     values are missing. This function creates dummy inputs with the same
     shape and random values then calls infer_value. This is helpful when
     implementing certain onnx operators where we need to evaluate the graph

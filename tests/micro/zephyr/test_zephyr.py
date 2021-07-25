@@ -33,6 +33,7 @@ from PIL import Image
 import tvm
 import tvm.rpc
 import tvm.micro
+import tvm.testing
 import tvm.relay as relay
 
 from tvm.micro.contrib import zephyr
@@ -124,6 +125,7 @@ def _make_add_sess(model, zephyr_board, west_cmd, build_config):
 
 
 # The same test code can be executed on both the QEMU simulation and on real hardware.
+@tvm.testing.requires_micro
 def test_compile_runtime(platform, west_cmd, skip_build, tvm_debug):
     """Test compiling the on-device runtime."""
 
@@ -147,6 +149,7 @@ def test_compile_runtime(platform, west_cmd, skip_build, tvm_debug):
         test_basic_add(sess)
 
 
+@tvm.testing.requires_micro
 def test_platform_timer(platform, west_cmd, skip_build, tvm_debug):
     """Test compiling the on-device runtime."""
 
@@ -175,6 +178,7 @@ def test_platform_timer(platform, west_cmd, skip_build, tvm_debug):
         test_basic_add(sess)
 
 
+@tvm.testing.requires_micro
 def test_relay(platform, west_cmd, skip_build, tvm_debug):
     """Testing a simple relay graph"""
     model, zephyr_board = PLATFORMS[platform]
@@ -204,6 +208,7 @@ def test_relay(platform, west_cmd, skip_build, tvm_debug):
         tvm.testing.assert_allclose(result, x_in * x_in + 1)
 
 
+@tvm.testing.requires_micro
 def test_onnx(platform, west_cmd, skip_build, tvm_debug):
     """Testing a simple ONNX model."""
     model, zephyr_board = PLATFORMS[platform]
@@ -334,8 +339,9 @@ def check_result(
             tvm.testing.assert_allclose(out.numpy(), results[idx], rtol=TOL, atol=TOL)
 
 
-def test_byoc_utvm(platform, west_cmd, skip_build, tvm_debug):
-    """This is a simple test case to check BYOC capabilities of uTVM"""
+@tvm.testing.requires_micro
+def test_byoc_microtvm(platform, west_cmd, skip_build, tvm_debug):
+    """This is a simple test case to check BYOC capabilities of microTVM"""
     model, zephyr_board = PLATFORMS[platform]
     build_config = {"skip_build": skip_build, "debug": tvm_debug}
     x = relay.var("x", shape=(10, 10))
@@ -410,6 +416,7 @@ def _make_add_sess_with_shape(model, zephyr_board, west_cmd, shape, build_config
         pytest.param((16 * 1024,), id="(16*1024)"),
     ],
 )
+@tvm.testing.requires_micro
 def test_rpc_large_array(platform, west_cmd, skip_build, tvm_debug, shape):
     """Test large RPC array transfer."""
     model, zephyr_board = PLATFORMS[platform]

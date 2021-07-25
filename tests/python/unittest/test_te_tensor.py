@@ -309,7 +309,7 @@ def test_tuple_with_different_deps():
     ret = []
     tvm.tir.stmt_functor.post_order_visit(stmt, get_B1_realize)
 
-    assert stmt.node == C.op and len(ret) == 1
+    assert stmt.producer == C and len(ret) == 1
 
 
 def test_tensor_inputs():

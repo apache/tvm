@@ -204,8 +204,8 @@ Doc TIRTextPrinter::BufferNode2Doc(const BufferNode* buf, Doc doc) {
   if (!is_zero(buf->elem_offset)) {
     doc << ", elem_offset=" << Print(buf->elem_offset);
   }
-  if (buf->scope != "global") {
-    doc << ", scope=" << Doc::StrLiteral(buf->scope);
+  if (GetRef<Buffer>(buf).scope() != "global") {
+    doc << ", scope=" << Doc::StrLiteral(GetRef<Buffer>(buf).scope());
   }
   if (buf->data_alignment != 128) {
     doc << ", align=" << buf->data_alignment;
@@ -732,6 +732,16 @@ Doc TIRTextPrinter::PrintBody(const Stmt& body, bool indent) {
   if (body->IsInstance<SeqStmtNode>()) return Print(body);
   doc << " {" << Doc::Indent(2, Doc::NewLine() << Print(body)) << Doc::NewLine() << "}";
   return doc;
+}
+
+bool TIRTextPrinter::GetVarName(Var v, std::string* s) {
+  auto it = memo_var_.find(v);
+  if (it == memo_var_.end()) {
+    return false;
+  }
+
+  *s = it->second.str();
+  return true;
 }
 
 }  // namespace tir

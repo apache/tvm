@@ -1075,7 +1075,7 @@ def _resize(method):
 
         # Ignore the new attributes from TF2.0, for now.
         return AttrCvt(
-            op_name="resize", ignores=["Tdim", "half_pixel_centers"], extras={"method": method}
+            op_name="resize2d", ignores=["Tdim", "half_pixel_centers"], extras={"method": method}
         )(inputs, attr)
 
     return _impl
@@ -1113,13 +1113,23 @@ def _no_op():
 
 def _matmul():
     def _impl(inputs, attr, params, mod):
+        from .tensorflow import TF_DEFAULT_CONFIGS
+
         channels = _infer_channels(inputs[1], not attr["transpose_b"])
-        if attr["transpose_a"]:
-            inputs[0] = _op.transpose(inputs[0], axes=(1, 0))
-        if not attr["transpose_b"]:
-            inputs[1] = _op.transpose(inputs[1], axes=(1, 0))
+        if TF_DEFAULT_CONFIGS["use_dense"]:
+            if attr["transpose_a"]:
+                inputs[0] = _op.transpose(inputs[0], axes=(1, 0))
+            if not attr["transpose_b"]:
+                inputs[1] = _op.transpose(inputs[1], axes=(1, 0))
+            return AttrCvt(
+                op_name="dense",
+                extras={"units": channels},
+                ignores=["transpose_a", "transpose_b", "T"],
+            )(inputs, attr)
         return AttrCvt(
-            op_name="dense", extras={"units": channels}, ignores=["transpose_a", "transpose_b", "T"]
+            op_name="matmul",
+            extras={"units": channels},
+            ignores=["T"],
         )(inputs, attr)
 
     return _impl
@@ -1132,12 +1142,9 @@ def _batch_matmul():
         orig_shape_x = _infer_shape(input_x, mod)
         orig_shape_y = _infer_shape(input_y, mod)
         ndim = len(orig_shape_x)
+        ndim_y = len(orig_shape_y)
 
         is_static = not check_symbolic_shape(orig_shape_x)
-
-        if ndim > 3 and not is_static:
-            shape_of_x = list_shape_of(inputs[0], ndim)
-            shape_of_y = list_shape_of(inputs[1], ndim)
 
         # reshape n-dimensional batch matmul into 3d
         if ndim > 3:
@@ -1145,9 +1152,13 @@ def _batch_matmul():
             if is_static:
                 num_outer_elts = np.prod(outer_dims)
                 new_shape_x = (num_outer_elts, orig_shape_x[-2], orig_shape_x[-1])
-                new_shape_y = (num_outer_elts, orig_shape_y[-2], orig_shape_y[-1])
+                if ndim_y > 2:
+                    new_shape_y = (num_outer_elts, orig_shape_y[-2], orig_shape_y[-1])
+                elif ndim_y == 2:
+                    new_shape_y = (1, orig_shape_y[-2], orig_shape_y[-1])
             else:  # handle dynamic shape (dyn.reshape op)
-                # new shape = [prod(shape[:-2]), -2, -1]
+                shape_of_x = list_shape_of(inputs[0], ndim)
+                shape_of_y = list_shape_of(inputs[1], ndim)
                 new_shape_x = [_op.const(1), shape_of_x[-2], shape_of_x[-1]]
                 new_shape_y = [_op.const(1), shape_of_y[-2], shape_of_y[-1]]
                 for i in range(ndim - 2):
@@ -1158,7 +1169,8 @@ def _batch_matmul():
 
             input_x = _op.reshape(input_x, newshape=new_shape_x)
             input_y = _op.reshape(input_y, newshape=new_shape_y)
-
+        elif ndim_y == 2:
+            input_y = _op.reshape(input_y, (1, orig_shape_y[-2], orig_shape_y[-1]))
         adj_x = attr["adj_x"]
         adj_y = attr["adj_y"]
         input_x = _op.transpose(input_x, axes=[0, 2, 1]) if adj_x else input_x
@@ -1471,7 +1483,13 @@ def _identityn():
 def _concatV2():
     def _impl(inputs, attr, params, mod):
         pop_node = inputs.pop(len(inputs) - 1)
-        axis = int(_get_num_param(params, pop_node))
+        try:
+            axis = int(_get_num_param(params, pop_node))
+        except (IndexError, KeyError, AttributeError):
+            try:
+                axis = int(_infer_value(pop_node, params, mod).numpy())
+            except Exception:
+                axis = int(pop_node)
         return AttrCvt(op_name="concatenate", ignores=["T", "N", "Tidx"], extras={"axis": axis})(
             [inputs], attr
         )
@@ -2232,7 +2250,7 @@ def _stridedSlice():
                             if begin[index] < 0
                             else begin[index]
                         )
-                        m_end[final_index] = begin[index] + 1
+                        m_end[final_index] = m_begin[final_index] + 1
                         m_stride[final_index] = 1
                         fshape_indices.append(-2)
                     else:
@@ -2884,6 +2902,7 @@ _convert_map = {
     "GreaterEqual": _broadcast("greater_equal"),
     "Identity": _identity(),
     "IdentityN": _identityn(),
+    "InvertPermutation": AttrCvt("invert_permutation"),
     "IsFinite": AttrCvt("isfinite"),
     "IsInf": AttrCvt("isinf"),
     "IsNan": AttrCvt("isnan"),
@@ -2930,8 +2949,8 @@ _convert_map = {
     "Relu": AttrCvt("relu"),
     "Relu6": _relu6(),
     "Reshape": _reshape(),
-    "ResizeBicubic": _resize("bilinear"),
-    "ResizeBilinear": _resize("bilinear"),
+    "ResizeBicubic": _resize("cubic"),
+    "ResizeBilinear": _resize("linear"),
     "ResizeNearestNeighbor": _resize("nearest_neighbor"),
     "ReverseV2": _reverse_v2(),
     "RightShift": AttrCvt("right_shift"),

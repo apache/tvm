@@ -31,7 +31,6 @@ SEMVER = '#[version = "0.0.5"]\n'
 def astext(program, unify_free_vars=False):
     text = program.astext()
 
-    print(text)
     if isinstance(program, Expr):
         roundtrip_program = tvm.parser.parse_expr(text)
     else:
@@ -274,6 +273,24 @@ def test_span():
     txt = astext(f)
     assert "Add0" in txt
     assert "Add1" in txt
+
+
+def test_optional_info():
+    c = relay.const(1)
+    call = relay.add(c, c)
+    m = tvm.IRModule.from_expr(call)
+    m = relay.transform.InferType()(m)
+    txt = astext(m)
+    assert txt.count("/* ty=int32 */") == 3
+
+
+def test_slash_in_identifier():
+    x = relay.var("base/x")
+    y = relay.var("base/y")
+    z = x + y
+    txt = astext(z)
+    assert "base/x" in txt
+    assert "base/y" in txt
 
 
 if __name__ == "__main__":

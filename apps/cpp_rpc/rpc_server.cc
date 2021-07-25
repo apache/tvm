@@ -22,7 +22,8 @@
  * \brief RPC Server implementation.
  */
 #include <tvm/runtime/registry.h>
-#if defined(__linux__) || defined(__ANDROID__)
+#if defined(__linux__) || defined(__ANDROID__) || defined(__APPLE__)
+#include <signal.h>
 #include <sys/select.h>
 #include <sys/wait.h>
 #endif
@@ -52,7 +53,7 @@ namespace runtime {
  * \brief wait the child process end.
  * \param status status value
  */
-#if defined(__linux__) || defined(__ANDROID__)
+#if defined(__linux__) || defined(__ANDROID__) || defined(__APPLE__)
 static pid_t waitPidEintr(int* status) {
   pid_t pid = 0;
   while ((pid = waitpid(-1, status, 0)) == -1) {
@@ -139,7 +140,7 @@ class RPCServer {
    * \brief ListenLoopProc The listen process.
    */
   void ListenLoopProc() {
-    TrackerClient tracker(tracker_addr_, key_, custom_addr_);
+    TrackerClient tracker(tracker_addr_, key_, custom_addr_, port_);
     while (true) {
       support::TCPSocket conn;
       support::SockAddr addr("0.0.0.0", 0);
@@ -162,7 +163,7 @@ class RPCServer {
       }
 
       int timeout = GetTimeOutFromOpts(opts);
-#if defined(__linux__) || defined(__ANDROID__)
+#if defined(__linux__) || defined(__ANDROID__) || defined(__APPLE__)
       // step 3: serving
       if (timeout != 0) {
         const pid_t timer_pid = fork();
@@ -203,7 +204,7 @@ class RPCServer {
         auto pid = fork();
         if (pid == 0) {
           ServerLoopProc(conn, addr, work_dir_);
-          exit(0);
+          _exit(0);
         }
         // Wait for the result
         int status = 0;
@@ -219,6 +220,10 @@ class RPCServer {
       auto dur = high_resolution_clock::now() - start_time;
 
       LOG(INFO) << "Serve Time " << duration_cast<milliseconds>(dur).count() << "ms";
+#else
+      LOG(WARNING) << "Unknown platform. It is not known how to bring up the subprocess."
+                   << " RPC will be launched in the main thread.";
+      ServerLoopProc(conn, addr, work_dir_);
 #endif
       // close from our side.
       LOG(INFO) << "Socket Connection Closed";

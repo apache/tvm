@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=unused-import
 """The TensorIR schedule class"""
-from typing import List, Optional, Union
+from typing import List, Optional, Union, Tuple
 
 from tvm._ffi import register_object as _register_object
 from tvm.error import TVMError, register_error
@@ -43,9 +43,12 @@ class BlockRV(Object):
     """A random variable that refers to a block"""
 
 
-ExprRV = PrimExpr  #  A random variable that evaluates to an integer
+# It is a workaround for mypy: https://github.com/python/mypy/issues/7866#issuecomment-549454370
+# This feature is not supported until python 3.10:
+# https://docs.python.org/3.10/whatsnew/3.10.html#pep-613-typealias
+ExprRV = Union[PrimExpr]  # A random variable that evaluates to an integer
 
-RAND_VAR_TYPE = Union[ExprRV, BlockRV, LoopRV]  # pylint: disable=invalid-name
+RAND_VAR_TYPE = Union[ExprRV, BlockRV, LoopRV]  # type: ignore # pylint: disable=invalid-name
 
 
 @_register_object("tir.Schedule")
@@ -105,9 +108,9 @@ class Schedule(Object):
                 'error_render_level can be "detail", "fast", or "none", but got: '
                 + f"{error_render_level}"
             )
-        error_render_level = Schedule.ERROR_RENDER_LEVEL.get(error_render_level)
+        error_render_level = Schedule.ERROR_RENDER_LEVEL.get(error_render_level)  # type: ignore
         self.__init_handle_by_constructor__(
-            _ffi_api_schedule.ConcreteSchedule,  # pylint: disable=no-member
+            _ffi_api_schedule.ConcreteSchedule,  # type: ignore # pylint: disable=no-member
             func_or_mod,
             debug_mode,
             error_render_level,
@@ -118,12 +121,12 @@ class Schedule(Object):
     @property
     def mod(self) -> IRModule:
         """Returns the AST of the module being scheduled"""
-        return _ffi_api_schedule.ScheduleModule(self)  # pylint: disable=no-member
+        return _ffi_api_schedule.ScheduleModule(self)  # type: ignore # pylint: disable=no-member
 
     @property
     def state(self) -> ScheduleState:
         """Returns the ScheduleState in the current schedule class"""
-        return _ffi_api_schedule.ScheduleGetState(self)  # pylint: disable=no-member
+        return _ffi_api_schedule.ScheduleGetState(self)  # type: ignore # pylint: disable=no-member
 
     def copy(self) -> "Schedule":
         """Returns a copy of the schedule, including both the state and the symbol table,
@@ -137,7 +140,7 @@ class Schedule(Object):
         copy : Schedule
             A new copy of the schedule
         """
-        return _ffi_api_schedule.ScheduleCopy(self)  # pylint: disable=no-member
+        return _ffi_api_schedule.ScheduleCopy(self)  # type: ignore # pylint: disable=no-member
 
     def seed(self, seed: int) -> None:
         """Seed the randomness
@@ -146,7 +149,7 @@ class Schedule(Object):
         seed : int
             The new random seed, -1 if use device random, otherwise non-negative
         """
-        return _ffi_api_schedule.ScheduleSeed(self, seed)  # pylint: disable=no-member
+        return _ffi_api_schedule.ScheduleSeed(self, seed)  # type: ignore # pylint: disable=no-member
 
     def show(self, rand_var: RAND_VAR_TYPE) -> str:
         """Returns a string representation of the value that the random variable evaluates to
@@ -184,7 +187,7 @@ class Schedule(Object):
         """
         if isinstance(rand_var_or_sref, StmtSRef):
             return rand_var_or_sref.stmt
-        result = _ffi_api_schedule.ScheduleGet(self, rand_var_or_sref)  # pylint: disable=no-member
+        result = _ffi_api_schedule.ScheduleGet(self, rand_var_or_sref)  # type: ignore # pylint: disable=no-member
         if isinstance(result, IntImm):
             result = result.value
         return result
@@ -204,7 +207,7 @@ class Schedule(Object):
         result : Optional[StmtSRef]
             The correpsonding result
         """
-        return _ffi_api_schedule.ScheduleGetSRef(  # pylint: disable=no-member
+        return _ffi_api_schedule.ScheduleGetSRef(  # type: ignore # pylint: disable=no-member
             self, rand_var_or_stmt
         )
 
@@ -215,7 +218,7 @@ class Schedule(Object):
         rand_var : Union[BlockRV, LoopRV, ExprRV]
             The random variable to be removed
         """
-        return _ffi_api_schedule.ScheduleRemoveRV(self, rand_var)  # pylint: disable=no-member
+        return _ffi_api_schedule.ScheduleRemoveRV(self, rand_var)  # type: ignore # pylint: disable=no-member
 
     ########## Block/Loop relation ##########
 
@@ -237,7 +240,7 @@ class Schedule(Object):
             The block retrieved
             IndexError is raised if 0 or multiple blocks exist with the specific name.
         """
-        return _ffi_api_schedule.ScheduleGetBlock(  # pylint: disable=no-member
+        return _ffi_api_schedule.ScheduleGetBlock(  # type: ignore # pylint: disable=no-member
             self,
             name,
             func_name,
@@ -254,18 +257,153 @@ class Schedule(Object):
         loops : List[LoopRV]
             A list of loops above the given block in its scope, from outer to inner
         """
-        return _ffi_api_schedule.ScheduleGetLoops(self, block)  # pylint: disable=no-member
+        return _ffi_api_schedule.ScheduleGetLoops(self, block)  # type: ignore # pylint: disable=no-member
 
     ########## Schedule: loops manipulation ##########
+    def fuse(self, *loops: List[LoopRV]) -> LoopRV:
+        """Fuse a list of consecutive loops into one. It requires:
+        1) The loops can't have annotations or thread bindings.
+        2) The (i+1)-th loop must be the only child of the i-th loop.
+        3) All loops must start with 0.
+
+        Parameters
+        ----------
+        *loops : List[LoopRV]
+            The loops to be fused
+
+        Returns
+        ----------
+        fused_loop : LoopRV
+            The new loop after fusion
+
+        Examples
+        --------
+
+        Before applying fuse, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @tvm.script.tir
+            def before_fuse(a: ty.handle, b: ty.handle) -> None:
+                A = tir.match_buffer(a, (128, 128))
+                B = tir.match_buffer(b, (128, 128))
+                for i, j in tir.grid(128, 128):
+                    with tir.block([128, 128], "B") as [vi, vj]:
+                        B[vi, vj] = A[vi, vj] * 2.0
+
+        Create the schedule and do fuse:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(before_fuse)
+            i, j = sch.get_loops(sch.get_block("B"))
+            sch.fuse(i, j)
+            print(tvm.script.asscript(sch.mod["main"]))
+
+        After applying fuse, the IR becomes:
+
+        .. code-block:: python
+
+            @tvm.script.tir
+            def after_fuse(a: ty.handle, b: ty.handle) -> None:
+                A = tir.match_buffer(a, (128, 128))
+                B = tir.match_buffer(b, (128, 128))
+                # the 2 loops are fused into 1
+                for i_j_fused in tir.serial(0, 16384):
+                    with tir.block([128, 128], "B") as [vi, vj]:
+                        tir.bind(vi, tir.floordiv(i_j_fused, 128))
+                        tir.bind(vj, tir.floormod(i_j_fused, 128))
+                        B[vi, vj] = A[vi, vj] * 2.0
+
+        """
+        return _ffi_api_schedule.ScheduleFuse(self, loops)  # type: ignore # pylint: disable=no-member
+
+    def split(
+        self,
+        loop: LoopRV,
+        factors: List[Union[ExprRV, None]],
+    ) -> List[LoopRV]:
+        """Split a loop into a list of consecutive loops. It requires:
+        1) The loop can't have annotation or thread binding.
+        2) The loop must start with 0.
+        Predicates may be added to ensure the total loop numbers keeps unchanged.
+        In `factors`, at most one of the factors can be None,
+        which will be automatically inferred.
+
+        Parameters
+        ----------
+        loop : LoopRV
+            The loop to be split
+
+        factors: List[Union[ExprRV, None]]
+            The splitting factors
+            Potential inputs are:
+            - None
+            - ExprRV
+            - Nonnegative constant integers
+
+        Returns
+        ----------
+        split_loops : List[LoopRV]
+            The new loops after split
+
+        Examples
+        --------
+
+        Before split, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @tvm.script.tir
+            def before_split(a: ty.handle, b: ty.handle) -> None:
+                A = tir.match_buffer(a, (128, 128))
+                B = tir.match_buffer(b, (128, 128))
+                for i, j in tir.grid(128, 128):
+                    with tir.block([128, 128], "B") as [vi, vj]:
+                        B[vi, vj] = A[vi, vj] * 2.0
+
+        Create the schedule and do fuse:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(before_split)
+            i, j = sch.get_loops(sch.get_block("B"))
+            sch.split(i, factors=[2, 64])
+            print(tvm.script.asscript(sch.mod["main"]))
+
+        After applying split, the IR becomes:
+
+        .. code-block:: python
+
+            @tvm.script.tir
+            def after_split(a: ty.handle, b: ty.handle) -> None:
+                A = tir.match_buffer(a, (128, 128))
+                B = tir.match_buffer(b, (128, 128))
+                # the original loop is split into 2 loops
+                for i0, i1, j in tir.grid(2, 64, 128):
+                    with tir.block([128, 128], "B") as [vi, vj]:
+                        tir.bind(vi, ((i0*64) + i1))
+                        tir.bind(vj, j)
+                        B[vi, vj] = A[vi, vj] * 2.0
+
+        """
+        # it will be checked later in C++ implementation
+        # that there is at most one None in `factors`
+        return _ffi_api_schedule.ScheduleSplit(self, loop, factors)  # type: ignore # pylint: disable=no-member
+
     ########## Schedule: compute location ##########
     def compute_inline(self, block: BlockRV) -> None:
         """Inline a block into its consumer(s). It requires:
+
         1) The block is a complete non-root block, which only produces one buffer
+
         2) The block must not be the only leaf in the scope.
-        3) The body of the block must be a BufferStore statement in the form of,
-            A[i, j, k, ...] = ...
-        where the indices of the LHS are all distinct atomic variables,
-        and no variables other than those indexing variables are allowed in the statement.
+
+        3) The body of the block must be a BufferStore statement in
+           the form of, ``A[i, j, k, ...] = ...`` where the indices of
+           the LHS are all distinct atomic variables, and no variables
+           other than those indexing variables are allowed in the
+           statement.
 
         Parameters
         ----------
@@ -309,18 +447,23 @@ class Schedule(Object):
                     C[vi, vj] = A[vi, vj] * 2.0 + 1.0
 
         """
-        _ffi_api_schedule.ScheduleComputeInline(self, block)  # pylint: disable=no-member
+        _ffi_api_schedule.ScheduleComputeInline(self, block)  # type: ignore # pylint: disable=no-member
 
     def reverse_compute_inline(self, block: BlockRV) -> None:
         """Inline a block into its only producer. It requires:
+
         1) The block is a complete non-root block, which only produces and consumes one buffer
+
         2) The block must not be the only leaf in the scope.
-        3) The only producer of the block is a read-after-write producer
-        and a complete non-root block
+
+        3) The only producer of the block is a read-after-write producer and a
+           complete non-root block
+
         4) The body of the block must be a BufferStore statement in the form of,
-            B[f(i, j, k, ...)] = g(i, j, k, A[i, j, k, ...] ...)
-        where the indices of each `BufferLoad` on the RHS are all distinct atomic variables,
-        and no variables other than those indexing variables are allowed in the statement.
+           ``B[f(i, j, k, ...)] = g(i, j, k, A[i, j, k, ...] ...)`` where the
+           indices of each `BufferLoad` on the RHS are all distinct atomic
+           variables, and no variables other than those indexing variables are
+           allowed in the statement.
 
         Parameters
         ----------
@@ -364,7 +507,7 @@ class Schedule(Object):
                     C[vi, vj] = A[vi, vj] * 2.0 + 1.0
 
         """
-        _ffi_api_schedule.ScheduleReverseComputeInline(self, block)  # pylint: disable=no-member
+        _ffi_api_schedule.ScheduleReverseComputeInline(self, block)  # type: ignore # pylint: disable=no-member
 
     ########## Schedule: loop binding/annotation ##########
     ########## Schedule: cache read/write ##########

@@ -24,29 +24,30 @@ remote devices, recording the running time costs, and checking the correctness o
 
 import contextlib
 import logging
-import shutil
 import os
+import shutil
+import tempfile
 import threading
 import time
 import typing
-from random import getrandbits
 from collections import namedtuple
-import tempfile
+from random import getrandbits
+import warnings
 
 import tvm._ffi
 import tvm.ir.transform
-from tvm import nd, rpc as _rpc
-from tvm.error import TVMError
+from tvm import nd
+from tvm import rpc as _rpc
+from tvm.contrib import ndk, nvcc, stackvm, tar
 from tvm.driver import build
-from tvm.contrib import nvcc, ndk, tar, stackvm
+from tvm.error import TVMError
 from tvm.target import Target
 
-from ..utils import get_const_tuple
 from ..env import AutotvmGlobalScope
 from ..task.space import InstantiationError
-
-from .measure import MeasureResult, MeasureErrorNo, Builder, Runner
+from ..utils import get_const_tuple
 from .local_executor import LocalExecutor
+from .measure import Builder, MeasureErrorNo, MeasureResult, Runner
 
 logger = logging.getLogger("autotvm")
 
@@ -235,12 +236,32 @@ class RPCRunner(Runner):
         self.number = number
         self.repeat = repeat
         self.min_repeat_ms = min_repeat_ms
+        self._ref_input = None
 
         self.enable_cpu_cache_flush = enable_cpu_cache_flush
         self.cooldown_interval = cooldown_interval
         self.module_loader = module_loader
 
         self.executor = LocalExecutor(timeout=timeout * (self.n_parallel + 1))
+
+    @property
+    def ref_input(self):
+        """
+        Fixed input for tuning special operators, e.g., sparse operators
+        requiring indices as input.
+        """
+        return self._ref_input
+
+    @ref_input.setter
+    def ref_input(self, val):
+        warnings.warn(
+            "You are specifying fixed input for tuning the operator. "
+            "Be sure your input always fits the operator. Some "
+            "operators may conduct layout transformation during tuning, "
+            "thus can lead to unexpected behaviors. ",
+            RuntimeWarning,
+        )
+        self._ref_input = val
 
     def set_task(self, task):
         self.task = task
@@ -308,6 +329,7 @@ class RPCRunner(Runner):
                     self.min_repeat_ms,
                     self.cooldown_interval,
                     remote_kwargs,
+                    self.ref_input,
                     self.enable_cpu_cache_flush,
                     module_loader,
                 )
@@ -393,8 +415,8 @@ class LocalRunner(RPCRunner):
 
     def set_task(self, task):
         # pylint: disable=import-outside-toplevel
-        from ...rpc.tracker import Tracker
         from ...rpc.server import Server
+        from ...rpc.tracker import Tracker
 
         self.task = task
         tracker = Tracker(port=9000, port_end=10000, silent=True)
@@ -508,6 +530,7 @@ def run_through_rpc(
     min_repeat_ms,
     cooldown_interval,
     remote_kwargs,
+    ref_input,
     enable_cpu_cache_flush=False,
     module_loader=None,
 ):
@@ -539,6 +562,8 @@ def run_through_rpc(
         The cool down interval between two measurements
     remote_kwargs: dict
         Passed to module_loader(). Ultimately, keyword args to request_remote().
+    ref_input: List of np.ndarray
+        The reference input used for tuning. Empty for randomly filled input.
     enable_cpu_cache_flush: bool
         Whether to flush cache on CPU between repeated measurements.
         Flushing cache can make the measured latency of one operator closer to
@@ -573,18 +598,22 @@ def run_through_rpc(
                 f_preproc=f_prepare,
             )
 
-            try:
-                random_fill = remote.get_function("tvm.contrib.random.random_fill")
-            except AttributeError:
-                raise AttributeError(
-                    "Please make sure USE_RANDOM is ON in the config.cmake " "on the remote devices"
-                )
-            args = [nd.empty(x[0], x[1], dev) for x in build_result.arg_info]
-            if "scatter" not in measure_input.task.name:
-                # the index tensor of scatter op cannot be randomly initialized
-                for arg in args:
-                    random_fill(arg)
-            dev.sync()
+            if ref_input:
+                args = [nd.array(x, device=dev) for x in ref_input]
+            else:
+                try:
+                    random_fill = remote.get_function("tvm.contrib.random.random_fill")
+                except AttributeError:
+                    raise AttributeError(
+                        "Please make sure USE_RANDOM is ON in the config.cmake "
+                        "on the remote devices"
+                    )
+                args = [nd.empty(x[0], x[1], dev) for x in build_result.arg_info]
+                if "scatter" not in measure_input.task.name:
+                    # the index tensor of scatter op cannot be randomly initialized
+                    for arg in args:
+                        random_fill(arg)
+                dev.sync()
 
             costs = time_f(*args).results
 
@@ -605,26 +634,17 @@ def run_through_rpc(
     return MeasureResult(costs, errno, tstamp - tic + build_result.time_cost, tstamp)
 
 
-def default_module_loader(pre_load_function=None):
-    """Returns a default function that can be passed as module_loader to run_through_rpc.
+class DefaultModuleLoader:
+    """See default_module_loader(). A pickleable emulation of the original function closure."""
 
-    Parameters
-    ----------
-    pre_load_function : Optional[Function[tvm.rpc.Session, tvm.runtime.Module]]
-        Invoked after a session is established and before the default code-loading RPC calls are
-        issued. Allows performing pre-upload actions, e.g. resetting the remote runtime environment.
-
-    Returns
-    -------
-    ModuleLoader :
-        A function that can be passed as module_loader to run_through_rpc.
-    """
+    def __init__(self, pre_load_function=None) -> None:
+        self.pre_load_function = pre_load_function
 
     @contextlib.contextmanager
-    def default_module_loader_mgr(remote_kwargs, build_result):
+    def __call__(self, remote_kwargs, build_result):
         remote = request_remote(**remote_kwargs)
-        if pre_load_function is not None:
-            pre_load_function(remote, build_result)
+        if self.pre_load_function is not None:
+            self.pre_load_function(remote, build_result)
 
         remote.upload(build_result.filename)
         try:
@@ -636,7 +656,25 @@ def default_module_loader(pre_load_function=None):
             remote.remove(os.path.splitext(build_result.filename)[0] + ".so")
             remote.remove("")
 
-    return default_module_loader_mgr
+
+def default_module_loader(pre_load_function=None):
+    """Returns a default function that can be passed as module_loader to run_through_rpc.
+
+    Parameters
+    ----------
+    pre_load_function : Optional[Function[tvm.rpc.Session, tvm.runtime.Module]]
+        Invoked after a session is established and before the default code-loading RPC calls are
+        issued. Allows performing pre-upload actions, e.g. resetting the remote runtime environment.
+
+    Returns
+    -------
+    DefaultModuleLoader :
+        A callable that can be passed as module_loader to run_through_rpc.
+    """
+
+    # This was a function with a closure before but that couldn't be pickled!
+    # We need pickle to work for using python's multiprocessing on some platforms.
+    return DefaultModuleLoader(pre_load_function)
 
 
 def request_remote(device_key, host=None, port=None, priority=1, timeout=60):

@@ -30,6 +30,9 @@ import shlex
 import shutil
 import subprocess
 import sys
+import threading
+import queue
+import enum
 
 import yaml
 
@@ -111,9 +114,9 @@ class ZephyrCompiler(tvm.micro.Compiler):
         self._qemu = "qemu" in board
 
         # For Zephyr boards that run emulated by default but don't have the prefix "qemu_" in their
-        # board names, a suffix "-qemu" is added by users of µTVM when specifying the board name to
-        # inform that the QEMU transporter must be used just like for the boards with the prefix.
-        # Zephyr does not recognize the suffix, so we trim it off before passing it.
+        # board names, a suffix "-qemu" is added by users of microTVM when specifying the board
+        # name to inform that the QEMU transporter must be used just like for the boards with
+        # the prefix. Zephyr does not recognize the suffix, so we trim it off before passing it.
         if "-qemu" in board:
             board = board.replace("-qemu", "")
 
@@ -403,6 +406,7 @@ class ZephyrFlasher(tvm.micro.compiler.Flasher):
 
     # kwargs passed to usb.core.find to find attached boards for the openocd flash runner.
     BOARD_USB_FIND_KW = {
+        "nucleo_l4r5zi": {"idVendor": 0x0483, "idProduct": 0x374B},
         "nucleo_f746zg": {"idVendor": 0x0483, "idProduct": 0x374B},
         "stm32f746g_disco": {"idVendor": 0x0483, "idProduct": 0x374B},
     }
@@ -630,6 +634,12 @@ class QemuFdTransport(file_descriptor.FdTransport):
         return num_written
 
 
+class ZephyrQemuMakeResult(enum.Enum):
+    QEMU_STARTED = "qemu_started"
+    MAKE_FAILED = "make_failed"
+    EOF = "eof"
+
+
 class ZephyrQemuTransport(Transport):
     """The user-facing Zephyr QEMU transport class."""
 
@@ -641,6 +651,7 @@ class ZephyrQemuTransport(Transport):
         self.fd_transport = None
         self.pipe_dir = None
         self.qemu_debugger = qemu_debugger
+        self._queue = queue.Queue()
 
     def timeouts(self):
         return TransportTimeouts(
@@ -669,7 +680,12 @@ class ZephyrQemuTransport(Transport):
             ["make", "run", f"QEMU_PIPE={self.pipe}"],
             cwd=self.base_dir,
             **self.kwargs,
+            stdout=subprocess.PIPE,
         )
+        try:
+            self._wait_for_qemu()
+        except Exception as error:
+            raise error
 
         if self.qemu_debugger is not None:
             self.qemu_debugger.start()
@@ -713,6 +729,35 @@ class ZephyrQemuTransport(Transport):
         if self.fd_transport is None:
             raise TransportClosedError()
         return self.fd_transport.write(data, timeout_sec)
+
+    def _qemu_check_stdout(self):
+        for line in self.proc.stdout:
+            line = str(line)
+            _LOG.debug(line)
+            if "[QEMU] CPU" in line:
+                self._queue.put(ZephyrQemuMakeResult.QEMU_STARTED)
+            else:
+                line = re.sub("[^a-zA-Z0-9 \n]", "", line)
+                pattern = r"recipe for target (\w*) failed"
+                if re.search(pattern, line, re.IGNORECASE):
+                    self._queue.put(ZephyrQemuMakeResult.MAKE_FAILED)
+        self._queue.put(ZephyrQemuMakeResult.EOF)
+
+    def _wait_for_qemu(self):
+        threading.Thread(target=self._qemu_check_stdout, daemon=True).start()
+        while True:
+            try:
+                item = self._queue.get(timeout=120)
+            except Exception:
+                raise TimeoutError("QEMU setup timeout.")
+
+            if item == ZephyrQemuMakeResult.QEMU_STARTED:
+                break
+
+            if item in [ZephyrQemuMakeResult.MAKE_FAILED, ZephyrQemuMakeResult.EOF]:
+                raise RuntimeError("QEMU setup failed.")
+
+            raise ValueError(f"{item} not expected.")
 
 
 class ZephyrDebugger(debugger.GdbDebugger):

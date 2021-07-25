@@ -37,6 +37,7 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <cstdlib>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -197,6 +198,31 @@ inline uint64_t HashCombine(uint64_t key, const T& value) {
   // XXX: do not use std::hash in this function. This hash must be stable
   // across different platforms and std::hash is implementation dependent.
   return key ^ (uint64_t(value) + 0x9e3779b9 + (key << 6) + (key >> 2));
+}
+
+/*!
+ * \brief Return whether a boolean flag is set as an environment variable.
+ *
+ * Returns true if the environment variable is set to a non-zero
+ * integer, or to a non-empty string that is not an integer.
+ *
+ * Returns false if the environment variable is unset, if the
+ * environment variable is set to the integer zero, or if the
+ * environment variable is an empty string.
+ */
+inline bool BoolEnvironmentVar(const char* varname) {
+  const char* var = std::getenv(varname);
+  if (!var) {
+    return false;
+  }
+
+  int x = 0;
+  std::istringstream is(var);
+  if (is >> x) {
+    return x;
+  }
+
+  return *var;
 }
 
 }  // namespace support

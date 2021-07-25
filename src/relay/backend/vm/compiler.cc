@@ -550,7 +550,8 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
     }
 
     CCacheKey key(func, target);
-    auto cfunc = engine_->Lower(key);
+    auto mangle_fn = [](String name) { return name; };
+    auto cfunc = engine_->Lower(key, mangle_fn);
 
     auto op_index = -1;
     if (func->GetAttr<String>(attr::kCompiler).defined()) {
@@ -977,7 +978,7 @@ void VMCompiler::Lower(IRModule mod, const TargetsMap& targets, const tvm::Targe
   // update primitive function map
   size_t primitive_index = 0;
   for (const auto& cfunc : context_.cached_funcs) {
-    exec_->primitive_map.insert({cfunc->func_name, primitive_index++});
+    exec_->primitive_map.insert({cfunc->prim_fn_var->name_hint, primitive_index++});
   }
 }
 
@@ -1172,8 +1173,9 @@ void VMCompiler::Codegen() {
 
     if (target->kind->device_type == kDLExtDev) {
       // Collect metadata in functions that are handled by external codegen.
-      ICHECK(mod->ContainGlobalVar(cfunc->func_name));
-      Function func = Downcast<Function>(mod->Lookup(cfunc->func_name));
+      auto name = cfunc->prim_fn_var->name_hint;
+      ICHECK(mod->ContainGlobalVar(name));
+      Function func = Downcast<Function>(mod->Lookup(name));
       backend::UpdateConstants(func, &params_);
     } else if (funcs.count(target) == 0) {
       funcs.Set(target, mod);

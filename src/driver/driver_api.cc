@@ -88,7 +88,7 @@ tir::Buffer BufferWithOffsetAlignment(Array<PrimExpr> shape, DataType dtype, std
     elem_offset = PrimExpr();
   }
 
-  return tir::Buffer(data, dtype, shape, Array<PrimExpr>(), elem_offset, name, "", data_alignment,
+  return tir::Buffer(data, dtype, shape, Array<PrimExpr>(), elem_offset, name, data_alignment,
                      offset_factor, buffer_type);
 }
 
@@ -388,7 +388,7 @@ std::pair<IRModule, IRModule> SplitDevHostFuncs(IRModule mod_mixed, const Target
   if (target->GetAttr<Bool>("unpacked-api").value_or(Bool(false))) {
     mixed_pass_list.push_back(tir::transform::MakeUnpackedAPI());
   } else {
-    mixed_pass_list.push_back(tir::transform::MakePackedAPI(0));
+    mixed_pass_list.push_back(tir::transform::MakePackedAPI(-1));
   }
 
   mixed_pass_list.push_back(tir::transform::SplitHostDevice());
@@ -437,14 +437,18 @@ std::pair<IRModule, IRModule> SplitDevHostFuncs(IRModule mod_mixed, const Target
   }
 
   if (target->kind->device_type == kDLCPU && target_host == target) {
-    ICHECK(mdevice->functions.empty()) << "No device code should be generated when target "
-                                       << "and host_target are both llvm target."
-                                       << "\n";
+    // TODO(@jroesch): This check is no longer true we need to figure out if we care about this.
+    // We need to relax this check for just TIR functions.
+    // ICHECK(mdevice->functions.empty()) << "No device code should be generated when target "
+    //                                   << "and host_target are both llvm target."
+    //                                   << "\n";
   }
 
   return {mhost, mdevice};
 }
 
+// Can we make this take one annotated IRModule?
+//
 // Build for heterogeneous execution.
 runtime::Module build(const Map<Target, IRModule>& inputs_arg, const Target& target_host_arg) {
   auto pass_ctx = transform::PassContext::Current();
