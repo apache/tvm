@@ -305,4 +305,9 @@ set(BUILD_STATIC_RUNTIME OFF)
 # If you switch branches, build and then encounter a linking error, you may
 # need to regenerate the build tree through "make .." (the cache will
 # still provide significant speedups).
-set(USE_CCACHE ON)
+# Possible values:
+# - AUTO: search for path to ccache, disable if not found.
+# - ON: enable ccache by searching for the path to ccache, report an error if not found
+# - OFF: disable ccache
+# - /path/to/ccache: use specific path to ccache
+set(USE_CCACHE AUTO)
