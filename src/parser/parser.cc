@@ -34,6 +34,7 @@
 
 #include <fstream>
 
+#include "../printer/text_printer.h"
 #include "./meta_ref.h"
 #include "./op_table.h"
 #include "./span_check.h"
@@ -1921,6 +1922,33 @@ Expr ParseExpr(std::string file_name, std::string file_content) {
   return expr;
 }
 
+static std::pair<String, std::unordered_map<std::string, std::string>> AsTextWithReverseName(
+    const ObjectRef& node, bool show_meta_data) {
+  Doc doc;
+  doc << "#[version = \"0.0.5\"]" << Doc::NewLine();
+  runtime::TypedPackedFunc<std::string(ObjectRef)> ftyped = nullptr;
+  TextPrinter printer(show_meta_data, ftyped);
+  doc << printer.PrintFinal(node);
+  return std::make_pair(doc.str(), printer.relay_text_printer_.AllocNameReverseMapping());
+}
+
+class RenameMutator : public ExprMutator {
+ public:
+  explicit RenameMutator(std::unordered_map<std::string, std::string> rmap)
+      : ExprMutator(), reverse_name_map_(std::move(rmap)) {}
+
+  Expr VisitExpr_(const VarNode* n) {
+    auto it = reverse_name_map_.find('%' + std::string(n->name_hint()));
+    if (reverse_name_map_.cend() != it) {  // found.
+      return Var(it->second.substr(1), n->type_annotation, n->span);
+    }
+    return GetRef<Var>(n);
+  }
+
+ private:
+  std::unordered_map<std::string, std::string> reverse_name_map_;
+};
+
 TVM_REGISTER_GLOBAL("parser.ParseModule")
     .set_body_typed([](tvm::String file_name, tvm::String file_content) {
       return ParseModule(file_name, file_content);
@@ -1934,8 +1962,21 @@ TVM_REGISTER_GLOBAL("parser.ParseExpr")
 TVM_REGISTER_GLOBAL("relay._transform.AnnotateSpans").set_body_typed([]() {
   return CreateModulePass(
       [](const IRModule& mod, const PassContext& ctx) {
-        auto text = AsText(mod, true);
-        return ParseModule("GeneratedSource", text);
+        auto text_with_rname = AsTextWithReverseName(mod, true);
+        const String& text = std::get<0>(text_with_rname);
+        auto& name_rmap = std::get<1>(text_with_rname);
+
+        auto new_module = ParseModule("GeneratedSource", text);
+        // rename variable names in the new module according to `name_rmap`.
+        auto mutator = RenameMutator(std::move(name_rmap));
+
+        for (GlobalVar global_var : new_module->GetGlobalVars()) {
+          const BaseFunc base_func = new_module->Lookup(global_var);
+          if (auto* n = base_func.as<FunctionNode>()) {
+            new_module->Update(global_var, Downcast<Function>(mutator.Mutate(GetRef<Function>(n))));
+          }
+        }
+        return new_module;
       },
       0, "AnnotateSpans", {});
 });

@@ -154,6 +154,9 @@ Doc RelayTextPrinter::GetUniqueName(const std::string& prefix) {
     }
   }
   name_alloc_map_[unique_prefix] = 0;
+  if (unique_prefix != prefix) {  // name changed.
+    name_alloc_reverse_map_[unique_prefix] = prefix;
+  }
   return Doc::Text(unique_prefix);
 }
 
@@ -889,6 +892,11 @@ Doc RelayTextPrinter::PrintSpan(const Span& span) {
   ICHECK(span_node);
   doc << span_node->source_name->name;
   return doc;
+}
+
+const std::unordered_map<std::string, std::string>& RelayTextPrinter::AllocNameReverseMapping()
+    const {
+  return name_alloc_reverse_map_;
 }
 
 TVM_REGISTER_GLOBAL("ir.TextPrinter").set_body_typed([](ObjectRef node) {

@@ -111,6 +111,8 @@ class RelayTextPrinter : public ExprFunctor<Doc(const Expr&)>,
   Doc PrintFunc(const Doc& prefix, const BaseFunc& base_func);
   Doc PrintMod(const IRModule& mod);
 
+  const std::unordered_map<std::string, std::string>& AllocNameReverseMapping() const;
+
   //------------------------------------
   // Overload of Expr printing functions
   //------------------------------------
@@ -189,6 +191,8 @@ class RelayTextPrinter : public ExprFunctor<Doc(const Expr&)>,
   std::unordered_map<Pattern, Doc, ObjectPtrHash, ObjectPtrEqual> memo_pattern_;
   /*! \brief name allocation map */
   std::unordered_map<std::string, int> name_alloc_map_;
+  /*! \brief Map from allocated name to original name */
+  std::unordered_map<std::string, std::string> name_alloc_reverse_map_;
   /*! \brief meta data context */
   TextMetaDataContext* meta_;
   /*! \brief counter of temporary variable */
