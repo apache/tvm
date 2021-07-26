@@ -32,46 +32,44 @@ def _get_supported_layout(dims: int):
     assert dims in [3, 4, 5], f"{dims}-dimensional tensor is not supported"
     if dims == 3:
         return "NCW"
-    elif dims == 4:
+    if dims == 4:
         return "NCHW"
-    elif dims == 5:
-        return "NCDHW"
+    # dims == 5
+    return "NCDHW"
 
 
 def _convert_to_layout(
-    input: np.ndarray,
+    input_tensor: np.ndarray,
     layout: str,
 ) -> np.ndarray:
     """
     Converts back to original layout after the algorithm is finished
     """
-    supported_layout = _get_supported_layout(input.ndim)
+    supported_layout = _get_supported_layout(input_tensor.ndim)
     if layout is not None and supported_layout != layout:
         # Generate transpose list
         transpose_list = []
         for d in layout:
             transpose_list.append(supported_layout.index(d))
-        return input.transpose(transpose_list)
-    else:
-        return input
+        return input_tensor.transpose(transpose_list)
+    return input_tensor
 
 
 def _convert_from_layout(
-    input: np.ndarray,
+    input_tensor: np.ndarray,
     layout: str,
 ) -> np.ndarray:
     """
     Converts tensor to one of suppored layouts
     """
-    supported_layout = _get_supported_layout(input.ndim)
+    supported_layout = _get_supported_layout(input_tensor.ndim)
     if layout is not None and supported_layout != layout:
         # Generate transpose list
         transpose_list = []
         for d in supported_layout:
             transpose_list.append(layout.index(d))
-        return input.transpose(transpose_list)
-    else:
-        return input
+        return input_tensor.transpose(transpose_list)
+    return input_tensor
 
 
 def get_slice(
