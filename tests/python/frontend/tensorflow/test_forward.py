@@ -5614,5 +5614,57 @@ def test_invert_permutation():
         compare_tf_with_tvm(x, "Placeholder:0", out_name, no_gpu=False)
 
 
+#######################################################################
+# Check graph with input tensors as constant
+# ------------
+
+
+def test_extra_params():
+    g = tf.Graph()
+    a_shape = [None, 30]
+    b_shape = [30, 40]
+    batch_size = 25
+    static_a_shape = [batch_size, 30]
+    dtype = "float32"
+    with g.as_default():
+        A = tf.placeholder(shape=a_shape, dtype=dtype, name="A")
+        B = tf.placeholder(shape=b_shape, dtype=dtype, name="B")
+        C = tf.matmul(A, B)
+        batch = tf.placeholder(shape=(), dtype="int32", name="batch_size")
+        batch = tf.expand_dims(batch, axis=0)
+        shape = tf.concat([batch, tf.constant([5]), tf.constant([8])], axis=0)
+        D = tf.reshape(C, shape)
+
+    # The original graph
+    mod, _ = from_tensorflow(g.as_graph_def(add_shapes=True), shape={"A": static_a_shape})
+    program = """
+    def @main(%A: Tensor[(25, 30), float32], %B: Tensor[(30, 40), float32],
+              %batch_size: int32, %Const: Tensor[(1), int32], %Const_1: Tensor[(1), int32]) {
+        %0 = transpose(%B, axes=[1, 0]);
+        %1 = expand_dims(%batch_size, axis=0) /* ExpandDims */;
+        %2 = (%1, %Const, %Const_1);
+        %3 = nn.dense(%A, %0, units=40) /* MatMul */;
+        %4 = concatenate(%2) /* concat */;
+        dyn.reshape(%3, %4, newshape=[]) /* Reshape */
+    }"""
+    mod_golden = tvm.parser.parse('#[version = "0.0.5"]\n' + program)
+    tvm.ir.assert_structural_equal(mod["main"].body, mod_golden["main"].body, map_free_vars=True)
+
+    # The graph setting `batch_size` as a const int
+    mod, _ = from_tensorflow(
+        g.as_graph_def(add_shapes=True),
+        shape={"A": static_a_shape},
+        extra_params={"batch_size": np.int32(batch_size)},
+    )
+    program = """
+    def @main(%A: Tensor[(25, 30), float32], %B: Tensor[(30, 40), float32]) {
+        %0 = transpose(%B, axes=[1, 0]);
+        %1 = nn.dense(%A, %0, units=40) /* MatMul */;
+        reshape(%1, newshape=[25, 5, 8]) /* Reshape */
+    }"""
+    mod_golden = tvm.parser.parse('#[version = "0.0.5"]\n' + program)
+    tvm.ir.assert_structural_equal(mod["main"].body, mod_golden["main"].body, map_free_vars=True)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

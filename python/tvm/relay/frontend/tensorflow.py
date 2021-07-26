@@ -417,7 +417,7 @@ class GraphProto(object):
         self._tensor_array_shapes = {}
         self._tensor_array_shape_nodes = {}
 
-    def _get_relay_func(self, graph, layout="NHWC", shape=None, outputs=None):
+    def _get_relay_func(self, graph, layout="NHWC", shape=None, outputs=None, extra_params=None):
         """Construct relay nodes from tensorflow graph definition - GraphDef.
 
         Follow the tensorflow graph definition to parse and convert it to Relay.
@@ -447,6 +447,10 @@ class GraphProto(object):
         outputs : List of output tensor names (Optional)
             if not specified then the last node is assumed as graph output.
 
+        extra_params : Optional[Dict[str, np.ndarray]]
+            The Tensors inside this dict will be seen as parameters of this graph.
+            This will be useful to process a dynamic tf graph as a static graph.
+
         Returns
         -------
         mod : tvm.IRModule
@@ -456,9 +460,30 @@ class GraphProto(object):
             A dict of name: tvm.nd.array pairs, used as pretrained weights
         """
         try:
-            from tensorflow.python.framework import tensor_util
+            from tensorflow.python.framework import constant_op, ops, tensor_util
+            from tensorflow.core.framework import graph_pb2
         except ImportError as e:
             raise ImportError("Unable to import tensorflow which is required {}".format(e))
+
+        if extra_params is not None:
+            ori_graph = graph
+            graph = graph_pb2.GraphDef()
+            # This is going to replace the tensors in extra_params to constant node
+            for node in ori_graph.node:
+                new_node = graph.node.add()
+                if node.name in extra_params:
+                    # Add a new scopy incase this has sideeffect
+                    with ops.Graph().as_default():
+                        # Create a new constant node and replace the original one
+                        constant = constant_op.constant(
+                            extra_params[node.name],
+                            dtype=extra_params[node.name].dtype,
+                            name=node.name,
+                        )
+                    new_node.MergeFrom(constant.op.node_def)
+                else:
+                    # Copy the original node to the new GraphDef
+                    new_node.MergeFrom(node)
 
         missing_operators = self._parse_import_prerequisites(graph)
         control_flow_nodes = []
@@ -647,11 +672,13 @@ class GraphProto(object):
         self._params = final_params
         return func
 
-    def from_tensorflow(self, graph, layout="NHWC", shape=None, outputs=None):
+    def from_tensorflow(self, graph, layout="NHWC", shape=None, outputs=None, extra_params=None):
         """Wrapper to _get_relay_func which converts Tensorflow graph to Relay function
         which is used as main function for the Relay module
         """
-        func = self._get_relay_func(graph, layout=layout, shape=shape, outputs=outputs)
+        func = self._get_relay_func(
+            graph, layout=layout, shape=shape, outputs=outputs, extra_params=extra_params
+        )
         self._mod["main"] = func
         return self._mod, self._params
 
@@ -1214,7 +1241,9 @@ class SubGraphProto(GraphProto):
         return func, self._params
 
 
-def from_tensorflow(graph, layout="NHWC", shape=None, outputs=None, use_dense_op=True):
+def from_tensorflow(
+    graph, layout="NHWC", shape=None, outputs=None, use_dense_op=True, extra_params=None
+):
     """Load tensorflow graph which is a python tensorflow graph object into relay.
     The companion parameters will be handled automatically.
 
@@ -1237,6 +1266,10 @@ def from_tensorflow(graph, layout="NHWC", shape=None, outputs=None, use_dense_op
         The `nn.dense` op requires the data tensor to be non-transposed and weight tensor to be
         transposed, may insert extra `transpose` to the original graph.
 
+    extra_params : Optional[Dict[str, np.ndarray]]
+        The Tensors inside this dict will be seen as parameters of this graph.
+        This will be useful to process a dynamic tf graph as a static graph.
+
     Returns
     -------
     mod : tvm.IRModule
@@ -1249,5 +1282,5 @@ def from_tensorflow(graph, layout="NHWC", shape=None, outputs=None, use_dense_op
     TF_DEFAULT_CONFIGS["use_dense"] = use_dense_op
 
     g = GraphProto()
-    mod, params = g.from_tensorflow(graph, layout, shape, outputs)
+    mod, params = g.from_tensorflow(graph, layout, shape, outputs, extra_params)
     return mod, params
