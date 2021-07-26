@@ -98,7 +98,7 @@ def conv2d_NCHWc_int8(cfg, data, kernel, stride, padding, dilation, layout, out_
         )
 
         out_channels, in_channels, kernel_h, kernel_w = get_const_tuple(kernel.shape)
-        assert out_channels % 4 == 0, "Number of output channels should be multiple of {}".format(
+        assert out_channels % oc_block_factor == 0, "Number of output channels should be multiple of {}".format(
             oc_block_factor
         )
         packed_kernel = te.compute(
