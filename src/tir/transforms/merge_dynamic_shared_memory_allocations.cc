@@ -36,11 +36,15 @@
 namespace tvm {
 namespace tir {
 
+bool IsDynamicSharedMemory(Var buffer_var) {
+  auto storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(buffer_var));
+  return storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == ".dyn";
+}
+
 class AllocateCollector : public StmtExprVisitor {
  public:
   void VisitStmt_(const AllocateNode* op) final {
-    auto storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(op->buffer_var));
-    if (storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == ".dyn") {
+    if (IsDynamicSharedMemory(op->buffer_var)) {
       dyn_shmem_allocs_.insert(op);
     }
     StmtExprVisitor::VisitStmt_(op);
@@ -54,17 +58,45 @@ class DynamicSharedMemoryRewriter : public StmtExprMutator {
   DynamicSharedMemoryRewriter(const std::unordered_set<const AllocateNode*>& dyn_shmem_allocs)
       : dyn_shmem_allocs_{dyn_shmem_allocs} {}
 
-  Stmt Rewrite(Stmt stmt) { return stmt; }
+  Stmt Rewrite(Stmt stmt) {
+    return Allocate(merged_buf_var_, merged_buf_var_->dtype, {merged_alloc_size_}, true,
+                    StmtExprMutator::VisitStmt(stmt));
+  }
 
-  PrimExpr VisitExpr_(const LoadNode* op) final { return StmtExprMutator::VisitExpr_(op); }
+  Stmt VisitStmt_(const AllocateNode* op) final {
+    if (IsDynamicSharedMemory(op->buffer_var)) {
+      return StmtExprMutator::VisitStmt(op->body);
+    }
+    return StmtExprMutator::VisitStmt_(op);
+  }
 
-  Stmt VisitStmt_(const AllocateNode* op) final { return StmtExprMutator::VisitStmt_(op); }
+  PrimExpr VisitExpr_(const LoadNode* op) final {
+    if (IsDynamicSharedMemory(op->buffer_var)) {
+      auto offset = GetBufferOffset(op->buffer_var, op->dtype);
+      return Load(op->dtype, merged_buf_var_, offset + op->index, op->predicate, op->span);
+    }
+    return StmtExprMutator::VisitExpr_(op);
+  }
 
-  Stmt VisitStmt_(const StoreNode* op) final { return StmtExprMutator::VisitStmt_(op); }
+  Stmt VisitStmt_(const StoreNode* op) final {
+    if (IsDynamicSharedMemory(op->buffer_var)) {
+      auto offset = GetBufferOffset(op->buffer_var, op->value->dtype);
+      return Store(merged_buf_var_, op->value, offset + op->index, op->predicate, op->span);
+    }
+    return StmtExprMutator::VisitStmt_(op);
+  }
 
  private:
+  PrimExpr GetBufferOffset(Var buffer_var, DataType dtype) {
+    auto it = buffer_offsets_.find(buffer_var.get());
+    ICHECK(it != buffer_offsets_.end());
+    return indexdiv(it->second, dtype.bytes());
+  }
+
   Var merged_buf_var_{"buf_dyn_shmem", PointerType(PrimType(DataType::UInt(8)), "shared.dyn")};
   std::unordered_set<const AllocateNode*> dyn_shmem_allocs_;
+  PrimExpr merged_alloc_size_;
+  std::unordered_map<const VarNode*, PrimExpr> buffer_offsets_;
 };
 
 Stmt MergeDynamicSharedMemoryAllocations(Stmt stmt) {
