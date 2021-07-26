@@ -237,7 +237,8 @@ class Handler(server.ProjectAPIHandler):
         # Copy template folder to project_dir, creating project/ and src/
         # directories in the process. Also copies this file, microtvm_api_server.py,
         # in case TVM needs to call it from the new location
-        shutil.copytree(API_SERVER_DIR, project_dir, dirs_exist_ok=True)
+        if IS_TEMPLATE:
+            shutil.copytree(API_SERVER_DIR, project_dir, dirs_exist_ok=True)
 
         # Reference key directories with pathlib
         project_dir = pathlib.Path(project_dir)
