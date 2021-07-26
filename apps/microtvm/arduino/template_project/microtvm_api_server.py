@@ -20,12 +20,12 @@ import serial.tools.list_ports
 
 from tvm.micro.project_api import server
 
-MODEL_LIBRARY_FORMAT_RELPATH = "src/model/model.tar"
-
+MODEL_LIBRARY_FORMAT_RELPATH = pathlib.Path("src") / "model" / "model.tar"
 API_SERVER_DIR = pathlib.Path(os.path.dirname(__file__) or os.path.getcwd())
 BUILD_DIR = API_SERVER_DIR / "build"
+MODEL_LIBRARY_FORMAT_PATH = API_SERVER_DIR / MODEL_LIBRARY_FORMAT_RELPATH
+
 IS_TEMPLATE = not (API_SERVER_DIR / MODEL_LIBRARY_FORMAT_RELPATH).exists()
-MODEL_LIBRARY_FORMAT_PATH = "" if IS_TEMPLATE else API_SERVER_DIR / MODEL_LIBRARY_FORMAT_RELPATH
 
 
 class InvalidPortException(Exception):
@@ -40,13 +40,6 @@ class BoardAutodetectFailed(Exception):
     """Raised when no attached hardware is found matching the requested board"""
 
 
-PROJECT_OPTIONS = [
-    server.ProjectOption("verbose", help="Run build with verbose output"),
-    server.ProjectOption("arduino_cmd", help="Path to the arduino-cli tool."),
-    server.ProjectOption("arduino_board", help="Name of the Arduino board to build for"),
-    server.ProjectOption("port", help="Port to use for connecting to hardware"),
-]
-
 BOARD_PROPERTIES = {
     "spresense": {
         "package": "SPRESENSE",
@@ -59,6 +52,19 @@ BOARD_PROPERTIES = {
         "board": "nano33ble",
     },
 }
+
+PROJECT_OPTIONS = [
+    server.ProjectOption(
+        "arduino_board",
+        choices=list(BOARD_PROPERTIES),
+        help="Name of the Arduino board to build for",
+    ),
+    server.ProjectOption("arduino_cli_cmd", help="Path to the arduino-cli tool."),
+    server.ProjectOption("port", help="Port to use for connecting to hardware"),
+    server.ProjectOption(
+        "verbose", help="True to pass --verbose flag to arduino-cli compile and upload"
+    ),
+]
 
 
 class Handler(server.ProjectAPIHandler):
@@ -114,7 +120,7 @@ class Handler(server.ProjectAPIHandler):
 
     GRAPH_JSON_TEMPLATE = 'static const char* graph_json = "{}";\n'
 
-    def _compile_graph_json(self, model_dir, obj):
+    def _create_graph_json(self, model_dir, obj):
         graph_json = json.dumps(obj).replace('"', '\\"')
         output = self.GRAPH_JSON_TEMPLATE.format(graph_json)
         graph_json_path = model_dir / "graph_json.c"
@@ -122,26 +128,25 @@ class Handler(server.ProjectAPIHandler):
             out_file.write(output)
 
     def _disassemble_mlf(self, mlf_tar_path, source_dir):
-        mlf_unpacking_dir = tempfile.TemporaryDirectory()
-        with tarfile.open(mlf_tar_path, "r:") as tar:
-            tar.extractall(mlf_unpacking_dir.name)
+        with tempfile.TemporaryDirectory() as mlf_unpacking_dir:
+            with tarfile.open(mlf_tar_path, "r:") as tar:
+                tar.extractall(mlf_unpacking_dir)
 
-        # Copy C files
-        # TODO are the defaultlib0.c the same?
-        model_dir = source_dir / "model"
-        model_dir.mkdir()
-        for source, dest in [
-            ("codegen/host/src/default_lib0.c", "default_lib0.c"),
-            ("codegen/host/src/default_lib1.c", "default_lib1.c"),
-        ]:
-            shutil.copy(os.path.join(mlf_unpacking_dir.name, source), model_dir / dest)
+            # Copy C files
+            # TODO are the defaultlib0.c the same?
+            model_dir = source_dir / "model"
+            model_dir.mkdir()
+            for source, dest in [
+                ("codegen/host/src/default_lib0.c", "default_lib0.c"),
+                ("codegen/host/src/default_lib1.c", "default_lib1.c"),
+            ]:
+                shutil.copy(os.path.join(mlf_unpacking_dir, source), model_dir / dest)
 
-        # Load graph.json, serialize to c format, and extact parameters
-        with open(os.path.join(mlf_unpacking_dir.name, "runtime-config/graph/graph.json")) as f:
-            graph_data = json.load(f)
-        self._compile_graph_json(model_dir, graph_data)
+            # Load graph.json, serialize to c format, and extact parameters
+            with open(os.path.join(mlf_unpacking_dir, "executor-config/graph/graph.json")) as f:
+                graph_data = json.load(f)
 
-        mlf_unpacking_dir.cleanup()
+        self._create_graph_json(model_dir, graph_data)
         return graph_data
 
     def _print_c_array(self, l):
@@ -269,7 +274,7 @@ class Handler(server.ProjectAPIHandler):
         print(BUILD_DIR)
 
         compile_cmd = [
-            options["arduino_cmd"],
+            options["arduino_cli_cmd"],
             "compile",
             "./project/",
             "--fqbn",
@@ -294,7 +299,7 @@ class Handler(server.ProjectAPIHandler):
     """
 
     def _auto_detect_port(self, options):
-        list_cmd = [options["arduino_cmd"], "board", "list"]
+        list_cmd = [options["arduino_cli_cmd"], "board", "list"]
         list_cmd_output = subprocess.check_output(list_cmd).decode("utf-8")
         # Remove header and new lines at bottom
         port_options = list_cmd_output.split("\n")[1:-2]
@@ -306,7 +311,7 @@ class Handler(server.ProjectAPIHandler):
                 return port_option.split(" ")[0]
 
         # If no compatible boards, raise an error
-        raise BoardAutodetectFailed
+        raise BoardAutodetectFailed()
 
     def _get_arduino_port(self, options):
         if not self._port:
@@ -317,14 +322,11 @@ class Handler(server.ProjectAPIHandler):
 
         return self._port
 
-    def _get_baudrate(self, options):
-        return 115200
-
     def flash(self, options):
         port = self._get_arduino_port(options)
 
         upload_cmd = [
-            options["arduino_cmd"],
+            options["arduino_cli_cmd"],
             "upload",
             "./project",
             "--fqbn",
@@ -334,12 +336,16 @@ class Handler(server.ProjectAPIHandler):
             "--port",
             port,
         ]
+
+        if options.get("verbose"):
+            compile_cmd.append("--verbose")
+
         output = subprocess.check_call(upload_cmd)
 
         if output == 2:
-            raise InvalidPortException
+            raise InvalidPortException()
         elif output > 0:
-            raise SketchUploadException
+            raise SketchUploadException()
 
     def open_transport(self, options):
         # Zephyr example doesn't throw an error in this case
@@ -347,8 +353,7 @@ class Handler(server.ProjectAPIHandler):
             return
 
         port = self._get_arduino_port(options)
-        baudrate = self._get_baudrate(options)
-        self._serial = serial.Serial(port, baudrate=baudrate, timeout=5)
+        self._serial = serial.Serial(port, baudrate=115200, timeout=5)
         return server.TransportTimeouts(
             session_start_retry_timeout_sec=2.0,
             session_start_timeout_sec=5.0,
