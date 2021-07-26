@@ -26,13 +26,13 @@ void performInference(int8_t input_data[1960], char *data_name) {
 void setup() {
   model = Model();
   Serial.begin(115200);
+}
+
+void loop() {
   Serial.println();
   Serial.println("category,runtime,yes,no,silence,unknown");
   performInference((int8_t*) input_yes, "yes");
   performInference((int8_t*) input_no, "no");
   performInference((int8_t*) input_silence, "silence");
   performInference((int8_t*) input_unknown, "unknown");
-  Serial.end();
 }
-
-void loop() {}

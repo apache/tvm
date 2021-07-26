@@ -3,6 +3,7 @@ import os
 import pathlib
 import shutil
 import sys
+import time
 
 import pytest
 import tflite
@@ -189,6 +190,9 @@ SERIAL_OUTPUT_HEADERS = "category,runtime,yes,no,silence,unknown"
 
 @pytest.fixture(scope="module")
 def serial_output(uploaded_project):
+    # Give time for the board to open a serial connection
+    time.sleep(1)
+
     transport = uploaded_project.transport()
     transport.open()
     out = transport.read(2048, -1)

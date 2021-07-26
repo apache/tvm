@@ -100,9 +100,10 @@ void TVMGraphExecutorNode_LoadAttrs(TVMGraphExecutorNode* node, JSONReader* read
     } else if (!strcmp(key, "flatten_data")) {
       param->flatten_data = strtoul(value, 0, 10);
       bitmask |= 8;
+#if TVM_CRT_DEBUG
     } else {
-      // TODO determine if suppressing these warnings is OK
-      // fprintf(stderr, "do not support key %s", key);
+      printf("do not support key %s", key);
+#endif  // TVM_CRT_DEBUG
     }
   }
   if (bitmask != (1 | 2 | 4 | 8)) {
