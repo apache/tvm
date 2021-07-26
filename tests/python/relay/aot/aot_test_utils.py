@@ -15,15 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import enum
 import os
 import itertools
-import numpy as np
 import pathlib
-import pytest
 import subprocess
 import tarfile
 import json
+
+import pytest
+import numpy as np
 
 import tvm
 from tvm import relay
@@ -36,6 +36,46 @@ from tvm.micro import export_model_library_format
 def mangle_name(mod_name, name):
     mod_name = mangle_module_name(mod_name)
     return mod_name + "_" + name
+
+
+def convert_to_relay(
+    tflite_model_buf,
+    input_data,
+    input_node,
+):
+    """Convert a tflite model buffer in a Relay module"""
+
+    def convert_to_list(x):
+        if not isinstance(x, list):
+            x = [x]
+        return x
+
+    # TFLite.Model.Model has changed to TFLite.Model from 1.14 to 2.1
+    try:
+        import tflite.Model
+
+        tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model_buf, 0)
+    except AttributeError:
+        import tflite
+
+        tflite_model = tflite.Model.GetRootAsModel(tflite_model_buf, 0)
+    except ImportError:
+        raise ImportError("The tflite package must be installed")
+
+    input_data = convert_to_list(input_data)
+    input_node = convert_to_list(input_node)
+
+    shape_dict = {}
+    dtype_dict = {}
+    for i, e in enumerate(input_node):
+        shape_dict[e] = input_data[i].shape
+        dtype_dict[e] = input_data[i].dtype.name
+
+    mod, params = relay.frontend.from_tflite(
+        tflite_model, shape_dict=shape_dict, dtype_dict=dtype_dict
+    )
+    mod["main"] = relay.build_module.bind_params_by_name(mod["main"], params)
+    return mod, params
 
 
 def parametrize_aot_options(test):

@@ -15,18 +15,19 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from collections import OrderedDict
+
 import numpy as np
 import pytest
-from collections import OrderedDict
 
 import tvm
 from tvm import relay
 from tvm.relay import testing, transform
 from tvm.relay.op.annotation import compiler_begin, compiler_end
 from tvm.relay.expr_functor import ExprMutator
-
 from aot_test_utils import (
     generate_ref_data,
+    convert_to_relay,
     compile_and_run,
     compile_and_run_multiple_models,
     parametrize_aot_options,
@@ -559,6 +560,10 @@ def test_quant_mobilenet_tfl():
 
     import tvm.relay.testing.tf as tf_testing
 
+    interface_api = "packed"
+    use_unpacked_api = False
+    use_calculated_workspaces = True
+
     tflite_model_file = tf_testing.get_workload_official(
         "https://storage.googleapis.com/download.tensorflow.org/"
         "models/mobilenet_v1_2018_08_02/mobilenet_v1_1.0_224_quant.tgz",
@@ -572,12 +577,19 @@ def test_quant_mobilenet_tfl():
     mod, params = convert_to_relay(tflite_model_buf, data, "input")
     inputs = {"input": data}
     output_list = generate_ref_data(mod, inputs, params)
-    input_list = [inputs["input"]]
-    compile_and_run(mod, input_list, output_list, "--unpacked-api=0", True, params)
+    compile_and_run(
+        mod,
+        inputs,
+        output_list,
+        interface_api,
+        use_unpacked_api,
+        use_calculated_workspaces,
+        params=params,
+    )
 
 
-@pytest.mark.parametrize("target_options", ["--unpacked-api=0", "--unpacked-api=1"])
-def test_transpose(target_options):
+@parametrize_aot_options
+def test_transpose(interface_api, use_unpacked_api, use_calculated_workspaces):
     """Test that non-inpleaceable operations (e.g., transpose) do not happen in-place."""
 
     dtype = "float32"
@@ -592,11 +604,18 @@ def test_transpose(target_options):
     x_data = np.random.rand(10, 5).astype(dtype)
     y_data = np.random.rand(10, 5).astype(dtype)
     t_data = np.random.uniform(size=()).astype(dtype)
-    inputs = {"x": x_data, "y": y_data, "z": t_data}
 
+    inputs = {"x": x_data, "y": y_data, "z": t_data}
     output_list = generate_ref_data(func, inputs)
-    input_list = [inputs["x"], inputs["y"], inputs["z"]]
-    compile_and_run(func, input_list, output_list, target_options, True, enable_op_fusion=False)
+    compile_and_run(
+        func,
+        inputs,
+        output_list,
+        interface_api,
+        use_unpacked_api,
+        use_calculated_workspaces,
+        enable_op_fusion=False,
+    )
 
 
 if __name__ == "__main__":
