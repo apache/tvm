@@ -255,23 +255,23 @@ class OperatorConverter(object):
         op_c = self.model.OperatorCodes(op_code_list_idx)
         # In TFlite 2.4.x there was a change where the type of the field that contained
         # the builtin code changed from int8 to int32 in the flat buffer representation.
-        # However to retain support for old flat buffers that were created, they retained
-        # the original 8 bit encoding for the operator but in a new field accessed by the
-        # DeprecatedBuiltinCode method.
-        # This means that the API function BuiltinCode() is used on an operator
-        # which was originally encoded as an 8 bit quantity it would look for the
-        # code in the new int32 field in the schema and this creates the need
-        # for the check for the magic number of 127 which is indicated by
-        # BuiltinOperator.PLACEHOLDER_FOR_GREATER_OP_CODES
+        # However, to retain support for old flat buffers that were created, they retained
+        # the original 8 bit field, but named it "deprecated_builtin_code" in TFLite 2.4.
+        # This means that the API function BuiltinCode() which originally returned the value
+        # of the 8 bit field would now look for the value in the new int32 field in the
+        # schema and DeprecatedBuiltinCode() will look at the old 8 bit field.
+        # In TFLite 2.4, if the opcode value is less than 127, it can be in either field
+        # (however, if it is only in the "builtin_code" field, the model is not backward
+        # compatible), so similarly to TFLite 2.4 reader, we'll pick the higher value of the
+        # two fields.
         # Remember however that this value came into existence only after Tensorflow
         # lite 2.4.x and hence encase it in a try -except block.
         # Phew !
         try:
-            if op_c.BuiltinCode() < BuiltinOperator.PLACEHOLDER_FOR_GREATER_OP_CODES:
-                opc = op_c.DeprecatedBuiltinCode()
-            else:
-                opc = op_c.BuiltinCode()
+            opc = max(op_c.DeprecatedBuiltinCode(), op_c.BuiltinCode())
         except AttributeError:
+            # In versions before 2.4 the int8 field that holds the builtin code is accessed
+            # by BuiltinCode() and DeprecatedBuiltinCode() doesn't exist
             opc = op_c.BuiltinCode()
 
         op_code_id = opc
