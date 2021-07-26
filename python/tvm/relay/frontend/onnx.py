@@ -2351,9 +2351,7 @@ class LSTM_dev(RNN):
 
             H_t = o * h_act(C_t)
 
-            #H_t = H
             h_list.append(_op.expand_dims(H_t, axis=0))
-            #h_list.append(H_t)
 
         if backwards:
             # Canonical view is hidden states from the first token not last
@@ -2453,7 +2451,6 @@ class LSTM_dev(RNN):
             C_t = _op.squeeze(C_ts[i], axis=[0])
             W = _op.squeeze(Ws[i], axis=[0])
             R = _op.squeeze(Rs[i], axis=[0])
-            #B = _op.squeeze(Bs[i], axis=[0])
             WB, RB = _op.split(Bs[i], 2, -1)
             p_i = _op.squeeze(p_is[i], axis=[0])
             p_f = _op.squeeze(p_fs[i], axis=[0])
@@ -2483,6 +2480,255 @@ class LSTM_dev(RNN):
         output = _op.concatenate(result_output, axis=1)
         H = _op.concatenate(result_H, axis=0)
         C = _op.concatenate(result_C, axis=0)
+
+        return _expr.TupleWrapper(_expr.Tuple((output, H, C)), 3)
+
+
+class LSTM_dev2(RNN):
+    """Operator converter for LSTM"""
+
+    # TODO (vvchernov): unbind was gotten from pytorch.py and modified.
+    # It looks like torch.unbind
+    # It needs such operation on relay side to avoid excess manipulation like squeeze
+    @classmethod
+    def unbind(cls, data, axis=0):
+        shape = infer_shape(data)
+        selections = shape[axis]
+        res_split = _op.split(data, selections, axis)
+        ret = []
+        for i in range(selections):
+            ret.append(_op.squeeze(res_split[i], axis=[axis]))
+        ret = _expr.TupleWrapper(_expr.Tuple(ret), selections)
+        return ret
+
+    @classmethod
+    def lstm_cell(
+        cls,
+        input_seqs,
+        H_t,
+        C_t,
+        Wi,
+        Wh,
+        Bi,
+        Bh,
+        P,
+        p_i,
+        p_f,
+        p_o,
+        f_act,
+        g_act,
+        h_act,
+        backwards=False,
+    ):
+        # Input hidden state shape = (batch, hidden_size)
+        # Wi, Wh, Bi, Bh, proj matrix P, peephole matrices: p_i, p_f, p_o are expected.
+        # Wi and Wh shoud exist the others can be None
+
+        outputs_list = []
+        for x_t in input_seqs if not backwards else reversed(input_seqs):
+            # x_t shape = (batch, feature size), step shape = (batch, feature size + hidden_size)
+            step = _op.concatenate([x_t, H_t], axis=1)
+            W = _op.concatenate([Wi, Wh], axis=1)
+            # Instead of _op.nn.dense(x_t, weights[0]) + _op.nn.dense(H_t, weights[1]) we have _op.nn.dense(step, W)
+            # gates shape = (batch, 4 * hidden_size)
+            gates = _op.nn.dense(step, W)
+            # Add biases
+            if Bi is not None:
+                gates += Bi
+            if Bh is not None:
+                gates += Bh
+            i, f, c, o = _op.split(gates, 4, axis=-1)  # (batch, hidden_size)
+
+            if p_i is not None and p_f is not None:
+                i = f_act(i + p_i * C_t)
+                f = f_act(f + p_f * C_t)
+            else:
+                i = f_act(i)
+                f = f_act(f)
+
+            c = g_act(c)
+            C_t = f * C_t + i * c
+            if p_o is not None:
+                o = f_act(o + p_o * C_t)
+            else:
+                o = f_act(o)
+
+            H_t = o * h_act(C_t)
+
+            if P is not None:
+                H_t = _op.nn.dense(H_t, P)
+
+            outputs_list.append(H_t)  # [seq_num, (batch, hidden_size)]
+
+        return outputs_list, H_t, C_t
+
+    @classmethod
+    def bidir_lstm_cell(
+        cls,
+        input_seqs,
+        weight_dicts,
+        f_act,
+        g_act,
+        h_act,
+    ):
+        seq_len = len(input_seqs)
+        forward_outputs, fw_H_t, fw_C_t = LSTM_dev2.lstm_cell(
+            input_seqs,
+            **weight_dicts[0],
+            f_act=f_act,
+            g_act=g_act,
+            h_act=h_act,
+        )
+
+        reverse_outputs, rev_H_t, rev_C_t = LSTM_dev2.lstm_cell(
+            input_seqs,
+            **weight_dicts[1],
+            f_act=f_act,
+            g_act=g_act,
+            h_act=h_act,
+            backwards=True,
+        )
+
+        final_outputs = []
+        for i in range(seq_len):
+            final_outputs.append(
+                _op.stack([forward_outputs[i], reverse_outputs[seq_len - 1 - i]], axis=0)
+            )
+
+        return (
+            _op.stack(final_outputs, axis=0),
+            _op.stack([fw_H_t, rev_H_t], axis=0),
+            _op.stack([fw_C_t, rev_C_t], axis=0),
+        )
+
+    @classmethod
+    def _impl_v7(cls, inputs, attr, params):
+        # Unpack inputs, note that if optional and not provided then value will be None.
+        X = inputs[0]
+        Wp = inputs[1]
+        Rp = inputs[2]
+        Bp = inputs[3]
+        # Sequence length currently unused as it can be inferred from shapes.
+        # sequence_lens = inputs['sequence_lens']
+        Hp_0 = inputs[5]
+        Cp_0 = inputs[6]
+        Pp = inputs[7]
+
+        num_directions = infer_shape(Wp)[0]
+        W_dtype = infer_type(Wp).checked_type.dtype
+
+        if num_directions not in [1, 2]:
+            raise ValueError("num_directions must be either 1 or 2!")
+
+        X_shape = infer_shape(X)
+        hidden_size = infer_shape(Rp)[-1]
+        batch_size = X_shape[1]
+
+        # Initialize state if not provided.
+        # Otherwise remove bidirectional axis.
+        if Hp_0 is None:
+            Hp_0 = _op.zeros((num_directions, batch_size, hidden_size), W_dtype)
+        if Cp_0 is None:
+            Cp_0 = _op.zeros((num_directions, batch_size, hidden_size), W_dtype)
+
+        if "activations" in attr:
+            activations = attr["activations"]
+            if len(activations) != 3 * num_directions:
+                raise NotImplementedError(
+                    f"LSTM assumes 3 * num_directions activation functions are provided"
+                )
+            alpha_loc = 0
+            alphas = attr.get("activation_alpha", [])
+            if isinstance(alphas, float):
+                alphas = [alphas]
+            beta_loc = 0
+            betas = attr.get("activation_beta", [])
+            if isinstance(betas, float):
+                betas = [betas]
+            acts = []
+            for i in range(3 * num_directions):
+                alpha = None
+                beta = None
+                activation = activations[i]
+                if cls._activation_needs_alpha(activation) and len(alphas) > alpha_loc:
+                    alpha = alphas[alpha_loc]
+                    alpha_loc += 1
+                if cls._activation_needs_beta(activation) and len(betas) > beta_loc:
+                    beta = betas[beta_loc]
+                    beta_loc += 1
+                acts.append(cls._activation_helper(activation, alpha, beta))
+            f_act, g_act, h_act = acts
+        else:
+            f_act = _op.sigmoid
+            g_act = _op.tanh
+            h_act = _op.tanh
+
+        # It can be replaced by _op.split if issue #8412 is resolved
+        X_steps = LSTM_dev2.unbind(X, axis=0)
+
+        H_ts = _op.split(Hp_0, num_directions)
+        C_ts = _op.split(Cp_0, num_directions)
+        Ws = _op.split(Wp, num_directions)
+        Rs = _op.split(Rp, num_directions)
+
+        if Bp is not None:
+            Bs = _op.split(Bp, num_directions)
+        if Pp is not None:
+            p_i, p_o, p_f = _op.split(Pp, 3, axis=1)
+
+            p_is = _op.split(p_i, num_directions)
+            p_fs = _op.split(p_f, num_directions)
+            p_os = _op.split(p_o, num_directions)
+
+        weights_dicts = []
+        for i in range(num_directions):
+            weights_dict = {}
+
+            weights_dict["H_t"] = _op.squeeze(H_ts[i], axis=[0])
+            weights_dict["C_t"] = _op.squeeze(C_ts[i], axis=[0])
+
+            weights_dict["Wi"] = _op.squeeze(Ws[i], axis=[0])
+            weights_dict["Wh"] = _op.squeeze(Rs[i], axis=[0])
+            if Bp is None:
+                Bi = None
+                Bh = None
+            else:
+                Bi, Bh = _op.split(Bs[i], 2, -1)
+            weights_dict["Bi"] = Bi
+            weights_dict["Bh"] = Bh
+            weights_dict["P"] = None
+            if Pp is None:
+                weights_dict["p_i"] = None
+                weights_dict["p_f"] = None
+                weights_dict["p_o"] = None
+            else:
+                weights_dict["p_i"] = _op.squeeze(p_is[i], axis=[0])
+                weights_dict["p_f"] = _op.squeeze(p_fs[i], axis=[0])
+                weights_dict["p_o"] = _op.squeeze(p_os[i], axis=[0])
+            weights_dicts.append(weights_dict)
+
+        if num_directions == 2:
+            output, H, C = LSTM_dev2.bidir_lstm_cell(
+                input_seqs=X_steps,
+                weight_dicts=weights_dicts,
+                f_act=f_act,
+                g_act=g_act,
+                h_act=h_act,
+            )
+        else:
+            # outputs shape = [seqs_num, (batch_size, hidden_size)]
+            outputs, H, C = LSTM_dev2.lstm_cell(
+                input_seqs=X_steps,
+                **weights_dicts[0],
+                f_act=f_act,
+                g_act=g_act,
+                h_act=h_act,
+            )
+
+            # output shape = (seqs_num, num_directions, batch_size, hidden_size)
+            output = _op.expand_dims(_op.stack(outputs, axis=0), axis=1)
+            H = _op.expand_dims(H, axis=1)
+            C = _op.expand_dims(C, axis=1)
 
         return _expr.TupleWrapper(_expr.Tuple((output, H, C)), 3)
 
@@ -3703,7 +3949,7 @@ def _get_convert_map(opset):
         "Flatten": Flatten.get_converter(opset),
         "LRN": LRN.get_converter(opset),
         # Recurrent Layers
-        "LSTM": LSTM_dev.get_converter(opset),
+        "LSTM": LSTM_dev2.get_converter(opset),
         "GRU": GRU.get_converter(opset),
         # defs/vision
         "MaxRoiPool": MaxRoiPool.get_converter(opset),
