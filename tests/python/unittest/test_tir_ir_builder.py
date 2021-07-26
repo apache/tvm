@@ -576,12 +576,12 @@ def test_matmul_dyn_shared():
         ib.scope_attr(bx, "thread_extent", n / block)
         ib.scope_attr(by, "thread_extent", n / block)
 
-        A_sh = ib.allocate(A.dtype, (block, block), scope="shared")  # fp16
-        B_sh = ib.allocate(B.dtype, (block, block), scope="shared")  # fp16
+        A_sh = ib.allocate(A.dtype, (block, block), scope="shared.dyn")  # fp16
+        B_sh = ib.allocate(B.dtype, (block, block), scope="shared.dyn")  # fp16
         # Create a dynamic shared memory for the accumulation.
         # This is for testing merging dynamic shared memory alloctions with different data type.
         # In practice, there is no need to allocate a shared memory for C.
-        C_sh = ib.allocate(C.dtype, (block, block), scope="shared")  # fp32
+        C_sh = ib.allocate(C.dtype, (block, block), scope="shared.dyn")  # fp32
 
         A_ptr = ib.buffer_ptr(A)
         B_ptr = ib.buffer_ptr(B)

@@ -431,6 +431,11 @@ TVM_DLL Pass LegalizePackedCalls();
  */
 TVM_DLL Pass FlattenBuffer();
 
+/*!
+ *  A pass to merge multiple TIR-level dynamic shared memory allocations into one
+ */
+TVM_DLL Pass MergeDynamicSharedMemoryAllocations();
+
 }  // namespace transform
 }  // namespace tir
 }  // namespace tvm
