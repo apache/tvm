@@ -350,6 +350,9 @@ class LowerTensorExpr : public ExprMutator {
       Map<GlobalVar, tir::PrimFunc> prim_fns;
 
       for (auto prim_fn : ext_func->funcs->functions) {
+        if (prim_fn.second->GetAttr<String>(attr::kCompiler).defined()) {
+          continue;
+        }
         CHECK(prim_fn.second.as<tir::PrimFuncNode>()) << "must be a prim fn";
         prim_fns.Set(prim_fn.first, Downcast<tir::PrimFunc>(prim_fn.second));
       }
