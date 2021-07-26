@@ -74,8 +74,32 @@ def get_tensor_array_shape(expr, dtype, prelude):
 
 
 def _get_name_static(canonical, dtype, shape, batch_dim=None):
-    """Get name for static shape tensor array op corresponding
-    to the canonical name"""
+    """Get name for static shape tensor array op
+
+    By design, static ADT tensor in TVM has type name in the format
+    of static_tensor_dim0_dim1_..._dimN_t
+    or static_tensor_batch1_dim0_dim1_..._dimN_t if tensorlist stack only have one item.
+
+    Parameters
+    ----------
+    canonical : String
+        Tensor array op name
+
+    dtype : str
+        Data type.
+
+    shape : tuple of (int, Any) or None
+        Tensor array shape
+
+    batch_dim: None or int
+        1 if tensorlist stack only have one item.
+        None by default
+
+    Returns
+    -------
+    name : String
+        The tensor array op name
+    """
     dim_names = []
     for dim in shape:
         if isinstance(dim, Any):
@@ -89,12 +113,11 @@ def _get_name_static(canonical, dtype, shape, batch_dim=None):
         shape_str = "scalar"
     if canonical == "tensor_t":
         return "static_tensor_{}_{}_t".format(dtype, shape_str)
-    if not batch_dim or canonical == "tensor_constructor" or canonical == "tensor_nil":
+    if batch_dim is None or canonical in ["tensor_constructor", "tensor_nil"]:
         return "{}_{}_{}".format(canonical, dtype, shape_str)
     if batch_dim != 1:
         return "{}_{}_{}".format(canonical, dtype, shape_str)
-    else:
-        return "{}_{}_batch{}_{}".format(canonical, dtype, str(batch_dim), shape_str)
+    return "{}_{}_batch{}_{}".format(canonical, dtype, str(batch_dim), shape_str)
 
 
 class StaticTensorArrayOps(object):
@@ -268,7 +291,7 @@ class StaticTensorArrayOps(object):
 
         # Note: we set the added axis to be Any() instead of 1 due to
         # in stack op, we need to recursively concatenate.
-        new_axis = Any() if not self.batch_dim or self.batch_dim != 1 else self.batch_dim
+        new_axis = Any() if self.batch_dim is None or self.batch_dim != 1 else self.batch_dim
         tensor_type_var, tensor_constructor, _ = self._get_adt_by_shape(
             [
                 new_axis,
@@ -589,7 +612,7 @@ class StaticTensorArrayOps(object):
         concat_var = output_ops.get_global_var("tensor_concatenate")
 
         tensor_array_expand_dims = self.prelude.map(expand_dims_var, tensor_array)
-        if self.batch_dim and self.batch_dim == 1:
+        if self.batch_dim is not None and self.batch_dim == 1:
             # only one element
             tensors = self.prelude.id(
                 self.prelude.hd(tensor_array_expand_dims),
@@ -613,7 +636,7 @@ class StaticTensorArrayOps(object):
         helper_name = self.get_name("tensor_array_gather_helper")
         helper_var = self._create_global_var(helper_name)
 
-        new_axis = Any() if not self.batch_dim or self.batch_dim != 1 else self.batch_dim
+        new_axis = Any() if self.batch_dim is None or self.batch_dim != 1 else self.batch_dim
         output_shape = [
             new_axis,
         ] + list(self.shape)
