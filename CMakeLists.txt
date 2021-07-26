@@ -50,14 +50,7 @@ tvm_option(USE_ETHOSN "Build with Arm Ethos-N" OFF)
 tvm_option(INDEX_DEFAULT_I64 "Defaults the index datatype to int64" ON)
 tvm_option(USE_LIBBACKTRACE "Build libbacktrace to supply linenumbers on stack traces" AUTO)
 tvm_option(BUILD_STATIC_RUNTIME "Build static version of libtvm_runtime" OFF)
-<<<<<<< HEAD
-<<<<<<< HEAD
 tvm_option(USE_PAPI "Use Performance Application Programming Interface (PAPI) to read performance counters" OFF)
-=======
-tvm_option(USE_CCACHE "Cache the build so that building after switching branches is faster" ON)
->>>>>>> c4efaf3c0... Add USE_CCACHE
-=======
->>>>>>> 5388c462e... Fix formatting
 
 # 3rdparty libraries
 tvm_option(DLPACK_PATH "Path to DLPACK" "3rdparty/dlpack/include")
