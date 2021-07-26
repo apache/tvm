@@ -48,6 +48,21 @@ def check_rts(expr, args, expected_result, mod=None):
     tvm.testing.assert_allclose(eval_result.numpy(), expected_result)
 
 
+def test_add_op_scalar_int():
+    """
+    Program:
+        fn (x, y) {
+            return x + y;
+        }
+    """
+    x = relay.var("x", shape=(), dtype="int32")
+    y = relay.var("y", shape=(), dtype="int32")
+    func = relay.Function([x, y], add(x, y))
+    x_data = np.int32(10)
+    y_data = np.int32(1)
+    check_rts(func, [x_data, y_data], x_data + y_data)
+
+
 def test_add_op_scalar():
     """
     Program:

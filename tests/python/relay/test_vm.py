@@ -657,6 +657,24 @@ def test_add_op_scalar():
 
 
 @tvm.testing.uses_gpu
+def test_add_op_scalar_int():
+    """
+    test_add_op_scalar:
+        fn (x, y) {
+            return x + y;
+        }
+    """
+    mod = tvm.IRModule()
+    x = relay.var("x", shape=(), dtype="int32")
+    y = relay.var("y", shape=(), dtype="int32")
+    func = relay.Function([x, y], relay.op.add(x, y))
+    x_data = np.int32(10)
+    y_data = np.int32(1)
+    mod["main"] = func
+    check_result([x_data, y_data], x_data + y_data, mod=mod)
+
+
+@tvm.testing.uses_gpu
 def test_add_op_tensor():
     """
     test_add_op_tensor:
