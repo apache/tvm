@@ -138,6 +138,7 @@ def test_task_extraction_cuda(params):
         # The Relay function with dynamic shape inputs/outputs will not be extracted.
         ("dyn_shape_func", 0, False),
         # The Conv2D in the Relay function with control flow could still be a task.
+        # Also, two identical Conv2D should only be one task with weight=2.
         ("control_flow_func", 1, False),
         # The first function with unsupported op (NMS) will not be extracted.
         ("func_w_unsupported_op", 1, True),
@@ -191,13 +192,16 @@ def test_task_extraction_cpu(params):
 
     def get_func_with_control_flow():
         data = relay.var("data", shape=(1, 3, 224, 224))
-        weight = relay.var("weight", shape=(32, 3, 3, 3))
+        weight = relay.var("weight", shape=(3, 3, 3, 3))
         eq1 = relay.var("e1", shape=[], dtype="float32")
         eq2 = relay.var("e2", shape=[], dtype="float32")
         eq = relay.equal(eq1, eq2)
 
-        true_branch = relay.zeros(shape=(1, 32, 222, 222), dtype="float32")
-        false_branch = relay.nn.conv2d(data, weight, kernel_size=(3, 3), channels=32)
+        true_branch = relay.zeros(shape=(1, 3, 224, 224), dtype="float32")
+        false_branch = relay.nn.conv2d(data, weight, kernel_size=(3, 3), channels=3, padding=(1, 1))
+        false_branch = relay.nn.conv2d(
+            false_branch, weight, kernel_size=(3, 3), channels=3, padding=(1, 1)
+        )
         ife = relay.If(eq, true_branch, false_branch)
         out = relay.erf(ife)
         return relay.Function([data, weight, eq1, eq2], out)
@@ -228,7 +232,7 @@ def test_task_extraction_cpu(params):
         "shape_of_func": get_shape_of_func,
         "dyn_shape_func": get_func_with_dynamic_shape,
         "control_flow_func": get_func_with_control_flow,
-        "func_w_unsupported_op": get_func_with_unsupported_op
+        "func_w_unsupported_op": get_func_with_unsupported_op,
     }
 
     def verify_task_extraction(func_name, expected_task, include_simple_tasks=False):
