@@ -601,6 +601,18 @@ TVM_DLL const Op& vectorcombine();
  */
 TVM_DLL const Op& atomic_add();
 
+/*!
+ * \brief TODO
+ * reinterprete_load(ptr, "float32", idx) is equivalent to ((float*)ptr)[idx]
+ */
+TVM_DLL const Op& reinterprete_load();
+
+/*!
+ * \brief TODO
+ * reinterprete_store(ptr, "float32", 0.0) is equivalent to (*(float*)ptr) = 0.0
+ */
+TVM_DLL const Op& reinterprete_store();
+
 /*! \brief The kind of structure field info used in intrinsic */
 enum TVMStructFieldKind : int {
   // array head address
