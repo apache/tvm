@@ -69,7 +69,10 @@ class InferTextureAccess : public StmtExprVisitor {
   std::unordered_map<const VarNode*, uint8_t> var_access_map_;
 };
 
-CodeGenOpenCL::CodeGenOpenCL() { restrict_keyword_ = "restrict"; }
+CodeGenOpenCL::CodeGenOpenCL() {
+  // Set OpenCL specific restrict keyword
+  restrict_keyword_ = "restrict";
+}
 
 void CodeGenOpenCL::InitFuncState(const PrimFunc& f) {
   CodeGenC::InitFuncState(f);
@@ -116,6 +119,40 @@ std::string CodeGenOpenCL::Finish() {
   if (enable_atomics_) {
     decl_stream << "#pragma OPENCL EXTENSION cl_khr_global_int32_base_atomics : enable\n"
                    "#pragma OPENCL EXTENSION cl_khr_global_int32_extended_atomics : enable\n\n";
+  }
+
+  // Enable OpenCL 1.2 sampler-less texture reads, but utilize
+  // provided sampler in OpenCL 2.0.
+  if (enable_compliant_texture_reads_) {
+    // TODO(csullivan, lunderberg): Extend device attribute querying to support remote devices
+    // generically through the device API such that a target can be created from a specific device's
+    // attributes and utilized during codegen. Potential generlization of #8127 (c02cafb) for remote
+    // devices.
+    //
+    // E.g. Only provide an image sampler when the local or remote device supports OpenCL 2.0,
+    //      see below for context.
+    //
+    // For backwards compatibility with OpenCL 1.2, sampler-less read_image calls are used.
+    // By default in sampler-less read_image calls OpenCL defaults to
+    // sampler_ = "CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_NONE | CLK_FILTER_NEAREST";
+    // See section 6.12.14.3 Built-in Image Sampler-less Read Functions in the OpenCL 1.2
+    // specification. For OpenCL 2.0 it can be preferable to use,
+    // sampler_ = "CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP | CLK_FILTER_NEAREST";
+    // For now we rely on OpenCL preprocessor directives to utilize the correct behavior
+    // depending on the OpenCL version detected at OpenCL compile time.
+    decl_stream << "#ifdef __OPENCL_VERSION__\n"
+                << "#if __OPENCL_VERSION__ == CL_VERSION_2_0\n"
+                << "#define READ_IMAGEH(image, sampler, coord) "
+                << "read_imageh(image, sampler, coord)\n"
+                << "#define READ_IMAGEF(image, sampler, coord) "
+                << "read_imagef(image, sampler, coord)\n"
+                << "#else\n"
+                << "#define READ_IMAGEH(image, sampler, coord) "
+                << "read_imageh(image, coord)\n"
+                << "#define READ_IMAGEF(image, sampler, coord) "
+                << "read_imagef(image, coord)\n"
+                << "#endif\n"
+                << "#endif\n\n";
   }
   return CodeGenC::Finish();
 }
@@ -372,11 +409,12 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
     this->PrintExpr(op->args[3], os);
     os << ")";
   } else if (op->op.same_as(builtin::texture2d_load())) {
+    enable_compliant_texture_reads_ = true;
     std::stringstream ss;
     if (op->dtype.is_float16()) {
-      ss << "read_imageh(";
+      ss << "READ_IMAGEH(";
     } else if (op->dtype.is_float()) {
-      ss << "read_imagef(";
+      ss << "READ_IMAGEF(";
     } else {
       LOG(FATAL) << "Unsupported type: " << op->dtype
                  << ", currently only float and half are supported for image2d OpenCL codegen.";
@@ -384,11 +422,11 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
     this->PrintExpr(op->args[0], ss);
     ss << ", ";
     ss << "CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP | CLK_FILTER_NEAREST, ";
-    ss << "(int2)(";
+    ss << "((int2)(";
     this->PrintExpr(op->args[1], ss);
     ss << ", ";
     this->PrintExpr(op->args[2], ss);
-    ss << "))";
+    ss << ")))";
 
     // Only use local SSA if texture is not already being stored
     if (need_texture_ssa_) {
