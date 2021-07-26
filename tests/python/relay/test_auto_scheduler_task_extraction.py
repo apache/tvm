@@ -100,11 +100,11 @@ def get_network(name, batch_size=1, layout="NHWC"):
     "params",
     [
         ("mlp", "NHWC", 1, 2),
-        ("resnet-18", "NHWC", 24, 26),
-        ("resnet-18", "NCHW", 24, 26),
-        ("mobilenet", "NHWC", 22, 31),
-        ("mobilenet", "NCHW", 22, 31),
-        ("resnet3d-18", "NCDHW", 23, 25),
+        ("resnet-18", "NHWC", 24, 25),
+        ("resnet-18", "NCHW", 24, 25),
+        ("mobilenet", "NHWC", 22, 30),
+        ("mobilenet", "NCHW", 22, 30),
+        ("resnet3d-18", "NCDHW", 23, 24),
         ("resnet3d-18", "NDHWC", 23, 24),
     ],
 )
@@ -114,6 +114,8 @@ def test_task_extraction_cuda(params):
 
     mod, params = get_network(network, layout=layout)
     tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], params, target)
+    for task, weight in zip(tasks, task_weights):
+        print(task.desc, task.workload_key, weight)
 
     assert len(tasks) == expected_task
     assert sum(task_weights) == expected_weights
@@ -141,7 +143,7 @@ def test_task_extraction_cuda(params):
         ("func_w_unsupported_op", 1, True),
     ],
 )
-def test_task_extraction(params):
+def test_task_extraction_cpu(params):
     ishape = (1, 3, 224, 224)
     w1shape = (32, 3, 3, 3)
     w2shape = (32, 32, 3, 3)

@@ -398,9 +398,11 @@ def te_compiler_update_weights(function_weights):
         env.wkl_key_to_weight = {}
 
         for func_name, weight in function_weights.items():
-            assert func_name in env.func_name_to_wkl_key, (
-                "Function %s not found in task tracing" % func_name
-            )
+            # If the function name is not in the map, then it means we are not interested in
+            # this function during task extraction (e.g., a function without reduction).
+            if func_name not in env.func_name_to_wkl_key:
+                continue
+
             workload_key = env.func_name_to_wkl_key[func_name]
             if workload_key not in env.wkl_key_to_weight:
                 env.wkl_key_to_weight[workload_key] = (0, set())
