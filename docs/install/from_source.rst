@@ -73,7 +73,7 @@ linux operating systems, execute (in a terminal):
     sudo apt-get update
     sudo apt-get install -y python3 python3-dev python3-setuptools gcc libtinfo-dev zlib1g-dev build-essential cmake libedit-dev libxml2-dev
 
-On macOS, whether using an Intel or M1 Mac we can use homebrew. Make sure to follow the post installation steps for each of the above commaands.
+On macOS, whether using an Intel or M1 Mac we can use homebrew. Make sure to follow the post installation steps for each of the below commaands.
 Furthermore, avoid using python 3.9.X+ which is not supported at the time of this writing. With this, you should have the ability to compile a 
 basic build of TVM with llvm included. Additional missing requirements can also be installed via brew if they arise:
 
