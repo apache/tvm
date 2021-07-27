@@ -557,8 +557,8 @@ def test_dyn_shared():
 @tvm.testing.requires_gpu
 def test_matmul_dyn_shared():
     n = 1024
-    A = te.placeholder((n, n), name="A", dtype="float16")
-    B = te.placeholder((n, n), name="B", dtype="float16")
+    A = te.placeholder((n, n), name="A", dtype="float32")
+    B = te.placeholder((n, n), name="B", dtype="float32")
 
     def syncthread():
         return tvm.tir.Call(None, "tir.tvm_storage_sync", tvm.runtime.convert(["shared"]))
@@ -576,12 +576,12 @@ def test_matmul_dyn_shared():
         ib.scope_attr(bx, "thread_extent", n / block)
         ib.scope_attr(by, "thread_extent", n / block)
 
-        A_sh = ib.allocate(A.dtype, (block, block), scope="shared.dyn")  # fp16
-        B_sh = ib.allocate(B.dtype, (block, block), scope="shared.dyn")  # fp16
+        A_sh = ib.allocate(A.dtype, (block, block), scope="shared.dyn", name="A_sh")  # fp16
+        B_sh = ib.allocate(B.dtype, (block, block), scope="shared.dyn", name="B_sh")  # fp16
         # Create a dynamic shared memory for the accumulation.
         # This is for testing merging dynamic shared memory alloctions with different data type.
         # In practice, there is no need to allocate a shared memory for C.
-        C_sh = ib.allocate(C.dtype, (block, block), scope="shared.dyn")  # fp32
+        C_sh = ib.allocate(C.dtype, (block, block), scope="shared.dyn", name="C_sh")  # fp32
 
         A_ptr = ib.buffer_ptr(A)
         B_ptr = ib.buffer_ptr(B)
@@ -634,14 +634,14 @@ def test_matmul_dyn_shared():
 
 
 if __name__ == "__main__":
-    test_prefetch()
-    test_if()
-    test_for()
-    test_cpu()
-    test_gpu()
-    test_while_vectorize()
-    test_while_collatz()
-    test_while_mandel()
-    test_while_binary_search()
-    test_dyn_shared()
+    # test_prefetch()
+    # test_if()
+    # test_for()
+    # test_cpu()
+    # test_gpu()
+    # test_while_vectorize()
+    # test_while_collatz()
+    # test_while_mandel()
+    # test_while_binary_search()
+    # test_dyn_shared()
     test_matmul_dyn_shared()

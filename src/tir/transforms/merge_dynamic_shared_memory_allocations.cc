@@ -59,7 +59,18 @@ class DynamicSharedMemoryRewriter : public StmtExprMutator {
       : dyn_shmem_allocs_{dyn_shmem_allocs} {}
 
   Stmt Rewrite(Stmt stmt) {
-    return Allocate(merged_buf_var_, merged_buf_var_->dtype, {merged_alloc_size_}, true,
+    int align = 1;
+    for (auto& alloc : dyn_shmem_allocs_) {
+      align = std::max(align, alloc->dtype.bytes());
+    }
+    for (auto& alloc : dyn_shmem_allocs_) {
+      buffer_offsets_[alloc->buffer_var.get()] = merged_alloc_size_;
+      merged_alloc_size_ += alloc->extents[0] * align;
+      LOG(INFO) << "buffer offset for " << alloc->buffer_var->name_hint << " = "
+                << buffer_offsets_[alloc->buffer_var.get()];
+    }
+
+    return Allocate(merged_buf_var_, DataType::UInt(8), {merged_alloc_size_}, const_true(),
                     StmtExprMutator::VisitStmt(stmt));
   }
 
@@ -73,7 +84,8 @@ class DynamicSharedMemoryRewriter : public StmtExprMutator {
   PrimExpr VisitExpr_(const LoadNode* op) final {
     if (IsDynamicSharedMemory(op->buffer_var)) {
       auto offset = GetBufferOffset(op->buffer_var, op->dtype);
-      return Load(op->dtype, merged_buf_var_, offset + op->index, op->predicate, op->span);
+      auto index = StmtExprMutator::VisitExpr(op->index);
+      return Load(op->dtype, merged_buf_var_, offset + index, op->predicate, op->span);
     }
     return StmtExprMutator::VisitExpr_(op);
   }
@@ -81,7 +93,9 @@ class DynamicSharedMemoryRewriter : public StmtExprMutator {
   Stmt VisitStmt_(const StoreNode* op) final {
     if (IsDynamicSharedMemory(op->buffer_var)) {
       auto offset = GetBufferOffset(op->buffer_var, op->value->dtype);
-      return Store(merged_buf_var_, op->value, offset + op->index, op->predicate, op->span);
+      auto index = StmtExprMutator::VisitExpr(op->index);
+      auto value = StmtExprMutator::VisitExpr(op->value);
+      return Store(merged_buf_var_, value, offset + index, op->predicate, op->span);
     }
     return StmtExprMutator::VisitStmt_(op);
   }
@@ -95,7 +109,7 @@ class DynamicSharedMemoryRewriter : public StmtExprMutator {
 
   Var merged_buf_var_{"buf_dyn_shmem", PointerType(PrimType(DataType::UInt(8)), "shared.dyn")};
   std::unordered_set<const AllocateNode*> dyn_shmem_allocs_;
-  PrimExpr merged_alloc_size_;
+  PrimExpr merged_alloc_size_{0};
   std::unordered_map<const VarNode*, PrimExpr> buffer_offsets_;
 };
 
@@ -110,7 +124,9 @@ namespace transform {
 Pass MergeDynamicSharedMemoryAllocations() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
+    LOG(INFO) << "Before: " << f;
     n->body = MergeDynamicSharedMemoryAllocations(std::move(n->body));
+    LOG(INFO) << "After: " << f;
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.MergeDynamicSharedMemoryAllocations", {});
