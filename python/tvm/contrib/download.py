@@ -19,6 +19,7 @@
 import logging
 import os
 from pathlib import Path
+import shutil
 import tempfile
 import time
 
@@ -110,7 +111,13 @@ def download(url, path, overwrite=False, size_compare=False, retries=3):
 
                 urllib2.urlretrieve(url, download_loc, reporthook=_download_progress)
                 LOG.debug("")
-                download_loc.rename(path)
+                try:
+                    download_loc.rename(path)
+                except OSError:
+                    # Prefer a move, but if the tempdir and final
+                    # location are in different drives, fall back to a
+                    # copy.
+                    shutil.copy2(download_loc, path)
                 return
 
             except Exception as err:
