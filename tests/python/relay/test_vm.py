@@ -659,7 +659,7 @@ def test_add_op_scalar():
 @tvm.testing.uses_gpu
 def test_add_op_scalar_int():
     """
-    test_add_op_scalar:
+    test_add_op_scalar_int:
         fn (x, y) {
             return x + y;
         }
