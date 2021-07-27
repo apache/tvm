@@ -51,7 +51,7 @@ def test_coproc_sync():
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([n], stmt))
     stmt = tvm.tir.transform.CoProcSync()(mod)["main"].body
 
-    body = stmt.body.body
+    body = stmt.body.body.body
     blist = tvm.tir.stmt_list(body)
 
     assert blist[1].value.op.same_as(tvm.ir.Op.get("tir.cop.coproc_read_barrier"))
@@ -112,7 +112,7 @@ def test_coproc_sync3():
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([n], stmt))
     stmt = tvm.tir.transform.CoProcSync()(mod)["main"].body
 
-    slist = tvm.tir.stmt_list(stmt[0].body)
+    slist = tvm.tir.stmt_list(stmt[0].body.body)
     push_st = slist[2]
     slist = tvm.tir.stmt_list(slist[-1])
     pop_st = slist[0].body[0]

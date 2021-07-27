@@ -38,7 +38,7 @@ def test_coproc_lift():
     body = ib.get()
 
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([n], body))
-    body = tvm.tir.transform.LiftAttrScope("coproc_uop_scope")(mod)["main"]
+    body = tvm.tir.transform.LiftAttrScope("coproc_uop_scope")(mod)["main"].body
 
     assert body.body.body.node == cp
 
@@ -58,7 +58,7 @@ def test_coproc_lift():
     body = ib.get()
 
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([n], body))
-    body = tvm.tir.transform.LiftAttrScope("coproc_uop_scope")(mod)["main"]
+    body = tvm.tir.transform.LiftAttrScope("coproc_uop_scope")(mod)["main"].body
 
     assert body.body.body.body[1].node == cp
     assert len(body.body.body.body) == 2
