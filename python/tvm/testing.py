@@ -794,33 +794,56 @@ def _auto_parametrize_target(metafunc):
     file.
 
     """
-    if "target" in metafunc.fixturenames:
-        for mark in metafunc.definition.iter_markers("parametrize"):
-            args = [arg.strip() for arg in mark.args[0].split(",") if arg.strip()]
 
-            if "target" in args:
-                # Test explicitly called @pytest.mark.parametrize to
-                # set the targets.  Make sure that it gets the
-                # appropriate additional marks for that target.
-                param_sets = mark.args[1]
+    def update_parametrize_target_arg(
+        argnames,
+        argvalues,
+        *args,
+        **kwargs,
+    ):
+        args = [arg.strip() for arg in argnames.split(",") if arg.strip()]
+        if "target" in args:
+            if len(args) == 1:
+                targets = argvalues
+                param_sets = [(target,) for target in targets]
+            else:
+                target_i = args.index("target")
+                targets = [param_set[target_i] for param_set in argvalues]
+                param_sets = argvalues
 
-                if len(args) == 1:
-                    targets = param_sets
-                else:
-                    target_i = args.index("target")
-                    targets = [param_set[target_i] for param_set in param_sets]
-
-                new_param_sets = [
+            try:
+                argvalues[:] = [
                     pytest.param(*param_set, marks=_target_to_requirement(target))
                     for target, param_set in zip(targets, param_sets)
                 ]
-                param_sets[:] = new_param_sets
-                break
+            except TypeError as e:
+                pyfunc = metafunc.definition.function
+                filename = pyfunc.__code__.co_filename
+                line_number = pyfunc.__code__.co_firstlineno
+                msg = (
+                    f"Unit test {metafunc.function.__name__} ({filename}:{line_number}) "
+                    "is parametrized using a tuple of parameters instead of a list "
+                    "of parameters."
+                )
+                raise TypeError(msg) from e
 
-        else:
-            # No existing parametrization, time to add one, checking
-            # if the function is marked with either excluded or known
-            # failing targets.
+    if "target" in metafunc.fixturenames:
+        # Update any explicit use of @pytest.mark.parmaetrize to
+        # parametrize over targets.  This adds the appropriate
+        # @tvm.testing.requires_* markers for each target.
+        for mark in metafunc.definition.iter_markers("parametrize"):
+            update_parametrize_target_arg(*mark.args, **mark.kwargs)
+
+        # Check if any explicit parametrizations exist, and apply one
+        # if they do not.  If the function is marked with either
+        # excluded or known failing targets, use these to determine
+        # the targets to be used.
+        parametrized_args = [
+            arg.strip()
+            for mark in metafunc.definition.iter_markers("parametrize")
+            for arg in mark.args[0].split(",")
+        ]
+        if "target" not in parametrized_args:
             excluded_targets = getattr(metafunc.function, "tvm_excluded_targets", [])
             xfail_targets = getattr(metafunc.function, "tvm_known_failing_targets", [])
             metafunc.parametrize(
@@ -871,9 +894,9 @@ def parametrize_targets(*args):
     # parametrization is now handled by _auto_parametrize_target, so
     # this use case can just return the decorated function.
     if len(args) == 1 and callable(args[0]):
-        return args
+        return args[0]
 
-    return pytest.mark.parametrize("target", args, scope="session")
+    return pytest.mark.parametrize("target", list(args), scope="session")
 
 
 def exclude_targets(*args):
