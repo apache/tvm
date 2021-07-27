@@ -4,8 +4,10 @@ import sys
 
 import pytest
 
-sys.path.append("../")
+sys.path.insert(0, str(Path(__file__).parent.parent))
 import microtvm_api_server
+
+sys.path.pop(0)
 
 
 class TestGenerateProject:

@@ -143,9 +143,7 @@ class Handler(server.ProjectAPIHandler):
                 shutil.copy(os.path.join(mlf_unpacking_dir, source), model_dir / dest)
 
             # Load graph.json, serialize to c format, and extact parameters
-            with open(
-                os.path.join(mlf_unpacking_dir, "executor-config/graph/graph.json")
-            ) as f:
+            with open(os.path.join(mlf_unpacking_dir, "executor-config/graph/graph.json")) as f:
                 graph_data = json.load(f)
 
         self._create_graph_json(model_dir, graph_data)
