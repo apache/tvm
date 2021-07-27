@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-function-docstring,missing-module-docstring
 import pytest
 
 import numpy as np
@@ -23,7 +22,7 @@ import tvm.testing
 from tvm import tir
 from tvm.script import ty
 
-# pylint: disable=no-member,invalid-name,unused-variable
+# pylint: disable=no-member,invalid-name,unused-variable,missing-function-docstring,missing-module-docstring
 
 
 @tvm.script.tir
@@ -110,7 +109,7 @@ def matmul_not_same_buffer_access(a: ty.handle, b: ty.handle, c: ty.handle) -> N
 
 
 @tvm.script.tir
-def matmul_loop_multiple_children(a: ty.handle, b:ty.handle, c: ty.handle, d: ty.handle) -> None:
+def matmul_loop_multiple_children(a: ty.handle, b: ty.handle, c: ty.handle, d: ty.handle) -> None:
     A = tir.match_buffer(a, [128, 128])
     B = tir.match_buffer(b, [128, 128])
     C = tir.match_buffer(c, [128, 128])

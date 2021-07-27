@@ -1376,7 +1376,7 @@ inline const char* ForKind2String(ForKind t) {
     case ForKind::kThreadBinding:
       return "thread_binding";
   }
-  LOG(FATAL) << "Unknown ForKind";
+  LOG(FATAL) << "Unknown ForKind" << t;
   return "Unknown";
 }
 

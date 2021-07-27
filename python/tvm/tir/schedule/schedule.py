@@ -528,14 +528,12 @@ class Schedule(Object):
 
         For example, the pesudocode below accumulates `B[i] = sum(A[i, : , : ])`:
 
-
         .. code-block:: python
 
             for i in range(128):                    # loop i is a data parallel loop
                 for j in range(128):                # loop j is a reduction loop
                     for k in range(128):            # loop k is a reduction loop
                         B[i] = B[i] + A[i, j, k]
-
 
         Suppose RFactor is applied on the innermost loop `k` and `factor_axis = 1`.
         RFactor then creates an intermediate buffer and two blocks.
@@ -553,7 +551,6 @@ class Schedule(Object):
         accumulating over the loop `k`, i.e. the loop `k` is converted from a reduction loop
         to a data parallel loop. In our example, the rf-block is:
 
-
         .. code-block:: python
 
             B_rf = np.zeros((128, 128))     # the rf-buffer
@@ -561,7 +558,6 @@ class Schedule(Object):
                 for i in range(128):        # loop i is a data parallel loop (unchanged)
                     for j in range(128):    # loop j is a reduction loop (unchanged)
                         B_rf[i, k] = B_rf[i, k] + A[i, j, k]
-
 
         - The write-back block, or `wb-block`, is a block that accumulates the rf-buffer into
         the result buffer. All the reduction loops are removed except the loop `k` for accumulation.
@@ -596,8 +592,8 @@ class Schedule(Object):
 
             @tvm.script.tir
             def before_rfactor(a: ty.handle, b: ty.handle) -> None:
-                A = tir.match_buffer(a, (128, 128, 128), "float32")
-                B = tir.match_buffer(b, (128,), "float32")
+                A = tir.match_buffer(a, (128, 128, 128))
+                B = tir.match_buffer(b, (128,))
                 with tir.block([128, tir.reduce_axis(0, 128),
                                 tir.reduce_axis(0, 128)], "B") as [vii, vi, vj]:
                     with tir.init():
@@ -643,13 +639,13 @@ class Schedule(Object):
         4) The block scope that `loop` is in is a staged-pipeline;
         5) The outermost loop outside the reduction block should has the reduction block as its first child block;
         6) The outermost reduction loop should have only one child block;
-        7) An unary extent loop that is not bound to any reduction or data parallel variables in the block binding
-        should not appear under some reduction loop;
-        8) The reduction block should write to only one buffer, and its init and body block only is
-        a simple `BufferStore`, and the pattern is registered as associative reducer.
+        7) An unary extent loop that is not bound to any reduction or data parallel variables in
+        the block binding should not appear under some reduction loop;
+        8) The reduction block should write to only one buffer, and its init and body are both
+        simple `BufferStore`s, and the pattern is registered as an associative reducer.
         The pre-defined patterns include: plus, multiplication, min and max;
-        9) Each of the loops on top of the block cannot be bound to a data parallel and a reduction
-        block binding at the same time;
+        9) Each of the loops on top of the block cannot be bound to a data parallel and a
+        reduction block binding at the same time;
         10) `factor_axis` should be in range `[-ndim(B) - 1, ndim(B)]`,
         where `B` is the buffer that the reduction block writes to.
         Negative indexing is normalized according to numpy convention.
