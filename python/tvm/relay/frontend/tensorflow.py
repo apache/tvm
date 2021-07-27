@@ -37,6 +37,7 @@ from .common import get_relay_op
 from .common import infer_type as _infer_type
 from .common import infer_shape as _infer_shape
 from .common import infer_value as _infer_value
+from ..._ffi import base
 
 from .tensorflow_ops import _convert_map
 from .tensorflow_ops import _need_prelude_for_shape_inference
@@ -476,12 +477,20 @@ class GraphProto(object):
                     with ops.Graph().as_default():
                         # Create a new constant node and replace the original one
                         tensor_value = extra_params[node.name]
-                        # TODO(jcf94): Add support for other data type
-                        if not isinstance(tensor_value, np.ndarray):
-                            raise ValueError("The tensor data in extra_params must be np.ndarray")
+                        tensor_dtype = None
+                        if isinstance(tensor_value, np.ndarray):
+                            tensor_dtype = tensor_value.dtype
+                        elif isinstance(tensor_value, base.integer_types):
+                            tensor_dtype = "int32"
+                        elif isinstance(tensor_value, base.numeric_types):
+                            tensor_dtype = "float32"
+                        else:
+                            raise ValueError(
+                                "The tensor data in extra_params must be np.ndarray or numeric types"
+                            )
                         constant = constant_op.constant(
                             tensor_value,
-                            dtype=tensor_value.dtype,
+                            dtype=tensor_dtype,
                             name=node.name,
                         )
                     new_node.MergeFrom(constant.op.node_def)
