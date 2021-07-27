@@ -486,7 +486,8 @@ class GraphProto(object):
                             tensor_dtype = "float32"
                         else:
                             raise ValueError(
-                                "The tensor data in extra_params must be np.ndarray or numeric types"
+                                "The tensor data in extra_params must be np.ndarray or "
+                                "numeric types"
                             )
                         constant = constant_op.constant(
                             tensor_value,
