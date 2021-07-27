@@ -153,10 +153,7 @@ class CopyIntrinInjector : public StmtMutator {
     ICHECK(out->defined()) << "flower function did not return correct stmt";
     return true;
   }
-  // Get storage scope
-  std::string GetStorageScope(const VarNode* var) const {
-    return GetPtrStorageScope(GetRef<Var>(var));
-  }
+
   // pragma key
   std::string pragma_key_;
   // function to lower copy intrinsics.
