@@ -5633,7 +5633,7 @@ def test_extra_params():
         batch = tf.placeholder(shape=(), dtype="int32", name="batch_size")
         batch = tf.expand_dims(batch, axis=0)
         shape = tf.concat([batch, tf.constant([5]), tf.constant([8])], axis=0)
-        D = tf.reshape(C, shape)
+        out = tf.reshape(C, shape)
 
     # The original graph
     mod, _ = from_tensorflow(g.as_graph_def(add_shapes=True), shape={"A": static_a_shape})
@@ -5650,7 +5650,7 @@ def test_extra_params():
     mod_golden = tvm.parser.parse('#[version = "0.0.5"]\n' + program)
     tvm.ir.assert_structural_equal(mod["main"].body, mod_golden["main"].body, map_free_vars=True)
 
-    # The graph setting `batch_size` as a const int
+    # Set `batch_size` as a const int to process this graph as static shape
     mod, _ = from_tensorflow(
         g.as_graph_def(add_shapes=True),
         shape={"A": static_a_shape},
