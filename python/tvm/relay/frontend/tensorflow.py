@@ -468,16 +468,20 @@ class GraphProto(object):
         if extra_params is not None:
             ori_graph = graph
             graph = graph_pb2.GraphDef()
-            # This is going to replace the tensors in extra_params to constant node
+            # This is going to replace the tensors provided in extra_params to constant nodes
             for node in ori_graph.node:
                 new_node = graph.node.add()
                 if node.name in extra_params:
-                    # Add a new scopy incase this has sideeffect
+                    # Create new op inside an empty scope incase this has sideeffect
                     with ops.Graph().as_default():
                         # Create a new constant node and replace the original one
+                        tensor_value = extra_params[node.name]
+                        # TODO(jcf94): Add support for other data type
+                        if not isinstance(tensor_value, np.ndarray):
+                            raise ValueError("The tensor data in extra_params must be np.ndarray")
                         constant = constant_op.constant(
-                            extra_params[node.name],
-                            dtype=extra_params[node.name].dtype,
+                            tensor_value,
+                            dtype=tensor_value.dtype,
                             name=node.name,
                         )
                     new_node.MergeFrom(constant.op.node_def)
@@ -1233,11 +1237,13 @@ class SubGraphProto(GraphProto):
         super().__init__()
         self._main_graph_proto = main_graph_proto  # holds main graph proto object
 
-    def from_tensorflow(self, graph, layout="NHWC", shape=None, outputs=None):
+    def from_tensorflow(self, graph, layout="NHWC", shape=None, outputs=None, extra_params=None):
         """Wrapper to _get_relay_func which converts Tensorflow graph to Relay function.
         Return Relay function and params
         """
-        func = self._get_relay_func(graph, layout=layout, shape=shape, outputs=outputs)
+        func = self._get_relay_func(
+            graph, layout=layout, shape=shape, outputs=outputs, extra_params=extra_params
+        )
         return func, self._params
 
 
