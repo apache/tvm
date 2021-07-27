@@ -16,9 +16,10 @@
 # under the License.
 import tvm
 from tvm import tir
+from tvm._ffi.base import TVMError
 from tvm.ir.transform import PassContext
 import itertools
-import numpy as np
+import pytest
 
 
 def build_tir_func(func):
@@ -51,6 +52,40 @@ def test_scalar_add():
         func = build_tir_func(func)
         out = func(1.0, 2.0)
         assert out == 3.0
+
+
+def assignment_helper(store_dtype, value_dtype):
+    store = tir.Var("store", dtype=store_dtype)
+    value = tir.Var("value", dtype=value_dtype)
+    tir.Let(store, value, body=store)
+
+
+def test_fail_implicit_downcasts_same_type():
+    # These lists should be sorted
+    bits = [8, 16, 32, 64]
+    for type in ["float", "int", "uint"]:
+        for i in range(len(bits) - 1):
+            with pytest.raises(TVMError):
+                assignment_helper(
+                    store_dtype=f"{type}{bits[i]}", value_dtype=f"{type}{bits[i + 1]}"
+                )
+
+
+def test_cast_between_types():
+    # We should only be able to assign values with the same types
+    bits = [16, 32]
+    types = ["float", "int", "uint"]
+    for store_type, store_bits, value_type, value_bits in itertools.product(
+        types, bits, types, bits
+    ):
+        store_dtype = f"{store_type}{store_bits}"
+        value_dtype = f"{value_type}{value_bits}"
+        if store_dtype == value_dtype:
+            assignment_helper(store_dtype, value_dtype)
+        else:
+            # TODO: we might want to allow casts between uint and int types
+            with pytest.raises(TVMError):
+                assignment_helper(store_dtype, value_dtype)
 
 
 def test_control_flow_jump():
