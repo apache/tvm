@@ -26,7 +26,7 @@ This unit test simulates a simple user workflow, where we:
 PLATFORMS = conftest.PLATFORMS
 
 
-def _generate_project(model, target, arduino_board, arduino_cmd, mod, build_config):
+def _generate_project(model, target, arduino_board, arduino_cli_cmd, mod, build_config):
     parent_dir = os.path.dirname(__file__)
     filename = os.path.splitext(os.path.basename(__file__))[0]
     prev_build = (
@@ -55,7 +55,7 @@ def _generate_project(model, target, arduino_board, arduino_cmd, mod, build_conf
         str(template_project_dir),
         mod,
         workspace.relpath("project"),
-        {"arduino_board": arduino_board, "arduino_cmd": arduino_cmd, "verbose": 0},
+        {"arduino_board": arduino_board, "arduino_cli_cmd": arduino_cli_cmd, "verbose": 0},
     )
     return (workspace, project)
 
@@ -65,7 +65,7 @@ TARGET = "c -keys=cpu -link-params=1 -mcpu=cortex-m33 -model=nrf5340dk -runtime=
 
 
 @pytest.fixture(scope="module")
-def yes_no_project(platform, arduino_cmd):
+def yes_no_project(platform, arduino_cli_cmd):
     current_dir = os.path.dirname(__file__)
     model, arduino_board = PLATFORMS[platform]
     # target = tvm.target.target.micro(model, options=["-link-params=1"])
@@ -78,7 +78,7 @@ def yes_no_project(platform, arduino_cmd):
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         mod = relay.build(mod, TARGET, params=params)
 
-    return _generate_project(model, TARGET, arduino_board, arduino_cmd, mod, build_config)
+    return _generate_project(model, TARGET, arduino_board, arduino_cli_cmd, mod, build_config)
     # return tvm.micro.Session(project.transport())
 
 

@@ -18,7 +18,7 @@ def pytest_addoption(parser):
         help="Target platform for microTVM tests.",
     )
     parser.addoption(
-        "--arduino-cmd",
+        "--arduino-cli-cmd",
         default="arduino-cli",
         help="Path to `arduino-cli` command for flashing device.",
     )
@@ -36,8 +36,8 @@ def platform(request):
 
 
 @pytest.fixture(scope="session")
-def arduino_cmd(request):
-    return request.config.getoption("--arduino-cmd")
+def arduino_cli_cmd(request):
+    return request.config.getoption("--arduino-cli-cmd")
 
 
 @pytest.fixture(scope="session")

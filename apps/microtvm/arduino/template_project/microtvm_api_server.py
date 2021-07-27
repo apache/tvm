@@ -130,7 +130,7 @@ class Handler(server.ProjectAPIHandler):
     def _disassemble_mlf(self, mlf_tar_path, source_dir):
         with tempfile.TemporaryDirectory() as mlf_unpacking_dir:
             with tarfile.open(mlf_tar_path, "r:") as tar:
-                tar.extractall(mlf_unpacking_dir.name)
+                tar.extractall(mlf_unpacking_dir)
 
             # Copy C files
             # TODO are the defaultlib0.c the same?
@@ -140,11 +140,11 @@ class Handler(server.ProjectAPIHandler):
                 ("codegen/host/src/default_lib0.c", "default_lib0.c"),
                 ("codegen/host/src/default_lib1.c", "default_lib1.c"),
             ]:
-                shutil.copy(os.path.join(mlf_unpacking_dir.name, source), model_dir / dest)
+                shutil.copy(os.path.join(mlf_unpacking_dir, source), model_dir / dest)
 
             # Load graph.json, serialize to c format, and extact parameters
             with open(
-                os.path.join(mlf_unpacking_dir.name, "executor-config/graph/graph.json")
+                os.path.join(mlf_unpacking_dir, "executor-config/graph/graph.json")
             ) as f:
                 graph_data = json.load(f)
 

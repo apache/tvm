@@ -1,8 +1,10 @@
 from unittest import mock
 from pathlib import Path
+import sys
 
 import pytest
 
+sys.path.append("../")
 import microtvm_api_server
 
 
