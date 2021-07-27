@@ -448,5 +448,141 @@ def test_stateless_while_2var():
     run_model_graph(StatelessWhile2Var, outputs=["Identity:output:0"])
 
 
+def test_tensorlist():
+    def run_test(elem_shape):
+        class TensorList(tf.Module):
+            def get_input(self):
+                in_tens = np.ones((2, 3), dtype="float32")
+                in_tens[1, :] = np.zeros((3,), dtype="float32")
+                return in_tens
+
+            @tf.function(input_signature=[tf.TensorSpec(shape=(2, 3), dtype=tf.float32)])
+            def func(self, x):
+                dtype = tf.float32
+                tl = tf.raw_ops.TensorListReserve(
+                    element_shape=elem_shape, num_elements=2, element_dtype=dtype
+                )
+                tl = tf.raw_ops.TensorListSetItem(input_handle=tl, index=0, item=x[0, :])
+                tl = tf.raw_ops.TensorListSetItem(input_handle=tl, index=1, item=x[1, :])
+                output = tf.raw_ops.TensorListGetItem(
+                    input_handle=tl, index=0, element_shape=elem_shape, element_dtype=dtype
+                )
+                return output
+
+        run_model_graph(TensorList)
+        run_func_graph(TensorList, runtime="vm")
+
+    run_test((3,))
+    run_test((-1,))
+
+
+def test_tensorlist_stack():
+    def run_test(elem_shape):
+        class TensorListStack(tf.Module):
+            def get_input(self):
+                in_tens = np.ones((2, 3), dtype="float32")
+                in_tens[1] = np.zeros((3,), dtype="float32")
+                return in_tens
+
+            """2D array as input"""
+
+            @tf.function(input_signature=[tf.TensorSpec(shape=(2, 3), dtype=tf.float32)])
+            def func(self, x):
+                dtype = tf.float32
+                tl = tf.raw_ops.TensorListReserve(
+                    element_shape=elem_shape, num_elements=2, element_dtype=dtype
+                )
+                tl = tf.raw_ops.TensorListFromTensor(tensor=x, element_shape=elem_shape)
+                output = tf.raw_ops.TensorListStack(
+                    input_handle=tl, element_shape=elem_shape, element_dtype=dtype
+                )
+                return output
+
+        run_model_graph(TensorListStack)
+        run_func_graph(TensorListStack, runtime="vm")
+
+    run_test((3,))
+    run_test((-1,))
+
+
+def test_tensorlist_2d():
+    def run_test(elem_shape):
+        class TensorList2D(tf.Module):
+            def get_input(self):
+                in_tens = np.ones((2, 3, 4), dtype="float32")
+                in_tens[1, :, :] = np.zeros((3, 4), dtype="float32")
+                return in_tens
+
+            """2D array as input"""
+
+            @tf.function(input_signature=[tf.TensorSpec(shape=(2, 3, 4), dtype=tf.float32)])
+            def func(self, x):
+                dtype = tf.float32
+                tl = tf.raw_ops.TensorListReserve(
+                    element_shape=elem_shape, num_elements=2, element_dtype=dtype
+                )
+                tl = tf.raw_ops.TensorListSetItem(input_handle=tl, index=0, item=x[0, :, :])
+                tl = tf.raw_ops.TensorListSetItem(input_handle=tl, index=1, item=x[1, :, :])
+                output = tf.raw_ops.TensorListGetItem(
+                    input_handle=tl, index=0, element_shape=elem_shape, element_dtype=dtype
+                )
+                return output
+
+        run_model_graph(TensorList2D)
+        run_func_graph(TensorList2D, runtime="vm")
+
+    run_test(
+        (
+            3,
+            4,
+        )
+    )
+    run_test(
+        (
+            -1,
+            -1,
+        )
+    )
+
+
+def test_tensorlist_stack_2d():
+    def run_test(elem_shape):
+        class TensorListStack2D(tf.Module):
+            def get_input(self):
+                in_tens = np.ones((2, 3, 4), dtype="float32")
+                in_tens[1, :, :] = np.zeros((3, 4), dtype="float32")
+                return in_tens
+
+            """2D array as input"""
+
+            @tf.function(input_signature=[tf.TensorSpec(shape=(2, 3, 4), dtype=tf.float32)])
+            def func(self, x):
+                dtype = tf.float32
+                tl = tf.raw_ops.TensorListReserve(
+                    element_shape=elem_shape, num_elements=2, element_dtype=dtype
+                )
+                tl = tf.raw_ops.TensorListFromTensor(tensor=x, element_shape=elem_shape)
+                output = tf.raw_ops.TensorListStack(
+                    input_handle=tl, element_shape=elem_shape, element_dtype=dtype
+                )
+                return output
+
+        run_model_graph(TensorListStack2D)
+        run_func_graph(TensorListStack2D, runtime="vm")
+
+    run_test(
+        (
+            3,
+            4,
+        )
+    )
+    run_test(
+        (
+            -1,
+            -1,
+        )
+    )
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

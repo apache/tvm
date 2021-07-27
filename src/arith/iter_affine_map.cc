@@ -1085,6 +1085,21 @@ TVM_REGISTER_GLOBAL("arith.NormalizeIterMapToExpr").set_body_typed([](const Iter
   return NormalizeIterMapToExpr(expr);
 });
 
+Array<PrimExpr> IterMapSimplify(const Array<PrimExpr>& indices, const Map<Var, Range>& input_iters,
+                                const PrimExpr& input_pred, bool require_bijective) {
+  Analyzer analyzer;
+  Array<IterSumExpr> rewrite =
+      DetectIterMap(indices, input_iters, input_pred, require_bijective, &analyzer);
+  if (rewrite.empty()) {
+    return indices;
+  }
+  Array<PrimExpr> res;
+  res.reserve(rewrite.size());
+  IterMapToExprNormalizer converter(&analyzer);
+  for (const auto& expr : rewrite) res.push_back(converter.Convert(expr));
+  return res;
+}
+
 /*!
  * \brief Divider to divide the bindings into two sets of bindings(outer and inner)
  *   such that binding_i = Y_i * E(Xi) + Xi, where E(X) is the extent of X.
