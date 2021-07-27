@@ -138,8 +138,12 @@ class TypeContext {
 
   std::string TypeIndex2Key(uint32_t tindex) {
     std::lock_guard<std::mutex> lock(mutex_);
-    ICHECK(tindex < type_table_.size() && type_table_[tindex].allocated_slots != 0)
-        << "Unknown type index " << tindex;
+    if (tindex != 0) {
+      // always return the right type key for root
+      // for non-root type nodes, allocated slots should not equal 0
+      ICHECK(tindex < type_table_.size() && type_table_[tindex].allocated_slots != 0)
+          << "Unknown type index " << tindex;
+    }
     return type_table_[tindex].name;
   }
 
