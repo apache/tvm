@@ -384,7 +384,7 @@ def auto_schedule_topi(func_name, outs):
 def te_compiler_update_weights(function_weights):
     """A callback for updating the weights of extracted tasks. When using the TE compiler
     that avoids compiling the same function multiple times by caching, all extracted tasks
-    have weight=1, so the TE compiler invokes this callback at the end. In this case,
+    have weight 1, so the TE compiler invokes this callback at the end. In this case,
     we override existing weights with the use_count in TE compiler cache.
 
     Parameters
