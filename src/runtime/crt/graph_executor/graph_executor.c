@@ -1109,7 +1109,7 @@ typedef struct TVMOpArgs {
 
 int32_t TVMGraphExecutor_CreateTVMOp(TVMGraphExecutor* executor, const TVMOpParam* param,
                                      DLTensorPtr* args, const uint32_t args_count,
-                                     uint32_t num_inputs, TVMPackedFunc* pf) {
+                                     TVMPackedFunc* pf) {
   int status = 0;
   uint32_t idx;
   TVMOpArgs arg_ptr;

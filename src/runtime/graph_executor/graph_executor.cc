@@ -380,7 +380,7 @@ void GraphExecutor::SetupOpExecs() {
     ICHECK(inode.op_type == "tvm_op") << "Can only take tvm_op as op";
 
     std::shared_ptr<OpArgs> op_args = nullptr;
-    std::tie(op_execs_[nid], op_args) = CreateTVMOp(inode.param, args, inode.inputs.size());
+    std::tie(op_execs_[nid], op_args) = CreateTVMOp(inode.param, args);
 
     for (size_t i = 0; i < inode.inputs.size(); i++) {
       uint32_t eid = this->entry_id(inode.inputs[i]);
@@ -393,8 +393,7 @@ void GraphExecutor::SetupOpExecs() {
 }
 
 std::pair<std::function<void()>, std::shared_ptr<GraphExecutor::OpArgs> >
-GraphExecutor::CreateTVMOp(const TVMOpParam& param, const std::vector<DLTensor>& args,
-                           size_t num_inputs) {
+GraphExecutor::CreateTVMOp(const TVMOpParam& param, const std::vector<DLTensor>& args) {
   std::shared_ptr<GraphExecutor::OpArgs> arg_ptr = std::make_shared<GraphExecutor::OpArgs>();
   // setup address.
   arg_ptr->args = args;
