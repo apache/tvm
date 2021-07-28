@@ -634,21 +634,22 @@ def test_matmul_dyn_shared():
 
 
 @tvm.testing.requires_gpu
-def test_dyn_shared_vectorized():
+def test_dyn_shared_vectorized_store():
+    """Test vectorized store into dynamic shared memory"""
     n = te.size_var("n")
-    A = te.placeholder((n,), name="A", dtype="float32")
+    A = te.placeholder((n,), name="A", dtype="float16")
     B = te.placeholder((n,), name="B", dtype="float32")
 
     def test_device_ir(A, B, C):
-        n = 512 # A.shape[0]
+        n = A.shape[0]
         ib = tvm.tir.ir_builder.create()
 
         values_per_thread = 4
         tx = te.thread_axis("threadIdx.x")
         ib.scope_attr(tx, "thread_extent", tvm.tir.indexdiv(n, values_per_thread))
 
-        A_sh = ib.allocate(A.dtype, (n,), scope="shared")
-        B_sh = ib.allocate(B.dtype, (n,), scope="shared")
+        A_sh = ib.allocate(A.dtype, (n,), scope="shared.dyn")
+        B_sh = ib.allocate(B.dtype, (n,), scope="shared.dyn")
 
         Aptr = ib.buffer_ptr(A)
         Bptr = ib.buffer_ptr(B)
@@ -660,7 +661,7 @@ def test_dyn_shared_vectorized():
 
         with ib.for_range(0, values_per_thread) as i:
             Cptr[tx * values_per_thread + i] = (
-                A_sh[tx * values_per_thread + i] + B_sh[tx * values_per_thread + i]
+                cast(A_sh[tx * values_per_thread + i], "float32") + B_sh[tx * values_per_thread + i]
             )
 
         return ib.get()
@@ -686,23 +687,24 @@ def test_dyn_shared_vectorized():
             b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), dev)
             c = tvm.nd.array(np.zeros((n,), dtype=C.dtype), dev)
             fadd(a, b, c)
-            tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy(), 1e-4, 1e-4)
-            break
+            tvm.testing.assert_allclose(
+                c.numpy(), a.numpy().astype("float32") + b.numpy(), 1e-4, 1e-4
+            )
 
     for target in ["cuda", "nvptx"]:
         check_target(target)
 
 
 if __name__ == "__main__":
-    # test_prefetch()
-    # test_if()
-    # test_for()
-    # test_cpu()
-    # test_gpu()
-    # test_while_vectorize()
-    # test_while_collatz()
-    # test_while_mandel()
-    # test_while_binary_search()
-    # test_dyn_shared()
-    # test_matmul_dyn_shared()
-    test_dyn_shared_vectorized()
+    test_prefetch()
+    test_if()
+    test_for()
+    test_cpu()
+    test_gpu()
+    test_while_vectorize()
+    test_while_collatz()
+    test_while_mandel()
+    test_while_binary_search()
+    test_dyn_shared()
+    test_matmul_dyn_shared()
+    test_dyn_shared_vectorized_store()

@@ -63,7 +63,8 @@ class DynamicSharedMemoryRewriter : public StmtExprMutator {
       // Allocate one dynamic shared memory allocation at the beginning of thread scope
       int align = 1;
       for (auto& alloc : dyn_shmem_allocs_) {
-        align = std::max(align, alloc->dtype.bytes() * alloc->dtype.lanes());
+        ICHECK_EQ(alloc->dtype.lanes(), 1) << "vector dtype allocation not supported.";
+        align = std::max(align, alloc->dtype.bytes());
       }
       for (auto& alloc : dyn_shmem_allocs_) {
         ICHECK_EQ(alloc->extents.size(), 1);
@@ -109,7 +110,7 @@ class DynamicSharedMemoryRewriter : public StmtExprMutator {
   PrimExpr GetBufferOffset(Var buffer_var, DataType dtype) {
     auto it = buffer_byte_offsets_.find(buffer_var.get());
     ICHECK(it != buffer_byte_offsets_.end());
-    return indexdiv(it->second, dtype.bytes() * dtype.lanes());
+    return indexdiv(it->second, dtype.bytes());
   }
 
   Var merged_buf_var_{"buf_dyn_shmem", PointerType(PrimType(DataType::UInt(8)), "shared.dyn")};
