@@ -63,8 +63,8 @@ The minimal building requirements for the ``TVM`` libraries are:
    - CMake 3.5 or higher
    - We highly recommend to build with LLVM to enable all the features.
    - If you want to use CUDA, CUDA toolkit version >= 8.0 is required. If you are upgrading from an older version, make sure you purge the older version and reboot after installation.
-   - On macOS, you may want to install `Homebrew <https://brew.sh>` to easily install and manage dependencies.
-   - Python is also required. Avoid using python 3.9.X+ which is not `supported <https://github.com/apache/tvm/issues/8577>`_. 3.7.X+ and 3.8.X+ should be well supported however.
+   - On macOS, you may want to install `Homebrew <https://brew.sh>`_ to easily install and manage dependencies.
+   - Python is also required. Avoid using Python 3.9.X+ which is not `supported <https://github.com/apache/tvm/issues/8577>`_. 3.7.X+ and 3.8.X+ should be well supported however.
 
 To install the these minimal pre-requisites on Ubuntu/Debian like
 linux operating systems, execute (in a terminal):
