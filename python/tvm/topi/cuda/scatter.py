@@ -835,8 +835,10 @@ def scatter_nd(data, indices, updates, mode):
             else:
                 bdim_x = ceil_div(fused_updates_dimension, tdim)
                 bdim_y = fused_indices_dimension
-                bx = te.thread_axis("blockIdx.x")
-                by = te.thread_axis("blockIdx.y")
+                # In case of large input sizes, bim_y might be too large.
+                # So it could be moved to blockIdx.x position, which holds larger scales.
+                bx = te.thread_axis("blockIdx.y")
+                by = te.thread_axis("blockIdx.x")
                 tx = te.thread_axis("threadIdx.x")
                 ib.scope_attr(bx, "thread_extent", bdim_x)
                 ib.scope_attr(by, "thread_extent", bdim_y)
