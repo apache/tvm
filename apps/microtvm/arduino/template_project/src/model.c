@@ -1,11 +1,11 @@
 #ifndef TVM_IMPLEMENTATION_ARDUINO
 #define TVM_IMPLEMENTATION_ARDUINO
 
+#include "model.h"
+
 #include "Arduino.h"
 #include "standalone_crt/include/tvm/runtime/crt/internal/aot_executor/aot_executor.h"
 #include "standalone_crt/include/tvm/runtime/crt/stack_allocator.h"
-
-#define WORKSPACE_SIZE (17392)
 
 // AOT memory array
 static uint8_t g_aot_memory[WORKSPACE_SIZE];
@@ -68,16 +68,14 @@ tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
   return kTvmErrorNoError;
 }
 
-void TVMInitialize() {
-  StackMemoryManager_Init(&app_workspace, g_aot_memory, WORKSPACE_SIZE);
-}
+void TVMInitialize() { StackMemoryManager_Init(&app_workspace, g_aot_memory, WORKSPACE_SIZE); }
 
 void TVMExecute(void* input_data, void* output_data) {
   void* inputs[1] = {
-    input_data,
+      input_data,
   };
   void* outputs[1] = {
-    output_data,
+      output_data,
   };
   int ret_val = tvm_runtime_run(&tvmgen_default_network, inputs, outputs);
 }

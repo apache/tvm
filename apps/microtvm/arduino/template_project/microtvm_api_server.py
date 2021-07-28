@@ -109,15 +109,6 @@ class Handler(server.ProjectAPIHandler):
         for component in self.UNUSED_COMPONENTS:
             shutil.rmtree(source_dir / "standalone_crt" / component)
 
-    # We need to remove these duplicate copies of unit tests from the
-    # tree to avoid pytest finding two copies
-    PYTEST_FILE_REGEX = r"(?:test_.*\.py)|(?:.*_test\.py)"
-
-    def _remove_unit_tests(self, source_dir):
-        for file_path in source_dir.rglob(f"*.py"):
-            if re.match(self.PYTEST_FILE_REGEX, file_path.name):
-                file_path.unlink()
-
     def _disassemble_mlf(self, mlf_tar_path, source_dir):
         with tempfile.TemporaryDirectory() as mlf_unpacking_dir:
             with tarfile.open(mlf_tar_path, "r:") as tar:
@@ -133,26 +124,23 @@ class Handler(server.ProjectAPIHandler):
             ]:
                 shutil.copy(os.path.join(mlf_unpacking_dir, source), model_dir / dest)
 
-    def _print_c_array(self, l):
-        c_arr_str = str(l)
-        return "{" + c_arr_str[1:-1] + "}"
+            # Return metadata.json for use in templating
+            with open(os.path.join(mlf_unpacking_dir, "metadata.json")) as f:
+                metadata = json.load(f)
+        return metadata
 
-    def _print_c_str(self, s):
-        return '"{}"'.format(s)
+    def _template_model_header(self, source_dir, metadata):
+        with open(source_dir / "model.h", "r") as f:
+            model_h_template = Template(f.read())
 
-    DL_DATA_TYPE_REFERENCE = {
-        "uint8": "{kDLUInt, 8, 0}",
-        "uint16": "{kDLUInt, 16, 0}",
-        "uint32": "{kDLUInt, 32, 0}",
-        "uint64": "{kDLUInt, 64, 0}",
-        "int8": "{kDLInt, 8, 0}",
-        "int16": "{kDLInt, 16, 0}",
-        "int32": "{kDLInt, 32, 0}",
-        "int64": "{kDLInt, 64, 0}",
-        "float16": "{kDLFloat, 16, 0}",
-        "float32": "{kDLFloat, 32, 0}",
-        "float64": "{kDLFloat, 64, 0}",
-    }
+        template_values = {
+            "workspace_size_bytes": metadata["memory"]["functions"]["main"][0][
+                "workspace_size_bytes"
+            ],
+        }
+
+        with open(source_dir / "model.h", "w") as f:
+            f.write(model_h_template.substitute(template_values))
 
     POSSIBLE_BASE_PATHS = ["src/standalone_crt/include/", "src/standalone_crt/crt_config/"]
 
@@ -198,28 +186,29 @@ class Handler(server.ProjectAPIHandler):
                     file.writelines(lines)
 
     def generate_project(self, model_library_format_path, standalone_crt_dir, project_dir, options):
-        # Copy template folder to project_dir, creating project/ and src/
-        # directories in the process. Also copies this file, microtvm_api_server.py,
-        # in case TVM needs to call it from the new location
-        if IS_TEMPLATE:
-            shutil.copytree(API_SERVER_DIR, project_dir, dirs_exist_ok=True)
-
         # Reference key directories with pathlib
         project_dir = pathlib.Path(project_dir)
         source_dir = project_dir / "src"
 
+        # Copies files from the template folder to project_dir. model.h is copied here,
+        # but will also need to be templated later.
+        if IS_TEMPLATE:
+            shutil.copytree(API_SERVER_DIR / "src", source_dir, dirs_exist_ok=True)
+            shutil.copy2(API_SERVER_DIR / "microtvm_api_server.py", project_dir)
+
+            # Arduino requires the .ino file have the same filename as its containing folder
+            shutil.copy2(API_SERVER_DIR / "project.ino", project_dir / f"{project_dir.stem}.ino")
+
         # Copy standalone_crt into src folder
         self._copy_standalone_crt(source_dir, standalone_crt_dir)
         self._remove_unused_components(source_dir)
-        self._remove_unit_tests(project_dir)
 
         # Unpack the MLF and copy the relevant files
-        self._disassemble_mlf(model_library_format_path, source_dir)
-
+        metadata = self._disassemble_mlf(model_library_format_path, source_dir)
         shutil.copy2(model_library_format_path, source_dir / "model")
 
-        # Populate our header file
-        # TODO
+        # Template model.h with metadata to minimize space usage
+        self._template_model_header(source_dir, metadata)
 
         # Recursively change imports
         self._convert_imports(project_dir, source_dir)

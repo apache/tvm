@@ -79,7 +79,6 @@ def yes_no_project(platform, arduino_cli_cmd):
         mod = relay.build(mod, TARGET, params=params)
 
     return _generate_project(model, TARGET, arduino_board, arduino_cli_cmd, mod, build_config)
-    # return tvm.micro.Session(project.transport())
 
 
 @pytest.fixture(scope="module")
@@ -98,16 +97,19 @@ def test_project_folder_structure(project_dir):
     assert set(["microtvm_api_server.py", "project.ino", "src"]).issubset(os.listdir(project_dir))
 
     source_dir = project_dir / "src"
-    assert set(os.listdir(source_dir)) == set(
-        ["model", "standalone_crt", "model.c", "model.h"]
-    )
+    assert set(os.listdir(source_dir)) == set(["model", "standalone_crt", "model.c", "model.h"])
 
 
 def test_project_model_integrity(project_dir):
     model_dir = project_dir / "src" / "model"
-    assert set(os.listdir(model_dir)) == set(
-        ["default_lib0.c", "default_lib1.c", "model.tar"]
-    )
+    assert set(os.listdir(model_dir)) == set(["default_lib0.c", "default_lib1.c", "model.tar"])
+
+
+def test_model_header_templating(project_dir):
+    # Ensure model.h was templated with correct WORKSPACE_SIZE
+    with (project_dir / "src" / "model.h").open() as f:
+        model_h = f.read()
+        assert "#define WORKSPACE_SIZE 21312" in model_h
 
 
 def test_import_rerouting(project_dir):
