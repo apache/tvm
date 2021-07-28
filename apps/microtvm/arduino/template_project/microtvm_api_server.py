@@ -99,7 +99,7 @@ class Handler(server.ProjectAPIHandler):
         "include/dmlc",
         "src/support",
         "src/runtime/minrpc",
-        "src/runtime/crt/aot_executor",
+        "src/runtime/crt/graph_executor",
         "src/runtime/crt/microtvm_rpc_common",
         "src/runtime/crt/microtvm_rpc_server",
         "src/runtime/crt/tab",
@@ -118,22 +118,13 @@ class Handler(server.ProjectAPIHandler):
             if re.match(self.PYTEST_FILE_REGEX, file_path.name):
                 file_path.unlink()
 
-    GRAPH_JSON_TEMPLATE = 'static const char* graph_json = "{}";\n'
-
-    def _create_graph_json(self, model_dir, obj):
-        graph_json = json.dumps(obj).replace('"', '\\"')
-        output = self.GRAPH_JSON_TEMPLATE.format(graph_json)
-        graph_json_path = model_dir / "graph_json.c"
-        with open(graph_json_path, "w") as out_file:
-            out_file.write(output)
-
     def _disassemble_mlf(self, mlf_tar_path, source_dir):
         with tempfile.TemporaryDirectory() as mlf_unpacking_dir:
             with tarfile.open(mlf_tar_path, "r:") as tar:
                 tar.extractall(mlf_unpacking_dir)
+                tar.extractall("/home/guberti/mlf_out")
 
             # Copy C files
-            # TODO are the defaultlib0.c the same?
             model_dir = source_dir / "model"
             model_dir.mkdir()
             for source, dest in [
@@ -141,13 +132,6 @@ class Handler(server.ProjectAPIHandler):
                 ("codegen/host/src/default_lib1.c", "default_lib1.c"),
             ]:
                 shutil.copy(os.path.join(mlf_unpacking_dir, source), model_dir / dest)
-
-            # Load graph.json, serialize to c format, and extact parameters
-            with open(os.path.join(mlf_unpacking_dir, "executor-config/graph/graph.json")) as f:
-                graph_data = json.load(f)
-
-        self._create_graph_json(model_dir, graph_data)
-        return graph_data
 
     def _print_c_array(self, l):
         c_arr_str = str(l)
@@ -169,31 +153,6 @@ class Handler(server.ProjectAPIHandler):
         "float32": "{kDLFloat, 32, 0}",
         "float64": "{kDLFloat, 64, 0}",
     }
-
-    def _populate_parameters_file(self, graph, source_dir):
-        graph_types = graph["attrs"]["dltype"]
-        graph_shapes = graph["attrs"]["shape"]
-        assert graph_types[0] == "list_str"
-        assert graph_shapes[0] == "list_shape"
-
-        template_values = {
-            "input_data_dimension": len(graph_shapes[1][0]),
-            "input_data_shape": self._print_c_array(graph_shapes[1][0]),
-            "input_data_type": self.DL_DATA_TYPE_REFERENCE[graph_types[1][0]],
-            "output_data_dimension": len(graph_shapes[1][-1]),
-            "output_data_shape": self._print_c_array(graph_shapes[1][-1]),
-            "output_data_type": self.DL_DATA_TYPE_REFERENCE[graph_types[1][-1]],
-            "input_layer_name": self._print_c_str(graph["nodes"][0]["name"]),
-        }
-
-        # Apply template values
-        with open(source_dir / "parameters.h", "r") as f:
-            template_params = Template(f.read())
-
-        parameters_h = template_params.substitute(template_values)
-
-        with open(source_dir / "parameters.h", "w") as f:
-            f.write(parameters_h)
 
     POSSIBLE_BASE_PATHS = ["src/standalone_crt/include/", "src/standalone_crt/crt_config/"]
 
@@ -255,12 +214,12 @@ class Handler(server.ProjectAPIHandler):
         self._remove_unit_tests(project_dir)
 
         # Unpack the MLF and copy the relevant files
-        graph = self._disassemble_mlf(model_library_format_path, source_dir)
+        self._disassemble_mlf(model_library_format_path, source_dir)
 
         shutil.copy2(model_library_format_path, source_dir / "model")
 
-        # Populate our parameters file
-        self._populate_parameters_file(graph, source_dir)
+        # Populate our header file
+        # TODO
 
         # Recursively change imports
         self._convert_imports(project_dir, source_dir)

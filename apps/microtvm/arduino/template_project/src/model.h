@@ -1,16 +1,17 @@
-#ifndef Model_h
-#define Model_h
+#ifndef IMPLEMENTATION_H_
+#define IMPLEMENTATION_H_
 
-#include "standalone_crt/include/tvm/runtime/crt/graph_executor.h"
-
-class Model {
- public:
-  Model();
-  void inference(void* input_data, void* output_data);
-  int infer_category(void* input_data);
-
- private:
-  TVMGraphExecutor* graph_runtime;
-};
-
+#ifdef __cplusplus
+extern "C" {
 #endif
+
+void TVMInitialize();
+
+// TODO template these void* values once MLF format has input and output data
+void TVMExecute(void* input_data, void* output_data);
+
+#ifdef __cplusplus
+}  // extern "C"
+#endif
+
+#endif  // IMPLEMENTATION_H_
