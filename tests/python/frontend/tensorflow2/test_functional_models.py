@@ -484,8 +484,6 @@ def test_tensorlist_stack():
                 in_tens[1] = np.zeros((3,), dtype="float32")
                 return in_tens
 
-            """2D array as input"""
-
             @tf.function(input_signature=[tf.TensorSpec(shape=(2, 3), dtype=tf.float32)])
             def func(self, x):
                 dtype = tf.float32
@@ -513,8 +511,6 @@ def test_tensorlist_2d():
                 in_tens[1, :, :] = np.zeros((3, 4), dtype="float32")
                 return in_tens
 
-            """2D array as input"""
-
             @tf.function(input_signature=[tf.TensorSpec(shape=(2, 3, 4), dtype=tf.float32)])
             def func(self, x):
                 dtype = tf.float32
@@ -531,18 +527,8 @@ def test_tensorlist_2d():
         run_model_graph(TensorList2D)
         run_func_graph(TensorList2D, runtime="vm")
 
-    run_test(
-        (
-            3,
-            4,
-        )
-    )
-    run_test(
-        (
-            -1,
-            -1,
-        )
-    )
+    run_test((3, 4))
+    run_test((-1, -1))
 
 
 def test_tensorlist_stack_2d():
@@ -552,8 +538,6 @@ def test_tensorlist_stack_2d():
                 in_tens = np.ones((2, 3, 4), dtype="float32")
                 in_tens[1, :, :] = np.zeros((3, 4), dtype="float32")
                 return in_tens
-
-            """2D array as input"""
 
             @tf.function(input_signature=[tf.TensorSpec(shape=(2, 3, 4), dtype=tf.float32)])
             def func(self, x):
@@ -570,18 +554,35 @@ def test_tensorlist_stack_2d():
         run_model_graph(TensorListStack2D)
         run_func_graph(TensorListStack2D, runtime="vm")
 
-    run_test(
-        (
-            3,
-            4,
-        )
-    )
-    run_test(
-        (
-            -1,
-            -1,
-        )
-    )
+    run_test((3, 4))
+    run_test((-1, -1))
+
+
+def test_tensorlist_stack_unpack():
+    def run_test(elem_shape):
+        class TensorListStack2D(tf.Module):
+            def get_input(self):
+                in_tens = np.ones((1, 3, 4), dtype="float32")
+                return in_tens
+
+            @tf.function(input_signature=[tf.TensorSpec(shape=(1, 3, 4), dtype=tf.float32)])
+            def func(self, x):
+                dtype = tf.float32
+                tl = tf.raw_ops.TensorListReserve(
+                    element_shape=elem_shape, num_elements=1, element_dtype=dtype
+                )
+                tl = tf.raw_ops.TensorListSetItem(input_handle=tl, index=0, item=x[0, :, :])
+                output = tf.raw_ops.TensorListStack(
+                    input_handle=tl, element_shape=elem_shape, element_dtype=dtype, num_elements=1
+                )
+                output = tf.raw_ops.Unpack(value=output, num=1, axis=0)
+                return output
+
+        run_model_graph(TensorListStack2D)
+        run_func_graph(TensorListStack2D, runtime="vm")
+
+    run_test((3, 4))
+    run_test((-1, -1))
 
 
 if __name__ == "__main__":
