@@ -19,10 +19,10 @@
 
 /*!
  * \file merge_dynamic_shared_memory_allocations.cc
+ * \brief Each GPU kernel is allowed to have only one dynamic shared memory allocation.
+ * This pass merges multiple TIR-level dynamic shared memory allocations into one allocation.
  */
 #include <tvm/runtime/registry.h>
-#include <tvm/tir/analysis.h>
-#include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
@@ -134,9 +134,7 @@ namespace transform {
 Pass MergeDynamicSharedMemoryAllocations() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
-    LOG(INFO) << "Before: " << f;
     n->body = MergeDynamicSharedMemoryAllocations(std::move(n->body));
-    LOG(INFO) << "After: " << f;
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.MergeDynamicSharedMemoryAllocations", {});

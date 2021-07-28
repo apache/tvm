@@ -658,7 +658,8 @@ def FlattenBuffer():
 
 
 def MergeDynamicSharedMemoryAllocations():
-    """TODO
+    """This pass merges multiple TIR-level dynamic shared memory allocations
+    into one allocation.
 
     Returns
     -------

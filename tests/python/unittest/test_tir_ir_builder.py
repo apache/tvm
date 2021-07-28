@@ -648,8 +648,8 @@ def test_dyn_shared_vectorized_store():
         tx = te.thread_axis("threadIdx.x")
         ib.scope_attr(tx, "thread_extent", tvm.tir.indexdiv(n, values_per_thread))
 
-        A_sh = ib.allocate(A.dtype, (n,), scope="shared.dyn")
-        B_sh = ib.allocate(B.dtype, (n,), scope="shared.dyn")
+        A_sh = ib.allocate(A.dtype, (n,), scope="shared.dyn")  # fp16
+        B_sh = ib.allocate(B.dtype, (n,), scope="shared.dyn")  # fp32
 
         Aptr = ib.buffer_ptr(A)
         Bptr = ib.buffer_ptr(B)
