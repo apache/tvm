@@ -557,8 +557,8 @@ def test_dyn_shared():
 @tvm.testing.requires_gpu
 def test_matmul_dyn_shared():
     n = 1024
-    A = te.placeholder((n, n), name="A", dtype="float32")
-    B = te.placeholder((n, n), name="B", dtype="float32")
+    A = te.placeholder((n, n), name="A", dtype="float16")
+    B = te.placeholder((n, n), name="B", dtype="float16")
 
     def syncthread():
         return tvm.tir.Call(None, "tir.tvm_storage_sync", tvm.runtime.convert(["shared"]))
