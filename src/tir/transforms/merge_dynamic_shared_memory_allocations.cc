@@ -66,6 +66,7 @@ class DynamicSharedMemoryRewriter : public StmtExprMutator {
         align = std::max(align, alloc->dtype.bytes() * alloc->dtype.lanes());
       }
       for (auto& alloc : dyn_shmem_allocs_) {
+        ICHECK_EQ(alloc->extents.size(), 1);
         buffer_byte_offsets_[alloc->buffer_var.get()] = merged_alloc_size_;
         merged_alloc_size_ += alloc->extents[0] * align;
       }

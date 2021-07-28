@@ -633,6 +633,66 @@ def test_matmul_dyn_shared():
         check_target(target)
 
 
+@tvm.testing.requires_gpu
+def test_dyn_shared_vectorized():
+    n = te.size_var("n")
+    A = te.placeholder((n,), name="A", dtype="float32")
+    B = te.placeholder((n,), name="B", dtype="float32")
+
+    def test_device_ir(A, B, C):
+        n = 512 # A.shape[0]
+        ib = tvm.tir.ir_builder.create()
+
+        values_per_thread = 4
+        tx = te.thread_axis("threadIdx.x")
+        ib.scope_attr(tx, "thread_extent", tvm.tir.indexdiv(n, values_per_thread))
+
+        A_sh = ib.allocate(A.dtype, (n,), scope="shared")
+        B_sh = ib.allocate(B.dtype, (n,), scope="shared")
+
+        Aptr = ib.buffer_ptr(A)
+        Bptr = ib.buffer_ptr(B)
+        Cptr = ib.buffer_ptr(C)
+
+        with ib.for_range(0, values_per_thread, kind="vectorize") as i:
+            A_sh[tx * values_per_thread + i] = Aptr[tx * values_per_thread + i]
+            B_sh[tx * values_per_thread + i] = Bptr[tx * values_per_thread + i]
+
+        with ib.for_range(0, values_per_thread) as i:
+            Cptr[tx * values_per_thread + i] = (
+                A_sh[tx * values_per_thread + i] + B_sh[tx * values_per_thread + i]
+            )
+
+        return ib.get()
+
+    C = te.extern(
+        (n,),
+        [A, B],
+        lambda ins, outs: test_device_ir(ins[0], ins[1], outs[0]),
+        name="vadd",
+        dtype="float32",
+    )
+    s = te.create_schedule(C.op)
+
+    def check_target(target):
+        if not tvm.testing.device_enabled(target):
+            return
+
+        fadd = tvm.build(s, [A, B, C], target)
+        dev = tvm.device(target, 0)
+
+        for n in [512, 1024]:
+            a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
+            b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), dev)
+            c = tvm.nd.array(np.zeros((n,), dtype=C.dtype), dev)
+            fadd(a, b, c)
+            tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy(), 1e-4, 1e-4)
+            break
+
+    for target in ["cuda", "nvptx"]:
+        check_target(target)
+
+
 if __name__ == "__main__":
     # test_prefetch()
     # test_if()
@@ -644,4 +704,5 @@ if __name__ == "__main__":
     # test_while_mandel()
     # test_while_binary_search()
     # test_dyn_shared()
-    test_matmul_dyn_shared()
+    # test_matmul_dyn_shared()
+    test_dyn_shared_vectorized()
