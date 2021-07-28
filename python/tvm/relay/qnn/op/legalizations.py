@@ -173,8 +173,11 @@ def helper_change_dtypes_to_uint8_int8(attrs, inputs, types, relay_op):
         data_modified = relay.cast(data, "int32")
         data_modified = relay.add(data_modified, relay.const(shift, "int32"))
         data_modified = relay.cast(data_modified, out_dtype)
-        zero_point_val = get_scalar_from_constant(zero_point)
-        zero_point_modified = relay.const(zero_point_val + shift, "int32")
+        if isinstance(zero_point, relay.Constant):
+            zero_point_val = get_scalar_from_constant(zero_point)
+            zero_point_modified = relay.const(zero_point_val + shift, "int32")
+        else:
+            zero_point_modified = zero_point + relay.const(shift, "int32")
         return (data_modified, zero_point_modified)
 
     # Collect the dtypes.
