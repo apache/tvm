@@ -26,9 +26,9 @@ apt-get install -y ca-certificates
 # Install arduino-cli latest version
 wget -O - https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh -s
 
-# Board manager URLs, separated by semicolons
-BOARD_MANAGER_URLS=https://github.com/sonydevworld/spresense-arduino-compatible/releases/download/generic/package_spresense_index.json
+# Board manager URLs
+SPRESENSE_URL=https://github.com/sonydevworld/spresense-arduino-compatible/releases/download/generic/package_spresense_index.json
 
 # Install supported cores from those URLS
-arduino-cli core install SPRESENSE:spresense --additional-urls ${BOARD_MANAGER_URLS}
-arduino-cli core install arduino:mbed_nano --additional-urls ${BOARD_MANAGER_URLS}
+arduino-cli core install SPRESENSE:spresense --additional-urls ${SPRESENSE_URL}
+arduino-cli core install arduino:mbed_nano
