@@ -32,7 +32,33 @@ export PYTHONPATH="${TVM_PATH}/python"
 export TVM_PYTEST_RESULT_DIR="${TVM_PATH}/build/pytest-results"
 mkdir -p "${TVM_PYTEST_RESULT_DIR}"
 
+if [ -n "${CI_PYTEST_NUM_CPUS-}" ]; then
+    PYTEST_NUM_CPUS=${CI_PYTEST_NUM_CPUS}
+else
+    PYTEST_NUM_CPUS=$(nproc)
+    if [ -z "${PYTEST_NUM_CPUS}" ]; then
+        PYTEST_NUM_CPUS=1
+    elif [ ${PYTEST_NUM_CPUS} -gt 1 ]; then
+        PYTEST_NUM_CPUS=$(expr ${PYTEST_NUM_CPUS} - 1)  # Don't nuke interactive work.
+    fi
+fi
+
+if [ ${PYTEST_NUM_CPUS} -gt 8 ]; then
+    PYTEST_NUM_CPUS=8  # It usually doesn't make sense to launch > 8 workers
+fi
+
+# DNS: remove after we actually fix up CI_PYTEST_NUM_CPUS in Jenkinsfile
+if [ ${PYTEST_NUM_CPUS} -gt 2 ]; then
+    PYTEST_NUM_CPUS=2  # Fix to 2 CPUs for Jenkins
+fi
+
+
 function run_pytest() {
+    local extra_args=( )
+    if [ "$1" == "--parallel" ]; then
+        extra_args=( "${extra_args[@]}" -n "${PYTEST_NUM_CPUS}" )
+        shift
+    fi
     local ffi_type="$1"
     shift
     local test_suite_name="$1"
@@ -46,5 +72,6 @@ function run_pytest() {
            -o "junit_suite_name=${test_suite_name}-${ffi_type}" \
            "--junit-xml=${TVM_PYTEST_RESULT_DIR}/${test_suite_name}-${ffi_type}.xml" \
            "--junit-prefix=${ffi_type}" \
+           "${extra_args[@]}" \
            "$@"
 }

@@ -40,8 +40,8 @@ cp ${VTA_HW_PATH}/config/fsim_sample.json ${VTA_HW_PATH}/config/vta_config.json
 
 # Run unit tests in functional/fast simulator
 echo "Running unittest in fsim..."
-run_pytest cython python-vta-fsim-unittest ${TVM_PATH}/vta/tests/python/unittest
+run_pytest --parallel cython python-vta-fsim-unittest ${TVM_PATH}/vta/tests/python/unittest
 
 # Run unit tests in functional/fast simulator
 echo "Running integration test in fsim..."
-run_pytest cython python-vta-fsim-integration ${TVM_PATH}/vta/tests/python/integration
+run_pytest --parallel cython python-vta-fsim-integration ${TVM_PATH}/vta/tests/python/integration

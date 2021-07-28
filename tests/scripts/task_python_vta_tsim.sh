@@ -58,11 +58,11 @@ make -C ${VTA_HW_PATH}/hardware/chisel USE_THREADS=0 lib
 
 # Run unit tests in cycle accurate simulator
 echo "Running unittest in tsim..."
-run_pytest cython python-vta-tsim-unittest ${TVM_PATH}/vta/tests/python/unittest
+run_pytest --parallel cython python-vta-tsim-unittest ${TVM_PATH}/vta/tests/python/unittest
 
 # Run unit tests in cycle accurate simulator
 echo "Running integration test in tsim..."
-run_pytest cython python-vta-tsim-integration ${TVM_PATH}/vta/tests/python/integration
+run_pytest --parallel cython python-vta-tsim-integration ${TVM_PATH}/vta/tests/python/integration
 
 # Reset default fsim simulation
 cp ${VTA_HW_PATH}/config/fsim_sample.json ${VTA_HW_PATH}/config/vta_config.json
