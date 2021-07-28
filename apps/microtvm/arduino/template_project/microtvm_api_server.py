@@ -53,6 +53,11 @@ BOARD_PROPERTIES = {
     },
 }
 
+PROJECT_TYPES = [
+    "template_project",
+    "host_driven"
+]
+
 PROJECT_OPTIONS = [
     server.ProjectOption(
         "arduino_board",
@@ -61,6 +66,11 @@ PROJECT_OPTIONS = [
     ),
     server.ProjectOption("arduino_cli_cmd", help="Path to the arduino-cli tool."),
     server.ProjectOption("port", help="Port to use for connecting to hardware"),
+    server.ProjectOption(
+        "project_type",
+        help="Type of project to generate.",
+        choices=tuple(PROJECT_TYPES),
+    ),
     server.ProjectOption(
         "verbose", help="True to pass --verbose flag to arduino-cli compile and upload"
     ),
@@ -82,6 +92,12 @@ class Handler(server.ProjectAPIHandler):
             project_options=PROJECT_OPTIONS,
         )
 
+    def _copy_project_files(self, api_server_dir, project_dir, project_type):
+        project_types_folder = api_server_dir.parents[0]
+        shutil.copytree(project_types_folder / project_type / "src", project_dir / "src", dirs_exist_ok=True)
+        # Arduino requires the .ino file have the same filename as its containing folder
+        shutil.copy2(project_types_folder / project_type / "project.ino", project_dir / f"{project_dir.stem}.ino")
+
     CRT_COPY_ITEMS = ("include", "src")
 
     def _copy_standalone_crt(self, source_dir, standalone_crt_dir):
@@ -96,36 +112,12 @@ class Handler(server.ProjectAPIHandler):
                 shutil.copy2(src_path, dst_path)
 
     UNUSED_COMPONENTS = [
-        "include/dmlc",
-        "src/support",
-        "src/runtime/minrpc",
-        "src/runtime/crt/aot_executor",
-        "src/runtime/crt/microtvm_rpc_common",
-        "src/runtime/crt/microtvm_rpc_server",
-        "src/runtime/crt/tab",
+
     ]
 
     def _remove_unused_components(self, source_dir):
         for component in self.UNUSED_COMPONENTS:
             shutil.rmtree(source_dir / "standalone_crt" / component)
-
-    # We need to remove these duplicate copies of unit tests from the
-    # tree to avoid pytest finding two copies
-    PYTEST_FILE_REGEX = r"(?:test_.*\.py)|(?:.*_test\.py)"
-
-    def _remove_unit_tests(self, source_dir):
-        for file_path in source_dir.rglob(f"*.py"):
-            if re.match(self.PYTEST_FILE_REGEX, file_path.name):
-                file_path.unlink()
-
-    GRAPH_JSON_TEMPLATE = 'static const char* graph_json = "{}";\n'
-
-    def _create_graph_json(self, model_dir, obj):
-        graph_json = json.dumps(obj).replace('"', '\\"')
-        output = self.GRAPH_JSON_TEMPLATE.format(graph_json)
-        graph_json_path = model_dir / "graph_json.c"
-        with open(graph_json_path, "w") as out_file:
-            out_file.write(output)
 
     def _disassemble_mlf(self, mlf_tar_path, source_dir):
         with tempfile.TemporaryDirectory() as mlf_unpacking_dir:
@@ -133,7 +125,6 @@ class Handler(server.ProjectAPIHandler):
                 tar.extractall(mlf_unpacking_dir)
 
             # Copy C files
-            # TODO are the defaultlib0.c the same?
             model_dir = source_dir / "model"
             model_dir.mkdir()
             for source, dest in [
@@ -142,62 +133,57 @@ class Handler(server.ProjectAPIHandler):
             ]:
                 shutil.copy(os.path.join(mlf_unpacking_dir, source), model_dir / dest)
 
-            # Load graph.json, serialize to c format, and extact parameters
-            with open(os.path.join(mlf_unpacking_dir, "executor-config/graph/graph.json")) as f:
-                graph_data = json.load(f)
+            # Return metadata.json for use in templating
+            with open(os.path.join(mlf_unpacking_dir, "metadata.json")) as f:
+                metadata = json.load(f)
+        return metadata
 
-        self._create_graph_json(model_dir, graph_data)
-        return graph_data
-
-    def _print_c_array(self, l):
-        c_arr_str = str(l)
-        return "{" + c_arr_str[1:-1] + "}"
-
-    def _print_c_str(self, s):
-        return '"{}"'.format(s)
-
-    DL_DATA_TYPE_REFERENCE = {
-        "uint8": "{kDLUInt, 8, 0}",
-        "uint16": "{kDLUInt, 16, 0}",
-        "uint32": "{kDLUInt, 32, 0}",
-        "uint64": "{kDLUInt, 64, 0}",
-        "int8": "{kDLInt, 8, 0}",
-        "int16": "{kDLInt, 16, 0}",
-        "int32": "{kDLInt, 32, 0}",
-        "int64": "{kDLInt, 64, 0}",
-        "float16": "{kDLFloat, 16, 0}",
-        "float32": "{kDLFloat, 32, 0}",
-        "float64": "{kDLFloat, 64, 0}",
-    }
-
-    def _populate_parameters_file(self, graph, source_dir):
-        graph_types = graph["attrs"]["dltype"]
-        graph_shapes = graph["attrs"]["shape"]
-        assert graph_types[0] == "list_str"
-        assert graph_shapes[0] == "list_shape"
+    def _template_model_header(self, source_dir, metadata):
+        with open(source_dir / "model.h", "r") as f:
+            model_h_template = Template(f.read())
 
         template_values = {
-            "input_data_dimension": len(graph_shapes[1][0]),
-            "input_data_shape": self._print_c_array(graph_shapes[1][0]),
-            "input_data_type": self.DL_DATA_TYPE_REFERENCE[graph_types[1][0]],
-            "output_data_dimension": len(graph_shapes[1][-1]),
-            "output_data_shape": self._print_c_array(graph_shapes[1][-1]),
-            "output_data_type": self.DL_DATA_TYPE_REFERENCE[graph_types[1][-1]],
-            "input_layer_name": self._print_c_str(graph["nodes"][0]["name"]),
+            "workspace_size_bytes": metadata["memory"]["functions"]["main"][0][
+                "workspace_size_bytes"
+            ],
         }
 
-        # Apply template values
-        with open(source_dir / "parameters.h", "r") as f:
-            template_params = Template(f.read())
+        with open(source_dir / "model.h", "w") as f:
+            f.write(model_h_template.substitute(template_values))
 
-        parameters_h = template_params.substitute(template_values)
 
-        with open(source_dir / "parameters.h", "w") as f:
-            f.write(parameters_h)
+    # Arduino ONLY recognizes .ino, .ccp, .c, .h
+
+    CPP_FILE_EXTENSION_SYNONYMS = ("cc", "cxx")
+    def _change_cpp_file_extensions(self, source_dir):
+        for ext in self.CPP_FILE_EXTENSION_SYNONYMS:
+            for filename in source_dir.rglob(f"*.{ext}"):
+                filename.rename(filename.with_suffix('.cpp'))
+
+        for filename in source_dir.rglob(f"*.inc"):
+            filename.rename(filename.with_suffix('.h'))
+
+
+    def _process_autogenerated_inc_files(self, source_dir):
+        for filename in source_dir.rglob(f"*.inc"):
+            # Individual file fixes
+            if filename.stem == "gentab_ccitt":
+                with open(filename, 'r+') as f:
+                    content = f.read()
+                    f.seek(0, 0)
+                    f.write('#include "inttypes.h"\n' + content)
+
+            filename.rename(filename.with_suffix('.c'))
 
     POSSIBLE_BASE_PATHS = ["src/standalone_crt/include/", "src/standalone_crt/crt_config/"]
 
     def _find_modified_include_path(self, project_dir, file_path, import_path):
+        # If the import is for a .inc file we renamed to .c earlier, fix it
+        if import_path.endswith(self.CPP_FILE_EXTENSION_SYNONYMS):
+            import_path = re.sub(r'\.[a-z]+$', ".cpp", import_path)
+
+        if import_path.endswith(".inc"):
+            import_path = re.sub(r'\.[a-z]+$', ".h", import_path)
 
         # If the import already works, don't modify it
         if (file_path.parents[0] / import_path).exists():
@@ -219,7 +205,7 @@ class Handler(server.ProjectAPIHandler):
     # Arduino only supports imports relative to the top-level project,
     # so we need to adjust each import to meet this convention
     def _convert_imports(self, project_dir, source_dir):
-        for ext in ("c", "h"):
+        for ext in ("c", "h", "cpp"):
             for filename in source_dir.rglob(f"*.{ext}"):
                 with filename.open() as file:
                     lines = file.readlines()
@@ -239,28 +225,30 @@ class Handler(server.ProjectAPIHandler):
                     file.writelines(lines)
 
     def generate_project(self, model_library_format_path, standalone_crt_dir, project_dir, options):
-        # Copy template folder to project_dir, creating project/ and src/
-        # directories in the process. Also copies this file, microtvm_api_server.py,
-        # in case TVM needs to call it from the new location
-        if IS_TEMPLATE:
-            shutil.copytree(API_SERVER_DIR, project_dir, dirs_exist_ok=True)
-
         # Reference key directories with pathlib
         project_dir = pathlib.Path(project_dir)
+        project_dir.mkdir()
         source_dir = project_dir / "src"
+        source_dir.mkdir()
+
+        # Copies files from the template folder to project_dir. model.h is copied here,
+        # but will also need to be templated later.
+        if IS_TEMPLATE:
+            shutil.copy2(API_SERVER_DIR / "microtvm_api_server.py", project_dir)
+            self._copy_project_files(API_SERVER_DIR, project_dir, options["project_type"])
 
         # Copy standalone_crt into src folder
         self._copy_standalone_crt(source_dir, standalone_crt_dir)
         self._remove_unused_components(source_dir)
-        self._remove_unit_tests(project_dir)
 
         # Unpack the MLF and copy the relevant files
-        graph = self._disassemble_mlf(model_library_format_path, source_dir)
-
+        metadata = self._disassemble_mlf(model_library_format_path, source_dir)
         shutil.copy2(model_library_format_path, source_dir / "model")
 
-        # Populate our parameters file
-        self._populate_parameters_file(graph, source_dir)
+        # Template model.h with metadata to minimize space usage
+        self._template_model_header(source_dir, metadata)
+
+        self._change_cpp_file_extensions(source_dir)
 
         # Recursively change imports
         self._convert_imports(project_dir, source_dir)

@@ -4,12 +4,10 @@
 #include "src/data/unknown.c"
 #include "src/data/silence.c"
 
-static Model model;
-
 void performInference(int8_t input_data[1960], char *data_name) {
   int8_t output_data[4];
   uint64_t start_time = micros();
-  model.inference(input_data, output_data);
+  TVMExecute(input_data, output_data);
   uint64_t end_time = micros();
 
   Serial.print(data_name);
@@ -24,7 +22,7 @@ void performInference(int8_t input_data[1960], char *data_name) {
 }
 
 void setup() {
-  model = Model();
+  TVMInitialize();
   Serial.begin(115200);
 }
 

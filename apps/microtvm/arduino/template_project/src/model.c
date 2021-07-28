@@ -1,30 +1,19 @@
-#ifndef IMPLEMENTATION
-#define IMPLEMENTATION
+#ifndef TVM_IMPLEMENTATION_ARDUINO
+#define TVM_IMPLEMENTATION_ARDUINO
+
+#include "model.h"
 
 #include "Arduino.h"
-#include "standalone_crt/include/tvm/runtime/c_runtime_api.h"
-#include "standalone_crt/include/tvm/runtime/crt/graph_executor.h"
-#include "standalone_crt/include/tvm/runtime/crt/logging.h"
+#include "standalone_crt/include/tvm/runtime/crt/internal/aot_executor/aot_executor.h"
 #include "standalone_crt/include/tvm/runtime/crt/stack_allocator.h"
 
-size_t TVMPlatformFormatMessage(char* out_buf, size_t out_buf_size_bytes, const char* fmt,
-                                va_list args) {
-  return 0;
-}
-
-void TVMLogf(const char* msg, ...) {
-  /*char buffer[256];
-  int size;
-  va_list args;
-  va_start(args, msg);
-  size = vsprintf(buffer, msg, args);
-  va_end(args);
-  TVMPlatformWriteSerial(buffer, (uint32_t)size);*/
-}
+// AOT memory array
+static uint8_t g_aot_memory[WORKSPACE_SIZE];
+extern tvm_model_t tvmgen_default_network;
+tvm_workspace_t app_workspace;
 
 // Blink code for debugging purposes
 void TVMPlatformAbort(tvm_crt_error_t error) {
-  // pinMode(LED_BUILTIN, OUTPUT);
   for (;;) {
     digitalWrite(LED_BUILTIN, HIGH);
     delay(250);
@@ -37,21 +26,14 @@ void TVMPlatformAbort(tvm_crt_error_t error) {
   }
 }
 
-// Heap for use by TVMPlatformMemoryAllocate.
+void TVMLogf(const char* msg, ...) {}
 
-// Called by TVM to allocate memory.
 tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLDevice dev, void** out_ptr) {
-  if (num_bytes == 0) {
-    num_bytes = sizeof(int);
-  }
-  *out_ptr = malloc(num_bytes);
-  return (*out_ptr == NULL) ? kTvmErrorPlatformNoMemory : kTvmErrorNoError;
+  return StackMemoryManager_Allocate(&app_workspace, num_bytes, out_ptr);
 }
 
-// Called by TVM to deallocate memory.
 tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
-  free(ptr);
-  return kTvmErrorNoError;
+  return StackMemoryManager_Free(&app_workspace, ptr);
 }
 
 unsigned long g_utvm_start_time;
@@ -84,6 +66,18 @@ tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
     buffer[i] = rand();
   }
   return kTvmErrorNoError;
+}
+
+void TVMInitialize() { StackMemoryManager_Init(&app_workspace, g_aot_memory, WORKSPACE_SIZE); }
+
+void TVMExecute(void* input_data, void* output_data) {
+  void* inputs[1] = {
+      input_data,
+  };
+  void* outputs[1] = {
+      output_data,
+  };
+  int ret_val = tvm_runtime_run(&tvmgen_default_network, inputs, outputs);
 }
 
 #endif

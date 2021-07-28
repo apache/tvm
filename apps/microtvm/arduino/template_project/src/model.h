@@ -1,16 +1,19 @@
-#ifndef Model_h
-#define Model_h
+#ifndef IMPLEMENTATION_H_
+#define IMPLEMENTATION_H_
 
-#include "standalone_crt/include/tvm/runtime/crt/graph_executor.h"
+#define WORKSPACE_SIZE 0
 
-class Model {
- public:
-  Model();
-  void inference(void* input_data, void* output_data);
-  int infer_category(void* input_data);
-
- private:
-  TVMGraphExecutor* graph_runtime;
-};
-
+#ifdef __cplusplus
+extern "C" {
 #endif
+
+#include "standalone_crt/include/tvm/runtime/crt/logging.h"
+
+void TVMLogf(const char* msg, ...);
+void TVMPlatformAbort(tvm_crt_error_t error);
+
+#ifdef __cplusplus
+}  // extern "C"
+#endif
+
+#endif  // IMPLEMENTATION_H_

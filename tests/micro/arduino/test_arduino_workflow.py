@@ -55,13 +55,13 @@ def _generate_project(model, target, arduino_board, arduino_cli_cmd, mod, build_
         str(template_project_dir),
         mod,
         workspace.relpath("project"),
-        {"arduino_board": arduino_board, "arduino_cli_cmd": arduino_cli_cmd, "verbose": 0},
+        {"arduino_board": arduino_board, "arduino_cli_cmd": arduino_cli_cmd, "project_type": "template_project", "verbose": 0},
     )
     return (workspace, project)
 
 
 # This is bad, don't do this
-TARGET = "c -keys=cpu -link-params=1 -mcpu=cortex-m33 -model=nrf5340dk -runtime=c -system-lib=1"
+TARGET = "c -keys=cpu -executor=aot -link-params=1 -model=host -runtime=c -unpacked-api=1"
 
 
 @pytest.fixture(scope="module")
@@ -79,7 +79,6 @@ def yes_no_project(platform, arduino_cli_cmd):
         mod = relay.build(mod, TARGET, params=params)
 
     return _generate_project(model, TARGET, arduino_board, arduino_cli_cmd, mod, build_config)
-    # return tvm.micro.Session(project.transport())
 
 
 @pytest.fixture(scope="module")
@@ -98,39 +97,31 @@ def test_project_folder_structure(project_dir):
     assert set(["microtvm_api_server.py", "project.ino", "src"]).issubset(os.listdir(project_dir))
 
     source_dir = project_dir / "src"
-    assert set(os.listdir(source_dir)) == set(
-        ["model", "standalone_crt", "implementation.c", "model.cpp", "model.h", "parameters.h"]
-    )
+    assert set(os.listdir(source_dir)) == set(["model", "standalone_crt", "model.c", "model.h"])
 
 
 def test_project_model_integrity(project_dir):
     model_dir = project_dir / "src" / "model"
-    assert set(os.listdir(model_dir)) == set(
-        ["default_lib0.c", "default_lib1.c", "graph_json.c", "model.tar"]
-    )
-    with (model_dir / "graph_json.c").open() as f:
-        graph_json_c = f.read()
-        assert "static const char* graph_json" in graph_json_c
+    assert set(os.listdir(model_dir)) == set(["default_lib0.c", "default_lib1.c", "model.tar"])
 
 
-def test_parameter_header_templating(project_dir):
-    # Ensure parameters.h was templated with correct information
-    # for our yes/no model
-    with (project_dir / "src" / "parameters.h").open() as f:
-        parameters_h = f.read()
-        assert "INPUT_DATA_SHAPE[] = {1, 1960};" in parameters_h
+def test_model_header_templating(project_dir):
+    # Ensure model.h was templated with correct WORKSPACE_SIZE
+    with (project_dir / "src" / "model.h").open() as f:
+        model_h = f.read()
+        assert "#define WORKSPACE_SIZE 21312" in model_h
 
 
 def test_import_rerouting(project_dir):
     # Check one file to ensure imports were rerouted
-    runtime_c_path = project_dir / "src" / "standalone_crt" / "src" / "runtime"
-    load_json_path = runtime_c_path / "crt" / "graph_executor" / "load_json.c"
-    assert load_json_path.exists()
+    runtime_path = project_dir / "src" / "standalone_crt" / "src" / "runtime"
+    c_backend_api_path = runtime_path / "crt" / "common" / "crt_backend_api.c"
+    assert c_backend_api_path.exists()
 
-    with (load_json_path).open() as f:
-        load_json_c = f.read()
-        assert '#include "stdlib.h"' in load_json_c
-        assert "include/tvm/runtime/crt/platform.h" in load_json_c
+    with c_backend_api_path.open() as f:
+        c_backend_api_c = f.read()
+        assert '#include "inttypes.h"' in c_backend_api_c
+        assert "include/tvm/runtime/crt/platform.h" in c_backend_api_c
 
 
 # Build on top of the generated project by replacing the
