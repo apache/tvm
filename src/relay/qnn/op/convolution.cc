@@ -477,7 +477,6 @@ Expr Conv2DSecondTerm(const Expr& padded_data, const Expr& kernel_zero_point,
 
   auto multiplied_t2 = reduced_t2;
   auto one_scalar = MakeConstantScalar(DataType::Int(32), 1);
-  std::cout << "Reduced T2: " << PrettyPrint(transform::InferType()(IRModule::FromExpr(reduced_t2))) << std::endl;
   if (!IsEqualScalar(kernel_zero_point, one_scalar)) {
     if (!IsConstScalar(kernel_zero_point)) {
       Layout layout(param->data_layout);
@@ -734,19 +733,15 @@ Expr QnnConv2DCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   bool supported_groups = (param->groups == 1 || is_depthwise(param));
   bool conv2d_params_supported = supported_dilation && supported_groups;
   if (!conv2d_params_supported) {
-    std::cout << "FALLBACK" << std::endl;
     return Conv2DFallBack(data, weight, input_zero_point, kernel_zero_point, param);
   } else if (is_depthwise(param)) {
     ICHECK_NE(channel_multiplier, -1);
     auto padded_data = Conv2DPadInput(data, input_zero_point, param);
     auto term1 = Conv2DFirstTerm(padded_data, weight, param);
-    std::cout << "term1" << PrettyPrint(transform::InferType()(IRModule::FromExpr(term1))) << std::endl;
     auto term2 = DepthwiseConv2DSecondTerm(padded_data, kernel_zero_point, param, kernel_h,
                                            kernel_w, channel_multiplier);
-    std::cout << "term2" << PrettyPrint(transform::InferType()(IRModule::FromExpr(term2))) << std::endl;
     auto term3 =
         DepthwiseConv2DThirdTerm(weight, input_zero_point, param, out_channels, channel_multiplier);
-    std::cout << "term3" << PrettyPrint(transform::InferType()(IRModule::FromExpr(term3))) << std::endl;
     Expr term4;
     if (dynamic_zp) {
       term4 = DepthwiseConv2DFourthTerm(input_zero_point_int, kernel_zero_point, kernel_h, kernel_w);
@@ -754,7 +749,6 @@ Expr QnnConv2DCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
       term4 = DepthwiseConv2DFourthTerm(input_zero_point_int, kernel_zero_point_int, kernel_h,
                                         kernel_w);
     }
-    std::cout << "term4" << PrettyPrint(transform::InferType()(IRModule::FromExpr(term4))) << std::endl;
     return Conv2DCombineTerms(term1, term2, term3, term4, input_zero_point_int,
                               kernel_zero_point_int);
   }
