@@ -23,6 +23,7 @@ for Relay.
 from .mxnet import from_mxnet
 from .mxnet_qnn_op_utils import quantize_conv_bias_mkldnn_from_var
 from .keras import from_keras
+from .oneflow import from_oneflow
 from .onnx import from_onnx
 from .tflite import from_tflite
 from .coreml import from_coreml
