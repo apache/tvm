@@ -21,7 +21,6 @@ set -u
 set -o pipefail
 
 export DEBIAN_FRONTEND=noninteractive
-apt-get update --fix-missing
 apt-get install -y ca-certificates
 
 # Install arduino-cli latest version
