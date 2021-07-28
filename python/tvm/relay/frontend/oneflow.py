@@ -121,7 +121,7 @@ def parse_attr(attr):
 
 
 def fix_outputs(op_name, outputs):
-    if op_name.lower() == "Dropout":
+    if op_name.lower() == "dropout":
         if len(outputs) == 1:
             return outputs
         # TODO(zhreshold): support dropout mask? `onnx.py`
@@ -531,13 +531,13 @@ class MatMul(OneFlowOpConverter):
         # Similar to 'class Conv'
         true_names = ["-b"]
         false_names = ["-in", "out_0"]
-        for i in range(2):
-            T_NAMES = any(x in str(inputs[i]) for x in true_names)
-            F_NAMES = any(x in str(inputs[i]) for x in false_names)
+        for i in inputs:
+            T_NAMES = any(x in str(i) for x in true_names)
+            F_NAMES = any(x in str(i) for x in false_names)
             if T_NAMES and not F_NAMES:
-                matmul_b = inputs[i]
+                matmul_b = i
             else:
-                matmul_a = inputs[i]
+                matmul_a = i
 
         dtype = infer_type(matmul_a).checked_type.dtype
 
@@ -572,13 +572,13 @@ class Add(OneFlowOpConverter):
         true_names = ["-b"]
         false_names = ["-in", "out_0"]
 
-        for i in range(2):
-            T_NAMES = any(x in str(inputs[i]) for x in true_names)
-            F_NAMES = any(x in str(inputs[i]) for x in false_names)
+        for i in inputs:
+            T_NAMES = any(x in str(i) for x in true_names)
+            F_NAMES = any(x in str(i) for x in false_names)
             if T_NAMES and not F_NAMES:
-                add_b = inputs[i]
+                add_b = i
             else:
-                add_a = inputs[i]
+                add_a = i
         
         # fix the shape
         add_shape = infer_shape(add_a)
@@ -934,7 +934,7 @@ class OneflowGraph(object):
             node = nodes[node_name]
             if is_user_op(node):
                 for input_name in node.user_conf.input:
-                    node_init_name = node_name + '-' + input_name
+                    node_init_name = os.path.join(node_name, input_name)
                     node_input_paths = getattr(node.user_conf.input[input_name], 's')
                     for i in range(len(node_input_paths)):
                         node_input_path = os.path.join(model_dir_path, node_input_paths[i])
@@ -960,9 +960,6 @@ class OneflowGraph(object):
                                     shape=node_array.shape,
                                     dtype=str(node_array.dtype)
                                 )
-
-        for node_name in nodes:
-            node = nodes[node_name]
             if is_output_op(node):
                 output_path = os.path.join(model_dir_path, getattr(node.return_conf, "in"))
                 self._output_path_2_name[output_path] = node_name + output_path
@@ -970,7 +967,7 @@ class OneflowGraph(object):
 
     def _parse_input(self, node, model_dir_path):
         for input_name in node.user_conf.input:
-            node_input_name = node.name + '-' + input_name
+            node_input_name = os.path.join(node.name, input_name)
             node_input_paths = getattr(node.user_conf.input[input_name], 's')
             for i in node_input_paths:
                 node_input_path = os.path.join(model_dir_path, i)
@@ -1017,7 +1014,7 @@ class OneflowGraph(object):
             {
                 node1_name: 
                 {
-                    'name':  node1_name,   # str, like "conv1-in./model_path/Input_0"
+                    'name':  node1_name,   # str, like "%MobilenetV2-Conv/in./mode_dir_path/Input_0/out"
                     'shape': node1_shape,  # tuple
                     'dtype': node1_dtype   # str, like "float16"
                 }
@@ -1037,7 +1034,7 @@ class OneflowGraph(object):
         if not freeze_params:
             for node_init_name in user_input:
                 if "Input_0" not in node_init_name:
-                    raise KeyError("the key of user_input should be: name of network layer 1(like \'conv1\') + \'-in\'")
+                    raise KeyError("user_input['name'] should contain 'Input_0' to let program know that this is input node")
                 else:
                     self._nodes[node_init_name] = new_var(
                         node_init_name,
@@ -1083,19 +1080,19 @@ class OneflowGraph(object):
 
                 node_inputs = oneflow_input()
                 for input_name in node.user_conf.input:
-                    node_input_name = node_name + '-' + input_name
+                    node_input_name = os.path.join(node_name, input_name)
                     node_input_paths = getattr(node.user_conf.input[input_name], 's')
-                    for i in range(len(node_input_paths)):
-                        node_input_path = os.path.join(model_dir_path, node_input_paths[i])
+                    for i in node_input_paths:
+                        node_input_path = os.path.join(model_dir_path, i)
                         node_name_ = node_input_name + node_input_path
                         node_inputs[node_name_] = self._nodes[node_name_]
 
                 node_outputs = []
                 for output_name in node.user_conf.output:
-                    node_output_name = node_name + '-' + output_name
+                    node_output_name = os.path.join(node_name, output_name)
                     node_output_paths = getattr(node.user_conf.output[output_name], 's')
-                    for i in range(len(node_output_paths)):
-                        node_output_path = os.path.join(model_dir_path, node_output_paths[i])
+                    for i in node_output_paths:
+                        node_output_path = os.path.join(model_dir_path, i)
                         if node_output_path in self._input_path_2_name:
                             node_outputs.append(self._input_path_2_name[node_output_path])
                         elif node_output_path in self._output_path_2_name:
@@ -1207,7 +1204,6 @@ def from_oneflow(eval_job, model_dir_path, freeze_params=True, user_input=None):
     """
     try:
         import oneflow
-        import oneflow.experimental as flow
 
         oneflow.config.enable_legacy_model_io(False)
 
@@ -1223,7 +1219,7 @@ def from_oneflow(eval_job, model_dir_path, freeze_params=True, user_input=None):
         warnings.warn("'user_input' will not work, please check the 'freeze_params'")
 
     # Get all possible information of the job function, used to get the user's job
-    job_set = flow.get_job_set()
+    job_set = oneflow.experimental.get_job_set()
 
     # get all nodes TODO(hujiakui): only support 0.4.0
     nodes = {}
