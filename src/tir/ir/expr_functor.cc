@@ -276,7 +276,7 @@ PrimExpr ExprMutator::VisitExpr_(const RampNode* op) {
   if (base.same_as(op->base) && stride.same_as(op->stride)) {
     return GetRef<PrimExpr>(op);
   } else {
-    return Ramp(base, stride, op->lanes);
+    return Ramp(base, stride, op->lanes, op->is_scalable);
   }
 }
 
@@ -284,6 +284,8 @@ PrimExpr ExprMutator::VisitExpr_(const BroadcastNode* op) {
   PrimExpr value = this->VisitExpr(op->value);
   if (value.same_as(op->value)) {
     return GetRef<PrimExpr>(op);
+  } else if (op->dtype.is_scalable()) {
+    return Broadcast(value, op->lanes, true);
   } else {
     return Broadcast(value, op->lanes);
   }

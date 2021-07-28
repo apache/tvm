@@ -44,6 +44,9 @@ void FeatureVisitor::VisitStmt_(const ForNode* op) {
     case ForKind::kVectorized:
       ann = kVectorized;
       break;
+    case ForKind::kVectorizedScalable:
+      ann = kVectorizedScalable;
+      break;
     case ForKind::kSerial:
       ann = kSerial;
       break;

@@ -353,6 +353,15 @@ Stage& Stage::vectorize(IterVar var) {  // NOLINT(*)
   return *this;
 }
 
+Stage& Stage::vectorize_scalable(IterVar var) {  // NOLINT(*)
+  ICHECK(var->iter_type == kDataPar || var->iter_type == kOpaque || var->iter_type == kUnrolled ||
+         var->iter_type == kVectorized || var->iter_type == kTensorized ||
+         var->iter_type == kParallelized)
+      << "Cannot vectorize on " << IterVarType2String(var->iter_type);
+  SetAttrIterType(operator->(), var, kVectorizedScalable);
+  return *this;
+}
+
 Stage& Stage::tensorize(IterVar var, TensorIntrin f) {  // NOLINT(*)
   UpdateIterVarAttr(operator->(), var, [f](IterVarAttrNode* n) {
     n->iter_type = kTensorized;
@@ -866,6 +875,8 @@ TVM_REGISTER_GLOBAL("te.StageSetStorePredicate").set_body_method(&Stage::set_sto
 TVM_REGISTER_GLOBAL("te.StageUnroll").set_body_method(&Stage::unroll);
 
 TVM_REGISTER_GLOBAL("te.StageVectorize").set_body_method(&Stage::vectorize);
+
+TVM_REGISTER_GLOBAL("te.StageVectorizeScalable").set_body_method(&Stage::vectorize_scalable);
 
 TVM_REGISTER_GLOBAL("te.StageTensorize").set_body_method(&Stage::tensorize);
 

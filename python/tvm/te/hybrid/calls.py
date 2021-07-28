@@ -34,6 +34,7 @@ LOOP_INTRIN = {
     "unroll": ForKind.UNROLLED,
     "parallel": ForKind.PARALLEL,
     "vectorize": ForKind.VECTORIZED,
+    "vectorize_scalable": ForKind.VECTORIZED_SCALABLE,
     "const_range": (ForKind.UNROLLED,),
 }
 

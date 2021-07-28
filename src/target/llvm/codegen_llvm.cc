@@ -403,6 +403,9 @@ llvm::Type* CodeGenLLVM::DTypeToLLVMType(const DataType& dtype) const {
   }
   if (dtype.lanes() != 1) {
 #if TVM_LLVM_VERSION >= 110
+    if (dtype.is_scalable()) {
+      return llvm::ScalableVectorType::get(etype, dtype.lanes());
+    }
     return llvm::FixedVectorType::get(etype, dtype.lanes());
 #else
     return llvm::VectorType::get(etype, dtype.lanes());
@@ -558,9 +561,15 @@ std::unique_ptr<CodeGenLLVM::DebugInfo> CodeGenLLVM::CreateDebugInfo(llvm::Modul
   return debug_info;
 }
 
-llvm::Value* CodeGenLLVM::CreateBroadcast(llvm::Value* value, int lanes) {
+llvm::Value* CodeGenLLVM::CreateBroadcast(llvm::Value* value, int lanes, bool is_scalable) {
 #if TVM_LLVM_VERSION >= 110
-  llvm::Type* type = llvm::FixedVectorType::get(value->getType(), lanes);
+  llvm::Type* type;
+
+  if (is_scalable) {
+    type = llvm::ScalableVectorType::get(value->getType(), lanes);
+  } else {
+    type = llvm::FixedVectorType::get(value->getType(), lanes);
+  }
 #else
   llvm::Type* type = llvm::VectorType::get(value->getType(), lanes);
 #endif
@@ -568,10 +577,12 @@ llvm::Value* CodeGenLLVM::CreateBroadcast(llvm::Value* value, int lanes) {
   llvm::Constant* zero = ConstInt32(0);
   value = builder_->CreateInsertElement(undef, value, zero);
 #if TVM_LLVM_VERSION >= 120
-  llvm::Constant* mask = llvm::ConstantVector::getSplat(llvm::ElementCount::getFixed(lanes), zero);
+  llvm::Constant* mask =
+      (is_scalable ? llvm::ConstantVector::getSplat(llvm::ElementCount::getScalable(lanes), zero)
+                   : llvm::ConstantVector::getSplat(llvm::ElementCount::getFixed(lanes), zero));
 #elif TVM_LLVM_VERSION >= 110
   llvm::Constant* mask =
-      llvm::ConstantVector::getSplat(llvm::ElementCount(lanes, /*Scalable=*/false), zero);
+      llvm::ConstantVector::getSplat(llvm::ElementCount(lanes, /*Scalable=*/is_scalable), zero);
 #else
   llvm::Constant* mask = llvm::ConstantVector::getSplat(lanes, zero);
 #endif
@@ -1253,7 +1264,7 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const ShuffleNode* op) {
 }
 
 llvm::Value* CodeGenLLVM::VisitExpr_(const BroadcastNode* op) {
-  return CreateBroadcast(MakeValue(op->value), op->lanes);
+  return CreateBroadcast(MakeValue(op->value), op->lanes, op->dtype.is_scalable());
 }
 
 void CodeGenLLVM::VisitStmt_(const StoreNode* op) {

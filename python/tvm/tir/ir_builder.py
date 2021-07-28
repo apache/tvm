@@ -257,6 +257,8 @@ class IRBuilder(object):
                 kind_id = _stmt.ForKind.VECTORIZED
             elif kind == "unroll":
                 kind_id = _stmt.ForKind.UNROLLED
+            elif kind == "vectorize_scalable":
+                kind_id = _stmt.ForKind.VECTORIZED_SCALABLE                
             else:
                 raise ValueError("Unknown kind")
             self.emit(_stmt.For(loop_var, begin, extent, kind_id, self._pop_seq()))

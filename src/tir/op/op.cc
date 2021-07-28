@@ -108,8 +108,13 @@ void BinaryOpMatchTypes(PrimExpr& lhs, PrimExpr& rhs, Span span) {  // NOLINT(*)
     lhs = tir::Broadcast(lhs, rtype.lanes());
   } else if (rtype.lanes() == 1 && ltype.lanes() != 1) {
     rhs = tir::Broadcast(rhs, ltype.lanes());
+  } else if (rtype.is_scalable() && ltype.is_scalar()) {
+    rhs = tir::Broadcast(rhs, ltype.lanes(), true);
+  } else if (rtype.is_scalar() && ltype.is_scalable()) {
+    rhs = tir::Broadcast(rhs, ltype.lanes(), true);
   } else {
-    ICHECK(ltype.lanes() == rtype.lanes()) << "Cannot match type " << ltype << " vs " << rtype;
+    ICHECK(ltype.lanes() == rtype.lanes() || (ltype.is_scalable() && rtype.is_scalable()))
+        << "Cannot match type " << ltype << " vs " << rtype;
   }
   if (lhs.dtype() == rhs.dtype()) return;
 
@@ -288,7 +293,7 @@ PrimExpr cast(const DataType& t, PrimExpr value, Span span) {
       }
       return tir::Broadcast(value, t.lanes(), span);
     } else {
-      ICHECK(value.dtype().lanes() == t.lanes());
+      ICHECK(value.dtype().lanes() == t.lanes() || value.dtype().is_scalable() == t.is_scalable());
       return tir::Cast(t, value, span);
     }
   }

@@ -69,14 +69,26 @@ class DataType {
    * \param bits The number of bits in the type.
    * \param lanes The number of lanes.
    */
-  DataType(int code, int bits, int lanes) {
+  DataType(int code, int bits, int lanes, bool is_scalable = false) {
     data_.code = static_cast<uint8_t>(code);
     data_.bits = static_cast<uint8_t>(bits);
     data_.lanes = static_cast<uint16_t>(lanes);
+    is_scalable_ = is_scalable;
     if (code == kBFloat) {
       ICHECK_EQ(bits, 16);
     }
   }
+  //  DataType(int code, int bits) {
+  //    data_.code = static_cast<uint8_t>(code);
+  //    data_.bits = static_cast<uint8_t>(bits);
+  //    is_scalable_ = true;
+  //    std::cout<<bits<<std::endl;
+  //    data_.lanes = uint16_t(128) / static_cast<uint16_t>(8); // minimal lanes
+  //
+  ////    if (code == kBFloat) {
+  ////      ICHECK_EQ(bits, 16);
+  ////    }
+  //  }
   /*! \return The type code. */
   int code() const { return static_cast<int>(data_.code); }
   /*! \return number of bits in the data. */
@@ -107,6 +119,13 @@ class DataType {
   bool is_vector_bool() const { return is_vector() && bits() == 1; }
   /*! \return whether type is a Void type. */
   bool is_void() const { return code() == DataType::kHandle && bits() == 0 && lanes() == 0; }
+  bool is_scalable() const { return is_scalable_; }
+
+  DataType with_scalable_lanes() const {
+    int min_num_lanes = 128 / bits();
+    ICHECK(min_num_lanes != 0);
+    return DataType(data_.code, data_.bits, min_num_lanes, true);
+  }
   /*!
    * \brief Create a new data type by change lanes to a specified value.
    * \param lanes The target number of lanes.
@@ -131,7 +150,7 @@ class DataType {
    */
   bool operator==(const DataType& other) const {
     return data_.code == other.data_.code && data_.bits == other.data_.bits &&
-           data_.lanes == other.data_.lanes;
+           data_.lanes == other.data_.lanes;  // && is_scalable_ == other.is_scalable_;
   }
   /*!
    * \brief NotEqual comparator.
@@ -151,21 +170,27 @@ class DataType {
    * \param lanes The number of lanes.
    * \return The constructed data type.
    */
-  static DataType Int(int bits, int lanes = 1) { return DataType(kDLInt, bits, lanes); }
+  static DataType Int(int bits, int lanes = 1, bool is_scalable = false) {
+    return DataType(kDLInt, bits, lanes, is_scalable);
+  }
   /*!
    * \brief Construct an uint type.
    * \param bits The number of bits in the type.
    * \param lanes The number of lanes
    * \return The constructed data type.
    */
-  static DataType UInt(int bits, int lanes = 1) { return DataType(kDLUInt, bits, lanes); }
+  static DataType UInt(int bits, int lanes = 1, bool is_scalable = false) {
+    return DataType(kDLUInt, bits, lanes, is_scalable);
+  }
   /*!
    * \brief Construct an float type.
    * \param bits The number of bits in the type.
    * \param lanes The number of lanes
    * \return The constructed data type.
    */
-  static DataType Float(int bits, int lanes = 1) { return DataType(kDLFloat, bits, lanes); }
+  static DataType Float(int bits, int lanes = 1, bool is_scalable = false) {
+    return DataType(kDLFloat, bits, lanes, is_scalable);
+  }
   /*!
    * \brief Construct an bfloat type.
    * \param bits The number of bits in the type.
@@ -178,7 +203,9 @@ class DataType {
    * \param lanes The number of lanes
    * \return The constructed data type.
    */
-  static DataType Bool(int lanes = 1) { return DataType::UInt(1, lanes); }
+  static DataType Bool(int lanes = 1, bool is_scalable = false) {
+    return DataType::UInt(1, lanes, is_scalable);
+  }
   /*!
    * \brief Construct a handle type.
    * \param bits The number of bits in the type.
@@ -204,6 +231,7 @@ class DataType {
   }
 
  private:
+  bool is_scalable_{false};
   DLDataType data_;
 };
 
@@ -285,6 +313,8 @@ inline DLDataType String2DLDataType(std::string s);
  */
 inline std::string DLDataType2String(DLDataType t);
 
+inline std::string VLADataType2String(DLDataType t);
+
 // implementation details
 inline const char* DLDataTypeCode2Str(DLDataTypeCode type_code) {
   switch (static_cast<int>(type_code)) {
@@ -333,6 +363,17 @@ inline std::string DLDataType2String(DLDataType t) {
   if (t.bits == 0) return "";
   std::ostringstream os;
   os << t;
+  return os.str();
+}
+
+inline std::string VLADataType2String(DataType t) {
+  if (t.bits() == 0) return "";
+  std::ostringstream os;
+  os << t.operator DLDataType();
+  //  auto const str_to_parse =  os.str();
+  //  auto pos = str_to_parse.find("x");
+  //  auto stem= str_to_parse.substr(0, pos);
+  os << "xVL";
   return os.str();
 }
 

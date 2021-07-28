@@ -379,9 +379,19 @@ class Stage(Object):
         Parameters
         ----------
         var : IterVar
-            The iteration to be vectorize
+            The iteration to be vectorized
         """
         _ffi_api.StageVectorize(self, var)
+
+    def vectorize_scalable(self, var):
+        """Vectorize the iteration.
+
+        Parameters
+        ----------
+        var : IterVar
+            The iteration to be vectorized
+        """
+        _ffi_api.StageVectorizeScalable(self, var)
 
     def tensorize(self, var, tensor_intrin):
         """Tensorize the computation enclosed by var with tensor_intrin

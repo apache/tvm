@@ -256,7 +256,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
         };
 
         if (should_swap()) {
-          PrimExpr new_bcast = Broadcast(cast->value, bcast->lanes);
+          PrimExpr new_bcast = Broadcast(cast->value, bcast->lanes, bcast->dtype.is_scalable());
           return Cast(bcast->dtype, new_bcast);
         }
       }

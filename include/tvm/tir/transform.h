@@ -122,6 +122,15 @@ TVM_DLL Pass LoopPartition();
 TVM_DLL Pass VectorizeLoop(bool enable_vectorize = true);
 
 /*!
+ * \brief Lower vectorization loops.
+ *
+ * \param enable_vectorize Whether vectorization is enabled.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass VectorizeLoopScalable(bool enable_vectorize = true);
+
+/*!
  * \brief Inject virtual thread loops.
  *
  * \return The pass.

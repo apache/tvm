@@ -97,6 +97,9 @@ std::vector<std::vector<Stmt> > MakeLoopNest(const Stage& stage,
             break;
           case kTensorized:
             break;
+          case kVectorizedScalable:
+            kind = ForKind::kVectorizedScalable;
+            break;
           default:
             LOG(FATAL) << "Unknown iter type" << it_attr->iter_type << " in the iter_var_attrs";
         }

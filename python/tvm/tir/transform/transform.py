@@ -169,6 +169,23 @@ def VectorizeLoop(enable_vectorize: bool = True):
     return _ffi_api.VectorizeLoop(enable_vectorize)  # type: ignore
 
 
+def VectorizeLoopScalable(enable_vectorize=True):
+    """Lower vectorization loops.
+
+    Parameters
+    ----------
+    enable_vectorize : bool
+        Whether vectorization is enabled.
+        Will lower to scalar loop when it is turned off.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.VectorizeLoopScalable(enable_vectorize)
+
+
 def InjectVirtualThread():
     """Inject virtual thread loops.
 

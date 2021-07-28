@@ -602,7 +602,7 @@ class AnnotateEntity(object):
                 elif ann == "vec":
                     if vec_size and axis_lens[i] not in vec_size:
                         cfg.raise_error("Wrong size of lanes in vectorization")
-                    sch[op].vectorize(axes[i])
+                    sch[op].vectorize_scalable(axes[i])
                 elif ann == "blockIdx.x":
                     sch[op].bind(axes[i], thread_axis("blockIdx.x"))
                 elif ann == "blockIdx.y":

@@ -351,13 +351,22 @@ Doc TIRTextPrinter::VisitExpr_(const LoadNode* op) {
 
 Doc TIRTextPrinter::VisitExpr_(const RampNode* op) {
   Doc doc;
-  doc << "ramp(" << Print(op->base) << ", " << Print(op->stride) << ", " << op->lanes << ")";
+  if (op->is_scalable) {
+    doc << "ramp(" << Print(op->base) << ", " << Print(op->stride) << ", " << op->lanes << "xVL"
+        << ")";
+  } else {
+    doc << "ramp(" << Print(op->base) << ", " << Print(op->stride) << ", " << op->lanes << ")";
+  }
   return doc;
 }
 
 Doc TIRTextPrinter::VisitExpr_(const BroadcastNode* op) {
   Doc doc;
-  doc << "broadcast(" << Print(op->value) << ", " << op->lanes << ")";
+  if (op->dtype.is_scalable()) {
+    doc << "broadcast(" << Print(op->value) << ", " << op->lanes << "xVL)";
+  } else {
+    doc << "broadcast(" << Print(op->value) << ", " << op->lanes << ")";
+  }
   return doc;
 }
 
@@ -489,8 +498,14 @@ Doc TIRTextPrinter::VisitStmt_(const EvaluateNode* op) {
 
 Doc TIRTextPrinter::VisitStmt_(const ForNode* op) {
   Doc doc;
-  doc << "for (" << Print(op->loop_var) << ", " << Print(op->min) << ", "
-      << Print(op->min + op->extent) << ")";
+  if (op->is_vla) {
+    doc << "for (" << Print(op->loop_var) << ", " << Print(op->min) << ", "
+        << Print(op->min + op->extent) << ", " << Print(op->loop_var) << "+=" << op->stride
+        << "xVL)";
+  } else {
+    doc << "for (" << Print(op->loop_var) << ", " << Print(op->min) << ", "
+        << Print(op->min + op->extent) << ", " << Print(op->loop_var) << "++)";
+  }
   if (op->kind != ForKind::kSerial) {
     doc << " " << Doc::StrLiteral(ForKind2String(op->kind));
   }
@@ -628,7 +643,12 @@ Doc TIRTextPrinter::VisitType_(const TupleTypeNode* node) {
 }
 
 Doc TIRTextPrinter::PrintDType(DataType dtype) {
-  return Doc::Text(runtime::DLDataType2String(dtype));
+  if (dtype.is_scalable()) {
+    return Doc::Text(runtime::VLADataType2String(dtype));
+
+  } else {
+    return Doc::Text(runtime::DLDataType2String(dtype));
+  }
 }
 
 template <typename T>

@@ -132,7 +132,8 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 // For
 For::For(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
-         Optional<IterVar> thread_binding, Map<String, ObjectRef> annotations, Span span) {
+         Optional<IterVar> thread_binding, Map<String, ObjectRef> annotations, Span span,
+         bool is_vla, int stride) {
   ICHECK(min.defined());
   ICHECK(extent.defined());
   ICHECK(min.dtype().is_scalar());
@@ -149,6 +150,8 @@ For::For(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
   node->thread_binding = std::move(thread_binding);
   node->annotations = std::move(annotations);
   node->span = std::move(span);
+  node->is_vla = is_vla;
+  node->stride = stride;
   data_ = std::move(node);
 }
 
@@ -178,6 +181,9 @@ std::ostream& operator<<(std::ostream& out, ForKind type) {  // NOLINT(*)
     case ForKind::kThreadBinding:
       out << "launch_thread";
       break;
+    case ForKind::kVectorizedScalable:
+      out << "vectorized_scalable";
+      break;
   }
   return out;
 }
@@ -190,6 +196,9 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->Print(op->min);
       p->stream << ", ";
       p->Print(op->extent);
+      if (op->is_vla) {
+        p->stream << ", " << op->loop_var << "+=" << op->stride << "xVL";
+      }
       p->stream << ") {\n";
 
       p->indent += 2;
@@ -257,9 +266,11 @@ Store::Store(Var buffer_var, PrimExpr value, PrimExpr index, PrimExpr predicate,
   }
 
   ICHECK((value.dtype().lanes() == element_lanes * index.dtype().lanes()) ||
-         (value.dtype().lanes() == index.dtype().lanes()));
+         (value.dtype().lanes() == index.dtype().lanes()) || 
+         (value.dtype().is_scalable() == index.dtype().is_scalable()));
   ICHECK((value.dtype().lanes() == element_lanes * predicate.dtype().lanes()) ||
-         (value.dtype().lanes() == index.dtype().lanes()));
+         (value.dtype().lanes() == index.dtype().lanes()) ||
+         (value.dtype().is_scalable() == predicate.dtype().is_scalable()));
 
   ObjectPtr<StoreNode> node = make_object<StoreNode>();
   node->buffer_var = std::move(buffer_var);

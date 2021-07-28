@@ -1110,7 +1110,8 @@ inline PrimExpr make_const(DataType t, ValueType value, Span span) {
   if (t.lanes() == 1) {
     return MakeConstScalar(t, value, span);
   } else {
-    return tir::Broadcast(MakeConstScalar(t.element_of(), value, span), t.lanes(), span);
+    return tir::Broadcast(MakeConstScalar(t.element_of(), value, span), t.lanes(), t.is_scalable(),
+                          span);
   }
 }
 

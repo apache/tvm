@@ -237,6 +237,7 @@ Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition, bool for
     pass_list.push_back(tir::transform::LoopPartition());
   }
 
+  pass_list.push_back(tir::transform::VectorizeLoopScalable(!disable_vectorize));
   pass_list.push_back(tir::transform::VectorizeLoop(!disable_vectorize));
   pass_list.push_back(tir::transform::InjectVirtualThread());
   pass_list.push_back(tir::transform::InjectDoubleBuffer());

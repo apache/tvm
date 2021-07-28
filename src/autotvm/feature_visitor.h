@@ -49,6 +49,7 @@ enum AnnotationType {
   kThreadZ,
   kUnrolled,
   kVectorized,
+  kVectorizedScalable,
   kParallel,
   kSerial,
   kVirtualThread,

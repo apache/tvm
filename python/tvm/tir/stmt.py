@@ -106,6 +106,7 @@ class ForKind(IntEnum):
     VECTORIZED = 2
     UNROLLED = 3
     THREAD_BINDING = 4
+    VECTORIZED_SCALABLE = 5    
 
 
 @tvm._ffi.register_object("tir.For")

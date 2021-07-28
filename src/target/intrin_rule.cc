@@ -197,8 +197,8 @@ TVM_REGISTER_OP("tir.q_multiply_shift")
         ICHECK(y.dtype().code() == DLDataTypeCode::kDLInt && y.dtype().bits() == 32);
         ICHECK(s.dtype().code() == DLDataTypeCode::kDLInt && s.dtype().bits() == 32);
 
-        DataType hp_dtype = DataType::Int(64, x.dtype().lanes());
-        DataType lp_dtype = DataType::Int(32, x.dtype().lanes());
+        DataType hp_dtype = DataType::Int(64, x.dtype().lanes(), x.dtype().is_scalable());
+        DataType lp_dtype = DataType::Int(32, x.dtype().lanes(), x.dtype().is_scalable());
 
         // 1) Calculating the integer multiplier and integer shift
         PrimExpr zero = make_const(s.dtype(), 0);

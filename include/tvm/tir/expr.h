@@ -768,6 +768,7 @@ class RampNode : public PrimExprNode {
   PrimExpr stride;
   /*! \brief Total number of lanes. */
   int lanes;
+  bool is_scalable;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("dtype", &dtype);
@@ -779,7 +780,7 @@ class RampNode : public PrimExprNode {
 
   bool SEqualReduce(const RampNode* other, SEqualReducer equal) const {
     return equal(dtype, other->dtype) && equal(base, other->base) && equal(stride, other->stride) &&
-           equal(lanes, other->lanes);
+           equal(lanes, other->lanes) && equal(is_scalable, other->is_scalable);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -787,6 +788,7 @@ class RampNode : public PrimExprNode {
     hash_reduce(base);
     hash_reduce(stride);
     hash_reduce(lanes);
+    hash_reduce(is_scalable);
   }
 
   static constexpr const char* _type_key = "tir.Ramp";
@@ -800,6 +802,7 @@ class RampNode : public PrimExprNode {
 class Ramp : public PrimExpr {
  public:
   TVM_DLL Ramp(PrimExpr base, PrimExpr stride, int lanes, Span span = Span());
+  TVM_DLL Ramp(PrimExpr base, PrimExpr stride, int lanes, bool is_scalable, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(Ramp, PrimExpr, RampNode);
 };
 
@@ -839,6 +842,7 @@ class BroadcastNode : public PrimExprNode {
 class Broadcast : public PrimExpr {
  public:
   TVM_DLL Broadcast(PrimExpr value, int lanes, Span span = Span());
+  TVM_DLL Broadcast(PrimExpr value, int lanes, bool is_scalable, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(Broadcast, PrimExpr, BroadcastNode);
 };
 

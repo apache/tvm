@@ -783,7 +783,9 @@ enum class ForKind : int {
    * the loop is simply removed and the loop variable is
    * mapped to the corresponding context thread.
    */
-  kThreadBinding = 4
+  kThreadBinding = 4,
+  /*! \brief Loop is vectorized but the vector length (VL) is unknown. */
+  kVectorizedScalable = 5
 };
 
 /*!
@@ -822,6 +824,8 @@ class ForNode : public StmtNode {
    *  and can be ignored in most passes.
    */
   Map<String, ObjectRef> annotations;
+  bool is_vla;
+  int stride;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("loop_var", &loop_var);
@@ -862,7 +866,8 @@ class For : public Stmt {
  public:
   TVM_DLL For(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
               Optional<IterVar> thread_binding = NullOpt,
-              Map<String, ObjectRef> annotations = Map<String, ObjectRef>(), Span span = Span());
+              Map<String, ObjectRef> annotations = Map<String, ObjectRef>(), 
+              Span span = Span(), bool is_vla = false, int stride = 1);
 
   TVM_DEFINE_OBJECT_REF_METHODS(For, Stmt, ForNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ForNode);
@@ -1369,6 +1374,8 @@ inline const char* ForKind2String(ForKind t) {
       return "parallel";
     case ForKind::kVectorized:
       return "vectorized";
+    case ForKind::kVectorizedScalable:
+      return "vectorized_scalable";
     case ForKind::kUnrolled:
       return "unroll";
     case ForKind::kThreadBinding:

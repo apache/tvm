@@ -46,18 +46,18 @@ namespace tir {
     data_ = std::move(node);                                                             \
   }
 
-#define TVM_DEFINE_CMPOP_CONSTRUCTOR(Name)                             \
-  Name::Name(PrimExpr a, PrimExpr b, Span span) {                      \
-    using T = Name::ContainerType;                                     \
-    ICHECK(a.defined()) << "ValueError: a is undefined\n";             \
-    ICHECK(b.defined()) << "ValueError: b is undefined\n";             \
-    ICHECK(a.dtype() == b.dtype()) << "TypeError: mismatched types\n"; \
-    ObjectPtr<T> node = make_object<T>();                              \
-    node->dtype = DataType::Bool(a.dtype().lanes());                   \
-    node->a = std::move(a);                                            \
-    node->b = std::move(b);                                            \
-    node->span = std::move(span);                                      \
-    data_ = std::move(node);                                           \
+#define TVM_DEFINE_CMPOP_CONSTRUCTOR(Name)                                    \
+  Name::Name(PrimExpr a, PrimExpr b, Span span) {                             \
+    using T = Name::ContainerType;                                            \
+    ICHECK(a.defined()) << "ValueError: a is undefined\n";                    \
+    ICHECK(b.defined()) << "ValueError: b is undefined\n";                    \
+    ICHECK_EQ(a.dtype(), b.dtype()) << "TypeError: mismatched types\n";       \
+    ObjectPtr<T> node = make_object<T>();                                     \
+    node->dtype = DataType::Bool(a.dtype().lanes(), a.dtype().is_scalable()); \
+    node->a = std::move(a);                                                   \
+    node->b = std::move(b);                                                   \
+    node->span = std::move(span);                                             \
+    data_ = std::move(node);                                                  \
   }
 
 // Var
@@ -188,7 +188,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 // Cast
 Cast::Cast(DataType t, PrimExpr value, Span span) {
   ICHECK(value.defined());
-  ICHECK_EQ(t.lanes(), value.dtype().lanes());
+  ICHECK((t.lanes() == value.dtype().lanes()) || (t.is_scalable() == value.dtype().is_scalable()));
   ObjectPtr<CastNode> node = make_object<CastNode>();
   node->dtype = t;
   node->value = std::move(value);
@@ -648,10 +648,16 @@ Load::Load(DataType dtype, Var buffer_var, PrimExpr index, PrimExpr predicate, S
   // vectorized/non-vectorized arrays as needed.  Ideally, these
   // should be changed to explicit casts in the TIR graph, rather than
   // being handled at the code-gen level.
-  ICHECK((dtype.lanes() == element_lanes * index.dtype().lanes()) ||
-         (dtype.lanes() == index.dtype().lanes()));
-  ICHECK((dtype.lanes() == element_lanes * predicate.dtype().lanes()) ||
-         (dtype.lanes() == index.dtype().lanes()));
+  if (!dtype.is_scalable() && !index.dtype().is_scalable()) {
+    ICHECK((dtype.lanes() == element_lanes * index.dtype().lanes()) ||
+           (dtype.lanes() == index.dtype().lanes()));
+  }
+  if (!dtype.is_scalable() && !predicate.dtype().is_scalable()) {
+    ICHECK((dtype.lanes() == element_lanes * predicate.dtype().lanes()) ||
+           (dtype.lanes() == index.dtype().lanes()) ||
+           (dtype.lanes() == predicate.dtype().lanes()));
+  }
+
 
   ObjectPtr<LoadNode> node = make_object<LoadNode>();
   node->dtype = dtype;
@@ -706,6 +712,23 @@ Ramp::Ramp(PrimExpr base, PrimExpr stride, int lanes, Span span) {
   data_ = std::move(node);
 }
 
+Ramp::Ramp(PrimExpr base, PrimExpr stride, int lanes, bool is_scalable, Span span) {
+  ICHECK(base.defined());
+  ICHECK(stride.defined());
+  ICHECK(base.dtype().is_scalar());
+  ICHECK(stride.dtype().is_scalar());
+  ICHECK_EQ(stride.dtype(), base.dtype());
+
+  ObjectPtr<RampNode> node = make_object<RampNode>();
+  node->dtype = base.dtype().with_lanes(lanes);
+  node->base = base;
+  node->stride = stride;
+  node->span = std::move(span);
+  node->is_scalable = is_scalable;  // is_scalable means xVL
+  node->lanes = lanes;
+  data_ = std::move(node);
+}
+
 TVM_REGISTER_GLOBAL("tir.Ramp")
     .set_body_typed([](PrimExpr base, PrimExpr stride, int lanes, Span span) {
       return Ramp(base, stride, lanes, span);
@@ -720,7 +743,8 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->Print(op->base);
       p->stream << ", ";
       p->Print(op->stride);
-      p->stream << ", " << op->lanes << ")";
+      bool is_vla = op->is_scalable;
+      p->stream << ", " << op->lanes << (is_vla ? "xVL)" : ")");
     });
 
 // Broadcast
@@ -737,6 +761,21 @@ Broadcast::Broadcast(PrimExpr value, int lanes, Span span) {
   data_ = node;
 }
 
+// VLA Broadcast
+Broadcast::Broadcast(PrimExpr value, int lanes, bool is_scalable, Span span) {
+  ICHECK(value.defined());
+  ICHECK(value.dtype().is_scalar());
+  ICHECK_GT(lanes, 1);
+
+  ObjectPtr<BroadcastNode> node = make_object<BroadcastNode>();
+  node->dtype = DataType(value.dtype().code(), value.dtype().bits(), lanes, is_scalable);
+  // value.dtype().with_lanes(lanes);
+  node->value = std::move(value);
+  node->lanes = lanes;
+  node->span = std::move(span);
+  data_ = node;
+}
+
 TVM_REGISTER_GLOBAL("tir.Broadcast").set_body_typed([](PrimExpr value, int lanes, Span span) {
   return Broadcast(value, lanes, span);
 });
@@ -746,7 +785,11 @@ TVM_REGISTER_NODE_TYPE(BroadcastNode);
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<BroadcastNode>([](const ObjectRef& node, ReprPrinter* p) {
       auto* op = static_cast<const BroadcastNode*>(node.get());
-      p->stream << "x" << op->lanes << "(";
+      if (op->dtype.is_scalable()) {
+        p->stream << op->lanes << "xVL(";
+      } else {
+        p->stream << "x" << op->lanes << "(";
+      }
       p->Print(op->value);
       p->stream << ")";
     });

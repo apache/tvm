@@ -229,7 +229,11 @@ enum IterVarType : int {
   /*!
    * \brief Marks boundary of tensorization intrinsic.
    */
-  kTensorized = 8
+  kTensorized = 8,
+  /*!
+   * \brief The loop is vectorized with a scalable vector length
+   */
+  kVectorizedScalable = 9
 };
 
 /*!
@@ -324,6 +328,8 @@ inline const char* IterVarType2String(IterVarType t) {
       return "Parallelized";
     case kTensorized:
       return "Tensorized";
+    case kVectorizedScalable:
+      return "VectorizedScalable";
   }
   return "Unknown";
 }

@@ -196,6 +196,13 @@ class Stage : public ObjectRef {
    * \return reference to self.
    */
   TVM_DLL Stage& vectorize(IterVar var);  // NOLINT(*)
+
+  /*!
+   * \brief Vectorize iteration with a scalable vector length(VL).
+   * \param var The axis to be vectorized.
+   * \return reference to self.
+   */
+  TVM_DLL Stage& vectorize_scalable(IterVar var);  // NOLINT(*)
   /*!
    * \brief Replace computation of the current stage by tensor intrinsic f.
    * \param var The axis marks beginning of tensorization.
