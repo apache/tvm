@@ -311,7 +311,9 @@ Note on M1 macs, you may have trouble installing xgboost / scipy. A workaround f
 
         pip install pybind11 cython pythran   
         
-        export OPENBLAS=/opt/homebrew/opt/openblas/lib/ && pip install scipy —no-use-pep517
+        export OPENBLAS=/opt/homebrew/opt/openblas/lib/ 
+        
+        pip install scipy --no-use-pep517
         
         pip install xgboost
 
