@@ -339,7 +339,7 @@ std::pair<BufferStore, BufferStore> GetBufferStoreNodes(const ScheduleState& sel
       throw InitBodyNotSameBufferAccessError(self->mod, block);
     }
   }
-  return {GetRef<BufferStore>(init), GetRef<BufferStore>(body)};
+  return std::make_pair(GetRef<BufferStore>(init), GetRef<BufferStore>(body));
 }
 
 /*!
@@ -359,7 +359,7 @@ std::tuple<CommReducer, PrimExpr, PrimExpr> GetReducerAndCombinerLhsRhs(
   if (!matched) {
     throw NoMatchedReducerError(self->mod, identity, combiner);
   }
-  return {std::move(reducer), std::move(combiner_lhs), std::move(combiner_rhs)};
+  return std::make_tuple(std::move(reducer), std::move(combiner_lhs), std::move(combiner_rhs));
 }
 
 /*!
