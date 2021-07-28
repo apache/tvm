@@ -55,7 +55,8 @@ class AllocateCollector : public StmtExprVisitor {
 
 class DynamicSharedMemoryRewriter : public StmtExprMutator {
  public:
-  DynamicSharedMemoryRewriter(const std::unordered_set<const AllocateNode*>& dyn_shmem_allocs)
+  explicit DynamicSharedMemoryRewriter(
+      const std::unordered_set<const AllocateNode*>& dyn_shmem_allocs)
       : dyn_shmem_allocs_{dyn_shmem_allocs} {}
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
@@ -123,7 +124,7 @@ class DynamicSharedMemoryRewriter : public StmtExprMutator {
 Stmt MergeDynamicSharedMemoryAllocations(Stmt stmt) {
   AllocateCollector collector;
   collector(stmt);
-  if (collector.dyn_shmem_allocs_.size() > 0) {
+  if (collector.dyn_shmem_allocs_.size() > 1) {
     return DynamicSharedMemoryRewriter(collector.dyn_shmem_allocs_)(std::move(stmt));
   }
   return stmt;
