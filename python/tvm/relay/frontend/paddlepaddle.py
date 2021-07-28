@@ -43,13 +43,11 @@ from .common import (
 
 __all__ = ["from_paddle"]
 
-
 def is_fixed_shape(shape):
     for s in shape:
         if s < 0:
             return False
     return True
-
 
 def convert_feed(g, op, block):
     """Converter for model input node."""
@@ -63,7 +61,6 @@ def convert_feed(g, op, block):
     print("88888", ipt_name, ipt_shape)
 
     g.nodes[ipt_name] = new_var(ipt_name, shape=ipt_shape, dtype=ipt_dtype)
-
 
 def convert_scale(g, op, block):
     """Operator converter for scale."""
@@ -81,40 +78,28 @@ def convert_scale(g, op, block):
             out = x + _expr.const(np.array(bias).astype('float32'))
         else:
             if bias_after_scale:
-                out = x * _expr.const(
-                    np.array(scale).astype('float32')) + _expr.const(
-                        np.array(bias).astype('float32'))
+                out = x * _expr.const(np.array(scale).astype('float32')) + _expr.const(np.array(bias).astype('float32'))
             else:
-                out = (x + _expr.const(np.array(bias).astype('float32'))
-                       ) * _expr.const(np.array(scale).astype('float32'))
+                out = (x + _expr.const(np.array(bias).astype('float32'))) * _expr.const(np.array(scale).astype('float32'))
     g.nodes[op.output('Out')[0]] = fold_constant(out)
-
 
 def convert_nearest_interp_v2(g, op, block):
     """Operator converter for nearest_interp_v2."""
-
+    
     align_corners = op.attr('align_corners')
     align_mode = op.attr('align_mode')
     scale = op.attr('scale')
     layout = op.attr('data_layout')
     assert layout == 'NCHW', "Only NCHW is supported for PaddlePaddle's nearest_interp_v2"
-    assert len(
-        scale
-    ) == 2, "scale should contain 2 value for PaddlePaddle's nearest_interp_v2"
+    assert len(scale) == 2, "scale should contain 2 value for PaddlePaddle's nearest_interp_v2"
     x = g.nodes[op.input('X')[0]]
     x_shape = infer_shape(x)
-    out = _op.nn.upsampling(x,
-                            scale[0],
-                            scale[1],
-                            layout='NCHW',
-                            method='nearest_neighbor',
-                            align_corners=align_corners)
+    out = _op.nn.upsampling(x, scale[0], scale[1], layout='NCHW', method='nearest_neighbor', align_corners=align_corners)    
     g.nodes[op.output('Out')[0]] = fold_constant(out)
-
 
 def convert_bilinear_interp_v2(g, op, block):
     """Operator converter for bilinear_interp_v2."""
-
+    
     align_corners = op.attr('align_corners')
     align_mode = op.attr('align_mode')
     layout = op.attr('data_layout')
@@ -123,19 +108,14 @@ def convert_bilinear_interp_v2(g, op, block):
     x = g.nodes[op.input('X')[0]]
     outsize = g.nodes[op.input('OutSize')[0]]
     outsize = infer_value(outsize)
-
+    
     coordinate_transformation_mode = 'asymmetric'
     if align_mode == 0:
         coordinate_transformation_mode = 'half_pixel'
 
-    out = _op.image.resize(
-        x,
-        outsize,
-        method='bilinear',
-        coordinate_transformation_mode=coordinate_transformation_mode)
+    out = _op.image.resize(x, outsize, method='bilinear', coordinate_transformation_mode=coordinate_transformation_mode) 
     g.nodes[op.output('Out')[0]] = fold_constant(out)
-
-
+    
 def convert_leaky_relu(g, op, block):
     """Operator converter for leaky_relu."""
 
@@ -144,26 +124,20 @@ def convert_leaky_relu(g, op, block):
     out = _op.nn.leaky_relu(x, alpha=alpha)
     g.nodes[op.output('Out')[0]] = fold_constant(out)
 
-
 def convert_hard_swish(g, op, block):
     """Operator converter for hard_swish."""
 
     offset = op.attr('offset')
     scale = op.attr('scale')
     threshold = op.attr('threshold')
-    assert np.isclose(
-        offset, 3.0), "Only support offset==3.0 for PaddlePaddle's hard_swish"
-    assert np.isclose(
-        scale, 6.0), "Only support scale==6.0 for PaddlePaddle's hard_swish"
-    assert np.isclose(
-        threshold,
-        6.0), "Only support threshold==6.0 for PaddlePaddle's hard_swish"
+    assert np.isclose(offset, 3.0), "Only support offset==3.0 for PaddlePaddle's hard_swish"
+    assert np.isclose(scale, 6.0), "Only support scale==6.0 for PaddlePaddle's hard_swish"
+    assert np.isclose(threshold, 6.0), "Only support threshold==6.0 for PaddlePaddle's hard_swish"
     x = g.nodes[op.input('X')[0]]
     out = _op.clip(x, -3.0, 3.0)
     out = out / _expr.const(6.0) + _expr.const(0.5)
     out = x * out
     g.nodes[op.output('Out')[0]] = fold_constant(out)
-
 
 def convert_pool2d(g, op, block):
     """Operator converter for pool2d."""
@@ -203,16 +177,10 @@ def convert_pool2d(g, op, block):
 
     x = g.nodes[op.input('X')[0]]
     if not adaptive:
-        out = getattr(_op.nn, op_map[pooling_type])(x,
-                                                    pool_size=ksize,
-                                                    strides=strides,
-                                                    padding=paddings,
-                                                    ceil_mode=ceil_mode)
+        out = getattr(_op.nn, op_map[pooling_type])(x, pool_size=ksize, strides=strides, padding=paddings, ceil_mode=ceil_mode)
     else:
-        out = getattr(_op.nn,
-                      "adaptive_" + op_map[pooling_type])(x, output_size=ksize)
+        out = getattr(_op.nn, "adaptive_" + op_map[pooling_type])(x, output_size=ksize)
     g.nodes[op.output('Out')[0]] = fold_constant(out)
-
 
 def convert_matmul(g, op, block):
     """Operator converter for matmul."""
@@ -222,7 +190,6 @@ def convert_matmul(g, op, block):
     y = g.nodes[op.input('Y')[0]]
     x_shape = infer_shape(x)
     y_shape = infer_shape(y)
-    print("??????????", x_shape, y_shape)
     try:
         trans_x = op.attr('trans_x')
         trans_y = op.attr('trans_y')
@@ -245,13 +212,11 @@ def convert_matmul(g, op, block):
         if not is_fixed_shape(x_shape) or not is_fixed_shape(y_shape):
             msg = "Inputs have to be fixed shape while rank of input > 2 for PaddlePaddle's matmul"
             raise tvm.error.OpNotImplemented(msg)
-
         def flatten_to_3d(data, data_shape):
             ndims = len(data_shape)
             new_shape = [-1, data_shape[-2], data_shape[-1]]
             new_data = _op.reshape(data, new_shape)
             return new_data
-
         x = flatten_to_3d(x, x_shape)
         y = flatten_to_3d(y, y_shape)
         y = _op.transpose(y, [0, 2, 1])
@@ -278,7 +243,6 @@ def convert_matmul(g, op, block):
         pass
     g.nodes[op.output('Out')[0]] = fold_constant(out)
 
-
 def convert_cast(g, op, block):
     """Operator converter for cast."""
 
@@ -288,23 +252,21 @@ def convert_cast(g, op, block):
     out = _op.cast(x, dtype=dtype)
     g.nodes[op.output('Out')[0]] = fold_constant(out)
 
-
 def convert_hard_sigmoid(g, op, block):
     """Operator converter for hard_sigmoid."""
 
     slope = op.attr('slope')
     offset = op.attr('offset')
     x = g.nodes[op.input('X')[0]]
-    #    out = _op.clip(x, -3.0, 3.0)
+#    out = _op.clip(x, -3.0, 3.0)
     out = x * _expr.const(slope) + _expr.const(0.5)
     out = _op.clip(out, 0, 1)
-    #    out = out / _expr.const(6.0) + _expr.const(0.5)
+#    out = out / _expr.const(6.0) + _expr.const(0.5)
     g.nodes[op.output('Out')[0]] = fold_constant(out)
-
 
 def convert_multiclass_nms3(g, op, block):
     """Operator converter for multiclass_nms3."""
-
+    
     boxes = g.nodes[op.input('BBoxes')[0]]
     scores = g.nodes[op.input('Scores')[0]]
     assert len(infer_shape(boxes)) == 3 and len(infer_shape(scores)) == 3
@@ -321,53 +283,51 @@ def convert_multiclass_nms3(g, op, block):
     score_threshold = op.attr('score_threshold')
     assert normalized, "Only normalized==True is Supported for PaddlePaddle's multiclass_nms3"
 
-    indices, num_total_boxes = _op.vision.all_class_non_max_suppression(
-        boxes,
-        scores,
-        max_output_boxes_per_class=nms_top_k,
-        iou_threshold=nms_threshold,
-        score_threshold=score_threshold)
+    g.nodes[op.output('Out')[0]] = fold_constant(boxes)
+    g.nodes[op.output('NmsRoisNum')[0]] = fold_constant(scores)
+    return
+
+    indices, num_total_boxes = _op.vision.all_class_non_max_suppression(boxes, scores, max_output_boxes_per_class=nms_top_k, iou_threshold=nms_threshold, score_threshold=score_threshold)
     num_total_boxes = _op.cast(num_total_boxes, dtype='int32')
+
 
     num_indices, _ = infer_shape(indices)
     if nms_top_k > 0 and nms_top_k * num_classes < num_indices:
-        indices = _op.strided_slice(
-            indices,
-            begin=[0, 0],
-            end=[batch_size * nms_top_k * num_classes, 3])
+        indices = _op.strided_slice(indices, begin=[0, 0], end=[batch_size*nms_top_k*num_classes, 3])
+        num_indices = nms_top_k * num_classes
 
-    batch_boxid = _op.strided_slice(indices,
-                                    begin=[0, 0],
-                                    end=[num_indices, 3],
-                                    strides=[1, 2])
+    filters = np.array([i for i in range(num_indices)]).astype('int32')
+    filters = filters.reshape((-1, 1))
+    filters = _expr.const(filters)
+    compare = _op.less(filters, num_total_boxes)
+    indices = indices * compare.astype('int64')
+
+    batch_boxid = _op.strided_slice(indices, begin=[0, 0], end=[num_indices, 3], strides=[1, 2])
     class_id = _op.strided_slice(indices, begin=[0, 1], end=[num_indices, 2])
     batch_boxid = _op.transpose(batch_boxid, axes=[1, 0])
-    filter_boxes = _op.gather_nd(boxes, batch_boxid, 0)
 
+    filter_boxes = _op.gather_nd(boxes, batch_boxid, 0)
     new_indices = _op.transpose(indices, axes=[1, 0])
     filter_scores = _op.gather_nd(scores, new_indices, 0)
 
+    compare = _op.reshape(compare, (-1, ))
+    filter_scores = filter_scores * compare.astype('float32')
+
     if keep_top_k > 0 and keep_top_k < num_indices:
-        filter_scores, topk_idx = _op.topk(filter_scores,
-                                           k=keep_top_k,
-                                           ret_type='both',
-                                           is_ascend=False)
+        filter_scores, topk_idx = _op.topk(filter_scores, k=keep_top_k, ret_type='both', is_ascend=False)
         topk_idx = _op.reshape(topk_idx, [-1, keep_top_k])
         filter_boxes = _op.gather_nd(filter_boxes, topk_idx)
         class_id = _op.gather_nd(class_id, topk_idx)
-        num_total_boxes = _op.minimum(
-            num_total_boxes,
-            _expr.const(np.array([keep_top_k]).astype('int32')))
+        num_total_boxes = _op.minimum(num_total_boxes, _expr.const(np.array([keep_top_k]).astype('int32')))
     filter_scores = _op.reshape(filter_scores, (-1, 1))
     class_id = _op.cast(class_id, dtype='float32')
     out = _op.concatenate([class_id, filter_scores, filter_boxes], axis=1)
     g.nodes[op.output('Out')[0]] = fold_constant(out)
     g.nodes[op.output('NmsRoisNum')[0]] = fold_constant(num_total_boxes)
 
-
 def convert_yolo_box(g, op, block):
     """Operator converter for yolo_box."""
-
+    
     x = g.nodes[op.input('X')[0]]
     img_size = g.nodes[op.input('ImgSize')[0]]
     anchors = op.attr('anchors')
@@ -384,48 +344,32 @@ def convert_yolo_box(g, op, block):
     input_h = downsample_ratio * h
     input_w = downsample_ratio * w
 
-    x = _op.reshape(x, (n, an_num, 5 + class_num, h, w))
+    x = _op.reshape(x, (n, an_num, 5+class_num, h, w))
     x = _op.transpose(x, (0, 1, 3, 4, 2))
 
-    pred_box_xy = _op.strided_slice(x,
-                                    begin=[0, 0, 0, 0, 0],
-                                    end=[n, an_num, h, w, 2])
-    grid_x = np.tile(np.arange(w).reshape((1, w)),
-                     (h, 1)).reshape(h, w, 1).astype('float32')
-    grid_y = np.tile(np.arange(h).reshape((h, 1)),
-                     (1, w)).reshape(w, h, 1).astype('float32')
-    pred_box_xy = _op.sigmoid(pred_box_xy) * _expr.const(
-        scale_x_y) + _expr.const(bias_x_y) + _expr.const(
-            np.concatenate([grid_x, grid_y], axis=-1))
-    pred_box_xy = pred_box_xy / _expr.const(
-        np.array([w, h]).astype('float32').reshape([2]))
+    pred_box_xy = _op.strided_slice(x, begin=[0, 0, 0, 0, 0], end=[n, an_num, h, w, 2])
+    grid_x = np.tile(np.arange(w).reshape((1, w)), (h, 1)).reshape(h, w, 1).astype('float32')
+    grid_y = np.tile(np.arange(h).reshape((h, 1)), (1, w)).reshape(w, h, 1).astype('float32')
+    pred_box_xy = _op.sigmoid(pred_box_xy) * _expr.const(scale_x_y) + _expr.const(bias_x_y) + _expr.const(np.concatenate([grid_x, grid_y], axis=-1))
+    pred_box_xy = pred_box_xy / _expr.const(np.array([w, h]).astype('float32').reshape([2]))
 
     anchors = [(anchors[i], anchors[i + 1]) for i in range(0, len(anchors), 2)]
-    anchors_s = np.array([(an_w / input_w, an_h / input_h)
-                          for an_w, an_h in anchors])
+    anchors_s = np.array([(an_w / input_w, an_h / input_h) for an_w, an_h in anchors])
     anchor_w = anchors_s[:, 0:1].reshape((1, an_num, 1, 1)).astype('float32')
     anchor_h = anchors_s[:, 1:2].reshape((1, an_num, 1, 1)).astype('float32')
-    pred_box_wh = _op.strided_slice(x,
-                                    begin=[0, 0, 0, 0, 2],
-                                    end=[n, an_num, h, w, 4])
-    pred_box_wh = _op.exp(pred_box_wh) * _expr.const(
-        np.stack([anchor_w, anchor_h], axis=-1))
+    pred_box_wh = _op.strided_slice(x, begin=[0, 0, 0, 0, 2], end=[n, an_num, h, w, 4])
+    pred_box_wh = _op.exp(pred_box_wh) * _expr.const(np.stack([anchor_w, anchor_h], axis=-1))
 
-    pred_conf = _op.strided_slice(x,
-                                  begin=[0, 0, 0, 0, 4],
-                                  end=[n, an_num, h, w, 5])
+    pred_conf = _op.strided_slice(x, begin=[0, 0, 0, 0, 4], end=[n, an_num, h, w, 5])
     pred_conf = _op.sigmoid(pred_conf)
     filters = _op.greater_equal(pred_conf, _expr.const(conf_thresh))
     filters = _op.cast(filters, dtype='float32')
     pred_conf = pred_conf * filters
-    pred_score = _op.strided_slice(x,
-                                   begin=[0, 0, 0, 0, 5],
-                                   end=[n, an_num, h, w, 5 + class_num])
+    pred_score = _op.strided_slice(x, begin=[0, 0, 0, 0, 5], end=[n, an_num, h, w, 5+class_num])
     pred_score = _op.sigmoid(pred_score) * pred_conf
     pred_score = _op.reshape(pred_score, (n, -1, class_num))
 
-    filters = _op.cast(_op.greater(pred_conf, _expr.const(0.0)),
-                       dtype='float32')
+    filters = _op.cast(_op.greater(pred_conf, _expr.const(0.0)), dtype='float32')
 
     center = pred_box_wh / _expr.const(2.0)
     pred_box_xy_min = pred_box_xy - center
@@ -440,63 +384,45 @@ def convert_yolo_box(g, op, block):
 
     if clip_bbox:
         n, b, _ = infer_shape(pred_box)
-        pred_box_xy_min = _op.strided_slice(pred_box,
-                                            begin=[0, 0, 0],
-                                            end=[n, b, 2])
-        pred_box_xy_max = _op.strided_slice(pred_box,
-                                            begin=[0, 0, 2],
-                                            end=[n, b, 4])
+        pred_box_xy_min = _op.strided_slice(pred_box, begin=[0, 0, 0], end=[n, b, 2])
+        pred_box_xy_max = _op.strided_slice(pred_box, begin=[0, 0, 2], end=[n, b, 4])
         pred_box_xy_min = _op.clip(pred_box_xy_min, 0, np.inf)
-        max_w_h = _op.reshape(new_img_size - _expr.const(1.0), (n, 1, 2))
+        max_w_h = _op.reshape(new_img_size-_expr.const(1.0), (n, 1, 2))
         pred_box_xy_max = _op.minimum(pred_box_xy_max, max_w_h)
         pred_box = _op.concatenate([pred_box_xy_min, pred_box_xy_max], axis=-1)
-
+	
     g.nodes[op.output('Boxes')[0]] = fold_constant(pred_box)
     g.nodes[op.output('Scores')[0]] = fold_constant(pred_score)
 
-
 def convert_conv2d(g, op, block):
     """Operator converter for conv2d."""
+
     def get_pad_size(in_size, dilated_kernel_size, stride_size):
         if stride_size == 1 or in_size & stride_size == 0:
             pad = max(dilated_kernel_size - stride_size, 0)
         else:
             pad = max(dilated_kernel_size - (in_size % stride_size), 0)
-        return [pad // 2, pad - pad // 2]
+        return [pad//2, pad-pad//2]
 
-    assert op.attr(
-        'data_format'
-    ) == 'NCHW', "Only NCHW format is support for PaddlePaddle's conv2d"
+    assert op.attr('data_format') == 'NCHW', "Only NCHW format is support for PaddlePaddle's conv2d"
     dilations = op.attr('dilations')
     groups = op.attr('groups')
     paddings = op.attr('paddings')
     padding_algorithm = op.attr('padding_algorithm')
     strides = op.attr('strides')
-
+   
     kernel = g.nodes[op.input('Filter')[0]]
     input = g.nodes[op.input('Input')[0]]
     out_channels, _, k_h, k_w = infer_shape(kernel)
     in_h, in_w = infer_shape(input)[2:]
-    assert len(
-        paddings
-    ) == 2, "Only support len(paddings)==2 for PaddlePaddle's conv2d"
-    assert len(
-        dilations
-    ) == 2, "Only support len(dilations)==2 for PaddlePaddle's conv2d"
+    assert len(paddings) == 2, "Only support len(paddings)==2 for PaddlePaddle's conv2d"
+    assert len(dilations) == 2, "Only support len(dilations)==2 for PaddlePaddle's conv2d"
     if padding_algorithm == "SAME":
-        pad_h = get_pad_size(in_h, (k_h - 1) * dilations[0] + 1, strides[0])
-        pad_w = get_pad_size(in_w, (k_w - 1) * dilations[1] + 1, strides[1])
+        pad_h = get_pad_size(in_h, (k_h-1)*dilations[0]+1, strides[0])
+        pad_w = get_pad_size(in_w, (k_w-1)*dilations[1]+1, strides[1])
         paddings = [pad_h[0], pad_w[0], pad_h[1], pad_w[1]]
-    out = _op.nn.conv2d(input,
-                        kernel,
-                        strides=strides,
-                        padding=paddings,
-                        dilation=dilations,
-                        groups=groups,
-                        channels=out_channels,
-                        kernel_size=[k_h, k_w])
+    out = _op.nn.conv2d(input, kernel, strides=strides, padding=paddings, dilation=dilations, groups=groups, channels=out_channels, kernel_size=[k_h, k_w])
     g.nodes[op.output('Output')[0]] = fold_constant(out)
-
 
 def convert_activation(g, op, block):
     """Operator converter for all the activation."""
@@ -508,11 +434,11 @@ def convert_activation(g, op, block):
         'sqrt': _op.sqrt,
         'erf': _op.erf,
         'abs': _op.abs,
+
     }
     act_func = op_map[op.type]
     out = act_func(g.nodes[op.input('X')[0]])
     g.nodes[op.output('Out')[0]] = fold_constant(out)
-
 
 def convert_elementwise_op(g, op, block):
     """Operator converter for all the elementwise operators."""
@@ -534,12 +460,9 @@ def convert_elementwise_op(g, op, block):
         if axis < 0:
             axis = axis + len(ipt0_shape)
         if axis != len(ipt0_shape) - 1:
-            ipt1 = _op.expand_dims(ipt1,
-                                   axis=axis,
-                                   num_newaxis=(len(ipt0_shape) - axis - 1))
+            ipt1 = _op.expand_dims(ipt1, axis=axis, num_newaxis=(len(ipt0_shape) - axis - 1))
     out = op_func(ipt0, ipt1)
     g.nodes[op.output('Out')[0]] = fold_constant(out)
-
 
 def convert_concat(g, op, block):
     """Operator converter for concat."""
@@ -548,7 +471,6 @@ def convert_concat(g, op, block):
     axis = op.attr('axis')
     out = _op.concatenate(inputs, axis=axis)
     g.nodes[op.output('Out')[0]] = fold_constant(out)
-
 
 def convert_softmax(g, op, block):
     """Operator converter for softmax."""
@@ -563,23 +485,19 @@ def convert_softmax(g, op, block):
     out = e / _op.sum(e, axis, keepdims=True)
     g.nodes[op.output('Out')[0]] = fold_constant(out)
 
-
 def convert_reshape(g, op, block):
     """Operator converter for reshape."""
 
     shape = op.attr('shape')
-    assert len(
-        shape) > 0, "Unexpected situation happend in convert_reshape function"
+    assert len(shape) > 0, "Unexpected situation happend in convert_reshape function"
     out = _op.reshape(g.nodes[op.input('X')[0]], shape)
     g.nodes[op.output('Out')[0]] = fold_constant(out)
 
-
-def convert_assign(g, op, block):
+def convert_assign(g, op, block): 
     """Operator converter for assign."""
 
     out = _op.copy(g.nodes[op.input('X')[0]])
     g.nodes[op.output('Out')[0]] = fold_constant(out)
-
 
 def convert_batch_norm(g, op, block):
     """Operator converter for batch_norm."""
@@ -591,14 +509,8 @@ def convert_batch_norm(g, op, block):
     variance_name = op.input('Variance')[0]
     epsilon = op.attr('epsilon')
     momentum = op.attr('momentum')
-    out = _op.nn.batch_norm(g.nodes[ipt_name],
-                            g.nodes[scale_name],
-                            g.nodes[bias_name],
-                            g.nodes[mean_name],
-                            g.nodes[variance_name],
-                            epsilon=epsilon)
+    out = _op.nn.batch_norm(g.nodes[ipt_name], g.nodes[scale_name], g.nodes[bias_name], g.nodes[mean_name], g.nodes[variance_name], epsilon=epsilon)
     g.nodes[op.output('Y')[0]] = fold_constant(out[0])
-
 
 def convert_fill_constant(g, op, block):
     """Operator converter for fill_constant."""
@@ -611,7 +523,6 @@ def convert_fill_constant(g, op, block):
     out = _expr.const(value.astype(dtype)).astype(dtype)
     g.nodes[op.output('Out')[0]] = fold_constant(out)
 
-
 def convert_transpose(g, op, block):
     """Operator converter for transpose."""
 
@@ -619,9 +530,9 @@ def convert_transpose(g, op, block):
     out = _op.transpose(g.nodes[op.input('X')[0]], axes=perm)
     g.nodes[op.output('Out')[0]] = fold_constant(out)
 
-
 def convert_slice(g, op, block):
     """Operator converter for slice."""
+
     def parameter_process(starts, ends, axes):
         new_axes = []
         new_starts = []
@@ -648,11 +559,8 @@ def convert_slice(g, op, block):
     if isinstance(axes, int):
         axes = [axes]
     starts, ends, axes = parameter_process(starts, ends, axes)
-    out = _op.strided_slice(g.nodes[op.input('Input')[0]],
-                            begin=starts,
-                            end=ends)
+    out = _op.strided_slice(g.nodes[op.input('Input')[0]], begin=starts, end=ends)
     g.nodes[op.output('Out')[0]] = fold_constant(out)
-
 
 def convert_shape(g, op, block):
     """Operator converter for shape."""
@@ -661,11 +569,9 @@ def convert_shape(g, op, block):
     shape = infer_shape(x)
     for i in shape:
         if i < 0:
-            msg = "Dynamic shape is not support yet, the shape of {} is {} now.".format(
-                op.input('Input')[0], shape)
+            msg = "Dynamic shape is not support yet, the shape of {} is {} now.".format(op.input('Input')[0], shape)
             raise tvm.error.OpNotImplemented(msg)
     g.nodes[op.output('Out')[0]] = _expr.const(np.array(shape).astype('int32'))
-
 
 def convert_arg_max(g, op, block):
     """Operator converter for arg_max."""
@@ -679,14 +585,12 @@ def convert_arg_max(g, op, block):
     out = _op.argmax(x, axis=axis, keepdims=keepdims)
     g.nodes[op.output('Out')[0]] = fold_constant(out)
 
-
 def convert_dropout(g, op, block):
     """Operator converter for dropout."""
 
     x = g.nodes[op.input('X')[0]]
     out = _op.copy(x)
     g.nodes[op.output('Out')[0]] = fold_constant(out)
-
 
 def convert_unsqueeze(g, op, block):
     """Operator converter for unsqueeze."""
@@ -696,7 +600,6 @@ def convert_unsqueeze(g, op, block):
     for axis in axes:
         x = _op.expand_dims(x, axis=axis, num_newaxis=1)
     g.nodes[op.output('Out')[0]] = fold_constant(x)
-
 
 def convert_cumsum(g, op, block):
     """Operator converter for cumsum."""
@@ -717,7 +620,6 @@ def convert_cumsum(g, op, block):
         out = _op.cumsum(x, axis=axis, exclusive=exclusive)
     g.nodes[op.output('Out')[0]] = fold_constant(out)
 
-
 def convert_equal(g, op, block):
     """Operator converter for equal."""
 
@@ -725,7 +627,6 @@ def convert_equal(g, op, block):
     y = g.nodes[op.input('Y')[0]]
     out = _op.equal(x, y)
     g.nodes[op.output('Out')[0]] = fold_constant(out)
-
 
 def convert_layer_norm(g, op, block):
     """Operator converter for layer_norm."""
@@ -735,15 +636,8 @@ def convert_layer_norm(g, op, block):
     x = g.nodes[op.input('X')[0]]
     bias = g.nodes[op.input('Bias')[0]]
     scale = g.nodes[op.input('Scale')[0]]
-    out = _op.nn.layer_norm(x,
-                            gamma=scale,
-                            beta=bias,
-                            axis=begin_norm_axis,
-                            epsilon=epsilon,
-                            center=True,
-                            scale=True)
+    out = _op.nn.layer_norm(x, gamma=scale, beta=bias, axis=begin_norm_axis, epsilon=epsilon, center=True, scale=True)
     g.nodes[op.output('Y')[0]] = fold_constant(out)
-
 
 def convert_fill_any_like(g, op, block):
     """Operator converter for fill_any_like."""
@@ -760,7 +654,6 @@ def convert_fill_any_like(g, op, block):
     const = np.ones(ipt_shape) * value
     g.nodes[op.output('Out')[0]] = _expr.const(const.astype(out_dtype))
 
-
 def convert_lookup_table(g, op, block):
     """Operator converter for lookup_table_v2."""
 
@@ -775,16 +668,14 @@ def convert_lookup_table(g, op, block):
     out = _op.take(weights, indices.astype('int32'), axis=0)
     g.nodes[op.output('Out')[0]] = fold_constant(out)
 
-
 def convert_gelu(g, op, block):
     """Operator converter for gelu."""
 
     x = g.nodes[op.input('X')[0]]
     out = x * (_expr.const(0.5, dtype='float32') +
-               _op.erf(x * _expr.const(0.5**0.5, dtype='float32')) *
-               _expr.const(0.5, dtype='float32'))
+            _op.erf(x * _expr.const(0.5**0.5, dtype='float32')) * 
+            _expr.const(0.5, dtype='float32'))
     g.nodes[op.output('Out')[0]] = fold_constant(out)
-
 
 def convert_range(g, op, block):
     """Operator converter for range."""
@@ -799,7 +690,6 @@ def convert_range(g, op, block):
 
     out = _op.arange(start, end, step, dtype=out_dtype)
     g.ndoes[out_name] = fold_constant(out)
-
 
 def convert_reduce_op(g, op, block):
     """Operator converter for reduce_op."""
@@ -821,7 +711,6 @@ def convert_reduce_op(g, op, block):
     out = op_func(x, axis=dim, keepdims=keep_dim)
     g.nodes[op.output('Out')[0]] = fold_consant(out)
 
-
 def convert_flatten_continguous_range(g, op, block):
     """Operator converter for flatten_continguous_range."""
 
@@ -829,12 +718,11 @@ def convert_flatten_continguous_range(g, op, block):
     stop_axis = op.attr('stop_axis')
     x = g.nodes[op.input('X')[0]]
     ipt_shape = infer_shape(x)
-
+    
     if start_axis < 0:
         start_axis += len(ipt_shape)
     if stop_axis < 0:
         stop_axis += len(ipt_shape)
-
 
 _convert_map = {
     'feed': convert_feed,
@@ -882,6 +770,7 @@ _convert_map = {
 
 class GraphProto(object):
     """ A helper class for handling relay functions from PaddlePaddle model."""
+
     def __init__(self):
         self.nodes = {}
         self.params = {}
@@ -909,10 +798,9 @@ class GraphProto(object):
         for i in ipt_shape:
             if i < 0:
                 warning_msg = (
-                    "Input {}(shape={}) has unkown dimension shapes. Specifying static values may improve performance"
-                    .format(ipt_name, ipt_shape))
+                    "Input {}(shape={}) has unkown dimension shapes. Specifying static values may improve performance".format(ipt_name, ipt_shape))
                 warings.warn(warning_msg)
-
+                    
     def check_unsupported_ops(self, program):
         """ Check whether all the operators are supported."""
 
@@ -967,7 +855,6 @@ class GraphProto(object):
         func = _function.Function(free_vars, outputs)
         mod = IRModule.from_expr(func)
         return mod, self.params
-
 
 def from_paddle(program, shape_dict=None, scope=None):
     """ Convert a PaddlePaddle model into an equivalent Relay Function.
