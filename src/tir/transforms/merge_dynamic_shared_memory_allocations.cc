@@ -63,13 +63,11 @@ class DynamicSharedMemoryRewriter : public StmtExprMutator {
       // Allocate one dynamic shared memory allocation at the beginning of thread scope
       int align = 1;
       for (auto& alloc : dyn_shmem_allocs_) {
-        align = std::max(align, alloc->dtype.bytes());
+        align = std::max(align, alloc->dtype.bytes() * alloc->dtype.lanes());
       }
       for (auto& alloc : dyn_shmem_allocs_) {
-        buffer_offsets_[alloc->buffer_var.get()] = merged_alloc_size_;
+        buffer_byte_offsets_[alloc->buffer_var.get()] = merged_alloc_size_;
         merged_alloc_size_ += alloc->extents[0] * align;
-        LOG(INFO) << "buffer offset for " << alloc->buffer_var->name_hint << " = "
-                  << buffer_offsets_[alloc->buffer_var.get()];
       }
 
       allocated = true;
@@ -108,22 +106,25 @@ class DynamicSharedMemoryRewriter : public StmtExprMutator {
 
  private:
   PrimExpr GetBufferOffset(Var buffer_var, DataType dtype) {
-    auto it = buffer_offsets_.find(buffer_var.get());
-    ICHECK(it != buffer_offsets_.end());
-    return indexdiv(it->second, dtype.bytes());
+    auto it = buffer_byte_offsets_.find(buffer_var.get());
+    ICHECK(it != buffer_byte_offsets_.end());
+    return indexdiv(it->second, dtype.bytes() * dtype.lanes());
   }
 
   Var merged_buf_var_{"buf_dyn_shmem", PointerType(PrimType(DataType::UInt(8)), "shared.dyn")};
   std::unordered_set<const AllocateNode*> dyn_shmem_allocs_;
   PrimExpr merged_alloc_size_{0};
-  std::unordered_map<const VarNode*, PrimExpr> buffer_offsets_;
+  std::unordered_map<const VarNode*, PrimExpr> buffer_byte_offsets_;
   bool allocated{false};
 };
 
 Stmt MergeDynamicSharedMemoryAllocations(Stmt stmt) {
   AllocateCollector collector;
   collector(stmt);
-  return DynamicSharedMemoryRewriter(collector.dyn_shmem_allocs_)(std::move(stmt));
+  if (collector.dyn_shmem_allocs_.size() > 0) {
+    return DynamicSharedMemoryRewriter(collector.dyn_shmem_allocs_)(std::move(stmt));
+  }
+  return stmt;
 }
 
 namespace transform {
