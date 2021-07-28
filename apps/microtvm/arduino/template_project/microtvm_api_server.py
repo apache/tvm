@@ -113,7 +113,6 @@ class Handler(server.ProjectAPIHandler):
         with tempfile.TemporaryDirectory() as mlf_unpacking_dir:
             with tarfile.open(mlf_tar_path, "r:") as tar:
                 tar.extractall(mlf_unpacking_dir)
-                tar.extractall("/home/guberti/mlf_out")
 
             # Copy C files
             model_dir = source_dir / "model"
