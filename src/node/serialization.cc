@@ -133,7 +133,7 @@ class NodeIndexer : public AttrVisitor {
 };
 
 // use map so attributes are ordered.
-using AttrMap = std::map<std::string, std::string>;
+using AttrMap = std::map<std::string, std::map<std::string, std::string> >;
 
 /*! \brief Node structure for json format. */
 struct JSONNode {
@@ -216,25 +216,30 @@ class JSONAttrGetter : public AttrVisitor {
     // Save 17 decimal digits for type <double> to avoid precision loss during loading JSON
     s.precision(17);
     s << (*value);
-    node_->attrs[key] = s.str();
+    node_->attrs[key] = wrap_attr("value", s.str());
   }
-  void Visit(const char* key, int64_t* value) final { node_->attrs[key] = std::to_string(*value); }
-  void Visit(const char* key, uint64_t* value) final { node_->attrs[key] = std::to_string(*value); }
-  void Visit(const char* key, int* value) final { node_->attrs[key] = std::to_string(*value); }
-  void Visit(const char* key, bool* value) final { node_->attrs[key] = std::to_string(*value); }
-  void Visit(const char* key, std::string* value) final { node_->attrs[key] = *value; }
+  void Visit(const char* key, int64_t* value) final { node_->attrs[key] = wrap_attr("value", std::to_string(*value)); }
+  void Visit(const char* key, uint64_t* value) final { node_->attrs[key] = wrap_attr("value", std::to_string(*value)); }
+  void Visit(const char* key, int* value) final { node_->attrs[key] = wrap_attr("value", std::to_string(*value)); }
+  void Visit(const char* key, bool* value) final { node_->attrs[key] = wrap_attr("value", std::to_string(*value)); }
+  void Visit(const char* key, std::string* value) final { node_->attrs[key] = wrap_attr("value", *value); }
   void Visit(const char* key, void** value) final {
     LOG(FATAL) << "not allowed to serialize a pointer";
   }
-  void Visit(const char* key, DataType* value) final { node_->attrs[key] = Type2String(*value); }
+  void Visit(const char* key, DataType* value) final { node_->attrs[key] = wrap_attr("value", Type2String(*value)); }
 
   void Visit(const char* key, runtime::NDArray* value) final {
-    node_->attrs[key] =
-        std::to_string(tensor_index_->at(const_cast<DLTensor*>((*value).operator->())));
+    node_->attrs[key] = wrap_attr(
+      "meta",
+      std::to_string(tensor_index_->at(const_cast<DLTensor*>((*value).operator->())))
+    );
   }
 
   void Visit(const char* key, ObjectRef* value) final {
-    node_->attrs[key] = std::to_string(node_index_->at(const_cast<Object*>(value->get())));
+    node_->attrs[key] = wrap_attr(
+      "node",
+      std::to_string(node_index_->at(const_cast<Object*>(value->get())))
+    );
   }
 
   // Get the node
@@ -277,6 +282,25 @@ class JSONAttrGetter : public AttrVisitor {
       reflection_->VisitAttrs(node, this);
     }
   }
+
+  static std::map<std::string, std::string> wrap_attr(std::string attr_type, std::string value) {
+    std::map<std::string, std::string> ret;
+    ret[attr_type] = value;
+    return ret;
+  }
+
+  static std::string get_attr_value(std::map<std::string, std::string> attr) {
+    if (attr.find("node") != attr.end()) {
+      return attr["node"];
+    } else if (attr.find("value") != attr.end()) {
+      return attr["value"];
+    } else if (attr.find("meta") != attr.end()) {
+      return attr["meta"];
+    } else {
+      LOG(FATAL) << "attrs should have either of these keys: 'node', 'value', or 'meta'";
+      return "";
+    }
+  }
 };
 
 class FieldDependencyFinder : public AttrVisitor {
@@ -289,7 +313,7 @@ class FieldDependencyFinder : public AttrVisitor {
     if (it == jnode_->attrs.end()) {
       LOG(FATAL) << "JSONReader: cannot find field " << key;
     }
-    return it->second;
+    return JSONAttrGetter::get_attr_value(it->second);
   }
   template <typename T>
   void ParseValue(const char* key, T* value) const {
@@ -346,7 +370,7 @@ class JSONAttrSetter : public AttrVisitor {
     if (it == jnode_->attrs.end()) {
       LOG(FATAL) << "JSONReader: cannot find field " << key;
     }
-    return it->second;
+    return JSONAttrGetter::get_attr_value(it->second);
   }
 
   void ParseDouble(const char* key, double* value) const {
@@ -485,7 +509,7 @@ struct JSONGraph {
       getter.Get(n);
       g.nodes.emplace_back(std::move(jnode));
     }
-    g.attrs["tvm_version"] = TVM_VERSION;
+    g.attrs["tvm_version"]["value"] = TVM_VERSION;
     g.root = indexer.node_index_.at(const_cast<Object*>(root.get()));
     // serialize tensor
     for (DLTensor* tensor : indexer.tensor_list_) {
