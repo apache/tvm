@@ -64,6 +64,8 @@ The minimal building requirements for the ``TVM`` libraries are:
    - We highly recommend to build with LLVM to enable all the features.
    - If you want to use CUDA, CUDA toolkit version >= 8.0 is required. If you are upgrading from an older version, make sure you purge the older version and reboot after installation.
    - On macOS, you may want to install `Homebrew <https://brew.sh>` to easily install and manage dependencies.
+   - Python is also required. Avoid using python 3.9.X+ which is not supported at the time of this `writing <https://github.com/apache/tvm/issues/8577>`. 3.7.X+ and 3.8.X+ 
+        should be well supported however.
 
 To install the these minimal pre-requisites on Ubuntu/Debian like
 linux operating systems, execute (in a terminal):
@@ -73,9 +75,8 @@ linux operating systems, execute (in a terminal):
     sudo apt-get update
     sudo apt-get install -y python3 python3-dev python3-setuptools gcc libtinfo-dev zlib1g-dev build-essential cmake libedit-dev libxml2-dev
 
-On macOS, whether using an Intel or M1 Mac we can use homebrew. Make sure to follow the post installation steps for each of the below commaands.
-Furthermore, avoid using python 3.9.X+ which is not supported at the time of this writing. With this, you should have the ability to compile a 
-basic build of TVM with llvm included. Additional missing requirements can also be installed via brew if they arise:
+On macOS, whether using an Intel or M1 Mac, we support using homebrew. Make sure to follow the post installation steps for each of the below commaands.
+With this, you should have the ability to compile a  basic build of TVM with llvm included. Additional missing requirements can also be installed via brew if they arise:
 
 .. code:: bash 
 
