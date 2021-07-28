@@ -420,7 +420,7 @@ class TVM_DLL GraphExecutor : public ModuleNode {
   std::vector<uint32_t> input_nodes_;
   /*! \brief Map of input names to input indices. */
   std::unordered_map<std::string, uint32_t> input_map_;
-  /*! \brief Map of input names to output indices. */
+  /*! \brief Map of output names to output indices. */
   std::unordered_map<std::string, uint32_t> output_map_;
   /*! \brief Used for quick node input DLTensor* lookup given an input eid. */
   std::vector<std::vector<DLTensor*>> input_dltensors_;
