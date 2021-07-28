@@ -216,30 +216,30 @@ class JSONAttrGetter : public AttrVisitor {
     // Save 17 decimal digits for type <double> to avoid precision loss during loading JSON
     s.precision(17);
     s << (*value);
-    node_->attrs[key] = wrap_attr("value", s.str());
+    node_->attrs[key] = {{ "value", s.str() }};
   }
-  void Visit(const char* key, int64_t* value) final { node_->attrs[key] = wrap_attr("value", std::to_string(*value)); }
-  void Visit(const char* key, uint64_t* value) final { node_->attrs[key] = wrap_attr("value", std::to_string(*value)); }
-  void Visit(const char* key, int* value) final { node_->attrs[key] = wrap_attr("value", std::to_string(*value)); }
-  void Visit(const char* key, bool* value) final { node_->attrs[key] = wrap_attr("value", std::to_string(*value)); }
-  void Visit(const char* key, std::string* value) final { node_->attrs[key] = wrap_attr("value", *value); }
+  void Visit(const char* key, int64_t* value) final { node_->attrs[key] = {{ "value", std::to_string(*value) }}; }
+  void Visit(const char* key, uint64_t* value) final { node_->attrs[key] = {{ "value", std::to_string(*value) }}; }
+  void Visit(const char* key, int* value) final { node_->attrs[key] = {{ "value", std::to_string(*value) }}; }
+  void Visit(const char* key, bool* value) final { node_->attrs[key] = {{ "value", std::to_string(*value) }}; }
+  void Visit(const char* key, std::string* value) final { node_->attrs[key] = {{ "value", *value }}; }
   void Visit(const char* key, void** value) final {
     LOG(FATAL) << "not allowed to serialize a pointer";
   }
-  void Visit(const char* key, DataType* value) final { node_->attrs[key] = wrap_attr("value", Type2String(*value)); }
+  void Visit(const char* key, DataType* value) final { node_->attrs[key] = {{ "value", Type2String(*value) }}; }
 
   void Visit(const char* key, runtime::NDArray* value) final {
-    node_->attrs[key] = wrap_attr(
+    node_->attrs[key] = {{ 
       "meta",
       std::to_string(tensor_index_->at(const_cast<DLTensor*>((*value).operator->())))
-    );
+    }};
   }
 
   void Visit(const char* key, ObjectRef* value) final {
-    node_->attrs[key] = wrap_attr(
+    node_->attrs[key] = {{ 
       "node",
       std::to_string(node_index_->at(const_cast<Object*>(value->get())))
-    );
+    }};
   }
 
   // Get the node
@@ -283,23 +283,20 @@ class JSONAttrGetter : public AttrVisitor {
     }
   }
 
-  static std::map<std::string, std::string> wrap_attr(std::string attr_type, std::string value) {
-    std::map<std::string, std::string> ret;
-    ret[attr_type] = value;
-    return ret;
-  }
-
   static std::string get_attr_value(std::map<std::string, std::string> attr) {
-    if (attr.find("node") != attr.end()) {
-      return attr["node"];
-    } else if (attr.find("value") != attr.end()) {
-      return attr["value"];
-    } else if (attr.find("meta") != attr.end()) {
-      return attr["meta"];
-    } else {
-      LOG(FATAL) << "attrs should have either of these keys: 'node', 'value', or 'meta'";
+    if (attr.size() != 1) {
+      LOG(FATAL) << "attr should only contain 1 key-value pair";
       return "";
     }
+
+    auto begin = attr.begin();
+    auto key = begin->first;
+    if (key != "node" && key != "value" && key != "meta") {
+      LOG(FATAL) << "attr should have either of these keys: 'node', 'value', or 'meta'";
+      return "";
+    }
+
+    return begin->second;
   }
 };
 
@@ -509,7 +506,7 @@ struct JSONGraph {
       getter.Get(n);
       g.nodes.emplace_back(std::move(jnode));
     }
-    g.attrs["tvm_version"]["value"] = TVM_VERSION;
+    g.attrs["tvm_version"] = {{ "value", TVM_VERSION }};
     g.root = indexer.node_index_.at(const_cast<Object*>(root.get()));
     // serialize tensor
     for (DLTensor* tensor : indexer.tensor_list_) {
