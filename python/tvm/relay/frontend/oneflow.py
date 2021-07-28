@@ -477,16 +477,14 @@ class BatchNorm(OneFlowOpConverter):
             elif 'variance' in str(i) and not IN_NAMES:
                 sorted_inputs[4] = i
 
-        axis = 3
+        axis = attrs.get("axis", 3)
         if "data_format" in attrs:
             if attrs["data_format"] == "channel_first":
-                attrs.pop("axis")
-                axis = 1
+                attrs["axis"] = 1
 
         out = AttrCvt(
             op_name="batch_norm", 
             ignores=["training"],
-            extras={"axis": axis},
             disables=["momentum"]
         )(sorted_inputs, attrs, params)
         return out[0]
