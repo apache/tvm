@@ -74,8 +74,8 @@ linux operating systems, execute (in a terminal):
     sudo apt-get update
     sudo apt-get install -y python3 python3-dev python3-setuptools gcc libtinfo-dev zlib1g-dev build-essential cmake libedit-dev libxml2-dev
 
-On macOS, whether using an Intel or M1 Mac, we support using homebrew. Make sure to follow the post installation steps for each of the below commaands.
-With this, you should have the ability to compile a  basic build of TVM with llvm included. Additional missing requirements can also be installed via brew if they arise:
+Use Homebrew to install the required dependencies for macOS running either the Intel or M1 processors. You must follow the post-installation steps specified by 
+Homebrew to ensure the dependencies are correctly installed and configured:
 
 .. code:: bash 
 
@@ -303,7 +303,9 @@ like ``virtualenv``.
 
        pip3 install --user tornado psutil xgboost cloudpickle
 
-Note on M1 macs, you may have trouble installing xgboost / scipy. A workaround for this is to do the following commands:
+Note on M1 macs, you may have trouble installing xgboost / scipy. scipy and xgboost requires some additional dependencies to be installed, 
+including openblas and its dependencies. Use the following commands to install scipy and xgboost with the required dependencies and 
+configuration. A workaround for this is to do the following commands:
 
     .. code:: bash 
 
