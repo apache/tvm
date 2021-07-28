@@ -637,7 +637,8 @@ class Schedule(Object):
         in the block binding;
         3) `loop` is not parallelized, vectorized, unrolled or bound to any thread axis;
         4) The block scope that `loop` is in is a staged-pipeline;
-        5) The outermost loop outside the reduction block should has the reduction block as its first child block;
+        5) The outermost loop outside the reduction block should has the reduction block as its
+        first child block;
         6) The outermost reduction loop should have only one child block;
         7) An unary extent loop that is not bound to any reduction or data parallel variables in
         the block binding should not appear under some reduction loop;
