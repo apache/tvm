@@ -17,6 +17,7 @@
 
 import atexit
 import collections
+import collections.abc
 import enum
 import fcntl
 import logging
@@ -72,7 +73,7 @@ CMAKE_BOOL_MAP = dict(
 )
 
 
-class CMakeCache(collections.Mapping):
+class CMakeCache(collections.abc.Mapping):
     def __init__(self, path):
         self._path = path
         self._dict = None
