@@ -113,7 +113,7 @@ class MatchBuffer(SpecialStmt):
 
     Match buffer from Buffer subregion
     .. code-block:: python
-        A = tir.match_buffer(, (128, 128), dtype="float32")
+        A = tir.match_buffer(B[0:128, i * 128 : i * 128 + 128], (128, 128), dtype="float32")
     """
 
     def __init__(self):
