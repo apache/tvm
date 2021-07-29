@@ -770,10 +770,8 @@ class MatMul(OnnxOpConverter):
                 # Convert a and b into 3 dimensional tensors.
                 a = flatten_to_nd(inputs[0], a_shape, 3)
                 b = flatten_to_nd(inputs[1], b_shape, 3)
-                # Transpose matrix dimensions of b.
-                b = _op.transpose(b, [0, 2, 1])
                 # Perform a batch matmul.
-                output = _op.nn.batch_matmul(a, b)
+                output = _op.nn.batch_matmul(a, b, transpose_b=False)
             # Determine the output batch dimension.
             if a_rank > b_rank:
                 out_batch = _op.strided_slice(a_shape, [0], [a_rank - 2])
