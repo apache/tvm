@@ -178,7 +178,7 @@ def test_vectorize():
     s[C].bind(bx, te.thread_axis("blockIdx.x"))
     s[C].bind(tx, te.thread_axis("threadIdx.x"))
     s[C].vectorize(x)
-    stmt = tvm.lower(s, [A, B], name="main")["main"].body
+    stmt = tvm.lower(s, [A, B], name="main")["main"]
     body = stmt.body.body.body.body
     assert x.var.name not in str(body.condition)
     assert any(collect_visit(body.then_case, lambda x: isinstance(x, tvm.tir.Ramp)))
@@ -229,7 +229,7 @@ def test_thread_axis2():
     _, x = s[C].split(x, factor=m)
     s[C].bind(bx, te.thread_axis("blockIdx.x"))
     s[C].bind(tx, te.thread_axis("threadIdx.x"))
-    stmt = tvm.lower(s, [A, B], name="main")["main"].body
+    stmt = tvm.lower(s, [A, B], name="main")["main"]
     for_body = stmt.body.body.body.body[0]
     assert "threadIdx" not in str(for_body.extent)
 

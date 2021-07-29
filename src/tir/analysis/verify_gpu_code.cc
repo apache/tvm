@@ -30,6 +30,8 @@
 #include <tvm/tir/stmt.h>
 #include <tvm/tir/stmt_functor.h>
 
+#include "../transforms/ir_utils.h"
+
 namespace tvm {
 namespace tir {
 
@@ -58,11 +60,12 @@ class GPUCodeVerifier : public StmtExprVisitor {
 
   void VisitStmt_(const AllocateNode* op) final {
     StmtVisitor::VisitStmt_(op);
+    auto scope = GetPtrStorageScope(op->buffer_var);
     // visit an allocation of a buffer in shared memory, record its size
-    if (visited_local_buffers_.count(op->buffer_var.get()) != 0) {
+    if (scope == "local") {
       size_t size = static_cast<size_t>(op->constant_allocation_size());
       local_memory_per_block_ += size * op->dtype.bytes() * op->dtype.lanes();
-    } else if (visited_shared_buffers_.count(op->buffer_var.get()) != 0) {
+    } else if (scope == "shared") {
       size_t size = static_cast<size_t>(op->constant_allocation_size());
       shared_memory_per_block_ += size * op->dtype.bytes() * op->dtype.lanes();
     }
@@ -78,15 +81,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
   }
 
   void VisitStmt_(const AttrStmtNode* op) final {
-    if (op->attr_key == attr::storage_scope) {
-      std::string op_value = op->value.as<StringImmNode>()->value;
-      if (op_value == "local") {
-        visited_local_buffers_.insert(op->node.as<VarNode>());
-      } else if (op_value == "shared") {
-        visited_shared_buffers_.insert(op->node.as<VarNode>());
-      }
-      StmtVisitor::VisitStmt_(op);
-    } else if (op->attr_key == attr::thread_extent || op->attr_key == attr::virtual_thread) {
+    if (op->attr_key == attr::thread_extent || op->attr_key == attr::virtual_thread) {
       if (nest_level_ == 0) {
         // enter a new kernel, reset statistics
         Reset_();
@@ -211,8 +206,6 @@ class GPUCodeVerifier : public StmtExprVisitor {
  private:
   int nest_level_{0};
 
-  std::unordered_set<const VarNode*> visited_local_buffers_;
-  std::unordered_set<const VarNode*> visited_shared_buffers_;
   std::unordered_set<std::string> visited_threads_;
 
   size_t thread_x_extent_, thread_y_extent_, thread_z_extent_;
@@ -230,8 +223,6 @@ class GPUCodeVerifier : public StmtExprVisitor {
   std::vector<String> errors_;
 
   void Reset_() {
-    visited_local_buffers_.clear();
-    visited_shared_buffers_.clear();
     local_memory_per_block_ = 0;
     shared_memory_per_block_ = 0;
 

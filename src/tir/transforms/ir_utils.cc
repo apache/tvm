@@ -172,16 +172,6 @@ class IRConvertSSA final : public StmtExprMutator {
   }
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (const VarNode* v = op->node.as<VarNode>()) {
-      if (op->attr_key == attr::storage_scope) {
-        const AllocateNode* alloc = op->body.as<AllocateNode>();
-        if (alloc && op->node.same_as(alloc->buffer_var)) {
-          Stmt new_alloc = this->VisitStmt(op->body);
-          if (new_alloc.same_as(op->body)) return GetRef<Stmt>(op);
-          alloc = new_alloc.as<AllocateNode>();
-          ICHECK(alloc);
-          return AttrStmt(alloc->buffer_var, op->attr_key, op->value, new_alloc);
-        }
-      }
       Stmt stmt = StmtExprMutator::VisitStmt_(op);
       op = stmt.as<AttrStmtNode>();
       if (scope_.count(v) && scope_[v].size() != 0) {

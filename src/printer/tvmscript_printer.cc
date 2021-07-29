@@ -37,6 +37,7 @@
 #include <algorithm>
 #include <utility>
 
+#include "../tir/transforms/ir_utils.h"
 #include "doc.h"
 #include "meta_data.h"
 #include "text_printer.h"
@@ -579,31 +580,6 @@ Doc TVMScriptPrinter::VisitStmt_(const LetStmtNode* op) {
 
 Doc TVMScriptPrinter::VisitStmt_(const AttrStmtNode* op) {
   Doc doc;
-  // merge attr with allocate when possible
-  if (op->node->IsInstance<VarNode>() && op->attr_key == "storage_scope" &&
-      op->body->IsInstance<AllocateNode>()) {
-    const auto* alloc = Downcast<Allocate>(op->body).get();
-    if (alloc->buffer_var.same_as(op->node)) {
-      var_not_in_headers.insert(alloc->buffer_var.get());
-      if (current_num_ != num_child_ - 1) {
-        doc << "with tir.allocate(" << Print(alloc->extents) << ", " << PrintDType(alloc->dtype)
-            << ", " << Print(op->value);
-        if (!is_one(alloc->condition)) {
-          doc << ", " << Print(alloc->condition);
-        }
-        doc << ") as " << Print(op->node) << ":";
-        doc << Doc::Indent(4, Doc::NewLine() << PrintBody(alloc->body));
-      } else {
-        doc << Print(op->node) << " = tir.allocate(" << Print(alloc->extents) << ", "
-            << PrintDType(alloc->dtype) << ", " << Print(op->value);
-        if (!is_one(alloc->condition)) {
-          doc << ", " << Print(alloc->condition);
-        }
-        doc << ")" << Doc::NewLine() << PrintBody(alloc->body);
-      }
-      return doc;
-    }
-  }
   // merge attr with realize when possible
   if (op->node->IsInstance<BufferNode>() && op->attr_key == "realize_scope" &&
       op->body->IsInstance<BufferRealizeNode>()) {
@@ -681,8 +657,26 @@ Doc TVMScriptPrinter::VisitStmt_(const BufferRealizeNode* op) {
 }
 
 Doc TVMScriptPrinter::VisitStmt_(const AllocateNode* op) {
-  LOG(FATAL) << "TVM Script Printer Internal Error: All the Allocate should be folded with Attr";
-  return Doc();
+  var_not_in_headers.insert(op->buffer_var.get());
+  Doc doc;
+  auto storage_scope = GetPtrStorageScope(op->buffer_var);
+  if (current_num_ != num_child_ - 1) {
+    doc << "with tir.allocate(" << Print(op->extents) << ", " << PrintDType(op->dtype) << ", "
+        << Print(storage_scope);
+    if (!is_one(op->condition)) {
+      doc << ", " << Print(op->condition);
+    }
+    doc << ") as " << Print(op->buffer_var) << ":";
+    doc << Doc::Indent(4, Doc::NewLine() << PrintBody(op->body));
+  } else {
+    doc << Print(op->buffer_var) << " = tir.allocate(" << Print(op->extents) << ", "
+        << PrintDType(op->dtype) << ", " << Print(storage_scope);
+    if (!is_one(op->condition)) {
+      doc << ", " << Print(op->condition);
+    }
+    doc << ")" << Doc::NewLine() << PrintBody(op->body);
+  }
+  return doc;
 }
 
 Doc TVMScriptPrinter::VisitStmt_(const IfThenElseNode* op) {

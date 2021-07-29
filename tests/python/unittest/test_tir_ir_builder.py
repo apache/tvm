@@ -31,8 +31,6 @@ def test_for():
             A[j] = A[j] + 2
 
     body = ib.get()
-    assert isinstance(body, tvm.tir.AttrStmt)
-    body = body.body
     assert isinstance(body, tvm.tir.Allocate)
     body = body.body
     assert isinstance(body, tvm.tir.For)

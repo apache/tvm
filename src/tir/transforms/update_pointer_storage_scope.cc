@@ -64,17 +64,6 @@ PrimExpr UpdatePointerStorageScope::VisitExpr_(const LoadNode* op) {
               StmtExprMutator::VisitExpr(op->predicate));
 }
 
-Stmt UpdatePointerStorageScope::VisitStmt_(const AttrStmtNode* op) {
-  if (op->attr_key == attr::storage_scope) {
-    const VarNode* buf = op->node.as<VarNode>();
-    auto remapped = Downcast<Var>(StmtExprMutator::VisitExpr(GetRef<Var>(buf)));
-    auto new_scope = GetPtrStorageScope(remapped);
-    return AttrStmt(remapped, attr::storage_scope, StringImm(new_scope),
-                    StmtMutator::VisitStmt(op->body));
-  }
-  return StmtMutator::VisitStmt_(op);
-}
-
 Stmt UpdatePointerStorageScope::VisitStmt_(const AllocateNode* op) {
   auto remapped = Downcast<Var>(StmtExprMutator::VisitExpr(op->buffer_var));
   return Allocate(remapped, op->dtype, op->extents, StmtExprMutator::VisitExpr(op->condition),

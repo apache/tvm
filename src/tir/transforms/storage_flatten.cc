@@ -224,7 +224,6 @@ class StorageFlattener : public StmtExprMutator {
         ret = Allocate(e.buffer->data, storage_type, shape,
                        make_const(DataType::Bool(e.buffer->dtype.lanes()), true), body);
       }
-      ret = AttrStmt(e.buffer->data, attr::storage_scope, StringImm(skey.to_string()), ret);
 
       if (create_bound_attributes_ && ShapeIsValid(e.buffer->shape)) {
         ret = AttrStmt(e.buffer->data, tir::attr::buffer_bound,

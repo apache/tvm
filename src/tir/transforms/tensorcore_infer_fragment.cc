@@ -69,7 +69,7 @@ class FragmentGetter : public StmtExprVisitor {
       ICHECK(k);
       ICHECK(layout);
 
-      std::string scope = scopes[buffer_var];
+      std::string scope = GetPtrStorageScope(GetRef<Var>(buffer_var));
       if (fragments.count(buffer_var)) {
         // check if the fragment has met before
         FragmentInfo info = fragments[buffer_var];
@@ -102,7 +102,7 @@ class FragmentGetter : public StmtExprVisitor {
       ICHECK(n);
       ICHECK(k);
 
-      std::string scope = scopes[buffer_var];
+      std::string scope = GetPtrStorageScope(GetRef<Var>(buffer_var));
       // Only wmma.accumulator can use tvm_fill_fragment
       ICHECK_EQ(scope, "wmma.accumulator");
       if (fragments.count(buffer_var)) {
@@ -119,16 +119,9 @@ class FragmentGetter : public StmtExprVisitor {
 
   // Get memory scope
   void VisitStmt_(const AttrStmtNode* op) final {
-    if (op->attr_key == attr::storage_scope) {
-      const VarNode* buffer = op->node.as<VarNode>();
-      ICHECK(buffer);
-      scopes[buffer] = op->value.as<StringImmNode>()->value;
-    }
     StmtExprVisitor::VisitStmt_(op);
   }
 
-  // Memory scope for allocations
-  std::unordered_map<const VarNode*, std::string> scopes;
   // Fragment metadata for all fragments
   std::unordered_map<const VarNode*, FragmentInfo> fragments;
 };

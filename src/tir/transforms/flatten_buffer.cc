@@ -130,7 +130,6 @@ class BufferFlattener : public StmtExprMutator {
     String storage_scope = buffer.scope();
     PrimExpr area = BufferArea(buffer);
     body = Allocate(buffer->data, buffer->dtype, {area}, const_true(), std::move(body));
-    body = AttrStmt(buffer->data, attr::storage_scope, StringImm(storage_scope), std::move(body));
     return body;
   }
 
