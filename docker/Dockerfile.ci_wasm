@@ -18,6 +18,9 @@ FROM ubuntu:18.04
 
 RUN apt-get update --fix-missing
 
+# Globally disable pip cache
+RUN pip config set global.cache-dir false
+
 COPY install/ubuntu_install_core.sh /install/ubuntu_install_core.sh
 RUN bash /install/ubuntu_install_core.sh
 

@@ -22,11 +22,14 @@ set -o pipefail
 
 # We need to fix the onnx version because changing versions tends to break tests
 # TODO(mbrookhart): periodically update
-pip3 install onnx==1.8.1
-pip3 install onnxruntime==1.7.0
+pip3 install \
+    onnx==1.8.1 \
+    onnxruntime==1.7.0
 
 # torch depends on a number of other packages, but unhelpfully, does
 # not expose that in the wheel!!!
 pip3 install future
 
-pip3 install torch==1.7.0 torchvision==0.8.1
+pip3 install \
+    torch==1.7.0 \
+    torchvision==0.8.1

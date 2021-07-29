@@ -22,6 +22,9 @@ FROM ioft/i386-ubuntu:16.04
 
 RUN apt-get update --fix-missing && apt-get install -y ca-certificates
 
+# Globally disable pip cache
+RUN pip config set global.cache-dir false
+
 COPY install/ubuntu_install_core.sh /install/ubuntu_install_core.sh
 RUN bash /install/ubuntu_install_core.sh
 
