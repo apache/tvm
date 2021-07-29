@@ -764,6 +764,9 @@ def scatter_nd(data, indices, updates, mode):
     """
     _verify_scatter_nd_inputs(data, indices, updates)
 
+    def cur_target_kind(kind="cuda"):
+        return tvm.target.Target.current(allow_none=False).kind == tvm.target.Target(kind).kind
+
     def gen_ir(data_ptr, indices_ptr, updates_ptr, out_ptr):
         ib = tvm.tir.ir_builder.create()
 
@@ -788,15 +791,6 @@ def scatter_nd(data, indices, updates, mode):
         for i in data_ptr.shape:
             fused_shape *= i
 
-        # For now we avoid parallizing over dimensions indexed by `indices` as
-        # there may be repeated indices and hadling parallel accumulation can
-        # be hard. So we parallelize over X_M .. X_{N-1} instead.
-
-        # For better performance, we introduce blockIdx.y to implement for-loops
-        # within one thread.
-        # The code is parallel over the scattered indices, so we use atomic_add
-        # to guarantee correctness when mode=="add"
-
         max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
         tdim = min(max_threads, fused_updates_dimension)
 
@@ -811,8 +805,19 @@ def scatter_nd(data, indices, updates, mode):
             with ib.if_scope(index < fused_shape):
                 out[index] = data[index]
 
+        # For better performance, we introduce blockIdx.y to implement for-loops
+        # within one thread.
+        # The code is parallel over the scattered indices, so we use atomic_add
+        # to guarantee correctness when mode=="add"
+
+        # For now, atomic is not supported by target "vulkan", "metal", or "cuda" with "int64"
+        # So we fallback to normal algorithm using "+=" rather than atomic_add
         with ib.new_scope():
-            if updates.dtype == "int64" and mode == "add":
+            if (
+                cur_target_kind("vulkan")
+                or cur_target_kind("metal")
+                or (updates.dtype == "int64" and mode == "add")
+            ):
                 bdim_x = ceil_div(fused_updates_dimension, tdim)
                 bx = te.thread_axis("blockIdx.x")
                 tx = te.thread_axis("threadIdx.x")
@@ -833,27 +838,27 @@ def scatter_nd(data, indices, updates, mode):
                             offset *= data_ptr.shape[l]
                         out[index] += updates[i * fused_updates_dimension + j]
             else:
-                bdim_x = ceil_div(fused_updates_dimension, tdim)
-                bdim_y = fused_indices_dimension
-                # In case of large input sizes, bim_y might be too large.
+                bdim_x = fused_indices_dimension
+                bdim_y = ceil_div(fused_updates_dimension, tdim)
+                # In case of large input sizes, fused_indices_dimension might be too large.
                 # So it could be moved to blockIdx.x position, which holds larger scales.
-                bx = te.thread_axis("blockIdx.y")
-                by = te.thread_axis("blockIdx.x")
+                bx = te.thread_axis("blockIdx.x")
+                by = te.thread_axis("blockIdx.y")
                 tx = te.thread_axis("threadIdx.x")
                 ib.scope_attr(bx, "thread_extent", bdim_x)
                 ib.scope_attr(by, "thread_extent", bdim_y)
                 ib.scope_attr(tx, "thread_extent", tdim)
 
-                j = bx * tdim + tx
+                j = by * tdim + tx
                 with ib.if_scope(j < fused_updates_dimension):
                     offset = fused_updates_dimension
                     index = j  # This is x_M, .. x_{N-1} part of the index into out.
                     # Build up the indices[0, y_0, .. y_{K-1}], .. indices[M-1, y_0, .. y_{K-1}]
                     # part of the index into out.
-                    up_index = by * fused_updates_dimension + j
+                    up_index = bx * fused_updates_dimension + j
                     for l in reversed(range(indices_ptr.shape[0].value)):
-                        # indices[by * l * fused_indices_dimension] = indices[l, y_0, ... y_{k-1}]
-                        index += offset * indices[by + l * fused_indices_dimension]
+                        # indices[bx * l * fused_indices_dimension] = indices[l, y_0, ... y_{k-1}]
+                        index += offset * indices[bx + l * fused_indices_dimension]
                         offset *= data_ptr.shape[l]
                     if mode == "update":
                         out[index] = updates[up_index]
