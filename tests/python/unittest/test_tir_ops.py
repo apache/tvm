@@ -146,13 +146,22 @@ def test_binary_dtype_match():
                 rhs = te.var("rhs", dtype=rhs_dtype)
                 if "float" not in lhs_dtype and "float" not in rhs_dtype:
                     check_throws(lambda: f(lhs, rhs))
-                elif "float" in lhs_dtype and "float" in rhs_dtype and lhs_dtype != rhs_dtype:
-                    check_throws(lambda: f(lhs, rhs))
                 elif "float" in lhs_dtype:
                     out = f(lhs, rhs)
-                    assert out.dtype == lhs_dtype
-                    assert out.args[0].dtype == lhs_dtype
-                    assert out.args[1].dtype == lhs_dtype
+
+                    # Upcasting for floating point types
+                    dtypes = [lhs_dtype, rhs_dtype]
+                    if "float64" in dtypes:
+                        target_dtype = "float64"
+                    elif "float32" in dtypes:
+                        target_dtype = "float32"
+                    else:
+                        target_dtype = "int32"
+                    assert out.dtype == target_dtype
+
+                    # Final inputs are the right type
+                    assert out.args[0].dtype == target_dtype
+                    assert out.args[1].dtype == target_dtype
                 else:
                     out = f(lhs, rhs)
                     assert out.dtype == rhs_dtype
