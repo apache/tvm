@@ -40,8 +40,8 @@ def test_matmul_dyn_shared():
         by = te.thread_axis("blockIdx.y")
         ib.scope_attr(tx, "thread_extent", block)
         ib.scope_attr(ty, "thread_extent", block)
-        ib.scope_attr(bx, "thread_extent", n / block)
-        ib.scope_attr(by, "thread_extent", n / block)
+        ib.scope_attr(bx, "thread_extent", n // block)
+        ib.scope_attr(by, "thread_extent", n // block)
 
         A_sh = ib.allocate(A.dtype, (block, block), scope="shared.dyn", name="A_sh")  # fp16
         B_sh = ib.allocate(B.dtype, (block, block), scope="shared.dyn", name="B_sh")  # fp16
