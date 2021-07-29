@@ -811,10 +811,18 @@ def scatter_nd(data, indices, updates, mode):
         # to guarantee correctness when mode=="add"
 
         # For now, atomic is not supported by target "vulkan", "metal", or "cuda" with "int64"
-        # So we fallback to normal algorithm using "+=" rather than atomic_add
+        # So we fallback to normal algorithm, using "+=" rather than atomic_add
+
+        # TODO:
+        # Since multiple threads compete for the same write index, which leads to
+        # non-determinstic output for update mode. We could add a new attribute
+        # "allow_non_deterministic" to scatter_nd op, which is False by default.
+        # And change ONNX frontend to emit scatter_op with allow_non_deterministic = True,
+        # which will allow the new code path for update mode as well
         with ib.new_scope():
             if (
-                cur_target_kind("vulkan")
+                mode == "update"
+                or cur_target_kind("vulkan")
                 or cur_target_kind("metal")
                 or (updates.dtype == "int64" and mode == "add")
             ):
@@ -836,8 +844,13 @@ def scatter_nd(data, indices, updates, mode):
                             #                                                   ... y_{k-1}]
                             index += offset * indices[i + l * fused_indices_dimension]
                             offset *= data_ptr.shape[l]
-                        out[index] += updates[i * fused_updates_dimension + j]
-            else:
+                        if mode == "update":
+                            out[index] = updates[i * fused_updates_dimension + j]
+                        elif mode == "add":
+                            out[index] += updates[i * fused_updates_dimension + j]
+                        else:
+                            raise NotImplementedError("scatter_nd mode not in [update, add]:", mode)
+            elif mode == "add":
                 bdim_x = fused_indices_dimension
                 bdim_y = ceil_div(fused_updates_dimension, tdim)
                 # In case of large input sizes, fused_indices_dimension might be too large.
@@ -860,15 +873,12 @@ def scatter_nd(data, indices, updates, mode):
                         # indices[bx * l * fused_indices_dimension] = indices[l, y_0, ... y_{k-1}]
                         index += offset * indices[bx + l * fused_indices_dimension]
                         offset *= data_ptr.shape[l]
-                    if mode == "update":
-                        out[index] = updates[up_index]
-                    elif mode == "add":
-                        atomic_add_return[0] = atomic_add(
-                            tvm.tir.call_intrin("handle", "tir.address_of", out[index]),
-                            updates[up_index],
-                        )
-                    else:
-                        raise NotImplementedError("scatter_nd mode not in [update, add]:", mode)
+                    atomic_add_return[0] = atomic_add(
+                        tvm.tir.call_intrin("handle", "tir.address_of", out[index]),
+                        updates[up_index],
+                    )
+            else:
+                raise NotImplementedError("scatter_nd mode not in [update, add]:", mode)
 
         return ib.get()
 
