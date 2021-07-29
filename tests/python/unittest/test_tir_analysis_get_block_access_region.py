@@ -62,6 +62,25 @@ def match_buffer_func() -> None:
             tir.evaluate(B1.data)
 
 
+@tvm.script.tir
+def opaque_block_func() -> None:
+    with tir.block([], "root"):
+        A = tir.alloc_buffer((16, 16), "float32")
+        B = tir.alloc_buffer((16, 16), "float32")
+        tir.reads([])
+        tir.writes([])
+        # Need add read/write region manually to avoid triggering block access region detector
+        for i in range(0, 16):
+            with tir.block([]):
+                tir.reads(A[i, 0:16])
+                tir.writes([B[i, 0:16]])
+                for j in range(0, 16):
+                    with tir.block([]):
+                        tir.reads(A[i, j])
+                        tir.writes(B[i, j])
+                        B[i, j] = A[i, j] + 1.0
+
+
 def test_block_access_region_detector():
     block = func.body.block.body.block
     alloc_buffers = func.body.block.alloc_buffers
@@ -74,6 +93,21 @@ def test_block_access_region_detector():
     tvm.ir.assert_structural_equal(
         [tvm.tir.BufferRegion(D, [Range(0, 128), Range(0, 128)])], ret[2]
     )
+
+
+def test_opaque_block():
+    alloc_buffers = opaque_block_func.body.block.alloc_buffers
+    buffer_var_map = {buf.data: buf for buf in alloc_buffers}
+
+    block0 = opaque_block_func.body.block.body.body.block
+    ret = tir.analysis.get_block_access_region(block0, buffer_var_map)
+    tvm.ir.assert_structural_equal(block0.reads, ret[0])
+    tvm.ir.assert_structural_equal(block0.writes, ret[1])
+
+    block1 = block0.body.body.block
+    ret = tir.analysis.get_block_access_region(block1, buffer_var_map)
+    tvm.ir.assert_structural_equal(block1.reads, ret[0])
+    tvm.ir.assert_structural_equal(block1.writes, ret[1])
 
 
 def test_match_buffer():
@@ -97,4 +131,5 @@ def test_match_buffer():
 
 if __name__ == "__main__":
     test_block_access_region_detector()
+    test_opaque_block()
     test_match_buffer()

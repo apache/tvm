@@ -652,7 +652,7 @@ def LowerMatchBuffer():
     fpass : tvm.transform.Pass
         The result pass
     """
-    return _ffi_api.LowerMatchBuffer()
+    return _ffi_api.LowerMatchBuffer()  # type: ignore
 
 
 def FlattenBuffer():

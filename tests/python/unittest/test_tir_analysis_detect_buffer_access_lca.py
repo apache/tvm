@@ -77,12 +77,11 @@ def match_buffer_func(a: ty.handle, b: ty.handle) -> None:
     with tir.block([8, 8], "block") as [vi, vj]:
         tir.reads(B[vi * 16 + 2 : vi * 16 + 12, vj * 16 + 2 : vj * 16 + 16])
         tir.writes(A[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
-        AA = tir.match_buffer(A[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16], (16, 16))
         B0 = tir.match_buffer(B[vi * 16 + 2 : vi * 16 + 6, vj * 16 + 2 : vj * 16 + 6], (4, 4))
         B1 = tir.match_buffer(B[vi * 16 + 8 : vi * 16 + 12, vj * 16 + 8 : vj * 16 + 16], (4, 8))
         with tir.block([16, 16], "AAA") as [i, j]:
-            AAA = tir.match_buffer(AA[i, j], ())
-            AAA[()] = 1.0
+            AA = tir.match_buffer(A[i, j], ())
+            AA[()] = 1.0
         tir.evaluate(B0.data)
         tir.evaluate(B1.data)
 

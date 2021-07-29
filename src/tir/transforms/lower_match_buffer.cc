@@ -135,9 +135,9 @@ class MatchBufferLower : public StmtExprMutator {
     const Buffer& source_buffer = source->buffer;
 
     // Step.1.1. Check scope & dtype
-    ICHECK_EQ(buffer->scope, source_buffer->scope)
-        << "MatchBuffer " << buffer << " scope mismatch:" << buffer->scope << "vs."
-        << source_buffer->scope;
+    ICHECK_EQ(buffer.scope(), source_buffer.scope())
+        << "MatchBuffer " << buffer << " scope mismatch:" << buffer.scope() << "vs."
+        << source_buffer.scope();
     ICHECK_EQ(buffer->dtype, source_buffer->dtype)
         << "MatchBuffer " << buffer << " data type mismatch:" << buffer->dtype << "vs."
         << source_buffer->dtype;

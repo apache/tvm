@@ -202,7 +202,7 @@ def test_inconsistent_grid():
 
 def invalid_match_buffer_region() -> None:
     with tir.block([16, 16]) as [vi, vj]:
-        A = tir.match_buffer_region(vi)  # error
+        A = tir.match_buffer(vi)  # error
         tir.evaluate(1.0)
 
 

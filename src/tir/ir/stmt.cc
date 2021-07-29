@@ -689,9 +689,9 @@ MatchBufferRegion::MatchBufferRegion(Buffer buffer, BufferRegion source) {
   const Buffer& source_buffer = source->buffer;
   arith::Analyzer analyzer;
   // Check scope and dtype
-  CHECK_EQ(buffer->scope, source_buffer->scope)
-      << "MatchBuffer " << buffer << " scope mismatch:" << buffer->scope << " vs. "
-      << source_buffer->scope;
+  CHECK_EQ(buffer.scope(), source_buffer.scope())
+      << "MatchBuffer " << buffer << " scope mismatch:" << buffer.scope() << " vs. "
+      << source_buffer.scope();
   CHECK_EQ(buffer->dtype, source_buffer->dtype)
       << "MatchBuffer " << buffer << " data type mismatch:" << buffer->dtype << " vs. "
       << source_buffer->dtype;
@@ -790,7 +790,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<MatchBufferRegionNode>([](const ObjectRef& node, ReprPrinter* p) {
       auto* op = static_cast<const MatchBufferRegionNode*>(node.get());
       p->PrintIndent();
-      p->stream << op->buffer->name << " = match_buffer_region(";
+      p->stream << op->buffer->name << " = match_buffer(";
       p->Print(op->source);
       p->stream << ")\n";
     });

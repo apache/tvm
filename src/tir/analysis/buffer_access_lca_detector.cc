@@ -86,23 +86,16 @@ class LCADetector : public StmtExprVisitor {
       buffer_var_map_.emplace(buf->data.get(), buf.get());
     }
 
-    // Update match_buffers
-    for (const MatchBufferRegion& match_buffer : op->match_buffers) {
-      const Buffer& target_buffer = match_buffer->buffer;
-      buffer_var_map_.emplace(target_buffer->data.get(), target_buffer.get());
-
-      const Buffer& source_buffer = match_buffer->source->buffer;
-      auto it = match_buffers_.find(source_buffer.get());
-      if (it != match_buffers_.end()) {
-        match_buffers_[target_buffer.get()] = it->second;
-      } else {
-        match_buffers_[target_buffer.get()] = source_buffer.get();
-      }
-    }
-
     const ScopeInfo* parent_scope = ancestor_scopes_.back();
     auto* current_scope = arena_.make<ScopeInfo>(parent_scope, op, n);
+
     ancestor_scopes_.push_back(current_scope);
+    // Update match_buffers
+    for (const MatchBufferRegion& match_buffer : op->match_buffers) {
+      UpdateBufferLCA(match_buffer->source->buffer.get());
+      match_buffers_.insert(match_buffer->buffer.get());
+    }
+
     StmtExprVisitor::VisitStmt_(op);
     ancestor_scopes_.pop_back();
   }
@@ -144,12 +137,11 @@ class LCADetector : public StmtExprVisitor {
   }
 
   void UpdateBufferLCA(const BufferNode* buffer) {
-    auto it = match_buffers_.find(buffer);
-    if (it != match_buffers_.end()) {
-      buffer = it->second;
+    if (match_buffers_.find(buffer) == match_buffers_.end()) {
+      // Ingore buffer created by block match_buffer
+      const ScopeInfo*& lca = buffer_lca_[buffer];
+      lca = LowestCommonAncestor(lca, ancestor_scopes_.back());
     }
-    const ScopeInfo*& lca = buffer_lca_[buffer];
-    lca = LowestCommonAncestor(lca, ancestor_scopes_.back());
   }
 
   static const ScopeInfo* LowestCommonAncestor(const ScopeInfo* lhs, const ScopeInfo* rhs) {
@@ -184,7 +176,7 @@ class LCADetector : public StmtExprVisitor {
   /*! \brief The map from Buffer data to the Buffer. */
   std::unordered_map<const VarNode*, const BufferNode*> buffer_var_map_ = {};
   /*! \brief The match buffers inside blocks. */
-  std::unordered_map<const BufferNode*, const BufferNode*> match_buffers_ = {};
+  std::unordered_set<const BufferNode*> match_buffers_ = {};
   /*! \brief Internal arena. */
   support::Arena arena_;
 };

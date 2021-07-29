@@ -302,6 +302,7 @@ def tensorcore_gemm(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
                                 )
 
 
+@tvm.testing.requires_cuda
 def test_gemm_tensorcore():
     dev = tvm.device("cuda", 0)
     a_np = np.random.uniform(size=(1024, 1024)).astype("float16")
@@ -310,7 +311,6 @@ def test_gemm_tensorcore():
     a = tvm.nd.array(a_np, dev)
     b = tvm.nd.array(b_np, dev)
     c = tvm.nd.array(np.zeros((1024, 1024), dtype="float32"), dev)
-    print(tvm.script.asscript(tvm.lower(tensorcore_gemm, simple_mode=True)))
     f = tvm.build(tensorcore_gemm, target="cuda", name="dense")
     f(a, b, c)
     tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-3)

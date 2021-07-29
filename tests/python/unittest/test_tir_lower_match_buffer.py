@@ -65,8 +65,8 @@ def transformed_buffer_load_store(a: ty.handle, c: ty.handle) -> None:
                 A[i * 4 + ii, j, k * 2 + kk] += C[i * 4 + ii, k * 2 + kk]
 
 
-@tvm.ir.register_op_attr("tir.test_intrin", "")
-def test_intrin(data, elem_offset, stride_0, stride_1, shape_0, shape_1):
+@tvm.ir.register_op_attr("tir.intrin_test", "")
+def intrin_test(data, elem_offset, stride_0, stride_1, shape_0, shape_1):
     return 0
 
 
@@ -85,7 +85,7 @@ def opaque_access(a: ty.handle, b: ty.handle) -> None:
                 offset_factor=1,
             )
             tir.evaluate(
-                tir.test_intrin(
+                tir.intrin_test(
                     sub_A.data,
                     sub_A.elem_offset,
                     sub_A.strides[0],
@@ -108,7 +108,7 @@ def opaque_access(a: ty.handle, b: ty.handle) -> None:
                 offset_factor=1,
             )
             tir.evaluate(
-                tir.test_intrin(
+                tir.intrin_test(
                     sub_B.data,
                     sub_B.elem_offset,
                     sub_B.strides[0],
@@ -129,7 +129,7 @@ def transformed_opaque_access(a: ty.handle, b: ty.handle) -> None:
             tir.reads([])
             tir.writes(A[i * 16 : i * 16 + 16, j, k * 16 : k * 16 + 16])
             tir.evaluate(
-                tir.test_intrin(
+                tir.intrin_test(
                     A.data,
                     i * 131072 + j * 128 + k * 16,
                     8192,
@@ -144,7 +144,7 @@ def transformed_opaque_access(a: ty.handle, b: ty.handle) -> None:
             tir.reads([])
             tir.writes(B[i, j * 32 : j * 32 + 32, k * 8 : k * 8 + 8])
             tir.evaluate(
-                tir.test_intrin(
+                tir.intrin_test(
                     B.data,
                     i * 4096 + j * 2048 + k * 8,
                     64,
@@ -205,7 +205,7 @@ def recursive_match(a: ty.handle, b: ty.handle) -> None:
                         offset_factor=1,
                     )
                     tir.evaluate(
-                        tir.test_intrin(
+                        tir.intrin_test(
                             sub_sub_A.data,
                             sub_sub_A.elem_offset,
                             sub_sub_A.strides[0],
@@ -250,7 +250,7 @@ def transformed_recursive_match(a: ty.handle, b: ty.handle) -> None:
                         ]
                     )
                     tir.evaluate(
-                        tir.test_intrin(
+                        tir.intrin_test(
                             A.data,
                             i * 4096 + j * 1024 + jj * 256 + k * 16 + kk * 4,
                             64,
@@ -282,7 +282,7 @@ def symbolic_match(a: ty.handle, b: ty.handle, n: ty.int32, m: ty.int32) -> None
                 sub_A[ii, jj] = 1
             for j in range(0, 4):
                 tir.evaluate(
-                    tir.test_intrin(
+                    tir.intrin_test(
                         sub_B.data,
                         sub_B.elem_offset,
                         sub_B.strides[0],
@@ -306,7 +306,7 @@ def transformed_symbolic_match(a: ty.handle, b: ty.handle, n: ty.int32, m: ty.in
                 A[i * m + ii, jj] = 1
             for j in range(0, 4):
                 tir.evaluate(
-                    tir.test_intrin(
+                    tir.intrin_test(
                         B.data,
                         i * n * (m * 4),
                         m * 4,
@@ -330,7 +330,7 @@ def rank0_buffer(a: ty.handle, b: ty.handle) -> None:
             sub_B = tir.match_buffer(B[i, j], (), offset_factor=1)
             sub_A[()] = 1
             tir.evaluate(
-                tir.test_intrin(
+                tir.intrin_test(
                     sub_B.data,
                     sub_B.elem_offset,
                     0,
@@ -352,7 +352,7 @@ def transformed_rank0_buffer(a: ty.handle, b: ty.handle) -> None:
             tir.writes([A[i, j], B[i, j]])
             A[i, j] = 1
             tir.evaluate(
-                tir.test_intrin(
+                tir.intrin_test(
                     B.data,
                     i * 8 + j,
                     0,
