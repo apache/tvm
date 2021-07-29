@@ -206,7 +206,6 @@ class BaseDepthwiseConv2D:
 
     def test_conv2d(
         self,
-        request,
         target,
         dev,
         in_dtype,
@@ -225,7 +224,9 @@ class BaseDepthwiseConv2D:
         stride,
         padding,
         dilation,
+        ref_data,
     ):
+        target = tvm.target.Target(target)
         if (
             target.kind.name == "cuda"
             and in_dtype == "float16"
@@ -304,9 +305,7 @@ class BaseDepthwiseConv2D:
                 f = tvm.build(s, [Input, Filter, Scale, Shift, C], target)
 
                 if self.run_after_compile:
-                    input_np, filter_np, scale_np, shift_np, output_np = request.getfixturevalue(
-                        "ref_data"
-                    )
+                    input_np, filter_np, scale_np, shift_np, output_np = ref_data
                     if "int" in out_dtype:
                         tol = {"atol": 0, "rtol": 0}
                     elif out_dtype == "float32":

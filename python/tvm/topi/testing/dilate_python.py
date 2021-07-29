@@ -60,8 +60,7 @@ def dilate_python(input_np, strides, dilation_value=0.0, out_dtype=None):
         *[range(0, output_dim, stride) for output_dim, stride in zip(output_size, strides)]
     )
 
-    output_np = np.ones(shape=output_size, dtype=out_dtype)
-    output_np = dilation_value * output_np
+    output_np = np.full(shape=output_size, fill_value=dilation_value, dtype=out_dtype)
     output_np[non_zero_elements] = input_np
 
     return output_np
