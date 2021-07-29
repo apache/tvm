@@ -1088,8 +1088,7 @@ int TVMGraphExecutor_SetupOpExecs(TVMGraphExecutor* executor) {
       printf("tvm_op: creating %s with node_id=%d\n", inode->param.func_name, nid);
 #endif  // TVM_CRT_DEBUG
       TVMPackedFunc pf;
-      TVMGraphExecutor_CreateTVMOp(executor, &(inode->param), args, args_count, inode->inputs_count,
-                                   &pf);
+      TVMGraphExecutor_CreateTVMOp(executor, &(inode->param), args, args_count, &pf);
       executor->op_execs[nid] = pf;
     }
   }
