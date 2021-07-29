@@ -21,9 +21,47 @@ import tvm.testing
 from tvm.topi.math import cast
 
 
+def run_passes(sch, args):
+    bounds = tvm.te.schedule.InferBound(sch)
+    assert isinstance(bounds, tvm.container.Map)
+    stmt = tvm.te.schedule.ScheduleOps(sch, bounds)
+
+    func = tvm.te.schedule.SchedulePostProcToPrimFunc(args, stmt, None)
+    mod = tvm.IRModule.from_expr(func)
+    return tvm.transform.Sequential(
+        [
+            tvm.tir.transform.StorageFlatten(64),
+            tvm.tir.transform.Simplify(),
+            tvm.tir.transform.VectorizeLoop(),
+            tvm.tir.transform.StorageRewrite(),
+            tvm.tir.transform.MergeDynamicSharedMemoryAllocations(),
+        ]
+    )(mod)
+
+
+def verify_single_allocation(stmt, alloc_size=None):
+    num_alloc = [0]
+    alloc_extents = []
+
+    def verify(n):
+        if (
+            isinstance(n, tvm.tir.Allocate)
+            and n.buffer_var.type_annotation.storage_scope == "shared.dyn"
+        ):
+            num_alloc[0] += 1
+            alloc_extents.append(n.extents[0])
+
+    tvm.tir.stmt_functor.post_order_visit(stmt, verify)
+    assert num_alloc[0] == 1
+
+    if alloc_size:
+        assert alloc_extents[0] == alloc_size
+
+
 @tvm.testing.requires_gpu
 def test_matmul_dyn_shared():
     n = 1024
+    block = 16
     A = te.placeholder((n, n), name="A", dtype="float16")
     B = te.placeholder((n, n), name="B", dtype="float16")
 
@@ -32,7 +70,6 @@ def test_matmul_dyn_shared():
 
     def test_matmul_ir(A, B, C):
         ib = tvm.tir.ir_builder.create()
-        block = 16
 
         tx = te.thread_axis("threadIdx.x")
         ty = te.thread_axis("threadIdx.y")
@@ -78,6 +115,9 @@ def test_matmul_dyn_shared():
         dtype="float32",
     )
     s = te.create_schedule(C.op)
+    mod = run_passes(s, [A, B, C])
+    expected_alloc_size = block * block * 3 * 4
+    verify_single_allocation(mod["main"].body, expected_alloc_size)
 
     def check_target(target):
         if not tvm.testing.device_enabled(target):
@@ -141,6 +181,9 @@ def test_dyn_shared_vectorized_store():
         dtype="float32",
     )
     s = te.create_schedule(C.op)
+
+    mod = run_passes(s, [A, B, C])
+    verify_single_allocation(mod["main"].body)
 
     def check_target(target):
         if not tvm.testing.device_enabled(target):
