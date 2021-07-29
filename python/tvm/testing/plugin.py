@@ -288,3 +288,18 @@ def _parametrize_correlated_parameters(metafunc):
             names = ",".join(name for name, values in params)
             value_sets = zip(*[values for name, values in params])
             metafunc.parametrize(names, value_sets, indirect=True, ids=ids)
+
+from xdist.scheduler.loadscope import LoadScopeScheduling
+
+
+class MyScheduler(LoadScopeScheduling):
+    def _split_scope(self, nodeid):
+        # NOTE: test_tvm_testing_features contains parametrization-related tests, and must be
+        # serialized on a single host.
+        if "test_tvm_testing_features" in nodeid:
+            return "functional-tests"
+        return nodeid
+
+
+def pytest_xdist_make_scheduler(config, log):
+    return MyScheduler(config, log)
