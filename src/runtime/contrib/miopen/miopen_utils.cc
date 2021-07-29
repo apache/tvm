@@ -89,6 +89,10 @@ void ConvEntry::CleanWorkspace() {
   workspace_size = 0;
 }
 
+SoftmaxEntry::SoftmaxEntry() { MIOPEN_CALL(miopenCreateTensorDescriptor(&shape_desc)); }
+
+SoftmaxEntry::~SoftmaxEntry() { MIOPEN_CALL(miopenDestroyTensorDescriptor(shape_desc)); }
+
 }  // namespace miopen
 }  // namespace contrib
 }  // namespace tvm
