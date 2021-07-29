@@ -248,9 +248,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
     code_ << ");\n";
     code_ << "int32_t " << entrypoint_name << "(";
     code_ << "struct " << runtime::get_name_mangled(mod_name, "inputs") << "* inputs,"
-          << "struct " << runtime::get_name_mangled(mod_name, "outputs") << "* outputs,"
-          << "struct " << runtime::get_name_mangled(mod_name, "memory") << "* memory,"
-          << "struct " << runtime::get_name_mangled(mod_name, "devices") << "* devices"
+          << "struct " << runtime::get_name_mangled(mod_name, "outputs") << "* outputs"
           << ") {";
     code_ << "return " << run_func << "(";
     for (const auto& input : metadata_->inputs) {

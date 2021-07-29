@@ -206,7 +206,7 @@ void main(void) {
 
   double elapsed_time = 0;
   TVMPlatformTimerStart();
-  int ret_val = tvmgen_default_run(&inputs, &outputs, NULL, NULL);
+  int ret_val = tvmgen_default_run(&inputs, &outputs);
   TVMPlatformTimerStop(&elapsed_time);
 
   if (ret_val != 0) {

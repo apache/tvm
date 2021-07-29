@@ -191,7 +191,7 @@ def emit_main_data_setup(main_file, input_map, output_list, mod_name):
 
 def emit_main_c_interface_call(main_file, mod_name):
     main_file.write(
-        f'{mangle_name(mod_name,"run")}(&{mangle_name(mod_name,"inputs")}, &{mangle_name(mod_name,"outputs")}, NULL, NULL);\n'
+        f'{mangle_name(mod_name,"run")}(&{mangle_name(mod_name,"inputs")}, &{mangle_name(mod_name,"outputs")});\n'
     )
 
 

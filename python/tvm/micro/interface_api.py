@@ -22,60 +22,50 @@ import os
 from tvm.relay.backend.utils import mangle_module_name
 
 
-def _emit_brief(header_file, model_name, description):
+def _emit_brief(header_file, module_name, description):
     header_file.write("/*!\n")
-    header_file.write(f" * \\brief TVM {model_name} model {description} \n")
+    header_file.write(f' * \\brief {description} for TVM module "{module_name}" \n')
     header_file.write(" */\n")
 
 
-def generate_c_interface_header(model_name, inputs, outputs, output_path):
-    """Generates a C interface header for a given models inputs and outputs
+def generate_c_interface_header(module_name, inputs, outputs, output_path):
+    """Generates a C interface header for a given modules inputs and outputs
 
     Parameters
     ----------
-    model_name : str
-        Name of the model to be used in defining structs and naming the header
+    module_name : str
+        Name of the module to be used in defining structs and naming the header
     inputs : list[str]
-        List of model input names to be placed in generated structs
+        List of module input names to be placed in generated structs
     outputs : list[str]
-        List of model output names to be placed in generated structs
+        List of module output names to be placed in generated structs
     output_path : str
         Path to the output folder to generate the header into
     """
 
-    mangled_name = mangle_module_name(model_name)
+    mangled_name = mangle_module_name(module_name)
     metadata_header = os.path.join(output_path, f"{mangled_name}.h")
     with open(metadata_header, "w") as header_file:
-        _emit_brief(header_file, model_name, "input tensors")
+        _emit_brief(header_file, module_name, "input tensors")
         header_file.write(f"struct {mangled_name}_inputs {{\n")
         for input_name in inputs:
             header_file.write(f"  void* {input_name};\n")
         header_file.write("};\n\n")
 
-        _emit_brief(header_file, model_name, "output tensors")
+        _emit_brief(header_file, module_name, "output tensors")
         header_file.write(f"struct {mangled_name}_outputs {{\n")
         for output_name in outputs:
             header_file.write(f"  void* {output_name};\n")
         header_file.write("};\n\n")
 
-        _emit_brief(header_file, model_name, "memory blocks")
-        header_file.write(f"struct {mangled_name}_memory {{\n")
-        header_file.write("};\n\n")
-
-        _emit_brief(header_file, model_name, "device configurations")
-        header_file.write(f"struct {mangled_name}_devices {{\n")
-        header_file.write("};\n\n")
-
-        header_file.write("/*!\n")
-        header_file.write(f" * \\brief TVM {model_name} model run function \n")
-        header_file.write(" * \\param inputs Input tensors for the model \n")
-        header_file.write(" * \\param outputs Output tensors for the model \n")
-        header_file.write(" * \\param memory Memory blocks for the model to use \n")
-        header_file.write(" * \\param devices Devices for the model to use \n")
-        header_file.write(" */\n")
-        header_file.write(f"int {mangled_name}_run(\n")
-        header_file.write(f"  struct {mangled_name}_inputs* inputs,\n")
-        header_file.write(f"  struct {mangled_name}_outputs* outputs,\n")
-        header_file.write(f"  struct {mangled_name}_memory* memory,\n")
-        header_file.write(f"  struct {mangled_name}_devices* devices\n")
-        header_file.write(");\n")
+        header_file.write(
+            "/*!\n"
+            f' * \\brief entrypoint function for TVM module "{module_name}"\n'
+            " * \\param inputs Input tensors for the model \n"
+            " * \\param outputs Output tensors for the model \n"
+            " */\n"
+            f"int32_t {mangled_name}_run(\n"
+            f"  struct {mangled_name}_inputs* inputs,\n"
+            f"  struct {mangled_name}_outputs* outputs\n"
+            ");\n"
+        )
