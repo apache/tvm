@@ -63,7 +63,7 @@ class DynamicSharedMemoryRewriter : public StmtExprMutator {
     if (op->attr_key == attr::thread_extent && !allocated) {
       // Allocate one dynamic shared memory allocation at the beginning of thread scope
       int align = 1;
-      for (auto& alloc : dyn_shmem_allocs_) {
+      for (const auto& alloc : dyn_shmem_allocs_) {
         ICHECK_EQ(alloc->dtype.lanes(), 1) << "vector dtype allocation not supported.";
         align = std::max(align, alloc->dtype.bytes());
       }
