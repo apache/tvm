@@ -51,7 +51,7 @@ def check_rts(expr, args, expected_result, mod=None):
 
 def test_add_op_scalar():
     """
-    Program:
+    test_add_op_scalar:
         fn (x, y) {
             return x + y;
         }
@@ -70,7 +70,7 @@ def test_add_op_scalar():
 
 def test_add_op_scalar_int():
     """
-    Program:
+    test_add_op_scalar_int:
         fn (x, y) {
             return x + y;
         }
