@@ -78,13 +78,21 @@ Expr MakeQuantizedBatchMatmul(Expr x, Expr y, Expr x_zero_point, Expr y_zero_poi
                               Expr y_scale, DataType out_dtype) {
   auto attrs = make_object<BatchMatmulAttrs>();
   attrs->out_dtype = out_dtype;
+  // For legacy reason, currently `qnn.batch_matmul` only supports
+  // (transpose_a=false, transpose_b=true)
+  // TODO(jcf94): extent to support all tensor format
+  attrs->transpose_a = false;
+  attrs->transpose_b = true;
   static const Op& op = Op::Get("qnn.batch_matmul");
   return Call(op, {x, y, x_zero_point, y_zero_point, x_scale, y_scale}, Attrs(attrs), {});
 }
 
 Expr BatchMatmulFirstTerm(const Expr& quantized_x, const Expr& quantized_y,
                           const BatchMatmulAttrs* attrs) {
-  return MakeBatchMatmul(quantized_x, quantized_y, attrs->out_dtype);
+  ICHECK(attrs->transpose_a == false && attrs->transpose_b == true)
+      << "Currently qnn.batch_matmul only supports (transpose_a=false, transpose_b=true).";
+  return MakeBatchMatmul(quantized_x, quantized_y, attrs->out_dtype, attrs->transpose_a,
+                         attrs->transpose_b);
 }
 
 Expr BatchMatmulSecondTerm(const Expr& x_quantized_data, const Expr& y_zero_point) {

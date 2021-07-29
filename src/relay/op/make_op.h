@@ -49,7 +49,7 @@ Expr MakeMatmul(Expr tensor_a, Expr tensor_b, IndexExpr units, DataType out_dtyp
 
 Expr MakeDense(Expr data, Expr weight, IndexExpr units, DataType out_dtype);
 
-Expr MakeBatchMatmul(Expr lhs, Expr rhs, DataType out_dtype);
+Expr MakeBatchMatmul(Expr lhs, Expr rhs, DataType out_dtype, bool transpose_a, bool transpose_b);
 
 Expr MakeExpandDims(Expr data, int axis, int num_newaxis);
 
