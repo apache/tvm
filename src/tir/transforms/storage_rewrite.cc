@@ -1191,9 +1191,10 @@ class VectorTypeRewriter : public StmtExprMutator {
    * @param rewrite_let_node Whether pointer declarations in let nodes
    * should be re-written.
    */
-  VectorTypeRewriter(const VectorTypeAccessChecker& checker, bool rewrite_params = true,
-                     bool rewrite_buffer_map = true, bool rewrite_allocate_node = true,
-                     bool rewrite_indices = true, bool rewrite_let_node = true)
+  VectorTypeRewriter(const std::unordered_map<const VarNode*, BufferVarInfo>& info_map,
+                     bool rewrite_params = true, bool rewrite_buffer_map = true,
+                     bool rewrite_allocate_node = true, bool rewrite_indices = true,
+                     bool rewrite_let_node = true)
       : rewrite_indices_(rewrite_indices) {
     int rewrite_mask = 0;
     if (rewrite_params) {
@@ -1210,7 +1211,7 @@ class VectorTypeRewriter : public StmtExprMutator {
     }
 
     // Rewrite any buffer variables whose preferred type isn't their current type.
-    for (const auto& pair : checker.info_map_) {
+    for (const auto& pair : info_map) {
       const auto& var_info = pair.second;
       DataType preferred = var_info.get_preferred_dtype();
       if (preferred != var_info.element_dtype && (rewrite_mask & var_info.declaration_location)) {
@@ -1409,8 +1410,8 @@ PrimFunc PointerValueTypeRewrite(PrimFunc f, bool allow_untyped_pointers = false
   VectorTypeAccessChecker checker(f->params, f->buffer_map, allow_untyped_pointers);
   checker(f->body);
 
-  VectorTypeRewriter rewriter(checker, rewrite_params, rewrite_buffer_map, rewrite_allocate_node,
-                              rewrite_indices, rewrite_let_node);
+  VectorTypeRewriter rewriter(checker.info_map_, rewrite_params, rewrite_buffer_map,
+                              rewrite_allocate_node, rewrite_indices, rewrite_let_node);
   PrimFuncNode* n = f.CopyOnWrite();
   n->body = rewriter(std::move(n->body));
   rewriter.Finalize(&f);

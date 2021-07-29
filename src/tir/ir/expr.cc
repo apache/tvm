@@ -635,6 +635,10 @@ Load::Load(DataType dtype, Var buffer_var, PrimExpr index, PrimExpr predicate, S
     // the same scope, regardless of element type.  The codegen is
     // then responsible for casting to the output type.
 
+    // TODO(Lunderberg): Uncomment this check once it can be applied.
+    // See https://discuss.tvm.apache.org/t/pre-rfc-vectorized-tir-buffers/10615
+    // for discussion.
+
     // ICHECK(dtype.element_of() == pointer_type.second.element_of())
     //     << "Type mismatch, cannot load type " << dtype << " from buffer " <<
     //     buffer_var->name_hint

@@ -255,14 +255,15 @@ Store::Store(Var buffer_var, PrimExpr value, PrimExpr index, PrimExpr predicate,
     // Currently cannot check element type of array, see Load::Load
     // for details.
 
+    // TODO(Lunderberg): Uncomment this check once it can be applied.
+    // See https://discuss.tvm.apache.org/t/pre-rfc-vectorized-tir-buffers/10615
+    // for discussion.
+
     // ICHECK_EQ(value.dtype().element_of(), pointer_type.second.element_of())
     //     << "Type mismatch, cannot store type " << value.dtype() << " into buffer "
     //     << buffer_var->name_hint << " of type " << pointer_type.second;
     element_lanes = pointer_type.second.lanes();
   }
-
-  // ICHECK_EQ(value.dtype().lanes(), element_lanes * index.dtype().lanes());
-  // ICHECK_EQ(value.dtype().lanes(), element_lanes * predicate.dtype().lanes());
 
   ICHECK((value.dtype().lanes() == element_lanes * index.dtype().lanes()) ||
          (value.dtype().lanes() == index.dtype().lanes()));
