@@ -42,7 +42,9 @@ def schedule_group_conv2d_nchw(outs):
     return schedule_group_conv2d_nchwc(outs)
 
 
-def _get_default_config(cfg, data, kernel, strides, padding, dilation, groups, out_dtype, layout="NCHW"):
+def _get_default_config(
+    cfg, data, kernel, strides, padding, dilation, groups, out_dtype, layout="NCHW"
+):
     """
     Get default schedule config for the workload
     """
