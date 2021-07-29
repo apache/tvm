@@ -1256,6 +1256,7 @@ def from_tensorflow(graph, layout="NHWC", shape=None, outputs=None, use_dense_op
         mod, params = g.from_tensorflow(graph, layout, shape, outputs)
     else:
         from tvm.relay.frontend.tensorflow2 import from_tensorflow as _from_tensorflow2
+
         mod, params = _from_tensorflow2(graph, layout, shape, outputs)
 
     return mod, params

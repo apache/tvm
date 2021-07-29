@@ -27,9 +27,15 @@ from .tensorflow_ops import _get_more_static_shape_rank
 
 
 def _detect_tf2_ops(_graph):
-    tensorlist_ops = ["TensorListFromTensor", "TensorListGetItem",  "TensorListReserve", "TensorListSetItem", "TensorListStack"]
+    tensorlist_ops = [
+        "TensorListFromTensor",
+        "TensorListGetItem",
+        "TensorListReserve",
+        "TensorListSetItem",
+        "TensorListStack",
+    ]
     control_flow_ops = ["If", "StatelessIf", "While", "StatelessWhile"]
-    tf2_ops = set(tensorlist_ops+control_flow_ops)
+    tf2_ops = set(tensorlist_ops + control_flow_ops)
 
     def _check_subgraph(nodes):
         for node in nodes:
@@ -45,6 +51,7 @@ def _detect_tf2_ops(_graph):
             return True
 
     return False
+
 
 def _infer_type_with_prelude(val, prelude):
     body = _infer_type(val, prelude.mod)
