@@ -58,17 +58,6 @@ class PlatformSimulator(tvm.relay.ExprVisitor):
         _scope()
         assert all([dev in self._compute_devices for dev in self.ENABLED_DEVICES])
 
-        # measure data movement costs
-        self._data_movement_costs = {dev: {} for dev in self.ENABLED_DEVICES}
-        for sdev in self.ENABLED_DEVICES:
-            for tdev in self.ENABLED_DEVICES:
-                self._data_movement_costs[sdev][tdev] = (
-                    0
-                    if sdev == tdev
-                    else self._compute_devices[sdev].estimate_single_byte_read_cost_to_bus()
-                    + self._compute_devices[tdev].estimate_single_byte_write_cost_to_bus()
-                )
-
     @property
     def node_costs(self):
         return self._node_costs
@@ -164,21 +153,21 @@ class PlatformSimulator(tvm.relay.ExprVisitor):
     def visit_let(self, let):
         raise NotImplementedError(let.type_key)
 
-    def visit_function(self, f):
-        super().visit_function(f)
-        assert f not in self._pinned_nodes
+    def visit_function(self, fn):
+        super().visit_function(fn)
+        assert fn not in self._pinned_nodes
         f_cost = None
         for sdev in self.ENABLED_DEVICES:
-            if f.body in self._node_costs[sdev]:
-                cost = self._node_costs[sdev][f.body] + self.get_transfer_cost(
-                    f.body, sdev, compute_device.TvmDevice.DEV_NAME
+            if fn.body in self._node_costs[sdev]:
+                cost = self._node_costs[sdev][fn.body] + self.get_transfer_cost(
+                    fn.body, sdev, compute_device.TvmDevice.DEV_NAME
                 )
                 if f_cost is None or f_cost > cost:
                     f_cost = cost
                     fb_dev = sdev
         assert f_cost is not None
-        self._node_costs[compute_device.TvmDevice.DEV_NAME][f] = f_cost
-        self._node_transfers[compute_device.TvmDevice.DEV_NAME][f] = fb_dev
+        self._node_costs[compute_device.TvmDevice.DEV_NAME][fn] = f_cost
+        self._node_transfers[compute_device.TvmDevice.DEV_NAME][fn] = fb_dev
 
     def visit_if(self, i):
         raise NotImplementedError(i.type_key)
@@ -235,7 +224,18 @@ class PlatformSimulator(tvm.relay.ExprVisitor):
     def get_transfer_cost(self, node, sdev, tdev):
         if sdev == tdev:
             return 0
-        return _utils.get_node_size(node) * self._data_movement_costs[sdev][tdev]
+        return self.get_transfer_cost_typed(node.checked_type, sdev, tdev)
+
+    def get_transfer_cost_typed(self, tipe, sdev, tdev):
+        if sdev == tdev:
+            return 0
+        if isinstance(tipe, tvm.relay.TensorType):
+            size = _utils.get_type_size(tipe)
+            return self._compute_devices[sdev].estimate_memory_read_cost(
+                tipe.dtype, size
+            ) + self._compute_devices[tdev].estimate_memory_write_cost(tipe.dtype, size)
+        assert isinstance(tipe, tvm.relay.TupleType)
+        return sum([self.get_transfer_cost_typed(f, sdev, tdev) for f in tipe.fields])
 
     def _skip_node_on_dev(self, node, dev):
         if node in self._pinned_nodes:

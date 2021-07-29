@@ -59,7 +59,6 @@ class ExportDecisionMarker(tvm.relay.ExprVisitor):
         self._saved_devs = []
         self._parent_dev = compute_device.TvmDevice.DEV_NAME
         self.visit(func.body)
-        return self._node_compiler_map
 
     def _set_parent(self, dev):
         self._saved_devs.append(self._parent_dev)
@@ -114,8 +113,8 @@ class ExportDecisionMarker(tvm.relay.ExprVisitor):
     def visit_let(self, let):
         raise NotImplementedError(let.type_key)
 
-    def visit_function(self, f):
-        assert self._node_compiler_map[f] == ["tvm"]
+    def visit_function(self, fn):
+        assert self._node_compiler_map[fn] == ["tvm"]
         super().visit_function(f)
 
     def visit_if(self, i):

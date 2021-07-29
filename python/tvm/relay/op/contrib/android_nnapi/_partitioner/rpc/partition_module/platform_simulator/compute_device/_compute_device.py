@@ -15,11 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 """Base class for computation device."""
+import abc
 
 
-class ComputeDevice:
+class ComputeDevice(abc.ABC):
     """Base class for computation device."""
 
+    @abc.abstractmethod
     def estimate_call_op_cost(self, call):
         """Estimate the runtime cost of executing a given call.
 
@@ -28,16 +30,39 @@ class ComputeDevice:
         call: tvm.relay.Call
             The Relay call expression whose runtime cost is to be estimated.
         """
-        raise NotImplementedError()
 
-    def estimate_single_byte_read_cost_to_bus(self):  # pylint: disable=invalid-name
-        """Estimate the runtime cost of reading a single byte to the bus from
-        the internal memory managed by this compute device.
-        """
-        raise NotImplementedError()
+    @abc.abstractmethod
+    def estimate_memory_read_cost(self, dtype, size):
+        """Estimate cost of memory read from this device.
 
-    def estimate_single_byte_write_cost_to_bus(self):  # pylint: disable=invalid-name
-        """Estimate the runtime cost of writing a single byte to the bus from
-        the internal memory managed by this compute device.
+        Parameters
+        ----------
+        dtype: str
+            The dtype to be read.
+
+        size: int
+            The amount of memory to be read.
+
+        Returns
+        -------
+        cost: int
+            The cost of performing the read.
         """
-        raise NotImplementedError()
+
+    @abc.abstractmethod
+    def estimate_memory_write_cost(self, dtype, size):
+        """Estimate cost of memory write from this device.
+
+        Parameters
+        ----------
+        dtype: str
+            The dtype to be write.
+
+        size: int
+            The amount of memory to be write.
+
+        Returns
+        -------
+        cost: int
+            The cost of performing the write.
+        """

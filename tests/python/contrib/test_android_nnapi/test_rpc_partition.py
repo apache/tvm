@@ -58,14 +58,14 @@ class RPCTestingFunction:
             if mcontent.find(b"ANEURALNETWORKS") != -1:  # mod is built with android nnapi
                 # this cost structure should put nn.conv2d on android nnapi and add on tvm
                 if mcontent.find(b"CONV_2D") != -1:
-                    self.mean = 10
-                else:
-                    self.mean = 1
-            else:
-                if mcontent.find(b"nn_conv2d") != -1:
                     self.mean = 100
                 else:
                     self.mean = 10
+            else:
+                if mcontent.find(b"nn_conv2d") != -1:
+                    self.mean = 1000
+                else:
+                    self.mean = 1
         os.close(fd)
 
     def __call__(self, *args, **kwargs):

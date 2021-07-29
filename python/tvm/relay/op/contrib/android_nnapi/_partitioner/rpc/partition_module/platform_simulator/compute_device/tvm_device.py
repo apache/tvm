@@ -115,8 +115,8 @@ class TvmDevice(RPCDevice):
             raise NotImplementedError(mod["main"].ret_type)
         return ret
 
-    def estimate_single_byte_read_cost_to_bus(self):
+    def estimate_memory_read_cost(self, dtype, size):
         return 0
 
-    def estimate_single_byte_write_cost_to_bus(self):
+    def estimate_memory_write_cost(self, dtype, size):
         return 0

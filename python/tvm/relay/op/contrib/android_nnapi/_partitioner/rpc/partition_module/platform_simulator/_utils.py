@@ -20,7 +20,14 @@ import re
 import tvm
 
 
-def _get_type_size(tipe):
+def get_type_size(tipe):
+    """Get node size in bytes.
+
+    Parameters
+    ----------
+    tipe: tvm.relay.Type
+        The Relay type whose size is to be calculated.
+    """
     if isinstance(tipe, tvm.ir.type.TupleType):
         return sum([_get_type_size(f) for f in tipe.fields])
 
@@ -43,4 +50,4 @@ def get_node_size(node):
     node: tvm.relay.Expr
         The Relay expression whose size is to be calculated.
     """
-    return _get_type_size(node.checked_type)
+    return get_type_size(node.checked_type)

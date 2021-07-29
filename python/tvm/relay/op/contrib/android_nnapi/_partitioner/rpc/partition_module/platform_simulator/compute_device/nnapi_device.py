@@ -61,6 +61,7 @@ class NnapiDevice(RPCDevice):
         super().__init__(options, tracker)
         self._api_level = options["target"]["api_level"]
         self._compiler_name = options["tvm"]["external_compiler"]
+        self._cached_memory_op_coefficient = {}
 
     def estimate_call_op_cost(self, call):
         assert isinstance(call.op, tvm.ir.Op)
@@ -74,12 +75,6 @@ class NnapiDevice(RPCDevice):
             return self._get_runtime_on_device(mod)
         except AndroidNNAPICompilerProfilingError:
             return None
-
-    def estimate_single_byte_read_cost_to_bus(self):
-        return self._data_transfer_to_main_memory_cost
-
-    def estimate_single_byte_write_cost_to_bus(self):
-        return self._data_transfer_to_main_memory_cost
 
     def _get_runtime_on_device(self, mod):
         assert isinstance(mod, tvm.IRModule)
@@ -171,20 +166,22 @@ class NnapiDevice(RPCDevice):
 
         return ret
 
-    @property
-    def _data_transfer_to_main_memory_cost(self):  # pylint: disable=invalid-name
-        if getattr(self, "_data_transfer_to_main_memory_cost_val", None) is not None:
-            return (
-                self._data_transfer_to_main_memory_cost_val  # pylint: disable=access-member-before-definition
-            )
-        # lazy init
-        comm_node_size = [0]
-        time_statistics = {}
-        # benchmark for a single conv_2d (|-|)
+    def estimate_memory_read_cost(self, dtype, size):
+        scale, init = self._memory_op_coefficient(str(dtype))
+        return max(scale * size + init, 0)
+
+    def estimate_memory_write_cost(self, dtype, size):
+        scale, init = self._memory_op_coefficient(str(dtype))
+        return max(scale * size + init, 0)
+
+    def _memory_op_coefficient(self, benchmark_dtype):
+        if benchmark_dtype in self._cached_memory_op_coefficient:
+            return self._cached_memory_op_coefficient[benchmark_dtype]
+
         def _scope():
-            img = tvm.relay.var("img", shape=[32, 512, 512, 1], dtype="float32")
+            img = tvm.relay.var("img", shape=[32, 512, 512, 1], dtype=benchmark_dtype)
             ann_img = tvm.relay.annotation.compiler_begin(img, self._compiler_name)
-            weight_0 = tvm.relay.var("weight_0", shape=[1, 1, 1, 1], dtype="float32")
+            weight_0 = tvm.relay.var("weight_0", shape=[1, 1, 1, 1], dtype=benchmark_dtype)
             ann_weight_0 = tvm.relay.annotation.compiler_begin(weight_0, self._compiler_name)
             conv_0 = tvm.relay.nn.conv2d(
                 ann_img, ann_weight_0, data_layout="NHWC", kernel_layout="OHWI"
@@ -194,38 +191,35 @@ class NnapiDevice(RPCDevice):
             mod = tvm.IRModule({"main": single_conv_f})
             mod = tvm.relay.transform.PartitionGraph()(mod)
 
-            # get comm_node_size
             mod = tvm.relay.transform.InferType()(mod)
-            comm_node_size[0] = _utils.get_node_size(mod["main"].body)
+            size = _utils.get_node_size(mod["main"].body)
+            time = self._get_runtime_on_device(mod) / 2
+            return size, time
 
-            time_statistics["single_conv"] = self._get_runtime_on_device(mod)
+        size1, time1 = _scope()
 
-        _scope()
-
-        def _scope():  # benchmark for 2 conv_2ds (|--|)
-            img = tvm.relay.var("img", shape=[32, 512, 512, 1], dtype="float32")
+        def _scope():
+            img = tvm.relay.var("img", shape=[32, 256, 256, 1], dtype=benchmark_dtype)
             ann_img = tvm.relay.annotation.compiler_begin(img, self._compiler_name)
-            weight_0 = tvm.relay.var("weight_0", shape=[1, 1, 1, 1], dtype="float32")
+            weight_0 = tvm.relay.var("weight_0", shape=[1, 1, 1, 1], dtype=benchmark_dtype)
             ann_weight_0 = tvm.relay.annotation.compiler_begin(weight_0, self._compiler_name)
             conv_0 = tvm.relay.nn.conv2d(
                 ann_img, ann_weight_0, data_layout="NHWC", kernel_layout="OHWI"
             )
-            weight_1 = tvm.relay.var("weight_1", shape=[1, 1, 1, 1], dtype="float32")
-            ann_weight_1 = tvm.relay.annotation.compiler_begin(weight_1, self._compiler_name)
-            conv_1 = tvm.relay.nn.conv2d(
-                conv_0, ann_weight_1, data_layout="NHWC", kernel_layout="OHWI"
-            )
-            ann_conv_1 = tvm.relay.annotation.compiler_end(conv_1, self._compiler_name)
-            two_conv_f = tvm.relay.Function([img, weight_0, weight_1], ann_conv_1)
-            mod = tvm.IRModule({"main": two_conv_f})
+            ann_conv_0 = tvm.relay.annotation.compiler_end(conv_0, self._compiler_name)
+            single_conv_f = tvm.relay.Function([img, weight_0], ann_conv_0)
+            mod = tvm.IRModule({"main": single_conv_f})
             mod = tvm.relay.transform.PartitionGraph()(mod)
-            time_statistics["two_conv"] = self._get_runtime_on_device(mod)
 
-        _scope()
+            mod = tvm.relay.transform.InferType()(mod)
+            size = _utils.get_node_size(mod["main"].body)
+            time = self._get_runtime_on_device(mod) / 2
+            return size, time
 
-        self._data_transfer_to_main_memory_cost_val = (  # pylint: disable=invalid-name
-            time_statistics["single_conv"] - time_statistics["two_conv"] / 2
-        ) / comm_node_size[
-            0
-        ]  # diff(|-||-|, |--|) / 2 / size-of-tensor
-        return self._data_transfer_to_main_memory_cost_val
+        size2, time2 = _scope()
+
+        # solve time = scale * size + init for scale, init
+        scale = (time1 - time2) / (size1 - size2)
+        init = time1 - scale * size1
+        self._cached_memory_op_coefficient[benchmark_dtype] = (scale, init)
+        return scale, init

@@ -35,6 +35,9 @@ class CollectBranchingNodes:
                 self._branching_nodes.add(expr)
             return super().visit(expr)
 
+        def visit_function(self, fn):
+            self.visit(fn.body)
+
     class _RelayTopologicalSorter(tvm.relay.ExprVisitor):
         def __init__(self, expr_root):
             super().__init__()
