@@ -17,6 +17,7 @@
 """ Support level10 operator test cases.
 """
 import numpy as np
+import pytest
 import tvm
 import tvm.testing
 import tvm.topi.testing
@@ -325,17 +326,17 @@ def test_reverse_reshape():
     verify_reverse_reshape((2, 3, 4), (0, -3), (2, 12))
 
 
-def verify_batch_matmul(x_shape, y_shape, out_shape, dtype="float32"):
+def verify_batch_matmul(x_shape, y_shape, out_shape, dtype="float32", trans_x=False, trans_y=True):
     x = relay.var("x", relay.TensorType(x_shape, dtype))
     y = relay.var("y", relay.TensorType(y_shape, dtype))
-    z = relay.nn.batch_matmul(x, y)
+    z = relay.nn.batch_matmul(x, y, transpose_a=trans_x, transpose_b=trans_y)
     zz = run_infer_type(z)
     assert zz.checked_type == relay.ty.TensorType(out_shape, dtype)
 
     func = relay.Function([x, y], z)
     x_np = np.random.uniform(size=x_shape).astype(dtype)
     y_np = np.random.uniform(size=y_shape).astype(dtype)
-    z_np = tvm.topi.testing.batch_matmul(x_np, y_np)
+    z_np = tvm.topi.testing.batch_matmul(x_np, y_np, trans_x=trans_x, trans_y=trans_y)
 
     for target, dev in tvm.testing.enabled_targets():
         for kind in ["graph", "debug"]:
@@ -353,60 +354,13 @@ def test_batch_matmul():
     zz = run_infer_type(z)
     assert zz.checked_type == relay.TensorType((b, m, n), "float32")
 
-    verify_batch_matmul((1, 16, 32), (1, 16, 32), (1, 16, 16))
-    verify_batch_matmul((5, 16, 32), (5, 16, 32), (5, 16, 16))
-    verify_batch_matmul((5, 16, 32), (5, 20, 32), (5, 16, 20))
-    verify_batch_matmul((30, 16, 32), (30, 20, 32), (30, 16, 20))
-
-
-def verify_dynamic_batch_matmul(
-    x_shape, y_shape, out_shape, x_var_shape, y_var_shape, dtype="float32"
-):
-    x = relay.var("x", relay.TensorType(x_var_shape, dtype))
-    y = relay.var("y", relay.TensorType(y_var_shape, dtype))
-    z = relay.nn.batch_matmul(x, y)
-
-    func = relay.Function([x, y], z)
-    x_np = np.random.uniform(size=x_shape).astype(dtype)
-    y_np = np.random.uniform(size=y_shape).astype(dtype)
-    z_np = tvm.topi.testing.batch_matmul(x_np, y_np)
-
-    for target, dev in tvm.testing.enabled_targets():
-        for kind in ["vm", "debug"]:
-            mod = tvm.ir.IRModule.from_expr(func)
-            intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
-            z = intrp.evaluate()(x_np, y_np)
-            tvm.testing.assert_allclose(z.numpy(), z_np, rtol=1e-5)
-
-
-# TODO(mbrookhart): enable once VM supports heterogenous execution
-# @tvm.testing.uses_gpu
-def test_dynamic_batch_matmul():
-    verify_dynamic_batch_matmul(
-        (1, 16, 32), (1, 16, 32), (1, 16, 16), (1, 16, 32), (relay.Any(),) * 3
-    )
-    verify_dynamic_batch_matmul(
-        (5, 16, 32), (5, 16, 32), (5, 16, 16), (5, 16, 32), (relay.Any(),) * 3
-    )
-    verify_dynamic_batch_matmul(
-        (5, 16, 32), (5, 20, 32), (5, 16, 20), (5, 16, 32), (relay.Any(),) * 3
-    )
-    verify_dynamic_batch_matmul(
-        (30, 16, 32), (30, 20, 32), (30, 16, 20), (30, 16, 32), (relay.Any(),) * 3
-    )
-
-    verify_dynamic_batch_matmul(
-        (1, 16, 32), (1, 16, 32), (1, 16, 16), (relay.Any(), 16, 32), (relay.Any(), 16, 32)
-    )
-    verify_dynamic_batch_matmul(
-        (5, 16, 32), (5, 16, 32), (5, 16, 16), (relay.Any(), 16, 32), (relay.Any(), 16, 32)
-    )
-    verify_dynamic_batch_matmul(
-        (5, 16, 32), (5, 20, 32), (5, 16, 20), (relay.Any(), 16, 32), (relay.Any(), 20, 32)
-    )
-    verify_dynamic_batch_matmul(
-        (30, 16, 32), (30, 20, 32), (30, 16, 20), (relay.Any(), 16, 32), (relay.Any(), 20, 32)
-    )
+    verify_batch_matmul((1, 16, 32), (1, 16, 32), (1, 16, 16), trans_x=False, trans_y=True)
+    verify_batch_matmul((5, 16, 32), (5, 16, 32), (5, 16, 16), trans_x=False, trans_y=True)
+    verify_batch_matmul((5, 16, 32), (5, 20, 32), (5, 16, 20), trans_x=False, trans_y=True)
+    verify_batch_matmul((30, 16, 32), (30, 20, 32), (30, 16, 20), trans_x=False, trans_y=True)
+    verify_batch_matmul((1, 32, 16), (1, 16, 32), (1, 16, 16), trans_x=True, trans_y=True)
+    verify_batch_matmul((5, 16, 32), (5, 32, 16), (5, 16, 16), trans_x=False, trans_y=False)
+    verify_batch_matmul((5, 32, 16), (5, 32, 20), (5, 16, 20), trans_x=True, trans_y=False)
 
 
 @tvm.testing.uses_gpu
@@ -639,15 +593,4 @@ def test_nll_loss(dev, target):
 
 
 if __name__ == "__main__":
-    test_adaptive_pool()
-    test_collapse_sum_like()
-    test_broadcast_to()
-    test_broadcast_to_like()
-    test_slice_like()
-    test_reverse_reshape()
-    test_batch_matmul()
-    test_shape_of()
-    test_sequence_mask()
-    test_one_hot()
-    test_ndarray_size()
-    test_matrix_set_diag()
+    pytest.main([__file__])

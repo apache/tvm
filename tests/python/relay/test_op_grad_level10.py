@@ -62,10 +62,24 @@ def test_checkpoint():
     check_grad(relay.Function(inputs, out_single))
 
 
+def verify_batch_matmul_grad(a_shape, b_shape, transpose_a, transpose_b):
+    tensor_a = relay.var("tensor_a", relay.TensorType(a_shape, "float32"))
+    tensor_b = relay.var("tensor_b", relay.TensorType(b_shape, "float32"))
+    check_grad(
+        relay.Function(
+            [tensor_a, tensor_b],
+            relay.op.nn.batch_matmul(
+                tensor_a, tensor_b, transpose_a=transpose_a, transpose_b=transpose_b
+            ),
+        )
+    )
+
+
 def test_batch_matmul_grad():
-    x = relay.var("x", shape=(2, 3, 5), dtype="float64")
-    y = relay.var("y", shape=(2, 4, 5), dtype="float64")
-    check_grad(relay.Function([x, y], relay.op.nn.batch_matmul(x, y)))
+    verify_batch_matmul_grad((2, 3, 5), (2, 5, 4), False, False)
+    verify_batch_matmul_grad((2, 3, 5), (2, 4, 5), False, True)
+    verify_batch_matmul_grad((2, 5, 3), (2, 5, 4), True, False)
+    verify_batch_matmul_grad((2, 5, 3), (2, 4, 5), True, True)
 
 
 def test_reverse_reshape_grad():
