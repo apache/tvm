@@ -398,10 +398,8 @@ class StoragePlanRewriter : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
-    if (op->attr_key == attr::storage_scope) {
-      return this->VisitStmt(op->body);
-    } else if (op->attr_key == attr::thread_extent || op->attr_key == attr::virtual_thread ||
-               attr::IsPragmaKey(op->attr_key)) {
+    if (op->attr_key == attr::thread_extent || op->attr_key == attr::virtual_thread ||
+        attr::IsPragmaKey(op->attr_key)) {
       // remake all the allocation at the attach scope.
       if (attach_map_.count(op)) {
         auto& svec = attach_map_[op];
@@ -485,8 +483,6 @@ class StoragePlanRewriter : public StmtExprMutator {
     std::vector<Stmt> nest;
     for (StorageEntry* e : svec) {
       if (e->new_alloc.defined()) {
-        nest.emplace_back(AttrStmt(e->alloc_var, attr::storage_scope,
-                                   StringImm(e->scope.to_string()), Evaluate(0)));
         nest.push_back(e->new_alloc);
       }
     }

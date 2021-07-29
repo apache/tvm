@@ -35,6 +35,7 @@
 #include <algorithm>
 #include <string>
 
+#include "../tir/transforms/ir_utils.h"
 #include "doc.h"
 #include "meta_data.h"
 #include "text_printer.h"
@@ -447,8 +448,9 @@ Doc TIRTextPrinter::VisitStmt_(const BufferRealizeNode* op) {
 
 Doc TIRTextPrinter::VisitStmt_(const AllocateNode* op) {
   Doc doc;
+  auto scope = GetPtrStorageScope(op->buffer_var);
   doc << "allocate(" << Print(op->buffer_var) << ", " << PrintDType(op->dtype) << ", "
-      << Print(op->extents) << ")";
+      << Print(op->extents) << "), storage_scope = " << scope;
   if (!is_one(op->condition)) {
     doc << " if " << Print(op->condition);
   }

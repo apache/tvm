@@ -47,8 +47,9 @@ def test_lower_warp_memory_local_scope():
     fdevice = tvm.tir.transform.SplitHostDevice()(mod)["f_kernel0"]
     mod = tvm.IRModule.from_expr(fdevice)
     fdevice = tvm.tir.transform.LowerWarpMemory()(mod)["f_kernel0"]
-    assert fdevice.body.body.value.value == "local"
-    assert fdevice.body.body.body.extents[0].value == 2
+    allocate = fdevice.body.body
+    assert allocate.buffer_var.type_annotation.storage_scope == "local"
+    assert fdevice.body.body.extents[0].value == 2
 
 
 @tvm.testing.requires_cuda

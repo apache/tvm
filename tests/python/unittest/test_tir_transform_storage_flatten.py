@@ -79,7 +79,7 @@ def test_flatten_storage_align():
     )(mod)
 
     stmt = mod["main"].body
-    assert stmt.body.extents[0].value == 17 * 8
+    assert stmt.extents[0].value == 17 * 8
 
 
 def test_flatten_double_buffer():
@@ -114,8 +114,8 @@ def test_flatten_double_buffer():
         )(mod)
 
     stmt = mod["main"].body
-    assert isinstance(stmt.body.body, tvm.tir.Allocate)
-    assert stmt.body.body.extents[0].value == 2
+    assert isinstance(stmt.body, tvm.tir.Allocate)
+    assert stmt.body.extents[0].value == 2
 
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([A, C], stmt).with_attr("global_symbol", "db"))
     f = tvm.tir.transform.ThreadSync("shared")(mod)["db"]
