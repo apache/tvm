@@ -46,13 +46,19 @@ def generate_c_interface_header(module_name, inputs, outputs, output_path):
     mangled_name = mangle_module_name(module_name)
     metadata_header = os.path.join(output_path, f"{mangled_name}.h")
     with open(metadata_header, "w") as header_file:
-        _emit_brief(header_file, module_name, "input tensors")
+        header_file.write(
+            "#include <stdint.h>\n"
+            f"#ifndef {mangled_name.upper()}_H_\n"
+            f"#define {mangled_name.upper()}_H_\n"
+        )
+
+        _emit_brief(header_file, module_name, "Input tensor pointers")
         header_file.write(f"struct {mangled_name}_inputs {{\n")
         for input_name in inputs:
             header_file.write(f"  void* {input_name};\n")
         header_file.write("};\n\n")
 
-        _emit_brief(header_file, module_name, "output tensors")
+        _emit_brief(header_file, module_name, "Output tensor pointers")
         header_file.write(f"struct {mangled_name}_outputs {{\n")
         for output_name in outputs:
             header_file.write(f"  void* {output_name};\n")
@@ -61,11 +67,13 @@ def generate_c_interface_header(module_name, inputs, outputs, output_path):
         header_file.write(
             "/*!\n"
             f' * \\brief entrypoint function for TVM module "{module_name}"\n'
-            " * \\param inputs Input tensors for the model \n"
-            " * \\param outputs Output tensors for the model \n"
+            " * \\param inputs Input tensors for the module \n"
+            " * \\param outputs Output tensors for the module \n"
             " */\n"
             f"int32_t {mangled_name}_run(\n"
             f"  struct {mangled_name}_inputs* inputs,\n"
             f"  struct {mangled_name}_outputs* outputs\n"
             ");\n"
         )
+
+        header_file.write(f"#endif // {mangled_name.upper()}_H_\n")
