@@ -538,7 +538,7 @@ class Schedule(Object):
         Suppose RFactor is applied on the innermost loop `k` and `factor_axis = 1`.
         RFactor then creates an intermediate buffer and two blocks.
 
-        - The intermediate buffer, or "rf-buffer" is a buffer of rank `ndim(B) + 1` and
+        1. The intermediate buffer, or "rf-buffer" is a buffer of rank `ndim(B) + 1` and
         size `size(B) * n`, whose shape expands from `shape(B)` by adding an axis of `n`
         at the position specified by `factor_axis`. For example,
 
@@ -547,7 +547,7 @@ class Schedule(Object):
             * shape(B) = [1, 2, 3], factor_axis = 2  => shape(B_rf) = [1, 2, n, 3]
             * shape(B) = [1, 2, 3], factor_axis = 3  => shape(B_rf) = [1, 2, 3, n]
 
-        - The rfactor block, or "rf-block", is a block that writes to the `rf-buffer` without
+        2. The rfactor block, or "rf-block", is a block that writes to the `rf-buffer` without
         accumulating over the loop `k`, i.e. the loop `k` is converted from a reduction loop
         to a data parallel loop. In our example, the rf-block is:
 
@@ -559,7 +559,8 @@ class Schedule(Object):
                     for j in range(128):    # loop j is a reduction loop (unchanged)
                         B_rf[i, k] = B_rf[i, k] + A[i, j, k]
 
-        - The write-back block, or `wb-block`, is a block that accumulates the rf-buffer into
+
+        3. The write-back block, or `wb-block`, is a block that accumulates the rf-buffer into
         the result buffer. All the reduction loops are removed except the loop `k` for accumulation.
         In our example, the wb-block is:
 
@@ -569,6 +570,7 @@ class Schedule(Object):
                                             # loop j is removed because it is a reduction loop
                 for k in range(128):        # loop k is a reduction loop (unchanged)
                     B[i] = B[i] + B_rf[i, k]
+
 
         Parameters
         ----------
