@@ -42,7 +42,6 @@ from .tensorflow_ops import _convert_map
 from .tensorflow_ops import _need_prelude_for_shape_inference
 from .tensorflow_ops import _get_more_static_shape
 from .tensorflow2_ops import _detect_tf2_ops
-from .tensorflow2 import from_tensorflow as _from_tensorflow2
 
 __all__ = ["from_tensorflow"]
 
@@ -1256,6 +1255,7 @@ def from_tensorflow(graph, layout="NHWC", shape=None, outputs=None, use_dense_op
         g = GraphProto()
         mod, params = g.from_tensorflow(graph, layout, shape, outputs)
     else:
+        from tvm.relay.frontend.tensorflow2 import from_tensorflow as _from_tensorflow2
         mod, params = _from_tensorflow2(graph, layout, shape, outputs)
 
     return mod, params
