@@ -445,16 +445,18 @@ void GraphExecutor::SetupOpExecs() {
     std::tie(op_execs_[nid], op_args) = CreateTVMOp(inode.param, args, inode.inputs.size());
 
     for (size_t i = 0; i < inode.inputs.size(); i++) {
-      uint32_t eid = this->entry_id(inode.inputs[i]);
-      input_dltensors_[eid].push_back(static_cast<DLTensor*>(op_args->arg_values[i].v_handle));
+      uint32_t input_eid = this->entry_id(inode.inputs[i]);
+      input_dltensors_[input_eid].push_back(
+          static_cast<DLTensor*>(op_args->arg_values[i].v_handle));
     }
 
     // check if op output is model output
     if (output_node_id.count(nid) > 0) {
-      for (uint32_t index = inode.inputs.size();
-           index < inode.param.num_outputs + inode.param.num_inputs; ++index) {
-        output_dltensors_[nid].push_back(
-            static_cast<DLTensor*>(op_args->arg_values[index].v_handle));
+      for (uint32_t i = inode.inputs.size(); i < inode.inputs.size() + inode.param.num_outputs;
+           ++i) {
+        uint32_t output_eid = this->entry_id(nid, i - inode.inputs.size());
+        output_dltensors_[output_eid].push_back(
+            static_cast<DLTensor*>(op_args->arg_values[i].v_handle));
       }
     }
   }
