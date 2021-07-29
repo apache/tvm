@@ -24,6 +24,8 @@
 
 #include "utils.h"
 
+#include <tvm/relay/qnn/transform.h>
+
 namespace tvm {
 namespace relay {
 namespace backend {
@@ -120,7 +122,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
                 << ",\n  relay_primfuncs=" << node->relay_primfuncs << ")";
     });
 
-Array<Pass> GetPrefixOpts(const Map<tvm::Integer, tvm::Target>& targets, bool is_vm) {
+Array<Pass> GetPassPrefix(const Map<tvm::Integer, tvm::Target>& targets, bool is_vm) {
   Array<Pass> pass_seqs;
   Array<runtime::String> entry_functions{"main"};
   pass_seqs.push_back(transform::RemoveUnusedFunctions(entry_functions));

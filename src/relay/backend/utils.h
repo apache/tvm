@@ -28,7 +28,6 @@
 #include <tvm/driver/driver_api.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
-#include <tvm/relay/qnn/transform.h>
 #include <tvm/relay/transform.h>
 #include <tvm/relay/type.h>
 #include <tvm/target/codegen.h>
@@ -417,13 +416,16 @@ inline bool IsCompileEngineCacheDisabled() {
 }
 
 /*!
- * \brief Get a shared optimization pass prefix between vm and graph executor.
+ * \brief Get the sequence of Relay optimization passes based on backend type.
+ * The prefix of the Relay passes almost overlaps between the vm and graph backend, with some slight
+ * difference. This function unifies the shared optimization pass prefix between vm and graph
+ * runtime, and returns the pass prefix given the backend type.
  *
  * \param targets The device type to `Target` mapping.
- * \param is_vm A boolean indicating if the passes are used for vm or graph executor.
+ * \param is_vm A boolean indicating if the passes are used for vm or graph runtime.
  * \return An array of passes.
  */
-Array<Pass> GetPrefixOpts(const Map<tvm::Integer, tvm::Target>& targets, bool is_vm);
+Array<Pass> GetPassPrefix(const Map<tvm::Integer, tvm::Target>& targets, bool is_vm);
 
 }  // namespace backend
 }  // namespace relay

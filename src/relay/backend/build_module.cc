@@ -313,7 +313,7 @@ class RelayBuildModule : public runtime::ModuleNode {
       relay_module_ptr->Update(main_glb_var, new_main);
     }
 
-    Array<Pass> pass_seqs = GetPrefixOpts(targets, false);
+    Array<Pass> pass_seqs = GetPassPrefix(targets, false);
 
     if (targets.size() == 1) {
       const auto& target = (*targets.begin()).second;

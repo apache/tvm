@@ -1042,7 +1042,7 @@ IRModule VMCompiler::OptimizeModule(IRModule mod, const TargetsMap& targets_arg,
     mod->Add(gvar, f);
   }
 
-  Array<Pass> pass_seqs = relay::backend::GetPrefixOpts(targets, true);
+  Array<Pass> pass_seqs = relay::backend::GetPassPrefix(targets, true);
 
   if (targets_.size() > 1) {
     // Handle heterogeneous compilation.
