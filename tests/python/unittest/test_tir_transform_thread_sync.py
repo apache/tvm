@@ -55,7 +55,7 @@ def test_thread_storage_sync():
 
     mod = run_passes([A, A2], stmt)
     f = mod["test_kernel0"]
-    body_list = tvm.tir.stmt_list(f.body.body.body.body)
+    body_list = tvm.tir.stmt_list(f.body.body.body)
     assert body_list[1].value.op.same_as(tvm.ir.Op.get("tir.tvm_storage_sync"))
 
 
