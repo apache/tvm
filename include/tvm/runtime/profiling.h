@@ -205,6 +205,39 @@ class ReportNode : public Object {
    *  `aggregate` is true.
    */
   String AsTable(bool sort = true, bool aggregate = true) const;
+  /*! \brief Convert this report to JSON.
+   *
+   * Output JSON will be of this format:
+   * \code
+   *  {
+   *    "calls": [
+   *      {
+   *        "Duration (us)": {
+   *          "microseconds": 12.3
+   *        },
+   *        "Name": "fused_dense",
+   *        "Count": {
+   *          "count": 1
+   *        },
+   *        "Percent": {
+   *          "percent": 10.3
+   *        }
+   *      }
+   *    ],
+   *    "device_metrics": {
+   *      "cpu": {
+   *        "Duration (us)": {
+   *          "microseconds": 334.2
+   *        },
+   *        "Percent": {
+   *          "percent": 100
+   *        }
+   *      }
+   *    }
+   *  }
+   * \endcode
+   */
+  String AsJSON() const;
 
   static constexpr const char* _type_key = "runtime.profiling.Report";
   TVM_DECLARE_FINAL_OBJECT_INFO(ReportNode, Object);

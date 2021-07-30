@@ -1276,14 +1276,11 @@ def dense_pack_shape_func(attrs, inputs, _):
 
 
 @script
-def _batch_matmul_shape_func(data_shape, weight_shape):
-    out = output_tensor((data_shape.shape[0],), "int64")
-    for i in const_range(out.shape[0] - 1):
-        if i == 0:
-            out[i] = max(data_shape[i], weight_shape[i])
-        else:
-            out[i] = data_shape[i]
-    out[out.shape[0] - 1] = weight_shape[weight_shape.shape[0] - 2]
+def _batch_matmul_shape_func(tensor_a_shape, tensor_b_shape, transpose_a, transpose_b):
+    out = output_tensor((tensor_a_shape.shape[0],), "int64")
+    out[0] = max(tensor_a_shape[0], tensor_b_shape[0])
+    out[1] = tensor_a_shape[2] if transpose_a else tensor_a_shape[1]
+    out[2] = tensor_b_shape[1] if transpose_b else tensor_b_shape[2]
 
     return out
 
@@ -1291,9 +1288,16 @@ def _batch_matmul_shape_func(data_shape, weight_shape):
 @reg.register_shape_func("nn.batch_matmul", False)
 def batch_matmul_shape_func(attrs, inputs, _):
     """
-    Shape function for dense op.
+    Shape function for batch matmul op.
     """
-    ret = [_batch_matmul_shape_func(inputs[0], inputs[1])]
+    ret = [
+        _batch_matmul_shape_func(
+            inputs[0],
+            inputs[1],
+            expr.IntImm("bool", attrs.transpose_a),
+            expr.IntImm("bool", attrs.transpose_b),
+        )
+    ]
     return ret
 
 
