@@ -45,7 +45,7 @@ def _convert(arg, cargs):
             _convert(field, field_args)
         cargs.append(container.tuple_object(field_args))
     elif isinstance(arg, (_base.numeric_types, bool)):
-        dtype = "int32" if isinstance(arg, (int, bool)) else "float32"
+        dtype = "int32" if isinstance(arg, (_base.integer_types, bool)) else "float32"
         value = tvm.nd.array(np.array(arg, dtype=dtype), device=tvm.cpu(0))
         cargs.append(value)
     else:
