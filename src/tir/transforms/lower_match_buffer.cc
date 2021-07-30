@@ -19,6 +19,7 @@
 
 /*!
  * \file lower_match_buffer.cc
+ * \brief The pass for lowering match_buffer.
  */
 
 #include <tvm/arith/analyzer.h>
@@ -28,6 +29,7 @@
 #include <tvm/tir/transform.h>
 
 #include "../ir/functor_common.h"
+#include "ir_utils.h"
 
 namespace tvm {
 namespace tir {
@@ -36,7 +38,7 @@ class MatchBufferLower : public StmtExprMutator {
   explicit MatchBufferLower(const PrimFunc& func) {
     for (const Var& param : func->params) {
       // Mark input var as const variable.
-      if (!param.dtype().is_handle()) var_map_[param] = param;
+      if (!param.dtype().is_handle()) var_map_.Set(param, param);
     }
   }
 
@@ -74,7 +76,7 @@ class MatchBufferLower : public StmtExprMutator {
     Var v = GetRef<Var>(op);
     auto it = var_map_.find(v);
     if (it != var_map_.end()) {
-      return it->second;
+      return (*it).second;
     } else {
       return std::move(v);
     }
@@ -89,11 +91,11 @@ class MatchBufferLower : public StmtExprMutator {
     if (it == match_buffers_.end()) {
       return stmt;
     } else {
-      const Buffer& buffer = it->first;
-      const BufferRegion& source = it->second;
+      const Buffer& buffer = (*it).first;
+      const BufferRegion& source = (*it).second;
 
       auto n = CopyOnWrite(op);
-      n->indices = MatchBufferRegion(buffer, source).ConvertIndices(op->indices);
+      n->indices = ConvertIndices(MatchBufferRegion(buffer, source), op->indices);
       n->buffer = source->buffer;
       return Stmt(n);
     }
@@ -108,11 +110,25 @@ class MatchBufferLower : public StmtExprMutator {
     if (it == match_buffers_.end()) {
       return expr;
     } else {
-      const Buffer& buffer = it->first;
-      const BufferRegion& source = it->second;
-      Array<PrimExpr> indices = MatchBufferRegion(buffer, source).ConvertIndices(op->indices);
+      const Buffer& buffer = (*it).first;
+      const BufferRegion& source = (*it).second;
+      Array<PrimExpr> indices = ConvertIndices(MatchBufferRegion(buffer, source), op->indices);
       return BufferLoad(source->buffer, indices);
     }
+  }
+
+  PrimExpr VisitExpr_(const LoadNode* op) final {
+    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
+    CHECK(var_map_.find(op->buffer_var) == var_map_.end())
+        << "Load from buffer created by match_buffer is not allowed, but got: " << expr;
+    return expr;
+  }
+
+  Stmt VisitStmt_(const StoreNode* op) final {
+    Stmt stmt = StmtExprMutator::VisitStmt_(op);
+    CHECK(var_map_.find(op->buffer_var) == var_map_.end())
+        << "Store from buffer created by match_buffer is not allowed, but got: " << stmt;
+    return stmt;
   }
 
   BufferRegion VisitBufferRegion(const BufferRegion& buffer_region) {
@@ -121,8 +137,8 @@ class MatchBufferLower : public StmtExprMutator {
     if (it == match_buffers_.end()) {
       return buffer_region;
     } else {
-      const BufferRegion& source = it->second;
-      Region region = MatchBufferRegion(buffer, source).ConvertRegion(buffer_region->region);
+      const BufferRegion& source = (*it).second;
+      Region region = ConvertRegion(MatchBufferRegion(buffer, source), buffer_region->region);
       return BufferRegion(source->buffer, std::move(region));
     }
   }
@@ -156,7 +172,7 @@ class MatchBufferLower : public StmtExprMutator {
     }
 
     // Step.2. Update
-    match_buffers_[buffer] = source;
+    match_buffers_.Set(buffer, source);
     // Step.2.1. Update buffer data
     Bind(buffer->data, source_buffer->data, buffer->name + ".data");
 
@@ -206,10 +222,10 @@ class MatchBufferLower : public StmtExprMutator {
       Var v = Downcast<Var>(arg);
       auto it = var_map_.find(v);
       if (it == var_map_.end()) {
-        var_map_[v] = value;
+        var_map_.Set(v, value);
         analyzer_.Bind(v, value);
       } else {
-        AssertBinding(it->second, value, arg_name);
+        AssertBinding((*it).second, value, arg_name);
       }
     } else {
       AssertBinding(arg, value, arg_name);
@@ -224,9 +240,9 @@ class MatchBufferLower : public StmtExprMutator {
 
  private:
   /*! \brief Buffer region mapping. */
-  std::unordered_map<Buffer, BufferRegion, ObjectHash, ObjectEqual> match_buffers_;
+  Map<Buffer, BufferRegion> match_buffers_;
   /*! \brief Var mapping for buffer signature (data, strides, element_offset, etc.) */
-  std::unordered_map<Var, PrimExpr, ObjectHash, ObjectEqual> var_map_;
+  Map<Var, PrimExpr> var_map_;
   /*! \brief The analyzer */
   arith::Analyzer analyzer_;
 };

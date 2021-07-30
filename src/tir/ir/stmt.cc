@@ -735,51 +735,6 @@ MatchBufferRegion::MatchBufferRegion(Buffer buffer, BufferRegion source) {
   data_ = std::move(node);
 }
 
-Array<PrimExpr> MatchBufferRegion::ConvertIndices(const Array<PrimExpr>& indices) const {
-  const Buffer& target = (*this)->buffer;
-  const BufferRegion& source = (*this)->source;
-  ICHECK_EQ(indices.size(), target->shape.size());
-
-  arith::Analyzer analyzer;
-  Array<PrimExpr> result;
-  result.reserve(source->region.size());
-  size_t offset = source->region.size() - indices.size();
-  for (size_t i = 0; i < offset; ++i) {
-    const Range& range = source->region[i];
-    ICHECK(analyzer.CanProve(range->extent == 1));
-    result.push_back(range->min);
-  }
-  for (size_t i = 0; i < indices.size(); ++i) {
-    const Range& range = source->region[i + offset];
-    const PrimExpr& index = indices[i];
-    result.push_back(range->min + index);
-  }
-  return result;
-}
-
-Region MatchBufferRegion::ConvertRegion(const Region& region) const {
-  const Buffer& target = (*this)->buffer;
-  const BufferRegion& source = (*this)->source;
-  ICHECK_EQ(region.size(), target->shape.size());
-
-  arith::Analyzer analyzer;
-  Region result;
-  result.reserve(source->region.size());
-  size_t offset = source->region.size() - region.size();
-  for (size_t i = 0; i < offset; ++i) {
-    const Range& source_range = source->region[i];
-    ICHECK(analyzer.CanProve(source_range->extent == 1));
-    result.push_back(Range::FromMinExtent(source_range->min, 1));
-  }
-  for (size_t i = 0; i < region.size(); ++i) {
-    const Range& source_range = source->region[i + offset];
-    const Range& target_range = region[i];
-    result.push_back(
-        Range::FromMinExtent(source_range->min + target_range->min, target_range->extent));
-  }
-  return result;
-}
-
 TVM_REGISTER_GLOBAL("tir.MatchBufferRegion").set_body_typed([](Buffer buffer, BufferRegion source) {
   return MatchBufferRegion(buffer, source);
 });

@@ -365,13 +365,33 @@ def transformed_rank0_buffer(a: ty.handle, b: ty.handle) -> None:
 
 
 @tvm.script.tir
-def fail_match_buffer(a: ty.handle) -> None:
+def fail_match_load(a: ty.handle) -> None:
+    A = tir.match_buffer(a, (8, 8))
+    for i, j in tir.grid(8, 8):
+        with tir.block([]):
+            tir.reads(A[i, j])
+            tir.writes([])
+            sub_A = tir.match_buffer(A[i, j], ())
+            tir.evaluate(tir.load("float32", sub_A.data, 0))
+
+
+@tvm.script.tir
+def fail_match_store(a: ty.handle) -> None:
+    A = tir.match_buffer(a, (8, 8))
+    for i, j in tir.grid(8, 8):
+        with tir.block([]):
+            tir.reads([])
+            tir.writes(A[i, j])
+            sub_A = tir.match_buffer(A[i, j], ())
+            sub_A.data[0] = 1
+
+
+@tvm.script.tir
+def fail_buffer_bind(a: ty.handle) -> None:
     A = tir.match_buffer(a, (8, 8))
     for i, j in tir.grid(8, 2):
         with tir.block([]):
-            tir.reads([])
             stride = tir.var("int32")
-            tir.writes(A[i, j * 4 : j * 4 + 4])
             sub_A = tir.match_buffer(
                 A[i, j * 4 : j * 4 + 4], (1, 4), strides=[stride, stride], offset_factor=1
             )
@@ -384,8 +404,6 @@ def fail_match_func_param(a: ty.handle, m: ty.handle, n: ty.handle) -> None:
     A = tir.match_buffer(a, (8, 8))
     for i, j in tir.grid(8, 2):
         with tir.block([]):
-            tir.reads([])
-            tir.writes(A[i, j * 4 : j * 4 + 4])
             sub_A = tir.match_buffer(
                 A[i, j * 4 : j * 4 + 4], (1, 4), strides=[m, n], offset_factor=1
             )
@@ -413,8 +431,13 @@ def test_rank0_buffer():
     _check(rank0_buffer, transformed_rank0_buffer)
 
 
+def test_fail_load_store():
+    _check_fail(fail_match_load)
+    _check_fail(fail_match_store)
+
+
 def test_fail_buffer_bind():
-    _check_fail(fail_match_buffer)
+    _check_fail(fail_buffer_bind)
 
 
 def test_fail_match_func_param():
@@ -427,5 +450,6 @@ if __name__ == "__main__":
     test_recursive_match()
     test_symbolic_match()
     test_rank0_buffer()
+    test_fail_load_store()
     test_fail_buffer_bind()
     test_fail_match_func_param()

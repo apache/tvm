@@ -1059,20 +1059,6 @@ class MatchBufferRegion : public ObjectRef {
  public:
   TVM_DLL explicit MatchBufferRegion(Buffer buffer, BufferRegion source);
 
-  /*!
-   * \brief Convert target buffer access indices to original one.
-   * \param indices The indices of the target buffer
-   * \return The indices of source buffer.
-   */
-  TVM_DLL Array<PrimExpr> ConvertIndices(const Array<PrimExpr>& indices) const;
-
-  /*!
-   * \brief Convert target buffer region to original one.
-   * \param region The sub-region of the target buffer
-   * \return The region of source buffer.
-   */
-  TVM_DLL Region ConvertRegion(const Region& region) const;
-
   TVM_DEFINE_OBJECT_REF_METHODS(MatchBufferRegion, ObjectRef, MatchBufferRegionNode);
 };
 

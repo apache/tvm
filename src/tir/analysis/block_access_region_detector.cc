@@ -26,6 +26,7 @@
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
 
+#include "../transforms/ir_utils.h"
 namespace tvm {
 namespace tir {
 
@@ -204,7 +205,7 @@ std::vector<arith::IntSet> BlockReadWriteDetector::ConvertMatchedRegion(
     region.push_back(int_set.CoverRange(Range::FromMinExtent(0, buffer->shape[i])));
   }
 
-  region = match_buffer.ConvertRegion(region);
+  region = ConvertRegion(match_buffer, region);
 
   std::vector<arith::IntSet> result;
   result.reserve(region.size());
