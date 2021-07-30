@@ -114,47 +114,104 @@ class CodeGenSPIRV : public ExprFunctor<spirv::Value(const PrimExpr&)>,
   void VisitStmt_(const EvaluateNode* op) override;
 
  protected:
-  /*! \brief The storage information */
+  /*! \brief Storage information for a buffer */
   struct StorageInfo {
+    /*! \brief The name of the tir::Var for the buffer
+     *
+     * Used for error messages.
+     */
+    std::string name_hint;
+
     /*! \brief Whether it is volatile */
     bool is_volatile{false};
-    /*! \brief Whether it is volatile */
-    bool content_fixed{false};
-    /*! \brief Current content type */
-    DataType content_type{DataType::Handle()};
 
-    // Update content type if it hasn't beenupdated.
-    void UpdateContentType(DataType type) {
-      if (content_fixed) {
-        ICHECK_EQ(type, content_type) << "Cannot use two different content type in GLSL model";
-      } else {
-        this->content_type = type;
-        content_fixed = true;
-      }
+    /*! \brief Whether the element type of the buffer is known.
+     *
+     * This value is determined based on the type_annotation of the
+     * buffer variable (AllocateNode) or of the parameter (shader
+     * arguments).
+     */
+    bool element_type_known{false};
+
+    /*! \brief The known element type of the buffer.
+     *
+     * This value is determined based on the type_annotation of the
+     * buffer variable (AllocateNode) or of the parameter (shader
+     * arguments).
+     */
+    DataType element_type{DataType()};
+
+    /* \brief Check that the access type matches the known type
+     *
+     * Asserts that the type given is the same as the type previously
+     * stored in this array.
+     *
+     * @param type The data type being stored/loaded in the buffer
+     *
+     * @param index_lanes The number of lanes of the index.  The
+     * number of lanes in the value being stored/loaded should be the
+     * product of the number of lanes of the buffer element type and
+     * the number of lanes of the index.
+     */
+    void CheckContentType(DataType type, int index_lanes = 1) {
+      ICHECK(element_type_known) << "Cannot check element type of buffer " << name_hint
+                                 << " no previous element type defined";
+      DataType expected_type = element_type.with_lanes(index_lanes * element_type.lanes());
+      ICHECK_EQ(type, expected_type) << "Attempted to access buffer " << name_hint
+                                     << " as element type " << type << " using an index of size "
+                                     << index_lanes << " when the element type is " << element_type;
+    }
+
+    // Update content type if it hasn't been updated.
+    void SetContentType(DataType type, std::string name_hint) {
+      ICHECK(!element_type_known) << "Cannot set element type of buffer " << name_hint
+                                  << " a second time.";
+      this->element_type = type;
+      this->name_hint = name_hint;
+      element_type_known = true;
     }
   };
   // Reset the state so it works for a new function.
   void InitFuncState();
   // Get the thread index
   spirv::Value GetThreadIndex(const IterVar& iv, const PrimExpr& extent);
+
   spirv::Value CreateStorageSync(const CallNode* op);
   void Scalarize(const PrimExpr& e, std::function<void(int i, spirv::Value v)> f);
+
   // SPIRV-related capabilities of the target
   SPIRVSupport spirv_support_;
+
   // The builder
   std::unique_ptr<spirv::IRBuilder> builder_;
+
   // Work group size of three
   uint32_t workgroup_size_[3];
+
   // Likely branch
   uint32_t weight_likely_branch_{128};
+
+  /* The data type used for the backing array for booleans.
+   *
+   * Currently matched to the data type used in Buffer::vstore and
+   * Buffer::vload.  In the future, this should be the smallest
+   * integer type supported by the device, as not all Vulkan
+   * implementations support int8.
+   */
+  DataType boolean_storage_type_{DataType::Int(8)};
+
   // the storage scope of allocation
   std::unordered_map<const VarNode*, StorageInfo> storage_info_;
+
   // The definition of local variable.
   std::unordered_map<const VarNode*, spirv::Value> var_map_;
+
   // The analyzer.
   std::unique_ptr<arith::Analyzer> analyzer_;
+
   // deep comparison of PrimExpr
   ExprDeepEqual deep_equal_;
+
   // binding of let variables. Enables duplicate var defs that map to same value
   std::unordered_map<Var, const LetNode*, ObjectPtrHash, ObjectPtrEqual> let_binding_;
 };
