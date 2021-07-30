@@ -2280,12 +2280,17 @@ class LSTM(RNN):
             weights_dict["ht"] = _op.squeeze(H_ts[i], axis=[0])
             weights_dict["ct"] = _op.squeeze(C_ts[i], axis=[0])
 
-            weights_dict["wi"] = _op.squeeze(Ws[i], axis=[0])
-            weights_dict["wh"] = _op.squeeze(Rs[i], axis=[0])
+            # Weights permutation: onnx format i-o-f-c, lstm cell format i-f-c-o
+            mati, mato, matf, matc = _op.split(_op.squeeze(Ws[i], axis=[0]), 4)
+            weights_dict["wi"] = _op.concatenate([mati, matf, matc, mato], axis=0)
+            mati, mato, matf, matc = _op.split(_op.squeeze(Rs[i], axis=[0]), 4)
+            weights_dict["wh"] = _op.concatenate([mati, matf, matc, mato], axis=0)
             if Bp is not None:
                 Bi, Bh = _op.split(Bs[i], 2, -1)
-                weights_dict["bi"] = Bi
-                weights_dict["bh"] = Bh
+                mati, mato, matf, matc = _op.split(_op.squeeze(Bi, axis=[0]), 4)
+                weights_dict["bi"] = _op.concatenate([mati, matf, matc, mato], axis=0)
+                mati, mato, matf, matc = _op.split(_op.squeeze(Bh, axis=[0]), 4)
+                weights_dict["bh"] = _op.concatenate([mati, matf, matc, mato], axis=0)
             if Pp is not None:
                 weights_dict["p_i"] = _op.squeeze(p_is[i], axis=[0])
                 weights_dict["p_f"] = _op.squeeze(p_fs[i], axis=[0])
