@@ -227,6 +227,8 @@ class Interpreter(Executor):
         if expr is None or isinstance(expr, GlobalVar):
             assert self.mod is not None
 
+        _intrp = _backend.CreateInterpreter(self.optimize(), self.device, self.target)
+
         def _interp_wrapper(*args, **kwargs):
             if expr is None:
                 args = self._convert_args(self.mod["main"], args, kwargs)
@@ -253,7 +255,6 @@ class Interpreter(Executor):
 
             mod = self.optimize()
             opt_expr = Call(mod["main"], relay_args)
-            _intrp = _backend.CreateInterpreter(mod, self.device, self.target)
             return _intrp(opt_expr)
 
         return _interp_wrapper
