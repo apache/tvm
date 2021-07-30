@@ -24,13 +24,13 @@ from . import nn
 
 def lstm_cell(
     input_seqs,
-    H_t,
-    C_t,
-    Wi,
-    Wh,
-    Bi=None,
-    Bh=None,
-    P=None,
+    ht,
+    ct,
+    wi,
+    wh,
+    bi=None,
+    bh=None,
+    p=None,
     p_i=None,
     p_f=None,
     p_o=None,
@@ -40,43 +40,43 @@ def lstm_cell(
     backwards=False,
 ):
     # Input hidden state shape = (batch, hidden_size)
-    # Wi, Wh, Bi, Bh, proj matrix P, peephole matrices: p_i, p_f, p_o are expected.
-    # Wi and Wh shoud exist the others can be None
+    # wi, wh, bi, bh, proj matrix (p), peephole matrices: p_i, p_f, p_o are expected.
+    # wi and wh shoud exist the others can be None
 
     outputs_list = []
     for x_t in input_seqs if not backwards else reversed(input_seqs):
         # x_t shape = (batch, feature size), step shape = (batch, feature size + hidden_size)
-        step = concatenate([x_t, H_t], axis=1)
-        W = concatenate([Wi, Wh], axis=1)
-        # Instead of nn.dense(x_t, weights[0]) + nn.dense(H_t, weights[1]) we have nn.dense(step, W)
+        step = concatenate([x_t, ht], axis=1)
+        w = concatenate([wi, wh], axis=1)
+        # Instead of nn.dense(x_t, weights[0]) + nn.dense(ht, weights[1]) we have nn.dense(step, W)
         # gates shape = (batch, 4 * hidden_size)
-        gates = nn.dense(step, W)
+        gates = nn.dense(step, w)
         # Add biases
-        if Bi is not None:
-            gates += Bi
-        if Bh is not None:
-            gates += Bh
-        i, f, c, o = split(gates, 4, axis=-1)  # (batch, hidden_size)
+        if bi is not None:
+            gates += bi
+        if bh is not None:
+            gates += bh
+        ig, fg, cg, og = split(gates, 4, axis=-1)  # (batch, hidden_size)
 
         if p_i is not None and p_f is not None:
-            i = f_act(i + p_i * C_t)
-            f = f_act(f + p_f * C_t)
+            ig = f_act(ig + p_i * ct)
+            fg = f_act(fg + p_f * ct)
         else:
-            i = f_act(i)
-            f = f_act(f)
+            ig = f_act(ig)
+            fg = f_act(fg)
 
-        c = g_act(c)
-        C_t = f * C_t + i * c
+        cg = g_act(cg)
+        ct = fg * ct + ig * cg
         if p_o is not None:
-            o = f_act(o + p_o * C_t)
+            og = f_act(og + p_o * ct)
         else:
-            o = f_act(o)
+            og = f_act(og)
 
-        H_t = o * h_act(C_t)
+        ht = og * h_act(ct)
 
-        if P is not None:
-            H_t = nn.dense(H_t, P)
+        if p is not None:
+            ht = nn.dense(ht, p)
 
-        outputs_list.append(H_t)  # [seq_num, (batch, hidden_size)]
+        outputs_list.append(ht)  # [seq_num, (batch, hidden_size)]
 
-    return outputs_list, H_t, C_t
+    return outputs_list, ht, ct

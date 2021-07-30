@@ -23,7 +23,6 @@ import warnings
 import numpy as np
 import tvm
 from tvm.ir import IRModule
-from tvm.relay.op.tensor import concatenate
 from tvm.topi.utils import get_const_tuple
 
 from ... import nd as _nd
@@ -2278,15 +2277,15 @@ class LSTM(RNN):
         for i in range(num_directions):
             weights_dict = {}
 
-            weights_dict["H_t"] = _op.squeeze(H_ts[i], axis=[0])
-            weights_dict["C_t"] = _op.squeeze(C_ts[i], axis=[0])
+            weights_dict["ht"] = _op.squeeze(H_ts[i], axis=[0])
+            weights_dict["ct"] = _op.squeeze(C_ts[i], axis=[0])
 
-            weights_dict["Wi"] = _op.squeeze(Ws[i], axis=[0])
-            weights_dict["Wh"] = _op.squeeze(Rs[i], axis=[0])
+            weights_dict["wi"] = _op.squeeze(Ws[i], axis=[0])
+            weights_dict["wh"] = _op.squeeze(Rs[i], axis=[0])
             if Bp is not None:
                 Bi, Bh = _op.split(Bs[i], 2, -1)
-                weights_dict["Bi"] = Bi
-                weights_dict["Bh"] = Bh
+                weights_dict["bi"] = Bi
+                weights_dict["bh"] = Bh
             if Pp is not None:
                 weights_dict["p_i"] = _op.squeeze(p_is[i], axis=[0])
                 weights_dict["p_f"] = _op.squeeze(p_fs[i], axis=[0])
