@@ -4694,7 +4694,7 @@ unsupported_onnx_tests = [
     "test_unsqueeze_unsorted_axes/",
     "test_upsample_nearest/",
     "test_range_float_type_positive_delta_expanded/",
-    "test_range_int32_type_negative_delta_expanded"
+    "test_range_int32_type_negative_delta_expanded",
 ]
 
 
@@ -4706,7 +4706,7 @@ target_skips = {
         "test_qlinearconv/",
         "test_resize_upsample_sizes_nearest/",
         "test_basic_convinteger/",
-        "test_convinteger_with_padding/"
+        "test_convinteger_with_padding/",
     ]
 }
 
