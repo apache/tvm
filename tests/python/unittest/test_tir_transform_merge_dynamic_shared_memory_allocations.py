@@ -205,6 +205,55 @@ def test_dyn_shared_vectorized_store():
         check_target(target)
 
 
+@tvm.testing.requires_gpu
+def test_dyn_shared_reuse_and_merge():
+    n = 64
+    A = te.placeholder((n,), name="A", dtype="float32")
+    B = te.placeholder((n,), name="B", dtype="float32")
+    C = te.placeholder((te.size_var("n_dyn"),), name="C", dtype="float32")
+
+    def test_device_ir(A, B, C, D):
+        ib = tvm.tir.ir_builder.create()
+
+        tx = te.thread_axis("threadIdx.x")
+        ib.scope_attr(tx, "thread_extent", n)
+
+        A_sh = ib.allocate(A.dtype, (n,), scope="shared.dyn", name="A_sh")
+        B_sh = ib.allocate(B.dtype, (n,), scope="shared.dyn", name="B_sh")
+        C_sh = ib.allocate(C.dtype, (C.shape[0],), scope="shared.dyn", name="C_sh")
+
+        Aptr = ib.buffer_ptr(A)
+        Bptr = ib.buffer_ptr(B)
+        Cptr = ib.buffer_ptr(C)
+        Dptr = ib.buffer_ptr(D)
+
+        A_sh[tx] = Aptr[tx]
+        Dptr[tx] = A_sh[tx]
+
+        B_sh[tx] = Bptr[tx]
+        Dptr[tx] += B_sh[tx]
+
+        C_sh[tx] = Cptr[tx]  # C cannot reuse other buffers since it size is dynamic
+        Dptr[tx] += C_sh[tx]
+
+        return ib.get()
+
+    D = te.extern(
+        (n,),
+        [A, B, C],
+        lambda ins, outs: test_device_ir(ins[0], ins[1], ins[2], outs[0]),
+        name="vadd",
+        dtype="float32",
+    )
+    s = te.create_schedule(D.op)
+
+    mod = run_passes(s, [A, B, C, D])
+    # merged allocation
+    # allocate(buf_dyn_shmem: Pointer(shared.dyn uint8), uint8, [((n_dyn*4) + 256)]);
+    verify_single_allocation(mod["main"].body)
+
+
 if __name__ == "__main__":
     test_matmul_dyn_shared()
     test_dyn_shared_vectorized_store()
+    test_dyn_shared_reuse_and_merge()
