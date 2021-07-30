@@ -813,7 +813,7 @@ def scatter_nd(data, indices, updates, mode):
         # For now, atomic is not supported by target "vulkan", "metal", or "cuda" with "int64"
         # So we fallback to normal algorithm, using "+=" rather than atomic_add
 
-        # TODO:
+        # TODO (CaptainDuke):
         # Since multiple threads compete for the same write index, which leads to
         # non-determinstic output for update mode. We could add a new attribute
         # "allow_non_deterministic" to scatter_nd op, which is False by default.
