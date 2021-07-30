@@ -39,9 +39,41 @@ def lstm_cell(
     h_act=tanh,
     backwards=False,
 ):
-    # Input hidden state shape = (batch, hidden_size)
-    # wi, wh, bi, bh, proj matrix (p), peephole matrices: p_i, p_f, p_o are expected.
-    # wi and wh shoud exist the others can be None
+    """
+    Common implementation of LSTM cell for all frontends of TVM
+    TODO (vvchernov): currently it is used by onnx and pytorch.
+
+    Parameters
+    ----------
+    input_seqs : List[relay.Expr]
+        The sequence of input tensors
+        Input tensor should be 2d while issue #8412 is not resolved
+        Shape = (batch, feature_size)
+    ht : relay.Expr
+        Hidden state. shape = (batch, hidden_size)
+    ct : relay.Expr
+        Cell state. shape = (batch, hidden_size)
+    wi, wh : relay.Expr
+        weight matrices. wi shape = (4 * hidden_size, feature_size)
+        wh shape = (4 * hidden_size, hidden_size or proj_size)
+        NOTE: wi = (w_ii|w_if|w_ig|w_io) for input, forget, cell and output gates.
+        The order is important for correct LSTM calculation!
+    bi, bh : relay.Expr
+        bias matrices. The same order of internal parts as for weights. shape = (4 * hidden_size)
+    p : relay.Expr
+        projection matrix. shape = (proj_size, hidden_size)
+    p_i, p_f, p_o : relay.Expr
+        peephole LSTM matrices. shape = (batch, hidden_size)
+    f_act, g_act, h_act : relay.op
+        activation funtions
+    backwards : bool
+        Flag for reverse pass of LSTM
+
+    Returns
+    -------
+    result : List[relay.Expr], relay.Expr, relay.Expr
+        The sequence of computed result, final hidden and cell state
+    """
 
     outputs_list = []
     for x_t in input_seqs if not backwards else reversed(input_seqs):
