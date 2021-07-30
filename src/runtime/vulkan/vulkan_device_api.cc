@@ -50,6 +50,28 @@ VulkanDeviceAPI::VulkanDeviceAPI() {
       devices_.push_back(std::move(device));
     }
   }
+
+  // Move discrete GPUs to the start of the list, so the default
+  // device_id=0 preferentially uses a discrete GPU.
+  auto preference = [](const VulkanDevice& device) {
+    const std::string& type = device.device_properties.device_type;
+    if (type == "discrete") {
+      return 0;
+    } else if (type == "integrated") {
+      return 1;
+    } else if (type == "virtual") {
+      return 2;
+    } else if (type == "cpu") {
+      return 3;
+    } else {
+      return 4;
+    }
+  };
+
+  std::stable_sort(devices_.begin(), devices_.end(),
+                   [&preference](const VulkanDevice& a, const VulkanDevice& b) {
+                     return preference(a) < preference(b);
+                   });
 }
 
 VulkanDeviceAPI::~VulkanDeviceAPI() {}
@@ -214,8 +236,8 @@ void VulkanDeviceAPI::GetTargetProperty(Device dev, const std::string& property,
   if (property == "max_shared_memory_per_block") {
     *rv = int64_t(prop.max_shared_memory_per_block);
   }
-  if (property == ":string device_name") {
-    *rv = prop.device_name;
+  if (property == "device_name") {
+    *rv = String(prop.device_name);
   }
   if (property == "driver_version") {
     *rv = int64_t(prop.driver_version);
