@@ -114,6 +114,7 @@ def schedule_reduce(outs):
     outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
     sch = te.create_schedule([x.op for x in outs])
     scheduled_ops = []
+    enable_auto_inline = tvm.te.schedule.EnableAutoInline(sch)
 
     def traverse_before_reduce(operator):
         """Internal traverse function"""
@@ -135,7 +136,11 @@ def schedule_reduce(outs):
             if operator not in scheduled_ops:
                 schedule_injective_from_existing(sch, operator.output(0))
             for tensor in operator.input_tensors:
-                traverse_after_reduce(tensor.op)
+                if tensor.op not in scheduled_ops:
+                    if enable_auto_inline:
+                        traverse_before_reduce(tensor.op)
+                    else:
+                        traverse_after_reduce(tensor.op)
         elif operator.tag == "comm_reduce":
             if operator not in scheduled_ops:
                 _schedule_reduce(operator, sch, is_idx_reduce=False)
