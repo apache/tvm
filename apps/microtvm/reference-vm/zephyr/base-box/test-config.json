@@ -1,5 +1,9 @@
 {
-    "stm32f746xx": {
+    "stm32f746xx_nucleo": {
+        "vid_hex": "0483",
+        "pid_hex": "374b"
+        },
+    "stm32f746xx_disco": {
         "vid_hex": "0483",
         "pid_hex": "374b"
         },
