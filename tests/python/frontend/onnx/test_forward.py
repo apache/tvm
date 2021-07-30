@@ -615,10 +615,7 @@ def test_dynamic_gather():
         inputs=[],
         outputs=["indices"],
         value=onnx.helper.make_tensor(
-            name="const_indices",
-            data_type=onnx.TensorProto.INT64,
-            dims=[],
-            vals=[1],
+            name="const_indices", data_type=onnx.TensorProto.INT64, dims=[], vals=[1],
         ),
     )
     y = helper.make_node("Gather", ["in", "indices"], ["out"], axis=axis)
@@ -891,12 +888,7 @@ def test_slice():
         x, x[:, 1::2], starts=(1,), ends=(9223372036854775807,), axes=(1,), steps=(2,)
     )
     _test_slice_iteration_v10(
-        x,
-        x[0::1, 1::2],
-        starts=(0, 1),
-        ends=(4, 4),
-        axes=(0, 1),
-        steps=(1, 2),
+        x, x[0::1, 1::2], starts=(0, 1), ends=(4, 4), axes=(0, 1), steps=(1, 2),
     )
 
 
@@ -1279,10 +1271,7 @@ def verify_instance_norm(shape, axis=1):
     epsilon = 1e-5
 
     node = onnx.helper.make_node(
-        "InstanceNormalization",
-        inputs=["x", "gamma", "beta"],
-        outputs=["y"],
-        epsilon=epsilon,
+        "InstanceNormalization", inputs=["x", "gamma", "beta"], outputs=["y"], epsilon=epsilon,
     )
     graph = helper.make_graph(
         [node],
@@ -1645,13 +1634,7 @@ def verify_pad(indata, pads, mode="constant", value=0.0):
     #  onnx graph
     if mode in ["edge", "reflect"]:
         outdata = np.pad(indata, pad_width=np_pads, mode=mode)
-        node = helper.make_node(
-            "Pad",
-            inputs=["input"],
-            outputs=["output"],
-            mode=mode,
-            pads=pads,
-        )
+        node = helper.make_node("Pad", inputs=["input"], outputs=["output"], mode=mode, pads=pads,)
     else:
         outdata = np.pad(indata, pad_width=np_pads, mode="constant", constant_values=value)
         node = helper.make_node(
@@ -1927,9 +1910,7 @@ def test_unary_ops():
         graph = helper.make_graph(
             [z],
             "_test",
-            inputs=[
-                helper.make_tensor_value_info("in1", ONNX_DTYPE, list(in_shape)),
-            ],
+            inputs=[helper.make_tensor_value_info("in1", ONNX_DTYPE, list(in_shape)),],
             outputs=[helper.make_tensor_value_info("out", ONNX_DTYPE, list(out_shape))],
         )
         model = helper.make_model(graph, producer_name="_test")
@@ -2112,11 +2093,7 @@ def test_sign():
 def verify_not(indata, dtype):
     x = indata.astype(dtype)
 
-    node = helper.make_node(
-        "Not",
-        inputs=["in"],
-        outputs=["out"],
-    )
+    node = helper.make_node("Not", inputs=["in"], outputs=["out"],)
 
     graph = helper.make_graph(
         [node],
@@ -2144,11 +2121,7 @@ def verify_and(indata, dtype):
     y = indata[1].astype(dtype)
     outdata = np.logical_and(x, y)
 
-    node = helper.make_node(
-        "And",
-        inputs=["in1", "in2"],
-        outputs=["out"],
-    )
+    node = helper.make_node("And", inputs=["in1", "in2"], outputs=["out"],)
 
     graph = helper.make_graph(
         [node],
@@ -2300,11 +2273,7 @@ def verify_or(indata, dtype):
     y = indata[1].astype(dtype)
     outdata = np.logical_or(x, y)
 
-    node = helper.make_node(
-        "Or",
-        inputs=["in1", "in2"],
-        outputs=["out"],
-    )
+    node = helper.make_node("Or", inputs=["in1", "in2"], outputs=["out"],)
 
     graph = helper.make_graph(
         [node],
@@ -3649,14 +3618,7 @@ def test_resize():
             make_constant_node("scales", onnx.TensorProto.FLOAT, (len(scales),), scales),
         ]
         input_names = ["X", "scales"]
-        nodes.append(
-            helper.make_node(
-                "Resize",
-                inputs=input_names,
-                outputs=["Y"],
-                mode=mode,
-            )
-        )
+        nodes.append(helper.make_node("Resize", inputs=input_names, outputs=["Y"], mode=mode,))
 
         oshape = [round(dim * scale) for (dim, scale) in zip(ishape, scales)]
         graph = helper.make_graph(
@@ -3676,11 +3638,7 @@ def test_resize():
 @tvm.testing.uses_gpu
 def test_nonzero():
     def verify_nonzero(indata, outdata, dtype):
-        node = helper.make_node(
-            "NonZero",
-            inputs=["X"],
-            outputs=["Y"],
-        )
+        node = helper.make_node("NonZero", inputs=["X"], outputs=["Y"],)
 
         graph = helper.make_graph(
             [node],
@@ -3717,13 +3675,7 @@ def test_topk():
             "topk_test",
             inputs=[
                 helper.make_tensor_value_info("X", TensorProto.FLOAT, list(input_dims)),
-                helper.make_tensor_value_info(
-                    "K",
-                    TensorProto.INT64,
-                    [
-                        1,
-                    ],
-                ),
+                helper.make_tensor_value_info("K", TensorProto.INT64, [1,],),
             ],
             outputs=[
                 helper.make_tensor_value_info("Values", TensorProto.FLOAT, output_dims),
@@ -3776,13 +3728,7 @@ def test_roi_align():
             inputs=[
                 helper.make_tensor_value_info("X", TensorProto.FLOAT, list(input_dims)),
                 helper.make_tensor_value_info("rois", TensorProto.FLOAT, [num_roi, 4]),
-                helper.make_tensor_value_info(
-                    "batch_indicies",
-                    TensorProto.INT64,
-                    [
-                        num_roi,
-                    ],
-                ),
+                helper.make_tensor_value_info("batch_indicies", TensorProto.INT64, [num_roi,],),
             ],
             outputs=[helper.make_tensor_value_info("Y", TensorProto.FLOAT, output_dims)],
         )
@@ -3835,10 +3781,7 @@ def test_non_max_suppression():
             )
             inputs.append(score_threshold)
         node = helper.make_node(
-            "NonMaxSuppression",
-            inputs=input_names,
-            outputs=["Y"],
-            center_point_box=0,
+            "NonMaxSuppression", inputs=input_names, outputs=["Y"], center_point_box=0,
         )
 
         graph = helper.make_graph(
@@ -4152,9 +4095,7 @@ def verify_if(cond_array, num_outputs):
     if_graph = onnx.helper.make_graph(
         [if_node],
         "if_outer",
-        inputs=[
-            onnx.helper.make_tensor_value_info("cond", onnx.TensorProto.BOOL, []),
-        ],
+        inputs=[onnx.helper.make_tensor_value_info("cond", onnx.TensorProto.BOOL, []),],
         outputs=graph_outputs,
     )
 
@@ -4187,11 +4128,7 @@ def test_if():
 @tvm.testing.uses_gpu
 def test_size():
     def verify_size(indata):
-        node = helper.make_node(
-            "Size",
-            inputs=["X"],
-            outputs=["Y"],
-        )
+        node = helper.make_node("Size", inputs=["X"], outputs=["Y"],)
 
         graph = helper.make_graph(
             [node],
@@ -4282,11 +4219,7 @@ def test_maxunpool():
 @tvm.testing.uses_gpu
 def test_softplus():
     def verify_softplus(indata):
-        node = helper.make_node(
-            "Softplus",
-            inputs=["X"],
-            outputs=["Y"],
-        )
+        node = helper.make_node("Softplus", inputs=["X"], outputs=["Y"],)
 
         graph = helper.make_graph(
             [node],
@@ -4310,11 +4243,7 @@ def test_softplus():
 @tvm.testing.uses_gpu
 def test_cumsum():
     def verify_cumsum(indata, axis, exclusive=0, reverse=0, type="float32"):
-        cumsum_node = onnx.helper.make_node(
-            "CumSum",
-            inputs=["X", "axis"],
-            outputs=["Y"],
-        )
+        cumsum_node = onnx.helper.make_node("CumSum", inputs=["X", "axis"], outputs=["Y"],)
         if exclusive != 0:
             exclusive_attr = helper.make_attribute("exclusive", exclusive)
             cumsum_node.attribute.append(exclusive_attr)
@@ -4334,9 +4263,7 @@ def test_cumsum():
         graph = helper.make_graph(
             nodes,
             "cumsum_test",
-            inputs=[
-                helper.make_tensor_value_info("X", tensor_type, list(indata.shape)),
-            ],
+            inputs=[helper.make_tensor_value_info("X", tensor_type, list(indata.shape)),],
             outputs=[helper.make_tensor_value_info("Y", tensor_type, list(indata.shape))],
         )
 
@@ -4345,22 +4272,7 @@ def test_cumsum():
         verify_with_ort_with_inputs(model, [indata], dtype=type, use_vm=True, opset=11)
 
     data = (
-        np.array(
-            [
-                1.0,
-                2.0,
-                3.0,
-                4.0,
-                5.0,
-                6.0,
-                7.0,
-                8.0,
-                9.0,
-                10.0,
-                11.0,
-                12.0,
-            ]
-        )
+        np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0,])
         .astype(np.float32)
         .reshape((3, 4))
     )
@@ -4387,11 +4299,7 @@ def test_cumsum():
 @tvm.testing.uses_gpu
 def test_eyelike():
     def verify_eyelike(indata):
-        node = helper.make_node(
-            "EyeLike",
-            inputs=["X"],
-            outputs=["Y"],
-        )
+        node = helper.make_node("EyeLike", inputs=["X"], outputs=["Y"],)
 
         graph = helper.make_graph(
             [node],
@@ -4751,11 +4659,7 @@ def test_onnx_nodes(test, target):
 
 
 def test_wrong_input():
-    node = helper.make_node(
-        "Softplus",
-        inputs=["X"],
-        outputs=["Y"],
-    )
+    node = helper.make_node("Softplus", inputs=["X"], outputs=["Y"],)
 
     graph = helper.make_graph(
         [node],
@@ -4836,10 +4740,7 @@ def verify_reverse_sequence(x, sequence_lens, batch_axis, time_axis):
 
 @tvm.testing.uses_gpu
 def test_reverse_sequence():
-    x = np.array(
-        [[0, 1, 2, 3], [4, 5, 6, 7], [8, 9, 10, 11], [12, 13, 14, 15]],
-        dtype=np.float32,
-    )
+    x = np.array([[0, 1, 2, 3], [4, 5, 6, 7], [8, 9, 10, 11], [12, 13, 14, 15]], dtype=np.float32,)
     sequence_lens = np.array([1, 2, 3, 4], dtype=np.int64)
     verify_reverse_sequence(x, sequence_lens, 0, 1)
 
@@ -5162,23 +5063,20 @@ def verify_convinteger(
 
     x_array = np.random.randint(low=0, high=255, size=x_shape).astype(dtype)
     w_array = np.random.uniform(low=0, high=255, size=w_shape).astype(dtype)
-    x_zero_point_array = np.random.randint(0, 255, size=[]).astype(dtype)
-    w_zero_point_array = np.random.randint(0, 255, size=[]).astype(dtype)
+    x_zero_point_array = np.random.randint(0, 255, size=[1]).astype(dtype)
+    w_zero_point_array = np.random.randint(0, 255, size=[1]).astype(dtype)
 
     ONNX_DTYPE = mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(dtype)]
     input_nodes = [
         helper.make_tensor_value_info("x", ONNX_DTYPE, list(x_shape)),
         helper.make_tensor_value_info("w", ONNX_DTYPE, list(w_shape)),
-        helper.make_tensor_value_info("x_zero_point", ONNX_DTYPE, []),
-        helper.make_tensor_value_info("w_zero_point", ONNX_DTYPE, []),
     ]
-    input_names = [
-        "x",
-        "w",
-        "x_zero_point",
-        "w_zero_point",
+    initializer = [
+        helper.make_tensor("x_zero_point", ONNX_DTYPE, [], x_zero_point_array),
+        helper.make_tensor("w_zero_point", ONNX_DTYPE, [], w_zero_point_array),
     ]
-    input_values = [x_array, w_array, x_zero_point_array, w_zero_point_array]
+    input_names = ["x", "w", "x_zero_point", "w_zero_point"]
+    input_values = [x_array, w_array]
 
     if padding is None:
         ## autopadding with unset default attributes
@@ -5213,6 +5111,7 @@ def verify_convinteger(
         [node],
         "convinteger_test",
         inputs=input_nodes,
+        initializer=initializer,
         outputs=[helper.make_tensor_value_info("y", TensorProto.INT32, list(y_shape))],
     )
     model = helper.make_model(graph, producer_name="convinteger_test")

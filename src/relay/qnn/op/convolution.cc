@@ -383,9 +383,9 @@ Expr DepthwiseConv2DFourthTerm(int input_zero_point_int, int kernel_zero_point_i
 
 /*
  * \brief Calculates the fourth term in the qnn.conv2d depthwise lowering sequence 
-          for non-scalar kernel zero_point.
- * \param input_zero_point_int The int value of input zero point.
- * \param kernel_zero_point The expr for the kernel zero point.
+          for non-constant zero_points.
+ * \param input_zero_point The Expr for the input zero point.
+ * \param kernel_zero_point The Expr for the kernel zero point.
  * \param kernel_h The height of kernel.
  * \param kernel_w The width of kernel.
  * \return The sequence of Relay operators for term4.
@@ -393,10 +393,11 @@ Expr DepthwiseConv2DFourthTerm(int input_zero_point_int, int kernel_zero_point_i
  *
  *       Sigma(r, s) zp_a * zp_w
  */
-Expr DepthwiseConv2DFourthTerm(int input_zero_point_int, const Expr& kernel_zero_point, int kernel_h,
+Expr DepthwiseConv2DFourthTerm(const Expr& input_zero_point, const Expr& kernel_zero_point, int kernel_h,
                                int kernel_w) {
-  Expr scalar_term4 = MakeConstantScalar(DataType::Int(32), input_zero_point_int * kernel_h * kernel_w);
-  return Multiply(scalar_term4, kernel_zero_point);
+  Expr scalar_term4 = MakeConstantScalar(DataType::Int(32), kernel_h * kernel_w);
+  Expr variable_term4 = Multiply(input_zero_point, kernel_zero_point);
+  return Multiply(scalar_term4, variable_term4);
 }
 
 /*
@@ -559,8 +560,8 @@ Expr Conv2DFourthTerm(int input_zero_point_int, int kernel_zero_point_int, int i
 
 /*
  * \brief Calculates the fourth term in the qnn.conv2d lowering sequence 
-          for non-scalar kernel zero_point.
- * \param input_zero_point_int The int value of input zero point.
+          for non-constant zero_points.
+ * \param input_zero_point The Expr for the input zero point.
  * \param kernel_zero_point The Expr for the kernel zero point.
  * \param in_channels The number of input channels.
  * \param kernel_h The height of kernel.
@@ -571,10 +572,11 @@ Expr Conv2DFourthTerm(int input_zero_point_int, int kernel_zero_point_int, int i
  *       Sigma(c,r,s) zp_a * zp_w
  *
  */
-Expr Conv2DFourthTerm(int input_zero_point_int, const Expr& kernel_zero_point, int in_channels,
+Expr Conv2DFourthTerm(const Expr& input_zero_point, const Expr& kernel_zero_point, int in_channels,
                       int kernel_h, int kernel_w) {
-  Expr scalar_term4 = MakeConstantScalar(DataType::Int(32), input_zero_point_int * in_channels * kernel_h * kernel_w);
-  return Multiply(scalar_term4, kernel_zero_point);
+  Expr scalar_term4 = MakeConstantScalar(DataType::Int(32), in_channels * kernel_h * kernel_w);
+  Expr variable_term4 = Multiply(input_zero_point, kernel_zero_point);
+  return Multiply(scalar_term4, variable_term4);
 }
 
 /*
@@ -702,17 +704,26 @@ Expr QnnConv2DCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   std::tie(batch_size, in_channels, out_channels, kernel_h, kernel_w, channel_multiplier) =
       GetWorkload(arg_types, param);
 
-  // Extract the integer zero points.
-  auto input_zero_point_int = GetScalarFromConstant<int>(input_zero_point);
-
-  // Kernel zero point is allowed to be non-scalar. Let's check if that's the case.
+  // zero points are allowed to be non-scalar. Let's check if that's the case.
   bool dynamic_zp = false;
   // Use -1 zero point as a default for dynamic.
+  int input_zero_point_int = -1;
   int kernel_zero_point_int = -1;
+
+  // Input zero point can either be a constant or a scalar expression.
+  if (IsConstScalar(input_zero_point)) {
+    // Extract the integer zero points.
+    input_zero_point_int = GetScalarFromConstant<int>(input_zero_point);
+  } else {
+    dynamic_zp = true;
+  }
+
+  // Kernel zero point is allowed to be a constant or 1-D tensor.
   if (IsConstScalar(kernel_zero_point)) {
+    // Extract the integer zero points.
     kernel_zero_point_int = GetScalarFromConstant<int>(kernel_zero_point);
   } else {
-    // Figure out the channel axis.
+    // Figure out the channel axis to force appropriate shape.
     Layout layout(param->data_layout);
     int channel_axis = layout.IndexOf(LayoutAxis::Get('C'));
     kernel_zero_point = Reshape(kernel_zero_point, {-1,});
@@ -744,7 +755,7 @@ Expr QnnConv2DCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
         DepthwiseConv2DThirdTerm(weight, input_zero_point, param, out_channels, channel_multiplier);
     Expr term4;
     if (dynamic_zp) {
-      term4 = DepthwiseConv2DFourthTerm(input_zero_point_int, kernel_zero_point, kernel_h, kernel_w);
+      term4 = DepthwiseConv2DFourthTerm(input_zero_point, kernel_zero_point, kernel_h, kernel_w);
     } else {
       term4 = DepthwiseConv2DFourthTerm(input_zero_point_int, kernel_zero_point_int, kernel_h,
                                         kernel_w);
@@ -760,7 +771,7 @@ Expr QnnConv2DCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   auto term3 = Conv2DThirdTerm(weight, input_zero_point, param, out_channels);
   Expr term4;
   if (dynamic_zp) {
-    term4 = Conv2DFourthTerm(input_zero_point_int, kernel_zero_point, in_channels, kernel_h, kernel_w);
+    term4 = Conv2DFourthTerm(input_zero_point, kernel_zero_point, in_channels, kernel_h, kernel_w);
   } else {
     term4 = Conv2DFourthTerm(input_zero_point_int, kernel_zero_point_int, in_channels, kernel_h,
                              kernel_w);
