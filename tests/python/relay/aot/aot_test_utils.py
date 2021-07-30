@@ -107,7 +107,10 @@ def emit_main_network_definition(main_file, mod_name):
 
 
 def emit_main_prologue(main_file, workspace_bytes):
-    main_file.write(f"#define WORKSPACE_SIZE ({workspace_bytes})\n")
+    # Add TVM_RUNTIME_ALLOC_ALIGNMENT_BYTES because of memory alignment.
+    main_file.write(
+        f"#define WORKSPACE_SIZE ({workspace_bytes} + TVM_RUNTIME_ALLOC_ALIGNMENT_BYTES)\n"
+    )
     main_file.write("static uint8_t g_aot_memory[WORKSPACE_SIZE];\n")
     main_file.write("tvm_workspace_t app_workspace;\n")
     main_file.write(
@@ -125,9 +128,8 @@ void  TVMPlatformAbort(tvm_crt_error_t code) { }
 void TVMLogf(const char* msg, ...) { }
 
 TVM_DLL int TVMFuncRegisterGlobal(const char* name, TVMFunctionHandle f, int override) {}
-int main(){\n
-     
-        """
+int main(){\n 
+"""
     )
 
 
@@ -157,6 +159,7 @@ def emit_main_run(main_file, input_list, output_list, mod_name):
     main_file.write(
         f'tvm_runtime_run(&{mangle_name(mod_name,"network")}, {mangle_name(mod_name,"inputs")}, {mangle_name(mod_name,"outputs")});'
     )
+    main_file.write("\n")
 
 
 def emit_main_compare(main_file, output_list, mod_name):
@@ -165,17 +168,18 @@ def emit_main_compare(main_file, output_list, mod_name):
         main_file.write(f'for (int i = 0; i<{mangle_name(mod_name,"output_data")}{i}_len; i++){{\n')
         if is_float_dtype:
             main_file.write(
-                f'if (fabs({mangle_name(mod_name,"output_data")}{i}[i]-{mangle_name(mod_name,"expected_output_data")}{i}[i]) > 0.001f){{printf("ko\\n");return -1;}}\n'
+                f'if (fabs({mangle_name(mod_name,"output_data")}{i}[i]-{mangle_name(mod_name,"expected_output_data")}{i}[i]) > 0.001f){{\n\tprintf("ko\\n");\n\treturn -1;}}\n'
             )
         else:
             main_file.write(
-                f'if ({mangle_name(mod_name,"output_data")}{i}[i]!={mangle_name(mod_name, "expected_output_data")}{i}[i]){{printf("ko\\n");return -1;}}\n'
+                f'if ({mangle_name(mod_name,"output_data")}{i}[i]!={mangle_name(mod_name, "expected_output_data")}{i}[i]){{\n\tprintf("ko\\n");\n\treturn -1;}}\n'
             )
         main_file.write("}\n")
 
 
 def emit_main_init_memory_manager(main_file):
     main_file.write("StackMemoryManager_Init(&app_workspace, g_aot_memory, WORKSPACE_SIZE);")
+    main_file.write("\n")
 
 
 def emit_main_epilogue(main_file):
