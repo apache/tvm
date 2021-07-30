@@ -249,7 +249,7 @@ Map<String, ObjectRef> UpdateVulkanAttrs(Map<String, ObjectRef> attrs) {
                                          "driver_version",
                                          "vulkan_api_version",
                                          "max_spirv_version"};
-    std::vector<const char*> str_opts = {"device_name"};
+    std::vector<const char*> str_opts = {"device_name", "device_type"};
 
     for (auto& key : bool_opts) {
       if (!attrs.count(key)) {
@@ -387,6 +387,7 @@ TVM_REGISTER_TARGET_KIND("vulkan", kDLVulkan)
     .add_attr_option<Integer>("max_per_stage_descriptor_storage_buffer")
     .add_attr_option<Integer>("max_shared_memory_per_block")
     // Other device properties
+    .add_attr_option<String>("device_type")
     .add_attr_option<String>("device_name")
     .add_attr_option<Integer>("driver_version")
     .add_attr_option<Integer>("vulkan_api_version")
