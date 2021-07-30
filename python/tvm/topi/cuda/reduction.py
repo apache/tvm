@@ -17,6 +17,8 @@
 # pylint: disable=invalid-name,unused-variable,too-many-locals,len-as-condition
 """Schedule for reduce operators"""
 from __future__ import absolute_import as _abs
+from operator import mul
+from functools import reduce
 import tvm
 from tvm import te
 from .. import tag
@@ -80,13 +82,18 @@ def _schedule_reduce(op, sch, is_idx_reduce=False):
         if is_idx_reduce:
             sch[temp_idx_input].compute_at(sch[real_output], outer_in)
             sch[temp_val_input].compute_at(sch[real_output], outer_in)
+        sch[real_output].set_store_predicate(
+            tvm.tir.all(
+                thread_x.equal(0), block_x * num_thread + thread_y < reduce(mul, real_output.shape)
+            )
+        )
     else:
         if is_idx_reduce:
             spatial_axis = sch[real_output].fuse(*(sch[real_output].op.axis))
             sch[real_output].bind(spatial_axis, te.thread_axis("blockIdx.x"))
             sch[temp_idx_input].compute_at(sch[real_output], spatial_axis)
             sch[temp_val_input].compute_at(sch[real_output], spatial_axis)
-    sch[real_output].set_store_predicate(thread_x.equal(0))
+        sch[real_output].set_store_predicate(thread_x.equal(0))
     return sch
 
 

@@ -40,7 +40,6 @@ class UpdatePointerStorageScope : public StmtExprMutator {
 
   virtual PrimExpr VisitExpr_(const VarNode*);
   virtual PrimExpr VisitExpr_(const LoadNode*);
-  virtual Stmt VisitStmt_(const AttrStmtNode*);
   virtual Stmt VisitStmt_(const AllocateNode*);
   virtual Stmt VisitStmt_(const StoreNode*);
 

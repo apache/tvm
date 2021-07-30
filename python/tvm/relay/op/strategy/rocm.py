@@ -20,6 +20,7 @@ from tvm import topi
 from tvm.auto_scheduler import is_auto_scheduler_enabled
 from tvm.te import SpecializedCondition
 from tvm.contrib.thrust import can_use_rocthrust
+from tvm.contrib import miopen
 
 from .generic import *
 from .. import op as _op
@@ -301,6 +302,44 @@ def topk_strategy_cuda(attrs, inputs, out_type, target):
             wrap_compute_topk(topi.cuda.topk_thrust),
             wrap_topi_schedule(topi.cuda.schedule_topk),
             name="topk_thrust.rocm",
+            plevel=15,
+        )
+    return strategy
+
+
+@softmax_strategy.register(["rocm"])
+def softmax_strategy_rocm(attrs, inputs, out_type, target):
+    """rocm strategy for softmax"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_softmax(topi.nn.softmax),
+        wrap_topi_schedule(topi.cuda.schedule_softmax),
+        name="softmax.rocm",
+    )
+    if "miopen" in target.libs:
+        strategy.add_implementation(
+            wrap_compute_softmax(miopen.softmax),
+            wrap_topi_schedule(topi.generic.schedule_extern),
+            name="softmax.miopen",
+            plevel=15,
+        )
+    return strategy
+
+
+@log_softmax_strategy.register(["rocm"])
+def log_softmax_strategy_rocm(attrs, inputs, out_type, target):
+    """rocm strategy for log softmax"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_softmax(topi.nn.log_softmax),
+        wrap_topi_schedule(topi.cuda.schedule_softmax),
+        name="log_softmax.rocm",
+    )
+    if "miopen" in target.libs:
+        strategy.add_implementation(
+            wrap_compute_softmax(miopen.log_softmax),
+            wrap_topi_schedule(topi.generic.schedule_extern),
+            name="log_softmax.miopen",
             plevel=15,
         )
     return strategy

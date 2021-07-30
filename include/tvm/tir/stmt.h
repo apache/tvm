@@ -1240,8 +1240,6 @@ constexpr const char* extern_scope = "extern_scope";
  *  This can hint some code generator to create a new function for compute.
  */
 constexpr const char* compute_scope = "compute_scope";
-/*! \brief Mark storage scope of buffers */
-constexpr const char* storage_scope = "storage_scope";
 /*! \brief Mark storage alignement requirement of buffers */
 constexpr const char* storage_alignment = "storage_alignment";
 /*! \brief Mark storage scope of realization */
