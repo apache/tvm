@@ -2330,78 +2330,18 @@ class PyTorchOpConverter:
         axis = inputs[1]
         return _op.transform.reverse(data, axis=axis[0])
 
-    def lstm_cell_dev(
-        self,
-        input_seqs,
-        H_t,
-        C_t,
-        Wi,
-        Wh,
-        Bi=None,
-        Bh=None,
-        P=None,
-        p_i=None,
-        p_f=None,
-        p_o=None,
-        f_act=_op.sigmoid,
-        g_act=_op.tanh,
-        h_act=_op.tanh,
-        backwards=False,
-    ):
-        # Input hidden state shape = (batch, hidden_size)
-        # Wi, Wh, Bi, Bh, proj matrix P, peephole matrices: p_i, p_f, p_o are expected.
-        # Wi and Wh shoud exist the others can be None
-
-        outputs_list = []
-        for x_t in input_seqs if not backwards else reversed(input_seqs):
-            # x_t shape = (batch, feature size), step shape = (batch, feature size + hidden_size)
-            step = _op.concatenate([x_t, H_t], axis=1)
-            W = _op.concatenate([Wi, Wh], axis=1)
-            # Instead of _op.nn.dense(x_t, weights[0]) + _op.nn.dense(H_t, weights[1]) we have _op.nn.dense(step, W)
-            # gates shape = (batch, 4 * hidden_size)
-            gates = _op.nn.dense(step, W)
-            # Add biases
-            if Bi is not None:
-                gates += Bi
-            if Bh is not None:
-                gates += Bh
-            i, f, c, o = _op.split(gates, 4, axis=-1)  # (batch, hidden_size)
-
-            if p_i is not None and p_f is not None:
-                i = f_act(i + p_i * C_t)
-                f = f_act(f + p_f * C_t)
-            else:
-                i = f_act(i)
-                f = f_act(f)
-
-            c = g_act(c)
-            C_t = f * C_t + i * c
-            if p_o is not None:
-                o = f_act(o + p_o * C_t)
-            else:
-                o = f_act(o)
-
-            H_t = o * h_act(C_t)
-
-            if P is not None:
-                H_t = _op.nn.dense(H_t, P)
-
-            outputs_list.append(H_t)  # [seq_num, (batch, hidden_size)]
-
-        return outputs_list, H_t, C_t
-
-    def bidir_lstm_cell_dev(
+    def bidir_lstm_cell(
         self,
         input_seqs,
         weights_dicts,
     ):
         seq_len = len(input_seqs)
-        forward_outputs, fw_H_t, fw_C_t = self.lstm_cell_dev(
+        forward_outputs, fw_H_t, fw_C_t = _op.lstm_cell(
             input_seqs,
             **weights_dicts[0],
         )
 
-        reverse_outputs, rev_H_t, rev_C_t = self.lstm_cell_dev(
+        reverse_outputs, rev_H_t, rev_C_t = _op.lstm_cell(
             input_seqs,
             **weights_dicts[1],
             backwards=True,
@@ -2415,67 +2355,6 @@ class PyTorchOpConverter:
 
         return final_outputs, (fw_H_t, fw_C_t), (rev_H_t, rev_C_t)
 
-    def lstm_cell(self, input_seqs, hidden, weights, has_proj=False):
-        if has_proj:
-            assert len(weights) == 5
-        else:
-            assert len(weights) == 4
-        outputs_list = []
-        # Default activations types
-        f_act = _op.sigmoid
-        g_act = _op.tanh
-        h_act = _op.tanh
-
-        # Input hiddens
-        H_t = hidden[0]  # (batch, hidden_size)
-        C_t = hidden[1]  # (batch, hidden_size)
-        for x_t in input_seqs:
-            # x_t shape = (batch, feature size), step shape = (batch, feature size + hidden_size)
-            step = _op.concatenate([x_t, H_t], axis=1)
-            W = _op.concatenate([weights[0], weights[1]], axis=1)
-            # Instead of _op.nn.dense(x_t, weights[0]) + _op.nn.dense(H_t, weights[1]) we have _op.nn.dense(step, W)
-            # gates shape = (batch, 4 * hidden_size)
-            gates = _op.nn.dense(step, W)
-            # Add biases
-            if weights[2] is not None:
-                gates += weights[2]
-            if weights[3] is not None:
-                gates += weights[3]
-            i, f, c, o = _op.split(gates, 4, axis=-1)  # (batch, hidden_size)
-
-            i = f_act(i)
-            f = f_act(f)
-            c = g_act(c)
-            o = f_act(o)
-
-            C_t = f * C_t + i * c
-            H_t = o * h_act(C_t)
-
-            if has_proj:
-                H_t = _op.nn.dense(H_t, weights[4])
-
-            outputs_list.append(H_t)  # [seq_num, (batch, hidden_size)]
-        hidden_outputs = (H_t, C_t)
-
-        return (outputs_list, hidden_outputs)
-
-    def bidir_lstm_cell(self, input_seq, hidden_pair, weights_pair, has_proj=False):
-        fw_outputs = self.lstm_cell(input_seq, hidden_pair[0], weights_pair[0], has_proj)
-
-        rev_input_seq = []
-        seq_len = len(input_seq)
-        for i in range(seq_len):
-            rev_input_seq.append(input_seq[seq_len - 1 - i])  # [seq_num, (batch, hidden_size)]
-        rev_outputs = self.lstm_cell(rev_input_seq, hidden_pair[1], weights_pair[1], has_proj)
-
-        final_outputs = []  # [seq_num, (batch, 2 * hidden_size)]
-        for j in range(seq_len):
-            final_outputs.append(
-                _op.concatenate([fw_outputs[0][j], rev_outputs[0][seq_len - 1 - j]], -1)
-            )
-
-        return final_outputs, (fw_outputs[1], rev_outputs[1])
-
     def lstm_layers(
         self, input_data, layer_weights_dicts, bidirectional, dtype, dropout_p=0.0
     ):
@@ -2488,11 +2367,11 @@ class PyTorchOpConverter:
             # input_seqs shape = [seq_num, (batch, feature_size)] or
             # [seq_num, (batch, 2*feature_size)] for bidirectional
             if bidirectional:
-                input_seqs, H_t, C_t = self.bidir_lstm_cell_dev(
+                input_seqs, H_t, C_t = self.bidir_lstm_cell(
                     input_seqs, weights_dicts
                 )
             else:
-                input_seqs, H_t, C_t = self.lstm_cell_dev(input_seqs, **weights_dicts[0])
+                input_seqs, H_t, C_t = _op.lstm_cell(input_seqs, **weights_dicts[0])
 
             output_hiddens.append((H_t, C_t))
 
