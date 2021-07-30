@@ -85,6 +85,15 @@ class TVM_DLL DeviceAPI {
    * \sa DeviceAttrKind
    */
   virtual void GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) = 0;
+
+  /*!
+   * \brief Query the device for specified properties.
+   *
+   * This is used to expand "-from_device=N" in the target string to
+   * all properties that can be determined from that device.
+   */
+  virtual void GetTargetProperty(Device dev, const std::string& property, TVMRetValue* rv) {}
+
   /*!
    * \brief Allocate a data space on device.
    * \param dev The device device to perform operation.

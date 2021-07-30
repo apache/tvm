@@ -21,6 +21,7 @@
  * \file src/target/target.cc
  */
 #include <dmlc/thread_local.h>
+#include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/target/tag.h>
 #include <tvm/target/target.h>
@@ -673,6 +674,68 @@ ObjectPtr<Object> TargetInternal::FromConfig(std::unordered_map<String, ObjectRe
       throw Error(": Error when parsing target[\"" + key + "\"]" + e.what());
     }
   }
+
+  // if requested, query attributes from the device
+  if (attrs.count("from_device")) {
+    int device_id = Downcast<Integer>(attrs.at("from_device"));
+    attrs.erase("from_device");
+
+    Device device{static_cast<DLDeviceType>(target->kind->device_type), device_id};
+
+    auto api = runtime::DeviceAPI::Get(device, true);
+    ICHECK(api) << "Requested reading the parameters for " << target->kind->name
+                << " from device_id " << device_id
+                << ", but support for this runtime wasn't enabled at compile-time.";
+
+    TVMRetValue ret;
+    api->GetAttr(device, runtime::kExist, &ret);
+    ICHECK(ret) << "Requested reading the parameters for " << target->kind->name
+                << " from device_id " << device_id << ", but device_id " << device_id
+                << " doesn't exist.";
+
+    for (const auto& kv : target->kind->key2vtype_) {
+      const String& key = kv.first;
+      const TargetKindNode::ValueTypeInfo& type_info = kv.second;
+
+      // Don't overwrite explicitly-specified values
+      if (attrs.count(key)) {
+        continue;
+      }
+
+      TVMRetValue ret;
+      api->GetTargetProperty(device, key, &ret);
+
+      switch (ret.type_code()) {
+        case kTVMNullptr:
+          // Nothing returned for this parameter, move on to the next one.
+          continue;
+
+        case kTVMArgInt:
+          if (type_info.type_index == Integer::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
+            attrs[key] = Bool(static_cast<bool>(ret));
+          } else if (type_info.type_index == Bool::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
+            attrs[key] = Integer(static_cast<int64_t>(ret));
+          } else {
+            LOG(FATAL) << "Expected " << type_info.type_key << " parameter for attribute '" << key
+                       << "', but received integer from device api";
+          }
+          break;
+
+        case kTVMStr:
+          ICHECK_EQ(type_info.type_index, String::ContainerType::_GetOrAllocRuntimeTypeIndex())
+              << "Expected " << type_info.type_key << " parameter for attribute '" << key
+              << "', but received string from device api";
+          attrs[key] = ret;
+          break;
+
+        default:
+          LOG(FATAL) << "Expected " << type_info.type_key << " parameter for attribute '" << key
+                     << "', but received TVMArgTypeCode(" << ret.type_code() << ") from device api";
+          break;
+      }
+    }
+  }
+
   // set default attribute values if they do not exist
   for (const auto& kv : target->kind->key2default_) {
     if (!attrs.count(kv.first)) {
