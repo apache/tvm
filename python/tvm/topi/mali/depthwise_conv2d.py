@@ -30,7 +30,7 @@ def depthwise_conv2d_nchw(cfg, data, kernel, strides, padding, dilation, out_dty
     return nn.depthwise_conv2d_nchw(data, kernel, strides, padding, dilation, out_dtype)
 
 
-# register customized schedule for arm cpu.
+# register customized schedule for Mali.
 @autotvm.register_topi_schedule("depthwise_conv2d_nchw.mali")
 def schedule_depthwise_conv2d_nchw(cfg, outs):
     """Schedule depthwise conv2d
@@ -70,7 +70,7 @@ def depthwise_conv2d_nhwc(cfg, data, kernel, strides, padding, dilation, out_dty
     return nn.depthwise_conv2d_nhwc(data, kernel, strides, padding, dilation, out_dtype)
 
 
-# register customized schedule for arm cpu.
+# register customized schedule for Mali.
 @autotvm.register_topi_schedule("depthwise_conv2d_nhwc.mali")
 def schedule_depthwise_conv2d_nhwc(cfg, outs):
     """Schedule depthwise conv2d
@@ -124,8 +124,13 @@ def _schedule(cfg, s, pad_data, kernel, conv, layout):
 
     # fallback support
     if cfg.is_fallback:
-        ref_log = autotvm.tophub.load_reference_log("mali", "rk3399", "depthwise_conv2d_nchw.mali")
-        cfg.fallback_with_reference_log(ref_log)
+        if layout == "NCHW":
+            ref_log = autotvm.tophub.load_reference_log("mali", "rk3399", "depthwise_conv2d_nchw.mali")
+            cfg.fallback_with_reference_log(ref_log)
+        else:
+            cfg.fallback_split("tile_c", [-1, 4, 2])
+            cfg.fallback_split("tile_y", [-1, 4, 2])
+            cfg.fallback_split("tile_x", [-1, 4, 2])
     ###### space definition end ######
 
     # schedule padding

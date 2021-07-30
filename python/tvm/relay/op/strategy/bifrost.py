@@ -84,7 +84,7 @@ def conv2d_strategy_bifrost(attrs, inputs, out_type, target):
                 name="depthwise_conv2d_nchw.bifrost",
             )
         elif layout == "NHWC":
-            assert kernel_layout == "HWIO"
+            assert kernel_layout == "HWOI"
             # For now just reuse general Mali strategy.
             strategy.add_implementation(
                 wrap_compute_conv2d(topi.mali.depthwise_conv2d_nhwc),
