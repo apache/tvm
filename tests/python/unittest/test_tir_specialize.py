@@ -117,6 +117,38 @@ def element_wise_128_n(a: ty.handle, c: ty.handle) -> None:
 
 
 @tvm.script.tir
+def element_wise_func_attr(a: ty.handle, c: ty.handle) -> None:
+    m = tir.var("int32")
+    n = tir.var("int32")
+    tir.func_attr({"test_attr": m * n})
+
+    A = tir.match_buffer(a, (m, n), "float32")
+    C = tir.match_buffer(c, (m, n), "float32")
+
+    B = tir.alloc_buffer((m, n), "float32")
+
+    with tir.block([m, n], "B") as [vi, vj]:
+        B[vi, vj] = A[vi, vj] * 2.0
+
+    with tir.block([m, n], "C") as [vi, vj]:
+        C[vi, vj] = B[vi, vj] + 1.0
+
+
+@tvm.script.tir
+def element_wise_func_attr_128_64(a: ty.handle, c: ty.handle) -> None:
+    tir.func_attr({"test_attr": 128 * 64})
+    A = tir.match_buffer(a, (128, 64), "float32")
+    C = tir.match_buffer(c, (128, 64), "float32")
+    B = tir.alloc_buffer((128, 64), "float32")
+
+    with tir.block([128, 64], "B") as [vi, vj]:
+        B[vi, vj] = A[vi, vj] * 2.0
+
+    with tir.block([128, 64], "C") as [vi, vj]:
+        C[vi, vj] = B[vi, vj] + 1.0
+
+
+@tvm.script.tir
 def mem_copy(
     a: ty.handle, b: ty.handle, m: ty.int32, n: ty.int32, p: ty.int32, q: ty.int32
 ) -> None:
@@ -172,6 +204,10 @@ def test_specialize_elemwise():
     # partially specialized
     func = element_wise.specialize({c: tir.decl_buffer((128, C.shape[1]))})
     tvm.ir.assert_structural_equal(func, element_wise_128_n)
+    # specialization also updates the attributes dictionary
+    a_attr, _ = element_wise_func_attr.params
+    func = element_wise_func_attr.specialize({a_attr: tir.decl_buffer((128, 64))})
+    tvm.ir.assert_structural_equal(func, element_wise_func_attr_128_64)
 
 
 def test_specialize_mem_copy():

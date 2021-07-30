@@ -66,11 +66,11 @@ class PrimFuncSpecializer : public StmtExprMutator {
       }
     }
 
-    // Updating parmeters
+    // Updating parameters
     Array<Var> params;
     bool param_updated = false;
     for (const auto& var : f->params) {
-      // Remove parmeters which has been specialized.
+      // Remove parameters which have been specialized.
       if (var_map.find(var) == var_map.end()) {
         params.push_back(var);
       } else {
@@ -78,13 +78,34 @@ class PrimFuncSpecializer : public StmtExprMutator {
       }
     }
 
+    // Updating the `attrs` dictionary
+    DictAttrs attrs{nullptr};
+    bool attrs_updated = false;
+    if (f->attrs.defined()) {
+      Map<String, ObjectRef> dict;
+      for (const std::pair<String, ObjectRef>& kv : f->attrs->dict) {
+        const auto* expr = kv.second.as<PrimExprNode>();
+        if (expr == nullptr) {
+          dict.Set(kv.first, kv.second);
+          continue;
+        }
+        PrimExpr result = Substitute(GetRef<PrimExpr>(expr), var_map);
+        dict.Set(kv.first, result);
+        if (result.get() != expr) {
+          attrs_updated = true;
+        }
+      }
+      attrs = DictAttrs(dict);
+    }
+
     // Updating function body
     Stmt body = specializer(f->body);
 
-    if (param_updated || buffer_map_updated || !f->body.same_as(body)) {
+    if (param_updated || buffer_map_updated || attrs_updated || !f->body.same_as(body)) {
       PrimFuncNode* f_ptr = f.CopyOnWrite();
       f_ptr->params = std::move(params);
       f_ptr->buffer_map = std::move(buffer_map);
+      f_ptr->attrs = std::move(attrs);
       f_ptr->body = std::move(body);
     }
     return f;
@@ -248,9 +269,9 @@ void UpdateSpecializeVarMap(const PrimFunc& func, const Var& param, const Buffer
   // build var mapping using specific_buf's parameters
   auto build_var_mapping = [&](const PrimExpr& new_expr, const PrimExpr& old_expr) {
     if (!equal(new_expr, old_expr)) {
-      CHECK(old_expr->IsInstance<VarNode>())
-          << "TypeError: The signature of target buffer exprected an independent Var, but got "
-          << old_expr << ".";
+      CHECK(old_expr->IsInstance<VarNode>()) << "TypeError: The signature of target buffer is "
+                                                "expected to be an independent Var, but it is "
+                                             << old_expr << ".";
       const Var& var = Downcast<Var>(old_expr);
       auto it = var_map->find(var);
       if (it != var_map->end()) {
@@ -282,7 +303,7 @@ void UpdateSpecializeVarMap(const PrimFunc& func, const Var& param, const Buffer
   build_var_mapping(specific_buf->elem_offset, buf_to_specialize->elem_offset);
 
   // Check data_alignment and offset_factor.
-  // These two signatures are int, so we do not need map them.
+  // These two signatures are int, so we do not need to map them.
   CHECK_EQ(specific_buf->data_alignment, buf_to_specialize->data_alignment)
       << "ValueError: The buffer data_alignment mismatched" << buf_to_specialize->data_alignment
       << " vs. " << specific_buf->data_alignment << ".";

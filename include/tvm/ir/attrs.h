@@ -226,7 +226,7 @@ class DictAttrsNode : public BaseAttrsNode {
 class DictAttrs : public Attrs {
  public:
   /*!
-   * \brief Consruct a Attrs backed by DictAttrsNode.
+   * \brief Construct a Attrs backed by DictAttrsNode.
    * \param dict The attributes.
    * \return The dict attributes.
    */
