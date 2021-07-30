@@ -132,8 +132,9 @@ class NodeIndexer : public AttrVisitor {
   }
 };
 
-// use map so attributes are ordered.
-using AttrMap = std::map<std::string, std::map<std::string, std::string> >;
+// use map so attributes and their types are ordered.
+using AttrMap = std::map<std::string, std::string>;
+using AttrTypeMap = std::map<std::string, std::string>;
 
 /*! \brief Node structure for json format. */
 struct JSONNode {
@@ -143,6 +144,8 @@ struct JSONNode {
   std::string repr_bytes;
   /*! \brief the attributes */
   AttrMap attrs;
+  /*! \brief the attributes' types */
+  AttrTypeMap attr_types;
   /*! \brief keys of a map. */
   std::vector<std::string> keys;
   /*! \brief values of a map or array. */
@@ -169,6 +172,9 @@ struct JSONNode {
     if (attrs.size() != 0) {
       writer->WriteObjectKeyValue("attrs", attrs);
     }
+    if (attr_types.size() != 0) {
+      writer->WriteObjectKeyValue("attr_types", attr_types);
+    }
     if (keys.size() != 0) {
       writer->WriteObjectKeyValue("keys", keys);
     }
@@ -180,6 +186,7 @@ struct JSONNode {
 
   void Load(dmlc::JSONReader* reader) {
     attrs.clear();
+    attr_types.clear();
     data.clear();
     repr_bytes.clear();
     type_key.clear();
@@ -189,6 +196,7 @@ struct JSONNode {
     helper.DeclareOptionalField("repr_b64", &repr_b64);
     helper.DeclareOptionalField("repr_str", &repr_str);
     helper.DeclareOptionalField("attrs", &attrs);
+    helper.DeclareOptionalField("attr_types", &attr_types);
     helper.DeclareOptionalField("keys", &keys);
     helper.DeclareOptionalField("data", &data);
     helper.ReadAllFields(reader);
@@ -216,30 +224,46 @@ class JSONAttrGetter : public AttrVisitor {
     // Save 17 decimal digits for type <double> to avoid precision loss during loading JSON
     s.precision(17);
     s << (*value);
-    node_->attrs[key] = {{ "value", s.str() }};
+    node_->attrs[key] = s.str();
+    node_->attr_types[key] = "value";
   }
-  void Visit(const char* key, int64_t* value) final { node_->attrs[key] = {{ "value", std::to_string(*value) }}; }
-  void Visit(const char* key, uint64_t* value) final { node_->attrs[key] = {{ "value", std::to_string(*value) }}; }
-  void Visit(const char* key, int* value) final { node_->attrs[key] = {{ "value", std::to_string(*value) }}; }
-  void Visit(const char* key, bool* value) final { node_->attrs[key] = {{ "value", std::to_string(*value) }}; }
-  void Visit(const char* key, std::string* value) final { node_->attrs[key] = {{ "value", *value }}; }
+  void Visit(const char* key, int64_t* value) final {
+    node_->attrs[key] = std::to_string(*value);
+    node_->attr_types[key] = "value";
+  }
+  void Visit(const char* key, uint64_t* value) final {
+    node_->attrs[key] = std::to_string(*value);
+    node_->attr_types[key] = "value";
+  }
+  void Visit(const char* key, int* value) final {
+    node_->attrs[key] = std::to_string(*value);
+    node_->attr_types[key] = "value";
+  }
+  void Visit(const char* key, bool* value) final {
+    node_->attrs[key] = std::to_string(*value);
+    node_->attr_types[key] = "value";
+  }
+  void Visit(const char* key, std::string* value) final {
+    node_->attrs[key] = *value;
+    node_->attr_types[key] = "value";
+  }
   void Visit(const char* key, void** value) final {
     LOG(FATAL) << "not allowed to serialize a pointer";
   }
-  void Visit(const char* key, DataType* value) final { node_->attrs[key] = {{ "value", Type2String(*value) }}; }
+  void Visit(const char* key, DataType* value) final {
+    node_->attrs[key] = Type2String(*value);
+    node_->attr_types[key] = "value";
+  }
 
   void Visit(const char* key, runtime::NDArray* value) final {
-    node_->attrs[key] = {{ 
-      "meta",
-      std::to_string(tensor_index_->at(const_cast<DLTensor*>((*value).operator->())))
-    }};
+    node_->attrs[key] =
+        std::to_string(tensor_index_->at(const_cast<DLTensor*>((*value).operator->())));
+    node_->attr_types[key] = "meta";
   }
 
   void Visit(const char* key, ObjectRef* value) final {
-    node_->attrs[key] = {{ 
-      "node",
-      std::to_string(node_index_->at(const_cast<Object*>(value->get())))
-    }};
+    node_->attrs[key] = std::to_string(node_index_->at(const_cast<Object*>(value->get())));
+    node_->attr_types[key] = "node";
   }
 
   // Get the node
@@ -254,6 +278,7 @@ class JSONAttrGetter : public AttrVisitor {
 
     // populates the fields.
     node_->attrs.clear();
+    node_->attr_types.clear();
     node_->data.clear();
 
     if (node->IsInstance<ArrayNode>()) {
@@ -282,22 +307,6 @@ class JSONAttrGetter : public AttrVisitor {
       reflection_->VisitAttrs(node, this);
     }
   }
-
-  static std::string get_attr_value(std::map<std::string, std::string> attr) {
-    if (attr.size() != 1) {
-      LOG(FATAL) << "attr should only contain 1 key-value pair";
-      return "";
-    }
-
-    auto begin = attr.begin();
-    auto key = begin->first;
-    if (key != "node" && key != "value" && key != "meta") {
-      LOG(FATAL) << "attr should have either of these keys: 'node', 'value', or 'meta'";
-      return "";
-    }
-
-    return begin->second;
-  }
 };
 
 class FieldDependencyFinder : public AttrVisitor {
@@ -310,7 +319,7 @@ class FieldDependencyFinder : public AttrVisitor {
     if (it == jnode_->attrs.end()) {
       LOG(FATAL) << "JSONReader: cannot find field " << key;
     }
-    return JSONAttrGetter::get_attr_value(it->second);
+    return it->second;
   }
   template <typename T>
   void ParseValue(const char* key, T* value) const {
@@ -367,7 +376,7 @@ class JSONAttrSetter : public AttrVisitor {
     if (it == jnode_->attrs.end()) {
       LOG(FATAL) << "JSONReader: cannot find field " << key;
     }
-    return JSONAttrGetter::get_attr_value(it->second);
+    return it->second;
   }
 
   void ParseDouble(const char* key, double* value) const {
@@ -506,7 +515,7 @@ struct JSONGraph {
       getter.Get(n);
       g.nodes.emplace_back(std::move(jnode));
     }
-    g.attrs["tvm_version"] = {{ "value", TVM_VERSION }};
+    g.attrs["tvm_version"] = TVM_VERSION;
     g.root = indexer.node_index_.at(const_cast<Object*>(root.get()));
     // serialize tensor
     for (DLTensor* tensor : indexer.tensor_list_) {
