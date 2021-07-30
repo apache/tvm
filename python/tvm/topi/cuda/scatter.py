@@ -854,7 +854,7 @@ def scatter_nd(data, indices, updates, mode):
                 bdim_x = fused_indices_dimension
                 bdim_y = ceil_div(fused_updates_dimension, tdim)
                 # In case of large input sizes, fused_indices_dimension might be too large.
-                # So it could be moved to blockIdx.x position, which holds larger scales.
+                # So we use blockIdx.x because holds larger scales.
                 bx = te.thread_axis("blockIdx.x")
                 by = te.thread_axis("blockIdx.y")
                 tx = te.thread_axis("threadIdx.x")
