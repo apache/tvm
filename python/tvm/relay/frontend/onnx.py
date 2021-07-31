@@ -2141,11 +2141,25 @@ class RNN(OnnxOpConverter):
 class LSTM(RNN):
     """Operator converter for LSTM"""
 
-    # TODO (vvchernov): unbind was gotten from pytorch.py and modified.
-    # It looks like torch.unbind
-    # It needs such operation on relay side to avoid excess manipulation like squeeze
     @classmethod
     def unbind(cls, data, axis=0):
+        """
+        Unbind was gotten from pytorch.py and modified. The operation removes a tensor dimension
+        and returns a tuple of all slices along a given dimension, already without it.
+        TODO (vvchernov): It needs such operation on relay side to reduce time consumption
+        on squeeze operation.
+
+        Parameters
+        ----------
+        data : relay.Expr
+            Input tensor
+        axis : int
+            Axis along which tensor is splited. Tensors in the list has not this axis.
+        Returns
+        -------
+        result : List[relay.Expr]
+            The sequence of computed tensors
+        """
         shape = infer_shape(data)
         selections = shape[axis]
         res_split = _op.split(data, selections, axis)
@@ -2164,6 +2178,9 @@ class LSTM(RNN):
         g_act,
         h_act,
     ):
+        """
+        Bidirectional LSTM cell
+        """
         seq_len = len(input_seqs)
         forward_outputs, fw_H_t, fw_C_t = _op.lstm_cell(
             input_seqs,
@@ -2277,20 +2294,20 @@ class LSTM(RNN):
         for i in range(num_directions):
             weights_dict = {}
 
-            weights_dict["ht"] = _op.squeeze(H_ts[i], axis=[0])
-            weights_dict["ct"] = _op.squeeze(C_ts[i], axis=[0])
+            weights_dict["hidden_state"] = _op.squeeze(H_ts[i], axis=[0])
+            weights_dict["cell_state"] = _op.squeeze(C_ts[i], axis=[0])
 
             # Weights permutation: onnx format i-o-f-c, lstm cell format i-f-c-o
             mati, mato, matf, matc = _op.split(_op.squeeze(Ws[i], axis=[0]), 4)
-            weights_dict["wi"] = _op.concatenate([mati, matf, matc, mato], axis=0)
+            weights_dict["w_inp"] = _op.concatenate([mati, matf, matc, mato], axis=0)
             mati, mato, matf, matc = _op.split(_op.squeeze(Rs[i], axis=[0]), 4)
-            weights_dict["wh"] = _op.concatenate([mati, matf, matc, mato], axis=0)
+            weights_dict["w_hid"] = _op.concatenate([mati, matf, matc, mato], axis=0)
             if Bp is not None:
                 Bi, Bh = _op.split(Bs[i], 2, -1)
                 mati, mato, matf, matc = _op.split(_op.squeeze(Bi, axis=[0]), 4)
-                weights_dict["bi"] = _op.concatenate([mati, matf, matc, mato], axis=0)
+                weights_dict["b_inp"] = _op.concatenate([mati, matf, matc, mato], axis=0)
                 mati, mato, matf, matc = _op.split(_op.squeeze(Bh, axis=[0]), 4)
-                weights_dict["bh"] = _op.concatenate([mati, matf, matc, mato], axis=0)
+                weights_dict["b_hid"] = _op.concatenate([mati, matf, matc, mato], axis=0)
             if Pp is not None:
                 weights_dict["p_i"] = _op.squeeze(p_is[i], axis=[0])
                 weights_dict["p_f"] = _op.squeeze(p_fs[i], axis=[0])
