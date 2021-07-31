@@ -18,6 +18,8 @@ import tvm
 from tvm import tir
 from tvm.script import ty
 
+# pylint: disable=no-self-argument
+
 
 @tvm.script.tir
 class WithInit:
@@ -43,11 +45,46 @@ class WithBranch:
             B[i] += A[i, j, k]
 
 
+@tvm.script.tir
+class InitWithMatchBuffer:
+    def main(a: ty.handle, b: ty.handle) -> None:
+        A = tir.match_buffer(a, [64, 64, 64])
+        B = tir.match_buffer(b, [64])
+
+        with tir.block([64, tir.reduce_axis(0, 64), tir.reduce_axis(32, 64)]) as [i, j, k]:
+            BB = tir.match_buffer(B[i], ())
+            AA = tir.match_buffer(A[i, 0:64, 0:64], (64, 64))
+            with tir.init():
+                BB[()] = tir.float32(0)
+            BB[()] += AA[j, k]
+
+
+@tvm.script.tir
+class BranchWithMatchBuffer:
+    def main(a: ty.handle, b: ty.handle) -> None:
+        A = tir.match_buffer(a, [64, 64, 64])
+        B = tir.match_buffer(b, [64])
+
+        with tir.block([64, tir.reduce_axis(0, 64), tir.reduce_axis(32, 64)]) as [i, j, k]:
+            BB = tir.match_buffer(B[i], ())
+            AA = tir.match_buffer(A[i, 0:64, 0:64], (64, 64))
+            if (j == 0) and (k == 32):
+                BB[()] = tir.float32(0)
+            BB[()] += AA[j, k]
+
+
 def test_lower_reduction():
     origin_mod = WithInit()
     mod = tvm.tir.transform.LowerInitBlock()(origin_mod)
     tvm.ir.assert_structural_equal(mod, WithBranch(), True)
 
 
+def test_lower_match_buffer():
+    origin_mod = InitWithMatchBuffer()
+    mod = tvm.tir.transform.LowerInitBlock()(origin_mod)
+    tvm.ir.assert_structural_equal(mod, BranchWithMatchBuffer(), True)
+
+
 if __name__ == "__main__":
     test_lower_reduction()
+    test_lower_match_buffer()
