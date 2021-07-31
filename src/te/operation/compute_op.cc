@@ -591,7 +591,7 @@ Stmt TransformUpdate(const Stage& stage, const std::unordered_map<IterVar, Range
   auto fbanned = [&](const VarNode* node) { return banned.count(node); };
 
   for (const PrimExpr& pred : n.main_predicates) {
-    if (tir::ExprUseVar(pred, fbanned)) {
+    if (tir::UsesVar(pred, fbanned)) {
       LOG(FATAL) << "Tensorize update transform failed, the condition " << pred
                  << " has a conflict with the reset condition";
     }

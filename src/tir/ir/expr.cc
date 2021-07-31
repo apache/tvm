@@ -25,9 +25,6 @@
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
 
-#include <limits>
-#include <memory>
-
 #include "../../support/str_escape.h"
 #include "buffer_common.h"
 

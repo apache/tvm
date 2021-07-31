@@ -22,22 +22,32 @@
  * \brief Implementation of simple passes
  */
 #include <tvm/tir/analysis.h>
-#include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
 
 namespace tvm {
 namespace tir {
 
-class VarTouchVisitor : public ExprVisitor {
+class VarTouchVisitor : public StmtExprVisitor {
  public:
-  explicit VarTouchVisitor(std::function<bool(const VarNode*)> var_set) : var_set_(var_set) {}
+  explicit VarTouchVisitor(std::function<bool(const VarNode*)> var_set)
+      : var_set_(std::move(var_set)) {}
+
+  void VisitStmt(const Stmt& stmt) final {
+    if (use_var_) return;
+    StmtExprVisitor::VisitStmt(stmt);
+  }
 
   void VisitExpr(const PrimExpr& e) final {
     if (use_var_) return;
-    ExprVisitor::VisitExpr(e);
+    StmtExprVisitor::VisitExpr(e);
   }
 
   void VisitExpr_(const VarNode* op) final { Handle(op); }
+
+  void VisitStmt_(const StoreNode* op) final {
+    Handle(op->buffer_var.get());
+    StmtVisitor::VisitStmt_(op);
+  }
 
   void VisitExpr_(const LoadNode* op) final {
     Handle(op->buffer_var.get());
@@ -54,9 +64,15 @@ class VarTouchVisitor : public ExprVisitor {
   std::function<bool(const VarNode*)> var_set_;
 };
 
-bool ExprUseVar(const PrimExpr& e, std::function<bool(const VarNode*)> var_set) {
-  VarTouchVisitor visitor(var_set);
-  visitor(e);
+bool UsesVar(const Stmt& stmt, std::function<bool(const VarNode*)> var_set) {
+  VarTouchVisitor visitor(std::move(var_set));
+  visitor(stmt);
+  return visitor.use_var_;
+}
+
+bool UsesVar(const PrimExpr& expr, std::function<bool(const VarNode*)> var_set) {
+  VarTouchVisitor visitor(std::move(var_set));
+  visitor(expr);
   return visitor.use_var_;
 }
 

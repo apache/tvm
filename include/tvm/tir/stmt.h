@@ -865,6 +865,7 @@ class For : public Stmt {
               Map<String, ObjectRef> annotations = Map<String, ObjectRef>(), Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(For, Stmt, ForNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(ForNode);
 };
 
 /*!
@@ -1358,6 +1359,24 @@ TVM_DLL PrimExpr TypeAnnotation(DataType dtype, Span span = Span());
 
 // overload printing of for type.
 TVM_DLL std::ostream& operator<<(std::ostream& os, ForKind kind);
+
+// inline implementations
+inline const char* ForKind2String(ForKind t) {
+  switch (t) {
+    case ForKind::kSerial:
+      return "serial";
+    case ForKind::kParallel:
+      return "parallel";
+    case ForKind::kVectorized:
+      return "vectorized";
+    case ForKind::kUnrolled:
+      return "unroll";
+    case ForKind::kThreadBinding:
+      return "thread_binding";
+  }
+  LOG(FATAL) << "Unknown ForKind" << t;
+  return "Unknown";
+}
 
 }  // namespace tir
 }  // namespace tvm

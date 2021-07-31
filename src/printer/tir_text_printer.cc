@@ -487,23 +487,6 @@ Doc TIRTextPrinter::VisitStmt_(const EvaluateNode* op) {
   return doc;
 }
 
-inline const char* ForKind2String(ForKind t) {
-  switch (t) {
-    case ForKind::kSerial:
-      return "serial";
-    case ForKind::kParallel:
-      return "parallel";
-    case ForKind::kVectorized:
-      return "vectorized";
-    case ForKind::kUnrolled:
-      return "unroll";
-    case ForKind::kThreadBinding:
-      return "thread_binding";
-  }
-  LOG(FATAL) << "Unknown ForKind";
-  return "Unknown";
-}
-
 Doc TIRTextPrinter::VisitStmt_(const ForNode* op) {
   Doc doc;
   doc << "for (" << Print(op->loop_var) << ", " << Print(op->min) << ", "

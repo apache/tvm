@@ -252,7 +252,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
       PrimExpr local_index, group;
       std::tie(local_index, group) = SplitIndexByGroup(op->index);
       // invariance: local index must do not contain warp id
-      ICHECK(!ExprUseVar(local_index, warp_index_))
+      ICHECK(!UsesVar(local_index, [this](const VarNode* var) { return var == warp_index_.get(); }))
           << "LowerWarpMemory failed to rewrite load to shuffle for index " << op->index
           << " local_index=" << local_index;
       PrimExpr load_value = Load(op->dtype, op->buffer_var, local_index, op->predicate);

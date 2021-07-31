@@ -90,6 +90,9 @@ class ConcreteScheduleNode : public ScheduleNode {
   /******** Schedule: reduction ********/
   /******** Schedule: blockize & tensorize ********/
 
+  /******** Schedule: reduction ********/
+  BlockRV RFactor(const LoopRV& loop_rv, int factor_axis) override;
+
   /******** Utility functions ********/
  protected:
   /*!
@@ -136,13 +139,13 @@ class ConcreteScheduleNode : public ScheduleNode {
 
 inline Block ConcreteScheduleNode::Get(const BlockRV& block_rv) const {
   StmtSRef sref = this->GetSRef(block_rv);
-  const auto* block = TVM_SREF_TO_BLOCK(block, sref);
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block, sref);
   return GetRef<Block>(block);
 }
 
 inline For ConcreteScheduleNode::Get(const LoopRV& loop_rv) const {
   StmtSRef sref = this->GetSRef(loop_rv);
-  const auto* loop = TVM_SREF_TO_FOR(loop, sref);
+  const ForNode* loop = TVM_SREF_TO_FOR(loop, sref);
   return GetRef<For>(loop);
 }
 

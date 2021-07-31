@@ -1137,8 +1137,10 @@ PrimExpr CanonicalSimplifier::Impl::SimplifyReduceCombiner(const ReduceNode* op)
     // and recursively mark the corresponding components
     for (size_t i = 0; i < simplified_result.size(); ++i)
       if (!used[i]) {
-        if (ExprUseVar(simplified_result[idx], op->combiner->lhs[i]) ||
-            ExprUseVar(simplified_result[idx], op->combiner->rhs[i]))
+        if (UsesVar(simplified_result[idx],
+                    [v = op->combiner->lhs[i].get()](const VarNode* var) { return var == v; }) ||
+            UsesVar(simplified_result[idx],
+                    [v = op->combiner->rhs[i].get()](const VarNode* var) { return var == v; }))
           mark_used(i);
       }
   };

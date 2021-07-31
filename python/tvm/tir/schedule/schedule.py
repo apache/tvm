@@ -431,7 +431,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            sch = tir.Schedule(before_inline, debug_mode=True)
+            sch = tir.Schedule(before_inline)
             sch.compute_inline(sch.get_block("B"))
             print(tvm.script.asscript(sch.mod["main"]))
 
@@ -491,7 +491,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            sch = tir.Schedule(before_inline, debug_mode=True)
+            sch = tir.Schedule(before_inline)
             sch.reverse_compute_inline(sch.get_block("C"))
             print(tvm.script.asscript(sch.mod["main"]))
 
@@ -512,6 +512,149 @@ class Schedule(Object):
     ########## Schedule: loop binding/annotation ##########
     ########## Schedule: cache read/write ##########
     ########## Schedule: reduction ##########
+    def rfactor(self, loop: LoopRV, factor_axis: int) -> LoopRV:
+        """Factorize an associative reduction block by the specified loop.
+
+        An associative reduction cannot be parallelized directly,
+        because it leads to potential race condition during accumulation.
+        Alternatively, the reduction could be factorized on a loop with the following steps:
+        - Step 1: evenly slice the reduction into `n` separate chunks, where `n` is the loop extent
+        - Step 2: compute the chunks separately and write the result into `n` intermediate buffers;
+        - Step 3: accumulate the `n` separate buffer into the result buffer.
+        Note that the Step 2 above introduces opportunities for parallelization.
+
+        RFactor is a schedule primitive that implements the transformation described above:
+        Given a block that writes to buffer `B`, it factorizes a loop of extent `n`.
+
+        For example, the pesudocode below accumulates `B[i] = sum(A[i, : , : ])`:
+
+        .. code-block:: python
+
+            for i in range(128):                    # loop i is a data parallel loop
+                for j in range(128):                # loop j is a reduction loop
+                    for k in range(128):            # loop k is a reduction loop
+                        B[i] = B[i] + A[i, j, k]
+
+        Suppose RFactor is applied on the innermost loop `k` and `factor_axis = 1`.
+        RFactor then creates an intermediate buffer and two blocks.
+
+        1. The intermediate buffer, or "rf-buffer" is a buffer of rank `ndim(B) + 1` and
+        size `size(B) * n`, whose shape expands from `shape(B)` by adding an axis of `n`
+        at the position specified by `factor_axis`. For example,
+
+            * shape(B) = [1, 2, 3], factor_axis = 0  => shape(B_rf) = [n, 1, 2, 3]
+            * shape(B) = [1, 2, 3], factor_axis = 1  => shape(B_rf) = [1, n, 2, 3]
+            * shape(B) = [1, 2, 3], factor_axis = 2  => shape(B_rf) = [1, 2, n, 3]
+            * shape(B) = [1, 2, 3], factor_axis = 3  => shape(B_rf) = [1, 2, 3, n]
+
+        2. The rfactor block, or "rf-block", is a block that writes to the `rf-buffer` without
+        accumulating over the loop `k`, i.e. the loop `k` is converted from a reduction loop
+        to a data parallel loop. In our example, the rf-block is:
+
+        .. code-block:: python
+
+            B_rf = np.zeros((128, 128))     # the rf-buffer
+            for k in range(128):            # loop k is converted to a data parallel loop
+                for i in range(128):        # loop i is a data parallel loop (unchanged)
+                    for j in range(128):    # loop j is a reduction loop (unchanged)
+                        B_rf[i, k] = B_rf[i, k] + A[i, j, k]
+
+
+        3. The write-back block, or `wb-block`, is a block that accumulates the rf-buffer into
+        the result buffer. All the reduction loops are removed except the loop `k` for accumulation.
+        In our example, the wb-block is:
+
+        .. code-block:: python
+
+            for i in range(128):            # loop i is a data parallel loop (unchanged)
+                                            # loop j is removed because it is a reduction loop
+                for k in range(128):        # loop k is a reduction loop (unchanged)
+                    B[i] = B[i] + B_rf[i, k]
+
+
+        Parameters
+        ----------
+        loop : LoopRV
+            The loop outside block for which we want to do rfactor
+        factor_axis : int
+            The position where the new dimension is placed in the new introduced rfactor buffer
+
+        Returns
+        -------
+        rf_block : BlockRV
+            The block which computes partial results over each slices (i.e., the first block
+            as described in the above illustration)
+
+        Examples
+        --------
+
+        Before rfactor, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @tvm.script.tir
+            def before_rfactor(a: ty.handle, b: ty.handle) -> None:
+                A = tir.match_buffer(a, (128, 128, 128))
+                B = tir.match_buffer(b, (128,))
+                with tir.block([128, tir.reduce_axis(0, 128),
+                                tir.reduce_axis(0, 128)], "B") as [vii, vi, vj]:
+                    with tir.init():
+                        B[vii] = 0.0
+                    B[vii] = B[vii] + A[vii, vi, vj]
+
+        Create the schedule and do rfactor:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(before_rfactor)
+            _, _, k = sch.get_loops(sch.get_block("B"))
+            sch.rfactor(k, 0)
+            print(tvm.script.asscript(sch.mod["main"]))
+
+        After applying rfactor, the IR becomes:
+
+        .. code-block:: python
+
+            @tvm.script.tir
+            def after_rfactor(a: ty.handle, b: ty.handle) -> None:
+                A = tir.match_buffer(a, [128, 128, 128])
+                B = tir.match_buffer(b, [128])
+                B_rf = tir.alloc_buffer([128, 128])
+                with tir.block([128, 128, tir.reduce_axis(0, 128)], "B_rf") as [vi2, vii, vi]:
+                    with tir.init():
+                        B_rf[vi2, vii] = 0.0
+                    B_rf[vi2, vii] = (B_rf[vi2, vii] + A[vii, vi, vi2])
+                with tir.block([128, tir.reduce_axis(0, 128)], "B") as [vii_1, vi2_1]:
+                    with tir.init():
+                        B[vii_1] = 0.0
+                    B[vii_1] = (B[vii_1] + B_rf[vi2_1, vii_1])
+
+
+        Note
+        ----
+
+        Rfactor requires:
+        1) `loop` has only one child block, and it is a reduction block;
+        2) `loop` is a reduction loop, i.e. the loop variable is bound to only reduction variables
+        in the block binding;
+        3) `loop` is not parallelized, vectorized, unrolled or bound to any thread axis;
+        4) The block scope that `loop` is in is a staged-pipeline;
+        5) The outermost loop outside the reduction block should has the reduction block as its
+        first child block;
+        6) The outermost reduction loop should have only one child block;
+        7) An unary extent loop that is not bound to any reduction or data parallel variables in
+        the block binding should not appear under some reduction loop;
+        8) The reduction block should write to only one buffer, and its init and body are both
+        simple `BufferStore`s, and the pattern is registered as an associative reducer.
+        The pre-defined patterns include: plus, multiplication, min and max;
+        9) Each of the loops on top of the block cannot be bound to a data parallel and a
+        reduction block binding at the same time;
+        10) `factor_axis` should be in range `[-ndim(B) - 1, ndim(B)]`,
+        where `B` is the buffer that the reduction block writes to.
+        Negative indexing is normalized according to numpy convention.
+        """
+        return _ffi_api_schedule.ScheduleRFactor(self, loop, factor_axis)  # type: ignore # pylint: disable=no-member
+
     ########## Schedule: blockize & tensorize ##########
 
 

@@ -78,6 +78,17 @@ TVM_DLL void ReverseComputeInline(ScheduleState self, const StmtSRef& block_sref
 /******** Schedule: cache read/write ********/
 
 /******** Schedule: reduction ********/
+/*!
+ * \brief Factor a reduction block by the specified loop
+ * \details See python/tvm/tir/schedule/schedule.py
+ * \param loop_sref The loop outside block for which we want to do rfactor
+ * \param factor_axis The position where the new dimension is placed in the new introduced rfactor
+ *                    buffer. Suppose the original reduction block writes to buffer `B` with
+ *                    ndim(B) dimensions, then `factor_axis` should be in range `[-ndim(B) - 1,
+ *                    ndim(B)]`, and the negative index will be normalized to a non-negative one
+ * \return The sref of the rfactor block
+ */
+TVM_DLL StmtSRef RFactor(ScheduleState self, const StmtSRef& loop_sref, int factor_axis);
 
 /******** Schedule: blockize & tensorize ********/
 
