@@ -171,7 +171,7 @@ def buffer_matched(a: ty.handle, c: ty.handle) -> None:
     with tir.block([128, 128], "B") as [vi, vj]:
         B[vi, vj] = A[vi, vj] * 2.0
     with tir.block([128, 128], "C") as [vi, vj]:
-        Bb = tir.match_buffer_region(B[vi : vi + 1, vj])
+        Bb = tir.match_buffer(B[vi : vi + 1, vj], (1, 1))
         C[vi, vj] = Bb[0, 0] + 1.0
 
 
