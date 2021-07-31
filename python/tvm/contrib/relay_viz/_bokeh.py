@@ -18,15 +18,13 @@
 import os
 import html
 import logging
+import functools
 
+import numpy as np
 import networkx as nx
 
 from bokeh.io import output_file, save
 from bokeh.plotting import from_networkx
-from bokeh.layouts import (
-    layout,
-    Spacer,
-)
 from bokeh.models import (
     ColumnDataSource,
     CustomJS,
@@ -37,7 +35,7 @@ from bokeh.models import (
     MultiLine,
     Legend,
     LegendItem,
-    Toggle,
+    Scatter,
     Plot,
     TapTool,
     PanTool,
@@ -87,6 +85,7 @@ class GraphShaper:
         agraph.layout(prog=prog, args=args)
         self._agraph = agraph
 
+    @functools.lru_cache()
     def get_edge_path(self, start_node_id, end_node_id):
         """Get explicit path points for MultiLine."""
         edge = self._agraph.get_edge(start_node_id, end_node_id)
@@ -122,11 +121,11 @@ class GraphShaper:
 
     def get_node_height(self, node_name):
         height_str = self._get_node_attr(node_name, "height", "20")
-        return float(height_str)*self._px_per_inch
+        return float(height_str) * self._px_per_inch
 
     def get_node_width(self, node_name):
         width_str = self._get_node_attr(node_name, "width", "20")
-        return float(width_str)*self._px_per_inch
+        return float(width_str) * self._px_per_inch
 
     def _get_node_attr(self, node_name, attr_name, default_val):
         try:
@@ -250,16 +249,15 @@ class BokehPlotter(Plotter):
         plot.add_tools(PanTool(), TapTool(), inspect_tool, hover_tool, ResetTool(), SaveTool())
         plot.toolbar.active_scroll = inspect_tool
 
-    def _add_node_type_label(self, plot, node_to_pos):
+    def _add_scalable_glyph(self, plot, node_to_pos, shaper):
 
-        source = ColumnDataSource(
+        text_source = ColumnDataSource(
             {
                 "x": [pos[0] for pos in node_to_pos.values()],
                 "y": [pos[1] for pos in node_to_pos.values()],
                 "text": [self._id_to_node[n].node_type for n in node_to_pos],
             }
         )
-
         text_glyph = Text(
             x="x",
             y="y",
@@ -268,15 +266,60 @@ class BokehPlotter(Plotter):
             text_baseline="middle",
             text_font_size={"value": "11px"},
         )
-        node_annotation = plot.add_glyph(source, text_glyph)
-        plot.x_range.js_on_change("start", CustomJS(
-            args=dict(plot=plot, node_annotation=node_annotation),
-            code="""
+        node_annotation = plot.add_glyph(text_source, text_glyph)
+
+        def get_scatter_loc(xs, xe, ys, ye, end_node):
+            """return x, y, angle as a tuple"""
+            node_x, node_y = node_to_pos[end_node]
+            node_w = shaper.get_node_width(end_node)
+            node_h = shaper.get_node_height(end_node)
+
+            # only 4 direction
+            if xe - xs > 0:
+                return node_x - node_w / 2, ye, -np.pi / 2
+            if xe - xs < 0:
+                return node_x + node_w / 2, ye, np.pi / 2
+            if ye - ys < 0:
+                return xe, node_y + node_h / 2, np.pi
+            return xe, node_y - node_h / 2, 0
+
+        scatter_source = {"x": [], "y": [], "angle": []}
+        for edge in self._digraph.edges():
+            x_pts, y_pts = shaper.get_edge_path(edge[0], edge[1])
+            x, y, angle = get_scatter_loc(x_pts[-2], x_pts[-1], y_pts[-2], y_pts[-1], edge[1])
+            scatter_source["angle"].append(angle)
+            scatter_source["x"].append(x)
+            scatter_source["y"].append(y)
+
+        scatter_glyph = Scatter(
+            x="x",
+            y="y",
+            angle="angle",
+            size=5,
+            marker="triangle",
+            fill_color="#AAAAAA",
+            fill_alpha=0.8,
+        )
+        edge_end_arrow = plot.add_glyph(ColumnDataSource(scatter_source), scatter_glyph)
+
+        plot.x_range.js_on_change(
+            "start",
+            CustomJS(
+                args=dict(
+                    plot=plot, node_annotation=node_annotation, edge_end_arrow=edge_end_arrow
+                ),
+                code="""
                  node_annotation.visible = plot.width/(this.end - this.start) >= 1.0
-                 var new_val = Math.round(11 * Math.sqrt(plot.width/(this.end - this.start)))
-                 node_annotation.glyph.text_font_size = {value: `${new_val}px`}
-                 """
-            ))
+                 var ratio = Math.sqrt(plot.width/(this.end - this.start))
+
+                 var new_text_size = Math.round(11 * ratio)
+                 node_annotation.glyph.text_font_size = {value: `${new_text_size}px`}
+
+                 var new_scatter_size = Math.round(5 * ratio)
+                 edge_end_arrow.glyph.size = {value: new_scatter_size}
+                 """,
+            ),
+        )
 
     def _create_graph(self, plot, shaper, node_to_pos):
 
@@ -288,8 +331,11 @@ class BokehPlotter(Plotter):
         # graph.selection_policy = NodesAndLinkedEdges()
 
         # edge
+        edge_line_color = "#888888"
         edge_line_width = 3
-        graph.edge_renderer.glyph = MultiLine(line_color="#888888", line_width=edge_line_width)
+        graph.edge_renderer.glyph = MultiLine(
+            line_color=edge_line_color, line_width=edge_line_width
+        )
         x_path_list = []
         y_path_list = []
         for edge in self._digraph.edges():
@@ -332,7 +378,9 @@ class BokehPlotter(Plotter):
 
     def _create_layout_dom(self, plot):
 
-        shaper = GraphShaper(self._digraph, prog="dot", args="-Grankdir=TB -Gsplines=ortho -Nordering=in")
+        shaper = GraphShaper(
+            self._digraph, prog="dot", args="-Grankdir=TB -Gsplines=ortho -Nordering=in"
+        )
 
         node_to_pos = {}
         for node in self._digraph:
@@ -347,7 +395,7 @@ class BokehPlotter(Plotter):
         # add graph
         plot.renderers.append(graph)
 
-        self._add_node_type_label(plot, node_to_pos)
+        self._add_scalable_glyph(plot, node_to_pos, shaper)
         return plot
 
     def _save_html(self, filename, layout_dom):

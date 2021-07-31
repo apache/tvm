@@ -54,7 +54,9 @@ def _dft_render_cb(plotter, node_to_id, relay_param):
                         name_hint, shape, dtype
                     )
                 else:
-                    node_detail = "name_hint: {}\ntype_annotation: {}".format(name_hint, node.type_annotation)
+                    node_detail = "name_hint: {}\ntype_annotation: {}".format(
+                        name_hint, node.type_annotation
+                    )
             plotter.node(node_id, node_type, node_detail)
         elif isinstance(node, relay.GlobalVar):
             name_hint = node.name_hint

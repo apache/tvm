@@ -66,3 +66,11 @@ vizer.render("output.html")
 
 3. https://discuss.tvm.apache.org/t/rfc-visualizing-relay-program-as-graph/4825/17
 
+## TODO
+1. Display more information when the zoom-level is large enough (currently only node_type is displayed.)
+ - Need to give each attribute priority, though...
+ - Simple user interface to configure this priority.
+2. Get rid of networkx dependency.
+3. Hopefully, get rid of graphviz-dev dependency.
+ - Maybe use pydot instead of graphviz(python module)
+4. Interactive legend.
