@@ -666,3 +666,15 @@ def FlattenBuffer():
         The result pass
     """
     return _ffi_api.FlattenBuffer()  # type: ignore
+
+
+def MergeDynamicSharedMemoryAllocations():
+    """This pass merges multiple TIR-level dynamic shared memory allocations
+    into one allocation.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.MergeDynamicSharedMemoryAllocations()  # type: ignore

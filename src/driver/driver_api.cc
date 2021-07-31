@@ -378,6 +378,7 @@ std::pair<IRModule, IRModule> SplitDevHostFuncs(IRModule mod_mixed, const Target
   Array<tvm::transform::Pass> mixed_pass_list = {BindTarget(target),
                                                  tir::transform::VerifyMemory()};
 
+  mixed_pass_list.push_back(tir::transform::MergeDynamicSharedMemoryAllocations());
   if (pass_ctx->GetConfig<Bool>("tir.detect_global_barrier", Bool(false)).value()) {
     mixed_pass_list.push_back(tir::transform::ThreadSync("global"));
   }
