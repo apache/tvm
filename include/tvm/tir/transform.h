@@ -424,6 +424,12 @@ TVM_DLL Pass CompactBufferAllocation();
 TVM_DLL Pass LegalizePackedCalls();
 
 /*!
+ * \brief Remove match buffers inside the block. Also, it will validate the binding.
+ * \return The pass.
+ */
+TVM_DLL Pass LowerMatchBuffer();
+
+/*!
  * \brief Flatten the multi-dimensional BufferLoad and BufferStore
  *        to single dimensional Load/Store. Also remove Block to
  *        ensure that the flattened TIR can not be scheduled again.

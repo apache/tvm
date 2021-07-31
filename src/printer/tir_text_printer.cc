@@ -583,8 +583,8 @@ Doc TIRTextPrinter::VisitStmt_(const BlockRealizeNode* op) {
          << Print(alloc_buf->shape) << ")" << Doc::NewLine();
   }
   for (const auto& match_buf : block_op->match_buffers) {
-    body << AllocBuf(match_buf->buffer) << " = match_buffer_region(" << Print(match_buf->source)
-         << ")" << Doc::NewLine();
+    body << AllocBuf(match_buf->buffer) << " = match_buffer(" << Print(match_buf->source) << ")"
+         << Doc::NewLine();
   }
   if (block_op->init.defined()) {
     Doc init_block;

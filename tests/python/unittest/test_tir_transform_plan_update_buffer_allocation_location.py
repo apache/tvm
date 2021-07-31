@@ -115,6 +115,28 @@ def transformed_func() -> None:
                         )
 
 
+@tvm.script.tir
+def match_buffer_func() -> None:
+    C = tir.alloc_buffer((128, 128))
+    with tir.block([128]) as [vi]:
+        C0 = tir.match_buffer(C[vi, 0:128], (128))
+        with tir.block([128]) as [jj]:
+            C1 = tir.match_buffer(C0[jj], ())
+            C1[()] = 0
+
+
+@tvm.script.tir
+def transformed_match_buffer_func() -> None:
+    for i in range(0, 128):
+        with tir.block([128]) as [vi]:
+            tir.bind(vi, i)
+            C = tir.alloc_buffer((128, 128))
+            C0 = tir.match_buffer(C[vi, 0:128], (128))
+            with tir.block([128]) as [jj]:
+                C1 = tir.match_buffer(C0[jj], ())
+                C1[()] = 0
+
+
 def test_elementwise():
     _check(element_func, transformed_element_func)
 
@@ -123,6 +145,11 @@ def test_locate_buffer_allocation():
     _check(original_func, transformed_func)
 
 
+def test_match_buffer_allocation():
+    _check(match_buffer_func, transformed_match_buffer_func)
+
+
 if __name__ == "__main__":
     test_elementwise()
     test_locate_buffer_allocation()
+    test_match_buffer_allocation()

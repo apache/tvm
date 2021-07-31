@@ -784,10 +784,11 @@ class TVMScriptParser(Transformer):
     def transform_Subscript(self, node):
         """Array access visitor.
 
-        By now only 2 types of Subscript are supported:
+        By now only 3 types of Subscript are supported:
             1. Buffer[index, index, ...], Buffer element access(BufferLoad & BufferStore)
                Var[index] Buffer element access()
             2. Buffer[start: stop, start: stop, ...], BufferRealize(realize(buffer[...]))
+            3. Array[index], Buffer element access
         """
 
         symbol = self.transform(node.params[0])
@@ -812,6 +813,25 @@ class TVMScriptParser(Transformer):
             return BufferSlice(
                 symbol, indexes, self.report_error, span=tvm_span_from_synr(node.span)
             )
+        elif isinstance(symbol, tvm.container.Array):
+            if len(indexes) > 1:
+                self.report_error(
+                    "Array access should be one-dimension access, but the indices are "
+                    + str(indexes),
+                    node.span,
+                )
+            index = indexes[0]
+            if not isinstance(index, (int, tvm.tir.expr.IntImm)):
+                self.report_error(
+                    "Array access index expected int or IntImm, but got " + type(index),
+                    node.span,
+                )
+            if int(index) >= len(symbol):
+                self.report_error(
+                    f"Array access out of bound, size: {len(symbol)}, got index {index}.",
+                    node.span,
+                )
+            return symbol[int(index)]
         else:
             self.report_error(
                 f"Cannot subscript from a {type(symbol).__name__}. Only variables and "
