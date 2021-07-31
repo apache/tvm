@@ -704,23 +704,6 @@ Doc TVMScriptPrinter::VisitStmt_(const EvaluateNode* op) {
   return doc;
 }
 
-inline const char* ForKind2String(ForKind t) {
-  switch (t) {
-    case ForKind::kSerial:
-      return "serial";
-    case ForKind::kParallel:
-      return "parallel";
-    case ForKind::kVectorized:
-      return "vectorized";
-    case ForKind::kUnrolled:
-      return "unroll";
-    case ForKind::kThreadBinding:
-      return "thread_binding";
-  }
-  LOG(FATAL) << "Unknown ForKind";
-  return "Unknown";
-}
-
 Doc TVMScriptPrinter::VisitStmt_(const ForNode* op) {
   Doc doc;
   var_not_in_headers.insert(op->loop_var.get());

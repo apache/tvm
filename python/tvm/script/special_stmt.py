@@ -225,7 +225,7 @@ class AllocBuffer(SpecialStmt):
             data=None,
             strides=None,
             elem_offset=None,
-            scope="",
+            scope="global",
             align=-1,
             offset_factor=0,
             buffer_type="default",

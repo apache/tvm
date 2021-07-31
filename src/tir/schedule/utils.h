@@ -98,6 +98,21 @@ namespace tir {
       << "TypeError: Expects `" << #From << "` to have type `" << Type::_type_key \
       << "`, but gets: " << (From.defined() ? From->GetTypeKey() : "None")
 
+/*!
+ * \brief Convert an array of loop StmtSRefs to an array of loops
+ * \param loop_srefs The loop StmtSRefs to be converted
+ * \return The conversion result loops
+ */
+inline Array<For> LoopSRefs2Loops(const Array<StmtSRef>& loop_srefs) {
+  Array<For> loops;
+  loops.reserve(loop_srefs.size());
+  for (StmtSRef loop_sref : loop_srefs) {
+    const ForNode* loop = TVM_SREF_TO_FOR(loop, loop_sref);
+    loops.push_back(GetRef<For>(loop));
+  }
+  return loops;
+}
+
 /******** Storage scope ********/
 
 /*!
@@ -141,6 +156,18 @@ inline Stmt RemoveFromSeqStmt(const SeqStmt& seq, const Stmt& to_remove) {
     new_stmts.push_back(stmt);
   }
   return SeqStmt::Flatten(new_stmts);
+}
+
+/*!
+ * \brief Create a new IterVar for the input For loop, with specified name and type
+ * \param loop The loop to be created from
+ * \param name The name of the new IterVar
+ * \param iter_var_type The type of the new IterVar
+ * \return The newly created IterVar
+ */
+inline IterVar IterVarFromLoop(const For& loop, String name, IterVarType iter_var_type) {
+  return IterVar(Range::FromMinExtent(loop->min, loop->extent),
+                 Var(std::move(name), loop->loop_var.dtype()), iter_var_type);
 }
 
 /******** Integer set ********/

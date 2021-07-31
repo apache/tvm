@@ -622,7 +622,8 @@ void ComputeInline(ScheduleState self, const StmtSRef& producer_block_sref) {
   Block producer_block = GetRef<Block>(_producer_block);
   Buffer inlined_buffer = NotSingleReadWriteBuffer::GetSingleWrite(self, producer_block);
   // Step 1. Get the scope block
-  StmtSRef scope_root_sref = GetScopeRootAndCheckStagePipeline(self, producer_block_sref);
+  StmtSRef scope_root_sref =
+      GetScopeRoot(self, producer_block_sref, /*require_stage_pipeline=*/true);
   // Step 2. Check completeness
   CheckCompleteBlock(self, producer_block_sref, scope_root_sref);
   // Step 3. Analyze the block body
@@ -649,7 +650,8 @@ void ReverseComputeInline(ScheduleState self, const StmtSRef& consumer_block_sre
   Block consumer_block = GetRef<Block>(_consumer_block);
   Buffer inlined_buffer = NotSingleReadWriteBuffer::GetSingleRead(self, consumer_block);
   // Step 1. Get the scope block
-  StmtSRef scope_root_sref = GetScopeRootAndCheckStagePipeline(self, consumer_block_sref);
+  StmtSRef scope_root_sref =
+      GetScopeRoot(self, consumer_block_sref, /*require_stage_pipeline=*/true);
   // Step 2. Check completeness
   CheckCompleteBlock(self, consumer_block_sref, scope_root_sref);
   // Step 3. Check if the consumer has a single complete producer
