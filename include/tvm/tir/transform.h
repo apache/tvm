@@ -437,6 +437,11 @@ TVM_DLL Pass LowerMatchBuffer();
  */
 TVM_DLL Pass FlattenBuffer();
 
+/*!
+ *  A pass to merge multiple TIR-level dynamic shared memory allocations into one
+ */
+TVM_DLL Pass MergeDynamicSharedMemoryAllocations();
+
 }  // namespace transform
 }  // namespace tir
 }  // namespace tvm
