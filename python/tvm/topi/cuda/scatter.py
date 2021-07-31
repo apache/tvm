@@ -764,9 +764,6 @@ def scatter_nd(data, indices, updates, mode):
     """
     _verify_scatter_nd_inputs(data, indices, updates)
 
-    def cur_target_kind(kind="cuda"):
-        return tvm.target.Target.current(allow_none=False).kind == tvm.target.Target(kind).kind
-
     def gen_ir(data_ptr, indices_ptr, updates_ptr, out_ptr):
         ib = tvm.tir.ir_builder.create()
 
@@ -815,42 +812,16 @@ def scatter_nd(data, indices, updates, mode):
 
         # TODO (CaptainDuke):
         # Since multiple threads compete for the same write index, which leads to
-        # non-determinstic output for update mode. We could add a new attribute
-        # "allow_non_deterministic" to scatter_nd op, which is False by default.
-        # And change ONNX frontend to emit scatter_op with allow_non_deterministic = True,
-        # which will allow the new code path for update mode as well
+        # non-determinstic output for update mode. We could add a new attribute,
+        # "allow_non_deterministic", which can be conditionally set to True by
+        # each frontend when non-determinsm is allowed.
+        cur_target_kind = str(tvm.target.Target.current(allow_none=False).kind)
         with ib.new_scope():
             if (
-                mode == "update"
-                or cur_target_kind("vulkan")
-                or cur_target_kind("metal")
-                or (updates.dtype == "int64" and mode == "add")
+                mode == "add"
+                and cur_target_kind not in ["vulkan", "metal"]
+                and updates.dtype in ["int32", "float32"]
             ):
-                bdim_x = ceil_div(fused_updates_dimension, tdim)
-                bx = te.thread_axis("blockIdx.x")
-                tx = te.thread_axis("threadIdx.x")
-                ib.scope_attr(bx, "thread_extent", bdim_x)
-                ib.scope_attr(tx, "thread_extent", tdim)
-                with ib.for_range(0, fused_indices_dimension) as i:
-                    j = bx * tdim + tx
-                    with ib.if_scope(j < fused_updates_dimension):
-                        offset = fused_updates_dimension
-                        index = j  # This is x_M, .. x_{N-1} part of the index into out.
-                        # Build up the
-                        # indices[0, y_0, .. y_{K-1}], ... indices[M-1, y_0, .. y_{K-1}]
-                        # part of the index into out.
-                        for l in reversed(range(indices_ptr.shape[0].value)):
-                            # indices[i * l * fused_indices_dimension] = indices[l, y_0,
-                            #                                                   ... y_{k-1}]
-                            index += offset * indices[i + l * fused_indices_dimension]
-                            offset *= data_ptr.shape[l]
-                        if mode == "update":
-                            out[index] = updates[i * fused_updates_dimension + j]
-                        elif mode == "add":
-                            out[index] += updates[i * fused_updates_dimension + j]
-                        else:
-                            raise NotImplementedError("scatter_nd mode not in [update, add]:", mode)
-            elif mode == "add":
                 bdim_x = fused_indices_dimension
                 bdim_y = ceil_div(fused_updates_dimension, tdim)
                 # In case of large input sizes, fused_indices_dimension might be too large.
@@ -878,7 +849,30 @@ def scatter_nd(data, indices, updates, mode):
                         updates[up_index],
                     )
             else:
-                raise NotImplementedError("scatter_nd mode not in [update, add]:", mode)
+                bdim_x = ceil_div(fused_updates_dimension, tdim)
+                bx = te.thread_axis("blockIdx.x")
+                tx = te.thread_axis("threadIdx.x")
+                ib.scope_attr(bx, "thread_extent", bdim_x)
+                ib.scope_attr(tx, "thread_extent", tdim)
+                with ib.for_range(0, fused_indices_dimension) as i:
+                    j = bx * tdim + tx
+                    with ib.if_scope(j < fused_updates_dimension):
+                        offset = fused_updates_dimension
+                        index = j  # This is x_M, .. x_{N-1} part of the index into out.
+                        # Build up the
+                        # indices[0, y_0, .. y_{K-1}], ... indices[M-1, y_0, .. y_{K-1}]
+                        # part of the index into out.
+                        for l in reversed(range(indices_ptr.shape[0].value)):
+                            # indices[i * l * fused_indices_dimension] = indices[l, y_0,
+                            #                                                   ... y_{k-1}]
+                            index += offset * indices[i + l * fused_indices_dimension]
+                            offset *= data_ptr.shape[l]
+                        if mode == "update":
+                            out[index] = updates[i * fused_updates_dimension + j]
+                        elif mode == "add":
+                            out[index] += updates[i * fused_updates_dimension + j]
+                        else:
+                            raise NotImplementedError("scatter_nd mode not in [update, add]:", mode)
 
         return ib.get()
 
