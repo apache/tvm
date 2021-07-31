@@ -364,6 +364,16 @@ void ConcreteScheduleNode::ReverseComputeInline(const BlockRV& block_rv) {
 /******** Schedule: loop binding/annotation ********/
 /******** Schedule: cache read/write ********/
 /******** Schedule: reduction ********/
+
+BlockRV ConcreteScheduleNode::RFactor(const LoopRV& loop_rv, int factor_axis) {
+  StmtSRef result{nullptr};
+  TVM_TIR_SCHEDULE_BEGIN();
+  result = tir::RFactor(state_, this->GetSRef(loop_rv), factor_axis);
+  TVM_TIR_SCHEDULE_END("rfactor", this->error_render_level_);
+  this->state_->DebugVerify();
+  return CreateRV<BlockRV>(result);
+}
+
 /******** Schedule: blockize & tensorize ********/
 
 /******** FFI ********/

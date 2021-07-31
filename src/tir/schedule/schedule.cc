@@ -135,5 +135,10 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleReverseComputeInline")
 /******** (FFI) reduction ********/
 /******** (FFI) blockize & tensorize ********/
 
+/******** (FFI) reduction ********/
+
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleRFactor")
+    .set_body_method<Schedule>(&ScheduleNode::RFactor);
+
 }  // namespace tir
 }  // namespace tvm

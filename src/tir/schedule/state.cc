@@ -161,34 +161,6 @@ void UpdateSRef(ScheduleStateNode* self, StmtSRefNode* sref, const StmtNode* new
   sref->stmt = new_stmt;
 }
 
-/*!
- * \brief Get PrimFunc and GlobalVar that the root block belongs to
- * \param mod The IRModule
- * \param root_block The root block of the PrimFunc
- * \param result_g_var The result GlobalVar
- * \return The result PrimFunc where the root block belongs to
- * \note This function returns the pointer instead of ObjectRef to avoid later copy-on-write
- */
-const PrimFuncNode* GetRootPrimFunc(const IRModule& mod, const StmtNode* root_block,
-                                    GlobalVar* result_g_var) {
-  for (const auto& kv : mod->functions) {
-    const GlobalVar& g_var = kv.first;
-    const BaseFunc& base_func = kv.second;
-    if (const auto* func = base_func.as<PrimFuncNode>()) {
-      if (const auto* realize = func->body.as<BlockRealizeNode>()) {
-        if (realize->block.get() == root_block) {
-          *result_g_var = g_var;
-          return func;
-        }
-      }
-    }
-  }
-  LOG(FATAL) << "IndexError: Could not get the correpsonding function in the schedule state of the "
-                "statement:\n"
-             << GetRef<Stmt>(root_block);
-  throw;
-}
-
 /**************** Creation ****************/
 
 /*! \brief A helper class to create a new ScheduleStateNode from an IRModule */
@@ -737,7 +709,7 @@ class SRefUpdater : public StmtVisitor {
   void UpdateBlockInfo(const StmtSRef& block_sref) {
     using TIter = std::unordered_map<StmtSRef, BlockInfo, ObjectPtrHash, ObjectPtrEqual>::iterator;
     // The caller is responsible for correcting the flags
-    BlockInfo new_info(BlockScope(GetChildBlocks(self_, block_sref)));
+    BlockInfo new_info((BlockScope(GetChildBlockSRefOnSRefTree(self_, block_sref))));
     std::pair<TIter, bool> insert_result = self_->block_info.emplace(block_sref, new_info);
     bool inserted = insert_result.second;
     BlockInfo& info = insert_result.first->second;
@@ -1045,7 +1017,7 @@ void ScheduleStateNode::DebugVerify() const {
 /**************** BlockInfo-related ****************/
 
 BlockInfo ScheduleStateNode::GetBlockInfo(const StmtSRef& block_sref) const {
-  const auto* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
   auto it = this->block_info.find(block_sref);
   CHECK(it != this->block_info.end())
       << "IndexError: Cannot find the corresponding BlockScope to the block sref:\n"

@@ -242,6 +242,24 @@ class ScheduleNode : public runtime::Object {
   /******** Schedule: loop binding/annotation ********/
   /******** Schedule: cache read/write ********/
   /******** Schedule: reduction ********/
+  /*!
+   * \brief Factorize an associative reduction block by the specified loop.
+   * \details An associative reduction cannot be parallelized directly,
+   * because it leads to potential race condition during accumulation.
+   * Alternatively, the reduction could be factorized on a loop with the following steps:
+   * - Step 1: evenly slice the reduction into `n` separate chunks, where `n` is the loop extent
+   * - Step 2: compute the chunks separately and write the result into `n` intermediate buffers;
+   * - Step 3: accumulate the `n` separate buffer into the result buffer.
+   * Note that the Step 2 above introduces opportunities for parallelization.
+   * RFactor is a schedule primitive that implements the transformation described above.
+   * \param loop_rv The loop outside block we want to do rfactor
+   * \param factor_axis The position where the new dimension is placed in the new introduced rfactor
+   *                    buffer. Suppose the original reduction block writes to buffer `B` with
+   *                    ndim(B) dimensions, then `factor_axis` should be in range `[-ndim(B) - 1,
+   *                    ndim(B)]`, and the negative index will be normalized to a non-negative one
+   * \return The rfactor block
+   */
+  virtual BlockRV RFactor(const LoopRV& loop_rv, int factor_axis) = 0;
   /******** Schedule: blockize & tensorize ********/
 };
 
