@@ -1884,7 +1884,8 @@ def test_scatter_nd(target, dev):
     ):
         data = relay.var("data", shape=data_np.shape, dtype=str(data_np.dtype))
         indices_vars = [
-            relay.var("ind{i}", shape=v.shape, dtype=str(v.dtype)) for i, v in enumerate(indices_np)
+            relay.var("ind%d" % i, shape=v.shape, dtype=str(v.dtype))
+            for i, v in enumerate(indices_np)
         ]
         updates = relay.var("updates", shape=updates_np.shape, dtype=str(updates_np.dtype))
 
