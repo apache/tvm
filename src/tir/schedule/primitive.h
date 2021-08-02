@@ -25,7 +25,27 @@ namespace tvm {
 namespace tir {
 
 /******** Schedule: loops manipulation ********/
-
+/*!
+ * Split a loop into a list of consecutive loops. It requires:
+ * 1) The loop can't have annotation or thread binding.
+ * 2) The loop must start with 0.
+ * \param self The state of the schedule
+ * \param loop_sref The sref to the loop being split
+ * \param factors The splitting factors
+ * \return An array of srefs to the loops after splitting
+ */
+TVM_DLL Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
+                              const Array<PrimExpr>& factors);
+/*!
+ * \brief Fuse a list of consecutive loops into one. It requires:
+ * 1) The loops can't have annotations or thread bindings.
+ * 2) The inner loop must be the only child of the outer loop.
+ * 3) All loops must start with 0.
+ * \param self The state of the schedule
+ * \param loop_srefs An array of srefs to the loops to be fused
+ * \return The sref to the fused loop
+ */
+TVM_DLL StmtSRef Fuse(ScheduleState self, const Array<StmtSRef>& loop_srefs);
 /******** Schedule: compute location ********/
 /*!
  * \brief Inline a block into its consumer(s). It requires:
@@ -58,6 +78,17 @@ TVM_DLL void ReverseComputeInline(ScheduleState self, const StmtSRef& block_sref
 /******** Schedule: cache read/write ********/
 
 /******** Schedule: reduction ********/
+/*!
+ * \brief Factor a reduction block by the specified loop
+ * \details See python/tvm/tir/schedule/schedule.py
+ * \param loop_sref The loop outside block for which we want to do rfactor
+ * \param factor_axis The position where the new dimension is placed in the new introduced rfactor
+ *                    buffer. Suppose the original reduction block writes to buffer `B` with
+ *                    ndim(B) dimensions, then `factor_axis` should be in range `[-ndim(B) - 1,
+ *                    ndim(B)]`, and the negative index will be normalized to a non-negative one
+ * \return The sref of the rfactor block
+ */
+TVM_DLL StmtSRef RFactor(ScheduleState self, const StmtSRef& loop_sref, int factor_axis);
 
 /******** Schedule: blockize & tensorize ********/
 

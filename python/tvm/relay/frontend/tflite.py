@@ -255,23 +255,23 @@ class OperatorConverter(object):
         op_c = self.model.OperatorCodes(op_code_list_idx)
         # In TFlite 2.4.x there was a change where the type of the field that contained
         # the builtin code changed from int8 to int32 in the flat buffer representation.
-        # However to retain support for old flat buffers that were created, they retained
-        # the original 8 bit encoding for the operator but in a new field accessed by the
-        # DeprecatedBuiltinCode method.
-        # This means that the API function BuiltinCode() is used on an operator
-        # which was originally encoded as an 8 bit quantity it would look for the
-        # code in the new int32 field in the schema and this creates the need
-        # for the check for the magic number of 127 which is indicated by
-        # BuiltinOperator.PLACEHOLDER_FOR_GREATER_OP_CODES
+        # However, to retain support for old flat buffers that were created, they retained
+        # the original 8 bit field, but named it "deprecated_builtin_code" in TFLite 2.4.
+        # This means that the API function BuiltinCode() which originally returned the value
+        # of the 8 bit field would now look for the value in the new int32 field in the
+        # schema and DeprecatedBuiltinCode() will look at the old 8 bit field.
+        # In TFLite 2.4, if the opcode value is less than 127, it can be in either field
+        # (however, if it is only in the "builtin_code" field, the model is not backward
+        # compatible), so similarly to TFLite 2.4 reader, we'll pick the higher value of the
+        # two fields.
         # Remember however that this value came into existence only after Tensorflow
         # lite 2.4.x and hence encase it in a try -except block.
         # Phew !
         try:
-            if op_c.BuiltinCode() < BuiltinOperator.PLACEHOLDER_FOR_GREATER_OP_CODES:
-                opc = op_c.DeprecatedBuiltinCode()
-            else:
-                opc = op_c.BuiltinCode()
+            opc = max(op_c.DeprecatedBuiltinCode(), op_c.BuiltinCode())
         except AttributeError:
+            # In versions before 2.4 the int8 field that holds the builtin code is accessed
+            # by BuiltinCode() and DeprecatedBuiltinCode() doesn't exist
             opc = op_c.BuiltinCode()
 
         op_code_id = opc
@@ -630,7 +630,7 @@ class OperatorConverter(object):
         # Options - align_corners (bool)
         resize_options = None
         align_corners = False
-        bilinear_method = method == "bilinear"
+        bilinear_method = method == "linear"
         if bilinear_method:
             assert op.BuiltinOptionsType() == BuiltinOptions.ResizeBilinearOptions
             resize_options = ResizeBilinearOptions()
@@ -647,7 +647,7 @@ class OperatorConverter(object):
         coord_trans = "align_corners" if align_corners else "asymmetric"
         if bilinear_method and input_tensor.qnn_params:
             in_expr = self.dequantize(in_expr, input_tensor)
-        out = _op.image.resize(
+        out = _op.image.resize2d(
             in_expr, target_size, "NHWC", method, coordinate_transformation_mode=coord_trans
         )
         if bilinear_method and output_tensor.qnn_params:
@@ -656,7 +656,7 @@ class OperatorConverter(object):
 
     def convert_resize_bilinear(self, op):
         """Convert TFLite RESIZE_BILINEAR"""
-        return self._convert_resize("bilinear", op)
+        return self._convert_resize("linear", op)
 
     def convert_resize_nearest_neighbor(self, op):
         """Convert TFLite RESIZE_NEAREST_NEIGHBOR"""
@@ -3471,7 +3471,7 @@ def prepare_dense_matrix_from_sparse(sparse_tensor, sparse_tensor_value, sparse_
     indices_list = []
 
     # Below function iterates through each applicable indices per dimension
-    # based on format type specified and finaly produce the dense matrix and the NZ indices.
+    # based on format type specified and finally produce the dense matrix and the NZ indices.
     def _def_prepare_dense_matrix_from_sparse(indices, level, prev_idx):
         if level == len(indices):
             start_pos = 0

@@ -228,6 +228,47 @@ def test_storage_combine():
     assert num_alloc[0] == 1
 
 
+def test_storage_combine_with_vectorization():
+    n = 1024
+    A = te.placeholder((n,), name="A")
+    B = te.placeholder((n,), name="B")
+    C = te.compute((n,), lambda i: A[i] + B[i], name="C")
+    s = te.create_schedule(C.op)
+    AA = s.cache_read(A, "global:tag", readers=[C])
+    BB = s.cache_read(B, "global:tag", readers=[C])
+    CC = s.cache_write(C, "global:tag")
+    s[CC].vectorize(s[CC].op.axis[0])
+    bounds = tvm.te.schedule.InferBound(s)
+    stmt = tvm.te.schedule.ScheduleOps(s, bounds)
+    func = tvm.te.schedule.SchedulePostProcToPrimFunc([A, B, C], stmt, None)
+    mod = tvm.IRModule.from_expr(func)
+    mod = tvm.tir.transform.StorageFlatten(64)(mod)
+    mod = tvm.tir.transform.VectorizeLoop()(mod)
+    mod = tvm.tir.transform.StorageRewrite()(mod)
+    mod = tvm.tir.transform.Simplify()(mod)
+    stmt = mod["main"].body
+    num_alloc = [0]
+
+    def verify(v):
+        # find add op
+        if (
+            isinstance(v, tvm.tir.Add)
+            and isinstance(v.a, tvm.tir.Load)
+            and isinstance(v.b, tvm.tir.Load)
+        ):
+            lhs_ramp = v.a.index
+            rhs_ramp = v.b.index
+            # these two ramp load should not overlap
+            assert lhs_ramp.lanes == n
+            assert rhs_ramp.lanes == n
+            assert lhs_ramp.base >= rhs_ramp.base + n or rhs_ramp.base >= lhs_ramp.base + n
+        elif isinstance(v, tvm.tir.Allocate):
+            num_alloc[0] += 1
+
+    tvm.tir.stmt_functor.post_order_visit(stmt, verify)
+    assert num_alloc[0] == 1
+
+
 def test_storage_share_gpu():
     m = te.var("m")
     A = [te.placeholder((m), name="A")]
@@ -257,9 +298,9 @@ def test_storage_share_gpu():
     alloc_stats = {"global": 0, "shared": 0}
 
     def verify(n):
-        if isinstance(n, tvm.tir.AttrStmt):
-            if n.attr_key == "storage_scope":
-                alloc_stats[n.value.value] += 1
+        if isinstance(n, tvm.tir.Allocate):
+            scope = n.buffer_var.type_annotation.storage_scope
+            alloc_stats[scope] += 1
 
     tvm.tir.stmt_functor.post_order_visit(stmt, verify)
     assert alloc_stats["global"] == 2
@@ -276,7 +317,7 @@ def test_parallel_alloc():
 
     body = ib.get()
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([n], body))
-    body = tvm.tir.transform.StorageRewrite()(mod)["main"].body
+    body = tvm.tir.transform.StorageRewrite()(mod)["main"]
 
     assert isinstance(body.body.body, tvm.tir.Allocate)
 
@@ -293,7 +334,7 @@ def test_parallel_alloc():
     body = ib.get()
 
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([n], body))
-    body = tvm.tir.transform.StorageRewrite()(mod)["main"].body
+    body = tvm.tir.transform.StorageRewrite()(mod)["main"]
 
     assert isinstance(body.body.body.body.body, tvm.tir.Allocate)
 
@@ -315,7 +356,6 @@ def test_while_alloc():
 
     mod = get_mod(kind="parallel")
     # parallel (i, 0, n) {
-    #   // attr [j] storage_scope = "global"
     #   allocate j[int32 * 1]
     #   j[0] = 0
     #   while((j[0] < 10)){
@@ -325,11 +365,9 @@ def test_while_alloc():
     #     j[0] = (j[0] + (j[0] + 1))
     #   }
     # }
-    body = tvm.tir.transform.StorageRewrite()(mod)["main"].body
+    body = tvm.tir.transform.StorageRewrite()(mod)["main"]
     # parallel (i, 0, n) {
-    #   // attr [j] storage_scope = "global"
     #   allocate j[int32 * 1]
-    #   // attr [A] storage_scope = "global"
     #   allocate A[float32 * n]
     #   j[0] = 0
     #   while((j[0] < 10)){
@@ -338,11 +376,10 @@ def test_while_alloc():
     #   }
     # }
     assert isinstance(body.body.body, tvm.tir.Allocate)  # j
-    assert isinstance(body.body.body.body.body, tvm.tir.Allocate)  # A
+    assert isinstance(body.body.body.body, tvm.tir.Allocate)  # A
 
     mod = get_mod(kind="serial")
     # for (i, 0, n) {
-    #   // attr [j] storage_scope = "global"
     #   allocate j[int32 * 1]
     #   j[0] = 0
     #   while((j[0] < 10)){
@@ -352,10 +389,8 @@ def test_while_alloc():
     #     j[0] = (j[0] + (j[0] + 1))
     #   }
     # }
-    body = tvm.tir.transform.StorageRewrite()(mod)["main"].body
-    # // attr [j] storage_scope = "global"
+    body = tvm.tir.transform.StorageRewrite()(mod)["main"]
     # allocate j[int32 * 1]
-    # // attr [A] storage_scope = "global"
     # allocate A[float32 * n]
     # for (i, 0, n) {
     #   j[0] = 0
@@ -365,7 +400,7 @@ def test_while_alloc():
     #   }
     # }
     assert isinstance(body.body, tvm.tir.Allocate)  # j
-    assert isinstance(body.body.body.body, tvm.tir.Allocate)  # A
+    assert isinstance(body.body.body, tvm.tir.Allocate)  # A
 
 
 def test_inplace_rule2(scope_tb="local_TB2", max_bits=1024 * 1024 * 1024):
@@ -648,6 +683,7 @@ if __name__ == "__main__":
     test_parallel_alloc()
     test_while_alloc()
     test_storage_combine()
+    test_storage_combine_with_vectorization()
     test_storage_share_gpu()
     test_inplace_rule2()
 

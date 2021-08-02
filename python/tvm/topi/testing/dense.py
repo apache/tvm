@@ -14,35 +14,40 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Registration of profiling objects in python."""
-
-from .. import _ffi
-from . import Object
-
-_ffi._init_api("runtime.profiling", __name__)
+# pylint: disable=invalid-name
+"""Dense in python"""
+import numpy as np
 
 
-@_ffi.register_object("runtime.profiling.Report")
-class Report(Object):
-    """A container for information gathered during a profiling run.
+def dense(x, y, bias, use_bias=False, use_relu=False, out_dtype=None):
+    """dense operator implemented in numpy.
 
-    Attributes
+    Parameters
     ----------
-    calls : Array[Dict[str, Object]]
-        Per-call profiling metrics (function name, runtime, device, ...).
+    x : numpy.ndarray
+        2-D with shape [M, K]
 
-    device_metrics : Dict[Device, Dict[str, Object]]
-        Per-device metrics collected over the entire run.
+    y : numpy.ndarray
+        2-D with shape [N, K]
+
+    bias: numpy.ndarray
+        1-D with shape [M,]
+
+    out_dtype: string, optional
+        Specify the dtype of output
+
+    Returns
+    -------
+    out : numpy.ndarray
+        2-D with shape [M, N]
     """
+    dtype = x.dtype if out_dtype is None else out_dtype
+    if use_bias:
+        out = np.dot(x.astype(dtype), y.T.astype(dtype)) + bias
+    else:
+        out = np.dot(x.astype(dtype), y.T.astype(dtype))
 
-    def csv(self):
-        """Convert this profiling report into CSV format.
+    if use_relu:
+        out = np.maximum(out, 0)
 
-        This only includes calls and not overall metrics.
-
-        Returns
-        -------
-        csv : str
-            `calls` in CSV format.
-        """
-        return AsCSV(self)
+    return out

@@ -20,52 +20,66 @@ from tvm import te
 from tvm import autotvm
 from tvm.autotvm.task.space import SplitEntity
 from tvm.contrib import cblas, mkl
-from .. import generic
+from .. import generic, nn
 from ..utils import traverse_inline, get_const_tuple, get_max_power2_factor
 
 
 @autotvm.register_topi_compute("batch_matmul.x86")
-def batch_matmul(cfg, x, y, out_shape=None):
-    """Computes batch matrix multiplication of `x` and `y` when `x` and `y` are
-    data in batch. Supports broadcasting in batch dimension.
+def batch_matmul(
+    cfg, tensor_a, tensor_b, out_shape=None, out_dtype=None, transpose_a=False, transpose_b=True
+):
+    """Compute batch matrix multiplication of `tensor_a` and `tensor_b`.
+
+    Both `tensor_a` and `tensor_b` can be transposed. For legacy reason, we use NT format
+    (transpose_a=False, transpose_b=True) by default.
 
     Parameters
     ----------
     cfg : ConfigSpace
-        Autotvm tuning space config file
-    x : tvm.te.Tensor
-        3-D with shape [batch, M, K]
-    y : tvm.te.Tensor
-        3-D with shape [batch, N, K]
-    out_shape : tuple or None
-        Shape of the outputs
+        Autotvm tuning space config file.
+
+    tensor_a : tvm.te.Tensor
+        3-D with shape [batch, M, K] or [batch, K, M].
+
+    tensor_b : tvm.te.Tensor
+        3-D with shape [batch, K, N] or [batch, N, K].
+
+    out_shape : List[Optional]
+        Explicit intended output shape of the computation. Can be useful in cases
+        with dynamic input shapes.
+
+    out_dtype : Optional[str]
+        Specifies the output data type for mixed precision batch matmul.
+
+    transpose_a : Optional[bool] = False
+        Whether the first tensor is in transposed format.
+
+    transpose_b : Optional[bool] = True
+        Whether the second tensor is in transposed format.
 
     Returns
     -------
     output : tvm.te.Tensor
         3-D with shape [batch, M, N]
     """
-    assert len(x.shape) == 3 and len(y.shape) == 3, "only support 3-dim batch_matmul"
-    XB, M, XK = get_const_tuple(x.shape)
-    YB, N, YK = get_const_tuple(y.shape)
-    assert (XB == YB) or (YB == 1) or (XB == 1), "batch dimension doesn't match"
-    assert XK == YK, "shapes of x and y is inconsistent"
-    B = te.max(XB, YB)
-    K = XK
-    if out_shape is not None:
-        assert out_shape[0] == B, "got invalid output shape"
-        assert out_shape[1] == M, "got invalid output shape"
-        assert out_shape[2] == N, "got invalid output shape"
     if cfg.is_fallback:
+        if transpose_a:
+            _, K, M = get_const_tuple(tensor_a.shape)
+        else:
+            _, M, K = get_const_tuple(tensor_a.shape)
+        if transpose_b:
+            _, N, _ = get_const_tuple(tensor_b.shape)
+        else:
+            _, _, N = get_const_tuple(tensor_b.shape)
         _default_batch_matmul_config(cfg, M, N, K)
-
-    k = te.reduce_axis((0, K), name="k")
-    C = te.compute(
-        (B, M, N),
-        lambda b, i, j: te.sum(x[b if XB != 1 else 0, i, k] * y[b if YB != 1 else 0, j, k], axis=k),
-        tag="batch_matmul",
+    return nn.batch_matmul(
+        tensor_a,
+        tensor_b,
+        out_shape,
+        out_dtype,
+        transpose_a,
+        transpose_b,
     )
-    return C
 
 
 @autotvm.register_topi_schedule("batch_matmul.x86")
@@ -137,20 +151,32 @@ def _default_batch_matmul_config(cfg, M, N, K):
     cfg["tile_y"] = SplitEntity([M // y_bn, y_bn])
 
 
-def batch_matmul_blas_common(cfg, x, y, out_shape, lib):
-    """Computes batch matrix multiplication of `x` and `y` when `x` and `y` are
-    data in batch, using one of BLAS libraries. Supports broadcasting in batch dimension.
+def batch_matmul_blas_common(cfg, tensor_a, tensor_b, out_shape, trans_a, trans_b, lib):
+    """Computes batch matrix multiplication of `tensor_a` and `tensor_b` when `tensor_a` and
+    `tensor_b` are data in batch, using one of BLAS libraries. Supports broadcasting in batch
+    dimension.
 
     Parameters
     ----------
     cfg : ConfigSpace
         Autotvm tuning space config file
-    x : tvm.te.Tensor
-        3-D with shape [batch, M, K]
-    y : tvm.te.Tensor
-        3-D with shape [batch, N, K]
-    out_shape : tuple or None
-        Shape of the output
+
+    tensor_a : tvm.te.Tensor
+        3-D with shape [batch, M, K] or [batch, K, M].
+
+    tensor_b : tvm.te.Tensor
+        3-D with shape [batch, K, N] or [batch, N, K].
+
+    out_shape : List[Optional]
+        Explicit intended output shape of the computation. Can be useful in cases
+        with dynamic input shapes.
+
+    trans_a : Optional[bool] = False
+        Whether the first tensor is in transposed format.
+
+    trans_b : Optional[bool] = True
+        Whether the second tensor is in transposed format.
+
     lib : A contrib module which implements batch_matmul function
         cblas and mkl are supported
 
@@ -159,9 +185,15 @@ def batch_matmul_blas_common(cfg, x, y, out_shape, lib):
     output : tvm.te.Tensor
         3-D with shape [batch, M, N]
     """
-    assert len(x.shape) == 3 and len(y.shape) == 3, "only support 3-dim batch_matmul"
-    XB, M, XK = get_const_tuple(x.shape)
-    YB, N, YK = get_const_tuple(y.shape)
+    assert len(tensor_a.shape) == 3 and len(tensor_b.shape) == 3, "only support 3-dim batch_matmul"
+    if trans_a:
+        XB, XK, M = get_const_tuple(tensor_a.shape)
+    else:
+        XB, M, XK = get_const_tuple(tensor_a.shape)
+    if trans_b:
+        YB, N, YK = get_const_tuple(tensor_b.shape)
+    else:
+        YB, YK, N = get_const_tuple(tensor_a.shape)
     assert (XB == YB) or (YB == 1) or (XB == 1), "batch dimension doesn't match"
     assert XK == YK, "shapes of x and y is inconsistent"
     if out_shape is not None:
@@ -169,13 +201,18 @@ def batch_matmul_blas_common(cfg, x, y, out_shape, lib):
         assert out_shape[1] == M, "got invalid output shape"
         assert out_shape[2] == N, "got invalid output shape"
     cfg.add_flop(XB * M * N * XK * 2)
-    return lib.batch_matmul(x, y, False, True)
+    return lib.batch_matmul(tensor_a, tensor_b, trans_a, trans_b)
 
 
 @autotvm.register_topi_compute("batch_matmul_cblas.x86")
-def batch_matmul_cblas(cfg, x, y, out_shape=None):
+def batch_matmul_cblas(
+    cfg, tensor_a, tensor_b, out_shape=None, out_dtype=None, transpose_a=False, transpose_b=True
+):
     """Compute batch_matmul using cblas"""
-    return batch_matmul_blas_common(cfg, x, y, out_shape, cblas)
+    del out_dtype  # Unused argument
+    return batch_matmul_blas_common(
+        cfg, tensor_a, tensor_b, out_shape, transpose_a, transpose_b, cblas
+    )
 
 
 @autotvm.register_topi_schedule("batch_matmul_cblas.x86")
@@ -185,9 +222,14 @@ def schedule_batch_matmul_cblas(_, outs):
 
 
 @autotvm.register_topi_compute("batch_matmul_mkl.x86")
-def batch_matmul_mkl(cfg, x, y, out_shape=None):
+def batch_matmul_mkl(
+    cfg, tensor_a, tensor_b, out_shape=None, out_dtype=None, transpose_a=False, transpose_b=True
+):
     """Compute batch_matmul using mkl"""
-    return batch_matmul_blas_common(cfg, x, y, out_shape, mkl)
+    del out_dtype  # Unused argument
+    return batch_matmul_blas_common(
+        cfg, tensor_a, tensor_b, out_shape, transpose_a, transpose_b, mkl
+    )
 
 
 @autotvm.register_topi_schedule("batch_matmul_mkl.x86")

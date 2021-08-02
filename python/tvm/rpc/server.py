@@ -365,9 +365,14 @@ def _popen_start_rpc_server(
     custom_addr=None,
     silent=False,
     no_fork=False,
+    server_init_callback=None,
 ):
     if no_fork:
         multiprocessing.set_start_method("spawn")
+
+    if server_init_callback:
+        server_init_callback()
+
     # This is a function that will be sent to the
     # Popen worker to run on a separate process.
     # Create and start the server in a different thread
@@ -420,6 +425,25 @@ class Server(object):
 
     no_fork: bool, optional
         Whether forbid fork in multiprocessing.
+
+    server_init_callback: Callable, optional
+        Additional initialization function when starting the server.
+
+    Note
+    ----
+    The RPC server only sees functions in the tvm namespace.
+    To bring additional custom functions to the server env, you can use server_init_callback.
+
+    .. code:: python
+
+        def server_init_callback():
+            import tvm
+            # must import mypackage here
+            import mypackage
+
+            tvm.register_func("function", mypackage.func)
+
+        server = rpc.Server(host, server_init_callback=server_init_callback)
     """
 
     def __init__(
@@ -434,6 +458,7 @@ class Server(object):
         custom_addr=None,
         silent=False,
         no_fork=False,
+        server_init_callback=None,
     ):
         try:
             if _ffi_api.ServerLoop is None:
@@ -455,6 +480,7 @@ class Server(object):
                 custom_addr,
                 silent,
                 no_fork,
+                server_init_callback,
             ],
         )
         # receive the port

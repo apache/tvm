@@ -1448,13 +1448,15 @@ def _test_upsampling(layout, method, align_corners=False):
         align_corners=align_corners,
     )
     func = relay.Function([x], y)
+
     data = np.random.uniform(size=dshape).astype(dtype)
-    if method == "nearest_neighbor":
-        ref = tvm.topi.testing.upsampling_python(data, (scale_h, scale_w), layout)
-    else:
-        ref = tvm.topi.testing.bilinear_resize_python(
-            data, (int(round(h * scale_h)), int(round(w * scale_w))), layout
-        )
+    ref = tvm.topi.testing.resize2d_python(
+        data,
+        (scale_h, scale_w),
+        layout,
+        method[2:] if method[0:2] == "bi" else method,
+        "align_corners" if align_corners else "asymmetric",
+    )
     for target, dev in tvm.testing.enabled_targets():
         executor = relay.create_executor("graph", device=dev, target=target)
         out = executor.evaluate(func)(data)
@@ -1518,15 +1520,15 @@ def _test_upsampling3d(layout, method, coordinate_transformation_mode="half_pixe
         coordinate_transformation_mode=coordinate_transformation_mode,
     )
     func = relay.Function([x], y)
+
     data = np.random.uniform(size=dshape).astype(dtype)
-    if method == "nearest_neighbor":
-        ref = tvm.topi.testing.upsampling3d_python(data, (scale_d, scale_h, scale_w), layout)
-    else:
-        ref = tvm.topi.testing.trilinear_resize3d_python(
-            data,
-            (int(round(d * scale_d)), int(round(h * scale_h)), int(round(w * scale_w))),
-            layout,
-        )
+    ref = tvm.topi.testing.resize3d_python(
+        data,
+        (scale_d, scale_h, scale_w),
+        layout,
+        method[3:] if method[0:3] == "tri" else method,
+        coordinate_transformation_mode,
+    )
     for target, dev in tvm.testing.enabled_targets():
         executor = relay.create_executor("graph", device=dev, target=target)
         out = executor.evaluate(func)(data)
@@ -1535,9 +1537,9 @@ def _test_upsampling3d(layout, method, coordinate_transformation_mode="half_pixe
 
 @tvm.testing.uses_gpu
 def test_upsampling3d():
-    _test_upsampling3d("NCDHW", "nearest_neighbor")
+    _test_upsampling3d("NCDHW", "nearest_neighbor", "asymmetric")
     _test_upsampling3d("NCDHW", "trilinear", "align_corners")
-    _test_upsampling3d("NDHWC", "nearest_neighbor")
+    _test_upsampling3d("NDHWC", "nearest_neighbor", "asymmetric")
     _test_upsampling3d("NDHWC", "trilinear", "align_corners")
 
 

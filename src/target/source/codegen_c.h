@@ -39,6 +39,7 @@
 #include <unordered_set>
 #include <vector>
 
+#include "../../tir/transforms/ir_utils.h"
 #include "codegen_source_base.h"
 
 namespace tvm {
