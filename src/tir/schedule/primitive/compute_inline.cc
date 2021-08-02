@@ -675,5 +675,56 @@ void ReverseComputeInline(ScheduleState self, const StmtSRef& consumer_block_sre
   self->Replace(scope_root_sref, tgt_stmt, inliner.block_reuse);
 }
 
+/******** Instruction Registration ********/
+
+struct ComputeInlineTraits : public UnpackedInstTraits<ComputeInlineTraits> {
+  static constexpr const char* kName = "ComputeInline";
+  static constexpr bool kIsPure = false;
+
+ private:
+  static constexpr size_t kNumInputs = 1;
+  static constexpr size_t kNumAttrs = 0;
+  static constexpr size_t kNumDecisions = 0;
+
+  static void UnpackedApplyToSchedule(Schedule sch, BlockRV block_rv) {
+    return sch->ComputeInline(block_rv);
+  }
+
+  static String UnpackedAsPython(Array<String> outputs, String block_rv) {
+    PythonAPICall py("compute_inline");
+    py.Input("block", block_rv);
+    return py.Str();
+  }
+
+  template <typename>
+  friend struct ::tvm::tir::UnpackedInstTraits;
+};
+
+struct ReverseComputeInlineTraits : public UnpackedInstTraits<ReverseComputeInlineTraits> {
+  static constexpr const char* kName = "ReverseComputeInline";
+  static constexpr bool kIsPure = false;
+
+ private:
+  static constexpr size_t kNumInputs = 1;
+  static constexpr size_t kNumAttrs = 0;
+  static constexpr size_t kNumDecisions = 0;
+
+  static void UnpackedApplyToSchedule(Schedule sch, BlockRV block_rv) {
+    return sch->ReverseComputeInline(block_rv);
+  }
+
+  static String UnpackedAsPython(Array<String> outputs, String block_rv) {
+    PythonAPICall py("reverse_compute_inline");
+    py.Input("block", block_rv);
+    return py.Str();
+  }
+
+  template <typename>
+  friend struct ::tvm::tir::UnpackedInstTraits;
+};
+
+TVM_REGISTER_INST_KIND_TRAITS(ComputeInlineTraits);
+TVM_REGISTER_INST_KIND_TRAITS(ReverseComputeInlineTraits);
+
 }  // namespace tir
 }  // namespace tvm

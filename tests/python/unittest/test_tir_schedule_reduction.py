@@ -14,9 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import pytest
+import sys
 
 import numpy as np
+import pytest
 import tvm
 import tvm.testing
 from tvm import tir
@@ -671,4 +672,4 @@ def test_reduction_rfactor_outermost_loop_multiple_children():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

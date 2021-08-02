@@ -76,25 +76,27 @@ class ConcreteScheduleNode : public ScheduleNode {
   using ScheduleNode::GetSRef;
 
  public:
-  /******** Block/Loop relation ********/
+  /******** Schedule: Sampling ********/
+  /******** Schedule: Get blocks & loops ********/
   BlockRV GetBlock(const String& name, const String& func_name = "main") override;
   Array<LoopRV> GetLoops(const BlockRV& block_rv) override;
-  /******** Schedule: loops manipulation ********/
+  /******** Schedule: Transform loops ********/
   LoopRV Fuse(const Array<LoopRV>& loop_rvs) override;
   Array<LoopRV> Split(const LoopRV& loop_rv, const Array<Optional<ExprRV>>& factors) override;
-  /******** Schedule: compute location ********/
+  /******** Schedule: Manipulate ForKind ********/
+  /******** Schedule: Insert cache stages ********/
+  /******** Schedule: Compute location ********/
   void ComputeInline(const BlockRV& block) override;
   void ReverseComputeInline(const BlockRV& block) override;
-  /******** Schedule: loop binding/annotation ********/
-  /******** Schedule: cache read/write ********/
-  /******** Schedule: reduction ********/
-  /******** Schedule: blockize & tensorize ********/
-
-  /******** Schedule: reduction ********/
+  /******** Schedule: Reduction ********/
   BlockRV RFactor(const LoopRV& loop_rv, int factor_axis) override;
+  /******** Schedule: Blockize & Tensorize ********/
+  /******** Schedule: Annotation ********/
+  /******** Schedule: Misc ********/
+  void EnterPostproc() override {}
 
-  /******** Utility functions ********/
  protected:
+  /******** Utility functions ********/
   /*!
    * \brief Copy the schedule state, as well as the symbol table
    * \param new_state The ScheduleState copied

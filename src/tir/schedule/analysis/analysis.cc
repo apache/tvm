@@ -417,40 +417,6 @@ bool GetVarsTouchedByBlockIters(const BlockRealize& block_realize,
 
 /******** Block-loop relation ********/
 
-Array<StmtSRef> GetBlocks(const ScheduleState& self, const String& name, const String& func_name) {
-  struct Finder : public StmtVisitor {
-    explicit Finder(const ScheduleState& self, const String& name) : self_(self), name_(name) {}
-
-    void VisitStmt_(const BlockNode* block) override {
-      if (block->name_hint == name_) {
-        auto it = self_->stmt2ref.find(block);
-        ICHECK(it != self_->stmt2ref.end());
-        results_.push_back(it->second);
-      }
-      StmtVisitor::VisitStmt_(block);
-    }
-
-    const ScheduleState& self_;
-    const String& name_;
-    Array<StmtSRef> results_;
-  };
-
-  BaseFunc func = self->mod->Lookup(func_name);
-  const auto* prim_func = TVM_TYPE_AS(prim_func, func, PrimFuncNode);
-  Finder finder(self, name);
-  finder(prim_func->body);
-  return std::move(finder.results_);
-}
-
-Array<StmtSRef> GetLoops(const StmtSRef& block_sref) {
-  std::vector<StmtSRef> result;
-  for (StmtSRefNode* parent = block_sref->parent; parent && parent->stmt->IsInstance<ForNode>();
-       parent = parent->parent) {
-    result.push_back(GetRef<StmtSRef>(parent));
-  }
-  return {result.rbegin(), result.rend()};
-}
-
 Array<StmtSRef> GetChildBlockSRefOnSRefTree(const ScheduleState& self,
                                             const StmtSRef& parent_sref) {
   Array<BlockRealize> child_block_realize = GetChildBlockRealizeOnSRefTree(parent_sref);

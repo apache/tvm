@@ -24,7 +24,25 @@
 namespace tvm {
 namespace tir {
 
-/******** Schedule: loops manipulation ********/
+/******** Schedule: Sampling ********/
+/******** Schedule: Get blocks & loops ********/
+/*!
+ * \brief Retrieves blocks in a specific function with its name
+ * \param self The schedule state
+ * \param name The name of the blocks to be retrieved
+ * \param func_name The name of the function
+ * \return A list of blocks with the specific name
+ */
+Array<StmtSRef> GetBlocks(const ScheduleState& self, const String& name, const String& func_name);
+/*!
+ * \brief Gets the parent loops of the block in its scope, from outer to inner
+ * \param self The schedule state
+ * \param block_sref The query block
+ * \return A list of loops above the given block in its scope, from outer to inner
+ */
+Array<StmtSRef> GetLoops(const StmtSRef& block_sref);
+/******** Schedule: Transform loops ********/
+
 /*!
  * Split a loop into a list of consecutive loops. It requires:
  * 1) The loop can't have annotation or thread binding.
@@ -46,7 +64,9 @@ TVM_DLL Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
  * \return The sref to the fused loop
  */
 TVM_DLL StmtSRef Fuse(ScheduleState self, const Array<StmtSRef>& loop_srefs);
-/******** Schedule: compute location ********/
+/******** Schedule: Manipulate ForKind ********/
+/******** Schedule: Insert cache stages ********/
+/******** Schedule: Compute location ********/
 /*!
  * \brief Inline a block into its consumer(s). It requires:
  * 1) The block is a complete non-root block, which only produces one buffer
@@ -72,12 +92,7 @@ TVM_DLL void ComputeInline(ScheduleState self, const StmtSRef& block_sref);
  * \param block_sref The sref to the block to be inlined to its producer
  */
 TVM_DLL void ReverseComputeInline(ScheduleState self, const StmtSRef& block_sref);
-
-/******** Schedule: loop binding/annotation ********/
-
-/******** Schedule: cache read/write ********/
-
-/******** Schedule: reduction ********/
+/******** Schedule: Reduction ********/
 /*!
  * \brief Factor a reduction block by the specified loop
  * \details See python/tvm/tir/schedule/schedule.py
@@ -89,8 +104,9 @@ TVM_DLL void ReverseComputeInline(ScheduleState self, const StmtSRef& block_sref
  * \return The sref of the rfactor block
  */
 TVM_DLL StmtSRef RFactor(ScheduleState self, const StmtSRef& loop_sref, int factor_axis);
-
-/******** Schedule: blockize & tensorize ********/
+/******** Schedule: Blockize & Tensorize ********/
+/******** Schedule: Annotation ********/
+/******** Schedule: Misc ********/
 
 }  // namespace tir
 }  // namespace tvm
