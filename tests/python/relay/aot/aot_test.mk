@@ -34,7 +34,8 @@ PKG_CFLAGS = ${PKG_COMPILE_OPTS} \
 	-I$(DMLC_CORE)/include \
 	-I$(TVM_ROOT)/3rdparty/dlpack/include \
 	-I$(AOT_ROOT)\
-	-I$(build_dir)
+	-I$(build_dir) \
+	-I$(CODEGEN_ROOT)/host/include
 
 $(ifeq VERBOSE,1)
 QUIET ?=
