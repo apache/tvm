@@ -716,13 +716,8 @@ Expr QnnConv2DCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
     input_zero_point_int = GetScalarFromConstant<int>(input_zero_point);
     kernel_zero_point_int = GetScalarFromConstant<int>(kernel_zero_point);
   } else {
-    // Figure out the channel axis to force appropriate shape for kernel.
-    Layout layout(param->data_layout);
-    int channel_axis = layout.IndexOf(LayoutAxis::Get('C'));
-    kernel_zero_point = Reshape(kernel_zero_point, {
-                                                       -1,
-                                                   });
-    kernel_zero_point = ExpandBiasToMatchAxis(kernel_zero_point, 4, {channel_axis});
+    // Make kernel_zero_point expression a 1-D tensor for consistent shape.
+    kernel_zero_point = Reshape(kernel_zero_point, {-1,});
     dynamic_zp = true;
   }
 
@@ -738,6 +733,21 @@ Expr QnnConv2DCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   bool supported_dilation = (kernel_zero_point_int == 0) || (dilation_h == 1 && dilation_w == 1);
   bool supported_groups = (param->groups == 1 || is_depthwise(param));
   bool conv2d_params_supported = supported_dilation && supported_groups;
+
+  // If we need to fall back to default conv2d, kernel zp may need to be broadcast to kernel_layout.
+  // Otherwise, we broadcast it to data_layout for qnn lowering.
+  if (dynamic_zp) {
+    if (!conv2d_params_supported) {
+      Layout kernel_layout(param->kernel_layout);
+      int kernel_axis = kernel_layout.IndexOf(LayoutAxis::Get("O"));
+      kernel_zero_point = ExpandBiasToMatchAxis(kernel_zero_point, 4, {kernel_axis});
+    } else {
+      Layout data_layout(param->data_layout);
+      int channel_axis = data_layout.IndexOf(LayoutAxis::Get("C"));
+      kernel_zero_point = ExpandBiasToMatchAxis(kernel_zero_point, 4, {channel_axis});
+    }
+  }
+
   if (!conv2d_params_supported) {
     return Conv2DFallBack(data, weight, input_zero_point, kernel_zero_point, param);
   } else if (is_depthwise(param)) {
