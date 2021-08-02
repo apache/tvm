@@ -58,8 +58,6 @@ def convert_feed(g, op, block):
     ipt_dtype = str(ipt_dtype).strip().split('.')[1]
     if g.shape_dict is not None:
         ipt_shape = g.shape_dict[ipt_name]
-    print("88888", ipt_name, ipt_shape)
-
     g.nodes[ipt_name] = new_var(ipt_name, shape=ipt_shape, dtype=ipt_dtype)
 
 def convert_scale(g, op, block):
@@ -234,7 +232,7 @@ def convert_matmul(g, op, block):
     else:
         if len(y_shape) == 2:
             y = _op.transpose(y, axes=[1, 0])
-        out = _op.dense(x, y)
+        out = _op.nn.dense(x, y)
     try:
         alpha = op.attr('alpha')
         if not np.isclose(alpha, 1.0):
