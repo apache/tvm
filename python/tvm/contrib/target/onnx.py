@@ -655,7 +655,7 @@ class LRN(OpConverter):
 
 
 class Cast(OpConverter):
-    """ Operator converter for Cast."""
+    """Operator converter for Cast."""
 
     @classmethod
     def convert_attributes(cls, attrs):

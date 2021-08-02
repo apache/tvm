@@ -441,8 +441,10 @@ def test_dynamic_zero_point():
         data_dtype = "uint8"
         kernel_shape = (3, 4, 2, 2)
         kernel_dtype = "uint8"
-        input_zero_point = relay.op.multiply(relay.const(2, dtype='int32'), relay.const(2, dtype='int32'))
-        kernel_zero_point = relay.const(np.random.randint(10, size=[3]), 'int32')
+        input_zero_point = relay.op.multiply(
+            relay.const(2, dtype="int32"), relay.const(2, dtype="int32")
+        )
+        kernel_zero_point = relay.const(np.random.randint(10, size=[3]), "int32")
         ref_func, qnn_func = get_funcs(
             data_shape=data_shape,
             data_dtype=data_dtype,

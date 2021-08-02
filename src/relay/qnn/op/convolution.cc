@@ -382,7 +382,7 @@ Expr DepthwiseConv2DFourthTerm(int input_zero_point_int, int kernel_zero_point_i
 }
 
 /*
- * \brief Calculates the fourth term in the qnn.conv2d depthwise lowering sequence 
+ * \brief Calculates the fourth term in the qnn.conv2d depthwise lowering sequence
           for non-constant zero_points.
  * \param input_zero_point The Expr for the input zero point.
  * \param kernel_zero_point The Expr for the kernel zero point.
@@ -393,8 +393,8 @@ Expr DepthwiseConv2DFourthTerm(int input_zero_point_int, int kernel_zero_point_i
  *
  *       Sigma(r, s) zp_a * zp_w
  */
-Expr DepthwiseConv2DFourthTerm(const Expr& input_zero_point, const Expr& kernel_zero_point, int kernel_h,
-                               int kernel_w) {
+Expr DepthwiseConv2DFourthTerm(const Expr& input_zero_point, const Expr& kernel_zero_point,
+                               int kernel_h, int kernel_w) {
   Expr scalar_term4 = MakeConstantScalar(DataType::Int(32), kernel_h * kernel_w);
   Expr variable_term4 = Multiply(input_zero_point, kernel_zero_point);
   return Multiply(scalar_term4, variable_term4);
@@ -559,7 +559,7 @@ Expr Conv2DFourthTerm(int input_zero_point_int, int kernel_zero_point_int, int i
 }
 
 /*
- * \brief Calculates the fourth term in the qnn.conv2d lowering sequence 
+ * \brief Calculates the fourth term in the qnn.conv2d lowering sequence
           for non-constant zero_points.
  * \param input_zero_point The Expr for the input zero point.
  * \param kernel_zero_point The Expr for the kernel zero point.
@@ -719,7 +719,9 @@ Expr QnnConv2DCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
     // Figure out the channel axis to force appropriate shape for kernel.
     Layout layout(param->data_layout);
     int channel_axis = layout.IndexOf(LayoutAxis::Get('C'));
-    kernel_zero_point = Reshape(kernel_zero_point, {-1,});
+    kernel_zero_point = Reshape(kernel_zero_point, {
+                                                       -1,
+                                                   });
     kernel_zero_point = ExpandBiasToMatchAxis(kernel_zero_point, 4, {channel_axis});
     dynamic_zp = true;
   }
