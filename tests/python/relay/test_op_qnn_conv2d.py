@@ -54,9 +54,11 @@ def get_ref_func(
     if isinstance(kernel_zero_point, (int, float)):
         kernel_zero_point = relay.const(kernel_zero_point, "int32")
     else:
-        # Kernel zero point expression requires manual broadcasting for OIHW.
+        # Kernel zero point expression requires manual broadcasting for some layouts.
         if kernel_layout == "OIHW":
             kernel_zero_point = relay.reshape(kernel_zero_point, [-1, 1, 1, 1])
+        elif kernel_layout == "HWOI":
+            kernel_zero_point = relay.reshape(kernel_zero_point, [1, 1, -1, 1])
 
     casted_data = relay.op.cast(data, "int32")
     casted_kernel = relay.op.cast(kernel, "int32")
@@ -1021,8 +1023,8 @@ def test_depthwise_depth_multiplier():
             data_dtype=data_dtype,
             kernel_shape=kernel_shape,
             kernel_dtype=kernel_dtype,
-            input_zero_point=5,
-            kernel_zero_point=3,
+            input_zero_point=input_zero_point,
+            kernel_zero_point=kernel_zero_point,
             input_scale=1.0,
             kernel_scale=1.0,
             kernel_size=(3, 3),
@@ -1046,8 +1048,8 @@ def test_depthwise_depth_multiplier():
             data_dtype=data_dtype,
             kernel_shape=kernel_shape,
             kernel_dtype=kernel_dtype,
-            input_zero_point=5,
-            kernel_zero_point=3,
+            input_zero_point=input_zero_point,
+            kernel_zero_point=kernel_zero_point,
             input_scale=1.0,
             kernel_scale=1.0,
             kernel_size=(3, 3),
@@ -1095,19 +1097,19 @@ def test_per_channel_kernel_scale():
 
 
 if __name__ == "__main__":
-    #test_no_zero_point()
-    #test_input_zero_point()
-    #test_kernel_zero_point()
-    #test_both_zero_point()
-    #test_layout()
-    #test_padding()
-    #test_dilation()
-    #test_const_folding()
-    #test_kernel_size_1x1()
-    #test_kernel_size_1x1_strides_2()
-    #test_tflite_large_irregular()
-    #test_broadcast_layout()
-    #test_tflite_output_multiplier_greater_than_one()
-    #test_tflite_anistropic_strides()
+    test_no_zero_point()
+    test_input_zero_point()
+    test_kernel_zero_point()
+    test_both_zero_point()
+    test_layout()
+    test_padding()
+    test_dilation()
+    test_const_folding()
+    test_kernel_size_1x1()
+    test_kernel_size_1x1_strides_2()
+    test_tflite_large_irregular()
+    test_broadcast_layout()
+    test_tflite_output_multiplier_greater_than_one()
+    test_tflite_anistropic_strides()
     test_depthwise_depth_multiplier()
-    #test_per_channel_kernel_scale()
+    test_per_channel_kernel_scale()
