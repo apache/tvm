@@ -311,3 +311,11 @@ set(BUILD_STATIC_RUNTIME OFF)
 # - OFF: disable ccache
 # - /path/to/ccache: use specific path to ccache
 set(USE_CCACHE AUTO)
+
+# Whether to enable PAPI support in profiling. PAPI provides access to hardware
+# counters while profiling.
+# Possible values:
+# - ON: enable PAPI support. Will search PKG_CONFIG_PATH for a papi.pc
+# - OFF: disable PAPI support.
+# - /path/to/folder/containing/: Path to folder containing papi.pc.
+set(USE_PAPI OFF)
