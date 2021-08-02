@@ -54,8 +54,8 @@ inline String get_name_mangled(const String& module_name, const String& name) {
  */
 class MetadataNode : public Object {
  public:
-  /*! \brief number of inputs of the main function */
-  int num_inputs = 1;
+  /*! \brief input information for the main function */
+  Array<String> inputs;
   /*! \brief number of outputs of the main function */
   int num_outputs = 1;
   /*! \brief the executor to be used to run the model */
@@ -73,9 +73,9 @@ class MetadataNode : public Object {
  */
 class Metadata : public ObjectRef {
  public:
-  TVM_DLL Metadata(int num_inputs, int num_outputs, String executor, String mod_name) {
+  TVM_DLL Metadata(Array<String> inputs, int num_outputs, String executor, String mod_name) {
     auto n = make_object<MetadataNode>();
-    n->num_inputs = num_inputs;
+    n->inputs = inputs;
     n->num_outputs = num_outputs;
     n->executor = executor;
     n->mod_name = mod_name;
