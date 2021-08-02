@@ -717,7 +717,9 @@ Expr QnnConv2DCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
     kernel_zero_point_int = GetScalarFromConstant<int>(kernel_zero_point);
   } else {
     // Make kernel_zero_point expression a 1-D tensor for consistent shape.
-    kernel_zero_point = Reshape(kernel_zero_point, {-1,});
+    kernel_zero_point = Reshape(kernel_zero_point, {
+                                                       -1,
+                                                   });
     dynamic_zp = true;
   }
 
