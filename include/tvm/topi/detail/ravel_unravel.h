@@ -44,7 +44,9 @@ using namespace tvm::te;
  */
 inline PrimExpr RavelIndex(Array<PrimExpr> indices, Array<PrimExpr> shape) {
   ICHECK_EQ(indices.size(), shape.size()) << "indices and shape must have equal size";
-  ICHECK_GT(indices.size(), 0) << "indices must not be empty";
+  if (indices.size() == 0U) {
+    return 0;
+  }
   PrimExpr idx;
   for (size_t i = 0; i < indices.size(); ++i) {
     if (i == 0) {

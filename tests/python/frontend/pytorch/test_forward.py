@@ -1571,6 +1571,7 @@ def test_forward_linear():
     input2d = torch.rand([2, 2]).float()
     weight1d = torch.rand([2]).float()
     weight2d = torch.rand([2, 2]).float()
+    weight3x2 = torch.rand([3, 2]).float()
     bias1d = torch.rand([2]).float()
     bias2d = torch.rand([2, 2]).float()
     # 2D input, 2D weight, 1D bias
@@ -1579,6 +1580,7 @@ def test_forward_linear():
     verify_model(Linear(), input_data=[input2d, weight2d, bias2d])
     # 2D input, 2D weight, no bias
     verify_model(LinearNoBias(), input_data=[input2d, weight2d])
+    verify_model(LinearNoBias(), input_data=[input2d, weight3x2])
     # 2D input, 1D weight, 1D bias is not supported by torch.linear()
     # 2D input, 1D weight, no bias
     verify_model(LinearNoBias(), input_data=[input2d, weight1d])
@@ -3981,6 +3983,7 @@ if __name__ == "__main__":
     test_forward_logsoftmax()
     test_forward_sigmoid()
     test_forward_dense()
+    test_forward_linear()
     test_forward_avgpool1d()
     test_forward_avgpool2d()
     test_forward_avgpool3d()

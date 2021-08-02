@@ -1445,7 +1445,7 @@ class PyTorchOpConverter:
         # 0 - input
         # 1 - weight
         bias = inputs[2]
-        mm_out = self.matmul(inputs[:2], input_types[:2])
+        mm_out = self.matmul([inputs[0], _op.transpose(inputs[1], axes=(1, 0))], input_types[:2])
         if isinstance(bias, _expr.Expr):
             bias_ndims = len(self.infer_shape_with_prelude(bias))
             if bias_ndims == 1:
