@@ -331,14 +331,15 @@ def LowerCustomDatatypes():
     return _ffi_api.LowerCustomDatatypes()  # type: ignore
 
 
-def MakePackedAPI(num_unpacked_params: int = 0):
+def MakePackedAPI(num_unpacked_params: int = -1):
     """Transform the PrimFuncs in the module to a packed func API.
 
     Parameters
     ----------
     num_unpacked_params : int
         Number of parameters that we hope to directly pass via normal arguments
-        following the PackedFunc input signature.
+        following the PackedFunc input signature. If it is specified as -1 or it
+        is less than the number of arguments, the pass will packed arguments still.
 
     Returns
     -------
@@ -643,6 +644,17 @@ def CompactBufferAllocation():
     return _ffi_api.CompactBufferAllocation()  # type: ignore
 
 
+def LowerMatchBuffer():
+    """Remove match buffers inside the block. Also, it will validate the binding.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.LowerMatchBuffer()  # type: ignore
+
+
 def FlattenBuffer():
     """Flatten the multi-dimensional BufferLoad and BufferStore
     to single dimensional Load/Store. Also remove Block to
@@ -654,3 +666,15 @@ def FlattenBuffer():
         The result pass
     """
     return _ffi_api.FlattenBuffer()  # type: ignore
+
+
+def MergeDynamicSharedMemoryAllocations():
+    """This pass merges multiple TIR-level dynamic shared memory allocations
+    into one allocation.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.MergeDynamicSharedMemoryAllocations()  # type: ignore

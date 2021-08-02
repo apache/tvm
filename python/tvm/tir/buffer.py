@@ -134,6 +134,15 @@ class Buffer(Object):
         begin = (begin,) if isinstance(begin, (int, PrimExpr)) else begin
         return _ffi_api.BufferVStore(self, begin, value)  # type: ignore
 
+    def scope(self):
+        """Return the storage scope associated with this buffer.
+        Returns
+        -------
+        scope : str
+            The storage scope associated with this buffer.
+        """
+        return _ffi_api.BufferStorageScope(self)  # type: ignore
+
 
 def decl_buffer(
     shape,
@@ -246,7 +255,7 @@ def decl_buffer(
     dtype = "float32" if dtype is None else dtype
     strides = () if strides is None else strides
     if offset_factor != 0 and elem_offset is None:
-        shape_dtype = shape[0].dtype if hasattr(shape[0], "dtype") else "int32"
+        shape_dtype = shape[0].dtype if shape and hasattr(shape[0], "dtype") else "int32"
         elem_offset = Var("%s_elem_offset" % name, shape_dtype)
     if data is None:
         # Bool is represented as uint1 in the IR, but stored as int8
@@ -260,7 +269,6 @@ def decl_buffer(
         strides,
         elem_offset,
         name,
-        scope,
         data_alignment,
         offset_factor,
         buffer_type,

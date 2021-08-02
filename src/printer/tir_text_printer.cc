@@ -35,6 +35,7 @@
 #include <algorithm>
 #include <string>
 
+#include "../tir/transforms/ir_utils.h"
 #include "doc.h"
 #include "meta_data.h"
 #include "text_printer.h"
@@ -204,8 +205,8 @@ Doc TIRTextPrinter::BufferNode2Doc(const BufferNode* buf, Doc doc) {
   if (!is_zero(buf->elem_offset)) {
     doc << ", elem_offset=" << Print(buf->elem_offset);
   }
-  if (buf->scope != "global") {
-    doc << ", scope=" << Doc::StrLiteral(buf->scope);
+  if (GetRef<Buffer>(buf).scope() != "global") {
+    doc << ", scope=" << Doc::StrLiteral(GetRef<Buffer>(buf).scope());
   }
   if (buf->data_alignment != 128) {
     doc << ", align=" << buf->data_alignment;
@@ -447,8 +448,9 @@ Doc TIRTextPrinter::VisitStmt_(const BufferRealizeNode* op) {
 
 Doc TIRTextPrinter::VisitStmt_(const AllocateNode* op) {
   Doc doc;
+  auto scope = GetPtrStorageScope(op->buffer_var);
   doc << "allocate(" << Print(op->buffer_var) << ", " << PrintDType(op->dtype) << ", "
-      << Print(op->extents) << ")";
+      << Print(op->extents) << "), storage_scope = " << scope;
   if (!is_one(op->condition)) {
     doc << " if " << Print(op->condition);
   }
@@ -483,23 +485,6 @@ Doc TIRTextPrinter::VisitStmt_(const EvaluateNode* op) {
   Doc doc;
   doc << Print(op->value);
   return doc;
-}
-
-inline const char* ForKind2String(ForKind t) {
-  switch (t) {
-    case ForKind::kSerial:
-      return "serial";
-    case ForKind::kParallel:
-      return "parallel";
-    case ForKind::kVectorized:
-      return "vectorized";
-    case ForKind::kUnrolled:
-      return "unroll";
-    case ForKind::kThreadBinding:
-      return "thread_binding";
-  }
-  LOG(FATAL) << "Unknown ForKind";
-  return "Unknown";
 }
 
 Doc TIRTextPrinter::VisitStmt_(const ForNode* op) {
@@ -598,8 +583,8 @@ Doc TIRTextPrinter::VisitStmt_(const BlockRealizeNode* op) {
          << Print(alloc_buf->shape) << ")" << Doc::NewLine();
   }
   for (const auto& match_buf : block_op->match_buffers) {
-    body << AllocBuf(match_buf->buffer) << " = match_buffer_region(" << Print(match_buf->source)
-         << ")" << Doc::NewLine();
+    body << AllocBuf(match_buf->buffer) << " = match_buffer(" << Print(match_buf->source) << ")"
+         << Doc::NewLine();
   }
   if (block_op->init.defined()) {
     Doc init_block;
