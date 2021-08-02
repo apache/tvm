@@ -1042,57 +1042,7 @@ IRModule VMCompiler::OptimizeModule(IRModule mod, const TargetsMap& targets_arg,
     mod->Add(gvar, f);
   }
 
-  Array<Pass> pass_seqs;
-  Array<runtime::String> entry_functions{"main"};
-  pass_seqs.push_back(transform::RemoveUnusedFunctions(entry_functions));
-  pass_seqs.push_back(transform::ToBasicBlockNormalForm());
-  // Run all dialect legalization passes.
-  pass_seqs.push_back(relay::qnn::transform::Legalize());
-
-  // Legalize pass is restricted to homogeneous execution for now.
-  if (targets.size() == 1) {
-    pass_seqs.push_back(transform::Legalize());
-  }
-
-  // eta expand to support constructors in argument position
-  pass_seqs.push_back(transform::EtaExpand(
-      /* expand_constructor */ true, /* expand_global_var */ false));
-
-  pass_seqs.push_back(transform::SimplifyInference());
-  PackedFunc fskip = PackedFunc([](TVMArgs args, TVMRetValue* rv) {
-    Expr expr = args[0];
-    if (expr.as<CallNode>()) {
-      auto call_node = expr.as<CallNode>();
-      auto op_node = call_node->op.as<OpNode>();
-      if (op_node->name == "cast") {
-        auto attrs = call_node->attrs.as<CastAttrs>();
-        if (attrs->dtype == DataType::Int(32)) {
-          *rv = true;
-        }
-      }
-    }
-    *rv = false;
-  });
-  pass_seqs.push_back(transform::EliminateCommonSubexpr(fskip));
-  pass_seqs.push_back(transform::SimplifyExpr());
-  pass_seqs.push_back(transform::InlinePrimitives());
-
-  pass_seqs.push_back(transform::CombineParallelConv2D(3));
-  pass_seqs.push_back(transform::CombineParallelDense(3));
-  pass_seqs.push_back(transform::CombineParallelBatchMatmul(3));
-  pass_seqs.push_back(transform::FoldConstant());
-  pass_seqs.push_back(transform::FoldScaleAxis());
-  pass_seqs.push_back(transform::CanonicalizeCast());
-  pass_seqs.push_back(transform::CanonicalizeOps());
-
-  // Alter layout transformation is only applied to homogeneous execution yet.
-  if (targets.size() == 1) {
-    pass_seqs.push_back(transform::AlterOpLayout());
-  }
-
-  // Fast math optimizations.
-  pass_seqs.push_back(transform::FastMath());
-  pass_seqs.push_back(transform::FoldConstant());
+  Array<Pass> pass_seqs = relay::backend::GetPassPrefix(targets, true);
 
   if (targets_.size() > 1) {
     // Handle heterogeneous compilation.

@@ -655,3 +655,32 @@ if(APPLE AND TVM_IS_DEBUG_BUILD)
       VERBATIM
 		  )
 endif()
+
+#Caches the build.
+#Note that ccache-3.x doesn't support nvcc well, so CUDA kernels may never hit the cache and still
+#need to be re-compiled every time. Using ccache 4.0+ can resolve this issue.
+
+if(USE_CCACHE) # True for AUTO, ON, /path/to/ccache
+  if("${USE_CCACHE}" STREQUAL "AUTO") # Auto mode
+    find_program(CCACHE_FOUND ccache)
+    if(CCACHE_FOUND)
+      message(STATUS "Found the path to ccache, enabling ccache")
+      set(PATH_TO_CCACHE ccache)
+    else()
+      message(STATUS "Didn't find the path to CCACHE, disabling ccache")
+    endif(CCACHE_FOUND)
+  elseif("${USE_CCACHE}" MATCHES ${IS_TRUE_PATTERN})
+    find_program(CCACHE_FOUND ccache)
+    if(CCACHE_FOUND)
+      message(STATUS "Found the path to ccache, enabling ccache")
+      set(PATH_TO_CCACHE ccache)
+    else()
+      message(FATAL_ERROR "Cannot find ccache. Set USE_CCACHE mode to AUTO or OFF to build without ccache. USE_CCACHE=" "${USE_CCACHE")
+    endif(CCACHE_FOUND)
+  else() # /path/to/ccache
+    set(PATH_TO_CCACHE USE_CCACHE)
+    message(STATUS "Setting ccache path to " "${PATH_TO_CCACHE}")
+  endif()
+  # Set the flag for ccache
+  set(CXX_COMPILER_LAUNCHER PATH_TO_CCACHE)
+endif(USE_CCACHE)

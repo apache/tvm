@@ -625,8 +625,6 @@ class AOTExecutorCodegen : public ExprVisitor {
         // so we don't pay the price of allocation for every inference
         if (!allocated[sid]) {
           body = tir::Allocate(sids_table_[sid], DataType::Int(8), {size}, tir::const_true(), body);
-          body = tir::AttrStmt(sids_table_[sid], tir::attr::storage_scope, tir::StringImm("global"),
-                               body);
         }
         allocated[sid] = true;
       }

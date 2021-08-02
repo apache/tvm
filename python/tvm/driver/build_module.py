@@ -161,7 +161,10 @@ def _build_for_device(input_mod, target, target_host):
     mod_mixed = input_mod
     mod_mixed = tvm.tir.transform.Apply(lambda f: f.with_attr("target", target))(mod_mixed)
 
-    opt_mixed = [tvm.tir.transform.VerifyMemory()]
+    opt_mixed = [
+        tvm.tir.transform.VerifyMemory(),
+        tvm.tir.transform.MergeDynamicSharedMemoryAllocations(),
+    ]
     if len(mod_mixed.functions) == 1:
         opt_mixed += [tvm.tir.transform.Apply(lambda f: f.with_attr("tir.is_entry_func", True))]
 

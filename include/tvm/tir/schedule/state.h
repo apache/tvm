@@ -190,14 +190,6 @@ class ScheduleState : public ObjectRef {
    * and each time after calling the Replace method.
    */
   TVM_DLL explicit ScheduleState(IRModule mod, int debug_mode = 0);
-  /*!
-   * \brief Construct a schedule state from a PrimFunc
-   * \param func The PrimFunc to be scheduled. A new IRModule will be created with
-   * this specific PrimFunc as "main" function in the module to be scheduled
-   * \param debug_mode Do extra correctness checking after the class creation
-   * and each time after calling the Replace method.
-   */
-  TVM_DLL explicit ScheduleState(PrimFunc func, int debug_mode = 0);
 
   /*! \return The mutable pointer to the ScheduleStateNode */
   ScheduleStateNode* get() const { return static_cast<ScheduleStateNode*>(data_.get()); }

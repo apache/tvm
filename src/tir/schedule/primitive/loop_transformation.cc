@@ -385,5 +385,79 @@ StmtSRef Fuse(ScheduleState self, const Array<StmtSRef>& loop_srefs) {
   return self->stmt2ref.at(new_stmt.get());
 }
 
+/******** Instruction Registration ********/
+
+struct SplitTraits : public UnpackedInstTraits<SplitTraits> {
+  static constexpr const char* kName = "Split";
+  static constexpr bool kIsPure = false;
+
+ private:
+  static constexpr size_t kNumInputs = 2;
+  static constexpr size_t kNumAttrs = 0;
+  static constexpr size_t kNumDecisions = 0;
+
+  template <size_t delta>
+  static TVM_ALWAYS_INLINE void _SetInputs(const runtime::TVMArgsSetter& setter,
+                                           const Array<ObjectRef>& inputs) {
+    thread_local ObjectRef loop_rv{nullptr};
+    thread_local Array<ObjectRef> factors{nullptr};
+    loop_rv = inputs[0];
+    factors = Array<ObjectRef>{inputs.begin() + 1, inputs.end()};
+    setter(delta, loop_rv);
+    setter(delta + 1, factors);
+  }
+
+  static Array<LoopRV> UnpackedApplyToSchedule(Schedule sch, LoopRV loop_rv,
+                                               Array<Optional<ExprRV>> factors) {
+    return sch->Split(loop_rv, factors);
+  }
+
+  static String UnpackedAsPython(Array<String> outputs, String loop_rv, Array<ObjectRef> factors) {
+    PythonAPICall py("split");
+    py.Input("loop", loop_rv);
+    py.Input("factors", factors);
+    py.OutputList(outputs);
+    return py.Str();
+  }
+
+  template <typename>
+  friend struct ::tvm::tir::UnpackedInstTraits;
+};
+
+struct FuseTraits : public UnpackedInstTraits<FuseTraits> {
+  static constexpr const char* kName = "Fuse";
+  static constexpr bool kIsPure = false;
+
+ private:
+  static constexpr size_t kNumInputs = 1;
+  static constexpr size_t kNumAttrs = 0;
+  static constexpr size_t kNumDecisions = 0;
+
+  template <size_t delta>
+  static TVM_ALWAYS_INLINE void _SetInputs(const runtime::TVMArgsSetter& setter,
+                                           const Array<ObjectRef>& inputs) {
+    setter(delta, inputs);
+  }
+
+  static LoopRV UnpackedApplyToSchedule(Schedule sch, Array<LoopRV> loop_rvs) {
+    return sch->Fuse(loop_rvs);
+  }
+
+  static String UnpackedAsPython(Array<String> outputs, Array<String> loop_rvs) {
+    PythonAPICall py("fuse");
+    for (const String& loop_rv : loop_rvs) {
+      py.Input("", loop_rv);
+    }
+    py.SingleOutput(outputs);
+    return py.Str();
+  }
+
+  template <typename>
+  friend struct ::tvm::tir::UnpackedInstTraits;
+};
+
+TVM_REGISTER_INST_KIND_TRAITS(SplitTraits);
+TVM_REGISTER_INST_KIND_TRAITS(FuseTraits);
+
 }  // namespace tir
 }  // namespace tvm

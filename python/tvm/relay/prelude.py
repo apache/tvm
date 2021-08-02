@@ -73,9 +73,33 @@ def get_tensor_array_shape(expr, dtype, prelude):
     return None
 
 
-def _get_name_static(canonical, dtype, shape):
-    """Get name for static shape tensor array op corresponding
-    to the canonical name"""
+def _get_name_static(canonical, dtype, shape, batch_dim=None):
+    """Get name for static shape tensor array op
+
+    By design, static ADT tensor in TVM has type name in the format
+    of static_tensor_dim0_dim1_..._dimN_t
+    or static_tensor_batch1_dim0_dim1_..._dimN_t if tensorlist stack only have one item.
+
+    Parameters
+    ----------
+    canonical : String
+        Tensor array op name
+
+    dtype : str
+        Data type.
+
+    shape : tuple of (int, Any) or None
+        Tensor array shape
+
+    batch_dim: None or int
+        1 if tensorlist stack only have one item.
+        None by default
+
+    Returns
+    -------
+    name : String
+        The tensor array op name
+    """
     dim_names = []
     for dim in shape:
         if isinstance(dim, Any):
@@ -89,26 +113,31 @@ def _get_name_static(canonical, dtype, shape):
         shape_str = "scalar"
     if canonical == "tensor_t":
         return "static_tensor_{}_{}_t".format(dtype, shape_str)
-    return "{}_{}_{}".format(canonical, dtype, shape_str)
+    if batch_dim is None or canonical in ["tensor_constructor", "tensor_nil"]:
+        return "{}_{}_{}".format(canonical, dtype, shape_str)
+    if batch_dim != 1:
+        return "{}_{}_{}".format(canonical, dtype, shape_str)
+    return "{}_{}_batch{}_{}".format(canonical, dtype, str(batch_dim), shape_str)
 
 
 class StaticTensorArrayOps(object):
     """Contains tensor array related ops for fixed rank tensor array"""
 
-    def __init__(self, prelude, dtype, shape):
+    def __init__(self, prelude, dtype, shape, batch_dim=None):
         """Create tensor array ops registry"""
         self.prelude = prelude
         self.dtype = dtype
         self.shape = shape
+        self.batch_dim = batch_dim
         self.list, self.cons, self.nil = self.prelude.mod.get_type("List")
 
     def get_name(self, canonical):
         """Get name corresponding to the canonical name"""
-        return _get_name_static(canonical, self.dtype, self.shape)
+        return _get_name_static(canonical, self.dtype, self.shape, self.batch_dim)
 
     def get_global_var(self, canonical):
         """Get global corresponding to the canonical name"""
-        return self.prelude.get_global_var_static(canonical, self.dtype, self.shape)
+        return self.prelude.get_global_var_static(canonical, self.dtype, self.shape, self.batch_dim)
 
     def get_type(self, canonical):
         """Get type corresponding to the canonical name"""
@@ -262,9 +291,10 @@ class StaticTensorArrayOps(object):
 
         # Note: we set the added axis to be Any() instead of 1 due to
         # in stack op, we need to recursively concatenate.
+        new_axis = Any() if self.batch_dim is None or self.batch_dim != 1 else self.batch_dim
         tensor_type_var, tensor_constructor, _ = self._get_adt_by_shape(
             [
-                Any(),
+                new_axis,
             ]
             + list(self.shape)
         )
@@ -573,20 +603,27 @@ class StaticTensorArrayOps(object):
         expand_dims_var = self.get_global_var("tensor_expand_dims")
 
         # Register tensor_concatenate for output_shape
+        new_axis = Any() if not self.batch_dim or self.batch_dim != 1 else self.batch_dim
         output_shape = [
-            Any(),
+            new_axis,
         ] + list(self.shape)
-
         _, _, output_ops = self._get_adt_by_shape(output_shape)
         output_ops.define_tensor_concatenate()
         concat_var = output_ops.get_global_var("tensor_concatenate")
 
         tensor_array_expand_dims = self.prelude.map(expand_dims_var, tensor_array)
-        tensors = self.prelude.foldl(
-            concat_var,
-            self.prelude.hd(tensor_array_expand_dims),
-            self.prelude.tl(tensor_array_expand_dims),
-        )
+        if self.batch_dim is not None and self.batch_dim == 1:
+            # only one element
+            tensors = self.prelude.id(
+                self.prelude.hd(tensor_array_expand_dims),
+            )
+        else:
+            tensors = self.prelude.foldl(
+                concat_var,
+                self.prelude.hd(tensor_array_expand_dims),
+                self.prelude.tl(tensor_array_expand_dims),
+            )
+
         output_tensor_type_var, _, _ = self._get_adt_by_shape(output_shape)
         self.prelude.mod[stack_var] = Function(
             [tensor_array], tensors, output_tensor_type_var(), []
@@ -599,8 +636,9 @@ class StaticTensorArrayOps(object):
         helper_name = self.get_name("tensor_array_gather_helper")
         helper_var = self._create_global_var(helper_name)
 
+        new_axis = Any() if self.batch_dim is None or self.batch_dim != 1 else self.batch_dim
         output_shape = [
-            Any(),
+            new_axis,
         ] + list(self.shape)
         output_tensor_type_var, _, _ = self._get_adt_by_shape(output_shape)
         stack_var = self.get_global_var("tensor_array_stack")
@@ -668,7 +706,7 @@ class StaticTensorArrayOps(object):
 
     def _get_adt_by_shape(self, shape):
         """Get ADT type and constructor with given shape."""
-        adt_ops = StaticTensorArrayOps(self.prelude, self.dtype, shape)
+        adt_ops = StaticTensorArrayOps(self.prelude, self.dtype, shape, self.batch_dim)
         adt_ops.define_tensor_adt()
         tensor_type_var = adt_ops.get_type("tensor_t")
         tensor_constructor = adt_ops.get_ctor("tensor_constructor")
@@ -1482,13 +1520,13 @@ class Prelude:
         ty = self.get_type("tensor_t", dtype)
         return self.get_ctor(ty.name_hint, canonical, dtype)
 
-    def get_name_static(self, canonical, dtype, shape):
+    def get_name_static(self, canonical, dtype, shape, batch_dim=None):
         """Get name corresponding to the canonical name"""
-        return _get_name_static(canonical, dtype, shape)
+        return _get_name_static(canonical, dtype, shape, batch_dim)
 
-    def get_global_var_static(self, canonical, dtype, shape):
+    def get_global_var_static(self, canonical, dtype, shape, batch_dim=None):
         """Get var corresponding to the canonical name"""
-        name = self.get_name_static(canonical, dtype, shape)
+        name = self.get_name_static(canonical, dtype, shape, batch_dim)
         return self.mod.get_global_var(name)
 
     def get_type_static(self, canonical, dtype, shape):

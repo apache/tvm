@@ -252,7 +252,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
       PrimExpr local_index, group;
       std::tie(local_index, group) = SplitIndexByGroup(op->index);
       // invariance: local index must do not contain warp id
-      ICHECK(!ExprUseVar(local_index, warp_index_))
+      ICHECK(!UsesVar(local_index, [this](const VarNode* var) { return var == warp_index_.get(); }))
           << "LowerWarpMemory failed to rewrite load to shuffle for index " << op->index
           << " local_index=" << local_index;
       PrimExpr load_value = Load(op->dtype, op->buffer_var, local_index, op->predicate);
@@ -364,28 +364,15 @@ class WarpMemoryRewriter : private StmtMutator {
   Stmt VisitStmt_(const AllocateNode* op) {
     auto ret = StmtMutator::VisitStmt_(op);
     op = ret.as<AllocateNode>();
-    if (warp_buffer_.count(op->buffer_var.get())) {
+    if (GetPtrStorageScope(op->buffer_var) == "warp") {
+      new_storage_scopes_[op->buffer_var.get()] = "local";
       WarpAccessRewriter rewriter(warp_size_, &analyzer_);
       ret = rewriter.Rewrite(op);
     }
     return ret;
   }
 
-  Stmt VisitStmt_(const AttrStmtNode* op) {
-    using runtime::StorageScope;
-    if (op->attr_key == attr::storage_scope) {
-      const VarNode* buf = op->node.as<VarNode>();
-      StorageScope scope = StorageScope::Create(op->value.as<StringImmNode>()->value);
-      if (scope.rank == runtime::StorageRank::kWarp) {
-        warp_buffer_.insert(buf);
-        new_storage_scopes_[buf] = "local";
-      }
-    }
-    return StmtMutator::VisitStmt_(op);
-  }
-
   int warp_size_{0};
-  std::unordered_set<const VarNode*> warp_buffer_;
   arith::Analyzer analyzer_;
   // variable domain
   std::unordered_map<const VarNode*, Range> var_dom_;
