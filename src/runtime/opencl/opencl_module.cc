@@ -40,14 +40,14 @@ class OpenCLWrappedFunc {
   // initialize the OpenCL function.
   void Init(OpenCLModuleNode* m, ObjectPtr<Object> sptr, OpenCLModuleNode::KTRefEntry entry,
             std::string func_name, std::vector<size_t> arg_size,
-            const std::vector<std::string>& thread_axis_tags) {
+            const std::vector<std::string>& launch_param_tags) {
     w_ = m->GetGlobalWorkspace();
     m_ = m;
     sptr_ = sptr;
     entry_ = entry;
     func_name_ = func_name;
     arg_size_ = arg_size;
-    thread_axis_cfg_.Init(arg_size.size(), thread_axis_tags);
+    launch_param_config_.Init(arg_size.size(), launch_param_tags);
   }
   // invoke the function with void arguments
   void operator()(TVMArgs args, TVMRetValue* rv, void** void_args) const {
@@ -73,8 +73,8 @@ class OpenCLWrappedFunc {
       OPENCL_CALL(clSetKernelArg(kernel, i, arg_size_[i], arg));
     }
     cl_command_queue queue = w_->GetQueue(t->device);
-    ThreadWorkLoad wl = thread_axis_cfg_.Extract(args);
-    cl_uint work_dim = static_cast<cl_uint>(thread_axis_cfg_.work_dim());
+    ThreadWorkLoad wl = launch_param_config_.Extract(args);
+    cl_uint work_dim = static_cast<cl_uint>(launch_param_config_.work_dim());
     for (cl_uint i = 0; i < work_dim; ++i) {
       wl.work_size[i] *= wl.work_size[i + 3];
     }
@@ -96,8 +96,8 @@ class OpenCLWrappedFunc {
   std::string func_name_;
   // convert code for void argument
   std::vector<size_t> arg_size_;
-  // thread axis config
-  ThreadAxisConfig thread_axis_cfg_;
+  // launch parameters config
+  LaunchParamConfig launch_param_config_;
 };
 
 OpenCLModuleNode::~OpenCLModuleNode() {
@@ -148,7 +148,7 @@ PackedFunc OpenCLModuleNode::GetFunction(const std::string& name,
     }
   }
   // initialize the wrapped func.
-  f.Init(this, sptr_to_self, kid_map_.at(name), name, arg_size, info.thread_axis_tags);
+  f.Init(this, sptr_to_self, kid_map_.at(name), name, arg_size, info.launch_param_tags);
   return PackFuncVoidAddr(f, info.arg_types);
 }
 

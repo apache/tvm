@@ -88,7 +88,7 @@ tir::Buffer BufferWithOffsetAlignment(Array<PrimExpr> shape, DataType dtype, std
     elem_offset = PrimExpr();
   }
 
-  return tir::Buffer(data, dtype, shape, Array<PrimExpr>(), elem_offset, name, "", data_alignment,
+  return tir::Buffer(data, dtype, shape, Array<PrimExpr>(), elem_offset, name, data_alignment,
                      offset_factor, buffer_type);
 }
 
@@ -222,6 +222,7 @@ Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition, bool for
     pass_list.push_back(tir::transform::PlanAndUpdateBufferAllocationLocation());
     pass_list.push_back(tir::transform::ConvertBlocksToOpaque());
     pass_list.push_back(tir::transform::CompactBufferAllocation());
+    pass_list.push_back(tir::transform::LowerMatchBuffer());
     pass_list.push_back(tir::transform::FlattenBuffer());
   }
   pass_list.push_back(tir::transform::BF16Legalize());
@@ -377,6 +378,7 @@ std::pair<IRModule, IRModule> SplitDevHostFuncs(IRModule mod_mixed, const Target
   Array<tvm::transform::Pass> mixed_pass_list = {BindTarget(target),
                                                  tir::transform::VerifyMemory()};
 
+  mixed_pass_list.push_back(tir::transform::MergeDynamicSharedMemoryAllocations());
   if (pass_ctx->GetConfig<Bool>("tir.detect_global_barrier", Bool(false)).value()) {
     mixed_pass_list.push_back(tir::transform::ThreadSync("global"));
   }
@@ -388,7 +390,7 @@ std::pair<IRModule, IRModule> SplitDevHostFuncs(IRModule mod_mixed, const Target
   if (target->GetAttr<Bool>("unpacked-api").value_or(Bool(false))) {
     mixed_pass_list.push_back(tir::transform::MakeUnpackedAPI());
   } else {
-    mixed_pass_list.push_back(tir::transform::MakePackedAPI(0));
+    mixed_pass_list.push_back(tir::transform::MakePackedAPI(-1));
   }
 
   mixed_pass_list.push_back(tir::transform::SplitHostDevice());

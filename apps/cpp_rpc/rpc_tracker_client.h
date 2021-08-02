@@ -49,12 +49,17 @@ class TrackerClient {
    * \brief Constructor.
    */
   TrackerClient(const std::string& tracker_addr, const std::string& key,
-                const std::string& custom_addr)
+                const std::string& custom_addr, int port)
       : tracker_addr_(tracker_addr),
         key_(key),
         custom_addr_(custom_addr),
+        port_(port),
         gen_(std::random_device{}()),
-        dis_(0.0, 1.0) {}
+        dis_(0.0, 1.0) {
+    if (custom_addr_.empty()) {
+      custom_addr_ = "null";
+    }
+  }
   /*!
    * \brief Destructor.
    */
@@ -80,7 +85,7 @@ class TrackerClient {
 
       std::ostringstream ss;
       ss << "[" << static_cast<int>(TrackerCode::kUpdateInfo) << ", {\"key\": \"server:" << key_
-         << "\"}]";
+         << "\", \"addr\": [" << custom_addr_ << ", \"" << port_ << "\"]}]";
       tracker_sock_.SendBytes(ss.str());
 
       // Receive status and validate
@@ -105,9 +110,6 @@ class TrackerClient {
   void ReportResourceAndGetKey(int port, std::string* matchkey) {
     if (!tracker_sock_.IsClosed()) {
       *matchkey = RandomKey(key_ + ":", old_keyset_);
-      if (custom_addr_.empty()) {
-        custom_addr_ = "null";
-      }
 
       std::ostringstream ss;
       ss << "[" << static_cast<int>(TrackerCode::kPut) << ", \"" << key_ << "\", [" << port
@@ -230,6 +232,7 @@ class TrackerClient {
   std::string tracker_addr_;
   std::string key_;
   std::string custom_addr_;
+  int port_;
   support::TCPSocket tracker_sock_;
   std::set<std::string> old_keyset_;
   std::mt19937 gen_;

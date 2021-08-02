@@ -154,15 +154,16 @@ def check_grad(
         assert len(grads) > 0, "You must test at least one gradient."
 
         # Get numeric gradients for each dimension of each param, using two-sided approximation.
+        fwd_func_compiled = intrp.evaluate(fwd_func)
         approx_grads = []
         for x in test_inputs:
             approx_grad = np.zeros(x.shape)
             for i in np.ndindex(*x.shape):
                 x_i = x[i]
                 x[i] = x_i + eps
-                fwd_plus = intrp.evaluate(fwd_func)(*inputs).numpy().astype("float64")
+                fwd_plus = fwd_func_compiled(*inputs).numpy().astype("float64")
                 x[i] = x_i - eps
-                fwd_minus = intrp.evaluate(fwd_func)(*inputs).numpy().astype("float64")
+                fwd_minus = fwd_func_compiled(*inputs).numpy().astype("float64")
                 x[i] = x_i
                 approx_grad[i] = np.sum((fwd_plus - fwd_minus) / (2 * eps))
             approx_grads.append(approx_grad)

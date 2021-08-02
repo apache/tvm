@@ -464,18 +464,22 @@ class ProducerRealizeNode : public StmtNode {
   PrimExpr condition;
   /*! \brief The body of realization. */
   Stmt body;
+  /*! \brief The storage scope associated with this realization. */
+  String storage_scope;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("producer", &producer);
     v->Visit("bounds", &bounds);
     v->Visit("condition", &condition);
     v->Visit("body", &body);
+    v->Visit("storage_scope", &storage_scope);
     v->Visit("span", &span);
   }
 
   bool SEqualReduce(const ProducerRealizeNode* other, SEqualReducer equal) const {
     return equal(producer, other->producer) && equal(bounds, other->bounds) &&
-           equal(condition, other->condition) && equal(body, other->body);
+           equal(condition, other->condition) && equal(body, other->body) &&
+           equal(storage_scope, other->storage_scope);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -483,6 +487,7 @@ class ProducerRealizeNode : public StmtNode {
     hash_reduce(bounds);
     hash_reduce(condition);
     hash_reduce(body);
+    hash_reduce(storage_scope);
   }
 
   static constexpr const char* _type_key = "tir.ProducerRealize";
@@ -496,7 +501,7 @@ class ProducerRealizeNode : public StmtNode {
 class ProducerRealize : public Stmt {
  public:
   TVM_DLL ProducerRealize(DataProducer producer, Region bounds, PrimExpr condition, Stmt body,
-                          Span span = Span());
+                          String storage_scope = "", Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(ProducerRealize, Stmt, ProducerRealizeNode);
 };
@@ -860,6 +865,7 @@ class For : public Stmt {
               Map<String, ObjectRef> annotations = Map<String, ObjectRef>(), Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(For, Stmt, ForNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(ForNode);
 };
 
 /*!
@@ -1235,8 +1241,6 @@ constexpr const char* extern_scope = "extern_scope";
  *  This can hint some code generator to create a new function for compute.
  */
 constexpr const char* compute_scope = "compute_scope";
-/*! \brief Mark storage scope of buffers */
-constexpr const char* storage_scope = "storage_scope";
 /*! \brief Mark storage alignement requirement of buffers */
 constexpr const char* storage_alignment = "storage_alignment";
 /*! \brief Mark storage scope of realization */
@@ -1355,6 +1359,24 @@ TVM_DLL PrimExpr TypeAnnotation(DataType dtype, Span span = Span());
 
 // overload printing of for type.
 TVM_DLL std::ostream& operator<<(std::ostream& os, ForKind kind);
+
+// inline implementations
+inline const char* ForKind2String(ForKind t) {
+  switch (t) {
+    case ForKind::kSerial:
+      return "serial";
+    case ForKind::kParallel:
+      return "parallel";
+    case ForKind::kVectorized:
+      return "vectorized";
+    case ForKind::kUnrolled:
+      return "unroll";
+    case ForKind::kThreadBinding:
+      return "thread_binding";
+  }
+  LOG(FATAL) << "Unknown ForKind" << t;
+  return "Unknown";
+}
 
 }  // namespace tir
 }  // namespace tvm

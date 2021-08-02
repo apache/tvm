@@ -23,6 +23,7 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/arith/bound.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/tir/analysis.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
@@ -83,19 +84,6 @@ struct PartitionKeyEqual {
 using Partition = std::unordered_map<PartitionKey, IntSet, PartitionKeyHash, PartitionKeyEqual>;
 
 using ExpressionSet = std::unordered_set<PrimExpr, ObjectPtrHash, ObjectPtrEqual>;
-
-bool ExprUseVars(PrimExpr expr, const std::unordered_set<const VarNode*>& vars) {
-  bool success = false;
-  PostOrderVisit(expr, [&vars, &success](const ObjectRef& node) {
-    if (const VarNode* v = node.as<VarNode>()) {
-      if (vars.count(v)) {
-        success = true;
-        return;
-      }
-    }
-  });
-  return success;
-}
 
 // Select potential candidate IRs that can be partitioned.
 // Rule:
@@ -200,7 +188,8 @@ class PartitionFinder : public StmtExprVisitor {
   }
 
   void VisitStmt_(const ForNode* op) final {
-    if (ExprUseVars(op->min, out_vars_) || ExprUseVars(op->extent, out_vars_)) return;
+    auto f_vset_contains = [this](const VarNode* var) { return out_vars_.count(var); };
+    if (UsesVar(op->min, f_vset_contains) || UsesVar(op->extent, f_vset_contains)) return;
 
     const VarNode* var = op->loop_var.get();
     hint_map_.insert({var, IntSet::Interval(op->min, op->min + op->extent - 1)});
@@ -230,7 +219,7 @@ class PartitionFinder : public StmtExprVisitor {
   void VisitExpr_(const CallNode* op) final {
     if (op->op.same_as(builtin::likely())) {
       PrimExpr cond = op->args[0];
-      if (ExprUseVars(cond, std::unordered_set<const VarNode*>({current_var_.get()}))) {
+      if (UsesVar(cond, [this](const VarNode* var) { return var == current_var_.get(); })) {
         // For cond, find out the interval, if exists, in which we can prove that cond is
         // true. Also find the interval, if exists, in which we can prove that cond is
         // false.
