@@ -906,6 +906,9 @@ def strided_slice(data, begin, end, strides=None, axes=None, slice_mode="end"):
     ret : relay.Expr
         The computed result.
     """
+    from ...tir.expr import Any
+    from .. import var as _var
+
     strides = strides or [1]
     if isinstance(begin, Constant):
         begin = list(begin.data.numpy())
@@ -913,6 +916,21 @@ def strided_slice(data, begin, end, strides=None, axes=None, slice_mode="end"):
         end = list(end.data.numpy())
     if isinstance(strides, Constant):
         strides = list(strides.data.numpy())
+    if isinstance(begin, (tuple, list)):
+        for axis in begin:
+            if isinstance(axis, Any):
+                begin = _var("begin", shape=[len(begin)], dtype="int32")
+                break
+    if isinstance(end, (tuple, list)):
+        for axis in end:
+            if isinstance(axis, Any):
+                end = _var("end", shape=[len(end)], dtype="int32")
+                break
+    if isinstance(strides, (tuple, list)):
+        for axis in strides:
+            if isinstance(axis, Any):
+                strides = _var("strides", shape=[len(strides)], dtype="int32")
+                break
     if isinstance(begin, Expr) or isinstance(end, Expr) or isinstance(strides, Expr):
         if isinstance(begin, (tuple, list)):
             begin = const(list(begin))
