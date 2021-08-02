@@ -952,6 +952,35 @@ StmtSRef RFactor(ScheduleState self, const StmtSRef& rf_loop_sref, int factor_ax
   return new_block_srefs[0];
 }
 
+/******** Instruction Registration ********/
+
+struct RFactorTraits : public UnpackedInstTraits<RFactorTraits> {
+  static constexpr const char* kName = "RFactor";
+  static constexpr bool kIsPure = false;
+
+ private:
+  static constexpr size_t kNumInputs = 1;
+  static constexpr size_t kNumAttrs = 1;
+  static constexpr size_t kNumDecisions = 0;
+
+  static BlockRV UnpackedApplyToSchedule(Schedule sch, LoopRV loop_rv, Integer factor_axis) {
+    return sch->RFactor(loop_rv, factor_axis->value);
+  }
+
+  static String UnpackedAsPython(Array<String> outputs, String loop_rv, Integer factor_axis) {
+    PythonAPICall py("rfactor");
+    py.Input("loop", loop_rv);
+    py.Input("factor_axis", factor_axis->value);
+    py.SingleOutput(outputs);
+    return py.Str();
+  }
+
+  template <typename>
+  friend struct ::tvm::tir::UnpackedInstTraits;
+};
+
+TVM_REGISTER_INST_KIND_TRAITS(RFactorTraits);
+
 /******** FFI ********/
 
 TVM_REGISTER_GLOBAL("tir.schedule.RegisterReducer")
