@@ -711,19 +711,12 @@ Expr QnnConv2DCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   int kernel_zero_point_int = -1;
 
   // Input zero point can either be a constant or a scalar expression.
-  if (IsConstScalar(input_zero_point)) {
+  if (IsConstScalar(input_zero_point) && (IsConstScalar(kernel_zero_point))) {
     // Extract the integer zero points.
     input_zero_point_int = GetScalarFromConstant<int>(input_zero_point);
-  } else {
-    dynamic_zp = true;
-  }
-
-  // Kernel zero point is allowed to be a constant or 1-D tensor.
-  if (IsConstScalar(kernel_zero_point)) {
-    // Extract the integer zero points.
     kernel_zero_point_int = GetScalarFromConstant<int>(kernel_zero_point);
   } else {
-    // Figure out the channel axis to force appropriate shape.
+    // Figure out the channel axis to force appropriate shape for kernel.
     Layout layout(param->data_layout);
     int channel_axis = layout.IndexOf(LayoutAxis::Get('C'));
     kernel_zero_point = Reshape(kernel_zero_point, {-1,});
