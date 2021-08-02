@@ -47,33 +47,33 @@ cd ../..
 # Only run in parallel for CPU integration tests.
 PYTEST_PARALLEL="${PYTEST_PARALLEL:---parallel}"
 
-run_pytest "${PYTEST_PARALELL}" ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-extensions apps/extension/tests
-run_pytest "${PYTEST_PARALELL}" cython ${TVM_INTEGRATION_TESTSUITE_NAME}-extensions apps/extension/tests
+run_pytest "${PYTEST_PARALLEL}" ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-extensions apps/extension/tests
+run_pytest "${PYTEST_PARALLEL}" cython ${TVM_INTEGRATION_TESTSUITE_NAME}-extensions apps/extension/tests
 
 # Test dso plugin
 cd apps/dso_plugin_module
 rm -rf lib
 make
 cd ../..
-run_pytest "${PYTEST_PARALELL}" ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-dso_plugin_module apps/dso_plugin_module
-run_pytest "${PYTEST_PARALELL}" cython ${TVM_INTEGRATION_TESTSUITE_NAME}-dso_plugin_module apps/dso_plugin_module
+run_pytest "${PYTEST_PARALLEL}" ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-dso_plugin_module apps/dso_plugin_module
+run_pytest "${PYTEST_PARALLEL}" cython ${TVM_INTEGRATION_TESTSUITE_NAME}-dso_plugin_module apps/dso_plugin_module
 
 # Do not enable TensorFlow op
 # TVM_FFI=cython sh prepare_and_test_tfop_module.sh
 # TVM_FFI=ctypes sh prepare_and_test_tfop_module.sh
 
-run_pytest "${PYTEST_PARALELL}" ctypes ${TVM_INTEGRATION_TESTSUITE_NAME} tests/python/integration
+run_pytest "${PYTEST_PARALLEL}" ctypes ${TVM_INTEGRATION_TESTSUITE_NAME} tests/python/integration
 if python -c "import tvm; from tvm.relay.op.contrib.ethosn import ethosn_available; print(ethosn_available().name)" -eq "SW_ONLY"; then
-  ETHOSN_VARIANT_CONFIG=ETHOSN78_1TOPS_4PLE_448KSRAM run_pytest "${PYTEST_PARALELL}" ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-contrib-test_ethosn tests/python/contrib/test_ethosn
+  ETHOSN_VARIANT_CONFIG=ETHOSN78_1TOPS_4PLE_448KSRAM run_pytest "${PYTEST_PARALLEL}" ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-contrib-test_ethosn tests/python/contrib/test_ethosn
 fi
-run_pytest "${PYTEST_PARALELL}" ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-contrib tests/python/contrib
+run_pytest "${PYTEST_PARALLEL}" ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-contrib tests/python/contrib
 
 # forked is needed because the global registry gets contaminated
 TVM_TEST_TARGETS="${TVM_RELAY_TEST_TARGETS:-llvm;cuda}" \
-    run_pytest "${PYTEST_PARALELL}" ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-relay tests/python/relay
+    run_pytest "${PYTEST_PARALLEL}" ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-relay tests/python/relay
 
 # Command line driver test
-run_pytest "${PYTEST_PARALELL}" ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-driver tests/python/driver
+run_pytest "${PYTEST_PARALLEL}" ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-driver tests/python/driver
 
 # Do not enable OpenGL
 # run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-webgl tests/webgl
