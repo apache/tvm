@@ -210,9 +210,9 @@ def helper_change_dtypes_to_uint8_int8(attrs, inputs, types, relay_op):
 
 # Helper function to change dtypes to int8 x int8. Cuda dp4a instructions prefer this setting.
 def helper_change_dtypes_to_int8(attrs, inputs, types, relay_op):
-    """Legalizes QNN conv2d/dense op for Nvidia HW. dp4a supports i8 x i8 fast conv/MM. If the dtypes
-    are already good, we dont transform. Else, we shift the tensor values and zero points to change
-    the dtype.
+    """Legalizes QNN conv2d/dense op for Nvidia HW. dp4a supports i8 x i8 fast conv/MM. If the
+    dtypes are already good, we dont transform. Else, we shift the tensor values and zero points
+    to change the dtype.
 
     Parameters
     ----------
