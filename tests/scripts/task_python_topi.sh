@@ -31,4 +31,4 @@ make cython3
 # cleanup pycache
 find . -type f -path "*.pyc" | xargs rm -f
 
-run_pytest --parallel cython python-topi tests/python/topi/
+run_pytest cython python-topi tests/python/topi/

@@ -33,10 +33,10 @@ find . -type f -path "*.pyc" | xargs rm -f
 make cython3
 
 echo "Running relay TFLite frontend test..."
-run_pytest --parallel cython python-frontend-tflite tests/python/frontend/tflite
+run_pytest cython python-frontend-tflite tests/python/frontend/tflite
 
 echo "Running relay Keras frontend test..."
-run_pytest --parallel cython python-frontend-keras tests/python/frontend/keras
+run_pytest cython python-frontend-keras tests/python/frontend/keras
 
 echo "Running relay Caffe frontend test..."
-run_pytest --parallel cython python-frontend-caffe tests/python/frontend/caffe
+run_pytest cython python-frontend-caffe tests/python/frontend/caffe

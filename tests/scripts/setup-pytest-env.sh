@@ -56,7 +56,7 @@ fi
 function run_pytest() {
     local extra_args=( )
     if [ "$1" == "--parallel" ]; then
-        extra_args=( "${extra_args[@]}" -n "${PYTEST_NUM_CPUS}" )
+        extra_args=( -n "${PYTEST_NUM_CPUS}" )
         shift
     fi
     local ffi_type="$1"

@@ -20,5 +20,6 @@ export TVM_TEST_TARGETS="cuda;opencl;metal;rocm;vulkan;nvptx;opencl -device=mali
 export PYTEST_ADDOPTS="-m gpu $PYTEST_ADDOPTS"
 export TVM_RELAY_TEST_TARGETS="cuda"
 export TVM_INTEGRATION_TESTSUITE_NAME=python-integration-gpu
+export TVM_GPU_INTEGRATION_TESTS=1
 
 ./tests/scripts/task_python_integration.sh
