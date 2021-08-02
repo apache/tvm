@@ -180,7 +180,8 @@ class ScheduleNode : public runtime::Object {
   virtual void RemoveRV(const ExprRV& expr_rv) = 0;
 
  public:
-  /******** Block/Loop relation ********/
+  /******** Schedule: Sampling ********/
+  /******** Schedule: Get blocks & loops ********/
   /*!
    * \brief Retrieve a block in a specific function with its name
    * \param name The name of the block to be retrieved
@@ -195,7 +196,7 @@ class ScheduleNode : public runtime::Object {
    * \return A list of loops above the given block in its scope, from outer to inner
    */
   virtual Array<LoopRV> GetLoops(const BlockRV& block_rv) = 0;
-  /******** Schedule: loops manipulation ********/
+  /******** Schedule: Transform loops ********/
   /*!
    * \brief Fuse a list of consecutive loops into one. It requires:
    * 1) The loops can't have annotations or thread bindings.
@@ -215,7 +216,9 @@ class ScheduleNode : public runtime::Object {
    * \return The new loops after split
    */
   virtual Array<LoopRV> Split(const LoopRV& loop_rv, const Array<Optional<ExprRV>>& factors) = 0;
-  /******** Schedule: compute location ********/
+  /******** Schedule: Manipulate ForKind ********/
+  /******** Schedule: Insert cache stages ********/
+  /******** Schedule: Compute location ********/
   /*!
    * \brief Inline a block into its consumer(s). It requires:
    * 1) The block is a complete non-root block, which only produces one buffer
@@ -239,9 +242,7 @@ class ScheduleNode : public runtime::Object {
    * \param block The block to be inlined to its producer
    */
   virtual void ReverseComputeInline(const BlockRV& block) = 0;
-  /******** Schedule: loop binding/annotation ********/
-  /******** Schedule: cache read/write ********/
-  /******** Schedule: reduction ********/
+  /******** Schedule: Reduction ********/
   /*!
    * \brief Factorize an associative reduction block by the specified loop.
    * \details An associative reduction cannot be parallelized directly,
@@ -260,7 +261,11 @@ class ScheduleNode : public runtime::Object {
    * \return The rfactor block
    */
   virtual BlockRV RFactor(const LoopRV& loop_rv, int factor_axis) = 0;
-  /******** Schedule: blockize & tensorize ********/
+  /******** Schedule: Blockize & Tensorize ********/
+  /******** Schedule: Annotation ********/
+  /******** Schedule: Misc ********/
+  /*! \brief A no-op that marks the start of postprocessing phase of scheduling */
+  virtual void EnterPostproc() = 0;
 };
 
 /*!

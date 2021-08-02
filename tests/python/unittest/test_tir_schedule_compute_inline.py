@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-function-docstring,missing-module-docstring
+import sys
+
 import pytest
 import tvm
 from tvm import tir
@@ -354,20 +356,4 @@ def test_compute_inline_multi_loads():
 
 
 if __name__ == "__main__":
-    test_compute_inline_elementwise()
-    test_compute_inline_under_loop()
-    test_compute_inline_as_dce()
-    test_compute_inline_multi_consumer()
-    test_compute_inline_fail_multi_writer()
-    test_reverse_compute_inline_elementwise()
-    test_reverse_compute_inline_under_loop()
-    test_reverse_compute_inline_fail_as_dce()
-    test_reverse_compute_inline_fail_multi_producer()
-    test_reverse_compute_inline_fail_multi_reader()
-    test_reverse_compute_multi_reverse_loads()
-    test_reverse_compute_fail_multi_reverse_loads()
-    test_opaque_access_load()
-    test_opaque_access_store()
-    test_buffer_matched()
-    test_compute_inline_predicate()
-    test_compute_inline_multi_loads()
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

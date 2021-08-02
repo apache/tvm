@@ -16,15 +16,15 @@
 # under the License.
 # pylint: disable=unused-import
 """The TensorIR schedule class"""
-from typing import List, Optional, Union, Tuple
+from typing import List, Optional, Union
 
 from tvm._ffi import register_object as _register_object
 from tvm.error import TVMError, register_error
 from tvm.ir import IRModule, PrimExpr
 from tvm.runtime import Object
-from tvm.tir import Block, For, IntImm, PrimFunc, Var
+from tvm.tir import Block, For, IntImm, PrimFunc
 
-from . import _ffi_api_schedule
+from . import _ffi_api
 from .state import ScheduleState, StmtSRef
 
 
@@ -37,10 +37,22 @@ class ScheduleError(TVMError):
 class LoopRV(Object):
     """A random variable that refers to a loop"""
 
+    def __init__(self) -> None:
+        """Construct a new LoopRV."""
+        self.__init_handle_by_constructor__(
+            _ffi_api.LoopRV  # type: ignore # pylint: disable=no-member
+        )
+
 
 @_register_object("tir.BlockRV")
 class BlockRV(Object):
     """A random variable that refers to a block"""
+
+    def __init__(self) -> None:
+        """Construct a new BlockRV."""
+        self.__init_handle_by_constructor__(
+            _ffi_api.BlockRV  # type: ignore # pylint: disable=no-member
+        )
 
 
 # It is a workaround for mypy: https://github.com/python/mypy/issues/7866#issuecomment-549454370
@@ -48,7 +60,10 @@ class BlockRV(Object):
 # https://docs.python.org/3.10/whatsnew/3.10.html#pep-613-typealias
 ExprRV = Union[PrimExpr]  # A random variable that evaluates to an integer
 
-RAND_VAR_TYPE = Union[ExprRV, BlockRV, LoopRV]  # type: ignore # pylint: disable=invalid-name
+RAND_VAR_TYPE = Union[ExprRV, BlockRV, LoopRV]  # pylint: disable=invalid-name
+
+# Update to `Literal["detail", "fast", "none"]` once upgraded to python3.8
+ERROR_RENDER_LEVEL_CANDIDATES = Union[str]  # pylint: disable=invalid-name
 
 
 @_register_object("tir.Schedule")
@@ -66,20 +81,24 @@ class Schedule(Object):
     Link to tutorial: https://tvm.apache.org/docs/tutorials/language/schedule_primitives.html
     """
 
-    ERROR_RENDER_LEVEL = {"detail": 0, "fast": 1, "none": 2}
+    ERROR_RENDER_LEVEL = {
+        "detail": 0,
+        "fast": 1,
+        "none": 2,
+    }
 
     def __init__(
         self,
-        func_or_mod: Union[PrimFunc, IRModule],
+        mod: Union[PrimFunc, IRModule],
         *,
         debug_mode: Union[bool, int] = False,
-        error_render_level: str = "detail",
-    ):
+        error_render_level: ERROR_RENDER_LEVEL_CANDIDATES = "detail",
+    ) -> None:
         """Construct a concrete TensorIR schedule from an IRModule or a PrimFunc
 
         Parameters
         ----------
-        func_or_mod : Union[PrimFunc, IRModule]
+        mod : Union[PrimFunc, IRModule]
             The IRModule or PrimFunc to be scheduled
         debug_mode : Union[bool, int]
             Do extra correctness checking after the class creation and each time
@@ -91,11 +110,13 @@ class Schedule(Object):
             "none": Do not show any error message.
 
         Note
-        ----------
+        ----
         The checks performed includes:
         1) VerifySRefTree
         2) VerifyCachedFlags
         """
+        if isinstance(mod, PrimFunc):
+            mod = IRModule({"main": mod})
         if isinstance(debug_mode, bool):
             if debug_mode:
                 debug_mode = -1
@@ -108,12 +129,11 @@ class Schedule(Object):
                 'error_render_level can be "detail", "fast", or "none", but got: '
                 + f"{error_render_level}"
             )
-        error_render_level = Schedule.ERROR_RENDER_LEVEL.get(error_render_level)  # type: ignore
         self.__init_handle_by_constructor__(
-            _ffi_api_schedule.ConcreteSchedule,  # type: ignore # pylint: disable=no-member
-            func_or_mod,
+            _ffi_api.ConcreteSchedule,  # type: ignore # pylint: disable=no-member
+            mod,
             debug_mode,
-            error_render_level,
+            Schedule.ERROR_RENDER_LEVEL.get(error_render_level),
         )
 
     ########## Utilities ##########
@@ -121,12 +141,12 @@ class Schedule(Object):
     @property
     def mod(self) -> IRModule:
         """Returns the AST of the module being scheduled"""
-        return _ffi_api_schedule.ScheduleModule(self)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.ScheduleModule(self)  # type: ignore # pylint: disable=no-member
 
     @property
     def state(self) -> ScheduleState:
         """Returns the ScheduleState in the current schedule class"""
-        return _ffi_api_schedule.ScheduleGetState(self)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.ScheduleGetState(self)  # type: ignore # pylint: disable=no-member
 
     def copy(self) -> "Schedule":
         """Returns a copy of the schedule, including both the state and the symbol table,
@@ -135,30 +155,34 @@ class Schedule(Object):
         * 2) The IRModule being scheduled is untouched;
         * 3) All the random variables are valid in the copy, pointing to the correpsonding sref
         * reconstructed
+
         Returns
         -------
         copy : Schedule
             A new copy of the schedule
         """
-        return _ffi_api_schedule.ScheduleCopy(self)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.ScheduleCopy(self)  # type: ignore # pylint: disable=no-member
 
     def seed(self, seed: int) -> None:
         """Seed the randomness
+
         Parameters
         ----------
         seed : int
             The new random seed, -1 if use device random, otherwise non-negative
         """
-        return _ffi_api_schedule.ScheduleSeed(self, seed)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.ScheduleSeed(self, seed)  # type: ignore # pylint: disable=no-member
 
     def show(self, rand_var: RAND_VAR_TYPE) -> str:
         """Returns a string representation of the value that the random variable evaluates to
+
         Parameters
         ----------
         rand_var : Union[ExprRV, BlockRV, LoopRV]
             The random variable to be evaluated
+
         Returns
-        ----------
+        -------
         str_repr : str
             The string representation
         """
@@ -176,18 +200,20 @@ class Schedule(Object):
         - the corresponding integer that a ExprRV evaluates to;
         - the corresponding Block that a block sref points to;
         - the corresponding For that a loop sref points to;
+
         Parameters
         ----------
         rand_var_or_sref : Union[ExprRV, BlockRV, LoopRV, StmtSRef]
             The random variable / sref to be evaluated
+
         Returns
-        ----------
+        -------
         result : Optional[Union[int, Block, For]]
             The correpsonding result
         """
         if isinstance(rand_var_or_sref, StmtSRef):
             return rand_var_or_sref.stmt
-        result = _ffi_api_schedule.ScheduleGet(self, rand_var_or_sref)  # type: ignore # pylint: disable=no-member
+        result = _ffi_api.ScheduleGet(self, rand_var_or_sref)  # type: ignore # pylint: disable=no-member
         if isinstance(result, IntImm):
             result = result.value
         return result
@@ -198,49 +224,55 @@ class Schedule(Object):
         2) BlockRV
         3) Block
         4) For
+
         Parameters
         ----------
         rand_var_or_stmt : Union[BlockRV, LoopRV, Block, For]
             The random variable / sref to be evaluated
+
         Returns
-        ----------
+        -------
         result : Optional[StmtSRef]
             The correpsonding result
         """
-        return _ffi_api_schedule.ScheduleGetSRef(  # type: ignore # pylint: disable=no-member
+        return _ffi_api.ScheduleGetSRef(  # type: ignore # pylint: disable=no-member
             self, rand_var_or_stmt
         )
 
     def remove_rv(self, rand_var: RAND_VAR_TYPE) -> None:
         """Remove a random variable from the symbol table
+
         Parameters
         ----------
         rand_var : Union[BlockRV, LoopRV, ExprRV]
             The random variable to be removed
         """
-        return _ffi_api_schedule.ScheduleRemoveRV(self, rand_var)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.ScheduleRemoveRV(self, rand_var)  # type: ignore # pylint: disable=no-member
 
-    ########## Block/Loop relation ##########
+    ########## Schedule: Sampling ##########
 
+    ########## Schedule: Get blocks & loops ##########
     def get_block(
         self,
         name: str,
         func_name: str = "main",
     ) -> BlockRV:
         """Retrieve a block in a specific function with its name
+
         Parameters
         ----------
         name : str
             The name of the block
         func_name : str = "main"
             The name of the function
+
         Returns
-        ----------
+        -------
         block : BlockRV
             The block retrieved
             IndexError is raised if 0 or multiple blocks exist with the specific name.
         """
-        return _ffi_api_schedule.ScheduleGetBlock(  # type: ignore # pylint: disable=no-member
+        return _ffi_api.ScheduleGetBlock(  # type: ignore # pylint: disable=no-member
             self,
             name,
             func_name,
@@ -248,18 +280,20 @@ class Schedule(Object):
 
     def get_loops(self, block: BlockRV) -> List[LoopRV]:
         """Get the parent loops of the block in its scope, from outer to inner
+
         Parameters
         ----------
         block : BlockRV
             The query block
+
         Returns
-        ----------
+        -------
         loops : List[LoopRV]
             A list of loops above the given block in its scope, from outer to inner
         """
-        return _ffi_api_schedule.ScheduleGetLoops(self, block)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.ScheduleGetLoops(self, block)  # type: ignore # pylint: disable=no-member
 
-    ########## Schedule: loops manipulation ##########
+    ########## Schedule: Transform loops ##########
     def fuse(self, *loops: List[LoopRV]) -> LoopRV:
         """Fuse a list of consecutive loops into one. It requires:
         1) The loops can't have annotations or thread bindings.
@@ -272,7 +306,7 @@ class Schedule(Object):
             The loops to be fused
 
         Returns
-        ----------
+        -------
         fused_loop : LoopRV
             The new loop after fusion
 
@@ -316,7 +350,7 @@ class Schedule(Object):
                         B[vi, vj] = A[vi, vj] * 2.0
 
         """
-        return _ffi_api_schedule.ScheduleFuse(self, loops)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.ScheduleFuse(self, loops)  # type: ignore # pylint: disable=no-member
 
     def split(
         self,
@@ -343,7 +377,7 @@ class Schedule(Object):
             - Nonnegative constant integers
 
         Returns
-        ----------
+        -------
         split_loops : List[LoopRV]
             The new loops after split
 
@@ -389,9 +423,14 @@ class Schedule(Object):
         """
         # it will be checked later in C++ implementation
         # that there is at most one None in `factors`
-        return _ffi_api_schedule.ScheduleSplit(self, loop, factors)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.ScheduleSplit(self, loop, factors)  # type: ignore # pylint: disable=no-member
 
-    ########## Schedule: compute location ##########
+    ########## Schedule: Manipulate ForKind ##########
+
+    ########## Schedule: Insert cache stages ##########
+
+    ########## Schedule: Compute location ##########
+
     def compute_inline(self, block: BlockRV) -> None:
         """Inline a block into its consumer(s). It requires:
 
@@ -447,7 +486,7 @@ class Schedule(Object):
                     C[vi, vj] = A[vi, vj] * 2.0 + 1.0
 
         """
-        _ffi_api_schedule.ScheduleComputeInline(self, block)  # type: ignore # pylint: disable=no-member
+        _ffi_api.ScheduleComputeInline(self, block)  # type: ignore # pylint: disable=no-member
 
     def reverse_compute_inline(self, block: BlockRV) -> None:
         """Inline a block into its only producer. It requires:
@@ -507,11 +546,10 @@ class Schedule(Object):
                     C[vi, vj] = A[vi, vj] * 2.0 + 1.0
 
         """
-        _ffi_api_schedule.ScheduleReverseComputeInline(self, block)  # type: ignore # pylint: disable=no-member
+        _ffi_api.ScheduleReverseComputeInline(self, block)  # type: ignore # pylint: disable=no-member
 
-    ########## Schedule: loop binding/annotation ##########
-    ########## Schedule: cache read/write ##########
-    ########## Schedule: reduction ##########
+    ########## Schedule: Reduction ##########
+
     def rfactor(self, loop: LoopRV, factor_axis: int) -> LoopRV:
         """Factorize an associative reduction block by the specified loop.
 
@@ -653,9 +691,17 @@ class Schedule(Object):
         where `B` is the buffer that the reduction block writes to.
         Negative indexing is normalized according to numpy convention.
         """
-        return _ffi_api_schedule.ScheduleRFactor(self, loop, factor_axis)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.ScheduleRFactor(self, loop, factor_axis)  # type: ignore # pylint: disable=no-member
 
-    ########## Schedule: blockize & tensorize ##########
+    ########## Schedule: Blockize & Tensorize ##########
+
+    ########## Schedule: Annotation ##########
+
+    ########## Schedule: Misc ##########
+
+    def enter_postproc(self) -> None:
+        """A no-op that marks the start of postprocessing phase of scheduling"""
+        _ffi_api.ScheduleEnterPostproc(self)  # type: ignore # pylint: disable=no-member
 
 
 @_register_object("tir.ConcreteSchedule")

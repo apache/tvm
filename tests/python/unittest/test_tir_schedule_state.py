@@ -15,9 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-function-docstring,missing-module-docstring
-
 import gc
+import sys
 
+import pytest
 import tvm
 from tvm import tir
 from tvm.ir import IRModule
@@ -338,16 +339,4 @@ def test_replace_ir_module():
 
 
 if __name__ == "__main__":
-    test_replace_direct_write0()
-    test_replace_direct_write1()
-    test_replace_copy()
-    test_replace_partial_copy0()
-    test_replace_partial_copy1()
-    test_replace_root_write()
-    test_replace_root_copy0()
-    test_replace_root_copy1()
-    test_replace_root_copy2()
-    test_replace_root_copy3()
-    test_replace_block_remap()
-    test_replace_block_in_opaque_block()
-    test_replace_ir_module()
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

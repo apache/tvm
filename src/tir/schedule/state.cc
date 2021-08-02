@@ -416,9 +416,6 @@ ScheduleState::ScheduleState(IRModule mod, int debug_mode) {
   data_ = StateCreator::Create(mod, debug_mode);
 }
 
-ScheduleState::ScheduleState(PrimFunc func, int debug_mode)
-    : ScheduleState(IRModule({{GlobalVar("main"), func}}), debug_mode) {}
-
 /**************** Replace ****************/
 
 /*
@@ -1035,16 +1032,10 @@ TVM_DLL Array<Bool> GetCachedFlags(const ScheduleState& self, const StmtSRef& bl
 /**************** FFI ****************/
 
 TVM_REGISTER_NODE_TYPE(ScheduleStateNode);
-TVM_REGISTER_GLOBAL("tir.schedule.ScheduleState").set_body_typed([](ObjectRef obj, int debug_mode) {
-  if (const auto* func = obj.as<PrimFuncNode>()) {
-    return ScheduleState(GetRef<PrimFunc>(func), debug_mode);
-  }
-  if (const auto* mod = obj.as<IRModuleNode>()) {
-    return ScheduleState(GetRef<IRModule>(mod), debug_mode);
-  }
-  LOG(FATAL) << "TypeError: Expects `IRModule` or `PrimFunc`, but gets: " << obj->GetTypeKey();
-  throw;
-});
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleState")
+    .set_body_typed([](IRModule mod, int debug_mode) -> ScheduleState {
+      return ScheduleState(mod, debug_mode);
+    });
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleStateGetBlockScope")
     .set_body_method<ScheduleState>(&ScheduleStateNode::GetBlockScope);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleStateReplace")

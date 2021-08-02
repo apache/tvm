@@ -25,18 +25,22 @@
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/op.h>
+#include <tvm/tir/schedule/instruction.h>
 #include <tvm/tir/schedule/schedule.h>
 #include <tvm/tir/schedule/state.h>
+#include <tvm/tir/schedule/trace.h>
 #include <tvm/tir/stmt_functor.h>
 
 #include <unordered_map>
 #include <utility>
 
+#include "../../node/attr_registry.h"
 #include "../../printer/text_printer.h"
 #include "../../runtime/thread_storage_scope.h"
 #include "../../support/array.h"
 #include "./analysis.h"
 #include "./error.h"
+#include "./instruction_traits.h"
 #include "./primitive.h"
 
 namespace tvm {

@@ -15,7 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-function-docstring,missing-module-docstring
+import sys
 
+import pytest
 import tvm
 from tvm import tir
 from tvm.script import ty
@@ -651,19 +653,4 @@ def test_warp_memory_negative():
 
 
 if __name__ == "__main__":
-    test_elementwise()
-    test_matmul()
-    test_block_in_opaque_block()
-    test_write_after_read()
-    test_loop_carried_dependency()
-    test_concatenate_multi_producer_covered()
-    test_concatenate_multi_producer_uncovered()
-    test_lca_at_loop()
-    test_multi_producer_consumer()
-    test_elementwise_affine_producer()
-    test_subblock()
-    test_subblock_uncovered()
-    test_thread_binding()
-    test_equal_ranked_threads()
-    test_warp_memory()
-    test_warp_memory_negative()
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))
