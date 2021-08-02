@@ -42,6 +42,16 @@ FLOW_2_STR_DTYPE = {
     9: "float16"
 }
 
+FLOW_2_NP_DTYPE = {
+    2: np.float32,
+    3: np.float64,
+    6: np.int64,
+    5: np.int32,
+    4: np.int8,
+    7: np.uint8,
+    9: np.float16
+}
+
 _identity_list = []
 
 
@@ -304,7 +314,6 @@ class Pool(OneFlowOpConverter):
         )([data], attrs, params)
 
         return out
-
 
 
 class GlobalAveragePool(OneFlowOpConverter):
@@ -570,7 +579,7 @@ class Add(OneFlowOpConverter):
         axis = int(attrs.get("axis", 0))
 
         true_names = ["-b"]
-        false_names = ["-in", "out_0"]
+        false_names = ["-in", "out_0", "Input_0"]
 
         for i in inputs:
             T_NAMES = any(x in str(i) for x in true_names)
@@ -579,16 +588,20 @@ class Add(OneFlowOpConverter):
                 add_b = i
             else:
                 add_a = i
-        
+
         # fix the shape
         add_shape = infer_shape(add_a)
         if len(add_shape) > 2:
             add_b = _op.expand_dims(add_b, axis=axis, num_newaxis=len(add_shape)-2)
-        add_b_shape = copy.deepcopy(list(infer_shape(add_b)))
-        add_b_shape.insert(0, add_shape[0])
-        add_b = _op.reshape(add_b, tuple(add_b_shape))
 
-        return get_relay_op(cls.name)(add_a, add_b)
+        add_b_shape = copy.deepcopy(list(infer_shape(add_b)))
+
+        # TODO
+        add_b_shape.insert(1, 1)
+        add_b = _op.reshape(add_b, tuple(add_b_shape))
+        out = get_relay_op(cls.name)(add_a, add_b)
+
+        return out
 
 
 class BroadcastMath(OneFlowOpConverter):
@@ -628,8 +641,27 @@ class Sub_broadcast(BroadcastMath):
     name = "subtract"
 
 
+class Unary(OneFlowOpConverter):
+    """A helper class for unary op converters"""
+
+    name = ""
+
+    @classmethod
+    def _impl_v1(cls, inputs, attrs, params):
+        assert len(inputs) == 1, "Unary math op {} takes 1 input, {} given".format(
+            cls.name, len(inputs)
+        )
+        return get_relay_op(cls.name)(*inputs)
+
+
+class Absolute(Unary):
+    """Operator converter for Absolute."""
+
+    name = "abs"
+
+
 class Add_n(OneFlowOpConverter):
-    """Operator converter for Add_n."""
+    """Operator converter for Add_n"""
 
     @classmethod
     def _impl_v1(cls, inputs, attrs, params):
@@ -656,6 +688,19 @@ class Add_scalar(OneFlowOpConverter):
             raise AttributeError("please check if has_int_operand or has_float_operand in your attrs")
 
 
+class Argmax(OneFlowOpConverter):
+    """Operator convert for Argmax"""
+
+    @classmethod
+    def _impl_v1(cls, inputs, attrs, params):
+        if "select_last_index" in attrs:
+            raise NotImplementedError("select_last_index not supported in ArgMax")
+        axis = attrs.get("axis", 0)
+        keepdims = attrs.get("keepdims", True)
+        attr = {"axis": axis, "keepdims": keepdims}
+        return _op.cast(AttrCvt("argmax")(inputs, attr), "int64")
+
+
 class MaxPool2d(Pool):
     """Operator converter for MaxPool"""
 
@@ -666,6 +711,16 @@ class AveragePool2d(Pool):
     """Operator converter for AveragePool."""
 
     name = "avg_pool2d"
+
+
+class Affine(OneFlowOpConverter):
+    """Operator converter for Affine transformation."""
+
+    @classmethod
+    def _impl_v1(cls, inputs, attrs, params):
+        alpha = _expr.const(attrs.get("alpha", 1.0))
+        beta = _expr.const(attrs.get("beta", 0.0))
+        return (alpha * inputs[0]) + beta
 
 
 class Reshape(OneFlowOpConverter):
@@ -717,34 +772,71 @@ class Dropout(OneFlowOpConverter):
         out = AttrCvt("dropout", {"ratio": "rate"}, ignores=["is_test"])
         return out
 
-    
-class PReLU(OneFlowOpConverter):
-    """Operator converter for PReLU."""
+
+class ThresholdedRelu(OneFlowOpConverter):
+    """Operator converter for ThresholdedRelu."""
 
     @classmethod
     def _impl_v1(cls, inputs, attrs, params):
-        # TODO(hujiakui): sort the inputs
+        alpha = float(attrs.get("alpha", 1.0))
+        alpha_tensor = _op.full_like(inputs[0], fill_value=_expr.const(alpha))
+        mask = _op.greater(inputs[0], alpha_tensor).astype("float32")
+        return inputs[0] * mask
+
+
+class Elu(OneFlowOpConverter):
+    """Operator converter for Elu"""
+
+    @classmethod
+    def _impl_v1(cls, inputs, attrs, params):
+        alpha = float(attrs.get("alpha", 1.0))
+        return _expr.const(-alpha) * _op.nn.relu(
+            _expr.const(1.0) - _op.exp(inputs[0])
+        ) + _op.nn.relu(inputs[0])
+
+
+class PReLU(OneFlowOpConverter):
+    """Operator converter for PReLU"""
+
+    classmethod
+    def _impl_v1(cls, inputs, attrs, params):
         assert len(inputs) == 2, "PReLU need 2 inputs, but {} given".format(len(inputs))
-        input_shape = shape_of(inputs[0])
-        alpha = _op.broadcast_to_like(inputs[1], inputs[0])
+        for i in inputs:
+            if "Input_0" in str(i):
+                prelu_a = i
+            else:
+                prelu_b = i
+        input_shape = shape_of(prelu_a)
+        alpha = _op.broadcast_to_like(prelu_b, prelu_a)
         alpha = _op.reshape(alpha, [-1])
-        output = _op.nn.prelu(_op.reshape(inputs[0], [-1]), alpha, axis=0)
-        out = _op.reshape(output, input_shape)
-        return out
+        output = _op.nn.prelu(_op.reshape(prelu_a, [-1]), alpha, axis=0)
+        return _op.reshape(output, input_shape)
+
+
+class Selu(OneFlowOpConverter):
+    """Operator converter for Selu"""
+
+    @classmethod
+    def _impl_v1(cls, inputs, attrs, params):
+        alpha = float(attrs.get("alpha", 1.67326319217681884765625))
+        gamma = float(attrs.get("gamma", 1.05070102214813232421875))
+        return _expr.const(gamma) * (
+            _expr.const(-alpha) * _op.nn.relu(_expr.const(1.0) - _op.exp(inputs[0]))
+            + _op.nn.relu(inputs[0])
+        )
 
 
 class Concat(OneFlowOpConverter):
-    """Operator converter for Concat."""
+    """Operator converter for Concat"""
 
     @classmethod
     def _impl_v1(cls, inputs, attrs, params):
-        # TODO: 可能有顺序问题
         attrs.pop("max_dim_size")
         return AttrCvt(op_name="concatenate")((inputs,), attrs)
 
 
 class Clip(OneFlowOpConverter):
-    """Operator converter for Clip."""
+    """Operator converter for Clip"""
 
     @classmethod
     def _impl_v1(cls, inputs, attrs, params):
@@ -766,15 +858,89 @@ class Clip(OneFlowOpConverter):
 
 
 class Slice(OneFlowOpConverter):
-    """Operator converter for Slice."""
+    """Operator converter for Slice"""
 
     @classmethod
     def _impl_v1(cls, inputs, attrs, params):
         starts = list(attrs["start"])
         ends = list(attrs["stop"])
         steps = list(attrs["step"])
-
         return _op.strided_slice(inputs[0], starts, ends, steps)
+
+
+class Split(OneFlowOpConverter):
+    """Operator converter for Split"""
+
+    @classmethod
+    def _impl_v1(cls, inputs, attrs, params):
+        splits = attrs.get("split", None)
+        if splits is not None:
+            indices = []
+            attrs["indices_or_sections"] = []
+            index = 0
+            for i in splits[:-1]:
+                index += i
+                indices.append(index)
+        output = _op.split(inputs[0], indices, attrs.get("axis", 0))
+        # If the output of split is a single value, unpack if from the TupleWrapper
+        if len(output) == 1:
+            output = output[0]
+        return output
+
+
+class Scatter(OneFlowOpConverter):
+    """Operator converter for Scatter"""
+
+    @classmethod
+    def _impl_v1(cls, inputs, attrs, params):
+        # TODO(jkhu29): sort the inputs
+        axis = attrs.get("axis", 0)
+        return _op.scatter(inputs[0], inputs[1], inputs[2], axis)
+
+
+class Unsqueeze(OneFlowOpConverter):
+    """Operator converter for Unsqueeze"""
+
+    @classmethod
+    def _impl_v1(cls, inputs, attrs, params):
+        axes = sorted(attrs["axes"])
+        for axis in axes:
+            inputs[0] = _op.expand_dims(inputs[0], axis=axis, num_newaxis=1)
+        return inputs[0]
+
+
+class OneHot(OneFlowOpConverter):
+    """Operator converter for OneHot"""
+
+    @classmethod
+    def _impl_v1(cls, inputs, attrs, params):
+        # Extract relay one_hot inputs.
+        indices, depth, values = inputs
+        ndim = len(infer_shape(indices))
+        # Split onnx on off values into two separate expressions.
+        off_value, on_value = _op.take(values, _op.const(0)), _op.take(values, _op.const(1))
+        # Extract the datatype of the output from on_value.
+        dtype = infer_type(on_value).checked_type.dtype
+        ind_dtype = infer_type(indices).checked_type.dtype
+        # Normalize the indices to a positive range
+        indices = _op.where(
+            indices < _op.const(0, ind_dtype), indices + _op.cast(depth, ind_dtype), indices
+        )
+        # set default value when axis is not set in the model
+        axis = attrs.get("axis", -1)
+        if axis < 0:
+            axis += ndim + 1
+
+        return _op.one_hot(indices, on_value, off_value, depth, axis, dtype=dtype)
+
+
+# TODO(jkhu29): RNN/LSTM/GRU
+class RNN(OneFlowOpConverter):
+    """Operator converter for RNN/LSTM/GRU"""
+
+    @classmethod
+    def _impl_v1(cls, inputs, attrs, params):
+        pass
 
 
 def get_convert_map():
@@ -915,13 +1081,21 @@ class OneflowGraph(object):
         import oneflow
 
         model = oneflow.checkpoint.get(model_dir_path)
+        model.pop("System-Train-TrainStep-TrainNet")
         # model_array: keys: layer_name，values: dict('path', 'params')
-        for layer in model:
-            layer_p = {}
-            layer_p['path'] = model[layer].file_path # get path
-            layer_p['params'] = model[layer].numpy() # get array
-            self._model_array[str(layer)] = layer_p
-            
+        for layer_name in model:
+            layer = model[layer_name]
+            layer_node = {}
+            layer_node['path'] = layer.file_path # get path
+            if layer.has_meta_info_:
+                layer_node['params'] = layer.numpy() # get array
+            else:
+                shape = tuple(nodes[layer_name].variable_conf.shape.dim)
+                dtype = FLOW_2_NP_DTYPE[nodes[layer_name].variable_conf.data_type]
+                array = np.fromfile(layer_node['path'], dtype=dtype)
+                layer_node['params'] = array.reshape(shape)
+            self._model_array[layer_name] = layer_node
+
         """
         The names of node_outputs do not appear directly in node.user_conf.input, 
         so the connection between layers will be cut off when building the graph
@@ -960,7 +1134,7 @@ class OneflowGraph(object):
                                     shape=node_array.shape,
                                     dtype=str(node_array.dtype)
                                 )
-            if is_output_op(node):
+            elif is_output_op(node):
                 output_path = os.path.join(model_dir_path, getattr(node.return_conf, "in"))
                 self._output_path_2_name[output_path] = node_name + output_path
 
@@ -974,7 +1148,7 @@ class OneflowGraph(object):
                 node_input_shape = self._shape[node_input_path]
                 node_input_dtype = self._dtype[node_input_path]
                 node_name = node_input_name + node_input_path
-                # if node_input_path not in self._nodes
+                # if node_name not in self._nodes and node_input_path not in self._input_path_2_name
                 if node_name not in self._nodes:
                     if "Input_0" in node_name or node_input_path not in self._input_path_2_name:
                         self._nodes[node_name] = new_var(
@@ -1208,7 +1382,7 @@ def from_oneflow(eval_job, model_dir_path, freeze_params=True, user_input=None):
         oneflow.config.enable_legacy_model_io(False)
 
         if 'snapshot_done' not in os.listdir(model_dir_path):
-            raise IndexError("'snapshot_name' is not in the model path, please determine whether the model has been trained")
+            raise IndexError("'snapshot_done' is not in the model path, please determine whether the model has been trained")
 
     except ImportError:
         raise ImportError("please check that OneFlow is installed")
