@@ -647,13 +647,39 @@ def test_add_op_scalar():
         }
     """
     mod = tvm.IRModule()
-    x = relay.var("x", shape=())
-    y = relay.var("y", shape=())
+    x = relay.var("x", shape=())  # Default to float32
+    y = relay.var("y", shape=())  # Default to float32
     func = relay.Function([x, y], relay.op.add(x, y))
-    x_data = np.array(10.0, dtype="float32")
-    y_data = np.array(1.0, dtype="float32")
-    mod["main"] = func
-    check_result([x_data, y_data], x_data + y_data, mod=mod)
+    x_y_data = [
+        (np.array(10.0, dtype="float32"), np.array(1.0, dtype="float32")),
+        (np.float32(10.0), np.float32(1.0)),
+        (10.0, 1.0),
+    ]
+    for (x_data, y_data) in x_y_data:
+        mod["main"] = func
+        check_result([x_data, y_data], x_data + y_data, mod=mod)
+
+
+@tvm.testing.uses_gpu
+def test_add_op_scalar_int():
+    """
+    test_add_op_scalar_int:
+        fn (x, y) {
+            return x + y;
+        }
+    """
+    mod = tvm.IRModule()
+    x = relay.var("x", shape=(), dtype="int32")
+    y = relay.var("y", shape=(), dtype="int32")
+    func = relay.Function([x, y], relay.op.add(x, y))
+    x_y_data = [
+        (np.array(10.0, dtype="int32"), np.array(1.0, dtype="int32")),
+        (np.int32(10), np.int32(1)),
+        (10, 1),
+    ]
+    for (x_data, y_data) in x_y_data:
+        mod["main"] = func
+        check_result([x_data, y_data], x_data + y_data, mod=mod)
 
 
 @tvm.testing.uses_gpu

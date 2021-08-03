@@ -298,9 +298,9 @@ def test_storage_share_gpu():
     alloc_stats = {"global": 0, "shared": 0}
 
     def verify(n):
-        if isinstance(n, tvm.tir.AttrStmt):
-            if n.attr_key == "storage_scope":
-                alloc_stats[n.value.value] += 1
+        if isinstance(n, tvm.tir.Allocate):
+            scope = n.buffer_var.type_annotation.storage_scope
+            alloc_stats[scope] += 1
 
     tvm.tir.stmt_functor.post_order_visit(stmt, verify)
     assert alloc_stats["global"] == 2
@@ -317,7 +317,7 @@ def test_parallel_alloc():
 
     body = ib.get()
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([n], body))
-    body = tvm.tir.transform.StorageRewrite()(mod)["main"].body
+    body = tvm.tir.transform.StorageRewrite()(mod)["main"]
 
     assert isinstance(body.body.body, tvm.tir.Allocate)
 
@@ -334,7 +334,7 @@ def test_parallel_alloc():
     body = ib.get()
 
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([n], body))
-    body = tvm.tir.transform.StorageRewrite()(mod)["main"].body
+    body = tvm.tir.transform.StorageRewrite()(mod)["main"]
 
     assert isinstance(body.body.body.body.body, tvm.tir.Allocate)
 
@@ -356,7 +356,6 @@ def test_while_alloc():
 
     mod = get_mod(kind="parallel")
     # parallel (i, 0, n) {
-    #   // attr [j] storage_scope = "global"
     #   allocate j[int32 * 1]
     #   j[0] = 0
     #   while((j[0] < 10)){
@@ -366,11 +365,9 @@ def test_while_alloc():
     #     j[0] = (j[0] + (j[0] + 1))
     #   }
     # }
-    body = tvm.tir.transform.StorageRewrite()(mod)["main"].body
+    body = tvm.tir.transform.StorageRewrite()(mod)["main"]
     # parallel (i, 0, n) {
-    #   // attr [j] storage_scope = "global"
     #   allocate j[int32 * 1]
-    #   // attr [A] storage_scope = "global"
     #   allocate A[float32 * n]
     #   j[0] = 0
     #   while((j[0] < 10)){
@@ -379,11 +376,10 @@ def test_while_alloc():
     #   }
     # }
     assert isinstance(body.body.body, tvm.tir.Allocate)  # j
-    assert isinstance(body.body.body.body.body, tvm.tir.Allocate)  # A
+    assert isinstance(body.body.body.body, tvm.tir.Allocate)  # A
 
     mod = get_mod(kind="serial")
     # for (i, 0, n) {
-    #   // attr [j] storage_scope = "global"
     #   allocate j[int32 * 1]
     #   j[0] = 0
     #   while((j[0] < 10)){
@@ -393,10 +389,8 @@ def test_while_alloc():
     #     j[0] = (j[0] + (j[0] + 1))
     #   }
     # }
-    body = tvm.tir.transform.StorageRewrite()(mod)["main"].body
-    # // attr [j] storage_scope = "global"
+    body = tvm.tir.transform.StorageRewrite()(mod)["main"]
     # allocate j[int32 * 1]
-    # // attr [A] storage_scope = "global"
     # allocate A[float32 * n]
     # for (i, 0, n) {
     #   j[0] = 0
@@ -406,7 +400,7 @@ def test_while_alloc():
     #   }
     # }
     assert isinstance(body.body, tvm.tir.Allocate)  # j
-    assert isinstance(body.body.body.body, tvm.tir.Allocate)  # A
+    assert isinstance(body.body.body, tvm.tir.Allocate)  # A
 
 
 def test_inplace_rule2(scope_tb="local_TB2", max_bits=1024 * 1024 * 1024):

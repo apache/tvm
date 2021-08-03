@@ -920,6 +920,98 @@ def test_any_dense_dynamic_batch():
     verify_any_dense((relay.Any(), 40), (50, 40), 50, (4, 40), (50, 40), (4, 50), use_cublas=True)
 
 
+def verify_any_batch_matmul(
+    x_shape,
+    y_shape,
+    out_shape,
+    x_var_shape,
+    y_var_shape,
+    dtype="float32",
+    trans_x=False,
+    trans_y=True,
+):
+    x = relay.var("x", relay.TensorType(x_var_shape, dtype))
+    y = relay.var("y", relay.TensorType(y_var_shape, dtype))
+    z = relay.nn.batch_matmul(x, y, transpose_a=trans_x, transpose_b=trans_y)
+
+    func = relay.Function([x, y], z)
+    x_np = np.random.uniform(size=x_shape).astype(dtype)
+    y_np = np.random.uniform(size=y_shape).astype(dtype)
+    z_np = tvm.topi.testing.batch_matmul(x_np, y_np, trans_x=trans_x, trans_y=trans_y)
+
+    for target, dev in tvm.testing.enabled_targets():
+        for kind in ["vm", "debug"]:
+            mod = tvm.ir.IRModule.from_expr(func)
+            intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+            z = intrp.evaluate()(x_np, y_np)
+            tvm.testing.assert_allclose(z.numpy(), z_np, rtol=1e-5)
+
+
+# TODO(mbrookhart): enable once VM supports heterogenous execution
+# @tvm.testing.uses_gpu
+def test_any_batch_matmul():
+    verify_any_batch_matmul((1, 16, 32), (1, 16, 32), (1, 16, 16), (1, 16, 32), (relay.Any(),) * 3)
+    verify_any_batch_matmul((5, 16, 32), (5, 16, 32), (5, 16, 16), (5, 16, 32), (relay.Any(),) * 3)
+    verify_any_batch_matmul((5, 16, 32), (5, 20, 32), (5, 16, 20), (5, 16, 32), (relay.Any(),) * 3)
+    verify_any_batch_matmul(
+        (30, 16, 32), (30, 20, 32), (30, 16, 20), (30, 16, 32), (relay.Any(),) * 3
+    )
+
+    verify_any_batch_matmul(
+        (1, 16, 32), (1, 16, 32), (1, 16, 16), (relay.Any(), 16, 32), (relay.Any(), 16, 32)
+    )
+    verify_any_batch_matmul(
+        (5, 16, 32), (5, 16, 32), (5, 16, 16), (relay.Any(), 16, 32), (relay.Any(), 16, 32)
+    )
+    verify_any_batch_matmul(
+        (5, 16, 32), (5, 20, 32), (5, 16, 20), (relay.Any(), 16, 32), (relay.Any(), 20, 32)
+    )
+    verify_any_batch_matmul(
+        (30, 16, 32), (30, 20, 32), (30, 16, 20), (relay.Any(), 16, 32), (relay.Any(), 20, 32)
+    )
+
+    verify_any_batch_matmul(
+        (1, 32, 16), (1, 16, 32), (1, 16, 16), (1, 32, 16), (relay.Any(),) * 3, trans_x=True
+    )
+    verify_any_batch_matmul(
+        (5, 16, 32), (5, 32, 16), (5, 16, 16), (5, 16, 32), (relay.Any(),) * 3, trans_y=False
+    )
+    verify_any_batch_matmul(
+        (5, 32, 16),
+        (5, 32, 20),
+        (5, 16, 20),
+        (5, 32, 16),
+        (relay.Any(),) * 3,
+        trans_x=True,
+        trans_y=False,
+    )
+    verify_any_batch_matmul(
+        (1, 32, 16),
+        (1, 16, 32),
+        (1, 16, 16),
+        (relay.Any(), 32, 16),
+        (relay.Any(), 16, 32),
+        trans_x=True,
+    )
+    verify_any_batch_matmul(
+        (5, 16, 32),
+        (5, 32, 16),
+        (5, 16, 16),
+        (relay.Any(), 16, 32),
+        (relay.Any(), 32, 16),
+        trans_y=False,
+    )
+    verify_any_batch_matmul(
+        (5, 32, 16),
+        (5, 32, 20),
+        (5, 16, 20),
+        (relay.Any(), 32, 16),
+        (relay.Any(), 32, 20),
+        trans_x=True,
+        trans_y=False,
+    )
+
+
 @tvm.testing.uses_gpu
 def verify_any_pad(data_shape, pad_width, static_data_shape):
     mod = tvm.IRModule()

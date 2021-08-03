@@ -48,6 +48,7 @@ lazy_static! {
             "/lib/graph.json"
         )))
         .unwrap();
+
         let params_bytes =
             include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/lib/graph.params"));
         let params = tvm_graph_rt::load_param_dict(params_bytes)
@@ -57,6 +58,7 @@ lazy_static! {
             .collect::<HashMap<String, TVMTensor<'static>>>();
 
         let mut exec = GraphExecutor::new(graph, &*SYSLIB).unwrap();
+
         exec.load_params(params);
 
         Mutex::new(exec)
@@ -68,14 +70,14 @@ pub extern "C" fn run(wasm_addr: i32, in_size: i32) -> i32 {
     let in_tensor = unsafe { utils::load_input(wasm_addr, in_size as usize) };
     let input: TVMTensor = in_tensor.as_dltensor().into();
 
-    GRAPH_EXECUTOR.lock().unwrap().set_input("data", input);
-    GRAPH_EXECUTOR.lock().unwrap().run();
-    let output = GRAPH_EXECUTOR
-        .lock()
-        .unwrap()
-        .get_output(0)
-        .unwrap()
-        .as_dltensor(false);
+    // since this executor is not multi-threaded, we can acquire lock once
+    let mut executor = GRAPH_EXECUTOR.lock().unwrap();
+
+    executor.set_input("data", input);
+
+    executor.run();
+
+    let output = executor.get_output(0).unwrap().as_dltensor(false);
 
     let out_tensor: Tensor = output.into();
     let out_size = unsafe { utils::store_output(wasm_addr, out_tensor) };

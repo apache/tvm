@@ -30,6 +30,11 @@ from tvm.topi.testing import conv2d_nchw_python
 import coremltools as cm
 import model_zoo
 import tvm.testing
+import tempfile
+from os import path
+import tvm
+import tvm.relay as relay
+import tensorflow.keras as keras
 
 
 def get_tvm_output(
@@ -783,6 +788,44 @@ def test_forward_convolution():
     verify_convolution((1, 3, 224, 224), filter=(32, 3, 3, 3), padding="SAME")
 
 
+def test_can_build_keras_to_coreml_to_relay():
+    """Test multiple conversion paths and importing from
+    a saved file."""
+    model = keras.models.Sequential()
+    model.add(
+        keras.layers.Conv2D(
+            filters=6,
+            kernel_size=(1, 1),
+            activation="relu",
+            padding="same",
+            input_shape=(3, 3, 1),
+            data_format="channels_first",
+        )
+    )
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        kmodel_fn = path.join(tmpdir, "c1mdl.h5")
+        model.save(kmodel_fn)
+
+        mdl = cm.convert(kmodel_fn)
+        model_file = path.join(tmpdir, "c1.mlmodel")
+        mdl.save(model_file)
+
+        mdl = cm.models.MLModel(model_file)
+        desc = mdl.get_spec().description
+        iname = desc.input[0].name
+        ishape = desc.input[0].type.multiArrayType.shape
+        shape_dict = {}
+        for i in mdl.get_spec().description.input:
+            iname = i.name
+            ishape = i.type.multiArrayType.shape
+            shape_dict[iname] = ishape
+        mod, params = relay.frontend.from_coreml(mdl, shape_dict)
+
+        with tvm.transform.PassContext(opt_level=3):
+            relay.build(mod, "llvm", params=params)
+
+
 if __name__ == "__main__":
     test_forward_AddLayerParams()
     test_forward_ConcatLayerParams()
@@ -801,3 +844,4 @@ if __name__ == "__main__":
     test_resnet50_checkonly()
     test_forward_image_scaler()
     test_forward_convolution()
+    test_can_build_keras_to_coreml_to_relay()

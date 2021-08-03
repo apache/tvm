@@ -799,10 +799,11 @@ def wrap_compute_batch_matmul(topi_compute, need_auto_scheduler_layout=False, ne
 
     def _compute_batch_matmul(attrs, inputs, out_type):
         args = [inputs[0], inputs[1], out_type.shape]
+        args.append(out_type.dtype if need_out_dtype else None)
+        args.append(attrs.transpose_a)
+        args.append(attrs.transpose_b)
         if need_auto_scheduler_layout:
             args.append(get_auto_scheduler_rewritten_layout(attrs))
-        if need_out_dtype:
-            args.append(out_type.dtype)
         return [topi_compute(*args)]
 
     return _compute_batch_matmul

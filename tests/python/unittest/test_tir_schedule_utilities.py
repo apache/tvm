@@ -15,12 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-function-docstring,missing-module-docstring
+import sys
+
 import pytest
 import tvm
 from tvm import tir
 from tvm.ir import IRModule
 from tvm.script import ty
-
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
@@ -108,8 +109,4 @@ def test_tir_schedule_remove_rv():
 
 
 if __name__ == "__main__":
-    test_tir_schedule_creation()
-    test_tir_schedule_get_block()
-    test_tir_schedule_get_loops()
-    test_tir_schedule_copy()
-    test_tir_schedule_remove_rv()
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))
