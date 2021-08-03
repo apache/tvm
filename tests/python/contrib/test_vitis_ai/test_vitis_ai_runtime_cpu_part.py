@@ -72,8 +72,8 @@ def test_extern_vitis_ai_resnet18():
         ref_res.numpy(),
         tol=1e-5,
         params=params,
-        dpu_target="DPUCADX8G",
-        tvm_ops=4,
+        dpu_target="DPUCADF8H",
+        tvm_ops=7,
     )
 
 
