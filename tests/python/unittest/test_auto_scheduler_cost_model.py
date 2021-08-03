@@ -24,7 +24,7 @@ import numpy as np
 import tvm
 from tvm import auto_scheduler
 
-from test_auto_scheduler_common import matmul_auto_scheduler_test
+from tvm.testing.auto_scheduler_common import matmul_auto_scheduler_test
 
 
 def get_sample_records(number):

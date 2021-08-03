@@ -23,7 +23,7 @@ import tvm
 from tvm import auto_scheduler, te
 from tvm import topi
 
-from test_auto_scheduler_common import (
+from tvm.testing.auto_scheduler_common import (
     matmul_auto_scheduler_test,
     conv2d_nchw_bn_relu_auto_scheduler_test,
 )
