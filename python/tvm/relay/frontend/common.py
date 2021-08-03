@@ -624,3 +624,31 @@ def to_int_list(np_array):
     cause problems in relay/TOPI.
     """
     return [int(x) for x in np_array]
+
+
+def unbind(data, axis=0):
+    """
+    Unbind was gotten from pytorch.py and modified. The operation removes a tensor dimension
+    and returns a tuple of all slices along a given dimension, already without it.
+    TODO (vvchernov): It needs such operation on relay side to reduce time consumption
+    on squeeze operation.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        Input tensor
+    axis : int
+        Axis along which tensor is splited. Tensors in the list do not have this axis.
+    Returns
+    -------
+    result : List[relay.Expr]
+        The sequence of computed tensors
+    """
+    shape = infer_shape(data)
+    selections = shape[axis]
+    res_split = _op.split(data, selections, axis)
+    ret = []
+    for i in range(selections):
+        ret.append(_op.squeeze(res_split[i], axis=[axis]))
+    ret = _expr.TupleWrapper(_expr.Tuple(ret), selections)
+    return ret

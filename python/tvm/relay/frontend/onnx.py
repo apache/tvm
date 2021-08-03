@@ -46,6 +46,7 @@ from .common import (
     infer_type,
     infer_value,
     new_var,
+    unbind,
 )
 
 __all__ = ["from_onnx"]
@@ -2142,34 +2143,6 @@ class LSTM(RNN):
     """Operator converter for LSTM"""
 
     @classmethod
-    def unbind(cls, data, axis=0):
-        """
-        Unbind was gotten from pytorch.py and modified. The operation removes a tensor dimension
-        and returns a tuple of all slices along a given dimension, already without it.
-        TODO (vvchernov): It needs such operation on relay side to reduce time consumption
-        on squeeze operation.
-
-        Parameters
-        ----------
-        data : relay.Expr
-            Input tensor
-        axis : int
-            Axis along which tensor is splited. Tensors in the list has not this axis.
-        Returns
-        -------
-        result : List[relay.Expr]
-            The sequence of computed tensors
-        """
-        shape = infer_shape(data)
-        selections = shape[axis]
-        res_split = _op.split(data, selections, axis)
-        ret = []
-        for i in range(selections):
-            ret.append(_op.squeeze(res_split[i], axis=[axis]))
-        ret = _expr.TupleWrapper(_expr.Tuple(ret), selections)
-        return ret
-
-    @classmethod
     def bidir_lstm_cell(
         cls,
         input_seqs,
@@ -2269,7 +2242,7 @@ class LSTM(RNN):
             acts = [_op.sigmoid, _op.tanh, _op.tanh] * num_directions
 
         # TODO (vvchernov): It can be replaced by _op.split if issue #8412 is resolved
-        X_steps = LSTM.unbind(X, axis=0)
+        X_steps = unbind(X, axis=0)
 
         H_ts = _op.split(Hp_0, num_directions)
         C_ts = _op.split(Cp_0, num_directions)
