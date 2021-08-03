@@ -63,7 +63,8 @@ The minimal building requirements for the ``TVM`` libraries are:
    - CMake 3.5 or higher
    - We highly recommend to build with LLVM to enable all the features.
    - If you want to use CUDA, CUDA toolkit version >= 8.0 is required. If you are upgrading from an older version, make sure you purge the older version and reboot after installation.
-   - On macOS, you may want to install `Homebrew <https://brew.sh>` to easily install and manage dependencies.
+   - On macOS, you may want to install `Homebrew <https://brew.sh>`_ to easily install and manage dependencies.
+   - Python is also required. Avoid using Python 3.9.X+ which is not `supported <https://github.com/apache/tvm/issues/8577>`_. 3.7.X+ and 3.8.X+ should be well supported however.
 
 To install the these minimal pre-requisites on Ubuntu/Debian like
 linux operating systems, execute (in a terminal):
@@ -72,6 +73,15 @@ linux operating systems, execute (in a terminal):
 
     sudo apt-get update
     sudo apt-get install -y python3 python3-dev python3-setuptools gcc libtinfo-dev zlib1g-dev build-essential cmake libedit-dev libxml2-dev
+
+Use Homebrew to install the required dependencies for macOS running either the Intel or M1 processors. You must follow the post-installation steps specified by 
+Homebrew to ensure the dependencies are correctly installed and configured:
+
+.. code:: bash 
+
+    brew install gcc git cmake 
+    brew install llvm 
+    brew install python@3.8 
 
 
 We use cmake to build the library.
@@ -293,6 +303,21 @@ like ``virtualenv``.
 
        pip3 install --user tornado psutil xgboost cloudpickle
 
+Note on M1 macs, you may have trouble installing xgboost / scipy. scipy and xgboost requires some additional dependencies to be installed, 
+including openblas and its dependencies. Use the following commands to install scipy and xgboost with the required dependencies and 
+configuration. A workaround for this is to do the following commands:
+
+    .. code:: bash 
+
+        brew install openblas gfortran
+
+        pip install pybind11 cython pythran   
+        
+        export OPENBLAS=/opt/homebrew/opt/openblas/lib/ 
+        
+        pip install scipy --no-use-pep517
+        
+        pip install xgboost
 
 Install Contrib Libraries
 -------------------------
