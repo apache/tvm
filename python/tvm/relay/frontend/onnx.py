@@ -47,6 +47,7 @@ from .common import (
     infer_value,
     new_var,
     unbind,
+    lstm_cell,
 )
 
 __all__ = ["from_onnx"]
@@ -2153,7 +2154,7 @@ class LSTM(RNN):
         Bidirectional LSTM cell
         """
         seq_len = len(input_seqs)
-        forward_outputs, fw_H_t, fw_C_t = _op.lstm_cell(
+        forward_outputs, fw_H_t, fw_C_t = lstm_cell(
             input_seqs,
             **weight_dicts[0],
             f_act=acts[0],
@@ -2161,7 +2162,7 @@ class LSTM(RNN):
             h_act=acts[2],
         )
 
-        reverse_outputs, rev_H_t, rev_C_t = _op.lstm_cell(
+        reverse_outputs, rev_H_t, rev_C_t = lstm_cell(
             input_seqs,
             **weight_dicts[1],
             f_act=acts[3],
@@ -2290,7 +2291,7 @@ class LSTM(RNN):
             )
         else:
             # outputs shape = [seqs_num, (batch_size, hidden_size)]
-            outputs, H, C = _op.lstm_cell(
+            outputs, H, C = lstm_cell(
                 input_seqs=X_steps,
                 **weights_dicts[0],
                 f_act=acts[0],

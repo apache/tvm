@@ -38,7 +38,6 @@ from .reduce import *
 from .tensor import *
 from .transform import *
 from .algorithm import *
-from .layers import *
 from . import vm
 from . import nn
 from . import annotation

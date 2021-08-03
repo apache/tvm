@@ -39,7 +39,7 @@ from ..loops import while_loop
 from ..prelude import Prelude, StaticTensorArrayOps
 from ..ty import Any, TensorType, TupleType
 from . import qnn_torch
-from .common import AttrCvt, get_relay_op, unbind
+from .common import AttrCvt, get_relay_op, unbind, lstm_cell
 from .common import infer_value as _infer_value
 from .common import infer_shape as _infer_shape
 from .common import infer_value_simulated as _infer_value_simulated
@@ -2321,12 +2321,12 @@ class PyTorchOpConverter:
         Bidirectional LSTM cell
         """
         seq_len = len(input_seqs)
-        forward_outputs, fw_H_t, fw_C_t = _op.lstm_cell(
+        forward_outputs, fw_H_t, fw_C_t = lstm_cell(
             input_seqs,
             **weights_dicts[0],
         )
 
-        reverse_outputs, rev_H_t, rev_C_t = _op.lstm_cell(
+        reverse_outputs, rev_H_t, rev_C_t = lstm_cell(
             input_seqs,
             **weights_dicts[1],
             backwards=True,
@@ -2355,7 +2355,7 @@ class PyTorchOpConverter:
             if bidirectional:
                 input_seqs, H_t, C_t = self.bidir_lstm_cell(input_seqs, weights_dicts)
             else:
-                input_seqs, H_t, C_t = _op.lstm_cell(input_seqs, **weights_dicts[0])
+                input_seqs, H_t, C_t = lstm_cell(input_seqs, **weights_dicts[0])
 
             output_hiddens.append((H_t, C_t))
 
