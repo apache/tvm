@@ -504,11 +504,8 @@ PackedFunc GraphExecutor::GetFunction(const std::string& name,
     });
   } else if (name == "get_input_index") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      if (String::CanConvertFrom(args[0])) {
-        *rv = this->GetInputIndex(args[0].operator String());
-      } else {
-        *rv = args[0];
-      }
+      CHECK(String::CanConvertFrom(args[0])) << "Input key is not a string";
+      *rv = this->GetInputIndex(args[0].operator String());
     });
   } else {
     return PackedFunc();
