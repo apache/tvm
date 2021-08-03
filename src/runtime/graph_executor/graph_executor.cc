@@ -178,22 +178,13 @@ void GraphExecutor::SetOutputZeroCopy(int index, DLTensor* data_ref) {
   CheckExternalDLTensor(data_ref, output_node_eid);
 
   // Update the data pointer for output op
-  for (DLTensor* t : output_dltensors_[output_node.node_id]) {
+  for (DLTensor* t : output_dltensors_[output_node_eid]) {
     t->data = data_ref->data;
   }
 
   // Update the input of the op connected to the output
-  for (size_t input_nid = 0; input_nid < nodes_.size(); input_nid++) {
-    if (std::find(nodes_[input_nid].inputs.begin(), nodes_[input_nid].inputs.end(), output_node) !=
-        nodes_[input_nid].inputs.end()) {
-      uint32_t input_eid = this->entry_id(input_nid, 0);
-      // check the consistency of input
-      CheckExternalDLTensor(data_ref, input_eid);
-      // Update the data pointer for each argument of each op
-      for (DLTensor* t : input_dltensors_[input_eid]) {
-        t->data = data_ref->data;
-      }
-    }
+  for (DLTensor* t : both_output_opinput_dltensors_[output_node_eid]) {
+    t->data = data_ref->data;
   }
 }
 /*!
@@ -416,14 +407,15 @@ void GraphExecutor::SetupOpExecs() {
   op_execs_.resize(this->GetNumOfNodes());
   input_dltensors_.resize(num_node_entries());
   output_dltensors_.resize(num_node_entries());
+  both_output_opinput_dltensors_.resize(num_node_entries());
   std::unordered_set<uint32_t> input_node_eids;
   for (size_t i = 0; i < input_nodes_.size(); i++) {
     uint32_t nid = input_nodes_[i];
     input_node_eids.insert(entry_id(nid, 0));
   }
-  std::unordered_set<uint32_t> output_node_id;
+  std::unordered_set<uint32_t> output_node_eids;
   for (size_t i = 0; i < outputs_.size(); i++) {
-    output_node_id.insert(outputs_[i].node_id);
+    output_node_eids.insert(entry_id(outputs_[i]));
   }
 
   // setup the array and requirements.
@@ -446,15 +438,22 @@ void GraphExecutor::SetupOpExecs() {
 
     for (size_t i = 0; i < inode.inputs.size(); i++) {
       uint32_t input_eid = this->entry_id(inode.inputs[i]);
-      input_dltensors_[input_eid].push_back(
-          static_cast<DLTensor*>(op_args->arg_values[i].v_handle));
+      // check if op input is model input
+      if (input_node_eids.count(input_eid) > 0) {
+        input_dltensors_[input_eid].push_back(
+            static_cast<DLTensor*>(op_args->arg_values[i].v_handle));
+      }
+      // check if any model output is the input of the op
+      if (output_node_eids.count(input_eid) > 0) {
+        both_output_opinput_dltensors_[input_eid].push_back(
+            static_cast<DLTensor*>(op_args->arg_values[i].v_handle));
+      }
     }
 
-    // check if op output is model output
-    if (output_node_id.count(nid) > 0) {
-      for (uint32_t i = inode.inputs.size(); i < inode.inputs.size() + inode.param.num_outputs;
-           ++i) {
-        uint32_t output_eid = this->entry_id(nid, i - inode.inputs.size());
+    for (uint32_t i = inode.inputs.size(); i < inode.inputs.size() + inode.param.num_outputs; ++i) {
+      uint32_t output_eid = this->entry_id(nid, i - inode.inputs.size());
+      // check if op output is model output
+      if (output_node_eids.count(output_eid) > 0) {
         output_dltensors_[output_eid].push_back(
             static_cast<DLTensor*>(op_args->arg_values[i].v_handle));
       }
