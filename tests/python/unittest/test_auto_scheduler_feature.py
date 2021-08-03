@@ -23,7 +23,7 @@ import tempfile
 import tvm
 from tvm import te, auto_scheduler
 
-from tvm.testing.auto_scheduler_common import matmul_auto_scheduler_test
+from tvm.testing.auto_scheduler import matmul_auto_scheduler_test
 
 
 def fequal(a, b):

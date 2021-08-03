@@ -23,7 +23,7 @@ import tvm
 from tvm import topi
 from tvm import auto_scheduler, te
 
-from tvm.testing.auto_scheduler_common import (
+from tvm.testing.auto_scheduler import (
     get_tiled_matmul,
     invalid_compute_definition,
     matmul_auto_scheduler_test,
