@@ -71,7 +71,10 @@ def verify_dynamic_csrmv(batch, in_dim, out_dim, dtype, use_bias=True):
         f(_nr, a.data, a.indices, a.indptr, b, c, d)
         tvm.testing.assert_allclose(d.numpy(), d_np, rtol=1e-4, atol=1e-4)
 
-    for target, dev in tvm.testing.enabled_targets():
+    # Unable to use the following idiom and thus restrict to llvm only.
+    #for target, dev in tvm.testing.enabled_targets():
+    for target in ['llvm']:
+        dev = tvm.device(target, 0)
         check_device(target, dev)
 
 
@@ -109,7 +112,10 @@ def verify_dynamic_csrmm(batch, in_dim, out_dim, dtype, use_bias=True):
         f(_nr, a.data, a.indices, a.indptr, b, c, d)
         tvm.testing.assert_allclose(d.numpy(), d_np, rtol=1e-2, atol=1e-2)
 
-    for target, dev in tvm.testing.enabled_targets():
+    # This test is not yet ready to use the idiom ,
+    # for target, dev in tvm.testing.enabled_targets()
+    for target in ['llvm']:
+        dev = tvm.device(target, 0)
         check_device(target, dev)
 
 
@@ -574,7 +580,10 @@ def verify_sparse_conv2d_bsr(M, H, W, N, K, BS_R, BS_C, density, layout):
         )
         tvm.testing.assert_allclose(Y_tvm.numpy(), Y_np.astype("float32"), atol=1e-4, rtol=1e-4)
 
-    for target, dev in tvm.testing.enabled_targets():
+    #Unable to use the idiom below as the test isn't suitable for non llvm targets.
+    #for target, dev in tvm.testing.enabled_targets():
+    for target in ['llvm']:
+        dev = tvm.device(target, 0)
         check_device(target, dev)
 
 
