@@ -309,8 +309,8 @@ TEST(BuildModule, ZeroCopy) {
 
   tvm::runtime::NDArray out0 = runtime::NDArray::Empty({n}, {kDLFloat, 32, 1}, {kDLCPU, 0});
   tvm::runtime::NDArray out1 = runtime::NDArray::Empty({n}, {kDLFloat, 32, 1}, {kDLCPU, 0});
-  set_output_zero_copy(0, out0);
-  set_output_zero_copy(1, out1);
+  set_output_zero_copy("elemwise_add", out0);
+  set_output_zero_copy("elemwise_sub", out1);
 
   run();
   float* p_out0 = (float*)out0->data;
