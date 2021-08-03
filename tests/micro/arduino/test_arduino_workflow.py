@@ -55,13 +55,14 @@ def _generate_project(model, target, arduino_board, arduino_cli_cmd, mod, build_
         str(template_project_dir),
         mod,
         workspace.relpath("project"),
-        {"arduino_board": arduino_board, "arduino_cli_cmd": arduino_cli_cmd, "project_type": "template_project", "verbose": 0},
+        {
+            "arduino_board": arduino_board,
+            "arduino_cli_cmd": arduino_cli_cmd,
+            "project_type": "example_project",
+            "verbose": 0,
+        },
     )
     return (workspace, project)
-
-
-# This is bad, don't do this
-TARGET = "c -keys=cpu -executor=aot -link-params=1 -model=host -runtime=c -unpacked-api=1"
 
 
 @pytest.fixture(scope="module")
@@ -75,10 +76,14 @@ def yes_no_project(platform, arduino_cli_cmd):
         tflite_model_buf = f.read()
     tflite_model = tflite.Model.GetRootAsModel(tflite_model_buf, 0)
     mod, params = relay.frontend.from_tflite(tflite_model)
-    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        mod = relay.build(mod, TARGET, params=params)
+    target = tvm.target.target.micro(
+        model, options=["--link-params=1", "--unpacked-api=1", "--executor=aot"]
+    )
 
-    return _generate_project(model, TARGET, arduino_board, arduino_cli_cmd, mod, build_config)
+    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
+        mod = relay.build(mod, target, params=params)
+
+    return _generate_project(model, target, arduino_board, arduino_cli_cmd, mod, build_config)
 
 
 @pytest.fixture(scope="module")

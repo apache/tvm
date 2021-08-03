@@ -41,6 +41,19 @@ class BoardAutodetectFailed(Exception):
 
 
 BOARD_PROPERTIES = {
+    "due": {
+        "package": "arduino",
+        "architecture": "sam",
+        "board": "arduino_due_x"
+    },
+    # Due to the way the Feather S2 bootloader works, compilation
+    # behaves fine but uploads cannot be done automatically
+    "feathers2": {
+        "package": "esp32",
+        "architecture": "esp32",
+        "board": "feathers2",
+    },
+    # Spresense only works as of its v2.3.0 sdk
     "spresense": {
         "package": "SPRESENSE",
         "architecture": "spresense",
@@ -51,12 +64,27 @@ BOARD_PROPERTIES = {
         "architecture": "mbed_nano",
         "board": "nano33ble",
     },
+    "pybadge": {
+        "package": "adafruit",
+        "architecture": "samd",
+        "board": "adafruit_pybadge_m4",
+    },
+    # The Teensy boards are listed here for completeness, but they
+    # won't work until https://github.com/arduino/arduino-cli/issues/700
+    # is finished
+    "teensy40": {
+        "package": "teensy",
+        "architecture": "avr",
+        "board": "teensy40",
+    },
+    "teensy41": {
+        "package": "teensy",
+        "architecture": "avr",
+        "board": "teensy41",
+    },
 }
 
-PROJECT_TYPES = [
-    "template_project",
-    "host_driven"
-]
+PROJECT_TYPES = ["example_project", "host_driven"]
 
 PROJECT_OPTIONS = [
     server.ProjectOption(
@@ -67,7 +95,7 @@ PROJECT_OPTIONS = [
     server.ProjectOption("arduino_cli_cmd", help="Path to the arduino-cli tool."),
     server.ProjectOption("port", help="Port to use for connecting to hardware"),
     server.ProjectOption(
-        "project_type",
+        "example_project",
         help="Type of project to generate.",
         choices=tuple(PROJECT_TYPES),
     ),
@@ -94,9 +122,14 @@ class Handler(server.ProjectAPIHandler):
 
     def _copy_project_files(self, api_server_dir, project_dir, project_type):
         project_types_folder = api_server_dir.parents[0]
-        shutil.copytree(project_types_folder / project_type / "src", project_dir / "src", dirs_exist_ok=True)
+        shutil.copytree(
+            project_types_folder / project_type / "src", project_dir / "src", dirs_exist_ok=True
+        )
         # Arduino requires the .ino file have the same filename as its containing folder
-        shutil.copy2(project_types_folder / project_type / "project.ino", project_dir / f"{project_dir.stem}.ino")
+        shutil.copy2(
+            project_types_folder / project_type / "project.ino",
+            project_dir / f"{project_dir.stem}.ino",
+        )
 
     CRT_COPY_ITEMS = ("include", "src")
 
@@ -111,27 +144,40 @@ class Handler(server.ProjectAPIHandler):
             else:
                 shutil.copy2(src_path, dst_path)
 
-    UNUSED_COMPONENTS = [
-
+    # Example project is the "minimum viable project",
+    # and doesn't need a fancy RPC server
+    EXAMPLE_PROJECT_UNUSED_COMPONENTS = [
+        "include/dmlc",
+        "src/support",
+        "src/runtime/minrpc",
+        "src/runtime/crt/graph_executor",
+        "src/runtime/crt/microtvm_rpc_common",
+        "src/runtime/crt/microtvm_rpc_server",
+        "src/runtime/crt/tab",
     ]
 
-    def _remove_unused_components(self, source_dir):
-        for component in self.UNUSED_COMPONENTS:
+    def _remove_unused_components(self, source_dir, project_type):
+        unused_components = []
+        if project_type == "example_project":
+            unused_components = self.EXAMPLE_PROJECT_UNUSED_COMPONENTS
+
+        for component in unused_components:
             shutil.rmtree(source_dir / "standalone_crt" / component)
 
     def _disassemble_mlf(self, mlf_tar_path, source_dir):
-        with tempfile.TemporaryDirectory() as mlf_unpacking_dir:
+        with tempfile.TemporaryDirectory() as mlf_unpacking_dir_str:
+            mlf_unpacking_dir = pathlib.Path(mlf_unpacking_dir_str)
             with tarfile.open(mlf_tar_path, "r:") as tar:
                 tar.extractall(mlf_unpacking_dir)
 
-            # Copy C files
             model_dir = source_dir / "model"
             model_dir.mkdir()
-            for source, dest in [
-                ("codegen/host/src/default_lib0.c", "default_lib0.c"),
-                ("codegen/host/src/default_lib1.c", "default_lib1.c"),
-            ]:
-                shutil.copy(os.path.join(mlf_unpacking_dir, source), model_dir / dest)
+
+            # Copy C files from model. The filesnames and quantity
+            # depend on the target string, so we just copy all c files
+            source_dir = mlf_unpacking_dir / "codegen" / "host" / "src"
+            for file in source_dir.rglob(f"*.c"):
+                shutil.copy(file, model_dir)
 
             # Return metadata.json for use in templating
             with open(os.path.join(mlf_unpacking_dir, "metadata.json")) as f:
@@ -151,39 +197,38 @@ class Handler(server.ProjectAPIHandler):
         with open(source_dir / "model.h", "w") as f:
             f.write(model_h_template.substitute(template_values))
 
-
     # Arduino ONLY recognizes .ino, .ccp, .c, .h
 
     CPP_FILE_EXTENSION_SYNONYMS = ("cc", "cxx")
+
     def _change_cpp_file_extensions(self, source_dir):
         for ext in self.CPP_FILE_EXTENSION_SYNONYMS:
             for filename in source_dir.rglob(f"*.{ext}"):
-                filename.rename(filename.with_suffix('.cpp'))
+                filename.rename(filename.with_suffix(".cpp"))
 
         for filename in source_dir.rglob(f"*.inc"):
-            filename.rename(filename.with_suffix('.h'))
-
+            filename.rename(filename.with_suffix(".h"))
 
     def _process_autogenerated_inc_files(self, source_dir):
         for filename in source_dir.rglob(f"*.inc"):
             # Individual file fixes
             if filename.stem == "gentab_ccitt":
-                with open(filename, 'r+') as f:
+                with open(filename, "r+") as f:
                     content = f.read()
                     f.seek(0, 0)
                     f.write('#include "inttypes.h"\n' + content)
 
-            filename.rename(filename.with_suffix('.c'))
+            filename.rename(filename.with_suffix(".c"))
 
     POSSIBLE_BASE_PATHS = ["src/standalone_crt/include/", "src/standalone_crt/crt_config/"]
 
     def _find_modified_include_path(self, project_dir, file_path, import_path):
         # If the import is for a .inc file we renamed to .c earlier, fix it
         if import_path.endswith(self.CPP_FILE_EXTENSION_SYNONYMS):
-            import_path = re.sub(r'\.[a-z]+$', ".cpp", import_path)
+            import_path = re.sub(r"\.[a-z]+$", ".cpp", import_path)
 
         if import_path.endswith(".inc"):
-            import_path = re.sub(r'\.[a-z]+$', ".h", import_path)
+            import_path = re.sub(r"\.[a-z]+$", ".h", import_path)
 
         # If the import already works, don't modify it
         if (file_path.parents[0] / import_path).exists():
@@ -239,14 +284,15 @@ class Handler(server.ProjectAPIHandler):
 
         # Copy standalone_crt into src folder
         self._copy_standalone_crt(source_dir, standalone_crt_dir)
-        self._remove_unused_components(source_dir)
+        self._remove_unused_components(source_dir, options["project_type"])
 
         # Unpack the MLF and copy the relevant files
         metadata = self._disassemble_mlf(model_library_format_path, source_dir)
         shutil.copy2(model_library_format_path, source_dir / "model")
 
-        # Template model.h with metadata to minimize space usage
-        self._template_model_header(source_dir, metadata)
+        # For AOT, template model.h with metadata to minimize space usage
+        if options["project_type"] == "example_project":
+            self._template_model_header(source_dir, metadata)
 
         self._change_cpp_file_extensions(source_dir)
 
@@ -341,7 +387,17 @@ class Handler(server.ProjectAPIHandler):
             return
 
         port = self._get_arduino_port(options)
+
+        # Wait for port to become available
+        for attempts in range(10):
+            if any(serial.tools.list_ports.grep(port)):
+                break
+            time.sleep(0.5)
+
+        # TODO figure out why RPC serial communication times out 90% (not 100%)
+        # of the time on the Nano 33 BLE
         self._serial = serial.Serial(port, baudrate=115200, timeout=5)
+
         return server.TransportTimeouts(
             session_start_retry_timeout_sec=2.0,
             session_start_timeout_sec=5.0,
@@ -364,7 +420,7 @@ class Handler(server.ProjectAPIHandler):
     def write_transport(self, data, timeout_sec):
         if self._serial is None:
             raise server.TransportClosedError()
-        return self._serial.write(data, timeout_sec)
+        return self._serial.write(data)
 
 
 if __name__ == "__main__":

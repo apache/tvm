@@ -6,9 +6,9 @@
 
 void performInference(int8_t input_data[1960], char *data_name) {
   int8_t output_data[4];
-  uint64_t start_time = micros();
+  unsigned long start_time = micros();
   TVMExecute(input_data, output_data);
-  uint64_t end_time = micros();
+  unsigned long end_time = micros();
 
   Serial.print(data_name);
   Serial.print(",");

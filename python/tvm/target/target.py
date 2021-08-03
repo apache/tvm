@@ -281,12 +281,17 @@ def intel_graphics(model="unknown", options=None):
 
 MICRO_SUPPORTED_MODELS = {
     "host": [],
+    "atsamd51": ["-mcpu=cortex-m4"],
+    "cxd5602gg": ["-mcpu=cortex-m4"],
+    "esp32": [],
+    "imxrt1060": ["-mcpu=cortex-m7"],
     "mps2_an521": ["-mcpu=cortex-m33"],
+    "nrf52840": ["-mcpu=cortex-m4"],
     "nrf5340dk": ["-mcpu=cortex-m33"],
+    "sam3x8e": ["-mcpu=cortex-m3"],
     "stm32f746xx": ["-mcpu=cortex-m7", "-march=armv7e-m"],
     "stm32l4r5zi": ["-mcpu=cortex-m4"],
     "zynq_mp_r5": ["-mcpu=cortex-r5"],
-    "cxd5602gg": ["-mcpu=cortex-m4f"],
 }
 
 
@@ -308,7 +313,8 @@ def micro(model="unknown", options=None):
         options,
     )
 
-    if (not options) or (options and "--executor=aot" not in options):
+    if (not options) or (options and not any("-executor=aot" in o for o in options)):
+        print("Adding system libs!")
         opts = _merge_opts(opts, "--system-lib")
 
     # NOTE: in the future, the default micro target will be LLVM except when

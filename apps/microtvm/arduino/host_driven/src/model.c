@@ -1,30 +1,22 @@
 #ifndef TVM_IMPLEMENTATION_ARDUINO
 #define TVM_IMPLEMENTATION_ARDUINO
 
-#include "stdarg.h"
-
 #include "model.h"
 
 #include "Arduino.h"
 #include "standalone_crt/include/tvm/runtime/crt/internal/aot_executor/aot_executor.h"
-#include "standalone_crt/include/tvm/runtime/crt/stack_allocator.h"
-
-// AOT memory array
-static uint8_t g_aot_memory[WORKSPACE_SIZE];
-extern tvm_model_t tvmgen_default_network;
-tvm_workspace_t app_workspace;
+#include "stdarg.h"
 
 // Blink code for debugging purposes
 void TVMPlatformAbort(tvm_crt_error_t error) {
   for (;;) {
-    digitalWrite(LED_BUILTIN, HIGH);
-    delay(250);
-    digitalWrite(LED_BUILTIN, LOW);
-    delay(250);
-    digitalWrite(LED_BUILTIN, HIGH);
-    delay(250);
-    digitalWrite(LED_BUILTIN, LOW);
-    delay(750);
+    for (int i = 0; i < 4; i++) {
+      digitalWrite(LED_BUILTIN, HIGH);
+      delay(250);
+      digitalWrite(LED_BUILTIN, LOW);
+      delay(250);
+    }
+    delay(1000);
   }
 }
 
@@ -34,11 +26,16 @@ size_t TVMPlatformFormatMessage(char* out_buf, size_t out_buf_size_bytes, const 
 }
 
 tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLDevice dev, void** out_ptr) {
-  return StackMemoryManager_Allocate(&app_workspace, num_bytes, out_ptr);
+  if (num_bytes == 0) {
+    num_bytes = sizeof(int);
+  }
+  *out_ptr = malloc(num_bytes);
+  return (*out_ptr == NULL) ? kTvmErrorPlatformNoMemory : kTvmErrorNoError;
 }
 
 tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
-  return StackMemoryManager_Free(&app_workspace, ptr);
+  free(ptr);
+  return kTvmErrorNoError;
 }
 
 unsigned long g_utvm_start_time;
