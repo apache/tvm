@@ -14,5 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=redefined-builtin, wildcard-import
+# pylint: disable=redefined-builtin, wildcard-import, invalid-name
 from .utils import *
+from .auto_scheduler import *
