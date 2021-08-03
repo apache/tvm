@@ -507,6 +507,34 @@ def test_sequential_with_scoping():
     assert tvm.ir.structural_equal(zz, zexpected)
 
 
+def test_nested_sequential_with_scoping():
+    def before():
+        x = relay.var("x", shape=(1, 16, 16, 16), dtype="float32")
+        w = relay.var("w", shape=(32, 16, 3, 3), dtype="float32")
+        y = relay.nn.conv2d(x, w, padding=(1, 1))
+        y = relay.reshape(y, newshape=(1, 16, -1))
+        y = relay.reshape(y, newshape=(4, 8, -1, 16))
+        y = relay.reverse_reshape(y, newshape=(32, 0, -1))
+        return tvm.IRModule.from_expr(y)
+
+    def expected():
+        x = relay.var("x", shape=(1, 16, 16, 16), dtype="float32")
+        w = relay.var("w", shape=(32, 16, 3, 3), dtype="float32")
+        y = relay.nn.conv2d(x, w, padding=(1, 1))
+        y = relay.reshape(y, newshape=(32, 16, 16))
+        return tvm.IRModule.from_expr(y)
+
+    z = before()
+    passes = [
+        tvm.transform.Sequential([relay.transform.SimplifyExpr()]),
+    ]
+    with tvm.transform.PassContext(opt_level=1):
+        zz = tvm.transform.Sequential(passes)(z)
+
+    expected = relay.transform.InferType()(expected())
+    assert tvm.ir.structural_equal(zz, expected)
+
+
 def test_print_ir(capfd):
     shape = (1, 2, 3)
     tp = relay.TensorType(shape, "float32")

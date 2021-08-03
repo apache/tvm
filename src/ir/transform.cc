@@ -435,7 +435,7 @@ Sequential::Sequential(tvm::Array<Pass> passes, PassInfo pass_info) {
 Sequential::Sequential(tvm::Array<Pass> passes, String name) {
   auto n = make_object<SequentialNode>();
   n->passes = std::move(passes);
-  PassInfo pass_info = PassInfo(2, std::move(name), {});
+  PassInfo pass_info = PassInfo(0, std::move(name), {});
   n->pass_info = std::move(pass_info);
   data_ = std::move(n);
 }
