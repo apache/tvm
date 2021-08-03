@@ -645,6 +645,10 @@ def unbind(data, axis=0):
         The sequence of computed tensors
     """
     shape = infer_shape(data)
+    if axis >= len(shape):
+        msg = "Please check input dim, it shouldn't be greater than or equal to rank."
+        raise AttributeError(msg)
+
     selections = shape[axis]
     res_split = _op.split(data, selections, axis)
     ret = []

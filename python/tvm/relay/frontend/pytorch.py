@@ -39,7 +39,7 @@ from ..loops import while_loop
 from ..prelude import Prelude, StaticTensorArrayOps
 from ..ty import Any, TensorType, TupleType
 from . import qnn_torch
-from .common import AttrCvt, get_relay_op
+from .common import AttrCvt, get_relay_op, unbind
 from .common import infer_value as _infer_value
 from .common import infer_shape as _infer_shape
 from .common import infer_value_simulated as _infer_value_simulated
@@ -2092,24 +2092,6 @@ class PyTorchOpConverter:
             kernel_size,
         )
 
-    def unbind(self, inputs, input_types):
-        data = inputs[0]
-        dim = int(inputs[1])
-        ishapes = self.infer_shape(data)
-        if dim >= len(ishapes):
-            msg = "Please check input dim, it shouldn't be greater than or equal to rank."
-            raise AttributeError(msg)
-
-        selections = ishapes[dim]
-        res_split = _op.split(data, selections, dim)
-        # squeeze each split piece to get same shape as aten::unbind
-        # TODO (yongwww): add new op to avoid the squeeze overhead
-        ret = []
-        for i in range(selections):
-            ret.append(_op.transform.squeeze(res_split[i], axis=[dim]))
-        ret = _expr.TupleWrapper(_expr.Tuple(ret), selections)
-        return ret
-
     def shape_as_tensor(self, inputs, input_types):
         is_symbolic_shape = False
         input_shape = self.infer_shape(inputs[0], self.prelude.mod)
@@ -2135,7 +2117,7 @@ class PyTorchOpConverter:
         data = inputs[0]
         ret = _op.transform.argwhere(data)
         if is_numpy_style or (len(inputs) > 1 and inputs[1]):
-            return self.unbind([ret, 1], None)
+            return unbind(ret, 1)
         return ret
 
     def nonzero_numpy(self, inputs, input_types):
@@ -2364,7 +2346,7 @@ class PyTorchOpConverter:
         """
         layers_num = len(layer_weights_dicts)
         # split input sequence to samples set
-        input_seqs = self.unbind((input_data, 0), dtype)  # [seq_num, (batch, feature_size)]
+        input_seqs = unbind(input_data, 0)  # [seq_num, (batch, feature_size)]
         output_hiddens = []
         for i in range(layers_num):
             weights_dicts = layer_weights_dicts[i]
@@ -2497,13 +2479,13 @@ class PyTorchOpConverter:
             for i in range(hidden_layers_num):
                 layers_h.append(h_0)
         else:
-            layers_h = self.unbind((h_0, 0), X_dtype)
+            layers_h = unbind(h_0, 0)
         if c_0 is None:
             c_0 = _op.zeros((batch_size, hidden_size), X_dtype)
             for i in range(hidden_layers_num):
                 layers_c.append(c_0)
         else:
-            layers_c = self.unbind((c_0, 0), X_dtype)
+            layers_c = unbind(c_0, 0)
 
         layer_weights_dicts = []
         k = 0  # layer counter
@@ -2792,7 +2774,7 @@ class PyTorchOpConverter:
             "aten::logsumexp": self.logsumexp,
             "torchvision::roi_align": self.roi_align,
             "torchvision::deform_conv2d": self.deform_conv2d,
-            "aten::unbind": self.unbind,
+            "aten::unbind": unbind,
             "aten::__and__": self.logical_and,
             "aten::logical_and": self.logical_and,
             "aten::_shape_as_tensor": self.shape_as_tensor,
