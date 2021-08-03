@@ -615,7 +615,6 @@ def verify_any_conv2d_NCHWc(
 
 
 # TODO(@kevinthesun): Support dynamic input height and width.
-@tvm.testing.uses_gpu
 def test_any_conv2d_NCHWc():
     verify_any_conv2d_NCHWc(
         (relay.Any(), 8, 224, 224, 8),
