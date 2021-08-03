@@ -2490,27 +2490,18 @@ class PyTorchOpConverter:
         layer_weights_dicts = []
         k = 0  # layer counter
         if has_biases:
+            names = ["hidden_state", "cell_state", "w_inp", "w_hid", "b_inp", "b_hid"]
             if bidirectional:
                 rsd = len(_weights) % (2 * weights_num)
                 assert rsd == 0, "got an incorrect number of LSTM weights"
                 for i in range(0, len(_weights), 2 * weights_num):
-                    fw_weights_dict = {}
-                    fw_weights_dict["hidden_state"] = layers_h[2 * k]
-                    fw_weights_dict["cell_state"] = layers_c[2 * k]
-                    fw_weights_dict["w_inp"] = _weights[i]
-                    fw_weights_dict["w_hid"] = _weights[i + 1]
-                    fw_weights_dict["b_inp"] = _weights[i + 2]
-                    fw_weights_dict["b_hid"] = _weights[i + 3]
+                    fw_tensors = [layers_h[2 * k], layers_c[2 * k], *_weights[i : i + 4]]
+                    fw_weights_dict = dict(zip(names, fw_tensors))
                     if has_proj:
                         fw_weights_dict["proj"] = _weights[i + 4]
-                    rev_weights_dict = {}
                     j = i + weights_num
-                    rev_weights_dict["hidden_state"] = layers_h[2 * k + 1]
-                    rev_weights_dict["cell_state"] = layers_c[2 * k + 1]
-                    rev_weights_dict["w_inp"] = _weights[j]
-                    rev_weights_dict["w_hid"] = _weights[j + 1]
-                    rev_weights_dict["b_inp"] = _weights[j + 2]
-                    rev_weights_dict["b_hid"] = _weights[j + 3]
+                    rev_tensors = [layers_h[2 * k + 1], layers_c[2 * k + 1], *_weights[j : j + 4]]
+                    rev_weights_dict = dict(zip(names, rev_tensors))
                     if has_proj:
                         rev_weights_dict["proj"] = _weights[j + 4]
                     layer_weights_dicts.append([fw_weights_dict, rev_weights_dict])
@@ -2518,35 +2509,25 @@ class PyTorchOpConverter:
             else:
                 assert len(_weights) % weights_num == 0, "got an incorrect number of LSTM weights"
                 for i in range(0, len(_weights), weights_num):
-                    fw_weights_dict = {}
-                    fw_weights_dict["hidden_state"] = layers_h[k]
-                    fw_weights_dict["cell_state"] = layers_c[k]
-                    fw_weights_dict["w_inp"] = _weights[i]
-                    fw_weights_dict["w_hid"] = _weights[i + 1]
-                    fw_weights_dict["b_inp"] = _weights[i + 2]
-                    fw_weights_dict["b_hid"] = _weights[i + 3]
+                    fw_tensors = [layers_h[k], layers_c[k], *_weights[i : i + 4]]
+                    fw_weights_dict = dict(zip(names, fw_tensors))
                     if has_proj:
                         fw_weights_dict["proj"] = _weights[i + 4]
                     layer_weights_dicts.append([fw_weights_dict])
                     k += 1
         else:
+            names = ["hidden_state", "cell_state", "w_inp", "w_hid"]
             if bidirectional:
                 rsd = len(_weights) % (2 * weights_num)
                 assert rsd == 0, "got an incorrect number of LSTM weights"
                 for i in range(0, len(_weights), 2 * weights_num):
-                    fw_weights_dict = {}
-                    fw_weights_dict["hidden_state"] = layers_h[2 * k]
-                    fw_weights_dict["cell_state"] = layers_c[2 * k]
-                    fw_weights_dict["w_inp"] = _weights[i]
-                    fw_weights_dict["w_hid"] = _weights[i + 1]
+                    fw_tensors = [layers_h[2 * k], layers_c[2 * k], *_weights[i : i + 2]]
+                    fw_weights_dict = dict(zip(names, fw_tensors))
                     if has_proj:
                         fw_weights_dict["proj"] = _weights[i + 2]
-                    rev_weights_dict = {}
                     j = i + weights_num
-                    rev_weights_dict["hidden_state"] = layers_h[2 * k + 1]
-                    rev_weights_dict["cell_state"] = layers_c[2 * k + 1]
-                    rev_weights_dict["w_inp"] = _weights[j]
-                    rev_weights_dict["w_hid"] = _weights[j + 1]
+                    rev_tensors = [layers_h[2 * k + 1], layers_c[2 * k + 1], *_weights[j : j + 2]]
+                    rev_weights_dict = dict(zip(names, rev_tensors))
                     if has_proj:
                         rev_weights_dict["proj"] = _weights[j + 2]
                     layer_weights_dicts.append([fw_weights_dict, rev_weights_dict])
@@ -2554,11 +2535,8 @@ class PyTorchOpConverter:
             else:
                 assert len(_weights) % weights_num == 0, "got an incorrect number of LSTM weights"
                 for i in range(0, len(_weights), weights_num):
-                    fw_weights_dict = {}
-                    fw_weights_dict["hidden_state"] = layers_h[k]
-                    fw_weights_dict["cell_state"] = layers_c[k]
-                    fw_weights_dict["w_inp"] = _weights[i]
-                    fw_weights_dict["w_hid"] = _weights[i + 1]
+                    fw_tensors = [layers_h[k], layers_c[k], *_weights[i : i + 2]]
+                    fw_weights_dict = dict(zip(names, fw_tensors))
                     if has_proj:
                         fw_weights_dict["proj"] = _weights[i + 2]
                     layer_weights_dicts.append([fw_weights_dict])
