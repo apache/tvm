@@ -1567,11 +1567,9 @@ def test_forward_hardsigmoid(target, dev):
 
 
 # TODO (mbrookhart, electriclilies) Fix argmin on GPU and enable this test
+@tvm.testing.known_failing_targets("cuda")
 @tvm.testing.parametrize_targets
 def test_forward_arg_min_max(target, dev):
-    if "cuda" in target:
-        pytest.skip("Fails on CUDA")
-
     def verify_argreduce(input_dim, op_name, axis=None, keepdims=None):
         a_np1 = np.random.uniform(-10, 10, input_dim).astype(np.int32)
         out_shape = list(a_np1.shape)
@@ -5039,11 +5037,9 @@ def test_reverse_sequence(target, dev):
     verify_reverse_sequence(x, sequence_lens, 1, 0)
 
 
+@tvm.testing.known_failing_targets("cuda")
 @tvm.testing.parametrize_targets
 def test_qlinearconv(target, dev):
-    if "cuda" in target:
-        pytest.skip("Fails on CUDA")
-
     def verify_qlinearconv(
         x_shape,
         w_shape,
@@ -5341,11 +5337,9 @@ def test_random_uniform(target, dev):
     tvm.testing.assert_allclose(real, expected, rtol=1e-5)
 
 
+@tvm.testing.known_failing_targets("cuda")
 @tvm.testing.parametrize_targets
 def test_convinteger(target, dev):
-    if "cuda" in target:
-        pytest.skip("Fails on CUDA")
-
     def verify_convinteger(
         x_shape,
         w_shape,
