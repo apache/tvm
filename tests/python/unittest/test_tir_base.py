@@ -15,8 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+import pytest
 from tvm import tir
+from tvm._ffi.base import TVMError
 from tvm.ir.transform import PassContext
+import itertools
+import pytest
 
 
 def build_tir_func(func):
@@ -30,15 +34,69 @@ def build_tir_func(func):
 
 
 def test_scalar_add():
-    a = tir.Var("a", "float32")
-    b = tir.Var("b", "float32")
-    c = a + b
-    c = tir.ret(c)
-    c = tir.Evaluate(c)
-    func = tir.PrimFunc([a, b], c)
+    # All these types should be interchangeable with each other
+    # E.g. float16 + float32 upconverts the float16 --> float32
+    # Meanwhile if an int or float or together the int will be
+    # cast to the float type.
+    lhs_types = ["float32", "float16", "int32", "int64"]
+    rhs_types = ["float32", "float16"]
+    for lhs_type, rhs_type in itertools.product(lhs_types, rhs_types):
+        # Input vars should be float32, we will cast to test for upcasting between them
+        lhs_input = tir.Var("lhs", "float32")
+        rhs_input = tir.Var("rhs", "float32")
+        lhs = tir.Cast(lhs_type, lhs_input)
+        rhs = tir.Cast(rhs_type, rhs_input)
+        output = lhs + rhs
+        output = tir.ret(output)
+        output = tir.Evaluate(output)
+        func = tir.PrimFunc([lhs_input, rhs_input], output)
+        func = build_tir_func(func)
+        out = func(1.0, 2.0)
+        assert out == 3.0
+
+
+def assignment_helper(store_dtype, value_dtype):
+    store = tir.Var("store", dtype=store_dtype)
+    value = tir.Var("value", dtype=value_dtype)
+    tir.Let(store, value, body=store)
+
+
+def test_fail_implicit_downcasts_same_type():
+    # These lists should be sorted
+    bits = [8, 16, 32, 64]
+    for type in ["float", "int", "uint"]:
+        for i in range(len(bits) - 1):
+            with pytest.raises(TVMError):
+                assignment_helper(
+                    store_dtype=f"{type}{bits[i]}", value_dtype=f"{type}{bits[i + 1]}"
+                )
+
+
+def test_cast_between_types():
+    # We should only be able to assign values with the same types
+    bits = [16, 32]
+    types = ["float", "int", "uint"]
+    for store_type, store_bits, value_type, value_bits in itertools.product(
+        types, bits, types, bits
+    ):
+        store_dtype = f"{store_type}{store_bits}"
+        value_dtype = f"{value_type}{value_bits}"
+        if store_dtype == value_dtype:
+            assignment_helper(store_dtype, value_dtype)
+        else:
+            # TODO: we might want to allow casts between uint and int types
+            with pytest.raises(TVMError):
+                assignment_helper(store_dtype, value_dtype)
+
+
+def test_ret_const():
+    a = tir.const(0)
+    b = tir.ret(a)
+    b = tir.Evaluate(b)
+    func = tir.PrimFunc([], b)
     func = build_tir_func(func)
-    out = func(1.0, 2.0)
-    assert out == 3.0
+    out = func()
+    assert out == 0
 
 
 def test_control_flow_jump():
@@ -55,6 +113,13 @@ def test_control_flow_jump():
     assert out == 1.0
 
 
+def test_exception():
+    with pytest.raises(tvm.TVMError):
+        x = tir.Var(name=1, dtype="int")
+
+
 if __name__ == "__main__":
     test_scalar_add()
+    test_ret_const()
     test_control_flow_jump()
+    test_exception()

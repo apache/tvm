@@ -262,7 +262,7 @@ class BlockScope : public ObjectRef {
    * \param child_block_srefs The srefs to the leaf blocks
    * \note We assume the leaf blocks are given in pre-DFS order
    */
-  TVM_DLL BlockScope(const Array<StmtSRef>& child_block_srefs);
+  TVM_DLL explicit BlockScope(const Array<StmtSRef>& child_block_srefs);
 
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(BlockScope, ObjectRef, BlockScopeNode);
 };

@@ -19,7 +19,7 @@
 
 import logging
 import math
-from tvm import relay
+from tvm import relay, tir
 
 from .. import nn
 
@@ -54,14 +54,23 @@ def _batch_matmul_legalize(attrs, inputs, arg_types):
     # Collect the input exprs.
     x, y = inputs
 
-    # Pad input and output channels to use tensorcore schedule.
-    if dtype in ["float16"]:  # todo: support int8/int4
-        B, M, K = x_tensor.shape
-        B, N, K = y_tensor.shape
-        M = M.value
-        K = K.value
-        N = N.value
+    B, M, K = x_tensor.shape
+    B, N, K = y_tensor.shape
+    if (
+        isinstance(B, tir.expr.Any)
+        or isinstance(M, tir.expr.Any)
+        or isinstance(K, tir.expr.Any)
+        or isinstance(N, tir.expr.Any)
+    ):
+        # Dynamic shape do not support alter op layout now
+        return None
 
+    M = M.value
+    K = K.value
+    N = N.value
+
+    # Pad input and output channels to use tensorcore schedule.
+    if dtype in ["float16", "int8", "uint8"]:
         # The shape of (M, K, N) must be multiple of (16, 16, 16) or (32, 16, 8) or (8, 16, 32)
         if (
             (M % 8 == 0 and K % 16 == 0 and N % 32 == 0)
@@ -70,31 +79,32 @@ def _batch_matmul_legalize(attrs, inputs, arg_types):
         ):
             # no need to pad
             return None
-
         candidates = [(16, 16, 16), (32, 16, 8), (8, 16, 32)]
-        (dm, dk, dn), extra_flops = pad_to_tensorcore(M, K, N, candidates)
-
-        if extra_flops > 2:
-            logger.info("batch_matmul pad_to_tensorcore skipped, extra_flops %s", extra_flops)
+    elif dtype in ["int4", "uint4"]:
+        if M % 8 == 0 and K % 32 == 0 and N % 8 == 0:
+            # no need to pad
             return None
 
-        logger.info("batch_matmul pad_to_tensorcore, extra_flops %s", extra_flops)
-        if dm or dk:
-            x_ = relay.nn.pad(x, pad_width=((0, 0), (0, dm), (0, dk)))
-        else:
-            x_ = x
-        if dn or dk:
-            y_ = relay.nn.pad(y, pad_width=((0, 0), (0, dn), (0, dk)))
-        else:
-            y_ = y
-        out_ = relay.nn.batch_matmul(x_, y_)
-        if dm or dn:
-            original_out_shape = [x.value for x in output_tensor.shape]
-            out = relay.strided_slice(out_, begin=[0, 0, 0], end=original_out_shape)
-        else:
-            out = out_
-        return out
-    return None
+        candidates = [(8, 32, 8)]
+    else:
+        return None
+
+    (dm, dk, dn), extra_flops = pad_to_tensorcore(M, K, N, candidates)
+
+    if extra_flops > 2:
+        logger.info("batch_matmul pad_to_tensorcore skipped, extra_flops %s", extra_flops)
+        return None
+
+    logger.info("batch_matmul pad_to_tensorcore, extra_flops %s", extra_flops)
+    x_ = relay.nn.pad(x, pad_width=((0, 0), (0, dm), (0, dk))) if dm or dk else x
+    y_ = relay.nn.pad(y, pad_width=((0, 0), (0, dn), (0, dk))) if dn or dk else y
+    out_ = relay.nn.batch_matmul(x_, y_, attrs.out_dtype)
+    out = (
+        relay.strided_slice(out_, begin=[0, 0, 0], end=[x.value for x in output_tensor.shape])
+        if dm or dn
+        else out_
+    )
+    return out
 
 
 @nn.dense_legalize.register("cuda")
@@ -115,6 +125,7 @@ def _dense_legalize(attrs, inputs, arg_types):
     result : tvm.relay.Expr
         The legalized expr
     """
+    new_attrs = {k: attrs[k] for k in attrs.keys()}
     # Collect the input tensors.
     x_tensor, y_tensor = arg_types[0], arg_types[1]
     dtype = x_tensor.dtype
@@ -125,18 +136,18 @@ def _dense_legalize(attrs, inputs, arg_types):
     # Collect the input exprs.
     x, y = inputs
 
-    # Pad input and output channels to use tensorcore schedule.
-    if dtype in ["float16"]:  # todo: support int8/int4
-        M, K = x_tensor.shape
-        N, K = y_tensor.shape
-        try:
-            M = M.value
-            K = K.value
-            N = N.value
-        except AttributeError:
-            # todo: deal with unfixed shape when compiling wdl model
-            return None
+    M, K = x_tensor.shape
+    N, K = y_tensor.shape
+    try:
+        M = M.value
+        K = K.value
+        N = N.value
+    except AttributeError:
+        # todo: deal with unfixed shape when compiling wdl model
+        return None
 
+    # Pad input and output channels to use tensorcore schedule.
+    if dtype in ["float16", "int8", "uint8"]:
         # The shape of (M, K, N) must be multiple of (16, 16, 16) or (32, 16, 8) or (8, 16, 32)
         if (
             (M % 8 == 0 and K % 16 == 0 and N % 32 == 0)
@@ -147,30 +158,31 @@ def _dense_legalize(attrs, inputs, arg_types):
             return None
 
         candidates = [(16, 16, 16), (32, 16, 8), (8, 16, 32)]
-        (dm, dk, dn), extra_flops_ratio = pad_to_tensorcore(M, K, N, candidates)
-
-        if extra_flops_ratio > 2:
-            logger.info("dense pad_to_tensorcore skipped, extra_flops_ratio %s", extra_flops_ratio)
+    elif dtype in ["int4", "uint4"]:
+        if M % 8 == 0 and K % 32 == 0 and N % 8 == 0:
+            # no need to pad
             return None
+        candidates = [(8, 32, 8)]
+    else:
+        return None
 
-        logger.info("dense pad_to_tensorcore, extra_flops_ratio %s", extra_flops_ratio)
+    (dm, dk, dn), extra_flops_ratio = pad_to_tensorcore(M, K, N, candidates)
 
-        if dm or dk:
-            x_ = relay.nn.pad(x, pad_width=((0, dm), (0, dk)))
-        else:
-            x_ = x
-        if dn or dk:
-            y_ = relay.nn.pad(y, pad_width=((0, dn), (0, dk)))
-        else:
-            y_ = y
-        out_ = relay.nn.dense(x_, y_)
-        if dm or dn:
-            original_out_shape = [x.value for x in output_tensor.shape]
-            out = relay.strided_slice(out_, begin=[0, 0], end=original_out_shape)
-        else:
-            out = out_
-        return out
-    return None
+    if extra_flops_ratio > 2:
+        logger.info("dense pad_to_tensorcore skipped, extra_flops_ratio %s", extra_flops_ratio)
+        return None
+
+    logger.info("dense pad_to_tensorcore, extra_flops_ratio %s", extra_flops_ratio)
+
+    x_ = relay.nn.pad(x, pad_width=((0, dm), (0, dk))) if dm or dk else x
+    y_ = relay.nn.pad(y, pad_width=((0, dn), (0, dk))) if dn or dk else y
+    out_ = relay.nn.dense(x_, y_, **new_attrs)
+    out = (
+        relay.strided_slice(out_, begin=[0, 0], end=[x.value for x in output_tensor.shape])
+        if dm or dn
+        else out_
+    )
+    return out
 
 
 def pad_to_tensorcore(M, K, N, candidates):

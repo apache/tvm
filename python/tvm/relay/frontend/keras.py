@@ -725,6 +725,7 @@ def _convert_upsample3d(inexpr, keras_layer, etab):
     params["scale_h"] = h
     params["scale_w"] = w
     params["layout"] = etab.data_layout
+    params["coordinate_transformation_mode"] = "asymmetric"
     out = _op.nn.upsampling3d(inexpr, **params)
     return out
 

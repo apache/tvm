@@ -50,6 +50,7 @@ tvm_option(USE_ETHOSN "Build with Arm Ethos-N" OFF)
 tvm_option(INDEX_DEFAULT_I64 "Defaults the index datatype to int64" ON)
 tvm_option(USE_LIBBACKTRACE "Build libbacktrace to supply linenumbers on stack traces" AUTO)
 tvm_option(BUILD_STATIC_RUNTIME "Build static version of libtvm_runtime" OFF)
+tvm_option(USE_PAPI "Use Performance Application Programming Interface (PAPI) to read performance counters" OFF)
 
 # 3rdparty libraries
 tvm_option(DLPACK_PATH "Path to DLPACK" "3rdparty/dlpack/include")
@@ -407,6 +408,7 @@ include(cmake/modules/contrib/ArmComputeLib.cmake)
 include(cmake/modules/contrib/TensorRT.cmake)
 include(cmake/modules/contrib/VitisAI.cmake)
 include(cmake/modules/contrib/Verilator.cmake)
+include(cmake/modules/contrib/PAPI.cmake)
 include(cmake/modules/Git.cmake)
 include(cmake/modules/LibInfo.cmake)
 include(cmake/modules/RustExt.cmake)
@@ -422,12 +424,15 @@ else()
   set(CMAKE_CUDA_STANDARD 14)
 endif()
 
-add_lib_info(${CMAKE_CURRENT_LIST_DIR}/src/support/libinfo.cc)
+set(LIBINFO_FILE ${CMAKE_CURRENT_LIST_DIR}/src/support/libinfo.cc)
+add_lib_info(${LIBINFO_FILE})
+list(REMOVE_ITEM COMPILER_SRCS ${LIBINFO_FILE})
 
 add_library(tvm_objs OBJECT ${COMPILER_SRCS})
 add_library(tvm_runtime_objs OBJECT ${RUNTIME_SRCS})
+add_library(tvm_libinfo_objs OBJECT ${LIBINFO_FILE})
 
-add_library(tvm SHARED $<TARGET_OBJECTS:tvm_objs> $<TARGET_OBJECTS:tvm_runtime_objs>)
+add_library(tvm SHARED $<TARGET_OBJECTS:tvm_objs> $<TARGET_OBJECTS:tvm_runtime_objs> $<TARGET_OBJECTS:tvm_libinfo_objs>)
 set_property(TARGET tvm APPEND PROPERTY LINK_OPTIONS "${TVM_NO_UNDEFINED_SYMBOLS}")
 set_property(TARGET tvm APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAG}")
 if(BUILD_STATIC_RUNTIME)
@@ -443,8 +448,10 @@ else()
   set_property(TARGET tvm_runtime APPEND PROPERTY LINK_OPTIONS "${TVM_NO_UNDEFINED_SYMBOLS}")
 endif()
 set_property(TARGET tvm_runtime APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAG}")
+
 target_compile_definitions(tvm_objs PUBLIC DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
 target_compile_definitions(tvm_runtime_objs PUBLIC DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
+target_compile_definitions(tvm_libinfo_objs PUBLIC DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
 target_compile_definitions(tvm PUBLIC DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
 target_compile_definitions(tvm_runtime PUBLIC DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
 
@@ -472,19 +479,24 @@ if(USE_RELAY_DEBUG)
   target_compile_definitions(tvm_objs PRIVATE "TVM_LOG_DEBUG")
   target_compile_definitions(tvm_runtime_objs PRIVATE "USE_RELAY_DEBUG")
   target_compile_definitions(tvm_runtime_objs PRIVATE "TVM_LOG_DEBUG")
+  target_compile_definitions(tvm_libinfo_objs PRIVATE "USE_RELAY_DEBUG")
+  target_compile_definitions(tvm_libinfo_objs PRIVATE "TVM_LOG_DEBUG")
 else()
   target_compile_definitions(tvm_objs PRIVATE "NDEBUG")
   target_compile_definitions(tvm_runtime_objs PRIVATE "NDEBUG")
+  target_compile_definitions(tvm_libinfo_objs PRIVATE "NDEBUG")
 endif(USE_RELAY_DEBUG)
 
 if(USE_FALLBACK_STL_MAP)
   message(STATUS "Building with STL Map...")
   target_compile_definitions(tvm_objs PRIVATE "USE_FALLBACK_STL_MAP=1")
   target_compile_definitions(tvm_runtime_objs PRIVATE "USE_FALLBACK_STL_MAP=1")
+  target_compile_definitions(tvm_libinfo_objs PRIVATE "USE_FALLBACK_STL_MAP=1")
 else()
   message(STATUS "Building with TVM Map...")
   target_compile_definitions(tvm_objs PRIVATE "USE_FALLBACK_STL_MAP=0")
   target_compile_definitions(tvm_runtime_objs PRIVATE "USE_FALLBACK_STL_MAP=0")
+  target_compile_definitions(tvm_libinfo_objs PRIVATE "USE_FALLBACK_STL_MAP=0")
 endif(USE_FALLBACK_STL_MAP)
 
 if(BUILD_FOR_HEXAGON)
@@ -515,9 +527,15 @@ target_include_directories(
 target_include_directories(
   tvm_objs
   PUBLIC "topi/include")
+target_include_directories(
+  tvm_libinfo_objs
+  PUBLIC "topi/include")
 set(CRC16_INCLUDE_PATH "3rdparty/libcrc/include")
 target_include_directorieS(
   tvm_objs
+  PRIVATE "${CRC16_INCLUDE_PATH}")
+target_include_directorieS(
+  tvm_libinfo_objs
   PRIVATE "${CRC16_INCLUDE_PATH}")
 target_include_directorieS(
   tvm_runtime_objs
@@ -525,7 +543,7 @@ target_include_directorieS(
 
 set(TVM_TEST_LIBRARY_NAME tvm)
 if (HIDE_PRIVATE_SYMBOLS AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-  add_library(tvm_allvisible SHARED $<TARGET_OBJECTS:tvm_objs> $<TARGET_OBJECTS:tvm_runtime_objs>)
+  add_library(tvm_allvisible SHARED $<TARGET_OBJECTS:tvm_objs> $<TARGET_OBJECTS:tvm_runtime_objs> $<TARGET_OBJECTS:tvm_libinfo_objs>)
   target_include_directories(tvm_allvisible PUBLIC "$<TARGET_PROPERTY:tvm,INCLUDE_DIRECTORIES>")
   target_link_libraries(tvm_allvisible PRIVATE "$<TARGET_PROPERTY:tvm,LINK_LIBRARIES>")
   set(TVM_TEST_LIBRARY_NAME tvm_allvisible)
@@ -603,6 +621,7 @@ endif(INSTALL_DEV)
 # More target definitions
 if(MSVC)
   target_compile_definitions(tvm_objs PRIVATE -DTVM_EXPORTS)
+  target_compile_definitions(tvm_libinfo_objs PRIVATE -DTVM_EXPORTS)
   target_compile_definitions(tvm_runtime_objs PRIVATE -DTVM_EXPORTS)
 endif()
 
@@ -619,6 +638,7 @@ if(TVM_IS_DEBUG_BUILD)
   if(FILE_PREFIX_MAP_SUPPORTED)
     target_compile_options(tvm PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${FILE_PREFIX_MAP_FLAG}>)
     target_compile_options(tvm_objs PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${FILE_PREFIX_MAP_FLAG}>)
+    target_compile_options(tvm_libinfo_objs PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${FILE_PREFIX_MAP_FLAG}>)
     target_compile_options(tvm_runtime PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${FILE_PREFIX_MAP_FLAG}>)
     target_compile_options(tvm_runtime_objs PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${FILE_PREFIX_MAP_FLAG}>)
   endif()
@@ -635,3 +655,32 @@ if(APPLE AND TVM_IS_DEBUG_BUILD)
       VERBATIM
 		  )
 endif()
+
+#Caches the build.
+#Note that ccache-3.x doesn't support nvcc well, so CUDA kernels may never hit the cache and still
+#need to be re-compiled every time. Using ccache 4.0+ can resolve this issue.
+
+if(USE_CCACHE) # True for AUTO, ON, /path/to/ccache
+  if("${USE_CCACHE}" STREQUAL "AUTO") # Auto mode
+    find_program(CCACHE_FOUND ccache)
+    if(CCACHE_FOUND)
+      message(STATUS "Found the path to ccache, enabling ccache")
+      set(PATH_TO_CCACHE ccache)
+    else()
+      message(STATUS "Didn't find the path to CCACHE, disabling ccache")
+    endif(CCACHE_FOUND)
+  elseif("${USE_CCACHE}" MATCHES ${IS_TRUE_PATTERN})
+    find_program(CCACHE_FOUND ccache)
+    if(CCACHE_FOUND)
+      message(STATUS "Found the path to ccache, enabling ccache")
+      set(PATH_TO_CCACHE ccache)
+    else()
+      message(FATAL_ERROR "Cannot find ccache. Set USE_CCACHE mode to AUTO or OFF to build without ccache. USE_CCACHE=" "${USE_CCACHE")
+    endif(CCACHE_FOUND)
+  else() # /path/to/ccache
+    set(PATH_TO_CCACHE USE_CCACHE)
+    message(STATUS "Setting ccache path to " "${PATH_TO_CCACHE}")
+  endif()
+  # Set the flag for ccache
+  set(CXX_COMPILER_LAUNCHER PATH_TO_CCACHE)
+endif(USE_CCACHE)

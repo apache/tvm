@@ -40,12 +40,13 @@ def test_dyn_upsampling_run():
             (n, h, w, c) = dshape
             x_data = np.random.uniform(size=(n, h, w, c)).astype("float32")
 
-        if method == "nearest_neighbor":
-            ref_res = tvm.topi.testing.upsampling_python(x_data, (scale_h, scale_w), layout)
-        else:
-            ref_res = tvm.topi.testing.bilinear_resize_python(
-                x_data, (int(round(h * scale_h)), int(round(w * scale_w))), layout
-            )
+        ref_res = tvm.topi.testing.resize2d_python(
+            x_data,
+            (scale_h, scale_w),
+            layout,
+            method[2:] if method[0:2] == "bi" else method,
+            "align_corners" if align_corners else "asymmetric",
+        )
         x = relay.Var("x", relay.TensorType(dshape, "float32"))
         scale_h_var = relay.var("scale_h", relay.TensorType((), "float32"))
         scale_w_var = relay.var("scale_h", relay.TensorType((), "float32"))
@@ -87,7 +88,7 @@ def test_dyn_upsampling_infer_type_const():
 @tvm.testing.uses_gpu
 def test_dyn_upsampling3d_run():
     def verify_upsampling3d(
-        dshape, scale_d, scale_h, scale_w, layout, method, coord_trans="half_pixel"
+        dshape, scale_d, scale_h, scale_w, layout, method, coord_trans="asymmetric"
     ):
 
         if layout == "NCDHW":
@@ -98,16 +99,14 @@ def test_dyn_upsampling3d_run():
             (n, d, h, w, c) = dshape
             x_data = np.random.uniform(size=(n, d, h, w, c)).astype("float32")
 
-        if method == "nearest_neighbor":
-            ref_res = tvm.topi.testing.upsampling3d_python(
-                x_data, (scale_d, scale_h, scale_w), layout
-            )
-        else:
-            ref_res = tvm.topi.testing.trilinear_resize3d_python(
-                x_data,
-                (int(round(d * scale_d)), int(round(h * scale_h)), int(round(w * scale_w))),
-                layout,
-            )
+        ref_res = tvm.topi.testing.resize3d_python(
+            x_data,
+            (scale_d, scale_h, scale_w),
+            layout,
+            method[3:] if method[0:3] == "tri" else method,
+            coord_trans,
+        )
+
         x = relay.Var("x", relay.TensorType(dshape, "float32"))
         scale_d_var = relay.var("scale_d", relay.TensorType((), "float32"))
         scale_h_var = relay.var("scale_h", relay.TensorType((), "float32"))

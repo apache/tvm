@@ -439,7 +439,7 @@ class AOTExecutorCodegen : public ExprVisitor {
       fi_node->tir_primfuncs.Set(primfunc_target, primfunc);
       fi_node->relay_primfuncs.Set(primfunc_target, relay_func);
     }
-    function_metadata_.Set(cfunc->func_name, FunctionInfo(fi_node));
+    function_metadata_.Set(cfunc->prim_fn_var->name_hint, FunctionInfo(fi_node));
   }
 
   void VisitExpr_(const CallNode* op) override {
@@ -465,20 +465,18 @@ class AOTExecutorCodegen : public ExprVisitor {
                  << "(i.e functions composed of fusable operator invocations)";
     }
 
-    auto pf0 = GetPackedFunc("relay.backend._make_CCacheKey");
-    auto pf1 = GetPackedFunc("relay.backend._CompileEngineLower");
     Target target;
 
     // Handle external function
     if (func->GetAttr<String>(attr::kCompiler).defined()) {
       target = Target("ext_dev");
-      CCacheKey key = (*pf0)(func, target);
-      CachedFunc ext_func = (*pf1)(compile_engine_, key, mod_name_);
+      CCacheKey key = CCacheKey(func, target);
+      CachedFunc ext_func = compile_engine_->Lower(key, mod_name_);
       ICHECK(ext_func.defined()) << "External function is not defined.";
       UpdateConstants(func, &params_);
 
       // Generate the TIR function call
-      CreateFuncCall(GetRef<Call>(op), ext_func->func_name);
+      CreateFuncCall(GetRef<Call>(op), ext_func->prim_fn_var->name_hint);
       return;
     }
 
@@ -503,8 +501,10 @@ class AOTExecutorCodegen : public ExprVisitor {
       }
       target = targets_[call_dev_type];
     }
-    CCacheKey key = (*pf0)(func, target);
-    CachedFunc lowered_func = (*pf1)(compile_engine_, key, mod_name_);
+
+    CCacheKey key = CCacheKey(func, target);
+    CachedFunc lowered_func = compile_engine_->Lower(key, mod_name_);
+
     if (!lowered_funcs_.count(target->str())) {
       lowered_funcs_[target->str()] = IRModule(Map<GlobalVar, BaseFunc>({}));
     }
@@ -513,7 +513,7 @@ class AOTExecutorCodegen : public ExprVisitor {
     UpdateFunctionMetadata(lowered_func, func, target);
 
     // Generate the TIR function call
-    CreateFuncCall(GetRef<Call>(op), lowered_func->func_name);
+    CreateFuncCall(GetRef<Call>(op), lowered_func->prim_fn_var->name_hint);
   }
 
   void VisitExpr_(const VarNode* op) override {
@@ -625,8 +625,6 @@ class AOTExecutorCodegen : public ExprVisitor {
         // so we don't pay the price of allocation for every inference
         if (!allocated[sid]) {
           body = tir::Allocate(sids_table_[sid], DataType::Int(8), {size}, tir::const_true(), body);
-          body = tir::AttrStmt(sids_table_[sid], tir::attr::storage_scope, tir::StringImm("global"),
-                               body);
         }
         allocated[sid] = true;
       }
@@ -652,7 +650,7 @@ class AOTExecutorCodegen : public ExprVisitor {
   /*! \brief mod */
   runtime::Module* mod_;
   /*! \brief list of input expressions (i.e., variable passed by the user) */
-  std::vector<Expr> input_vars_;
+  std::vector<Var> input_vars_;
   /*! \brief input and output variables belonging to the main function signature */
   Array<tir::Var> main_signature_;
   /*! \brief target device */
@@ -722,7 +720,8 @@ class AOTExecutorCodegen : public ExprVisitor {
     // Define the storage allocator ids
     for (auto kv : storage_device_map_) {
       for (auto sid : kv.second->storage_ids) {
-        te::Var buffer_var(MakeString("sid_", sid), PointerType(PrimType(DataType::Int(8))));
+        te::Var buffer_var(MakeString("sid_", sid),
+                           PointerType(PrimType(DataType::Int(8)), "global"));
         sids_table_[sid] = buffer_var;
       }
     }
@@ -783,8 +782,12 @@ class AOTExecutorCodegen : public ExprVisitor {
       ret.lowered_funcs.Set(target_host_str, mod_run);
     }
     ret.function_metadata = std::move(function_metadata_);
-    ret.metadata = runtime::Metadata(input_vars_.size(), return_sid_.size(),
-                                     runtime::kTvmExecutorAot, mod_name);
+
+    std::vector<String> input_var_names(input_vars_.size());
+    std::transform(input_vars_.begin(), input_vars_.end(), input_var_names.begin(),
+                   [](Var input_var) -> String { return input_var->name_hint(); });
+    ret.metadata =
+        runtime::Metadata(input_var_names, return_sid_.size(), runtime::kTvmExecutorAot, mod_name);
     return ret;
   }
 };

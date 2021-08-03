@@ -598,7 +598,7 @@ class PrintTableInfo(TaskSchedulerCallback):
 
         # overall info
         if all(cost < 1e9 for cost in task_scheduler.best_costs):
-            total_latency_str = "%.3f" % (task_scheduler.cur_score * 1e3)
+            total_latency_str = "%.3f" % (task_scheduler.cur_score.value * 1e3)
         else:
             total_latency_str = "-"
         print(
@@ -629,7 +629,7 @@ class LogEstimatedLatency(TaskSchedulerCallback):
 
     def post_tune(self, task_scheduler, task_id):
         if all(cost < 1e9 for cost in task_scheduler.best_costs):
-            total_latency_str = "%.3f" % (task_scheduler.cur_score * 1e3)
+            total_latency_str = "%.3f" % (task_scheduler.cur_score.value * 1e3)
         else:
             total_latency_str = "N/A"
 

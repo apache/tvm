@@ -142,7 +142,7 @@ def schedule_conv1d_transpose_ncw(cfg, outs):
             ##### space definition begin #####
             n, f, x = s[conv].op.axis
             rc = s[conv].op.reduce_axis[0]
-            cfg.define_split("tile_n", cfg.axis(n), num_outputs=4)
+            cfg.define_split("tile_n", cfg.axis(n if isinstance(n, int) else 1), num_outputs=4)
             cfg.define_split("tile_f", cfg.axis(f), num_outputs=4)
             cfg.define_split("tile_x", cfg.axis(x), num_outputs=4)
             cfg.define_split("tile_rc", cfg.axis(rc), num_outputs=3)
