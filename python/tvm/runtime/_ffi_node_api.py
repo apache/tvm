@@ -35,7 +35,7 @@ def NodeGetAttr(obj, name):
     raise AttributeError()
 
 
-def SaveJSON(obj):
+def SaveJSON(obj, with_typing=False):
     raise RuntimeError("Do not support object serialization in runtime only mode")
 
 
