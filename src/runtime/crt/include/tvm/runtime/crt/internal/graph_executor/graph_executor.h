@@ -116,6 +116,6 @@ int TVMGraphExecutor_GetOutput(TVMGraphExecutor* executor, const int32_t idx, DL
 
 int32_t TVMGraphExecutor_CreateTVMOp(TVMGraphExecutor* executor, const TVMOpParam* param,
                                      DLTensorPtr* args, const uint32_t args_count,
-                                     uint32_t num_inputs, TVMPackedFunc* pf);
+                                     TVMPackedFunc* pf);
 
 #endif  // TVM_RUNTIME_CRT_INCLUDE_TVM_RUNTIME_CRT_INTERNAL_GRAPH_EXECUTOR_GRAPH_EXECUTOR_H_

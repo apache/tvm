@@ -21,14 +21,14 @@ FROM ubuntu:18.04
 
 RUN apt-get update --fix-missing
 
-# Globally disable pip cache
-RUN pip config set global.cache-dir false
-
 COPY install/ubuntu_install_core.sh /install/ubuntu_install_core.sh
 RUN bash /install/ubuntu_install_core.sh
 
 COPY install/ubuntu1804_install_python.sh /install/ubuntu1804_install_python.sh
 RUN bash /install/ubuntu1804_install_python.sh
+
+# Globally disable pip cache
+RUN pip config set global.cache-dir false
 
 COPY install/ubuntu_install_python_package.sh /install/ubuntu_install_python_package.sh
 RUN bash /install/ubuntu_install_python_package.sh
@@ -112,3 +112,13 @@ RUN bash /install/ubuntu_install_androidsdk.sh
 ENV ANDROID_HOME=/opt/android-sdk-linux/
 ENV ANDROID_NDK_HOME=/opt/android-sdk-linux/ndk/21.3.6528147/
 
+# Arm(R) Ethos(TM)-U NPU driver
+COPY install/ubuntu_install_ethosu_driver_stack.sh /install/ubuntu_install_ethosu_driver_stack.sh
+RUN bash /install/ubuntu_install_ethosu_driver_stack.sh
+
+# Install Vela compiler
+COPY install/ubuntu_install_vela.sh /install/ubuntu_install_vela.sh
+RUN bash /install/ubuntu_install_vela.sh
+
+# Update PATH
+ENV PATH /opt/arm/gcc-arm-none-eabi/bin:$PATH

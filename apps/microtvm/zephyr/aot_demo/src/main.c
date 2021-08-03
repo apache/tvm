@@ -32,6 +32,7 @@
 
 #include "input_data.h"
 #include "output_data.h"
+#include "tvmgen_default.h"
 #include "zephyr_uart.h"
 
 #ifdef CONFIG_ARCH_POSIX
@@ -194,18 +195,18 @@ void main(void) {
   }
   TVMLogf("Zephyr AOT Runtime\n");
 
-  void* inputs[1] = {
-      input_data,
+  struct tvmgen_default_inputs inputs = {
+      .input_1 = input_data,
   };
-  void* outputs[1] = {
-      output_data,
+  struct tvmgen_default_outputs outputs = {
+      .output = output_data,
   };
 
   StackMemoryManager_Init(&app_workspace, g_aot_memory, WORKSPACE_SIZE);
 
   double elapsed_time = 0;
   TVMPlatformTimerStart();
-  int ret_val = tvm_runtime_run(&tvmgen_default_network, inputs, outputs);
+  int ret_val = tvmgen_default_run(&inputs, &outputs);
   TVMPlatformTimerStop(&elapsed_time);
 
   if (ret_val != 0) {

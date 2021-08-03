@@ -75,6 +75,16 @@ REQUIREMENTS_BY_PIECE: RequirementsByPieceType = [
             ],
         ),
     ),
+    # Provide support for Arm(R) Ethos(TM)-U NPU.
+    (
+        "ethosu",
+        (
+            "Requirements for using Arm(R) Ethos(TM)-U NPU",
+            [
+                "ethos-u-vela",
+            ],
+        ),
+    ),
     # Relay frontends.
     (
         "importer-caffe2",
@@ -205,6 +215,7 @@ CONSTRAINTS = [
         "docutils",
         "<0.17",
     ),  # Work around https://github.com/readthedocs/sphinx_rtd_theme/issues/1115
+    ("ethos-u-vela", "==2.1.1"),
     ("future", None),
     ("image", None),
     ("matplotlib", None),
