@@ -276,7 +276,9 @@ class PopenPoolExecutor:
     behavior of multiprocessing.pool().
     """
 
-    def __init__(self, max_workers=os.cpu_count(), timeout=None):
+    def __init__(self, max_workers=None, timeout=None):
+        if max_workers is None:
+            max_workers = os.cpu_count()
         # Use an internal thread pool to send to popen workers
         self._threadpool = concurrent.futures.ThreadPoolExecutor(max_workers=max_workers)
         self._timeout = timeout
