@@ -244,7 +244,8 @@ class GraphModule(object):
         return self._get_input(index)
 
     def get_input_index(self, name):
-        """Get inputs index via input name
+        """Get inputs index via input name.
+
         Parameters
         ----------
         name : str
