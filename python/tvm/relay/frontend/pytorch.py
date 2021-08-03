@@ -2092,6 +2092,11 @@ class PyTorchOpConverter:
             kernel_size,
         )
 
+    def unbind(self, inputs, input_types):
+        data = inputs[0]
+        axis = int(inputs[1])
+        return unbind(data, axis)
+
     def shape_as_tensor(self, inputs, input_types):
         is_symbolic_shape = False
         input_shape = self.infer_shape(inputs[0], self.prelude.mod)
@@ -2752,7 +2757,7 @@ class PyTorchOpConverter:
             "aten::logsumexp": self.logsumexp,
             "torchvision::roi_align": self.roi_align,
             "torchvision::deform_conv2d": self.deform_conv2d,
-            "aten::unbind": unbind,
+            "aten::unbind": self.unbind,
             "aten::__and__": self.logical_and,
             "aten::logical_and": self.logical_and,
             "aten::_shape_as_tensor": self.shape_as_tensor,

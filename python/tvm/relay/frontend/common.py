@@ -654,8 +654,7 @@ def unbind(data, axis=0):
     ret = []
     for i in range(selections):
         ret.append(_op.squeeze(res_split[i], axis=[axis]))
-    ret = _expr.TupleWrapper(_expr.Tuple(ret), selections)
-    return ret
+    return _expr.TupleWrapper(_expr.Tuple(ret), selections)
 
 
 def lstm_cell(
