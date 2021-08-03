@@ -279,14 +279,20 @@ bool RequantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
   const RequantizeAttrs* requantize_attrs = attrs.as<RequantizeAttrs>();
   int axis = requantize_attrs->axis;
-  axis = (axis == -1) ? data->shape.size() - 1 : axis;
-  ICHECK_LT(axis, static_cast<int>(data->shape.size()))
-      << "axis " << requantize_attrs->axis << " is out of range";
+  auto rank = static_cast<int>(data->shape.size());
+  axis = (axis < 0) ? ((rank > 0) ? data->shape.size() + axis : 0) : axis;
+  ICHECK_LT(axis, rank > 0 ? rank : 1) << "axis " << requantize_attrs->axis << " is out of range";
   ICHECK_GE(axis, 0) << "axis " << requantize_attrs->axis << " is out of range";
 
+  PrimExpr axis_shape;
+  if (rank > 0) {
+    axis_shape = data->shape[axis];
+  } else {
+    axis_shape = Integer(1);
+  }
   // Check and assign types for scale and zero points.
-  AssignType(types[1], DataType::Float(32), data->shape[axis], reporter);  // input_scale
-  AssignType(types[2], DataType::Int(32), data->shape[axis], reporter);    // input_zero_pt
+  AssignType(types[1], DataType::Float(32), axis_shape, reporter);  // input_scale
+  AssignType(types[2], DataType::Int(32), axis_shape, reporter);    // input_zero_pt
   // For now, requantize output tensor is limited to full tensor uniform quantization.
   ICHECK(IsScalarType(types[3], DataType::Float(32)));  // output_scale
   ICHECK(IsScalarType(types[4], DataType::Int(32)));    // output_zero_point
