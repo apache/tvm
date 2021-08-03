@@ -254,7 +254,7 @@ class GraphModule(object):
         Returns
         -------
         index: int
-            The input index
+            The input index. -1 will be returned if the given input name is not found.
         """
         return self._get_input_index(name)
 
