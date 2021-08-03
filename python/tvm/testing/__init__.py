@@ -15,5 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=redefined-builtin, wildcard-import
+"""Utility Python functions for TVM testing"""
 from .utils import *
 from .auto_scheduler import *
