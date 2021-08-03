@@ -287,9 +287,7 @@ def call_func_with_thread(func, args, kwargs):
     return res[0]
 
 
-def call_func_with_timeout(
-    timeout, func, args=(), kwargs=None, add_thread_wrapper=False
-):  # pylint: disable=unused-argument
+def call_func_with_timeout(timeout, func, args=(), kwargs=None):  # pylint: disable=unused-argument
     """Call a function with timeout"""
     process = PopenWorker()
     process.send(func, args, kwargs, timeout)

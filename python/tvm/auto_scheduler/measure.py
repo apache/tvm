@@ -991,7 +991,6 @@ def local_run(
                     enable_cpu_cache_flush,
                     verbose,
                 ),
-                add_thread_wrapper=True,
             )
             if isinstance(res, TimeoutError):
                 if verbose >= 1:
