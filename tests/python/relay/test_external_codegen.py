@@ -78,7 +78,7 @@ def check_aot_executor_result(
     mod, map_inputs, out_shape, result, tol=1e-5, target="llvm", device=tvm.cpu()
 ):
     use_calculated_workspaces = True
-    compile_and_run(mod, list(map_inputs.values()), [result], "", use_calculated_workspaces)
+    compile_and_run(mod, map_inputs, [result], "packed", 0, use_calculated_workspaces)
 
 
 def set_external_func_attr(func, compiler, ext_symbol):
