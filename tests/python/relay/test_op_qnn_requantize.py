@@ -92,6 +92,24 @@ def test_same_scale():
         verify(mod, (golden_data, golden_output))
 
 
+def test_scalar_same_scale():
+    # Have same scales, everything within range
+    golden_data = np.array(-10).astype("int32")
+    golden_output = golden_data
+
+    for rounding in roundings:
+        mod = get_mod(
+            data_shape=(),
+            data_dtype="int32",
+            out_dtype="int8",
+            input_scale=0.5,
+            output_scale=0.5,
+            rounding=rounding,
+        )
+        assert "right_shift" not in mod.astext()
+        verify(mod, (golden_data, golden_output))
+
+
 def test_downscale():
     for rounding in roundings:
         mod = get_mod(
@@ -437,6 +455,7 @@ def test_per_channel_different_scale():
 
 if __name__ == "__main__":
     test_same_scale()
+    test_scalar_same_scale()
     test_downscale()
     test_upscale()
     test_non_power_of_two()
