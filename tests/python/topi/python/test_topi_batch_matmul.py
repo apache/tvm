@@ -111,7 +111,7 @@ def verify_batch_matmul_int8(x_batch, y_batch, M, N, K):
     a_np, b_np, c_np = get_ref_data()
 
     def check_device(target, dev):
-        if device == "cuda" and not tvm.contrib.nvcc.have_int8(dev.compute_version):
+        if target == "cuda" and not tvm.contrib.nvcc.have_int8(dev.compute_version):
             print("Skip because int8 intrinsics are not available")
             return
 
