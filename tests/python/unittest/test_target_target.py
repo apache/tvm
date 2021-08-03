@@ -78,7 +78,7 @@ def test_target_string_parse():
 
 def test_target_string_with_spaces():
     target = tvm.target.Target(
-        "vulkan -device_name=Name\ of\ GPU\ with\ spaces -device_type=discrete"
+        "vulkan -device_name='Name of GPU with spaces' -device_type=discrete"
     )
     assert target.attrs["device_name"] == "Name of GPU with spaces"
     assert target.attrs["device_type"] == "discrete"

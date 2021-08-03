@@ -146,8 +146,10 @@ static int FindFirstSubstr(const std::string& str, const std::string& substr) {
   return pos == std::string::npos ? -1 : pos;
 }
 
-static Optional<String> JoinString(const std::vector<String>& array, char separator,
-                                   char escape = '\\') {
+static Optional<String> JoinString(const std::vector<String>& array, char separator) {
+  char escape = '\\';
+  char quote = '\'';
+
   if (array.empty()) {
     return NullOpt;
   }
@@ -160,18 +162,27 @@ static Optional<String> JoinString(const std::vector<String>& array, char separa
     }
 
     std::string str = array[i];
-    for (char c : str) {
-      if (c == separator) {
-        os << escape;
+
+    if ((str.find(separator) == std::string::npos) && (str.find(quote) == std::string::npos)) {
+      os << str;
+    } else {
+      os << quote;
+      for (char c : str) {
+        if (c == separator || c == quote) {
+          os << escape;
+        }
+        os << c;
       }
-      os << c;
+      os << quote;
     }
   }
   return String(os.str());
 }
 
-static std::vector<std::string> SplitString(const std::string& str, char separator,
-                                            char escape = '\\') {
+static std::vector<std::string> SplitString(const std::string& str, char separator) {
+  char escape = '\\';
+  char quote = '\'';
+
   std::vector<std::string> output;
 
   const char* start = str.data();
@@ -188,18 +199,26 @@ static std::vector<std::string> SplitString(const std::string& str, char separat
     }
   };
 
+  bool pos_quoted = false;
+
   while (pos < end) {
-    if ((*pos == escape) && (pos + 1 < end) && (pos[1] == separator)) {
-      current_word << separator;
-      pos += 2;
-    } else if (*pos == separator) {
+    if ((*pos == separator) && !pos_quoted) {
       finish_word();
+      pos++;
+    } else if ((*pos == escape) && (pos + 1 < end) && (pos[1] == quote)) {
+      current_word << quote;
+      pos += 2;
+    } else if (*pos == quote) {
+      pos_quoted = !pos_quoted;
       pos++;
     } else {
       current_word << *pos;
       pos++;
     }
   }
+
+  ICHECK(!pos_quoted) << "Mismatched quotes '' in string";
+
   finish_word();
 
   return output;
@@ -276,7 +295,7 @@ ObjectRef TargetInternal::ParseType(const std::string& str,
     // Parsing string, strip leading/trailing spaces
     auto start = str.find_first_not_of(' ');
     auto end = str.find_last_not_of(' ');
-    return String(str.substr(start, (end - start - 1)));
+    return String(str.substr(start, (end - start + 1)));
 
   } else if (info.type_index == Target::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
     // Parsing target
