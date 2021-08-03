@@ -375,11 +375,12 @@ def check_int_constraints_trans_consistency(constraints_trans, vranges=None):
 def _get_targets(target_str=None):
     if target_str is None:
         target_str = os.environ.get("TVM_TEST_TARGETS", "")
+        # Use dict instead of set for de-duplication so that the
+        # targets stay in the order specified.
+        target_names = list({t.strip(): None for t in target_str.split(";") if t.strip()})
 
-    if len(target_str) == 0:
-        target_str = DEFAULT_TEST_TARGETS
-
-    target_names = set(t.strip() for t in target_str.split(";") if t.strip())
+    if not target_names:
+        target_names = DEFAULT_TEST_TARGETS
 
     targets = []
     for target in target_names:
@@ -413,10 +414,18 @@ def _get_targets(target_str=None):
     return targets
 
 
-DEFAULT_TEST_TARGETS = (
-    "llvm;cuda;opencl;metal;rocm;vulkan -from_device=0;nvptx;"
-    "llvm -device=arm_cpu;opencl -device=mali,aocl_sw_emu"
-)
+DEFAULT_TEST_TARGETS = [
+    "llvm",
+    "llvm -device=arm_cpu",
+    "cuda",
+    "nvptx",
+    "vulkan -from_device=0",
+    "opencl",
+    "opencl -device=mali,aocl_sw_emu",
+    "opencl -device=intel_graphics",
+    "metal",
+    "rocm",
+]
 
 
 def device_enabled(target):
@@ -730,20 +739,25 @@ def requires_rpc(*args):
 
 
 def _target_to_requirement(target):
+    if isinstance(target, str):
+        target_kind = target.split()[0]
+    else:
+        target_kind = target.kind.name
+
     # mapping from target to decorator
-    if target.startswith("cuda"):
+    if target_kind == "cuda":
         return requires_cuda()
-    if target.startswith("rocm"):
+    if target_kind == "rocm":
         return requires_rocm()
-    if target.startswith("vulkan"):
+    if target_kind == "vulkan":
         return requires_vulkan()
-    if target.startswith("nvptx"):
+    if target_kind == "nvptx":
         return requires_nvptx()
-    if target.startswith("metal"):
+    if target_kind == "metal":
         return requires_metal()
-    if target.startswith("opencl"):
+    if target_kind == "opencl":
         return requires_opencl()
-    if target.startswith("llvm"):
+    if target_kind == "llvm":
         return requires_llvm()
     return []
 
