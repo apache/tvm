@@ -16,4 +16,3 @@
 # under the License.
 # pylint: disable=redefined-builtin, wildcard-import
 from .utils import *
-from .auto_scheduler import *
