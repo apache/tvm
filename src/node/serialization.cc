@@ -218,6 +218,7 @@ class JSONAttrGetter : public AttrVisitor {
   const std::unordered_map<DLTensor*, size_t>* tensor_index_;
   JSONNode* node_;
   ReflectionVTable* reflection_ = ReflectionVTable::Global();
+  bool with_typing;
 
   void Visit(const char* key, double* value) final {
     std::ostringstream s;
@@ -225,45 +226,63 @@ class JSONAttrGetter : public AttrVisitor {
     s.precision(17);
     s << (*value);
     node_->attrs[key] = s.str();
-    node_->attr_types[key] = "value";
+    if (with_typing) {
+      node_->attr_types[key] = "value";
+    }
   }
   void Visit(const char* key, int64_t* value) final {
     node_->attrs[key] = std::to_string(*value);
-    node_->attr_types[key] = "value";
+    if (with_typing) {
+      node_->attr_types[key] = "value";
+    }
   }
   void Visit(const char* key, uint64_t* value) final {
     node_->attrs[key] = std::to_string(*value);
-    node_->attr_types[key] = "value";
+    if (with_typing) {
+      node_->attr_types[key] = "value";
+    }
   }
   void Visit(const char* key, int* value) final {
     node_->attrs[key] = std::to_string(*value);
-    node_->attr_types[key] = "value";
+    if (with_typing) {
+      node_->attr_types[key] = "value";
+    }
   }
   void Visit(const char* key, bool* value) final {
     node_->attrs[key] = std::to_string(*value);
-    node_->attr_types[key] = "value";
+    if (with_typing) {
+      node_->attr_types[key] = "value";
+    }
   }
   void Visit(const char* key, std::string* value) final {
     node_->attrs[key] = *value;
-    node_->attr_types[key] = "value";
+    if (with_typing) {
+      node_->attr_types[key] = "value";
+    }
   }
   void Visit(const char* key, void** value) final {
     LOG(FATAL) << "not allowed to serialize a pointer";
   }
   void Visit(const char* key, DataType* value) final {
     node_->attrs[key] = Type2String(*value);
-    node_->attr_types[key] = "value";
+    if (with_typing) {
+      node_->attr_types[key] = "value";
+    }
   }
 
   void Visit(const char* key, runtime::NDArray* value) final {
     node_->attrs[key] =
         std::to_string(tensor_index_->at(const_cast<DLTensor*>((*value).operator->())));
-    node_->attr_types[key] = "meta";
+    if (with_typing) {
+      node_->attr_types[key] = "meta";
+    }
   }
 
   void Visit(const char* key, ObjectRef* value) final {
     node_->attrs[key] = std::to_string(node_index_->at(const_cast<Object*>(value->get())));
-    node_->attr_types[key] = "node";
+    if (with_typing) {
+      node_->attr_types[key] = "node";
+    }
   }
 
   // Get the node
@@ -502,13 +521,14 @@ struct JSONGraph {
     helper.ReadAllFields(reader);
   }
 
-  static JSONGraph Create(const ObjectRef& root) {
+  static JSONGraph Create(const ObjectRef& root, bool with_typing) {
     JSONGraph g;
     NodeIndexer indexer;
     indexer.MakeIndex(const_cast<Object*>(root.get()));
     JSONAttrGetter getter;
     getter.node_index_ = &indexer.node_index_;
     getter.tensor_index_ = &indexer.tensor_index_;
+    getter.with_typing = with_typing;
     for (Object* n : indexer.node_list_) {
       JSONNode jnode;
       getter.node_ = &jnode;
@@ -565,8 +585,8 @@ struct JSONGraph {
   }
 };
 
-std::string SaveJSON(const ObjectRef& n) {
-  auto jgraph = JSONGraph::Create(n);
+std::string SaveJSON(const ObjectRef& n, bool with_typing) {
+  auto jgraph = JSONGraph::Create(n, with_typing);
   std::ostringstream os;
   dmlc::JSONWriter writer(&os);
   jgraph.Save(&writer);

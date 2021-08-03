@@ -141,7 +141,7 @@ def load_json(json_str):
         return tvm.runtime._ffi_node_api.LoadJSON(json_str)
 
 
-def save_json(node):
+def save_json(node, with_typing=False):
     """Save tvm object as json string.
 
     Parameters
@@ -154,7 +154,7 @@ def save_json(node):
     json_str : str
         Saved json string.
     """
-    return tvm.runtime._ffi_node_api.SaveJSON(node)
+    return tvm.runtime._ffi_node_api.SaveJSON(node, with_typing)
 
 
 def structural_equal(lhs, rhs, map_free_vars=False):
