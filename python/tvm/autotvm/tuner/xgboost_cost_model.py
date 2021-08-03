@@ -23,6 +23,7 @@ import time
 
 import numpy as np
 
+from ...contrib import popen_pool
 from .. import feature
 from ..utils import get_rank
 from .metric import max_curve, recall_curve, cover_curve
@@ -161,7 +162,7 @@ class XGBoostCostModel(CostModel):
         _extract_space = space
         _extract_target = target
         _extract_task = task
-        self.pool = multiprocessing.Pool(self.num_threads)
+        self.pool = popen_pool.PopenPoolExecutor(self.num_threads)
 
     def _close_pool(self):
         if self.pool:
