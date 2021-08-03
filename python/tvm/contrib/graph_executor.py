@@ -250,6 +250,7 @@ class GraphModule(object):
         ----------
         name : str
            The input key name
+
         Returns
         -------
         index: int
