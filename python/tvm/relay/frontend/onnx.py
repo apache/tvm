@@ -1620,6 +1620,22 @@ class Less(OnnxOpConverter):
         return _op.less(inputs[0], inputs[1])
 
 
+class LessOrEqual(OnnxOpConverter):
+    """Operator logical less or equal than."""
+
+    @classmethod
+    def _impl_v12(cls, inputs, attr, params):
+        return _op.less_equal(inputs[0], inputs[1])
+
+
+class GreaterOrEqual(OnnxOpConverter):
+    """Operator logical greater or equal than."""
+
+    @classmethod
+    def _impl_v12(cls, inputs, attr, params):
+        return _op.greater_equal(inputs[0], inputs[1])
+
+
 class LRN(OnnxOpConverter):
     """Operator converter for Local Response Normalization."""
 
@@ -3477,6 +3493,8 @@ def _get_convert_map(opset):
         "Exp": Renamer("exp"),
         "Greater": Greater.get_converter(opset),
         "Less": Less.get_converter(opset),
+        "LessOrEqual": LessOrEqual.get_converter(opset),
+        "GreaterOrEqual": GreaterOrEqual.get_converter(opset),
         "Log": Renamer("log"),
         "Acos": Renamer("acos"),
         "Acosh": Renamer("acosh"),
