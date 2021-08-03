@@ -170,7 +170,9 @@ PrimFunc SchedulePostProcToPrimFunc(Array<ObjectRef> arg_list, Stmt body,
   }
 
   body = TensorToBufferMapper(std::move(extern_buffer))(std::move(body));
-  return tir::PrimFunc(params, body, VoidType(), buffer_map);
+  // We mark this PrimFunc as coming from a TE schedule
+  return WithAttr(tir::PrimFunc(params, body, VoidType(), buffer_map), "from_legacy_te_schedule",
+                  Bool(true));
 }
 
 TVM_REGISTER_GLOBAL("schedule.SchedulePostProcToPrimFunc")

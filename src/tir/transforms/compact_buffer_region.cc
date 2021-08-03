@@ -452,11 +452,17 @@ class BufferCompactor : public StmtExprMutator {
 };
 
 PrimFunc CompactBufferAllocation(PrimFunc f) {
-  PrimFuncNode* fptr = f.CopyOnWrite();
-  std::unordered_map<Buffer, Region, ObjectPtrHash, ObjectPtrEqual> region =
-      BufferAccessRegionCollector::Collect(f);
-  fptr->body = BufferCompactor::Compact(f, region);
-  return f;
+  // Only apply this pass to TIR that is not from TE schedules
+  Optional<Bool> from_legacy_te_schedule = f->GetAttr("from_legacy_te_schedule", Bool(false));
+  if (!from_legacy_te_schedule.value()) {
+    PrimFuncNode* fptr = f.CopyOnWrite();
+    std::unordered_map<Buffer, Region, ObjectPtrHash, ObjectPtrEqual> region =
+        BufferAccessRegionCollector::Collect(f);
+    fptr->body = BufferCompactor::Compact(f, region);
+    return f;
+  } else {
+    return f;
+  }
 }
 
 namespace transform {

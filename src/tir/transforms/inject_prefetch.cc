@@ -96,9 +96,15 @@ namespace transform {
 
 Pass InjectPrefetch() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
-    auto* n = f.CopyOnWrite();
-    n->body = PrefetchInjector()(std::move(n->body));
-    return f;
+    // Only apply this pass to TIR from TE schedules
+    Optional<Bool> from_legacy_te_schedule = f->GetAttr("from_legacy_te_schedule", Bool(false));
+    if (from_legacy_te_schedule.value()) {
+      auto* n = f.CopyOnWrite();
+      n->body = PrefetchInjector()(std::move(n->body));
+      return f;
+    } else {
+      return f;
+    }
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.InjectPrefetch", {});
 }

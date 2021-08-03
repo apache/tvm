@@ -83,9 +83,15 @@ class OpaqueBlockConverter : public StmtExprMutator {
 };
 
 PrimFunc ConvertBlocksToOpaque(PrimFunc f) {
-  PrimFuncNode* fptr = f.CopyOnWrite();
-  fptr->body = OpaqueBlockConverter::Substitute(f);
-  return f;
+  // Only apply this pass to TIR that is not from TE schedules
+  Optional<Bool> from_legacy_te_schedule = f->GetAttr("from_legacy_te_schedule", Bool(false));
+  if (!from_legacy_te_schedule.value()) {
+    PrimFuncNode* fptr = f.CopyOnWrite();
+    fptr->body = OpaqueBlockConverter::Substitute(f);
+    return f;
+  } else {
+    return f;
+  }
 }
 
 namespace transform {

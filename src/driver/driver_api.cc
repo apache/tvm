@@ -288,6 +288,10 @@ IRModule ScheduleToModule(te::Schedule sch, const Array<ObjectRef>& args, const 
   tir::PrimFunc f = te::SchedulePostProcToPrimFunc(out_arg_list, std::move(stmt), out_binds);
   f = WithAttr(std::move(f), "global_symbol", runtime::String(name));
 
+  // Mark this schedule as being converted from an TE schedule. Makes sure that
+  // the correct TE passes are run.
+  f = WithAttr(std::move(f), "from_legacy_te_schedule", Bool(true));
+
   bool noalias = pass_ctx->GetConfig<Bool>("tir.noalias", Bool(true)).value();
 
   if (noalias) {
