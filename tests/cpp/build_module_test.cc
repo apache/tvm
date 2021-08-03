@@ -300,12 +300,12 @@ TEST(BuildModule, ZeroCopy) {
   test_ffi(runtime::Module(mod), static_cast<int>(kTVMModuleHandle));
   test_ffi(Optional<runtime::Module>(mod), static_cast<int>(kTVMModuleHandle));
 
-  PackedFunc set_input = mod.GetFunction("set_input", false);
-  PackedFunc run = mod.GetFunction("run", false);
+  PackedFunc set_input_zero_copy = mod.GetFunction("set_input_zero_copy", false);
   PackedFunc set_output_zero_copy = mod.GetFunction("set_output_zero_copy", false);
-  set_input("A", a_val);
-  set_input("B", b_val);
-  set_input("C", c_val);
+  PackedFunc run = mod.GetFunction("run", false);
+  set_input_zero_copy("A", a_val);
+  set_input_zero_copy("B", b_val);
+  set_input_zero_copy("C", c_val);
 
   tvm::runtime::NDArray out0 = runtime::NDArray::Empty({n}, {kDLFloat, 32, 1}, {kDLCPU, 0});
   tvm::runtime::NDArray out1 = runtime::NDArray::Empty({n}, {kDLFloat, 32, 1}, {kDLCPU, 0});
