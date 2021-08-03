@@ -3484,10 +3484,10 @@ def test_forward_unbind():
         def forward(self, x):
             return torch.unbind(x, self.axis)
 
-    inp = torch.randn(8, 8, 8)
-    verify_model(Unbind(0), input_data=inp)
+    inp = torch.randn(3, 5, 7, 2)
+    verify_model(Unbind(), input_data=inp)
     verify_model(Unbind(1), input_data=inp)
-    verify_model(Unbind(2), input_data=inp)
+    verify_model(Unbind(-1), input_data=inp)
 
 
 def test_forward_nonzero():

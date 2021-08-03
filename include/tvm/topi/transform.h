@@ -551,6 +551,57 @@ inline Array<Tensor> split(const Tensor& x, Array<PrimExpr> split_indices, int a
 }
 
 /*!
+ * \brief Unbind operation: split a tensor into multiple sub-tensors and
+ * remove specified dimension from shape of unbinded sub-tensors
+ *
+ * \param x The input tensor
+ *
+ * \param axis The axis to unbind along.
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return A Tensor array after unbinding input tensor
+ */
+inline Array<Tensor> unbind(const Tensor& x, int axis = 0,
+                            std::string name = "T_unbind", std::string tag = kInjective) {
+  if (axis < 0) {
+    axis += static_cast<int>(x->shape.size());
+  }
+  ICHECK_LT(axis, x->shape.size()) << "axis out of bounds";
+  ICHECK_GT(axis, 0) << "axis out of bounds";
+
+  int src_axis_size = static_cast<int>(x->shape[axis].as<IntImmNode>()->value);
+  Array<PrimExpr> shape;
+  for (size_t i = 0; i < static_cast<size_t>(axis); ++i) {
+    shape.push_back(x->shape[i]);
+  }
+  for (size_t i = axis + 1; i < x->shape.size(); ++i) {
+    shape.push_back(x->shape[i]);
+  }
+
+  Array<Tensor> result;
+  for (int i = 0; i < src_axis_size; ++i) {
+    result.push_back(compute(
+        shape,
+        [&](const Array<Var>& indices) {
+          Array<PrimExpr> real_indices;
+          for (size_t j = 0; j < static_cast<size_t>(axis); ++j) {
+            real_indices.push_back(indices[j]);
+          }
+          real_indices.push_back(indices[axis] + PrimExpr(i));
+          for (size_t j = axis + 1; j < indices.size(); ++j) {
+            real_indices.push_back(indices[j]);
+          }
+
+          return x(real_indices);
+        },
+        name, tag));
+  }
+
+  return result;
+}
+
+/*!
  * \brief strided_slice of a tensor where begin/end/stride can be mixed static and dynamic
  *
  * \param x The input tensor

@@ -288,6 +288,7 @@ struct SqueezeAttrs : public tvm::AttrsNode<SqueezeAttrs> {
   }
 };  // struct SqueezeAttrs
 
+/*! \brief Attributes used in split operators */
 struct SplitAttrs : public tvm::AttrsNode<SplitAttrs> {
   ObjectRef indices_or_sections;
   int axis;
@@ -303,6 +304,15 @@ struct SplitAttrs : public tvm::AttrsNode<SplitAttrs> {
     TVM_ATTR_FIELD(axis).set_default(0).describe("the axis to be splitted.");
   }
 };
+
+/*! \brief Attributes used in unbind operators */
+struct UnbindAttrs : public tvm::AttrsNode<UnbindAttrs> {
+  int axis;
+
+  TVM_DECLARE_ATTRS(UnbindAttrs, "relay.attrs.UnbindAttrs") {
+    TVM_ATTR_FIELD(axis).set_default(0).describe("the axis to be unbinded.");
+  }
+};  // struct UnbindAttrs
 
 /*! \brief Attributes for StridedSlice operator */
 struct StridedSliceAttrs : public tvm::AttrsNode<StridedSliceAttrs> {

@@ -74,6 +74,8 @@ Expr MakeReshapeLike(Expr lhs, Expr rhs, int lhs_begin, Integer lhs_end, int rhs
 
 Expr MakeSplit(Expr data, ObjectRef indices_or_sections, int axis);
 
+Expr MakeUnbind(Expr data, int axis);
+
 Expr MakeSqueeze(Expr data, Array<Integer> axis);
 
 Expr MakeStack(Expr data, int axis);

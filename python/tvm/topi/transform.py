@@ -404,6 +404,24 @@ def split(ary, indices_or_sections, axis=0):
     return cpp.split(ary, indices_or_sections, axis)
 
 
+def unbind(data, axis=0):
+    """
+    Unbind operation: split a tensor into multiple sub-tensors and
+    remove specified dimension from shape of unbinded sub-tensors
+
+    Parameters
+    ----------
+    data : tvm.te.Tensor
+
+    axis : int
+
+    Returns
+    -------
+    ret : tuple of tvm.te.Tensor
+    """
+    return cpp.unbind(data, axis)
+
+
 def take(a, indices, axis=None, batch_dims=0, mode="clip"):
     """Take elements from an array along an axis.
 

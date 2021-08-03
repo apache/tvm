@@ -2914,6 +2914,72 @@ the entries indicate where along axis the array is split.
     .set_attr<FTVMCompute>("FTVMCompute", SplitCompute)
     .set_attr<TOpPattern>("TOpPattern", kInjective);
 
+//relay.unbind
+TVM_REGISTER_NODE_TYPE(UnbindAttrs);
+
+bool UnbindRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+              const TypeReporter& reporter) {
+  // `types` contains: [data, result]
+  ICHECK_EQ(types.size(), 2) << "Expects two types, one for the input and another for the output";
+  const auto* data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) return false;
+  ICHECK_NE(data->shape.size(), 0) << "Input shape cannot be empty";
+  const auto param = attrs.as<UnbindAttrs>();
+  ICHECK(param != nullptr);
+  auto axis = param->axis;
+  if (axis < 0) {
+    axis += data->shape.size();
+  }
+  ICHECK_LT(axis, data->shape.size()) << "axis should be within the input dimension range.";
+  ICHECK_GE(axis, 0) << "axis should be within the input dimension range.";
+
+  std::vector<IndexExpr> shape;
+  for (int i = 0; i < axis; ++i) {
+    shape.push_back(data->shape[i]);
+  }
+  for (size_t i = axis + 1; i < data->shape.size(); ++i) {
+    shape.push_back(data->shape[i]);
+  }
+  auto vec_type = TensorType(shape, data->dtype);
+  int num = static_cast<int>(data->shape[axis].as<IntImmNode>()->value);
+  std::vector<Type> fields(num, vec_type);
+
+  reporter->Assign(types[1], TupleType(Array<Type>(fields)));
+  return true;
+}
+
+Array<te::Tensor> UnbindCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
+                               const Type& out_type) {
+  const auto param = attrs.as<UnbindAttrs>();
+  ICHECK(param != nullptr);
+  return Array<te::Tensor>{topi::unbind(inputs[0], param->axis)};
+}
+
+Expr MakeUnbind(Expr data, int axis) {
+  auto attrs = make_object<UnbindAttrs>();
+  attrs->axis = axis;
+  static const Op& op = Op::Get("unbind");
+  return Call(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.unbind").set_body_typed(MakeUnbind);
+
+RELAY_REGISTER_OP("unbind")
+    .describe(R"code(Unbind was taken from Pytorch frontend.
+    The operation returns a tuple of all slices along a given dimension,
+    with specified axis removed.
+
+    This operation is reverse for stack
+)code" TVM_ADD_FILELINE)
+    .set_attrs_type<UnbindAttrs>()
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .set_support_level(3)
+    .add_type_rel("Unbind", UnbindRel)
+    .set_attr<FTVMCompute>("FTVMCompute", UnbindCompute)
+    // TODO (vvchernov): may be kTuple or kOpaque more correct pattern
+    .set_attr<TOpPattern>("TOpPattern", kInjective);
+
 // relay.slice_like
 TVM_REGISTER_NODE_TYPE(SliceLikeAttrs);
 

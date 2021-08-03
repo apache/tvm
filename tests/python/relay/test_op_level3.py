@@ -522,6 +522,71 @@ def test_split_infer_type():
     )
 
 
+def test_unbind_infer_type():
+    def verify_unbind(dshape, ret_type, axis=0):
+        x = relay.var("x", relay.ty.TensorType(dshape, "float32"))
+        y = relay.unbind(x, axis=axis)
+        yy = run_infer_type(y.astuple())
+        assert yy.checked_type == ret_type
+
+    verify_unbind(
+        (3, 5, 7, 2),
+        relay.ty.TupleType(
+            tvm.runtime.convert(
+                [
+                    relay.ty.TensorType((5, 7, 2), "float32"),
+                    relay.ty.TensorType((5, 7, 2), "float32"),
+                    relay.ty.TensorType((5, 7, 2), "float32"),
+                ]
+            )
+        ),
+        axis=0,
+    )
+    verify_unbind(
+        (3, 5, 7, 2),
+        relay.ty.TupleType(
+            tvm.runtime.convert(
+                [
+                    relay.ty.TensorType((3, 7, 2), "float32"),
+                    relay.ty.TensorType((3, 7, 2), "float32"),
+                    relay.ty.TensorType((3, 7, 2), "float32"),
+                    relay.ty.TensorType((3, 7, 2), "float32"),
+                    relay.ty.TensorType((3, 7, 2), "float32"),
+                ]
+            )
+        ),
+        axis=1,
+    )
+    verify_unbind(
+        (3, 5, 7, 2),
+        relay.ty.TupleType(
+            tvm.runtime.convert(
+                [
+                    relay.ty.TensorType((3, 5, 7), "float32"),
+                    relay.ty.TensorType((3, 5, 7), "float32"),
+                ]
+            )
+        ),
+        axis=-1,
+    )
+
+    # d1, d2, d3, d4 = te.var("d1"), te.var("d2"), te.var("d3"), te.var("d4")
+    # verify_unbind(
+    #     (d1, d2, d3, d4),
+    #     relay.ty.TupleType(
+    #         tvm.runtime.convert(
+    #             [
+    #                 relay.ty.TensorType((d1, d2, d4), "float32"),
+    #                 relay.ty.TensorType((d1, d2, d4), "float32"),
+    #                 relay.ty.TensorType((d1, d2, d4), "float32"),
+    #                 relay.ty.TensorType((d1, d2, d4), "float32"),
+    #             ]
+    #         )
+    #     ),
+    #     axis=2,
+    # )
+
+
 def test_full_infer_type():
     # default settings: match input dtype
     x = relay.var("x", relay.TensorType((), "int8"))
