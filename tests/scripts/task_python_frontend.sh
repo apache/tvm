@@ -35,10 +35,7 @@ echo "Running relay MXNet frontend test..."
 run_pytest cython python-frontend-mxnet tests/python/frontend/mxnet
 
 echo "Running relay ONNX frontend test..."
-# Enable tvm.testing decorators in the ONNX importer test (not enabling in the other tests because we
-# they do not consistently use the decorators to indicate that tests should run on GPU)
-# In the future, we should enable tvm.testing decorators for all the test files.
-PYTEST_ADDOPTS="-m gpu $PYTEST_ADDOPTS" run_pytest cython python-frontend-onnx tests/python/frontend/onnx
+run_pytest cython python-frontend-onnx tests/python/frontend/onnx
 
 echo "Running relay CoreML frontend test..."
 run_pytest cython python-frontend-coreml tests/python/frontend/coreml
