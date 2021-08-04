@@ -33,12 +33,13 @@ namespace tvm {
 namespace support {
 
 /*!
- * \brief This linear congruential engine is a drop-in replacement for and strictly corresponds to
- * std::minstd_rand but designed to be serializable and strictly reproducible. Specifically
- * implemented for meta schedule but also reusable for other purposes.
- * \note Part of std::linear_congruential_engine's member functions are not included, for full
- * member functions of std::minstd_rand, please check out the following link:
- * https://en.cppreference.com/w/cpp/numeric/random/linear_congruential_engine
+ * \brief This linear congruential engine is a drop-in replacement for std::minstd_rand. It strictly
+ *  corresponds to std::minstd_rand and is designed to be platform-independent.
+ * \note Our linear congruential engine is a complete implementation of
+ *  std::uniform_random_bit_generator so it can be used as generator for any STL random number
+ *  distribution. However, parts of std::linear_congruential_engine's member functions are not
+ *  included. For full member functions of std::minstd_rand, please check out the following link:
+ *  https://en.cppreference.com/w/cpp/numeric/random/linear_congruential_engine
  */
 class LinearCongruentialEngine {
  public:
@@ -71,11 +72,13 @@ class LinearCongruentialEngine {
 
   /*!
    * \brief Operator to move the random state to the next and return the new random state. According
-   * to definition of linear congruential engine, the new random state value is computed as
+   *  to definition of linear congruential engine, the new random state value is computed as
    *  new_random_state = (current_random_state * multiplier + increment) % modulus.
    * \return The next current random state value in the type of result_type.
-   * \note In case of potential overflow, please use Schrage multiplication algorithm to implement.
-   * We also assume the given rand state is not nullptr here.
+   * \note In order for better efficiency, the implementation here has a few assumptions:
+   *  1. The multiplication and addition won't overflow.
+   *  2. The given random state pointer `rand_state_ptr` is not nullptr.
+   *  3. The given random state *(rand_state_ptr) is in the range of [1, modulus - 1].
    */
   result_type operator()() {
     (*rand_state_ptr_) = ((*rand_state_ptr_) * multiplier + increment) % modulus;
@@ -100,7 +103,8 @@ class LinearCongruentialEngine {
    * \brief Construct a random number generator with a random state pointer.
    * \param rand_state_ptr The random state pointer given in result_type*.
    * \note The random state is not checked for whether it's nullptr and whether it's in the range of
-   * [0, modulus-1]. We assume the given random state is valid or the Seed function would be called.
+   *  [0, modulus-1]. We assume the given random state is valid or the Seed function would be
+   *  called right after the constructor before any usage.
    */
   explicit LinearCongruentialEngine(result_type* rand_state_ptr) {
     rand_state_ptr_ = rand_state_ptr;
