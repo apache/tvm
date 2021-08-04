@@ -199,7 +199,7 @@ class Sequential(Pass):
         The list of passes that the sequential pass is dependent on.
     """
 
-    def __init__(self, passes=None, opt_level=2, name="sequential", required=None):
+    def __init__(self, passes=None, opt_level=0, name="sequential", required=None):
         passes = passes if passes else []
         if not isinstance(passes, (list, tuple)):
             raise TypeError("passes must be a list of Pass objects.")
