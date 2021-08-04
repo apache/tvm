@@ -331,7 +331,7 @@ class XGBoostCostModel(CostModel):
                 feas = pool.map_with_error_catching(self.feature_extract_func, need_extract)
             else:
                 args = [(self.space.get(x), self.target, self.task) for x in need_extract]
-                feas = pool.map(self.feature_extract_func, args)
+                feas = pool.map_with_error_catching(self.feature_extract_func, args)
             for i, fea in zip(need_extract, feas):
                 fea_cache[i] = fea
 
