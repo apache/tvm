@@ -51,11 +51,16 @@ The most frequently applied marks are as follows.
 - ``@pytest.mark.gpu`` - Tags a function as using GPU
   capabilities. This has no effect on its own, but can be paired with
   command-line arguments ``-m gpu`` or ``-m 'not gpu'`` to restrict
-  which tests pytest will executed. Typically not called on its own.
+  which tests pytest will executed.  This should be called on its own,
+  but is part of other marks used in unit-tests.
 
-- ``@tvm.testing.uses_gpu`` - Applies ``@pytest.mark.gpu``.  Needed
-  only for tests that explicitly loop over
-  ``tvm.testing.enabled_targets()``.
+- ``@tvm.testing.uses_gpu`` - Applies ``@pytest.mark.gpu``.  This
+  should be used to mark a unit tests that may use the GPU, if one is
+  present.  This decorator is only needed for tests that explicitly
+  loop over ``tvm.testing.enabled_targets()``, but that is no longer
+  the preferred style of writing unit tests (see below).  When using
+  ``tvm.testing.parametrize_targets()``, this decorator is implicit
+  for GPU targets, and does not need to be explicitly applied.
 
 - ``@tvm.testing.requires_gpu`` - Applies ``@tvm.testing.uses_gpu``,
   and additionally marks that the test should be skipped
@@ -80,7 +85,7 @@ occurs on a particular target, or on every target.
 
 .. code-block:: python
 
-    # Old style, not recommend anymore
+    # Old style, do not use.
     def test_function():
         for target,dev in tvm.testing.enabled_targets():
             # Test code goes here
@@ -99,7 +104,7 @@ skipped.
 
 .. code-block:: python
 
-    # New style, explicit listing of targets to use.
+    # Explicit listing of targets to use.
     @tvm.testing.parametrize_target('llvm', 'cuda')
     def test_function(target, dev):
         # Test code goes here
@@ -113,8 +118,8 @@ suite to be easily extended to cover additional targets.
 
 .. code-block:: python
 
-    # New style, implicitly parametrized to run on all
-    # targets in environment variable TVM_TEST_TARGETS
+    # Implicitly parametrized to run on all targets
+    # in environment variable TVM_TEST_TARGETS
     def test_function(target, dev):
         # Test code goes here
 
@@ -124,17 +129,17 @@ no additional effect.
 
 .. code-block:: python
 
-    # New style, explicitly parametrized to run on all
-    # targets in environment variable TVM_TEST_TARGETS
+    # Explicitly parametrized to run on all targets
+    # in environment variable TVM_TEST_TARGETS
     @tvm.testing.parametrize_targets
     def test_function(target, dev):
         # Test code goes here
 
 
 Specific targets can be excluded or marked as expected to fail using
-the `@tvm.testing.exclude_targets` or
-`@tvm.testing.known_failing_targets` decorators.  For more information
-on their intended use cases, please see their docstrings.
+the ``@tvm.testing.exclude_targets`` or
+``@tvm.testing.known_failing_targets`` decorators.  For more
+information on their intended use cases, please see their docstrings.
 
 Lastly, in some cases it may be necessary to parametrize across
 multiple parameters.  For instance, there may be target-specific
@@ -142,7 +147,7 @@ implementations that should be tested, where some targets have more
 than one implementation.  These can be done by explicitly
 parametrizing over tuples of arguments, such as shown below.  In these
 cases, only the explicitly listed targets will run, but they will
-still have the appropriate `@tvm.testing.requires_RUNTIME` mark
+still have the appropriate ``@tvm.testing.requires_RUNTIME`` mark
 applied to them.
 
 .. code-block:: python
