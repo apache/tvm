@@ -580,6 +580,11 @@ PackedFunc GraphExecutor::GetFunction(const std::string& name,
       dmlc::MemoryStringStream strm(const_cast<std::string*>(&param_blob));
       this->ShareParams(dynamic_cast<const GraphExecutor&>(*module.operator->()), &strm);
     });
+  } else if (name == "get_input_index") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      CHECK(String::CanConvertFrom(args[0])) << "Input key is not a string";
+      *rv = this->GetInputIndex(args[0].operator String());
+    });
   } else {
     return PackedFunc();
   }
