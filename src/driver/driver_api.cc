@@ -167,7 +167,7 @@ transform::Pass Filter(FCond fcond) {
   return tir::transform::CreatePrimFuncPass(fpass, 0, "Filter", {});
 }
 
-Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition, bool for_te_schedule) {
+Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition) {
   transform::PassContext pass_ctx = transform::PassContext::Current();
 
   bool disable_vectorize = pass_ctx->GetConfig<Bool>("tir.disable_vectorize", Bool(false)).value();
@@ -214,17 +214,14 @@ Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition, bool for
   Array<tvm::transform::Pass> pass_list = user_lower_phase0;
 
   // PHASE 1
-  if (for_te_schedule) {
-    pass_list.push_back(tir::transform::InjectPrefetch());
-    pass_list.push_back(tir::transform::StorageFlatten(64, instrument_bound_checkers));
-  } else {
-    pass_list.push_back(tir::transform::LowerInitBlock());
-    pass_list.push_back(tir::transform::PlanAndUpdateBufferAllocationLocation());
-    pass_list.push_back(tir::transform::ConvertBlocksToOpaque());
-    pass_list.push_back(tir::transform::CompactBufferAllocation());
-    pass_list.push_back(tir::transform::LowerMatchBuffer());
-    pass_list.push_back(tir::transform::FlattenBuffer());
-  }
+  pass_list.push_back(tir::transform::InjectPrefetch());
+  pass_list.push_back(tir::transform::StorageFlatten(64, instrument_bound_checkers));
+  pass_list.push_back(tir::transform::LowerInitBlock());
+  pass_list.push_back(tir::transform::PlanAndUpdateBufferAllocationLocation());
+  pass_list.push_back(tir::transform::ConvertBlocksToOpaque());
+  pass_list.push_back(tir::transform::CompactBufferAllocation());
+  pass_list.push_back(tir::transform::LowerMatchBuffer());
+  pass_list.push_back(tir::transform::FlattenBuffer());
   pass_list.push_back(tir::transform::BF16Legalize());
   pass_list.push_back(tir::transform::NarrowDataType(32));
   pass_list.push_back(tir::transform::Simplify());
@@ -315,7 +312,7 @@ TVM_REGISTER_GLOBAL("driver.schedule_to_module")
     });
 
 IRModule LowerModule(IRModule mod, bool simple_mode) {
-  Array<transform::Pass> pass_list = CreatePassList(simple_mode, false);
+  Array<transform::Pass> pass_list = CreatePassList(simple_mode);
   return LowerWithPassList(std::move(mod), pass_list);
 }
 
@@ -335,7 +332,7 @@ IRModule LowerPrimFunc(tir::PrimFunc func, const std::string& name, bool simple_
   IRModule mod = IRModule(Map<GlobalVar, BaseFunc>({{GlobalVar(name), f}}));
 
   // Get the pass list
-  Array<transform::Pass> pass_list = CreatePassList(simple_mode, false);
+  Array<transform::Pass> pass_list = CreatePassList(simple_mode);
   return LowerWithPassList(std::move(mod), pass_list);
 }
 
@@ -357,7 +354,7 @@ IRModule LowerSchedule(te::Schedule sch, const Array<ObjectRef>& args, const std
                        const std::unordered_map<te::Tensor, tir::Buffer>& binds, bool simple_mode) {
   IRModule mod = ScheduleToModule(std::move(sch), args, name, binds);
   // Get the legacy TE pass list
-  Array<transform::Pass> pass_list = CreatePassList(simple_mode, true);
+  Array<transform::Pass> pass_list = CreatePassList(simple_mode);
   return LowerWithPassList(mod, pass_list);
 }
 
