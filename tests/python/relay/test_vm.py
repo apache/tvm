@@ -941,5 +941,22 @@ def test_get_output_multiple():
     np.testing.assert_allclose(outputs[1].numpy(), inp)
 
 
+def test_get_input_index():
+    target = tvm.target.Target("llvm")
+
+    # Build a IRModule.
+    data_0, data_1 = ["d1", "d2"]
+    x, y = [relay.var(c, shape=(10,)) for c in [data_0, data_1]]
+    f = relay.Function([x, y], x + y)
+    mod = IRModule.from_expr(f)
+
+    # Compile to VMExecutable.
+    vm_exec = vm.compile(mod, target=target)
+    vm_factory = runtime.vm.VirtualMachine(vm_exec, tvm.cpu())
+    assert vm_factory.get_input_index(data_1) == 1
+    assert vm_factory.get_input_index(data_0) == 0
+    assert vm_factory.get_input_index("invalid") == -1
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
