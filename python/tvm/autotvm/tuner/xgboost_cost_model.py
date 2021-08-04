@@ -23,7 +23,6 @@ import time
 
 import numpy as np
 
-from ...contrib import popen_pool
 from .. import feature
 from ..utils import get_rank
 from .metric import max_curve, recall_curve, cover_curve
@@ -162,11 +161,13 @@ class XGBoostCostModel(CostModel):
         _extract_space = space
         _extract_target = target
         _extract_task = task
-        self.pool = popen_pool.PopenPoolExecutor(self.num_threads)
+        self.pool = multiprocessing.Pool(self.num_threads)
 
     def _close_pool(self):
         if self.pool:
-            del self.pool
+            self.pool.terminate()
+            self.pool.join()
+            self.pool = None
 
     def _get_pool(self):
         if self.upper_model:
@@ -246,7 +247,7 @@ class XGBoostCostModel(CostModel):
             feature_extract_func = _extract_curve_feature_log
         else:
             raise RuntimeError("Invalid feature type: " + self.fea_type)
-        res = pool.map_with_error_catching(feature_extract_func, data)
+        res = pool.map(feature_extract_func, data)
 
         # filter out feature with different shapes
         fea_len = len(self._get_feature([0])[0])
@@ -328,10 +329,10 @@ class XGBoostCostModel(CostModel):
             pool = self._get_pool()
             # If we are forking, we can pass arguments in globals for better performance
             if multiprocessing.get_start_method(False) == "fork":
-                feas = pool.map_with_error_catching(self.feature_extract_func, need_extract)
+                feas = pool.map(self.feature_extract_func, need_extract)
             else:
                 args = [(self.space.get(x), self.target, self.task) for x in need_extract]
-                feas = pool.map_with_error_catching(self.feature_extract_func, args)
+                feas = pool.map(self.feature_extract_func, args)
             for i, fea in zip(need_extract, feas):
                 fea_cache[i] = fea
 
