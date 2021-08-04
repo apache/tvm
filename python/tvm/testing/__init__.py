@@ -16,12 +16,12 @@
 # under the License.
 # pylint: disable=redefined-builtin, wildcard-import
 """Utility Python functions for TVM testing"""
-from . import (
+from .utils import (
     assert_allclose,
     assert_prim_expr_equal,
-    auto_scheduler,
     device_enabled,
     enabled_targets,
     parameters,
-    utils,
 )
+
+from . import auto_scheduler
