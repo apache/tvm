@@ -246,7 +246,7 @@ class XGBoostCostModel(CostModel):
             feature_extract_func = _extract_curve_feature_log
         else:
             raise RuntimeError("Invalid feature type: " + self.fea_type)
-        res = pool.map(feature_extract_func, data)
+        res = pool.map_with_error_catching(feature_extract_func, data)
 
         # filter out feature with different shapes
         fea_len = len(self._get_feature([0])[0])
@@ -328,7 +328,7 @@ class XGBoostCostModel(CostModel):
             pool = self._get_pool()
             # If we are forking, we can pass arguments in globals for better performance
             if multiprocessing.get_start_method(False) == "fork":
-                feas = pool.map(self.feature_extract_func, need_extract)
+                feas = pool.map_with_error_catching(self.feature_extract_func, need_extract)
             else:
                 args = [(self.space.get(x), self.target, self.task) for x in need_extract]
                 feas = pool.map(self.feature_extract_func, args)

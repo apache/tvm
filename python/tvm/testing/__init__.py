@@ -44,6 +44,7 @@ from .utils import (
     requires_metal,
     requires_micro,
     requires_opencl,
+    test_check_eq_callback,
     test_raise_error_callback,
     test_wrap_callback,
     _auto_parametrize_target,
