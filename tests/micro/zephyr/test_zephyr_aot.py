@@ -129,13 +129,13 @@ def _create_header_file(tensor_name, npy_data, output_path):
         header_file.write("};\n\n")
 
 
-def _read_line(fd):
+def _read_line(fd, timeout_sec: int):
     data = ""
     new_line = False
     while True:
         if new_line:
             break
-        new_data = fd.read(1, timeout_sec=10)
+        new_data = fd.read(1, timeout_sec=timeout_sec)
         logging.debug(f"read data: {new_data}")
         for item in new_data:
             new_c = chr(item)
@@ -146,9 +146,9 @@ def _read_line(fd):
     return data
 
 
-def _get_message(fd, expr: str):
+def _get_message(fd, expr: str, timeout_sec: int):
     while True:
-        data = _read_line(fd)
+        data = _read_line(fd, timeout_sec)
         logging.debug(f"new line: {data}")
         if expr in data:
             return data
@@ -206,11 +206,12 @@ def test_tflite(platform, west_cmd, skip_build, tvm_debug):
     session_kw = _build_session_kw(
         model, target, zephyr_board, west_cmd, lowered.lib, runtime_path, build_config
     )
+    timeout = 100
     transport = session_kw["flasher"].flash(session_kw["binary"])
     transport.open()
-    transport.write(b"start\n", timeout_sec=5)
+    transport.write(b"start\n", timeout_sec=timeout)
 
-    result_line = _get_message(transport, "#result")
+    result_line = _get_message(transport, "#result", timeout)
     result_line = result_line.strip("\n")
     result_line = result_line.split(":")
     result = int(result_line[1])
