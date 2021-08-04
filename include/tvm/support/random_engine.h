@@ -38,8 +38,8 @@ namespace support {
  * \note Our linear congruential engine is a complete implementation of
  *  std::uniform_random_bit_generator so it can be used as generator for any STL random number
  *  distribution. However, parts of std::linear_congruential_engine's member functions are not
- *  included. For full member functions of std::minstd_rand, please check out the following link:
- *  https://en.cppreference.com/w/cpp/numeric/random/linear_congruential_engine
+ *  included for simplification. For full member functions of std::minstd_rand, please check out the
+ *  following link: https://en.cppreference.com/w/cpp/numeric/random/linear_congruential_engine
  */
 class LinearCongruentialEngine {
  public:
