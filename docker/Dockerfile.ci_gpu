@@ -22,14 +22,14 @@ FROM nvidia/cuda:11.0.3-cudnn8-devel-ubuntu18.04
 # Base scripts
 RUN apt-get update --fix-missing
 
-# Globally disable pip cache
-RUN pip config set global.cache-dir false
-
 COPY install/ubuntu_install_core.sh /install/ubuntu_install_core.sh
 RUN bash /install/ubuntu_install_core.sh
 
 COPY install/ubuntu1804_install_python.sh /install/ubuntu1804_install_python.sh
 RUN bash /install/ubuntu1804_install_python.sh
+
+# Globally disable pip cache
+RUN pip config set global.cache-dir false
 
 COPY install/ubuntu1804_install_llvm.sh /install/ubuntu1804_install_llvm.sh
 RUN bash /install/ubuntu1804_install_llvm.sh

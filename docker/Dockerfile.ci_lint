@@ -22,13 +22,13 @@ FROM ubuntu:18.04
 
 RUN apt-get update --fix-missing
 
-# Globally disable pip cache
-RUN pip config set global.cache-dir false
-
 RUN apt-get update && apt-get install -y wget git sudo make
 
 COPY install/ubuntu1804_install_python.sh /install/ubuntu1804_install_python.sh
 RUN bash /install/ubuntu1804_install_python.sh
+
+# Globally disable pip cache
+RUN pip config set global.cache-dir false
 
 RUN apt-get update && apt-get install -y doxygen graphviz
 

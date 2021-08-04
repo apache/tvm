@@ -644,6 +644,17 @@ def CompactBufferAllocation():
     return _ffi_api.CompactBufferAllocation()  # type: ignore
 
 
+def LowerMatchBuffer():
+    """Remove match buffers inside the block. Also, it will validate the binding.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.LowerMatchBuffer()  # type: ignore
+
+
 def FlattenBuffer():
     """Flatten the multi-dimensional BufferLoad and BufferStore
     to single dimensional Load/Store. Also remove Block to
@@ -655,3 +666,15 @@ def FlattenBuffer():
         The result pass
     """
     return _ffi_api.FlattenBuffer()  # type: ignore
+
+
+def MergeDynamicSharedMemoryAllocations():
+    """This pass merges multiple TIR-level dynamic shared memory allocations
+    into one allocation.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.MergeDynamicSharedMemoryAllocations()  # type: ignore

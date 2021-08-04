@@ -362,6 +362,7 @@ class BufferCompactor : public StmtExprMutator {
     BlockNode* n = block.CopyOnWrite();
     RewriteBufferRegions(&n->reads);
     RewriteBufferRegions(&n->writes);
+    RewriteMatchBuffers(&n->match_buffers);
     n->alloc_buffers = std::move(alloc_buffers);
     return std::move(block);
   }
@@ -432,6 +433,18 @@ class BufferCompactor : public StmtExprMutator {
       new_regions.push_back(buffer_region);
     }
     *regions = std::move(new_regions);
+  }
+
+  void RewriteMatchBuffers(Array<MatchBufferRegion>* match_buffers) const {
+    Array<MatchBufferRegion> result;
+    result.reserve(match_buffers->size());
+    for (const auto& match_buffer : *match_buffers) {
+      const BufferRegion& buffer_region = match_buffer->source;
+      auto p = make_object<BufferRegionNode>(*buffer_region.get());
+      RewriteBufferRegion(&p->buffer, &p->region);
+      result.push_back(MatchBufferRegion(match_buffer->buffer, BufferRegion(p)));
+    }
+    *match_buffers = std::move(result);
   }
 
   /*! \brief The allocation information about each buffer. */

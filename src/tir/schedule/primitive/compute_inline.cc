@@ -622,7 +622,8 @@ void ComputeInline(ScheduleState self, const StmtSRef& producer_block_sref) {
   Block producer_block = GetRef<Block>(_producer_block);
   Buffer inlined_buffer = NotSingleReadWriteBuffer::GetSingleWrite(self, producer_block);
   // Step 1. Get the scope block
-  StmtSRef scope_root_sref = GetScopeRootAndCheckStagePipeline(self, producer_block_sref);
+  StmtSRef scope_root_sref =
+      GetScopeRoot(self, producer_block_sref, /*require_stage_pipeline=*/true);
   // Step 2. Check completeness
   CheckCompleteBlock(self, producer_block_sref, scope_root_sref);
   // Step 3. Analyze the block body
@@ -649,7 +650,8 @@ void ReverseComputeInline(ScheduleState self, const StmtSRef& consumer_block_sre
   Block consumer_block = GetRef<Block>(_consumer_block);
   Buffer inlined_buffer = NotSingleReadWriteBuffer::GetSingleRead(self, consumer_block);
   // Step 1. Get the scope block
-  StmtSRef scope_root_sref = GetScopeRootAndCheckStagePipeline(self, consumer_block_sref);
+  StmtSRef scope_root_sref =
+      GetScopeRoot(self, consumer_block_sref, /*require_stage_pipeline=*/true);
   // Step 2. Check completeness
   CheckCompleteBlock(self, consumer_block_sref, scope_root_sref);
   // Step 3. Check if the consumer has a single complete producer
@@ -672,6 +674,57 @@ void ReverseComputeInline(ScheduleState self, const StmtSRef& consumer_block_sre
   // Step 7. Do the real mutation on the AST and the sref tree in the schedule state
   self->Replace(scope_root_sref, tgt_stmt, inliner.block_reuse);
 }
+
+/******** Instruction Registration ********/
+
+struct ComputeInlineTraits : public UnpackedInstTraits<ComputeInlineTraits> {
+  static constexpr const char* kName = "ComputeInline";
+  static constexpr bool kIsPure = false;
+
+ private:
+  static constexpr size_t kNumInputs = 1;
+  static constexpr size_t kNumAttrs = 0;
+  static constexpr size_t kNumDecisions = 0;
+
+  static void UnpackedApplyToSchedule(Schedule sch, BlockRV block_rv) {
+    return sch->ComputeInline(block_rv);
+  }
+
+  static String UnpackedAsPython(Array<String> outputs, String block_rv) {
+    PythonAPICall py("compute_inline");
+    py.Input("block", block_rv);
+    return py.Str();
+  }
+
+  template <typename>
+  friend struct ::tvm::tir::UnpackedInstTraits;
+};
+
+struct ReverseComputeInlineTraits : public UnpackedInstTraits<ReverseComputeInlineTraits> {
+  static constexpr const char* kName = "ReverseComputeInline";
+  static constexpr bool kIsPure = false;
+
+ private:
+  static constexpr size_t kNumInputs = 1;
+  static constexpr size_t kNumAttrs = 0;
+  static constexpr size_t kNumDecisions = 0;
+
+  static void UnpackedApplyToSchedule(Schedule sch, BlockRV block_rv) {
+    return sch->ReverseComputeInline(block_rv);
+  }
+
+  static String UnpackedAsPython(Array<String> outputs, String block_rv) {
+    PythonAPICall py("reverse_compute_inline");
+    py.Input("block", block_rv);
+    return py.Str();
+  }
+
+  template <typename>
+  friend struct ::tvm::tir::UnpackedInstTraits;
+};
+
+TVM_REGISTER_INST_KIND_TRAITS(ComputeInlineTraits);
+TVM_REGISTER_INST_KIND_TRAITS(ReverseComputeInlineTraits);
 
 }  // namespace tir
 }  // namespace tvm
