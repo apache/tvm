@@ -311,5 +311,19 @@ def test_graph_executor_nested_tuples():
     tvm.testing.assert_allclose(out[1][1][1].numpy(), data[3])
 
 
+def test_graph_executor_api():
+    dname_0, dname_1 = "data_0", "data_1"
+    data_0, data_1 = [relay.var(c, shape=(1, 1), dtype="float32") for c in [dname_0, dname_1]]
+    net = relay.add(data_0, data_1)
+    func = relay.Function((data_0, data_1), net)
+
+    lib = relay.build(tvm.IRModule.from_expr(func), "llvm")
+    mod = graph_executor.GraphModule(lib["default"](tvm.cpu(0)))
+
+    assert mod.get_input_index(dname_1) == 1
+    assert mod.get_input_index(dname_0) == 0
+    assert mod.get_input_index("Invalid") == -1
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
