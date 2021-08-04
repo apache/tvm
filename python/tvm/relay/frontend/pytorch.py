@@ -1799,7 +1799,7 @@ class PyTorchOpConverter:
                 else:
                     out_size.append(size)
         else:
-            scale_index = 3 if method == "linear" else 2
+            scale_index = 3 if method != "nearest_neighbor" else 2
             scales = inputs[scale_index]
             assert scales is not None, "neither out size nor scale provided"
             assert isinstance(scales, list)
@@ -1814,7 +1814,7 @@ class PyTorchOpConverter:
             data = inputs[0]
             out_size = self.get_upsample_out_size(inputs, method)
 
-            if len(inputs) > 2 and method == "linear":
+            if len(inputs) > 2 and method != "nearest_neighbor":
                 align_corners = inputs[2]
             else:
                 align_corners = False
@@ -1827,7 +1827,7 @@ class PyTorchOpConverter:
                 coord_trans = "half_pixel"
 
             def func(x):
-                return _op.image.resize2d(x, out_size, "NCHW", method, coord_trans)
+                return _op.image.resize2d(x, out_size, "NCHW", method, coord_trans, cubic_alpha=-0.75)
 
             if self.is_quantized_tensor(data):
                 # input qparams are manually appended by us
@@ -2203,7 +2203,7 @@ class PyTorchOpConverter:
         else:
             coord_trans = "half_pixel"
 
-        return _op.image.resize2d(data, out_size, "NCHW", method, coord_trans)
+        return _op.image.resize2d(data, out_size, "NCHW", method, coord_trans, cubic_alpha=-0.75)
 
     def numel(self, inputs, input_types):
         return _op.ndarray_size(inputs[0])
@@ -2771,6 +2771,7 @@ class PyTorchOpConverter:
             "aten::clamp_": self.clamp,
             "aten::detach": self.identity,
             "aten::upsample_bilinear2d": self.make_upsample("linear"),
+            "aten::upsample_bicubic2d": self.make_upsample("cubic"),
             "aten::upsample_nearest2d": self.make_upsample("nearest_neighbor"),
             "aten::upsample_trilinear3d": self.make_upsample3d("linear"),
             "aten::upsample_nearest3d": self.make_upsample3d("nearest_neighbor"),
