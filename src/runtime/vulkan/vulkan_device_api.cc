@@ -122,7 +122,7 @@ void VulkanDeviceAPI::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) 
       break;
     }
     case kDeviceName:
-      *rv = prop.device_name;
+      *rv = String(prop.device_name);
       break;
 
     case kMaxClockRate:
