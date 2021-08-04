@@ -83,6 +83,11 @@ def test_target_string_with_spaces():
     assert target.attrs["device_name"] == "Name of GPU with spaces"
     assert target.attrs["device_type"] == "discrete"
 
+    target = tvm.target.Target(str(target))
+
+    assert target.attrs["device_name"] == "Name of GPU with spaces"
+    assert target.attrs["device_type"] == "discrete"
+
 
 def test_target_create():
     targets = [cuda(), rocm(), mali(), intel_graphics(), arm_cpu("rk3399"), vta(), bifrost()]
