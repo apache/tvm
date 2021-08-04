@@ -221,10 +221,15 @@ def convert_activation(g, op, block):
 def convert_feed(g, op, block):
     """Converter for model input node."""
 
-    ipt_name = op.output('Out')[0]
-    ipt_shape = block.var(ipt_name).shape
-    ipt_dtype = block.var(ipt_name).dtype
-    ipt_dtype = str(ipt_dtype).strip().split('.')[1]
+    if block is not None:
+        ipt_shape = block.var(ipt_name).shape
+        ipt_dtype = block.var(ipt_name).dtype
+        ipt_dtype = str(ipt_dtype).strip().split('.')[1]
+        ipt_name = op.output('Out')[0]
+    else:
+        ipt_shape = op.shape
+        ipt_dtype = str(op.dtype).strip().split('.')[1]
+        ipt_name = op.name
     if g.shape_dict is not None:
         ipt_shape = g.shape_dict[ipt_name]
     out = new_var(ipt_name, shape=ipt_shape, dtype=ipt_dtype)
@@ -650,7 +655,7 @@ class GraphProto(object):
         assert name in self.params
         return self.params[name]
 
-    def extract_parameters(self, program, scope):
+    def extract_parameters(self, program, scope=None):
         """ Extract all the weights from PaddlePaddle program."""
 
         self.params = {}
@@ -694,9 +699,12 @@ class GraphProto(object):
             msg += ", ".join(unsupported_ops)
             raise tvm.error.OpNotImplemented(msg)
 
-    def ops_to_relay(self, program, scope):
+    def ops_to_relay(self, program, input_specs=None):
         """ Convert PaddlePaddle operators to TVM relay functions."""
 
+        if input_specs is not None:
+            for input_spec in input_specs:
+                convert_feed(self, input_spec, None)
         for block in program.blocks:
             for i, op in enumerate(block.ops):
                 if op.type == 'fetch':
@@ -704,17 +712,7 @@ class GraphProto(object):
                 convert_func = _convert_map[op.type]
                 convert_func(self, op, block)
 
-    def get_outputs(self, program):
-        """ Get outputs of PaddlePaddle model."""
-
-        outputs = list()
-        for block in program.blocks:
-            for i, op in enumerate(block.ops):
-                if op.type == "fetch":
-                    outputs.append(op.input('X')[0])
-        return outputs
-
-    def from_paddle(self, program, shape_dict, scope):
+    def from_program(self, program, shape_dict, scope):
         """ Construct the TVM relay expression from PaddlePaddle program."""
 
         self.shape_dict = shape_dict
@@ -723,8 +721,37 @@ class GraphProto(object):
             scope = paddle.fluid.global_scope()
         self.check_unsupported_ops(program)
         self.extract_parameters(program, scope)
-        self.ops_to_relay(program, scope)
-        output_names = self.get_outputs(program)
+        self.ops_to_relay(program)
+
+        output_names = list()
+        for block in program.blocks:
+            for i, op in enumerate(block.ops):
+                if op.type == "fetch":
+                    output_names.append(op.input('X')[0])
+
+        outputs = [self.nodes[name] for name in output_names]
+        outputs = outputs[0] if len(outputs) == 1 else _expr.Tuple(outputs)
+
+        free_vars = analysis.free_vars(outputs)
+        func = _function.Function(free_vars, outputs)
+        mod = IRModule.from_expr(func)
+        return mod, self.params
+
+    def from_translated_layer(self, layer, shape_dict):
+        """ Construct the TVM relay expression from PaddlePaddle TranslatedLayer."""
+
+        self.shape_dict = shape_dict
+        program = layer.program()
+        parameters = dict()
+        for param in layer.parameters():
+            parameters[param.name] = np.array(param.value().get_tensor())
+        self.check_unsupported_ops(program)
+        self.extract_parameters(program, parameters)
+
+        input_specs = layer._input_spec()
+        self.ops_to_relay(program, input_specs)
+
+        output_names = [x.name for x in layer._output_spec()]
 
         outputs = [self.nodes[name] for name in output_names]
         outputs = outputs[0] if len(outputs) == 1 else _expr.Tuple(outputs)
@@ -735,14 +762,22 @@ class GraphProto(object):
         return mod, self.params
 
 
-def from_paddle(program, shape_dict=None, scope=None):
+def from_paddle(program_or_layer, shape_dict=None, scope=None):
     """ Convert a PaddlePaddle model into an equivalent Relay Function.
 
-    PaddlePaddle Program represent the computation graph of PaddlePaddle model, 
+    PaddlePaddle Program/TranslatedLayer represent the computation graph of PaddlePaddle model, 
     and PaddlePaddle scope stores all the weights of PaddlePaddle model. 
     """
 
     import paddle
     g = GraphProto()
-    mod, params = g.from_paddle(program, shape_dict, scope)
+    if isinstance(program_or_layer, paddle.fluid.dygraph.TranslatedLayer):
+        # model is loaded by `paddle.jit.load`
+        mod, params = g.from_translated_layer(program_or_layer, shape_dict)
+    elif isinstance(program_or_layer, paddle.fluid.framework.Program):
+        # model is loaded by `paddle.static.load_inference_model`
+        mod, params = g.from_program(program_or_layer, shape_dict, scope)
+    else:
+        raise Exception(
+            "Only PaddlePaddle's Program and TranslatedLayer are supported.")
     return mod, params
