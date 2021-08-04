@@ -22,7 +22,7 @@
 #include <tvm/support/random_engine.h>
 
 TEST(RandomEngine, Randomness) {
-  uint64_t rand_state = 0;
+  int64_t rand_state = 0;
 
   tvm::support::LinearCongruentialEngine rng(&rand_state);
   rng.Seed(0x114514);
@@ -38,7 +38,7 @@ TEST(RandomEngine, Randomness) {
 }
 
 TEST(RandomEngine, Reproducibility) {
-  uint64_t rand_state_a = 0, rand_state_b = 0;
+  int64_t rand_state_a = 0, rand_state_b = 0;
   tvm::support::LinearCongruentialEngine rng_a(&rand_state_a), rng_b(&rand_state_b);
 
   rng_a.Seed(0x23456789);
@@ -50,7 +50,7 @@ TEST(RandomEngine, Reproducibility) {
 }
 
 TEST(RandomEngine, Serialization) {
-  uint64_t rand_state_a = 0, rand_state_b = 0;
+  int64_t rand_state_a = 0, rand_state_b = 0;
   tvm::support::LinearCongruentialEngine rng_a(&rand_state_a), rng_b(&rand_state_b);
 
   rng_a.Seed(0x56728);

@@ -48,15 +48,16 @@ class LinearCongruentialEngine {
    * \note The type name is not in Google style because it is used in STL's distribution inferface.
    */
   using result_type = uint64_t;
+  using TRandState = int64_t;
 
   /*! \brief The multiplier */
-  static constexpr result_type multiplier = 48271;
+  static constexpr TRandState multiplier = 48271;
 
   /*! \brief The increment */
-  static constexpr result_type increment = 0;
+  static constexpr TRandState increment = 0;
 
   /*! \brief The modulus */
-  static constexpr result_type modulus = 2147483647;
+  static constexpr TRandState modulus = 2147483647;
 
   /*!
    * \brief The minimum possible value of random state here.
@@ -78,7 +79,7 @@ class LinearCongruentialEngine {
    * \note In order for better efficiency, the implementation here has a few assumptions:
    *  1. The multiplication and addition won't overflow.
    *  2. The given random state pointer `rand_state_ptr` is not nullptr.
-   *  3. The given random state *(rand_state_ptr) is in the range of [0, modulus - 1].
+   *  3. The given random state `*(rand_state_ptr)` is in the range of [0, modulus - 1].
    */
   result_type operator()() {
     (*rand_state_ptr_) = ((*rand_state_ptr_) * multiplier + increment) % modulus;
@@ -89,11 +90,14 @@ class LinearCongruentialEngine {
    * \brief Change the start random state of RNG with the seed of a new random state value.
    * \param rand_state The random state given in result_type.
    */
-  void Seed(result_type rand_state = 1) {
-    rand_state %= modulus;                // Make sure the seed is within the range of modulus.
-    if (rand_state == 0) rand_state = 1;  // Avoid getting all 0 given the current parameter set.
-    ICHECK(rand_state_ptr_ != nullptr);   // Make sure the pointer is not null.
-    *rand_state_ptr_ = rand_state;  // Change pointed random state to given random state value.
+  void Seed(TRandState rand_state = 1) {
+    rand_state %= modulus;  // Make sure the seed is within the range of modulus.
+    if (rand_state == 0)
+      rand_state = 1;  // Avoid getting all 0 given the current parameter set.
+    else if (rand_state < 0)
+      rand_state += modulus;             // Make sure the rand state is non-negative.
+    ICHECK(rand_state_ptr_ != nullptr);  // Make sure the pointer is not null.
+    *rand_state_ptr_ = rand_state;       // Change pointed random state to given random state value.
   }
 
   /*!
@@ -103,12 +107,12 @@ class LinearCongruentialEngine {
    *  [0, modulus-1]. We assume the given random state is valid or the Seed function would be
    *  called right after the constructor before any usage.
    */
-  explicit LinearCongruentialEngine(result_type* rand_state_ptr) {
+  explicit LinearCongruentialEngine(TRandState* rand_state_ptr) {
     rand_state_ptr_ = rand_state_ptr;
   }
 
  private:
-  result_type* rand_state_ptr_;
+  TRandState* rand_state_ptr_;
 };
 
 }  // namespace support
