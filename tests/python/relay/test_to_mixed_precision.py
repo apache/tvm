@@ -230,6 +230,17 @@ def test_do_not_convert_softmax():
     assert tvm.ir.structural_equal(mod, output_mod)
 
 
+def test_do_not_convert_arange():
+    """Arange is a red listed operation and therefore should never be fp16."""
+    dtype = "float32"
+    arange = relay.arange(relay.const(1, dtype), relay.const(128, dtype))
+    mod = tvm.IRModule.from_expr(arange)
+    mod = tvm.relay.transform.InferType()(mod)
+
+    output_mod = verify_mixed_precision_output_close(mod, {}, atol=0.0, rtol=0)
+    assert tvm.ir.structural_equal(mod, output_mod)
+
+
 def test_green_gray_propagates_simple():
     """Conv is a green listed operation, while addition is gray.
 
