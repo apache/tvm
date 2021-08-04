@@ -194,11 +194,12 @@ def test_tflite(platform, west_cmd, skip_build, tvm_debug):
     with tempfile.NamedTemporaryFile() as tar_temp_file:
         with tarfile.open(tar_temp_file.name, "w:gz") as tf:
             with tempfile.TemporaryDirectory() as tar_temp_dir:
-                model_files_path = os.path.join(tar_temp_dir.name, "include")
+                model_files_path = os.path.join(tar_temp_dir, "include")
+                os.mkdir(model_files_path)
                 header_path = generate_c_interface_header(
                     lowered.libmod_name, ["input_1"], ["output"], model_files_path
                 )
-                tf.addfile(header_path, arcname=os.path.relpath(header_path, tar_temp_dir.name))
+                tf.add(header_path, arcname=os.path.relpath(header_path, tar_temp_dir))
 
             _create_header_file("input_data", sample, "include", tf)
             _create_header_file(
@@ -212,7 +213,7 @@ def test_tflite(platform, west_cmd, skip_build, tvm_debug):
             west_cmd,
             lowered,
             build_config,
-            extra_files_tar=temp_file.name,
+            extra_files_tar=tar_temp_file.name,
         )
 
     project.flash()
@@ -252,8 +253,15 @@ def test_qemu_make_fail(platform, west_cmd, skip_build, tvm_debug):
         lowered = relay.build(func, target)
 
     # Generate input/output header files
-    with tempfile.NamedTemporaryFile() as temp_file:
-        with tarfile.open(temp_file.name, "w:gz") as tf:
+    with tempfile.NamedTemporaryFile() as tar_temp_file:
+        with tarfile.open(tar_temp_file.name, "w:gz") as tf:
+            with tempfile.TemporaryDirectory() as tar_temp_dir:
+                model_files_path = os.path.join(tar_temp_dir, "include")
+                os.mkdir(model_files_path)
+                header_path = generate_c_interface_header(
+                    lowered.libmod_name, ["input_1"], ["output"], model_files_path
+                )
+                tf.add(header_path, arcname=os.path.relpath(header_path, tar_temp_dir))
             _create_header_file("input_data", np.zeros(shape=shape, dtype=dtype), "include", tf)
             _create_header_file("output_data", np.zeros(shape=shape, dtype=dtype), "include", tf)
 
@@ -264,7 +272,7 @@ def test_qemu_make_fail(platform, west_cmd, skip_build, tvm_debug):
             west_cmd,
             lowered,
             build_config,
-            extra_files_tar=temp_file.name,
+            extra_files_tar=tar_temp_file.name,
         )
 
     file_path = (
