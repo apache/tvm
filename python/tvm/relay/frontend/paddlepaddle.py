@@ -117,9 +117,6 @@ def convert_conv2d(g, op, block):
             pad = max(dilated_kernel_size - (in_size % stride_size), 0)
         return [pad // 2, pad - pad // 2]
 
-    assert op.attr(
-        'data_format'
-    ) == 'NCHW', "Only NCHW format is support for PaddlePaddle's conv2d"
     dilations = op.attr('dilations')
     groups = op.attr('groups')
     paddings = op.attr('paddings')
@@ -130,16 +127,6 @@ def convert_conv2d(g, op, block):
     input = g.get_node(op.input('Input')[0])
     out_channels, _, k_h, k_w = infer_shape(kernel)
     in_h, in_w = infer_shape(input)[2:]
-    assert len(
-        paddings
-    ) == 2, "Only support len(paddings)==2 for PaddlePaddle's conv2d"
-    assert len(
-        dilations
-    ) == 2, "Only support len(dilations)==2 for PaddlePaddle's conv2d"
-    if padding_algorithm == "SAME":
-        pad_h = get_pad_size(in_h, (k_h - 1) * dilations[0] + 1, strides[0])
-        pad_w = get_pad_size(in_w, (k_w - 1) * dilations[1] + 1, strides[1])
-        paddings = [pad_h[0], pad_w[0], pad_h[1], pad_w[1]]
     out = _op.nn.conv2d(input,
                         kernel,
                         strides=strides,
@@ -465,11 +452,8 @@ def convert_matmul(g, op, block):
 def convert_pool2d(g, op, block):
     """Operator converter for pool2d."""
 
-    layout = op.attr('data_format')
-    assert layout == 'NCHW', "Only support NCHW format for PaddlePaddle's pool2d."
     adaptive = op.attr('adaptive')
     ceil_mode = op.attr('ceil_mode')
-    exclusive = op.attr('exclusive')
     global_pooling = op.attr('global_pooling')
     ksize = op.attr('ksize')
     paddings = op.attr('paddings')
@@ -481,22 +465,12 @@ def convert_pool2d(g, op, block):
         'max': 'max_pool2d',
     }
     strides = op.attr('strides')
-    assert exclusive, "Only support exclusive==True for PaddlePaddle's pool2d"
-    assert padding_algorithm == "EXPLICIT", "Only support padding_algorithm==EXPLICIT for PaddlePaddle's pool2d"
     if isinstance(strides, int):
         strides = [strides, strides]
     if isinstance(ksize, int):
         ksize = [ksize, ksize]
-    if isinstance(paddings, six.string_types):
-        msg = "Setting paddings to `SAME` or `VALID` is not support for PaddlePaddle's pool2d"
-        raise tvm.error.OpNotImplemented(msg)
-    elif isinstance(paddings, int):
+    if isinstance(paddings, int):
         paddings = [paddings] * 2
-    elif len(paddings) == 2:
-        pass
-    elif len(paddings) == 4:
-        msg = "Only support length of paddings equals to 2 for PaddlePaddle's pool2d"
-        raise tvm.error.OpNotImplemented(msg)
 
     x = g.get_node(op.input('X')[0])
     if not adaptive:
