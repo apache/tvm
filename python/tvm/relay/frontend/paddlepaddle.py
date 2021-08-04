@@ -251,13 +251,14 @@ def convert_fill_any_like(g, op, block):
     out_dtype = block.var(out_name).dtype
     out_dtype = str(out_dtype).strip().split('.')[1]
     x = g.get_node(op.input('X')[0])
-    ipt_shape = infer_shape(x)
-    if not is_fixed_shape(ipt_shape):
-        msg = "Only support fixed input shape of PaddlePaddle's fill_any_like"
-        raise tvm.error.OpNotImplemented(msg)
+    ipt_type = infer_type(x).checked_type
     value = op.attr('value')
-    const = np.ones(ipt_shape) * value
-    out = _expr.const(const.astype(out_dtype))
+    if not _ty.is_dynamic(ipt_type):
+        shape = infer_shape(x)
+        const = np.ones(shape) * value
+        out = _expr.const(const.astype(out_dtype))
+    else:
+        out = _op.transform.full_like(x, value).astype(out_dtype)
     g.add_node(op.output('Out')[0], out)
 
 
@@ -448,11 +449,16 @@ def convert_matmul(g, op, block):
             0,
         )
         out = _op.reshape(output, fold_constant(final_shape))
-        g.add_node(op.output('Out')[0], out)
-        return
-    # Otherwise a simple dense op will get the job done.
-    input_1_t = _op.transpose(inputs[1], axes=(1, 0))
-    out = _op.nn.dense(inputs[0], input_1_t)
+    else:
+        # Otherwise a simple dense op will get the job done.
+        input_1_t = _op.transpose(inputs[1], axes=(1, 0))
+        out = _op.nn.dense(inputs[0], input_1_t)
+    try:
+        alpha = op.attr('alpha')
+        if not np.isclose(alpha, 1.0):
+            out = out * _expr.const(alpha).astype('float32')
+    except:
+        pass
     g.add_node(op.output('Out')[0], out)
 
 
