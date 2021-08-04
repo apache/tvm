@@ -1827,7 +1827,9 @@ class PyTorchOpConverter:
                 coord_trans = "half_pixel"
 
             def func(x):
-                return _op.image.resize2d(x, out_size, "NCHW", method, coord_trans, cubic_alpha=-0.75)
+                return _op.image.resize2d(
+                    x, out_size, "NCHW", method, coord_trans, cubic_alpha=-0.75
+                )
 
             if self.is_quantized_tensor(data):
                 # input qparams are manually appended by us
