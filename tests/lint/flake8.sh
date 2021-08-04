@@ -16,5 +16,5 @@
 # specific language governing permissions and limitations
 # under the License.
 
-
-python3 -m flake8 . --count --select=E9,F63,F7 --show-source --statistics
+# Disabled until docker images are rebuilt
+# python3 -m flake8 . --count --select=E9,F63,F7 --show-source --statistics
