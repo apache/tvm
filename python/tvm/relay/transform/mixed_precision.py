@@ -128,6 +128,8 @@ DEFAULT_NEVER_LIST = [
     # Error function doesn't seem to be able to be lowered into fp16 version in llvm.
     # Move to follow list when it does.
     "erf",
+    # Do not allow arange arguments (begin/end) to be fp16
+    "arange",
 ]
 
 
