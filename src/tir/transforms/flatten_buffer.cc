@@ -28,6 +28,7 @@
 #include <tvm/tir/transform.h>
 
 #include "../../support/utils.h"
+#include "ir_utils.h"
 
 namespace tvm {
 namespace tir {
@@ -152,8 +153,7 @@ class BufferFlattener : public StmtExprMutator {
 
 PrimFunc FlattenBuffer(PrimFunc f) {
   // Only apply this pass to TIR that is not from TE schedules
-  Optional<Bool> from_legacy_te_schedule = f->GetAttr("from_legacy_te_schedule", Bool(false));
-  if (!from_legacy_te_schedule.value()) {
+  if (!IsFromLegacyTESchedule(f)) {
     PrimFuncNode* fptr = f.CopyOnWrite();
     fptr->body = BufferFlattener::Flatten(f);
     return f;

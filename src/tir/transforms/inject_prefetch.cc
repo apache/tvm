@@ -31,6 +31,8 @@
 
 #include <unordered_set>
 
+#include "ir_utils.h"
+
 namespace tvm {
 namespace tir {
 
@@ -97,8 +99,7 @@ namespace transform {
 Pass InjectPrefetch() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     // Only apply this pass to TIR from TE schedules
-    Optional<Bool> from_legacy_te_schedule = f->GetAttr("from_legacy_te_schedule", Bool(false));
-    if (from_legacy_te_schedule.value()) {
+    if (IsFromLegacyTESchedule(f)) {
       auto* n = f.CopyOnWrite();
       n->body = PrefetchInjector()(std::move(n->body));
       return f;

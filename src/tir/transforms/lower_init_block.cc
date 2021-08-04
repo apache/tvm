@@ -25,6 +25,8 @@
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
+#include "ir_utils.h"
+
 namespace tvm {
 namespace tir {
 
@@ -64,8 +66,7 @@ class InitBlockLower : public StmtMutator {
 
 PrimFunc LowerInitBlock(PrimFunc func) {
   // Only apply this pass to TIR that is not from TE schedules
-  Optional<Bool> from_legacy_te_schedule = func->GetAttr("from_legacy_te_schedule", Bool(false));
-  if (!from_legacy_te_schedule.value()) {
+  if (!IsFromLegacyTESchedule(func)) {
     auto fptr = func.CopyOnWrite();
     fptr->body = InitBlockLower()(std::move(fptr->body));
     return func;
