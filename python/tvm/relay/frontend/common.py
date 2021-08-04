@@ -628,8 +628,8 @@ def to_int_list(np_array):
 
 def unbind(data, axis=0):
     """
-    Unbind was gotten from pytorch.py and modified. The operation removes a tensor dimension
-    and returns a tuple of all slices along a given dimension, already without it.
+    Unbind was taken from Pytorch frontend. The operation removes a tensor dimension
+    and returns a tuple of all slices along a given dimension, with specified axis removed.
     TODO (vvchernov): It needs such operation on relay side to reduce time consumption
     on squeeze operation.
 
@@ -638,7 +638,7 @@ def unbind(data, axis=0):
     data : relay.Expr
         Input tensor
     axis : int
-        Axis along which tensor is splited. Tensors in the list do not have this axis.
+        Axis along which tensor is split.
     Returns
     -------
     result : List[relay.Expr]
@@ -716,7 +716,7 @@ def lstm_cell(
         step = _op.concatenate([x_t, hidden_state], axis=1)
         cat_w = _op.concatenate([w_inp, w_hid], axis=1)
         # Instead of nn.dense(x_t, w_inp) + nn.dense(hidden_state, w_hid)
-        # the nn.dense(step, cat_w) is used
+        # nn.dense(step, cat_w) is used
         # gates shape = (batch, 4 * hidden_size)
         gates = _op.nn.dense(step, cat_w)
         # Add biases
