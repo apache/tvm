@@ -78,8 +78,6 @@ class LinearCongruentialEngine {
    * We also assume the given rand state is not nullptr here.
    */
   result_type operator()() {
-    // Avoid getting all 0 given the current parameter set.
-    if (increment == 0 && *rand_state_ptr_ == 0) *rand_state_ptr_ = 1;
     (*rand_state_ptr_) = ((*rand_state_ptr_) * multiplier + increment) % modulus;
     return *rand_state_ptr_;
   }
@@ -90,10 +88,13 @@ class LinearCongruentialEngine {
    */
   void Seed(result_type rand_state = 1) {
     rand_state %= modulus;  // Make sure the seed is within the range of modulus.
-    if (rand_state < 0) rand_state += modulus;  // The congruential engine is always non-negative.
-    ICHECK(rand_state_ptr_ != nullptr);         // Make sure the pointer is not null.
-    *rand_state_ptr_ = rand_state;  // Change pointed random state to given random state value.
-  };
+    if (rand_state == 0)
+      rand_state = 1;  // Avoid getting all 0 given the current parameter set.
+    else if (rand_state < 0)
+      rand_state += modulus;             // The congruential engine is always non-negative.
+    ICHECK(rand_state_ptr_ != nullptr);  // Make sure the pointer is not null.
+    *rand_state_ptr_ = rand_state;       // Change pointed random state to given random state value.
+  }
 
   /*!
    * \brief Construct a random number generator with a random state pointer.
