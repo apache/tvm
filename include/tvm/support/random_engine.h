@@ -27,7 +27,7 @@
 
 #include <tvm/runtime/logging.h>
 
-#include <cstdint>  // for int64_t
+#include <cstdint>  // for uint64_t
 
 namespace tvm {
 namespace support {
@@ -47,7 +47,7 @@ class LinearCongruentialEngine {
    * \brief The result type is defined as int64_t here for meta_schedule sampler usage.
    * \note The type name is not in Google style because it is used in STL's distribution inferface.
    */
-  using result_type = int64_t;
+  using result_type = uint64_t;
 
   /*! \brief The multiplier */
   static constexpr result_type multiplier = 48271;
@@ -78,7 +78,7 @@ class LinearCongruentialEngine {
    * \note In order for better efficiency, the implementation here has a few assumptions:
    *  1. The multiplication and addition won't overflow.
    *  2. The given random state pointer `rand_state_ptr` is not nullptr.
-   *  3. The given random state *(rand_state_ptr) is in the range of [1, modulus - 1].
+   *  3. The given random state *(rand_state_ptr) is in the range of [0, modulus - 1].
    */
   result_type operator()() {
     (*rand_state_ptr_) = ((*rand_state_ptr_) * multiplier + increment) % modulus;
@@ -90,13 +90,10 @@ class LinearCongruentialEngine {
    * \param rand_state The random state given in result_type.
    */
   void Seed(result_type rand_state = 1) {
-    rand_state %= modulus;  // Make sure the seed is within the range of modulus.
-    if (rand_state == 0)
-      rand_state = 1;  // Avoid getting all 0 given the current parameter set.
-    else if (rand_state < 0)
-      rand_state += modulus;             // The congruential engine is always non-negative.
-    ICHECK(rand_state_ptr_ != nullptr);  // Make sure the pointer is not null.
-    *rand_state_ptr_ = rand_state;       // Change pointed random state to given random state value.
+    rand_state %= modulus;                // Make sure the seed is within the range of modulus.
+    if (rand_state == 0) rand_state = 1;  // Avoid getting all 0 given the current parameter set.
+    ICHECK(rand_state_ptr_ != nullptr);   // Make sure the pointer is not null.
+    *rand_state_ptr_ = rand_state;  // Change pointed random state to given random state value.
   }
 
   /*!

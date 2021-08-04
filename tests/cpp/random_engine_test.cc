@@ -22,7 +22,7 @@
 #include <tvm/support/random_engine.h>
 
 TEST(RandomEngine, Randomness) {
-  int64_t rand_state = 0;
+  uint64_t rand_state = 0;
 
   tvm::support::LinearCongruentialEngine rng(&rand_state);
   rng.Seed(0x114514);
@@ -38,30 +38,30 @@ TEST(RandomEngine, Randomness) {
 }
 
 TEST(RandomEngine, Reproducibility) {
-  int64_t rand_state_a = 0, rand_state_b = 0;
+  uint64_t rand_state_a = 0, rand_state_b = 0;
   tvm::support::LinearCongruentialEngine rng_a(&rand_state_a), rng_b(&rand_state_b);
 
   rng_a.Seed(0x23456789);
   rng_b.Seed(0x23456789);
 
   for (int i = 0; i < 100000; i++) {
-    ICHECK(rng_a() == rng_b());
+    ICHECK_EQ(rng_a(), rng_b());
   }
 }
 
 TEST(RandomEngine, Serialization) {
-  int64_t rand_state_a = 0, rand_state_b = 0;
+  uint64_t rand_state_a = 0, rand_state_b = 0;
   tvm::support::LinearCongruentialEngine rng_a(&rand_state_a), rng_b(&rand_state_b);
 
   rng_a.Seed(0x56728);
 
   rand_state_b = rand_state_a;
-  for (int i = 0; i < 100000; i++) ICHECK(rng_a() == rng_b());
+  for (int i = 0; i < 100000; i++) ICHECK_EQ(rng_a(), rng_b());
 
   for (int i = 0; i < 123456; i++) rng_a();
 
   rand_state_b = rand_state_a;
-  for (int i = 0; i < 100000; i++) ICHECK(rng_a() == rng_b());
+  for (int i = 0; i < 100000; i++) ICHECK_EQ(rng_a(), rng_b());
 }
 
 int main(int argc, char** argv) {
