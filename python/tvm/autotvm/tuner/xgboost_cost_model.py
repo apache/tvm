@@ -166,9 +166,7 @@ class XGBoostCostModel(CostModel):
 
     def _close_pool(self):
         if self.pool:
-            self.pool.terminate()
-            self.pool.join()
-            self.pool = None
+            del self.pool
 
     def _get_pool(self):
         if self.upper_model:

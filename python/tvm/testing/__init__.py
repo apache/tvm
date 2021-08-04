@@ -19,6 +19,8 @@
 from .utils import (
     assert_allclose,
     assert_prim_expr_equal,
+    check_bool_expr_is_true,
+    check_int_constraints_trans_consistency,
     check_numerical_grads,
     device_enabled,
     device_test,
@@ -42,6 +44,8 @@ from .utils import (
     requires_metal,
     requires_micro,
     requires_opencl,
+    test_raise_error_callback,
+    test_wrap_callback,
     _auto_parametrize_target,
     _count_num_fixture_uses,
     _remove_global_fixture_definitions,
