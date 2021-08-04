@@ -169,7 +169,7 @@ static Optional<String> JoinString(const std::vector<String>& array, char separa
     } else {
       os << quote;
       for (char c : str) {
-        if (c == separator || c == quote) {
+        if (c == quote) {
           os << escape;
         }
         os << c;
@@ -781,7 +781,7 @@ ObjectPtr<Object> TargetInternal::FromConfig(std::unordered_map<String, ObjectRe
           ICHECK_EQ(type_info.type_index, String::ContainerType::_GetOrAllocRuntimeTypeIndex())
               << "Expected " << type_info.type_key << " parameter for attribute '" << key
               << "', but received string from device api";
-          attrs[key] = ret;
+          attrs[key] = String(ret.operator std::string());
           break;
 
         default:
