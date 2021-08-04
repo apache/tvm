@@ -33,7 +33,7 @@ namespace tvm {
 namespace support {
 
 /*!
- * \brief This linear congruential engine is a drop-in replacement for and stricly corresponds to
+ * \brief This linear congruential engine is a drop-in replacement for and strictly corresponds to
  * std::minstd_rand but designed to be serializable and strictly reproducible. Specifically
  * implemented for meta schedule but also reusable for other purposes.
  * \note Part of std::linear_congruential_engine's member functions are not included, for full
