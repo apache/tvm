@@ -15,12 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import os
+import datetime
 import itertools
+import json
+import logging
+import os
 import pathlib
+import shutil
 import subprocess
 import tarfile
-import json
 
 import pytest
 import numpy as np
@@ -31,6 +34,9 @@ from tvm.contrib import utils, graph_executor
 from tvm.relay.backend import compile_engine
 from tvm.relay.backend.utils import mangle_module_name
 from tvm.micro import export_model_library_format
+
+
+_LOG = logging.getLogger(__name__)
 
 
 def mangle_name(mod_name, name):
@@ -98,24 +104,35 @@ def parametrize_aot_options(test):
     )(test)
 
 
-def subprocess_with_stdout_and_log(cmd, cwd, logfile, stdout):
+def subprocess_log_output(cmd, cwd, logfile):
     """
     This method runs a process and logs the output to both a log file and stdout
     """
-    with subprocess.Popen(
+    _LOG.info("Execute (%s): %s", cwd, cmd)
+    cmd_base = cmd[0] if isinstance(cmd, (list, tuple)) else cmd.split(" ", 1)[0]
+    proc = subprocess.Popen(
         cmd, cwd=cwd, shell=True, bufsize=0, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
-    ) as proc, open(logfile, "a") as f:
+    )
+    with open(logfile, "ab") as f:
+        f.write(
+            bytes(
+                "\n"
+                + "-" * 80
+                + f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}: Execute ({cwd}): {cmd}\n"
+                + "-" * 80,
+                "utf-8",
+            )
+        )
         while True:
             data = proc.stdout.readline()
-            result = proc.poll()
+            _LOG.debug("%s: %s", cmd_base, str(data, "utf-8", "replace").rstrip("\n"))
+            f.write(data)
+
             # process is done if there is no data and the result is valid
-            if data == b"" and result is not None:
-                return int(result)
-            if data:
-                text = data.decode("ascii", errors="backslashreplace")
-                f.write(text)
-                if stdout:
-                    print(text, end="")
+            if not data:  # EOF
+                break
+
+    return proc.wait()
 
 
 def emit_main_prologue(main_file, workspace_bytes):
@@ -454,12 +471,12 @@ def compile_and_run(
     )
 
     compile_log_path = os.path.join(build_path, "test_compile.log")
-    ret = subprocess_with_stdout_and_log(make_cmd, ".", compile_log_path, False)
+    ret = subprocess_log_output(make_cmd, ".", compile_log_path)
     assert ret == 0
 
     # Verify that runs fine
     run_log_path = os.path.join(build_path, "test_run.log")
-    ret = subprocess_with_stdout_and_log("./aot_test_runner", build_path, run_log_path, False)
+    ret = subprocess_log_output("./aot_test_runner", build_path, run_log_path)
     assert ret == 0
 
 
@@ -546,12 +563,12 @@ def compile_and_run_multiple_models(
     )
 
     compile_log_path = os.path.join(build_path, "test_compile.log")
-    ret = subprocess_with_stdout_and_log(make_cmd, ".", compile_log_path, False)
+    ret = subprocess_log_output(make_cmd, ".", compile_log_path)
     assert ret == 0
 
     # Verify that runs fine
     run_log_path = os.path.join(build_path, "test_run.log")
-    ret = subprocess_with_stdout_and_log("./aot_test_runner", build_path, run_log_path, False)
+    ret = subprocess_log_output("./aot_test_runner", build_path, run_log_path)
     assert ret == 0
 
 

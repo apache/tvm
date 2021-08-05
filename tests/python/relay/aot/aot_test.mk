@@ -28,6 +28,7 @@ CC_OPTS = CC=$(CC) AR=$(AR) RANLIB=$(RANLIB)
 
 PKG_CFLAGS = ${PKG_COMPILE_OPTS} \
 	-I$(build_dir)/../include \
+	-I$(CODEGEN_ROOT)/host/include \
 	-isystem$(STANDALONE_CRT_DIR)/include
 
 $(ifeq VERBOSE,1)

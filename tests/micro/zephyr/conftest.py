@@ -97,7 +97,7 @@ def temp_dir(platform):
     board_workspace_base = str(board_workspace)
     number = 1
     while board_workspace.exists():
-        board_workspace = board_workspace_base + f"-{number}"
+        board_workspace = pathlib.Path(board_workspace_base + f"-{number}")
         number += 1
 
     if not os.path.exists(board_workspace.parent):
