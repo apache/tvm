@@ -93,7 +93,7 @@ def spconv2d_3x3_nhwc(cfg, Data, Wdat, Wind, Wptr, layout="NHWC"):
         elem_idx = te.reduce_axis((0, row_end - row_start), name="elem_idx")
         elem = row_start + elem_idx
         return te.sum(
-            Im2Col[drow, Wind[elem]*bsrC + bcol] * Wdat[elem, brow, bcol], axis=elem_idx
+            Im2Col[drow, Wind[elem] * bsrC + bcol] * Wdat[elem, brow, bcol], axis=elem_idx
         )
 
     k = te.reduce_axis((0, bsrC), name="k")
