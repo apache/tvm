@@ -50,6 +50,15 @@ from .common import (
 
 __all__ = ["from_onnx"]
 
+# The default configurations of Relay ONNX frontend.
+ONNX_DEFAULT_CONFIGS = {
+    # By default, TVM converts qualified onnx `matmul` to `transpose(weight) + nn.batch_matmul_NT`.
+    # Change this flag to False to directly convert to `nn.batch_matmul`.
+    # Note that `nn.batch_matmul` with format other than NT is in experimental, it may have some
+    # performance issues.
+    "use_nt_batch_matmul": True,
+}
+
 
 class onnx_input:
     """Dual purpose list or dictionary access object."""
@@ -770,10 +779,14 @@ class MatMul(OnnxOpConverter):
                 # Convert a and b into 3 dimensional tensors.
                 a = flatten_to_nd(inputs[0], a_shape, 3)
                 b = flatten_to_nd(inputs[1], b_shape, 3)
-                # Transpose matrix dimensions of b.
-                b = _op.transpose(b, [0, 2, 1])
-                # Perform a batch matmul.
-                output = _op.nn.batch_matmul(a, b)
+                if ONNX_DEFAULT_CONFIGS["use_nt_batch_matmul"]:
+                    # Transpose matrix dimensions of b.
+                    b = _op.transpose(b, [0, 2, 1])
+                    # Perform a NT batch matmul.
+                    output = _op.nn.batch_matmul(a, b)
+                else:
+                    # Perform a NN batch matmul.
+                    output = _op.nn.batch_matmul(a, b, transpose_b=False)
             # Determine the output batch dimension.
             if a_rank > b_rank:
                 out_batch = _op.strided_slice(a_shape, [0], [a_rank - 2])
@@ -3916,7 +3929,9 @@ class GraphProto:
         return outputs
 
 
-def from_onnx(model, shape=None, dtype="float32", opset=None, freeze_params=False):
+def from_onnx(
+    model, shape=None, dtype="float32", opset=None, freeze_params=False, convert_config=None
+):
     """Convert a ONNX model into an equivalent Relay Function.
 
     ONNX graphs are represented as Python Protobuf objects.
@@ -3955,6 +3970,12 @@ def from_onnx(model, shape=None, dtype="float32", opset=None, freeze_params=Fals
         at compile time and helps in making models static if certain inputs represent
         attributes relay would traditionally consider compile-time constants.
 
+    convert_config : Optional[Dict[str, Any]]
+        Default config:
+            use_nt_batch_matmul : bool = True
+                True to convert qualified onnx `matmul` to `nn.batch_matmul` strict to NT format
+                (transpose_a=False, transpose_b=True).
+
     Returns
     -------
     mod : tvm.IRModule
@@ -3963,6 +3984,10 @@ def from_onnx(model, shape=None, dtype="float32", opset=None, freeze_params=Fals
     params : dict of str to tvm.nd.NDArray
         The parameter dict to be used by relay
     """
+    global ONNX_DEFAULT_CONFIGS
+    if convert_config is not None:
+        ONNX_DEFAULT_CONFIGS.update(convert_config)
+
     try:
         import onnx
 
