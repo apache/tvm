@@ -16,9 +16,10 @@
 # under the License.
 import os
 from pathlib import Path
-import re
+import shutil
 
 import numpy as np
+from paddle.fluid.layers.nn import pad
 import tvm
 import tvm.testing
 import tvm.topi.testing
@@ -43,7 +44,7 @@ def get_paddle_model(func, input_spec):
     paddle.jit.save(func, str(model_path), input_spec=input_spec)
     baseline_model = paddle.jit.load(str(model_path))
 
-    os.remove(str(model_path) + '.pdmodel')
+    shutil.rmtree(str(PADDLE_TEST_DATA_ROOT_PATH))
     return baseline_model
 
 def verify_model(func, input_data, rtol=1e-5, atol=1e-5):
@@ -60,8 +61,7 @@ def verify_model(func, input_data, rtol=1e-5, atol=1e-5):
         input_shape_dict[input_name] = data.shape
 
     baseline_model = get_paddle_model(func, input_spec)
-    with paddle.no_grad():
-        baseline_outputs = baseline_model(*[input.clone() for input in input_data])
+    baseline_outputs = baseline_model(*[input.clone() for input in input_data])
 
     # get paddle outputs
     if isinstance(baseline_outputs, tuple):
@@ -106,19 +106,62 @@ def test_forward_add():
         ones = paddle.ones([10], dtype="float32")
         return inputs + ones
 
-    class add4(nn.Layer):
-        @paddle.jit.to_static
-        def forward(self, input1, input2):
-            return input1 + input2
-
     input_data = paddle.rand(input_shape, dtype="float32")
     verify_model(add, input_data)
     verify_model(add2, input_data)
     verify_model(add3, input_data)
-    input_data = paddle.rand([2, 3], dtype="float32")
-    input_data2 = paddle.rand([2, 3], dtype="float32")
-    model = add4()
-    verify_model(model, [input_data, input_data2])
+
+@tvm.testing.uses_gpu
+def test_forward_conv():
+    paddle.set_grad_enabled(False)
+    conv1d_input_shape = [1, 3, 10]
+    conv2d_input_shape = [1, 3, 10, 10]
+
+    class Conv2D1(nn.Layer):
+        def __init__(self):
+            super(Conv2D1, self).__init__()
+            self.conv = nn.Conv2D(3, 6, 7, bias_attr=True)
+            self.softmax = nn.Softmax()
+        
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return self.softmax(self.conv(inputs))
+
+    class Conv2D2(nn.Layer):
+        def __init__(self):
+            super(Conv2D2, self).__init__()
+            self.conv = nn.Conv2D(3, 6, 7, groups=3, bias_attr=False)
+            self.softmax = nn.Softmax()
+
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return self.softmax(self.conv(inputs))
+
+    class Conv1D1(nn.Layer):
+        def __init__(self):
+            super(Conv1D1, self).__init__()
+            self.conv = nn.Conv1D(3, 6, 7, bias_attr=True)
+            self.softmax = nn.Softmax()
+
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return self.softmax(self.conv(inputs))
+
+    class Conv1D2(nn.Layer):
+        def __init__(self):
+            super(Conv1D2, self).__init__()
+            self.conv = nn.Conv1d(3, 6, 7, groups=3, bias_attr=False)
+            self.softmax = nn.Softmax()
+
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return self.softmax(self.conv(inputs))
+
+    conv2d_input_data = paddle.rand(conv2d_input_shape, dtype="float32")
+    verify_model(Conv2D1(), input_data=conv2d_input_data)
+    verify_model(Conv2D2(), input_data=conv2d_input_data)
+
 
 if __name__ == "__main__":
     test_forward_add()
+    test_forward_conv()
