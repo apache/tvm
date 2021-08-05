@@ -19,8 +19,8 @@
 
 use std::convert::TryInto;
 
-use crate::runtime::Function;
-use crate::{runtime::function::Result, runtime::ByteArray, Device, Module, NDArray};
+use crate::Function;
+use crate::{function::Result, ByteArray, Device, Module, NDArray};
 
 /// An instance of the C++ graph executor.
 ///
