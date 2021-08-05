@@ -72,12 +72,7 @@ def test_ewise():
             check_target(target, dev)
 
     def test_isnan(
-        low,
-        high,
-        shape=(20, 3),
-        dtype="float32",
-        check_round=False,
-        skip_name_check=False,
+        low, high, shape=(20, 3), dtype="float32", check_round=False, skip_name_check=False
     ):
         m = te.var("m")
         l = te.var("l")

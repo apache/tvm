@@ -34,14 +34,8 @@ _conv2d_nhwc_implement = {
         topi.arm_cpu.conv2d_nhwc_spatial_pack,
         topi.arm_cpu.schedule_conv2d_nhwc_spatial_pack,
     ),
-    "mali": (
-        topi.mali.conv2d_nhwc_spatial_pack,
-        topi.mali.schedule_conv2d_nhwc_spatial_pack,
-    ),
-    "bifrost": (
-        topi.mali.conv2d_nhwc_spatial_pack,
-        topi.mali.schedule_conv2d_nhwc_spatial_pack,
-    ),
+    "mali": (topi.mali.conv2d_nhwc_spatial_pack, topi.mali.schedule_conv2d_nhwc_spatial_pack),
+    "bifrost": (topi.mali.conv2d_nhwc_spatial_pack, topi.mali.schedule_conv2d_nhwc_spatial_pack),
     "hls": (topi.nn.conv2d_nhwc, topi.hls.schedule_conv2d_nhwc),
 }
 

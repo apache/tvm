@@ -55,10 +55,7 @@ _roi_align_implement = {
     "gpu": (topi.vision.roi_align_nchw, topi.cuda.schedule_roi_align),
 }
 
-_roi_pool_schedule = {
-    "generic": topi.generic.schedule_roi_pool,
-    "gpu": topi.cuda.schedule_roi_pool,
-}
+_roi_pool_schedule = {"generic": topi.generic.schedule_roi_pool, "gpu": topi.cuda.schedule_roi_pool}
 
 _proposal_implement = {
     "generic": (topi.vision.rcnn.proposal, topi.generic.schedule_proposal),

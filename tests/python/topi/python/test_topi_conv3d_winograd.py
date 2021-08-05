@@ -29,7 +29,7 @@ from tvm.topi.utils import get_const_tuple
 
 
 _conv3d_ncdhw_implement = {
-    "gpu": (topi.cuda.conv3d_ncdhw_winograd, topi.cuda.schedule_conv3d_ncdhw_winograd),
+    "gpu": (topi.cuda.conv3d_ncdhw_winograd, topi.cuda.schedule_conv3d_ncdhw_winograd)
 }
 
 

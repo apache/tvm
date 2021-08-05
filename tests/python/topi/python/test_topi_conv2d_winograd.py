@@ -170,16 +170,7 @@ def test_conv2d_nchw():
     verify_conv2d_nchw(1, 48, 35, 48, 5, 1, "VALID", devices=["cuda"])
 
 
-def verify_conv2d_nhwc(
-    batch,
-    in_channel,
-    in_size,
-    num_filter,
-    kernel,
-    stride,
-    padding,
-    dilation=1,
-):
+def verify_conv2d_nhwc(batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation=1):
     # This version is intented to be used by the auto-scheduler,
     # so we only test the correctness of compute declaration
     # with the default naive schedule in cpu

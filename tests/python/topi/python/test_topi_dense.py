@@ -31,10 +31,7 @@ from common import Int8Fallback
 use_bias = tvm.testing.parameter(True, False)
 batch_size = tvm.testing.parameter(1, 2, 128)
 in_dim, out_dim = tvm.testing.parameters((1024, 1000))
-in_dtype, out_dtype = tvm.testing.parameters(
-    ("float32", "float32"),
-    ("int8", "int32"),
-)
+in_dtype, out_dtype = tvm.testing.parameters(("float32", "float32"), ("int8", "int32"))
 
 
 _dense_implementations = {
@@ -137,19 +134,9 @@ def test_dense(
 @pytest.mark.parametrize("target,in_dtype,out_dtype", [("cuda", "int8", "int32")])
 @tvm.testing.requires_gpu
 def test_dense_cuda_int8(
-    target,
-    dev,
-    batch_size,
-    in_dim,
-    out_dim,
-    use_bias,
-    dense_ref_data,
-    in_dtype,
-    out_dtype,
+    target, dev, batch_size, in_dim, out_dim, use_bias, dense_ref_data, in_dtype, out_dtype
 ):
-    implementations = [
-        (topi.cuda.dense_int8, topi.cuda.schedule_dense_int8),
-    ]
+    implementations = [(topi.cuda.dense_int8, topi.cuda.schedule_dense_int8)]
     with Int8Fallback():
         test_dense(
             target,

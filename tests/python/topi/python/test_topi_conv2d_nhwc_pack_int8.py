@@ -28,6 +28,7 @@ from tvm.contrib.pickle_memoize import memoize
 from tvm.topi.utils import get_const_tuple
 import tvm.testing
 
+
 def verify_conv2d_1x1_nhwc_pack_int8(
     batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation=1
 ):

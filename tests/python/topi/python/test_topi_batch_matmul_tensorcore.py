@@ -26,7 +26,7 @@ from tvm.contrib.pickle_memoize import memoize
 import tvm.testing
 
 _batch_matmul_implement = {
-    "gpu": (topi.cuda.batch_matmul_tensorcore, topi.cuda.schedule_batch_matmul_tensorcore),
+    "gpu": (topi.cuda.batch_matmul_tensorcore, topi.cuda.schedule_batch_matmul_tensorcore)
 }
 
 

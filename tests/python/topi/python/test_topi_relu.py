@@ -30,9 +30,7 @@ import tvm.testing
 
 
 m, n, dtype = tvm.testing.parameters(
-    (10, 128, "float32"),
-    (128, 64, "float16"),
-    (1024 * 100, 512, "float32"),
+    (10, 128, "float32"), (128, 64, "float16"), (1024 * 100, 512, "float32")
 )
 
 
@@ -76,9 +74,7 @@ def test_leaky_relu(size, alpha):
 
 
 x, w, axis, weight_reshape = tvm.testing.parameters(
-    ((1, 3, 2, 2), (3,), 1, (3, 1, 1)),
-    ((1, 3, 2, 2), (2,), 2, (2, 1)),
-    ((1, 3), (3,), 1, (3,)),
+    ((1, 3, 2, 2), (3,), 1, (3, 1, 1)), ((1, 3, 2, 2), (2,), 2, (2, 1)), ((1, 3), (3,), 1, (3,))
 )
 
 

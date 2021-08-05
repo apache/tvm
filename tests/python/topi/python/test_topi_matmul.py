@@ -46,9 +46,7 @@ def verify_nn_matmul(sa, sb, transp_a, transp_b):
     b = np.random.uniform(low=-1.0, high=1.0, size=sb).astype(np.float32)
     c1 = np.matmul(np.transpose(a) if transp_a else a, np.transpose(b) if transp_b else b)
     c2 = with_tvm(
-        lambda A, B: topi.nn.matmul(A, B, transpose_a=transp_a, transpose_b=transp_b),
-        a,
-        b,
+        lambda A, B: topi.nn.matmul(A, B, transpose_a=transp_a, transpose_b=transp_b), a, b
     )
     tvm.testing.assert_allclose(c1, c2, rtol=1e-5, atol=1e-5)
 

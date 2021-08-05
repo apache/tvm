@@ -23,10 +23,7 @@ from tvm import te
 import tvm.topi.testing
 import tvm.testing
 
-_reorg_schedule = {
-    "generic": topi.generic.schedule_reorg,
-    "gpu": topi.cuda.schedule_reorg,
-}
+_reorg_schedule = {"generic": topi.generic.schedule_reorg, "gpu": topi.cuda.schedule_reorg}
 
 
 def verify_reorg(batch, in_size, in_channel, stride):

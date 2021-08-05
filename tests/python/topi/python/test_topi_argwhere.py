@@ -22,10 +22,7 @@ from tvm import te
 from tvm import topi
 import tvm.topi.testing
 
-_argwhere_schedule = {
-    "generic": topi.generic.schedule_argwhere,
-    "gpu": topi.cuda.schedule_argwhere,
-}
+_argwhere_schedule = {"generic": topi.generic.schedule_argwhere, "gpu": topi.cuda.schedule_argwhere}
 
 _argwhere_compute = {"llvm": topi.argwhere, "cuda": topi.cuda.argwhere}
 

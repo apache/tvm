@@ -51,6 +51,7 @@ def _transform_bias(bias, bn):
     bias = np.transpose(bias, (0, 2, 3, 1))
     return bias
 
+
 @tvm.testing.requires_llvm
 def verify_conv2d_NCHWc(
     batch,

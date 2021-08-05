@@ -58,12 +58,7 @@ def get_implementations(name, axis, dtype, exclusive):
     }
 
 
-def _run_tests(
-    dev,
-    target,
-    op_name: str = "cumsum",
-    gt_func: Callable[..., np.array] = np.cumsum,
-):
+def _run_tests(dev, target, op_name: str = "cumsum", gt_func: Callable[..., np.array] = np.cumsum):
     def check_scan(np_ref, data, axis=None, dtype=None, exclusive=False):
         implementations = get_implementations(op_name, axis, dtype, exclusive)
         fcompute, fschedule = tvm.topi.testing.dispatch(target, implementations)

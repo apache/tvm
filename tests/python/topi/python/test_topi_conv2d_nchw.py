@@ -52,15 +52,7 @@ def bias_shape(num_filter):
 
 @tvm.testing.fixture(cache_return_value=True)
 def ref_data(
-    input_shape,
-    weight_shape,
-    bias_shape,
-    dtype,
-    stride,
-    padding,
-    dilation,
-    add_bias,
-    apply_relu,
+    input_shape, weight_shape, bias_shape, dtype, stride, padding, dilation, add_bias, apply_relu
 ):
     a_np = np.random.uniform(size=input_shape).astype(dtype)
     w_np = np.random.uniform(size=weight_shape).astype(dtype)
@@ -146,15 +138,7 @@ class BaseConv2DTests:
 
     @tvm.testing.parametrize_targets("llvm")
     def test_workload_padding(
-        self,
-        target,
-        input_shape,
-        weight_shape,
-        stride,
-        padding,
-        dilation,
-        dtype,
-        ref_data,
+        self, target, input_shape, weight_shape, stride, padding, dilation, dtype, ref_data
     ):
         a_np, w_np, b_np, c_np = ref_data
         _, _, out_height, out_width = c_np.shape
@@ -282,7 +266,7 @@ class TestAsymmetricPadding(BaseConv2DTests):
 
 class TestBatchSize(BaseConv2DTests):
     in_channel, in_size, num_filter, kernel, stride, padding = tvm.testing.parameters(
-        (64, 56, 64, 3, 1, 1),
+        (64, 56, 64, 3, 1, 1)
     )
     batch = tvm.testing.parameter(1, 4, 9)
 

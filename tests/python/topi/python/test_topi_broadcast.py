@@ -290,13 +290,7 @@ def test_shift():
 
 @tvm.testing.uses_gpu
 def test_logical_single_ele():
-    def test_apply(
-        func,
-        name,
-        f_numpy,
-        indata,
-        dtype="bool",
-    ):
+    def test_apply(func, name, f_numpy, indata, dtype="bool"):
         # Build the logic and compile the function
         A = te.placeholder(shape=indata.shape, name="A", dtype=dtype)
         B = func(A)
@@ -327,13 +321,7 @@ def test_logical_single_ele():
 
 @tvm.testing.uses_gpu
 def test_bitwise_not():
-    def test_apply(
-        func,
-        name,
-        f_numpy,
-        shape,
-        dtype="int32",
-    ):
+    def test_apply(func, name, f_numpy, shape, dtype="int32"):
         # Build the logic and compile the function
         A = te.placeholder(shape=shape, name="A", dtype=dtype)
         B = func(A)
@@ -365,14 +353,7 @@ def test_bitwise_not():
 
 @tvm.testing.uses_gpu
 def test_logical_binary_ele():
-    def test_apply(
-        func,
-        name,
-        f_numpy,
-        lhs,
-        rhs,
-        dtype="bool",
-    ):
+    def test_apply(func, name, f_numpy, lhs, rhs, dtype="bool"):
         # Build the logic and compile the function
         A = te.var("A", dtype=dtype)
         B = te.var("B", dtype=dtype)

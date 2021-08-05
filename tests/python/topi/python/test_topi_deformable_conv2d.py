@@ -32,7 +32,7 @@ _deformable_conv2d_nchw_implement = {
 }
 
 _deformable_conv2d_nhwc_implement = {
-    "generic": (topi.nn.deformable_conv2d_nhwc, topi.generic.schedule_deformable_conv2d_nhwc),
+    "generic": (topi.nn.deformable_conv2d_nhwc, topi.generic.schedule_deformable_conv2d_nhwc)
 }
 
 

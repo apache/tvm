@@ -63,7 +63,7 @@ _depthwise_conv2d_implement = {
         "gpu": [(topi.nn.depthwise_conv2d_nhwc, topi.cuda.schedule_depthwise_conv2d_nhwc)],
     },
     "NCHWc": {
-        "generic": [(topi.x86.depthwise_conv2d_NCHWc, topi.x86.schedule_depthwise_conv2d_NCHWc)],
+        "generic": [(topi.x86.depthwise_conv2d_NCHWc, topi.x86.schedule_depthwise_conv2d_NCHWc)]
     },
 }
 
@@ -158,13 +158,7 @@ def ref_data(
     if apply_relu:
         output_np = np.maximum(output_np, 0)
 
-    return (
-        input_np,
-        filter_np,
-        scale_np,
-        shift_np,
-        output_np,
-    )
+    return (input_np, filter_np, scale_np, shift_np, output_np)
 
 
 class BaseDepthwiseConv2D:
@@ -178,8 +172,7 @@ class BaseDepthwiseConv2D:
     layout = tvm.testing.parameter("NCHW", "NHWC")
 
     (batch, in_channel, in_size, channel_multiplier, kernel, stride) = tvm.testing.parameters(
-        (1, 728, 32, 1, 3, 1),
-        (4, 256, 64, 2, 5, 2),
+        (1, 728, 32, 1, 3, 1), (4, 256, 64, 2, 5, 2)
     )
     padding = tvm.testing.parameter("SAME", "VALID")
     dilation = tvm.testing.parameter(1, 2)
@@ -280,8 +273,7 @@ class BaseDepthwiseConv2D:
                     scale_tvm = tvm.nd.array(scale_np, dev)
                     shift_tvm = tvm.nd.array(shift_np, dev)
                     output_tvm = tvm.nd.array(
-                        np.zeros(shape=get_const_tuple(C.shape), dtype=C.dtype),
-                        dev,
+                        np.zeros(shape=get_const_tuple(C.shape), dtype=C.dtype), dev
                     )
 
                     f(input_tvm, filter_tvm, scale_tvm, shift_tvm, output_tvm)
@@ -361,7 +353,7 @@ class TestDepthwiseConv2D_NCHWc(BaseDepthwiseConv2D):
     # depthwise_conv2d_NCHWc currently does not support channel multiplier > 1
     layout = tvm.testing.parameter("NCHWc")
     (batch, in_channel, in_size, channel_multiplier, kernel, stride) = tvm.testing.parameters(
-        (1, 728, 32, 1, 3, 1),
+        (1, 728, 32, 1, 3, 1)
     )
 
 

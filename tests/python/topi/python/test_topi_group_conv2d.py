@@ -52,7 +52,7 @@ _group_conv2d_nchw_implement = {
 }
 
 _group_conv2d_nhwc_implement = {
-    "generic": (topi.nn.group_conv2d_nhwc, topi.generic.schedule_group_conv2d_nhwc),
+    "generic": (topi.nn.group_conv2d_nhwc, topi.generic.schedule_group_conv2d_nhwc)
 }
 
 
