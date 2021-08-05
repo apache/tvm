@@ -1054,8 +1054,9 @@ struct SparseConv2DAttrs : public tvm::AttrsNode<SparseConv2DAttrs> {
         "Dimension ordering of input data. Can be 'NCHW', 'NHWC'"
         "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
         "dimensions respectively.");
-    TVM_ATTR_FIELD(kernel_size).set_default(1).describe(
-        "Kernel size for SparseConv2D, 1x1 or 3x3. ");
+    TVM_ATTR_FIELD(kernel_size)
+        .set_default(1)
+        .describe("Kernel size for SparseConv2D, 1x1 or 3x3. ");
   }
 };
 
