@@ -32,6 +32,7 @@
 #include "../../support/arena.h"
 #include "../../support/utils.h"
 #include "../schedule/utils.h"
+#include "ir_utils.h"
 
 namespace tvm {
 namespace tir {
@@ -452,11 +453,16 @@ class BufferCompactor : public StmtExprMutator {
 };
 
 PrimFunc CompactBufferAllocation(PrimFunc f) {
-  PrimFuncNode* fptr = f.CopyOnWrite();
-  std::unordered_map<Buffer, Region, ObjectPtrHash, ObjectPtrEqual> region =
-      BufferAccessRegionCollector::Collect(f);
-  fptr->body = BufferCompactor::Compact(f, region);
-  return f;
+  // Only apply this pass to TIR that is not from TE schedules
+  if (!IsFromLegacyTESchedule(f)) {
+    PrimFuncNode* fptr = f.CopyOnWrite();
+    std::unordered_map<Buffer, Region, ObjectPtrHash, ObjectPtrEqual> region =
+        BufferAccessRegionCollector::Collect(f);
+    fptr->body = BufferCompactor::Compact(f, region);
+    return f;
+  } else {
+    return f;
+  }
 }
 
 namespace transform {
