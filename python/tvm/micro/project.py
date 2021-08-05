@@ -64,7 +64,7 @@ class GeneratedProject:
     """Defines a glue interface to interact with a generated project through the API server."""
 
     @classmethod
-    def from_directory(cls, project_dir : typing.Union[pathlib.Path, str], options : dict):
+    def from_directory(cls, project_dir: typing.Union[pathlib.Path, str], options: dict):
         return cls(client.instantiate_from_dir(project_dir), options)
 
     def __init__(self, api_client, options):
@@ -120,8 +120,9 @@ class TemplateProject:
 
 def generate_project(
     template_project_dir: typing.Union[pathlib.Path, str],
-    module : ExportableModule,
-    generated_project_dir: typing.Union[pathlib.Path, str], options: dict = None
+    module: ExportableModule,
+    generated_project_dir: typing.Union[pathlib.Path, str],
+    options: dict = None,
 ):
     """Generate a project for an embedded platform that contains the given model.
 

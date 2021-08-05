@@ -222,10 +222,11 @@ c_source_module = module.get_lib().imported_modules[0]
 assert c_source_module.type_key == "c", "tutorial is broken"
 
 c_source_code = c_source_module.get_source()
-first_few_lines = c_source_code.split('\n')[:10]
-assert any(l.startswith("TVM_DLL int32_t tvmgen_default_")
-           for l in first_few_lines), f"tutorial is broken: {first_few_lines!r}"
-print('\n'.join(first_few_lines))
+first_few_lines = c_source_code.split("\n")[:10]
+assert any(
+    l.startswith("TVM_DLL int32_t tvmgen_default_") for l in first_few_lines
+), f"tutorial is broken: {first_few_lines!r}"
+print("\n".join(first_few_lines))
 
 
 # Compiling the generated code
@@ -237,12 +238,14 @@ print('\n'.join(first_few_lines))
 
 # Get a temporary path where we can store the tarball (since this is running as a tutorial).
 import tempfile
+
 fd, model_library_format_tar_path = tempfile.mkstemp()
 os.close(fd)
 os.unlink(model_library_format_tar_path)
 tvm.micro.export_model_library_format(module, model_library_format_tar_path)
 
 import tarfile
+
 with tarfile.open(model_library_format_tar_path, "r:*") as tar_f:
     print("\n".join(f" - {m.name}" for m in tar_f.getmembers()))
 
@@ -263,8 +266,10 @@ os.unlink(model_library_format_tar_path)
 
 import subprocess
 import pathlib
+
 repo_root = pathlib.Path(
-    subprocess.check_output(["git", "rev-parse", "--show-toplevel"], encoding='utf-8').strip())
+    subprocess.check_output(["git", "rev-parse", "--show-toplevel"], encoding="utf-8").strip()
+)
 template_project_path = repo_root / "src" / "runtime" / "crt" / "host"
 project_options = {}  # You can use options to provide platform-specific options through TVM.
 
@@ -278,10 +283,12 @@ project_options = {}  # You can use options to provide platform-specific options
 
 # Create a temporary directory
 import tvm.contrib.utils
+
 temp_dir = tvm.contrib.utils.tempdir()
 generated_project_dir = temp_dir / "generated-project"
 generated_project = tvm.micro.generate_project(
-    template_project_path, module, generated_project_dir, project_options)
+    template_project_path, module, generated_project_dir, project_options
+)
 
 # Build and flash the project
 generated_project.build()

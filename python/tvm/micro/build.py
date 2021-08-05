@@ -17,15 +17,10 @@
 
 """Defines top-level glue functions for building microTVM artifacts."""
 
-import copy
 import logging
 import os
-import re
-import typing
-from tvm.contrib import utils
 
 from .._ffi import libinfo
-from .model_library_format import ExportableModule
 
 
 _LOG = logging.getLogger(__name__)
