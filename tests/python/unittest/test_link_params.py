@@ -348,6 +348,8 @@ def test_c_link_params():
 
 @tvm.testing.requires_micro
 def test_crt_link_params():
+    from tvm import micro
+
     for dtype in LINKABLE_DTYPES:
         mod, param_init = _make_mod_and_params(dtype)
         rand_input = _make_random_tensor(dtype, INPUT_SHAPE)

@@ -16,6 +16,7 @@
 # under the License.
 import datetime
 import os
+import pathlib
 
 import pytest
 
@@ -86,15 +87,18 @@ def tvm_debug(request):
 @pytest.fixture
 def temp_dir(platform):
     _, zephyr_board = PLATFORMS[platform]
-    parent_dir = os.path.dirname(__file__)
+    parent_dir = pathlib.Path(os.path.dirname(__file__))
     filename = os.path.splitext(os.path.basename(__file__))[0]
-    prev_build = f"{os.path.join(parent_dir, 'archive')}_{filename}_{zephyr_board}_last_build.micro"
-    workspace_root = os.path.join(
-        f"{os.path.join(parent_dir, 'workspace')}_{filename}_{zephyr_board}",
-        datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S"),
-    )
-    workspace_parent = os.path.dirname(workspace_root)
-    if not os.path.exists(workspace_parent):
-        os.makedirs(workspace_parent)
+    board_workspace = (parent_dir
+                       / f"workspace_{filename}_{zephyr_board}"
+                       / datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S"))
+    board_workspace_base = str(board_workspace)
+    number = 1
+    while board_workspace.exists():
+        board_workspace = board_workspace_base + f"-{number}"
+        number += 1
 
-    return tvm.contrib.utils.tempdir(workspace_root)
+    if not os.path.exists(board_workspace.parent):
+        os.makedirs(board_workspace.parent)
+
+    return tvm.contrib.utils.tempdir(board_workspace)
