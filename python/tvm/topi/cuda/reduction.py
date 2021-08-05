@@ -96,6 +96,19 @@ def _schedule_reduce(op, sch, is_idx_reduce=False):
         sch[real_output].set_store_predicate(thread_x.equal(0))
     return sch
 
+def _enable_auto_inline(sch):
+    def is_scheduled(stage):
+        # auto inline requires the attach type is AttachType.kGroupRoot
+        conds = [len(stage.relations) == 0, stage.attach_type == 1, stage.all_iter_vars == stage.leaf_iter_vars]
+        if not all(conds):
+            return True
+        return False
+
+    for s in sch.stages:
+        if not s.is_output and isinstance(s.op, tvm.te.ComputeOp):
+            if is_scheduled(s) or len(s.op.reduce_axis) != 0:
+                return False
+    return True
 
 def schedule_reduce(outs):
     """Schedule for inject->reduce->bcast ops.
@@ -114,7 +127,7 @@ def schedule_reduce(outs):
     outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
     sch = te.create_schedule([x.op for x in outs])
     scheduled_ops = []
-    enable_auto_inline = tvm.te.schedule.EnableAutoInline(sch)
+    enable_auto_inline = _enable_auto_inline(sch)
 
     def traverse_before_reduce(operator):
         """Internal traverse function"""

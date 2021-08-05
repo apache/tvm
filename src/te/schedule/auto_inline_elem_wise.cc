@@ -115,26 +115,11 @@ void AutoInlineInjective(Schedule sch) {
   }
 }
 
-bool EnableAutoInline(Schedule sch) {
-  for (Stage s : sch->stages) {
-    if(!s->is_output){
-      if(const ComputeOpNode* compute = s->op.as<ComputeOpNode>()) {
-        if(s.is_scheduled() || !(compute->reduce_axis.size() == 0)) {
-          return false;
-        }
-      }
-    }
-  }
-  return true;
-}
-
 TVM_REGISTER_GLOBAL("schedule.AutoInlineElemWise").set_body_typed(AutoInlineElemWise);
 
 TVM_REGISTER_GLOBAL("schedule.AutoInlineBroadcast").set_body_typed(AutoInlineBroadcast);
 
 TVM_REGISTER_GLOBAL("schedule.AutoInlineInjective").set_body_typed(AutoInlineInjective);
-
-TVM_REGISTER_GLOBAL("schedule.EnableAutoInline").set_body_typed(EnableAutoInline);
 
 }  // namespace te
 }  // namespace tvm
