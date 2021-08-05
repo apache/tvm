@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
-from tvm import tir
+from tvm import tir, te
 from tvm.script import ty
 
 
@@ -232,6 +232,15 @@ def test_unit_loops():
 
 def test_multi_alloc():
     _check(compacted_multi_alloc_func, flattened_multi_alloc_func)
+
+
+def test_lower_te():
+    x = te.placeholder((1,))
+    y = te.compute((1,), lambda i: x[i] + 2)
+    s = te.create_schedule(y.op)
+    orig_mod = tvm.driver.build_module.schedule_to_module(s, [x, y])
+    mod = tvm.tir.transform.FlattenBuffer()(orig_mod)
+    tvm.ir.assert_structural_equal(mod, orig_mod)  # FlattenBuffer should do nothing on TE
 
 
 if __name__ == "__main__":
