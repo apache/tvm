@@ -768,9 +768,9 @@ ObjectPtr<Object> TargetInternal::FromConfig(std::unordered_map<String, ObjectRe
 
         case kTVMArgInt:
           if (type_info.type_index == Integer::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
-            attrs[key] = Bool(static_cast<bool>(ret));
-          } else if (type_info.type_index == Bool::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
             attrs[key] = Integer(static_cast<int64_t>(ret));
+          } else if (type_info.type_index == Bool::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
+            attrs[key] = Bool(static_cast<bool>(ret));
           } else {
             LOG(FATAL) << "Expected " << type_info.type_key << " parameter for attribute '" << key
                        << "', but received integer from device api";
