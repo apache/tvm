@@ -246,8 +246,9 @@ bool DensePackRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   const DenseAttrs* param = attrs.as<DenseAttrs>();
   ICHECK(param != nullptr);
 
+  ICHECK(data->shape.size() == 2) << "Input data must be 2D";
   Array<tvm::PrimExpr> oshape = data->shape;
-  oshape.Set((oshape.size() - 1), weight->shape[0] * weight->shape[2]);
+  oshape.Set(1, weight->shape[0] * weight->shape[2]);
 
   DataType out_dtype = param->out_dtype;
   if (out_dtype.bits() == 0) {
@@ -261,17 +262,16 @@ bool DensePackRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 RELAY_REGISTER_OP("nn.contrib_dense_pack")
     .describe(R"code(Applies a linear transformation: :math:`Y = XW^T`.
 
-- **data**: `(x1, x2, ..., xn, input_dim)`
+- **data**: `(batch, input_dim)`
 - **weight**: `(units // pack_weight_tile, input_dim, pack_weight_tile)`
-- **out**: `(x1, x2, ..., xn, units)`.
+- **out**: `(batch, units)`.
 
 )code" TVM_ADD_FILELINE)
     .set_attrs_type<DenseAttrs>()
     .set_num_inputs(2)
-    .add_argument("data", "nD Tensor", "Input data.")
+    .add_argument("data", "2D Tensor", "Input data.")
     .add_argument("weight", "3D Tensor", "Packed weight matrix.")
     .set_support_level(10)
-
     .add_type_rel("DensePack", DensePackRel);
 // ------------------- relay.nn.contrib_dense_pack
 

@@ -1550,7 +1550,7 @@ def dense(data, weight, units=None, out_dtype=""):
 
 def contrib_dense_pack(data, weight, units=None, out_dtype=""):
     """Dense operator.
-    Applies a linear transformation
+    Applies a linear transformation with packed weight
 
     .. math::
 
@@ -1560,7 +1560,7 @@ def contrib_dense_pack(data, weight, units=None, out_dtype=""):
     ----------
     data : tvm.relay.Expr
         The input data to the operator,
-        of shape `(d_1, d_2, ..., d_n, units_in)`.
+        of shape `(batch, units_in)`.
 
     weight : tvm.relay.Expr
         The transformed weight expressions, 3-D matrix,
@@ -1570,8 +1570,7 @@ def contrib_dense_pack(data, weight, units=None, out_dtype=""):
         Number of hidden units of the dense transformation.
 
     out_dtype : str, optional
-        Specifies the output data type for mixed precision dense,
-        of shape `(d_1, d_2, ..., d_n, units)`.
+        Specifies the output data type for mixed precision dense.
 
     Returns
     -------
