@@ -48,7 +48,14 @@ def get_input_data_shape_dict(graph_def, input_data):
 
 
 def get_tvm_output_with_vm(
-    graph_def, input_data, target, dev, opset=None, freeze_params=False, convert_to_static=False
+    graph_def,
+    input_data,
+    target,
+    dev,
+    opset=None,
+    freeze_params=False,
+    convert_to_static=False,
+    convert_config=None,
 ):
     """Generic function to execute and get tvm output with vm executor"""
     if not isinstance(input_data, list):
@@ -56,7 +63,11 @@ def get_tvm_output_with_vm(
     _, shape_dict = get_input_data_shape_dict(graph_def, input_data)
 
     mod, params = relay.frontend.from_onnx(
-        graph_def, shape_dict, opset=opset, freeze_params=freeze_params
+        graph_def,
+        shape_dict,
+        opset=opset,
+        freeze_params=freeze_params,
+        convert_config=convert_config,
     )
 
     if convert_to_static:
@@ -78,12 +89,15 @@ def get_tvm_output(
     output_dtype="float32",
     opset=None,
     opt_level=1,
+    convert_config=None,
 ):
     """Generic function to execute and get tvm output"""
     # TODO: Resolve the issues and remove the following lines
     input_names, shape_dict = get_input_data_shape_dict(graph_def, input_data)
 
-    mod, params = relay.frontend.from_onnx(graph_def, shape_dict, opset=opset)
+    mod, params = relay.frontend.from_onnx(
+        graph_def, shape_dict, opset=opset, convert_config=convert_config
+    )
 
     with tvm.transform.PassContext(opt_level=opt_level):
         graph, lib, params = relay.build(mod, target, params=params)
@@ -146,6 +160,7 @@ def verify_with_ort_with_inputs(
     atol=1e-5,
     apply_softmax=False,
     opt_level=1,
+    convert_config=None,
 ):
     if opset is not None:
         model.opset_import[0].version = opset
@@ -161,10 +176,19 @@ def verify_with_ort_with_inputs(
             opset=opset,
             freeze_params=freeze_params,
             convert_to_static=convert_to_static,
+            convert_config=convert_config,
         )
     else:
         tvm_out = get_tvm_output(
-            model, inputs, target, dev, out_shape, dtype, opset=opset, opt_level=opt_level
+            model,
+            inputs,
+            target,
+            dev,
+            out_shape,
+            dtype,
+            opset=opset,
+            opt_level=opt_level,
+            convert_config=convert_config,
         )
     if not isinstance(tvm_out, list):
         tvm_out = [tvm_out]
@@ -1179,7 +1203,7 @@ def test_matmul(target, dev):
 
 @tvm.testing.parametrize_targets
 def test_batch_matmul(target, dev):
-    def verify_batch_matmul(a_shape, b_shape, out_shape):
+    def verify_batch_matmul(a_shape, b_shape, out_shape, convert_config=None):
         a_array = np.random.uniform(size=a_shape).astype("float32")
         b_array = np.random.uniform(size=b_shape).astype("float32")
 
@@ -1196,7 +1220,14 @@ def test_batch_matmul(target, dev):
         )
 
         model = helper.make_model(graph, producer_name="matmul_test")
-        verify_with_ort_with_inputs(model, [a_array, b_array], use_vm=True, target=target, dev=dev)
+        verify_with_ort_with_inputs(
+            model,
+            [a_array, b_array],
+            use_vm=True,
+            target=target,
+            dev=dev,
+            convert_config=convert_config,
+        )
 
     verify_batch_matmul((2, 3, 4, 3), (2, 3, 3, 4), (2, 3, 4, 4))
     verify_batch_matmul((2, 4, 3), (3, 4), (2, 4, 4))
@@ -1207,6 +1238,13 @@ def test_batch_matmul(target, dev):
     verify_batch_matmul((1, 4, 3), (2, 3, 4), (2, 4, 4))
     verify_batch_matmul((4, 32, 16), (16, 32), (4, 32, 32))
     verify_batch_matmul((4, 32, 16, 32), (32, 16), (4, 32, 16, 16))
+    # Test transb=False
+    verify_batch_matmul(
+        (2, 3, 4, 3),
+        (2, 3, 3, 4),
+        (2, 3, 4, 4),
+        convert_config={"use_nt_batch_matmul": False},
+    )
 
 
 def verify_simple_dynamic_model(a_shape, b_shape, target, dev):

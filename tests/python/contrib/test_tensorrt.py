@@ -474,14 +474,25 @@ def test_dense():
 
 
 def test_batch_matmul():
-    def get_graph(x_shape=(12, 128, 64), y_shape=(12, 128, 64)):
+    def get_graph(x_shape=(12, 128, 64), y_shape=(12, 128, 64), transa=False, transb=True):
         x = relay.var("x", shape=(x_shape), dtype="float32")
         y = relay.var("y", shape=(y_shape), dtype="float32")
-        out = relay.nn.batch_matmul(x, y)
+        out = relay.nn.batch_matmul(x, y, transpose_a=transa, transpose_b=transb)
         f = relay.Function([x, y], out)
         return f, {"x": x_shape, "y": y_shape}, []
 
-    run_and_verify_func(get_graph())
+    run_and_verify_func(
+        get_graph(x_shape=(12, 64, 128), y_shape=(12, 128, 64), transa=True, transb=True)
+    )
+    run_and_verify_func(
+        get_graph(x_shape=(12, 64, 128), y_shape=(12, 64, 128), transa=True, transb=False)
+    )
+    run_and_verify_func(
+        get_graph(x_shape=(12, 128, 64), y_shape=(12, 128, 64), transa=False, transb=True)
+    )
+    run_and_verify_func(
+        get_graph(x_shape=(12, 128, 64), y_shape=(12, 64, 128), transa=False, transb=False)
+    )
 
 
 def test_bias_add():
