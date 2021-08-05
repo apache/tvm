@@ -179,7 +179,6 @@ class AnchorQuantExtractor : public ExprVisitor {
 class SubgraphExtractor : public ExprVisitor {
  public:
   const ExprSet GetSubgraph(const Expr& expr) {
-    VisitExpr(expr);
     ExprSet subgraph;
     if (const CallNode* call_node = expr.as<CallNode>()) {
       if (call_node->op != dequantize_op_) {
@@ -260,7 +259,7 @@ class SubgraphMutator : public ExprMutator {
     }
     Expr mutated = Mutate(expr);
     // no requantize op at the end of modified subgraph is a reason to add dequantize op
-    if (Downcast<Op>(mutated.as<CallNode>()->op) != requantize_op_) {
+    if (Downcast<Op>(expr.as<CallNode>()->op) != quantize_op_) {
       const TensorAffineTypeNode* outta = affine_types_[mutated].as<TensorAffineTypeNode>();
       ICHECK(outta);
       mutated = qnn::MakeDequantize(mutated, outta->scale, outta->zero_point, -1);
@@ -323,7 +322,7 @@ class SubgraphMutator : public ExprMutator {
   ExprSet subgraph_;
   AffineTypeMap affine_types_;
   AffineType out_type_;
-  const Op requantize_op_ = Op::Get("qnn.requantize");
+  const Op quantize_op_ = Op::Get("qnn.quantize");
   const Op dequantize_op_ = Op::Get("qnn.dequantize");
 };
 
