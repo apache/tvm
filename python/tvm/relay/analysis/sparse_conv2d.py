@@ -54,7 +54,9 @@ def _search_conv2d_op_weight(expr):
     return _ffi_api.search_conv2d_op_weight(expr)
 
 
-def process_params(expr, params, block_size, sparsity_threshold, layout, kernel_size, reg_task_input=True):
+def process_params(
+    expr, params, block_size, sparsity_threshold, layout, kernel_size, reg_task_input=True
+):
     """Process parameters of conv2d from dense to sparse.
 
     Parameters

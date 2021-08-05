@@ -566,7 +566,9 @@ def _sparse_conv2d_bsr_compute_nchw(data, weight_data, weight_indices, weight_in
     )
 
 
-def sparse_conv2d(dense_data, sparse_data, sparse_indices, sparse_indptr, layout="NHWC", kernel_size=1):
+def sparse_conv2d(
+    dense_data, sparse_data, sparse_indices, sparse_indptr, layout="NHWC", kernel_size=1
+):
     """
     Computes sparse-conv2d(1*1) of ``data`` and
     ``(weight_data, weight_indices, weight_indptr)``
