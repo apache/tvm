@@ -226,9 +226,9 @@ if $USE_NET_HOST; then
     if [[ $(uname) == "Darwin" ]]; then
         # Docker's host networking driver isn't supported on macOS.
         # Use default bridge network and expose port for jupyter notebook.
-        DOCKER_FLAGS+=( "-p 8888:8888" )
+        DOCKER_FLAGS+=( -p 8888:8888 )
     else
-        DOCKER_FLAGS+=('--net=host')
+        DOCKER_FLAGS+=(--net=host)
     fi
 fi
 
@@ -266,7 +266,7 @@ fi
 
 # Set TVM import path inside the docker image
 if [[ "${DOCKER_IMAGE_NAME}" == *"ci"* ]]; then
-    DOCKER_ENV+=( "--env" "PYTHONPATH=/workspace/python" )
+    DOCKER_ENV+=( --env PYTHONPATH=/workspace/python )
 fi
 
 
