@@ -27,6 +27,7 @@ description = "Low level bindings to TVM's cross language API."
 default = ["dynamic-linking"]
 static-linking = []
 dynamic-linking = []
+runtime-only = []
 
 [dependencies]
 thiserror = "^1.0"
