@@ -168,7 +168,7 @@ struct Range {
     size_t val, lim;
     iterator(size_t v1, size_t v2) : val(v1), lim(v2) {}
 
-    bool operator!=(const iterator &rhs) const { return val != rhs.val; }
+    bool operator!=(const iterator& rhs) const { return val != rhs.val; }
 
     void operator++() { ++val; }
 
@@ -260,7 +260,7 @@ class Conv2dToSparseConv2dMutator2 : public ExprRewriter {
 
     // construct return call
     auto args = runtime::Array<relay::Expr>{post.as<CallNode>()->args[0], Constant(weight_data),
-      Constant(weight_indices), Constant(weight_indptr)};
+                                            Constant(weight_indices), Constant(weight_indptr)};
     auto attrs = make_object<SparseConv2DAttrs>();
     attrs->layout = layout_;
     attrs->kernel_size = kernel_size_;
