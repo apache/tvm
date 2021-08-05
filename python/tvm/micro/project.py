@@ -17,10 +17,13 @@
 
 """Defines glue wrappers around the Project API which mate to TVM interfaces."""
 
+import pathlib
+import typing
+
 from .. import __version__
 from ..contrib import utils
 from .build import get_standalone_crt_dir
-from .model_library_format import export_model_library_format
+from .model_library_format import ExportableModule, export_model_library_format
 from .project_api import client
 from .transport import Transport, TransportTimeouts
 
@@ -61,7 +64,7 @@ class GeneratedProject:
     """Defines a glue interface to interact with a generated project through the API server."""
 
     @classmethod
-    def from_directory(cls, project_dir, options):
+    def from_directory(cls, project_dir : typing.Union[pathlib.Path, str], options : dict):
         return cls(client.instantiate_from_dir(project_dir), options)
 
     def __init__(self, api_client, options):
@@ -116,7 +119,32 @@ class TemplateProject:
 
 
 def generate_project(
-    template_project_dir: str, graph_executor_factory, project_dir: str, options: dict = None
+    template_project_dir: typing.Union[pathlib.Path, str],
+    module : ExportableModule,
+    generated_project_dir: typing.Union[pathlib.Path, str], options: dict = None
 ):
-    template = TemplateProject.from_directory(template_project_dir, options)
-    return template.generate_project(graph_executor_factory, project_dir)
+    """Generate a project for an embedded platform that contains the given model.
+
+    Parameters
+    ----------
+    template_project_path : pathlib.Path or str
+        Path to a template project containing a microTVM Project API server.
+
+    generated_project_path : pathlib.Path or str
+        Path to a directory to be created and filled with the built project.
+
+    module : ExportableModule
+        A runtime.Module exportable as Model Library Format. The value returned from tvm.relay.build
+        or tvm.build.
+
+    options : dict
+        If given, Project API options given to the microTVM API server found in both
+        template_project_path and generated_project_path.
+
+    Returns
+    -------
+    GeneratedProject :
+        A class that wraps the generated project and which can be used to further interact with it.
+    """
+    template = TemplateProject.from_directory(str(template_project_dir), options)
+    return template.generate_project(module, str(generated_project_dir))

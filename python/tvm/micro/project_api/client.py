@@ -20,6 +20,7 @@ import io
 import json
 import logging
 import os
+import pathlib
 import subprocess
 import sys
 import typing
@@ -195,17 +196,19 @@ SERVER_LAUNCH_SCRIPT_FILENAME = (
 SERVER_PYTHON_FILENAME = "microtvm_api_server.py"
 
 
-def instantiate_from_dir(project_dir: str, debug: bool = False):
+def instantiate_from_dir(project_dir: typing.Union[pathlib.Path, str], debug: bool = False):
     """Launch server located in project_dir, and instantiate a Project API Client connected to it."""
     args = None
 
-    launch_script = os.path.join(project_dir, SERVER_LAUNCH_SCRIPT_FILENAME)
-    if os.path.exists(launch_script):
-        args = [launch_script]
+    project_dir = pathlib.Path(project_dir)
 
-    python_script = os.path.join(project_dir, SERVER_PYTHON_FILENAME)
-    if os.path.exists(python_script):
-        args = [sys.executable, python_script]
+    python_script = project_dir / SERVER_PYTHON_FILENAME
+    if python_script.is_file():
+        args = [sys.executable, str(python_script)]
+
+    launch_script = project_dir / SERVER_LAUNCH_SCRIPT_FILENAME
+    if launch_script.is_file():
+        args = [str(launch_script)]
 
     if args is None:
         raise ProjectAPIServerNotFoundError(
