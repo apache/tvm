@@ -18,7 +18,7 @@
 # under the License.
 
 #
-# Start a bash, mount /workspace to be current directory.
+# Start a bash, mount REPO_MOUNT_POINT to be current directory.
 #
 # Usage: bash.sh <CONTAINER_TYPE> [-i] [--net=host] [--mount path] <CONTAINER_NAME>  <COMMAND>
 #
@@ -35,7 +35,8 @@ set -euo pipefail
 function show_usage() {
     cat <<EOF
 Usage: docker/bash.sh [-i|--interactive] [--net=host]
-         [--mount MOUNT_DIR] [--dry-run]
+         [--mount MOUNT_DIR] [--repo-mount-point REPO_MOUNT_POINT]
+         [--dry-run]
          <DOCKER_IMAGE_NAME> [--] [COMMAND]
 
 -h, --help
@@ -59,6 +60,14 @@ Usage: docker/bash.sh [-i|--interactive] [--net=host]
     container.  The mount point inside the container is the same as
     the folder location outside the container.  This option can be
     specified multiple times.
+
+--repo-mount-point REPO_MOUNT_POINT
+
+    The directory inside the docker container at which the TVM
+    repository should be mounted, and is used as the workspace inside
+    the docker container.  If unspecified, the TVM repository will be
+    mounted at the same location inside the docker container as
+    outside.
 
 --dry-run
 
@@ -87,11 +96,15 @@ EOF
 ### Start of argument parsing ###
 #################################
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+WORKSPACE="$(dirname "${SCRIPT_DIR}")"
+
 DRY_RUN=false
 INTERACTIVE=false
 USE_NET_HOST=false
 DOCKER_IMAGE_NAME=
 COMMAND=bash
+REPO_MOUNT_POINT="${WORKSPACE}"
 MOUNT_DIRS=( )
 
 trap "show_usage >&2" ERR
@@ -99,6 +112,7 @@ args=$(getopt \
            --name bash.sh \
            --options "ih" \
            --longoptions "interactive,net=host,mount:,dry-run" \
+           --longoptions "repo-mount-point:" \
            --longoptions "help" \
            --unquoted \
            -- "$@")
@@ -123,13 +137,19 @@ while (( $# )); do
             ;;
 
         --mount)
-            MOUNT_DIRS+=($2)
+            MOUNT_DIRS+=("$2")
             shift
             shift
             ;;
 
         --dry-run)
             DRY_RUN=true
+            shift
+            ;;
+
+        --repo-mount-point)
+            REPO_MOUNT_POINT="$2"
+            shift
             shift
             ;;
 
@@ -191,15 +211,14 @@ if [ -n "${EXPANDED_SHORTCUT}" ]; then
 fi
 
 # Set up working directories
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-WORKSPACE="$(dirname "${SCRIPT_DIR}")"
-DOCKER_FLAGS+=( --workdir /workspace )
-DOCKER_MOUNT+=( --volume "${WORKSPACE}":/workspace
+
+DOCKER_FLAGS+=( --workdir "${REPO_MOUNT_POINT}" )
+DOCKER_MOUNT+=( --volume "${WORKSPACE}":"${REPO_MOUNT_POINT}"
                 --volume "${SCRIPT_DIR}":/docker
               )
 
 # Set up CI-specific environment variables
-DOCKER_ENV+=( --env CI_BUILD_HOME=/workspace
+DOCKER_ENV+=( --env CI_BUILD_HOME="${REPO_MOUNT_POINT}"
               --env CI_BUILD_USER="$(id -u -n)"
               --env CI_BUILD_UID="$(id -u)"
               --env CI_BUILD_GROUP="$(id -g -n)"
@@ -212,7 +231,7 @@ DOCKER_ENV+=( --env CI_BUILD_HOME=/workspace
 # Pass tvm test data folder through to the docker container, to avoid
 # repeated downloads.
 TEST_DATA_PATH="${TVM_DATA_ROOT_PATH:-${HOME}/.tvm_test_data}"
-DOCKER_MOUNT+=( --volume "${TEST_DATA_PATH}":/workspace/.tvm_test_data )
+DOCKER_MOUNT+=( --volume "${TEST_DATA_PATH}":"${REPO_MOUNT_POINT}"/.tvm_test_data )
 
 
 # Remove the container once it finishes running (--rm) and share the
@@ -266,7 +285,7 @@ fi
 
 # Set TVM import path inside the docker image
 if [[ "${DOCKER_IMAGE_NAME}" == *"ci"* ]]; then
-    DOCKER_ENV+=( --env PYTHONPATH=/workspace/python )
+    DOCKER_ENV+=( --env PYTHONPATH="${REPO_MOUNT_POINT}"/python )
 fi
 
 
