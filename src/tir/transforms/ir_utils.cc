@@ -244,5 +244,10 @@ Region ConvertRegion(const MatchBufferRegion& match_buffer, const Region& region
   return result;
 }
 
+Bool IsFromLegacyTESchedule(PrimFunc f) {
+  Optional<Bool> from_legacy_te_schedule = f->GetAttr("from_legacy_te_schedule", Bool(false));
+  return from_legacy_te_schedule.value();
+}
+
 }  // namespace tir
 }  // namespace tvm

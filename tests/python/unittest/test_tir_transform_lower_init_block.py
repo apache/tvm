@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
-from tvm import tir
+from tvm import tir, te
 from tvm.script import ty
 
 # pylint: disable=no-self-argument
@@ -83,6 +83,15 @@ def test_lower_match_buffer():
     origin_mod = InitWithMatchBuffer()
     mod = tvm.tir.transform.LowerInitBlock()(origin_mod)
     tvm.ir.assert_structural_equal(mod, BranchWithMatchBuffer(), True)
+
+
+def test_lower_te():
+    x = te.placeholder((1,))
+    y = te.compute((1,), lambda i: x[i] + 2)
+    s = te.create_schedule(y.op)
+    orig_mod = tvm.driver.build_module.schedule_to_module(s, [x, y])
+    mod = tvm.tir.transform.LowerInitBlock()(orig_mod)
+    tvm.ir.assert_structural_equal(mod, orig_mod)  # LowerInitBlock should do nothing on TE
 
 
 if __name__ == "__main__":
