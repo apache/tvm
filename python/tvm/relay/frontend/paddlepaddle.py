@@ -241,10 +241,15 @@ def convert_activation(g, op, block):
 def convert_feed(g, op, block):
     """Converter for model input node."""
 
-    ipt_name = op.output('Out')[0]
-    ipt_shape = block.var(ipt_name).shape
-    ipt_dtype = block.var(ipt_name).dtype
-    ipt_dtype = str(ipt_dtype).strip().split('.')[1]
+    if block is not None:
+        ipt_name = op.output('Out')[0]
+        ipt_shape = block.var(ipt_name).shape
+        ipt_dtype = block.var(ipt_name).dtype
+        ipt_dtype = str(ipt_dtype).strip().split('.')[1]
+    else:
+        ipt_shape = op.shape
+        ipt_dtype = str(op.dtype).strip().split('.')[1]
+        ipt_name = op.name
     if g.shape_dict is not None:
         ipt_shape = g.shape_dict[ipt_name]
     out = new_var(ipt_name, shape=ipt_shape, dtype=ipt_dtype)
@@ -469,6 +474,55 @@ def convert_matmul(g, op, block):
     g.add_node(op.output('Out')[0], out)
 
 
+def convert_mul(g, op, block):
+    """Operator converter for mul."""
+
+    x = g.get_node(op.input('X')[0])
+    y = g.get_node(op.input('Y')[0])
+    x_num_col_dims = op.attr('x_num_col_dims')
+    y_num_col_dims = op.attr('y_num_col_dims')
+    x_shape = shape_of(x)
+    y_shape = shape_of(y)
+    x_dim = infer_shape(x_shape)[0]
+    y_dim = infer_shape(y_shape)[0]
+    if x_num_col_dims < 0:
+        x_num_col_dims += x_dim
+    if y_num_col_dims < 0:
+        y_num_col_dims += y_dim
+    if x_num_col_dims == 1:
+        x = _op.nn.batch_flatten(x)
+    else:
+        pre_shape = _op.prod(_op.strided_slice(x_shape, [0], [x_num_col_dims],
+                                               [1]),
+                             keepdims=True)
+        post_shape = _op.prod(_op.strided_slice(x_shape, [x_num_col_dims],
+                                                [x_dim], [1]),
+                              keepdims=True)
+        new_shape = _op.concatenate([pre_shape, post_shape], axis=0)
+        new_shape = fold_constant(new_shape)
+        x = _op.reshape(x, new_shape)
+    if y_num_col_dims == 1:
+        y = _op.nn.batch_flatten(y)
+    else:
+        pre_shape = _op.prod(_op.strided_slice(y_shape, [0], [y_num_col_dims],
+                                               [1]),
+                             keepdims=True)
+        post_shape = _op.prod(_op.strided_slice(y_shape, [y_num_col_dims],
+                                                [y_dim], [1]),
+                              keepdims=True)
+        new_shape = _op.concatenate([pre_shape, post_shape], axis=0)
+        new_shape = fold_constant(new_shape)
+        y = _op.reshape(y, new_shape)
+    y = _op.transpose(y)
+    out = _op.nn.dense(x, y)
+    out_pre_shape = _op.strided_slice(x_shape, [0], [x_num_col_dims], [1])
+    out_post_shape = _op.strided_slice(y_shape, [y_num_col_dims], [y_dim], [1])
+    out_shape = _op.concatenate([out_pre_shape, out_post_shape], axis=0)
+    out_shape = fold_constant(out_shape)
+    out = _op.reshape(out, out_shape)
+    g.add_node(op.output('Out')[0], out)
+
+
 def convert_pool2d(g, op, block):
     """Operator converter for pool2d."""
 
@@ -482,7 +536,7 @@ def convert_pool2d(g, op, block):
     if global_pooling:
         adaptive = True
         ksize = [1, 1]
-
+        
     input = g.get_node(op.input('X')[0])
     in_h, in_w = infer_shape(input)[2:]
 
@@ -660,6 +714,7 @@ _convert_map = {
     'lookup_table_v2': convert_lookup_table,
     'matmul': convert_matmul,
     'matmul_v2': convert_matmul,
+    'mul': convert_mul,
     'pool2d': convert_pool2d,
     'relu': convert_activation,
     'reshape2': convert_reshape,
@@ -692,7 +747,7 @@ class GraphProto(object):
         assert name in self.params
         return self.params[name]
 
-    def extract_parameters(self, program, scope):
+    def extract_parameters(self, program, scope=None):
         """ Extract all the weights from PaddlePaddle program."""
 
         self.params = {}
@@ -736,9 +791,12 @@ class GraphProto(object):
             msg += ", ".join(unsupported_ops)
             raise tvm.error.OpNotImplemented(msg)
 
-    def ops_to_relay(self, program, scope):
+    def ops_to_relay(self, program, input_specs=None):
         """ Convert PaddlePaddle operators to TVM relay functions."""
 
+        if input_specs is not None:
+            for input_spec in input_specs:
+                convert_feed(self, input_spec, None)
         for block in program.blocks:
             for i, op in enumerate(block.ops):
                 if op.type == 'fetch':
@@ -746,17 +804,7 @@ class GraphProto(object):
                 convert_func = _convert_map[op.type]
                 convert_func(self, op, block)
 
-    def get_outputs(self, program):
-        """ Get outputs of PaddlePaddle model."""
-
-        outputs = list()
-        for block in program.blocks:
-            for i, op in enumerate(block.ops):
-                if op.type == "fetch":
-                    outputs.append(op.input('X')[0])
-        return outputs
-
-    def from_paddle(self, program, shape_dict, scope):
+    def from_program(self, program, shape_dict, scope):
         """ Construct the TVM relay expression from PaddlePaddle program."""
 
         self.shape_dict = shape_dict
@@ -765,8 +813,37 @@ class GraphProto(object):
             scope = paddle.fluid.global_scope()
         self.check_unsupported_ops(program)
         self.extract_parameters(program, scope)
-        self.ops_to_relay(program, scope)
-        output_names = self.get_outputs(program)
+        self.ops_to_relay(program)
+
+        output_names = list()
+        for block in program.blocks:
+            for i, op in enumerate(block.ops):
+                if op.type == "fetch":
+                    output_names.append(op.input('X')[0])
+
+        outputs = [self.nodes[name] for name in output_names]
+        outputs = outputs[0] if len(outputs) == 1 else _expr.Tuple(outputs)
+
+        free_vars = analysis.free_vars(outputs)
+        func = _function.Function(free_vars, outputs)
+        mod = IRModule.from_expr(func)
+        return mod, self.params
+
+    def from_translated_layer(self, layer, shape_dict):
+        """ Construct the TVM relay expression from PaddlePaddle TranslatedLayer."""
+
+        self.shape_dict = shape_dict
+        program = layer.program()
+        parameters = dict()
+        for param in layer.parameters():
+            parameters[param.name] = np.array(param.value().get_tensor())
+        self.check_unsupported_ops(program)
+        self.extract_parameters(program, parameters)
+
+        input_specs = layer._input_spec()
+        self.ops_to_relay(program, input_specs)
+
+        output_names = [x.name for x in layer._output_spec()]
 
         outputs = [self.nodes[name] for name in output_names]
         outputs = outputs[0] if len(outputs) == 1 else _expr.Tuple(outputs)
@@ -777,14 +854,22 @@ class GraphProto(object):
         return mod, self.params
 
 
-def from_paddle(program, shape_dict=None, scope=None):
+def from_paddle(program_or_layer, shape_dict=None, scope=None):
     """ Convert a PaddlePaddle model into an equivalent Relay Function.
 
-    PaddlePaddle Program represent the computation graph of PaddlePaddle model, 
+    PaddlePaddle Program/TranslatedLayer represent the computation graph of PaddlePaddle model, 
     and PaddlePaddle scope stores all the weights of PaddlePaddle model. 
     """
 
     import paddle
     g = GraphProto()
-    mod, params = g.from_paddle(program, shape_dict, scope)
+    if isinstance(program_or_layer, paddle.fluid.dygraph.TranslatedLayer):
+        # model is loaded by `paddle.jit.load`
+        mod, params = g.from_translated_layer(program_or_layer, shape_dict)
+    elif isinstance(program_or_layer, paddle.fluid.framework.Program):
+        # model is loaded by `paddle.static.load_inference_model`
+        mod, params = g.from_program(program_or_layer, shape_dict, scope)
+    else:
+        raise Exception(
+            "Only PaddlePaddle's Program and TranslatedLayer are supported.")
     return mod, params
