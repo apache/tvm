@@ -9,11 +9,11 @@ jobs:
       - run: pip install --upgrade pip wheel
       - run: pip install bandit black codespell flake8 isort mypy pytest pyupgrade safety
       - run: bandit --recursive --skip B101,B102,B104,B105,B106,B108,B110,B112,B301,B303,B306,B307,B310,B311,B403,B404,B506,B602,B603,B607 .
-      - run: black --check . || true
+      # - run: black --check . || true
       - run: codespell --ignore-words-list="ans,ba,crate,dout,fo,nd,ot,te" || true  # --skip="*.css,*.js,*.lock"
-      - run: flake8 . --count --select=E9,F63,F7 --show-source --statistics  # F82
-      - run: flake8 . --count --exit-zero --max-complexity=10 --max-line-length=88 --show-source --statistics
-      - run: isort --check-only --profile black . || true
+      - run: flake8 --ignore=E126,E203,E226,E231,E241,E262,E265,E266,E301,E302,E306,E402,E711,E712,E713,E714,E722,E731,E741,F401,F402,F403,F405,F541,F811,F821,F841,W291,W293,W503
+                    --max-complexity=51 --max-line-length=1115 --show-source --statistics .
+      # - run: isort --check-only --profile black . || true
       # - run: pip install -r requirements.txt || true
       #- run: |
       #    cd python
