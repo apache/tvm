@@ -27,6 +27,7 @@
 #include <tvm/runtime/device_api.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
+#include <tvm/tir/function.h>
 #include <tvm/tir/op.h>
 
 #include <limits>
@@ -212,6 +213,16 @@ Array<PrimExpr> ConvertIndices(const MatchBufferRegion& match_buffer,
  * \return The region of source buffer.
  */
 Region ConvertRegion(const MatchBufferRegion& match_buffer, const Region& region);
+
+/*!
+ * \brief Check if a given PrimFunc originated from a TE schedule.
+ *
+ * Internally this checks for the `from_legacy_te_schedule` attr of the PrimFunc.
+ *
+ * \param f PrimFunc to check
+ * \return Whether or not the PrimFunc was created from a te schedule
+ */
+Bool IsFromLegacyTESchedule(PrimFunc f);
 
 }  // namespace tir
 }  // namespace tvm
