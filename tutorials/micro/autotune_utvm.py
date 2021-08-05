@@ -107,11 +107,6 @@ with pass_context:
 assert len(tasks) > 0
 
 
-builder = tvm.autotvm.LocalBuilder()
-runner = tvm.autotvm.LocalRunner(number=1, repeat=1, timeout=0)
-
-measure_option = tvm.autotvm.measure_option(builder=builder, runner=runner)
-
 
 ######################
 # Configuring microTVM
@@ -124,29 +119,21 @@ measure_option = tvm.autotvm.measure_option(builder=builder, runner=runner)
 # In this tutorial, we'll just use the x86 host as an example runtime; however, you just need to
 # replace the `Flasher` and `Compiler` instances here to run autotuning on a bare metal device.
 import os
+import subprocess
+import pathlib
 import tvm.micro
 
-workspace = tvm.micro.Workspace()
-compiler = tvm.micro.DefaultCompiler(target=TARGET)
-opts = tvm.micro.default_options(
-    os.path.join(tvm.micro.get_standalone_crt_dir(), "template", "host")
-)
-compiler = tvm.micro.CompilerFactory(
-    tvm.micro.DefaultCompiler,
-    init_args=tuple(),
-    init_kw=dict(target=str(TARGET)),
+repo_root = pathlib.Path(
+    subprocess.check_output(["git", "rev-parse", "--show-toplevel"], encoding="utf-8").strip()
 )
 
 module_loader = tvm.micro.autotvm_module_loader(
-    compiler,
-    compiler_options=opts,
-    extra_libs=[
-        tvm.micro.get_standalone_crt_lib("memory"),
-    ],
-    workspace_kw={"debug": True},
+    template_project_dir=repo_root / "src" / "runtime" / "crt" / "host",
+    project_options={},
 )
 builder = tvm.autotvm.LocalBuilder(
-    n_parallel=1, build_kwargs={"build_option": {"tir.disable_vectorize": True}}, do_fork=False
+    n_parallel=1, build_kwargs={"build_option": {"tir.disable_vectorize": True}}, do_fork=False,
+    build_func=tvm.micro.autotvm_build_func,
 )  # do_fork=False needed to persist stateful builder.
 runner = tvm.autotvm.LocalRunner(number=1, repeat=1, timeout=0, module_loader=module_loader)
 

@@ -27,13 +27,14 @@ import sys
 
 from ..error import register_error
 from .._ffi import get_global_func, register_func
-from ..contrib import graph_exectuor
+from ..contrib import graph_executor
+from ..contrib import utils
 from ..contrib.debugger import debug_executor
 from ..rpc import RPCSession
+from . import project
 from .transport import IoTimeoutError
 from .transport import TransportLogger
 from . import build
-from . import compiler
 
 try:
     from .base import _rpc_connect
@@ -246,123 +247,54 @@ def create_local_debug_executor(graph_json_str, mod, device, dump_root=None):
 RPC_SESSION = None
 
 
-@register_func("tvm.micro.create_micro_session")
-def create_micro_session(
-    build_result_filename: str, build_result_bin: bytes, flasher_factory_json: bytes
-):
-    """Unarchive the provided MicroBinary, flash it to device, and open a microTVM RPC session.
-
-    This function is meant to be called as a TVM RPC Session Constructor (i.e. by passing it to
-    `session_constructor_args` of tvm.rpc.connect(). It returns an RPCSession node that can be used
-    for further communication with the device.
-
-    Parameters
-    ----------
-    build_result_filename : str
-        Baseame of the MicroBinary file to create.
-
-    build_result_bin : bytes
-        The content of the MicroBinary artifact produced by the compiler.
-
-    flasher_factory_json : bytes
-        JSON that can be used to create a FlasherFactory with FactoryFlasher.from_json.
-
-    Returns
-    -------
-    tvm.runtime.Module :
-        The underlying RPCSession node which can be used by the RPC subsystem to forward requests
-        to the attached target.
-    """
-    global RPC_SESSION
-    if RPC_SESSION is not None:
-        raise Exception(
-            "Only one micro session can be established per TVM instance, and one is already "
-            "established"
-        )
-
-    with tempfile.NamedTemporaryFile(prefix=build_result_filename, mode="w+b") as temp_f:
-        temp_f.write(build_result_bin)
-        temp_f.flush()
-
-        binary = micro_binary.MicroBinary.unarchive(
-            temp_f.name, os.path.join(tempfile.mkdtemp(), "binary")
-        )
-        flasher_obj = compiler.FlasherFactory.from_json(flasher_factory_json).instantiate()
-
-        RPC_SESSION = Session(binary=binary, flasher=flasher_obj)
-        RPC_SESSION.__enter__()
-        return RPC_SESSION._rpc._sess
-
-
 @register_func("tvm.micro.compile_and_create_micro_session")
 def compile_and_create_micro_session(
-    compiler_factory_json: bytes,
-    mod_src_tar: bytes,
-    compiler_options_json: str,
-    lib_paths_json: str,
-    workspace_kw_json: str,
+    mod_src_bytes: bytes,
+    template_project_dir: str,
+    project_options: dict = None,
 ):
     """Compile the given libraries and sources into a MicroBinary, then invoke create_micro_session.
 
     Parameters
     ----------
-    compiler_factory_json : bytes
-        JSON that can be used to create a CompilerFactory with CompilerFactory.from_json.
-
-    mod_src_tar : bytes
+    mod_src_bytes : bytes
         The content of a tarfile which contains the TVM-generated sources which together form the
         SystemLib. This tar is expected to be created by export_library. The tar will be extracted
         into a directory and the sources compiled into a MicroLibrary using the Compiler.
 
-    compiler_options_json : str
-        JSON representation of the compiler options (i.e. returned from
-        tvm.micro.get_default_options()) which are passed to library() and binary() calls.
+    template_project_dir: str
+        The path to a template microTVM Project API project which is used to generate the embedded
+        project that is built and flashed onto the target device.
 
-    lib_paths_json : str
-        JSON-encoded list of paths to files, each produced by MicroLibrary.archive(). Each
-        MicroLibrary will be unarchived and added to the list of libs included in the MicroBinary.
-        NOTE: in the future, the sources to these libraries should be supplied and compilation will
-        occur in this function.
-
-    workspace_kw_json : str
-        JSON-encoded keyword args to the Workspace constructor, used for temporary storage for this
-        compilation.
+    project_options: dict
+        Options for the microTVM API Server contained in template_project_dir.
     """
     global RPC_SESSION
 
-    lib_paths = json.loads(lib_paths_json)
-    workspace = build.Workspace(**json.loads(workspace_kw_json))
-    compiler_inst = compiler.CompilerFactory.from_json(compiler_factory_json).instantiate()
-    compiler_options = json.loads(compiler_options_json)
+    temp_dir = utils.tempdir()
+    model_library_format_path = temp_dir / "model.tar.gz"
+    print("PRE GEN", model_library_format_path)
+    with open(model_library_format_path, "wb") as mlf_f:
+        mlf_f.write(mod_src_bytes)
 
-    mod_src_dir = workspace.relpath(os.path.join("src", "module"))
-    os.makedirs(mod_src_dir)
-    tar_f = tarfile.open(fileobj=io.BytesIO(mod_src_tar), mode="r:*")
-    tar_f.extractall(mod_src_dir)
+    print("PRE GEN")
+    try:
+        template_project = project.TemplateProject.from_directory(
+            template_project_dir, options=json.loads(project_options))
+        generated_project = template_project.generate_project_from_mlf(
+            model_library_format_path, temp_dir / "generated-project")
+    except Exception as e:
+        import traceback
+        import sys
+        print("ERR",e )
+        traceback.print_exc(e, stream=sys.stdout)
+        raise e
+    print("POST GEN")
+    generated_project.build()
+    generated_project.flash()
+    transport = generated_project.transport()
 
-    mod_build_dir = workspace.relpath(os.path.join("lib", "module"))
-    os.makedirs(mod_build_dir)
-    mod_src_paths = [os.path.join(mod_src_dir, n) for n in tar_f.getnames()]
-    mod_lib = compiler_inst.library(
-        mod_build_dir, mod_src_paths, compiler_options["generated_lib_opts"]
-    )
-
-    libs = []
-    for lib_path in lib_paths:
-        # Split off the .micro-library extension
-        lib_dir_name = os.path.splitext(os.path.basename(lib_path))[0]
-        lib_dir = workspace.relpath(os.path.join("lib", lib_dir_name))
-
-        libs.append(micro_library.MicroLibrary.unarchive(lib_path, lib_dir))
-
-    libs.append(mod_lib)
-
-    runtime_build_dir = workspace.relpath(os.path.join("runtime"))
-    os.makedirs(runtime_build_dir)
-    print("build binary", runtime_build_dir)
-    binary = compiler_inst.binary(runtime_build_dir, libs, compiler_options["bin_opts"])
-
-    RPC_SESSION = Session(binary=binary, flasher=compiler_inst.flasher())
+    RPC_SESSION = Session(transport_context_manager=transport)
     RPC_SESSION.__enter__()
     return RPC_SESSION._rpc._sess
 

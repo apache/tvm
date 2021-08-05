@@ -21,6 +21,7 @@ import contextlib
 import json
 import logging
 import os
+import pathlib
 
 from .._ffi import libinfo
 from .. import rpc as _rpc
@@ -80,7 +81,9 @@ def autotvm_module_loader(
     workspace_kw : Optional[dict]
         Keyword args passed to the Workspace constructor.
     """
-    if not isinstance(template_project_dir, str):
+    if isinstance(template_project_dir, pathlib.Path):
+        template_project_dir = str(template_project_dir)
+    elif not isinstance(template_project_dir, str):
         raise TypeError(f"Incorrect type {type(template_project_dir)}.")
 
     @contextlib.contextmanager
@@ -104,3 +107,10 @@ def autotvm_module_loader(
         yield remote, system_lib
 
     return module_loader
+
+
+def autotvm_build_func(*args, **kwargs):
+    pass
+
+
+autotvm_build_func.output_format = "tar.gz"
