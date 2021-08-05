@@ -24,7 +24,7 @@ from .utils import _run_opt_pass
 
 
 def convert(func, params, blocksize, sparsity_threshold, layout="NHWC", kernel_size=1):
-    """Convert a dense func and according parameters to block sparse
+    """Convert a conv2d func and according parameters to block sparse
 
     Parameters
     ----------

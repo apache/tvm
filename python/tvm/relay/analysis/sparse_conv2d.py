@@ -112,8 +112,11 @@ def process_params(expr, params, block_size, sparsity_threshold, layout, kernel_
                 )
             else:
                 sparse_weight_data = sparse_weight.data
-        elif weight_kernel[0] == kernel_size == 3 and layout == "NHWC":
-            w_np = w_np.reshape((-1, w_np.shape[-1])).T
+        elif weight_kernel[0] == kernel_size == 3:
+            if layout == "NHWC":  # HWIO
+                w_np = w_np.reshape((-1, w_np.shape[-1])).T
+            elif layout == "NCHW":  # OIHW
+                w_np = w_np.reshape((w_np.shape[0], -1))
             sparse_weight = sp.bsr_matrix(w_np, blocksize=block_size)
             if 1 - (sparse_weight.nnz / w_np.size) < sparsity_threshold:
                 continue

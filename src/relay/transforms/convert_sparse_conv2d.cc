@@ -133,7 +133,8 @@ class Conv2dToSparseConv2dMutator : public ExprRewriter {
 };  // class Conv2dToSparseConv2dAlter
 
 Expr Conv2dToSparse(const Expr& e, const Array<ObjectRef>& weight_name,
-                    const Array<Array<PrimExpr>>& weight_shape, const String& layout, int kernel_size) {
+                    const Array<Array<PrimExpr>>& weight_shape,
+                    const String& layout, int kernel_size) {
   auto rewriter = Conv2dToSparseConv2dMutator(weight_name, weight_shape, layout, kernel_size);
   return PostOrderRewrite(e, &rewriter);
 }
@@ -151,7 +152,7 @@ auto unpack_to_tuple(elemTy *arr) {
 
 struct Range {
   size_t dim;
-  Range(size_t d): dim(d) {}
+  explicit Range(size_t d): dim(d) {}
 
   struct iterpoint {
     size_t val, lim;
@@ -205,7 +206,7 @@ class Conv2dToSparseConv2dMutator2 : public ExprRewriter {
   Expr Rewrite_(const CallNode* pre, const Expr& post) override {
     // check op type & attrs
     const auto pre_attrs = pre->attrs.as<Conv2DAttrs>();
-    if (!pre_attrs 
+    if (!pre_attrs
         || pre_attrs->data_layout != layout_
         || pre_attrs->strides[0].as<IntImmNode>()->value != 1
         || pre_attrs->kernel_size[0].as<IntImmNode>()->value != kernel_size_)
@@ -233,20 +234,20 @@ class Conv2dToSparseConv2dMutator2 : public ExprRewriter {
     pre_weight.CopyToBytes(pre_weight_data.data(), pre_weight_data.size() * sizeof(float));
     if (layout_ == "NHWC") {
       std::vector<float> tmp(pre_weight_data.size());
-      for (auto i: Range(CO))
-        for (auto j: Range(CI))
+      for (auto i : Range(CO))
+        for (auto j : Range(CI))
           tmp[*(i / j)] = pre_weight_data[*(j / i)];
       std::swap(tmp, pre_weight_data);
     }
     // convert to BSR
     std::vector<float> wdata, block(blockH_ * blockW_);
     std::vector<int32_t> windices, windptr;
-    for (auto bh: Range(CO / blockH_)) {
+    for (auto bh : Range(CO / blockH_)) {
       windptr.push_back(windices.size());
-      for (auto bw: Range(CI / blockW_)) {
+      for (auto bw : Range(CI / blockW_)) {
         int cntnnz = 0;
-        for (auto i: Range(blockH_))
-        for (auto j: Range(blockW_)) {
+        for (auto i : Range(blockH_))
+        for (auto j : Range(blockW_)) {
           auto tmp = pre_weight_data[*(bh / i / bw / j)];
           if (tmp) cntnnz++;
           block[*(i / j)] = tmp;
@@ -281,7 +282,7 @@ class Conv2dToSparseConv2dMutator2 : public ExprRewriter {
     return Call(sparse_conv2d_op_, args, Attrs(attrs));
   }
 
-private:
+ private:
   const Op &sparse_conv2d_op_;
   DLDevice dev_cpu0_;
   String layout_;
@@ -289,7 +290,8 @@ private:
   double sparse_thresh_;
 };  // class Conv2dToSparseConv2dMutator2
 
-Expr Conv2dToSparse2(const Expr& e, const String& layout, int kernel_size, int blockH, int blockW, double sparse_thresh) {
+Expr Conv2dToSparse2(const Expr& e, const String& layout, int kernel_size,
+                     int blockH, int blockW, double sparse_thresh) {
   auto rewriter = Conv2dToSparseConv2dMutator2(layout, kernel_size, blockH, blockW, sparse_thresh);
   return PostOrderRewrite(e, &rewriter);
 }
@@ -297,12 +299,15 @@ Expr Conv2dToSparse2(const Expr& e, const String& layout, int kernel_size, int b
 
 namespace transform {
 
+// Convert a model with seperate weight info (already sparsified).
 Pass Conv2dToSparse(const Array<ObjectRef>& weight_name, const Array<Array<PrimExpr>>& weight_shape,
                     const String& layout, int kernel_size) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
         // Remove FreeVar warnings
-        auto f0 = Downcast<Function>(Conv2dToSparse(f, weight_name, weight_shape, layout, kernel_size));
+        auto f0 = Downcast<Function>(
+          Conv2dToSparse(f, weight_name, weight_shape, layout, kernel_size)
+        );
         Array<Var> sparse_params = FreeVars(f0);
         auto f1 = Function(sparse_params, f0->body, f0->ret_type, f0->type_params, f0->attrs);
         Array<Var> params = FreeVars(f1);
@@ -317,10 +322,14 @@ Pass Conv2dToSparse(const Array<ObjectRef>& weight_name, const Array<Array<PrimE
 TVM_REGISTER_GLOBAL("relay._transform.Conv2dToSparse").set_body_typed(Conv2dToSparse);
 
 
-Pass Conv2dToSparse2(const String& layout, int kernel_size, int blockH, int blockW, double sparse_thresh) {
+// Convert a model with freezed params (sparsified in the pass).
+Pass Conv2dToSparse2(const String& layout, int kernel_size,
+                     int blockH, int blockW, double sparse_thresh) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
-        auto f0 = Downcast<Function>(Conv2dToSparse2(f, layout, kernel_size, blockH, blockW, sparse_thresh));
+        auto f0 = Downcast<Function>(
+          Conv2dToSparse2(f, layout, kernel_size, blockH, blockW, sparse_thresh)
+        );
         return f0;
       };
   return CreateFunctionPass(pass_func, 5, "Conv2dToSparse2", {"DeadCodeElimination"});
