@@ -47,19 +47,9 @@ _LOG = logging.getLogger(__name__)
 PLATFORMS = conftest.PLATFORMS
 
 
-def _build_project(model, target, zephyr_board, west_cmd, mod, build_config, extra_files_tar=None):
-    parent_dir = os.path.dirname(__file__)
-    filename = os.path.splitext(os.path.basename(__file__))[0]
-    prev_build = f"{os.path.join(parent_dir, 'archive')}_{filename}_{zephyr_board}_last_build.micro"
-    workspace_root = os.path.join(
-        f"{os.path.join(parent_dir, 'workspace')}_{filename}_{zephyr_board}",
-        datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S"),
-    )
-    workspace_parent = os.path.dirname(workspace_root)
-    if not os.path.exists(workspace_parent):
-        os.makedirs(workspace_parent)
-    workspace = tvm.micro.Workspace(debug=True, root=workspace_root)
-
+def _build_project(
+    temp_dir, model, target, zephyr_board, west_cmd, mod, build_config, extra_files_tar=None
+):
     template_project_dir = (
         pathlib.Path(__file__).parent
         / ".."
@@ -70,7 +60,7 @@ def _build_project(model, target, zephyr_board, west_cmd, mod, build_config, ext
         / "zephyr"
         / "template_project"
     ).resolve()
-    project_dir = workspace.relpath("project")
+    project_dir = temp_dir / "project"
     project = tvm.micro.generate_project(
         str(template_project_dir),
         mod,
@@ -149,7 +139,7 @@ def _get_message(fd, expr: str):
 
 
 @tvm.testing.requires_micro
-def test_tflite(platform, west_cmd, skip_build, tvm_debug):
+def test_tflite(temp_dir, platform, west_cmd, skip_build, tvm_debug):
     """Testing a TFLite model."""
     model, zephyr_board = PLATFORMS[platform]
     input_shape = (1, 32, 32, 3)
@@ -207,6 +197,7 @@ def test_tflite(platform, west_cmd, skip_build, tvm_debug):
             )
 
         project, _ = _build_project(
+            temp_dir,
             model,
             target,
             zephyr_board,
@@ -232,7 +223,7 @@ def test_tflite(platform, west_cmd, skip_build, tvm_debug):
 
 
 @tvm.testing.requires_micro
-def test_qemu_make_fail(platform, west_cmd, skip_build, tvm_debug):
+def test_qemu_make_fail(temp_dir, platform, west_cmd, skip_build, tvm_debug):
     """Testing QEMU make fail."""
     if platform not in ["host", "mps2_an521"]:
         pytest.skip(msg="Only for QEMU targets.")
@@ -266,6 +257,7 @@ def test_qemu_make_fail(platform, west_cmd, skip_build, tvm_debug):
             _create_header_file("output_data", np.zeros(shape=shape, dtype=dtype), "include", tf)
 
         project, project_dir = _build_project(
+            temp_dir,
             model,
             target,
             zephyr_board,

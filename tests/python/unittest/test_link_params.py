@@ -348,8 +348,6 @@ def test_c_link_params():
 
 @tvm.testing.requires_micro
 def test_crt_link_params():
-    import tvm.micro
-
     for dtype in LINKABLE_DTYPES:
         mod, param_init = _make_mod_and_params(dtype)
         rand_input = _make_random_tensor(dtype, INPUT_SHAPE)
@@ -359,12 +357,12 @@ def test_crt_link_params():
             factory = tvm.relay.build(mod, target, params=param_init)
             assert set(factory.get_params().keys()) == {"p0", "p1"}  # NOTE: op folded
 
-            workspace = tvm.micro.Workspace()
+            temp_dir = tvm.contrib.utils.tempdir()
             template_project_dir = os.path.join(
                 tvm.micro.get_standalone_crt_dir(), "template", "host"
             )
             project = tvm.micro.generate_project(
-                template_project_dir, factory, workspace.relpath("project"), {"verbose": 1}
+                template_project_dir, factory, temp_dir / "project", {"verbose": 1}
             )
             project.build()
             project.flash()

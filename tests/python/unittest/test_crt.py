@@ -45,36 +45,36 @@ DEBUG = False
 TARGET = tvm.target.target.micro("host")
 
 
-def _make_sess_from_op(workspace, op_name, sched, arg_bufs):
+def _make_sess_from_op(temp_dir, op_name, sched, arg_bufs):
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         mod = tvm.build(sched, arg_bufs, Target(TARGET, TARGET), name=op_name)
 
-    return _make_session(workspace, mod)
+    return _make_session(temp_dir, mod)
 
 
-def _make_session(workspace, mod):
+def _make_session(temp_dir, mod):
     template_project_dir = os.path.join(tvm.micro.get_standalone_crt_dir(), "template", "host")
     project = tvm.micro.generate_project(
-        template_project_dir, mod, workspace.relpath("project"), {"verbose": 1}
+        template_project_dir, mod, temp_dir / "project", {"verbose": 1}
     )
     project.build()
     project.flash()
     return tvm.micro.Session(project.transport())
 
 
-def _make_add_sess(workspace):
+def _make_add_sess(temp_dir):
     A = tvm.te.placeholder((2,), dtype="int8")
     B = tvm.te.placeholder((1,), dtype="int8")
     C = tvm.te.compute(A.shape, lambda i: A[i] + B[0], name="C")
     sched = tvm.te.create_schedule(C.op)
-    return _make_sess_from_op(workspace, "add", sched, [A, B, C])
+    return _make_sess_from_op(temp_dir, "add", sched, [A, B, C])
 
 
-def _make_ident_sess(workspace):
+def _make_ident_sess(temp_dir):
     A = tvm.te.placeholder((2,), dtype="int8")
     B = tvm.te.compute(A.shape, lambda i: A[i], name="B")
     sched = tvm.te.create_schedule(B.op)
-    return _make_sess_from_op(workspace, "ident", sched, [A, B])
+    return _make_sess_from_op(temp_dir, "ident", sched, [A, B])
 
 
 @tvm.testing.requires_micro
@@ -82,9 +82,9 @@ def test_compile_runtime():
     """Test compiling the on-device runtime."""
     import tvm.micro
 
-    workspace = tvm.micro.Workspace()
+    temp_dir = tvm.contrib.utils.tempdir()
 
-    with _make_add_sess(workspace) as sess:
+    with _make_add_sess(temp_dir) as sess:
         A_data = tvm.nd.array(np.array([2, 3], dtype="int8"), device=sess.device)
         assert (A_data.numpy() == np.array([2, 3])).all()
         B_data = tvm.nd.array(np.array([4], dtype="int8"), device=sess.device)
@@ -120,9 +120,9 @@ def test_reset():
     import tvm.micro
     from tvm.micro import transport
 
-    workspace = tvm.micro.Workspace()
+    temp_dir = tvm.contrib.utils.tempdir()
 
-    with _make_add_sess(workspace) as sess:
+    with _make_add_sess(temp_dir) as sess:
         try:
             sess._rpc.get_function("tvm.testing.reset_server")()
             assert False, "expected to raise SessionTerminatedError; did not raise"
@@ -133,12 +133,11 @@ def test_reset():
 @tvm.testing.requires_micro
 def test_graph_executor():
     """Test use of the graph executor with microTVM."""
-    import tvm.micro
 
     ws_root = pathlib.Path(os.path.dirname(__file__) + "/micro-workspace")
     if ws_root.exists():
         shutil.rmtree(ws_root)
-    workspace = tvm.micro.Workspace(debug=True, root=ws_root.resolve())
+    temp_dir = tvm.contrib.utils.tempdir(ws_root.resolve())
     relay_mod = tvm.parser.fromtext(
         """
       #[version = "0.0.5"]
@@ -151,7 +150,7 @@ def test_graph_executor():
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         factory = tvm.relay.build(relay_mod, target=TARGET)
 
-    with _make_session(workspace, factory) as sess:
+    with _make_session(temp_dir, factory) as sess:
         graph_mod = tvm.micro.create_local_graph_executor(
             factory.get_graph_json(), sess.get_system_lib(), sess.device
         )
@@ -171,9 +170,9 @@ def test_std_math_functions():
     """Verify that standard math functions can be used."""
     import tvm.micro
 
-    workspace = tvm.micro.Workspace()
+    temp_dir = tvm.contrib.utils.tempdir()
 
-    with _make_add_sess(workspace) as sess:
+    with _make_add_sess(temp_dir) as sess:
         A_data = tvm.nd.array(np.array([2, 3], dtype="int8"), device=sess.device)
         assert (A_data.numpy() == np.array([2, 3])).all()
         B_data = tvm.nd.array(np.array([4], dtype="int8"), device=sess.device)
@@ -184,12 +183,12 @@ def test_std_math_functions():
         system_lib = sess.get_system_lib()
         system_lib.get_function("add")(A_data, B_data, C_data)
 
-    workspace = tvm.micro.Workspace()
+    temp_dir = tvm.contrib.utils.tempdir()
     A = tvm.te.placeholder((2,), dtype="float32", name="A")
     B = tvm.te.compute(A.shape, lambda i: tvm.te.exp(A[i]), name="B")
     s = tvm.te.create_schedule(B.op)
 
-    with _make_sess_from_op(workspace, "myexpf", s, [A, B]) as sess:
+    with _make_sess_from_op(temp_dir, "myexpf", s, [A, B]) as sess:
         A_data = tvm.nd.array(np.array([2.0, 3.0], dtype="float32"), device=sess.device)
         B_data = tvm.nd.array(np.array([2.0, 3.0], dtype="float32"), device=sess.device)
         lib = sess.get_system_lib()
@@ -203,12 +202,12 @@ def test_platform_timer():
     """Verify the platform timer can be used to time remote functions."""
     import tvm.micro
 
-    workspace = tvm.micro.Workspace()
+    temp_dir = tvm.contrib.utils.tempdir()
     A = tvm.te.placeholder((2,), dtype="float32", name="A")
     B = tvm.te.compute(A.shape, lambda i: tvm.te.exp(A[i]), name="B")
     s = tvm.te.create_schedule(B.op)
 
-    with _make_sess_from_op(workspace, "myexpf", s, [A, B]) as sess:
+    with _make_sess_from_op(temp_dir, "myexpf", s, [A, B]) as sess:
         A_data = tvm.nd.array(np.array([2.0, 3.0], dtype="float32"), device=sess.device)
         B_data = tvm.nd.array(np.array([2.0, 3.0], dtype="float32"), device=sess.device)
         lib = sess.get_system_lib()

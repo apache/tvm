@@ -49,13 +49,15 @@ _LOG = logging.getLogger(__name__)
 PLATFORMS = conftest.PLATFORMS
 
 
-def _make_sess_from_op(model, zephyr_board, west_cmd, op_name, sched, arg_bufs, build_config):
+def _make_sess_from_op(
+    temp_dir, model, zephyr_board, west_cmd, op_name, sched, arg_bufs, build_config
+):
     target = tvm.target.target.micro(model)
     target = tvm.target.Target(target=target, host=target)
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         mod = tvm.build(sched, arg_bufs, target=target, name=op_name)
 
-    return _make_session(model, target, zephyr_board, west_cmd, mod, build_config)
+    return _make_session(temp_dir, model, target, zephyr_board, west_cmd, mod, build_config)
 
 
 TEMPLATE_PROJECT_DIR = (
@@ -70,46 +72,37 @@ TEMPLATE_PROJECT_DIR = (
 ).resolve()
 
 
-def _make_session(model, target, zephyr_board, west_cmd, mod, build_config):
-    parent_dir = os.path.dirname(__file__)
-    filename = os.path.splitext(os.path.basename(__file__))[0]
-    prev_build = f"{os.path.join(parent_dir, 'archive')}_{filename}_{zephyr_board}_last_build.micro"
-    workspace_root = os.path.join(
-        f"{os.path.join(parent_dir, 'workspace')}_{filename}_{zephyr_board}",
-        datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S"),
-    )
-    workspace_parent = os.path.dirname(workspace_root)
-    if not os.path.exists(workspace_parent):
-        os.makedirs(workspace_parent)
-    workspace = tvm.micro.Workspace(debug=True, root=workspace_root)
-
+def _make_session(temp_dir, model, target, zephyr_board, west_cmd, mod, build_config):
     project = tvm.micro.generate_project(
         str(TEMPLATE_PROJECT_DIR),
         mod,
-        workspace.relpath("project"),
+        temp_dir / "project",
         {
             "project_type": "host_driven",
             "west_cmd": west_cmd,
-            "verbose": 0,
+            "verbose": bool(build_config.get("debug")),
             "zephyr_board": zephyr_board,
         },
     )
-    project.build()
+    if not build_config.get("skip_build"):
+        project.build()
     project.flash()
     return tvm.micro.Session(project.transport())
 
 
-def _make_add_sess(model, zephyr_board, west_cmd, build_config, dtype="int8"):
+def _make_add_sess(temp_dir, model, zephyr_board, west_cmd, build_config, dtype="int8"):
     A = tvm.te.placeholder((2,), dtype=dtype)
     B = tvm.te.placeholder((1,), dtype=dtype)
     C = tvm.te.compute(A.shape, lambda i: A[i] + B[0], name="C")
     sched = tvm.te.create_schedule(C.op)
-    return _make_sess_from_op(model, zephyr_board, west_cmd, "add", sched, [A, B, C], build_config)
+    return _make_sess_from_op(
+        temp_dir, model, zephyr_board, west_cmd, "add", sched, [A, B, C], build_config
+    )
 
 
 # The same test code can be executed on both the QEMU simulation and on real hardware.
 @tvm.testing.requires_micro
-def test_add_uint(platform, west_cmd, skip_build, tvm_debug):
+def test_add_uint(temp_dir, platform, west_cmd, skip_build, tvm_debug):
     """Test compiling the on-device runtime."""
 
     model, zephyr_board = PLATFORMS[platform]
@@ -128,7 +121,7 @@ def test_add_uint(platform, west_cmd, skip_build, tvm_debug):
         system_lib.get_function("add")(A_data, B_data, C_data)
         assert (C_data.numpy() == np.array([6, 7])).all()
 
-    with _make_add_sess(model, zephyr_board, west_cmd, build_config) as sess:
+    with _make_add_sess(temp_dir, model, zephyr_board, west_cmd, build_config) as sess:
         test_basic_add(sess)
 
 
@@ -144,7 +137,7 @@ def has_fpu(zephyr_board):
 
 # The same test code can be executed on both the QEMU simulation and on real hardware.
 @tvm.testing.requires_micro
-def test_add_float(platform, west_cmd, skip_build, tvm_debug):
+def test_add_float(temp_dir, platform, west_cmd, skip_build, tvm_debug):
     """Test compiling the on-device runtime."""
     model, zephyr_board = PLATFORMS[platform]
     if not has_fpu(zephyr_board):
@@ -165,12 +158,14 @@ def test_add_float(platform, west_cmd, skip_build, tvm_debug):
         system_lib.get_function("add")(A_data, B_data, C_data)
         assert (C_data.numpy() == np.array([7, 8])).all()
 
-    with _make_add_sess(model, zephyr_board, west_cmd, build_config, dtype="float32") as sess:
+    with _make_add_sess(
+        temp_dir, model, zephyr_board, west_cmd, build_config, dtype="float32"
+    ) as sess:
         test_basic_add(sess)
 
 
 @tvm.testing.requires_micro
-def test_platform_timer(platform, west_cmd, skip_build, tvm_debug):
+def test_platform_timer(temp_dir, platform, west_cmd, skip_build, tvm_debug):
     """Test compiling the on-device runtime."""
 
     model, zephyr_board = PLATFORMS[platform]
@@ -194,12 +189,12 @@ def test_platform_timer(platform, west_cmd, skip_build, tvm_debug):
         assert result.mean > 0
         assert len(result.results) == 3
 
-    with _make_add_sess(model, zephyr_board, west_cmd, build_config) as sess:
+    with _make_add_sess(temp_dir, model, zephyr_board, west_cmd, build_config) as sess:
         test_basic_add(sess)
 
 
 @tvm.testing.requires_micro
-def test_relay(platform, west_cmd, skip_build, tvm_debug):
+def test_relay(temp_dir, platform, west_cmd, skip_build, tvm_debug):
     """Testing a simple relay graph"""
     model, zephyr_board = PLATFORMS[platform]
     build_config = {"skip_build": skip_build, "debug": tvm_debug}
@@ -216,7 +211,9 @@ def test_relay(platform, west_cmd, skip_build, tvm_debug):
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         mod = tvm.relay.build(func, target=target)
 
-    with _make_session(model, target, zephyr_board, west_cmd, mod, build_config) as session:
+    with _make_session(
+        temp_dir, model, target, zephyr_board, west_cmd, mod, build_config
+    ) as session:
         graph_mod = tvm.micro.create_local_graph_executor(
             mod.get_graph_json(), session.get_system_lib(), session.device
         )
@@ -229,7 +226,7 @@ def test_relay(platform, west_cmd, skip_build, tvm_debug):
 
 
 @tvm.testing.requires_micro
-def test_onnx(platform, west_cmd, skip_build, tvm_debug):
+def test_onnx(temp_dir, platform, west_cmd, skip_build, tvm_debug):
     """Testing a simple ONNX model."""
     model, zephyr_board = PLATFORMS[platform]
     build_config = {"skip_build": skip_build, "debug": tvm_debug}
@@ -259,7 +256,9 @@ def test_onnx(platform, west_cmd, skip_build, tvm_debug):
         lowered = relay.build(relay_mod, target, params=params)
         graph = lowered.get_graph_json()
 
-    with _make_session(model, target, zephyr_board, west_cmd, lowered, build_config) as session:
+    with _make_session(
+        temp_dir, model, target, zephyr_board, west_cmd, lowered, build_config
+    ) as session:
         graph_mod = tvm.micro.create_local_graph_executor(
             graph, session.get_system_lib(), session.device
         )
@@ -278,7 +277,7 @@ def test_onnx(platform, west_cmd, skip_build, tvm_debug):
 
 
 def check_result(
-    relay_mod, model, zephyr_board, west_cmd, map_inputs, out_shape, result, build_config
+    temp_dir, relay_mod, model, zephyr_board, west_cmd, map_inputs, out_shape, result, build_config
 ):
     """Helper function to verify results"""
     TOL = 1e-5
@@ -286,7 +285,9 @@ def check_result(
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         mod = tvm.relay.build(relay_mod, target=target)
 
-    with _make_session(model, target, zephyr_board, west_cmd, mod, build_config) as session:
+    with _make_session(
+        temp_dir, model, target, zephyr_board, west_cmd, mod, build_config
+    ) as session:
         rt_mod = tvm.micro.create_local_graph_executor(
             mod.get_graph_json(), session.get_system_lib(), session.device
         )
@@ -306,7 +307,7 @@ def check_result(
 
 
 @tvm.testing.requires_micro
-def test_byoc_microtvm(platform, west_cmd, skip_build, tvm_debug):
+def test_byoc_microtvm(temp_dir, platform, west_cmd, skip_build, tvm_debug):
     """This is a simple test case to check BYOC capabilities of microTVM"""
     model, zephyr_board = PLATFORMS[platform]
     build_config = {"skip_build": skip_build, "debug": tvm_debug}
@@ -349,6 +350,7 @@ def test_byoc_microtvm(platform, west_cmd, skip_build, tvm_debug):
     map_inputs = {"w{}".format(i): w_data[i] for i in range(8)}
     map_inputs["x"] = x_data
     check_result(
+        temp_dir=temp_dir,
         relay_mod=mod,
         map_inputs=map_inputs,
         out_shape=(30, 10),
@@ -367,11 +369,13 @@ def test_byoc_microtvm(platform, west_cmd, skip_build, tvm_debug):
     )
 
 
-def _make_add_sess_with_shape(model, zephyr_board, west_cmd, shape, build_config):
+def _make_add_sess_with_shape(temp_dir, model, zephyr_board, west_cmd, shape, build_config):
     A = tvm.te.placeholder(shape, dtype="int8")
     C = tvm.te.compute(A.shape, lambda i: A[i] + A[i], name="C")
     sched = tvm.te.create_schedule(C.op)
-    return _make_sess_from_op(model, zephyr_board, west_cmd, "add", sched, [A, C], build_config)
+    return _make_sess_from_op(
+        temp_dir, model, zephyr_board, west_cmd, "add", sched, [A, C], build_config
+    )
 
 
 @pytest.mark.parametrize(
@@ -383,7 +387,7 @@ def _make_add_sess_with_shape(model, zephyr_board, west_cmd, shape, build_config
     ],
 )
 @tvm.testing.requires_micro
-def test_rpc_large_array(platform, west_cmd, skip_build, tvm_debug, shape):
+def test_rpc_large_array(temp_dir, platform, west_cmd, skip_build, tvm_debug, shape):
     """Test large RPC array transfer."""
     model, zephyr_board = PLATFORMS[platform]
     build_config = {"skip_build": skip_build, "debug": tvm_debug}
@@ -397,7 +401,9 @@ def test_rpc_large_array(platform, west_cmd, skip_build, tvm_debug, shape):
         C_data = tvm.nd.array(np.zeros(shape, dtype="int8"), device=sess.device)
         assert (C_data.asnumpy() == np.zeros(shape)).all()
 
-    with _make_add_sess_with_shape(model, zephyr_board, west_cmd, shape, build_config) as sess:
+    with _make_add_sess_with_shape(
+        temp_dir, model, zephyr_board, west_cmd, shape, build_config
+    ) as sess:
         test_tensors(sess)
 
 

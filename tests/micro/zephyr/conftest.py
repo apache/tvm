@@ -14,8 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import datetime
+import os
+
 import pytest
 
+import tvm.contrib.utils
 import tvm.target.target
 
 # The models that should pass this configuration. Maps a short, identifying platform string to
@@ -77,3 +81,20 @@ def skip_build(request):
 @pytest.fixture
 def tvm_debug(request):
     return request.config.getoption("--tvm-debug")
+
+
+@pytest.fixture
+def temp_dir(platform):
+    _, zephyr_board = PLATFORMS[platform]
+    parent_dir = os.path.dirname(__file__)
+    filename = os.path.splitext(os.path.basename(__file__))[0]
+    prev_build = f"{os.path.join(parent_dir, 'archive')}_{filename}_{zephyr_board}_last_build.micro"
+    workspace_root = os.path.join(
+        f"{os.path.join(parent_dir, 'workspace')}_{filename}_{zephyr_board}",
+        datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S"),
+    )
+    workspace_parent = os.path.dirname(workspace_root)
+    if not os.path.exists(workspace_parent):
+        os.makedirs(workspace_parent)
+
+    return tvm.contrib.utils.tempdir(workspace_root)
