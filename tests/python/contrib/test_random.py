@@ -122,17 +122,20 @@ def test_random_fill():
             return
 
         np_ones = np.ones((512, 512), dtype=dtype)
-        server = rpc.Server("127.0.0.1")
-        remote = rpc.connect(server.host, server.port)
-        value = tvm.nd.empty((512, 512), dtype, remote.cpu())
-        random_fill = remote.get_function("tvm.contrib.random.random_fill")
-        random_fill(value)
 
-        assert np.count_nonzero(value.numpy()) == 512 * 512
+        def check_remote(server):
+            remote = rpc.connect(server.host, server.port)
+            value = tvm.nd.empty((512, 512), dtype, remote.cpu())
+            random_fill = remote.get_function("tvm.contrib.random.random_fill")
+            random_fill(value)
 
-        # make sure arithmentic doesn't overflow too
-        np_values = value.numpy()
-        assert np.isfinite(np_values * np_values + np_values).any()
+            assert np.count_nonzero(value.numpy()) == 512 * 512
+
+            # make sure arithmentic doesn't overflow too
+            np_values = value.numpy()
+            assert np.isfinite(np_values * np_values + np_values).any()
+
+        check_remote(rpc.Server("127.0.0.1"))
 
     for dtype in [
         "bool",
