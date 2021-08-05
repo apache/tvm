@@ -89,9 +89,11 @@ def temp_dir(platform):
     _, zephyr_board = PLATFORMS[platform]
     parent_dir = pathlib.Path(os.path.dirname(__file__))
     filename = os.path.splitext(os.path.basename(__file__))[0]
-    board_workspace = (parent_dir
-                       / f"workspace_{filename}_{zephyr_board}"
-                       / datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S"))
+    board_workspace = (
+        parent_dir
+        / f"workspace_{filename}_{zephyr_board}"
+        / datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
+    )
     board_workspace_base = str(board_workspace)
     number = 1
     while board_workspace.exists():
