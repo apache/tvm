@@ -247,7 +247,12 @@ class SubgraphMutator : public ExprMutator {
     if (subgraph_.size() == 0) {
       return expr;
     }
-    ICHECK(expr.as<CallNode>());
+    const CallNode* final_node = expr.as<CallNode>();
+    ICHECK(final_node);
+    if (final_node->op == quantize_op_) {
+      out_type_ = affine_types_[expr];
+      update_out_type_ = false;
+    }
     static auto fqfq =
         Op::GetAttrMap<FTVMFakeQuantizationToInteger>("FTVMFakeQuantizationToInteger");
     for (auto node : subgraph_) {
@@ -291,8 +296,13 @@ class SubgraphMutator : public ExprMutator {
           << "got the wrong number of returned arguments from FTVMFakeQuantizationToInteger for "
           << AsText(op, false);
       out = Downcast<Expr>(vals[0]);
-      out_type_ = Downcast<AffineType>(vals[1]);
-      affine_types_.Set(out, out_type_);
+      affine_types_.Set(out, Downcast<AffineType>(vals[1]));
+      // if we have final quantize op, we strive to quantize all intermediate tensors to this
+      // value if op require to do requantizatino of one of the input, in other case
+      // we select the scale and zero points of the latest input as parameters for requantization
+      if (update_out_type_) {
+        out_type_ = Downcast<AffineType>(vals[1]);
+      }
     } else {
       ICHECK(false) << "When rewriting a fake quantized graph, found an invalid node "
                     << AsText(GetRef<Expr>(call_node), false);
@@ -322,6 +332,7 @@ class SubgraphMutator : public ExprMutator {
   ExprSet subgraph_;
   AffineTypeMap affine_types_;
   AffineType out_type_;
+  bool update_out_type_ = true;
   const Op quantize_op_ = Op::Get("qnn.quantize");
   const Op dequantize_op_ = Op::Get("qnn.dequantize");
 };
