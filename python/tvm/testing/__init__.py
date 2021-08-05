@@ -21,9 +21,8 @@ from .utils import check_int_constraints_trans_consistency, check_numerical_grad
 from .utils import device_enabled, enabled_targets, exclude_targets
 from .utils import fixture, parameter, parameters, parametrize_targets, uses_gpu
 from .utils import known_failing_targets, requires_cuda, requires_cudagraph
-from .utils import requires_gpu, requires_llvm, requires_rocm, requires_rpc, requires_tensorcore
-from .utils import requires_metal, requires_rocm, requires_rpc, requires_tensorcore, requires_metal
-from .utils import requires_micro, requires_opencl
+from .utils import requires_gpu, requires_llvm, requires_rocm, requires_rpc
+from .utils import requires_tensorcore, requires_metal, requires_micro, requires_opencl
 from .utils import _auto_parametrize_target, _count_num_fixture_uses
 from .utils import _remove_global_fixture_definitions, _parametrize_correlated_parameters
 
