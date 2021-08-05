@@ -85,5 +85,4 @@ enumn = "^0.1"
 [build-dependencies]
 bindgen = { version="0.57", default-features = false, features = ["runtime"] }
 anyhow = "^1.0"
-# TODO: Remove this
-tvm-build = { git = "https://github.com/NarrativeApp/tvm-build.git", rev = "3c5323fb6cd8fc41877d4e7a95e1ff02e7a06e3b" }
+tvm-build = "0.2.1"
