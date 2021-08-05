@@ -22,7 +22,7 @@
 #
 # Usage: bash.sh <CONTAINER_TYPE> [-i] [--net=host] [--mount path] <CONTAINER_NAME>  <COMMAND>
 #
-# Usage: docker/bash.sh <CONTAINER_NAME>
+# Usage: docker/bash.sh [-i] [-- <CONTAINER_NAME>
 #     Starts an interactive session
 #
 # Usage2: docker/bash.sh [-i] <CONTAINER_NAME> [COMMAND]
@@ -34,40 +34,88 @@ set -e
 
 source "$(dirname $0)/dev_common.sh" || exit 2
 
-interactive=0
-if [ "$1" == "-i" ]; then
-    interactive=1
-    shift
-fi
-
-CI_DOCKER_EXTRA_PARAMS=( )
-if [[ "$1" == "--net=host" ]]; then
-    CI_DOCKER_EXTRA_PARAMS+=('--net=host')
-    shift 1
-fi
-
-# Mount external directory to the docker
-CI_DOCKER_MOUNT_CMD=( )
-if [ "$1" == "--mount" ]; then
-    shift 1
-    CI_DOCKER_MOUNT_CMD=( -v "$1:$1" )
-    shift 1
-fi
-
-if [ "$#" -lt 1 ]; then
-    echo "Usage: docker/bash.sh [-i] [--net=host] <CONTAINER_NAME> [COMMAND]"
-    exit -1
-fi
-
+# Parse command-line options
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORKSPACE="$(pwd)"
 
-if [ "$1" == "--repo-mount-point" ]; then
-    shift
-    REPO_MOUNT_POINT="$1"
-    shift
-else
-    REPO_MOUNT_POINT="${WORKSPACE}"
+function print_usage() {
+    echo "Usage: ${BASH_SOURCE[0]} [options] <CONTAINER_NAME> [COMMAND]"
+    echo
+    echo "Description:"
+    echo "   Run COMMAND in docker container named CONTAINER_NAME."
+    echo "   When CONTAINER_NAME matches a ci_ variable in Jenkinsfile, use the revision specified there."
+    echo
+    echo "[options]"
+    echo "  -i               Run docker interactively and allocated pseudo-terminal (pass -it to docker)"
+    echo "  --net=host       Use docker host networking"
+    echo "  --mount [<DIR>]: Mount <DIR> into docker container (pass -v <DIR>:<DIR>)"
+    echo "  --repo-mount-point <MOUNT_POINT>"
+    echo "                   Mount tvm repo at <MOUNT_POINT>. By default, mounts using the same path"
+    echo "                   as on the local filesystem."
+    echo
+    echo "Examples:"
+    echo
+    echo "  docker/bash.sh tlcpack/ci-cpu:v0.01 tests/scripts/task_config_build_cpu.sh"
+    echo "    - Run tests/scripts/task_config_build_cpu.sh non-interactively. This is the CI's"
+    echo "      usage pattern."
+    echo
+    echo "  docker/bash.sh -i ci_gpu bash"
+    echo "    - Run bash interactively in the container revision assigned to ci_gpu in Jenkinsfile"
+    echo
+    echo "  docker/bash.sh --net=host ci_gpu notebook path/to/jupyter/notebook.py"
+    echo "    - Run Jupyter notebook using host networking to expose the port."
+    echo "      NOTE: this method works only on linux."
+    echo
+    echo "  docker/bash.sh ci_cpu"
+    echo "    - Run bash in ci_cpu container (revision from Jenkinsfile) and either use host "
+    echo "      networking (linux/windows) or forward port 8080 (OS X) to enable Jupyter."
+}
+
+interactive=0
+CI_DOCKER_EXTRA_PARAMS=( )
+CI_DOCKER_MOUNT_CMD=( )
+REPO_MOUNT_POINT="${WORKSPACE}"
+
+while [ true ]; do
+    case "$1" in
+        "-i")
+            interactive=1
+            shift
+            ;;
+        "--net=host")
+            CI_DOCKER_EXTRA_PARAMS+=('--net=host')
+            shift
+            ;;
+        "--mount")
+            shift
+            CI_DOCKER_MOUNT_CMD=( -v "$1:$1" )
+            shift
+            ;;
+        "--repo-mount-point")
+            shift
+            REPO_MOUNT_POINT="$1"
+            shift
+            ;;
+        "--help")
+            print_usage
+            exit 2
+            ;;
+        "--")
+            shift
+            break;
+            ;;
+        "-*")
+            echo "$0: unrecognized argument: $1" >&2
+            exit 2
+            ;;
+        *)
+            break;
+            ;;
+    esac
+done
+
+if [ "$#" -lt 1 ]; then
+    exit 2
 fi
 
 DOCKER_IMAGE_NAME=$(lookup_image_spec "$1")
