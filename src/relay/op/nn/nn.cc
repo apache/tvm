@@ -236,6 +236,28 @@ Expr MakeDensePack(Expr data, Expr weight, IndexExpr units, DataType out_dtype) 
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.contrib_dense_pack").set_body_typed(MakeDensePack);
 
+bool DensePackRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                  const TypeReporter& reporter) {
+  ICHECK_EQ(types.size(), 3);
+  const auto* data = types[0].as<TensorTypeNode>();
+  const auto* weight = types[1].as<TensorTypeNode>();
+  if (data == nullptr || weight == nullptr) return false;
+
+  const DenseAttrs* param = attrs.as<DenseAttrs>();
+  ICHECK(param != nullptr);
+
+  Array<tvm::PrimExpr> oshape = data->shape;
+  oshape.Set((oshape.size() - 1), weight->shape[0] * weight->shape[2]);
+
+  DataType out_dtype = param->out_dtype;
+  if (out_dtype.bits() == 0) {
+    out_dtype = data->dtype;
+  }
+  // assign output type
+  reporter->Assign(types[2], TensorType(oshape, out_dtype));
+  return true;
+}
+
 RELAY_REGISTER_OP("nn.contrib_dense_pack")
     .describe(R"code(Applies a linear transformation: :math:`Y = XW^T`.
 
@@ -249,7 +271,8 @@ RELAY_REGISTER_OP("nn.contrib_dense_pack")
     .add_argument("data", "nD Tensor", "Input data.")
     .add_argument("weight", "3D Tensor", "Packed weight matrix.")
     .set_support_level(10)
-    .add_type_rel("DensePack", DensePackRel<DenseAttrs>);
+
+    .add_type_rel("DensePack", DensePackRel);
 // ------------------- relay.nn.contrib_dense_pack
 
 // relay.leaky_relu
@@ -307,7 +330,6 @@ bool PReluRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   return true;
 }
 
-template <typename T>
 InferCorrectLayoutOutput PReluInferCorrectLayout(const Attrs& attrs,
                                                  const Array<Layout>& new_in_layouts,
                                                  const Array<Layout>& old_in_layouts,
@@ -343,7 +365,7 @@ where :math:`*` is an channelwise multiplication for each sample in the batch.
     .add_argument("alpha", "Tensor", "Input channelwise alpha.")
     .set_support_level(3)
     .add_type_rel("PRelu", PReluRel)
-    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", PReluInferCorrectLayout<PReluAttrs>)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", PReluInferCorrectLayout)
     .set_attr<FTVMCompute>("FTVMCompute", [](const Attrs& attrs, const Array<te::Tensor>& inputs,
                                              const Type& out_type) {
       const auto* param = attrs.as<PReluAttrs>();
