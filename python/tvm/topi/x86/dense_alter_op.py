@@ -21,6 +21,7 @@ import tvm
 from tvm import te
 from tvm import relay
 from tvm import autotvm
+from tvm.ir import IRModule
 from .dense import _default_dense_pack_config
 from ..utils import get_const_tuple
 from ..nn import dense_alter_layout
@@ -39,6 +40,17 @@ def _alter_dense_layout(attrs, inputs, tinfos, out_type):
         relay.op.get("nn.dense"), attrs, tinfos, out_type, target
     )
     workload = autotvm.task.get_workload(outs)
+
+    data_type = relay.transform.InferType()(IRModule.from_expr(inputs[0]))["main"].body.checked_type
+    assert len(data_type.shape) in [2, 3], "Input data must be a 2D or 3D tensor."
+
+    if len(data_type.shape) == 3:
+        # Only supports 2D input
+        in_layout = "NC%dc" % data_type.shape[2]
+        data = relay.layout_transform(inputs[0], in_layout, "NC")
+    else:
+        data = inputs[0]
+
     if workload:
         cfg = dispatch_ctx.query(target, workload)
         topi_impl = workload[0]
@@ -63,6 +75,6 @@ def _alter_dense_layout(attrs, inputs, tinfos, out_type):
             )
             dispatch_ctx.update(target, new_workload, cfg)
             weight_transform = relay.layout_transform(inputs[1], "NK", weight_layout)
-            return relay.nn.contrib_dense_pack(inputs[0], weight_transform, None, out_dtype)
+            return relay.nn.contrib_dense_pack(data, weight_transform, None, out_dtype)
 
     return None
