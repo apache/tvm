@@ -289,7 +289,7 @@ Pass Conv2dToSparse(const Array<ObjectRef>& weight_name, const Array<Array<PrimE
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
         // Remove FreeVar warnings
-        auto f0 = 
+        auto f0 =
             Downcast<Function>(Conv2dToSparse(f, weight_name, weight_shape, layout, kernel_size));
         Array<Var> sparse_params = FreeVars(f0);
         auto f1 = Function(sparse_params, f0->body, f0->ret_type, f0->type_params, f0->attrs);
