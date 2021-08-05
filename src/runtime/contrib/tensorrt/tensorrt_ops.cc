@@ -835,7 +835,7 @@ class SplitOpConverter : public TensorRTOpConverter {
     std::vector<int> start(input_dims.size(), 0);
     std::vector<int> size(input_dims.begin(), input_dims.end());
     std::vector<int> strides(input_dims.size(), 1);
-    for (int i = 0; i < split_sizes.size(); ++i) {
+    for (size_t i = 0; i < split_sizes.size(); ++i) {
       start[axis] = split_starts[i];
       size[axis] = split_sizes[i];
       auto slice_layer = params->network->addSlice(*input, VectorToTrtDims(start),
@@ -1174,9 +1174,14 @@ class BatchMatmulOpConverter : public TensorRTOpConverter {
   BatchMatmulOpConverter() : TensorRTOpConverter({kTensor, kTensor}) {}
 
   void Convert(TensorRTOpConverterParams* params) const {
+    auto transa = std::stoi(params->node.GetAttr<std::vector<std::string>>("transpose_a")[0]);
+    auto transb = std::stoi(params->node.GetAttr<std::vector<std::string>>("transpose_b")[0]);
+    nvinfer1::MatrixOperation trt_transa =
+        transa ? nvinfer1::MatrixOperation::kTRANSPOSE : nvinfer1::MatrixOperation::kNONE;
+    nvinfer1::MatrixOperation trt_transb =
+        transb ? nvinfer1::MatrixOperation::kTRANSPOSE : nvinfer1::MatrixOperation::kNONE;
     nvinfer1::IMatrixMultiplyLayer* matmul_layer = params->network->addMatrixMultiply(
-        *params->inputs.at(0).tensor, nvinfer1::MatrixOperation::kNONE,
-        *params->inputs.at(1).tensor, nvinfer1::MatrixOperation::kTRANSPOSE);
+        *params->inputs.at(0).tensor, trt_transa, *params->inputs.at(1).tensor, trt_transb);
     ICHECK(matmul_layer != nullptr);
     params->outputs.push_back(matmul_layer->getOutput(0));
   }
