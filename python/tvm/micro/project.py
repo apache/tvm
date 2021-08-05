@@ -42,7 +42,7 @@ class ProjectTransport(Transport):
         self._timeouts = TransportTimeouts(**reply["timeouts"])
 
     def close(self):
-        if not self._api_client.shutdown:
+        if not self._api_client.is_shutdown:
             self._api_client.close_transport()
             self._api_client.shutdown()
 
