@@ -293,6 +293,7 @@ def test_reshape():
     verify_reshape((2, 3, 4), (-3, -2), (6, 4))
     verify_reshape((2, 3, 4), (-4, 1, 2, -2), (1, 2, 3, 4))
     verify_reshape((2, 3, 4), (2, -4, -1, 3, -2), (2, 1, 3, 4))
+    verify_reshape((1,), (), ())
 
 
 def test_reshape_fail():
