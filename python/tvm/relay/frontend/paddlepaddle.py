@@ -222,10 +222,10 @@ def convert_feed(g, op, block):
     """Converter for model input node."""
 
     if block is not None:
+        ipt_name = op.output('Out')[0]
         ipt_shape = block.var(ipt_name).shape
         ipt_dtype = block.var(ipt_name).dtype
         ipt_dtype = str(ipt_dtype).strip().split('.')[1]
-        ipt_name = op.output('Out')[0]
     else:
         ipt_shape = op.shape
         ipt_dtype = str(op.dtype).strip().split('.')[1]
@@ -454,6 +454,55 @@ def convert_matmul(g, op, block):
     g.add_node(op.output('Out')[0], out)
 
 
+def convert_mul(g, op, block):
+    """Operator converter for mul."""
+
+    x = g.get_node(op.input('X')[0])
+    y = g.get_node(op.input('Y')[0])
+    x_num_col_dims = op.attr('x_num_col_dims')
+    y_num_col_dims = op.attr('y_num_col_dims')
+    x_shape = shape_of(x)
+    y_shape = shape_of(y)
+    x_dim = infer_shape(x_shape)[0]
+    y_dim = infer_shape(y_shape)[0]
+    if x_num_col_dims < 0:
+        x_num_col_dims += x_dim
+    if y_num_col_dims < 0:
+        y_num_col_dims += y_dim
+    if x_num_col_dims == 1:
+        x = _op.nn.batch_flatten(x)
+    else:
+        pre_shape = _op.prod(_op.strided_slice(x_shape, [0], [x_num_col_dims],
+                                               [1]),
+                             keepdims=True)
+        post_shape = _op.prod(_op.strided_slice(x_shape, [x_num_col_dims],
+                                                [x_dim], [1]),
+                              keepdims=True)
+        new_shape = _op.concatenate([pre_shape, post_shape], axis=0)
+        new_shape = fold_constant(new_shape)
+        x = _op.reshape(x, new_shape)
+    if y_num_col_dims == 1:
+        y = _op.nn.batch_flatten(y)
+    else:
+        pre_shape = _op.prod(_op.strided_slice(y_shape, [0], [y_num_col_dims],
+                                               [1]),
+                             keepdims=True)
+        post_shape = _op.prod(_op.strided_slice(y_shape, [y_num_col_dims],
+                                                [y_dim], [1]),
+                              keepdims=True)
+        new_shape = _op.concatenate([pre_shape, post_shape], axis=0)
+        new_shape = fold_constant(new_shape)
+        y = _op.reshape(y, new_shape)
+    y = _op.transpose(y)
+    out = _op.nn.dense(x, y)
+    out_pre_shape = _op.strided_slice(x_shape, [0], [x_num_col_dims], [1])
+    out_post_shape = _op.strided_slice(y_shape, [y_num_col_dims], [y_dim], [1])
+    out_shape = _op.concatenate([out_pre_shape, out_post_shape], axis=0)
+    out_shape = fold_constant(out_shape)
+    out = _op.reshape(out, out_shape)
+    g.add_node(op.output('Out')[0], out)
+
+
 def convert_pool2d(g, op, block):
     """Operator converter for pool2d."""
 
@@ -464,6 +513,9 @@ def convert_pool2d(g, op, block):
     paddings = op.attr('paddings')
     padding_algorithm = op.attr('padding_algorithm')
     pooling_type = op.attr('pooling_type')
+    if global_pooling:
+        adaptive = True
+        ksize = [1, 1]
 
     op_map = {
         'avg': 'avg_pool2d',
@@ -624,6 +676,7 @@ _convert_map = {
     'lookup_table_v2': convert_lookup_table,
     'matmul': convert_matmul,
     'matmul_v2': convert_matmul,
+    'mul': convert_mul,
     'pool2d': convert_pool2d,
     'relu': convert_activation,
     'reshape2': convert_reshape,
