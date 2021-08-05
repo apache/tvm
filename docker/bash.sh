@@ -36,7 +36,7 @@ function show_usage() {
     cat <<EOF
 Usage: docker/bash.sh [-i|--interactive] [--net=host]
          [--mount MOUNT_DIR] [--dry-run]
-         <DOCKER_IMAGE_NAME> [COMMAND]
+         <DOCKER_IMAGE_NAME> [--] [COMMAND]
 
 -h, --help
 
@@ -75,7 +75,9 @@ COMMAND
 
     The command to be run inside the docker container.  If this is set
     to "bash", both the --interactive and --net=host flags are set.
-    If no command is specified, defaults to "bash".
+    If no command is specified, defaults to "bash".  If the command
+    contains dash-prefixed arguments, the command should be preceded
+    by -- to indicate arguments that are not intended for bash.sh.
 
 EOF
 }
@@ -96,7 +98,7 @@ trap "show_usage >&2" ERR
 args=$(getopt \
            --name bash.sh \
            --options "ih" \
-           --longoptions "interactive,net=host,mount,dry-run" \
+           --longoptions "interactive,net=host,mount:,dry-run" \
            --longoptions "help" \
            --unquoted \
            -- "$@")
@@ -138,6 +140,9 @@ while (( $# )); do
 
         -*|--*)
             echo "Error: Unknown flag: $1" >&2
+            echo "  If this flag is intended to be passed to the" >&2
+            echo "  docker command, please add -- before the docker" >&2
+            echo "  command (e.g. docker/bash.sh ci_gpu -- build -j2)" >&2
             show_usage >&2
             exit 1
             ;;
