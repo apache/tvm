@@ -1761,6 +1761,9 @@ def test_upsample():
     verify_model(Upsample(size=(64, 64), mode="bilinear", align_corners=True), inp)
     verify_model(Upsample(scale=2, mode="bilinear", align_corners=True), inp)
     verify_model(Upsample(size=(50, 50), mode="bilinear", align_corners=True), inp)
+    verify_model(Upsample(size=(64, 64), mode="bicubic", align_corners=True), inp)
+    verify_model(Upsample(scale=2, mode="bicubic", align_corners=True), inp)
+    verify_model(Upsample(size=(50, 50), mode="bicubic", align_corners=True), inp)
 
 
 @tvm.testing.uses_gpu
