@@ -306,8 +306,7 @@ Pass Conv2dToSparse(const Array<ObjectRef>& weight_name, const Array<Array<PrimE
       [=](Function f, IRModule m, PassContext pc) {
         // Remove FreeVar warnings
         auto f0 = Downcast<Function>(
-          Conv2dToSparse(f, weight_name, weight_shape, layout, kernel_size)
-        );
+          Conv2dToSparse(f, weight_name, weight_shape, layout, kernel_size));
         Array<Var> sparse_params = FreeVars(f0);
         auto f1 = Function(sparse_params, f0->body, f0->ret_type, f0->type_params, f0->attrs);
         Array<Var> params = FreeVars(f1);
@@ -328,8 +327,7 @@ Pass Conv2dToSparse2(const String& layout, int kernel_size,
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
         auto f0 = Downcast<Function>(
-          Conv2dToSparse2(f, layout, kernel_size, blockH, blockW, sparse_thresh)
-        );
+          Conv2dToSparse2(f, layout, kernel_size, blockH, blockW, sparse_thresh));
         return f0;
       };
   return CreateFunctionPass(pass_func, 5, "Conv2dToSparse2", {"DeadCodeElimination"});
