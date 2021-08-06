@@ -20,7 +20,10 @@
 #
 # Start a bash, mount REPO_MOUNT_POINT to be current directory.
 #
-# Usage: bash.sh <CONTAINER_TYPE> [-i] [--net=host] [--mount path] <CONTAINER_NAME>  <COMMAND>
+# Usage: docker/bash.sh [-i|--interactive] [--net=host]
+#          [--mount MOUNT_DIR] [--repo-mount-point REPO_MOUNT_POINT]
+#          [--dry-run]
+#          <DOCKER_IMAGE_NAME> [--] [COMMAND]
 #
 # Usage: docker/bash.sh <CONTAINER_NAME>
 #     Starts an interactive session
@@ -107,17 +110,20 @@ COMMAND=bash
 REPO_MOUNT_POINT="${WORKSPACE}"
 MOUNT_DIRS=( )
 
-trap "show_usage >&2" ERR
-args=$(getopt \
-           --name bash.sh \
-           --options "ih" \
-           --longoptions "interactive,net=host,mount:,dry-run" \
-           --longoptions "repo-mount-point:" \
-           --longoptions "help" \
-           --unquoted \
-           -- "$@")
-trap - ERR
-set -- $args
+function parse_error() {
+    echo "$@" >&2
+    show_usage >&2
+    exit 1
+}
+
+
+# Handle joined flags, such as interpreting -ih as -i -h.  Either rewrites
+# the current argument if it is a joined argument, or shifts all arguments
+# otherwise.  Should be called as "eval $break_joined_flag" where joined
+# flags are possible.  Can't use a function definition, because it needs
+# to overwrite the parent scope's behavior.
+break_joined_flag='if (( ${#1} == 2 )); then shift; else set -- -"${1#-i}" "${@:2}"; fi'
+
 
 while (( $# )); do
     case "$1" in
@@ -126,9 +132,9 @@ while (( $# )); do
             exit 0
             ;;
 
-        -i|--interactive)
+        -i*|--interactive)
             INTERACTIVE=true
-            shift
+            eval $break_joined_flag
             ;;
 
         --net=host)
@@ -137,8 +143,16 @@ while (( $# )); do
             ;;
 
         --mount)
-            MOUNT_DIRS+=("$2")
-            shift
+            if [[ -n "$2" ]]; then
+                MOUNT_DIRS+=("$2")
+                shift 2
+            else
+                parse_error 'ERROR: --mount requires a non-empty argument'
+            fi
+            ;;
+
+        --mount=?*)
+            MOUNT_DIRS+=("${1#*=}")
             shift
             ;;
 
@@ -148,13 +162,22 @@ while (( $# )); do
             ;;
 
         --repo-mount-point)
-            REPO_MOUNT_POINT="$2"
-            shift
+            if [[ -n "$2" ]]; then
+                REPO_MOUNT_POINT="$2"
+                shift 2
+            else
+                parse_error 'ERROR: --repo-mount-point requires a non-empty argument'
+            fi
+            ;;
+
+        --repo-mount-point=?*)
+            REPO_MOUNT_POINT="${1#*=}"
             shift
             ;;
 
         --)
             shift
+            COMMAND="$@"
             break
             ;;
 
@@ -168,24 +191,23 @@ while (( $# )); do
             ;;
 
         *)
-            echo "Internal Error: getopt should output -- before positional" >&2
-            exit 2
+            # First positional argument is the image name, all
+            # remaining below to the COMMAND.
+            if [[ -z "${DOCKER_IMAGE_NAME}" ]]; then
+                DOCKER_IMAGE_NAME=$1
+                shift
+            else
+                COMMAND="$@"
+                break
+            fi
             ;;
     esac
 done
 
-if (( $# )); then
-    DOCKER_IMAGE_NAME=$1
-    shift
-else
+if [[ -z "${DOCKER_IMAGE_NAME}" ]]; then
     echo "Error: Missing DOCKER_IMAGE_NAME" >&2
     show_usage >&2
 fi
-
-if (( $# )); then
-    COMMAND="$@"
-fi
-
 
 if [[ "${COMMAND}" = bash ]]; then
     INTERACTIVE=true
