@@ -197,11 +197,12 @@ intersphinx_mapping = {
 
 from sphinx_gallery.sorting import ExplicitOrder
 
-examples_dirs = ["../tutorials/", "../vta/tutorials/"]
-gallery_dirs = ["tutorials", "vta/tutorials"]
+examples_dirs = ["../gallery/user_tutorials", "../tutorials/", "../vta/tutorials/"]
+gallery_dirs = ["user_tutorials", "tutorials", "vta/tutorials"]
 
 subsection_order = ExplicitOrder(
     [
+        "../gallery/user_tutorials",
         "../tutorials/get_started",
         "../tutorials/frontend",
         "../tutorials/language",
@@ -223,6 +224,17 @@ subsection_order = ExplicitOrder(
 # The unlisted files are sorted by filenames.
 # The unlisted files always appear after listed files.
 within_subsection_order = {
+    "user_tutorials": [
+        "introduction.py",
+        "install.py",
+        "tvmc_command_line_driver.py",
+        "autotvm_relay_x86.py",
+        "tensor_expr_get_started.py",
+        "autotvm_matmul_x86.py",
+        "auto_scheduler_matmul_x86.py",
+        "cross_compilation_and_rpc.py",
+        "relay_quick_start.py",
+    ],
     "get_started": [
         "introduction.py",
         "install.py",

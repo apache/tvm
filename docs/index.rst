@@ -34,57 +34,30 @@ For Developers
   architecture of TVM and/or actively develop on the project.
 - :doc:`dev/how_to` gives quick development tips on various topics.
 
+.. toctree::
+   :maxdepth: 2
+   :caption: TVM User Guide
+   :hidden:
+
+   user_tutorials/index
+   user_how_tos/index
+   user_deep_dive/index
+   user_reference/index
 
 .. toctree::
    :maxdepth: 1
-   :caption: How to
+   :caption: TVM Developer Guide
    :hidden:
 
-   install/index
-   contribute/index
-   deploy/index
-   dev/how_to
-   microtvm/index
-   errors
-   faq
-
-.. toctree::
-   :maxdepth: 1
-   :caption: Tutorials
-   :hidden:
-
-   tutorials/index
-
-
-.. toctree::
-   :maxdepth: 2
-   :caption: References
-   :hidden:
-
-   langref/index
-   api/python/index
-   api/links
-
-.. toctree::
-   :maxdepth: 2
-   :hidden:
-   :caption: Deep Dive
-
-   dev/index
-
-.. toctree::
-   :maxdepth: 2
-   :hidden:
-   :caption: MISC
-
-   vta/index
-   profiling/index
-
+   dev_tutorials/index
+   dev_how_tos/index
+   dev_deep_dive/index
+   dev_reference/index
 
 Index
 -----
-
 .. toctree::
    :maxdepth: 1
+   :caption: Index
 
    genindex
