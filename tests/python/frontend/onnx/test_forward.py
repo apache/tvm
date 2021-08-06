@@ -4919,8 +4919,6 @@ unsupported_onnx_tests = [
 
 target_skips = {
     "cuda": [
-        "test_basic_convinteger",
-        "test_convinteger_with_padding",
         "test_range_float_type_positive_delta_expanded",
         "test_range_int32_type_positive_delta_expanded",
         "test_mod_mixed_sign_float16",
@@ -5443,8 +5441,7 @@ def test_convinteger(target, dev):
         )
         model = helper.make_model(graph, producer_name="convinteger_test")
         # opt_level=1 will cause error
-        verify_with_ort_with_inputs(model, input_values, opt_level=2)
-
+        verify_with_ort_with_inputs(model, input_values, target=target, dev=dev, opt_level=2)
 
     def repeat(N, D):
         return tuple([N for _ in range(D)])
