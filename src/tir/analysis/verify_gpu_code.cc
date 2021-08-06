@@ -157,7 +157,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
 
         if (kernels_launched_ > max_kernels_) {
           std::stringstream s;
-          s << "Number of launched kernels (" << kernels_launched_ 
+          s << "Number of launched kernels (" << kernels_launched_
             << ") is greater than the allowed maximum (" << max_kernels_ << ")";
           errors_.push_back(s.str());
         }
