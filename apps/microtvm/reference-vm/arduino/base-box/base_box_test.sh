@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -e
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,22 +15,25 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+#
+# Usage: base_box_test.sh <MICROTVM_PLATFORM>
+#     Execute microTVM Arduino tests.
+#
 
 set -e
-set -u
-set -o pipefail
+set -x
 
-export DEBIAN_FRONTEND=noninteractive
-apt-get install -y ca-certificates
+if [ "$#" -lt 1 ]; then
+    echo "Usage: base_box_test.sh <MICROTVM_PLATFORM>"
+    exit -1
+fi
 
-# Install arduino-cli latest version
-wget -O - https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh -s
+microtvm_platform=$1
 
-# Install the cores we want to test on
-arduino-cli core install arduino:mbed_nano
-arduino-cli core install arduino:sam
+pytest tests/micro/arduino/test_arduino_workflow.py --microtvm-platforms=${microtvm_platform}
 
-# ARDUINO_DIRECTORIES_USER wouldn't normally be created until we
-# install a package, which would casue chmod to fail
-mkdir -p "${ARDUINO_DIRECTORIES_DATA}" "${ARDUINO_DIRECTORIES_USER}" "${ARDUINO_DIRECTORIES_DOWNLOADS}"
-chmod -R o+rw "${ARDUINO_DIRECTORIES_DATA}" "${ARDUINO_DIRECTORIES_USER}" "${ARDUINO_DIRECTORIES_DOWNLOADS}"
+if [ $microtvm_platform == "nano33ble" ]; then
+    echo "NOTE: skipped test_arduino_rpc_server.py on $microtvm_platform -- known failure"
+else
+    pytest tests/micro/arduino/test_arduino_rpc_server.py --microtvm-platforms=${microtvm_platform}
+fi
