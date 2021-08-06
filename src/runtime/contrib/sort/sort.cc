@@ -21,6 +21,7 @@
  * \file Use standard C library call.
  */
 
+#include <builtin_fp16.h>
 #include <dlpack/dlpack.h>
 #include <tvm/runtime/registry.h>
 
@@ -40,6 +41,24 @@ bool CompareAscend(const std::pair<int64_t, DType>& lhs, const std::pair<int64_t
 template <typename DType>
 bool CompareDescend(const std::pair<int64_t, DType>& lhs, const std::pair<int64_t, DType>& rhs) {
   return lhs.second > rhs.second;
+}
+
+struct float16 {
+  uint16_t bits;
+  float to_float() const {
+    return __extendXfYf2__<uint16_t, uint16_t, 10, float, uint32_t, 23>(bits);
+  }
+};
+
+template <>
+bool CompareAscend(const std::pair<int64_t, float16>& lhs, const std::pair<int64_t, float16>& rhs) {
+  return lhs.second.to_float() < rhs.second.to_float();
+}
+
+template <>
+bool CompareDescend(const std::pair<int64_t, float16>& lhs,
+                    const std::pair<int64_t, float16>& rhs) {
+  return lhs.second.to_float() > rhs.second.to_float();
 }
 
 // Argsort implemented C library sort for nms.
@@ -429,6 +448,14 @@ TVM_REGISTER_GLOBAL("tvm.contrib.sort.topk").set_body([](TVMArgs args, TVMRetVal
       topk<int64_t, float>(input, values_out, indices_out, k, axis, is_ascend);
     } else if (out_dtype == "float64") {
       topk<int64_t, double>(input, values_out, indices_out, k, axis, is_ascend);
+    } else {
+      LOG(FATAL) << "Unsupported output dtype: " << out_dtype;
+    }
+  } else if (data_dtype == "float16") {
+    if (out_dtype == "int32") {
+      topk<float16, int32_t>(input, values_out, indices_out, k, axis, is_ascend);
+    } else if (out_dtype == "int64") {
+      topk<float16, int64_t>(input, values_out, indices_out, k, axis, is_ascend);
     } else {
       LOG(FATAL) << "Unsupported output dtype: " << out_dtype;
     }
