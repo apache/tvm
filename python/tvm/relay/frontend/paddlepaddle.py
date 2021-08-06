@@ -442,9 +442,13 @@ def convert_matmul(g, op, block):
         )
         out = _op.reshape(output, fold_constant(final_shape))
     else:
+        if b_rank == 1:
+            inputs[1] = _op.expand_dims(inputs[1], 1, 1)
         # Otherwise a simple dense op will get the job done.
         input_1_t = _op.transpose(inputs[1], axes=(1, 0))
         out = _op.nn.dense(inputs[0], input_1_t)
+        if b_rank == 1:
+            out = _op.squeeze(out, axis=[-1])
     try:
         alpha = op.attr('alpha')
         if not np.isclose(alpha, 1.0):
