@@ -90,7 +90,6 @@ def verify_model(func, input_data, rtol=1e-5, atol=1e-5):
 
 @tvm.testing.uses_gpu
 def test_forward_add():
-    paddle.set_grad_enabled(False)
     input_shape = [10]
 
     @paddle.jit.to_static
@@ -113,8 +112,6 @@ def test_forward_add():
 
 @tvm.testing.uses_gpu
 def test_forward_conv():
-    paddle.set_grad_enabled(False)
-    conv1d_input_shape = [1, 3, 10]
     conv2d_input_shape = [1, 3, 10, 10]
 
     class Conv2D1(nn.Layer):
@@ -131,26 +128,6 @@ def test_forward_conv():
         def __init__(self):
             super(Conv2D2, self).__init__()
             self.conv = nn.Conv2D(3, 6, 7, groups=3, bias_attr=False)
-            self.softmax = nn.Softmax()
-
-        @paddle.jit.to_static
-        def forward(self, inputs):
-            return self.softmax(self.conv(inputs))
-
-    class Conv1D1(nn.Layer):
-        def __init__(self):
-            super(Conv1D1, self).__init__()
-            self.conv = nn.Conv1D(3, 6, 7, bias_attr=True)
-            self.softmax = nn.Softmax()
-
-        @paddle.jit.to_static
-        def forward(self, inputs):
-            return self.softmax(self.conv(inputs))
-
-    class Conv1D2(nn.Layer):
-        def __init__(self):
-            super(Conv1D2, self).__init__()
-            self.conv = nn.Conv1d(3, 6, 7, groups=3, bias_attr=False)
             self.softmax = nn.Softmax()
 
         @paddle.jit.to_static
