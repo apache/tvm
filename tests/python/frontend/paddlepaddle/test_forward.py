@@ -89,26 +89,76 @@ def verify_model(func, input_data, rtol=1e-5, atol=1e-5):
                 tvm.testing.assert_allclose(baseline_output, compiled_output, rtol=rtol, atol=atol)
 
 @tvm.testing.uses_gpu
-def test_forward_add():
+def test_forward_add_subtract():
     input_shape = [10]
 
     @paddle.jit.to_static
-    def add(inputs):
-        return paddle.add(inputs, inputs)
+    def add_subtract(inputs):
+        return paddle.subtract(paddle.add(inputs, inputs), inputs)
     
     @paddle.jit.to_static
-    def add2(inputs):
-        return inputs + 1
+    def add_subtract2(inputs):
+        return inputs + 1 - 2
 
     @paddle.jit.to_static
-    def add3(inputs):
+    def add_subtract3(inputs1, inputs2):
         ones = paddle.ones([10], dtype="float32")
-        return inputs + ones
+        return inputs1 + ones - inputs2
 
     input_data = paddle.rand(input_shape, dtype="float32")
-    verify_model(add, input_data)
-    verify_model(add2, input_data)
-    verify_model(add3, input_data)
+    verify_model(add_subtract, input_data)
+    verify_model(add_subtract2, input_data)
+    input_data2 = paddle.rand(input_shape, dtype="float32")
+    verify_model(add_subtract3, [input_data, input_data2])
+
+@tvm.testing.uses_gpu
+def test_forward_multiply():
+    input_shape = [10]
+
+    @paddle.jit.to_static
+    def multiply1(inputs):
+        return inputs * inputs
+
+    @paddle.jit.to_static
+    def multiply2(inputs):
+        return inputs * 1.0
+
+    @paddle.jit.to_static
+    def multiply3(inputs):
+        ones = paddle.ones([10], dtype="float32")
+        return inputs * ones
+
+    input_data = paddle.rand(input_shape, dtype="float32")
+    verify_model(multiply1, input_data=input_data)
+    verify_model(multiply2, input_data=input_data)
+    verify_model(multiply3, input_data=input_data)
+
+@tvm.testing.uses_gpu
+def test_forward_matmul():
+
+    class MatMul1(nn.Layer):
+        def forward(self, input1, input2):
+            return paddle.matmul(input1, input2)
+
+    # matrix x vector
+    input_data1 = paddle.randn((3, 4), dtype="float32")
+    input_data2 = paddle.randn((4,), dtype="float32")
+    verify_model(MatMul1(), input_data=[input_data1, input_data2])
+
+    # matrix x matrix
+    input_data1 = paddle.randn((5, 4), dtype="float32")
+    input_data2 = paddle.randn((4, 5), dtype="float32")
+    verify_model(MatMul1(), input_data=[input_data1, input_data2])
+
+    # batched matrix x batched matrix
+    input_data1 = paddle.randn((10, 3, 4), dtype="float32")
+    input_data2 = paddle.randn((10, 4, 5), dtype="float32")
+    verify_model(MatMul1(), input_data=[input_data1, input_data2])
+
+    # batched matrix x broadcasted matrix
+    input_data1 = paddle.randn((10, 3, 4), dtype="float32")
+    input_data2 = paddle.randn((4, 5), dtype="float32")
+    verify_model(MatMul1(), input_data=[input_data1, input_data2])
 
 @tvm.testing.uses_gpu
 def test_forward_conv():
@@ -140,5 +190,7 @@ def test_forward_conv():
 
 
 if __name__ == "__main__":
-    test_forward_add()
+    test_forward_add_subtract()
+    test_forward_multiply()
+    test_forward_matmul()
     test_forward_conv()
