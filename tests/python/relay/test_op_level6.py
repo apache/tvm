@@ -60,14 +60,14 @@ def test_sort():
 
 @tvm.testing.uses_gpu
 def test_argsort():
-    def verify_argsort(shape, axis, is_ascend, dtype, is_dyn=False):
+    def verify_argsort(shape, axis, is_ascend, dtype, is_dyn=False, in_dtype="float32"):
         if is_dyn:
-            x = relay.var("x", relay.TensorType([relay.Any()] * len(shape), "float32"))
+            x = relay.var("x", relay.TensorType([relay.Any()] * len(shape), in_dtype))
         else:
-            x = relay.var("x", relay.TensorType(shape, "float32"))
+            x = relay.var("x", relay.TensorType(shape, in_dtype))
         z = relay.argsort(x, axis=axis, is_ascend=is_ascend, dtype=dtype)
         func = relay.Function([x], z)
-        x_data = np.random.uniform(size=shape).astype("float32")
+        x_data = np.random.uniform(size=shape).astype(in_dtype)
         if is_ascend:
             ref_res = np.argsort(x_data, axis=axis, kind="stable")
         else:
@@ -85,7 +85,7 @@ def test_argsort():
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res.astype(dtype), rtol=1e-5)
 
     for is_dyn in [False, True]:
-        for dtype in ["int32", "int64", "float32", "float64", "float16"]:
+        for dtype in ["int32", "int64", "float32", "float64"]:
             verify_argsort((2, 3, 4), axis=0, is_ascend=False, dtype=dtype, is_dyn=is_dyn)
             verify_argsort((1, 4, 6), axis=1, is_ascend=True, dtype=dtype, is_dyn=is_dyn)
         dtype = "int32"
@@ -93,6 +93,9 @@ def test_argsort():
         verify_argsort((3, 6000, 6), axis=1, is_ascend=False, dtype=dtype, is_dyn=is_dyn)
         verify_argsort((1000, 1, 1), axis=0, is_ascend=False, dtype=dtype, is_dyn=is_dyn)
         verify_argsort((1, 122640), axis=1, is_ascend=False, dtype=dtype, is_dyn=is_dyn)
+        verify_argsort(
+            (1, 122640), axis=1, is_ascend=False, dtype=dtype, is_dyn=is_dyn, in_dtype="float16"
+        )
 
 
 @tvm.testing.uses_gpu
