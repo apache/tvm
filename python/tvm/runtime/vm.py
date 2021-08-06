@@ -345,6 +345,7 @@ class VirtualMachine(object):
         self._invoke_stateful = self.module["invoke_stateful"]
         self._get_output = self.module["get_output"]
         self._get_num_outputs = self.module["get_num_outputs"]
+        self._get_input_index = self.module["get_input_index"]
         self._set_input = self.module["set_input"]
         self._setup_device(device, memory_cfg)
 
@@ -490,3 +491,19 @@ class VirtualMachine(object):
         outputs : List[NDArray]
         """
         return [self._get_output(i) for i in range(self._get_num_outputs())]
+
+    def get_input_index(self, input_name, func_name="main"):
+        """Get inputs index via input name.
+        Parameters
+        ----------
+        name : str
+          The input key name
+        func_name : str
+          The function name
+
+        Returns
+        -------
+        index: int
+          The input index. -1 will be returned if the given input name is not found.
+        """
+        return self._get_input_index(input_name, func_name)
