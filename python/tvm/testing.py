@@ -71,7 +71,7 @@ import tvm.tir
 import tvm.te
 import tvm._ffi
 
-from tvm.contrib import nvcc
+from tvm.contrib import nvcc, cudnn
 from tvm.error import TVMError
 
 
@@ -419,6 +419,7 @@ DEFAULT_TEST_TARGETS = [
     "llvm",
     "llvm -device=arm_cpu",
     "cuda",
+    "cuda -model=unknown -libs=cudnn",
     "nvptx",
     "vulkan -from_device=0",
     "opencl",
@@ -556,6 +557,26 @@ def requires_cuda(*args):
         *requires_gpu(),
     ]
     return _compose(args, _requires_cuda)
+
+
+def requires_cudnn(*args):
+    """Mark a test as requiring the cuDNN library.
+
+    This also marks the test as requiring a cuda gpu.
+
+    Parameters
+    ----------
+    f : function
+        Function to mark
+    """
+
+    requirements = [
+        pytest.mark.skipif(
+            not cudnn.exists(), reason="cuDNN library not enabled, or not installed"
+        ),
+        *requires_cuda(),
+    ]
+    return _compose(args, requirements)
 
 
 def requires_nvptx(*args):
@@ -744,6 +765,8 @@ def _target_to_requirement(target):
         target = tvm.target.Target(target)
 
     # mapping from target to decorator
+    if target.kind.name == "cuda" and "cudnn" in target.attrs.get("libs", []):
+        return requires_cudnn()
     if target.kind.name == "cuda":
         return requires_cuda()
     if target.kind.name == "rocm":
