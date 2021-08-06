@@ -180,5 +180,35 @@ class TestBrokenFixture:
         assert self.num_uses_broken_cached_fixture == 0
 
 
+class TestAutomaticMarks:
+    @staticmethod
+    def check_marks(request, target):
+        parameter = tvm.testing._pytest_target_params([target])[0]
+        required_marks = [decorator.mark for decorator in parameter.marks]
+        applied_marks = list(request.node.iter_markers())
+
+        for required_mark in required_marks:
+            assert required_mark in applied_marks
+
+    def test_automatic_fixture(self, request, target):
+        self.check_marks(request, target)
+
+    @tvm.testing.parametrize_targets
+    def test_bare_parametrize(self, request, target):
+        self.check_marks(request, target)
+
+    @tvm.testing.parametrize_targets("llvm", "cuda", "vulkan")
+    def test_explicit_parametrize(self, request, target):
+        self.check_marks(request, target)
+
+    @pytest.mark.parametrize("target", ["llvm", "cuda", "vulkan"])
+    def test_pytest_mark(self, request, target):
+        self.check_marks(request, target)
+
+    @pytest.mark.parametrize("target,other_param", [("llvm", 0), ("cuda", 1), ("vulkan", 2)])
+    def test_pytest_mark_covariant(self, request, target, other_param):
+        self.check_marks(request, target)
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main(sys.argv))
