@@ -46,6 +46,8 @@ from .common import (
     infer_type,
     infer_value,
     new_var,
+    unbind,
+    lstm_cell,
 )
 
 __all__ = ["from_onnx"]
@@ -2155,58 +2157,44 @@ class LSTM(RNN):
     """Operator converter for LSTM"""
 
     @classmethod
-    def generate_lstm(
-        cls, X_steps, H_t, C_t, W, R, B, p_i, p_f, p_o, f_act, g_act, h_act, backwards=False
+    def bidir_lstm_cell(
+        cls,
+        input_seqs,
+        weight_dicts,
+        acts,
     ):
-        """Create an unrolled lstm loop.
-
-        See https://github.com/onnx/onnx/blob/master/docs/Operators.md for math.
         """
-        h_list = []
-        seq_length = len(X_steps)
-        for i in range(seq_length):
-            step = X_steps[i] if not backwards else X_steps[seq_length - (i + 1)]
-            step = _op.squeeze(step, axis=[0])
-            gates = _op.nn.dense(step, W) + _op.nn.dense(H_t, R)
-            if B is not None:
-                WB, RB = _op.split(B, 2)
-                gates += WB + RB
-            i, o, f, c = _op.split(gates, 4, axis=-1)
+        Bidirectional LSTM cell
+        """
+        seq_len = len(input_seqs)
+        forward_outputs, fw_H_t, fw_C_t = lstm_cell(
+            input_seqs,
+            **weight_dicts[0],
+            f_act=acts[0],
+            g_act=acts[1],
+            h_act=acts[2],
+        )
 
-            if p_i != 0:
-                i = f_act(i + p_i * C_t)
-            else:
-                i = f_act(i)
+        reverse_outputs, rev_H_t, rev_C_t = lstm_cell(
+            input_seqs,
+            **weight_dicts[1],
+            f_act=acts[3],
+            g_act=acts[4],
+            h_act=acts[5],
+            backwards=True,
+        )
 
-            if p_f != 0:
-                f = f_act(f + p_f * C_t)
-            else:
-                f = f_act(f)
+        final_outputs = []
+        for i in range(seq_len):
+            final_outputs.append(
+                _op.stack([forward_outputs[i], reverse_outputs[seq_len - 1 - i]], axis=0)
+            )
 
-            c = g_act(c)
-            C = f * C_t + i * c
-            if p_o != 0:
-                o = f_act(o + p_o * C)
-            else:
-                o = f_act(o)
-
-            H = o * h_act(C)
-
-            H_t = H
-            C_t = C
-            h_list.append(_op.expand_dims(H, axis=0))
-
-        if backwards:
-            # Canonical view is hidden states from the first token not last
-            h_list = h_list[::-1]
-
-        # Concatenate outputs and add back in direction axis.
-        concatenated = _op.concatenate(h_list, 0)
-        output = _op.expand_dims(concatenated, axis=1)
-        H_t = _op.expand_dims(H_t, axis=0)
-        C_t = _op.expand_dims(C_t, axis=0)
-
-        return output, H_t, C_t
+        return (
+            _op.stack(final_outputs, axis=0),
+            _op.stack([fw_H_t, rev_H_t], axis=0),
+            _op.stack([fw_C_t, rev_C_t], axis=0),
+        )
 
     @classmethod
     def _impl_v7(cls, inputs, attr, params):
@@ -2237,12 +2225,6 @@ class LSTM(RNN):
             Hp_0 = _op.zeros((num_directions, batch_size, hidden_size), W_dtype)
         if Cp_0 is None:
             Cp_0 = _op.zeros((num_directions, batch_size, hidden_size), W_dtype)
-        if Bp is None:
-            Bp = _op.zeros((num_directions, hidden_size * 8), W_dtype)
-        if Pp is not None:
-            p_i, p_o, p_f = _op.split(Pp, 3, axis=1)
-        else:
-            p_i = p_o = p_f = _op.zeros((num_directions, hidden_size), W_dtype)
 
         if "activations" in attr:
             activations = attr["activations"]
@@ -2273,53 +2255,67 @@ class LSTM(RNN):
         else:
             acts = [_op.sigmoid, _op.tanh, _op.tanh] * num_directions
 
-        X_steps = _op.split(X, indices_or_sections=X_shape[0], axis=0)
-        result_output = []
-        result_H = []
-        result_C = []
+        # TODO (vvchernov): It can be replaced by _op.split if issue #8412 is resolved
+        X_steps = unbind(X, axis=0)
 
         H_ts = _op.split(Hp_0, num_directions)
         C_ts = _op.split(Cp_0, num_directions)
         Ws = _op.split(Wp, num_directions)
         Rs = _op.split(Rp, num_directions)
-        Bs = _op.split(Bp, num_directions)
-        p_is = _op.split(p_i, num_directions)
-        p_fs = _op.split(p_f, num_directions)
-        p_os = _op.split(p_o, num_directions)
-        for i in range(num_directions):
-            H_t = _op.squeeze(H_ts[i], axis=[0])
-            C_t = _op.squeeze(C_ts[i], axis=[0])
-            W = _op.squeeze(Ws[i], axis=[0])
-            R = _op.squeeze(Rs[i], axis=[0])
-            B = _op.squeeze(Bs[i], axis=[0])
-            p_i = _op.squeeze(p_is[i], axis=[0])
-            p_f = _op.squeeze(p_fs[i], axis=[0])
-            p_o = _op.squeeze(p_os[i], axis=[0])
 
-            f_act, g_act, h_act = acts[i * 3 : (i + 1) * 3]
-            output, H, C = LSTM.generate_lstm(
-                X_steps=X_steps,
-                H_t=H_t,
-                C_t=C_t,
-                W=W,
-                R=R,
-                B=B,
-                p_i=p_i,
-                p_f=p_f,
-                p_o=p_o,
-                f_act=f_act,
-                g_act=g_act,
-                h_act=h_act,
-                backwards=i == 1,
+        if Bp is not None:
+            Bs = _op.split(Bp, num_directions)
+        if Pp is not None:
+            p_i, p_o, p_f = _op.split(Pp, 3, axis=1)
+
+            p_is = _op.split(p_i, num_directions)
+            p_fs = _op.split(p_f, num_directions)
+            p_os = _op.split(p_o, num_directions)
+
+        weights_dicts = []
+        for i in range(num_directions):
+            weights_dict = {}
+
+            weights_dict["hidden_state"] = _op.squeeze(H_ts[i], axis=[0])
+            weights_dict["cell_state"] = _op.squeeze(C_ts[i], axis=[0])
+
+            # Weights permutation: onnx format i-o-f-c, lstm cell format i-f-c-o
+            mati, mato, matf, matc = _op.split(_op.squeeze(Ws[i], axis=[0]), 4)
+            weights_dict["w_inp"] = _op.concatenate([mati, matf, matc, mato], axis=0)
+            mati, mato, matf, matc = _op.split(_op.squeeze(Rs[i], axis=[0]), 4)
+            weights_dict["w_hid"] = _op.concatenate([mati, matf, matc, mato], axis=0)
+            if Bp is not None:
+                Bi, Bh = _op.split(Bs[i], 2, -1)
+                mati, mato, matf, matc = _op.split(_op.squeeze(Bi, axis=[0]), 4)
+                weights_dict["b_inp"] = _op.concatenate([mati, matf, matc, mato], axis=0)
+                mati, mato, matf, matc = _op.split(_op.squeeze(Bh, axis=[0]), 4)
+                weights_dict["b_hid"] = _op.concatenate([mati, matf, matc, mato], axis=0)
+            if Pp is not None:
+                weights_dict["p_i"] = _op.squeeze(p_is[i], axis=[0])
+                weights_dict["p_f"] = _op.squeeze(p_fs[i], axis=[0])
+                weights_dict["p_o"] = _op.squeeze(p_os[i], axis=[0])
+            weights_dicts.append(weights_dict)
+
+        if num_directions == 2:
+            output, H, C = LSTM.bidir_lstm_cell(
+                input_seqs=X_steps,
+                weight_dicts=weights_dicts,
+                acts=acts,
+            )
+        else:
+            # outputs shape = [seqs_num, (batch_size, hidden_size)]
+            outputs, H, C = lstm_cell(
+                input_seqs=X_steps,
+                **weights_dicts[0],
+                f_act=acts[0],
+                g_act=acts[1],
+                h_act=acts[2],
             )
 
-            result_output.append(output)
-            result_H.append(H)
-            result_C.append(C)
-
-        output = _op.concatenate(result_output, axis=1)
-        H = _op.concatenate(result_H, axis=0)
-        C = _op.concatenate(result_C, axis=0)
+            # output shape = (seqs_num, num_directions, batch_size, hidden_size)
+            output = _op.expand_dims(_op.stack(outputs, axis=0), axis=1)
+            H = _op.expand_dims(H, axis=0)
+            C = _op.expand_dims(C, axis=0)
 
         return _expr.TupleWrapper(_expr.Tuple((output, H, C)), 3)
 
