@@ -25,15 +25,14 @@ import tvm.testing
 
 @tvm.testing.uses_gpu
 def test_sort():
-    def verify_sort(shape, axis, is_ascend, is_dyn=False):
-
+    def verify_sort(shape, axis, is_ascend, is_dyn=False, in_dtype="float32"):
         if is_dyn:
-            x = relay.var("x", relay.TensorType([relay.Any()] * len(shape), "float32"))
+            x = relay.var("x", relay.TensorType([relay.Any()] * len(shape), in_dtype))
         else:
-            x = relay.var("x", relay.TensorType(shape, "float32"))
+            x = relay.var("x", relay.TensorType(shape, in_dtype))
         z = relay.sort(x, axis=axis, is_ascend=is_ascend)
         func = relay.Function([x], z)
-        x_data = np.random.uniform(size=shape).astype("float32")
+        x_data = np.random.uniform(size=shape).astype(in_dtype)
         if is_ascend:
             ref_res = np.sort(x_data, axis=axis)
         else:
@@ -56,6 +55,7 @@ def test_sort():
         verify_sort((3, 5, 6), axis=-1, is_ascend=False, is_dyn=is_dyn)
         verify_sort((3, 2000, 6), axis=1, is_ascend=False, is_dyn=is_dyn)
         verify_sort((1, 122640), axis=1, is_ascend=False, is_dyn=is_dyn)
+        verify_sort((1, 122640), axis=1, is_ascend=False, is_dyn=is_dyn, in_dtype="float16")
 
 
 @tvm.testing.uses_gpu
