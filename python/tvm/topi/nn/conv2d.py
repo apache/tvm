@@ -214,8 +214,9 @@ def _get_workload(data, kernel, stride, padding, dilation, out_dtype, data_layou
         WSTR,
     )
 
-
-def conv2d_nchw(Input, Filter, stride, padding, dilation, out_dtype=None):
+from tvm import autotvm
+@autotvm.register_topi_compute("conv2d_nchw.pulp")
+def conv2d_nchw(cfg, Input, Filter, stride, padding, dilation, out_dtype=None):
     """Convolution operator in NCHW layout.
 
     Parameters
@@ -451,6 +452,105 @@ def conv2d_nhwc(
         ),
         name="Conv2dOutput",
         tag="conv2d_nhwc",
+        attrs={"layout_free_placeholders": [Filter]},
+    )
+
+    if auto_scheduler_rewritten_layout:
+        Output = auto_scheduler.rewrite_compute_body(Output, auto_scheduler_rewritten_layout)
+
+    return Output
+
+
+def conv2d_nhwc_ohwi(
+    Input,
+    Filter,
+    stride,
+    padding,
+    dilation,
+    out_dtype="float32",
+    auto_scheduler_rewritten_layout="",
+):
+    """Convolution operator in NHWC layout.
+
+    Parameters
+    ----------
+    Input : tvm.te.Tensor
+        4-D with shape [batch, in_height, in_width, in_channel]
+
+    Filter : tvm.te.Tensor
+        4-D with shape [num_filter, filter_height, filter_width, in_channel]
+
+    stride : int or a list/tuple of two ints
+        Stride size, or [stride_height, stride_width]
+
+    padding : int or a list/tuple of 2 or 4 ints
+        padding size, or
+        [pad_height, pad_width] for 2 ints, or
+        [pad_top, pad_left, pad_bottom, pad_right] for 4 ints
+
+    dilation: int or a list/tuple of two ints
+        dilation size, or [dilation_height, dilation_width]
+
+    out_dtype: str = "float32",
+        The type of output tensor
+
+    auto_scheduler_rewritten_layout: str = ""
+        The layout after auto-scheduler's layout rewrite pass.
+
+    Returns
+    -------
+    output : tvm.te.Tensor
+        4-D with shape [batch, out_height, out_width, out_channel]
+    """
+    assert isinstance(stride, int) or len(stride) == 2
+    assert isinstance(dilation, int) or len(dilation) == 2
+
+    if isinstance(stride, int):
+        stride_h = stride_w = stride
+    else:
+        stride_h, stride_w = stride
+
+    if isinstance(dilation, int):
+        dilation_h = dilation_w = dilation
+    else:
+        dilation_h, dilation_w = dilation
+
+    if auto_scheduler_rewritten_layout:
+        # Infer shape for the rewritten layout
+        num_filter, kernel_h, kernel_w, channel = auto_scheduler.get_shape_from_rewritten_layout(
+            auto_scheduler_rewritten_layout, ["ff", "ry", "rx", "rc"]
+        )
+        auto_scheduler.remove_index_check(Filter)
+    else:
+        num_filter, kernel_h, kernel_w, channel = Filter.shape
+
+    batch, in_height, in_width, in_channel = Input.shape
+    # compute the output shape
+    dilated_kernel_h = (kernel_h - 1) * dilation_h + 1
+    dilated_kernel_w = (kernel_w - 1) * dilation_w + 1
+    pad_top, pad_left, pad_down, pad_right = get_pad_tuple(
+        padding, (dilated_kernel_h, dilated_kernel_w)
+    )
+    out_channel = num_filter
+    out_height = simplify((in_height - dilated_kernel_h + pad_top + pad_down) // stride_h + 1)
+    out_width = simplify((in_width - dilated_kernel_w + pad_left + pad_right) // stride_w + 1)
+    pad_before = [0, pad_top, pad_left, 0]
+    pad_after = [0, pad_down, pad_right, 0]
+    PaddedInput = pad(Input, pad_before, pad_after, name="PaddedInput")
+    rc = te.reduce_axis((0, in_channel), name="rc")
+    ry = te.reduce_axis((0, kernel_h), name="ry")
+    rx = te.reduce_axis((0, kernel_w), name="rx")
+    Output = te.compute(
+        (batch, out_height, out_width, out_channel),
+        lambda nn, yy, xx, ff: te.sum(
+            PaddedInput[
+                nn, yy * stride_h + ry * dilation_h, xx * stride_w + rx * dilation_w, rc
+            ].astype(out_dtype)
+            * Filter[ff, ry, rx, rc].astype(out_dtype),
+            axis=[ry, rx, rc],
+        ),
+        name="Conv2dOutput",
+        tag="conv2d_nhwc_ohwi",
         attrs={"layout_free_placeholders": [Filter]},
     )
 

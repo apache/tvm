@@ -210,6 +210,27 @@ reg.register_strategy("nn.conv1d", strategy.conv1d_strategy)
 reg.register_pattern("nn.conv1d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
+@reg.register_legalize("nn.conv1d")
+def legalize_conv1d(attrs, inputs, types):
+    """Legalize conv1d op.
+
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current convolution
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    types : list of types
+        List of input and output types
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The legalized expr
+    """
+    return topi.nn.conv1d_legalize(attrs, inputs, types)
+
+
 # conv2d
 reg.register_strategy("nn.conv2d", strategy.conv2d_strategy)
 reg.register_pattern("nn.conv2d", OpPattern.OUT_ELEMWISE_FUSABLE)
