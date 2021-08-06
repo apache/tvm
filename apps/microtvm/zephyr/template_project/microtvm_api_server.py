@@ -267,6 +267,23 @@ class Handler(server.ProjectAPIHandler):
     # These files and directories will be recursively copied into generated projects from the CRT.
     CRT_COPY_ITEMS = ("include", "Makefile", "src")
 
+    # Maps extra line added to prj.conf to a tuple or list of zephyr_board for which it is needed.
+    EXTRA_PRJ_CONF_DIRECTIVES = {
+        "CONFIG_TIMER_RANDOM_GENERATOR=y": (
+            "qemu_x86",
+            "qemu_riscv32",
+            "qemu_cortex_r5",
+            "qemu_riscv64",
+        ),
+        "CONFIG_ENTROPY_GENERATOR_BOARDS=y": (
+            "mps2_an521",
+            "nrf5340dk_nrf5340_cpuapp",
+            "nucleo_f746zg",
+            "nucleo_l4r5zi",
+            "stm32f746g_disco",
+        ),
+    }
+
     def _create_prj_conf(self, project_dir, options):
         with open(project_dir / "prj.conf", "w") as f:
             f.write(
@@ -278,7 +295,7 @@ class Handler(server.ProjectAPIHandler):
             )
             f.write("# For TVMPlatformAbort().\n" "CONFIG_REBOOT=y\n" "\n")
 
-            if True:  # options["project_type"] == "host_driven":
+            if options["project_type"] == "host_driven":
                 f.write("# For RPC server C++ bindings.\n" "CONFIG_CPLUSPLUS=y\n" "\n")
 
             f.write("# For math routines\n" "CONFIG_NEWLIB_LIBC=y\n" "\n")
@@ -296,10 +313,11 @@ class Handler(server.ProjectAPIHandler):
 
             f.write("# For random number generation.\n" "CONFIG_TEST_RANDOM_GENERATOR=y\n")
 
-            if self._is_qemu(options):
-                f.write("CONFIG_TIMER_RANDOM_GENERATOR=y\n")
-            else:
-                f.write("CONFIG_ENTROPY_GENERATOR=y\n")
+            f.write("\n# Extra prj.conf directives")
+            for line, board_list in self.EXTRA_PRJ_CONF_DIRECTIVES.items():
+                if options["zephyr_board"] in board_list:
+                    f.write(f"{line}\n")
+
             f.write("\n")
 
     API_SERVER_CRT_LIBS_TOKEN = "<API_SERVER_CRT_LIBS>"
