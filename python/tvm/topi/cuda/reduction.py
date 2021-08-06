@@ -96,10 +96,15 @@ def _schedule_reduce(op, sch, is_idx_reduce=False):
         sch[real_output].set_store_predicate(thread_x.equal(0))
     return sch
 
+
 def _enable_auto_inline(sch):
     def is_scheduled(stage):
         # auto inline requires the attach type is AttachType.kGroupRoot
-        conds = [len(stage.relations) == 0, stage.attach_type == 1, stage.all_iter_vars == stage.leaf_iter_vars]
+        conds = [
+            len(stage.relations) == 0,
+            stage.attach_type == 1,
+            stage.all_iter_vars == stage.leaf_iter_vars,
+        ]
         if not all(conds):
             return True
         return False
@@ -109,6 +114,7 @@ def _enable_auto_inline(sch):
             if is_scheduled(s) or len(s.op.reduce_axis) != 0:
                 return False
     return True
+
 
 def schedule_reduce(outs):
     """Schedule for inject->reduce->bcast ops.

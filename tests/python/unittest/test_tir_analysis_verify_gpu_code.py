@@ -381,8 +381,8 @@ def test_redundant_kernels():
     A = te.placeholder(shape=(1,), name="A", dtype=dtype)
     B = te.placeholder(shape=(1,), name="B", dtype=dtype)
     C = te.placeholder(shape=(1,), name="C", dtype=dtype)
-    D = topi.less(A,C)
-    E = topi.less(B,C)
+    D = topi.less(A, C)
+    E = topi.less(B, C)
     F = topi.logical_or(D, E)
     G = topi.identity(F)
 
@@ -394,14 +394,14 @@ def test_redundant_kernels():
 
         with tvm.target.Target(target):
             s = tvm.topi.testing.get_reduce_schedule(target)(G)
-            
+
         with tvm.transform.PassContext(
             config={"tir.add_lower_pass": [(2, get_verify_pass(valid, max_kernels=1))]}
         ):
             tvm.build(s, [A, B, C, G], target)
         assert valid[0]
 
-        
+
 if __name__ == "__main__":
     test_local_memory()
     test_shared_memory()
