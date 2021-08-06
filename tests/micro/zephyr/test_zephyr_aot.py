@@ -209,12 +209,12 @@ def test_tflite(platform, west_cmd, skip_build, tvm_debug):
     session_kw = _build_session_kw(
         model, target, zephyr_board, west_cmd, lowered.lib, runtime_path, build_config
     )
-    timeout = 100
+    timeout_sec = 70
     transport = session_kw["flasher"].flash(session_kw["binary"])
     transport.open()
-    transport.write(b"start\n", timeout_sec=timeout)
+    transport.write(b"start\n", timeout_sec=timeout_sec)
 
-    result_line = _get_message(transport, "#result", timeout)
+    result_line = _get_message(transport, "#result", timeout_sec)
     result_line = result_line.strip("\n")
     result_line = result_line.split(":")
     result = int(result_line[1])
