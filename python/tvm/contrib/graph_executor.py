@@ -157,6 +157,7 @@ class GraphModule(object):
         self._get_output = module["get_output"]
         self._get_input = module["get_input"]
         self._get_num_outputs = module["get_num_outputs"]
+        self._get_input_index = module["get_input_index"]
         self._get_num_inputs = module["get_num_inputs"]
         self._load_params = module["load_params"]
         self._share_params = module["share_params"]
@@ -241,6 +242,21 @@ class GraphModule(object):
             return out
 
         return self._get_input(index)
+
+    def get_input_index(self, name):
+        """Get inputs index via input name.
+
+        Parameters
+        ----------
+        name : str
+           The input key name
+
+        Returns
+        -------
+        index: int
+            The input index. -1 will be returned if the given input name is not found.
+        """
+        return self._get_input_index(name)
 
     def get_output(self, index, out=None):
         """Get index-th output to out

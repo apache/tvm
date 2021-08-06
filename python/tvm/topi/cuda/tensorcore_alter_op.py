@@ -19,7 +19,7 @@
 
 import logging
 import math
-from tvm import relay
+from tvm import relay, tir
 
 from .. import nn
 
@@ -56,6 +56,15 @@ def _batch_matmul_legalize(attrs, inputs, arg_types):
 
     B, M, K = x_tensor.shape
     B, N, K = y_tensor.shape
+    if (
+        isinstance(B, tir.expr.Any)
+        or isinstance(M, tir.expr.Any)
+        or isinstance(K, tir.expr.Any)
+        or isinstance(N, tir.expr.Any)
+    ):
+        # Dynamic shape do not support alter op layout now
+        return None
+
     M = M.value
     K = K.value
     N = N.value

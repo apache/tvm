@@ -32,6 +32,7 @@
 #include "../../support/arena.h"
 #include "../../support/utils.h"
 #include "../schedule/utils.h"
+#include "ir_utils.h"
 
 namespace tvm {
 namespace tir {
@@ -362,6 +363,7 @@ class BufferCompactor : public StmtExprMutator {
     BlockNode* n = block.CopyOnWrite();
     RewriteBufferRegions(&n->reads);
     RewriteBufferRegions(&n->writes);
+    RewriteMatchBuffers(&n->match_buffers);
     n->alloc_buffers = std::move(alloc_buffers);
     return std::move(block);
   }
@@ -434,16 +436,33 @@ class BufferCompactor : public StmtExprMutator {
     *regions = std::move(new_regions);
   }
 
+  void RewriteMatchBuffers(Array<MatchBufferRegion>* match_buffers) const {
+    Array<MatchBufferRegion> result;
+    result.reserve(match_buffers->size());
+    for (const auto& match_buffer : *match_buffers) {
+      const BufferRegion& buffer_region = match_buffer->source;
+      auto p = make_object<BufferRegionNode>(*buffer_region.get());
+      RewriteBufferRegion(&p->buffer, &p->region);
+      result.push_back(MatchBufferRegion(match_buffer->buffer, BufferRegion(p)));
+    }
+    *match_buffers = std::move(result);
+  }
+
   /*! \brief The allocation information about each buffer. */
   std::unordered_map<Buffer, BufferAllocInfo, ObjectPtrHash, ObjectPtrEqual> buffer_info_;
 };
 
 PrimFunc CompactBufferAllocation(PrimFunc f) {
-  PrimFuncNode* fptr = f.CopyOnWrite();
-  std::unordered_map<Buffer, Region, ObjectPtrHash, ObjectPtrEqual> region =
-      BufferAccessRegionCollector::Collect(f);
-  fptr->body = BufferCompactor::Compact(f, region);
-  return f;
+  // Only apply this pass to TIR that is not from TE schedules
+  if (!IsFromLegacyTESchedule(f)) {
+    PrimFuncNode* fptr = f.CopyOnWrite();
+    std::unordered_map<Buffer, Region, ObjectPtrHash, ObjectPtrEqual> region =
+        BufferAccessRegionCollector::Collect(f);
+    fptr->body = BufferCompactor::Compact(f, region);
+    return f;
+  } else {
+    return f;
+  }
 }
 
 namespace transform {

@@ -68,6 +68,16 @@ class ParallelBatchMatmulCombiner : public ParallelOpCombiner {
     // shape[2] is the contraction axis and automatically consistent
     // if it were valid batch_matmul ops
 
+    // TODO(jcf94): Add full support of layout format
+    if (!(attrs_a->transpose_a == false && attrs_a->transpose_b == true &&
+          attrs_b->transpose_a == false && attrs_b->transpose_b == true)) {
+      LOG(WARNING) << "For legacy reason, this pass only supports"
+                   << " (transpose_a=false, transpose_b=true) now, skip combining these two with:"
+                   << " batch_matmul_a: " << attrs_a->transpose_a << ", " << attrs_a->transpose_b
+                   << " batch_matmul_b: " << attrs_b->transpose_a << ", " << attrs_b->transpose_b;
+      return false;
+    }
+
     auto res = eq(rhs_a->dtype, rhs_b->dtype) && eq(restype_a->dtype, restype_b->dtype) &&
                (rhs_a->shape.size() == 3) && (rhs_b->shape.size() == 3) &&
                eq(rhs_a->shape[0], rhs_b->shape[0]) && eq(attrs_a->out_dtype, attrs_b->out_dtype);
@@ -86,7 +96,8 @@ class ParallelBatchMatmulCombiner : public ParallelOpCombiner {
 
     const auto* origin_attrs = branches[0][0]->attrs.as<BatchMatmulAttrs>();
     ICHECK(origin_attrs);
-    return Downcast<Call>(MakeBatchMatmul(data, new_weight, origin_attrs->out_dtype));
+    return Downcast<Call>(MakeBatchMatmul(data, new_weight, origin_attrs->out_dtype,
+                                          origin_attrs->transpose_a, origin_attrs->transpose_b));
   }
 
   bool IsArgCompatible(const CallNode* a, const CallNode* b, size_t index) { return true; }

@@ -202,7 +202,7 @@ def test_inconsistent_grid():
 
 def invalid_match_buffer_region() -> None:
     with tir.block([16, 16]) as [vi, vj]:
-        A = tir.match_buffer_region(vi)  # error
+        A = tir.match_buffer(vi)  # error
         tir.evaluate(1.0)
 
 
@@ -363,6 +363,23 @@ def test_tvm_exception_catch():
     check_error(intrin_except_assign, 3)
 
 
+def buffer_shape_mismatch(a: ty.handle) -> None:
+    A = tir.match_buffer(a, (8, 8))
+    for i, j in tir.grid(8, 2):
+        with tir.block([]):
+            tir.reads([])
+            tir.writes([A[i, j * 4 : j * 4 + 4]])
+            sub_A = tir.match_buffer(
+                A[i, j * 4 : j * 4 + 4], (5)
+            )  # error: shape mismatched between 4 and 5
+            for jj in range(0, 4):
+                sub_A[i, j * 4 + jj] = 1
+
+
+def test_match_buffer_shape_mismatch():
+    check_error(buffer_shape_mismatch, 7)
+
+
 def check_error(module, rel_lineno):
     # Override the default renderer to accumulate errors
     _, start_line = inspect.getsourcelines(module)
@@ -414,3 +431,4 @@ if __name__ == "__main__":
     test_error_index_with_stop_slice()
     test_mismatch_args()
     test_tvm_exception_catch()
+    test_match_buffer_shape_mismatch()

@@ -293,6 +293,7 @@ def test_reshape():
     verify_reshape((2, 3, 4), (-3, -2), (6, 4))
     verify_reshape((2, 3, 4), (-4, 1, 2, -2), (1, 2, 3, 4))
     verify_reshape((2, 3, 4), (2, -4, -1, 3, -2), (2, 1, 3, 4))
+    verify_reshape((1,), (), ())
 
 
 def test_reshape_fail():
@@ -1884,7 +1885,8 @@ def test_scatter_nd(target, dev):
     ):
         data = relay.var("data", shape=data_np.shape, dtype=str(data_np.dtype))
         indices_vars = [
-            relay.var("ind{i}", shape=v.shape, dtype=str(v.dtype)) for i, v in enumerate(indices_np)
+            relay.var("ind%d" % i, shape=v.shape, dtype=str(v.dtype))
+            for i, v in enumerate(indices_np)
         ]
         updates = relay.var("updates", shape=updates_np.shape, dtype=str(updates_np.dtype))
 

@@ -35,3 +35,4 @@ echo set\(USE_VTA_TSIM ON\) >> config.cmake
 echo set\(USE_VTA_FSIM ON\) >> config.cmake
 echo set\(USE_ARM_COMPUTE_LIB ON\) >> config.cmake
 echo set\(USE_ARM_COMPUTE_LIB_GRAPH_EXECUTOR "/opt/acl"\) >> config.cmake
+echo set\(USE_CCACHE OFF\) >> config.cmake

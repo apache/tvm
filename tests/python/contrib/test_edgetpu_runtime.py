@@ -51,7 +51,7 @@ def skipped_test_tflite_runtime():
             interpreter = tflite.Interpreter(model_path=model_path)
         return interpreter
 
-    def check_remote(target_edgetpu=False):
+    def check_remote(server, target_edgetpu=False):
         tflite_model_path = get_tflite_model_path(target_edgetpu)
 
         # inference via tflite interpreter python apis
@@ -67,7 +67,6 @@ def skipped_test_tflite_runtime():
         tflite_output = interpreter.get_tensor(output_details[0]["index"])
 
         # inference via remote tvm tflite runtime
-        server = rpc.Server("127.0.0.1")
         remote = rpc.connect(server.host, server.port)
         dev = remote.cpu(0)
         if target_edgetpu:
@@ -83,9 +82,9 @@ def skipped_test_tflite_runtime():
             np.testing.assert_equal(out.numpy(), tflite_output)
 
     # Target CPU on coral board
-    check_remote()
+    check_remote(rpc.Server("127.0.0.1"))
     # Target EdgeTPU on coral board
-    check_remote(target_edgetpu=True)
+    check_remote(rpc.Server("127.0.0.1"), target_edgetpu=True)
 
 
 if __name__ == "__main__":

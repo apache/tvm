@@ -188,7 +188,7 @@ def test_conv2d():
 
 
 def test_conv2d_winograd():
-    mod, data, weight = get_relay_conv2d(kh=3, kw=3)
+    mod, data, weight = get_relay_conv2d(outc=128, kh=3, kw=3)
     tune_and_check(mod, data, weight)
 
 

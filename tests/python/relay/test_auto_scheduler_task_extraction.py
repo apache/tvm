@@ -96,51 +96,60 @@ def get_network(name, batch_size=1, layout="NHWC"):
 
 
 @tvm.testing.requires_cuda
-def test_task_extraction_cuda():
+@pytest.mark.parametrize(
+    "params",
+    [
+        ("mlp", "NHWC", 1, 2),
+        ("resnet-18", "NHWC", 24, 25),
+        ("resnet-18", "NCHW", 24, 25),
+        ("mobilenet", "NHWC", 22, 30),
+        ("mobilenet", "NCHW", 22, 30),
+        ("resnet3d-18", "NCDHW", 23, 24),
+        ("resnet3d-18", "NDHWC", 23, 24),
+    ],
+)
+def test_task_extraction_cuda(params):
     target = tvm.target.Target("cuda")
+    network, layout, expected_task, expected_weights = params
 
-    mod, params = get_network("mlp")
+    mod, params = get_network(network, layout=layout)
     tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], params, target)
+    for task, weight in zip(tasks, task_weights):
+        print(task.desc, task.workload_key, weight)
 
-    assert len(tasks) == 1
-    assert sum(task_weights) == 2
-
-    for layout in ["NHWC", "NCHW"]:
-        mod, params = get_network("resnet-18", layout=layout)
-        tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], params, target)
-
-        assert len(tasks) == 24
-        assert sum(task_weights) == 25
-
-        mod, params = get_network("mobilenet", layout=layout)
-        tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], params, target)
-
-        assert len(tasks) == 22
-        assert sum(task_weights) == 30
-
-    for layout in ["NCDHW", "NDHWC"]:
-        mod, params = get_network("resnet3d-18", layout=layout)
-        tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], params, target)
-
-        assert len(tasks) == 23
-        assert sum(task_weights) == 24, sum(task_weights)
+    assert len(tasks) == expected_task
+    assert sum(task_weights) == expected_weights
 
 
-def test_task_extraction():
+@pytest.mark.parametrize(
+    "params",
+    [
+        # Relay FuseOps puts two conv2ds to separate functions and results in two tasks.
+        ("basic_func", 2, False),
+        # Relay FuseOps will not break the primitive function and result in one task.
+        ("fused_func", 1, False),
+        # The Relay function without complex ops will not form a task by default.
+        ("simple_func", 0, False),
+        # Every Relay function becomes a task regardless what ops in its body.
+        ("simple_func", 1, True),
+        # The Relay function without any reduce op is considered as a simple task.
+        ("shape_of_func", 0, False),
+        ("shape_of_func", 1, True),
+        # The Relay function with dynamic shape inputs/outputs will not be extracted.
+        ("dyn_shape_func", 0, False),
+        # The Conv2D in the Relay function with control flow could still be a task.
+        # Also, two identical Conv2D should only be one task with weight=2.
+        ("control_flow_func", 1, False),
+        # The first function with unsupported op (NMS) will not be extracted.
+        ("func_w_unsupported_op", 1, True),
+    ],
+)
+def test_task_extraction_cpu(params):
     ishape = (1, 3, 224, 224)
     w1shape = (32, 3, 3, 3)
     w2shape = (32, 32, 3, 3)
     dtype = "float32"
     target = tvm.target.Target("llvm")
-
-    def verify_task_extraction(func, expected_task, include_simple_tasks=False):
-        mod = tvm.IRModule.from_expr(func)
-        tasks, task_weights = auto_scheduler.extract_tasks(
-            mod["main"], None, target, include_simple_tasks=include_simple_tasks
-        )
-
-        assert len(tasks) == expected_task
-        assert len(task_weights) == expected_task
 
     def get_func():
         data = relay.var("data", shape=(ishape), dtype=dtype)
@@ -183,13 +192,16 @@ def test_task_extraction():
 
     def get_func_with_control_flow():
         data = relay.var("data", shape=(1, 3, 224, 224))
-        weight = relay.var("weight", shape=(32, 3, 3, 3))
+        weight = relay.var("weight", shape=(3, 3, 3, 3))
         eq1 = relay.var("e1", shape=[], dtype="float32")
         eq2 = relay.var("e2", shape=[], dtype="float32")
         eq = relay.equal(eq1, eq2)
 
-        true_branch = relay.zeros(shape=(1, 32, 222, 222), dtype="float32")
-        false_branch = relay.nn.conv2d(data, weight, kernel_size=(3, 3), channels=32)
+        true_branch = relay.zeros(shape=(1, 3, 224, 224), dtype="float32")
+        false_branch = relay.nn.conv2d(data, weight, kernel_size=(3, 3), channels=3, padding=(1, 1))
+        false_branch = relay.nn.conv2d(
+            false_branch, weight, kernel_size=(3, 3), channels=3, padding=(1, 1)
+        )
         ife = relay.If(eq, true_branch, false_branch)
         out = relay.erf(ife)
         return relay.Function([data, weight, eq1, eq2], out)
@@ -213,32 +225,28 @@ def test_task_extraction():
         out = relay.Call(get_postproc_func(), [nms])
         return relay.Function([cls_prob, loc_pred, anchors], out)
 
-    # Relay FuseOps puts two conv2ds to separate functions and results in two tasks.
-    verify_task_extraction(get_func(), 2)
+    func_map = {
+        "basic_func": get_func,
+        "fused_func": get_fused_func,
+        "simple_func": get_simple_func,
+        "shape_of_func": get_shape_of_func,
+        "dyn_shape_func": get_func_with_dynamic_shape,
+        "control_flow_func": get_func_with_control_flow,
+        "func_w_unsupported_op": get_func_with_unsupported_op,
+    }
 
-    # By setting the function to primitive, Relay FuseOps will not break it and result in one task.
-    verify_task_extraction(get_fused_func(), 1)
+    def verify_task_extraction(func_name, expected_task, include_simple_tasks=False):
+        func = func_map[func_name]()
+        mod = tvm.IRModule.from_expr(func)
+        tasks, task_weights = auto_scheduler.extract_tasks(
+            mod["main"], None, target, include_simple_tasks=include_simple_tasks
+        )
 
-    # The Relay function without complex ops will not form a task by default.
-    verify_task_extraction(get_simple_func(), 0)
+        assert len(tasks) == expected_task
+        assert len(task_weights) == expected_task
 
-    # Every Relay function becomes a task regardless what ops in its body.
-    verify_task_extraction(get_simple_func(), 1, True)
-
-    # The Relay function without any reduce op is considered as a simple task.
-    verify_task_extraction(get_shape_of_func(), 0)
-    verify_task_extraction(get_shape_of_func(), 1, True)
-
-    # The Relay function with dynamic shape inputs/outputs will not be extracted.
-    verify_task_extraction(get_func_with_dynamic_shape(), 0)
-
-    # The Conv2D in the Relay function with control flow could still be a task.
-    verify_task_extraction(get_func_with_control_flow(), 1)
-
-    # Func1 (with NMS) -> Func2 (injective).
-    verify_task_extraction(get_func_with_unsupported_op(), 1, True)
+    verify_task_extraction(*params)
 
 
 if __name__ == "__main__":
-    test_task_extraction_cuda()
-    test_task_extraction()
+    pytest.main([__file__])

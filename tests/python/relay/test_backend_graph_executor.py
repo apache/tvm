@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import numpy as np
+import pytest
 
 import tvm
 import json
@@ -50,17 +51,40 @@ def check_rts(expr, args, expected_result, mod=None):
 
 def test_add_op_scalar():
     """
-    Program:
+    test_add_op_scalar:
         fn (x, y) {
             return x + y;
         }
     """
-    x = relay.var("x", shape=())
-    y = relay.var("y", shape=())
+    x = relay.var("x", shape=())  # Default to float32
+    y = relay.var("y", shape=())  # Default to float32
     func = relay.Function([x, y], add(x, y))
-    x_data = np.array(10.0, dtype="float32")
-    y_data = np.array(1.0, dtype="float32")
-    check_rts(func, [x_data, y_data], x_data + y_data)
+    x_y_data = [
+        (np.array(10.0, dtype="float32"), np.array(1.0, dtype="float32")),
+        (np.float32(10.0), np.float32(1.0)),
+        (10.0, 1.0),
+    ]
+    for (x_data, y_data) in x_y_data:
+        check_rts(func, [x_data, y_data], x_data + y_data)
+
+
+def test_add_op_scalar_int():
+    """
+    test_add_op_scalar_int:
+        fn (x, y) {
+            return x + y;
+        }
+    """
+    x = relay.var("x", shape=(), dtype="int32")
+    y = relay.var("y", shape=(), dtype="int32")
+    func = relay.Function([x, y], add(x, y))
+    x_y_data = [
+        (np.array(10.0, dtype="int32"), np.array(1.0, dtype="int32")),
+        (np.int32(10), np.int32(1)),
+        (10, 1),
+    ]
+    for (x_data, y_data) in x_y_data:
+        check_rts(func, [x_data, y_data], x_data + y_data)
 
 
 def test_add_op_tensor():
@@ -287,5 +311,19 @@ def test_graph_executor_nested_tuples():
     tvm.testing.assert_allclose(out[1][1][1].numpy(), data[3])
 
 
+def test_graph_executor_api():
+    dname_0, dname_1 = "data_0", "data_1"
+    data_0, data_1 = [relay.var(c, shape=(1, 1), dtype="float32") for c in [dname_0, dname_1]]
+    net = relay.add(data_0, data_1)
+    func = relay.Function((data_0, data_1), net)
+
+    lib = relay.build(tvm.IRModule.from_expr(func), "llvm")
+    mod = graph_executor.GraphModule(lib["default"](tvm.cpu(0)))
+
+    assert mod.get_input_index(dname_1) == 1
+    assert mod.get_input_index(dname_0) == 0
+    assert mod.get_input_index("Invalid") == -1
+
+
 if __name__ == "__main__":
-    sys.exit(pytest.main([file] + sys.argv[1:]))
+    pytest.main([__file__])
