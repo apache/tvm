@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import glob
 import os
 import re
 import glob
@@ -48,7 +49,14 @@ def get_input_data_shape_dict(graph_def, input_data):
 
 
 def get_tvm_output_with_vm(
-    graph_def, input_data, target, dev, opset=None, freeze_params=False, convert_to_static=False
+    graph_def,
+    input_data,
+    target,
+    dev,
+    opset=None,
+    freeze_params=False,
+    convert_to_static=False,
+    convert_config=None,
 ):
     """Generic function to execute and get tvm output with vm executor"""
     if not isinstance(input_data, list):
@@ -56,7 +64,11 @@ def get_tvm_output_with_vm(
     _, shape_dict = get_input_data_shape_dict(graph_def, input_data)
 
     mod, params = relay.frontend.from_onnx(
-        graph_def, shape_dict, opset=opset, freeze_params=freeze_params
+        graph_def,
+        shape_dict,
+        opset=opset,
+        freeze_params=freeze_params,
+        convert_config=convert_config,
     )
 
     if convert_to_static:
@@ -78,12 +90,15 @@ def get_tvm_output(
     output_dtype="float32",
     opset=None,
     opt_level=1,
+    convert_config=None,
 ):
     """Generic function to execute and get tvm output"""
     # TODO: Resolve the issues and remove the following lines
     input_names, shape_dict = get_input_data_shape_dict(graph_def, input_data)
 
-    mod, params = relay.frontend.from_onnx(graph_def, shape_dict, opset=opset)
+    mod, params = relay.frontend.from_onnx(
+        graph_def, shape_dict, opset=opset, convert_config=convert_config
+    )
 
     with tvm.transform.PassContext(opt_level=opt_level):
         graph, lib, params = relay.build(mod, target, params=params)
@@ -146,6 +161,7 @@ def verify_with_ort_with_inputs(
     atol=1e-5,
     apply_softmax=False,
     opt_level=1,
+    convert_config=None,
 ):
     if opset is not None:
         model.opset_import[0].version = opset
@@ -161,10 +177,19 @@ def verify_with_ort_with_inputs(
             opset=opset,
             freeze_params=freeze_params,
             convert_to_static=convert_to_static,
+            convert_config=convert_config,
         )
     else:
         tvm_out = get_tvm_output(
-            model, inputs, target, dev, out_shape, dtype, opset=opset, opt_level=opt_level
+            model,
+            inputs,
+            target,
+            dev,
+            out_shape,
+            dtype,
+            opset=opset,
+            opt_level=opt_level,
+            convert_config=convert_config,
         )
     if not isinstance(tvm_out, list):
         tvm_out = [tvm_out]
@@ -1179,7 +1204,7 @@ def test_matmul(target, dev):
 
 @tvm.testing.parametrize_targets
 def test_batch_matmul(target, dev):
-    def verify_batch_matmul(a_shape, b_shape, out_shape):
+    def verify_batch_matmul(a_shape, b_shape, out_shape, convert_config=None):
         a_array = np.random.uniform(size=a_shape).astype("float32")
         b_array = np.random.uniform(size=b_shape).astype("float32")
 
@@ -1196,7 +1221,14 @@ def test_batch_matmul(target, dev):
         )
 
         model = helper.make_model(graph, producer_name="matmul_test")
-        verify_with_ort_with_inputs(model, [a_array, b_array], use_vm=True, target=target, dev=dev)
+        verify_with_ort_with_inputs(
+            model,
+            [a_array, b_array],
+            use_vm=True,
+            target=target,
+            dev=dev,
+            convert_config=convert_config,
+        )
 
     verify_batch_matmul((2, 3, 4, 3), (2, 3, 3, 4), (2, 3, 4, 4))
     verify_batch_matmul((2, 4, 3), (3, 4), (2, 4, 4))
@@ -1207,6 +1239,13 @@ def test_batch_matmul(target, dev):
     verify_batch_matmul((1, 4, 3), (2, 3, 4), (2, 4, 4))
     verify_batch_matmul((4, 32, 16), (16, 32), (4, 32, 32))
     verify_batch_matmul((4, 32, 16, 32), (32, 16), (4, 32, 16, 16))
+    # Test transb=False
+    verify_batch_matmul(
+        (2, 3, 4, 3),
+        (2, 3, 3, 4),
+        (2, 3, 4, 4),
+        convert_config={"use_nt_batch_matmul": False},
+    )
 
 
 def verify_simple_dynamic_model(a_shape, b_shape, target, dev):
@@ -1566,11 +1605,9 @@ def test_forward_hardsigmoid(target, dev):
 
 
 # TODO (mbrookhart, electriclilies) Fix argmin on GPU and enable this test
+@tvm.testing.known_failing_targets("cuda")
 @tvm.testing.parametrize_targets
 def test_forward_arg_min_max(target, dev):
-    if "cuda" in target:
-        pytest.skip("Fails on CUDA")
-
     def verify_argreduce(input_dim, op_name, axis=None, keepdims=None):
         a_np1 = np.random.uniform(-10, 10, input_dim).astype(np.int32)
         out_shape = list(a_np1.shape)
@@ -4597,318 +4634,326 @@ def test_eyelike(target, dev):
   are not yet supported are skipped.
 """
 
-f = onnx.__file__
+onnx_test_node_dir = os.path.join(os.path.dirname(onnx.__file__), "backend", "test", "data", "node")
 
-onnx_test_folders = sorted(glob.glob("/".join(f.split("/")[0:-1]) + "/backend/test/data/node/*/"))
+onnx_test_folders = sorted(
+    dirname
+    for dirname in os.listdir(onnx_test_node_dir)
+    if dirname.startswith("test") and os.path.isdir(os.path.join(onnx_test_node_dir, dirname))
+)
 
 unsupported_onnx_tests = [
-    "test_adagrad/",
-    "test_adagrad_multiple/",
-    "test_adam/",
-    "test_adam_multiple/",
-    "test_argmax_default_axis_example_select_last_index/",
-    "test_argmax_default_axis_random_select_last_index/",
-    "test_argmax_keepdims_example_select_last_index/",
-    "test_argmax_keepdims_random_select_last_index/",
-    "test_argmax_negative_axis_keepdims_example_select_last_index/",
-    "test_argmax_negative_axis_keepdims_random_select_last_index/",
-    "test_argmax_no_keepdims_example_select_last_index/",
-    "test_argmax_no_keepdims_random_select_last_index/",
-    "test_argmin_default_axis_example_select_last_index/",
-    "test_argmin_default_axis_random_select_last_index/",
-    "test_argmin_keepdims_example_select_last_index/",
-    "test_argmin_keepdims_random_select_last_index/",
-    "test_argmin_negative_axis_keepdims_example_select_last_index/",
-    "test_argmin_negative_axis_keepdims_random_select_last_index/",
-    "test_argmin_no_keepdims_example_select_last_index/",
-    "test_argmin_no_keepdims_random_select_last_index/",
-    "test_cast_BFLOAT16_to_FLOAT/",
-    "test_cast_DOUBLE_to_FLOAT16/",
-    "test_cast_FLOAT_to_BFLOAT16/",
-    "test_cast_FLOAT_to_STRING/",
-    "test_cast_STRING_to_FLOAT/",
-    "test_celu/",
-    "test_compress_0/",
-    "test_compress_1/",
-    "test_compress_default_axis/",
-    "test_compress_negative_axis/",
-    "test_convtranspose_dilations/",
-    "test_convtranspose_output_shape/",
-    "test_cumsum_1d/",
-    "test_cumsum_1d_exclusive/",
-    "test_cumsum_1d_reverse/",
-    "test_cumsum_1d_reverse_exclusive/",
-    "test_cumsum_2d_axis_0/",
-    "test_cumsum_2d_axis_1/",
-    "test_cumsum_2d_negative_axis/",
-    "test_det_2d/",
-    "test_det_nd/",
-    "test_dropout_default/",
-    "test_dropout_default_mask/",
-    "test_dropout_default_mask_ratio/",
-    "test_dropout_default_ratio/",
-    "test_einsum_batch_diagonal/",
-    "test_einsum_batch_matmul/",
-    "test_einsum_inner_prod/",
-    "test_einsum_sum/",
-    "test_einsum_transpose/",
-    "test_greater_equal/",
-    "test_greater_equal_bcast/",
-    "test_hardmax_axis_0/",
-    "test_hardmax_axis_1/",
-    "test_hardmax_default_axis/",
-    "test_if_seq/",
-    "test_less_equal/",
-    "test_less_equal_bcast/",
-    "test_logsoftmax_axis_0/",
-    "test_logsoftmax_axis_0_expanded/",
-    "test_logsoftmax_axis_1/",
-    "test_logsoftmax_axis_1_expanded/",
-    "test_logsoftmax_axis_2_expanded/",
-    "test_logsoftmax_default_axis/",
-    "test_logsoftmax_default_axis_expanded/",
-    "test_logsoftmax_example_1_expanded/",
-    "test_logsoftmax_large_number_expanded/",
-    "test_logsoftmax_negative_axis_expanded/",
-    "test_loop11/",
-    "test_loop13_seq/",
-    "test_matmulinteger/",
-    "test_maxpool_2d_same_lower/",
-    "test_maxpool_2d_same_upper/",
-    "test_maxpool_with_argmax_2d_precomputed_pads/",
-    "test_maxpool_with_argmax_2d_precomputed_strides/",
-    "test_maxunpool_export_with_output_shape/",
-    "test_momentum/",
-    "test_momentum_multiple/",
-    "test_mvn/",
-    "test_nesterov_momentum/",
-    "test_nllloss_NC/",
-    "test_nllloss_NC_expanded/",
-    "test_nllloss_NCd1/",
-    "test_nllloss_NCd1_expanded/",
-    "test_nllloss_NCd1_ii/",
-    "test_nllloss_NCd1_ii_expanded/",
-    "test_nllloss_NCd1_mean_weight_negative_ii/",
-    "test_nllloss_NCd1_mean_weight_negative_ii_expanded/",
-    "test_nllloss_NCd1_weight/",
-    "test_nllloss_NCd1_weight_expanded/",
-    "test_nllloss_NCd1_weight_ii/",
-    "test_nllloss_NCd1_weight_ii_expanded/",
-    "test_nllloss_NCd1d2/",
-    "test_nllloss_NCd1d2_expanded/",
-    "test_nllloss_NCd1d2_no_weight_reduction_mean_ii/",
-    "test_nllloss_NCd1d2_no_weight_reduction_mean_ii_expanded/",
-    "test_nllloss_NCd1d2_reduction_mean/",
-    "test_nllloss_NCd1d2_reduction_mean_expanded/",
-    "test_nllloss_NCd1d2_reduction_sum/",
-    "test_nllloss_NCd1d2_reduction_sum_expanded/",
-    "test_nllloss_NCd1d2_with_weight/",
-    "test_nllloss_NCd1d2_with_weight_expanded/",
-    "test_nllloss_NCd1d2_with_weight_reduction_mean/",
-    "test_nllloss_NCd1d2_with_weight_reduction_mean_expanded/",
-    "test_nllloss_NCd1d2_with_weight_reduction_sum/",
-    "test_nllloss_NCd1d2_with_weight_reduction_sum_expanded/",
-    "test_nllloss_NCd1d2_with_weight_reduction_sum_ii/",
-    "test_nllloss_NCd1d2_with_weight_reduction_sum_ii_expanded/",
-    "test_nllloss_NCd1d2d3_none_no_weight_negative_ii/",
-    "test_nllloss_NCd1d2d3_none_no_weight_negative_ii_expanded/",
-    "test_nllloss_NCd1d2d3_sum_weight_high_ii/",
-    "test_nllloss_NCd1d2d3_sum_weight_high_ii_expanded/",
-    "test_nllloss_NCd1d2d3d4d5_mean_weight/",
-    "test_nllloss_NCd1d2d3d4d5_mean_weight_expanded/",
-    "test_nllloss_NCd1d2d3d4d5_none_no_weight/",
-    "test_nllloss_NCd1d2d3d4d5_none_no_weight_expanded/",
-    "test_pow_types_float/",
-    "test_pow_types_float32_int32/",
-    "test_pow_types_float32_int64/",
-    "test_pow_types_float32_uint32/",
-    "test_pow_types_float32_uint64/",
-    "test_pow_types_int/",
-    "test_pow_types_int32_float32/",
-    "test_pow_types_int32_int32/",
-    "test_pow_types_int64_float32/",
-    "test_pow_types_int64_int64/",
-    "test_qlinearmatmul_2D/",
-    "test_qlinearmatmul_3D/",
-    "test_range_float_type_positive_delta_expanded/",
-    "test_range_int32_type_negative_delta_expanded/",
-    "test_reduce_sum_default_axes_keepdims_example/",
-    "test_reduce_sum_default_axes_keepdims_random/",
-    "test_reduce_sum_do_not_keepdims_example/",
-    "test_reduce_sum_do_not_keepdims_random/",
-    "test_reduce_sum_empty_axes_input_noop_example/",
-    "test_reduce_sum_empty_axes_input_noop_random/",
-    "test_reduce_sum_keepdims_example/",
-    "test_reduce_sum_keepdims_random/",
-    "test_reduce_sum_negative_axes_keepdims_example/",
-    "test_reduce_sum_negative_axes_keepdims_random/",
-    "test_resize_downsample_sizes_cubic/",
-    "test_resize_downsample_sizes_linear_pytorch_half_pixel/",
-    "test_resize_downsample_sizes_nearest/",
-    "test_resize_tf_crop_and_resize/",
-    "test_resize_upsample_sizes_cubic/",
-    "test_resize_upsample_sizes_nearest/",
-    "test_resize_upsample_sizes_nearest_ceil_half_pixel/",
-    "test_resize_upsample_sizes_nearest_floor_align_corners/",
-    "test_resize_upsample_sizes_nearest_round_prefer_ceil_asymmetric/",
-    "test_rnn_seq_length/",
-    "test_round/",
-    "test_scan9_sum/",
-    "test_scan_sum/",
-    "test_sce_NCd1_mean_weight_negative_ii/",
-    "test_sce_NCd1_mean_weight_negative_ii_expanded/",
-    "test_sce_NCd1_mean_weight_negative_ii_log_prob/",
-    "test_sce_NCd1_mean_weight_negative_ii_log_prob_expanded/",
-    "test_sce_NCd1d2d3_none_no_weight_negative_ii/",
-    "test_sce_NCd1d2d3_none_no_weight_negative_ii_expanded/",
-    "test_sce_NCd1d2d3_none_no_weight_negative_ii_log_prob/",
-    "test_sce_NCd1d2d3_none_no_weight_negative_ii_log_prob_expanded/",
-    "test_sce_NCd1d2d3_sum_weight_high_ii/",
-    "test_sce_NCd1d2d3_sum_weight_high_ii_expanded/",
-    "test_sce_NCd1d2d3_sum_weight_high_ii_log_prob/",
-    "test_sce_NCd1d2d3_sum_weight_high_ii_log_prob_expanded/",
-    "test_sce_NCd1d2d3d4d5_mean_weight/",
-    "test_sce_NCd1d2d3d4d5_mean_weight_expanded/",
-    "test_sce_NCd1d2d3d4d5_mean_weight_log_prob/",
-    "test_sce_NCd1d2d3d4d5_mean_weight_log_prob_expanded/",
-    "test_sce_NCd1d2d3d4d5_none_no_weight/",
-    "test_sce_NCd1d2d3d4d5_none_no_weight_expanded/",
-    "test_sce_NCd1d2d3d4d5_none_no_weight_log_prob/",
-    "test_sce_NCd1d2d3d4d5_none_no_weight_log_prob_expanded/",
-    "test_sce_mean/",
-    "test_sce_mean_3d/",
-    "test_sce_mean_3d_expanded/",
-    "test_sce_mean_3d_log_prob/",
-    "test_sce_mean_3d_log_prob_expanded/",
-    "test_sce_mean_expanded/",
-    "test_sce_mean_log_prob/",
-    "test_sce_mean_log_prob_expanded/",
-    "test_sce_mean_no_weight_ii/",
-    "test_sce_mean_no_weight_ii_3d/",
-    "test_sce_mean_no_weight_ii_3d_expanded/",
-    "test_sce_mean_no_weight_ii_3d_log_prob/",
-    "test_sce_mean_no_weight_ii_3d_log_prob_expanded/",
-    "test_sce_mean_no_weight_ii_4d/",
-    "test_sce_mean_no_weight_ii_4d_expanded/",
-    "test_sce_mean_no_weight_ii_4d_log_prob/",
-    "test_sce_mean_no_weight_ii_4d_log_prob_expanded/",
-    "test_sce_mean_no_weight_ii_expanded/",
-    "test_sce_mean_no_weight_ii_log_prob/",
-    "test_sce_mean_no_weight_ii_log_prob_expanded/",
-    "test_sce_mean_weight/",
-    "test_sce_mean_weight_expanded/",
-    "test_sce_mean_weight_ii/",
-    "test_sce_mean_weight_ii_3d/",
-    "test_sce_mean_weight_ii_3d_expanded/",
-    "test_sce_mean_weight_ii_3d_log_prob/",
-    "test_sce_mean_weight_ii_3d_log_prob_expanded/",
-    "test_sce_mean_weight_ii_4d/",
-    "test_sce_mean_weight_ii_4d_expanded/",
-    "test_sce_mean_weight_ii_4d_log_prob/",
-    "test_sce_mean_weight_ii_4d_log_prob_expanded/",
-    "test_sce_mean_weight_ii_expanded/",
-    "test_sce_mean_weight_ii_log_prob/",
-    "test_sce_mean_weight_ii_log_prob_expanded/",
-    "test_sce_mean_weight_log_prob/",
-    "test_sce_mean_weight_log_prob_expanded/",
-    "test_sce_none/",
-    "test_sce_none_expanded/",
-    "test_sce_none_log_prob/",
-    "test_sce_none_log_prob_expanded/",
-    "test_sce_none_weights/",
-    "test_sce_none_weights_expanded/",
-    "test_sce_none_weights_log_prob/",
-    "test_sce_none_weights_log_prob_expanded/",
-    "test_sce_sum/",
-    "test_sce_sum_expanded/",
-    "test_sce_sum_log_prob/",
-    "test_sce_sum_log_prob_expanded/",
-    "test_sequence_insert_at_back/",
-    "test_sequence_insert_at_front/",
-    "test_simple_rnn_defaults/",
-    "test_simple_rnn_with_initial_bias/",
-    "test_softmax_axis_0/",
-    "test_softmax_axis_0_expanded/",
-    "test_softmax_axis_1/",
-    "test_softmax_axis_1_expanded/",
-    "test_softmax_axis_2_expanded/",
-    "test_softmax_default_axis/",
-    "test_softmax_default_axis_expanded/",
-    "test_softmax_example_expanded/",
-    "test_softmax_large_number_expanded/",
-    "test_softmax_negative_axis_expanded/",
-    "test_split_variable_parts_1d/",
-    "test_split_variable_parts_2d/",
-    "test_split_variable_parts_default_axis/",
-    "test_split_zero_size_splits/",
-    "test_squeeze/",
-    "test_squeeze_negative_axes/",
-    "test_strnormalizer_export_monday_casesensintive_lower/",
-    "test_strnormalizer_export_monday_casesensintive_nochangecase/",
-    "test_strnormalizer_export_monday_casesensintive_upper/",
-    "test_strnormalizer_export_monday_empty_output/",
-    "test_strnormalizer_export_monday_insensintive_upper_twodim/",
-    "test_strnormalizer_nostopwords_nochangecase/",
-    "test_tfidfvectorizer_tf_batch_onlybigrams_skip0/",
-    "test_tfidfvectorizer_tf_batch_onlybigrams_skip5/",
-    "test_tfidfvectorizer_tf_batch_uniandbigrams_skip5/",
-    "test_tfidfvectorizer_tf_only_bigrams_skip0/",
-    "test_tfidfvectorizer_tf_onlybigrams_levelempty/",
-    "test_tfidfvectorizer_tf_onlybigrams_skip5/",
-    "test_tfidfvectorizer_tf_uniandbigrams_skip5/",
-    "test_training_dropout/",
-    "test_training_dropout_default/",
-    "test_training_dropout_default_mask/",
-    "test_training_dropout_mask/",
-    "test_training_dropout_zero_ratio/",
-    "test_training_dropout_zero_ratio_mask/",
-    "test_unique_sorted_with_axis/",
-    "test_unique_sorted_with_axis_3d/",
-    "test_unique_sorted_with_negative_axis/",
-    "test_unsqueeze_axis_0/",
-    "test_unsqueeze_axis_1/",
-    "test_unsqueeze_axis_2/",
-    "test_unsqueeze_negative_axes/",
-    "test_unsqueeze_three_axes/",
-    "test_unsqueeze_two_axes/",
-    "test_unsqueeze_unsorted_axes/",
-    "test_upsample_nearest/",
+    "test_adagrad",
+    "test_adagrad_multiple",
+    "test_adam",
+    "test_adam_multiple",
+    "test_argmax_default_axis_example_select_last_index",
+    "test_argmax_default_axis_random_select_last_index",
+    "test_argmax_keepdims_example_select_last_index",
+    "test_argmax_keepdims_random_select_last_index",
+    "test_argmax_negative_axis_keepdims_example_select_last_index",
+    "test_argmax_negative_axis_keepdims_random_select_last_index",
+    "test_argmax_no_keepdims_example_select_last_index",
+    "test_argmax_no_keepdims_random_select_last_index",
+    "test_argmin_default_axis_example_select_last_index",
+    "test_argmin_default_axis_random_select_last_index",
+    "test_argmin_keepdims_example_select_last_index",
+    "test_argmin_keepdims_random_select_last_index",
+    "test_argmin_negative_axis_keepdims_example_select_last_index",
+    "test_argmin_negative_axis_keepdims_random_select_last_index",
+    "test_argmin_no_keepdims_example_select_last_index",
+    "test_argmin_no_keepdims_random_select_last_index",
+    "test_cast_BFLOAT16_to_FLOAT",
+    "test_cast_DOUBLE_to_FLOAT16",
+    "test_cast_FLOAT_to_BFLOAT16",
+    "test_cast_FLOAT_to_STRING",
+    "test_cast_STRING_to_FLOAT",
+    "test_celu",
+    "test_compress_0",
+    "test_compress_1",
+    "test_compress_default_axis",
+    "test_compress_negative_axis",
+    "test_convtranspose_dilations",
+    "test_convtranspose_output_shape",
+    "test_cumsum_1d",
+    "test_cumsum_1d_exclusive",
+    "test_cumsum_1d_reverse",
+    "test_cumsum_1d_reverse_exclusive",
+    "test_cumsum_2d_axis_0",
+    "test_cumsum_2d_axis_1",
+    "test_cumsum_2d_negative_axis",
+    "test_det_2d",
+    "test_det_nd",
+    "test_dropout_default",
+    "test_dropout_default_mask",
+    "test_dropout_default_mask_ratio",
+    "test_dropout_default_ratio",
+    "test_einsum_batch_diagonal",
+    "test_einsum_batch_matmul",
+    "test_einsum_inner_prod",
+    "test_einsum_sum",
+    "test_einsum_transpose",
+    "test_greater_equal",
+    "test_greater_equal_bcast",
+    "test_hardmax_axis_0",
+    "test_hardmax_axis_1",
+    "test_hardmax_default_axis",
+    "test_if_seq",
+    "test_less_equal",
+    "test_less_equal_bcast",
+    "test_logsoftmax_axis_0",
+    "test_logsoftmax_axis_0_expanded",
+    "test_logsoftmax_axis_1",
+    "test_logsoftmax_axis_1_expanded",
+    "test_logsoftmax_axis_2_expanded",
+    "test_logsoftmax_default_axis",
+    "test_logsoftmax_default_axis_expanded",
+    "test_logsoftmax_example_1_expanded",
+    "test_logsoftmax_large_number_expanded",
+    "test_logsoftmax_negative_axis_expanded",
+    "test_loop11",
+    "test_loop13_seq",
+    "test_matmulinteger",
+    "test_maxpool_2d_same_lower",
+    "test_maxpool_2d_same_upper",
+    "test_maxpool_with_argmax_2d_precomputed_pads",
+    "test_maxpool_with_argmax_2d_precomputed_strides",
+    "test_maxunpool_export_with_output_shape",
+    "test_momentum",
+    "test_momentum_multiple",
+    "test_mvn",
+    "test_nesterov_momentum",
+    "test_nllloss_NC",
+    "test_nllloss_NC_expanded",
+    "test_nllloss_NCd1",
+    "test_nllloss_NCd1_expanded",
+    "test_nllloss_NCd1_ii",
+    "test_nllloss_NCd1_ii_expanded",
+    "test_nllloss_NCd1_mean_weight_negative_ii",
+    "test_nllloss_NCd1_mean_weight_negative_ii_expanded",
+    "test_nllloss_NCd1_weight",
+    "test_nllloss_NCd1_weight_expanded",
+    "test_nllloss_NCd1_weight_ii",
+    "test_nllloss_NCd1_weight_ii_expanded",
+    "test_nllloss_NCd1d2",
+    "test_nllloss_NCd1d2_expanded",
+    "test_nllloss_NCd1d2_no_weight_reduction_mean_ii",
+    "test_nllloss_NCd1d2_no_weight_reduction_mean_ii_expanded",
+    "test_nllloss_NCd1d2_reduction_mean",
+    "test_nllloss_NCd1d2_reduction_mean_expanded",
+    "test_nllloss_NCd1d2_reduction_sum",
+    "test_nllloss_NCd1d2_reduction_sum_expanded",
+    "test_nllloss_NCd1d2_with_weight",
+    "test_nllloss_NCd1d2_with_weight_expanded",
+    "test_nllloss_NCd1d2_with_weight_reduction_mean",
+    "test_nllloss_NCd1d2_with_weight_reduction_mean_expanded",
+    "test_nllloss_NCd1d2_with_weight_reduction_sum",
+    "test_nllloss_NCd1d2_with_weight_reduction_sum_expanded",
+    "test_nllloss_NCd1d2_with_weight_reduction_sum_ii",
+    "test_nllloss_NCd1d2_with_weight_reduction_sum_ii_expanded",
+    "test_nllloss_NCd1d2d3_none_no_weight_negative_ii",
+    "test_nllloss_NCd1d2d3_none_no_weight_negative_ii_expanded",
+    "test_nllloss_NCd1d2d3_sum_weight_high_ii",
+    "test_nllloss_NCd1d2d3_sum_weight_high_ii_expanded",
+    "test_nllloss_NCd1d2d3d4d5_mean_weight",
+    "test_nllloss_NCd1d2d3d4d5_mean_weight_expanded",
+    "test_nllloss_NCd1d2d3d4d5_none_no_weight",
+    "test_nllloss_NCd1d2d3d4d5_none_no_weight_expanded",
+    "test_pow_types_float",
+    "test_pow_types_float32_int32",
+    "test_pow_types_float32_int64",
+    "test_pow_types_float32_uint32",
+    "test_pow_types_float32_uint64",
+    "test_pow_types_int",
+    "test_pow_types_int32_float32",
+    "test_pow_types_int32_int32",
+    "test_pow_types_int64_float32",
+    "test_pow_types_int64_int64",
+    "test_qlinearmatmul_2D",
+    "test_qlinearmatmul_3D",
+    "test_range_float_type_positive_delta_expanded",
+    "test_range_int32_type_negative_delta_expanded",
+    "test_reduce_sum_default_axes_keepdims_example",
+    "test_reduce_sum_default_axes_keepdims_random",
+    "test_reduce_sum_do_not_keepdims_example",
+    "test_reduce_sum_do_not_keepdims_random",
+    "test_reduce_sum_empty_axes_input_noop_example",
+    "test_reduce_sum_empty_axes_input_noop_random",
+    "test_reduce_sum_keepdims_example",
+    "test_reduce_sum_keepdims_random",
+    "test_reduce_sum_negative_axes_keepdims_example",
+    "test_reduce_sum_negative_axes_keepdims_random",
+    "test_resize_downsample_sizes_cubic",
+    "test_resize_downsample_sizes_linear_pytorch_half_pixel",
+    "test_resize_downsample_sizes_nearest",
+    "test_resize_tf_crop_and_resize",
+    "test_resize_upsample_sizes_cubic",
+    "test_resize_upsample_sizes_nearest",
+    "test_resize_upsample_sizes_nearest_ceil_half_pixel",
+    "test_resize_upsample_sizes_nearest_floor_align_corners",
+    "test_resize_upsample_sizes_nearest_round_prefer_ceil_asymmetric",
+    "test_rnn_seq_length",
+    "test_round",
+    "test_scan9_sum",
+    "test_scan_sum",
+    "test_sce_NCd1_mean_weight_negative_ii",
+    "test_sce_NCd1_mean_weight_negative_ii_expanded",
+    "test_sce_NCd1_mean_weight_negative_ii_log_prob",
+    "test_sce_NCd1_mean_weight_negative_ii_log_prob_expanded",
+    "test_sce_NCd1d2d3_none_no_weight_negative_ii",
+    "test_sce_NCd1d2d3_none_no_weight_negative_ii_expanded",
+    "test_sce_NCd1d2d3_none_no_weight_negative_ii_log_prob",
+    "test_sce_NCd1d2d3_none_no_weight_negative_ii_log_prob_expanded",
+    "test_sce_NCd1d2d3_sum_weight_high_ii",
+    "test_sce_NCd1d2d3_sum_weight_high_ii_expanded",
+    "test_sce_NCd1d2d3_sum_weight_high_ii_log_prob",
+    "test_sce_NCd1d2d3_sum_weight_high_ii_log_prob_expanded",
+    "test_sce_NCd1d2d3d4d5_mean_weight",
+    "test_sce_NCd1d2d3d4d5_mean_weight_expanded",
+    "test_sce_NCd1d2d3d4d5_mean_weight_log_prob",
+    "test_sce_NCd1d2d3d4d5_mean_weight_log_prob_expanded",
+    "test_sce_NCd1d2d3d4d5_none_no_weight",
+    "test_sce_NCd1d2d3d4d5_none_no_weight_expanded",
+    "test_sce_NCd1d2d3d4d5_none_no_weight_log_prob",
+    "test_sce_NCd1d2d3d4d5_none_no_weight_log_prob_expanded",
+    "test_sce_mean",
+    "test_sce_mean_3d",
+    "test_sce_mean_3d_expanded",
+    "test_sce_mean_3d_log_prob",
+    "test_sce_mean_3d_log_prob_expanded",
+    "test_sce_mean_expanded",
+    "test_sce_mean_log_prob",
+    "test_sce_mean_log_prob_expanded",
+    "test_sce_mean_no_weight_ii",
+    "test_sce_mean_no_weight_ii_3d",
+    "test_sce_mean_no_weight_ii_3d_expanded",
+    "test_sce_mean_no_weight_ii_3d_log_prob",
+    "test_sce_mean_no_weight_ii_3d_log_prob_expanded",
+    "test_sce_mean_no_weight_ii_4d",
+    "test_sce_mean_no_weight_ii_4d_expanded",
+    "test_sce_mean_no_weight_ii_4d_log_prob",
+    "test_sce_mean_no_weight_ii_4d_log_prob_expanded",
+    "test_sce_mean_no_weight_ii_expanded",
+    "test_sce_mean_no_weight_ii_log_prob",
+    "test_sce_mean_no_weight_ii_log_prob_expanded",
+    "test_sce_mean_weight",
+    "test_sce_mean_weight_expanded",
+    "test_sce_mean_weight_ii",
+    "test_sce_mean_weight_ii_3d",
+    "test_sce_mean_weight_ii_3d_expanded",
+    "test_sce_mean_weight_ii_3d_log_prob",
+    "test_sce_mean_weight_ii_3d_log_prob_expanded",
+    "test_sce_mean_weight_ii_4d",
+    "test_sce_mean_weight_ii_4d_expanded",
+    "test_sce_mean_weight_ii_4d_log_prob",
+    "test_sce_mean_weight_ii_4d_log_prob_expanded",
+    "test_sce_mean_weight_ii_expanded",
+    "test_sce_mean_weight_ii_log_prob",
+    "test_sce_mean_weight_ii_log_prob_expanded",
+    "test_sce_mean_weight_log_prob",
+    "test_sce_mean_weight_log_prob_expanded",
+    "test_sce_none",
+    "test_sce_none_expanded",
+    "test_sce_none_log_prob",
+    "test_sce_none_log_prob_expanded",
+    "test_sce_none_weights",
+    "test_sce_none_weights_expanded",
+    "test_sce_none_weights_log_prob",
+    "test_sce_none_weights_log_prob_expanded",
+    "test_sce_sum",
+    "test_sce_sum_expanded",
+    "test_sce_sum_log_prob",
+    "test_sce_sum_log_prob_expanded",
+    "test_sequence_insert_at_back",
+    "test_sequence_insert_at_front",
+    "test_simple_rnn_defaults",
+    "test_simple_rnn_with_initial_bias",
+    "test_softmax_axis_0",
+    "test_softmax_axis_0_expanded",
+    "test_softmax_axis_1",
+    "test_softmax_axis_1_expanded",
+    "test_softmax_axis_2_expanded",
+    "test_softmax_default_axis",
+    "test_softmax_default_axis_expanded",
+    "test_softmax_example_expanded",
+    "test_softmax_large_number_expanded",
+    "test_softmax_negative_axis_expanded",
+    "test_split_variable_parts_1d",
+    "test_split_variable_parts_2d",
+    "test_split_variable_parts_default_axis",
+    "test_split_zero_size_splits",
+    "test_squeeze",
+    "test_squeeze_negative_axes",
+    "test_strnormalizer_export_monday_casesensintive_lower",
+    "test_strnormalizer_export_monday_casesensintive_nochangecase",
+    "test_strnormalizer_export_monday_casesensintive_upper",
+    "test_strnormalizer_export_monday_empty_output",
+    "test_strnormalizer_export_monday_insensintive_upper_twodim",
+    "test_strnormalizer_nostopwords_nochangecase",
+    "test_tfidfvectorizer_tf_batch_onlybigrams_skip0",
+    "test_tfidfvectorizer_tf_batch_onlybigrams_skip5",
+    "test_tfidfvectorizer_tf_batch_uniandbigrams_skip5",
+    "test_tfidfvectorizer_tf_only_bigrams_skip0",
+    "test_tfidfvectorizer_tf_onlybigrams_levelempty",
+    "test_tfidfvectorizer_tf_onlybigrams_skip5",
+    "test_tfidfvectorizer_tf_uniandbigrams_skip5",
+    "test_training_dropout",
+    "test_training_dropout_default",
+    "test_training_dropout_default_mask",
+    "test_training_dropout_mask",
+    "test_training_dropout_zero_ratio",
+    "test_training_dropout_zero_ratio_mask",
+    "test_unique_sorted_with_axis",
+    "test_unique_sorted_with_axis_3d",
+    "test_unique_sorted_with_negative_axis",
+    "test_unsqueeze_axis_0",
+    "test_unsqueeze_axis_1",
+    "test_unsqueeze_axis_2",
+    "test_unsqueeze_negative_axes",
+    "test_unsqueeze_three_axes",
+    "test_unsqueeze_two_axes",
+    "test_unsqueeze_unsorted_axes",
+    "test_upsample_nearest",
 ]
 
 
 target_skips = {
     "cuda": [
-        "test_basic_convinteger/",
-        "test_convinteger_with_padding/",
-        "test_mod_mixed_sign_float16/",
-        "test_qlinearconv/",
-        "test_resize_upsample_sizes_nearest/",
+        "test_basic_convinteger",
+        "test_convinteger_with_padding",
+        "test_range_float_type_positive_delta_expanded",
+        "test_range_int32_type_positive_delta_expanded",
+        "test_mod_mixed_sign_float16",
+        "test_qlinearconv",
+        "test_resize_upsample_sizes_nearest",
     ]
 }
 
 
-@pytest.mark.parametrize("test", onnx_test_folders)
+@pytest.mark.parametrize("onnx_test", onnx_test_folders)
 @tvm.testing.parametrize_targets
-def test_onnx_nodes(test, target, dev):
-    if target in target_skips:
-        for failure in target_skips[target]:
-            if failure in test:
-                pytest.skip()
-                break
-    for failure in unsupported_onnx_tests:
-        if failure in test:
-            pytest.skip()
-            break
+def test_onnx_nodes(target, dev, onnx_test):
+    target_kind = tvm.target.Target(target).kind.name
+
+    if onnx_test in unsupported_onnx_tests:
+        pytest.skip(f"Onnx test '{onnx_test}' not yet supported by TVM")
+
+    target_specific_skips = target_skips.get(target_kind, [])
+    if onnx_test in target_specific_skips:
+        pytest.skip(f"Onnx test '{onnx_test}' not yet supported by TVM on {target_kind} targets")
+
+    test_dir = os.path.join(onnx_test_node_dir, onnx_test)
+
     atol = 1e-5
     rtol = 1e-5
-    if "roialign" in test:
+    if "roialign" in test_dir:
         # for some reason the ONNX test crops the
         # roialign results to 4 decimal places
         atol = 1e-4
-    onnx_model = onnx.load(test + "/model.onnx")
+    onnx_model = onnx.load(test_dir + "/model.onnx")
     inputs = []
     outputs = []
-    for dataset in glob.glob(test + "/*/"):
+    for dataset in glob.glob(test_dir + "/*/"):
         tensors = sorted(glob.glob(dataset + "/*.pb"))
         for tensor in tensors:
             new_tensor = onnx.TensorProto()
@@ -5030,11 +5075,9 @@ def test_reverse_sequence(target, dev):
     verify_reverse_sequence(x, sequence_lens, 1, 0)
 
 
+@tvm.testing.known_failing_targets("cuda")
 @tvm.testing.parametrize_targets
 def test_qlinearconv(target, dev):
-    if "cuda" in target:
-        pytest.skip("Fails on CUDA")
-
     def verify_qlinearconv(
         x_shape,
         w_shape,
@@ -5332,11 +5375,9 @@ def test_random_uniform(target, dev):
     tvm.testing.assert_allclose(real, expected, rtol=1e-5)
 
 
+@tvm.testing.known_failing_targets("cuda")
 @tvm.testing.parametrize_targets
 def test_convinteger(target, dev):
-    if "cuda" in target:
-        pytest.skip("Fails on CUDA")
-
     def verify_convinteger(
         x_shape,
         w_shape,
