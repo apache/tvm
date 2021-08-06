@@ -129,8 +129,7 @@ class AnchorQuantExtractor : public ExprVisitor {
   void VisitExpr(const Expr& expr) override {
     if (expr.as<CallNode>() == nullptr && expr.as<OpNode>() == nullptr &&
         expr.as<TupleNode>() == nullptr && expr.as<TupleGetItemNode>() == nullptr &&
-        expr.as<ConstantNode>() == nullptr &&
-        !stack_.empty() &&
+        expr.as<ConstantNode>() == nullptr && !stack_.empty() &&
         Downcast<Op>(stack_[stack_.size() - 1].as<CallNode>()->op) != quantize_op_) {
       nonquantizable_.insert(stack_[stack_.size() - 1]);
     }
