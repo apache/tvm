@@ -70,6 +70,7 @@ import tvm.arith
 import tvm.tir
 import tvm.te
 import tvm._ffi
+
 from tvm.contrib import nvcc
 from tvm.error import TVMError
 
@@ -740,24 +741,22 @@ def requires_rpc(*args):
 
 def _target_to_requirement(target):
     if isinstance(target, str):
-        target_kind = target.split()[0]
-    else:
-        target_kind = target.kind.name
+        target = tvm.target.Target(target)
 
     # mapping from target to decorator
-    if target_kind == "cuda":
+    if target.kind.name == "cuda":
         return requires_cuda()
-    if target_kind == "rocm":
+    if target.kind.name == "rocm":
         return requires_rocm()
-    if target_kind == "vulkan":
+    if target.kind.name == "vulkan":
         return requires_vulkan()
-    if target_kind == "nvptx":
+    if target.kind.name == "nvptx":
         return requires_nvptx()
-    if target_kind == "metal":
+    if target.kind.name == "metal":
         return requires_metal()
-    if target_kind == "opencl":
+    if target.kind.name == "opencl":
         return requires_opencl()
-    if target_kind == "llvm":
+    if target.kind.name == "llvm":
         return requires_llvm()
     return []
 
