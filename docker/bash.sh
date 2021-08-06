@@ -177,7 +177,7 @@ while (( $# )); do
 
         --)
             shift
-            COMMAND="$@"
+            COMMAND=( "$@" )
             break
             ;;
 
@@ -197,7 +197,7 @@ while (( $# )); do
                 DOCKER_IMAGE_NAME=$1
                 shift
             else
-                COMMAND="$@"
+                COMMAND=( "$@" )
                 break
             fi
             ;;
@@ -209,7 +209,7 @@ if [[ -z "${DOCKER_IMAGE_NAME}" ]]; then
     show_usage >&2
 fi
 
-if [[ "${COMMAND}" = bash ]]; then
+if [[ "${COMMAND[@]}" = bash ]]; then
     INTERACTIVE=true
     USE_NET_HOST=true
 fi
