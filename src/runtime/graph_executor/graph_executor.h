@@ -381,11 +381,10 @@ class TVM_DLL GraphExecutor : public ModuleNode {
    * \brief Create an execution function given input.
    * \param attrs The node attributes.
    * \param args The arguments to the functor, including inputs and outputs.
-   * \param num_inputs Number of inputs.
    * \return The created executor.
    */
   std::pair<std::function<void()>, std::shared_ptr<OpArgs>> CreateTVMOp(
-      const TVMOpParam& attrs, const std::vector<DLTensor>& args, size_t num_inputs);
+      const TVMOpParam& attrs, const std::vector<DLTensor>& args);
   // Get node entry index.
   uint32_t entry_id(uint32_t nid, uint32_t index) const { return node_row_ptr_[nid] + index; }
   // Get node entry index.

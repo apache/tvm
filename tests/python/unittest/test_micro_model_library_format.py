@@ -102,14 +102,20 @@ def validate_graph_json(extract_dir, factory):
 
 @tvm.testing.requires_micro
 @pytest.mark.parametrize(
-    "target",
+    "executor,target,should_generate_interface",
     [
-        ("graph", tvm.target.target.micro("host")),
-        ("aot", tvm.target.target.micro("host", options="-executor=aot")),
+        ("graph", tvm.target.target.micro("host"), False),
+        ("aot", tvm.target.target.micro("host", options="-executor=aot"), False),
+        (
+            "aot",
+            tvm.target.target.micro(
+                "host", options="-executor=aot --unpacked-api=1 --interface-api=c"
+            ),
+            True,
+        ),
     ],
 )
-def test_export_model_library_format_c(target):
-    executor, _target = target
+def test_export_model_library_format_c(executor, target, should_generate_interface):
     with utils.TempDirectory.set_keep_for_debug(True):
         with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
             relay_mod = tvm.parser.fromtext(
@@ -122,8 +128,8 @@ def test_export_model_library_format_c(target):
             )
             factory = tvm.relay.build(
                 relay_mod,
-                _target,
-                target_host=_target,
+                target,
+                target_host=target,
                 mod_name="add",
                 params={"c": numpy.array([[2.0, 4.0]], dtype="float32")},
             )
@@ -147,7 +153,7 @@ def test_export_model_library_format_c(target):
                 metadata["export_datetime"], "%Y-%m-%d %H:%M:%SZ"
             )
             assert (datetime.datetime.now() - export_datetime) < datetime.timedelta(seconds=60 * 5)
-            assert metadata["target"] == {"1": str(_target)}
+            assert metadata["target"] == {"1": str(target)}
             if executor == "graph":
                 assert metadata["memory"]["sids"] == [
                     {"storage_id": 0, "size_bytes": 2, "input_binding": "a"},
@@ -173,6 +179,9 @@ def test_export_model_library_format_c(target):
 
         assert os.path.exists(os.path.join(extract_dir, "codegen", "host", "src", "add_lib0.c"))
         assert os.path.exists(os.path.join(extract_dir, "codegen", "host", "src", "add_lib1.c"))
+        assert should_generate_interface == os.path.exists(
+            os.path.join(extract_dir, "codegen", "host", "include", "tvmgen_add.h")
+        )
 
         if executor == "graph":
             validate_graph_json(extract_dir, factory)
@@ -265,13 +274,9 @@ def test_export_model_library_format_llvm():
 @tvm.testing.requires_micro
 @pytest.mark.parametrize(
     "target",
-    [
-        ("graph", tvm.target.target.micro("host")),
-        ("aot", tvm.target.target.micro("host", options="-executor=aot")),
-    ],
+    [tvm.target.target.micro("host"), tvm.target.target.micro("host", options="-executor=aot")],
 )
 def test_export_model_library_format_workspace(target):
-    executor, _target = target
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         relay_mod = tvm.parser.fromtext(
             """
@@ -285,7 +290,7 @@ def test_export_model_library_format_workspace(target):
             }
             """
         )
-        factory = tvm.relay.build(relay_mod, _target, target_host=_target, mod_name="qnn_conv2d")
+        factory = tvm.relay.build(relay_mod, target, target_host=target, mod_name="qnn_conv2d")
 
     temp_dir = utils.tempdir()
     mlf_tar_path = temp_dir.relpath("lib.tar")
@@ -306,7 +311,7 @@ def test_export_model_library_format_workspace(target):
             metadata["export_datetime"], "%Y-%m-%d %H:%M:%SZ"
         )
         assert (datetime.datetime.now() - export_datetime) < datetime.timedelta(seconds=60 * 5)
-        assert metadata["target"] == {"1": str(_target)}
+        assert metadata["target"] == {"1": str(target)}
         assert metadata["memory"]["functions"]["main"] == [
             {
                 "constants_size_bytes": 0,
@@ -327,9 +332,6 @@ def test_export_model_library_format_workspace(target):
 @tvm.testing.requires_micro
 def test_export_non_dso_exportable():
     module = tvm.support.FrontendTestModule()
-    factory = executor_factory.GraphExecutorFactoryModule(
-        None, tvm.target.target.micro("host"), '"graph_json"', module, "test_module", {}, {}
-    )
 
     temp_dir = utils.tempdir()
     import tvm.micro as micro
