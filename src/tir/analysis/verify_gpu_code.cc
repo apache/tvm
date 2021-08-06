@@ -155,10 +155,10 @@ class GPUCodeVerifier : public StmtExprVisitor {
         err("local memory per block", local_memory_per_block_, max_local_memory_per_block_);
         err("shared memory per block", shared_memory_per_block_, max_shared_memory_per_block_);
 
-        if(kernels_launched_ > max_kernels_){
+        if (kernels_launched_ > max_kernels_) {
           std::stringstream s;
-          s << "Number of launched kernels (" << kernels_launched_ << ") is greater than the allowed maximum ("
-            << max_kernels_ << ")";
+          s << "Number of launched kernels (" << kernels_launched_ 
+            << ") is greater than the allowed maximum (" << max_kernels_ << ")";
           errors_.push_back(s.str());
         }
       }
