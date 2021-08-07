@@ -29,24 +29,18 @@ This tool target to visualize Relay IR.
 ## Requirement
 
 1. TVM
-2. graphviz and graphviz-dev
-2. bokeh==2.3.1
-3. pygraphviz==1.6
-4. networkx==2.5.1
+2. graphviz
+2. pydot
+3. bokeh >= 2.3.1
 
 ```
 # To install TVM, please refer to https://tvm.apache.org/docs/install/from_source.html
 
-# requirements of pygraphviz
-apt-get install graphviz graphviz-dev
-# pygraphviz
-pip install pygraphviz==1.6
+# requirements of pydot
+apt-get install graphviz
 
-# networkx
-pip install networkx==2.5.1
-
-# bokeh
-pip install bokeh==2.3.1
+# pydot and bokeh
+pip install pydot bokeh==2.3.1
 ```
 
 ## Usage
@@ -67,10 +61,8 @@ vizer.render("output.html")
 3. https://discuss.tvm.apache.org/t/rfc-visualizing-relay-program-as-graph/4825/17
 
 ## TODO
-1. Display more information when the zoom-level is large enough (currently only node_type is displayed.)
+1. Refactor plotter. Delegate plotting to another class.
+2. Display more information when the zoom-level is large enough (currently only node_type is displayed.)
  - Need to give each attribute priority, though...
  - Simple user interface to configure this priority.
-2. Get rid of networkx dependency.
-3. Hopefully, get rid of graphviz-dev dependency.
- - Maybe use pydot instead of graphviz(python module)
-4. Interactive legend.
+3. Interactive legend.

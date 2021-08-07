@@ -21,10 +21,11 @@ import logging
 import functools
 
 import numpy as np
-import networkx as nx
+import pydot
 
 from bokeh.io import output_file, save
-from bokeh.plotting import from_networkx
+from bokeh.models.graphs import StaticLayoutProvider
+from bokeh.models.renderers import GraphRenderer
 from bokeh.models import (
     ColumnDataSource,
     CustomJS,
@@ -78,18 +79,37 @@ class NodeDescriptor:
 class GraphShaper:
     """Provide the bounding-box, and node location, height, width given by pygraphviz."""
 
+    # defined by graphviz.
     _px_per_inch = 72
 
-    def __init__(self, nx_digraph, prog="neato", args=""):
-        agraph = nx.nx_agraph.to_agraph(nx_digraph)
-        agraph.layout(prog=prog, args=args)
-        self._agraph = agraph
+    def __init__(self, pydot_graph, prog="dot", args=None):
+        if args is None:
+            args = []
+        # call the graphviz program to get layout
+        pydot_graph_str = pydot_graph.create([prog] + args, format="dot").decode()
+        # parse layout
+        pydot_graph = pydot.graph_from_dot_data(pydot_graph_str)
+        if len(pydot_graph) != 1:
+            # should be unlikely.
+            _LOGGER.warning(
+                "Got %d pydot graphs. Only the first one will be used.", len(pydot_graph)
+            )
+        self._pydot_graph = pydot_graph[0]
 
     @functools.lru_cache()
     def get_edge_path(self, start_node_id, end_node_id):
         """Get explicit path points for MultiLine."""
-        edge = self._agraph.get_edge(start_node_id, end_node_id)
-        pos_str = edge.attr["pos"]
+        edge = self._pydot_graph.get_edge(str(start_node_id), str(end_node_id))
+        if len(edge) != 1:
+            _LOGGER.warning(
+                "Got %d edges between %s and %s. Only the first one will be used.",
+                len(edge),
+                start_node_id,
+                end_node_id
+            )
+        edge = edge[0]
+        # filter out quotes and newline
+        pos_str = edge.get_pos().strip("\"").replace("\\\n", "")
         tokens = pos_str.split(" ")
         s_token = None
         e_token = None
@@ -102,7 +122,15 @@ class GraphShaper:
                 s_token = token
             else:
                 x_str, y_str = token.split(",")
-                ret_x_pts.append(float(x_str))
+                ss = False
+                try:
+                    ret_x_pts.append(float(x_str))
+                except ValueError:
+                    print(token)
+                    print(start_node_id, end_node_id)
+                    ss = True
+                if ss:
+                    import pdb; pdb.set_trace()
                 ret_y_pts.append(float(y_str))
         if s_token is not None:
             _, x_str, y_str = s_token.split(",")
@@ -128,18 +156,20 @@ class GraphShaper:
         return float(width_str) * self._px_per_inch
 
     def _get_node_attr(self, node_name, attr_name, default_val):
-        try:
-            attr = self._agraph.get_node(node_name).attr
-        except KeyError:
-            _LOGGER.warning("%s does not exist in the graph.", node_name)
+
+        node = self._pydot_graph.get_node(str(node_name))
+        if len(node) > 1:
+            _LOGGER.error("There are %d nodes with the name %s. Randomly choose one.", len(node), node_name)
+        if len(node) == 0:
+            _LOGGER.warning("%s does not exist in the graph. Use default %s for attribute %s", node_name, default_val, attr_name)
             return default_val
 
+        node = node[0]
         try:
-            val = attr[attr_name]
+            val = node.obj_dict["attributes"][attr_name].strip("\"")
         except KeyError:
-            _LOGGER.warning(
-                "%s does not exist in node %s. Use default %s", attr_name, node_name, default_val
-            )
+            _LOGGER.warning("%s don't exist in node %s. Use default %s", attr_name, node_name, default_val)
+            val = default_val
         return val
 
 
@@ -147,36 +177,22 @@ class BokehPlotter(Plotter):
     """Use Bokeh library to plot Relay IR."""
 
     def __init__(self):
-        self._digraph = nx.DiGraph()
+        self._pydot_digraph = pydot.Dot(graph_type="digraph")
         self._id_to_node = {}
-        # for pending edge...
-        self._pending_id_to_edges = {}
 
     def node(self, node_id, node_type, node_detail):
+        # need string for pydot
+        node_id = str(node_id)
         if node_id in self._id_to_node:
             _LOGGER.warning("node_id %s already exists.", node_id)
             return
-
-        self._digraph.add_node(node_id)
+        self._pydot_digraph.add_node(pydot.Node(node_id))
         self._id_to_node[node_id] = NodeDescriptor(node_id, node_type, node_detail)
 
-        self._add_pending_edge(node_id)
-
     def edge(self, id_start, id_end):
-        if id_start in self._id_to_node and id_end in self._id_to_node:
-            self._edge(id_start, id_end)
-            return
-
-        if id_start not in self._id_to_node:
-            try:
-                self._pending_id_to_edges[id_start].add((id_start, id_end))
-            except KeyError:
-                self._pending_id_to_edges[id_start] = set([(id_start, id_end)])
-        if id_end not in self._id_to_node:
-            try:
-                self._pending_id_to_edges[id_end].add((id_start, id_end))
-            except KeyError:
-                self._pending_id_to_edges[id_end] = set([(id_start, id_end)])
+        # need string to pydot
+        id_start, id_end = str(id_start), str(id_end)
+        self._pydot_digraph.add_edge(pydot.Edge(id_start, id_end))
 
     def render(self, filename):
 
@@ -197,22 +213,6 @@ class BokehPlotter(Plotter):
 
         layout_dom = self._create_layout_dom(plot)
         self._save_html(filename, layout_dom)
-
-    def _edge(self, id_start, id_end):
-        self._digraph.add_edge(id_start, id_end)
-
-    def _add_pending_edge(self, node_id):
-        added_edges = set()
-        if node_id in self._pending_id_to_edges:
-            for id_start, id_end in self._pending_id_to_edges[node_id]:
-                if id_start in self._id_to_node and id_end in self._id_to_node:
-                    self._edge(id_start, id_end)
-                    added_edges.add((id_start, id_end))
-
-        # fix pending_id_to_edges
-        for id_start, id_end in added_edges:
-            self._pending_id_to_edges[id_start].discard((id_start, id_end))
-            self._pending_id_to_edges[id_end].discard((id_start, id_end))
 
     def _get_type_to_color_map(self):
         category20 = d3["Category20"][20]
@@ -284,9 +284,11 @@ class BokehPlotter(Plotter):
             return xe, node_y - node_h / 2, 0
 
         scatter_source = {"x": [], "y": [], "angle": []}
-        for edge in self._digraph.edges():
-            x_pts, y_pts = shaper.get_edge_path(edge[0], edge[1])
-            x, y, angle = get_scatter_loc(x_pts[-2], x_pts[-1], y_pts[-2], y_pts[-1], edge[1])
+        for edge in self._pydot_digraph.get_edges():
+            id_start = edge.get_source()
+            id_end = edge.get_destination()
+            x_pts, y_pts = shaper.get_edge_path(id_start, id_end)
+            x, y, angle = get_scatter_loc(x_pts[-2], x_pts[-1], y_pts[-2], y_pts[-1], id_end)
             scatter_source["angle"].append(angle)
             scatter_source["x"].append(x)
             scatter_source["y"].append(y)
@@ -323,9 +325,21 @@ class BokehPlotter(Plotter):
 
     def _create_graph(self, plot, shaper, node_to_pos):
 
-        graph = from_networkx(self._digraph, node_to_pos)
+        graph = GraphRenderer()
         graph.name = self._get_graph_name(plot)
+        # FIXME: handle node attributes if necessary
+        graph.node_renderer.data_source.data = {
+            "index": [n.get_name() for n in self._pydot_digraph.get_nodes()]
+        }
 
+        edges = self._pydot_digraph.get_edges()
+        graph.edge_renderer.data_source.data = {
+            "start": [e.get_source() for e in edges],
+            "end": [e.get_destination() for e in edges]   
+        }
+
+        graph.layout_provider = StaticLayoutProvider(graph_layout=node_to_pos)
+        
         # TODO: I want to plot the network with lower-level bokeh APIs in the future,
         # which may not support NodesAndLinkedEdges() policy. So comment out here.
         # graph.selection_policy = NodesAndLinkedEdges()
@@ -338,8 +352,10 @@ class BokehPlotter(Plotter):
         )
         x_path_list = []
         y_path_list = []
-        for edge in self._digraph.edges():
-            x_pts, y_pts = shaper.get_edge_path(edge[0], edge[1])
+        for edge in edges:
+            id_start = edge.get_source()
+            id_end = edge.get_destination()
+            x_pts, y_pts = shaper.get_edge_path(id_start, id_end)
             x_path_list.append(x_pts)
             y_path_list.append(y_pts)
         graph.edge_renderer.data_source.data["xs"] = x_path_list
@@ -379,12 +395,13 @@ class BokehPlotter(Plotter):
     def _create_layout_dom(self, plot):
 
         shaper = GraphShaper(
-            self._digraph, prog="dot", args="-Grankdir=TB -Gsplines=ortho -Nordering=in"
+            self._pydot_digraph, prog="dot", args=["-Grankdir=TB", "-Gsplines=ortho", "-Nordering=in"]
         )
 
         node_to_pos = {}
-        for node in self._digraph:
-            node_to_pos[node] = shaper.get_node_pos(node)
+        for node in self._pydot_digraph.get_nodes():
+            node_name = node.get_name()
+            node_to_pos[node_name] = shaper.get_node_pos(node_name)
 
         graph = self._create_graph(plot, shaper, node_to_pos)
 
