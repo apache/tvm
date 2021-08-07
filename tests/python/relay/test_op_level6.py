@@ -16,9 +16,9 @@
 # under the License.
 """ Support level6 operator test cases.
 """
+import pytest
 import numpy as np
 import tvm
-from tvm import te
 from tvm import relay
 import tvm.testing
 
@@ -147,6 +147,4 @@ def test_topk():
 
 
 if __name__ == "__main__":
-    test_sort()
-    test_argsort()
-    test_topk()
+    pytest.main([__file__])
