@@ -98,7 +98,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
   void SaveToFile(const std::string& file_name, const std::string& format) final {
     std::string fmt = runtime::GetFileFormat(file_name, format);
     std::error_code ecode;
-    llvm::raw_fd_ostream dest(file_name, ecode, llvm::sys::fs::F_None);
+    llvm::raw_fd_ostream dest(file_name, ecode, llvm::sys::fs::OF_None);
     ICHECK_EQ(ecode.value(), 0) << "Cannot open file: " << file_name << " " << ecode.message();
     if (fmt == "o" || fmt == "obj") {
 #if TVM_LLVM_VERSION <= 60
