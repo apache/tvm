@@ -16,24 +16,23 @@
 # under the License.
 """ Support level6 operator test cases.
 """
+import pytest
 import numpy as np
 import tvm
-from tvm import te
 from tvm import relay
 import tvm.testing
 
 
 @tvm.testing.uses_gpu
 def test_sort():
-    def verify_sort(shape, axis, is_ascend, is_dyn=False):
-
+    def verify_sort(shape, axis, is_ascend, is_dyn=False, in_dtype="float32"):
         if is_dyn:
-            x = relay.var("x", relay.TensorType([relay.Any()] * len(shape), "float32"))
+            x = relay.var("x", relay.TensorType([relay.Any()] * len(shape), in_dtype))
         else:
-            x = relay.var("x", relay.TensorType(shape, "float32"))
+            x = relay.var("x", relay.TensorType(shape, in_dtype))
         z = relay.sort(x, axis=axis, is_ascend=is_ascend)
         func = relay.Function([x], z)
-        x_data = np.random.uniform(size=shape).astype("float32")
+        x_data = np.random.uniform(size=shape).astype(in_dtype)
         if is_ascend:
             ref_res = np.sort(x_data, axis=axis)
         else:
@@ -56,18 +55,19 @@ def test_sort():
         verify_sort((3, 5, 6), axis=-1, is_ascend=False, is_dyn=is_dyn)
         verify_sort((3, 2000, 6), axis=1, is_ascend=False, is_dyn=is_dyn)
         verify_sort((1, 122640), axis=1, is_ascend=False, is_dyn=is_dyn)
+        verify_sort((1, 122640), axis=1, is_ascend=False, is_dyn=is_dyn, in_dtype="float16")
 
 
 @tvm.testing.uses_gpu
 def test_argsort():
-    def verify_argsort(shape, axis, is_ascend, dtype, is_dyn=False):
+    def verify_argsort(shape, axis, is_ascend, dtype, is_dyn=False, in_dtype="float32"):
         if is_dyn:
-            x = relay.var("x", relay.TensorType([relay.Any()] * len(shape), "float32"))
+            x = relay.var("x", relay.TensorType([relay.Any()] * len(shape), in_dtype))
         else:
-            x = relay.var("x", relay.TensorType(shape, "float32"))
+            x = relay.var("x", relay.TensorType(shape, in_dtype))
         z = relay.argsort(x, axis=axis, is_ascend=is_ascend, dtype=dtype)
         func = relay.Function([x], z)
-        x_data = np.random.uniform(size=shape).astype("float32")
+        x_data = np.random.uniform(size=shape).astype(in_dtype)
         if is_ascend:
             ref_res = np.argsort(x_data, axis=axis, kind="stable")
         else:
@@ -93,31 +93,34 @@ def test_argsort():
         verify_argsort((3, 6000, 6), axis=1, is_ascend=False, dtype=dtype, is_dyn=is_dyn)
         verify_argsort((1000, 1, 1), axis=0, is_ascend=False, dtype=dtype, is_dyn=is_dyn)
         verify_argsort((1, 122640), axis=1, is_ascend=False, dtype=dtype, is_dyn=is_dyn)
+        verify_argsort(
+            (1, 122640), axis=1, is_ascend=False, dtype=dtype, is_dyn=is_dyn, in_dtype="float16"
+        )
 
 
 @tvm.testing.uses_gpu
 def test_topk():
-    def verify_topk(k, axis, ret_type, is_ascend, dtype):
+    def verify_topk(k, axis, ret_type, is_ascend, dtype, in_dtype="float32"):
         shape = (20, 100)
-        x = relay.var("x", relay.TensorType(shape, "float32"))
+        x = relay.var("x", relay.TensorType(shape, in_dtype))
         out = relay.topk(x, k, axis, ret_type, is_ascend, dtype)
         if isinstance(out, relay.expr.TupleWrapper):
             out = out.astuple()
         func = relay.Function([x], out)
-        np_data = np.random.uniform(size=shape).astype("float32")
+        np_data = np.random.uniform(size=shape).astype(in_dtype)
         if is_ascend:
-            np_indices = np.argsort(np_data, axis=axis)
+            np_indices = np.argsort(np_data, axis=axis, kind="stable")
         else:
-            np_indices = np.argsort(-np_data, axis=axis)
+            np_indices = np.argsort(-np_data, axis=axis, kind="stable")
         kk = k if k >= 1 else shape[axis]
         if axis == 0:
             np_indices = np_indices[:kk, :]
-            np_values = np.zeros(np_indices.shape).astype("float32")
+            np_values = np.zeros(np_indices.shape).astype(in_dtype)
             for i in range(shape[1]):
                 np_values[:, i] = np_data[np_indices[:, i], i]
         else:
             np_indices = np_indices[:, :kk]
-            np_values = np.zeros(np_indices.shape).astype("float32")
+            np_values = np.zeros(np_indices.shape).astype(in_dtype)
             for i in range(shape[0]):
                 np_values[i, :] = np_data[i, np_indices[i, :]]
         np_indices = np_indices.astype(dtype)
@@ -140,9 +143,8 @@ def test_topk():
             for ret_type in ["both", "values", "indices"]:
                 verify_topk(k, axis, ret_type, True, "int64")
                 verify_topk(k, axis, ret_type, False, "float32")
+                verify_topk(k, axis, ret_type, False, "int64", "float16")
 
 
 if __name__ == "__main__":
-    test_sort()
-    test_argsort()
-    test_topk()
+    pytest.main([__file__])
