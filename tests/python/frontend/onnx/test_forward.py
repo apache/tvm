@@ -4919,8 +4919,6 @@ unsupported_onnx_tests = [
 
 target_skips = {
     "cuda": [
-        "test_basic_convinteger",
-        "test_convinteger_with_padding",
         "test_range_float_type_positive_delta_expanded",
         "test_range_int32_type_positive_delta_expanded",
         "test_mod_mixed_sign_float16",
@@ -5375,7 +5373,6 @@ def test_random_uniform(target, dev):
     tvm.testing.assert_allclose(real, expected, rtol=1e-5)
 
 
-@tvm.testing.known_failing_targets("cuda")
 @tvm.testing.parametrize_targets
 def test_convinteger(target, dev):
     def verify_convinteger(
@@ -5389,26 +5386,22 @@ def test_convinteger(target, dev):
         auto_pad="NOTSET",
         dtype="uint8",
     ):
-
         x_array = np.random.randint(low=0, high=255, size=x_shape).astype(dtype)
         w_array = np.random.uniform(low=0, high=255, size=w_shape).astype(dtype)
-        x_zero_point_array = np.random.randint(0, 255, size=[]).astype(dtype)
-        w_zero_point_array = np.random.randint(0, 255, size=[]).astype(dtype)
+        x_zero_point_array = np.random.randint(0, 255, size=[1]).astype(dtype)
+        w_zero_point_array = np.random.randint(0, 255, size=[1]).astype(dtype)
 
         ONNX_DTYPE = mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(dtype)]
         input_nodes = [
             helper.make_tensor_value_info("x", ONNX_DTYPE, list(x_shape)),
             helper.make_tensor_value_info("w", ONNX_DTYPE, list(w_shape)),
-            helper.make_tensor_value_info("x_zero_point", ONNX_DTYPE, []),
-            helper.make_tensor_value_info("w_zero_point", ONNX_DTYPE, []),
         ]
-        input_names = [
-            "x",
-            "w",
-            "x_zero_point",
-            "w_zero_point",
+        initializer = [
+            helper.make_tensor("x_zero_point", ONNX_DTYPE, [], x_zero_point_array),
+            helper.make_tensor("w_zero_point", ONNX_DTYPE, [], w_zero_point_array),
         ]
-        input_values = [x_array, w_array, x_zero_point_array, w_zero_point_array]
+        input_names = ["x", "w", "x_zero_point", "w_zero_point"]
+        input_values = [x_array, w_array]
 
         if padding is None:
             ## autopadding with unset default attributes
@@ -5443,11 +5436,12 @@ def test_convinteger(target, dev):
             [node],
             "convinteger_test",
             inputs=input_nodes,
+            initializer=initializer,
             outputs=[helper.make_tensor_value_info("y", TensorProto.INT32, list(y_shape))],
         )
         model = helper.make_model(graph, producer_name="convinteger_test")
         # opt_level=1 will cause error
-        verify_with_ort_with_inputs(model, input_values, opt_level=2, target=target, dev=dev)
+        verify_with_ort_with_inputs(model, input_values, target=target, dev=dev, opt_level=2)
 
     def repeat(N, D):
         return tuple([N for _ in range(D)])
@@ -5556,7 +5550,8 @@ if __name__ == "__main__":
     test_scatter()
     test_lrn()
     test_instance_norm()
-    test_upsample()
+    test_upsample_nearest()
+    test_upsample_bilinear()
     test_forward_min()
     test_forward_max()
     test_forward_mean()
