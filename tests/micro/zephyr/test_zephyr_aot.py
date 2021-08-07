@@ -17,11 +17,14 @@
 
 import datetime
 from hashlib import new
+import io
 import logging
 import os
 import sys
 import logging
 import pathlib
+import tarfile
+import tempfile
 
 import pytest
 import numpy as np
@@ -29,10 +32,10 @@ import numpy as np
 import tvm
 import tvm.rpc
 import tvm.micro
+from tvm.micro.project_api import server
 import tvm.testing
 import tvm.relay as relay
 
-from tvm.micro.contrib import zephyr
 from tvm.contrib import utils
 from tvm.contrib.download import download_testdata
 from tvm.micro.interface_api import generate_c_interface_header
@@ -44,89 +47,70 @@ _LOG = logging.getLogger(__name__)
 PLATFORMS = conftest.PLATFORMS
 
 
-def _build_session_kw(model, target, zephyr_board, west_cmd, mod, runtime_path, build_config):
-    parent_dir = os.path.dirname(__file__)
-    filename = os.path.splitext(os.path.basename(__file__))[0]
-    prev_build = f"{os.path.join(parent_dir, 'archive')}_{filename}_{zephyr_board}_last_build.micro"
-    workspace_root = os.path.join(
-        f"{os.path.join(parent_dir, 'workspace')}_{filename}_{zephyr_board}",
-        datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S"),
+def _build_project(
+    temp_dir, model, target, zephyr_board, west_cmd, mod, build_config, extra_files_tar=None
+):
+    template_project_dir = (
+        pathlib.Path(__file__).parent
+        / ".."
+        / ".."
+        / ".."
+        / "apps"
+        / "microtvm"
+        / "zephyr"
+        / "template_project"
+    ).resolve()
+    project_dir = temp_dir / "project"
+    project = tvm.micro.generate_project(
+        str(template_project_dir),
+        mod,
+        project_dir,
+        {
+            "extra_files_tar": extra_files_tar,
+            "project_type": "aot_demo",
+            "west_cmd": west_cmd,
+            "verbose": 0,
+            "zephyr_board": zephyr_board,
+        },
     )
-    workspace_parent = os.path.dirname(workspace_root)
-    if not os.path.exists(workspace_parent):
-        os.makedirs(workspace_parent)
-    workspace = tvm.micro.Workspace(debug=True, root=workspace_root)
-
-    compiler = zephyr.ZephyrCompiler(
-        project_dir=runtime_path,
-        board=zephyr_board,
-        zephyr_toolchain_variant="zephyr",
-        west_cmd=west_cmd,
-        env_vars={"ZEPHYR_RUNTIME": "ZEPHYR-AOT"},
-    )
-
-    opts = tvm.micro.default_options(os.path.join(runtime_path, "crt"))
-    opts["bin_opts"]["include_dirs"].append(os.path.join(runtime_path, "include"))
-    opts["lib_opts"]["include_dirs"].append(os.path.join(runtime_path, "include"))
-
-    flasher_kw = {}
-    if build_config["debug"]:
-        flasher_kw["debug_rpc_session"] = tvm.rpc.connect("127.0.0.1", 9090)
-
-    session_kw = {
-        "flasher": compiler.flasher(**flasher_kw),
-    }
-
-    if not build_config["skip_build"]:
-        session_kw["binary"] = tvm.micro.build_static_runtime(
-            workspace,
-            compiler,
-            mod,
-            opts,
-            executor="aot",
-            extra_libs=[tvm.micro.get_standalone_crt_lib("memory")],
-        )
-        if os.path.exists(prev_build):
-            os.unlink(prev_build)
-        session_kw["binary"].archive(prev_build, metadata_only=True)
-    else:
-        unarchive_dir = utils.tempdir()
-        session_kw["binary"] = tvm.micro.MicroBinary.unarchive(
-            prev_build, unarchive_dir.relpath("binary")
-        )
-
-    return session_kw
+    project.build()
+    return project, project_dir
 
 
-def _create_header_file(tensor_name, npy_data, output_path):
+def _create_header_file(tensor_name, npy_data, output_path, tar_file):
     """
     This method generates a header file containing the data contained in the numpy array provided.
     It is used to capture the tensor data (for both inputs and expected outputs).
     """
-    file_path = pathlib.Path(f"{output_path}/" + tensor_name).resolve()
-    # create header file
-    raw_path = file_path.with_suffix(".h").resolve()
-    with open(raw_path, "w") as header_file:
-        header_file.write("#include <stddef.h>\n")
-        header_file.write("#include <stdint.h>\n")
-        header_file.write("#include <dlpack/dlpack.h>\n")
-        header_file.write(f"const size_t {tensor_name}_len = {npy_data.size};\n")
+    header_file = io.StringIO()
+    header_file.write("#include <stddef.h>\n")
+    header_file.write("#include <stdint.h>\n")
+    header_file.write("#include <dlpack/dlpack.h>\n")
+    header_file.write(f"const size_t {tensor_name}_len = {npy_data.size};\n")
 
-        if npy_data.dtype == "int8":
-            header_file.write(f"int8_t {tensor_name}[] =")
-        elif npy_data.dtype == "int32":
-            header_file.write(f"int32_t {tensor_name}[] = ")
-        elif npy_data.dtype == "uint8":
-            header_file.write(f"uint8_t {tensor_name}[] = ")
-        elif npy_data.dtype == "float32":
-            header_file.write(f"float {tensor_name}[] = ")
-        else:
-            raise ValueError("Data type not expected.")
+    if npy_data.dtype == "int8":
+        header_file.write(f"int8_t {tensor_name}[] =")
+    elif npy_data.dtype == "int32":
+        header_file.write(f"int32_t {tensor_name}[] = ")
+    elif npy_data.dtype == "uint8":
+        header_file.write(f"uint8_t {tensor_name}[] = ")
+    elif npy_data.dtype == "float32":
+        header_file.write(f"float {tensor_name}[] = ")
+    else:
+        raise ValueError("Data type not expected.")
 
-        header_file.write("{")
-        for i in np.ndindex(npy_data.shape):
-            header_file.write(f"{npy_data[i]}, ")
-        header_file.write("};\n\n")
+    header_file.write("{")
+    for i in np.ndindex(npy_data.shape):
+        header_file.write(f"{npy_data[i]}, ")
+    header_file.write("};\n\n")
+
+    header_file_bytes = bytes(header_file.getvalue(), "utf-8")
+    raw_path = pathlib.Path(output_path) / f"{tensor_name}.h"
+    ti = tarfile.TarInfo(name=str(raw_path))
+    ti.size = len(header_file_bytes)
+    ti.mode = 0o644
+    ti.type = tarfile.REGTYPE
+    tar_file.addfile(ti, io.BytesIO(header_file_bytes))
 
 
 def _read_line(fd):
@@ -155,19 +139,20 @@ def _get_message(fd, expr: str):
 
 
 @tvm.testing.requires_micro
-def test_tflite(platform, west_cmd, skip_build, tvm_debug):
+def test_tflite(temp_dir, platform, west_cmd, skip_build, tvm_debug):
+    """Testing a TFLite model."""
+
     if platform not in ["host", "mps2_an521", "nrf5340dk", "stm32l4r5zi_nucleo", "zynq_mp_r5"]:
         pytest.skip(msg="Model does not fit.")
 
-    """Testing a TFLite model."""
     model, zephyr_board = PLATFORMS[platform]
     input_shape = (1, 32, 32, 3)
     output_shape = (1, 10)
     build_config = {"skip_build": skip_build, "debug": tvm_debug}
 
-    this_dir = os.path.dirname(__file__)
-    tvm_source_dir = os.path.join(this_dir, "..", "..", "..")
-    runtime_path = os.path.join(tvm_source_dir, "apps", "microtvm", "zephyr", "aot_demo")
+    this_dir = pathlib.Path(os.path.dirname(__file__))
+    tvm_source_dir = this_dir / ".." / ".." / ".."
+    runtime_path = tvm_source_dir / "apps" / "microtvm" / "zephyr" / "aot_demo"
     model_url = "https://github.com/eembc/ulpmark-ml/raw/fc1499c7cc83681a02820d5ddf5d97fe75d4f663/base_models/ic01/ic01_fp32.tflite"
     model_path = download_testdata(model_url, "ic01_fp32.tflite", module="model")
 
@@ -199,21 +184,40 @@ def test_tflite(platform, west_cmd, skip_build, tvm_debug):
         sample_url, "testdata_image_classification_fp32_8.npy", module="data"
     )
     sample = np.load(sample_path)
-    model_files_path = os.path.join(runtime_path, "include")
-    generate_c_interface_header(lowered.libmod_name, ["input_1"], ["output"], model_files_path)
-    _create_header_file((f"input_data"), sample, model_files_path)
-    _create_header_file(
-        "output_data", np.zeros(shape=output_shape, dtype="float32"), model_files_path
-    )
 
-    session_kw = _build_session_kw(
-        model, target, zephyr_board, west_cmd, lowered.lib, runtime_path, build_config
-    )
-    transport = session_kw["flasher"].flash(session_kw["binary"])
-    transport.open()
-    transport.write(b"start\n", timeout_sec=5)
+    with tempfile.NamedTemporaryFile() as tar_temp_file:
+        with tarfile.open(tar_temp_file.name, "w:gz") as tf:
+            with tempfile.TemporaryDirectory() as tar_temp_dir:
+                model_files_path = os.path.join(tar_temp_dir, "include")
+                os.mkdir(model_files_path)
+                header_path = generate_c_interface_header(
+                    lowered.libmod_name, ["input_1"], ["output"], model_files_path
+                )
+                tf.add(header_path, arcname=os.path.relpath(header_path, tar_temp_dir))
 
-    result_line = _get_message(transport, "#result")
+            _create_header_file("input_data", sample, "include", tf)
+            _create_header_file(
+                "output_data", np.zeros(shape=output_shape, dtype="float32"), "include", tf
+            )
+
+        project, _ = _build_project(
+            temp_dir,
+            model,
+            target,
+            zephyr_board,
+            west_cmd,
+            lowered,
+            build_config,
+            extra_files_tar=tar_temp_file.name,
+        )
+
+    project.flash()
+    with project.transport() as transport:
+        _get_message(transport, "#wakeup")
+        transport.write(b"start\n", timeout_sec=5)
+
+        result_line = _get_message(transport, "#result")
+
     result_line = result_line.strip("\n")
     result_line = result_line.split(":")
     result = int(result_line[1])
@@ -223,19 +227,15 @@ def test_tflite(platform, west_cmd, skip_build, tvm_debug):
 
 
 @tvm.testing.requires_micro
-def test_qemu_make_fail(platform, west_cmd, skip_build, tvm_debug):
+def test_qemu_make_fail(temp_dir, platform, west_cmd, skip_build, tvm_debug):
+    """Testing QEMU make fail."""
     if platform not in ["host", "mps2_an521"]:
         pytest.skip(msg="Only for QEMU targets.")
 
-    """Testing QEMU make fail."""
     model, zephyr_board = PLATFORMS[platform]
     build_config = {"skip_build": skip_build, "debug": tvm_debug}
     shape = (10,)
     dtype = "float32"
-
-    this_dir = pathlib.Path(__file__).parent
-    tvm_source_dir = this_dir / ".." / ".." / ".."
-    runtime_path = tvm_source_dir / "apps" / "microtvm" / "zephyr" / "aot_demo"
 
     # Construct Relay program.
     x = relay.var("x", relay.TensorType(shape=shape, dtype=dtype))
@@ -248,22 +248,39 @@ def test_qemu_make_fail(platform, west_cmd, skip_build, tvm_debug):
         lowered = relay.build(func, target)
 
     # Generate input/output header files
-    model_files_path = os.path.join(runtime_path, "include")
-    _create_header_file((f"input_data"), np.zeros(shape=shape, dtype=dtype), model_files_path)
-    _create_header_file("output_data", np.zeros(shape=shape, dtype=dtype), model_files_path)
+    with tempfile.NamedTemporaryFile() as tar_temp_file:
+        with tarfile.open(tar_temp_file.name, "w:gz") as tf:
+            with tempfile.TemporaryDirectory() as tar_temp_dir:
+                model_files_path = os.path.join(tar_temp_dir, "include")
+                os.mkdir(model_files_path)
+                header_path = generate_c_interface_header(
+                    lowered.libmod_name, ["input_1"], ["output"], model_files_path
+                )
+                tf.add(header_path, arcname=os.path.relpath(header_path, tar_temp_dir))
+            _create_header_file("input_data", np.zeros(shape=shape, dtype=dtype), "include", tf)
+            _create_header_file("output_data", np.zeros(shape=shape, dtype=dtype), "include", tf)
 
-    session_kw = _build_session_kw(
-        model, target, zephyr_board, west_cmd, lowered.lib, runtime_path, build_config
+        project, project_dir = _build_project(
+            temp_dir,
+            model,
+            target,
+            zephyr_board,
+            west_cmd,
+            lowered,
+            build_config,
+            extra_files_tar=tar_temp_file.name,
+        )
+
+    file_path = (
+        pathlib.Path(project_dir) / "build" / "zephyr" / "CMakeFiles" / "run.dir" / "build.make"
     )
-
-    file_path = os.path.join(session_kw["binary"].base_dir, "zephyr/CMakeFiles/run.dir/build.make")
-    assert os.path.isfile(file_path), f"[{file_path}] does not exist."
+    assert file_path.is_file(), f"[{file_path}] does not exist."
 
     # Remove a file to create make failure.
     os.remove(file_path)
-    transport = session_kw["flasher"].flash(session_kw["binary"])
-    with pytest.raises(RuntimeError) as excinfo:
-        transport.open()
+    project.flash()
+    with pytest.raises(server.JSONRPCError) as excinfo:
+        project.transport().open()
     assert "QEMU setup failed" in str(excinfo.value)
 
 

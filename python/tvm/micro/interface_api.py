@@ -41,8 +41,12 @@ def generate_c_interface_header(module_name, inputs, outputs, output_path):
         List of module output names to be placed in generated structs
     output_path : str
         Path to the output folder to generate the header into
-    """
 
+    Returns
+    -------
+    str :
+        Name of the generated file.
+    """
     mangled_name = mangle_module_name(module_name)
     metadata_header = os.path.join(output_path, f"{mangled_name}.h")
     with open(metadata_header, "w") as header_file:
@@ -77,3 +81,5 @@ def generate_c_interface_header(module_name, inputs, outputs, output_path):
         )
 
         header_file.write(f"#endif // {mangled_name.upper()}_H_\n")
+
+    return metadata_header

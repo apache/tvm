@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file apps/bundle_deploy/crt_config.h
- * \brief CRT configuration for bundle_deploy app.
+ * \file tvm/runtime/crt/host/crt_config.h
+ * \brief CRT configuration for the host-linked CRT.
  */
-#ifndef TVM_RUNTIME_CRT_CONFIG_H_
-#define TVM_RUNTIME_CRT_CONFIG_H_
+#ifndef TVM_RUNTIME_MICRO_CRT_CONFIG_H_
+#define TVM_RUNTIME_MICRO_CRT_CONFIG_H_
 
 /*! Log level of the CRT runtime */
 #define TVM_CRT_LOG_LEVEL TVM_CRT_LOG_LEVEL_DEBUG
@@ -43,9 +43,14 @@
 #define TVM_CRT_MAX_REGISTERED_MODULES 2
 
 /*! Size of the global function registry, in bytes. */
-#define TVM_CRT_GLOBAL_FUNC_REGISTRY_SIZE_BYTES 200
+#define TVM_CRT_GLOBAL_FUNC_REGISTRY_SIZE_BYTES 512
 
 /*! Maximum packet size, in bytes, including the length header. */
-#define TVM_CRT_MAX_PACKET_SIZE_BYTES 512
+#define TVM_CRT_MAX_PACKET_SIZE_BYTES 8 * 1024
 
-#endif  // TVM_RUNTIME_CRT_CONFIG_H_
+/*! \brief Maximum length of a PackedFunc function name. */
+#define TVM_CRT_MAX_FUNCTION_NAME_LENGTH_BYTES 30
+
+// #define TVM_CRT_FRAMER_ENABLE_LOGS
+
+#endif  // TVM_RUNTIME_MICRO_CRT_CONFIG_H_

@@ -134,7 +134,7 @@ class Unframer {
   /*! \brief number of bytes in buffer that are currently valid. */
   size_t num_buffer_bytes_valid_;
 
-  /*! \brief number of payload bytes left to write before the CRC begins. */
+  /*! \brief number of payload bytes left to receive before the CRC begins. */
   size_t num_payload_bytes_remaining_;
 
   /*! \brief Running CRC value. */
