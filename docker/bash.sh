@@ -68,9 +68,13 @@ Usage: docker/bash.sh [-i|--interactive] [--net=host]
 
     The directory inside the docker container at which the TVM
     repository should be mounted, and is used as the workspace inside
-    the docker container.  If unspecified, the TVM repository will be
-    mounted at the same location inside the docker container as
-    outside.
+    the docker container.
+
+    If unspecified, the mount location depends on the environment.  If
+    running inside Jenkins, the mount location will be /workspace.
+    Otherwise, the mount location of the repository will be the same
+    as the external location of the repository, to maintain
+    compatibility with git-worktree.
 
 --dry-run
 
@@ -100,22 +104,31 @@ EOF
 #################################
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-WORKSPACE="$(dirname "${SCRIPT_DIR}")"
+REPO_DIR="$(dirname "${SCRIPT_DIR}")"
 
 DRY_RUN=false
 INTERACTIVE=false
 USE_NET_HOST=false
 DOCKER_IMAGE_NAME=
 COMMAND=bash
-REPO_MOUNT_POINT="${WORKSPACE}"
 MOUNT_DIRS=( )
+
+# TODO(Lunderberg): Remove this if statement and always set to
+# "${REPO_DIR}".  The consistent directory for Jenkins is currently
+# necessary to allow cmake build commands to run in CI after the build
+# steps.
+if [[ -n "${JENKINS_HOME:-}" ]]; then
+    REPO_MOUNT_POINT=/workspace
+else
+    REPO_MOUNT_POINT="${REPO_DIR}"
+fi
+
 
 function parse_error() {
     echo "$@" >&2
     show_usage >&2
     exit 1
 }
-
 
 # Handle joined flags, such as interpreting -ih as -i -h.  Either rewrites
 # the current argument if it is a joined argument, or shifts all arguments
@@ -214,6 +227,8 @@ if [[ "${COMMAND[@]}" = bash ]]; then
     USE_NET_HOST=true
 fi
 
+
+
 ###############################
 ### End of argument parsing ###
 ###############################
@@ -235,7 +250,7 @@ fi
 # Set up working directories
 
 DOCKER_FLAGS+=( --workdir "${REPO_MOUNT_POINT}" )
-DOCKER_MOUNT+=( --volume "${WORKSPACE}":"${REPO_MOUNT_POINT}"
+DOCKER_MOUNT+=( --volume "${REPO_DIR}":"${REPO_MOUNT_POINT}"
                 --volume "${SCRIPT_DIR}":/docker
               )
 
@@ -342,15 +357,15 @@ if [[ "${DOCKER_IMAGE_NAME}" == *"rocm"* && -d "/dev/dri" ]]; then
 fi
 
 # When running from a git worktree, also mount the original git dir.
-if [ -f "${WORKSPACE}/.git" ]; then
-    git_dir=$(cd ${WORKSPACE} && git rev-parse --git-common-dir)
-    if [ "${git_dir}" != "${WORKSPACE}/.git" ]; then
+if [ -f "${REPO_DIR}/.git" ]; then
+    git_dir=$(cd ${REPO_DIR} && git rev-parse --git-common-dir)
+    if [ "${git_dir}" != "${REPO_DIR}/.git" ]; then
         DOCKER_MOUNT+=( --volume "${git_dir}:${git_dir}" )
     fi
 fi
 
 # Print arguments.
-echo "WORKSPACE: ${WORKSPACE}"
+echo "REPO_DIR: ${REPO_DIR}"
 echo "DOCKER CONTAINER NAME: ${DOCKER_IMAGE_NAME}"
 echo ""
 
