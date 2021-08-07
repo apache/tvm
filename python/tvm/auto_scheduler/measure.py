@@ -36,6 +36,7 @@ import time
 import shutil
 import tempfile
 import multiprocessing
+from multiprocessing.pool import ThreadPool
 import logging
 
 import tvm._ffi
@@ -60,6 +61,11 @@ from .utils import (
 from .workload_registry import (
     serialize_workload_registry_entry,
     deserialize_workload_registry_entry,
+)
+
+from .task_input_buffer import (
+    serialize_task_input_buffer,
+    deserialize_task_input_buffer,
 )
 
 # pylint: disable=invalid-name
@@ -139,12 +145,14 @@ class MeasureInput(Object):
         return [
             _ffi_api.SerializeMeasureInput(self),
             serialize_workload_registry_entry(self.task.workload_key),
+            serialize_task_input_buffer(self.task.workload_key),
         ]
 
     @staticmethod
     def deserialize(data):
         inp = _ffi_api.DeserializeMeasureInput(data[0])
         deserialize_workload_registry_entry(data[1])
+        deserialize_task_input_buffer(data[2])
         return recover_measure_input(inp)
 
 
@@ -702,7 +710,7 @@ def local_builder_build(inputs, timeout, n_parallel, build_func="default", verbo
         The build results of these MeasureInputs.
     """
     # This pool is not doing computationally intensive work, so we can use threads
-    pool = multiprocessing.pool.ThreadPool(n_parallel)
+    pool = ThreadPool(n_parallel)
     tuple_res = pool.map(
         local_build_worker,
         [
@@ -820,6 +828,7 @@ def prepare_input_map(args):
 def _timed_eval_func(
     inp_serialized,
     build_res,
+    tensor_input_map,
     number,
     repeat,
     min_repeat_ms,
@@ -863,7 +872,8 @@ def _timed_eval_func(
             random_fill = tvm.get_global_func("tvm.contrib.random.random_fill", True)
             assert random_fill, "Please make sure USE_RANDOM is ON in the config.cmake"
 
-            tensor_input_map = prepare_input_map(build_res.args) if task_input_names else {}
+            if not task_input_names:
+                tensor_input_map = {}
             args = []
             task_inputs_count = 0
             for arg in build_res.args:
@@ -968,6 +978,7 @@ def local_run(
 
     measure_results = []
     assert len(inputs) == len(build_results), "Measure input size should be equal to build results"
+    tensor_input_map = prepare_input_map(build_results.args)
     for inp, build_res in zip(inputs, build_results):
         if build_res.error_no != 0:
             res = (
@@ -984,6 +995,7 @@ def local_run(
                 args=(
                     inp.serialize(),
                     build_res,
+                    tensor_input_map,
                     number,
                     repeat,
                     min_repeat_ms,
@@ -1027,6 +1039,7 @@ def _timed_rpc_run(
     key,
     host,
     port,
+    tensor_input_map,
     priority,
     timeout,
     number,
@@ -1079,7 +1092,8 @@ def _timed_rpc_run(
                 random_fill
             ), "Please make sure USE_RANDOM is ON in the config.cmake on the remote devices"
 
-            tensor_input_map = prepare_input_map(build_res.args) if task_input_names else {}
+            if not task_input_names:
+                tensor_input_map = {}
             args = []
             task_inputs_count = 0
             for arg in build_res.args:
@@ -1151,7 +1165,7 @@ def _rpc_run_worker(args):
     res : MeasureResult
         The measure result of this Runner thread.
     """
-    _, build_res, _, _, _, _, timeout, _, _, _, _, _, verbose = args
+    _, build_res, _, _, _, _, _, timeout, _, _, _, _, _, verbose = args
     if build_res.error_no != MeasureErrorNo.NO_ERROR:
         return (
             (MAX_FLOAT,),
@@ -1193,6 +1207,7 @@ def rpc_runner_run(
     key,
     host,
     port,
+    tensor_input_map,
     priority=1,
     n_parallel=1,
     timeout=10,
@@ -1258,7 +1273,8 @@ def rpc_runner_run(
     """
     assert len(inputs) == len(build_results), "Measure input size should be equal to build results"
     # This pool is not doing computationally intensive work, so we can use threads
-    pool = multiprocessing.pool.ThreadPool(n_parallel)
+    pool = ThreadPool(n_parallel)
+    tensor_input_map = prepare_input_map(build_results.args)
     tuple_res = pool.map(
         _rpc_run_worker,
         [
@@ -1276,6 +1292,7 @@ def rpc_runner_run(
                 cooldown_interval,
                 enable_cpu_cache_flush,
                 verbose,
+                tensor_input_map,
             )
             for inp, build_res in zip(inputs, build_results)
         ],
