@@ -79,6 +79,25 @@ def test_fake_quantize_dense():
         compare_fq_to_int(op, [x_np, w_np])
 
 
+def test_fake_quantize_batch_matmul():
+    for out_dtype in ["int8", "uint8"]:
+        x = relay.var("x", shape=[1, 128, 64], dtype="int8")
+        w = relay.var("w", shape=[1, 256, 64], dtype="int8")
+        one = relay.const(1.0)
+        zero = relay.const(0)
+
+        op = relay.op.nn.batch_matmul(
+            relay.qnn.op.dequantize(x, relay.const(2.0), zero),
+            relay.qnn.op.dequantize(w, relay.const(0.5), zero),
+        )
+        op = relay.qnn.op.quantize(op, one, zero, out_dtype=out_dtype)
+
+        x_np = np.random.randint(-128, 127, size=[1, 128, 64], dtype="int8")
+        w_np = np.random.randint(-128, 127, size=[1, 256, 64], dtype="int8")
+
+        compare_fq_to_int(op, [x_np, w_np])
+
+
 def test_fake_transpose_quantize_conv():
     x = relay.var("x", shape=[1, 224, 224, 3], dtype="int8")
     w = relay.var("w", shape=[16, 3, 5, 5], dtype="int8")
