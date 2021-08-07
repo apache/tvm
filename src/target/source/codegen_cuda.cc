@@ -23,7 +23,9 @@
 
 #include "codegen_cuda.h"
 
+#include <tvm/arith/analyzer.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/tir/stmt_functor.h>
 
 #include <cmath>
 #include <string>
@@ -45,6 +47,45 @@ void CodeGenCUDA::Init(bool output_ssa) {
 }
 
 void CodeGenCUDA::PrintFuncPrefix() { stream << "extern \"C\" __global__ void"; }
+
+class ThreadIdxExtractor : public tir::StmtVisitor {
+ private:
+  void VisitStmt_(const AttrStmtNode* op) final {
+    if (op->attr_key == tir::attr::thread_extent) {
+      IterVar iv = Downcast<IterVar>(op->node);
+      if (iv->var->name_hint == "threadIdx.x" || iv->thread_tag == "threadIdx.x") {
+        threadIdx_x_ext = op->value;
+      }
+      if (iv->var->name_hint == "threadIdx.y" || iv->thread_tag == "threadIdx.y") {
+        threadIdx_y_ext = op->value;
+      }
+      if (iv->var->name_hint == "threadIdx.z" || iv->thread_tag == "threadIdx.z") {
+        threadIdx_z_ext = op->value;
+      }
+    }
+    StmtVisitor::VisitStmt_(op);
+  }
+
+ public:
+  PrimExpr threadIdx_x_ext = Integer(1);
+  PrimExpr threadIdx_y_ext = Integer(1);
+  PrimExpr threadIdx_z_ext = Integer(1);
+};
+
+void CodeGenCUDA::PrintExtraAttrs(const PrimFunc& f) {
+  ThreadIdxExtractor extractor;
+  extractor(f->body);
+  arith::Analyzer analyzer;
+  PrimExpr threadIdx_ext = analyzer.Simplify(extractor.threadIdx_x_ext * extractor.threadIdx_y_ext *
+                                             extractor.threadIdx_z_ext);
+  if (const IntImmNode* const threadIdx_ext_int = threadIdx_ext.as<IntImmNode>()) {
+    if (threadIdx_ext_int->value == 1) {
+      // unable to extract the number of threads per block, hence directly return
+      return;
+    }
+    stream << " __launch_bounds__(" << threadIdx_ext_int->value << ")";
+  }
+}
 
 std::string CodeGenCUDA::Finish() {
   if (enable_fp16_) {
