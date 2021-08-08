@@ -1476,13 +1476,13 @@ class Slice(OnnxOpConverter):
             )
 
         if axes is not None and has_static_axes():
-            axes_np = axes.data.asnumpy().astype("int64")
-            begin_np = starts.data.asnumpy().astype("int64")
-            end_np = ends.data.asnumpy().astype("int64")
+            axes_np = axes.data.numpy().astype("int64")
+            begin_np = starts.data.numpy().astype("int64")
+            end_np = ends.data.numpy().astype("int64")
             if steps is None:
                 strides_np = np.ones_like(begin_np).astype("int64")
             else:
-                strides_np = steps.data.asnumpy().astype("int64")
+                strides_np = steps.data.numpy().astype("int64")
 
             if all([isinstance(ishape[i], int) for i in axes_np]):
                 return _op.strided_slice(
@@ -2714,10 +2714,10 @@ class Clip(OnnxOpConverter):
     @classmethod
     def _impl_v11(cls, inputs, attr, params):
         if len(inputs) == 3 and isinstance(inputs[2], _expr.Constant):
-            attr["max"] = inputs[2].data.asnumpy().item()
+            attr["max"] = inputs[2].data.numpy().item()
             inputs = inputs[0:2]
         if len(inputs) >= 2 and isinstance(inputs[1], _expr.Constant):
-            attr["min"] = inputs[1].data.asnumpy().item()
+            attr["min"] = inputs[1].data.numpy().item()
             inputs = inputs[0:1]
         if "min" in attr and "max" in attr:
             return Clip.convert_attributes(inputs, attr, params)

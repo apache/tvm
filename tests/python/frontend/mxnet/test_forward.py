@@ -352,14 +352,14 @@ def test_forward_arange():
         return sym
 
     def verify(start, stop, step):
-        ref_res = _mx_symbol(mx.nd, start, stop, step).asnumpy()
+        ref_res = _mx_symbol(mx.nd, start, stop, step)
         mx_sym = _mx_symbol(mx.sym, start, stop, step)
         mod, _ = relay.frontend.from_mxnet(mx_sym, {})
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
                 op_res = intrp.evaluate()()
-                tvm.testing.assert_allclose(op_res.numpy(), ref_res)
+                tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy())
 
     verify(0, 20, None)
     verify(0, 20, 2)
@@ -1229,9 +1229,7 @@ def test_forward_instance_norm():
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
                 op_res = intrp.evaluate()(x, gamma, beta)
-                tvm.testing.assert_allclose(
-                    op_res.asnumpy(), ref_res.asnumpy(), rtol=2e-5, atol=1e-5
-                )
+                tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy(), rtol=2e-5, atol=1e-5)
 
     verify((2, 3, 4, 5))
     verify((32, 64, 80, 64))

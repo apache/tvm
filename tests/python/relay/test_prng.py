@@ -92,7 +92,7 @@ def test_threefry_sequential_generate_remaining(target, dev):
     ).evaluate()()
 
     assert (
-        out1.asnumpy()[-3:] != out2.asnumpy()[-3:]
+        out1.numpy()[-3:] != out2.numpy()[-3:]
     ).any(), "Sequential generates should not have the same output"
 
 
