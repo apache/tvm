@@ -39,7 +39,7 @@ from ..loops import while_loop
 from ..prelude import Prelude, StaticTensorArrayOps
 from ..ty import Any, TensorType, TupleType
 from . import qnn_torch
-from .common import AttrCvt, get_relay_op, unbind, lstm_cell
+from .common import AttrCvt, get_relay_op, lstm_cell
 from .common import infer_value as _infer_value
 from .common import infer_shape as _infer_shape
 from .common import infer_value_simulated as _infer_value_simulated

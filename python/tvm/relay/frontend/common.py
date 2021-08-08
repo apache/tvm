@@ -626,37 +626,6 @@ def to_int_list(np_array):
     return [int(x) for x in np_array]
 
 
-def unbind(data, axis=0):
-    """
-    Unbind was taken from Pytorch frontend. The operation removes a tensor dimension
-    and returns a tuple of all slices along a given dimension, with specified axis removed.
-    TODO (vvchernov): It needs such operation on relay side to reduce time consumption
-    on squeeze operation.
-
-    Parameters
-    ----------
-    data : relay.Expr
-        Input tensor
-    axis : int
-        Axis along which tensor is split.
-    Returns
-    -------
-    result : List[relay.Expr]
-        The sequence of computed tensors
-    """
-    shape = infer_shape(data)
-    if axis >= len(shape):
-        msg = "Please check input dim, it shouldn't be greater than or equal to rank."
-        raise AttributeError(msg)
-
-    selections = shape[axis]
-    res_split = _op.split(data, selections, axis)
-    ret = []
-    for i in range(selections):
-        ret.append(_op.squeeze(res_split[i], axis=[axis]))
-    return _expr.TupleWrapper(_expr.Tuple(ret), selections)
-
-
 def lstm_cell(
     input_seqs,
     hidden_state,

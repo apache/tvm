@@ -46,7 +46,6 @@ from .common import (
     infer_type,
     infer_value,
     new_var,
-    unbind,
     lstm_cell,
 )
 
