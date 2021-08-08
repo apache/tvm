@@ -98,13 +98,13 @@ mod, params = relay.frontend.from_keras(keras_resnet50, shape_dict)
 target = "cuda"
 dev = tvm.cuda(0)
 with tvm.transform.PassContext(opt_level=3):
-    executor = relay.build_module.create_executor("graph", mod, dev, target)
+    executor = relay.build_module.create_executor("graph", mod, dev, target, params).evaluate()
 
 ######################################################################
 # Execute on TVM
 # ---------------
 dtype = "float32"
-tvm_out = executor.evaluate()(tvm.nd.array(data.astype(dtype)), **params)
+tvm_out = executor(tvm.nd.array(data.astype(dtype)))
 top1_tvm = np.argmax(tvm_out.numpy()[0])
 
 #####################################################################
