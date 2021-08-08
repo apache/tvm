@@ -67,6 +67,7 @@ def schedule_sparse_dense(outs):
 @autotvm.register_topi_compute("conv3x3_spNHWC.x86")
 def spconv2d_3x3_nhwc(cfg, data, wdat, wind, wptr, layout="NHWC"):
     """Sparse Conv2d 3x3 compute (NHWC)."""
+    assert layout == "NHWC"
     nsamples, imh, imw, chanin = [i.value for i in data.shape]
     nelems, bsrr, bsrc = [i.value for i in wdat.shape]
     chanout = (wptr.shape[0].value - 1) * bsrr
@@ -118,7 +119,8 @@ def schedule_spconv2d_3x3_nhwc(cfg, outs):
     def _callback(op):
         if op.tag == "conv3x3_spNHWC":
             (matmul,) = op.input_tensors
-            wptr, wind, im2col, wdat = matmul.op.input_tensors
+            # wptr, wind, im2col, wdat
+            _, _, im2col, _ = matmul.op.input_tensors
             (data,) = im2col.op.input_tensors
             bsrr = matmul.shape[-2].value
             chanin = data.shape[-1].value
@@ -143,7 +145,7 @@ def schedule_spconv2d_3x3_nhwc(cfg, outs):
 
             s[im2col].compute_at(s[op], y_o)
             y_i, sum_ax = s[im2col].op.axis
-            k_o, k_i = s[im2col].split(sum_ax, factor=chanin)
+            _, k_i = s[im2col].split(sum_ax, factor=chanin)
             s[im2col].vectorize(k_i)
 
     traverse_inline(s, outs[0].op, _callback)
@@ -156,7 +158,7 @@ def spconv2d_3x3_nchw(cfg, data, wdat, wind, wptr, layout="NCHW"):
     nsamples, chanin, imgh, imgw = [i.value for i in data.shape]
     nelems, veclen, bsrc = [i.value for i in wdat.shape]
     chanout = (wptr.shape[0].value - 1) * veclen
-    assert bsrc == 1
+    assert bsrc == 1 and layout == "NCHW"
 
     cfg.add_flop(nsamples * imgh * imgw * (nelems * veclen * bsrc * 2 - chanout))
     cfg.define_split("tile_hw", imgh * imgw, num_outputs=3)
@@ -197,8 +199,8 @@ def schedule_spconv2d_3x3_nchw(cfg, outs):
 
     def _callback(op):
         if op.tag == "conv3x3_spNCHW":
-            wptr, wind, im2col, wdat = op.input_tensors
-            (data,) = im2col.op.input_tensors
+            # wptr, wind, im2col, wdat
+            _, _, im2col, _ = op.input_tensors
 
             n_samples, f_o, f_i, b_c, imglen = s[op].op.axis
             (sum_ax,) = s[op].op.reduce_axis
