@@ -562,8 +562,8 @@ inline Array<Tensor> split(const Tensor& x, Array<PrimExpr> split_indices, int a
  *
  * \return A Tensor array after unbinding input tensor
  */
-inline Array<Tensor> unbind(const Tensor& x, int axis = 0,
-                            std::string name = "T_unbind", std::string tag = kInjective) {
+inline Array<Tensor> unbind(const Tensor& x, int axis = 0, std::string name = "T_unbind",
+                            std::string tag = kInjective) {
   if (axis < 0) {
     axis += static_cast<int>(x->shape.size());
   }

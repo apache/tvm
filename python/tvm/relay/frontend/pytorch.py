@@ -2106,7 +2106,8 @@ class PyTorchOpConverter:
     def unbind(self, inputs, input_types):
         data = inputs[0]
         axis = int(inputs[1])
-        return _op.unbind(data, axis)
+
+        return _op.unbind(data, _infer_shape(data)[axis], axis)
 
     def shape_as_tensor(self, inputs, input_types):
         is_symbolic_shape = False
@@ -2133,7 +2134,7 @@ class PyTorchOpConverter:
         data = inputs[0]
         ret = _op.transform.argwhere(data)
         if is_numpy_style or (len(inputs) > 1 and inputs[1]):
-            return _op.unbind(ret, 1)
+            return _op.unbind(ret, _infer_shape(ret)[1], 1)
         return ret
 
     def nonzero_numpy(self, inputs, input_types):
@@ -2362,7 +2363,8 @@ class PyTorchOpConverter:
         """
         layers_num = len(layer_weights_dicts)
         # unbind input sequence to samples set
-        input_seqs = _op.unbind(input_data, 0)  # [seq_num, (batch, feature_size)]
+        # input_seqs shape = [seq_num, (batch, feature_size)]
+        input_seqs = _op.unbind(input_data, _infer_shape(input_data)[0], 0)
         output_hiddens = []
         for i in range(layers_num):
             weights_dicts = layer_weights_dicts[i]
@@ -2495,13 +2497,13 @@ class PyTorchOpConverter:
             for i in range(hidden_layers_num):
                 layers_h.append(h_0)
         else:
-            layers_h = _op.unbind(h_0, 0)
+            layers_h = _op.unbind(h_0, hidden_layers_num, 0)
         if c_0 is None:
             c_0 = _op.zeros((batch_size, hidden_size), X_dtype)
             for i in range(hidden_layers_num):
                 layers_c.append(c_0)
         else:
-            layers_c = _op.unbind(c_0, 0)
+            layers_c = _op.unbind(c_0, hidden_layers_num, 0)
 
         layer_weights_dicts = []
         k = 0  # layer counter

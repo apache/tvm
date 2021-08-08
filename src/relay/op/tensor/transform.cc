@@ -2914,11 +2914,11 @@ the entries indicate where along axis the array is split.
     .set_attr<FTVMCompute>("FTVMCompute", SplitCompute)
     .set_attr<TOpPattern>("TOpPattern", kInjective);
 
-//relay.unbind
+// relay.unbind
 TVM_REGISTER_NODE_TYPE(UnbindAttrs);
 
 bool UnbindRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
-              const TypeReporter& reporter) {
+               const TypeReporter& reporter) {
   // `types` contains: [data, result]
   ICHECK_EQ(types.size(), 2) << "Expects two types, one for the input and another for the output";
   const auto* data = types[0].as<TensorTypeNode>();
@@ -2949,7 +2949,7 @@ bool UnbindRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 }
 
 Array<te::Tensor> UnbindCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
-                               const Type& out_type) {
+                                const Type& out_type) {
   const auto param = attrs.as<UnbindAttrs>();
   ICHECK(param != nullptr);
   return Array<te::Tensor>{topi::unbind(inputs[0], param->axis)};
@@ -2977,7 +2977,7 @@ RELAY_REGISTER_OP("unbind")
     .set_support_level(3)
     .add_type_rel("Unbind", UnbindRel)
     .set_attr<FTVMCompute>("FTVMCompute", UnbindCompute)
-    // TODO (vvchernov): may be kTuple or kOpaque more correct pattern
+    // TODO(vvchernov): may be kTuple or kOpaque more correct pattern
     .set_attr<TOpPattern>("TOpPattern", kInjective);
 
 // relay.slice_like

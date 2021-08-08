@@ -278,6 +278,7 @@ class SqueezeAttrs(Attrs):
 class SplitAttrs(Attrs):
     """Attributes for transform.split"""
 
+
 @tvm._ffi.register_object("relay.attrs.UnbindAttrs")
 class UnbindAttrs(Attrs):
     """Attributes for transform.unbind"""

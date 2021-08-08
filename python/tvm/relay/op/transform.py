@@ -869,7 +869,8 @@ def split(data, indices_or_sections, axis=0):
         ret_size = len(indices_or_sections) + 1
     return TupleWrapper(_make.split(data, indices_or_sections, axis), ret_size)
 
-def unbind(data, axis=0):
+
+def unbind(data, seq_size, axis=0):
     """
     Unbind was taken from Pytorch frontend.
     The operation returns a tuple of all slices along a given dimension,
@@ -891,8 +892,9 @@ def unbind(data, axis=0):
         A tuple of all slices along a given axis, already without it.
     """
 
-    ret_size = take(shape_of(data), const(axis))
-    return TupleWrapper(_make.unbind(data, axis), ret_size)
+    # seq_size = take(shape_of(data), const(axis))
+    return TupleWrapper(_make.unbind(data, axis), seq_size)
+
 
 def strided_slice(data, begin, end, strides=None, axes=None, slice_mode="end"):
     """Strided slice of an array.
