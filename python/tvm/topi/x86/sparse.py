@@ -16,8 +16,8 @@
 # under the License.
 
 """sparse_dense schedule on x86"""
-from tvm import te, tir, autotvm
 from functools import partial, reduce
+from tvm import te, tir, autotvm
 
 from ..transform import reshape
 from ..utils import traverse_inline, get_const_int
@@ -65,140 +65,154 @@ def schedule_sparse_dense(outs):
 
 
 @autotvm.register_topi_compute("conv3x3_spNHWC.x86")
-def spconv2d_3x3_nhwc(cfg, Data, Wdat, Wind, Wptr, layout="NHWC"):
-    N, H, W, CI = [i.value for i in Data.shape]
-    nElems, bsrR, bsrC = [i.value for i in Wdat.shape]
-    CO = (Wptr.shape[0].value - 1) * bsrR
+def spconv2d_3x3_nhwc(cfg, data, wdat, wind, wptr, layout="NHWC"):
+    """Sparse Conv2d 3x3 compute (NHWC)."""
+    nsamples, imh, imw, chanin = [i.value for i in data.shape]
+    nelems, bsrr, bsrc = [i.value for i in wdat.shape]
+    chanout = (wptr.shape[0].value - 1) * bsrr
 
-    Y, X, K = N * H * W, CO, 9 * CI
-    cfg.define_split("tile_y", Y, num_outputs=3)
-    cfg.define_split("tile_x", X // bsrR, num_outputs=2)
-    cfg.add_flop(Y * (nElems * bsrC * bsrR * 2 - X))
+    imglen, chanlen = nsamples * imh * imw, 9 * chanin
+    cfg.define_split("tile_y", imglen, num_outputs=3)
+    cfg.define_split("tile_x", chanout // bsrr, num_outputs=2)
+    cfg.add_flop(imglen * (nelems * bsrc * bsrr * 2 - chanout))
     if cfg.is_fallback:
         cfg["tile_y"] = autotvm.task.space.SplitEntity([-1, 160, 8])
         cfg["tile_x"] = autotvm.task.space.SplitEntity([-1, 4])
 
     idxsplit = lambda x, y: reduce(lambda a, b: a[:-1] + [a[-1] % b, a[-1] // b], y, [x])
 
-    @partial(te.compute, (Y, K), name="Im2Col")
-    def Im2Col(row, col):
-        jw, jh, jn = idxsplit(row, [W, H])
-        jc, kw, kh = idxsplit(col, [CI, 3])
-        ih, iw = jh + kh - 1, jw + kw - 1
-        return tir.if_then_else(tir.all(0 <= ih, ih < H, 0 <= iw, iw < W), Data[jn, ih, iw, jc], 0)
+    @partial(te.compute, (imglen, chanlen), name="Im2Col")
+    def im2col(row, col):
+        j_w, j_h, j_n = idxsplit(row, [imw, imh])
+        j_c, k_w, k_h = idxsplit(col, [chanin, 3])
+        i_h, i_w = j_h + k_h - 1, j_w + k_w - 1
+        return tir.if_then_else(
+            tir.all(i_h >= 0, i_h < imh, i_w >= 0, i_w < imw), data[j_n, i_h, i_w, j_c], 0
+        )
 
-    @partial(te.compute, (Y, X // bsrR, bsrR, bsrC), name="CC")
-    def CC(drow, wrow, brow, bcol):
-        row_start, row_end = Wptr[wrow], Wptr[wrow + 1]
+    @partial(te.compute, (imglen, chanout // bsrr, bsrr, bsrc), name="CC")
+    def matmul(drow, wrow, brow, bcol):
+        row_start, row_end = wptr[wrow], wptr[wrow + 1]
         elem_idx = te.reduce_axis((0, row_end - row_start), name="elem_idx")
         elem = row_start + elem_idx
         return te.sum(
-            Im2Col[drow, Wind[elem] * bsrC + bcol] * Wdat[elem, brow, bcol], axis=elem_idx
+            im2col[drow, wind[elem] * bsrc + bcol] * wdat[elem, brow, bcol], axis=elem_idx
         )
 
-    k = te.reduce_axis((0, bsrC), name="k")
-    C = te.compute(
-        (Y, X),
-        lambda y, x: te.sum(CC[y, x // bsrR, x % bsrR, k], axis=k),
+    sum_bsrc = te.reduce_axis((0, bsrc), name="k")
+    ret = te.compute(
+        (imglen, chanout),
+        lambda y, x: te.sum(matmul[y, x // bsrr, x % bsrr, sum_bsrc], axis=sum_bsrc),
         name="C",
         tag="conv3x3_spNHWC",
     )
-    return reshape(C, (N, H, W, CO))
+    return reshape(ret, (nsamples, imh, imw, chanout))
 
 
 @autotvm.register_topi_schedule("conv3x3_spNHWC.x86")
 def schedule_spconv2d_3x3_nhwc(cfg, outs):
+    """Sparse Conv2d 3x3 schedule (NHWC)."""
     outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
     s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
         if op.tag == "conv3x3_spNHWC":
-            C = op
-            (CC,) = op.input_tensors
-            Wptr, Wind, Im2Col, Wdat = CC.op.input_tensors
-            (Data,) = Im2Col.op.input_tensors
-            bsrR = CC.shape[-2].value
-            CI = Data.shape[-1].value
+            (matmul,) = op.input_tensors
+            wptr, wind, im2col, wdat = matmul.op.input_tensors
+            (data,) = im2col.op.input_tensors
+            bsrr = matmul.shape[-2].value
+            chanin = data.shape[-1].value
 
-            y, x = s[C].op.axis
-            yt, yo, yi = cfg["tile_y"].apply(s, C, y)
-            xo, xi = s[C].split(x, factor=bsrR)
-            xt, xo = cfg["tile_x"].apply(s, C, xo)
-            (k,) = s[C].op.reduce_axis
-            s[C].reorder(yt, xt, yo, xo, yi, xi, k)
-            s[C].unroll(k)
-            s[C].vectorize(xi)
-            s[C].unroll(yi)
+            mm_y, mm_x = s[op].op.axis
+            y_t, y_o, y_i = cfg["tile_y"].apply(s, op, mm_y)
+            x_o, x_i = s[op].split(mm_x, factor=bsrr)
+            x_t, x_o = cfg["tile_x"].apply(s, op, x_o)
+            (sum_ax,) = s[op].op.reduce_axis
+            s[op].reorder(y_t, x_t, y_o, x_o, y_i, x_i, sum_ax)
+            s[op].unroll(sum_ax)
+            s[op].vectorize(x_i)
+            s[op].unroll(y_i)
 
-            s[CC].compute_at(s[C], xo)
-            yi, xi, r, c = s[CC].op.axis
-            (k,) = s[CC].op.reduce_axis
-            s[CC].reorder(xi, k, yi, r, c)
-            s[CC].unroll(c)
-            s[CC].vectorize(r)
-            s[CC].unroll(yi)
+            s[matmul].compute_at(s[op], x_o)
+            y_i, x_i, bsrr, bsrc = s[matmul].op.axis
+            (sum_ax,) = s[matmul].op.reduce_axis
+            s[matmul].reorder(x_i, sum_ax, y_i, bsrr, bsrc)
+            s[matmul].unroll(bsrc)
+            s[matmul].vectorize(bsrr)
+            s[matmul].unroll(y_i)
 
-            s[Im2Col].compute_at(s[C], yo)
-            yi, k = s[Im2Col].op.axis
-            ko, ki = s[Im2Col].split(k, factor=CI)
-            s[Im2Col].vectorize(ki)
+            s[im2col].compute_at(s[op], y_o)
+            y_i, sum_ax = s[im2col].op.axis
+            k_o, k_i = s[im2col].split(sum_ax, factor=chanin)
+            s[im2col].vectorize(k_i)
 
     traverse_inline(s, outs[0].op, _callback)
     return s
 
 
 @autotvm.register_topi_compute("conv3x3_spNCHW.x86")
-def spconv2d_3x3_nchw(cfg, Data, Wdat, Wind, Wptr, layout="NCHW"):
-    N, CI, H, W = [i.value for i in Data.shape]
-    NNZ, VL, bsrC = [i.value for i in Wdat.shape]
-    CO = (Wptr.shape[0].value - 1) * VL
-    assert bsrC == 1
+def spconv2d_3x3_nchw(cfg, data, wdat, wind, wptr, layout="NCHW"):
+    """Sparse Conv2d 3x3 compute (NCHW)."""
+    nsamples, chanin, imgh, imgw = [i.value for i in data.shape]
+    nelems, veclen, bsrc = [i.value for i in wdat.shape]
+    chanout = (wptr.shape[0].value - 1) * veclen
+    assert bsrc == 1
 
-    cfg.add_flop(N * H * W * (NNZ * VL * bsrC * 2 - CO))
-    cfg.define_split("tile_hw", H * W, num_outputs=3)
-    cfg.define_split("tile_ckk", CI * 9, num_outputs=3)
+    cfg.add_flop(nsamples * imgh * imgw * (nelems * veclen * bsrc * 2 - chanout))
+    cfg.define_split("tile_hw", imgh * imgw, num_outputs=3)
+    cfg.define_split("tile_ckk", chanin * 9, num_outputs=3)
 
-    @partial(te.compute, (N, CI * 3 * 3, H * W), name="im2col")
-    def Im2Col(n, ckk, hw):
-        jh, jw = hw // W, hw % W
-        ic, kh, kw = ckk // 9, ckk // 3 % 3, ckk % 3
-        ih, iw = jh + kh - 1, jw + kw - 1
-        return tir.if_then_else(tir.all(0 <= ih, ih < H, 0 <= iw, iw < W), Data[n, ic, ih, iw], 0)
+    @partial(te.compute, (nsamples, chanin * 3 * 3, imgh * imgw), name="im2col")
+    def im2col(nsamples, ckk, imglen):
+        j_h, j_w = imglen // imgw, imglen % imgw
+        i_c, k_h, k_w = ckk // 9, ckk // 3 % 3, ckk % 3
+        i_h, i_w = j_h + k_h - 1, j_w + k_w - 1
+        return tir.if_then_else(
+            tir.all(i_h >= 0, i_h < imgh, i_w >= 0, i_w < imgw), data[nsamples, i_c, i_h, i_w], 0
+        )
 
-    @partial(te.compute, (N, CO // VL, VL, bsrC, H * W), name="CC", tag="conv3x3_spNCHW")
-    def CC(n, fo, fi, k, hw):
-        row_start, row_end = Wptr[fo], Wptr[fo + 1]
+    @partial(
+        te.compute,
+        (nsamples, chanout // veclen, veclen, bsrc, imgh * imgw),
+        name="CC",
+        tag="conv3x3_spNCHW",
+    )
+    def matmul(nsamples, f_o, f_i, bsrk, imglen):
+        row_start, row_end = wptr[f_o], wptr[f_o + 1]
         elem_idx = te.reduce_axis((0, row_end - row_start), name="elem_idx")
         elem = row_start + elem_idx
-        return te.sum(Im2Col[n, Wind[elem] * bsrC + k, hw] * Wdat[elem, fi, k], axis=elem_idx)
+        return te.sum(
+            im2col[nsamples, wind[elem] * bsrc + bsrk, imglen] * wdat[elem, f_i, bsrk],
+            axis=elem_idx,
+        )
 
-    return reshape(CC, [N, CO, H, W])
+    return reshape(matmul, [nsamples, chanout, imgh, imgw])
 
 
 @autotvm.register_topi_schedule("conv3x3_spNCHW.x86")
 def schedule_spconv2d_3x3_nchw(cfg, outs):
+    """Sparse Conv2d 3x3 schedule (NCHW)."""
     outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
     s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
         if op.tag == "conv3x3_spNCHW":
-            CC = op
-            Wptr, Wind, im2col, Wdat = op.input_tensors
-            (Data,) = im2col.op.input_tensors
+            wptr, wind, im2col, wdat = op.input_tensors
+            (data,) = im2col.op.input_tensors
 
-            n, fo, fi, bc, hw = s[CC].op.axis
-            (kk,) = s[CC].op.reduce_axis
-            hw1, hw2, hw3 = cfg["tile_hw"].apply(s, CC, hw)
-            s[CC].reorder(n, hw1, fo, hw2, kk, fi, bc, hw3)
-            s[CC].unroll(fi)
-            s[CC].unroll(bc)
-            s[CC].vectorize(hw3)
+            n_samples, f_o, f_i, b_c, imglen = s[op].op.axis
+            (sum_ax,) = s[op].op.reduce_axis
+            hw1, hw2, hw3 = cfg["tile_hw"].apply(s, op, imglen)
+            s[op].reorder(n_samples, hw1, f_o, hw2, sum_ax, f_i, b_c, hw3)
+            s[op].unroll(f_i)
+            s[op].unroll(b_c)
+            s[op].vectorize(hw3)
 
-            s[im2col].compute_at(s[CC], hw1)
-            n, ckk, hw = s[im2col].op.axis
+            s[im2col].compute_at(s[op], hw1)
+            n_samples, ckk, imglen = s[im2col].op.axis
             ckk1, ckk2, ckk3 = cfg["tile_ckk"].apply(s, im2col, ckk)
-            hw2, hw3 = s[im2col].split(hw, factor=cfg["tile_hw"].size[-1])
-            s[im2col].reorder(n, ckk1, ckk2, hw2, ckk3, hw3)
+            hw2, hw3 = s[im2col].split(imglen, factor=cfg["tile_hw"].size[-1])
+            s[im2col].reorder(n_samples, ckk1, ckk2, hw2, ckk3, hw3)
             s[im2col].unroll(ckk3)
             s[im2col].vectorize(hw3)
 
