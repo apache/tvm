@@ -525,7 +525,7 @@ def test_split_infer_type():
 def test_unbind_infer_type():
     def verify_unbind(dshape, ret_type, axis=0):
         x = relay.var("x", relay.ty.TensorType(dshape, "float32"))
-        y = relay.unbind(x, axis=axis)
+        y = relay.unbind(x, dshape[axis], axis=axis)
         yy = run_infer_type(y.astuple())
         assert yy.checked_type == ret_type
 
