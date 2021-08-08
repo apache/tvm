@@ -2256,7 +2256,7 @@ class LSTM(RNN):
             acts = [_op.sigmoid, _op.tanh, _op.tanh] * num_directions
 
         # TODO (vvchernov): It can be replaced by _op.split if issue #8412 is resolved
-        X_steps = unbind(X, axis=0)
+        X_steps = _op.unbind(X, axis=0)
 
         H_ts = _op.split(Hp_0, num_directions)
         C_ts = _op.split(Cp_0, num_directions)

@@ -568,7 +568,7 @@ inline Array<Tensor> unbind(const Tensor& x, int axis = 0,
     axis += static_cast<int>(x->shape.size());
   }
   ICHECK_LT(axis, x->shape.size()) << "axis out of bounds";
-  ICHECK_GT(axis, 0) << "axis out of bounds";
+  ICHECK_GE(axis, 0) << "axis out of bounds";
 
   int src_axis_size = static_cast<int>(x->shape[axis].as<IntImmNode>()->value);
   Array<PrimExpr> shape;
