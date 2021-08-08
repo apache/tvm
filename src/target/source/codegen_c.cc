@@ -83,6 +83,7 @@ void CodeGenC::AddFunction(const PrimFunc& f) {
   bool no_alias = f->HasNonzeroAttr(tir::attr::kNoAlias);
 
   this->PrintFuncPrefix();
+  this->PrintExtraAttrs(f);
   this->stream << " " << static_cast<std::string>(global_symbol.value()) << "(";
 
   for (size_t i = 0; i < f->params.size(); ++i) {
@@ -124,6 +125,8 @@ void CodeGenC::AddFunction(const PrimFunc& f) {
 }
 
 void CodeGenC::PrintFuncPrefix() { stream << "void"; }
+
+void CodeGenC::PrintExtraAttrs(const PrimFunc& f) {}
 
 void CodeGenC::PrintFinalReturn() {}
 
