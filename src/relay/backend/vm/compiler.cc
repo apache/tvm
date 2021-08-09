@@ -45,7 +45,6 @@
 #include <vector>
 
 #include "../../../target/source/codegen_source_base.h"
-#include "../../backend/compile_engine.h"
 #include "../../op/op_common.h"
 #include "../../transforms/pass_utils.h"
 #include "../utils.h"
@@ -79,6 +78,7 @@ namespace vm {
 using namespace tvm::runtime;
 using namespace tvm::runtime::vm;
 using namespace relay::transform;
+using namespace tec;
 
 // (@jroesch): VM passes, eventually declare as passes.
 bool IsClosure(const Function& func);
@@ -253,7 +253,6 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
                      ExprDeviceMap expr_device_map)
       : last_register_(0),
         registers_num_(0),
-        engine_(CompileEngine::Global()),
         context_(context),
         target_host_(target_host),
         expr_device_map_(std::move(expr_device_map)) {
@@ -465,7 +464,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
   void EmitShapeFunc(Function func, Array<Expr> inputs, Array<Expr> outputs) {
     // Lower shape function
     CCacheKey key(func, target_host_);
-    auto cfunc = engine_->LowerShapeFunc(key);
+    auto cfunc = context_->compiler->LowerShapeFunc(key);
     int op_index = -1;
     // pick the only function inside the context
     ICHECK_EQ(cfunc->funcs->functions.size(), 1);
@@ -551,7 +550,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
 
     CCacheKey key(func, target);
     auto mangle_fn = [](String name) { return name; };
-    auto cfunc = engine_->Lower(key, mangle_fn);
+    auto cfunc = context_->compiler->Lower(key, mangle_fn);
 
     auto op_index = -1;
     if (func->GetAttr<String>(attr::kCompiler).defined()) {
@@ -857,8 +856,6 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
   size_t last_register_;
   /*! \brief Total number of virtual registers allocated. */
   size_t registers_num_;
-  /*! \brief Compiler engine to lower primitive functions. */
-  CompileEngine engine_;
   /*! \brief Global shared meta data */
   VMCompilerContext* context_;
   /*! \brief Target devices. */
@@ -1134,8 +1131,8 @@ void VMCompiler::Codegen() {
     }
   }
 
-  auto compile_engine = CompileEngine::Global();
-  auto ext_mods = compile_engine->LowerExternalFunctions();
+  auto ext_mods = context_.compiler->LowerExternalFunctions();
+
   runtime::Module lib;
   if (funcs.size() > 0) {
     lib = tvm::build(funcs, target_host_);
@@ -1146,7 +1143,6 @@ void VMCompiler::Codegen() {
   }
   lib = codegen::CreateMetadataModule(params_, lib, ext_mods, target_host_, runtime::Metadata());
   exec_->SetLib(lib);
-  CompileEngine::Global()->Clear();
 }
 
 ExprDeviceMap VMCompiler::AnalyzeContext() const {
