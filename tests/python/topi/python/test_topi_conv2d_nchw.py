@@ -129,6 +129,10 @@ class BaseConv2DTests:
         pad_top, pad_left, pad_bottom, pad_right = get_pad_tuple(padding, (kernel, kernel))
         padding_sum = pad_top + pad_left + pad_bottom + pad_right
 
+        has_asymmetric_padding = (pad_top != pad_bottom) or (pad_left != pad_right)
+        if is_cudnn_target and has_asymmetric_padding:
+            pytest.xfail("CuDNN does not support asymmetric padding")
+
         a_np, w_np, b_np, c_np = ref_data
 
         A = te.placeholder(a_np.shape, name="A", dtype=dtype)
