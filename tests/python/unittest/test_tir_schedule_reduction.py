@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=missing-function-docstring,missing-module-docstring
 import sys
 
 import numpy as np
@@ -22,8 +23,9 @@ import tvm
 import tvm.testing
 from tvm import tir
 from tvm.script import ty
+from tvm.tir.schedule.testing import verify_trace_roundtrip
 
-# pylint: disable=no-member,invalid-name,unused-variable,missing-function-docstring,missing-module-docstring
+# pylint: disable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 
 
 @tvm.script.tir
@@ -452,198 +454,144 @@ def multiple_reduction_blocks_rfactor(a: ty.handle, f: ty.handle) -> None:
                     F[fi, fj] = (F[fi, fj] + A[fi, fj, fk]) + E[fi, fj]
 
 
-# pylint: enable=no-member,invalid-name,unused-variable
+# pylint: enable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 
 
 def test_reduction_rfactor_matmul():
-    s = tir.Schedule(transformed_matmul, debug_mode=True)
-    C = s.get_block("update")
-    _, _, _, _, kii = s.get_loops(C)
+    s = tir.Schedule(transformed_matmul, debug_mask="all")
+    _, _, _, _, kii = s.get_loops(s.get_block("update"))
     rf_block = s.rfactor(kii, 0)
     tvm.ir.assert_structural_equal(s.mod["main"], matmul_rfactor)
     assert s.get(rf_block).same_as(s.get(s.get_block("update_rf")))
-
-    func = tvm.build(s.mod["main"], target="llvm")
-    a_np = np.random.uniform(size=(128, 128)).astype("float32")
-    b_np = np.random.uniform(size=(128, 128)).astype("float32")
-    a = tvm.nd.array(a_np)
-    b = tvm.nd.array(b_np)
-    c = tvm.nd.array(np.zeros((128, 128), dtype="float32"))
-    func(a, b, c)
-    c_np = np.matmul(a_np, b_np.T)
-    tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-4, atol=1e-4)
+    verify_trace_roundtrip(s, mod=transformed_matmul)
 
 
 def test_reduction_rfactor_square_sum():
-    s = tir.Schedule(square_sum, debug_mode=True)
-    C = s.get_block("C")
-    _, _, j = s.get_loops(C)
+    s = tir.Schedule(square_sum, debug_mask="all")
+    _, _, j = s.get_loops(s.get_block("C"))
     rf_block = s.rfactor(j, 1)
     tvm.ir.assert_structural_equal(s.mod["main"], square_sum_rfactor)
     assert s.get(rf_block).same_as(s.get(s.get_block("C_rf")))
-
-    func = tvm.build(s.mod["main"], target="llvm")
-    a_np = np.random.uniform(size=(16, 256, 256)).astype("float32")
-    a = tvm.nd.array(a_np)
-    c = tvm.nd.array(np.zeros((16,), dtype="float32"))
-    func(a, c)
-    c_np = np.sum(a_np * a_np, axis=(1, 2))
-    tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-4, atol=1e-4)
+    verify_trace_roundtrip(s, mod=square_sum)
 
 
 def test_reduction_rfactor_square_sum_square_root():
-    s = tir.Schedule(transformed_square_sum_square_root, debug_mode=True)
-    C = s.get_block("C")
-    _, _, fi = s.get_loops(C)
-    rf_block = s.rfactor(fi, 0)
+    s = tir.Schedule(transformed_square_sum_square_root, debug_mask="all")
+    _, _, f_i = s.get_loops(s.get_block("C"))
+    rf_block = s.rfactor(f_i, 0)
     tvm.ir.assert_structural_equal(s.mod["main"], square_sum_square_root_rfactor)
     assert s.get(rf_block).same_as(s.get(s.get_block("C_rf")))
-
-    func = tvm.build(s.mod["main"], target="llvm")
-    a_np = np.random.uniform(size=(16, 256, 256)).astype("float32")
-    a = tvm.nd.array(a_np)
-    d = tvm.nd.array(np.zeros((16,), dtype="float32"))
-    func(a, d)
-    d_np = np.sqrt(np.sum(a_np * a_np, axis=(1, 2)))
-    tvm.testing.assert_allclose(d.numpy(), d_np, rtol=1e-4, atol=1e-4)
+    verify_trace_roundtrip(s, mod=transformed_square_sum_square_root)
 
 
 def test_reduction_rfactor_loop_multiple_children():
-    s = tir.Schedule(matmul_loop_multiple_children, debug_mode=True)
-    C = s.get_block("C")
-    k, _, _ = s.get_loops(C)
+    s = tir.Schedule(matmul_loop_multiple_children, debug_mask="all")
+    k, _, _ = s.get_loops(s.get_block("C"))
     with pytest.raises(tvm.tir.ScheduleError):
         s.rfactor(k, 0)
 
 
 def test_reduction_rfactor_not_stage_pipeline():
-    s = tir.Schedule(matmul_not_stage_pipeline, debug_mode=True)
-    C = s.get_block("C")
-    _, _, k = s.get_loops(C)
+    s = tir.Schedule(matmul_not_stage_pipeline, debug_mask="all")
+    _, _, k = s.get_loops(s.get_block("C"))
     with pytest.raises(tvm.tir.ScheduleError):
         s.rfactor(k, 0)
 
 
 def test_reduction_rfactor_not_reduction_block1():
-    s = tir.Schedule(element_wise, debug_mode=True)
-    B = s.get_block("B")
-    i, _ = s.get_loops(B)
+    s = tir.Schedule(element_wise, debug_mask="all")
+    i, _ = s.get_loops(s.get_block("B"))
     with pytest.raises(tvm.tir.ScheduleError):
         s.rfactor(i, 0)
 
 
 def test_reduction_rfactor_not_reduction_block2():
-    s = tir.Schedule(rowsum_not_quasi_affine, debug_mode=True)
-    B = s.get_block("B")
-    _, k = s.get_loops(B)
+    s = tir.Schedule(rowsum_not_quasi_affine, debug_mask="all")
+    _, k = s.get_loops(s.get_block("B"))
     with pytest.raises(tvm.tir.ScheduleError):
         s.rfactor(k, 0)
 
 
 def test_reduction_rfactor_not_reduction_block3():
-    s = tir.Schedule(rowsum_not_dominant, debug_mode=True)
-    B = s.get_block("B")
-    _, k = s.get_loops(B)
+    s = tir.Schedule(rowsum_not_dominant, debug_mask="all")
+    _, k = s.get_loops(s.get_block("B"))
     with pytest.raises(tvm.tir.ScheduleError):
         s.rfactor(k, 0)
 
 
 def test_reduction_rfactor_not_serial_loop():
-    s = tir.Schedule(rowsum_not_serial, debug_mode=True)
-    B = s.get_block("B")
-    _, k = s.get_loops(B)
+    s = tir.Schedule(rowsum_not_serial, debug_mask="all")
+    _, k = s.get_loops(s.get_block("B"))
     with pytest.raises(tvm.tir.ScheduleError):
         s.rfactor(k, 0)
 
 
 def test_reduction_rfactor_not_same_buffer_access():
-    s = tir.Schedule(matmul_not_same_buffer_access, debug_mode=True)
-    C = s.get_block("C")
-    _, _, k = s.get_loops(C)
+    s = tir.Schedule(matmul_not_same_buffer_access, debug_mask="all")
+    _, _, k = s.get_loops(s.get_block("C"))
     with pytest.raises(tvm.tir.ScheduleError):
         s.rfactor(k, 0)
 
 
-def test_reduction_rfactor_factor_axis_range():
-    s = tir.Schedule(transformed_matmul, debug_mode=True)
-    C = s.get_block("update")
-    _, _, _, _, kii = s.get_loops(C)
+def test_reduction_rfactor_factor_axis_range_fail():
+    s = tir.Schedule(transformed_matmul, debug_mask="all")
+    _, _, _, _, kii = s.get_loops(s.get_block("update"))
     with pytest.raises(tvm.tir.ScheduleError):
         s.rfactor(kii, 3)
     with pytest.raises(tvm.tir.ScheduleError):
         s.rfactor(kii, -4)
 
+
+def test_reduction_rfactor_factor_axis_range():
+    s = tir.Schedule(transformed_matmul, debug_mask="all")
+    _, _, _, _, kii = s.get_loops(s.get_block("update"))
     rf_block = s.rfactor(kii, -3)
     tvm.ir.assert_structural_equal(s.mod["main"], matmul_rfactor)
     assert s.get(rf_block).same_as(s.get(s.get_block("update_rf")))
-
-    func = tvm.build(s.mod["main"], target="llvm")
-    a_np = np.random.uniform(size=(128, 128)).astype("float32")
-    b_np = np.random.uniform(size=(128, 128)).astype("float32")
-    a = tvm.nd.array(a_np)
-    b = tvm.nd.array(b_np)
-    c = tvm.nd.array(np.zeros((128, 128), dtype="float32"))
-    func(a, b, c)
-    c_np = np.matmul(a_np, b_np.T)
-    tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-4, atol=1e-4)
+    verify_trace_roundtrip(s, mod=transformed_matmul)
 
 
 def test_reduction_rfactor_wrong_reduce_pattern1():
-    s = tir.Schedule(rowsum_wrong_reduce_pattern1, debug_mode=True)
-    B = s.get_block("B")
-    _, k = s.get_loops(B)
+    s = tir.Schedule(rowsum_wrong_reduce_pattern1, debug_mask="all")
+    _, k = s.get_loops(s.get_block("B"))
     with pytest.raises(tvm.tir.ScheduleError):
         s.rfactor(k, 0)
 
 
 def test_reduction_rfactor_wrong_reduce_pattern2():
-    s = tir.Schedule(rowsum_wrong_reduce_pattern2, debug_mode=True)
-    B = s.get_block("B")
-    _, k = s.get_loops(B)
+    s = tir.Schedule(rowsum_wrong_reduce_pattern2, debug_mask="all")
+    _, k = s.get_loops(s.get_block("B"))
     with pytest.raises(tvm.tir.ScheduleError):
         s.rfactor(k, 0)
 
 
 def test_reduction_rfactor_wrong_loops1():
-    s = tir.Schedule(rowsum, debug_mode=True)
-    B = s.get_block("B")
-    i, _ = s.get_loops(B)
+    s = tir.Schedule(rowsum, debug_mask="all")
+    i, _ = s.get_loops(s.get_block("B"))
     with pytest.raises(tvm.tir.ScheduleError):
         s.rfactor(i, 0)
 
 
 def test_reduction_rfactor_wrong_loops2():
-    s = tir.Schedule(rowsum_transformed, debug_mode=True)
-    B = s.get_block("B")
-    _, _, ki = s.get_loops(B)
+    s = tir.Schedule(rowsum_transformed, debug_mask="all")
+    _, _, k_i = s.get_loops(s.get_block("B"))
     with pytest.raises(tvm.tir.ScheduleError):
-        s.rfactor(ki, 0)
+        s.rfactor(k_i, 0)
 
 
 def test_reduction_rfactor_zero_dim():
-    s = tir.Schedule(rowsum_zero_dim, debug_mode=True)
-    B = s.get_block("B")
-    (k,) = s.get_loops(B)
+    s = tir.Schedule(rowsum_zero_dim, debug_mask="all")
+    (k,) = s.get_loops(s.get_block("B"))
     s.rfactor(k, 0)
     tvm.ir.assert_structural_equal(s.mod["main"], rowsum_zero_dim_rfactor)
-
-    func = tvm.build(s.mod["main"], target="llvm")
-    a_np = np.random.uniform(size=(128,)).astype("float32")
-    a = tvm.nd.array(a_np)
-    b = tvm.nd.array(np.array(1, dtype="float32"))
-    func(a, b)
-    b_np = np.array(np.sum(a_np))
-    tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-4, atol=1e-4)
+    verify_trace_roundtrip(s, mod=rowsum_zero_dim)
 
 
-def test_reduction_rfactor_outermost_loop_multiple_children():
-    s = tir.Schedule(multiple_reduction_blocks, debug_mode=True)
-    D = s.get_block("D")
-    E = s.get_block("E")
-    F = s.get_block("F")
-    _, _, k2o, k2i = s.get_loops(D)
-    _, _, k3o, k3i = s.get_loops(E)
-    _, _, k4o, k4i = s.get_loops(F)
+def test_reduction_rfactor_outermost_loop_multiple_children_fail():  # pylint: disable=invalid-name
+    s = tir.Schedule(multiple_reduction_blocks, debug_mask="all")
+    _, _, k2o, k2i = s.get_loops(s.get_block("D"))
+    _, _, k3o, k3i = s.get_loops(s.get_block("E"))
+    _, _, k4o, k4i = s.get_loops(s.get_block("F"))
     with pytest.raises(tvm.tir.ScheduleError):
         s.rfactor(k2o, 0)
     with pytest.raises(tvm.tir.ScheduleError):
@@ -657,18 +605,13 @@ def test_reduction_rfactor_outermost_loop_multiple_children():
     with pytest.raises(tvm.tir.ScheduleError):
         s.rfactor(k4i, 0)
 
-    C = s.get_block("C")
-    i, j1, k1o, k1i = s.get_loops(C)
+
+def test_reduction_rfactor_outermost_loop_multiple_children():  # pylint: disable=invalid-name
+    s = tir.Schedule(multiple_reduction_blocks, debug_mask="all")
+    _, _, k1o, _ = s.get_loops(s.get_block("C"))
     s.rfactor(k1o, 2)
     tvm.ir.assert_structural_equal(s.mod["main"], multiple_reduction_blocks_rfactor)
-
-    func = tvm.build(s.mod["main"], target="llvm")
-    a_np = np.random.uniform(size=(16, 16, 16)).astype("float32")
-    a = tvm.nd.array(a_np)
-    f = tvm.nd.array(np.zeros((16, 16), dtype="float32"))
-    func(a, f)
-    f_np = np.sum(a_np, axis=2) * 4369
-    tvm.testing.assert_allclose(f.numpy(), f_np, rtol=1e-4, atol=1e-4)
+    verify_trace_roundtrip(s, mod=multiple_reduction_blocks)
 
 
 if __name__ == "__main__":

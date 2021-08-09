@@ -78,7 +78,7 @@ def block_in_opaque_block(a: ty.handle, b: ty.handle) -> None:
 
 def replace_ir_builder(deep_copy=False, realize=False):
     new_func = tvm.script.from_source(tvm.script.asscript(elementwise))
-    s = tir.ScheduleState(new_func, debug_mode=True)
+    s = tir.ScheduleState(new_func, debug_mask="all")
     target = tvm.tir.Block(
         iter_vars=[],
         reads=[],
@@ -106,7 +106,7 @@ def replace_ir_builder_module(deep_copy=False, realize=False):
     new_func = tvm.script.from_source(tvm.script.asscript(elementwise))
     other_func = tvm.script.from_source(tvm.script.asscript(elementwise))
     mod = IRModule(functions={"main": new_func, "other": other_func})
-    s = tir.ScheduleState(mod, debug_mode=True)
+    s = tir.ScheduleState(mod, debug_mask="all")
     target = tvm.tir.Block(
         iter_vars=[],
         reads=[],
@@ -132,7 +132,7 @@ def replace_ir_builder_module(deep_copy=False, realize=False):
 
 def replace_ir_builder_with_opaque():
     func = tvm.script.from_source(tvm.script.asscript(block_in_opaque_block))
-    s = tir.ScheduleState(func, debug_mode=True)
+    s = tir.ScheduleState(func, debug_mask="all")
     gc.collect()
     return s
 
@@ -292,7 +292,7 @@ def test_replace_root_copy3():
 
 def test_replace_block_remap():
     func = elementwise
-    s = tir.ScheduleState(func, debug_mode=True)
+    s = tir.ScheduleState(func, debug_mask="all")
     # The target stmt
     target = matmul.body.block.body.body.body[0].block
     sref = s.get_sref(s.mod["main"].body.block.body[0].body.body.block)
