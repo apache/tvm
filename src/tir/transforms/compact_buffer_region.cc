@@ -303,18 +303,62 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
   support::Arena arena_;
 };
 
+/*! \brief Collect storage alignment information from block annotations. */
+class StorageAlignCollector : public StmtVisitor {
+ public:
+  static std::unordered_map<Buffer, Array<Array<Integer>>, ObjectPtrHash, ObjectPtrEqual> Collect(
+      const PrimFunc& f) {
+    StorageAlignCollector collector;
+    collector(f->body);
+    return std::move(collector.storage_align_);
+  }
+
+ private:
+  void VisitStmt_(const BlockNode* op) final {
+    auto it = op->annotations.find(attr::buffer_dim_align);
+    if (it != op->annotations.end()) {
+      const auto& storage_align = Downcast<Array<Array<Array<Integer>>>>((*it).second);
+      ICHECK(storage_align.size() == op->writes.size());
+      for (size_t i = 0; i < storage_align.size(); ++i) {
+        CHECK(!storage_align_.count(op->writes[i]->buffer))
+            << "ValueError: Conflicting storage_align for buffer " << op->writes[i]->buffer->name;
+        storage_align_.emplace(op->writes[i]->buffer, storage_align[i]);
+      }
+    }
+    StmtVisitor::VisitStmt_(op);
+  }
+
+  /*! \brief The map from Buffer to its storage alignment information. */
+  std::unordered_map<Buffer, Array<Array<Integer>>, ObjectPtrHash, ObjectPtrEqual> storage_align_;
+};
+
 /*! \brief Reallocate the buffers with minimal region. */
 class BufferCompactor : public StmtExprMutator {
  public:
   static Stmt Compact(
       const PrimFunc& f,
-      const std::unordered_map<Buffer, Region, ObjectPtrHash, ObjectPtrEqual>& regions) {
+      const std::unordered_map<Buffer, Region, ObjectPtrHash, ObjectPtrEqual>& regions,
+      const std::unordered_map<Buffer, Array<Array<Integer>>, ObjectPtrHash, ObjectPtrEqual>&
+          storage_align) {
     std::unordered_map<Buffer, BufferAllocInfo, ObjectPtrHash, ObjectPtrEqual> buffer_info;
 
     for (const auto& kv : regions) {
       const Buffer& buffer = kv.first;
       Region region = kv.second;
-      buffer_info.emplace(buffer, BufferAllocInfo(std::move(region)));
+      BufferAllocInfo buffer_alloc_info(std::move(region));
+      auto it = storage_align.find(buffer);
+      if (it != storage_align.end()) {
+        std::vector<DimAlignInfo> dim_aligns(buffer->shape.size());
+        for (const Array<Integer>& dim_align : (*it).second) {
+          ICHECK(dim_align.size() == 3);
+          int dim = dim_align[0]->value;
+          int factor = dim_align[1]->value;
+          int offset = dim_align[2]->value;
+          dim_aligns.at(dim) = {factor, offset};
+        }
+        buffer_alloc_info.dim_aligns = std::move(dim_aligns);
+      }
+      buffer_info.emplace(buffer, std::move(buffer_alloc_info));
     }
     BufferCompactor compactor(std::move(buffer_info));
     Stmt stmt = compactor(f->body);
@@ -322,9 +366,19 @@ class BufferCompactor : public StmtExprMutator {
   }
 
  private:
+  /*! \brief The storage alignment for a dimension */
+  struct DimAlignInfo {
+    /*! \brief The factor of the alignment */
+    int align_factor{0};
+    /*! \brief The offset of the alignment */
+    int align_offset{0};
+  };
+
   struct BufferAllocInfo {
     /*! \brief The buffer access region. */
     Region region;
+    /*! \brief The storage alignment information. */
+    std::vector<DimAlignInfo> dim_aligns;
     /*!
      * \brief The reallocated buffer with minimal size.
      * \note The value if NullOpt if the buffer do not need reallocate (e.g parameter buffer).
@@ -380,8 +434,25 @@ class BufferCompactor : public StmtExprMutator {
       for (const Range& range : info.region) {
         shape.push_back(range->extent);
       }
+      Array<PrimExpr> strides;
+      if (info.dim_aligns.size()) {
+        ICHECK(info.dim_aligns.size() == shape.size());
+        strides.resize(shape.size());
+        PrimExpr stride = make_const(shape[0].dtype(), 1);
+        for (size_t i = shape.size(); i != 0; --i) {
+          size_t dim = i - 1;
+          if (info.dim_aligns[dim].align_factor != 0) {
+            PrimExpr factor = make_const(stride.dtype(), info.dim_aligns[dim].align_factor);
+            PrimExpr offset = make_const(stride.dtype(), info.dim_aligns[dim].align_offset);
+            stride = stride + indexmod(factor + offset - indexmod(stride, factor), factor);
+          }
+          strides.Set(dim, stride);
+          stride = stride * shape[dim];
+        }
+      }
       ObjectPtr<BufferNode> n = make_object<BufferNode>(*buffer.get());
       n->shape = std::move(shape);
+      n->strides = std::move(strides);
       info.new_buffer = Buffer(std::move(n));
       result.push_back(info.new_buffer);
     }
@@ -458,7 +529,9 @@ PrimFunc CompactBufferAllocation(PrimFunc f) {
     PrimFuncNode* fptr = f.CopyOnWrite();
     std::unordered_map<Buffer, Region, ObjectPtrHash, ObjectPtrEqual> region =
         BufferAccessRegionCollector::Collect(f);
-    fptr->body = BufferCompactor::Compact(f, region);
+    std::unordered_map<Buffer, Array<Array<Integer>>, ObjectPtrHash, ObjectPtrEqual> storage_align =
+        StorageAlignCollector::Collect(f);
+    fptr->body = BufferCompactor::Compact(f, region, storage_align);
     return f;
   } else {
     return f;
