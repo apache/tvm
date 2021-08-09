@@ -22,10 +22,12 @@
 #
 # Requirements:
 #   - How to configure:
-#        $ pip install pre-commit
-#        $ pre-commit install
+#        - $ pip install pre-commit
+#        - $ pre-commit install
 #   - How to prevent running it:
-#        $ git commit --no-verify
+#        - git options: --no-verify or -n
+#        - $ git commit -n -m "YOUR COMMIT MESSAGE"
+#
 #
 # Working versions required:
 #   $ pip3 install cpplint pylint==2.4.4 mypy==0.902 black==20.8b1
