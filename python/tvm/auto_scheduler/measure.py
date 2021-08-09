@@ -839,7 +839,6 @@ def prepare_runner_args(inp, build_res):
     from .search_task import get_task_input_buffer  # lazily import to avoid recursive dependency
 
     task_input_names = inp.task.task_input_names
-    dev = ndarray.device(str(inp.task.target), 0)
     tensor_input_map = prepare_input_map(build_res.args)
     if not task_input_names:
         tensor_input_map = {}
@@ -849,9 +848,9 @@ def prepare_runner_args(inp, build_res):
         if arg in tensor_input_map:
             tensor_name = tensor_input_map[arg]
             if tensor_name in task_input_names:
-                temp_ndarray = get_task_input_buffer(inp.task.workload_key, tensor_name)
+                task_input_buffer = get_task_input_buffer(inp.task.workload_key, tensor_name)
                 # convert tvm.NDArray to picklable numpy.ndarray
-                args.append(ndarray.NDArray.numpy(temp_ndarray))
+                args.append(task_input_buffer.numpy())
                 task_inputs_count += 1
             else:
                 raise ValueError(
@@ -908,8 +907,9 @@ def _timed_eval_func(
             random_fill = tvm.get_global_func("tvm.contrib.random.random_fill", True)
             assert random_fill, "Please make sure USE_RANDOM is ON in the config.cmake"
             assert len(args) == len(build_res.args)
+            # pylint: disable=consider-using-enumerate
             for idx in range(len(args)):
-                if args[idx] == None:
+                if args[idx] is None:
                     build_res_arg = build_res.args[idx]
                     empty_array = ndarray.empty(
                         get_const_tuple(build_res_arg.shape), build_res_arg.dtype, dev
@@ -1108,8 +1108,9 @@ def _timed_rpc_run(
             ), "Please make sure USE_RANDOM is ON in the config.cmake on the remote devices"
 
             assert len(args) == len(build_res.args)
+            # pylint: disable=consider-using-enumerate
             for idx in range(len(args)):
-                if args[idx] == None:
+                if args[idx] is None:
                     build_res_arg = build_res.args[idx]
                     empty_array = ndarray.empty(
                         get_const_tuple(build_res_arg.shape), build_res_arg.dtype, dev
