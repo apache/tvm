@@ -16,7 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""TVM Python requriements.txt generator.
+"""TVM Python requirements.txt generator.
 
 This script generates a set of requirements.txt files (stored in `./requirements`) that describe
 TVM's Python dependencies.
@@ -72,6 +72,16 @@ REQUIREMENTS_BY_PIECE: RequirementsByPieceType = [
                 "scipy",
                 "synr",
                 "tornado",
+            ],
+        ),
+    ),
+    # Provide support for Arm(R) Ethos(TM)-U NPU.
+    (
+        "ethosu",
+        (
+            "Requirements for using Arm(R) Ethos(TM)-U NPU",
+            [
+                "ethos-u-vela",
             ],
         ),
     ),
@@ -205,6 +215,7 @@ CONSTRAINTS = [
         "docutils",
         "<0.17",
     ),  # Work around https://github.com/readthedocs/sphinx_rtd_theme/issues/1115
+    ("ethos-u-vela", "==2.1.1"),
     ("future", None),
     ("image", None),
     ("matplotlib", None),

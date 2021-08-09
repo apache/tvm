@@ -42,14 +42,14 @@ def check_graph_executor(
     target, ref_res, device, func, params, config, opt_level, expected_index=None
 ):
     with tvm.transform.PassContext(opt_level=opt_level, config=config):
-        graph, lib, new_params = relay.build(func, target, params=params)
+        graph_executor_factory = relay.build(func, target, params=params)
+
         contexts = [tvm.cpu(0), tvm.device(device)]
-        graph_json = json.loads(graph)
+        graph_json = json.loads(graph_executor_factory.graph_json)
         if "device_index" in graph_json["attrs"]:
             device_index = graph_json["attrs"]["device_index"][1]
             assert device_index == expected_index
-        mod = graph_executor.create(graph, lib, contexts)
-        mod.set_input(**new_params)
+        mod = graph_executor.GraphModule(graph_executor_factory["default"](*contexts))
         mod.run()
         res = mod.get_output(0).numpy()
         tvm.testing.assert_allclose(res, ref_res, rtol=1e-5, atol=1e-5)
@@ -272,12 +272,14 @@ def test_conv_network():
         smap = relay.backend._backend.GraphPlanMemory(func)
         storage_ids = []
         device_types = []
-        for _, storage_dev_type in smap.items():
-            assert len(storage_dev_type) == 3
-            for sid in storage_dev_type[0]:
+        for _, storage_info in smap.expr_to_storage_info.items():
+
+            for sid in storage_info.storage_ids:
                 storage_ids.append(sid.value)
-            for did in storage_dev_type[1]:
+
+            for did in storage_info.device_types:
                 device_types.append(did.value)
+
         assert len(storage_ids) == 10
         assert len(set(storage_ids)) == 8
         assert len(set(device_types)) == 2
@@ -350,16 +352,16 @@ def test_propogation():
     assert tvm.ir.structural_equal(annotated_expr, expected_expr)
 
     smap = relay.backend._backend.GraphPlanMemory(annotated_expr)
-    for expr, storage_dev_type in smap.items():
+    for expr, storage_info in smap.expr_to_storage_info.items():
         # x is dev1 as output is dev1
         if isinstance(expr, tvm.relay.expr.Var):
-            assert storage_dev_type[1][0] == dev1.device_type
+            assert storage_info.device_types[0] == dev1.device_type
         else:
             # device_copy op should be its dst_dev_type
             if isinstance(expr.attrs, tvm.relay.op.op_attrs.DeviceCopyAttrs):
-                assert storage_dev_type[1][0] == expr.attrs.dst_dev_type
+                assert storage_info.device_types[0] == expr.attrs.dst_dev_type
             else:
-                assert storage_dev_type[1][0] == expected_dev_type[expr.op.name].device_type
+                assert storage_info.device_types[0] == expected_dev_type[expr.op.name].device_type
 
 
 def run_fusible_network(dev, tgt):

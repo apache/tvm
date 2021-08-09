@@ -45,7 +45,6 @@
 #include <vector>
 
 #include "../../../target/source/codegen_source_base.h"
-#include "../../backend/compile_engine.h"
 #include "../../op/op_common.h"
 #include "../../transforms/pass_utils.h"
 #include "../utils.h"
@@ -79,6 +78,7 @@ namespace vm {
 using namespace tvm::runtime;
 using namespace tvm::runtime::vm;
 using namespace relay::transform;
+using namespace tec;
 
 // (@jroesch): VM passes, eventually declare as passes.
 bool IsClosure(const Function& func);
@@ -253,7 +253,6 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
                      ExprDeviceMap expr_device_map)
       : last_register_(0),
         registers_num_(0),
-        engine_(CompileEngine::Global()),
         context_(context),
         target_host_(target_host),
         expr_device_map_(std::move(expr_device_map)) {
@@ -465,7 +464,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
   void EmitShapeFunc(Function func, Array<Expr> inputs, Array<Expr> outputs) {
     // Lower shape function
     CCacheKey key(func, target_host_);
-    auto cfunc = engine_->LowerShapeFunc(key);
+    auto cfunc = context_->compiler->LowerShapeFunc(key);
     int op_index = -1;
     // pick the only function inside the context
     ICHECK_EQ(cfunc->funcs->functions.size(), 1);
@@ -551,7 +550,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
 
     CCacheKey key(func, target);
     auto mangle_fn = [](String name) { return name; };
-    auto cfunc = engine_->Lower(key, mangle_fn);
+    auto cfunc = context_->compiler->Lower(key, mangle_fn);
 
     auto op_index = -1;
     if (func->GetAttr<String>(attr::kCompiler).defined()) {
@@ -857,8 +856,6 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
   size_t last_register_;
   /*! \brief Total number of virtual registers allocated. */
   size_t registers_num_;
-  /*! \brief Compiler engine to lower primitive functions. */
-  CompileEngine engine_;
   /*! \brief Global shared meta data */
   VMCompilerContext* context_;
   /*! \brief Target devices. */
@@ -978,7 +975,7 @@ void VMCompiler::Lower(IRModule mod, const TargetsMap& targets, const tvm::Targe
   // update primitive function map
   size_t primitive_index = 0;
   for (const auto& cfunc : context_.cached_funcs) {
-    exec_->primitive_map.insert({cfunc->func_name, primitive_index++});
+    exec_->primitive_map.insert({cfunc->prim_fn_var->name_hint, primitive_index++});
   }
 }
 
@@ -1042,57 +1039,7 @@ IRModule VMCompiler::OptimizeModule(IRModule mod, const TargetsMap& targets_arg,
     mod->Add(gvar, f);
   }
 
-  Array<Pass> pass_seqs;
-  Array<runtime::String> entry_functions{"main"};
-  pass_seqs.push_back(transform::RemoveUnusedFunctions(entry_functions));
-  pass_seqs.push_back(transform::ToBasicBlockNormalForm());
-  // Run all dialect legalization passes.
-  pass_seqs.push_back(relay::qnn::transform::Legalize());
-
-  // Legalize pass is restricted to homogeneous execution for now.
-  if (targets.size() == 1) {
-    pass_seqs.push_back(transform::Legalize());
-  }
-
-  // eta expand to support constructors in argument position
-  pass_seqs.push_back(transform::EtaExpand(
-      /* expand_constructor */ true, /* expand_global_var */ false));
-
-  pass_seqs.push_back(transform::SimplifyInference());
-  PackedFunc fskip = PackedFunc([](TVMArgs args, TVMRetValue* rv) {
-    Expr expr = args[0];
-    if (expr.as<CallNode>()) {
-      auto call_node = expr.as<CallNode>();
-      auto op_node = call_node->op.as<OpNode>();
-      if (op_node->name == "cast") {
-        auto attrs = call_node->attrs.as<CastAttrs>();
-        if (attrs->dtype == DataType::Int(32)) {
-          *rv = true;
-        }
-      }
-    }
-    *rv = false;
-  });
-  pass_seqs.push_back(transform::EliminateCommonSubexpr(fskip));
-  pass_seqs.push_back(transform::SimplifyExpr());
-  pass_seqs.push_back(transform::InlinePrimitives());
-
-  pass_seqs.push_back(transform::CombineParallelConv2D(3));
-  pass_seqs.push_back(transform::CombineParallelDense(3));
-  pass_seqs.push_back(transform::CombineParallelBatchMatmul(3));
-  pass_seqs.push_back(transform::FoldConstant());
-  pass_seqs.push_back(transform::FoldScaleAxis());
-  pass_seqs.push_back(transform::CanonicalizeCast());
-  pass_seqs.push_back(transform::CanonicalizeOps());
-
-  // Alter layout transformation is only applied to homogeneous execution yet.
-  if (targets.size() == 1) {
-    pass_seqs.push_back(transform::AlterOpLayout());
-  }
-
-  // Fast math optimizations.
-  pass_seqs.push_back(transform::FastMath());
-  pass_seqs.push_back(transform::FoldConstant());
+  Array<Pass> pass_seqs = relay::backend::GetPassPrefix(targets, true);
 
   if (targets_.size() > 1) {
     // Handle heterogeneous compilation.
@@ -1173,8 +1120,9 @@ void VMCompiler::Codegen() {
 
     if (target->kind->device_type == kDLExtDev) {
       // Collect metadata in functions that are handled by external codegen.
-      ICHECK(mod->ContainGlobalVar(cfunc->func_name));
-      Function func = Downcast<Function>(mod->Lookup(cfunc->func_name));
+      auto name = cfunc->prim_fn_var->name_hint;
+      ICHECK(mod->ContainGlobalVar(name));
+      Function func = Downcast<Function>(mod->Lookup(name));
       backend::UpdateConstants(func, &params_);
     } else if (funcs.count(target) == 0) {
       funcs.Set(target, mod);
@@ -1183,8 +1131,8 @@ void VMCompiler::Codegen() {
     }
   }
 
-  auto compile_engine = CompileEngine::Global();
-  auto ext_mods = compile_engine->LowerExternalFunctions();
+  auto ext_mods = context_.compiler->LowerExternalFunctions();
+
   runtime::Module lib;
   if (funcs.size() > 0) {
     lib = tvm::build(funcs, target_host_);
@@ -1195,7 +1143,6 @@ void VMCompiler::Codegen() {
   }
   lib = codegen::CreateMetadataModule(params_, lib, ext_mods, target_host_, runtime::Metadata());
   exec_->SetLib(lib);
-  CompileEngine::Global()->Clear();
 }
 
 ExprDeviceMap VMCompiler::AnalyzeContext() const {

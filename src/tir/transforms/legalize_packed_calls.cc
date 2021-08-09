@@ -109,7 +109,7 @@ Pass LegalizePackedCalls() {
       inputs[i] = true;
     }
     n->body = PackedCallLegalizer().Legalize(inputs, std::move(n->body));
-    return std::move(f);
+    return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.LegalizePackedCalls", {});
 }

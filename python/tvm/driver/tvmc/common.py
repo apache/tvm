@@ -44,14 +44,14 @@ def convert_graph_layout(mod, desired_layout):
 
     Parameters
     ----------
-    mod : tvm.relay.Module
+    mod : tvm.IRModule
         The relay module to convert.
     desired_layout : str
         The layout to convert to.
 
     Returns
     -------
-    mod : tvm.relay.Module
+    mod : tvm.IRModule
         The converted module.
     """
 
@@ -396,7 +396,7 @@ def parse_shape_string(inputs_string):
     """
 
     # Create a regex pattern that extracts each separate input mapping.
-    pattern = r"\w+\:\s*\[\-?\d+(?:\,\s*\-?\d+)*\]"
+    pattern = r"(?:\w+\/)?\w+\:\s*\[\-?\d+(?:\,\s*\-?\d+)*\]"
     input_mappings = re.findall(pattern, inputs_string)
     if not input_mappings:
         raise argparse.ArgumentTypeError(

@@ -76,6 +76,19 @@ def test_target_string_parse():
     assert tvm.target.arm_cpu().device_name == "arm_cpu"
 
 
+def test_target_string_with_spaces():
+    target = tvm.target.Target(
+        "vulkan -device_name='Name of GPU with spaces' -device_type=discrete"
+    )
+    assert target.attrs["device_name"] == "Name of GPU with spaces"
+    assert target.attrs["device_type"] == "discrete"
+
+    target = tvm.target.Target(str(target))
+
+    assert target.attrs["device_name"] == "Name of GPU with spaces"
+    assert target.attrs["device_type"] == "discrete"
+
+
 def test_target_create():
     targets = [cuda(), rocm(), mali(), intel_graphics(), arm_cpu("rk3399"), vta(), bifrost()]
     for tgt in targets:

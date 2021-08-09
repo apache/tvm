@@ -39,6 +39,7 @@
 #include <unordered_set>
 #include <vector>
 
+#include "../../tir/transforms/ir_utils.h"
 #include "codegen_source_base.h"
 
 namespace tvm {
@@ -102,6 +103,12 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
    *  Example: stream << "void";
    */
   virtual void PrintFuncPrefix();  // NOLINT(*)
+  /*!
+   * \brief Print extra function attributes
+   *
+   *  Example: __launch_bounds__(256) for CUDA functions
+   */
+  virtual void PrintExtraAttrs(const PrimFunc& f);
   /*!
    * \brief Print the final return at the end the function.
    */

@@ -370,7 +370,7 @@ def extract_fused_functions(mod):
 
     Parameters
     ----------
-    mod : tvm.relay.IRModule
+    mod : tvm.IRModule
 
     Returns
     -------

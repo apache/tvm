@@ -29,7 +29,7 @@ def test_const():
 def test_scalar_dtype_inference():
     for data in [
         True,
-        np.bool(1),
+        bool(1),
         np.uint8(1),
         np.uint16(1),
         np.uint32(1),
@@ -48,7 +48,7 @@ def test_scalar_dtype_inference():
 
     for data in [
         True,
-        np.bool(1),
+        bool(1),
         np.uint8(1),
         np.uint16(1),
         np.uint32(1),
@@ -398,7 +398,7 @@ def test_block_blockrealize():
         )
     ]
     writes = [tvm.tir.BufferRegion(A, [tvm.ir.Range.from_min_extent(vx_var, 1)])]
-    match_buffer_region = tvm.tir.MatchBufferRegion(
+    block_match_buffer = tvm.tir.MatchBufferRegion(
         match_buffer, tvm.tir.BufferRegion(B, [tvm.ir.Range(0, 16), tvm.ir.Range(0, 16)])
     )
 
@@ -410,7 +410,7 @@ def test_block_blockrealize():
         body,
         init=init_body,
         alloc_buffers=[alloc_buffer],
-        match_buffers=[match_buffer_region],
+        match_buffers=[block_match_buffer],
         annotations={"attr_key": "attr_value"},
     )
 
@@ -462,7 +462,7 @@ def test_block_blockrealize():
     assert output.find("reads") != -1
     assert output.find("writes") != -1
     assert output.find("alloc_buffer") != -1
-    assert output.find("match_buffer_region") != -1
+    assert output.find("match_buffer") != -1
     assert output.find("attr") != -1
     assert output.find("with init()") != -1
 
@@ -471,7 +471,6 @@ if __name__ == "__main__":
     test_intimm_cond()
     test_buffer_load_store()
     test_vars()
-    test_scoped_storage_var()
     test_prim_func()
     test_cast()
     test_attr()

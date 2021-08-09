@@ -109,7 +109,7 @@ BlockRealize GenerateBlockFromTensor(const te::ComputeOp& compute_op, const te::
   }
 
   // Step 2. Declare buffer and update op2buffers
-  Buffer buffer = decl_buffer(tensor->shape, tensor->dtype, tensor->GetNameHint());
+  Buffer buffer = decl_buffer(tensor->shape, tensor->dtype, tensor->GetNameHint(), "global");
   info->tensor2buffers[tensor] = buffer;
 
   // Step 3. Add Buffer to root_alloc
@@ -270,7 +270,8 @@ PrimFunc CreatePrimFunc(const Array<te::Tensor>& arg_list) {
       const te::Tensor& tensor = op.output(0);
       // Check op is in op list
       ICHECK(info.IsArg(tensor));
-      const Buffer& buffer = decl_buffer(placeholder->shape, placeholder->dtype, placeholder->name);
+      const Buffer& buffer =
+          decl_buffer(placeholder->shape, placeholder->dtype, placeholder->name, "global");
       info.tensor2buffers[tensor] = buffer;
     } else if (const auto* compute_op = op.as<te::ComputeOpNode>()) {
       // Case 2. ComputeOp (te.compute)

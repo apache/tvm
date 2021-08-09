@@ -27,6 +27,7 @@ import tvm.relay.op as reg
 from tvm import relay
 from tvm import runtime
 from tvm.relay import transform
+from tvm.relay.testing import byoc
 from tvm.contrib import utils
 from tvm.relay.backend import compile_engine
 from tvm.relay.expr_functor import ExprMutator
@@ -61,59 +62,6 @@ class WhiteListAnnotator:
                     return super().visit_call(call)
 
         return Annotator().visit(func)
-
-
-class CcompilerAnnotator(ExprMutator):
-    """
-    A simple annotator that creates the following program:
-           |
-      -- begin --
-           |
-          add
-           |
-        subtract
-           |
-        multiply
-           |
-       -- end --
-           |
-    """
-
-    def __init__(self):
-        super(CcompilerAnnotator, self).__init__()
-        self.in_compiler = 0
-
-    def visit_call(self, call):
-        if call.op.name == "add":  # Annotate begin at args
-            if self.in_compiler == 1:
-                lhs = compiler_begin(super().visit(call.args[0]), "ccompiler")
-                rhs = compiler_begin(super().visit(call.args[1]), "ccompiler")
-                op = relay.add(lhs, rhs)
-                self.in_compiler = 2
-                return op
-        elif call.op.name == "subtract":
-            if self.in_compiler == 1:
-                lhs = super().visit(call.args[0])
-                rhs = super().visit(call.args[1])
-                if isinstance(lhs, relay.expr.Var):
-                    lhs = compiler_begin(lhs, "ccompiler")
-                if isinstance(rhs, relay.expr.Var):
-                    rhs = compiler_begin(rhs, "ccompiler")
-                return relay.subtract(lhs, rhs)
-        elif call.op.name == "multiply":  # Annotate end at output
-            self.in_compiler = 1
-            lhs = super().visit(call.args[0])
-            rhs = super().visit(call.args[1])
-            if isinstance(lhs, relay.expr.Var):
-                lhs = compiler_begin(lhs, "ccompiler")
-            if isinstance(rhs, relay.expr.Var):
-                rhs = compiler_begin(rhs, "ccompiler")
-            op = relay.multiply(lhs, rhs)
-            if self.in_compiler == 2:
-                op = compiler_end(op, "ccompiler")
-            self.in_compiler = 0
-            return op
-        return super().visit_call(call)
 
 
 class WholeGraphAnnotator(ExprMutator):
@@ -261,7 +209,7 @@ def test_multi_node_compiler():
     r = relay.concatenate((q0, q1, q2), axis=0)
     f = relay.Function([x, w0, w1, w2, w3, w4, w5, w6, w7], r)
     mod = tvm.IRModule()
-    ann = CcompilerAnnotator()
+    ann = byoc.CcompilerAnnotator()
     mod["main"] = ann.visit(f)
     mod = transform.PartitionGraph()(mod)
     mod = transform.InferType()(mod)
@@ -339,8 +287,8 @@ def test_extern_ccompiler_default_ops():
         add = x0 + y0
         # Function that uses C compiler
         func = relay.Function([x0, y0], add)
-        func = set_func_attr(func, "ccompiler", "tvmgen_default_ccompiler_0")
-        glb_0 = relay.GlobalVar("tvmgen_default_ccompiler_0")
+        func = set_func_attr(func, "ccompiler", "tvmgen_default_ccompiler_main_0")
+        glb_0 = relay.GlobalVar("tvmgen_default_ccompiler_main_0")
         mod[glb_0] = func
         add_call = relay.Call(glb_0, [x, y])
         # Function that uses default compiler. Ops are fused in this function.
@@ -365,6 +313,86 @@ def test_extern_ccompiler_default_ops():
     f = relay.Function([x, y], concat)
     mod = tvm.IRModule()
     mod["main"] = f
+    mod = WhiteListAnnotator(["add", "subtract", "multiply"], "ccompiler")(mod)
+    mod = transform.PartitionGraph()(mod)
+    fused_mod = transform.FuseOps(2)(mod)
+    expected_mod = expected()
+    assert tvm.ir.structural_equal(fused_mod, expected_mod, map_free_vars=True)
+
+    x_data = np.random.rand(8, 8).astype("float32")
+    y_data = np.random.rand(8, 8).astype("float32")
+    np_add = x_data + y_data
+    res = np.concatenate([np.log(np_add), np.exp(np_add)])
+    check_result(mod, {"x": x_data, "y": y_data}, (16, 8), res)
+
+
+def test_extern_ccompiler_multiple_functions():
+    def expected():
+        mod = tvm.IRModule()
+        x = relay.var("x", shape=(8, 8))
+        y = relay.var("y", shape=(8, 8))
+        x0 = relay.var("x0", shape=(8, 8))
+        y0 = relay.var("y0", shape=(8, 8))
+        add = x0 + y0
+        # Function that uses C compiler
+        func = relay.Function([x0, y0], add)
+        func = set_func_attr(func, "ccompiler", "tvmgen_default_ccompiler_main_0")
+        glb_0 = relay.GlobalVar("tvmgen_default_ccompiler_main_0")
+        mod[glb_0] = func
+        add_call = relay.Call(glb_0, [x, y])
+        # Function that uses default compiler. Ops are fused in this function.
+        p0 = relay.var("p0", shape=(8, 8))
+        log = relay.log(p0)
+        exp = relay.exp(p0)
+        concat = relay.concatenate([log, exp], axis=0)
+        fused_func = relay.Function([p0], concat)
+        fused_func = fused_func.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
+        fused_call = relay.Call(fused_func, [add_call])
+        main = relay.Function([x, y], fused_call)
+        mod["main"] = main
+        # define the second one
+        a = relay.var("a", shape=(16, 16))
+        b = relay.var("b", shape=(16, 16))
+        a0 = relay.var("a0", shape=(16, 16))
+        b0 = relay.var("b0", shape=(16, 16))
+        add = a0 + b0
+        # Function that uses C compiler
+        func = relay.Function([a0, b0], add)
+        func = set_func_attr(func, "ccompiler", "tvmgen_default_ccompiler_subfunction_0")
+        glb_0 = relay.GlobalVar("tvmgen_default_ccompiler_subfunction_0")
+        mod[glb_0] = func
+        add_call = relay.Call(glb_0, [a, b])
+        # Function that uses default compiler. Ops are fused in this function.
+        p0 = relay.var("p0", shape=(16, 16))
+        log = relay.log(p0)
+        exp = relay.exp(p0)
+        concat = relay.concatenate([log, exp], axis=0)
+        fused_func = relay.Function([p0], concat)
+        fused_func = fused_func.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
+        fused_call = relay.Call(fused_func, [add_call])
+        sunfunction = relay.Function([a, b], fused_call)
+        mod["subfunction"] = sunfunction
+        mod = transform.InferType()(mod)
+        return mod
+
+    x = relay.var("x", shape=(8, 8))
+    y = relay.var("y", shape=(8, 8))
+    add = x + y
+    log = relay.log(add)
+    exp = relay.exp(add)
+    concat = relay.concatenate([log, exp], axis=0)
+    f = relay.Function([x, y], concat)
+    mod = tvm.IRModule()
+    mod["main"] = f
+    # define second function
+    a = relay.var("a", shape=(16, 16))
+    b = relay.var("b", shape=(16, 16))
+    add = a + b
+    log = relay.log(add)
+    exp = relay.exp(add)
+    concat = relay.concatenate([log, exp], axis=0)
+    f2 = relay.Function([a, b], concat)
+    mod["subfunction"] = f2
     mod = WhiteListAnnotator(["add", "subtract", "multiply"], "ccompiler")(mod)
     mod = transform.PartitionGraph()(mod)
 
@@ -416,8 +444,8 @@ def test_extern_dnnl():
         out = relay.add(depthwise_conv2d_1, depthwise_conv2d_2)
 
         func = relay.Function([data0, input0], out)
-        func = set_func_attr(func, "dnnl", "tvmgen_default_dnnl_0")
-        glb_var = relay.GlobalVar("tvmgen_default_dnnl_0")
+        func = set_func_attr(func, "dnnl", "tvmgen_default_dnnl_main_0")
+        glb_var = relay.GlobalVar("tvmgen_default_dnnl_main_0")
         mod = tvm.IRModule()
         mod[glb_var] = func
         mod = transform.InferType()(mod)
@@ -532,8 +560,8 @@ def test_function_lifting():
 
         bn = relay.nn.batch_norm(data0, bn_gamma, bn_beta, bn_mmean, bn_mvar)
         func0 = relay.Function([data0, bn_gamma, bn_beta, bn_mmean, bn_mvar], bn.astuple())
-        func0 = set_func_attr(func0, "test_compiler", "tvmgen_default_test_compiler_2")
-        gv0 = relay.GlobalVar("tvmgen_default_test_compiler_2")
+        func0 = set_func_attr(func0, "test_compiler", "tvmgen_default_test_compiler_main_2")
+        gv0 = relay.GlobalVar("tvmgen_default_test_compiler_main_2")
         mod[gv0] = func0
         mod = transform.InferType()(mod)
 
@@ -544,8 +572,8 @@ def test_function_lifting():
             data=data1, weight=weight1, kernel_size=(3, 3), channels=16, padding=(1, 1)
         )
         func1 = relay.Function([data1, weight1], conv)
-        func1 = set_func_attr(func1, "test_compiler", "tvmgen_default_test_compiler_0")
-        gv1 = relay.GlobalVar("tvmgen_default_test_compiler_0")
+        func1 = set_func_attr(func1, "test_compiler", "tvmgen_default_test_compiler_main_0")
+        gv1 = relay.GlobalVar("tvmgen_default_test_compiler_main_0")
         mod[gv1] = func1
         mod = transform.InferType()(mod)
 
@@ -613,7 +641,7 @@ def test_function_lifting_inline():
 
         bn = relay.nn.batch_norm(data0, bn_gamma, bn_beta, bn_mmean, bn_mvar)
         func0 = relay.Function([data0, bn_gamma, bn_beta, bn_mmean, bn_mvar], bn.astuple())
-        func0 = set_func_attr(func0, "test_compiler", "tvmgen_default_test_compiler_0")
+        func0 = set_func_attr(func0, "test_compiler", "tvmgen_default_test_compiler_main_0")
 
         # main function
         data = relay.var("data", relay.TensorType((1, 16, 224, 224), "float32"))
@@ -643,8 +671,8 @@ def test_constant_propagation():
         add = x0 + y0
         # Function that uses C compiler
         func = relay.Function([y0], add)
-        func = set_func_attr(func, "ccompiler", "tvmgen_default_ccompiler_0")
-        glb_0 = relay.GlobalVar("tvmgen_default_ccompiler_0")
+        func = set_func_attr(func, "ccompiler", "tvmgen_default_ccompiler_main_0")
+        glb_0 = relay.GlobalVar("tvmgen_default_ccompiler_main_0")
         mod[glb_0] = func
         mod = relay.transform.InferType()(mod)
         add_call = relay.Call(glb_0, [y])
@@ -733,8 +761,8 @@ def test_multiple_outputs():
         tuple_o = relay.Tuple((relu_o, bn_o[1], bn_o[2]))
 
         func0 = relay.Function([data, weight, bn_gamma, bn_beta, bn_mean, bn_var], tuple_o)
-        func0 = set_func_attr(func0, "test_target", "tvmgen_default_test_target_0")
-        gv0 = relay.GlobalVar("tvmgen_default_test_target_0")
+        func0 = set_func_attr(func0, "test_target", "tvmgen_default_test_target_main_0")
+        gv0 = relay.GlobalVar("tvmgen_default_test_target_main_0")
         mod[gv0] = func0
         mod = relay.transform.InferType()(mod)
 
@@ -796,8 +824,8 @@ def test_mixed_single_multiple_outputs():
         f1_O_2 = relay.nn.relu(f1_O_1)
         f1_out = relay.Tuple((f1_O_2, f1_O_1))
         func1 = relay.Function([f1_cb1], f1_out)
-        func1 = set_func_attr(func1, "test_target", "tvmgen_default_test_target_0")
-        gv1 = relay.GlobalVar("tvmgen_default_test_target_0")
+        func1 = set_func_attr(func1, "test_target", "tvmgen_default_test_target_main_0")
+        gv1 = relay.GlobalVar("tvmgen_default_test_target_main_0")
         mod[gv1] = func1
         mod = relay.transform.InferType()(mod)
 
@@ -806,8 +834,8 @@ def test_mixed_single_multiple_outputs():
         f2_cb4 = relay.var("test_target_1_i1", shape=(10, 10))
         f2_O_3 = relay.add(f2_cb3, f2_cb4)
         func0 = relay.Function([f2_cb3, f2_cb4], f2_O_3)
-        func0 = set_func_attr(func0, "test_target", "tvmgen_default_test_target_1")
-        gv0 = relay.GlobalVar("tvmgen_default_test_target_1")
+        func0 = set_func_attr(func0, "test_target", "tvmgen_default_test_target_main_1")
+        gv0 = relay.GlobalVar("tvmgen_default_test_target_main_1")
         mod[gv0] = func0
         mod = relay.transform.InferType()(mod)
 
@@ -955,8 +983,8 @@ def test_multiple_use_of_an_output():
         mul = log * sub
         # The partitioned graph contains log, subtract, and multiply
         func = relay.Function([x0, y0], mul)
-        func = set_func_attr(func, "ccompiler", "tvmgen_default_ccompiler_0")
-        glb_0 = relay.GlobalVar("tvmgen_default_ccompiler_0")
+        func = set_func_attr(func, "ccompiler", "tvmgen_default_ccompiler_main_0")
+        glb_0 = relay.GlobalVar("tvmgen_default_ccompiler_main_0")
         mod[glb_0] = func
         mod = transform.InferType()(mod)
 
@@ -977,8 +1005,8 @@ def test_multiple_use_of_an_output():
         i0 = relay.var("i0", shape=(8, 8))
         log = relay.log(i0)
         func = relay.Function([i0], log)
-        func = set_func_attr(func, "ccompiler", "tvmgen_default_ccompiler_0")
-        glb_0 = relay.GlobalVar("tvmgen_default_ccompiler_0")
+        func = set_func_attr(func, "ccompiler", "tvmgen_default_ccompiler_main_0")
+        glb_0 = relay.GlobalVar("tvmgen_default_ccompiler_main_0")
         mod[glb_0] = func
         mod = transform.InferType()(mod)
 
@@ -987,8 +1015,8 @@ def test_multiple_use_of_an_output():
         y0 = relay.var("y0", shape=(8, 8))
         sub = x0 - y0
         func = relay.Function([x0, y0], sub)
-        func = set_func_attr(func, "ccompiler", "tvmgen_default_ccompiler_1")
-        glb_1 = relay.GlobalVar("tvmgen_default_ccompiler_1")
+        func = set_func_attr(func, "ccompiler", "tvmgen_default_ccompiler_main_1")
+        glb_1 = relay.GlobalVar("tvmgen_default_ccompiler_main_1")
         mod[glb_1] = func
         mod = transform.InferType()(mod)
 
@@ -1063,8 +1091,8 @@ def test_duplicate_outputs():
         func0 = func0.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
         func0 = func0.with_attr("Inline", tvm.tir.IntImm("int32", 1))
         func0 = func0.with_attr("Compiler", target)
-        func0 = func0.with_attr("global_symbol", "tvmgen_default_" + target + "_0")
-        gv0 = relay.GlobalVar("tvmgen_default_" + target + "_0")
+        func0 = func0.with_attr("global_symbol", "tvmgen_default_" + target + "_main_0")
+        gv0 = relay.GlobalVar("tvmgen_default_" + target + "_main_0")
         mod[gv0] = func0
         mod = transform.InferType()(mod)
 
@@ -1140,8 +1168,8 @@ def test_duplicate_merge_and_tuplegetitem():
         func0 = func0.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
         func0 = func0.with_attr("Inline", tvm.tir.IntImm("int32", 1))
         func0 = func0.with_attr("Compiler", target)
-        func0 = func0.with_attr("global_symbol", "tvmgen_default_" + target + "_0")
-        gv0 = relay.GlobalVar("tvmgen_default_" + target + "_0")
+        func0 = func0.with_attr("global_symbol", "tvmgen_default_" + target + "_main_0")
+        gv0 = relay.GlobalVar("tvmgen_default_" + target + "_main_0")
         mod[gv0] = func0
         mod = transform.InferType()(mod)
 
@@ -1216,7 +1244,7 @@ def test_constant_tuples():
 
     partitioned = seq(create_graph())
 
-    concat = partitioned["tvmgen_default_const_tuples_0"].body
+    concat = partitioned["tvmgen_default_const_tuples_main_0"].body
     assert type(concat.args[1]) == relay.Tuple
     assert type(concat.args[2]) == relay.Tuple
     assert type(concat.args[3]) == relay.Constant
@@ -1266,8 +1294,8 @@ def test_flatten_tuple_output():
         func0 = func0.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
         func0 = func0.with_attr("Inline", tvm.tir.IntImm("int32", 1))
         func0 = func0.with_attr("Compiler", target)
-        func0 = func0.with_attr("global_symbol", "tvmgen_default_" + target + "_0")
-        gv0 = relay.GlobalVar("tvmgen_default_" + target + "_0")
+        func0 = func0.with_attr("global_symbol", "tvmgen_default_" + target + "_main_0")
+        gv0 = relay.GlobalVar("tvmgen_default_" + target + "_main_0")
         mod[gv0] = func0
         mod = transform.InferType()(mod)
 
@@ -1349,9 +1377,9 @@ def test_extern_opt():
     mod = transform.PartitionGraph()(mod)
 
     try:
-        t0 = mod["tvmgen_default_test_target_0"]
+        t0 = mod["tvmgen_default_test_target_main_0"]
     except:
-        raise KeyError("test_target_0 not found")
+        raise KeyError("test_target_main_0 not found")
 
     assert isinstance(t0.body, relay.Constant)
     expected = np.empty([2, 2])
@@ -1359,10 +1387,39 @@ def test_extern_opt():
     tvm.testing.assert_allclose(t0.body.data.numpy(), expected, rtol=1e-5, atol=1e-5)
 
 
+def test_preserve_type_import():
+    """Test to make sure type definition and imports are preserved during the BYOC pipeline."""
+    from tvm.relay.prelude import Prelude, StaticTensorArrayOps
+
+    def run(dtype, shape):
+        mod = tvm.IRModule()
+        p = Prelude(mod)
+        static_tensor_array_ops = StaticTensorArrayOps(p, dtype, shape)
+        static_tensor_array_ops.register()
+
+        tensor_array = p.get_global_var_static("tensor_array", dtype, shape)
+        tensor = p.get_tensor_ctor_static("tensor_constructor", dtype, shape)
+        write = p.get_global_var_static("tensor_array_write", dtype, shape)
+        gather = p.get_global_var_static("tensor_array_gather", dtype, shape)
+        v = relay.var("v")
+        indice = relay.var("indice")
+        init_tensor_array = tensor_array(relay.const(3))
+        tensor_array1 = write(init_tensor_array, relay.const(0), tensor(v))
+        tensor_array2 = write(tensor_array1, relay.const(1), tensor(v))
+        tensor_array3 = write(tensor_array2, relay.const(2), tensor(v))
+        out = gather(tensor_array3, indice)
+        mod["main"] = relay.Function([v, indice], out)
+        mod = transform.RemoveUnusedFunctions()(mod)
+        mod = transform.PartitionGraph()(mod)
+
+    run("float32", [2, 3])
+
+
 if __name__ == "__main__":
     test_multi_node_compiler()
     test_extern_ccompiler_single_op()
     test_extern_ccompiler_default_ops()
+    test_extern_ccompiler_multiple_functions()
     test_extern_ccompiler()
     test_extern_dnnl()
     test_extern_dnnl_mobilenet()
@@ -1379,3 +1436,4 @@ if __name__ == "__main__":
     test_flatten_tuple_output()
     test_tuple_output_exec()
     test_extern_opt()
+    test_static_tensor_array_gather_partition()

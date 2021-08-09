@@ -66,7 +66,7 @@ We do encourage everyone to work anything they are interested in.
 - [Andrew Reusch](https://github.com/areusch): @areusch - runtime, microTVM
 - [Jared Roesch](https://github.com/jroesch) (PMC): @jroesch - relay
 - [Siju Samuel](https://github.com/siju-samuel): @siju-samuel - frontends
-- [Junru Shao](https://github.com/junrushao1994) @junrushao1994 - relay, compiler
+- [Junru Shao](https://github.com/junrushao1994) (PMC): @junrushao1994 - relay, compiler
 - [Haichen Shen](https://github.com/icemelon9) (PMC): @icemelon9 - relay, topi
 - [Siva](https://github.com/srkreddy1238): @srkreddy1238 - frontends, golang
 - [Zhixun Tan](https://github.com/phisiart): @phisiart - opengl, web
@@ -77,7 +77,7 @@ We do encourage everyone to work anything they are interested in.
 - [Jian Weng](https://github.com/were): @were: - hybrid script
 - [Zhao Wu](https://github.com/FrozenGene): @FrozenGene - runtime, topi, frontends
 - [Eddie Yan](https://github.com/eqy) (PMC): @eqy - runtime, autotvm, rpc, topi
-- [Hao Yu](https://github.com/comaniac): @comaniac - relay, byoc, auto_scheduler
+- [Hao Yu](https://github.com/comaniac): @comaniac (PMC) - relay, byoc, auto_scheduler
 - [Lianmin Zheng](https://github.com/merrymercy) (PMC): @merrymercy - autotvm, auto_scheduler, topi, relay
 
 ## Reviewers
@@ -123,6 +123,7 @@ We do encourage everyone to work anything they are interested in.
 - [Trevor Morris](https://github.com/trevor-m): @trevor-m
 - [Tatsuya Nishiyama](https://github.com/nishi-t): @nishi-t
 - [Leandro Nunes](https://github.com/leandron): @leandron
+- [Lily Orth-Smith](https://github.com/electriclilies): @electriclilies
 - [Wei Pan](https://github.com/wpan11nv): @wpan11nv
 - [Krzysztof Parzyszek](https://github.com/kparzysz-quic): @kparzysz-quic
 - [Pariksheet Pinjari](https://github.com/PariksheetPinjari909): @PariksheetPinjari909

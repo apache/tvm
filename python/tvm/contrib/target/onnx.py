@@ -24,6 +24,7 @@ import numpy
 import onnx
 import onnx.utils
 from onnx import numpy_helper, OperatorSetIdProto, defs
+from onnx import TensorProto
 import tvm
 from tvm import relay
 import tvm._ffi
@@ -138,6 +139,21 @@ class Conv(OpConverter):
         }
 
 
+class ConvTranspose(OpConverter):
+    """Operator converter for ConvTranspose."""
+
+    @classmethod
+    def convert_attributes(cls, attrs):
+        return {
+            "group": attrs.get_int("groups"),
+            "pads": attrs.get_int_tuple("padding"),
+            "strides": attrs.get_int_tuple("strides"),
+            "dilations": attrs.get_int_tuple("dilation"),
+            "kernel_shape": attrs.get_int_tuple("kernel_size"),
+            "output_padding": attrs.get_int_tuple("output_padding"),
+        }
+
+
 class MaxPool(OpConverter):
     """Operator converter for MaxPool."""
 
@@ -147,6 +163,7 @@ class MaxPool(OpConverter):
             "pads": attrs.get_int_tuple("padding"),
             "strides": attrs.get_int_tuple("strides"),
             "kernel_shape": attrs.get_int_tuple("pool_size"),
+            "ceil_mode": 1 if attrs.ceil_mode else 0,
         }
 
 
@@ -330,7 +347,10 @@ class Pad(OpConverter):
             after.append(axis_pads[1])
         pads = before + after
         pads = numpy.asarray(pads, dtype=pads[0].dtype)
-        return {"pads": pads, "mode": attrs.get_str("pad_mode"), "constant_value": attrs.pad_value}
+        return {
+            "pads": pads,
+            "mode": attrs.get_str("pad_mode"),
+        }
 
     @classmethod
     def convert(cls, node_entry, model_container, node_dict):
@@ -341,16 +361,17 @@ class Pad(OpConverter):
         attrs = cls.convert_attributes(node_entry["relay_node"].attrs)
 
         name = node_entry["name"]
-        data = numpy.asarray(attrs["pads"], dtype=attrs["pads"][0].dtype).astype(numpy.int64)
-        value = numpy.dtype(node_entry["types"][0].dtype).type(attrs["constant_value"])
+        pad_data = numpy.asarray(attrs["pads"], dtype=attrs["pads"][0].dtype).astype(numpy.int64)
 
         input_names = [
             node_entry["input_names"][0],
-            add_input(data, name, "pads", model_container),
-            add_input(value, name, "value", model_container),
+            add_input(pad_data, name, "pads", model_container),
+            node_entry["input_names"][1],
         ]
 
-        node = onnx.helper.make_node(cls.__name__, input_names, node_entry["output_names"])
+        node = onnx.helper.make_node(
+            cls.__name__, input_names, node_entry["output_names"], mode=attrs["mode"]
+        )
         model_container.add_nodes([node])
 
 
@@ -633,9 +654,108 @@ class LRN(OpConverter):
         return {"alpha": attrs.alpha, "beta": attrs.beta, "bias": attrs.bias, "size": attrs.size}
 
 
+class Cast(OpConverter):
+    """Operator converter for Cast."""
+
+    @classmethod
+    def convert_attributes(cls, attrs):
+        return {"to": getattr(TensorProto, attrs.dtype.upper())}
+
+
+class Resize(OpConverter):
+    """Operator converter for Resize."""
+
+    @classmethod
+    def convert_attributes(cls, attrs):
+        method = attrs.get_str("method")
+        if method == "nearest_neighbor":
+            mode = b"nearest"
+        elif "linear" in method:  # linear / bilinear
+            mode = b"linear"
+        elif "cubic" in method:  # cubic / bicubic
+            mode = b"cubic"
+        else:
+            raise RuntimeError("Unsupported method %s in operator Resize" % method)
+
+        coord_trans = attrs.get_str("coordinate_transformation_mode")
+        if coord_trans == "half_pixel":
+            coord_trans = b"half_pixel"
+        elif coord_trans == "align_corners":
+            coord_trans = b"align_corners"
+        elif coord_trans == "asymmetric":
+            coord_trans = b"asymmetric"
+        else:
+            raise RuntimeError(
+                "Unsupported coordinate transform mode %s in operator Resize" % coord_trans
+            )
+
+        rounding_method = attrs.get_str("rounding_method")
+        if rounding_method == "round":
+            rounding_method = b"round_prefer_ceil"
+        elif rounding_method == "floor":
+            rounding_method = b"floor"
+        elif rounding_method == "ceil":
+            rounding_method = b"ceil"
+        else:
+            raise RuntimeError(
+                "Unsupported rounding method %s in operator Resize" % rounding_method
+            )
+
+        size = attrs.get_int_tuple("size")
+
+        return {
+            "mode": mode,
+            "coord_trans": coord_trans,
+            "size": size,
+            "nearest_mode": rounding_method,
+        }
+
+    @classmethod
+    def convert(cls, node_entry, model_container, node_dict):
+        attrs = cls.convert_attributes(node_entry["relay_node"].attrs)
+
+        name = node_entry["name"]
+        input_node = node_dict[node_entry["inputs"][0]]
+        assert len(input_node) == 1, "input node can not be a Tuple"
+        input_node = input_node[0]
+        input_shape = input_node["types"][0].shape
+
+        # (TBD) needed in opset 11
+        roi = [0] * len(input_shape) + [1] * len(input_shape)
+        roi_array = numpy.asarray(roi).astype(numpy.float64)
+        roi_node = add_input(roi_array, name, "roi", model_container)
+
+        out_size = attrs["size"]
+
+        # (onnx) rank of scale / size must match rank of X
+        # relay size node contains only spatial dimensions
+        # pad with 1s to match rank
+        match_rank_pad = len(input_shape) - len(out_size)
+        out_size_full_rank = input_shape[:match_rank_pad] + list(out_size)
+        out_size_array = numpy.asarray(out_size_full_rank).astype(numpy.int64)
+
+        input_size_array = numpy.asarray(list(input_shape)).astype(numpy.int64)
+
+        scale_array = numpy.divide(out_size_array, input_size_array).astype(numpy.float32)
+        scale_node = add_input(scale_array, name, "scales", model_container)
+
+        input_names = [node_entry["input_names"][0], roi_node, scale_node]
+
+        resize_node = onnx.helper.make_node(
+            cls.__name__,
+            input_names,
+            node_entry["output_names"],
+            mode=attrs["mode"],
+            coordinate_transformation_mode=attrs["coord_trans"],
+            nearest_mode=attrs["nearest_mode"],
+        )
+        model_container.add_nodes([resize_node])
+
+
 relay_to_onnx_op_mapping = {
     "reshape": Reshape,
     "nn.conv2d": Conv,
+    "nn.conv2d_transpose": ConvTranspose,
     "add": rename("Add"),
     "nn.relu": rename("Relu"),
     "transpose": Transpose,
@@ -667,6 +787,11 @@ relay_to_onnx_op_mapping = {
     "clip": Clip,
     "expand_dims": Expand,
     "nn.lrn": LRN,
+    "sigmoid": rename("Sigmoid"),
+    "copy": rename("Identity"),
+    "round": rename("Round"),
+    "cast": Cast,
+    "image.resize2d": Resize,
 }
 
 

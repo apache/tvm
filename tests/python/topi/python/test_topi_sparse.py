@@ -35,21 +35,20 @@ _sparse_dense_implement = {
 }
 
 
-def verify_dynamic_csrmv(batch, in_dim, out_dim, use_bias=True):
+def verify_dynamic_csrmv(batch, in_dim, out_dim, dtype, use_bias=True):
     nr, nc, n = te.var("nr"), te.var("nc"), te.var("n")
-    dtype = "float32"
     A = tvmsp.placeholder(shape=(nr, nc), nonzeros=n, dtype=dtype, name="A")
-    B = te.placeholder((in_dim, 1), name="B")
-    C = te.placeholder((nr,), name="C")
+    B = te.placeholder((in_dim, 1), dtype=dtype, name="B")
+    C = te.placeholder((nr,), dtype=dtype, name="C")
     D = topi.sparse.csrmv(A, B, C if use_bias else None)
     s = te.create_schedule(D.op)
     dtype = A.dtype
 
     # get the test data
     def get_ref_data():
-        a_np = np.maximum(np.random.uniform(size=(batch, in_dim)).astype(dtype) - 0.5, 0.0)
-        b_np = np.random.uniform(size=(in_dim, 1)).astype(dtype) - 0.5
-        c_np = np.random.uniform(size=(batch,)).astype(dtype)
+        a_np = np.random.uniform(size=(batch, in_dim), high=100).astype(dtype)
+        b_np = np.random.uniform(size=(in_dim, 1), high=100).astype(dtype)
+        c_np = np.random.uniform(size=(batch,), high=100).astype(dtype)
         if use_bias:
             d_np = np.dot(a_np, b_np) + c_np.reshape((batch, 1))
         else:
@@ -81,21 +80,20 @@ def verify_dynamic_csrmv(batch, in_dim, out_dim, use_bias=True):
         check_device(device)
 
 
-def verify_dynamic_csrmm(batch, in_dim, out_dim, use_bias=True):
+def verify_dynamic_csrmm(batch, in_dim, out_dim, dtype, use_bias=True):
     nr, nc, n = te.var("nr"), te.var("nc"), te.var("n")
-    dtype = "float32"
     A = tvmsp.placeholder(shape=(nr, nc), nonzeros=n, dtype=dtype, name="A")
-    B = te.placeholder((in_dim, out_dim), name="B")
-    C = te.placeholder((nr,), name="C")
+    B = te.placeholder((in_dim, out_dim), dtype=dtype, name="B")
+    C = te.placeholder((nr,), dtype=dtype, name="C")
     D = topi.sparse.csrmm(A, B, C if use_bias else None)
     s = te.create_schedule(D.op)
     dtype = A.dtype
 
     # get the test data
     def get_ref_data():
-        a_np = np.maximum(np.random.uniform(size=(batch, in_dim)).astype(dtype) - 0.5, 0.0)
-        b_np = np.random.uniform(size=(in_dim, out_dim)).astype(dtype) - 0.5
-        c_np = np.random.uniform(size=(batch,)).astype(dtype)
+        a_np = np.random.uniform(size=(batch, in_dim), high=100).astype(dtype)
+        b_np = np.random.uniform(size=(in_dim, out_dim), high=100).astype(dtype)
+        c_np = np.random.uniform(size=(batch,), high=100).astype(dtype)
         if use_bias:
             d_np = np.dot(a_np, b_np) + c_np.reshape((batch, 1))
         else:
@@ -212,14 +210,15 @@ def verify_dense_sw(batch, in_dim, out_dim, use_bias=True, dtype="float32"):
 
 
 def test_csrmv():
-    verify_dynamic_csrmv(batch=5, in_dim=7, out_dim=1, use_bias=False)
-    verify_dynamic_csrmv(batch=5, in_dim=7, out_dim=1, use_bias=True)
+    verify_dynamic_csrmv(batch=5, in_dim=7, out_dim=1, dtype="float32", use_bias=False)
+    verify_dynamic_csrmv(batch=5, in_dim=7, out_dim=1, dtype="float64", use_bias=True)
+    verify_dynamic_csrmv(batch=5, in_dim=7, out_dim=1, dtype="int32", use_bias=True)
 
 
 def test_csrmm():
     M, K, N = 5, 7, 2
-    verify_dynamic_csrmm(batch=M, in_dim=K, out_dim=N, use_bias=False)
-    verify_dynamic_csrmm(batch=M, in_dim=K, out_dim=N, use_bias=True)
+    verify_dynamic_csrmm(batch=M, in_dim=K, out_dim=N, dtype="int64", use_bias=False)
+    verify_dynamic_csrmm(batch=M, in_dim=K, out_dim=N, dtype="float64", use_bias=True)
 
 
 def test_dense_si():

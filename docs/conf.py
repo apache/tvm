@@ -190,7 +190,7 @@ latex_documents = [
 intersphinx_mapping = {
     "python": ("https://docs.python.org/{.major}".format(sys.version_info), None),
     "numpy": ("https://numpy.org/doc/stable", None),
-    "scipy": ("https://docs.scipy.org/doc/scipy/reference", None),
+    "scipy": ("https://docs.scipy.org/doc/scipy/", None),
     "matplotlib": ("https://matplotlib.org/", None),
 }
 
@@ -273,7 +273,12 @@ within_subsection_order = {
         "tune_network_x86.py",
         "tune_network_cuda.py",
     ],
-    "dev": ["low_level_custom_pass.py", "use_pass_infra.py", "bring_your_own_datatypes.py"],
+    "dev": [
+        "low_level_custom_pass.py",
+        "use_pass_infra.py",
+        "use_pass_instrument.py",
+        "bring_your_own_datatypes.py",
+    ],
 }
 
 

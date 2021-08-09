@@ -49,7 +49,7 @@ Expr MakeMatmul(Expr tensor_a, Expr tensor_b, IndexExpr units, DataType out_dtyp
 
 Expr MakeDense(Expr data, Expr weight, IndexExpr units, DataType out_dtype);
 
-Expr MakeBatchMatmul(Expr lhs, Expr rhs, DataType out_dtype);
+Expr MakeBatchMatmul(Expr lhs, Expr rhs, DataType out_dtype, bool transpose_a, bool transpose_b);
 
 Expr MakeExpandDims(Expr data, int axis, int num_newaxis);
 
@@ -101,9 +101,9 @@ Expr MakeZeros(Array<Integer> shape, DataType dtype);
 
 Expr MakeOneHot(Expr indices, Expr on_value, Expr off_value, int depth, int axis, DataType dtype);
 
-Expr MakeResize(Expr data, Array<IndexExpr> size, String layout, String method,
-                String coordinate_transformation_mode, String rounding_method, double bicubic_alpha,
-                int bicubic_exclude, DataType out_dtype);
+Expr MakeResize2D(Expr data, Array<IndexExpr> size, String layout, String method,
+                  String coordinate_transformation_mode, String rounding_method, double cubic_alpha,
+                  int cubic_exclude, DataType out_dtype);
 
 Expr MakeSparseToDense(Expr indices, Array<Integer> output_shape, Expr values, Expr default_value);
 

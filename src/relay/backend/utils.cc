@@ -24,6 +24,8 @@
 
 #include "utils.h"
 
+#include <tvm/relay/qnn/transform.h>
+
 namespace tvm {
 namespace relay {
 namespace backend {
@@ -38,6 +40,30 @@ StorageInfo::StorageInfo(std::vector<int64_t> storage_ids, std::vector<DLDeviceT
   n->storage_sizes_in_bytes = std::move(storage_sizes_in_bytes);
   data_ = std::move(n);
 }
+
+TVM_REGISTER_GLOBAL("relay.ir.StorageInfoStorageIds").set_body_typed([](StorageInfo si) {
+  Array<tvm::Integer> ids;
+  for (auto id : si->storage_ids) {
+    ids.push_back(id);
+  }
+  return ids;
+});
+
+TVM_REGISTER_GLOBAL("relay.ir.StorageInfoDeviceTypes").set_body_typed([](StorageInfo si) {
+  Array<tvm::Integer> device_types;
+  for (auto id : si->device_types) {
+    device_types.push_back(id);
+  }
+  return device_types;
+});
+
+TVM_REGISTER_GLOBAL("relay.ir.StorageInfoStorageSizes").set_body_typed([](StorageInfo si) {
+  Array<tvm::Integer> storage_sizes_in_bytes;
+  for (auto id : si->storage_sizes_in_bytes) {
+    storage_sizes_in_bytes.push_back(id);
+  }
+  return storage_sizes_in_bytes;
+});
 
 TVM_REGISTER_NODE_TYPE(StaticMemoryPlanNode);
 
@@ -72,6 +98,94 @@ int64_t CalculateRelayExprSizeBytes(const Type& expr_type) {
 }
 
 TVM_REGISTER_NODE_TYPE(FunctionInfoNode);
+
+FunctionInfo::FunctionInfo(Map<Target, Integer> workspace_sizes, Map<Target, Integer> io_sizes,
+                           Map<Target, Integer> constant_sizes,
+                           Map<Target, tir::PrimFunc> tir_primfuncs,
+                           Map<Target, Function> relay_primfuncs) {
+  ObjectPtr<FunctionInfoNode> n = make_object<FunctionInfoNode>();
+  n->workspace_sizes = std::move(workspace_sizes);
+  n->io_sizes = std::move(io_sizes);
+  n->constant_sizes = std::move(constant_sizes);
+  n->tir_primfuncs = std::move(tir_primfuncs);
+  n->relay_primfuncs = std::move(relay_primfuncs);
+  data_ = std::move(n);
+}
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<FunctionInfoNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      auto* node = static_cast<const FunctionInfoNode*>(ref.get());
+      p->stream << "FunctionInfoNode(\n"
+                << "workspace_sizes=" << node->workspace_sizes << ",\n  io_sizes=" << node->io_sizes
+                << ",\n  constant_sizes=" << node->constant_sizes
+                << ",\n  tir_primfuncs=" << node->tir_primfuncs
+                << ",\n  relay_primfuncs=" << node->relay_primfuncs << ")";
+    });
+
+Array<Pass> GetPassPrefix(const Map<tvm::Integer, tvm::Target>& targets, bool is_vm) {
+  Array<Pass> pass_seqs;
+  Array<runtime::String> entry_functions{"main"};
+  pass_seqs.push_back(transform::RemoveUnusedFunctions(entry_functions));
+  pass_seqs.push_back(transform::ToBasicBlockNormalForm());
+  // Run all dialect legalization passes.
+  pass_seqs.push_back(relay::qnn::transform::Legalize());
+
+  // Legalize pass is restricted to homogeneous execution for now.
+  if (targets.size() == 1) {
+    pass_seqs.push_back(transform::Legalize());
+  }
+
+  pass_seqs.push_back(transform::SimplifyInference());
+
+  if (is_vm) {
+    // eta expand to support constructors in argument position
+    pass_seqs.push_back(transform::EtaExpand(
+        /* expand_constructor */ true, /* expand_global_var */ false));
+  } else {
+    // Convert Dynamic ops to static versions
+    pass_seqs.push_back(transform::DynamicToStatic());
+  }
+
+  PackedFunc fskip = PackedFunc([](TVMArgs args, TVMRetValue* rv) {
+    Expr expr = args[0];
+    if (expr.as<CallNode>()) {
+      auto call_node = expr.as<CallNode>();
+      auto op_node = call_node->op.as<OpNode>();
+      if (op_node->name == "cast") {
+        auto attrs = call_node->attrs.as<CastAttrs>();
+        if (attrs->dtype == DataType::Int(32)) {
+          *rv = true;
+        }
+      }
+    }
+    *rv = false;
+  });
+  pass_seqs.push_back(transform::EliminateCommonSubexpr(fskip));
+  pass_seqs.push_back(transform::SimplifyExpr());
+  if (is_vm) {
+    pass_seqs.push_back(transform::InlinePrimitives());
+  }
+  pass_seqs.push_back(transform::CombineParallelConv2D(3));
+  pass_seqs.push_back(transform::CombineParallelDense(3));
+  pass_seqs.push_back(transform::CombineParallelBatchMatmul(3));
+  pass_seqs.push_back(transform::FoldConstant());
+  pass_seqs.push_back(transform::FoldScaleAxis());
+  pass_seqs.push_back(transform::CanonicalizeCast());
+  pass_seqs.push_back(transform::CanonicalizeOps());
+
+  // Alter layout transformation is only applied to homogeneous execution yet.
+  if (targets.size() == 1) {
+    if (!is_vm) {
+      pass_seqs.push_back(transform::InferType());
+    }
+    pass_seqs.push_back(transform::AlterOpLayout());
+  }
+
+  // Fast math optimizations.
+  pass_seqs.push_back(transform::FastMath());
+  pass_seqs.push_back(transform::FoldConstant());
+  return pass_seqs;
+}
 
 }  // namespace backend
 }  // namespace relay

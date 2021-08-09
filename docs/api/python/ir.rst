@@ -23,6 +23,14 @@ tvm.ir
    :autosummary:
 
 
+tvm.instrument
+--------------
+.. automodule:: tvm.instrument
+   :members:
+   :imported-members:
+   :autosummary:
+
+
 tvm.transform
 -------------
 .. automodule:: tvm.transform

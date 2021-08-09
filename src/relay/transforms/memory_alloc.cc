@@ -25,6 +25,7 @@
 #include <tvm/node/structural_equal.h>
 #include <tvm/node/structural_hash.h>
 #include <tvm/relay/analysis.h>
+#include <tvm/relay/attrs/annotation.h>
 #include <tvm/relay/attrs/device_copy.h>
 #include <tvm/relay/attrs/memory.h>
 #include <tvm/relay/expr.h>
@@ -40,13 +41,16 @@
 #include <unordered_set>
 #include <vector>
 
-#include "../backend/compile_engine.h"
+#include "../backend/te_compiler.h"
+#include "../backend/te_compiler_cache.h"
 #include "../op/memory/memory.h"
 #include "../op/vm/vm.h"
+#include "./pass_utils.h"
 #include "let_list.h"
 #include "pattern_utils.h"
 
 using namespace tvm::runtime;
+using namespace tvm::relay::tec;
 
 namespace tvm {
 namespace relay {
@@ -66,8 +70,17 @@ inline Expr AllocTensor(const Expr& storage, tvm::relay::Expr shape, DataType dt
 
 // Check if the primitive function contains only reshape ops.
 bool IsReshapeOnly(const Expr& expr) {
-  if (auto* func = expr.as<FunctionNode>()) {
+  if (const FunctionNode* func = expr.as<FunctionNode>()) {
     return func->HasNonzeroAttr(attr::kReshapeOnly);
+  }
+  if (const CallNode* call = expr.as<CallNode>()) {
+    if (call->attrs.defined()) {
+      if (auto tir_call_attrs = call->attrs.as<TIRCallAttrs>()) {
+        Map<String, ObjectRef> metadata = tir_call_attrs->metadata;
+        return metadata.count(attr::kReshapeOnly) &&
+               (Downcast<tvm::Integer>(metadata[attr::kReshapeOnly])->value == 1);
+      }
+    }
   }
   return false;
 }
@@ -260,9 +273,11 @@ class DialectRewriter : public ExprMutator {
   Array<Expr> EmitShapeFunc(LetList* scope, const Function& func,
                             const std::vector<Expr>& new_args) {
     Array<Expr> shape_func_ins;
-    auto engine = CompileEngine::Global();
+
+    TECompiler compiler;
+
     CCacheKey key(func, target_host_);
-    auto cfunc = engine->LowerShapeFunc(key);
+    auto cfunc = compiler->LowerShapeFunc(key);
     auto input_states = cfunc->shape_func_param_states;
 
     Array<Integer> is_inputs;

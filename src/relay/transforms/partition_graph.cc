@@ -113,12 +113,19 @@ struct RegionFuncMetadata {
 class Partitioner : public MixedModeMutator {
  public:
   explicit Partitioner(const IRModule& module) : module_(module) {
+    std::set<std::string> func_names;
     for (auto f : module->functions) {
       GlobalVar f_var = f.first;
       BaseFunc f_func = f.second;
+      std::string f_name = f_var.as<GlobalVarNode>()->name_hint;
+      while (func_names.find(f_name) != func_names.end()) {
+        f_name += "_a";
+      }
+      func_names.insert(f_name);
 
       // Creating regionset per function in the module.
-      auto region_set = AnnotatedRegionSet::Create(f_func, CompilerBeginOp(), CompilerEndOp());
+      auto region_set =
+          AnnotatedRegionSet::Create(f_func, CompilerBeginOp(), CompilerEndOp(), f_name);
       regions_sets_[region_set] = f_func;
     }
   }
@@ -301,7 +308,7 @@ class Partitioner : public MixedModeMutator {
     }
 
     std::string target = end_node->attrs.as<CompilerAttrs>()->compiler;
-    std::string name = target + "_" + std::to_string(region->GetID());
+    std::string name = target + "_" + region->GetName() + "_" + std::to_string(region->GetID());
 
     // Constant propagation
     if (!params_bind.empty()) {
@@ -502,7 +509,7 @@ class NameMangleExtFuncs : public MixedModeMutator {
 
     // Walk the tree and mangle the functions. Then replace compiler functions
     // with mangled functions in the module
-    IRModule new_module;
+    IRModule new_module = IRModule({}, module_->type_definitions, module_->Imports());
     for (const auto& pair : glob_funcs) {
       if (auto* fn = pair.second.as<FunctionNode>()) {
         auto func = GetRef<Function>(fn);

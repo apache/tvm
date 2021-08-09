@@ -39,8 +39,9 @@ from ..loops import while_loop
 from ..prelude import Prelude, StaticTensorArrayOps
 from ..ty import Any, TensorType, TupleType
 from . import qnn_torch
-from .common import AttrCvt, get_relay_op
+from .common import AttrCvt, get_relay_op, unbind, lstm_cell
 from .common import infer_value as _infer_value
+from .common import infer_shape as _infer_shape
 from .common import infer_value_simulated as _infer_value_simulated
 from .common import try_infer_value
 from .pytorch_utils import is_version_greater_than
@@ -1444,7 +1445,16 @@ class PyTorchOpConverter:
         # 0 - input
         # 1 - weight
         bias = inputs[2]
-        mm_out = self.matmul(inputs[:2], input_types[:2])
+        a_shape = self.infer_shape_with_prelude(inputs[0])
+        b_shape = self.infer_shape_with_prelude(inputs[1])
+        if len(a_shape) == 2 and len(b_shape) == 2:
+            mm_out = _op.nn.dense(inputs[0], inputs[1])
+        elif len(b_shape) == 1:
+            mm_out = self.matmul([inputs[0], inputs[1]], input_types[:2])
+        else:
+            mm_out = self.matmul(
+                [inputs[0], _op.transpose(inputs[1], axes=(1, 0))], input_types[:2]
+            )
         if isinstance(bias, _expr.Expr):
             bias_ndims = len(self.infer_shape_with_prelude(bias))
             if bias_ndims == 1:
@@ -1798,7 +1808,7 @@ class PyTorchOpConverter:
                 else:
                     out_size.append(size)
         else:
-            scale_index = 3 if method in ["bilinear", "trilinear"] else 2
+            scale_index = 3 if method != "nearest_neighbor" else 2
             scales = inputs[scale_index]
             assert scales is not None, "neither out size nor scale provided"
             assert isinstance(scales, list)
@@ -1813,7 +1823,7 @@ class PyTorchOpConverter:
             data = inputs[0]
             out_size = self.get_upsample_out_size(inputs, method)
 
-            if len(inputs) > 2 and method == "bilinear":
+            if len(inputs) > 2 and method != "nearest_neighbor":
                 align_corners = inputs[2]
             else:
                 align_corners = False
@@ -1826,7 +1836,9 @@ class PyTorchOpConverter:
                 coord_trans = "half_pixel"
 
             def func(x):
-                return _op.image.resize(x, out_size, "NCHW", method, coord_trans)
+                return _op.image.resize2d(
+                    x, out_size, "NCHW", method, coord_trans, cubic_alpha=-0.75
+                )
 
             if self.is_quantized_tensor(data):
                 # input qparams are manually appended by us
@@ -1845,7 +1857,7 @@ class PyTorchOpConverter:
             data = inputs[0]
             out_size = self.get_upsample_out_size(inputs, method)
 
-            if len(inputs) > 2 and method == "trilinear":
+            if len(inputs) > 2 and method == "linear":
                 align_corners = inputs[2]
             else:
                 align_corners = False
@@ -1876,9 +1888,6 @@ class PyTorchOpConverter:
     def Float(self, inputs, input_types):
         assert len(inputs) == 1
         return _op.cast(inputs[0], "float32")
-
-    def mm(self, inputs, input_types):
-        return _op.nn.dense(inputs[0], inputs[1])
 
     def bitwise_not(self, inputs, input_types):
         data = inputs[0]
@@ -2096,21 +2105,8 @@ class PyTorchOpConverter:
 
     def unbind(self, inputs, input_types):
         data = inputs[0]
-        dim = int(inputs[1])
-        ishapes = self.infer_shape(data)
-        if dim >= len(ishapes):
-            msg = "Please check input dim, it shouldn't be greater than or equal to rank."
-            raise AttributeError(msg)
-
-        selections = ishapes[dim]
-        res_split = _op.split(data, selections, dim)
-        # squeeze each split piece to get same shape as aten::unbind
-        # TODO (yongwww): add new op to avoid the squeeze overhead
-        ret = []
-        for i in range(selections):
-            ret.append(_op.transform.squeeze(res_split[i], axis=[dim]))
-        ret = _expr.TupleWrapper(_expr.Tuple(ret), selections)
-        return ret
+        axis = int(inputs[1])
+        return unbind(data, axis)
 
     def shape_as_tensor(self, inputs, input_types):
         is_symbolic_shape = False
@@ -2137,7 +2133,7 @@ class PyTorchOpConverter:
         data = inputs[0]
         ret = _op.transform.argwhere(data)
         if is_numpy_style or (len(inputs) > 1 and inputs[1]):
-            return self.unbind([ret, 1], None)
+            return unbind(ret, 1)
         return ret
 
     def nonzero_numpy(self, inputs, input_types):
@@ -2195,6 +2191,8 @@ class PyTorchOpConverter:
         method = inputs[3]
         if method.startswith("nearest"):
             method = "nearest_neighbor"
+        elif method[0:2] == "bi":
+            method = method[2:]
 
         if method == "nearest_neighbor":
             coord_trans = "asymmetric"
@@ -2203,7 +2201,7 @@ class PyTorchOpConverter:
         else:
             coord_trans = "half_pixel"
 
-        return _op.image.resize(data, out_size, "NCHW", method, coord_trans)
+        return _op.image.resize2d(data, out_size, "NCHW", method, coord_trans, cubic_alpha=-0.75)
 
     def numel(self, inputs, input_types):
         return _op.ndarray_size(inputs[0])
@@ -2324,6 +2322,267 @@ class PyTorchOpConverter:
         if weights is None:
             weights = _op.full(_expr.const(1), (num_class,), dtype=input_types[0])
         return _op.nn.nll_loss(predictions, targets, weights, reduction, ignore_index)
+
+    def flip(self, inputs, input_types):
+        data = inputs[0]
+        axis = inputs[1]
+        return _op.transform.reverse(data, axis=axis[0])
+
+    def bidir_lstm_cell(
+        self,
+        input_seqs,
+        weights_dicts,
+    ):
+        """
+        Bidirectional LSTM cell
+        """
+        seq_len = len(input_seqs)
+        forward_outputs, fw_H_t, fw_C_t = lstm_cell(
+            input_seqs,
+            **weights_dicts[0],
+        )
+
+        reverse_outputs, rev_H_t, rev_C_t = lstm_cell(
+            input_seqs,
+            **weights_dicts[1],
+            backwards=True,
+        )
+
+        final_outputs = []
+        for i in range(seq_len):
+            final_outputs.append(
+                _op.concatenate([forward_outputs[i], reverse_outputs[seq_len - 1 - i]], axis=-1)
+            )
+
+        return final_outputs, (fw_H_t, fw_C_t), (rev_H_t, rev_C_t)
+
+    def lstm_layers(self, input_data, layer_weights_dicts, bidirectional, dtype, dropout_p=0.0):
+        """
+        Methods iterates layers for Stacked LSTM
+        """
+        layers_num = len(layer_weights_dicts)
+        # split input sequence to samples set
+        input_seqs = unbind(input_data, 0)  # [seq_num, (batch, feature_size)]
+        output_hiddens = []
+        for i in range(layers_num):
+            weights_dicts = layer_weights_dicts[i]
+            # input_seqs shape = [seq_num, (batch, feature_size)] or
+            # [seq_num, (batch, 2*feature_size)] for bidirectional
+            if bidirectional:
+                input_seqs, H_t, C_t = self.bidir_lstm_cell(input_seqs, weights_dicts)
+            else:
+                input_seqs, H_t, C_t = lstm_cell(input_seqs, **weights_dicts[0])
+
+            output_hiddens.append((H_t, C_t))
+
+            # TODO (vvchernov): in pytorch implementation train is also checked
+            # see https://github.com/pytorch/pytorch/blob/70c8daf43946b53af6493d058899ef952d27d339
+            # /aten/src/ATen/native/RNN.cpp#L1054
+            if dropout_p != 0 and i < layers_num - 1:
+                # for input in input_seqs:
+                #     input = _op.dropout(input, dropout_p)
+                raise NotImplementedError("Dropout for LSTM has not been supported yet!")
+        final_hiddens = []
+        if bidirectional:
+            for output_hidden in output_hiddens:
+                final_hiddens.append(output_hidden[0])
+                final_hiddens.append(output_hidden[1])
+        else:
+            final_hiddens = output_hiddens
+
+        return _op.stack(input_seqs, 0), final_hiddens
+
+    def lstm(self, inputs, input_types):
+        """
+        Description of LSTM in pytorch:https://pytorch.org/docs/stable/generated/torch.nn.LSTM.html
+        Native implementation for torch version less than 1.8.0 (projection is unsupported):
+        https://github.com/pytorch/pytorch/blob/70c8daf43946b53af6493d058899ef952d27d339/aten/ \
+        src/ATen/native/RNN.cpp#L1396
+        Native implementation for torch version from 1.8.0 and higher (projection is supported):
+        https://github.com/pytorch/pytorch/blob/master/aten/src/ATen/native/RNN.cpp#L1483
+        """
+        # TODO (vvchernov): support dropout
+        assert len(inputs) == 9, "Input of size 9 is expected"
+        # Unpack inputs, note that if optional and not provided then value will be None.
+        _X = inputs[0]
+        # _X shape (seq_num, batch, feature_size) or (batch, seq_num, feature_size)
+
+        hidden_states = inputs[1]
+        assert len(hidden_states) == 2, "lstm expects two hidden states"
+        h_0 = hidden_states[0]
+        c_0 = hidden_states[1]
+        # H0 shape (hidden_layers_num, batch, proj_size) if projection
+        # else (hidden_layers_num, batch, hidden_size)
+        # C0 shape (hidden_layers_num, batch, hidden_size)
+
+        _weights = inputs[2]
+        # If no projection
+        # Wi layer[0] shape (4 * hidden_size, feature_size)
+        # Wh layer[0] shape (4 * hidden_size, hidden_size)
+        # Bi layer[0] shape (4 * hidden_size)
+        # Bh layer[0] shape (4 * hidden_size)
+
+        # Wi layer[>0] shape (4 * hidden_size, hidden_size * num_directions)
+        # Wh layer[>0] shape (4 * hidden_size, hidden_size)
+        # Bi layer[>0] shape (4 * hidden_size)
+        # Bh layer[>0] shape (4 * hidden_size)
+
+        # If projection
+        # Wi layer[0] shape (4 * hidden_size, feature_size)
+        # Wh layer[0] shape (4 * hidden_size, proj_size)
+        # Bi layer[0] shape (4 * hidden_size)
+        # Bh layer[0] shape (4 * hidden_size)
+        # P  layer[0] shape (proj_size, hidden_size)
+
+        # Wi layer[>0] shape (4 * hidden_size, proj_size * num_directions)
+        # Wh layer[>0] shape (4 * hidden_size, proj_size)
+        # Bi layer[>0] shape (4 * hidden_size)
+        # Bh layer[>0] shape (4 * hidden_size)
+        # P  layer[>0] shape (proj_size, hidden_size)
+
+        # Scalar inputs
+        has_biases = inputs[3]
+        num_layers = inputs[4]
+        dropout_p = inputs[5]  # dropout probability, if 0.0 it means there is no dropout
+        # train = inputs[6]
+        bidirectional = inputs[7]
+        batch_first = inputs[8]
+
+        num_directions = 1
+        if bidirectional:
+            num_directions = 2
+
+        rsd = len(_weights) % num_layers
+        assert rsd == 0, "The number of weights must be a multiple of the number of layers!"
+        rsd = (len(_weights) / num_layers) % num_directions
+        assert (
+            rsd == 0
+        ), "The number of weights in layer must be a multiple of the number of directions!"
+        has_proj = False
+        proj_size = 0
+        weights_num = int(len(_weights) / num_layers / num_directions)
+        if has_biases:
+            if weights_num == 5:
+                has_proj = True
+                proj_size = _infer_shape(_weights[4])[0]
+            else:
+                assert weights_num == 4, "The weights number in layer is expected equal to 4"
+        else:
+            if weights_num == 3:
+                has_proj = True
+                proj_size = _infer_shape(_weights[2])[0]
+            else:
+                assert weights_num == 2, "The weights number in layer is expected equal to 2"
+
+        X = _op.transpose(_X, (1, 0, 2)) if batch_first else _X
+        # TODO (vvchernov): Which data type should be used? from input or weights?
+        # Instead of it _infer_type(X).checked_type.dtype can be used
+        X_dtype = input_types[0]
+        X_shape = _infer_shape(X)  # (seq_num, batch, feature_size)
+
+        hidden_size = _infer_shape(_weights[0])[0] / 4
+        batch_size = X_shape[1]
+
+        # Initialize hidden states if not provided.
+        layers_h = []
+        layers_c = []
+        hidden_layers_num = num_directions * num_layers
+        if h_0 is None:
+            if has_proj:
+                h_0 = _op.zeros((batch_size, proj_size), X_dtype)
+            else:
+                h_0 = _op.zeros((batch_size, hidden_size), X_dtype)
+            for i in range(hidden_layers_num):
+                layers_h.append(h_0)
+        else:
+            layers_h = unbind(h_0, 0)
+        if c_0 is None:
+            c_0 = _op.zeros((batch_size, hidden_size), X_dtype)
+            for i in range(hidden_layers_num):
+                layers_c.append(c_0)
+        else:
+            layers_c = unbind(c_0, 0)
+
+        layer_weights_dicts = []
+        k = 0  # layer counter
+        if has_biases:
+            names = ["hidden_state", "cell_state", "w_inp", "w_hid", "b_inp", "b_hid"]
+            if bidirectional:
+                rsd = len(_weights) % (2 * weights_num)
+                assert rsd == 0, "got an incorrect number of LSTM weights"
+                for i in range(0, len(_weights), 2 * weights_num):
+                    fw_tensors = [layers_h[2 * k], layers_c[2 * k], *_weights[i : i + 4]]
+                    fw_weights_dict = dict(zip(names, fw_tensors))
+                    if has_proj:
+                        fw_weights_dict["proj"] = _weights[i + 4]
+                    j = i + weights_num
+                    rev_tensors = [layers_h[2 * k + 1], layers_c[2 * k + 1], *_weights[j : j + 4]]
+                    rev_weights_dict = dict(zip(names, rev_tensors))
+                    if has_proj:
+                        rev_weights_dict["proj"] = _weights[j + 4]
+                    layer_weights_dicts.append([fw_weights_dict, rev_weights_dict])
+                    k += 1
+            else:
+                assert len(_weights) % weights_num == 0, "got an incorrect number of LSTM weights"
+                for i in range(0, len(_weights), weights_num):
+                    fw_tensors = [layers_h[k], layers_c[k], *_weights[i : i + 4]]
+                    fw_weights_dict = dict(zip(names, fw_tensors))
+                    if has_proj:
+                        fw_weights_dict["proj"] = _weights[i + 4]
+                    layer_weights_dicts.append([fw_weights_dict])
+                    k += 1
+        else:
+            names = ["hidden_state", "cell_state", "w_inp", "w_hid"]
+            if bidirectional:
+                rsd = len(_weights) % (2 * weights_num)
+                assert rsd == 0, "got an incorrect number of LSTM weights"
+                for i in range(0, len(_weights), 2 * weights_num):
+                    fw_tensors = [layers_h[2 * k], layers_c[2 * k], *_weights[i : i + 2]]
+                    fw_weights_dict = dict(zip(names, fw_tensors))
+                    if has_proj:
+                        fw_weights_dict["proj"] = _weights[i + 2]
+                    j = i + weights_num
+                    rev_tensors = [layers_h[2 * k + 1], layers_c[2 * k + 1], *_weights[j : j + 2]]
+                    rev_weights_dict = dict(zip(names, rev_tensors))
+                    if has_proj:
+                        rev_weights_dict["proj"] = _weights[j + 2]
+                    layer_weights_dicts.append([fw_weights_dict, rev_weights_dict])
+                    k += 1
+            else:
+                assert len(_weights) % weights_num == 0, "got an incorrect number of LSTM weights"
+                for i in range(0, len(_weights), weights_num):
+                    fw_tensors = [layers_h[k], layers_c[k], *_weights[i : i + 2]]
+                    fw_weights_dict = dict(zip(names, fw_tensors))
+                    if has_proj:
+                        fw_weights_dict["proj"] = _weights[i + 2]
+                    layer_weights_dicts.append([fw_weights_dict])
+                    k += 1
+        assert (
+            len(layer_weights_dicts) == num_layers and k == num_layers
+        ), "For stacked LSTM number of weights sets should be the same as number of layers!"
+
+        outputs = self.lstm_layers(
+            X,
+            layer_weights_dicts,
+            bidirectional,
+            dtype=X_dtype,
+            dropout_p=dropout_p,
+        )
+
+        # output shape = (seq_num, batch, hidden_size) or
+        # (seq_num, batch, 2*feature_size) for bidirectional
+        output = outputs[0]
+
+        hy = []
+        cy = []
+        for hidden in outputs[1]:
+            hy.append(hidden[0])
+            cy.append(hidden[1])
+
+        if batch_first:
+            output = _op.transpose(output, (1, 0, 2))
+
+        return (output, _op.stack(hy, 0), _op.stack(cy, 0))
 
     # Operator mappings
     def create_convert_map(self):
@@ -2473,9 +2732,10 @@ class PyTorchOpConverter:
             "aten::clamp": self.clamp,
             "aten::clamp_": self.clamp,
             "aten::detach": self.identity,
-            "aten::upsample_bilinear2d": self.make_upsample("bilinear"),
+            "aten::upsample_bilinear2d": self.make_upsample("linear"),
+            "aten::upsample_bicubic2d": self.make_upsample("cubic"),
             "aten::upsample_nearest2d": self.make_upsample("nearest_neighbor"),
-            "aten::upsample_trilinear3d": self.make_upsample3d("trilinear"),
+            "aten::upsample_trilinear3d": self.make_upsample3d("linear"),
             "aten::upsample_nearest3d": self.make_upsample3d("nearest_neighbor"),
             "aten::expand_as": self.expand_as,
             "aten::lt": self.make_elemwise("less"),
@@ -2533,12 +2793,15 @@ class PyTorchOpConverter:
             "aten::hardsigmoid": self.hard_sigmoid,
             "aten::cumsum": self.cumsum,
             "aten::masked_fill": self.masked_fill,
+            "aten::masked_fill_": self.masked_fill,
             "aten::masked_select": self.masked_select,
             "aten::argsort": self.argsort,
             "aten::sort": self.sort,
             "aten::_unique2": self.unique,
             "aten::nll_loss": self.nll_loss,
             "aten::nll_loss2d": self.nll_loss,
+            "aten::flip": self.flip,
+            "aten::lstm": self.lstm,
         }
 
     def update_convert_map(self, custom_map):
@@ -3284,7 +3547,7 @@ def from_pytorch(script_module, input_infos, custom_convert_map=None, default_dt
 
     Returns
     -------
-    mod : tvm.relay.Module
+    mod : tvm.IRModule
         The module that optimizations will be performed on.
 
     params : dict of str to tvm.runtime.NDArray

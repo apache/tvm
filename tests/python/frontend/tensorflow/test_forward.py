@@ -29,6 +29,13 @@ try:
     import tensorflow.compat.v1 as tf
 except ImportError:
     import tensorflow as tf
+
+# Only allow TF to run on half the GPU RAM to save the other half
+# For TVM
+gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.5)
+sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
+sess.close()
+
 from tensorflow.python.framework import constant_op
 from tensorflow.python.framework import graph_util
 from tensorflow.python.ops import nn_ops
@@ -117,7 +124,7 @@ def run_tvm_graph(
     disabled_pass=None,
     ignore_in_shape=False,
     serialize=False,
-    use_dense_op=True,
+    convert_config=None,
 ):
     """Generic function to compile on relay and execute on tvm"""
     input_data = convert_to_list(input_data)
@@ -136,7 +143,7 @@ def run_tvm_graph(
         layout=layout,
         shape=shape_dict,
         outputs=out_names,
-        use_dense_op=use_dense_op,
+        convert_config=convert_config,
     )
     dev = tvm.device(target, 0)
     if mode == "debug":
@@ -218,7 +225,7 @@ def compare_tf_with_tvm(
     add_shapes_to_graph_def=True,
     targets=None,
     ignore_in_shape=False,
-    use_dense_op=True,
+    convert_config=None,
 ):
     """Generic function to generate and compare tensorflow and TVM output"""
 
@@ -266,7 +273,7 @@ def compare_tf_with_tvm(
                 mode=mode,
                 cuda_layout=cuda_layout,
                 ignore_in_shape=ignore_in_shape,
-                use_dense_op=use_dense_op,
+                convert_config=convert_config,
             )
             # since the names from tensorflow and relay runs are not exactly same,
             # first len(tf_output) will be compared
@@ -318,6 +325,8 @@ def _test_pooling(input_shape, **kwargs):
     if is_gpu_available():
         if len(input_shape) == 4:
             input_shape = [input_shape[ii] for ii in (0, 3, 1, 2)]
+            if isinstance(kwargs["padding"], list):
+                kwargs["padding"] = [kwargs["padding"][ii] for ii in (0, 3, 1, 2)]
             kwargs["data_format"] = "NCHW"
             _test_pooling_iteration(input_shape, **kwargs)
 
@@ -1802,8 +1811,12 @@ def _test_matmul(i, j, k, dtype, outer=None):
 
                 A_np = np.random.uniform(high=5.0, size=A_shape).astype(dtype)
                 B_np = np.random.uniform(high=5.0, size=B_shape).astype(dtype)
-                compare_tf_with_tvm([A_np, B_np], [A.name, B.name], result.name, use_dense_op=True)
-                compare_tf_with_tvm([A_np, B_np], [A.name, B.name], result.name, use_dense_op=False)
+                compare_tf_with_tvm(
+                    [A_np, B_np], [A.name, B.name], result.name, convert_config={"use_dense": True}
+                )
+                compare_tf_with_tvm(
+                    [A_np, B_np], [A.name, B.name], result.name, convert_config={"use_dense": False}
+                )
 
 
 def test_forward_matmul():
@@ -1821,7 +1834,18 @@ def _test_batch_matmul(A_shape, B_shape, dtype, adjoint_a=False, adjoint_b=False
 
         A_np = np.random.uniform(high=5.0, size=A_shape).astype(dtype)
         B_np = np.random.uniform(high=5.0, size=B_shape).astype(dtype)
-        compare_tf_with_tvm([A_np, B_np], [A.name, B.name], result.name)
+        compare_tf_with_tvm(
+            [A_np, B_np],
+            [A.name, B.name],
+            result.name,
+            convert_config={"use_nt_batch_matmul": True},
+        )
+        compare_tf_with_tvm(
+            [A_np, B_np],
+            [A.name, B.name],
+            result.name,
+            convert_config={"use_nt_batch_matmul": False},
+        )
 
 
 def _test_batch_matmul_dynamic(
@@ -1834,10 +1858,23 @@ def _test_batch_matmul_dynamic(
 
         A_np = np.random.uniform(high=5.0, size=A_np_shape).astype(dtype)
         B_np = np.random.uniform(high=5.0, size=B_np_shape).astype(dtype)
-        # for now, in TOPI, only cublas's implementation support dynamic shape
+        # for now, in TOPI, only llvm & cublas's implementation support dynamic shape
         # TODO add more backends support in TOPI
         compare_tf_with_tvm(
-            [A_np, B_np], [A.name, B.name], result.name, mode="vm", targets=["cuda -libs=cublas"]
+            [A_np, B_np],
+            [A.name, B.name],
+            result.name,
+            mode="vm",
+            targets=["llvm", "cuda -libs=cublas"],
+            convert_config={"use_nt_batch_matmul": True},
+        )
+        compare_tf_with_tvm(
+            [A_np, B_np],
+            [A.name, B.name],
+            result.name,
+            mode="vm",
+            targets=["llvm", "cuda -libs=cublas"],
+            convert_config={"use_nt_batch_matmul": False},
         )
 
 
@@ -1856,7 +1893,6 @@ def test_forward_batch_matmul():
     _test_batch_matmul((1, 8, 64), (64, 1), "float32", False, False)
 
 
-@tvm.testing.requires_cuda
 def test_forward_batch_matmul_dynamic():
     _test_batch_matmul_dynamic((None, 5, 4), (None, 4, 5), (3, 5, 4), (3, 4, 5), "int32")
     _test_batch_matmul_dynamic(
@@ -2553,7 +2589,9 @@ def test_forward_stridedslice():
 
     _test_stridedslice([], [0], [0], [1], "float32", new_axis_mask=1)
     _test_stridedslice([2], [1], [1], [1], "float32", shrink_axis_mask=1)
+    _test_stridedslice([4], [-1], [0], [1], "float32", shrink_axis_mask=1)
     _test_stridedslice([2, 1], [0], [1], [1], "float32", shrink_axis_mask=1)
+    _test_stridedslice([2, 3, 4], [-2], [0], [1], "float32", shrink_axis_mask=8)
     _test_stridedslice([2, 3, 4], [0], [1], [1], "float32", shrink_axis_mask=8)
     _test_stridedslice([3, 4, 3], [1, -1, 0], [4, -5, 3], [2, -1, 1], "float32")
     _test_stridedslice([3, 4, 3], [1, 0], [4, 3], [2, 1], "float32", ellipsis_mask=8)

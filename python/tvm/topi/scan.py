@@ -23,7 +23,7 @@ import tvm
 from ..te import extern
 from ..tir import decl_buffer, generic, ir_builder
 from .math import cast
-from .utils import get_const_int, prod
+from . import utils
 
 
 def scanop(
@@ -93,11 +93,11 @@ def scanop(
 
     if axis is None:
         axis = 0
-        cumsum_axis_len = prod(data.shape)
+        cumsum_axis_len = utils.prod(data.shape)
         shape = (cumsum_axis_len,)
     else:
         if not isinstance(axis, int):
-            axis = get_const_int(axis)
+            axis = utils.get_const_int(axis)
 
         shape = data.shape
         cumsum_axis_len = shape[axis]

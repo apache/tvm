@@ -16,12 +16,14 @@
 # under the License.
 """Function data types."""
 
+from typing import Mapping, Union
+
 import tvm._ffi
 import tvm.runtime
 from tvm.runtime import Object
 from tvm.ir import BaseFunc
 from .buffer import Buffer
-from .expr import Var
+from .expr import Var, PrimExpr
 from . import _ffi_api
 
 
@@ -65,7 +67,7 @@ class PrimFunc(BaseFunc):
                 raise TypeError("params can only contain Var or Buffer")
 
         self.__init_handle_by_constructor__(
-            _ffi_api.PrimFunc, param_list, body, ret_type, buffer_map, attrs, span
+            _ffi_api.PrimFunc, param_list, body, ret_type, buffer_map, attrs, span  # type: ignore
         )
 
     def with_body(self, new_body, span=None):
@@ -85,3 +87,54 @@ class PrimFunc(BaseFunc):
             The created new function.
         """
         return PrimFunc(self.params, new_body, self.ret_type, self.buffer_map, self.attrs, span)
+
+    def specialize(self, param_map: Mapping[Var, Union[PrimExpr, Buffer]]):
+        """Specialize parameters of PrimFunc
+
+        Parameters
+        ----------
+
+        param_map : Mapping[Var, Union[PrimExpr, Buffer]]
+            The mapping from function params to the instance
+
+        Examples
+        --------
+        We can define a Meta TIR function with symbolic shape:
+
+        .. code-block:: python
+
+            @tvm.script.tir
+            def mem_copy(a: ty.handle, b: ty.handle, m: ty.int32, n: ty.int32) -> None:
+                A = tir.match_buffer(a, (m, n), "float32")
+                B = tir.match_buffer(b, (m, n), "float32")
+
+                with tir.block([m, n], "") as [vi, vj]:
+                    B[vi, vj] = A[vi, vj]
+
+        Then we can make it specialized with given shapes or buffers.
+
+        .. code-block:: python
+
+            a, _, m, n = mem_copy.params
+            func = mem_copy.specialize({a: tir.decl_buffer((16, 16))})
+            # or
+            func = mem_copy.specialize({n: 16, m: 16})
+
+        The specialized function:
+
+        .. code-block:: python
+
+            @tvm.script.tir
+            def mem_copy_16_16(a: ty.handle, b: ty.handle) -> None:
+                A = tir.match_buffer(a, (16, 16), "float32")
+                B = tir.match_buffer(b, (16, 16), "float32")
+
+                with tir.block([16, 16], "") as [vi, vj]:
+                    B[vi, vj] = A[vi, vj]
+
+        Returns
+        -------
+        func : PrimFunc
+            The new function with parameter specialized
+        """
+        return _ffi_api.Specialize(self, param_map)  # type: ignore

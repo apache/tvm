@@ -24,10 +24,12 @@
 #ifndef TVM_RELAY_OP_NN_NN_H_
 #define TVM_RELAY_OP_NN_NN_H_
 
+#include <tvm/auto_scheduler/compute_dag.h>
 #include <tvm/ir/attrs.h>
 #include <tvm/ir/expr.h>
 #include <tvm/relay/type.h>
 
+#include <algorithm>
 #include <utility>
 
 #include "../op_common.h"
@@ -134,6 +136,59 @@ bool DensePackRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   }
   // assign output type
   reporter->Assign(types[2], TensorType(oshape, out_dtype));
+  return true;
+}
+
+template <typename AttrType>
+bool BatchMatmulRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                    const TypeReporter& reporter) {
+  ICHECK_EQ(types.size(), 3);
+  const auto* x = types[0].as<TensorTypeNode>();
+  const auto* y = types[1].as<TensorTypeNode>();
+  if (x == nullptr || y == nullptr) return false;
+
+  const AttrType* param = attrs.as<AttrType>();
+  ICHECK(param != nullptr);
+  bool transpose_a = param->transpose_a;
+  bool transpose_b = param->transpose_b;
+  const Array<PrimExpr>& y_shape =
+      param->auto_scheduler_rewritten_layout.size() == 0
+          ? y->shape
+          : auto_scheduler::GetShapeFromRewrittenLayout(
+                param->auto_scheduler_rewritten_layout,
+                transpose_b ? tvm::runtime::Array<tvm::runtime::String>({"b", "j", "k"})
+                            : tvm::runtime::Array<tvm::runtime::String>({"b", "k", "j"}));
+  ICHECK(x->shape.size() == 3 && y_shape.size() == 3);
+  const PrimExpr& xb = x->shape[0];
+  const PrimExpr& xi = x->shape[transpose_a ? 2 : 1];
+  const PrimExpr& xk = x->shape[transpose_a ? 1 : 2];
+  const PrimExpr& yb = y_shape[0];
+  const PrimExpr& yk = y_shape[transpose_b ? 2 : 1];
+  const PrimExpr& yj = y_shape[transpose_b ? 1 : 2];
+
+  bool is_dyn = false;
+  for (size_t i = 0; i < 3; ++i) {
+    if (x->shape[i].as<tir::AnyNode>() != nullptr || y_shape[i].as<tir::AnyNode>() != nullptr) {
+      is_dyn = true;
+      break;
+    }
+  }
+  if (!is_dyn) {
+    ICHECK(reporter->AssertEQ(xb, yb) || reporter->AssertEQ(xb, 1) || reporter->AssertEQ(yb, 1))
+        << "BatchDot: batch dimensions don't match, "
+        << " x shape=" << x->shape << ", y shape=" << y_shape;
+    ICHECK(reporter->AssertEQ(xk, yk)) << "BatchDot: shapes of x and y is inconsistent, "
+                                       << " x shape=" << x->shape << ", y shape=" << y_shape;
+  }
+
+  DataType out_dtype = param->out_dtype;
+  if (out_dtype.bits() == 0) {
+    out_dtype = x->dtype;
+  }
+  // assign output type
+  const auto& out_b =
+      xb->IsInstance<tir::AnyNode>() || yb->IsInstance<tir::AnyNode>() ? tir::Any() : max(xb, yb);
+  reporter->Assign(types[2], TensorType(Array<tvm::PrimExpr>({out_b, xi, yj}), out_dtype));
   return true;
 }
 

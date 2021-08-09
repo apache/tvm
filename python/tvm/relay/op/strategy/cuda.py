@@ -819,7 +819,13 @@ def batch_matmul_strategy_cuda(attrs, inputs, out_type, target):
     """batch_matmul cuda strategy"""
     strategy = _op.OpStrategy()
     x, y = inputs
-    if x.dtype == "int8" and y.dtype == "int8" and out_type.dtype == "int32":
+    if (
+        x.dtype == "int8"
+        and y.dtype == "int8"
+        and out_type.dtype == "int32"
+        and not attrs["transpose_a"]
+        and attrs["transpose_b"]
+    ):
         strategy.add_implementation(
             wrap_compute_batch_matmul(topi.cuda.batch_matmul_int8, need_out_dtype=True),
             wrap_topi_schedule(topi.cuda.schedule_batch_matmul_int8),
@@ -840,17 +846,25 @@ def batch_matmul_strategy_cuda(attrs, inputs, out_type, target):
             name="batch_matmul_cublas.cuda",
             plevel=15,
         )
-    if target.kind.name == "cuda" and nvcc.have_tensorcore(target=target):
+    if (
+        target.kind.name == "cuda"
+        and nvcc.have_tensorcore(target=target)
+        and not attrs["transpose_a"]
+        and attrs["transpose_b"]
+    ):
         x, y = inputs
         _, M, K = get_const_tuple(x.shape)
         _, N, K = get_const_tuple(y.shape)
-        if x.dtype in ["float16", "int8", "uint8"] and (
-            (M % 8 == 0 and K % 16 == 0 and N % 32 == 0)
-            or (M % 16 == 0 and K % 16 == 0 and N % 16 == 0)
-            or (M % 32 == 0 and K % 16 == 0 and N % 8 == 0)
-        ):
+        if (
+            x.dtype in ["float16", "int8", "uint8"]
+            and (
+                (M % 8 == 0 and K % 16 == 0 and N % 32 == 0)
+                or (M % 16 == 0 and K % 16 == 0 and N % 16 == 0)
+                or (M % 32 == 0 and K % 16 == 0 and N % 8 == 0)
+            )
+        ) or (x.dtype in ["int4", "uint4"] and K % 32 == 0 and M % 8 == 0 and N % 8 == 0):
             strategy.add_implementation(
-                wrap_compute_batch_matmul(topi.cuda.batch_matmul_tensorcore),
+                wrap_compute_batch_matmul(topi.cuda.batch_matmul_tensorcore, need_out_dtype=True),
                 wrap_topi_schedule(topi.cuda.schedule_batch_matmul_tensorcore),
                 name="batch_matmul_tensorcore.cuda",
                 plevel=20,

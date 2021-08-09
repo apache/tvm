@@ -496,13 +496,24 @@ def verify_any_conv2d(
     dilation,
     static_data_shape,
     ref_out_shape,
+    data_layout="NCHW",
+    kernel_layout="OIHW",
     use_cudnn=False,
 ):
     mod = tvm.IRModule()
     dtype = "float32"
     data = relay.var("data", shape=data_shape, dtype=dtype)
     kernel = relay.var("kernel", shape=kernel_shape, dtype=dtype)
-    y = relay.nn.conv2d(data, kernel, strides, padding, dilation, kernel_size=kernel_shape[2:4])
+    y = relay.nn.conv2d(
+        data,
+        kernel,
+        strides,
+        padding,
+        dilation,
+        kernel_size=kernel_shape[2:4] if kernel_layout == "OIHW" else kernel_shape[0:2],
+        data_layout=data_layout,
+        kernel_layout=kernel_layout,
+    )
     mod["main"] = relay.Function([data, kernel], y)
     data_np = np.random.uniform(size=static_data_shape).astype(dtype)
     kernel_np = np.random.uniform(size=kernel_shape).astype(dtype)
@@ -545,6 +556,28 @@ def test_any_conv2d():
         (1, 64, 224, 224),
         use_cudnn=True,
     )
+    verify_any_conv2d(
+        (relay.Any(), 224, 224, 64),
+        (3, 3, 64, 64),
+        (1, 1),
+        (1, 1),
+        (1, 1),
+        (1, 224, 224, 64),
+        (1, 224, 224, 64),
+        data_layout="NHWC",
+        kernel_layout="HWIO",
+    )
+    verify_any_conv2d(
+        (relay.Any(), 224, 224, 64),
+        (3, 3, 64, 64),
+        (1, 1),
+        (1, 1),
+        (2, 2),
+        (2, 224, 224, 64),
+        (2, 222, 222, 64),
+        data_layout="NHWC",
+        kernel_layout="HWIO",
+    )
 
 
 def verify_any_conv2d_NCHWc(
@@ -582,7 +615,6 @@ def verify_any_conv2d_NCHWc(
 
 
 # TODO(@kevinthesun): Support dynamic input height and width.
-@tvm.testing.uses_gpu
 def test_any_conv2d_NCHWc():
     verify_any_conv2d_NCHWc(
         (relay.Any(), 8, 224, 224, 8),
@@ -607,6 +639,63 @@ def test_any_conv2d_NCHWc():
         "NCHW8c",
         (2, 8, 224, 224, 8),
         (2, 8, 222, 222, 8),
+    )
+
+
+def verify_any_conv1d_transpose_ncw(
+    data_shape,
+    kernel_shape,
+    strides,
+    padding,
+    dilation,
+    groups,
+    static_data_shape,
+    ref_out_shape,
+    output_padding,
+):
+    mod = tvm.IRModule()
+    dtype = "float32"
+    data = relay.var("data", shape=data_shape, dtype=dtype)
+    kernel = relay.var("kernel", shape=kernel_shape, dtype=dtype)
+    y = relay.nn.conv1d_transpose(
+        data,
+        kernel,
+        strides,
+        padding,
+        dilation,
+        groups,
+        kernel_size=kernel_shape[2:],
+        output_padding=output_padding,
+    )
+    mod["main"] = relay.Function([data, kernel], y)
+    data_np = np.random.uniform(size=static_data_shape).astype(dtype)
+    kernel_np = np.random.uniform(size=kernel_shape).astype(dtype)
+    check_result([data_np, kernel_np], mod, ref_out_shape, assert_shape=True)
+
+
+@tvm.testing.uses_gpu
+def test_any_conv1d_transpose_ncw():
+    verify_any_conv1d_transpose_ncw(
+        (relay.Any(), 64, 224),
+        (64, 192, 3),
+        (1,),
+        (1,),
+        (1,),
+        1,
+        (2, 64, 224),
+        (2, 192, 224),
+        (0, 0),
+    )
+    verify_any_conv1d_transpose_ncw(
+        (relay.Any(), 32, 224),
+        (32, 64, 3),
+        (2,),
+        (1,),
+        (1,),
+        1,
+        (1, 32, 224),
+        (1, 64, 448),
+        (1, 1),
     )
 
 
@@ -830,6 +919,98 @@ def test_any_dense_dynamic_batch():
     verify_any_dense((relay.Any(), 40), (50, 40), 50, (4, 40), (50, 40), (4, 50), use_cublas=True)
 
 
+def verify_any_batch_matmul(
+    x_shape,
+    y_shape,
+    out_shape,
+    x_var_shape,
+    y_var_shape,
+    dtype="float32",
+    trans_x=False,
+    trans_y=True,
+):
+    x = relay.var("x", relay.TensorType(x_var_shape, dtype))
+    y = relay.var("y", relay.TensorType(y_var_shape, dtype))
+    z = relay.nn.batch_matmul(x, y, transpose_a=trans_x, transpose_b=trans_y)
+
+    func = relay.Function([x, y], z)
+    x_np = np.random.uniform(size=x_shape).astype(dtype)
+    y_np = np.random.uniform(size=y_shape).astype(dtype)
+    z_np = tvm.topi.testing.batch_matmul(x_np, y_np, trans_x=trans_x, trans_y=trans_y)
+
+    for target, dev in tvm.testing.enabled_targets():
+        for kind in ["vm", "debug"]:
+            mod = tvm.ir.IRModule.from_expr(func)
+            intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+            z = intrp.evaluate()(x_np, y_np)
+            tvm.testing.assert_allclose(z.numpy(), z_np, rtol=1e-5)
+
+
+# TODO(mbrookhart): enable once VM supports heterogenous execution
+# @tvm.testing.uses_gpu
+def test_any_batch_matmul():
+    verify_any_batch_matmul((1, 16, 32), (1, 16, 32), (1, 16, 16), (1, 16, 32), (relay.Any(),) * 3)
+    verify_any_batch_matmul((5, 16, 32), (5, 16, 32), (5, 16, 16), (5, 16, 32), (relay.Any(),) * 3)
+    verify_any_batch_matmul((5, 16, 32), (5, 20, 32), (5, 16, 20), (5, 16, 32), (relay.Any(),) * 3)
+    verify_any_batch_matmul(
+        (30, 16, 32), (30, 20, 32), (30, 16, 20), (30, 16, 32), (relay.Any(),) * 3
+    )
+
+    verify_any_batch_matmul(
+        (1, 16, 32), (1, 16, 32), (1, 16, 16), (relay.Any(), 16, 32), (relay.Any(), 16, 32)
+    )
+    verify_any_batch_matmul(
+        (5, 16, 32), (5, 16, 32), (5, 16, 16), (relay.Any(), 16, 32), (relay.Any(), 16, 32)
+    )
+    verify_any_batch_matmul(
+        (5, 16, 32), (5, 20, 32), (5, 16, 20), (relay.Any(), 16, 32), (relay.Any(), 20, 32)
+    )
+    verify_any_batch_matmul(
+        (30, 16, 32), (30, 20, 32), (30, 16, 20), (relay.Any(), 16, 32), (relay.Any(), 20, 32)
+    )
+
+    verify_any_batch_matmul(
+        (1, 32, 16), (1, 16, 32), (1, 16, 16), (1, 32, 16), (relay.Any(),) * 3, trans_x=True
+    )
+    verify_any_batch_matmul(
+        (5, 16, 32), (5, 32, 16), (5, 16, 16), (5, 16, 32), (relay.Any(),) * 3, trans_y=False
+    )
+    verify_any_batch_matmul(
+        (5, 32, 16),
+        (5, 32, 20),
+        (5, 16, 20),
+        (5, 32, 16),
+        (relay.Any(),) * 3,
+        trans_x=True,
+        trans_y=False,
+    )
+    verify_any_batch_matmul(
+        (1, 32, 16),
+        (1, 16, 32),
+        (1, 16, 16),
+        (relay.Any(), 32, 16),
+        (relay.Any(), 16, 32),
+        trans_x=True,
+    )
+    verify_any_batch_matmul(
+        (5, 16, 32),
+        (5, 32, 16),
+        (5, 16, 16),
+        (relay.Any(), 16, 32),
+        (relay.Any(), 32, 16),
+        trans_y=False,
+    )
+    verify_any_batch_matmul(
+        (5, 32, 16),
+        (5, 32, 20),
+        (5, 16, 20),
+        (relay.Any(), 32, 16),
+        (relay.Any(), 32, 20),
+        trans_x=True,
+        trans_y=False,
+    )
+
+
 @tvm.testing.uses_gpu
 def verify_any_pad(data_shape, pad_width, static_data_shape):
     mod = tvm.IRModule()
@@ -897,6 +1078,72 @@ def verify_any_softmax(data_shape, axis, static_data_shape, ref_out_shape):
 def test_any_softmax():
     verify_any_softmax(any_dims(3), -1, (1, 2, 3), (1, 2, 3))
     verify_any_softmax(any_dims(4), 2, (13, 11, 3, 1), (13, 11, 3, 1))
+
+
+def verify_any_relu(data_shape, static_data_shape, ref_out_shape):
+    mod = tvm.IRModule()
+    dtype = "float32"
+    data = relay.var("data", shape=data_shape, dtype=dtype)
+    y = relay.nn.relu(data)
+    mod["main"] = relay.Function([data], y)
+    data_np = np.random.uniform(size=static_data_shape).astype(dtype)
+    check_result([data_np], mod, ref_out_shape, assert_shape=True)
+
+
+@tvm.testing.uses_gpu
+def test_any_relu():
+    verify_any_relu(any_dims(3), (1, 2, 3), (1, 2, 3))
+    verify_any_relu(any_dims(4), (13, 11, 3, 1), (13, 11, 3, 1))
+
+
+def verify_any_prelu(data_shape, alpha, static_data_shape, ref_out_shape):
+    mod = tvm.IRModule()
+    dtype = "float32"
+    data = relay.var("data", shape=data_shape, dtype=dtype)
+    alpha = relay.const(np.array([alpha]), dtype=dtype)
+    y = relay.nn.prelu(data, alpha)
+    mod["main"] = relay.Function([data], y)
+    data_np = np.random.uniform(size=static_data_shape).astype(dtype)
+    check_result([data_np], mod, ref_out_shape, assert_shape=True)
+
+
+@tvm.testing.uses_gpu
+def test_any_prelu():
+    verify_any_prelu(any_dims(3), 1, (1, 2, 3), (1, 2, 3))
+    verify_any_prelu(any_dims(4), 2, (13, 11, 3, 1), (13, 11, 3, 1))
+
+
+def verify_any_leaky_relu(data_shape, alpha, static_data_shape, ref_out_shape):
+    mod = tvm.IRModule()
+    dtype = "float32"
+    data = relay.var("data", shape=data_shape, dtype=dtype)
+    y = relay.nn.leaky_relu(data, alpha)
+    mod["main"] = relay.Function([data], y)
+    data_np = np.random.uniform(size=static_data_shape).astype(dtype)
+    check_result([data_np], mod, ref_out_shape, assert_shape=True)
+
+
+@tvm.testing.uses_gpu
+def test_any_leaky_relu():
+    verify_any_leaky_relu(any_dims(3), 0.1, (1, 2, 3), (1, 2, 3))
+    verify_any_leaky_relu(any_dims(4), 0.2, (13, 11, 3, 1), (13, 11, 3, 1))
+
+
+def verify_any_bias_add(data_shape, static_data_shape, ref_out_shape):
+    mod = tvm.IRModule()
+    dtype = "float32"
+    data = relay.var("data", shape=data_shape, dtype=dtype)
+    bias = relay.const(np.random.randn(1), dtype=dtype)
+    y = relay.nn.bias_add(data, bias)
+    mod["main"] = relay.Function([data], y)
+    data_np = np.random.uniform(size=static_data_shape).astype(dtype)
+    check_result([data_np], mod, ref_out_shape, assert_shape=True)
+
+
+@tvm.testing.uses_gpu
+def test_any_bias_add():
+    verify_any_bias_add(any_dims(3), (1, 2, 3), (1, 2, 3))
+    verify_any_bias_add(any_dims(4), (13, 11, 3, 1), (13, 11, 3, 1))
 
 
 def verify_any_topk(data_shape, kval, np_dshape, dtype, ret_type="indices", const_k=False):
@@ -1275,7 +1522,7 @@ def test_any_ndarray_size():
     verify_any_ndarray_size((1, 2, 3, 4))
 
 
-def verify_any_resize(data_shape, scale, layout, static_data_shape, ref_out_shape):
+def verify_any_resize2d(data_shape, scale, layout, static_data_shape, ref_out_shape):
     mod = tvm.IRModule()
     dtype = "float32"
     data = relay.var("data", shape=data_shape, dtype=dtype)
@@ -1283,7 +1530,7 @@ def verify_any_resize(data_shape, scale, layout, static_data_shape, ref_out_shap
         size = (data_shape[1] * scale, data_shape[2] * scale)
     else:
         size = (data_shape[2] * scale, data_shape[3] * scale)
-    y = relay.image.resize(data, size, layout)
+    y = relay.image.resize2d(data, size, layout)
     mod["main"] = relay.Function([data], y)
     data_np = np.random.uniform(size=static_data_shape).astype(dtype)
     check_result([data_np], mod, ref_out_shape, assert_shape=True)
@@ -1291,14 +1538,14 @@ def verify_any_resize(data_shape, scale, layout, static_data_shape, ref_out_shap
 
 @tvm.testing.uses_gpu
 def test_any_resize():
-    verify_any_resize(
+    verify_any_resize2d(
         data_shape=(relay.Any(), 4, 4, 4),
         scale=2,
         layout="NHWC",
         static_data_shape=(1, 4, 4, 4),
         ref_out_shape=(1, 8, 8, 4),
     )
-    verify_any_resize(
+    verify_any_resize2d(
         data_shape=(relay.Any(), 8, 17, 20),
         scale=3,
         layout="NCHW",

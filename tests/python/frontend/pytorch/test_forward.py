@@ -1569,8 +1569,10 @@ def test_forward_linear():
             return F.linear(input, weight)
 
     input2d = torch.rand([2, 2]).float()
+    input3d = torch.rand([4, 3, 2]).float()
     weight1d = torch.rand([2]).float()
     weight2d = torch.rand([2, 2]).float()
+    weight3x2 = torch.rand([3, 2]).float()
     bias1d = torch.rand([2]).float()
     bias2d = torch.rand([2, 2]).float()
     # 2D input, 2D weight, 1D bias
@@ -1579,9 +1581,12 @@ def test_forward_linear():
     verify_model(Linear(), input_data=[input2d, weight2d, bias2d])
     # 2D input, 2D weight, no bias
     verify_model(LinearNoBias(), input_data=[input2d, weight2d])
+    verify_model(LinearNoBias(), input_data=[input2d, weight3x2])
     # 2D input, 1D weight, 1D bias is not supported by torch.linear()
     # 2D input, 1D weight, no bias
     verify_model(LinearNoBias(), input_data=[input2d, weight1d])
+    # 3D input, 2D weight, no bias
+    verify_model(LinearNoBias(), input_data=[input3d, weight3x2])
     # TODO: Add the following cases when matmul(1D, _) is supported by TVM
     # 1D input, 2D weight, 1D bias
     # 1D input, 2D weight, no bias
@@ -1756,6 +1761,9 @@ def test_upsample():
     verify_model(Upsample(size=(64, 64), mode="bilinear", align_corners=True), inp)
     verify_model(Upsample(scale=2, mode="bilinear", align_corners=True), inp)
     verify_model(Upsample(size=(50, 50), mode="bilinear", align_corners=True), inp)
+    verify_model(Upsample(size=(64, 64), mode="bicubic", align_corners=True), inp)
+    verify_model(Upsample(scale=2, mode="bicubic", align_corners=True), inp)
+    verify_model(Upsample(size=(50, 50), mode="bicubic", align_corners=True), inp)
 
 
 @tvm.testing.uses_gpu
@@ -3893,6 +3901,25 @@ def test_forward_nll_loss():
     verify_model(torch.nn.NLLLoss(reduction="none").eval(), input_data=[predictions, targets])
 
 
+@tvm.testing.uses_gpu
+def test_forward_flip():
+    torch.set_grad_enabled(False)
+
+    class Flip(Module):
+        def __init__(self, axis=0):
+            super().__init__()
+            self.axis = axis
+
+        def forward(self, x):
+            return x.flip([self.axis])
+
+    input = torch.randn(2, 3, 4)
+    verify_model(Flip(axis=0), input_data=input)
+    verify_model(Flip(axis=1), input_data=input)
+    verify_model(Flip(axis=2), input_data=input)
+    verify_model(Flip(axis=-1), input_data=input)
+
+
 if __name__ == "__main__":
     # some structural tests
     test_forward_traced_function()
@@ -3962,6 +3989,7 @@ if __name__ == "__main__":
     test_forward_logsoftmax()
     test_forward_sigmoid()
     test_forward_dense()
+    test_forward_linear()
     test_forward_avgpool1d()
     test_forward_avgpool2d()
     test_forward_avgpool3d()
@@ -4035,6 +4063,7 @@ if __name__ == "__main__":
     test_hard_swish()
     test_hard_sigmoid()
     test_forward_nll_loss()
+    test_forward_flip()
 
     # Model tests
     test_resnet18()

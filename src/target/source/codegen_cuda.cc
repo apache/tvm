@@ -23,7 +23,9 @@
 
 #include "codegen_cuda.h"
 
+#include <tvm/arith/analyzer.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/tir/stmt_functor.h>
 
 #include <cmath>
 #include <string>
@@ -45,6 +47,45 @@ void CodeGenCUDA::Init(bool output_ssa) {
 }
 
 void CodeGenCUDA::PrintFuncPrefix() { stream << "extern \"C\" __global__ void"; }
+
+class ThreadIdxExtractor : public tir::StmtVisitor {
+ private:
+  void VisitStmt_(const AttrStmtNode* op) final {
+    if (op->attr_key == tir::attr::thread_extent) {
+      IterVar iv = Downcast<IterVar>(op->node);
+      if (iv->var->name_hint == "threadIdx.x" || iv->thread_tag == "threadIdx.x") {
+        threadIdx_x_ext = op->value;
+      }
+      if (iv->var->name_hint == "threadIdx.y" || iv->thread_tag == "threadIdx.y") {
+        threadIdx_y_ext = op->value;
+      }
+      if (iv->var->name_hint == "threadIdx.z" || iv->thread_tag == "threadIdx.z") {
+        threadIdx_z_ext = op->value;
+      }
+    }
+    StmtVisitor::VisitStmt_(op);
+  }
+
+ public:
+  PrimExpr threadIdx_x_ext = Integer(1);
+  PrimExpr threadIdx_y_ext = Integer(1);
+  PrimExpr threadIdx_z_ext = Integer(1);
+};
+
+void CodeGenCUDA::PrintExtraAttrs(const PrimFunc& f) {
+  ThreadIdxExtractor extractor;
+  extractor(f->body);
+  arith::Analyzer analyzer;
+  PrimExpr threadIdx_ext = analyzer.Simplify(extractor.threadIdx_x_ext * extractor.threadIdx_y_ext *
+                                             extractor.threadIdx_z_ext);
+  if (const IntImmNode* const threadIdx_ext_int = threadIdx_ext.as<IntImmNode>()) {
+    if (threadIdx_ext_int->value == 1) {
+      // unable to extract the number of threads per block, hence directly return
+      return;
+    }
+    stream << " __launch_bounds__(" << threadIdx_ext_int->value << ")";
+  }
+}
 
 std::string CodeGenCUDA::Finish() {
   if (enable_fp16_) {
@@ -525,6 +566,8 @@ void CodeGenCUDA::PrintStorageScope(const std::string& scope, std::ostream& os) 
                                 "all global arrays as input instead";
   if (scope == "shared") {
     os << "__shared__ ";
+  } else if (scope == "shared.dyn") {
+    os << "extern __shared__ ";
   }
 }
 
@@ -703,14 +746,8 @@ void CodeGenCUDA::VisitStmt_(const AllocateNode* op) {
   std::string vid = AllocVarID(op->buffer_var.get());
 
   this->PrintIndent();
-  int32_t constant_size = op->constant_allocation_size();
-  ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation for now";
+  std::string scope = GetPtrStorageScope(op->buffer_var);
   const VarNode* buffer = op->buffer_var.as<VarNode>();
-  auto it = alloc_storage_scope_.find(buffer);
-  ICHECK(it != alloc_storage_scope_.end())
-      << "Buffer " << op->buffer_var << " is missing an AttrStmt with a \"storage_scope\" key";
-
-  std::string scope = it->second;
   if (scope.find("wmma.") == 0) {
     if (scope == "wmma.matrix_a" || scope == "wmma.matrix_b") {
       ICHECK(op->dtype == DataType::Float(16) || op->dtype == DataType::Int(8) ||
@@ -724,18 +761,28 @@ void CodeGenCUDA::VisitStmt_(const AllocateNode* op) {
              op->dtype == DataType::Int(32))
           << "Accumulator only support half, float and int type for now";
     }
-    constant_size = GetWmmaFragmentSize(scope, buffer, constant_size);
     PrintWmmaScope(scope, op->dtype, buffer, stream);
   } else {
     PrintStorageScope(scope, stream);
     PrintType(op->dtype, stream);
   }
-  if ((op->dtype == DataType::Int(4) || op->dtype == DataType::UInt(4) ||
-       op->dtype == DataType::Int(1)) &&
-      scope == "shared") {
-    constant_size = constant_size / (32 / op->dtype.bits());
+
+  if (scope == "shared.dyn") {
+    stream << ' ' << vid << "[];\n";
+  } else {
+    int32_t constant_size = op->constant_allocation_size();
+    ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation for now";
+
+    if (scope.find("wmma.") == 0) {
+      constant_size = GetWmmaFragmentSize(scope, buffer, constant_size);
+    }
+    if ((op->dtype == DataType::Int(4) || op->dtype == DataType::UInt(4) ||
+         op->dtype == DataType::Int(1)) &&
+        scope == "shared") {
+      constant_size = constant_size / (32 / op->dtype.bits());
+    }
+    stream << ' ' << vid << '[' << constant_size << "];\n";
   }
-  stream << ' ' << vid << '[' << constant_size << "];\n";
 
   RegisterHandleType(op->buffer_var.get(), op->dtype);
   this->PrintStmt(op->body);

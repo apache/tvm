@@ -177,22 +177,111 @@ def test_complete_part_region():
     _check_elementwise(func_with_part_access_region)
 
 
-def test_complete_opaque_block_error():
-    def render(e):
-        pass
+@tvm.script.tir
+def func_with_bufferslice_indices(data: ty.handle, index: ty.handle) -> None:
+    data_buf = tir.match_buffer(data, (16, 16), "float32")
+    index_buf = tir.match_buffer(index, (1,), "int32")
+    out_buf = tir.alloc_buffer((16, 16), "float32")
 
-    override_renderer(render)
+    with tir.block([16, 16]) as [vi, vj]:
+        out_buf[vi, vj] = data_buf[vi, index_buf[0]]
 
-    try:
-        from_source(func_with_opaque_block)
-    except tvm.error.DiagnosticError:
-        return
-    assert False
+
+@tvm.script.tir
+def expected_bufferslice_indices(data: ty.handle, index: ty.handle) -> None:
+    index_buf = tir.match_buffer(
+        index, [1], dtype="int32", elem_offset=0, align=128, offset_factor=1
+    )
+    data_buf = tir.match_buffer(data, [16, 16], elem_offset=0, align=128, offset_factor=1)
+    with tir.block([], "root"):
+        tir.reads([])
+        tir.writes([])
+        out_buf = tir.alloc_buffer([16, 16], elem_offset=0, align=128, offset_factor=1)
+        for i0, i1 in tir.grid(16, 16):
+            with tir.block([16, 16], "") as [vi, vj]:
+                tir.bind(vi, i0)
+                tir.bind(vj, i1)
+                tir.reads([data_buf[vi, 0:16], index_buf[0]])
+                tir.writes([out_buf[vi, vj]])
+                out_buf[vi, vj] = data_buf[vi, index_buf[0]]
+
+
+@tvm.script.tir
+def func_with_recursive_bufferslice_indices(data: ty.handle, index: ty.handle) -> None:
+    data_buf = tir.match_buffer(data, (16, 16), "float32")
+    index_buf = tir.match_buffer(index, (1,), "int32")
+    out_buf = tir.alloc_buffer((16, 16), "float32")
+
+    with tir.block([16, 16]) as [vi, vj]:
+        out_buf[vi, vj] = data_buf[index_buf[index_buf[0]], index_buf[0]]
+
+
+@tvm.script.tir
+def expected_recursive_bufferslice_indices(data: ty.handle, index: ty.handle) -> None:
+    index_buf = tir.match_buffer(
+        index, [1], dtype="int32", elem_offset=0, align=128, offset_factor=1
+    )
+    data_buf = tir.match_buffer(data, [16, 16], elem_offset=0, align=128, offset_factor=1)
+    with tir.block([], "root"):
+        tir.reads([])
+        tir.writes([])
+        out_buf = tir.alloc_buffer([16, 16], elem_offset=0, align=128, offset_factor=1)
+        for i0, i1 in tir.grid(16, 16):
+            with tir.block([16, 16], "") as [vi, vj]:
+                tir.bind(vi, i0)
+                tir.bind(vj, i1)
+                tir.reads([data_buf[0:16, 0:16], index_buf[0]])
+                tir.writes([out_buf[vi, vj]])
+                out_buf[vi, vj] = data_buf[index_buf[index_buf[0]], index_buf[0]]
+
+
+def test_complete_buffer_indices():
+    new_func = tvm.script.from_source(tvm.script.asscript(func_with_bufferslice_indices))
+    tvm.ir.assert_structural_equal(new_func, expected_bufferslice_indices)
+    new_func = tvm.script.from_source(tvm.script.asscript(func_with_recursive_bufferslice_indices))
+    tvm.ir.assert_structural_equal(new_func, expected_recursive_bufferslice_indices)
+
+
+@tvm.script.tir
+def match_buffer_func(a: ty.handle) -> None:
+    A = tir.match_buffer(a, (16, 16))
+    for i in range(0, 16):
+        with tir.block([]):
+            A0 = tir.match_buffer(A[i, 0:16], (16))
+            with tir.block([]):
+                for j in range(0, 16):
+                    with tir.block([]) as []:
+                        A1 = tir.match_buffer(A0[j], ())
+                        A1[()] = 1.0
+
+
+@tvm.script.tir
+def expected_match_buffer_func(a: ty.handle) -> None:
+    A = tir.match_buffer(a, (16, 16))
+    for i in range(0, 16):
+        with tir.block([]):
+            tir.reads([])
+            tir.writes(A[i, 0:16])
+            A0 = tir.match_buffer(A[i, 0:16], (16))
+            with tir.block([]):
+                tir.reads([])
+                tir.writes(A0[0:16])
+                for j in range(0, 16):
+                    with tir.block([]) as []:
+                        tir.reads([])
+                        tir.writes(A0[j])
+                        A1 = tir.match_buffer(A0[j], ())
+                        A1[()] = 1.0
+
+
+def test_complete_match_buffer():
+    tvm.ir.assert_structural_equal(match_buffer_func, expected_match_buffer_func)
 
 
 if __name__ == "__main__":
     test_complete_matmul()
     test_complete_matmul_original()
     test_complete_with_root()
-    test_complete_opaque_block_error()
     test_complete_part_region()
+    test_complete_buffer_indices()
+    test_complete_match_buffer()

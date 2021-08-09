@@ -336,8 +336,8 @@ class TVMCPackage(object):
             with open(temp.relpath("metadata.json")) as metadata_json:
                 metadata = json.load(metadata_json)
 
-            is_graph_runtime = "graph" in metadata["runtimes"]
-            graph = temp.relpath("runtime-config/graph/graph.json") if is_graph_runtime else None
+            has_graph_executor = "graph" in metadata["executors"]
+            graph = temp.relpath("executor-config/graph/graph.json") if has_graph_executor else None
             params = temp.relpath("parameters/default.params")
 
             self.type = "mlf"

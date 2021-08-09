@@ -26,6 +26,8 @@
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
+#include "ir_utils.h"
+
 namespace tvm {
 namespace tir {
 
@@ -145,10 +147,15 @@ class BufferAllocationLocator : public StmtExprMutator {
 };
 
 PrimFunc PlanAndUpdateBufferAllocationLocation(PrimFunc func) {
-  auto fptr = func.CopyOnWrite();
-  BufferAllocationLocator locator(func);
-  fptr->body = locator(fptr->body);
-  return func;
+  // Only apply this pass to TIR that is not from TE schedules
+  if (!IsFromLegacyTESchedule(func)) {
+    auto fptr = func.CopyOnWrite();
+    BufferAllocationLocator locator(func);
+    fptr->body = locator(fptr->body);
+    return func;
+  } else {
+    return func;
+  }
 }
 
 namespace transform {
