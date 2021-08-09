@@ -37,7 +37,8 @@ def partition_for_cmsisnn(mod, params=None, **opts):
 
     Returns
     -------
-    ret : annotated and partitioned module.
+    ret : Module
+        annotated and partitioned module.
     """
     if params:
         mod["main"] = bind_params_by_name(mod["main"], params)
