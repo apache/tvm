@@ -195,6 +195,7 @@ class TECompilerImpl : public TECompilerNode {
       auto target = Target("ext_dev");
       auto global_var = GlobalVar(func_name);
       global_var->checked_type_ = key->source_func->checked_type();
+      ir_module->Add(global_var, key->source_func);
       value->cached_func = CachedFunc(target, global_var, {}, {}, te::Schedule(), {}, ir_module);
       return value;
     }
@@ -347,12 +348,6 @@ class LowerTensorExpr : public ExprMutator {
                                  << ext_func->prim_fn_var->name_hint;
 
       Map<GlobalVar, tir::PrimFunc> prim_fns;
-
-      for (auto prim_fn : ext_func->funcs->functions) {
-        CHECK(prim_fn.second.as<tir::PrimFuncNode>()) << "must be a prim fn";
-        prim_fns.Set(prim_fn.first, Downcast<tir::PrimFunc>(prim_fn.second));
-      }
-
       relay::Function func_with_metadata = func;
       func_with_metadata = WithAttr(func_with_metadata, "prim_fn_var", ext_func->prim_fn_var);
       func_with_metadata = WithAttr(func_with_metadata, "prim_funcs", prim_fns);
