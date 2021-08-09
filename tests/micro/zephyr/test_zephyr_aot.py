@@ -15,8 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import datetime
-from hashlib import new
 import io
 import logging
 import os
@@ -213,11 +211,10 @@ def test_tflite(temp_dir, platform, west_cmd, skip_build, tvm_debug):
 
     project.flash()
     with project.transport() as transport:
-        read_timeout = 60
-        _get_message(transport, "#wakeup", timeout_sec=read_timeout)
+        timeout_read = 60
+        _get_message(transport, "#wakeup", timeout_sec=timeout_read)
         transport.write(b"start\n", timeout_sec=5)
-
-        result_line = _get_message(transport, "#result", timeout_sec=read_timeout)
+        result_line = _get_message(transport, "#result", timeout_sec=timeout_read)
 
     result_line = result_line.strip("\n")
     result_line = result_line.split(":")
