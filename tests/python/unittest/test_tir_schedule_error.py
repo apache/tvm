@@ -42,7 +42,7 @@ def matmul(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
 
 
 def test_tir_schedule_error_detail():
-    sch = tir.Schedule(matmul, debug_mode=True, error_render_level="detail")
+    sch = tir.Schedule(matmul, debug_mask="all", error_render_level="detail")
     with pytest.raises(tir.ScheduleError) as excinfo:
         sch.get_block("wrong_name")
     (msg,) = excinfo.value.args
@@ -50,7 +50,7 @@ def test_tir_schedule_error_detail():
 
 
 def test_tir_schedule_error_fast():
-    sch = tir.Schedule(matmul, debug_mode=True, error_render_level="fast")
+    sch = tir.Schedule(matmul, debug_mask="all", error_render_level="fast")
     with pytest.raises(tir.ScheduleError) as excinfo:
         sch.get_block("wrong_name")
     (msg,) = excinfo.value.args
@@ -58,7 +58,7 @@ def test_tir_schedule_error_fast():
 
 
 def test_tir_schedule_error_none():
-    sch = tir.Schedule(matmul, debug_mode=True, error_render_level="none")
+    sch = tir.Schedule(matmul, debug_mask="all", error_render_level="none")
     with pytest.raises(tir.ScheduleError) as excinfo:
         sch.get_block("wrong_name")
     (msg,) = excinfo.value.args
