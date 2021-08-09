@@ -63,10 +63,6 @@ from .workload_registry import (
     deserialize_workload_registry_entry,
 )
 
-from .task_input_buffer import (
-    serialize_task_input_buffer,
-    deserialize_task_input_buffer,
-)
 
 # pylint: disable=invalid-name
 logger = logging.getLogger("auto_scheduler")
@@ -145,14 +141,12 @@ class MeasureInput(Object):
         return [
             _ffi_api.SerializeMeasureInput(self),
             serialize_workload_registry_entry(self.task.workload_key),
-            serialize_task_input_buffer(self.task.workload_key),
         ]
 
     @staticmethod
     def deserialize(data):
         inp = _ffi_api.DeserializeMeasureInput(data[0])
         deserialize_workload_registry_entry(data[1])
-        deserialize_task_input_buffer(data[2])
         return recover_measure_input(inp)
 
 
