@@ -825,10 +825,56 @@ def prepare_input_map(args):
     return tensor_input_map
 
 
+def prepare_runner_args(inp, build_res):
+    """This function prepare the arguments for local/rpc runner in main process
+    Parameters
+    ----------
+    inp : MeasureInput
+        Measure input to be measured.
+
+    build_res : BuildResult
+        Build result to be measured.
+
+    Returns
+    -------
+    List[NDArray, None] :
+        List of NDArray of task input buffer. None if argument not present in task_input_names.
+
+    """
+    # pylint: disable=import-outside-toplevel
+    from .search_task import get_task_input_buffer  # lazily import to avoid recursive dependency
+
+    task_input_names = inp.task.task_input_names
+    dev = ndarray.device(str(inp.task.target), 0)
+    tensor_input_map = prepare_input_map(build_res.args)
+    if not task_input_names:
+        tensor_input_map = {}
+    args = []
+    task_inputs_count = 0
+    for arg in build_res.args:
+        if arg in tensor_input_map:
+            tensor_name = tensor_input_map[arg]
+            if tensor_name in task_input_names:
+                temp_ndarray = get_task_input_buffer(inp.task.workload_key, tensor_name)
+                # convert tvm.NDArray to picklable numpy.ndarray
+                args.append(ndarray.NDArray.numpy(temp_ndarray))
+                task_inputs_count += 1
+            else:
+                raise ValueError(
+                    "%s not found in task_inputs, " % (tensor_name)
+                    + "should provide with `SearchTask(..., task_inputs={...})`"
+                )
+        else:
+            args.append(None)
+    if task_inputs_count != len(task_input_names):
+        raise RuntimeError("task_inputs not fully matched, check if there's any unexpected error")
+    return args
+
+
 def _timed_eval_func(
     inp_serialized,
     build_res,
-    tensor_input_map,
+    args,
     number,
     repeat,
     min_repeat_ms,
@@ -836,11 +882,7 @@ def _timed_eval_func(
     enable_cpu_cache_flush,
     verbose,
 ):
-    # pylint: disable=import-outside-toplevel
-    from .search_task import get_task_input_buffer  # lazily import to avoid recursive dependency
-
     inp = MeasureInput.deserialize(inp_serialized)
-    task_input_names = inp.task.task_input_names
     tic = time.time()
     error_no = 0
     error_msg = None
@@ -871,34 +913,17 @@ def _timed_eval_func(
         try:
             random_fill = tvm.get_global_func("tvm.contrib.random.random_fill", True)
             assert random_fill, "Please make sure USE_RANDOM is ON in the config.cmake"
-
-            if not task_input_names:
-                tensor_input_map = {}
-            args = []
-            task_inputs_count = 0
-            for arg in build_res.args:
-                if arg in tensor_input_map:
-                    tensor_name = tensor_input_map[arg]
-                    if tensor_name in task_input_names:
-                        args.append(
-                            ndarray.array(
-                                get_task_input_buffer(inp.task.workload_key, tensor_name), dev
-                            )
-                        )
-                        task_inputs_count += 1
-                    else:
-                        raise ValueError(
-                            "%s not found in task_inputs, " % (tensor_name)
-                            + "should provide with `SearchTask(..., task_inputs={...})`"
-                        )
-                else:
-                    empty_array = ndarray.empty(get_const_tuple(arg.shape), arg.dtype, dev)
+            assert len(args) == len(build_res.args)
+            for idx in range(len(args)):
+                if args[idx] == None:
+                    build_res_arg = build_res.args[idx]
+                    empty_array = ndarray.empty(
+                        get_const_tuple(build_res_arg.shape), build_res_arg.dtype, dev
+                    )
                     random_fill(empty_array)
-                    args.append(empty_array)
-            if task_inputs_count != len(task_input_names):
-                raise RuntimeError(
-                    "task_inputs not fully matched, check if there's any unexpected error"
-                )
+                    args[idx] = empty_array
+                else:
+                    args[idx] = ndarray.array(args[idx], dev)
             dev.sync()
             costs = time_f(*args).results
         # pylint: disable=broad-except
@@ -978,7 +1003,6 @@ def local_run(
 
     measure_results = []
     assert len(inputs) == len(build_results), "Measure input size should be equal to build results"
-    tensor_input_map = prepare_input_map(build_results.args)
     for inp, build_res in zip(inputs, build_results):
         if build_res.error_no != 0:
             res = (
@@ -989,13 +1013,14 @@ def local_run(
                 time.time(),
             )
         else:
+            args = prepare_runner_args(inp, build_res)
             res = call_func_with_timeout(
                 timeout,
                 _timed_eval_func,
                 args=(
                     inp.serialize(),
                     build_res,
-                    tensor_input_map,
+                    args,
                     number,
                     repeat,
                     min_repeat_ms,
@@ -1036,10 +1061,10 @@ def local_run(
 def _timed_rpc_run(
     inp_serialized,
     build_res,
+    args,
     key,
     host,
     port,
-    tensor_input_map,
     priority,
     timeout,
     number,
@@ -1049,11 +1074,7 @@ def _timed_rpc_run(
     enable_cpu_cache_flush,
     verbose,
 ):
-    # pylint: disable=import-outside-toplevel
-    from .search_task import get_task_input_buffer  # lazily import to avoid recursive dependency
-
     inp = MeasureInput.deserialize(inp_serialized)
-    task_input_names = inp.task.task_input_names
     tic = time.time()
     error_no = 0
     error_msg = None
@@ -1092,33 +1113,17 @@ def _timed_rpc_run(
                 random_fill
             ), "Please make sure USE_RANDOM is ON in the config.cmake on the remote devices"
 
-            if not task_input_names:
-                tensor_input_map = {}
-            args = []
-            task_inputs_count = 0
-            for arg in build_res.args:
-                if arg in tensor_input_map:
-                    tensor_name = tensor_input_map[arg]
-                    if tensor_name in task_input_names:
-                        args.append(
-                            ndarray.array(
-                                get_task_input_buffer(inp.task.workload_key, tensor_name), dev
-                            )
-                        )
-                        task_inputs_count += 1
-                    else:
-                        raise ValueError(
-                            "%s not found in task_inputs, " % (tensor_name)
-                            + "should provide with `SearchTask(..., task_inputs={...})`"
-                        )
-                else:
-                    empty_array = ndarray.empty(get_const_tuple(arg.shape), arg.dtype, dev)
+            assert len(args) == len(build_res.args)
+            for idx in range(len(args)):
+                if args[idx] == None:
+                    build_res_arg = build_res.args[idx]
+                    empty_array = ndarray.empty(
+                        get_const_tuple(build_res_arg.shape), build_res_arg.dtype, dev
+                    )
                     random_fill(empty_array)
-                    args.append(empty_array)
-            if task_inputs_count != len(task_input_names):
-                logger.warning(
-                    "task_inputs not fully matched, check if there's any unexpected error"
-                )
+                    args[idx] = empty_array
+                else:
+                    args[idx] = ndarray.array(args[idx], dev)
             dev.sync()
 
             # First run for check that the kernel is correct
@@ -1207,7 +1212,6 @@ def rpc_runner_run(
     key,
     host,
     port,
-    tensor_input_map,
     priority=1,
     n_parallel=1,
     timeout=10,
@@ -1274,13 +1278,13 @@ def rpc_runner_run(
     assert len(inputs) == len(build_results), "Measure input size should be equal to build results"
     # This pool is not doing computationally intensive work, so we can use threads
     pool = ThreadPool(n_parallel)
-    tensor_input_map = prepare_input_map(build_results.args)
     tuple_res = pool.map(
         _rpc_run_worker,
         [
             (
                 inp.serialize(),
                 build_res,
+                prepare_runner_args(inp, build_res),
                 key,
                 host,
                 port,
@@ -1292,7 +1296,6 @@ def rpc_runner_run(
                 cooldown_interval,
                 enable_cpu_cache_flush,
                 verbose,
-                tensor_input_map,
             )
             for inp, build_res in zip(inputs, build_results)
         ],
