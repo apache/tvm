@@ -16,6 +16,7 @@
 # under the License.
 
 from collections import OrderedDict
+import sys
 
 import numpy as np
 import pytest
@@ -23,8 +24,7 @@ import pytest
 import tvm
 from tvm import relay
 from tvm.relay import testing, transform
-from tvm.relay.op.annotation import compiler_begin, compiler_end
-from tvm.relay.expr_functor import ExprMutator
+from tvm.relay.testing import byoc
 from aot_test_utils import (
     generate_ref_data,
     convert_to_relay,
@@ -320,7 +320,6 @@ def test_tuple_output(interface_api, use_unpacked_api, use_calculated_workspaces
     y = relay.split(x, 3).astuple()
     a = relay.TupleGetItem(y, 0)
     b = relay.TupleGetItem(y, 1)
-    c = relay.TupleGetItem(y, 2)
     out = relay.Tuple([a, b])
     func = relay.Function([x], out)
     x_data = np.random.rand(6, 9).astype("float32")
@@ -360,60 +359,6 @@ def test_mobilenet(use_calculated_workspaces, workspace_byte_alignment):
     )
 
 
-class CcompilerAnnotator(ExprMutator):
-    """
-    This is used to create external functions for ccompiler.
-    A simple annotator that creates the following program:
-           |
-      -- begin --
-           |
-          add
-           |
-        subtract
-           |
-        multiply
-           |
-       -- end --
-           |
-    """
-
-    def __init__(self):
-        super(CcompilerAnnotator, self).__init__()
-        self.in_compiler = 0
-
-    def visit_call(self, call):
-        if call.op.name == "add":  # Annotate begin at args
-            if self.in_compiler == 1:
-                lhs = compiler_begin(super().visit(call.args[0]), "ccompiler")
-                rhs = compiler_begin(super().visit(call.args[1]), "ccompiler")
-                op = relay.add(lhs, rhs)
-                self.in_compiler = 2
-                return op
-        elif call.op.name == "subtract":
-            if self.in_compiler == 1:
-                lhs = super().visit(call.args[0])
-                rhs = super().visit(call.args[1])
-                if isinstance(lhs, relay.expr.Var):
-                    lhs = compiler_begin(lhs, "ccompiler")
-                if isinstance(rhs, relay.expr.Var):
-                    rhs = compiler_begin(rhs, "ccompiler")
-                return relay.subtract(lhs, rhs)
-        elif call.op.name == "multiply":  # Annotate end at output
-            self.in_compiler = 1
-            lhs = super().visit(call.args[0])
-            rhs = super().visit(call.args[1])
-            if isinstance(lhs, relay.expr.Var):
-                lhs = compiler_begin(lhs, "ccompiler")
-            if isinstance(rhs, relay.expr.Var):
-                rhs = compiler_begin(rhs, "ccompiler")
-            op = relay.multiply(lhs, rhs)
-            if self.in_compiler == 2:
-                op = compiler_end(op, "ccompiler")
-            self.in_compiler = 0
-            return op
-        return super().visit_call(call)
-
-
 @pytest.mark.parametrize("use_calculated_workspaces", [True, False])
 def test_byoc_microtvm(use_calculated_workspaces):
     """This is a simple test case to check BYOC capabilities of AOT"""
@@ -446,7 +391,7 @@ def test_byoc_microtvm(use_calculated_workspaces):
     r = relay.concatenate((q0, q1, q2), axis=0)
     f = relay.Function([x, w0, w1, w2, w3, w4, w5, w6, w7], r)
     mod = tvm.IRModule()
-    ann = CcompilerAnnotator()
+    ann = byoc.CcompilerAnnotator()
     mod["main"] = ann.visit(f)
 
     mod = tvm.relay.transform.PartitionGraph("mod_name")(mod)
@@ -619,4 +564,4 @@ def test_transpose(interface_api, use_unpacked_api, use_calculated_workspaces):
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))
