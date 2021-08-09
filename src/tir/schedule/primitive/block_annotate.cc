@@ -35,7 +35,7 @@ class StorageAlignAxisOutOfRangeError : public ScheduleError {
   String DetailRenderTemplate() const final {
     std::ostringstream os;
     int ndim = static_cast<int>(buffer_->shape.size());
-    os << "The buffer to set storage alignment " << buffer_->name << " has " << ndim
+    os << "The buffer to set storage alignment of, " << buffer_->name << ", has " << ndim
        << " dimension(s), so `axis` is required to be in [" << -(ndim) << ", " << ndim
        << ") for storage_align. However, the input `axis` is " << axis_
        << ", which is out of the expected range.";
