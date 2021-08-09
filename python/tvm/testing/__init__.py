@@ -25,6 +25,7 @@ from .utils import requires_gpu, requires_llvm, requires_rocm, requires_rpc
 from .utils import requires_tensorcore, requires_metal, requires_micro, requires_opencl
 from .utils import _auto_parametrize_target, _count_num_fixture_uses
 from .utils import _remove_global_fixture_definitions, _parametrize_correlated_parameters
+from .utils import _pytest_target_params
 
 from ._ffi_api import nop, echo, device_test, run_check_signal, object_use_count
 from ._ffi_api import test_wrap_callback, test_raise_error_callback, test_check_eq_callback

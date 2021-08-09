@@ -63,7 +63,6 @@ from .workload_registry import (
     deserialize_workload_registry_entry,
 )
 
-
 # pylint: disable=invalid-name
 logger = logging.getLogger("auto_scheduler")
 
@@ -831,8 +830,8 @@ def prepare_runner_args(inp, build_res):
 
     Returns
     -------
-    List[NDArray, None] :
-        List of NDArray of task input buffer. None if argument not present in task_input_names.
+    List[Optional[numpy.ndarray]] :
+        List of numpy.ndarray representation of task input buffer. None if argument not present in task_input_names.
 
     """
     # pylint: disable=import-outside-toplevel
