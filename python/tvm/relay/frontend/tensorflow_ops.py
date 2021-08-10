@@ -31,8 +31,7 @@ from .. import expr as _expr
 from .. import op as _op
 from ..ty import Any
 from .common import AttrCvt, get_relay_op
-from .common import infer_type as _infer_type
-from .common import infer_shape as _infer_shape
+from .common import infer_type, infer_shape
 from .common import infer_channels as _infer_channels
 from .common import infer_value as _infer_value
 
@@ -192,7 +191,7 @@ def _pool3d(name):
         attr["data_format"] = attr["data_format"].decode("utf-8")
         flip_layout = False
 
-        input_shape = _infer_shape(inputs[0], mod)
+        input_shape = infer_shape(inputs[0], mod)
 
         if attr["data_format"] == "NDHWC":
             attr["kernel_shape"] = (attr["ksize"][1], attr["ksize"][2], attr["ksize"][3])
@@ -204,7 +203,7 @@ def _pool3d(name):
             msg = 'Value {} of attribute "data_format" of operator Pooling ' "is not valid."
             raise tvm.error.OpAttributeInvalid(msg.format(attr["data_format"]))
         if attr["data_format"] == "NDHWC":
-            input_shape = [_infer_shape(inputs[0], mod)[i] for i in (0, 4, 1, 2, 3)]
+            input_shape = [infer_shape(inputs[0], mod)[i] for i in (0, 4, 1, 2, 3)]
             inputs[0] = _op.transpose(inputs[0], axes=(0, 4, 1, 2, 3))
             attr["data_format"] = "NCDHW"
             flip_layout = True
@@ -254,7 +253,7 @@ def _pooling(name):
         attr["data_format"] = attr["data_format"].decode("utf-8")
         flip_layout = False
 
-        input_shape = _infer_shape(inputs[0], mod)
+        input_shape = infer_shape(inputs[0], mod)
 
         if attr["data_format"] == "NHWC":
             attr["kernel_shape"] = (attr["ksize"][1], attr["ksize"][2])
@@ -267,7 +266,7 @@ def _pooling(name):
             raise tvm.error.OpAttributeInvalid(msg.format(attr["data_format"]))
 
         if attr["_target_layout"] == "NCHW" and attr["data_format"] == "NHWC":
-            tmp_shape = _infer_shape(inputs[0], mod)
+            tmp_shape = infer_shape(inputs[0], mod)
             input_shape = [tmp_shape[ii] for ii in (0, 3, 1, 2)]
             inputs[0] = _op.transpose(inputs[0], axes=(0, 3, 1, 2))
             attr["data_format"] = "NCHW"
@@ -353,7 +352,7 @@ def _conv(opname):
         inputs_data = inputs[0] if opname != "conv_transpose" else inputs[2]
 
         # NCHW Layout require weights transpose
-        weights_shape = _infer_shape(inputs[1], mod)
+        weights_shape = infer_shape(inputs[1], mod)
         if attr["data_format"] == "NCHW":
             tmp_shape = weights_shape
             if opname in ["conv", "conv_transpose"]:
@@ -364,7 +363,7 @@ def _conv(opname):
                 inputs[1] = _op.transpose(inputs[1], axes=(2, 3, 0, 1))
             weights_shape = tmp_shape
 
-        input_shape = _infer_shape(inputs_data, mod)
+        input_shape = infer_shape(inputs_data, mod)
         if attr["_target_layout"] == "NCHW" and attr["data_format"] == "NHWC":
             input_shape = [input_shape[ii] for ii in (0, 3, 1, 2)]
             inputs_data = _op.transpose(inputs_data, axes=(0, 3, 1, 2))
@@ -495,8 +494,8 @@ def _dilation2d():
         if "data_format" not in attr:
             attr["data_format"] = "NHWC"
 
-        input_shape = _infer_shape(inputs[0], mod)
-        weights_shape = _infer_shape(inputs[1], mod)
+        input_shape = infer_shape(inputs[0], mod)
+        weights_shape = infer_shape(inputs[1], mod)
 
         if attr["_target_layout"] == "NCHW" and attr["data_format"] == "NHWC":
             input_shape = [input_shape[ii] for ii in (0, 3, 1, 2)]
@@ -578,14 +577,14 @@ def _conv3d(opname):
         inputs_data = inputs[0] if opname != "conv_transpose" else inputs[2]
 
         # NCDHW Layout require weights transpose
-        weights_shape = _infer_shape(inputs[1], mod)
+        weights_shape = infer_shape(inputs[1], mod)
         if attr["data_format"] == "NCDHW":
             tmp_shape = weights_shape
             tmp_shape = [tmp_shape[ii] for ii in (4, 3, 0, 1, 2)]
             inputs[1] = _op.transpose(inputs[1], axes=(4, 3, 0, 1, 2))
             weights_shape = tmp_shape
 
-        input_shape = _infer_shape(inputs_data, mod)
+        input_shape = infer_shape(inputs_data, mod)
 
         if attr["_target_layout"] == "NCDHW" and attr["data_format"] == "NDHWC":
             input_shape = [input_shape[ii] for ii in (0, 4, 1, 2, 3)]
@@ -900,8 +899,8 @@ def _combined_nms():
             raise tvm.error.OpAttributeUnImplemented(
                 "pad_per_class for CombinedNonMaxSuppression is not supported"
             )
-        boxes_shape = _infer_shape(inputs[0], mod)
-        scores_shape = _infer_shape(inputs[1], mod)
+        boxes_shape = infer_shape(inputs[0], mod)
+        scores_shape = infer_shape(inputs[1], mod)
         batch_size = boxes_shape[0]
         num_anchors = boxes_shape[1]
         q = boxes_shape[2]
@@ -1153,8 +1152,8 @@ def _batch_matmul():
 
         input_x = inputs[0]
         input_y = inputs[1]
-        orig_shape_x = _infer_shape(input_x, mod)
-        orig_shape_y = _infer_shape(input_y, mod)
+        orig_shape_x = infer_shape(input_x, mod)
+        orig_shape_y = infer_shape(input_y, mod)
         ndim = len(orig_shape_x)
         ndim_y = len(orig_shape_y)
 
@@ -1308,7 +1307,7 @@ def _sparse_fill_empty_rows():
         assert len(inputs) == 4, "There should be 4 input tensors"
         sparse_indices = inputs[0]
         sparse_values = inputs[1]
-        sparse_indices_num_cols = _infer_shape(sparse_indices, mod)[1]
+        sparse_indices_num_cols = infer_shape(sparse_indices, mod)[1]
         first_column = _op.split(sparse_indices, sparse_indices_num_cols, axis=1)[0]
         sorted_indices = _op.argsort(_op.squeeze(first_column))
         sorted_sparse_indices = _op.take(sparse_indices, sorted_indices, axis=0)
@@ -1560,9 +1559,9 @@ def _tensor_array_scatter():
         dtype_str = attr.get("T").name
         input_ta = inputs[0]
         input_shape = get_tensor_array_shape(input_ta, dtype_str, prelude)
-        values_shape = _infer_shape(inputs[2], prelude.mod)
+        values_shape = infer_shape(inputs[2], prelude.mod)
         input_t_shape = values_shape[1:]
-        indices_shape = _infer_shape(inputs[1], prelude.mod)
+        indices_shape = infer_shape(inputs[1], prelude.mod)
 
         if input_shape is None:
             values_rank = len(values_shape)
@@ -1598,7 +1597,7 @@ def _tensor_array_gather():
     def _impl(inputs, attr, params, prelude):
         dtype_str = attr.get("dtype").name
         input_shape = get_tensor_array_shape(inputs[2], dtype_str, prelude)
-        indices_shape = _infer_shape(inputs[1], prelude.mod)
+        indices_shape = infer_shape(inputs[1], prelude.mod)
 
         if input_shape is None:
             gather_func = prelude.get_var("tensor_array_gather", dtype_str)
@@ -1657,7 +1656,7 @@ def _tensor_array_write():
         dtype_str = attr.get("T").name
         input_ta = inputs[3]
         input_ta_shape = get_tensor_array_shape(input_ta, dtype_str, prelude)
-        input_t_shape = _infer_shape(inputs[2], prelude.mod)
+        input_t_shape = infer_shape(inputs[2], prelude.mod)
         input_rank = len(input_t_shape)
 
         if input_ta_shape is None:
@@ -1722,8 +1721,8 @@ def _tensor_array_split():
         input_ta = inputs[0]
         input_ta_shape = get_tensor_array_shape(input_ta, dtype_str, prelude)
         lengths = _op.cast(inputs[2], "int32")
-        lengths_shape = _infer_shape(lengths, prelude.mod)
-        value_shape = _infer_shape(inputs[1], prelude.mod)
+        lengths_shape = infer_shape(lengths, prelude.mod)
+        value_shape = infer_shape(inputs[1], prelude.mod)
         input_rank = len(value_shape)
 
         if input_ta_shape is None:
@@ -1813,7 +1812,7 @@ def _slice():
             size = inputs[2]
 
         # Align begin and strides for dynamic shape.
-        data_dim = len(_infer_shape(inputs[0], mod))
+        data_dim = len(infer_shape(inputs[0], mod))
         strides = [1] * data_dim
         if not isinstance(begin, (_expr.Call, _expr.Var)):
             for _ in range(len(begin), data_dim):
@@ -2030,7 +2029,7 @@ def _relu6():
 def _shape():
     def _impl(inputs, attr, params, mod):
         is_symbolic_shape = False
-        input_shape = _infer_shape(inputs[0], mod)
+        input_shape = infer_shape(inputs[0], mod)
         for axis in input_shape:
             if not isinstance(axis, (int, tvm.tir.IntImm)):
                 is_symbolic_shape = True
@@ -2148,7 +2147,7 @@ def _gather_nd():
     """GatherNd"""
 
     def _impl(inputs, attr, params, mod):
-        indices_dims = len(_infer_shape(inputs[1], mod))
+        indices_dims = len(infer_shape(inputs[1], mod))
         indices = _op.transpose(inputs[1], axes=[-1] + list(range(indices_dims - 1)))
         return AttrCvt(op_name="gather_nd", ignores=["Tindices", "Tparams", "Taxis", "_class"])(
             [inputs[0], indices], attr
@@ -2173,8 +2172,8 @@ def _stridedSlice():
         ellipsis_mask = int(attr.get("ellipsis_mask", 0))
         new_axis_mask = int(attr.get("new_axis_mask", 0))
         shrink_axis_mask = int(attr.get("shrink_axis_mask", 0))
-        in_type = _infer_type(inputs[0], mod)
-        data_shape = get_const_tuple(in_type.checked_type.shape)
+        in_type = infer_type(inputs[0], mod)
+        data_shape = get_const_tuple(in_type.shape)
         data_dim = len(data_shape)
         stride_dim = len(stride)
         if data_dim == 0 and isinstance(inputs[0], _expr.Constant):
@@ -2194,8 +2193,8 @@ def _stridedSlice():
             if ed <= 0 < st:
                 ed += data_shape[0]
 
-            in_shape = _infer_shape(inputs[0].args[0], mod)
-            dtype = in_type.checked_type.dtype
+            in_shape = infer_shape(inputs[0].args[0], mod)
+            dtype = in_type.dtype
             out_data = []
             idx = bg
             while idx < ed:
@@ -2284,7 +2283,7 @@ def _stridedSlice():
         if begin_mask or end_mask or ellipsis_mask or new_axis_mask or shrink_axis_mask:
             begin, end, stride, fshape_indices = _transform_mask(stride_dim, ellipsis_mask)
         out = _op.strided_slice(inputs[0], begin=begin, end=end, strides=stride)
-        out_shape = _infer_shape(out, mod=mod)
+        out_shape = infer_shape(out, mod=mod)
         if not fshape_indices:
             fshape_indices = range(len(out_shape))
 
@@ -2404,7 +2403,7 @@ def _reverse_v2():
 
 def _rank():
     def _impl(inputs, attr, params, mod):
-        input_shape = _infer_shape(inputs[0], mod)
+        input_shape = infer_shape(inputs[0], mod)
 
         name = attr["_node_name"]
         params[name] = tvm.nd.array(np.array([len(input_shape)]).astype("int32"))
@@ -2561,7 +2560,7 @@ def _unpack():
     def _impl(inputs, attr, params, mod):
         input_node = inputs[0]
         axis = attr["axis"]
-        input_shape = _infer_shape(input_node, mod)
+        input_shape = infer_shape(input_node, mod)
         axis_length = input_shape[axis]
         if axis_length < 0:
             raise TypeError("Unstack with unknown axis length")
@@ -2801,8 +2800,8 @@ def _LSTMBlockCell():
         in_weight = inputs[3]
         in_bias = inputs[7]
         forget_bias = attr.pop("forget_bias")
-        input_shape = _infer_shape(inputs[0], mod)
-        weight_shape = _infer_shape(inputs[3], mod)
+        input_shape = infer_shape(inputs[0], mod)
+        weight_shape = infer_shape(inputs[3], mod)
         batch_size, input_size = input_shape[0], input_shape[1]
         num_hidden_layers = weight_shape[1]
 

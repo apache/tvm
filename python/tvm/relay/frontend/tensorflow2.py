@@ -35,7 +35,7 @@ from .. import expr as _expr
 from .. import analysis
 from .. import function as _function
 from ..loops import while_loop as _while_loop
-from .common import infer_type as _infer_type
+from .common import infer_type
 
 from .tensorflow_ops import _convert_map as _convert_map_common
 from .tensorflow_ops import _get_more_static_shape_rank
@@ -51,11 +51,6 @@ __all__ = ["from_tensorflow"]
 _tensor_list_write_ops = {
     "TensorListSetItem": (0, 2),
 }
-
-
-def _infer_type_with_prelude(val, prelude):
-    body = _infer_type(val, prelude.mod)
-    return body.checked_type
 
 
 def set_span(sym, node_name):
@@ -639,10 +634,10 @@ def _convert_loop(module, graph, inputs, attr, node_name, nodes, prelude, gdef_l
         new_vars = []
         for i, v in enumerate(loop_inputs):
             if isinstance(v, _expr.Constant):
-                vtype = _infer_type(v).checked_type.dtype
+                vtype = infer_type(v).dtype
                 new_vars.append(_expr.var(input_signature[i].name, shape=(), dtype=vtype))
             else:
-                vtype = _infer_type_with_prelude(v, prelude)
+                vtype = infer_type(v, prelude.mod)
                 new_vars.append(_expr.var(input_signature[i].name, type_annotation=vtype))
         return new_vars
 
@@ -744,7 +739,7 @@ def _convert_function(
     input_types = {}
     for f_arg, input_ in zip(func.signature.input_arg, inputs):
         input_expr_dict[f_arg.name] = input_
-        input_types[f_arg.name] = _infer_type_with_prelude(input_, prelude)
+        input_types[f_arg.name] = infer_type(input_, prelude.mod)
 
     func_name = "func_{}".format(func.signature.name)
     try:

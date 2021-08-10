@@ -22,8 +22,7 @@ from ...tir.op import min_value
 from .. import expr as _expr
 from .. import op as _op
 from .common import get_relay_op
-from .common import infer_type as _infer_type
-from .common import infer_shape as _infer_shape
+from .common import infer_type, infer_shape
 
 
 def _warn_not_used(attr, op="nnvm"):
@@ -74,9 +73,9 @@ def _softmax_op(new_op):
 
             data = inputs[0]
             length = inputs[1]
-            data_shape = _infer_shape(data)
-            data_dtype = _infer_type(data).checked_type.dtype
-            length_shape = _infer_shape(length)
+            data_shape = infer_shape(data)
+            data_dtype = infer_type(data).dtype
+            length_shape = infer_shape(length)
 
             if axis < 0:
                 axis = len(data_shape) + axis
@@ -188,7 +187,7 @@ def _binop_scalar(new_op):
         assert len(inputs) == 1
         scalar = attrs.get_float("scalar")
         if odtype is None:
-            odtype = _infer_type(inputs[0]).checked_type.dtype
+            odtype = infer_type(inputs[0]).dtype
         scalar = _expr.const(scalar, dtype=odtype)
         return new_op(inputs[0], scalar)
 
@@ -200,7 +199,7 @@ def _rbinop_scalar(new_op):
         assert len(inputs) == 1
         scalar = attrs.get_float("scalar")
         if odtype is None:
-            odtype = _infer_type(inputs[0]).checked_type.dtype
+            odtype = infer_type(inputs[0]).dtype
         scalar = _expr.const(scalar, dtype=odtype)
         return new_op(scalar, inputs[0])
 

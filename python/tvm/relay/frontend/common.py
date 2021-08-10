@@ -474,6 +474,9 @@ def get_name(node):
 
 def infer_type(node, mod=None):
     """A method to infer the type of an intermediate node in the relay graph."""
+    if isinstance(node, tvm.relay.Var):
+        return node.type_annotation
+
     if isinstance(mod, IRModule):
         mod["main"] = _function.Function(tvm.relay.analysis.free_vars(node), node)
         mod = _transform.InferType()(mod)
@@ -484,11 +487,16 @@ def infer_type(node, mod=None):
         if mod is not None:
             new_mod.update(mod)
 
+        new_mod = _transform.RemoveUnusedFunctions()(new_mod)
         new_mod = _transform.InferType()(new_mod)
         entry = new_mod["main"]
         ret = entry if isinstance(node, _function.Function) else entry.body
 
-    return ret
+    return ret.checked_type
+
+
+def infer_type_with_prelude(val, prelude):
+    return infer_type(val, prelude.mod)
 
 
 def fold_constant(node, mod=None):
@@ -502,15 +510,14 @@ def infer_channels(inputs, transpose=False):
     these attributes. We check the shape of weights provided to get the number.
     """
     out_type = infer_type(inputs)
-    out_shapes = [get_const_tuple(out_type.checked_type.shape)]
+    out_shapes = [get_const_tuple(out_type.shape)]
     channels = out_shapes[0][0] if not transpose else out_shapes[0][1]
     return channels
 
 
 def infer_shape(inputs, mod=None):
     """A method to get the output type of an intermediate node in the graph."""
-    out_type = infer_type(inputs, mod=mod)
-    checked_type = out_type.checked_type
+    checked_type = infer_type(inputs, mod=mod)
     if hasattr(checked_type, "shape"):
         # Regular operator that outputs tensors
         return get_const_tuple(checked_type.shape)

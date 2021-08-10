@@ -34,8 +34,7 @@ from .. import function as _function
 from ..ty import Any
 from ..expr_functor import ExprMutator, ExprVisitor
 from .common import get_relay_op
-from .common import infer_type as _infer_type
-from .common import infer_shape as _infer_shape
+from .common import infer_type, infer_shape
 from .common import infer_value as _infer_value
 
 from .tensorflow_ops import _convert_map
@@ -344,7 +343,7 @@ class Loop:
             # beginning with loop name.
             if lv not in self._lvar2expr[self._loop_name]:
                 var_name = "{}_loop_var_{}".format(self._loop_name, i)
-                var_type = _infer_type(lv, self._mod).checked_type
+                var_type = infer_type(lv, self._mod)
                 loop_var = tvm.relay.var(var_name, type_annotation=var_type)
                 self._lvar2expr[self._loop_name][loop_var] = lv
                 bind_map[lv] = loop_var
@@ -951,7 +950,7 @@ class GraphProto(object):
             subgraph_shape_dict, input_expr_dict = {}, {}
             for f_arg, input in zip(func.signature.input_arg, inputs):
                 input_expr_dict[f_arg.name] = input
-                subgraph_shape_dict[f_arg.name] = _infer_shape(input, main_graph_proto._mod)
+                subgraph_shape_dict[f_arg.name] = infer_shape(input, main_graph_proto._mod)
 
             func_name = "func_{}".format(func.signature.name)
             try:
@@ -1078,7 +1077,7 @@ class GraphProto(object):
 
             if node_name not in self._lname_map[loop_name]:
                 var_name = "{}_loop_var".format(node_name)
-                var_type = _infer_type(actual_expr, self._mod).checked_type
+                var_type = infer_type(actual_expr, self._mod)
                 loop_var = tvm.relay.var(var_name, type_annotation=var_type)
                 try:
                     extra_param = _infer_value(actual_expr, self._params, self._mod)
@@ -1158,7 +1157,7 @@ class GraphProto(object):
                         if output_index > 0:
                             name += ":" + str(output_index)
                         converted = self._backtrack_construct(name)
-                        shape = _infer_shape(converted, self._mod)
+                        shape = infer_shape(converted, self._mod)
                         if wnode_op.startswith("TensorArraySplit"):
                             shape = (Any(),) + shape[1:]
                         elif wnode_op.startswith("TensorArrayScatter"):

@@ -27,7 +27,7 @@ from .. import function as _function
 from .. import op as _op
 from ... import nd as _nd
 from .common import ExprTable
-from .common import infer_shape as _infer_shape
+from .common import infer_shape
 
 __all__ = ["from_caffe"]
 
@@ -84,8 +84,8 @@ class OperatorConverter(object):
         lhs_expr = self.exp_tab.get_expr(inputs[0])
         rhs_expr = self.exp_tab.get_expr(inputs[1])
 
-        lhs_shape = _infer_shape(lhs_expr)
-        rhs_shape = _infer_shape(rhs_expr)
+        lhs_shape = infer_shape(lhs_expr)
+        rhs_shape = infer_shape(rhs_expr)
 
         assert lhs_shape == rhs_shape, "input tensors shape should be equal"
 
@@ -163,7 +163,7 @@ class OperatorConverter(object):
         """Convert BatchNorm layer"""
         inputs = op.bottom
         in_expr = self.exp_tab.get_expr(inputs[0])
-        n, c, h, w = _infer_shape(in_expr)
+        n, c, h, w = infer_shape(in_expr)
 
         if op.name in self.new_bn:
             mean, var, eps, gamma, beta = self.new_bn[op.name]
@@ -234,7 +234,7 @@ class OperatorConverter(object):
                 np.zeros(gamma.shape, dtype=np.float32), dtype="float32"
             )
 
-        _, c, _, _ = _infer_shape(in_expr)
+        _, c, _, _ = infer_shape(in_expr)
         gamma_expr = _op.reshape(gamma_expr, newshape=(1, c, 1, 1))
         beta_expr = _op.reshape(beta_expr, newshape=(1, c, 1, 1))
         out = _op.multiply(in_expr, gamma_expr)
@@ -262,7 +262,7 @@ class OperatorConverter(object):
         dims = list(reshape_param.shape.dim)
 
         in_expr = self.exp_tab.get_expr(input_name)
-        input_shape = list(_infer_shape(in_expr))
+        input_shape = list(infer_shape(in_expr))
 
         start_axis = int(reshape_param.axis)
         if start_axis < 0:
@@ -571,7 +571,7 @@ class OperatorConverter(object):
         offset = list(getattr(crop_params, "offset", 0))
 
         # expand offset to (offset1, offset2, ...)
-        in_a_shape = _infer_shape(in_expr_a)
+        in_a_shape = infer_shape(in_expr_a)
         num_to_crop = len(in_a_shape) - axis
         if not offset:
             offset = [0] * num_to_crop

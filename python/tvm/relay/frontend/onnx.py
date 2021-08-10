@@ -299,7 +299,7 @@ class Pool(OnnxOpConverter):
     def _impl_v1(cls, inputs, attr, params):
         data = inputs[0]
         input_shape = infer_shape(data)
-        input_dtype = infer_type(data).checked_type.dtype
+        input_dtype = infer_type(data).dtype
         ndim = len(input_shape)
         if "auto_pad" in attr:
             attr["auto_pad"] = attr["auto_pad"].decode("utf-8")
@@ -471,7 +471,7 @@ class Conv(OnnxOpConverter):
         ndim = len(input_shape)
 
         kernel_type = infer_type(inputs[1])
-        kernel_shapes = [get_const_tuple(kernel_type.checked_type.shape)]
+        kernel_shapes = [get_const_tuple(kernel_type.shape)]
 
         if "kernel_shape" not in attr:
             attr["kernel_shape"] = kernel_shapes[0][2:]
@@ -544,7 +544,7 @@ class ConvTranspose(OnnxOpConverter):
     def _impl_v1(cls, inputs, attr, params):
         # get number of channels
         out_type = infer_type(inputs[1])
-        out_shapes = [get_const_tuple(out_type.checked_type.shape)]
+        out_shapes = [get_const_tuple(out_type.shape)]
         channels = out_shapes[0][1]
         attr["channels"] = channels
         groups = attr.get("group", 1)
@@ -600,7 +600,7 @@ class ConvTranspose(OnnxOpConverter):
     def _impl_v11(cls, inputs, attr, params):
         # get number of channels
         out_type = infer_type(inputs[1])
-        out_shapes = [get_const_tuple(out_type.checked_type.shape)]
+        out_shapes = [get_const_tuple(out_type.shape)]
         channels = out_shapes[0][1]
         attr["channels"] = channels
         groups = attr.get("group", 1)
@@ -722,7 +722,7 @@ class Gemm(OnnxOpConverter):
         assert len(inputs) == 3 or len(inputs) == 2, "Gemm op take 2 or 3 inputs, {} given".format(
             len(inputs)
         )
-        dtype = infer_type(inputs[0]).checked_type.dtype
+        dtype = infer_type(inputs[0]).dtype
         # Y = alpha * A * B + beta * C
         alpha = float(attr.get("alpha", 1.0))
         beta = float(attr.get("beta", 1.0))
@@ -763,7 +763,7 @@ class MatMul(OnnxOpConverter):
                     return x
                 newshape = _op.concatenate(
                     [
-                        _expr.const([-1], dtype=infer_type(x_shape).checked_type.dtype),
+                        _expr.const([-1], dtype=infer_type(x_shape).dtype),
                         _op.strided_slice(x_shape, [ndims - nd + 1], [ndims]),
                     ],
                     0,
@@ -773,7 +773,7 @@ class MatMul(OnnxOpConverter):
 
             b_type = infer_type(inputs[1])
             # Convert to dense if the second matrix is 2d and non-dynamic
-            if b_rank == 2 and not _ty.is_dynamic(b_type.checked_type):
+            if b_rank == 2 and not _ty.is_dynamic(b_type):
                 a = flatten_to_nd(inputs[0], a_shape, 2)
                 b = _op.transpose(inputs[1])
                 output = _op.nn.dense(a, b)
@@ -857,7 +857,7 @@ class MaxUnpool(OnnxOpConverter):
     def _impl_v11(cls, inputs, attr, params):
         # Unpack inputs and attributes
         data = inputs[0]
-        data_type = infer_type(data).checked_type.dtype
+        data_type = infer_type(data).dtype
         indices = inputs[1]
         output_shape = inputs[2]
         kernel_shape = attr.get("kernel_shape")
@@ -911,7 +911,7 @@ class LpPool(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        dtype = infer_type(inputs[0]).checked_type.dtype
+        dtype = infer_type(inputs[0]).dtype
         data = inputs[0]
         input_shape = infer_shape(data)
         ndim = len(input_shape)
@@ -1063,7 +1063,7 @@ class Reciprocal(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        dtype = infer_type(inputs[0]).checked_type.dtype
+        dtype = infer_type(inputs[0]).dtype
         return _expr.const(1.0, dtype=dtype) / inputs[0]
 
 
@@ -1171,7 +1171,7 @@ class Shrink(OnnxOpConverter):
     @classmethod
     def _impl_v9(cls, inputs, attr, params):
         x = inputs[0]
-        dtype = infer_type(x).checked_type.dtype
+        dtype = infer_type(x).dtype
         lambd = _op.const(attr.get("lambd", 0.5), dtype=dtype)
         bias = _op.const(attr.get("bias", 0.0), dtype=dtype)
 
@@ -1323,7 +1323,7 @@ class Upsample(OnnxOpConverter):
 
 
 def shape_of(x, dtype="int64"):
-    ttype = infer_type(x).checked_type
+    ttype = infer_type(x)
     if not _ty.is_dynamic(ttype):
         shape = list(ttype.shape)
         return _expr.const(shape, dtype)
@@ -1491,9 +1491,9 @@ class Slice(OnnxOpConverter):
 
         # Update the starts and ends according to axes if required.
         if axes is not None:
-            data_shape = shape_of(inputs[0], dtype=infer_type(ends).checked_type.dtype)
+            data_shape = shape_of(inputs[0], dtype=infer_type(ends).dtype)
             starts = _op.scatter(
-                _op.const([0] * data_rank, dtype=infer_type(starts).checked_type.dtype),
+                _op.const([0] * data_rank, dtype=infer_type(starts).dtype),
                 axes,
                 starts,
                 axis=0,
@@ -1501,14 +1501,14 @@ class Slice(OnnxOpConverter):
             ends = _op.scatter(data_shape, axes, ends, axis=0)
             if steps is not None:
                 steps = _op.scatter(
-                    _op.const([1] * data_rank, dtype=infer_type(steps).checked_type.dtype),
+                    _op.const([1] * data_rank, dtype=infer_type(steps).dtype),
                     axes,
                     steps,
                     axis=0,
                 )
 
         if steps is None:
-            steps = _op.const([1] * data_rank, dtype=infer_type(starts).checked_type.dtype)
+            steps = _op.const([1] * data_rank, dtype=infer_type(starts).dtype)
 
         return _op.strided_slice(
             inputs[0], fold_constant(starts), fold_constant(ends), fold_constant(steps)
@@ -1517,7 +1517,7 @@ class Slice(OnnxOpConverter):
 
 def normalize_gather_indices(data, indices, axis):
     """Make sure gather indicies aren't negative"""
-    ind_dtype = infer_type(indices).checked_type.dtype
+    ind_dtype = infer_type(indices).dtype
     # Normalize the indices to a positive range
     s = _op.take(_op.shape_of(data, dtype=ind_dtype), _op.const(axis))
     cond = fold_constant(indices < _op.const(0, ind_dtype))
@@ -1603,7 +1603,7 @@ class EyeLike(OnnxOpConverter):
 
     @classmethod
     def _impl_v9(cls, inputs, attr, params):
-        in_checked_type = infer_type(inputs[0]).checked_type
+        in_checked_type = infer_type(inputs[0])
         in_dtype = in_checked_type.dtype
         in_shape = list(get_const_tuple(in_checked_type.shape))
         dtype = attr.get("dtype", None)
@@ -1912,7 +1912,7 @@ class Hardmax(OnnxOpConverter):
         ndim = len(infer_shape(inputs[0]))
         if axis < 0:
             axis += ndim
-        dtype = infer_type(inputs[0]).checked_type.dtype
+        dtype = infer_type(inputs[0]).dtype
 
         if axis == 0:
             pre = _op.const([1], "int64")
@@ -1948,8 +1948,8 @@ class OneHot(OnnxOpConverter):
         # Split onnx on off values into two separate expressions.
         off_value, on_value = _op.take(values, _op.const(0)), _op.take(values, _op.const(1))
         # Extract the datatype of the output from on_value.
-        dtype = infer_type(on_value).checked_type.dtype
-        ind_dtype = infer_type(indices).checked_type.dtype
+        dtype = infer_type(on_value).dtype
+        ind_dtype = infer_type(indices).dtype
         # Normalize the indices to a positive range
         indices = _op.where(
             indices < _op.const(0, ind_dtype), indices + _op.cast(depth, ind_dtype), indices
@@ -2088,7 +2088,7 @@ class Expand(OnnxOpConverter):
 
     @classmethod
     def _impl_v8(cls, inputs, attr, params):
-        dtype = infer_type(inputs[1]).checked_type.dtype
+        dtype = infer_type(inputs[1]).dtype
         in_shape = shape_of(inputs[0], dtype=dtype)
         shape = inputs[1]
 
@@ -2235,7 +2235,7 @@ class LSTM(RNN):
         Pp = inputs[7]
 
         num_directions = infer_shape(Wp)[0]
-        W_dtype = infer_type(Wp).checked_type.dtype
+        W_dtype = infer_type(Wp).dtype
 
         if num_directions not in [1, 2]:
             raise ValueError("num_directions must be either 1 or 2!")
@@ -2413,7 +2413,7 @@ class GRU(RNN):
         linear_before_reset = attr.get("linear_before_reset", 0)
 
         num_directions = infer_shape(Wp)[0]
-        W_dtype = infer_type(Wp).checked_type.dtype
+        W_dtype = infer_type(Wp).dtype
 
         if num_directions not in [1, 2]:
             raise NotImplementedError(
@@ -2515,7 +2515,7 @@ class Resize(OnnxOpConverter):
             )
 
         scale = inputs[1]
-        size = _op.cast(shape_of(inputs[0]), infer_type(scale).checked_type.dtype) * scale
+        size = _op.cast(shape_of(inputs[0]), infer_type(scale).dtype) * scale
         ndims = len(infer_shape(inputs[0]))
         out = None
         if ndims == 3:
@@ -2560,7 +2560,7 @@ class Resize(OnnxOpConverter):
             size = inputs[3]
         else:
             assert len(scale_shape) != 0, "One of scale or size should be passed."
-            size = _op.cast(shape_of(inputs[0]), infer_type(scale).checked_type.dtype) * scale
+            size = _op.cast(shape_of(inputs[0]), infer_type(scale).dtype) * scale
         out_size = fold_constant(_op.strided_slice(size, [2], [4]))
         out = None
         if ndims == 3:
@@ -2656,9 +2656,7 @@ class Range(OnnxOpConverter):
         if len(inputs) != 3:
             raise ValueError("Expect 3 input only")
 
-        return _op.arange(
-            inputs[0], inputs[1], inputs[2], dtype=infer_type(inputs[0]).checked_type.dtype
-        )
+        return _op.arange(inputs[0], inputs[1], inputs[2], dtype=infer_type(inputs[0]).dtype)
 
 
 class IsInf(OnnxOpConverter):
@@ -2668,7 +2666,7 @@ class IsInf(OnnxOpConverter):
     def _impl_v10(cls, inputs, attr, params):
         detect_negative = attr.get("detect_negative", 1)
         detect_positive = attr.get("detect_positive", 1)
-        dtype = infer_type(inputs[0]).checked_type.dtype
+        dtype = infer_type(inputs[0]).dtype
         isinf = _op.isinf(inputs[0])
         if not detect_negative:
             isinf = isinf * (inputs[0] > _op.const(0, dtype))
@@ -2712,7 +2710,7 @@ class RoiAlign(OnnxOpConverter):
         spatial_scale = attr.get("spatial_scale", 1.0)
 
         batch_indices = _op.expand_dims(batch_indices, axis=1, num_newaxis=1)
-        batch_indices = _op.cast(batch_indices, infer_type(rois).checked_type.dtype)
+        batch_indices = _op.cast(batch_indices, infer_type(rois).dtype)
         rois = _op.concatenate([batch_indices, rois], 1)
 
         return _vision.roi_align(
@@ -2762,7 +2760,7 @@ class Softplus(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         data = inputs[0]
-        data_dtype = infer_type(data).checked_type.dtype
+        data_dtype = infer_type(data).dtype
         data = _op.exp(data) + _expr.const(1, dtype=data_dtype)
         return _op.log(data)
 
@@ -2779,7 +2777,7 @@ class Loop(OnnxOpConverter):
         # Create a copy of the body function to prevent the original
         # from being modified.
         body = copy.copy(attr["body"])
-        iter_dtype = infer_type(max_loop_count).checked_type.dtype
+        iter_dtype = infer_type(max_loop_count).dtype
 
         # Determine what condition mode we're in.
         assert cond is not None or max_loop_count is not None
@@ -2815,10 +2813,6 @@ class Loop(OnnxOpConverter):
         # Create a list of variables for each value updated in the loop.
         def get_var(name, val, scan=False):
             checked_type = infer_type(val)
-            if hasattr(checked_type, "type_annotation"):
-                checked_type = checked_type.type_annotation
-            if hasattr(checked_type, "checked_type"):
-                checked_type = checked_type.checked_type
             shape = get_const_tuple(checked_type.shape)
             actual_shape = []
             for dim in shape:
@@ -2856,8 +2850,8 @@ class Loop(OnnxOpConverter):
         for i in range(num_scan_outputs):
             name, _, _, _ = get_info(body.output[i + 1 + num_deps])
             output_node = infer_type(loop_outputs[i + 1 + num_deps])
-            shape = get_const_tuple(output_node.checked_type.shape)
-            dtype = output_node.checked_type.dtype
+            shape = get_const_tuple(output_node.shape)
+            dtype = output_node.dtype
             scan_output_vars.append(
                 _expr.var(name, shape=([_ty.Any()] * (len(shape) + 1)), dtype=dtype)
             )
@@ -3008,7 +3002,7 @@ class NonMaxSuppression(OnnxOpConverter):
         iou_threshold = inputs[3]
         score_threshold = inputs[4]
 
-        boxes_dtype = infer_type(boxes).checked_type.dtype
+        boxes_dtype = infer_type(boxes).dtype
 
         if attr.get("center_point_box", 0) != 0:
             xc, yc, w, h = _op.split(boxes, 4, axis=2)
@@ -3112,13 +3106,13 @@ class QuantizeLinear(OnnxOpConverter):
     @classmethod
     def _impl_v10(cls, inputs, attr, params):
         data, scale, zp = inputs
-        out_dtype = infer_type(zp).checked_type.dtype
+        out_dtype = infer_type(zp).dtype
         return _qnn.op.quantize(data, scale, _op.cast(zp, "int32"), 0, out_dtype)
 
     @classmethod
     def _impl_v13(cls, inputs, attr, params):
         data, scale, zp = inputs
-        out_dtype = infer_type(zp).checked_type.dtype
+        out_dtype = infer_type(zp).dtype
         axis = attr.get("axis", 1)
         if len(infer_shape(data)) < 2:
             axis = 0
@@ -3147,7 +3141,7 @@ class DynamicQuantizeLinear(OnnxOpConverter):
     def _impl_v11(cls, inputs, attr, params):
         """This op is deprecated an only supports uint8"""
         data = inputs[0]
-        data_dtype = infer_type(data).checked_type.dtype
+        data_dtype = infer_type(data).dtype
         zero = _op.const(0, dtype=data_dtype)
         maximum = _op.maximum(zero, _op.max(data))
         minimum = _op.minimum(zero, _op.min(data))
@@ -3189,7 +3183,7 @@ class QLinearConv(OnnxOpConverter):
 
         ndim = len(input_shape)
         kernel_type = infer_type(weight)
-        kernel_shapes = [get_const_tuple(kernel_type.checked_type.shape)]
+        kernel_shapes = [get_const_tuple(kernel_type.shape)]
         if "kernel_shape" not in attr:
             attr["kernel_shape"] = kernel_shapes[0][2:]
 
@@ -3245,7 +3239,7 @@ class QLinearConv(OnnxOpConverter):
         if use_bias:
             out = _op.nn.bias_add(out, inputs[8])
 
-        out_dtype = infer_type(inputs[7]).checked_type.dtype
+        out_dtype = infer_type(inputs[7]).dtype
         requantize_scale = _op.multiply(x_scale, w_scale)
 
         # requantize requires y_scale to be constant,
@@ -3289,7 +3283,7 @@ class QLinearAdd(OnnxOpConverter):
         c_scale = get_scalar(inputs[6])
         c_zero_point = get_scalar(inputs[7], "int32")
 
-        dtype = infer_type(a).checked_type.dtype
+        dtype = infer_type(a).dtype
 
         ## Onnxruntime doesn't actually do this op in integer, they dequantize to fp32
         ## and then requantize afer
@@ -3353,11 +3347,11 @@ class ConvInteger(OnnxOpConverter):
             weight_zp = _expr.const(0, "int32")
 
         input_type = infer_type(data)
-        input_shape = get_const_tuple(input_type.checked_type.shape)
+        input_shape = get_const_tuple(input_type.shape)
 
         ndim = len(input_shape)
         kernel_type = infer_type(weight)
-        kernel_shape = get_const_tuple(kernel_type.checked_type.shape)
+        kernel_shape = get_const_tuple(kernel_type.shape)
         if "kernel_shape" not in attr:
             attr["kernel_shape"] = kernel_shape[2:]
 

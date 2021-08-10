@@ -29,7 +29,7 @@ from .. import op as _op
 from ... import nd as _nd
 from ..._ffi import base as _base
 from .common import ExprTable
-from .common import infer_shape as _infer_shape
+from .common import infer_shape
 
 __all__ = ["from_coreml"]
 
@@ -67,7 +67,7 @@ def _ConvolutionLayerParams(op, inexpr, etab):
     dilation = list(op.dilationFactor)
     if not dilation:
         dilation = [1, 1]
-    N, C, H, W = _infer_shape(inexpr)
+    N, C, H, W = infer_shape(inexpr)
     params = {
         "channels": op.outputChannels,
         "kernel_size": list(op.kernelSize),

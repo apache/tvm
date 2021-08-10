@@ -32,8 +32,7 @@ from .. import scope_builder as _scope_builder
 from ... import nd as _nd
 
 from .common import StrAttrsDict
-from .common import infer_type as _infer_type
-from .common import infer_shape as _infer_shape
+from .common import infer_type, infer_shape
 from .common import infer_value as _infer_value
 from .common import get_name as _get_name
 from .nnvm_common import _rename, _binop_scalar, _rbinop_scalar, _reduce
@@ -72,7 +71,7 @@ def _mx_fully_connected(inputs, attrs):
     use_flatten = attrs.get_bool("flatten", True)
     if has_flatten and use_flatten:
         inputs[0] = _op.nn.batch_flatten(inputs[0])
-    data_shape = _infer_type(inputs[0]).checked_type.shape
+    data_shape = infer_type(inputs[0]).shape
     if len(data_shape) > 2:
         inputs[0] = _op.reverse_reshape(inputs[0], [-1, 0])
     res = _op.nn.dense(inputs[0], inputs[1], units=units)
@@ -119,8 +118,8 @@ def _mx_activations(inputs, attrs):
 
 def _mx_compare(new_op, wrapper):
     def impl(inputs, attrs):
-        expr = _infer_type(inputs[0])
-        dtype = expr.checked_type.dtype
+        expr = infer_type(inputs[0])
+        dtype = expr.dtype
         return wrapper(new_op)(inputs, attrs).astype(dtype)
 
     return impl
@@ -137,7 +136,7 @@ def _mx_swap_axis(inputs, attrs):
     assert len(inputs) == 1
     dim1 = attrs.get_int("dim1")
     dim2 = attrs.get_int("dim2")
-    shape = _infer_type(inputs[0]).checked_type.shape
+    shape = infer_type(inputs[0]).shape
     axes = list(range(len(shape)))
     axes[dim1] = dim2
     axes[dim2] = dim1
@@ -418,7 +417,7 @@ def _mx_pooling(inputs, attrs):
         return new_op(inputs[0], **new_attrs)
 
     # 3D pooling
-    if len(_infer_shape(inputs[0])) == 5:
+    if len(infer_shape(inputs[0])) == 5:
         if pool_type == "max":
             if global_pool:
                 return _op.nn.global_max_pool3d(inputs[0])
@@ -513,7 +512,7 @@ def _mx_slice(inputs, attrs):
     begin = list(attrs.get_int_tuple("begin", None))
     end = list(attrs.get_int_tuple("end", None))
     stride = attrs.get_int_tuple("step", None)
-    input_shape = _infer_type(inputs[0]).checked_type.shape
+    input_shape = infer_type(inputs[0]).shape
     if begin is None:
         raise tvm.error.OpAttributeRequired('Attribute "begin" not found in operator Slice.')
     if end is None:
@@ -538,8 +537,8 @@ def _mx_slice_like(inputs, attrs):
 
 def _mx_slice_axis(inputs, attrs):
     assert len(inputs) == 1
-    expr = _infer_type(inputs[0])
-    shape = expr.checked_type.shape
+    expr = infer_type(inputs[0])
+    shape = expr.shape
     axis = attrs.get_int("axis")
     ax_beg = attrs.get_int("begin")
     ax_end = attrs.get_str("end")
@@ -582,8 +581,8 @@ def _mx_crop_like(inputs, attrs):
     if offset == (0, 0):
         new_attrs["axes"] = (2, 3)
         return _op.slice_like(*inputs, **new_attrs)
-    expr = _infer_type(inputs[1])
-    like_shape = expr.checked_type.shape
+    expr = infer_type(inputs[1])
+    like_shape = expr.shape
     new_attrs["begin"] = [0, 0, offset[0], offset[1]]
     new_attrs["end"] = [
         like_shape[0],
@@ -786,8 +785,8 @@ def _mx_multibox_detection(inputs, attrs):
 def _mx_dot(inputs, attrs):
     assert len(inputs) == 2
     a, b = inputs
-    rank_a = len(_infer_type(a).checked_type.shape)
-    rank_b = len(_infer_type(b).checked_type.shape)
+    rank_a = len(infer_type(a).shape)
+    rank_b = len(infer_type(b).shape)
     if rank_a != 2 or rank_b != 2:
         raise tvm.error.OpAttributeUnimplemented("Only 2-D arrays are supported.")
     transpose_a = attrs.get_bool("transpose_a", False)
@@ -803,12 +802,12 @@ def _mx_dot(inputs, attrs):
 def _mx_batch_dot(inputs, attrs):
     assert len(inputs) == 2
     a, b = inputs
-    a_shape = _infer_type(a).checked_type.shape
+    a_shape = infer_type(a).shape
     batch_shapes = None
     if len(a_shape) > 3:
         batch_shapes = a_shape[:-2]
         a = _op.reverse_reshape(a, newshape=(-1, 0, 0))
-    b_shape = _infer_type(b).checked_type.shape
+    b_shape = infer_type(b).shape
     if len(b_shape) > 3:
         if batch_shapes is None:
             batch_shapes = b_shape[:-2]
@@ -859,7 +858,7 @@ def _mx_contrib_arange_like(inputs, attrs):
         raise tvm.error.OpAttributeUnimplemented(
             'Attribute "repeat" is not supported in operator arange_like.'
         )
-    ty = _infer_type(inputs[0]).checked_type
+    ty = infer_type(inputs[0])
     assert ty
     shape, dtype = get_const_tuple(ty.shape), ty.dtype
     axis = attrs.get_int("axis", None)
@@ -916,7 +915,7 @@ def _mx_take(inputs, attrs):
 
 def _mx_gather_nd(inputs, attrs):
     assert len(inputs) == 2
-    assert len(_infer_shape(inputs[1])) > 1, "index tensor to have at least 2 dimensions"
+    assert len(infer_shape(inputs[1])) > 1, "index tensor to have at least 2 dimensions"
     return _op.gather_nd(inputs[0], inputs[1])
 
 
@@ -956,8 +955,8 @@ def _mx_resize(inputs, attrs):
     scale_width = attrs.get_float("scale_width", None)
     height = attrs.get_int("height", 1)
     width = attrs.get_int("width", 1)
-    expr = _infer_type(inputs[0])
-    shape = expr.checked_type.shape
+    expr = infer_type(inputs[0])
+    shape = expr.shape
     if scale_height is not None:
         height = (scale_height * shape[2]).astype("int32")
     if scale_width is not None:
@@ -968,7 +967,7 @@ def _mx_resize(inputs, attrs):
 
 def _mx_amp_multicast(inputs, attrs):
     cast_narrow = attrs.get_bool("cast_narrow", False)
-    dtypes = [_infer_type(x).checked_type.dtype for x in inputs]
+    dtypes = [infer_type(x).dtype for x in inputs]
     supported_dtypes = ["float16", "float32"]
     assert all(
         [x in supported_dtypes for x in dtypes]
@@ -989,7 +988,7 @@ def _mx_grid_generator(inputs, attrs):
         target_shape = attrs.get_int_tuple("target_shape")
         return _op.image.affine_grid(_op.reshape(inputs[0], (0, 2, 3)), target_shape)
     if transform_type == "warp":
-        checked_type = _infer_type(inputs[0]).checked_type
+        checked_type = infer_type(inputs[0])
         batch, _, height, width = get_const_tuple(checked_type.shape)
         dtype = checked_type.dtype
         identity_affine = relay.const(np.array([[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]], dtype=dtype))
@@ -1107,10 +1106,10 @@ def _mx_l2_normalize(inputs, attrs):
     if mode == "channel":
         new_attrs["axis"] = [1]
     elif mode == "instance":
-        ndim = len(_infer_type(inputs[0]).checked_type.shape)
+        ndim = len(infer_type(inputs[0]).shape)
         new_attrs["axis"] = list(range(1, ndim))
     elif mode == "spatial":
-        ndim = len(_infer_type(inputs[0]).checked_type.shape)
+        ndim = len(infer_type(inputs[0]).shape)
         new_attrs["axis"] = list(range(2, ndim))
     else:
         raise tvm.error.OpAttributeInvalid(
@@ -1172,8 +1171,8 @@ def _mx_broadcast_axis(inputs, attrs):
     assert len(axis) == len(size)
     if len(axis) == 0:
         return inputs[0]
-    expr = _infer_type(inputs[0])
-    src_shape = expr.checked_type.shape
+    expr = infer_type(inputs[0])
+    src_shape = expr.shape
     tgt_shape = []
     for i, dim in enumerate(src_shape):
         if i not in axis:
@@ -1259,9 +1258,9 @@ def _mx_sequence_mask(inputs, attrs):
 
 def _mx_contrib_div_sqrt_dim(inputs, _):
     assert len(inputs) == 1
-    ndim = len(_infer_type(inputs[0]).checked_type.shape)
+    ndim = len(infer_type(inputs[0]).shape)
     dim = _op.take(_op.shape_of(inputs[0]), _expr.const(ndim - 1, dtype="int32"))
-    dtype = _infer_type(inputs[0]).checked_type.dtype
+    dtype = infer_type(inputs[0]).dtype
     sqrt_dim = _op.sqrt(dim.astype(dtype))
     out = inputs[0] / sqrt_dim
     return out
@@ -1280,8 +1279,8 @@ def _mx_rnn_layer(inputs, attrs):
         return out, [out]
 
     def _gru_cell(data, states, i2h_weight, h2h_weight, i2h_bias, h2h_bias):
-        expr = _infer_type(data)
-        dtype = expr.checked_type.dtype
+        expr = infer_type(data)
+        dtype = expr.dtype
         i2h = _op.nn.bias_add(_op.nn.dense(data, i2h_weight), i2h_bias, axis=-1)
         h2h = _op.nn.bias_add(_op.nn.dense(states[0], h2h_weight), h2h_bias, axis=-1)
         i2h_r, i2h_z, i2h = _op.split(i2h, indices_or_sections=3, axis=1)
@@ -1324,8 +1323,8 @@ def _mx_rnn_layer(inputs, attrs):
     seq_data = inputs[0]
     concat_weight = inputs[1]
     init_states = inputs[2:]
-    expr = _infer_type(seq_data)
-    data_shape = expr.checked_type.shape
+    expr = infer_type(seq_data)
+    data_shape = expr.shape
     seq_len = int(data_shape[0])
     assert len(concat_weight) == num_layers * 4 * direct
 
@@ -1531,7 +1530,7 @@ def _mx_cond(inputs, attrs, subgraphs):
 
     input_args = []
     for i, arg in enumerate(inputs):
-        var = _expr.var("arg%s" % i, _infer_type(arg).checked_type)
+        var = _expr.var("arg%s" % i, infer_type(arg))
         input_args.append(var)
     cond_args = [input_args[i] for i in cond_input_locs]
     then_args = [input_args[i] for i in then_input_locs]
@@ -1541,7 +1540,7 @@ def _mx_cond(inputs, attrs, subgraphs):
     cond_arg_dtype_info = [arg.type_annotation.dtype for arg in cond_args]
     cond_func = _from_mxnet_impl(subgraphs[0], cond_arg_shapes, cond_arg_dtype_info)
     cond = _expr.Call(cond_func, cond_args).astype("bool")
-    cond_shape = get_const_tuple(_infer_type(cond).checked_type.shape)
+    cond_shape = get_const_tuple(infer_type(cond).shape)
     if len(cond_shape) > 0:
         assert len(cond_shape) == 1 and cond_shape[0] == 1, "Condition is not scalar"
         cond = _op.take(cond, _expr.const(1, "int"))
@@ -1591,7 +1590,7 @@ def _qnn_contrib_concat(inputs, attrs):
         return concat, output_min, output_max
     else:
         # Get all dtypes. Find input and output scales, call concatenate.
-        dtypes = [_infer_type(x).checked_type.dtype for x in input_exprs]
+        dtypes = [infer_type(x).dtype for x in input_exprs]
         assert all(
             [x == "uint8" for x in dtypes]
         ), "Current support is limited to uint8 inputs only."
@@ -1648,8 +1647,8 @@ def _qnn_contrib_quantized_fifo_buffer(inputs, attrs, params):
     buffer = inputs[1]
     min_calib_range = inputs[2]
     max_calib_range = inputs[3]
-    data_dtype = _infer_type(data).checked_type.dtype
-    buffer_shape = _infer_shape(buffer)
+    data_dtype = infer_type(data).dtype
+    buffer_shape = infer_shape(buffer)
     buffer_name = _get_name(buffer)
     params[buffer_name] = _nd.array(np.zeros(buffer_shape).astype(data_dtype))
     new_buffer = relay.var(buffer_name, relay.TensorType(buffer_shape, data_dtype))
@@ -1687,7 +1686,7 @@ def _qnn_conv(inputs, attrs, subgraphs, params):
         data_min = _inputs[_data_min_idx]
         data_max = _inputs[_data_max_idx]
         assert data_min <= data_max
-        data_dtype = _infer_type(_data).checked_type.dtype
+        data_dtype = infer_type(_data).dtype
         assert data_dtype in {"int8", "uint8"}
         if data_min < 0.0:
             assert (
@@ -1815,7 +1814,7 @@ def _qnn_conv(inputs, attrs, subgraphs, params):
         data_sum_min = inputs[-2]
         data_sum_max = inputs[-1]
 
-        data_sum_dtype = _infer_type(data_sum).checked_type.dtype
+        data_sum_dtype = infer_type(data_sum).dtype
         data_sum_scale = (
             get_mkldnn_uint8_scale(data_sum_min, data_sum_max)
             if data_sum_dtype == "uint8"
@@ -2006,7 +2005,7 @@ def _qnn_dequantize(inputs, attrs):
     data = inputs[0]
     input_min = inputs[1]
     input_max = inputs[2]
-    in_dtype = _infer_type(data).checked_type.dtype
+    in_dtype = infer_type(data).dtype
     result = dequantize_mxnet_min_max(data, input_min, input_max, in_dtype)
     return result
 
@@ -2026,7 +2025,7 @@ def _qnn_pooling(inputs, attrs):
     input_min = inputs[1]
     input_max = inputs[2]
     data = inputs[0]
-    data_dtype = _infer_type(data).checked_type.dtype
+    data_dtype = infer_type(data).dtype
     pool_type = attrs.get_str("pool_type")
     if data_dtype in ("int8", "uint8") and pool_type != "max":
         data = _op.cast(data, "int32")
@@ -2043,7 +2042,7 @@ def _qnn_batch_norm(inputs, attrs):
     # Dequantize the data.
     data_min_idx, data_max_idx = (-2, -1)
     data_min, data_max = inputs[data_min_idx], inputs[data_max_idx]
-    data_dtype = _infer_type(data).checked_type.dtype
+    data_dtype = infer_type(data).dtype
     data_scale = (
         get_mkldnn_uint8_scale(data_min, data_max)
         if data_dtype == "uint8"
@@ -2083,7 +2082,7 @@ def _qnn_fully_connected(inputs, attrs, subgraphs, params):
         return _data_scale, _data_zp
 
     def _get_kernel_scale_zp_tensor_quantized(_kernel, _inputs, _has_bias):
-        kernel_dtype = _infer_type(_kernel).checked_type.dtype
+        kernel_dtype = infer_type(_kernel).dtype
 
         if kernel_dtype != "int8":
             raise tvm.error.OpNotImplemented(
@@ -2109,7 +2108,7 @@ def _qnn_fully_connected(inputs, attrs, subgraphs, params):
         return _kernel_scale, _kernel_zp
 
     def _get_kernel_scale_zp_channel_quantized(_kernel, _bias, _data_scale):
-        kernel_dtype = _infer_type(_kernel).checked_type.dtype
+        kernel_dtype = infer_type(_kernel).dtype
         if kernel_dtype != "float32":
             raise tvm.error.OpNotImplemented(
                 "Channel wise quantized expects weights in float32 data type"
@@ -2172,14 +2171,14 @@ def _qnn_fully_connected(inputs, attrs, subgraphs, params):
         ##############################
         if is_flatten:
             data = _op.nn.batch_flatten(data)
-        data_shape = _infer_type(data).checked_type.shape
+        data_shape = infer_type(data).shape
         if len(data_shape) > 2:
             data = _op.reverse_reshape(data, [-1, 0])
 
         ###############################
         # Get data scale and zero point
         ###############################
-        data_dtype = _infer_type(data).checked_type.dtype
+        data_dtype = infer_type(data).dtype
         data_scale, data_zp = _get_input_scale_zp(data_dtype, inputs, has_bias)
 
         #################################
@@ -2296,7 +2295,7 @@ def _mx_broadcast_like(inputs, attrs):
 
 def _mx_logical_not(inputs, input_types):
     data = inputs[0]
-    dtype = _infer_type(data).checked_type.dtype
+    dtype = infer_type(data).dtype
     data = _op.cast(data, "bool") if dtype != "bool" else data
 
     return _op.cast(_op.logical_not(data), dtype)
@@ -2304,8 +2303,8 @@ def _mx_logical_not(inputs, input_types):
 
 def _mx_broadcast_logical(logical_op):
     def impl(inputs, input_types):
-        lhs_type = _infer_type(inputs[0]).checked_type.dtype
-        rhs_type = _infer_type(inputs[1]).checked_type.dtype
+        lhs_type = infer_type(inputs[0]).dtype
+        rhs_type = infer_type(inputs[1]).dtype
         lhs = _op.cast(inputs[0], "bool") if lhs_type != "bool" else inputs[0]
         rhs = _op.cast(inputs[1], "bool") if rhs_type != "bool" else inputs[1]
 
@@ -2360,7 +2359,7 @@ def _mx_npx_reshape(inputs, attrs):
     shape = attrs.get_int_tuple("newshape")
     reverse = attrs.get_bool("reverse", False)
     shape_list = list(shape)
-    old_shape = get_const_tuple(_infer_type(inputs[0]).checked_type.shape)
+    old_shape = get_const_tuple(infer_type(inputs[0]).shape)
     new_shape = []
     if reverse:
         old_shape = old_shape[::-1]
@@ -2447,9 +2446,9 @@ def _mx_split_v2(inputs, attrs):
 def _mx_npi_where_rscalar(inputs, attrs):
     cond, dat = inputs
     scalar = attrs.get_float("scalar")
-    cond_shape = get_const_tuple(_infer_type(cond).checked_type.shape)
-    dat_shape = get_const_tuple(_infer_type(dat).checked_type.shape)
-    dtype = _infer_type(dat).checked_type.dtype
+    cond_shape = get_const_tuple(infer_type(cond).shape)
+    dat_shape = get_const_tuple(infer_type(dat).shape)
+    dtype = infer_type(dat).dtype
     # Check for broadcasting
     out_shape = np.broadcast(np.empty(cond_shape), np.empty(dat_shape)).shape
     if out_shape != cond_shape:

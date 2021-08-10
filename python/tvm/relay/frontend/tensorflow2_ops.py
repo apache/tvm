@@ -22,13 +22,8 @@ from tvm.relay.prelude import StaticTensorArrayOps, get_tensor_array_shape
 from .. import op as _op
 from ..ty import Any
 from .common import infer_value as _infer_value
-from .common import infer_type as _infer_type
+from .common import infer_type
 from .tensorflow_ops import _get_more_static_shape_rank
-
-
-def _infer_type_with_prelude(val, prelude):
-    body = _infer_type(val, prelude.mod)
-    return body.checked_type
 
 
 def _need_prelude_for_shape_inference(op):
@@ -60,7 +55,7 @@ def _tensorlist_set_item():
         dtype_str = attr.get("element_dtype").name
         input_ta = inputs[0]
         input_ta_shape = get_tensor_array_shape(input_ta, dtype_str, prelude)
-        input_t_shape = _infer_type_with_prelude(inputs[2], prelude).shape
+        input_t_shape = infer_type(inputs[2], prelude.mod).shape
         input_rank = len(input_t_shape)
 
         if input_ta_shape is None:
@@ -161,7 +156,7 @@ def _tensorlist_stack():
 def _tensorlist_from_tensor():
     def _impl(inputs, attr, params, prelude):
         dtype_str = attr["element_dtype"].name
-        input_ta_shape = _infer_type_with_prelude(inputs[0], prelude).shape
+        input_ta_shape = infer_type(inputs[0], prelude.mod).shape
 
         if input_ta_shape is None:
             unstack_func = prelude.get_global_var("tensor_array_unstack", dtype_str)

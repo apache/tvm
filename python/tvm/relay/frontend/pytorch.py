@@ -41,7 +41,7 @@ from ..ty import Any, TensorType, TupleType
 from . import qnn_torch
 from .common import AttrCvt, get_relay_op, unbind, lstm_cell
 from .common import infer_value as _infer_value
-from .common import infer_shape as _infer_shape
+from .common import infer_type, infer_shape
 from .common import infer_value_simulated as _infer_value_simulated
 from .common import try_infer_value
 from .pytorch_utils import is_version_greater_than
@@ -148,29 +148,13 @@ class PyTorchOpConverter:
 
         if node in self.types:
             return self.types[node]
-        if isinstance(node, tvm.relay.Var):
-            return node.type_annotation
 
-        tf = _TypeFinder(types=self.types)
-        new_node = tf.visit(node)
-        fn = _function.Function(list(tf.vars.values()), new_node)
-        new_mod = IRModule({"main": fn})
-        if mod is not None:
-            new_mod.update(mod)
-        new_mod = transform.RemoveUnusedFunctions()(new_mod)
-        new_mod = transform.InferType()(new_mod)
-        entry = new_mod["main"]
-        ty = entry.body.checked_type
-        self.types[node] = ty
+        self.types[node] = infer_type(node, mod)
         return self.types[node]
-
-    def infer_type_with_prelude(self, val):
-        body = self.infer_type(val, self.prelude.mod)
-        return body
 
     # list ADT utilities
     def convert_to_list_adt(self, py_lst):
-        elem_tys = [self.infer_type_with_prelude(elem) for elem in py_lst]
+        elem_tys = [self.infer_type(elem, self.prelude.mod) for elem in py_lst]
         msg = "List elements should have identical types"
         assert all(map(lambda ty: ty == elem_tys[0], elem_tys)), msg
 
@@ -193,7 +177,7 @@ class PyTorchOpConverter:
         if self.prelude.length(adt_lst) == 0:
             return nil()
 
-        checked_type = self.infer_type_with_prelude(self.prelude.hd(adt_lst))
+        checked_type = self.infer_type(self.prelude.hd(adt_lst), self.prelude.mod)
         shape = checked_type.shape
         tensor_array = self.map_tensor_array_constructor(adt_lst, shape)
         return tensor_array, tuple(shape)
@@ -213,11 +197,11 @@ class PyTorchOpConverter:
     def record_output_type(self, output):
         if isinstance(output, tuple):
             cleaned_output = [o for o in output if o is not None]
-            types = self.infer_type_with_prelude(_expr.Tuple(cleaned_output))
+            types = self.infer_type(_expr.Tuple(cleaned_output), self.prelude.mod)
             for o, t in zip(cleaned_output, types.fields):
                 self.types[o] = t
         elif isinstance(output, _expr.Expr):
-            self.infer_type_with_prelude(output)
+            self.infer_type(output, self.prelude.mod)
         # it can also happen that the type is int or so
 
     def pytorch_promote_types(self, inputs, dtypes):
@@ -247,7 +231,7 @@ class PyTorchOpConverter:
         # If a quantized Torch module is saved and loaded back, dtype will be dropped
         # Since dtypes from Torch tensors are not reliable in such cases, we use
         # Relay's type inference result to decide if an input tensor is quantized
-        ty = self.infer_type_with_prelude(data)
+        ty = self.infer_type(data, self.prelude.mod)
         return ty.dtype == "uint8"
 
     # Operator implementations
@@ -1463,7 +1447,7 @@ class PyTorchOpConverter:
             bias_ndims = len(self.infer_shape_with_prelude(bias))
             if bias_ndims == 1:
                 return _op.nn.bias_add(mm_out, bias)
-            mm_dtype = self.infer_type_with_prelude(mm_out).dtype
+            mm_dtype = self.infer_type(mm_out, self.prelude.mod).dtype
             return self.add([mm_out, bias], [mm_dtype, input_types[2]])
         return mm_out
 
@@ -1951,7 +1935,7 @@ class PyTorchOpConverter:
         else:
             # List ADT case
             assert isinstance(inputs[0], _expr.Expr)
-            ty = self.infer_type_with_prelude(inputs[0])
+            ty = self.infer_type(inputs[0], self.prelude.mod)
             list_ty = self.prelude.mod.get_global_type_var("List")
             msg = "The input list is expected to be List ADT"
             assert isinstance(ty, tvm.ir.TypeCall) and ty.func == list_ty, msg
@@ -2451,23 +2435,23 @@ class PyTorchOpConverter:
         if has_biases:
             if weights_num == 5:
                 has_proj = True
-                proj_size = _infer_shape(_weights[4])[0]
+                proj_size = infer_shape(_weights[4])[0]
             else:
                 assert weights_num == 4, "The weights number in layer is expected equal to 4"
         else:
             if weights_num == 3:
                 has_proj = True
-                proj_size = _infer_shape(_weights[2])[0]
+                proj_size = infer_shape(_weights[2])[0]
             else:
                 assert weights_num == 2, "The weights number in layer is expected equal to 2"
 
         X = _op.transpose(_X, (1, 0, 2)) if batch_first else _X
         # TODO (vvchernov): Which data type should be used? from input or weights?
-        # Instead of it _infer_type(X).checked_type.dtype can be used
+        # Instead of it self.infer_type(X).checked_type.dtype can be used
         X_dtype = input_types[0]
-        X_shape = _infer_shape(X)  # (seq_num, batch, feature_size)
+        X_shape = infer_shape(X)  # (seq_num, batch, feature_size)
 
-        hidden_size = _infer_shape(_weights[0])[0] / 4
+        hidden_size = infer_shape(_weights[0])[0] / 4
         batch_size = X_shape[1]
 
         # Initialize hidden states if not provided.
@@ -2884,7 +2868,7 @@ class PyTorchOpConverter:
 
         def get_var(name, val):
             if val:
-                checked_type = self.infer_type_with_prelude(val)
+                checked_type = self.infer_type(val, self.prelude.mod)
                 if hasattr(checked_type, "shape"):
                     shape = get_const_tuple(checked_type.shape)
                     actual_shape = []
