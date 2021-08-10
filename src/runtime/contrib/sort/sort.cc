@@ -21,7 +21,7 @@
  * \file Use standard C library call.
  */
 
-#include <builtin_fp16.h>
+#include "../../../../3rdparty/compiler-rt/builtin_fp16.h"
 #include <dlpack/dlpack.h>
 #include <tvm/runtime/registry.h>
 
