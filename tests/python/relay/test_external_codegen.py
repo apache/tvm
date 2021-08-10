@@ -27,7 +27,7 @@ from tvm import relay, runtime
 from tvm.contrib import utils
 from tvm.relay.build_module import bind_params_by_name
 from tvm.relay.op.annotation import compiler_begin, compiler_end
-from aot.aot_test_utils import AOTTestNetwork, compile_and_run
+from aot.aot_test_utils import AOTTestModel, compile_and_run
 
 
 def update_lib(lib):
@@ -81,7 +81,7 @@ def check_aot_executor_result(
     use_unpacked_api = False
     use_calculated_workspaces = True
     compile_and_run(
-        AOTTestNetwork(module=mod, inputs=map_inputs, outputs=[result]),
+        AOTTestModel(module=mod, inputs=map_inputs, outputs=[result]),
         interface_api,
         use_unpacked_api,
         use_calculated_workspaces,

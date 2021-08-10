@@ -27,7 +27,7 @@ from tvm.ir.module import IRModule
 from tvm.relay import testing, transform
 from tvm.relay.testing import byoc
 from aot_test_utils import (
-    AOTTestNetwork,
+    AOTTestModel,
     generate_ref_data,
     convert_to_relay,
     compile_and_run,
@@ -45,7 +45,7 @@ def test_error_c_interface_with_packed_api():
 
     with pytest.raises(tvm.TVMError, match="Packed interface required for packed operators"):
         compile_and_run(
-            AOTTestNetwork(
+            AOTTestModel(
                 module=IRModule.from_expr(func), inputs={}, outputs=generate_ref_data(func, {})
             ),
             interface_api,
@@ -84,7 +84,7 @@ def @main(%data : Tensor[(1, 3, 64, 64), uint8], %weight : Tensor[(8, 3, 5, 5), 
     output_list = generate_ref_data(mod, inputs, params)
 
     compile_and_run(
-        AOTTestNetwork(module=mod, inputs=inputs, outputs=output_list, params=params),
+        AOTTestModel(module=mod, inputs=inputs, outputs=output_list, params=params),
         interface_api,
         use_unpacked_api,
         use_calculated_workspaces,
@@ -106,7 +106,7 @@ def test_add_with_params(interface_api, use_unpacked_api, use_calculated_workspa
     output_list = generate_ref_data(func, inputs, params)
 
     compile_and_run(
-        AOTTestNetwork(
+        AOTTestModel(
             module=IRModule.from_expr(func), inputs=inputs, outputs=output_list, params=params
         ),
         interface_api,
@@ -138,7 +138,7 @@ def test_conv2d(use_calculated_workspaces, interface_api, use_unpacked_api, grou
 
     output_list = generate_ref_data(mod, inputs)
     compile_and_run(
-        AOTTestNetwork(module=mod, inputs=inputs, outputs=output_list),
+        AOTTestModel(module=mod, inputs=inputs, outputs=output_list),
         interface_api,
         use_unpacked_api,
         use_calculated_workspaces,
@@ -162,7 +162,7 @@ def test_concatenate(interface_api, use_unpacked_api, use_calculated_workspaces)
 
     output_list = generate_ref_data(func, inputs)
     compile_and_run(
-        AOTTestNetwork(module=IRModule.from_expr(func), inputs=inputs, outputs=output_list),
+        AOTTestModel(module=IRModule.from_expr(func), inputs=inputs, outputs=output_list),
         interface_api,
         use_unpacked_api,
         use_calculated_workspaces,
@@ -184,7 +184,7 @@ def test_nested_tuples(interface_api, use_unpacked_api, use_calculated_workspace
     output_list = generate_ref_data(func, inputs)
 
     compile_and_run(
-        AOTTestNetwork(module=IRModule.from_expr(func), inputs=inputs, outputs=output_list),
+        AOTTestModel(module=IRModule.from_expr(func), inputs=inputs, outputs=output_list),
         interface_api,
         use_unpacked_api,
         use_calculated_workspaces,
@@ -197,7 +197,7 @@ def test_tuple_getitem(interface_api, use_unpacked_api, use_calculated_workspace
     output_list = generate_ref_data(func, {})
 
     compile_and_run(
-        AOTTestNetwork(module=IRModule.from_expr(func), inputs={}, outputs=output_list),
+        AOTTestModel(module=IRModule.from_expr(func), inputs={}, outputs=output_list),
         interface_api,
         use_unpacked_api,
         use_calculated_workspaces,
@@ -213,7 +213,7 @@ def test_id(interface_api, use_unpacked_api, use_calculated_workspaces):
     output_list = generate_ref_data(ident, inputs)
 
     compile_and_run(
-        AOTTestNetwork(module=IRModule.from_expr(ident), inputs=inputs, outputs=output_list),
+        AOTTestModel(module=IRModule.from_expr(ident), inputs=inputs, outputs=output_list),
         interface_api,
         use_unpacked_api,
         use_calculated_workspaces,
@@ -227,7 +227,7 @@ def test_add_const(interface_api, use_unpacked_api, use_calculated_workspaces):
     output_list = generate_ref_data(func, {})
 
     compile_and_run(
-        AOTTestNetwork(module=IRModule.from_expr(func), inputs={}, outputs=output_list),
+        AOTTestModel(module=IRModule.from_expr(func), inputs={}, outputs=output_list),
         interface_api,
         use_unpacked_api,
         use_calculated_workspaces,
@@ -246,7 +246,7 @@ def test_mul_param(interface_api, use_unpacked_api, use_calculated_workspaces):
     output_list = generate_ref_data(func, inputs)
 
     compile_and_run(
-        AOTTestNetwork(module=IRModule.from_expr(func), inputs=inputs, outputs=output_list),
+        AOTTestModel(module=IRModule.from_expr(func), inputs=inputs, outputs=output_list),
         interface_api,
         use_unpacked_api,
         use_calculated_workspaces,
@@ -262,7 +262,7 @@ def test_subtract(interface_api, use_unpacked_api, use_calculated_workspaces):
     inputs = {"i": i_data}
     output_list = generate_ref_data(func, inputs)
     compile_and_run(
-        AOTTestNetwork(module=IRModule.from_expr(func), inputs=inputs, outputs=output_list),
+        AOTTestModel(module=IRModule.from_expr(func), inputs=inputs, outputs=output_list),
         interface_api,
         use_unpacked_api,
         use_calculated_workspaces,
@@ -281,7 +281,7 @@ def test_tuple_output(interface_api, use_unpacked_api, use_calculated_workspaces
     inputs = {"x": x_data}
     output_list = generate_ref_data(func, inputs)
     compile_and_run(
-        AOTTestNetwork(module=IRModule.from_expr(func), inputs=inputs, outputs=output_list),
+        AOTTestModel(module=IRModule.from_expr(func), inputs=inputs, outputs=output_list),
         interface_api,
         use_unpacked_api,
         use_calculated_workspaces,
@@ -301,7 +301,7 @@ def test_mobilenet(use_calculated_workspaces, workspace_byte_alignment):
     inputs = {"data": data}
     output_list = generate_ref_data(mod, inputs, params)
     compile_and_run(
-        AOTTestNetwork(module=mod, inputs=inputs, outputs=output_list, params=params),
+        AOTTestModel(module=mod, inputs=inputs, outputs=output_list, params=params),
         interface_api,
         use_unpacked_api,
         use_calculated_workspaces,
@@ -357,7 +357,7 @@ def test_byoc_microtvm(use_calculated_workspaces):
     input_list = [map_inputs["x"]]
     input_list.extend([map_inputs["w{}".format(i)] for i in range(8)])
     compile_and_run(
-        AOTTestNetwork(name="my_mod", module=mod, inputs=map_inputs, outputs=output_list),
+        AOTTestModel(name="my_mod", module=mod, inputs=map_inputs, outputs=output_list),
         interface_api,
         use_unpacked_api,
         use_calculated_workspaces,
@@ -379,9 +379,7 @@ def test_add_name_mangling_with_params(interface_api, use_unpacked_api, use_calc
     output_list = generate_ref_data(func, inputs, params)
 
     compile_and_run(
-        AOTTestNetwork(
-            name="my_mod", module=func, inputs=inputs, outputs=output_list, params=params
-        ),
+        AOTTestModel(name="my_mod", module=func, inputs=inputs, outputs=output_list, params=params),
         interface_api,
         use_unpacked_api,
         use_calculated_workspaces,
@@ -428,10 +426,10 @@ def @main(%data : Tensor[(1, 3, 64, 64), uint8], %weight : Tensor[(8, 3, 5, 5), 
 
     compile_and_run(
         [
-            AOTTestNetwork(
+            AOTTestModel(
                 name="mod1", module=mod1, inputs=inputs1, outputs=output_list1, params=params1
             ),
-            AOTTestNetwork(
+            AOTTestModel(
                 name="mod2", module=mod2, inputs=inputs2, outputs=output_list2, params=params2
             ),
         ],
@@ -467,7 +465,7 @@ def test_quant_mobilenet_tfl():
     inputs = {"input": data}
     output_list = generate_ref_data(mod, inputs, params)
     compile_and_run(
-        AOTTestNetwork(module=mod, inputs=inputs, outputs=output_list, params=params),
+        AOTTestModel(module=mod, inputs=inputs, outputs=output_list, params=params),
         interface_api,
         use_unpacked_api,
         use_calculated_workspaces,
@@ -494,7 +492,7 @@ def test_transpose(interface_api, use_unpacked_api, use_calculated_workspaces):
     inputs = {"x": x_data, "y": y_data, "z": t_data}
     output_list = generate_ref_data(func, inputs)
     compile_and_run(
-        AOTTestNetwork(module=IRModule.from_expr(func), inputs=inputs, outputs=output_list),
+        AOTTestModel(module=IRModule.from_expr(func), inputs=inputs, outputs=output_list),
         interface_api,
         use_unpacked_api,
         use_calculated_workspaces,

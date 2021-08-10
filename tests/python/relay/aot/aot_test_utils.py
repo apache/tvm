@@ -40,8 +40,8 @@ from tvm.micro import export_model_library_format
 _LOG = logging.getLogger(__name__)
 
 
-class AOTTestNetwork(NamedTuple):
-    """Class to describe a network under test
+class AOTTestModel(NamedTuple):
+    """Class to describe a model under test
 
     Parameters
     ----------
@@ -52,7 +52,7 @@ class AOTTestNetwork(NamedTuple):
     outputs: List[np.array]
         Ordered list of output value arrays
     name: str
-        Name to use for this network
+        Name to use for this model
     params: Optional[Dict[str, np.array]]
         Dict of parameter names to value arrays
     """
@@ -328,7 +328,7 @@ def emit_main_micro_include(main_file, mod_name):
     main_file.write(f"#include <{mangle_module_name(mod_name)}.h>\n")
 
 
-def create_main(test_name, networks, output_path, interface_api, workspace_bytes):
+def create_main(test_name, models, output_path, interface_api, workspace_bytes):
     file_path = pathlib.Path(f"{output_path}/" + test_name).resolve()
     # create header file
     raw_path = file_path.with_suffix(".c").resolve()
@@ -336,26 +336,26 @@ def create_main(test_name, networks, output_path, interface_api, workspace_bytes
         emit_main_common_includes(main_file)
 
         if interface_api == "c":
-            for network in networks:
-                emit_main_micro_include(main_file, network.name)
+            for model in models:
+                emit_main_micro_include(main_file, model.name)
 
         emit_main_prologue(main_file, workspace_bytes)
-        for network in networks:
-            emit_main_data(main_file, network.inputs, network.outputs, network.name)
+        for model in models:
+            emit_main_data(main_file, model.inputs, model.outputs, model.name)
         emit_main_init_memory_manager(main_file)
 
         if interface_api == "c":
-            for network in networks:
-                emit_main_data_structs(main_file, network.inputs, network.outputs, network.name)
-                emit_main_c_interface_call(main_file, network.name)
+            for model in models:
+                emit_main_data_structs(main_file, model.inputs, model.outputs, model.name)
+                emit_main_c_interface_call(main_file, model.name)
         else:
             emit_main_fake_packed_values(main_file)
-            for network in networks:
-                emit_main_data_setup(main_file, network.inputs, network.outputs, network.name)
-                emit_main_packed_call(main_file, network.inputs, network.outputs, network.name)
+            for model in models:
+                emit_main_data_setup(main_file, model.inputs, model.outputs, model.name)
+                emit_main_packed_call(main_file, model.inputs, model.outputs, model.name)
 
-        for network in networks:
-            emit_main_compare(main_file, network.outputs, network.name)
+        for model in models:
+            emit_main_compare(main_file, model.outputs, model.name)
         emit_main_epilogue(main_file)
 
 
@@ -388,14 +388,14 @@ def create_header_file(tensor_name, npy_data, output_path):
         header_file.write("};\n\n")
 
 
-def extract_main_workspace_sizebytes(extract_dir):
+def extract_main_workspace_size_bytes(extract_dir):
     with open(os.path.join(extract_dir, "metadata.json")) as json_f:
         metadata = json.load(json_f)
         return metadata["memory"]["functions"]["main"][0]["workspace_size_bytes"]
 
 
 def compile_and_run(
-    networks: Union[List[AOTTestNetwork], AOTTestNetwork],
+    models: Union[List[AOTTestModel], AOTTestModel],
     interface_api,
     use_unpacked_api,
     use_calculated_workspaces,
@@ -410,8 +410,8 @@ def compile_and_run(
     target = f"{base_target} {extra_target}"
     cflags = f"-DTVM_RUNTIME_ALLOC_ALIGNMENT_BYTES={workspace_byte_alignment} "
 
-    if not isinstance(networks, list):
-        networks = [networks]
+    if not isinstance(models, list):
+        models = [models]
 
     # The calculated workspaces will not account for stack allocator tags used for debugging
     if not use_calculated_workspaces:
@@ -437,48 +437,48 @@ def compile_and_run(
     )
 
     workspace_bytes = 0
-    for network in networks:
+    for model in models:
         with tvm.transform.PassContext(opt_level=3, config=config):
             lib = tvm.relay.build(
-                network.module,
+                model.module,
                 target,
                 target_host=target,
-                params=network.params,
-                mod_name=network.name,
+                params=model.params,
+                mod_name=model.name,
             )
 
-        tar_file = os.path.join(base_path, f"{network.name}.tar")
+        tar_file = os.path.join(base_path, f"{model.name}.tar")
         export_model_library_format(lib, tar_file)
         t = tarfile.open(tar_file)
         t.extractall(base_path)
 
         if use_calculated_workspaces:
-            workspace_bytes += extract_main_workspace_sizebytes(base_path)
+            workspace_bytes += extract_main_workspace_size_bytes(base_path)
         else:
             workspace_bytes += 16384 * 1024
 
-        for key in network.inputs:
+        for key in model.inputs:
             create_header_file(
-                f'{mangle_name(network.name, "input_data")}_{key}',
-                network.inputs[key],
+                f'{mangle_name(model.name, "input_data")}_{key}',
+                model.inputs[key],
                 include_path,
             )
 
-        for i in range(len(network.outputs)):
+        for i in range(len(model.outputs)):
             create_header_file(
-                (f'{mangle_name(network.name,"output_data")}{i}'),
-                np.zeros(network.outputs[i].shape, network.outputs[i].dtype),
+                (f'{mangle_name(model.name,"output_data")}{i}'),
+                np.zeros(model.outputs[i].shape, model.outputs[i].dtype),
                 include_path,
             )
             create_header_file(
-                (f'{mangle_name(network.name, "expected_output_data")}{i}'),
-                network.outputs[i],
+                (f'{mangle_name(model.name, "expected_output_data")}{i}'),
+                model.outputs[i],
                 include_path,
             )
 
     create_main(
         "test.c",
-        networks,
+        models,
         build_path,
         interface_api,
         workspace_bytes,
