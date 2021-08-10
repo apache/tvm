@@ -419,8 +419,6 @@ class IRBuilder(object):
         buffer_var = _expr.Var(name, PointerType(PrimType(dtype), scope))
         if not isinstance(shape, (list, tuple, _container.Array)):
             shape = [shape]
-        if scope:
-            self.scope_attr(buffer_var, "storage_scope", scope)
         self.emit(lambda x: _stmt.Allocate(buffer_var, dtype, shape, const(1, dtype="uint1"), x))
         return BufferVar(self, buffer_var, shape, dtype)
 

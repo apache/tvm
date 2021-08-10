@@ -23,9 +23,13 @@
  * to actual integer operations.
  */
 
+#include <tvm/ir/affine_type.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
+
+namespace tvm {
+namespace relay {
 
 /* Description of FakeQuantizationToInteger
  *
@@ -63,65 +67,6 @@
  * rewritten subgraph and the processing continues
  */
 
-namespace tvm {
-namespace relay {
-
-/*!
- * \brief AffineType representation
- * \sa AffineType
- */
-class AffineTypeNode : public Object {
- public:
-  /*! \brief The scale of this type */
-  Expr scale;
-  /*! \brief The zero point of this type */
-  Expr zero_point;
-  /*! \brief The data type of this type */
-  DataType dtype;
-
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("scale", &scale);
-    v->Visit("zero_point", &zero_point);
-    v->Visit("dtype", &dtype);
-  }
-
-  bool SEqualReduce(const AffineTypeNode* other, SEqualReducer equal) const {
-    equal->MarkGraphNode();
-    return equal(scale, other->scale) && equal(zero_point, other->zero_point) &&
-           equal(dtype, other->dtype);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce->MarkGraphNode();
-    hash_reduce(scale);
-    hash_reduce(zero_point);
-    hash_reduce(dtype);
-  }
-
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
-  static constexpr const char* _type_key = "AffineTypeNode";
-  TVM_DECLARE_BASE_OBJECT_INFO(AffineTypeNode, Object);
-};
-
-/*!
- * \brief Managed reference to AffineTypes.
- * \sa AffineTypeNode
- */
-class AffineType : public ObjectRef {
- public:
-  TVM_DLL AffineType(Expr scale, Expr zero_point, DataType dtype) {
-    ObjectPtr<AffineTypeNode> n = make_object<AffineTypeNode>();
-    n->scale = std::move(scale);
-    n->zero_point = std::move(zero_point);
-    n->dtype = std::move(dtype);
-    data_ = std::move(n);
-  }
-  TVM_DEFINE_OBJECT_REF_METHODS(AffineType, ObjectRef, AffineTypeNode);
-};
-
-TVM_REGISTER_NODE_TYPE(AffineTypeNode);
-
 using ExprSet = std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual>;
 using ExprMap = std::unordered_map<Expr, Expr, ObjectPtrHash, ObjectPtrEqual>;
 using AffineTypeMap = Map<Expr, AffineType>;
@@ -147,8 +92,14 @@ class SubgraphExtractor : public ExprVisitor {
   }
   const AffineTypeMap GetAffineTypes() { return affine_types_; }
   void VisitExpr(const Expr& expr) override {
+    // When looking for fake quantized subgraphs, we only support data-flow regions of the graph,
+    // i.e. call nodes/tuples/constants/etc. If we see anything else (like control flow) we
+    // abort the rewrite.
     if (expr.as<CallNode>() == nullptr && expr.as<OpNode>() == nullptr &&
-        expr.as<TupleNode>() == nullptr) {
+        expr.as<TupleNode>() == nullptr && expr.as<TupleGetItemNode>() == nullptr &&
+        expr.as<ConstantNode>() == nullptr) {
+      LOG(INFO) << "FakeQuantizationToInteger found a non-dataflow op inside"
+                << " a fake quantize region, aborting this rewrite";
       is_fake_quantized_ = false;
     } else {
       ExprVisitor::VisitExpr(expr);
@@ -162,13 +113,14 @@ class SubgraphExtractor : public ExprVisitor {
       VisitExpr(call_node->args[0]);
       // Collect type of quantize ops
       affine_types_.Set(GetRef<Expr>(call_node),
-                        AffineType(call_node->args[1], call_node->args[2],
-                                   call_node->checked_type().as<TensorTypeNode>()->dtype));
+                        TensorAffineType(call_node->args[1], call_node->args[2],
+                                         call_node->checked_type().as<TensorTypeNode>()->dtype));
     } else if (call_node->op == dequantize_op_) {
       // Collect type of dequantize ops
-      affine_types_.Set(GetRef<Expr>(call_node),
-                        AffineType(call_node->args[1], call_node->args[2],
-                                   call_node->args[0]->checked_type().as<TensorTypeNode>()->dtype));
+      affine_types_.Set(
+          GetRef<Expr>(call_node),
+          TensorAffineType(call_node->args[1], call_node->args[2],
+                           call_node->args[0]->checked_type().as<TensorTypeNode>()->dtype));
     } else {
       // run normally on everything else.
       ExprVisitor::VisitExpr_(call_node);
@@ -225,19 +177,38 @@ class SubgraphMutator : public ExprMutator {
       }
       // Call the rewrite
       Array<ObjectRef> vals = fqfq[op](expr, affine_types_);
-      // Save teh outputs of the rewrite
-      ICHECK(vals.size() == 4)
+      // Save the outputs of the rewrite
+      ICHECK(vals.size() == 2)
           << "got the wrong number of returned arguments from FTVMFakeQuantizationToInteger for "
           << AsText(op, false);
       out = Downcast<Expr>(vals[0]);
-      affine_types_.Set(out, AffineType(Downcast<Expr>(vals[1]), Downcast<Expr>(vals[2]),
-                                        DataType(String2DLDataType(Downcast<String>(vals[3])))));
+      affine_types_.Set(out, Downcast<AffineType>(vals[1]));
     } else {
       ICHECK(false) << "When rewriting a fake quantized graph, found an invalid node "
                     << AsText(GetRef<Expr>(call_node), false);
     }
     return out;
   }
+
+  Expr VisitExpr_(const TupleNode* node) {
+    Expr expr = ExprMutator::VisitExpr_(node);
+    auto new_node = expr.as<TupleNode>();
+    Array<TensorAffineType> types;
+    for (Expr field : new_node->fields) {
+      ICHECK(affine_types_[field].as<TensorAffineTypeNode>());
+      types.push_back(Downcast<TensorAffineType>(affine_types_[field]));
+    }
+    affine_types_.Set(expr, TupleAffineType(types));
+    return expr;
+  }
+
+  Expr VisitExpr_(const TupleGetItemNode* node) {
+    Expr expr = ExprMutator::VisitExpr_(node);
+    auto tuple_type = affine_types_[expr.as<TupleGetItemNode>()->tuple].as<TupleAffineTypeNode>();
+    affine_types_.Set(expr, tuple_type->types[node->index]);
+    return expr;
+  }
+
   ExprSet subgraph_;
   AffineTypeMap affine_types_;
   AffineType out_type_;

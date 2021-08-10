@@ -43,7 +43,7 @@ namespace tvm {
  */
 enum class CallingConv : int {
   /*!
-   * \brief Default calling convetion.
+   * \brief Default calling convention.
    *
    * - Uses the native calling convention of the target.
    * - Implementation: specified by the native target.

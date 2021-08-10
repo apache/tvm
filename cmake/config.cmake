@@ -299,3 +299,23 @@ set(USE_LIBBACKTRACE AUTO)
 # not be included in the final executable. This would make the corresponding
 # runtime functions to be unavailable to the program.
 set(BUILD_STATIC_RUNTIME OFF)
+
+
+# Caches the build so that building is faster when switching between branches.
+# If you switch branches, build and then encounter a linking error, you may
+# need to regenerate the build tree through "make .." (the cache will
+# still provide significant speedups).
+# Possible values:
+# - AUTO: search for path to ccache, disable if not found.
+# - ON: enable ccache by searching for the path to ccache, report an error if not found
+# - OFF: disable ccache
+# - /path/to/ccache: use specific path to ccache
+set(USE_CCACHE AUTO)
+
+# Whether to enable PAPI support in profiling. PAPI provides access to hardware
+# counters while profiling.
+# Possible values:
+# - ON: enable PAPI support. Will search PKG_CONFIG_PATH for a papi.pc
+# - OFF: disable PAPI support.
+# - /path/to/folder/containing/: Path to folder containing papi.pc.
+set(USE_PAPI OFF)

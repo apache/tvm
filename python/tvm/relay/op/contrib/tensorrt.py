@@ -23,6 +23,7 @@ from tvm import relay
 from tvm.relay import transform
 from tvm.relay.build_module import bind_params_by_name
 from tvm.relay.expr import Call, Constant, Tuple, GlobalVar, Var, TupleGetItem
+from tvm.ir import Op
 from tvm.relay.expr_functor import ExprMutator, ExprVisitor
 
 logger = logging.getLogger("TensorRT")
@@ -1035,6 +1036,7 @@ class RemoveDropout(ExprMutator):
             return visit
         if (
             isinstance(visit.tuple_value, Call)
+            and isinstance(visit.tuple_value.op, Op)
             and visit.tuple_value.op.name == "nn.dropout"
             and visit.index == 0
         ):

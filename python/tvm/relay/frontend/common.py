@@ -624,3 +624,128 @@ def to_int_list(np_array):
     cause problems in relay/TOPI.
     """
     return [int(x) for x in np_array]
+
+
+def unbind(data, axis=0):
+    """
+    Unbind was taken from Pytorch frontend. The operation removes a tensor dimension
+    and returns a tuple of all slices along a given dimension, with specified axis removed.
+    TODO (vvchernov): It needs such operation on relay side to reduce time consumption
+    on squeeze operation.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        Input tensor
+    axis : int
+        Axis along which tensor is split.
+    Returns
+    -------
+    result : List[relay.Expr]
+        The sequence of computed tensors
+    """
+    shape = infer_shape(data)
+    if axis >= len(shape):
+        msg = "Please check input dim, it shouldn't be greater than or equal to rank."
+        raise AttributeError(msg)
+
+    selections = shape[axis]
+    res_split = _op.split(data, selections, axis)
+    ret = []
+    for i in range(selections):
+        ret.append(_op.squeeze(res_split[i], axis=[axis]))
+    return _expr.TupleWrapper(_expr.Tuple(ret), selections)
+
+
+def lstm_cell(
+    input_seqs,
+    hidden_state,
+    cell_state,
+    w_inp,
+    w_hid,
+    b_inp=None,
+    b_hid=None,
+    proj=None,
+    p_i=None,
+    p_f=None,
+    p_o=None,
+    f_act=_op.sigmoid,
+    g_act=_op.tanh,
+    h_act=_op.tanh,
+    backwards=False,
+):
+    """
+    Common implementation of LSTM cell for all frontends of TVM
+    TODO (vvchernov): currently it is used by onnx and pytorch. Extend for other frontends
+
+    Parameters
+    ----------
+    input_seqs : List[relay.Expr]
+        The sequence of input tensors
+        Input tensor should be 2d while issue #8412 is not resolved
+        Shape = (batch, feature_size)
+    hidden_state : relay.Expr
+        Hidden state. shape = (batch, hidden_size)
+    cell_state : relay.Expr
+        Cell state. shape = (batch, hidden_size)
+    w_inp, w_hid : relay.Expr
+        weight matrices. wi shape = (4 * hidden_size, feature_size)
+        wh shape = (4 * hidden_size, hidden_size or proj_size)
+        NOTE: wi = (w_ii|w_if|w_ig|w_io) for input, forget, cell and output gates.
+        The order is important for correct LSTM calculation!
+    b_inp, b_hid : relay.Expr
+        bias matrices. The same order of internal parts as for weights. shape = (4 * hidden_size)
+    proj : relay.Expr
+        projection matrix. shape = (proj_size, hidden_size)
+    p_i, p_f, p_o : relay.Expr
+        peephole LSTM matrices. shape = (batch, hidden_size)
+    f_act, g_act, h_act : relay.op
+        activation funtions
+    backwards : bool
+        Flag for reverse pass of LSTM
+
+    Returns
+    -------
+    result : List[relay.Expr], relay.Expr, relay.Expr
+        The sequence of computed result, final hidden and cell state
+    """
+
+    outputs_list = []
+    for x_t in input_seqs if not backwards else reversed(input_seqs):
+        # x_t shape = (batch, feature size), step shape = (batch, feature size + hidden_size)
+        step = _op.concatenate([x_t, hidden_state], axis=1)
+        cat_w = _op.concatenate([w_inp, w_hid], axis=1)
+        # Instead of nn.dense(x_t, w_inp) + nn.dense(hidden_state, w_hid)
+        # nn.dense(step, cat_w) is used
+        # gates shape = (batch, 4 * hidden_size)
+        gates = _op.nn.dense(step, cat_w)
+        # Add biases
+        if b_inp is not None:
+            gates += b_inp
+        if b_hid is not None:
+            gates += b_hid
+        # any gate shape = (batch, hidden_size)
+        inp_gate, fgt_gate, cell_gate, otp_gate = _op.split(gates, 4, axis=-1)
+
+        if p_i is not None and p_f is not None:
+            inp_gate = f_act(inp_gate + p_i * cell_state)
+            fgt_gate = f_act(fgt_gate + p_f * cell_state)
+        else:
+            inp_gate = f_act(inp_gate)
+            fgt_gate = f_act(fgt_gate)
+
+        cell_gate = g_act(cell_gate)
+        cell_state = fgt_gate * cell_state + inp_gate * cell_gate
+        if p_o is not None:
+            otp_gate = f_act(otp_gate + p_o * cell_state)
+        else:
+            otp_gate = f_act(otp_gate)
+
+        hidden_state = otp_gate * h_act(cell_state)
+
+        if proj is not None:
+            hidden_state = _op.nn.dense(hidden_state, proj)
+
+        outputs_list.append(hidden_state)  # [seq_num, (batch, hidden_size)]
+
+    return outputs_list, hidden_state, cell_state

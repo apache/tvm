@@ -17,6 +17,8 @@
 # pylint: disable=invalid-name,unused-variable,too-many-locals,len-as-condition
 """Schedule for reduce operators"""
 from __future__ import absolute_import as _abs
+from operator import mul
+from functools import reduce
 import tvm
 from tvm import te
 from .. import tag
@@ -80,14 +82,38 @@ def _schedule_reduce(op, sch, is_idx_reduce=False):
         if is_idx_reduce:
             sch[temp_idx_input].compute_at(sch[real_output], outer_in)
             sch[temp_val_input].compute_at(sch[real_output], outer_in)
+        sch[real_output].set_store_predicate(
+            tvm.tir.all(
+                thread_x.equal(0), block_x * num_thread + thread_y < reduce(mul, real_output.shape)
+            )
+        )
     else:
         if is_idx_reduce:
             spatial_axis = sch[real_output].fuse(*(sch[real_output].op.axis))
             sch[real_output].bind(spatial_axis, te.thread_axis("blockIdx.x"))
             sch[temp_idx_input].compute_at(sch[real_output], spatial_axis)
             sch[temp_val_input].compute_at(sch[real_output], spatial_axis)
-    sch[real_output].set_store_predicate(thread_x.equal(0))
+        sch[real_output].set_store_predicate(thread_x.equal(0))
     return sch
+
+
+def _enable_auto_inline(sch):
+    def is_scheduled(stage):
+        # auto inline requires the attach type is AttachType.kGroupRoot
+        conds = [
+            len(stage.relations) == 0,
+            stage.attach_type == 1,
+            stage.all_iter_vars == stage.leaf_iter_vars,
+        ]
+        if not all(conds):
+            return True
+        return False
+
+    for s in sch.stages:
+        if not s.is_output and isinstance(s.op, tvm.te.ComputeOp):
+            if is_scheduled(s) or len(s.op.reduce_axis) != 0:
+                return False
+    return True
 
 
 def schedule_reduce(outs):
@@ -107,6 +133,7 @@ def schedule_reduce(outs):
     outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
     sch = te.create_schedule([x.op for x in outs])
     scheduled_ops = []
+    enable_auto_inline = _enable_auto_inline(sch)
 
     def traverse_before_reduce(operator):
         """Internal traverse function"""
@@ -128,7 +155,11 @@ def schedule_reduce(outs):
             if operator not in scheduled_ops:
                 schedule_injective_from_existing(sch, operator.output(0))
             for tensor in operator.input_tensors:
-                traverse_after_reduce(tensor.op)
+                if tensor.op not in scheduled_ops:
+                    if enable_auto_inline:
+                        traverse_before_reduce(tensor.op)
+                    else:
+                        traverse_after_reduce(tensor.op)
         elif operator.tag == "comm_reduce":
             if operator not in scheduled_ops:
                 _schedule_reduce(operator, sch, is_idx_reduce=False)

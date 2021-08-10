@@ -712,7 +712,6 @@ def test_alter_layout_nchw_dyn_upsamping_op():
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
 
-@tvm.testing.uses_gpu
 def test_alter_layout_strided_slice():
     """Test rewriting strided_slice during alter_iop_layout"""
 

@@ -53,8 +53,7 @@ class UpdatePointerStorageScopeAllReduce final : public UpdatePointerStorageScop
         // use volatile access to shared buffer.
         body = AttrStmt(remapped, attr::volatile_scope, 1, body);
       }
-      body = Allocate(remapped, op->dtype, op->extents, op->condition, body);
-      return AttrStmt(remapped, attr::storage_scope, StringImm(new_scope), body);
+      return Allocate(remapped, op->dtype, op->extents, op->condition, body);
     }
     return StmtExprMutator::VisitStmt_(op);
   }
@@ -71,15 +70,6 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       Stmt ret = StmtExprMutator::VisitStmt_(op);
       thread_extents_.pop_back();
       return ret;
-    } else if (op->attr_key == attr::storage_scope) {
-      Stmt ret = StmtExprMutator::VisitStmt_(op);
-      op = ret.as<AttrStmtNode>();
-      const VarNode* v = op->node.as<VarNode>();
-      if (alloc_remap_.count(v)) {
-        return op->body;
-      } else {
-        return ret;
-      }
     } else if (op->attr_key == attr::reduce_scope) {
       const CommReducerNode* combiner = op->node.as<CommReducerNode>();
       ICHECK(combiner);

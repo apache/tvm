@@ -27,6 +27,7 @@
 #include <tvm/runtime/device_api.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
+#include <tvm/tir/function.h>
 #include <tvm/tir/op.h>
 
 #include <limits>
@@ -197,6 +198,32 @@ Stmt ConvertSSA(Stmt stmt);
  * \return A string representing the storage scope of this buffer variable.
  */
 String GetPtrStorageScope(Var buffer_var);
+
+/*!
+ * \brief Convert match buffer target buffer access indices to original one.
+ * \param indices The indices of the target buffer
+ * \return The indices of source buffer.
+ */
+Array<PrimExpr> ConvertIndices(const MatchBufferRegion& match_buffer,
+                               const Array<PrimExpr>& indices);
+
+/*!
+ * \brief Convert match buffer target buffer region to original one.
+ * \param region The sub-region of the target buffer
+ * \return The region of source buffer.
+ */
+Region ConvertRegion(const MatchBufferRegion& match_buffer, const Region& region);
+
+/*!
+ * \brief Check if a given PrimFunc originated from a TE schedule.
+ *
+ * Internally this checks for the `from_legacy_te_schedule` attr of the PrimFunc.
+ *
+ * \param f PrimFunc to check
+ * \return Whether or not the PrimFunc was created from a te schedule
+ */
+Bool IsFromLegacyTESchedule(PrimFunc f);
+
 }  // namespace tir
 }  // namespace tvm
 #endif  // TVM_TIR_TRANSFORMS_IR_UTILS_H_
