@@ -16,32 +16,15 @@
 # under the License.
 
 from collections import OrderedDict
-import os
-import io
-import pathlib
-import shutil
-import struct
-import subprocess
 import sys
-import tempfile
-import tarfile
 
 import numpy as np
 import pytest
 
 import tvm
 from tvm import relay
-from tvm.relay import transform
-from tvm.relay.op.contrib import get_pattern_table
-from tvm.contrib import utils
-from tvm.relay.backend import compile_engine
-from tvm.contrib import utils
-from tvm.contrib import graph_executor
-from tvm.micro import export_model_library_format
-from tvm.relay import testing
+from tvm.relay import testing, transform
 from tvm.relay.testing import byoc
-from tvm.relay.op.annotation import compiler_begin, compiler_end
-from tvm.relay.expr_functor import ExprMutator
 from aot_test_utils import (
     generate_ref_data,
     convert_to_relay,
@@ -337,7 +320,6 @@ def test_tuple_output(interface_api, use_unpacked_api, use_calculated_workspaces
     y = relay.split(x, 3).astuple()
     a = relay.TupleGetItem(y, 0)
     b = relay.TupleGetItem(y, 1)
-    c = relay.TupleGetItem(y, 2)
     out = relay.Tuple([a, b])
     func = relay.Function([x], out)
     x_data = np.random.rand(6, 9).astype("float32")

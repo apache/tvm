@@ -1,3 +1,4 @@
+#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,14 +16,16 @@
 # specific language governing permissions and limitations
 # under the License.
 
-if(USE_PAPI)
-  find_package(PkgConfig REQUIRED)
+set -e
+set -u
+set -o pipefail
 
-  set(ENV{PKG_CONFIG_PATH} "${USE_PAPI}:$ENV{PKG_CONFIG_PATH}")
-  pkg_check_modules(PAPI REQUIRED IMPORTED_TARGET papi>=6.0)
-  message(STATUS "Using PAPI library ${PAPI_LINK_LIBRARIES}")
-  target_link_libraries(tvm_runtime_objs PRIVATE PkgConfig::PAPI)
-  target_link_libraries(tvm PRIVATE PkgConfig::PAPI)
-  target_link_libraries(tvm_runtime PRIVATE PkgConfig::PAPI)
-  target_sources(tvm_runtime_objs PRIVATE src/runtime/contrib/papi/papi.cc)
-endif()
+export DEBIAN_FRONTEND=noninteractive
+apt-get install -y ca-certificates
+
+# Install arduino-cli latest version
+wget -O - https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh -s
+
+# Install supported cores from those URLS
+arduino-cli core install arduino:mbed_nano
+arduino-cli core install arduino:sam
