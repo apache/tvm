@@ -148,6 +148,22 @@ class TestFixtureCaching:
             assert self.cached_calls == len(self.param1_vals)
 
 
+class TestCachedFixtureIsCopy:
+    param = tvm.testing.parameter(1, 2, 3, 4)
+
+    @tvm.testing.fixture(cache_return_value=True)
+    def cached_mutable_fixture(self):
+        return {"val": 0}
+
+    def test_modifies_fixture(self, param, cached_mutable_fixture):
+        assert cached_mutable_fixture["val"] == 0
+
+        # The tests should receive a copy of the fixture value.  If
+        # the test receives the original and not a copy, then this
+        # will cause the next parametrization to fail.
+        cached_mutable_fixture["val"] = param
+
+
 class TestBrokenFixture:
     # Tests that use a fixture that throws an exception fail, and are
     # marked as setup failures.  The tests themselves are never run.
