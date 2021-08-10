@@ -47,9 +47,7 @@ _LOG = logging.getLogger(__name__)
 PLATFORMS = conftest.PLATFORMS
 
 
-def _build_project(
-    temp_dir, zephyr_board, west_cmd, mod, build_config, extra_files_tar=None
-):
+def _build_project(temp_dir, zephyr_board, west_cmd, mod, build_config, extra_files_tar=None):
     template_project_dir = (
         pathlib.Path(__file__).parent
         / ".."
@@ -69,7 +67,7 @@ def _build_project(
             "extra_files_tar": extra_files_tar,
             "project_type": "aot_demo",
             "west_cmd": west_cmd,
-            "verbose": 0,
+            "verbose": bool(build_config.get("debug")),
             "zephyr_board": zephyr_board,
         },
     )
@@ -139,7 +137,7 @@ def _get_message(fd, expr: str):
 
 
 @tvm.testing.requires_micro
-def test_tflite(temp_dir, platform, west_cmd, skip_build, tvm_debug):
+def test_tflite(temp_dir, platform, west_cmd, tvm_debug):
     """Testing a TFLite model."""
 
     if platform not in ["host", "mps2_an521", "nrf5340dk", "stm32l4r5zi_nucleo", "zynq_mp_r5"]:
@@ -148,7 +146,7 @@ def test_tflite(temp_dir, platform, west_cmd, skip_build, tvm_debug):
     model, zephyr_board = PLATFORMS[platform]
     input_shape = (1, 32, 32, 3)
     output_shape = (1, 10)
-    build_config = {"skip_build": skip_build, "debug": tvm_debug}
+    build_config = {"debug": tvm_debug}
 
     model_url = "https://github.com/eembc/ulpmark-ml/raw/fc1499c7cc83681a02820d5ddf5d97fe75d4f663/base_models/ic01/ic01_fp32.tflite"
     model_path = download_testdata(model_url, "ic01_fp32.tflite", module="model")
@@ -222,13 +220,13 @@ def test_tflite(temp_dir, platform, west_cmd, skip_build, tvm_debug):
 
 
 @tvm.testing.requires_micro
-def test_qemu_make_fail(temp_dir, platform, west_cmd, skip_build, tvm_debug):
+def test_qemu_make_fail(temp_dir, platform, west_cmd, tvm_debug):
     """Testing QEMU make fail."""
     if platform not in ["host", "mps2_an521"]:
         pytest.skip(msg="Only for QEMU targets.")
 
     model, zephyr_board = PLATFORMS[platform]
-    build_config = {"skip_build": skip_build, "debug": tvm_debug}
+    build_config = {"debug": tvm_debug}
     shape = (10,)
     dtype = "float32"
 
