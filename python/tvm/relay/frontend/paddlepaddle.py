@@ -50,6 +50,18 @@ def shape_of(x, dtype='int32'):
     return _op.shape_of(x, dtype)
 
 
+def _get_pad_size(in_size, dilated_kernel_size, stride_size):
+    if stride_size == 1 or in_size % stride_size == 0:
+        pad = max(dilated_kernel_size - stride_size, 0)
+    else:
+        pad = max(dilated_kernel_size - (in_size % stride_size), 0)
+
+    pad_before = pad // 2
+    pad_after = pad - pad_before
+
+    return [pad_before, pad_after]
+
+
 def convert_arg_max(g, op, block):
     """Operator converter for arg_max."""
 
@@ -110,13 +122,6 @@ def convert_concat(g, op, block):
 
 def convert_conv2d(g, op, block):
     """Operator converter for conv2d."""
-    def get_pad_size(in_size, dilated_kernel_size, stride_size):
-        if stride_size == 1 or in_size & stride_size == 0:
-            pad = max(dilated_kernel_size - stride_size, 0)
-        else:
-            pad = max(dilated_kernel_size - (in_size % stride_size), 0)
-        return [pad // 2, pad - pad // 2]
-
     dilations = op.attr('dilations')
     groups = op.attr('groups')
     paddings = op.attr('paddings')
@@ -127,6 +132,21 @@ def convert_conv2d(g, op, block):
     input = g.get_node(op.input('Input')[0])
     out_channels, _, k_h, k_w = infer_shape(kernel)
     in_h, in_w = infer_shape(input)[2:]
+    if padding_algorithm == "VALID":
+        paddings = [0, 0]
+    elif padding_algorithm == "SAME":
+        pad_h = _get_pad_size(in_h, (k_h - 1) * dilations[0] + 1, strides[0])
+        pad_w = _get_pad_size(in_w, (k_w - 1) * dilations[1] + 1, strides[1])
+        paddings = [pad_h[0], pad_w[0], pad_h[1], pad_w[1]]
+    elif padding_algorithm == "EXPLICIT":
+        if len(paddings) == 2:
+            paddings = [paddings[0],paddings[1],paddings[0],paddings[1]]
+        if len(paddings) == 4:
+            paddings = [paddings[0],paddings[2],paddings[1],paddings[3]]
+    else:
+        msg = 'Value {} in attribute "padding" of operator Conv is not ' "valid."
+        raise tvm.error.OpAttributeInvalid(msg.format(padding_algorithm))
+
     out = _op.nn.conv2d(input,
                         kernel,
                         strides=strides,
@@ -520,6 +540,9 @@ def convert_pool2d(g, op, block):
     if global_pooling:
         adaptive = True
         ksize = [1, 1]
+        
+    input = g.get_node(op.input('X')[0])
+    in_h, in_w = infer_shape(input)[2:]
 
     op_map = {
         'avg': 'avg_pool2d',
@@ -532,6 +555,21 @@ def convert_pool2d(g, op, block):
         ksize = [ksize, ksize]
     if isinstance(paddings, int):
         paddings = [paddings] * 2
+
+    if padding_algorithm == "VALID":
+        paddings = [0, 0]
+    elif padding_algorithm == "SAME":
+        pad_h = _get_pad_size(in_h, ksize[0], strides[0])
+        pad_w = _get_pad_size(in_w, ksize[1], strides[1])
+        paddings = [pad_h[0], pad_w[0], pad_h[1], pad_w[1]]
+    elif padding_algorithm == "EXPLICIT":
+        if len(paddings) == 2:
+            paddings = [paddings[0],paddings[1],paddings[0],paddings[1]]
+        if len(paddings) == 4:
+            paddings = [paddings[0],paddings[2],paddings[1],paddings[3]]
+    else:
+        msg = 'Value {} in attribute "padding" of operator Pool2d is not ' "valid."
+        raise tvm.error.OpAttributeInvalid(msg.format(padding_algorithm))
 
     x = g.get_node(op.input('X')[0])
     if not adaptive:
@@ -696,6 +734,7 @@ _convert_map = {
 
 class GraphProto(object):
     """ A helper class for handling relay functions from PaddlePaddle model."""
+
     def __init__(self):
         self.nodes = {}
         self.params = {}
