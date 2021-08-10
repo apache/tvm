@@ -58,3 +58,37 @@ def convert(func, params, blocksize, sparsity_threshold, layout="NHWC", kernel_s
     )
 
     return new_func, params
+
+
+def convert2(func, params, blocksize, sparsity_threshold, layout, kernel_size):
+    """Convert a freezed conv2d func to block sparse
+
+    Parameters
+    ----------
+    func : relay.Expr
+        Expr will be optimized to sparse operation, with params freezed
+    params : Dict[Srting, tvm.nd.array]
+        Parameters of the Expr (not used in this pass)
+    blocksize : Tuple(int, int)
+        Blocksize for BSR matrix
+    sparsity_threshold : float
+        Minimal sparsity requirement for converting.
+        If weight sparsity is lower than this threshold,
+        the dense operation will be kept.
+    layout : str
+        layout of network
+    kernel_size : int
+        kernel size of the conv2d, for filtering
+
+    Returns
+    -------
+    new_func: relay.Expr
+        Mutated Expr with sparse operations
+
+    params: Dict[Srting, tvm.nd.array]
+        New params with BSR matrix for mutated Expr (not modified)
+    """
+    new_func = _run_opt_pass(
+        func, relay.transform.Conv2dToSparse2(layout, kernel_size, blocksize, sparsity_threshold)
+    )
+    return new_func, params

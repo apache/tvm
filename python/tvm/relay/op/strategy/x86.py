@@ -319,9 +319,7 @@ def conv3d_strategy_cpu(attrs, inputs, out_type, target):
         # or packed layouts.
         if layout == "NCDHW":
             strategy.add_implementation(
-                wrap_compute_conv3d(topi.nn.conv3d_ncdhw),
-                naive_schedule,
-                name="conv3d_ncdhw.x86",
+                wrap_compute_conv3d(topi.nn.conv3d_ncdhw), naive_schedule, name="conv3d_ncdhw.x86",
             )
         elif layout == "NDHWC":
             strategy.add_implementation(
@@ -440,9 +438,7 @@ def matmul_strategy_cpu(attrs, inputs, out_type, target):
                 "Recommend to use cblas/mkl/mkldnn for better performance."
             )
         strategy.add_implementation(
-            wrap_compute_matmul(topi.nn.matmul),
-            naive_schedule,
-            name="matmul.generic",
+            wrap_compute_matmul(topi.nn.matmul), naive_schedule, name="matmul.generic",
         )
     return strategy
 
@@ -569,13 +565,13 @@ def sparse_dense_strategy_cpu(attrs, inputs, out_type, target):
 def sparse_conv2d_strategy_cpu(attrs, inputs, out_type, target):
     """sparse conv2d x86 strategy"""
     strategy = _op.OpStrategy()
-    if attrs["kernel_size"] == 1:
+    if attrs["kernel_size"][0] == 1:
         strategy.add_implementation(
             wrap_compute_sparse_conv2d(topi.nn.sparse_conv2d),
             wrap_topi_schedule(topi.generic.schedule_sparse_conv2d),
             name="sparse_conv2d.generic",
         )
-    elif attrs["kernel_size"] == 3:
+    elif attrs["kernel_size"][0] == 3:
         if attrs["layout"] == "NHWC":
             strategy.add_implementation(
                 wrap_compute_sparse_conv2d(topi.x86.spconv2d_3x3_nhwc),

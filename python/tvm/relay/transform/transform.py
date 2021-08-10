@@ -1116,6 +1116,26 @@ def Conv2dToSparse(weight_name, weight_shape, layout, kernel_size):
     return _ffi_api.Conv2dToSparse(weight_name, weight_shape, layout, kernel_size)
 
 
+def Conv2dToSparse2(layout, kernel_size, blocksize, sparsity_threshold):
+    """
+    Rewrite freezed ```nn.conv2d``` operation to ```nn.sparse_conv2d```
+
+    Parameters
+    ----------
+    layout : str
+        layout of data
+
+    kernel_size : int
+        kernel size of conv2d
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The registered DenseToSparse pass.
+    """
+    return _ffi_api.Conv2dToSparse2(layout, kernel_size, *blocksize, sparsity_threshold)
+
+
 def SimplifyFCTranspose(target_weight_name):
     """
     Rewrite ```y = nn.dense(x, transpose(w, [1, 0]))``` to ```y = nn.dense(x, wt)```
