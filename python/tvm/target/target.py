@@ -314,7 +314,6 @@ def micro(model="unknown", options=None):
     )
 
     if (not options) or (options and not any("-executor=aot" in o for o in options)):
-        print("Adding system libs!")
         opts = _merge_opts(opts, "--system-lib")
 
     # NOTE: in the future, the default micro target will be LLVM except when

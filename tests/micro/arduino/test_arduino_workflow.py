@@ -23,54 +23,38 @@ This unit test simulates a simple user workflow, where we:
 6. Use serial connection to ensure model behaves correctly
 """
 
-PLATFORMS = conftest.PLATFORMS
+
+# Since these tests are sequential, we'll use the same project for all tests
+@pytest.fixture(scope="module")
+def workspace_dir(request, platform):
+    return conftest.make_workspace_dir("arduino_workflow", platform)
 
 
-def _generate_project(model, target, arduino_board, arduino_cli_cmd, mod, build_config):
-    parent_dir = os.path.dirname(__file__)
-    filename = os.path.splitext(os.path.basename(__file__))[0]
-    prev_build = (
-        f"{os.path.join(parent_dir, 'archive')}_{filename}_{arduino_board}_last_build.micro"
-    )
-    workspace_root = os.path.join(
-        f"{os.path.join(parent_dir, 'workspace')}_{filename}_{arduino_board}",
-        datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S"),
-    )
-    workspace_parent = os.path.dirname(workspace_root)
-    if not os.path.exists(workspace_parent):
-        os.makedirs(workspace_parent)
-    workspace = tvm.micro.Workspace(debug=False, root=workspace_root)
+@pytest.fixture(scope="module")
+def project_dir(workspace_dir):
+    return workspace_dir / "project"
 
-    template_project_dir = (
-        pathlib.Path(__file__).parent
-        / ".."
-        / ".."
-        / ".."
-        / "apps"
-        / "microtvm"
-        / "arduino"
-        / "template_project"
-    ).resolve()
-    project = tvm.micro.generate_project(
-        str(template_project_dir),
+
+def _generate_project(arduino_board, arduino_cli_cmd, workspace_dir, mod, build_config):
+    return tvm.micro.generate_project(
+        str(conftest.TEMPLATE_PROJECT_DIR),
         mod,
-        workspace.relpath("project"),
+        workspace_dir / "project",
         {
             "arduino_board": arduino_board,
             "arduino_cli_cmd": arduino_cli_cmd,
             "project_type": "example_project",
-            "verbose": 0,
+            "verbose": bool(build_config.get("debug")),
         },
     )
-    return (workspace, project)
 
 
+# We MUST pass workspace_dir, not project_dir, or the workspace will be dereferenced too soon
 @pytest.fixture(scope="module")
-def yes_no_project(platform, arduino_cli_cmd):
+def project(platform, arduino_cli_cmd, tvm_debug, workspace_dir):
     current_dir = os.path.dirname(__file__)
-    model, arduino_board = PLATFORMS[platform]
-    # target = tvm.target.target.micro(model, options=["-link-params=1"])
-    build_config = {}
+    model, arduino_board = conftest.PLATFORMS[platform]
+    build_config = {"debug": tvm_debug}
 
     with open(f"{current_dir}/testdata/yes_no.tflite", "rb") as f:
         tflite_model_buf = f.read()
@@ -83,41 +67,29 @@ def yes_no_project(platform, arduino_cli_cmd):
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         mod = relay.build(mod, target, params=params)
 
-    return _generate_project(model, target, arduino_board, arduino_cli_cmd, mod, build_config)
+    return _generate_project(arduino_board, arduino_cli_cmd, workspace_dir, mod, build_config)
 
 
-@pytest.fixture(scope="module")
-def project(yes_no_project):
-    workspace, project = yes_no_project
-    return project
-
-
-@pytest.fixture(scope="module")
-def project_dir(yes_no_project):
-    workspace, project = yes_no_project
-    return pathlib.Path(workspace.path) / "project"
-
-
-def test_project_folder_structure(project_dir):
+def test_project_folder_structure(project_dir, project):
     assert set(["microtvm_api_server.py", "project.ino", "src"]).issubset(os.listdir(project_dir))
 
     source_dir = project_dir / "src"
     assert set(os.listdir(source_dir)) == set(["model", "standalone_crt", "model.c", "model.h"])
 
 
-def test_project_model_integrity(project_dir):
+def test_project_model_integrity(project_dir, project):
     model_dir = project_dir / "src" / "model"
     assert set(os.listdir(model_dir)) == set(["default_lib0.c", "default_lib1.c", "model.tar"])
 
 
-def test_model_header_templating(project_dir):
+def test_model_header_templating(project_dir, project):
     # Ensure model.h was templated with correct WORKSPACE_SIZE
     with (project_dir / "src" / "model.h").open() as f:
         model_h = f.read()
         assert "#define WORKSPACE_SIZE 21312" in model_h
 
 
-def test_import_rerouting(project_dir):
+def test_import_rerouting(project_dir, project):
     # Check one file to ensure imports were rerouted
     runtime_path = project_dir / "src" / "standalone_crt" / "src" / "runtime"
     c_backend_api_path = runtime_path / "crt" / "common" / "crt_backend_api.c"

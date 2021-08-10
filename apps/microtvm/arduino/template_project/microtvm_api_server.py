@@ -41,11 +41,7 @@ class BoardAutodetectFailed(Exception):
 
 
 BOARD_PROPERTIES = {
-    "due": {
-        "package": "arduino",
-        "architecture": "sam",
-        "board": "arduino_due_x"
-    },
+    "due": {"package": "arduino", "architecture": "sam", "board": "arduino_due_x"},
     # Due to the way the Feather S2 bootloader works, compilation
     # behaves fine but uploads cannot be done automatically
     "feathers2": {
@@ -112,7 +108,7 @@ class Handler(server.ProjectAPIHandler):
         self._port = None
         self._serial = None
 
-    def server_info_query(self):
+    def server_info_query(self, tvm_version):
         return server.ServerInfo(
             platform_name="arduino",
             is_template=IS_TEMPLATE,
@@ -372,7 +368,7 @@ class Handler(server.ProjectAPIHandler):
         ]
 
         if options.get("verbose"):
-            compile_cmd.append("--verbose")
+            upload_cmd.append("--verbose")
 
         output = subprocess.check_call(upload_cmd)
 

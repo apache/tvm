@@ -25,3 +25,5 @@ source tests/scripts/setup-pytest-env.sh
 make cython3
 run_pytest ctypes python-microtvm-zephyr tests/micro/zephyr --microtvm-platforms=qemu_x86
 run_pytest ctypes python-microtvm-zephyr tests/micro/zephyr --microtvm-platforms=mps2_an521
+run_pytest ctypes python-microtvm-arduino-due tests/micro/arduino --microtvm-platforms=due
+run_pytest ctypes python-microtvm-arduino-nano33ble tests/micro/arduino --microtvm-platforms=nano33ble
