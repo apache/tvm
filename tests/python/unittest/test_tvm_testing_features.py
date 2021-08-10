@@ -238,9 +238,9 @@ class TestCacheableTypes:
     def uncacheable_fixture(self):
         return self.EmptyClass()
 
-    @pytest.mark.xfail(reason="Requests cached fixture of uncacheable type", strict=True)
-    def test_uses_uncacheable(self, uncacheable_fixture):
-        pass
+    def test_uses_uncacheable(self, request):
+        with pytest.raises(TypeError):
+            request.getfixturevalue("uncacheable_fixture")
 
     class ImplementsReduce:
         def __reduce__(self):
