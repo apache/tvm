@@ -210,11 +210,4 @@ def test_sketch_search_policy_custom_sketch():
 
 
 if __name__ == "__main__":
-    test_workload_registry_empty_policy()
-    test_sketch_search_policy_basic()
-    test_sketch_search_policy_basic_spawn()
-    test_sketch_search_policy_xgbmodel()
-    test_sketch_search_policy_cuda_rpc_runner()
-    test_sketch_search_policy_cuda_xgbmodel_rpc_runner()
-    test_sketch_search_policy_zero_rank()
-    test_sketch_search_policy_custom_sketch()
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

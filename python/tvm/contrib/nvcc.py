@@ -97,7 +97,9 @@ def compile_cuda(code, target="ptx", arch=None, options=None, path_target=None):
     # if cxx_compiler_path != "":
     #    cmd += ["-ccbin", cxx_compiler_path]
 
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    # NOTE(areusch): Per https://github.com/lpereira/lwan/issues/106, stdin must be left open.
+    proc = subprocess.Popen(
+        cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
     (out, _) = proc.communicate()
 
