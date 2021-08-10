@@ -26,9 +26,9 @@ import tvm.target.target
 # The models that should pass this configuration. Maps a short, identifying platform string to
 # (model, zephyr_board).
 PLATFORMS = {
-    "host": ("host", "qemu_x86"),
-    "host_riscv32": ("host", "qemu_riscv32"),
-    "host_riscv64": ("host", "qemu_riscv64"),
+    "qemu_x86": ("host", "qemu_x86"),
+    "qemu_riscv32": ("host", "qemu_riscv32"),
+    "qemu_riscv64": ("host", "qemu_riscv64"),
     "mps2_an521": ("mps2_an521", "mps2_an521"),
     "nrf5340dk": ("nrf5340dk", "nrf5340dk_nrf5340_cpuapp"),
     "stm32f746xx_disco": ("stm32f746xx", "stm32f746g_disco"),
@@ -41,7 +41,7 @@ PLATFORMS = {
 def pytest_addoption(parser):
     parser.addoption(
         "--microtvm-platforms",
-        default="host",
+        default="qemu_x86",
         choices=PLATFORMS.keys(),
         help=(
             "Specify a comma-separated list of test models (i.e. as passed to tvm.target.micro()) "
