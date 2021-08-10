@@ -1574,6 +1574,32 @@ class PyTorchOpConverter:
 
         return func(data)
 
+    def chunk_dev(self, inputs, input_types):
+        data = inputs[0]
+
+        num_chunks = int(inputs[1])
+        axis = int(inputs[2])
+
+        if isinstance(data, _expr.Expr):
+            inferred_shape = self.infer_shape_with_prelude(data)
+
+        shape = []
+        for infer in inferred_shape:
+            shape.append(infer)
+
+        dim = int(shape[axis])
+
+        if dim % num_chunks:
+            unif_size = int(dim / (num_chunks - 1))
+        else:
+            unif_size = int(dim / num_chunks)
+
+        indeces = []
+        for i in range(0, dim, unif_size):
+            indeces.append(i)
+
+        return _op.split(data, indeces, axis)
+
     def chunk(self, inputs, input_types):
         data = inputs[0]
 
@@ -2681,6 +2707,7 @@ class PyTorchOpConverter:
             "aten::alpha_dropout": self.dropout,
             "aten::mean": self.mean,
             "aten::chunk": self.chunk,
+            "aten::unsafe_chunk": self.chunk,
             "aten::matmul": self.matmul,
             "aten::bmm": self.matmul,
             "aten::expand": self.expand,
