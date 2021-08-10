@@ -28,11 +28,16 @@ echo "Using PYTHONPATH=$PYTHONPATH"
 export RUST_DIR="$TVM_HOME/rust"
 echo "Using RUST_DIR=$RUST_DIR"
 
-
 export LLVM_CONFIG_DEFAULT=`which llvm-config-10`
 export LLVM_CONFIG_PATH="${LLVM_CONFIG_PATH:-$LLVM_CONFIG_DEFAULT}"
 
 echo "Using LLVM_CONFIG_PATH=$LLVM_CONFIG_PATH"
+
+TVM_RUSTC_VERSION=`rustc --version`
+echo "Using TVM_RUSTC_VERSION=$TVM_RUSTC_VERSION"
+
+TVM_CARGO_VERSION=`cargo --version`
+echo "Using TVM_CARGO_VERSION=$TVM_CARGO_VERSION"
 
 # to avoid CI CPU thread throttling.
 export TVM_BIND_THREADS=0
