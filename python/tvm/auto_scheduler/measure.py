@@ -819,7 +819,9 @@ def prepare_input_map(args):
 
 
 def prepare_runner_args(inp, build_res):
-    """This function prepare the arguments for local/rpc runner in main process
+    """This function prepares the pre-defined arguments in `TASK_INPUT_BUFFER_TABLE` for local/rpc
+    runner in main process
+
     Parameters
     ----------
     inp : MeasureInput
@@ -831,7 +833,8 @@ def prepare_runner_args(inp, build_res):
     Returns
     -------
     List[Optional[numpy.ndarray]] :
-        List of numpy.ndarray representation of task input buffer. None if argument not present in task_input_names.
+        List of arguments for running the program. If the argument does not have a pre-defined input
+        buffer, None is added to the list as a placeholder.
 
     """
     # pylint: disable=import-outside-toplevel
