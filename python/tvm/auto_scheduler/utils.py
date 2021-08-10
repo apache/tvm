@@ -37,7 +37,6 @@ from tvm import rpc
 from tvm.tir import expr
 from tvm.tir.transform import Simplify
 from tvm.ir.transform import Sequential
-from tvm.contrib.popen_pool import PopenWorker
 from ..te import Tensor, placeholder
 
 
@@ -287,13 +286,11 @@ def call_func_with_thread(func, args, kwargs):
     return res[0]
 
 
-def call_func_with_timeout(timeout, func, args=(), kwargs=None):  # pylint: disable=unused-argument
+def call_func_with_timeout(worker, timeout, func, args=(), kwargs=None):  # pylint: disable=unused-argument
     """Call a function with timeout"""
-    process = PopenWorker()
-    process.send(func, args, kwargs, timeout)
-
+    worker.send(func, args, kwargs, timeout)
     try:
-        res = process.recv()
+        res = worker.recv()
     except Exception:  # pylint: disable=broad-except
         res = Exception(make_traceback_info())
 

@@ -45,6 +45,7 @@ from tvm.driver import build_module
 from tvm.ir import transform
 from tvm.autotvm.measure.measure_methods import set_cuda_target_arch
 from tvm.contrib import tar, ndk
+from tvm.contrib.popen_pool import PopenWorker
 from tvm.target import Target
 
 
@@ -665,7 +666,8 @@ def local_build_worker(args):
     )
     build_func = BuildFunc.build_func
 
-    res = call_func_with_timeout(timeout, _timed_func, args=(inp, build_func, verbose))
+    worker = PopenWorker()
+    res = call_func_with_timeout(worker, timeout, _timed_func, args=(inp, build_func, verbose))
     if isinstance(res, TimeoutError):
         if verbose >= 1:
             print(".T", end="", flush=True)  # Build timeout
@@ -999,6 +1001,7 @@ def local_run(
 
     measure_results = []
     assert len(inputs) == len(build_results), "Measure input size should be equal to build results"
+    worker = PopenWorker()
     for inp, build_res in zip(inputs, build_results):
         if build_res.error_no != 0:
             res = (
@@ -1011,6 +1014,7 @@ def local_run(
         else:
             args = prepare_runner_args(inp, build_res)
             res = call_func_with_timeout(
+                worker,
                 timeout,
                 _timed_eval_func,
                 args=(
@@ -1177,7 +1181,8 @@ def _rpc_run_worker(args):
             time.time(),
         )
 
-    res = call_func_with_timeout(timeout, _timed_rpc_run, args=args)
+    worker = PopenWorker()
+    res = call_func_with_timeout(worker, timeout, _timed_rpc_run, args=args)
     if isinstance(res, TimeoutError):
         if verbose >= 1:
             print("*T", end="")  # Run timeout
