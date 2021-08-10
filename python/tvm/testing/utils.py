@@ -388,8 +388,14 @@ def _get_targets(target_str=None):
     targets = []
     for target in target_names:
         target_kind = target.split()[0]
-        is_enabled = tvm.runtime.enabled(target_kind)
-        is_runnable = is_enabled and tvm.device(target_kind).exist
+
+        if target_kind == "cuda" and "cudnn" in tvm.target.Target(target).attrs.get("libs", []):
+            is_enabled = tvm.support.libinfo()["USE_CUDNN"].lower() in ["on", "true", "1"]
+            is_runnable = is_enabled and cudnn.exists()
+        else:
+            is_enabled = tvm.runtime.enabled(target_kind)
+            is_runnable = is_enabled and tvm.device(target_kind).exist
+
         targets.append(
             {
                 "target": target,
