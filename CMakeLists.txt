@@ -426,7 +426,6 @@ include(cmake/modules/contrib/ArmComputeLib.cmake)
 include(cmake/modules/contrib/TensorRT.cmake)
 include(cmake/modules/contrib/VitisAI.cmake)
 include(cmake/modules/contrib/Verilator.cmake)
-include(cmake/modules/contrib/PAPI.cmake)
 include(cmake/modules/Git.cmake)
 include(cmake/modules/LibInfo.cmake)
 include(cmake/modules/RustExt.cmake)
@@ -478,6 +477,8 @@ target_compile_definitions(tvm_runtime PUBLIC DMLC_USE_LOGGING_LIBRARY=<tvm/runt
 
 # logging option for libbacktrace
 include(cmake/modules/Logging.cmake)
+
+include(cmake/modules/contrib/PAPI.cmake)
 
 if(USE_MICRO)
   # NOTE: cmake doesn't track dependencies at the file level across subdirectories. For the
