@@ -48,7 +48,7 @@ PLATFORMS = conftest.PLATFORMS
 
 
 def _build_project(
-    temp_dir, model, target, zephyr_board, west_cmd, mod, build_config, extra_files_tar=None
+    temp_dir, zephyr_board, west_cmd, mod, build_config, extra_files_tar=None
 ):
     template_project_dir = (
         pathlib.Path(__file__).parent
@@ -150,9 +150,6 @@ def test_tflite(temp_dir, platform, west_cmd, skip_build, tvm_debug):
     output_shape = (1, 10)
     build_config = {"skip_build": skip_build, "debug": tvm_debug}
 
-    this_dir = pathlib.Path(os.path.dirname(__file__))
-    tvm_source_dir = this_dir / ".." / ".." / ".."
-    runtime_path = tvm_source_dir / "apps" / "microtvm" / "zephyr" / "aot_demo"
     model_url = "https://github.com/eembc/ulpmark-ml/raw/fc1499c7cc83681a02820d5ddf5d97fe75d4f663/base_models/ic01/ic01_fp32.tflite"
     model_path = download_testdata(model_url, "ic01_fp32.tflite", module="model")
 
@@ -202,8 +199,6 @@ def test_tflite(temp_dir, platform, west_cmd, skip_build, tvm_debug):
 
         project, _ = _build_project(
             temp_dir,
-            model,
-            target,
             zephyr_board,
             west_cmd,
             lowered,
@@ -262,8 +257,6 @@ def test_qemu_make_fail(temp_dir, platform, west_cmd, skip_build, tvm_debug):
 
         project, project_dir = _build_project(
             temp_dir,
-            model,
-            target,
             zephyr_board,
             west_cmd,
             lowered,

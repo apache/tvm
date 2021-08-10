@@ -57,7 +57,7 @@ def _make_sess_from_op(
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         mod = tvm.build(sched, arg_bufs, target=target, name=op_name)
 
-    return _make_session(temp_dir, model, target, zephyr_board, west_cmd, mod, build_config)
+    return _make_session(temp_dir, zephyr_board, west_cmd, mod, build_config)
 
 
 TEMPLATE_PROJECT_DIR = (
@@ -72,7 +72,7 @@ TEMPLATE_PROJECT_DIR = (
 ).resolve()
 
 
-def _make_session(temp_dir, model, target, zephyr_board, west_cmd, mod, build_config):
+def _make_session(temp_dir, zephyr_board, west_cmd, mod, build_config):
     project = tvm.micro.generate_project(
         str(TEMPLATE_PROJECT_DIR),
         mod,
@@ -212,7 +212,7 @@ def test_relay(temp_dir, platform, west_cmd, skip_build, tvm_debug):
         mod = tvm.relay.build(func, target=target)
 
     with _make_session(
-        temp_dir, model, target, zephyr_board, west_cmd, mod, build_config
+        temp_dir, zephyr_board, west_cmd, mod, build_config
     ) as session:
         graph_mod = tvm.micro.create_local_graph_executor(
             mod.get_graph_json(), session.get_system_lib(), session.device
@@ -257,7 +257,7 @@ def test_onnx(temp_dir, platform, west_cmd, skip_build, tvm_debug):
         graph = lowered.get_graph_json()
 
     with _make_session(
-        temp_dir, model, target, zephyr_board, west_cmd, lowered, build_config
+        temp_dir, zephyr_board, west_cmd, lowered, build_config
     ) as session:
         graph_mod = tvm.micro.create_local_graph_executor(
             graph, session.get_system_lib(), session.device
@@ -286,7 +286,7 @@ def check_result(
         mod = tvm.relay.build(relay_mod, target=target)
 
     with _make_session(
-        temp_dir, model, target, zephyr_board, west_cmd, mod, build_config
+        temp_dir, zephyr_board, west_cmd, mod, build_config
     ) as session:
         rt_mod = tvm.micro.create_local_graph_executor(
             mod.get_graph_json(), session.get_system_lib(), session.device
