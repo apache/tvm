@@ -771,7 +771,7 @@ class PyTorchOpConverter:
     def elu(self, inputs, input_types):
         data = inputs[0]
         dtype = input_types[0]
-        alpha = _expr.const(float(inputs[1]), dtype=dtype)
+        alpha = _expr.const(-float(inputs[1]), dtype=dtype)
         return alpha * _op.nn.relu(_expr.const(1, dtype=dtype) - _op.exp(data)) + _op.nn.relu(data)
 
     def celu(self, inputs, input_types):
