@@ -222,7 +222,7 @@ if [[ -z "${DOCKER_IMAGE_NAME}" ]]; then
     show_usage >&2
 fi
 
-if [[ "${COMMAND[@]}" = bash ]]; then
+if [[ ${COMMAND[@]+"${COMMAND[@]}"} = bash ]]; then
     INTERACTIVE=true
     USE_NET_HOST=true
 fi
@@ -297,7 +297,7 @@ if ${INTERACTIVE}; then
 fi
 
 # Expose external directories to the docker container
-for MOUNT_DIR in "${MOUNT_DIRS[@]}"; do
+for MOUNT_DIR in ${MOUNT_DIRS[@]+"${MOUNT_DIRS[@]}"}; do
     DOCKER_MOUNT+=( --volume "${MOUNT_DIR}:${MOUNT_DIR}" )
 done
 
@@ -369,20 +369,20 @@ echo "REPO_DIR: ${REPO_DIR}"
 echo "DOCKER CONTAINER NAME: ${DOCKER_IMAGE_NAME}"
 echo ""
 
-echo "Running '${COMMAND[@]}' inside ${DOCKER_IMAGE_NAME}..."
+echo Running \'${COMMAND[@]+"${COMMAND[@]}"}\' inside ${DOCKER_IMAGE_NAME}...
 
 DOCKER_CMD=(${DOCKER_BINARY} run
-            "${DOCKER_FLAGS[@]}"
-            "${DOCKER_ENV[@]}"
-            "${DOCKER_MOUNT[@]}"
-            "${DOCKER_DEVICES[@]}"
+            ${DOCKER_FLAGS[@]+"${DOCKER_FLAGS[@]}"}
+            ${DOCKER_ENV[@]+"${DOCKER_ENV[@]}"}
+            ${DOCKER_MOUNT[@]+"${DOCKER_MOUNT[@]}"}
+            ${DOCKER_DEVICES[@]+"${DOCKER_DEVICES[@]}"}
             "${DOCKER_IMAGE_NAME}"
             bash --login /docker/with_the_same_user
-            "${COMMAND[@]}"
+            ${COMMAND[@]+"${COMMAND[@]}"}
            )
 
 if ${DRY_RUN}; then
-    echo "${DOCKER_CMD[@]}"
+    echo ${DOCKER_CMD[@]+"${DOCKER_CMD[@]}"}
 else
-    "${DOCKER_CMD[@]}"
+    ${DOCKER_CMD[@]+"${DOCKER_CMD[@]}"}
 fi
