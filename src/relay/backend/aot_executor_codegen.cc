@@ -638,7 +638,8 @@ class AOTExecutorCodegen : public ExprVisitor {
     auto lowered_main = lowered_module.main_module->Lookup("main");
     auto lowered_main_func = GetRef<Function>(lowered_main.as<FunctionNode>());
 
-    // Post-lowering storage map for writing main func
+    // Post-lowering storage map for writing main func - this should be the same map as previously
+    // created, just referencing the new expressions created from lowering
     auto new_allocator = AOTOnDemandAllocator();
     new_allocator.Run(lowered_main_func);
     storage_device_map_ = new_allocator.GetStorageMap();
