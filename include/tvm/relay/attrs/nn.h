@@ -992,6 +992,7 @@ struct DenseAttrs : public tvm::AttrsNode<DenseAttrs> {
   IndexExpr units;
   tvm::String auto_scheduler_rewritten_layout;  // The layout after auto-scheduler's layout rewrite
   DataType out_dtype;
+  tvm::String weight_layout;
 
   TVM_DECLARE_ATTRS(DenseAttrs, "relay.attrs.DenseAttrs") {
     TVM_ATTR_FIELD(units).describe("Number of hidden units of the dense transformation.");
@@ -1000,6 +1001,9 @@ struct DenseAttrs : public tvm::AttrsNode<DenseAttrs> {
     TVM_ATTR_FIELD(out_dtype)
         .set_default(NullValue<DataType>())
         .describe("Output data type, set to explicit type under mixed precision setting");
+    TVM_ATTR_FIELD(weight_layout)
+        .set_default("NK")
+        .describe("Dimension ordering of weight. Packed layouts, such as NK8n, are possible.");
   }
 };
 
