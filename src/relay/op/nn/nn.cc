@@ -206,6 +206,13 @@ Expr MakeDense(Expr data, Expr weight, IndexExpr units, DataType out_dtype) {
   return Call(op, {data, weight}, Attrs(attrs), {});
 }
 
+InferCorrectLayoutOutput DenseInferCorrectLayout(const Attrs& attrs,
+                                                 const Array<Layout>& new_in_layouts,
+                                                 const Array<Layout>& old_in_layouts,
+                                                 const Array<tvm::relay::Type>& old_in_types) {
+  return InferCorrectLayoutOutput({"NC", "NK"}, {"NC"}, attrs);
+}
+
 TVM_REGISTER_GLOBAL("relay.op.nn._make.dense").set_body_typed(MakeDense);
 
 RELAY_REGISTER_OP("nn.dense")
@@ -221,6 +228,7 @@ RELAY_REGISTER_OP("nn.dense")
     .add_argument("data", "nD Tensor", "Input data.")
     .add_argument("weight", "2D Tensor", "Weight matrix.")
     .set_support_level(1)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", DenseInferCorrectLayout)
     .add_type_rel("Dense", MatmulRel<DenseAttrs>);
 // ------------------- relay.nn.dense
 
@@ -248,9 +256,25 @@ bool DensePackRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   const DenseAttrs* param = attrs.as<DenseAttrs>();
   ICHECK(param != nullptr);
 
-  ICHECK(data->shape.size() == 2) << "Input data must be 2D";
+  // Sicne the topi impl only supports 2D data, we want to enable the following check.
+  // However, this function can be called when layout transform on inputs has not been
+  // inserted yet during AlterOpLayout. In such cases, the input data can be packed,
+  // i.e. data->shape.size() == 3.
+  // ICHECK_EQ(data->shape.size(), 2)
+
   Array<tvm::PrimExpr> oshape = data->shape;
-  oshape.Set(1, weight->shape[0] * weight->shape[2]);
+  if (weight->shape.size() == 3) {
+    // The packed case, after AlterOpLayout is complete
+    ICHECK_EQ(data->shape.size(), 2) << "Layout transform has been applied to weight but not to "
+                                        "data. Only 2D data is supported.";
+    oshape.Set((oshape.size() - 1), weight->shape[0] * weight->shape[2]);
+  } else {
+    // This code path hits when contrib_dense_pack is called but before layout transform
+    // on inputs are inserted.
+    ICHECK_EQ(weight->shape.size(), 2)
+        << "weight shape before layout transform is applied should be 2D.";
+    oshape.Set((oshape.size() - 1), weight->shape[0] * weight->shape[1]);
+  }
 
   DataType out_dtype = param->out_dtype;
   if (out_dtype.bits() == 0) {
