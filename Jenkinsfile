@@ -206,11 +206,11 @@ stage('Build') {
       ws(per_exec_ws("tvm/build-gpu")) {
         init_git()
         sh "${docker_run} ${ci_gpu} ./tests/scripts/task_config_build_gpu.sh"
-        make(ci_gpu, 'build', '-j2')
+        make(ci_gpu, 'build', '-j')
         pack_lib('gpu', tvm_multilib)
         // compiler test
         sh "${docker_run} ${ci_gpu} ./tests/scripts/task_config_build_gpu_vulkan.sh"
-        make(ci_gpu, 'build2', '-j2')
+        make(ci_gpu, 'build2', '-j')
       }
     }
   },
@@ -219,7 +219,7 @@ stage('Build') {
       ws(per_exec_ws("tvm/build-cpu")) {
         init_git()
         sh "${docker_run} ${ci_cpu} ./tests/scripts/task_config_build_cpu.sh"
-        make(ci_cpu, 'build', '-j2')
+        make(ci_cpu, 'build')
         pack_lib('cpu', tvm_multilib_tsim)
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_ci_setup.sh"
@@ -240,7 +240,7 @@ stage('Build') {
       ws(per_exec_ws("tvm/build-wasm")) {
         init_git()
         sh "${docker_run} ${ci_wasm} ./tests/scripts/task_config_build_wasm.sh"
-        make(ci_wasm, 'build', '-j2')
+        make(ci_wasm, 'build', '-j')
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} ${ci_wasm} ./tests/scripts/task_ci_setup.sh"
           sh "${docker_run} ${ci_wasm} ./tests/scripts/task_web_wasm.sh"
@@ -253,7 +253,7 @@ stage('Build') {
       ws(per_exec_ws("tvm/build-i386")) {
         init_git()
         sh "${docker_run} ${ci_i386} ./tests/scripts/task_config_build_i386.sh"
-        make(ci_i386, 'build', '-j2')
+        make(ci_i386, 'build')
         pack_lib('i386', tvm_multilib_tsim)
       }
     }
@@ -273,7 +273,7 @@ stage('Build') {
       ws(per_exec_ws("tvm/build-qemu")) {
         init_git()
         sh "${docker_run} ${ci_qemu} ./tests/scripts/task_config_build_qemu.sh"
-        make(ci_qemu, 'build', '-j2')
+        make(ci_qemu, 'build', '-j')
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} ${ci_qemu} ./tests/scripts/task_ci_setup.sh"
           sh "${docker_run} ${ci_qemu} ./tests/scripts/task_python_microtvm.sh"

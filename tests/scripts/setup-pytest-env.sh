@@ -32,11 +32,14 @@ export PYTHONPATH="${TVM_PATH}/python"
 export TVM_PYTEST_RESULT_DIR="${TVM_PATH}/build/pytest-results"
 mkdir -p "${TVM_PYTEST_RESULT_DIR}"
 
-if [ -n "${CI_PYTEST_NUM_CPUS-}" ]; then
-    PYTEST_NUM_CPUS=${CI_PYTEST_NUM_CPUS}
+if [ -n "${CI_CPUSET_CPUS-}" ]; then
+    # When --cpuset-cpus has been passed to docker (this is set by docker/bash.sh),
+    # use all possible CPUs.
+    PYTEST_NUM_CPUS=$(nproc)
 else
     PYTEST_NUM_CPUS=$(nproc)
     if [ -z "${PYTEST_NUM_CPUS}" ]; then
+        echo "WARNING: nproc failed; running pytest with only 1 CPU"
         PYTEST_NUM_CPUS=1
     elif [ ${PYTEST_NUM_CPUS} -gt 1 ]; then
         PYTEST_NUM_CPUS=$(expr ${PYTEST_NUM_CPUS} - 1)  # Don't nuke interactive work.
@@ -46,12 +49,6 @@ fi
 if [ ${PYTEST_NUM_CPUS} -gt 8 ]; then
     PYTEST_NUM_CPUS=8  # It usually doesn't make sense to launch > 8 workers
 fi
-
-# DNS: remove after we actually fix up CI_PYTEST_NUM_CPUS in Jenkinsfile
-if [ ${PYTEST_NUM_CPUS} -gt 2 ]; then
-    PYTEST_NUM_CPUS=2  # Fix to 2 CPUs for Jenkins
-fi
-
 
 function run_pytest() {
     local extra_args=( )

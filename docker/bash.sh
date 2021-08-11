@@ -38,10 +38,18 @@ set -euo pipefail
 
 function show_usage() {
     cat <<EOF
-Usage: docker/bash.sh [-i|--interactive] [--net=host] [-t|--tty]
+Usage: docker/bash.sh [-i|--interactive] [--net=host] [--cpuset-cpus=<cpus>]
          [--mount MOUNT_DIR] [--repo-mount-point REPO_MOUNT_POINT]
          [--dry-run]
          <DOCKER_IMAGE_NAME> [--] [COMMAND]
+
+--cpuset-cpus=<cpus>
+
+    Restrict docker container to use specific CPUs. See
+    docker run --help for further documentation of this parameter.
+    When launched from the CI (the "CI" environment variable is set),
+    this parameter is inferred from the "NODE_NAME" and "EXECUTOR_NUMBER"
+    environment variables.
 
 -h, --help
 
@@ -55,19 +63,19 @@ Usage: docker/bash.sh [-i|--interactive] [--net=host] [-t|--tty]
 
     Start the docker session with a pseudo terminal (tty).
 
---net=host
-
-    Expose servers run into the container to the host, passing the
-    "--net=host" argument through to docker.  On MacOS, this is
-    instead passed as "-p 8888:8888" since the host networking driver
-    isn't supported.
-
 --mount MOUNT_DIR
 
     Expose MOUNT_DIR as an additional mount point inside the docker
     container.  The mount point inside the container is the same as
     the folder location outside the container.  This option can be
     specified multiple times.
+
+--net=host
+
+    Expose servers run into the container to the host, passing the
+    "--net=host" argument through to docker.  On MacOS, this is
+    instead passed as "-p 8888:8888" since the host networking driver
+    isn't supported.
 
 --repo-mount-point REPO_MOUNT_POINT
 
@@ -111,6 +119,7 @@ EOF
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 REPO_DIR="$(dirname "${SCRIPT_DIR}")"
 
+CPUSET_CPUS=
 DRY_RUN=false
 INTERACTIVE=false
 TTY=false
@@ -146,6 +155,16 @@ break_joined_flag='if (( ${#1} == 2 )); then shift; else set -- -"${1#-i}" "${@:
 
 while (( $# )); do
     case "$1" in
+        --cpuset-cpus=?*)
+            CPUSET_CPUS="${1#*=}"
+            shift
+            ;;
+
+        --dry-run)
+            DRY_RUN=true
+            shift
+            ;;
+
         -h|--help)
             show_usage
             exit 0
@@ -180,8 +199,8 @@ while (( $# )); do
             shift
             ;;
 
-        --dry-run)
-            DRY_RUN=true
+        --net=host)
+            USE_NET_HOST=true
             shift
             ;;
 
@@ -276,6 +295,33 @@ DOCKER_ENV+=( --env CI_BUILD_HOME="${REPO_MOUNT_POINT}"
               --env CI_IMAGE_NAME="${DOCKER_IMAGE_NAME}"
             )
 
+# Choose CPUs on which this container will execute.
+if [ -n "${CI+x}" -a -z "${CPUSET_CPUS}" ]; then
+    if [ -n "${CI_NUM_EXECUTORS-}" ]; then
+        if [ -n "${CI_CPUSET_LOWER_BOUND-}" -a -n "${CI_CPUSET_UPPER_BOUND-}" ]; then
+            TOTAL_CPUS=$(expr "${CI_CPUSET_UPPER_BOUND}" - "${CI_CPUSET_LOWER_BOUND}" + 1)
+        else
+            TOTAL_CPUS=$(nproc)
+            CI_CPUSET_LOWER_BOUND=0
+        fi
+        CPUS_PER_EXECUTOR=$(expr "${TOTAL_CPUS}" / "${CI_NUM_EXECUTORS}")
+        CPUSET_CPUS_LOWER_BOUND=$(expr "${CI_CPUSET_LOWER_BOUND}" + \( "${CPUS_PER_EXECUTOR}" '*' \( "${EXECUTOR_NUMBER}" - 1 \) \) )
+        CPUSET_CPUS_UPPER_BOUND=$(expr "${CPUSET_CPUS_LOWER_BOUND}" + "${CPUS_PER_EXECUTOR}" - 1)
+        CPUSET_CPUS="${CPUSET_CPUS_LOWER_BOUND}-${CPUSET_CPUS_UPPER_BOUND}"
+        echo "COMPUTE TOTAL_CPUS=${TOTAL_CPUS} CPUS_PER_EXECUTOR=${CPUS_PER_EXECUTOR} CPUSET_CPUS_LOWER_BOUND=${CPUSET_CPUS_LOWER_BOUND} CPUSET_CPUS_UPPER_BOUND=${CPUSET_CPUS_UPPER_BOUND}"
+    else
+        echo "WARNING: CI_NUM_EXECUTORS environment variable not set."
+        echo "No CPU parallism will be used in this CI build, so it may be quite slow."
+    fi
+fi
+
+if [ -n "${CPUSET_CPUS}" ]; then
+    CI_DOCKER_EXTRA_PARAMS+=(
+        "--cpuset-cpus=${CPUSET_CPUS}"
+        "-e CI_CPUSET_CPUS=${CPUSET_CPUS}"
+    )
+    echo "USING CPUSET_CPUS ${CPUSET_CPUS}"
+fi
 
 # Pass tvm test data folder through to the docker container, to avoid
 # repeated downloads.  Check if we have permissions to write to the
