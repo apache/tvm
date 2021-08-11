@@ -226,10 +226,12 @@ RELAY_REGISTER_OP("nn.dense")
 
 // ------------------- relay.nn.contrib_dense_pack
 // Positional relay function to create dense_pack operator used by frontend FFI.
-Expr MakeDensePack(Expr data, Expr weight, IndexExpr units, DataType out_dtype) {
+Expr MakeDensePack(Expr data, Expr weight, tvm::String weight_layout, IndexExpr units,
+                   DataType out_dtype) {
   auto attrs = make_object<DenseAttrs>();
   attrs->units = units;
   attrs->out_dtype = out_dtype;
+  attrs->weight_layout = std::move(weight_layout);
   static const Op& op = Op::Get("nn.contrib_dense_pack");
   return Call(op, {data, weight}, Attrs(attrs), {});
 }
@@ -259,6 +261,15 @@ bool DensePackRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   return true;
 }
 
+InferCorrectLayoutOutput DensePackInferCorrectLayout(const Attrs& attrs,
+                                                     const Array<Layout>& new_in_layouts,
+                                                     const Array<Layout>& old_in_layouts,
+                                                     const Array<tvm::relay::Type>& old_in_types) {
+  auto params = attrs.as<DenseAttrs>();
+  ICHECK(params);
+  return InferCorrectLayoutOutput({"NC", params->weight_layout}, {"NC"}, attrs);
+}
+
 RELAY_REGISTER_OP("nn.contrib_dense_pack")
     .describe(R"code(Applies a linear transformation: :math:`Y = XW^T`.
 
@@ -272,6 +283,7 @@ RELAY_REGISTER_OP("nn.contrib_dense_pack")
     .add_argument("data", "2D Tensor", "Input data.")
     .add_argument("weight", "3D Tensor", "Packed weight matrix.")
     .set_support_level(10)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", DensePackInferCorrectLayout)
     .add_type_rel("DensePack", DensePackRel);
 // ------------------- relay.nn.contrib_dense_pack
 

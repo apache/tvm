@@ -1315,7 +1315,9 @@ def test_alter_op_dense():
         weight = relay.var("weight", shape=(48, 64))
         target_layout = "NK16n"
         weight_transform = relay.layout_transform(weight, "NK", target_layout)
-        y = relay.nn.contrib_dense_pack(x, weight_transform, units=None, out_dtype="float32")
+        y = relay.nn.contrib_dense_pack(
+            x, weight_transform, target_layout, units=None, out_dtype="float32"
+        )
         y = relay.Function(analysis.free_vars(y), y)
         return y
 
@@ -1382,6 +1384,7 @@ def test_alter_op_dense_packed_data():
         dense = relay.nn.contrib_dense_pack(
             relay.layout_transform(squeeze, "NC8c", "NC"),
             relay.layout_transform(dense_weight, "NK", "NK16n"),
+            "NK16n",
             out_dtype="float32",
         )
         return relay.Function(analysis.free_vars(dense), dense)
