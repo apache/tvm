@@ -1,3 +1,20 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
 import datetime
 import os
 import pathlib
@@ -165,17 +182,18 @@ def test_onnx(platform, arduino_cli_cmd, tvm_debug, workspace_dir):
     build_config = {"debug": tvm_debug}
 
     # Load test images.
-    this_dir = os.path.dirname(__file__)
-    digit_2 = Image.open(f"{this_dir}/testdata/digit-2.jpg").resize((28, 28))
+    this_dir = pathlib.Path(os.path.dirname(__file__))
+    testdata_dir = this_dir.parent / "testdata"
+    digit_2 = Image.open(testdata_dir / "digit-2.jpg").resize((28, 28))
     digit_2 = np.asarray(digit_2).astype("float32")
     digit_2 = np.expand_dims(digit_2, axis=0)
 
-    digit_9 = Image.open(f"{this_dir}/testdata/digit-9.jpg").resize((28, 28))
+    digit_9 = Image.open(testdata_dir / "digit-9.jpg").resize((28, 28))
     digit_9 = np.asarray(digit_9).astype("float32")
     digit_9 = np.expand_dims(digit_9, axis=0)
 
     # Load ONNX model and convert to Relay.
-    onnx_model = onnx.load(f"{this_dir}/testdata/mnist-8.onnx")
+    onnx_model = onnx.load(testdata_dir / "mnist-8.onnx")
     shape = {"Input3": (1, 1, 28, 28)}
     relay_mod, params = relay.frontend.from_onnx(onnx_model, shape=shape, freeze_params=True)
     relay_mod = relay.transform.DynamicToStatic()(relay_mod)

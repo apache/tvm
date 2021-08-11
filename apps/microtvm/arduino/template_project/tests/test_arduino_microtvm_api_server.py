@@ -1,3 +1,20 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
 from unittest import mock
 from pathlib import Path
 import sys
@@ -12,11 +29,6 @@ sys.path.pop(0)
 
 class TestGenerateProject:
     DEFAULT_OPTIONS = {"arduino_cli_cmd": "arduino-cli", "arduino_board": "nano33ble"}
-
-    def test_print_c_array(self):
-        handler = microtvm_api_server.Handler()
-        c_arr = handler._print_c_array([1, 32, 32, 3])
-        assert c_arr == "{1, 32, 32, 3}"
 
     def _set_pathlib_path_exists(self, value):
         with mock.patch.object(Path, "exists") as mock_exists:

@@ -1,5 +1,21 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
 import datetime
-import os
 import pathlib
 import shutil
 import sys
@@ -52,11 +68,11 @@ def _generate_project(arduino_board, arduino_cli_cmd, workspace_dir, mod, build_
 # We MUST pass workspace_dir, not project_dir, or the workspace will be dereferenced too soon
 @pytest.fixture(scope="module")
 def project(platform, arduino_cli_cmd, tvm_debug, workspace_dir):
-    current_dir = os.path.dirname(__file__)
+    this_dir = pathlib.Path(__file__).parent
     model, arduino_board = conftest.PLATFORMS[platform]
     build_config = {"debug": tvm_debug}
 
-    with open(f"{current_dir}/testdata/yes_no.tflite", "rb") as f:
+    with open(this_dir.parent / "testdata" / "yes_no.tflite", "rb") as f:
         tflite_model_buf = f.read()
     tflite_model = tflite.Model.GetRootAsModel(tflite_model_buf, 0)
     mod, params = relay.frontend.from_tflite(tflite_model)
@@ -70,16 +86,26 @@ def project(platform, arduino_cli_cmd, tvm_debug, workspace_dir):
     return _generate_project(arduino_board, arduino_cli_cmd, workspace_dir, mod, build_config)
 
 
+def _get_directory_elements(directory):
+    return set(f.name for f in directory.iterdir())
+
+
 def test_project_folder_structure(project_dir, project):
-    assert set(["microtvm_api_server.py", "project.ino", "src"]).issubset(os.listdir(project_dir))
+    assert set(["microtvm_api_server.py", "project.ino", "src"]).issubset(
+        _get_directory_elements(project_dir)
+    )
 
     source_dir = project_dir / "src"
-    assert set(os.listdir(source_dir)) == set(["model", "standalone_crt", "model.c", "model.h"])
+    assert _get_directory_elements(source_dir) == set(
+        ["model", "standalone_crt", "model.c", "model.h"]
+    )
 
 
 def test_project_model_integrity(project_dir, project):
     model_dir = project_dir / "src" / "model"
-    assert set(os.listdir(model_dir)) == set(["default_lib0.c", "default_lib1.c", "model.tar"])
+    assert _get_directory_elements(model_dir) == set(
+        ["default_lib0.c", "default_lib1.c", "model.tar"]
+    )
 
 
 def test_model_header_templating(project_dir, project):
@@ -106,14 +132,16 @@ def test_import_rerouting(project_dir, project):
 # like a user would
 @pytest.fixture(scope="module")
 def modified_project(project_dir, project):
-    testdata_dir = pathlib.Path(os.path.dirname(__file__)) / "testdata"
+    this_dir = pathlib.Path(__file__).parent
+    micro_testdata_dir = this_dir.parent / "testdata"
+    arduino_testdata_dir = this_dir / "testdata"
 
-    shutil.copy2(testdata_dir / "project.ino", project_dir / "project.ino")
+    shutil.copy2(arduino_testdata_dir / "project.ino", project_dir / "project.ino")
 
     project_data_dir = project_dir / "src" / "data"
     project_data_dir.mkdir()
     for sample in ["yes.c", "no.c", "silence.c", "unknown.c"]:
-        shutil.copy2(testdata_dir / sample, project_data_dir / sample)
+        shutil.copy2(micro_testdata_dir / sample, project_data_dir / sample)
 
     return project
 
