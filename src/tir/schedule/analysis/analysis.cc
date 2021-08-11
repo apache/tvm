@@ -566,15 +566,6 @@ Buffer GetNthWriteBuffer(const ScheduleState& self, const Block& block, int n) {
   return block->writes[n]->buffer;
 }
 
-/******** Annotation ********/
-Block WithAnnotation(const BlockNode* block, const String& attr_key, const ObjectRef& attr_value) {
-  Map<String, ObjectRef> annotations = block->annotations;
-  annotations.Set(attr_key, attr_value);
-  ObjectPtr<BlockNode> new_block = make_object<BlockNode>(*block);
-  new_block->annotations = std::move(annotations);
-  return Block(new_block);
-}
-
 /******** Pattern Matcher ********/
 
 /*!

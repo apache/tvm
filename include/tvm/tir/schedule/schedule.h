@@ -267,7 +267,10 @@ class ScheduleNode : public runtime::Object {
   /******** Schedule: Block annotation ********/
   /*!
    * \brief Set alignment requirement for specific dimension such that
-   *        stride[axis] == k * factor + offset for some k.
+   *        stride[axis] == k * factor + offset for some k. This is useful to set memory layout for
+   *        more friendly memory access pattern. For example, we can set alignment to be factor=2,
+   *        offset=1 to avoid bank conflict for thread access on higher dimension in GPU shared
+   *        memory.
    * \param block_rv The producer block of the buffer
    * \param buffer_index The index of the buffer in block's write region
    * \param axis The dimension to be specified for alignment

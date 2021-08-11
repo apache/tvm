@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include "../transform.h"
 #include "../utils.h"
 
 namespace tvm {
@@ -70,7 +71,8 @@ class StorageAlignAxisOutOfRangeError : public ScheduleError {
  * \return The defining site of the buffer and whether the buffer is allocated (otherwise the
  *         buffer is from match_buffer).
  */
-std::pair<Optional<StmtSRef>, bool> GetBufferDefiningSite(const StmtSRef& block_sref, const Buffer& buffer) {
+std::pair<Optional<StmtSRef>, bool> GetBufferDefiningSite(const StmtSRef& block_sref,
+                                                          const Buffer& buffer) {
   // Climb up along the sref tree, and find the block where `buffer` is in alloc_buffers or
   // match_buffers.
   const StmtSRefNode* defining_site_sref = block_sref.get();
@@ -97,7 +99,7 @@ std::pair<Optional<StmtSRef>, bool> GetBufferDefiningSite(const StmtSRef& block_
   }
   // If we cannot find the defining site block, it means that the buffer must be in the function's
   // buffer_map, which isn't an intermediate buffer.
-  return {StmtSRef(), false};
+  return {NullOpt, false};
 }
 
 class NonAllocatedBufferError : public ScheduleError {
@@ -119,10 +121,10 @@ class NonAllocatedBufferError : public ScheduleError {
 
   static void CheckBufferAllocated(const IRModule& mod, const StmtSRef& block_sref,
                                    const Buffer& buffer) {
-    StmtSRef defining_site_sref;
+    Optional<StmtSRef> defining_site_sref;
     bool is_alloc;
     std::tie(defining_site_sref, is_alloc) = GetBufferDefiningSite(block_sref, buffer);
-    if (!defining_site_sref.defined() || !is_alloc) {
+    if (!defining_site_sref || !is_alloc) {
       throw NonAllocatedBufferError(mod, buffer);
     }
   }
@@ -194,7 +196,7 @@ class StorageAlignInvalidAnnotationError : public ScheduleError {
       if (!IsValidAnnotation(block, (*it).second)) {
         throw StorageAlignInvalidAnnotationError(mod, block);
       }
-      return Downcast<Array<Array<Array<Integer>>>>((*it).second);
+      return Downcast<Array<StorageAlignAnnotation>>((*it).second);
     }
 
     // Create new annotation value
@@ -252,8 +254,9 @@ void StorageAlign(ScheduleState self, const StmtSRef& block_sref, int buffer_ind
   NonAllocatedBufferError::CheckBufferAllocated(self->mod, block_sref, buffer);
 
   // Step 1: Get existing or create new annotation value.
-  auto storage_align_annotation = StorageAlignInvalidAnnotationError::CheckAndGetAnnotation(
-      self->mod, GetRef<Block>(block_ptr));
+  Array<StorageAlignAnnotation> storage_align_annotation =
+      StorageAlignInvalidAnnotationError::CheckAndGetAnnotation(self->mod,
+                                                                GetRef<Block>(block_ptr));
 
   // Step 2: Update the annotation value
   Array<Array<Integer>> buffer_storage_align = storage_align_annotation[buffer_index];

@@ -237,17 +237,6 @@ std::vector<TypedPackedFunc<CommReducer(DataType)>> GetReducerGetters();
 bool FromIdentityCombiner(const PrimExpr& identity, const BufferStore& combiner,
                           CommReducer* result_reducer, PrimExpr* lhs, PrimExpr* rhs);
 
-/******** Annotation ********/
-
-/*!
- * \brief Create a new block with the given annotation added
- * \param block The block with original annotation
- * \param attr_key The annotation key to be added
- * \param attr_value The annotation value to be added
- * \return A new block with the given annotation as its last annotation
- */
-Block WithAnnotation(const BlockNode* block, const String& attr_key, const ObjectRef& attr_value);
-
 }  // namespace tir
 }  // namespace tvm
 

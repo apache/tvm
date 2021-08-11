@@ -716,7 +716,9 @@ class Schedule(Object):
         self, block: BlockRV, buffer_index: int, axis: int, factor: int, offset: int
     ) -> None:
         """Set alignment requirement for specific dimension such that
-           stride[axis] == k * factor + offset for some k.
+        stride[axis] == k * factor + offset for some k. This is useful to set memory layout for more
+        friendly memory access pattern. For example, we can set alignment to be factor=2, offset=1
+        to avoid bank conflict for thread access on higher dimension in GPU shared memory.
 
         Parameters
         ----------

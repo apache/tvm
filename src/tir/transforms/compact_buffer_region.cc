@@ -306,7 +306,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
 /*! \brief Collect storage alignment information from block annotations. */
 class StorageAlignCollector : public StmtVisitor {
  public:
-  static std::unordered_map<Buffer, Array<Array<Integer>>, ObjectPtrHash, ObjectPtrEqual> Collect(
+  static std::unordered_map<Buffer, StorageAlignAnnotation, ObjectPtrHash, ObjectPtrEqual> Collect(
       const PrimFunc& f) {
     StorageAlignCollector collector;
     collector(f->body);
@@ -317,7 +317,7 @@ class StorageAlignCollector : public StmtVisitor {
   void VisitStmt_(const BlockNode* op) final {
     auto it = op->annotations.find(attr::buffer_dim_align);
     if (it != op->annotations.end()) {
-      const auto& storage_align = Downcast<Array<Array<Array<Integer>>>>((*it).second);
+      const auto& storage_align = Downcast<Array<StorageAlignAnnotation>>((*it).second);
       ICHECK(storage_align.size() == op->writes.size());
       for (size_t i = 0; i < storage_align.size(); ++i) {
         CHECK(!storage_align_.count(op->writes[i]->buffer))
@@ -329,7 +329,7 @@ class StorageAlignCollector : public StmtVisitor {
   }
 
   /*! \brief The map from Buffer to its storage alignment information. */
-  std::unordered_map<Buffer, Array<Array<Integer>>, ObjectPtrHash, ObjectPtrEqual> storage_align_;
+  std::unordered_map<Buffer, StorageAlignAnnotation, ObjectPtrHash, ObjectPtrEqual> storage_align_;
 };
 
 /*! \brief Reallocate the buffers with minimal region. */
@@ -338,7 +338,7 @@ class BufferCompactor : public StmtExprMutator {
   static Stmt Compact(
       const PrimFunc& f,
       const std::unordered_map<Buffer, Region, ObjectPtrHash, ObjectPtrEqual>& regions,
-      const std::unordered_map<Buffer, Array<Array<Integer>>, ObjectPtrHash, ObjectPtrEqual>&
+      const std::unordered_map<Buffer, StorageAlignAnnotation, ObjectPtrHash, ObjectPtrEqual>&
           storage_align) {
     std::unordered_map<Buffer, BufferAllocInfo, ObjectPtrHash, ObjectPtrEqual> buffer_info;
 
@@ -529,8 +529,8 @@ PrimFunc CompactBufferAllocation(PrimFunc f) {
     PrimFuncNode* fptr = f.CopyOnWrite();
     std::unordered_map<Buffer, Region, ObjectPtrHash, ObjectPtrEqual> region =
         BufferAccessRegionCollector::Collect(f);
-    std::unordered_map<Buffer, Array<Array<Integer>>, ObjectPtrHash, ObjectPtrEqual> storage_align =
-        StorageAlignCollector::Collect(f);
+    std::unordered_map<Buffer, StorageAlignAnnotation, ObjectPtrHash, ObjectPtrEqual>
+        storage_align = StorageAlignCollector::Collect(f);
     fptr->body = BufferCompactor::Compact(f, region, storage_align);
     return f;
   } else {
