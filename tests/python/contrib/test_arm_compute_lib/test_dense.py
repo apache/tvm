@@ -154,7 +154,7 @@ def _get_expected_codegen(shape, weight_shape, units, dtype, has_bias=False):
             {
                 "op": "const",
                 "name": "",
-                "attrs": {"shape": [[[weight_shape[0]]]], "dtype": [[bias_dtype]]},
+                "attrs": {"shape": [[[1, weight_shape[0]]]], "dtype": [[bias_dtype]]},
             }
         )
 
