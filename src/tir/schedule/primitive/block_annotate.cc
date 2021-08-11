@@ -70,7 +70,7 @@ class StorageAlignAxisOutOfRangeError : public ScheduleError {
  * \return The defining site of the buffer and whether the buffer is allocated (otherwise the
  *         buffer is from match_buffer).
  */
-std::pair<StmtSRef, bool> GetBufferDefiningSite(const StmtSRef& block_sref, const Buffer& buffer) {
+std::pair<Optional<StmtSRef>, bool> GetBufferDefiningSite(const StmtSRef& block_sref, const Buffer& buffer) {
   // Climb up along the sref tree, and find the block where `buffer` is in alloc_buffers or
   // match_buffers.
   const StmtSRefNode* defining_site_sref = block_sref.get();
