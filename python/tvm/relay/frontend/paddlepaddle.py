@@ -19,6 +19,7 @@
 """Paddle: PArallel Distributed Deep LEarning."""
 import copy
 import warnings
+from pandas.core.dtypes.inference import is_scalar
 import six
 
 import numpy as np
@@ -68,10 +69,13 @@ def convert_arg_max(g, op, block):
     axis = op.attr('axis')
     keepdims = op.attr('keepdims')
     flatten = op.attr('flatten')
-    assert not flatten, "Only flatten==True is supported for PaddlePaddle's arg_max"
 
-    x = g.get_node(x.input('X')[0])
-    out = _op.argmax(x, axis=axis, keepdims=keepdims)
+    x = g.get_node(op.input('X')[0])
+    if axis is None or flatten:
+        x = _op.reshape(x, [-1])
+        out = _op.argmax(x, axis=None, keepdims=True)
+    else:
+        out = _op.argmax(x, axis=axis, keepdims=keepdims)
     g.add_node(op.output('Out')[0], out)
 
 
@@ -166,9 +170,9 @@ def convert_cumsum(g, op, block):
     flatten = op.attr('flatten')
     reverse = op.attr('reverse')
 
-    assert not flatten, "Only flatten==False is supported for PaddlePaddle's cumsum"
-
     x = g.get_node(op.input('X')[0])
+    if axis is None or flatten:
+        x = _op.reshape(x, [-1])
     if reverse:
         x = _op.reverse(x, axis=axis)
         out = _op.cumsum(x, axis=axis, exclusive=exclusive)
@@ -281,6 +285,12 @@ def convert_fill_constant(g, op, block):
     shape = block.var(op.output('Out')[0]).shape
     dtype = block.var(op.output('Out')[0]).dtype
     dtype = str(dtype).strip().split('.')[1]
+    if op.input('ValueTensor'):
+        shape = g.get_node(op.input('ValueTensor')[0])
+        shape = infer_value(shape, g.get_params()).numpy()
+    if op.input('ShapeTensor'):
+        shape = g.get_node(op.input('ShapeTensor')[0])
+        shape = infer_value(shape, g.get_params()).numpy()
     value = np.full(shape, value, dtype)
     out = _expr.const(value.astype(dtype)).astype(dtype)
     g.add_node(op.output('Out')[0], out)
@@ -333,8 +343,22 @@ def convert_layer_norm(g, op, block):
     begin_norm_axis = op.attr('begin_norm_axis')
     epsilon = op.attr('epsilon')
     x = g.get_node(op.input('X')[0])
-    bias = g.get_node(op.input('Bias')[0])
-    scale = g.get_node(op.input('Scale')[0])
+    bias_input = op.input('Bias')
+    scale_input = op.input('Scale')
+
+    x_shape = infer_shape(x)
+    assert  begin_norm_axis == -1 or begin_norm_axis == len(x_shape) - 1, "Support only normalization over last one dimension."
+
+    if bias_input:
+        bias = g.get_node(bias_input[0])
+    else:
+        bias = _expr.const(np.zeros(x_shape[begin_norm_axis]))
+
+    if scale_input:
+        scale = g.get_node(scale_input[0])
+    else:
+        scale =  _expr.const(np.ones(x_shape[begin_norm_axis]))
+
     out = _op.nn.layer_norm(x,
                             gamma=scale,
                             beta=bias,
@@ -351,7 +375,7 @@ def convert_leaky_relu(g, op, block):
     alpha = op.attr('alpha')
     x = g.get_node(op.input('X')[0])
     out = _op.nn.leaky_relu(x, alpha=alpha)
-    g.add_node(op.output('Out')[0])
+    g.add_node(op.output('Out')[0], out)
 
 
 def convert_lookup_table(g, op, block):
@@ -540,7 +564,7 @@ def convert_pool2d(g, op, block):
     if global_pooling:
         adaptive = True
         ksize = [1, 1]
-        
+
     input = g.get_node(op.input('X')[0])
     in_h, in_w = infer_shape(input)[2:]
 
@@ -587,8 +611,27 @@ def convert_pool2d(g, op, block):
 def convert_reshape(g, op, block):
     """Operator converter for reshape."""
 
-    shape = op.attr('shape')
-    out = _op.reshape(g.get_node(op.input('X')[0]), shape)
+    shape_attr = op.input('Shape')
+    tensor_attr = op.input('ShapeTensor')
+    data = g.get_node(op.input('X')[0])
+    if shape_attr:
+        new_shape = g.get_node(shape_attr[0])
+    elif tensor_attr:
+        tmp_shape = []
+        for shape_name in tensor_attr:
+            shape = g.get_node(shape_name)
+            if len(infer_shape(shape)) == 0:
+                shape = _op.reshape(shape, [-1])
+            if isinstance(shape, _expr.Constant):
+                tmp_shape.append(shape)
+            elif isinstance(shape, _expr.Expr):
+                tmp_shape.append(shape)
+            else:
+                tmp_shape.append(_expr.const(np.array(shape).astype('int64')))
+        new_shape = _op.concatenate(tmp_shape, axis=0)
+    else:
+        new_shape = op.attr('shape')
+    out = _op.reshape(data, new_shape)
     g.add_node(op.output('Out')[0], out)
 
 
@@ -627,7 +670,7 @@ def convert_shape(g, op, block):
 
 def convert_slice(g, op, block):
     """Operator converter for slice."""
-    def parameter_process(starts, ends, axes):
+    def parameter_process(starts, ends, axes, dshape):
         new_axes = []
         new_starts = []
         new_ends = []
@@ -640,22 +683,29 @@ def convert_slice(g, op, block):
                 pop_index += 1
             else:
                 new_starts.append(0)
-                new_ends.append(np.iinfo(np.int32).max)
+                new_ends.append(dshape[i])
         return new_starts, new_ends, new_axes
 
+    data = g.get_node(op.input('Input')[0])
+    dshape = infer_shape(data)
     starts = op.attr('starts')
     ends = op.attr('ends')
     axes = op.attr('axes')
+    decrease_axis = op.attr('decrease_axis')
     if isinstance(starts, int):
         starts = [starts]
     if isinstance(ends, int):
         ends = [ends]
     if isinstance(axes, int):
         axes = [axes]
-    starts, ends, axes = parameter_process(starts, ends, axes)
-    out = _op.strided_slice(g.get_node(op.input('Input')[0]),
+    if isinstance(decrease_axis, int):
+        decrease_axis = [decrease_axis]
+    starts, ends, axes = parameter_process(starts, ends, axes, dshape)
+    out = _op.strided_slice(data,
                             begin=starts,
                             end=ends)
+    if decrease_axis:
+        out = _op.squeeze(out, axis=decrease_axis)
     g.add_node(op.output('Out')[0], out)
 
 
@@ -671,15 +721,6 @@ def convert_softmax(g, op, block):
     e = _op.exp(x - m)
     out = e / _op.sum(e, axis, keepdims=True)
     g.add_node(op.output('Out')[0], out)
-
-
-def convert_transpose(g, op, block):
-    """Operator converter for transpose."""
-
-    perm = op.attr('axis')
-    out = _op.transpose(g.get_node(op.input('X')[0]), axes=perm)
-    g.add_node(op.output('Out')[0], out)
-
 
 def convert_unsqueeze(g, op, block):
     """Operator converter for unsqueeze."""
@@ -727,7 +768,6 @@ _convert_map = {
     'slice': convert_slice,
     'softmax': convert_softmax,
     'tanh': convert_activation,
-    'transpose2': convert_transpose,
     'unsqueeze2': convert_unsqueeze,
 }
 
@@ -747,7 +787,9 @@ class GraphProto(object):
     def add_node(self, name, node):
         self.nodes[name] = fold_constant(node)
 
-    def get_params(self, name):
+    def get_params(self, name=None):
+        if name is None:
+            return self.params
         assert name in self.params
         return self.params[name]
 
