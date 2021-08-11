@@ -14,8 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import datetime
+import os
+import pathlib
+
 import pytest
 
+import tvm.contrib.utils
 import tvm.target.target
 
 # The models that should pass this configuration. Maps a short, identifying platform string to
@@ -24,7 +29,7 @@ PLATFORMS = {
     "host": ("host", "qemu_x86"),
     "host_riscv32": ("host", "qemu_riscv32"),
     "host_riscv64": ("host", "qemu_riscv64"),
-    "mps2_an521": ("mps2_an521", "mps2_an521-qemu"),
+    "mps2_an521": ("mps2_an521", "mps2_an521"),
     "nrf5340dk": ("nrf5340dk", "nrf5340dk_nrf5340_cpuapp"),
     "stm32f746xx_disco": ("stm32f746xx", "stm32f746g_disco"),
     "stm32f746xx_nucleo": ("stm32f746xx", "nucleo_f746zg"),
@@ -77,3 +82,25 @@ def skip_build(request):
 @pytest.fixture
 def tvm_debug(request):
     return request.config.getoption("--tvm-debug")
+
+
+@pytest.fixture
+def temp_dir(platform):
+    _, zephyr_board = PLATFORMS[platform]
+    parent_dir = pathlib.Path(os.path.dirname(__file__))
+    filename = os.path.splitext(os.path.basename(__file__))[0]
+    board_workspace = (
+        parent_dir
+        / f"workspace_{filename}_{zephyr_board}"
+        / datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
+    )
+    board_workspace_base = str(board_workspace)
+    number = 1
+    while board_workspace.exists():
+        board_workspace = pathlib.Path(board_workspace_base + f"-{number}")
+        number += 1
+
+    if not os.path.exists(board_workspace.parent):
+        os.makedirs(board_workspace.parent)
+
+    return tvm.contrib.utils.tempdir(board_workspace)
