@@ -150,21 +150,16 @@ def _get_expected_codegen(shape, weight_shape, units, dtype, has_bias=False):
 
     if has_bias:
         bias_dtype = "int32" if dtype == "uint8" else "float32"
-        inputs.append(
-            {
-                "op": "const",
-                "name": "",
-if has_bias:
-        bias_dtype = "int32" if dtype == "uint8" else "float32"
-        bias_shape = [1, weight_shape[0]] if dtype == "float32" and \
-                     weight_shape[0] != 1 else [weight_shape[0]]
+        bias_shape = (
+            [1, weight_shape[0]]
+            if dtype == "float32" and weight_shape[0] != 1
+            else [weight_shape[0]]
+        )
         inputs.append(
             {
                 "op": "const",
                 "name": "",
                 "attrs": {"shape": [[bias_shape]], "dtype": [[bias_dtype]]},
-            }
-        )
             }
         )
 
