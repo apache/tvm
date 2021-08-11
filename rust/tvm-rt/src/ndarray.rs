@@ -61,7 +61,7 @@ use num_traits::Num;
 
 use crate::errors::NDArrayError;
 
-use crate::object::{Object, ObjectPtr};
+use crate::object::{Object, ObjectPtr, ObjectRef};
 
 /// See the [`module-level documentation`](../ndarray/index.html) for more details.
 #[repr(C)]
@@ -73,7 +73,7 @@ pub struct NDArrayContainer {
     // Container Base
     dl_tensor: DLTensor,
     manager_ctx: *mut c_void,
-    // TOOD: shape?
+    shape: ObjectRef,
 }
 
 impl NDArrayContainer {
