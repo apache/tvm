@@ -256,25 +256,11 @@ bool DensePackRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   const DenseAttrs* param = attrs.as<DenseAttrs>();
   ICHECK(param != nullptr);
 
-  // Sicne the topi impl only supports 2D data, we want to enable the following check.
-  // However, this function can be called when layout transform on inputs has not been
-  // inserted yet during AlterOpLayout. In such cases, the input data can be packed,
-  // i.e. data->shape.size() == 3.
-  // ICHECK_EQ(data->shape.size(), 2)
+  ICHECK_EQ(data->shape.size(), 2) << "Only 2D data is supported";
+  ICHECK_EQ(weight->shape.size(), 3) << "Weight is not packed";
 
   Array<tvm::PrimExpr> oshape = data->shape;
-  if (weight->shape.size() == 3) {
-    // The packed case, after AlterOpLayout is complete
-    ICHECK_EQ(data->shape.size(), 2) << "Layout transform has been applied to weight but not to "
-                                        "data. Only 2D data is supported.";
-    oshape.Set((oshape.size() - 1), weight->shape[0] * weight->shape[2]);
-  } else {
-    // This code path hits when contrib_dense_pack is called but before layout transform
-    // on inputs are inserted.
-    ICHECK_EQ(weight->shape.size(), 2)
-        << "weight shape before layout transform is applied should be 2D.";
-    oshape.Set((oshape.size() - 1), weight->shape[0] * weight->shape[1]);
-  }
+  oshape.Set(1, weight->shape[0] * weight->shape[2]);
 
   DataType out_dtype = param->out_dtype;
   if (out_dtype.bits() == 0) {
