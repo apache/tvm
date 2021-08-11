@@ -21,6 +21,13 @@ Python Target Parametrization
 Summary
 -------
 
+For any supported runtime, TVM should should produce numerically
+correct results.  Therefore, when writing unit tests that validate
+the numeric output, these unit tests should be run on all supported
+runtimes.  Since this is a very common use case, TVM has helper
+functions to parametrize unit tests such that they will run on all
+targets that are enabled and have a compatible device.
+
 A single python function in the test suite can expand to several
 parametrized unit tests, each of which tests a single target device.
 In order for a test to be run, all of the following must be true.
@@ -122,8 +129,8 @@ marks are as follows.
 - ``@pytest.mark.gpu`` - Tags a function as using GPU
   capabilities. This has no effect on its own, but can be paired with
   command-line arguments ``-m gpu`` or ``-m 'not gpu'`` to restrict
-  which tests pytest will executed.  This should be called on its own,
-  but is part of other marks used in unit-tests.
+  which tests pytest will executed.  This should not be called on its
+  own, but is part of other marks used in unit-tests.
 
 - ``@tvm.testing.uses_gpu`` - Applies ``@pytest.mark.gpu``.  This
   should be used to mark a unit tests that may use the GPU, if one is
@@ -155,7 +162,7 @@ all targets that are enabled and runnable on the current machine,
 based on the environment variable ``TVM_TEST_TARGETS``, the build
 configuration, and the physical hardware present.  Most current tests
 explictly loop over the targets returned from ``enabled_targets()``,
-but it is not recommended for new tests.  The pytest output for this
+but it should not be used for new tests.  The pytest output for this
 style silently skips runtimes that are disabled in ``config.cmake``,
 or do not have a device on which they can run.  In addition, the test
 halts on the first target to fail, which is ambiguous as to whether
