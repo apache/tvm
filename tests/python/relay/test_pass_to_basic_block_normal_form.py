@@ -39,9 +39,7 @@ def run_opt_pass(expr, passes):
 
 def check_eval(expr, expected_result, mod=None, rtol=1e-07):
     dev = tvm.device("llvm", 0)
-    intrp = create_executor(mod=mod, device=dev, target="llvm")
-
-    result = intrp.evaluate(expr)
+    result = create_executor(mod=mod, device=dev, target="llvm").evaluate(expr)
     np.testing.assert_allclose(result.numpy(), expected_result, rtol=rtol)
 
 
@@ -267,16 +265,20 @@ def test_nat_add():
     nat, z, s = p.mod.get_type("nat")
     add = p.mod.get_global_var("nat_add")
     dev = tvm.device("llvm", 0)
-    intrp = create_executor(mod=mod, device=dev, target="llvm")
     assert mod[add].checked_type == relay.FuncType([nat(), nat()], nat())
-    assert count(p, intrp.evaluate(add(s(z()), s(z())))) == 2
+    assert (
+        count(p, create_executor(mod=mod, device=dev, target="llvm").evaluate(add(s(z()), s(z()))))
+        == 2
+    )
     expr = add(s(z()), s(z()))
     f = relay.GlobalVar("f")
     mod[f] = relay.Function([], expr)
     mod = transform.InferType()(mod)
     mod = transform.ToBasicBlockNormalForm()(mod)
     opt_expr = mod["f"]
-    assert count(p, intrp.evaluate(opt_expr.body)) == 2
+    assert (
+        count(p, create_executor(mod=mod, device=dev, target="llvm").evaluate(opt_expr.body)) == 2
+    )
     assert not Feature.fLet in detect_feature(mod[add])
     check_basic_block_normal_form(opt_expr)
 

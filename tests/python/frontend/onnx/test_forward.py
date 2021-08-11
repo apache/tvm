@@ -74,8 +74,9 @@ def get_tvm_output_with_vm(
     if convert_to_static:
         mod = relay.transform.DynamicToStatic()(mod)
 
-    ex = relay.create_executor("vm", mod=mod, device=dev, target=target)
-    result = ex.evaluate()(*input_data, **params)
+    result = relay.create_executor("vm", mod=mod, device=dev, target=target).evaluate()(
+        *input_data, **params
+    )
     if isinstance(result, tvm.runtime.NDArray):
         return result.numpy()
     return [r.numpy() for r in result]
@@ -656,8 +657,7 @@ def test_dynamic_gather(target, dev):
 
     mod, params = relay.frontend.from_onnx(model)
 
-    ex = relay.create_executor("vm", mod=mod, device=dev, target=target)
-    result = ex.evaluate()(x, **params)
+    result = relay.create_executor("vm", mod=mod, device=dev, target=target).evaluate()(x, **params)
     tvm.testing.assert_allclose(out_np, result.numpy(), rtol=1e-5, atol=1e-5)
 
 
@@ -1249,7 +1249,7 @@ def test_batch_matmul(target, dev):
 
 
 def verify_simple_dynamic_model(a_shape, b_shape, target, dev):
-    def verify_model(ex, a_shape, b_shape):
+    def verify_model(model, a_shape, b_shape):
         a_array = np.random.uniform(size=a_shape).astype("float32")
         b_array = np.random.uniform(size=b_shape).astype("float32")
         # matmul
@@ -1257,7 +1257,7 @@ def verify_simple_dynamic_model(a_shape, b_shape, target, dev):
         # relu
         out_np[out_np < 0] = 0
 
-        tvm_out = ex.evaluate()(a_array, b_array).numpy()
+        tvm_out = model(a_array, b_array).numpy()
         tvm.testing.assert_allclose(out_np, tvm_out, rtol=1e-5, atol=1e-5)
 
     mul_node = helper.make_node("MatMul", ["a", "b"], ["out"])
@@ -1284,10 +1284,10 @@ def verify_simple_dynamic_model(a_shape, b_shape, target, dev):
     b_anys = [relay.Any()] * len(b_shape)
 
     mod, params = relay.frontend.from_onnx(model, {"a": a_anys, "b": b_anys})
-    ex = relay.create_executor("vm", mod=mod, device=dev, target=target)
-    verify_model(ex, a_shape, b_shape)
-    verify_model(ex, [a * 2 for a in a_shape], [b * 2 for b in b_shape])
-    verify_model(ex, [a * 3 for a in a_shape], [b * 3 for b in b_shape])
+    model = relay.create_executor("vm", mod=mod, device=dev, target=target).evaluate()
+    verify_model(model, a_shape, b_shape)
+    verify_model(model, [a * 2 for a in a_shape], [b * 2 for b in b_shape])
+    verify_model(model, [a * 3 for a in a_shape], [b * 3 for b in b_shape])
 
 
 # TODO(mbrookhart, electriclilies): Add CUDA as a target once batch matmul is fixed

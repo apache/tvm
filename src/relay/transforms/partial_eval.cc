@@ -526,22 +526,13 @@ bool StatefulOp(const Expr& e) {
 
 using FInterpreter = runtime::TypedPackedFunc<ObjectRef(Expr)>;
 
+Target CPUTarget() { return Target("llvm"); }
+
 Device CPUDevice() {
   Device dev;
   dev.device_type = kDLCPU;
   dev.device_id = 0;
   return dev;
-}
-
-FInterpreter CPUInterpreter() {
-  using tvm::transform::PassContext;
-
-  Target target = Target("llvm");
-  // use a fresh build context
-  // in case we are already in a build context.
-  With<PassContext> fresh_build_ctx(PassContext::Create());
-
-  return CreateInterpreter(IRModule(nullptr), CPUDevice(), target);
 }
 
 using FuncId = int;
@@ -904,13 +895,9 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
 
   // Constant evaluate an expression.
   PStatic ConstEvaluate(const Expr& expr, LetList* ll) {
-    std::vector<transform::Pass> passes = {transform::FuseOps(0), transform::InferType()};
-    auto mod = IRModule::FromExpr(expr);
-    auto seq = transform::Sequential(passes);
-    mod = seq(mod);
-    auto entry_func = Downcast<Function>(mod->Lookup("main"));
-    auto fused_infered = expr.as<FunctionNode>() == nullptr ? entry_func->body : entry_func;
-    return Reify(executor_(fused_infered), ll);
+    // use a fresh build context in case we are already in a build context.
+    With<transform::PassContext> fresh_build_ctx(transform::PassContext::Create());
+    return Reify(Eval(expr, mod_->type_definitions, mod_->Imports(), CPUDevice(), CPUTarget()), ll);
   }
 
   Func ConstEvaluateFunc(const Expr& expr) {
@@ -1137,7 +1124,6 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
   std::unordered_map<FuncId, Fuel> fuel_map_;
   Store store_;
   Device device_ = CPUDevice();
-  FInterpreter executor_ = CPUInterpreter();
 };
 
 /*! \brief Remap multiple Var sharing the same Id into the same Var. */
