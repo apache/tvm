@@ -219,5 +219,92 @@ def test_platform_timer():
         assert len(result.results) == 3
 
 
+@tvm.testing.requires_micro
+def test_autotune():
+    """Verify that autotune works with micro."""
+
+    RELAY_MODEL = """
+#[version = "0.0.5"]
+def @main(%data : Tensor[(1, 3, 64, 64), uint8], %weight : Tensor[(8, 3, 5, 5), int8]) {
+    %1 = nn.conv2d(
+         %data,
+         %weight,
+         padding=[2, 2],
+         channels=8,
+         kernel_size=[5, 5],
+         data_layout="NCHW",
+         kernel_layout="OIHW",
+         out_dtype="int32");
+  %1
+}
+"""
+    mod = tvm.parser.fromtext(RELAY_MODEL)
+    main_func = mod["main"]
+    shape_dict = {p.name_hint: p.checked_type.concrete_shape for p in main_func.params}
+    type_dict = {p.name_hint: p.checked_type.dtype for p in main_func.params}
+
+    weight_data = np.ones(shape_dict["weight"]).astype(type_dict["weight"])
+    input_data = np.ones(shape_dict["data"]).astype(type_dict["data"])
+    params = {"weight": weight_data}
+    inputs = {"data": input_data}
+
+    target = tvm.target.target.micro("host")
+    template_project_dir = os.path.join(tvm.micro.get_standalone_crt_dir(), "template", "host")
+
+    pass_context = tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True})
+    with pass_context:
+        tasks = tvm.autotvm.task.extract_from_program(mod["main"], {}, target)
+    assert len(tasks) > 0
+
+    module_loader = tvm.micro.autotvm_module_loader(
+        template_project_dir=template_project_dir,
+        project_options={},
+    )
+    builder = tvm.autotvm.LocalBuilder(
+        n_parallel=1,
+        build_kwargs={"build_option": {"tir.disable_vectorize": True}},
+        do_fork=False,
+        build_func=tvm.micro.autotvm_build_func,
+    )
+    runner = tvm.autotvm.LocalRunner(number=1, repeat=1, timeout=0, module_loader=module_loader)
+
+    measure_option = tvm.autotvm.measure_option(builder=builder, runner=runner)
+
+    tune_log_file = pathlib.Path("crt_autotune.log")
+    if tune_log_file.exists():
+        tune_log_file.unlink()
+
+    num_trials = 10
+    for task in tasks:
+        tuner = tvm.autotvm.tuner.GATuner(task)
+        tuner.tune(
+            n_trial=num_trials,
+            measure_option=measure_option,
+            callbacks=[
+                tvm.autotvm.callback.log_to_file(str(tune_log_file)),
+                tvm.autotvm.callback.progress_bar(num_trials, si_prefix="M"),
+            ],
+            si_prefix="M",
+        )
+
+    with tvm.autotvm.apply_history_best(str(tune_log_file)):
+        with pass_context:
+            lowered_tuned = tvm.relay.build(mod, target=target, params=params)
+
+    temp_dir = tvm.contrib.utils.tempdir()
+    project = tvm.micro.generate_project(template_project_dir, lowered_tuned, temp_dir / "project")
+    project.build()
+    with tvm.micro.Session(project.transport()) as session:
+        graph_mod = tvm.micro.create_local_graph_executor(
+            lowered_tuned.get_graph_json(), session.get_system_lib(), session.device
+        )
+        graph_mod.set_input(**lowered_tuned.get_params())
+        graph_mod.set_input(**inputs)
+        graph_mod.run()
+        output = graph_mod.get_output(0).numpy()
+        del graph_mod
+    assert (output).all()
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__] + sys.argv[1:]))
