@@ -141,6 +141,24 @@ impl Function {
 
         let rv = RetValue::from_tvm_value(ret_val, ret_type_code as u32);
 
+        // // This is a temporary patch to ensure that the arguments are correclty dropped.
+        // let args: Vec<ArgValue> = values.into_iter().zip(type_codes.into_iter()).map(|(value, type_code)| {
+        //     ArgValue::from_tvm_value(value, type_code)
+        // }).collect();
+
+        // let mut objects_to_drop: Vec<crate::ObjectRef> = vec![];
+        // for arg in args {
+        //     match arg {
+        //         ArgValue::ObjectHandle(_) | ArgValue::ModuleHandle(_) | ArgValue::NDArrayHandle(_) => objects_to_drop.push(arg.try_into().unwrap()),
+        //         _ => {}
+        //     }
+        // }
+
+        // drop(objects_to_drop);
+
+        let obj: crate::ObjectRef = rv.clone().try_into().unwrap();
+        println!("rv: {}", obj.count());
+
         Ok(rv)
     }
 }
