@@ -19,7 +19,6 @@
 """Paddle: PArallel Distributed Deep LEarning."""
 import copy
 import warnings
-from pandas.core.dtypes.inference import is_scalar
 import six
 
 import numpy as np
