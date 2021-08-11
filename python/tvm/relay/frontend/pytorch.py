@@ -1574,32 +1574,6 @@ class PyTorchOpConverter:
 
         return func(data)
 
-    def chunk_dev(self, inputs, input_types):
-        data = inputs[0]
-
-        num_chunks = int(inputs[1])
-        axis = int(inputs[2])
-
-        if isinstance(data, _expr.Expr):
-            inferred_shape = self.infer_shape_with_prelude(data)
-
-        shape = []
-        for infer in inferred_shape:
-            shape.append(infer)
-
-        dim = int(shape[axis])
-
-        if dim % num_chunks:
-            unif_size = int(dim / (num_chunks - 1))
-        else:
-            unif_size = int(dim / num_chunks)
-
-        indeces = []
-        for i in range(0, dim, unif_size):
-            indeces.append(i)
-
-        return _op.split(data, indeces, axis)
-
     def chunk(self, inputs, input_types):
         data = inputs[0]
 
@@ -1620,28 +1594,11 @@ class PyTorchOpConverter:
         else:
             unif_size = int(dim / num_chunks)
 
-        chunks = []
-        for i in range(0, dim, unif_size):
-            begin = [0] * len(shape)
-            end = shape[:]
-            begin[axis] = i
-            end[axis] = i + unif_size
-            stride = [1] * len(shape)
+        indeces = []
+        for i in range(unif_size, dim, unif_size):
+            indeces.append(i)
 
-            chunk_out = _op.transform.strided_slice(data, begin=begin, end=end, strides=stride)
-            chunks.append(chunk_out)
-
-        if dim % num_chunks:
-            begin = [0] * len(shape)
-            end = shape[:]
-            begin[axis] = unif_size * (num_chunks - 1)
-            end[axis] = dim
-            stride = [1] * len(shape)
-
-            chunk_out = _op.transform.strided_slice(data, begin=begin, end=end, strides=stride)
-            chunks.append(chunk_out)
-
-        return chunks
+        return _op.split(data, indeces, axis)
 
     def matmul(self, inputs, input_types):
 
