@@ -15,8 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import datetime
-from hashlib import new
 import io
 import logging
 import os
@@ -111,13 +109,13 @@ def _create_header_file(tensor_name, npy_data, output_path, tar_file):
     tar_file.addfile(ti, io.BytesIO(header_file_bytes))
 
 
-def _read_line(fd):
+def _read_line(fd, timeout_sec: int):
     data = ""
     new_line = False
     while True:
         if new_line:
             break
-        new_data = fd.read(1, timeout_sec=10)
+        new_data = fd.read(1, timeout_sec=timeout_sec)
         logging.debug(f"read data: {new_data}")
         for item in new_data:
             new_c = chr(item)
@@ -128,9 +126,9 @@ def _read_line(fd):
     return data
 
 
-def _get_message(fd, expr: str):
+def _get_message(fd, expr: str, timeout_sec: int):
     while True:
-        data = _read_line(fd)
+        data = _read_line(fd, timeout_sec)
         logging.debug(f"new line: {data}")
         if expr in data:
             return data
@@ -206,10 +204,10 @@ def test_tflite(temp_dir, platform, west_cmd, tvm_debug):
 
     project.flash()
     with project.transport() as transport:
-        _get_message(transport, "#wakeup")
+        timeout_read = 60
+        _get_message(transport, "#wakeup", timeout_sec=timeout_read)
         transport.write(b"start\n", timeout_sec=5)
-
-        result_line = _get_message(transport, "#result")
+        result_line = _get_message(transport, "#result", timeout_sec=timeout_read)
 
     result_line = result_line.strip("\n")
     result_line = result_line.split(":")
