@@ -112,7 +112,6 @@ class TemplateProject:
 
         return GeneratedProject.from_directory(project_dir, self._options)
 
-
     def generate_project(self, graph_executor_factory, project_dir):
         """Generate a project given GraphRuntimeFactory."""
         model_library_dir = utils.tempdir()

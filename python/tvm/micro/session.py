@@ -17,12 +17,8 @@
 
 """Defines a top-level glue class that operates the Transport and Flasher classes."""
 
-import io
 import json
 import logging
-import os
-import tarfile
-import tempfile
 import sys
 
 from ..error import register_error
@@ -34,7 +30,6 @@ from ..rpc import RPCSession
 from . import project
 from .transport import IoTimeoutError
 from .transport import TransportLogger
-from . import build
 
 try:
     from .base import _rpc_connect
@@ -274,23 +269,20 @@ def compile_and_create_micro_session(
     temp_dir = utils.tempdir()
     temp_dir.set_keep_for_debug(True)
     model_library_format_path = temp_dir / "model.tar.gz"
-    print("PRE GEN", model_library_format_path)
     with open(model_library_format_path, "wb") as mlf_f:
         mlf_f.write(mod_src_bytes)
 
-    print("PRE GEN")
     try:
         template_project = project.TemplateProject.from_directory(
-            template_project_dir, options=json.loads(project_options))
+            template_project_dir, options=json.loads(project_options)
+        )
         generated_project = template_project.generate_project_from_mlf(
-            model_library_format_path, temp_dir / "generated-project")
-    except Exception as e:
-        import traceback
-        import sys
-        print("ERR",e )
-        traceback.print_exc(e, stream=sys.stdout)
-        raise e
-    print("POST GEN")
+            model_library_format_path, temp_dir / "generated-project"
+        )
+    except Exception as exception:
+        print("Project Generate Error", exception)
+        raise exception
+
     generated_project.build()
     generated_project.flash()
     transport = generated_project.transport()

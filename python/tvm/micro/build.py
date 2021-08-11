@@ -109,7 +109,7 @@ def autotvm_module_loader(
     return module_loader
 
 
-def autotvm_build_func(*args, **kwargs):
+def autotvm_build_func():
     pass
 
 

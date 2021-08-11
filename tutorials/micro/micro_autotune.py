@@ -38,14 +38,15 @@ PLATFORMS = {
     "stm32l4r5zi_nucleo": ("stm32l4r5zi", "nucleo_l4r5zi"),
 }
 
+
 def main(args):
-####################
-# Defining the model
-####################
-#
-# To begin with, define a model in Keras to be executed on-device. This shouldn't look any different
-# from a usual Keras model definition. Let's define a relatively small model here for efficiency's
-# sake.
+    ####################
+    # Defining the model
+    ####################
+    #
+    # To begin with, define a model in Keras to be executed on-device. This shouldn't look any different
+    # from a usual Keras model definition. Let's define a relatively small model here for efficiency's
+    # sake.
 
     import tensorflow as tf
     from tensorflow import keras
@@ -56,10 +57,10 @@ def main(args):
 
     model.summary()
 
-####################
-# Importing into TVM
-####################
-# Now, use `from_keras <https://tvm.apache.org/docs/api/python/relay/frontend.html#tvm.relay.frontend.from_keras>`_ to import the Keras model into TVM.
+    ####################
+    # Importing into TVM
+    ####################
+    # Now, use `from_keras <https://tvm.apache.org/docs/api/python/relay/frontend.html#tvm.relay.frontend.from_keras>`_ to import the Keras model into TVM.
 
     import tvm
     from tvm import relay
@@ -73,30 +74,29 @@ def main(args):
     tvm_model, params = relay.frontend.from_keras(model, inputs, layout="NCHW")
     print(tvm_model)
 
-
-#######################
-# Defining the target #
-#######################
-# Now we define the TVM target that describes the execution environment. This looks very similar
-# to target definitions from other microTVM tutorials.
-#
-# When running on physical hardware, choose a target and a board that
-# describe the hardware. There are multiple hardware targets that could be selected from
-# PLATFORM list in this tutorial. You can chose the platform by passing --platform argument when running
-# this tutorial.
-#
+    #######################
+    # Defining the target #
+    #######################
+    # Now we define the TVM target that describes the execution environment. This looks very similar
+    # to target definitions from other microTVM tutorials.
+    #
+    # When running on physical hardware, choose a target and a board that
+    # describe the hardware. There are multiple hardware targets that could be selected from
+    # PLATFORM list in this tutorial. You can chose the platform by passing --platform argument when running
+    # this tutorial.
+    #
     TARGET = tvm.target.target.micro(PLATFORMS[args.platform][0])
     BOARD = PLATFORMS[args.platform][1]
 
-#########################
-# Extracting tuning tasks
-#########################
-# Not all operators in the Relay program printed above can be tuned. Some are so trivial that only
-# a single implementation is defined; others don't make sense as tuning tasks. Using
-# `extract_from_program`, you can produce a list of tunable tasks.
-#
-# Because task extraction involves running the compiler, we first configure the compiler's
-# transformation passes; we'll apply the same configuration later on during autotuning.
+    #########################
+    # Extracting tuning tasks
+    #########################
+    # Not all operators in the Relay program printed above can be tuned. Some are so trivial that only
+    # a single implementation is defined; others don't make sense as tuning tasks. Using
+    # `extract_from_program`, you can produce a list of tunable tasks.
+    #
+    # Because task extraction involves running the compiler, we first configure the compiler's
+    # transformation passes; we'll apply the same configuration later on during autotuning.
 
     pass_context = tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True})
     with pass_context:
@@ -104,43 +104,30 @@ def main(args):
         tasks = tvm.autotvm.task.extract_from_program(tvm_model["main"], {}, TARGET)
     assert len(tasks) > 0
 
-######################
-# Configuring microTVM
-######################
-# Before autotuning, we need to define a module loader and then pass that to 
-# a `tvm.autotvm.LocalBuilder`. Then we create a `tvm.autotvm.LocalRunner` and use 
-# both builder and runner to generates multiple measurements for auto tunner.
-# 
-# In this tutorial, we have the option to use x86 host as an example or use different targets
-# from Zephyr RTOS. If you choose pass `--platform=host` to this tutorial it will uses x86. You can
-# choose other options by choosing from `PLATFORM` list.
-#
+    ######################
+    # Configuring microTVM
+    ######################
+    # Before autotuning, we need to define a module loader and then pass that to
+    # a `tvm.autotvm.LocalBuilder`. Then we create a `tvm.autotvm.LocalRunner` and use
+    # both builder and runner to generates multiple measurements for auto tunner.
+    #
+    # In this tutorial, we have the option to use x86 host as an example or use different targets
+    # from Zephyr RTOS. If you choose pass `--platform=host` to this tutorial it will uses x86. You can
+    # choose other options by choosing from `PLATFORM` list.
+    #
 
     import subprocess
     import pathlib
     import tvm.micro
 
     repo_root = pathlib.Path(
-            subprocess.check_output(["git", "rev-parse", "--show-toplevel"], encoding="utf-8").strip()
-        )
+        subprocess.check_output(["git", "rev-parse", "--show-toplevel"], encoding="utf-8").strip()
+    )
 
     if args.platform == "host":
         module_loader = tvm.micro.autotvm_module_loader(
             template_project_dir=repo_root / "src" / "runtime" / "crt" / "host",
             project_options={},
-        )
-        builder = tvm.autotvm.LocalBuilder(
-            n_parallel=1, build_kwargs={"build_option": {"tir.disable_vectorize": True}}, do_fork=False,
-            build_func=tvm.micro.autotvm_build_func,
-        )  # do_fork=False needed to persist stateful builder.
-        runner = tvm.autotvm.LocalRunner(number=1, repeat=1, timeout=0, module_loader=module_loader)
-
-        measure_option = tvm.autotvm.measure_option(builder=builder, runner=runner)
-
-    else:
-        module_loader = tvm.micro.autotvm_module_loader(
-            template_project_dir=repo_root / "apps" / "microtvm" / "zephyr" / "template_project",
-            project_options = {"zephyr_board": BOARD, "west_cmd": "west", "verbose": 1, "project_type": "host_driven",},
         )
         builder = tvm.autotvm.LocalBuilder(
             n_parallel=1,
@@ -152,11 +139,30 @@ def main(args):
 
         measure_option = tvm.autotvm.measure_option(builder=builder, runner=runner)
 
+    else:
+        module_loader = tvm.micro.autotvm_module_loader(
+            template_project_dir=repo_root / "apps" / "microtvm" / "zephyr" / "template_project",
+            project_options={
+                "zephyr_board": BOARD,
+                "west_cmd": "west",
+                "verbose": 1,
+                "project_type": "host_driven",
+            },
+        )
+        builder = tvm.autotvm.LocalBuilder(
+            n_parallel=1,
+            build_kwargs={"build_option": {"tir.disable_vectorize": True}},
+            do_fork=False,
+            build_func=tvm.micro.autotvm_build_func,
+        )  # do_fork=False needed to persist stateful builder.
+        runner = tvm.autotvm.LocalRunner(number=1, repeat=1, timeout=0, module_loader=module_loader)
 
-################
-# Run Autotuning
-################
-# Now we can run autotuning separately on each extracted task.
+        measure_option = tvm.autotvm.measure_option(builder=builder, runner=runner)
+
+    ################
+    # Run Autotuning
+    ################
+    # Now we can run autotuning separately on each extracted task.
     NUM_TRIALS = 1
     for task in tasks:
         tuner = tvm.autotvm.tuner.GATuner(task)
@@ -170,23 +176,20 @@ def main(args):
             si_prefix="M",
         )
 
+    ############################
+    # Timing the untuned program
+    ############################
+    # For comparison, let's compile and run the graph without imposing any autotuning schedules. TVM
+    # will select a randomly-tuned implementation for each operator, which should not perform as well as
+    # the tuned operator.
 
-############################
-# Timing the untuned program
-############################
-# For comparison, let's compile and run the graph without imposing any autotuning schedules. TVM
-# will select a randomly-tuned implementation for each operator, which should not perform as well as
-# the tuned operator.
-    
     with pass_context:
         lowered = tvm.relay.build(tvm_model, target=TARGET, params=params)
 
     temp_dir = utils.tempdir()
     if args.platform == "host":
         project = tvm.micro.generate_project(
-            str(repo_root / "src" / "runtime" / "crt" / "host"),
-            lowered,
-            temp_dir / "project"
+            str(repo_root / "src" / "runtime" / "crt" / "host"), lowered, temp_dir / "project"
         )
 
     else:
@@ -194,34 +197,38 @@ def main(args):
             str(repo_root / "apps" / "microtvm" / "zephyr" / "template_project"),
             lowered,
             temp_dir / "project",
-            {"zephyr_board": BOARD, "west_cmd": "west", "verbose": 1, "project_type": "host_driven",}
+            {
+                "zephyr_board": BOARD,
+                "west_cmd": "west",
+                "verbose": 1,
+                "project_type": "host_driven",
+            },
         )
 
     project.build()
     project.flash()
     with tvm.micro.Session(project.transport()) as session:
         debug_module = tvm.micro.create_local_debug_executor(
-            lowered.get_graph_json(), session.get_system_lib(), session.device)
+            lowered.get_graph_json(), session.get_system_lib(), session.device
+        )
         debug_module.set_input(**lowered.get_params())
         print("########## Build without Autotuning ##########")
         debug_module.run()
         del debug_module
 
-##########################
-# Timing the tuned program
-##########################
-# Once autotuning completes, you can time execution of the entire program using the Debug Runtime:
+    ##########################
+    # Timing the tuned program
+    ##########################
+    # Once autotuning completes, you can time execution of the entire program using the Debug Runtime:
 
-    with tvm.autotvm.apply_history_best('autotune.log'):
+    with tvm.autotvm.apply_history_best("autotune.log"):
         with pass_context:
             lowered_tuned = tvm.relay.build(tvm_model, target=TARGET, params=params)
-    
+
     temp_dir = utils.tempdir()
     if args.platform == "host":
         project = tvm.micro.generate_project(
-            str(repo_root / "src" / "runtime" / "crt" / "host"),
-            lowered_tuned,
-            temp_dir / "project"
+            str(repo_root / "src" / "runtime" / "crt" / "host"), lowered_tuned, temp_dir / "project"
         )
 
     else:
@@ -229,23 +236,33 @@ def main(args):
             str(repo_root / "apps" / "microtvm" / "zephyr" / "template_project"),
             lowered_tuned,
             temp_dir / "project",
-            {"zephyr_board": BOARD, "west_cmd": "west", "verbose": 1, "project_type": "host_driven",}
+            {
+                "zephyr_board": BOARD,
+                "west_cmd": "west",
+                "verbose": 1,
+                "project_type": "host_driven",
+            },
         )
 
     project.build()
     project.flash()
     with tvm.micro.Session(project.transport()) as session:
         debug_module = tvm.micro.create_local_debug_executor(
-            lowered_tuned.get_graph_json(), session.get_system_lib(), session.device)
+            lowered_tuned.get_graph_json(), session.get_system_lib(), session.device
+        )
         debug_module.set_input(**lowered_tuned.get_params())
         print("########## Build with Autotuning ##########")
         debug_module.run()
         del debug_module
 
+
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--platform", required=True, choices=PLATFORMS.keys(), help="MicroTVM target plarform.")
+    parser.add_argument(
+        "--platform", required=True, choices=PLATFORMS.keys(), help="MicroTVM target plarform."
+    )
     return parser.parse_args()
+
 
 if __name__ == "__main__":
     args = parse_args()
