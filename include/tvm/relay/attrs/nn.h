@@ -992,9 +992,24 @@ struct DenseAttrs : public tvm::AttrsNode<DenseAttrs> {
   IndexExpr units;
   tvm::String auto_scheduler_rewritten_layout;  // The layout after auto-scheduler's layout rewrite
   DataType out_dtype;
-  tvm::String weight_layout;
 
   TVM_DECLARE_ATTRS(DenseAttrs, "relay.attrs.DenseAttrs") {
+    TVM_ATTR_FIELD(units).describe("Number of hidden units of the dense transformation.");
+
+    // use 0 bits to indicate none.
+    TVM_ATTR_FIELD(out_dtype)
+        .set_default(NullValue<DataType>())
+        .describe("Output data type, set to explicit type under mixed precision setting");
+  }
+};
+
+/*! \brief Attributes for dense_pack operator */
+struct DensePackAttrs : public tvm::AttrsNode<DensePackAttrs> {
+  IndexExpr units;
+  DataType out_dtype;
+  tvm::String weight_layout;
+
+  TVM_DECLARE_ATTRS(DensePackAttrs, "relay.attrs.DensePackAttrs") {
     TVM_ATTR_FIELD(units).describe("Number of hidden units of the dense transformation.");
 
     // use 0 bits to indicate none.

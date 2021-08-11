@@ -233,10 +233,12 @@ RELAY_REGISTER_OP("nn.dense")
 // ------------------- relay.nn.dense
 
 // ------------------- relay.nn.contrib_dense_pack
+TVM_REGISTER_NODE_TYPE(DensePackAttrs);
+
 // Positional relay function to create dense_pack operator used by frontend FFI.
 Expr MakeDensePack(Expr data, Expr weight, tvm::String weight_layout, IndexExpr units,
                    DataType out_dtype) {
-  auto attrs = make_object<DenseAttrs>();
+  auto attrs = make_object<DensePackAttrs>();
   attrs->units = units;
   attrs->out_dtype = out_dtype;
   attrs->weight_layout = std::move(weight_layout);
@@ -253,7 +255,7 @@ bool DensePackRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   const auto* weight = types[1].as<TensorTypeNode>();
   if (data == nullptr || weight == nullptr) return false;
 
-  const DenseAttrs* param = attrs.as<DenseAttrs>();
+  const DensePackAttrs* param = attrs.as<DensePackAttrs>();
   ICHECK(param != nullptr);
 
   ICHECK_EQ(data->shape.size(), 2) << "Only 2D data is supported";
@@ -275,7 +277,7 @@ InferCorrectLayoutOutput DensePackInferCorrectLayout(const Attrs& attrs,
                                                      const Array<Layout>& new_in_layouts,
                                                      const Array<Layout>& old_in_layouts,
                                                      const Array<tvm::relay::Type>& old_in_types) {
-  auto params = attrs.as<DenseAttrs>();
+  auto params = attrs.as<DensePackAttrs>();
   ICHECK(params);
   return InferCorrectLayoutOutput({"NC", params->weight_layout}, {"NC"}, attrs);
 }
