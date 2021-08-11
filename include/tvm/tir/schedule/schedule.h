@@ -20,6 +20,7 @@
 #define TVM_TIR_SCHEDULE_SCHEDULE_H_
 
 #include <tvm/tir/schedule/state.h>
+#include <tvm/tir/schedule/trace.h>
 
 namespace tvm {
 namespace tir {
@@ -95,13 +96,15 @@ class ScheduleNode : public runtime::Object {
   virtual ~ScheduleNode() = default;
 
   static constexpr const char* _type_key = "tir.Schedule";
-  TVM_DECLARE_BASE_OBJECT_INFO(ScheduleNode, runtime::Object);
+  TVM_DECLARE_FINAL_OBJECT_INFO(ScheduleNode, runtime::Object);
 
  public:
   /*! \brief Get the IRModule associated with this schedule. */
   virtual IRModule mod() const { return state()->mod; }
   /*! \return The internal state of scheduling */
   virtual ScheduleState state() const = 0;
+  /*! \return The internally maintained trace of scheduling program execution */
+  virtual Optional<Trace> trace() const = 0;
   /*!
    * \brief Returns a copy of the schedule, including both its state and its symbol table,
    * guaranteeing that
@@ -288,7 +291,7 @@ class Schedule : public runtime::ObjectRef {
   /*!
    * \brief Construct a concrete TensorIR schedule from an IRModule
    * \param mod The IRModule to be scheduled
-   * \param debug_mode Do extra correctness checking after the class creation
+   * \param debug_mask Do extra correctness checking after the class creation
    * and each time after calling the Replace method.
    * \param error_render_level The level of error rendering
    * \return The concrete schedule created
@@ -297,8 +300,22 @@ class Schedule : public runtime::ObjectRef {
    * 1) VerifySRefTree
    * 2) VerifyCachedFlags
    */
-  TVM_DLL static Schedule Concrete(IRModule mod, int debug_mode,
+  TVM_DLL static Schedule Concrete(IRModule mod, int debug_mask,
                                    ScheduleErrorRenderLevel error_render_level);
+  /*!
+   * \brief Construct a traced concrete TensorIR schedule from an IRModule
+   * \param mod The IRModule to be scheduled
+   * \param debug_mask Do extra correctness checking after the class creation
+   * and each time after calling the Replace method.
+   * \param error_render_level The level of error rendering
+   * \return The concrete schedule created
+   * \sa ScheduleDebugMask
+   * \note The checks performed include:
+   * 1) VerifySRefTree
+   * 2) VerifyCachedFlags
+   */
+  TVM_DLL static Schedule Traced(IRModule mod, int debug_mask,
+                                 ScheduleErrorRenderLevel error_render_level);
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Schedule, runtime::ObjectRef, ScheduleNode);
 };
 

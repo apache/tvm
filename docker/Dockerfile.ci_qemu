@@ -65,6 +65,10 @@ COPY install/ubuntu_init_zephyr_project.sh /install/ubuntu_init_zephyr_project.s
 RUN bash /install/ubuntu_install_zephyr.sh
 ENV ZEPHYR_BASE=/opt/zephyrproject/zephyr
 
+# Arduino deps
+COPY install/ubuntu_install_arduino.sh /install/ubuntu_install_arduino.sh
+RUN bash /install/ubuntu_install_arduino.sh
+
 # Install ONNX
 COPY install/ubuntu_install_onnx.sh /install/ubuntu_install_onnx.sh
 RUN bash /install/ubuntu_install_onnx.sh

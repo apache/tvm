@@ -62,6 +62,11 @@ def test_estimate_flop():
     dag = auto_scheduler.ComputeDAG([A, B, F])
     assert abs(dag.flop_ct - (2 * N ** 3 + 1234)) < 0.5
 
+    A = te.placeholder((N, N), dtype="float32", name="A")
+    F = te.compute((N, N), lambda i, j: te.if_then_else(A[i, j] > 0, A[i, j], 0))
+    dag = auto_scheduler.ComputeDAG([A, F])
+    assert abs(dag.flop_ct - N ** 2) < 0.5
+
 
 def test_stage_order():
     """Test if the stage order is preserved when recovering a DAG."""

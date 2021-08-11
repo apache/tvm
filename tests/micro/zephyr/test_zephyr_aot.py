@@ -141,6 +141,10 @@ def _get_message(fd, expr: str):
 @tvm.testing.requires_micro
 def test_tflite(temp_dir, platform, west_cmd, skip_build, tvm_debug):
     """Testing a TFLite model."""
+
+    if platform not in ["host", "mps2_an521", "nrf5340dk", "stm32l4r5zi_nucleo", "zynq_mp_r5"]:
+        pytest.skip(msg="Model does not fit.")
+
     model, zephyr_board = PLATFORMS[platform]
     input_shape = (1, 32, 32, 3)
     output_shape = (1, 10)

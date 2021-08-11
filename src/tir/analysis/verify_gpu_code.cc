@@ -40,7 +40,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
   std::vector<String> Verify(Stmt stmt, int64_t max_local_memory_per_block,
                              int64_t max_shared_memory_per_block, int64_t max_threads_per_block,
                              int64_t max_thread_x, int64_t max_thread_y, int64_t max_thread_z,
-                             int64_t max_vthread, int64_t max_vector_bytes) {
+                             int64_t max_vthread, int64_t max_vector_bytes, int64_t max_kernels) {
     max_local_memory_per_block_ = static_cast<size_t>(max_local_memory_per_block);
     max_shared_memory_per_block_ = static_cast<size_t>(max_shared_memory_per_block);
     max_threads_per_block_ = static_cast<size_t>(max_threads_per_block);
@@ -49,7 +49,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
     max_thread_z_ = static_cast<size_t>(max_thread_z);
     max_vthread_ = static_cast<size_t>(max_vthread);
     max_vector_bytes_ = static_cast<size_t>(max_vector_bytes);
-
+    max_kernels_ = static_cast<size_t>(max_kernels);
     Reset_();
 
     // TODO(jcf94): Add support of detecting CUDA Misaligned Address error
@@ -85,6 +85,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
       if (nest_level_ == 0) {
         // enter a new kernel, reset statistics
         Reset_();
+        kernels_launched_++;
       }
 
       Var var = op->node.as<IterVarNode>()->var;
@@ -153,6 +154,13 @@ class GPUCodeVerifier : public StmtExprVisitor {
         err("threads per block", thread_per_block_, max_threads_per_block_);
         err("local memory per block", local_memory_per_block_, max_local_memory_per_block_);
         err("shared memory per block", shared_memory_per_block_, max_shared_memory_per_block_);
+
+        if (kernels_launched_ > max_kernels_) {
+          std::stringstream s;
+          s << "Number of launched kernels (" << kernels_launched_
+            << ") is greater than the allowed maximum (" << max_kernels_ << ")";
+          errors_.push_back(s.str());
+        }
       }
     } else {
       StmtVisitor::VisitStmt_(op);
@@ -213,12 +221,14 @@ class GPUCodeVerifier : public StmtExprVisitor {
   size_t local_memory_per_block_;
   size_t shared_memory_per_block_;
   size_t thread_per_block_;
+  size_t kernels_launched_{0};
 
   size_t max_local_memory_per_block_;
   size_t max_shared_memory_per_block_;
   size_t max_threads_per_block_;
   size_t max_thread_x_, max_thread_y_, max_thread_z_, max_vthread_;
   size_t max_vector_bytes_;
+  size_t max_kernels_;
 
   std::vector<String> errors_;
 
@@ -242,6 +252,7 @@ std::vector<String> VerifyGPUCode_(const PrimFunc& func, Map<String, PrimExpr> c
   int64_t max_thread_z = INT64_MAX;
   int64_t max_vthread = INT64_MAX;
   int64_t max_vector_bytes = INT64_MAX;
+  int64_t max_kernels = INT64_MAX;
 
   for (auto iter : constraints) {
     const IntImmNode* val = iter.second.as<IntImmNode>();
@@ -261,6 +272,8 @@ std::vector<String> VerifyGPUCode_(const PrimFunc& func, Map<String, PrimExpr> c
       max_vthread = val->value;
     } else if (iter.first == "max_vector_bytes") {
       max_vector_bytes = val->value;
+    } else if (iter.first == "max_kernels") {
+      max_kernels = val->value;
     } else {
       LOG(FATAL) << "Invalid check item: " << iter.first;
     }
@@ -268,7 +281,7 @@ std::vector<String> VerifyGPUCode_(const PrimFunc& func, Map<String, PrimExpr> c
 
   return verifier.Verify(func->body, max_local_memory_per_block, max_shared_memory_per_block,
                          max_threads_per_block, max_thread_x, max_thread_y, max_thread_z,
-                         max_vthread, max_vector_bytes);
+                         max_vthread, max_vector_bytes, max_kernels);
 }
 
 bool VerifyGPUCode(const PrimFunc& func, Map<String, PrimExpr> constraints) {

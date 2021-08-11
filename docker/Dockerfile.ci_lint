@@ -32,7 +32,7 @@ RUN pip config set global.cache-dir false
 
 RUN apt-get update && apt-get install -y doxygen graphviz
 
-RUN pip3 install cpplint pylint==2.4.4 mypy==0.902 black==20.8b1
+RUN pip3 install cpplint pylint==2.4.4 mypy==0.902 black==20.8b1 flake8==3.9.2
 
 # java deps for rat
 COPY install/ubuntu_install_java.sh /install/ubuntu_install_java.sh

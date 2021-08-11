@@ -397,9 +397,9 @@ def test_rpc_large_array(temp_dir, platform, west_cmd, skip_build, tvm_debug, sh
         a_np = np.random.randint(low=-128, high=127, size=shape, dtype="int8")
 
         A_data = tvm.nd.array(a_np, device=sess.device)
-        assert (A_data.asnumpy() == a_np).all()
+        assert (A_data.numpy() == a_np).all()
         C_data = tvm.nd.array(np.zeros(shape, dtype="int8"), device=sess.device)
-        assert (C_data.asnumpy() == np.zeros(shape)).all()
+        assert (C_data.numpy() == np.zeros(shape)).all()
 
     with _make_add_sess_with_shape(
         temp_dir, model, zephyr_board, west_cmd, shape, build_config
