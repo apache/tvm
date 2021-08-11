@@ -272,6 +272,7 @@ def compile_and_create_micro_session(
     global RPC_SESSION
 
     temp_dir = utils.tempdir()
+    temp_dir.set_keep_for_debug(True)
     model_library_format_path = temp_dir / "model.tar.gz"
     print("PRE GEN", model_library_format_path)
     with open(model_library_format_path, "wb") as mlf_f:
