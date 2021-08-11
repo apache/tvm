@@ -112,7 +112,7 @@ class Builder(object):
             The additional kwargs for build function
         """
         self.task = task
-        self.build_kwargs = build_kwargs if build_kwargs is not None else {}
+        self.build_kwargs = dict(build_kwargs.items()) if build_kwargs is not None else {}
         if any(k in self.build_kwargs for k in self.user_build_kwargs):
             logging.warn(
                 "Overriding these runner-supplied kwargs with user-supplied:\n%s",

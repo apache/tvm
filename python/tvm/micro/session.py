@@ -267,6 +267,7 @@ def compile_and_create_micro_session(
     global RPC_SESSION
 
     temp_dir = utils.tempdir()
+    # Keep temp directory for generate project
     temp_dir.set_keep_for_debug(True)
     model_library_format_path = temp_dir / "model.tar.gz"
     with open(model_library_format_path, "wb") as mlf_f:
@@ -280,7 +281,7 @@ def compile_and_create_micro_session(
             model_library_format_path, temp_dir / "generated-project"
         )
     except Exception as exception:
-        print("Project Generate Error", exception)
+        logging.error("Project Generate Error", exception)
         raise exception
 
     generated_project.build()
