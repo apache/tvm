@@ -28,7 +28,7 @@ def test_const_dtype():
     strides = _op.const(np_array, dtype="int64")
 
     # strides needs to be autoconverted to int64 on Windows
-    assert infer_type(strides).checked_type.dtype == np.dtype(np.int64)
+    assert infer_type(strides).dtype == np.dtype(np.int64)
 
     a = tvm.nd.array(np.random.randint(0, high=255, size=(2, 3), dtype="uint8"))
     a = _op.const(a, dtype="uint8")
