@@ -36,7 +36,6 @@ import time
 import shutil
 import tempfile
 import multiprocessing
-from multiprocessing.pool import ThreadPool
 import logging
 
 import tvm._ffi
@@ -668,6 +667,7 @@ def local_build_worker(args):
 
     try:
         res = _local_build_worker(inp, build_func, verbose)
+    # pylint: disable=broad-except
     except Exception:
         if verbose >= 1:
             print(".E", end="", flush=True)  # Build error
@@ -700,7 +700,7 @@ def local_builder_build(inputs, timeout, n_parallel, build_func="default", verbo
     res : List[BuildResult]
         The build results of these MeasureInputs.
     """
-    executor = PopenPoolExecutor()
+    executor = PopenPoolExecutor(n_parallel, timeout)
     tuple_res = executor.map_with_error_catching(
         local_build_worker,
         [
@@ -1181,6 +1181,7 @@ def _rpc_run_worker(args):
 
     try:
         res = _rpc_run(*args)
+    # pylint: disable=broad-except
     except Exception:
         if verbose >= 1:
             print("*E", end="")  # Run error
