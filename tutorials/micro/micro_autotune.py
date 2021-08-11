@@ -170,7 +170,7 @@ def main(args):
             n_trial=NUM_TRIALS,
             measure_option=measure_option,
             callbacks=[
-                tvm.autotvm.callback.log_to_file("autotune.log"),
+                tvm.autotvm.callback.log_to_file("microtvm_autotune.log"),
                 tvm.autotvm.callback.progress_bar(NUM_TRIALS, si_prefix="M"),
             ],
             si_prefix="M",
@@ -221,7 +221,7 @@ def main(args):
     ##########################
     # Once autotuning completes, you can time execution of the entire program using the Debug Runtime:
 
-    with tvm.autotvm.apply_history_best("autotune.log"):
+    with tvm.autotvm.apply_history_best("microtvm_autotune.log"):
         with pass_context:
             lowered_tuned = tvm.relay.build(tvm_model, target=TARGET, params=params)
 

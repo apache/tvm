@@ -281,7 +281,7 @@ def compile_and_create_micro_session(
             model_library_format_path, temp_dir / "generated-project"
         )
     except Exception as exception:
-        logging.error("Project Generate Error", exception)
+        logging.error("Project Generate Error: %s", str(exception))
         raise exception
 
     generated_project.build()

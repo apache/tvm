@@ -111,7 +111,6 @@ def autotvm_module_loader(
 
 def autotvm_build_func():
     """A dummy build function which causes autotvm to use a different export format."""
-    pass
 
 
 # A sentinel value for the output format.

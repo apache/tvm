@@ -524,9 +524,10 @@ class _WrappedBuildFunc:
             # TODO(tvm-team) consider linline _build_func_common
             func, arg_info = _build_func_common(measure_input, **kwargs)
             if self.build_func.output_format == "tar.gz":
-                import tvm.micro  # Late import to preserve autoTVM with USE_MICRO OFF
+                # Late import to preserve autoTVM with USE_MICRO OFF
+                from tvm import micro  # pylint: disable=import-outside-toplevel
 
-                tvm.micro.export_model_library_format(func, filename)
+                micro.export_model_library_format(func, filename)
             else:
                 func.export_library(filename, self.build_func)
         except Exception as e:  # pylint: disable=broad-except
