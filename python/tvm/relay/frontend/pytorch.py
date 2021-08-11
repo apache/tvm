@@ -26,12 +26,10 @@ import sys
 
 import numpy as np
 import tvm
-from tvm.ir import IRModule
 from tvm.topi.utils import get_const_tuple
 
 from .. import analysis as _analysis
 from .. import expr as _expr
-from .. import function as _function
 from .. import op as _op
 from .. import qnn, transform
 from ..expr_functor import ExprMutator

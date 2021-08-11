@@ -3321,7 +3321,7 @@ class QLinearMul(OnnxOpConverter):
         y_scale = fold_constant(get_scalar(inputs[6]))
         y_zero_point = get_scalar(inputs[7], "int32")
 
-        dtype = infer_type(a).checked_type.dtype
+        dtype = infer_type(a).dtype
 
         ## Onnxruntime doesn't actually do this op in integer, they dequantize to fp32
         ## and then requantize afer
@@ -3986,7 +3986,7 @@ class Celu(OnnxOpConverter):
     @classmethod
     def _impl_v12(cls, inputs, attr, params):
         x = inputs[0]
-        dtype = infer_type(x).checked_type.dtype
+        dtype = infer_type(x).dtype
         alpha = _op.const(attr.get("alpha", 1.0), dtype)
         zero = _op.const(0, dtype)
         one = _op.const(1, dtype)
