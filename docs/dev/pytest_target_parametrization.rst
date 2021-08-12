@@ -21,6 +21,13 @@ Python Target Parametrization
 Summary
 -------
 
+For any supported runtime, TVM should should produce numerically
+correct results.  Therefore, when writing unit tests that validate
+the numeric output, these unit tests should be run on all supported
+runtimes.  Since this is a very common use case, TVM has helper
+functions to parametrize unit tests such that they will run on all
+targets that are enabled and have a compatible device.
+
 A single python function in the test suite can expand to several
 parametrized unit tests, each of which tests a single target device.
 In order for a test to be run, all of the following must be true.
@@ -44,63 +51,15 @@ Unit-Test File Contents
 
 .. _pytest-marks: https://docs.pytest.org/en/6.2.x/mark.html
 
-Each test file has one or more test functions.  The test functions can
-be decorated with `pytest marks <pytest-marks>`_ to include metadata.
-The most frequently applied marks are as follows.
-
-- ``@pytest.mark.gpu`` - Tags a function as using GPU
-  capabilities. This has no effect on its own, but can be paired with
-  command-line arguments ``-m gpu`` or ``-m 'not gpu'`` to restrict
-  which tests pytest will executed.  This should be called on its own,
-  but is part of other marks used in unit-tests.
-
-- ``@tvm.testing.uses_gpu`` - Applies ``@pytest.mark.gpu``.  This
-  should be used to mark a unit tests that may use the GPU, if one is
-  present.  This decorator is only needed for tests that explicitly
-  loop over ``tvm.testing.enabled_targets()``, but that is no longer
-  the preferred style of writing unit tests (see below).  When using
-  ``tvm.testing.parametrize_targets()``, this decorator is implicit
-  for GPU targets, and does not need to be explicitly applied.
-
-- ``@tvm.testing.requires_gpu`` - Applies ``@tvm.testing.uses_gpu``,
-  and additionally marks that the test should be skipped
-  (``@pytest.mark.skipif``) entirely if no GPU is present.
-
-- ``@tvfm.testing.requires_RUNTIME`` - Several decorators
-  (e.g. ``@tvm.testing.requires_cuda``), each of which skips a test if
-  the specified runtime cannot be used. A runtime cannot be used if it
-  is disabled in the ``config.cmake``, or if a compatible device is
-  not present. For runtimes that use the GPU, this includes
-  ``@tvm.testing.requires_gpu``.
-
-A single test can loop over ``tvm.testing.enabled_targets()`` to
-validate all enabled targets, based on the environment variable
-``TVM_TEST_TARGETS``, the build configuration, and the physical
-hardware present.  Most current tests use this style, but it is not
-recommended for new tests.  The pytest output for this style silently
-skips runtimes that are disabled in ``config.cmake``, or do not have a
-device on which they can run.  In addition, the test halts on the
-first target to fail, which is ambiguous as to whether the error
-occurs on a particular target, or on every target.
-
-.. code-block:: python
-
-    # Old style, do not use.
-    def test_function():
-        for target,dev in tvm.testing.enabled_targets():
-            # Test code goes here
-
 The recommended method to run a test on multiple targets is by
 parametrizing the test.  This can be done explicitly for a fixed list
 of targets by decorating with
 ``@tvm.testing.parametrize_targets('target_1', 'target_2', ...)``, and
-accepting ``target`` or ``dev`` as function arguments.  The function will
-be run once for each target listed, and the success/failure of each
-target is reported separately.  Each test run is decorated with the
-``@tvm.testing.requires_RUNTIME`` that corresponds to the target being
-used.  As a result, if a target is disabled in ``config.cmake`` or does
-not have appropriate hardware to run, it will be explicitly listed as
-skipped.
+accepting ``target`` or ``dev`` as function arguments.  The function
+will be run once for each target listed, and the success/failure of
+each target is reported separately.  If a target cannot be run because
+it is disabled in the `config.cmake`, or because no appropriate
+hardware is present, then that target will be reported as skipped.
 
 .. code-block:: python
 
@@ -141,8 +100,8 @@ the ``@tvm.testing.exclude_targets`` or
 ``@tvm.testing.known_failing_targets`` decorators.  For more
 information on their intended use cases, please see their docstrings.
 
-Lastly, in some cases it may be necessary to parametrize across
-multiple parameters.  For instance, there may be target-specific
+In some cases it may be necessary to parametrize across multiple
+parameters.  For instance, there may be target-specific
 implementations that should be tested, where some targets have more
 than one implementation.  These can be done by explicitly
 parametrizing over tuples of arguments, such as shown below.  In these
@@ -159,6 +118,64 @@ applied to them.
     ])
     def test_function(target, dev, impl):
         # Test code goes here
+
+
+The parametrization functionality is implemented
+on top of pytest marks.  Each test function can
+be decorated with `pytest marks <pytest-marks>`_
+to include metadata.  The most frequently applied
+marks are as follows.
+
+- ``@pytest.mark.gpu`` - Tags a function as using GPU
+  capabilities. This has no effect on its own, but can be paired with
+  command-line arguments ``-m gpu`` or ``-m 'not gpu'`` to restrict
+  which tests pytest will executed.  This should not be called on its
+  own, but is part of other marks used in unit-tests.
+
+- ``@tvm.testing.uses_gpu`` - Applies ``@pytest.mark.gpu``.  This
+  should be used to mark a unit tests that may use the GPU, if one is
+  present.  This decorator is only needed for tests that explicitly
+  loop over ``tvm.testing.enabled_targets()``, but that is no longer
+  the preferred style of writing unit tests (see below).  When using
+  ``tvm.testing.parametrize_targets()``, this decorator is implicit
+  for GPU targets, and does not need to be explicitly applied.
+
+- ``@tvm.testing.requires_gpu`` - Applies ``@tvm.testing.uses_gpu``,
+  and additionally marks that the test should be skipped
+  (``@pytest.mark.skipif``) entirely if no GPU is present.
+
+- ``@tvfm.testing.requires_RUNTIME`` - Several decorators
+  (e.g. ``@tvm.testing.requires_cuda``), each of which skips a test if
+  the specified runtime cannot be used. A runtime cannot be used if it
+  is disabled in the ``config.cmake``, or if a compatible device is
+  not present. For runtimes that use the GPU, this includes
+  ``@tvm.testing.requires_gpu``.
+
+When using parametrized targets, each test run is decorated with the
+``@tvm.testing.requires_RUNTIME`` that corresponds to the target
+being used.  As a result, if a target is disabled in ``config.cmake``
+or does not have appropriate hardware to run, it will be explicitly
+listed as skipped.
+
+There also exists a ``tvm.testing.enabled_targets()`` that returns
+all targets that are enabled and runnable on the current machine,
+based on the environment variable ``TVM_TEST_TARGETS``, the build
+configuration, and the physical hardware present.  Most current tests
+explictly loop over the targets returned from ``enabled_targets()``,
+but it should not be used for new tests.  The pytest output for this
+style silently skips runtimes that are disabled in ``config.cmake``,
+or do not have a device on which they can run.  In addition, the test
+halts on the first target to fail, which is ambiguous as to whether
+the error occurs on a particular target, or on every target.
+
+.. code-block:: python
+
+    # Old style, do not use.
+    def test_function():
+        for target,dev in tvm.testing.enabled_targets():
+            # Test code goes here
+
+
 
 Running locally
 ---------------
