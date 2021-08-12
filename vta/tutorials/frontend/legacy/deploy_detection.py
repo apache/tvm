@@ -212,7 +212,7 @@ with autotvm.tophub.context(target):
         # Note: We set opt_level to 3 in order to fold batch norm
         with tvm.transform.PassContext(opt_level=3):
             with relay.quantize.qconfig(
-                global_scale=33.0,
+                global_scale=23.0,
                 skip_conv_layers=[0],
                 store_lowbit_output=True,
                 round_for_shift=True,
@@ -272,8 +272,8 @@ m.set_input("data", data)
 
 # Perform inference and gather execution statistics
 # More on: :py:method:`tvm.runtime.Module.time_evaluator`
-num = 4  # number of times we run module for a single measurement
-rep = 3  # number of measurements (we derive std dev from this)
+num = 1  # number of times we run module for a single measurement
+rep = 1  # number of measurements (we derive std dev from this)
 timer = m.module.time_evaluator("run", ctx, number=num, repeat=rep)
 
 if env.TARGET in ["sim", "tsim"]:
