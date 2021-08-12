@@ -230,7 +230,6 @@ def test_autotune():
         data,
         weight,
         padding=(2, 2),
-        channels=8,
         kernel_size=(5, 5),
         kernel_layout="OIHW",
         out_dtype="float32",

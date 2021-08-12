@@ -26,8 +26,6 @@ This tutorial explains how to autotune a model using the C runtime.
 """
 
 import argparse
-from tvm.contrib import utils
-
 
 PLATFORMS = {
     "host": ("host", None),
@@ -44,35 +42,37 @@ def main(args):
     # Defining the model
     ####################
     #
-    # To begin with, define a model in Keras to be executed on-device. This shouldn't look any different
-    # from a usual Keras model definition. Let's define a relatively small model here for efficiency's
-    # sake.
-
-    import tensorflow as tf
-    from tensorflow import keras
-
-    model = keras.models.Sequential()
-    model.add(keras.layers.Conv2D(2, 3, input_shape=(16, 16, 3)))
-    model.build()
-
-    model.summary()
-
-    ####################
-    # Importing into TVM
-    ####################
-    # Now, use `from_keras <https://tvm.apache.org/docs/api/python/relay/frontend.html#tvm.relay.frontend.from_keras>`_ to import the Keras model into TVM.
+    # To begin with, define a model in Relay to be executed on-device. Then create an IRModule from relay model and
+    # fill parameters with random numbers.
+    #
 
     import tvm
-    from tvm import relay
+
+    data_shape = (1, 3, 10, 10)
+    weight_shape = (6, 3, 5, 5)
+
+    data = tvm.relay.var("data", tvm.relay.TensorType(data_shape, "float32"))
+    weight = tvm.relay.var("weight", tvm.relay.TensorType(weight_shape, "float32"))
+
+    y = tvm.relay.nn.conv2d(
+        data,
+        weight,
+        padding=(2, 2),
+        kernel_size=(5, 5),
+        kernel_layout="OIHW",
+        out_dtype="float32",
+    )
+    f = tvm.relay.Function([data, weight], y)
+
+    relay_mod = tvm.IRModule.from_expr(f)
+    relay_mod = tvm.relay.transform.InferType()(relay_mod)
+
     import numpy as np
 
-    inputs = {
-        i.name.split(":", 2)[0]: [x if x is not None else 1 for x in i.shape.as_list()]
-        for i in model.inputs
-    }
-    inputs = {k: [v[0], v[3], v[1], v[2]] for k, v in inputs.items()}
-    tvm_model, params = relay.frontend.from_keras(model, inputs, layout="NCHW")
-    print(tvm_model)
+    weight_sample = np.random.rand(
+        weight_shape[0], weight_shape[1], weight_shape[2], weight_shape[3]
+    ).astype("float32")
+    params = {"weight": weight_sample}
 
     #######################
     # Defining the target #
@@ -100,7 +100,7 @@ def main(args):
 
     pass_context = tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True})
     with pass_context:
-        tasks = tvm.autotvm.task.extract_from_program(tvm_model["main"], {}, target)
+        tasks = tvm.autotvm.task.extract_from_program(relay_mod["main"], {}, target)
     assert len(tasks) > 0
 
     ######################
@@ -152,7 +152,7 @@ def main(args):
             build_kwargs={"build_option": {"tir.disable_vectorize": True}},
             do_fork=False,
             build_func=tvm.micro.autotvm_build_func,
-        )  # do_fork=False needed to persist stateful builder.
+        )
         runner = tvm.autotvm.LocalRunner(number=1, repeat=1, timeout=0, module_loader=module_loader)
 
         measure_option = tvm.autotvm.measure_option(builder=builder, runner=runner)
@@ -161,6 +161,7 @@ def main(args):
     # Run Autotuning
     ################
     # Now we can run autotuning separately on each extracted task.
+
     num_trials = 10
     for task in tasks:
         tuner = tvm.autotvm.tuner.GATuner(task)
@@ -182,9 +183,9 @@ def main(args):
     # the tuned operator.
 
     with pass_context:
-        lowered = tvm.relay.build(tvm_model, target=target, params=params)
+        lowered = tvm.relay.build(relay_mod, target=target, params=params)
 
-    temp_dir = utils.tempdir()
+    temp_dir = tvm.contrib.utils.tempdir()
     if args.platform == "host":
         project = tvm.micro.generate_project(
             str(repo_root / "src" / "runtime" / "crt" / "host"), lowered, temp_dir / "project"
@@ -221,9 +222,9 @@ def main(args):
 
     with tvm.autotvm.apply_history_best("microtvm_autotune.log"):
         with pass_context:
-            lowered_tuned = tvm.relay.build(tvm_model, target=target, params=params)
+            lowered_tuned = tvm.relay.build(relay_mod, target=target, params=params)
 
-    temp_dir = utils.tempdir()
+    temp_dir = tvm.contrib.utils.tempdir()
     if args.platform == "host":
         project = tvm.micro.generate_project(
             str(repo_root / "src" / "runtime" / "crt" / "host"), lowered_tuned, temp_dir / "project"

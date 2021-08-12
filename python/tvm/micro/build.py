@@ -62,14 +62,15 @@ def get_standalone_crt_dir() -> str:
 
     return STANDALONE_CRT_DIR
 
-class AutoTvmModuleLoader():
+
+class AutoTvmModuleLoader:
     """MicroTVM AutoTVM Module Loader
 
     Parameters
     ----------
     template_project_dir : str
         project template path
-    
+
     project_options : dict
         project generation option
     """
