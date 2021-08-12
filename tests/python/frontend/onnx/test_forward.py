@@ -4668,7 +4668,7 @@ unsupported_onnx_tests = [
     "test_cast_FLOAT_to_BFLOAT16",
     "test_cast_FLOAT_to_STRING",
     "test_cast_STRING_to_FLOAT",
-    "test_celu",
+    # "test_celu",
     "test_compress_0",
     "test_compress_1",
     "test_compress_default_axis",
