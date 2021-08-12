@@ -5358,16 +5358,16 @@ def test_random_uniform(target, dev):
     real = get_random_uniform(shape=[10], seed=5)
     expected = np.asarray(
         [
-            0.8614111,
-            0.46572232,
-            0.6007328,
-            0.21619737,
-            0.6361222,
-            0.7298056,
-            0.13094282,
-            0.03556716,
-            0.32997167,
-            0.2977605,
+            0.043976,
+            0.96656,
+            0.292199,
+            0.904297,
+            0.25167,
+            0.521778,
+            0.778985,
+            0.085463,
+            0.939846,
+            0.194201,
         ]
     )
     tvm.testing.assert_allclose(real, expected, rtol=1e-5)
