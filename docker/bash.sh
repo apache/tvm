@@ -33,7 +33,7 @@
 #     With -i, execute interactively.
 #
 
-set -euo pipefail
+set -xeuo pipefail
 
 
 function show_usage() {
@@ -305,7 +305,7 @@ if [ -n "${CI+x}" -a -z "${CPUSET_CPUS}" ]; then
             CI_CPUSET_LOWER_BOUND=0
         fi
         CPUS_PER_EXECUTOR=$(expr "${TOTAL_CPUS}" / "${CI_NUM_EXECUTORS}")
-        CPUSET_CPUS_LOWER_BOUND=$(expr "${CI_CPUSET_LOWER_BOUND}" + \( "${CPUS_PER_EXECUTOR}" '*' \( "${EXECUTOR_NUMBER}" - 1 \) \) )
+        CPUSET_CPUS_LOWER_BOUND=$(expr "${CI_CPUSET_LOWER_BOUND}" + \( "${CPUS_PER_EXECUTOR}" '*' "${EXECUTOR_NUMBER}" \) )
         CPUSET_CPUS_UPPER_BOUND=$(expr "${CPUSET_CPUS_LOWER_BOUND}" + "${CPUS_PER_EXECUTOR}" - 1)
         CPUSET_CPUS="${CPUSET_CPUS_LOWER_BOUND}-${CPUSET_CPUS_UPPER_BOUND}"
         echo "COMPUTE TOTAL_CPUS=${TOTAL_CPUS} CPUS_PER_EXECUTOR=${CPUS_PER_EXECUTOR} CPUSET_CPUS_LOWER_BOUND=${CPUSET_CPUS_LOWER_BOUND} CPUSET_CPUS_UPPER_BOUND=${CPUSET_CPUS_UPPER_BOUND}"
