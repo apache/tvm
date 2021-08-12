@@ -256,7 +256,7 @@ def test_autotune():
         tasks = tvm.autotvm.task.extract_from_program(mod["main"], {}, target)
     assert len(tasks) > 0
 
-    module_loader = tvm.micro.autotvm_module_loader(
+    module_loader = tvm.micro.AutoTvmModuleLoader(
         template_project_dir=template_project_dir,
         project_options={},
     )

@@ -123,7 +123,7 @@ def main(args):
     )
 
     if args.platform == "host":
-        module_loader = tvm.micro.autotvm_module_loader(
+        module_loader = tvm.micro.AutoTvmModuleLoader(
             template_project_dir=repo_root / "src" / "runtime" / "crt" / "host",
             project_options={},
         )
@@ -138,7 +138,7 @@ def main(args):
         measure_option = tvm.autotvm.measure_option(builder=builder, runner=runner)
 
     else:
-        module_loader = tvm.micro.autotvm_module_loader(
+        module_loader = tvm.micro.AutoTvmModuleLoader(
             template_project_dir=repo_root / "apps" / "microtvm" / "zephyr" / "template_project",
             project_options={
                 "zephyr_board": board,

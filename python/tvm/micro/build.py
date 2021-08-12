@@ -62,32 +62,27 @@ def get_standalone_crt_dir() -> str:
 
     return STANDALONE_CRT_DIR
 
-
-def autotvm_module_loader(
-    template_project_dir: str,
-    project_options: dict = None,
-):
-    """Configure a new adapter.
+class AutoTvmModuleLoader():
+    """MicroTVM AutoTVM Module Loader
 
     Parameters
     ----------
-    template_project_dir: str
-        Path to the template project directory on the runner.
-
+    template_project_dir : str
+        project template path
+    
     project_options : dict
-        Opt
-        compiler options specific to this build.
-
-    workspace_kw : Optional[dict]
-        Keyword args passed to the Workspace constructor.
+        project generation option
     """
-    if isinstance(template_project_dir, pathlib.Path):
-        template_project_dir = str(template_project_dir)
-    elif not isinstance(template_project_dir, str):
-        raise TypeError(f"Incorrect type {type(template_project_dir)}.")
 
-    @contextlib.contextmanager
-    def module_loader(remote_kw, build_result):
+    def __init__(self, template_project_dir: str, project_options: dict = None):
+        self._project_options = project_options
+
+        if isinstance(template_project_dir, pathlib.Path):
+            self._template_project_dir = str(template_project_dir)
+        elif not isinstance(template_project_dir, str):
+            raise TypeError(f"Incorrect type {type(template_project_dir)}.")
+
+    def __call__(self, remote_kw, build_result):
         with open(build_result.filename, "rb") as build_file:
             build_result_bin = build_file.read()
 
@@ -99,14 +94,12 @@ def autotvm_module_loader(
             session_constructor_args=[
                 "tvm.micro.compile_and_create_micro_session",
                 build_result_bin,
-                template_project_dir,
-                json.dumps(project_options),
+                self._template_project_dir,
+                json.dumps(self._project_options),
             ],
         )
         system_lib = remote.get_function("runtime.SystemLib")()
         yield remote, system_lib
-
-    return module_loader
 
 
 def autotvm_build_func():

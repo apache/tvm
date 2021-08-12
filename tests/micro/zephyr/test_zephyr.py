@@ -439,7 +439,7 @@ def test_autotune_conv2d(temp_dir, platform, west_cmd, tvm_debug):
         subprocess.check_output(["git", "rev-parse", "--show-toplevel"], encoding="utf-8").strip()
     )
     template_project_dir = repo_root / "apps" / "microtvm" / "zephyr" / "template_project"
-    module_loader = tvm.micro.autotvm_module_loader(
+    module_loader = tvm.micro.AutoTvmModuleLoader(
         template_project_dir=template_project_dir,
         project_options={
             "zephyr_board": zephyr_board,
