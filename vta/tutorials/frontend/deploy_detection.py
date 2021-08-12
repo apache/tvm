@@ -272,8 +272,8 @@ m.set_input("data", data)
 
 # Perform inference and gather execution statistics
 # More on: :py:method:`tvm.runtime.Module.time_evaluator`
-num = 1  # number of times we run module for a single measurement
-rep = 1  # number of measurements (we derive std dev from this)
+num = 4  # number of times we run module for a single measurement
+rep = 3  # number of measurements (we derive std dev from this)
 timer = m.module.time_evaluator("run", ctx, number=num, repeat=rep)
 
 if env.TARGET in ["sim", "tsim"]:
