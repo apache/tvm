@@ -48,6 +48,7 @@ namespace backend {
 using IntegerArray = Array<Integer>;
 using StorageMap =
     std::unordered_map<Expr, StorageInfo, runtime::ObjectPtrHash, runtime::ObjectPtrEqual>;
+using namespace tec;
 
 /**
  * This is an on demand allocator for AOT. A new temporary
@@ -518,7 +519,7 @@ class AOTExecutorCodegen : public ExprVisitor {
   /*! \brief input and output variables belonging to the main function signature */
   Array<tir::Var> main_signature_;
   /*! \brief target device */
-  tec::TargetMap targets_;
+  TargetMap targets_;
   /*! \brief target host */
   Target target_host_;
   /*!
@@ -555,7 +556,7 @@ class AOTExecutorCodegen : public ExprVisitor {
   std::vector<int> return_sid_;
 
  public:
-  AOTExecutorCodegen(runtime::Module* mod, const tec::TargetMap& targets, Target target_host)
+  AOTExecutorCodegen(runtime::Module* mod, const TargetMap& targets, Target target_host)
       : mod_(mod),
         targets_(targets),
         target_host_(target_host),
@@ -570,7 +571,7 @@ class AOTExecutorCodegen : public ExprVisitor {
     StaticMemoryPlan memory_plan(initial_storage_map);
 
     // Build a map from each operation to device.
-    tec::DeviceMap device_context_map;
+    DeviceMap device_context_map;
     for (const auto& it : memory_plan->expr_to_storage_info) {
       auto expr = it.first;
       auto storage_info = it.second;
@@ -586,8 +587,9 @@ class AOTExecutorCodegen : public ExprVisitor {
     // to instead explicitly lowering the incoming IRModule, and then
     // performing the preexisting AOT executor code generation phase.
     IRModule mod = IRModule::FromExpr(func);
-    auto lowered_module = tec::LowerTE(
-        mod, targets_, device_context_map, memory_plan, mod_name, [this](Function func) {
+
+    IRModule new_mod =
+        LowerTEPass(targets_, device_context_map, memory_plan, mod_name, [this](Function func) {
           // We need to maintain the constant map for external
           // functions so we pass this processing function which
           // allows us to process each function as we lower it.
@@ -598,9 +600,10 @@ class AOTExecutorCodegen : public ExprVisitor {
           // TODO(@areusch, @jroesch): We should refactor this to
           // execute as a further pass, instead writing data to the
           // lowering process directly.
-          tec::UpdateFunctionMetadata(func, this->function_metadata_);
-        });
+          UpdateFunctionMetadata(func, this->function_metadata_);
+        })(mod);
 
+    LoweredModule lowered_module = IRModuleToLoweredModule(new_mod);
     function_metadata_.Set(runtime::symbol::tvm_module_main, lowered_module.main_func_info);
     auto lowered_main = lowered_module.main_module->Lookup("main");
     auto lowered_main_func = GetRef<Function>(lowered_main.as<FunctionNode>());
@@ -736,7 +739,7 @@ class AOTExecutorCodegenModule : public runtime::ModuleNode {
 
  private:
   void init(void* mod, Map<Integer, tvm::Target> tmp) {
-    tec::TargetMap targets;
+    TargetMap targets;
     Target target_host;
     for (const auto& it : tmp) {
       auto dev_type = it.first.as<tir::IntImmNode>();

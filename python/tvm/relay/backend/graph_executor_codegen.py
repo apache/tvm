@@ -53,7 +53,7 @@ class GraphExecutorCodegen(object):
         self._get_irmodule = self._mod["get_irmodule"]
         self._setup(mod, target)
 
-    def _setup(self, mod, target):
+    def _setup(self, mod, target: Dict[int, Target]):
         tgts = {}
         if isinstance(target, dict):
             for dev, tgt in target.items():

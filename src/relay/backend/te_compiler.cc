@@ -420,6 +420,13 @@ class LowerTensorExprMutator : public ExprMutator {
       return {ext_func->prim_fn_var, Attrs()};
     }
 
+    ICHECK_GE(device_context_map_.count(expr), 0)
+        << "Could not find an entry in the device context map for " << PrettyPrint(expr)
+        << "The memory planning was either not performed for this precise node, or there is bug "
+           "in the memory planner.";
+
+    auto& device_context = this->device_context_map_[expr];
+    target = GetTargetFromInteger(device_context.device_type, targets_);
     // Non-External Relay Function
     DLOG(INFO) << "lowering to target '" << target->str() << "' for primitive:\n"
                << PrettyPrint(func);
@@ -593,6 +600,14 @@ Pass LowerTensorExpr(TargetMap targets, DeviceMap device_context_map,
   return CreateFunctionPass(pass_func, 0, "LowerTensorExpr", {});
 }
 
+/*!
+ * \brief Obtain the Target from the device type.
+ * If homogenous compilation, this will return the only target.
+ * If heteregenous compilation, this will select associated using the targets_ Map.
+ *
+ * \param dev_type
+ * \return Target
+ */
 Target GetTargetFromInteger(DLDeviceType dev_type, TargetMap targets) {
   if (targets.size() == 1) {
     // The homogeneous execution case, return the only target.
@@ -749,8 +764,6 @@ backend::FunctionInfo UpdateMainWorkspaceSize(const IRModule& mod, TargetMap tar
                                relay_primfuncs);
 }
 
-// TODO(@electriclilies): Is the function passed in here relay_func??
-// Also should this be inlined?
 /*!
  * \brief A function to create the function metadata for an input function (ie calculate buffer
  * input/output sizes)
@@ -830,9 +843,6 @@ void UpdateFunctionMetadata(Function relay_func,
   function_metadata.Set(prim_fn_var.value()->name_hint, fi);
 }
 
-// TODO(mbs): Make this an IRModule->IRModule pass by folding LoweredModule back into IRModule.
-// Currently we rely on accumulating bindings inside the local TECompiler which we then
-// host into the LoweredModule result.
 LoweredModule LowerTE(const IRModule& module, TargetMap targets, DeviceMap device_context_map,
                       backend::StaticMemoryPlan memory_plan, const String& module_name,
                       std::function<void(Function)> process_fn) {
@@ -875,6 +885,121 @@ LoweredModule LowerTE(const IRModule& module, TargetMap targets, DeviceMap devic
   return lowered_module;
 }
 
+IRModule LoweredModuleToIRModule(LoweredModule mod) {
+  Map<GlobalVar, BaseFunc> unified_funcs;
+  Map<GlobalTypeVar, TypeData> unified_type_defs;
+
+  // copy main module funcs to unified funcs (what target do we need to annotate with here?)
+  for (const auto& kv : mod.main_module->functions) {
+    const GlobalVar& var = kv.first;
+    const BaseFunc& func = kv.second;
+    ICHECK(!func->IsInstance<tir::PrimFuncNode>());
+    unified_funcs.Set(var, func);
+  }
+
+  // copy the type definitions for the main module
+  for (const auto& kv : mod.main_module->type_definitions) {
+    const GlobalTypeVar& ty_var = kv.first;
+    const TypeData& ty_data = kv.second;
+    unified_type_defs.Set(ty_var, ty_data);
+  }
+  // Move functions in per target IRModule into unified module
+  // Also move the type definitions
+  for (const auto& kv : mod.per_target_module) {
+    const String target = kv.first;
+    const IRModule target_module = kv.second;
+    // Move the per module functions, and annotate the funcs with their target
+    for (const auto& kv : target_module->functions) {
+      const GlobalVar& var = kv.first;
+      const BaseFunc& func = kv.second;
+      ICHECK(func->IsInstance<tir::PrimFuncNode>())
+          << "We expect the target_module to contain only PrimFuncs at this point, but got "
+          << func->GetTypeKey();
+      tir::PrimFunc primFunc = WithAttr(Downcast<tir::PrimFunc>(std::move(func)), attr::kTarget,
+                                        runtime::String(target));
+      unified_funcs.Set(var, primFunc);
+    }
+
+    // Move the type definitions for the per target IRModule
+    for (const auto& kv : target_module->type_definitions) {
+      const GlobalTypeVar& ty_var = kv.first;
+      const TypeData& ty_data = kv.second;
+      unified_type_defs.Set(ty_var, ty_data);
+    }
+  }
+
+  IRModule ret_mod =
+      WithAttr(IRModule(unified_funcs, unified_type_defs), "external_mods", mod.external_mods);
+  ret_mod = WithAttr(ret_mod, "main_func_info", mod.main_func_info);
+  return ret_mod;
+}
+
+LoweredModule IRModuleToLoweredModule(IRModule mod) {
+  Map<GlobalVar, BaseFunc> main_mod_funcs;
+  Map<String, Map<GlobalVar, BaseFunc>> target_funcs;
+  for (const auto& kv : mod->functions) {
+    const GlobalVar& var = kv.first;
+    const BaseFunc& func = kv.second;
+    if (func->IsInstance<relay::FunctionNode>()) {
+      main_mod_funcs.Set(var, func);
+    } else if (func->IsInstance<tir::PrimFuncNode>()) {
+      // Extract target
+      auto target = func->GetAttr<String>(attr::kTarget);
+      ICHECK(!target) << "Target should be set at this point";
+
+      // Put the function in target_funcs
+      if (!target_funcs.count(target.value())) {
+        // Initialize the map and put it in target_funcs
+        Map<GlobalVar, BaseFunc> funcs;
+        funcs.Set(var, func);
+        target_funcs.Set(target.value(), funcs);
+
+      } else {
+        // The map is initialized, so just add the function.
+        Map<GlobalVar, BaseFunc> funcs = target_funcs.at(target.value());
+        funcs.Set(var, func);
+      }
+    } else {
+      LOG(FATAL)
+          << "The function types in the IRModule should be RelayFunction or PrimFunc, but got "
+          << func->GetTypeKey();
+    }
+  }
+  // Create the per_target_module map
+  Map<String, IRModule> per_target_modules;
+  for (const auto& kv : target_funcs) {
+    String target = kv.first;
+    Map<GlobalVar, BaseFunc> funcs = kv.second;
+    // Here, we just copy the type defs to every module. Since TIR doesn't use the type defs,
+    // this duplication should be OK.
+    per_target_modules.Set(target, IRModule(funcs, mod->type_definitions));
+  }
+  LoweredModule lowered_module;
+  lowered_module.main_module = IRModule(main_mod_funcs, mod->type_definitions);
+  lowered_module.per_target_module = per_target_modules;
+
+  // Extract external modules and main func info, add to lowered module if they exist
+  auto external_mods = mod->GetAttr<Array<tvm::runtime::Module>>("external_mods");
+  if (external_mods) {
+    lowered_module.external_mods = external_mods.value();
+  }
+  auto main_func_info = mod->GetAttr<backend::FunctionInfo>("main_func_info");
+  if (main_func_info) {
+    lowered_module.main_func_info = main_func_info.value();
+  }
+  return lowered_module;
+}
+
+Pass LowerTEPass(TargetMap targets, DeviceMap device_context_map,
+                 backend::StaticMemoryPlan memory_plan, const String& module_name,
+                 std::function<void(Function)> process_fn) {
+  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule module,
+                                                                            PassContext ctx) {
+    return LoweredModuleToIRModule(
+        LowerTE(module, targets, device_context_map, memory_plan, module_name, process_fn));
+  };
+  return tvm::transform::CreateModulePass(pass_func, 1, "LowerTE", {});
+}
 }  // namespace tec
 }  // namespace relay
 }  // namespace tvm

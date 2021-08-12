@@ -173,6 +173,28 @@ void UpdateFunctionMetadata(Function relay_func,
  */
 Target GetTargetFromInteger(DLDeviceType dev_type, TargetMap targets);
 
+/*! \brief Utility to convert a LoweredModule to an IRModule.
+ *
+ * This function takes all the target specific modules in LoweredModule and
+ * annotates their functions with the correct target, and puts all those functions
+ * in one IRModule.
+ * The purpose of this utility is to allow us to slowly remove LoweredModule from the codebase.
+ *
+ * \param mod The LoweredModule to convert.
+ * \return The IRModule form of the input LoweredModule.
+ */
+IRModule LoweredModuleToIRModule(LoweredModule mod);
+
+/*! \brief Utility to convert an IRModule to a LoweredModule.
+ *
+ * This function takes all the functions in the IRModule and moves them into target-specific
+ * IRModules stored inside a LoweredModule.
+ * The purpose of this utility is to allow us to slowly remove LoweredModule from the codebase.
+ * \param mod The IRModule to convert.
+ * \return The LoweredModule form of the input IRModule.
+ */
+LoweredModule IRModuleToLoweredModule(IRModule mod);
+
 /*! \brief Lower an IRModule's primitive functions to TIR.
  *
  * This is the "back half" of the Relay compiler which lowers "primitive functions"
@@ -184,12 +206,15 @@ Target GetTargetFromInteger(DLDeviceType dev_type, TargetMap targets);
  * \param device_map An analysis result mapping each sub-expression to a device.
  * \return The lowered module, see above.
  */
-// TODO(@electriclilies): Not sure if this default initialization is correct...
 LoweredModule LowerTE(
     const IRModule& module, TargetMap targets, DeviceMap device_map,
     backend::StaticMemoryPlan memory_plan, const String& module_name,
     ProcessFn process_fn = [](Function f) {});
 
+using namespace transform;
+Pass LowerTEPass(TargetMap targets, DeviceMap device_context_map,
+                 backend::StaticMemoryPlan memory_plan, const String& module_name,
+                 std::function<void(Function)> process_fn);
 }  // namespace tec
 }  // namespace relay
 }  // namespace tvm

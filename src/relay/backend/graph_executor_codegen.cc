@@ -55,6 +55,7 @@ using GraphAttrs = std::unordered_map<std::string, dmlc::any>;
 using GraphObjectPtr = std::shared_ptr<GraphNode>;
 using GraphInputObjectPtr = std::shared_ptr<GraphInputNode>;
 using GraphOpObjectPtr = std::shared_ptr<GraphOpNode>;
+using namespace tec;
 
 /*! \brief Node types */
 enum GraphNodeType {
@@ -183,7 +184,7 @@ class GraphOpNode : public GraphNode {
  */
 class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<GraphNodeRef>> {
  public:
-  GraphExecutorCodegen(runtime::Module* mod, const tec::TargetMap& targets) : mod_(mod) {
+  GraphExecutorCodegen(runtime::Module* mod, const TargetMap& targets) : mod_(mod) {
     targets_ = targets;
   }
 
@@ -209,7 +210,7 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
     IRModule mod = IRModule::FromExpr(func);
 
     // Build a map from each operation to device.
-    tec::DeviceMap device_context_map;
+    DeviceMap device_context_map;
     for (const auto& it : memory_plan_->expr_to_storage_info) {
       auto expr = it.first;
       auto storage_info = it.second;
@@ -221,8 +222,8 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
       device_context_map.insert({expr, dev});
     }
 
-    auto lowered_module = tec::LowerTE(
-        mod, targets_, device_context_map, memory_plan_, mod_name_, [this](Function func) {
+    IRModule new_mod =
+        LowerTEPass(targets_, device_context_map, memory_plan_, mod_name_, [this](Function func) {
           // We need to maintain the constant map for external
           // functions so we pass this processing function which
           // allows us to process each function as we lower it.
@@ -233,9 +234,10 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
           // TODO(@areusch, @jroesch): We should refactor this to
           // execute as a further pass, instead writing data to the
           // lowering process directly.
-          tec::UpdateFunctionMetadata(func, this->function_metadata_);
-        });
+          UpdateFunctionMetadata(func, this->function_metadata_);
+        })(mod);
 
+    LoweredModule lowered_module = IRModuleToLoweredModule(new_mod);
     function_metadata_.Set(runtime::symbol::tvm_module_main, lowered_module.main_func_info);
     auto main_module = lowered_module.main_module;
     main_module = relay::transform::InferType()(main_module);
@@ -579,7 +581,7 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
   /*! \brief variable map */
   std::unordered_map<const Object*, std::vector<GraphNodeRef>> var_map_;
   /*! \brief target device */
-  tec::TargetMap targets_;
+  TargetMap targets_;
   /*!
    * \brief parameters (i.e. ConstantNodes found in the graph).
    * These are take as inputs to the GraphExecutor.
@@ -608,7 +610,7 @@ class GraphExecutorCodegenModule : public runtime::ModuleNode {
                                     << "runtime::Module mod and Map<int, Target> targets";
         void* mod = args[0];
         Map<Integer, tvm::Target> tmp = args[1];
-        tec::TargetMap targets;
+        TargetMap targets;
         for (const auto& it : tmp) {
           auto dev_type = it.first.as<tir::IntImmNode>();
           ICHECK(dev_type);
