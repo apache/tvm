@@ -18,11 +18,15 @@
 set -eux
 
 export VTA_HW_PATH=`pwd`/3rdparty/vta-hw
-MAKE_ARG="${2-}"
+MAKE_ARG=( )
+if [ -n "${2+x}" ]; then
+    MAKE_ARG=( "${2}" )
+fi
+
 if [ -n "${CI_CPUSET_NUM_CPUS+x}" -a -z "${MAKE_ARG}" ]; then
-    MAKE_ARG="-j${CI_CPUSET_NUM_CPUS}"
+    MAKE_ARG=( "-j${CI_CPUSET_NUM_CPUS}" )
 fi
 
 cd "$1"
 cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo
-make "${MAKE_ARG}"
+make "${MAKE_ARG[@]-}"
