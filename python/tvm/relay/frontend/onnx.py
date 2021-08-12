@@ -23,6 +23,7 @@ import warnings
 import numpy as np
 import tvm
 from tvm.ir import IRModule
+from tvm.relay.transform.transform import ConvertLayout
 from tvm.topi.utils import get_const_tuple
 
 from ... import nd as _nd
@@ -3607,6 +3608,7 @@ def _get_convert_map(opset):
         "ConvInteger": ConvInteger.get_converter(opset),
         # Random number generation.
         "RandomUniform": RandomUniform.get_converter(opset),
+        "Celu": Celu.get_converter(opset),
     }
 
 
@@ -3923,6 +3925,19 @@ class GraphProto:
             # TODO(zhreshold): support dropout mask?
             outputs = outputs[:-1]
         return outputs
+
+
+class Celu(OnnxOpConverter):
+    """Operator convereter for celu"""
+
+    @classmethod
+    def _impl_v12(cls, inputs, attr, params):
+        x = inputs[0]
+        dtype = infer_type(x).checked_type.dtype
+        alpha = _op.const(attr.get("alpha", 1.0), dtype)
+        zero = _op.const(0, dtype)
+        one = _op.const(1, dtype)
+        return _op.maximum(zero, x) + _op.minimum(zero, alpha * (_op.exp(x / alpha) - one))
 
 
 def from_onnx(
