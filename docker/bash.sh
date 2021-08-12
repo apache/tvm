@@ -320,8 +320,11 @@ if [ -n "${CI+x}" -a -z "${CPUSET_CPUS}" ]; then
     fi
 fi
 
-echo "CPUSET_CPUS ${CPUSET_CPUS}"
 if [ -n "${CPUSET_CPUS}" ]; then
+    if [ -z "$(echo ${CPUSET_CPUS} | sed -E '/^[0-9]+-[0-9]+$/ p; /.*/ d')" ]; then
+        echo "error: --cpuset-cpus: must specify in the form <m>-<n>; got ${CPUSET_CPUS}"
+        exit 2
+    fi
     CPUSET_CPUS_LOWER_BOUND=$(echo "${CPUSET_CPUS}" | sed -E 's/^([0-9]+)-.*$/\1/g')
     CPUSET_CPUS_UPPER_BOUND=$(echo "${CPUSET_CPUS}" | sed -E 's/^.*-([0-9]+)$/\1/g')
     CPUSET_NUM_CPUS=$(expr "${CPUSET_CPUS_UPPER_BOUND}" - "${CPUSET_CPUS_LOWER_BOUND}" + 1) || /bin/true

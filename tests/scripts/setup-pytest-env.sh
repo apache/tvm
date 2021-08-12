@@ -32,11 +32,13 @@ export PYTHONPATH="${TVM_PATH}/python"
 export TVM_PYTEST_RESULT_DIR="${TVM_PATH}/build/pytest-results"
 mkdir -p "${TVM_PYTEST_RESULT_DIR}"
 
-if [ -n "${CI_CPUSET_CPUS-}" ]; then
-    # When --cpuset-cpus has been passed to docker (this is set by docker/bash.sh),
-    # use all possible CPUs.
-    PYTEST_NUM_CPUS=$(nproc)
+if [ -n "${CI_CPUSET_NUM_CPUS-}" ]; then
+    # When the # of CPUs has been restricted (e.g. when --cpuset-cpus has been passed to docker by
+    # docker/bash.sh), explicitly use all available CPUs. This environment variable is set by
+    # docker/bash.sh when it sets --cpuset-cpus.
+    PYTEST_NUM_CPUS="${CI_CPUSET_NUM_CPUS}"
 else
+    # Else attempt to use $(nproc) - 1.
     PYTEST_NUM_CPUS=$(nproc)
     if [ -z "${PYTEST_NUM_CPUS}" ]; then
         echo "WARNING: nproc failed; running pytest with only 1 CPU"
@@ -44,10 +46,13 @@ else
     elif [ ${PYTEST_NUM_CPUS} -gt 1 ]; then
         PYTEST_NUM_CPUS=$(expr ${PYTEST_NUM_CPUS} - 1)  # Don't nuke interactive work.
     fi
-fi
 
-if [ ${PYTEST_NUM_CPUS} -gt 8 ]; then
-    PYTEST_NUM_CPUS=8  # It usually doesn't make sense to launch > 8 workers
+    # Don't use >4 CPUs--in general, we only use 4 CPUs in testing, so we want to retain this
+    # maximum for the purposes of reproducing the CI. You can still override this by setting
+    # --cpuset-cpus in docker/bash.sh.
+    if [ ${PYTEST_NUM_CPUS} -gt 4 ]; then
+        PYTEST_NUM_CPUS=4
+    fi
 fi
 
 function run_pytest() {
