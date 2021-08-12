@@ -23,7 +23,6 @@ import warnings
 import numpy as np
 import tvm
 from tvm.ir import IRModule
-from tvm.relay.transform.transform import ConvertLayout
 from tvm.topi.utils import get_const_tuple
 
 from ... import nd as _nd
@@ -3481,6 +3480,7 @@ def _get_convert_map(opset):
         "IsNaN": Renamer("isnan"),
         "Sqrt": Renamer("sqrt"),
         "Relu": Renamer("relu"),
+        "Celu": Celu.get_converter(opset),
         "LeakyRelu": Renamer("leaky_relu"),
         "Selu": Selu.get_converter(opset),
         "Elu": Elu.get_converter(opset),
@@ -3608,7 +3608,6 @@ def _get_convert_map(opset):
         "ConvInteger": ConvInteger.get_converter(opset),
         # Random number generation.
         "RandomUniform": RandomUniform.get_converter(opset),
-        "Celu": Celu.get_converter(opset),
     }
 
 
