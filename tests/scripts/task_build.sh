@@ -24,5 +24,5 @@ MAKE_ARG="-j${CI_CPUSET_NUM_CPUS}"
 #fi
 
 cd "$1"
-#cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo
+cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo
 make "${MAKE_ARG}"
