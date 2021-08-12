@@ -30,18 +30,30 @@
 # All configuration values have a default; values that are commented out
 # serve to show the default.
 import gc
-import sys
+import importlib.util
 import inspect
-import os, subprocess
+import os
+from pathlib import Path
 import shlex
+import subprocess
+import sys
+
 import sphinx_gallery
+
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
-curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
-sys.path.insert(0, os.path.join(curr_path, "../python/"))
-sys.path.insert(0, os.path.join(curr_path, "../vta/python"))
+curr_path = Path(__file__).expanduser().absolute().parent
+if curr_path.name == "_staging":
+    # Can't use curr_path.parent, because sphinx_gallery requires a relative path.
+    tvm_path = Path(os.pardir, os.pardir)
+else:
+    tvm_path = Path(os.pardir)
+
+
+sys.path.insert(0, str(tvm_path.joinpath("python")))
+sys.path.insert(0, str(tvm_path.joinpath("vta", "python")))
 
 # -- General configuration ------------------------------------------------
 
@@ -56,7 +68,7 @@ os.environ["TVM_BUILD_DOC"] = "1"
 
 def git_describe_version(original_version):
     """Get git describe version."""
-    ver_py = os.path.join(curr_path, "..", "version.py")
+    ver_py = tvm_path.joinpath("version.py")
     libver = {"__file__": ver_py}
     exec(compile(open(ver_py, "rb").read(), ver_py, "exec"), libver, libver)
     _, gd_version = libver["git_describe_version"]()
@@ -118,7 +130,7 @@ language = None
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
-exclude_patterns = ["_build"]
+exclude_patterns = ["_build", "_staging"]
 
 # The reST default role (used for this markup: `text`) to use for all
 # documents.
@@ -197,24 +209,24 @@ intersphinx_mapping = {
 
 from sphinx_gallery.sorting import ExplicitOrder
 
-examples_dirs = ["../tutorials/", "../vta/tutorials/"]
+examples_dirs = [tvm_path.joinpath("tutorials"), tvm_path.joinpath("vta", "tutorials")]
 gallery_dirs = ["tutorials", "vta/tutorials"]
 
 subsection_order = ExplicitOrder(
     [
-        "../tutorials/get_started",
-        "../tutorials/frontend",
-        "../tutorials/language",
-        "../tutorials/optimize",
-        "../tutorials/autotvm",
-        "../tutorials/auto_scheduler",
-        "../tutorials/dev",
-        "../tutorials/topi",
-        "../tutorials/deployment",
-        "../tutorials/micro",
-        "../vta/tutorials/frontend",
-        "../vta/tutorials/optimize",
-        "../vta/tutorials/autotvm",
+        str(tvm_path.joinpath("tutorials", "get_started")),
+        str(tvm_path.joinpath("tutorials", "frontend")),
+        str(tvm_path.joinpath("tutorials", "language")),
+        str(tvm_path.joinpath("tutorials", "optimize")),
+        str(tvm_path.joinpath("tutorials", "autotvm")),
+        str(tvm_path.joinpath("tutorials", "auto_scheduler")),
+        str(tvm_path.joinpath("tutorials", "dev")),
+        str(tvm_path.joinpath("tutorials", "topi")),
+        str(tvm_path.joinpath("tutorials", "deployment")),
+        str(tvm_path.joinpath("tutorials", "micro")),
+        str(tvm_path.joinpath("vta", "tutorials", "frontend")),
+        str(tvm_path.joinpath("vta", "tutorials", "optimize")),
+        str(tvm_path.joinpath("vta", "tutorials", "autotvm")),
     ]
 )
 
