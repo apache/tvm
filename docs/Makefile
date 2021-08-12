@@ -64,6 +64,10 @@ help:
 clean:
 	rm -rf $(BUILDDIR)
 	rm -rf $(STAGINGDIR)
+
+	# TODO(Lunderberg): Remove these lines once the CI steps have
+	# propagated.
+
 	# Remove folders that have since been relocated into
 	# $(STAGINGDIR).  This allows `task_sphinx_precheck.sh` to
 	# run, even if a commit that predates $(STAGINGDIR) was
@@ -74,6 +78,12 @@ clean:
 	rm -rf vta/tutorials
 
 staging:
+	# Prepare the staging directory.  Sphinx gallery automatically
+	# writes new .rst files into the current directory.  This can
+	# cause issues when switching branches.  By sequestering the
+	# auto-generated files into the staging directory, they can be
+	# removed without knowing the exact directory.
+
 	mkdir -p $(STAGINGDIR)
 
 	# Remove any symlinks that currently exist

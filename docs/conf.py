@@ -52,8 +52,8 @@ else:
     tvm_path = Path(os.pardir)
 
 
-sys.path.insert(0, str(tvm_path.joinpath("python")))
-sys.path.insert(0, str(tvm_path.joinpath("vta", "python")))
+sys.path.insert(0, str(tvm_path / "python"))
+sys.path.insert(0, str(tvm_path / "vta" / "python"))
 
 # -- General configuration ------------------------------------------------
 
@@ -213,20 +213,21 @@ examples_dirs = [tvm_path.joinpath("tutorials"), tvm_path.joinpath("vta", "tutor
 gallery_dirs = ["tutorials", "vta/tutorials"]
 
 subsection_order = ExplicitOrder(
-    [
-        str(tvm_path.joinpath("tutorials", "get_started")),
-        str(tvm_path.joinpath("tutorials", "frontend")),
-        str(tvm_path.joinpath("tutorials", "language")),
-        str(tvm_path.joinpath("tutorials", "optimize")),
-        str(tvm_path.joinpath("tutorials", "autotvm")),
-        str(tvm_path.joinpath("tutorials", "auto_scheduler")),
-        str(tvm_path.joinpath("tutorials", "dev")),
-        str(tvm_path.joinpath("tutorials", "topi")),
-        str(tvm_path.joinpath("tutorials", "deployment")),
-        str(tvm_path.joinpath("tutorials", "micro")),
-        str(tvm_path.joinpath("vta", "tutorials", "frontend")),
-        str(tvm_path.joinpath("vta", "tutorials", "optimize")),
-        str(tvm_path.joinpath("vta", "tutorials", "autotvm")),
+    str(p)
+    for p in [
+        tvm_path / "tutorials" / "get_started",
+        tvm_path / "tutorials" / "frontend",
+        tvm_path / "tutorials" / "language",
+        tvm_path / "tutorials" / "optimize",
+        tvm_path / "tutorials" / "autotvm",
+        tvm_path / "tutorials" / "auto_scheduler",
+        tvm_path / "tutorials" / "dev",
+        tvm_path / "tutorials" / "topi",
+        tvm_path / "tutorials" / "deployment",
+        tvm_path / "tutorials" / "micro",
+        tvm_path / "vta" / "tutorials" / "frontend",
+        tvm_path / "vta" / "tutorials" / "optimize",
+        tvm_path / "vta" / "tutorials" / "autotvm",
     ]
 )
 
