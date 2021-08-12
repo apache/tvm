@@ -21,12 +21,13 @@
  * \file Use standard C library call.
  */
 
-#include "../../../3rdparty/compiler-rt/builtin_fp16.h"
 #include <dlpack/dlpack.h>
 #include <tvm/runtime/registry.h>
 
 #include <algorithm>
 #include <vector>
+
+#include "../../../3rdparty/compiler-rt/builtin_fp16.h"
 
 namespace tvm {
 namespace contrib {
