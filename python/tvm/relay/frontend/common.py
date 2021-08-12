@@ -658,6 +658,96 @@ def unbind(data, axis=0):
     return _expr.TupleWrapper(_expr.Tuple(ret), selections)
 
 
+def gru_cell(
+    input_seqs,
+    hidden_state,
+    hidden_size,
+    w_inp,
+    w_hid,
+    b_inp=None,
+    b_hid=None,
+    r_act=_op.sigmoid,
+    z_act=_op.sigmoid,
+    n_act=_op.tanh,
+    backwards=False,
+):
+    """
+    Common implementation of GRU cell for all frontends of TVM
+    TODO(vvchernov): currently it is used by pytorch. Extend for other frontends
+
+    Parameters
+    ----------
+    input_seqs : List[relay.Expr]
+        The sequence of input tensors
+        Input tensor should be 2d while issue #8412 is not resolved
+        Shape = (batch, feature_size)
+    hidden_state : relay.Expr
+        Hidden state. shape = (batch_size, hidden_size)
+    hidden_size : int
+        The number of features in the hidden state. It is needed for correct and quick split of weights.
+    w_inp, w_hid : relay.Expr
+        weight matrices. wi shape = (3 * hidden_size, feature_size)
+        wh shape = (3 * hidden_size, hidden_size)
+        NOTE: wi = (w_ir|w_iz|w_in) for reset, update and new gates.
+        The order is important for correct GRU calculation!
+    b_inp, b_hid : relay.Expr
+        bias matrices. The same order of internal parts as for weights. shape = (3 * hidden_size)
+    r_act : relay.op
+        activation funtion for reset gate. it is sigmoid by default
+    z_act : relay.op
+        activation funtion for update gate. it is sigmoid by default
+    n_act : relay.op
+        activation funtion for new gate. it is tanh by default
+    backwards : bool
+        Flag for reverse pass of GRU
+
+    Returns
+    -------
+    result : List[relay.Expr], relay.Expr, relay.Expr
+        The sequence of computed result, final hidden and cell state
+    """
+
+    outputs_list = []
+    for x_t in input_seqs if not backwards else reversed(input_seqs):
+        # x_t shape = (batch, feature size), step shape = (batch, feature size + hidden_size)
+        step = _op.concatenate([x_t, hidden_state], axis=1)
+        w_irz, w_in = _op.split(w_inp, [2*hidden_size], axis=0)
+        w_hrz, w_hn = _op.split(w_hid, [2*hidden_size], axis=0)
+        cat_w = _op.concatenate([w_irz, w_hrz], axis=1)
+        # Instead of nn.dense(x_t, w_inp) + nn.dense(hidden_state, w_hid)
+        # nn.dense(step, cat_w) is used
+        # gates shape = (batch, 2 * hidden_size)
+        rz_gates = _op.nn.dense(step, cat_w)
+        # Add biases
+        if b_inp is not None:
+            b_irz, b_in = _op.split(b_inp, [2*hidden_size], axis=0)
+            rz_gates += b_irz
+        if b_hid is not None:
+            b_hrz, b_hn = _op.split(b_hid, [2*hidden_size], axis=0)
+            rz_gates += b_hrz
+        # TODO(vvchernov): check similarity of r_act and z_act and change sequence act->split
+        # any gate shape = (batch, hidden_size)
+        r_gate, z_gate = _op.split(rz_gates, 2, axis=-1)
+
+        r_gate = r_act(r_gate)
+        z_gate = z_act(z_gate)
+
+        ni_gate = _op.nn.dense(x_t, w_in)
+        if b_inp is not None:
+            ni_gate += b_in
+        nh_gate = _op.nn.dense(hidden_state, w_hn)
+        if b_hid is not None:
+            nh_gate += b_hn
+
+        n_gate = n_act(ni_gate + r_gate * nh_gate)
+
+        hidden_state = (_op.ones_like(z_gate) - z_gate) * n_gate + z_gate * hidden_state
+
+        outputs_list.append(hidden_state)  # [seq_num, (batch, hidden_size)]
+
+    return outputs_list, hidden_state
+
+
 def lstm_cell(
     input_seqs,
     hidden_state,
