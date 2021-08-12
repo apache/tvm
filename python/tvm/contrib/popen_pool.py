@@ -269,9 +269,16 @@ class PopenPoolExecutor:
 
     timeout : float
         Timeout value for each function submit.
+    Note
+    ----
+    If max_workers is NONE then the number returned by
+    os.cpu_count() is used. This method aligns with the
+    behavior of multiprocessing.pool().
     """
 
-    def __init__(self, max_workers, timeout=None):
+    def __init__(self, max_workers=None, timeout=None):
+        if max_workers is None:
+            max_workers = os.cpu_count()
         # Use an internal thread pool to send to popen workers
         self._threadpool = concurrent.futures.ThreadPoolExecutor(max_workers=max_workers)
         self._timeout = timeout

@@ -1376,6 +1376,3 @@ def identity_after(x, sleep):
 def terminate_self():
     """Testing function to terminate the process."""
     sys.exit(-1)
-
-
-tvm._ffi._init_api("testing", __name__)
