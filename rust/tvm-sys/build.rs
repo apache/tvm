@@ -19,7 +19,10 @@
 
 extern crate bindgen;
 
-use std::{path::{Path, PathBuf}, str::FromStr};
+use std::{
+    path::{Path, PathBuf},
+    str::FromStr,
+};
 
 use anyhow::{Context, Result};
 use tvm_build::{BuildConfig, CMakeSetting};
@@ -195,7 +198,10 @@ fn find_using_tvm_build() -> Result<TVMInstall> {
     if cfg!(feature = "use-vitis-ai") {
         build_config.settings.use_vitis_ai = Some(true);
     }
-    if cfg!(any(feature = "static-linking", feature = "build-static-runtime")) {
+    if cfg!(any(
+        feature = "static-linking",
+        feature = "build-static-runtime"
+    )) {
         build_config.settings.build_static_runtime = Some(true);
     }
 
