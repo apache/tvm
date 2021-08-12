@@ -177,9 +177,9 @@ else:
 # Get execution context from remote
 ctx = remote.ext_dev(0) if device == "vta" else remote.cpu(0)
 
-####################################
+#####################################
 # Build the inference graph executor.
-# ----------------------------------
+# -----------------------------------
 # Using Darknet library load downloaded vision model and compile with Relay.
 # The compilation steps are:
 #
@@ -191,7 +191,6 @@ ctx = remote.ext_dev(0) if device == "vta" else remote.cpu(0)
 # 5. Perform relay build to object file.
 # 6. Load the object file onto remote (FPGA device).
 # 7. Generate graph executor, `m`.
-#
 
 # Load pre-configured AutoTVM schedules
 with autotvm.tophub.context(target):
