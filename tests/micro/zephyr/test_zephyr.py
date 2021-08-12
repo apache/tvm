@@ -15,10 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import contextlib
-import copy
-import datetime
-import glob
 import logging
 import os
 import pathlib
@@ -398,6 +394,138 @@ def test_rpc_large_array(temp_dir, platform, west_cmd, tvm_debug, shape):
         temp_dir, model, zephyr_board, west_cmd, shape, build_config
     ) as sess:
         test_tensors(sess)
+
+
+def _get_conv2d_model(input_shape: tuple):
+    """Build a conv2d operator in Keras and returns an (IRModule, parameters)"""
+    import tensorflow as tf
+    from tensorflow import keras
+
+    model = keras.models.Sequential()
+    model.add(keras.layers.Conv2D(2, 3, input_shape=input_shape))
+    model.build()
+
+    inputs = {
+        i.name.split(":", 2)[0]: [x if x is not None else 1 for x in i.shape.as_list()]
+        for i in model.inputs
+    }
+    inputs = {k: [v[0], v[3], v[1], v[2]] for k, v in inputs.items()}
+    mod, params = relay.frontend.from_keras(model, inputs, layout="NCHW")
+    return mod, params
+
+
+@tvm.testing.requires_micro
+def test_autotune_conv2d(temp_dir, platform, west_cmd, tvm_debug):
+    """Test AutoTune for microTVM Zephyr"""
+    model, zephyr_board = PLATFORMS[platform]
+
+    sample = np.random.rand(1, 3, 16, 16)
+    mod, params = _get_conv2d_model((16, 16, 3))
+
+    target = tvm.target.target.micro(model)
+    pass_context = tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True})
+    with pass_context:
+        tasks = tvm.autotvm.task.extract_from_program(mod["main"], {}, target)
+    assert len(tasks) > 0
+
+    repo_root = pathlib.Path(
+        subprocess.check_output(["git", "rev-parse", "--show-toplevel"], encoding="utf-8").strip()
+    )
+    module_loader = tvm.micro.autotvm_module_loader(
+        template_project_dir=repo_root / "apps" / "microtvm" / "zephyr" / "template_project",
+        project_options={
+            "zephyr_board": zephyr_board,
+            "west_cmd": west_cmd,
+            "verbose": 1,
+            "project_type": "host_driven",
+        },
+    )
+    builder = tvm.autotvm.LocalBuilder(
+        n_parallel=1,
+        build_kwargs={"build_option": {"tir.disable_vectorize": True}},
+        do_fork=False,
+        build_func=tvm.micro.autotvm_build_func,
+    )  # do_fork=False needed to persist stateful builder.
+    runner = tvm.autotvm.LocalRunner(number=1, repeat=1, timeout=0, module_loader=module_loader)
+
+    measure_option = tvm.autotvm.measure_option(builder=builder, runner=runner)
+
+    log_path = pathlib.Path("zephyr_autotune.log")
+    if log_path.exists():
+        log_path.unlink()
+
+    n_trial = 10
+    for task in tasks:
+        print(f"mehrdad: {task}")
+        tuner = tvm.autotvm.tuner.GATuner(task)
+        tuner.tune(
+            n_trial=n_trial,
+            measure_option=measure_option,
+            callbacks=[
+                tvm.autotvm.callback.log_to_file(str(log_path)),
+                tvm.autotvm.callback.progress_bar(n_trial, si_prefix="M"),
+            ],
+            si_prefix="M",
+        )
+
+    # Build without tuning
+    with pass_context:
+        lowered = tvm.relay.build(mod, target=target, params=params)
+
+    temp_dir = utils.tempdir()
+    project = tvm.micro.generate_project(
+        str(repo_root / "apps" / "microtvm" / "zephyr" / "template_project"),
+        lowered,
+        temp_dir / "project",
+        {
+            "zephyr_board": zephyr_board,
+            "west_cmd": west_cmd,
+            "verbose": 0,
+            "project_type": "host_driven",
+        },
+    )
+    project.build()
+    project.flash()
+
+    with tvm.micro.Session(project.transport()) as session:
+        graph_mod = tvm.micro.create_local_graph_executor(
+            lowered.get_graph_json(), session.get_system_lib(), session.device
+        )
+        graph_mod.set_input(**lowered.get_params())
+        graph_mod.run(conv2d_input=sample)
+        expected_output = graph_mod.get_output(0).numpy()
+        del graph_mod
+
+    # Build using autotune logs
+    with tvm.autotvm.apply_history_best(str(log_path)):
+        with pass_context:
+            lowered_tuned = tvm.relay.build(mod, target=target, params=params)
+
+    temp_dir = utils.tempdir()
+    project = tvm.micro.generate_project(
+        str(repo_root / "apps" / "microtvm" / "zephyr" / "template_project"),
+        lowered_tuned,
+        temp_dir / "project",
+        {
+            "zephyr_board": zephyr_board,
+            "west_cmd": west_cmd,
+            "verbose": 0,
+            "project_type": "host_driven",
+        },
+    )
+    project.build()
+    project.flash()
+
+    with tvm.micro.Session(project.transport()) as session:
+        graph_mod = tvm.micro.create_local_graph_executor(
+            lowered_tuned.get_graph_json(), session.get_system_lib(), session.device
+        )
+        graph_mod.set_input(**lowered_tuned.get_params())
+        graph_mod.run(conv2d_input=sample)
+        output = graph_mod.get_output(0).numpy()
+        del graph_mod
+
+    tvm.testing.assert_allclose(output, expected_output, rtol=1e-4, atol=1e-5)
 
 
 if __name__ == "__main__":
