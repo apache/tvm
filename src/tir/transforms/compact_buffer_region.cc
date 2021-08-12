@@ -317,12 +317,11 @@ class StorageAlignCollector : public StmtVisitor {
   void VisitStmt_(const BlockNode* op) final {
     auto it = op->annotations.find(attr::buffer_dim_align);
     if (it != op->annotations.end()) {
-      const auto& storage_align = Downcast<Array<StorageAlignAnnotation>>((*it).second);
-      ICHECK(storage_align.size() == op->writes.size());
-      for (size_t i = 0; i < storage_align.size(); ++i) {
-        CHECK(!storage_align_.count(op->writes[i]->buffer))
-            << "ValueError: Conflicting storage_align for buffer " << op->writes[i]->buffer->name;
-        storage_align_.emplace(op->writes[i]->buffer, storage_align[i]);
+      auto storage_align_annotation = Downcast<StorageAlignAnnotation>((*it).second);
+      for (const auto& storage_align_tuple : storage_align_annotation) {
+        int buffer_index = storage_align_tuple[0]->value;
+        const Buffer& buffer = op->writes[buffer_index]->buffer;
+        storage_align_[buffer].push_back(storage_align_tuple);
       }
     }
     StmtVisitor::VisitStmt_(op);
@@ -349,11 +348,11 @@ class BufferCompactor : public StmtExprMutator {
       auto it = storage_align.find(buffer);
       if (it != storage_align.end()) {
         std::vector<DimAlignInfo> dim_aligns(buffer->shape.size());
-        for (const Array<Integer>& dim_align : (*it).second) {
-          ICHECK(dim_align.size() == 3);
-          int dim = dim_align[0]->value;
-          int factor = dim_align[1]->value;
-          int offset = dim_align[2]->value;
+        for (const StorageAlignTuple& dim_align : (*it).second) {
+          ICHECK(dim_align.size() == 4);
+          int dim = dim_align[1]->value;
+          int factor = dim_align[2]->value;
+          int offset = dim_align[3]->value;
           dim_aligns.at(dim) = {factor, offset};
         }
         buffer_alloc_info.dim_aligns = std::move(dim_aligns);

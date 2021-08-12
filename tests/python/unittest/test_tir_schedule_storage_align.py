@@ -66,7 +66,7 @@ def element_wise_storage_align(a: ty.handle, c: ty.handle) -> None:
                     tir.bind(vj, ax1)
                     tir.reads([A[vi, vj]])
                     tir.writes([B[vi, vj]])
-                    tir.block_attr({"buffer_dim_align":[[[0, 128, 127]]]})
+                    tir.block_attr({"buffer_dim_align":[[0, 0, 128, 127]]})
                     B[vi, vj] = (A[vi, vj]*tir.float32(2))
             for i1 in tir.serial(0, 128):
                 with tir.block([128, 128], "C") as [vi_1, vj_1]:

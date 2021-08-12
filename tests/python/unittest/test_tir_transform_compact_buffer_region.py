@@ -352,7 +352,7 @@ def storage_align_func(a: ty.handle, c: ty.handle) -> None:
                 with tir.block([]) as []:
                     tir.reads(A[i, j])
                     tir.writes(B[i, j])
-                    tir.block_attr({"buffer_dim_align": [[[0, 16, 15]]]})
+                    tir.block_attr({"buffer_dim_align": [[0, 0, 16, 15]]})
                     B[i, j] = A[i, j] + 1.0
             for j in range(0, 16):
                 with tir.block([]) as []:
@@ -374,7 +374,7 @@ def compacted_storage_align_func(a: ty.handle, c: ty.handle) -> None:
                 with tir.block() as []:
                     tir.reads(A[i, j])
                     tir.writes(B[0, j])
-                    tir.block_attr({"buffer_dim_align": [[[0, 16, 15]]]})
+                    tir.block_attr({"buffer_dim_align": [[0, 0, 16, 15]]})
                     B[0, j] = A[i, j] + 1.0
             for j in range(0, 16):
                 with tir.block() as []:

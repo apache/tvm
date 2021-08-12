@@ -176,32 +176,30 @@ class StorageAlignInvalidAnnotationError : public ScheduleError {
 
   String FastErrorString() const final {
     return "ScheduleError: The block annotation for storage align is expected to be an array of "
-           "3-integer-tuples (axis, factor, offset).";
+           "4-integer-tuples (buffer_index, axis, factor, offset).";
   }
 
   String DetailRenderTemplate() const final {
     std::ostringstream os;
-    os << "The block annotation for storage align is expected to be an array of 3-integer-tuples "
-          "(axis, factor, offset). However, the block annotation with key "
+    os << "The block annotation for storage align is expected to be an array of 4-integer-tuples "
+          "(buffer_index, axis, factor, offset). However, the block annotation with key "
        << attr::buffer_dim_align << " of the block {0} is "
        << block_->annotations.at(attr::buffer_dim_align) << ", which is unexpected.";
     return os.str();
   }
 
-  static Array<Array<Array<Integer>>> CheckAndGetAnnotation(const IRModule& mod,
-                                                            const Block& block) {
+  static StorageAlignAnnotation CheckAndGetAnnotation(const IRModule& mod, const Block& block) {
     // Get existing annotation value.
     auto it = block->annotations.find(attr::buffer_dim_align);
     if (it != block->annotations.end()) {
       if (!IsValidAnnotation(block, (*it).second)) {
         throw StorageAlignInvalidAnnotationError(mod, block);
       }
-      return Downcast<Array<StorageAlignAnnotation>>((*it).second);
+      return Downcast<StorageAlignAnnotation>((*it).second);
     }
 
     // Create new annotation value
-    Array<Array<Array<Integer>>> storage_align_annotation;
-    storage_align_annotation.resize(block->writes.size());
+    StorageAlignAnnotation storage_align_annotation;
     return storage_align_annotation;
   }
 
@@ -213,28 +211,19 @@ class StorageAlignInvalidAnnotationError : public ScheduleError {
     if (!anno_value->IsInstance<ArrayNode>()) {
       return false;
     }
-    const auto& buffer_annotations = Downcast<Array<ObjectRef>>(anno_value);
-    if (buffer_annotations.size() != block->writes.size()) {
-      return false;
-    }
-    for (const ObjectRef& buffer_annotation : buffer_annotations) {
-      if (!buffer_annotation->IsInstance<ArrayNode>()) {
+    auto storage_align_annotations = Downcast<Array<ObjectRef>>(anno_value);
+    for (const ObjectRef& storage_align_annotation : storage_align_annotations) {
+      if (!storage_align_annotation->IsInstance<ArrayNode>()) {
         return false;
       }
-      const auto& dim_annotations = Downcast<Array<ObjectRef>>(buffer_annotation);
-      for (const ObjectRef& dim_annotation : dim_annotations) {
-        if (!dim_annotation->IsInstance<ArrayNode>()) {
+      auto storage_align_tuple = Downcast<Array<ObjectRef>>(storage_align_annotation);
+      // Check if the annotation is a 4-tuple.
+      if (storage_align_tuple.size() != 4) {
+        return false;
+      }
+      for (const ObjectRef& tuple_element : storage_align_tuple) {
+        if (!tuple_element->IsInstance<IntImmNode>()) {
           return false;
-        }
-        const auto& dim_anno = Downcast<Array<ObjectRef>>(dim_annotation);
-        // Check if the annotations are consist of 3-tuples.
-        if (dim_anno.size() != 3) {
-          return false;
-        }
-        for (const ObjectRef& dim_anno_element : dim_anno) {
-          if (!dim_anno_element->IsInstance<IntImmNode>()) {
-            return false;
-          }
         }
       }
     }
@@ -254,25 +243,27 @@ void StorageAlign(ScheduleState self, const StmtSRef& block_sref, int buffer_ind
   NonAllocatedBufferError::CheckBufferAllocated(self->mod, block_sref, buffer);
 
   // Step 1: Get existing or create new annotation value.
-  Array<StorageAlignAnnotation> storage_align_annotation =
+  StorageAlignAnnotation storage_align_annotation =
       StorageAlignInvalidAnnotationError::CheckAndGetAnnotation(self->mod,
                                                                 GetRef<Block>(block_ptr));
 
   // Step 2: Update the annotation value
-  Array<Array<Integer>> buffer_storage_align = storage_align_annotation[buffer_index];
+  // Array<Array<Integer>> buffer_storage_align = storage_align_annotation[buffer_index];
   bool found = false;
-  for (size_t j = 0; j < buffer_storage_align.size(); ++j) {
-    ICHECK(buffer_storage_align[j].size() == 3);
-    if (buffer_storage_align[j][0] == axis) {
-      buffer_storage_align.Set(j, {Integer(axis), Integer(factor), Integer(offset)});
+  StorageAlignTuple new_storage_align_tuple{Integer(buffer_index), Integer(axis), Integer(factor),
+                                            Integer(offset)};
+  for (size_t j = 0; j < storage_align_annotation.size(); ++j) {
+    const auto& storage_align_tuple = storage_align_annotation[j];
+    ICHECK(storage_align_tuple.size() == 4);
+    if (storage_align_tuple[0] == buffer_index && storage_align_tuple[1] == axis) {
+      storage_align_annotation.Set(j, std::move(new_storage_align_tuple));
       found = true;
       break;
     }
   }
   if (!found) {
-    buffer_storage_align.push_back({Integer(axis), Integer(factor), Integer(offset)});
+    storage_align_annotation.push_back(std::move(new_storage_align_tuple));
   }
-  storage_align_annotation.Set(buffer_index, std::move(buffer_storage_align));
 
   // Step 3: Replace the block with the new annotation
   Block new_block = WithAnnotation(block_ptr, attr::buffer_dim_align, storage_align_annotation);
