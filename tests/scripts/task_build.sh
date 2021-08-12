@@ -23,10 +23,10 @@ if [ -n "${2+x}" ]; then
     MAKE_ARG=( "${2}" )
 fi
 
-if [ -n "${CI_CPUSET_NUM_CPUS+x}" -a -z "${MAKE_ARG}" ]; then
+if [ -n "${CI_CPUSET_NUM_CPUS+x}" -a "a${MAKE_ARG[@]:+b}" == "a" ]; then
     MAKE_ARG=( "-j${CI_CPUSET_NUM_CPUS}" )
 fi
 
 cd "$1"
 cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo
-make "${MAKE_ARG[@]-}"
+make ${MAKE_ARG[@]+"${MAKE_ARG[@]}"}
