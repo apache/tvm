@@ -396,31 +396,38 @@ def test_rpc_large_array(temp_dir, platform, west_cmd, tvm_debug, shape):
         test_tensors(sess)
 
 
-def _get_conv2d_model(input_shape: tuple):
-    """Build a conv2d operator in Keras and returns an (IRModule, parameters)"""
-    import tensorflow as tf
-    from tensorflow import keras
-
-    model = keras.models.Sequential()
-    model.add(keras.layers.Conv2D(2, 3, input_shape=input_shape))
-    model.build()
-
-    inputs = {
-        i.name.split(":", 2)[0]: [x if x is not None else 1 for x in i.shape.as_list()]
-        for i in model.inputs
-    }
-    inputs = {k: [v[0], v[3], v[1], v[2]] for k, v in inputs.items()}
-    mod, params = relay.frontend.from_keras(model, inputs, layout="NCHW")
-    return mod, params
-
-
 @tvm.testing.requires_micro
 def test_autotune_conv2d(temp_dir, platform, west_cmd, tvm_debug):
     """Test AutoTune for microTVM Zephyr"""
+    import tvm.relay as relay
+
     model, zephyr_board = PLATFORMS[platform]
 
-    sample = np.random.rand(1, 3, 16, 16)
-    mod, params = _get_conv2d_model((16, 16, 3))
+    # Create a Relay model
+    data_shape = (1, 3, 16, 16)
+    weight_shape = (8, 3, 5, 5)
+    data = relay.var("data", relay.TensorType(data_shape, "float32"))
+    weight = relay.var("weight", relay.TensorType(weight_shape, "float32"))
+    y = relay.nn.conv2d(
+        data,
+        weight,
+        padding=(2, 2),
+        channels=8,
+        kernel_size=(5, 5),
+        kernel_layout="OIHW",
+        out_dtype="float32",
+    )
+    f = relay.Function([data, weight], y)
+    mod = tvm.IRModule.from_expr(f)
+    mod = relay.transform.InferType()(mod)
+
+    data_sample = np.random.rand(data_shape[0], data_shape[1], data_shape[2], data_shape[3]).astype(
+        "float32"
+    )
+    weight_sample = np.random.rand(
+        weight_shape[0], weight_shape[1], weight_shape[2], weight_shape[3]
+    ).astype("float32")
+    params = {mod["main"].params[1].name_hint: weight_sample}
 
     target = tvm.target.target.micro(model)
     pass_context = tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True})
@@ -431,8 +438,9 @@ def test_autotune_conv2d(temp_dir, platform, west_cmd, tvm_debug):
     repo_root = pathlib.Path(
         subprocess.check_output(["git", "rev-parse", "--show-toplevel"], encoding="utf-8").strip()
     )
+    template_project_dir = repo_root / "apps" / "microtvm" / "zephyr" / "template_project"
     module_loader = tvm.micro.autotvm_module_loader(
-        template_project_dir=repo_root / "apps" / "microtvm" / "zephyr" / "template_project",
+        template_project_dir=template_project_dir,
         project_options={
             "zephyr_board": zephyr_board,
             "west_cmd": west_cmd,
@@ -473,13 +481,13 @@ def test_autotune_conv2d(temp_dir, platform, west_cmd, tvm_debug):
 
     temp_dir = utils.tempdir()
     project = tvm.micro.generate_project(
-        str(repo_root / "apps" / "microtvm" / "zephyr" / "template_project"),
+        str(template_project_dir),
         lowered,
         temp_dir / "project",
         {
             "zephyr_board": zephyr_board,
             "west_cmd": west_cmd,
-            "verbose": 0,
+            "verbose": 1,
             "project_type": "host_driven",
         },
     )
@@ -491,7 +499,7 @@ def test_autotune_conv2d(temp_dir, platform, west_cmd, tvm_debug):
             lowered.get_graph_json(), session.get_system_lib(), session.device
         )
         graph_mod.set_input(**lowered.get_params())
-        graph_mod.run(conv2d_input=sample)
+        graph_mod.run(data=data_sample)
         expected_output = graph_mod.get_output(0).numpy()
         del graph_mod
 
@@ -502,13 +510,13 @@ def test_autotune_conv2d(temp_dir, platform, west_cmd, tvm_debug):
 
     temp_dir = utils.tempdir()
     project = tvm.micro.generate_project(
-        str(repo_root / "apps" / "microtvm" / "zephyr" / "template_project"),
+        str(template_project_dir),
         lowered_tuned,
         temp_dir / "project",
         {
             "zephyr_board": zephyr_board,
             "west_cmd": west_cmd,
-            "verbose": 0,
+            "verbose": 1,
             "project_type": "host_driven",
         },
     )
@@ -520,7 +528,7 @@ def test_autotune_conv2d(temp_dir, platform, west_cmd, tvm_debug):
             lowered_tuned.get_graph_json(), session.get_system_lib(), session.device
         )
         graph_mod.set_input(**lowered_tuned.get_params())
-        graph_mod.run(conv2d_input=sample)
+        graph_mod.run(data=data_sample)
         output = graph_mod.get_output(0).numpy()
         del graph_mod
 

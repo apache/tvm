@@ -218,6 +218,7 @@ def test_platform_timer():
         assert result.mean > 0
         assert len(result.results) == 3
 
+
 @tvm.testing.requires_micro
 def test_autotune():
     """Verify that autotune works with micro."""
@@ -225,7 +226,15 @@ def test_autotune():
 
     data = relay.var("data", relay.TensorType((1, 3, 64, 64), "float32"))
     weight = relay.var("weight", relay.TensorType((8, 3, 5, 5), "float32"))
-    y = relay.nn.conv2d(data, weight, padding=(2, 2), channels=8, kernel_size=(5, 5), kernel_layout="OIHW", out_dtype="float32")
+    y = relay.nn.conv2d(
+        data,
+        weight,
+        padding=(2, 2),
+        channels=8,
+        kernel_size=(5, 5),
+        kernel_layout="OIHW",
+        out_dtype="float32",
+    )
     f = relay.Function([data, weight], y)
     mod = tvm.IRModule.from_expr(f)
     mod = relay.transform.InferType()(mod)
