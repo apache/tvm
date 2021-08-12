@@ -263,7 +263,7 @@ stage('Build') {
       ws(per_exec_ws("tvm/build-arm")) {
         init_git()
         sh "${docker_run} ${ci_arm} ./tests/scripts/task_config_build_arm.sh"
-        make(ci_arm, 'build', '-j4')
+        make(ci_arm, 'build', '-j')
         pack_lib('arm', tvm_multilib)
       }
     }
