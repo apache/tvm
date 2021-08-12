@@ -99,7 +99,8 @@ def compile_cuda(code, target="ptx", arch=None, options=None, path_target=None):
 
     # NOTE(areusch): Per https://github.com/lpereira/lwan/issues/106, stdin must be left open.
     proc = subprocess.Popen(
-        cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+    )
 
     (out, _) = proc.communicate()
 
