@@ -275,7 +275,7 @@ class Handler(server.ProjectAPIHandler):
             "qemu_cortex_r5",
             "qemu_riscv64",
         ),
-        "CONFIG_ENTROPY_GENERATOR_BOARDS=y": (
+        "CONFIG_ENTROPY_GENERATOR=y": (
             "mps2_an521",
             "nrf5340dk_nrf5340_cpuapp",
             "nucleo_f746zg",
@@ -313,7 +313,7 @@ class Handler(server.ProjectAPIHandler):
 
             f.write("# For random number generation.\n" "CONFIG_TEST_RANDOM_GENERATOR=y\n")
 
-            f.write("\n# Extra prj.conf directives")
+            f.write("\n# Extra prj.conf directives\n")
             for line, board_list in self.EXTRA_PRJ_CONF_DIRECTIVES.items():
                 if options["zephyr_board"] in board_list:
                     f.write(f"{line}\n")
