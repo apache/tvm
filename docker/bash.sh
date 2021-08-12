@@ -299,14 +299,19 @@ DOCKER_ENV+=( --env CI_BUILD_HOME="${REPO_MOUNT_POINT}"
 if [ -n "${CI+x}" -a -z "${CPUSET_CPUS}" ]; then
     if [ -n "${CI_NUM_EXECUTORS-}" ]; then
         if [ -n "${CI_CPUSET_LOWER_BOUND-}" -a -n "${CI_CPUSET_UPPER_BOUND-}" ]; then
-            TOTAL_CPUS=$(expr "${CI_CPUSET_UPPER_BOUND}" - "${CI_CPUSET_LOWER_BOUND}" + 1)
+            TOTAL_CPUS=$(expr "${CI_CPUSET_UPPER_BOUND}" - "${CI_CPUSET_LOWER_BOUND}" + 1) || /bin/true
+            if [ "${TOTAL_CPUS}" -lt 1 ]; then
+                echo "ERROR: computed TOTAL_CPUS=${TOTAL_CPUS} based on CI_CPUSET_{UPPER,LOWER}_BOUND!"
+                exit 2
+            fi
         else
             TOTAL_CPUS=$(nproc)
             CI_CPUSET_LOWER_BOUND=0
         fi
         CPUS_PER_EXECUTOR=$(expr "${TOTAL_CPUS}" / "${CI_NUM_EXECUTORS}")
-        CPUSET_CPUS_LOWER_BOUND=$(expr "${CI_CPUSET_LOWER_BOUND}" + \( "${CPUS_PER_EXECUTOR}" '*' "${EXECUTOR_NUMBER}" \) )
-        CPUSET_CPUS_UPPER_BOUND=$(expr "${CPUSET_CPUS_LOWER_BOUND}" + "${CPUS_PER_EXECUTOR}" - 1)
+        # NOTE: Expr exit status varies by the computed value (good and bad!).
+        CPUSET_CPUS_LOWER_BOUND=$(expr "${CI_CPUSET_LOWER_BOUND}" + \( "${CPUS_PER_EXECUTOR}" '*' "${EXECUTOR_NUMBER}" \) ) || /bin/true
+        CPUSET_CPUS_UPPER_BOUND=$(expr "${CPUSET_CPUS_LOWER_BOUND}" + "${CPUS_PER_EXECUTOR}" - 1) || /bin/true
         CPUSET_CPUS="${CPUSET_CPUS_LOWER_BOUND}-${CPUSET_CPUS_UPPER_BOUND}"
         echo "COMPUTE TOTAL_CPUS=${TOTAL_CPUS} CPUS_PER_EXECUTOR=${CPUS_PER_EXECUTOR} CPUSET_CPUS_LOWER_BOUND=${CPUSET_CPUS_LOWER_BOUND} CPUSET_CPUS_UPPER_BOUND=${CPUSET_CPUS_UPPER_BOUND}"
     else
@@ -315,10 +320,15 @@ if [ -n "${CI+x}" -a -z "${CPUSET_CPUS}" ]; then
     fi
 fi
 
+echo "CPUSET_CPUS ${CPUSET_CPUS}"
 if [ -n "${CPUSET_CPUS}" ]; then
-    CI_DOCKER_EXTRA_PARAMS+=(
+    CPUSET_CPUS_LOWER_BOUND=$(echo "${CPUSET_CPUS}" | sed -E 's/^([0-9]+)-.*$/\1/g')
+    CPUSET_CPUS_UPPER_BOUND=$(echo "${CPUSET_CPUS}" | sed -E 's/^.*-([0-9]+)$/\1/g')
+    CPUSET_NUM_CPUS=$(expr "${CPUSET_CPUS_UPPER_BOUND}" - "${CPUSET_CPUS_LOWER_BOUND}" + 1) || /bin/true
+    DOCKER_FLAGS+=(
         "--cpuset-cpus=${CPUSET_CPUS}"
-        "-e CI_CPUSET_CPUS=${CPUSET_CPUS}"
+        "--env" "CI_CPUSET_CPUS=${CPUSET_CPUS}"
+        "--env" "CI_CPUSET_NUM_CPUS=${CPUSET_NUM_CPUS}"
     )
     echo "USING CPUSET_CPUS ${CPUSET_CPUS}"
 fi
