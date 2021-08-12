@@ -30,8 +30,5 @@ cd ~
 # Using most recent commit that passes all the tests.
 ~/ubuntu_init_zephyr_project.sh ~/zephyr v2.5-branch --commit dabf23758417fd041fec2a2a821d8f526afac29d
 
-# Build QEMU
-sudo ~/ubuntu_install_qemu.sh --target-list arm-softmmu
-
 # Cleanup
 rm -f *.sh
