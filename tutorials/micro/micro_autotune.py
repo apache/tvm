@@ -85,8 +85,8 @@ def main(args):
     # PLATFORM list in this tutorial. You can chose the platform by passing --platform argument when running
     # this tutorial.
     #
-    TARGET = tvm.target.target.micro(PLATFORMS[args.platform][0])
-    BOARD = PLATFORMS[args.platform][1]
+    target = tvm.target.target.micro(PLATFORMS[args.platform][0])
+    board = PLATFORMS[args.platform][1]
 
     #########################
     # Extracting tuning tasks
@@ -101,7 +101,7 @@ def main(args):
     pass_context = tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True})
     with pass_context:
         # with tvm.transform.PassContext(opt_level=3):
-        tasks = tvm.autotvm.task.extract_from_program(tvm_model["main"], {}, TARGET)
+        tasks = tvm.autotvm.task.extract_from_program(tvm_model["main"], {}, target)
     assert len(tasks) > 0
 
     ######################
@@ -143,7 +143,7 @@ def main(args):
         module_loader = tvm.micro.autotvm_module_loader(
             template_project_dir=repo_root / "apps" / "microtvm" / "zephyr" / "template_project",
             project_options={
-                "zephyr_board": BOARD,
+                "zephyr_board": board,
                 "west_cmd": "west",
                 "verbose": 1,
                 "project_type": "host_driven",
@@ -163,15 +163,15 @@ def main(args):
     # Run Autotuning
     ################
     # Now we can run autotuning separately on each extracted task.
-    NUM_TRIALS = 1
+    num_trials = 10
     for task in tasks:
         tuner = tvm.autotvm.tuner.GATuner(task)
         tuner.tune(
-            n_trial=NUM_TRIALS,
+            n_trial=num_trials,
             measure_option=measure_option,
             callbacks=[
                 tvm.autotvm.callback.log_to_file("microtvm_autotune.log"),
-                tvm.autotvm.callback.progress_bar(NUM_TRIALS, si_prefix="M"),
+                tvm.autotvm.callback.progress_bar(num_trials, si_prefix="M"),
             ],
             si_prefix="M",
         )
@@ -184,7 +184,7 @@ def main(args):
     # the tuned operator.
 
     with pass_context:
-        lowered = tvm.relay.build(tvm_model, target=TARGET, params=params)
+        lowered = tvm.relay.build(tvm_model, target=target, params=params)
 
     temp_dir = utils.tempdir()
     if args.platform == "host":
@@ -198,7 +198,7 @@ def main(args):
             lowered,
             temp_dir / "project",
             {
-                "zephyr_board": BOARD,
+                "zephyr_board": board,
                 "west_cmd": "west",
                 "verbose": 1,
                 "project_type": "host_driven",
@@ -223,7 +223,7 @@ def main(args):
 
     with tvm.autotvm.apply_history_best("microtvm_autotune.log"):
         with pass_context:
-            lowered_tuned = tvm.relay.build(tvm_model, target=TARGET, params=params)
+            lowered_tuned = tvm.relay.build(tvm_model, target=target, params=params)
 
     temp_dir = utils.tempdir()
     if args.platform == "host":
@@ -237,7 +237,7 @@ def main(args):
             lowered_tuned,
             temp_dir / "project",
             {
-                "zephyr_board": BOARD,
+                "zephyr_board": board,
                 "west_cmd": "west",
                 "verbose": 1,
                 "project_type": "host_driven",

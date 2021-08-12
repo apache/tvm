@@ -33,11 +33,11 @@ def libinfo():
     info: Dict[str, str]
         The dictionary of compile-time info.
     """
-    local_dict = globals()
-    if "GetLibInfo" not in local_dict:
-        raise LibInfoUnavailableError()
+    get_lib_info = get_global_func("support.GetLibInfo")()
+    if not get_lib_info:
+        return {}
 
-    return {k: v for k, v in GetLibInfo().items()}  # pylint: disable=unnecessary-comprehension
+    return {k: v for k, v in get_lib_info.items()}  # pylint: disable=unnecessary-comprehension
 
 
 class FrontendTestModule(Module):
