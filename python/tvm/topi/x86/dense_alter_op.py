@@ -63,6 +63,7 @@ def _alter_dense_layout(attrs, inputs, tinfos, out_type):
         relay.op.get("nn.dense"), attrs, tinfos, out_type, target
     )
     workload = autotvm.task.get_workload(outs)
+
     if workload:
         cfg = dispatch_ctx.query(target, workload)
         topi_impl = workload[0]
@@ -86,7 +87,6 @@ def _alter_dense_layout(attrs, inputs, tinfos, out_type):
                 topi_impl,
             )
             dispatch_ctx.update(target, new_workload, cfg)
-            weight_transform = relay.layout_transform(inputs[1], "NK", weight_layout)
-            return relay.nn.contrib_dense_pack(inputs[0], weight_transform, None, out_dtype)
+            return relay.nn.contrib_dense_pack(inputs[0], inputs[1], weight_layout, None, out_dtype)
 
     return None

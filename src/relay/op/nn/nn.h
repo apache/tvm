@@ -117,29 +117,6 @@ bool MatmulRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 }
 
 template <typename AttrType>
-bool DensePackRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
-                  const TypeReporter& reporter) {
-  ICHECK_EQ(types.size(), 3);
-  const auto* data = types[0].as<TensorTypeNode>();
-  const auto* weight = types[1].as<TensorTypeNode>();
-  if (data == nullptr || weight == nullptr) return false;
-
-  const AttrType* param = attrs.as<AttrType>();
-  ICHECK(param != nullptr);
-
-  Array<tvm::PrimExpr> oshape = data->shape;
-  oshape.Set((oshape.size() - 1), weight->shape[0] * weight->shape[2]);
-
-  DataType out_dtype = param->out_dtype;
-  if (out_dtype.bits() == 0) {
-    out_dtype = data->dtype;
-  }
-  // assign output type
-  reporter->Assign(types[2], TensorType(oshape, out_dtype));
-  return true;
-}
-
-template <typename AttrType>
 bool BatchMatmulRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                     const TypeReporter& reporter) {
   ICHECK_EQ(types.size(), 3);
