@@ -20,7 +20,7 @@ use std::convert::TryFrom;
 use std::os::raw::c_char;
 
 use crate::errors::ValueDowncastError;
-use crate::ffi::TVMByteArray;
+use crate::ffi::{TVMByteArray, TVMByteArrayFree};
 use crate::{ArgValue, RetValue};
 
 /// A newtype wrapping a raw TVM byte-array.
@@ -36,6 +36,11 @@ use crate::{ArgValue, RetValue};
 pub struct ByteArray {
     /// The raw FFI ByteArray.
     array: TVMByteArray,
+}
+
+impl Drop for ByteArray {
+    fn drop(&mut self) {
+    }
 }
 
 impl ByteArray {
@@ -59,6 +64,7 @@ impl ByteArray {
     }
 }
 
+
 // Needs AsRef for Vec
 impl<T: AsRef<[u8]>> From<T> for ByteArray {
     fn from(arg: T) -> Self {
@@ -75,20 +81,6 @@ impl<T: AsRef<[u8]>> From<T> for ByteArray {
 impl<'a> From<&'a ByteArray> for ArgValue<'a> {
     fn from(val: &'a ByteArray) -> ArgValue<'a> {
         ArgValue::Bytes(&val.array)
-    }
-}
-
-impl TryFrom<ArgValue<'static>> for ByteArray {
-    type Error = ValueDowncastError;
-
-    fn try_from(val: ArgValue<'static>) -> Result<ByteArray, Self::Error> {
-        match val {
-            ArgValue::Bytes(array) => Ok(ByteArray { array: *array }),
-            _ => Err(ValueDowncastError {
-                expected_type: "ByteArray",
-                actual_type: format!("{:?}", val),
-            }),
-        }
     }
 }
 

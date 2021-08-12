@@ -32,6 +32,7 @@ use std::{
 };
 
 use super::{function::Result, Function};
+use crate::AsArgValue;
 use crate::errors::Error;
 
 pub use tvm_sys::{ffi, ArgValue, RetValue};
@@ -44,9 +45,23 @@ pub use tvm_sys::{ffi, ArgValue, RetValue};
 /// conversion of inputs and outputs to this trait.
 ///
 /// And the implementation of it to `ToFunction`.
-pub trait Typed<I, O> {
-    fn args(i: Vec<ArgValue<'static>>) -> Result<I>;
+pub trait Typed<'a, I, O> {
+    fn args(i: Vec<ArgValue<'a>>) -> Result<I>;
     fn ret(o: O) -> Result<RetValue>;
+}
+
+trait AsArgValueErased where Self: for<'a> AsArgValue<'a> {
+    fn as_arg_value<'a>(&'a self) -> ArgValue<'a>;
+}
+
+struct ArgList {
+    args: Vec<Box<dyn AsArgValueErased>>
+}
+
+impl<T: 'static> AsArgValueErased for T where T: for<'a> AsArgValue<'a> {
+    fn as_arg_value<'a>(&'a self) -> ArgValue<'a> {
+        AsArgValue::as_arg_value(self)
+    }
 }
 
 pub trait ToFunction<I, O>: Sized {
@@ -54,15 +69,15 @@ pub trait ToFunction<I, O>: Sized {
 
     fn into_raw(self) -> *mut Self::Handle;
 
-    fn call(handle: *mut Self::Handle, args: Vec<ArgValue<'static>>) -> Result<RetValue>
+    fn call<'a>(handle: *mut Self::Handle, args: Vec<ArgValue<'a>>) -> Result<RetValue>
     where
-        Self: Typed<I, O>;
+        Self: for<'arg> Typed<'arg, I, O>;
 
     fn drop(handle: *mut Self::Handle);
 
     fn to_function(self) -> Function
     where
-        Self: Typed<I, O>,
+        Self: for<'a> Typed<'a, I, O>,
     {
         let mut fhandle = ptr::null_mut() as ffi::TVMFunctionHandle;
         let resource_handle = self.into_raw();
@@ -87,7 +102,7 @@ pub trait ToFunction<I, O>: Sized {
         resource_handle: *mut c_void,
     ) -> c_int
     where
-        Self: Typed<I, O>,
+        Self: for <'a> Typed<'a,  I, O>,
     {
         #![allow(unused_assignments, unused_unsafe)]
         let result = std::panic::catch_unwind(|| {
@@ -165,45 +180,48 @@ pub trait ToFunction<I, O>: Sized {
     }
 }
 
-impl Typed<Vec<ArgValue<'static>>, RetValue> for fn(Vec<ArgValue<'static>>) -> Result<RetValue> {
-    fn args(args: Vec<ArgValue<'static>>) -> Result<Vec<ArgValue<'static>>> {
-        Ok(args)
-    }
+// impl<'a> Typed<'a, Vec<ArgValue<'a>>, RetValue> for for<'arg> fn(Vec<ArgValue<'arg>>) -> Result<RetValue> {
+//     fn args(args: Vec<ArgValue<'a>>) -> Result<Vec<ArgValue<'a>>> {
+//         Ok(args)
+//     }
 
-    fn ret(o: RetValue) -> Result<RetValue> {
-        Ok(o)
-    }
-}
+//     fn ret(o: RetValue) -> Result<RetValue> {
+//         Ok(o)
+//     }
+// }
 
-impl ToFunction<Vec<ArgValue<'static>>, RetValue>
-    for fn(Vec<ArgValue<'static>>) -> Result<RetValue>
-{
-    type Handle = fn(Vec<ArgValue<'static>>) -> Result<RetValue>;
+// impl ToFunction<ArgList, RetValue>
+//     for fn(ArgList) -> Result<RetValue>
+// {
+//     type Handle = for<'a> fn(Vec<ArgValue<'a>>) -> Result<RetValue>;
 
-    fn into_raw(self) -> *mut Self::Handle {
-        let ptr: Box<Self::Handle> = Box::new(self);
-        Box::into_raw(ptr)
-    }
+//     fn into_raw(self) -> *mut Self::Handle {
+//         let ptr: Box<Self::Handle> = Box::new(self);
+//         Box::into_raw(ptr)
+//     }
 
-    fn call(handle: *mut Self::Handle, args: Vec<ArgValue<'static>>) -> Result<RetValue> {
-        unsafe { (*handle)(args) }
-    }
+//     fn call<'a>(handle: *mut Self::Handle, args: Vec<ArgValue<'a>>) -> Result<RetValue> {
+//         unsafe {
+//             let func = (*handle);
+//             func(args)
+//         }
+//     }
 
-    fn drop(_: *mut Self::Handle) {}
-}
+//     fn drop(_: *mut Self::Handle) {}
+// }
 
 macro_rules! impl_typed_and_to_function {
     ($len:literal; $($t:ident),*) => {
-        impl<F, Out, $($t),*> Typed<($($t,)*), Out> for F
+        impl<'a, F, Out, $($t),*> Typed<'a, ($($t,)*), Out> for F
         where
             F: Fn($($t),*) -> Out,
             Out: TryInto<RetValue>,
             Error: From<Out::Error>,
-            $( $t: TryFrom<ArgValue<'static>>,
-               Error: From<$t::Error>, )*
+            $( $t: TryFrom<ArgValue<'a>>,
+               Error: From<<$t as TryFrom<ArgValue<'a>>>::Error>, )*
         {
             #[allow(non_snake_case, unused_variables, unused_mut)]
-            fn args(args: Vec<ArgValue<'static>>) -> Result<($($t,)*)> {
+            fn args(args: Vec<ArgValue<'a>>) -> Result<($($t,)*)> {
                 if args.len() != $len {
                     return Err(Error::CallFailed(format!("{} expected {} arguments, got {}.\n",
                                                          std::any::type_name::<Self>(),
@@ -232,9 +250,9 @@ macro_rules! impl_typed_and_to_function {
             }
 
             #[allow(non_snake_case)]
-            fn call(handle: *mut Self::Handle, args: Vec<ArgValue<'static>>) -> Result<RetValue>
+            fn call<'a>(handle: *mut Self::Handle, args: Vec<ArgValue<'a>>) -> Result<RetValue>
             where
-                F: Typed<($($t,)*), Out>
+                F: for<'arg> Typed<'arg, ($($t,)*), Out>
             {
                 let ($($t,)*) = F::args(args)?;
                 let out = unsafe { (*handle)($($t),*) };
@@ -261,7 +279,7 @@ impl_typed_and_to_function!(6; A, B, C, D, E, G);
 mod tests {
     use super::*;
 
-    fn call<F, I, O>(f: F, args: Vec<ArgValue<'static>>) -> Result<RetValue>
+    fn call<'a, F, I, O>(f: F, args: Vec<ArgValue<'a>>) -> Result<RetValue>
     where
         F: ToFunction<I, O>,
         F: Typed<I, O>,

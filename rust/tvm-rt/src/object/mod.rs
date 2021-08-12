@@ -29,6 +29,16 @@ mod object_ptr;
 
 pub use object_ptr::{IsObject, Object, ObjectPtr, ObjectRef};
 
+pub trait AsArgValue<'a> {
+    fn as_arg_value(&'a self) -> ArgValue<'a>;
+}
+
+impl<'a, T: 'static> AsArgValue<'a> for T where &'a T: Into<ArgValue<'a>> {
+    fn as_arg_value(&'a self) -> ArgValue<'a> {
+        self.into()
+    }
+}
+
 // TODO we would prefer to blanket impl From/TryFrom ArgValue/RetValue, but we
 // can't because of coherence rules. Instead, we generate them in the macro, and
 // add what we can (including Into instead of From) as subtraits.
@@ -37,8 +47,8 @@ pub trait IsObjectRef:
     Sized
     + Clone
     + Into<RetValue>
+    + for<'a> AsArgValue<'a>
     + TryFrom<RetValue, Error = Error>
-    + for<'a> Into<ArgValue<'a>>
     + for<'a> TryFrom<ArgValue<'a>, Error = Error>
     + std::fmt::Debug
 {
@@ -51,8 +61,8 @@ pub trait IsObjectRef:
         Self::from_ptr(None)
     }
 
-    fn into_arg_value<'a>(self) -> ArgValue<'a> {
-        self.into()
+    fn into_arg_value<'a>(&'a self) -> ArgValue<'a> {
+        self.as_arg_value()
     }
 
     fn from_arg_value<'a>(arg_value: ArgValue<'a>) -> Result<Self, Error> {

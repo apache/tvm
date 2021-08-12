@@ -37,6 +37,7 @@ use crate::errors::Error;
 
 pub use super::to_function::{ToFunction, Typed};
 pub use tvm_sys::{ffi, ArgValue, RetValue};
+use crate::object::AsArgValue;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -141,24 +142,6 @@ impl Function {
 
         let rv = RetValue::from_tvm_value(ret_val, ret_type_code as u32);
 
-        // // This is a temporary patch to ensure that the arguments are correclty dropped.
-        // let args: Vec<ArgValue> = values.into_iter().zip(type_codes.into_iter()).map(|(value, type_code)| {
-        //     ArgValue::from_tvm_value(value, type_code)
-        // }).collect();
-
-        // let mut objects_to_drop: Vec<crate::ObjectRef> = vec![];
-        // for arg in args {
-        //     match arg {
-        //         ArgValue::ObjectHandle(_) | ArgValue::ModuleHandle(_) | ArgValue::NDArrayHandle(_) => objects_to_drop.push(arg.try_into().unwrap()),
-        //         _ => {}
-        //     }
-        // }
-
-        // drop(objects_to_drop);
-
-        let obj: crate::ObjectRef = rv.clone().try_into().unwrap();
-        println!("rv: {}", obj.count());
-
         Ok(rv)
     }
 }
@@ -171,12 +154,12 @@ macro_rules! impl_to_fn {
         where
             Error: From<Err>,
             Out: TryFrom<RetValue, Error = Err>,
-            $($t: Into<ArgValue<'static>>),*
+            $($t: for<'a> AsArgValue<'a>),*
         {
             fn from(func: Function) -> Self {
                 #[allow(non_snake_case)]
                 Box::new(move |$($t : $t),*| {
-                    let args = vec![ $($t.into()),* ];
+                    let args = vec![ $((&$t).as_arg_value()),* ];
                     Ok(func.invoke(args)?.try_into()?)
                 })
             }
@@ -281,7 +264,7 @@ impl<'a> TryFrom<&ArgValue<'a>> for Function {
 pub fn register<F, I, O, S: Into<String>>(f: F, name: S) -> Result<()>
 where
     F: ToFunction<I, O>,
-    F: Typed<I, O>,
+    F: for<'a> Typed<'a, I, O>,
 {
     register_override(f, name, false)
 }
@@ -292,7 +275,7 @@ where
 pub fn register_override<F, I, O, S: Into<String>>(f: F, name: S, override_: bool) -> Result<()>
 where
     F: ToFunction<I, O>,
-    F: Typed<I, O>,
+    F: for<'a> Typed<'a, I, O>,
 {
     let func = f.to_function();
     let name = name.into();
@@ -309,22 +292,23 @@ where
 }
 
 pub fn register_untyped<S: Into<String>>(
-    f: fn(Vec<ArgValue<'static>>) -> Result<RetValue>,
+    f: for<'a> fn(Vec<ArgValue<'a>>) -> Result<RetValue>,
     name: S,
     override_: bool,
 ) -> Result<()> {
-    // TODO(@jroesch): can we unify all the code.
-    let func = f.to_function();
-    let name = name.into();
-    // Not sure about this code
-    let handle = func.handle();
-    let name = CString::new(name)?;
-    check_call!(ffi::TVMFuncRegisterGlobal(
-        name.into_raw(),
-        handle,
-        override_ as c_int
-    ));
-    Ok(())
+    panic!("foo")
+    // // TODO(@jroesch): can we unify all the code.
+    // let func = ToFunction::<Vec<ArgValue>, RetValue>::to_function(f);
+    // let name = name.into();
+    // // Not sure about this code
+    // let handle = func.handle();
+    // let name = CString::new(name)?;
+    // check_call!(ffi::TVMFuncRegisterGlobal(
+    //     name.into_raw(),
+    //     handle,
+    //     override_ as c_int
+    // ));
+    // Ok(())
 }
 
 #[cfg(test)]

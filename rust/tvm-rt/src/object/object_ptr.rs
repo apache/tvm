@@ -259,6 +259,10 @@ impl<T: IsObject> ObjectPtr<T> {
     pub unsafe fn into_raw(self) -> *mut T {
         self.ptr.as_ptr()
     }
+
+    pub unsafe fn as_ptr(&self) -> *mut T {
+        self.ptr.as_ptr()
+    }
 }
 
 impl<T: IsObject> std::ops::Deref for ObjectPtr<T> {
@@ -308,26 +312,26 @@ impl<'a, T: IsObject> TryFrom<RetValue> for ObjectPtr<T> {
     }
 }
 
-impl<'a, T: IsObject> From<ObjectPtr<T>> for ArgValue<'a> {
-    fn from(object_ptr: ObjectPtr<T>) -> ArgValue<'a> {
+impl<'a, T: IsObject> From<&'a ObjectPtr<T>> for ArgValue<'a> {
+    fn from(object_ptr: &'a ObjectPtr<T>) -> ArgValue<'a> {
         debug_assert!(object_ptr.count() >= 1);
-        let object_ptr = object_ptr.upcast::<Object>();
+        let object_ptr = object_ptr.clone().upcast::<Object>();
         match T::TYPE_KEY {
             "runtime.NDArray" => {
                 use crate::ndarray::NDArrayContainer;
-                // TODO(this is probably not optimal)
-                let raw_ptr = NDArrayContainer::leak(object_ptr.downcast().unwrap())
-                    as *mut NDArrayContainer as *mut std::ffi::c_void;
+                let dcast_ptr = object_ptr.downcast().unwrap();
+                let raw_ptr = NDArrayContainer::as_mut_ptr(&dcast_ptr)
+                    as *mut std::ffi::c_void;
                 assert!(!raw_ptr.is_null());
                 ArgValue::NDArrayHandle(raw_ptr)
             }
             "runtime.Module" => {
-                let raw_ptr = ObjectPtr::leak(object_ptr) as *mut Object as *mut std::ffi::c_void;
+                let raw_ptr = unsafe { object_ptr.as_ptr() } as *mut std::ffi::c_void;
                 assert!(!raw_ptr.is_null());
                 ArgValue::ModuleHandle(raw_ptr)
             }
             _ => {
-                let raw_ptr = ObjectPtr::leak(object_ptr) as *mut Object as *mut std::ffi::c_void;
+                let raw_ptr = unsafe { object_ptr.as_ptr() } as *mut std::ffi::c_void;
                 assert!(!raw_ptr.is_null());
                 ArgValue::ObjectHandle(raw_ptr)
             }

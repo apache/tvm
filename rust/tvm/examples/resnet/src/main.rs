@@ -83,11 +83,10 @@ fn main() -> anyhow::Result<()> {
     println!("param bytes: {}", params.len());
 
     let mut output: Vec<f32>;
+    let mut graph_rt = GraphRt::create_from_parts(&graph, lib.clone(), dev)?;
+    graph_rt.load_params(&params)?;
 
     loop {
-        let mut graph_rt = GraphRt::create_from_parts(&graph, lib.clone(), dev)?;
-
-        graph_rt.load_params(&params)?;
         graph_rt.set_input("data", input.clone())?;
         graph_rt.run()?;
 
