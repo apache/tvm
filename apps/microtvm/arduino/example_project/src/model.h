@@ -17,9 +17,6 @@
  * under the License.
  */
 
-#ifndef IMPLEMENTATION_H_
-#define IMPLEMENTATION_H_
-
 #define WORKSPACE_SIZE $workspace_size_bytes
 
 #ifdef __cplusplus
@@ -28,11 +25,16 @@ extern "C" {
 
 void TVMInitialize();
 
-// TODO template these void* values once MLF format has input and output data
+/* TODO template this function signature with the input and output
+ * data types and sizes. For example:
+ *
+ * void TVMExecute(uint8_t input_data[9216], uint8_t output_data[3]);
+ *
+ * Note this can only be done once MLF has JSON metadata describing
+ * inputs and outputs.
+ */
 void TVMExecute(void* input_data, void* output_data);
 
 #ifdef __cplusplus
 }  // extern "C"
 #endif
-
-#endif  // IMPLEMENTATION_H_

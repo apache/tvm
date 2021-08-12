@@ -15,9 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from unittest import mock
-from pathlib import Path
 import sys
+from pathlib import Path
+from unittest import mock
 
 import pytest
 
@@ -64,6 +64,7 @@ class TestGenerateProject:
 
     BOARD_CONNECTED_OUTPUT = bytes(
         "Port         Type              Board Name          FQBN                        Core             \n"
+        "/dev/ttyACM1 Serial Port (USB) Wrong Arduino arduino:mbed_nano:nano33 arduino:mbed_nano\n"
         "/dev/ttyACM0 Serial Port (USB) Arduino Nano 33 BLE arduino:mbed_nano:nano33ble arduino:mbed_nano\n"
         "/dev/ttyS4   Serial Port       Unknown                                                          \n"
         "\n",

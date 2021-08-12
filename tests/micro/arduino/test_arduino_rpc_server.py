@@ -15,25 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import datetime
-import os
-import pathlib
-import shutil
-import sys
-import time
-
-import numpy as np
-import onnx
-from PIL import Image
-import pytest
-import tflite
-
-import tvm
-from tvm import micro, relay
-from tvm.relay.testing import byoc
-
-import conftest
-
 """
 This unit test simulates an autotuning workflow, where we:
 1. Instantiate the Arduino RPC server project
@@ -41,12 +22,24 @@ This unit test simulates an autotuning workflow, where we:
 
 """
 
+import datetime
+import pathlib
+import sys
+
+import numpy as np
+import onnx
+import pytest
+import tvm
+from PIL import Image
+from tvm import micro, relay
+from tvm.relay.testing import byoc
+
+import conftest
+
+
 # We'll make a new workspace for each test
 @pytest.fixture(scope="function")
-def workspace_dir(platform, run_hardware_tests):
-    if not run_hardware_tests:
-        pytest.skip()
-
+def workspace_dir(platform):
     return conftest.make_workspace_dir("arduino_rpc_server", platform)
 
 
@@ -89,6 +82,7 @@ def _make_add_sess(model, arduino_board, arduino_cli_cmd, workspace_dir, build_c
 
 # The same test code can be executed on both the QEMU simulation and on real hardware.
 @tvm.testing.requires_micro
+@pytest.mark.requires_hardware
 def test_compile_runtime(platform, arduino_cli_cmd, tvm_debug, workspace_dir):
     """Test compiling the on-device runtime."""
 
@@ -110,10 +104,10 @@ def test_compile_runtime(platform, arduino_cli_cmd, tvm_debug, workspace_dir):
 
     with _make_add_sess(model, arduino_board, arduino_cli_cmd, workspace_dir, build_config) as sess:
         test_basic_add(sess)
-    print(workspace_dir)
 
 
 @tvm.testing.requires_micro
+@pytest.mark.requires_hardware
 def test_platform_timer(platform, arduino_cli_cmd, tvm_debug, workspace_dir):
     """Test compiling the on-device runtime."""
 
@@ -143,6 +137,7 @@ def test_platform_timer(platform, arduino_cli_cmd, tvm_debug, workspace_dir):
 
 
 @tvm.testing.requires_micro
+@pytest.mark.requires_hardware
 def test_relay(platform, arduino_cli_cmd, tvm_debug, workspace_dir):
     """Testing a simple relay graph"""
     model, arduino_board = conftest.PLATFORMS[platform]
@@ -176,13 +171,14 @@ def test_relay(platform, arduino_cli_cmd, tvm_debug, workspace_dir):
 
 
 @tvm.testing.requires_micro
+@pytest.mark.requires_hardware
 def test_onnx(platform, arduino_cli_cmd, tvm_debug, workspace_dir):
     """Testing a simple ONNX model."""
     model, arduino_board = conftest.PLATFORMS[platform]
     build_config = {"debug": tvm_debug}
 
     # Load test images.
-    this_dir = pathlib.Path(os.path.dirname(__file__))
+    this_dir = pathlib.Path(__file__).parent
     testdata_dir = this_dir.parent / "testdata"
     digit_2 = Image.open(testdata_dir / "digit-2.jpg").resize((28, 28))
     digit_2 = np.asarray(digit_2).astype("float32")
@@ -263,6 +259,7 @@ def check_result(
 
 
 @tvm.testing.requires_micro
+@pytest.mark.requires_hardware
 def test_byoc_microtvm(platform, arduino_cli_cmd, tvm_debug, workspace_dir):
     """This is a simple test case to check BYOC capabilities of microTVM"""
     model, arduino_board = conftest.PLATFORMS[platform]
@@ -346,6 +343,7 @@ def _make_add_sess_with_shape(
     ],
 )
 @tvm.testing.requires_micro
+@pytest.mark.requires_hardware
 def test_rpc_large_array(platform, arduino_cli_cmd, tvm_debug, workspace_dir, shape):
     """Test large RPC array transfer."""
     model, arduino_board = conftest.PLATFORMS[platform]

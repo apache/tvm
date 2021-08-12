@@ -19,7 +19,6 @@ import datetime
 import pathlib
 
 import pytest
-
 import tvm.target.target
 
 # The models that should pass this configuration. Maps a short, identifying platform string to
@@ -49,8 +48,8 @@ TEMPLATE_PROJECT_DIR = (
 def pytest_addoption(parser):
     parser.addoption(
         "--microtvm-platforms",
-        default=["due"],
-        nargs="*",
+        nargs="+",
+        required=True,
         choices=PLATFORMS.keys(),
         help="Target platforms for microTVM tests.",
     )
@@ -60,16 +59,30 @@ def pytest_addoption(parser):
         help="Path to `arduino-cli` command for flashing device.",
     )
     parser.addoption(
-        "--run-hardware-tests",
+        "--test-build-only",
         action="store_true",
-        help="Run tests that require physical hardware.",
+        help="Only run tests that don't require physical hardware.",
     )
     parser.addoption(
         "--tvm-debug",
         action="store_true",
         default=False,
-        help="If set true, enable a debug session while the test is running. Before running the test, in a separate shell, you should run: <python -m tvm.exec.microtvm_debug_shell>",
+        help="If given, enable a debug session while the test is running. Before running the test, in a separate shell, you should run: <python -m tvm.exec.microtvm_debug_shell>",
     )
+
+
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers", "requires_hardware: mark test to run only when an Arduino board is connected"
+    )
+
+
+def pytest_collection_modifyitems(config, items):
+    if config.getoption("--test-build-only"):
+        skip_hardware_tests = pytest.mark.skip(reason="--test-build-only was passed")
+        for item in items:
+            if "requires_hardware" in item.keywords:
+                item.add_marker(skip_hardware_tests)
 
 
 # We might do project generation differently for different boards in the future
@@ -88,11 +101,6 @@ def arduino_cli_cmd(request):
 @pytest.fixture(scope="session")
 def tvm_debug(request):
     return request.config.getoption("--tvm-debug")
-
-
-@pytest.fixture(scope="session")
-def run_hardware_tests(request):
-    return request.config.getoption("--run-hardware-tests")
 
 
 def make_workspace_dir(test_name, platform):

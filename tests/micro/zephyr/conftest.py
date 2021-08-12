@@ -79,8 +79,6 @@ def temp_dir(platform):
     _, zephyr_board = PLATFORMS[platform]
     parent_dir = pathlib.Path(os.path.dirname(__file__))
     filename = os.path.splitext(os.path.basename(__file__))[0]
-    print(filename)
-    print("-----------------")
     board_workspace = (
         parent_dir
         / f"workspace_{filename}_{zephyr_board}"

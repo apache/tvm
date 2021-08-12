@@ -21,9 +21,10 @@
 
 void setup() {
   TVMInitialize();
-  //TVMExecute(input_data, output_data);
+  // If desired, initialize the RNG with random noise
+  // randomSeed(analogRead(0));
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
+  //TVMExecute(input_data, output_data);
 }

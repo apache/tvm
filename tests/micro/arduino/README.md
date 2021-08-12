@@ -22,19 +22,14 @@ all of the appropriate TVM dependencies installed. You can run the test with:
 
 ```
 $ cd tvm/tests/micro/arduino
-$ pytest test_arduino_workflow.py --platform spresense
-$ pytest test_arduino_workflow.py --platform nano33ble
+$ pytest --microtvm-platforms spresense
 ```
 
-By default, only project generation and compilation tests are run. If you
-have compatible Arduino hardware connected, you can pass the flag
-`--run-hardware-tests` to test board auto-detection and code execution:
+Most of these tests require a supported Arduino board to be connected.
+If you don't want to run these tests, you can pass the flag
+`--test-build-only` to only test project generation and compilation.
 
+To see the list of supported values for `----microtvm-platforms`, run:
 ```
-pytest test_arduino_workflow.py --platform spresense --run-hardware-tests
-```
-
-To see the list of supported values for `--platform`, run:
-```
-$ pytest test_arduino_workflow.py --help
+$ pytest --help
 ```

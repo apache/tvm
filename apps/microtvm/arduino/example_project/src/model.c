@@ -17,9 +17,6 @@
  * under the License.
  */
 
-#ifndef TVM_IMPLEMENTATION_ARDUINO
-#define TVM_IMPLEMENTATION_ARDUINO
-
 #include "model.h"
 
 #include "Arduino.h"
@@ -33,6 +30,7 @@ tvm_workspace_t app_workspace;
 
 // Blink code for debugging purposes
 void TVMPlatformAbort(tvm_crt_error_t error) {
+  TVMLogf("TVMPlatformAbort: %08x\n", error);
   for (;;) {
 #ifdef LED_BUILTIN
     digitalWrite(LED_BUILTIN, HIGH);
@@ -57,10 +55,7 @@ tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
   return StackMemoryManager_Free(&app_workspace, ptr);
 }
 
-unsigned long g_utvm_start_time;
-
-#define MILLIS_TIL_EXPIRY 200
-
+unsigned long g_utvm_start_time_micros;
 int g_utvm_timer_running = 0;
 
 tvm_crt_error_t TVMPlatformTimerStart() {
@@ -68,7 +63,7 @@ tvm_crt_error_t TVMPlatformTimerStart() {
     return kTvmErrorPlatformTimerBadState;
   }
   g_utvm_timer_running = 1;
-  g_utvm_start_time = micros();
+  g_utvm_start_time_micros = micros();
   return kTvmErrorNoError;
 }
 
@@ -77,7 +72,7 @@ tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
     return kTvmErrorPlatformTimerBadState;
   }
   g_utvm_timer_running = 0;
-  unsigned long g_utvm_stop_time = micros() - g_utvm_start_time;
+  unsigned long g_utvm_stop_time = micros() - g_utvm_start_time_micros;
   *elapsed_time_seconds = ((double)g_utvm_stop_time) / 1e6;
   return kTvmErrorNoError;
 }
@@ -97,5 +92,3 @@ void TVMExecute(void* input_data, void* output_data) {
     TVMPlatformAbort(kTvmErrorPlatformCheckFailure);
   }
 }
-
-#endif

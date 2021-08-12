@@ -19,7 +19,6 @@ import datetime
 import pathlib
 import shutil
 import sys
-import time
 
 import pytest
 import tflite
@@ -165,10 +164,7 @@ If we're not running on real hardware, no further tests are run
 
 
 @pytest.fixture(scope="module")
-def uploaded_project(compiled_project, run_hardware_tests):
-    if not run_hardware_tests:
-        pytest.skip()
-
+def uploaded_project(compiled_project):
     compiled_project.flash()
     return compiled_project
 
@@ -186,9 +182,6 @@ SERIAL_OUTPUT_HEADERS = "category,runtime,yes,no,silence,unknown"
 
 @pytest.fixture(scope="module")
 def serial_output(uploaded_project):
-    # Give time for the board to open a serial connection
-    time.sleep(1)
-
     transport = uploaded_project.transport()
     transport.open()
     out = transport.read(2048, -1)
@@ -212,6 +205,7 @@ TENSORFLOW_EVALUATIONS = {
 MAX_PREDICTION_DIFFERENCE = 2
 
 
+@pytest.mark.requires_hardware
 def test_project_inference_correctness(serial_output):
     predictions = {line[0]: line[2:] for line in serial_output}
 
@@ -228,6 +222,7 @@ MAX_INFERENCE_TIME_US = 200 * 1000
 MAX_INFERENCE_TIME_RANGE_US = 1000
 
 
+@pytest.mark.requires_hardware
 def test_project_inference_runtime(serial_output):
     runtimes_us = [line[1] for line in serial_output]
 
