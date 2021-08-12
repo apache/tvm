@@ -100,7 +100,6 @@ def main(args):
 
     pass_context = tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True})
     with pass_context:
-        # with tvm.transform.PassContext(opt_level=3):
         tasks = tvm.autotvm.task.extract_from_program(tvm_model["main"], {}, target)
     assert len(tasks) > 0
 
@@ -118,7 +117,6 @@ def main(args):
 
     import subprocess
     import pathlib
-    import tvm.micro
 
     repo_root = pathlib.Path(
         subprocess.check_output(["git", "rev-parse", "--show-toplevel"], encoding="utf-8").strip()

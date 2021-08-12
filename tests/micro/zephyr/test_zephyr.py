@@ -456,7 +456,6 @@ def test_autotune_conv2d(temp_dir, platform, west_cmd, tvm_debug):
 
     n_trial = 10
     for task in tasks:
-        print(f"mehrdad: {task}")
         tuner = tvm.autotvm.tuner.GATuner(task)
         tuner.tune(
             n_trial=n_trial,
