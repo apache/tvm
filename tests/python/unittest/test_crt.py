@@ -287,6 +287,23 @@ def @main(%data : Tensor[(1, 3, 64, 64), uint8], %weight : Tensor[(8, 3, 5, 5), 
             si_prefix="M",
         )
 
+    # Build without tuning
+    with pass_context:
+        lowered = tvm.relay.build(mod, target=TARGET, params=params)
+
+    temp_dir = tvm.contrib.utils.tempdir()
+    project = tvm.micro.generate_project(template_project_dir, lowered, temp_dir / "project")
+    project.build()
+    with tvm.micro.Session(project.transport()) as session:
+        graph_mod = tvm.micro.create_local_graph_executor(
+            lowered.get_graph_json(), session.get_system_lib(), session.device
+        )
+        graph_mod.set_input(**lowered.get_params())
+        graph_mod.run(**inputs)
+        expected_output = graph_mod.get_output(0).numpy()
+        del graph_mod
+
+    # Build using autotune logs
     with tvm.autotvm.apply_history_best(str(tune_log_file)):
         with pass_context:
             lowered_tuned = tvm.relay.build(mod, target=target, params=params)
@@ -299,11 +316,11 @@ def @main(%data : Tensor[(1, 3, 64, 64), uint8], %weight : Tensor[(8, 3, 5, 5), 
             lowered_tuned.get_graph_json(), session.get_system_lib(), session.device
         )
         graph_mod.set_input(**lowered_tuned.get_params())
-        graph_mod.set_input(**inputs)
-        graph_mod.run()
+        graph_mod.run(**inputs)
         output = graph_mod.get_output(0).numpy()
         del graph_mod
-    assert (output).all()
+
+    tvm.testing.assert_allclose(output, expected_output, rtol=1e-4, atol=1e-5)
 
 
 if __name__ == "__main__":
