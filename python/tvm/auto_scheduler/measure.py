@@ -374,7 +374,7 @@ class LocalRunner(ProgramRunner):
         i.e., When the run time of one `repeat` falls below this time, the `number` parameter
         will be automatically increased.
     cooldown_interval : float = 0.0
-        The cool down interval between two measurements.
+        The cool down interval between two measurements in seconds.
     enable_cpu_cache_flush: bool = False
         Whether to flush cache on CPU between repeated measurements.
         Flushing cache can make the measured latency of one operator closer to
@@ -445,7 +445,7 @@ class RPCRunner(ProgramRunner):
         i.e., When the run time of one `repeat` falls below this time, the `number` parameter
         will be automatically increased.
     cooldown_interval : float = 0.0
-        The cool down interval between two measurements.
+        The cool down interval between two measurements in seconds.
     enable_cpu_cache_flush: bool = False
         Whether to flush cache on CPU between repeated measurements.
         Flushing cache can make the measured latency of one operator closer to
@@ -524,7 +524,7 @@ class LocalRPCMeasureContext:
         i.e., When the run time of one `repeat` falls below this time, the `number` parameter
         will be automatically increased.
     cooldown_interval : float = 0.0
-        The cool down interval between two measurements.
+        The cool down interval between two measurements in seconds.
     enable_cpu_cache_flush: bool = False
         Whether to flush cache on CPU between repeated measurements.
         Flushing cache can make the measured latency of one operator closer to
@@ -950,7 +950,7 @@ def local_run(
         i.e., When the run time of one `repeat` falls below this time, the `number` parameter
         will be automatically increased.
     cooldown_interval : float = 0.0
-        The cool down interval between two measurements.
+        The cool down interval between two measurements in seconds.
     enable_cpu_cache_flush: bool = False
         Whether to flush cache on CPU between repeated measurements.
         Flushing cache can make the measured latency of one operator closer to
@@ -1242,7 +1242,7 @@ def rpc_runner_run(
         i.e., When the run time of one `repeat` falls below this time, the `number` parameter
         will be automatically increased.
     cooldown_interval : float = 0.0
-        The cool down interval between two measurements.
+        The cool down interval between two measurements in seconds.
     enable_cpu_cache_flush: bool = False
         Whether to flush cache on CPU between repeated measurements.
         Flushing cache can make the measured latency of one operator closer to
