@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import subprocess
 import sys
 from pathlib import Path
 from unittest import mock
@@ -64,8 +65,8 @@ class TestGenerateProject:
 
     BOARD_CONNECTED_OUTPUT = bytes(
         "Port         Type              Board Name          FQBN                        Core             \n"
-        "/dev/ttyACM1 Serial Port (USB) Wrong Arduino arduino:mbed_nano:nano33 arduino:mbed_nano\n"
         "/dev/ttyACM0 Serial Port (USB) Arduino Nano 33 BLE arduino:mbed_nano:nano33ble arduino:mbed_nano\n"
+        "/dev/ttyACM1 Serial Port (USB) Arduino Nano 33     arduino:mbed_nano:nano33    arduino:mbed_nano\n"
         "/dev/ttyS4   Serial Port       Unknown                                                          \n"
         "\n",
         "utf-8",
@@ -77,37 +78,38 @@ class TestGenerateProject:
         "utf-8",
     )
 
-    @mock.patch("subprocess.check_output")
-    def test_auto_detect_port(self, mock_subprocess_check_output):
+    @mock.patch("subprocess.run")
+    def test_auto_detect_port(self, mock_subprocess_run):
         process_mock = mock.Mock()
         handler = microtvm_api_server.Handler()
 
         # Test it returns the correct port when a board is connected
-        mock_subprocess_check_output.return_value = self.BOARD_CONNECTED_OUTPUT
-        detected_port = handler._auto_detect_port(self.DEFAULT_OPTIONS)
-        assert detected_port == "/dev/ttyACM0"
+        mock_subprocess_run.return_value.stdout = self.BOARD_CONNECTED_OUTPUT
+        assert handler._auto_detect_port(self.DEFAULT_OPTIONS) == "/dev/ttyACM0"
 
         # Test it raises an exception when no board is connected
-        mock_subprocess_check_output.return_value = self.BOARD_DISCONNECTED_OUTPUT
+        mock_subprocess_run.return_value.stdout = self.BOARD_DISCONNECTED_OUTPUT
         with pytest.raises(microtvm_api_server.BoardAutodetectFailed):
             handler._auto_detect_port(self.DEFAULT_OPTIONS)
 
-    @mock.patch("subprocess.check_call")
-    def test_flash(self, mock_subprocess_check_call):
+        # Test that the FQBN needs to match EXACTLY
+        handler._get_fqbn = mock.MagicMock(return_value="arduino:mbed_nano:nano33")
+        mock_subprocess_run.return_value.stdout = self.BOARD_CONNECTED_OUTPUT
+        assert (
+            handler._auto_detect_port({**self.DEFAULT_OPTIONS, "arduino_board": "nano33"})
+            == "/dev/ttyACM1"
+        )
+
+    @mock.patch("subprocess.run")
+    def test_flash(self, mock_subprocess_run):
         handler = microtvm_api_server.Handler()
         handler._port = "/dev/ttyACM0"
 
-        # Test no exception thrown when code 0 returned
-        mock_subprocess_check_call.return_value = 0
+        # Test no exception thrown when command works
         handler.flash(self.DEFAULT_OPTIONS)
-        mock_subprocess_check_call.assert_called_once()
+        mock_subprocess_run.assert_called_once()
 
-        # Test InvalidPortException raised when port incorrect
-        mock_subprocess_check_call.return_value = 2
-        with pytest.raises(microtvm_api_server.InvalidPortException):
-            handler.flash(self.DEFAULT_OPTIONS)
-
-        # Test SketchUploadException raised for other issues
-        mock_subprocess_check_call.return_value = 1
-        with pytest.raises(microtvm_api_server.SketchUploadException):
+        # Test exception raised when `arduino-cli upload` returns error code
+        mock_subprocess_run.side_effect = subprocess.CalledProcessError(2, [])
+        with pytest.raises(subprocess.CalledProcessError):
             handler.flash(self.DEFAULT_OPTIONS)

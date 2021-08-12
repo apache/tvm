@@ -41,7 +41,7 @@ void loop() {
   int to_read = min(Serial.available(), 128);
 
   uint8_t data[to_read];
-  size_t bytes_remaining = Serial.readBytes(data, to_read);
+  size_t bytes_remaining = Serial.readBytes((char*) data, to_read);
   uint8_t* arr_ptr = data;
   while (bytes_remaining > 0) {
     // Pass the received bytes to the RPC server.

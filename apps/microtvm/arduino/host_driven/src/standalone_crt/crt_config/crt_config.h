@@ -18,7 +18,6 @@
  */
 
 /*!
- * \file tvm/runtime/crt/host/crt_config.h
  * \brief CRT configuration for the host-linked CRT.
  */
 #ifndef TVM_RUNTIME_MICRO_CRT_CONFIG_H_

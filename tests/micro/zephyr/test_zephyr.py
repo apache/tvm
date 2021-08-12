@@ -230,17 +230,17 @@ def test_onnx(temp_dir, platform, west_cmd, tvm_debug):
     build_config = {"debug": tvm_debug}
 
     this_dir = pathlib.Path(os.path.dirname(__file__))
-    testdata_dir = this_dir.parent / "testdata"
-    digit_2 = Image.open(testdata_dir / "digit-2.jpg").resize((28, 28))
+    mnist_testdata = this_dir.parent / "testdata" / "mnist"
+    digit_2 = Image.open(mnist_testdata / "digit-2.jpg").resize((28, 28))
     digit_2 = np.asarray(digit_2).astype("float32")
     digit_2 = np.expand_dims(digit_2, axis=0)
 
-    digit_9 = Image.open(testdata_dir / "digit-9.jpg").resize((28, 28))
+    digit_9 = Image.open(mnist_testdata / "digit-9.jpg").resize((28, 28))
     digit_9 = np.asarray(digit_9).astype("float32")
     digit_9 = np.expand_dims(digit_9, axis=0)
 
     # Load ONNX model and convert to Relay.
-    onnx_model = onnx.load(testdata_dir / "mnist-8.onnx")
+    onnx_model = onnx.load(mnist_testdata / "mnist-8.onnx")
     shape = {"Input3": (1, 1, 28, 28)}
     relay_mod, params = relay.frontend.from_onnx(onnx_model, shape=shape, freeze_params=True)
     relay_mod = relay.transform.DynamicToStatic()(relay_mod)

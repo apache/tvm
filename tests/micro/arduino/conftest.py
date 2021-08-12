@@ -31,6 +31,7 @@ PLATFORMS = {
     "spresense": ("cxd5602gg", "spresense"),
     "teensy40": ("imxrt1060", "teensy40"),
     "teensy41": ("imxrt1060", "teensy41"),
+    "wioterminal": ("atsamd51", "wioterminal"),
 }
 
 TEMPLATE_PROJECT_DIR = (

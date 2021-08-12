@@ -17,13 +17,14 @@
  * under the License.
  */
 
-#include "stdarg.h"
 #include "standalone_crt/include/tvm/runtime/crt/internal/aot_executor/aot_executor.h"
+#include "stdarg.h"
 
 // Blink code for debugging purposes
 void TVMPlatformAbort(tvm_crt_error_t error) {
-  TVMLogf("TVMPlatformAbort: %08x\n", error);
-  for (;;);
+  TVMLogf("TVMPlatformAbort: 0x%08x\n", error);
+  for (;;)
+    ;
 }
 
 size_t TVMPlatformFormatMessage(char* out_buf, size_t out_buf_size_bytes, const char* fmt,

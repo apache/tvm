@@ -56,7 +56,7 @@ BOARD_PROPERTIES = {
     "due": {
         "package": "arduino",
         "architecture": "sam",
-        "board": "arduino_due_x",
+        "board": "arduino_due_x_dbg",
     },
     # Due to the way the Feather S2 bootloader works, compilation
     # behaves fine but uploads cannot be done automatically
@@ -93,6 +93,11 @@ BOARD_PROPERTIES = {
         "package": "teensy",
         "architecture": "avr",
         "board": "teensy41",
+    },
+    "wioterminal": {
+        "package": "Seeeduino",
+        "architecture": "samd",
+        "board": "seeed_wio_terminal",
     },
 }
 
@@ -133,10 +138,23 @@ class Handler(server.ProjectAPIHandler):
         )
 
     def _copy_project_files(self, api_server_dir, project_dir, project_type):
+        """Copies the files for project_type into project_dir.
+
+        Notes
+        -----
+        template_dir is NOT a project type, and that directory is never copied
+        in this function. template_dir only holds this file and its unit tests,
+        so this file is copied separately in generate_project.
+
+        """
         project_types_folder = api_server_dir.parents[0]
-        shutil.copytree(
-            project_types_folder / project_type / "src", project_dir / "src", dirs_exist_ok=True
-        )
+        for item in (project_types_folder / project_type / "src").iterdir():
+            dest = project_dir / "src" / item.name
+            if item.is_dir():
+                shutil.copytree(item, dest)
+            else:
+                shutil.copy2(item, dest)
+
         # Arduino requires the .ino file have the same filename as its containing folder
         shutil.copy2(
             project_types_folder / project_type / "project.ino",
@@ -146,7 +164,6 @@ class Handler(server.ProjectAPIHandler):
     CRT_COPY_ITEMS = ("include", "src")
 
     def _copy_standalone_crt(self, source_dir, standalone_crt_dir):
-        # Copy over the standalone_crt directory
         output_crt_dir = source_dir / "standalone_crt"
         for item in self.CRT_COPY_ITEMS:
             src_path = os.path.join(standalone_crt_dir, item)
@@ -200,9 +217,9 @@ class Handler(server.ProjectAPIHandler):
         with open(source_dir / "model.h", "r") as f:
             model_h_template = Template(f.read())
 
-        # The structure of the "memory" key depends on the style -
-        # only style="full-model" works with AOT, so we'll check that
-        assert metadata["style"] == "full-model"
+        assert (
+            metadata["style"] == "full-model"
+        ), "when generating AOT, expect only full-model Model Library Format"
 
         template_values = {
             "workspace_size_bytes": metadata["memory"]["functions"]["main"][0][
@@ -225,20 +242,20 @@ class Handler(server.ProjectAPIHandler):
         for filename in source_dir.rglob(f"*.inc"):
             filename.rename(filename.with_suffix(".h"))
 
-    """Arduino only supports includes relative to the top-level project, so this
-    finds each time we #include a file and changes the path to be relative to the
-    top-level project.ino file. For example, the line:
-
-    #include <tvm/runtime/crt/platform.h>
-
-    Might be changed to (depending on the source file's location):
-
-    #include "../../../../include/tvm/runtime/crt/platform.h"
-
-    We also need to leave standard library includes as-is.
-    """
-
     def _convert_includes(self, project_dir, source_dir):
+        """Changes all #include statements in project_dir to be relevant to their
+        containing file's location.
+
+        Arduino only supports includes relative to a file's location, so this
+        function finds each time we #include a file and changes the path to
+        be relative to the file location. Does not do this for standard C
+        libraries. Also changes angle brackets syntax to double quotes syntax.
+
+        See Also
+        -----
+        https://www.arduino.cc/reference/en/language/structure/further-syntax/include/
+
+        """
         for ext in ("c", "h", "cpp"):
             for filename in source_dir.rglob(f"*.{ext}"):
                 with filename.open() as file:
@@ -263,27 +280,19 @@ class Handler(server.ProjectAPIHandler):
     # be added in the future.
     POSSIBLE_BASE_PATHS = ["src/standalone_crt/include/", "src/standalone_crt/crt_config/"]
 
-    """Takes a single #include path, and returns the new location
-    it should point to (as described above). For example, one of the
-    includes for "src/standalone_crt/src/runtime/crt/common/ndarray.c" is:
-
-    #include <tvm/runtime/crt/platform.h>
-
-    For that line, _convert_includes might call _find_modified_include_path
-    with the arguments:
-
-    project_dir = "/path/to/project/dir"
-    file_path = "/path/to/project/dir/src/standalone_crt/src/runtime/crt/common/ndarray.c"
-    include_path = "tvm/runtime/crt/platform.h"
-
-    Given these arguments, _find_modified_include_path should return:
-
-    "../../../../../../src/standalone_crt/include/tvm/runtime/crt/platform.h"
-
-    See unit test in ./tests/test_arduino_microtvm_api_server.py
-    """
-
     def _find_modified_include_path(self, project_dir, file_path, include_path):
+        """Takes a single #include path, and returns the location it should point to.
+
+        Examples
+        --------
+        >>> _find_modified_include_path(
+        ...     "/path/to/project/dir"
+        ...     "/path/to/project/dir/src/standalone_crt/src/runtime/crt/common/ndarray.c"
+        ...     "tvm/runtime/crt/platform.h"
+        ... )
+        "../../../../../../src/standalone_crt/include/tvm/runtime/crt/platform.h"
+
+        """
         if include_path.endswith(".inc"):
             include_path = re.sub(r"\.[a-z]+$", ".h", include_path)
 
@@ -314,8 +323,7 @@ class Handler(server.ProjectAPIHandler):
         source_dir = project_dir / "src"
         source_dir.mkdir()
 
-        # Copies files from the template folder to project_dir. model.h is copied here,
-        # but will also need to be templated later.
+        # Copies files from the template folder to project_dir
         shutil.copy2(API_SERVER_DIR / "microtvm_api_server.py", project_dir)
         self._copy_project_files(API_SERVER_DIR, project_dir, options["project_type"])
 
@@ -359,17 +367,24 @@ class Handler(server.ProjectAPIHandler):
         # Specify project to compile
         subprocess.run(compile_cmd)
 
-    """We run the command `arduino-cli board list`, which produces
-    outputs of the form:
-
-    Port         Type              Board Name FQBN                          Core
-    /dev/ttyS4   Serial Port       Unknown
-    /dev/ttyUSB0 Serial Port (USB) Spresense  SPRESENSE:spresense:spresense SPRESENSE:spresense
-    """
-
     BOARD_LIST_HEADERS = ("Port", "Type", "Board Name", "FQBN", "Core")
 
     def _parse_boards_tabular_str(self, tabular_str):
+        """Parses the tabular output from `arduino-cli board list` into a 2D array
+
+        Examples
+        --------
+        >>> list(_parse_boards_tabular_str(bytes(
+        ...     "Port         Type              Board Name FQBN                          Core               \n"
+        ...     "/dev/ttyS4   Serial Port       Unknown                                                     \n"
+        ...     "/dev/ttyUSB0 Serial Port (USB) Spresense  SPRESENSE:spresense:spresense SPRESENSE:spresense\n"
+        ...     "\n",
+        ... "utf-8")))
+        [['/dev/ttys4', 'Serial Port', 'Unknown', '', ''], ['/dev/ttyUSB0', 'Serial Port (USB)',
+        'Spresense', 'SPRESENSE:spresense:spresense', 'SPRESENSE:spresense']]
+
+        """
+
         str_rows = tabular_str.split("\n")[:-2]
         header = str_rows[0]
         indices = [header.index(h) for h in self.BOARD_LIST_HEADERS] + [len(header)]
@@ -387,7 +402,7 @@ class Handler(server.ProjectAPIHandler):
 
     def _auto_detect_port(self, options):
         list_cmd = [options["arduino_cli_cmd"], "board", "list"]
-        list_cmd_output = subprocess.run(list_cmd, capture_output=True).stdout.decode("utf-8")
+        list_cmd_output = subprocess.run(list_cmd, stdout=subprocess.PIPE).stdout.decode("utf-8")
 
         desired_fqbn = self._get_fqbn(options)
         for line in self._parse_boards_tabular_str(list_cmd_output):
