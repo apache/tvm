@@ -15,14 +15,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-set -eu
+set -eux
 
 export VTA_HW_PATH=`pwd`/3rdparty/vta-hw
-MAKE_ARG="${2-}"
-if [ -n "${CI_CPUSET_NUM_CPUS+x}" -a -z "${MAKE_ARG}" ]; then
-    MAKE_ARG="-j${CI_CPUSET_NUM_CPUS}"
-fi
+#MAKE_ARG="${2-}"
+#if [ -n "${CI_CPUSET_NUM_CPUS+x}" -a -z "${MAKE_ARG}" ]; then
+MAKE_ARG="-j${CI_CPUSET_NUM_CPUS}"
+#fi
 
 cd "$1"
-cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo
+#cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo
 make "${MAKE_ARG}"
