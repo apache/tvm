@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+# pylint: disable=invalid-name, missing-function-docstring
 """Common functions for auto_scheduler test cases"""
 import tvm
 from tvm import auto_scheduler, te, topi
