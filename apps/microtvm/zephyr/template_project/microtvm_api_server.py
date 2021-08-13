@@ -150,6 +150,7 @@ BOARD_USB_FIND_KW = {
     "nucleo_l4r5zi": {"idVendor": 0x0483, "idProduct": 0x374B},
     "nucleo_f746zg": {"idVendor": 0x0483, "idProduct": 0x374B},
     "stm32f746g_disco": {"idVendor": 0x0483, "idProduct": 0x374B},
+    "stm32f429i_disc1": {"idVendor": 0x0483, "idProduct": 0x374B},
 }
 
 
@@ -281,6 +282,10 @@ class Handler(server.ProjectAPIHandler):
             "nucleo_f746zg",
             "nucleo_l4r5zi",
             "stm32f746g_disco",
+            "stm32f429i_disc1",
+        ),
+        "CONFIG_FPU=y": (
+            "stm32f429i_disc1"
         ),
     }
 
