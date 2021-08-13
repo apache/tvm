@@ -41,13 +41,45 @@ ALL_PROVIDERS = (
     "vmware_desktop",
 )
 
-# List of microTVM platforms for testing.
-ALL_MICROTVM_PLATFORMS = (
-    "stm32f746xx_nucleo",
-    "stm32f746xx_disco",
-    "nrf5340dk",
-    "mps2_an521",
+# List of supported electronics platforms. Each must correspond
+# to a sub-directory of this directory.
+ALL_PLATFORMS = (
+    "arduino",
+    "zephyr",
 )
+
+# List of identifying strings for microTVM platforms for testing.
+# Must match PLATFORMS as defined in tvm/tests/micro/[platform]/conftest.py
+# TODO add a way to declare supported platforms to ProjectAPI
+ALL_MICROTVM_PLATFORMS = {
+    "arduino": (
+        "due",
+        "feathers2",
+        "metrom4",
+        "nano33ble",
+        "pybadge",
+        "spresense",
+        "teensy40",
+        "teensy41",
+        "wioterminal",
+    ),
+    "zephyr": (
+        "stm32f746xx_nucleo",
+        "stm32f746xx_disco",
+        "nrf5340dk",
+        "mps2_an521",
+    ),
+}
+
+# Extra scripts required to execute on provisioning
+# in [platform]/base-box/base_box_provision.sh
+EXTRA_SCRIPTS = {
+    "arduino": (),
+    "zephyr": (
+        "docker/install/ubuntu_init_zephyr_project.sh",
+        "docker/install/ubuntu_install_qemu.sh",
+    ),
+}
 
 PACKER_FILE_NAME = "packer.json"
 
@@ -176,18 +208,6 @@ ATTACH_USB_DEVICE = {
     "vmware_desktop": attach_vmware,
 }
 
-# Extra scripts required to execute on provisioning
-# in zephyr/base-box/base_box_provision.sh
-EXTRA_SCRIPTS = {
-    "arduino": (
-        #"docker/install/ubuntu_install_arduino.sh",
-        "docker/install/ubuntu_install_qemu.sh",
-    ),
-    "zephyr": (
-        "docker/install/ubuntu_init_zephyr_project.sh",
-    )
-}
-
 
 def generate_packer_config(platform, file_path, providers):
     builders = []
@@ -207,7 +227,7 @@ def generate_packer_config(platform, file_path, providers):
         )
 
     repo_root = subprocess.check_output(
-        ["git", "rev-parse", "--show-toplevel"], cwd=os.path.dirname(__file__), encoding="utf-8"
+        ["git", "rev-parse", "--show-toplevel"], encoding="utf-8"
     ).strip()
     for script in EXTRA_SCRIPTS[platform]:
         script_path = os.path.join(repo_root, script)
@@ -247,7 +267,6 @@ def build_command(args):
         packer_args += ["-debug"]
 
     packer_args += [PACKER_FILE_NAME]
-    print(packer_args)
     subprocess.check_call(
         packer_args, cwd=os.path.join(THIS_DIR, args.platform, "base-box"), env=env
     )
@@ -346,7 +365,7 @@ def do_run_release_test(release_test_dir, platform, provider_name, test_config, 
         + _quote_cmd(
             [
                 f"apps/microtvm/reference-vm/{platform}/base-box/base_box_test.sh",
-                test_config["platform"],
+                test_config["microtvm_platform"],
             ]
         )
     )
@@ -361,7 +380,7 @@ def test_command(args):
         test_config = json.load(f)
 
         # select microTVM test platform
-        microtvm_test_platform = test_config["nano33ble"]
+        microtvm_test_platform = test_config[args.microtvm_platform]
 
         for key, expected_type in REQUIRED_TEST_CONFIG_KEYS.items():
             assert key in microtvm_test_platform and isinstance(
@@ -370,9 +389,10 @@ def test_command(args):
 
         microtvm_test_platform["vid_hex"] = microtvm_test_platform["vid_hex"].lower()
         microtvm_test_platform["pid_hex"] = microtvm_test_platform["pid_hex"].lower()
-        microtvm_test_platform["platform"] = args.platform
+        microtvm_test_platform["microtvm_platform"] = args.microtvm_platform
 
     providers = args.provider
+    print(providers)
     provider_passed = {p: False for p in providers}
 
     release_test_dir = os.path.join(THIS_DIR, "release-test")
@@ -387,7 +407,11 @@ def test_command(args):
                     release_test_dir, user_box_dir, base_box_dir, provider_name
                 )
             do_run_release_test(
-                release_test_dir, args.platform, provider_name, microtvm_test_platform, args.test_device_serial
+                release_test_dir,
+                args.platform,
+                provider_name,
+                microtvm_test_platform,
+                args.test_device_serial,
             )
             provider_passed[provider_name] = True
 
@@ -449,26 +473,27 @@ def parse_args():
         "--provider",
         choices=ALL_PROVIDERS,
         action="append",
-        help="Name of the provider or providers to act on; if not specified, act on all.",
+        required=True,
+        help="Name of the provider or providers to act on",
     )
 
-    parser.add_argument(
-        "platform",
-        help="Name of the platform VM to act on. Must be a sub-directory of this directory.",
-    )
+    # "test" has special options for different platforms, and "build", "release" might
+    # in the future, so we'll add the platform argument to each one individually.
+    platform_help_str = "Electronics platform to use (e.g. Arduino, Zephyr)"
 
+    # Options for build subcommand
     parser_build = subparsers.add_parser("build", help="Build a base box.")
     parser_build.set_defaults(func=build_command)
-    parser_test = subparsers.add_parser("test", help="Test a base box before release.")
-    parser_test.set_defaults(func=test_command)
-    parser_release = subparsers.add_parser("release", help="Release base box to cloud.")
-    parser_release.set_defaults(func=release_command)
-
+    parser_build.add_argument("platform", help=platform_help_str, choices=ALL_PLATFORMS)
     parser_build.add_argument(
         "--debug-packer",
         action="store_true",
         help=("Run packer in debug mode, and write log to the base-box directory."),
     )
+
+    # Options for test subcommand
+    parser_test = subparsers.add_parser("test", help="Test a base box before release.")
+    parser_test.set_defaults(func=test_command)
     parser_test.add_argument(
         "--skip-build",
         action="store_true",
@@ -485,6 +510,21 @@ def parse_args():
             "iSerial field from `lsusb -v` output."
         ),
     )
+    platform_subparsers = parser_test.add_subparsers(help=platform_help_str)
+    for platform in ALL_PLATFORMS:
+        platform_specific_parser = platform_subparsers.add_parser(platform)
+        platform_specific_parser.set_defaults(platform=platform)
+        platform_specific_parser.add_argument(
+            "--microtvm-platform",
+            choices=ALL_MICROTVM_PLATFORMS[platform],
+            required=True,
+            help="MicroTVM platfrom used for testing.",
+        )
+
+    # Options for release subcommand
+    parser_release = subparsers.add_parser("release", help="Release base box to cloud.")
+    parser_release.set_defaults(func=release_command)
+    parser_release.add_argument("platform", help=platform_help_str, choices=ALL_PLATFORMS)
     parser_release.add_argument(
         "--release-version",
         required=True,

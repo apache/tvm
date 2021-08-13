@@ -22,7 +22,7 @@ set -ex
 # NOTE: TVM is presumed to be mounted already by Vagrantfile.
 cd "${TVM_HOME}"
 
-apps/microtvm/reference-vm/arduino/rebuild-tvm.sh
+apps/microtvm/reference-vm/rebuild-tvm.sh
 
 # Build poetry
 cd apps/microtvm/reference-vm/arduino

@@ -46,11 +46,20 @@ SPRESENSE_BOARDS_URL="https://github.com/sonydevworld/spresense-arduino-compatib
 arduino-cli core update-index --additional-urls $ADAFRUIT_BOARDS_URL,$ESP32_BOARDS_URL,$SPARKFUN_BOARDS_URL,$SEEED_BOARDS_URL,$SPRESENSE_BOARDS_URL
 
 # Install supported cores from those URLS
-arduino-cli core install arduino:mbed_nano # Arduino Nano BLE
-arduino-cli core install arduino:sam # Arduino Due
-arduino-cli core install SPRESENSE:spresense --additional-urls $SPRESENSE_BOARDS_URL # Sony Spresense
-arduino-cli core install adafruit:samd --additional-urls $ADAFRUIT_BOARDS_URL # Adafruit PyBadge
-arduino-cli core install esp32:esp32 --additional-urls $ESP32_BOARDS_URL # Adafruit FeatherS2
+arduino-cli core install arduino:mbed_nano
+arduino-cli core install arduino:sam
+arduino-cli core install adafruit:samd --additional-urls $ADAFRUIT_BOARDS_URL
+arduino-cli core install esp32:esp32 --additional-urls $ESP32_BOARDS_URL
+arduino-cli core install Seeeduino:samd --additional-urls $SEEED_BOARDS_URL
+arduino-cli core install SPRESENSE:spresense --additional-urls $SPRESENSE_BOARDS_URL
+
+# The Sony Spresense SDK has a major bug that breaks TVM. It's scheduled to be fixed in
+# release 2.3.0, but until that's published we need to use the below hack. This ONLY
+# fixes the bug in the main core release SDK - the subcore release SDK and both
+# the main and subcore debug SDKs will continue to fail until an official fix is made.
+# https://github.com/sonydevworld/spresense/issues/200
+SPRESENSE_BUGFIX_PATH=~/.arduino15/packages/SPRESENSE/tools/spresense-sdk/2.2.1/spresense/release/nuttx/include/sys/types.h
+sed -i 's/#ifndef CONFIG_WCHAR_BUILTIN/#if !defined(__cplusplus)/g' $SPRESENSE_BUGFIX_PATH
 
 # Cleanup
 rm -f *.sh
