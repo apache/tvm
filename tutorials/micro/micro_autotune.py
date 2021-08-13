@@ -26,6 +26,11 @@ This tutorial explains how to autotune a model using the C runtime.
 """
 
 import argparse
+import numpy as np
+import subprocess
+import pathlib
+
+import tvm
 
 # A mapping of a microTVM device to its target and board.
 PLATFORMS = {
@@ -47,8 +52,6 @@ def main(args):
     # fill parameters with random numbers.
     #
 
-    import tvm
-
     data_shape = (1, 3, 10, 10)
     weight_shape = (6, 3, 5, 5)
 
@@ -67,8 +70,6 @@ def main(args):
 
     relay_mod = tvm.IRModule.from_expr(f)
     relay_mod = tvm.relay.transform.InferType()(relay_mod)
-
-    import numpy as np
 
     weight_sample = np.random.rand(
         weight_shape[0], weight_shape[1], weight_shape[2], weight_shape[3]
@@ -115,9 +116,6 @@ def main(args):
     # from Zephyr RTOS. If you choose pass `--platform=host` to this tutorial it will uses x86. You can
     # choose other options by choosing from `PLATFORM` list.
     #
-
-    import subprocess
-    import pathlib
 
     repo_root = pathlib.Path(
         subprocess.check_output(["git", "rev-parse", "--show-toplevel"], encoding="utf-8").strip()

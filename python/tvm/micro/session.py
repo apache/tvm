@@ -295,7 +295,9 @@ def compile_and_create_micro_session(
 
 @register_func
 def destroy_micro_session():
+    """Destroy RPC session for microTVM autotune."""
     global RPC_SESSION
+
     if RPC_SESSION is not None:
         exc_type, exc_value, traceback = RPC_SESSION.__exit__(None, None, None)
         RPC_SESSION = None

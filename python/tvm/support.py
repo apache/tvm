@@ -21,10 +21,6 @@ from .runtime.module import Module
 from . import get_global_func
 
 
-class LibInfoUnavailableError(Exception):
-    """Raised when libinfo is not available e.g. because libtvm_runtime.so is used."""
-
-
 def libinfo():
     """Returns a dictionary containing compile-time info, including cmake flags and git commit hash
 
@@ -33,11 +29,15 @@ def libinfo():
     info: Dict[str, str]
         The dictionary of compile-time info.
     """
-    get_lib_info = get_global_func("support.GetLibInfo")()
-    if not get_lib_info:
+    get_lib_info_func = get_global_func("support.GetLibInfo", allow_missing=True)
+    if get_lib_info_func is not None:
+        lib_info = get_lib_info_func()
+        if lib_info is None:
+            return {}
+    else:
         return {}
 
-    return {k: v for k, v in get_lib_info.items()}  # pylint: disable=unnecessary-comprehension
+    return {k: v for k, v in lib_info.items()}  # pylint: disable=unnecessary-comprehension
 
 
 class FrontendTestModule(Module):
