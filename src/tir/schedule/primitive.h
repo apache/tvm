@@ -104,6 +104,26 @@ TVM_DLL void ReverseComputeInline(ScheduleState self, const StmtSRef& block_sref
  * \return The sref of the rfactor block
  */
 TVM_DLL StmtSRef RFactor(ScheduleState self, const StmtSRef& loop_sref, int factor_axis);
+/******** Schedule: Block annotation ********/
+/*!
+ * \brief Set alignment requirement for specific dimension such that
+ *        stride[axis] == k * factor + offset for some k. This is useful to set memory layout for
+ *        more friendly memory access pattern. For example, we can set alignment to be factor=2,
+ *        offset=1 to avoid bank conflict for thread access on higher dimension in GPU shared
+ *        memory.
+ * \param block_sref The producer block of the buffer
+ * \param buffer_index The index of the buffer in block's write region
+ * \param axis The dimension to be specified for alignment
+ * \param factor The factor multiple of alignment
+ * \param offset The required offset factor
+ */
+TVM_DLL void StorageAlign(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
+                          int axis, int factor, int offset);
+
+/******** Annotation types for StorageAlign ********/
+using StorageAlignTuple = Array<Integer>;                 // (buffer_idx, axis, factor, offset)
+using StorageAlignAnnotation = Array<StorageAlignTuple>;  // unordered array of StorageAlignTuple
+
 /******** Schedule: Blockize & Tensorize ********/
 /******** Schedule: Annotation ********/
 /******** Schedule: Misc ********/
