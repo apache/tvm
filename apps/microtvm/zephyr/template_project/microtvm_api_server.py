@@ -284,9 +284,6 @@ class Handler(server.ProjectAPIHandler):
             "stm32f746g_disco",
             "stm32f429i_disc1",
         ),
-        "CONFIG_FPU=y": (
-            "stm32f429i_disc1"
-        ),
     }
 
     def _create_prj_conf(self, project_dir, options):
@@ -434,6 +431,7 @@ class Handler(server.ProjectAPIHandler):
         "qemu_riscv64",
         "qemu_x86",
         "stm32f746g_disco",
+        "stm32f429i_disc1"
     )
 
     @classmethod
