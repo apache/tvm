@@ -146,8 +146,16 @@ void BinaryOpMatchTypes(PrimExpr& lhs, PrimExpr& rhs, Span span) {  // NOLINT(*)
              (lhs.dtype().is_uint() && rhs.dtype().is_int())) {
     // Handle mixing signed and unsigned integers
     int bits = std::max(lhs.dtype().bits(), rhs.dtype().bits());
-    lhs = SimpleCast(DataType::Int(bits, lhs.dtype().lanes()), lhs, span);
-    rhs = SimpleCast(DataType::Int(bits, rhs.dtype().lanes()), rhs, span);
+    // if the signed int range is bigger than that of uint, try uint->int
+    if (lhs.dtype().is_int() && rhs.dtype().bits() <= bits - 1) {
+      rhs = cast(lhs.dtype(), rhs);
+    } else if (rhs.dtype().is_int() && lhs.dtype().bits() <= bits - 1) {
+      lhs = cast(rhs.dtype(), lhs);
+    } else {
+      // the ranges of uint and int types conflit, try SimpleCast
+      lhs = SimpleCast(DataType::Int(bits, lhs.dtype().lanes()), lhs, span);
+      rhs = SimpleCast(DataType::Int(bits, rhs.dtype().lanes()), rhs, span);
+    }
   } else {
     LOG(FATAL) << "Cannot match type " << ltype << " vs " << rtype;
   }
