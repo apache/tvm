@@ -27,6 +27,7 @@ This tutorial explains how to autotune a model using the C runtime.
 
 import argparse
 
+# A mapping of a microTVM device to its target and board.
 PLATFORMS = {
     "host": ("host", None),
     "qemu_x86": ("host", "qemu_x86"),
@@ -256,7 +257,9 @@ def main(args):
 
 
 def parse_args():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        description="A tutorial explains how to autotune a model for microTVM targets."
+    )
     parser.add_argument(
         "--platform", required=True, choices=PLATFORMS.keys(), help="MicroTVM target plarform."
     )

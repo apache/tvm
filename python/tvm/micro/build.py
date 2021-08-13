@@ -17,7 +17,6 @@
 
 """Defines top-level glue functions for building microTVM artifacts."""
 
-import contextlib
 import json
 import logging
 import os
