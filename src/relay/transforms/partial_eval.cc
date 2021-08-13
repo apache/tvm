@@ -776,7 +776,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
 
   Func VisitFuncStatic(const Function& func, const Expr& var) {
     ICHECK(IsAtomic(var));
-    if (func->HasNonzeroAttr(attr::kPrimitive)) {
+    if (func->attrs.HasNonzeroAttr(attr::kPrimitive)) {
       return ConstEvaluateFunc(func);
     }
     std::vector<std::pair<Var, PStatic> > free_vars;

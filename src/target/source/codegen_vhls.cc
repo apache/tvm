@@ -148,7 +148,7 @@ runtime::Module BuildSDAccel(IRModule mod, Target target) {
   for (auto kv : mod->functions) {
     ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodeGenVHLS: Can only take PrimFunc";
     auto f = Downcast<PrimFunc>(kv.second);
-    auto calling_conv = f->GetAttr<Integer>(tvm::attr::kCallingConv);
+    auto calling_conv = f->attrs.GetAttr<Integer>(tvm::attr::kCallingConv);
     ICHECK(calling_conv == CallingConv::kDeviceKernelLaunch)
         << "CodeGenVLHS: expect calling_conv equals CallingConv::kDeviceKernelLaunch";
     cg.AddFunction(f);
@@ -170,7 +170,7 @@ runtime::Module BuildSDAccel(IRModule mod, Target target) {
       code = (*f)(code).operator std::string();
     }
 
-    auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
+    auto global_symbol = f->attrs.GetAttr<String>(tvm::attr::kGlobalSymbol);
     ICHECK(global_symbol.defined())
         << "CodeGenC: Expect PrimFunc to have the global_symbol attribute";
     kernel_info.push_back({global_symbol.value(), code});

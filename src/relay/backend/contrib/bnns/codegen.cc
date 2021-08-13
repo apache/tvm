@@ -80,7 +80,7 @@ class BNNSJSONSerializer : public backend::contrib::JSONSerializer {
     if (const auto* op_node = cn->op.as<OpNode>()) {
       name = op_node->name;
     } else if (const auto* fn = cn->op.as<FunctionNode>()) {
-      auto comp = fn->GetAttr<String>(attr::kComposite);
+      auto comp = fn->attrs.GetAttr<String>(attr::kComposite);
       ICHECK(comp.defined()) << "BNNS JSON runtime only supports composite functions.";
       name = comp.value();
 
@@ -176,7 +176,7 @@ struct BNNSConstantUpdater : public ConstantUpdater {
 
  private:
   bool isBNNSSpecificCompositeFunc(const FunctionNode* op) {
-    auto comp = op->GetAttr<String>(attr::kComposite);
+    auto comp = op->attrs.GetAttr<String>(attr::kComposite);
     if (!comp) return false;
 
     auto comp_name = comp.value();

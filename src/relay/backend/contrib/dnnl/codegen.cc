@@ -440,7 +440,7 @@ class DNNLJSONSerializer : public backend::contrib::JSONSerializer {
     if (const auto* op_node = cn->op.as<OpNode>()) {
       name = op_node->name;
     } else if (const auto* fn = cn->op.as<FunctionNode>()) {
-      auto comp = fn->GetAttr<String>(attr::kComposite);
+      auto comp = fn->attrs.GetAttr<String>(attr::kComposite);
       ICHECK(comp.defined()) << "DNNL JSON runtime only supports composite functions.";
       name = comp.value();
 

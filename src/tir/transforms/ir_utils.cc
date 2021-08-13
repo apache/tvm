@@ -245,7 +245,7 @@ Region ConvertRegion(const MatchBufferRegion& match_buffer, const Region& region
 }
 
 Bool IsFromLegacyTESchedule(PrimFunc f) {
-  Optional<Bool> from_legacy_te_schedule = f->GetAttr("from_legacy_te_schedule", Bool(false));
+  Optional<Bool> from_legacy_te_schedule = f->attrs.GetAttr("from_legacy_te_schedule", Bool(false));
   return from_legacy_te_schedule.value();
 }
 

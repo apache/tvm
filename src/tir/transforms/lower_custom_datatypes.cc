@@ -207,7 +207,7 @@ namespace transform {
 Pass LowerCustomDatatypes() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
-    auto target = f->GetAttr<Target>(tvm::attr::kTarget);
+    auto target = f->attrs.GetAttr<Target>(tvm::attr::kTarget);
     ICHECK(target.defined()) << "LowerCustomDatatypes: Require the target attribute";
 
     n->body = CustomDatatypesLowerer(target.value()->kind->name)(std::move(n->body));

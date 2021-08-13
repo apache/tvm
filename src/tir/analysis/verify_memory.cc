@@ -169,10 +169,10 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
 
 /// Interface of VerifyMemory pass
 std::vector<String> VerifyMemory_(const PrimFunc& func) {
-  auto target = func->GetAttr<Target>(tvm::attr::kTarget);
+  auto target = func->attrs.GetAttr<Target>(tvm::attr::kTarget);
   ICHECK(target.defined()) << "VerifyMemory: Require the target attribute";
 
-  if (func->GetAttr<Integer>(tvm::attr::kCallingConv, Integer(CallingConv::kDefault)) ==
+  if (func->attrs.GetAttr<Integer>(tvm::attr::kCallingConv, Integer(CallingConv::kDefault)) ==
       CallingConv::kDefault) {
     MemoryAccessVerifier v(func, target.value()->kind->device_type);
     v.Run();

@@ -77,10 +77,10 @@ void CodeGenC::AddFunction(const PrimFunc& f) {
   // reserve keywords
   ReserveKeywordsAsUnique();
 
-  auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
+  auto global_symbol = f->attrs.GetAttr<String>(tvm::attr::kGlobalSymbol);
   ICHECK(global_symbol.defined())
       << "CodeGenC: Expect PrimFunc to have the global_symbol attribute";
-  bool no_alias = f->HasNonzeroAttr(tir::attr::kNoAlias);
+  bool no_alias = f->attrs.HasNonzeroAttr(tir::attr::kNoAlias);
 
   this->PrintFuncPrefix();
   this->PrintExtraAttrs(f);

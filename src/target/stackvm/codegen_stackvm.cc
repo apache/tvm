@@ -516,7 +516,7 @@ runtime::Module BuildStackVM(IRModule mod, Target target) {
   for (auto kv : mod->functions) {
     ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodeGenStackVM: Can only take PrimFunc";
     auto f = Downcast<PrimFunc>(kv.second);
-    auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
+    auto global_symbol = f->attrs.GetAttr<String>(tvm::attr::kGlobalSymbol);
     ICHECK(global_symbol.defined())
         << "CodeGenStackVM: Expect PrimFunc to have the global_symbol attribute";
     std::string f_name = global_symbol.value();
@@ -524,7 +524,7 @@ runtime::Module BuildStackVM(IRModule mod, Target target) {
     ICHECK(!fmap.count(f_name)) << "Function name " << f_name << "already exist in list";
     fmap[f_name] = std::move(vm);
 
-    if (f->HasNonzeroAttr(tir::attr::kIsEntryFunc)) {
+    if (f->attrs.HasNonzeroAttr(tir::attr::kIsEntryFunc)) {
       entry_func = f_name;
     }
   }

@@ -53,7 +53,7 @@ void CodeGenCHost::Init(bool output_ssa, bool emit_asserts, std::string target_s
 void CodeGenCHost::DefineModuleName() { decl_stream << "void* " << module_name_ << " = NULL;\n"; }
 
 void CodeGenCHost::AddFunction(const PrimFunc& f) {
-  auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
+  auto global_symbol = f->attrs.GetAttr<String>(tvm::attr::kGlobalSymbol);
   ICHECK(global_symbol.defined())
       << "CodeGenCHost: Expect PrimFunc to have the global_symbol attribute";
   function_names_.push_back(global_symbol.value());
@@ -390,7 +390,7 @@ runtime::Module BuildCHost(IRModule mod, Target target) {
     // Make sure that the executor function is the last one to be code generated so that all the
     // symbols are available to tvm_run_func
     auto fun_name = std::string(kv.first->name_hint);
-    bool is_aot_executor_fn = kv.second->GetAttr<Bool>("runner_function", Bool(false)).value();
+    bool is_aot_executor_fn = kv.second->attrs.GetAttr<Bool>("runner_function", Bool(false)).value();
 
     if (is_aot_executor_fn) {
       aot_executor_fn = Downcast<PrimFunc>(kv.second);

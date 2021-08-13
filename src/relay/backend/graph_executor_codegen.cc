@@ -226,7 +226,7 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
           // We need to maintain the constant map for external
           // functions so we pass this processing function which
           // allows us to process each function as we lower it.
-          if (func->GetAttr<String>(attr::kCompiler).defined()) {
+          if (func->attrs.GetAttr<String>(attr::kCompiler).defined()) {
             UpdateConstants(func, &params_);
           }
 
@@ -473,7 +473,7 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
     return {};
   }
   std::vector<GraphNodeRef> VisitExpr_(const FunctionNode* op) override {
-    ICHECK(op->GetAttr<String>(attr::kCompiler).defined())
+    ICHECK(op->attrs.GetAttr<String>(attr::kCompiler).defined())
         << "Only functions supported by custom codegen";
     return {};
   }

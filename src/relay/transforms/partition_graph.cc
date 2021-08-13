@@ -499,7 +499,7 @@ class NameMangleExtFuncs : public MixedModeMutator {
     for (const auto& pair : glob_funcs) {
       if (auto* fn = pair.second.as<FunctionNode>()) {
         auto func = GetRef<Function>(fn);
-        if (func->GetAttr<String>(attr::kCompiler).defined()) {
+        if (func->attrs.GetAttr<String>(attr::kCompiler).defined()) {
           auto fn_name_mangled = mangle_fn_(pair.first->name_hint);
           GlobalVar gvar = GlobalVar(fn_name_mangled);
           mangled_gvars_[pair.first->name_hint] = gvar;
@@ -514,7 +514,7 @@ class NameMangleExtFuncs : public MixedModeMutator {
       if (auto* fn = pair.second.as<FunctionNode>()) {
         auto func = GetRef<Function>(fn);
 
-        if (func->GetAttr<String>(attr::kCompiler).defined()) {
+        if (func->attrs.GetAttr<String>(attr::kCompiler).defined()) {
           auto new_dict = func->attrs->dict;
           new_dict.Set(tvm::attr::kGlobalSymbol, String(mangle_fn_(pair.first->name_hint)));
           func = Function(func->params, VisitExpr(func->body), func->ret_type, func->type_params,

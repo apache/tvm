@@ -47,7 +47,7 @@ namespace tvm {
 namespace codegen {
 
 static std::string get_name(const PrimFunc& f) {
-  auto global_symbol = f->GetAttr<runtime::String>(tvm::attr::kGlobalSymbol);
+  auto global_symbol = f->attrs.GetAttr<runtime::String>(tvm::attr::kGlobalSymbol);
   ICHECK(global_symbol.defined())
       << "CodeGenLLVM: Expect PrimFunc to have the global_symbol attribute";
   return std::string(global_symbol.value());

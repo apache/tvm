@@ -199,7 +199,7 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
   // Post order tree
   void VisitExpr_(const FunctionNode* op) final {
     // Skip the function that should be handled by external codegen.
-    if (op->GetAttr<String>(attr::kCompiler).defined()) return;
+    if (op->attrs.GetAttr<String>(attr::kCompiler).defined()) return;
 
     for (auto param : op->params) {
       this->Update(param, nullptr, kOpaque);
@@ -856,7 +856,7 @@ class FuseMutator : private MixedModeMutator {
 
   // Skip primitive function.
   Expr VisitExpr_(const FunctionNode* fn_node) {
-    if (fn_node->HasNonzeroAttr(attr::kPrimitive)) {
+    if (fn_node->attrs.HasNonzeroAttr(attr::kPrimitive)) {
       return GetRef<Expr>(fn_node);
     } else {
       return ExprMutator::VisitExpr_(fn_node);

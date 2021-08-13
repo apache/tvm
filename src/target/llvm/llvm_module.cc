@@ -234,10 +234,10 @@ class LLVMModuleNode final : public runtime::ModuleNode {
         continue;
       }
       auto f = Downcast<PrimFunc>(kv.second);
-      auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
+      auto global_symbol = f->attrs.GetAttr<String>(tvm::attr::kGlobalSymbol);
       ICHECK(global_symbol.defined());
       function_names_.push_back(global_symbol.value());
-      if (f->HasNonzeroAttr(tir::attr::kIsEntryFunc)) {
+      if (f->attrs.HasNonzeroAttr(tir::attr::kIsEntryFunc)) {
         entry_func = global_symbol.value();
       }
       funcs.push_back(f);

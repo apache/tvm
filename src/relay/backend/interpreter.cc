@@ -480,7 +480,7 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
     bool is_dyn = IsDynamic(ret_type);
 
     if (is_dyn) {
-      ICHECK(func->HasNonzeroAttr(attr::kPrimitive));
+      ICHECK(func->attrs.HasNonzeroAttr(attr::kPrimitive));
       out_shapes = ComputeDynamicShape(func, args);
     }
 
@@ -519,7 +519,7 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
   ObjectRef Invoke(const InterpreterClosure& closure, const tvm::Array<ObjectRef>& args,
                    const Var& bind = Var()) {
     // Get a reference to the function inside the closure.
-    if (closure->func->HasNonzeroAttr(attr::kPrimitive)) {
+    if (closure->func->attrs.HasNonzeroAttr(attr::kPrimitive)) {
       return InvokePrimitiveOp(closure->func, args);
     }
     auto func = closure->func;

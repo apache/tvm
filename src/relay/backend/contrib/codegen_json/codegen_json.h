@@ -225,7 +225,7 @@ class JSONSerializer : public MemoizedExprTranslator<std::vector<JSONGraphNodeEn
       const Object* call_attr = cn->attrs.get();
       extractor.Extract(const_cast<Object*>(call_attr));
     } else if (const auto* fn = cn->op.as<FunctionNode>()) {
-      auto pattern = fn->GetAttr<String>(attr::kPartitionedFromPattern);
+      auto pattern = fn->attrs.GetAttr<String>(attr::kPartitionedFromPattern);
       ICHECK(pattern.defined());
       std::vector<std::string> values;
       values.push_back(pattern.value());
@@ -267,7 +267,7 @@ class JSONSerializer : public MemoizedExprTranslator<std::vector<JSONGraphNodeEn
     if (const auto* op_node = cn->op.as<OpNode>()) {
       name = op_node->name;
     } else if (const auto* fn = cn->op.as<FunctionNode>()) {
-      auto comp = fn->GetAttr<String>(attr::kComposite);
+      auto comp = fn->attrs.GetAttr<String>(attr::kComposite);
       ICHECK(comp.defined()) << "JSON runtime only supports composite functions.";
       name = comp.value();
     } else {
@@ -298,7 +298,7 @@ class JSONSerializer : public MemoizedExprTranslator<std::vector<JSONGraphNodeEn
   }
 
   std::vector<JSONGraphNodeEntry> VisitExpr_(const FunctionNode* fn) {
-    ICHECK(fn->GetAttr<String>(attr::kComposite).defined())
+    ICHECK(fn->attrs.GetAttr<String>(attr::kComposite).defined())
         << "JSON runtime only supports composite functions";
     // FunctionNode should be handled by the caller.
     return {};

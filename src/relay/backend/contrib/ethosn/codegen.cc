@@ -53,7 +53,7 @@ bool IsEthosnFunc(const Call& call, const std::string& op_name) {
   if (call->op->IsInstance<FunctionNode>()) {
     Function func = Downcast<Function>(call->op);
     ICHECK(func.defined());
-    auto name_node = func->GetAttr<String>(attr::kComposite);
+    auto name_node = func->attrs.GetAttr<String>(attr::kComposite);
     return name_node.value() == op_name;
   }
   return false;
@@ -521,7 +521,7 @@ runtime::Module EthosnCompiler::CreateRuntimeModule(const ObjectRef& ref) {
   if (ref->IsInstance<FunctionNode>()) {
     IRModule mod;
     Function func = Downcast<Function>(ref);
-    auto name_node = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
+    auto name_node = func->attrs.GetAttr<String>(tvm::attr::kGlobalSymbol);
     ICHECK(name_node.defined()) << "Failed to retrieved external symbol.";
     GlobalVar gvar = GlobalVar(name_node.value());
     mod->Add(gvar, func);

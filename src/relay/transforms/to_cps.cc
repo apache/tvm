@@ -134,7 +134,7 @@ Function ToCPS(const Function& f, const IRModule& m, CPSMap* cm, VarMap* vm,
     }
 
     Expr VisitExpr_(const FunctionNode* op, const MCont& k) final {
-      ICHECK(!op->HasNonzeroAttr(attr::kPrimitive)) << "primitive func not supported yet.";
+      ICHECK(!op->attrs.HasNonzeroAttr(attr::kPrimitive)) << "primitive func not supported yet.";
       return k(ToCPS(GetRef<Function>(op), m, cm, vm, answer));
     }
 

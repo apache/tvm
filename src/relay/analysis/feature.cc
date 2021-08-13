@@ -60,7 +60,7 @@ FeatureSet DetectFeature(const Expr& expr) {
     DETECT_DEFAULT_CONSTRUCT(Tuple)
     DETECT_DEFAULT_CONSTRUCT(TupleGetItem)
     DETECT_CONSTRUCT(Function, {
-      if (!op->HasNonzeroAttr(attr::kPrimitive)) {
+      if (!op->attrs.HasNonzeroAttr(attr::kPrimitive)) {
         ExprVisitor::VisitExpr_(op);
       }
     })

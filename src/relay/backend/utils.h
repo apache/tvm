@@ -173,10 +173,10 @@ struct ConstantUpdater : public ExprVisitor {
  */
 inline void UpdateConstants(Function func,
                             std::unordered_map<std::string, runtime::NDArray>* params) {
-  auto codegen = func->GetAttr<String>(attr::kCompiler);
+  auto codegen = func->attrs.GetAttr<String>(attr::kCompiler);
   ICHECK(codegen.defined()) << "No external codegen is set";
   std::string codegen_name = codegen.value();
-  const auto name_node = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
+  const auto name_node = func->attrs.GetAttr<String>(tvm::attr::kGlobalSymbol);
   std::string symbol = std::string(name_node.value());
   std::string const_update_name = "relay.ext." + codegen_name + ".constant_updater";
   // Get the constant updater for the external codegen
@@ -392,7 +392,7 @@ inline const CallNode* GetRootCall(const CallNode* current_call, int depth,
  * \return An external symbol.
  */
 inline std::string GetExtSymbol(const Function& func) {
-  const auto name_node = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
+  const auto name_node = func->attrs.GetAttr<String>(tvm::attr::kGlobalSymbol);
   ICHECK(name_node.defined()) << "Fail to retrieve external symbol.";
   return std::string(name_node.value());
 }

@@ -99,7 +99,7 @@ class Inliner : ExprMutator {
     if (!func->body.defined()) return false;
 
     // The function must be annotated with the inline attribute.
-    if (!func->HasNonzeroAttr(attr::kInline)) return false;
+    if (!func->attrs.HasNonzeroAttr(attr::kInline)) return false;
 
     // The function is not abled to be inlined if any callee under the CallGraph
     // of this function cannot be inlined.
@@ -122,7 +122,7 @@ class Inliner : ExprMutator {
     auto func = Function(fn->params, fn->body, fn->ret_type, fn->type_params, fn->attrs);
     // Inline the function body to the caller if this function uses default
     // compiler, i.e. no external codegen is needed.
-    if (!func->GetAttr<String>(attr::kCompiler).defined()) {
+    if (!func->attrs.GetAttr<String>(attr::kCompiler).defined()) {
       ICHECK_EQ(func->params.size(), args.size())
           << "Mismatch found in the number of parameters and call args";
       // Bind the parameters with call args.
@@ -188,7 +188,7 @@ IRModule Inline(const IRModule& module) {
     auto base_func = cg->GetGlobalFunction(cgn->GetGlobalVar());
     if (const auto* fn = base_func.as<FunctionNode>()) {
       auto func = GetRef<Function>(fn);
-      if (func->HasNonzeroAttr(attr::kInline)) {
+      if (func->attrs.HasNonzeroAttr(attr::kInline)) {
         ICHECK_EQ(cgn->GetRefCount(), 0U)
             << cgn->GetNameHint() << " is marked as inline but not inlined.";
         cgn->CleanCallGraphEntries();

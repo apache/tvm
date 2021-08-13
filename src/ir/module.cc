@@ -356,7 +356,7 @@ IRModule IRModule::FromExpr(const RelayExpr& expr,
 
   if (auto* func_node = expr.as<BaseFuncNode>()) {
     func = GetRef<BaseFunc>(func_node);
-    if (auto opt = func->GetAttr<String>(tvm::attr::kGlobalSymbol)) {
+    if (auto opt = func->attrs.GetAttr<String>(tvm::attr::kGlobalSymbol)) {
       gv_name = opt.value();
     }
 
