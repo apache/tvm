@@ -29,6 +29,7 @@
 #
 # All configuration values have a default; values that are commented out
 # serve to show the default.
+import gc
 import sys
 import inspect
 import os, subprocess
@@ -300,6 +301,16 @@ class WithinSubsectionOrder:
         return filename
 
 
+# When running the tutorials on GPUs we are dependent on the Python garbage collector
+# collecting TVM packed function closures for any device memory to also be released. This
+# is not a good setup for machines with lots of CPU ram but constrained GPU ram, so force
+# a gc after each example.
+def force_gc(gallery_cong, fname):
+    print("(Forcing Python gc after '{}' to avoid lag in reclaiming CUDA memory)".format(fname))
+    gc.collect()
+    print("(Remaining garbage: {})".format(gc.garbage))
+
+
 sphinx_gallery_conf = {
     "backreferences_dir": "gen_modules/backreferences",
     "doc_module": ("tvm", "numpy"),
@@ -317,6 +328,7 @@ sphinx_gallery_conf = {
     "download_all_examples": False,
     "min_reported_time": 60,
     "expected_failing_examples": [],
+    "reset_modules": (force_gc, "matplotlib", "seaborn"),
 }
 
 autodoc_default_options = {

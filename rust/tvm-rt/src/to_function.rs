@@ -74,7 +74,7 @@ pub trait ToFunction<I, O>: Sized {
             &mut fhandle as *mut ffi::TVMFunctionHandle,
         ));
 
-        Function::new(fhandle)
+        Function::from_raw(fhandle)
     }
 
     /// The callback function which is wrapped converted by TVM

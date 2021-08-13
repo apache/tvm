@@ -527,6 +527,45 @@ BlockRealize GetBlockRealize(const ScheduleState& self, const StmtSRef& block_sr
   }
 }
 
+/******** Block-buffer relation ********/
+
+Buffer GetNthWriteBuffer(const ScheduleState& self, const Block& block, int n) {
+  class WriteBufferIndexOutOfRangeError : public ScheduleError {
+   public:
+    explicit WriteBufferIndexOutOfRangeError(IRModule mod, Block block, int buffer_index)
+        : mod_(std::move(mod)), block_(std::move(block)), buffer_index_(buffer_index) {}
+
+    String FastErrorString() const final {
+      return "ScheduleError: The input `buffer_index` is out of range. It is required to be in "
+             "range [0, num_write_regions) where `num_write_regions` is the number of buffer "
+             "regions written by the block.";
+    }
+
+    String DetailRenderTemplate() const final {
+      std::ostringstream os;
+      size_t num_writes = block_->writes.size();
+      os << "The block {0} has " << num_writes
+         << " write regions, so `buffer_index` is required to be in [0, " << num_writes
+         << "). However, the input `buffer_index` is " << buffer_index_
+         << ", which is out of the expected range";
+      return os.str();
+    }
+
+    IRModule mod() const final { return mod_; }
+    Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
+
+   private:
+    IRModule mod_;
+    Block block_;
+    int buffer_index_;
+  };
+
+  if (n < 0 || static_cast<size_t>(n) >= block->writes.size()) {
+    throw WriteBufferIndexOutOfRangeError(self->mod, block, n);
+  }
+  return block->writes[n]->buffer;
+}
+
 /******** Pattern Matcher ********/
 
 /*!

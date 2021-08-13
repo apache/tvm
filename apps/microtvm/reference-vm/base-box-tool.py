@@ -178,10 +178,7 @@ ATTACH_USB_DEVICE = {
 
 # Extra scripts required to execute on provisioning
 # in zephyr/base-box/base_box_provision.sh
-EXTRA_SCRIPTS = (
-    "docker/install/ubuntu_init_zephyr_project.sh",
-    "docker/install/ubuntu_install_qemu.sh",
-)
+EXTRA_SCRIPTS = ("docker/install/ubuntu_init_zephyr_project.sh",)
 
 
 def generate_packer_config(file_path, providers):

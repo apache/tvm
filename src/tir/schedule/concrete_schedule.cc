@@ -362,6 +362,16 @@ void ConcreteScheduleNode::ReverseComputeInline(const BlockRV& block_rv) {
 }
 
 /******** Schedule: loop binding/annotation ********/
+/******** Schedule: block annotation ********/
+
+void ConcreteScheduleNode::StorageAlign(const BlockRV& block_rv, int buffer_index, int axis,
+                                        int factor, int offset) {
+  TVM_TIR_SCHEDULE_BEGIN();
+  tir::StorageAlign(state_, this->GetSRef(block_rv), buffer_index, axis, factor, offset);
+  TVM_TIR_SCHEDULE_END("storage-align", this->error_render_level_);
+  this->state_->DebugVerify();
+}
+
 /******** Schedule: cache read/write ********/
 /******** Schedule: reduction ********/
 
