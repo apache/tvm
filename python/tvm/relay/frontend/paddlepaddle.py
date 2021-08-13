@@ -610,14 +610,14 @@ def convert_pool2d(g, op, block):
 def convert_reshape(g, op, block):
     """Operator converter for reshape."""
 
-    shape_attr = op.input('Shape')
-    tensor_attr = op.input('ShapeTensor')
+    input_shape = op.input('Shape')
+    input_shape_tensor = op.input('ShapeTensor')
     data = g.get_node(op.input('X')[0])
-    if shape_attr:
-        new_shape = g.get_node(shape_attr[0])
-    elif tensor_attr:
+    if input_shape:
+        new_shape = g.get_node(input_shape[0])
+    elif input_shape_tensor:
         tmp_shape = []
-        for shape_name in tensor_attr:
+        for shape_name in input_shape_tensor:
             shape = g.get_node(shape_name)
             if len(infer_shape(shape)) == 0:
                 shape = _op.reshape(shape, [-1])
