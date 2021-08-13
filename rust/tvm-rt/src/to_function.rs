@@ -32,7 +32,6 @@ use std::{
 };
 
 use super::{function::Result, Function};
-use crate::AsArgValue;
 use crate::errors::Error;
 
 pub use tvm_sys::{ffi, ArgValue, RetValue};
@@ -45,23 +44,17 @@ pub use tvm_sys::{ffi, ArgValue, RetValue};
 /// conversion of inputs and outputs to this trait.
 ///
 /// And the implementation of it to `ToFunction`.
-pub trait Typed<'a, I, O> {
-    fn args(i: Vec<ArgValue<'a>>) -> Result<I>;
+
+type ArgList<'a> = Vec<ArgValue<'a>>;
+
+pub enum Args<'a, I> {
+    Typed(I),
+    Raw(ArgList<'a>)
+}
+
+pub trait Typed<I, O> {
+    fn args<'arg>(i: Vec<ArgValue<'arg>>) -> Result<Args<'arg, I>>;
     fn ret(o: O) -> Result<RetValue>;
-}
-
-trait AsArgValueErased where Self: for<'a> AsArgValue<'a> {
-    fn as_arg_value<'a>(&'a self) -> ArgValue<'a>;
-}
-
-struct ArgList {
-    args: Vec<Box<dyn AsArgValueErased>>
-}
-
-impl<T: 'static> AsArgValueErased for T where T: for<'a> AsArgValue<'a> {
-    fn as_arg_value<'a>(&'a self) -> ArgValue<'a> {
-        AsArgValue::as_arg_value(self)
-    }
 }
 
 pub trait ToFunction<I, O>: Sized {
@@ -71,13 +64,13 @@ pub trait ToFunction<I, O>: Sized {
 
     fn call<'a>(handle: *mut Self::Handle, args: Vec<ArgValue<'a>>) -> Result<RetValue>
     where
-        Self: for<'arg> Typed<'arg, I, O>;
+        Self: Typed<I, O>;
 
     fn drop(handle: *mut Self::Handle);
 
     fn to_function(self) -> Function
     where
-        Self: for<'a> Typed<'a, I, O>,
+        Self: Typed<I, O>,
     {
         let mut fhandle = ptr::null_mut() as ffi::TVMFunctionHandle;
         let resource_handle = self.into_raw();
@@ -102,7 +95,7 @@ pub trait ToFunction<I, O>: Sized {
         resource_handle: *mut c_void,
     ) -> c_int
     where
-        Self: for <'a> Typed<'a,  I, O>,
+        Self: Typed<I, O>,
     {
         #![allow(unused_assignments, unused_unsafe)]
         let result = std::panic::catch_unwind(|| {
@@ -180,56 +173,69 @@ pub trait ToFunction<I, O>: Sized {
     }
 }
 
-// impl<'a> Typed<'a, Vec<ArgValue<'a>>, RetValue> for for<'arg> fn(Vec<ArgValue<'arg>>) -> Result<RetValue> {
-//     fn args(args: Vec<ArgValue<'a>>) -> Result<Vec<ArgValue<'a>>> {
-//         Ok(args)
-//     }
+pub struct RawArgs;
 
-//     fn ret(o: RetValue) -> Result<RetValue> {
-//         Ok(o)
-//     }
-// }
+impl Typed<RawArgs, RetValue> for for <'a> fn(Vec<ArgValue<'a>>) -> Result<RetValue> {
+    fn args<'arg>(args: Vec<ArgValue<'arg>>) -> Result<Args<'arg, RawArgs>> {
+        Ok(Args::Raw(args))
+    }
 
-// impl ToFunction<ArgList, RetValue>
-//     for fn(ArgList) -> Result<RetValue>
-// {
-//     type Handle = for<'a> fn(Vec<ArgValue<'a>>) -> Result<RetValue>;
+    fn ret(o: RetValue) -> Result<RetValue> {
+        Ok(o)
+    }
+}
 
-//     fn into_raw(self) -> *mut Self::Handle {
-//         let ptr: Box<Self::Handle> = Box::new(self);
-//         Box::into_raw(ptr)
-//     }
+impl ToFunction<RawArgs, RetValue>
+    for for <'arg> fn(Vec<ArgValue<'arg>>) -> Result<RetValue>
+{
+    type Handle = for <'arg> fn(Vec<ArgValue<'arg>>) -> Result<RetValue>;
 
-//     fn call<'a>(handle: *mut Self::Handle, args: Vec<ArgValue<'a>>) -> Result<RetValue> {
-//         unsafe {
-//             let func = (*handle);
-//             func(args)
-//         }
-//     }
+    fn into_raw(self) -> *mut Self::Handle {
+        let ptr: Box<Self::Handle> = Box::new(self);
+        Box::into_raw(ptr)
+    }
 
-//     fn drop(_: *mut Self::Handle) {}
-// }
+    fn call<'arg>(handle: *mut Self::Handle, args: Vec<ArgValue<'arg>>) -> Result<RetValue> {
+        unsafe {
+            let func = *handle;
+            func(args)
+        }
+    }
+
+    fn drop(_: *mut Self::Handle) {}
+}
+
+/// A helper trait which correctly captures the complex conversion and lifetime semantics needed
+/// to coerce an ordinary Rust value into `ArgValue`.
+pub trait TryFromArgValue<F>: TryFrom<F> {
+    fn from_arg_value(f: F) -> std::result::Result<Self, Error>;
+}
+
+impl<'a, T> TryFromArgValue<ArgValue<'a>> for T where Self: TryFrom<ArgValue<'a>>, Error: From<<Self as TryFrom<ArgValue<'a>>>::Error> {
+    fn from_arg_value(f: ArgValue<'a>) -> std::result::Result<T, Error> {
+        Ok(TryFrom::try_from(f)?)
+    }
+}
 
 macro_rules! impl_typed_and_to_function {
     ($len:literal; $($t:ident),*) => {
-        impl<'a, F, Out, $($t),*> Typed<'a, ($($t,)*), Out> for F
+        impl<Fun, Out, $($t),*> Typed<($($t,)*), Out> for Fun
         where
-            F: Fn($($t),*) -> Out,
+            Fun: Fn($($t),*) -> Out,
             Out: TryInto<RetValue>,
             Error: From<Out::Error>,
-            $( $t: TryFrom<ArgValue<'a>>,
-               Error: From<<$t as TryFrom<ArgValue<'a>>>::Error>, )*
+            $( for<'a> $t: TryFromArgValue<ArgValue<'a>>, )*
         {
             #[allow(non_snake_case, unused_variables, unused_mut)]
-            fn args(args: Vec<ArgValue<'a>>) -> Result<($($t,)*)> {
+            fn args<'arg>(args: Vec<ArgValue<'arg>>) -> Result<Args<'arg, ($($t,)*)>> {
                 if args.len() != $len {
                     return Err(Error::CallFailed(format!("{} expected {} arguments, got {}.\n",
                                                          std::any::type_name::<Self>(),
                                                          $len, args.len())))
                 }
                 let mut args = args.into_iter();
-                $(let $t = args.next().unwrap().try_into()?;)*
-                Ok(($($t,)*))
+                $(let $t = TryFromArgValue::from_arg_value(args.next().unwrap())?;)*
+                Ok(Args::Typed(($($t,)*)))
             }
 
             fn ret(out: Out) -> Result<RetValue> {
@@ -238,9 +244,9 @@ macro_rules! impl_typed_and_to_function {
         }
 
 
-        impl<F, $($t,)* Out> ToFunction<($($t,)*), Out> for F
+        impl<Fun, $($t,)* Out> ToFunction<($($t,)*), Out> for Fun
         where
-            F: Fn($($t,)*) -> Out + 'static
+            Fun: Fn($($t,)*) -> Out + 'static
         {
             type Handle = Box<dyn Fn($($t,)*) -> Out + 'static>;
 
@@ -252,11 +258,15 @@ macro_rules! impl_typed_and_to_function {
             #[allow(non_snake_case)]
             fn call<'a>(handle: *mut Self::Handle, args: Vec<ArgValue<'a>>) -> Result<RetValue>
             where
-                F: for<'arg> Typed<'arg, ($($t,)*), Out>
+                Fun: Typed<($($t,)*), Out>
             {
-                let ($($t,)*) = F::args(args)?;
+                let ($($t,)*) = match Fun::args(args)? {
+                    Args::Raw(_) => panic!("impossible case"),
+                    Args::Typed(typed) => typed,
+                };
+
                 let out = unsafe { (*handle)($($t),*) };
-                F::ret(out)
+                Fun::ret(out)
             }
 
             fn drop(ptr: *mut Self::Handle) {
@@ -273,7 +283,9 @@ impl_typed_and_to_function!(2; A, B);
 impl_typed_and_to_function!(3; A, B, C);
 impl_typed_and_to_function!(4; A, B, C, D);
 impl_typed_and_to_function!(5; A, B, C, D, E);
-impl_typed_and_to_function!(6; A, B, C, D, E, G);
+impl_typed_and_to_function!(6; A, B, C, D, E, F);
+impl_typed_and_to_function!(7; A, B, C, D, E, F, G);
+impl_typed_and_to_function!(8; A, B, C, D, E, F, G, H);
 
 #[cfg(test)]
 mod tests {

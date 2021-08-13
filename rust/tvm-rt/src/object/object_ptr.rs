@@ -62,10 +62,12 @@ pub struct Object {
 /// "subtype".
 ///
 /// This function just converts the pointer to the correct type
-/// and invokes the underlying typed delete function.
+/// and reconstructs a Box which then is dropped to deallocate
+/// the underlying allocation.
 unsafe extern "C" fn delete<T: IsObject>(object: *mut Object) {
     let typed_object: *mut T = object as *mut T;
-    T::typed_delete(typed_object);
+    let boxed: Box<T> = Box::from_raw(typed_object);
+    drop(boxed);
 }
 
 fn derived_from(child_type_index: u32, parent_type_index: u32) -> bool {
@@ -157,11 +159,6 @@ impl Object {
 /// to the subtype.
 pub unsafe trait IsObject: AsRef<Object> + std::fmt::Debug {
     const TYPE_KEY: &'static str;
-
-    unsafe extern "C" fn typed_delete(object: *mut Self) {
-        let object = Box::from_raw(object);
-        drop(object)
-    }
 }
 
 /// A smart pointer for types which implement IsObject.
@@ -332,6 +329,7 @@ impl<'a, T: IsObject> From<&'a ObjectPtr<T>> for ArgValue<'a> {
             }
             _ => {
                 let raw_ptr = unsafe { object_ptr.as_ptr() } as *mut std::ffi::c_void;
+                println!("raw_ptr {:?}", raw_ptr);
                 assert!(!raw_ptr.is_null());
                 ArgValue::ObjectHandle(raw_ptr)
             }
@@ -348,15 +346,24 @@ impl<'a, T: IsObject> TryFrom<ArgValue<'a>> for ObjectPtr<T> {
 
         match arg_value {
             ArgValue::ObjectHandle(handle) | ArgValue::ModuleHandle(handle) => {
+                println!("handle: {:?}", handle);
                 let optr = ObjectPtr::from_raw(handle as *mut Object).ok_or(Error::Null)?;
-                debug_assert!(optr.count() >= 1);
+                // We are building an owned, ref-counted view into the underlying ArgValue, in order to be safe we must
+                // bump the reference count by one.
+                optr.inc_ref();
+                assert!(optr.count() >= 1);
                 optr.downcast()
             }
             ArgValue::NDArrayHandle(handle) => {
                 let optr =
                     NDArrayContainer::from_raw(handle as *mut DLTensor).ok_or(Error::Null)?;
-                debug_assert!(optr.count() >= 1);
-                optr.upcast::<Object>().downcast()
+                // We are building an owned, ref-counted view into the underlying ArgValue, in order to be safe we must
+                // bump the reference count by one.
+                assert!(optr.count() >= 1);
+                // TODO(@jroesch): figure out if there is a more optimal way to do this
+                let object = optr.upcast::<Object>();
+                object.inc_ref();
+                object.downcast()
             }
             _ => Err(Error::downcast(format!("{:?}", arg_value), "ObjectHandle")),
         }
@@ -444,11 +451,12 @@ mod tests {
         assert_eq!(ptr.count(), 1);
         let ptr_clone = ptr.clone();
         assert_eq!(ptr.count(), 2);
-        let arg_value: ArgValue = ptr_clone.into();
+        let arg_value: ArgValue = (&ptr_clone).into();
         assert_eq!(ptr.count(), 2);
         let ptr2: ObjectPtr<Object> = arg_value.try_into()?;
-        assert_eq!(ptr2.count(), 2);
+        assert_eq!(ptr2.count(), 3);
         assert_eq!(ptr.count(), ptr2.count());
+        drop(ptr_clone);
         assert_eq!(ptr.count(), 2);
         ensure!(
             ptr.type_index == ptr2.type_index,
@@ -480,7 +488,7 @@ mod tests {
         assert_eq!(ptr.count(), 2);
         register(test_fn, "my_func2").unwrap();
         let func = Function::get("my_func2").unwrap();
-        let same = func.invoke(vec![ptr.into()]).unwrap();
+        let same = func.invoke(vec![(&ptr).into()]).unwrap();
         let same: ObjectPtr<Object> = same.try_into().unwrap();
         // TODO(@jroesch): normalize RetValue ownership assert_eq!(same.count(), 2);
         drop(same);

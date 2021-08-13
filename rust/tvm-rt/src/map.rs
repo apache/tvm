@@ -268,7 +268,7 @@ mod test {
         let mut std_map: HashMap<TString, TString> = HashMap::new();
         std_map.insert("key1".into(), "value1".into());
         std_map.insert("key2".into(), "value2".into());
-        let tvm_map = Map::from_iter(std_map.clone().into_iter());
+        let tvm_map = Map::from_iter(std_map.iter());
         let back_map = tvm_map.into();
         assert_eq!(std_map, back_map);
     }

@@ -35,7 +35,7 @@ use std::{
 
 use crate::errors::Error;
 
-pub use super::to_function::{ToFunction, Typed};
+pub use super::to_function::{ToFunction, Typed, RawArgs};
 pub use tvm_sys::{ffi, ArgValue, RetValue};
 use crate::object::AsArgValue;
 
@@ -264,7 +264,7 @@ impl<'a> TryFrom<&ArgValue<'a>> for Function {
 pub fn register<F, I, O, S: Into<String>>(f: F, name: S) -> Result<()>
 where
     F: ToFunction<I, O>,
-    F: for<'a> Typed<'a, I, O>,
+    F: Typed<I, O>,
 {
     register_override(f, name, false)
 }
@@ -275,7 +275,7 @@ where
 pub fn register_override<F, I, O, S: Into<String>>(f: F, name: S, override_: bool) -> Result<()>
 where
     F: ToFunction<I, O>,
-    F: for<'a> Typed<'a, I, O>,
+    F: Typed<I, O>,
 {
     let func = f.to_function();
     let name = name.into();
@@ -296,19 +296,18 @@ pub fn register_untyped<S: Into<String>>(
     name: S,
     override_: bool,
 ) -> Result<()> {
-    panic!("foo")
     // // TODO(@jroesch): can we unify all the code.
-    // let func = ToFunction::<Vec<ArgValue>, RetValue>::to_function(f);
-    // let name = name.into();
-    // // Not sure about this code
-    // let handle = func.handle();
-    // let name = CString::new(name)?;
-    // check_call!(ffi::TVMFuncRegisterGlobal(
-    //     name.into_raw(),
-    //     handle,
-    //     override_ as c_int
-    // ));
-    // Ok(())
+    let func = ToFunction::<RawArgs, RetValue>::to_function(f);
+    let name = name.into();
+    // Not sure about this code
+    let handle = func.handle();
+    let name = CString::new(name)?;
+    check_call!(ffi::TVMFuncRegisterGlobal(
+        name.into_raw(),
+        handle,
+        override_ as c_int
+    ));
+    Ok(())
 }
 
 #[cfg(test)]

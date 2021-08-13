@@ -224,7 +224,7 @@ macro_rules! impl_pod_value {
                 }
             }
 
-            impl<'a, 'v> From<&'a $type> for ArgValue<'v> {
+            impl<'a> From<&'a $type> for ArgValue<'a> {
                 fn from(val: &'a $type) -> Self {
                     Self::$variant(*val as $inner_ty)
                 }
