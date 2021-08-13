@@ -129,9 +129,9 @@ def main(args):
         builder = tvm.autotvm.LocalBuilder(
             n_parallel=1,
             build_kwargs={"build_option": {"tir.disable_vectorize": True}},
-            do_fork=False,
+            do_fork=True,
             build_func=tvm.micro.autotvm_build_func,
-        )  # do_fork=False needed to persist stateful builder.
+        )
         runner = tvm.autotvm.LocalRunner(number=1, repeat=1, timeout=0, module_loader=module_loader)
 
         measure_option = tvm.autotvm.measure_option(builder=builder, runner=runner)

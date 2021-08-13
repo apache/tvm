@@ -262,7 +262,7 @@ def test_autotune():
     builder = tvm.autotvm.LocalBuilder(
         n_parallel=1,
         build_kwargs={"build_option": {"tir.disable_vectorize": True}},
-        do_fork=False,
+        do_fork=True,
         build_func=tvm.micro.autotvm_build_func,
     )
     runner = tvm.autotvm.LocalRunner(number=1, repeat=1, timeout=0, module_loader=module_loader)
