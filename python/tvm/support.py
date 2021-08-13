@@ -36,8 +36,7 @@ def libinfo():
             return {}
     else:
         return {}
-
-    return {k: v for k, v in lib_info.items()}  # pylint: disable=unnecessary-comprehension
+    return dict(lib_info.items())
 
 
 class FrontendTestModule(Module):

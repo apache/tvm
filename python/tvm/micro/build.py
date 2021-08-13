@@ -102,8 +102,8 @@ class AutoTvmModuleLoader:
         yield remote, system_lib
         try:
             remote.get_function("tvm.micro.destroy_micro_session")()
-        except tvm.error.TVMError:
-            _LOG.warning("Error destroying remote session", exc_info=1)
+        except tvm.error.TVMError as exception:
+            _LOG.warning("Error destroying remote session: %s", str(exception), exc_info=1)
 
 
 def autotvm_build_func():
