@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Minimum graph executor that executes graph containing TVM PackedFunc."""
+import logging
 import numpy as np
 import tvm._ffi
 
@@ -157,7 +158,11 @@ class GraphModule(object):
         self._get_output = module["get_output"]
         self._get_input = module["get_input"]
         self._get_num_outputs = module["get_num_outputs"]
-        self._get_input_index = module["get_input_index"]
+        try:
+            self._get_input_index = module["get_input_index"]
+        except AttributeError as e:
+            logging.critical("module has no get_input_index")
+            logging.critical(str(e))
         self._get_num_inputs = module["get_num_inputs"]
         self._load_params = module["load_params"]
         self._share_params = module["share_params"]
