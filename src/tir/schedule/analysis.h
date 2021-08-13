@@ -202,6 +202,19 @@ BlockRealize CheckGetSingleChildBlockRealizeOnSRefTree(const ScheduleState& self
  */
 BlockRealize GetBlockRealize(const ScheduleState& self, const StmtSRef& block_sref);
 
+/******** Block-buffer relation ********/
+
+/*!
+ * \brief Get the BlockRealize of the single child block of the block or loop specified by
+ * `parent_sref` on SRef tree, or throw an exception if there is 0 or multiple child blocks
+ * \param self The schedule state
+ * \param block The queried block
+ * \param n The index of the queried buffer
+ * \return The buffer of the n-th write region of the block.
+ * \throw ScheduleError If the buffer index is out of bound.
+ */
+Buffer GetNthWriteBuffer(const ScheduleState& self, const Block& block, int n);
+
 /******** Commutative Reducer ********/
 
 /*!

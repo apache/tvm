@@ -137,6 +137,19 @@ BlockRV TracedScheduleNode::RFactor(const LoopRV& loop_rv, int factor_axis) {
   return result;
 }
 
+/******** Schedule: Block annotation ********/
+
+void TracedScheduleNode::StorageAlign(const BlockRV& block_rv, int buffer_index, int axis,
+                                      int factor, int offset) {
+  ConcreteScheduleNode::StorageAlign(block_rv, buffer_index, axis, factor, offset);
+  static const InstructionKind& kind = InstructionKind::Get("StorageAlign");
+  trace_->Append(/*inst=*/Instruction(
+      /*kind=*/kind,
+      /*inputs=*/{block_rv},
+      /*attrs=*/{Integer(buffer_index), Integer(axis), Integer(factor), Integer(offset)},
+      /*outputs=*/{}));
+}
+
 /******** Schedule: Blockize & Tensorize ********/
 
 /******** Schedule: Annotation ********/

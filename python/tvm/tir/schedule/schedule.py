@@ -710,6 +710,79 @@ class Schedule(Object):
         """
         return _ffi_api.ScheduleRFactor(self, loop, factor_axis)  # type: ignore # pylint: disable=no-member
 
+    ######## Schedule: Block annotatoin ########
+
+    def storage_align(  # pylint: disable=too-many-arguments
+        self, block: BlockRV, buffer_index: int, axis: int, factor: int, offset: int
+    ) -> None:
+        """Set alignment requirement for specific dimension such that
+        stride[axis] == k * factor + offset for some k. This is useful to set memory layout for more
+        friendly memory access pattern. For example, we can set alignment to be factor=2, offset=1
+        to avoid bank conflict for thread access on higher dimension in GPU shared memory.
+
+        Parameters
+        ----------
+        block : BlockRV
+            The producer block of the buffer.
+        buffer_index : int
+            The index of the buffer in block's write region.
+        axis : int
+            The dimension to be specified for alignment.
+        factor : int
+            The factor multiple of alignment.
+        offset : int
+            The required offset factor.
+
+        Examples
+        --------
+
+        Before storage_align, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @tvm.script.tir
+            def before_storage_align(a: ty.handle, c: ty.handle) -> None:
+                A = tir.match_buffer(a, (128, 128))
+                B = tir.alloc_buffer((128, 128))
+                C = tir.match_buffer(c, (128, 128))
+                with tir.block([128, 128], "B") as [vi, vj]:
+                    B[vi, vj] = A[vi, vj] * 2.0
+                with tir.block([128, 128], "C") as [vi, vj]:
+                    C[vi, vj] = B[vi, vj] + 1.0
+
+        Create the schedule and do storage_align:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(before_storage_align)
+            sch.storage_align(sch.get_block("B"), buffer_index=0, axis=0, factor=128, offset=1)
+            print(tvm.script.asscript(sch.mod["main"]))
+
+        After applying rfactor, the IR becomes:
+
+        .. code-block:: python
+
+            @tvm.script.tir
+            def after_storage_align(a: ty.handle, c: ty.handle) -> None:
+                A = tir.match_buffer(a, (128, 128))
+                B = tir.alloc_buffer((128, 128))
+                C = tir.match_buffer(c, (128, 128))
+                with tir.block([128, 128], "B") as [vi, vj]:
+                    tir.block_attr({"buffer_dim_align": [[[0, 128, 1]]]})
+                    B[vi, vj] = A[vi, vj] * 2.0
+                with tir.block([128, 128], "C") as [vi, vj]:
+                    C[vi, vj] = B[vi, vj] + 1.0
+
+        After lowering passes, buffer B will have strides as [129, 1].
+
+        Note
+        ----
+        Storage_align requires the buffer to be an intermediate buffer defined via `alloc_buffer`.
+        """
+        _ffi_api.ScheduleStorageAlign(  # type: ignore # pylint: disable=no-member
+            self, block, buffer_index, axis, factor, offset
+        )
+
     ########## Schedule: Blockize & Tensorize ##########
 
     ########## Schedule: Annotation ##########
