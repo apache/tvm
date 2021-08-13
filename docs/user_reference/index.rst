@@ -17,7 +17,7 @@
 
 .. _user_guide:
 
-How To
-=======
-TVM How Tos
+User Reference
+==============
+TVM User Reference
 

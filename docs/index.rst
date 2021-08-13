@@ -35,21 +35,21 @@ For Developers
 - :doc:`dev/how_to` gives quick development tips on various topics.
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
    :caption: TVM User Guide
    :hidden:
 
-   user_tutorials/index
+   user_tutorial/index
    user_how_tos/index
    user_deep_dive/index
    user_reference/index
 
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 3
    :caption: TVM Developer Guide
    :hidden:
 
-   dev_tutorials/index
+   dev_tutorial/index
    dev_how_tos/index
    dev_deep_dive/index
    dev_reference/index

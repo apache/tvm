@@ -15,9 +15,21 @@
     specific language governing permissions and limitations
     under the License.
 
-.. _user_guide:
+.. _user_how_tos:
 
 How To
 =======
 TVM How Tos
 
+.. toctree::
+   :maxdepth: 2
+
+   install/index
+   compile_models/index
+   deploy_models/index
+   work_with_relay/index
+   work_with_te_schedules/index
+   optimize_tensor_operators/index
+   tune_with_templates_autotvm/index
+   tune_with_autoscheduler/index
+   work_with_microtvm/index

@@ -197,12 +197,43 @@ intersphinx_mapping = {
 
 from sphinx_gallery.sorting import ExplicitOrder
 
-examples_dirs = ["../gallery/user_tutorials", "../tutorials/", "../vta/tutorials/"]
-gallery_dirs = ["user_tutorials", "tutorials", "vta/tutorials"]
+# This variable specifices where splinx gallery should look
+# for gallery files.
+examples_dirs = ["../gallery/user_tutorial",
+        "../gallery/user_how_tos/compile_models",
+        "../gallery/user_how_tos/deploy_models",
+        "../gallery/user_how_tos/work_with_relay",
+        "../gallery/user_how_tos/work_with_te_schedules",
+        "../gallery/user_how_tos/optimize_tensor_operators",
+        "../gallery/user_how_tos/tune_with_templates_autotvm",
+        "../gallery/user_how_tos/tune_with_autoscheduler",
+        "../gallery/user_how_tos/work_with_microtvm",
+        "../gallery/dev_how_tos",
+        "../tutorials/",
+        "../vta/tutorials/"]
+
+# This variable specifies where sphinx gallery should place
+# output from gallery generation, relative to the top level
+# docd directory. The output will be mapped as an ordered
+# tuple to the example_dirs. For example, the output
+# from ../gallery/user_tutorials will be rendered
+# in tvm/docs/user_tutorials.
+gallery_dirs = ["user_tutorial",
+        "user_how_tos/compile_models",
+        "user_how_tos/deploy_models",
+        "user_how_tos/work_with_relay",
+        "user_how_tos/work_with_te_schedules",
+        "user_how_tos/optimize_tensor_operators",
+        "user_how_tos/tune_with_templates_autotvm",
+        "user_how_tos/tune_with_autoscheduler",
+        "user_how_tos/work_with_microtvm",
+        "dev_how_tos",
+        "tutorials",
+        "vta/tutorials"]
 
 subsection_order = ExplicitOrder(
     [
-        "../gallery/user_tutorials",
+        "../gallery/user_tutorial",
         "../tutorials/get_started",
         "../tutorials/frontend",
         "../tutorials/language",
@@ -224,7 +255,7 @@ subsection_order = ExplicitOrder(
 # The unlisted files are sorted by filenames.
 # The unlisted files always appear after listed files.
 within_subsection_order = {
-    "user_tutorials": [
+    "user_tutorial": [
         "introduction.py",
         "install.py",
         "tvmc_command_line_driver.py",
@@ -233,20 +264,10 @@ within_subsection_order = {
         "autotvm_matmul_x86.py",
         "auto_scheduler_matmul_x86.py",
         "cross_compilation_and_rpc.py",
-        "relay_quick_start.py",
+        "intro_topi.py",
+        "relay_quick_start.py"
     ],
-    "get_started": [
-        "introduction.py",
-        "install.py",
-        "tvmc_command_line_driver.py",
-        "autotvm_relay_x86.py",
-        "tensor_expr_get_started.py",
-        "autotvm_matmul_x86.py",
-        "auto_scheduler_matmul_x86.py",
-        "cross_compilation_and_rpc.py",
-        "relay_quick_start.py",
-    ],
-    "frontend": [
+    "compile_models": [
         "from_pytorch.py",
         "from_tensorflow.py",
         "from_mxnet.py",
@@ -257,7 +278,17 @@ within_subsection_order = {
         "from_darknet.py",
         "from_caffe2.py",
     ],
-    "language": [
+    "deploy_models": [
+        "deploy_object_detection_pytorch.py",
+        "deploy_model_on_rasp.py",
+        "deploy_sparse.py",
+        "deploy_quantized.py",
+        "deploy_prequantized.py",
+        "deploy_prequantized_tflite.py",
+        "deploy_model_on_android.py",
+        "deploy_ssd_gluoncv.py"
+    ],
+    "work_with_te_schedules": [
         "schedule_primitives.py",
         "reduction.py",
         "intrin_math.py",
@@ -267,12 +298,12 @@ within_subsection_order = {
         "tuple_inputs.py",
         "tedd.py",
     ],
-    "optimize": [
+    "optimize_tensor_operators": [
         "opt_gemm.py",
         "opt_conv_cuda.py",
         "opt_conv_tensorcore.py",
     ],
-    "autotvm": [
+    "tune_with_templates_autotvm": [
         "tune_simple_template.py",
         "tune_conv2d_cuda.py",
         "tune_relay_cuda.py",
@@ -280,13 +311,13 @@ within_subsection_order = {
         "tune_relay_arm.py",
         "tune_relay_mobile_gpu.py",
     ],
-    "auto_scheduler": [
+    "tune_with_autoscheduler": [
         "tune_matmul_x86.py",
         "tune_conv2d_layer_cuda.py",
         "tune_network_x86.py",
         "tune_network_cuda.py",
     ],
-    "dev": [
+    "dev_how_tos": [
         "low_level_custom_pass.py",
         "use_pass_infra.py",
         "use_pass_instrument.py",

@@ -15,8 +15,8 @@
     specific language governing permissions and limitations
     under the License.
 
-Contribute to TVM
-=================
+Tutorial: Contributing to TVM
+=============================
 
 TVM has been developed by community members.
 Everyone is welcomed to contribute.
