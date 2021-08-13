@@ -490,6 +490,11 @@ class RelayBuildModule : public runtime::ModuleNode {
 
     auto lowered_funcs = executor_codegen_->GetIRModule();
 
+    // No need to build for external functions.
+    if (lowered_funcs.find("ext_dev") != lowered_funcs.end()) {
+      lowered_funcs.Set("ext_dev", IRModule());
+    }
+
     // Generate a placeholder function that attaches linked params as its arguments.
     if (target_host->GetAttr<Bool>("link-params").value_or(Bool(false))) {
       CHECK(pf != nullptr) << "Unable to link-params with no target_host and no llvm codegen.";

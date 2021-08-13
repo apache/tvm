@@ -27,7 +27,7 @@ from tvm import relay, runtime
 from tvm.contrib import utils
 from tvm.relay.build_module import bind_params_by_name
 from tvm.relay.op.annotation import compiler_begin, compiler_end
-from aot.aot_test_utils import compile_and_run
+from aot.aot_test_utils import AOTTestModel, compile_and_run
 
 
 def update_lib(lib):
@@ -77,8 +77,15 @@ def check_graph_executor_result(
 def check_aot_executor_result(
     mod, map_inputs, out_shape, result, tol=1e-5, target="llvm", device=tvm.cpu()
 ):
+    interface_api = "packed"
+    use_unpacked_api = False
     use_calculated_workspaces = True
-    compile_and_run(mod, map_inputs, [result], "packed", 0, use_calculated_workspaces)
+    compile_and_run(
+        AOTTestModel(module=mod, inputs=map_inputs, outputs=[result]),
+        interface_api,
+        use_unpacked_api,
+        use_calculated_workspaces,
+    )
 
 
 def set_external_func_attr(func, compiler, ext_symbol):

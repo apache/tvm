@@ -417,7 +417,9 @@ def run_module(
     # Run must be called explicitly if profiling
     if profile:
         logger.info("Running the module with profiling enabled.")
-        module.run()
+        report = module.profile()
+        # This print is intentional
+        print(report)
 
     # create the module time evaluator (returns a function)
     timer = module.module.time_evaluator("run", dev, number=number, repeat=repeat)

@@ -169,7 +169,7 @@ def test_trace_construct_pop_2():
 
 def test_trace_apply_to_schedule():
     trace = _make_trace_2(BlockRV())
-    sch = tir.Schedule(elementwise, debug_mode=True)
+    sch = tir.Schedule(elementwise, debug_mask="all")
     trace.apply_to_schedule(sch, remove_postproc=False, decision_provider=None)
     tvm.ir.assert_structural_equal(elementwise_inlined, sch.mod["main"])
 
@@ -232,7 +232,7 @@ def test_trace_simplified_2():
 def test_apply_json_to_schedule_1():
     trace = _make_trace_2(BlockRV())
     json_obj = trace.as_json()
-    sch = tir.Schedule(elementwise, debug_mode=True)
+    sch = tir.Schedule(elementwise, debug_mask="all")
     Trace.apply_json_to_schedule(json_obj, sch)
     tvm.ir.assert_structural_equal(elementwise_inlined, sch.mod["main"])
 

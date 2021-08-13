@@ -14,9 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=unused-import
 """The TensorIR schedule class"""
-from typing import List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 from tvm._ffi import register_object as _register_object
 from tvm.error import TVMError, register_error
@@ -25,7 +24,8 @@ from tvm.runtime import Object
 from tvm.tir import Block, For, IntImm, PrimFunc
 
 from . import _ffi_api
-from .state import ScheduleState, StmtSRef
+from .state import ScheduleState, StmtSRef, _parse_debug_mask, _parse_mod
+from .trace import Trace
 
 
 @register_error
@@ -63,7 +63,20 @@ ExprRV = Union[PrimExpr]  # A random variable that evaluates to an integer
 RAND_VAR_TYPE = Union[ExprRV, BlockRV, LoopRV]  # pylint: disable=invalid-name
 
 # Update to `Literal["detail", "fast", "none"]` once upgraded to python3.8
-ERROR_RENDER_LEVEL_CANDIDATES = Union[str]  # pylint: disable=invalid-name
+_ERROR_RENDER_LEVEL: Dict[str, int] = {
+    "detail": 0,
+    "fast": 1,
+    "none": 2,
+}
+
+
+def _parse_error_render_level(error_render_level: str) -> int:
+    if error_render_level not in _ERROR_RENDER_LEVEL:
+        raise ValueError(
+            'error_render_level can be "detail", "fast", or "none", but got: '
+            + f"{error_render_level}"
+        )
+    return _ERROR_RENDER_LEVEL.get(error_render_level)
 
 
 @_register_object("tir.Schedule")
@@ -81,33 +94,31 @@ class Schedule(Object):
     Link to tutorial: https://tvm.apache.org/docs/tutorials/language/schedule_primitives.html
     """
 
-    ERROR_RENDER_LEVEL = {
-        "detail": 0,
-        "fast": 1,
-        "none": 2,
-    }
-
     def __init__(
         self,
         mod: Union[PrimFunc, IRModule],
         *,
-        debug_mode: Union[bool, int] = False,
-        error_render_level: ERROR_RENDER_LEVEL_CANDIDATES = "detail",
+        debug_mask: Union[str, int] = "none",
+        error_render_level: str = "detail",
     ) -> None:
-        """Construct a concrete TensorIR schedule from an IRModule or a PrimFunc
+        """Construct a TensorIR schedule class from an IRModule
 
         Parameters
         ----------
         mod : Union[PrimFunc, IRModule]
             The IRModule or PrimFunc to be scheduled
-        debug_mode : Union[bool, int]
+        debug_mask : Union[str, int]
             Do extra correctness checking after the class creation and each time
-            scheduling primitive
+            after calling the Replace method.
+            Possible choices of `debug_mask`:
+            1) "all" - Turn on all the checks
+            2) "none" - Turn off all the checks
+            3) An integer - Turn on checks according to the bitmasks provided in ScheduleDebugMask
         error_render_level : str = "detail"
             The level of error rendering. Choices: "detail", "fast", "none".
-            "detail": Render a detailed error message, with the TIR and error locations printed
-            "fast: Show a simple error message without rendering or string manipulation
-            "none": Do not show any error message.
+            - "detail": Render a detailed error message, with the TIR and error locations printed
+            - "fast: Show a simple error message without rendering or string manipulation
+            - "none": Do not show any error message.
 
         Note
         ----
@@ -115,25 +126,26 @@ class Schedule(Object):
         1) VerifySRefTree
         2) VerifyCachedFlags
         """
-        if isinstance(mod, PrimFunc):
-            mod = IRModule({"main": mod})
-        if isinstance(debug_mode, bool):
-            if debug_mode:
-                debug_mode = -1
-            else:
-                debug_mode = 0
-        if not isinstance(debug_mode, int):
-            raise TypeError(f"`debug_mode` should be integer or boolean, but gets: {debug_mode}")
-        if error_render_level not in Schedule.ERROR_RENDER_LEVEL:
-            raise ValueError(
-                'error_render_level can be "detail", "fast", or "none", but got: '
-                + f"{error_render_level}"
-            )
+        # call the constructor
         self.__init_handle_by_constructor__(
-            _ffi_api.ConcreteSchedule,  # type: ignore # pylint: disable=no-member
-            mod,
-            debug_mode,
-            Schedule.ERROR_RENDER_LEVEL.get(error_render_level),
+            _ffi_api.TracedSchedule,  # type: ignore # pylint: disable=no-member
+            _parse_mod(mod),
+            _parse_debug_mask(debug_mask),
+            _parse_error_render_level(error_render_level),
+        )
+
+    @staticmethod
+    def _create_non_traced(
+        mod: Union[PrimFunc, IRModule],
+        *,
+        debug_mask: Union[str, int] = "none",
+        error_render_level: str = "detail",
+    ) -> "Schedule":
+        """Construct a non-traced TensorIR schedule class from an IRModule."""
+        return _ffi_api.ConcreteSchedule(  # type: ignore # pylint: disable=no-member
+            _parse_mod(mod),
+            _parse_debug_mask(debug_mask),
+            _parse_error_render_level(error_render_level),
         )
 
     ########## Utilities ##########
@@ -141,12 +153,17 @@ class Schedule(Object):
     @property
     def mod(self) -> IRModule:
         """Returns the AST of the module being scheduled"""
-        return _ffi_api.ScheduleModule(self)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.ScheduleGetMod(self)  # type: ignore # pylint: disable=no-member
 
     @property
     def state(self) -> ScheduleState:
         """Returns the ScheduleState in the current schedule class"""
         return _ffi_api.ScheduleGetState(self)  # type: ignore # pylint: disable=no-member
+
+    @property
+    def trace(self) -> Optional[Trace]:
+        """Returns the internally maintained trace of scheduling program execution"""
+        return _ffi_api.ScheduleGetTrace(self)  # type: ignore # pylint: disable=no-member
 
     def copy(self) -> "Schedule":
         """Returns a copy of the schedule, including both the state and the symbol table,
@@ -693,6 +710,79 @@ class Schedule(Object):
         """
         return _ffi_api.ScheduleRFactor(self, loop, factor_axis)  # type: ignore # pylint: disable=no-member
 
+    ######## Schedule: Block annotatoin ########
+
+    def storage_align(  # pylint: disable=too-many-arguments
+        self, block: BlockRV, buffer_index: int, axis: int, factor: int, offset: int
+    ) -> None:
+        """Set alignment requirement for specific dimension such that
+        stride[axis] == k * factor + offset for some k. This is useful to set memory layout for more
+        friendly memory access pattern. For example, we can set alignment to be factor=2, offset=1
+        to avoid bank conflict for thread access on higher dimension in GPU shared memory.
+
+        Parameters
+        ----------
+        block : BlockRV
+            The producer block of the buffer.
+        buffer_index : int
+            The index of the buffer in block's write region.
+        axis : int
+            The dimension to be specified for alignment.
+        factor : int
+            The factor multiple of alignment.
+        offset : int
+            The required offset factor.
+
+        Examples
+        --------
+
+        Before storage_align, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @tvm.script.tir
+            def before_storage_align(a: ty.handle, c: ty.handle) -> None:
+                A = tir.match_buffer(a, (128, 128))
+                B = tir.alloc_buffer((128, 128))
+                C = tir.match_buffer(c, (128, 128))
+                with tir.block([128, 128], "B") as [vi, vj]:
+                    B[vi, vj] = A[vi, vj] * 2.0
+                with tir.block([128, 128], "C") as [vi, vj]:
+                    C[vi, vj] = B[vi, vj] + 1.0
+
+        Create the schedule and do storage_align:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(before_storage_align)
+            sch.storage_align(sch.get_block("B"), buffer_index=0, axis=0, factor=128, offset=1)
+            print(tvm.script.asscript(sch.mod["main"]))
+
+        After applying rfactor, the IR becomes:
+
+        .. code-block:: python
+
+            @tvm.script.tir
+            def after_storage_align(a: ty.handle, c: ty.handle) -> None:
+                A = tir.match_buffer(a, (128, 128))
+                B = tir.alloc_buffer((128, 128))
+                C = tir.match_buffer(c, (128, 128))
+                with tir.block([128, 128], "B") as [vi, vj]:
+                    tir.block_attr({"buffer_dim_align": [[[0, 128, 1]]]})
+                    B[vi, vj] = A[vi, vj] * 2.0
+                with tir.block([128, 128], "C") as [vi, vj]:
+                    C[vi, vj] = B[vi, vj] + 1.0
+
+        After lowering passes, buffer B will have strides as [129, 1].
+
+        Note
+        ----
+        Storage_align requires the buffer to be an intermediate buffer defined via `alloc_buffer`.
+        """
+        _ffi_api.ScheduleStorageAlign(  # type: ignore # pylint: disable=no-member
+            self, block, buffer_index, axis, factor, offset
+        )
+
     ########## Schedule: Blockize & Tensorize ##########
 
     ########## Schedule: Annotation ##########
@@ -702,8 +792,3 @@ class Schedule(Object):
     def enter_postproc(self) -> None:
         """A no-op that marks the start of postprocessing phase of scheduling"""
         _ffi_api.ScheduleEnterPostproc(self)  # type: ignore # pylint: disable=no-member
-
-
-@_register_object("tir.ConcreteSchedule")
-class ConcreteSchedule(Schedule):
-    """A concrete schedule class of TensorIR. Do not use directly, use tvm.tir.Schedule instead."""

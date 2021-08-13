@@ -21,10 +21,10 @@
 namespace tvm {
 namespace tir {
 
-Schedule Schedule::Concrete(IRModule mod, int debug_mode,
+Schedule Schedule::Concrete(IRModule mod, int debug_mask,
                             ScheduleErrorRenderLevel error_render_level) {
   ObjectPtr<ConcreteScheduleNode> n = make_object<ConcreteScheduleNode>();
-  n->state_ = ScheduleState(mod, debug_mode);
+  n->state_ = ScheduleState(mod, debug_mask);
   n->error_render_level_ = error_render_level;
   n->symbol_table_ = {};
   n->analyzer_ = std::make_unique<arith::Analyzer>();
@@ -50,7 +50,7 @@ class ScheduleCopier {
     n->mod = src_state->mod;
     n->block_info = copier.Copy(src_state->block_info);
     n->stmt2ref = copier.Copy(src_state->stmt2ref);
-    n->debug_mode = src_state->debug_mode;
+    n->debug_mask = src_state->debug_mask;
     *new_state = ScheduleState(std::move(n));
     *new_symbol_table = copier.Copy(self->symbol_table_);
   }
@@ -182,8 +182,8 @@ void ConcreteScheduleNode::Copy(ScheduleState* new_state, TSymbolTable* new_symb
 Schedule ConcreteScheduleNode::Copy() const {
   ObjectPtr<ConcreteScheduleNode> n = make_object<ConcreteScheduleNode>();
   n->error_render_level_ = this->error_render_level_;
-  this->Copy(&n->state_, &n->symbol_table_);
-  n->analyzer_ = std::make_unique<arith::Analyzer>();
+  ConcreteScheduleNode::Copy(&n->state_, &n->symbol_table_);
+  n->analyzer_ = std::make_unique<arith::Analyzer>();  // new analyzer needed because it is stateful
   return Schedule(std::move(n));
 }
 
@@ -362,6 +362,16 @@ void ConcreteScheduleNode::ReverseComputeInline(const BlockRV& block_rv) {
 }
 
 /******** Schedule: loop binding/annotation ********/
+/******** Schedule: block annotation ********/
+
+void ConcreteScheduleNode::StorageAlign(const BlockRV& block_rv, int buffer_index, int axis,
+                                        int factor, int offset) {
+  TVM_TIR_SCHEDULE_BEGIN();
+  tir::StorageAlign(state_, this->GetSRef(block_rv), buffer_index, axis, factor, offset);
+  TVM_TIR_SCHEDULE_END("storage-align", this->error_render_level_);
+  this->state_->DebugVerify();
+}
+
 /******** Schedule: cache read/write ********/
 /******** Schedule: reduction ********/
 
@@ -375,10 +385,6 @@ BlockRV ConcreteScheduleNode::RFactor(const LoopRV& loop_rv, int factor_axis) {
 }
 
 /******** Schedule: blockize & tensorize ********/
-
-/******** FFI ********/
-
-TVM_REGISTER_NODE_TYPE(ConcreteScheduleNode);
 
 }  // namespace tir
 }  // namespace tvm

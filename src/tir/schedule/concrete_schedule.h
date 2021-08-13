@@ -46,19 +46,17 @@ class ConcreteScheduleNode : public ScheduleNode {
 
  public:
   void VisitAttrs(tvm::AttrVisitor* v) {
-    // `error_render_level_` is not visited
     // `state_` is not visited
+    // `error_render_level_` is not visited
     // `symbol_table_` is not visited
     // `analyzer_` is not visitied
   }
 
   virtual ~ConcreteScheduleNode() = default;
 
-  static constexpr const char* _type_key = "tir.ConcreteSchedule";
-  TVM_DECLARE_BASE_OBJECT_INFO(ConcreteScheduleNode, ScheduleNode);
-
  public:
   ScheduleState state() const final { return state_; }
+  Optional<Trace> trace() const override { return NullOpt; }
   Schedule Copy() const override;
 
  public:
@@ -90,6 +88,9 @@ class ConcreteScheduleNode : public ScheduleNode {
   void ReverseComputeInline(const BlockRV& block) override;
   /******** Schedule: Reduction ********/
   BlockRV RFactor(const LoopRV& loop_rv, int factor_axis) override;
+  /******** Schedule: Block annotation ********/
+  void StorageAlign(const BlockRV& block_rv, int buffer_index, int axis, int factor,
+                    int offset) override;
   /******** Schedule: Blockize & Tensorize ********/
   /******** Schedule: Annotation ********/
   /******** Schedule: Misc ********/

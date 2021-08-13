@@ -20,6 +20,7 @@
 #define TVM_TIR_SCHEDULE_SCHEDULE_H_
 
 #include <tvm/tir/schedule/state.h>
+#include <tvm/tir/schedule/trace.h>
 
 namespace tvm {
 namespace tir {
@@ -95,13 +96,15 @@ class ScheduleNode : public runtime::Object {
   virtual ~ScheduleNode() = default;
 
   static constexpr const char* _type_key = "tir.Schedule";
-  TVM_DECLARE_BASE_OBJECT_INFO(ScheduleNode, runtime::Object);
+  TVM_DECLARE_FINAL_OBJECT_INFO(ScheduleNode, runtime::Object);
 
  public:
   /*! \brief Get the IRModule associated with this schedule. */
   virtual IRModule mod() const { return state()->mod; }
   /*! \return The internal state of scheduling */
   virtual ScheduleState state() const = 0;
+  /*! \return The internally maintained trace of scheduling program execution */
+  virtual Optional<Trace> trace() const = 0;
   /*!
    * \brief Returns a copy of the schedule, including both its state and its symbol table,
    * guaranteeing that
@@ -261,6 +264,21 @@ class ScheduleNode : public runtime::Object {
    * \return The rfactor block
    */
   virtual BlockRV RFactor(const LoopRV& loop_rv, int factor_axis) = 0;
+  /******** Schedule: Block annotation ********/
+  /*!
+   * \brief Set alignment requirement for specific dimension such that
+   *        stride[axis] == k * factor + offset for some k. This is useful to set memory layout for
+   *        more friendly memory access pattern. For example, we can set alignment to be factor=2,
+   *        offset=1 to avoid bank conflict for thread access on higher dimension in GPU shared
+   *        memory.
+   * \param block_rv The producer block of the buffer
+   * \param buffer_index The index of the buffer in block's write region
+   * \param axis The dimension to be specified for alignment
+   * \param factor The factor multiple of alignment
+   * \param offset The required offset factor
+   */
+  virtual void StorageAlign(const BlockRV& block_rv, int buffer_index, int axis, int factor,
+                            int offset) = 0;
   /******** Schedule: Blockize & Tensorize ********/
   /******** Schedule: Annotation ********/
   /******** Schedule: Misc ********/
@@ -288,7 +306,7 @@ class Schedule : public runtime::ObjectRef {
   /*!
    * \brief Construct a concrete TensorIR schedule from an IRModule
    * \param mod The IRModule to be scheduled
-   * \param debug_mode Do extra correctness checking after the class creation
+   * \param debug_mask Do extra correctness checking after the class creation
    * and each time after calling the Replace method.
    * \param error_render_level The level of error rendering
    * \return The concrete schedule created
@@ -297,8 +315,22 @@ class Schedule : public runtime::ObjectRef {
    * 1) VerifySRefTree
    * 2) VerifyCachedFlags
    */
-  TVM_DLL static Schedule Concrete(IRModule mod, int debug_mode,
+  TVM_DLL static Schedule Concrete(IRModule mod, int debug_mask,
                                    ScheduleErrorRenderLevel error_render_level);
+  /*!
+   * \brief Construct a traced concrete TensorIR schedule from an IRModule
+   * \param mod The IRModule to be scheduled
+   * \param debug_mask Do extra correctness checking after the class creation
+   * and each time after calling the Replace method.
+   * \param error_render_level The level of error rendering
+   * \return The concrete schedule created
+   * \sa ScheduleDebugMask
+   * \note The checks performed include:
+   * 1) VerifySRefTree
+   * 2) VerifyCachedFlags
+   */
+  TVM_DLL static Schedule Traced(IRModule mod, int debug_mask,
+                                 ScheduleErrorRenderLevel error_render_level);
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Schedule, runtime::ObjectRef, ScheduleNode);
 };
 

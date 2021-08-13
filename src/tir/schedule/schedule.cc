@@ -44,10 +44,12 @@ TVM_REGISTER_NODE_TYPE(BlockRVNode);
 TVM_REGISTER_NODE_TYPE(LoopRVNode);
 TVM_REGISTER_OBJECT_TYPE(ScheduleNode);
 
-TVM_REGISTER_GLOBAL("tir.schedule.ScheduleModule")  //
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetMod")  //
     .set_body_method<Schedule>(&ScheduleNode::mod);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetState")  //
     .set_body_method<Schedule>(&ScheduleNode::state);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetTrace")  //
+    .set_body_method<Schedule>(&ScheduleNode::trace);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSeed")  //
     .set_body_method<Schedule>(&ScheduleNode::Seed);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleCopy")  //
@@ -58,9 +60,14 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleCopy")  //
 TVM_REGISTER_GLOBAL("tir.schedule.BlockRV").set_body_typed([]() { return BlockRV(); });
 TVM_REGISTER_GLOBAL("tir.schedule.LoopRV").set_body_typed([]() { return LoopRV(); });
 TVM_REGISTER_GLOBAL("tir.schedule.ConcreteSchedule")
-    .set_body_typed([](IRModule mod, int debug_mode, int error_render_level) -> Schedule {
-      return Schedule::Concrete(mod, debug_mode,
+    .set_body_typed([](IRModule mod, int debug_mask, int error_render_level) -> Schedule {
+      return Schedule::Concrete(mod, debug_mask,
                                 static_cast<ScheduleErrorRenderLevel>(error_render_level));
+    });
+TVM_REGISTER_GLOBAL("tir.schedule.TracedSchedule")
+    .set_body_typed([](IRModule mod, int debug_mask, int error_render_level) -> Schedule {
+      return Schedule::Traced(mod, debug_mask,
+                              static_cast<ScheduleErrorRenderLevel>(error_render_level));
     });
 
 /******** (FFI) Lookup random variables ********/
@@ -128,6 +135,9 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleReverseComputeInline")
 /******** (FFI) Reduction ********/
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleRFactor")
     .set_body_method<Schedule>(&ScheduleNode::RFactor);
+/******** (FFI) Block annotation ********/
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleStorageAlign")
+    .set_body_method<Schedule>(&ScheduleNode::StorageAlign);
 /******** (FFI) Blockize & Tensorize ********/
 /******** (FFI) Annotation ********/
 /******** (FFI) Misc ********/

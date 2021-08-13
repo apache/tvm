@@ -206,6 +206,13 @@ Expr MakeDense(Expr data, Expr weight, IndexExpr units, DataType out_dtype) {
   return Call(op, {data, weight}, Attrs(attrs), {});
 }
 
+InferCorrectLayoutOutput DenseInferCorrectLayout(const Attrs& attrs,
+                                                 const Array<Layout>& new_in_layouts,
+                                                 const Array<Layout>& old_in_layouts,
+                                                 const Array<tvm::relay::Type>& old_in_types) {
+  return InferCorrectLayoutOutput({"NC", "NK"}, {"NC"}, attrs);
+}
+
 TVM_REGISTER_GLOBAL("relay.op.nn._make.dense").set_body_typed(MakeDense);
 
 RELAY_REGISTER_OP("nn.dense")
@@ -221,35 +228,75 @@ RELAY_REGISTER_OP("nn.dense")
     .add_argument("data", "nD Tensor", "Input data.")
     .add_argument("weight", "2D Tensor", "Weight matrix.")
     .set_support_level(1)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", DenseInferCorrectLayout)
     .add_type_rel("Dense", MatmulRel<DenseAttrs>);
 // ------------------- relay.nn.dense
 
 // ------------------- relay.nn.contrib_dense_pack
+TVM_REGISTER_NODE_TYPE(DensePackAttrs);
+
 // Positional relay function to create dense_pack operator used by frontend FFI.
-Expr MakeDensePack(Expr data, Expr weight, IndexExpr units, DataType out_dtype) {
-  auto attrs = make_object<DenseAttrs>();
+Expr MakeDensePack(Expr data, Expr weight, tvm::String weight_layout, IndexExpr units,
+                   DataType out_dtype) {
+  auto attrs = make_object<DensePackAttrs>();
   attrs->units = units;
   attrs->out_dtype = out_dtype;
+  attrs->weight_layout = std::move(weight_layout);
   static const Op& op = Op::Get("nn.contrib_dense_pack");
   return Call(op, {data, weight}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.contrib_dense_pack").set_body_typed(MakeDensePack);
 
+bool DensePackRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                  const TypeReporter& reporter) {
+  ICHECK_EQ(types.size(), 3);
+  const auto* data = types[0].as<TensorTypeNode>();
+  const auto* weight = types[1].as<TensorTypeNode>();
+  if (data == nullptr || weight == nullptr) return false;
+
+  const DensePackAttrs* param = attrs.as<DensePackAttrs>();
+  ICHECK(param != nullptr);
+
+  ICHECK_EQ(data->shape.size(), 2) << "Only 2D data is supported";
+  ICHECK_EQ(weight->shape.size(), 3) << "Weight is not packed";
+
+  Array<tvm::PrimExpr> oshape = data->shape;
+  oshape.Set(1, weight->shape[0] * weight->shape[2]);
+
+  DataType out_dtype = param->out_dtype;
+  if (out_dtype.bits() == 0) {
+    out_dtype = data->dtype;
+  }
+  // assign output type
+  reporter->Assign(types[2], TensorType(oshape, out_dtype));
+  return true;
+}
+
+InferCorrectLayoutOutput DensePackInferCorrectLayout(const Attrs& attrs,
+                                                     const Array<Layout>& new_in_layouts,
+                                                     const Array<Layout>& old_in_layouts,
+                                                     const Array<tvm::relay::Type>& old_in_types) {
+  auto params = attrs.as<DensePackAttrs>();
+  ICHECK(params);
+  return InferCorrectLayoutOutput({"NC", params->weight_layout}, {"NC"}, attrs);
+}
+
 RELAY_REGISTER_OP("nn.contrib_dense_pack")
     .describe(R"code(Applies a linear transformation: :math:`Y = XW^T`.
 
-- **data**: `(x1, x2, ..., xn, input_dim)`
+- **data**: `(batch, input_dim)`
 - **weight**: `(units // pack_weight_tile, input_dim, pack_weight_tile)`
-- **out**: `(x1, x2, ..., xn, units)`.
+- **out**: `(batch, units)`.
 
 )code" TVM_ADD_FILELINE)
     .set_attrs_type<DenseAttrs>()
     .set_num_inputs(2)
-    .add_argument("data", "nD Tensor", "Input data.")
+    .add_argument("data", "2D Tensor", "Input data.")
     .add_argument("weight", "3D Tensor", "Packed weight matrix.")
     .set_support_level(10)
-    .add_type_rel("DensePack", DensePackRel<DenseAttrs>);
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", DensePackInferCorrectLayout)
+    .add_type_rel("DensePack", DensePackRel);
 // ------------------- relay.nn.contrib_dense_pack
 
 // relay.leaky_relu
@@ -307,7 +354,6 @@ bool PReluRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   return true;
 }
 
-template <typename T>
 InferCorrectLayoutOutput PReluInferCorrectLayout(const Attrs& attrs,
                                                  const Array<Layout>& new_in_layouts,
                                                  const Array<Layout>& old_in_layouts,
@@ -343,7 +389,7 @@ where :math:`*` is an channelwise multiplication for each sample in the batch.
     .add_argument("alpha", "Tensor", "Input channelwise alpha.")
     .set_support_level(3)
     .add_type_rel("PRelu", PReluRel)
-    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", PReluInferCorrectLayout<PReluAttrs>)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", PReluInferCorrectLayout)
     .set_attr<FTVMCompute>("FTVMCompute", [](const Attrs& attrs, const Array<te::Tensor>& inputs,
                                              const Type& out_type) {
       const auto* param = attrs.as<PReluAttrs>();

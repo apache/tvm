@@ -49,7 +49,7 @@ ci_gpu = "tlcpack/ci-gpu:v0.76"
 ci_cpu = "tlcpack/ci-cpu:v0.75"
 ci_wasm = "tlcpack/ci-wasm:v0.71"
 ci_i386 = "tlcpack/ci-i386:v0.73"
-ci_qemu = "tlcpack/ci-qemu:v0.06"
+ci_qemu = "tlcpack/ci-qemu:v0.07"
 ci_arm = "tlcpack/ci-arm:v0.06"
 // <--- End of regex-scanned config.
 
@@ -188,7 +188,7 @@ stage('Build') {
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_tsim.sh"
           // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
           // TODO(@jroesch): need to resolve CI issue will turn back on in follow up patch
-          // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh"
+          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh"
           junit "build/pytest-results/*.xml"
         }
       }
@@ -282,6 +282,7 @@ stage('Unit Test') {
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} ${ci_arm} ./tests/scripts/task_ci_setup.sh"
           sh "${docker_run} ${ci_arm} ./tests/scripts/task_python_unittest.sh"
+          sh "${docker_run} ${ci_arm} ./tests/scripts/task_python_arm_compute_library.sh"
           junit "build/pytest-results/*.xml"
           // sh "${docker_run} ${ci_arm} ./tests/scripts/task_python_integration.sh"
         }

@@ -39,7 +39,7 @@ def _tensorlist_reserve():
     def _impl(inputs, attr, params, prelude):
         dtype_str = attr.get("element_dtype").name
         elem_shape = _infer_value(inputs[0], params, prelude.mod)
-        elem_shape = tuple(elem_shape.asnumpy().astype("int32").flatten())
+        elem_shape = tuple(elem_shape.numpy().astype("int32").flatten())
 
         if elem_shape or "shape" in attr:
             shape = attr["shape"] if "shape" in attr else elem_shape
