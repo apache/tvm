@@ -28,8 +28,7 @@ from tvm.contrib import graph_executor
 import paddle
 import paddle.nn as nn
 
-PADDLE_TEST_DATA_ROOT_PATH = Path(
-    Path("~").expanduser(), ".tvm_test_data", "paddle")
+PADDLE_TEST_DATA_ROOT_PATH = Path(Path("~").expanduser(), ".tvm_test_data", "paddle")
 PADDLE_TEST_DATA_ROOT_PATH.mkdir(parents=True, exist_ok=True)
 
 
@@ -61,9 +60,8 @@ def verify_model(func, input_data, rtol=1e-5, atol=1e-5):
     for idx, data in enumerate(input_data):
         input_name = "input{}".format(idx)
         input_spec.append(
-            paddle.static.InputSpec(dtype=data.dtype,
-                                    shape=data.shape,
-                                    name=input_name))
+            paddle.static.InputSpec(dtype=data.dtype, shape=data.shape, name=input_name)
+        )
         input_names.append(input_name)
         input_shape_dict[input_name] = data.shape
         if isinstance(data, np.ndarray):
@@ -78,7 +76,7 @@ def verify_model(func, input_data, rtol=1e-5, atol=1e-5):
     if isinstance(baseline_outputs, (tuple, list)):
         baseline_outputs = tuple(out.numpy() for out in baseline_outputs)
     else:
-        baseline_outputs = (baseline_outputs.numpy(), )
+        baseline_outputs = (baseline_outputs.numpy(),)
 
     mod, params = relay.frontend.from_paddle(baseline_model, input_shape_dict)
     parms_num = min(len(input_names), len(mod["main"].params))
@@ -99,10 +97,7 @@ def verify_model(func, input_data, rtol=1e-5, atol=1e-5):
                 compiled_output = gmod.get_output(i).numpy()
 
                 assert_shapes_match(baseline_output, compiled_output)
-                tvm.testing.assert_allclose(baseline_output,
-                                            compiled_output,
-                                            rtol=rtol,
-                                            atol=atol)
+                tvm.testing.assert_allclose(baseline_output, compiled_output, rtol=rtol, atol=atol)
 
 
 @tvm.testing.uses_gpu
@@ -168,13 +163,19 @@ def test_forward_assign():
 
     input_shape = [2, 3]
     input_data = paddle.rand(input_shape, dtype="float32")
-    verify_model(assign, [
-        input_data,
-    ])
+    verify_model(
+        assign,
+        [
+            input_data,
+        ],
+    )
     input_data2 = np.random.randint(100, size=input_shape)
-    verify_model(assign, [
-        input_data2,
-    ])
+    verify_model(
+        assign,
+        [
+            input_data2,
+        ],
+    )
 
 
 @tvm.testing.uses_gpu
@@ -226,28 +227,32 @@ def test_forward_cast():
 
     input_shape = [2, 3]
     input_data = paddle.rand(input_shape, dtype="float32") * 100
-    verify_model(cast1, [
-        input_data,
-    ])
-    verify_model(cast2, [
-        input_data,
-    ])
+    verify_model(
+        cast1,
+        [
+            input_data,
+        ],
+    )
+    verify_model(
+        cast2,
+        [
+            input_data,
+        ],
+    )
 
 
 @tvm.testing.uses_gpu
 def test_forward_concat_unsqueeze():
     @paddle.jit.to_static
     def concat_unsqueeze1(inputs):
-        return paddle.concat(
-            [inputs[:, 0].unsqueeze(1), inputs[:, 1].unsqueeze(1)], axis=1)
+        return paddle.concat([inputs[:, 0].unsqueeze(1), inputs[:, 1].unsqueeze(1)], axis=1)
 
     @paddle.jit.to_static
     def concat_unsqueeze2(inputs):
         a = (inputs[:, :, 0] + 2) * 7
         b = (inputs[:, :, 1] + 3) * 11
         c = (inputs[:, :, 2] + 5) * 13
-        return paddle.concat([paddle.unsqueeze(t, axis=2) for t in [a, b, c]],
-                             axis=2)
+        return paddle.concat([paddle.unsqueeze(t, axis=2) for t in [a, b, c]], axis=2)
 
     input_shape = [1, 3, 10, 10]
     input_data = paddle.rand(input_shape, dtype="float32")
@@ -272,12 +277,18 @@ def test_forward_cumsum():
     input_data = paddle.randint(0, 100, (10, 10), dtype=paddle.int32)
     verify_model(cusum1, [input_data])
     verify_model(cusum1, [input_data.astype(paddle.int64)])
-    verify_model(cusum2, [
-        input_data,
-    ])
-    verify_model(cusum3, [
-        input_data,
-    ])
+    verify_model(
+        cusum2,
+        [
+            input_data,
+        ],
+    )
+    verify_model(
+        cusum3,
+        [
+            input_data,
+        ],
+    )
 
 
 @tvm.testing.uses_gpu
@@ -390,10 +401,7 @@ def test_forward_hard_swish():
 def test_forward_layer_norm():
     @paddle.jit.to_static
     def layer_norm(inputs, weight, bias):
-        return nn.functional.layer_norm(inputs,
-                                        inputs.shape[-1],
-                                        weight=weight,
-                                        bias=bias)
+        return nn.functional.layer_norm(inputs, inputs.shape[-1], weight=weight, bias=bias)
 
     class LayerNorm(nn.Layer):
         def __init__(self):
@@ -477,7 +485,7 @@ def test_forward_matmul():
 
     # matrix x vector
     input_data1 = paddle.randn((3, 4), dtype="float32")
-    input_data2 = paddle.randn((4, ), dtype="float32")
+    input_data2 = paddle.randn((4,), dtype="float32")
     verify_model(MatMul1(), input_data=[input_data1, input_data2])
 
     # matrix x matrix
@@ -500,10 +508,7 @@ def test_forward_matmul():
 def test_forward_pool2d():
     @paddle.jit.to_static
     def pool2d1(inputs):
-        return nn.functional.avg_pool2d(inputs,
-                                        kernel_size=2,
-                                        stride=2,
-                                        padding=0)
+        return nn.functional.avg_pool2d(inputs, kernel_size=2, stride=2, padding=0)
 
     @paddle.jit.to_static
     def pool2d2(inputs):
@@ -511,16 +516,11 @@ def test_forward_pool2d():
 
     @paddle.jit.to_static
     def pool2d3(inputs):
-        return nn.functional.max_pool2d(inputs,
-                                        kernel_size=2,
-                                        stride=2,
-                                        padding=0,
-                                        return_mask=True)
+        return nn.functional.max_pool2d(
+            inputs, kernel_size=2, stride=2, padding=0, return_mask=True
+        )
 
-    input_data = paddle.uniform(shape=[1, 2, 32, 32],
-                                dtype='float32',
-                                min=-1,
-                                max=1)
+    input_data = paddle.uniform(shape=[1, 2, 32, 32], dtype="float32", min=-1, max=1)
     verify_model(pool2d1, input_data=input_data)
     verify_model(pool2d2, input_data=input_data)
     # verify_model(pool2d3, input_data=input_data)
@@ -577,10 +577,13 @@ def test_forward_scale():
     def scale2(inputs):
         return paddle.scale(inputs, scale=3, bias=2.1, act="gelu")
 
-    input_data = paddle.randn(shape=[2, 3], dtype='float32')
-    verify_model(scale1, input_data=[
-        input_data,
-    ])
+    input_data = paddle.randn(shape=[2, 3], dtype="float32")
+    verify_model(
+        scale1,
+        input_data=[
+            input_data,
+        ],
+    )
     verify_model(scale2, input_data=input_data)
 
 
@@ -606,9 +609,12 @@ def test_forward_slice():
 
     input_shape = [1, 3, 10, 10]
     input_data = paddle.rand(input_shape, dtype="float32")
-    verify_model(slice1, input_data=[
-        input_data,
-    ])
+    verify_model(
+        slice1,
+        input_data=[
+            input_data,
+        ],
+    )
     verify_model(slice2, input_data=input_data)
     # need op "strided_slice"
     # verify_model(slice3, input_data=paddle.randn((4, 4)))
