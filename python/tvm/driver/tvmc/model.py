@@ -371,7 +371,7 @@ class TVMCPackage(object):
 class TVMCResult(object):
     """A class that stores the results of tvmc.run and provides helper utilities."""
 
-    def __init__(self, outputs: Dict[str, np.ndarray], times: List[str]):
+    def __init__(self, outputs: Dict[str, np.ndarray], times: List[float]):
         """Create a convenience wrapper around the output of tvmc.run
 
         Parameters
