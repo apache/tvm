@@ -1,4 +1,3 @@
-#!/bin/bash -e
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,20 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-#
-#   Using this script we can reuse docker/install scripts to configure the reference 
-#   virtual machine similar to CI QEMU setup.
-#
+"""FFI APIs for tvm.testing"""
+import tvm._ffi
 
-set -e
-set -x
 
-source ~/.profile
-
-# Init Zephyr
-cd ~
-# Using most recent commit that passes all the tests.
-~/ubuntu_init_zephyr_project.sh ~/zephyr v2.5-branch --commit dabf23758417fd041fec2a2a821d8f526afac29d
-
-# Cleanup
-rm -f *.sh
+tvm._ffi._init_api("testing", __name__)
