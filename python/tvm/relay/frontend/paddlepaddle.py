@@ -143,9 +143,9 @@ def convert_conv2d(g, op, block):
         paddings = [pad_h[0], pad_w[0], pad_h[1], pad_w[1]]
     elif padding_algorithm == "EXPLICIT":
         if len(paddings) == 2:
-            paddings = [paddings[0],paddings[1],paddings[0],paddings[1]]
+            paddings = [paddings[0], paddings[1], paddings[0], paddings[1]]
         if len(paddings) == 4:
-            paddings = [paddings[0],paddings[2],paddings[1],paddings[3]]
+            paddings = [paddings[0], paddings[2], paddings[1], paddings[3]]
     else:
         msg = 'Value {} in attribute "padding" of operator Conv is not ' "valid."
         raise tvm.error.OpAttributeInvalid(msg.format(padding_algorithm))
@@ -346,7 +346,8 @@ def convert_layer_norm(g, op, block):
     scale_input = op.input('Scale')
 
     x_shape = infer_shape(x)
-    assert  begin_norm_axis == -1 or begin_norm_axis == len(x_shape) - 1, "Support only normalization over last one dimension."
+    assert begin_norm_axis == -1 or begin_norm_axis == len(
+        x_shape) - 1, "Support only normalization over last one dimension."
 
     if bias_input:
         bias = g.get_node(bias_input[0])
@@ -356,7 +357,7 @@ def convert_layer_norm(g, op, block):
     if scale_input:
         scale = g.get_node(scale_input[0])
     else:
-        scale =  _expr.const(np.ones(x_shape[begin_norm_axis]))
+        scale = _expr.const(np.ones(x_shape[begin_norm_axis]))
 
     out = _op.nn.layer_norm(x,
                             gamma=scale,
@@ -587,9 +588,9 @@ def convert_pool2d(g, op, block):
         paddings = [pad_h[0], pad_w[0], pad_h[1], pad_w[1]]
     elif padding_algorithm == "EXPLICIT":
         if len(paddings) == 2:
-            paddings = [paddings[0],paddings[1],paddings[0],paddings[1]]
+            paddings = [paddings[0], paddings[1], paddings[0], paddings[1]]
         if len(paddings) == 4:
-            paddings = [paddings[0],paddings[2],paddings[1],paddings[3]]
+            paddings = [paddings[0], paddings[2], paddings[1], paddings[3]]
     else:
         msg = 'Value {} in attribute "padding" of operator Pool2d is not ' "valid."
         raise tvm.error.OpAttributeInvalid(msg.format(padding_algorithm))
@@ -700,9 +701,7 @@ def convert_slice(g, op, block):
     if isinstance(decrease_axis, int):
         decrease_axis = [decrease_axis]
     starts, ends, axes = parameter_process(starts, ends, axes, dshape)
-    out = _op.strided_slice(data,
-                            begin=starts,
-                            end=ends)
+    out = _op.strided_slice(data, begin=starts, end=ends)
     if decrease_axis:
         out = _op.squeeze(out, axis=decrease_axis)
     g.add_node(op.output('Out')[0], out)
@@ -720,6 +719,7 @@ def convert_softmax(g, op, block):
     e = _op.exp(x - m)
     out = e / _op.sum(e, axis, keepdims=True)
     g.add_node(op.output('Out')[0], out)
+
 
 def convert_unsqueeze(g, op, block):
     """Operator converter for unsqueeze."""
@@ -773,7 +773,6 @@ _convert_map = {
 
 class GraphProto(object):
     """ A helper class for handling relay functions from PaddlePaddle model."""
-
     def __init__(self):
         self.nodes = {}
         self.params = {}
