@@ -295,7 +295,7 @@ class DictAttrs : public Attrs {
    *
    * \endcode
    */
-  bool HasNonzeroAttr(const std::string& attr_key) const {
+  bool zeroAttr(const std::string& attr_key) const {
     return GetAttr<Integer>(attr_key, 0) != 0;
   }
 
@@ -344,17 +344,17 @@ inline TAttrs AttrsWithDefaultValues() {
  * \endcode
  */
 template <typename TFunc>
-inline TFunc WithAttr(TFunc func, const std::string& attr_key, ObjectRef attr_value) {
+inline TFunc WithAttr(TFunc input, const std::string& attr_key, ObjectRef attr_value) {
   using TNode = typename TFunc::ContainerType;
   static_assert(TNode::_type_final, "Can only operate on the leaf nodes");
-  TNode* node = func.CopyOnWrite();
+  TNode* node = input.CopyOnWrite();
   if (node->attrs.defined()) {
     node->attrs.CopyOnWrite()->dict.Set(attr_key, attr_value);
   } else {
     Map<String, ObjectRef> dict = {{attr_key, attr_value}};
     node->attrs = DictAttrs(dict);
   }
-  return func;
+  return input;
 }
 
 // Namespace containing detail implementations
