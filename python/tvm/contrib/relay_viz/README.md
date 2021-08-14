@@ -59,10 +59,3 @@ vizer.render("output.html")
 2. https://tvm.apache.org/2020/07/14/bert-pytorch-tvm
 
 3. https://discuss.tvm.apache.org/t/rfc-visualizing-relay-program-as-graph/4825/17
-
-## TODO
-1. Refactor plotter. Delegate plotting to another class.
-2. Display more information when the zoom-level is large enough (currently only node_type is displayed.)
- - Need to give each attribute priority, though...
- - Simple user interface to configure this priority.
-3. Interactive legend.

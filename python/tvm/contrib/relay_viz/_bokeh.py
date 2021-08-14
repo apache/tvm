@@ -24,18 +24,14 @@ import numpy as np
 import pydot
 
 from bokeh.io import output_file, save
-from bokeh.models.graphs import StaticLayoutProvider
-from bokeh.models.renderers import GraphRenderer
 from bokeh.models import (
     ColumnDataSource,
     CustomJS,
     Text,
     Rect,
-    # NodesAndLinkedEdges,
     HoverTool,
     MultiLine,
     Legend,
-    LegendItem,
     Scatter,
     Plot,
     TapTool,
@@ -71,9 +67,7 @@ class NodeDescriptor:
 
     @property
     def detail(self):
-        ret = html.escape(self._node_detail)
-        ret = ret.replace("\n", "<br>")
-        return ret
+        return self._node_detail
 
 
 class GraphShaper:
@@ -87,6 +81,8 @@ class GraphShaper:
             args = []
         # call the graphviz program to get layout
         pydot_graph_str = pydot_graph.create([prog] + args, format="dot").decode()
+        # remember original nodes
+        self._nodes = [n.get_name() for n in pydot_graph.get_nodes()]
         # parse layout
         pydot_graph = pydot.graph_from_dot_data(pydot_graph_str)
         if len(pydot_graph) != 1:
@@ -95,6 +91,9 @@ class GraphShaper:
                 "Got %d pydot graphs. Only the first one will be used.", len(pydot_graph)
             )
         self._pydot_graph = pydot_graph[0]
+
+    def get_nodes(self):
+        return self._nodes
 
     @functools.lru_cache()
     def get_edge_path(self, start_node_id, end_node_id):
@@ -105,11 +104,11 @@ class GraphShaper:
                 "Got %d edges between %s and %s. Only the first one will be used.",
                 len(edge),
                 start_node_id,
-                end_node_id
+                end_node_id,
             )
         edge = edge[0]
         # filter out quotes and newline
-        pos_str = edge.get_pos().strip("\"").replace("\\\n", "")
+        pos_str = edge.get_pos().strip('"').replace("\\\n", "")
         tokens = pos_str.split(" ")
         s_token = None
         e_token = None
@@ -122,15 +121,7 @@ class GraphShaper:
                 s_token = token
             else:
                 x_str, y_str = token.split(",")
-                ss = False
-                try:
-                    ret_x_pts.append(float(x_str))
-                except ValueError:
-                    print(token)
-                    print(start_node_id, end_node_id)
-                    ss = True
-                if ss:
-                    import pdb; pdb.set_trace()
+                ret_x_pts.append(float(x_str))
                 ret_y_pts.append(float(y_str))
         if s_token is not None:
             _, x_str, y_str = s_token.split(",")
@@ -143,6 +134,7 @@ class GraphShaper:
 
         return ret_x_pts, ret_y_pts
 
+    @functools.lru_cache()
     def get_node_pos(self, node_name):
         pos_str = self._get_node_attr(node_name, "pos", "0,0")
         return list(map(float, pos_str.split(",")))
@@ -159,16 +151,25 @@ class GraphShaper:
 
         node = self._pydot_graph.get_node(str(node_name))
         if len(node) > 1:
-            _LOGGER.error("There are %d nodes with the name %s. Randomly choose one.", len(node), node_name)
+            _LOGGER.error(
+                "There are %d nodes with the name %s. Randomly choose one.", len(node), node_name
+            )
         if len(node) == 0:
-            _LOGGER.warning("%s does not exist in the graph. Use default %s for attribute %s", node_name, default_val, attr_name)
+            _LOGGER.warning(
+                "%s does not exist in the graph. Use default %s for attribute %s",
+                node_name,
+                default_val,
+                attr_name,
+            )
             return default_val
 
         node = node[0]
         try:
-            val = node.obj_dict["attributes"][attr_name].strip("\"")
+            val = node.obj_dict["attributes"][attr_name].strip('"')
         except KeyError:
-            _LOGGER.warning("%s don't exist in node %s. Use default %s", attr_name, node_name, default_val)
+            _LOGGER.warning(
+                "%s don't exist in node %s. Use default %s", attr_name, node_name, default_val
+            )
             val = default_val
         return val
 
@@ -186,7 +187,7 @@ class BokehPlotter(Plotter):
         if node_id in self._id_to_node:
             _LOGGER.warning("node_id %s already exists.", node_id)
             return
-        self._pydot_digraph.add_node(pydot.Node(node_id))
+        self._pydot_digraph.add_node(pydot.Node(node_id, label=node_detail))
         self._id_to_node[node_id] = NodeDescriptor(node_id, node_type, node_detail)
 
     def edge(self, id_start, id_end):
@@ -231,33 +232,113 @@ class BokehPlotter(Plotter):
             type_to_color[t] = category20[idx % 20]
         return type_to_color
 
-    def _add_legend(self, plot, graph, label):
-        legend_item = LegendItem(label=label, renderers=[graph.node_renderer])
-        legend = Legend(items=[legend_item], title="Node Type")
+    def _create_graph(self, plot, shaper):
+
+        # Add edge first
+        edges = self._pydot_digraph.get_edges()
+        x_path_list = []
+        y_path_list = []
+        for edge in edges:
+            id_start = edge.get_source()
+            id_end = edge.get_destination()
+            x_pts, y_pts = shaper.get_edge_path(id_start, id_end)
+            x_path_list.append(x_pts)
+            y_path_list.append(y_pts)
+
+        multi_line_source = ColumnDataSource({"xs": x_path_list, "ys": y_path_list})
+        edge_line_color = "#888888"
+        edge_line_width = 3
+        multi_line_glyph = MultiLine(line_color=edge_line_color, line_width=edge_line_width)
+        plot.add_glyph(multi_line_source, multi_line_glyph)
+
+        # Then add nodes
+        type_to_color = self._get_type_to_color_map()
+
+        def cnvt_to_html(s):
+            return html.escape(s).replace("\n", "<br>")
+
+        label_to_ids = {}
+        for node_id in shaper.get_nodes():
+            label = self._id_to_node[node_id].node_type
+            if label not in label_to_ids:
+                label_to_ids[label] = []
+            label_to_ids[label].append(node_id)
+
+        renderers = []
+        legend_itmes = []
+        for label, id_list in label_to_ids.items():
+            source = ColumnDataSource(
+                {
+                    "x": [shaper.get_node_pos(n)[0] for n in id_list],
+                    "y": [shaper.get_node_pos(n)[1] for n in id_list],
+                    "width": [shaper.get_node_width(n) for n in id_list],
+                    "height": [shaper.get_node_height(n) for n in id_list],
+                    "node_detail": [cnvt_to_html(self._id_to_node[n].detail) for n in id_list],
+                    "node_type": [label] * len(id_list),
+                }
+            )
+            glyph = Rect(fill_color=type_to_color[label])
+            renderer = plot.add_glyph(source, glyph)
+            # set glyph for interactivity
+            renderer.nonselection_glyph = Rect(fill_color=type_to_color[label])
+            renderer.hover_glyph = Rect(
+                fill_color=type_to_color[label], line_color="firebrick", line_width=3
+            )
+            renderer.selection_glyph = Rect(
+                fill_color=type_to_color[label], line_color="firebrick", line_width=3
+            )
+            # Though it is called "muted_glyph", we actually use it to emphasize nodes in this renderer.
+            renderer.muted_glyph = Rect(
+                fill_color=type_to_color[label], line_color="firebrick", line_width=3
+            )
+            name = f"{self._get_graph_name(plot)}_{label}"
+            renderer.name = name
+            renderers.append(renderer)
+            legend_itmes.append((label, [renderer]))
+
+        # add legend
+        legend = Legend(
+            items=legend_itmes,
+            title="Click to highlight",
+            inactive_fill_color="firebrick",
+            inactive_fill_alpha=0.2,
+        )
+        legend.click_policy = "mute"
         plot.add_layout(legend, "left")
 
-    def _add_tooltip(self, plot):
-
-        graph_name = self._get_graph_name(plot)
+        # add tooltips
         tooltips = [
-            ("node_type", "@label"),
+            ("node_type", "@node_type"),
             ("description", "@node_detail{safe}"),
         ]
         inspect_tool = WheelZoomTool()
-        # only render graph_name
-        hover_tool = HoverTool(tooltips=tooltips, names=[graph_name])
+        # only render nodes
+        hover_tool = HoverTool(tooltips=tooltips, renderers=renderers)
         plot.add_tools(PanTool(), TapTool(), inspect_tool, hover_tool, ResetTool(), SaveTool())
         plot.toolbar.active_scroll = inspect_tool
 
-    def _add_scalable_glyph(self, plot, node_to_pos, shaper):
+    def _add_scalable_glyph(self, plot, shaper):
+        nodes = shaper.get_nodes()
+
+        def populate_detail(n_type, n_detail):
+            if n_detail:
+                return f"{n_type}\n{n_detail}"
+            return n_type
 
         text_source = ColumnDataSource(
             {
-                "x": [pos[0] for pos in node_to_pos.values()],
-                "y": [pos[1] for pos in node_to_pos.values()],
-                "text": [self._id_to_node[n].node_type for n in node_to_pos],
+                "x": [shaper.get_node_pos(n)[0] for n in nodes],
+                "y": [shaper.get_node_pos(n)[1] for n in nodes],
+                "text": [self._id_to_node[n].node_type for n in nodes],
+                "detail": [
+                    populate_detail(self._id_to_node[n].node_type, self._id_to_node[n].detail)
+                    for n in nodes
+                ],
+                "box_w": [shaper.get_node_width(n) for n in nodes],
+                "box_h": [shaper.get_node_height(n) for n in nodes],
             }
         )
+
         text_glyph = Text(
             x="x",
             y="y",
@@ -270,7 +351,7 @@ class BokehPlotter(Plotter):
 
         def get_scatter_loc(xs, xe, ys, ye, end_node):
             """return x, y, angle as a tuple"""
-            node_x, node_y = node_to_pos[end_node]
+            node_x, node_y = shaper.get_node_pos(end_node)
             node_w = shaper.get_node_width(end_node)
             node_h = shaper.get_node_height(end_node)
 
@@ -304,115 +385,56 @@ class BokehPlotter(Plotter):
         )
         edge_end_arrow = plot.add_glyph(ColumnDataSource(scatter_source), scatter_glyph)
 
-        plot.x_range.js_on_change(
+        plot.y_range.js_on_change(
             "start",
             CustomJS(
                 args=dict(
-                    plot=plot, node_annotation=node_annotation, edge_end_arrow=edge_end_arrow
+                    plot=plot,
+                    node_annotation=node_annotation,
+                    text_source=text_source,
+                    edge_end_arrow=edge_end_arrow,
                 ),
                 code="""
-                 node_annotation.visible = plot.width/(this.end - this.start) >= 1.0
-                 var ratio = Math.sqrt(plot.width/(this.end - this.start))
+                 // fontsize is in px
+                 var fontsize = 14
+                 // ratio = data_point/px
+                 var ratio = (this.end - this.start)/plot.height
+                 var text_list = text_source.data["text"]
+                 var detail_list = text_source.data["detail"]
+                 var box_h_list = text_source.data["box_h"]
+                 for(var i = 0; i < text_list.length; i++) {
+                     var line_num = Math.floor((box_h_list[i]/ratio) / (fontsize*1.5))
+                     if(line_num <= 0) {
+                         // relieve for the first line
+                         if(Math.floor((box_h_list[i]/ratio) / (fontsize)) > 0) {
+                            line_num = 1
+                         }
+                     }
+                     var lines = detail_list[i].split("\\n")
+                     lines = lines.slice(0, line_num)
+                     text_list[i] = lines.join("\\n")
+                 }
+                 text_source.change.emit()
 
-                 var new_text_size = Math.round(11 * ratio)
-                 node_annotation.glyph.text_font_size = {value: `${new_text_size}px`}
+                 node_annotation.glyph.text_font_size = {value: `${fontsize}px`}
 
-                 var new_scatter_size = Math.round(5 * ratio)
+                 var new_scatter_size = Math.round(fontsize / ratio)
                  edge_end_arrow.glyph.size = {value: new_scatter_size}
                  """,
             ),
         )
 
-    def _create_graph(self, plot, shaper, node_to_pos):
-
-        graph = GraphRenderer()
-        graph.name = self._get_graph_name(plot)
-        # FIXME: handle node attributes if necessary
-        graph.node_renderer.data_source.data = {
-            "index": [n.get_name() for n in self._pydot_digraph.get_nodes()]
-        }
-
-        edges = self._pydot_digraph.get_edges()
-        graph.edge_renderer.data_source.data = {
-            "start": [e.get_source() for e in edges],
-            "end": [e.get_destination() for e in edges]   
-        }
-
-        graph.layout_provider = StaticLayoutProvider(graph_layout=node_to_pos)
-        
-        # TODO: I want to plot the network with lower-level bokeh APIs in the future,
-        # which may not support NodesAndLinkedEdges() policy. So comment out here.
-        # graph.selection_policy = NodesAndLinkedEdges()
-
-        # edge
-        edge_line_color = "#888888"
-        edge_line_width = 3
-        graph.edge_renderer.glyph = MultiLine(
-            line_color=edge_line_color, line_width=edge_line_width
-        )
-        x_path_list = []
-        y_path_list = []
-        for edge in edges:
-            id_start = edge.get_source()
-            id_end = edge.get_destination()
-            x_pts, y_pts = shaper.get_edge_path(id_start, id_end)
-            x_path_list.append(x_pts)
-            y_path_list.append(y_pts)
-        graph.edge_renderer.data_source.data["xs"] = x_path_list
-        graph.edge_renderer.data_source.data["ys"] = y_path_list
-
-        # node
-        graph.node_renderer.glyph = Rect(width="w", height="h", fill_color="fill_color")
-        graph.node_renderer.hover_glyph = Rect(
-            width="w", height="h", fill_color="fill_color", line_color="firebrick", line_width=3
-        )
-        graph.node_renderer.selection_glyph = Rect(
-            width="w", height="h", fill_color="fill_color", line_color="firebrick", line_width=3
-        )
-        graph.node_renderer.nonselection_glyph = Rect(
-            width="w", height="h", fill_color="fill_color"
-        )
-
-        # decide rect size
-        rect_w = [shaper.get_node_width(n) for n in node_to_pos]
-        rect_h = [shaper.get_node_height(n) for n in node_to_pos]
-
-        # get type-color map
-        type_to_color = self._get_type_to_color_map()
-
-        # add data source for nodes
-        graph.node_renderer.data_source.data = dict(
-            index=list(node_to_pos.keys()),
-            w=rect_w,
-            h=rect_h,
-            label=[self._id_to_node[i].node_type for i in node_to_pos],
-            fill_color=[type_to_color[self._id_to_node[i].node_type] for i in node_to_pos],
-            node_detail=[self._id_to_node[i].detail for i in node_to_pos],
-        )
-
-        return graph
-
     def _create_layout_dom(self, plot):
 
         shaper = GraphShaper(
-            self._pydot_digraph, prog="dot", args=["-Grankdir=TB", "-Gsplines=ortho", "-Nordering=in"]
+            self._pydot_digraph,
+            prog="dot",
+            args=["-Grankdir=TB", "-Gsplines=ortho", "-Gfontsize=14", "-Nordering=in"],
         )
 
-        node_to_pos = {}
-        for node in self._pydot_digraph.get_nodes():
-            node_name = node.get_name()
-            node_to_pos[node_name] = shaper.get_node_pos(node_name)
+        self._create_graph(plot, shaper)
 
-        graph = self._create_graph(plot, shaper, node_to_pos)
-
-        self._add_legend(plot, graph, {"field": "label"})
-
-        self._add_tooltip(plot)
-
-        # add graph
-        plot.renderers.append(graph)
-
-        self._add_scalable_glyph(plot, node_to_pos, shaper)
+        self._add_scalable_glyph(plot, shaper)
         return plot
 
     def _save_html(self, filename, layout_dom):

@@ -22,8 +22,6 @@ from tvm import relay
 
 _LOGGER = logging.getLogger(__name__)
 
-# TODO: add python typing hint for arguments.
-
 
 def _dft_render_cb(plotter, node_to_id, relay_param):
     """a callback to Add nodes and edges to the plotter.
@@ -32,9 +30,9 @@ def _dft_render_cb(plotter, node_to_id, relay_param):
     ----------
     plotter : class plotter.Plotter
 
-    node_to_id : Dict
+    node_to_id : Dict[relay.expr, int]
 
-    relay_param : Dict
+    relay_param : Dict[string, NDarray]
     """
     # Based on https://tvm.apache.org/2020/07/14/bert-pytorch-tvm
     unknown_type = "unknown"
