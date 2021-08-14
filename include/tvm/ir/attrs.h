@@ -354,7 +354,7 @@ inline TFunc WithAttr(TFunc input, const std::string& attr_key, ObjectRef attr_v
     Map<String, ObjectRef> dict = {{attr_key, attr_value}};
     node->attrs = DictAttrs(dict);
   }
-  return func;
+  return input;
 }
 
 // Namespace containing detail implementations
