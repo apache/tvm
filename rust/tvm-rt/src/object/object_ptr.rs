@@ -361,7 +361,7 @@ impl<'a, T: IsObject> TryFrom<ArgValue<'a>> for ObjectPtr<T> {
                 let optr = ObjectPtr::from_raw(handle as *mut Object).ok_or(Error::Null)?;
                 // We are building an owned, ref-counted view into the underlying ArgValue, in order to be safe we must
                 // bump the reference count by one.
-                // optr.inc_ref();
+                optr.inc_ref();
                 assert!(optr.count() >= 1);
                 optr.downcast()
             }
@@ -373,7 +373,7 @@ impl<'a, T: IsObject> TryFrom<ArgValue<'a>> for ObjectPtr<T> {
                 assert!(optr.count() >= 1);
                 // TODO(@jroesch): figure out if there is a more optimal way to do this
                 let object = optr.upcast::<Object>();
-                // object.inc_ref();
+                object.inc_ref();
                 object.downcast()
             }
             _ => Err(Error::downcast(format!("{:?}", arg_value), "ObjectHandle")),
@@ -493,13 +493,36 @@ mod tests {
         let v2: ArgValue = args.remove(0);
         // assert_eq!(o.count(), 2);
         let o: ObjectPtr<Object> = v.try_into().unwrap();
+        assert_eq!(o.count(), 2);
         let o2: ObjectPtr<Object> = v2.try_into().unwrap();
-        assert_eq!(o.count(), 3);
         assert_eq!(o2.count(), 3);
-        // return o;
+        drop(o2);
+        assert_eq!(o.count(), 2);
         Ok(o.into())
     }
 
+    #[test]
+    fn test_ref_count_raw_fn() {
+        use super::*;
+        use crate::function::{register, register_untyped, Function};
+        use crate::to_function::ToFunction;
+        let ptr = ObjectPtr::new(Object::base::<Object>());
+        // Call the function without the wrapping for TVM.
+        assert_eq!(ptr.count(), 1);
+        let same = test_fn_raw(vec![(&ptr).into(), (&ptr).into()]).unwrap();
+        let output: ObjectPtr<Object> = same.try_into().unwrap();
+        assert_eq!(output.count(), 2);
+        drop(output);
+        assert_eq!(ptr.count(), 1);
+
+        register_untyped(test_fn_raw, "test_fn_raw", true).unwrap();
+        let raw_func = Function::get("test_fn_raw").unwrap();
+        let output = raw_func.invoke(vec![(&ptr).into(), (&ptr).into()]).unwrap();
+        let output: ObjectPtr<Object> = output.try_into().unwrap();
+        assert_eq!(output.count(), 2);
+        drop(output);
+        assert_eq!(ptr.count(), 1);
+    }
 
     #[test]
     fn test_ref_count_boundary3() {
@@ -510,7 +533,8 @@ mod tests {
         assert_eq!(ptr.count(), 1);
         register_untyped(test_fn_raw, "foo", true);
         let raw_func = Function::get("foo").unwrap();
-        let same = raw_func.invoke(vec![(&ptr).into(), (&ptr).into()]).unwrap();
+        // let same = raw_func.invoke(vec![(&ptr).into(), (&ptr).into()]).unwrap();
+        let same = test_fn_raw(vec![(&ptr).into(), (&ptr).into()]).unwrap();
         let same: ObjectPtr<Object> = same.try_into().unwrap();
         drop(same);
         drop(raw_func);

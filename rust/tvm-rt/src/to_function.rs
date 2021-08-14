@@ -110,19 +110,24 @@ pub trait ToFunction<I, O>: Sized {
             for i in 0..len {
                 value = args_list[i];
                 tcode = type_codes_list[i];
-                if tcode == ffi::TVMArgTypeCode_kTVMObjectHandle as c_int
-                    || tcode == ffi::TVMArgTypeCode_kTVMObjectRValueRefArg as c_int
-                    || tcode == ffi::TVMArgTypeCode_kTVMPackedFuncHandle as c_int
-                    || tcode == ffi::TVMArgTypeCode_kTVMModuleHandle as c_int
-                    || tcode == ffi::TVMArgTypeCode_kTVMNDArrayHandle as c_int
-                {
-                    check_call!(ffi::TVMCbArgToReturn(
-                        &mut value as *mut _,
-                        &mut tcode as *mut _
-                    ));
-                }
+                // if tcode == ffi::TVMArgTypeCode_kTVMObjectHandle as c_int
+                //     || tcode == ffi::TVMArgTypeCode_kTVMObjectRValueRefArg as c_int
+                //     || tcode == ffi::TVMArgTypeCode_kTVMPackedFuncHandle as c_int
+                //     || tcode == ffi::TVMArgTypeCode_kTVMModuleHandle as c_int
+                //     || tcode == ffi::TVMArgTypeCode_kTVMNDArrayHandle as c_int
+                // {
+                //     check_call!(ffi::TVMCbArgToReturn(
+                //         &mut value as *mut _,
+                //         &mut tcode as *mut _
+                //     ));
+                // }
                 let arg_value = ArgValue::from_tvm_value(value, tcode as u32);
                 local_args.push(arg_value);
+            }
+
+            for arg in local_args.clone() {
+                let oref: crate::object::ObjectPtr<crate::object::Object> = arg.clone().try_into().unwrap();
+                println!("right before call oref: {:?}", oref.count());
             }
 
             let rv = match Self::call(resource_handle, local_args) {
@@ -131,6 +136,9 @@ pub trait ToFunction<I, O>: Sized {
                     return Err(msg);
                 }
             };
+
+            let oref: crate::object::ObjectPtr<crate::object::Object> = rv.clone().try_into().unwrap();
+            // println!("ret value oref: {:?}", oref.count());
 
             let (mut ret_val, ret_tcode) = rv.to_tvm_value();
             let mut ret_type_code = ret_tcode as c_int;
@@ -176,6 +184,11 @@ pub struct RawArgs;
 
 impl Typed<RawArgs, RetValue> for for <'a> fn(Vec<ArgValue<'a>>) -> Result<RetValue> {
     fn args<'arg>(args: Vec<ArgValue<'arg>>) -> Result<Args<'arg, RawArgs>> {
+        for arg in args.clone() {
+            let oref: crate::object::ObjectPtr<crate::object::Object> = arg.clone().try_into().unwrap();
+            println!("args oref: {:?}", oref.count());
+        }
+
         Ok(Args::Raw(args))
     }
 
@@ -195,6 +208,11 @@ impl ToFunction<RawArgs, RetValue>
     }
 
     fn call<'arg>(handle: *mut Self::Handle, args: Vec<ArgValue<'arg>>) -> Result<RetValue> {
+        for arg in args.clone() {
+            let oref: crate::object::ObjectPtr<crate::object::Object> = arg.clone().try_into().unwrap();
+            println!("call oref: {:?}", oref.count());
+        }
+
         unsafe {
             let func = *handle;
             func(args)
