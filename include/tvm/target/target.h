@@ -54,7 +54,7 @@ class TargetNode : public Object {
   /*! \brief Keys for this target */
   Array<String> keys;
   /*! \brief Collection of attributes */
-  Map<String, ObjectRef> attrs; // TODO(@electriclilies): Unify with DictAttrs on IRModule
+  Map<String, ObjectRef> attrs;  // TODO(@electriclilies): Unify with DictAttrs on IRModule
   /*!
    * \brief The raw string representation of the target
    * \return the full device string to pass to codegen::Build

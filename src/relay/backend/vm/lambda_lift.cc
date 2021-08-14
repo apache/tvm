@@ -44,7 +44,9 @@ inline std::string GenerateName(const Function& func) {
   return std::string("lifted_name") + std::to_string(hash);
 }
 
-bool IsClosure(const Function& func) { return func->attrs.GetAttr<Integer>(attr::kClosure, 0) != 0; }
+bool IsClosure(const Function& func) {
+  return func->attrs.GetAttr<Integer>(attr::kClosure, 0) != 0;
+}
 
 Function MarkClosure(Function func) {
   return WithAttr(std::move(func), attr::kClosure, tvm::Integer(1));
