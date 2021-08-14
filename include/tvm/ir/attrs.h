@@ -295,7 +295,7 @@ class DictAttrs : public Attrs {
    *
    * \endcode
    */
-  bool zeroAttr(const std::string& attr_key) const {
+  bool HasNonzeroAttr(const std::string& attr_key) const {
     return GetAttr<Integer>(attr_key, 0) != 0;
   }
 
@@ -354,7 +354,7 @@ inline TFunc WithAttr(TFunc input, const std::string& attr_key, ObjectRef attr_v
     Map<String, ObjectRef> dict = {{attr_key, attr_value}};
     node->attrs = DictAttrs(dict);
   }
-  return input;
+  return func;
 }
 
 // Namespace containing detail implementations
