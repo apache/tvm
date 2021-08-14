@@ -45,7 +45,7 @@ pub use tvm_sys::{ffi, ArgValue, RetValue};
 ///
 /// And the implementation of it to `ToFunction`.
 
-type ArgList<'a> = Vec<ArgValue<'a>>;
+pub type ArgList<'a> = Vec<ArgValue<'a>>;
 
 pub enum Args<'a, I> {
     Typed(I),
@@ -78,7 +78,7 @@ pub trait ToFunction<I, O>: Sized {
         check_call!(ffi::TVMFuncCreateFromCFunc(
             Some(Self::tvm_callback),
             resource_handle as *mut _,
-            None, // Some(Self::tvm_finalizer),
+            Some(Self::tvm_finalizer),
             &mut fhandle as *mut ffi::TVMFunctionHandle,
         ));
 
@@ -125,7 +125,6 @@ pub trait ToFunction<I, O>: Sized {
                 local_args.push(arg_value);
             }
 
-            // Ref-count be 2.
             let rv = match Self::call(resource_handle, local_args) {
                 Ok(v) => v,
                 Err(msg) => {
@@ -265,7 +264,8 @@ macro_rules! impl_typed_and_to_function {
                     Args::Typed(typed) => typed,
                 };
 
-                let out = unsafe { (*handle)($($t),*) };
+                let fn_ptr = unsafe { &*handle };
+                let out = fn_ptr($($t),*);
                 Fun::ret(out)
             }
 

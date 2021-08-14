@@ -68,7 +68,7 @@ macro_rules! TVMPODValue {
         $(,)?
     } => {
         $(#[$m])+
-        #[derive(Clone, Debug)]
+        #[derive(Debug)]
         pub enum $name $(<$a>)? {
             Int(i64),
             UInt(i64),

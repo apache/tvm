@@ -131,6 +131,10 @@ impl Function {
             )
         };
 
+        if ret_type_code == crate::ffi::TVMArgTypeCode_kTVMObjectRValueRefArg as _ {
+            panic!()
+        }
+
         if ret_code != 0 {
             let raw_error = crate::get_last_error();
             let error = match Error::from_raw_tvm(raw_error) {

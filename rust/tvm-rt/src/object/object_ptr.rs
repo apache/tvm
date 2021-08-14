@@ -20,11 +20,12 @@
 use std::convert::TryFrom;
 use std::ffi::CString;
 use std::fmt;
+use std::os::raw::c_char;
 use std::ptr::NonNull;
 use std::sync::atomic::AtomicI32;
 
 use tvm_macros::Object;
-use tvm_sys::ffi::{self, TVMObjectFree, TVMObjectRetain, TVMObjectTypeKey2Index};
+use tvm_sys::ffi::{self, TVMObjectFree, TVMObjectRetain, TVMObjectTypeKey2Index, TVMObjectTypeIndex2Key};
 use tvm_sys::{ArgValue, RetValue};
 
 use crate::errors::Error;
@@ -97,6 +98,18 @@ impl Object {
             // regret.
             ref_count: AtomicI32::new(0),
             fdeleter: deleter,
+        }
+    }
+
+    fn get_type_key(&self) -> String {
+        let mut cstring: *mut c_char = std::ptr::null_mut();
+        unsafe {
+            if TVMObjectTypeIndex2Key(self.type_index, &mut cstring as *mut _) != 0 {
+                panic!("{}", crate::get_last_error());
+            }
+            return CString::from_raw(cstring)
+                .into_string()
+                .expect("type keys should be valid utf-8");
         }
     }
 
@@ -249,7 +262,8 @@ impl<T: IsObject> ObjectPtr<T> {
         if is_derived {
             Ok(unsafe { self.cast() })
         } else {
-            Err(Error::downcast("TODOget_type_key".into(), U::TYPE_KEY))
+            let type_key = self.as_ref().get_type_key();
+            Err(Error::downcast(type_key.into(), U::TYPE_KEY))
         }
     }
 
@@ -317,8 +331,7 @@ impl<'a, T: IsObject> From<&'a ObjectPtr<T>> for ArgValue<'a> {
             "runtime.NDArray" => {
                 use crate::ndarray::NDArrayContainer;
                 let dcast_ptr = object_ptr.downcast().unwrap();
-                let raw_ptr = NDArrayContainer::as_mut_ptr(&dcast_ptr)
-                    as *mut std::ffi::c_void;
+                let raw_ptr = NDArrayContainer::as_mut_ptr(&dcast_ptr) as *mut std::ffi::c_void;
                 assert!(!raw_ptr.is_null());
                 ArgValue::NDArrayHandle(raw_ptr)
             }
@@ -329,7 +342,6 @@ impl<'a, T: IsObject> From<&'a ObjectPtr<T>> for ArgValue<'a> {
             }
             _ => {
                 let raw_ptr = unsafe { object_ptr.as_ptr() } as *mut std::ffi::c_void;
-                println!("raw_ptr {:?}", raw_ptr);
                 assert!(!raw_ptr.is_null());
                 ArgValue::ObjectHandle(raw_ptr)
             }
@@ -346,11 +358,10 @@ impl<'a, T: IsObject> TryFrom<ArgValue<'a>> for ObjectPtr<T> {
 
         match arg_value {
             ArgValue::ObjectHandle(handle) | ArgValue::ModuleHandle(handle) => {
-                println!("handle: {:?}", handle);
                 let optr = ObjectPtr::from_raw(handle as *mut Object).ok_or(Error::Null)?;
                 // We are building an owned, ref-counted view into the underlying ArgValue, in order to be safe we must
                 // bump the reference count by one.
-                optr.inc_ref();
+                // optr.inc_ref();
                 assert!(optr.count() >= 1);
                 optr.downcast()
             }
@@ -362,7 +373,7 @@ impl<'a, T: IsObject> TryFrom<ArgValue<'a>> for ObjectPtr<T> {
                 assert!(optr.count() >= 1);
                 // TODO(@jroesch): figure out if there is a more optimal way to do this
                 let object = optr.upcast::<Object>();
-                object.inc_ref();
+                // object.inc_ref();
                 object.downcast()
             }
             _ => Err(Error::downcast(format!("{:?}", arg_value), "ObjectHandle")),
@@ -473,25 +484,43 @@ mod tests {
     }
 
     fn test_fn(o: ObjectPtr<Object>) -> ObjectPtr<Object> {
-        // The call machinery adds at least 1 extra count while inside the call.
-        assert_eq!(o.count(), 3);
+        assert_eq!(o.count(), 2);
         return o;
     }
+
+    fn test_fn_raw<'a>(mut args: crate::to_function::ArgList<'a>) -> crate::function::Result<RetValue> {
+        let v: ArgValue = args.remove(0);
+        let v2: ArgValue = args.remove(0);
+        // assert_eq!(o.count(), 2);
+        let o: ObjectPtr<Object> = v.try_into().unwrap();
+        let o2: ObjectPtr<Object> = v2.try_into().unwrap();
+        assert_eq!(o.count(), 3);
+        assert_eq!(o2.count(), 3);
+        // return o;
+        Ok(o.into())
+    }
+
 
     #[test]
     fn test_ref_count_boundary3() {
         use super::*;
-        use crate::function::{register, Function};
+        use crate::function::{register, register_untyped, Function};
+        use crate::to_function::ToFunction;
         let ptr = ObjectPtr::new(Object::base::<Object>());
         assert_eq!(ptr.count(), 1);
-        let stay = ptr.clone();
-        assert_eq!(ptr.count(), 2);
-        register(test_fn, "my_func2").unwrap();
-        let func = Function::get("my_func2").unwrap();
-        let same = func.invoke(vec![(&ptr).into()]).unwrap();
+        register_untyped(test_fn_raw, "foo", true);
+        let raw_func = Function::get("foo").unwrap();
+        let same = raw_func.invoke(vec![(&ptr).into(), (&ptr).into()]).unwrap();
         let same: ObjectPtr<Object> = same.try_into().unwrap();
-        // TODO(@jroesch): normalize RetValue ownership assert_eq!(same.count(), 2);
         drop(same);
-        assert_eq!(stay.count(), 3);
+        drop(raw_func);
+        // let func = test_fn.to_function();
+        // let same = func.invoke(vec![(&ptr).into()]).unwrap();
+        // drop(same);
+        // let same = func.invoke(vec![(&ptr).into()]).unwrap();
+        // let same: ObjectPtr<Object> = same.try_into().unwrap();
+        // drop(same);
+        // drop(func);
+        assert_eq!(ptr.count(), 1);
     }
 }
