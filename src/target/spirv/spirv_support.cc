@@ -52,6 +52,9 @@ SPIRVSupport::SPIRVSupport(tvm::Target target) {
   if (target->GetAttr<Integer>("max_storage_buffer_range")) {
     max_storage_buffer_range = target->GetAttr<Integer>("max_storage_buffer_range").value();
   }
+  if (target->GetAttr<Integer>("max_shared_memory_per_block")) {
+    max_shared_memory_per_block = target->GetAttr<Integer>("max_shared_memory_per_block").value();
+  }
   if (target->GetAttr<Integer>("max_per_stage_descriptor_storage_buffer")) {
     max_per_stage_descriptor_storage_buffers =
         target->GetAttr<Integer>("max_per_stage_descriptor_storage_buffer").value();
