@@ -804,6 +804,10 @@ class PyTorchOpConverter:
             alpha * _op.nn.relu(_expr.const(1.0, dtype=dtype) - _op.exp(data)) + _op.nn.relu(data)
         )
 
+    def silu(self, inputs, input_types):
+        data = inputs[0]
+        return data * _op.tensor.sigmoid(data)
+
     def log_sigmoid(self, inputs, input_types):
         data = inputs[0]
         return _op.log(_op.tensor.sigmoid(data))
@@ -2623,6 +2627,7 @@ class PyTorchOpConverter:
             "aten::celu": self.celu,
             "aten::gelu": self.gelu,
             "aten::selu": self.selu,
+            "aten::silu": self.silu,
             "aten::log_sigmoid": self.log_sigmoid,
             "aten::adaptive_avg_pool2d": self.adaptive_avg_pool_2d,
             "aten::adaptive_max_pool2d": self.adaptive_max_pool_2d,
