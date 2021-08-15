@@ -2526,9 +2526,15 @@ def _test_sparse_add(indices, values, A_shape, B_shape, dtype, flip=False):
 
         # TODO(ANSHUMAN87): support user input threashold values
         if flip:
-            result = tf.sparse.add(B, A_sp, threshold=0)
+            if package_version.parse(tf.VERSION) < package_version.parse("1.13.0"):
+                result = tf.sparse.add(B, A_sp, thresh=0)
+            else:
+                result = tf.sparse.add(B, A_sp, threshold=0)
         else:
-            result = tf.sparse.add(A_sp, B, threshold=0)
+            if package_version.parse(tf.VERSION) < package_version.parse("1.13.0"):
+                result = tf.sparse.add(A_sp, B, thresh=0)
+            else:
+                result = tf.sparse.add(A_sp, B, threshold=0)
 
         B_np = np.random.uniform(high=5.0, size=B_shape).astype(dtype)
 
