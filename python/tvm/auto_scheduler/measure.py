@@ -665,15 +665,7 @@ def local_build_worker(args):
     )
     build_func = BuildFunc.build_func
 
-    try:
-        res = _local_build_worker(inp, build_func, verbose)
-    # pylint: disable=broad-except
-    except Exception:
-        if verbose >= 1:
-            print(".E", end="", flush=True)  # Build error
-        res = None, [], MeasureErrorNo.COMPILE_HOST, make_traceback_info(), timeout
-
-    return res
+    return _local_build_worker(inp, build_func, verbose)
 
 
 @tvm._ffi.register_func("auto_scheduler.local_builder.build")
@@ -716,13 +708,21 @@ def local_builder_build(inputs, timeout, n_parallel, build_func="default", verbo
 
     results = []
     for res in tuple_res:
-        if res.status == StatusKind.COMPLETE:
-            results.append(BuildResult(*res.value))
-        else:
-            assert res.status == StatusKind.TIMEOUT
+        try:
+            if res.status == StatusKind.COMPLETE:
+                results.append(BuildResult(*res.value))
+            else:
+                assert res.status == StatusKind.TIMEOUT
+                if verbose >= 1:
+                    print(".T", end="", flush=True)  # Build timeout
+                results.append(BuildResult(None, [], MeasureErrorNo.BUILD_TIMEOUT, None, timeout))
+        # pylint: disable=broad-except
+        except Exception:
             if verbose >= 1:
-                print(".T", end="", flush=True)  # Build timeout
-            results.append(BuildResult(None, [], MeasureErrorNo.BUILD_TIMEOUT, None, timeout))
+                print(".E", end="", flush=True)  # Build error
+            results.append(
+                BuildResult(None, [], MeasureErrorNo.COMPILE_HOST, make_traceback_info(), timeout)
+            )
 
     return results
 
