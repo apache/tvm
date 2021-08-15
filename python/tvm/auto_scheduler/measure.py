@@ -659,7 +659,7 @@ def local_build_worker(args):
     res : BuildResult
         The build result of this Builder thread.
     """
-    inp, build_func, timeout, verbose = args
+    inp, build_func, verbose = args
     assert build_func == BuildFunc.name, (
         "BuildFunc.name: " + BuildFunc.name + ", but args is: " + build_func
     )
@@ -699,7 +699,6 @@ def local_builder_build(inputs, timeout, n_parallel, build_func="default", verbo
             (
                 i.serialize(),
                 build_func,
-                timeout,
                 verbose,
             )
             for i in inputs
@@ -708,21 +707,20 @@ def local_builder_build(inputs, timeout, n_parallel, build_func="default", verbo
 
     results = []
     for res in tuple_res:
-        try:
-            if res.status == StatusKind.COMPLETE:
-                results.append(BuildResult(*res.value))
-            else:
-                assert res.status == StatusKind.TIMEOUT
-                if verbose >= 1:
-                    print(".T", end="", flush=True)  # Build timeout
-                results.append(BuildResult(None, [], MeasureErrorNo.BUILD_TIMEOUT, None, timeout))
-        # pylint: disable=broad-except
-        except Exception:
+        if res.status == StatusKind.COMPLETE:
+            results.append(BuildResult(*res.value))
+        elif res.status == StatusKind.TIMEOUT:
+            if verbose >= 1:
+                print(".T", end="", flush=True)  # Build timeout
+            results.append(BuildResult(None, [], MeasureErrorNo.BUILD_TIMEOUT, None, timeout))
+        elif res.status == StatusKind.EXCEPTION:
             if verbose >= 1:
                 print(".E", end="", flush=True)  # Build error
             results.append(
                 BuildResult(None, [], MeasureErrorNo.COMPILE_HOST, make_traceback_info(), timeout)
             )
+        else:
+            raise ValueError("Result status is not expected. Unreachable branch")
 
     return results
 
