@@ -24,7 +24,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <tvm/runtime/c_runtime_api.h>
-#include <tvm/runtime/crt/internal/aot_executor/aot_executor.h>
 #include <tvm/runtime/crt/logging.h>
 #include <tvm/runtime/crt/stack_allocator.h>
 #include <unistd.h>
