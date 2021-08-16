@@ -41,7 +41,6 @@
 #define WORKSPACE_SIZE (270 * 1024)
 
 static uint8_t g_aot_memory[WORKSPACE_SIZE];
-extern tvm_model_t tvmgen_default_network;
 tvm_workspace_t app_workspace;
 
 // Wakeup sequence used to wake up QEMU on the host.
