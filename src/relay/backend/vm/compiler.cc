@@ -501,7 +501,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
   void EmitInvokeTVMOp(const Function& func, const Expr& inputs, const Expr& outputs) {
     std::vector<Index> argument_registers;
 
-    ICHECK(func->attrs.GetAttr<Integer>(attr::kPrimitive, 0) != 0)
+    ICHECK(func->GetAttr<Integer>(attr::kPrimitive, 0) != 0)
         << "internal error: invoke_tvm_op requires the first argument to be a relay::Function";
 
     auto input_tuple = inputs.as<TupleNode>();
@@ -526,7 +526,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
 
     Target target;
 
-    if (func->attrs.GetAttr<String>(attr::kCompiler).defined()) {
+    if (func->GetAttr<String>(attr::kCompiler).defined()) {
       target = Target("ext_dev");
     } else {
       // Next generate the invoke instruction.
@@ -553,7 +553,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
     auto cfunc = context_->compiler->Lower(key, mangle_fn);
 
     auto op_index = -1;
-    if (func->attrs.GetAttr<String>(attr::kCompiler).defined()) {
+    if (func->GetAttr<String>(attr::kCompiler).defined()) {
       op_index = context_->cached_funcs.size();
       context_->cached_funcs.push_back(cfunc);
     } else {
@@ -765,7 +765,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
   }
 
   void VisitExpr_(const FunctionNode* func_node) {
-    if (!func_node->attrs.HasNonzeroAttr(attr::kPrimitive)) {
+    if (!func_node->HasNonzeroAttr(attr::kPrimitive)) {
       LOG(FATAL) << "local functions should have been removed by lambda lifting:" << std::endl
                  << "Program: " << AsText(GetRef<Function>(func_node), false) << std::endl
                  << "AST: " << GetRef<Function>(func_node);

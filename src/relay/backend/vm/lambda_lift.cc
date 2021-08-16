@@ -44,9 +44,7 @@ inline std::string GenerateName(const Function& func) {
   return std::string("lifted_name") + std::to_string(hash);
 }
 
-bool IsClosure(const Function& func) {
-  return func->attrs.GetAttr<Integer>(attr::kClosure, 0) != 0;
-}
+bool IsClosure(const Function& func) { return func->GetAttr<Integer>(attr::kClosure, 0) != 0; }
 
 Function MarkClosure(Function func) {
   return WithAttr(std::move(func), attr::kClosure, tvm::Integer(1));
@@ -66,7 +64,7 @@ class LambdaLifter : public ExprMutator {
     auto pre_visit = [this](const LetNode* op) {
       bool is_lambda = false;
       if (auto func = op->value.as<FunctionNode>()) {
-        if (!func->attrs.HasNonzeroAttr(attr::kPrimitive)) {
+        if (!func->HasNonzeroAttr(attr::kPrimitive)) {
           is_lambda = true;
           this->letrec_.push_back(op->var);
         }
@@ -106,7 +104,7 @@ class LambdaLifter : public ExprMutator {
     auto func = GetRef<Function>(func_node);
 
     // We should not transform primitive functions.
-    if (func->attrs.HasNonzeroAttr(attr::kPrimitive)) {
+    if (func->HasNonzeroAttr(attr::kPrimitive)) {
       return std::move(func);
     }
 
@@ -226,7 +224,7 @@ class LambdaLifter : public ExprMutator {
     auto glob_funcs = module_->functions;
     for (auto pair : glob_funcs) {
       if (auto* n = pair.second.as<FunctionNode>()) {
-        if (n->attrs.GetAttr<String>(attr::kCompiler).defined()) continue;
+        if (n->GetAttr<String>(attr::kCompiler).defined()) continue;
         auto func = GetRef<Function>(n);
         func = Function(func->params, VisitExpr(func->body), func->ret_type, func->type_params,
                         func->attrs);

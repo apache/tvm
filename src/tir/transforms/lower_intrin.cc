@@ -297,10 +297,9 @@ namespace transform {
 Pass LowerIntrin() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
-    auto target = f->attrs.GetAttr<Target>(tvm::attr::kTarget);
+    auto target = f->GetAttr<Target>(tvm::attr::kTarget);
     ICHECK(target.defined()) << "LowerIntrin: Require the target attribute";
     arith::Analyzer analyzer;
-    // TODO(@electriclilies): This is most likely a problem..
     auto mtriple = target.value()->GetAttr<runtime::String>("mtriple", "");
     n->body =
         IntrinInjecter(&analyzer, target.value()->kind->name, mtriple.value())(std::move(n->body));

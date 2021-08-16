@@ -58,8 +58,6 @@ class IRModuleNode : public Object {
   Map<GlobalTypeVar, TypeData> type_definitions;
   /*! \brief The source map for the module. */
   parser::SourceMap source_map;
-  /* \brief Additional attributes storing meta-data about the module. */
-  DictAttrs attrs;
 
   IRModuleNode() : source_map() {}
 

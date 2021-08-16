@@ -87,7 +87,7 @@ class ACLJSONSerializer : public backend::contrib::JSONSerializer {
                  << cn->op->GetTypeKey();
     }
     auto fn = cn->op.as<FunctionNode>();
-    auto comp = fn->attrs.GetAttr<String>(attr::kComposite);
+    auto comp = fn->GetAttr<String>(attr::kComposite);
     ICHECK(comp.defined()) << "Arm Compute Library JSON runtime only supports composite functions.";
     const std::string name = comp.value();
     std::shared_ptr<JSONGraphNode> json_node;

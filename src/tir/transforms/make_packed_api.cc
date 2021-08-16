@@ -106,10 +106,10 @@ inline Stmt MakeAssertEQ(PrimExpr lhs, PrimExpr rhs, std::string msg) {
 }
 
 PrimFunc MakePackedAPI(PrimFunc&& func, int num_unpacked_args) {
-  auto global_symbol = func->attrs.GetAttr<String>(tvm::attr::kGlobalSymbol);
+  auto global_symbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
   ICHECK(global_symbol) << "MakePackedAPI: Expect PrimFunc to have the global_symbol attribute";
 
-  auto target = func->attrs.GetAttr<Target>(tvm::attr::kTarget);
+  auto target = func->GetAttr<Target>(tvm::attr::kTarget);
   ICHECK(target.defined()) << "MakePackedAPI: Require the target attribute";
   int target_device_type = target.value()->kind->device_type;
 
@@ -294,7 +294,7 @@ Pass MakePackedAPI(int num_unpacked_args) {
     for (const auto& kv : mptr->functions) {
       if (auto* n = kv.second.as<PrimFuncNode>()) {
         PrimFunc func = GetRef<PrimFunc>(n);
-        if (func->attrs.GetAttr<Integer>(tvm::attr::kCallingConv, Integer(CallingConv::kDefault)) ==
+        if (func->GetAttr<Integer>(tvm::attr::kCallingConv, Integer(CallingConv::kDefault)) ==
             CallingConv::kDefault) {
           auto updated_func = MakePackedAPI(std::move(func), num_unpacked_args);
           updates.push_back({kv.first, updated_func});

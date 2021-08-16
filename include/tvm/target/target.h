@@ -54,7 +54,7 @@ class TargetNode : public Object {
   /*! \brief Keys for this target */
   Array<String> keys;
   /*! \brief Collection of attributes */
-  Map<String, ObjectRef> attrs;  // TODO(@electriclilies): Unify with DictAttrs on IRModule
+  Map<String, ObjectRef> attrs;
   /*!
    * \brief The raw string representation of the target
    * \return the full device string to pass to codegen::Build
@@ -101,7 +101,6 @@ class TargetNode : public Object {
    * \param default_value The value returned if the key is not present
    * \return An optional, NullOpt if not found, otherwise the value found
    */
-  // TODO(@electriclilies): Remove once we have removed the target attrs
   template <typename TObjectRef>
   Optional<TObjectRef> GetAttr(const std::string& attr_key, TObjectRef default_value) const {
     return GetAttr<TObjectRef>(attr_key, Optional<TObjectRef>(default_value));

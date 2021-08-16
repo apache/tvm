@@ -41,10 +41,10 @@ namespace tvm {
 namespace tir {
 
 PrimFunc MakeUnpackedAPI(PrimFunc&& func) {
-  auto global_symbol = func->attrs.GetAttr<String>(tvm::attr::kGlobalSymbol);
+  auto global_symbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
   ICHECK(global_symbol) << "MakeUnpackedAPI: Expect PrimFunc to have the global_symbol attribute";
 
-  auto target = func->attrs.GetAttr<Target>(tvm::attr::kTarget);
+  auto target = func->GetAttr<Target>(tvm::attr::kTarget);
   ICHECK(target.defined()) << "MakeUnpackedAPI: Require the target attribute";
 
   auto* func_ptr = func.CopyOnWrite();
@@ -111,7 +111,7 @@ Pass MakeUnpackedAPI() {
     for (const auto& kv : mptr->functions) {
       if (auto* n = kv.second.as<PrimFuncNode>()) {
         PrimFunc func = GetRef<PrimFunc>(n);
-        if (func->attrs.GetAttr<Integer>(tvm::attr::kCallingConv, Integer(CallingConv::kDefault)) ==
+        if (func->GetAttr<Integer>(tvm::attr::kCallingConv, Integer(CallingConv::kDefault)) ==
             CallingConv::kDefault) {
           auto updated_func = MakeUnpackedAPI(std::move(func));
           updates.push_back({kv.first, updated_func});

@@ -345,7 +345,7 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
    */
   static bool IsReshape(const CallNode* call) {
     if (const auto* fn = call->op.as<FunctionNode>()) {
-      return fn->attrs.HasNonzeroAttr(attr::kReshapeOnly);
+      return fn->HasNonzeroAttr(attr::kReshapeOnly);
     }
 
     if (call->attrs.defined()) {

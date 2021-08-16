@@ -440,7 +440,7 @@ class AOTExecutorCodegen : public ExprVisitor {
   void VisitExpr_(const GlobalVarNode* op) override { throw std::runtime_error(""); }
   void VisitExpr_(const IfNode* op) override { throw std::invalid_argument("if not supported"); }
   void VisitExpr_(const FunctionNode* op) override {
-    ICHECK(op->attrs.GetAttr<String>(attr::kCompiler).defined())
+    ICHECK(op->GetAttr<String>(attr::kCompiler).defined())
         << "FunctionNode only supported by custom codegen";
   }
   void VisitExpr_(const RefCreateNode* op) override {

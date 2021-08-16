@@ -55,7 +55,7 @@ class Collector : public ExprRewriter {
       ICHECK(module_->ContainGlobalVar(var->name_hint)) << "Function " << var << " is not defined";
       // we only handle functions with Compiler attribute set
       auto func = Downcast<Function>(module_->Lookup(var));
-      if (func->attrs.GetAttr<String>(attr::kCompiler)) {
+      if (func->GetAttr<String>(attr::kCompiler)) {
         // collect all the inputs and outputs
         for (const auto& it : call->args) new_outputs_.push_back(it);
         new_outputs_.push_back(post);
@@ -110,7 +110,7 @@ IRModule GetCalibrateModule(IRModule module) {
   for (const auto& pair : glob_funcs) {
     if (auto* fn = pair.second.as<FunctionNode>()) {
       auto func = GetRef<Function>(fn);
-      if (func->attrs.GetAttr<String>(attr::kCompiler)) {
+      if (func->GetAttr<String>(attr::kCompiler)) {
         // we need to inline the functions in order to run grpah runtime
         func = WithAttr(std::move(func), attr::kInline, tvm::Integer(1));
         // reset the compiler attribute to null for llvm execution
@@ -145,7 +145,7 @@ class OutputMapper : public ExprRewriter {
           << "Repeated function call " << var << " is not supported.";
       auto func = Downcast<Function>(module_->Lookup(var));
       // we only handle functions with Compiler attribute set
-      if (func->attrs.GetAttr<String>(attr::kCompiler)) {
+      if (func->GetAttr<String>(attr::kCompiler)) {
         Array<Integer> info;
         // the first value is the offset
         info.push_back(Integer(*offset_));

@@ -401,7 +401,7 @@ std::pair<IRModule, IRModule> SplitDevHostFuncs(IRModule mod_mixed, const Target
 
   auto host_pass_list = {
       Filter([](const tir::PrimFunc& f) {
-        return f->attrs.GetAttr<Integer>(tvm::attr::kCallingConv, Integer(CallingConv::kDefault)) !=
+        return f->GetAttr<Integer>(tvm::attr::kCallingConv, Integer(CallingConv::kDefault)) !=
                CallingConv::kDeviceKernelLaunch;
       }),
       BindTarget(target_host),
@@ -418,7 +418,7 @@ std::pair<IRModule, IRModule> SplitDevHostFuncs(IRModule mod_mixed, const Target
   // device pipeline
   auto device_pass_list = {
       Filter([](const tir::PrimFunc& f) {
-        return f->attrs.GetAttr<Integer>(tvm::attr::kCallingConv, Integer(CallingConv::kDefault)) ==
+        return f->GetAttr<Integer>(tvm::attr::kCallingConv, Integer(CallingConv::kDefault)) ==
                CallingConv::kDeviceKernelLaunch;
       }),
       BindTarget(target),

@@ -89,13 +89,13 @@ class CompileEngineImpl : public CompileEngineNode {
       auto src_func = it.first->source_func;
       ICHECK(src_func.defined());
 
-      if (src_func->attrs.GetAttr<String>(attr::kCompiler).defined()) {
-        auto code_gen = src_func->attrs.GetAttr<String>(attr::kCompiler);
+      if (src_func->GetAttr<String>(attr::kCompiler).defined()) {
+        auto code_gen = src_func->GetAttr<String>(attr::kCompiler);
         ICHECK(code_gen.defined()) << "No external codegen is set";
         std::string code_gen_name = code_gen.value();
         cached_ext_funcs.push_back(it.first);
 
-        auto symbol_name = src_func->attrs.GetAttr<String>(tvm::attr::kGlobalSymbol);
+        auto symbol_name = src_func->GetAttr<String>(tvm::attr::kGlobalSymbol);
         ICHECK(symbol_name.defined()) << "No external symbol is set for:\n"
                                       << AsText(src_func, false) << "\n"
                                       << "Functions with external codegen must have the "
@@ -186,9 +186,9 @@ class CompileEngineImpl : public CompileEngineNode {
 
     // No need to lower external functions for now. We will invoke the external
     // codegen tool once and lower all functions together.
-    if (key->source_func->attrs.GetAttr<String>(attr::kCompiler).defined()) {
+    if (key->source_func->GetAttr<String>(attr::kCompiler).defined()) {
       auto ir_module = IRModule();
-      const auto name_node = key->source_func->attrs.GetAttr<String>(tvm::attr::kGlobalSymbol);
+      const auto name_node = key->source_func->GetAttr<String>(tvm::attr::kGlobalSymbol);
       ICHECK(name_node.defined()) << "External function has not been attached a name yet.";
       auto func_name = std::string(name_node.value());
       auto target = Target("ext_dev");

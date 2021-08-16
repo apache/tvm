@@ -58,7 +58,7 @@ void CodeGenMetal::AddFunction(const PrimFunc& f) {
   GetUniqueName("_");
 
   // add to alloc buffer type.
-  auto global_symbol = f->attrs.GetAttr<String>(tvm::attr::kGlobalSymbol);
+  auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
   ICHECK(global_symbol.defined())
       << "CodeGenC: Expect PrimFunc to have the global_symbol attribute";
 
@@ -130,7 +130,7 @@ void CodeGenMetal::AddFunction(const PrimFunc& f) {
   ICHECK_EQ(GetUniqueName("threadIdx"), "threadIdx");
   ICHECK_EQ(GetUniqueName("blockIdx"), "blockIdx");
   int work_dim = 0;
-  auto thread_axis = f->attrs.GetAttr<Array<tir::IterVar>>(tir::attr::kDeviceThreadAxis).value();
+  auto thread_axis = f->GetAttr<Array<tir::IterVar>>(tir::attr::kDeviceThreadAxis).value();
 
   for (IterVar iv : thread_axis) {
     runtime::ThreadScope scope = runtime::ThreadScope::Create(iv->thread_tag);
@@ -340,7 +340,7 @@ runtime::Module BuildMetal(IRModule mod, Target target) {
     CodeGenMetal cg(target);
     cg.Init(output_ssa);
     auto f = Downcast<PrimFunc>(kv.second);
-    auto calling_conv = f->attrs.GetAttr<Integer>(tvm::attr::kCallingConv);
+    auto calling_conv = f->GetAttr<Integer>(tvm::attr::kCallingConv);
     ICHECK(calling_conv == CallingConv::kDeviceKernelLaunch)
         << "CodeGenMetal: expect calling_conv equals CallingConv::kDeviceKernelLaunch";
     cg.AddFunction(f);

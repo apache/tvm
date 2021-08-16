@@ -111,12 +111,12 @@ class TECompilerImpl : public TECompilerNode {
     for (const auto& it : cache_) {
       auto src_func = it.first->source_func;
       ICHECK(src_func.defined());
-      if (src_func->attrs.GetAttr<String>(attr::kCompiler).defined()) {
-        auto code_gen = src_func->attrs.GetAttr<String>(attr::kCompiler);
+      if (src_func->GetAttr<String>(attr::kCompiler).defined()) {
+        auto code_gen = src_func->GetAttr<String>(attr::kCompiler);
         std::string code_gen_name = code_gen.value();
         cached_ext_funcs.push_back(it.first);
 
-        auto symbol_name = src_func->attrs.GetAttr<String>(tvm::attr::kGlobalSymbol);
+        auto symbol_name = src_func->GetAttr<String>(tvm::attr::kGlobalSymbol);
         ICHECK(symbol_name.defined()) << "No external symbol is set for:\n"
                                       << AsText(src_func, false);
 
@@ -187,9 +187,9 @@ class TECompilerImpl : public TECompilerNode {
 
     // No need to lower external functions for now. We will invoke the external
     // codegen tool once and lower all functions together.
-    if (key->source_func->attrs.GetAttr<String>(attr::kCompiler).defined()) {
+    if (key->source_func->GetAttr<String>(attr::kCompiler).defined()) {
       auto ir_module = IRModule();
-      const auto name_node = key->source_func->attrs.GetAttr<String>(tvm::attr::kGlobalSymbol);
+      const auto name_node = key->source_func->GetAttr<String>(tvm::attr::kGlobalSymbol);
       ICHECK(name_node.defined()) << "External function has not been attached a name yet.";
       auto func_name = GetUniqueName(name_node.value(), &name_map_);
       auto target = Target("ext_dev");
@@ -325,7 +325,7 @@ class LowerTensorExpr : public ExprMutator {
       return ExprMutator::VisitExpr_(call);
     }
 
-    if (!func->attrs.HasNonzeroAttr(attr::kPrimitive)) {
+    if (!func->HasNonzeroAttr(attr::kPrimitive)) {
       // Provide a callback hook which allows one-level up code generators to
       // act when we process a function.
       this->process_fn(func);
@@ -340,7 +340,7 @@ class LowerTensorExpr : public ExprMutator {
 
     Target target;
 
-    if (func->attrs.GetAttr<String>(attr::kCompiler).defined()) {
+    if (func->GetAttr<String>(attr::kCompiler).defined()) {
       target = Target("ext_dev");
       CCacheKey key = CCacheKey(func, target);
       CachedFunc ext_func = compiler_->Lower(key, module_name_);
@@ -390,7 +390,7 @@ class LowerTensorExpr : public ExprMutator {
     this->process_fn(func_with_metadata);
 
     auto tir_call_attrs = make_object<TIRCallAttrs>();
-    if (func->attrs.HasNonzeroAttr(attr::kReshapeOnly)) {
+    if (func->HasNonzeroAttr(attr::kReshapeOnly)) {
       tir_call_attrs->metadata.Set(attr::kReshapeOnly, tvm::Integer(1));
     }
 
@@ -604,13 +604,13 @@ void UpdateFunctionMetadata(Function relay_func,
   Map<Target, Function> relay_primfuncs;
 
   Optional<Map<GlobalVar, tir::PrimFunc>> prim_fns =
-      relay_func->attrs.GetAttr<Map<GlobalVar, tir::PrimFunc>>("prim_funcs");
+      relay_func->GetAttr<Map<GlobalVar, tir::PrimFunc>>("prim_funcs");
   CHECK(prim_fns) << "primitive functions not set on Relay function by TECompiler.";
 
-  Optional<GlobalVar> prim_fn_var = relay_func->attrs.GetAttr<GlobalVar>("prim_fn_var");
+  Optional<GlobalVar> prim_fn_var = relay_func->GetAttr<GlobalVar>("prim_fn_var");
   CHECK(prim_fn_var) << "prim_fn_var must be set on Relay functions by TECompiler.";
 
-  Optional<Target> relay_target = relay_func->attrs.GetAttr<Target>("target");
+  Optional<Target> relay_target = relay_func->GetAttr<Target>("target");
   CHECK(relay_target) << "target must be set on Relay functions by the TECompiler.";
 
   for (const auto& kv : prim_fns.value()) {

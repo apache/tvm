@@ -387,7 +387,7 @@ namespace transform {
 Pass LowerWarpMemory() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
-    auto target = f->attrs.GetAttr<Target>(tvm::attr::kTarget);
+    auto target = f->GetAttr<Target>(tvm::attr::kTarget);
     ICHECK(target.defined()) << "LowerWarpMemory: Require the target attribute";
     int warp_size = target.value()->GetAttr<Integer>("thread_warp_size", 1).value();
     WarpMemoryRewriter warp_memory_rewriter(warp_size);

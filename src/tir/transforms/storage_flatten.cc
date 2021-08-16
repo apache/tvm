@@ -501,8 +501,7 @@ class StorageFlattener : public StmtExprMutator {
 
 PrimFunc StorageFlatten(PrimFunc func, int cache_line_size, bool create_bound_attributes) {
   // Only apply this pass to TIR from TE schedules
-  Optional<Bool> from_legacy_te_schedule =
-      func->attrs.GetAttr("from_legacy_te_schedule", Bool(false));
+  Optional<Bool> from_legacy_te_schedule = func->GetAttr("from_legacy_te_schedule", Bool(false));
   if (from_legacy_te_schedule.value()) {
     auto fptr = func.CopyOnWrite();
 
