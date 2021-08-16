@@ -2386,7 +2386,7 @@ class GRU(RNN):
             r = f_act(r)
             h = g_act(h)
 
-            H_t = ((_expr.const(1, dtype=W_dtype) - z) * h) + (z * H_t)
+            H_t = (H_t - h) * z + h
             h_list.append(_op.expand_dims(H_t, axis=0))
 
         if backwards:
