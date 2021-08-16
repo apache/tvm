@@ -82,6 +82,8 @@ ALLOW_EXTENSION = {
     "cl",
     # zephyr config file
     "conf",
+    # linker scripts
+    "ld",
 }
 
 # List of file names allowed
