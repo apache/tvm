@@ -222,6 +222,7 @@ Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition) {
   pass_list.push_back(tir::transform::CompactBufferAllocation());
   pass_list.push_back(tir::transform::LowerMatchBuffer());
   pass_list.push_back(tir::transform::FlattenBuffer());
+  pass_list.push_back(tir::transform::UnifyThreadBinding());
   pass_list.push_back(tir::transform::BF16Legalize());
   pass_list.push_back(tir::transform::NarrowDataType(32));
   pass_list.push_back(tir::transform::Simplify());
@@ -355,6 +356,7 @@ IRModule LowerSchedule(te::Schedule sch, const Array<ObjectRef>& args, const std
   IRModule mod = ScheduleToModule(std::move(sch), args, name, binds);
   // Get the legacy TE pass list
   Array<transform::Pass> pass_list = CreatePassList(simple_mode);
+  LOG(INFO) << "mod =\n" << mod;
   return LowerWithPassList(mod, pass_list);
 }
 

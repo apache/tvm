@@ -668,6 +668,22 @@ def FlattenBuffer():
     return _ffi_api.FlattenBuffer()  # type: ignore
 
 
+def UnifyThreadBinding():
+    """Unify all the thread bindings for "blockIdx.x/y/z",
+    "threadIdx.x/y/z", and "vthread.x/y/z". Before the unification,
+    two vars that are bound to a thread axis (e.g., "threadIdx.x")
+    use different IterVars and variables in their AttrStmts. After
+    the unification, we use a consolidated IterVar and a variable
+    for them.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.UnifyThreadBinding()  # type: ignore
+
+
 def MergeDynamicSharedMemoryAllocations():
     """This pass merges multiple TIR-level dynamic shared memory allocations
     into one allocation.
