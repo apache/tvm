@@ -110,6 +110,14 @@ runtime::VulkanShader CodeGenSPIRV::BuildFunction(const PrimFunc& f, const std::
 
   builder_->CommitKernelFunction(func_ptr, name);
 
+  ICHECK_LE(shared_memory_bytes_used_, spirv_support_.max_shared_memory_per_block)
+      << "Vulkan shader " << name << " uses " << shared_memory_bytes_used_
+      << " bytes of shared memory, "
+      << "but target supports only " << spirv_support_.max_shared_memory_per_block << " bytes.  "
+      << "If the device supports this allocation, "
+      << "please add -max_shared_memory_per_block=NBYTES to the target, "
+      << "or query all device parameters by adding -from_device=0.";
+
   shader.data = builder_->Finalize();
   return shader;
 }
@@ -121,6 +129,7 @@ void CodeGenSPIRV::InitFuncState() {
   analyzer_.reset(new arith::Analyzer());
   builder_.reset(new spirv::IRBuilder(spirv_support_));
   builder_->InitHeader();
+  shared_memory_bytes_used_ = 0;
 }
 
 spirv::Value CodeGenSPIRV::GetThreadIndex(const IterVar& iv, const PrimExpr& extent) {
@@ -642,6 +651,9 @@ void CodeGenSPIRV::VisitStmt_(const AllocateNode* op) {
     // Shared memory
     buf =
         builder_->Allocate(etype, static_cast<uint32_t>(constant_size), spv::StorageClassWorkgroup);
+
+    size_t num_bytes = op->dtype.bytes() * op->dtype.lanes() * static_cast<uint32_t>(constant_size);
+    shared_memory_bytes_used_ += num_bytes;
   } else {
     LOG(FATAL) << "Can only allocate shared or local memory inside kernel";
   }
