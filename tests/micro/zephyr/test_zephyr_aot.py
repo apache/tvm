@@ -233,10 +233,11 @@ def test_qemu_make_fail(temp_dir, platform, west_cmd, tvm_debug):
     xx = relay.multiply(x, x)
     z = relay.add(xx, relay.const(np.ones(shape=shape, dtype=dtype)))
     func = relay.Function([x], z)
+    ir_mod = tvm.IRModule.from_expr(func)
 
     target = tvm.target.target.micro(model, options=["-link-params=1", "--executor=aot"])
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        lowered = relay.build(func, target)
+        lowered = relay.build(ir_mod, target)
 
     # Generate input/output header files
     with tempfile.NamedTemporaryFile() as tar_temp_file:

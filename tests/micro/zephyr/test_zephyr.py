@@ -205,10 +205,11 @@ def test_relay(temp_dir, platform, west_cmd, tvm_debug):
     xx = relay.multiply(x, x)
     z = relay.add(xx, relay.const(np.ones(shape=shape, dtype=dtype)))
     func = relay.Function([x], z)
+    ir_mod = tvm.IRModule.from_expr(func)
 
     target = tvm.target.target.micro(model)
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        mod = tvm.relay.build(func, target=target)
+        mod = tvm.relay.build(ir_mod, target=target)
 
     with _make_session(temp_dir, zephyr_board, west_cmd, mod, build_config) as session:
         graph_mod = tvm.micro.create_local_graph_executor(
