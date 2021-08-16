@@ -442,6 +442,64 @@ class Schedule(Object):
         # that there is at most one None in `factors`
         return _ffi_api.ScheduleSplit(self, loop, factors)  # type: ignore # pylint: disable=no-member
 
+    def reorder(self, *loops: List[LoopRV]) -> None:
+        """
+        Reorder a list of loops. It doesn't require the loops to be consecutive.
+        It requires:
+        1) The loops are in the same line. That means: the loops can be ordered to [l_1, l_2, ... ,
+            l_n] where l_i is an ancestor of l_{i+1} and there are only single-branch loops between
+            l_1 and l_n (which also indicates they are under the same scope).
+        2) In the new order, an outer loop cannot depend on inner loops.
+        3) The block below the loops have affine bindings and only have data-parallel or reduction block
+            iters
+        4) A loop cannot appear multiple times in the input array.
+
+        Parameters
+        ----------
+        *loops : List[LoopRV]
+            The loops in the new order
+
+        Examples
+        --------
+
+        Before reorder, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @tvm.script.tir
+            def before_reorder(a: ty.handle, b: ty.handle) -> None:
+                A = tir.match_buffer(a, (128, 128))
+                B = tir.match_buffer(b, (128, 128))
+                for i, j in tir.grid(128, 128):
+                    with tir.block([128, 128], "B") as [vi, vj]:
+                        B[vi, vj] = A[vi, vj] * 2.0
+
+        Create the schedule and do reorder:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(before_reorder)
+            i, j = sch.get_loops(sch.get_block("B"))
+            sch.reorder(j, i)
+            print(tvm.script.asscript(sch.mod["main"]))
+
+        After applying reorder, the IR becomes:
+
+        .. code-block:: python
+
+            @tvm.script.tir
+            def after_reorder(a: ty.handle, b: ty.handle) -> None:
+                A = tir.match_buffer(a, (128, 128))
+                B = tir.match_buffer(b, (128, 128))
+                # Here j and i are reordered
+                for j, i in tir.grid(128, 128):
+                    with tir.block([128, 128], "B") as [vi, vj]:
+                        tir.bind(vi, i)
+                        tir.bind(vj, j)
+                        B[vi, vj] = A[vi, vj] * 2.0
+        """
+        _ffi_api.ScheduleReorder(self, loops)  # type: ignore # pylint: disable=no-member
+
     ########## Schedule: Manipulate ForKind ##########
 
     def parallel(self, loop: LoopRV) -> None:
