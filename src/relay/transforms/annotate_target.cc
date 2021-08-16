@@ -227,7 +227,7 @@ class AnnotateTargetRewriter : public ExprRewriter {
       // if it is in the target list.
       Function func = Downcast<Function>(pre->op);
       ICHECK(func.defined());
-      if (auto comp_name = func->attrs.GetAttr<String>(attr::kComposite)) {
+      if (auto comp_name = func->GetAttr<String>(attr::kComposite)) {
         std::string comp_name_str = comp_name.value();
         size_t i = comp_name_str.find('.');
         if (i != std::string::npos) {
@@ -288,7 +288,7 @@ class AnnotateTargetRewriter : public ExprRewriter {
     Function func;
     Expr new_body;
     // don't step into composite functions
-    if (fn->attrs.GetAttr<String>(attr::kComposite).defined()) {
+    if (fn->GetAttr<String>(attr::kComposite).defined()) {
       func = GetRef<Function>(fn);
       new_body = func->body;
     } else {

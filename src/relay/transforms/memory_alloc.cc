@@ -71,7 +71,7 @@ inline Expr AllocTensor(const Expr& storage, tvm::relay::Expr shape, DataType dt
 // Check if the primitive function contains only reshape ops.
 bool IsReshapeOnly(const Expr& expr) {
   if (const FunctionNode* func = expr.as<FunctionNode>()) {
-    return func->attrs.HasNonzeroAttr(attr::kReshapeOnly);
+    return func->HasNonzeroAttr(attr::kReshapeOnly);
   }
   if (const CallNode* call = expr.as<CallNode>()) {
     if (call->attrs.defined()) {
@@ -199,7 +199,7 @@ class DialectRewriter : public ExprMutator {
   // Check if a call invokes a primitive function.
   bool IsPrimitive(const CallNode* call) const {
     if (const auto* fn = call->op.as<FunctionNode>()) {
-      return fn->attrs.HasNonzeroAttr(attr::kPrimitive);
+      return fn->HasNonzeroAttr(attr::kPrimitive);
     }
     return false;
   }

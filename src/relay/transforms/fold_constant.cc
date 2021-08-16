@@ -118,7 +118,7 @@ class ConstantFolder : public MixedModeMutator {
 
   bool inside_primitive = false;
   Expr VisitExpr_(const FunctionNode* op) final {
-    if (op->attrs.HasNonzeroAttr(attr::kPrimitive)) {
+    if (op->HasNonzeroAttr(attr::kPrimitive)) {
       ICHECK_EQ(inside_primitive, false);
       inside_primitive = true;
       auto ret = ExprMutator::VisitExpr_(op);

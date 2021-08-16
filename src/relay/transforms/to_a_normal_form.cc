@@ -200,7 +200,7 @@ Expr Fill::VisitExpr_(const IfNode* i, const Var& v) {
 Expr Fill::VisitExpr_(const FunctionNode* f, const Var& v) {
   Expr e = GetRef<Expr>(f);
   Expr ret;
-  if (f->attrs.HasNonzeroAttr(attr::kPrimitive)) {
+  if (f->HasNonzeroAttr(attr::kPrimitive)) {
     ret = e;
   } else {
     ret = Function(f->params, GetSubScope(e, 0)->let_list->Get(VisitExpr(f->body)), f->ret_type,
@@ -260,7 +260,7 @@ IRModule ToANormalForm(const IRModule& m) {
   for (const auto& it : funcs) {
     ICHECK_EQ(FreeVars(it.second).size(), 0);
     if (const auto* n = it.second.as<FunctionNode>()) {
-      if (n->attrs.GetAttr<String>(attr::kCompiler).defined()) continue;
+      if (n->GetAttr<String>(attr::kCompiler).defined()) continue;
     }
     Expr ret = TransformF([&](const Expr& e) { return transform::ToANormalForm(e); }, it.second);
     ICHECK_EQ(FreeVars(ret).size(), 0)

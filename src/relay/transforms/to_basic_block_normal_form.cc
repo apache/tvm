@@ -56,7 +56,7 @@ IRModule ToBasicBlockNormalForm(const IRModule& mod) {
   for (const auto& it : funcs) {
     ICHECK_EQ(FreeVars(it.second).size(), 0) << "Expected no free variables";
     if (const auto* n = it.second.as<FunctionNode>()) {
-      if (n->attrs.GetAttr<String>(attr::kCompiler).defined()) continue;
+      if (n->GetAttr<String>(attr::kCompiler).defined()) continue;
     }
     Expr ret = TransformF([&](const Expr& e) { return ToBasicBlockNormalFormAux(e); }, it.second);
     updates.Set(it.first, Downcast<Function>(ret));
