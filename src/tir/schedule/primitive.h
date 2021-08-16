@@ -42,7 +42,6 @@ Array<StmtSRef> GetBlocks(const ScheduleState& self, const String& name, const S
  */
 Array<StmtSRef> GetLoops(const StmtSRef& block_sref);
 /******** Schedule: Transform loops ********/
-
 /*!
  * Split a loop into a list of consecutive loops. It requires:
  * 1) The loop can't have annotation or thread binding.
@@ -65,6 +64,47 @@ TVM_DLL Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
  */
 TVM_DLL StmtSRef Fuse(ScheduleState self, const Array<StmtSRef>& loop_srefs);
 /******** Schedule: Manipulate ForKind ********/
+/*!
+ * \brief Parallelize the input loop. It requires:
+ * 1) The scope block that the loop is in should have stage-pipeline property
+ * 2) All the blocks under the loop are complete blocks or reduction blocks, and have affine
+ * bindings
+ * 3) For each block under the loop, the loop can only be contained in data-parallel block iters'
+ * bindings
+ * \param self The state of the schedule
+ * \param loop_sref The sref of the loop to be parallelized
+ */
+TVM_DLL void Parallel(ScheduleState self, const StmtSRef& loop_sref);
+/*!
+ * \brief Vectorize the input loop. It requires:
+ * 1) The scope block that the loop is in should have stage-pipeline property
+ * 2) All the blocks under the loop are complete blocks or reduction blocks, and have affine
+ * bindings
+ * 3) For each block under the loop, the loop can only be contained in data-parallel block iters'
+ * bindings
+ * \param self The state of the schedule
+ * \param loop_sref The sref of the loop to be vectorized
+ */
+TVM_DLL void Vectorize(ScheduleState self, const StmtSRef& loop_sref);
+/*!
+ * \brief Bind the input loop to the given thread axis. It requires:
+ * 1) The scope block that the loop is in should have stage-pipeline property
+ * 2) All the blocks under the loop are complete blocks or reduction blocks, and have affine
+ * bindings
+ * 3) For each block under the loop, if the thread axis starts with "threadIdx`, the loop can only
+ * be contained in data-parallel block iter and reduction block iters' bindings. Otherwise the
+ * loop can only be contained in data-parallel block iters' bindings
+ * \param self The state of the schedule
+ * \param loop_sref The sref of the loop to be bound to the thread axis
+ * \param thread_axis The given thread axis
+ */
+TVM_DLL void Bind(ScheduleState self, const StmtSRef& loop_sref, const IterVar& thread_axis);
+/*!
+ * \brief Unroll the input loop. It requires nothing
+ * \param self The state of the schedule
+ * \param loop_sref The loop to be unrolled
+ */
+TVM_DLL void Unroll(ScheduleState self, const StmtSRef& loop_sref);
 /******** Schedule: Insert cache stages ********/
 /******** Schedule: Compute location ********/
 /*!
@@ -96,6 +136,7 @@ TVM_DLL void ReverseComputeInline(ScheduleState self, const StmtSRef& block_sref
 /*!
  * \brief Factor a reduction block by the specified loop
  * \details See python/tvm/tir/schedule/schedule.py
+ * \param self The state of the schedule
  * \param loop_sref The loop outside block for which we want to do rfactor
  * \param factor_axis The position where the new dimension is placed in the new introduced rfactor
  *                    buffer. Suppose the original reduction block writes to buffer `B` with

@@ -120,6 +120,20 @@ bool IsReductionBlock(const ScheduleState& self, const StmtSRef& block_sref,
 void CheckReductionBlock(const ScheduleState& self, const StmtSRef& block_sref,
                          const StmtSRef& scope_root_sref);
 
+/*!
+ * \brief Check whether a subtree on SRef tree has compact data flow, and throw an exception if the
+ * subtree does not have compact data flow
+ * \details For a given StmtSRef, We say the subtree rooted from the StmtSRef has "compact data
+ * flow" property if:
+ * - the scope root of the input subtree root has stage-pipeline property, and
+ * - all its child blocks on SRef tree are complete blocks or reduction blocks.
+ * \param self The schedule state
+ * \param subtree_root_sref The root of the subtree to be checked in the SRef tree
+ * \throw ScheduleError If the subtree does not have compact data flow
+ * \sa IsCompleteBlock, IsReductionBlock
+ */
+void CheckSRefSubtreeCompactDataFlow(const ScheduleState& self, const StmtSRef& subtree_root_sref);
+
 /******** Binding ********/
 /*!
  * \brief Verifies if the block binding in a specific BlockRealize is an affine binding.
@@ -131,6 +145,15 @@ void CheckReductionBlock(const ScheduleState& self, const StmtSRef& block_sref,
  */
 bool IsAffineBinding(const BlockRealize& realize, const Map<Var, Range>& loop_var_ranges,
                      arith::Analyzer* analyzer);
+
+/*!
+ * \brief Check whether a block has an affine binding using the cached flag, and throw an exception
+ * if the block does not have an affine binding.
+ * \param self The schedule state
+ * \param block The block to be checked
+ * \throw ScheduleError If the input block does not have an affine binding
+ */
+void CheckAffineBinding(const ScheduleState& self, Block block);
 
 /*!
  * \brief Extracts the ranges of loop variables in a path of the sref tree
