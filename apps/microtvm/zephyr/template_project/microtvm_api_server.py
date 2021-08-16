@@ -678,9 +678,9 @@ class ZephyrQemuTransport:
                 escape_pos.append(i)
             to_write.append(b)
 
-        num_written = server.write_with_timeout(self.write_fd, to_write, timeout_sec)
-        num_written -= sum(1 if x < num_written else 0 for x in escape_pos)
-        return num_written
+        while to_write:
+            num_written = server.write_with_timeout(self.write_fd, to_write, timeout_sec)
+            to_write = to_write[num_written:]
 
     def _qemu_check_stdout(self):
         for line in self.proc.stdout:
