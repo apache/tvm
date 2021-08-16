@@ -154,7 +154,6 @@ def _default_dense_nopack_config(cfg, M, N, K):
     cfg["tile_k"] = SplitEntity([K // tilek_bn, tilek_bn])
     cfg["tile_x"] = SplitEntity([N, 1])
     cfg["tile_y"] = SplitEntity([1, M])
-    return M, N, K
 
 
 @autotvm.register_topi_compute("dense_nopack.x86")
@@ -175,7 +174,7 @@ def dense_nopack(cfg, data, weight, bias=None, out_dtype=None):
         "tile_k", 32 if isinstance(K, (tvm.tir.Var, tvm.tir.Any)) else K, num_outputs=2
     )
     if cfg.is_fallback:
-        M, N, K = _default_dense_nopack_config(cfg, M, N, K)
+        _default_dense_nopack_config(cfg, M, N, K)
 
     vec = cfg["tile_k"].size[-1]
     k = te.reduce_axis((0, K // vec), "k")
