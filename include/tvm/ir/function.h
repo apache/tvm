@@ -79,6 +79,58 @@ class BaseFuncNode : public RelayExprNode {
   /*! \brief Additional attributes storing the meta-data */
   DictAttrs attrs;
 
+  /*!
+   * \brief Get a function attribute.
+   *
+   * \param attr_key The attribute key.
+   * \param default_value The default value if the key does not exist, defaults to nullptr.
+   *
+   * \return The result
+   *
+   * \tparam TOBjectRef the expected object type.
+   * \throw Error if the key exists but the value does not match TObjectRef
+   *
+   * \code
+   *
+   *  void GetAttrExample(const BaseFunc& f) {
+   *    auto value = f->GetAttr<Integer>("AttrKey", 0);
+   *  }
+   *
+   * \endcode
+   */
+  template <typename TObjectRef>
+  Optional<TObjectRef> GetAttr(
+      const std::string& attr_key,
+      Optional<TObjectRef> default_value = Optional<TObjectRef>(nullptr)) const {
+    return attrs.GetAttr(attr_key, default_value);
+  }
+  // variant that uses TObjectRef to enable implicit conversion to default value.
+  template <typename TObjectRef>
+  Optional<TObjectRef> GetAttr(const std::string& attr_key, TObjectRef default_value) const {
+    return GetAttr<TObjectRef>(attr_key, Optional<TObjectRef>(default_value));
+  }
+
+  /*!
+   * \brief Check whether the function has an non-zero integer attr.
+   *
+   * This function can be used to check whether an optional
+   * attribute mark(e.g. inline) exists.
+   *
+   * \param attr_key The key to the attribute.
+   * \return The check result.
+   *
+   * \code
+   *
+   *  void HasNonzeroAttrExample(const BaseFunc& f) {
+   *    if (f->HasNonzeroAttr(attr::kInline)) {
+   *      // inline the function.
+   *    }
+   *  }
+   *
+   * \endcode
+   */
+  bool HasNonzeroAttr(const std::string& attr_key) const { return attrs.HasNonzeroAttr(attr_key); }
+
   static constexpr const char* _type_key = "BaseFunc";
   static constexpr const uint32_t _type_child_slots = 2;
   TVM_DECLARE_BASE_OBJECT_INFO(BaseFuncNode, RelayExprNode);

@@ -288,7 +288,7 @@ class DictAttrs : public Attrs {
    * \code
    *
    *  void HasNonzeroAttrExample(const BaseFunc& f) {
-   *    if (f->attrs.HasNonzeroAttr(attr::kInline)) {
+   *    if (f->HasNonzeroAttr(attr::kInline)) {
    *      // inline the function.
    *    }
    *  }
