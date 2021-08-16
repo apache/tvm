@@ -717,7 +717,7 @@ def local_builder_build(inputs, timeout, n_parallel, build_func="default", verbo
             if verbose >= 1:
                 print(".E", end="", flush=True)  # Build error
             results.append(
-                BuildResult(None, [], MeasureErrorNo.COMPILE_HOST, str(res.value), timeout)
+                BuildResult(None, [], MeasureErrorNo.COMPILE_HOST, repr(res.value), timeout)
             )
         else:
             raise ValueError("Result status is not expected. Unreachable branch")
