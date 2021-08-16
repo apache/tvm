@@ -37,7 +37,7 @@ import os.path
 import tensorflow as tf
 
 
-# Ask tensorflow to limit it's GPU memory to what's actually needed
+# Ask tensorflow to limit its GPU memory to what's actually needed
 # instead of gobbling everything that's available.
 # https://www.tensorflow.org/guide/gpu#limiting_gpu_memory_growth
 # This way this tutorial is a little more friendly to sphinx-gallery.
