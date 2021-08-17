@@ -25,7 +25,6 @@ import numpy as np
 
 import tvm
 from tvm.ir import IRModule
-from tvm.script.intrin import float32
 
 from .. import analysis
 from .. import expr as _expr
