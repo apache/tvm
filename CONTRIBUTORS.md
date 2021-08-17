@@ -135,7 +135,8 @@ We do encourage everyone to work anything they are interested in.
 - [Junru Shao](https://github.com/junrushao1994): @junrushao1994
 - [Haichen Shen](https://github.com/icemelon9): @icemelon9
 - [Xingjian Shi](https://github.com/sxjscience): @sxjscience
-- [Siva](https://github.com/srkreddy1238): @srkreddy1238
+- [Christopher Sidebottom](https://github.com/mousius): @mousius
+- [Siva Rama Krishna Reddy](https://github.com/srkreddy1238): @srkreddy1238
 - [Dmitriy Smirnov](https://github.com/d-smirnov): @d-smirnov
 - [Jon Soifer](https://github.com/soiferj): @soiferj
 - [Zhixun Tan](https://github.com/phisiart): @phisiart
