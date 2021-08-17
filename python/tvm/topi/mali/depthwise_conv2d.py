@@ -125,7 +125,9 @@ def _schedule(cfg, s, pad_data, kernel, conv, layout):
     # fallback support
     if cfg.is_fallback:
         if layout == "NCHW":
-            ref_log = autotvm.tophub.load_reference_log("mali", "rk3399", "depthwise_conv2d_nchw.mali")
+            ref_log = autotvm.tophub.load_reference_log(
+                "mali", "rk3399", "depthwise_conv2d_nchw.mali"
+            )
             cfg.fallback_with_reference_log(ref_log)
         else:
             cfg.fallback_split("tile_c", [-1, 4, 2])
