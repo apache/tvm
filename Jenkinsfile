@@ -181,15 +181,21 @@ stage('Build') {
         make(ci_cpu, 'build', '-j2')
         pack_lib('cpu', tvm_multilib)
         timeout(time: max_time, unit: 'MINUTES') {
-          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_ci_setup.sh"
-          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_unittest.sh"
-          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh"
-          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_fsim.sh"
-          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_tsim.sh"
-          // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
-          // TODO(@jroesch): need to resolve CI issue will turn back on in follow up patch
-          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh"
-          junit "build/pytest-results/*.xml"
+          try{
+            sh "${docker_run} ${ci_cpu} ./tests/scripts/task_ci_setup.sh"
+            sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_unittest.sh"
+            sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh"
+            sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_fsim.sh"
+            sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_tsim.sh"
+            sh "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh"
+            // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
+            // TODO(@jroesch): need to resolve CI issue will turn back on in follow up patch
+          } catch {err} {
+            echo err.getMessage()
+            echo "Error detected, check pytest logs..."
+          } finally {
+            junit "build/pytest-results/*.xml"
+          }
         }
       }
     }
@@ -234,9 +240,15 @@ stage('Build') {
         sh "${docker_run} ${ci_qemu} ./tests/scripts/task_config_build_qemu.sh"
         make(ci_qemu, 'build', '-j2')
         timeout(time: max_time, unit: 'MINUTES') {
-          sh "${docker_run} ${ci_qemu} ./tests/scripts/task_ci_setup.sh"
-          sh "${docker_run} ${ci_qemu} ./tests/scripts/task_python_microtvm.sh"
-          junit "build/pytest-results/*.xml"
+          try {
+            sh "${docker_run} ${ci_qemu} ./tests/scripts/task_ci_setup.sh"
+            sh "${docker_run} ${ci_qemu} ./tests/scripts/task_python_microtvm.sh"          
+          } catch (err) {
+            echo err.getMessage()
+            echo "Error detected, check pytest logs..."
+          } finally {
+            junit "build/pytest-results/*.xml"
+          }
         }
       }
     }
@@ -353,7 +365,7 @@ stage('Integration Test') {
           } catch (err) {
             echo err.getMessage()
             echo "Error detected, check pytest logs..."
-          } finally {
+        } finally {
             junit "build/pytest-results/*.xml"
           }
         }
