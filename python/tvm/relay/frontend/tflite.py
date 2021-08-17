@@ -642,9 +642,12 @@ class OperatorConverter(object):
             op_options = op.BuiltinOptions()
             resize_options.Init(op_options.Bytes, op_options.Pos)
             align_corners = resize_options.AlignCorners()
+            half_pixel_centers = resize_options.HalfPixelCenters()
 
         # Use layout NHWC
         coord_trans = "align_corners" if align_corners else "asymmetric"
+        coord_trans = "half_pixel" if half_pixel_centers else coord_trans
+
         if bilinear_method and input_tensor.qnn_params:
             in_expr = self.dequantize(in_expr, input_tensor)
         out = _op.image.resize2d(
