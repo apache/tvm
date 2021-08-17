@@ -124,8 +124,9 @@ def unified_element_wise_vthread_x(a: ty.handle, b: ty.handle) -> None:
 
 
 @tvm.script.tir
-def element_wise_two_thread_x_in_same_kernel_not_equal(a: ty.handle, b: ty.handle,
-                                                       c: ty.handle) -> None:
+def element_wise_two_thread_x_in_same_kernel_not_equal(
+    a: ty.handle, b: ty.handle, c: ty.handle
+) -> None:
     i = tir.env_thread("blockIdx.x")
     j0 = tir.env_thread("threadIdx.x")
     j1 = tir.env_thread("threadIdx.x")
@@ -140,8 +141,9 @@ def element_wise_two_thread_x_in_same_kernel_not_equal(a: ty.handle, b: ty.handl
 
 
 @tvm.script.tir
-def element_wise_kernels_with_different_size(a: ty.handle, b: ty.handle, c: ty.handle,
-                                             d: ty.handle) -> None:
+def element_wise_kernels_with_different_size(
+    a: ty.handle, b: ty.handle, c: ty.handle, d: ty.handle
+) -> None:
     i0 = tir.env_thread("blockIdx.x")
     j0 = tir.env_thread("threadIdx.x")
     i1 = tir.env_thread("blockIdx.x")
@@ -159,8 +161,9 @@ def element_wise_kernels_with_different_size(a: ty.handle, b: ty.handle, c: ty.h
 
 
 @tvm.script.tir
-def unified_element_wise_kernels_with_different_size(a: ty.handle, b: ty.handle, c: ty.handle,
-                                                     d: ty.handle) -> None:
+def unified_element_wise_kernels_with_different_size(
+    a: ty.handle, b: ty.handle, c: ty.handle, d: ty.handle
+) -> None:
     block_x = tir.env_thread("blockIdx.x")
     thread_x = tir.env_thread("threadIdx.x")
     block_x_1 = tir.env_thread("blockIdx.x")
@@ -200,8 +203,9 @@ def test_two_thread_x_in_same_kernel_not_equal():
 
 
 def test_kernels_with_different_size():
-    _check(element_wise_kernels_with_different_size,
-           unified_element_wise_kernels_with_different_size)
+    _check(
+        element_wise_kernels_with_different_size, unified_element_wise_kernels_with_different_size
+    )
 
 
 def test_lower_te():

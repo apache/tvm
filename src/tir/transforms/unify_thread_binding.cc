@@ -38,7 +38,7 @@ namespace tir {
  */
 class ThreadBindingUnifier : public StmtExprMutator {
  public:
-  static Stmt Unify(const Stmt& stmt) { return ThreadBindingUnifier().VisitStmt(stmt); }
+  static Stmt Unify(Stmt stmt) { return ThreadBindingUnifier()(std::move(stmt)); }
 
  private:
   Stmt VisitStmt_(const AttrStmtNode* attr) final {
@@ -120,7 +120,7 @@ PrimFunc UnifyThreadBinding(PrimFunc f) {
   // Only apply this pass to TIR that is not from TE schedules
   if (!IsFromLegacyTESchedule(f)) {
     PrimFuncNode* fptr = f.CopyOnWrite();
-    fptr->body = ThreadBindingUnifier::Unify(f->body);
+    fptr->body = ThreadBindingUnifier::Unify(std::move(f->body));
     return f;
   } else {
     return f;
