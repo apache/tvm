@@ -4768,7 +4768,6 @@ unsupported_onnx_tests = [
     "test_pow_types_int32_int32",
     "test_pow_types_int64_float32",
     "test_pow_types_int64_int64",
-    "test_qlinearmatmul_2D",
     "test_qlinearmatmul_3D",
     "test_range_float_type_positive_delta_expanded",
     "test_range_int32_type_negative_delta_expanded",
@@ -5273,8 +5272,6 @@ def test_qlinearadd(target, dev):
         ]
         input_values = [a_array, b_array]
 
-        node = helper.make_node("QLinearAdd", inputs=input_names, outputs=["C"])
-
         node = helper.make_node("Add", ["a", "b"], ["C"])
         graph = helper.make_graph(
             [node],
@@ -5282,7 +5279,7 @@ def test_qlinearadd(target, dev):
             inputs=input_nodes,
             outputs=[helper.make_tensor_value_info("C", TensorProto.FLOAT, list(c_shape))],
         )
-        model = helper.make_model(graph, producer_name="qlinearconv_test")
+        model = helper.make_model(graph, producer_name="qlinearadd_test")
         from onnxruntime.quantization import quantize_static, CalibrationDataReader, QuantType
 
         class RandomDataReader(CalibrationDataReader):
@@ -5307,11 +5304,71 @@ def test_qlinearadd(target, dev):
         quantized_model = quantize_static(model_fp32, model_quant, RandomDataReader())
         # opt_level=1 will cause error with qnn lowering
         model = onnx.load(model_quant)
-        verify_with_ort_with_inputs(model, input_values, opt_level=2, target=target, dev=dev)
+        verify_with_ort_with_inputs(
+            model, input_values, opt_level=2, target=target, dev=dev, use_vm=True
+        )
 
     verify_qlinearadd([4, 2], [4, 2], [4, 2])
     verify_qlinearadd([4, 2], [2], [4, 2])
     verify_qlinearadd([5, 1, 7], [2, 7], [5, 2, 7])
+
+
+@tvm.testing.parametrize_targets
+def test_qlinearmatmul(target, dev):
+    def verify_qlinearmatmul(a_shape, b_shape, c_shape):
+
+        a_array = np.random.random(a_shape).astype("float32")
+        b_array = np.random.random(b_shape).astype("float32")
+
+        input_nodes = [
+            helper.make_tensor_value_info("a", TensorProto.FLOAT, list(a_shape)),
+            helper.make_tensor_value_info("b", TensorProto.FLOAT, list(b_shape)),
+        ]
+        input_names = [
+            "a",
+            "b",
+        ]
+        input_values = [a_array, b_array]
+
+        node = helper.make_node("MatMul", input_names, ["C"])
+        graph = helper.make_graph(
+            [node],
+            "qlinearmatmul_test",
+            inputs=input_nodes,
+            outputs=[helper.make_tensor_value_info("C", TensorProto.FLOAT, list(c_shape))],
+        )
+        model = helper.make_model(graph, producer_name="qlinearmatmul_test")
+        from onnxruntime.quantization import quantize_static, CalibrationDataReader, QuantType
+
+        class RandomDataReader(CalibrationDataReader):
+            def __init__(self, n=10):
+                self.data = iter(
+                    [
+                        {
+                            "a": np.random.random(a_shape).astype("float32"),
+                            "b": np.random.random(b_shape).astype("float32"),
+                        }
+                        for _ in range(n)
+                    ]
+                )
+
+            def get_next(self):
+                return next(self.data, None)
+
+        d = tvm.contrib.utils.tempdir()
+        model_fp32 = os.path.join(d.temp_dir, "model.onnx")
+        onnx.save_model(model, model_fp32)
+        model_quant = os.path.join(d.temp_dir, "model.quant.onnx")
+        quantized_model = quantize_static(model_fp32, model_quant, RandomDataReader())
+        # opt_level=1 will cause error with qnn lowering
+        model = onnx.load(model_quant)
+        verify_with_ort_with_inputs(
+            model, input_values, opt_level=2, target=target, dev=dev, use_vm=True
+        )
+
+    verify_qlinearmatmul([2, 4], [4, 3], [2, 3])
+    verify_qlinearmatmul([2, 2], [2, 1], [2, 1])
+    verify_qlinearmatmul([5, 3], [3, 4], [5, 4])
 
 
 @tvm.testing.parametrize_targets
