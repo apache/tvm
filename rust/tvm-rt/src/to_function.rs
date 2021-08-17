@@ -139,6 +139,11 @@ pub trait ToFunction<I, O>: Sized {
                 }
             };
 
+            match rv.clone().try_into() as Result<crate::object::ObjectPtr<crate::object::Object>> {
+                Err(e) => {}
+                Ok(v) => drop(v),
+            };
+
             let (mut ret_val, ret_tcode) = rv.to_tvm_value();
             let mut ret_type_code = ret_tcode as c_int;
 
