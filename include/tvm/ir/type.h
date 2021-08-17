@@ -164,10 +164,13 @@ class PointerTypeNode : public TypeNode {
   }
 
   bool SEqualReduce(const PointerTypeNode* other, SEqualReducer equal) const {
-    return equal(element_type, other->element_type);
+    return equal(element_type, other->element_type) && equal(storage_scope, other->storage_scope);
   }
 
-  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(element_type); }
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(element_type);
+    hash_reduce(storage_scope);
+  }
 
   static constexpr const char* _type_key = "PointerType";
   TVM_DECLARE_FINAL_OBJECT_INFO(PointerTypeNode, TypeNode);
