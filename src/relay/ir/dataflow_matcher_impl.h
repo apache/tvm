@@ -19,10 +19,10 @@
 
 /*!
  * \file src/tvm/relay/dataflow_matcher_impl.h
- * \brief
+ * \brief The auxiliary data structure for dataflow matcher.
  */
-#ifndef TVM_RELAY_DATAFLOW_MATCHER_IMPL_H_
-#define TVM_RELAY_DATAFLOW_MATCHER_IMPL_H_
+#ifndef TVM_RELAY_IR_DATAFLOW_MATCHER_IMPL_H_
+#define TVM_RELAY_IR_DATAFLOW_MATCHER_IMPL_H_
 
 #include <tvm/relay/dataflow_pattern.h>
 #include <tvm/relay/dataflow_pattern_functor.h>
@@ -30,6 +30,7 @@
 
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 #include "indexed_graph.h"
 
@@ -143,7 +144,7 @@ class PatternGrouper {
  */
 class PatternRewriter : protected MixedModeMutator {
  public:
-  PatternRewriter(IRModule mod) : mod_(mod) {}
+  explicit PatternRewriter(IRModule mod) : mod_(mod) {}
   /*! \brief Rewrite can take a number of callbacks and will repeatedly rewrite the graph with the
    * callbacks until it stops changing */
   virtual Expr Rewrite(const Array<DFPatternCallback>& callbacks, const Expr& pre);
@@ -160,4 +161,4 @@ class PatternRewriter : protected MixedModeMutator {
 }  // namespace relay
 }  // namespace tvm
 
-#endif  // TVM_RELAY_DATAFLOW_MATCHER_IMPL_H_
+#endif  // TVM_RELAY_IR_DATAFLOW_MATCHER_IMPL_H_

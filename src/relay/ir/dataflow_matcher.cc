@@ -507,7 +507,7 @@ TVM_REGISTER_GLOBAL("relay.dataflow_pattern.match").set_body_typed(MatchPattern)
 /*! \brief Creates a new set of nodes based on Group inputs, used to create functions and perform
  * group overlap analysis */
 class MatchExtractor : public ExprMutator {
-  public:
+ public:
   explicit MatchExtractor(
       const std::unordered_map<Expr, Var, ObjectPtrHash, ObjectPtrEqual>& inputs)
       : inputs_(inputs) {}
@@ -516,7 +516,7 @@ class MatchExtractor : public ExprMutator {
   }
   const std::string& GetName() { return name_; }
 
-  protected:
+ protected:
   Expr VisitExpr(const Expr& pre) override {
     if (inputs_.count(pre)) {
       return inputs_.at(pre);
