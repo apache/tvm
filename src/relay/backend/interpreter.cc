@@ -36,7 +36,6 @@
 #include <tvm/runtime/object.h>
 
 #include "../transforms/pass_utils.h"
-#include "compile_engine.h"
 #include "te_compiler.h"
 
 namespace tvm {
@@ -479,13 +478,13 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
       // flattened form of this arg. Does that match what lowering actually does?
       int64_t state = prim_shape_fn_states[i]->value;
       for (const auto& nd_array : FlattenADT(args[i])) {
-        if (state & kNeedInputData) {
+        if (state & tec::kNeedInputData) {
           auto arr = nd_array.CopyTo(shape_device);
           inputs[arg_counter] = arr;
           setter(arg_counter, arr);
           ++arg_counter;
         }
-        if (state & kNeedInputShape) {
+        if (state & tec::kNeedInputShape) {
           int64_t ndim = nd_array.Shape().size();
           NDArray shape_arr;
           if (ndim == 0) {
@@ -922,7 +921,7 @@ std::pair<IRModule, Map<String, IRModule>> Prepare(IRModule mod, Device device, 
   // Lower all primitive functions reachable from expr.
   // TODO(mbs): This should be just another pass in seq above, which requires LoweredModule to
   // be merged into IRModule.
-  LoweredModule lowered_module =
+  tec::LoweredModule lowered_module =
       tec::LowerTE(mod, targets, device_map, memory_plan, /*module_name=*/"intrp",
                    [](Function func) { /* no-op */ });
   return {lowered_module.main_module, lowered_module.per_target_module};

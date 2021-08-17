@@ -33,7 +33,7 @@
 
 #include "../../target/func_registry_generator.h"
 #include "../../target/source/codegen_source_base.h"
-#include "compile_engine.h"
+#include "te_compiler.h"
 #include "utils.h"
 
 namespace tvm {
@@ -286,8 +286,6 @@ class RelayBuildModule : public runtime::ModuleNode {
     executor_ = executor;
     CheckAndUpdateHostConsistency(&targets_, &target_host_);
     BuildRelay(mod, params_, mod_name);
-    // Clear compile engine so that tuning schedules can be changed between runs. See issue #6096.
-    CompileEngine::Global()->Clear();
   }
 
  protected:
