@@ -39,8 +39,7 @@ pub struct ByteArray {
 }
 
 impl Drop for ByteArray {
-    fn drop(&mut self) {
-    }
+    fn drop(&mut self) {}
 }
 
 impl ByteArray {
@@ -63,7 +62,6 @@ impl ByteArray {
         self.len() == 0
     }
 }
-
 
 // Needs AsRef for Vec
 impl<T: AsRef<[u8]>> From<T> for ByteArray {

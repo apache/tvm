@@ -49,7 +49,7 @@ pub type ArgList<'a> = Vec<ArgValue<'a>>;
 
 pub enum Args<'a, I> {
     Typed(I),
-    Raw(ArgList<'a>)
+    Raw(ArgList<'a>),
 }
 
 pub trait Typed<I, O> {
@@ -110,6 +110,13 @@ pub trait ToFunction<I, O>: Sized {
             for i in 0..len {
                 value = args_list[i];
                 tcode = type_codes_list[i];
+                // TODO(@jroesch): I believe it is sound to disable this specialized move rule.
+                //
+                // This is used in C++ to deal with moving an RValue or reference to a return value
+                // directly so you can skip copying.
+                //
+                // I believe this is not needed as the move directly occurs into the Rust function.
+
                 // if tcode == ffi::TVMArgTypeCode_kTVMObjectHandle as c_int
                 //     || tcode == ffi::TVMArgTypeCode_kTVMObjectRValueRefArg as c_int
                 //     || tcode == ffi::TVMArgTypeCode_kTVMPackedFuncHandle as c_int
@@ -125,20 +132,12 @@ pub trait ToFunction<I, O>: Sized {
                 local_args.push(arg_value);
             }
 
-            for arg in local_args.clone() {
-                let oref: crate::object::ObjectPtr<crate::object::Object> = arg.clone().try_into().unwrap();
-                println!("right before call oref: {:?}", oref.count());
-            }
-
             let rv = match Self::call(resource_handle, local_args) {
                 Ok(v) => v,
                 Err(msg) => {
                     return Err(msg);
                 }
             };
-
-            let oref: crate::object::ObjectPtr<crate::object::Object> = rv.clone().try_into().unwrap();
-            // println!("ret value oref: {:?}", oref.count());
 
             let (mut ret_val, ret_tcode) = rv.to_tvm_value();
             let mut ret_type_code = ret_tcode as c_int;
@@ -182,13 +181,8 @@ pub trait ToFunction<I, O>: Sized {
 
 pub struct RawArgs;
 
-impl Typed<RawArgs, RetValue> for for <'a> fn(Vec<ArgValue<'a>>) -> Result<RetValue> {
+impl Typed<RawArgs, RetValue> for for<'a> fn(Vec<ArgValue<'a>>) -> Result<RetValue> {
     fn args<'arg>(args: Vec<ArgValue<'arg>>) -> Result<Args<'arg, RawArgs>> {
-        for arg in args.clone() {
-            let oref: crate::object::ObjectPtr<crate::object::Object> = arg.clone().try_into().unwrap();
-            println!("args oref: {:?}", oref.count());
-        }
-
         Ok(Args::Raw(args))
     }
 
@@ -197,10 +191,8 @@ impl Typed<RawArgs, RetValue> for for <'a> fn(Vec<ArgValue<'a>>) -> Result<RetVa
     }
 }
 
-impl ToFunction<RawArgs, RetValue>
-    for for <'arg> fn(Vec<ArgValue<'arg>>) -> Result<RetValue>
-{
-    type Handle = for <'arg> fn(Vec<ArgValue<'arg>>) -> Result<RetValue>;
+impl ToFunction<RawArgs, RetValue> for for<'arg> fn(Vec<ArgValue<'arg>>) -> Result<RetValue> {
+    type Handle = for<'arg> fn(Vec<ArgValue<'arg>>) -> Result<RetValue>;
 
     fn into_raw(self) -> *mut Self::Handle {
         let ptr: Box<Self::Handle> = Box::new(self);
@@ -208,11 +200,6 @@ impl ToFunction<RawArgs, RetValue>
     }
 
     fn call<'arg>(handle: *mut Self::Handle, args: Vec<ArgValue<'arg>>) -> Result<RetValue> {
-        for arg in args.clone() {
-            let oref: crate::object::ObjectPtr<crate::object::Object> = arg.clone().try_into().unwrap();
-            println!("call oref: {:?}", oref.count());
-        }
-
         unsafe {
             let func = *handle;
             func(args)
@@ -228,7 +215,11 @@ pub trait TryFromArgValue<F>: TryFrom<F> {
     fn from_arg_value(f: F) -> std::result::Result<Self, Error>;
 }
 
-impl<'a, T> TryFromArgValue<ArgValue<'a>> for T where Self: TryFrom<ArgValue<'a>>, Error: From<<Self as TryFrom<ArgValue<'a>>>::Error> {
+impl<'a, T> TryFromArgValue<ArgValue<'a>> for T
+where
+    Self: TryFrom<ArgValue<'a>>,
+    Error: From<<Self as TryFrom<ArgValue<'a>>>::Error>,
+{
     fn from_arg_value(f: ArgValue<'a>) -> std::result::Result<T, Error> {
         Ok(TryFrom::try_from(f)?)
     }

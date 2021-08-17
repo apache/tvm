@@ -33,7 +33,10 @@ pub trait AsArgValue<'a> {
     fn as_arg_value(&'a self) -> ArgValue<'a>;
 }
 
-impl<'a, T: 'static> AsArgValue<'a> for T where &'a T: Into<ArgValue<'a>> {
+impl<'a, T: 'static> AsArgValue<'a> for T
+where
+    &'a T: Into<ArgValue<'a>>,
+{
     fn as_arg_value(&'a self) -> ArgValue<'a> {
         self.into()
     }

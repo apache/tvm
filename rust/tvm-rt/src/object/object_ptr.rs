@@ -25,7 +25,9 @@ use std::ptr::NonNull;
 use std::sync::atomic::AtomicI32;
 
 use tvm_macros::Object;
-use tvm_sys::ffi::{self, TVMObjectFree, TVMObjectRetain, TVMObjectTypeKey2Index, TVMObjectTypeIndex2Key};
+use tvm_sys::ffi::{
+    self, TVMObjectFree, TVMObjectRetain, TVMObjectTypeIndex2Key, TVMObjectTypeKey2Index,
+};
 use tvm_sys::{ArgValue, RetValue};
 
 use crate::errors::Error;
@@ -483,12 +485,9 @@ mod tests {
         Ok(())
     }
 
-    fn test_fn(o: ObjectPtr<Object>) -> ObjectPtr<Object> {
-        assert_eq!(o.count(), 2);
-        return o;
-    }
-
-    fn test_fn_raw<'a>(mut args: crate::to_function::ArgList<'a>) -> crate::function::Result<RetValue> {
+    fn test_fn_raw<'a>(
+        mut args: crate::to_function::ArgList<'a>,
+    ) -> crate::function::Result<RetValue> {
         let v: ArgValue = args.remove(0);
         let v2: ArgValue = args.remove(0);
         // assert_eq!(o.count(), 2);
@@ -504,8 +503,7 @@ mod tests {
     #[test]
     fn test_ref_count_raw_fn() {
         use super::*;
-        use crate::function::{register, register_untyped, Function};
-        use crate::to_function::ToFunction;
+        use crate::function::{register_untyped, Function};
         let ptr = ObjectPtr::new(Object::base::<Object>());
         // Call the function without the wrapping for TVM.
         assert_eq!(ptr.count(), 1);
@@ -524,27 +522,33 @@ mod tests {
         assert_eq!(ptr.count(), 1);
     }
 
+    fn test_fn_typed(o: ObjectPtr<Object>, o2: ObjectPtr<Object>) -> ObjectPtr<Object> {
+        assert_eq!(o.count(), 3);
+        assert_eq!(o2.count(), 3);
+        drop(o2);
+        assert_eq!(o.count(), 2);
+        return o;
+    }
+
     #[test]
-    fn test_ref_count_boundary3() {
+    fn test_ref_count_typed() {
         use super::*;
-        use crate::function::{register, register_untyped, Function};
-        use crate::to_function::ToFunction;
+        use crate::function::{register, Function};
         let ptr = ObjectPtr::new(Object::base::<Object>());
+        // Call the function without the wrapping for TVM.
         assert_eq!(ptr.count(), 1);
-        register_untyped(test_fn_raw, "foo", true);
-        let raw_func = Function::get("foo").unwrap();
-        // let same = raw_func.invoke(vec![(&ptr).into(), (&ptr).into()]).unwrap();
         let same = test_fn_raw(vec![(&ptr).into(), (&ptr).into()]).unwrap();
-        let same: ObjectPtr<Object> = same.try_into().unwrap();
-        drop(same);
-        drop(raw_func);
-        // let func = test_fn.to_function();
-        // let same = func.invoke(vec![(&ptr).into()]).unwrap();
-        // drop(same);
-        // let same = func.invoke(vec![(&ptr).into()]).unwrap();
-        // let same: ObjectPtr<Object> = same.try_into().unwrap();
-        // drop(same);
-        // drop(func);
+        let output: ObjectPtr<Object> = same.try_into().unwrap();
+        assert_eq!(output.count(), 2);
+        drop(output);
+        assert_eq!(ptr.count(), 1);
+
+        register(test_fn_typed, "test_fn_typed").unwrap();
+        let raw_func = Function::get("test_fn_typed").unwrap();
+        let output = raw_func.invoke(vec![(&ptr).into(), (&ptr).into()]).unwrap();
+        let output: ObjectPtr<Object> = output.try_into().unwrap();
+        assert_eq!(output.count(), 2);
+        drop(output);
         assert_eq!(ptr.count(), 1);
     }
 }
