@@ -566,10 +566,9 @@ class MatchExtractor : public ExprMutator {
   const std::unordered_map<Expr, Var, ObjectPtrHash, ObjectPtrEqual> inputs_;
 };
 
-
 /*! \brief Group expressions that match the pattern */
 const std::unordered_map<int, PatternGrouper::Group>& PatternGrouper::GroupMatches(
-  const DFPattern& pattern, const Expr& pre) {
+    const DFPattern& pattern, const Expr& pre) {
   groups_.clear();
   gid_assignments_.clear();
 
@@ -591,7 +590,7 @@ void PatternGrouper::VisitExprs() {
         if (op->attrs.defined() && op->attrs->dict.count(attr::kPartitionedFromPattern) != 0) {
           pre_partitioned.insert(current);
           PostOrderVisit(op->body,
-                          [&pre_partitioned](const Expr& expr) { pre_partitioned.insert(expr); });
+                         [&pre_partitioned](const Expr& expr) { pre_partitioned.insert(expr); });
         }
       }
       if (pre_partitioned.count(current) == 0 && matcher_->Match(pattern_, current)) {
@@ -767,7 +766,6 @@ TVM_REGISTER_GLOBAL("relay.dataflow_pattern.DFPatternCallback")
     .set_body_typed([](DFPattern pattern, PackedFunc function, bool require_type) {
       return DFPatternCallback(pattern, function, require_type);
     });
-
 
 Expr PatternRewriter::Rewrite(const Array<DFPatternCallback>& callbacks, const Expr& pre) {
   auto post = pre;
