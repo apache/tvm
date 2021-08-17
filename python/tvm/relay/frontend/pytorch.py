@@ -2318,7 +2318,6 @@ class PyTorchOpConverter:
     def bidir_gru_cell(
         self,
         input_seqs,
-        hidden_size,
         weights_dicts,
     ):
         """
@@ -2327,13 +2326,11 @@ class PyTorchOpConverter:
         seq_len = len(input_seqs)
         forward_outputs, fw_H_t = gru_cell(
             input_seqs,
-            hidden_size=hidden_size,
             **weights_dicts[0],
         )
 
         reverse_outputs, rev_H_t = gru_cell(
             input_seqs,
-            hidden_size=hidden_size,
             **weights_dicts[1],
             backwards=True,
         )
@@ -2346,7 +2343,7 @@ class PyTorchOpConverter:
 
         return final_outputs, _op.stack([fw_H_t, rev_H_t], axis=0)
 
-    def gru_layers(self, input_data, layer_weights_dicts, bidirectional, hidden_size, dropout_p=0.0):
+    def gru_layers(self, input_data, layer_weights_dicts, bidirectional, dropout_p=0.0):
         """
         Methods iterates layers for Stacked LSTM
         """
@@ -2359,9 +2356,9 @@ class PyTorchOpConverter:
             # input_seqs shape = [seq_num, (batch, feature_size)] or
             # [seq_num, (batch, 2*feature_size)] for bidirectional
             if bidirectional:
-                input_seqs, H_t = self.bidir_gru_cell(input_seqs, hidden_size, weights_dicts)
+                input_seqs, H_t = self.bidir_gru_cell(input_seqs, weights_dicts)
             else:
-                input_seqs, H_t = gru_cell(input_seqs, **weights_dicts[0], hidden_size=hidden_size)
+                input_seqs, H_t = gru_cell(input_seqs, **weights_dicts[0])
 
             output_hiddens.append(H_t)
 
@@ -2377,7 +2374,8 @@ class PyTorchOpConverter:
 
     def gru(self, inputs, input_types):
         """
-        Description of GRU in pytorch:https://pytorch.org/docs/stable/generated/torch.nn.GRU.html?highlight=gru#torch.nn.GRU
+        Description of GRU in pytorch:
+        https://pytorch.org/docs/stable/generated/torch.nn.GRU.html?highlight=gru#torch.nn.GRU
         """
         # TODO (vvchernov): support dropout
         assert len(inputs) == 9, "Input of size 9 is expected"
@@ -2430,7 +2428,7 @@ class PyTorchOpConverter:
         X_dtype = input_types[0]
         X_shape = _infer_shape(X)  # (seq_num, batch, feature_size)
 
-        hidden_size = _infer_shape(_weights[0])[0] / 3
+        hidden_size = int(_infer_shape(_weights[0])[0] / 3)
         batch_size = X_shape[1]
 
         # Initialize hidden states if not provided.
@@ -2493,7 +2491,6 @@ class PyTorchOpConverter:
             X,
             layer_weights_dicts,
             bidirectional,
-            hidden_size=hidden_size,
             dropout_p=dropout_p,
         )
 
