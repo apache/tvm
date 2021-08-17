@@ -3279,8 +3279,8 @@ class QLinearAdd(OnnxOpConverter):
         return _qnn.op.quantize(out, c_scale, c_zero_point, out_dtype=dtype)
 
 
-class QLinearMatMul(OnnxOpConverter):
-    """Operator converter for QLinearMatMul from Microsoft onnxruntime contrib opset."""
+class QLinearMul(OnnxOpConverter):
+    """Operator converter for QLinearMul from Microsoft onnxruntime contrib opset."""
 
     @classmethod
     def _impl_v10(cls, inputs, attr, params):
@@ -3288,7 +3288,7 @@ class QLinearMatMul(OnnxOpConverter):
             if isinstance(x, _expr.Var) and x.name_hint in params:
                 return _op.const(params[x.name_hint].numpy(), dtype)
             rank = len(infer_shape(x))
-            assert rank <= 1, "QLinearMatMul scale and zero_point input must be scalars"
+            assert rank <= 1, "QLinearMul scale and zero_point input must be scalars"
             if rank == 1:
                 x = _op.squeeze(x, [0])
             return _op.cast(x, dtype)
@@ -3309,7 +3309,7 @@ class QLinearMatMul(OnnxOpConverter):
         ## https://github.com/microsoft/onnxruntime/blob/master/onnxruntime/core/mlas/lib/qlmul.cpp
         a = _qnn.op.dequantize(inputs[0], a_scale, a_zero_point)
         b = _qnn.op.dequantize(inputs[3], b_scale, b_zero_point)
-        out = _op.nn.matmul(a, b)
+        out = _op.multiply(a, b)
         return _qnn.op.quantize(out, y_scale, y_zero_point, out_dtype=dtype)
 
 
@@ -3639,7 +3639,7 @@ def _get_convert_map(opset):
         "ReverseSequence": ReverseSequence.get_converter(opset),
         "QLinearConv": QLinearConv.get_converter(opset),
         "QLinearAdd": QLinearAdd.get_converter(opset),
-        "QLinearMatMul": QLinearMatMul.get_converter(opset),
+        "QLinearMul": QLinearMul.get_converter(opset),
         "ConvInteger": ConvInteger.get_converter(opset),
         # Random number generation.
         "RandomUniform": RandomUniform.get_converter(opset),
