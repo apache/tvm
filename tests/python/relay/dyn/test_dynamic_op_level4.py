@@ -66,8 +66,9 @@ def test_dynamic_strided_slice():
             return
         for target, dev in tvm.testing.enabled_targets():
             mod = tvm.ir.IRModule.from_expr(func)
-            intrp = relay.create_executor("vm", mod=mod, device=dev, target=target)
-            op_res = intrp.evaluate()(*data)
+            op_res = relay.create_executor("vm", mod=mod, device=dev, target=target).evaluate()(
+                *data
+            )
             tvm.testing.assert_allclose(op_res.numpy(), ref_res)
 
     verify(

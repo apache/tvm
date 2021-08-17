@@ -70,7 +70,7 @@ TEST_F(MemoryManagerTest, AllocFreeFifo) {
       } else {
         EXPECT_PAGE(kNumUsablePages - 1 - idx, a);
       }
-      EXPECT_EQ(interface->vleak_size, idx + 1);
+      EXPECT_EQ(static_cast<size_t>(interface->vleak_size), idx + 1);
       ptrs[idx] = a;
     }
 

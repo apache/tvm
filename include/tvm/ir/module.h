@@ -36,6 +36,7 @@
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 namespace tvm {
@@ -307,6 +308,14 @@ class IRModuleNode : public Object {
   /*! \brief Helper function for registering a typedef's constructors */
   void RegisterConstructors(const GlobalTypeVar& var, const TypeData& type);
 
+  /*!
+   * \brief Returns a version of \p name which is unique amongst all function definitions in module.
+   *
+   * \param name The original name.
+   * \return Updated name which is unique.
+   */
+  String GetUniqueName(const String& name);
+
   /*! \brief A map from string names to global variables that
    * ensures global uniqueness.
    */
@@ -361,16 +370,38 @@ class IRModule : public ObjectRef {
   }
 
   /*!
-   * \brief Construct a module from a standalone expression.
+   * \brief Constructs a module from a standalone expression \p expr.
    *
-   * Allows one to optionally pass a global function map and
-   * map of type definitions as well.
+   * If \p expr is a function it will be bound directly. Otherwise a function over the free
+   * variables of \p expr (possibly none) with \p expr as body is created and bound.
+   *
+   * The function is bound to, in preference order:
+   *  - The "global_symbol" attribute of \p expr, if it is a function with that attribute.
+   *  - 'main'
+   *  - A unique name derived from 'main' if 'main' is already bound in \p global_funcs.
+   *
+   * Additional global functions and type definitions may be included in the result module.
+   *
+   * See also \p FromExpr.
    *
    * \param expr The expression to set as the main function to the module.
-   * \param global_funcs The global function map.
-   * \param type_definitions Map of global type definitions
+   * \param global_funcs The global function map. Default empty.
+   * \param type_definitions The global type definition map. Default empty.
+   * \param import_set Set of external modules already imported. Default empty.
    *
-   * \returns A module with expr set as the main function.
+   * \returns A module with \p expr set as the main function, and the global var to which
+   * \p expr was bound (typcially 'main').
+   *
+   * TODO(mbs): Does import_set and the bound global var need to be exposed via ffi?
+   */
+  static std::pair<IRModule, GlobalVar> FromExprInContext(
+      const RelayExpr& expr, const Map<GlobalVar, BaseFunc>& global_funcs = {},
+      const Map<GlobalTypeVar, TypeData>& type_definitions = {},
+      std::unordered_set<String> import_set = {});
+
+  /*!
+   * \brief As for \p FromExprInContext, but assuming \p expr is bound to 'main' and no
+   * imports.
    */
   TVM_DLL static IRModule FromExpr(const RelayExpr& expr,
                                    const Map<GlobalVar, BaseFunc>& global_funcs = {},

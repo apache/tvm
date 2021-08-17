@@ -322,8 +322,9 @@ def test_extern_dnnl(check_result):
     i_data = np.random.uniform(0, 1, ishape).astype(dtype)
     w_data = np.random.uniform(0, 1, w1shape).astype(dtype)
 
-    ref_ex = relay.create_executor("graph", mod=ref_mod, device=tvm.cpu())
-    ref_res = ref_ex.evaluate()(i_data, w_data, w_data)
+    ref_res = relay.create_executor("graph", mod=ref_mod, device=tvm.cpu()).evaluate()(
+        i_data, w_data, w_data
+    )
     check_result(
         mod, {"data0": i_data, "weight0": w_data}, (1, 32, 14, 14), ref_res.numpy(), tol=1e-5
     )
@@ -363,8 +364,7 @@ def test_extern_dnnl_const(check_result):
 
     i_data = np.random.uniform(0, 1, ishape).astype(dtype)
 
-    ref_ex = relay.create_executor("graph", mod=ref_mod, device=tvm.cpu())
-    ref_res = ref_ex.evaluate()(i_data)
+    ref_res = relay.create_executor("graph", mod=ref_mod, device=tvm.cpu()).evaluate()(i_data)
     check_result(mod, {"data0": i_data}, (1, 32, 14, 14), ref_res.numpy(), tol=1e-5)
 
 

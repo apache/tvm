@@ -31,8 +31,9 @@ def verify_func(func, data, ref_res, target_device=tvm.testing.enabled_targets()
     for target, dev in target_device:
         for kind in ["vm", "debug"]:
             mod = tvm.ir.IRModule.from_expr(func)
-            intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
-            op_res = intrp.evaluate()(*data)
+            op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
+                *data
+            )
             if isinstance(op_res, tvm.runtime.container.ADT):
                 assert len(op_res) == len(
                     ref_res
