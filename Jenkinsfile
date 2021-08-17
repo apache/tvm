@@ -125,13 +125,13 @@ cancel_previous_build()
 stage('Prepare') {
   node('CPU') {
     // When something is provided in ci_*_param, use it, otherwise default with ci_*
-    ci_lint = ci_lint_param ?: ci_lint
-    ci_cpu = ci_cpu_param ?: ci_cpu
-    ci_gpu = ci_gpu_param ?: ci_gpu
-    ci_wasm = ci_wasm_param ?: ci_wasm
-    ci_i386 = ci_i386_param ?: ci_i386
-    ci_qemu = ci_qemu_param ?: ci_qemu
-    ci_arm = ci_arm_param ?: ci_arm
+    ci_lint = params.ci_lint_param ?: ci_lint
+    ci_cpu = params.ci_cpu_param ?: ci_cpu
+    ci_gpu = params.ci_gpu_param ?: ci_gpu
+    ci_wasm = params.ci_wasm_param ?: ci_wasm
+    ci_i386 = params.ci_i386_param ?: ci_i386
+    ci_qemu = params.ci_qemu_param ?: ci_qemu
+    ci_arm = params.ci_arm_param ?: ci_arm
 
     sh """
       echo "Docker images being used in this build:"
