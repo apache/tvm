@@ -27,8 +27,7 @@ from tvm.relay.transform import InferType, ToMixedPrecision, mixed_precision
 
 def run_module(mod: tvm.runtime.Module, mod_params: Dict[str, Any]) -> List:
     dev = tvm.device("llvm", 0)
-    intrp = relay.create_executor("debug", mod, device=dev, target="llvm")
-    result = intrp.evaluate()(**mod_params)
+    result = relay.create_executor("debug", mod, device=dev, target="llvm").evaluate()(**mod_params)
     if isinstance(result, tvm.runtime.container.ADT):
         result = [r.numpy() for r in result]
         return result
