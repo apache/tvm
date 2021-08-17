@@ -466,7 +466,7 @@ Pass GetPass(const String& pass_name) {
   return (*f)();
 }
 
-// TODO(zhiics): we currenlty only sequentially execute each pass in
+// TODO(zhiics): we currently only sequentially execute each pass in
 // a Sequential without the consideration of their orders. The phase
 // ordering problem needs to be handled in the future.
 IRModule SequentialNode::operator()(IRModule mod, const PassContext& pass_ctx) const {
