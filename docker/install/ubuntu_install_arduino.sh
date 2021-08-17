@@ -29,3 +29,8 @@ wget -O - https://raw.githubusercontent.com/arduino/arduino-cli/master/install.s
 # Install supported cores from those URLS
 arduino-cli core install arduino:mbed_nano
 arduino-cli core install arduino:sam
+
+# ARDUINO_DIRECTORIES_USER wouldn't normally be created until we
+# install a package, which would casue chmod to fail
+mkdir -p "${ARDUINO_DIRECTORIES_DATA}" "${ARDUINO_DIRECTORIES_USER}" "${ARDUINO_DIRECTORIES_DOWNLOADS}"
+chmod -R o+rw "${ARDUINO_DIRECTORIES_DATA}" "${ARDUINO_DIRECTORIES_USER}" "${ARDUINO_DIRECTORIES_DOWNLOADS}"
