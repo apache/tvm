@@ -69,7 +69,6 @@ class ThreadBindingUnifier : public StmtExprMutator {
     Map<String, IterVar>::iterator it = thread_tag2iter_var_map_.find(thread_tag);
     if (it != thread_tag2iter_var_map_.end()) {
       new_iter_var = (*it).second;
-      arith::Analyzer ana;
       CHECK(ana.CanProveEqual(old_iter_var->dom->extent, (*it).second->dom->extent))
           << "ValueError: All loops that are bound to `" << thread_tag
           << "` should have the same extent. However, there are two loops with extent "
@@ -113,6 +112,8 @@ class ThreadBindingUnifier : public StmtExprMutator {
   Map<Var, Var> var_substitution_map_;
   /*! \brief A integer counter storing the depth of thread bindings of "blockIdx.x/y/z" */
   int thread_block_depth_ = 0;
+  /*! \brief An analyzer used for equality proof */
+  arith::Analyzer ana;
 };
 
 PrimFunc UnifyThreadBinding(PrimFunc f) {
