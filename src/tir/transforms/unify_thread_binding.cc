@@ -21,6 +21,7 @@
  * \file unify_thread_binding.cc
  */
 
+#include <tvm/tir/analysis.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
@@ -55,6 +56,11 @@ class ThreadBindingUnifier : public StmtExprMutator {
     Map<String, IterVar>::iterator it = thread_tag2iter_var_map_.find(old_iter_var->thread_tag);
     if (it != thread_tag2iter_var_map_.end()) {
       new_iter_var = (*it).second;
+      CHECK(ExprDeepEqual()(old_iter_var->dom->extent, (*it).second->dom->extent))
+          << "ValueError: All loops that are bound to `" << old_iter_var->thread_tag
+          << "` should have the same extent. However, there are two loops with extent "
+          << (*it).second->dom->extent << " and " << old_iter_var->dom->extent
+          << ", which are not equal";
     } else {
       ObjectPtr<IterVarNode> p_new_iter_var = make_object<IterVarNode>(*old_iter_var.get());
       p_new_iter_var->var = Var(old_iter_var->thread_tag);

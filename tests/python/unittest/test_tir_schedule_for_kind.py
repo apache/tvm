@@ -17,7 +17,6 @@
 # pylint: disable=missing-function-docstring,missing-module-docstring
 import sys
 
-import numpy as np
 import pytest
 import tvm
 import tvm.testing

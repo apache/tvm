@@ -20,7 +20,7 @@ from typing import Dict, List, Optional, Union
 from tvm._ffi import register_object as _register_object
 from tvm.error import TVMError, register_error
 from tvm.ir import IRModule, PrimExpr
-from tvm.runtime import Object, String
+from tvm.runtime import Object
 from tvm.tir import Block, For, IntImm, PrimFunc
 
 from . import _ffi_api
@@ -618,7 +618,7 @@ class Schedule(Object):
                             B[vi, vj] = A[vi, vj] * 2.0
 
         """
-        _ffi_api.ScheduleBind(self, loop, String(thread_axis))  # type: ignore # pylint: disable=no-member
+        _ffi_api.ScheduleBind(self, loop, thread_axis)  # type: ignore # pylint: disable=no-member
 
     def unroll(self, loop: LoopRV) -> None:
         """Unroll the input loop. It requires nothing

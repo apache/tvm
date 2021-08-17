@@ -356,7 +356,6 @@ IRModule LowerSchedule(te::Schedule sch, const Array<ObjectRef>& args, const std
   IRModule mod = ScheduleToModule(std::move(sch), args, name, binds);
   // Get the legacy TE pass list
   Array<transform::Pass> pass_list = CreatePassList(simple_mode);
-  LOG(INFO) << "mod =\n" << mod;
   return LowerWithPassList(mod, pass_list);
 }
 

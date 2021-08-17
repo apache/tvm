@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pytest
 import tvm
 from tvm import tir, te
 from tvm.script import ty
@@ -24,6 +25,12 @@ def _check(original, transformed):
     mod = tvm.tir.transform.UnifyThreadBinding()(mod)
     mod = tvm.tir.transform.Simplify()(mod)
     tvm.ir.assert_structural_equal(mod["main"], transformed, True)
+
+
+def _check_fail(original):
+    mod = tvm.IRModule.from_expr(original)
+    with pytest.raises(ValueError):
+        tvm.tir.transform.UnifyThreadBinding()(mod)
 
 
 @tvm.script.tir
@@ -155,6 +162,21 @@ def unified_element_wise_vthread_x(a: ty.handle, b: ty.handle) -> None:
         )
 
 
+@tvm.script.tir
+def element_wise_two_thread_x_not_equal(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
+    i = tir.env_thread("blockIdx.x")
+    j0 = tir.env_thread("threadIdx.x")
+    j1 = tir.env_thread("threadIdx.x")
+    A = tir.match_buffer(a, [128, 128])
+    B = tir.match_buffer(b, [128, 128])
+    C = tir.match_buffer(c, [128, 64])
+    tir.launch_thread(i, 128)
+    with tir.launch_thread(j0, 128):
+        tir.store(B.data, i * 64 + j0, tir.load("float32", A.data, i * 128 + j0) * 2.0, True)
+    tir.launch_thread(j1, 64)
+    tir.store(C.data, i * 64 + j1, tir.load("float32", A.data, i * 128 + j1) + 1.0, True)
+
+
 def test_parallel_relationship_thread_x():
     _check(element_wise_thread_x, unified_element_wise_thread_x)
 
@@ -165,6 +187,10 @@ def test_ancestor_relationship_vthread():
 
 def test_ancestor_relationship_vthread_x():
     _check(element_wise_vthread_x, unified_element_wise_vthread_x)
+
+
+def test_two_thread_x_not_equal():
+    _check_fail(element_wise_two_thread_x_not_equal)
 
 
 def test_lower_te():
@@ -182,4 +208,5 @@ if __name__ == "__main__":
     test_ancestor_relationship_vthread()
     test_ancestor_relationship_vthread_x()
     test_parallel_relationship_thread_x()
+    test_two_thread_x_not_equal()
     test_lower_te()
