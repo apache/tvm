@@ -25,6 +25,7 @@ import numpy as np
 
 import tvm
 from tvm.ir import IRModule
+from tvm.script.intrin import float32
 
 from .. import analysis
 from .. import expr as _expr
@@ -105,7 +106,116 @@ def convert_batch_norm(g, op, block):
     )
     g.add_node(op.output("Y")[0], out[0])
 
+def bilinear_interp_v2_get_shape(input_shape, layout):
+    dims = len(input_shape)
+    assert (
+        dims > 2 and dims < 6 
+    ), "input shape({}) error on PaddlePaddle's bilinear_interp_v2".format(dims)
+    if dims == 3:
+        if layout == "NCHW":
+            return None, 1, input_shape[2]
+        else:
+            return None, 1, input_shape[1]
+    elif dims == 4:
+        if layout == "NCHW":
+            return None, input_shape[2], input_shape[3]
+        else:
+            return None, input_shape[1], input_shape[2]
+    elif dims == 5:
+        if layout == "NCHW":
+            return input_shape[2:]
+        else:
+            return input_shape[1:4]
 
+def bilinear_interp_get_mod(op):
+    interp_method = op.attr('interp_method')
+    align_corners = op.attr('align_corners')
+    align_mode = op.attr('align_mode')
+    
+    rounding_method = ""
+    if interp_method == "nearest":
+        interp_method = "nearest_neighbor"
+        coordinate_transformation_mode = "asymmetric"
+        rounding_method = "floor"
+    elif interp_method == "bilinear":
+        interp_method = "linear"
+        if align_mode == 0 and align_corners == False:
+            coordinate_transformation_mode = "half_pixel"
+        else:
+            if align_corners:
+                coordinate_transformation_mode = "align_corners"
+            else:
+                coordinate_transformation_mode = "asymmetric"
+    elif interp_method == "bicubic":
+        interp_method = "cubic"
+        if align_corners:
+            coordinate_transformation_mode = "align_corners"
+        else:
+            coordinate_transformation_mode = "half_pixel"
+    else:
+        msg = "interp_method {} is not supported for PaddlePaddle's bilinear_interp_v2"
+        raise tvm.error.OpAttributeInvalid(msg.format(interp_method))
+    return rounding_method, interp_method, coordinate_transformation_mode
+
+def convert_bilinear_interp2D(g, op, x, input_shape):
+    layout = op.attr('data_layout')
+    if layout == "NCHW":
+        in_h, in_w = input_shape[2], input_shape[3]
+    else:
+        in_h, in_w = input_shape[1], input_shape[2]
+
+    out_h = op.attr('out_h')
+    out_w = op.attr('out_w')
+
+    OutSize = op.input('OutSize')
+    SizeTensor = op.input('SizeTensor')
+    Scale = op.input("Scale")
+    if SizeTensor:
+        outsize = g.get_node(SizeTensor[0])
+        outsize = infer_value(outsize, g.get_params()).numpy().tolist()
+        out_h, out_w = outsize
+    elif OutSize:
+        outsize = g.get_node(OutSize[0])
+        outsize = infer_value(outsize, g.get_params()).numpy().tolist()
+        out_h, out_w = outsize
+    elif Scale:
+        scale_data = g.get_node(Scale[0])
+        scale_data = infer_value(scale_data, g.get_params()).numpy().tolist()
+        if len(scale_data) > 1:
+            out_h = int(scale_data[0] * in_h)
+            out_w  = int(scale_data[1] * in_w)
+        else:
+            out_h = int(scale_data[0] * in_h)
+            out_w  = int(scale_data[0] * in_w)
+    else:        
+        scale = op.attr('scale')
+        scale = [float(i) for i in scale]
+        if len(scale) > 1:
+            out_h = int(scale[0] * in_h)
+            out_w  = int(scale[1] * in_w)
+    
+    rounding_method, interp_method, coordinate_transformation_mode = bilinear_interp_get_mod(op)
+    out = _op.image.resize2d(
+                x,
+                [out_h, out_w],
+                layout=layout,
+                method=interp_method,
+                coordinate_transformation_mode=coordinate_transformation_mode,
+                rounding_method=rounding_method,
+                cubic_alpha=-0.75)
+    g.add_node(op.output('Out')[0], out)
+
+def convert_bilinear_interp_v2(g, op, block):
+    """Operator converter for bilinear_interp_v2."""
+    x = g.get_node(op.input('X')[0])
+    input_shape = infer_shape(x)
+    dims = len(input_shape)
+    if dims == 4:
+        convert_bilinear_interp2D(g, op, x, input_shape)
+    else:
+        msg = "input_shape {} is not supported for PaddlePaddle's bilinear_interp_v2"
+        raise tvm.error.OpAttributeInvalid(msg.format(dims))
+    
 def convert_cast(g, op, block):
     """Operator converter for cast."""
 
@@ -728,6 +838,8 @@ _convert_map = {
     "arg_max": convert_arg_max,
     "assign": convert_assign,
     "batch_norm": convert_batch_norm,
+    "bicubic_interp_v2": convert_bilinear_interp_v2,
+    "bilinear_interp_v2": convert_bilinear_interp_v2,
     "cast": convert_cast,
     "concat": convert_concat,
     "conv2d": convert_conv2d,
@@ -752,6 +864,7 @@ _convert_map = {
     "matmul": convert_matmul,
     "matmul_v2": convert_matmul,
     "mul": convert_mul,
+    "nearest_interp_v2": convert_bilinear_interp_v2,
     "pool2d": convert_pool2d,
     "relu": convert_activation,
     "reshape2": convert_reshape,

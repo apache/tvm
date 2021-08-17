@@ -396,6 +396,40 @@ def test_forward_hard_swish():
     input_data = paddle.rand(input_shape, dtype="float32")
     verify_model(hard_swish, input_data=input_data)
 
+@tvm.testing.uses_gpu
+def test_forward_interpolate():
+    class TestBilinear(nn.Layer):
+        def __init__(self):
+            super(TestBilinear, self).__init__()
+            self.conv = nn.Conv2D(3, 5, 3, stride=2)
+
+        def forward(self, x):
+            shape = paddle.shape(x)[2:]
+            y = self.conv(x)
+            return nn.functional.interpolate(y, size=shape, mode='nearest')
+
+    def bilinear_interp1(inputs):
+        return nn.functional.interpolate(inputs, size=[12, 12], mode='bilinear')
+
+    @paddle.jit.to_static
+    def bilinear_interp2(inputs):
+        return nn.functional.interpolate(inputs, scale_factor=[2.0, 1.0], mode='bilinear', align_corners=True, align_mode=1)
+
+    @paddle.jit.to_static
+    def bilinear_interp3(inputs):
+        return nn.functional.interpolate(inputs, scale_factor=[1.0, 2.0], mode='bicubic')
+
+    @paddle.jit.to_static
+    def bilinear_interp4(inputs):
+        return nn.functional.interpolate(inputs, scale_factor=3.0, mode='bicubic', align_corners=True, align_mode=0)
+
+    input_shape = [2, 3, 6, 12]
+    input_data = paddle.rand(input_shape, dtype="float32")
+    verify_model(TestBilinear(), input_data=input_data)
+    verify_model(bilinear_interp1, input_data=input_data)
+    verify_model(bilinear_interp2, input_data=input_data)
+    verify_model(bilinear_interp3, input_data=input_data)
+    verify_model(bilinear_interp4, input_data=input_data)
 
 @tvm.testing.uses_gpu
 def test_forward_layer_norm():
@@ -648,6 +682,7 @@ if __name__ == "__main__":
     test_forward_gelu()
     test_forward_hard_sigmoid()
     test_forward_hard_swish()
+    test_forward_interpolate()
     test_forward_layer_norm()
     test_forward_leaky_relu()
     test_forward_look_up()
