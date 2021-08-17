@@ -659,21 +659,13 @@ def local_build_worker(args):
     res : BuildResult
         The build result of this Builder thread.
     """
-    inp, build_func, timeout, verbose = args
+    inp, build_func, verbose = args
     assert build_func == BuildFunc.name, (
         "BuildFunc.name: " + BuildFunc.name + ", but args is: " + build_func
     )
     build_func = BuildFunc.build_func
 
-    try:
-        res = _local_build_worker(inp, build_func, verbose)
-    # pylint: disable=broad-except
-    except Exception:
-        if verbose >= 1:
-            print(".E", end="", flush=True)  # Build error
-        res = None, [], MeasureErrorNo.COMPILE_HOST, make_traceback_info(), timeout
-
-    return res
+    return _local_build_worker(inp, build_func, verbose)
 
 
 @tvm._ffi.register_func("auto_scheduler.local_builder.build")
@@ -707,7 +699,6 @@ def local_builder_build(inputs, timeout, n_parallel, build_func="default", verbo
             (
                 i.serialize(),
                 build_func,
-                timeout,
                 verbose,
             )
             for i in inputs
@@ -718,11 +709,18 @@ def local_builder_build(inputs, timeout, n_parallel, build_func="default", verbo
     for res in tuple_res:
         if res.status == StatusKind.COMPLETE:
             results.append(BuildResult(*res.value))
-        else:
-            assert res.status == StatusKind.TIMEOUT
+        elif res.status == StatusKind.TIMEOUT:
             if verbose >= 1:
                 print(".T", end="", flush=True)  # Build timeout
             results.append(BuildResult(None, [], MeasureErrorNo.BUILD_TIMEOUT, None, timeout))
+        elif res.status == StatusKind.EXCEPTION:
+            if verbose >= 1:
+                print(".E", end="", flush=True)  # Build error
+            results.append(
+                BuildResult(None, [], MeasureErrorNo.COMPILE_HOST, repr(res.value), timeout)
+            )
+        else:
+            raise ValueError("Result status is not expected. Unreachable branch")
 
     return results
 
