@@ -86,6 +86,9 @@ RUN bash /install/ubuntu_install_dgl.sh
 COPY install/ubuntu_install_vulkan.sh /install/ubuntu_install_vulkan.sh
 RUN bash /install/ubuntu_install_vulkan.sh
 
+COPY install/ubuntu_install_paddle.sh /install/ubuntu_install_paddle.sh
+RUN bash /install/ubuntu_install_paddle.sh
+
 # Rust env (build early; takes a while)
 COPY install/ubuntu_install_rust.sh /install/ubuntu_install_rust.sh
 RUN bash /install/ubuntu_install_rust.sh

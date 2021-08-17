@@ -126,3 +126,7 @@ RUN bash /install/ubuntu_install_vela.sh
 
 # Update PATH
 ENV PATH /opt/arm/gcc-arm-none-eabi/bin:$PATH
+
+# PaddlePaddle deps
+COPY install/ubuntu_install_paddle.sh /install/ubuntu_install_paddle.sh
+RUN bash /install/ubuntu_install_paddle.sh
