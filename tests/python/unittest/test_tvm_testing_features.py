@@ -148,6 +148,22 @@ class TestFixtureCaching:
             assert self.cached_calls == len(self.param1_vals)
 
 
+class TestCachedFixtureIsCopy:
+    param = tvm.testing.parameter(1, 2, 3, 4)
+
+    @tvm.testing.fixture(cache_return_value=True)
+    def cached_mutable_fixture(self):
+        return {"val": 0}
+
+    def test_modifies_fixture(self, param, cached_mutable_fixture):
+        assert cached_mutable_fixture["val"] == 0
+
+        # The tests should receive a copy of the fixture value.  If
+        # the test receives the original and not a copy, then this
+        # will cause the next parametrization to fail.
+        cached_mutable_fixture["val"] = param
+
+
 class TestBrokenFixture:
     # Tests that use a fixture that throws an exception fail, and are
     # marked as setup failures.  The tests themselves are never run.
@@ -208,6 +224,45 @@ class TestAutomaticMarks:
     @pytest.mark.parametrize("target,other_param", [("llvm", 0), ("cuda", 1), ("vulkan", 2)])
     def test_pytest_mark_covariant(self, request, target, other_param):
         self.check_marks(request, target)
+
+
+@pytest.mark.skipif(
+    bool(int(os.environ.get("TVM_TEST_DISABLE_CACHE", "0"))),
+    reason="Cannot test cache behavior while caching is disabled",
+)
+class TestCacheableTypes:
+    class EmptyClass:
+        pass
+
+    @tvm.testing.fixture(cache_return_value=True)
+    def uncacheable_fixture(self):
+        return self.EmptyClass()
+
+    def test_uses_uncacheable(self, request):
+        with pytest.raises(TypeError):
+            request.getfixturevalue("uncacheable_fixture")
+
+    class ImplementsReduce:
+        def __reduce__(self):
+            return super().__reduce__()
+
+    @tvm.testing.fixture(cache_return_value=True)
+    def fixture_with_reduce(self):
+        return self.ImplementsReduce()
+
+    def test_uses_reduce(self, fixture_with_reduce):
+        pass
+
+    class ImplementsDeepcopy:
+        def __deepcopy__(self, memo):
+            return type(self)()
+
+    @tvm.testing.fixture(cache_return_value=True)
+    def fixture_with_deepcopy(self):
+        return self.ImplementsDeepcopy()
+
+    def test_uses_deepcopy(self, fixture_with_deepcopy):
+        pass
 
 
 if __name__ == "__main__":
