@@ -319,9 +319,7 @@ class WithinSubsectionOrder:
 # is not a good setup for machines with lots of CPU ram but constrained GPU ram, so force
 # a gc after each example.
 def force_gc(gallery_conf, fname):
-    print("(Forcing Python gc after '{}' to avoid lag in reclaiming CUDA memory)".format(fname))
     gc.collect()
-    print("(Remaining garbage: {})".format(gc.garbage))
 
 
 sphinx_gallery_conf = {
