@@ -130,6 +130,7 @@ We do encourage everyone to work anything they are interested in.
 - [Josh Pollock](https://github.com/joshpoll): @joshpoll
 - [Andrew Reusch](https://github.com/areusch): @areusch
 - [Jared Roesch](https://github.com/jroesch): @jroesch
+- [Gustavo Romero](https://github.com/gromero): @gromero
 - [Giuseppe Rossini](https://github.com/giuseros): @giuseros
 - [Siju Samuel](https://github.com/siju-samuel): @siju-samuel
 - [Junru Shao](https://github.com/junrushao1994): @junrushao1994
