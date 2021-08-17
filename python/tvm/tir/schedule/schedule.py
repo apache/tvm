@@ -573,8 +573,9 @@ class Schedule(Object):
             The thread axis to be bound to the loop. Possible candidates:
             - blockIdx.x/y/z
             - threadIdx.x/y/z
-            - vthread
             - vthread.x/y/z
+            - vthread (It is a legacy behavior that will be deprecated. Please use `vthread.x/y/z`
+            instead.)
 
         Examples
         --------

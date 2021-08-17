@@ -363,6 +363,10 @@ void ConcreteScheduleNode::Vectorize(const LoopRV& loop_rv) {
 }
 
 void ConcreteScheduleNode::Bind(const LoopRV& loop_rv, const String& thread_axis) {
+  if (thread_axis == "vthread") {
+    LOG(WARNING) << "`vthread` is legacy behavior and is going to be deprecated. Please use "
+                    "`vthread.x`, `vthread.y` and `vthread.z` instead";
+  }
   TVM_TIR_SCHEDULE_BEGIN();
   tir::Bind(state_, this->GetSRef(loop_rv),
             IterVar(/*dom=*/Range(nullptr), /*var=*/Var(thread_axis), /*iter_type=*/kThreadIndex,

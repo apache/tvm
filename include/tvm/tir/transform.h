@@ -443,6 +443,9 @@ TVM_DLL Pass FlattenBuffer();
  *        "threadIdx.x") use different IterVars and variables in their AttrStmts. After the
  *        unification, we use a consolidated IterVar and a variable for them.
  * \return The pass.
+ * \note `vthread` is a legacy behavior that will be deprecated, though thread bindings of `vthread`
+ *       are still also unified in this pass. Please use `vthread.x`, `vthread.y` and `vthread.z`
+ *       instead.
  */
 TVM_DLL Pass UnifyThreadBinding();
 

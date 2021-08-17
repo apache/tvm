@@ -249,7 +249,7 @@ class ScheduleNode : public runtime::Object {
    * be contained in data-parallel block iter and reduction block iters' bindings. Otherwise the
    * loop can only be contained in data-parallel block iters' bindings
    * \param loop_rv The loop to be bound to the thread axis
-   * \param thread_axis The given thread axis
+   * \param thread_axis The thread axis to be bound to the loop
    */
   virtual void Bind(const LoopRV& loop_rv, const String& thread_axis) = 0;
   /*!

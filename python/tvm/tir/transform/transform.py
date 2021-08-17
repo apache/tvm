@@ -680,6 +680,12 @@ def UnifyThreadBinding():
     -------
     fpass : tvm.transform.Pass
         The result pass
+
+    Note
+    ----
+    `vthread` is a legacy behavior that will be deprecated, though
+    thread bindings of `vthread` are still also unified in this
+    pass. Please use `vthread.x`, `vthread.y` and `vthread.z` instead.
     """
     return _ffi_api.UnifyThreadBinding()  # type: ignore
 
