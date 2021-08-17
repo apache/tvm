@@ -2372,15 +2372,8 @@ class PyTorchOpConverter:
                 # for input in input_seqs:
                 #     input = _op.dropout(input, dropout_p)
                 raise NotImplementedError("Dropout for LSTM has not been supported yet!")
-        final_hiddens = []
-        if bidirectional:
-            for output_hidden in output_hiddens:
-                final_hiddens.append(output_hidden[0])
-                final_hiddens.append(output_hidden[1])
-        else:
-            final_hiddens = output_hiddens
 
-        return _op.stack(input_seqs, 0), final_hiddens
+        return _op.stack(input_seqs, 0), _op.stack(output_hiddens, 0)
 
     def gru(self, inputs, input_types):
         """
@@ -2496,7 +2489,7 @@ class PyTorchOpConverter:
             len(layer_weights_dicts) == num_layers and k == num_layers
         ), "For stacked GRU number of weights sets should be the same as number of layers!"
 
-        outputs = self.gru_layers(
+        output, out_hidden_state = self.gru_layers(
             X,
             layer_weights_dicts,
             bidirectional,
@@ -2506,12 +2499,10 @@ class PyTorchOpConverter:
 
         # output shape = (seq_num, batch, hidden_size) or
         # (seq_num, batch, 2*feature_size) for bidirectional
-        output = outputs[0]
-
         if batch_first:
             output = _op.transpose(output, (1, 0, 2))
 
-        return (output, _op.stack(outputs[1], 0))
+        return (output, out_hidden_state)
 
     def bidir_lstm_cell(
         self,

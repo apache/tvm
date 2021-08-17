@@ -2372,18 +2372,19 @@ class GRU(RNN):
                 rbz, rbr, rbh = _op.split(RB, 3, axis=-1)
                 z += wbz + rbz
                 r += wbr + rbr
+                r = f_act(r)
                 if linear_before_reset:
                     h = ch + (r * (_op.nn.dense(H_t, rh) + rbh)) + wbh
                 else:
                     h = ch + _op.nn.dense((r * H_t), rh) + wbh + rbh
             else:
+                r = f_act(r)
                 if linear_before_reset:
                     h = ch + (r * (_op.nn.dense(H_t, rh)))
                 else:
                     h = ch + _op.nn.dense((r * H_t), rh)
 
             z = f_act(z)
-            r = f_act(r)
             h = g_act(h)
 
             H_t = (H_t - h) * z + h

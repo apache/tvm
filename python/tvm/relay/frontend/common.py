@@ -743,26 +743,27 @@ def gru_cell(
 
         xwt = _op.nn.dense(x_t, w_inp)
         i_r, i_z, i_n = _op.split(xwt, 3, axis=1)
-        h_r, h_z, h_n = _op.split(w_hid, 3, axis=0)
-        r_gate = i_r + _op.nn.dense(hidden_state, h_r)
-        z_gate = i_z + _op.nn.dense(hidden_state, h_z)
+        w_hr, w_hz, w_hn = _op.split(w_hid, 3, axis=0)
+        r_gate = i_r + _op.nn.dense(hidden_state, w_hr)
+        z_gate = i_z + _op.nn.dense(hidden_state, w_hz)
         # TODO(vvchernov): It is assumed that both bias are or not
         if b_inp is not None:
-            i_br, i_bz, i_bn = _op.split(b_inp, 3, axis=-1)
-            h_br, h_bz, h_bn = _op.split(b_hid, 3, axis=-1)
-            z_gate += i_bz + h_bz
-            r_gate += i_br + h_br
+            b_ir, b_iz, b_in = _op.split(b_inp, 3, axis=-1)
+            b_hr, b_hz, b_hn = _op.split(b_hid, 3, axis=-1)
+            r_gate += b_ir + b_hr
+            r_gate = rz_act(r_gate)
+            z_gate += b_iz + b_hz
             if linear_before_reset:
-                n_gate = i_n + i_bn + (r_gate * (_op.nn.dense(hidden_state, h_n) + h_bn))
+                n_gate = i_n + b_in + (r_gate * (_op.nn.dense(hidden_state, w_hn) + b_hn))
             else:
-                n_gate = i_n + i_bn + _op.nn.dense((r_gate * hidden_state), h_n) + h_bn
+                n_gate = i_n + b_in + _op.nn.dense((r_gate * hidden_state), w_hn) + b_hn
         else:
+            r_gate = rz_act(r_gate)
             if linear_before_reset:
-                n_gate = i_n + (r_gate * (_op.nn.dense(hidden_state, h_n)))
+                n_gate = i_n + (r_gate * (_op.nn.dense(hidden_state, w_hn)))
             else:
-                n_gate = i_n + _op.nn.dense((r_gate * hidden_state), h_n)
+                n_gate = i_n + _op.nn.dense((r_gate * hidden_state), w_hn)
 
-        r_gate = rz_act(r_gate)
         z_gate = rz_act(z_gate)
         n_gate = n_act(n_gate)
 
