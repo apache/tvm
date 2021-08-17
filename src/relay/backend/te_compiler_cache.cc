@@ -41,6 +41,7 @@
 #include <utility>
 #include <vector>
 
+#include "../op/memory/memory.h"
 #include "../transforms/pass_utils.h"
 #include "utils.h"
 
@@ -120,21 +121,10 @@ class ScheduleBuilder : public backend::MemoizedExprTranslator<Array<te::Tensor>
     Array<tvm::te::Tensor> fn_inputs;
     for (Var param : prim_func->params) {
       Array<tvm::te::Tensor> inputs;
-      if (const auto* ttype = param->checked_type().as<TensorTypeNode>()) {
+      for (const auto& ttype : FlattenTupleType(param->checked_type())) {
         tvm::te::Tensor tensor = tvm::te::placeholder(GetShape(ttype->shape), ttype->dtype);
         fn_inputs.push_back(tensor);
         inputs.push_back(tensor);
-      } else {
-        // flatten tuple of tensor type.
-        const auto* tuple_type = param->type_as<TupleTypeNode>();
-        for (Type field : tuple_type->fields) {
-          const auto* ttype = field.as<TensorTypeNode>();
-          // TODO(@icemelon): Allow recursive tuple
-          ICHECK(ttype != nullptr);
-          tvm::te::Tensor tensor = tvm::te::placeholder(GetShape(ttype->shape), ttype->dtype);
-          fn_inputs.push_back(tensor);
-          inputs.push_back(tensor);
-        }
       }
       memo_[param] = inputs;
     }
@@ -314,6 +304,7 @@ class ScheduleBuilder : public backend::MemoizedExprTranslator<Array<te::Tensor>
   Array<te::Tensor> VisitExpr_(const TupleNode* op) final {
     Array<te::Tensor> fields;
     for (Expr field : op->fields) {
+      // TODO(mbs): Generalize to be equivalent to FlattenTupleType.
       ICHECK(field->checked_type().as<TensorTypeNode>()) << "Only allow Tuple of Tensor";
       Array<te::Tensor> res = VisitExpr(field);
       ICHECK_EQ(res.size(), 1);
@@ -372,7 +363,7 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
       Array<tvm::te::Tensor> data_inputs;
       Array<tvm::te::Tensor> shape_inputs;
 
-      auto add_placeholder = [&data_inputs, &shape_inputs](const TensorTypeNode* ttype) {
+      for (const auto& ttype : FlattenTupleType(param->checked_type())) {
         // Add data placeholder
         Shape shape = GetShape(ttype->shape);
         tvm::te::Tensor data_tensor = tvm::te::placeholder(shape, ttype->dtype);
@@ -385,20 +376,6 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
         }
         tvm::te::Tensor shape_tensor = tvm::te::placeholder(sshape, DataType::Int(64));
         shape_inputs.push_back(shape_tensor);
-      };
-
-      if (const auto* ttype = param->checked_type().as<TensorTypeNode>()) {
-        add_placeholder(ttype);
-      } else {
-        // flatten tuple of tensor type.
-        const auto* tuple_type = param->type_as<TupleTypeNode>();
-        // TODO(@icemelon): Support recursive tuple
-        ICHECK(tuple_type);
-        for (Type field : tuple_type->fields) {
-          const auto* ttype = field.as<TensorTypeNode>();
-          ICHECK(ttype);
-          add_placeholder(ttype);
-        }
       }
       param_data_[param] = data_inputs;
       param_shapes_[param] = shape_inputs;

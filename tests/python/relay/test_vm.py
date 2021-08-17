@@ -46,8 +46,9 @@ def check_result(args, expected_result, mod=None):
         The expected result of running the expression.
     """
     for target, dev in tvm.testing.enabled_targets():
-        vm = relay.create_executor("vm", device=dev, target=target, mod=mod)
-        rts_result = vm.evaluate()(*args)
+        rts_result = relay.create_executor("vm", device=dev, target=target, mod=mod).evaluate()(
+            *args
+        )
         tvm.testing.assert_allclose(expected_result, rts_result.numpy())
 
 
@@ -182,8 +183,8 @@ def test_multiple_ifs():
     fn = relay.Function([b], out)
     mod["main"] = fn
     dev = tvm.runtime.device("llvm", 0)
-    vm = relay.create_executor(device=dev, mod=mod, kind="vm")
-    res = vmobj_to_list(vm.evaluate()(False))
+    func = relay.create_executor(device=dev, mod=mod, kind="vm").evaluate()
+    res = vmobj_to_list(func(False))
     assert res == [1, 0]
 
 

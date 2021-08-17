@@ -45,8 +45,9 @@ def test_sort():
         for target, dev in tvm.testing.enabled_targets():
             for kind in backends:
                 mod = tvm.ir.IRModule.from_expr(func)
-                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
-                op_res = intrp.evaluate()(x_data)
+                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
+                    x_data
+                )
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
     for is_dyn in [False, True]:
@@ -80,8 +81,9 @@ def test_argsort():
         for target, dev in tvm.testing.enabled_targets():
             for kind in backends:
                 mod = tvm.ir.IRModule.from_expr(func)
-                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
-                op_res = intrp.evaluate()(x_data)
+                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
+                    x_data
+                )
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res.astype(dtype), rtol=1e-5)
 
     for is_dyn in [False, True]:
@@ -127,8 +129,9 @@ def test_topk():
 
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, device=dev, target=target)
-                op_res = intrp.evaluate(func)(np_data)
+                op_res = relay.create_executor(kind, device=dev, target=target).evaluate(func)(
+                    np_data
+                )
                 if ret_type == "both":
                     tvm.testing.assert_allclose(op_res[0].numpy(), np_values)
                     tvm.testing.assert_allclose(op_res[1].numpy(), np_indices)

@@ -29,11 +29,17 @@ def compare_fq_to_int(expr, args, allow_rounding_error=False):
     mod_int = tvm.relay.transform.FakeQuantizationToInteger()(mod)
     assert not tvm.ir.structural_equal(mod, mod_int)
 
-    ex = relay.create_executor("vm", mod=mod, device=tvm.cpu(), target="llvm")
-    result = ex.evaluate()(*args).numpy()
+    result = (
+        relay.create_executor("vm", mod=mod, device=tvm.cpu(), target="llvm")
+        .evaluate()(*args)
+        .numpy()
+    )
 
-    ex = relay.create_executor("vm", mod=mod_int, device=tvm.cpu(), target="llvm")
-    result_int = ex.evaluate()(*args).numpy()
+    result_int = (
+        relay.create_executor("vm", mod=mod_int, device=tvm.cpu(), target="llvm")
+        .evaluate()(*args)
+        .numpy()
+    )
 
     if allow_rounding_error:
         assert np.all(np.abs(result - result_int) <= 1)

@@ -134,10 +134,13 @@ def check_grad(
         test_inputs = inputs
 
     for target, dev in enabled_targets():
-        intrp = relay.create_executor(device=dev, target=target)
+        # Eval the backward and forward functions
+        # TODO(mbs): Evaluate a pair of functions so can share preparation between them.
+        bwd_func_compiled = relay.create_executor(device=dev, target=target).evaluate(bwd_func)
+        fwd_func_compiled = relay.create_executor(device=dev, target=target).evaluate(fwd_func)
 
         # Get analytic gradients.
-        _, grads = intrp.evaluate(bwd_func)(*inputs)
+        _, grads = bwd_func_compiled(*inputs)
         grads = [grad.numpy().astype("float64") for grad in grads]
 
         # Throw out gradients we aren't testing
@@ -154,7 +157,6 @@ def check_grad(
         assert len(grads) > 0, "You must test at least one gradient."
 
         # Get numeric gradients for each dimension of each param, using two-sided approximation.
-        fwd_func_compiled = intrp.evaluate(fwd_func)
         approx_grads = []
         for x in test_inputs:
             approx_grad = np.zeros(x.shape)

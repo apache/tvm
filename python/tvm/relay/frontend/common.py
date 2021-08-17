@@ -545,11 +545,12 @@ def infer_value(input_val, params, mod=None):
             mod["main"] = _function.Function(analysis.free_vars(input_val), input_val)
         else:
             mod = IRModule.from_expr(input_val)
-        exc = tvm.relay.create_executor("debug", mod=mod, device=tvm.cpu(), target="llvm")
         inputs = []
         for param in mod["main"].params:
             inputs.append(params[param.name_hint])
-        result = exc.evaluate()(*inputs)
+        result = tvm.relay.create_executor(
+            "debug", mod=mod, device=tvm.cpu(), target="llvm"
+        ).evaluate()(*inputs)
         return result
 
 

@@ -62,8 +62,9 @@ def test_resize1d():
         func = relay.Function([x], z)
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, device=dev, target=target)
-                op_res = intrp.evaluate(func)(x_data)
+                op_res = relay.create_executor(kind, device=dev, target=target).evaluate(func)(
+                    x_data
+                )
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-3, atol=1e-4)
 
     for method in ["nearest_neighbor", "linear", "cubic"]:
@@ -113,8 +114,9 @@ def test_resize2d():
         func = relay.Function([x], z)
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, device=dev, target=target)
-                op_res = intrp.evaluate(func)(x_data)
+                op_res = relay.create_executor(kind, device=dev, target=target).evaluate(func)(
+                    x_data
+                )
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-3, atol=1e-4)
 
     for method in ["nearest_neighbor", "linear", "cubic"]:
@@ -167,8 +169,7 @@ def test_resize3d(target, dev):
         func = relay.Function([x], z)
 
         for kind in ["graph", "debug"]:
-            intrp = relay.create_executor(kind, device=dev, target=target)
-            op_res = intrp.evaluate(func)(x_data)
+            op_res = relay.create_executor(kind, device=dev, target=target).evaluate(func)(x_data)
             tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-4, atol=1e-6)
 
     for method in ["nearest_neighbor", "linear", "cubic"]:
@@ -202,8 +203,9 @@ def test_crop_and_resize():
 
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, device=dev, target=target)
-                op_res = intrp.evaluate(func)(image_data, boxes, box_indices)
+                op_res = relay.create_executor(kind, device=dev, target=target).evaluate(func)(
+                    image_data, boxes, box_indices
+                )
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-3, atol=1e-04)
 
     boxes_nhwc = np.array([[0.1, 0.2, 0.8, 0.7], [0.2, 0, 1, 0.6]]).astype("float32")
@@ -302,11 +304,9 @@ def test_multibox_prior():
         func = relay.Function([x], z)
         func = run_infer_type(func)
         for target, dev in tvm.testing.enabled_targets():
-            intrp1 = relay.create_executor("graph", device=dev, target=target)
-            op_res1 = intrp1.evaluate(func)(data)
+            op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(data)
             tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5)
-            intrp2 = relay.create_executor("debug", device=dev, target=target)
-            op_res2 = intrp2.evaluate(func)(data)
+            op_res2 = relay.create_executor("debug", device=dev, target=target).evaluate(func)(data)
             tvm.testing.assert_allclose(op_res2.numpy(), ref_res, rtol=1e-5)
 
     sizes = (0.3, 1.5, 0.7)
@@ -361,8 +361,7 @@ def test_get_valid_counts():
         func = relay.Function([x], z.astuple())
         func = run_infer_type(func)
         for target, dev in tvm.testing.enabled_targets():
-            intrp = relay.create_executor("debug", device=dev, target=target)
-            out = intrp.evaluate(func)(np_data)
+            out = relay.create_executor("debug", device=dev, target=target).evaluate(func)(np_data)
 
             tvm.testing.assert_allclose(out[0].numpy(), np_out1, rtol=1e-3, atol=1e-04)
             tvm.testing.assert_allclose(out[1].numpy(), np_out2, rtol=1e-3, atol=1e-04)
@@ -433,15 +432,21 @@ def test_non_max_suppression():
         func_indices = relay.Function([x0, x1, x2, x3], z_indices)
         func_indices = run_infer_type(func_indices)
         for target, dev in tvm.testing.enabled_targets():
-            intrp1 = relay.create_executor("graph", device=dev, target=target)
-            op_res1 = intrp1.evaluate(func)(x0_data, x1_data, x2_data, x3_data)
+            op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
+                x0_data, x1_data, x2_data, x3_data
+            )
             tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5)
-            intrp2 = relay.create_executor("debug", device=dev, target=target)
-            op_res2 = intrp2.evaluate(func)(x0_data, x1_data, x2_data, x3_data)
+            op_res2 = relay.create_executor("debug", device=dev, target=target).evaluate(func)(
+                x0_data, x1_data, x2_data, x3_data
+            )
             tvm.testing.assert_allclose(op_res2.numpy(), ref_res, rtol=1e-5)
-            op_indices_res1 = intrp1.evaluate(func_indices)(x0_data, x1_data, x2_data, x3_data)
+            op_indices_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(
+                func_indices
+            )(x0_data, x1_data, x2_data, x3_data)
             tvm.testing.assert_allclose(op_indices_res1[0].numpy(), ref_indices_res, rtol=1e-5)
-            op_indices_res2 = intrp2.evaluate(func_indices)(x0_data, x1_data, x2_data, x3_data)
+            op_indices_res2 = relay.create_executor("debug", device=dev, target=target).evaluate(
+                func_indices
+            )(x0_data, x1_data, x2_data, x3_data)
             tvm.testing.assert_allclose(op_indices_res2[0].numpy(), ref_indices_res, rtol=1e-5)
 
     np_data = np.array(
@@ -624,11 +629,13 @@ def test_multibox_transform_loc():
         func = relay.Function([cls_prob, loc_pred, anchors], nms)
         func = run_infer_type(func)
         for target, dev in tvm.testing.enabled_targets():
-            intrp1 = relay.create_executor("graph", device=dev, target=target)
-            op_res1 = intrp1.evaluate(func)(np_cls_prob, np_loc_preds, np_anchors)
+            op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
+                np_cls_prob, np_loc_preds, np_anchors
+            )
             tvm.testing.assert_allclose(op_res1.numpy(), expected_np_out, rtol=1e-5)
-            intrp2 = relay.create_executor("debug", device=dev, target=target)
-            op_res2 = intrp2.evaluate(func)(np_cls_prob, np_loc_preds, np_anchors)
+            op_res2 = relay.create_executor("debug", device=dev, target=target).evaluate(func)(
+                np_cls_prob, np_loc_preds, np_anchors
+            )
             tvm.testing.assert_allclose(op_res2.numpy(), expected_np_out, rtol=1e-5)
 
     def test_threshold():
@@ -718,11 +725,13 @@ def test_roi_align():
         )
         for target, dev in tvm.testing.enabled_targets():
             print("test on", target)
-            intrp1 = relay.create_executor("graph", device=dev, target=target)
-            op_res1 = intrp1.evaluate(func)(np_data, np_rois)
+            op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
+                np_data, np_rois
+            )
             tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-4)
-            intrp2 = relay.create_executor("debug", device=dev, target=target)
-            op_res2 = intrp2.evaluate(func)(np_data, np_rois)
+            op_res2 = relay.create_executor("debug", device=dev, target=target).evaluate(func)(
+                np_data, np_rois
+            )
             tvm.testing.assert_allclose(op_res2.numpy(), ref_res, rtol=1e-4)
 
     def verify_roi_align_nchw(
@@ -813,11 +822,13 @@ def test_roi_pool():
             np_data, np_rois, pooled_size=pooled_size, spatial_scale=spatial_scale
         )
         for target, dev in tvm.testing.enabled_targets():
-            intrp1 = relay.create_executor("graph", device=dev, target=target)
-            op_res1 = intrp1.evaluate(func)(np_data, np_rois)
+            op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
+                np_data, np_rois
+            )
             tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-4)
-            intrp2 = relay.create_executor("debug", device=dev, target=target)
-            op_res2 = intrp2.evaluate(func)(np_data, np_rois)
+            op_res2 = relay.create_executor("debug", device=dev, target=target).evaluate(func)(
+                np_data, np_rois
+            )
             tvm.testing.assert_allclose(op_res2.numpy(), ref_res, rtol=1e-4)
 
     verify_roi_pool((1, 4, 16, 16), (32, 5), pooled_size=7, spatial_scale=1.0)
@@ -841,11 +852,13 @@ def test_proposal():
                 print("Skip test because %s is not enabled." % target)
                 continue
             dev = tvm.device(target, 0)
-            intrp1 = relay.create_executor("graph", device=dev, target=target)
-            op_res1 = intrp1.evaluate(func)(np_cls_prob, np_bbox_pred, np_im_info)
+            op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
+                np_cls_prob, np_bbox_pred, np_im_info
+            )
             tvm.testing.assert_allclose(op_res1.numpy(), np_out, rtol=1e-4)
-            intrp2 = relay.create_executor("debug", device=dev, target=target)
-            op_res2 = intrp2.evaluate(func)(np_cls_prob, np_bbox_pred, np_im_info)
+            op_res2 = relay.create_executor("debug", device=dev, target=target).evaluate(func)(
+                np_cls_prob, np_bbox_pred, np_im_info
+            )
             tvm.testing.assert_allclose(op_res2.numpy(), np_out, rtol=1e-4)
 
     attrs = {
@@ -935,8 +948,9 @@ def test_yolo_reorg():
 
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, device=dev, target=target)
-                op_res = intrp.evaluate(func)(x_data)
+                op_res = relay.create_executor(kind, device=dev, target=target).evaluate(func)(
+                    x_data
+                )
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
     verify_yolo_reorg((1, 100, 20, 20), 10)
@@ -1070,8 +1084,9 @@ def test_deformable_conv2d():
             if target == "cuda" and layout == "NHWC":
                 continue  # Cannot run NHWC layout on cuda target, only on llvm
             for kind in ["graph", "debug"]:
-                intrp1 = relay.create_executor(kind, device=dev, target=target)
-                op_res1 = intrp1.evaluate(func)(data, offset, kernel)
+                op_res1 = relay.create_executor(kind, device=dev, target=target).evaluate(func)(
+                    data, offset, kernel
+                )
                 tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
     test_run(1, 4, 16, 4, 1, 1, "NCHW")
@@ -1115,8 +1130,9 @@ def test_depth_to_space():
 
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, device=dev, target=target)
-                op_res = intrp.evaluate(func)(x_data)
+                op_res = relay.create_executor(kind, device=dev, target=target).evaluate(func)(
+                    x_data
+                )
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-4)
 
     for layout in ["NHWC", "NCHW"]:
@@ -1159,8 +1175,9 @@ def test_space_to_depth():
 
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, device=dev, target=target)
-                op_res = intrp.evaluate(func)(x_data)
+                op_res = relay.create_executor(kind, device=dev, target=target).evaluate(func)(
+                    x_data
+                )
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-4)
 
     for layout in ["NHWC", "NCHW"]:
@@ -1215,8 +1232,9 @@ def test_dilation2d_run():
         for target, dev in tvm.testing.enabled_targets():
             if target in except_targets:
                 continue
-            intrp = relay.create_executor("graph", device=dev, target=target)
-            op_res = intrp.evaluate(func)(indata, kernel)
+            op_res = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
+                indata, kernel
+            )
             tvm.testing.assert_allclose(op_res.numpy(), out, rtol=1e-5, atol=1e-5)
 
     def _convert_data(indata, kernel, out, layout=None):
@@ -1317,8 +1335,9 @@ def test_affine_grid():
 
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                intrp1 = relay.create_executor(kind, device=dev, target=target)
-                op_res1 = intrp1.evaluate(func)(data_np)
+                op_res1 = relay.create_executor(kind, device=dev, target=target).evaluate(func)(
+                    data_np
+                )
                 tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
     verify_affine_grid(1, (16, 32))
@@ -1344,8 +1363,9 @@ def test_grid_sample():
 
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                intrp1 = relay.create_executor(kind, device=dev, target=target)
-                op_res1 = intrp1.evaluate(func)(data_np, grid_np)
+                op_res1 = relay.create_executor(kind, device=dev, target=target).evaluate(func)(
+                    data_np, grid_np
+                )
                 tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
     verify_grid_sample((4, 4, 16, 32), (4, 2, 8, 8))
@@ -1371,8 +1391,9 @@ def test_space_to_batch_nd():
 
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, device=dev, target=target)
-                op_res = intrp.evaluate(func)(x_data)
+                op_res = relay.create_executor(kind, device=dev, target=target).evaluate(func)(
+                    x_data
+                )
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-4)
 
     verify_space_to_batch_nd([3, 3, 2, 1], [3], [[0, 0]])
@@ -1398,8 +1419,9 @@ def test_batch_to_space_nd():
 
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, device=dev, target=target)
-                op_res = intrp.evaluate(func)(x_data)
+                op_res = relay.create_executor(kind, device=dev, target=target).evaluate(func)(
+                    x_data
+                )
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-4)
 
     verify_batch_to_space_nd([4, 1, 1, 3], [2, 2], [[0, 0], [0, 0]])
@@ -1432,8 +1454,9 @@ def test_all_class_non_max_suppression():
 
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, device=dev, target=target)
-                selected_indices, num_detections = intrp.evaluate(func)(boxes_np, scores_np)
+                selected_indices, num_detections = relay.create_executor(
+                    kind, device=dev, target=target
+                ).evaluate(func)(boxes_np, scores_np)
                 tvm_res = selected_indices.numpy()[: num_detections.numpy()[0]]
                 np.testing.assert_equal(tvm_res, expected_indices)
 

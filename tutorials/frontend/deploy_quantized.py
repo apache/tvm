@@ -146,11 +146,11 @@ def quantize(mod, params, data_aware):
 # -------------
 # We create a Relay VM to build and execute the model.
 def run_inference(mod):
-    executor = relay.create_executor("vm", mod, dev, target)
+    model = relay.create_executor("vm", mod, dev, target).evaluate()
     val_data, batch_fn = get_val_data()
     for i, batch in enumerate(val_data):
         data, label = batch_fn(batch)
-        prediction = executor.evaluate()(data)
+        prediction = model(data)
         if i > 10:  # only run inference on a few samples in this tutorial
             break
 

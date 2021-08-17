@@ -21,14 +21,17 @@
  * \file src/relay/interpreter.cc
  * \brief An interpreter for the Relay IR.
  */
+
 #include <tvm/driver/driver_api.h>
 #include <tvm/relay/analysis.h>
+#include <tvm/relay/attrs/annotation.h>
 #include <tvm/relay/attrs/debug.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/feature.h>
 #include <tvm/relay/interpreter.h>
 #include <tvm/relay/pattern_functor.h>
 #include <tvm/relay/transform.h>
+#include <tvm/runtime/container/map.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/object.h>
 
@@ -39,9 +42,81 @@
 namespace tvm {
 namespace relay {
 
-using namespace runtime;
+using runtime::ADT;
+using runtime::ADTObj;
+using runtime::NDArray;
+using runtime::TVMArgsSetter;
+using runtime::operator<<;
 
-InterpreterClosure::InterpreterClosure(tvm::Map<Var, ObjectRef> env, Function func) {
+namespace {
+// TODO(mbs): Centralize.
+struct PairHash {
+  template <typename T1, typename T2>
+  std::size_t operator()(const std::pair<T1, T2>& k) const {
+    return std::hash<T1>()(k.first) ^ std::hash<T2>()(k.second);
+  }
+};
+
+// Analogue of FlattenTupleType for runtime ADT vs NDArray values.
+// TODO(mbs): Hoist somewhere sensible, maybe op/memory.h?
+void FlattenADTAux(const ObjectRef& object_ref, std::vector<NDArray>* out) {
+  if (const NDArray::ContainerType* ndarray = object_ref.as<NDArray::ContainerType>()) {
+    out->push_back(GetRef<NDArray>(ndarray));
+  } else if (const ADTObj* adt = object_ref.as<ADTObj>()) {
+    for (size_t i = 0; i < adt->size; ++i) {
+      FlattenADTAux((*adt)[i], out);
+    }
+  } else {
+    LOG(FATAL) << "unsupported " << object_ref;
+  }
+}
+
+std::vector<NDArray> FlattenADT(const ObjectRef& object_ref) {
+  std::vector<NDArray> out;
+  FlattenADTAux(object_ref, &out);
+  return out;
+}
+
+std::vector<NDArray> FlattenADTs(const std::vector<ObjectRef>& object_refs) {
+  std::vector<NDArray> out;
+  for (const auto& object_ref : object_refs) {
+    FlattenADTAux(object_ref, &out);
+  }
+  return out;
+}
+
+// Analogue of ToTupleType for runtime ADT vs NDArray values.
+// TODO(mbs): Hoist somewhere sensible, maybe op/memory.h?
+void ToADTOrNDArrayAux(const Type& type, const std::vector<NDArray>& nd_arrays, int* index,
+                       std::vector<ObjectRef>* out) {
+  if (type.as<TensorTypeNode>()) {
+    out->push_back(nd_arrays[*index]);
+    *index += 1;
+  } else if (const TupleTypeNode* ttn = type.as<TupleTypeNode>()) {
+    std::vector<ObjectRef> tuple_out;
+    for (size_t i = 0; i < ttn->fields.size(); i++) {
+      ToADTOrNDArrayAux(ttn->fields[i], nd_arrays, index, &tuple_out);
+    }
+    out->push_back(ADT::Tuple(tuple_out));
+  } else {
+    LOG(FATAL) << "unsupported " << type;
+  }
+}
+
+ObjectRef ToADTOrNDArray(const Type& type, const std::vector<NDArray>& nd_arrays) {
+  if (type.as<TensorTypeNode>() && nd_arrays.size() == 1) {
+    return nd_arrays[0];
+  } else {
+    std::vector<ObjectRef> out;
+    int index = 0;
+    ToADTOrNDArrayAux(type, nd_arrays, &index, &out);
+    return out[0];
+  }
+}
+
+}  // namespace
+
+InterpreterClosure::InterpreterClosure(Map<Var, ObjectRef> env, Function func) {
   ObjectPtr<InterpreterClosureObj> n = make_object<InterpreterClosureObj>();
   n->env = std::move(env);
   n->func = std::move(func);
@@ -55,7 +130,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     });
 
 inline const PackedFunc& GetPackedFunc(const std::string& name) {
-  const PackedFunc* pf = tvm::runtime::Registry::Get(name);
+  const PackedFunc* pf = runtime::Registry::Get(name);
   ICHECK(pf != nullptr) << "Cannot find function " << name << " in registry";
   return *pf;
 }
@@ -93,8 +168,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << "RefValueObj(" << node->value << ")";
     });
 
-ConstructorValue::ConstructorValue(int32_t tag, tvm::Array<ObjectRef> fields,
-                                   Constructor constructor) {
+ConstructorValue::ConstructorValue(int32_t tag, Array<ObjectRef> fields, Constructor constructor) {
   ObjectPtr<ConstructorValueObj> n = make_object<ConstructorValueObj>();
   n->tag = tag;
   n->fields = fields;
@@ -103,7 +177,7 @@ ConstructorValue::ConstructorValue(int32_t tag, tvm::Array<ObjectRef> fields,
 }
 
 TVM_REGISTER_GLOBAL("relay._make.ConstructorValue")
-    .set_body_typed([](int32_t tag, tvm::Array<ObjectRef> fields, Constructor constructor) {
+    .set_body_typed([](int32_t tag, Array<ObjectRef> fields, Constructor constructor) {
       return ConstructorValue(tag, fields, constructor);
     });
 
@@ -122,9 +196,9 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
  */
 struct Frame {
   /*! \brief The set of local variables and arguments for the frame. */
-  tvm::Map<Var, ObjectRef> locals;
+  Map<Var, ObjectRef> locals;
 
-  explicit Frame(tvm::Map<Var, ObjectRef> locals) : locals(locals) {}
+  explicit Frame(Map<Var, ObjectRef> locals) : locals(locals) {}
 };
 
 /*!
@@ -169,8 +243,8 @@ class InterpreterState;
 /*! \brief A container capturing the state of the interpreter. */
 class InterpreterStateObj : public Object {
  public:
-  using Frame = tvm::Map<Var, ObjectRef>;
-  using Stack = tvm::Array<Frame>;
+  using Frame = Map<Var, ObjectRef>;
+  using Stack = Array<Frame>;
 
   /*! \brief The current expression under evaluation. */
   Expr current_expr;
@@ -178,7 +252,7 @@ class InterpreterStateObj : public Object {
   /*! \brief The call stack of the interpreter. */
   Stack stack;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("current_expr", &current_expr);
     v->Visit("stack", &stack);
   }
@@ -189,8 +263,8 @@ class InterpreterStateObj : public Object {
 
 class InterpreterState : public ObjectRef {
  public:
-  using Frame = tvm::Map<Var, ObjectRef>;
-  using Stack = tvm::Array<Frame>;
+  using Frame = Map<Var, ObjectRef>;
+  using Stack = Array<Frame>;
 
   InterpreterState(Expr current_expr, Stack stack);
 
@@ -214,8 +288,13 @@ InterpreterState::InterpreterState(Expr current_expr, InterpreterState::Stack st
 class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
                     PatternFunctor<bool(const Pattern& p, const ObjectRef& v)> {
  public:
-  Interpreter(IRModule mod, Device device, Target target)
-      : mod_(mod), device_(device), target_(target), debug_op_(Op::Get("debug")) {}
+  // TODO(mbs): Collapse mod and per_target_module once IRModule subsumes LoweredModule.
+  Interpreter(IRModule mod, Map<String, IRModule> per_target_module, Device device, Target target)
+      : mod_(mod),
+        per_target_module_(per_target_module),
+        device_(device),
+        target_(target),
+        debug_op_(Op::Get("debug")) {}
 
   template <typename T>
   T WithFrame(const Frame& fr, const std::function<T()>& f) {
@@ -238,8 +317,7 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
   ObjectRef VisitExpr_(const OpNode* id) override {
     // TODO(@jroesch): Eta-expand and return in this case.
     LOG(FATAL) << "internal error, need to wrap intrinsic into call synthetic call node "
-               << "in "
-               << "this case, eta expand";
+               << "in this case, eta expand";
     return ObjectRef();
   }
 
@@ -257,7 +335,7 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
   }
 
   ObjectRef MakeClosure(const Function& func, Var letrec_name = Var()) {
-    tvm::Map<Var, ObjectRef> captured_mod;
+    Map<Var, ObjectRef> captured_mod;
     Array<Var> free_vars = FreeVars(func);
 
     for (const auto& var : free_vars) {
@@ -283,251 +361,301 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
     return MakeClosure(func);
   }
 
-  Array<Shape> ComputeDynamicShape(const Function& func, const Array<ObjectRef>& args) {
-    CCacheKey key(func, Target("llvm"));
-    auto cfunc = compiler_->LowerShapeFunc(key);
-    size_t arity = cfunc->inputs.size() + cfunc->outputs.size();
+  /*!
+   * \brief Returns the packed function implementing the TIR function bound to \p tir_fn_var.
+   *
+   * \param tir_fn_var Global var for the already lowered TIR function.
+   * \param all_tir_fn_vars Global vars for all lowered TIR functions the above
+   * may reference, plus \p tir_fn_var itself.
+   * \param target Target for which the TIR function should be compiled. For primitives this
+   * will be the interpreter's target_. However for shape functions this will be the generic
+   * 'cpu' target, since shape functions are always executed on the host cpu.
+   */
+  PackedFunc TIRToPackedFunc(const GlobalVar& tir_fn_var, const Array<GlobalVar>& all_tir_fn_vars,
+                             Target target) {
+    std::pair<std::string, std::string> packed_func_key(target->str(), tir_fn_var->name_hint);
+    auto packed_itr = compiled_packed_funcs_.find(packed_func_key);
+    if (packed_itr != compiled_packed_funcs_.end()) {
+      // Already compiled.
+      return packed_itr->second;
+    }
 
+    // Project out just the function(s) we need.
+    IRModule lowered_projected_mod;
+    auto mod_itr = per_target_module_.find(target->str());
+    ICHECK(mod_itr != per_target_module_.end())
+        << "No target module for target '" << target->str() << "'";
+    const IRModule& target_module = (*mod_itr).second;
+    for (const auto& var : all_tir_fn_vars) {
+      ICHECK(target_module->ContainGlobalVar(var->name_hint))
+          << "No global var for '" << var->name_hint << "' in module for target '" << target->str()
+          << "'";
+      lowered_projected_mod->Add(var, target_module->Lookup(var->name_hint));
+    }
+
+    // Compile (aka 'build') the projected module into a runtime module of packed functions.
+    runtime::Module runtime_module;
+    if (const auto* f = runtime::Registry::Get("relay.backend.build")) {
+      // TODO(mbs): Cleanup hooks.
+      runtime_module = (*f)(lowered_projected_mod, target);
+    } else {
+      runtime_module = build(lowered_projected_mod, target, /*target_host=*/Target(nullptr));
+    }
+
+    // Extract all the packed functions.
+    for (const auto& var : all_tir_fn_vars) {
+      PackedFunc packed_func = runtime_module.GetFunction(var->name_hint);
+      ICHECK(packed_func != nullptr) << "No packed function for global var '" << var->name_hint
+                                     << "' in compiled module for target '" << target->str() << "'";
+      compiled_packed_funcs_.emplace(std::make_pair(target->str(), var->name_hint), packed_func);
+    }
+
+    // Return just what we need for this call.
+    packed_itr = compiled_packed_funcs_.find(packed_func_key);
+    ICHECK(packed_itr != compiled_packed_funcs_.end()) << " " << tir_fn_var->name_hint;
+    ICHECK_NOTNULL(packed_itr->second);
+    return packed_itr->second;
+  }
+
+  /*!
+   * \brief Call the dynamic shape function bound to \p prim_shape_fn_var passing the
+   * shapes of args, and return the resulting shapes.
+   *
+   * \param prim_shape_fn_var Global var bound to lowered shape function.
+   * \param all_prim_shape_fn_vars All the global vars needed to build the above, including
+   * the shape function itself.
+   * \param prim_shape_fn_states For each primitive arg, indicate whether the primitive shape
+   * function requires the shape of the argument and/or the actual argument tensor.
+   * \param num_shape_inputs The number of inputs, after accounting for both shapes vs data
+   * inputs and unfolding of tuple types.
+   * \param num_shape_outputs The number of outputs, after accounting for flattening of
+   * tuple types.
+   * \param args Arguments to the primitive this shape function is for.
+   * \return Expected shapes of the underlying primitive's flattened outputs.
+   */
+  Array<Shape> ComputeDynamicShape(const GlobalVar& prim_shape_fn_var,
+                                   const Array<GlobalVar>& all_prim_shape_fn_vars,
+                                   const Array<Integer>& prim_shape_fn_states,
+                                   size_t num_shape_inputs, size_t num_shape_outputs,
+                                   const std::vector<ObjectRef>& args) {
+    ICHECK(prim_shape_fn_var.defined());
+    ICHECK(prim_shape_fn_states.defined());
+    ICHECK(prim_shape_fn_var->checked_type().defined());
+    // The function type is that of the original primitive rather than the shape function
+    // itself. We currently can't express shape function types in Relay.
+    const FuncTypeNode* ftn = prim_shape_fn_var->checked_type().as<FuncTypeNode>();
+    ICHECK(ftn);
+    // The primitive shape function states are w.r.t. the primitive's arguments in
+    // non-flattened form.
+    // TODO(mbs): Clean this up so we don't mix flattened vs original conventions.
+    ICHECK_EQ(prim_shape_fn_states.size(), ftn->arg_types.size());
+    ICHECK_EQ(args.size(), ftn->arg_types.size());
+    // num_shape_inputs will account for which primitive function arguments are dynamic,
+    // whether the shape and or data needs to be passed, and flattening of tuples.
+    // Similarly, num_shape_outputs will account for flattening of tuples.
+
+    // Shape functions always run on the cpu
+    Device shape_device;
+    shape_device.device_type = kDLCPU;
+    shape_device.device_id = 0;
+    Target shape_target("llvm");
+
+    // 'Compile' the TIR shape function to appropriate callable form.
+    PackedFunc packed_shape_func =
+        TIRToPackedFunc(prim_shape_fn_var, all_prim_shape_fn_vars, shape_target);
+
+    size_t arity = num_shape_inputs + num_shape_outputs;
     std::vector<TVMValue> values(arity);
     std::vector<int> codes(arity);
     TVMArgsSetter setter(values.data(), codes.data());
-    std::vector<NDArray> inputs(cfunc->inputs.size());
-    std::vector<NDArray> outputs(cfunc->outputs.size());
+    std::vector<NDArray> inputs(num_shape_inputs);
+    std::vector<NDArray> outputs(num_shape_outputs);
 
-    Device cpu_dev;
-    cpu_dev.device_type = kDLCPU;
-    cpu_dev.device_id = 0;
-
-    auto fset_input = [&](size_t i, ObjectRef val, bool need_shape) {
-      auto nd_array = Downcast<NDArray>(val);
-      if (need_shape) {
-        int64_t ndim = nd_array.Shape().size();
-        NDArray shape_arr;
-        if (ndim == 0) {
-          shape_arr = NDArray::Empty({}, DataType::Int(64), cpu_dev);
-        } else {
-          shape_arr = NDArray::Empty({ndim}, DataType::Int(64), cpu_dev);
-          int64_t* data = reinterpret_cast<int64_t*>(shape_arr->data);
-          for (auto j = 0; j < ndim; ++j) {
-            data[j] = nd_array.Shape()[j];
-          }
-        }
-        inputs[i] = shape_arr;
-        setter(i, shape_arr);
-      } else {
-        auto arr = nd_array.CopyTo(cpu_dev);
-        inputs[i] = arr;
-        setter(i, arr);
-      }
-    };
-
+    // Collect the shapes and/or data needed by the shape function from
+    // the primitive's arguments.
     size_t arg_counter = 0;
     for (size_t i = 0; i < args.size(); ++i) {
-      auto arg = args[i];
-      auto param = func->params[i];
-      int state = cfunc->shape_func_param_states[i]->value;
-      if (arg->IsInstance<runtime::NDArray::ContainerType>()) {
+      // TODO(mbs): The same need data/need shape arg state applies to everything in the
+      // flattened form of this arg. Does that match what lowering actually does?
+      int64_t state = prim_shape_fn_states[i]->value;
+      for (const auto& nd_array : FlattenADT(args[i])) {
         if (state & kNeedInputData) {
-          fset_input(arg_counter++, arg, false);
+          auto arr = nd_array.CopyTo(shape_device);
+          inputs[arg_counter] = arr;
+          setter(arg_counter, arr);
+          ++arg_counter;
         }
         if (state & kNeedInputShape) {
-          fset_input(arg_counter++, arg, true);
-        }
-      } else {
-        const ADT adt = Downcast<ADT>(arg);
-        if (state & kNeedInputData) {
-          for (size_t i = 0; i < adt.size(); ++i) {
-            fset_input(arg_counter++, adt[i], false);
+          int64_t ndim = nd_array.Shape().size();
+          NDArray shape_arr;
+          if (ndim == 0) {
+            shape_arr = NDArray::Empty({}, DataType::Int(64), shape_device);
+          } else {
+            shape_arr = NDArray::Empty({ndim}, DataType::Int(64), shape_device);
+            int64_t* data = reinterpret_cast<int64_t*>(shape_arr->data);
+            for (auto j = 0; j < ndim; ++j) {
+              data[j] = nd_array.Shape()[j];
+            }
           }
-        }
-        if (state & kNeedInputShape) {
-          for (size_t i = 0; i < adt.size(); ++i) {
-            fset_input(arg_counter++, adt[i], true);
-          }
+          inputs[arg_counter] = shape_arr;
+          setter(arg_counter, shape_arr);
+          ++arg_counter;
         }
       }
     }
-    ICHECK_EQ(arg_counter, cfunc->inputs.size()) << "Shape function input sizes mismatch";
+    ICHECK_EQ(arg_counter, num_shape_inputs) << "Shape function input sizes mismatch";
 
-    auto fset_shape_output = [&](size_t i, Type val_type) {
-      // TODO(@icemelon): allow recursive tuple
-      const TensorTypeNode* rtype = val_type.as<TensorTypeNode>();
-      ICHECK(rtype != nullptr);
-      int64_t ndim = rtype->shape.size();
-      auto arr = NDArray::Empty({ndim}, DataType::Int(64), cpu_dev);
-      outputs[i] = arr;
-      setter(arg_counter + i, arr);
-    };
-
-    auto ret_type = func->body->checked_type();
+    // Prepare NDArrays to hold the output shapes.
     size_t out_cnt = 0;
-    if (auto rtype = ret_type.as<TupleTypeNode>()) {
-      out_cnt = rtype->fields.size();
-      for (size_t i = 0; i < out_cnt; ++i) {
-        fset_shape_output(i, rtype->fields[i]);
-      }
-    } else {
-      out_cnt = 1;
-      auto tt = Downcast<TensorType>(ret_type);
-      fset_shape_output(0, tt);
+    for (const auto& ttype : FlattenTupleType(ftn->ret_type)) {
+      ICHECK(out_cnt < num_shape_outputs);
+      int64_t ndim = ttype->shape.size();
+      auto arr = NDArray::Empty({ndim}, DataType::Int(64), shape_device);
+      outputs[out_cnt] = arr;
+      setter(arg_counter + out_cnt, arr);
+      ++out_cnt;
     }
-    ICHECK_EQ(cfunc->outputs.size(), out_cnt) << "Shape function output sizes mismatch";
+    ICHECK_EQ(out_cnt, num_shape_outputs) << "Shape function output sizes mismatch";
 
-    PackedFunc shape_func;
-    Module m;
-    TVMRetValue rv;
-    if (const auto* f = runtime::Registry::Get("relay.backend.build")) {
-      m = (*f)(cfunc->funcs, cfunc->target);
-    } else {
-      m = build(cfunc->funcs, cfunc->target, Target(nullptr));
-    }
-    shape_func = m.GetFunction(cfunc->prim_fn_var->name_hint);
-    shape_func.CallPacked(TVMArgs(values.data(), codes.data(), arity), &rv);
+    // Call the dynamic shape function.
+    TVMRetValue rv;  // ignored
+    packed_shape_func.CallPacked(TVMArgs(values.data(), codes.data(), arity), &rv);
 
-    // Get output shapes
+    // Convert result tensors back to shapes.
     Array<Shape> out_shapes;
     for (auto out_tensor : outputs) {
       int64_t* shape_data = reinterpret_cast<int64_t*>(out_tensor->data);
       Shape out_shape;
       for (int i = 0; i < out_tensor->shape[0]; ++i) {
-        out_shape.push_back(tvm::Integer(shape_data[i]));
+        out_shape.push_back(Integer(shape_data[i]));
       }
       out_shapes.push_back(out_shape);
     }
     return out_shapes;
   }
 
-  ObjectRef InvokePrimitiveOp(const Function& func, const Array<ObjectRef>& args) {
-    const auto* call_node = func->body.as<CallNode>();
+  /*!
+   * \brief Call primitive op bound to \p prim_fn_var with \p args. If necessary, evaluate dynamic
+   * shape function bound to \p prim_shape_fn_var to calculate shapes of result tensors.
+   *
+   * @param prim_fn_var Global bound to lowered primitive.
+   * @param all_prim_fn_vars  All globals references by lowered primitive, plus prim_fn_var itself.
+   * @param prim_shape_fn_var Global bound to lowered shape function for primitive, if neeeded.
+   * @param all_prim_shape_fn_vars All globals references by lowered shape function, plus
+   * prim_shape_fn_var itself.
+   * @param prim_shape_fn_states Records whether shape and/or data is needed by the dynamic
+   * shape function (if any) for each (flattened) argument.
+   * @param num_shape_inputs Number of arguments to the dynamic shape function (if any).
+   * @param num_shape_outputs Number of outputs from the dynamic shape function (if any).
+   * @param args Already evaluated arguments to primitive.
+   * @return Result of primitive.
+   */
+  ObjectRef InvokePrimitiveOp(const GlobalVar& prim_fn_var, const Array<GlobalVar> all_prim_fn_vars,
+                              const GlobalVar& prim_shape_fn_var,
+                              const Array<GlobalVar>& all_prim_shape_fn_vars,
+                              const Array<Integer>& prim_shape_fn_states, size_t num_shape_inputs,
+                              size_t num_shape_outputs, const std::vector<ObjectRef>& args) {
+    ICHECK(prim_fn_var->checked_type().defined());
+    const FuncTypeNode* ftn = prim_fn_var->checked_type().as<FuncTypeNode>();
+    ICHECK(ftn);
 
-    if (call_node && call_node->op == debug_op_) {
-      auto dattrs = call_node->attrs.as<DebugAttrs>();
-      auto interp_state = this->get_state(call_node->args[0]);
+    // 'Compile' the TIR primitive to appropriate callable form (on the desired target).
+    PackedFunc packed_func = TIRToPackedFunc(prim_fn_var, all_prim_fn_vars, target_);
 
-      if (dattrs->debug_func.defined()) {
-        dattrs->debug_func(interp_state);
-      } else {
-        RELAY_DEBUG_INTERP(interp_state);
-      }
+    // Argument tuples are flattened.
+    std::vector<NDArray> arg_nd_arrays = FlattenADTs(args);
+    const size_t num_inputs = arg_nd_arrays.size();
+    // num_inputs should equal size(concat(map(FlattenTupleType, function arg types)))
 
-      return args[0];
-    }
+    // TVM's primitive calling convention is for the final arguments to be for output
+    // buffers. We must allocate space for those buffers based on the return type.
+    std::vector<TensorType> result_tensor_types = FlattenTupleType(ftn->ret_type);
+    const size_t arg_len = num_inputs + result_tensor_types.size();
 
-    // Marshal the arguments.
-    // Handle adt input/output by flattening them.
-    size_t arg_len = 0;
-    for (size_t i = 0; i < args.size(); ++i) {
-      if (args[i]->IsInstance<NDArray::ContainerType>()) {
-        ++arg_len;
-      } else {
-        auto adt = Downcast<ADT>(args[i]);
-        arg_len += adt.size();
-      }
-    }
-    size_t num_inputs = arg_len;
-    if (const auto* tuple_type = func->body->checked_type().as<TupleTypeNode>()) {
-      arg_len += tuple_type->fields.size();
-    } else {
-      ICHECK(func->body->checked_type().as<TensorTypeNode>()) << func->body->checked_type();
-      arg_len += 1;
-    }
     std::vector<TVMValue> values(arg_len);
     std::vector<int> codes(arg_len);
     TVMArgsSetter setter(values.data(), codes.data());
 
-    auto fset_input = [&](size_t i, ObjectRef val) {
-      const auto nd_array = Downcast<NDArray>(val);
-      setter(i, nd_array);
+    // Marshall the call's arguments in flattened form.
+    int arg_counter = 0;
+    for (const auto& nd_array : arg_nd_arrays) {
+      setter(arg_counter++, nd_array);
       Device arg_dev = nd_array->device;
       ICHECK(arg_dev.device_type == device_.device_type && arg_dev.device_id == device_.device_id)
-          << "Interpreter expect device to be " << device_ << ", but get " << arg_dev;
-    };
-
-    int arg_counter = 0;
-    for (ObjectRef arg : args) {
-      if (arg->IsInstance<NDArray::ContainerType>()) {
-        fset_input(arg_counter++, arg);
-      } else {
-        auto adt = Downcast<ADT>(arg);
-        for (size_t i = 0; i < adt.size(); ++i) {
-          fset_input(arg_counter++, adt[i]);
-        }
-      }
+          << "Interpreter expect device to be " << device_ << ", but got " << arg_dev;
     }
 
-    // TVM's calling convention is that the final argument is the output
-    // buffer. To preserve the illusion of being a functional language
-    // we need to allocate space for the output buffer based on the
-    // return type.
-    auto fset_output = [&](size_t i, Type val_type) {
-      const TensorTypeNode* rtype = val_type.as<TensorTypeNode>();
-      ICHECK(rtype != nullptr);
-      // Allocate output tensor.
-      std::vector<int64_t> shape;
-      for (auto dim : rtype->shape) {
+    // If necessary, retrieve concrete shapes for outputs from shape function rather
+    // than relying on TensorType shapes.
+    Array<Shape> runtime_shapes;
+    bool is_dyn = IsDynamic(ftn->ret_type);
+    if (is_dyn) {
+      ICHECK(prim_shape_fn_var.defined());
+      ICHECK(prim_shape_fn_states.defined());
+      runtime_shapes =
+          ComputeDynamicShape(prim_shape_fn_var, all_prim_shape_fn_vars, prim_shape_fn_states,
+                              num_shape_inputs, num_shape_outputs, args);
+      ICHECK_EQ(runtime_shapes.size(), result_tensor_types.size());
+    }
+
+    // Prepare the result tensors for the call.
+    TVMRetValue rv;  // ignored
+    std::vector<NDArray> result_nd_arrays;
+    for (size_t i = 0; i < result_tensor_types.size(); ++i) {
+      const auto& ttype = result_tensor_types[i];
+      const Shape& shape = is_dyn ? runtime_shapes[i] : ttype->shape;
+      // Allocate output tensor of appropriate shape.
+      std::vector<int64_t> concrete_shape;
+      for (const auto& dim : shape) {
         const auto* ivalue = tir::as_const_int(dim);
         ICHECK(ivalue) << "expected concrete dimensions";
-        shape.push_back(ivalue[0]);
+        concrete_shape.push_back(ivalue[0]);
       }
-      DLDataType dtype = rtype->dtype;
-      NDArray nd_array = NDArray::Empty(shape, dtype, device_);
+      NDArray nd_array = NDArray::Empty(concrete_shape, ttype->dtype, device_);
       setter(num_inputs + i, nd_array);
-      return nd_array;
-    };
-
-    Array<Shape> out_shapes;
-    auto ret_type = func->body->checked_type();
-    bool is_dyn = IsDynamic(ret_type);
-
-    if (is_dyn) {
-      ICHECK(func->HasNonzeroAttr(attr::kPrimitive));
-      out_shapes = ComputeDynamicShape(func, args);
+      result_nd_arrays.emplace_back(nd_array);
     }
 
-    PackedFunc packed_func = compiler_->JIT(CCacheKey(func, target_));
-    TVMRetValue rv;
-    if (const TupleTypeNode* rtype = func->body->checked_type().as<TupleTypeNode>()) {
-      ICHECK(!is_dyn || out_shapes.size() == rtype->fields.size());
-      std::vector<ObjectRef> fields;
-      for (size_t i = 0; i < rtype->fields.size(); ++i) {
-        if (is_dyn) {
-          auto sh = out_shapes[i];
-          auto tt = Downcast<TensorType>(rtype->fields[i]);
-          fields.push_back(fset_output(i, TensorType(sh, tt->dtype)));
-        } else {
-          fields.push_back(fset_output(i, rtype->fields[i]));
-        }
-      }
-      packed_func.CallPacked(TVMArgs(values.data(), codes.data(), arg_len), &rv);
-      return ADT::Tuple(fields);
-    } else {
-      ObjectRef out_tensor;
-      if (is_dyn) {
-        ICHECK_EQ(out_shapes.size(), 1);
-        auto sh = out_shapes[0];
-        auto tt = Downcast<TensorType>(ret_type);
-        out_tensor = fset_output(0, TensorType(sh, tt->dtype));
-      } else {
-        out_tensor = fset_output(0, ret_type);
-      }
-      packed_func.CallPacked(TVMArgs(values.data(), codes.data(), arg_len), &rv);
-      return out_tensor;
-    }
+    // Call the primitive.
+    packed_func.CallPacked(TVMArgs(values.data(), codes.data(), static_cast<int>(arg_len)), &rv);
+
+    // Unflatten the results.
+    return ToADTOrNDArray(ftn->ret_type, result_nd_arrays);
   }
 
-  // Invoke the closure
-  ObjectRef Invoke(const InterpreterClosure& closure, const tvm::Array<ObjectRef>& args,
+  /*!
+   * \brief Invoke \p closure with \p args. If \p bind is defined then this is a recursive
+   * closure and \p bind should refer to itself.
+   */
+  ObjectRef Invoke(const InterpreterClosure& closure, const Array<ObjectRef>& args,
                    const Var& bind = Var()) {
     // Get a reference to the function inside the closure.
-    if (closure->func->HasNonzeroAttr(attr::kPrimitive)) {
-      return InvokePrimitiveOp(closure->func, args);
-    }
-    auto func = closure->func;
-    // Allocate a frame with the parameters and free variables.
-    tvm::Map<Var, ObjectRef> locals;
-
+    Function func = closure->func;
     ICHECK_EQ(func->params.size(), args.size());
 
+    if (func->HasNonzeroAttr(attr::kPrimitive)) {
+      if (const CallNode* call_node = closure->func->body.as<CallNode>()) {
+        if (call_node->op == debug_op_) {
+          // Special case: Calling the debug tracing function.
+          auto dattrs = call_node->attrs.as<DebugAttrs>();
+          auto interp_state = get_state(call_node->args[0]);
+
+          if (dattrs->debug_func.defined()) {
+            dattrs->debug_func(interp_state);
+          } else {
+            RELAY_DEBUG_INTERP(interp_state);
+          }
+
+          return args[0];
+        }
+      }
+    }
+
+    ICHECK(!func->HasNonzeroAttr(attr::kPrimitive))
+        << "Calls to primitive functions should have been removed by lowering";
+
+    // Allocate a frame with the parameters and free variables.
+    Map<Var, ObjectRef> locals;
     for (size_t i = 0; i < func->params.size(); i++) {
       ICHECK_EQ(locals.count(func->params[i]), 0);
       locals.Set(func->params[i], args[i]);
@@ -547,23 +675,63 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
   }
 
   ObjectRef VisitExpr_(const CallNode* call) final {
-    tvm::Array<ObjectRef> args;
+    std::vector<ObjectRef> args;
     for (auto arg : call->args) {
       args.push_back(Eval(arg));
     }
-    // We should not find operators after running fusion,
-    // and operator lowering.
-    //
-    // We have some functions containing chunks of operators
-    // which will be loaded into operator map.
-    if (const auto* op_node = call->op.as<OpNode>()) {
+
+    // We should not find calls to operators after running fusion and lowering.
+    if (const OpNode* op_node = call->op.as<OpNode>()) {
       LOG(FATAL) << "found " << op_node->name
                  << "; operators should have been removed by previous passes; try "
                     "fusing and lowering";
     }
-    if (auto con = call->op.as<ConstructorNode>()) {
+
+    if (const ConstructorNode* con = call->op.as<ConstructorNode>()) {
+      // Special case: ADT constructor
       return ConstructorValue(con->tag, args, GetRef<Constructor>(con));
     }
+
+    if (const GlobalVarNode* gvn = call->op.as<GlobalVarNode>()) {
+      if (const TIRCallAttrs* attrs = call->attrs.as<TIRCallAttrs>()) {
+        // Special case: Call a lowered TIR function.
+        // TODO(mbs): Make calling convention first-class in Relay.
+        Array<GlobalVar> all_prim_fn_vars;
+        if (attrs->metadata.count("all_prim_fn_vars")) {
+          all_prim_fn_vars = Downcast<Array<GlobalVar>>(attrs->metadata.at("all_prim_fn_vars"));
+        }
+        GlobalVar prim_shape_fn_var;
+        if (attrs->metadata.count("prim_shape_fn_var")) {
+          prim_shape_fn_var = Downcast<GlobalVar>(attrs->metadata.at("prim_shape_fn_var"));
+        }
+        Array<GlobalVar> all_prim_shape_fn_vars;
+        if (attrs->metadata.count("all_prim_shape_fn_vars")) {
+          all_prim_shape_fn_vars =
+              Downcast<Array<GlobalVar>>(attrs->metadata.at("all_prim_shape_fn_vars"));
+        }
+        Array<Integer> prim_shape_fn_states;
+        if (attrs->metadata.count("prim_shape_fn_states")) {
+          prim_shape_fn_states =
+              Downcast<Array<Integer>>(attrs->metadata.at("prim_shape_fn_states"));
+        }
+        size_t num_shape_inputs = 0;
+        if (attrs->metadata.count("prim_shape_fn_num_inputs")) {
+          num_shape_inputs = static_cast<size_t>(
+              Downcast<Integer>(attrs->metadata.at("prim_shape_fn_num_inputs"))->value);
+        }
+        size_t num_shape_outputs = 0;
+        if (attrs->metadata.count("prim_shape_fn_num_outputs")) {
+          num_shape_outputs = static_cast<size_t>(
+              Downcast<Integer>(attrs->metadata.at("prim_shape_fn_num_outputs"))->value);
+        }
+
+        // Special case: Call TIR primitive.
+        return InvokePrimitiveOp(GetRef<GlobalVar>(gvn), all_prim_fn_vars, prim_shape_fn_var,
+                                 all_prim_shape_fn_vars, prim_shape_fn_states, num_shape_inputs,
+                                 num_shape_outputs, args);
+      }
+    }
+
     // Now we just evaluate and expect to find a closure.
     ObjectRef fn_val = Eval(call->op);
     if (const InterpreterClosureObj* closure_node = fn_val.as<InterpreterClosureObj>()) {
@@ -700,43 +868,211 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
   }
 
  private:
-  // Module
+  // Main module. All expressions are eval'ed w.r.t. the definitions in this module. This module
+  // may contain calls to TIR functions bound in a per_target_module_ below.
   IRModule mod_;
-  // For simplicity we only run the interpreter on a single context.
-  // Context to run the interpreter on.
+  // Map from target key to lowered TIR functions derived from mod_.
+  // Note that primitives are implicitly executed on target_, while shape functions are implicitly
+  // executed on the default 'cpu' host. Thus this map has at most two entries.
+  Map<String, IRModule> per_target_module_;
+  // Cached packed functions for the primitives and shape functions, keyed by target and
+  // global var name.
+  std::unordered_map<std::pair<std::string, std::string>, PackedFunc, PairHash>
+      compiled_packed_funcs_;
+  // Unique device on which primitives (but not shape functions) will be executed.
+  // (For simplicity we only run the interpreter on a single device.)
   Device device_;
-  // Target parameter being used by the interpreter.
+  // Unique target describing how to compile for primitives (but not shape functions).
   Target target_;
-  // Object stack.
+  // Call stack.
   Stack stack_;
-  // TE-to-TIR lowerer (compiler).
-  TECompiler compiler_;
-  // Cache ops that need to be frequently used later to reduce lookup overhead.
+  // The distinguished 'debug' operator, which is handled specially.
   const Op& debug_op_;
 };
 
-TypedPackedFunc<ObjectRef(Expr)> CreateInterpreter(IRModule mod, Device device, Target target) {
-  if (mod.defined()) {
-    transform::Sequential seq({// eta expand to support constructors in argument position
-                               transform::EtaExpand(
-                                   /*expand_constructor=*/true, /*expand_global_var=*/false),
-                               transform::InferType()});
+/*!
+ * Lowers all calls to primitives in \p mod appropriate for device and target. Returns the
+ * rewritten \p mod and target-specific modules containing bindings for all TIR primitive
+ * functions needed by the rewritten module.
+ */
+std::pair<IRModule, Map<String, IRModule>> Prepare(IRModule mod, Device device, Target target) {
+  // Run minimal transforms on module to establish invariants needed by interpreter.
+  transform::Sequential seq({transform::SimplifyInference(),
+                             // FuseOps will mark wrapped calls to prim-ops with the 'Primitive'
+                             // attribute.
+                             transform::FuseOps(/*fuse_opt_level=*/0), transform::ToANormalForm(),
+                             // eta expand to support constructors in argument position
+                             transform::EtaExpand(
+                                 /*expand_constructor=*/true, /*expand_global_var=*/false),
+                             transform::InferType()});
 
-    transform::PassContext pass_ctx = transform::PassContext::Current();
-    tvm::With<transform::PassContext> ctx(pass_ctx);
-    mod = seq(mod);
-  }
+  transform::PassContext pass_ctx = transform::PassContext::Current();
+  With<transform::PassContext> ctx(pass_ctx);
+  mod = seq(mod);
 
-  auto intrp = std::make_shared<Interpreter>(mod, device, target);
-  auto packed = [intrp](Expr expr) {
-    auto f = DetectFeature(expr);
-    ICHECK(f.is_subset_of(FeatureSet::All() - fGraph));
-    return intrp->Eval(expr);
-  };
-  return TypedPackedFunc<ObjectRef(Expr)>(packed);
+  // We only have one device-specific target.
+  tec::TargetMap targets = {{device.device_type, target}};
+
+  // All calls to primitives will use the unique target.
+  tec::DeviceMap device_map;
+
+  // No need for a memory plan.
+  backend::StaticMemoryPlan memory_plan; /*=nullptr*/
+
+  // Lower all primitive functions reachable from expr.
+  // TODO(mbs): This should be just another pass in seq above, which requires LoweredModule to
+  // be merged into IRModule.
+  LoweredModule lowered_module =
+      tec::LowerTE(mod, targets, device_map, memory_plan, /*module_name=*/"intrp",
+                   [](Function func) { /* no-op */ });
+  return {lowered_module.main_module, lowered_module.per_target_module};
 }
 
-TVM_REGISTER_GLOBAL("relay.backend.CreateInterpreter").set_body_typed(CreateInterpreter);
+/*! \brief Check if an expression could be changed by \p Prepare.
+ *
+ * If not we can evaluate it directly and don't need to bind it into a fresh module.
+ */
+class NeedsPreparationVisitor : public ExprVisitor {
+ public:
+  bool needs_preparation = false;
+
+ private:
+  void VisitExpr_(const VarNode* vn) override {
+    // Could be prim.
+    needs_preparation = true;
+  }
+  // ConstantNode ok
+  // GlobalVarNode ok
+  void VisitExpr_(const OpNode* op) override {
+    // Could be prim.
+    needs_preparation = true;
+  }
+  // TupleNode recurse
+  void VisitExpr_(const FunctionNode* op) override {
+    // Could be prim.
+    needs_preparation = true;
+  }
+  // CallNode recurse
+  void VisitExpr_(const LetNode* ln) override {
+    // May bind prim.
+    needs_preparation = true;
+  }
+  // IfNode recurse
+  // TupleGetItemNode recurse
+  // RefCreateNode recurse
+  // RefReadNode recurse
+  // RefWriteNode recurse
+  // ConstructorNode ok
+  void VisitExpr_(const MatchNode* op) override {
+    // Needs eta-expansion.
+    needs_preparation = true;
+  }
+};
+
+TypedPackedFunc<ObjectRef(Array<Expr>)> EvalFunction(IRModule mod, Expr expr, Device device,
+                                                     Target target) {
+  //
+  // Step 1: Prepare mod.
+  //
+
+  // If expr is simple enough we can avoid binding it into the module and
+  // just eval it directly.
+  NeedsPreparationVisitor visitor;
+  visitor.VisitExpr(expr);
+
+  Expr expr_to_eval;
+  IRModule mod_with_expr;  // default empty
+  if (visitor.needs_preparation) {
+    GlobalVar main;
+    // Bind expr to a new zero-argument function so it can be prepared along with the module
+    // (if any).
+    std::pair<IRModule, GlobalVar> mod_and_global;
+    if (mod.defined()) {
+      // TODO(mbs): Type inference currently assumes all global functions in modules have
+      // known result types, and so each global function has it's body types inferred independently
+      // and in arbitrary order. However, the interpreter may be called with an expression relative
+      // to a 'main' which has no result type annotation, and that expressions will be bound into a
+      // fresh global below. Type inference then fails since 'main' has unknown type. We should
+      // allow inference on mutually recursive global functions. To workaround, infer the type
+      // of mod now. Obviously that won't work if 'main' itself calls other global functions of
+      // partial type, but it at least maintains legacy behavior.
+      transform::PassContext pass_ctx = transform::PassContext::Current();
+      With<transform::PassContext> ctx(pass_ctx);
+      mod = transform::InferType()(mod);
+      mod_and_global =
+          IRModule::FromExprInContext(expr, mod->functions, mod->type_definitions, mod->Imports());
+    } else {
+      mod_and_global = IRModule::FromExprInContext(expr);
+    }
+    mod_with_expr = mod_and_global.first;
+    expr_to_eval = mod_and_global.second;
+  } else {
+    if (mod.defined()) {
+      mod_with_expr = mod;
+    }
+    // Prepare won't change expr, so we don't need to worry about binding it into a module
+    // and can just eval it directly.
+    expr_to_eval = expr;
+  }
+  std::pair<IRModule, Map<String, IRModule>> main_and_lowered =
+      Prepare(mod_with_expr, device, target);
+  std::shared_ptr<Interpreter> intrp = std::make_shared<Interpreter>(
+      /*mod=*/main_and_lowered.first, /*per_target_module=*/main_and_lowered.second, device,
+      target);
+
+  //
+  // Step 2: Evaluate target function to a closure.
+  //
+  ObjectRef object_ref = intrp->Eval(expr_to_eval);
+  if (const InterpreterClosureObj* closure_obj = object_ref.as<InterpreterClosureObj>()) {
+    InterpreterClosure closure = GetRef<InterpreterClosure>(closure_obj);
+    ICHECK(closure.defined());
+    ICHECK(closure->func.defined());
+
+    return TypedPackedFunc<ObjectRef(Array<Expr>)>([intrp, closure](Array<Expr> args) {
+      //
+      // Step 3: Apply closure to arguments.
+      //
+      ICHECK_NOTNULL(intrp);
+      ICHECK(closure.defined());
+      ICHECK(closure->func.defined());
+      Array<ObjectRef> evaled_args;
+      for (auto arg : args) {
+        NeedsPreparationVisitor visitor;
+        visitor.VisitExpr(arg);
+        ICHECK(!visitor.needs_preparation)
+            << "attempting to apply closure to expression which needs preparation: "
+            << PrettyPrint(arg);
+        evaled_args.push_back(intrp->Eval(arg));
+      }
+      return intrp->Invoke(closure, evaled_args);
+    });
+  } else {
+    LOG(FATAL) << "expecting expression to have function type and evaluate to a closure";
+    return nullptr;
+  }
+}
+
+ObjectRef Eval(Expr expr, Map<GlobalTypeVar, TypeData> type_definitions,
+               std::unordered_set<String> import_set, Device device, Target target) {
+  std::pair<IRModule, GlobalVar> mod_and_global =
+      IRModule::FromExprInContext(expr, /*global_funcs=*/{}, type_definitions, import_set);
+  std::pair<IRModule, Map<String, IRModule>> main_and_lowered =
+      Prepare(mod_and_global.first, device, target);
+  Interpreter intrp(
+      /*mod=*/main_and_lowered.first, /*per_target_module=*/main_and_lowered.second, device,
+      target);
+  Expr expr_to_eval = main_and_lowered.first->GetGlobalVar(mod_and_global.second->name_hint);
+  if (expr.as<BaseFuncNode>() == nullptr) {
+    // TODO(mbs): IRModule::FromExpr will implicitly close over the free vars of expr
+    // unless it is a function, so we must reverse that in the expression to eval.
+    // This should done more systematically.
+    expr_to_eval = Call(expr_to_eval, {});
+  }
+  return intrp.Eval(expr_to_eval);
+}
+
+TVM_REGISTER_GLOBAL("relay.backend.EvalFunction").set_body_typed(EvalFunction);
 
 }  // namespace relay
 }  // namespace tvm

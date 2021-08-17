@@ -75,7 +75,7 @@ TEST(AOTRuntime, Identity) {
   void* outputs[] = {outputs1};
 
   ASSERT_EQ(kTvmErrorNoError, tvm_runtime_run(&identity_model, inputs, outputs));
-  ASSERT_EQ(outputs1[0], 404);
+  ASSERT_EQ(outputs1[0], 404U);
 }
 
 int32_t add_run_func(TVMValue* args, int* arg_type_ids, int32_t num_args, TVMValue* out_ret_value,
@@ -103,7 +103,7 @@ TEST(AOTRuntime, Add) {
   void* outputs[] = {outputs1};
 
   ASSERT_EQ(kTvmErrorNoError, tvm_runtime_run(&add_model, inputs, outputs));
-  ASSERT_EQ(outputs1[0], 904);
+  ASSERT_EQ(outputs1[0], 904U);
 }
 
 int32_t multiple_inputs_run_func(TVMValue* args, int* arg_type_ids, int32_t num_args,
@@ -135,7 +135,7 @@ TEST(AOTRuntime, MultipleInputs) {
   void* outputs[] = {outputs1};
 
   ASSERT_EQ(kTvmErrorNoError, tvm_runtime_run(&multiple_inputs_model, inputs, outputs));
-  ASSERT_EQ(outputs1[0], 1306);
+  ASSERT_EQ(outputs1[0], 1306U);
 }
 
 int32_t multiple_outputs_run_func(TVMValue* args, int* arg_type_ids, int32_t num_args,
@@ -167,8 +167,8 @@ TEST(AOTRuntime, MultipleOutputs) {
   void* outputs[] = {outputs1, outputs2};
 
   ASSERT_EQ(kTvmErrorNoError, tvm_runtime_run(&multiple_outputs_model, inputs, outputs));
-  ASSERT_EQ(outputs1[0], 404);
-  ASSERT_EQ(outputs2[0], 500);
+  ASSERT_EQ(outputs1[0], 404U);
+  ASSERT_EQ(outputs2[0], 500U);
 }
 
 int main(int argc, char** argv) {

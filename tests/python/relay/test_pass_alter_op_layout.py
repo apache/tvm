@@ -758,12 +758,16 @@ def test_alter_layout_strided_slice():
     with relay.build_config(opt_level=3):
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug", "vm"]:
-                ex_before = relay.create_executor(kind, mod=mod_before, device=dev, target=target)
-                ex_new = relay.create_executor(kind, mod=mod_new, device=dev, target=target)
                 np_data = np.random.uniform(size=(1, 32, 28, 28)).astype("float32")
                 np_weight = np.random.uniform(size=(32, 32, 3, 3)).astype("float32")
-                result_before = ex_before.evaluate()(np_data, np_weight)
-                result_new = ex_new.evaluate()(np_data, np_weight)
+                f_before = relay.create_executor(
+                    kind, mod=mod_before, device=dev, target=target
+                ).evaluate()
+                result_before = f_before(np_data, np_weight)
+                f_new = relay.create_executor(
+                    kind, mod=mod_new, device=dev, target=target
+                ).evaluate()
+                result_new = f_new(np_data, np_weight)
                 tvm.testing.assert_allclose(
                     result_before.numpy(), result_new.numpy(), rtol=1e-5, atol=1e-5
                 )

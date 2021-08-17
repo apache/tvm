@@ -229,35 +229,16 @@ class ConstantFolder : public MixedModeMutator {
   }
   // Constant evaluate an expression.
   Expr ConstEvaluate(Expr expr) {
-    std::vector<transform::Pass> passes = {transform::FuseOps(0), transform::ToANormalForm(),
-                                           transform::InferType()};
-    Function func;
-    if (expr.as<FunctionNode>()) {
-      func = Downcast<Function>(expr);
-    } else {
-      // TODO(@jroesch): fix this
-      func = Function(FreeVars(expr), expr, Type(), FreeTypeVars(expr, module_), {});
-    }
-    auto mod = IRModule({}, module_->type_definitions, module_->Imports());
-    auto global = GlobalVar("main");
-    mod->Add(global, func);
-    auto seq = transform::Sequential(passes);
-    mod = seq(mod);
-    auto entry_func = Downcast<Function>(mod->Lookup("main"));
-    expr = expr.as<FunctionNode>() == nullptr ? entry_func->body : entry_func;
-
-    using tvm::transform::PassContext;
     Device dev;
     dev.device_type = kDLCPU;
     dev.device_id = 0;
     Target target = Target("llvm");
-    // use a fresh build context
-    // in case we are already in a build context.
-    // needed for both execution and creation(due to JIT)
-    With<PassContext> fresh_build_ctx(PassContext::Create());
 
-    FInterpreter executor = CreateInterpreter(mod, dev, target);
-    return ObjectToExpr(executor(expr));
+    // use a fresh build context in case we are already in a build context.
+    // needed for both execution and creation(due to JIT)
+    With<transform::PassContext> fresh_build_ctx(transform::PassContext::Create());
+
+    return ObjectToExpr(Eval(expr, module_->type_definitions, module_->Imports(), dev, target));
   }
 
   // Evaluate a call to the shape_of operator for tensors with constant

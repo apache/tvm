@@ -32,13 +32,15 @@ def check_memory_plan(func, check_fn):
         data = np.random.rand(*sh).astype(param.dtype)
         args.append(tvm.nd.array(data))
 
-    # Compute without memory planning.
+    # TODO(mbs): Why does the executor need to be shared? Seems wrong.
     ex = relay.create_executor("vm", mod)
-    no_plan_result = ex.evaluate(mod["main"])(*args)
+
+    # Compute without memory planning.
+    no_plan_result = ex.evaluate()(*args)
 
     # Compute with memory planning.
     with tvm.transform.PassContext(opt_level=1, disabled_pass=["MemoryPlan"]):
-        plan_result = ex.evaluate(mod["main"])(*args)
+        plan_result = ex.evaluate()(*args)
 
     # Compute Python result.
     py_res = check_fn(*[arg.numpy() for arg in args])

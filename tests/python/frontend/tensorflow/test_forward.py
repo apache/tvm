@@ -147,7 +147,6 @@ def run_tvm_graph(
     )
     dev = tvm.device(target, 0)
     if mode == "debug":
-        ex = relay.create_executor(mode, mod=mod, device=tvm.cpu(), target="llvm")
         inputs = []
         for param in mod["main"].params:
             found = False
@@ -159,7 +158,9 @@ def run_tvm_graph(
             # Interpreter doesn't bind constants, so still need to find in params
             if not found:
                 inputs.append(tvm.nd.array(params[param.name_hint]))
-        result = ex.evaluate()(*inputs)
+        result = relay.create_executor(mode, mod=mod, device=tvm.cpu(), target="llvm").evaluate()(
+            *inputs
+        )
         return vmobj_to_list(result)
     elif mode == "vm":
         with tvm.transform.PassContext(opt_level=opt_level, disabled_pass=disabled_pass):

@@ -213,6 +213,7 @@ CachedFunc PrimFuncFor(const Function& source_func, const Target& target,
 CachedFunc ShapeFuncFor(const Function& prim_func, const Target& target,
                         std::function<std::string(std::string)> renamer);
 
+// TODO(mbs): Bring name uniqification under control -- this is replicated in quite a few places.
 std::string GetUniqueName(std::string name, std::unordered_map<std::string, int>* name_map);
 
 // implementations
