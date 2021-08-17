@@ -1,4 +1,3 @@
-# Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
 # regarding copyright ownership.  The ASF licenses this file
@@ -66,7 +65,9 @@ def _make_dense_net(
     num_init_features, growth_rate, block_config, data_shape, data_dtype, bn_size=4, classes=1000
 ):
     """Builds up a densenet."""
-    data = relay.Var("data", relay.TensorType(data_shape, data_dtype))  # (batch_size, 3, 224, 224)))
+    data = relay.Var(
+        "data", relay.TensorType(data_shape, data_dtype)
+    )  # (batch_size, 3, 224, 224)))
     conv1 = layers.conv2d(
         data,
         channels=num_init_features,
@@ -82,7 +83,7 @@ def _make_dense_net(
     num_features = num_init_features
     layer_out = mp
     for i, num_layers in enumerate(block_config):
-        layer_out = _make_dense_block(layer_out, num_layers, bn_size,growth_rate, i)
+        layer_out = _make_dense_block(layer_out, num_layers, bn_size, growth_rate, i)
         num_features = num_features + num_layers * growth_rate
         if i != len(block_config) - 1:
             layer_out = _make_transition(layer_out, num_features // 2, i)
