@@ -97,3 +97,4 @@ def test_lower_te():
 if __name__ == "__main__":
     test_lower_reduction()
     test_lower_match_buffer()
+    test_lower_te()

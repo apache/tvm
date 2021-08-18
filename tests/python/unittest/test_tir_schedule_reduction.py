@@ -459,28 +459,34 @@ def multiple_reduction_blocks_rfactor(a: ty.handle, f: ty.handle) -> None:
 
 def test_reduction_rfactor_matmul():
     s = tir.Schedule(transformed_matmul, debug_mask="all")
-    _, _, _, _, kii = s.get_loops(s.get_block("update"))
+    update = s.get_block("update")
+    _, _, _, _, kii = s.get_loops(update)
     rf_block = s.rfactor(kii, 0)
     tvm.ir.assert_structural_equal(s.mod["main"], matmul_rfactor)
     assert s.get(rf_block).same_as(s.get(s.get_block("update_rf")))
+    assert s.get(update).same_as(s.get(s.get_block("update")))
     verify_trace_roundtrip(s, mod=transformed_matmul)
 
 
 def test_reduction_rfactor_square_sum():
     s = tir.Schedule(square_sum, debug_mask="all")
-    _, _, j = s.get_loops(s.get_block("C"))
+    C = s.get_block("C")
+    _, _, j = s.get_loops(C)
     rf_block = s.rfactor(j, 1)
     tvm.ir.assert_structural_equal(s.mod["main"], square_sum_rfactor)
     assert s.get(rf_block).same_as(s.get(s.get_block("C_rf")))
+    assert s.get(C).same_as(s.get(s.get_block("C")))
     verify_trace_roundtrip(s, mod=square_sum)
 
 
 def test_reduction_rfactor_square_sum_square_root():
     s = tir.Schedule(transformed_square_sum_square_root, debug_mask="all")
-    _, _, f_i = s.get_loops(s.get_block("C"))
+    C = s.get_block("C")
+    _, _, f_i = s.get_loops(C)
     rf_block = s.rfactor(f_i, 0)
     tvm.ir.assert_structural_equal(s.mod["main"], square_sum_square_root_rfactor)
     assert s.get(rf_block).same_as(s.get(s.get_block("C_rf")))
+    assert s.get(C).same_as(s.get(s.get_block("C")))
     verify_trace_roundtrip(s, mod=transformed_square_sum_square_root)
 
 
@@ -544,10 +550,12 @@ def test_reduction_rfactor_factor_axis_range_fail():
 
 def test_reduction_rfactor_factor_axis_range():
     s = tir.Schedule(transformed_matmul, debug_mask="all")
-    _, _, _, _, kii = s.get_loops(s.get_block("update"))
+    update = s.get_block("update")
+    _, _, _, _, kii = s.get_loops(update)
     rf_block = s.rfactor(kii, -3)
     tvm.ir.assert_structural_equal(s.mod["main"], matmul_rfactor)
     assert s.get(rf_block).same_as(s.get(s.get_block("update_rf")))
+    assert s.get(update).same_as(s.get(s.get_block("update")))
     verify_trace_roundtrip(s, mod=transformed_matmul)
 
 
@@ -581,9 +589,12 @@ def test_reduction_rfactor_wrong_loops2():
 
 def test_reduction_rfactor_zero_dim():
     s = tir.Schedule(rowsum_zero_dim, debug_mask="all")
-    (k,) = s.get_loops(s.get_block("B"))
-    s.rfactor(k, 0)
+    B = s.get_block("B")
+    (k,) = s.get_loops(B)
+    rf_block = s.rfactor(k, 0)
     tvm.ir.assert_structural_equal(s.mod["main"], rowsum_zero_dim_rfactor)
+    assert s.get(rf_block).same_as(s.get(s.get_block("B_rf")))
+    assert s.get(B).same_as(s.get(s.get_block("B")))
     verify_trace_roundtrip(s, mod=rowsum_zero_dim)
 
 
@@ -608,9 +619,12 @@ def test_reduction_rfactor_outermost_loop_multiple_children_fail():  # pylint: d
 
 def test_reduction_rfactor_outermost_loop_multiple_children():  # pylint: disable=invalid-name
     s = tir.Schedule(multiple_reduction_blocks, debug_mask="all")
-    _, _, k1o, _ = s.get_loops(s.get_block("C"))
-    s.rfactor(k1o, 2)
+    C = s.get_block("C")
+    _, _, k1o, _ = s.get_loops(C)
+    rf_block = s.rfactor(k1o, 2)
     tvm.ir.assert_structural_equal(s.mod["main"], multiple_reduction_blocks_rfactor)
+    assert s.get(rf_block).same_as(s.get(s.get_block("C_rf")))
+    assert s.get(C).same_as(s.get(s.get_block("C")))
     verify_trace_roundtrip(s, mod=multiple_reduction_blocks)
 
 

@@ -126,6 +126,12 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetLoops")
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleFuse").set_body_method<Schedule>(&ScheduleNode::Fuse);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSplit").set_body_method<Schedule>(&ScheduleNode::Split);
 /******** (FFI) Manipulate ForKind ********/
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleParallel")
+    .set_body_method<Schedule>(&ScheduleNode::Parallel);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleVectorize")
+    .set_body_method<Schedule>(&ScheduleNode::Vectorize);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleBind").set_body_method<Schedule>(&ScheduleNode::Bind);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleUnroll").set_body_method<Schedule>(&ScheduleNode::Unroll);
 /******** (FFI) Insert cache stages ********/
 /******** (FFI) Compute location ********/
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleComputeInline")
