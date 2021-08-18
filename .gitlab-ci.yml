@@ -24,7 +24,7 @@ before_script:
 sca:
   script:
     - pip3 install black
-	  - black .
+    - black .
 
 test:
   script:
