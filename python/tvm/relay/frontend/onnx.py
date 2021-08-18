@@ -3279,6 +3279,40 @@ class QLinearAdd(OnnxOpConverter):
         return _qnn.op.quantize(out, c_scale, c_zero_point, out_dtype=dtype)
 
 
+class QLinearMul(OnnxOpConverter):
+    """Operator converter for QLinearMul from Microsoft onnxruntime contrib opset."""
+
+    @classmethod
+    def _impl_v10(cls, inputs, attr, params):
+        def get_scalar(x, dtype="float32"):
+            if isinstance(x, _expr.Var) and x.name_hint in params:
+                return _op.const(params[x.name_hint].numpy(), dtype)
+            rank = len(infer_shape(x))
+            assert rank <= 1, "QLinearMul scale and zero_point input must be scalars"
+            if rank == 1:
+                x = _op.squeeze(x, [0])
+            return _op.cast(x, dtype)
+
+        a = inputs[0]
+        a_scale = get_scalar(inputs[1])
+        a_zero_point = get_scalar(inputs[2], "int32")
+        b = inputs[3]
+        b_scale = get_scalar(inputs[4])
+        b_zero_point = get_scalar(inputs[5], "int32")
+        y_scale = fold_constant(get_scalar(inputs[6]))
+        y_zero_point = get_scalar(inputs[7], "int32")
+
+        dtype = infer_type(a).checked_type.dtype
+
+        ## Onnxruntime doesn't actually do this op in integer, they dequantize to fp32
+        ## and then requantize afer
+        ## https://github.com/microsoft/onnxruntime/blob/master/onnxruntime/core/mlas/lib/qlmul.cpp
+        a = _qnn.op.dequantize(inputs[0], a_scale, a_zero_point)
+        b = _qnn.op.dequantize(inputs[3], b_scale, b_zero_point)
+        out = _op.multiply(a, b)
+        return _qnn.op.quantize(out, y_scale, y_zero_point, out_dtype=dtype)
+
+
 class ConvInteger(OnnxOpConverter):
     """Operator converter for ConvInteger."""
 
@@ -3605,6 +3639,7 @@ def _get_convert_map(opset):
         "ReverseSequence": ReverseSequence.get_converter(opset),
         "QLinearConv": QLinearConv.get_converter(opset),
         "QLinearAdd": QLinearAdd.get_converter(opset),
+        "QLinearMul": QLinearMul.get_converter(opset),
         "ConvInteger": ConvInteger.get_converter(opset),
         # Random number generation.
         "RandomUniform": RandomUniform.get_converter(opset),
