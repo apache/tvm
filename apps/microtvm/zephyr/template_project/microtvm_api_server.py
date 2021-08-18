@@ -324,7 +324,7 @@ class Handler(server.ProjectAPIHandler):
 
     CRT_LIBS_BY_PROJECT_TYPE = {
         "host_driven": "microtvm_rpc_server microtvm_rpc_common common",
-        "aot_demo": "aot_executor memory microtvm_rpc_common common",
+        "aot_demo": "memory microtvm_rpc_common common",
     }
 
     def generate_project(self, model_library_format_path, standalone_crt_dir, project_dir, options):
