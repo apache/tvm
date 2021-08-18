@@ -107,7 +107,7 @@ def convert_batch_norm(g, op, block):
     g.add_node(op.output("Y")[0], out[0])
 
 
-def interpolate_get_mode(op):
+def get_interpolate_mode(op):
     """conver 'interp_method' attr of paddle to tvm"""
 
     interp_method = op.attr("interp_method")
@@ -179,7 +179,7 @@ def convert_interpolate2D(g, op, x, input_shape):
             out_h = int(scale[0] * in_h)
             out_w = int(scale[1] * in_w)
 
-    rounding_method, interp_method, coordinate_transformation_mode = bilinear_interp_get_mod(op)
+    rounding_method, interp_method, coordinate_transformation_mode = get_interpolate_mode(op)
     out = _op.image.resize2d(
         x,
         [out_h, out_w],
