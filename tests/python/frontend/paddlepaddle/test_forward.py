@@ -14,19 +14,20 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import os
 from pathlib import Path
 import shutil
 
 import numpy as np
+
+import paddle
+import paddle.nn as nn
+
 import tvm
 import tvm.testing
 import tvm.topi.testing
 from tvm import relay
 from tvm.contrib import graph_executor
 
-import paddle
-import paddle.nn as nn
 
 PADDLE_TEST_DATA_ROOT_PATH = Path(Path("~").expanduser(), ".tvm_test_data", "paddle")
 PADDLE_TEST_DATA_ROOT_PATH.mkdir(parents=True, exist_ok=True)
@@ -663,6 +664,27 @@ def test_forward_slice():
 
 
 @tvm.testing.uses_gpu
+def test_forward_squeeze2():
+    @paddle.jit.to_static
+    def squeeze(inputs):
+        return paddle.squeeze(inputs)
+
+    @paddle.jit.to_static
+    def squeeze2(inputs):
+        return paddle.squeeze(inputs, axis=0)
+
+    @paddle.jit.to_static
+    def squeeze3(inputs):
+        return paddle.squeeze(inputs, axis=[0, -1])
+
+    input_shape = [1, 2, 1, 3, 1]
+    input_data = paddle.rand(input_shape, dtype="float32")
+    verify_model(squeeze, input_data=input_data)
+    verify_model(squeeze2, input_data=input_data)
+    verify_model(squeeze3, input_data=input_data)
+
+
+@tvm.testing.uses_gpu
 def test_forward_tanh():
     @paddle.jit.to_static
     def tanh(inputs):
@@ -699,4 +721,5 @@ if __name__ == "__main__":
     test_forward_reshape()
     test_forward_scale()
     test_forward_slice()
+    test_forward_squeeze2()
     test_forward_tanh()
