@@ -164,12 +164,16 @@ class PointerTypeNode : public TypeNode {
   }
 
   bool SEqualReduce(const PointerTypeNode* other, SEqualReducer equal) const {
-    return equal(element_type, other->element_type) && equal(storage_scope, other->storage_scope);
+    // Make "global" equal to ""
+    String lhs_scope = storage_scope.empty() ? "global" : storage_scope;
+    String rhs_scope = other->storage_scope.empty() ? "global" : other->storage_scope;
+    return equal(element_type, other->element_type) && equal(lhs_scope, rhs_scope);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
     hash_reduce(element_type);
-    hash_reduce(storage_scope);
+    // Make "global" equal to ""
+    hash_reduce(storage_scope.empty() ? "global" : storage_scope);
   }
 
   static constexpr const char* _type_key = "PointerType";

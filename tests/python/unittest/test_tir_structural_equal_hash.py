@@ -171,12 +171,15 @@ def test_buffer_storage_scope():
     buffer_local_0 = tvm.tir.decl_buffer((10, 10), "float32", scope="local")
     buffer_local_1 = tvm.tir.decl_buffer((10, 10), "float32", scope="local")
     buffer_global = tvm.tir.decl_buffer((10, 10), "float32", scope="global")
+    buffer_empty = tvm.tir.decl_buffer((10, 10), "float32", scope="")
 
     func0 = tvm.tir.PrimFunc([x], tvm.tir.Evaluate(x), buffer_map={x: buffer_local_0})
     func1 = tvm.tir.PrimFunc([x], tvm.tir.Evaluate(x), buffer_map={x: buffer_local_1})
     func2 = tvm.tir.PrimFunc([x], tvm.tir.Evaluate(x), buffer_map={x: buffer_global})
+    func3 = tvm.tir.PrimFunc([x], tvm.tir.Evaluate(x), buffer_map={x: buffer_empty})
 
     assert consistent_equal(func0, func1)
+    assert consistent_equal(func2, func3)
     assert not consistent_equal(func0, func2)
 
 
