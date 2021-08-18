@@ -346,8 +346,9 @@ def convert_layer_norm(g, op, block):
     scale_input = op.input("Scale")
 
     x_shape = infer_shape(x)
-    assert (
-        begin_norm_axis in (len(x_shape) - 1, -1)
+    assert begin_norm_axis in (
+        len(x_shape) - 1,
+        -1,
     ), "Support only normalization over last one dimension."
 
     if bias_input:
