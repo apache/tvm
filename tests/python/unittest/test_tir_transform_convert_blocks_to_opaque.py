@@ -84,3 +84,4 @@ def test_lower_te():
 
 if __name__ == "__main__":
     test_elementwise()
+    test_lower_te()

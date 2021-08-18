@@ -49,7 +49,7 @@ class ConcreteScheduleNode : public ScheduleNode {
     // `state_` is not visited
     // `error_render_level_` is not visited
     // `symbol_table_` is not visited
-    // `analyzer_` is not visitied
+    // `analyzer_` is not visited
   }
 
   virtual ~ConcreteScheduleNode() = default;
@@ -82,6 +82,10 @@ class ConcreteScheduleNode : public ScheduleNode {
   LoopRV Fuse(const Array<LoopRV>& loop_rvs) override;
   Array<LoopRV> Split(const LoopRV& loop_rv, const Array<Optional<ExprRV>>& factors) override;
   /******** Schedule: Manipulate ForKind ********/
+  void Parallel(const LoopRV& loop_rv) override;
+  void Vectorize(const LoopRV& loop_rv) override;
+  void Bind(const LoopRV& loop_rv, const String& thread_axis) override;
+  void Unroll(const LoopRV& loop_rv) override;
   /******** Schedule: Insert cache stages ********/
   /******** Schedule: Compute location ********/
   void ComputeInline(const BlockRV& block) override;

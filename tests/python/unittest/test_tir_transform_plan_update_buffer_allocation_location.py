@@ -164,3 +164,4 @@ if __name__ == "__main__":
     test_elementwise()
     test_locate_buffer_allocation()
     test_match_buffer_allocation()
+    test_lower_te()

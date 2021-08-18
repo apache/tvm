@@ -938,7 +938,9 @@ StmtSRef RFactor(ScheduleState self, const StmtSRef& rf_loop_sref, int factor_ax
   Block new_scope_root_block = BlockReplacer::Replace(
       old_scope_root_block, rf_body, loops[0], wb_block_creator.new_block_realize_, block_realize,
       GetRef<For>(rf_loop), reduce_loop_vars, loop_vars2loop, rf_buffer);
-  self->Replace(scope_root, new_scope_root_block, {{old_scope_root_block, new_scope_root_block}});
+  self->Replace(
+      scope_root, new_scope_root_block,
+      {{old_scope_root_block, new_scope_root_block}, {block, wb_block_creator.new_block_}});
 
   // Step 2. Update scope information.
   std::vector<StmtSRef> new_block_srefs{self->stmt2ref.at(rf_block_creator.new_block_.get()),

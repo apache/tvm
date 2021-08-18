@@ -154,3 +154,4 @@ if __name__ == "__main__":
     test_flatten_storage_align()
     test_flatten_double_buffer()
     test_flatten_prefetch()
+    test_flatten_tir()
