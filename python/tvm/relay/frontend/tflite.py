@@ -3377,7 +3377,6 @@ class OperatorConverter(object):
         nudged_max = (quant_max - nudged_zero_point) * scale
 
         nudged_min_expr = _op.const(nudged_min)
-        nudged_max_expr = _op.const(nudged_max)
         clamped = _op.clip(in_expr, nudged_min, nudged_max)
         clamped_shifted = _op.subtract(clamped, nudged_min_expr)
 
