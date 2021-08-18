@@ -112,7 +112,7 @@ bool ProducerCoversConsumer(const Array<PrimExpr>& buffer_shape,
  * \param self The schedule class
  * \param stmt The statement, or the realize node of the statement whose sref to be set
  * \param seq_index The seq_index to be set
- * \note The method is NOP for statements that are not scheduleable, i.e. not For or Block
+ * \note The method is NOP for statements that are not schedulable, i.e. not For or Block
  */
 void SetSeqIndex(ScheduleStateNode* self, const Stmt& stmt, int seq_index) {
   if (const auto* realize = stmt.as<BlockRealizeNode>()) {
@@ -405,7 +405,7 @@ class StateCreator : private StmtVisitor {
   std::unordered_map<const StmtNode*, BlockRealize> block2realize_;
   /*! \brief The stack frames of blocks in the DFS visit. */
   std::vector<Array<StmtSRef>> block_frames_;
-  /*! \brief The auxilary analyzer */
+  /*! \brief The auxiliary analyzer */
   arith::Analyzer analyzer_;
 };
 
@@ -565,7 +565,7 @@ class SRefTreePruner : public StmtVisitor {
     }
     auto it = self_->stmt2ref.find(op);
     ICHECK(it != self_->stmt2ref.end())
-        << "IndexError: Cannot find correpsonding StmtSRef for the loop:\n"
+        << "IndexError: Cannot find corresponding StmtSRef for the loop:\n"
         << GetRef<For>(op);
     StmtSRef& sref = it->second;
     // Detect reuse
@@ -588,7 +588,7 @@ class SRefTreePruner : public StmtVisitor {
     }
     auto it = self_->stmt2ref.find(op);
     ICHECK(it != self_->stmt2ref.end())
-        << "IndexError: Cannot find correpsonding StmtSRef for the block:\n"
+        << "IndexError: Cannot find corresponding StmtSRef for the block:\n"
         << GetRef<Block>(op);
     StmtSRef& sref = it->second;
     // Detect reuse
