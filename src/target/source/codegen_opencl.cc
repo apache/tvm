@@ -36,19 +36,19 @@ namespace codegen {
 
 class InferTextureAccess : public StmtExprVisitor {
  public:
-  static constexpr const uint8_t read_access = 1;
-  static constexpr const uint8_t write_access = 2;
+  static constexpr const uint8_t kReadAccess = 1;
+  static constexpr const uint8_t kWriteAccess = 2;
 
   InferTextureAccess() {}
   std::unordered_map<const VarNode*, std::string> Infer(const Stmt& n) {
     StmtExprVisitor::VisitStmt(n);
     std::unordered_map<const VarNode*, std::string> storage_scope_qualifiers;
     for (auto& texture : var_access_map_) {
-      if (texture.second == read_access) {
+      if (texture.second == kReadAccess) {
         storage_scope_qualifiers.insert({texture.first, "texture_read"});
-      } else if (texture.second == write_access) {
+      } else if (texture.second == kWriteAccess) {
         storage_scope_qualifiers.insert({texture.first, "texture_write"});
-      } else if (texture.second == (read_access | write_access)) {
+      } else if (texture.second == (kReadAccess | kWriteAccess)) {
         storage_scope_qualifiers.insert({texture.first, ""});
       }
     }
@@ -56,9 +56,9 @@ class InferTextureAccess : public StmtExprVisitor {
   }
   void VisitExpr_(const CallNode* op) {
     if (op->op.same_as(builtin::texture2d_load())) {
-      var_access_map_[op->args[0].as<VarNode>()] |= read_access;
+      var_access_map_[op->args[0].as<VarNode>()] |= kReadAccess;
     } else if (op->op.same_as(builtin::texture2d_store())) {
-      var_access_map_[op->args[0].as<VarNode>()] |= write_access;
+      var_access_map_[op->args[0].as<VarNode>()] |= kWriteAccess;
     } else {
       StmtExprVisitor::VisitExpr_(op);
     }
