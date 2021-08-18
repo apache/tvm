@@ -1860,6 +1860,18 @@ class Softmax(OnnxOpConverter):
         e = _op.exp(x - m)
         return e / _op.sum(e, axes, keepdims=True)
 
+    @classmethod
+    def _impl_v13(cls, inputs, attr, params):
+        axis = attr.get("axis", -1)
+        ndim = len(infer_shape(inputs[0]))
+        if axis < 0:
+            axis += ndim
+        axes = [axis]
+        x = inputs[0]
+        m = _op.max(x, axes, keepdims=True)
+        e = _op.exp(x - m)
+        return e / _op.sum(e, axes, keepdims=True)
+
 
 class LogSoftmax(OnnxOpConverter):
     """Operator converter for Softmax."""
@@ -1871,6 +1883,19 @@ class LogSoftmax(OnnxOpConverter):
         if axis < 0:
             axis += ndim
         axes = list(range(axis, ndim))
+        x = inputs[0]
+        m = _op.max(x, axes, keepdims=True)
+        e = _op.exp(x - m)
+        s = _op.sum(e, axes, keepdims=True)
+        return x - m - _op.log(s)
+
+    @classmethod
+    def _impl_v13(cls, inputs, attr, params):
+        axis = attr.get("axis", -1)
+        ndim = len(infer_shape(inputs[0]))
+        if axis < 0:
+            axis += ndim
+        axes = [axis]
         x = inputs[0]
         m = _op.max(x, axes, keepdims=True)
         e = _op.exp(x - m)
