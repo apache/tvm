@@ -15,73 +15,44 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import contextlib
-import copy
-import datetime
-import glob
-import logging
-import os
-import pathlib
-import subprocess
-import sys
-import logging
+"""
+This unit test simulates an autotuning workflow, where we:
+1. Instantiate the Arduino RPC server project
+2. Build and flash that project onto our target board
 
-import pytest
+"""
+
+import datetime
+import pathlib
+import sys
+
 import numpy as np
 import onnx
-from PIL import Image
-
+import pytest
 import tvm
-import tvm.rpc
-import tvm.micro
-import tvm.testing
-import tvm.relay as relay
+from PIL import Image
+from tvm import micro, relay
 from tvm.relay.testing import byoc
-
-from tvm.contrib import utils
-from tvm.relay.expr_functor import ExprMutator
-from tvm.relay.op.annotation import compiler_begin, compiler_end
 
 import conftest
 
-_LOG = logging.getLogger(__name__)
 
-PLATFORMS = conftest.PLATFORMS
-
-
-def _make_sess_from_op(
-    temp_dir, model, zephyr_board, west_cmd, op_name, sched, arg_bufs, build_config
-):
-    target = tvm.target.target.micro(model)
-    target = tvm.target.Target(target=target, host=target)
-    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        mod = tvm.build(sched, arg_bufs, target=target, name=op_name)
-
-    return _make_session(temp_dir, zephyr_board, west_cmd, mod, build_config)
+# We'll make a new workspace for each test
+@pytest.fixture(scope="function")
+def workspace_dir(platform):
+    return conftest.make_workspace_dir("arduino_rpc_server", platform)
 
 
-TEMPLATE_PROJECT_DIR = (
-    pathlib.Path(__file__).parent
-    / ".."
-    / ".."
-    / ".."
-    / "apps"
-    / "microtvm"
-    / "zephyr"
-    / "template_project"
-).resolve()
-
-
-def _make_session(temp_dir, zephyr_board, west_cmd, mod, build_config):
+def _make_session(model, arduino_board, arduino_cli_cmd, workspace_dir, mod, build_config):
     project = tvm.micro.generate_project(
-        str(TEMPLATE_PROJECT_DIR),
+        str(conftest.TEMPLATE_PROJECT_DIR),
         mod,
-        temp_dir / "project",
+        workspace_dir / "project",
         {
+            "arduino_board": arduino_board,
+            "arduino_cli_cmd": arduino_cli_cmd,
             "project_type": "host_driven",
-            "west_cmd": west_cmd,
             "verbose": bool(build_config.get("debug")),
-            "zephyr_board": zephyr_board,
         },
     )
     project.build()
@@ -89,22 +60,33 @@ def _make_session(temp_dir, zephyr_board, west_cmd, mod, build_config):
     return tvm.micro.Session(project.transport())
 
 
-def _make_add_sess(temp_dir, model, zephyr_board, west_cmd, build_config, dtype="int8"):
-    A = tvm.te.placeholder((2,), dtype=dtype)
-    B = tvm.te.placeholder((1,), dtype=dtype)
+def _make_sess_from_op(
+    model, arduino_board, arduino_cli_cmd, workspace_dir, op_name, sched, arg_bufs, build_config
+):
+    target = tvm.target.target.micro(model)
+    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
+        mod = tvm.build(sched, arg_bufs, target=target, name=op_name)
+
+    return _make_session(model, arduino_board, arduino_cli_cmd, workspace_dir, mod, build_config)
+
+
+def _make_add_sess(model, arduino_board, arduino_cli_cmd, workspace_dir, build_config):
+    A = tvm.te.placeholder((2,), dtype="int8")
+    B = tvm.te.placeholder((1,), dtype="int8")
     C = tvm.te.compute(A.shape, lambda i: A[i] + B[0], name="C")
     sched = tvm.te.create_schedule(C.op)
     return _make_sess_from_op(
-        temp_dir, model, zephyr_board, west_cmd, "add", sched, [A, B, C], build_config
+        model, arduino_board, arduino_cli_cmd, workspace_dir, "add", sched, [A, B, C], build_config
     )
 
 
 # The same test code can be executed on both the QEMU simulation and on real hardware.
 @tvm.testing.requires_micro
-def test_add_uint(temp_dir, platform, west_cmd, tvm_debug):
+@pytest.mark.requires_hardware
+def test_compile_runtime(platform, arduino_cli_cmd, tvm_debug, workspace_dir):
     """Test compiling the on-device runtime."""
 
-    model, zephyr_board = PLATFORMS[platform]
+    model, arduino_board = conftest.PLATFORMS[platform]
     build_config = {"debug": tvm_debug}
 
     # NOTE: run test in a nested function so cPython will delete arrays before closing the session.
@@ -120,54 +102,16 @@ def test_add_uint(temp_dir, platform, west_cmd, tvm_debug):
         system_lib.get_function("add")(A_data, B_data, C_data)
         assert (C_data.numpy() == np.array([6, 7])).all()
 
-    with _make_add_sess(temp_dir, model, zephyr_board, west_cmd, build_config) as sess:
-        test_basic_add(sess)
-
-
-def has_fpu(zephyr_board):
-    sys.path.insert(0, str(TEMPLATE_PROJECT_DIR))
-    try:
-        import microtvm_api_server
-    finally:
-        sys.path.pop(0)
-
-    return microtvm_api_server.Handler._has_fpu(zephyr_board)
-
-
-# The same test code can be executed on both the QEMU simulation and on real hardware.
-@tvm.testing.requires_micro
-def test_add_float(temp_dir, platform, west_cmd, tvm_debug):
-    """Test compiling the on-device runtime."""
-    model, zephyr_board = PLATFORMS[platform]
-    if not has_fpu(zephyr_board):
-        pytest.skip(f"FPU not enabled for {platform}")
-
-    build_config = {"debug": tvm_debug}
-
-    # NOTE: run test in a nested function so cPython will delete arrays before closing the session.
-    def test_basic_add(sess):
-        A_data = tvm.nd.array(np.array([2.5, 3.5], dtype="float32"), device=sess.device)
-        assert (A_data.numpy() == np.array([2.5, 3.5])).all()
-        B_data = tvm.nd.array(np.array([4.5], dtype="float32"), device=sess.device)
-        assert (B_data.numpy() == np.array([4.5])).all()
-        C_data = tvm.nd.array(np.array([0, 0], dtype="float32"), device=sess.device)
-        assert (C_data.numpy() == np.array([0, 0])).all()
-
-        system_lib = sess.get_system_lib()
-        system_lib.get_function("add")(A_data, B_data, C_data)
-        assert (C_data.numpy() == np.array([7, 8])).all()
-
-    with _make_add_sess(
-        temp_dir, model, zephyr_board, west_cmd, build_config, dtype="float32"
-    ) as sess:
+    with _make_add_sess(model, arduino_board, arduino_cli_cmd, workspace_dir, build_config) as sess:
         test_basic_add(sess)
 
 
 @tvm.testing.requires_micro
-def test_platform_timer(temp_dir, platform, west_cmd, tvm_debug):
+@pytest.mark.requires_hardware
+def test_platform_timer(platform, arduino_cli_cmd, tvm_debug, workspace_dir):
     """Test compiling the on-device runtime."""
 
-    model, zephyr_board = PLATFORMS[platform]
+    model, arduino_board = conftest.PLATFORMS[platform]
     build_config = {"debug": tvm_debug}
 
     # NOTE: run test in a nested function so cPython will delete arrays before closing the session.
@@ -188,15 +132,17 @@ def test_platform_timer(temp_dir, platform, west_cmd, tvm_debug):
         assert result.mean > 0
         assert len(result.results) == 3
 
-    with _make_add_sess(temp_dir, model, zephyr_board, west_cmd, build_config) as sess:
+    with _make_add_sess(model, arduino_board, arduino_cli_cmd, workspace_dir, build_config) as sess:
         test_basic_add(sess)
 
 
 @tvm.testing.requires_micro
-def test_relay(temp_dir, platform, west_cmd, tvm_debug):
+@pytest.mark.requires_hardware
+def test_relay(platform, arduino_cli_cmd, tvm_debug, workspace_dir):
     """Testing a simple relay graph"""
-    model, zephyr_board = PLATFORMS[platform]
+    model, arduino_board = conftest.PLATFORMS[platform]
     build_config = {"debug": tvm_debug}
+
     shape = (10,)
     dtype = "int8"
 
@@ -205,13 +151,14 @@ def test_relay(temp_dir, platform, west_cmd, tvm_debug):
     xx = relay.multiply(x, x)
     z = relay.add(xx, relay.const(np.ones(shape=shape, dtype=dtype)))
     func = relay.Function([x], z)
-    ir_mod = tvm.IRModule.from_expr(func)
 
     target = tvm.target.target.micro(model)
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        mod = tvm.relay.build(ir_mod, target=target)
+        mod = tvm.relay.build(func, target=target)
 
-    with _make_session(temp_dir, zephyr_board, west_cmd, mod, build_config) as session:
+    with _make_session(
+        model, arduino_board, arduino_cli_cmd, workspace_dir, mod, build_config
+    ) as session:
         graph_mod = tvm.micro.create_local_graph_executor(
             mod.get_graph_json(), session.get_system_lib(), session.device
         )
@@ -224,12 +171,14 @@ def test_relay(temp_dir, platform, west_cmd, tvm_debug):
 
 
 @tvm.testing.requires_micro
-def test_onnx(temp_dir, platform, west_cmd, tvm_debug):
+@pytest.mark.requires_hardware
+def test_onnx(platform, arduino_cli_cmd, tvm_debug, workspace_dir):
     """Testing a simple ONNX model."""
-    model, zephyr_board = PLATFORMS[platform]
+    model, arduino_board = conftest.PLATFORMS[platform]
     build_config = {"debug": tvm_debug}
 
-    this_dir = pathlib.Path(os.path.dirname(__file__))
+    # Load test images.
+    this_dir = pathlib.Path(__file__).parent
     mnist_testdata = this_dir.parent / "testdata" / "mnist"
     digit_2 = Image.open(mnist_testdata / "digit-2.jpg").resize((28, 28))
     digit_2 = np.asarray(digit_2).astype("float32")
@@ -245,16 +194,14 @@ def test_onnx(temp_dir, platform, west_cmd, tvm_debug):
     relay_mod, params = relay.frontend.from_onnx(onnx_model, shape=shape, freeze_params=True)
     relay_mod = relay.transform.DynamicToStatic()(relay_mod)
 
-    # We add the -link-params=1 option to ensure the model parameters are compiled in.
-    # There is currently a bug preventing the host_driven environment from receiving
-    # the model weights when set using graph_mod.set_input().
-    # See: https://github.com/apache/tvm/issues/7567
     target = tvm.target.target.micro(model, options=["-link-params=1"])
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         lowered = relay.build(relay_mod, target, params=params)
         graph = lowered.get_graph_json()
 
-    with _make_session(temp_dir, zephyr_board, west_cmd, lowered, build_config) as session:
+    with _make_session(
+        model, arduino_board, arduino_cli_cmd, workspace_dir, lowered, build_config
+    ) as session:
         graph_mod = tvm.micro.create_local_graph_executor(
             graph, session.get_system_lib(), session.device
         )
@@ -263,6 +210,7 @@ def test_onnx(temp_dir, platform, west_cmd, tvm_debug):
         graph_mod.set_input("Input3", tvm.nd.array(digit_2))
         graph_mod.run()
         result = graph_mod.get_output(0).numpy()
+        print(result)
         assert np.argmax(result) == 2
 
         # Send the digit-9 image and confirm that the correct result is returned.
@@ -273,7 +221,15 @@ def test_onnx(temp_dir, platform, west_cmd, tvm_debug):
 
 
 def check_result(
-    temp_dir, relay_mod, model, zephyr_board, west_cmd, map_inputs, out_shape, result, build_config
+    relay_mod,
+    model,
+    arduino_board,
+    arduino_cli_cmd,
+    workspace_dir,
+    map_inputs,
+    out_shape,
+    result,
+    build_config,
 ):
     """Helper function to verify results"""
     TOL = 1e-5
@@ -281,7 +237,9 @@ def check_result(
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         mod = tvm.relay.build(relay_mod, target=target)
 
-    with _make_session(temp_dir, zephyr_board, west_cmd, mod, build_config) as session:
+    with _make_session(
+        model, arduino_board, arduino_cli_cmd, workspace_dir, mod, build_config
+    ) as session:
         rt_mod = tvm.micro.create_local_graph_executor(
             mod.get_graph_json(), session.get_system_lib(), session.device
         )
@@ -301,10 +259,12 @@ def check_result(
 
 
 @tvm.testing.requires_micro
-def test_byoc_microtvm(temp_dir, platform, west_cmd, tvm_debug):
+@pytest.mark.requires_hardware
+def test_byoc_microtvm(platform, arduino_cli_cmd, tvm_debug, workspace_dir):
     """This is a simple test case to check BYOC capabilities of microTVM"""
-    model, zephyr_board = PLATFORMS[platform]
+    model, arduino_board = conftest.PLATFORMS[platform]
     build_config = {"debug": tvm_debug}
+
     x = relay.var("x", shape=(10, 10))
     w0 = relay.var("w0", shape=(10, 10))
     w1 = relay.var("w1", shape=(10, 10))
@@ -344,7 +304,6 @@ def test_byoc_microtvm(temp_dir, platform, west_cmd, tvm_debug):
     map_inputs = {"w{}".format(i): w_data[i] for i in range(8)}
     map_inputs["x"] = x_data
     check_result(
-        temp_dir=temp_dir,
         relay_mod=mod,
         map_inputs=map_inputs,
         out_shape=(30, 10),
@@ -357,18 +316,21 @@ def test_byoc_microtvm(temp_dir, platform, west_cmd, tvm_debug):
             axis=0,
         ),
         model=model,
-        zephyr_board=zephyr_board,
-        west_cmd=west_cmd,
         build_config=build_config,
+        arduino_board=arduino_board,
+        arduino_cli_cmd=arduino_cli_cmd,
+        workspace_dir=workspace_dir,
     )
 
 
-def _make_add_sess_with_shape(temp_dir, model, zephyr_board, west_cmd, shape, build_config):
+def _make_add_sess_with_shape(
+    model, arduino_board, arduino_cli_cmd, workspace_dir, shape, build_config
+):
     A = tvm.te.placeholder(shape, dtype="int8")
     C = tvm.te.compute(A.shape, lambda i: A[i] + A[i], name="C")
     sched = tvm.te.create_schedule(C.op)
     return _make_sess_from_op(
-        temp_dir, model, zephyr_board, west_cmd, "add", sched, [A, C], build_config
+        model, arduino_board, arduino_cli_cmd, workspace_dir, "add", sched, [A, C], build_config
     )
 
 
@@ -381,9 +343,10 @@ def _make_add_sess_with_shape(temp_dir, model, zephyr_board, west_cmd, shape, bu
     ],
 )
 @tvm.testing.requires_micro
-def test_rpc_large_array(temp_dir, platform, west_cmd, tvm_debug, shape):
+@pytest.mark.requires_hardware
+def test_rpc_large_array(platform, arduino_cli_cmd, tvm_debug, workspace_dir, shape):
     """Test large RPC array transfer."""
-    model, zephyr_board = PLATFORMS[platform]
+    model, arduino_board = conftest.PLATFORMS[platform]
     build_config = {"debug": tvm_debug}
 
     # NOTE: run test in a nested function so cPython will delete arrays before closing the session.
@@ -396,7 +359,7 @@ def test_rpc_large_array(temp_dir, platform, west_cmd, tvm_debug, shape):
         assert (C_data.numpy() == np.zeros(shape)).all()
 
     with _make_add_sess_with_shape(
-        temp_dir, model, zephyr_board, west_cmd, shape, build_config
+        model, arduino_board, arduino_cli_cmd, workspace_dir, shape, build_config
     ) as sess:
         test_tensors(sess)
 
