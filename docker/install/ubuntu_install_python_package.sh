@@ -37,5 +37,4 @@ pip3 install \
     requests \
     scipy \
     six \
-    synr \
     tornado
