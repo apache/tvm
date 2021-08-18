@@ -2632,6 +2632,8 @@ def _test_fake_quant(value, min, max, num_bits):
 def test_forward_fake_quant():
     for quant_bits in [2, 4, 8, 16]:
         _test_fake_quant(-10.11, -6, 6, quant_bits)
+        _test_fake_quant(-3.55, -6, 6, quant_bits)
+        _test_fake_quant(0, -6, 6, quant_bits)
         _test_fake_quant(3.55, -6, 6, quant_bits)
         _test_fake_quant(10.11, -6, 6, quant_bits)
 
