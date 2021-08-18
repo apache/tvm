@@ -906,10 +906,10 @@ def from_paddle(program_or_layer, shape_dict=None, scope=None):
     import paddle
 
     g = GraphProto()
-    if isinstance(program_or_layer, paddle.fluid.dygraph.TranslatedLayer):
+    if isinstance(program_or_layer, paddle.jit.TranslatedLayer):
         # model is loaded by `paddle.jit.load`
         mod, params = g.from_translated_layer(program_or_layer, shape_dict)
-    elif isinstance(program_or_layer, paddle.fluid.framework.Program):
+    elif isinstance(program_or_layer, paddle.static.Program):
         # model is loaded by `paddle.static.load_inference_model`
         mod, params = g.from_program(program_or_layer, shape_dict, scope)
     else:
