@@ -27,7 +27,6 @@ from tvm import relay, runtime
 from tvm.contrib import utils
 from tvm.relay.build_module import bind_params_by_name
 from tvm.relay.op.annotation import compiler_begin, compiler_end
-from aot.aot_test_utils import AOTTestModel, compile_and_run
 
 
 def update_lib(lib):
@@ -77,6 +76,12 @@ def check_graph_executor_result(
 def check_aot_executor_result(
     mod, map_inputs, out_shape, result, tol=1e-5, target="llvm", device=tvm.cpu()
 ):
+    if tvm.support.libinfo().get("USE_MICRO", "OFF") != "ON":
+        pytest.skip("MicroTVM support not enabled. Set USE_MICRO=ON in config.cmake to enable.")
+
+    # Late import to avoid breaking test with USE_MICRO=OFF.
+    from aot.aot_test_utils import AOTTestModel, compile_and_run
+
     interface_api = "packed"
     use_unpacked_api = False
     use_calculated_workspaces = True
