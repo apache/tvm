@@ -34,7 +34,7 @@ def batch_matmul_tensorcore(
 ):
     """batch matmul tensorcore operator on cuda"""
     # TODO(jcf94): Deal with different transpose combinations
-    assert transpose_a == False and transpose_b == True
+    assert not transpose_a and transpose_b
     # TODO(liuxin.ai): Deal with out_shape for broadcast
     del out_shape
     return batch_matmul_tensorcore_cuda(x, y, out_dtype)

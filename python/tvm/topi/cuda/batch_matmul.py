@@ -273,7 +273,7 @@ def batch_matmul_int8(
     """
     del out_shape
     # TODO(jcf94): Deal with different transpose combinations
-    assert transpose_a == False and transpose_b == True
+    assert not transpose_a and transpose_b
     if out_dtype is None:
         out_dtype = x.dtype
 
