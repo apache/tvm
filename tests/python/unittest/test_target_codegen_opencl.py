@@ -119,7 +119,27 @@ def test_opencl_max():
     check_max(dev, 1, "float32")
     check_max(dev, 1, "float64")
 
+@tvm.testing.requires_gpu
+@tvm.testing.requires_opencl
+def test_opencl_erf():
+    def check_erf(dev, n, dtype):
+        A = te.placeholder((n,), name="A", dtype=dtype)
+        C = te.compute(A.shape, lambda *i: te.erf(A(*i)), name="C")
+        s = te.create_schedule(C.op)
+        s[C].bind(s[C].op.axis[0], te.thread_axis("threadIdx.x"))
+        fun = tvm.build(s, [A, C], target)
+        a = tvm.nd.empty((n,), A.dtype, dev)
+        c = tvm.nd.empty((n,), A.dtype, dev)
+        # Only need to test compiling here
+        fun(a, c)
+
+    dev = tvm.device(target, 0)
+
+    check_erf(dev, 1, "float32")
+    check_erf(dev, 1, "float64")
+
 
 if __name__ == "__main__":
     test_opencl_ternary_expression()
     test_opencl_inf_nan()
+    test_opencl_erf()
