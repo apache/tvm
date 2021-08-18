@@ -3354,8 +3354,8 @@ class OperatorConverter(object):
         fake_quant_options = FakeQuantOptions()
         fake_quant_options.Init(op_options.Bytes, op_options.Pos)
 
-        min = fake_quant_options.Min()
-        max = fake_quant_options.Max()
+        opt_min = fake_quant_options.Min()
+        opt_max = fake_quant_options.Max()
         narrow_range = fake_quant_options.NarrowRange()
         num_bits = fake_quant_options.NumBits()
 
@@ -3363,9 +3363,9 @@ class OperatorConverter(object):
 
         quant_min = 1 if narrow_range else 0
         quant_max = (1 << num_bits) - 1
-        scale = (max - min) / (quant_max - quant_min)
+        scale = (opt_max - opt_min) / (quant_max - quant_min)
 
-        zero_point_from_min = quant_min - min / scale
+        zero_point_from_min = quant_min - opt_min / scale
         if zero_point_from_min <= quant_min:
             nudged_zero_point = quant_min
         elif zero_point_from_min >= quant_max:
