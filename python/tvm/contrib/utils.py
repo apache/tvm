@@ -100,7 +100,7 @@ class TempDirectory(object):
         self._created_with_keep_for_debug = self._KEEP_FOR_DEBUG
         if custom_path:
             if not os.path.exists(custom_path):
-                os.mkdir(custom_path)
+                os.makedirs(custom_path)
             self.temp_dir = custom_path
         else:
             if self._created_with_keep_for_debug:
