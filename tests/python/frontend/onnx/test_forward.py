@@ -235,6 +235,39 @@ def verify_with_ort(
     )
 
 
+def quantize_and_verify_with_ort(onnx_model, input_names, input_shapes, target, dev):
+    from onnxruntime.quantization import quantize_static, CalibrationDataReader, QuantType
+
+    input_arrays = [np.random.random(shape).astype("float32") for shape in input_shapes]
+
+    class RandomDataReader(CalibrationDataReader):
+        def __init__(self, n=10):
+            input_dict = dict(zip(input_names, input_shapes))
+            self.data = iter(
+                [
+                    {
+                        name: np.random.random(shape).astype("float32")
+                        for name, shape in input_dict.items()
+                    }
+                    for _ in range(n)
+                ]
+            )
+
+        def get_next(self):
+            return next(self.data, None)
+
+    d = tvm.contrib.utils.tempdir()
+    model_fp32 = os.path.join(d.temp_dir, "model.onnx")
+    onnx.save_model(onnx_model, model_fp32)
+    model_quant = os.path.join(d.temp_dir, "model.quant.onnx")
+    quantized_model = quantize_static(model_fp32, model_quant, RandomDataReader())
+    # opt_level=1 will cause error with qnn lowering
+    model = onnx.load(model_quant)
+    verify_with_ort_with_inputs(
+        model, input_arrays, opt_level=2, target=target, dev=dev, use_vm=True
+    )
+
+
 def make_constant_node(name, data_type, dims, vals):
     return helper.make_node(
         "Constant",
@@ -5273,8 +5306,6 @@ def test_qlinearadd(target, dev):
         ]
         input_values = [a_array, b_array]
 
-        node = helper.make_node("QLinearAdd", inputs=input_names, outputs=["C"])
-
         node = helper.make_node("Add", ["a", "b"], ["C"])
         graph = helper.make_graph(
             [node],
@@ -5282,36 +5313,44 @@ def test_qlinearadd(target, dev):
             inputs=input_nodes,
             outputs=[helper.make_tensor_value_info("C", TensorProto.FLOAT, list(c_shape))],
         )
-        model = helper.make_model(graph, producer_name="qlinearconv_test")
-        from onnxruntime.quantization import quantize_static, CalibrationDataReader, QuantType
-
-        class RandomDataReader(CalibrationDataReader):
-            def __init__(self, n=10):
-                self.data = iter(
-                    [
-                        {
-                            "a": np.random.random(a_shape).astype("float32"),
-                            "b": np.random.random(b_shape).astype("float32"),
-                        }
-                        for _ in range(n)
-                    ]
-                )
-
-            def get_next(self):
-                return next(self.data, None)
-
-        d = tvm.contrib.utils.tempdir()
-        model_fp32 = os.path.join(d.temp_dir, "model.onnx")
-        onnx.save_model(model, model_fp32)
-        model_quant = os.path.join(d.temp_dir, "model.quant.onnx")
-        quantized_model = quantize_static(model_fp32, model_quant, RandomDataReader())
-        # opt_level=1 will cause error with qnn lowering
-        model = onnx.load(model_quant)
-        verify_with_ort_with_inputs(model, input_values, opt_level=2, target=target, dev=dev)
+        model = helper.make_model(graph, producer_name="qlinearadd_test")
+        quantize_and_verify_with_ort(model, input_names, [a_shape, b_shape], target, dev)
 
     verify_qlinearadd([4, 2], [4, 2], [4, 2])
     verify_qlinearadd([4, 2], [2], [4, 2])
     verify_qlinearadd([5, 1, 7], [2, 7], [5, 2, 7])
+
+
+@tvm.testing.parametrize_targets
+def test_qlinearmul(target, dev):
+    def verify_qlinearmul(a_shape, b_shape, c_shape):
+
+        a_array = np.random.random(a_shape).astype("float32")
+        b_array = np.random.random(b_shape).astype("float32")
+
+        input_nodes = [
+            helper.make_tensor_value_info("a", TensorProto.FLOAT, list(a_shape)),
+            helper.make_tensor_value_info("b", TensorProto.FLOAT, list(b_shape)),
+        ]
+        input_names = [
+            "a",
+            "b",
+        ]
+        input_values = [a_array, b_array]
+
+        node = helper.make_node("Mul", input_names, ["C"])
+        graph = helper.make_graph(
+            [node],
+            "qlinearmul_test",
+            inputs=input_nodes,
+            outputs=[helper.make_tensor_value_info("C", TensorProto.FLOAT, list(c_shape))],
+        )
+        model = helper.make_model(graph, producer_name="qlinearmul_test")
+        quantize_and_verify_with_ort(model, input_names, [a_shape, b_shape], target, dev)
+
+    verify_qlinearmul([4, 2], [4, 2], [4, 2])
+    verify_qlinearmul([4, 2], [2], [4, 2])
+    verify_qlinearmul([5, 1, 7], [2, 7], [5, 2, 7])
 
 
 @tvm.testing.parametrize_targets
