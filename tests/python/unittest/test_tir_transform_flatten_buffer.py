@@ -250,3 +250,4 @@ if __name__ == "__main__":
     test_predicate()
     test_unit_loops()
     test_multi_alloc()
+    test_lower_te()
