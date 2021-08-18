@@ -22,7 +22,7 @@ from tvm import relay
 from tvm.relay.analysis import detect_feature
 from tvm.relay import op, create_executor, transform
 from tvm.relay.prelude import Prelude
-from tvm.relay.testing import count
+from tvm.relay.testing import count, create_workload
 from tvm.relay.analysis import Feature
 from tvm.relay.analysis import check_basic_block_normal_form
 
@@ -487,6 +487,28 @@ def test_higher_order_nested():
 
     bblock = run_opt_pass(top, transform.ToBasicBlockNormalForm())
     check_basic_block_normal_form(bblock)
+
+
+def test_immutability():
+    simple_net = relay.nn.conv2d(
+        data=relay.var("data", relay.TensorType((1, 3, 224, 224), "float32")),
+        weight=relay.var("weight"),
+        kernel_size=(5, 5),
+        channels=3,
+        padding=(1, 1),
+    )
+    simple_net = relay.Function(relay.analysis.free_vars(simple_net), simple_net)
+    mod, _ = create_workload(simple_net)
+
+    old_mod = mod
+
+    with tvm.transform.PassContext(opt_level=4):
+        with tvm.target.Target("llvm"):
+            seq = tvm.transform.Sequential(passes=[transform.ToBasicBlockNormalForm()], opt_level=4)
+            new_mod = seq(mod)
+
+    assert old_mod.astext() == mod.astext()
+    assert old_mod.astext() != new_mod.astext()
 
 
 if __name__ == "__main__":
