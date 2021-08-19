@@ -193,6 +193,7 @@ def tune_graph(graph, dshape, records, opt_sch_file, use_DP=True):
 ########################################################################
 # Finally, we launch tuning jobs and evaluate the end-to-end performance.
 
+
 def evaluate_performance(lib, data_shape):
     # upload parameters to device
     dev = tvm.cpu()
@@ -205,8 +206,7 @@ def evaluate_performance(lib, data_shape):
     ftimer = module.module.time_evaluator("run", dev, number=100, repeat=3)
     prof_res = np.array(ftimer().results) * 1000  # convert to millisecond
     print(
-        "Mean inference time (std dev): %.2f ms (%.2f ms)"
-        % (np.mean(prof_res), np.std(prof_res))
+        "Mean inference time (std dev): %.2f ms (%.2f ms)" % (np.mean(prof_res), np.std(prof_res))
     )
 
 
