@@ -20,7 +20,8 @@
 import os
 import ctypes
 import struct
-from collections import namedtuple
+import numpy as np
+from typing import Sequence
 
 import tvm._ffi
 from tvm._ffi.base import _LIB, check_call, c_str, string_types, _RUNTIME_ONLY
@@ -30,8 +31,65 @@ from .packed_func import PackedFunc, PackedFuncHandle, _set_class_module
 from . import _ffi_api
 
 
-# profile result of time evaluator
-ProfileResult = namedtuple("ProfileResult", ["mean", "results"])
+class BenchmarkResult:
+    """Runtimes from benchmarking"""
+
+    def __init__(self, results: Sequence[float]):
+        """Construct a new BenchmarkResult from a sequence of runtimes.
+
+        Parameters
+        ----------
+        results : Sequence[float]
+            Raw times from benchmarking
+
+        Attributes
+        ----------
+        min : float
+            Minimum runtime in seconds of all results.
+        mean : float
+            Mean runtime in seconds of all results. Note that this mean is not
+            necessarily statistically correct as it is the mean of mean
+            runtimes.
+        median : float
+            Median runtime in seconds of all results. Note that this is not necessarily
+            statistically correct as it is the median of mean runtimes.
+        max : float
+            Maximum runtime in seconds of all results.
+        std : float
+            Standard deviation in seconds of runtimes. Note that this is not necessarily
+            correct as it is the std of mean runtimes.
+        results : Sequence[float]
+            The collected runtimes (in seconds). This may be a series of mean runtimes if
+            the benchmark was run with `number` > 1.
+        """
+        self.results = results
+        self.mean = np.mean(self.results)
+        self.std = np.std(self.results)
+        self.median = np.median(self.results)
+        self.min = np.min(self.results)
+        self.max = np.max(self.results)
+
+    def __repr__(self):
+        return "BenchmarkResult(min={}, mean={}, median={}, max={}, std={}, results={})".format(
+            self.min, self.mean, self.median, self.max, self.std, self.results
+        )
+
+    def __str__(self):
+        return """Execution time summary:
+{:^12} {:^12} {:^12} {:^12} {:^12}
+{:^12.2f} {:^12.2f} {:^12.2f} {:^12.2f} {:^12.2f}
+               """.format(
+            "mean (ms)",
+            "median (ms)",
+            "max (ms)",
+            "min (ms)",
+            "std (ms)",
+            self.mean * 1000,
+            self.median * 1000,
+            self.max * 1000,
+            self.min * 1000,
+            self.std * 1000,
+        )
 
 
 class Module(object):
@@ -209,7 +267,7 @@ class Module(object):
         Returns
         -------
         ftimer : function
-            The function that takes same argument as func and returns a ProfileResult.
+            The function that takes same argument as func and returns a BenchmarkResult.
             The ProfileResult reports `repeat` time costs in seconds.
         """
         try:
@@ -230,8 +288,7 @@ class Module(object):
                 blob = feval(*args)
                 fmt = "@" + ("d" * repeat)
                 results = struct.unpack(fmt, blob)
-                mean = sum(results) / float(repeat)
-                return ProfileResult(mean=mean, results=results)
+                return BenchmarkResult(results)
 
             return evaluator
         except NameError:

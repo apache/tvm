@@ -30,6 +30,7 @@ from tvm.contrib import utils
 from tvm import rpc
 import tvm.testing
 from tvm.relay.transform import InferType
+from tvm.relay.testing import mlp
 
 
 def check_result(args, expected_result, mod=None):
@@ -953,6 +954,18 @@ def test_get_input_index():
     assert vm_factory.get_input_index(data_1) == 1
     assert vm_factory.get_input_index(data_0) == 0
     assert vm_factory.get_input_index("invalid") == -1
+
+
+@tvm.testing.requires_llvm
+def test_benchmark():
+    mod, params = mlp.get_workload(1)
+    lib = vm.compile(mod, target="llvm", params=params)
+    exe = runtime.vm.VirtualMachine(lib, tvm.cpu())
+    data = tvm.nd.array(np.random.rand(1, 1, 28, 28).astype("float32"))
+    result = exe.benchmark(tvm.cpu(), data, func_name="main", repeat=2, number=1)
+    assert result.mean == result.median
+    assert result.mean > 0
+    assert len(result.results) == 2
 
 
 if __name__ == "__main__":

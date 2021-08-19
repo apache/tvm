@@ -23,6 +23,7 @@ from tvm import relay
 from tvm.contrib import graph_executor
 from tvm.relay.op import add
 import tvm.testing
+from tvm.relay.testing import mlp
 
 # @tq, @jr should we put this in testing ns?
 def check_rts(expr, args, expected_result, mod=None):
@@ -320,6 +321,18 @@ def test_graph_executor_api():
     assert mod.get_input_index(dname_1) == 1
     assert mod.get_input_index(dname_0) == 0
     assert mod.get_input_index("Invalid") == -1
+
+
+@tvm.testing.requires_llvm
+def test_benchmark():
+    mod, params = mlp.get_workload(1)
+    lib = relay.build(mod, target="llvm", params=params)
+    exe = graph_executor.create(lib.get_graph_json(), lib.lib, tvm.cpu())
+    data = tvm.nd.array(np.random.rand(1, 1, 28, 28).astype("float32"))
+    result = exe.benchmark(tvm.cpu(), data=data, func_name="run", repeat=2, number=1)
+    assert result.mean == result.median
+    assert result.mean > 0
+    assert len(result.results) == 2
 
 
 if __name__ == "__main__":
