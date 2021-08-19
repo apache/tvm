@@ -420,13 +420,6 @@ class LowerTensorExprMutator : public ExprMutator {
       return {ext_func->prim_fn_var, Attrs()};
     }
 
-    ICHECK_GE(device_context_map_.count(expr), 0)
-        << "Could not find an entry in the device context map for " << PrettyPrint(expr)
-        << "The memory planning was either not performed for this precise node, or there is bug "
-           "in the memory planner.";
-
-    auto& device_context = this->device_context_map_[expr];
-    target = GetTargetFromInteger(device_context.device_type, targets_);
     // Non-External Relay Function
     DLOG(INFO) << "lowering to target '" << target->str() << "' for primitive:\n"
                << PrettyPrint(func);
