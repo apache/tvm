@@ -68,15 +68,12 @@ def test_popen_pool_executor():
 
 def test_popen_initializer():
     initargs = [1, 2, 3]
-    pool = PopenPoolExecutor(
-        max_workers=2, timeout=0.01, initializer=initializer, initargs=initargs
-    )
     proc = PopenWorker(initializer=initializer, initargs=initargs)
     proc.send(after_initializer)
-    a, b, c = proc.recv()
-    assert a == 1
-    assert b == 2
-    assert c == 3
+    test_global_state_1, test_global_state_2, test_global_state_3 = proc.recv()
+    assert test_global_state_1 == 1
+    assert test_global_state_2 == 2
+    assert test_global_state_3 == 3
 
 
 if __name__ == "__main__":

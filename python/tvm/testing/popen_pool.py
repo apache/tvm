@@ -17,18 +17,18 @@
 # pylint: disable=invalid-name, missing-function-docstring
 """Common functions for popen_pool test cases"""
 
-a = 0
-b = 0
-c = 0
+TEST_GLOBAL_STATE_1 = 0
+TEST_GLOBAL_STATE_2 = 0
+TEST_GLOBAL_STATE_3 = 0
 
 
-def initializer(a_val, b_val, c_val):
-    global a, b, c
-    a = a_val
-    b = b_val
-    c = c_val
+def initializer(test_global_state_1, test_global_state_2, test_global_state_3):
+    global TEST_GLOBAL_STATE_1, TEST_GLOBAL_STATE_2, TEST_GLOBAL_STATE_3
+    TEST_GLOBAL_STATE_1 = test_global_state_1
+    TEST_GLOBAL_STATE_2 = test_global_state_2
+    TEST_GLOBAL_STATE_3 = test_global_state_3
 
 
 def after_initializer():
-    global a, b, c
-    return a, b, c
+    global TEST_GLOBAL_STATE_1, TEST_GLOBAL_STATE_2, TEST_GLOBAL_STATE_3
+    return TEST_GLOBAL_STATE_1, TEST_GLOBAL_STATE_2, TEST_GLOBAL_STATE_3

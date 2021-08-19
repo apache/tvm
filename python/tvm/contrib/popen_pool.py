@@ -132,9 +132,6 @@ class PopenWorker:
         if self._proc is not None:
             return
 
-        if self._initializer is not None:
-            self._initializer(*self._initargs)
-
         # connect subprocess with a pair of pipes
         main_read, worker_write = os.pipe()
         worker_read, main_write = os.pipe()
@@ -159,11 +156,6 @@ class PopenWorker:
         os.close(worker_write)
         self._reader = os.fdopen(main_read, "rb")
         self._writer = os.fdopen(main_write, "wb")
-
-        # init
-        if self._initializer is not None:
-            self.send(self._initializer, self._initargs)
-            self.recv()
 
     def join(self, timeout=None):
         """Join the current process worker before it terminates.
@@ -215,6 +207,10 @@ class PopenWorker:
 
         if self._proc is None:
             self._start()
+            # init
+            if self._initializer is not None:
+                self.send(self._initializer, self._initargs)
+                self.recv()
         kwargs = {} if not kwargs else kwargs
         data = cloudpickle.dumps((fn, args, kwargs, timeout), protocol=pickle.HIGHEST_PROTOCOL)
         try:
