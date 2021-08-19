@@ -42,7 +42,7 @@ def identity_py(arg):
 
 def register_ffi():
     @tvm._ffi.register_func("testing.nested_identity_py")
-    def _identity_py(arg):
+    def _identity_py(arg):  # pylint: disable=unused-variable
         return arg
 
 
