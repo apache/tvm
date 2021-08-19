@@ -40,19 +40,24 @@
 #include "ethosn_device.h"
 #include "ethosn_driver_library/Inference.hpp"
 #include "ethosn_driver_library/Network.hpp"
-#include "ethosn_support_library/Support.hpp"
 
 namespace tvm {
 namespace runtime {
 namespace ethosn {
 
-namespace sl = ::ethosn::support_library;
 namespace dl = ::ethosn::driver_library;
 
 EthosnModule::EthosnModule(std::vector<OrderedCompiledNetwork>* cmms) {
   for (auto& it : *cmms) {
     network_map_[it.name].name = it.name;
-    network_map_[it.name].cmm = std::move(it.cmm);
+    if (it.compiled_cmm != nullptr) {
+      network_map_[it.name].compiled_cmm = std::move(it.compiled_cmm);
+    }
+#if _ETHOSN_API_VERSION_ > 2102
+    if (it.runtime_cmm != nullptr) {
+      network_map_[it.name].runtime_cmm = std::move(it.runtime_cmm);
+    }
+#endif
     network_map_[it.name].inputs = it.inputs;
     network_map_[it.name].outputs = it.outputs;
   }
@@ -62,8 +67,13 @@ PackedFunc EthosnModule::GetFunction(const std::string& name,
                                      const ObjectPtr<Object>& sptr_to_self) {
   if (network_map_.find(name) != network_map_.end()) {
     return PackedFunc([sptr_to_self, this, name](TVMArgs args, TVMRetValue* rv) {
-      *rv = Inference(args, network_map_[name].cmm.get(), network_map_[name].inputs,
+#if _ETHOSN_API_VERSION_ <= 2102
+      *rv = Inference(args, network_map_[name].compiled_cmm.get(), network_map_[name].inputs,
                       network_map_[name].outputs);
+#else
+      *rv = Inference(args, network_map_[name].runtime_cmm.get(), network_map_[name].inputs,
+                      network_map_[name].outputs);
+#endif
     });
   } else {
     return PackedFunc();
@@ -75,7 +85,8 @@ void EthosnModule::SaveToBinary(dmlc::Stream* stream) {
   for (const auto& it : network_map_) {
     stream->Write(it.first);
     std::stringstream ss;
-    it.second.cmm->Serialize(ss);
+    ICHECK(it.second.compiled_cmm != nullptr);
+    it.second.compiled_cmm->Serialize(ss);
     stream->Write(ss.str());
     stream->Write(it.second.inputs.size());
     stream->Write(&it.second.inputs[0], sizeof(uint32_t) * it.second.inputs.size());
@@ -102,7 +113,11 @@ Module EthosnModule::LoadFromBinary(void* strm) {
     // Read the serialized command stream
     stream->Read(&cmm);
     std::istringstream cmm_strm(cmm);
-    compiled.cmm = sl::DeserializeCompiledNetwork(cmm_strm);
+#if _ETHOSN_API_VERSION_ <= 2102
+    compiled.compiled_cmm = sl::DeserializeCompiledNetwork(cmm_strm);
+#else
+    compiled.runtime_cmm = std::make_unique<dl::Network>(cmm.c_str(), cmm.size());
+#endif
     // Read the number of inputs
     stream->Read<uint64_t>(&input_size);
     auto size = static_cast<size_t>(input_size);

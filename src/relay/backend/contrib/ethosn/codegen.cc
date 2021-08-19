@@ -568,7 +568,7 @@ runtime::ethosn::OrderedCompiledNetwork EthosnCompiler::CompileEthosnFunc(const 
   // the inputs/outputs from the TVM runtime to the inputs/outputs of the compiled network
   runtime::ethosn::OrderedCompiledNetwork ordered_network;
   ordered_network.name = gvar->name_hint;
-  ordered_network.cmm = std::move(compiled_network);
+  ordered_network.compiled_cmm = std::move(compiled_network);
   ordered_network.inputs = input_output_order.first;
   ordered_network.outputs = input_output_order.second;
   return ordered_network;

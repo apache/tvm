@@ -24,18 +24,28 @@
 #ifndef TVM_RUNTIME_CONTRIB_ETHOSN_ETHOSN_DEVICE_H_
 #define TVM_RUNTIME_CONTRIB_ETHOSN_ETHOSN_DEVICE_H_
 
+#include <tvm/runtime/registry.h>
+
 #include <vector>
 
-#include "ethosn_support_library/Support.hpp"
+#include "../../../relay/backend/contrib/ethosn/ethosn_api_version.h"
+#include "ethosn_runtime.h"
 
 namespace tvm {
 namespace runtime {
 namespace ethosn {
 
-namespace sl = ::ethosn::support_library;
+namespace dl = ::ethosn::driver_library;
 
-bool Inference(tvm::runtime::TVMArgs args, sl::CompiledNetwork* network,
-               const std::vector<uint32_t>& input_order, const std::vector<uint32_t>& output_order);
+using tvm::runtime::TVMArgs;
+
+#if _ETHOSN_API_VERSION_ <= 2102
+bool Inference(TVMArgs args, sl::CompiledNetwork* npu, const std::vector<uint32_t>& input_order,
+               const std::vector<uint32_t>& output_order);
+#else
+bool Inference(TVMArgs args, dl::Network* npu, const std::vector<uint32_t>& input_order,
+               const std::vector<uint32_t>& output_order);
+#endif
 
 }  // namespace ethosn
 }  // namespace runtime
