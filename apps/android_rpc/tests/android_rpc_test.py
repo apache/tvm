@@ -45,7 +45,7 @@ test_vulkan = False
 
 
 def test_rpc_module():
-    # graph
+    # create simple graph
     n = tvm.runtime.convert(1024)
     A = te.placeholder((n,), name="A")
     B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")
