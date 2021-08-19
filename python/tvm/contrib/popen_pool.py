@@ -84,6 +84,14 @@ class PopenWorker:
 
     PopenWorker provides a low-level
     API to interact with a separate process via Popen.
+
+    Parameters
+    ----------
+    initializer: callable or None
+        A callable initializer, or None
+
+    initargs: Tuple[object]
+        A tuple of args for the initializer
     """
 
     def __init__(self, initializer=None, initargs=()):
@@ -277,7 +285,13 @@ class PopenPoolExecutor:
 
     timeout : float
         Timeout value for each function submit.
-    Note
+
+    initializer: callable or None
+        A callable initializer, or None
+
+    initargs: Tuple[object]
+        A tuple of args for the initializer
+
     ----
     If max_workers is NONE then the number returned by
     os.cpu_count() is used. This method aligns with the
