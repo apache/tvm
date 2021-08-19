@@ -45,4 +45,4 @@ VMModule = module.VMModule
 TraceTvmModule = module.TraceTvmModule
 
 
-from .pytorch_tvm import PyTorchTVMModule  # nopep8
+from .pytorch_tvm import PyTorchTVMModule, compile  # nopep8

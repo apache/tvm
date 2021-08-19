@@ -157,3 +157,41 @@ class PyTorchTVMModule():
         mod = GraphModule(num_inputs=num_inputs, num_outputs=num_outputs).to(self.target)
         mod.init(input_shapes, *assets)
         return mod
+
+
+def compile(script_module, option):
+    """
+        option = {
+            "input_infos": [
+                ("x", (1, 3, 244, 244)),
+            ],
+            "default_dtype": "float16",
+            "export_dir": "pytorch_compiled",
+            "num_outputs": 1,
+            "tuning_n_trials": 20,  # set zero to skip tuning
+            "tuning_log_file": "tuning.log",
+        }
+        script_module = torch.jit.script(model)
+        pytorch_tvm_module = compile(script_module, option)
+        pytorch_tvm_module("model_tvm.pt")
+    """
+    mod = PyTorchTVMModule()
+    print("Converting...")
+    input_infos = option["input_infos"]
+    default_dtype = option.get("default_dtype", "float32")
+    export_dir = option.get("export_dir", "pytorch_compiled")
+    tuning_log_file = option.get("tuning_log_file", "tuning.log")
+    tuning_n_trials = option.get("tuning_n_trials", 20)
+    num_outputs = option.get("num_outputs", 1)
+
+    mod.log_file = tuning_log_file
+    mod.from_pytorch(script_module, input_infos, default_dtype)
+
+    if tuning_n_trials > 0:
+        print("Tuning...")
+        mod.tune_tvm(log_file=tuning_log_file, n_trial=tuning_n_trials)
+
+    print("Building...")
+    mod.build_tvm(export_dir)
+    pytorch_mod = mod.build_pytorch_op(num_inputs=len(input_infos), num_outputs=num_outputs)
+    return pytorch_mod

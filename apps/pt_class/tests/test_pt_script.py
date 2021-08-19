@@ -23,7 +23,7 @@ import time
 import numpy as np
 import tvm
 import tvm.testing
-from tvm.contrib.pt_op import PyTorchTVMModule
+from tvm.contrib.pt_op import PyTorchTVMModule, compile
 
 
 class Model(torch.nn.Module):
@@ -90,10 +90,25 @@ for i in range(20):
 print(outputs[0].shape)
 
 
+class EnsembleModel(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.layer = torch.jit.script(pytorch_mod)
+
+    def forward(self, x, y, z) -> torch.Tensor:
+        if x > 1:
+            out = self.layer(y, z)[0]
+        else:
+            out = torch.ones([1280, 2464, 1])
+        return out
+
+
 print("Exporting...")
-scripted = torch.jit.script(pytorch_mod)
+scripted = torch.jit.script(EnsembleModel())
+print(scripted.graph)
 scripted_path = os.path.join(export_dir, 'model_tvm.pt')
 scripted.save(scripted_path)
+
 
 # print(o == outputs[0])
 # print(o - outputs[0])
