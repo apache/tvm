@@ -2617,25 +2617,20 @@ def test_forward_select():
             )
 
 
-def _test_fake_quant(value, min, max, num_bits):
+@pytest.mark.parametrize("quant_bits", [2, 4, 8, 16])
+@pytest.mark.parametrize(
+    "value, min, max", [[-10.11, -6, 6], [-3.55, -6, 6], [0, -6, 6], [3.55, -6, 6], [10.11, -6, 6]]
+)
+def test_forward_fake_quant(value, min, max, quant_bits):
     with tf.Graph().as_default():
         with tf.Session() as sess:
             input = tf.placeholder(tf.float32, shape=[1], name="input")
             out = tf.quantization.fake_quant_with_min_max_args(
-                input, min=min, max=max, num_bits=num_bits, name=None
+                input, min=min, max=max, num_bits=quant_bits, name=None
             )
 
             in_data = np.float32(value)
             compare_tflite_with_tvm([in_data], ["input:0"], [input], [out])
-
-
-def test_forward_fake_quant():
-    for quant_bits in [2, 4, 8, 16]:
-        _test_fake_quant(-10.11, -6, 6, quant_bits)
-        _test_fake_quant(-3.55, -6, 6, quant_bits)
-        _test_fake_quant(0, -6, 6, quant_bits)
-        _test_fake_quant(3.55, -6, 6, quant_bits)
-        _test_fake_quant(10.11, -6, 6, quant_bits)
 
 
 # Squeeze
