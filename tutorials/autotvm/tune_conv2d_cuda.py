@@ -204,7 +204,7 @@ measure_option = autotvm.measure_option(
 # see many error reports. As long as you can see non-zero GFLOPS, it is okay.
 tuner = autotvm.tuner.XGBTuner(task)
 tuner.tune(
-    n_trial=20,
+    n_trial=100,
     measure_option=measure_option,
     callbacks=[autotvm.callback.log_to_file("conv2d.log")],
 )

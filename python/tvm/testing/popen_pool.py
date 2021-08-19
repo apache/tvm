@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name, missing-function-docstring
 """Common functions for popen_pool test cases"""
+import tvm
 
 TEST_GLOBAL_STATE_1 = 0
 TEST_GLOBAL_STATE_2 = 0
@@ -32,3 +33,27 @@ def initializer(test_global_state_1, test_global_state_2, test_global_state_3):
 def after_initializer():
     global TEST_GLOBAL_STATE_1, TEST_GLOBAL_STATE_2, TEST_GLOBAL_STATE_3
     return TEST_GLOBAL_STATE_1, TEST_GLOBAL_STATE_2, TEST_GLOBAL_STATE_3
+
+
+@tvm._ffi.register_func("testing.identity_py")
+def identity_py(arg):
+    return arg
+
+
+def register_ffi():
+    @tvm._ffi.register_func("testing.nested_identity_py")
+    def _identity_py(arg):
+        return arg
+
+
+def call_py_ffi(arg):
+    _identity_py = tvm._ffi.get_global_func("testing.nested_identity_py")
+    return _identity_py(arg)
+
+
+def call_cpp_ffi(arg):
+    return tvm.testing.echo(arg)
+
+
+def call_cpp_py_ffi(arg):
+    return tvm.testing.identity_cpp(arg)
