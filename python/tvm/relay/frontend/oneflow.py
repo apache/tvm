@@ -1549,7 +1549,7 @@ class OneflowGraph(object):
             outputs = outputs[:-1]
         elif op_name.lower() == "constant":
             outputs = [self._init_variable_node[cnt_init]]
-        
+
         if len(outputs) > 1:
             outputs = list(set(outputs))
 
