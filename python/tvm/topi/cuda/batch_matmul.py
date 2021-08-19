@@ -237,7 +237,9 @@ def schedule_batch_matmul_cublas(_, outs):
 
 
 @autotvm.register_topi_compute("batch_matmul_int8.cuda")
-def batch_matmul_int8(cfg, x, y, out_shape=None, out_dtype=None):
+def batch_matmul_int8(
+    cfg, x, y, out_shape=None, out_dtype=None, transpose_a=False, transpose_b=True
+):
     """Batch Matmul operator for int8 on CUDA.
 
     Parameters
@@ -258,11 +260,20 @@ def batch_matmul_int8(cfg, x, y, out_shape=None, out_dtype=None):
     out_dtype : Optional[str]
         Specifies the output data type for mixed precision batch matmul.
 
+    transpose_a : Optional[bool] = False
+        Whether the first tensor is in transposed format.
+
+    transpose_b : Optional[bool] = True
+        Whether the second tensor is in transposed format.
+
     Returns
     -------
     output : tvm.te.Tensor
         3-D with shape [batch, M, N]
     """
+    del out_shape
+    # TODO(jcf94): Deal with different transpose combinations
+    assert not transpose_a and transpose_b
     if out_dtype is None:
         out_dtype = x.dtype
 
