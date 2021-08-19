@@ -21,6 +21,7 @@ import json
 import logging
 import os
 import pathlib
+import platform
 import shutil
 import subprocess
 import tarfile
@@ -147,6 +148,9 @@ def convert_to_relay(
 def parametrize_aot_options(test):
     """Parametrize over valid option combinations"""
 
+    skip_i386 = pytest.mark.skipif(
+        platform.machine() == "i686", reason="Reference system unavailable in i386 container"
+    )
     interface_api = ["packed", "c"]
     use_unpacked_api = [True, False]
     test_runner = [AOT_DEFAULT_RUNNER, AOT_CORSTONE300_RUNNER]
@@ -168,9 +172,17 @@ def parametrize_aot_options(test):
         valid_combinations,
     )
 
+    # Skip reference system tests if running in i386 container
+    marked_combinations = map(
+        lambda parameters: pytest.param(*parameters, marks=skip_i386)
+        if parameters[2] == AOT_CORSTONE300_RUNNER
+        else parameters,
+        valid_combinations,
+    )
+
     return pytest.mark.parametrize(
         ["interface_api", "use_unpacked_api", "test_runner"],
-        valid_combinations,
+        marked_combinations,
     )(test)
 
 
