@@ -55,6 +55,7 @@ impl GraphRt {
             // NOTE you must pass the device id in as i32 because that's what TVM expects
             (dev.device_id as i32).into(),
         ]);
+
         let graph_executor_module: Module = runtime_create_fn_ret?.try_into()?;
         Ok(Self {
             module: graph_executor_module,

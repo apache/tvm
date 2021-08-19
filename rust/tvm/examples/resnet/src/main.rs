@@ -82,22 +82,36 @@ fn main() -> anyhow::Result<()> {
     let params: Vec<u8> = fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/deploy_param.params"))?;
     println!("param bytes: {}", params.len());
 
-    let mut output: Vec<f32>;
-    let mut graph_rt = GraphRt::create_from_parts(&graph, lib.clone(), dev)?;
-    graph_rt.load_params(&params)?;
+    // If you want an easy way to test a memory leak simply replace the program below with:
+    // let mut output: Vec<f32>;
 
-    loop {
-        graph_rt.set_input("data", input.clone())?;
-        graph_rt.run()?;
+    // loop {
+    //     let mut graph_rt = GraphRt::create_from_parts(&graph, lib.clone(), dev)?;
+    //     graph_rt.load_params(params.clone())?;
+    //     graph_rt.set_input("data", input.clone())?;
+    //     graph_rt.run()?;
 
-        // prepare to get the output
-        let output_shape = &[1, 1000];
-        let output_nd = NDArray::empty(output_shape, Device::cpu(0), DataType::float(32, 1));
-        graph_rt.get_output_into(0, output_nd.clone())?;
+    //     // prepare to get the output
+    //     let output_shape = &[1, 1000];
+    //     let output_nd = NDArray::empty(output_shape, Device::cpu(0), DataType::float(32, 1));
+    //     graph_rt.get_output_into(0, output_nd.clone())?;
 
-        // flatten the output as Vec<f32>
-        output = output_nd.to_vec::<f32>()?;
-    }
+    //     // flatten the output as Vec<f32>
+    //     output = output_nd.to_vec::<f32>()?;
+    // }
+
+    let mut graph_rt = GraphRt::create_from_parts(&graph, lib, dev)?;
+    graph_rt.load_params(params)?;
+    graph_rt.set_input("data", input)?;
+    graph_rt.run()?;
+
+    // prepare to get the output
+    let output_shape = &[1, 1000];
+    let output_nd = NDArray::empty(output_shape, Device::cpu(0), DataType::float(32, 1));
+    graph_rt.get_output_into(0, output_nd.clone())?;
+
+    // flatten the output as Vec<f32>
+    let output: Vec<f32> = output_nd.to_vec::<f32>()?;
 
     // find the maximum entry in the output and its index
     let (argmax, max_prob) = output

@@ -229,7 +229,7 @@ impl<T: IsObject> ObjectPtr<T> {
         // ABI compatible atomics is funky/hard.
         self.as_ref()
             .ref_count
-            .load(std::sync::atomic::Ordering::Acquire)
+            .load(std::sync::atomic::Ordering::Relaxed)
     }
 
     /// This method avoid running the destructor on self once it's dropped, so we don't accidentally release the memory
@@ -458,32 +458,32 @@ mod tests {
         Ok(())
     }
 
-    // #[test]
-    // fn roundtrip_argvalue() -> Result<()> {
-    //     let ptr = ObjectPtr::new(Object::base::<Object>());
-    //     assert_eq!(ptr.count(), 1);
-    //     let ptr_clone = ptr.clone();
-    //     assert_eq!(ptr.count(), 2);
-    //     let arg_value: ArgValue = (&ptr_clone).into();
-    //     assert_eq!(ptr.count(), 2);
-    //     let ptr2: ObjectPtr<Object> = arg_value.try_into()?;
-    //     assert_eq!(ptr2.count(), 3);
-    //     assert_eq!(ptr.count(), ptr2.count());
-    //     drop(ptr_clone);
-    //     assert_eq!(ptr.count(), 2);
-    //     ensure!(
-    //         ptr.type_index == ptr2.type_index,
-    //         "type indices do not match"
-    //     );
-    //     ensure!(
-    //         ptr.fdeleter == ptr2.fdeleter,
-    //         "objects have different deleters"
-    //     );
-    //     // After dropping the second pointer we should only see only refcount.
-    //     drop(ptr2);
-    //     assert_eq!(ptr.count(), 1);
-    //     Ok(())
-    // }
+    #[test]
+    fn roundtrip_argvalue() -> Result<()> {
+        let ptr = ObjectPtr::new(Object::base::<Object>());
+        assert_eq!(ptr.count(), 1);
+        let ptr_clone = ptr.clone();
+        assert_eq!(ptr.count(), 2);
+        let arg_value: ArgValue = (&ptr_clone).into();
+        assert_eq!(ptr.count(), 2);
+        let ptr2: ObjectPtr<Object> = arg_value.try_into()?;
+        assert_eq!(ptr2.count(), 3);
+        assert_eq!(ptr.count(), ptr2.count());
+        drop(ptr_clone);
+        assert_eq!(ptr.count(), 2);
+        ensure!(
+            ptr.type_index == ptr2.type_index,
+            "type indices do not match"
+        );
+        ensure!(
+            ptr.fdeleter == ptr2.fdeleter,
+            "objects have different deleters"
+        );
+        // After dropping the second pointer we should only see only refcount.
+        drop(ptr2);
+        assert_eq!(ptr.count(), 1);
+        Ok(())
+    }
 
     fn test_fn_raw<'a>(
         mut args: crate::to_function::ArgList<'a>,
