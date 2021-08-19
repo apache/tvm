@@ -51,14 +51,7 @@ Expr ToBasicBlockNormalFormAux(const Expr& e) {
 IRModule ToBasicBlockNormalForm(const IRModule& mod) {
   DLOG(INFO) << "ToBBlock:" << std::endl << mod;
 
-  // Use efficient shallow copy here.
-  // There are typically 4 approaches to "copy" a module:
-  // 1. `auto mod_ = mod;`:          not copy but reference (no new module created);
-  // 2. `AsText` + `FromText`:       copy a module by reload the old one (everything copied);
-  // 3. `SaveJSON` + `LoadJSON`:     same as method 2 but (~40%) faster;
-  // 4. `auto mod_ = IRModule(...)`: create a new module but share common contents (e.g., functions)
-  //                                 with the copy-on-write (COW) semantic; it is still a "copy" though
-  //                                 their contents are usually shared due to COW.
+  // Create a new module by shallow copy.
   auto mod_ = IRModule(mod->functions, mod->type_definitions, mod->Imports(), mod->source_map);
 
   tvm::Map<GlobalVar, Function> updates;
