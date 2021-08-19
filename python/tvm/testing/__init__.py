@@ -31,4 +31,6 @@ from ._ffi_api import nop, echo, device_test, run_check_signal, object_use_count
 from ._ffi_api import test_wrap_callback, test_raise_error_callback, test_check_eq_callback
 from ._ffi_api import ErrorTest, FrontendTestModule
 
+from .popen_pool import initializer, after_initializer
+
 from . import auto_scheduler

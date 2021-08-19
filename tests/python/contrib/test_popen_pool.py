@@ -18,7 +18,7 @@
 import pytest
 import time
 from tvm.contrib.popen_pool import PopenWorker, PopenPoolExecutor
-from tvm.testing import identity_after, terminate_self
+from tvm.testing import identity_after, terminate_self, initializer, after_initializer
 
 
 def test_popen_worker():
@@ -64,6 +64,19 @@ def test_popen_pool_executor():
 
     for idx, val in enumerate(values):
         assert val.value == idx
+
+
+def test_popen_initializer():
+    initargs = [1, 2, 3]
+    pool = PopenPoolExecutor(
+        max_workers=2, timeout=0.01, initializer=initializer, initargs=initargs
+    )
+    proc = PopenWorker(initializer=initializer, initargs=initargs)
+    proc.send(after_initializer)
+    a, b, c = proc.recv()
+    assert a == 1
+    assert b == 2
+    assert c == 3
 
 
 if __name__ == "__main__":

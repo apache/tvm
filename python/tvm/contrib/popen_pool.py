@@ -86,8 +86,12 @@ class PopenWorker:
     API to interact with a separate process via Popen.
     """
 
-    def __init__(self):
+    def __init__(self, initializer=None, initargs=()):
         self._proc = None
+        self._initializer = initializer
+        self._initargs = initargs
+        if self._initializer is not None and not callable(self._initializer):
+            raise TypeError("initializer must be callable for PopenWorker")
 
     def __del__(self):
         try:
@@ -128,6 +132,9 @@ class PopenWorker:
         if self._proc is not None:
             return
 
+        if self._initializer is not None:
+            self._initializer(*self._initargs)
+
         # connect subprocess with a pair of pipes
         main_read, worker_write = os.pipe()
         worker_read, main_write = os.pipe()
@@ -152,6 +159,11 @@ class PopenWorker:
         os.close(worker_write)
         self._reader = os.fdopen(main_read, "rb")
         self._writer = os.fdopen(main_write, "wb")
+
+        # init
+        if self._initializer is not None:
+            self.send(self._initializer, self._initargs)
+            self.recv()
 
     def join(self, timeout=None):
         """Join the current process worker before it terminates.
@@ -276,7 +288,7 @@ class PopenPoolExecutor:
     behavior of multiprocessing.pool().
     """
 
-    def __init__(self, max_workers=None, timeout=None):
+    def __init__(self, max_workers=None, timeout=None, initializer=None, initargs=()):
         if max_workers is None:
             max_workers = os.cpu_count()
         # Use an internal thread pool to send to popen workers
@@ -284,6 +296,11 @@ class PopenPoolExecutor:
         self._timeout = timeout
         self._worker_map = {}
         self._lock = threading.Lock()
+        self._initializer = initializer
+        self._initargs = initargs
+
+        if self._initializer is not None and not callable(self._initializer):
+            raise TypeError("initializer must be callable for PopenPoolExecutor")
 
     def __del__(self):
         self._lock.acquire()
@@ -300,7 +317,7 @@ class PopenPoolExecutor:
         self._lock.acquire()
         tid = threading.get_ident()
         if tid not in self._worker_map:
-            proc = PopenWorker()
+            proc = PopenWorker(self._initializer, self._initargs)
             self._worker_map[tid] = proc
         else:
             proc = self._worker_map[tid]
