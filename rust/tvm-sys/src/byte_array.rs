@@ -46,12 +46,12 @@ impl Drop for ByteArray {
                 let cap = bytes.size as _;
                 let data: Vec<u8> = unsafe { Vec::from_raw_parts(ptr as _, len, cap) };
                 drop(data);
-            },
-            ByteArray::External(byte_array) => {
-                unsafe { if TVMByteArrayFree(byte_array as _) != 0 {
-                    panic!("error");
-                } }
             }
+            ByteArray::External(byte_array) => unsafe {
+                if TVMByteArrayFree(byte_array as _) != 0 {
+                    panic!("error");
+                }
+            },
         }
     }
 }
@@ -60,16 +60,16 @@ impl ByteArray {
     /// Gets the underlying byte-array
     pub fn data(&self) -> &[u8] {
         match self {
-            ByteArray::Rust(byte_array) |  ByteArray::External(byte_array) => {
-                unsafe { std::slice::from_raw_parts(byte_array.data as *const u8, byte_array.size as _) }
-            }
+            ByteArray::Rust(byte_array) | ByteArray::External(byte_array) => unsafe {
+                std::slice::from_raw_parts(byte_array.data as *const u8, byte_array.size as _)
+            },
         }
     }
 
     /// Gets the length of the underlying byte-array
     pub fn len(&self) -> usize {
         match self {
-            ByteArray::Rust(byte_array) |  ByteArray::External(byte_array) => byte_array.size as _,
+            ByteArray::Rust(byte_array) | ByteArray::External(byte_array) => byte_array.size as _,
         }
     }
 
@@ -85,7 +85,6 @@ impl ByteArray {
 
 impl<T: Into<Vec<u8>>> From<T> for ByteArray {
     fn from(arg: T) -> Self {
-
         let mut incoming_bytes: Vec<u8> = arg.into();
         let mut bytes = Vec::with_capacity(incoming_bytes.len());
         bytes.append(&mut incoming_bytes);
@@ -93,29 +92,32 @@ impl<T: Into<Vec<u8>>> From<T> for ByteArray {
         let mut bytes = std::mem::ManuallyDrop::new(bytes);
         let ptr = bytes.as_mut_ptr();
         assert_eq!(bytes.len(), bytes.capacity());
-        ByteArray::Rust(TVMByteArray { data: ptr as _, size: bytes.len() as _ })
+        ByteArray::Rust(TVMByteArray {
+            data: ptr as _,
+            size: bytes.len() as _,
+        })
     }
 }
 
 impl<'a> From<&'a ByteArray> for ArgValue<'a> {
     fn from(val: &'a ByteArray) -> ArgValue<'a> {
         match val {
-            ByteArray::Rust(byte_array) |  ByteArray::External(byte_array) => {
+            ByteArray::Rust(byte_array) | ByteArray::External(byte_array) => {
                 ArgValue::Bytes(byte_array)
             }
         }
     }
 }
 
-// TODO(@jroesch): This requires a little more work, going to land narratives
+// todo(@jroesch): #8800 Follow up with ByteArray RetValue ownership.
 // impl From<ByteArray> for RetValue {
 //     fn from(val: ByteArray) -> RetValue {
-//         // match val {
-//         //     ByteArray::Rust(byte_array) |  ByteArray::External(byte_array) => {
-//         //         ArgValue::Bytes(byte_array)
-//         //     }
-//         // }
-//         panic!("need to audit the lifetimes of this code");
+//         match val {
+//             ByteArray::Rust(byte_array) | ByteArray::External(byte_array) => {
+//                 // TODO(@jroesch): This requires a little more work, going to land narratives
+//                 RetValue::Bytes(byte_array)
+//             }
+//         }
 //     }
 // }
 
@@ -139,11 +141,11 @@ mod tests {
     #[test]
     fn convert() {
         let v = vec![1u8, 2, 3];
-        let barr = ByteArray::from(&v);
+        let barr = ByteArray::from(v.to_vec());
         assert_eq!(barr.len(), v.len());
         assert_eq!(barr.to_vec(), vec![1u8, 2, 3]);
         let v = b"hello";
-        let barr = ByteArray::from(&v);
+        let barr = ByteArray::from(v.to_vec());
         assert_eq!(barr.len(), v.len());
         assert_eq!(barr.data(), &[104u8, 101, 108, 108, 111]);
     }

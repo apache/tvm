@@ -139,8 +139,9 @@ pub trait ToFunction<I, O>: Sized {
                 }
             };
 
+            // TODO(@jroesch): clean up the handling of the is dec_ref
             match rv.clone().try_into() as Result<crate::object::ObjectPtr<crate::object::Object>> {
-                Err(e) => {}
+                Err(_) => {}
                 Ok(v) => drop(v),
             };
 
