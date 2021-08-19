@@ -127,7 +127,7 @@ PrimExpr Analyzer::Simplify(const PrimExpr& expr, int steps) {
   PrimExpr res = expr;
   for (int i = 0; i < steps; ++i) {
     res = this->rewrite_simplify(res);
-    if (tir::is_const_int(res) || ++i == steps) return res;
+    if (tir::is_const_int(res)) return res;
     res = this->canonical_simplify(res);
     if (tir::is_const_int(res)) return res;
   }

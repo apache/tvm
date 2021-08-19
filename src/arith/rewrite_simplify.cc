@@ -193,6 +193,11 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const AddNode* op) {
     // floor div
     TVM_TRY_REWRITE(floordiv(x, c1) * c1 + floormod(x, c1), x);
 
+    TVM_TRY_REWRITE(truncdiv(x, s1) * s1 + truncmod(x, s1), x);
+    TVM_TRY_REWRITE(s1 * truncdiv(x, s1) + truncmod(x, s1), x);
+    TVM_TRY_REWRITE(floordiv(x, s1) * s1 + floormod(x, s1), x);
+    TVM_TRY_REWRITE(s1 * floordiv(x, s1) + floormod(x, s1), x);
+
     // canonicalization rule
     // will try rewrite again after canonicalization.
     TVM_TRY_RECURSIVE_REWRITE(x + (c1 - y), (x - y) + c1);
@@ -1395,6 +1400,12 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const LTNode* op) {
                        c2 < floormod(x + c2, c1) + y, c1.Eval()->value > 0);
     TVM_TRY_REWRITE_IF(floordiv(x + c2, c1) * c1 < x - y,
                        y < floormod(x + c2, c1) + (0 - c2), c1.Eval()->value > 0);
+
+    // floordiv for expr
+    TVM_TRY_REWRITE_IF(floordiv(x, s1) < s2, x < s1 * s2,
+                       analyzer_->const_int_bound(s1.Eval())->min_value >= 0);
+    TVM_TRY_REWRITE_IF(s1 < floordiv(x, s2), (s1 + 1) * s2 - 1 < x,
+                       analyzer_->const_int_bound(s2.Eval())->min_value >= 0);
 
     // canonicalization rule
     TVM_TRY_RECURSIVE_REWRITE(min(x, y) < z, x < z || y < z);
