@@ -140,7 +140,7 @@ def get_interpolate_mode(op):
     return rounding_method, interp_method, coordinate_transformation_mode
 
 
-def convert_interpolate2D(g, op, x, input_shape):
+def convert_interpolate2d(g, op, x, input_shape):
     """Operator converter for interpolate 2D(dims == 4)."""
 
     layout = op.attr("data_layout")
@@ -152,19 +152,19 @@ def convert_interpolate2D(g, op, x, input_shape):
     out_h = op.attr("out_h")
     out_w = op.attr("out_w")
 
-    OutSize = op.input("OutSize")
-    SizeTensor = op.input("SizeTensor")
-    Scale = op.input("Scale")
-    if SizeTensor:
-        outsize = g.get_node(SizeTensor[0])
-        outsize = infer_value(outsize, g.get_params()).numpy().tolist()
-        out_h, out_w = outsize
-    elif OutSize:
-        outsize = g.get_node(OutSize[0])
-        outsize = infer_value(outsize, g.get_params()).numpy().tolist()
-        out_h, out_w = outsize
-    elif Scale:
-        scale_data = g.get_node(Scale[0])
+    input_out_size = op.input("OutSize")
+    input_size_tensor = op.input("SizeTensor")
+    input_scale = op.input("Scale")
+    if input_size_tensor:
+        out_size = g.get_node(input_size_tensor[0])
+        out_size = infer_value(out_size, g.get_params()).numpy().tolist()
+        out_h, out_w = out_size
+    elif input_out_size:
+        out_size = g.get_node(input_out_size[0])
+        out_size = infer_value(out_size, g.get_params()).numpy().tolist()
+        out_h, out_w = out_size
+    elif input_scale:
+        scale_data = g.get_node(input_scale[0])
         scale_data = infer_value(scale_data, g.get_params()).numpy().tolist()
         if len(scale_data) > 1:
             out_h = int(scale_data[0] * in_h)
@@ -199,7 +199,7 @@ def convert_interpolate(g, op, block):
     input_shape = infer_shape(x)
     dims = len(input_shape)
     if dims == 4:
-        convert_interpolate2D(g, op, x, input_shape)
+        convert_interpolate2d(g, op, x, input_shape)
     else:
         msg = "input_shape {} is not supported for PaddlePaddle's interpolate"
         raise tvm.error.OpAttributeInvalid(msg.format(dims))
