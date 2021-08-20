@@ -194,6 +194,22 @@ def tune_graph(graph, dshape, records, opt_sch_file, use_DP=True):
 # Finally, we launch tuning jobs and evaluate the end-to-end performance.
 
 
+def evaluate_performance(lib, data_shape):
+    # upload parameters to device
+    dev = tvm.cpu()
+    data_tvm = tvm.nd.array((np.random.uniform(size=data_shape)).astype(dtype))
+    module = runtime.GraphModule(lib["default"](dev))
+    module.set_input(input_name, data_tvm)
+
+    # evaluate
+    print("Evaluate inference time cost...")
+    ftimer = module.module.time_evaluator("run", dev, number=100, repeat=3)
+    prof_res = np.array(ftimer().results) * 1000  # convert to millisecond
+    print(
+        "Mean inference time (std dev): %.2f ms (%.2f ms)" % (np.mean(prof_res), np.std(prof_res))
+    )
+
+
 def tune_and_evaluate(tuning_opt):
     # extract workloads from relay program
     print("Extract tasks...")
@@ -206,26 +222,28 @@ def tune_and_evaluate(tuning_opt):
     tune_kernels(tasks, **tuning_opt)
     tune_graph(mod["main"], data_shape, log_file, graph_opt_sch_file)
 
+    # compile kernels in default mode
+    print("Evaluation of the network compiled in 'default' mode without auto tune:")
+    with tvm.transform.PassContext(opt_level=3):
+        print("Compile...")
+        lib = relay.build(mod, target=target, params=params)
+        evaluate_performance(lib, data_shape)
+
+    # compile kernels in kernel tuned only mode
+    print("\nEvaluation of the network been tuned on kernel level:")
+    with autotvm.apply_history_best(log_file):
+        print("Compile...")
+        with tvm.transform.PassContext(opt_level=3):
+            lib = relay.build(mod, target=target, params=params)
+        evaluate_performance(lib, data_shape)
+
     # compile kernels with graph-level best records
+    print("\nEvaluation of the network been tuned on graph level:")
     with autotvm.apply_graph_best(graph_opt_sch_file):
         print("Compile...")
         with tvm.transform.PassContext(opt_level=3):
             lib = relay.build_module.build(mod, target=target, params=params)
-
-        # upload parameters to device
-        dev = tvm.cpu()
-        data_tvm = tvm.nd.array((np.random.uniform(size=data_shape)).astype(dtype))
-        module = runtime.GraphModule(lib["default"](dev))
-        module.set_input(input_name, data_tvm)
-
-        # evaluate
-        print("Evaluate inference time cost...")
-        ftimer = module.module.time_evaluator("run", dev, number=100, repeat=3)
-        prof_res = np.array(ftimer().results) * 1000  # convert to millisecond
-        print(
-            "Mean inference time (std dev): %.2f ms (%.2f ms)"
-            % (np.mean(prof_res), np.std(prof_res))
-        )
+        evaluate_performance(lib, data_shape)
 
 
 # We do not run the tuning in our webpage server since it takes too long.
@@ -256,6 +274,29 @@ def tune_and_evaluate(tuning_opt):
 #    [Task 10/12]  Current/Best:  182.33/1734.45 GFLOPS | Progress: (360/360) | 1755.06 s Done.
 #    [Task 11/12]  Current/Best:  372.18/1745.15 GFLOPS | Progress: (360/360) | 1684.50 s Done.
 #    [Task 12/12]  Current/Best:  215.34/2271.11 GFLOPS | Progress: (400/400) | 2128.74 s Done.
+#    INFO Start to benchmark layout transformation...
+#    INFO Benchmarking layout transformation successful.
+#    INFO Start to run dynamic programming algorithm...
+#    INFO Start forward pass...
+#    INFO Finished forward pass.
+#    INFO Start backward pass...
+#    INFO Finished backward pass...
+#    INFO Finished DPExecutor run.
+#    INFO Writing optimal schedules to resnet-18_graph_opt.log successfully.
+#
+#    Evaluation of the network compiled in 'default' mode without auto tune:
 #    Compile...
+#    Evaluate inference time cost...
+#    Mean inference time (std dev): 4.5 ms (0.03 ms)
+#
+#    Evaluation of the network been tuned on kernel level:
+#    Compile...
+#    Evaluate inference time cost...
+#    Mean inference time (std dev): 3.2 ms (0.03 ms)
+#
+#    Evaluation of the network been tuned on graph level:
+#    Compile...
+#    Config for target=llvm -keys=cpu -link-params=0, workload=('dense_nopack.x86', ('TENSOR', (1, 512), 'float32'), ('TENSOR', (1000, 512), 'float32'), None, 'float32') is missing in ApplyGraphBest context. A fallback configuration is used, which may bring great performance regression.
+#    Config for target=llvm -keys=cpu -link-params=0, workload=('dense_pack.x86', ('TENSOR', (1, 512), 'float32'), ('TENSOR', (1000, 512), 'float32'), None, 'float32') is missing in ApplyGraphBest context. A fallback configuration is used, which may bring great performance regression.
 #    Evaluate inference time cost...
 #    Mean inference time (std dev): 3.16 ms (0.03 ms)
