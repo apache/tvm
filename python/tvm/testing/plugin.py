@@ -40,19 +40,22 @@ import tvm
 from tvm.testing import utils
 
 
+MARKERS = {
+    "gpu": "mark a test as requiring a gpu",
+    "tensorcore": "mark a test as requiring a tensorcore",
+    "cuda": "mark a test as requiring cuda",
+    "opencl": "mark a test as requiring opencl",
+    "rocm": "mark a test as requiring rocm",
+    "vulkan": "mark a test as requiring vulkan",
+    "metal": "mark a test as requiring metal",
+    "llvm": "mark a test as requiring llvm",
+}
+
+
 def pytest_configure(config):
     """Runs at pytest configure time, defines marks to be used later."""
-    markers = {
-        "gpu": "mark a test as requiring a gpu",
-        "tensorcore": "mark a test as requiring a tensorcore",
-        "cuda": "mark a test as requiring cuda",
-        "opencl": "mark a test as requiring opencl",
-        "rocm": "mark a test as requiring rocm",
-        "vulkan": "mark a test as requiring vulkan",
-        "metal": "mark a test as requiring metal",
-        "llvm": "mark a test as requiring llvm",
-    }
-    for markername, desc in markers.items():
+
+    for markername, desc in MARKERS.items():
         config.addinivalue_line("markers", "{}: {}".format(markername, desc))
 
     print("enabled targets:", "; ".join(map(lambda x: x[0], utils.enabled_targets())))
