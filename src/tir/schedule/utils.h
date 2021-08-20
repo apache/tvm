@@ -117,6 +117,15 @@ inline Array<For> LoopSRefs2Loops(const Array<StmtSRef>& loop_srefs) {
   return loops;
 }
 
+/*!
+ * \brief Convert a tvm::runtime::Array to std::vector
+ * \tparam TSrc The type of elements in the source Array
+ * \tparam TDst The type of elements in the result vector
+ * \return The result vector
+ */
+template <class TSrc, class TDst>
+std::vector<TDst> AsVector(const Array<TSrc>& vec);
+
 /******** Storage scope ********/
 
 /*!
@@ -190,6 +199,65 @@ inline Map<Var, arith::IntSet> AsIntSet(const Map<Var, Range>& var_dom) {
     result.emplace(std::move(var), arith::IntSet::FromRange(std::move(range)));
   }
   return {result.begin(), result.end()};
+}
+
+/**************** AsVector<TSrc, TDst> ****************/
+
+namespace details {
+
+template <class TSrc, class TDst>
+struct AsVectorImpl {};
+
+template <class TSrc>
+struct AsVectorImpl<TSrc, TSrc> {
+  inline std::vector<TSrc> operator()(const Array<TSrc>& vec) const {
+    return std::vector<TSrc>(vec.begin(), vec.end());
+  }
+};
+
+template <class TSrcObjectRef>
+struct AsVectorImpl<TSrcObjectRef, int> {
+  inline std::vector<int> operator()(const Array<TSrcObjectRef>& vec) const {
+    std::vector<int> results;
+    for (const TSrcObjectRef& x : vec) {
+      const auto* n = x.template as<IntImmNode>();
+      ICHECK(n) << "TypeError: Expects IntImm, but gets: " << x->GetTypeKey();
+      results.push_back(n->value);
+    }
+    return results;
+  }
+};
+
+template <class TSrcObjectRef>
+struct AsVectorImpl<TSrcObjectRef, int64_t> {
+  inline std::vector<int64_t> operator()(const Array<TSrcObjectRef>& vec) const {
+    std::vector<int64_t> results;
+    for (const TSrcObjectRef& x : vec) {
+      const auto* n = x.template as<IntImmNode>();
+      ICHECK(n) << "TypeError: Expects IntImm, but gets: " << x->GetTypeKey();
+      results.push_back(n->value);
+    }
+    return results;
+  }
+};
+
+template <class TSrcObjectRef>
+struct AsVectorImpl<TSrcObjectRef, double> {
+  inline std::vector<double> operator()(const Array<TSrcObjectRef>& array) const {
+    std::vector<double> results;
+    for (const TSrcObjectRef& x : array) {
+      const auto* n = x.template as<FloatImmNode>();
+      ICHECK(n) << "TypeError: Expects FloatImm, but gets: " << x->GetTypeKey();
+      results.push_back(n->value);
+    }
+    return results;
+  }
+};
+}  // namespace details
+
+template <class TSrc, class TDst>
+inline std::vector<TDst> AsVector(const Array<TSrc>& vec) {
+  return details::AsVectorImpl<TSrc, TDst>()(vec);
 }
 
 }  // namespace tir

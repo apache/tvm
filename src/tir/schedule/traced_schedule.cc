@@ -21,14 +21,15 @@
 namespace tvm {
 namespace tir {
 
-Schedule Schedule::Traced(IRModule mod, int debug_mask,
-                          ScheduleErrorRenderLevel error_render_level) {
+Schedule Schedule::Traced(IRModule mod, support::LinearCongruentialEngine::TRandState seed,
+                          int debug_mask, ScheduleErrorRenderLevel error_render_level) {
   ObjectPtr<TracedScheduleNode> n = make_object<TracedScheduleNode>();
   n->state_ = ScheduleState(mod, debug_mask);
   n->error_render_level_ = error_render_level;
   n->symbol_table_ = {};
   n->analyzer_ = std::make_unique<arith::Analyzer>();
   n->trace_ = Trace();
+  support::LinearCongruentialEngine(&n->rand_state_).Seed(seed);
   return Schedule(std::move(n));
 }
 
@@ -42,6 +43,20 @@ Schedule TracedScheduleNode::Copy() const {
 }
 
 /******** Schedule: Sampling ********/
+ExprRV TracedScheduleNode::SampleCategorical(const Array<Integer>& candidates,
+                                             const Array<FloatImm>& probs,
+                                             Optional<Integer> decision) {
+  ExprRV result = CreateRV(static_cast<int>(
+      tir::SampleCategorical(this->state_, &this->rand_state_, candidates, probs, &decision)));
+
+  static const InstructionKind& kind = InstructionKind::Get("SampleCategorical");
+  trace_->Append(/*inst=*/Instruction(/*kind=*/kind,  //
+                                      /*inputs=*/{},
+                                      /*attrs=*/{candidates, probs},
+                                      /*outputs=*/{result}),
+                 /*decision=*/decision);
+  return result;
+}
 
 /******** Schedule: Get blocks & loops ********/
 

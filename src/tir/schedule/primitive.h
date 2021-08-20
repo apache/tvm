@@ -25,17 +25,20 @@
 namespace tvm {
 namespace tir {
 
-using RandEngine = support::LinearCongruentialEngine;
-using TRandState = RandEngine::TRandState;
-
 /******** Schedule: Sampling ********/
 /*!
  * \brief Sample an integer in [min_inclusive, max_exclusive)
- * \param min_inclusive The left boundary, inclusive
- * \param max_exclusive The right boundary, exclusive
- * \return The integer sampled
+ * \param self The schedule to update
+ * \param rand_state The pointer to schedule's random state
+ * \param candidates The candidates
+ * \param probs The probability distribution of the candidates
+ * \param decision The sampling decision
+ * \return The random variable sampled from candidates
  */
-int SampleInt(TRandState* rand_state, int min_inclusive, int max_exclusive);
+TVM_DLL int64_t SampleCategorical(tir::ScheduleState self,
+                                  support::LinearCongruentialEngine::TRandState* rand_state,
+                                  const Array<Integer>& candidates, const Array<FloatImm>& probs,
+                                  Optional<Integer>* decision);
 
 /******** Schedule: Get blocks & loops ********/
 /*!

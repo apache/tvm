@@ -60,13 +60,15 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleCopy")  //
 TVM_REGISTER_GLOBAL("tir.schedule.BlockRV").set_body_typed([]() { return BlockRV(); });
 TVM_REGISTER_GLOBAL("tir.schedule.LoopRV").set_body_typed([]() { return LoopRV(); });
 TVM_REGISTER_GLOBAL("tir.schedule.ConcreteSchedule")
-    .set_body_typed([](IRModule mod, int debug_mask, int error_render_level) -> Schedule {
-      return Schedule::Concrete(mod, debug_mask,
+    .set_body_typed([](IRModule mod, support::LinearCongruentialEngine::TRandState seed,
+                       int debug_mask, int error_render_level) -> Schedule {
+      return Schedule::Concrete(mod, debug_mask, seed,
                                 static_cast<ScheduleErrorRenderLevel>(error_render_level));
     });
 TVM_REGISTER_GLOBAL("tir.schedule.TracedSchedule")
-    .set_body_typed([](IRModule mod, int debug_mask, int error_render_level) -> Schedule {
-      return Schedule::Traced(mod, debug_mask,
+    .set_body_typed([](IRModule mod, support::LinearCongruentialEngine::TRandState seed,
+                       int debug_mask, int error_render_level) -> Schedule {
+      return Schedule::Traced(mod, seed, debug_mask,
                               static_cast<ScheduleErrorRenderLevel>(error_render_level));
     });
 
@@ -117,6 +119,8 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleRemoveRV")
     });
 
 /******** (FFI) Sampling ********/
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSampleCategorical")
+    .set_body_method<Schedule>(&ScheduleNode::SampleCategorical);
 /******** (FFI) Get blocks & loops ********/
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetBlock")
     .set_body_method<Schedule>(&ScheduleNode::GetBlock);

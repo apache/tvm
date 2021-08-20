@@ -47,6 +47,15 @@ class TracedScheduleNode : public ConcreteScheduleNode {
 
  public:
   /******** Schedule: Sampling ********/
+  /*!
+   * \brief Sample an integer given the probability distribution
+   * \param candidates The candidates
+   * \param probs The probability distribution of the candidates
+   * \param decision The sampling decision
+   * \return The random variable sampled from candidates
+   */
+  ExprRV SampleCategorical(const Array<Integer>& candidates, const Array<FloatImm>& probs,
+                           Optional<Integer> decision = NullOpt) final;
 
   /******** Schedule: Get blocks & loops ********/
   BlockRV GetBlock(const String& name, const String& func_name = "main") final;

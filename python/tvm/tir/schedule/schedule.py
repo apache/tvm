@@ -268,6 +268,19 @@ class Schedule(Object):
 
     ########## Schedule: Sampling ##########
 
+    def sample_categorical(
+        self,
+        candidates: List[int],
+        probs: List[float],
+        decision: Optional[int] = None,
+    ) -> ExprRV:
+        return _ffi_api.ScheduleSampleCategorical(  # type: ignore # pylint: disable=no-member
+            self,
+            candidates,
+            probs,
+            decision,
+        )
+
     ########## Schedule: Get blocks & loops ##########
     def get_block(
         self,

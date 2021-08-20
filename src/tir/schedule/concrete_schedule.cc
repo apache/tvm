@@ -21,13 +21,14 @@
 namespace tvm {
 namespace tir {
 
-Schedule Schedule::Concrete(IRModule mod, int debug_mask,
-                            ScheduleErrorRenderLevel error_render_level) {
+Schedule Schedule::Concrete(IRModule mod, support::LinearCongruentialEngine::TRandState seed,
+                            int debug_mask, ScheduleErrorRenderLevel error_render_level) {
   ObjectPtr<ConcreteScheduleNode> n = make_object<ConcreteScheduleNode>();
   n->state_ = ScheduleState(mod, debug_mask);
   n->error_render_level_ = error_render_level;
   n->symbol_table_ = {};
   n->analyzer_ = std::make_unique<arith::Analyzer>();
+  support::LinearCongruentialEngine(&n->rand_state_).Seed(seed);
   return Schedule(std::move(n));
 }
 
@@ -208,6 +209,16 @@ Schedule ConcreteScheduleNode::Copy() const {
   }
 
 /******** Schedule: Schedule: Sampling ********/
+ExprRV ConcreteScheduleNode::SampleCategorical(const Array<Integer>& candidates,
+                                               const Array<FloatImm>& probs,
+                                               Optional<Integer> decision) {
+  TVM_TIR_SCHEDULE_BEGIN();
+  return CreateRV(static_cast<int>(
+      tir::SampleCategorical(state_, &this->rand_state_, candidates, probs, &decision)));
+  TVM_TIR_SCHEDULE_END("sample-categorical", this->error_render_level_);
+  throw;
+}
+
 /******** Schedule: Get blocks & loops ********/
 
 BlockRV ConcreteScheduleNode::GetBlock(const String& name, const String& func_name) {
