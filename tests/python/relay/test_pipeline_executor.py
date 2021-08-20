@@ -22,6 +22,68 @@ from tvm import relay
 from tvm.relay import transform
 from tvm.contrib import graph_executor, pipeline_executor
 
+class PipelineModuleConfig:
+    class interface:
+        def __init__(self, owner, itype, name):
+            self.owner_ = owner
+            self.itype_ = itype
+            self.name_ = name
+            self.dependent_ = []
+            return
+
+        def get_dependent_str(self):
+            name = ""
+            for dependent in self.dependent_:
+                name = name + dependent.name_
+            return name
+
+        def addDependent(self, dependent):
+            self.dependent_.append(dependent)
+
+    class instance:
+        def __init__(self):
+            self.interfaces_ = {1:{}, 2:{}}
+            return
+
+        def get_interface(self, itype,  name):
+            if name not in self.interfaces_[itype]:
+                self.interfaces_[itype][name] = PipelineModuleConfig.interface(0, itype, name)
+
+            return self.interfaces_[itype][name]
+
+        def input(self, name):
+            return self.get_interface(1, name)
+
+        def output(self, index):
+            return self.get_interface(2, index)
+
+
+    def __init__(self, mods):
+        self.pipe_instance = self.instance()
+        self.mod_instance = {m:self.instance() for m in mods}
+        return
+
+    def __str__(self):
+        dump = "Inputs\n"
+        for input_name in self.pipe_instance.interfaces_[1]:
+            inf = self.pipe_instance.interfaces_[1][input_name]
+            dump = dump + "  |" +input_name + ": " + inf.get_dependent_str() + "\n"
+        return dump
+
+    def __getitem__(self, key):
+        return self.mod_instance[key]
+
+    def pipe_input(self, name):
+        return self.pipe_instance.input(name)
+
+    def pipe_output(self, index):
+        return self.pipe_instance.output(index)
+
+    def connect(self, left:interface, right:interface):
+        left.addDependent(right)
+        return
+
+
 
 def get_mannual_mod():
     mods = []
@@ -131,6 +193,32 @@ def test_pipeline():
         for target in target_list:
             pipeline(target)
 
+def test_config():
+    (mod1, mod2, mod3), dshape = get_mannual_mod()
+    pipe_config = PipelineModuleConfig([mod1, mod2, mod3])
+    pipe_config.connect(pipe_config.pipe_input("data_0"),
+                        pipe_config[mod1].input("data_0"))
+
+    pipe_config.connect(pipe_config.pipe_input("data_1"),
+                        pipe_config[mod2].input("data_1"))
+
+    pipe_config.connect(pipe_config[mod1].output(0),
+                        pipe_config[mod2].input("data_0"))
+
+    pipe_config.connect(pipe_config[mod1].output(1),
+                        pipe_config[mod3].input("data_0"))
+
+    pipe_config.connect(pipe_config[mod2].output(0),
+                        pipe_config[mod3].input("data_1"))
+
+    pipe_config.connect(pipe_config[mod1].output(2),
+                        pipe_config.pipe_output("0"))
+
+    pipe_config.connect(pipe_config[mod3].output(0),
+                        pipe_config.pipe_output("1"))
+
+    print(pipe_config)
 
 if __name__ == "__main__":
-    test_pipeline()
+    #test_pipeline()
+    test_config()
