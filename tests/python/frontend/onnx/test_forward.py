@@ -5056,7 +5056,7 @@ def test_aten(target, dev):
             target=target,
             dev=dev,
         )
-        tvm.testing.assert_allclose(torch_out.numpy(), tvm_out)
+        tvm.testing.assert_allclose(torch_out.numpy(), tvm_out, atol=5e-7)
 
     verify_embedding_bag(10, 3, [2, 10])
     verify_embedding_bag(32, 2, [3, 3])
