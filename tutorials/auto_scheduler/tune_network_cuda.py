@@ -288,7 +288,7 @@ module.set_input("data", data_tvm)
 
 # Evaluate
 print("Evaluate inference time cost...")
-print(module.benchmark(dev, repeat=3, min_repeat_ms=500)
+print(module.benchmark(dev, repeat=3, min_repeat_ms=500))
 
 
 #################################################################

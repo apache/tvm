@@ -264,7 +264,7 @@ def tune_and_evaluate():
 
     # Evaluate
     print("Evaluate inference time cost...")
-    print(module.benchmark(dev, repeat=3, min_repeat_ms=500)
+    print(module.benchmark(dev, repeat=3, min_repeat_ms=500))
 
 
 # We do not run the tuning in our webpage server since server doesn't have mali gpu.
