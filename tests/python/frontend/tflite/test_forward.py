@@ -322,7 +322,6 @@ def compare_tflite_with_tvm(
                 out_names=out_names,
                 mode=mode,
             )
-
             # WARNING: the results could well be random values clipped to 0 or 255 because of badly tuned output
             # range for the specific operator. While adding test ensure that we aren't getting only clipped values
             # in output tensors that still pass the assertion. For reference see _test_elemwise_qnn_out_range()
@@ -2616,6 +2615,22 @@ def test_forward_select():
             compare_tflite_with_tvm(
                 [in_data1, in_data2], ["input1:0", "input2:0"], [input1, input2], [out]
             )
+
+
+@pytest.mark.parametrize("quant_bits", [2, 4, 8, 16])
+@pytest.mark.parametrize(
+    "value, min, max", [[-10.11, -6, 6], [-3.55, -6, 6], [0, -6, 6], [3.55, -6, 6], [10.11, -6, 6]]
+)
+def test_forward_fake_quant(value, min, max, quant_bits):
+    with tf.Graph().as_default():
+        with tf.Session() as sess:
+            input = tf.placeholder(tf.float32, shape=[1], name="input")
+            out = tf.quantization.fake_quant_with_min_max_args(
+                input, min=min, max=max, num_bits=quant_bits, name=None
+            )
+
+            in_data = np.float32(value)
+            compare_tflite_with_tvm([in_data], ["input:0"], [input], [out])
 
 
 # Squeeze
