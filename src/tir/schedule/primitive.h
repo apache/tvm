@@ -27,12 +27,12 @@ namespace tir {
 
 /******** Schedule: Sampling ********/
 /*!
- * \brief Sample an integer in [min_inclusive, max_exclusive)
+ * \brief Sample once category from candidates according to the probability weights.
  * \param self The schedule to update
  * \param rand_state The pointer to schedule's random state
  * \param candidates The candidates
  * \param probs The probability distribution of the candidates
- * \param decision The sampling decision
+ * \param decision The sampling decision, if any
  * \return The random variable sampled from candidates
  */
 TVM_DLL int64_t SampleCategorical(tir::ScheduleState self,
