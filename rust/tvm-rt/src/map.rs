@@ -121,43 +121,6 @@ where
     }
 }
 
-// pub struct Iter<'a, K, V> {
-//     // NB: due to FFI this isn't as lazy as one might like
-//     key_and_values: Array<ObjectRef>,
-//     next_key: i64,
-//     _data: PhantomData<(&'a K, &'a V)>,
-// }
-
-// impl<'a, K, V> Iterator for Iter<'a, K, V>
-// where
-//     K: IsObjectRef,
-//     V: IsObjectRef,
-// {
-//     type Item = (&'a K, &'a V);
-
-//     #[inline]
-//     fn next(&mut self) -> Option<(&'a K, &'a V)> {
-//         if self.next_key < self.key_and_values.len() {
-//             let key = self
-//                 .key_and_values
-//                 .get(self.next_key as isize)
-//                 .expect("this should always succeed");
-//             let value = self
-//                 .key_and_values
-//                 .get((self.next_key as isize) + 1)
-//                 .expect("this should always succeed");
-//             self.next_key += 2;
-//             Some((key.downcast().unwrap(), value.downcast().unwrap()))
-//         } else {
-//             None
-//         }
-//     }
-
-//     #[inline]
-//     fn size_hint(&self) -> (usize, Option<usize>) {
-//         ((self.key_and_values.len() / 2) as usize, None)
-//     }
-// }
 pub struct IntoIter<K, V> {
     // NB: due to FFI this isn't as lazy as one might like
     key_and_values: Array<ObjectRef>,

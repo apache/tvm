@@ -115,7 +115,6 @@ impl Function {
     pub fn invoke<'a>(&self, arg_buf: Vec<ArgValue<'a>>) -> Result<RetValue> {
         let num_args = arg_buf.len();
         let (mut values, mut type_codes): (Vec<ffi::TVMValue>, Vec<ffi::TVMArgTypeCode>) = arg_buf
-            .clone()
             .into_iter()
             .map(|arg| arg.to_tvm_value())
             .unzip();
@@ -133,10 +132,6 @@ impl Function {
                 &mut ret_type_code as *mut _,
             )
         };
-
-        if ret_type_code == crate::ffi::TVMArgTypeCode_kTVMObjectRValueRefArg as _ {
-            panic!()
-        }
 
         if ret_code != 0 {
             let raw_error = crate::get_last_error();
@@ -204,8 +199,8 @@ impl TryFrom<RetValue> for Function {
     }
 }
 
-impl<'a> From<&Function> for ArgValue<'a> {
-    fn from(func: &Function) -> ArgValue<'a> {
+impl<'a> From<&'a Function> for ArgValue<'a> {
+    fn from(func: &'a Function) -> ArgValue<'a> {
         if func.handle().is_null() {
             ArgValue::Null
         } else {
@@ -303,7 +298,7 @@ pub fn register_untyped<S: Into<String>>(
     name: S,
     override_: bool,
 ) -> Result<()> {
-    // // TODO(@jroesch): can we unify all the code.
+    //TODO(@jroesch): can we unify the untpyed and typed registration functions.
     let func = ToFunction::<RawArgs, RetValue>::to_function(f);
     let name = name.into();
     // Not sure about this code
