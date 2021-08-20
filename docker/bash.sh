@@ -311,9 +311,33 @@ if [[ "${DOCKER_IMAGE_NAME}" == *"gpu"* || "${DOCKER_IMAGE_NAME}" == *"cuda"* ]]
         DOCKER_BINARY=docker
         DOCKER_FLAGS+=( --gpus all )
     fi
+
+    # nvidia-docker treats Vulkan as a graphics API, so we need to
+    # request passthrough of graphics APIs.  This could also be set in
+    # the Dockerfile.
+    DOCKER_ENV+=( --env NVIDIA_DRIVER_CAPABILITIES=compute,graphics,utility )
+
+    # But as of nvidia-docker version 2.6.0-1, we still need to pass
+    # through the nvidia icd files ourselves.
+    ICD_SEARCH_LOCATIONS=(
+        # https://github.com/KhronosGroup/Vulkan-Loader/blob/master/loader/LoaderAndLayerInterface.md#icd-discovery-on-linux
+        /usr/local/etc/vulkan/icd.d
+        /usr/local/share/vulkan/icd.d
+        /etc/vulkan/icd.d
+        /usr/share/vulkan/icd.d
+        # https://github.com/NVIDIA/libglvnd/blob/master/src/EGL/icd_enumeration.md#icd-installation
+        /etc/glvnd/egl_vendor.d
+        /usr/share/glvnd/egl_vendor.d
+    )
+    for filename in $(find "${ICD_SEARCH_LOCATIONS[@]}" -name "*nvidia*.json" 2> /dev/null); do
+        DOCKER_MOUNT+=( --volume "${filename}":"${filename}":ro )
+    done
+
 else
     DOCKER_BINARY=docker
 fi
+
+
 
 # Pass any restrictions of allowed CUDA devices from the host to the
 # docker container.

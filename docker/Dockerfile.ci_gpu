@@ -83,6 +83,7 @@ RUN bash /install/ubuntu_install_caffe2.sh
 COPY install/ubuntu_install_dgl.sh /install/ubuntu_install_dgl.sh
 RUN bash /install/ubuntu_install_dgl.sh
 
+ENV NVIDIA_DRIVER_CAPABILITIES compute,graphics,utility
 COPY install/ubuntu_install_vulkan.sh /install/ubuntu_install_vulkan.sh
 RUN bash /install/ubuntu_install_vulkan.sh
 
