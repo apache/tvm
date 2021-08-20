@@ -568,6 +568,44 @@ def test_forward_pool2d():
 
 
 @tvm.testing.uses_gpu
+def test_forward_pad():
+    class Pad1(nn.Layer):
+        def __init__(self):
+            super(Pad, self).__init__()
+            self.pad = nn.Pad3D(padding=[1, 2, 3, 4, 5, 6], mode="replicate", value=0.5)
+
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return self.pad(inputs)
+
+    @paddle.jit.to_static
+    def pad2(inputs):
+        return paddle.nn.functional.pad(
+            inputs, [1, 3, 1, 4, 1, 0], mode="constant", value=2.2, data_format="NDHWC"
+        )
+
+    @paddle.jit.to_static
+    def pad3(inputs):
+        return paddle.nn.functional.pad(
+            inputs, [2, 3, 1, 0], mode="reflect", value=2.0, data_format="NCHW"
+        )
+
+    @paddle.jit.to_static
+    def pad4(inputs):
+        return paddle.nn.functional.pad(
+            inputs, [2, 1], mode="replicate", value=2.0, data_format="NLC"
+        )
+
+    input_data = paddle.rand([2, 3, 6, 7, 8], dtype="float32")
+    verify_model(Pad1(), input_data=input_data)
+    verify_model(pad2, input_data=input_data)
+    input_data = paddle.rand([2, 4, 3, 5], dtype="float32")
+    verify_model(pad3, input_data=input_data)
+    input_data = paddle.rand([2, 4, 5], dtype="float32")
+    verify_model(pad4, input_data=input_data)
+
+
+@tvm.testing.uses_gpu
 def test_forward_relu():
     @paddle.jit.to_static
     def relu(inputs):
@@ -717,6 +755,7 @@ if __name__ == "__main__":
     test_forward_multiply()
     test_forward_matmul()
     test_forward_pool2d()
+    test_forward_pad()
     test_forward_relu()
     test_forward_reshape()
     test_forward_scale()

@@ -694,6 +694,39 @@ def convert_pool2d(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_padding(g, op, block):
+    """Operator converter for padding."""
+
+    input_x = g.get_node(op.input("X")[0])
+    input_padding = op.input("Paddings")
+    if input_padding:
+        padding = g.get_node(input_padding[0])
+        padding = infer_value(padding, g.get_params()).numpy().tolist()
+    else:
+        padding = op.attr("paddings")
+    padding = op.attr("paddings")
+    value = op.attr("value")
+    data_format = op.attr("data_format")
+    mode = op.attr("mode")
+    assert mode != "circular", "Don't support mod='circular' for PaddlePaddle's padding"
+    if mode == "replicate":
+        mode = "edge"
+
+    new_pad_len = len(infer_shape(input_x)) * 2
+    new_paddings = [0] * new_pad_len
+    for i in range(0, len(padding), 2):
+        index = -1 - i
+        if data_format[:2] != "NC":
+            index = -3 - i
+        new_paddings[index] = padding[i + 1]
+        new_paddings[index - 1] = padding[i]
+
+    new_paddings = [new_paddings[i : i + 2] for i in range(0, len(new_paddings), 2)]
+
+    out = _op.nn.pad(input_x, new_paddings, pad_value=value, pad_mode=mode)
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_reshape(g, op, block):
     """Operator converter for reshape."""
 
@@ -862,6 +895,7 @@ _convert_map = {
     "mul": convert_mul,
     "nearest_interp_v2": convert_interpolate,
     "pool2d": convert_pool2d,
+    "pad3d": convert_padding,
     "relu": convert_activation,
     "reshape2": convert_reshape,
     "scale": convert_scale,
