@@ -321,6 +321,50 @@ def test_forward_conv():
 
 
 @tvm.testing.uses_gpu
+def test_forward_conv_transpose():
+    # Note we do not test with groups  > 1 because that is not supported
+    # in tvm for conv transpose operations
+
+    class Conv2DTranspose1(nn.Layer):
+        def __init__(self):
+            super(Conv2DTranspose1, self).__init__()
+            self.conv_transpose = nn.Conv2DTranspose(3, 5, 3)
+
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return self.conv_transpose(inputs)
+
+    class Conv2DTranspose2(nn.Layer):
+        def __init__(self):
+            super(Conv2DTranspose2, self).__init__()
+            self.conv_transpose = nn.Conv2DTranspose(
+                3, 5, 3, stride=2, output_padding=1, bias_attr=True
+            )
+
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return self.conv_transpose(inputs)
+
+    class Conv2DTranspose3(nn.Layer):
+        def __init__(self):
+            super(Conv2DTranspose3, self).__init__()
+            self.conv_transpose = nn.Conv2DTranspose(
+                3, 5, 3, stride=3, output_padding=2, bias_attr=True
+            )
+
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return self.conv_transpose(inputs)
+
+    # Conv 2D Transpose Tests
+    conv2d_transpose_input_shape = [1, 3, 128, 256]
+    conv2d_transpose_input_data = paddle.rand(conv2d_transpose_input_shape, dtype="float32")
+    verify_model(Conv2DTranspose1(), input_data=conv2d_transpose_input_data)
+    verify_model(Conv2DTranspose2(), input_data=conv2d_transpose_input_data)
+    verify_model(Conv2DTranspose3(), input_data=conv2d_transpose_input_data)
+
+
+@tvm.testing.uses_gpu
 def test_forward_dropout():
     @paddle.jit.to_static
     def dropout(inputs):
@@ -633,29 +677,42 @@ def test_forward_tanh():
     verify_model(tanh, input_data=input_data)
 
 
+@tvm.testing.uses_gpu
+def test_forward_sigmoid():
+    @paddle.jit.to_static
+    def sigmoid(inputs):
+        return nn.functional.sigmoid(inputs)
+
+    input_shape = [10, 10]
+    input_data = paddle.rand(input_shape, dtype="float32")
+    verify_model(sigmoid, input_data=input_data)
+
+
 if __name__ == "__main__":
-    test_forward_add_subtract()
-    test_forward_argmax()
-    test_forward_assign()
-    test_forward_batch_norm()
-    test_forward_cast()
-    test_forward_concat_unsqueeze()
-    test_forward_cumsum()
-    test_forward_conv()
-    test_forward_dropout()
-    test_forward_shape_full()
-    test_forward_ones_like()
-    test_forward_gelu()
-    test_forward_hard_sigmoid()
-    test_forward_hard_swish()
-    test_forward_layer_norm()
-    test_forward_leaky_relu()
-    test_forward_look_up()
-    test_forward_multiply()
-    test_forward_matmul()
-    test_forward_pool2d()
-    test_forward_relu()
-    test_forward_reshape()
-    test_forward_scale()
-    test_forward_slice()
-    test_forward_tanh()
+    # test_forward_add_subtract()
+    # test_forward_argmax()
+    # test_forward_assign()
+    # test_forward_batch_norm()
+    # test_forward_cast()
+    # test_forward_concat_unsqueeze()
+    # test_forward_cumsum()
+    # test_forward_conv()
+    # test_forward_dropout()
+    # test_forward_shape_full()
+    # test_forward_ones_like()
+    # test_forward_gelu()
+    # test_forward_hard_sigmoid()
+    # test_forward_hard_swish()
+    # test_forward_layer_norm()
+    # test_forward_leaky_relu()
+    # test_forward_look_up()
+    # test_forward_multiply()
+    # test_forward_matmul()
+    # test_forward_pool2d()
+    # test_forward_relu()
+    # test_forward_reshape()
+    # test_forward_scale()
+    # test_forward_slice()
+    # test_forward_tanh()
+    test_forward_conv_transpose()
+    test_forward_sigmoid()
