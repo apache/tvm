@@ -437,6 +437,15 @@ TVM_DLL Pass LowerMatchBuffer();
  */
 TVM_DLL Pass FlattenBuffer();
 
+/*
+ * \brief Flatten the multi-dimensional read/write
+ *  to two dimensional texture Load/Store and realize
+ *  texture buffer allocations.
+ *
+ * \return The Pass
+ */
+TVM_DLL Pass TextureFlatten();
+
 /*!
  * \brief Unify all the thread bindings for "blockIdx.x/y/z", "threadIdx.x/y/z", and
  *        "vthread.x/y/z". Before the unification, two vars that are bound to a thread axis (e.g.,

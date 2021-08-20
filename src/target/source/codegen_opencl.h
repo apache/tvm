@@ -27,6 +27,7 @@
 #include <tvm/target/codegen.h>
 
 #include <string>
+#include <unordered_map>
 
 #include "codegen_c.h"
 
@@ -45,18 +46,24 @@ class CodeGenOpenCL final : public CodeGenC {
   void PrintStorageScope(const std::string& scope, std::ostream& os) final;  // NOLINT(*)
   void PrintStorageSync(const CallNode* op) final;                           // NOLINT(*)
   void PrintType(DataType t, std::ostream& os) final;                        // NOLINT(*)
+  void PrintType(const Type& type, std::ostream& os) final;                  // NOLINT(*)
   std::string GetVecLoad(DataType t, const VarNode* buffer, PrimExpr base) final;
   void PrintVecStore(const VarNode* buffer, DataType t, PrimExpr base,
                      const std::string& value) final;  // NOLINT(*)
   // the address of load/store
   void PrintVecAddr(const VarNode* buffer, DataType t, PrimExpr base,
-                    std::ostream& os);                                        // NOLINT(*)
-  std::string CastFromTo(std::string value, DataType from, DataType target);  // NOLINT(*)
+                    std::ostream& os);                                           // NOLINT(*)
+  void PrintRestrict(const Var& v, std::ostream& os) final;                      // NOLINT(*)
+  std::string CastFromTo(std::string value, DataType from, DataType target);     // NOLINT(*)
+  void SetTextureScope(const std::unordered_map<const VarNode*, std::string>&);  // NOLINT(*)
 
   // overload visitor
-  void VisitExpr_(const CallNode* op, std::ostream& os) final;       // NOLINT(*)
+  void VisitStmt_(const AllocateNode* op) final;                     // NOLINT(*)
   void VisitExpr_(const BroadcastNode* op, std::ostream& os) final;  // NOLINT(*)
+  void VisitExpr_(const CallNode* op, std::ostream& os) final;       // NOLINT(*)
+  void VisitExpr_(const CastNode* op, std::ostream& os) final;       // NOLINT(*)
   void VisitExpr_(const FloatImmNode* op, std::ostream& os) final;   // NOLINT(*)
+  void VisitStmt_(const StoreNode* op) final;                        // NOLINT(*)
 
  private:
   // whether enable fp16 and fp64 extension
@@ -64,6 +71,15 @@ class CodeGenOpenCL final : public CodeGenC {
   bool enable_fp64_{false};
   // Whether to enable atomics extension.
   bool enable_atomics_{false};
+  // Whether to enable sampler or sampler-less texture reads,
+  // where the choice depends on the OpenCL version used.
+  bool enable_compliant_texture_reads_{false};
+  // Key to disable use of texture SSA in certain scenarios. For example,
+  // when loaded value is stored directly to a user declared l-value buffer
+  bool need_texture_ssa_{true};
+  // Mapping from buffer to allocation size.
+  // Useful to track when a scalar store of a vectorized texture load is required.
+  std::unordered_map<const Object*, int32_t> allocation_size_;
 };
 
 }  // namespace codegen
