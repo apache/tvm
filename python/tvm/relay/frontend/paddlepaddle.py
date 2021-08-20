@@ -895,6 +895,8 @@ _convert_map = {
     "mul": convert_mul,
     "nearest_interp_v2": convert_interpolate,
     "pool2d": convert_pool2d,
+    "pad1d": convert_padding,
+    "pad2d": convert_padding,
     "pad3d": convert_padding,
     "relu": convert_activation,
     "reshape2": convert_reshape,

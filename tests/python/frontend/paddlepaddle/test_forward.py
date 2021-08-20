@@ -571,7 +571,7 @@ def test_forward_pool2d():
 def test_forward_pad():
     class Pad1(nn.Layer):
         def __init__(self):
-            super(Pad, self).__init__()
+            super(Pad1, self).__init__()
             self.pad = nn.Pad3D(padding=[1, 2, 3, 4, 5, 6], mode="replicate", value=0.5)
 
         @paddle.jit.to_static
