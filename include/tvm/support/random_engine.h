@@ -19,7 +19,7 @@
 
 /*!
  * \file random_engine.h
- * \brief Random number generator, for Sampler and Sampling functions.
+ * \brief Random number generator, for Sampling functions.
  */
 
 #ifndef TVM_SUPPORT_RANDOM_ENGINE_H_
@@ -41,10 +41,11 @@ namespace support {
  *  included for simplification. For full member functions of std::minstd_rand, please check out the
  *  following link: https://en.cppreference.com/w/cpp/numeric/random/linear_congruential_engine
  */
+
 class LinearCongruentialEngine {
  public:
   /*!
-   * \brief The result type is defined as int64_t here for meta_schedule sampler usage.
+   * \brief The result type is defined as int64_t here to avoid overflow.
    * \note The type name is not in Google style because it is used in STL's distribution inferface.
    */
   using result_type = uint64_t;
@@ -63,13 +64,13 @@ class LinearCongruentialEngine {
    * \brief The minimum possible value of random state here.
    * \note The function name is uncapilized because it is used in STL's distribution inferface.
    */
-  result_type min() { return 0; }
+  static constexpr result_type min() { return 0; }
 
   /*!
    * \brief The maximum possible value of random state here.
    * \note The function name is uncapilized because it is used in STL's distribution inferface.
    */
-  result_type max() { return modulus - 1; }
+  static constexpr result_type max() { return modulus - 1; }
 
   /*!
    * \brief Operator to move the random state to the next and return the new random state. According

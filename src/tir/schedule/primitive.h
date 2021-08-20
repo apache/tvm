@@ -19,12 +19,24 @@
 #ifndef TVM_TIR_SCHEDULE_PRIMITIVE_H_
 #define TVM_TIR_SCHEDULE_PRIMITIVE_H_
 
+#include <tvm/support/random_engine.h>
 #include <tvm/tir/schedule/state.h>
 
 namespace tvm {
 namespace tir {
 
+using RandEngine = support::LinearCongruentialEngine;
+using TRandState = RandEngine::TRandState;
+
 /******** Schedule: Sampling ********/
+/*!
+ * \brief Sample an integer in [min_inclusive, max_exclusive)
+ * \param min_inclusive The left boundary, inclusive
+ * \param max_exclusive The right boundary, exclusive
+ * \return The integer sampled
+ */
+int SampleInt(TRandState* rand_state, int min_inclusive, int max_exclusive);
+
 /******** Schedule: Get blocks & loops ********/
 /*!
  * \brief Retrieves blocks in a specific function with its name

@@ -43,6 +43,8 @@ class ConcreteScheduleNode : public ScheduleNode {
   TSymbolTable symbol_table_;
   /*! \brief A persistent stateless arithmetic analyzer. */
   std::unique_ptr<arith::Analyzer> analyzer_;
+  /*! \brief The value of random state for sampling. */
+  TRandState rand_state_;
 
  public:
   void VisitAttrs(tvm::AttrVisitor* v) {
@@ -50,6 +52,7 @@ class ConcreteScheduleNode : public ScheduleNode {
     // `error_render_level_` is not visited
     // `symbol_table_` is not visited
     // `analyzer_` is not visited
+    // `rand_state_` is not visited
   }
 
   virtual ~ConcreteScheduleNode() = default;
