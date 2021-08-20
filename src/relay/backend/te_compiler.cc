@@ -880,7 +880,7 @@ IRModule LoweredModuleToIRModule(LoweredModule mod) {
     unified_module->AddTypeDef(kv.first, kv.second);
   }
 
-  // Annotate the per-target functions with thier target and add them to the unified module
+  // Annotate the per-target functions with their target and add them to the unified module
   for (const auto& kv : mod.per_target_module) {
     const Target target = kv.first;
     const IRModule target_module = kv.second;

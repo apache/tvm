@@ -67,7 +67,7 @@ struct EnumClassHash {
   }
 };
 
-// TODO(@jroesch, @chrisS) these shoumakeld be a tvm::Map for uniformity sake
+// TODO(@jroesch, @chrisS) these should be a tvm::Map for uniformity sake
 // we should a version of context which works in Map
 using TargetMap = std::unordered_map<DLDeviceType, Target, EnumClassHash>;
 using DeviceMap =
@@ -166,7 +166,7 @@ void UpdateFunctionMetadata(Function relay_func,
 /*!
  * \brief Obtain the Target from the device type.
  * If homogenous compilation, this will return the only target.
- * If heteregenous compilation, this will select the associated target using the
+ * If heterogeneous compilation, this will select the associated target using the
  * targets_ Map.
  *
  * \param dev_type
