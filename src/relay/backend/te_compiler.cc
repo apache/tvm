@@ -875,7 +875,9 @@ IRModule LoweredModuleToIRModule(LoweredModule mod) {
   IRModule unified_module;
 
   // Copy the main module and its typedefs
-  unified_module->Update(mod.main_module);
+  for (const auto& kv : mod.main_module->functions) {
+    unified_module->Add(kv.first, kv.second);
+  }
   for (const auto& kv : mod.main_module->type_definitions) {
     unified_module->AddTypeDef(kv.first, kv.second);
   }
