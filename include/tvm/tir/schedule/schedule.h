@@ -225,10 +225,10 @@ class ScheduleNode : public runtime::Object {
    * 1) The loops are in the same line. That means: the loops can be ordered to [l_1, l_2, ... ,
    *     l_n] where l_i is an ancestor of l_{i+1} and there are only single-branch loops between
    *     l_1 and l_n (which also indicates they are under the same scope).
-   * 2) In the new order, an outer loop cannot depend on inner loops.
-   * 3) The block below the loops have affine bindings and only have data-parallel or reduction
-   *     block iters
-   * 4) A loop cannot appear multiple times in the input array.
+   * 2) After reordering, the domain of an outer loop cannot depend on any of the inner loops
+   * 3) For every block under the loop nests, its block binding must be affine, and the block
+   *    variables must be either data parallel or reduction.
+   * 4) No duplicated loops are allowed in the arguments.
    * \param ordered_loop_rvs The loops in the new order
    */
   virtual void Reorder(const Array<LoopRV>& ordered_loop_rvs) = 0;
