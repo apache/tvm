@@ -289,7 +289,7 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
                     PatternFunctor<bool(const Pattern& p, const ObjectRef& v)> {
  public:
   // TODO(mbs): Collapse mod and per_target_module once IRModule subsumes LoweredModule.
-  Interpreter(IRModule mod, Map<String, IRModule> per_target_module, Device device, Target target)
+  Interpreter(IRModule mod, Map<Target, IRModule> per_target_module, Device device, Target target)
       : mod_(mod),
         per_target_module_(per_target_module),
         device_(device),
@@ -382,7 +382,7 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
 
     // Project out just the function(s) we need.
     IRModule lowered_projected_mod;
-    auto mod_itr = per_target_module_.find(target->str());
+    auto mod_itr = per_target_module_.find(target);
     ICHECK(mod_itr != per_target_module_.end())
         << "No target module for target '" << target->str() << "'";
     const IRModule& target_module = (*mod_itr).second;
@@ -407,7 +407,7 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
       PackedFunc packed_func = runtime_module.GetFunction(var->name_hint);
       ICHECK(packed_func != nullptr) << "No packed function for global var '" << var->name_hint
                                      << "' in compiled module for target '" << target->str() << "'";
-      compiled_packed_funcs_.emplace(std::make_pair(target->str(), var->name_hint), packed_func);
+      compiled_packed_funcs_.emplace(std::make_pair(target, var->name_hint), packed_func);
     }
 
     // Return just what we need for this call.
@@ -874,7 +874,7 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
   // Map from target key to lowered TIR functions derived from mod_.
   // Note that primitives are implicitly executed on target_, while shape functions are implicitly
   // executed on the default 'cpu' host. Thus this map has at most two entries.
-  Map<String, IRModule> per_target_module_;
+  Map<Target, IRModule> per_target_module_;
   // Cached packed functions for the primitives and shape functions, keyed by target and
   // global var name.
   std::unordered_map<std::pair<std::string, std::string>, PackedFunc, PairHash>
@@ -895,7 +895,7 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
  * rewritten \p mod and target-specific modules containing bindings for all TIR primitive
  * functions needed by the rewritten module.
  */
-std::pair<IRModule, Map<String, IRModule>> Prepare(IRModule mod, Device device, Target target) {
+std::pair<IRModule, Map<Target, IRModule>> Prepare(IRModule mod, Device device, Target target) {
   // Run minimal transforms on module to establish invariants needed by interpreter.
   transform::Sequential seq({transform::SimplifyInference(),
                              // FuseOps will mark wrapped calls to prim-ops with the 'Primitive'
@@ -1014,7 +1014,7 @@ TypedPackedFunc<ObjectRef(Array<Expr>)> EvalFunction(IRModule mod, Expr expr, De
     // and can just eval it directly.
     expr_to_eval = expr;
   }
-  std::pair<IRModule, Map<String, IRModule>> main_and_lowered =
+  std::pair<IRModule, Map<Target, IRModule>> main_and_lowered =
       Prepare(mod_with_expr, device, target);
   std::shared_ptr<Interpreter> intrp = std::make_shared<Interpreter>(
       /*mod=*/main_and_lowered.first, /*per_target_module=*/main_and_lowered.second, device,
@@ -1057,7 +1057,7 @@ ObjectRef Eval(Expr expr, Map<GlobalTypeVar, TypeData> type_definitions,
                std::unordered_set<String> import_set, Device device, Target target) {
   std::pair<IRModule, GlobalVar> mod_and_global =
       IRModule::FromExprInContext(expr, /*global_funcs=*/{}, type_definitions, import_set);
-  std::pair<IRModule, Map<String, IRModule>> main_and_lowered =
+  std::pair<IRModule, Map<Target, IRModule>> main_and_lowered =
       Prepare(mod_and_global.first, device, target);
   Interpreter intrp(
       /*mod=*/main_and_lowered.first, /*per_target_module=*/main_and_lowered.second, device,
