@@ -593,14 +593,7 @@ Pass LowerTensorExpr(TargetMap targets, DeviceMap device_context_map,
   return CreateFunctionPass(pass_func, 0, "LowerTensorExpr", {});
 }
 
-/*!
- * \brief Obtain the Target from the device type.
- * If homogenous compilation, this will return the only target.
- * If heteregenous compilation, this will select associated using the targets_ Map.
- *
- * \param dev_type
- * \return Target
- */
+
 Target GetTargetFromInteger(DLDeviceType dev_type, TargetMap targets) {
   if (targets.size() == 1) {
     // The homogeneous execution case, return the only target.
@@ -879,78 +872,71 @@ LoweredModule LowerTE(const IRModule& module, TargetMap targets, DeviceMap devic
 }
 
 IRModule LoweredModuleToIRModule(LoweredModule mod) {
-  Map<GlobalVar, BaseFunc> unified_funcs;
-  Map<GlobalTypeVar, TypeData> unified_type_defs;
+  IRModule unified_module;
 
-  // copy main module funcs to unified funcs (what target do we need to annotate with here?)
-  for (const auto& kv : mod.main_module->functions) {
-    const GlobalVar& var = kv.first;
-    const BaseFunc& func = kv.second;
-    ICHECK(!func->IsInstance<tir::PrimFuncNode>());
-    unified_funcs.Set(var, func);
-  }
-
-  // copy the type definitions for the main module
+  // Copy the main module and its typedefs
+  unified_module->Update(mod.main_module);
   for (const auto& kv : mod.main_module->type_definitions) {
-    const GlobalTypeVar& ty_var = kv.first;
-    const TypeData& ty_data = kv.second;
-    unified_type_defs.Set(ty_var, ty_data);
+    unified_module->AddTypeDef(kv.first, kv.second);
   }
-  // Move functions in per target IRModule into unified module
-  // Also move the type definitions
+
+  // Annotate the per-target functions with thier target and add them to the unified module
   for (const auto& kv : mod.per_target_module) {
     const String target = kv.first;
     const IRModule target_module = kv.second;
-    // Move the per module functions, and annotate the funcs with their target
+
+    // Right now, per-target functions are TIR functions, which don't have type definitions, so there should be no type defs in the per_target_modules
+    size_t ty_def_size = target_module->type_definitions->size();
+    ICHECK(ty_def_size == 0) << "Expected there to be no type definitions in the per_target_modules, but found " << ty_def_size;
+
     for (const auto& kv : target_module->functions) {
       const GlobalVar& var = kv.first;
       const BaseFunc& func = kv.second;
       ICHECK(func->IsInstance<tir::PrimFuncNode>())
           << "We expect the target_module to contain only PrimFuncs at this point, but got "
           << func->GetTypeKey();
+      // TODO(@electriclilies): Change to Target object if possible
       tir::PrimFunc primFunc = WithAttr(Downcast<tir::PrimFunc>(std::move(func)), attr::kTarget,
                                         runtime::String(target));
-      unified_funcs.Set(var, primFunc);
-    }
-
-    // Move the type definitions for the per target IRModule
-    for (const auto& kv : target_module->type_definitions) {
-      const GlobalTypeVar& ty_var = kv.first;
-      const TypeData& ty_data = kv.second;
-      unified_type_defs.Set(ty_var, ty_data);
+      unified_module->Add(var, primFunc);
     }
   }
 
   IRModule ret_mod =
-      WithAttr(IRModule(unified_funcs, unified_type_defs), "external_mods", mod.external_mods);
+      WithAttr(unified_module, "external_mods", mod.external_mods);
   ret_mod = WithAttr(ret_mod, "main_func_info", mod.main_func_info);
   return ret_mod;
 }
 
 LoweredModule IRModuleToLoweredModule(IRModule mod) {
-  Map<GlobalVar, BaseFunc> main_mod_funcs;
-  Map<String, Map<GlobalVar, BaseFunc>> target_funcs;
+  IRModule main_mod;
+  // Copy just the TypeDefs from the IRModule to the LoweredModule's main module
+  // This is the only time we need to do this since there are no TypeDefs in TIR
+  for (const auto& kv : mod->type_definitions) {
+    main_mod->AddTypeDef(kv.first, kv.second);
+  }
+
+  Map<String, IRModule> per_target_modules;
   for (const auto& kv : mod->functions) {
     const GlobalVar& var = kv.first;
     const BaseFunc& func = kv.second;
     if (func->IsInstance<relay::FunctionNode>()) {
-      main_mod_funcs.Set(var, func);
+      main_mod->Add(var, func);
     } else if (func->IsInstance<tir::PrimFuncNode>()) {
       // Extract target
       auto target = func->GetAttr<String>(attr::kTarget);
-      ICHECK(!target) << "Target should be set at this point";
+      ICHECK(target) << "Target should be set at this point";
 
-      // Put the function in target_funcs
-      if (!target_funcs.count(target.value())) {
-        // Initialize the map and put it in target_funcs
-        Map<GlobalVar, BaseFunc> funcs;
-        funcs.Set(var, func);
-        target_funcs.Set(target.value(), funcs);
-
+      // Put the function in per_target_modules
+      if (!per_target_modules.count(target.value())) {
+        // Initialize the IRModule for this target and add the function
+        IRModule target_module;
+        target_module->Add(var, func);
+        per_target_modules.Set(target.value(), target_module);
       } else {
-        // The map is initialized, so just add the function.
-        Map<GlobalVar, BaseFunc> funcs = target_funcs.at(target.value());
-        funcs.Set(var, func);
+        // The IRModule for this target is initialized, so just add the function.
+        IRModule target_module = per_target_modules.at(target.value());
+        target_module->Add(var, func);
       }
     } else {
       LOG(FATAL)
@@ -958,17 +944,10 @@ LoweredModule IRModuleToLoweredModule(IRModule mod) {
           << func->GetTypeKey();
     }
   }
-  // Create the per_target_module map
-  Map<String, IRModule> per_target_modules;
-  for (const auto& kv : target_funcs) {
-    String target = kv.first;
-    Map<GlobalVar, BaseFunc> funcs = kv.second;
-    // Here, we just copy the type defs to every module. Since TIR doesn't use the type defs,
-    // this duplication should be OK.
-    per_target_modules.Set(target, IRModule(funcs, mod->type_definitions));
-  }
+
+  // Put the LoweredModule together
   LoweredModule lowered_module;
-  lowered_module.main_module = IRModule(main_mod_funcs, mod->type_definitions);
+  lowered_module.main_module = main_mod;
   lowered_module.per_target_module = per_target_modules;
 
   // Extract external modules and main func info, add to lowered module if they exist
