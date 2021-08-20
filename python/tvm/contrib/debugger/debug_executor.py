@@ -64,8 +64,7 @@ def create(graph_json_str, libmod, device, dump_root=None):
             fcreate = tvm._ffi.get_global_func("tvm.graph_executor_debug.create")
     except ValueError:
         raise ValueError(
-            "Please set '(USE_PROFILER ON)' in "
-            "config.cmake and rebuild TVM to enable debug mode"
+            "Please set '(USE_PROFILER ON)' in " "config.cmake and rebuild TVM to enable debug mode"
         )
     func_obj = fcreate(graph_json_str, libmod, *device_type_id)
     return GraphModuleDebug(func_obj, dev, graph_json_str, dump_root)
