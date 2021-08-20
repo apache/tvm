@@ -201,10 +201,13 @@ LoweredModule IRModuleToLoweredModule(IRModule mod);
  * This is the "back half" of the Relay compiler which lowers "primitive functions"
  * to TE expressions, schedules them, and then to TIR.
  *
- * \param compiler The TE-to-TIR compliler (which caches lowered functions)
  * \param module The IRModule.
  * \param targets The mapping for devices to targets.
  * \param device_map An analysis result mapping each sub-expression to a device.
+ * \param memory_plan The memory plan used during lowering
+ * \param module_name The name of this module
+ * \param process_fn Callback allowing one-level up code generators to process
+ * each function that we lower
  * \return The lowered module, see above.
  */
 LoweredModule LowerTE(
@@ -212,6 +215,21 @@ LoweredModule LowerTE(
     backend::StaticMemoryPlan memory_plan, const String& module_name,
     ProcessFn process_fn = [](Function f) {});
 
+/*! \brief Pass to lower an IRModule's primitive functions to TIR.
+ *
+ * This is the "back half" of the Relay compiler which lowers "primitive functions"
+ * to TE expressions, schedules them, and then to TIR. This Pass calls LowerTE, and
+ * uses LoweredModuleToIRModule utility to convert the output LowerTE's output
+ * LoweredModule into an IRModule before returning it.
+ *
+ * \param targets The mapping for devices to targets.
+ * \param device_map An analysis result mapping each sub-expression to a device.
+ * \param memory_plan The memory plan used during lowering
+ * \param module_name The name of this module
+ * \param process_fn Callback allowing one-level up code generators to process
+ * each function that we lower
+ * \returns The pass which lowers primative functions to TIR
+ */
 transform::Pass LowerTEPass(TargetMap targets, DeviceMap device_context_map,
                             backend::StaticMemoryPlan memory_plan, const String& module_name,
                             std::function<void(Function)> process_fn);

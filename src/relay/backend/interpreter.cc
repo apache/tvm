@@ -373,7 +373,7 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
    */
   PackedFunc TIRToPackedFunc(const GlobalVar& tir_fn_var, const Array<GlobalVar>& all_tir_fn_vars,
                              Target target) {
-    std::pair<std::string, std::string> packed_func_key(target->str(), tir_fn_var->name_hint);
+    std::pair<Target, std::string> packed_func_key(target, tir_fn_var->name_hint);
     auto packed_itr = compiled_packed_funcs_.find(packed_func_key);
     if (packed_itr != compiled_packed_funcs_.end()) {
       // Already compiled.
@@ -877,7 +877,7 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
   Map<Target, IRModule> per_target_module_;
   // Cached packed functions for the primitives and shape functions, keyed by target and
   // global var name.
-  std::unordered_map<std::pair<std::string, std::string>, PackedFunc, PairHash>
+  std::unordered_map<std::pair<Target, std::string>, PackedFunc, PairHash>
       compiled_packed_funcs_;
   // Unique device on which primitives (but not shape functions) will be executed.
   // (For simplicity we only run the interpreter on a single device.)
