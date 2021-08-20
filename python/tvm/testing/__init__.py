@@ -29,6 +29,9 @@ from .utils import _pytest_target_params, identity_after, terminate_self
 
 from ._ffi_api import nop, echo, device_test, run_check_signal, object_use_count
 from ._ffi_api import test_wrap_callback, test_raise_error_callback, test_check_eq_callback
-from ._ffi_api import ErrorTest, FrontendTestModule
+from ._ffi_api import ErrorTest, FrontendTestModule, identity_cpp
+
+from .popen_pool import initializer, after_initializer, register_ffi, call_cpp_ffi
+from .popen_pool import call_py_ffi, call_cpp_py_ffi
 
 from . import auto_scheduler
