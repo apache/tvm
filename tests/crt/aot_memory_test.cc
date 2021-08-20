@@ -21,7 +21,6 @@
 #include <tvm/runtime/crt/stack_allocator.h>
 
 #include "../../src/runtime/crt/memory/stack_allocator.c"
-#include "platform.cc"
 
 // Check with LIFO checks enabled for stack allocator
 #define TVM_CRT_STACK_ALLOCATOR_ENABLE_LIFO_CHECK
@@ -199,10 +198,4 @@ TEST(AOTMemory, InitialMemoryMisAlignment) {
 
   ASSERT_EQ(tvm_runtime_workspace.next_alloc, &model_memory_ptr[alignment_offset]);
   ASSERT_EQ(tvm_runtime_workspace.workspace_size, sizeof(model_memory) - offset - alignment_offset);
-}
-
-int main(int argc, char** argv) {
-  testing::InitGoogleTest(&argc, argv);
-  testing::FLAGS_gtest_death_test_style = "threadsafe";
-  return RUN_ALL_TESTS();
 }
