@@ -292,6 +292,7 @@ class PopenPoolExecutor:
     initargs: Tuple[object]
         A tuple of args for the initializer
 
+    Note
     ----
     If max_workers is NONE then the number returned by
     os.cpu_count() is used. This method aligns with the
