@@ -40,7 +40,7 @@ namespace contrib {
 TensorRTBuilder::TensorRTBuilder(TensorRTLogger* logger,
                                  const std::vector<const DLTensor*>& data_entry,
                                  size_t max_workspace_size, bool use_implicit_batch, bool use_fp16,
-                                 int batch_size)
+                                 int batch_size, nvinfer1::IInt8Calibrator* calibrator)
     : data_entry_(data_entry),
       max_workspace_size_(max_workspace_size),
       use_implicit_batch_(use_implicit_batch),
@@ -48,22 +48,22 @@ TensorRTBuilder::TensorRTBuilder(TensorRTLogger* logger,
       batch_size_(batch_size) {
   // Create TRT builder and network.
   builder_ = nvinfer1::createInferBuilder(*logger);
-#if TRT_VERSION_GE(6, 0, 1)
-  // Use INetworkV2.
-  auto flags =
-      1U << static_cast<uint32_t>(nvinfer1::NetworkDefinitionCreationFlag::kEXPLICIT_BATCH);
-  if (use_implicit_batch_) {
-    flags = 0U;
-    builder_->setMaxBatchSize(batch_size_);
-  }
-  network_ = builder_->createNetworkV2(flags);
-#else
+  LOG(INFO) << "create a builder_ ";
+  use_int8_ = false;
   // Use INetwork with implicit batch.
   builder_->setMaxBatchSize(batch_size_);
   builder_->setMaxWorkspaceSize(max_workspace_size_);
   builder_->setFp16Mode(use_fp16_);
+  
+  this->calibrator_ = calibrator;
+  if (calibrator != nullptr) {
+    LOG(INFO) << "calibrator is not null, and setting up int8 mode ... ";
+    set_use_int8();
+    builder_->setFp16Mode(true);
+    builder_->setInt8Mode(true);
+    builder_->setInt8Calibrator(calibrator);
+  }
   network_ = builder_->createNetwork();
-#endif
 }
 
 void TensorRTBuilder::AddInput(int nid, uint32_t entry_id, const JSONGraphNode& node) {
@@ -87,6 +87,11 @@ void TensorRTBuilder::AddInput(int nid, uint32_t entry_id, const JSONGraphNode& 
     entry_id_map_[name] = entry_id + i;
   }
 }
+
+
+ void TensorRTBuilder::set_use_int8(){
+      use_int8_ = true;
+ }
 
 void TensorRTBuilder::AddConstant(int nid, const DLTensor* data) {
   nvinfer1::Weights weight = GetDLTensorAsWeights(data, kDLCPU);
@@ -156,8 +161,18 @@ TensorRTEngineAndContext TensorRTBuilder::BuildEngine() {
   config_ = builder_->createBuilderConfig();
   config_->setMaxWorkspaceSize(max_workspace_size_);
   if (use_fp16_) {
+    config_->setFlag(nvinfer1::BuilderFlag::kGPU_FALLBACK);
     config_->setFlag(nvinfer1::BuilderFlag::kFP16);
+    // config_->setDefaultDeviceType(nvinfer1::DeviceType::kDLA);
   }
+
+  LOG(INFO) << "use_int8_ " << use_int8_; 
+  if(use_int8_){
+    config_->setFlag(nvinfer1::BuilderFlag::kINT8);
+    config_->setInt8Calibrator(calibrator_);
+    LOG(INFO)<<"config finishes setting calibrator for int8 mode ... ";
+  }
+
   // Add profiles.
   if (!use_implicit_batch_) {
     auto profile = builder_->createOptimizationProfile();
@@ -179,7 +194,9 @@ TensorRTEngineAndContext TensorRTBuilder::BuildEngine() {
     }
     config_->addOptimizationProfile(profile);
   }
+  LOG(INFO)<<"start building up engine with new network and builder ...  ";
   nvinfer1::ICudaEngine* engine = builder_->buildEngineWithConfig(*network_, *config_);
+  LOG(INFO)<<"finished building up engine with new network and builder ... ";
 #else
   nvinfer1::ICudaEngine* engine = builder_->buildCudaEngine(*network_);
 #endif
@@ -238,9 +255,10 @@ void TensorRTBuilder::CleanUp() {
 #endif
   builder_->destroy();
   for (auto weight : trt_weights_) {
-    if (weight.type == nvinfer1::DataType::kFLOAT) {
+    if (weight.type == nvinfer1::DataType::kFLOAT)
+    {
       delete[] static_cast<const float*>(weight.values);
-    } else {
+    }else{
       delete[] static_cast<const uint16_t*>(weight.values);
     }
   }

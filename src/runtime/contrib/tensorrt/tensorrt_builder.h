@@ -73,7 +73,7 @@ class TensorRTBuilder {
    */
   TensorRTBuilder(TensorRTLogger* logger, const std::vector<const DLTensor*>& data_entry,
                   size_t max_workspace_size, bool use_implicit_batch, bool use_fp16,
-                  int batch_size);
+                  int batch_size, nvinfer1::IInt8Calibrator* calibrator = nullptr);
 
   /*!
    * \brief Add TensorRT input(s) for input node in network definition.
@@ -96,6 +96,12 @@ class TensorRTBuilder {
    * \param node The op node.
    */
   void AddLayer(int nid, const JSONGraphNode& node);
+
+
+  /*
+    set int8 flag for calibrating data
+  */
+  void set_use_int8();
 
   /*!
    * \brief Mark TensorRT output in network definition.
@@ -153,6 +159,8 @@ class TensorRTBuilder {
   /*! \brief Whether to automatically convert model to 16-bit floating point precision. */
   bool use_fp16_;
 
+  bool use_int8_;
+
   /*! \brief Batch size to optimize for. */
   int batch_size_;
 
@@ -161,6 +169,9 @@ class TensorRTBuilder {
 
   /*! \brief Output names. */
   std::vector<std::string> network_output_names_;
+
+  // calibrator pointer
+  nvinfer1::IInt8Calibrator* calibrator_;
 };
 
 }  // namespace contrib
