@@ -20,6 +20,7 @@
 #include "te_compiler.h"
 
 #include <tvm/driver/driver_api.h>
+#include <tvm/ir/attrs.h>
 #include <tvm/ir/function.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/attrs/annotation.h>
@@ -886,7 +887,7 @@ IRModule LoweredModuleToIRModule(LoweredModule mod) {
     const IRModule target_module = kv.second;
 
     // Right now, per-target functions are TIR functions, which don't have type definitions, so there should be no type defs in the per_target_modules
-    size_t ty_def_size = target_module->type_definitions->size();
+    size_t ty_def_size = target_module->type_definitions.size();
     ICHECK(ty_def_size == 0) << "Expected there to be no type definitions in the per_target_modules, but found " << ty_def_size;
 
     for (const auto& kv : target_module->functions) {
@@ -896,7 +897,7 @@ IRModule LoweredModuleToIRModule(LoweredModule mod) {
           << "We expect the target_module to contain only PrimFuncs at this point, but got "
           << func->GetTypeKey();
       // TODO(@electriclilies): Change to Target object if possible
-      tir::PrimFunc primFunc = WithAttr(Downcast<tir::PrimFunc>(std::move(func)), attr::kTarget,
+      tir::PrimFunc primFunc = WithAttr(Downcast<tir::PrimFunc>(std::move(func)), tvm::attr::kTarget,
                                         runtime::String(target));
       unified_module->Add(var, primFunc);
     }
@@ -924,7 +925,7 @@ LoweredModule IRModuleToLoweredModule(IRModule mod) {
       main_mod->Add(var, func);
     } else if (func->IsInstance<tir::PrimFuncNode>()) {
       // Extract target
-      auto target = func->GetAttr<String>(attr::kTarget);
+      auto target = func->GetAttr<String>(tvm::attr::kTarget);
       ICHECK(target) << "Target should be set at this point";
 
       // Put the function in per_target_modules

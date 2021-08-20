@@ -144,9 +144,6 @@ constexpr const char* kComposite = "Composite";
 constexpr const char* kInline = "Inline";
 /*! \brief Indicate the function was created by the Pattern Partitioning Pass. */
 constexpr const char* kPartitionedFromPattern = "PartitionedFromPattern";
-/*! \brief Indicate the target that the function should be lowered to. */
-constexpr const char* kTarget = "Target";
-
 /*! \brief Mark the function as only composed of reshape operations. */
 constexpr const char* kReshapeOnly = "relay.reshape_only";
 }  // namespace attr
