@@ -90,6 +90,9 @@ class AOTTestRunner(NamedTuple):
 
 
 AOT_DEFAULT_RUNNER = AOTTestRunner()
+
+# AOT Test Runner using the Arm® Corstone™-300 Reference Systems
+# see: https://developer.arm.com/ip-products/subsystem/corstone/corstone-300
 AOT_CORSTONE300_RUNNER = AOTTestRunner(
     makefile="corstone300",
     prologue="""
