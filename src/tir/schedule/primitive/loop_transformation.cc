@@ -547,7 +547,7 @@ void Reorder(ScheduleState self, const Array<StmtSRef>& ordered_loop_srefs) {
     return;
   }
   // Step 1. check uniqueness
-  for (const StmtSRef loop_sref : ordered_loop_srefs) {
+  for (const StmtSRef& loop_sref : ordered_loop_srefs) {
     const ForNode* loop = TVM_SREF_TO_FOR(loop, loop_sref);
     // uniqueness check
     auto inserted = loop_srefs.insert(loop_sref.get());
@@ -556,47 +556,51 @@ void Reorder(ScheduleState self, const Array<StmtSRef>& ordered_loop_srefs) {
     }
   }
   // Step 2. gather loops to be reordered
-  // The algorithm is to scan the inverse preorder of the whole loop tree in the scope.
-  // For some Loop x, it is potentially in the reorder range if
-  //   - x is in the reorder list
-  //   - x has only one child which is a loop and is potentially in the reorder range
-  // After the inverse DFS, we can know the exact reorder range
-  // `top` and `bottom` denote the boundary of the loop range that need reordering
+  // For each loop, traverse upwards along the parent pointer, and stop on either a block, or a
+  // previously-visited loop
+  // - the top of the reorder range is the last loop visited in the first traverse which exists in
+  //   the input array
+  // - the bottom of the reorder range is the last loop in the input array which is not visited in
+  // the previous traverses
   const StmtSRefNode* top = nullptr;
   const StmtSRefNode* bottom = nullptr;
   // Maps a parent sref to its child sref
   std::unordered_map<const StmtSRefNode*, const StmtSRefNode*> successor;
-  int n_loops_not_found = ordered_loop_srefs.size();
-  // Gather all the loops under the block scope
-  std::vector<const StmtSRefNode*> inverse_preorder_loops = GetLoopsInversePreOrderUnderScope(
-      self, GetScopeRoot(self, ordered_loop_srefs[0], /*require_stage_pipeline=*/true));
-  for (const StmtSRefNode* loop : inverse_preorder_loops) {
-    bool is_in_reorder_list = loop_srefs.count(loop);
-    bool has_successor_in_reorder_list = successor.count(loop);
-    if (is_in_reorder_list || has_successor_in_reorder_list) {
-      const StmtSRefNode* parent = loop->parent;
-      // If the successor of `parent` exists, then `parent` can't be a single-branch loop
-      auto inserted = successor.insert({parent, loop});
-      if (!inserted.second) {
-        throw LoopsNotALineError(self->mod, GetRef<Stmt>(parent->stmt),
-                                 LoopsNotALineError::kHaveNonSingleBranchStmt);
+  for (size_t i = 0; i < ordered_loop_srefs.size(); i++) {
+    const StmtSRefNode* sref = ordered_loop_srefs[i].get();
+    // if sref is not visited before, update `bottom`
+    if (!successor.count(sref->parent)) {
+      bottom = sref;
+    }
+    while (true) {
+      // stop at blocknode
+      if (sref->stmt->IsInstance<BlockNode>()) {
+        if (i != 0) {
+          throw LoopsNotALineError(self->mod, NullOpt, LoopsNotALineError::kNotUnderAScope);
+        } else {
+          break;
+        }
       }
-      // `bottom` is the first loop encountered
-      if (bottom == nullptr) {
-        bottom = loop;
+      const StmtSRefNode* parent_sref = sref->parent;
+      // stop at previously-visited loop
+      if (successor.count(parent_sref)) {
+        if (successor[parent_sref] == sref) {
+          break;
+        } else {
+          throw LoopsNotALineError(self->mod, GetRef<Stmt>(parent_sref->stmt),
+                                   LoopsNotALineError::kHaveNonSingleBranchStmt);
+        }
+      } else {
+        successor[parent_sref] = sref;
       }
-      // `top` is the last loop encountered
-      if (is_in_reorder_list) {
-        top = loop;
-        --n_loops_not_found;
+      // if it's the first traverse and the loop is in the input array, update `top`
+      if (loop_srefs.count(sref) && i == 0) {
+        top = sref;
       }
+      sref = parent_sref;
     }
   }
-  // Step 3. Check loops are in the same block scope
-  if (n_loops_not_found != 0) {
-    throw LoopsNotALineError(self->mod, NullOpt, LoopsNotALineError::kNotUnderAScope);
-  }
-  // Step 4. Check that loops are single-branch
+  // Step 3. Check that loops are single-branch
   const ForNode* outer_loop = TVM_SREF_TO_FOR(outer_loop, GetRef<StmtSRef>(top));
   for (const StmtSRefNode* loop_sref = top; loop_sref != bottom;) {
     loop_sref = successor[loop_sref];
@@ -607,9 +611,9 @@ void Reorder(ScheduleState self, const Array<StmtSRef>& ordered_loop_srefs) {
     }
     outer_loop = inner_loop;
   }
-  // Step 5. Check the block below has all its block_var to be data-parallel or reduction
+  // Step 4. Check the block below has all its block_var to be data-parallel or reduction
   CheckBlockIterTypeAndAffineBinding(self, bottom);
-  // Step 6. Replace the original loops with the reordered loops and check that outer loop is
+  // Step 5. Replace the original loops with the reordered loops and check that outer loop is
   // not dependent on inner loop
   std::unordered_set<const VarNode*> inner_vars;
   std::function<Stmt(const StmtSRefNode*, int index)> f_reorder =
