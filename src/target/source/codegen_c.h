@@ -200,6 +200,8 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   virtual std::string CastFromTo(std::string value, DataType from, DataType target);
   // Get load of single element with expression
   virtual void PrintVecElemLoadExpr(DataType t, int i, const std::string& value, std::ostream& os);
+  // Print restrict keyword for a given Var if applicable
+  virtual void PrintRestrict(const Var& v, std::ostream& os);
 
  protected:
   // Print reference to struct location
