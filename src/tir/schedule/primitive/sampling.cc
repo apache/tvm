@@ -26,11 +26,12 @@ namespace tvm {
 namespace tir {
 
 int SampleInt(TRandState* rand_state, int min_inclusive, int max_exclusive) {
-  RandEngine rand_(rand_state);
-
   if (min_inclusive + 1 == max_exclusive) {
     return min_inclusive;
   }
+
+  RandEngine rand_(rand_state);
+
   std::uniform_int_distribution<> dist(min_inclusive, max_exclusive - 1);
   return dist(rand_);
 }
