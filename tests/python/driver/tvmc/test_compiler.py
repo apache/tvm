@@ -15,7 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 import os
+import re
 import shutil
+import tarfile
 from os import path
 
 from unittest import mock
@@ -306,6 +308,37 @@ def test_compile_tflite_module_with_external_codegen(tflite_mobilenet_v1_1_quant
     assert type(tvmc_package.lib_path) is str
     assert type(tvmc_package.params) is bytearray
     assert os.path.exists(dumps_path)
+
+
+def test_compile_tflite_module_with_external_codegen_cmsisnn(
+    tmpdir_factory, tflite_cnn_s_quantized
+):
+    pytest.importorskip("tflite")
+
+    output_dir = tmpdir_factory.mktemp("mlf")
+    tvmc_model = tvmc.load(tflite_cnn_s_quantized)
+
+    output_file_name = f"{output_dir}/file.tar"
+
+    tvmc_package = tvmc.compiler.compile_model(
+        tvmc_model,
+        target=f"cmsis-nn, c -runtime=c --system-lib --link-params -mcpu=cortex-m55 --executor=aot",
+        output_format="mlf",
+        package_path=output_file_name,
+        pass_context_configs=["tir.disable_vectorize=true"],
+    )
+
+    # check whether an MLF package was created
+    assert os.path.exists(output_file_name)
+
+    # check whether the expected number of C sources are in the tarfile
+    with tarfile.open(output_file_name) as mlf_package:
+        c_source_files = [
+            name
+            for name in mlf_package.getnames()
+            if re.match(r"\./codegen/host/src/\D+\d+\.c", name)
+        ]
+        assert len(c_source_files) == 3
 
 
 @pytest.mark.skipif(
