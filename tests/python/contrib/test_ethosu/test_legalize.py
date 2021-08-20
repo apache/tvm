@@ -17,6 +17,8 @@
 # pylint: disable=invalid-name, unused-argument
 
 import pytest
+
+pytest.importorskip("ethosu.vela")
 import numpy as np
 
 import tvm

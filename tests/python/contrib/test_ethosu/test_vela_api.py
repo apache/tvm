@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 import pytest
+
+pytest.importorskip("ethosu.vela")
 import numpy as np
 from ethosu.vela import api as vapi
 from unittest.mock import patch
