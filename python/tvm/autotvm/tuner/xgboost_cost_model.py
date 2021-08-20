@@ -23,6 +23,8 @@ import time
 
 import numpy as np
 
+from tvm.contrib.popen_pool import PopenPoolExecutor
+
 from .. import feature
 from ..utils import get_rank
 from .metric import max_curve, recall_curve, cover_curve
@@ -153,20 +155,18 @@ class XGBoostCostModel(CostModel):
 
         self._close_pool()
 
-        # Use global variable to pass common arguments. This is only used when
-        # new processes are started with fork. We have to set the globals
-        # before we create the pool, so that processes in the pool get the
-        # correct globals.
-        global _extract_space, _extract_target, _extract_task
-        _extract_space = space
-        _extract_target = target
-        _extract_task = task
-        self.pool = multiprocessing.Pool(self.num_threads)
+        def initializer(space_arg, target_arg, task_arg):
+            global _extract_space, _extract_target, _extract_task
+            _extract_space = space_arg
+            _extract_target = target_arg
+            _extract_task = task_arg
+
+        self.pool = PopenPoolExecutor(
+            max_workers=self.num_threads, initializer=initializer, initargs=(space, target, task)
+        )
 
     def _close_pool(self):
         if self.pool:
-            self.pool.terminate()
-            self.pool.join()
             self.pool = None
 
     def _get_pool(self):
@@ -247,7 +247,7 @@ class XGBoostCostModel(CostModel):
             feature_extract_func = _extract_curve_feature_log
         else:
             raise RuntimeError("Invalid feature type: " + self.fea_type)
-        res = pool.map(feature_extract_func, data)
+        res = pool.map_with_error_catching(feature_extract_func, data)
 
         # filter out feature with different shapes
         fea_len = len(self._get_feature([0])[0])
@@ -329,10 +329,10 @@ class XGBoostCostModel(CostModel):
             pool = self._get_pool()
             # If we are forking, we can pass arguments in globals for better performance
             if multiprocessing.get_start_method(False) == "fork":
-                feas = pool.map(self.feature_extract_func, need_extract)
+                feas = pool.map_with_error_catching(self.feature_extract_func, need_extract)
             else:
                 args = [(self.space.get(x), self.target, self.task) for x in need_extract]
-                feas = pool.map(self.feature_extract_func, args)
+                feas = pool.map_with_error_catching(self.feature_extract_func, args)
             for i, fea in zip(need_extract, feas):
                 fea_cache[i] = fea
 
