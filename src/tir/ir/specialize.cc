@@ -205,7 +205,7 @@ class PrimFuncSpecializer : public StmtExprMutator {
     Array<PrimExpr> strides =
         MutateArray(buffer->strides, [this](const PrimExpr& e) { return VisitExpr(e); });
 
-    PrimExpr elem_offset = Substitute(buffer->elem_offset, var_map_);
+    PrimExpr elem_offset = VisitExpr(buffer->elem_offset);
 
     if (buffer->elem_offset.same_as(elem_offset) && buffer->shape.same_as(shape) &&
         buffer->strides.same_as(strides)) {
