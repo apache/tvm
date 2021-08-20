@@ -45,7 +45,7 @@ namespace support {
 class LinearCongruentialEngine {
  public:
   /*!
-   * \brief The result type is defined as int64_t here to avoid overflow.
+   * \brief The result type is defined as uint64_t here to avoid overflow.
    * \note The type name is not in Google style because it is used in STL's distribution inferface.
    */
   using result_type = uint64_t;
