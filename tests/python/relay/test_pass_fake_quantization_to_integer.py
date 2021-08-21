@@ -29,11 +29,17 @@ def compare_fq_to_int(expr, args, allow_rounding_error=False):
     mod_int = tvm.relay.transform.FakeQuantizationToInteger()(mod)
     assert not tvm.ir.structural_equal(mod, mod_int)
 
-    ex = relay.create_executor("vm", mod=mod, device=tvm.cpu(), target="llvm")
-    result = ex.evaluate()(*args).numpy()
+    result = (
+        relay.create_executor("vm", mod=mod, device=tvm.cpu(), target="llvm")
+        .evaluate()(*args)
+        .numpy()
+    )
 
-    ex = relay.create_executor("vm", mod=mod_int, device=tvm.cpu(), target="llvm")
-    result_int = ex.evaluate()(*args).numpy()
+    result_int = (
+        relay.create_executor("vm", mod=mod_int, device=tvm.cpu(), target="llvm")
+        .evaluate()(*args)
+        .numpy()
+    )
 
     if allow_rounding_error:
         assert np.all(np.abs(result - result_int) <= 1)
@@ -75,6 +81,25 @@ def test_fake_quantize_dense():
 
         x_np = np.random.randint(-128, 127, size=[128, 64], dtype="int8")
         w_np = np.random.randint(-128, 127, size=[256, 64], dtype="int8")
+
+        compare_fq_to_int(op, [x_np, w_np])
+
+
+def test_fake_quantize_batch_matmul():
+    for out_dtype in ["int8", "uint8"]:
+        x = relay.var("x", shape=[1, 128, 64], dtype="int8")
+        w = relay.var("w", shape=[1, 256, 64], dtype="int8")
+        one = relay.const(1.0)
+        zero = relay.const(0)
+
+        op = relay.op.nn.batch_matmul(
+            relay.qnn.op.dequantize(x, relay.const(2.0), zero),
+            relay.qnn.op.dequantize(w, relay.const(0.5), zero),
+        )
+        op = relay.qnn.op.quantize(op, one, zero, out_dtype=out_dtype)
+
+        x_np = np.random.randint(-128, 127, size=[1, 128, 64], dtype="int8")
+        w_np = np.random.randint(-128, 127, size=[1, 256, 64], dtype="int8")
 
         compare_fq_to_int(op, [x_np, w_np])
 

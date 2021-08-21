@@ -27,8 +27,8 @@ use ::ndarray::{Array, ArrayD, Axis};
 use image::{FilterType, GenericImageView};
 
 use anyhow::Context as _;
-use tvm::runtime::graph_rt::GraphRt;
-use tvm::*;
+use tvm_rt::graph_rt::GraphRt;
+use tvm_rt::*;
 
 fn main() -> anyhow::Result<()> {
     let dev = Device::cpu(0);
@@ -107,7 +107,7 @@ fn main() -> anyhow::Result<()> {
 
     // create a hash map of (class id, class name)
     let file = File::open("synset.txt").context("failed to open synset")?;
-    let synset: Vec<String> = BufReader::new(file)
+    let synset: Vec<std::string::String> = BufReader::new(file)
         .lines()
         .into_iter()
         .map(|x| x.expect("readline failed"))

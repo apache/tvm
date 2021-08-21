@@ -52,7 +52,7 @@ def verify_nll_loss(
     weights_nd = tvm.nd.array(weights_npy, dev)
     out_nd = tvm.nd.array(np.empty(out_npy.shape).astype(nll_loss_result.dtype), dev)
     fn(predictions_nd, targets_nd, weights_nd, out_nd)
-    out_topi = out_nd.asnumpy()
+    out_topi = out_nd.numpy()
     tvm.testing.assert_allclose(out_topi, out_npy, rtol=1e-4, atol=1e-5)
 
 

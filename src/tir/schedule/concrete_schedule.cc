@@ -21,10 +21,10 @@
 namespace tvm {
 namespace tir {
 
-Schedule Schedule::Concrete(IRModule mod, int debug_mode,
+Schedule Schedule::Concrete(IRModule mod, int debug_mask,
                             ScheduleErrorRenderLevel error_render_level) {
   ObjectPtr<ConcreteScheduleNode> n = make_object<ConcreteScheduleNode>();
-  n->state_ = ScheduleState(mod, debug_mode);
+  n->state_ = ScheduleState(mod, debug_mask);
   n->error_render_level_ = error_render_level;
   n->symbol_table_ = {};
   n->analyzer_ = std::make_unique<arith::Analyzer>();
@@ -50,7 +50,7 @@ class ScheduleCopier {
     n->mod = src_state->mod;
     n->block_info = copier.Copy(src_state->block_info);
     n->stmt2ref = copier.Copy(src_state->stmt2ref);
-    n->debug_mode = src_state->debug_mode;
+    n->debug_mask = src_state->debug_mask;
     *new_state = ScheduleState(std::move(n));
     *new_symbol_table = copier.Copy(self->symbol_table_);
   }
@@ -182,8 +182,8 @@ void ConcreteScheduleNode::Copy(ScheduleState* new_state, TSymbolTable* new_symb
 Schedule ConcreteScheduleNode::Copy() const {
   ObjectPtr<ConcreteScheduleNode> n = make_object<ConcreteScheduleNode>();
   n->error_render_level_ = this->error_render_level_;
-  this->Copy(&n->state_, &n->symbol_table_);
-  n->analyzer_ = std::make_unique<arith::Analyzer>();
+  ConcreteScheduleNode::Copy(&n->state_, &n->symbol_table_);
+  n->analyzer_ = std::make_unique<arith::Analyzer>();  // new analyzer needed because it is stateful
   return Schedule(std::move(n));
 }
 
@@ -207,7 +207,8 @@ Schedule ConcreteScheduleNode::Copy() const {
     }                                                             \
   }
 
-/******** Block/Loop relation ********/
+/******** Schedule: Schedule: Sampling ********/
+/******** Schedule: Get blocks & loops ********/
 
 BlockRV ConcreteScheduleNode::GetBlock(const String& name, const String& func_name) {
   class NotSingleResult : public ScheduleError {
@@ -257,7 +258,7 @@ Array<LoopRV> ConcreteScheduleNode::GetLoops(const BlockRV& block_rv) {
   return CreateRV<LoopRV>(tir::GetLoops(this->GetSRef(block_rv)));
 }
 
-/******** Schedule: loops manipulation ********/
+/******** Schedule: Transform loops ********/
 
 LoopRV ConcreteScheduleNode::Fuse(const Array<LoopRV>& loop_rvs) {
   CHECK(!loop_rvs.empty()) << "ValueError: 'fuse' requires at least 1 loop(s)";
@@ -345,7 +346,44 @@ Array<LoopRV> ConcreteScheduleNode::Split(const LoopRV& loop_rv,
   return CreateRV<LoopRV>(results);
 }
 
-/******** Schedule: compute location ********/
+/******** Schedule: Manipulate ForKind ********/
+
+void ConcreteScheduleNode::Parallel(const LoopRV& loop_rv) {
+  TVM_TIR_SCHEDULE_BEGIN();
+  tir::Parallel(state_, this->GetSRef(loop_rv));
+  this->state_->DebugVerify();
+  TVM_TIR_SCHEDULE_END("parallel", this->error_render_level_);
+}
+
+void ConcreteScheduleNode::Vectorize(const LoopRV& loop_rv) {
+  TVM_TIR_SCHEDULE_BEGIN();
+  tir::Vectorize(state_, this->GetSRef(loop_rv));
+  this->state_->DebugVerify();
+  TVM_TIR_SCHEDULE_END("vectorize", this->error_render_level_);
+}
+
+void ConcreteScheduleNode::Bind(const LoopRV& loop_rv, const String& thread_axis) {
+  if (thread_axis == "vthread") {
+    LOG(WARNING) << "`vthread` is legacy behavior and is going to be deprecated. Please use "
+                    "`vthread.x`, `vthread.y` and `vthread.z` instead";
+  }
+  TVM_TIR_SCHEDULE_BEGIN();
+  tir::Bind(state_, this->GetSRef(loop_rv),
+            IterVar(/*dom=*/Range(nullptr), /*var=*/Var(thread_axis), /*iter_type=*/kThreadIndex,
+                    /*thread_tag=*/thread_axis));
+  this->state_->DebugVerify();
+  TVM_TIR_SCHEDULE_END("bind", this->error_render_level_);
+}
+
+void ConcreteScheduleNode::Unroll(const LoopRV& loop_rv) {
+  TVM_TIR_SCHEDULE_BEGIN();
+  tir::Unroll(state_, this->GetSRef(loop_rv));
+  this->state_->DebugVerify();
+  TVM_TIR_SCHEDULE_END("unroll", this->error_render_level_);
+}
+
+/******** Schedule: Insert cache stages ********/
+/******** Schedule: Compute location ********/
 
 void ConcreteScheduleNode::ComputeInline(const BlockRV& block_rv) {
   TVM_TIR_SCHEDULE_BEGIN();
@@ -361,9 +399,17 @@ void ConcreteScheduleNode::ReverseComputeInline(const BlockRV& block_rv) {
   this->state_->DebugVerify();
 }
 
-/******** Schedule: loop binding/annotation ********/
-/******** Schedule: cache read/write ********/
-/******** Schedule: reduction ********/
+/******** Schedule: Block Annotation ********/
+
+void ConcreteScheduleNode::StorageAlign(const BlockRV& block_rv, int buffer_index, int axis,
+                                        int factor, int offset) {
+  TVM_TIR_SCHEDULE_BEGIN();
+  tir::StorageAlign(state_, this->GetSRef(block_rv), buffer_index, axis, factor, offset);
+  TVM_TIR_SCHEDULE_END("storage-align", this->error_render_level_);
+  this->state_->DebugVerify();
+}
+
+/******** Schedule: Reduction ********/
 
 BlockRV ConcreteScheduleNode::RFactor(const LoopRV& loop_rv, int factor_axis) {
   StmtSRef result{nullptr};
@@ -374,11 +420,9 @@ BlockRV ConcreteScheduleNode::RFactor(const LoopRV& loop_rv, int factor_axis) {
   return CreateRV<BlockRV>(result);
 }
 
-/******** Schedule: blockize & tensorize ********/
-
-/******** FFI ********/
-
-TVM_REGISTER_NODE_TYPE(ConcreteScheduleNode);
+/******** Schedule: Blockize & Tensorize ********/
+/******** Schedule: Annotation ********/
+/******** Schedule: Misc ********/
 
 }  // namespace tir
 }  // namespace tvm

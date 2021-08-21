@@ -46,9 +46,20 @@ from .common import (
     infer_type,
     infer_value,
     new_var,
+    unbind,
+    lstm_cell,
 )
 
 __all__ = ["from_onnx"]
+
+# The default configurations of Relay ONNX frontend.
+ONNX_DEFAULT_CONFIGS = {
+    # By default, TVM converts qualified onnx `matmul` to `transpose(weight) + nn.batch_matmul_NT`.
+    # Change this flag to False to directly convert to `nn.batch_matmul`.
+    # Note that `nn.batch_matmul` with format other than NT is in experimental, it may have some
+    # performance issues.
+    "use_nt_batch_matmul": True,
+}
 
 
 class onnx_input:
@@ -770,10 +781,14 @@ class MatMul(OnnxOpConverter):
                 # Convert a and b into 3 dimensional tensors.
                 a = flatten_to_nd(inputs[0], a_shape, 3)
                 b = flatten_to_nd(inputs[1], b_shape, 3)
-                # Transpose matrix dimensions of b.
-                b = _op.transpose(b, [0, 2, 1])
-                # Perform a batch matmul.
-                output = _op.nn.batch_matmul(a, b)
+                if ONNX_DEFAULT_CONFIGS["use_nt_batch_matmul"]:
+                    # Transpose matrix dimensions of b.
+                    b = _op.transpose(b, [0, 2, 1])
+                    # Perform a NT batch matmul.
+                    output = _op.nn.batch_matmul(a, b)
+                else:
+                    # Perform a NN batch matmul.
+                    output = _op.nn.batch_matmul(a, b, transpose_b=False)
             # Determine the output batch dimension.
             if a_rank > b_rank:
                 out_batch = _op.strided_slice(a_shape, [0], [a_rank - 2])
@@ -1461,13 +1476,13 @@ class Slice(OnnxOpConverter):
             )
 
         if axes is not None and has_static_axes():
-            axes_np = axes.data.asnumpy().astype("int64")
-            begin_np = starts.data.asnumpy().astype("int64")
-            end_np = ends.data.asnumpy().astype("int64")
+            axes_np = axes.data.numpy().astype("int64")
+            begin_np = starts.data.numpy().astype("int64")
+            end_np = ends.data.numpy().astype("int64")
             if steps is None:
                 strides_np = np.ones_like(begin_np).astype("int64")
             else:
-                strides_np = steps.data.asnumpy().astype("int64")
+                strides_np = steps.data.numpy().astype("int64")
 
             if all([isinstance(ishape[i], int) for i in axes_np]):
                 return _op.strided_slice(
@@ -1845,6 +1860,18 @@ class Softmax(OnnxOpConverter):
         e = _op.exp(x - m)
         return e / _op.sum(e, axes, keepdims=True)
 
+    @classmethod
+    def _impl_v13(cls, inputs, attr, params):
+        axis = attr.get("axis", -1)
+        ndim = len(infer_shape(inputs[0]))
+        if axis < 0:
+            axis += ndim
+        axes = [axis]
+        x = inputs[0]
+        m = _op.max(x, axes, keepdims=True)
+        e = _op.exp(x - m)
+        return e / _op.sum(e, axes, keepdims=True)
+
 
 class LogSoftmax(OnnxOpConverter):
     """Operator converter for Softmax."""
@@ -1856,6 +1883,19 @@ class LogSoftmax(OnnxOpConverter):
         if axis < 0:
             axis += ndim
         axes = list(range(axis, ndim))
+        x = inputs[0]
+        m = _op.max(x, axes, keepdims=True)
+        e = _op.exp(x - m)
+        s = _op.sum(e, axes, keepdims=True)
+        return x - m - _op.log(s)
+
+    @classmethod
+    def _impl_v13(cls, inputs, attr, params):
+        axis = attr.get("axis", -1)
+        ndim = len(infer_shape(inputs[0]))
+        if axis < 0:
+            axis += ndim
+        axes = [axis]
         x = inputs[0]
         m = _op.max(x, axes, keepdims=True)
         e = _op.exp(x - m)
@@ -2142,58 +2182,44 @@ class LSTM(RNN):
     """Operator converter for LSTM"""
 
     @classmethod
-    def generate_lstm(
-        cls, X_steps, H_t, C_t, W, R, B, p_i, p_f, p_o, f_act, g_act, h_act, backwards=False
+    def bidir_lstm_cell(
+        cls,
+        input_seqs,
+        weight_dicts,
+        acts,
     ):
-        """Create an unrolled lstm loop.
-
-        See https://github.com/onnx/onnx/blob/master/docs/Operators.md for math.
         """
-        h_list = []
-        seq_length = len(X_steps)
-        for i in range(seq_length):
-            step = X_steps[i] if not backwards else X_steps[seq_length - (i + 1)]
-            step = _op.squeeze(step, axis=[0])
-            gates = _op.nn.dense(step, W) + _op.nn.dense(H_t, R)
-            if B is not None:
-                WB, RB = _op.split(B, 2)
-                gates += WB + RB
-            i, o, f, c = _op.split(gates, 4, axis=-1)
+        Bidirectional LSTM cell
+        """
+        seq_len = len(input_seqs)
+        forward_outputs, fw_H_t, fw_C_t = lstm_cell(
+            input_seqs,
+            **weight_dicts[0],
+            f_act=acts[0],
+            g_act=acts[1],
+            h_act=acts[2],
+        )
 
-            if p_i != 0:
-                i = f_act(i + p_i * C_t)
-            else:
-                i = f_act(i)
+        reverse_outputs, rev_H_t, rev_C_t = lstm_cell(
+            input_seqs,
+            **weight_dicts[1],
+            f_act=acts[3],
+            g_act=acts[4],
+            h_act=acts[5],
+            backwards=True,
+        )
 
-            if p_f != 0:
-                f = f_act(f + p_f * C_t)
-            else:
-                f = f_act(f)
+        final_outputs = []
+        for i in range(seq_len):
+            final_outputs.append(
+                _op.stack([forward_outputs[i], reverse_outputs[seq_len - 1 - i]], axis=0)
+            )
 
-            c = g_act(c)
-            C = f * C_t + i * c
-            if p_o != 0:
-                o = f_act(o + p_o * C)
-            else:
-                o = f_act(o)
-
-            H = o * h_act(C)
-
-            H_t = H
-            C_t = C
-            h_list.append(_op.expand_dims(H, axis=0))
-
-        if backwards:
-            # Canonical view is hidden states from the first token not last
-            h_list = h_list[::-1]
-
-        # Concatenate outputs and add back in direction axis.
-        concatenated = _op.concatenate(h_list, 0)
-        output = _op.expand_dims(concatenated, axis=1)
-        H_t = _op.expand_dims(H_t, axis=0)
-        C_t = _op.expand_dims(C_t, axis=0)
-
-        return output, H_t, C_t
+        return (
+            _op.stack(final_outputs, axis=0),
+            _op.stack([fw_H_t, rev_H_t], axis=0),
+            _op.stack([fw_C_t, rev_C_t], axis=0),
+        )
 
     @classmethod
     def _impl_v7(cls, inputs, attr, params):
@@ -2224,12 +2250,6 @@ class LSTM(RNN):
             Hp_0 = _op.zeros((num_directions, batch_size, hidden_size), W_dtype)
         if Cp_0 is None:
             Cp_0 = _op.zeros((num_directions, batch_size, hidden_size), W_dtype)
-        if Bp is None:
-            Bp = _op.zeros((num_directions, hidden_size * 8), W_dtype)
-        if Pp is not None:
-            p_i, p_o, p_f = _op.split(Pp, 3, axis=1)
-        else:
-            p_i = p_o = p_f = _op.zeros((num_directions, hidden_size), W_dtype)
 
         if "activations" in attr:
             activations = attr["activations"]
@@ -2260,53 +2280,67 @@ class LSTM(RNN):
         else:
             acts = [_op.sigmoid, _op.tanh, _op.tanh] * num_directions
 
-        X_steps = _op.split(X, indices_or_sections=X_shape[0], axis=0)
-        result_output = []
-        result_H = []
-        result_C = []
+        # TODO (vvchernov): It can be replaced by _op.split if issue #8412 is resolved
+        X_steps = unbind(X, axis=0)
 
         H_ts = _op.split(Hp_0, num_directions)
         C_ts = _op.split(Cp_0, num_directions)
         Ws = _op.split(Wp, num_directions)
         Rs = _op.split(Rp, num_directions)
-        Bs = _op.split(Bp, num_directions)
-        p_is = _op.split(p_i, num_directions)
-        p_fs = _op.split(p_f, num_directions)
-        p_os = _op.split(p_o, num_directions)
-        for i in range(num_directions):
-            H_t = _op.squeeze(H_ts[i], axis=[0])
-            C_t = _op.squeeze(C_ts[i], axis=[0])
-            W = _op.squeeze(Ws[i], axis=[0])
-            R = _op.squeeze(Rs[i], axis=[0])
-            B = _op.squeeze(Bs[i], axis=[0])
-            p_i = _op.squeeze(p_is[i], axis=[0])
-            p_f = _op.squeeze(p_fs[i], axis=[0])
-            p_o = _op.squeeze(p_os[i], axis=[0])
 
-            f_act, g_act, h_act = acts[i * 3 : (i + 1) * 3]
-            output, H, C = LSTM.generate_lstm(
-                X_steps=X_steps,
-                H_t=H_t,
-                C_t=C_t,
-                W=W,
-                R=R,
-                B=B,
-                p_i=p_i,
-                p_f=p_f,
-                p_o=p_o,
-                f_act=f_act,
-                g_act=g_act,
-                h_act=h_act,
-                backwards=i == 1,
+        if Bp is not None:
+            Bs = _op.split(Bp, num_directions)
+        if Pp is not None:
+            p_i, p_o, p_f = _op.split(Pp, 3, axis=1)
+
+            p_is = _op.split(p_i, num_directions)
+            p_fs = _op.split(p_f, num_directions)
+            p_os = _op.split(p_o, num_directions)
+
+        weights_dicts = []
+        for i in range(num_directions):
+            weights_dict = {}
+
+            weights_dict["hidden_state"] = _op.squeeze(H_ts[i], axis=[0])
+            weights_dict["cell_state"] = _op.squeeze(C_ts[i], axis=[0])
+
+            # Weights permutation: onnx format i-o-f-c, lstm cell format i-f-c-o
+            mati, mato, matf, matc = _op.split(_op.squeeze(Ws[i], axis=[0]), 4)
+            weights_dict["w_inp"] = _op.concatenate([mati, matf, matc, mato], axis=0)
+            mati, mato, matf, matc = _op.split(_op.squeeze(Rs[i], axis=[0]), 4)
+            weights_dict["w_hid"] = _op.concatenate([mati, matf, matc, mato], axis=0)
+            if Bp is not None:
+                Bi, Bh = _op.split(Bs[i], 2, -1)
+                mati, mato, matf, matc = _op.split(_op.squeeze(Bi, axis=[0]), 4)
+                weights_dict["b_inp"] = _op.concatenate([mati, matf, matc, mato], axis=0)
+                mati, mato, matf, matc = _op.split(_op.squeeze(Bh, axis=[0]), 4)
+                weights_dict["b_hid"] = _op.concatenate([mati, matf, matc, mato], axis=0)
+            if Pp is not None:
+                weights_dict["p_i"] = _op.squeeze(p_is[i], axis=[0])
+                weights_dict["p_f"] = _op.squeeze(p_fs[i], axis=[0])
+                weights_dict["p_o"] = _op.squeeze(p_os[i], axis=[0])
+            weights_dicts.append(weights_dict)
+
+        if num_directions == 2:
+            output, H, C = LSTM.bidir_lstm_cell(
+                input_seqs=X_steps,
+                weight_dicts=weights_dicts,
+                acts=acts,
+            )
+        else:
+            # outputs shape = [seqs_num, (batch_size, hidden_size)]
+            outputs, H, C = lstm_cell(
+                input_seqs=X_steps,
+                **weights_dicts[0],
+                f_act=acts[0],
+                g_act=acts[1],
+                h_act=acts[2],
             )
 
-            result_output.append(output)
-            result_H.append(H)
-            result_C.append(C)
-
-        output = _op.concatenate(result_output, axis=1)
-        H = _op.concatenate(result_H, axis=0)
-        C = _op.concatenate(result_C, axis=0)
+            # output shape = (seqs_num, num_directions, batch_size, hidden_size)
+            output = _op.expand_dims(_op.stack(outputs, axis=0), axis=1)
+            H = _op.expand_dims(H, axis=0)
+            C = _op.expand_dims(C, axis=0)
 
         return _expr.TupleWrapper(_expr.Tuple((output, H, C)), 3)
 
@@ -2705,10 +2739,10 @@ class Clip(OnnxOpConverter):
     @classmethod
     def _impl_v11(cls, inputs, attr, params):
         if len(inputs) == 3 and isinstance(inputs[2], _expr.Constant):
-            attr["max"] = inputs[2].data.asnumpy().item()
+            attr["max"] = inputs[2].data.numpy().item()
             inputs = inputs[0:2]
         if len(inputs) >= 2 and isinstance(inputs[1], _expr.Constant):
-            attr["min"] = inputs[1].data.asnumpy().item()
+            attr["min"] = inputs[1].data.numpy().item()
             inputs = inputs[0:1]
         if "min" in attr and "max" in attr:
             return Clip.convert_attributes(inputs, attr, params)
@@ -3270,6 +3304,40 @@ class QLinearAdd(OnnxOpConverter):
         return _qnn.op.quantize(out, c_scale, c_zero_point, out_dtype=dtype)
 
 
+class QLinearMul(OnnxOpConverter):
+    """Operator converter for QLinearMul from Microsoft onnxruntime contrib opset."""
+
+    @classmethod
+    def _impl_v10(cls, inputs, attr, params):
+        def get_scalar(x, dtype="float32"):
+            if isinstance(x, _expr.Var) and x.name_hint in params:
+                return _op.const(params[x.name_hint].numpy(), dtype)
+            rank = len(infer_shape(x))
+            assert rank <= 1, "QLinearMul scale and zero_point input must be scalars"
+            if rank == 1:
+                x = _op.squeeze(x, [0])
+            return _op.cast(x, dtype)
+
+        a = inputs[0]
+        a_scale = get_scalar(inputs[1])
+        a_zero_point = get_scalar(inputs[2], "int32")
+        b = inputs[3]
+        b_scale = get_scalar(inputs[4])
+        b_zero_point = get_scalar(inputs[5], "int32")
+        y_scale = fold_constant(get_scalar(inputs[6]))
+        y_zero_point = get_scalar(inputs[7], "int32")
+
+        dtype = infer_type(a).checked_type.dtype
+
+        ## Onnxruntime doesn't actually do this op in integer, they dequantize to fp32
+        ## and then requantize afer
+        ## https://github.com/microsoft/onnxruntime/blob/master/onnxruntime/core/mlas/lib/qlmul.cpp
+        a = _qnn.op.dequantize(inputs[0], a_scale, a_zero_point)
+        b = _qnn.op.dequantize(inputs[3], b_scale, b_zero_point)
+        out = _op.multiply(a, b)
+        return _qnn.op.quantize(out, y_scale, y_zero_point, out_dtype=dtype)
+
+
 class ConvInteger(OnnxOpConverter):
     """Operator converter for ConvInteger."""
 
@@ -3471,6 +3539,7 @@ def _get_convert_map(opset):
         "IsNaN": Renamer("isnan"),
         "Sqrt": Renamer("sqrt"),
         "Relu": Renamer("relu"),
+        "Celu": Celu.get_converter(opset),
         "LeakyRelu": Renamer("leaky_relu"),
         "Selu": Selu.get_converter(opset),
         "Elu": Elu.get_converter(opset),
@@ -3595,6 +3664,7 @@ def _get_convert_map(opset):
         "ReverseSequence": ReverseSequence.get_converter(opset),
         "QLinearConv": QLinearConv.get_converter(opset),
         "QLinearAdd": QLinearAdd.get_converter(opset),
+        "QLinearMul": QLinearMul.get_converter(opset),
         "ConvInteger": ConvInteger.get_converter(opset),
         # Random number generation.
         "RandomUniform": RandomUniform.get_converter(opset),
@@ -3916,7 +3986,22 @@ class GraphProto:
         return outputs
 
 
-def from_onnx(model, shape=None, dtype="float32", opset=None, freeze_params=False):
+class Celu(OnnxOpConverter):
+    """Operator convereter for celu"""
+
+    @classmethod
+    def _impl_v12(cls, inputs, attr, params):
+        x = inputs[0]
+        dtype = infer_type(x).checked_type.dtype
+        alpha = _op.const(attr.get("alpha", 1.0), dtype)
+        zero = _op.const(0, dtype)
+        one = _op.const(1, dtype)
+        return _op.maximum(zero, x) + _op.minimum(zero, alpha * (_op.exp(x / alpha) - one))
+
+
+def from_onnx(
+    model, shape=None, dtype="float32", opset=None, freeze_params=False, convert_config=None
+):
     """Convert a ONNX model into an equivalent Relay Function.
 
     ONNX graphs are represented as Python Protobuf objects.
@@ -3955,6 +4040,12 @@ def from_onnx(model, shape=None, dtype="float32", opset=None, freeze_params=Fals
         at compile time and helps in making models static if certain inputs represent
         attributes relay would traditionally consider compile-time constants.
 
+    convert_config : Optional[Dict[str, Any]]
+        Default config:
+            use_nt_batch_matmul : bool = True
+                True to convert qualified onnx `matmul` to `nn.batch_matmul` strict to NT format
+                (transpose_a=False, transpose_b=True).
+
     Returns
     -------
     mod : tvm.IRModule
@@ -3963,6 +4054,10 @@ def from_onnx(model, shape=None, dtype="float32", opset=None, freeze_params=Fals
     params : dict of str to tvm.nd.NDArray
         The parameter dict to be used by relay
     """
+    global ONNX_DEFAULT_CONFIGS
+    if convert_config is not None:
+        ONNX_DEFAULT_CONFIGS.update(convert_config)
+
     try:
         import onnx
 
