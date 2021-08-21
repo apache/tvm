@@ -146,6 +146,12 @@ class XGBoostCostModel(CostModel):
         self._sample_size = 0
         self._reset_pool(self.space, self.target, self.task)
 
+    def _initializer(space, target, task):
+        global _extract_space, _extract_target, _extract_task
+        _extract_space = space
+        _extract_target = target
+        _extract_task = task
+
     def _reset_pool(self, space, target, task):
         """reset processing pool for feature extraction"""
 
@@ -155,14 +161,10 @@ class XGBoostCostModel(CostModel):
 
         self._close_pool()
 
-        def initializer(space_arg, target_arg, task_arg):
-            global _extract_space, _extract_target, _extract_task
-            _extract_space = space_arg
-            _extract_target = target_arg
-            _extract_task = task_arg
-
         self.pool = PopenPoolExecutor(
-            max_workers=self.num_threads, initializer=initializer, initargs=(space, target, task)
+            max_workers=self.num_threads,
+            initializer=self._initializer,
+            initargs=(space, target, task),
         )
 
     def _close_pool(self):
@@ -327,14 +329,11 @@ class XGBoostCostModel(CostModel):
 
         if need_extract:
             pool = self._get_pool()
-            # If we are forking, we can pass arguments in globals for better performance
-            if multiprocessing.get_start_method(False) == "fork":
-                feas = pool.map_with_error_catching(self.feature_extract_func, need_extract)
-            else:
-                args = [(self.space.get(x), self.target, self.task) for x in need_extract]
-                feas = pool.map_with_error_catching(self.feature_extract_func, args)
+            feas = pool.map_with_error_catching(self.feature_extract_func, need_extract)
             for i, fea in zip(need_extract, feas):
-                fea_cache[i] = fea
+                fea_cache[i] = fea.value
+                print(fea)
+                print("_______________________\n")
 
         feature_len = None
         for idx in indexes:
@@ -361,14 +360,10 @@ _extract_task = None
 def _extract_itervar_feature_index(args):
     """extract iteration var feature for an index in extract_space"""
     try:
-        if multiprocessing.get_start_method(False) == "fork":
-            config = _extract_space.get(args)
-            with _extract_target:
-                sch, fargs = _extract_task.instantiate(config)
-        else:
-            config, target, task = args
-            with target:
-                sch, fargs = task.instantiate(config)
+        config = _extract_space.get(args)
+        with _extract_target:
+            sch, fargs = _extract_task.instantiate(config)
+
         fea = feature.get_itervar_feature_flatten(sch, fargs, take_log=True)
         fea = np.concatenate((fea, list(config.get_other_option().values())))
         return fea
@@ -398,10 +393,9 @@ def _extract_itervar_feature_log(arg):
 def _extract_knob_feature_index(args):
     """extract knob feature for an index in extract_space"""
     try:
-        if multiprocessing.get_start_method(False) == "fork":
-            config = _extract_space.get(args)
-        else:
-            config = args[0]
+
+        config = _extract_space.get(args)
+
         return config.get_flatten_feature()
     except Exception:  # pylint: disable=broad-except
         return None
@@ -428,14 +422,11 @@ def _extract_knob_feature_log(arg):
 def _extract_curve_feature_index(args):
     """extract sampled curve feature for an index in extract_space"""
     try:
-        if multiprocessing.get_start_method(False) == "fork":
-            config = _extract_space.get(args)
-            with _extract_target:
-                sch, fargs = _extract_task.instantiate(config)
-        else:
-            config, target, task = args
-            with target:
-                sch, fargs = task.instantiate(config)
+
+        config = _extract_space.get(args)
+        with _extract_target:
+            sch, fargs = _extract_task.instantiate(config)
+
         fea = feature.get_buffer_curve_sample_flatten(sch, fargs, sample_n=20)
         fea = np.concatenate((fea, list(config.get_other_option().values())))
         return np.array(fea)
