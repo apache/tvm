@@ -897,13 +897,18 @@ IRModule LoweredModuleToIRModule(LoweredModule mod) {
     for (const auto& kv : target_module->functions) {
       const GlobalVar& var = kv.first;
       const BaseFunc& func = kv.second;
-      ICHECK(func->IsInstance<tir::PrimFuncNode>())
-          << "We expect the target_module to contain only PrimFuncs at this point, but got "
-          << func->GetTypeKey();
-      // TODO(@electriclilies): Change to Target object if possible
-      tir::PrimFunc primFunc =
+      if (func->IsInstance<tir::PrimFuncNode>()) {
+        tir::PrimFunc primFunc =
           WithAttr(Downcast<tir::PrimFunc>(std::move(func)), tvm::attr::kTarget, target);
-      unified_module->Add(var, primFunc);
+        unified_module->Add(var, primFunc);
+      } else if (func->IsInstance<relay::FunctionNode>()) {
+        relay::Function relayFunc =
+          WithAttr(Downcast<relay::Function>(std::move(func)), tvm::attr::kTarget, target);
+        unified_module->Add(var, relayFunc);
+      } else {
+        LOG(FATAL) << "We expected to only have PrimFuncs or RelayFuncs in the target modules, but found "
+          << func->GetTypeKey();
+      }
     }
   }
 
