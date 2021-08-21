@@ -321,18 +321,18 @@ class LoopMultiAppearanceError : public ScheduleError {
   For loop_;
 };
 
-class LoopsNotALineError : public ScheduleError {
+class LoopsNotAChainError : public ScheduleError {
  public:
   enum class ProblemKind { kNotUnderAScope, kHaveNonSingleBranchStmt };
 
-  explicit LoopsNotALineError(IRModule mod, Optional<Stmt> problematic_loop, ProblemKind kind)
+  explicit LoopsNotAChainError(IRModule mod, Optional<Stmt> problematic_loop, ProblemKind kind)
       : mod_(mod), problematic_loop_(std::move(problematic_loop)), kind_(kind) {}
 
-  String FastErrorString() const final { return "ScheduleError: the loops are not in a line"; }
+  String FastErrorString() const final { return "ScheduleError: the loops are not in a chain"; }
 
   String DetailRenderTemplate() const final {
     std::stringstream ss;
-    ss << "The loops are not in a line because";
+    ss << "The loops are not in a chain because";
     if (kind_ == ProblemKind::kNotUnderAScope) {
       ss << " they are not under the same scope.";
     } else {
@@ -547,8 +547,8 @@ void Reorder(ScheduleState self, const Array<StmtSRef>& ordered_loop_srefs) {
       // stop at blocknode
       if (sref->stmt->IsInstance<BlockNode>()) {
         if (i != 0) {
-          throw LoopsNotALineError(self->mod, NullOpt,
-                                   LoopsNotALineError::ProblemKind::kNotUnderAScope);
+          throw LoopsNotAChainError(self->mod, NullOpt,
+                                    LoopsNotAChainError::ProblemKind::kNotUnderAScope);
         } else {
           break;
         }
@@ -559,8 +559,8 @@ void Reorder(ScheduleState self, const Array<StmtSRef>& ordered_loop_srefs) {
         if (successor[parent_sref] == sref) {
           break;
         } else {
-          throw LoopsNotALineError(self->mod, GetRef<Stmt>(parent_sref->stmt),
-                                   LoopsNotALineError::ProblemKind::kHaveNonSingleBranchStmt);
+          throw LoopsNotAChainError(self->mod, GetRef<Stmt>(parent_sref->stmt),
+                                    LoopsNotAChainError::ProblemKind::kHaveNonSingleBranchStmt);
         }
       } else {
         successor[parent_sref] = sref;
@@ -578,8 +578,8 @@ void Reorder(ScheduleState self, const Array<StmtSRef>& ordered_loop_srefs) {
     loop_sref = successor[loop_sref];
     const ForNode* inner_loop = TVM_SREF_TO_FOR(inner_loop, GetRef<StmtSRef>(loop_sref));
     if (outer_loop->body.get() != inner_loop) {
-      throw LoopsNotALineError(self->mod, GetRef<For>(outer_loop),
-                               LoopsNotALineError::ProblemKind::kHaveNonSingleBranchStmt);
+      throw LoopsNotAChainError(self->mod, GetRef<For>(outer_loop),
+                                LoopsNotAChainError::ProblemKind::kHaveNonSingleBranchStmt);
     }
     outer_loop = inner_loop;
   }

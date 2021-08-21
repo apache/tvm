@@ -446,7 +446,7 @@ class Schedule(Object):
         """
         Reorder a list of loops. It doesn't require the loops to be consecutive.
         It requires:
-        1) The loops are in the same line. That means: the loops can be ordered to [l_1, l_2, ... ,
+        1) The loops are in the same chain. That means: the loops can be ordered to [l_1, l_2, ... ,
         l_n] where l_i is an ancestor of l_{i+1} and there are only single-branch loops between
         l_1 and l_n (which also indicates they are under the same scope).
         2) After reordering, the domain of an outer loop cannot depend on any of the inner loops
