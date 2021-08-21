@@ -98,6 +98,7 @@ class Schedule(Object):
         self,
         mod: Union[PrimFunc, IRModule],
         *,
+        seed: int = -1,
         debug_mask: Union[str, int] = "none",
         error_render_level: str = "detail",
     ) -> None:
@@ -107,6 +108,8 @@ class Schedule(Object):
         ----------
         mod : Union[PrimFunc, IRModule]
             The IRModule or PrimFunc to be scheduled
+        seed: int
+            The seed value for schedule's random state
         debug_mask : Union[str, int]
             Do extra correctness checking after the class creation and each time
             after calling the Replace method.
@@ -130,6 +133,7 @@ class Schedule(Object):
         self.__init_handle_by_constructor__(
             _ffi_api.TracedSchedule,  # type: ignore # pylint: disable=no-member
             _parse_mod(mod),
+            seed,
             _parse_debug_mask(debug_mask),
             _parse_error_render_level(error_render_level),
         )
@@ -138,12 +142,14 @@ class Schedule(Object):
     def _create_non_traced(
         mod: Union[PrimFunc, IRModule],
         *,
+        seed: int = -1,
         debug_mask: Union[str, int] = "none",
         error_render_level: str = "detail",
     ) -> "Schedule":
         """Construct a non-traced TensorIR schedule class from an IRModule."""
         return _ffi_api.ConcreteSchedule(  # type: ignore # pylint: disable=no-member
             _parse_mod(mod),
+            seed,
             _parse_debug_mask(debug_mask),
             _parse_error_render_level(error_render_level),
         )
@@ -189,6 +195,16 @@ class Schedule(Object):
             The new random seed, -1 if use device random, otherwise non-negative
         """
         return _ffi_api.ScheduleSeed(self, seed)  # type: ignore # pylint: disable=no-member
+
+    def fork_seed(self) -> int:
+        """Returns a forked random state as seed for new schedules
+
+        Returns
+        -------
+        seed : int
+            The forked random state, not the same as the current random state
+        """
+        return _ffi_api.ScheduleForkSeed(self)  # type: ignore # pylint: disable=no-member
 
     def show(self, rand_var: RAND_VAR_TYPE) -> str:
         """Returns a string representation of the value that the random variable evaluates to

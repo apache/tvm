@@ -209,6 +209,16 @@ Schedule ConcreteScheduleNode::Copy() const {
   }
 
 /******** Schedule: Schedule: Sampling ********/
+
+void ConcreteScheduleNode::Seed(support::LinearCongruentialEngine::TRandState seed) {
+  support::LinearCongruentialEngine(&rand_state_).Seed(seed == -1 ? std::random_device()() : seed);
+}
+support::LinearCongruentialEngine::TRandState ConcreteScheduleNode::ForkSeed() {
+  // In order for reproducibility, we computer the new seed using RNG's random state and a different
+  // set of parameters. Note that both 32767 and 1999999973 are prime numbers.
+  return (rand_state_ * 32767) % 1999999973;
+}
+
 ExprRV ConcreteScheduleNode::SampleCategorical(const Array<Integer>& candidates,
                                                const Array<FloatImm>& probs,
                                                Optional<Integer> decision) {

@@ -31,6 +31,7 @@
 #include <tvm/tir/schedule/trace.h>
 #include <tvm/tir/stmt_functor.h>
 
+#include <random>
 #include <unordered_map>
 #include <utility>
 
