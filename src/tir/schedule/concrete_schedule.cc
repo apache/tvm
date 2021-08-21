@@ -223,8 +223,8 @@ ExprRV ConcreteScheduleNode::SampleCategorical(const Array<Integer>& candidates,
                                                const Array<FloatImm>& probs,
                                                Optional<Integer> decision) {
   TVM_TIR_SCHEDULE_BEGIN();
-  return CreateRV(static_cast<int>(
-      tir::SampleCategorical(state_, &this->rand_state_, candidates, probs, &decision)));
+  return CreateRV(
+      Integer(tir::SampleCategorical(state_, &this->rand_state_, candidates, probs, &decision)));
   TVM_TIR_SCHEDULE_END("sample-categorical", this->error_render_level_);
   throw;
 }
