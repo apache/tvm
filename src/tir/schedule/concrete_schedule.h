@@ -145,17 +145,11 @@ class ConcreteScheduleNode : public ScheduleNode {
   template <class T>
   inline T CreateRV(const StmtSRef& sref);
   /*!
-   * \brief Add an expr as a random variable into the symbol table
-   * \param expr The expr to be added to the symbol table
+   * \brief Add an integer as a random variable into the symbol table
+   * \param value The integer to be added to the symbol table
    * \return The new random variable created
    */
-  inline ExprRV CreateRV(const PrimExpr& expr);
-  /*!
-   * \brief Add expr as random variables into the symbol table
-   * \param exprs The expr to be added to the symbol table
-   * \return The new random variables created
-   */
-  inline Array<ExprRV> CreateRV(const Array<PrimExpr>& exprs);
+  inline ExprRV CreateRV(int64_t value);
   /*! \brief Remove a random variable from the symbol table */
   inline void RemoveFromSymbolTable(const ObjectRef& rv);
 };
@@ -270,21 +264,10 @@ inline T ConcreteScheduleNode::CreateRV(const StmtSRef& sref) {
   return std::move(rv);
 }
 
-inline ExprRV ConcreteScheduleNode::CreateRV(const PrimExpr& expr) {
-  ExprRV rv;
-  this->symbol_table_.Set(rv, expr);
+inline ExprRV ConcreteScheduleNode::CreateRV(int64_t value) {
+  Var rv("v", DataType::Int(32));
+  this->symbol_table_.Set(rv, Integer(static_cast<int32_t>(value)));
   return std::move(rv);
-}
-
-inline Array<ExprRV> ConcreteScheduleNode::CreateRV(const Array<PrimExpr>& exprs) {
-  Array<ExprRV> result;
-  result.reserve(exprs.size());
-  for (const PrimExpr& expr : exprs) {
-    ExprRV rv;
-    this->symbol_table_.Set(rv, expr);
-    result.push_back(rv);
-  }
-  return result;
 }
 
 inline void ConcreteScheduleNode::RemoveFromSymbolTable(const ObjectRef& obj) {
