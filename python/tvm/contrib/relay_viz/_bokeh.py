@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """Bokeh backend for Relay IR Visualizer."""
-import os
 import html
 import logging
 import functools
@@ -43,8 +42,12 @@ from bokeh.models import (
 from bokeh.palettes import (
     d3,
 )
+from bokeh.layouts import column
 
-from .plotter import Plotter
+from .plotter import (
+    Plotter,
+    Graph,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -174,7 +177,7 @@ class GraphShaper:
         return val
 
 
-class BokehPlotter(Plotter):
+class BokehGraph(Graph):
     """Use Bokeh library to plot Relay IR."""
 
     def __init__(self):
@@ -195,25 +198,19 @@ class BokehPlotter(Plotter):
         id_start, id_end = str(id_start), str(id_end)
         self._pydot_digraph.add_edge(pydot.Edge(id_start, id_end))
 
-    def render(self, filename):
+    def render(self, plot):
+        """Render a bokeh.models.Plot with provided nodes/edges."""
 
-        if filename.endswith(".html"):
-            graph_name = os.path.splitext(os.path.basename(filename))[0]
-        else:
-            graph_name = filename
-            filename = "{}.html".format(filename)
-
-        plot = Plot(
-            title=graph_name,
-            width=1600,
-            height=900,
-            align="center",
-            sizing_mode="stretch_both",
-            margin=(0, 0, 0, 50),
+        shaper = GraphShaper(
+            self._pydot_digraph,
+            prog="dot",
+            args=["-Grankdir=TB", "-Gsplines=ortho", "-Gfontsize=14", "-Nordering=in"],
         )
 
-        layout_dom = self._create_layout_dom(plot)
-        self._save_html(filename, layout_dom)
+        self._create_graph(plot, shaper)
+
+        self._add_scalable_glyph(plot, shaper)
+        return plot
 
     def _get_type_to_color_map(self):
         category20 = d3["Category20"][20]
@@ -287,7 +284,8 @@ class BokehPlotter(Plotter):
             renderer.selection_glyph = Rect(
                 fill_color=type_to_color[label], line_color="firebrick", line_width=3
             )
-            # Though it is called "muted_glyph", we actually use it to emphasize nodes in this renderer.
+            # Though it is called "muted_glyph", we actually use it
+            # to emphasize nodes in this renderer.
             renderer.muted_glyph = Rect(
                 fill_color=type_to_color[label], line_color="firebrick", line_width=3
             )
@@ -304,7 +302,8 @@ class BokehPlotter(Plotter):
             inactive_fill_alpha=0.2,
         )
         legend.click_policy = "mute"
-        plot.add_layout(legend, "left")
+        legend.location = "top_right"
+        plot.add_layout(legend)
 
         # add tooltips
         tooltips = [
@@ -345,34 +344,36 @@ class BokehPlotter(Plotter):
             text="text",
             text_align="center",
             text_baseline="middle",
-            text_font_size={"value": "11px"},
+            text_font_size={"value": "14px"},
         )
         node_annotation = plot.add_glyph(text_source, text_glyph)
 
-        def get_scatter_loc(xs, xe, ys, ye, end_node):
+        def get_scatter_loc(x_start, x_end, y_start, y_end, end_node):
             """return x, y, angle as a tuple"""
             node_x, node_y = shaper.get_node_pos(end_node)
             node_w = shaper.get_node_width(end_node)
             node_h = shaper.get_node_height(end_node)
 
             # only 4 direction
-            if xe - xs > 0:
-                return node_x - node_w / 2, ye, -np.pi / 2
-            if xe - xs < 0:
-                return node_x + node_w / 2, ye, np.pi / 2
-            if ye - ys < 0:
-                return xe, node_y + node_h / 2, np.pi
-            return xe, node_y - node_h / 2, 0
+            if x_end - x_start > 0:
+                return node_x - node_w / 2, y_end, -np.pi / 2
+            if x_end - x_start < 0:
+                return node_x + node_w / 2, y_end, np.pi / 2
+            if y_end - y_start < 0:
+                return x_end, node_y + node_h / 2, np.pi
+            return x_end, node_y - node_h / 2, 0
 
         scatter_source = {"x": [], "y": [], "angle": []}
         for edge in self._pydot_digraph.get_edges():
             id_start = edge.get_source()
             id_end = edge.get_destination()
             x_pts, y_pts = shaper.get_edge_path(id_start, id_end)
-            x, y, angle = get_scatter_loc(x_pts[-2], x_pts[-1], y_pts[-2], y_pts[-1], id_end)
+            x_loc, y_loc, angle = get_scatter_loc(
+                x_pts[-2], x_pts[-1], y_pts[-2], y_pts[-1], id_end
+            )
             scatter_source["angle"].append(angle)
-            scatter_source["x"].append(x)
-            scatter_source["y"].append(y)
+            scatter_source["x"].append(x_loc)
+            scatter_source["y"].append(y_loc)
 
         scatter_glyph = Scatter(
             x="x",
@@ -424,18 +425,43 @@ class BokehPlotter(Plotter):
             ),
         )
 
-    def _create_layout_dom(self, plot):
+    @staticmethod
+    def _get_graph_name(plot):
+        return plot.title
 
-        shaper = GraphShaper(
-            self._pydot_digraph,
-            prog="dot",
-            args=["-Grankdir=TB", "-Gsplines=ortho", "-Gfontsize=14", "-Nordering=in"],
-        )
 
-        self._create_graph(plot, shaper)
+class BokehPlotter(Plotter):
+    """Use Bokeh library to plot Relay IR."""
 
-        self._add_scalable_glyph(plot, shaper)
-        return plot
+    def __init__(self):
+        self._name_to_graph = {}
+
+    def create_graph(self, name):
+        if name in self._name_to_graph:
+            _LOGGER.warning("Graph name %s exists. ")
+        else:
+            self._name_to_graph[name] = BokehGraph()
+        return self._name_to_graph[name]
+
+    def render(self, filename):
+
+        if not filename.endswith(".html"):
+            filename = "{}.html".format(filename)
+
+        dom_list = []
+        for name, graph in self._name_to_graph.items():
+            plot = Plot(
+                title=name,
+                width=1600,
+                height=900,
+                align="center",
+                margin=(0, 0, 0, 70),
+            )
+
+            dom = graph.render(plot)
+            dom_list.append(dom)
+
+        self._save_html(filename, column(*dom_list))
 
     def _save_html(self, filename, layout_dom):
 
@@ -452,7 +478,3 @@ class BokehPlotter(Plotter):
         """
 
         save(layout_dom, filename=filename, title=filename, template=template)
-
-    @staticmethod
-    def _get_graph_name(plot):
-        return plot.title

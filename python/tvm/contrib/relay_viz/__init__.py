@@ -23,12 +23,12 @@ from tvm import relay
 _LOGGER = logging.getLogger(__name__)
 
 
-def _dft_render_cb(plotter, node_to_id, relay_param):
-    """a callback to Add nodes and edges to the plotter.
+def _dft_render_cb(graph, node_to_id, relay_param):
+    """a callback to Add nodes and edges to the graph.
 
     Parameters
     ----------
-    plotter : class plotter.Plotter
+    graph : class plotter.Graph
 
     node_to_id : Dict[relay.expr, int]
 
@@ -38,8 +38,19 @@ def _dft_render_cb(plotter, node_to_id, relay_param):
     unknown_type = "unknown"
     for node, node_id in node_to_id.items():
         if isinstance(node, relay.Function):
-            plotter.node(node_id, "Func", "")
-            plotter.edge(node_to_id[node.body], node_id)
+            node_details = []
+            name = ""
+            func_attrs = node.attrs
+            if func_attrs:
+                node_details = [
+                    "{}: {}".format(k, func_attrs.get_str(k)) for k in func_attrs.keys()
+                ]
+                # "Composite" might from relay.transform.MergeComposite
+                if "Composite" in func_attrs.keys():
+                    name = func_attrs["Composite"]
+
+            graph.node(node_id, f"Func {name}", "\n".join(node_details))
+            graph.edge(node_to_id[node.body], node_id)
         elif isinstance(node, relay.Var):
             name_hint = node.name_hint
             node_detail = ""
@@ -55,19 +66,19 @@ def _dft_render_cb(plotter, node_to_id, relay_param):
                     node_detail = "name_hint: {}\ntype_annotation: {}".format(
                         name_hint, node.type_annotation
                     )
-            plotter.node(node_id, node_type, node_detail)
+            graph.node(node_id, node_type, node_detail)
         elif isinstance(node, relay.GlobalVar):
-            name_hint = node.name_hint
-            node_detail = "name_hint: {}\n".format(name_hint)
-            node_type = "GlobalVar"
-            plotter.node(node_id, node_type, node_detail)
+            # Dont render this because GlobalVar is put to another graph.
+            pass
         elif isinstance(node, relay.Tuple):
-            plotter.node(node_id, "Tuple", "")
+            graph.node(node_id, "Tuple", "")
             for field in node.fields:
-                plotter.edge(node_to_id[field], node_id)
+                graph.edge(node_to_id[field], node_id)
         elif isinstance(node, relay.expr.Constant):
-            node_detail = "shape: {}, dtype: {}".format(node.data.shape, node.data.dtype)
-            plotter.node(node_id, "Const", node_detail)
+            node_detail = "shape: {}, dtype: {}, str(node): {}".format(
+                node.data.shape, node.data.dtype, str(node)
+            )
+            graph.node(node_id, "Const", node_detail)
         elif isinstance(node, relay.expr.Call):
             op_name = unknown_type
             node_details = []
@@ -84,28 +95,32 @@ def _dft_render_cb(plotter, node_to_id, relay_param):
                     node_details = [
                         "{}: {}".format(k, func_attrs.get_str(k)) for k in func_attrs.keys()
                     ]
+                    # "Composite" might from relay.transform.MergeComposite
                     if "Composite" in func_attrs.keys():
                         op_name = func_attrs["Composite"]
+            elif isinstance(node.op, relay.GlobalVar):
+                op_name = "GlobalVar"
+                node_details = [f"name_hint: {node.op.name_hint}"]
             else:
                 op_name = str(type(node.op)).split(".")[-1].split("'")[0]
 
-            plotter.node(node_id, op_name, "\n".join(node_details))
+            graph.node(node_id, op_name, "\n".join(node_details))
             args = [node_to_id[arg] for arg in node.args]
             for arg in args:
-                plotter.edge(arg, node_id)
+                graph.edge(arg, node_id)
         elif isinstance(node, relay.expr.TupleGetItem):
-            plotter.node(node_id, "TupleGetItem", "idx: {}".format(node.index))
-            plotter.edge(node_to_id[node.tuple_value], node_id)
+            graph.node(node_id, "TupleGetItem", "idx: {}".format(node.index))
+            graph.edge(node_to_id[node.tuple_value], node_id)
         elif isinstance(node, tvm.ir.Op):
             pass
         elif isinstance(node, relay.Let):
-            plotter.node(node_id, "Let", "")
-            plotter.edge(node_to_id[node.value], node_id)
-            plotter.edge(node_id, node_to_id[node.var])
+            graph.node(node_id, "Let", "")
+            graph.edge(node_to_id[node.value], node_id)
+            graph.edge(node_id, node_to_id[node.var])
         else:
             unknown_info = "Unknown node: {}".format(type(node))
             _LOGGER.warning(unknown_info)
-            plotter.node(node_id, unknown_type, unknown_info)
+            graph.node(node_id, unknown_type, unknown_info)
 
 
 class PlotterBackend:
@@ -130,20 +145,36 @@ class RelayVisualizer:
                         Relay parameter dictionary
         plotter_be: PlotterBackend.
                         The backend of plotting. Default "bokeh"
-        render_cb: callable[Plotter, Dict, Dict]
-                        A callable accepting plotter, node_to_id, relay_param.
-                        See _dft_render_cb(plotter, node_to_id, relay_param) as
+        render_cb: callable[plotter.Graph, Dict, Dict]
+                        A callable accepting plotter.Graph, node_to_id, relay_param.
+                        See _dft_render_cb(graph, node_to_id, relay_param) as
                         an example.
         """
-        self._node_to_id = {}
         self._plotter = get_plotter(plotter_be)
         self._render_cb = render_cb
         self._relay_param = relay_param if relay_param is not None else {}
+        # This field is used for book-keeping for each graph.
+        self._node_to_id = {}
 
-        relay.analysis.post_order_visit(
-            relay_mod["main"],
-            lambda node: self._traverse_expr(node),  # pylint: disable=unnecessary-lambda
-        )
+        global_vars = relay_mod.get_global_vars()
+        graph_names = []
+        # If we have main function, put it to the first.
+        for gv_name in global_vars:
+            if gv_name.name_hint == "main":
+                graph_names.insert(0, gv_name.name_hint)
+            else:
+                graph_names.append(gv_name.name_hint)
+
+        for name in graph_names:
+            # clear previous graph
+            self._node_to_id = {}
+            relay.analysis.post_order_visit(
+                relay_mod[name],
+                lambda node: self._traverse_expr(node),  # pylint: disable=unnecessary-lambda
+            )
+            graph = self._plotter.create_graph(name)
+            # shallow copy to prevent callback modify self._node_to_id
+            self._render_cb(graph, copy.copy(self._node_to_id), self._relay_param)
 
     def _traverse_expr(self, node):
         # based on https://github.com/apache/tvm/pull/4370
@@ -152,8 +183,6 @@ class RelayVisualizer:
         self._node_to_id[node] = len(self._node_to_id)
 
     def render(self, filename):
-        # shallow copy to prevent callback modify self._node_to_id
-        self._render_cb(self._plotter, copy.copy(self._node_to_id), self._relay_param)
         return self._plotter.render(filename=filename)
 
 

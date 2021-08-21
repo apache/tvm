@@ -24,7 +24,6 @@ This tool target to visualize Relay IR.
 1. [Requirement](#Requirement)
 2. [Usage](#Usage)
 3. [Credits](#Credits)
-3. [TODO](#TODO)
 
 ## Requirement
 

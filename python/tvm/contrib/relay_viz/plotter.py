@@ -18,8 +18,8 @@
 import abc
 
 
-class Plotter(abc.ABC):
-    """Abstract class for plotters.
+class Graph(abc.ABC):
+    """Abstract class for graph.
 
     Implement this interface for various graph libraries.
     """
@@ -51,6 +51,26 @@ class Plotter(abc.ABC):
 
         id_start : object
                         the ID to the ending node.
+        """
+
+
+class Plotter(abc.ABC):
+    """Abstract class for plotters.
+
+    Implement this interface for various graph libraries.
+    """
+
+    @abc.abstractmethod
+    def create_graph(self, name):
+        """Create a graph
+
+        Parameters
+        ----------
+        name : string, the name of the graph
+
+        Return
+        ------
+        Graph instance.
         """
 
     @abc.abstractmethod
