@@ -17,9 +17,7 @@
 # pylint: disable=invalid-name, import-self, len-as-condition, unused-argument, too-many-lines
 # pylint: disable=import-outside-toplevel
 """Paddle: PArallel Distributed Deep LEarning."""
-import copy
 import warnings
-import six
 
 import numpy as np
 
@@ -43,6 +41,8 @@ __all__ = ["from_paddle"]
 
 
 def shape_of(x, dtype="int32"):
+    """Get shape of a tensor"""
+
     ttype = infer_type(x).checked_type
     if not _ty.is_dynamic(ttype):
         shape = list(ttype.shape)
@@ -51,6 +51,8 @@ def shape_of(x, dtype="int32"):
 
 
 def _get_pad_size(in_size, dilated_kernel_size, stride_size):
+    """calculate the paddings size"""
+
     if stride_size == 1 or in_size % stride_size == 0:
         pad = max(dilated_kernel_size - stride_size, 0)
     else:
@@ -94,7 +96,6 @@ def convert_batch_norm(g, op, block):
     mean_name = op.input("Mean")[0]
     variance_name = op.input("Variance")[0]
     epsilon = op.attr("epsilon")
-    momentum = op.attr("momentum")
     out = _op.nn.batch_norm(
         g.get_node(ipt_name),
         g.get_node(scale_name),
@@ -104,6 +105,104 @@ def convert_batch_norm(g, op, block):
         epsilon=epsilon,
     )
     g.add_node(op.output("Y")[0], out[0])
+
+
+def get_interpolate_mode(op):
+    """conver 'interp_method' attr of paddle to tvm"""
+
+    interp_method = op.attr("interp_method")
+    align_corners = op.attr("align_corners")
+    align_mode = op.attr("align_mode")
+
+    rounding_method = ""
+    if interp_method == "nearest":
+        interp_method = "nearest_neighbor"
+        coordinate_transformation_mode = "asymmetric"
+        rounding_method = "floor"
+    elif interp_method == "bilinear":
+        interp_method = "linear"
+        if not align_corners and align_mode == 0:
+            coordinate_transformation_mode = "half_pixel"
+        else:
+            if align_corners:
+                coordinate_transformation_mode = "align_corners"
+            else:
+                coordinate_transformation_mode = "asymmetric"
+    elif interp_method == "bicubic":
+        interp_method = "cubic"
+        if align_corners:
+            coordinate_transformation_mode = "align_corners"
+        else:
+            coordinate_transformation_mode = "half_pixel"
+    else:
+        msg = "interp_method {} is not supported for PaddlePaddle's interpolate"
+        raise tvm.error.OpAttributeInvalid(msg.format(interp_method))
+    return rounding_method, interp_method, coordinate_transformation_mode
+
+
+def convert_interpolate2d(g, op, x, input_shape):
+    """Operator converter for interpolate 2D(dims == 4)."""
+
+    layout = op.attr("data_layout")
+    if layout == "NCHW":
+        in_h, in_w = input_shape[2], input_shape[3]
+    else:
+        in_h, in_w = input_shape[1], input_shape[2]
+
+    out_h = op.attr("out_h")
+    out_w = op.attr("out_w")
+
+    input_out_size = op.input("OutSize")
+    input_size_tensor = op.input("SizeTensor")
+    input_scale = op.input("Scale")
+    if input_size_tensor:
+        out_size = g.get_node(input_size_tensor[0])
+        out_size = infer_value(out_size, g.get_params()).numpy().tolist()
+        out_h, out_w = out_size
+    elif input_out_size:
+        out_size = g.get_node(input_out_size[0])
+        out_size = infer_value(out_size, g.get_params()).numpy().tolist()
+        out_h, out_w = out_size
+    elif input_scale:
+        scale_data = g.get_node(input_scale[0])
+        scale_data = infer_value(scale_data, g.get_params()).numpy().tolist()
+        if len(scale_data) > 1:
+            out_h = int(scale_data[0] * in_h)
+            out_w = int(scale_data[1] * in_w)
+        else:
+            out_h = int(scale_data[0] * in_h)
+            out_w = int(scale_data[0] * in_w)
+    else:
+        scale = op.attr("scale")
+        scale = [float(i) for i in scale]
+        if len(scale) > 1:
+            out_h = int(scale[0] * in_h)
+            out_w = int(scale[1] * in_w)
+
+    rounding_method, interp_method, coordinate_transformation_mode = get_interpolate_mode(op)
+    out = _op.image.resize2d(
+        x,
+        [out_h, out_w],
+        layout=layout,
+        method=interp_method,
+        coordinate_transformation_mode=coordinate_transformation_mode,
+        rounding_method=rounding_method,
+        cubic_alpha=-0.75,
+    )
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_interpolate(g, op, block):
+    """Operator converter for interpolate."""
+
+    x = g.get_node(op.input("X")[0])
+    input_shape = infer_shape(x)
+    dims = len(input_shape)
+    if dims == 4:
+        convert_interpolate2d(g, op, x, input_shape)
+    else:
+        msg = "input_shape {} is not supported for PaddlePaddle's interpolate"
+        raise tvm.error.OpAttributeInvalid(msg.format(dims))
 
 
 def convert_cast(g, op, block):
@@ -127,6 +226,7 @@ def convert_concat(g, op, block):
 
 def convert_conv2d(g, op, block):
     """Operator converter for conv2d."""
+
     dilations = op.attr("dilations")
     groups = op.attr("groups")
     paddings = op.attr("paddings")
@@ -134,9 +234,9 @@ def convert_conv2d(g, op, block):
     strides = op.attr("strides")
 
     kernel = g.get_node(op.input("Filter")[0])
-    input = g.get_node(op.input("Input")[0])
+    input_x = g.get_node(op.input("Input")[0])
     out_channels, _, k_h, k_w = infer_shape(kernel)
-    in_h, in_w = infer_shape(input)[2:]
+    in_h, in_w = infer_shape(input_x)[2:]
     if padding_algorithm == "VALID":
         paddings = [0, 0]
     elif padding_algorithm == "SAME":
@@ -149,11 +249,11 @@ def convert_conv2d(g, op, block):
         if len(paddings) == 4:
             paddings = [paddings[0], paddings[2], paddings[1], paddings[3]]
     else:
-        msg = 'Value {} in attribute "padding" of operator Conv is not ' "valid."
+        msg = 'Value {} in attribute "padding" of operator Conv is not "valid."'
         raise tvm.error.OpAttributeInvalid(msg.format(padding_algorithm))
 
     out = _op.nn.conv2d(
-        input,
+        input_x,
         kernel,
         strides=strides,
         padding=paddings,
@@ -312,7 +412,6 @@ def convert_hard_sigmoid(g, op, block):
     """Operator converter for hard_sigmoid."""
 
     slope = op.attr("slope")
-    offset = op.attr("offset")
     x = g.get_node(op.input("X")[0])
     out = x * _expr.const(slope) + _expr.const(0.5)
     out = _op.clip(out, 0, 1)
@@ -345,8 +444,9 @@ def convert_layer_norm(g, op, block):
     scale_input = op.input("Scale")
 
     x_shape = infer_shape(x)
-    assert (
-        begin_norm_axis == -1 or begin_norm_axis == len(x_shape) - 1
+    assert begin_norm_axis in (
+        len(x_shape) - 1,
+        -1,
     ), "Support only normalization over last one dimension."
 
     if bias_input:
@@ -379,8 +479,6 @@ def convert_lookup_table(g, op, block):
 
     indices = g.get_node(op.input("Ids")[0])
     padding_idx = op.attr("padding_idx")
-    is_sparse = op.attr("is_sparse")
-    height_sections = op.attr("height_sections")
     if padding_idx != -1:
         g.get_params[op.input("W")[0]][padding_idx] = 0.0
         g.add_node(op.input("W")[0], _expr.const(g.params[op.input("W")[0]]))
@@ -395,11 +493,11 @@ def convert_matmul(g, op, block):
     inputs = [g.get_node(op.input("X")[0]), g.get_node(op.input("Y")[0])]
     a_shape = infer_shape(inputs[0])
     b_shape = infer_shape(inputs[1])
-    try:
+    if op.has_attr("trans_x"):
         # for matmul_v2
         trans_x = op.attr("trans_x")
         trans_y = op.attr("trans_y")
-    except:
+    else:
         # for matmul
         trans_x = op.attr("transpose_X")
         trans_y = op.attr("transpose_Y")
@@ -491,12 +589,10 @@ def convert_matmul(g, op, block):
         out = _op.nn.dense(inputs[0], input_1_t)
         if b_rank == 1:
             out = _op.squeeze(out, axis=[-1])
-    try:
+    if op.has_attr("alpha"):
         alpha = op.attr("alpha")
         if not np.isclose(alpha, 1.0):
             out = out * _expr.const(alpha).astype("float32")
-    except:
-        pass
     g.add_node(op.output("Out")[0], out)
 
 
@@ -559,8 +655,8 @@ def convert_pool2d(g, op, block):
         adaptive = True
         ksize = [1, 1]
 
-    input = g.get_node(op.input("X")[0])
-    in_h, in_w = infer_shape(input)[2:]
+    input_x = g.get_node(op.input("X")[0])
+    in_h, in_w = infer_shape(input_x)[2:]
 
     op_map = {
         "avg": "avg_pool2d",
@@ -586,16 +682,48 @@ def convert_pool2d(g, op, block):
         if len(paddings) == 4:
             paddings = [paddings[0], paddings[2], paddings[1], paddings[3]]
     else:
-        msg = 'Value {} in attribute "padding" of operator Pool2d is not ' "valid."
+        msg = 'Value {} in attribute "padding" of operator Pool2d is not "valid."'
         raise tvm.error.OpAttributeInvalid(msg.format(padding_algorithm))
 
-    x = g.get_node(op.input("X")[0])
     if not adaptive:
         out = getattr(_op.nn, op_map[pooling_type])(
-            x, pool_size=ksize, strides=strides, padding=paddings, ceil_mode=ceil_mode
+            input_x, pool_size=ksize, strides=strides, padding=paddings, ceil_mode=ceil_mode
         )
     else:
-        out = getattr(_op.nn, "adaptive_" + op_map[pooling_type])(x, output_size=ksize)
+        out = getattr(_op.nn, "adaptive_" + op_map[pooling_type])(input_x, output_size=ksize)
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_padding(g, op, block):
+    """Operator converter for padding."""
+
+    input_x = g.get_node(op.input("X")[0])
+    input_padding = op.input("Paddings")
+    if input_padding:
+        padding = g.get_node(input_padding[0])
+        padding = infer_value(padding, g.get_params()).numpy().tolist()
+    else:
+        padding = op.attr("paddings")
+    padding = op.attr("paddings")
+    value = op.attr("value")
+    data_format = op.attr("data_format")
+    mode = op.attr("mode")
+    assert mode != "circular", "Don't support mod='circular' for PaddlePaddle's padding"
+    if mode == "replicate":
+        mode = "edge"
+
+    new_pad_len = len(infer_shape(input_x)) * 2
+    new_paddings = [0] * new_pad_len
+    for i in range(0, len(padding), 2):
+        index = -1 - i
+        if data_format[:2] != "NC":
+            index = -3 - i
+        new_paddings[index] = padding[i + 1]
+        new_paddings[index - 1] = padding[i]
+
+    new_paddings = [new_paddings[i : i + 2] for i in range(0, len(new_paddings), 2)]
+
+    out = _op.nn.pad(input_x, new_paddings, pad_value=value, pad_mode=mode)
     g.add_node(op.output("Out")[0], out)
 
 
@@ -714,6 +842,17 @@ def convert_softmax(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_squeeze(g, op, block):
+    """Operator converter for squeeze2."""
+
+    x = g.get_node(op.input("X")[0])
+    axes = op.attr("axes")
+    if not axes:
+        axes = None
+    x = _op.squeeze(x, axis=axes)
+    g.add_node(op.output("Out")[0], x)
+
+
 def convert_unsqueeze(g, op, block):
     """Operator converter for unsqueeze."""
 
@@ -728,6 +867,8 @@ _convert_map = {
     "arg_max": convert_arg_max,
     "assign": convert_assign,
     "batch_norm": convert_batch_norm,
+    "bicubic_interp_v2": convert_interpolate,
+    "bilinear_interp_v2": convert_interpolate,
     "cast": convert_cast,
     "concat": convert_concat,
     "conv2d": convert_conv2d,
@@ -752,19 +893,24 @@ _convert_map = {
     "matmul": convert_matmul,
     "matmul_v2": convert_matmul,
     "mul": convert_mul,
+    "nearest_interp_v2": convert_interpolate,
     "pool2d": convert_pool2d,
+    "pad1d": convert_padding,
+    "pad2d": convert_padding,
+    "pad3d": convert_padding,
     "relu": convert_activation,
     "reshape2": convert_reshape,
     "scale": convert_scale,
     "shape": convert_shape,
     "slice": convert_slice,
     "softmax": convert_softmax,
+    "squeeze2": convert_squeeze,
     "tanh": convert_activation,
     "unsqueeze2": convert_unsqueeze,
 }
 
 
-class GraphProto(object):
+class GraphProto:
     """A helper class for handling relay functions from PaddlePaddle model."""
 
     def __init__(self):
@@ -773,13 +919,19 @@ class GraphProto(object):
         self.shape_dict = None
 
     def get_node(self, name):
+        """get node from graph"""
+
         assert name in self.nodes
         return self.nodes[name]
 
     def add_node(self, name, node):
+        """add a node to graph"""
+
         self.nodes[name] = fold_constant(node)
 
     def get_params(self, name=None):
+        """get params from graph"""
+
         if name is None:
             return self.params
         assert name in self.params
@@ -809,17 +961,18 @@ class GraphProto(object):
         ipt_shape = block.var(ipt_name).shape
         for i in ipt_shape:
             if i < 0:
-                warning_msg = "Input {}(shape={}) has unkown dimension shapes. Specifying static values may improve performance".format(
+                warning_msg = "Input {}(shape={}) has unkown dimension shapes. \
+                               Specifying static values may improve performance".format(
                     ipt_name, ipt_shape
                 )
-                warings.warn(warning_msg)
+                warnings.warn(warning_msg)
 
     def check_unsupported_ops(self, program):
         """Check whether all the operators are supported."""
 
         unsupported_ops = set()
         for block in program.blocks:
-            for i, op in enumerate(block.ops):
+            for op in block.ops:
                 if op.type == "fetch":
                     continue
                 if op.type not in _convert_map:
@@ -836,7 +989,7 @@ class GraphProto(object):
             for input_spec in input_specs:
                 convert_feed(self, input_spec, None)
         for block in program.blocks:
-            for i, op in enumerate(block.ops):
+            for op in block.ops:
                 if op.type == "fetch":
                     continue
                 convert_func = _convert_map[op.type]
@@ -856,7 +1009,7 @@ class GraphProto(object):
 
         output_names = list()
         for block in program.blocks:
-            for i, op in enumerate(block.ops):
+            for op in block.ops:
                 if op.type == "fetch":
                     output_names.append(op.input("X")[0])
 
