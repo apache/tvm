@@ -79,6 +79,16 @@ def _parse_error_render_level(error_render_level: str) -> int:
     return _ERROR_RENDER_LEVEL.get(error_render_level)
 
 
+def _parse_seed(seed: Optional[int]) -> int:
+    if seed is None:
+        return -1
+    if not isinstance(seed, int):
+        raise TypeError(f"Expected `seed` to be int or None, but gets: {seed}")
+    if seed < 1 or seed > 2147483647:
+        raise ValueError(f"seed must be in the range [1, 2147483647], but gets: {seed}")
+    return seed
+
+
 @_register_object("tir.Schedule")
 class Schedule(Object):
     """The user-facing schedule class
@@ -98,7 +108,7 @@ class Schedule(Object):
         self,
         mod: Union[PrimFunc, IRModule],
         *,
-        seed: int = -1,
+        seed: Optional[int] = None,
         debug_mask: Union[str, int] = "none",
         error_render_level: str = "detail",
     ) -> None:
@@ -108,8 +118,10 @@ class Schedule(Object):
         ----------
         mod : Union[PrimFunc, IRModule]
             The IRModule or PrimFunc to be scheduled
-        seed: int
+        seed: Optional[int]
             The seed value for schedule's random state
+            Note that None and -1 means use device random, otherwise only integer between 1 and
+            2147483647 is allowed.
         debug_mask : Union[str, int]
             Do extra correctness checking after the class creation and each time
             after calling the Replace method.
@@ -133,7 +145,7 @@ class Schedule(Object):
         self.__init_handle_by_constructor__(
             _ffi_api.TracedSchedule,  # type: ignore # pylint: disable=no-member
             _parse_mod(mod),
-            seed,
+            _parse_seed(seed),
             _parse_debug_mask(debug_mask),
             _parse_error_render_level(error_render_level),
         )
@@ -142,14 +154,14 @@ class Schedule(Object):
     def _create_non_traced(
         mod: Union[PrimFunc, IRModule],
         *,
-        seed: int = -1,
+        seed: Optional[int] = None,
         debug_mask: Union[str, int] = "none",
         error_render_level: str = "detail",
     ) -> "Schedule":
         """Construct a non-traced TensorIR schedule class from an IRModule."""
         return _ffi_api.ConcreteSchedule(  # type: ignore # pylint: disable=no-member
             _parse_mod(mod),
-            seed,
+            _parse_seed(seed),
             _parse_debug_mask(debug_mask),
             _parse_error_render_level(error_render_level),
         )
