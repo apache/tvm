@@ -660,7 +660,7 @@ For ConstructNewLoopChain(const ScheduleState& self, std::vector<const StmtSRefN
 }
 
 void Reorder(ScheduleState self, const Array<StmtSRef>& ordered_loop_srefs) {
-  if (ordered_loop_srefs.empty() || ordered_loop_srefs.size() == 1) {
+  if (ordered_loop_srefs.size() <= 1) {
     return;
   }
   // Step 1. Check uniqueness.and collect the input loop srefs into a set
