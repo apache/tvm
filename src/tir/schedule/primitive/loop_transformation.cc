@@ -583,7 +583,7 @@ std::pair<const StmtSRefNode*, const StmtSRefNode*> GetBoundaryOfReorderRange(
 }
 
 /*!
- * \brief get all the loops in the reorder range
+ * \brief Get all the loops in the reorder range
  * \param self The schedule state
  * \param top The top boundary of the reorder range
  * \param bottom The bottom boundary of the reorder range
