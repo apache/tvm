@@ -222,6 +222,8 @@ support::LinearCongruentialEngine::TRandState ConcreteScheduleNode::ForkSeed() {
 ExprRV ConcreteScheduleNode::SampleCategorical(const Array<Integer>& candidates,
                                                const Array<FloatImm>& probs,
                                                Optional<Integer> decision) {
+  CHECK(candidates.size() == probs.size())
+      << "ValueError: number of candidates does not match number of probabilities.";
   TVM_TIR_SCHEDULE_BEGIN();
   return CreateRV(tir::SampleCategorical(state_, &this->rand_state_, candidates, probs, &decision));
   TVM_TIR_SCHEDULE_END("sample-categorical", this->error_render_level_);
