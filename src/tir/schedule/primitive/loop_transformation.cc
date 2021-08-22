@@ -616,7 +616,7 @@ std::vector<const StmtSRefNode*> GetLoopsInReorderRange(const ScheduleState& sel
  * \param chain The loops in the reorder range
  * \param ordered_loop_srefs The loop srefs to be reordered
  * \param loop_srefs The set containing loop srefs to be reordered
- * \return the new loop chain
+ * \return The new loop chain
  * \throws ScheduleError If the domain of an outer loop depends on any of the inner loops after
  * reordering
  */
