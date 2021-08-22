@@ -107,6 +107,104 @@ def convert_batch_norm(g, op, block):
     g.add_node(op.output("Y")[0], out[0])
 
 
+def get_interpolate_mode(op):
+    """conver 'interp_method' attr of paddle to tvm"""
+
+    interp_method = op.attr("interp_method")
+    align_corners = op.attr("align_corners")
+    align_mode = op.attr("align_mode")
+
+    rounding_method = ""
+    if interp_method == "nearest":
+        interp_method = "nearest_neighbor"
+        coordinate_transformation_mode = "asymmetric"
+        rounding_method = "floor"
+    elif interp_method == "bilinear":
+        interp_method = "linear"
+        if not align_corners and align_mode == 0:
+            coordinate_transformation_mode = "half_pixel"
+        else:
+            if align_corners:
+                coordinate_transformation_mode = "align_corners"
+            else:
+                coordinate_transformation_mode = "asymmetric"
+    elif interp_method == "bicubic":
+        interp_method = "cubic"
+        if align_corners:
+            coordinate_transformation_mode = "align_corners"
+        else:
+            coordinate_transformation_mode = "half_pixel"
+    else:
+        msg = "interp_method {} is not supported for PaddlePaddle's interpolate"
+        raise tvm.error.OpAttributeInvalid(msg.format(interp_method))
+    return rounding_method, interp_method, coordinate_transformation_mode
+
+
+def convert_interpolate2d(g, op, x, input_shape):
+    """Operator converter for interpolate 2D(dims == 4)."""
+
+    layout = op.attr("data_layout")
+    if layout == "NCHW":
+        in_h, in_w = input_shape[2], input_shape[3]
+    else:
+        in_h, in_w = input_shape[1], input_shape[2]
+
+    out_h = op.attr("out_h")
+    out_w = op.attr("out_w")
+
+    input_out_size = op.input("OutSize")
+    input_size_tensor = op.input("SizeTensor")
+    input_scale = op.input("Scale")
+    if input_size_tensor:
+        out_size = g.get_node(input_size_tensor[0])
+        out_size = infer_value(out_size, g.get_params()).numpy().tolist()
+        out_h, out_w = out_size
+    elif input_out_size:
+        out_size = g.get_node(input_out_size[0])
+        out_size = infer_value(out_size, g.get_params()).numpy().tolist()
+        out_h, out_w = out_size
+    elif input_scale:
+        scale_data = g.get_node(input_scale[0])
+        scale_data = infer_value(scale_data, g.get_params()).numpy().tolist()
+        if len(scale_data) > 1:
+            out_h = int(scale_data[0] * in_h)
+            out_w = int(scale_data[1] * in_w)
+        else:
+            out_h = int(scale_data[0] * in_h)
+            out_w = int(scale_data[0] * in_w)
+    else:
+        scale = op.attr("scale")
+        scale = [float(i) for i in scale]
+        if len(scale) > 1:
+            out_h = int(scale[0] * in_h)
+            out_w = int(scale[1] * in_w)
+
+    rounding_method, interp_method, coordinate_transformation_mode = get_interpolate_mode(op)
+    out = _op.image.resize2d(
+        x,
+        [out_h, out_w],
+        layout=layout,
+        method=interp_method,
+        coordinate_transformation_mode=coordinate_transformation_mode,
+        rounding_method=rounding_method,
+        cubic_alpha=-0.75,
+    )
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_interpolate(g, op, block):
+    """Operator converter for interpolate."""
+
+    x = g.get_node(op.input("X")[0])
+    input_shape = infer_shape(x)
+    dims = len(input_shape)
+    if dims == 4:
+        convert_interpolate2d(g, op, x, input_shape)
+    else:
+        msg = "input_shape {} is not supported for PaddlePaddle's interpolate"
+        raise tvm.error.OpAttributeInvalid(msg.format(dims))
+
+
 def convert_cast(g, op, block):
     """Operator converter for cast."""
 
@@ -640,6 +738,39 @@ def convert_pool2d(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_padding(g, op, block):
+    """Operator converter for padding."""
+
+    input_x = g.get_node(op.input("X")[0])
+    input_padding = op.input("Paddings")
+    if input_padding:
+        padding = g.get_node(input_padding[0])
+        padding = infer_value(padding, g.get_params()).numpy().tolist()
+    else:
+        padding = op.attr("paddings")
+    padding = op.attr("paddings")
+    value = op.attr("value")
+    data_format = op.attr("data_format")
+    mode = op.attr("mode")
+    assert mode != "circular", "Don't support mod='circular' for PaddlePaddle's padding"
+    if mode == "replicate":
+        mode = "edge"
+
+    new_pad_len = len(infer_shape(input_x)) * 2
+    new_paddings = [0] * new_pad_len
+    for i in range(0, len(padding), 2):
+        index = -1 - i
+        if data_format[:2] != "NC":
+            index = -3 - i
+        new_paddings[index] = padding[i + 1]
+        new_paddings[index - 1] = padding[i]
+
+    new_paddings = [new_paddings[i : i + 2] for i in range(0, len(new_paddings), 2)]
+
+    out = _op.nn.pad(input_x, new_paddings, pad_value=value, pad_mode=mode)
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_reshape(g, op, block):
     """Operator converter for reshape."""
 
@@ -755,6 +886,17 @@ def convert_softmax(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_squeeze(g, op, block):
+    """Operator converter for squeeze2."""
+
+    x = g.get_node(op.input("X")[0])
+    axes = op.attr("axes")
+    if not axes:
+        axes = None
+    x = _op.squeeze(x, axis=axes)
+    g.add_node(op.output("Out")[0], x)
+
+
 def convert_unsqueeze(g, op, block):
     """Operator converter for unsqueeze."""
 
@@ -778,6 +920,8 @@ _convert_map = {
     "arg_max": convert_arg_max,
     "assign": convert_assign,
     "batch_norm": convert_batch_norm,
+    "bicubic_interp_v2": convert_interpolate,
+    "bilinear_interp_v2": convert_interpolate,
     "cast": convert_cast,
     "concat": convert_concat,
     "conv2d": convert_conv2d,
@@ -803,13 +947,18 @@ _convert_map = {
     "matmul": convert_matmul,
     "matmul_v2": convert_matmul,
     "mul": convert_mul,
+    "nearest_interp_v2": convert_interpolate,
     "pool2d": convert_pool2d,
+    "pad1d": convert_padding,
+    "pad2d": convert_padding,
+    "pad3d": convert_padding,
     "relu": convert_activation,
     "reshape2": convert_reshape,
     "scale": convert_scale,
     "shape": convert_shape,
     "slice": convert_slice,
     "softmax": convert_softmax,
+    "squeeze2": convert_squeeze,
     "tanh": convert_activation,
     "unsqueeze2": convert_unsqueeze,
 }
