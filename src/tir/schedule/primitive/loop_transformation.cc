@@ -519,9 +519,9 @@ void Reorder(ScheduleState self, const Array<StmtSRef>& ordered_loop_srefs) {
   loop_srefs.reserve(ordered_loop_srefs.size());
   // Step 1. Check uniqueness.
   for (const StmtSRef& loop_sref : ordered_loop_srefs) {
-    const ForNode* loop = TVM_SREF_TO_FOR(loop, loop_sref);
     auto inserted = loop_srefs.insert(loop_sref.get());
     if (!inserted.second) {
+      const ForNode* loop = TVM_SREF_TO_FOR(loop, loop_sref);
       throw LoopMultiAppearanceError(self->mod, GetRef<For>(loop));
     }
   }
@@ -554,7 +554,7 @@ void Reorder(ScheduleState self, const Array<StmtSRef>& ordered_loop_srefs) {
       // Case 2. If `v` corresponds to a previously-visited loop, stop traversal and update
       // `bottom`.
       if (visited.count(v)) {
-        if (v == bottom) {
+        if (v != bottom) {
           throw LoopsNotAChainError(self->mod, GetRef<Stmt>(v->stmt),
                                     LoopsNotAChainError::ProblemKind::kHaveNonSingleBranchStmt);
         }
@@ -565,46 +565,52 @@ void Reorder(ScheduleState self, const Array<StmtSRef>& ordered_loop_srefs) {
       visited.insert(v);
       // If it's the first traversal and the loop corresponding to `v` is in the input array,
       // update `top`.
-      if (loop_srefs.count(v) && i == 0) {
+      if (i == 0 && loop_srefs.count(v)) {
         top = v;
       }
     }
   }
   // Step 3. Collect all loops in the chain and check the loops are single-branch
   std::vector<const StmtSRefNode*> chain;
-  for (const StmtSRefNode* loop_sref = bottom;; loop_sref = loop_sref->parent) {
-    if (!chain.empty()) {
-      const ForNode* outer_loop = TVM_SREF_TO_FOR(outer_loop, GetRef<StmtSRef>(loop_sref));
-      const ForNode* inner_loop = TVM_SREF_TO_FOR(inner_loop, GetRef<StmtSRef>(chain.back()));
-      if (outer_loop->body.get() != inner_loop) {
-        throw LoopsNotAChainError(self->mod, GetRef<For>(outer_loop),
-                                  LoopsNotAChainError::ProblemKind::kHaveNonSingleBranchStmt);
-      }
+  chain.reserve(visited.size());
+  for (const StmtSRefNode* loop_sref = bottom; loop_sref != top;) {
+    const StmtSRefNode* parent_loop_sref = loop_sref->parent;
+    const ForNode* outer = parent_loop_sref->StmtAs<ForNode>();
+    const ForNode* inner = loop_sref->StmtAs<ForNode>();
+    ICHECK(outer != nullptr && inner != nullptr);
+    if (outer->body.get() != inner) {
+      throw LoopsNotAChainError(self->mod, GetRef<For>(outer),
+                                LoopsNotAChainError::ProblemKind::kHaveNonSingleBranchStmt);
     }
     chain.push_back(loop_sref);
-    if (loop_sref == top) {
-      break;
-    }
+    loop_sref = parent_loop_sref;
   }
+  chain.push_back(top);
   // Step 4. Check the block below has all its block_var to be data-parallel or reduction,
   // and the block has an affine binding.
   BlockPropertyError::CheckBlockIterTypeAndAffineBinding(self, bottom);
   // Step 5. Replace the original loops with the reordered loops and check that outer loop is
   // not dependent on inner loop
   std::unordered_set<const VarNode*> inner_vars;
-  For new_loop;
-  int index = ordered_loop_srefs.size() - 1;
+  inner_vars.reserve(chain.size());
+  For new_loop{nullptr};
+  int index = static_cast<int>(ordered_loop_srefs.size()) - 1;
   for (const StmtSRefNode* loop_sref : chain) {
-    const ForNode* copy = loop_srefs.count(loop_sref)
-                              ? ordered_loop_srefs[index--]->StmtAs<ForNode>()
-                              : loop_sref->StmtAs<ForNode>();
+    const ForNode* copy = nullptr;
+    if (loop_srefs.count(loop_sref)) {
+      copy = ordered_loop_srefs[index]->StmtAs<ForNode>();
+      --index;
+    } else {
+      copy = loop_sref->StmtAs<ForNode>();
+    }
+    ICHECK(copy != nullptr);
     ObjectPtr<ForNode> n = make_object<ForNode>(*copy);
     if (new_loop.defined()) {
       n->body = new_loop;
     } else {
       n->body = loop_sref->StmtAs<ForNode>()->body;
     }
-    const VarNode* used_var;
+    const VarNode* used_var = nullptr;
     auto f_contain = [&inner_vars, &used_var](const VarNode* var) {
       if (inner_vars.count(var)) {
         used_var = var;

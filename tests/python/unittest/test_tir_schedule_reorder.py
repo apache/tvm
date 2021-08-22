@@ -131,6 +131,19 @@ def elementwise_reordered(a: ty.handle, b: ty.handle) -> None:
 
 
 @tvm.script.tir
+def elementwise_reordered2(a: ty.handle, b: ty.handle) -> None:
+    A = tir.match_buffer(a, (128, 128, 128, 128))
+    B = tir.match_buffer(b, (128, 128, 128, 128))
+    for k, j, i, l in tir.grid(128, 128, 128, 128):
+        with tir.block([128, 128, 128, 128], "B") as [vi, vj, vk, vl]:
+            tir.bind(vi, i)
+            tir.bind(vj, j)
+            tir.bind(vk, k)
+            tir.bind(vl, l)
+            B[vi, vj, vk, vl] = A[vi, vj, vk, vl] * 2.0
+
+
+@tvm.script.tir
 def elementwise_reordered_with_predicate(a: ty.handle, b: ty.handle) -> None:
     A = tir.match_buffer(a, (128, 128, 128, 128))
     B = tir.match_buffer(b, (128, 128, 128, 128))
@@ -190,6 +203,15 @@ def test_reorder():
     verify_trace_roundtrip(sch=sch, mod=elementwise)
 
 
+def test_reorder2():
+    sch = tir.Schedule(elementwise, debug_mask="all")
+    block_b = sch.get_block("B")
+    i, j, k, l = sch.get_loops(block_b)
+    sch.reorder(k, i, l)
+    tvm.ir.assert_structural_equal(elementwise_reordered2, sch.mod["main"])
+    verify_trace_roundtrip(sch=sch, mod=elementwise)
+
+
 def test_reorder_with_opaque_access():
     sch = tir.Schedule(opaque_access, debug_mask="all")
     block_a = sch.get_block("A")
@@ -225,6 +247,13 @@ def test_reorder_fail_with_non_single_branch_loop():
     i, j, k = sch.get_loops(block_b)
     with pytest.raises(tvm.tir.ScheduleError):
         sch.reorder(k, i)
+    sch = tir.Schedule(elementwise_non_single_branch, debug_mask="all")
+    block_b = sch.get_block("B")
+    block_c = sch.get_block("C")
+    i, j, k1 = sch.get_loops(block_b)
+    _, _, k2 = sch.get_loops(block_c)
+    with pytest.raises(tvm.tir.ScheduleError):
+        sch.reorder(k1, i, k2)
 
 
 def test_reorder_fail_with_loops_not_under_same_scope():
