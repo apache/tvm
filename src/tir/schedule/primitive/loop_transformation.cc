@@ -510,14 +510,17 @@ StmtSRef Fuse(ScheduleState self, const Array<StmtSRef>& loop_srefs) {
   self->Replace(loop_srefs[0], new_stmt, opaque_block_reuse);
   return self->stmt2ref.at(new_stmt.get());
 }
-
-void Reorder(ScheduleState self, const Array<StmtSRef>& ordered_loop_srefs) {
-  if (ordered_loop_srefs.empty() || ordered_loop_srefs.size() == 1) {
-    return;
-  }
+/*!
+ * \brief collect an array of loop srefs into a set
+ * \param self The schedule state
+ * \param ordered_loop_srefs The array of loop srefs
+ * \return A set containing all loops in the array
+ * \throws ScheduleError If there are duplicate loops in the array
+ */
+std::unordered_set<const StmtSRefNode*> CollectLoopsIntoSet(
+    const ScheduleState& self, const Array<StmtSRef>& ordered_loop_srefs) {
   std::unordered_set<const StmtSRefNode*> loop_srefs;
   loop_srefs.reserve(ordered_loop_srefs.size());
-  // Step 1. Check uniqueness.
   for (const StmtSRef& loop_sref : ordered_loop_srefs) {
     auto inserted = loop_srefs.insert(loop_sref.get());
     if (!inserted.second) {
@@ -525,19 +528,24 @@ void Reorder(ScheduleState self, const Array<StmtSRef>& ordered_loop_srefs) {
       throw LoopMultiAppearanceError(self->mod, GetRef<For>(loop));
     }
   }
-  // Step 2. Gather loops to be reordered
-  // For each loop sref in the input sref array, traverse upwards along its parent pointer in the
-  // sref tree, and stop on either a block, or a previously-visited loop
-  // - the top of the reorder range is the last loop visited in the first traversal which exists in
-  //   the input array
-  // - the bottom of the reorder range is the last loop in the input array which is not visited in
-  // the previous traversals
+  return loop_srefs;
+}
+
+/*!
+ * \brief Get the top and bottom boundary of reorder range (which should be a chain)
+ * \param self The schedule state
+ * \param loop_srefs The set containing the srefs to the loops to be reordered
+ * \return a pair containing the top and bottom boundary of the reorder range
+ * \throws ScheduleError If the loops to be reordered is not in a chain
+ */
+std::pair<const StmtSRefNode*, const StmtSRefNode*> GetBoundaryOfReorderRange(
+    const ScheduleState& self, const std::unordered_set<const StmtSRefNode*>& loop_srefs) {
   const StmtSRefNode* top = nullptr;
-  const StmtSRefNode* bottom = ordered_loop_srefs[0].get();
+  const StmtSRefNode* bottom = *loop_srefs.begin();
   std::unordered_set<const StmtSRefNode*> visited;
   bool scope_block_visited = false;
-  for (size_t i = 0; i < ordered_loop_srefs.size(); i++) {
-    const StmtSRefNode* loop_sref = ordered_loop_srefs[i].get();
+  bool first_traversal = true;
+  for (const StmtSRefNode* loop_sref : loop_srefs) {
     if (visited.count(loop_sref)) {
       continue;
     }
@@ -565,14 +573,27 @@ void Reorder(ScheduleState self, const Array<StmtSRef>& ordered_loop_srefs) {
       visited.insert(v);
       // If it's the first traversal and the loop corresponding to `v` is in the input array,
       // update `top`.
-      if (i == 0 && loop_srefs.count(v)) {
+      if (first_traversal && loop_srefs.count(v)) {
         top = v;
       }
     }
+    first_traversal = false;
   }
-  // Step 3. Collect all loops in the chain and check the loops are single-branch
+  return std::make_pair(top, bottom);
+}
+
+/*!
+ * \brief get all the loops in the reorder range
+ * \param self The schedule state
+ * \param top The top boundary of the reorder range
+ * \param bottom The bottom boundary of the reorder range
+ * \return an array containing all the loops in the reorder range
+ * \throws ScheduleError If some loop in the reorder range is not single-branch
+ */
+std::vector<const StmtSRefNode*> GetLoopsInReorderRange(const ScheduleState& self,
+                                                        const StmtSRefNode* top,
+                                                        const StmtSRefNode* bottom) {
   std::vector<const StmtSRefNode*> chain;
-  chain.reserve(visited.size());
   for (const StmtSRefNode* loop_sref = bottom; loop_sref != top;) {
     const StmtSRefNode* parent_loop_sref = loop_sref->parent;
     const ForNode* outer = parent_loop_sref->StmtAs<ForNode>();
@@ -586,11 +607,22 @@ void Reorder(ScheduleState self, const Array<StmtSRef>& ordered_loop_srefs) {
     loop_sref = parent_loop_sref;
   }
   chain.push_back(top);
-  // Step 4. Check the block below has all its block_var to be data-parallel or reduction,
-  // and the block has an affine binding.
-  BlockPropertyError::CheckBlockIterTypeAndAffineBinding(self, bottom);
-  // Step 5. Replace the original loops with the reordered loops and check that outer loop is
-  // not dependent on inner loop
+  return chain;
+}
+
+/*!
+ * \brief Construct a loop chain in the new order
+ * \param self The schedule state
+ * \param chain The loops in the reorder range
+ * \param ordered_loop_srefs The loop srefs to be reordered
+ * \param loop_srefs The set containing loop srefs to be reordered
+ * \return the new loop chain
+ * \throws ScheduleError If the domain of an outer loop depends on any of the inner loops after
+ * reordering
+ */
+For ConstructNewLoopChain(const ScheduleState& self, std::vector<const StmtSRefNode*> chain,
+                          const Array<StmtSRef>& ordered_loop_srefs,
+                          const std::unordered_set<const StmtSRefNode*>& loop_srefs) {
   std::unordered_set<const VarNode*> inner_vars;
   inner_vars.reserve(chain.size());
   For new_loop{nullptr};
@@ -624,6 +656,34 @@ void Reorder(ScheduleState self, const Array<StmtSRef>& ordered_loop_srefs) {
     inner_vars.insert(copy->loop_var.get());
     new_loop = For(std::move(n));
   }
+  return new_loop;
+}
+
+void Reorder(ScheduleState self, const Array<StmtSRef>& ordered_loop_srefs) {
+  if (ordered_loop_srefs.empty() || ordered_loop_srefs.size() == 1) {
+    return;
+  }
+  // Step 1. Check uniqueness.and collect the input loop srefs into a set
+  std::unordered_set<const StmtSRefNode*> loop_srefs =
+      CollectLoopsIntoSet(self, ordered_loop_srefs);
+  // Step 2. Gather loops to be reordered
+  // For each loop sref in the input sref array, traverse upwards along its parent pointer in the
+  // sref tree, and stop on either a block, or a previously-visited loop
+  // - the top of the reorder range is the last loop visited in the first traversal which exists in
+  //   the input array
+  // - the bottom of the reorder range is the last loop in the input array which is not visited in
+  // the previous traversals
+  auto pair = GetBoundaryOfReorderRange(self, loop_srefs);
+  const StmtSRefNode* top = pair.first;
+  const StmtSRefNode* bottom = pair.second;
+  // Step 3. Collect all loops in the chain and check the loops are single-branch
+  std::vector<const StmtSRefNode*> chain = GetLoopsInReorderRange(self, top, bottom);
+  // Step 4. Check the block below has all its block_var to be data-parallel or reduction,
+  // and the block has an affine binding.
+  BlockPropertyError::CheckBlockIterTypeAndAffineBinding(self, bottom);
+  // Step 5. Replace the original loops with the reordered loops and check that outer loop is
+  // not dependent on inner loop
+  For new_loop = ConstructNewLoopChain(self, std::move(chain), ordered_loop_srefs, loop_srefs);
   self->Replace(GetRef<StmtSRef>(top), new_loop, {});
 }
 
