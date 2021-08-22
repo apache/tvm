@@ -15,16 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 import sys
-from typing import Union
 from collections import defaultdict
 
 import pytest
 import tvm
 from tvm import tir
 from tvm.script import ty
-from tvm.ir import IRModule
-from tvm.tir import PrimFunc
-from tvm.tir.schedule import Trace
 from tvm.tir.schedule.testing import verify_trace_roundtrip
 
 

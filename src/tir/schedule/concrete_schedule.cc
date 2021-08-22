@@ -18,6 +18,8 @@
  */
 #include "./concrete_schedule.h"
 
+#include <random>
+
 namespace tvm {
 namespace tir {
 
