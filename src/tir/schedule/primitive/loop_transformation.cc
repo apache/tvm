@@ -673,9 +673,9 @@ void Reorder(ScheduleState self, const Array<StmtSRef>& ordered_loop_srefs) {
   //   the input array
   // - the bottom of the reorder range is the last loop in the input array which is not visited in
   // the previous traversals
-  auto pair = GetBoundaryOfReorderRange(self, loop_srefs);
-  const StmtSRefNode* top = pair.first;
-  const StmtSRefNode* bottom = pair.second;
+  const StmtSRefNode* top = nullptr;
+  const StmtSRefNode* bottom = nullptr;
+  std::tie(top, bottom) = GetBoundaryOfReorderRange(self, loop_srefs);
   // Step 3. Collect all loops in the chain and check the loops are single-branch
   std::vector<const StmtSRefNode*> chain = GetLoopsInReorderRange(self, top, bottom);
   // Step 4. Check the block below has all its block_var to be data-parallel or reduction,
