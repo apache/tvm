@@ -511,7 +511,7 @@ StmtSRef Fuse(ScheduleState self, const Array<StmtSRef>& loop_srefs) {
   return self->stmt2ref.at(new_stmt.get());
 }
 /*!
- * \brief collect an array of loop srefs into a set
+ * \brief Collect an array of loop srefs into a set
  * \param self The schedule state
  * \param ordered_loop_srefs The array of loop srefs
  * \return A set containing all loops in the array
