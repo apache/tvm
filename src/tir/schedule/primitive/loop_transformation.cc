@@ -535,7 +535,7 @@ std::unordered_set<const StmtSRefNode*> CollectLoopsIntoSet(
  * \brief Get the top and bottom boundary of reorder range (which should be a chain)
  * \param self The schedule state
  * \param loop_srefs The set containing the srefs to the loops to be reordered
- * \return a pair containing the top and bottom boundary of the reorder range
+ * \return A pair containing the top and bottom boundary of the reorder range
  * \throws ScheduleError If the loops to be reordered is not in a chain
  */
 std::pair<const StmtSRefNode*, const StmtSRefNode*> GetBoundaryOfReorderRange(
