@@ -61,6 +61,8 @@ class ConcreteScheduleNode : public ScheduleNode {
   ScheduleState state() const final { return state_; }
   Optional<Trace> trace() const override { return NullOpt; }
   Schedule Copy() const override;
+  void Seed(support::LinearCongruentialEngine::TRandState seed = -1) final;
+  support::LinearCongruentialEngine::TRandState ForkSeed() final;
 
  public:
   /******** Lookup random variables ********/
@@ -78,13 +80,6 @@ class ConcreteScheduleNode : public ScheduleNode {
 
  public:
   /******** Schedule: Sampling ********/
-  /*!
-   * \brief Seed the randomness
-   * \param seed The new random seed, -1 if use device random, otherwise non-negative
-   */
-  void Seed(support::LinearCongruentialEngine::TRandState seed = -1) final;
-  /*! \brief Fork the random state */
-  support::LinearCongruentialEngine::TRandState ForkSeed() final;
   /*!
    * \brief Sample an integer given the probability distribution
    * \param candidates The candidates

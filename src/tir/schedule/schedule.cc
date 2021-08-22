@@ -52,6 +52,10 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetTrace")  //
     .set_body_method<Schedule>(&ScheduleNode::trace);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleCopy")  //
     .set_body_method<Schedule>(&ScheduleNode::Copy);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSeed")  //
+    .set_body_method<Schedule>(&ScheduleNode::Seed);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleForkSeed")  //
+    .set_body_method<Schedule>(&ScheduleNode::ForkSeed);
 
 /**************** (FFI) Constructor ****************/
 
@@ -117,9 +121,6 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleRemoveRV")
     });
 
 /******** (FFI) Sampling ********/
-TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSeed").set_body_method<Schedule>(&ScheduleNode::Seed);
-TVM_REGISTER_GLOBAL("tir.schedule.ScheduleForkSeed")
-    .set_body_method<Schedule>(&ScheduleNode::ForkSeed);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSampleCategorical")
     .set_body_method<Schedule>(&ScheduleNode::SampleCategorical);
 /******** (FFI) Get blocks & loops ********/

@@ -115,6 +115,13 @@ class ScheduleNode : public runtime::Object {
    * reconstructed
    */
   virtual Schedule Copy() const = 0;
+  /*!
+   * \brief Seed the randomness
+   * \param seed The new random seed, -1 if use device random, otherwise non-negative
+   */
+  virtual void Seed(support::LinearCongruentialEngine::TRandState seed = -1) = 0;
+  /*! \brief Fork the random state */
+  virtual support::LinearCongruentialEngine::TRandState ForkSeed() = 0;
 
  public:
   /******** Lookup/Remove random variables ********/
@@ -178,15 +185,6 @@ class ScheduleNode : public runtime::Object {
 
  public:
   /******** Schedule: Sampling ********/
-  /*!
-   * \brief Seed the randomness
-   * \param seed The new random seed, -1 if use device random, otherwise non-negative
-   */
-  virtual void Seed(support::LinearCongruentialEngine::TRandState seed = -1) {
-    LOG(FATAL) << "ValueError: The schedule cannot be seeded because no randomness is allowed";
-  }
-  /*! \brief Fork the random state */
-  virtual support::LinearCongruentialEngine::TRandState ForkSeed() = 0;
   /*!
    * \brief Sample an integer given the probability distribution
    * \param candidates The candidates
