@@ -663,7 +663,7 @@ void Reorder(ScheduleState self, const Array<StmtSRef>& ordered_loop_srefs) {
   if (ordered_loop_srefs.size() <= 1) {
     return;
   }
-  // Step 1. Check uniqueness.and collect the input loop srefs into a set
+  // Step 1. Check uniqueness and collect the input loop srefs into a set
   std::unordered_set<const StmtSRefNode*> loop_srefs =
       CollectLoopsIntoSet(self, ordered_loop_srefs);
   // Step 2. Gather loops to be reordered
