@@ -19,6 +19,7 @@
 
 #include <random>
 
+#include "../../../support/array.h"
 #include "../primitive.h"
 #include "../utils.h"
 
@@ -59,7 +60,7 @@ int64_t SampleCategorical(tir::ScheduleState self,
     CHECK(0 <= i && i < n) << "ValueError: Wrong decision value, where n = " << n
                            << ", but decision is: " << i;
   } else {
-    i = MakeMultinomial(rand_state, AsVector<FloatImm, double>(probs))();
+    i = MakeMultinomial(rand_state, support::AsVector<FloatImm, double>(probs))();
     ICHECK(0 <= i && i < n);
   }
   *decision = Integer(i);
