@@ -587,7 +587,7 @@ std::pair<const StmtSRefNode*, const StmtSRefNode*> GetBoundaryOfReorderRange(
  * \param self The schedule state
  * \param top The top boundary of the reorder range
  * \param bottom The bottom boundary of the reorder range
- * \return an array containing all the loops in the reorder range
+ * \return An array containing all the loops in the reorder range
  * \throws ScheduleError If some loop in the reorder range is not single-branch
  */
 std::vector<const StmtSRefNode*> GetLoopsInReorderRange(const ScheduleState& self,
