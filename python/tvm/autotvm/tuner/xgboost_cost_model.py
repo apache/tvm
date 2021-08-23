@@ -163,7 +163,7 @@ class XGBoostCostModel(CostModel):
 
         self.pool = PopenPoolExecutor(
             max_workers=self.num_threads,
-            initializer=self._initializer,
+            initializer=XGBoostCostModel._initializer,
             initargs=(space, target, task),
         )
 
@@ -332,8 +332,6 @@ class XGBoostCostModel(CostModel):
             feas = pool.map_with_error_catching(self.feature_extract_func, need_extract)
             for i, fea in zip(need_extract, feas):
                 fea_cache[i] = fea.value
-                print(fea)
-                print("_______________________\n")
 
         feature_len = None
         for idx in indexes:
