@@ -32,7 +32,8 @@ from tvm.topi.x86.conv2d_avx_common import _fallback_schedule
 
 import tvm.testing
 
-dtype = tvm.testing.parameter("float32")
+dtype = tvm.testing.parameter("float16", "float32")
+random_seed = tvm.testing.parameter(0)
 
 
 @tvm.testing.fixture
@@ -52,6 +53,7 @@ def bias_shape(num_filter):
 
 @tvm.testing.fixture(cache_return_value=True)
 def ref_data(
+    random_seed,
     input_shape,
     weight_shape,
     bias_shape,
@@ -62,11 +64,21 @@ def ref_data(
     add_bias,
     apply_relu,
 ):
+    np.random.seed(random_seed)
+
+    # scipy.signal.convolve2d does not support float16 data types, and
+    # the python fallback is too slow for general use.  Computing
+    # ref_data in float32 will have fewer rounding errors than the TVM
+    # float16 compute, but those vary based on schedule anyways.
+    conv_dtype = "float32" if dtype == "float16" else dtype
+
     a_np = np.random.uniform(size=input_shape).astype(dtype)
     w_np = np.random.uniform(size=weight_shape).astype(dtype)
     b_np = np.random.uniform(size=bias_shape).astype(dtype)
     dw_np = tvm.topi.testing.dilate_python(w_np, (1, 1, dilation, dilation))
-    c_np = tvm.topi.testing.conv2d_nchw_python(a_np, dw_np, stride, padding)
+    c_np = tvm.topi.testing.conv2d_nchw_python(
+        a_np.astype(conv_dtype), dw_np.astype(conv_dtype), stride, padding
+    ).astype(dtype)
 
     if add_bias:
         c_np = c_np + b_np
@@ -101,14 +113,44 @@ class BaseConv2DTests:
         target = tvm.target.Target(target)
         is_cudnn_target = target.kind.name == "cuda" and "cudnn" in target.attrs.get("libs", [])
 
+        if target.kind.name == "vulkan" and dtype == "float16":
+            if not target.attrs.get("supports_float16", False) or not target.attrs.get(
+                "supports_16bit_buffer", False
+            ):
+                pytest.xfail("Vulkan device does not support float16")
+
+        if (
+            target.kind.name == "cuda"
+            and dtype == "float16"
+            and not tvm.contrib.nvcc.have_fp16(dev.compute_version)
+        ):
+            pytest.xfail("CUDA float16 intrinsics not available")
+
         pad_top, pad_left, pad_bottom, pad_right = get_pad_tuple(padding, (kernel, kernel))
         padding_sum = pad_top + pad_left + pad_bottom + pad_right
+
+        has_asymmetric_padding = (pad_top != pad_bottom) or (pad_left != pad_right)
+        if is_cudnn_target and has_asymmetric_padding:
+            pytest.xfail("CuDNN does not support asymmetric padding")
 
         a_np, w_np, b_np, c_np = ref_data
 
         A = te.placeholder(a_np.shape, name="A", dtype=dtype)
         W = te.placeholder(w_np.shape, name="W", dtype=dtype)
-        bias = te.placeholder(b_np.shape, name="bias")
+        bias = te.placeholder(b_np.shape, name="bias", dtype=dtype)
+
+        if "int" in dtype:
+            tol = {"atol": 0, "rtol": 0}
+        elif dtype == "float32":
+            tol = {"rtol": 1e-4, "atol": 2e-4}
+        elif dtype == "float16":
+            # A summation in float16 with a single accumulator very
+            # quickly runs into large rounding errors.  At some point,
+            # this tolerance should be schedule-dependent for to avoid
+            # false negatives.
+            num_values_summed = in_channel * kernel * kernel
+            gap_size = np.nextafter(c_np.max(), np.inf, dtype=c_np.dtype) - c_np.max()
+            tol = {"rtol": 1e-3, "atol": num_values_summed * gap_size / 2}
 
         with autotvm.tophub.context(target):  # load tophub pre-tuned parameters
             if is_cudnn_target:
@@ -138,11 +180,20 @@ class BaseConv2DTests:
                 s,
                 [A, W, bias, C],
                 target,
-                name="conv2d_%d_%d_%d_%d_%d_%d_%d_%d"
-                % (batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation),
+                name="conv2d_{}_{}_{}_{}_{}_{}_{}_{}_{}".format(
+                    dtype,
+                    batch,
+                    in_channel,
+                    in_size,
+                    num_filter,
+                    kernel,
+                    stride,
+                    padding_sum,
+                    dilation,
+                ),
             )
             func(a, w, b, c)
-            tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-4)
+            tvm.testing.assert_allclose(c.numpy(), c_np, **tol)
 
     @tvm.testing.parametrize_targets("llvm")
     def test_workload_padding(
@@ -288,8 +339,8 @@ class TestBatchSize(BaseConv2DTests):
 
 
 class TestBiasRelu(BaseConv2DTests):
-    add_relu = tvm.testing.parameter(True, False)
-    add_bias = tvm.testing.parameter(True, False)
+    apply_relu = tvm.testing.parameter(True, False, ids=["relu", "no_relu"])
+    add_bias = tvm.testing.parameter(True, False, ids=["bias", "no_bias"])
     in_channel, in_size, num_filter, kernel, stride, padding = tvm.testing.parameters(
         (64, 56, 64, 3, 1, 1),
         (64, 8, 64, 3, 1, (1, 2, 2, 1)),

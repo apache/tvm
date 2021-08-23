@@ -233,7 +233,7 @@ impl<'m, 't> GraphExecutor<'m, 't> {
         let mut storages: Vec<Storage> = storage_num_bytes
             .into_iter()
             .map(|nbytes| Storage::new(nbytes, align))
-            .collect::<Result<Vec<Storage>, std::alloc::LayoutErr>>()?;
+            .collect::<Result<Vec<Storage>, std::alloc::LayoutError>>()?;
 
         let tensors = izip!(storage_ids, shapes, dtypes)
             .map(|(storage_id, shape, dtype)| {

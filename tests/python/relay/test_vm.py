@@ -46,8 +46,9 @@ def check_result(args, expected_result, mod=None):
         The expected result of running the expression.
     """
     for target, dev in tvm.testing.enabled_targets():
-        vm = relay.create_executor("vm", device=dev, target=target, mod=mod)
-        rts_result = vm.evaluate()(*args)
+        rts_result = relay.create_executor("vm", device=dev, target=target, mod=mod).evaluate()(
+            *args
+        )
         tvm.testing.assert_allclose(expected_result, rts_result.numpy())
 
 
@@ -182,8 +183,8 @@ def test_multiple_ifs():
     fn = relay.Function([b], out)
     mod["main"] = fn
     dev = tvm.runtime.device("llvm", 0)
-    vm = relay.create_executor(device=dev, mod=mod, kind="vm")
-    res = vmobj_to_list(vm.evaluate()(False))
+    func = relay.create_executor(device=dev, mod=mod, kind="vm").evaluate()
+    res = vmobj_to_list(func(False))
     assert res == [1, 0]
 
 
@@ -879,29 +880,25 @@ def test_vm_rpc():
     # Use local rpc server for testing.
     # Server must use popen so it doesn't inherit the current process state. It
     # will crash otherwise.
-    server = rpc.Server("localhost", port=9120)
-    remote = rpc.connect(server.host, server.port, session_timeout=10)
+    def check_remote(server):
+        remote = rpc.connect(server.host, server.port, session_timeout=10)
 
-    # Upload the serialized Executable.
-    remote.upload(path)
-    # Get a handle to remote Executable.
-    rexec = remote.load_module("vm_library.so")
+        # Upload the serialized Executable.
+        remote.upload(path)
+        # Get a handle to remote Executable.
+        rexec = remote.load_module("vm_library.so")
 
-    ctx = remote.cpu()
-    # Build a VM out of the executable and context.
-    vm_factory = runtime.vm.VirtualMachine(rexec, ctx)
-    np_input = np.random.uniform(size=(10, 1)).astype("float32")
-    input_tensor = tvm.nd.array(np_input, ctx)
-    # Invoke its "main" function.
-    out = vm_factory.invoke("main", input_tensor)
-    # Check the result.
-    np.testing.assert_allclose(out.numpy(), np_input + np_input)
+        ctx = remote.cpu()
+        # Build a VM out of the executable and context.
+        vm_factory = runtime.vm.VirtualMachine(rexec, ctx)
+        np_input = np.random.uniform(size=(10, 1)).astype("float32")
+        input_tensor = tvm.nd.array(np_input, ctx)
+        # Invoke its "main" function.
+        out = vm_factory.invoke("main", input_tensor)
+        # Check the result.
+        np.testing.assert_allclose(out.numpy(), np_input + np_input)
 
-    # delete tensors before the server shuts down so we don't throw errors.
-    del input_tensor
-    del out
-
-    server.terminate()
+    check_remote(rpc.Server("127.0.0.1"))
 
 
 def test_get_output_single():
@@ -939,6 +936,23 @@ def test_get_output_multiple():
     assert len(outputs) == 2
     np.testing.assert_allclose(outputs[0].numpy(), inp + inp)
     np.testing.assert_allclose(outputs[1].numpy(), inp)
+
+
+def test_get_input_index():
+    target = tvm.target.Target("llvm")
+
+    # Build a IRModule.
+    data_0, data_1 = ["d1", "d2"]
+    x, y = [relay.var(c, shape=(10,)) for c in [data_0, data_1]]
+    f = relay.Function([x, y], x + y)
+    mod = IRModule.from_expr(f)
+
+    # Compile to VMExecutable.
+    vm_exec = vm.compile(mod, target=target)
+    vm_factory = runtime.vm.VirtualMachine(vm_exec, tvm.cpu())
+    assert vm_factory.get_input_index(data_1) == 1
+    assert vm_factory.get_input_index(data_0) == 0
+    assert vm_factory.get_input_index("invalid") == -1
 
 
 if __name__ == "__main__":

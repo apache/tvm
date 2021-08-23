@@ -50,8 +50,9 @@ def run_onnx(onnx_model, input_data):
 def run_relay(func, data_tuple):
     target = "llvm"
     dev = tvm.device("llvm", 0)
-    intrp = relay.create_executor("graph", device=dev, target=target)
-    relay_res = intrp.evaluate(func)(*data_tuple)
+    relay_res = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
+        *data_tuple
+    )
 
     result = []
     relay_res = relay_res if isinstance(relay_res, list) else [relay_res]

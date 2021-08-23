@@ -145,6 +145,24 @@ def mem_copy_m_n_p_n(a: ty.handle, b: ty.handle, m: ty.int32, n: ty.int32, p: ty
         B[vi, vj] = A[vi, vj]
 
 
+@tvm.script.tir
+def param_in_arith_exprs(a: ty.handle, b: ty.handle) -> None:
+    n = tir.var("int32")
+    A = tir.match_buffer(a, [n // 8, 8], "int32")
+    B = tir.match_buffer(b, [n], "int32")
+    with tir.block([n - 1], "") as [vi]:
+        B[vi] = A[vi // 8, vi % 8] + (n + 1) * 42
+
+
+@tvm.script.tir
+def param_in_arith_exprs_n_16(a: ty.handle, b: ty.handle) -> None:
+    n = tir.var("int32")
+    A = tir.match_buffer(a, [2, 8], "int32")
+    B = tir.match_buffer(b, [16], "int32")
+    with tir.block([15], "") as [vi]:
+        B[vi] = A[vi // 8, vi % 8] + 714
+
+
 def test_specialize_nothing():
     func = matmul.specialize({})
     assert func.same_as(matmul)  # Pointer the same
@@ -191,9 +209,16 @@ def test_specialize_recursive_load():
     pass
 
 
+def test_specialize_with_const_folding():
+    b = param_in_arith_exprs.params[1]
+    func = param_in_arith_exprs.specialize({b: tir.decl_buffer([16])})
+    tvm.ir.assert_structural_equal(func, param_in_arith_exprs_n_16)
+
+
 if __name__ == "__main__":
     test_specialize_nothing()
     test_specialize_matmul()
     test_specialize_elemwise()
     test_specialize_mem_copy()
     test_specialize_recursive_load()
+    test_specialize_with_const_folding()

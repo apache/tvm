@@ -148,18 +148,6 @@ impl Object {
     }
 }
 
-// impl fmt::Debug for Object {
-//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-//         let index =
-//             format!("{} // key: {}", self.type_index, "the_key");
-
-//         f.debug_struct("Object")
-//          .field("type_index", &index)
-//          // TODO(@jroesch: do we expose other fields?)
-//          .finish()
-//     }
-// }
-
 /// An unsafe trait which should be implemented for an object
 /// subtype.
 ///
