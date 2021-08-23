@@ -70,7 +70,7 @@ class Session:
         ----------
         transport_context_manager : ContextManager[transport.Transport]
             If given, `flasher` and `binary` should not be given. On entry, this context manager
-            should establish a tarnsport between this TVM instance and the device.
+            should establish a transport between this TVM instance and the device.
         session_name : str
             Name of the session, used for debugging.
         timeout_override : TransportTimeouts
@@ -102,7 +102,7 @@ class Session:
 
         return len(data)  # TODO(areusch): delete
 
-    def __enter__(self):
+    def open(self):
         """Initialize this session and establish an RPC session with the on-device RPC server.
 
         Returns
@@ -135,6 +135,12 @@ class Session:
         except:
             self.transport.__exit__(*sys.exc_info())
             raise
+
+    def close(self):
+        self.transport.__exit__()
+
+    def __enter__(self):
+        return self.open()
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
         """Tear down this session and associated RPC session resources."""
