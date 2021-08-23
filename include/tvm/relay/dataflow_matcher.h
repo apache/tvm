@@ -67,7 +67,7 @@ class DFPatternCallbackNode : public Object {
 class DFPatternCallback : public ObjectRef {
  public:
   TVM_DLL DFPatternCallback(DFPattern pattern, PackedFunc callback, bool require_type,
-                            bool rewrite_once);
+                            bool rewrite_once = false);
   TVM_DEFINE_OBJECT_REF_METHODS(DFPatternCallback, ObjectRef, DFPatternCallbackNode);
 };
 
