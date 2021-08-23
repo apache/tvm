@@ -26,43 +26,29 @@
 namespace tvm {
 namespace tir {
 
-std::function<int()> MakeMultinomial(support::LinearCongruentialEngine::TRandState* rand_state,
-                                     const std::vector<double>& weights) {
-  support::LinearCongruentialEngine rand_(rand_state);
-  std::vector<double> sums;
-  sums.reserve(weights.size());
-  double sum = 0.0;
-  for (double w : weights) {
-    sums.push_back(sum += w);
-  }
-  std::uniform_real_distribution<double> dist(0.0, sum);
-  auto sampler = [rand_state, dist = std::move(dist), sums = std::move(sums)]() mutable -> int {
-    support::LinearCongruentialEngine rand_(rand_state);
-    double p = dist(rand_);
-    int idx = std::lower_bound(sums.begin(), sums.end(), p) - sums.begin();
-    int n = sums.size();
-    CHECK_LE(0, idx);
-    CHECK_LE(idx, n);
-    return (idx == n) ? (n - 1) : idx;
-  };
-  return sampler;
-}
-
 int64_t SampleCategorical(tir::ScheduleState self,
                           support::LinearCongruentialEngine::TRandState* rand_state,
                           const Array<Integer>& candidates, const Array<FloatImm>& probs,
                           Optional<Integer>* decision) {
+  CHECK(candidates.size() == probs.size())
+      << "ValueError: number of candidates does not match number of probabilities.";
   int i = -1;
   int n = candidates.size();
+
   if (decision->defined()) {
     const auto* int_imm = decision->as<IntImmNode>();
     i = int_imm->value;
     CHECK(0 <= i && i < n) << "ValueError: Wrong decision value, where n = " << n
                            << ", but decision is: " << i;
   } else {
-    i = MakeMultinomial(rand_state, support::AsVector<FloatImm, double>(probs))();
-    ICHECK(0 <= i && i < n);
+    std::vector<double> weights = support::AsVector<FloatImm, double>(probs);
+    std::discrete_distribution<int> dist(weights.begin(), weights.end());
+    support::LinearCongruentialEngine rand_(rand_state);
+    i = dist(rand_);
+    ICHECK(0 <= i && i < n) << "ValueError: Wrong decision value, where n = " << n
+                            << ", but decision is: " << i;
   }
+
   *decision = Integer(i);
   return candidates[i];
 }
