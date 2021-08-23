@@ -18,7 +18,7 @@
 """Extract information from the convolution operators in TIR."""
 import tvm
 from ..vela_api import SCALE_BIAS_LENGTH
-from .utils import get_outer_loops, get_op_attrs, get_base_address
+from .utils import get_outer_loops, get_op_attrs, get_base_address, get_loads, get_stores
 from .dma import get_ifm_params, get_ofm_params
 from .spec import SerialKernel, SerialAddressRange, SerialActivation, Serial2DConvolution
 
@@ -53,9 +53,12 @@ def get_conv2d_params(stmt, producers, consumers):
     rh = inner
     rw = rh.body
     rc = rw.body
-    compute = rc.body.value.b
-    input_pointer = compute.a.a.buffer_var
-    output_pointer = rc.body.buffer_var
+    # loads = [output, input, weights, scale_bias, scale_bias]
+    loads = get_loads(rc.body)
+    # stores = [output]
+    stores = get_stores(rc.body)
+    input_pointer = loads[1].buffer_var
+    output_pointer = stores[0].buffer_var
     # Get feature map info
     serial_ifm, serial_padding = get_ifm_params(input_pointer, producers)
     serial_ofm, replace_pointer = get_ofm_params(output_pointer, consumers)
@@ -69,17 +72,14 @@ def get_conv2d_params(stmt, producers, consumers):
         dilation_h=int(attrs["dilation_h"]),
     )
     # Get scale_bias info
-    scale_bias_mul = compute.b
-    if isinstance(scale_bias_mul, tvm.tir.Cast):
-        scale_bias_mul = scale_bias_mul.value
-    scale_bias_load = scale_bias_mul.a
+    scale_bias_load = loads[3]
     scale_bias_base = get_base_address(scale_bias_load.index)
     serial_scale_bias = SerialAddressRange(
         address=tvm.tir.Load("uint8", scale_bias_load.buffer_var, scale_bias_base),
         length=SCALE_BIAS_LENGTH * serial_ofm[3],
     )
     # Get weight info
-    weight_load = compute.a.b
+    weight_load = loads[2]
     weight_base = get_base_address(weight_load.index)
     serial_weight = SerialAddressRange(
         address=tvm.tir.Load("uint8", weight_load.buffer_var, weight_base),

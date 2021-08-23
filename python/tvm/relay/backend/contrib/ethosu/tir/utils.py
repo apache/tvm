@@ -172,3 +172,51 @@ def get_outer_loops(stmt, layout):
         b = w.body
         return n, h, w, cb, b, b.body
     return None
+
+
+def get_loads(stmt):
+    """Get the Load statements.
+
+    Parameters
+    ----------
+    stmt : tvm.tir.Stmt
+        The statement to get the Loads from.
+
+    Returns
+    -------
+    loads : list of tvm.tir.Load
+        The Loads found.
+
+    """
+    loads = []
+
+    def _visit(s):
+        if isinstance(s, tvm.tir.Load):
+            loads.append(s)
+
+    tvm.tir.stmt_functor.post_order_visit(stmt, _visit)
+    return loads
+
+
+def get_stores(stmt):
+    """Get the Store statements.
+
+    Parameters
+    ----------
+    stmt : tvm.tir.Stmt
+        The statement to get the Stores from.
+
+    Returns
+    -------
+    stores : list of tvm.tir.Store
+        The Stores found.
+
+    """
+    stores = []
+
+    def _visit(s):
+        if isinstance(s, tvm.tir.Store):
+            stores.append(s)
+
+    tvm.tir.stmt_functor.post_order_visit(stmt, _visit)
+    return stores
