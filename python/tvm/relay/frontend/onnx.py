@@ -1846,6 +1846,17 @@ class ArgMin(OnnxOpConverter):
         return _op.cast(AttrCvt("argmin")(inputs, attr), "int64")
 
 
+    @classmethod
+    def _impl_v13(cls, inputs, attr, params):
+        if "select_last_index" in attr:
+            raise NotImplementedError("select_last_index not supported in ArgMin")
+        axis = attr.get("axis", 0)
+        keepdims = attr.get("keepdims", True)
+        select_last_index = attr.get("select_last_index", False)
+        attr = {"axis": axis, "keepdims": keepdims}
+        return _op.cast(AttrCvt("argmin")(inputs, attr), "int64")
+        # return _op.argmin()
+
 class Softmax(OnnxOpConverter):
     """Operator converter for Softmax."""
 

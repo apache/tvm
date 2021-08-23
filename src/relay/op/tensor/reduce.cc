@@ -203,11 +203,32 @@ Array<te::Tensor> ReduceCompute(const Attrs& attrs, const Array<te::Tensor>& inp
   auto axes = param->axis;
   if (param->exclude) {
     axes = GetExcludeAxes(inputs[0]->shape.size(), param->axis);
-    if (axes.size() == 0) {
-      return {topi::identity(inputs[0])};
-    }
   }
+
+  if (axes.size() == 0) {
+    return {topi::identity(inputs[0])};
+  }
+
   return {f(inputs[0], axes, param->keepdims, false)};
+}
+
+template <typename F>
+Array<te::Tensor> OneElementReduceCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
+                                          const Type& out_type, F f) {
+  const OneElementReduceAttrs* param = attrs.as<OneElementReduceAttrs>();
+  ICHECK(param != nullptr);
+  if (inputs[0]->shape.size() == 0) {
+    return {topi::identity(inputs[0])};
+  }
+  auto axes = param->axis;
+  if (param->exclude) {
+    axes = GetExcludeAxes(inputs[0]->shape.size(), param->axis);
+  }
+
+  if (axes.size() == 0) {
+    return {topi::identity(inputs[0])};
+  }
+  return {f(inputs[0], axes, param->keepdims, false, param->select_last_index)};
 }
 
 /*!
@@ -333,7 +354,7 @@ Expr MakeReduce(Expr data, Array<Integer> axis, bool keepdims, bool exclude, Str
 
 Array<te::Tensor> ArgMaxCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                 const Type& out_type) {
-  return ReduceCompute(attrs, inputs, out_type, topi::argmax);
+  return OneElementReduceCompute(attrs, inputs, out_type, topi::argmax);
 }
 
 RELAY_REGISTER_REDUCE_OP("argmax")
@@ -341,7 +362,7 @@ RELAY_REGISTER_REDUCE_OP("argmax")
 values over a given axis.
 
 )code" TVM_ADD_FILELINE)
-    .set_attrs_type<ReduceAttrs>()
+    .set_attrs_type<OneElementReduceAttrs>()
     .set_support_level(4)
     .add_type_rel("ArgReduce", ArgReduceRel)
     .set_attr<FTVMCompute>("FTVMCompute", ArgMaxCompute)
@@ -349,7 +370,7 @@ values over a given axis.
 
 Array<te::Tensor> ArgMinCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                 const Type& out_type) {
-  return ReduceCompute(attrs, inputs, out_type, topi::argmin);
+  return OneElementReduceCompute(attrs, inputs, out_type, topi::argmin);
 }
 
 RELAY_REGISTER_REDUCE_OP("argmin")
@@ -357,7 +378,7 @@ RELAY_REGISTER_REDUCE_OP("argmin")
 values over a given axis.
 
 )code" TVM_ADD_FILELINE)
-    .set_attrs_type<ReduceAttrs>()
+    .set_attrs_type<OneElementReduceAttrs>()
     .set_support_level(4)
     .add_type_rel("ArgReduce", ArgReduceRel)
     .set_attr<FTVMCompute>("FTVMCompute", ArgMinCompute)
