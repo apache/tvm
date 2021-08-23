@@ -138,7 +138,7 @@ def _get_message(fd, expr: str, timeout_sec: int):
 def test_tflite(temp_dir, platform, west_cmd, tvm_debug):
     """Testing a TFLite model."""
 
-    if platform not in ["host", "mps2_an521", "nrf5340dk", "stm32l4r5zi_nucleo", "zynq_mp_r5"]:
+    if platform not in ["qemu_x86", "mps2_an521", "nrf5340dk", "stm32l4r5zi_nucleo", "zynq_mp_r5"]:
         pytest.skip(msg="Model does not fit.")
 
     model, zephyr_board = PLATFORMS[platform]
@@ -220,7 +220,7 @@ def test_tflite(temp_dir, platform, west_cmd, tvm_debug):
 @tvm.testing.requires_micro
 def test_qemu_make_fail(temp_dir, platform, west_cmd, tvm_debug):
     """Testing QEMU make fail."""
-    if platform not in ["host", "mps2_an521"]:
+    if platform not in ["qemu_x86", "mps2_an521"]:
         pytest.skip(msg="Only for QEMU targets.")
 
     model, zephyr_board = PLATFORMS[platform]
