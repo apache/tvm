@@ -19,7 +19,8 @@
 
 /*!
  * \file random_engine.h
- * \brief Random number generator. It provides a generic interface consistent with `std::uniform_random_bit_generator`
+ * \brief Random number generator. It provides a generic interface consistent with
+ * `std::uniform_random_bit_generator`
  */
 
 #ifndef TVM_SUPPORT_RANDOM_ENGINE_H_
