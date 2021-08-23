@@ -242,13 +242,14 @@ class XGBoostCostModel(CostModel):
             feature_extract_func = _extract_curve_feature_log
         else:
             raise RuntimeError("Invalid feature type: " + self.fea_type)
-        res = pool.map_with_error_catching(feature_extract_func, data)
+        result = pool.map_with_error_catching(feature_extract_func, data)
 
         # filter out feature with different shapes
         fea_len = len(self._get_feature([0])[0])
 
         xs, ys = [], []
-        for x, y in res:
+        for res in result:
+            x, y = res.value
             if len(x) == fea_len:
                 xs.append(x)
                 ys.append(y)
