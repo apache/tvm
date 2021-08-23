@@ -35,8 +35,7 @@ namespace tir {
  * \param decision The sampling decision, if any
  * \return The random variable sampled from candidates
  */
-TVM_DLL int64_t SampleCategorical(tir::ScheduleState self,
-                                  support::LinearCongruentialEngine::TRandState* rand_state,
+TVM_DLL int64_t SampleCategorical(support::LinearCongruentialEngine::TRandState* rand_state,
                                   const Array<Integer>& candidates, const Array<FloatImm>& probs,
                                   Optional<Integer>* decision);
 

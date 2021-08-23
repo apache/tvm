@@ -26,8 +26,7 @@
 namespace tvm {
 namespace tir {
 
-int64_t SampleCategorical(tir::ScheduleState self,
-                          support::LinearCongruentialEngine::TRandState* rand_state,
+int64_t SampleCategorical(support::LinearCongruentialEngine::TRandState* rand_state,
                           const Array<Integer>& candidates, const Array<FloatImm>& probs,
                           Optional<Integer>* decision) {
   CHECK(candidates.size() == probs.size())
