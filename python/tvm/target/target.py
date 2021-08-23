@@ -453,9 +453,9 @@ def hexagon(cpu_ver="v66", **kwargs):
         raise ValueError(msg.format(cpu_ver, valid_hex)) from None
 
     args = {
-        'hvx': 128,
-        'sim_options': None,
-        'llvm_options': None,
+        "hvx": 128,
+        "sim_options": None,
+        "llvm_options": None,
     }
     args.update(kwargs)
 
