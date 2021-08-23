@@ -240,6 +240,28 @@ def test_do_not_convert_arange():
     assert tvm.ir.structural_equal(mod, output_mod)
 
 
+def test_do_not_convert_summation():
+    """Ops that could involve a large summation are not allowed in fp16."""
+    shape = [1, 3, 16, 16]
+    a = relay.var("a", shape=shape)
+    ops = [
+        relay.sum,
+        relay.mean,
+        relay.nn.global_avg_pool2d,
+        lambda inp: relay.nn.adaptive_avg_pool2d(inp, (1, 1)),
+    ]
+    for op in ops:
+        mod = tvm.IRModule.from_expr(op(a))
+        mod = tvm.relay.transform.InferType()(mod)
+
+        mod_params = {
+            "a": np.random.uniform(-1, 1, size=shape).astype("float32"),
+        }
+
+        output_mod = verify_mixed_precision_output_close(mod, mod_params, atol=0.0, rtol=0)
+        assert tvm.ir.structural_equal(mod, output_mod)
+
+
 def test_green_gray_propagates_simple():
     """Conv is a green listed operation, while addition is gray.
 
