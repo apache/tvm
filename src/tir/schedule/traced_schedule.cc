@@ -99,6 +99,16 @@ Array<LoopRV> TracedScheduleNode::Split(const LoopRV& loop_rv,
   return results;
 }
 
+void TracedScheduleNode::Reorder(const Array<LoopRV>& ordered_loop_rvs) {
+  ConcreteScheduleNode::Reorder(ordered_loop_rvs);
+
+  static const InstructionKind& kind = InstructionKind::Get("Reorder");
+  trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
+                                      /*inputs=*/{ordered_loop_rvs.begin(), ordered_loop_rvs.end()},
+                                      /*attrs=*/{},
+                                      /*outputs=*/{}));
+}
+
 /******** Schedule: Manipulate ForKind ********/
 
 void TracedScheduleNode::Parallel(const LoopRV& loop_rv) {
