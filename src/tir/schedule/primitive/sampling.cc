@@ -80,7 +80,7 @@ struct SampleCategoricalTraits : public UnpackedInstTraits<SampleCategoricalTrai
     return py.Str();
   }
 
-  friend struct UnpackedInstTraits;
+  friend struct UnpackedInstTraits<SampleCategoricalTraits>;
 };
 
 TVM_REGISTER_INST_KIND_TRAITS(SampleCategoricalTraits);
