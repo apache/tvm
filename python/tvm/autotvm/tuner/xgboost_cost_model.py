@@ -23,7 +23,7 @@ import time
 
 import numpy as np
 
-from tvm.contrib.popen_pool import PopenPoolExecutor
+from tvm.contrib.popen_pool import PopenPoolExecutor, StatusKind
 
 from .. import feature
 from ..utils import get_rank
@@ -146,12 +146,6 @@ class XGBoostCostModel(CostModel):
         self._sample_size = 0
         self._reset_pool(self.space, self.target, self.task)
 
-    def _initializer(space, target, task):
-        global _extract_space, _extract_target, _extract_task
-        _extract_space = space
-        _extract_target = target
-        _extract_task = task
-
     def _reset_pool(self, space, target, task):
         """reset processing pool for feature extraction"""
 
@@ -163,7 +157,7 @@ class XGBoostCostModel(CostModel):
 
         self.pool = PopenPoolExecutor(
             max_workers=self.num_threads,
-            initializer=XGBoostCostModel._initializer,
+            initializer=_extract_popen_initializer,
             initargs=(space, target, task),
         )
 
@@ -331,7 +325,7 @@ class XGBoostCostModel(CostModel):
             pool = self._get_pool()
             feas = pool.map_with_error_catching(self.feature_extract_func, need_extract)
             for i, fea in zip(need_extract, feas):
-                fea_cache[i] = fea.value
+                fea_cache[i] = fea.value if fea.status == StatusKind.COMPLETE else None
 
         feature_len = None
         for idx in indexes:
@@ -353,6 +347,13 @@ class XGBoostCostModel(CostModel):
 _extract_space = None
 _extract_target = None
 _extract_task = None
+
+
+def _extract_popen_initializer(space, target, task):
+    global _extract_space, _extract_target, _extract_task
+    _extract_space = space
+    _extract_target = target
+    _extract_task = task
 
 
 def _extract_itervar_feature_index(args):
