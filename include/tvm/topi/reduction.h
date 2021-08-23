@@ -431,38 +431,22 @@ inline Tensor max(const Tensor& data, const Array<Integer>& axis, bool keepdims 
   return CommReduce(data, axis, MaxOp, keepdims, atleast1d);
 }
 
-inline FCommReduce MakeSinglePassReducer(
-    std::function<PrimExpr(Var, Var)> comparison_op,
-    std::function<PrimExpr(const DataType&)> initial_value_generator, String name) {
+inline FCommReduce MakeArgminReducer(bool select_last_index = false) {
   // Create a Commutative Reducer with a comparison operation, and method to get the initial value.
   auto fcombine = [&](Array<Var> lhs, Array<Var> rhs) {
     Array<PrimExpr> result;
-    result.push_back(tvm::tir::Select(comparison_op(lhs[1], rhs[1]), lhs[0], rhs[0]));  // idx
-    result.push_back(tvm::tir::Select(comparison_op(lhs[1], rhs[1]), lhs[1], rhs[1]));  // val
+    auto comparison = select_last_index ? lhs[1] < rhs[1] : lhs[1] <= rhs[1];
+    result.push_back(tvm::tir::Select(comparison, lhs[0], rhs[0]));  // idx
+    result.push_back(tvm::tir::Select(comparison, lhs[1], rhs[1]));  // val
     return result;
   };
   auto fidentity = [&](std::vector<DataType> types) {
     Array<PrimExpr> result;
     result.push_back(tvm::tir::make_const(types[0], -1));  // idx
-    result.push_back(initial_value_generator(types[1]));   // val
+    result.push_back(tvm::max_value(types[1]));            // val
     return result;
   };
-  return MakeCommReducer(fcombine, fidentity, name);
-}
-
-inline FCommReduce MakeArgminReducer(bool select_last_index = false) {
-  std::function<PrimExpr(Var, Var)> comparison_op;
-  if (select_last_index) {
-    comparison_op = [](Var lhs, Var rhs) { return lhs < rhs; };
-  } else {
-    comparison_op = [](Var lhs, Var rhs) { return lhs <= rhs; };
-  }
-
-  std::function<PrimExpr(const DataType&)> initial_value_generator = [](const DataType& data_type) {
-    return tvm::max_value(data_type);
-  };
-
-  return MakeSinglePassReducer(comparison_op, initial_value_generator, "argmin");
+  return MakeCommReducer(fcombine, fidentity, "argmin");
 }
 
 /*!
@@ -488,18 +472,21 @@ inline Tensor argmin(const Tensor& data, const Array<Integer>& axis, bool keepdi
 }
 
 inline FCommReduce MakeArgmaxReducer(bool select_last_index = false) {
-  std::function<PrimExpr(Var, Var)> comparison_op;
-  if (select_last_index) {
-    comparison_op = [](Var lhs, Var rhs) { return lhs > rhs; };
-  } else {
-    comparison_op = [](Var lhs, Var rhs) { return lhs >= rhs; };
-  }
-
-  std::function<PrimExpr(const DataType&)> initial_value_generator = [](const DataType& data_type) {
-    return tvm::min_value(data_type);
+  // Create a Commutative Reducer with a comparison operation, and method to get the initial value.
+  auto fcombine = [&](Array<Var> lhs, Array<Var> rhs) {
+    Array<PrimExpr> result;
+    auto comparison = select_last_index ? lhs[1] > rhs[1] : lhs[1] >= rhs[1];
+    result.push_back(tvm::tir::Select(comparison, lhs[0], rhs[0]));  // idx
+    result.push_back(tvm::tir::Select(comparison, lhs[1], rhs[1]));  // val
+    return result;
   };
-
-  return MakeSinglePassReducer(comparison_op, initial_value_generator, "argmax");
+  auto fidentity = [&](std::vector<DataType> types) {
+    Array<PrimExpr> result;
+    result.push_back(tvm::tir::make_const(types[0], -1));  // idx
+    result.push_back(tvm::min_value(types[1]));            // val
+    return result;
+  };
+  return MakeCommReducer(fcombine, fidentity, "argmax");
 }
 
 /*!

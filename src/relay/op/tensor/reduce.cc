@@ -203,10 +203,9 @@ Array<te::Tensor> ReduceCompute(const Attrs& attrs, const Array<te::Tensor>& inp
   auto axes = param->axis;
   if (param->exclude) {
     axes = GetExcludeAxes(inputs[0]->shape.size(), param->axis);
-  }
-
-  if (axes.size() == 0) {
-    return {topi::identity(inputs[0])};
+    if (axes.size() == 0) {
+      return {topi::identity(inputs[0])};
+    }
   }
 
   return {f(inputs[0], axes, param->keepdims, false)};
@@ -223,11 +222,11 @@ Array<te::Tensor> OneElementReduceCompute(const Attrs& attrs, const Array<te::Te
   auto axes = param->axis;
   if (param->exclude) {
     axes = GetExcludeAxes(inputs[0]->shape.size(), param->axis);
+    if (axes.size() == 0) {
+      return {topi::identity(inputs[0])};
+    }
   }
 
-  if (axes.size() == 0) {
-    return {topi::identity(inputs[0])};
-  }
   return {f(inputs[0], axes, param->keepdims, false, param->select_last_index)};
 }
 
