@@ -672,7 +672,7 @@ def gru_cell(
 ):
     """
     Common implementation of GRU cell for all frontends of TVM
-    TODO(vvchernov): currently it is used by pytorch. Extend for other frontends
+    TODO(vvchernov): currently it is used by pytorch and ONNX. Extend for other frontends
 
     Parameters
     ----------
@@ -709,8 +709,7 @@ def gru_cell(
         xwt = _op.nn.dense(x_t, w_inp)
         if linear_before_reset:
             hwt = _op.nn.dense(hidden_state, w_hid)
-            # TODO(vvchernov): It is assumed that both bias are or not
-            if b_inp is not None:
+            if b_inp is not None and b_hid is not None:
                 xwt += b_inp
                 hwt += b_hid
             i_r, i_z, i_n = _op.split(xwt, 3, axis=-1)
@@ -723,8 +722,7 @@ def gru_cell(
             w_hr, w_hz, w_hn = _op.split(w_hid, 3, axis=0)
             r_gate = i_r + _op.nn.dense(hidden_state, w_hr)
             z_gate = i_z + _op.nn.dense(hidden_state, w_hz)
-            # TODO(vvchernov): It is assumed that both bias are or not
-            if b_inp is not None:
+            if b_inp is not None and b_hid is not None:
                 b_ir, b_iz, b_in = _op.split(b_inp, 3, axis=-1)
                 b_hr, b_hz, b_hn = _op.split(b_hid, 3, axis=-1)
                 r_gate += b_ir + b_hr
