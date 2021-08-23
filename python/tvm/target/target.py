@@ -453,9 +453,9 @@ def hexagon(cpu_ver="v66", **kwargs):
         raise ValueError(msg.format(cpu_ver, valid_hex)) from None
 
     args = {
-        'hvx' : 128,
-        'sim_options' : None,
-        'llvm_options' : None,
+        'hvx': 128,
+        'sim_options': None,
+        'llvm_options': None,
     }
     args.update(kwargs)
 
@@ -472,6 +472,7 @@ def hexagon(cpu_ver="v66", **kwargs):
     # LLVM target string
     def create_llvm_target(cpu_ver, args):
         """ Create LLVM target string. """
+
         target = " -mtriple=hexagon"
         mcpu = " -mcpu=hexagon" + cpu_ver
 
@@ -493,8 +494,8 @@ def hexagon(cpu_ver="v66", **kwargs):
     # Simulator options string
     def create_sim_options(cpu_ver, args):
         """ Create simulator option string. """
+
         def validate_hvx_length(codegen_hvx, sim_options):
-            """ Check that HVX length options match between codegen and simulator. """
             if sim_options and "--hvx_length" in sim_options:
                 # If --hvx_length was specified, check HVX length of sim
                 # vs codegen
@@ -550,8 +551,9 @@ def hexagon(cpu_ver="v66", **kwargs):
         return sim_cpu + " " + validate_hvx_length(hvx, sim_options)
 
     # LLVM options string
-    def create_llvm_options(cpu_ver, args): # pylint: disable=unused-argument
+    def create_llvm_options(cpu_ver, args):  # pylint: disable=unused-argument
         """ Create LLVM options string. """
+
         llvm_options = args["llvm_options"]
 
         # TVM's option parser doesn't allow '=' in values, but '=' can
