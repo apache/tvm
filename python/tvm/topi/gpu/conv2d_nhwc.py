@@ -110,6 +110,7 @@ def schedule_conv2d_nhwc_direct(cfg, s, Conv):
     ni, yi, xi, fi = s[OL].op.axis
     ry, rx, rc = s[OL].op.reduce_axis
     rco, rci = s[OL].split(rc, factor=step)
+    s[OL].vectorize(fi)
     s[OL].reorder(rco, ry, rx, rci, ni, fi)
 
     s[AA].compute_at(s[OL], rx)
