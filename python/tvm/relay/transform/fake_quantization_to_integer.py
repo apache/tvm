@@ -117,11 +117,16 @@ def conv2d(expr, type_map):
     x_t = type_map[x]
     w_t = type_map[weight]
     conv_scale = fold_constant(x_t.scale * w_t.scale)
-    shape = list(relay.transform.InferType()(tvm.IRModule.from_expr(conv_scale))["main"].body.checked_type.shape)
+    oc_axis = attrs["kernel_layout"].find("O")
+    shape = list(
+        relay.transform.InferType()(tvm.IRModule.from_expr(conv_scale))[
+            "main"
+        ].body.checked_type.shape
+    )
     if len(shape) == 0:
         conv_zp = relay.const(0)
     else:
-        conv_zp = relay.const([0] * shape[0].value)
+        conv_zp = relay.const([0] * shape[oc_axis].value)
     out = relay.qnn.op.conv2d(
         x, weight, x_t.zero_point, w_t.zero_point, x_t.scale, w_t.scale, **attrs
     )
@@ -203,6 +208,10 @@ def clip(expr, type_map):
     amax = expr.attrs.a_max
     scale = fold_constant(t.scale)
     z_p = fold_constant(t.zero_point)
+    if not isinstance(amin, relay.expr.Constant):
+        amin = relay.op.const(amin)
+    if not isinstance(amax, relay.expr.Constant):
+        amax = relay.op.const(amax)
     if (
         isinstance(scale, relay.expr.Constant)
         and scale.data.numpy().size == 1
@@ -215,8 +224,8 @@ def clip(expr, type_map):
         new_max = int(amax / scale + z_p)
         out = relay.op.clip(arg, new_min, new_max)
     else:
-        amin = relay.op.cast(relay.op.round(relay.op.const(amin) / scale), t.dtype) + z_p
-        amax = relay.op.cast(relay.op.round(relay.op.const(amax) / scale), t.dtype) + z_p
+        amin = relay.op.cast(relay.op.round(amin / scale), t.dtype) + z_p
+        amax = relay.op.cast(relay.op.round(amax / scale), t.dtype) + z_p
         amin = relay.op.reshape(amin, [1, -1, 1, 1])
         amax = relay.op.reshape(amax, [1, -1, 1, 1])
         out = relay.op.minimum(relay.op.maximum(arg, amin), amax)
