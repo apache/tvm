@@ -345,6 +345,16 @@ Expr MakeReduce(Expr data, Array<Integer> axis, bool keepdims, bool exclude, Str
   return Call(Op::Get(op_name), {data}, Attrs(attrs), {});
 }
 
+Expr MakeOneElementReduce(Expr data, Array<Integer> axis, bool keepdims, bool exclude,
+                          bool select_last_index, String op_name) {
+  auto attrs = make_object<OneElementReduceAttrs>();
+  attrs->axis = std::move(axis);
+  attrs->keepdims = keepdims;
+  attrs->exclude = exclude;
+  attrs->select_last_index = select_last_index;
+  return Call(Op::Get(op_name), {data}, Attrs(attrs), {});
+}
+
 #define RELAY_REGISTER_REDUCE_OP(OpName)                                                \
   TVM_REGISTER_GLOBAL("relay.op._make." OpName)                                         \
       .set_body_typed([](Expr data, Array<Integer> axis, bool keepdims, bool exclude) { \
@@ -352,12 +362,20 @@ Expr MakeReduce(Expr data, Array<Integer> axis, bool keepdims, bool exclude, Str
       });                                                                               \
   RELAY_REGISTER_OP(OpName).set_num_inputs(1).add_argument("data", "Tensor", "The input tensor.")
 
+#define RELAY_REGISTER_ONE_ELEMENT_REDUCE_OP(OpName)                                           \
+  TVM_REGISTER_GLOBAL("relay.op._make." OpName)                                                \
+      .set_body_typed([](Expr data, Array<Integer> axis, bool keepdims, bool exclude,          \
+                         bool select_last_index) {                                             \
+        return MakeOneElementReduce(data, axis, keepdims, exclude, select_last_index, OpName); \
+      });                                                                                      \
+  RELAY_REGISTER_OP(OpName).set_num_inputs(1).add_argument("data", "Tensor", "The input tensor.")
+
 Array<te::Tensor> ArgMaxCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                 const Type& out_type) {
   return OneElementReduceCompute(attrs, inputs, out_type, topi::argmax);
 }
 
-RELAY_REGISTER_REDUCE_OP("argmax")
+RELAY_REGISTER_ONE_ELEMENT_REDUCE_OP("argmax")
     .describe(R"code(Creates an operation that finds the indices of the maximum
 values over a given axis.
 
@@ -373,7 +391,7 @@ Array<te::Tensor> ArgMinCompute(const Attrs& attrs, const Array<te::Tensor>& inp
   return OneElementReduceCompute(attrs, inputs, out_type, topi::argmin);
 }
 
-RELAY_REGISTER_REDUCE_OP("argmin")
+RELAY_REGISTER_ONE_ELEMENT_REDUCE_OP("argmin")
     .describe(R"code(Creates an operation that finds the indices of the minimum
 values over a given axis.
 
