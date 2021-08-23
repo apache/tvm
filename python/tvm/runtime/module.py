@@ -20,8 +20,8 @@
 import os
 import ctypes
 import struct
-import numpy as np
 from typing import Sequence
+import numpy as np
 
 import tvm._ffi
 from tvm._ffi.base import _LIB, check_call, c_str, string_types, _RUNTIME_ONLY
