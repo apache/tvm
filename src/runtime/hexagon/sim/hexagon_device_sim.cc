@@ -87,8 +87,8 @@ template <typename T>
 class Optional {
  public:
   Optional() : has_value(false) {}
-  Optional(const T& val) : value(val), has_value(true) {}   // NOLINT(*)
-  Optional(T&& val) : value(val), has_value(true) {}        // NOLINT(*)
+  Optional(const T& val) : value(val), has_value(true) {}  // NOLINT(*)
+  Optional(T&& val) : value(val), has_value(true) {}       // NOLINT(*)
 
   bool hasValue() const { return has_value; }
   operator bool() const { return hasValue(); }
