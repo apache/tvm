@@ -14,14 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import tvm
-from tvm import te
 import numpy as np
-from tvm import relay
+import numpy.random
+import tvm
+import tvm.testing
+import tvm.topi.testing
+from tvm import relay, te
 from tvm.relay import transform
 from tvm.relay.testing import run_infer_type
-import tvm.topi.testing
-import tvm.testing
 
 
 @tvm.testing.uses_gpu
@@ -340,6 +340,44 @@ def test_reduce_functions():
         verify_reduce(func, (128, 24, 128), (0, 2), False, False, (24,))
         verify_reduce(func, (128, 24, 128), (0, 1), True, False, (1, 1, 128))
         verify_reduce(func, (128, 24, 128), (0, 2), True, False, (1, 24, 1))
+
+
+@tvm.testing.uses_gpu
+def test_argmin_argmax_get_last_elements():
+    def get_test_case(shape, gt_func, test_argmin=False):
+        total_ele = np.product(shape)
+        arr = np.zeros(total_ele)
+        target_value = -1 if test_argmin else 1
+        arr[: total_ele // 3] = target_value
+        np.random.shuffle(arr)
+        arr = arr.reshape(shape)
+        ans = gt_func(np.flip(arr))
+        return arr, len(arr) - ans - 1
+
+    funcs_and_gt_funcs = [(relay.argmax, np.argmax), (relay.argmin, np.argmin)]
+    lengths = [5, 10, 15]
+    for func, gt_func in funcs_and_gt_funcs:
+        for shape in lengths:
+            x_in = relay.var("x_in", shape=[shape])
+            try:
+                output = func(x_in, select_last_index=True)
+            except:
+                breakpoint()
+            arr, ans = get_test_case(shape, gt_func, test_argmin=func == relay.argmin)
+
+            mod = tvm.IRModule.from_expr(output)
+            for target, dev in tvm.testing.enabled_targets():
+                op_res = relay.create_executor(
+                    "graph", mod=mod, device=dev, target=target
+                ).evaluate()(arr)
+                print(target)
+                print(dev)
+                print(arr)
+                print(ans)
+                print(op_res)
+                print()
+
+    raise ValueError("WHAT")
 
 
 def verify_mean_var_std(funcs, shape, axis, keepdims):
