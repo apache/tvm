@@ -453,9 +453,9 @@ inline FCommReduce MakeSinglePassReducer(
 inline FCommReduce MakeArgminReducer(bool select_last_index = false) {
   std::function<PrimExpr(Var, Var)> comparison_op;
   if (select_last_index) {
-    comparison_op = [](Var lhs, Var rhs) { return lhs <= rhs; };
-  } else {
     comparison_op = [](Var lhs, Var rhs) { return lhs < rhs; };
+  } else {
+    comparison_op = [](Var lhs, Var rhs) { return lhs <= rhs; };
   }
 
   std::function<PrimExpr(const DataType&)> initial_value_generator = [](const DataType& data_type) {
@@ -490,9 +490,9 @@ inline Tensor argmin(const Tensor& data, const Array<Integer>& axis, bool keepdi
 inline FCommReduce MakeArgmaxReducer(bool select_last_index = false) {
   std::function<PrimExpr(Var, Var)> comparison_op;
   if (select_last_index) {
-    comparison_op = [](Var lhs, Var rhs) { return lhs >= rhs; };
-  } else {
     comparison_op = [](Var lhs, Var rhs) { return lhs > rhs; };
+  } else {
+    comparison_op = [](Var lhs, Var rhs) { return lhs >= rhs; };
   }
 
   std::function<PrimExpr(const DataType&)> initial_value_generator = [](const DataType& data_type) {
