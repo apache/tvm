@@ -167,7 +167,7 @@ def min(data, axis=None, keepdims=False):
     return cpp.min(data, axis, keepdims)
 
 
-def argmax(data, axis=None, keepdims=False):
+def argmax(data, axis=None, keepdims=False, exclude=False, select_last_index=False):
     """Returns the indices of the maximum values along an axis.
 
     Parameters
@@ -189,10 +189,10 @@ def argmax(data, axis=None, keepdims=False):
     -------
     ret : tvm.te.Tensor
     """
-    return cpp.argmax(data, axis, keepdims)
+    return cpp.argmax(data, axis, keepdims, exclude=exclude, select_last_index=select_last_index)
 
 
-def argmin(data, axis=None, keepdims=False):
+def argmin(data, axis=None, keepdims=False, exclude=False, select_last_index=False):
     """Returns the indices of the minimum values along an axis.
 
     Parameters
@@ -214,7 +214,7 @@ def argmin(data, axis=None, keepdims=False):
     -------
     ret : tvm.te.Tensor
     """
-    return cpp.argmin(data, axis, keepdims)
+    return cpp.argmin(data, axis, keepdims, exclude, select_last_index)
 
 
 def prod(data, axis=None, keepdims=False):
