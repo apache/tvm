@@ -35,6 +35,9 @@ def elementwise(a: ty.handle, b: ty.handle) -> None:
         B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
 
+# pylint: enable=no-member,invalid-name,unused-variable
+
+
 def test_fuse_sample_categorical():
     """Test sample categprical sampling function"""
     n = 1000
