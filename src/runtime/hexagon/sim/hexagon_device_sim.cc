@@ -17,6 +17,7 @@
  * under the License.
  */
 
+#include <dmlc/optional.h>
 #include <stdlib.h>
 #include <tvm/runtime/logging.h>
 #include <unistd.h>
@@ -82,32 +83,16 @@ std::unique_ptr<T> make_unique(size_t size) {
   return std::unique_ptr<T>(new U[size]());
 }
 
-// Replacement for llvm::Optional.
+// An "Optional" class, originally a replacement for llvm::Optional, then an
+// extension of dmlc::optional to make it compatible with C++17's std::optional.
 template <typename T>
-class Optional {
- public:
-  Optional() : has_value(false) {}
-  Optional(const T& val) : value(val), has_value(true) {}  // NOLINT(*)
-  Optional(T&& val) : value(val), has_value(true) {}       // NOLINT(*)
+struct Optional : public dmlc::optional<T> {
+  using dmlc::optional<T>::optional;
+  using dmlc::optional<T>::operator=;
+  Optional(const T& val) : dmlc::optional<T>(val) {}  // NOLINT(*)
 
-  bool hasValue() const { return has_value; }
-  operator bool() const { return hasValue(); }
-  T operator*() const {
-    ICHECK(has_value) << "value not set";
-    return value;
-  }
-  const T* operator->() const {
-    ICHECK(has_value) << "value not set";
-    return &value;
-  }
-  T* operator->() {
-    ICHECK(has_value) << "value not set";
-    return &value;
-  }
-
- private:
-  T value;
-  bool has_value;
+  T* operator->() { return &this->operator*(); }
+  const T* operator->() const { return &this->operator*(); }
 };
 
 // Converter class to translate vector<string> to char**. This relieves the
@@ -158,7 +143,7 @@ MaybeString pop_front(string_list& deq) {  // NOLINT(*)
 
 Optional<int64_t> to_int(const MaybeString& str) {
   auto none = Optional<int64_t>();
-  if (str.hasValue()) {
+  if (str.has_value()) {
     try {
       size_t pos;
       int64_t val = std::stoll(*str, &pos, 0);
@@ -171,7 +156,7 @@ Optional<int64_t> to_int(const MaybeString& str) {
 
 Optional<uint64_t> to_uint(const MaybeString& str) {
   auto none = Optional<uint64_t>();
-  if (str.hasValue()) {
+  if (str.has_value()) {
     try {
       size_t pos;
       uint64_t val = std::stoull(*str, &pos, 0);
@@ -184,7 +169,7 @@ Optional<uint64_t> to_uint(const MaybeString& str) {
 
 Optional<float> to_float(const MaybeString& str) {
   auto none = Optional<float>();
-  if (str.hasValue()) {
+  if (str.has_value()) {
     try {
       size_t pos;
       float val = std::stof(*str, &pos);
@@ -859,19 +844,19 @@ bool HexagonSimulator::Configure(string_list& opts) {
   }
 
   // Check AHB.
-  if (ahb_.first.hasValue() && ahb_.second.hasValue()) {
+  if (ahb_.first.has_value() && ahb_.second.has_value()) {
     CHECKED_CALL(ConfigureAHB, *ahb_.first, *ahb_.second);
   } else {
-    ICHECK(!ahb_.first.hasValue() && !ahb_.second.hasValue())
+    ICHECK(!ahb_.first.has_value() && !ahb_.second.has_value())
         << "HexagonSimulator: please specify both low and high addresses "
            "for AHB";
   }
 
   // Check AXI2.
-  if (axi2_.first.hasValue() && axi2_.second.hasValue()) {
+  if (axi2_.first.has_value() && axi2_.second.has_value()) {
     CHECKED_CALL(ConfigureAXI2, *axi2_.first, *axi2_.second);
   } else {
-    ICHECK(!axi2_.first.hasValue() && !axi2_.second.hasValue())
+    ICHECK(!axi2_.first.has_value() && !axi2_.second.has_value())
         << "HexagonSimulator: please specify both low and high addresses "
            "for AXI2";
   }
