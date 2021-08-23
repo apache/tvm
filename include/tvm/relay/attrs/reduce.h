@@ -62,7 +62,7 @@ struct ReduceAttrs : public tvm::AttrsNode<ReduceAttrs> {
 };
 
 /*! \brief Attributes for Reduce operators which reduce by finding a single element. E.g. argmin */
-struct OneElementReduceAttrs : public tvm::AttrsNode<ReduceAttrs> {
+struct OneElementReduceAttrs : public tvm::AttrsNode<OneElementReduceAttrs> {
   Array<Integer> axis;
   bool keepdims;
   bool select_last_index;

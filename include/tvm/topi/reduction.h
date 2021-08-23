@@ -433,7 +433,7 @@ inline Tensor max(const Tensor& data, const Array<Integer>& axis, bool keepdims 
 
 inline FCommReduce MakeArgminReducer(bool select_last_index = false) {
   // Create a Commutative Reducer with a comparison operation, and method to get the initial value.
-  auto fcombine = [&](Array<Var> lhs, Array<Var> rhs) {
+  auto fcombine = [=](Array<Var> lhs, Array<Var> rhs) {
     Array<PrimExpr> result;
     auto comparison = select_last_index ? lhs[1] < rhs[1] : lhs[1] <= rhs[1];
     result.push_back(tvm::tir::Select(comparison, lhs[0], rhs[0]));  // idx
@@ -473,7 +473,7 @@ inline Tensor argmin(const Tensor& data, const Array<Integer>& axis, bool keepdi
 
 inline FCommReduce MakeArgmaxReducer(bool select_last_index = false) {
   // Create a Commutative Reducer with a comparison operation, and method to get the initial value.
-  auto fcombine = [&](Array<Var> lhs, Array<Var> rhs) {
+  auto fcombine = [=](Array<Var> lhs, Array<Var> rhs) {
     Array<PrimExpr> result;
     auto comparison = select_last_index ? lhs[1] > rhs[1] : lhs[1] >= rhs[1];
     result.push_back(tvm::tir::Select(comparison, lhs[0], rhs[0]));  // idx
