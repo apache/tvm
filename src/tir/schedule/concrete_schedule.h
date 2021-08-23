@@ -81,6 +81,7 @@ class ConcreteScheduleNode : public ScheduleNode {
   /******** Schedule: Transform loops ********/
   LoopRV Fuse(const Array<LoopRV>& loop_rvs) override;
   Array<LoopRV> Split(const LoopRV& loop_rv, const Array<Optional<ExprRV>>& factors) override;
+  void Reorder(const Array<LoopRV>& ordered_loop_rvs) override;
   /******** Schedule: Manipulate ForKind ********/
   void Parallel(const LoopRV& loop_rv) override;
   void Vectorize(const LoopRV& loop_rv) override;

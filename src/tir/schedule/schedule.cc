@@ -125,6 +125,8 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetLoops")
 /******** (FFI) Transform loops ********/
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleFuse").set_body_method<Schedule>(&ScheduleNode::Fuse);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSplit").set_body_method<Schedule>(&ScheduleNode::Split);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleReorder")
+    .set_body_method<Schedule>(&ScheduleNode::Reorder);
 /******** (FFI) Manipulate ForKind ********/
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleParallel")
     .set_body_method<Schedule>(&ScheduleNode::Parallel);
