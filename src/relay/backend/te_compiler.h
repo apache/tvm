@@ -223,7 +223,7 @@ LoweredModule LowerTE(
  * LoweredModule into an IRModule before returning it.
  *
  * \param targets The mapping for devices to targets.
- * \param device_map An analysis result mapping each sub-expression to a device.
+ * \param device_context_map An analysis result mapping each sub-expression to a device.
  * \param memory_plan The memory plan used during lowering
  * \param module_name The name of this module
  * \param process_fn Callback allowing one-level up code generators to process

@@ -899,15 +899,16 @@ IRModule LoweredModuleToIRModule(LoweredModule mod) {
       const BaseFunc& func = kv.second;
       if (func->IsInstance<tir::PrimFuncNode>()) {
         tir::PrimFunc primFunc =
-          WithAttr(Downcast<tir::PrimFunc>(std::move(func)), tvm::attr::kTarget, target);
+            WithAttr(Downcast<tir::PrimFunc>(std::move(func)), tvm::attr::kTarget, target);
         unified_module->Add(var, primFunc);
       } else if (func->IsInstance<relay::FunctionNode>()) {
         relay::Function relayFunc =
-          WithAttr(Downcast<relay::Function>(std::move(func)), tvm::attr::kTarget, target);
+            WithAttr(Downcast<relay::Function>(std::move(func)), tvm::attr::kTarget, target);
         unified_module->Add(var, relayFunc);
       } else {
-        LOG(FATAL) << "We expected to only have PrimFuncs or RelayFuncs in the target modules, but found "
-          << func->GetTypeKey();
+        LOG(FATAL)
+            << "We expected to only have PrimFuncs or RelayFuncs in the target modules, but found "
+            << func->GetTypeKey();
       }
     }
   }
