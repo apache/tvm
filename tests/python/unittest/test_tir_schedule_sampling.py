@@ -38,10 +38,10 @@ def elementwise(a: ty.handle, b: ty.handle) -> None:
 # pylint: enable=no-member,invalid-name,unused-variable
 
 
-def test_fuse_sample_categorical():
+def test_sample_categorical():
     """Test sample categprical sampling function"""
     n = 1000
-    sch = tir.Schedule(elementwise, seed=42)
+    sch = tir.Schedule(elementwise, seed=42, debug_mask="all")
     counter = defaultdict(int)
     candidates = [5, 2, 7, 1]
     probs = [0.15, 0.55, 0.05, 0.25]
