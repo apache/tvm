@@ -241,9 +241,9 @@ class MixedModeVisitor : public ::tvm::relay::ExprVisitor {
    * \brief VisitExpr is finalized to preserve call expansion of dataflow regions
    */
   void VisitExpr(const Expr& expr) final;
-  void VisitExpr_(const CallNode* op) override;
-  void VisitExpr_(const TupleNode* op) override;
-  void VisitExpr_(const TupleGetItemNode* op) override;
+  virtual void VisitExpr_(const CallNode* op) override;
+  virtual void VisitExpr_(const TupleNode* op) override;
+  virtual void VisitExpr_(const TupleGetItemNode* op) override;
 
  protected:
   /*!
