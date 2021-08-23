@@ -567,3 +567,22 @@ def make_ethosu_binary_elementwise(
         ofm_layout=ofm_layout,
     )
     return ethosu_binary_elementwise
+def make_ethosu_identity(
+    ifm,
+    lut=relay.const([], dtype="int8"),
+    ifm_scale=1,
+    ifm_zero_point=0,
+    ofm_scale=1,
+    ofm_zero_point=0,
+    activation="NONE",
+):
+    identity = ethosu_ops.ethosu_identity(
+        ifm,
+        lut=lut,
+        ifm_scale=ifm_scale,
+        ifm_zero_point=ifm_zero_point,
+        ofm_scale=ofm_scale,
+        ofm_zero_point=ofm_zero_point,
+        activation=activation,
+    )
+    return identity

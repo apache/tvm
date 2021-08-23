@@ -14,6 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from tvm import relay, TVMError
+from tvm import relay
+import tvm
+from tvm.relay.testing import run_opt_pass
+from .infra import make_ethosu_conv2d
+from .infra import make_ethosu_pooling
+from .infra import make_ethosu_identity
+
 import pytest
 
 pytest.importorskip("ethosu.vela")
@@ -25,6 +33,7 @@ from .infra import make_ethosu_conv2d
 from .infra import make_ethosu_depthwise_conv2d
 from .infra import make_ethosu_pooling
 from .infra import make_ethosu_binary_elementwise
+from .infra import make_ethosu_identity
 
 
 @pytest.mark.parametrize(
@@ -302,6 +311,7 @@ def test_ethosu_binary_elementwise_invalid_data_types():
         run_opt_pass(func, relay.transform.InferType())
 
 
+
 @pytest.mark.parametrize("operator_type", ["MIN", "MAX"])
 def test_ethosu_binary_elementwise_min_max_invalid_data_type(operator_type):
     invalid_dtype = "int32"
@@ -338,6 +348,27 @@ def test_ethosu_binary_elementwise_shift_invalid_data_type(invalid_dtype, operat
         invalid_dtype,
     )
     func = relay.Function([ifm, ifm2], binary_elementwise)
+    with pytest.raises(TVMError):
+        run_opt_pass(func, relay.transform.InferType())
+
+
+def test_ethosu_identity_invalid_shape():
+    invalid_shape = [1, 2, 3, 4, 5]
+    dtype = "int8"
+    ifm = relay.var("ifm", shape=invalid_shape, dtype=dtype)
+
+    identity = make_ethosu_identity(ifm)
+    func = relay.Function([ifm], identity)
+    with pytest.raises(TVMError):
+        run_opt_pass(func, relay.transform.InferType())
+
+
+def test_ethosu_invalid_invalid_dtype():
+    invalid_dtype = "int32"
+    ifm = relay.var("ifm", shape=[6000], dtype=invalid_dtype)
+
+    identity = make_ethosu_identity(ifm)
+    func = relay.Function([ifm], identity)
     with pytest.raises(TVMError):
         run_opt_pass(func, relay.transform.InferType())
 

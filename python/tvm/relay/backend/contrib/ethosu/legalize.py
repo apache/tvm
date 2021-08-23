@@ -123,6 +123,108 @@ class LegalizeSplit:
         pass
 
 
+class StridedSliceRewriter(DFPatternCallback):
+    """This pass brings the strided slice out of the partitioned function"""
+
+    def __init__(self):
+        super().__init__(require_type=True, rewrite_once=True)
+        self.pattern = (wildcard().has_attr({"Composite": "ethosu.strided_slice"}))(wildcard())
+
+    def callback(
+        self, pre: tvm.relay.Expr, post: tvm.relay.Expr, node_map: tvm.ir.container.Map
+    ) -> tvm.relay.Expr:
+        input = post.args[0]
+        attrs = post.op.body.attrs
+        begin = attrs.begin
+        end = attrs.end
+        strides = attrs.strides
+        axes = attrs.axes
+        slice_mode = attrs.slice_mode
+        strided_slice = relay.op.strided_slice(
+            input, begin, end, strides=strides, axes=axes, slice_mode=slice_mode
+        )
+        return strided_slice
+
+
+@ir.transform.module_pass(opt_level=1)
+class LegalizeStridedSlice:
+    """This is the pass that wraps StridedSliceRewriter"""
+
+    def transform_module(
+        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
+    ) -> tvm.ir.IRModule:
+        for global_var, func in mod.functions.items():
+            func = rewrite(StridedSliceRewriter(), func)
+            mod.update_func(global_var, func)
+        return mod
+
+    def __call__(self, *args, **kwargs):
+        pass
+
+
+class ReshapeRewriter(DFPatternCallback):
+    """This pass brings the reshape out of the partitioned function"""
+
+    def __init__(self):
+        super().__init__(require_type=True, rewrite_once=True)
+        self.pattern = (wildcard().has_attr({"Composite": "ethosu.reshape"}))(wildcard())
+
+    def callback(
+        self, pre: tvm.relay.Expr, post: tvm.relay.Expr, node_map: tvm.ir.container.Map
+    ) -> tvm.relay.Expr:
+        reshape_input = post.args[0]
+        new_shape = post.op.body.attrs.newshape
+        reshape = relay.op.reshape(reshape_input, newshape=new_shape)
+        return reshape
+
+
+@ir.transform.module_pass(opt_level=1)
+class LegalizeReshape:
+    """This is the pass that wraps ReshapeRewriter"""
+
+    def transform_module(
+        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
+    ) -> tvm.ir.IRModule:
+        for global_var, func in mod.functions.items():
+            func = rewrite(ReshapeRewriter(), func)
+            mod.update_func(global_var, func)
+        return mod
+
+    def __call__(self, *args, **kwargs):
+        pass
+
+
+class NoOpRewriter(DFPatternCallback):
+    """This pass adds and idenity operator to reshape and strided slice to avoid a no op without a consumer"""
+
+    def __init__(self):
+        super().__init__(require_type=True, rewrite_once=True)
+        self.reshape = is_op("reshape")(wildcard())
+        self.strided_slice = is_op("strided_slice")(wildcard())
+        self.pattern = self.reshape | self.strided_slice
+
+    def callback(
+        self, pre: tvm.relay.Expr, post: tvm.relay.Expr, node_map: tvm.ir.container.Map
+    ) -> tvm.relay.Expr:
+        return ethosu_ops.ethosu_identity(ifm=post, lut=relay.const([], dtype="int8"))
+
+
+@ir.transform.module_pass(opt_level=1)
+class LegalizeNoOps:
+    """This is the pass that wraps RewriteNoOps"""
+
+    def transform_module(
+        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
+    ) -> tvm.ir.IRModule:
+        for global_var, func in mod.functions.items():
+            func = rewrite(NoOpRewriter(), func)
+            mod.update_func(global_var, func)
+        return mod
+
+    def __call__(self, *args, **kwargs):
+        pass
+
+
 class Conv2DRewriter(DFPatternCallback):
     """Convert conv2d related composite functions into ethosu_conv2d operators"""
 
@@ -655,6 +757,9 @@ class LegalizeEthosU:
         mod = LegalizeMin()(mod)
         mod = LegalizeMax()(mod)
         mod = LegalizeShl()(mod)
+        mod = LegalizeReshape()(mod)
+        mod = LegalizeStridedSlice()(mod)
+        mod = LegalizeNoOps()(mod)
         return mod
 
     def __call__(self, *args, **kwargs):

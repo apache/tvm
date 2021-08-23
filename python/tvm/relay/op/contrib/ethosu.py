@@ -765,6 +765,15 @@ def shl_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
     """
     pattern = is_op("left_shift")(wildcard(), wildcard())
     pattern = pattern.optional(is_op("clip"))
+def reshape_pattern():
+    """Create pattern for reshape"""
+    pattern = is_op("reshape")(wildcard())
+    return pattern
+
+
+def strided_slice_pattern():
+    """Create pattern for strided_slice"""
+    pattern = is_op("strided_slice")(wildcard())
     return pattern
 
 
@@ -821,6 +830,8 @@ def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Cal
             shl_pattern(),
             lambda pat: ShlParams(pat).is_valid(),
         ),
+        ("ethosu.strided_slice", strided_slice_pattern(), lambda pat: True),
+        ("ethosu.reshape", reshape_pattern(), lambda pat: True),
     ]
 
 

@@ -308,6 +308,7 @@ def translate_ethosu_tir_call_extern(tir_call_extern):
         "ethosu_depthwise_conv2d": translate_ethosu_depthwise_conv2d,
         "ethosu_pooling": translate_ethosu_pooling,
         "ethosu_binary_elementwise": translate_ethosu_binary_elementwise,
+        "ethosu_identity": translate_ethosu_pooling,
     }
     ext_call_type = tir_call_extern.args[0].value
     assert ext_call_type in supported_call_extern.keys(), f"{ext_call_type} is not yet supported"

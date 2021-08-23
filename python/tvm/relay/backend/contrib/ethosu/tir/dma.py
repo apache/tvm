@@ -152,32 +152,47 @@ def get_read_params(stmt):
 
     """
     attrs, body = get_op_attrs(stmt)
-    _, h, w, c, _, inner = get_outer_loops(body, attrs["layout"])
+
+    # Extract the loops and the inner stmt
+    loops = []
+    inner = body
+    while hasattr(inner, "body"):
+        loops.append(inner)
+        inner = inner.body
+
     input_pointer = inner.value.buffer_var
     output_pointer = inner.buffer_var
-    stride_vars = [h.loop_var, w.loop_var, c.loop_var]
+
+    # If the batch size loop is present, we need to remove it
+    if len(loops) > 3:
+        assert loops[0].extent == 1
+        loops = loops[1:]
+
+    stride_vars = [l.loop_var for l in loops]
+
     strides = get_strides(inner.value.index, stride_vars)
     base_address = get_base_address(inner.value.index)
     data_type = inner.buffer_var.type_annotation.element_type.dtype
+
     return (
         SerialFeatureMap(
             data_type=data_type,
-            height=h.extent,
-            width=w.extent,
-            channels=c.extent,
-            tile_height_0=h.extent,
+            height=loops[0].extent,
+            width=loops[1].extent if len(loops) > 1 else 1,
+            channels=loops[2].extent if len(loops) > 2 else 1,
+            tile_height_0=loops[0].extent,
             tile_height_1=0,
-            tile_width_0=w.extent,
+            tile_width_0=loops[1].extent if len(loops) > 1 else 1,
             tile_address_0=tvm.tir.Load(data_type, inner.value.buffer_var, base_address),
             tile_address_1=0,
             tile_address_2=0,
             tile_address_3=0,
             scale=attrs["scale"],
             zero_point=attrs["zero_point"],
-            layout=attrs["layout"],
-            stride_h=strides[0],
-            stride_w=strides[1],
-            stride_c=strides[2],
+            layout=attrs["layout"] if "layout" in attrs.keys() else "NHWC",
+            stride_h=strides[0] if len(strides) > 0 else 1,
+            stride_w=strides[1] if len(strides) > 1 else 1,
+            stride_c=strides[2] if len(strides) > 2 else 1,
         ),
         input_pointer,
         output_pointer,
@@ -203,32 +218,45 @@ def get_write_params(stmt):
 
     """
     attrs, body = get_op_attrs(stmt)
-    _, h, w, c, _, inner = get_outer_loops(body, attrs["layout"])
+
+    # Extract the loops and the inner stmt
+    loops = []
+    inner = body
+    while hasattr(inner, "body"):
+        loops.append(inner)
+        inner = inner.body
+
     input_pointer = inner.value.buffer_var
     output_pointer = inner.buffer_var
-    stride_vars = [h.loop_var, w.loop_var, c.loop_var]
+
+    # If the batch loop is present, we need to remove it
+    if len(loops) > 3:
+        assert loops[0].extent == 1
+        loops = loops[1:]
+
+    stride_vars = [l.loop_var for l in loops]
     strides = get_strides(inner.index, stride_vars)
     base_address = get_base_address(inner.index)
     data_type = inner.buffer_var.type_annotation.element_type.dtype
     return (
         SerialFeatureMap(
             data_type=data_type,
-            height=h.extent,
-            width=w.extent,
-            channels=c.extent,
-            tile_height_0=h.extent,
+            height=loops[0].extent,
+            width=loops[1].extent if len(loops) > 1 else 1,
+            channels=loops[2].extent if len(loops) > 2 else 1,
+            tile_height_0=loops[0].extent,
             tile_height_1=0,
-            tile_width_0=w.extent,
+            tile_width_0=loops[1].extent if len(loops) > 1 else 1,
             tile_address_0=tvm.tir.Load(data_type, inner.buffer_var, base_address),
             tile_address_1=0,
             tile_address_2=0,
             tile_address_3=0,
             scale=attrs["scale"],
             zero_point=attrs["zero_point"],
-            layout=attrs["layout"],
-            stride_h=strides[0],
-            stride_w=strides[1],
-            stride_c=strides[2],
+            layout=attrs["layout"] if "layout" in attrs.keys() else "NHWC",
+            stride_h=strides[0] if len(strides) > 0 else 1,
+            stride_w=strides[1] if len(strides) > 1 else 1,
+            stride_c=strides[2] if len(strides) > 2 else 1,
         ),
         input_pointer,
         output_pointer,

@@ -577,6 +577,177 @@ def test_ethosu_right_shift_binary_elemwise(
     ).astype(ofm_dtype)
 
     compiled_model = infra.build_source(mod, input_data, [output_data], accel_type)
+    imported_modules = compiled_model[0].executor_factory.lib.imported_modules
+    assert len(imported_modules) == 2
+    ethosu_module = imported_modules[0]
+
+    # Verify generated C source
+    get_cs = tvm._ffi.get_global_func("runtime.module.ethosu.getcs")
+    cmms = get_cs(ethosu_module)
+    cmms = bytes.fromhex(cmms)
+
+    infra.print_payload(cmms)
+    infra.verify_source(compiled_model, accel_type)
+    
+
+@pytest.mark.parametrize("ifm_shape", [(3, 2), (1, 15, 11, 7), (3, 1, 12), (400,)])
+@pytest.mark.parametrize("ifm_scale, ifm_zp, ofm_scale, ofm_zp", [(1, 0, 1, 0), (0.015, 3, 0.2, 5)])
+def test_ethosu_identity_codegen(ifm_shape, ifm_scale, ifm_zp, ofm_scale, ofm_zp, accel_type):
+    # Create a "partitioned" Relay function
+    ifm = relay.var("ifm", shape=ifm_shape, dtype="int8")
+    ifm0 = relay.var("ifm0", shape=ifm_shape, dtype="int8")
+    identity = infra.make_ethosu_identity(
+        ifm0, ifm_scale=ifm_scale, ifm_zero_point=ifm_zp, ofm_scale=ofm_scale, ofm_zero_point=ofm_zp
+    )
+    glb_ethosu = relay.GlobalVar("tvmgen_default_ethosu_main_0")
+
+    func = (
+        relay.Function([ifm0], identity)
+        .with_attr("Inline", 1)
+        .with_attr("Compiler", "ethosu")
+        .with_attr("global_symbol", "tvmgen_default_ethosu_main_0")
+        .with_attr("Primitive", 1)
+    )
+    mod = tvm.IRModule()
+    mod[glb_ethosu] = func
+    mod = relay.transform.InferType()(mod)
+
+    call = relay.Call(glb_ethosu, [ifm])
+    mod["main"] = relay.Function([ifm], call)
+    mod = relay.transform.InferType()(mod)
+
+    in_data = np.random.randint(-120, high=120, size=ifm_shape, dtype="int8")
+    requant_data = (ifm_scale * (in_data - ifm_zp)) / ofm_scale + ofm_zp
+    out_data = np.round(np.clip(requant_data, -128, 127)).astype("int8")
+
+    compiled_model = infra.build_source(
+        mod, {"ifm": in_data}, [out_data], accel_type, output_tolerance=1
+    )
+
+    imported_modules = compiled_model[0].executor_factory.lib.imported_modules
+    assert len(imported_modules) == 2
+    ethosu_module = imported_modules[0]
+
+    # Verify generated C source
+    get_cs = tvm._ffi.get_global_func("runtime.module.ethosu.getcs")
+    cmms = get_cs(ethosu_module)
+    cmms = bytes.fromhex(cmms)
+
+    infra.print_payload(cmms)
+    infra.verify_source(compiled_model, accel_type)
+
+
+@pytest.mark.parametrize("accel_type", ACCEL_TYPES)
+@pytest.mark.parametrize(
+    "ifm_shape, new_shape",
+    [
+        ((1, 4, 1, 2), (1, 1, 1, 8)),
+        (
+            (
+                5,
+                1,
+                20,
+            ),
+            (1, 5, 1, 20),
+        ),
+        ((12, 20), (1, 6, 4, 10)),
+        ((12, 20), (6, 4, 10)),
+        ((20,), (4, 5)),
+    ],
+)
+def test_relay_reshape_codegen(ifm_shape, new_shape, accel_type):
+    # Create a "partitioned" Relay graph
+    ifm = relay.var("ifm", shape=ifm_shape, dtype="int8")
+    ifm0 = relay.var("ifm0", shape=ifm_shape, dtype="int8")
+    reshape = relay.op.reshape(ifm0, newshape=new_shape)
+    glb_ethosu = relay.GlobalVar("tvmgen_default_ethosu_main_0")
+
+    func = relay.Function([ifm0], reshape)
+    func = (
+        func.with_attr("Inline", 1)
+        .with_attr("Compiler", "ethosu")
+        .with_attr("global_symbol", "tvmgen_default_ethosu_main_0")
+        .with_attr("Primitive", 1)
+    )
+    mod = tvm.IRModule()
+    mod[glb_ethosu] = func
+    mod = relay.transform.InferType()(mod)
+
+    call = relay.Call(glb_ethosu, [ifm])
+    mod["main"] = relay.Function([ifm], call)
+    mod = relay.transform.InferType()(mod)
+
+    data = np.random.randint(-128, high=127, size=ifm_shape, dtype="int8")
+
+    compiled_model = infra.build_source(
+        mod,
+        {"ifm": data},
+        [data.reshape(new_shape)],
+        accel_type,
+    )
+
+    imported_modules = compiled_model[0].executor_factory.lib.imported_modules
+    assert len(imported_modules) == 2
+    ethosu_module = imported_modules[0]
+
+    # Verify generated C source
+    get_cs = tvm._ffi.get_global_func("runtime.module.ethosu.getcs")
+    cmms = get_cs(ethosu_module)
+    cmms = bytes.fromhex(cmms)
+
+    infra.print_payload(cmms)
+    infra.verify_source(compiled_model, accel_type)
+
+ 
+@pytest.mark.parametrize("accel_type", ACCEL_TYPES)
+@pytest.mark.parametrize( 
+    "ifm_shape, begin, end",
+    [
+        ([1, 10, 50, 4], [0, 5, 11, 2], [1, 10, 22, 3]),
+        ([15, 17, 3], [3, 0, 1], [11, 17, 3]),
+        ([7, 6043], [0, 704], [1, 3564]),
+        ([5000], [123], [2274]),
+    ],
+)
+def test_relay_strided_slice_codegen(ifm_shape, begin, end, accel_type):
+    # Create a "partitioned" Relay graph
+    ifm = relay.var("ifm", shape=ifm_shape, dtype="int8")
+    ifm0 = relay.var("ifm0", shape=ifm_shape, dtype="int8")
+    strided_slice = relay.op.strided_slice(ifm0, begin, end)
+    glb_ethosu = relay.GlobalVar("tvmgen_default_ethosu_main_0")
+
+    func = relay.Function([ifm0], strided_slice)
+    func = (
+        func.with_attr("Inline", 1)
+        .with_attr("Compiler", "ethosu")
+        .with_attr("global_symbol", "tvmgen_default_ethosu_main_0")
+        .with_attr("Primitive", 1)
+    )
+    mod = tvm.IRModule()
+    mod[glb_ethosu] = func
+    mod = relay.transform.InferType()(mod)
+
+    call = relay.Call(glb_ethosu, [ifm])
+    mod["main"] = relay.Function([ifm], call)
+    mod = relay.transform.InferType()(mod)
+
+    input_data = np.random.randint(-128, high=127, size=ifm_shape, dtype="int8")
+
+    # Generate a reference output using Relay strided slice that doesn't get offloaded
+    ifm = relay.var("ifm", shape=ifm_shape, dtype="int8")
+    strided_slice = relay.op.strided_slice(ifm, begin, end)
+    single_mod = tvm.IRModule()
+    single_mod["main"] = relay.Function([ifm], strided_slice)
+    single_mod = relay.transform.InferType()(single_mod)
+
+    out_data = generate_ref_data(single_mod, {"ifm": input_data})
+
+    compiled_model = infra.build_source(
+        mod,
+        {"ifm": input_data},
+        out_data,
+        accel_type,
+    )
 
     imported_modules = compiled_model[0].executor_factory.lib.imported_modules
     assert len(imported_modules) == 2
