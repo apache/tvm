@@ -17,7 +17,6 @@
 # pylint: disable=invalid-name
 """XGBoost as cost model"""
 
-import multiprocessing
 import logging
 import time
 
