@@ -241,3 +241,9 @@ conda/pkg
 .tvm_test_data
 .dgl
 .caffe2
+
+
+/build
+/build-microtvm
+/tests/micro/zephyr/workspace*
+/apps/microtvm/grovety/workspace*
