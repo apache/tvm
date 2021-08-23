@@ -399,7 +399,7 @@ class TVMCResult(object):
         str
             A formatted string containing the statistics.
         """
-        return str(times)
+        return str(self.times)
 
     def get_output(self, name: str):
         """A helper function to grab one of the outputs by name.

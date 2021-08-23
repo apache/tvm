@@ -369,7 +369,7 @@ class GraphModule(object):
 
         Returns
         -------
-        timing_results : ProfileResult
+        timing_results : BenchmarkResult
             Runtimes of the function. Use `.mean` to access the mean runtime, use `.results` to
             access the individual runtimes.
         """

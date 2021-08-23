@@ -101,5 +101,5 @@ def test_run_tflite_module__with_profile__valid_input(
         tiger_cat_mobilenet_id in top_5_ids
     ), "tiger cat is expected in the top-5 for mobilenet v1"
     assert type(result.outputs) is dict
-    assert type(result.times) is tuple
+    assert type(result.times) is BenchmarkResult
     assert "output_0" in result.outputs.keys()

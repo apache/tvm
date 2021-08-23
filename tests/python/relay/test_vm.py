@@ -17,6 +17,7 @@
 import numpy as np
 import pytest
 import time
+from unittest.mock import patch
 
 import tvm
 from tvm import runtime
@@ -966,6 +967,18 @@ def test_benchmark():
     assert result.mean == result.median
     assert result.mean > 0
     assert len(result.results) == 2
+
+    with patch.object(
+        tvm.runtime.module.Module,
+        "time_evaluator",
+        return_value=lambda x: tvm.runtime.module.BenchmarkResult([1, 2, 2, 5]),
+    ) as method:
+        result = exe.benchmark(tvm.cpu(), data, func_name="main", repeat=2, number=1)
+        assert result.mean == 2.5
+        assert result.median == 2.0
+        assert result.max == 5
+        assert result.min == 1
+        assert result.std == 1.5
 
 
 if __name__ == "__main__":

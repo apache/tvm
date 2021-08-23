@@ -35,7 +35,7 @@ def test_tvmc_workflow(keras_simple):
     assert type(result) is TVMCResult
     assert path.exists(tuning_records)
     assert type(result.outputs) is dict
-    assert type(result.times) is tuple
+    assert type(result.times) is tvm.runtime.module.BenchmarkResult
     assert "output_0" in result.outputs.keys()
 
 

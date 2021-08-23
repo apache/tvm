@@ -47,20 +47,24 @@ class BenchmarkResult:
         min : float
             Minimum runtime in seconds of all results.
         mean : float
-            Mean runtime in seconds of all results. Note that this mean is not
-            necessarily statistically correct as it is the mean of mean
-            runtimes.
+            Mean runtime in seconds of all results. If py:meth:`Module.time_evaluator` or
+            `benchmark` is called with `number` > 0, then each result is already the mean of a
+            `number` of runtimes, so this becomes the mean of means.
         median : float
-            Median runtime in seconds of all results. Note that this is not necessarily
-            statistically correct as it is the median of mean runtimes.
+            Median runtime in seconds of all results. If py:meth:`Module.time_evaluator` is called
+            with `number` > 0, then each result is already the mean of a `number` of runtimes, so
+            this becomes the median of means.
         max : float
-            Maximum runtime in seconds of all results.
+            Maximum runtime in seconds of all results. If py:meth:`Module.time_evaluator` is called
+            with `number` > 0, then each result is already the mean of a `number` of runtimes, so
+            this becomes the maximum of those means.
         std : float
-            Standard deviation in seconds of runtimes. Note that this is not necessarily
-            correct as it is the std of mean runtimes.
+            Standard deviation in seconds of runtimes. If py:meth:`Module.time_evaluator` is called
+            with `number` > 0, then each result is already the mean of a `number` of runtimes, so
+            this becomes the standard deviation of means.
         results : Sequence[float]
             The collected runtimes (in seconds). This may be a series of mean runtimes if
-            the benchmark was run with `number` > 1.
+            py:meth:`Module.time_evaluator` or `benchmark` was run with `number` > 1.
         """
         self.results = results
         self.mean = np.mean(self.results)
@@ -77,7 +81,7 @@ class BenchmarkResult:
     def __str__(self):
         return """Execution time summary:
 {:^12} {:^12} {:^12} {:^12} {:^12}
-{:^12.2f} {:^12.2f} {:^12.2f} {:^12.2f} {:^12.2f}
+{:^12.4f} {:^12.4f} {:^12.4f} {:^12.4f} {:^12.4f}
                """.format(
             "mean (ms)",
             "median (ms)",
@@ -292,7 +296,7 @@ class Module(object):
 
             return evaluator
         except NameError:
-            raise NameError("time_evaluate is only supported when RPC is enabled")
+            raise NameError("time_evaluator is only supported when RPC is enabled")
 
     def _collect_from_import_tree(self, filter_func):
         """Helper function to collect modules from the tree matching a filter_func, then return it.
