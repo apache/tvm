@@ -22,6 +22,7 @@ import tvm
 from tvm import tir
 from tvm.script import ty
 from tvm.tir.schedule.testing import verify_trace_roundtrip
+from tvm.tir.schedule import Trace
 
 
 # pylint: disable=no-member,invalid-name,unused-variable
@@ -51,6 +52,43 @@ def test_sample_categorical():
     for i, prob in enumerate(probs):
         assert (prob - 0.07) * n <= counter[candidates[i]] <= (prob + 0.07) * n
     verify_trace_roundtrip(sch, mod=elementwise)
+
+
+def test_sample_categorical_copy():
+    """Check the random variable sampling results after schedule copy"""
+    n = 100
+    sch = tir.Schedule(elementwise, seed=42, debug_mask="all")
+    candidates = [1, 2, 3, 4]
+    probs = [0.1, 0.2, 0.3, 0.4]
+    rvs = []
+    decisions = []
+    for _ in range(n):
+        rv = sch.sample_categorical(candidates, probs)  # pylint: disable=invalid-name
+        decision = sch.get(rv)
+        rvs.append(rv)
+        decisions.append(decision)
+    sch_copy = sch.copy()
+    for rv, decision in zip(rvs, decisions):  # pylint: disable=invalid-name
+        decision_copy = sch_copy.get(rv)
+        assert int(decision) == int(decision_copy)
+
+
+def test_sample_categorical_serialize():
+    """Check the random variable sampling results after schedule serialization"""
+    n = 100
+    sch = tir.Schedule(elementwise, seed=42, debug_mask="all")
+    candidates = [5, 6, 7, 8]
+    probs = [0.23, 0.19, 0.37, 0.21]
+    for _ in range(n):
+        sch.get(sch.sample_categorical(candidates, probs))
+    trace = sch.trace
+    json_obj = trace.as_json()
+    new_sch = tir.Schedule(mod=elementwise, debug_mask="all")
+    Trace.apply_json_to_schedule(json_obj=json_obj, sch=new_sch)
+    assert len(sch.trace.insts) == len(new_sch.trace.insts)
+    for i, inst in enumerate(sch.trace.insts):
+        new_inst = new_sch.trace.insts[i]
+        assert sch.trace.decisions[inst] == new_sch.trace.decisions[new_inst]
 
 
 if __name__ == "__main__":
