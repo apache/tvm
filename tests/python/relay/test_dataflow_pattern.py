@@ -1727,6 +1727,38 @@ def test_partition_constant_embedding():
     assert tvm.ir.structural_equal(embeded_func(x, b), pattern.partition(reluc))
 
 
+def test_rewrite_once():
+    # This class recursively removes the arguments to concat until there is nothing left to concatenate.
+    class ConcatRewriter(DFPatternCallback):
+        def __init__(self, rewrite_once):
+            super().__init__(rewrite_once=rewrite_once)
+            self.pattern = is_op("concatenate")(None)
+
+        def callback(self, pre, post, node_map):
+            concat_args = post.args[0]
+            # Remove the last argument
+            new_args = [concat_args[i] for i in range(len(concat_args) - 1)]
+            if new_args:
+                return relay.op.concatenate(relay.expr.Tuple(new_args), axis=0)
+            else:
+                return concat_args
+
+    x = relay.var("x")
+    y = relay.var("y")
+    z = relay.var("z")
+    concat = relay.op.concatenate(relay.expr.Tuple([x, y, z]), axis=0)
+
+    # Let the rewriter run recursively
+    out = rewrite(ConcatRewriter(False), concat)
+    expected = relay.expr.Tuple([x])
+    assert tvm.ir.structural_equal(out, expected)
+
+    # Run the rewriter once
+    out = rewrite(ConcatRewriter(True), concat)
+    expected = relay.op.concatenate(relay.expr.Tuple([x, y]), axis=0)
+    assert tvm.ir.structural_equal(out, expected)
+
+
 if __name__ == "__main__":
     test_expr_pattern()
     test_var_pattern()
@@ -1793,3 +1825,4 @@ if __name__ == "__main__":
     test_IfPattern()
     test_match_if()
     test_no_match_if()
+    test_rewrite_once()

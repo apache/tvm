@@ -174,7 +174,7 @@ class SimplifyExplicitPadding {
       Map<DFPattern, Array<Expr>> node_map = args[2];
       *rv = pattern.callback(pre, post, node_map);
     };
-    callbacks_.push_back(DFPatternCallback(pattern.pattern(), PackedFunc(func), true));
+    callbacks_.push_back(DFPatternCallback(pattern.pattern(), PackedFunc(func), true, false));
   }
 
   Expr Simplify(const Expr& expr) { return RewritePatterns(callbacks_, expr, mod_); }
