@@ -250,8 +250,9 @@ print(tvm.lower(s, [A, B, C], simple_mode=True))
 
 
 # We have to re-write the algorithm slightly.
-packedB = te.compute((N / bn, K, bn),
-                     lambda bigN, k, littleN: B[k, bigN * bn + littleN], name="packedB")
+packedB = te.compute(
+    (N / bn, K, bn), lambda bigN, k, littleN: B[k, bigN * bn + littleN], name="packedB"
+)
 C = te.compute(
     (M, N),
     lambda m, n: te.sum(A[m, k] * packedB[n // bn, k, tvm.tir.indexmod(n, bn)], axis=k),
