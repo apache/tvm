@@ -306,9 +306,12 @@ class Schedule(Object):
 
         Parameters
         ----------
-        candidates : The candidates to be sampled from
-        probs : The probability of each candidate
-        decision : The sampling decision, if any
+        candidates : List[int]
+            The candidates to be sampled from
+        probs : List[float]
+            The probability of each candidate
+        decision : Optional[int]
+            The sampling decision, if any
 
         Returns
         -------
