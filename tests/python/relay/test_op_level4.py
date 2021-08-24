@@ -359,10 +359,7 @@ def test_argmin_argmax_get_last_elements():
     for func, gt_func in funcs_and_gt_funcs:
         for shape in lengths:
             x_in = relay.var("x_in", shape=[shape])
-            try:
-                output = func(x_in, select_last_index=True)
-            except:
-                breakpoint()
+            output = func(x_in, select_last_index=True)
             arr, ans = get_test_case(shape, gt_func, test_argmin=func == relay.argmin)
 
             mod = tvm.IRModule.from_expr(output)
@@ -370,14 +367,7 @@ def test_argmin_argmax_get_last_elements():
                 op_res = relay.create_executor(
                     "graph", mod=mod, device=dev, target=target
                 ).evaluate()(arr)
-                print(target)
-                print(dev)
-                print(arr)
-                print(ans)
-                print(op_res)
-                print()
-
-    raise ValueError("WHAT")
+                assert op_res.numpy().item() == ans
 
 
 def verify_mean_var_std(funcs, shape, axis, keepdims):
