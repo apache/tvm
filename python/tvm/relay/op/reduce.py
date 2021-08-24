@@ -46,8 +46,8 @@ def argmax(data, axis=None, keepdims=False, exclude=False, select_last_index=Fal
         NOT in axis instead.
 
     select_last_index : bool
-        Whether to select the last index or the first index if the max element appears in multiple indices,
-        default is False (first index).
+        Whether to select the last index or the first index if the max element appears in
+        multiple indices, default is False (first index).
 
     Returns
     -------
@@ -81,8 +81,8 @@ def argmin(data, axis=None, keepdims=False, exclude=False, select_last_index=Fal
         NOT in axis instead.
 
     select_last_index : bool
-        Whether to select the last index or the first index if the min element appears in multiple indices,
-        default is False (first index).
+        Whether to select the last index or the first index if the min element appears in
+        multiple indices, default is False (first index).
 
     Returns
     -------
