@@ -67,7 +67,7 @@ struct EnumClassHash {
   }
 };
 
-// TODO(@jroesch, @chrisS) these should be a tvm::Map for uniformity sake
+// TODO(@jroesch, @chrisS) these shoumakeld be a tvm::Map for uniformity sake
 // we should a version of context which works in Map
 using TargetMap = std::unordered_map<DLDeviceType, Target, EnumClassHash>;
 using DeviceMap =
@@ -97,7 +97,7 @@ class TECompilerNode : public Object {
   virtual CachedFunc Lower(const CCacheKey& key, const String mod_name) = 0;
 
   /* Return all functions which have been lowered by the compiler, keyed by target. */
-  virtual Map<String, IRModule> GetLoweredFunctions() = 0;
+  virtual Map<Target, IRModule> GetLoweredFunctions() = 0;
 
   /*!
    * \brief Just in time compile to get a PackedFunc.
@@ -144,7 +144,7 @@ struct LoweredModule {
   /*! \brief The module which contains the Relay code. */
   IRModule main_module;
   /*! \brief The module which contains per target code. */
-  Map<String, IRModule> per_target_module;
+  Map<Target, IRModule> per_target_module;
   /*! \brief The external runtime modules which must be combined with the lowered code. */
   Array<tvm::runtime::Module> external_mods;
   // TODO(@electriclilies): THis might need to become a map

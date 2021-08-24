@@ -669,11 +669,10 @@ class AOTExecutorCodegen : public ExprVisitor {
     ret.lowered_funcs = lowered_module.per_target_module;
     ret.external_mods = lowered_module.external_mods;
 
-    auto target_host_str = target_host_->str();
-    if (ret.lowered_funcs.find(target_host_str) != ret.lowered_funcs.end()) {
-      ret.lowered_funcs[target_host_str]->Update(mod_run);
+    if (ret.lowered_funcs.find(target_host_) != ret.lowered_funcs.end()) {
+      ret.lowered_funcs[target_host_]->Update(mod_run);
     } else {
-      ret.lowered_funcs.Set(target_host_str, mod_run);
+      ret.lowered_funcs.Set(target_host_, mod_run);
     }
 
     std::vector<String> input_var_names(input_vars_.size());
@@ -778,7 +777,7 @@ class AOTExecutorCodegenModule : public runtime::ModuleNode {
     return (*it).second.first;
   }
 
-  Map<String, IRModule> get_irmodule() { return this->output_.lowered_funcs; }
+  Map<Target, IRModule> get_irmodule() { return this->output_.lowered_funcs; }
 
   std::shared_ptr<AOTExecutorCodegen> codegen_;
   LoweredOutput output_;
