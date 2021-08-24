@@ -758,7 +758,7 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const MulNode* op) {
   if (a.as<VarNode>() && !b.as<VarNode>()) {
     std::swap(a, b);
   }
-  
+
   if (a.as<VarNode>() || !b.as<VarNode>()) {
     auto ah = StructuralHash()(a);
     auto bh = StructuralHash()(b);
@@ -766,7 +766,6 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const MulNode* op) {
       std::swap(a, b);
     }
   }
-  
 
   if (op->a.same_as(a) && op->b.same_as(b)) {
     return GetRef<PrimExpr>(op);
