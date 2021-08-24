@@ -20,6 +20,7 @@
 #include "te_compiler.h"
 
 #include <tvm/driver/driver_api.h>
+#include <tvm/ir/attrs.h>
 #include <tvm/ir/function.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/attrs/annotation.h>
@@ -749,8 +750,6 @@ backend::FunctionInfo UpdateMainWorkspaceSize(const IRModule& mod, TargetMap tar
                                relay_primfuncs);
 }
 
-// TODO(@electriclilies): Is the function passed in here relay_func??
-// Also should this be inlined?
 /*!
  * \brief A function to create the function metadata for an input function (ie calculate buffer
  * input/output sizes)
@@ -830,9 +829,6 @@ void UpdateFunctionMetadata(Function relay_func,
   function_metadata.Set(prim_fn_var.value()->name_hint, fi);
 }
 
-// TODO(mbs): Make this an IRModule->IRModule pass by folding LoweredModule back into IRModule.
-// Currently we rely on accumulating bindings inside the local TECompiler which we then
-// host into the LoweredModule result.
 LoweredModule LowerTE(const IRModule& module, TargetMap targets, DeviceMap device_context_map,
                       backend::StaticMemoryPlan memory_plan, const String& module_name,
                       std::function<void(Function)> process_fn) {
@@ -875,6 +871,117 @@ LoweredModule LowerTE(const IRModule& module, TargetMap targets, DeviceMap devic
   return lowered_module;
 }
 
+IRModule LoweredModuleToIRModule(LoweredModule mod) {
+  IRModule unified_module;
+
+  // Copy the main module and its typedefs
+  for (const auto& kv : mod.main_module->functions) {
+    unified_module->Add(kv.first, kv.second);
+  }
+  for (const auto& kv : mod.main_module->type_definitions) {
+    unified_module->AddTypeDef(kv.first, kv.second);
+  }
+
+  // Annotate the per-target functions with their target and add them to the unified module
+  for (const auto& kv : mod.per_target_module) {
+    const String target = kv.first;
+    const IRModule target_module = kv.second;
+
+    // Right now, per-target functions are TIR functions, which don't have type definitions, so
+    // there should be no type defs in the per_target_modules
+    size_t ty_def_size = target_module->type_definitions.size();
+    ICHECK(ty_def_size == 0)
+        << "Expected there to be no type definitions in the per_target_modules, but found "
+        << ty_def_size;
+
+    for (const auto& kv : target_module->functions) {
+      const GlobalVar& var = kv.first;
+      const BaseFunc& func = kv.second;
+      if (func->IsInstance<tir::PrimFuncNode>()) {
+        tir::PrimFunc primFunc =
+            WithAttr(Downcast<tir::PrimFunc>(std::move(func)), tvm::attr::kTarget, target);
+        unified_module->Add(var, primFunc);
+      } else if (func->IsInstance<relay::FunctionNode>()) {
+        relay::Function relayFunc =
+            WithAttr(Downcast<relay::Function>(std::move(func)), tvm::attr::kTarget, target);
+        unified_module->Add(var, relayFunc);
+      } else {
+        LOG(FATAL)
+            << "We expected to only have PrimFuncs or RelayFuncs in the target modules, but found "
+            << func->GetTypeKey();
+      }
+    }
+  }
+
+  IRModule ret_mod = WithAttr(unified_module, "external_mods", mod.external_mods);
+  ret_mod = WithAttr(ret_mod, "main_func_info", mod.main_func_info);
+  return ret_mod;
+}
+
+LoweredModule IRModuleToLoweredModule(IRModule mod) {
+  IRModule main_mod;
+  // Copy just the TypeDefs from the IRModule to the LoweredModule's main module
+  // This is the only time we need to do this since there are no TypeDefs in TIR
+  for (const auto& kv : mod->type_definitions) {
+    main_mod->AddTypeDef(kv.first, kv.second);
+  }
+
+  Map<String, IRModule> per_target_modules;
+  for (const auto& kv : mod->functions) {
+    const GlobalVar& var = kv.first;
+    const BaseFunc& func = kv.second;
+    if (func->IsInstance<relay::FunctionNode>()) {
+      main_mod->Add(var, func);
+    } else if (func->IsInstance<tir::PrimFuncNode>()) {
+      // Extract target
+      Optional<String> target = func->GetAttr<String>(tvm::attr::kTarget);
+      ICHECK(target) << "Target should be set at this point";
+
+      // Put the function in per_target_modules
+      if (!per_target_modules.count(target.value())) {
+        // Initialize the IRModule for this target and add the function
+        IRModule target_module;
+        target_module->Add(var, func);
+        per_target_modules.Set(target.value(), target_module);
+      } else {
+        // The IRModule for this target is initialized, so just add the function.
+        IRModule target_module = per_target_modules.at(target.value());
+        target_module->Add(var, func);
+      }
+    } else {
+      LOG(FATAL)
+          << "The function types in the IRModule should be RelayFunction or PrimFunc, but got "
+          << func->GetTypeKey();
+    }
+  }
+
+  // Put the LoweredModule together
+  LoweredModule lowered_module;
+  lowered_module.main_module = main_mod;
+  lowered_module.per_target_module = per_target_modules;
+
+  // Extract external modules and main func info, add to lowered module if they exist
+  auto external_mods = mod->GetAttr<Array<tvm::runtime::Module>>("external_mods");
+  if (external_mods) {
+    lowered_module.external_mods = external_mods.value();
+  }
+  auto main_func_info = mod->GetAttr<backend::FunctionInfo>("main_func_info");
+  if (main_func_info) {
+    lowered_module.main_func_info = main_func_info.value();
+  }
+  return lowered_module;
+}
+
+Pass LowerTEPass(TargetMap targets, DeviceMap device_context_map,
+                 backend::StaticMemoryPlan memory_plan, const String& module_name,
+                 std::function<void(Function)> process_fn) {
+  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule module,
+                                                                            PassContext ctx) {
+    return LoweredModuleToIRModule(
+        LowerTE(module, targets, device_context_map, memory_plan, module_name, process_fn));
+  };
+  return tvm::transform::CreateModulePass(pass_func, 1, "LowerTE", {});
+}
 }  // namespace tec
 }  // namespace relay
 }  // namespace tvm
