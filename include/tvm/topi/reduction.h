@@ -436,18 +436,24 @@ inline FCommReduce MakeArgminReducer(bool select_last_index = false) {
   auto fcombine = [=](Array<Var> lhs, Array<Var> rhs) {
     Array<PrimExpr> result;
 
+    // Casting to avoid operator ambiguity
+    PrimExpr lhs_idx = static_cast<PrimExpr>(lhs[0]);
+    PrimExpr rhs_idx = static_cast<PrimExpr>(rhs[0]);
+    PrimExpr lhs_val = static_cast<PrimExpr>(lhs[1]);
+    PrimExpr rhs_val = static_cast<PrimExpr>(rhs[1]);
+
     // These variables compare the actual values of the array
-    auto is_smaller = lhs[1] < rhs[1];
-    auto is_same = lhs[1] == rhs[1];
+    auto is_smaller = lhs_val < rhs_val;
+    auto is_same = lhs_val == rhs_val;
 
     // This checks if the indices are correct for the reduction. E.g. for select_last_index
     // it gives precedence for later indices of the same element and precedence for sooner
     // indices if not select_last_index;
     PrimExpr proper_index;
     if (select_last_index) {
-      proper_index = PrimExpr(lhs[0]) > PrimExpr(rhs[0]);
+      proper_index = lhs_idx > rhs_idx;
     } else {
-      proper_index = PrimExpr(lhs[0]) < PrimExpr(rhs[0]);
+      proper_index = lhs_idx < rhs_idx;
     }
 
     PrimExpr update_index = is_smaller || (is_same && proper_index);
@@ -491,18 +497,24 @@ inline FCommReduce MakeArgmaxReducer(bool select_last_index = false) {
   auto fcombine = [=](Array<Var> lhs, Array<Var> rhs) {
     Array<PrimExpr> result;
 
+    // Casting to avoid operator ambiguity
+    PrimExpr lhs_idx = static_cast<PrimExpr>(lhs[0]);
+    PrimExpr rhs_idx = static_cast<PrimExpr>(rhs[0]);
+    PrimExpr lhs_val = static_cast<PrimExpr>(lhs[1]);
+    PrimExpr rhs_val = static_cast<PrimExpr>(rhs[1]);
+
     // These variables compare the actual values of the array
-    auto is_bigger = lhs[1] > rhs[1];
-    auto is_same = lhs[1] == rhs[1];
+    auto is_bigger = lhs_val > rhs_val;
+    auto is_same = lhs_val == rhs_val;
 
     // This checks if the indices are correct for the reduction. E.g. for select_last_index
     // it gives precedence for later indices of the same element and precedence for sooner
     // indices if not select_last_index;
     PrimExpr proper_index;
     if (select_last_index) {
-      proper_index = PrimExpr(lhs[0]) > PrimExpr(rhs[0]);
+      proper_index = lhs_idx > rhs_idx;
     } else {
-      proper_index = PrimExpr(lhs[0]) < PrimExpr(rhs[0]);
+      proper_index = lhs_idx < rhs_idx;
     }
 
     PrimExpr update_index = is_bigger || (is_same && proper_index);
