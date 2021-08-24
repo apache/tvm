@@ -324,9 +324,3 @@ TEST(IRF, StmtMutator) {
     ICHECK(new_block->match_buffers[0]->source->region[0]->min.same_as(x));
   }
 }
-
-int main(int argc, char** argv) {
-  testing::InitGoogleTest(&argc, argv);
-  testing::FLAGS_gtest_death_test_style = "threadsafe";
-  return RUN_ALL_TESTS();
-}

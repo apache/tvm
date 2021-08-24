@@ -394,6 +394,15 @@ if(USE_PROFILER)
   list(APPEND RUNTIME_SRCS ${RUNTIME_VM_PROFILER_SRCS})
 endif(USE_PROFILER)
 
+# Enable ctest if gtest is available
+find_path(GTEST_INCLUDE_DIR gtest/gtest.h)
+find_library(GTEST_LIB gtest "$ENV{GTEST_LIB}")
+if(GTEST_INCLUDE_DIR AND GTEST_LIB)
+  enable_testing()
+  include(CTest)
+  include(GoogleTest)
+endif()
+
 # Module rules
 include(cmake/modules/VTA.cmake)
 include(cmake/modules/StandaloneCrt.cmake)
@@ -579,26 +588,16 @@ if (HIDE_PRIVATE_SYMBOLS AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   target_compile_definitions(tvm_allvisible PUBLIC DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
 endif()
 
-# Tests
-set(TEST_EXECS "")
-file(GLOB TEST_SRCS tests/cpp/*.cc)
-find_path(GTEST_INCLUDE_DIR gtest/gtest.h)
-find_library(GTEST_LIB gtest "$ENV{GTEST_LIB}")
-
 # Create the `cpptest` target if we can find GTest.  If not, we create dummy
 # targets that give the user an informative error message.
 if(GTEST_INCLUDE_DIR AND GTEST_LIB)
-  foreach(__srcpath ${TEST_SRCS})
-    get_filename_component(__srcname ${__srcpath} NAME)
-    string(REPLACE ".cc" "" __execname ${__srcname})
-    add_executable(${__execname} ${__srcpath})
-    list(APPEND TEST_EXECS ${__execname})
-    target_include_directories(${__execname} SYSTEM PUBLIC ${GTEST_INCLUDE_DIR})
-    target_link_libraries(${__execname} PRIVATE ${TVM_TEST_LIBRARY_NAME} ${GTEST_LIB} pthread dl)
-    set_target_properties(${__execname} PROPERTIES EXCLUDE_FROM_ALL 1)
-    set_target_properties(${__execname} PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD 1)
-  endforeach()
-  add_custom_target(cpptest DEPENDS ${TEST_EXECS})
+  file(GLOB TEST_SRCS tests/cpp/*.cc)
+  add_executable(cpptest ${TEST_SRCS})
+  target_include_directories(cpptest SYSTEM PUBLIC ${GTEST_INCLUDE_DIR})
+  target_link_libraries(cpptest PRIVATE ${TVM_TEST_LIBRARY_NAME} ${GTEST_LIB} gtest_main pthread dl)
+  set_target_properties(cpptest PROPERTIES EXCLUDE_FROM_ALL 1)
+  set_target_properties(cpptest PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD 1)
+  gtest_discover_tests(cpptest)
 elseif(NOT GTEST_INCLUDE_DIR)
   add_custom_target(cpptest
       COMMAND echo "Missing Google Test headers in include path"
