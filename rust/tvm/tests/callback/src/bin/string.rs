@@ -26,7 +26,7 @@ use tvm::{
 
 // FIXME
 fn main() {
-    fn concat_str<'a>(args: Vec<ArgValue<'a>>) -> Result<RetValue, Error> {
+    fn concat_str(args: Vec<ArgValue<'static>>) -> Result<RetValue, Error> {
         let mut ret = "".to_string();
         for arg in args.iter() {
             let val: &str = arg.try_into()?;

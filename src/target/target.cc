@@ -826,6 +826,25 @@ std::unordered_map<String, ObjectRef> TargetInternal::QueryDevice(int device_id,
   return output;
 }
 
+// Helper to convert the tvm::Map to a std::unordered_map
+std::unordered_map<Target, IRModule, TargetStrHash, TargetStrEqual>
+TargetModuleMapToTargetStrModuleMap(Map<Target, IRModule> input_map) {
+  std::unordered_map<Target, IRModule, TargetStrHash, TargetStrEqual> std_map;
+  for (auto kv : input_map) {
+    std_map[kv.first] = kv.second;
+  }
+  return std_map;
+}
+
+Map<Target, IRModule> TargetStrModuleMapToTargetModuleMap(
+    std::unordered_map<Target, IRModule, TargetStrHash, TargetStrEqual> input_map) {
+  Map<Target, IRModule> tvm_map;
+  for (auto kv : input_map) {
+    tvm_map.Set(kv.first, kv.second);
+  }
+  return tvm_map;
+}
+
 /**********  Registry  **********/
 
 TVM_REGISTER_GLOBAL("target.Target").set_body(TargetInternal::ConstructorDispatcher);

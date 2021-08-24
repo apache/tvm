@@ -35,8 +35,7 @@ use std::{
 
 use crate::errors::Error;
 
-pub use super::to_function::{RawArgs, ToFunction, Typed};
-use crate::object::AsArgValue;
+pub use super::to_function::{ToFunction, Typed};
 pub use tvm_sys::{ffi, ArgValue, RetValue};
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -154,12 +153,12 @@ macro_rules! impl_to_fn {
         where
             Error: From<Err>,
             Out: TryFrom<RetValue, Error = Err>,
-            $($t: for<'a> AsArgValue<'a>),*
+            $($t: Into<ArgValue<'static>>),*
         {
             fn from(func: Function) -> Self {
                 #[allow(non_snake_case)]
                 Box::new(move |$($t : $t),*| {
-                    let args = vec![ $((&$t).as_arg_value()),* ];
+                    let args = vec![ $($t.into()),* ];
                     Ok(func.invoke(args)?.try_into()?)
                 })
             }
@@ -197,8 +196,8 @@ impl TryFrom<RetValue> for Function {
     }
 }
 
-impl<'a> From<&'a Function> for ArgValue<'a> {
-    fn from(func: &'a Function) -> ArgValue<'a> {
+impl<'a> From<Function> for ArgValue<'a> {
+    fn from(func: Function) -> ArgValue<'a> {
         if func.handle().is_null() {
             ArgValue::Null
         } else {
@@ -292,12 +291,12 @@ where
 }
 
 pub fn register_untyped<S: Into<String>>(
-    f: for<'a> fn(Vec<ArgValue<'a>>) -> Result<RetValue>,
+    f: fn(Vec<ArgValue<'static>>) -> Result<RetValue>,
     name: S,
     override_: bool,
 ) -> Result<()> {
-    //TODO(@jroesch): can we unify the untpyed and typed registration functions.
-    let func = ToFunction::<RawArgs, RetValue>::to_function(f);
+    // TODO(@jroesch): can we unify all the code.
+    let func = f.to_function();
     let name = name.into();
     // Not sure about this code
     let handle = func.handle();

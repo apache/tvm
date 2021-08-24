@@ -44,16 +44,8 @@ pub use tvm_sys::{ffi, ArgValue, RetValue};
 /// conversion of inputs and outputs to this trait.
 ///
 /// And the implementation of it to `ToFunction`.
-
-pub type ArgList<'a> = Vec<ArgValue<'a>>;
-
-pub enum Args<'a, I> {
-    Typed(I),
-    Raw(ArgList<'a>),
-}
-
 pub trait Typed<I, O> {
-    fn args<'arg>(i: Vec<ArgValue<'arg>>) -> Result<Args<'arg, I>>;
+    fn args(i: Vec<ArgValue<'static>>) -> Result<I>;
     fn ret(o: O) -> Result<RetValue>;
 }
 
@@ -62,7 +54,7 @@ pub trait ToFunction<I, O>: Sized {
 
     fn into_raw(self) -> *mut Self::Handle;
 
-    fn call<'a>(handle: *mut Self::Handle, args: Vec<ArgValue<'a>>) -> Result<RetValue>
+    fn call(handle: *mut Self::Handle, args: Vec<ArgValue<'static>>) -> Result<RetValue>
     where
         Self: Typed<I, O>;
 
@@ -78,7 +70,7 @@ pub trait ToFunction<I, O>: Sized {
         check_call!(ffi::TVMFuncCreateFromCFunc(
             Some(Self::tvm_callback),
             resource_handle as *mut _,
-            Some(Self::tvm_finalizer),
+            None, // Some(Self::tvm_finalizer),
             &mut fhandle as *mut ffi::TVMFunctionHandle,
         ));
 
@@ -110,39 +102,27 @@ pub trait ToFunction<I, O>: Sized {
             for i in 0..len {
                 value = args_list[i];
                 tcode = type_codes_list[i];
-                // TODO(@jroesch): I believe it is sound to disable this specialized move rule.
-                //
-                // This is used in C++ to deal with moving an RValue or reference to a return value
-                // directly so you can skip copying.
-                //
-                // I believe this is not needed as the move directly occurs into the Rust function.
-
-                // if tcode == ffi::TVMArgTypeCode_kTVMObjectHandle as c_int
-                //     || tcode == ffi::TVMArgTypeCode_kTVMObjectRValueRefArg as c_int
-                //     || tcode == ffi::TVMArgTypeCode_kTVMPackedFuncHandle as c_int
-                //     || tcode == ffi::TVMArgTypeCode_kTVMModuleHandle as c_int
-                //     || tcode == ffi::TVMArgTypeCode_kTVMNDArrayHandle as c_int
-                // {
-                //     check_call!(ffi::TVMCbArgToReturn(
-                //         &mut value as *mut _,
-                //         &mut tcode as *mut _
-                //     ));
-                // }
+                if tcode == ffi::TVMArgTypeCode_kTVMObjectHandle as c_int
+                    || tcode == ffi::TVMArgTypeCode_kTVMObjectRValueRefArg as c_int
+                    || tcode == ffi::TVMArgTypeCode_kTVMPackedFuncHandle as c_int
+                    || tcode == ffi::TVMArgTypeCode_kTVMModuleHandle as c_int
+                    || tcode == ffi::TVMArgTypeCode_kTVMNDArrayHandle as c_int
+                {
+                    check_call!(ffi::TVMCbArgToReturn(
+                        &mut value as *mut _,
+                        &mut tcode as *mut _
+                    ));
+                }
                 let arg_value = ArgValue::from_tvm_value(value, tcode as u32);
                 local_args.push(arg_value);
             }
 
+            // Ref-count be 2.
             let rv = match Self::call(resource_handle, local_args) {
                 Ok(v) => v,
                 Err(msg) => {
                     return Err(msg);
                 }
-            };
-
-            // TODO(@jroesch): clean up the handling of the is dec_ref
-            match rv.clone().try_into() as Result<crate::object::ObjectPtr<crate::object::Object>> {
-                Err(_) => {}
-                Ok(v) => drop(v),
             };
 
             let (mut ret_val, ret_tcode) = rv.to_tvm_value();
@@ -185,11 +165,9 @@ pub trait ToFunction<I, O>: Sized {
     }
 }
 
-pub struct RawArgs;
-
-impl Typed<RawArgs, RetValue> for for<'a> fn(Vec<ArgValue<'a>>) -> Result<RetValue> {
-    fn args<'arg>(args: Vec<ArgValue<'arg>>) -> Result<Args<'arg, RawArgs>> {
-        Ok(Args::Raw(args))
+impl Typed<Vec<ArgValue<'static>>, RetValue> for fn(Vec<ArgValue<'static>>) -> Result<RetValue> {
+    fn args(args: Vec<ArgValue<'static>>) -> Result<Vec<ArgValue<'static>>> {
+        Ok(args)
     }
 
     fn ret(o: RetValue) -> Result<RetValue> {
@@ -197,59 +175,43 @@ impl Typed<RawArgs, RetValue> for for<'a> fn(Vec<ArgValue<'a>>) -> Result<RetVal
     }
 }
 
-impl ToFunction<RawArgs, RetValue> for for<'arg> fn(Vec<ArgValue<'arg>>) -> Result<RetValue> {
-    type Handle = for<'arg> fn(Vec<ArgValue<'arg>>) -> Result<RetValue>;
+impl ToFunction<Vec<ArgValue<'static>>, RetValue>
+    for fn(Vec<ArgValue<'static>>) -> Result<RetValue>
+{
+    type Handle = fn(Vec<ArgValue<'static>>) -> Result<RetValue>;
 
     fn into_raw(self) -> *mut Self::Handle {
         let ptr: Box<Self::Handle> = Box::new(self);
         Box::into_raw(ptr)
     }
 
-    fn call<'arg>(handle: *mut Self::Handle, args: Vec<ArgValue<'arg>>) -> Result<RetValue> {
-        unsafe {
-            let func = *handle;
-            func(args)
-        }
+    fn call(handle: *mut Self::Handle, args: Vec<ArgValue<'static>>) -> Result<RetValue> {
+        unsafe { (*handle)(args) }
     }
 
     fn drop(_: *mut Self::Handle) {}
 }
 
-/// A helper trait which correctly captures the complex conversion and lifetime semantics needed
-/// to coerce an ordinary Rust value into `ArgValue`.
-pub trait TryFromArgValue<F>: TryFrom<F> {
-    fn from_arg_value(f: F) -> std::result::Result<Self, Error>;
-}
-
-impl<'a, T> TryFromArgValue<ArgValue<'a>> for T
-where
-    Self: TryFrom<ArgValue<'a>>,
-    Error: From<<Self as TryFrom<ArgValue<'a>>>::Error>,
-{
-    fn from_arg_value(f: ArgValue<'a>) -> std::result::Result<T, Error> {
-        Ok(TryFrom::try_from(f)?)
-    }
-}
-
 macro_rules! impl_typed_and_to_function {
     ($len:literal; $($t:ident),*) => {
-        impl<Fun, Out, $($t),*> Typed<($($t,)*), Out> for Fun
+        impl<F, Out, $($t),*> Typed<($($t,)*), Out> for F
         where
-            Fun: Fn($($t),*) -> Out,
+            F: Fn($($t),*) -> Out,
             Out: TryInto<RetValue>,
             Error: From<Out::Error>,
-            $( for<'a> $t: TryFromArgValue<ArgValue<'a>>, )*
+            $( $t: TryFrom<ArgValue<'static>>,
+               Error: From<$t::Error>, )*
         {
             #[allow(non_snake_case, unused_variables, unused_mut)]
-            fn args<'arg>(args: Vec<ArgValue<'arg>>) -> Result<Args<'arg, ($($t,)*)>> {
+            fn args(args: Vec<ArgValue<'static>>) -> Result<($($t,)*)> {
                 if args.len() != $len {
                     return Err(Error::CallFailed(format!("{} expected {} arguments, got {}.\n",
                                                          std::any::type_name::<Self>(),
                                                          $len, args.len())))
                 }
                 let mut args = args.into_iter();
-                $(let $t = TryFromArgValue::from_arg_value(args.next().unwrap())?;)*
-                Ok(Args::Typed(($($t,)*)))
+                $(let $t = args.next().unwrap().try_into()?;)*
+                Ok(($($t,)*))
             }
 
             fn ret(out: Out) -> Result<RetValue> {
@@ -258,9 +220,9 @@ macro_rules! impl_typed_and_to_function {
         }
 
 
-        impl<Fun, $($t,)* Out> ToFunction<($($t,)*), Out> for Fun
+        impl<F, $($t,)* Out> ToFunction<($($t,)*), Out> for F
         where
-            Fun: Fn($($t,)*) -> Out + 'static
+            F: Fn($($t,)*) -> Out + 'static
         {
             type Handle = Box<dyn Fn($($t,)*) -> Out + 'static>;
 
@@ -270,18 +232,13 @@ macro_rules! impl_typed_and_to_function {
             }
 
             #[allow(non_snake_case)]
-            fn call<'a>(handle: *mut Self::Handle, args: Vec<ArgValue<'a>>) -> Result<RetValue>
+            fn call(handle: *mut Self::Handle, args: Vec<ArgValue<'static>>) -> Result<RetValue>
             where
-                Fun: Typed<($($t,)*), Out>
+                F: Typed<($($t,)*), Out>
             {
-                let ($($t,)*) = match Fun::args(args)? {
-                    Args::Raw(_) => panic!("impossible case"),
-                    Args::Typed(typed) => typed,
-                };
-
-                let fn_ptr = unsafe { &*handle };
-                let out = fn_ptr($($t),*);
-                Fun::ret(out)
+                let ($($t,)*) = F::args(args)?;
+                let out = unsafe { (*handle)($($t),*) };
+                F::ret(out)
             }
 
             fn drop(ptr: *mut Self::Handle) {
@@ -298,15 +255,13 @@ impl_typed_and_to_function!(2; A, B);
 impl_typed_and_to_function!(3; A, B, C);
 impl_typed_and_to_function!(4; A, B, C, D);
 impl_typed_and_to_function!(5; A, B, C, D, E);
-impl_typed_and_to_function!(6; A, B, C, D, E, F);
-impl_typed_and_to_function!(7; A, B, C, D, E, F, G);
-impl_typed_and_to_function!(8; A, B, C, D, E, F, G, H);
+impl_typed_and_to_function!(6; A, B, C, D, E, G);
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn call<'a, F, I, O>(f: F, args: Vec<ArgValue<'a>>) -> Result<RetValue>
+    fn call<F, I, O>(f: F, args: Vec<ArgValue<'static>>) -> Result<RetValue>
     where
         F: ToFunction<I, O>,
         F: Typed<I, O>,

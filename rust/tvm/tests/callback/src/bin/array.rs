@@ -35,7 +35,7 @@ use tvm::{
 };
 
 fn main() {
-    fn sum<'a>(args: Vec<ArgValue<'a>>) -> Result<RetValue, Error> {
+    fn sum(args: Vec<ArgValue<'static>>) -> Result<RetValue, Error> {
         let mut ret = 0.0;
         for arg in args {
             let arg: NDArray = arg.try_into()?;

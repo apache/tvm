@@ -45,22 +45,19 @@ external! {
     fn array_size(array: ObjectRef) -> i64;
 }
 
-impl<T: IsObjectRef + 'static> IsObjectRef for Array<T> {
+impl<T: IsObjectRef> IsObjectRef for Array<T> {
     type Object = Object;
     fn as_ptr(&self) -> Option<&ObjectPtr<Self::Object>> {
         self.object.as_ptr()
     }
-
     fn into_ptr(self) -> Option<ObjectPtr<Self::Object>> {
         self.object.into_ptr()
     }
-
     fn from_ptr(object_ptr: Option<ObjectPtr<Self::Object>>) -> Self {
         let object_ref = match object_ptr {
             Some(o) => o.into(),
             _ => panic!(),
         };
-
         Array {
             object: object_ref,
             _data: PhantomData,
@@ -70,7 +67,7 @@ impl<T: IsObjectRef + 'static> IsObjectRef for Array<T> {
 
 impl<T: IsObjectRef> Array<T> {
     pub fn from_vec(data: Vec<T>) -> Result<Array<T>> {
-        let iter = data.iter().map(T::into_arg_value).collect();
+        let iter = data.into_iter().map(T::into_arg_value).collect();
 
         let func = Function::get("runtime.Array").expect(
             "runtime.Array function is not registered, this is most likely a build or linking error",
@@ -154,9 +151,9 @@ impl<T: IsObjectRef> FromIterator<T> for Array<T> {
     }
 }
 
-impl<'a, T: IsObjectRef> From<&'a Array<T>> for ArgValue<'a> {
-    fn from(array: &'a Array<T>) -> ArgValue<'a> {
-        (&array.object).into()
+impl<'a, T: IsObjectRef> From<Array<T>> for ArgValue<'a> {
+    fn from(array: Array<T>) -> ArgValue<'a> {
+        array.object.into()
     }
 }
 
