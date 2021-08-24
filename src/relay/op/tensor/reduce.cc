@@ -289,6 +289,23 @@ inline std::vector<IndexExpr> ReduceShapeImpl(const std::vector<IndexExpr>& in_s
   }
 }
 
+template <class T>
+bool GenericReduceRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                      const TypeReporter& reporter) {
+  ICHECK_EQ(types.size(), 2);
+  const auto* data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) return false;
+  ICHECK(static_cast<int>(data->shape.size()) != 0);
+  std::vector<IndexExpr> in_shape(data->shape.begin(), data->shape.end());
+
+  const T* param = attrs.as<T>();
+  ICHECK(param != nullptr);
+
+  // assign output type and shape
+  auto oshape = ReduceShapeImpl(in_shape, param, reporter);
+  reporter->Assign(types[1], TensorType(oshape, DataType::Int(32)));
+  return true;
+}
 /*!
  * \brief ArgReduceRel Output type and shape relation evaluation function.
  * \param num_inputs Number of input types in the args.
@@ -298,19 +315,19 @@ inline std::vector<IndexExpr> ReduceShapeImpl(const std::vector<IndexExpr>& in_s
  */
 bool ArgReduceRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                   const TypeReporter& reporter) {
-  ICHECK_EQ(types.size(), 2);
-  const auto* data = types[0].as<TensorTypeNode>();
-  if (data == nullptr) return false;
-  ICHECK(static_cast<int>(data->shape.size()) != 0);
-  std::vector<IndexExpr> in_shape(data->shape.begin(), data->shape.end());
+  return GenericReduceRel<ReduceAttrs>(types, num_inputs, attrs, reporter);
+}
 
-  const ReduceAttrs* param = attrs.as<ReduceAttrs>();
-  ICHECK(param != nullptr);
-
-  // assign output type and shape
-  auto oshape = ReduceShapeImpl(in_shape, param, reporter);
-  reporter->Assign(types[1], TensorType(oshape, DataType::Int(32)));
-  return true;
+/*!
+ * \brief SingleElementArgReduceRel Output type and shape relation evaluation function.
+ * \param num_inputs Number of input types in the args.
+ * \param attrs The additional attributes of the operator.
+ * \param reporter The reporter to report solution to.
+ * \return false if This relation cannot be resolved. true if this relation has been resolved.
+ */
+bool SingleElementArgReduceRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                               const TypeReporter& reporter) {
+  return GenericReduceRel<OneElementReduceAttrs>(types, num_inputs, attrs, reporter);
 }
 
 /*!
@@ -381,7 +398,7 @@ values over a given axis.
 )code" TVM_ADD_FILELINE)
     .set_attrs_type<OneElementReduceAttrs>()
     .set_support_level(4)
-    .add_type_rel("ArgReduce", ArgReduceRel)
+    .add_type_rel("ArgReduce", SingleElementArgReduceRel)
     .set_attr<FTVMCompute>("FTVMCompute", ArgMaxCompute)
     .set_attr<TOpPattern>("TOpPattern", kCommReduce);
 
@@ -397,7 +414,7 @@ values over a given axis.
 )code" TVM_ADD_FILELINE)
     .set_attrs_type<OneElementReduceAttrs>()
     .set_support_level(4)
-    .add_type_rel("ArgReduce", ArgReduceRel)
+    .add_type_rel("ArgReduce", SingleElementArgReduceRel)
     .set_attr<FTVMCompute>("FTVMCompute", ArgMinCompute)
     .set_attr<TOpPattern>("TOpPattern", kCommReduce);
 
