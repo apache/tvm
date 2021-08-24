@@ -77,6 +77,9 @@ tvm_multilib = "build/libtvm.so, " +
                "build/libvta_fsim.so, " +
                tvm_runtime
 
+tvm_multilib_tsim = "build/libvta_tsim.so, " +
+               tvm_multilib
+
 // command to start a docker container
 docker_run = 'docker/bash.sh'
 // timeout in minutes
@@ -218,7 +221,7 @@ stage('Build') {
         init_git()
         sh "${docker_run} ${ci_cpu} ./tests/scripts/task_config_build_cpu.sh"
         make(ci_cpu, 'build', '-j2')
-        pack_lib('cpu', tvm_multilib)
+        pack_lib('cpu', tvm_multilib_tsim)
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_ci_setup.sh"
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_unittest.sh"
