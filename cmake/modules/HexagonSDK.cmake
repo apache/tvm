@@ -65,7 +65,7 @@ function(find_hexagon_sdk_root HEXAGON_SDK_PATH HEXAGON_ARCH)
   set(HEXARCH_DIR_v66 "computev66")
   set(HEXARCH_DIR_v68 "computev68")
   set(HEXARCH_DIR_STR "HEXARCH_DIR_${HEXAGON_ARCH}")
-  set(HEXARCH_DIR ${${HEXARCH_DIR_STR}})
+  set(HEXARCH_DIR "${${HEXARCH_DIR_STR}}")
 
   if(NOT HEXARCH_DIR)
     message(SEND_ERROR
