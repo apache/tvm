@@ -163,7 +163,8 @@ print(tvm.lower(s, [A, B, C], simple_mode=True))
 # -------------
 # Another important trick is vectorization. When the memory access pattern is uniform,
 # the compiler can detect this pattern and pass the continuous memory to vector processor. In TVM,
-# we can use `vectorize` interface to hint the compiler this pattern, so that we can accelerate it vastly.
+# we can use `vectorize` interface to hint the compiler this pattern, so that we can accelerate it
+# vastly.
 #
 # In this tutorial, we chose to vectorize the inner loop row data since it is cache friendly.
 
@@ -234,22 +235,23 @@ print(tvm.lower(s, [A, B, C], simple_mode=True))
 # .. image:: https://github.com/dmlc/web-data/raw/main/tvm/tutorial/array-packing.png
 #      :align: center
 #
-# NOTE: The figure above is meant for illustration purposes only.  Please ignore dimension 
+# NOTE: The figure above is meant for illustration purposes only.  Please ignore dimension
 # information ([16][16] and [16/4][16][4]) which does not apply to this tutorial.
 
 
 ###################################################################################################
-# We can use array packing to address the access pattern for B. Observe the array access pattern of 
-# B after flattening which is not sequential as we iterate over the K dimension. We can reorder B 
-# with dimensions [K][N] so that it has dimensions [N/bn][K][bn] where bn is the blocking factor and 
-# also the vector size for both B in the inner loop.  This reorder splits N into two dimensions --- 
-# bigN (N/bn) and littleN (bn) --- and the new dimensions [N/bn][K][bn] match the indexing of B 
-# from outer to inner loops (no, ko, ki, ni) resulting in a sequentail access pattern for B after 
+# We can use array packing to address the access pattern for B. Observe the array access pattern of
+# B after flattening which is not sequential as we iterate over the K dimension. We can reorder B
+# with dimensions [K][N] so that it has dimensions [N/bn][K][bn] where bn is the blocking factor and
+# also the vector size for both B in the inner loop.  This reorder splits N into two dimensions ---
+# bigN (N/bn) and littleN (bn) --- and the new dimensions [N/bn][K][bn] match the indexing of B
+# from outer to inner loops (no, ko, ki, ni) resulting in a sequentail access pattern for B after
 # flattening.
 
 
 # We have to re-write the algorithm slightly.
-packedB = te.compute((N / bn, K, bn), lambda bigN, k, littleN: B[k, bigN * bn + littleN], name="packedB")
+packedB = te.compute((N / bn, K, bn),
+                     lambda bigN, k, littleN: B[k, bigN * bn + littleN], name="packedB")
 C = te.compute(
     (M, N),
     lambda m, n: te.sum(A[m, k] * packedB[n // bn, k, tvm.tir.indexmod(n, bn)], axis=k),
