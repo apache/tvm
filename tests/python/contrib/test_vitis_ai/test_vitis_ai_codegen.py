@@ -49,7 +49,11 @@ def set_func_attr(func, compile_name, symbol_name):
     return func
 
 
-def test_conv2d():
+@pytest.mark.parametrize(
+    "dpu_target",
+    ["DPUCADF8H", "DPUCAHX8H-u50", "DPUCAHX8L", "DPUCVDX8H", "DPUCVDX8G", "DPUCZDX8G-zcu104"],
+)
+def test_conv2d(dpu_target):
     """Test conv2d operator for Vitis AI DPU targets"""
 
     x = relay.var("x", shape=(1, 3, 224, 224))
@@ -60,15 +64,11 @@ def test_conv2d():
     params["w"] = np.random.rand(16, 3, 3, 3).astype("float32")
     mod = tvm.IRModule()
     mod["main"] = func
-    verify_codegen(mod, params=params, dpu_target="DPUCADF8H", tvm_ops=2)
-    verify_codegen(mod, params=params, dpu_target="DPUCAHX8H-u50", tvm_ops=2)
-    verify_codegen(mod, params=params, dpu_target="DPUCAHX8L", tvm_ops=2)
-    verify_codegen(mod, params=params, dpu_target="DPUCVDX8H", tvm_ops=2)
-    verify_codegen(mod, params=params, dpu_target="DPUCVDX8G", tvm_ops=2)
-    verify_codegen(mod, params=params, dpu_target="DPUCZDX8G-zcu104", tvm_ops=2)
+    verify_codegen(mod, params=params, dpu_target=dpu_target, tvm_ops=2)
 
 
-def test_depthwise_conv():
+@pytest.mark.parametrize("dpu_target", ["DPUCAHX8L", "DPUCZDX8G-zcu104"])
+def test_depthwise_conv(dpu_target):
     """Test depthwise_conv operator for Vitis-AI DPUCZDX8G-zcu104 target"""
 
     dtype = "float32"
@@ -82,11 +82,14 @@ def test_depthwise_conv():
     params["weights"] = np.random.randn(32, 1, 3, 3).astype(dtype)
     mod = tvm.IRModule()
     mod["main"] = func
-    verify_codegen(mod, params=params, dpu_target="DPUCAHX8L", tvm_ops=2)
-    verify_codegen(mod, params=params, dpu_target="DPUCZDX8G-zcu104", tvm_ops=2)
+    verify_codegen(mod, params=params, dpu_target=dpu_target, tvm_ops=2)
 
 
-def test_bias_add():
+@pytest.mark.parametrize(
+    "dpu_target",
+    ["DPUCADF8H", "DPUCAHX8H-u50", "DPUCAHX8L", "DPUCVDX8H", "DPUCVDX8G", "DPUCZDX8G-zcu104"],
+)
+def test_bias_add(dpu_target):
     """Test bias_add operator for Vitis AI DPU targets"""
 
     dtype = "float32"
@@ -99,15 +102,14 @@ def test_bias_add():
     params["bias"] = np.random.randn(32).astype(dtype)
     mod = tvm.IRModule()
     mod["main"] = func
-    verify_codegen(mod, params=params, dpu_target="DPUCADF8H")
-    verify_codegen(mod, params=params, dpu_target="DPUCAHX8H-u50")
-    verify_codegen(mod, params=params, dpu_target="DPUCAHX8L")
-    verify_codegen(mod, params=params, dpu_target="DPUCVDX8H")
-    verify_codegen(mod, params=params, dpu_target="DPUCVDX8G")
-    verify_codegen(mod, params=params, dpu_target="DPUCZDX8G-zcu104")
+    verify_codegen(mod, params=params, dpu_target=dpu_target)
 
 
-def test_relu():
+@pytest.mark.parametrize(
+    "dpu_target",
+    ["DPUCADF8H", "DPUCAHX8H-u50", "DPUCAHX8L", "DPUCVDX8H", "DPUCVDX8G", "DPUCZDX8G-zcu104"],
+)
+def test_relu(dpu_target):
     """Test relu operator for Vitis AI DPU targets"""
 
     shape = (10, 10)
@@ -116,15 +118,14 @@ def test_relu():
     func = relay.Function([x], y)
     mod = tvm.IRModule()
     mod["main"] = func
-    verify_codegen(mod, dpu_target="DPUCADF8H", num_vitis_ai_modules=0, tvm_ops=1)
-    verify_codegen(mod, dpu_target="DPUCAHX8H-u50", num_vitis_ai_modules=0, tvm_ops=1)
-    verify_codegen(mod, dpu_target="DPUCAHX8L", num_vitis_ai_modules=0, tvm_ops=1)
-    verify_codegen(mod, dpu_target="DPUCVDX8H", num_vitis_ai_modules=0, tvm_ops=1)
-    verify_codegen(mod, dpu_target="DPUCVDX8G", num_vitis_ai_modules=0, tvm_ops=1)
-    verify_codegen(mod, dpu_target="DPUCZDX8G-zcu104", num_vitis_ai_modules=0, tvm_ops=1)
+    verify_codegen(mod, dpu_target=dpu_target, num_vitis_ai_modules=0, tvm_ops=1)
 
 
-def test_batchnorm():
+@pytest.mark.parametrize(
+    "dpu_target",
+    ["DPUCADF8H", "DPUCAHX8H-u50", "DPUCAHX8L", "DPUCVDX8H", "DPUCVDX8G", "DPUCZDX8G-zcu104"],
+)
+def test_batchnorm(dpu_target):
     """Test batchnorm operator for Vitis AI DPU targets"""
 
     data = relay.var("data", shape=(1, 16, 112, 112))
@@ -141,15 +142,14 @@ def test_batchnorm():
     params["bn_var"] = np.random.rand(16).astype("float32")
     mod = tvm.IRModule()
     mod["main"] = func
-    verify_codegen(mod, params=params, dpu_target="DPUCADF8H")
-    verify_codegen(mod, params=params, dpu_target="DPUCAHX8H-u50")
-    verify_codegen(mod, params=params, dpu_target="DPUCAHX8L")
-    verify_codegen(mod, params=params, dpu_target="DPUCVDX8H")
-    verify_codegen(mod, params=params, dpu_target="DPUCVDX8G")
-    verify_codegen(mod, params=params, dpu_target="DPUCZDX8G-zcu104")
+    verify_codegen(mod, params=params, dpu_target=dpu_target)
 
 
-def test_add():
+@pytest.mark.parametrize(
+    "dpu_target",
+    ["DPUCADF8H", "DPUCAHX8H-u50", "DPUCAHX8L", "DPUCVDX8H", "DPUCVDX8G", "DPUCZDX8G-zcu104"],
+)
+def test_add(dpu_target):
     """Test add operator for Vitis AI DPU targets"""
 
     shape = (10, 10)
@@ -158,15 +158,14 @@ def test_add():
     func = relay.Function([x], y)
     mod = tvm.IRModule()
     mod["main"] = func
-    verify_codegen(mod, dpu_target="DPUCADF8H")
-    verify_codegen(mod, dpu_target="DPUCAHX8H-u50")
-    verify_codegen(mod, dpu_target="DPUCAHX8L")
-    verify_codegen(mod, dpu_target="DPUCVDX8H")
-    verify_codegen(mod, dpu_target="DPUCVDX8G")
-    verify_codegen(mod, dpu_target="DPUCZDX8G-zcu104")
+    verify_codegen(mod, dpu_target=dpu_target)
 
 
-def test_global_avg_pool2d():
+@pytest.mark.parametrize(
+    "dpu_target",
+    ["DPUCADF8H", "DPUCAHX8H-u50", "DPUCAHX8L", "DPUCVDX8H", "DPUCVDX8G", "DPUCZDX8G-zcu104"],
+)
+def test_global_avg_pool2d(dpu_target):
     """Test global_avg_pool2d operator for Vitis AI DPU targets"""
 
     shape = (10, 10, 7, 7)
@@ -175,15 +174,14 @@ def test_global_avg_pool2d():
     func = relay.Function([x], y)
     mod = tvm.IRModule()
     mod["main"] = func
-    verify_codegen(mod, dpu_target="DPUCADF8H")
-    verify_codegen(mod, dpu_target="DPUCAHX8H-u50")
-    verify_codegen(mod, dpu_target="DPUCAHX8L")
-    verify_codegen(mod, dpu_target="DPUCVDX8H")
-    verify_codegen(mod, dpu_target="DPUCVDX8G")
-    verify_codegen(mod, dpu_target="DPUCZDX8G-zcu104")
+    verify_codegen(mod, dpu_target=dpu_target)
 
 
-def test_avg_pool2d():
+@pytest.mark.parametrize(
+    "dpu_target",
+    ["DPUCADF8H", "DPUCAHX8H-u50", "DPUCAHX8L", "DPUCVDX8H", "DPUCVDX8G", "DPUCZDX8G-zcu104"],
+)
+def test_avg_pool2d(dpu_target):
     """Test avg_pool2d for operator Vitis AI DPU targets"""
 
     shape = (10, 10, 10, 10)
@@ -192,15 +190,14 @@ def test_avg_pool2d():
     func = relay.Function([x], y)
     mod = tvm.IRModule()
     mod["main"] = func
-    verify_codegen(mod, dpu_target="DPUCADF8H")
-    verify_codegen(mod, dpu_target="DPUCAHX8H-u50")
-    verify_codegen(mod, dpu_target="DPUCAHX8L")
-    verify_codegen(mod, dpu_target="DPUCVDX8H")
-    verify_codegen(mod, dpu_target="DPUCVDX8G")
-    verify_codegen(mod, dpu_target="DPUCZDX8G-zcu104")
+    verify_codegen(mod, dpu_target=dpu_target)
 
 
-def test_max_pool2d():
+@pytest.mark.parametrize(
+    "dpu_target",
+    ["DPUCADF8H", "DPUCAHX8H-u50", "DPUCAHX8L", "DPUCVDX8H", "DPUCVDX8G", "DPUCZDX8G-zcu104"],
+)
+def test_max_pool2d(dpu_target):
     """Test max_pool2d for operator Vitis AI DPU targets"""
 
     shape = (64, 512, 10, 10)
@@ -209,15 +206,14 @@ def test_max_pool2d():
     func = relay.Function([x], y)
     mod = tvm.IRModule()
     mod["main"] = func
-    verify_codegen(mod, dpu_target="DPUCADF8H")
-    verify_codegen(mod, dpu_target="DPUCAHX8H-u50")
-    verify_codegen(mod, dpu_target="DPUCAHX8L")
-    verify_codegen(mod, dpu_target="DPUCVDX8H")
-    verify_codegen(mod, dpu_target="DPUCVDX8G")
-    verify_codegen(mod, dpu_target="DPUCZDX8G-zcu104")
+    verify_codegen(mod, dpu_target=dpu_target)
 
 
-def test_global_max_pool2d():
+@pytest.mark.parametrize(
+    "dpu_target",
+    ["DPUCADF8H", "DPUCAHX8H-u50", "DPUCAHX8L", "DPUCVDX8H", "DPUCVDX8G", "DPUCZDX8G-zcu104"],
+)
+def test_global_max_pool2d(dpu_target):
     """Test global_maxpool2d operator for Vitis AI DPU targets"""
 
     shape = (1, 512, 7, 7)
@@ -226,15 +222,14 @@ def test_global_max_pool2d():
     func = relay.Function([x], y)
     mod = tvm.IRModule()
     mod["main"] = func
-    verify_codegen(mod, dpu_target="DPUCADF8H")
-    verify_codegen(mod, dpu_target="DPUCAHX8H-u50")
-    verify_codegen(mod, dpu_target="DPUCAHX8L")
-    verify_codegen(mod, dpu_target="DPUCVDX8H")
-    verify_codegen(mod, dpu_target="DPUCVDX8G")
-    verify_codegen(mod, dpu_target="DPUCZDX8G-zcu104")
+    verify_codegen(mod, dpu_target=dpu_target)
 
 
-def test_upsampling():
+@pytest.mark.parametrize(
+    "dpu_target",
+    ["DPUCADF8H", "DPUCAHX8H-u50", "DPUCAHX8L", "DPUCVDX8H", "DPUCVDX8G", "DPUCZDX8G-zcu104"],
+)
+def test_upsampling(dpu_target):
     """Test upsampling operator for Vitis AI DPU targets"""
 
     shape = (64, 512, 10, 10)
@@ -243,15 +238,14 @@ def test_upsampling():
     func = relay.Function([x], y)
     mod = tvm.IRModule()
     mod["main"] = func
-    verify_codegen(mod, dpu_target="DPUCADF8H")
-    verify_codegen(mod, dpu_target="DPUCAHX8H-u50")
-    verify_codegen(mod, dpu_target="DPUCAHX8L")
-    verify_codegen(mod, dpu_target="DPUCVDX8H")
-    verify_codegen(mod, dpu_target="DPUCVDX8G")
-    verify_codegen(mod, dpu_target="DPUCZDX8G-zcu104")
+    verify_codegen(mod, dpu_target=dpu_target)
 
 
-def test_conv2d_transpose():
+@pytest.mark.parametrize(
+    "dpu_target",
+    ["DPUCADF8H", "DPUCAHX8H-u50", "DPUCAHX8L", "DPUCVDX8H", "DPUCVDX8G", "DPUCZDX8G-zcu104"],
+)
+def test_conv2d_transpose(dpu_target):
     """Test conv2d_transpose operator for Vitis AI DPU targets"""
 
     dshape = (1, 3, 18, 18)
@@ -267,15 +261,14 @@ def test_conv2d_transpose():
     params["w"] = np.random.uniform(size=kshape).astype(dtype)
     mod = tvm.IRModule()
     mod["main"] = func
-    verify_codegen(mod, params=params, dpu_target="DPUCADF8H")
-    verify_codegen(mod, params=params, dpu_target="DPUCAHX8H-u50")
-    verify_codegen(mod, params=params, dpu_target="DPUCAHX8L")
-    verify_codegen(mod, params=params, dpu_target="DPUCVDX8H")
-    verify_codegen(mod, params=params, dpu_target="DPUCVDX8G")
-    verify_codegen(mod, params=params, dpu_target="DPUCZDX8G-zcu104")
+    verify_codegen(mod, params=params, dpu_target=dpu_target)
 
 
-def test_annotate():
+@pytest.mark.parametrize(
+    "dpu_target",
+    ["DPUCADF8H", "DPUCAHX8H-u50", "DPUCAHX8L", "DPUCVDX8H", "DPUCVDX8G", "DPUCZDX8G-zcu104"],
+)
+def test_annotate(dpu_target):
     """Test annotation operator for Vitis AI DPU targets"""
 
     def partition(dpu_target):
@@ -350,30 +343,15 @@ def test_annotate():
         mod = relay.transform.InferType()(mod)
         return mod
 
-    partitioned_dpuczdx8g_zcu104 = partition("DPUCZDX8G-zcu104")
-    partitioned_DPUCADF8H = partition("DPUCADF8H")
+    partitioned_mod = partition(dpu_target)
 
     ref_mod = expected()
 
-    assert tvm.ir.structural_equal(partitioned_dpuczdx8g_zcu104, ref_mod, map_free_vars=True)
-    assert tvm.ir.structural_equal(partitioned_DPUCADF8H, ref_mod, map_free_vars=True)
+    assert tvm.ir.structural_equal(partitioned_mod, ref_mod, map_free_vars=True)
 
 
 if __name__ == "__main__":
     if sys.platform == "win32":
         print("Skip test on Windows for now")
         sys.exit(0)
-
-    test_conv2d()
-    test_depthwise_conv()
-    test_bias_add()
-    test_relu()
-    test_add()
-    test_max_pool2d()
-    test_global_max_pool2d()
-    test_batchnorm()
-    test_global_avg_pool2d()
-    test_avg_pool2d()
-    test_upsampling()
-    test_conv2d_transpose()
-    test_annotate()
+    pytest.main([__file__])
