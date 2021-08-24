@@ -50,30 +50,34 @@ repos:
             entry: docker/lint.sh python_format
             language: system
             always_run: true
-            verbose: true
             pass_filenames: false
-        -   id: run-file-types
-            name: Checking File Types...
+        -   id: run-file-checks
+            name: Checking File Types....
             entry: docker/lint.sh file_type
-            language: python
+            language: system
             always_run: true
+            pass_filenames: false
         -   id: run-headers-check
             name: Checking ASF License Headers ...
             entry: docker/lint.sh asf
             language: system
             always_run: true
+            pass_filenames: false
         -   id: run-headers-check
             name: Linting the C++ code ...
             entry: docker/lint.sh cpplint
             language: system
-            always_run: False
+            always_run: true
+            pass_filenames: false
         -   id: run-clang-format
             name: Checking Clang format ...
             entry: docker/lint.sh clang_format
             language: system
-            always_run: False
+            always_run: true
+            pass_filenames: false
         -   id: run-mypy
             name: Type Checking with MyPY ...
             entry: docker/lint.sh mypy
             language: system
             always_run: true
+            pass_filenames: false
