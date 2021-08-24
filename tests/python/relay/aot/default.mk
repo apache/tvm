@@ -62,5 +62,13 @@ clean:
 	$(QUIET)rm -rf $(build_dir)/crt
 cleanall:
 	$(QUIET)rm -rf $(build_dir)
+
+run: $(build_dir)/aot_test_runner
+	$(build_dir)/aot_test_runner
+
 # Don't define implicit rules; they tend to match on logical target names that aren't targets (i.e. bundle_static)
 .SUFFIXES:
+
+.DEFAULT: aot_test_runner
+
+.PHONY: run

@@ -80,16 +80,16 @@ def check_aot_executor_result(
         pytest.skip("MicroTVM support not enabled. Set USE_MICRO=ON in config.cmake to enable.")
 
     # Late import to avoid breaking test with USE_MICRO=OFF.
-    from aot.aot_test_utils import AOTTestModel, compile_and_run
+    from aot.aot_test_utils import AOTTestModel, AOT_DEFAULT_RUNNER, compile_and_run
 
     interface_api = "packed"
     use_unpacked_api = False
-    use_calculated_workspaces = True
+    test_runner = AOT_DEFAULT_RUNNER
     compile_and_run(
         AOTTestModel(module=mod, inputs=map_inputs, outputs=[result]),
+        test_runner,
         interface_api,
         use_unpacked_api,
-        use_calculated_workspaces,
     )
 
 
