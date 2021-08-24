@@ -76,8 +76,8 @@ inline bool ArrayWithSameContent(const std::vector<T*>& a, const std::vector<T*>
  */
 template <class TSrc, class TDst>
 std::vector<TDst> AsVector(const Array<TSrc>& vec);
-/**************** AsVector<TSrc, TDst> ****************/
 
+/********** Implementation details of AsVector<TSrc, TDst> **********/
 namespace details {
 
 template <class TSrc, class TDst>

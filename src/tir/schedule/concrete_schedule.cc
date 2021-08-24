@@ -213,8 +213,12 @@ Schedule ConcreteScheduleNode::Copy() const {
 /******** Schedule: Schedule: Sampling ********/
 
 void ConcreteScheduleNode::Seed(support::LinearCongruentialEngine::TRandState seed) {
-  support::LinearCongruentialEngine(&rand_state_).Seed(seed == -1 ? std::random_device()() : seed);
+  if (seed == -1) {
+    seed = std::random_device()();
+  }
+  support::LinearCongruentialEngine(&rand_state_).Seed(seed);
 }
+
 support::LinearCongruentialEngine::TRandState ConcreteScheduleNode::ForkSeed() {
   // In order for reproducibility, we computer the new seed using RNG's random state and a different
   // set of parameters. Note that both 32767 and 1999999973 are prime numbers.
