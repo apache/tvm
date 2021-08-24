@@ -47,7 +47,7 @@ int64_t SampleCategorical(support::LinearCongruentialEngine::TRandState* rand_st
                             << ", but decision is: " << i;
   }
 
-  *decision = Integer(i);
+  *decision = Integer(i);  // decision is guaranteed not to be nullptr.
   return candidates[i];
 }
 

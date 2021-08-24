@@ -84,7 +84,8 @@ class ConcreteScheduleNode : public ScheduleNode {
    * \brief Sample an integer given the probability distribution
    * \param candidates The candidates
    * \param probs The probability distribution of the candidates
-   * \param decision The sampling decision
+   * \param decision The sampling decision, if it's given we would validate the decision, otherwise
+   *  we would sample a decision from the distribution and set the decision accordingly.
    * \return The random variable sampled from candidates
    */
   ExprRV SampleCategorical(const Array<Integer>& candidates, const Array<FloatImm>& probs,
