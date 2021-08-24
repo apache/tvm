@@ -42,7 +42,7 @@ class TestErrorSwitch {
     const_cast<TestErrorSwitch&>(other).should_fail = false;
   }
 
-  TestErrorSwitch(bool fail_flag) : should_fail{fail_flag} {}
+  explicit TestErrorSwitch(bool fail_flag) : should_fail{fail_flag} {}
   bool should_fail{false};
 
   ~TestErrorSwitch() {

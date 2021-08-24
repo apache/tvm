@@ -185,9 +185,10 @@ TEST(TypedPackedFunc, Deduce) {
   auto f = [](int x) -> int { return x + 1; };
   std::function<void(float)> y;
 
-  static_assert(std::is_same<function_signature<decltype(x)>::FType, int(float)>::value,
-                "invariant1");
-  static_assert(std::is_same<function_signature<decltype(f)>::FType, int(int)>::value,
+  static_assert(
+      std::is_same<function_signature<decltype(x)>::FType, int(float)>::value,  // NOLINT(*)
+      "invariant1");
+  static_assert(std::is_same<function_signature<decltype(f)>::FType, int(int)>::value,  // NOLINT(*)
                 "invariant2");
   static_assert(std::is_same<function_signature<decltype(y)>::FType, void(float)>::value,
                 "invariant3");
