@@ -115,6 +115,7 @@ We do encourage everyone to work anything they are interested in.
 - [Xin Liu](https://github.com/Meteorix): @Meteorix
 - [Yizhi Liu](https://github.com/yzhliu) : @yzhliu
 - [Hao Lu](https://github.com/hlu1): @hlu1
+- [Eric Lunderberg](https://github.com/Lunderberg): @Lunderberg
 - [Steven Lyubomirsky](https://github.com/slyubomirsky): @slyubomirsky
 - [Masahiro Masuda](https://github.com/masahi): @masahi
 - [Sergey Mironov](https://github.com/grwlf): @grwlf
