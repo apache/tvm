@@ -224,7 +224,7 @@ macro_rules! impl_pod_value {
                 }
             }
 
-            impl<'a, 'v> From<&'a $type> for ArgValue<'v> {
+            impl<'a> From<&'a $type> for ArgValue<'a> {
                 fn from(val: &'a $type) -> Self {
                     Self::$variant(*val as $inner_ty)
                 }
@@ -284,9 +284,9 @@ impl<'a> From<&'a CStr> for ArgValue<'a> {
     }
 }
 
-impl<'a> From<CString> for ArgValue<'a> {
-    fn from(s: CString) -> Self {
-        Self::String(s.into_raw())
+impl<'a> From<&'a CString> for ArgValue<'a> {
+    fn from(s: &'a CString) -> Self {
+        Self::String(s.as_ptr() as _)
     }
 }
 
@@ -311,14 +311,14 @@ impl<'a, 'v> TryFrom<&'a ArgValue<'v>> for &'v str {
 }
 
 /// Converts an unspecialized handle to a ArgValue.
-impl<T> From<*const T> for ArgValue<'static> {
+impl<'a, T> From<*const T> for ArgValue<'a> {
     fn from(ptr: *const T) -> Self {
         Self::Handle(ptr as *mut c_void)
     }
 }
 
 /// Converts an unspecialized mutable handle to a ArgValue.
-impl<T> From<*mut T> for ArgValue<'static> {
+impl<'a, T> From<*mut T> for ArgValue<'a> {
     fn from(ptr: *mut T) -> Self {
         Self::Handle(ptr as *mut c_void)
     }
@@ -382,9 +382,9 @@ impl TryFrom<RetValue> for std::ffi::CString {
 
 // Implementations for bool.
 
-impl<'a> From<bool> for ArgValue<'a> {
-    fn from(s: bool) -> Self {
-        (s as i64).into()
+impl<'a> From<&bool> for ArgValue<'a> {
+    fn from(s: &bool) -> Self {
+        (*s as i64).into()
     }
 }
 
