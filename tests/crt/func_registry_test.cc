@@ -22,8 +22,6 @@
 #include <tvm/runtime/crt/func_registry.h>
 #include <tvm/runtime/crt/internal/common/func_registry.h>
 
-#include "platform.cc"
-
 typedef struct {
   const char* a;
   const char* b;
@@ -231,10 +229,4 @@ TEST(MutableFuncRegistry, Create) {
     EXPECT_EQ(kTvmErrorFunctionRegistryFull,
               TVMMutableFuncRegistry_Set(&reg, test_function_name, TestFunctionHandle(0x03), 0));
   }
-}
-
-int main(int argc, char** argv) {
-  testing::InitGoogleTest(&argc, argv);
-  testing::FLAGS_gtest_death_test_style = "threadsafe";
-  return RUN_ALL_TESTS();
 }

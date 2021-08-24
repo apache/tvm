@@ -346,6 +346,13 @@ Array<LoopRV> ConcreteScheduleNode::Split(const LoopRV& loop_rv,
   return CreateRV<LoopRV>(results);
 }
 
+void ConcreteScheduleNode::Reorder(const Array<LoopRV>& ordered_loop_rvs) {
+  TVM_TIR_SCHEDULE_BEGIN();
+  tir::Reorder(state_, GetSRefs(ordered_loop_rvs));
+  TVM_TIR_SCHEDULE_END("reorder", this->error_render_level_);
+  this->state_->DebugVerify();
+}
+
 /******** Schedule: Manipulate ForKind ********/
 
 void ConcreteScheduleNode::Parallel(const LoopRV& loop_rv) {
