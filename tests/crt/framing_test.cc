@@ -27,7 +27,6 @@
 
 #include "buffer_write_stream.h"
 #include "crt_config.h"
-#include "platform.cc"
 
 using ::tvm::runtime::micro_rpc::Escape;
 using ::tvm::runtime::micro_rpc::FrameBuffer;
@@ -61,16 +60,6 @@ class TestPacket {
   std::string payload;
   std::string wire;
 };
-
-void PrintTo(const TestPacket* p, std::ostream* os) {
-  *os << "TestPacket(\"" << p->name << "\", ...)";
-}
-
-void PrintTo(tvm_crt_error_t p, std::ostream* os) {
-  std::ios_base::fmtflags f(os->flags());
-  *os << "tvm_crt_error_t(0x" << std::hex << std::setw(8) << std::setfill('0') << p << ")";
-  os->flags(f);
-}
 
 std::vector<const TestPacket*> TestPacket::instances;
 
@@ -309,9 +298,3 @@ TEST_P(UnframerTestParameterized, TestArbitraryPacketReset) {
 INSTANTIATE_TEST_CASE_P(UnframerTests, UnframerTestParameterized,
                         ::testing::ValuesIn(TestPacket::instances));
 #pragma GCC diagnostic pop
-
-int main(int argc, char** argv) {
-  testing::InitGoogleTest(&argc, argv);
-  testing::FLAGS_gtest_death_test_style = "threadsafe";
-  return RUN_ALL_TESTS();
-}
