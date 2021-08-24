@@ -435,7 +435,8 @@ inline FCommReduce MakeArgminReducer(bool select_last_index = false) {
   // Create a Commutative Reducer with a comparison operation, and method to get the initial value.
   auto fcombine = [=](Array<Var> lhs, Array<Var> rhs) {
     Array<PrimExpr> result;
-    auto comparison = select_last_index ? lhs[1] < rhs[1] : lhs[1] <= rhs[1];
+    // Cast to resolve ambiguous operators
+    auto comparison = select_last_index ? PrimExpr(lhs[1]) < PrimExpr(rhs[1]) : lhs[1] <= rhs[1];
     result.push_back(tvm::tir::Select(comparison, lhs[0], rhs[0]));  // idx
     result.push_back(tvm::tir::Select(comparison, lhs[1], rhs[1]));  // val
     return result;
@@ -475,7 +476,8 @@ inline FCommReduce MakeArgmaxReducer(bool select_last_index = false) {
   // Create a Commutative Reducer with a comparison operation, and method to get the initial value.
   auto fcombine = [=](Array<Var> lhs, Array<Var> rhs) {
     Array<PrimExpr> result;
-    auto comparison = select_last_index ? lhs[1] > rhs[1] : lhs[1] >= rhs[1];
+    // Cast to resolve ambiguous operators
+    auto comparison = select_last_index ? PrimExpr(lhs[1]) > PrimExpr(rhs[1]) : lhs[1] >= rhs[1];
     result.push_back(tvm::tir::Select(comparison, lhs[0], rhs[0]));  // idx
     result.push_back(tvm::tir::Select(comparison, lhs[1], rhs[1]));  // val
     return result;
