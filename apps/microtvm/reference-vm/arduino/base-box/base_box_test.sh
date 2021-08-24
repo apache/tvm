@@ -33,6 +33,7 @@ microtvm_platform=$1
 pytest tests/micro/arduino/test_arduino_workflow.py --microtvm-platforms=${microtvm_platform}
 
 if [ $microtvm_platform == "nano33ble" ]; then
+    # https://github.com/apache/tvm/issues/8730
     echo "NOTE: skipped test_arduino_rpc_server.py on $microtvm_platform -- known failure"
 else
     pytest tests/micro/arduino/test_arduino_rpc_server.py --microtvm-platforms=${microtvm_platform}

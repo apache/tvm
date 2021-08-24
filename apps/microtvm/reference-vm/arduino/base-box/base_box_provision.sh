@@ -34,6 +34,9 @@ sudo apt-get install -y ca-certificates
 export PATH="/home/vagrant/bin:$PATH"
 wget -O - https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh -s
 
+# Arduino (the CLI and GUI) require the dialout permission for uploading
+sudo usermod -a -G dialout $USER
+
 # ubuntu_init_arduino.sh only installs a few officially
 # supported architectures, so we don't use it here
 
@@ -58,8 +61,15 @@ arduino-cli core install SPRESENSE:spresense --additional-urls $SPRESENSE_BOARDS
 # fixes the bug in the main core release SDK - the subcore release SDK and both
 # the main and subcore debug SDKs will continue to fail until an official fix is made.
 # https://github.com/sonydevworld/spresense/issues/200
-SPRESENSE_BUGFIX_PATH=~/.arduino15/packages/SPRESENSE/tools/spresense-sdk/2.2.1/spresense/release/nuttx/include/sys/types.h
-sed -i 's/#ifndef CONFIG_WCHAR_BUILTIN/#if !defined(__cplusplus)/g' $SPRESENSE_BUGFIX_PATH
+SPRESENSE_NUTTX_BUGFIX_PATH=~/.arduino15/packages/SPRESENSE/tools/spresense-sdk/2.2.1/spresense/release/nuttx/include/sys/types.h
+sed -i 's/#ifndef CONFIG_WCHAR_BUILTIN/#if !defined(__cplusplus)/g' $SPRESENSE_NUTTX_BUGFIX_PATH
+
+# There's also a SECOND bug in the Spresense Arduino bindings, relating to how the
+# flash_writer path is templated on Linux. This change is only needed to upload code
+# (not compile) to the Spresense.
+# https://github.com/sonydevworld/spresense-arduino-compatible/issues/127
+SPRESENSE_FLASH_WRITER_BUGFIX_PATH=~/.arduino15/packages/SPRESENSE/hardware/spresense/2.2.1/platform.txt
+sed -i 's/tools.spresense-tools.cmd.path.linux={path}\/flash_writer\/{runtime.os}\/flash_writer/tools.spresense-tools.cmd.path.linux={path}\/flash_writer\/linux\/flash_writer/g' $SPRESENSE_FLASH_WRITER_BUGFIX_PATH
 
 # Cleanup
 rm -f *.sh

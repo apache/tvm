@@ -75,10 +75,7 @@ ALL_MICROTVM_PLATFORMS = {
 # in [platform]/base-box/base_box_provision.sh
 EXTRA_SCRIPTS = {
     "arduino": (),
-    "zephyr": (
-        "docker/install/ubuntu_init_zephyr_project.sh",
-        "docker/install/ubuntu_install_qemu.sh",
-    ),
+    "zephyr": ("docker/install/ubuntu_init_zephyr_project.sh",),
 }
 
 PACKER_FILE_NAME = "packer.json"
@@ -392,7 +389,6 @@ def test_command(args):
         microtvm_test_platform["microtvm_platform"] = args.microtvm_platform
 
     providers = args.provider
-    print(providers)
     provider_passed = {p: False for p in providers}
 
     release_test_dir = os.path.join(THIS_DIR, "release-test")
@@ -479,7 +475,7 @@ def parse_args():
 
     # "test" has special options for different platforms, and "build", "release" might
     # in the future, so we'll add the platform argument to each one individually.
-    platform_help_str = "Electronics platform to use (e.g. Arduino, Zephyr)"
+    platform_help_str = "Platform to use (e.g. Arduino, Zephyr)"
 
     # Options for build subcommand
     parser_build = subparsers.add_parser("build", help="Build a base box.")
@@ -510,9 +506,9 @@ def parse_args():
             "iSerial field from `lsusb -v` output."
         ),
     )
-    platform_subparsers = parser_test.add_subparsers(help=platform_help_str)
+    parser_test_platform_subparsers = parser_test.add_subparsers(help=platform_help_str)
     for platform in ALL_PLATFORMS:
-        platform_specific_parser = platform_subparsers.add_parser(platform)
+        platform_specific_parser = parser_test_platform_subparsers.add_parser(platform)
         platform_specific_parser.set_defaults(platform=platform)
         platform_specific_parser.add_argument(
             "--microtvm-platform",
@@ -538,7 +534,10 @@ def parse_args():
     parser_release.add_argument(
         "--platform-version",
         required=True,
-        help="Platform version to release, in the form 'x.y'.",
+        help=(
+            "For Zephyr, the platform version to release, in the form 'x.y'. "
+            "For Arduino, the version of arduino-cli that's being used, in the form 'x.y.z'."
+        ),
     )
 
     return parser.parse_args()

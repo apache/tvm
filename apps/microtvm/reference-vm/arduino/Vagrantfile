@@ -49,7 +49,7 @@ Vagrant.configure("2") do |config|
   config.vm.provision "shell", path: "provision_setup.sh", env: {"TVM_HOME": dirs_to_mount[0]}, privileged: false
 
   # Enable USB Controller on VirtualBox
-  vm_name = "microtvm-#{Time.now.tv_sec}"
+  vm_name = "microtvm-arduino-#{Time.now.tv_sec}"
   config.vm.provider "virtualbox" do |vb, overrides|
     vb.name = vm_name
     vb.cpus = num_cores
@@ -61,29 +61,6 @@ Vagrant.configure("2") do |config|
     dirs_to_mount.each do |d|
       overrides.vm.synced_folder d.to_s, d.to_s
     end
-  end
-
-  config.vm.provider "parallels" do |prl, overrides|
-    prl.name = vm_name
-    prl.cpus = num_cores
-    prl.memory = ram_bytes
-    prl.update_guest_tools = true
-    prl.customize ["set", :id, "--support-usb30", "on"]
-    dirs_to_mount.each do |d|
-      overrides.vm.synced_folder d.to_s, d.to_s, mount_options: ["share", "nosuid", "host_inodes"]
-    end
-  end
-
-  config.vm.provider "vmware_desktop" do |vm, overrides|
-    vm.cpus = num_cores
-    vm.memory = ram_bytes
-    vm.vmx["usb_xhci.present"] = "TRUE"
-    vm.vmx["usb.present"] = "TRUE"
-    vm.vmx["ehci.present"] = "TRUE"
-    dirs_to_mount.each do |d|
-      overrides.vm.synced_folder d.to_s, d.to_s
-    end
-    vm.gui = true
   end
 
 end

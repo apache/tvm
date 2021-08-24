@@ -17,11 +17,28 @@
 
 # microTVM Arduino Reference Virtual Machine
 
-This directory contains setup files for Arduino virtual machine used for testing microTVM platforms
-that are supported by [Arduino](https://www.arduino.cc/).
+This directory contains setup files for Arduino virtual machine used for testing
+microTVM platforms that are supported by [Arduino](https://www.arduino.cc/).
 
 ## VM Information for Developers
 Arduino VM is published under [tlcpack](https://app.vagrantup.com/tlcpack).
 Here is a list of different release versions and their tools.
 
 (none currently)
+
+## Supported Arduino Boards
+This RVM has been tested and is known to work with these boards:
+- Adafruit Metro M4
+- Adafruit Pybadge
+- Arduino Due
+- Arduino Nano 33 BLE
+- Feather S2
+- Sony Spresense
+- Wio Terminal
+
+However, the RVM *should* work with any Arduino with sufficient memory, provided
+its core is installed in `base-box/base_box_provision.sh`.
+
+Note that this RVM does not work with the Teensy boards, even though they are
+supported by microTVM. This is because arduino-cli does not support Teensy
+boards (https://github.com/arduino/arduino-cli/issues/700)/).
