@@ -85,7 +85,6 @@ class TensorRTRuntime : public JSONRuntimeBase {
             std::string num = getEnvVar(num_cali_var);
             num_calibration_batches_remaining_ = stoi(num);
             LOG(INFO) << "set up num_calibration_batches_remaining_ : " << num_calibration_batches_remaining_;
-            // num_calibration_batches_remaining_ = 10; 
           }
         }
 
