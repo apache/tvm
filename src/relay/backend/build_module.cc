@@ -491,8 +491,9 @@ class RelayBuildModule : public runtime::ModuleNode {
     auto lowered_funcs = executor_codegen_->GetIRModule();
 
     // No need to build for external functions.
-    if (lowered_funcs.find(Target("ext_dev")) != lowered_funcs.end()) {
-      lowered_funcs.Set(Target("ext_dev"), IRModule());
+    Target ext_dev("ext_dev");
+    if (lowered_funcs.find(ext_dev) != lowered_funcs.end()) {
+      lowered_funcs.Set(ext_dev, IRModule());
     }
 
     // Generate a placeholder function that attaches linked params as its arguments.
