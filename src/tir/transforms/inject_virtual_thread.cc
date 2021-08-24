@@ -459,12 +459,12 @@ class VirtualThreadInjector : public StmtMutator {
     op = stmt.as<AttrStmtNode>();
     if (op->attr_key == attr::virtual_thread) {
       IterVar iv = Downcast<IterVar>(op->node);
-      bool allow_share = iv->thread_tag == "vthread";
+      bool allow_share = std::string(iv->thread_tag).substr(0, 7) == "vthread";
       int nthread = static_cast<int>(op->value.as<IntImmNode>()->value);
       VarTouchedAnalysis vs;
       auto touched = vs.TouchedVar(op->body, iv->var.get());
-      VTInjector injecter(iv->var, nthread, touched, allow_share);
-      return injecter(op->body);
+      VTInjector injector(iv->var, nthread, touched, allow_share);
+      return injector(op->body);
     } else {
       return stmt;
     }
@@ -475,11 +475,6 @@ class VirtualThreadInjector : public StmtMutator {
     return GetRef<Stmt>(op);
   }
 };
-
-Stmt InjectVirtualThread(Stmt stmt) {
-  stmt = VirtualThreadInjector()(std::move(stmt));
-  return ConvertSSA(std::move(stmt));
-}
 
 namespace transform {
 

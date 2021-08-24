@@ -174,7 +174,7 @@ TEST_F(UnframerTest, PacketTooLong) {
   EXPECT_EQ(write_stream_.capacity(), bytes_consumed);
 
   EXPECT_EQ(kTvmErrorNoError, unframer_.Write((uint8_t*)&crc, sizeof(crc), &bytes_consumed));
-  EXPECT_EQ(2, bytes_consumed);  // 2, because framer is now in kFindPacketStart.
+  EXPECT_EQ(2UL, bytes_consumed);  // 2, because framer is now in kFindPacketStart.
   EXPECT_FALSE(write_stream_.packet_done());
   EXPECT_FALSE(write_stream_.is_valid());
   EXPECT_EQ(std::string((char*)long_payload, write_stream_.capacity()),
@@ -210,7 +210,7 @@ TEST_P(UnframerTestParameterized, TestByteAtATime) {
     EXPECT_EQ(kTvmErrorNoError,
               unframer_.Write(reinterpret_cast<const uint8_t*>(&GetParam()->wire[i]), 1,
                               &bytes_consumed));
-    EXPECT_EQ(1, bytes_consumed);
+    EXPECT_EQ(1UL, bytes_consumed);
     EXPECT_EQ(i == wire_size - 1, write_stream_.packet_done());
   }
   EXPECT_TRUE(write_stream_.is_valid());
@@ -247,7 +247,7 @@ TEST_P(UnframerTestParameterized, TestArbitraryPacketReset) {
   unframer_.Reset();
   write_stream_.Reset();
   EXPECT_EQ(kTvmErrorNoError, unframer_.Write(GetParam()->wire_data(), 1, &bytes_consumed));
-  EXPECT_EQ(1, bytes_consumed);
+  EXPECT_EQ(1UL, bytes_consumed);
   EXPECT_EQ(kTvmErrorNoError, unframer_.Write(GetParam()->wire_data(), wire_size, &bytes_consumed));
   EXPECT_EQ(wire_size, bytes_consumed);
   EXPECT_TRUE(write_stream_.packet_done());
@@ -265,13 +265,13 @@ TEST_P(UnframerTestParameterized, TestArbitraryPacketReset) {
     // Interrupt the packet transmission. The first byte will return no error as it is the escape
     // byte.
     EXPECT_EQ(kTvmErrorNoError, unframer_.Write(GetParam()->wire_data(), 1, &bytes_consumed));
-    EXPECT_EQ(1, bytes_consumed);
+    EXPECT_EQ(1UL, bytes_consumed);
     EXPECT_FALSE(write_stream_.packet_done());
 
     // Secondt byte will return a short packet error.
     EXPECT_EQ(kTvmErrorFramingShortPacket,
               unframer_.Write(&GetParam()->wire_data()[1], 1, &bytes_consumed));
-    EXPECT_EQ(0, bytes_consumed);
+    EXPECT_EQ(0UL, bytes_consumed);
     EXPECT_FALSE(write_stream_.packet_done());
 
     EXPECT_EQ(kTvmErrorNoError,
@@ -291,7 +291,7 @@ TEST_P(UnframerTestParameterized, TestArbitraryPacketReset) {
     // the internal state.
     EXPECT_EQ(kTvmErrorFramingShortPacket,
               unframer_.Write(GetParam()->wire_data(), wire_size, &bytes_consumed));
-    EXPECT_EQ(1, bytes_consumed);
+    EXPECT_EQ(1UL, bytes_consumed);
     EXPECT_FALSE(write_stream_.packet_done());
     EXPECT_EQ(kTvmErrorNoError,
               unframer_.Write(&GetParam()->wire_data()[1], wire_size - 1, &bytes_consumed));

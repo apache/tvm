@@ -74,8 +74,9 @@ def get_tvm_output_with_vm(
     if convert_to_static:
         mod = relay.transform.DynamicToStatic()(mod)
 
-    ex = relay.create_executor("vm", mod=mod, device=dev, target=target)
-    result = ex.evaluate()(*input_data, **params)
+    result = relay.create_executor("vm", mod=mod, device=dev, target=target).evaluate()(
+        *input_data, **params
+    )
     if isinstance(result, tvm.runtime.NDArray):
         return result.numpy()
     return [r.numpy() for r in result]
@@ -231,6 +232,39 @@ def verify_with_ort(
         dtype=dtype,
         rtol=rtol,
         atol=atol,
+    )
+
+
+def quantize_and_verify_with_ort(onnx_model, input_names, input_shapes, target, dev):
+    from onnxruntime.quantization import quantize_static, CalibrationDataReader, QuantType
+
+    input_arrays = [np.random.random(shape).astype("float32") for shape in input_shapes]
+
+    class RandomDataReader(CalibrationDataReader):
+        def __init__(self, n=10):
+            input_dict = dict(zip(input_names, input_shapes))
+            self.data = iter(
+                [
+                    {
+                        name: np.random.random(shape).astype("float32")
+                        for name, shape in input_dict.items()
+                    }
+                    for _ in range(n)
+                ]
+            )
+
+        def get_next(self):
+            return next(self.data, None)
+
+    d = tvm.contrib.utils.tempdir()
+    model_fp32 = os.path.join(d.temp_dir, "model.onnx")
+    onnx.save_model(onnx_model, model_fp32)
+    model_quant = os.path.join(d.temp_dir, "model.quant.onnx")
+    quantized_model = quantize_static(model_fp32, model_quant, RandomDataReader())
+    # opt_level=1 will cause error with qnn lowering
+    model = onnx.load(model_quant)
+    verify_with_ort_with_inputs(
+        model, input_arrays, opt_level=2, target=target, dev=dev, use_vm=True
     )
 
 
@@ -656,8 +690,7 @@ def test_dynamic_gather(target, dev):
 
     mod, params = relay.frontend.from_onnx(model)
 
-    ex = relay.create_executor("vm", mod=mod, device=dev, target=target)
-    result = ex.evaluate()(x, **params)
+    result = relay.create_executor("vm", mod=mod, device=dev, target=target).evaluate()(x, **params)
     tvm.testing.assert_allclose(out_np, result.numpy(), rtol=1e-5, atol=1e-5)
 
 
@@ -1249,7 +1282,7 @@ def test_batch_matmul(target, dev):
 
 
 def verify_simple_dynamic_model(a_shape, b_shape, target, dev):
-    def verify_model(ex, a_shape, b_shape):
+    def verify_model(model, a_shape, b_shape):
         a_array = np.random.uniform(size=a_shape).astype("float32")
         b_array = np.random.uniform(size=b_shape).astype("float32")
         # matmul
@@ -1257,7 +1290,7 @@ def verify_simple_dynamic_model(a_shape, b_shape, target, dev):
         # relu
         out_np[out_np < 0] = 0
 
-        tvm_out = ex.evaluate()(a_array, b_array).numpy()
+        tvm_out = model(a_array, b_array).numpy()
         tvm.testing.assert_allclose(out_np, tvm_out, rtol=1e-5, atol=1e-5)
 
     mul_node = helper.make_node("MatMul", ["a", "b"], ["out"])
@@ -1284,10 +1317,10 @@ def verify_simple_dynamic_model(a_shape, b_shape, target, dev):
     b_anys = [relay.Any()] * len(b_shape)
 
     mod, params = relay.frontend.from_onnx(model, {"a": a_anys, "b": b_anys})
-    ex = relay.create_executor("vm", mod=mod, device=dev, target=target)
-    verify_model(ex, a_shape, b_shape)
-    verify_model(ex, [a * 2 for a in a_shape], [b * 2 for b in b_shape])
-    verify_model(ex, [a * 3 for a in a_shape], [b * 3 for b in b_shape])
+    model = relay.create_executor("vm", mod=mod, device=dev, target=target).evaluate()
+    verify_model(model, a_shape, b_shape)
+    verify_model(model, [a * 2 for a in a_shape], [b * 2 for b in b_shape])
+    verify_model(model, [a * 3 for a in a_shape], [b * 3 for b in b_shape])
 
 
 # TODO(mbrookhart, electriclilies): Add CUDA as a target once batch matmul is fixed
@@ -4700,12 +4733,9 @@ unsupported_onnx_tests = [
     "test_if_seq",
     "test_less_equal",
     "test_less_equal_bcast",
-    "test_logsoftmax_axis_0",
     "test_logsoftmax_axis_0_expanded",
-    "test_logsoftmax_axis_1",
     "test_logsoftmax_axis_1_expanded",
     "test_logsoftmax_axis_2_expanded",
-    "test_logsoftmax_default_axis",
     "test_logsoftmax_default_axis_expanded",
     "test_logsoftmax_example_1_expanded",
     "test_logsoftmax_large_number_expanded",
@@ -4867,12 +4897,9 @@ unsupported_onnx_tests = [
     "test_sequence_insert_at_front",
     "test_simple_rnn_defaults",
     "test_simple_rnn_with_initial_bias",
-    "test_softmax_axis_0",
     "test_softmax_axis_0_expanded",
-    "test_softmax_axis_1",
     "test_softmax_axis_1_expanded",
     "test_softmax_axis_2_expanded",
-    "test_softmax_default_axis",
     "test_softmax_default_axis_expanded",
     "test_softmax_example_expanded",
     "test_softmax_large_number_expanded",
@@ -5029,7 +5056,7 @@ def test_aten(target, dev):
             target=target,
             dev=dev,
         )
-        tvm.testing.assert_allclose(torch_out.numpy(), tvm_out)
+        tvm.testing.assert_allclose(torch_out.numpy(), tvm_out, atol=5e-7)
 
     verify_embedding_bag(10, 3, [2, 10])
     verify_embedding_bag(32, 2, [3, 3])
@@ -5273,8 +5300,6 @@ def test_qlinearadd(target, dev):
         ]
         input_values = [a_array, b_array]
 
-        node = helper.make_node("QLinearAdd", inputs=input_names, outputs=["C"])
-
         node = helper.make_node("Add", ["a", "b"], ["C"])
         graph = helper.make_graph(
             [node],
@@ -5282,36 +5307,44 @@ def test_qlinearadd(target, dev):
             inputs=input_nodes,
             outputs=[helper.make_tensor_value_info("C", TensorProto.FLOAT, list(c_shape))],
         )
-        model = helper.make_model(graph, producer_name="qlinearconv_test")
-        from onnxruntime.quantization import quantize_static, CalibrationDataReader, QuantType
-
-        class RandomDataReader(CalibrationDataReader):
-            def __init__(self, n=10):
-                self.data = iter(
-                    [
-                        {
-                            "a": np.random.random(a_shape).astype("float32"),
-                            "b": np.random.random(b_shape).astype("float32"),
-                        }
-                        for _ in range(n)
-                    ]
-                )
-
-            def get_next(self):
-                return next(self.data, None)
-
-        d = tvm.contrib.utils.tempdir()
-        model_fp32 = os.path.join(d.temp_dir, "model.onnx")
-        onnx.save_model(model, model_fp32)
-        model_quant = os.path.join(d.temp_dir, "model.quant.onnx")
-        quantized_model = quantize_static(model_fp32, model_quant, RandomDataReader())
-        # opt_level=1 will cause error with qnn lowering
-        model = onnx.load(model_quant)
-        verify_with_ort_with_inputs(model, input_values, opt_level=2, target=target, dev=dev)
+        model = helper.make_model(graph, producer_name="qlinearadd_test")
+        quantize_and_verify_with_ort(model, input_names, [a_shape, b_shape], target, dev)
 
     verify_qlinearadd([4, 2], [4, 2], [4, 2])
     verify_qlinearadd([4, 2], [2], [4, 2])
     verify_qlinearadd([5, 1, 7], [2, 7], [5, 2, 7])
+
+
+@tvm.testing.parametrize_targets
+def test_qlinearmul(target, dev):
+    def verify_qlinearmul(a_shape, b_shape, c_shape):
+
+        a_array = np.random.random(a_shape).astype("float32")
+        b_array = np.random.random(b_shape).astype("float32")
+
+        input_nodes = [
+            helper.make_tensor_value_info("a", TensorProto.FLOAT, list(a_shape)),
+            helper.make_tensor_value_info("b", TensorProto.FLOAT, list(b_shape)),
+        ]
+        input_names = [
+            "a",
+            "b",
+        ]
+        input_values = [a_array, b_array]
+
+        node = helper.make_node("Mul", input_names, ["C"])
+        graph = helper.make_graph(
+            [node],
+            "qlinearmul_test",
+            inputs=input_nodes,
+            outputs=[helper.make_tensor_value_info("C", TensorProto.FLOAT, list(c_shape))],
+        )
+        model = helper.make_model(graph, producer_name="qlinearmul_test")
+        quantize_and_verify_with_ort(model, input_names, [a_shape, b_shape], target, dev)
+
+    verify_qlinearmul([4, 2], [4, 2], [4, 2])
+    verify_qlinearmul([4, 2], [2], [4, 2])
+    verify_qlinearmul([5, 1, 7], [2, 7], [5, 2, 7])
 
 
 @tvm.testing.parametrize_targets
@@ -5357,16 +5390,16 @@ def test_random_uniform(target, dev):
     real = get_random_uniform(shape=[10], seed=5)
     expected = np.asarray(
         [
-            0.8614111,
-            0.46572232,
-            0.6007328,
-            0.21619737,
-            0.6361222,
-            0.7298056,
-            0.13094282,
-            0.03556716,
-            0.32997167,
-            0.2977605,
+            0.043976,
+            0.96656,
+            0.292199,
+            0.904297,
+            0.25167,
+            0.521778,
+            0.778985,
+            0.085463,
+            0.939846,
+            0.194201,
         ]
     )
     tvm.testing.assert_allclose(real, expected, rtol=1e-5)
