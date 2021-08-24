@@ -43,7 +43,7 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
   using Parent::VisitStmt;
   using Parent::VisitStmt_;
 
-  PrimExpr VisitExpr(const PrimExpr& expr) final { return analyzer_->Simplify(expr); }
+  PrimExpr VisitExpr(const PrimExpr& expr) final { return analyzer_->Simplify(expr, 4); }
 
   Stmt Simplify(Stmt stmt) { return operator()(std::move(stmt)); }
 
