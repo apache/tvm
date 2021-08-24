@@ -371,7 +371,7 @@ class GraphModule(object):
         -------
         timing_results : BenchmarkResult
             Runtimes of the function. Use `.mean` to access the mean runtime, use `.results` to
-            access the individual runtimes.
+            access the individual runtimes (in seconds).
         """
         min_repeat_ms = 0 if min_repeat_ms is None else min_repeat_ms
         if kwargs:
