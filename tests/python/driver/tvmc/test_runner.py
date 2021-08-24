@@ -20,6 +20,7 @@ import numpy as np
 from tvm.driver import tvmc
 from tvm.driver.tvmc.model import TVMCResult
 from tvm.driver.tvmc.result_utils import get_top_results
+from tvm.runtime.module import BenchmarkResult
 
 
 def test_generate_tensor_data_zeros():
@@ -52,7 +53,7 @@ def test_generate_tensor_data__type_unknown():
 
 
 def test_format_times__contains_header():
-    fake_result = TVMCResult(outputs=None, times=[0.6, 1.2, 0.12, 0.42])
+    fake_result = TVMCResult(outputs=None, times=BenchmarkResult([0.6, 1.2, 0.12, 0.42]))
     sut = fake_result.format_times()
     assert "std (ms)" in sut
 
