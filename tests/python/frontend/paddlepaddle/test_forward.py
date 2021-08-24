@@ -338,7 +338,7 @@ def test_forward_conv_transpose():
         def __init__(self):
             super(Conv2DTranspose2, self).__init__()
             self.conv_transpose = nn.Conv2DTranspose(
-                3, 5, 3, stride=2, output_padding=1, bias_attr=True
+                3, 5, 3, stride=2, padding=[[0,0],[0,0],[1,2],[3,4]], output_padding=1, bias_attr=True
             )
 
         @paddle.jit.to_static
@@ -349,7 +349,7 @@ def test_forward_conv_transpose():
         def __init__(self):
             super(Conv2DTranspose3, self).__init__()
             self.conv_transpose = nn.Conv2DTranspose(
-                3, 5, 3, stride=3, output_padding=2, bias_attr=True
+                3, 5, 3, stride=3, padding='VALID', output_padding=2, bias_attr=True
             )
 
         @paddle.jit.to_static
@@ -689,30 +689,30 @@ def test_forward_sigmoid():
 
 
 if __name__ == "__main__":
-    test_forward_add_subtract()
-    test_forward_argmax()
-    test_forward_assign()
-    test_forward_batch_norm()
-    test_forward_cast()
-    test_forward_concat_unsqueeze()
-    test_forward_cumsum()
-    test_forward_conv()
-    test_forward_dropout()
-    test_forward_shape_full()
-    test_forward_ones_like()
-    test_forward_gelu()
-    test_forward_hard_sigmoid()
-    test_forward_hard_swish()
-    test_forward_layer_norm()
-    test_forward_leaky_relu()
-    test_forward_look_up()
-    test_forward_multiply()
-    test_forward_matmul()
-    test_forward_pool2d()
-    test_forward_relu()
-    test_forward_reshape()
-    test_forward_scale()
-    test_forward_slice()
-    test_forward_tanh()
+    # test_forward_add_subtract()
+    # test_forward_argmax()
+    # test_forward_assign()
+    # test_forward_batch_norm()
+    # test_forward_cast()
+    # test_forward_concat_unsqueeze()
+    # test_forward_cumsum()
+    # test_forward_conv()
+    # test_forward_dropout()
+    # test_forward_shape_full()
+    # test_forward_ones_like()
+    # test_forward_gelu()
+    # test_forward_hard_sigmoid()
+    # test_forward_hard_swish()
+    # test_forward_layer_norm()
+    # test_forward_leaky_relu()
+    # test_forward_look_up()
+    # test_forward_multiply()
+    # test_forward_matmul()
+    # test_forward_pool2d()
+    # test_forward_relu()
+    # test_forward_reshape()
+    # test_forward_scale()
+    # test_forward_slice()
+    # test_forward_tanh()
     test_forward_conv_transpose()
     test_forward_sigmoid()
