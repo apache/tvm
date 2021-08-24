@@ -47,7 +47,7 @@ namespace ethosu {
  */
 class ExternalFuncIOHandler : public ExprRewriter {
  public:
-  explicit ExternalFuncIOHandler(IRModule& module) : module_(module) {}
+  explicit ExternalFuncIOHandler(const IRModule& module) : module_(module) {}
   int count = 0;
 
   Function InferType(const Function& expr, const IRModule& m) {
@@ -125,7 +125,8 @@ class ExternalFuncIOHandler : public ExprRewriter {
    * to make a single output. Finaly, the external function should only have a single input
    * and a single output.
    */
-  Function ModifyExternalFunction(const Function& func, GlobalVar gv, const DataType& dtype) {
+  Function ModifyExternalFunction(const Function& func, const GlobalVar& gv,
+                                  const DataType& dtype) {
     Array<Expr> inputs;
     Var ifms;
     if (func->params.size() > 1) {
@@ -230,7 +231,7 @@ class ExternalFuncIOHandler : public ExprRewriter {
   IRModule module_;
 };
 
-IRModule PreprocessExternalFuncIO_(IRModule module) {
+IRModule PreprocessExternalFuncIO_(const IRModule& module) {
   ExternalFuncIOHandler ex_func_io_handle(module);
   auto func = GetRef<Function>(module->Lookup("main").as<FunctionNode>());
   auto preprocessed = PostOrderRewrite(func, &ex_func_io_handle);

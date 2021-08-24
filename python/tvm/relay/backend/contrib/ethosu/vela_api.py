@@ -15,9 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """
-conversions between TVM and Vela. Therefore, all interactions with the
-Vela API are supposed to go through this adapter, with the hope that
-any changes to Vela API, TVM only needs to change this file.
+This is an adapter module for conversions between TVM and Vela.
 The following conversion APIs are added :
     *Obtaining the best block config
     *Compressing weights
@@ -119,7 +117,9 @@ def compress_weights(
     accel_type,
     is_depthwise=False,
 ):
-    """Obtain compressed weights from vela
+    """The NPU requires the weights to be compressed
+    to be executed. Therefore, this function calls into
+    the Vela APIs to compress the weights.
 
     Parameters
     ----------
@@ -201,8 +201,12 @@ def pack_biases(
     is_activation_tanh_or_sigmoid=False,
 ):
     """
-    Obtain packed bias bytearray as the hardware requires from
-    Vela.
+    The NPU requires the each bias value to be packed with
+    output scale parameters in a 80-bit format (that is returned
+    via npu_encode_bias API). This function will pack such values
+    to a binary artifact that the NPU will use in the execution.
+
+
     Parameters
     ----------
     biases : numpy.ndarray
@@ -239,10 +243,6 @@ def pack_biases(
     packed_biases = bytearray()
     for idx, scale in enumerate(hw_bias_scales):
         packed_biases.extend(vapi.npu_encode_bias(biases[idx], *scale))
-    # Align to 16
-    # remainder = (len(packed_biases)) % 16
-    # if remainder > 0:
-    #     packed_biases.extend(bytearray(16 - remainder))
     scale_bias = np.frombuffer(packed_biases, dtype=np.uint8)
     scale_bias = np.reshape(scale_bias, (-1, 10))
     return scale_bias
@@ -301,8 +301,7 @@ def _calculate_hw_bias_scales(
 
 
 def get_target_accel_type():
-    """This is a helper function to convert cli accelerator type str argument
-    to NpuAccelerator"""
+    """This is a helper function to convert TVMC command line argument to NpuAccelerator type"""
     npu_accel_str_map = {
         "ethos-u55-256": vapi.NpuAccelerator.Ethos_U55_256,
         "ethos-u55-128": vapi.NpuAccelerator.Ethos_U55_128,

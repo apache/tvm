@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Arm(R) Ethos(TM)-U NPU codegen modules for relay."""
+"""Arm(R) Ethos(TM)-U NPU codegen modules for Relay."""
 from . import util
 from . import legalize
 from . import preprocess

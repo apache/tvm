@@ -28,7 +28,7 @@ from ethosu.vela import api as vapi
 
 
 def check_strides(strides):
-    """Checks whether strides are within the limits supported by the hardware"""
+    """This function checks whether strides are within the limits supported by the NPU"""
     stride_range = (1, 3)
     smin, smax = stride_range
     if not smax >= strides[0] >= smin:
@@ -39,7 +39,7 @@ def check_strides(strides):
 
 
 def check_valid_dtypes(tensor_params):
-    """Check whether dtypes are supported by the hardware"""
+    """This function checks whether dtypes are supported by the NPU"""
     supported_dtypes = (np.uint8, np.int8)
     for tep in tensor_params:
         # Check for dtypes
@@ -52,7 +52,7 @@ def check_valid_dtypes(tensor_params):
 
 
 def check_weights(weights, dilation):
-    """Checks whether weight tensor is compatible with HW"""
+    """This function checks whether weight tensor is compatible with the NPU"""
     dilated_height_range = (1, 64)
     dilated_hxw_range = (1, 64 * 64)
     weights_limit = 127 * 65536
@@ -79,7 +79,7 @@ def check_weights(weights, dilation):
 
 
 def check_bias(bias):
-    """Check whether the bias values fit in 40 bits"""
+    """This function checks whether the bias values fit in 40 bits"""
     if bias and bias.dtype == np.dtype("int64"):
         valid = all(len(bin(bias_value)[2:]) <= 40 for bias_value in bias.values)
         return valid
@@ -87,14 +87,14 @@ def check_bias(bias):
 
 
 def check_batch_size(ifm):
-    """Checks for the number of batches vela currently supports"""
+    """This function checks for the number of batches vela currently supports"""
     if ifm.shape[0] != 1:
         return False
     return True
 
 
 def check_dilation(dilation):
-    """Checks whether dilation is within the limits supported by the hardware"""
+    """This function checks whether dilation is within the limits supported by the NPU"""
     dilation_range = (1, 2)
     dmin, dmax = dilation_range
     if not dmin <= dilation[0] <= dmax:
@@ -105,7 +105,7 @@ def check_dilation(dilation):
 
 
 def check_padding(padding, bounds):
-    """Checks whether padding is within the limits supported by the hardware"""
+    """This function checks whether padding is within the limits supported by the NPU"""
     if len(padding) != 4 or len(bounds) != 4:
         return False
     top, left, bottom, right = padding
@@ -148,7 +148,7 @@ class QnnConv2DParams:
     """
 
     composite_name = "ethosu.qnn_conv2d"
-    # The hardware only supports padding upto the numbers as follows
+    # The NPU only supports padding upto the numbers as follows
     padding_bounds = [31, 31, 32, 32]
     activation_map = {"clip": "CLIP"}
 
@@ -165,29 +165,29 @@ class QnnConv2DParams:
         kernel_layout = qnn_conv2d.attrs.kernel_layout
         # We consider the weights & biases as params as it should be a Constant
         self.weights = TensorParams(
-            qnn_conv2d.args[QConv2DArgs.weights.value],
+            qnn_conv2d.args[QConv2DArgs.WEIGHTS.value],
             kernel_layout,
-            qnn_conv2d.args[QConv2DArgs.weights_scale.value],
-            qnn_conv2d.args[QConv2DArgs.weights_zero_point.value],
+            qnn_conv2d.args[QConv2DArgs.WEIGHTS_SCALE.value],
+            qnn_conv2d.args[QConv2DArgs.WEIGHTS_ZERO_POINT.value],
         )
 
         self.biases = TensorParams(
-            bias_add.args[BiasAddArgs.biases.value],
+            bias_add.args[BiasAddArgs.BIASES.value],
             data_layout,
-            requantize_op.args[RequantArgs.ifm_scale.value],
-            requantize_op.args[RequantArgs.ifm_zero_point.value],
+            requantize_op.args[RequantArgs.IFM_SCALE.value],
+            requantize_op.args[RequantArgs.IFM_ZERO_POINT.value],
         )
         self.ifm = TensorParams(
-            qnn_conv2d.args[QConv2DArgs.ifm.value],
+            qnn_conv2d.args[QConv2DArgs.IFM.value],
             data_layout,
-            qnn_conv2d.args[QConv2DArgs.ifm_scale.value],
-            qnn_conv2d.args[QConv2DArgs.ifm_zero_point.value],
+            qnn_conv2d.args[QConv2DArgs.IFM_SCALE.value],
+            qnn_conv2d.args[QConv2DArgs.IFM_ZERO_POINT.value],
         )
         self.ofm = TensorParams(
             func_body,
             data_layout,
-            requantize_op.args[RequantArgs.ofm_scale.value],
-            requantize_op.args[RequantArgs.ofm_zero_point.value],
+            requantize_op.args[RequantArgs.OFM_SCALE.value],
+            requantize_op.args[RequantArgs.OFM_ZERO_POINT.value],
         )
         self.padding = qnn_conv2d.attrs.padding
         self.strides = qnn_conv2d.attrs.strides
@@ -203,7 +203,7 @@ class QnnConv2DParams:
 
     def is_valid(self):
         """
-        Checks whether QnnConv2D with Clip has compatible attributes with HW
+        This function checks whether QnnConv2D has compatible attributes with the NPU
         """
         tensor_params = [self.weights, self.ifm, self.ofm]
         if not check_valid_dtypes(tensor_params):
@@ -231,7 +231,7 @@ class QnnConv2DParams:
 
 def qnn_conv2d_pattern():
     """
-    Create pattern for qnn.conv2D with optional fused relu
+    This function creates the pattern for qnn.conv2D with optional fused RELU activation.
     """
     qnn_conv2d = is_op("qnn.conv2d")(
         wildcard(), is_constant(), is_constant(), is_constant(), is_constant(), is_constant()

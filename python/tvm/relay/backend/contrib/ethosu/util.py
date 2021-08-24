@@ -15,11 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """
-Helper utility Enums and Functions used through out codegen
-
-The enums are there to indicate which argument of each relay operator
-corresponds with which input.
-e.g., input zero point of qnn.conv2d is 4th argument(3rd index)
+Helper utility Enums and Functions used through out code generation.
 
 The rest of the utility functions are misc.
 Refer to the description inside such functions
@@ -35,78 +31,67 @@ from tvm.relay.backend.contrib.ethosu import preprocess
 
 class QConv2DArgs(Enum):
     """
-    This is a helper enums to access the correct index
-    qnn conv2d arguments
+    This is a helper enum to obtain the correct index
+    of qnn.conv2d arguments.
     """
 
-    ifm = 0
-    weights = 1
-    ifm_zero_point = 2
-    weights_zero_point = 3
-    ifm_scale = 4
-    weights_scale = 5
+    IFM = 0
+    WEIGHTS = 1
+    IFM_ZERO_POINT = 2
+    WEIGHTS_ZERO_POINT = 3
+    IFM_SCALE = 4
+    WEIGHTS_SCALE = 5
 
 
 class RequantArgs(Enum):
     """
-    This is a helper enums to access the correct index
-    qnn requantize arguments
+    This is a helper enum to obtain the correct index
+    of qnn.requantize arguments.
     """
 
-    ifm_scale = 1
-    ifm_zero_point = 2
-    ofm_scale = 3
-    ofm_zero_point = 4
+    IFM_SCALE = 1
+    IFM_ZERO_POINT = 2
+    OFM_SCALE = 3
+    OFM_ZERO_POINT = 4
 
 
 class BiasAddArgs(Enum):
     """
-    This is a helper enums to access the correct index
-    qnn bias_add arguments
+    This is a helper enums to obtain the correct index
+    of qnn.bias_add arguments.
     """
 
-    biases = 1
+    BIASES = 1
 
 
 class ClipArgs(Enum):
     """
-    This is a helper enums to access the correct index
-    qnn bias_add arguments
+    This is a helper enums to obtain the correct index
+    of clip arguments.
     """
 
-    a_min = 1
-    a_max = 2
-
-
-class MaxPoolArgs(Enum):
-    """
-    This is a helper enums to access the correct index
-    max pool arguments
-    """
-
-    ifm = 0
-
-
-class AddArgs(Enum):
-    """This is a helper enums to access the correct index
-    max pool arguments
-    """
-
-    ifm0 = 0
-    ifm1 = 1
-    ifm0_scale = 2
-    ifm0_zero_point = 3
-    ifm1_scale = 4
-    ifm1_zero_point = 5
-    ofm_scale = 6
-    ofm_zero_point = 7
+    A_MIN = 1
+    A_MAX = 2
 
 
 def is_composite_func(func, name):
     """
-    This a method to check whether the call is to
-    a composite function of the "name".
+    This method checks whether the call is to
+    a composite function of a given name.
+
+    Parameters
+    ----------
+    func : relay.Function
+        The header to be displayed along with the dump.
+
+    name : str
+        The candidate name to be checked
+
+    Returns
+    --------
+    a boolean
     """
+
     if not hasattr(func, "attrs"):
         return False
     if "Composite" not in func.attrs.keys():

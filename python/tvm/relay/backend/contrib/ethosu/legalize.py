@@ -14,12 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-argument, import-outside-toplevel
+# pylint: disable=invalid-name, unused-argument, import-outside-toplevel, no-value-for-parameter
 """ A set of passes to legalize some of operations for the NPU"""
 import numpy as np
 
 import tvm
 from tvm import relay
+from tvm import ir
 from tvm.relay.dataflow_pattern import DFPatternCallback
 from tvm.relay.dataflow_pattern import wildcard
 from tvm.relay.dataflow_pattern import is_op
@@ -31,11 +32,10 @@ from tvm.relay.op.contrib import ethosu as ethosu_patterns
 
 
 class SplitRewriter(DFPatternCallback):
-    """Convert split operations to bunch of strided_slice operations,
-    because codegen is going to be based on strided_slices that are
-    close to in/out boxes of Vela High-Level Command Stream (HLCS).
-    Moreover, Vela HLCS is a high-level description of the supported
-    hardware operator.
+    """This rewriting converts split operations into a sequence of
+    strided_slice operations, because codegen is going to be based
+    on strided_slices that will define the slice of the tensor that
+    will be fed to the consumer.
     """
 
     def __init__(self):
@@ -45,14 +45,16 @@ class SplitRewriter(DFPatternCallback):
 
     @staticmethod
     def get_section_begin_coords(split):
-        """Currently, the split can take an array of indices or an integer
-        indicating the number of splits. This helper functions unifies
-        this by making it a array of section begins.
+        """Currently, the split operator takes an array of indices or an integer
+        indicating the number of splits. However, its an array of indices could
+        represent both cases, therefore this function just make it an array of
+        indices where each index represent the co-ordinate of beginning of each
+        section -- defines as section begins.
 
         Parameters
         ----------
         split : relay.Expr
-            The relay expression for split operator
+            The Relay Call expression for a split operator
 
         Returns
         -------
@@ -106,8 +108,16 @@ class SplitRewriter(DFPatternCallback):
         return relay.Tuple(strided_slices)
 
 
+@ir.transform.module_pass(opt_level=1)
+def SplitRewriterPass(mod, ctx):
+    for gv, func in mod.functions.items():
+        func = rewrite(SplitRewriter(), func)
+        mod.update_func(gv, func)
+    return mod
+
+
 class EthosUConv2DRewriter(DFPatternCallback):
-    """Convert conv2d related composite functions to ethosu_conv2d operators"""
+    """Convert conv2d related composite functions into ethosu_conv2d operators"""
 
     def __init__(self):
         super().__init__(require_type=True)
@@ -175,26 +185,22 @@ class EthosUConv2DRewriter(DFPatternCallback):
         return ethosu_conv2d
 
 
+@ir.transform.module_pass(opt_level=1)
+def EthosUConv2DRewriterPass(mod, ctx):
+    for gv, func in mod.functions.items():
+        func = rewrite(EthosUConv2DRewriter(), func)
+        mod.update_func(gv, func)
+    return mod
+
+
+@relay.transform.function_pass(opt_level=1)
 class LegalizeEthosU:
-    """This is the wrapper class to call graph-rewrites to perform graph transformation
-    in a way such that the operations are replaced with hardware/codegen backend friendly
+    """This is the pass to call graph-rewrites to perform graph transformation
+    in a way such that the operations are replaced with hardware/codegen supported
     operations.
     """
 
-    def __call__(self, func):
-        """The list of relay re-write passes need to be run to legalize
-        the external function for to be codegen'd.
-
-        Parameters
-        ----------
-        func : relay.function.Function
-            The external function
-
-        Returns
-        -------
-        func : relay.function.Function
-            The legalized external function
-        """
-        func = rewrite(SplitRewriter(), func)
-        func = rewrite(EthosUConv2DRewriter(), func)
-        return func
+    def transform_function(self, func, mod):
+        mod = SplitRewriterPass(mod)
+        mod = EthosUConv2DRewriterPass(mod)
+        return mod

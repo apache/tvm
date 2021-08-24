@@ -15,11 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=super-init-not-called
-"""This module is to hold all type of errors associated Arm(R) Ethos(TM)-U NPU Codegen"""
+"""This module defines all error types associated with the Arm(R) Ethos(TM)-U NPU code generator."""
 
 
 class EthosUCodegenError(Exception):
-    """Base class for all exceptions related to Codegen"""
+    """Base class for all exceptions related to code generation"""
 
     def __init__(self, data):
         self.message = "EthosUCodegenError:" + data
@@ -29,7 +29,7 @@ class EthosUCodegenError(Exception):
 
 
 class UnsupportedLayout(EthosUCodegenError):
-    """Raised when unsupported layout is encountered in the codegen"""
+    """Raised when unsupported layout is encountered during code generation."""
 
     def __init__(self, layout):
         super().__init__(f"Unsupported Layout {layout}")
