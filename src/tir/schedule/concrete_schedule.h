@@ -260,7 +260,7 @@ inline T ConcreteScheduleNode::CreateRV(const StmtSRef& sref) {
 }
 
 inline ExprRV ConcreteScheduleNode::CreateRV(int64_t value) {
-  Var rv("v", DataType::Int(32));
+  Var rv("v" + std::to_string(this->symbol_table_.size() + 1), DataType::Int(32));
   this->symbol_table_.Set(rv, Integer(static_cast<int32_t>(value)));
   return std::move(rv);
 }
