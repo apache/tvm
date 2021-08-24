@@ -17,10 +17,10 @@
  * under the License.
  */
 
+#include "../../src/runtime/crt/memory/stack_allocator.c"
+
 #include <gtest/gtest.h>
 #include <tvm/runtime/crt/stack_allocator.h>
-
-#include "../../src/runtime/crt/memory/stack_allocator.c"
 
 // Check with LIFO checks enabled for stack allocator
 #define TVM_CRT_STACK_ALLOCATOR_ENABLE_LIFO_CHECK
@@ -58,7 +58,7 @@ static uint32_t misalign_pointer(uint8_t** memory_ptr) {
 /*
  * Tests allocations are properly aligned when allocated.
  */
-TEST(AOTMemory, Allocate) {
+TEST(StackAllocatorTest, Allocate) {
   static uint8_t model_memory[128];
   tvm_workspace_t tvm_runtime_workspace;
   uint8_t* model_memory_ptr = model_memory;
@@ -91,7 +91,7 @@ TEST(AOTMemory, Allocate) {
 /*
  * Tests resetting the stack after dealloc.
  */
-TEST(AOTMemory, Free) {
+TEST(StackAllocatorTest, Free) {
   static uint8_t model_memory[80];
   tvm_workspace_t tvm_runtime_workspace;
   uint8_t* model_memory_ptr = model_memory;
@@ -126,7 +126,7 @@ TEST(AOTMemory, Free) {
 /*
  * Tests we return NULL if we over allocate.
  */
-TEST(AOTMemory, OverAllocate) {
+TEST(StackAllocatorTest, OverAllocate) {
   static uint8_t model_memory[80];
   tvm_workspace_t tvm_runtime_workspace;
   uint8_t* model_memory_ptr = model_memory;
@@ -154,7 +154,7 @@ TEST(AOTMemory, OverAllocate) {
 /*
  * Test for out-of-order memory deallocation.
  */
-TEST(AOTMemory, FreeOutOfOrder) {
+TEST(StackAllocatorTest, FreeOutOfOrder) {
   static uint8_t model_memory[80];
   tvm_workspace_t tvm_runtime_workspace;
   uint8_t* model_memory_ptr = model_memory;
@@ -180,7 +180,7 @@ TEST(AOTMemory, FreeOutOfOrder) {
 /*
  * Test for initial memory misalignment.
  */
-TEST(AOTMemory, InitialMemoryMisAlignment) {
+TEST(StackAllocatorTest, InitialMemoryMisAlignment) {
   static uint8_t model_memory[80];
   tvm_workspace_t tvm_runtime_workspace;
   uint8_t* model_memory_ptr = model_memory;
