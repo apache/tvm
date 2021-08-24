@@ -19,7 +19,6 @@
 
 #include <random>
 
-#include "../../../support/array.h"
 #include "../primitive.h"
 #include "../utils.h"
 
@@ -44,7 +43,7 @@ int64_t SampleCategorical(support::LinearCongruentialEngine::TRandState* rand_st
     std::discrete_distribution<int> dist(weights.begin(), weights.end());
     support::LinearCongruentialEngine rand_(rand_state);
     i = dist(rand_);
-    ICHECK(0 <= i && i < n) << "ValueError: Wrong decision value, where n = " << n
+    ICHECK(0 <= i && i < n) << "ValueError: Unexpected decision generated, where n = " << n
                             << ", but decision is: " << i;
   }
 
