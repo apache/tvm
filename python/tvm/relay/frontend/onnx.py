@@ -35,9 +35,20 @@ from .. import qnn as _qnn
 from .. import random as _random
 from .. import ty as _ty
 from .. import vision as _vision
-from .common import (AttrCvt, Renamer, fold_constant, get_name, get_relay_op,
-                     gru_cell, infer_channels, infer_shape, infer_type,
-                     infer_value, lstm_cell, new_var, unbind)
+from .common import (
+    AttrCvt,
+    Renamer,
+    fold_constant,
+    get_name,
+    get_relay_op,
+    infer_channels,
+    infer_shape,
+    infer_type,
+    infer_value,
+    lstm_cell,
+    new_var,
+    unbind,
+)
 
 __all__ = ["from_onnx"]
 
@@ -1819,6 +1830,7 @@ class ArgMax(OnnxOpConverter):
         attr = {"axis": axis, "keepdims": keepdims, "select_last_index": select_last_index}
         return _op.cast(AttrCvt("argmax")(inputs, attr), "int64")
 
+
 class ArgMin(OnnxOpConverter):
     """Operator converter for ArgMin."""
 
@@ -1829,6 +1841,7 @@ class ArgMin(OnnxOpConverter):
         select_last_index = attr.get("select_last_index", False)
         attr = {"axis": axis, "keepdims": keepdims, "select_last_index": select_last_index}
         return _op.cast(AttrCvt("argmin")(inputs, attr), "int64")
+
 
 class Softmax(OnnxOpConverter):
     """Operator converter for Softmax."""
