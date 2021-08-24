@@ -73,7 +73,6 @@ tvm_runtime = "build/libtvm_runtime.so, build/config.cmake"
 tvm_lib = "build/libtvm.so, " + tvm_runtime
 // LLVM upstream lib
 tvm_multilib = "build/libtvm.so, " +
-               "build/libvta_tsim.so, " +
                "build/libvta_fsim.so, " +
                tvm_runtime
 
