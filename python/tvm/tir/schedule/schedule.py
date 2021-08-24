@@ -302,6 +302,19 @@ class Schedule(Object):
         probs: List[float],
         decision: Optional[int] = None,
     ) -> ExprRV:
+        """Sample an integer given the probability distribution
+
+        Parameters
+        ----------
+        candidates : The candidates to be sampled from
+        probs : The probability of each candidate
+        decision : The sampling decision, if any
+
+        Returns
+        -------
+        result : ExprRV
+            The random variable sampled from candidates
+        """
         return _ffi_api.ScheduleSampleCategorical(  # type: ignore # pylint: disable=no-member
             self,
             candidates,
