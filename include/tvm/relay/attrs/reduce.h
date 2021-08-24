@@ -68,7 +68,7 @@ struct OneElementReduceAttrs : public tvm::AttrsNode<OneElementReduceAttrs> {
   bool select_last_index;
   bool exclude;
 
-  TVM_DECLARE_ATTRS(ReduceAttrs, "relay.attrs.ReduceAttrs") {
+  TVM_DECLARE_ATTRS(OneElementReduceAttrs, "relay.attrs.OneElementReduceAttrs") {
     TVM_ATTR_FIELD(axis)
         .set_default(NullValue<Array<Integer>>())
         .describe(R"code(The axis or axes along which to perform the reduction.
