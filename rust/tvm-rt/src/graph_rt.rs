@@ -50,12 +50,11 @@ impl GraphRt {
 
         let runtime_create_fn_ret = runtime_create_fn.invoke(vec![
             graph.into(),
-            (&lib).into(),
+            lib.into(),
             (&dev.device_type).into(),
             // NOTE you must pass the device id in as i32 because that's what TVM expects
             (dev.device_id as i32).into(),
         ]);
-
         let graph_executor_module: Module = runtime_create_fn_ret?.try_into()?;
         Ok(Self {
             module: graph_executor_module,
@@ -80,7 +79,7 @@ impl GraphRt {
     pub fn set_input(&mut self, name: &str, input: NDArray) -> Result<()> {
         let ref set_input_fn = self.module.get_function("set_input", false)?;
 
-        set_input_fn.invoke(vec![name.into(), (&input).into()])?;
+        set_input_fn.invoke(vec![name.into(), input.into()])?;
         Ok(())
     }
 
@@ -102,7 +101,7 @@ impl GraphRt {
     /// Extract the ith output from the graph executor and write the results into output.
     pub fn get_output_into(&mut self, i: i64, output: NDArray) -> Result<()> {
         let get_output_fn = self.module.get_function("get_output", false)?;
-        get_output_fn.invoke(vec![i.into(), (&output).into()])?;
+        get_output_fn.invoke(vec![i.into(), output.into()])?;
         Ok(())
     }
 }

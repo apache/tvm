@@ -51,11 +51,11 @@ fn _compile_module(
 ) -> Result<RtModule, Error> {
     // The RAW API is Fn(IRModule, String, String, Map<String, NDArray>, String);
     let module = TVM_BUILD.invoke(vec![
-        (&module).into(),
-        (&target).into(),
-        (&target_host).into(),
-        (&params).into(),
-        (&module_name).into(),
+        module.into(),
+        target.into(),
+        target_host.into(),
+        params.into(),
+        module_name.into(),
     ])?;
     let module: RtModule = module.try_into().unwrap();
     Ok(module)
