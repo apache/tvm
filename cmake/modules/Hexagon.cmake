@@ -48,7 +48,7 @@ function(find_hexagon_toolchain)
 endfunction()
 
 if(BUILD_FOR_HEXAGON)
-  find_hexagon_sdk_root("${USE_HEXAGON_SDK}" "v66")
+  find_hexagon_sdk_root("${USE_HEXAGON_SDK}" "${USE_HEXAGON_ARCH}")
   # Add SDK and QuRT includes when building for Hexagon.
   include_directories(SYSTEM ${HEXAGON_SDK_INCLUDES} ${HEXAGON_QURT_INCLUDES})
 endif()
@@ -82,10 +82,11 @@ if(USE_HEXAGON_DEVICE STREQUAL "${PICK_SIM}")
     CMAKE_ARGS
       "-DCMAKE_C_COMPILER=${HEXAGON_TOOLCHAIN}/bin/hexagon-clang"
       "-DCMAKE_CXX_COMPILER=${HEXAGON_TOOLCHAIN}/bin/hexagon-clang++"
+      "-DHEXAGON_ARCH=${USE_HEXAGON_ARCH}"
     INSTALL_COMMAND "true"
   )
 elseif(USE_HEXAGON_DEVICE STREQUAL "${PICK_HW}")
-  find_hexagon_sdk_root("${USE_HEXAGON_SDK}" "v66")
+  find_hexagon_sdk_root("${USE_HEXAGON_SDK}" "${USE_HEXAGON_ARCH}")
   find_hexagon_toolchain()
   file(GLOB RUNTIME_HEXAGON_DEVICE_SRCS src/runtime/hexagon/target/*.cc)
 
