@@ -445,9 +445,9 @@ inline FCommReduce MakeArgminReducer(bool select_last_index = false) {
     // indices if not select_last_index;
     PrimExpr proper_index;
     if (select_last_index) {
-      proper_index = lhs[0] > rhs[0];
+      proper_index = PrimExpr(lhs[0]) > PrimExpr(rhs[0]);
     } else {
-      proper_index = lhs[0] < rhs[0];
+      proper_index = PrimExpr(lhs[0]) < PrimExpr(rhs[0]);
     }
 
     PrimExpr update_index = is_smaller || (is_same && proper_index);
@@ -500,9 +500,9 @@ inline FCommReduce MakeArgmaxReducer(bool select_last_index = false) {
     // indices if not select_last_index;
     PrimExpr proper_index;
     if (select_last_index) {
-      proper_index = lhs[0] > rhs[0];
+      proper_index = PrimExpr(lhs[0]) > PrimExpr(rhs[0]);
     } else {
-      proper_index = lhs[0] < rhs[0];
+      proper_index = PrimExpr(lhs[0]) < PrimExpr(rhs[0]);
     }
 
     PrimExpr update_index = is_bigger || (is_same && proper_index);
