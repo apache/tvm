@@ -435,10 +435,24 @@ inline FCommReduce MakeArgminReducer(bool select_last_index = false) {
   // Create a Commutative Reducer with a comparison operation, and method to get the initial value.
   auto fcombine = [=](Array<Var> lhs, Array<Var> rhs) {
     Array<PrimExpr> result;
-    // Cast to resolve ambiguous operators
-    auto comparison = select_last_index ? PrimExpr(lhs[1]) < PrimExpr(rhs[1]) : lhs[1] <= rhs[1];
-    result.push_back(tvm::tir::Select(comparison, lhs[0], rhs[0]));  // idx
-    result.push_back(tvm::tir::Select(comparison, lhs[1], rhs[1]));  // val
+
+    // These variables compare the actual values of the array
+    auto is_smaller = lhs[1] < rhs[1];
+    auto is_same = lhs[1] == rhs[1];
+
+    // This checks if the indices are correct for the reduction. E.g. for select_last_index
+    // it gives precedence for later indices of the same element and precedence for sooner
+    // indices if not select_last_index;
+    PrimExpr proper_index;
+    if (select_last_index) {
+      proper_index = lhs[0] > rhs[0];
+    } else {
+      proper_index = lhs[0] < rhs[0];
+    }
+
+    PrimExpr update_index = is_smaller || (is_same && proper_index);
+    result.push_back(tvm::tir::Select(update_index, lhs[0], rhs[0]));  // idx
+    result.push_back(tvm::tir::Select(is_smaller, lhs[1], rhs[1]));    // val
     return result;
   };
   auto fidentity = [&](std::vector<DataType> types) {
@@ -476,10 +490,25 @@ inline FCommReduce MakeArgmaxReducer(bool select_last_index = false) {
   // Create a Commutative Reducer with a comparison operation, and method to get the initial value.
   auto fcombine = [=](Array<Var> lhs, Array<Var> rhs) {
     Array<PrimExpr> result;
-    // Cast to resolve ambiguous operators
-    auto comparison = select_last_index ? PrimExpr(lhs[1]) > PrimExpr(rhs[1]) : lhs[1] >= rhs[1];
-    result.push_back(tvm::tir::Select(comparison, lhs[0], rhs[0]));  // idx
-    result.push_back(tvm::tir::Select(comparison, lhs[1], rhs[1]));  // val
+
+    // These variables compare the actual values of the array
+    auto is_bigger = lhs[1] > rhs[1];
+    auto is_same = lhs[1] == rhs[1];
+
+    // This checks if the indices are correct for the reduction. E.g. for select_last_index
+    // it gives precedence for later indices of the same element and precedence for sooner
+    // indices if not select_last_index;
+    PrimExpr proper_index;
+    if (select_last_index) {
+      proper_index = lhs[0] > rhs[0];
+    } else {
+      proper_index = lhs[0] < rhs[0];
+    }
+
+    PrimExpr update_index = is_bigger || (is_same && proper_index);
+    result.push_back(tvm::tir::Select(update_index, lhs[0], rhs[0]));  // idx
+    result.push_back(tvm::tir::Select(is_bigger, lhs[1], rhs[1]));     // val
+    LOG(WARNING) << result;
     return result;
   };
   auto fidentity = [&](std::vector<DataType> types) {
