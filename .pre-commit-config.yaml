@@ -45,13 +45,6 @@ repos:
         - id: trailing-whitespace
     - repo: local
       hooks:
-        -   id: run-unit-tests
-            name: Running Minimal Unit-Tests ...
-            entry: python -m pytest -v tests/python/all-platform-minimal-test
-            language: system
-            verbose: true
-            always_run: true
-            pass_filenames: false
         -   id: run-black
             name: Running Black...
             entry: docker/lint.sh python_format

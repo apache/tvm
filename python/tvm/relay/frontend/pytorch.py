@@ -771,7 +771,7 @@ class PyTorchOpConverter:
     def elu(self, inputs, input_types):
         data = inputs[0]
         dtype = input_types[0]
-        alpha = _expr.const(float(inputs[1]), dtype=dtype)
+        alpha = _expr.const(-float(inputs[1]), dtype=dtype)
         return alpha * _op.nn.relu(_expr.const(1, dtype=dtype) - _op.exp(data)) + _op.nn.relu(data)
 
     def celu(self, inputs, input_types):
@@ -803,6 +803,10 @@ class PyTorchOpConverter:
         return gamma * (
             alpha * _op.nn.relu(_expr.const(1.0, dtype=dtype) - _op.exp(data)) + _op.nn.relu(data)
         )
+
+    def silu(self, inputs, input_types):
+        data = inputs[0]
+        return data * _op.tensor.sigmoid(data)
 
     def log_sigmoid(self, inputs, input_types):
         data = inputs[0]
@@ -1594,28 +1598,11 @@ class PyTorchOpConverter:
         else:
             unif_size = int(dim / num_chunks)
 
-        chunks = []
-        for i in range(0, dim, unif_size):
-            begin = [0] * len(shape)
-            end = shape[:]
-            begin[axis] = i
-            end[axis] = i + unif_size
-            stride = [1] * len(shape)
+        indeces = []
+        for i in range(unif_size, dim, unif_size):
+            indeces.append(i)
 
-            chunk_out = _op.transform.strided_slice(data, begin=begin, end=end, strides=stride)
-            chunks.append(chunk_out)
-
-        if dim % num_chunks:
-            begin = [0] * len(shape)
-            end = shape[:]
-            begin[axis] = unif_size * (num_chunks - 1)
-            end[axis] = dim
-            stride = [1] * len(shape)
-
-            chunk_out = _op.transform.strided_slice(data, begin=begin, end=end, strides=stride)
-            chunks.append(chunk_out)
-
-        return chunks
+        return _op.split(data, indeces, axis)
 
     def matmul(self, inputs, input_types):
 
@@ -2640,6 +2627,7 @@ class PyTorchOpConverter:
             "aten::celu": self.celu,
             "aten::gelu": self.gelu,
             "aten::selu": self.selu,
+            "aten::silu": self.silu,
             "aten::log_sigmoid": self.log_sigmoid,
             "aten::adaptive_avg_pool2d": self.adaptive_avg_pool_2d,
             "aten::adaptive_max_pool2d": self.adaptive_max_pool_2d,
@@ -2669,6 +2657,7 @@ class PyTorchOpConverter:
             "aten::clone": self.clone,
             "aten::log_softmax": self.log_softmax,
             "aten::sigmoid": self.sigmoid,
+            "aten::sigmoid_": self.sigmoid,
             "aten::softplus": self.softplus,
             "aten::avg_pool1d": self.make_avg_pool(1),
             "aten::avg_pool2d": self.make_avg_pool(2),
@@ -2680,6 +2669,7 @@ class PyTorchOpConverter:
             "aten::alpha_dropout": self.dropout,
             "aten::mean": self.mean,
             "aten::chunk": self.chunk,
+            "aten::unsafe_chunk": self.chunk,
             "aten::matmul": self.matmul,
             "aten::bmm": self.matmul,
             "aten::expand": self.expand,
@@ -2710,6 +2700,7 @@ class PyTorchOpConverter:
             "aten::sinh": self.make_unary("sinh"),
             "aten::tan": self.make_unary("tan"),
             "aten::tanh": self.make_unary("tanh"),
+            "aten::tanh_": self.make_unary("tanh"),
             "aten::acos": self.make_unary("acos"),
             "aten::asin": self.make_unary("asin"),
             "aten::atan": self.make_unary("atan"),

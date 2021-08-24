@@ -31,10 +31,10 @@ CachedFlags = namedtuple("CachedFlags", ["affine_binding", "region_cover", "stag
 
 
 class ScheduleDebugMask(IntEnum):
-    """The bitmask of the `debug_mode` flag in the ScheduleState class.
+    """The bitmask of the `debug_mask` flag in the ScheduleState class.
 
-    If the `debug_mode` flag has a certain bit on, then the correpsonding
-    verification pass will be conducted. For example, if `(debug_mode & VERIFY_SREF_TREE) != 0`,
+    If the `debug_mask` flag has a certain bit on, then the correpsonding
+    verification pass will be conducted. For example, if `(debug_mask & VERIFY_SREF_TREE) != 0`,
     then the correctness of the sref tree will be verified after each schedule instruction.
 
     Attributes
@@ -49,6 +49,27 @@ class ScheduleDebugMask(IntEnum):
     VERIFY_CACHED_FLAGS = 2
 
 
+def _parse_mod(mod: Union[PrimFunc, IRModule]) -> IRModule:
+    if isinstance(mod, PrimFunc):
+        mod = IRModule({"main": mod})
+    if not isinstance(mod, IRModule):
+        raise TypeError(f"Expected `mod` to be PrimFunc or IRModule, but gets: {mod}")
+    return mod
+
+
+def _parse_debug_mask(debug_mask: Union[str, int]) -> int:
+    if isinstance(debug_mask, str):
+        if debug_mask == "all":
+            debug_mask = ScheduleDebugMask.VERIFY_SREF_TREE | ScheduleDebugMask.VERIFY_CACHED_FLAGS
+        elif debug_mask == "none":
+            debug_mask = 0
+        else:
+            raise ValueError(f"Unrecognizable `debug_mask`: {debug_mask}")
+    if isinstance(debug_mask, bool) or not isinstance(debug_mask, int):
+        raise TypeError(f"`debug_mask` should be integer or boolean, but gets: {debug_mask}")
+    return debug_mask
+
+
 @register_object("tir.ScheduleState")
 class ScheduleState(Object):
     """The state of scheduling, which exposes a `Replace` method as
@@ -59,24 +80,25 @@ class ScheduleState(Object):
     2) The sref tree of schedulable statements (indicated by the srefs)
     3) The dependency information of each block scope (block_info)
     4) A reverse mapping from the AST nodes to that in the sref tree (get_sref)
-    5) A debug flag, if set, extra checking is enabled (debug_mode)
+    5) A debug flag, if set, extra checking is enabled (debug_mask)
 
     Parameters
     ----------
     mod : IRModule
         The AST of the module being scheduled
-    debug_mode : int
+    debug_mask : int
         Do extra correctness checking after the object construction
         and each time after calling the Replace method.
     """
 
     mod: IRModule
-    debug_mode: int
+    debug_mask: int
 
     def __init__(
         self,
         mod: Union[PrimFunc, IRModule],
-        debug_mode: Union[bool, int] = False,
+        *,
+        debug_mask: Union[str, int] = "none",
     ) -> None:
         """Construct a schedule state from an IRModule or a PrimFunc
 
@@ -84,27 +106,18 @@ class ScheduleState(Object):
         ----------
         mod : Union[PrimFunc, IRModule]
             The IRModule or PrimFunc to be scheduled
-        debug_mode : Union[bool, int]
+        debug_mask : Union[str, int]
             Do extra correctness checking after the class creation and each time
             after calling the Replace method.
-            Possible choices of `debug_mode`:
-            1) True - Turn on all the checks
-            2) False - Turn off all the checks
+            Possible choices of `debug_mask`:
+            1) "all" - Turn on all the checks
+            2) "none" - Turn off all the checks
             3) An integer - Turn on checks according to the bitmasks provided in ScheduleDebugMask
         """
-        if isinstance(mod, PrimFunc):
-            mod = IRModule({"main": mod})
-        if isinstance(debug_mode, bool):
-            if debug_mode:
-                debug_mode = -1
-            else:
-                debug_mode = 0
-        if not isinstance(debug_mode, int):
-            raise TypeError(f"`debug_mode` should be integer or boolean, but gets: {debug_mode}")
         self.__init_handle_by_constructor__(
             _ffi_api.ScheduleState,  # type: ignore # pylint: disable=no-member
-            mod,
-            debug_mode,
+            _parse_mod(mod),
+            _parse_debug_mask(debug_mask),
         )
 
     def get_sref(self, stmt: Union[Block, For]) -> Optional[StmtSRef]:

@@ -82,9 +82,7 @@ print("y: {}".format(y_input))
 ######################################################################
 # Finally, we're ready to run the program:
 
-ex = relay.create_executor(mod=module)
-
-z_output = ex.evaluate()(x_input, y_input)
+z_output = relay.create_executor(mod=module).evaluate()(x_input, y_input)
 print("z: {}".format(z_output))
 
 ######################################################################
@@ -135,8 +133,7 @@ print(program)
 # Now that we can express our program without errors, let's try running it!
 try:
     with tvm.transform.PassContext(config={"tir.disable_vectorize": True}):
-        ex = relay.create_executor("graph", mod=module)
-        z_output_myfloat = ex.evaluate()(x_input, y_input)
+        z_output_myfloat = relay.create_executor("graph", mod=module).evaluate()(x_input, y_input)
         print("z: {}".format(y_myfloat))
 except tvm.TVMError as e:
     # Print last line of error
@@ -181,8 +178,7 @@ tvm.target.datatype.register_op(
 # We can now re-try running the program:
 try:
     with tvm.transform.PassContext(config={"tir.disable_vectorize": True}):
-        ex = relay.create_executor("graph", mod=module)
-        z_output_myfloat = ex.evaluate()(x_input, y_input)
+        z_output_myfloat = relay.create_executor("graph", mod=module).evaluate()(x_input, y_input)
         print("z: {}".format(z_output_myfloat))
 except tvm.TVMError as e:
     # Print last line of error
@@ -211,8 +207,7 @@ tvm.target.datatype.register_op(
 
 # Now, we can run our program without errors.
 with tvm.transform.PassContext(config={"tir.disable_vectorize": True}):
-    compiled = ex.evaluate(program)
-    z_output_myfloat = compiled(x_input, y_input)
+    z_output_myfloat = relay.create_executor(mod=module).evaluate()(x_input, y_input)
 print("z: {}".format(z_output_myfloat))
 
 print("x:\t\t{}".format(x_input))
@@ -262,9 +257,8 @@ module, params = get_mobilenet()
 ######################################################################
 # It's easy to execute MobileNet with native TVM:
 
-ex = tvm.relay.create_executor("graph", mod=module)
 input = get_cat_image()
-result = ex.evaluate()(input, **params).numpy()
+result = tvm.relay.create_executor("graph", mod=module).evaluate()(input, **params).numpy()
 # print first 10 elements
 print(result.flatten()[:10])
 
@@ -311,7 +305,9 @@ input = convert_ndarray(dst_dtype, input)
 try:
     # Vectorization is not implemented with custom datatypes.
     with tvm.transform.PassContext(config={"tir.disable_vectorize": True}):
-        result_myfloat = ex.evaluate(expr)(input, **params)
+        result_myfloat = tvm.relay.create_executor("graph", mod=module).evaluate(expr)(
+            input, **params
+        )
 except tvm.TVMError as e:
     print(str(e).split("\n")[-1])
 
@@ -401,7 +397,7 @@ tvm.target.datatype.register_min_func(
 
 # Vectorization is not implemented with custom datatypes.
 with tvm.transform.PassContext(config={"tir.disable_vectorize": True}):
-    result_myfloat = ex.evaluate(expr)(input, **params)
+    result_myfloat = relay.create_executor(mod=module).evaluate(expr)(input, **params)
     result_myfloat = convert_ndarray(src_dtype, result_myfloat).numpy()
     # print first 10 elements
     print(result_myfloat.flatten()[:10])

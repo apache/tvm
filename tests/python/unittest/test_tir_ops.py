@@ -119,7 +119,8 @@ def test_binary_dtype_match():
             [("bool", "int32"), "int32"],
             [("int32", "float32"), "float32"],
             [("int32", "int64"), "int64"],
-            [("uint32", "int32"), "int32"],
+            [("uint32", "int8"), "uint32"],
+            [("uint32", "int32"), "uint32"],
         ]
         for (lhs_dtype, rhs_dtype), out_dtype in rules:
             lhs = te.var("lhs", dtype=lhs_dtype)
@@ -174,14 +175,18 @@ def test_binary_dtype_match():
     verify_general_dtype_support(lambda a, b: a <= b, is_conditional=True)
     verify_callop_float_only(lambda a, b: te.power(a, b))
 
+    # verify bool & int32 constant folding
+    assert tvm.tir.const(1) == tvm.tir.const(True)
+    assert tvm.tir.const(2) != tvm.tir.const(True)
+
 
 def test_if_then_else():
     cases = [
         [(te.var("cond", dtype="bool"), "bool", "int32"), "int32"],
         [(True, "int32", "float32"), "float32"],
         [(False, "int32", "int64"), "int64"],
-        [(te.var("cond", dtype="bool"), "uint32", "int32"), "int32"],
-        [(te.var("cond", dtype="int32"), "uint32", "int32"), "int32"],
+        [(te.var("cond", dtype="bool"), "uint32", "int32"), "uint32"],
+        [(te.var("cond", dtype="int32"), "uint32", "int32"), "uint32"],
     ]
     for (cond, lhs_dtype, rhs_dtype), out_dtype in cases:
         lhs = te.var("lhs", dtype=lhs_dtype)

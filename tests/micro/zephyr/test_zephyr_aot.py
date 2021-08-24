@@ -15,8 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import datetime
-from hashlib import new
 import io
 import logging
 import os
@@ -47,9 +45,7 @@ _LOG = logging.getLogger(__name__)
 PLATFORMS = conftest.PLATFORMS
 
 
-def _build_project(
-    temp_dir, model, target, zephyr_board, west_cmd, mod, build_config, extra_files_tar=None
-):
+def _build_project(temp_dir, zephyr_board, west_cmd, mod, build_config, extra_files_tar=None):
     template_project_dir = (
         pathlib.Path(__file__).parent
         / ".."
@@ -69,7 +65,7 @@ def _build_project(
             "extra_files_tar": extra_files_tar,
             "project_type": "aot_demo",
             "west_cmd": west_cmd,
-            "verbose": 0,
+            "verbose": bool(build_config.get("debug")),
             "zephyr_board": zephyr_board,
         },
     )
@@ -113,13 +109,13 @@ def _create_header_file(tensor_name, npy_data, output_path, tar_file):
     tar_file.addfile(ti, io.BytesIO(header_file_bytes))
 
 
-def _read_line(fd):
+def _read_line(fd, timeout_sec: int):
     data = ""
     new_line = False
     while True:
         if new_line:
             break
-        new_data = fd.read(1, timeout_sec=10)
+        new_data = fd.read(1, timeout_sec=timeout_sec)
         logging.debug(f"read data: {new_data}")
         for item in new_data:
             new_c = chr(item)
@@ -130,29 +126,26 @@ def _read_line(fd):
     return data
 
 
-def _get_message(fd, expr: str):
+def _get_message(fd, expr: str, timeout_sec: int):
     while True:
-        data = _read_line(fd)
+        data = _read_line(fd, timeout_sec)
         logging.debug(f"new line: {data}")
         if expr in data:
             return data
 
 
 @tvm.testing.requires_micro
-def test_tflite(temp_dir, platform, west_cmd, skip_build, tvm_debug):
+def test_tflite(temp_dir, platform, west_cmd, tvm_debug):
     """Testing a TFLite model."""
 
-    if platform not in ["host", "mps2_an521", "nrf5340dk", "stm32l4r5zi_nucleo", "zynq_mp_r5"]:
+    if platform not in ["qemu_x86", "mps2_an521", "nrf5340dk", "stm32l4r5zi_nucleo", "zynq_mp_r5"]:
         pytest.skip(msg="Model does not fit.")
 
     model, zephyr_board = PLATFORMS[platform]
     input_shape = (1, 32, 32, 3)
     output_shape = (1, 10)
-    build_config = {"skip_build": skip_build, "debug": tvm_debug}
+    build_config = {"debug": tvm_debug}
 
-    this_dir = pathlib.Path(os.path.dirname(__file__))
-    tvm_source_dir = this_dir / ".." / ".." / ".."
-    runtime_path = tvm_source_dir / "apps" / "microtvm" / "zephyr" / "aot_demo"
     model_url = "https://github.com/eembc/ulpmark-ml/raw/fc1499c7cc83681a02820d5ddf5d97fe75d4f663/base_models/ic01/ic01_fp32.tflite"
     model_path = download_testdata(model_url, "ic01_fp32.tflite", module="model")
 
@@ -202,8 +195,6 @@ def test_tflite(temp_dir, platform, west_cmd, skip_build, tvm_debug):
 
         project, _ = _build_project(
             temp_dir,
-            model,
-            target,
             zephyr_board,
             west_cmd,
             lowered,
@@ -213,10 +204,10 @@ def test_tflite(temp_dir, platform, west_cmd, skip_build, tvm_debug):
 
     project.flash()
     with project.transport() as transport:
-        _get_message(transport, "#wakeup")
+        timeout_read = 60
+        _get_message(transport, "#wakeup", timeout_sec=timeout_read)
         transport.write(b"start\n", timeout_sec=5)
-
-        result_line = _get_message(transport, "#result")
+        result_line = _get_message(transport, "#result", timeout_sec=timeout_read)
 
     result_line = result_line.strip("\n")
     result_line = result_line.split(":")
@@ -227,13 +218,13 @@ def test_tflite(temp_dir, platform, west_cmd, skip_build, tvm_debug):
 
 
 @tvm.testing.requires_micro
-def test_qemu_make_fail(temp_dir, platform, west_cmd, skip_build, tvm_debug):
+def test_qemu_make_fail(temp_dir, platform, west_cmd, tvm_debug):
     """Testing QEMU make fail."""
-    if platform not in ["host", "mps2_an521"]:
+    if platform not in ["qemu_x86", "mps2_an521"]:
         pytest.skip(msg="Only for QEMU targets.")
 
     model, zephyr_board = PLATFORMS[platform]
-    build_config = {"skip_build": skip_build, "debug": tvm_debug}
+    build_config = {"debug": tvm_debug}
     shape = (10,)
     dtype = "float32"
 
@@ -242,10 +233,11 @@ def test_qemu_make_fail(temp_dir, platform, west_cmd, skip_build, tvm_debug):
     xx = relay.multiply(x, x)
     z = relay.add(xx, relay.const(np.ones(shape=shape, dtype=dtype)))
     func = relay.Function([x], z)
+    ir_mod = tvm.IRModule.from_expr(func)
 
     target = tvm.target.target.micro(model, options=["-link-params=1", "--executor=aot"])
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        lowered = relay.build(func, target)
+        lowered = relay.build(ir_mod, target)
 
     # Generate input/output header files
     with tempfile.NamedTemporaryFile() as tar_temp_file:
@@ -262,8 +254,6 @@ def test_qemu_make_fail(temp_dir, platform, west_cmd, skip_build, tvm_debug):
 
         project, project_dir = _build_project(
             temp_dir,
-            model,
-            target,
             zephyr_board,
             west_cmd,
             lowered,

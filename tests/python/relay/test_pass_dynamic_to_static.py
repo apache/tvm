@@ -40,8 +40,9 @@ def verify_func(func, data, ref_res, rtol=1e-5, atol=1e-7):
     for target, dev in tvm.testing.enabled_targets():
         for kind in ["graph", "vm", "debug"]:
             mod = tvm.ir.IRModule.from_expr(func)
-            intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
-            op_res = intrp.evaluate()(*data)
+            op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
+                *data
+            )
             tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=rtol, atol=atol)
 
 
@@ -181,8 +182,9 @@ def test_dynamic_to_static_topk():
                 continue
             for kind in ["graph", "vm", "debug"]:
                 mod = tvm.ir.IRModule.from_expr(func2)
-                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
-                op_res = intrp.evaluate()(np_data)
+                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
+                    np_data
+                )
                 if ret_type == "both":
                     tvm.testing.assert_allclose(op_res[0].numpy(), np_values)
                     tvm.testing.assert_allclose(op_res[1].numpy(), np_indices)

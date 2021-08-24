@@ -262,3 +262,11 @@ int TVMObjectTypeKey2Index(const char* type_key, unsigned* out_tindex) {
   out_tindex[0] = tvm::runtime::ObjectInternal::ObjectTypeKey2Index(type_key);
   API_END();
 }
+
+int TVMObjectTypeIndex2Key(unsigned tindex, char** out_type_key) {
+  API_BEGIN();
+  auto key = tvm::runtime::Object::TypeIndex2Key(tindex);
+  *out_type_key = static_cast<char*>(malloc(key.size() + 1));
+  strncpy(*out_type_key, key.c_str(), key.size());
+  API_END();
+}

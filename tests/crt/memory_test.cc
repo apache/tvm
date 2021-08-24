@@ -70,7 +70,7 @@ TEST_F(MemoryManagerTest, AllocFreeFifo) {
       } else {
         EXPECT_PAGE(kNumUsablePages - 1 - idx, a);
       }
-      EXPECT_EQ(interface->vleak_size, idx + 1);
+      EXPECT_EQ(static_cast<size_t>(interface->vleak_size), idx + 1);
       ptrs[idx] = a;
     }
 
@@ -79,10 +79,4 @@ TEST_F(MemoryManagerTest, AllocFreeFifo) {
       EXPECT_EQ(interface->vleak_size, idx);
     }
   }
-}
-
-int main(int argc, char** argv) {
-  testing::InitGoogleTest(&argc, argv);
-  testing::FLAGS_gtest_death_test_style = "threadsafe";
-  return RUN_ALL_TESTS();
 }
