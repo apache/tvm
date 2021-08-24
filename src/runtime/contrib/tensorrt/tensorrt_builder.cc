@@ -161,9 +161,7 @@ TensorRTEngineAndContext TensorRTBuilder::BuildEngine() {
   config_ = builder_->createBuilderConfig();
   config_->setMaxWorkspaceSize(max_workspace_size_);
   if (use_fp16_) {
-    config_->setFlag(nvinfer1::BuilderFlag::kGPU_FALLBACK);
     config_->setFlag(nvinfer1::BuilderFlag::kFP16);
-    // config_->setDefaultDeviceType(nvinfer1::DeviceType::kDLA);
   }
 
   LOG(INFO) << "use_int8_ " << use_int8_; 
