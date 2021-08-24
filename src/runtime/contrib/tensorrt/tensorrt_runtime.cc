@@ -148,8 +148,6 @@ class TensorRTRuntime : public JSONRuntimeBase {
   void Run() override {
     
     auto& engine_and_context = GetOrBuildEngine();
-    // LOG(INFO) << "start running inference";
-    // this->CreateCalibratorIfUsingInt8(engine_and_context, data_entry_);
     int batch_size = GetBatchSize();
     if (batch_size == 0) return;
     auto engine = engine_and_context.engine;
