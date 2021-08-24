@@ -75,8 +75,6 @@ class BufferAllocationLocator : public StmtExprMutator {
 
   Stmt VisitStmt_(const BlockNode* op) final {
     ICHECK(!op->init.defined());
-    bool is_root = is_root_;
-    is_root_ = false;
     Array<Buffer> alloc_buffers;
     auto it = alloc_buffers_.find(op);
     if (it != alloc_buffers_.end()) {
@@ -98,12 +96,9 @@ class BufferAllocationLocator : public StmtExprMutator {
 
     ObjectPtr<BlockNode> n = CopyOnWrite(op);
     n->alloc_buffers = std::move(alloc_buffers);
-    // The read/write regions of root block are always empty.
-    if (!is_root) {
-      // Recalculate block access region
-      CollectReadWrite(GetRef<Block>(op), &n->reads, &n->writes);
-    }
-
+    // Erase buffer allocated inside the block from access region.
+    n->reads = UpdateRegion(n->reads);
+    n->writes = UpdateRegion(n->writes);
     return Stmt(n);
   }
 
@@ -127,8 +122,18 @@ class BufferAllocationLocator : public StmtExprMutator {
     return std::move(realize);
   }
 
+  Array<BufferRegion> UpdateRegion(const Array<BufferRegion>& region) const {
+    Array<BufferRegion> result;
+    for (const BufferRegion& buffer_region : region) {
+      if (buffer_data_to_buffer_.count(buffer_region->buffer->data)) {
+        result.push_back(buffer_region);
+      }
+    }
+    return result;
+  }
+
   void CollectReadWrite(const Block& block, Array<BufferRegion>* reads,
-                        Array<BufferRegion>* writes) {
+                        Array<BufferRegion>* writes) const {
     Array<Array<BufferRegion>> access = GetBlockAccessRegion(block, buffer_data_to_buffer_);
     *reads = access[0];
     *writes = access[1];
@@ -142,8 +147,6 @@ class BufferAllocationLocator : public StmtExprMutator {
   std::unordered_map<const StmtNode*, Array<Buffer>> alloc_buffers_;
   /*! \brief The buffer already allocated during recursive visiting. */
   Map<Var, Buffer> buffer_data_to_buffer_;
-  /*! \brief indicate the whether the block is root. */
-  bool is_root_{true};
 };
 
 PrimFunc PlanAndUpdateBufferAllocationLocation(PrimFunc func) {

@@ -110,8 +110,11 @@ void BlockReadWriteDetector::operator()(const Stmt& stmt) {
   ICHECK(block != nullptr) << "Only visiting Blocks is allowed, but got " << stmt->GetTypeKey();
   for (const MatchBufferRegion& match_buffer : block->match_buffers) {
     const Var& target_var = match_buffer->buffer->data;
-    match_buffers_[target_var.get()] = match_buffer;
-    buffer_var_map_.Set(target_var, match_buffer->buffer);
+    const Var& source_var = match_buffer->source->buffer->data;
+    if (buffer_var_map_.find(source_var) != buffer_var_map_.end()) {
+      match_buffers_[target_var.get()] = match_buffer;
+      buffer_var_map_.Set(target_var, match_buffer->buffer);
+    }
   }
   StmtExprVisitor::operator()(stmt);
 }
