@@ -41,10 +41,8 @@ def check_rts(expr, args, expected_result, mod=None):
     expected_result:
         The expected result of running the expression.
     """
-    intrp = relay.create_executor("debug", mod=mod)
-    graph = relay.create_executor("graph", mod=mod)
-    eval_result = intrp.evaluate(expr)(*args)
-    rts_result = graph.evaluate(expr)(*args)
+    eval_result = relay.create_executor("debug", mod=mod).evaluate(expr)(*args)
+    rts_result = relay.create_executor("graph", mod=mod).evaluate(expr)(*args)
     tvm.testing.assert_allclose(eval_result.numpy(), rts_result.numpy())
     tvm.testing.assert_allclose(eval_result.numpy(), expected_result)
 
@@ -295,10 +293,9 @@ def test_graph_executor_nested_tuples():
     out = relay.Tuple([x, relay.Tuple([y, relay.Tuple([z, w])])])
     func = relay.Function([x, y, z, w], out)
 
-    exe = relay.create_executor(
+    f = relay.create_executor(
         kind="graph", mod=tvm.IRModule.from_expr(func), device=tvm.cpu(0), target="llvm"
-    )
-    f = exe.evaluate()
+    ).evaluate()
 
     data = [np.random.uniform(size=(2, 3)).astype("float32") for _ in "xyzw"]
     out = f(*data)

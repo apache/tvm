@@ -51,6 +51,7 @@ COPY install/ubuntu_install_rust.sh /install/ubuntu_install_rust.sh
 RUN bash /install/ubuntu_install_rust.sh
 ENV RUSTUP_HOME /opt/rust
 ENV CARGO_HOME /opt/rust
+ENV PATH $PATH:$CARGO_HOME/bin
 
 # AutoTVM deps
 COPY install/ubuntu_install_redis.sh /install/ubuntu_install_redis.sh
@@ -59,12 +60,11 @@ RUN bash /install/ubuntu_install_redis.sh
 # Golang environment
 COPY install/ubuntu_install_golang.sh /install/ubuntu_install_golang.sh
 RUN bash /install/ubuntu_install_golang.sh
+ENV PATH $PATH:/usr/lib/go-1.10/bin
 
 # NNPACK deps
 COPY install/ubuntu_install_nnpack.sh /install/ubuntu_install_nnpack.sh
 RUN bash /install/ubuntu_install_nnpack.sh
-
-ENV PATH $PATH:$CARGO_HOME/bin:/usr/lib/go-1.10/bin
 
 # ANTLR deps
 COPY install/ubuntu_install_java.sh /install/ubuntu_install_java.sh
@@ -122,3 +122,7 @@ RUN bash /install/ubuntu_install_vela.sh
 
 # Update PATH
 ENV PATH /opt/arm/gcc-arm-none-eabi/bin:$PATH
+
+# PaddlePaddle deps
+COPY install/ubuntu_install_paddle.sh /install/ubuntu_install_paddle.sh
+RUN bash /install/ubuntu_install_paddle.sh

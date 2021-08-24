@@ -54,7 +54,12 @@ class TracedScheduleNode : public ConcreteScheduleNode {
   /******** Schedule: Transform loops ********/
   LoopRV Fuse(const Array<LoopRV>& loop_rvs) final;
   Array<LoopRV> Split(const LoopRV& loop_rv, const Array<Optional<ExprRV>>& factor_rvs) final;
+  void Reorder(const Array<LoopRV>& ordered_loop_rvs) final;
   /******** Schedule: Manipulate ForKind ********/
+  void Parallel(const LoopRV& loop_rv) final;
+  void Vectorize(const LoopRV& loop_rv) final;
+  void Bind(const LoopRV& loop_rv, const String& thread_axis) final;
+  void Unroll(const LoopRV& loop_rv) final;
   /******** Schedule: Insert cache stages ********/
   /******** Schedule: Compute location ********/
   void ComputeInline(const BlockRV& block_rv) final;

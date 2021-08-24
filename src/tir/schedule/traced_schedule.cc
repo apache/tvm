@@ -99,7 +99,57 @@ Array<LoopRV> TracedScheduleNode::Split(const LoopRV& loop_rv,
   return results;
 }
 
+void TracedScheduleNode::Reorder(const Array<LoopRV>& ordered_loop_rvs) {
+  ConcreteScheduleNode::Reorder(ordered_loop_rvs);
+
+  static const InstructionKind& kind = InstructionKind::Get("Reorder");
+  trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
+                                      /*inputs=*/{ordered_loop_rvs.begin(), ordered_loop_rvs.end()},
+                                      /*attrs=*/{},
+                                      /*outputs=*/{}));
+}
+
 /******** Schedule: Manipulate ForKind ********/
+
+void TracedScheduleNode::Parallel(const LoopRV& loop_rv) {
+  ConcreteScheduleNode::Parallel(loop_rv);
+
+  static const InstructionKind& kind = InstructionKind::Get("Parallel");
+  trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
+                                      /*inputs=*/{loop_rv},
+                                      /*attrs=*/{},
+                                      /*outputs=*/{}));
+}
+
+void TracedScheduleNode::Vectorize(const LoopRV& loop_rv) {
+  ConcreteScheduleNode::Vectorize(loop_rv);
+
+  static const InstructionKind& kind = InstructionKind::Get("Vectorize");
+  trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
+                                      /*inputs=*/{loop_rv},
+                                      /*attrs=*/{},
+                                      /*outputs=*/{}));
+}
+
+void TracedScheduleNode::Bind(const LoopRV& loop_rv, const String& thread_axis) {
+  ConcreteScheduleNode::Bind(loop_rv, thread_axis);
+
+  static const InstructionKind& kind = InstructionKind::Get("Bind");
+  trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
+                                      /*inputs=*/{loop_rv},
+                                      /*attrs=*/{thread_axis},
+                                      /*outputs=*/{}));
+}
+
+void TracedScheduleNode::Unroll(const LoopRV& loop_rv) {
+  ConcreteScheduleNode::Unroll(loop_rv);
+
+  static const InstructionKind& kind = InstructionKind::Get("Unroll");
+  trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
+                                      /*inputs=*/{loop_rv},
+                                      /*attrs=*/{},
+                                      /*outputs=*/{}));
+}
 
 /******** Schedule: Insert cache stages ********/
 

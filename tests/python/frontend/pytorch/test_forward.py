@@ -701,6 +701,14 @@ def test_forward_selu():
 
 
 @tvm.testing.uses_gpu
+def test_forward_silu():
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3, 10, 10]
+    input_data = torch.rand(input_shape).float()
+    verify_model(torch.nn.SiLU().eval(), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
 def test_forward_softplus():
     torch.set_grad_enabled(False)
     input_shape = [1, 3, 10, 10]
@@ -2232,8 +2240,7 @@ def verify_model_vm(input_model, ishapes, idtype=None, idata=None, targets=["llv
         print("Running on target", tgt)
         dev = tvm.device(tgt, 0)
 
-        executor = relay.create_executor("vm", mod=mod, device=dev, target=tgt)
-        evaluator = executor.evaluate()
+        evaluator = relay.create_executor("vm", mod=mod, device=dev, target=tgt).evaluate()
 
         # Inference
         for name, inp in zip(input_names, input_data):
