@@ -881,8 +881,7 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
   Map<Target, IRModule> per_target_module_;
   // Cached packed functions for the primitives and shape functions, keyed by target and
   // global var name.
-  std::unordered_map<std::pair<Target, std::string>, PackedFunc, PairHash>
-      compiled_packed_funcs_;
+  std::unordered_map<std::pair<Target, std::string>, PackedFunc, PairHash> compiled_packed_funcs_;
   // Unique device on which primitives (but not shape functions) will be executed.
   // (For simplicity we only run the interpreter on a single device.)
   Device device_;

@@ -513,8 +513,8 @@ class RelayBuildModule : public runtime::ModuleNode {
       if (lowered_funcs.find(target_host) == lowered_funcs.end()) {
         lowered_funcs.Set(target_host, IRModule(Map<GlobalVar, BaseFunc>({})));
       }
-      lowered_funcs[target_host]->Add(
-          GlobalVar(::tvm::runtime::symbol::tvm_lookup_linked_param), prim);
+      lowered_funcs[target_host]->Add(GlobalVar(::tvm::runtime::symbol::tvm_lookup_linked_param),
+                                      prim);
     }
 
     // When there is no lowered_funcs due to reasons such as optimization.
