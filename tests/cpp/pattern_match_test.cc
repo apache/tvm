@@ -138,9 +138,3 @@ TEST(Pattern, IntImm) {
   // cannot match tx + 1 to v
   ICHECK(!(v * c).Match((tx + 1) * 3));
 }
-
-int main(int argc, char** argv) {
-  testing::InitGoogleTest(&argc, argv);
-  testing::FLAGS_gtest_death_test_style = "threadsafe";
-  return RUN_ALL_TESTS();
-}
