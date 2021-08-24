@@ -19,6 +19,7 @@
 #ifndef TVM_TIR_SCHEDULE_SCHEDULE_H_
 #define TVM_TIR_SCHEDULE_SCHEDULE_H_
 
+#include <tvm/support/random_engine.h>
 #include <tvm/tir/schedule/state.h>
 #include <tvm/tir/schedule/trace.h>
 
@@ -118,9 +119,9 @@ class ScheduleNode : public runtime::Object {
    * \brief Seed the randomness
    * \param seed The new random seed, -1 if use device random, otherwise non-negative
    */
-  virtual void Seed(int64_t seed = -1) {
-    LOG(FATAL) << "ValueError: The schedule cannot be seeded because no randomness is allowed";
-  }
+  virtual void Seed(support::LinearCongruentialEngine::TRandState seed = -1) = 0;
+  /*! \brief Fork the random state */
+  virtual support::LinearCongruentialEngine::TRandState ForkSeed() = 0;
 
  public:
   /******** Lookup/Remove random variables ********/
@@ -184,6 +185,16 @@ class ScheduleNode : public runtime::Object {
 
  public:
   /******** Schedule: Sampling ********/
+  /*!
+   * \brief Sample an integer given the probability distribution
+   * \param candidates The candidates
+   * \param probs The probability distribution of the candidates
+   * \param decision The sampling decision
+   * \return The random variable sampled from candidates
+   */
+  virtual ExprRV SampleCategorical(const Array<Integer>& candidates, const Array<FloatImm>& probs,
+                                   Optional<Integer> decision = NullOpt) = 0;
+
   /******** Schedule: Get blocks & loops ********/
   /*!
    * \brief Retrieve a block in a specific function with its name
@@ -356,6 +367,7 @@ class Schedule : public runtime::ObjectRef {
   /*!
    * \brief Construct a concrete TensorIR schedule from an IRModule
    * \param mod The IRModule to be scheduled
+   * \param seed The seed value for schedule's random state
    * \param debug_mask Do extra correctness checking after the class creation
    * and each time after calling the Replace method.
    * \param error_render_level The level of error rendering
@@ -365,11 +377,12 @@ class Schedule : public runtime::ObjectRef {
    * 1) VerifySRefTree
    * 2) VerifyCachedFlags
    */
-  TVM_DLL static Schedule Concrete(IRModule mod, int debug_mask,
-                                   ScheduleErrorRenderLevel error_render_level);
+  TVM_DLL static Schedule Concrete(IRModule mod, support::LinearCongruentialEngine::TRandState seed,
+                                   int debug_mask, ScheduleErrorRenderLevel error_render_level);
   /*!
    * \brief Construct a traced concrete TensorIR schedule from an IRModule
    * \param mod The IRModule to be scheduled
+   * \param seed The seed value for schedule's random state
    * \param debug_mask Do extra correctness checking after the class creation
    * and each time after calling the Replace method.
    * \param error_render_level The level of error rendering
@@ -379,8 +392,8 @@ class Schedule : public runtime::ObjectRef {
    * 1) VerifySRefTree
    * 2) VerifyCachedFlags
    */
-  TVM_DLL static Schedule Traced(IRModule mod, int debug_mask,
-                                 ScheduleErrorRenderLevel error_render_level);
+  TVM_DLL static Schedule Traced(IRModule mod, support::LinearCongruentialEngine::TRandState seed,
+                                 int debug_mask, ScheduleErrorRenderLevel error_render_level);
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Schedule, runtime::ObjectRef, ScheduleNode);
 };
 

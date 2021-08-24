@@ -19,12 +19,26 @@
 #ifndef TVM_TIR_SCHEDULE_PRIMITIVE_H_
 #define TVM_TIR_SCHEDULE_PRIMITIVE_H_
 
+#include <tvm/support/random_engine.h>
 #include <tvm/tir/schedule/state.h>
 
 namespace tvm {
 namespace tir {
 
 /******** Schedule: Sampling ********/
+/*!
+ * \brief Sample once category from candidates according to the probability weights.
+ * \param self The schedule to update
+ * \param rand_state The pointer to schedule's random state
+ * \param candidates The candidates
+ * \param probs The probability distribution of the candidates
+ * \param decision The sampling decision, if any
+ * \return The random variable sampled from candidates
+ */
+TVM_DLL int64_t SampleCategorical(support::LinearCongruentialEngine::TRandState* rand_state,
+                                  const Array<Integer>& candidates, const Array<FloatImm>& probs,
+                                  Optional<Integer>* decision);
+
 /******** Schedule: Get blocks & loops ********/
 /*!
  * \brief Retrieves blocks in a specific function with its name
