@@ -38,6 +38,7 @@ namespace tvm {
 namespace relay {
 
 TVM_REGISTER_NODE_TYPE(ReduceAttrs);
+TVM_REGISTER_NODE_TYPE(OneElementReduceAttrs);
 TVM_REGISTER_NODE_TYPE(VarianceAttrs);
 
 /*!
