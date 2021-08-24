@@ -92,8 +92,8 @@ struct ExecutorCodegen {
     return CallFunc<Array<tvm::runtime::Module>>("get_external_modules", nullptr);
   }
 
-  Map<String, IRModule> GetIRModule() {
-    return CallFunc<Map<String, IRModule>>("get_irmodule", nullptr);
+  Map<Target, IRModule> GetIRModule() {
+    return CallFunc<Map<Target, IRModule>>("get_irmodule", nullptr);
   }
 
   runtime::Metadata GetMetadata() { return CallFunc<runtime::Metadata>("get_metadata"); }
@@ -490,9 +490,10 @@ class RelayBuildModule : public runtime::ModuleNode {
 
     auto lowered_funcs = executor_codegen_->GetIRModule();
 
+    // TODO(@electriclilies): How do I check if target object is ext_dev?
     // No need to build for external functions.
-    if (lowered_funcs.find("ext_dev") != lowered_funcs.end()) {
-      lowered_funcs.Set("ext_dev", IRModule());
+    if (lowered_funcs.find(tvm::Target("ext_dev")) != lowered_funcs.end()) {
+      lowered_funcs.Set(tvm::Target("ext_dev"), IRModule());
     }
 
     // Generate a placeholder function that attaches linked params as its arguments.
@@ -510,10 +511,10 @@ class RelayBuildModule : public runtime::ModuleNode {
       DictAttrs attrs{dict};
       auto prim = tir::PrimFunc(Array<tir::Var>(), tir::SeqStmt(Array<tir::Stmt>()), VoidType(),
                                 Map<tir::Var, tir::Buffer>(), attrs);
-      if (lowered_funcs.find(target_host->str()) == lowered_funcs.end()) {
-        lowered_funcs.Set(target_host->str(), IRModule(Map<GlobalVar, BaseFunc>({})));
+      if (lowered_funcs.find(target_host) == lowered_funcs.end()) {
+        lowered_funcs.Set(target_host, IRModule(Map<GlobalVar, BaseFunc>({})));
       }
-      lowered_funcs[target_host->str()]->Add(
+      lowered_funcs[target_host]->Add(
           GlobalVar(::tvm::runtime::symbol::tvm_lookup_linked_param), prim);
     }
 
