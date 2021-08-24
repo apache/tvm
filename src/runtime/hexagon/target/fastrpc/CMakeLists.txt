@@ -103,11 +103,6 @@ if("${FASTRPC_LIBS}" STREQUAL "SKEL")
   )
   string(REGEX REPLACE ";" " " EXTRA_LINK_FLAGS_STR "${EXTRA_LINK_FLAGS}")
 
-  # Extra linker flags for linking shared libraries.
-  set(CMAKE_SHARED_LINKER_FLAGS
-    "${EXTRA_LINK_FLAGS_STR} ${CMAKE_SHARED_LINKER_FLAGS}"
-  )
-
   set(SKEL_ND_SRCS
     "src/tvm_hvx.cc"
     "src/tvm_remote_nd_imp.cc"
@@ -137,6 +132,10 @@ if("${FASTRPC_LIBS}" STREQUAL "SKEL")
   set(WRAP_PTHREAD_SRCS "src/tvm_wrap_pthread.cc")
   add_library(tvm_wrap_pthread SHARED ${WRAP_PTHREAD_SRCS})
 
+  # Extra linker flags for linking shared libraries.
+  set_target_properties(tvm_remote_nd_skel PROPERTIES LINK_FLAGS ${EXTRA_LINK_FLAGS_STR})
+  set_target_properties(tvm_remote_skel PROPERTIES LINK_FLAGS ${EXTRA_LINK_FLAGS_STR})
+  set_target_properties(tvm_wrap_pthread PROPERTIES LINK_FLAGS ${EXTRA_LINK_FLAGS_STR})
 else()
   # Stub libraries.
   #
