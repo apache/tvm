@@ -139,11 +139,22 @@ def helper_no_fast_int8_hw_legalization(attrs, inputs, types, relay_op):
     data, kernel, input_zero_point, kernel_zero_point, _, _ = inputs
 
     shift_data = relay.subtract(
-        relay.cast(data, dtype="int16"), relay.cast(input_zero_point, "int16")
+        relay.cast(data, dtype="int16"), relay.cast(input_zero_point, dtype="int16")
     )
-    shift_kernel = relay.subtract(
-        relay.cast(kernel, dtype="int16"), relay.cast(kernel_zero_point, "int16")
-    )
+    # If kernel zero point is a scalar we can directly subtract it.
+    if len(types[3].shape) == 0:
+        shift_kernel = relay.subtract(
+            relay.cast(kernel, dtype="int16"), relay.cast(kernel_zero_point, dtype="int16")
+        )
+    # Otherwise it needs to be broadcast.
+    else:
+        # Determine output axis of kernel.
+        output_axis = tvm.tir.layout(attrs["kernel_layout"]).index_of("O")
+        shift_kernel = relay.nn.bias_add(
+            relay.cast(kernel, dtype="int16"),
+            relay.cast(kernel_zero_point, dtype="int16"),
+            output_axis,
+        )
     new_attrs = {k: attrs[k] for k in attrs.keys()}
     return relay_op(shift_data, shift_kernel, **new_attrs)
 

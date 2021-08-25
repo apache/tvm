@@ -63,7 +63,7 @@ def quantize(expr, type_map):
             out_dtype=expr.attrs.out_dtype,
             axis=t.axis,
         )
-        print(infer_shape(out))
+        
     return [
         out,
         TensorAffineType(expr.args[1], expr.args[2], expr.attrs.out_dtype, expr.attrs.axis),

@@ -136,10 +136,12 @@ Expr RequantizeLower(const Expr& input_tensor, const Expr& input_scale,
                      const Expr& output_zero_point, const RequantizeAttrs* param,
                      const Array<IndexExpr>& input_shape, const DataType& out_dtype) {
   auto tensor = Cast(input_tensor, DataType::Int(32));
-  // 1) Subtract the input_zero_point
   auto zero_scalar = MakeConstantScalar(DataType::Int(32), 0);
   if (!IsEqualScalar(input_zero_point, zero_scalar)) {
-    tensor = Subtract(tensor, Cast(input_zero_point, DataType::Int(32)));
+    // Broadcast input zero point if needed.
+    Expr input_zero_broadcast =
+        ExpandBiasToMatchAxis(input_zero_point, input_shape.size(), {param->axis});
+    tensor = Subtract(tensor, Cast(input_zero_broadcast, DataType::Int(32)));
   }
 
   // 2) If the input and output scales are same, we can skip the fixed point multiplication. Check

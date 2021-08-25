@@ -30,7 +30,8 @@ namespace tvm {
 using tvm::ReprPrinter;
 using namespace tvm::runtime;
 
-TensorAffineType::TensorAffineType(RelayExpr scale, RelayExpr zero_point, DataType dtype, int axis) {
+TensorAffineType::TensorAffineType(RelayExpr scale, RelayExpr zero_point, DataType dtype,
+                                   int axis) {
   ObjectPtr<TensorAffineTypeNode> n = make_object<TensorAffineTypeNode>();
   n->scale = std::move(scale);
   n->zero_point = std::move(zero_point);

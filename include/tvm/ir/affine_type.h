@@ -85,7 +85,6 @@ class TensorAffineTypeNode : public AffineTypeNode {
     equal->MarkGraphNode();
     return equal(scale, other->scale) && equal(zero_point, other->zero_point) &&
            equal(dtype, other->dtype) && equal(axis, other->axis);
-
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {

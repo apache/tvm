@@ -34,7 +34,6 @@ def compare_fq_to_int(expr, args, allow_rounding_error=False):
         .evaluate()(*args)
         .numpy()
     )
-    print(mod_int)
     result_int = (
         relay.create_executor("vm", mod=mod_int, device=tvm.cpu(), target="llvm")
         .evaluate()(*args)
@@ -42,7 +41,7 @@ def compare_fq_to_int(expr, args, allow_rounding_error=False):
     )
 
     if allow_rounding_error:
-        assert np.all(np.abs(result - result_int) <= 1)
+        assert np.all(np.abs(result.astype("int32") - result_int.astype("int32")) <= 1)
     else:
         assert np.array_equal(result, result_int)
 
@@ -57,6 +56,7 @@ def test_fake_quantize_conv():
         op = relay.op.nn.conv2d(
             relay.qnn.op.dequantize(x, relay.const(2.0), zero),
             relay.qnn.op.dequantize(w, relay.const(0.5), zero),
+            kernel_size=[5, 5],
         )
         op = relay.qnn.op.quantize(op, one, zero, out_dtype=out_dtype)
 
@@ -70,19 +70,23 @@ def test_fake_quantize_conv_per_channel():
     for out_dtype in ["int8", "uint8"]:
         x = relay.var("x", shape=[1, 3, 224, 224], dtype="int8")
         w = relay.var("w", shape=[16, 3, 5, 5], dtype="int8")
-        one = relay.const([1.0]*16)
-        zero = relay.const([0]*16)
+        one = relay.const([1.0] * 16)
+        zero = relay.const([0] * 16)
 
         op = relay.op.nn.conv2d(
             relay.qnn.op.dequantize(x, relay.const(2.0), relay.const(0)),
-            relay.qnn.op.dequantize(w, relay.const(np.random.random([16]).astype("float32")), zero, axis=0),
+            relay.qnn.op.dequantize(
+                w, relay.const(np.random.random([16]).astype("float32")), zero, axis=0
+            ),
+            kernel_size=[5, 5],
+            channels=16,
         )
         op = relay.qnn.op.quantize(op, relay.const(1.0), relay.const(0), out_dtype=out_dtype)
 
         x_np = np.random.randint(-128, 127, size=[1, 3, 224, 224], dtype="int8")
         w_np = np.random.randint(-128, 127, size=[16, 3, 5, 5], dtype="int8")
 
-        compare_fq_to_int(op, [x_np, w_np])
+        compare_fq_to_int(op, [x_np, w_np], allow_rounding_error=True)
 
 
 def test_fake_quantize_dense():
@@ -131,7 +135,9 @@ def test_fake_transpose_quantize_conv():
 
     x = relay.qnn.op.dequantize(x, relay.const(2.0), zero)
     x = relay.transpose(x, [0, 3, 1, 2])
-    op = relay.op.nn.conv2d(x, relay.qnn.op.dequantize(w, relay.const(0.5), zero))
+    op = relay.op.nn.conv2d(
+        x, relay.qnn.op.dequantize(w, relay.const(0.5), zero), kernel_size=[5, 5]
+    )
     op = relay.qnn.op.quantize(op, one, zero)
 
     x_np = np.random.randint(-128, 127, size=[1, 224, 224, 3], dtype="int8")
@@ -149,7 +155,9 @@ def test_fake_transpose_quantize_conv_bias_add():
 
     x = relay.qnn.op.dequantize(x, relay.const(2.0), zero)
     x = relay.transpose(x, [0, 3, 1, 2])
-    op = relay.op.nn.conv2d(x, relay.qnn.op.dequantize(w, relay.const(0.5), zero))
+    op = relay.op.nn.conv2d(
+        x, relay.qnn.op.dequantize(w, relay.const(0.5), zero), kernel_size=[5, 5]
+    )
     op = relay.op.nn.bias_add(op, relay.qnn.op.dequantize(bias, one, zero))
     op = relay.qnn.op.quantize(op, one, zero)
 
@@ -170,7 +178,9 @@ def test_fake_transpose_quantize_conv_bias_add_mismatch():
 
     x = relay.qnn.op.dequantize(x, relay.const(2.0), zero)
     x = relay.transpose(x, [0, 3, 1, 2])
-    op = relay.op.nn.conv2d(x, relay.qnn.op.dequantize(w, relay.const(0.5), zero))
+    op = relay.op.nn.conv2d(
+        x, relay.qnn.op.dequantize(w, relay.const(0.5), zero), kernel_size=[5, 5]
+    )
     op = relay.op.nn.bias_add(op, relay.qnn.op.dequantize(bias, two, zero))
     op = relay.qnn.op.quantize(op, one, zero)
 
@@ -340,14 +350,17 @@ def test_fake_quantize_clip():
 def test_fake_quantize_clip_per_channel():
     x = relay.var("x", shape=[1, 3, 224, 224], dtype="uint8")
 
-    x = relay.qnn.op.dequantize(x, relay.const([1.0, 2.0, 3.0]), relay.const([96, 114, 128]), axis=1)
+    x = relay.qnn.op.dequantize(
+        x, relay.const([1.0, 2.0, 3.0]), relay.const([96, 114, 128]), axis=1
+    )
     op = relay.op.clip(x, 0, 6)
-    op = relay.qnn.op.quantize(op, relay.const([1.0, 2.0, 3.0]), relay.const([96, 114, 128]), out_dtype="uint8", axis=1)
+    op = relay.qnn.op.quantize(
+        op, relay.const([1.0, 2.0, 3.0]), relay.const([96, 114, 128]), out_dtype="uint8", axis=1
+    )
 
     x_np = np.random.randint(0, 255, size=[1, 3, 224, 224], dtype="uint8")
 
     compare_fq_to_int(op, [x_np])
-
 
 
 @pytest.mark.parametrize(
