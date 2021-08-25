@@ -3485,7 +3485,12 @@ class NegativeLogLikelihoodLoss(OnnxOpConverter):
                 f"Unknown reduction type {reduction}, choices are {cls.VALID_REDUCTIONS}"
             )
 
-        input_tensor, target_tensor, weight_tensor = inputs
+        input_tensor, target_tensor = inputs
+        if len(inputs) == 3:
+            weight_tensor = inputs[2]
+        else:
+            weight_tensor = None 
+            
         loss = -input_tensor
         if weight_tensor is not None:
             loss *= weight_tensor
