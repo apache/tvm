@@ -51,8 +51,11 @@ Expr ToBasicBlockNormalFormAux(const Expr& e) {
 IRModule ToBasicBlockNormalForm(const IRModule& mod) {
   DLOG(INFO) << "ToBBlock:" << std::endl << mod;
 
+  // Create a new module by shallow copy.
+  auto mod_ = IRModule(mod->functions, mod->type_definitions, mod->Imports(), mod->source_map);
+
   tvm::Map<GlobalVar, Function> updates;
-  auto funcs = mod->functions;
+  auto funcs = mod_->functions;
   for (const auto& it : funcs) {
     ICHECK_EQ(FreeVars(it.second).size(), 0) << "Expected no free variables";
     if (const auto* n = it.second.as<FunctionNode>()) {
@@ -63,12 +66,12 @@ IRModule ToBasicBlockNormalForm(const IRModule& mod) {
   }
 
   for (auto pair : updates) {
-    mod->Add(pair.first, pair.second, true);
+    mod_->Add(pair.first, pair.second, true);
   }
 
-  DLOG(INFO) << "ToBBlock: transformed" << std::endl << mod;
+  DLOG(INFO) << "ToBBlock: transformed" << std::endl << mod_;
 
-  return mod;
+  return mod_;
 }
 
 bool BasicBlockNormalFormCheck(const Expr& e) {
