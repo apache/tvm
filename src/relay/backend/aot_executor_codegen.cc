@@ -586,8 +586,9 @@ class AOTExecutorCodegen : public ExprVisitor {
     // to instead explicitly lowering the incoming IRModule, and then
     // performing the preexisting AOT executor code generation phase.
     IRModule mod = IRModule::FromExpr(func);
-    auto lowered_module = tec::LowerTE(
-        mod, targets_, device_context_map, memory_plan, mod_name, [this](Function func) {
+
+    IRModule new_mod =
+        LowerTEPass(targets_, device_context_map, memory_plan, mod_name, [this](Function func) {
           // We need to maintain the constant map for external
           // functions so we pass this processing function which
           // allows us to process each function as we lower it.
@@ -599,8 +600,9 @@ class AOTExecutorCodegen : public ExprVisitor {
           // execute as a further pass, instead writing data to the
           // lowering process directly.
           tec::UpdateFunctionMetadata(func, this->function_metadata_);
-        });
+        })(mod);
 
+    tec::LoweredModule lowered_module = tec::IRModuleToLoweredModule(new_mod);
     function_metadata_.Set(runtime::symbol::tvm_module_main, lowered_module.main_func_info);
     auto lowered_main = lowered_module.main_module->Lookup("main");
     auto lowered_main_func = GetRef<Function>(lowered_main.as<FunctionNode>());
