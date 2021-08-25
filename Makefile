@@ -81,7 +81,7 @@ FORCE:
 CMAKE_TARGETS = all runtime vta cpptest crttest
 
 define GEN_CMAKE_RULE
-%/$(CMAKE_TARGET): %/CMakeCache.txt
+%/$(CMAKE_TARGET): %/CMakeCache.txt FORCE
 	@$$(MAKE) -C $$(@D) $(CMAKE_TARGET)
 endef
 $(foreach CMAKE_TARGET,$(CMAKE_TARGETS),$(eval $(GEN_CMAKE_RULE)))
