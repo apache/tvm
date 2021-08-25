@@ -32,6 +32,7 @@ echo set\(USE_LLVM llvm-config-4.0\) >> config.cmake
 echo set\(CMAKE_CXX_COMPILER g++\) >> config.cmake
 echo set\(CMAKE_CXX_FLAGS -Werror\) >> config.cmake
 echo set\(USE_VTA_FSIM ON\) >> config.cmake
+echo set\(USE_VTA_TSIM ON\) >> config.cmake
 echo set\(USE_VERILATOR ON\) >> config.cmake
 echo set\(USE_CCACHE OFF\) >> config.cmake
 

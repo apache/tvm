@@ -254,7 +254,7 @@ stage('Build') {
         init_git()
         sh "${docker_run} ${ci_i386} ./tests/scripts/task_config_build_i386.sh"
         make(ci_i386, 'build', '-j2')
-        pack_lib('i386', tvm_multilib)
+        pack_lib('i386', tvm_multilib_tsim)
       }
     }
   },
