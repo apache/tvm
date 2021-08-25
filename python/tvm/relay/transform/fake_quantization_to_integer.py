@@ -63,7 +63,7 @@ def quantize(expr, type_map):
             out_dtype=expr.attrs.out_dtype,
             axis=t.axis,
         )
-        
+
     return [
         out,
         TensorAffineType(expr.args[1], expr.args[2], expr.attrs.out_dtype, expr.attrs.axis),
@@ -122,7 +122,6 @@ def bias_add(expr, type_map):
             out_dtype=x_t.dtype,
             axis=0,
         )
-        print(infer_shape(b))
     out = relay.op.nn.bias_add(x, b, **expr.attrs)
     return [out, x_t]
 
@@ -246,9 +245,23 @@ def clip(expr, type_map):
             amax = relay.op.reshape(relay.op.broadcast_to(amax, scale_shape), b_shape)
         amin = relay.qnn.op.quantize(amin, scale, z_p, t.axis, t.dtype)
         amax = relay.qnn.op.quantize(amax, scale, z_p, t.axis, t.dtype)
-        out = relay.op.minimum(relay.op.maximum(arg, amin), amax)
+        out = relay.op.minimum(relay.op.maximum(arg, fold_constant(amin)), fold_constant(amax))
 
     return [out, t]
+
+
+@register_fake_quantization_to_integer("nn.relu")
+def relu(expr, type_map):
+    arg = expr.args[0]
+    t = type_map[arg]
+    scale_shape = infer_shape(t.scale)
+    zero = relay.const(0, dtype="float32")
+    if len(scale_shape) > 0 and scale_shape[0] > 1:
+        b_shape = [1] * len(infer_shape(arg))
+        b_shape[t.axis] = -1
+        zero = relay.op.reshape(relay.op.broadcast_to(zero, scale_shape), b_shape)
+    zero = relay.qnn.op.quantize(zero, t.scale, t.zero_point, t.axis, t.dtype)
+    return [relay.op.maximum(arg, fold_constant(zero)), t]
 
 
 @register_fake_quantization_to_integer("nn.pad")
@@ -264,7 +277,6 @@ def pad(expr, type_map):
         ## and we need to make sure it's affine type matches the arg
         pad_t = type_map[pad_value]
         if not tvm.ir.structural_equal(t, pad_t):
-            print("pad", t, pad_t)
             pad_value = relay.qnn.op.requantize(
                 pad_value,
                 pad_t.scale,
@@ -272,7 +284,7 @@ def pad(expr, type_map):
                 t.scale,
                 t.zero_point,
                 out_dtype=t.dtype,
-                axis=t.axis,
+                axis=pad_t.axis,
             )
     else:
         ## If the pad-value is a constant, we need to quantize it
@@ -361,7 +373,7 @@ def register_binary_identity(op_name, op):
                 out_t.scale,
                 out_t.zero_point,
                 out_dtype=out_t.dtype,
-                axis=out_t.axis,
+                axis=left_t.axis,
             )
 
         if right_t != out_t:
@@ -372,7 +384,7 @@ def register_binary_identity(op_name, op):
                 out_t.scale,
                 out_t.zero_point,
                 out_dtype=out_t.dtype,
-                axis=out_t.axis,
+                axis=right_t.axis,
             )
         out = op(left, right)
         return [out, out_t]
