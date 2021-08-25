@@ -17,13 +17,9 @@
  * under the License.
  */
 
-#include <dmlc/logging.h>
 #include <gtest/gtest.h>
 #include <tvm/driver/driver_api.h>
 #include <tvm/te/operation.h>
-
-#include <cmath>
-#include <string>
 
 TEST(Runtime, ZeroCopy) {
   /*
@@ -36,7 +32,6 @@ TEST(Runtime, ZeroCopy) {
    *        \      /
    *      elemwise_sub(out1)
    */
-
   using namespace tvm;
   using namespace tvm::te;
 
