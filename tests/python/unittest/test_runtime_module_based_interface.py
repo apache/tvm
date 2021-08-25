@@ -106,7 +106,7 @@ def test_cpu_get_graph_json():
     loaded_lib = tvm.runtime.load_module(path_lib)
     json = loaded_lib["get_graph_json"]()
     assert isinstance(json, str) == True
-    assert json.find("tvmgen_default_fused_nn_softmax1") == 6312
+    assert json.find("tvmgen_default_fused_nn_softmax1") > -1
 
 
 @tvm.testing.requires_cuda
