@@ -50,8 +50,8 @@ class TensorAffineType(AffineType):
         The content data type.
     """
 
-    def __init__(self, scale, zero_point, dtype):
-        self.__init_handle_by_constructor__(_ffi_api.TensorAffineType, scale, zero_point, dtype)
+    def __init__(self, scale, zero_point, dtype, axis=-1):
+        self.__init_handle_by_constructor__(_ffi_api.TensorAffineType, scale, zero_point, dtype, axis)
 
 
 @tvm._ffi.register_object("TupleAffineType")

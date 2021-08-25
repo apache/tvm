@@ -30,26 +30,27 @@ namespace tvm {
 using tvm::ReprPrinter;
 using namespace tvm::runtime;
 
-TensorAffineType::TensorAffineType(RelayExpr scale, RelayExpr zero_point, DataType dtype) {
+TensorAffineType::TensorAffineType(RelayExpr scale, RelayExpr zero_point, DataType dtype, int axis) {
   ObjectPtr<TensorAffineTypeNode> n = make_object<TensorAffineTypeNode>();
   n->scale = std::move(scale);
   n->zero_point = std::move(zero_point);
   n->dtype = std::move(dtype);
+  n->axis = std::move(axis);
   data_ = std::move(n);
 }
 
 TVM_REGISTER_NODE_TYPE(TensorAffineTypeNode);
 
 TVM_REGISTER_GLOBAL("ir.TensorAffineType")
-    .set_body_typed([](RelayExpr scale, RelayExpr zero_point, DataType dtype) {
-      return TensorAffineType(scale, zero_point, dtype);
+    .set_body_typed([](RelayExpr scale, RelayExpr zero_point, DataType dtype, int axis) {
+      return TensorAffineType(scale, zero_point, dtype, axis);
     });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<TensorAffineTypeNode>([](const ObjectRef& ref, ReprPrinter* p) {
       auto* node = static_cast<const TensorAffineTypeNode*>(ref.get());
       p->stream << "TensorAffineType(" << node->scale << ", " << node->zero_point << ", "
-                << node->dtype << ")";
+                << node->dtype << ", " << node->axis << ")";
     });
 
 TupleAffineType::TupleAffineType(Array<TensorAffineType> types) {

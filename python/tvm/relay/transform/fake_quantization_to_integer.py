@@ -18,12 +18,18 @@
 import tvm
 from tvm import relay
 from tvm.ir import TensorAffineType, TupleAffineType
+from tvm.tir import bijective_layout
 from ..op import register_fake_quantization_to_integer
 
 
 def fold_constant(expr):
     return relay.transform.FoldConstantExpr(expr, tvm.IRModule())
 
+def get_zeros(scale):
+    return fold_constant(relay.op.cast(relay.op.zeros_like(scale), "int32"))
+
+def infer_shape(expr):
+    return relay.transform.InferType()(tvm.IRModule.from_expr(expr))["main"].body.checked_type.shape
 
 @register_fake_quantization_to_integer("qnn.dequantize")
 def dequantize(expr, type_map):
@@ -52,9 +58,9 @@ def quantize(expr, type_map):
             expr.args[1],
             expr.args[2],
             out_dtype=expr.attrs.out_dtype,
-            axis=expr.attrs.axis,
+            axis=t.axis,
         )
-    return [out, TensorAffineType(expr.args[1], expr.args[2], expr.attrs.out_dtype)]
+    return [out, TensorAffineType(expr.args[1], expr.args[2], expr.attrs.out_dtype, expr.attrs.axis)]
 
 
 def register_unary_identity(op_name):
@@ -103,6 +109,7 @@ def bias_add(expr, type_map):
             in_scale,
             in_zero_point,
             out_dtype=x_t.dtype,
+            axis=0,
         )
     out = relay.op.nn.bias_add(x, b, **expr.attrs)
     return [out, x_t]
@@ -117,20 +124,14 @@ def conv2d(expr, type_map):
     x_t = type_map[x]
     w_t = type_map[weight]
     conv_scale = fold_constant(x_t.scale * w_t.scale)
-    oc_axis = attrs["kernel_layout"].find("O")
-    shape = list(
-        relay.transform.InferType()(tvm.IRModule.from_expr(conv_scale))[
-            "main"
-        ].body.checked_type.shape
-    )
-    if len(shape) == 0:
-        conv_zp = relay.const(0)
-    else:
-        conv_zp = relay.const([0] * shape[oc_axis].value)
+    conv_zp = get_zeros(conv_scale)
     out = relay.qnn.op.conv2d(
         x, weight, x_t.zero_point, w_t.zero_point, x_t.scale, w_t.scale, **attrs
     )
-    return [out, TensorAffineType(conv_scale, conv_zp, out.attrs.out_dtype)]
+    scale_shape = infer_shape(conv_scale)
+    out_layout = attrs["out_layout"] if attrs["out_layout"] != "" else attrs["data_layout"]
+    out_axis = tvm.tir.bijective_layout(out_layout, "NCHW").backward_index(list(range(4)))[1]
+    return [out, TensorAffineType(conv_scale, conv_zp, out.attrs.out_dtype, out_axis.value)]
 
 
 @register_fake_quantization_to_integer("nn.dense")
@@ -142,11 +143,11 @@ def dense(expr, type_map):
     x_t = type_map[x]
     w_t = type_map[weight]
     dense_scale = fold_constant(x_t.scale * w_t.scale)
-    dense_zp = relay.const(0)
+    dense_zp = get_zeros(dense_scale)
     out = relay.qnn.op.dense(
         x, weight, x_t.zero_point, w_t.zero_point, x_t.scale, w_t.scale, **attrs
     )
-    return [out, TensorAffineType(dense_scale, dense_zp, out.attrs.out_dtype)]
+    return [out, TensorAffineType(dense_scale, dense_zp, out.attrs.out_dtype, x_t.axis)]
 
 
 @register_fake_quantization_to_integer("nn.batch_matmul")
@@ -158,7 +159,7 @@ def batch_matmul(expr, type_map):
     matmul_scale = fold_constant(x_t.scale * y_t.scale)
     matmul_zp = relay.const(0)
     out = relay.qnn.op.batch_matmul(x, y, x_t.zero_point, y_t.zero_point, x_t.scale, y_t.scale)
-    return [out, TensorAffineType(matmul_scale, matmul_zp, out.attrs.out_dtype)]
+    return [out, TensorAffineType(matmul_scale, matmul_zp, out.attrs.out_dtype, x_t.axis)]
 
 
 @register_fake_quantization_to_integer("concatenate")
@@ -208,10 +209,6 @@ def clip(expr, type_map):
     amax = expr.attrs.a_max
     scale = fold_constant(t.scale)
     z_p = fold_constant(t.zero_point)
-    if not isinstance(amin, relay.expr.Constant):
-        amin = relay.op.const(amin)
-    if not isinstance(amax, relay.expr.Constant):
-        amax = relay.op.const(amax)
     if (
         isinstance(scale, relay.expr.Constant)
         and scale.data.numpy().size == 1
@@ -224,11 +221,21 @@ def clip(expr, type_map):
         new_max = int(amax / scale + z_p)
         out = relay.op.clip(arg, new_min, new_max)
     else:
-        amin = relay.op.cast(relay.op.round(amin / scale), t.dtype) + z_p
-        amax = relay.op.cast(relay.op.round(amax / scale), t.dtype) + z_p
-        amin = relay.op.reshape(amin, [1, -1, 1, 1])
-        amax = relay.op.reshape(amax, [1, -1, 1, 1])
+        if not isinstance(amin, relay.expr.Constant):
+            amin = relay.op.const(amin)
+        if not isinstance(amax, relay.expr.Constant):
+            amax = relay.op.const(amax)
+
+        scale_shape =infer_shape(scale)
+        if len(scale_shape)>0 and scale_shape[0] > 1:
+            b_shape = [1] * len(infer_shape(arg))
+            b_shape[t.axis] = -1
+            amin = relay.op.reshape(relay.op.broadcast_to(amin, scale_shape), b_shape)
+            amax = relay.op.reshape(relay.op.broadcast_to(amax, scale_shape), b_shape)
+        amin = relay.qnn.op.quantize(amin, scale, z_p, t.axis, t.dtype)
+        amax = relay.qnn.op.quantize(amax, scale, z_p, t.axis, t.dtype)
         out = relay.op.minimum(relay.op.maximum(arg, amin), amax)
+
     return [out, t]
 
 
@@ -252,6 +259,7 @@ def pad(expr, type_map):
                 t.scale,
                 t.zero_point,
                 out_dtype=t.dtype,
+                axis=t.axis
             )
     else:
         ## If the pad-value is a constant, we need to quantize it
@@ -340,6 +348,7 @@ def register_binary_identity(op_name, op):
                 out_t.scale,
                 out_t.zero_point,
                 out_dtype=out_t.dtype,
+                axis=out_t.axis,
             )
 
         if right_t != out_t:
@@ -350,6 +359,7 @@ def register_binary_identity(op_name, op):
                 out_t.scale,
                 out_t.zero_point,
                 out_dtype=out_t.dtype,
+                axis=out_t.axis,
             )
         out = op(left, right)
         return [out, out_t]
