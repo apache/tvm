@@ -20,7 +20,7 @@
 #
 # Start a bash, mount REPO_MOUNT_POINT to be current directory.
 #
-# Usage: docker/bash.sh [-i|--interactive] [--net=host]
+# Usage: docker/bash.sh [-i|--interactive] [--net=host] [-t|--tty]
 #          [--mount MOUNT_DIR] [--repo-mount-point REPO_MOUNT_POINT]
 #          [--dry-run]
 #          <DOCKER_IMAGE_NAME> [--] [COMMAND]
@@ -34,6 +34,7 @@
 #
 
 set -euo pipefail
+
 
 function show_usage() {
     cat <<EOF
@@ -49,6 +50,10 @@ Usage: docker/bash.sh [-i|--interactive] [--net=host]
 -i, --interactive
 
     Start the docker session in interactive mode.
+
+-t, --tty
+
+    Start the docker session with a pseudo terminal (tty).
 
 --net=host
 
@@ -108,6 +113,7 @@ REPO_DIR="$(dirname "${SCRIPT_DIR}")"
 
 DRY_RUN=false
 INTERACTIVE=false
+TTY=false
 USE_NET_HOST=false
 DOCKER_IMAGE_NAME=
 COMMAND=bash
@@ -147,6 +153,11 @@ while (( $# )); do
 
         -i*|--interactive)
             INTERACTIVE=true
+            eval $break_joined_flag
+            ;;
+
+        -t*|--tty)
+            TTY=true
             eval $break_joined_flag
             ;;
 
@@ -293,7 +304,11 @@ fi
 
 # Set up interactive sessions
 if ${INTERACTIVE}; then
-    DOCKER_FLAGS+=( --interactive --tty )
+    DOCKER_FLAGS+=( --interactive )
+fi
+
+if ${TTY}; then
+    DOCKER_FLAGS+=( --tty )
 fi
 
 # Expose external directories to the docker container
@@ -394,6 +409,7 @@ echo "DOCKER CONTAINER NAME: ${DOCKER_IMAGE_NAME}"
 echo ""
 
 echo Running \'${COMMAND[@]+"${COMMAND[@]}"}\' inside ${DOCKER_IMAGE_NAME}...
+
 
 DOCKER_CMD=(${DOCKER_BINARY} run
             ${DOCKER_FLAGS[@]+"${DOCKER_FLAGS[@]}"}
