@@ -560,7 +560,7 @@ def hexagon(cpu_ver="v66", **kwargs):
         # TVM's option parser doesn't allow '=' in values, but '=' can
         # appear in LLVM flags. Replace it with '@', since it's unlikely
         # that '@' will be used in another context.
-        if llvm_options is None or len(llvm_options.replace(" ", "")) == 0:
+        if llvm_options is None or len(llvm_options.strip()) == 0:
             return ""
         args = [s.replace("=", "@") for s in llvm_options.split()]
         return "--llvm-options=" + ",".join(args)
