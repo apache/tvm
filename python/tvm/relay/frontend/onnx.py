@@ -3490,8 +3490,10 @@ class NegativeLogLikelihoodLoss(OnnxOpConverter):
             weight_tensor = inputs[2]
         else:
             weight_tensor = None 
-            
-        loss = -input_tensor
+
+        target_tensor = relay.expand_dims(target_tensor, 1)
+        loss = -relay.gather(input_tensor, axis=1, indices=target_tensor)
+        loss = relay.squeeze(loss, axis=[1])
         if weight_tensor is not None:
             loss *= weight_tensor
 
