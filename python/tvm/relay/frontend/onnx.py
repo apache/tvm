@@ -36,9 +36,21 @@ from .. import qnn as _qnn
 from .. import random as _random
 from .. import ty as _ty
 from .. import vision as _vision
-from .common import (AttrCvt, Renamer, fold_constant, get_name, get_relay_op,
-                     gru_cell, infer_channels, infer_shape, infer_type,
-                     infer_value, lstm_cell, new_var, unbind)
+from .common import (
+    AttrCvt,
+    Renamer,
+    fold_constant,
+    get_name,
+    get_relay_op,
+    gru_cell,
+    infer_channels,
+    infer_shape,
+    infer_type,
+    infer_value,
+    lstm_cell,
+    new_var,
+    unbind,
+)
 
 __all__ = ["from_onnx"]
 
@@ -3692,6 +3704,8 @@ def _get_convert_map(opset):
         "ConvInteger": ConvInteger.get_converter(opset),
         # Random number generation.
         "RandomUniform": RandomUniform.get_converter(opset),
+        # Loss functions
+        "NegativeLogLikelihoodLoss": NegativeLogLikelihoodLoss.get_converter(opset),
     }
 
 
