@@ -528,8 +528,12 @@ def compile_and_run(
 
         workspace_bytes += extract_main_workspace_size_bytes(base_path)
 
+        sanitized_names = []
         for key in model.inputs:
             sanitized_tensor_name = re.sub(r"\W", "_", key)
+            if sanitized_tensor_name in sanitized_names:
+                raise ValueError(f"Sanitized input tensor name clash: {sanitized_tensor_name}")
+            sanitized_names.append(sanitized_tensor_name)
             create_header_file(
                 f'{mangle_name(model.name, "input_data")}_{sanitized_tensor_name}',
                 model.inputs[key],
