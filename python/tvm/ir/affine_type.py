@@ -51,7 +51,9 @@ class TensorAffineType(AffineType):
     """
 
     def __init__(self, scale, zero_point, dtype, axis=-1):
-        self.__init_handle_by_constructor__(_ffi_api.TensorAffineType, scale, zero_point, dtype, axis)
+        self.__init_handle_by_constructor__(
+            _ffi_api.TensorAffineType, scale, zero_point, dtype, axis
+        )
 
 
 @tvm._ffi.register_object("TupleAffineType")
