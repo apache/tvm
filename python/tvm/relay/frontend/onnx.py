@@ -19,6 +19,7 @@
 """ONNX: Open Neural Network Exchange frontend for Relay."""
 import copy
 import warnings
+from os import read
 
 import numpy as np
 import tvm
@@ -36,9 +37,21 @@ from .. import qnn as _qnn
 from .. import random as _random
 from .. import ty as _ty
 from .. import vision as _vision
-from .common import (AttrCvt, Renamer, fold_constant, get_name, get_relay_op,
-                     gru_cell, infer_channels, infer_shape, infer_type,
-                     infer_value, lstm_cell, new_var, unbind)
+from .common import (
+    AttrCvt,
+    Renamer,
+    fold_constant,
+    get_name,
+    get_relay_op,
+    gru_cell,
+    infer_channels,
+    infer_shape,
+    infer_type,
+    infer_value,
+    lstm_cell,
+    new_var,
+    unbind,
+)
 
 __all__ = ["from_onnx"]
 
@@ -1377,6 +1390,14 @@ class Unsqueeze(OnnxOpConverter):
         for axis in axes:
             inputs[0] = _op.expand_dims(inputs[0], axis=axis, num_newaxis=1)
         return inputs[0]
+
+    @classmethod
+    def _impl_v13(cls, inputs, attr, params):
+        input_tensor, axes = inputs
+        axes = sorted(axes)
+        for axis in axes:
+            input_tensor = _op.expand_dims(input_tensor, axis=axis, num_newaxis=1)
+        return input_tensor
 
 
 class Split(OnnxOpConverter):
@@ -3489,12 +3510,11 @@ class NegativeLogLikelihoodLoss(OnnxOpConverter):
         if len(inputs) == 3:
             weight_tensor = inputs[2]
         else:
-            weight_tensor = None 
-            
+            weight_tensor = None
         loss = -input_tensor
         if weight_tensor is not None:
             loss *= weight_tensor
-
+        relay.squeeze()
         if target_tensor is not None and ignore_index is not None:
             mask_tensor = target_tensor == ignore_index
 
