@@ -81,13 +81,13 @@ def test_split_indices_legalize():
 
     mod_axis1 = tvm.IRModule()
     mod_axis1["tvmgen_default_ethosu_main_0"] = create_graph(1)
-    mod_axis1 = legalize.SplitRewriterPass(mod_axis1)
+    mod_axis1 = legalize.LegalizeSplit()(mod_axis1)
     expected_axis1 = expected_mod_axis1()
     tvm.ir.assert_structural_equal(mod_axis1, expected_axis1)
 
     mod_axis2 = tvm.IRModule()
     mod_axis2["tvmgen_default_ethosu_main_0"] = create_graph(2)
-    mod_axis2 = legalize.SplitRewriterPass(mod_axis2)
+    mod_axis2 = legalize.LegalizeSplit()(mod_axis2)
     expected_axis2 = expected_mod_axis2()
     tvm.ir.assert_structural_equal(mod_axis2, expected_axis2)
 
@@ -177,13 +177,13 @@ def test_split_sections_legalize():
 
     mod_axis1 = tvm.IRModule()
     mod_axis1["tvmgen_default_ethosu_main_0"] = create_graph(1, 5)
-    mod_axis1 = legalize.SplitRewriterPass(mod_axis1)
+    mod_axis1 = legalize.LegalizeSplit()(mod_axis1)
     expected_axis1 = expected_mod_axis1()
     tvm.ir.assert_structural_equal(mod_axis1, expected_axis1)
 
     mod_axis2 = tvm.IRModule()
     mod_axis2["tvmgen_default_ethosu_main_0"] = create_graph(2, 5)
-    mod_axis2 = legalize.SplitRewriterPass(mod_axis2)
+    mod_axis2 = legalize.LegalizeSplit()(mod_axis2)
     expected_axis2 = expected_mod_axis2()
     tvm.ir.assert_structural_equal(mod_axis2, expected_axis2)
 
@@ -294,7 +294,7 @@ def test_ethosu_conv2d_legalize():
     for test_case in test_cases:
         mod, conv_params = test_case[0](*test_case[1])
         mod = ethosu.partition_for_ethosu(mod)
-        mod = legalize.EthosUConv2DRewriterPass(mod)
+        mod = legalize.LegalizeEthosUConv2D()(mod)
         verify_linear(mod["tvmgen_default_ethosu_main_0"], conv_params)
 
 
@@ -328,6 +328,6 @@ def test_ethosu_conv2d_legalize_errors():
         mod, conv_params = test_case[0](*test_case[1])
         mod = ethosu.partition_for_ethosu(mod)
         try:
-            mod = legalize.EthosUConv2DRewriterPass(mod)
+            mod = legalize.LegalizeEthosUConv2D()(mod)
         except Exception as e:
             assert "EthosUCodegenError: Unsupported Layout NCHW" in e.args[0]

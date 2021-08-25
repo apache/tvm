@@ -109,11 +109,17 @@ class SplitRewriter(DFPatternCallback):
 
 
 @ir.transform.module_pass(opt_level=1)
-def SplitRewriterPass(mod, ctx):
-    for gv, func in mod.functions.items():
-        func = rewrite(SplitRewriter(), func)
-        mod.update_func(gv, func)
-    return mod
+class LegalizeSplit:
+    """This is the pass that wraps SplitRewriter"""
+
+    def transform_module(self, mod, ctx):
+        for gv, func in mod.functions.items():
+            func = rewrite(SplitRewriter(), func)
+            mod.update_func(gv, func)
+        return mod
+
+    def __call__(self, *args, **kwargs):
+        pass
 
 
 class EthosUConv2DRewriter(DFPatternCallback):
@@ -186,21 +192,27 @@ class EthosUConv2DRewriter(DFPatternCallback):
 
 
 @ir.transform.module_pass(opt_level=1)
-def EthosUConv2DRewriterPass(mod, ctx):
-    for gv, func in mod.functions.items():
-        func = rewrite(EthosUConv2DRewriter(), func)
-        mod.update_func(gv, func)
-    return mod
+class LegalizeEthosUConv2D:
+    """This is the pass that wraps the EthosUConv2DRewriter"""
+
+    def transform_module(self, mod, ctx):
+        for gv, func in mod.functions.items():
+            func = rewrite(EthosUConv2DRewriter(), func)
+            mod.update_func(gv, func)
+        return mod
+
+    def __call__(self, *args, **kwargs):
+        pass
 
 
-@relay.transform.function_pass(opt_level=1)
+@ir.transform.module_pass(opt_level=1)
 class LegalizeEthosU:
     """This is the pass to call graph-rewrites to perform graph transformation
     in a way such that the operations are replaced with hardware/codegen supported
     operations.
     """
 
-    def transform_function(self, func, mod):
-        mod = SplitRewriterPass(mod)
-        mod = EthosUConv2DRewriterPass(mod)
+    def transform_module(self, mod, ctx):
+        mod = LegalizeSplit()(mod)
+        mod = LegalizeEthosUConv2D()(mod)
         return mod
