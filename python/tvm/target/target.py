@@ -452,25 +452,26 @@ def hexagon(cpu_ver="v66", **kwargs):
         msg = "{} is not a valid Hexagon version\nvalid versions include {}"
         raise ValueError(msg.format(cpu_ver, valid_hex)) from None
 
-    args = {
+    # Target configuration:
+    config = {
         "hvx": 128,
         "sim_options": None,
         "llvm_options": None,
     }
-    args.update(kwargs)
+    config.update(kwargs)
 
     # Warn about obsolete parameter names.
-    if args.get("sim_args"):
+    if config.get("sim_args"):
         msg = "The keyword parameter 'sim_args' is deprecated, use 'sim_options' instead"
         warnings.warn(msg, stacklevel=2)
-        args.update({"sim_options": args["sim_args"]})
-    if args.get("llvm_args"):
+        config.update({"sim_options": config["sim_args"]})
+    if config.get("llvm_args"):
         msg = "The keyword parameter 'llvm_args' is deprecated, use 'llvm_options' instead"
         warnings.warn(msg, stacklevel=2)
-        args.update({"llvm_options": args["llvm_args"]})
+        config.update({"llvm_options": config["llvm_args"]})
 
     # LLVM target string
-    def create_llvm_target(cpu_ver, args):
+    def create_llvm_target(cpu_ver, config):
         """ Create LLVM target string. """
 
         target = " -mtriple=hexagon"
@@ -478,21 +479,21 @@ def hexagon(cpu_ver="v66", **kwargs):
 
         # Process the options that affect target features and return the
         # target feature string.
-        def create_target_features(args):
+        def create_target_features(config):
             tfs = []
-            if args["hvx"] > 0:
+            if config["hvx"] > 0:
                 valid_hvx = [0, 64, 128]
-                if not args["hvx"] in valid_hvx:
+                if not config["hvx"] in valid_hvx:
                     raise ValueError("Invalid hvx value, should be one of " + str(valid_hvx))
-                tfs += ["+hvx" + cpu_ver, "+hvx-length" + str(args["hvx"]) + "b"]
+                tfs += ["+hvx" + cpu_ver, "+hvx-length" + str(config["hvx"]) + "b"]
             else:
                 tfs += ["-hvx"]
             return "-mattr=" + ",".join(tfs) if tfs else ""
 
-        return target + mcpu + " " + create_target_features(args)
+        return target + mcpu + " " + create_target_features(config)
 
     # Simulator options string
-    def create_sim_options(cpu_ver, args):
+    def create_sim_options(cpu_ver, config):
         """ Create simulator option string. """
 
         def validate_hvx_length(codegen_hvx, sim_options):
@@ -511,8 +512,8 @@ def hexagon(cpu_ver="v66", **kwargs):
                 sim_options += "--hvx_length " + str(codegen_hvx)
             return sim_options or ""
 
-        hvx = args["hvx"]
-        sim_options = args["sim_options"]
+        hvx = config["hvx"]
+        sim_options = config["sim_options"]
         if not sim_options:
             return cpu_ver + " " + validate_hvx_length(hvx, sim_options)
 
@@ -551,10 +552,10 @@ def hexagon(cpu_ver="v66", **kwargs):
         return sim_cpu + " " + validate_hvx_length(hvx, sim_options)
 
     # LLVM options string
-    def create_llvm_options(cpu_ver, args):  # pylint: disable=unused-argument
+    def create_llvm_options(cpu_ver, config):  # pylint: disable=unused-argument
         """ Create LLVM options string. """
 
-        llvm_options = args["llvm_options"]
+        llvm_options = config["llvm_options"]
 
         # TVM's option parser doesn't allow '=' in values, but '=' can
         # appear in LLVM flags. Replace it with '@', since it's unlikely
@@ -565,10 +566,10 @@ def hexagon(cpu_ver="v66", **kwargs):
         return "--llvm-options=" + ",".join(args)
 
     # Sim args
-    os.environ["HEXAGON_SIM_ARGS"] = create_sim_options(cpu_ver, args)
+    os.environ["HEXAGON_SIM_ARGS"] = create_sim_options(cpu_ver, config)
 
-    target_str = create_llvm_target(cpu_ver, args)
-    llvm_str = create_llvm_options(cpu_ver, args)
+    target_str = create_llvm_target(cpu_ver, config)
+    llvm_str = create_llvm_options(cpu_ver, config)
     args_list = target_str.split() + llvm_str.split()
 
     return Target(" ".join(["hexagon"] + args_list))
