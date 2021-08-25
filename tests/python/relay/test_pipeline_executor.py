@@ -22,69 +22,6 @@ from tvm import relay
 from tvm.relay import transform
 from tvm.contrib import graph_executor, pipeline_executor
 
-class PipelineModuleConfig:
-    class interface:
-        def __init__(self, owner, itype, name):
-            self.owner_ = owner
-            self.itype_ = itype
-            self.name_ = name
-            self.dependent_ = []
-            return
-
-        def get_dependent_str(self):
-            name = ""
-            for dependent in self.dependent_:
-                name = name + dependent.name_
-            return name
-
-        def addDependent(self, dependent):
-            self.dependent_.append(dependent)
-
-    class instance:
-        def __init__(self):
-            self.interfaces_ = {1:{}, 2:{}}
-            return
-
-        def get_interface(self, itype,  name):
-            if name not in self.interfaces_[itype]:
-                self.interfaces_[itype][name] = PipelineModuleConfig.interface(0, itype, name)
-
-            return self.interfaces_[itype][name]
-
-        def input(self, name):
-            return self.get_interface(1, name)
-
-        def output(self, index):
-            return self.get_interface(2, index)
-
-
-    def __init__(self, mods):
-        self.pipe_instance = self.instance()
-        self.mod_instance = {m:self.instance() for m in mods}
-        return
-
-    def __str__(self):
-        dump = "Inputs\n"
-        for input_name in self.pipe_instance.interfaces_[1]:
-            inf = self.pipe_instance.interfaces_[1][input_name]
-            dump = dump + "  |" +input_name + ": " + inf.get_dependent_str() + "\n"
-        return dump
-
-    def __getitem__(self, key):
-        return self.mod_instance[key]
-
-    def pipe_input(self, name):
-        return self.pipe_instance.input(name)
-
-    def pipe_output(self, index):
-        return self.pipe_instance.output(index)
-
-    def connect(self, left:interface, right:interface):
-        left.addDependent(right)
-        return
-
-
-
 def get_mannual_mod():
     mods = []
     dshape = (3, 3)
@@ -127,25 +64,10 @@ def get_mannual_mod():
     return mods, dshape
 
 
-def pipeline(target):
-    """
-    #Get 4 pipeline module.
-    """
-    mods, dshape = get_mannual_mod()
-    """
-    #Prepare batch data for pipeline feeding
-    """
-    datas = []
-    for i in range(len(mods) + 1):
-        datas.append(np.full(dshape, 3 + i).astype("float32"))
-
-    # set configure
-    indx = 0
+def manual_conf(mods):
     mod_config = {}
-    mconfig = {"target_host": None, "mod_name": "default", "build": None, "params": None}
-    mconfig1 = mconfig.copy()
-    mconfig1["target"] = target[0]
-    mconfig1["dev"] = target[1]
+    # set configure
+    mconfig1 = {}
     # third output is final output, second output for mod3, first for mod2
     # input
     mconfig1["pipeline"] = {
@@ -158,9 +80,7 @@ def pipeline(target):
     }
     mod_config[mods[0]] = mconfig1
 
-    mconfig2 = mconfig.copy()
-    mconfig2["target"] = "llvm"
-    mconfig2["dev"] = tvm.cpu(0)
+    mconfig2 = {}
     mconfig2["pipeline"] = {
         "mod_indx": 2,
         "output": [
@@ -169,33 +89,28 @@ def pipeline(target):
     }
     mod_config[mods[1]] = mconfig2
 
-    mconfig3 = mconfig.copy()
-    mconfig3["target"] = "llvm"
-    mconfig3["dev"] = tvm.cpu(0)
+    mconfig3 = {}
 
     mconfig3["pipeline"] = {
         "mod_indx": 3,
         "output": [{"output_indx": 1, "dependent": [{"mod_indx": 0, "input_name": "2"}]}],
     }
     mod_config[mods[2]] = mconfig3
+    return mod_config
+
+def pipeline(target):
     """
-    #build and create pipeline module
+    #Get 4 pipeline module.
     """
-    with relay.build_config(opt_level=3):
-        pipeline_mods, string_config = pipeline_executor.build_pipeline(mod_config)
-
-    pipeline_module = pipeline_executor.create(pipeline_mods, string_config)
-
-
-def test_pipeline():
-    if pipeline_executor.pipeline_executor_enabled():
-        target_list = tvm.testing.enabled_targets()
-        for target in target_list:
-            pipeline(target)
-
-def test_config():
     (mod1, mod2, mod3), dshape = get_mannual_mod()
-    pipe_config = PipelineModuleConfig([mod1, mod2, mod3])
+    """
+    #Prepare batch data for pipeline feeding
+    """
+    datas = []
+    for i in range(5):
+        datas.append(np.full(dshape, 3 + i).astype("float32"))
+
+    pipe_config = pipeline_executor.PipelineModuleConfig([mod1, mod2, mod3])
     pipe_config.connect(pipe_config.pipe_input("data_0"),
                         pipe_config[mod1].input("data_0"))
 
@@ -212,13 +127,99 @@ def test_config():
                         pipe_config[mod3].input("data_1"))
 
     pipe_config.connect(pipe_config[mod1].output(2),
-                        pipe_config.pipe_output("0"))
+                        pipe_config.pipe_output("1"))
 
     pipe_config.connect(pipe_config[mod3].output(0),
-                        pipe_config.pipe_output("1"))
+                        pipe_config.pipe_output("2"))
+    """
+    # print configueration, the expect result like following.
+    #
+    #Inputs
+    #  |data_0: mod1:data_0
+    #  |data_1: mod2:data_1
+    #
+    #output
+    #  |output(1) : mod1.output(2)
+    #  |output(2) : mod3.output(0)
+    #
+    #connections
+    #  |mod1.output(0)-> mod2.data_0
+    #  |mod1.output(1)-> mod3.data_0
+    #  |mod2.output(0)-> mod3.data_1
+    """
 
     print(pipe_config)
 
+    """
+    # connection correctness veify
+    """
+    try:
+        pipe_config.connect(pipe_config[mod2].output(0),
+                        pipe_config[mod1].input("data_0"))
+        assert 0, f"wrong module connect order check not pass!"
+        pipe_config.connect(pipe_config.pipe_input("data_0"),
+                        pipe_config[mod1].output(0))
+        assert 0, f"wrong global input connect check not pass!"
+    except:
+        print("wrong connect check pass")
+
+    """
+    # get text format configuration.
+    """
+
+    pconfig = pipe_config.get_config()
+
+    """
+    # check if the configuration match expectation.
+    """
+    assert pconfig == manual_conf([mod1, mod2, mod3])
+
+    """
+    # generate configure for build process
+    """
+
+    mod_config = {}
+    mconfig1 = pconfig[mod1]
+    mconfig1["target_host"] = None
+    mconfig1["mod_name"] = "default"
+    mconfig1["build"] = None
+    mconfig1["params"] = None
+    mconfig1["target"] = target[0]
+    mconfig1["dev"] = target[1]
+    mod_config[mod1] = mconfig1
+
+    mconfig2 = pconfig[mod2]
+    mconfig2["target_host"] = None
+    mconfig2["mod_name"] = "default"
+    mconfig2["build"] = None
+    mconfig2["params"] = None
+    mconfig2["target"] = "llvm"
+    mconfig2["dev"] = tvm.cpu(0)
+    mod_config[mod2] = mconfig2
+
+    mconfig3 = pconfig[mod3]
+    mconfig3["target_host"] = None
+    mconfig3["mod_name"] = "default"
+    mconfig3["build"] = None
+    mconfig3["params"] = None
+    mconfig3["target"] = "llvm"
+    mconfig3["dev"] = tvm.cpu(0)
+    mod_config[mod3] = mconfig3
+
+    """
+    # build and create pipeline module
+    """
+    with relay.build_config(opt_level=3):
+        pipeline_mods, string_config = pipeline_executor.build_pipeline(mod_config)
+
+    pipeline_module = pipeline_executor.create(pipeline_mods, string_config)
+
+
+def test_pipeline():
+    if pipeline_executor.pipeline_executor_enabled():
+        target_list = tvm.testing.enabled_targets()
+        for target in target_list:
+            pipeline(target)
+
 if __name__ == "__main__":
-    #test_pipeline()
-    test_config()
+    test_pipeline()
