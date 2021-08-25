@@ -272,9 +272,9 @@ TEST(BuildModule, ZeroCopy) {
   auto b_val = runtime::NDArray::Empty({n}, {kDLFloat, 32, 1}, {kDLCPU, 0});
   auto c_val = runtime::NDArray::Empty({n}, {kDLFloat, 32, 1}, {kDLCPU, 0});
 
-  auto pa = (float*)(a_val->data);
-  auto pb = (float*)(b_val->data);
-  auto pc = (float*)(c_val->data);
+  auto pa = static_cast<float*>(a_val->data);
+  auto pb = static_cast<float*>(b_val->data);
+  auto pc = static_cast<float*>(c_val->data);
 
   // Assign values.
   for (int i = 0; i < n; i++) {
@@ -313,8 +313,9 @@ TEST(BuildModule, ZeroCopy) {
   set_output_zero_copy("elemwise_sub", out1);
 
   run();
-  float* p_out0 = (float*)out0->data;
-  float* p_out1 = (float*)out1->data;
+  auto p_out0 = static_cast<float*>(out0->data);
+  auto p_out1 = static_cast<float*>(out1->data);
+
 
   // Check correctness.
   for (int i = 0; i < n; ++i) {
