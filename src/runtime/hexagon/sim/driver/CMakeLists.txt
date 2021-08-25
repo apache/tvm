@@ -24,11 +24,17 @@ if(EXISTS ${CMAKE_CURRENT_BINARY_DIR}/config.cmake)
   include(${CMAKE_CURRENT_BINARY_DIR}/config.cmake)
 endif()
 
+if("${HEXAGON_ARCH}" STREQUAL "")
+  set(DEFAULT_HEXAGON_ARCH "v66")
+  message(STATUS "HEXAGON_ARCH not defined, defaulting to ${DEFAULT_HEXAGON_ARCH}")
+  set(HEXAGON_ARCH "${DEFAULT_HEXAGON_ARCH}")
+endif()
+
 set(EXTRA_CXX_FLAGS
   "-O2"
   "-Wno-format"
   "-mhvx -mhvx-length=128b"
-  "-mv65"
+  "-m${HEXAGON_ARCH}"
   "-stdlib=libc++"
 )
 
