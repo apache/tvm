@@ -139,8 +139,11 @@ Expr RequantizeLower(const Expr& input_tensor, const Expr& input_scale,
   auto zero_scalar = MakeConstantScalar(DataType::Int(32), 0);
   if (!IsEqualScalar(input_zero_point, zero_scalar)) {
     // Broadcast input zero point if needed.
-    Expr input_zero_broadcast =
-        ExpandBiasToMatchAxis(input_zero_point, input_shape.size(), {param->axis});
+    Expr input_zero_broadcast = ExpandBiasToMatchAxis(Reshape(input_zero_point,
+                                                              {
+                                                                  -1,
+                                                              }),
+                                                      input_shape.size(), {param->axis});
     tensor = Subtract(tensor, Cast(input_zero_broadcast, DataType::Int(32)));
   }
 
