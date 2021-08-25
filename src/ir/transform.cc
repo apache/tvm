@@ -412,9 +412,10 @@ IRModule ModulePassNode::operator()(IRModule mod, const PassContext& pass_ctx) c
   DLOG(INFO) << "Executing module pass : " << pass_info->name
              << " with opt level: " << pass_info->opt_level;
 
-  mod = pass_func(std::move(mod), pass_ctx);
+  IRModule new_mod = IRModule(mod->functions, mod->type_definitions, mod->Imports(), mod->source_map);
+  new_mod = pass_func(new_mod, pass_ctx);
 
-  ICHECK(mod.defined()) << "The return value of a module pass must be set.";
+  ICHECK(new_mod.defined()) << "The return value of a module pass must be set.";
 
   ICHECK(pass_ctx->diag_ctx)
       << "The diagnostic context was set at the top of this block this is a bug.";
@@ -422,7 +423,7 @@ IRModule ModulePassNode::operator()(IRModule mod, const PassContext& pass_ctx) c
   pass_ctx->diag_ctx.value().Render();
   pass_ctx->diag_ctx = previous;
 
-  return mod;
+  return new_mod;
 }
 
 Sequential::Sequential(tvm::Array<Pass> passes, PassInfo pass_info) {
