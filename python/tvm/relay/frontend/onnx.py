@@ -22,6 +22,7 @@ import warnings
 
 import numpy as np
 import tvm
+from tvm import relay
 from tvm.ir import IRModule
 from tvm.topi.utils import get_const_tuple
 
@@ -32,24 +33,12 @@ from .. import function as _function
 from .. import loops as _loops
 from .. import op as _op
 from .. import qnn as _qnn
+from .. import random as _random
 from .. import ty as _ty
 from .. import vision as _vision
-from .. import random as _random
-from .common import (
-    AttrCvt,
-    Renamer,
-    fold_constant,
-    get_name,
-    get_relay_op,
-    infer_channels,
-    infer_shape,
-    infer_type,
-    infer_value,
-    new_var,
-    unbind,
-    gru_cell,
-    lstm_cell,
-)
+from .common import (AttrCvt, Renamer, fold_constant, get_name, get_relay_op,
+                     gru_cell, infer_channels, infer_shape, infer_type,
+                     infer_value, lstm_cell, new_var, unbind)
 
 __all__ = ["from_onnx"]
 
@@ -3479,6 +3468,46 @@ class RandomUniform(OnnxOpConverter):
         output = _op.random.uniform(key, shape, dtype=dtype, low=low, high=high)
         _, vals = _expr.TupleWrapper(output, 2)
         return vals
+
+
+class NegativeLogLikelihoodLoss(OnnxOpConverter):
+    """Operator converter for random_uniform"""
+
+    VALID_REDUCTIONS = {"mean", "sum", "none"}
+
+    @classmethod
+    def _impl_v13(cls, inputs, attr, params):
+        ignore_index = attr.get("ignore_index", None)
+        reduction = attr.get("reduction", "mean")
+
+        if reduction not in cls.VALID_REDUCTIONS:
+            raise ValueError(
+                f"Unknown reduction type {reduction}, choices are {cls.VALID_REDUCTIONS}"
+            )
+
+        input_tensor, target_tensor, weight_tensor = inputs
+        loss = -input_tensor
+        if weight_tensor is not None:
+            loss *= weight_tensor
+
+        if target_tensor is not None and ignore_index is not None:
+            mask_tensor = target_tensor == ignore_index
+
+            # Turn all "True" entries to 0 and all "False" entries to 1
+            mask_tensor = 1 - mask_tensor
+
+            loss *= mask_tensor
+
+        if reduction == "mean":
+            if weight_tensor is not None:
+                return relay.sum(loss) / relay.sum(weight_tensor)
+            else:
+                return relay.mean(loss)
+        elif reduction == "sum":
+            return relay.sum(loss)
+        else:
+            # Case reduction == 'none'
+            return loss
 
 
 # compatible operators that do NOT require any conversion.
