@@ -27,6 +27,7 @@
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
+#include <tvm/relay/qnn/attrs.h>
 
 namespace tvm {
 namespace relay {
@@ -109,18 +110,22 @@ class SubgraphExtractor : public ExprVisitor {
  protected:
   void VisitExpr_(const CallNode* call_node) override {
     if (call_node->op == quantize_op_) {
+      const auto* attrs = call_node->attrs.as<qnn::QuantizeAttrs>();
+      ICHECK(attrs != nullptr);
       // Only look at arg0 for quantize
       VisitExpr(call_node->args[0]);
       // Collect type of quantize ops
       affine_types_.Set(GetRef<Expr>(call_node),
                         TensorAffineType(call_node->args[1], call_node->args[2],
-                                         call_node->checked_type().as<TensorTypeNode>()->dtype));
+                                         attrs->out_dtype, attrs->axis));
     } else if (call_node->op == dequantize_op_) {
+      const auto* attrs = call_node->attrs.as<qnn::DequantizeAttrs>();
+      ICHECK(attrs != nullptr);
       // Collect type of dequantize ops
       affine_types_.Set(
           GetRef<Expr>(call_node),
           TensorAffineType(call_node->args[1], call_node->args[2],
-                           call_node->args[0]->checked_type().as<TensorTypeNode>()->dtype));
+                           call_node->args[0]->checked_type().as<TensorTypeNode>()->dtype, attrs->axis));
     } else {
       // run normally on everything else.
       ExprVisitor::VisitExpr_(call_node);
