@@ -25,11 +25,14 @@ from ..op import register_fake_quantization_to_integer
 def fold_constant(expr):
     return relay.transform.FoldConstantExpr(expr, tvm.IRModule())
 
+
 def get_zeros(scale):
     return fold_constant(relay.op.cast(relay.op.zeros_like(scale), "int32"))
 
+
 def infer_shape(expr):
     return relay.transform.InferType()(tvm.IRModule.from_expr(expr))["main"].body.checked_type.shape
+
 
 @register_fake_quantization_to_integer("qnn.dequantize")
 def dequantize(expr, type_map):
@@ -60,7 +63,11 @@ def quantize(expr, type_map):
             out_dtype=expr.attrs.out_dtype,
             axis=t.axis,
         )
-    return [out, TensorAffineType(expr.args[1], expr.args[2], expr.attrs.out_dtype, expr.attrs.axis)]
+        print(infer_shape(out))
+    return [
+        out,
+        TensorAffineType(expr.args[1], expr.args[2], expr.attrs.out_dtype, expr.attrs.axis),
+    ]
 
 
 def register_unary_identity(op_name):
@@ -101,7 +108,11 @@ def bias_add(expr, type_map):
     b_t = type_map[b]
     in_scale = fold_constant(x_t.scale)
     in_zero_point = fold_constant(x_t.zero_point)
-    if not tvm.ir.structural_equal(x_t, b_t):
+    if not (
+        tvm.ir.structural_equal(x_t.scale, b_t.scale)
+        and tvm.ir.structural_equal(x_t.zero_point, b_t.zero_point)
+        and tvm.ir.structural_equal(x_t.dtype, b_t.dtype)
+    ):
         b = relay.qnn.op.requantize(
             b,
             b_t.scale,
@@ -111,6 +122,7 @@ def bias_add(expr, type_map):
             out_dtype=x_t.dtype,
             axis=0,
         )
+        print(infer_shape(b))
     out = relay.op.nn.bias_add(x, b, **expr.attrs)
     return [out, x_t]
 
@@ -226,8 +238,8 @@ def clip(expr, type_map):
         if not isinstance(amax, relay.expr.Constant):
             amax = relay.op.const(amax)
 
-        scale_shape =infer_shape(scale)
-        if len(scale_shape)>0 and scale_shape[0] > 1:
+        scale_shape = infer_shape(scale)
+        if len(scale_shape) > 0 and scale_shape[0] > 1:
             b_shape = [1] * len(infer_shape(arg))
             b_shape[t.axis] = -1
             amin = relay.op.reshape(relay.op.broadcast_to(amin, scale_shape), b_shape)
@@ -252,6 +264,7 @@ def pad(expr, type_map):
         ## and we need to make sure it's affine type matches the arg
         pad_t = type_map[pad_value]
         if not tvm.ir.structural_equal(t, pad_t):
+            print("pad", t, pad_t)
             pad_value = relay.qnn.op.requantize(
                 pad_value,
                 pad_t.scale,
@@ -259,7 +272,7 @@ def pad(expr, type_map):
                 t.scale,
                 t.zero_point,
                 out_dtype=t.dtype,
-                axis=t.axis
+                axis=t.axis,
             )
     else:
         ## If the pad-value is a constant, we need to quantize it
