@@ -123,12 +123,12 @@ Example of loading the parameters
 How to use Debugger?
 ***************************************
 
-1. In ``config.cmake`` set the ``USE_GRAPH_RUNTIME_DEBUG`` flag to ``ON``
+1. In ``config.cmake`` set the ``USE_PROFILER`` flag to ``ON``
 
    ::
 
        # Whether enable additional graph debug functions
-       set(USE_GRAPH_RUNTIME_DEBUG ON)
+       set(USE_PROFILER ON)
 
 2. Do 'make' tvm, so that it will make the ``libtvm_runtime.so``
 
@@ -154,8 +154,7 @@ How to use Debugger?
 
 ::
     lib = tvm.runtime.load_module("network.so")
-    m = graph_executor.GraphModuleDebug(lib["debug_create"]("default", dev),
-                                         [dev], lib["get_json"](), dump_root="/tmp/tvmdbg")
+    m = graph_executor.create(lib["get_graph_json"](), lib, dev, dump_root="/tmp/tvmdbg")
     # set inputs
     m.set_input('data', tvm.nd.array(data.astype(dtype)))
     m.set_input(**params)

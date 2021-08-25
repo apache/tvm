@@ -90,6 +90,25 @@ def test_cpu():
     tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
 
+def test_cpu_get_graph_json():
+    if not tvm.testing.device_enabled("llvm"):
+        print("Skip because llvm is not enabled")
+        return
+    mod, params = relay.testing.synthetic.get_workload()
+    with relay.build_config(opt_level=3):
+        complied_graph_lib = relay.build_module.build(mod, "llvm", params=params)
+    from tvm.contrib import utils
+
+    temp = utils.tempdir()
+    file_name = "deploy_lib.so"
+    path_lib = temp.relpath(file_name)
+    complied_graph_lib.export_library(path_lib)
+    loaded_lib = tvm.runtime.load_module(path_lib)
+    json = loaded_lib["get_graph_json"]()
+    assert isinstance(json, str) == True
+    assert json.find("tvmgen_default_fused_nn_softmax1") == 6312
+
+
 @tvm.testing.requires_cuda
 @tvm.testing.requires_gpu
 def test_gpu():
@@ -619,3 +638,4 @@ if __name__ == "__main__":
     test_remove_package_params()
     test_debug_graph_executor()
     test_multiple_imported_modules()
+    test_cpu_get_graph_json()
