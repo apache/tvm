@@ -34,7 +34,7 @@ from infra import make_ethosu_conv2d
 class WeightStreamOnly:
     def main(placeholder: ty.handle, ethosu_write: ty.handle, placeholder_1: ty.handle, placeholder_2: ty.handle, placeholder_3: ty.handle, placeholder_4: ty.handle, placeholder_5: ty.handle, placeholder_6: ty.handle, placeholder_7: ty.handle, placeholder_8: ty.handle) -> None:
         # function attr dict
-        tir.func_attr({"global_symbol": "main", "tir.noalias": True})
+        tir.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
         buffer = tir.match_buffer(placeholder_7, [112], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
         buffer_1 = tir.match_buffer(placeholder_4, [32], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
         buffer_2 = tir.match_buffer(placeholder_2, [32], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
@@ -111,7 +111,7 @@ def test_weight_stream_only():
 class DirectReadOnly:
     def main(placeholder: ty.handle, placeholder_1: ty.handle, placeholder_2: ty.handle, placeholder_3: ty.handle, placeholder_4: ty.handle, ethosu_write: ty.handle) -> None:
         # function attr dict
-        tir.func_attr({"global_symbol": "main", "tir.noalias": True})
+        tir.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
         buffer = tir.match_buffer(placeholder_3, [160], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
         ethosu_write_1 = tir.match_buffer(ethosu_write, [1, 16, 16, 8], dtype="int8", elem_offset=0, align=128, offset_factor=1)
         placeholder_5 = tir.match_buffer(placeholder, [1, 16, 16, 32], dtype="int8", elem_offset=0, align=128, offset_factor=1)
@@ -172,7 +172,7 @@ def test_direct_read_only():
 class MixedRead:
     def main(placeholder: ty.handle, placeholder_1: ty.handle, placeholder_2: ty.handle, ethosu_write: ty.handle, placeholder_3: ty.handle, placeholder_4: ty.handle, placeholder_5: ty.handle, placeholder_6: ty.handle, placeholder_7: ty.handle, placeholder_8: ty.handle, placeholder_9: ty.handle, placeholder_10: ty.handle) -> None:
         # function attr dict
-        tir.func_attr({"global_symbol": "main", "tir.noalias": True})
+        tir.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
         buffer = tir.match_buffer(placeholder_7, [80], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
         buffer_1 = tir.match_buffer(placeholder_5, [80], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
         buffer_2 = tir.match_buffer(placeholder_3, [80], dtype="uint8", elem_offset=0, align=128, offset_factor=1)

@@ -31,7 +31,7 @@ from infra import make_ethosu_conv2d
 class ReferenceModule:
     def main(placeholder: ty.handle, placeholder_1: ty.handle, placeholder_2: ty.handle, ethosu_write: ty.handle) -> None:
         # function attr dict
-        tir.func_attr({"global_symbol": "main", "tir.noalias": True})
+        tir.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
         buffer = tir.match_buffer(placeholder_2, [80], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
         placeholder_3 = tir.match_buffer(placeholder, [1, 16, 16, 32], dtype="int8", elem_offset=0, align=128, offset_factor=1)
         buffer_1 = tir.match_buffer(placeholder_1, [304], dtype="uint8", elem_offset=0, align=128, offset_factor=1)

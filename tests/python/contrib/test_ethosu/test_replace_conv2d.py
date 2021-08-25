@@ -194,7 +194,7 @@ def test_conv2d_single(trial):
 class Conv2dDoubleCascade1:
     def main(placeholder: ty.handle, placeholder_1: ty.handle, placeholder_2: ty.handle, placeholder_3: ty.handle, placeholder_4: ty.handle, ethosu_write: ty.handle) -> None:
         # function attr dict
-        tir.func_attr({"global_symbol": "main", "tir.noalias": True})
+        tir.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
         buffer = tir.match_buffer(placeholder_3, [304], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
         placeholder_5 = tir.match_buffer(placeholder, [1, 8, 8, 3], dtype="int8", elem_offset=0, align=128, offset_factor=1)
         buffer_1 = tir.match_buffer(placeholder_4, [80], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
@@ -214,7 +214,7 @@ class Conv2dDoubleCascade1:
 class Conv2dDoubleCascade2:
     def main(placeholder: ty.handle, placeholder_1: ty.handle, placeholder_2: ty.handle, placeholder_3: ty.handle, placeholder_4: ty.handle, ethosu_write: ty.handle) -> None:
         # function attr dict
-        tir.func_attr({"global_symbol": "main", "tir.noalias": True})
+        tir.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
         buffer = tir.match_buffer(placeholder_4, [80], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
         buffer_1 = tir.match_buffer(placeholder_2, [320], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
         buffer_2 = tir.match_buffer(placeholder_1, [1312], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
@@ -234,7 +234,7 @@ class Conv2dDoubleCascade2:
 class Conv2dDoubleCascade3:
     def main(placeholder: ty.handle, placeholder_1: ty.handle, placeholder_2: ty.handle, placeholder_3: ty.handle, placeholder_4: ty.handle, ethosu_write: ty.handle) -> None:
         # function attr dict
-        tir.func_attr({"global_symbol": "main", "tir.noalias": True})
+        tir.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
         ethosu_write_1 = tir.match_buffer(ethosu_write, [1, 20, 4, 8], dtype="int8", elem_offset=0, align=128, offset_factor=1)
         buffer = tir.match_buffer(placeholder_3, [1744], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
         buffer_1 = tir.match_buffer(placeholder_4, [80], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
@@ -256,7 +256,7 @@ class Conv2dDoubleCascade3:
 class Conv2dDoubleCascade4:
     def main(placeholder: ty.handle, placeholder_1: ty.handle, placeholder_2: ty.handle, placeholder_3: ty.handle, placeholder_4: ty.handle, ethosu_write: ty.handle) -> None:
         # function attr dict
-        tir.func_attr({"global_symbol": "main", "tir.noalias": True})
+        tir.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
         buffer = tir.match_buffer(placeholder_1, [1456], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
         buffer_1 = tir.match_buffer(placeholder_2, [352], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
         placeholder_5 = tir.match_buffer(placeholder, [1, 8, 1, 8, 16], dtype="int8", elem_offset=0, align=128, offset_factor=1)
@@ -385,7 +385,7 @@ def test_conv2d_double_cascade(trial):
 class Conv2dInlineCopy1:
     def main(placeholder: ty.handle, placeholder_1: ty.handle, placeholder_2: ty.handle, ethosu_write: ty.handle) -> None:
         # function attr dict
-        tir.func_attr({"global_symbol": "main", "tir.noalias": True})
+        tir.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
         buffer = tir.match_buffer(placeholder_1, [848], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
         placeholder_3 = tir.match_buffer(placeholder, [1, 10, 12, 8], dtype="int8", elem_offset=0, align=128, offset_factor=1)
         ethosu_write_1 = tir.match_buffer(ethosu_write, [1, 8, 8, 16], dtype="int8", elem_offset=0, align=128, offset_factor=1)
@@ -399,7 +399,7 @@ class Conv2dInlineCopy1:
 class Conv2dInlineCopy2:
     def main(placeholder: ty.handle, placeholder_1: ty.handle, placeholder_2: ty.handle, ethosu_write: ty.handle) -> None:
         # function attr dict
-        tir.func_attr({"global_symbol": "main", "tir.noalias": True})
+        tir.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
         ethosu_write_1 = tir.match_buffer(ethosu_write, [1, 3, 5, 16], dtype="int8", elem_offset=0, align=128, offset_factor=1)
         placeholder_3 = tir.match_buffer(placeholder, [1, 7, 9, 5], dtype="int8", elem_offset=0, align=128, offset_factor=1)
         buffer = tir.match_buffer(placeholder_2, [160], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
@@ -442,7 +442,7 @@ def test_conv2d_inline_copy(trial):
 class Conv2dInlineReshape1:
     def main(placeholder: ty.handle, placeholder_1: ty.handle, placeholder_2: ty.handle, ethosu_write: ty.handle) -> None:
         # function attr dict
-        tir.func_attr({"global_symbol": "main", "tir.noalias": True})
+        tir.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
         ethosu_write_1 = tir.match_buffer(ethosu_write, [1, 8, 6, 16], dtype="int8", elem_offset=0, align=128, offset_factor=1)
         buffer = tir.match_buffer(placeholder_2, [160], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
         buffer_1 = tir.match_buffer(placeholder_1, [848], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
@@ -457,7 +457,7 @@ class Conv2dInlineReshape1:
 class Conv2dInlineReshape2:
     def main(placeholder: ty.handle, placeholder_1: ty.handle, placeholder_2: ty.handle, ethosu_write: ty.handle) -> None:
         # function attr dict
-        tir.func_attr({"global_symbol": "main", "tir.noalias": True})
+        tir.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
         ethosu_write_1 = tir.match_buffer(ethosu_write, [1, 8, 6, 16], dtype="int8", elem_offset=0, align=128, offset_factor=1)
         buffer = tir.match_buffer(placeholder_2, [160], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
         buffer_1 = tir.match_buffer(placeholder_1, [848], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
@@ -472,7 +472,7 @@ class Conv2dInlineReshape2:
 class Conv2dInlineReshape3:
     def main(placeholder: ty.handle, placeholder_1: ty.handle, placeholder_2: ty.handle, ethosu_write: ty.handle) -> None:
         # function attr dict
-        tir.func_attr({"global_symbol": "main", "tir.noalias": True})
+        tir.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
         buffer = tir.match_buffer(placeholder_2, [160], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
         placeholder_3 = tir.match_buffer(placeholder, [192, 1], dtype="int8", elem_offset=0, align=128, offset_factor=1)
         buffer_1 = tir.match_buffer(placeholder_1, [848], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
@@ -487,7 +487,7 @@ class Conv2dInlineReshape3:
 class Conv2dInlineReshape4:
     def main(placeholder: ty.handle, placeholder_1: ty.handle, placeholder_2: ty.handle, ethosu_write: ty.handle) -> None:
         # function attr dict
-        tir.func_attr({"global_symbol": "main", "tir.noalias": True})
+        tir.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
         ethosu_write_1 = tir.match_buffer(ethosu_write, [1, 8, 6, 16], dtype="int8", elem_offset=0, align=128, offset_factor=1)
         buffer = tir.match_buffer(placeholder_2, [160], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
         placeholder_3 = tir.match_buffer(placeholder, [192], dtype="int8", elem_offset=0, align=128, offset_factor=1)
