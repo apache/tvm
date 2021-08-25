@@ -143,7 +143,7 @@ class TensorParams:
 
 class QnnConv2DParams:
     """
-    This class will parse a Call to a ethosu.qnn_conv2d_clip composite function
+    This class will parse a Call to a ethosu.qnn_conv2d composite function
     and extract quantization information of all the associated tensors.
     """
 
