@@ -412,7 +412,8 @@ IRModule ModulePassNode::operator()(IRModule mod, const PassContext& pass_ctx) c
   DLOG(INFO) << "Executing module pass : " << pass_info->name
              << " with opt level: " << pass_info->opt_level;
 
-  IRModule new_mod = IRModule(mod->functions, mod->type_definitions, mod->Imports(), mod->source_map);
+  IRModule new_mod =
+      IRModule(mod->functions, mod->type_definitions, mod->Imports(), mod->source_map);
   new_mod = pass_func(new_mod, pass_ctx);
 
   ICHECK(new_mod.defined()) << "The return value of a module pass must be set.";
