@@ -32,7 +32,7 @@ static constexpr const unsigned int kNumUsablePages =
 static constexpr const unsigned int kPageSizeBytesLog = 8;  // 256 byte pages.
 static constexpr const unsigned int kMemoryPoolSizeBytes = kTotalPages * (1 << kPageSizeBytesLog);
 
-class MemoryManagerTest : public ::testing::Test {
+class PageAllocatorTest : public ::testing::Test {
  protected:
   void SetUp() override {
     memset(raw_memory_pool, 0, sizeof(raw_memory_pool));
@@ -57,7 +57,7 @@ class MemoryManagerTest : public ::testing::Test {
 
 #define EXPECT_PAGE(expected, actual) EXPECT_EQ(expected, AddressToPageNumber(actual))
 
-TEST_F(MemoryManagerTest, AllocFreeFifo) {
+TEST_F(PageAllocatorTest, AllocFreeFifo) {
   EXPECT_EQ(interface->vleak_size, 0);
 
   for (int i = 0; i < 2; i++) {
@@ -79,10 +79,4 @@ TEST_F(MemoryManagerTest, AllocFreeFifo) {
       EXPECT_EQ(interface->vleak_size, idx);
     }
   }
-}
-
-int main(int argc, char** argv) {
-  testing::InitGoogleTest(&argc, argv);
-  testing::FLAGS_gtest_death_test_style = "threadsafe";
-  return RUN_ALL_TESTS();
 }
