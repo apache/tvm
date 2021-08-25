@@ -36,21 +36,9 @@ from .. import qnn as _qnn
 from .. import random as _random
 from .. import ty as _ty
 from .. import vision as _vision
-from .common import (
-    AttrCvt,
-    Renamer,
-    fold_constant,
-    get_name,
-    get_relay_op,
-    gru_cell,
-    infer_channels,
-    infer_shape,
-    infer_type,
-    infer_value,
-    lstm_cell,
-    new_var,
-    unbind,
-)
+from .common import (AttrCvt, Renamer, fold_constant, get_name, get_relay_op,
+                     gru_cell, infer_channels, infer_shape, infer_type,
+                     infer_value, lstm_cell, new_var, unbind)
 
 __all__ = ["from_onnx"]
 
@@ -3490,7 +3478,7 @@ class NegativeLogLikelihoodLoss(OnnxOpConverter):
     @classmethod
     def _impl_v13(cls, inputs, attr, params):
         ignore_index = attr.get("ignore_index", None)
-        reduction = attr.get("reduction", "mean")
+        reduction = attr.get("reduction", b"mean").decode("utf-8")
 
         if reduction not in cls.VALID_REDUCTIONS:
             raise ValueError(
