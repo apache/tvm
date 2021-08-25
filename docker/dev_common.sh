@@ -55,7 +55,6 @@ function lookup_image_spec() {
     fi
 }
 
-
 function run_docker() {
     image_name="$1"  # Name of the Jenkinsfile var to find
     shift
@@ -66,5 +65,5 @@ function run_docker() {
         exit 2
     fi
 
-    "${GIT_TOPLEVEL}/docker/bash.sh" -i "${image_spec}" "$@"
+    "${GIT_TOPLEVEL}/docker/bash.sh" "${image_spec}" "$@"
 }
