@@ -1727,69 +1727,37 @@ def test_partition_constant_embedding():
     assert tvm.ir.structural_equal(embeded_func(x, b), pattern.partition(reluc))
 
 
+def test_rewrite_once():
+    # This class recursively removes the arguments to concat until there is nothing left to concatenate.
+    class ConcatRewriter(DFPatternCallback):
+        def __init__(self, rewrite_once):
+            super().__init__(rewrite_once=rewrite_once)
+            self.pattern = is_op("concatenate")(None)
+
+        def callback(self, pre, post, node_map):
+            concat_args = post.args[0]
+            # Remove the last argument
+            new_args = [concat_args[i] for i in range(len(concat_args) - 1)]
+            if new_args:
+                return relay.op.concatenate(relay.expr.Tuple(new_args), axis=0)
+            else:
+                return concat_args
+
+    x = relay.var("x")
+    y = relay.var("y")
+    z = relay.var("z")
+    concat = relay.op.concatenate(relay.expr.Tuple([x, y, z]), axis=0)
+
+    # Let the rewriter run recursively
+    out = rewrite(ConcatRewriter(False), concat)
+    expected = relay.expr.Tuple([x])
+    assert tvm.ir.structural_equal(out, expected)
+
+    # Run the rewriter once
+    out = rewrite(ConcatRewriter(True), concat)
+    expected = relay.op.concatenate(relay.expr.Tuple([x, y]), axis=0)
+    assert tvm.ir.structural_equal(out, expected)
+
+
 if __name__ == "__main__":
-    test_expr_pattern()
-    test_var_pattern()
-    test_constant_pattern()
-    test_wildcard_pattern()
-    test_CallPattern()
-    test_TuplePattern()
-    test_TupleGetItemPattern()
-    test_AltPattern()
-    test_TypePattern()
-    test_DataTypePattern()
-    test_ShapePattern()
-    test_AttrPattern()
-    test_match_op()
-    test_no_match_op()
-    test_match_op_or()
-    test_match_call_commutive()
-    test_no_match_call_commutive()
-    test_match_call()
-    test_no_match_call()
-    test_match_option()
-    test_no_match_option()
-    test_match_const()
-    test_match_tuple()
-    test_no_match_tuple()
-    test_match_type()
-    test_no_match_type()
-    test_match_dtype()
-    test_no_match_dtype()
-    test_match_shape()
-    test_no_match_shape()
-    test_match_op_attr()
-    test_no_match_op_attr()
-    test_match_func_attr()
-    test_no_match_func_attr()
-    test_match_call_attr()
-    test_no_match_call_attr()
-    test_match_diamond()
-    test_no_match_diamond()
-    test_match_fake_diamond()
-    test_match_dominator()
-    test_not_match_dominator()
-    test_rewrite()
-    test_rewrite_func()
-    test_nested_rewrite()
-    test_not_fuse_multi_diamond()
-    test_fuse_batchnorm()
-    test_no_fuse_batchnorm()
-    test_fuse_double_batchnorm()
-    test_partial_fuse_double_batchnorm()
-    test_fuse_batchnorm_commutation()
-    test_quadruple_rewrite_dominator()
-    test_algebraic_simplify()
-    test_double_partition()
-    test_partition_dominator()
-    test_quadruple_partition_dominator()
-    test_partition_batchnorm()
-    test_partition_double_batchnorm()
-    test_partition_check()
-    test_partition_check_types()
-    test_partition_option()
-    test_match_match()
-    test_partition_constant_embedding()
-    test_IfPattern()
-    test_match_if()
-    test_no_match_if()
+    pytest.main([__file__])
