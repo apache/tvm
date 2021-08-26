@@ -158,7 +158,7 @@ TensorRTEngineAndContext TensorRTBuilder::BuildEngine() {
     config_->setFlag(nvinfer1::BuilderFlag::kFP16);
   }
 
-  if(use_int8_){
+  if(use_int8_) {
     config_->setFlag(nvinfer1::BuilderFlag::kINT8);
     config_->setInt8Calibrator(calibrator_);
     LOG(INFO)<<"config finishes setting calibrator for int8 mode ... ";
@@ -246,8 +246,7 @@ void TensorRTBuilder::CleanUp() {
 #endif
   builder_->destroy();
   for (auto weight : trt_weights_) {
-    if (weight.type == nvinfer1::DataType::kFLOAT)
-    {
+    if (weight.type == nvinfer1::DataType::kFLOAT) {
       delete[] static_cast<const float*>(weight.values);
     }else{
       delete[] static_cast<const uint16_t*>(weight.values);

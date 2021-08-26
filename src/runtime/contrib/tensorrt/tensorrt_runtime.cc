@@ -54,11 +54,6 @@ struct PairHash {
   }
 };
 
-std::string getEnvVar( std::string const & key )
-{
-    char * val = getenv( key.c_str() );
-    return val == NULL ? std::string("") : std::string(val);
-}
 
 using namespace tvm::runtime::json;
 
@@ -81,10 +76,9 @@ class TensorRTRuntime : public JSONRuntimeBase {
         multi_engine_mode_(false) {
           const bool use_int8 = dmlc::GetEnv("TVM_TENSORRT_USE_INT8", false);
           if(use_int8){
-            std::string num_cali_var("TENSORRT_NUM_CALI_INT8");
-            std::string num = getEnvVar(num_cali_var);
-            num_calibration_batches_remaining_ = stoi(num);
-            LOG(INFO) << "set up num_calibration_batches_remaining_ : " << num_calibration_batches_remaining_;
+            const int extract_cali_num = dmlc::GetEnv("TENSORRT_NUM_CALI_INT8", 0);
+            num_calibration_batches_remaining_ = extract_cali_num;
+            LOG(INFO) << "settiing up num_calibration_batches_remaining_ as " << num_calibration_batches_remaining_ << " for calibrating data ... ";
           }
         }
 
