@@ -62,11 +62,11 @@ void TVMPackedFunc_SetArgs(TVMPackedFunc* pf, const TVMArgs* args);
 
 inline TVMModuleHandle TVMArgs_AsModuleHandle(const TVMArgs* args, size_t index) {
   if (index >= args->values_count) {
-    TVMPlatformAbort(-1);
+    TVMPlatformAbort((tvm_crt_error_t)-1);
   }
 
   if (args->tcodes[index] != kTVMModuleHandle) {
-    TVMPlatformAbort(-1);
+    TVMPlatformAbort((tvm_crt_error_t)-1);
   }
 
   return args->values[index].v_handle;

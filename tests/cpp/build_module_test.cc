@@ -152,9 +152,9 @@ TEST(BuildModule, Heterogeneous) {
   auto b_val = runtime::NDArray::Empty({n}, {kDLFloat, 32, 1}, {kDLCPU, 0});
   auto c_val = runtime::NDArray::Empty({n}, {kDLFloat, 32, 1}, {kDLCPU, 0});
 
-  auto pa = (float*)(a_val->data);
-  auto pb = (float*)(b_val->data);
-  auto pc = (float*)(c_val->data);
+  auto pa = static_cast<float*>(a_val->data);
+  auto pb = static_cast<float*>(b_val->data);
+  auto pc = static_cast<float*>(c_val->data);
 
   // Assign values.
   for (int i = 0; i < n; i++) {
@@ -192,16 +192,10 @@ TEST(BuildModule, Heterogeneous) {
 
   run();
   tvm::runtime::NDArray out = get_output(0);
-  float* p_out = (float*)out->data;
+  float* p_out = static_cast<float*>(out->data);
 
   // Check correctness.
   for (int i = 0; i < n; ++i) {
     ICHECK_LT(std::fabs(p_out[i] - (i + (i + 1.0) - (i - 1.0))), 1e-5);
   }
-}
-
-int main(int argc, char** argv) {
-  testing::InitGoogleTest(&argc, argv);
-  testing::FLAGS_gtest_death_test_style = "threadsafe";
-  return RUN_ALL_TESTS();
 }

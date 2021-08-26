@@ -79,6 +79,16 @@ def _parse_error_render_level(error_render_level: str) -> int:
     return _ERROR_RENDER_LEVEL.get(error_render_level)
 
 
+def _parse_seed(seed: Optional[int]) -> int:
+    if seed is None:
+        return -1
+    if not isinstance(seed, int):
+        raise TypeError(f"Expected `seed` to be int or None, but gets: {seed}")
+    if seed < 1 or seed > 2147483647:
+        raise ValueError(f"seed must be in the range [1, 2147483647], but gets: {seed}")
+    return seed
+
+
 @_register_object("tir.Schedule")
 class Schedule(Object):
     """The user-facing schedule class
@@ -98,6 +108,7 @@ class Schedule(Object):
         self,
         mod: Union[PrimFunc, IRModule],
         *,
+        seed: Optional[int] = None,
         debug_mask: Union[str, int] = "none",
         error_render_level: str = "detail",
     ) -> None:
@@ -107,6 +118,10 @@ class Schedule(Object):
         ----------
         mod : Union[PrimFunc, IRModule]
             The IRModule or PrimFunc to be scheduled
+        seed: Optional[int]
+            The seed value for schedule's random state
+            Note that None and -1 means use device random, otherwise only integer between 1 and
+            2147483647 is allowed.
         debug_mask : Union[str, int]
             Do extra correctness checking after the class creation and each time
             after calling the Replace method.
@@ -130,6 +145,7 @@ class Schedule(Object):
         self.__init_handle_by_constructor__(
             _ffi_api.TracedSchedule,  # type: ignore # pylint: disable=no-member
             _parse_mod(mod),
+            _parse_seed(seed),
             _parse_debug_mask(debug_mask),
             _parse_error_render_level(error_render_level),
         )
@@ -138,12 +154,14 @@ class Schedule(Object):
     def _create_non_traced(
         mod: Union[PrimFunc, IRModule],
         *,
+        seed: Optional[int] = None,
         debug_mask: Union[str, int] = "none",
         error_render_level: str = "detail",
     ) -> "Schedule":
         """Construct a non-traced TensorIR schedule class from an IRModule."""
         return _ffi_api.ConcreteSchedule(  # type: ignore # pylint: disable=no-member
             _parse_mod(mod),
+            _parse_seed(seed),
             _parse_debug_mask(debug_mask),
             _parse_error_render_level(error_render_level),
         )
@@ -170,7 +188,7 @@ class Schedule(Object):
         * guaranteeing that
         * 1) SRef tree is completely reconstructed;
         * 2) The IRModule being scheduled is untouched;
-        * 3) All the random variables are valid in the copy, pointing to the correpsonding sref
+        * 3) All the random variables are valid in the copy, pointing to the corresponding sref
         * reconstructed
 
         Returns
@@ -189,6 +207,16 @@ class Schedule(Object):
             The new random seed, -1 if use device random, otherwise non-negative
         """
         return _ffi_api.ScheduleSeed(self, seed)  # type: ignore # pylint: disable=no-member
+
+    def fork_seed(self) -> int:
+        """Returns a forked random state as seed for new schedules
+
+        Returns
+        -------
+        seed : int
+            The forked random state, not the same as the current random state
+        """
+        return _ffi_api.ScheduleForkSeed(self)  # type: ignore # pylint: disable=no-member
 
     def show(self, rand_var: RAND_VAR_TYPE) -> str:
         """Returns a string representation of the value that the random variable evaluates to
@@ -226,7 +254,7 @@ class Schedule(Object):
         Returns
         -------
         result : Optional[Union[int, Block, For]]
-            The correpsonding result
+            The corresponding result
         """
         if isinstance(rand_var_or_sref, StmtSRef):
             return rand_var_or_sref.stmt
@@ -236,7 +264,7 @@ class Schedule(Object):
         return result
 
     def get_sref(self, rand_var_or_stmt: Union[BlockRV, LoopRV, Block, For]) -> Optional[StmtSRef]:
-        """Returns the correpsonding sref to the given
+        """Returns the corresponding sref to the given
         1) LoopRV
         2) BlockRV
         3) Block
@@ -250,7 +278,7 @@ class Schedule(Object):
         Returns
         -------
         result : Optional[StmtSRef]
-            The correpsonding result
+            The corresponding result
         """
         return _ffi_api.ScheduleGetSRef(  # type: ignore # pylint: disable=no-member
             self, rand_var_or_stmt
@@ -267,6 +295,35 @@ class Schedule(Object):
         return _ffi_api.ScheduleRemoveRV(self, rand_var)  # type: ignore # pylint: disable=no-member
 
     ########## Schedule: Sampling ##########
+
+    def sample_categorical(
+        self,
+        candidates: List[int],
+        probs: List[float],
+        decision: Optional[int] = None,
+    ) -> ExprRV:
+        """Sample an integer given the probability distribution
+
+        Parameters
+        ----------
+        candidates : List[int]
+            The candidates to be sampled from
+        probs : List[float]
+            The probability of each candidate
+        decision : Optional[int]
+            The sampling decision, if any
+
+        Returns
+        -------
+        result : ExprRV
+            The random variable sampled from candidates
+        """
+        return _ffi_api.ScheduleSampleCategorical(  # type: ignore # pylint: disable=no-member
+            self,
+            candidates,
+            probs,
+            decision,
+        )
 
     ########## Schedule: Get blocks & loops ##########
     def get_block(
@@ -413,7 +470,7 @@ class Schedule(Object):
                     with tir.block([128, 128], "B") as [vi, vj]:
                         B[vi, vj] = A[vi, vj] * 2.0
 
-        Create the schedule and do fuse:
+        Create the schedule and do split:
 
         .. code-block:: python
 
@@ -442,7 +499,294 @@ class Schedule(Object):
         # that there is at most one None in `factors`
         return _ffi_api.ScheduleSplit(self, loop, factors)  # type: ignore # pylint: disable=no-member
 
+    def reorder(self, *ordered_loops: List[LoopRV]) -> None:
+        """
+        Reorder a list of loops. It doesn't require the loops to be consecutive.
+        It requires:
+        1) The loops are in the same chain. That means: the loops can be ordered to [l_1, l_2, ... ,
+        l_n] where l_i is an ancestor of l_{i+1} and there are only single-branch loops between
+        l_1 and l_n (which also indicates they are under the same scope).
+        2) After reordering, the domain of an outer loop cannot depend on any of the inner loops.
+        3) For every block under the loop nests, its block binding must be affine, and the block
+        variables must be either data parallel or reduction.
+        4) No duplicated loops are allowed in the arguments.
+
+        Parameters
+        ----------
+        *ordered_loops : List[LoopRV]
+            The loops in the new order
+
+        Examples
+        --------
+
+        Before reorder, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @tvm.script.tir
+            def before_reorder(a: ty.handle, b: ty.handle) -> None:
+                A = tir.match_buffer(a, (128, 128))
+                B = tir.match_buffer(b, (128, 128))
+                for i, j in tir.grid(128, 128):
+                    with tir.block([128, 128], "B") as [vi, vj]:
+                        B[vi, vj] = A[vi, vj] * 2.0
+
+        Create the schedule and do reorder:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(before_reorder)
+            i, j = sch.get_loops(sch.get_block("B"))
+            sch.reorder(j, i)
+            print(tvm.script.asscript(sch.mod["main"]))
+
+        After applying reorder, the IR becomes:
+
+        .. code-block:: python
+
+            @tvm.script.tir
+            def after_reorder(a: ty.handle, b: ty.handle) -> None:
+                A = tir.match_buffer(a, (128, 128))
+                B = tir.match_buffer(b, (128, 128))
+                # Here j and i are reordered
+                for j, i in tir.grid(128, 128):
+                    with tir.block([128, 128], "B") as [vi, vj]:
+                        tir.bind(vi, i)
+                        tir.bind(vj, j)
+                        B[vi, vj] = A[vi, vj] * 2.0
+
+        """
+        _ffi_api.ScheduleReorder(self, ordered_loops)  # type: ignore # pylint: disable=no-member
+
     ########## Schedule: Manipulate ForKind ##########
+
+    def parallel(self, loop: LoopRV) -> None:
+        """Parallelize the input loop. It requires:
+        1) The scope block that the loop is in should have stage-pipeline property
+        2) All the blocks under the loop are complete blocks or reduction blocks, and have affine
+        bindings
+        3) For each block under the loop, the loop can only be contained in data-parallel block
+        iters' bindings
+
+        Parameters
+        ----------
+        loop : LoopRV
+            The loop to be parallelized
+
+        Examples
+        --------
+
+        Before parallel, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @tvm.script.tir
+            def before_parallel(a: ty.handle, b: ty.handle) -> None:
+                A = tir.match_buffer(a, (128, 128))
+                B = tir.match_buffer(b, (128, 128))
+                for i, j in tir.grid(128, 128):
+                    with tir.block([128, 128], "B") as [vi, vj]:
+                        tir.bind(vi, i)
+                        tir.bind(vj, j)
+                        B[vi, vj] = A[vi, vj] * 2.0
+
+        Create the schedule and do parallel:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(before_parallel)
+            i, j = sch.get_loops(sch.get_block("B"))
+            sch.parallel(i)
+
+        After applying parallel, the IR becomes:
+
+        .. code-block:: python
+
+            @tvm.script.tir
+            def after_parallel(a: ty.handle, b: ty.handle) -> None:
+                A = tir.match_buffer(a, (128, 128))
+                B = tir.match_buffer(b, (128, 128))
+                for i in tir.parallel(0, 128):
+                    for j in tir.serial(0, 128):
+                        with tir.block([128, 128], "B") as [vi, vj]:
+                            tir.bind(vi, i)
+                            tir.bind(vj, j)
+                            B[vi, vj] = A[vi, vj] * 2.0
+
+        """
+        _ffi_api.ScheduleParallel(self, loop)  # type: ignore # pylint: disable=no-member
+
+    def vectorize(self, loop: LoopRV) -> None:
+        """Vectorize the input loop. It requires:
+        1) The scope block that the loop is in should have stage-pipeline property
+        2) All the blocks under the loop are complete blocks or reduction blocks, and have affine
+        bindings
+        3) For each block under the loop, the loop can only be contained in data-parallel block
+        iters' bindings
+
+        Parameters
+        ----------
+        loop : LoopRV
+            The loop to be vectorized
+
+        Examples
+        --------
+
+        Before vectorize, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @tvm.script.tir
+            def before_vectorize(a: ty.handle, b: ty.handle) -> None:
+                A = tir.match_buffer(a, (128, 128))
+                B = tir.match_buffer(b, (128, 128))
+                for i, j in tir.grid(128, 128):
+                    with tir.block([128, 128], "B") as [vi, vj]:
+                        tir.bind(vi, i)
+                        tir.bind(vj, j)
+                        B[vi, vj] = A[vi, vj] * 2.0
+
+        Create the schedule and do vectorize:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(before_vectorize)
+            i, j = sch.get_loops(sch.get_block("B"))
+            sch.vectorize(j)
+
+        After applying vectorize, the IR becomes:
+
+        .. code-block:: python
+
+            @tvm.script.tir
+            def after_vectorize(a: ty.handle, b: ty.handle) -> None:
+                A = tir.match_buffer(a, (128, 128))
+                B = tir.match_buffer(b, (128, 128))
+                for i in tir.serial(0, 128):
+                    for j in tir.vectorized(0, 128):
+                        with tir.block([128, 128], "B") as [vi, vj]:
+                            tir.bind(vi, i)
+                            tir.bind(vj, j)
+                            B[vi, vj] = A[vi, vj] * 2.0
+
+        """
+        _ffi_api.ScheduleVectorize(self, loop)  # type: ignore # pylint: disable=no-member
+
+    def bind(self, loop: LoopRV, thread_axis: str) -> None:
+        """Bind the input loop to the given thread axis. It requires:
+        1) The scope block that the loop is in should have stage-pipeline property
+        2) All the blocks under the loop are complete blocks or reduction blocks, and have affine
+        bindings
+        3) For each block under the loop, if the thread axis starts with "threadIdx`, the loop can
+        only be contained in data-parallel block iter and reduction block iters' bindings. Otherwise
+        the loop can only be contained in data-parallel block iters' bindings
+
+        Parameters
+        ----------
+        loop : LoopRV
+            The loop to be bound to the thread axis
+        thread_axis : str
+            The thread axis to be bound to the loop. Possible candidates:
+            - blockIdx.x/y/z
+            - threadIdx.x/y/z
+            - vthread.x/y/z
+            - vthread (It is a legacy behavior that will be deprecated. Please use `vthread.x/y/z`
+            instead.)
+
+        Examples
+        --------
+
+        Before bind, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @tvm.script.tir
+            def before_bind(a: ty.handle, b: ty.handle) -> None:
+                A = tir.match_buffer(a, (128, 128))
+                B = tir.match_buffer(b, (128, 128))
+                for i, j in tir.grid(128, 128):
+                    with tir.block([128, 128], "B") as [vi, vj]:
+                        tir.bind(vi, i)
+                        tir.bind(vj, j)
+                        B[vi, vj] = A[vi, vj] * 2.0
+
+        Create the schedule and do bind:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(before_bind)
+            i, j = sch.get_loops(sch.get_block("B"))
+            sch.bind(i, "blockIdx.x")
+            sch.bind(j, "threadIdx.x")
+
+        After applying bind, the IR becomes:
+
+        .. code-block:: python
+
+            @tvm.script.tir
+            def after_bind(a: ty.handle, b: ty.handle) -> None:
+                A = tir.match_buffer(a, (128, 128))
+                B = tir.match_buffer(b, (128, 128))
+                for i in tir.thread_binding(0, 128, thread = "blockIdx.x"):
+                    for j in tir.thread_binding(0, 128, thread = "threadIdx.x"):
+                        with tir.block([128, 128], "B") as [vi, vj]:
+                            tir.bind(vi, i)
+                            tir.bind(vj, j)
+                            B[vi, vj] = A[vi, vj] * 2.0
+
+        """
+        _ffi_api.ScheduleBind(self, loop, thread_axis)  # type: ignore # pylint: disable=no-member
+
+    def unroll(self, loop: LoopRV) -> None:
+        """Unroll the input loop. It requires nothing
+
+        Parameters
+        ----------
+        loop : LoopRV
+            The loop to be unrolled
+
+        Examples
+        --------
+
+        Before unroll, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @tvm.script.tir
+            def before_unroll(a: ty.handle, b: ty.handle) -> None:
+                A = tir.match_buffer(a, (128, 128))
+                B = tir.match_buffer(b, (128, 128))
+                for i, j in tir.grid(128, 128):
+                    with tir.block([128, 128], "B") as [vi, vj]:
+                        tir.bind(vi, i)
+                        tir.bind(vj, j)
+                        B[vi, vj] = A[vi, vj] * 2.0
+
+        Create the schedule and do unroll:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(before_unroll)
+            i, j = sch.get_loops(sch.get_block("B"))
+            sch.unroll(i)
+
+        After applying unroll, the IR becomes:
+
+        .. code-block:: python
+
+            @tvm.script.tir
+            def after_unroll(a: ty.handle, b: ty.handle) -> None:
+                A = tir.match_buffer(a, (128, 128))
+                B = tir.match_buffer(b, (128, 128))
+                for i in tir.unroll(0, 128):
+                    for j in tir.serial(0, 128):
+                        with tir.block([128, 128], "B") as [vi, vj]:
+                            tir.bind(vi, i)
+                            tir.bind(vj, j)
+                            B[vi, vj] = A[vi, vj] * 2.0
+
+        """
+        _ffi_api.ScheduleUnroll(self, loop)  # type: ignore # pylint: disable=no-member
 
     ########## Schedule: Insert cache stages ##########
 
@@ -581,7 +925,7 @@ class Schedule(Object):
         RFactor is a schedule primitive that implements the transformation described above:
         Given a block that writes to buffer `B`, it factorizes a loop of extent `n`.
 
-        For example, the pesudocode below accumulates `B[i] = sum(A[i, : , : ])`:
+        For example, the pseudocode below accumulates `B[i] = sum(A[i, : , : ])`:
 
         .. code-block:: python
 
@@ -709,6 +1053,79 @@ class Schedule(Object):
         Negative indexing is normalized according to numpy convention.
         """
         return _ffi_api.ScheduleRFactor(self, loop, factor_axis)  # type: ignore # pylint: disable=no-member
+
+    ######## Schedule: Block annotatoin ########
+
+    def storage_align(  # pylint: disable=too-many-arguments
+        self, block: BlockRV, buffer_index: int, axis: int, factor: int, offset: int
+    ) -> None:
+        """Set alignment requirement for specific dimension such that
+        stride[axis] == k * factor + offset for some k. This is useful to set memory layout for more
+        friendly memory access pattern. For example, we can set alignment to be factor=2, offset=1
+        to avoid bank conflict for thread access on higher dimension in GPU shared memory.
+
+        Parameters
+        ----------
+        block : BlockRV
+            The producer block of the buffer.
+        buffer_index : int
+            The index of the buffer in block's write region.
+        axis : int
+            The dimension to be specified for alignment.
+        factor : int
+            The factor multiple of alignment.
+        offset : int
+            The required offset factor.
+
+        Examples
+        --------
+
+        Before storage_align, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @tvm.script.tir
+            def before_storage_align(a: ty.handle, c: ty.handle) -> None:
+                A = tir.match_buffer(a, (128, 128))
+                B = tir.alloc_buffer((128, 128))
+                C = tir.match_buffer(c, (128, 128))
+                with tir.block([128, 128], "B") as [vi, vj]:
+                    B[vi, vj] = A[vi, vj] * 2.0
+                with tir.block([128, 128], "C") as [vi, vj]:
+                    C[vi, vj] = B[vi, vj] + 1.0
+
+        Create the schedule and do storage_align:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(before_storage_align)
+            sch.storage_align(sch.get_block("B"), buffer_index=0, axis=0, factor=128, offset=1)
+            print(tvm.script.asscript(sch.mod["main"]))
+
+        After applying rfactor, the IR becomes:
+
+        .. code-block:: python
+
+            @tvm.script.tir
+            def after_storage_align(a: ty.handle, c: ty.handle) -> None:
+                A = tir.match_buffer(a, (128, 128))
+                B = tir.alloc_buffer((128, 128))
+                C = tir.match_buffer(c, (128, 128))
+                with tir.block([128, 128], "B") as [vi, vj]:
+                    tir.block_attr({"buffer_dim_align": [[[0, 128, 1]]]})
+                    B[vi, vj] = A[vi, vj] * 2.0
+                with tir.block([128, 128], "C") as [vi, vj]:
+                    C[vi, vj] = B[vi, vj] + 1.0
+
+        After lowering passes, buffer B will have strides as [129, 1].
+
+        Note
+        ----
+        Storage_align requires the buffer to be an intermediate buffer defined via `alloc_buffer`.
+        """
+        _ffi_api.ScheduleStorageAlign(  # type: ignore # pylint: disable=no-member
+            self, block, buffer_index, axis, factor, offset
+        )
 
     ########## Schedule: Blockize & Tensorize ##########
 

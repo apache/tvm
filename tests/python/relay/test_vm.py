@@ -17,6 +17,7 @@
 import numpy as np
 import pytest
 import time
+from unittest.mock import patch
 
 import tvm
 from tvm import runtime
@@ -30,6 +31,7 @@ from tvm.contrib import utils
 from tvm import rpc
 import tvm.testing
 from tvm.relay.transform import InferType
+from tvm.relay.testing import mlp
 
 
 def check_result(args, expected_result, mod=None):
@@ -46,8 +48,9 @@ def check_result(args, expected_result, mod=None):
         The expected result of running the expression.
     """
     for target, dev in tvm.testing.enabled_targets():
-        vm = relay.create_executor("vm", device=dev, target=target, mod=mod)
-        rts_result = vm.evaluate()(*args)
+        rts_result = relay.create_executor("vm", device=dev, target=target, mod=mod).evaluate()(
+            *args
+        )
         tvm.testing.assert_allclose(expected_result, rts_result.numpy())
 
 
@@ -182,8 +185,8 @@ def test_multiple_ifs():
     fn = relay.Function([b], out)
     mod["main"] = fn
     dev = tvm.runtime.device("llvm", 0)
-    vm = relay.create_executor(device=dev, mod=mod, kind="vm")
-    res = vmobj_to_list(vm.evaluate()(False))
+    func = relay.create_executor(device=dev, mod=mod, kind="vm").evaluate()
+    res = vmobj_to_list(func(False))
     assert res == [1, 0]
 
 
@@ -952,6 +955,30 @@ def test_get_input_index():
     assert vm_factory.get_input_index(data_1) == 1
     assert vm_factory.get_input_index(data_0) == 0
     assert vm_factory.get_input_index("invalid") == -1
+
+
+@tvm.testing.requires_llvm
+def test_benchmark():
+    mod, params = mlp.get_workload(1)
+    lib = vm.compile(mod, target="llvm", params=params)
+    exe = runtime.vm.VirtualMachine(lib, tvm.cpu())
+    data = tvm.nd.array(np.random.rand(1, 1, 28, 28).astype("float32"))
+    result = exe.benchmark(tvm.cpu(), data, func_name="main", repeat=2, number=1)
+    assert result.mean == result.median
+    assert result.mean > 0
+    assert len(result.results) == 2
+
+    with patch.object(
+        tvm.runtime.module.Module,
+        "time_evaluator",
+        return_value=lambda x: tvm.runtime.module.BenchmarkResult([1, 2, 2, 5]),
+    ) as method:
+        result = exe.benchmark(tvm.cpu(), data, func_name="main", repeat=2, number=1)
+        assert result.mean == 2.5
+        assert result.median == 2.0
+        assert result.max == 5
+        assert result.min == 1
+        assert result.std == 1.5
 
 
 if __name__ == "__main__":

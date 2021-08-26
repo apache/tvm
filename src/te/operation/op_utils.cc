@@ -156,10 +156,12 @@ std::vector<std::vector<Stmt> > MakeLoopNest(const Stage& stage,
       nest[i + 1].emplace_back(AttrStmt(bind_iv, tir::attr::thread_extent, dom->extent, no_op));
       if (!debug_keep_trivial_loop && is_one(dom->extent)) {
         value_map[iv] = dom->min;
+      } else if (stage->scope == "") {
+        value_map[iv] = var;
       } else {
         runtime::ThreadScope ts = runtime::ThreadScope::Create(bind_iv->thread_tag);
-        if (stage->scope == "" ||
-            static_cast<int>(runtime::StorageScope::Create(stage->scope).rank) <= ts.rank) {
+        runtime::StorageScope ss = runtime::StorageScope::Create(stage->scope);
+        if (static_cast<int>(ss.rank) <= ts.rank) {
           value_map[iv] = var;
         } else if (stage->scope == "warp" && ts.rank == 1) {
           // To determine whether a thread index is inside or outside a warp, we need

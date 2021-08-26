@@ -57,7 +57,7 @@ def _make_sess_from_op(
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         mod = tvm.build(sched, arg_bufs, target=target, name=op_name)
 
-    return _make_session(temp_dir, model, target, zephyr_board, west_cmd, mod, build_config)
+    return _make_session(temp_dir, zephyr_board, west_cmd, mod, build_config)
 
 
 TEMPLATE_PROJECT_DIR = (
@@ -72,7 +72,7 @@ TEMPLATE_PROJECT_DIR = (
 ).resolve()
 
 
-def _make_session(temp_dir, model, target, zephyr_board, west_cmd, mod, build_config):
+def _make_session(temp_dir, zephyr_board, west_cmd, mod, build_config):
     project = tvm.micro.generate_project(
         str(TEMPLATE_PROJECT_DIR),
         mod,
@@ -84,8 +84,7 @@ def _make_session(temp_dir, model, target, zephyr_board, west_cmd, mod, build_co
             "zephyr_board": zephyr_board,
         },
     )
-    if not build_config.get("skip_build"):
-        project.build()
+    project.build()
     project.flash()
     return tvm.micro.Session(project.transport())
 
@@ -102,11 +101,11 @@ def _make_add_sess(temp_dir, model, zephyr_board, west_cmd, build_config, dtype=
 
 # The same test code can be executed on both the QEMU simulation and on real hardware.
 @tvm.testing.requires_micro
-def test_add_uint(temp_dir, platform, west_cmd, skip_build, tvm_debug):
+def test_add_uint(temp_dir, platform, west_cmd, tvm_debug):
     """Test compiling the on-device runtime."""
 
     model, zephyr_board = PLATFORMS[platform]
-    build_config = {"skip_build": skip_build, "debug": tvm_debug}
+    build_config = {"debug": tvm_debug}
 
     # NOTE: run test in a nested function so cPython will delete arrays before closing the session.
     def test_basic_add(sess):
@@ -137,13 +136,13 @@ def has_fpu(zephyr_board):
 
 # The same test code can be executed on both the QEMU simulation and on real hardware.
 @tvm.testing.requires_micro
-def test_add_float(temp_dir, platform, west_cmd, skip_build, tvm_debug):
+def test_add_float(temp_dir, platform, west_cmd, tvm_debug):
     """Test compiling the on-device runtime."""
     model, zephyr_board = PLATFORMS[platform]
     if not has_fpu(zephyr_board):
         pytest.skip(f"FPU not enabled for {platform}")
 
-    build_config = {"skip_build": skip_build, "debug": tvm_debug}
+    build_config = {"debug": tvm_debug}
 
     # NOTE: run test in a nested function so cPython will delete arrays before closing the session.
     def test_basic_add(sess):
@@ -165,11 +164,11 @@ def test_add_float(temp_dir, platform, west_cmd, skip_build, tvm_debug):
 
 
 @tvm.testing.requires_micro
-def test_platform_timer(temp_dir, platform, west_cmd, skip_build, tvm_debug):
+def test_platform_timer(temp_dir, platform, west_cmd, tvm_debug):
     """Test compiling the on-device runtime."""
 
     model, zephyr_board = PLATFORMS[platform]
-    build_config = {"skip_build": skip_build, "debug": tvm_debug}
+    build_config = {"debug": tvm_debug}
 
     # NOTE: run test in a nested function so cPython will delete arrays before closing the session.
     def test_basic_add(sess):
@@ -194,10 +193,10 @@ def test_platform_timer(temp_dir, platform, west_cmd, skip_build, tvm_debug):
 
 
 @tvm.testing.requires_micro
-def test_relay(temp_dir, platform, west_cmd, skip_build, tvm_debug):
+def test_relay(temp_dir, platform, west_cmd, tvm_debug):
     """Testing a simple relay graph"""
     model, zephyr_board = PLATFORMS[platform]
-    build_config = {"skip_build": skip_build, "debug": tvm_debug}
+    build_config = {"debug": tvm_debug}
     shape = (10,)
     dtype = "int8"
 
@@ -206,14 +205,13 @@ def test_relay(temp_dir, platform, west_cmd, skip_build, tvm_debug):
     xx = relay.multiply(x, x)
     z = relay.add(xx, relay.const(np.ones(shape=shape, dtype=dtype)))
     func = relay.Function([x], z)
+    ir_mod = tvm.IRModule.from_expr(func)
 
     target = tvm.target.target.micro(model)
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        mod = tvm.relay.build(func, target=target)
+        mod = tvm.relay.build(ir_mod, target=target)
 
-    with _make_session(
-        temp_dir, model, target, zephyr_board, west_cmd, mod, build_config
-    ) as session:
+    with _make_session(temp_dir, zephyr_board, west_cmd, mod, build_config) as session:
         graph_mod = tvm.micro.create_local_graph_executor(
             mod.get_graph_json(), session.get_system_lib(), session.device
         )
@@ -226,23 +224,23 @@ def test_relay(temp_dir, platform, west_cmd, skip_build, tvm_debug):
 
 
 @tvm.testing.requires_micro
-def test_onnx(temp_dir, platform, west_cmd, skip_build, tvm_debug):
+def test_onnx(temp_dir, platform, west_cmd, tvm_debug):
     """Testing a simple ONNX model."""
     model, zephyr_board = PLATFORMS[platform]
-    build_config = {"skip_build": skip_build, "debug": tvm_debug}
+    build_config = {"debug": tvm_debug}
 
-    # Load test images.
-    this_dir = os.path.dirname(__file__)
-    digit_2 = Image.open(f"{this_dir}/testdata/digit-2.jpg").resize((28, 28))
+    this_dir = pathlib.Path(os.path.dirname(__file__))
+    mnist_testdata = this_dir.parent / "testdata" / "mnist"
+    digit_2 = Image.open(mnist_testdata / "digit-2.jpg").resize((28, 28))
     digit_2 = np.asarray(digit_2).astype("float32")
     digit_2 = np.expand_dims(digit_2, axis=0)
 
-    digit_9 = Image.open(f"{this_dir}/testdata/digit-9.jpg").resize((28, 28))
+    digit_9 = Image.open(mnist_testdata / "digit-9.jpg").resize((28, 28))
     digit_9 = np.asarray(digit_9).astype("float32")
     digit_9 = np.expand_dims(digit_9, axis=0)
 
     # Load ONNX model and convert to Relay.
-    onnx_model = onnx.load(f"{this_dir}/testdata/mnist-8.onnx")
+    onnx_model = onnx.load(mnist_testdata / "mnist-8.onnx")
     shape = {"Input3": (1, 1, 28, 28)}
     relay_mod, params = relay.frontend.from_onnx(onnx_model, shape=shape, freeze_params=True)
     relay_mod = relay.transform.DynamicToStatic()(relay_mod)
@@ -256,9 +254,7 @@ def test_onnx(temp_dir, platform, west_cmd, skip_build, tvm_debug):
         lowered = relay.build(relay_mod, target, params=params)
         graph = lowered.get_graph_json()
 
-    with _make_session(
-        temp_dir, model, target, zephyr_board, west_cmd, lowered, build_config
-    ) as session:
+    with _make_session(temp_dir, zephyr_board, west_cmd, lowered, build_config) as session:
         graph_mod = tvm.micro.create_local_graph_executor(
             graph, session.get_system_lib(), session.device
         )
@@ -285,9 +281,7 @@ def check_result(
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         mod = tvm.relay.build(relay_mod, target=target)
 
-    with _make_session(
-        temp_dir, model, target, zephyr_board, west_cmd, mod, build_config
-    ) as session:
+    with _make_session(temp_dir, zephyr_board, west_cmd, mod, build_config) as session:
         rt_mod = tvm.micro.create_local_graph_executor(
             mod.get_graph_json(), session.get_system_lib(), session.device
         )
@@ -307,10 +301,10 @@ def check_result(
 
 
 @tvm.testing.requires_micro
-def test_byoc_microtvm(temp_dir, platform, west_cmd, skip_build, tvm_debug):
+def test_byoc_microtvm(temp_dir, platform, west_cmd, tvm_debug):
     """This is a simple test case to check BYOC capabilities of microTVM"""
     model, zephyr_board = PLATFORMS[platform]
-    build_config = {"skip_build": skip_build, "debug": tvm_debug}
+    build_config = {"debug": tvm_debug}
     x = relay.var("x", shape=(10, 10))
     w0 = relay.var("w0", shape=(10, 10))
     w1 = relay.var("w1", shape=(10, 10))
@@ -387,10 +381,10 @@ def _make_add_sess_with_shape(temp_dir, model, zephyr_board, west_cmd, shape, bu
     ],
 )
 @tvm.testing.requires_micro
-def test_rpc_large_array(temp_dir, platform, west_cmd, skip_build, tvm_debug, shape):
+def test_rpc_large_array(temp_dir, platform, west_cmd, tvm_debug, shape):
     """Test large RPC array transfer."""
     model, zephyr_board = PLATFORMS[platform]
-    build_config = {"skip_build": skip_build, "debug": tvm_debug}
+    build_config = {"debug": tvm_debug}
 
     # NOTE: run test in a nested function so cPython will delete arrays before closing the session.
     def test_tensors(sess):

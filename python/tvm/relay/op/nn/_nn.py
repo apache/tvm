@@ -1259,9 +1259,9 @@ def dense_shape_func(attrs, inputs, _):
 @script
 def _dense_pack_shape_func(data_shape, weight_shape):
     out = output_tensor((data_shape.shape[0],), "int64")
-    for i in const_range(out.shape[0] - 1):
-        out[i] = data_shape[i]
-    out[out.shape[0] - 1] = weight_shape[0] * weight_shape[2]
+    assert data_shape.shape[0] == 2, "Input data must be 2D"
+    out[0] = data_shape[0]
+    out[1] = weight_shape[0] * weight_shape[2]
 
     return out
 

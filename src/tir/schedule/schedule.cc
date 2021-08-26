@@ -50,23 +50,27 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetState")  //
     .set_body_method<Schedule>(&ScheduleNode::state);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetTrace")  //
     .set_body_method<Schedule>(&ScheduleNode::trace);
-TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSeed")  //
-    .set_body_method<Schedule>(&ScheduleNode::Seed);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleCopy")  //
     .set_body_method<Schedule>(&ScheduleNode::Copy);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSeed")  //
+    .set_body_method<Schedule>(&ScheduleNode::Seed);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleForkSeed")  //
+    .set_body_method<Schedule>(&ScheduleNode::ForkSeed);
 
 /**************** (FFI) Constructor ****************/
 
 TVM_REGISTER_GLOBAL("tir.schedule.BlockRV").set_body_typed([]() { return BlockRV(); });
 TVM_REGISTER_GLOBAL("tir.schedule.LoopRV").set_body_typed([]() { return LoopRV(); });
 TVM_REGISTER_GLOBAL("tir.schedule.ConcreteSchedule")
-    .set_body_typed([](IRModule mod, int debug_mask, int error_render_level) -> Schedule {
-      return Schedule::Concrete(mod, debug_mask,
+    .set_body_typed([](IRModule mod, support::LinearCongruentialEngine::TRandState seed,
+                       int debug_mask, int error_render_level) -> Schedule {
+      return Schedule::Concrete(mod, debug_mask, seed,
                                 static_cast<ScheduleErrorRenderLevel>(error_render_level));
     });
 TVM_REGISTER_GLOBAL("tir.schedule.TracedSchedule")
-    .set_body_typed([](IRModule mod, int debug_mask, int error_render_level) -> Schedule {
-      return Schedule::Traced(mod, debug_mask,
+    .set_body_typed([](IRModule mod, support::LinearCongruentialEngine::TRandState seed,
+                       int debug_mask, int error_render_level) -> Schedule {
+      return Schedule::Traced(mod, seed, debug_mask,
                               static_cast<ScheduleErrorRenderLevel>(error_render_level));
     });
 
@@ -117,6 +121,8 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleRemoveRV")
     });
 
 /******** (FFI) Sampling ********/
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSampleCategorical")
+    .set_body_method<Schedule>(&ScheduleNode::SampleCategorical);
 /******** (FFI) Get blocks & loops ********/
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetBlock")
     .set_body_method<Schedule>(&ScheduleNode::GetBlock);
@@ -125,7 +131,15 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetLoops")
 /******** (FFI) Transform loops ********/
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleFuse").set_body_method<Schedule>(&ScheduleNode::Fuse);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSplit").set_body_method<Schedule>(&ScheduleNode::Split);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleReorder")
+    .set_body_method<Schedule>(&ScheduleNode::Reorder);
 /******** (FFI) Manipulate ForKind ********/
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleParallel")
+    .set_body_method<Schedule>(&ScheduleNode::Parallel);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleVectorize")
+    .set_body_method<Schedule>(&ScheduleNode::Vectorize);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleBind").set_body_method<Schedule>(&ScheduleNode::Bind);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleUnroll").set_body_method<Schedule>(&ScheduleNode::Unroll);
 /******** (FFI) Insert cache stages ********/
 /******** (FFI) Compute location ********/
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleComputeInline")
@@ -135,6 +149,9 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleReverseComputeInline")
 /******** (FFI) Reduction ********/
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleRFactor")
     .set_body_method<Schedule>(&ScheduleNode::RFactor);
+/******** (FFI) Block annotation ********/
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleStorageAlign")
+    .set_body_method<Schedule>(&ScheduleNode::StorageAlign);
 /******** (FFI) Blockize & Tensorize ********/
 /******** (FFI) Annotation ********/
 /******** (FFI) Misc ********/
