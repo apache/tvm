@@ -19,6 +19,7 @@
 """ONNX: Open Neural Network Exchange frontend for Relay."""
 import copy
 import warnings
+from os import read
 
 import numpy as np
 import tvm
@@ -36,9 +37,21 @@ from .. import qnn as _qnn
 from .. import random as _random
 from .. import ty as _ty
 from .. import vision as _vision
-from .common import (AttrCvt, Renamer, fold_constant, get_name, get_relay_op,
-                     gru_cell, infer_channels, infer_shape, infer_type,
-                     infer_value, lstm_cell, new_var, unbind)
+from .common import (
+    AttrCvt,
+    Renamer,
+    fold_constant,
+    get_name,
+    get_relay_op,
+    gru_cell,
+    infer_channels,
+    infer_shape,
+    infer_type,
+    infer_value,
+    lstm_cell,
+    new_var,
+    unbind,
+)
 
 __all__ = ["from_onnx"]
 
@@ -3485,7 +3498,8 @@ class NegativeLogLikelihoodLoss(OnnxOpConverter):
                 f"Unknown reduction type {reduction}, choices are {cls.VALID_REDUCTIONS}"
             )
 
-        input_tensor, target_tensor = inputs
+        input_tensor, target_tensor = inputs[0], inputs[1]
+        target_tensor_type = target_tensor.type_annotation.dtype
         if len(inputs) == 3:
             weight_tensor = inputs[2]
         else:
@@ -3496,15 +3510,13 @@ class NegativeLogLikelihoodLoss(OnnxOpConverter):
         loss = relay.squeeze(loss, axis=[1])
         if weight_tensor is not None:
             loss *= weight_tensor
-
         if target_tensor is not None and ignore_index is not None:
-            mask_tensor = target_tensor == ignore_index
+            mask_tensor = relay.equal(target_tensor, relay.const(ignore_index, dtype=target_tensor_type))
 
             # Turn all "True" entries to 0 and all "False" entries to 1
-            mask_tensor = 1 - mask_tensor
+            mask_tensor = relay.const(1, dtype='int8') - relay.cast(mask_tensor, 'int8')
 
-            loss *= mask_tensor
-
+            loss *= relay.cast_like(mask_tensor, loss)
         if reduction == "mean":
             if weight_tensor is not None:
                 return relay.sum(loss) / relay.sum(weight_tensor)
