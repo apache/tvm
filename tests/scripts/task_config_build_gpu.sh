@@ -38,7 +38,6 @@ echo set\(USE_GRAPH_EXECUTOR ON\) >> config.cmake
 echo set\(USE_STACKVM_RUNTIME ON\) >> config.cmake
 echo set\(USE_PROFILER ON\) >> config.cmake
 echo set\(USE_ANTLR ON\) >> config.cmake
-echo set\(USE_VTA_TSIM ON\) >> config.cmake
 echo set\(USE_VTA_FSIM ON\) >> config.cmake
 echo set\(USE_BLAS openblas\) >> config.cmake
 echo set\(CMAKE_CXX_COMPILER g++\) >> config.cmake
