@@ -117,14 +117,14 @@ TEST(Runtime, ZeroCopy) {
       (*pfr)(json, mod, static_cast<int>(dev.device_type), dev.device_id);
   // get function
   auto set_input_f = run_mod.GetFunction("set_input_zero_copy", false);
-  auto set_output_f = run_mod.GetFunction("setput_zero_copy", false);
+  auto set_output_f = run_mod.GetFunction("set_output_zero_copy", false);
   auto run_f = run_mod.GetFunction("run", false);
   // set input zero copy
   set_input_f("a", const_cast<DLTensor*>(A.operator->()));
   set_input_f("b", const_cast<DLTensor*>(B.operator->()));
   set_input_f("c", const_cast<DLTensor*>(C.operator->()));
   // set output zero copy
-  set_output_f("y", const_cast<DLTensor*>(Y.operator->()));
+  set_output_f(0, const_cast<DLTensor*>(Y.operator->()));
   run_f();
   // check correctness
   for (int i = 0; i < 6; ++i) {
