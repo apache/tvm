@@ -231,12 +231,11 @@ class ComputeDAG(Object):
         """
         str_dag = _ffi_api.ComputeDAGPrintDAG(self, True)
         str_dag = str_dag.encode(encoding="utf-8")
-        hash_key = hashlib.md5(str_dag).hexdigest()
 
         io_shapes = []
         for tensor in self.tensors:
             io_shapes += get_const_tuple(tensor.shape)
-        return json.dumps([hash_key] + io_shapes)
+        return json.dumps([str_dag] + io_shapes)
 
     def __str__(self):
         # pretty print
