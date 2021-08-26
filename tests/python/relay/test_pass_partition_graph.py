@@ -484,8 +484,9 @@ def test_extern_dnnl():
     i_data = np.random.uniform(0, 1, ishape).astype(dtype)
     w1_data = np.random.uniform(0, 1, w1shape).astype(dtype)
 
-    ref_ex = relay.create_executor("graph", mod=ref_mod, device=tvm.cpu())
-    ref_res = ref_ex.evaluate()(i_data, w1_data)
+    ref_res = relay.create_executor("graph", mod=ref_mod, device=tvm.cpu()).evaluate()(
+        i_data, w1_data
+    )
     check_result(
         mod, {"data": i_data, "weight1": w1_data}, (1, 32, 14, 14), ref_res.numpy(), tol=1e-5
     )
@@ -504,8 +505,9 @@ def test_extern_dnnl_mobilenet():
     mod = transform.PartitionGraph()(mod)
     i_data = np.random.uniform(0, 1, ishape).astype(dtype)
 
-    ref_ex = relay.create_executor("graph", mod=ref_mod, device=tvm.cpu(0))
-    ref_res = ref_ex.evaluate()(i_data, **params)
+    ref_res = relay.create_executor("graph", mod=ref_mod, device=tvm.cpu(0)).evaluate()(
+        i_data, **params
+    )
     compile_engine.get().clear()
 
     check_result(mod, {"data": i_data}, (1, 1000), ref_res.numpy(), tol=1e-5, params=params)
@@ -945,8 +947,9 @@ def test_dnnl_fuse():
     def test_exec(mod, params, ref_mod, ref_params, out_shape):
         ishape = (1, 3, 224, 224)
         i_data = np.random.randn(*ishape).astype(np.float32)
-        ref_ex = relay.create_executor("graph", mod=ref_mod, device=tvm.cpu(0))
-        ref_res = ref_ex.evaluate()(i_data, **ref_params)
+        ref_res = relay.create_executor("graph", mod=ref_mod, device=tvm.cpu(0)).evaluate()(
+            i_data, **ref_params
+        )
         compile_engine.get().clear()
 
         mod = get_partitoned_mod(mod, params, dnnl_patterns)

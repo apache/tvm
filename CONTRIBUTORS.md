@@ -22,17 +22,6 @@ contribute to, and influence the direction of the project. We actively invite co
 
 See the [community structure document](https://tvm.apache.org/docs/contribute/community.html) for the explanation of community structure and contribution guidelines.
 
-## Mentors
-
-TVM is now part of the Apache Incubator.
-We are fortunate to have the following mentors.
-
-- Markus Weimer @markusweimer
-- Sebastian Schelter @sscdotopen
-- Byung-Gon Chun @bgchun
-- Henry Saputra @hsaputra
-- Timothy Chen @tnachen
-- Furkan KAMACI @kamaci
 
 ## Committers
 
@@ -68,7 +57,7 @@ We do encourage everyone to work anything they are interested in.
 - [Siju Samuel](https://github.com/siju-samuel): @siju-samuel - frontends
 - [Junru Shao](https://github.com/junrushao1994) (PMC): @junrushao1994 - relay, compiler
 - [Haichen Shen](https://github.com/icemelon9) (PMC): @icemelon9 - relay, topi
-- [Siva](https://github.com/srkreddy1238): @srkreddy1238 - frontends, golang
+- [Siva Rama Krishna Reddy](https://github.com/srkreddy1238): @srkreddy1238 - frontends, golang
 - [Zhixun Tan](https://github.com/phisiart): @phisiart - opengl, web
 - [Andrew Tulloch](https://github.com/ajtulloch): @ajtulloch - topi, compiler, runtime
 - [Luis Vega](https://github.com/vegaluisjose): @vegaluisjose - vta, chisel
@@ -115,6 +104,7 @@ We do encourage everyone to work anything they are interested in.
 - [Xin Liu](https://github.com/Meteorix): @Meteorix
 - [Yizhi Liu](https://github.com/yzhliu) : @yzhliu
 - [Hao Lu](https://github.com/hlu1): @hlu1
+- [Eric Lunderberg](https://github.com/Lunderberg): @Lunderberg
 - [Steven Lyubomirsky](https://github.com/slyubomirsky): @slyubomirsky
 - [Masahiro Masuda](https://github.com/masahi): @masahi
 - [Sergey Mironov](https://github.com/grwlf): @grwlf
@@ -130,12 +120,14 @@ We do encourage everyone to work anything they are interested in.
 - [Josh Pollock](https://github.com/joshpoll): @joshpoll
 - [Andrew Reusch](https://github.com/areusch): @areusch
 - [Jared Roesch](https://github.com/jroesch): @jroesch
+- [Gustavo Romero](https://github.com/gromero): @gromero
 - [Giuseppe Rossini](https://github.com/giuseros): @giuseros
 - [Siju Samuel](https://github.com/siju-samuel): @siju-samuel
 - [Junru Shao](https://github.com/junrushao1994): @junrushao1994
 - [Haichen Shen](https://github.com/icemelon9): @icemelon9
 - [Xingjian Shi](https://github.com/sxjscience): @sxjscience
-- [Siva](https://github.com/srkreddy1238): @srkreddy1238
+- [Christopher Sidebottom](https://github.com/mousius): @mousius
+- [Siva Rama Krishna Reddy](https://github.com/srkreddy1238): @srkreddy1238
 - [Dmitriy Smirnov](https://github.com/d-smirnov): @d-smirnov
 - [Jon Soifer](https://github.com/soiferj): @soiferj
 - [Zhixun Tan](https://github.com/phisiart): @phisiart
@@ -158,3 +150,14 @@ We do encourage everyone to work anything they are interested in.
 
 ## List of Contributors
 - [Full List of Contributors](https://github.com/apache/tvm/graphs/contributors)
+
+## Mentors
+
+TVM is now a top-level Apache project. During our Incubator phase, we were fortunate to have the following mentors.
+
+- Markus Weimer @markusweimer
+- Sebastian Schelter @sscdotopen
+- Byung-Gon Chun @bgchun
+- Henry Saputra @hsaputra
+- Timothy Chen @tnachen
+- Furkan KAMACI @kamaci

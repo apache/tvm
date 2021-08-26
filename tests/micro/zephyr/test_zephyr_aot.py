@@ -138,7 +138,7 @@ def _get_message(fd, expr: str, timeout_sec: int):
 def test_tflite(temp_dir, platform, west_cmd, tvm_debug):
     """Testing a TFLite model."""
 
-    if platform not in ["host", "mps2_an521", "nrf5340dk", "stm32l4r5zi_nucleo", "zynq_mp_r5"]:
+    if platform not in ["qemu_x86", "mps2_an521", "nrf5340dk", "stm32l4r5zi_nucleo", "zynq_mp_r5"]:
         pytest.skip(msg="Model does not fit.")
 
     model, zephyr_board = PLATFORMS[platform]
@@ -220,7 +220,7 @@ def test_tflite(temp_dir, platform, west_cmd, tvm_debug):
 @tvm.testing.requires_micro
 def test_qemu_make_fail(temp_dir, platform, west_cmd, tvm_debug):
     """Testing QEMU make fail."""
-    if platform not in ["host", "mps2_an521"]:
+    if platform not in ["qemu_x86", "mps2_an521"]:
         pytest.skip(msg="Only for QEMU targets.")
 
     model, zephyr_board = PLATFORMS[platform]
@@ -233,10 +233,11 @@ def test_qemu_make_fail(temp_dir, platform, west_cmd, tvm_debug):
     xx = relay.multiply(x, x)
     z = relay.add(xx, relay.const(np.ones(shape=shape, dtype=dtype)))
     func = relay.Function([x], z)
+    ir_mod = tvm.IRModule.from_expr(func)
 
     target = tvm.target.target.micro(model, options=["-link-params=1", "--executor=aot"])
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        lowered = relay.build(func, target)
+        lowered = relay.build(ir_mod, target)
 
     # Generate input/output header files
     with tempfile.NamedTemporaryFile() as tar_temp_file:

@@ -205,10 +205,11 @@ def test_relay(temp_dir, platform, west_cmd, tvm_debug):
     xx = relay.multiply(x, x)
     z = relay.add(xx, relay.const(np.ones(shape=shape, dtype=dtype)))
     func = relay.Function([x], z)
+    ir_mod = tvm.IRModule.from_expr(func)
 
     target = tvm.target.target.micro(model)
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        mod = tvm.relay.build(func, target=target)
+        mod = tvm.relay.build(ir_mod, target=target)
 
     with _make_session(temp_dir, zephyr_board, west_cmd, mod, build_config) as session:
         graph_mod = tvm.micro.create_local_graph_executor(
@@ -228,18 +229,18 @@ def test_onnx(temp_dir, platform, west_cmd, tvm_debug):
     model, zephyr_board = PLATFORMS[platform]
     build_config = {"debug": tvm_debug}
 
-    # Load test images.
-    this_dir = os.path.dirname(__file__)
-    digit_2 = Image.open(f"{this_dir}/testdata/digit-2.jpg").resize((28, 28))
+    this_dir = pathlib.Path(os.path.dirname(__file__))
+    mnist_testdata = this_dir.parent / "testdata" / "mnist"
+    digit_2 = Image.open(mnist_testdata / "digit-2.jpg").resize((28, 28))
     digit_2 = np.asarray(digit_2).astype("float32")
     digit_2 = np.expand_dims(digit_2, axis=0)
 
-    digit_9 = Image.open(f"{this_dir}/testdata/digit-9.jpg").resize((28, 28))
+    digit_9 = Image.open(mnist_testdata / "digit-9.jpg").resize((28, 28))
     digit_9 = np.asarray(digit_9).astype("float32")
     digit_9 = np.expand_dims(digit_9, axis=0)
 
     # Load ONNX model and convert to Relay.
-    onnx_model = onnx.load(f"{this_dir}/testdata/mnist-8.onnx")
+    onnx_model = onnx.load(mnist_testdata / "mnist-8.onnx")
     shape = {"Input3": (1, 1, 28, 28)}
     relay_mod, params = relay.frontend.from_onnx(onnx_model, shape=shape, freeze_params=True)
     relay_mod = relay.transform.DynamicToStatic()(relay_mod)

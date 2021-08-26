@@ -142,7 +142,7 @@ class BaseConv2DTests:
         if "int" in dtype:
             tol = {"atol": 0, "rtol": 0}
         elif dtype == "float32":
-            tol = {"rtol": 1e-4, "atol": 1e-5}
+            tol = {"rtol": 1e-4, "atol": 2e-4}
         elif dtype == "float16":
             # A summation in float16 with a single accumulator very
             # quickly runs into large rounding errors.  At some point,
