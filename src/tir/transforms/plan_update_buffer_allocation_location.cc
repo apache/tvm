@@ -83,11 +83,22 @@ class BufferAllocationLocator : public StmtExprMutator {
         buffer_data_to_buffer_.Set(buf->data, buf);
       }
     }
+    for (const MatchBufferRegion match_buffer : op->match_buffers) {
+      const Var& target_var = match_buffer->buffer->data;
+      const Var& source_var = match_buffer->source->buffer->data;
+      ICHECK(buffer_data_to_buffer_.count(source_var));
+      buffer_data_to_buffer_.Set(target_var, match_buffer->buffer);
+    }
     Stmt stmt = StmtMutator::VisitStmt_(op);
     op = stmt.as<BlockNode>();
     ICHECK(op != nullptr);
 
-    // Ignore buffer allocated inside the block when getting access region.
+    // Ignore buffer created by match_buffer inside the block when updating access region.
+    for (const MatchBufferRegion match_buffer : op->match_buffers) {
+      const Var& target_var = match_buffer->buffer->data;
+      buffer_data_to_buffer_.erase(target_var);
+    }
+    // Ignore buffer allocated inside the block when updating access region.
     if (it != alloc_buffers_.end()) {
       for (const Buffer& buf : it->second) {
         buffer_data_to_buffer_.erase(buf->data);

@@ -23,9 +23,6 @@ def _check(original, transformed):
     func = original
     mod = tvm.IRModule.from_expr(func)
     mod = tvm.tir.transform.PlanAndUpdateBufferAllocationLocation()(mod)
-    print(tvm.script.asscript(original))
-    print(tvm.script.asscript(mod["main"]))
-    print(tvm.script.asscript(transformed))
     tvm.ir.assert_structural_equal(mod["main"], transformed)
 
 
@@ -153,7 +150,14 @@ def opaque_access(a: ty.handle, b: ty.handle) -> None:
                 tir.writes([A_cache[(v * 128) : ((v * 128) + 128)]])
                 tir.evaluate(
                     tir.call_extern(
-                        "test", A_cache.data, (v * 128), 128, A.data, (v * 128), 128, dtype="float32"
+                        "test",
+                        A_cache.data,
+                        (v * 128),
+                        128,
+                        A.data,
+                        (v * 128),
+                        128,
+                        dtype="float32",
                     )
                 )
             for j in tir.serial(0, 128):
