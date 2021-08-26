@@ -28,12 +28,6 @@ class RewriteChecker:
             data, res, expected
         )
 
-    def verify_not(self, data, expected):
-        res = self.analyzer.rewrite_simplify(data)
-        assert not tvm.ir.structural_equal(res, expected), "data={}, res={}, expected={}".format(
-            data, res, expected
-        )
-
 
 def test_vector_simplify():
     ck = RewriteChecker()
@@ -141,16 +135,17 @@ def test_vector_simplify():
     ck.verify(
         flm(tvm.tir.Ramp(x * 8, 2, 4), tvm.tir.Broadcast(64, 4)), tvm.tir.Ramp(flm(x * 8, 64), 2, 4)
     )
-    ck.verify_not(
-        flm(tvm.tir.Ramp(x * 4, 1, 5), tvm.tir.Broadcast(64, 5)), tvm.tir.Ramp(flm(x * 4, 64), 1, 5)
+    ck.verify(
+        flm(tvm.tir.Ramp(x * 4, 1, 5), tvm.tir.Broadcast(64, 5)),
+        flm(tvm.tir.Ramp(x * 4, 1, 5), tvm.tir.Broadcast(64, 5)),
     )  # Example negative case: x = 15; [60, 61, 62, 63, 64] % 64 = [60, 61, 62, 63, 0]
-    ck.verify_not(
+    ck.verify(
         flm(tvm.tir.Ramp(x * 4 + 3, 1, 4), tvm.tir.Broadcast(64, 4)),
-        tvm.tir.Ramp(flm(x * 4 + 3, 64), 1, 4),
+        flm(tvm.tir.Ramp(x * 4 + 3, 1, 4), tvm.tir.Broadcast(64, 4)),
     )  # Example negative case: x = 15; [63, 64, 65, 66] % 64 = [63, 0, 1, 2]
-    ck.verify_not(
+    ck.verify(
         flm(tvm.tir.Ramp(x * 2, 1, 8), tvm.tir.Broadcast(20, 8)),
-        tvm.tir.Ramp(flm(x * 2, 20), 1, 8),
+        flm(tvm.tir.Ramp(x * 2, 1, 8), tvm.tir.Broadcast(20, 8)),
     )  # Example negative case: x = 9; [18, 19, 20, ..., 25] % 20 = [18, 19, 0, 1, ..., 5]
     ck.verify(
         flm(tvm.tir.Ramp(x * 7, 1, 4), tvm.tir.Broadcast(64, 4)),
