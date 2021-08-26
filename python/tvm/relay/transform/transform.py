@@ -728,13 +728,18 @@ def PartitionGraph(mod_name="default"):
 
 
 def AnnotateTarget(targets, include_non_call_ops=True):
-    """Annotate ops in an experession with a provied compiler/target and then
-    use it for codegen.
+    """
+    The annotate the operations in an expression with the provided compiler target
+    allowing the annotated expressions to be lowered for the provided target.
+
+    For example if you annotate `tensorrt` the offloaded operators will be
+    lowered and executed by tensorrt instead of the standard lowering and runtime.
 
     Parameters
     ----------
     targets : str or List[str]
         The list of target compilers used for codegen.
+
     include_non_call_ops : boolean
         If True then non-call ops also will be annotated with targets
         If False then non-call ops will not be processed
