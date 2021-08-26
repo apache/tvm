@@ -373,7 +373,7 @@ def test_let_statement_simple():
         "data": np.random.uniform(-1, 1, size=[1, 20]).astype("float32"),
         "weight": np.random.uniform(-1, 1, size=[20, 20]).astype("float32"),
     }
-    output_mod = verify_mixed_precision_output_close(mod, mod_params, atol=0.05, rtol=0.05)
+    output_mod = verify_mixed_precision_output_close(mod, mod_params, atol=0.05, rtol=0.15)
 
     # Construct expected structure
     var1 = relay.var("var1", shape=[1, 20], dtype="float16")
