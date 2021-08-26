@@ -18,7 +18,6 @@
 
 """ The auto-scheduler's computational graph and related program analyses. """
 
-import hashlib
 import json
 
 import tvm._ffi
