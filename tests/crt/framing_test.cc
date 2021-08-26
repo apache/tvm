@@ -150,23 +150,25 @@ TEST_F(UnframerTest, PacketTooLong) {
             unframer_.Write(packet_length_bytes, sizeof(packet_length), &bytes_consumed));
   EXPECT_EQ(sizeof(packet_length), bytes_consumed);
 
-  uint8_t long_payload[decltype(write_stream_)::capacity() + 1];
-  for (size_t i = 0; i < sizeof(long_payload); i++) {
+  unsigned int long_payload_len = decltype(write_stream_)::capacity() + 1;
+  auto long_payload = std::make_unique<uint8_t[]>(long_payload_len);
+  for (size_t i = 0; i < long_payload_len; i++) {
     long_payload[i] = i & 0xff;
     if (long_payload[i] == uint8_t(Escape::kEscapeStart)) {
       long_payload[i] = 0;
     }
   }
-  crc = tvm::runtime::micro_rpc::crc16_compute(long_payload, sizeof(long_payload), &crc);
+  crc = tvm::runtime::micro_rpc::crc16_compute(long_payload.get(), long_payload_len, &crc);
   EXPECT_EQ(kTvmErrorWriteStreamShortWrite,
-            unframer_.Write(long_payload, sizeof(long_payload), &bytes_consumed));
+            unframer_.Write(long_payload.get(), long_payload_len, &bytes_consumed));
   EXPECT_EQ(write_stream_.capacity(), bytes_consumed);
 
-  EXPECT_EQ(kTvmErrorNoError, unframer_.Write((uint8_t*)&crc, sizeof(crc), &bytes_consumed));
+  EXPECT_EQ(kTvmErrorNoError,
+            unframer_.Write(reinterpret_cast<uint8_t*>(&crc), sizeof(crc), &bytes_consumed));
   EXPECT_EQ(2UL, bytes_consumed);  // 2, because framer is now in kFindPacketStart.
   EXPECT_FALSE(write_stream_.packet_done());
   EXPECT_FALSE(write_stream_.is_valid());
-  EXPECT_EQ(std::string((char*)long_payload, write_stream_.capacity()),
+  EXPECT_EQ(std::string(reinterpret_cast<char*>(long_payload.get()), write_stream_.capacity()),
             write_stream_.BufferContents());
 
   // Writing a smaller packet directly afterward should work.
@@ -177,7 +179,7 @@ TEST_F(UnframerTest, PacketTooLong) {
   EXPECT_TRUE(write_stream_.packet_done());
   EXPECT_TRUE(write_stream_.is_valid());
   EXPECT_EQ(kPacket1.payload, write_stream_.BufferContents());
-};
+}
 
 class UnframerTestParameterized : public UnframerTest,
                                   public ::testing::WithParamInterface<const TestPacket*> {};

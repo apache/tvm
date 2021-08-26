@@ -51,7 +51,7 @@ class ReceivedMessage {
 
 class TestSession {
  public:
-  TestSession(uint8_t initial_nonce)
+  explicit TestSession(uint8_t initial_nonce)
       : framer{&framer_write_stream},
         receive_buffer{receive_buffer_array, sizeof(receive_buffer_array)},
         sess{&framer, &receive_buffer, TestSessionMessageReceivedThunk, this},
