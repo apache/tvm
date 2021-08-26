@@ -135,7 +135,6 @@ s = te.create_schedule(C.op)
 
 # Blocking by loop tiling
 mo, no, mi, ni = s[C].tile(C.op.axis[0], C.op.axis[1], bn, bn)
-(k,) = s[C].op.reduce_axis
 ko, ki = s[C].split(k, factor=kfactor)
 
 # Hoist reduction domain outside the blocking loop
@@ -170,7 +169,6 @@ print(tvm.lower(s, [A, B, C], simple_mode=True))
 
 s = te.create_schedule(C.op)
 mo, no, mi, ni = s[C].tile(C.op.axis[0], C.op.axis[1], bn, bn)
-(k,) = s[C].op.reduce_axis
 ko, ki = s[C].split(k, factor=kfactor)
 
 s[C].reorder(mo, no, ko, ki, mi, ni)
@@ -203,7 +201,6 @@ print(tvm.lower(s, [A, B, C], simple_mode=True))
 
 s = te.create_schedule(C.op)
 mo, no, mi, ni = s[C].tile(C.op.axis[0], C.op.axis[1], bn, bn)
-(k,) = s[C].op.reduce_axis
 ko, ki = s[C].split(k, factor=kfactor)
 
 # re-ordering
@@ -235,8 +232,7 @@ print(tvm.lower(s, [A, B, C], simple_mode=True))
 # .. image:: https://github.com/dmlc/web-data/raw/main/tvm/tutorial/array-packing.png
 #      :align: center
 #
-# NOTE: The figure above is meant for illustration purposes only.  Please ignore dimension
-# information ([16][16] and [16/4][16][4]) which does not apply to this tutorial.
+# NOTE: This figure is a general illustration of how array packing works.
 
 
 ###################################################################################################
@@ -262,13 +258,12 @@ C = te.compute(
 s = te.create_schedule(C.op)
 
 mo, no, mi, ni = s[C].tile(C.op.axis[0], C.op.axis[1], bn, bn)
-(k,) = s[C].op.reduce_axis
 ko, ki = s[C].split(k, factor=kfactor)
 
 s[C].reorder(mo, no, ko, mi, ki, ni)
 s[C].vectorize(ni)
 
-bigN, k, littleN = s[packedB].op.axis
+bigN, _, littleN = s[packedB].op.axis
 s[packedB].vectorize(littleN)
 s[packedB].parallel(bigN)
 
@@ -308,16 +303,17 @@ s[CC].compute_at(s[C], no)
 # New inner axes
 mc, nc = s[CC].op.axis
 
-(k,) = s[CC].op.reduce_axis
 ko, ki = s[CC].split(k, factor=kfactor)
 s[CC].reorder(ko, mc, ki, nc)
 s[CC].vectorize(nc)
 
+# TODO: Add separate optimization step to discuss loop unrolloing
+# unrolling is a loop optimization strategy which can reduce branch
+# prediction failures and increases the chance of concurrent execution
 # unroll kfactor loops
-# this is a separate optimization not discussed in this tutorial
 s[CC].unroll(ki)
 
-bigN, k, littleN = s[packedB].op.axis
+bigN, _, littleN = s[packedB].op.axis
 s[packedB].vectorize(littleN)
 s[packedB].parallel(bigN)
 
@@ -351,7 +347,6 @@ s[CC].compute_at(s[C], no)
 
 mc, nc = s[CC].op.axis
 
-(k,) = s[CC].op.reduce_axis
 ko, ki = s[CC].split(k, factor=kfactor)
 s[CC].reorder(ko, mc, ki, nc)
 s[CC].vectorize(nc)
@@ -363,7 +358,7 @@ s[CC].unroll(ki)
 # parallel
 s[C].parallel(mo)
 
-bigN, k, littleN = s[packedB].op.axis
+bigN, _, littleN = s[packedB].op.axis
 s[packedB].vectorize(littleN)
 s[packedB].parallel(bigN)
 
