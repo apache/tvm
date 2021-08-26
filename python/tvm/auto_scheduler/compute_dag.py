@@ -232,7 +232,7 @@ class ComputeDAG(Object):
         str_dag = _ffi_api.ComputeDAGPrintDAG(self, True)
         io_shapes = []
         for tensor in self.tensors:
-            io_shapes += get_const_tuple(tensor.shape)
+            io_shapes.append(get_const_tuple(tensor.shape))
         return json.dumps([str_dag] + io_shapes)
 
     def __str__(self):
