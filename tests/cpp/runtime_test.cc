@@ -19,129 +19,136 @@
 
 #include <gtest/gtest.h>
 #include <tvm/driver/driver_api.h>
+#include <tvm/ir/module.h>
+#include <tvm/relay/analysis.h>
+#include <tvm/relay/expr.h>
+#include <tvm/relay/op_attr_types.h>
+#include <tvm/relay/op_strategy.h>
+#include <tvm/relay/transform.h>
+#include <tvm/relay/type.h>
+#include <tvm/runtime/executor_info.h>
+#include <tvm/runtime/module.h>
+#include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/registry.h>
 #include <tvm/te/operation.h>
+#include <tvm/topi/broadcast.h>
+#include <tvm/topi/generic/injective.h>
+
+using namespace tvm;
+using namespace tvm::relay;
+
+TVM_REGISTER_GLOBAL("runtime_test.strategy")
+    .set_body_typed([](const Attrs& attrs, const Array<te::Tensor>& inputs, const Type& out_type,
+                       const Target& target) {
+      FTVMCompute fcompute = [](const Attrs& attrs, const Array<te::Tensor>& inputs,
+                                const Type& out_type) -> Array<te::Tensor> {
+        ICHECK_EQ(inputs.size(), 2U);
+        return {topi::add(inputs[0], inputs[1])};
+      };
+      FTVMSchedule fschedule = [](const Attrs& attrs, const Array<te::Tensor>& outs,
+                                  const Target& target) {
+        With<Target> target_scope(target);
+        return topi::generic::schedule_injective(target, outs);
+      };
+
+      auto n = make_object<OpStrategyNode>();
+      auto strategy = tvm::relay::OpStrategy(std::move(n));
+      strategy.AddImplementation(fcompute, fschedule, "runtime_test.strategy", 10);
+      return strategy;
+    });
 
 TEST(Runtime, ZeroCopy) {
-  /*
-   *
-   *          A    B
-   *           \  /
-   *      elemwise_add(out0)
-   *              \
-   *       C      copy
-   *        \      /
-   *      elemwise_sub(out1)
-   */
-  using namespace tvm;
-  using namespace tvm::te;
+  auto tensor_type = relay::TensorType({2, 3}, DataType::Float(32));
+  auto a = relay::Var("a", tensor_type);
+  auto b = relay::Var("b", tensor_type);
+  auto add_op = relay::Op::Get("add");
+  auto x = relay::Call(add_op, {a, b}, tvm::Attrs(), {});
+  auto c = relay::Var("c", tensor_type);
+  auto y = relay::Call(add_op, {x, c}, tvm::Attrs(), {});
+  auto func = relay::Function(relay::FreeVars(y), y, relay::Type(), {});
+  auto A = tvm::runtime::NDArray::Empty({2, 3}, {kDLFloat, 32, 1}, {kDLCPU, 0});
+  auto B = tvm::runtime::NDArray::Empty({2, 3}, {kDLFloat, 32, 1}, {kDLCPU, 0});
+  auto C = tvm::runtime::NDArray::Empty({2, 3}, {kDLFloat, 32, 1}, {kDLCPU, 0});
+  auto Y = tvm::runtime::NDArray::Empty({2, 3}, {kDLFloat, 32, 1}, {kDLCPU, 0});
 
-  auto target_llvm = Target("llvm");
+  auto pA = static_cast<float*>(A->data);
+  auto pB = static_cast<float*>(B->data);
+  auto pC = static_cast<float*>(C->data);
+  auto pY = static_cast<float*>(Y->data);
 
-  // The shape of input tensors.
-  const int n = 4;
-  Array<PrimExpr> shape{n};
-
-  auto A = placeholder(shape, DataType::Float(32), "A");
-  auto B = placeholder(shape, DataType::Float(32), "B");
-  auto C = placeholder(shape, DataType::Float(32), "C");
-
-  auto elemwise_add = compute(
-      A->shape, [&A, &B](PrimExpr i) { return A[i] + B[i]; }, "elemwise_add");
-
-  auto copy = placeholder(shape, DataType::Float(32), "__copy");
-  auto elemwise_sub = compute(
-      C->shape, [&copy, &C](PrimExpr i) { return copy[i] - C[i]; }, "elemwise_sub");
-
-  With<Target> llvm_scope(target_llvm);
-  auto s1 = create_schedule({elemwise_add->op});
-  auto s2 = create_schedule({elemwise_sub->op});
-
-  auto args1 = Array<Tensor>({A, B, elemwise_add});
-  auto args2 = Array<Tensor>({copy, C, elemwise_sub});
-
-  std::unordered_map<Tensor, Buffer> binds;
-  auto lowered_s1 = LowerSchedule(s1, args1, "elemwise_add", binds);
-  auto lowered_s2 = LowerSchedule(s2, args2, "elemwise_sub", binds);
-  Map<tvm::Target, IRModule> inputs = {{target_llvm, lowered_s1}, {target_llvm, lowered_s2}};
-  auto module = build(inputs, Target());
-
-  // Execute the graph and check the correctness.
-  // Setup graph json.
-  std::string json =
-      "{\"nodes\": [{\"op\": \"null\", \"name\": \"A\", \"inputs\": []}, "
-      "{\"op\": \"null\", \"name\": \"B\", \"inputs\": []}, {\"op\": "
-      "\"tvm_op\", \"name\": \"elemwise_add\", \"attrs\": {\"flatten_data\": "
-      "\"1\", \"func_name\": \"elemwise_add\", \"num_inputs\": \"2\", "
-      "\"num_outputs\": \"1\"}, \"inputs\": [[0, 0, 0], [1, 0, 0]]}, {\"op\": "
-      "\"tvm_op\", \"name\": \"__copy_add_to_sub\", \"attrs\": "
-      "{\"flatten_data\": \"0\", \"func_name\": \"__copy\", \"num_inputs\": "
-      "\"1\", \"num_outputs\": \"1\"}, \"inputs\": [[2, 0, 0]]}, {\"op\": "
-      "\"null\", \"name\": \"C\", \"inputs\": []}, {\"op\": \"tvm_op\", "
-      "\"name\": \"elemwise_sub\", \"attrs\": {\"flatten_data\": \"0\", "
-      "\"func_name\": \"elemwise_sub\", \"num_inputs\": \"2\", "
-      "\"num_outputs\": \"1\"}, \"inputs\": [[3, 0, 0], [4, 0, 0]]}], "
-      "\"arg_nodes\": [0, 1, 4], \"node_row_ptr\": [0, 1, 2, 3, 4, 5, 6], "
-      "\"heads\": [[2, 0, 0], [5, 0, 0]], \"attrs\": {\"storage_id\": [\"list_int\", "
-      "[3, 4, 0, 1, 5, 2]], \"shape\": [\"list_shape\", [[4], [4], [4], [4], [4], "
-      "[4]]], \"device_index\": [\"list_int\", [2, 2, 2, 1, 1, 1]], \"dtype\": "
-      "[\"list_int\", [0, 0, 0, 0, 0, 0]], \"dltype\": [\"list_str\", "
-      "[\"float32\", \"float32\", \"float32\", \"float32\", \"float32\", "
-      "\"float32\"]]}}";
-  // Setup inputs.
-  auto a_val = runtime::NDArray::Empty({n}, {kDLFloat, 32, 1}, {kDLCPU, 0});
-  auto b_val = runtime::NDArray::Empty({n}, {kDLFloat, 32, 1}, {kDLCPU, 0});
-  auto c_val = runtime::NDArray::Empty({n}, {kDLFloat, 32, 1}, {kDLCPU, 0});
-
-  auto pa = static_cast<float*>(a_val->data);
-  auto pb = static_cast<float*>(b_val->data);
-  auto pc = static_cast<float*>(c_val->data);
-
-  // Assign values.
-  for (int i = 0; i < n; i++) {
-    pa[i] = i;
-    pb[i] = i + 1.0;
-    pc[i] = i - 1.0;
+  for (int i = 0; i < 6; ++i) {
+    pA[i] = i;
+    pB[i] = i + 1;
+    pC[i] = i + 2;
   }
-
-  // // Initialize graph executor.
-  int device_type = static_cast<int>(kDLCPU);
-  int device_id = 0;
-
-  const runtime::PackedFunc* graph_executor =
-      tvm::runtime::Registry::Get("tvm.graph_executor.create");
-  runtime::Module mod = (*graph_executor)(json, module, device_type, device_id);
-
-  // test FFI for module.
-  auto test_ffi = PackedFunc([](TVMArgs args, TVMRetValue* rv) {
-    int tcode = args[1];
-    ICHECK_EQ(args[0].type_code(), tcode);
-  });
-
-  test_ffi(runtime::Module(mod), static_cast<int>(kTVMModuleHandle));
-  test_ffi(Optional<runtime::Module>(mod), static_cast<int>(kTVMModuleHandle));
-
-  PackedFunc set_input_zero_copy = mod.GetFunction("set_input_zero_copy", false);
-  PackedFunc set_output_zero_copy = mod.GetFunction("set_output_zero_copy", false);
-  PackedFunc run = mod.GetFunction("run", false);
-  set_input_zero_copy("A", a_val);
-  set_input_zero_copy("B", b_val);
-  set_input_zero_copy("C", c_val);
-
-  tvm::runtime::NDArray out0 = runtime::NDArray::Empty({n}, {kDLFloat, 32, 1}, {kDLCPU, 0});
-  tvm::runtime::NDArray out1 = runtime::NDArray::Empty({n}, {kDLFloat, 32, 1}, {kDLCPU, 0});
-  set_output_zero_copy("elemwise_add", out0);
-  set_output_zero_copy("elemwise_sub", out1);
-
-  run();
-  auto p_out0 = static_cast<float*>(out0->data);
-  auto p_out1 = static_cast<float*>(out1->data);
-
-  // Check correctness.
-  for (int i = 0; i < n; ++i) {
-    ICHECK_LT(std::fabs(p_out0[i] - (i + (i + 1.0))), 1e-5);
+  // get schedule
+  auto reg = tvm::runtime::Registry::Get("ir.RegisterOpAttr");
+  if (!reg) {
+    LOG(FATAL) << "no _Register";
   }
-
-  for (int i = 0; i < n; ++i) {
-    ICHECK_LT(std::fabs(p_out1[i] - (i + (i + 1.0) - (i - 1.0))), 1e-5);
+  auto fs = tvm::runtime::Registry::Get("runtime_test.strategy");
+  if (!fs) {
+    LOG(FATAL) << "No test_strategy registered.";
+  }
+  auto fgeneric = GenericFunc::Get("runtime_test.strategy_generic").set_default(*fs);
+  (*reg)("add", "FTVMStrategy", fgeneric, 10);
+  Array<Integer> dep;
+  dep.push_back(0);
+  (*reg)("add", "TShapeDataDependent", dep, 10);
+  // build
+  auto pfb = tvm::runtime::Registry::Get("relay.build_module._BuildModule");
+  tvm::runtime::Module build_mod = (*pfb)();
+  auto build_f = build_mod.GetFunction("build", false);
+  auto json_f = build_mod.GetFunction("get_graph_json", false);
+  auto mod_f = build_mod.GetFunction("get_module", false);
+  Map<tvm::Integer, tvm::Target> targets;
+  Target llvm_tgt = Target("llvm");
+  targets.Set(0, llvm_tgt);
+  auto relay_mod = tvm::IRModule::FromExpr(func);
+  ICHECK(relay_mod.defined()) << "Module must be defined";
+  build_f(relay_mod, targets, llvm_tgt, runtime::kTvmExecutorGraph, "");
+  // create graph executor
+  std::string json = json_f();
+  tvm::runtime::Module mod = mod_f();
+  auto dev = A->device;
+  auto pfr = tvm::runtime::Registry::Get("tvm.graph_executor.create");
+  ICHECK(mod.defined()) << "Module must be defined";
+  tvm::runtime::Module run_mod =
+      (*pfr)(json, mod, static_cast<int>(dev.device_type), dev.device_id);
+  // get function
+  auto set_input_f = run_mod.GetFunction("set_input_zero_copy", false);
+  auto set_output_f = run_mod.GetFunction("setput_zero_copy", false);
+  auto run_f = run_mod.GetFunction("run", false);
+  // set input zero copy
+  set_input_f("a", const_cast<DLTensor*>(A.operator->()));
+  set_input_f("b", const_cast<DLTensor*>(B.operator->()));
+  set_input_f("c", const_cast<DLTensor*>(C.operator->()));
+  // set output zero copy
+  set_output_f("y", const_cast<DLTensor*>(Y.operator->()));
+  run_f();
+  // check correctness
+  for (int i = 0; i < 6; ++i) {
+    ICHECK_LT(fabs(pY[i] - (i + (i + 1) + (i + 2))), 1e-4);
+  }
+  // mutate the input a bit and run it again
+  for (int i = 0; i < 6; ++i) {
+    pB[i] = i + 3;
+  }
+  run_f();
+  // check correctness
+  for (int i = 0; i < 6; ++i) {
+    ICHECK_LT(fabs(pY[i] - (i + (i + 3) + (i + 2))), 1e-4);
+  }
+  // attach a different input and run it again
+  auto C2 = tvm::runtime::NDArray::Empty({2, 3}, {kDLFloat, 32, 1}, {kDLCPU, 0});
+  auto pC2 = static_cast<float*>(C2->data);
+  for (int i = 0; i < 6; ++i) {
+    pC2[i] = i + 4;
+  }
+  set_input_f("c", const_cast<DLTensor*>(C2.operator->()));
+  run_f();
+  // check correctness
+  for (int i = 0; i < 6; ++i) {
+    ICHECK_LT(fabs(pY[i] - (i + (i + 3) + (i + 4))), 1e-4);
   }
 }
