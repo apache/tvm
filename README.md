@@ -31,7 +31,13 @@ TVM works with deep learning frameworks to provide end to end compilation to dif
 
 License
 -------
-© Contributors Licensed under an [Apache-2.0](LICENSE) license.
+TVM is licensed under the [Apache-2.0](LICENSE) license.
+
+Getting Started
+---------------
+Check out the [TVM Documentation](https://tvm.apache.org/docs/) site for installation instructions, tutorials, examples, and more.
+The [Getting Started with TVM](https://tvm.apache.org/docs/tutorials/get_started/introduction.html) tutorial is a great
+place to start.
 
 Contribute to TVM
 -----------------

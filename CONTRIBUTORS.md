@@ -22,17 +22,6 @@ contribute to, and influence the direction of the project. We actively invite co
 
 See the [community structure document](https://tvm.apache.org/docs/contribute/community.html) for the explanation of community structure and contribution guidelines.
 
-## Mentors
-
-TVM is now part of the Apache Incubator.
-We are fortunate to have the following mentors.
-
-- Markus Weimer @markusweimer
-- Sebastian Schelter @sscdotopen
-- Byung-Gon Chun @bgchun
-- Henry Saputra @hsaputra
-- Timothy Chen @tnachen
-- Furkan KAMACI @kamaci
 
 ## Committers
 
@@ -115,6 +104,7 @@ We do encourage everyone to work anything they are interested in.
 - [Xin Liu](https://github.com/Meteorix): @Meteorix
 - [Yizhi Liu](https://github.com/yzhliu) : @yzhliu
 - [Hao Lu](https://github.com/hlu1): @hlu1
+- [Eric Lunderberg](https://github.com/Lunderberg): @Lunderberg
 - [Steven Lyubomirsky](https://github.com/slyubomirsky): @slyubomirsky
 - [Masahiro Masuda](https://github.com/masahi): @masahi
 - [Sergey Mironov](https://github.com/grwlf): @grwlf
@@ -160,3 +150,14 @@ We do encourage everyone to work anything they are interested in.
 
 ## List of Contributors
 - [Full List of Contributors](https://github.com/apache/tvm/graphs/contributors)
+
+## Mentors
+
+TVM is now a top-level Apache project. During our Incubator phase, we were fortunate to have the following mentors.
+
+- Markus Weimer @markusweimer
+- Sebastian Schelter @sscdotopen
+- Byung-Gon Chun @bgchun
+- Henry Saputra @hsaputra
+- Timothy Chen @tnachen
+- Furkan KAMACI @kamaci

@@ -99,10 +99,10 @@ external! {
 // Note: we don't expose update here as update is going to be removed.
 
 impl IRModule {
-    pub fn new<F, T>(funcs: F, types: T) -> Result<IRModule>
+    pub fn new<'a, F, T>(funcs: F, types: T) -> Result<IRModule>
     where
-        F: IntoIterator<Item = (GlobalVar, BaseFunc)>,
-        T: IntoIterator<Item = (GlobalTypeVar, TypeData)>,
+        F: IntoIterator<Item = (&'a GlobalVar, &'a BaseFunc)>,
+        T: IntoIterator<Item = (&'a GlobalTypeVar, &'a TypeData)>,
     {
         module_new(Map::from_iter(funcs), Map::from_iter(types))
     }
@@ -110,7 +110,7 @@ impl IRModule {
     pub fn empty() -> Result<IRModule> {
         let funcs = HashMap::<GlobalVar, BaseFunc>::new();
         let types = HashMap::<GlobalTypeVar, TypeData>::new();
-        IRModule::new(funcs, types)
+        IRModule::new(funcs.iter(), types.iter())
     }
 
     pub fn parse<N, S>(file_name: N, source: S) -> Result<IRModule>
@@ -206,10 +206,10 @@ impl IRModule {
         Self::from_expr_with_items(expr, HashMap::new(), HashMap::new())
     }
 
-    pub fn from_expr_with_items<E, F, T>(expr: E, funcs: F, types: T) -> Result<IRModule>
+    pub fn from_expr_with_items<'a, E, F, T>(expr: E, funcs: F, types: T) -> Result<IRModule>
     where
-        F: IntoIterator<Item = (GlobalVar, BaseFunc)>,
-        T: IntoIterator<Item = (GlobalTypeVar, TypeData)>,
+        F: IntoIterator<Item = (&'a GlobalVar, &'a BaseFunc)>,
+        T: IntoIterator<Item = (&'a GlobalTypeVar, &'a TypeData)>,
         E: IsObjectRef,
         E::Object: AsRef<<relay::Expr as IsObjectRef>::Object>,
     {

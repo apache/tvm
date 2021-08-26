@@ -44,9 +44,9 @@
 //
 
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
-ci_lint = "tlcpack/ci-lint:v0.66"
-ci_gpu = "tlcpack/ci-gpu:v0.76"
-ci_cpu = "tlcpack/ci-cpu:v0.76"
+ci_lint = "tlcpack/ci-lint:v0.67"
+ci_gpu = "tlcpack/ci-gpu:v0.77"
+ci_cpu = "tlcpack/ci-cpu:v0.77"
 ci_wasm = "tlcpack/ci-wasm:v0.71"
 ci_i386 = "tlcpack/ci-i386:v0.73"
 ci_qemu = "tlcpack/ci-qemu:v0.08"
@@ -73,9 +73,11 @@ tvm_runtime = "build/libtvm_runtime.so, build/config.cmake"
 tvm_lib = "build/libtvm.so, " + tvm_runtime
 // LLVM upstream lib
 tvm_multilib = "build/libtvm.so, " +
-               "build/libvta_tsim.so, " +
                "build/libvta_fsim.so, " +
                tvm_runtime
+
+tvm_multilib_tsim = "build/libvta_tsim.so, " +
+               tvm_multilib
 
 // command to start a docker container
 docker_run = 'docker/bash.sh'
@@ -218,7 +220,7 @@ stage('Build') {
         init_git()
         sh "${docker_run} ${ci_cpu} ./tests/scripts/task_config_build_cpu.sh"
         make(ci_cpu, 'build', '-j2')
-        pack_lib('cpu', tvm_multilib)
+        pack_lib('cpu', tvm_multilib_tsim)
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_ci_setup.sh"
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_unittest.sh"
@@ -252,7 +254,7 @@ stage('Build') {
         init_git()
         sh "${docker_run} ${ci_i386} ./tests/scripts/task_config_build_i386.sh"
         make(ci_i386, 'build', '-j2')
-        pack_lib('i386', tvm_multilib)
+        pack_lib('i386', tvm_multilib_tsim)
       }
     }
   },

@@ -58,18 +58,18 @@ external! {
    fn map_items(map: ObjectRef) -> Array<ObjectRef>;
 }
 
-impl<K, V> FromIterator<(K, V)> for Map<K, V>
+impl<'a, K: 'a, V: 'a> FromIterator<(&'a K, &'a V)> for Map<K, V>
 where
     K: IsObjectRef,
     V: IsObjectRef,
 {
-    fn from_iter<T: IntoIterator<Item = (K, V)>>(iter: T) -> Self {
+    fn from_iter<T: IntoIterator<Item = (&'a K, &'a V)>>(iter: T) -> Self {
         let iter = iter.into_iter();
         let (lower_bound, upper_bound) = iter.size_hint();
         let mut buffer: Vec<ArgValue> = Vec::with_capacity(upper_bound.unwrap_or(lower_bound) * 2);
         for (k, v) in iter {
-            buffer.push(k.into());
-            buffer.push(v.into())
+            buffer.push(k.into_arg_value());
+            buffer.push(v.into_arg_value());
         }
         Self::from_data(buffer).expect("failed to convert from data")
     }
@@ -202,13 +202,13 @@ where
     }
 }
 
-impl<'a, K, V> From<Map<K, V>> for ArgValue<'a>
+impl<'a, K, V> From<&'a Map<K, V>> for ArgValue<'a>
 where
     K: IsObjectRef,
     V: IsObjectRef,
 {
-    fn from(map: Map<K, V>) -> ArgValue<'a> {
-        map.object.into()
+    fn from(map: &'a Map<K, V>) -> ArgValue<'a> {
+        (&map.object).into()
     }
 }
 
@@ -268,7 +268,7 @@ mod test {
         let mut std_map: HashMap<TString, TString> = HashMap::new();
         std_map.insert("key1".into(), "value1".into());
         std_map.insert("key2".into(), "value2".into());
-        let tvm_map = Map::from_iter(std_map.clone().into_iter());
+        let tvm_map = Map::from_iter(std_map.iter());
         let back_map = tvm_map.into();
         assert_eq!(std_map, back_map);
     }

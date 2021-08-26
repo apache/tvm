@@ -18,16 +18,19 @@
  */
 #include "./concrete_schedule.h"
 
+#include <random>
+
 namespace tvm {
 namespace tir {
 
-Schedule Schedule::Concrete(IRModule mod, int debug_mask,
-                            ScheduleErrorRenderLevel error_render_level) {
+Schedule Schedule::Concrete(IRModule mod, support::LinearCongruentialEngine::TRandState seed,
+                            int debug_mask, ScheduleErrorRenderLevel error_render_level) {
   ObjectPtr<ConcreteScheduleNode> n = make_object<ConcreteScheduleNode>();
   n->state_ = ScheduleState(mod, debug_mask);
   n->error_render_level_ = error_render_level;
   n->symbol_table_ = {};
   n->analyzer_ = std::make_unique<arith::Analyzer>();
+  support::LinearCongruentialEngine(&n->rand_state_).Seed(seed);
   return Schedule(std::move(n));
 }
 
@@ -208,6 +211,29 @@ Schedule ConcreteScheduleNode::Copy() const {
   }
 
 /******** Schedule: Schedule: Sampling ********/
+
+void ConcreteScheduleNode::Seed(support::LinearCongruentialEngine::TRandState seed) {
+  if (seed == -1) {
+    seed = std::random_device()();
+  }
+  support::LinearCongruentialEngine(&rand_state_).Seed(seed);
+}
+
+support::LinearCongruentialEngine::TRandState ConcreteScheduleNode::ForkSeed() {
+  // In order for reproducibility, we computer the new seed using RNG's random state and a different
+  // set of parameters. Note that both 32767 and 1999999973 are prime numbers.
+  return (support::LinearCongruentialEngine(&rand_state_)() * 32767) % 1999999973;
+}
+
+ExprRV ConcreteScheduleNode::SampleCategorical(const Array<Integer>& candidates,
+                                               const Array<FloatImm>& probs,
+                                               Optional<Integer> decision) {
+  TVM_TIR_SCHEDULE_BEGIN();
+  return CreateRV(tir::SampleCategorical(&this->rand_state_, candidates, probs, &decision));
+  TVM_TIR_SCHEDULE_END("sample-categorical", this->error_render_level_);
+  throw;
+}
+
 /******** Schedule: Get blocks & loops ********/
 
 BlockRV ConcreteScheduleNode::GetBlock(const String& name, const String& func_name) {
