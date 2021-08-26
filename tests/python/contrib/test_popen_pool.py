@@ -124,7 +124,7 @@ def test_popen_pool_executor_async():
     assert f1.result() == f2.result()
 
 
-def test_popen_pool_timeout():
+def test_popen_pool_executor_timeout():
     timeout = 0.5
 
     pool = PopenPoolExecutor(timeout=timeout)
@@ -144,4 +144,4 @@ if __name__ == "__main__":
     test_popen_initializer()
     test_popen_ffi()
     test_popen_pool_executor_async()
-    test_popen_pool_timeout()
+    test_popen_pool_executor_timeout()

@@ -17,8 +17,6 @@
 """Test builder and runner"""
 import logging
 import multiprocessing
-import time
-import concurrent
 
 import numpy as np
 
