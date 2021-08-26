@@ -93,7 +93,7 @@ class BufferAllocationLocator : public StmtExprMutator {
     op = stmt.as<BlockNode>();
     ICHECK(op != nullptr);
 
-    // Ignore buffer created by match_buffer inside the block when updating access region.
+    // No longer consider buffers created by match_buffer inside the block when updating access region.
     for (const MatchBufferRegion match_buffer : op->match_buffers) {
       const Var& target_var = match_buffer->buffer->data;
       buffer_data_to_buffer_.erase(target_var);
