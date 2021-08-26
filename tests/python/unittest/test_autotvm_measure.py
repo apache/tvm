@@ -18,11 +18,13 @@
 import logging
 import multiprocessing
 import time
+import concurrent
 
 import numpy as np
 
 import tvm
 from tvm import te
+from tvm.autotvm.measure import executor
 from tvm.testing.autotvm import DummyRunner, bad_matmul, get_sample_task
 from tvm import autotvm
 from tvm.autotvm.measure.measure import MeasureErrorNo, MeasureResult
@@ -76,7 +78,7 @@ def test_task_runner_with_ref_input():
             self.ran_dummy_executor = True
             sig = Signature.from_callable(func)
             assert sig.bind(*args, **kwargs).arguments["ref_input"] == refinp
-            return measure.local_executor.LocalFutureNoFork(None)
+            return executor.LocalFutureNoFork(None)
 
     runner.executor = DummyExecutor()
     runner.run([None], [None])

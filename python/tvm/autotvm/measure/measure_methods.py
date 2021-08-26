@@ -39,6 +39,7 @@ import tvm.ir.transform
 from tvm import nd
 from tvm import rpc as _rpc
 from tvm.contrib import ndk, nvcc, stackvm, tar
+from tvm.contrib.popen_pool import PopenPoolExecutor
 from tvm.driver import build
 from tvm.error import TVMError
 from tvm.target import Target
@@ -46,7 +47,6 @@ from tvm.target import Target
 from ..env import AutotvmGlobalScope
 from ..task.space import InstantiationError
 from ..utils import get_const_tuple
-from .local_executor import LocalExecutor
 from .measure import Builder, MeasureErrorNo, MeasureResult, Runner
 
 logger = logging.getLogger("autotvm")
@@ -98,7 +98,7 @@ class LocalBuilder(Builder):
             else:
                 raise ValueError("Invalid build_func" + build_func)
         self.build_func = _WrappedBuildFunc(build_func)
-        self.executor = LocalExecutor(timeout=timeout)
+        self.executor = PopenPoolExecutor(timeout=timeout)
         self.tmp_dir = tempfile.mkdtemp()
 
     def build(self, measure_inputs):
@@ -114,7 +114,7 @@ class LocalBuilder(Builder):
                 futures.append(ret)
 
             for future in futures:
-                res = future.get()
+                res = future.result()
 
                 if isinstance(res, Exception):
                     # timeout or fleet error, return MeasureResult directly
@@ -242,7 +242,7 @@ class RPCRunner(Runner):
         self.cooldown_interval = cooldown_interval
         self.module_loader = module_loader
 
-        self.executor = LocalExecutor(timeout=timeout * (self.n_parallel + 1))
+        self.executor = PopenPoolExecutor(timeout=timeout * (self.n_parallel + 1))
 
     @property
     def ref_input(self):
@@ -337,7 +337,7 @@ class RPCRunner(Runner):
                 futures.append(ret)
 
             for future in futures:
-                res = future.get()
+                res = future.result()
                 if isinstance(res, Exception):  # executor error or timeout
                     results.append(
                         MeasureResult(

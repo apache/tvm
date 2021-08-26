@@ -27,6 +27,9 @@ from tvm.testing import (
     call_py_ffi,
     call_cpp_ffi,
     call_cpp_py_ffi,
+    fast_summation,
+    slow_summation,
+    timeout_job,
 )
 
 
@@ -104,8 +107,41 @@ def test_popen_ffi():
     assert proc.recv() == initargs[0]
 
 
+def test_popen_pool_executor_async():
+    pool = PopenPoolExecutor()
+    f1 = pool.submit(slow_summation, 9999999)
+    f2 = pool.submit(fast_summation, 9999999)
+    t1 = 0
+    t2 = 0
+    while True:
+        if t1 == 0 and f1.done():
+            t1 = time.time()
+        if t2 == 0 and f2.done():
+            t2 = time.time()
+        if t1 != 0 and t2 != 0:
+            break
+    assert t2 < t1, "Expected fast async job to finish first!"
+    assert f1.result() == f2.result()
+
+
+def test_popen_pool_timeout():
+    timeout = 0.5
+
+    pool = PopenPoolExecutor(timeout=timeout)
+
+    f1 = pool.submit(timeout_job, timeout)
+    while not f1.done():
+        pass
+    try:
+        res = f1.result()
+    except Exception as ex:
+        assert isinstance(ex, TimeoutError)
+
+
 if __name__ == "__main__":
     test_popen_worker()
     test_popen_pool_executor()
     test_popen_initializer()
     test_popen_ffi()
+    test_popen_pool_executor_async()
+    test_popen_pool_timeout()

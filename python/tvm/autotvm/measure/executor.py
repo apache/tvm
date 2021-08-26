@@ -87,6 +87,25 @@ class Future(object):
         raise NotImplementedError()
 
 
+class LocalFutureNoFork(Future):
+    """Local wrapper for the future.
+    This is a none-fork version of LocalFuture.
+    Use this for unittest and runtimes that does not support fork (like cudnn)
+    """
+
+    def __init__(self, result):
+        self._result = result
+
+    def done(self):
+        return True
+
+    def get(self, timeout=None):  # pylint: disable=unused-argument
+        return self._result
+
+    def result(self, timeout=None):  # pylint: disable=unused-argument
+        return self._result
+
+
 class FutureError(RuntimeError):
     """Base error class of all future events"""
 
