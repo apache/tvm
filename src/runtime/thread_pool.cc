@@ -276,8 +276,9 @@ class ThreadPool {
     for (std::unique_ptr<SpscTaskQueue>& q : queues_) {
       q->SignalForKill();
     }
-    queues_.clear();
+    // Destroy threads before we destory the shared queue, otherwise we segfault on MacOS
     threads_.reset();
+    queues_.clear();
     Init();
   }
 

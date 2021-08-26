@@ -44,14 +44,29 @@
 //
 
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
-ci_lint = "tlcpack/ci-lint:v0.66"
+ci_lint = "tlcpack/ci-lint:v0.67"
 ci_gpu = "tlcpack/ci-gpu:v0.76"
-ci_cpu = "tlcpack/ci-cpu:v0.75"
+ci_cpu = "tlcpack/ci-cpu:v0.76"
 ci_wasm = "tlcpack/ci-wasm:v0.71"
 ci_i386 = "tlcpack/ci-i386:v0.73"
-ci_qemu = "tlcpack/ci-qemu:v0.06"
+ci_qemu = "tlcpack/ci-qemu:v0.08"
 ci_arm = "tlcpack/ci-arm:v0.06"
 // <--- End of regex-scanned config.
+
+// Parameters to allow overriding (in Jenkins UI), the images
+// to be used by a given build. When provided, they take precedence
+// over default values above.
+properties([
+  parameters([
+    string(name: 'ci_lint_param', defaultValue: ""),
+    string(name: 'ci_cpu_param',  defaultValue: ""),
+    string(name: 'ci_gpu_param',  defaultValue: ""),
+    string(name: 'ci_wasm_param', defaultValue: ""),
+    string(name: 'ci_i386_param', defaultValue: ""),
+    string(name: 'ci_qemu_param', defaultValue: ""),
+    string(name: 'ci_arm_param',  defaultValue: "")
+  ])
+])
 
 // tvm libraries
 tvm_runtime = "build/libtvm_runtime.so, build/config.cmake"
@@ -106,6 +121,30 @@ def cancel_previous_build() {
 }
 
 cancel_previous_build()
+
+stage('Prepare') {
+  node('CPU') {
+    // When something is provided in ci_*_param, use it, otherwise default with ci_*
+    ci_lint = params.ci_lint_param ?: ci_lint
+    ci_cpu = params.ci_cpu_param ?: ci_cpu
+    ci_gpu = params.ci_gpu_param ?: ci_gpu
+    ci_wasm = params.ci_wasm_param ?: ci_wasm
+    ci_i386 = params.ci_i386_param ?: ci_i386
+    ci_qemu = params.ci_qemu_param ?: ci_qemu
+    ci_arm = params.ci_arm_param ?: ci_arm
+
+    sh """
+      echo "Docker images being used in this build:"
+      echo " ci_lint = ${ci_lint}"
+      echo " ci_cpu  = ${ci_cpu}"
+      echo " ci_gpu  = ${ci_gpu}"
+      echo " ci_wasm = ${ci_wasm}"
+      echo " ci_i386 = ${ci_i386}"
+      echo " ci_qemu = ${ci_qemu}"
+      echo " ci_arm  = ${ci_arm}"
+    """
+  }
+}
 
 stage("Sanity Check") {
   timeout(time: max_time, unit: 'MINUTES') {
@@ -188,7 +227,7 @@ stage('Build') {
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_tsim.sh"
           // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
           // TODO(@jroesch): need to resolve CI issue will turn back on in follow up patch
-          // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh"
+          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh"
           junit "build/pytest-results/*.xml"
         }
       }
@@ -282,6 +321,7 @@ stage('Unit Test') {
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} ${ci_arm} ./tests/scripts/task_ci_setup.sh"
           sh "${docker_run} ${ci_arm} ./tests/scripts/task_python_unittest.sh"
+          sh "${docker_run} ${ci_arm} ./tests/scripts/task_python_arm_compute_library.sh"
           junit "build/pytest-results/*.xml"
           // sh "${docker_run} ${ci_arm} ./tests/scripts/task_python_integration.sh"
         }

@@ -27,13 +27,12 @@ from tvm.relay.transform import InferType, ToMixedPrecision, mixed_precision
 
 def run_module(mod: tvm.runtime.Module, mod_params: Dict[str, Any]) -> List:
     dev = tvm.device("llvm", 0)
-    intrp = relay.create_executor("debug", mod, device=dev, target="llvm")
-    result = intrp.evaluate()(**mod_params)
+    result = relay.create_executor("debug", mod, device=dev, target="llvm").evaluate()(**mod_params)
     if isinstance(result, tvm.runtime.container.ADT):
-        result = [r.asnumpy() for r in result]
+        result = [r.numpy() for r in result]
         return result
     else:
-        return [result.asnumpy()]
+        return [result.numpy()]
 
 
 def verify_mixed_precision_output_close(
@@ -230,6 +229,17 @@ def test_do_not_convert_softmax():
     assert tvm.ir.structural_equal(mod, output_mod)
 
 
+def test_do_not_convert_arange():
+    """Arange is a red listed operation and therefore should never be fp16."""
+    dtype = "float32"
+    arange = relay.arange(relay.const(1, dtype), relay.const(128, dtype))
+    mod = tvm.IRModule.from_expr(arange)
+    mod = tvm.relay.transform.InferType()(mod)
+
+    output_mod = verify_mixed_precision_output_close(mod, {}, atol=0.0, rtol=0)
+    assert tvm.ir.structural_equal(mod, output_mod)
+
+
 def test_green_gray_propagates_simple():
     """Conv is a green listed operation, while addition is gray.
 
@@ -363,7 +373,7 @@ def test_let_statement_simple():
         "data": np.random.uniform(-1, 1, size=[1, 20]).astype("float32"),
         "weight": np.random.uniform(-1, 1, size=[20, 20]).astype("float32"),
     }
-    output_mod = verify_mixed_precision_output_close(mod, mod_params, atol=0.01, rtol=0.01)
+    output_mod = verify_mixed_precision_output_close(mod, mod_params, atol=0.05, rtol=0.15)
 
     # Construct expected structure
     var1 = relay.var("var1", shape=[1, 20], dtype="float16")

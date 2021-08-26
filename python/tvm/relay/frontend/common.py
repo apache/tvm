@@ -545,11 +545,12 @@ def infer_value(input_val, params, mod=None):
             mod["main"] = _function.Function(analysis.free_vars(input_val), input_val)
         else:
             mod = IRModule.from_expr(input_val)
-        exc = tvm.relay.create_executor("debug", mod=mod, device=tvm.cpu(), target="llvm")
         inputs = []
         for param in mod["main"].params:
             inputs.append(params[param.name_hint])
-        result = exc.evaluate()(*inputs)
+        result = tvm.relay.create_executor(
+            "debug", mod=mod, device=tvm.cpu(), target="llvm"
+        ).evaluate()(*inputs)
         return result
 
 
@@ -624,3 +625,212 @@ def to_int_list(np_array):
     cause problems in relay/TOPI.
     """
     return [int(x) for x in np_array]
+
+
+def unbind(data, axis=0):
+    """
+    Unbind was taken from Pytorch frontend. The operation removes a tensor dimension
+    and returns a tuple of all slices along a given dimension, with specified axis removed.
+    TODO (vvchernov): It needs such operation on relay side to reduce time consumption
+    on squeeze operation.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        Input tensor
+    axis : int
+        Axis along which tensor is split.
+    Returns
+    -------
+    result : List[relay.Expr]
+        The sequence of computed tensors
+    """
+    shape = infer_shape(data)
+    if axis >= len(shape):
+        msg = "Please check input dim, it shouldn't be greater than or equal to rank."
+        raise AttributeError(msg)
+
+    selections = shape[axis]
+    res_split = _op.split(data, selections, axis)
+    ret = []
+    for i in range(selections):
+        ret.append(_op.squeeze(res_split[i], axis=[axis]))
+    return _expr.TupleWrapper(_expr.Tuple(ret), selections)
+
+
+def gru_cell(
+    input_seqs,
+    hidden_state,
+    w_inp,
+    w_hid,
+    b_inp=None,
+    b_hid=None,
+    rz_act=_op.sigmoid,
+    n_act=_op.tanh,
+    backwards=False,
+    linear_before_reset=True,
+):
+    """
+    Common implementation of GRU cell for all frontends of TVM
+    TODO(vvchernov): currently it is used by pytorch and ONNX. Extend for other frontends
+
+    Parameters
+    ----------
+    input_seqs : List[relay.Expr]
+        The sequence of input tensors
+        Input tensor should be 2d while issue #8412 is not resolved
+        Shape = (batch, feature_size)
+    hidden_state : relay.Expr
+        Hidden state. shape = (batch_size, hidden_size)
+    w_inp, w_hid : relay.Expr
+        weight matrices. wi shape = (3 * hidden_size, feature_size)
+        wh shape = (3 * hidden_size, hidden_size)
+        NOTE: wi = (w_ir|w_iz|w_in) for reset, update and new gates.
+        The order is important for correct GRU calculation!
+    b_inp, b_hid : relay.Expr
+        bias matrices. The same order of internal parts as for weights. shape = (3 * hidden_size)
+    r_act : relay.op
+        activation funtion for reset gate. it is sigmoid by default
+    z_act : relay.op
+        activation funtion for update gate. it is sigmoid by default
+    n_act : relay.op
+        activation funtion for new gate. it is tanh by default
+    backwards : bool
+        Flag for reverse pass of GRU
+
+    Returns
+    -------
+    result : List[relay.Expr], relay.Expr, relay.Expr
+        The sequence of computed result, final hidden and cell state
+    """
+
+    outputs_list = []
+    for x_t in input_seqs if not backwards else reversed(input_seqs):
+        xwt = _op.nn.dense(x_t, w_inp)
+        if linear_before_reset:
+            hwt = _op.nn.dense(hidden_state, w_hid)
+            if b_inp is not None and b_hid is not None:
+                xwt += b_inp
+                hwt += b_hid
+            i_r, i_z, i_n = _op.split(xwt, 3, axis=-1)
+            h_r, h_z, h_n = _op.split(hwt, 3, axis=-1)
+            r_gate = rz_act(i_r + h_r)
+            z_gate = rz_act(i_z + h_z)
+            n_gate = n_act(i_n + r_gate * h_n)
+        else:
+            i_r, i_z, i_n = _op.split(xwt, 3, axis=1)
+            w_hr, w_hz, w_hn = _op.split(w_hid, 3, axis=0)
+            r_gate = i_r + _op.nn.dense(hidden_state, w_hr)
+            z_gate = i_z + _op.nn.dense(hidden_state, w_hz)
+            if b_inp is not None and b_hid is not None:
+                b_ir, b_iz, b_in = _op.split(b_inp, 3, axis=-1)
+                b_hr, b_hz, b_hn = _op.split(b_hid, 3, axis=-1)
+                r_gate += b_ir + b_hr
+                z_gate += b_iz + b_hz
+                i_n += b_in
+                h_n = _op.nn.dense((r_gate * hidden_state), w_hn) + b_hn
+            else:
+                h_n = _op.nn.dense((r_gate * hidden_state), w_hn)
+            r_gate = rz_act(r_gate)
+            z_gate = rz_act(z_gate)
+            n_gate = n_act(i_n + h_n)
+
+        hidden_state = (hidden_state - n_gate) * z_gate + n_gate
+
+        outputs_list.append(hidden_state)  # [seq_num, (batch, hidden_size)]
+
+    return outputs_list, hidden_state
+
+
+def lstm_cell(
+    input_seqs,
+    hidden_state,
+    cell_state,
+    w_inp,
+    w_hid,
+    b_inp=None,
+    b_hid=None,
+    proj=None,
+    p_i=None,
+    p_f=None,
+    p_o=None,
+    f_act=_op.sigmoid,
+    g_act=_op.tanh,
+    h_act=_op.tanh,
+    backwards=False,
+):
+    """
+    Common implementation of LSTM cell for all frontends of TVM
+    TODO (vvchernov): currently it is used by onnx and pytorch. Extend for other frontends
+
+    Parameters
+    ----------
+    input_seqs : List[relay.Expr]
+        The sequence of input tensors
+        Input tensor should be 2d while issue #8412 is not resolved
+        Shape = (batch, feature_size)
+    hidden_state : relay.Expr
+        Hidden state. shape = (batch, hidden_size)
+    cell_state : relay.Expr
+        Cell state. shape = (batch, hidden_size)
+    w_inp, w_hid : relay.Expr
+        weight matrices. wi shape = (4 * hidden_size, feature_size)
+        wh shape = (4 * hidden_size, hidden_size or proj_size)
+        NOTE: wi = (w_ii|w_if|w_ig|w_io) for input, forget, cell and output gates.
+        The order is important for correct LSTM calculation!
+    b_inp, b_hid : relay.Expr
+        bias matrices. The same order of internal parts as for weights. shape = (4 * hidden_size)
+    proj : relay.Expr
+        projection matrix. shape = (proj_size, hidden_size)
+    p_i, p_f, p_o : relay.Expr
+        peephole LSTM matrices. shape = (batch, hidden_size)
+    f_act, g_act, h_act : relay.op
+        activation funtions
+    backwards : bool
+        Flag for reverse pass of LSTM
+
+    Returns
+    -------
+    result : List[relay.Expr], relay.Expr, relay.Expr
+        The sequence of computed result, final hidden and cell state
+    """
+
+    outputs_list = []
+    for x_t in input_seqs if not backwards else reversed(input_seqs):
+        # x_t shape = (batch, feature size), step shape = (batch, feature size + hidden_size)
+        step = _op.concatenate([x_t, hidden_state], axis=1)
+        cat_w = _op.concatenate([w_inp, w_hid], axis=1)
+        # Instead of nn.dense(x_t, w_inp) + nn.dense(hidden_state, w_hid)
+        # nn.dense(step, cat_w) is used
+        # gates shape = (batch, 4 * hidden_size)
+        gates = _op.nn.dense(step, cat_w)
+        # Add biases
+        if b_inp is not None:
+            gates += b_inp
+        if b_hid is not None:
+            gates += b_hid
+        # any gate shape = (batch, hidden_size)
+        inp_gate, fgt_gate, cell_gate, otp_gate = _op.split(gates, 4, axis=-1)
+
+        if p_i is not None and p_f is not None:
+            inp_gate = f_act(inp_gate + p_i * cell_state)
+            fgt_gate = f_act(fgt_gate + p_f * cell_state)
+        else:
+            inp_gate = f_act(inp_gate)
+            fgt_gate = f_act(fgt_gate)
+
+        cell_gate = g_act(cell_gate)
+        cell_state = fgt_gate * cell_state + inp_gate * cell_gate
+        if p_o is not None:
+            otp_gate = f_act(otp_gate + p_o * cell_state)
+        else:
+            otp_gate = f_act(otp_gate)
+
+        hidden_state = otp_gate * h_act(cell_state)
+
+        if proj is not None:
+            hidden_state = _op.nn.dense(hidden_state, proj)
+
+        outputs_list.append(hidden_state)  # [seq_num, (batch, hidden_size)]
+
+    return outputs_list, hidden_state, cell_state

@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
-from tvm import tir
+from tvm import tir, te
 from tvm.script import ty
 
 
@@ -293,6 +293,96 @@ def compacted_complex_func(a: ty.handle, c: ty.handle, n: ty.int32) -> None:
                     C[i, j] = B[0, j]
 
 
+@tvm.script.tir
+def match_buffer_func(a: ty.handle, c: ty.handle) -> None:
+    A = tir.match_buffer(a, (16, 16))
+    C = tir.match_buffer(c, (16, 16))
+    for i in range(0, 16):
+        with tir.block([]):
+            A0 = tir.match_buffer(A[i, 0:16], (16))
+            C0 = tir.match_buffer(C[i, 0:16], (16))
+            B = tir.alloc_buffer((16, 16))
+            with tir.block([]):
+                B0 = tir.match_buffer(B[i, 0:16], (16))
+                for j in range(0, 16):
+                    with tir.block([]) as []:
+                        A1 = tir.match_buffer(A0[j], ())
+                        B1 = tir.match_buffer(B0[j], ())
+                        B1[()] = A1[()] + 1.0
+            for j in range(0, 16):
+                with tir.block([]) as []:
+                    C1 = tir.match_buffer(C0[j], ())
+                    B2 = tir.match_buffer(B[i, j], ())
+                    C1[()] = B2[()] * 2.0
+
+
+@tvm.script.tir
+def compacted_match_buffer_func(a: ty.handle, c: ty.handle) -> None:
+    A = tir.match_buffer(a, (16, 16))
+    C = tir.match_buffer(c, (16, 16))
+    for i in range(0, 16):
+        with tir.block([]):
+            A0 = tir.match_buffer(A[i, 0:16], (16))
+            C0 = tir.match_buffer(C[i, 0:16], (16))
+            B = tir.alloc_buffer((1, 16))
+            with tir.block([]):
+                B0 = tir.match_buffer(B[0, 0:16], (16))
+                for j in range(0, 16):
+                    with tir.block([]) as []:
+                        A1 = tir.match_buffer(A0[j], ())
+                        B1 = tir.match_buffer(B0[j], ())
+                        B1[()] = A1[()] + 1.0
+            for j in range(0, 16):
+                with tir.block([]) as []:
+                    C1 = tir.match_buffer(C0[j], ())
+                    B2 = tir.match_buffer(B[0, j], ())
+                    C1[()] = B2[()] * 2.0
+
+
+@tvm.script.tir
+def storage_align_func(a: ty.handle, c: ty.handle) -> None:
+    A = tir.match_buffer(a, (16, 16), "float32")
+    C = tir.match_buffer(c, (16, 16), "float32")
+    for i in range(0, 16):
+        with tir.block([]):
+            tir.reads(A[i, 0:16])
+            tir.writes(C[i, 0:16])
+            B = tir.alloc_buffer((16, 16), "float32")
+            for j in range(0, 16):
+                with tir.block([]) as []:
+                    tir.reads(A[i, j])
+                    tir.writes(B[i, j])
+                    tir.block_attr({"buffer_dim_align": [[0, 0, 16, 15]]})
+                    B[i, j] = A[i, j] + 1.0
+            for j in range(0, 16):
+                with tir.block([]) as []:
+                    tir.reads(B[i, j])
+                    tir.writes(C[i, j])
+                    C[i, j] = B[i, j] * 2.0
+
+
+@tvm.script.tir
+def compacted_storage_align_func(a: ty.handle, c: ty.handle) -> None:
+    A = tir.match_buffer(a, (16, 16), "float32")
+    C = tir.match_buffer(c, (16, 16), "float32")
+    for i in range(0, 16):
+        with tir.block([]):
+            tir.reads(A[i, 0:16])
+            tir.writes(C[i, 0:16])
+            B = tir.alloc_buffer((1, 16), strides=(31, 1), dtypes="float32")
+            for j in range(0, 16):
+                with tir.block() as []:
+                    tir.reads(A[i, j])
+                    tir.writes(B[0, j])
+                    tir.block_attr({"buffer_dim_align": [[0, 0, 16, 15]]})
+                    B[0, j] = A[i, j] + 1.0
+            for j in range(0, 16):
+                with tir.block() as []:
+                    tir.reads(B[0, j])
+                    tir.writes(C[i, j])
+                    C[i, j] = B[0, j] * 2.0
+
+
 def test_elementwise():
     _check(elementwise_func, compacted_elementwise_func)
 
@@ -321,6 +411,23 @@ def test_complex():
     _check(complex_func, compacted_complex_func)
 
 
+def test_match_buffer():
+    _check(match_buffer_func, compacted_match_buffer_func)
+
+
+def test_lower_te():
+    x = te.placeholder((1,))
+    y = te.compute((1,), lambda i: x[i] + 2)
+    s = te.create_schedule(y.op)
+    orig_mod = tvm.driver.build_module.schedule_to_module(s, [x, y])
+    mod = tvm.tir.transform.CompactBufferAllocation()(orig_mod)
+    tvm.ir.assert_structural_equal(mod, orig_mod)  # CompactBufferAllocation should do nothing on TE
+
+
+def test_storage_align():
+    _check(storage_align_func, compacted_storage_align_func)
+
+
 if __name__ == "__main__":
     test_elementwise()
     test_unschedulable_block()
@@ -329,3 +436,6 @@ if __name__ == "__main__":
     test_warp_mem()
     test_symbolic()
     test_complex()
+    test_match_buffer()
+    test_storage_align()
+    test_lower_te()

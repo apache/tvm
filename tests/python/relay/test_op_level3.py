@@ -34,8 +34,7 @@ def test_zeros_ones():
         y = op(shape=(124, 50), dtype="float64")
         yy = run_infer_type(y)
         assert yy.checked_type == relay.TensorType((124, 50), "float64")
-        intrp = create_executor()
-        intrp_res = intrp.evaluate(y).numpy()
+        intrp_res = create_executor().evaluate(y).numpy()
         np.testing.assert_allclose(intrp_res, ref((124, 50), "float64"))
 
 
@@ -60,8 +59,7 @@ def test_unary_identity():
 
         if ref is not None:
             data = np.random.rand(*shape).astype("float32")
-            intrp = create_executor()
-            op_res = intrp.evaluate(y, {x: relay.const(data)})
+            op_res = create_executor().evaluate(y, {x: relay.const(data)})
             ref_res = ref(data)
             np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=0.01)
 
@@ -87,8 +85,7 @@ def test_clip():
     assert yy.checked_type == relay.TensorType((10, 4), "float32")
 
     data = np.random.rand(10, 4).astype("float32")
-    intrp = create_executor()
-    op_res = intrp.evaluate(y, {a: relay.const(data)})
+    op_res = create_executor().evaluate(y, {a: relay.const(data)})
     ref_res = np.clip(data, 1.0, 4.0)
     np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=0.01)
 
@@ -105,8 +102,7 @@ def test_fixed_point_multiply():
     assert yy.checked_type == relay.TensorType((10, 4), "int32")
 
     data = 23 * np.ones((10, 4)).astype("int32")
-    intrp = create_executor()
-    op_res = intrp.evaluate(y, {a: relay.const(data)})
+    op_res = create_executor().evaluate(y, {a: relay.const(data)})
     ref_res = np.ones((10, 4)).astype("int32")
     np.testing.assert_allclose(op_res.numpy(), ref_res, atol=1)
 
@@ -118,8 +114,7 @@ def test_reinterpret():
     assert yy.checked_type == relay.TensorType((1000, 4), "int32")
 
     data = np.random.randn(1000, 4).astype("float32") * 1000
-    intrp = create_executor()
-    op_res = intrp.evaluate(y, {a: relay.const(data)})
+    op_res = create_executor().evaluate(y, {a: relay.const(data)})
     ref_res = data.view("int32")
     np.testing.assert_equal(op_res.numpy(), ref_res)
 
@@ -155,8 +150,7 @@ def test_approximate_transcendental():
     yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((1000,), "float32")
     data = np.linspace(-5, 5, 1000).astype("float32")
-    intrp = create_executor()
-    op_res = intrp.evaluate(y, {a: relay.const(data)})
+    op_res = create_executor().evaluate(y, {a: relay.const(data)})
 
     def reference_sigmoid(x):
         return np.exp(-np.logaddexp(0, -x))
@@ -167,8 +161,7 @@ def test_approximate_transcendental():
     yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((1000,), "float32")
     data = np.linspace(-5, 5, 1000).astype("float32")
-    intrp = create_executor()
-    op_res = intrp.evaluate(y, {a: relay.const(data)})
+    op_res = create_executor().evaluate(y, {a: relay.const(data)})
 
     def reference_tanh(x):
         return np.tanh(x)
@@ -184,8 +177,7 @@ def test_squeeze():
         np_axis = tuple(axis) if axis is not None else None
 
         data = np.random.random_sample(shape).astype(dtype)
-        intrp = create_executor()
-        op_res = intrp.evaluate(squeeze, {x: relay.const(data)})
+        op_res = create_executor().evaluate(squeeze, {x: relay.const(data)})
         ref_res = np.squeeze(data, axis=np_axis)
         np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=0.01)
 
@@ -220,8 +212,9 @@ def test_transpose():
 
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, device=dev, target=target)
-                op_res = intrp.evaluate(func)(x_data)
+                op_res = relay.create_executor(kind, device=dev, target=target).evaluate(func)(
+                    x_data
+                )
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
     verify_transpose((2, 3, 4), (0, 2, 1))
@@ -275,8 +268,9 @@ def test_reshape():
         ref_res = np.reshape(x_data, oshape)
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, device=dev, target=target)
-                op_res = intrp.evaluate(func)(x_data)
+                op_res = relay.create_executor(kind, device=dev, target=target).evaluate(func)(
+                    x_data
+                )
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
     verify_reshape((2, 3, 4), (8, 3), (8, 3))
@@ -293,6 +287,7 @@ def test_reshape():
     verify_reshape((2, 3, 4), (-3, -2), (6, 4))
     verify_reshape((2, 3, 4), (-4, 1, 2, -2), (1, 2, 3, 4))
     verify_reshape((2, 3, 4), (2, -4, -1, 3, -2), (2, 1, 3, 4))
+    verify_reshape((1,), (), ())
 
 
 def test_reshape_fail():
@@ -364,8 +359,9 @@ def test_reshape_like():
 
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, device=dev, target=target)
-                op_res = intrp.evaluate(func)(x_data, y_data)
+                op_res = relay.create_executor(kind, device=dev, target=target).evaluate(func)(
+                    x_data, y_data
+                )
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
     verify_reshape_like((2, 3, 4), (1, 8, 3))
@@ -410,8 +406,9 @@ def test_take():
 
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, device=dev, target=target)
-                op_res = intrp.evaluate(func)(x_data, indices_src)
+                op_res = relay.create_executor(kind, device=dev, target=target).evaluate(func)(
+                    x_data, indices_src
+                )
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
     verify_take((4,), [1])
@@ -545,8 +542,9 @@ def test_full():
         ref_res = np.full(src_shape, fill_value)
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, device=dev, target=target)
-                op_res = intrp.evaluate(func)(np.array(fill_value, dtype))
+                op_res = relay.create_executor(kind, device=dev, target=target).evaluate(func)(
+                    np.array(fill_value, dtype)
+                )
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
     verify_full(4, (1, 3, 4, 4), "int32")
@@ -584,8 +582,9 @@ def test_full_like():
 
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, device=dev, target=target)
-                op_res = intrp.evaluate(func)(x_data, np.array(fill_value, dtype))
+                op_res = relay.create_executor(kind, device=dev, target=target).evaluate(func)(
+                    x_data, np.array(fill_value, dtype)
+                )
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
     verify_full_like((1, 3, 4, 4), 4, "int32")
@@ -613,11 +612,9 @@ def test_infer_type_leaky_relu():
     ref_res = np.where(x_data > 0, x_data, x_data * 0.1)
 
     for target, dev in tvm.testing.enabled_targets():
-        intrp1 = relay.create_executor("graph", device=dev, target=target)
-        intrp2 = relay.create_executor("debug", device=dev, target=target)
-        op_res1 = intrp1.evaluate(func)(x_data)
+        op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(x_data)
         tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5)
-        op_res2 = intrp2.evaluate(func)(x_data)
+        op_res2 = relay.create_executor("debug", device=dev, target=target).evaluate(func)(x_data)
         tvm.testing.assert_allclose(op_res2.numpy(), ref_res, rtol=1e-5)
 
 
@@ -650,11 +647,13 @@ def verify_infer_type_prelu(data, alpha, axis, output, dtype="float32"):
         ref_res = (x_data < 0) * (x_data * a_data.reshape(1, 1, 3)) + (x_data >= 0) * x_data
 
     for target, dev in tvm.testing.enabled_targets():
-        intrp1 = relay.create_executor("graph", device=dev, target=target)
-        intrp2 = relay.create_executor("debug", device=dev, target=target)
-        op_res1 = intrp1.evaluate(func)(x_data, a_data)
+        op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
+            x_data, a_data
+        )
         tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5)
-        op_res2 = intrp2.evaluate(func)(x_data, a_data)
+        op_res2 = relay.create_executor("debug", device=dev, target=target).evaluate(func)(
+            x_data, a_data
+        )
         tvm.testing.assert_allclose(op_res2.numpy(), ref_res, rtol=1e-5)
 
 
@@ -695,8 +694,7 @@ def test_arange():
         func = relay.Function([], x)
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, device=dev, target=target)
-                op_res = intrp.evaluate(func)()
+                op_res = relay.create_executor(kind, device=dev, target=target).evaluate(func)()
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
     verify_arange(None, 20, None)
@@ -734,8 +732,9 @@ def test_meshgrid():
 
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, device=dev, target=target)
-                op_res = intrp.evaluate(func)(*input_data)
+                op_res = relay.create_executor(kind, device=dev, target=target).evaluate(func)(
+                    *input_data
+                )
                 assert len(op_res) == len(ref_res)
                 for i in range(len(op_res)):
                     tvm.testing.assert_allclose(op_res[i].numpy(), ref_res[i], rtol=1e-5)
@@ -760,8 +759,9 @@ def test_tile():
 
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, device=dev, target=target)
-                op_res = intrp.evaluate(func)(x_data)
+                op_res = relay.create_executor(kind, device=dev, target=target).evaluate(func)(
+                    x_data
+                )
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
     verify_tile((2, 3, 4), (3, 2, 1))
@@ -778,8 +778,7 @@ def test_repeat():
         ref_res = np.repeat(data, repeats, axis)
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, device=dev, target=target)
-                op_res = intrp.evaluate(func)(data)
+                op_res = relay.create_executor(kind, device=dev, target=target).evaluate(func)(data)
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
     verify_repeat((3,), 2, 0)
@@ -803,8 +802,9 @@ def test_stack():
 
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, device=dev, target=target)
-                op_res = intrp.evaluate(func)(*relay_args)
+                op_res = relay.create_executor(kind, device=dev, target=target).evaluate(func)(
+                    *relay_args
+                )
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
     def verify_tup_lit_stack(dshapes, axis):
@@ -855,8 +855,9 @@ def test_reverse():
         ref_res = np.flip(x_data, axis)
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, device=dev, target=target)
-                op_res = intrp.evaluate(func)(x_data)
+                op_res = relay.create_executor(kind, device=dev, target=target).evaluate(func)(
+                    x_data
+                )
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
     verify_reverse((2, 3, 4), 1)
@@ -876,8 +877,9 @@ def test_reverse_sequence():
 
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, device=dev, target=target)
-                op_res = intrp.evaluate(func)(x_data)
+                op_res = relay.create_executor(kind, device=dev, target=target).evaluate(func)(
+                    x_data
+                )
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
     indata = np.array(np.arange(0, 16)).reshape([4, 4]).astype("int32")
@@ -970,8 +972,9 @@ def test_scatter():
 
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, device=dev, target=target)
-                op_res = intrp.evaluate(func)(data_np, indices_np, updates_np)
+                op_res = relay.create_executor(kind, device=dev, target=target).evaluate(func)(
+                    data_np, indices_np, updates_np
+                )
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
     def verify_dynamic_scatter(dshape, ishape, axis=0):
@@ -991,8 +994,9 @@ def test_scatter():
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["vm", "debug"]:
                 mod = tvm.ir.IRModule.from_expr(func)
-                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
-                op_res = intrp.evaluate()(data_np, indices_np, updates_np)
+                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
+                    data_np, indices_np, updates_np
+                )
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
     verify_scatter((10,), (10,), 0)
@@ -1244,8 +1248,9 @@ def test_gather(data, axis, indices, ref_res):
 
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, device=dev, target=target)
-                op_res = intrp.evaluate(func)(data, indices)
+                op_res = relay.create_executor(kind, device=dev, target=target).evaluate(func)(
+                    data, indices
+                )
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
     verify_gather(data, axis, indices, ref_res)
@@ -1271,8 +1276,9 @@ def test_gather_nd():
 
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, device=dev, target=target)
-                op_res = intrp.evaluate(func)(x_data, y_data)
+                op_res = relay.create_executor(kind, device=dev, target=target).evaluate(func)(
+                    x_data, y_data
+                )
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
     verify_gather_nd((2, 2), (2, 3), [[1, 1, 0], [0, 1, 0]])
@@ -1319,8 +1325,7 @@ def _verify_infiniteness_ops(relay_op, ref_op):
             ] = np.infty
             data.ravel()[np.random.choice(data.size, int(data.size * 0.5), replace=False)] = np.nan
 
-        intrp = create_executor()
-        op_res = intrp.evaluate(y, {x: data})
+        op_res = create_executor().evaluate(y, {x: data})
         ref_res = ref_op(data)
         np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=0.01)
 
@@ -1354,8 +1359,9 @@ def test_unravel_index():
         ref_res = np.unravel_index(x_data, y_data)
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, device=dev, target=target)
-                op_res = intrp.evaluate(func)(x_data, y_data)
+                op_res = relay.create_executor(kind, device=dev, target=target).evaluate(func)(
+                    x_data, y_data
+                )
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
     for dtype in ["int64", "int32"]:
@@ -1400,13 +1406,11 @@ def test_sparse_to_dense():
         func = relay.Function(args, d)
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, device=dev, target=target)
+                f = relay.create_executor(kind, device=dev, target=target).evaluate(func)
                 if default_value is None:
-                    op_res = intrp.evaluate(func)(sparse_indices_data, sparse_values_data)
+                    op_res = f(sparse_indices_data, sparse_values_data)
                 else:
-                    op_res = intrp.evaluate(func)(
-                        sparse_indices_data, sparse_values_data, default_value_data
-                    )
+                    op_res = f(sparse_indices_data, sparse_values_data, default_value_data)
                 tvm.testing.assert_allclose(op_res.numpy(), xpected, rtol=1e-5)
 
     verify_sparse_to_dense(1, 3, 0, [5], [0, 3, 0, 0, 0])  # scalar
@@ -1743,8 +1747,9 @@ def verify_func(func, data, ref_res, target_device=tvm.testing.enabled_targets()
     for target, dev in target_device:
         for kind in ["vm"]:
             mod = tvm.ir.IRModule.from_expr(func)
-            intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
-            op_res = intrp.evaluate()(*data)
+            op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
+                *data
+            )
             if isinstance(op_res, tvm.runtime.container.ADT):
                 assert len(op_res) == len(
                     ref_res
@@ -1775,8 +1780,9 @@ def test_adv_index():
         func = relay.Function(inputs, out)
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, device=dev, target=target)
-                op_res = intrp.evaluate(func)(*np_args)
+                op_res = relay.create_executor(kind, device=dev, target=target).evaluate(func)(
+                    *np_args
+                )
                 tvm.testing.assert_allclose(op_res.numpy(), np_out, rtol=1e-5)
 
     verify_adv_index((10, 5), [(3, 4), (3, 1)])
@@ -1813,8 +1819,7 @@ def run_binop_tests(
         func = relay.Function([inp], out)
 
         for kind in ["graph", "debug"]:
-            intrp = relay.create_executor(kind, device=dev, target=target)
-            op_res = intrp.evaluate(func)(data_np)
+            op_res = relay.create_executor(kind, device=dev, target=target).evaluate(func)(data_np)
             tvm.testing.assert_allclose(op_res.numpy(), np_out, rtol=rtol, atol=atol)
 
     data = np.array([2, 3, 0])
@@ -1875,8 +1880,9 @@ def test_scatter_nd(target, dev):
         func = relay.Function([data, indices, updates], out)
 
         for kind in ["graph", "debug"]:
-            intrp = relay.create_executor(kind, device=dev, target=target)
-            op_res = intrp.evaluate(func)(data_np, indices_np, updates_np)
+            op_res = relay.create_executor(kind, device=dev, target=target).evaluate(func)(
+                data_np, indices_np, updates_np
+            )
             tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=rtol, atol=atol)
 
     def verify_scatter_nd_with_stack(
@@ -1884,7 +1890,8 @@ def test_scatter_nd(target, dev):
     ):
         data = relay.var("data", shape=data_np.shape, dtype=str(data_np.dtype))
         indices_vars = [
-            relay.var("ind{i}", shape=v.shape, dtype=str(v.dtype)) for i, v in enumerate(indices_np)
+            relay.var("ind%d" % i, shape=v.shape, dtype=str(v.dtype))
+            for i, v in enumerate(indices_np)
         ]
         updates = relay.var("updates", shape=updates_np.shape, dtype=str(updates_np.dtype))
 
@@ -1900,8 +1907,7 @@ def test_scatter_nd(target, dev):
         for a in indices_np:
             fargs.append(a)
         for kind in ["graph", "debug"]:
-            intrp = relay.create_executor(kind, device=dev, target=target)
-            op_res = intrp.evaluate(func)(*fargs)
+            op_res = relay.create_executor(kind, device=dev, target=target).evaluate(func)(*fargs)
             tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=rtol, atol=atol)
 
     data = np.zeros((2, 2)).astype("int64")
@@ -1986,8 +1992,9 @@ def test_unique():
         for target, dev in tvm.testing.enabled_targets():
             for kind in backends:
                 mod = tvm.ir.IRModule.from_expr(func)
-                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
-                tvm_res = intrp.evaluate()(
+                tvm_res = relay.create_executor(
+                    kind, mod=mod, device=dev, target=target
+                ).evaluate()(
                     x_data
                 )  # unique, indices, inverse_indices, num_unique, (counts)
                 np_res = calc_numpy_unique(

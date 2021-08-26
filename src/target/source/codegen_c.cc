@@ -83,6 +83,7 @@ void CodeGenC::AddFunction(const PrimFunc& f) {
   bool no_alias = f->HasNonzeroAttr(tir::attr::kNoAlias);
 
   this->PrintFuncPrefix();
+  this->PrintExtraAttrs(f);
   this->stream << " " << static_cast<std::string>(global_symbol.value()) << "(";
 
   for (size_t i = 0; i < f->params.size(); ++i) {
@@ -105,8 +106,8 @@ void CodeGenC::AddFunction(const PrimFunc& f) {
         }
       }
 
-      if (no_alias && restrict_keyword_.length() != 0) {
-        stream << ' ' << restrict_keyword_;
+      if (no_alias) {
+        PrintRestrict(v, stream);
       }
     } else {
       PrintType(GetType(v), stream);
@@ -124,6 +125,8 @@ void CodeGenC::AddFunction(const PrimFunc& f) {
 }
 
 void CodeGenC::PrintFuncPrefix() { stream << "void"; }
+
+void CodeGenC::PrintExtraAttrs(const PrimFunc& f) {}
 
 void CodeGenC::PrintFinalReturn() {}
 
@@ -1013,6 +1016,12 @@ void CodeGenC::PrintVecElemLoadExpr(DataType t, int i, const std::string& value,
     os << "))";
   }
   return;
+}
+
+void CodeGenC::PrintRestrict(const Var& v, std::ostream& os) {
+  if (restrict_keyword_.length() != 0) {
+    os << ' ' << restrict_keyword_;
+  }
 }
 
 static bool CheckOutermostBracketMatch(const std::string& s) {

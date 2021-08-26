@@ -435,7 +435,7 @@ Sequential::Sequential(tvm::Array<Pass> passes, PassInfo pass_info) {
 Sequential::Sequential(tvm::Array<Pass> passes, String name) {
   auto n = make_object<SequentialNode>();
   n->passes = std::move(passes);
-  PassInfo pass_info = PassInfo(2, std::move(name), {});
+  PassInfo pass_info = PassInfo(0, std::move(name), {});
   n->pass_info = std::move(pass_info);
   data_ = std::move(n);
 }
@@ -466,7 +466,7 @@ Pass GetPass(const String& pass_name) {
   return (*f)();
 }
 
-// TODO(zhiics): we currenlty only sequentially execute each pass in
+// TODO(zhiics): we currently only sequentially execute each pass in
 // a Sequential without the consideration of their orders. The phase
 // ordering problem needs to be handled in the future.
 IRModule SequentialNode::operator()(IRModule mod, const PassContext& pass_ctx) const {

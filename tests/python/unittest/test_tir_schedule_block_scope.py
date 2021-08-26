@@ -15,6 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-function-docstring,missing-module-docstring
+import sys
+
+import pytest
 import tvm
 from tvm import tir
 from tvm.script import ty
@@ -81,7 +84,7 @@ def _get_block(s: tir.ScheduleState, name_hint: str) -> tir.StmtSRef:
 
 
 def test_elementwise_dependency():
-    s = tir.ScheduleState(elementwise, debug_mode=True)
+    s = tir.ScheduleState(elementwise, debug_mask="all")
     root = _get_block(s, "root")
     block_b = _get_block(s, "B")
     block_c = _get_block(s, "C")
@@ -98,7 +101,7 @@ def test_elementwise_dependency():
 
 
 def test_matmul_dependency():
-    s = tir.ScheduleState(matmul, debug_mode=True)
+    s = tir.ScheduleState(matmul, debug_mask="all")
     root = _get_block(s, "root")
     init = _get_block(s, "init")
     update = _get_block(s, "update")
@@ -123,7 +126,7 @@ def test_matmul_dependency():
 
 
 def test_war_dependency():
-    s = tir.ScheduleState(war_dependency, debug_mode=True)
+    s = tir.ScheduleState(war_dependency, debug_mask="all")
     root = _get_block(s, "root")
     block_c = _get_block(s, "C")
     block_b = _get_block(s, "B")
@@ -140,6 +143,4 @@ def test_war_dependency():
 
 
 if __name__ == "__main__":
-    test_elementwise_dependency()
-    test_matmul_dependency()
-    test_war_dependency()
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

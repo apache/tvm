@@ -337,29 +337,8 @@ Doc TVMScriptPrinter::PrintMatchBufferRegion(const MatchBufferRegionNode* op) {
   const Buffer& buf = op->buffer;
   buf_not_in_headers.insert(buf.get());
 
-  Doc doc = Print(op->buffer) << " = tir.match_buffer_region(" << Print(op->source);
-  if (!buf->strides.empty()) {
-    doc << ", strides=" << Print(buf->strides);
-  }
-  if (buf->offset_factor != 0 && buf->elem_offset->IsInstance<VarNode>()) {
-    Var elem_offset = Downcast<Var>(buf->elem_offset);
-    if (memo_var_.find(elem_offset) != memo_var_.end()) {
-      doc << ", elem_offset=" << Print(buf->elem_offset);
-    } else {
-      // implicitly define elem_offset
-      memo_var_[elem_offset] = Doc::Text(memo_buf_[buf].str() + ".elem_offset");
-      var_not_in_headers.insert(elem_offset.get());
-    }
-  } else {
-    doc << ", elem_offset=" << Print(buf->elem_offset);
-  }
-  if (buf->data_alignment != -1) {
-    doc << ", align=" << buf->data_alignment;
-  }
-  if (buf->offset_factor != 0) {
-    doc << ", offset_factor=" << buf->offset_factor;
-  }
-  doc << ")";
+  Doc doc = Print(op->buffer) << " = tir.match_buffer(" << Print(op->source) << ", "
+                              << memo_buf_decl_[op->buffer] << ")";
   return doc;
 }
 
@@ -702,23 +681,6 @@ Doc TVMScriptPrinter::VisitStmt_(const EvaluateNode* op) {
   Doc doc;
   doc << "tir.evaluate(" << Print(op->value) << ")";
   return doc;
-}
-
-inline const char* ForKind2String(ForKind t) {
-  switch (t) {
-    case ForKind::kSerial:
-      return "serial";
-    case ForKind::kParallel:
-      return "parallel";
-    case ForKind::kVectorized:
-      return "vectorized";
-    case ForKind::kUnrolled:
-      return "unroll";
-    case ForKind::kThreadBinding:
-      return "thread_binding";
-  }
-  LOG(FATAL) << "Unknown ForKind";
-  return "Unknown";
 }
 
 Doc TVMScriptPrinter::VisitStmt_(const ForNode* op) {
