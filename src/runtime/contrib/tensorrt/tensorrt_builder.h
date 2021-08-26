@@ -97,12 +97,6 @@ class TensorRTBuilder {
    */
   void AddLayer(int nid, const JSONGraphNode& node);
 
-
-  /*
-    set int8 flag for calibrating data
-  */
-  void set_use_int8();
-
   /*!
    * \brief Mark TensorRT output in network definition.
    * \param entry The output node entry.
@@ -159,6 +153,7 @@ class TensorRTBuilder {
   /*! \brief Whether to automatically convert model to 16-bit floating point precision. */
   bool use_fp16_;
 
+  /*! \brief whether to automatically convert model to int8 precision */
   bool use_int8_;
 
   /*! \brief Batch size to optimize for. */
