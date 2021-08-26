@@ -17,7 +17,7 @@
  * under the License.
  */
 /*!
- *  Compile executable modules.
+ * \brief Implementation of methods, and FFI interfaces for the compilation target object.
  * \file src/target/target.cc
  */
 #include <dmlc/thread_local.h>

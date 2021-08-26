@@ -74,12 +74,19 @@ class TargetDeviceNode : public Object {
  public:
   /*! \brief The compilation target to use for the device.  */
   Target target;
-  /*! \brief The virtual device, consisting of a virtual id which must be resolved to a physical one, and concrete device type. */
-  Device virtual_device;
+
+  /*! \brief The virtual device idenitfier which must be resolved to a physical device identifier before execution. */
+  int virtual_device_id;
+
+  /*! \brief The device type. */
+  DLDeviceType device_type;
+
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("target", &target);
-    v->Visit("virtual_device", &virtual_device);
+    v->Visit("virtual_device_id", &virtual_device_id);
+    DLDeviceType* ptr = &device_type;
+    v->Visit("device_type", reinterpret_cast<int*>(ptr));
   }
 
   static constexpr const char* _type_key = "TargetDevice";
@@ -94,7 +101,7 @@ class TargetDeviceNode : public Object {
  * a tvm::Device where the the identifier is a virtual identifier and a concrete
  * device type.
  */
-class Target : public ObjectRef {
+class TargetDevice : public ObjectRef {
  public:
   /*!
    * \brief Construct a TargetDevice.
@@ -103,6 +110,7 @@ class Target : public ObjectRef {
    * \return The TargetDevice.
    */
   TVM_DLL explicit TargetDevice(Target target, Device virtual_device);
+  TVM_DLL operator Device();
   TVM_DEFINE_OBJECT_REF_METHODS(TargetDevice, ObjectRef, TargetDeviceNode);
 };
 
