@@ -14,6 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pytest
+
+pytest.importorskip("ethosu.vela")
 import tvm
 from tvm import relay
 from tvm.relay.backend.contrib.ethosu.tir.compiler import lower_to_tir
@@ -42,4 +45,4 @@ def test_lower_to_tir():
 
 
 if __name__ == "__main__":
-    test_lower_to_tir()
+    pytest.main([__file__])

@@ -14,8 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-argument
+import pytest
 
+pytest.importorskip("ethosu.vela")
 import tvm
 from tvm import relay
 from tvm.relay.backend.contrib.ethosu import util
@@ -40,5 +41,4 @@ def test_compiler_attr_default():
 
 
 if __name__ == "__main__":
-    test_compiler_attr()
-    test_compiler_attr_default()
+    pytest.main([__file__])

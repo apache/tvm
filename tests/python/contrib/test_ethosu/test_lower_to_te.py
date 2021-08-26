@@ -14,11 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-argument
+import pytest
 
+pytest.importorskip("ethosu.vela")
 import tvm
 from tvm import relay
-from tvm.relay.testing import run_opt_pass
 from tvm.relay.backend.contrib.ethosu.tir.compiler import lower_to_te
 from tvm.relay.backend.contrib.ethosu.tir.scheduler import Convolution2DCompute
 import tvm.relay.backend.contrib.ethosu.op as ethosu_ops
@@ -60,4 +60,4 @@ def test_ethosu_conv2d():
 
 
 if __name__ == "__main__":
-    test_ethosu_conv2d()
+    pytest.main([__file__])

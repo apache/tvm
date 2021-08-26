@@ -14,6 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pytest
+
+pytest.importorskip("ethosu.vela")
 import tvm
 from tvm import relay
 from tvm.relay.testing import run_opt_pass
@@ -93,5 +96,4 @@ def test_extract_constants_multi():
 
 
 if __name__ == "__main__":
-    test_extract_constants_single()
-    test_extract_constants_multi()
+    pytest.main([__file__])

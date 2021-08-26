@@ -14,7 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import tvm
+import pytest
+
+pytest.importorskip("ethosu.vela")
 from tvm import relay
 from tvm.relay.testing import run_opt_pass
 from tvm import te, topi
@@ -139,10 +141,4 @@ def test_schedule_cache_reads():
 
 
 if __name__ == "__main__":
-    test_tile_nd()
-    test_schedule_pragmas()
-    test_schedule_pragmas_for_const()
-    test_inline_no_ops()
-    test_total_cascader()
-    test_copy_constants()
-    test_schedule_cache_reads()
+    pytest.main([__file__])

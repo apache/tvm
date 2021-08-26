@@ -14,7 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pytest
 
+pytest.importorskip("ethosu.vela")
 import tvm
 import tvm.script
 from tvm.script import tir, ty
@@ -23,8 +25,6 @@ from tvm.relay.testing import run_opt_pass
 from tvm.relay.backend.contrib.ethosu.tir.compiler import lower_to_tir
 from tvm.relay.backend.contrib.ethosu.tir.scheduler import total_cascader
 from infra import make_ethosu_conv2d, get_convolutional_args
-
-import pytest
 
 
 @pytest.mark.parametrize(
