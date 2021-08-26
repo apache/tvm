@@ -225,9 +225,9 @@ print(tvm.lower(s, [A, B, C], simple_mode=True))
 ###################################################################################################
 # Array Packing
 # -------------
-# Another important trick is array packing. This trick is to reorder the storage dimension of an
-# array to convert the continuous access pattern on its dimensions to a sequential pattern after
-# flattening.
+# Another important trick is array packing. The trick is to reorder the storage of a multi-
+# dimensional array so that it is accessed sequentially after it is flattened and stored in one-
+# dimensional memory.
 #
 # .. image:: https://github.com/dmlc/web-data/raw/main/tvm/tutorial/array-packing.png
 #      :align: center
@@ -239,7 +239,7 @@ print(tvm.lower(s, [A, B, C], simple_mode=True))
 # We can use array packing to address the access pattern for B. Observe the array access pattern of
 # B after flattening which is not sequential as we iterate over the K dimension. We can reorder B
 # with dimensions [K][N] so that it has dimensions [N/bn][K][bn] where bn is the blocking factor and
-# also the vector size for both B in the inner loop.  This reorder splits N into two dimensions ---
+# also the vector size for B in the inner loop.  This reorder splits N into two dimensions ---
 # bigN (N/bn) and littleN (bn) --- and the new dimensions [N/bn][K][bn] match the indexing of B
 # from outer to inner loops (no, ko, ki, ni) resulting in a sequential access pattern for B after
 # flattening.
