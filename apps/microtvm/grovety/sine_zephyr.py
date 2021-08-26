@@ -34,19 +34,25 @@ TEMPLATE_PROJECT_DIR = tvm_repo_root() + "/apps/microtvm/zephyr/template_project
 
 verbose = False
 # platform = "stm32f746xx_disco"
-platform = "LPCXpresso5569"
+# platform = "LPCXpresso5569"
+platform = "stm32f746xx_nucleo"
 
 if __name__ == '__main__':
     workspace_dir = create_workspace_dir(platform, 'sine_zephyr', mkdir=True)
-    model, zephyr_board = PLATFORMS[platform]
+    target, zephyr_board = PLATFORMS[platform]
 
-    relay_mod, params, input = open_sine_model()
+    sine_model_path = download_sine_model()
+
+
+    relay_mod, params, input = open_tflite_model(sine_model_path)
     input_tensor, input_shape, input_dtype = input
+
+    print_relay(relay_mod, params)
 
     relay_mod = relay.transform.DynamicToStatic()(relay_mod)
 
 
-    target = tvm.target.target.micro(model, options=["-link-params=1"])
+    target = tvm.target.target.micro(target, options=["-link-params=1"])
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         lowered = relay.build(relay_mod, target, params=params)
         graph = lowered.get_graph_json()

@@ -2,7 +2,6 @@ import pathlib
 import os
 import datetime
 import subprocess
-from tvm.contrib.download import download_testdata
 import tvm.relay as relay
 
 
@@ -29,7 +28,7 @@ def create_workspace_dir(platform, project_name, mkdir=True):
     parent_dir = pathlib.Path(os.path.dirname(__file__)).resolve()
     board_workspace = (
         parent_dir
-        / f"workspace_{project_name}_{zephyr_board}"
+        / f"workspace/{project_name}_{zephyr_board}"
         / datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
     )
     board_workspace_base = str(board_workspace)
@@ -46,28 +45,48 @@ def create_workspace_dir(platform, project_name, mkdir=True):
     return board_workspace
 
 
-def open_sine_model():
+def download_sine_model():
     model_url = "https://people.linaro.org/~tom.gall/sine_model.tflite"
     model_file = "sine_model.tflite"
-    model_path = download_testdata(model_url, model_file, module="data")
+    return download_model(model_url, model_file)
+
+
+def download_model(url: str, filename: str):
+    from tvm.contrib.download import download_testdata
+    return download_testdata(url, filename, module="data")
+
+
+def open_tflite_model(model_path: str):
+    import tflite
+    import tensorflow as tf
 
     tflite_model_buf = open(model_path, "rb").read()
-
     try:
-        import tflite
-
         tflite_model = tflite.Model.GetRootAsModel(tflite_model_buf, 0)
     except AttributeError:
         import tflite.Model
-
         tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model_buf, 0)
 
+    # Load TFLite model and allocate tensors.
+    interpreter = tf.lite.Interpreter(model_path=model_path)
+    interpreter.allocate_tensors()
 
-    input_tensor = "dense_4_input"
-    input_shape = (1,)
-    input_dtype = "float32"
-    input = (input_tensor, input_shape, input_dtype)
+    # Get input and output tensors.
+    input_details = interpreter.get_input_details()
+    output_details = interpreter.get_output_details()
+
+    input = input_details[0]
+    input_tensor = input["name"]
+    input_shape = tuple(input["shape"])
+    input_dtype = input["dtype"].__name__
 
     relay_mod, params = relay.frontend.from_tflite(tflite_model, shape_dict={input_tensor: input_shape}, dtype_dict={input_tensor: input_dtype})
+    return (relay_mod, params, (input_tensor, input_shape, input_dtype))
 
-    return (relay_mod, params, input)
+
+def print_relay(relay, params, show_metadata=True, optimize=False):
+    if optimize:
+        relay, _ = relay.optimize(relay, "llvm", params)
+
+    text = relay.astext(show_meta_data=show_metadata)
+    print(text)
