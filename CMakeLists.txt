@@ -395,6 +395,15 @@ if(USE_PIPELINE_EXECUTOR)
   list(APPEND RUNTIME_SRCS ${RUNTIME_PIPELINE_SRCS})
 endif(USE_PIPELINE_EXECUTOR)
 
+# Enable ctest if gtest is available
+find_path(GTEST_INCLUDE_DIR gtest/gtest.h)
+find_library(GTEST_LIB gtest "$ENV{GTEST_LIB}")
+if(GTEST_INCLUDE_DIR AND GTEST_LIB)
+  enable_testing()
+  include(CTest)
+  include(GoogleTest)
+endif()
+
 # Module rules
 include(cmake/modules/VTA.cmake)
 include(cmake/modules/StandaloneCrt.cmake)

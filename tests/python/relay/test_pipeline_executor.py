@@ -22,7 +22,11 @@ from tvm import relay
 from tvm.relay import transform
 from tvm.contrib import graph_executor, pipeline_executor
 
+
 def get_mannual_mod():
+    """
+    # get list of module that represent a subgraph
+    """
     mods = []
     dshape = (3, 3)
     data = relay.var("data_0", relay.TensorType(dshape, "float32"))
@@ -37,17 +41,24 @@ def get_mannual_mod():
     mv2 = relay.Constant(tvm.nd.array(mvalue2))
     mv3 = relay.Constant(tvm.nd.array(mvalue3))
 
-    # net1 have three output, output3 is final output
+    """
+    # net1 have three output, output3 is final output.
+    """
+
     net_output1 = relay.add(data, mv1)
     net_output2 = relay.subtract(data, mv2)
     net_output3 = relay.multiply(data, mv3)
 
-    # net2 use net1 output1 as input
+    """
+    # net2 use net1 output1 as input.
+    """
     net2 = relay.add(data_net1_output_1, mv2)
     net2 = relay.add(net2, data21)
     net2 = relay.add(net2, mv3)
 
-    # net3 use net2 output1 and net1 outpu2 as input
+    """
+    # net3 use net2 output1 and net1 outpu2 as input.
+    """
     net3 = relay.multiply(data_net2_output_1, mv3)
     net3 = relay.add(net3, data_net1_output_2)
 
@@ -64,12 +75,21 @@ def get_mannual_mod():
     return mods, dshape
 
 
-def manual_conf(mods):
+def get_manual_conf(mods):
+    """
+    # This function use to generate manual pipe line configueration,
+    # the result use to verify if the pipe configuration can generate
+    # correct result.
+    """
     mod_config = {}
+    """
     # set configure
+    """
     mconfig1 = {}
+    """
     # third output is final output, second output for mod3, first for mod2
     # input
+    """
     mconfig1["pipeline"] = {
         "mod_indx": 1,
         "output": [
@@ -98,39 +118,42 @@ def manual_conf(mods):
     mod_config[mods[2]] = mconfig3
     return mod_config
 
-def pipeline(target):
+
+def pipeline_module_create(target):
     """
-    #Get 4 pipeline module.
+    #Get 3 pipeline module.
     """
     (mod1, mod2, mod3), dshape = get_mannual_mod()
-    """
-    #Prepare batch data for pipeline feeding
-    """
+
+    # Prepare batch data for pipeline feeding
     datas = []
     for i in range(5):
         datas.append(np.full(dshape, 3 + i).astype("float32"))
 
     pipe_config = pipeline_executor.PipelineModuleConfig([mod1, mod2, mod3])
-    pipe_config.connect(pipe_config.pipe_input("data_0"),
-                        pipe_config[mod1].input("data_0"))
 
-    pipe_config.connect(pipe_config.pipe_input("data_1"),
-                        pipe_config[mod2].input("data_1"))
+    # Create pipeline compute input/output and subgraph dependent relation.
 
-    pipe_config.connect(pipe_config[mod1].output(0),
-                        pipe_config[mod2].input("data_0"))
+    # pipeline compute input "data_0" would get forward to mod1 as input "data_0"
+    pipe_config.connect(pipe_config.pipe_input("data_0"), pipe_config[mod1].input("data_0"))
 
-    pipe_config.connect(pipe_config[mod1].output(1),
-                        pipe_config[mod3].input("data_0"))
+    # pipeline compute input "data_1" would get forward to mod2 as input "data_1"
+    pipe_config.connect(pipe_config.pipe_input("data_1"), pipe_config[mod2].input("data_1"))
 
-    pipe_config.connect(pipe_config[mod2].output(0),
-                        pipe_config[mod3].input("data_1"))
+    # mod1 output(0) would get forward to mod2 as input "data_0"
+    pipe_config.connect(pipe_config[mod1].output(0), pipe_config[mod2].input("data_0"))
 
-    pipe_config.connect(pipe_config[mod1].output(2),
-                        pipe_config.pipe_output("1"))
+    # mod1 output(1) would get forward to mod3 as input "data_0"
+    pipe_config.connect(pipe_config[mod1].output(1), pipe_config[mod3].input("data_0"))
 
-    pipe_config.connect(pipe_config[mod3].output(0),
-                        pipe_config.pipe_output("2"))
+    # mod2 output(0) would get forward to mod3 as input "data_1"
+    pipe_config.connect(pipe_config[mod2].output(0), pipe_config[mod3].input("data_1"))
+
+    # mod1 output(2) would get forward as final pipeline compute output(1)
+    pipe_config.connect(pipe_config[mod1].output(2), pipe_config.pipe_output("1"))
+
+    # mod3 output(0) would get forward as final pipeline compute output(2)
+    pipe_config.connect(pipe_config[mod3].output(0), pipe_config.pipe_output("2"))
     """
     # print configueration, the expect result like following.
     #
@@ -154,14 +177,12 @@ def pipeline(target):
     # connection correctness veify
     """
     try:
-        pipe_config.connect(pipe_config[mod2].output(0),
-                        pipe_config[mod1].input("data_0"))
+        pipe_config.connect(pipe_config[mod2].output(0), pipe_config[mod1].input("data_0"))
         assert 0, f"wrong module connect order check not pass!"
-        pipe_config.connect(pipe_config.pipe_input("data_0"),
-                        pipe_config[mod1].output(0))
+        pipe_config.connect(pipe_config.pipe_input("data_0"), pipe_config[mod1].output(0))
         assert 0, f"wrong global input connect check not pass!"
     except:
-        print("wrong connect check pass")
+        print("connection correctness check pass")
 
     """
     # get text format configuration.
@@ -172,7 +193,7 @@ def pipeline(target):
     """
     # check if the configuration match expectation.
     """
-    assert pconfig == manual_conf([mod1, mod2, mod3])
+    assert pconfig == get_manual_conf([mod1, mod2, mod3])
 
     """
     # generate configure for build process
@@ -207,12 +228,21 @@ def pipeline(target):
     mod_config[mod3] = mconfig3
 
     """
-    # build and create pipeline module
+    # Test build and create pipeline module
     """
     with relay.build_config(opt_level=3):
         pipeline_mods, string_config = pipeline_executor.build_pipeline(mod_config)
 
     pipeline_module = pipeline_executor.create(pipeline_mods, string_config)
+    return pipeline_module
+
+
+def pipeline(target):
+    module = pipeline_module_create(target)
+    """
+    # Check if pipeline executor create value is valid.
+    """
+    assert module
 
 
 def test_pipeline():
@@ -220,6 +250,7 @@ def test_pipeline():
         target_list = tvm.testing.enabled_targets()
         for target in target_list:
             pipeline(target)
+
 
 if __name__ == "__main__":
     test_pipeline()

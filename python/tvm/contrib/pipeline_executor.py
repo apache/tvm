@@ -126,17 +126,26 @@ def create(pipeline_mods, mod_config):
 
 class PipelineModule(object):
     """Wrapper runtime module. This is a thin wrapper of the underlying TVM module.
-    you can also directly call set_input, run, and get_output of underlying module functions.
-
     Parameters
     ----------
-    graph_module : List[GraphModule]
+    pipeline_mods : List[GraphModule]
         The internal tvm module that holds the actual graph functions.
 
     pipeline_config : Dict[IRModule, Dict[str, Any]]
         modules and modules dependency configuration informaiton.
 
     """
+
+    def __init__(self, pipeline_mods, pipeline_config):
+        self.pipeline_mods = pipeline_mods
+        self.mod_config = pipeline_config
+        mods, config = self.graph_executor_create(pipeline_mods, pipeline_config)
+
+        pipelinecreate = tvm._ffi.get_global_func("tvm.pipeline_executor.create")
+        assert pipelinecreate
+        module = pipelinecreate(mods, config)
+
+        self.module_ = module
 
     def graph_executor_create(self, pipeline_mods, mod_config):
         """Create a pipeline runtime executor.
@@ -164,75 +173,95 @@ class PipelineModule(object):
 
         return mods, json.dumps(mod_config)
 
-    def __init__(self, pipeline_mods, mod_config):
-        self.pipeline_mods = pipeline_mods
-        self.mod_config = mod_config
-        mods, config = self.graph_executor_create(pipeline_mods, mod_config)
-
-        pipelinecreate = tvm._ffi.get_global_func("tvm.pipeline_executor.create")
-        assert pipelinecreate
-        module = pipelinecreate(mods, config)
-
-        self.module_ = module
-
 
 class PipelineModuleConfig:
-    class interface:
-        def __init__(self, owner, itype, name):
-            self.owner_ = owner
-            self.itype_ = itype
-            self.name_ = str(name)
-            self.dependent_ = []
-            return
+    """Pipeline Configuration Class, in this class there are 2 internal class,
+    first is Instance which use to represent Module, second is Interface which use
+    to represent Module input/output and Pipeline Module input/output, by setting
+    dependency relation between Interfaces this class can build the module
+    connection relation.
 
-        def get_name(self):
-            mname = ""
-            mindx = 0
-            if self.owner_:
-                mname = self.owner_.name_
+    The class Hierarchical as following.
+         PipelineModuleConfig ---> Pipe   Instance ---> Interface(input/output)
+                              ---> Module Instance ---> Interface(input/output)
+    """
 
-            return mname, self.name_
+    class Instance:
+        """The class use use to represent Module and storage module index and
+        Interface information.
+        """
 
-        def get_owner_indx(self):
-            return self.owner_.indx_
+        class Interface:
+            """The class that use to storage module connection information.
+               There are 2 types Interface Input:1 Output:2
+            Parameters
+            ----------
 
-        def get_dependent_str(self):
-            name = ""
-            for dependent in self.dependent_:
-                mname, dname = dependent.get_name()
-                name = name + (mname + ":output(" + dname if self.itype_ == 2 else "")
-                name = name + (")" if self.itype_ == 2 else mname + ":" + dname)
-            return name
+            owner : Instance
+                The class that own this interface, in such class there are
+                Module information like index, module name
 
-        def addDependent(self, dependent):
+            itype : integer
+                Interface type, 1 is input interface, 2 is output interface
+
+            name : str/integer
+                Interface name, for input that is string for example "data0"
+                for output that is integer for example 0.
             """
-            # check if the dependency setting correct.
-            # correct connection are following
-            # 1. global input to module input
-            # 2. module output to next module input
-            # 3. module output to global output
-            """
-            owner_indx = self.get_owner_indx()
-            dep_owner_indx = dependent.get_owner_indx()
-            assert owner_indx != dep_owner_indx, f"can not set self as dependent."
-            assert not (owner_indx > dep_owner_indx and \
-                    not (dependent.itype_ == 2 and dep_owner_indx == 0)), \
-                    f"dependent only can be next module interface or global output."
-            assert not (owner_indx == 0 and dependent.itype_ != 1), \
-                    f"global input only can set dependent with module input."
 
-            self.dependent_.append(dependent)
+            def __init__(self, owner, itype, name):
+                self.owner_ = owner
+                self.itype_ = itype
+                self.name_ = str(name)
+                self.dependent_ = []
 
-    class instance:
-        def __init__(self, indx = 0):
+            def get_name(self):
+                mname = ""
+                if self.owner_:
+                    mname = self.owner_.name_
+
+                return mname, self.name_
+
+            def get_owner_indx(self):
+                return self.owner_.indx_
+
+            def get_dependent_str(self):
+                name = ""
+                for dependent in self.dependent_:
+                    mname, dname = dependent.get_name()
+                    name = name + (mname + ":output(" + dname if self.itype_ == 2 else "")
+                    name = name + (")" if self.itype_ == 2 else mname + ":" + dname)
+                return name
+
+            def add_dependent(self, dependent):
+                """
+                # check if the dependency setting correct.
+                # correct connection are following
+                # 1. global input to module input
+                # 2. module output to next module input
+                # 3. module output to global output
+                """
+                owner_indx = self.get_owner_indx()
+                dep_owner_indx = dependent.get_owner_indx()
+                assert owner_indx != dep_owner_indx, f"can not set self as dependent."
+                assert not (
+                    owner_indx > dep_owner_indx
+                    and not (dependent.itype_ == 2 and dep_owner_indx == 0)
+                ), f"dependent only can be next module interface or global output."
+                assert not (
+                    owner_indx == 0 and dependent.itype_ != 1
+                ), f"global input only can set dependent with module input."
+
+                self.dependent_.append(dependent)
+
+        def __init__(self, indx=0):
             self.indx_ = indx
             self.name_ = "mod" + str(indx) if indx else ""
-            self.interfaces_ = {1:{}, 2:{}}
-            return
+            self.interfaces_ = {1: {}, 2: {}}
 
-        def get_interface(self, itype,  name):
+        def get_interface(self, itype, name):
             if name not in self.interfaces_[itype]:
-                self.interfaces_[itype][name] = PipelineModuleConfig.interface(self, itype, name)
+                self.interfaces_[itype][name] = self.Interface(self, itype, name)
 
             return self.interfaces_[itype][name]
 
@@ -242,48 +271,43 @@ class PipelineModuleConfig:
         def output(self, index):
             return self.get_interface(2, index)
 
-
     def __init__(self, mods):
-        """
-        # input
-        """
-        self.pipe_instance = self.instance(0)
-        self.mod_instance = {
-            m:self.instance(i + 1) for m, i in zip(mods, range(len(mods)))}
-        return
+        self.pipe_instance = self.Instance(0)
+        self.mod_instance = {m: self.Instance(i + 1) for m, i in zip(mods, range(len(mods)))}
 
     def __str__(self):
+        """ Get configuration in string type"""
         # get input
         input_dump = "Inputs\n"
         for input_name in self.pipe_instance.interfaces_[1]:
             inf = self.pipe_instance.interfaces_[1][input_name]
-            input_dump += "  |" +input_name + ": " + inf.get_dependent_str() + "\n"
+            input_dump += "  |" + input_name + ": " + inf.get_dependent_str() + "\n"
 
-        # connections
+        # get connections
         output = {}
         connections_dump = "\nconnections\n"
         for mod in self.mod_instance:
             for _, interface in self.mod_instance[mod].interfaces_[2].items():
-                if len(interface.dependent_):
+                if interface.dependent_:
                     mname, dname = interface.get_name()
                     iname = mname + ".output(" + dname + ")->"
                     for dep in interface.dependent_:
                         dep_mname, dep_dname = dep.get_name()
                         if dep.owner_.indx_ > 0:
                             iname += " " + dep_mname + "." + dep_dname
-                            connections_dump += "  |" + iname +"\n"
+                            connections_dump += "  |" + iname + "\n"
                         else:
-                            output[dep_dname] = mname + ".output(" + dname + ")"         
+                            output[dep_dname] = mname + ".output(" + dname + ")"
 
         # get output
         output_dump = "\noutput\n"
         for name in sorted(output.keys()):
             output_dump += "  |output(" + name + ") : " + output[name] + "\n"
 
-
         return input_dump + output_dump + connections_dump
 
     def get_config(self):
+        """ Get configuration in dictionary format."""
         mconfig = {}
         for mod in self.mod_instance:
             mconf = {}
@@ -292,7 +316,7 @@ class PipelineModuleConfig:
             for _, interface in instance.interfaces_[2].items():
                 dep_conf = []
                 output = {}
-                if len(interface.dependent_):
+                if interface.dependent_:
                     for dep in interface.dependent_:
                         dep_item = {}
                         _, dname = dep.get_name()
@@ -300,24 +324,22 @@ class PipelineModuleConfig:
                         dep_item["input_name"] = dname
                         dep_conf.append(dep_item)
 
-                """
-                # in configuration the ouput_indx start from 1
-                """
+                # in configuration the ouput_indx start from 1.
+
                 output["output_indx"] = int(interface.name_) + 1
                 output["dependent"] = dep_conf
                 output_conf.append(output)
-            mconf["mod_indx"] = interface.get_owner_indx()
+            mconf["mod_indx"] = instance.indx_
             mconf["output"] = output_conf
-            mconfig[mod] = {"pipeline" : mconf}
+            mconfig[mod] = {"pipeline": mconf}
 
         return mconfig
-
 
     def __getitem__(self, key):
         return self.mod_instance[key]
 
     def get_mod_indx(self, mod):
-        indx = self.mod_instance[mod].indx_   
+        indx = self.mod_instance[mod].indx_
         return indx
 
     def pipe_input(self, name):
@@ -326,6 +348,5 @@ class PipelineModuleConfig:
     def pipe_output(self, index):
         return self.pipe_instance.output(index)
 
-    def connect(self, left:interface, right:interface):
-        left.addDependent(right)
-        return
+    def connect(self, left: Instance.Interface, right: Instance.Interface):
+        left.add_dependent(right)
