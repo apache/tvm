@@ -203,11 +203,7 @@ def evaluate_performance(lib, data_shape):
 
     # evaluate
     print("Evaluate inference time cost...")
-    ftimer = module.module.time_evaluator("run", dev, number=100, repeat=3)
-    prof_res = np.array(ftimer().results) * 1000  # convert to millisecond
-    print(
-        "Mean inference time (std dev): %.2f ms (%.2f ms)" % (np.mean(prof_res), np.std(prof_res))
-    )
+    print(module.benchmark(dev, number=100, repeat=3))
 
 
 def tune_and_evaluate(tuning_opt):

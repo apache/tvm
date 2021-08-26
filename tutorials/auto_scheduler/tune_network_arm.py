@@ -349,11 +349,7 @@ def tune_and_evaluate():
 
     # Evaluate
     print("Evaluate inference time cost...")
-    ftimer = module.module.time_evaluator("run", dev, repeat=3, min_repeat_ms=500)
-    prof_res = np.array(ftimer().results) * 1e3  # convert to millisecond
-    print(
-        "Mean inference time (std dev): %.2f ms (%.2f ms)" % (np.mean(prof_res), np.std(prof_res))
-    )
+    print(module.benchmark(dev, repeat=3, min_repeat_ms=500))
 
 
 # We do not run the tuning in our webpage server since the server doesn't have a Raspberry Pi,

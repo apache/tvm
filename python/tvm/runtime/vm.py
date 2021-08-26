@@ -507,3 +507,67 @@ class VirtualMachine(object):
           The input index. -1 will be returned if the given input name is not found.
         """
         return self._get_input_index(input_name, func_name)
+
+    def benchmark(
+        self, device, *args, func_name="main", repeat=5, number=5, min_repeat_ms=None, **kwargs
+    ):
+        """Calculate runtime of a function by repeatedly calling it.
+
+        Use this function to get an accurate measurement of the runtime of a function. The function
+        is run multiple times in order to account for variability in measurements, processor speed
+        or other external factors.  Mean, median, standard deviation, min and max runtime are all
+        reported.  On GPUs, CUDA and ROCm specifically, special on-device timers are used so that
+        synchonization and data transfer operations are not counted towards the runtime. This allows
+        for fair comparison of runtimes across different functions and models.
+
+        The benchmarking loop looks approximately like so:
+
+        .. code-block:: python
+
+            for r in range(repeat):
+                time_start = now()
+                for n in range(number):
+                    func_name()
+                time_end = now()
+                total_times.append((time_end - time_start)/number)
+
+
+        Parameters
+        ----------
+        func_name : str
+            The function to benchmark
+
+        repeat : int
+            Number of times to run the outer loop of the timing code (see above). The output will
+            contain `repeat` number of datapoints.
+
+        number : int
+            Number of times to run the inner loop of the timing code. This inner loop is run in
+            between the timer starting and stopping. In order to amortize any timing overhead,
+            `number` should be increased when the runtime of the function is small (less than a 1/10
+            of a millisecond).
+
+        min_repeat_ms : Optional[float]
+            If set, the inner loop will be run until it takes longer than `min_repeat_ms`
+            milliseconds. This can be used to ensure that the function is run enough to get an
+            accurate measurement.
+
+        args : Sequence[Object]
+            Arguments to the function. These are cached before running timing code, so that data
+            transfer costs are not counted in the runtime.
+
+        kwargs : Dict[str, Object]
+            Named arguments to the function. These are cached like `args`.
+
+        Returns
+        -------
+        timing_results : BenchmarkResult
+            Runtimes of the function. Use `.mean` to access the mean runtime, use `.results` to
+            access the individual runtimes (in seconds).
+        """
+        min_repeat_ms = 0 if min_repeat_ms is None else min_repeat_ms
+        if args or kwargs:
+            self.set_input(func_name, *args, **kwargs)
+        return self.module.time_evaluator(
+            "invoke", device, repeat=repeat, number=number, min_repeat_ms=min_repeat_ms
+        )(func_name)

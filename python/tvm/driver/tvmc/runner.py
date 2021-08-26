@@ -421,12 +421,8 @@ def run_module(
         # This print is intentional
         print(report)
 
-    # create the module time evaluator (returns a function)
-    timer = module.module.time_evaluator("run", dev, number=number, repeat=repeat)
-    # call the evaluator function to invoke the module and save execution times
-    prof_result = timer()
-    # collect a list of execution times from the profiling results
-    times = prof_result.results
+    # call the benchmarking function of the executor
+    times = module.benchmark(dev, number=number, repeat=repeat)
 
     logger.debug("Collecting the output tensors.")
     num_outputs = module.get_num_outputs()
