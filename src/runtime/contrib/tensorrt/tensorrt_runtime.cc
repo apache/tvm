@@ -96,7 +96,6 @@ class TensorRTRuntime : public JSONRuntimeBase {
    * \param consts The constant params from compiled model.
    */
   void Init(const Array<NDArray>& consts) override {
-    LOG(INFO) << "calling Init function in tensorrt runtime ... ";
     ICHECK_EQ(consts.size(), const_idx_.size())
         << "The number of input constants must match the number of required.";
     LoadGlobalAttributes();
@@ -151,13 +150,10 @@ class TensorRTRuntime : public JSONRuntimeBase {
     std::vector<size_t> binding_sizes(num_bindings, 0);
     // Setup input bindings.
     const size_t num_inputs = input_nodes_.size();
-    int count_inputs = 0;
     for (size_t i = 0; i < input_nodes_.size(); ++i) {
       auto nid = input_nodes_[i];
       if (nodes_[nid].GetOpType() == "input") {
-        
         for (size_t j = 0; j < nodes_[nid].GetOpShape().size(); ++j) {
-          count_inputs++;
           uint32_t eid = EntryID(nid, j);
           const std::string name = nodes_[nid].GetOpName() + "_" + std::to_string(j);
           int binding_index = engine->getBindingIndex(name.c_str());
@@ -186,13 +182,13 @@ class TensorRTRuntime : public JSONRuntimeBase {
     }
 
     // add batch data to calibrator
-    if(num_calibration_batches_remaining_ != 0){
+    if(num_calibration_batches_remaining_ > 0){
       if(calibrator_ != nullptr){
         LOG(INFO) << "starting adding last " << num_calibration_batches_remaining_ << "-th batch data to calibrator";
         std::vector<void*> input_bindings(bindings.begin(),
-                                          bindings.begin() + count_inputs);
+                                          bindings.begin() + num_bindings);
         std::vector<size_t> input_sizes(binding_sizes.begin(),
-                                        binding_sizes.begin() + count_inputs);
+                                        binding_sizes.begin() + num_bindings);
         calibrator_->AddBatchData(input_bindings, input_sizes);
         num_calibration_batches_remaining_--;
       }
