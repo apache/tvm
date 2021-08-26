@@ -3508,8 +3508,16 @@ class NegativeLogLikelihoodLoss(OnnxOpConverter):
         target_tensor = relay.expand_dims(target_tensor, 1)
         loss = -relay.gather(input_tensor, axis=1, indices=target_tensor)
         loss = relay.squeeze(loss, axis=[1])
+
+        weight_total = None
         if weight_tensor is not None:
-            loss *= weight_tensor
+            expanded_target_tensor = relay.expand_dims(target_tensor, 0)
+            expanded_target_tensor = relay.nn.batch_flatten(expanded_target_tensor)
+            flattened_weights = relay.gather_nd(weight_tensor, expanded_target_tensor)
+            select_weights = relay.reshape_like(flattened_weights, loss)
+            loss *= select_weights
+            weight_total = relay.sum(select_weights)
+            
         if target_tensor is not None and ignore_index is not None:
             mask_tensor = relay.equal(target_tensor, relay.const(ignore_index, dtype=target_tensor_type))
 
@@ -3517,9 +3525,10 @@ class NegativeLogLikelihoodLoss(OnnxOpConverter):
             mask_tensor = relay.const(1, dtype='int8') - relay.cast(mask_tensor, 'int8')
 
             loss *= relay.cast_like(mask_tensor, loss)
+            
         if reduction == "mean":
-            if weight_tensor is not None:
-                return relay.sum(loss) / relay.sum(weight_tensor)
+            if weight_total is not None:
+                return relay.sum(loss) / weight_total
             else:
                 return relay.mean(loss)
         elif reduction == "sum":
