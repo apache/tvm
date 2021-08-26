@@ -23,7 +23,7 @@ import numpy as np
 
 import tvm
 from tvm import te
-from test_autotvm_common import DummyRunner, bad_matmul, get_sample_task
+from tvm.testing.autotvm import DummyRunner, bad_matmul, get_sample_task
 from tvm import autotvm
 from tvm.autotvm.measure.measure import MeasureErrorNo, MeasureResult
 from tvm.autotvm import measure

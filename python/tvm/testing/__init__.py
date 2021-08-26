@@ -27,3 +27,4 @@ from .popen_pool import initializer, after_initializer, register_ffi, call_cpp_f
 from .popen_pool import call_py_ffi, call_cpp_py_ffi
 
 from . import auto_scheduler
+from . import autotvm
