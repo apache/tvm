@@ -58,10 +58,11 @@ def test_timeout():
     ex = LocalExecutor(timeout=timeout)
 
     f1 = ex.submit(timeout_job, timeout)
-    while not f1.done():
-        pass
-    res = f1.get()
-    assert isinstance(res, executor.TimeoutError)
+    try:
+        res = f1.get()
+    except Exception as ex:
+        res = ex
+        assert isinstance(res, executor.TimeoutError)
 
 
 if __name__ == "__main__":

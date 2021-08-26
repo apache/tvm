@@ -18,19 +18,14 @@
 
 import signal
 
-from multiprocessing import Process, Queue
-
-try:
-    from queue import Empty
-except ImportError:
-    from Queue import Empty
-
 try:
     import psutil
 except ImportError:
     psutil = None
 
 from . import executor
+from ..env import GLOBAL_SCOPE
+from ...contrib.popen_pool import PopenPoolExecutor
 
 
 def kill_child_processes(parent_pid, sig=signal.SIGTERM):
@@ -47,65 +42,28 @@ def kill_child_processes(parent_pid, sig=signal.SIGTERM):
             return
 
 
-def _execute_func(func, queue, args, kwargs):
-    """execute function and return the result or exception to a queue"""
-    try:
-        res = func(*args, **kwargs)
-    except Exception as exc:  # pylint: disable=broad-except
-        res = exc
-    queue.put(res)
-
-
-def call_with_timeout(queue, timeout, func, args, kwargs):
-    """A wrapper to support timeout of a function call"""
-
-    # start a new process for timeout (cannot use thread because we have c function)
-    p = Process(target=_execute_func, args=(func, queue, args, kwargs))
-    p.start()
-    p.join(timeout=timeout)
-
-    queue.put(executor.TimeoutError())
-
-    kill_child_processes(p.pid)
-    p.terminate()
-    p.join()
+def _popen_initializer(global_scope):
+    global GLOBAL_SCOPE
+    GLOBAL_SCOPE = global_scope
 
 
 class LocalFuture(executor.Future):
     """Local wrapper for the future
-
     Parameters
     ----------
-    process: multiprocessing.Process
-        process for running this task
-    queue: multiprocessing.Queue
-        queue for receiving the result of this task
+    future: concurrent.futures.Future
+        A future returned by PopenPoolExecutor.
     """
 
-    def __init__(self, process, queue):
+    def __init__(self, future):
         self._done = False
-        self._process = process
-        self._queue = queue
+        self._future = future
 
     def done(self):
-        self._done = self._done or not self._queue.empty()
-        return self._done
+        return self._future.done()
 
     def get(self, timeout=None):
-        try:
-            res = self._queue.get(block=True, timeout=timeout)
-        except Empty:
-            raise executor.TimeoutError()
-        if self._process.is_alive():
-            kill_child_processes(self._process.pid)
-            self._process.terminate()
-        self._process.join()
-        self._queue.close()
-        self._queue.join_thread()
-        self._done = True
-        del self._queue
-        del self._process
-        return res
+        return self._future.result(timeout)
 
 
 class LocalFutureNoFork(executor.Future):
@@ -126,7 +84,6 @@ class LocalFutureNoFork(executor.Future):
 
 class LocalExecutor(executor.Executor):
     """Local executor that runs workers on the same machine with multiprocessing.
-
     Parameters
     ----------
     timeout: float, optional
@@ -151,7 +108,7 @@ class LocalExecutor(executor.Executor):
         if not self.do_fork:
             return LocalFutureNoFork(func(*args, **kwargs))
 
-        queue = Queue(2)  # Size of 2 to avoid a race condition with size 1.
-        process = Process(target=call_with_timeout, args=(queue, self.timeout, func, args, kwargs))
-        process.start()
-        return LocalFuture(process, queue)
+        pool = PopenPoolExecutor(
+            timeout=self.timeout, initializer=_popen_initializer, initargs=(GLOBAL_SCOPE,)
+        )
+        return LocalFuture(pool.submit(func, args, kwargs))
