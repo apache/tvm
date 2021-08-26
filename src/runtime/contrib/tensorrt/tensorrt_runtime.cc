@@ -185,11 +185,9 @@ class TensorRTRuntime : public JSONRuntimeBase {
     if(num_calibration_batches_remaining_ > 0){
       if(calibrator_ != nullptr){
         LOG(INFO) << "starting adding last " << num_calibration_batches_remaining_ << "-th batch data to calibrator";
-        std::vector<void*> input_bindings(bindings.begin(),
-                                          bindings.begin() + num_bindings);
         std::vector<size_t> input_sizes(binding_sizes.begin(),
                                         binding_sizes.begin() + num_bindings);
-        calibrator_->AddBatchData(input_bindings, input_sizes);
+        calibrator_->AddBatchData(bindings, input_sizes);
         num_calibration_batches_remaining_--;
       }
       return;
@@ -314,7 +312,19 @@ class TensorRTRuntime : public JSONRuntimeBase {
     const bool use_int8 = (dmlc::GetEnv("TVM_TENSORRT_USE_INT8", 0) != 0);
     TensorRTEngineAndContext engine_and_context = builder.BuildEngine();
     trt_engine_cache_[std::make_pair(symbol_name_, batch_size)] = engine_and_context;
-    if(use_int8 == true){
+    if(use_int8){
+      BuildEngineFromJson(engine_and_context, use_fp16, batch_size);
+    }
+
+    LOG(INFO) << "Finished building TensorRT engine for subgraph " << symbol_name_
+               << " with batch size " << batch_size;
+    CacheEngineToDisk();
+    return trt_engine_cache_.at(std::make_pair(symbol_name_, batch_size));
+  }
+
+
+
+  void BuildEngineFromJson(TensorRTEngineAndContext& engine_and_context, bool use_fp16, int batch_size){
       if(calibrator_ == nullptr){
         this->CreateCalibratorIfUsingInt8(engine_and_context);
       }
@@ -323,22 +333,15 @@ class TensorRTRuntime : public JSONRuntimeBase {
         engine_and_context.context->destroy();
         engine_and_context.engine->destroy();
         
-        LOG(INFO)<<"rebuild builder using int8 mode";
+        LOG(INFO)<<"rebuild builder using INT8 mode";
         TensorRTBuilder builder2(&logger_, data_entry_, max_workspace_size_, use_implicit_batch_,
                               use_fp16, batch_size, calibrator_.get());
         set_up_input_output(builder2);
         TensorRTEngineAndContext new_engine_and_context = builder2.BuildEngine();
         trt_engine_cache_[std::make_pair(symbol_name_, batch_size)] = new_engine_and_context;
         calibrator_.reset(nullptr);
-        LOG(INFO) <<"finished rebuilding using int8 mode ... ";
+        LOG(INFO) <<"finished rebuilding using INT8 mode ... ";
       }
-
-    }
-
-    LOG(INFO) << "Finished building TensorRT engine for subgraph " << symbol_name_
-               << " with batch size " << batch_size;
-    CacheEngineToDisk();
-    return trt_engine_cache_.at(std::make_pair(symbol_name_, batch_size));
   }
 
 

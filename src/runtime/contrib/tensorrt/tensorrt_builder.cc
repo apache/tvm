@@ -161,7 +161,7 @@ TensorRTEngineAndContext TensorRTBuilder::BuildEngine() {
   if(use_int8_) {
     config_->setFlag(nvinfer1::BuilderFlag::kINT8);
     config_->setInt8Calibrator(calibrator_);
-    LOG(INFO)<<"config finishes setting calibrator for int8 mode ... ";
+    LOG(INFO)<<"config finishes setting up calibrator as INT8 mode ... ";
   }
 
   // Add profiles.
@@ -185,9 +185,7 @@ TensorRTEngineAndContext TensorRTBuilder::BuildEngine() {
     }
     config_->addOptimizationProfile(profile);
   }
-  LOG(INFO)<<"start building up engine with new network and builder ...  ";
   nvinfer1::ICudaEngine* engine = builder_->buildEngineWithConfig(*network_, *config_);
-  LOG(INFO)<<"finished building up engine with new network and builder ... ";
 #else
   nvinfer1::ICudaEngine* engine = builder_->buildCudaEngine(*network_);
 #endif
