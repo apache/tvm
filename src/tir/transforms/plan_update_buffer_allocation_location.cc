@@ -98,7 +98,7 @@ class BufferAllocationLocator : public StmtExprMutator {
       const Var& target_var = match_buffer->buffer->data;
       buffer_data_to_buffer_.erase(target_var);
     }
-    // Ignore buffer allocated inside the block when updating access region.
+    // No longer consider buffers allocated inside the block when updating access region.
     if (it != alloc_buffers_.end()) {
       for (const Buffer& buf : it->second) {
         buffer_data_to_buffer_.erase(buf->data);
