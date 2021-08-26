@@ -230,8 +230,6 @@ class ComputeDAG(Object):
             The workload key of this compute DAG
         """
         str_dag = _ffi_api.ComputeDAGPrintDAG(self, True)
-        str_dag = str_dag.encode(encoding="utf-8")
-
         io_shapes = []
         for tensor in self.tensors:
             io_shapes += get_const_tuple(tensor.shape)
