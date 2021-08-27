@@ -42,6 +42,8 @@ PKG_CFLAGS = ${PKG_COMPILE_OPTS} \
 	-I${PLATFORM_PATH} \
 	-I${CMSIS_PATH}/Device/ARM/${ARM_CPU}/Include/ \
 	-I${CMSIS_PATH}/CMSIS/Core/Include \
+	-I${CMSIS_PATH}/CMSIS/NN/Include \
+	-I${CMSIS_PATH}/CMSIS/DSP/Include \
 	-isystem$(STANDALONE_CRT_DIR)/include \
 
 PKG_LDFLAGS = -lm -specs=nosys.specs -static -T ${AOT_TEST_ROOT}/corstone300.ld
@@ -56,6 +58,7 @@ CRT_SRCS = $(shell find $(CRT_ROOT))
 CODEGEN_SRCS = $(shell find $(abspath $(CODEGEN_ROOT)/host/src/*.c))
 CODEGEN_OBJS = $(subst .c,.o,$(CODEGEN_SRCS))
 CMSIS_STARTUP_SRCS = $(shell find ${CMSIS_PATH}/Device/ARM/${ARM_CPU}/Source/*.c)
+CMSIS_NN_SRCS = $(shell find ${CMSIS_PATH}/CMSIS/NN/Source/*/*.c)
 UART_SRCS = $(shell find ${PLATFORM_PATH}/*.c)
 
 aot_test_runner: $(build_dir)/aot_test_runner
@@ -79,13 +82,19 @@ ${build_dir}/libcmsis_startup.a: $(CMSIS_STARTUP_SRCS)
 	$(QUIET)$(AR) -cr $(abspath $(build_dir)/libcmsis_startup.a) $(abspath $(build_dir))/libcmsis_startup/*.o
 	$(QUIET)$(RANLIB) $(abspath $(build_dir)/libcmsis_startup.a)
 
+${build_dir}/libcmsis_nn.a: $(CMSIS_NN_SRCS)
+	$(QUIET)mkdir -p $(abspath $(build_dir)/libcmsis_nn)
+	$(QUIET)cd $(abspath $(build_dir)/libcmsis_nn) && $(CC) -c $(PKG_CFLAGS) -D${ARM_CPU} $^
+	$(QUIET)$(AR) -cr $(abspath $(build_dir)/libcmsis_nn.a) $(abspath $(build_dir))/libcmsis_nn/*.o
+	$(QUIET)$(RANLIB) $(abspath $(build_dir)/libcmsis_nn.a)
+
 ${build_dir}/libuart.a: $(UART_SRCS)
 	$(QUIET)mkdir -p $(abspath $(build_dir)/libuart)
 	$(QUIET)cd $(abspath $(build_dir)/libuart) && $(CC) -c $(PKG_CFLAGS) $^
 	$(QUIET)$(AR) -cr $(abspath $(build_dir)/libuart.a) $(abspath $(build_dir))/libuart/*.o
 	$(QUIET)$(RANLIB) $(abspath $(build_dir)/libuart.a)
 
-$(build_dir)/aot_test_runner: $(build_dir)/test.c $(build_dir)/crt_backend_api.o $(build_dir)/stack_allocator.o ${build_dir}/libcmsis_startup.a ${build_dir}/libuart.a $(build_dir)/libcodegen.a
+$(build_dir)/aot_test_runner: $(build_dir)/test.c $(build_dir)/crt_backend_api.o $(build_dir)/stack_allocator.o ${build_dir}/libcmsis_startup.a ${build_dir}/libcmsis_nn.a ${build_dir}/libuart.a $(build_dir)/libcodegen.a
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)$(CC) $(PKG_CFLAGS) -o $@ -Wl,--whole-archive $^ -Wl,--no-whole-archive $(PKG_LDFLAGS)
 
