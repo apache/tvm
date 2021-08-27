@@ -981,5 +981,37 @@ def test_benchmark():
         assert result.std == 1.5
 
 
+@tvm.testing.parametrize_targets("cuda", "llvm")
+def test_benchmark_end_to_end(dev, target):
+    mod, params = mlp.get_workload(1)
+    lib = vm.compile(mod, target=target, params=params)
+    exe = runtime.vm.VirtualMachine(lib, dev)
+    data = tvm.nd.array(np.random.rand(1, 1, 28, 28).astype("float32"), device=dev)
+    result = exe.benchmark(dev, data, func_name="main", repeat=2, number=1, end_to_end=True)
+    assert result.mean > 0
+
+
+@tvm.testing.requires_llvm
+def test_benchmark_end_to_end_rpc():
+    server = rpc.Server("127.0.0.1")
+    remote = rpc.connect(server.host, server.port)
+
+    mod, params = mlp.get_workload(1)
+    lib = vm.compile(mod, target="llvm", params=params)
+
+    temp = utils.tempdir()
+    path = temp.relpath("vm_library.so")
+    lib.mod.export_library(path)
+    remote.upload(path)
+    rlib = remote.load_module("vm_library.so")
+
+    exe = runtime.vm.VirtualMachine(rlib, remote.cpu())
+    data = tvm.nd.array(np.random.rand(1, 1, 28, 28).astype("float32"), device=remote.cpu())
+    result = exe.benchmark(
+        remote.cpu(), data=data, func_name="main", repeat=2, number=1, end_to_end=True
+    )
+    assert result.mean > 0
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
