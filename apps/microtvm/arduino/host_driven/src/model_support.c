@@ -17,7 +17,6 @@
  * under the License.
  */
 
-#include "standalone_crt/include/tvm/runtime/crt/internal/aot_executor/aot_executor.h"
 #include "stdarg.h"
 
 // Blink code for debugging purposes
