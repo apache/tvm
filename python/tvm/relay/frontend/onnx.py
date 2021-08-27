@@ -37,21 +37,9 @@ from .. import qnn as _qnn
 from .. import random as _random
 from .. import ty as _ty
 from .. import vision as _vision
-from .common import (
-    AttrCvt,
-    Renamer,
-    fold_constant,
-    get_name,
-    get_relay_op,
-    gru_cell,
-    infer_channels,
-    infer_shape,
-    infer_type,
-    infer_value,
-    lstm_cell,
-    new_var,
-    unbind,
-)
+from .common import (AttrCvt, Renamer, fold_constant, get_name, get_relay_op,
+                     gru_cell, infer_channels, infer_shape, infer_type,
+                     infer_value, lstm_cell, new_var, unbind)
 
 __all__ = ["from_onnx"]
 
@@ -3518,7 +3506,7 @@ class NegativeLogLikelihoodLoss(OnnxOpConverter):
             loss *= select_weights
             weight_total = relay.sum(select_weights)
             
-        if target_tensor is not None and ignore_index is not None:
+        if ignore_index is not None:
             mask_tensor = relay.equal(target_tensor, relay.const(ignore_index, dtype=target_tensor_type))
 
             # Turn all "True" entries to 0 and all "False" entries to 1
