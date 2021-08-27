@@ -222,7 +222,7 @@ class ComputeDAG(Object):
 
     def workload_key(self):
         """Return the workload key of this compute DAG.
-        The workload key is a JSON string from a tuple of (DAG string, tensor shapes...)
+        The workload key is a JSON string from a tuple of (hash of DAG, tensor shapes...)
 
         Returns
         -------
