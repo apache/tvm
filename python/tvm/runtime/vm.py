@@ -509,16 +509,25 @@ class VirtualMachine(object):
         return self._get_input_index(input_name, func_name)
 
     def benchmark(
-        self, device, *args, func_name="main", repeat=5, number=5, min_repeat_ms=None, **kwargs
+        self,
+        device,
+        *args,
+        func_name="main",
+        repeat=5,
+        number=5,
+        min_repeat_ms=None,
+        end_to_end=False,
+        **kwargs,
     ):
         """Calculate runtime of a function by repeatedly calling it.
 
         Use this function to get an accurate measurement of the runtime of a function. The function
         is run multiple times in order to account for variability in measurements, processor speed
         or other external factors.  Mean, median, standard deviation, min and max runtime are all
-        reported.  On GPUs, CUDA and ROCm specifically, special on-device timers are used so that
+        reported. On GPUs, CUDA and ROCm specifically, special on-device timers are used so that
         synchonization and data transfer operations are not counted towards the runtime. This allows
-        for fair comparison of runtimes across different functions and models.
+        for fair comparison of runtimes across different functions and models. The `end_to_end` flag
+        switches this behavior to include data transfer operations in the runtime.
 
         The benchmarking loop looks approximately like so:
 
@@ -552,6 +561,11 @@ class VirtualMachine(object):
             milliseconds. This can be used to ensure that the function is run enough to get an
             accurate measurement.
 
+        end_to_end : bool
+            If set, include time to transfer input tensors to the device and time to transfer
+            returned tensors in the total runtime. This will give accurate timings for end to end
+            workloads.
+
         args : Sequence[Object]
             Arguments to the function. These are cached before running timing code, so that data
             transfer costs are not counted in the runtime.
@@ -566,6 +580,23 @@ class VirtualMachine(object):
             access the individual runtimes (in seconds).
         """
         min_repeat_ms = 0 if min_repeat_ms is None else min_repeat_ms
+        if end_to_end:
+            # We need to unpack keyword arguments into positional arguments
+            packed_args = list(args)
+            for k, v in kwargs.items():
+                i = self.get_input_index(k, func_name)
+                if i < 0:
+                    raise TypeError(f"{func_name}() got an unexpected keyword argument '{k}'")
+                while i >= len(packed_args):
+                    packed_args.append(None)
+                packed_args[i] = v
+            return self.module.time_evaluator(
+                "invoke_return_to_device",
+                device,
+                repeat=repeat,
+                number=number,
+                min_repeat_ms=min_repeat_ms,
+            )(func_name, device.device_type, device.device_id, *packed_args)
         if args or kwargs:
             self.set_input(func_name, *args, **kwargs)
         return self.module.time_evaluator(

@@ -582,6 +582,34 @@ PackedFunc GraphExecutor::GetFunction(const std::string& name,
         [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->NumInputs(); });
   } else if (name == "run") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { this->Run(); });
+  } else if (name == "run_from_inputs") {
+    return PackedFunc(
+        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+          CHECK(args.size() % 2 == 0)
+              << "Number of arguments to run_from_inputs must be an even number of key-value pairs";
+          Device host{static_cast<DLDeviceType>(args[0].operator int()), args[1].operator int()};
+          for (int i = 2; i < args.size(); i += 2) {
+            if (String::CanConvertFrom(args[i])) {
+              int in_idx = this->GetInputIndex(args[i].operator String());
+              if (in_idx >= 0) {
+                this->SetInput(in_idx, args[i + 1]);
+              } else {
+                LOG(FATAL) << args[i].operator String() << " is not a valid input name";
+              }
+            } else {
+              this->SetInput(args[i], args[i + 1]);
+            }
+          }
+          this->Run();
+          Array<NDArray> outputs;
+          for (int i = 0; i < this->NumOutputs(); i++) {
+            NDArray out = this->GetOutput(i);
+            NDArray a = NDArray::Empty(out.Shape(), out.DataType(), host);
+            a.CopyFrom(out);
+            outputs.push_back(a);
+          }
+          *rv = outputs;
+        });
   } else if (name == "load_params") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       this->LoadParams(args[0].operator std::string());
