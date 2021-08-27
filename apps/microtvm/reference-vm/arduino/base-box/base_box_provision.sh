@@ -64,11 +64,13 @@ arduino-cli core install SPRESENSE:spresense --additional-urls $SPRESENSE_BOARDS
 SPRESENSE_NUTTX_BUGFIX_PATH=~/.arduino15/packages/SPRESENSE/tools/spresense-sdk/2.2.1/spresense/release/nuttx/include/sys/types.h
 sed -i 's/#ifndef CONFIG_WCHAR_BUILTIN/#if !defined(__cplusplus)/g' $SPRESENSE_NUTTX_BUGFIX_PATH
 
-# There's also a SECOND bug in the Spresense Arduino bindings, relating to how the
-# flash_writer path is templated on Linux. This change is only needed to upload code
-# (not compile) to the Spresense.
-# https://github.com/sonydevworld/spresense-arduino-compatible/issues/127
+# There's also a bug in arduino-cli where {runtime.os} is not properly templated in
+# platform.txt. This bug only seems to appear with the SPRESENSE SDK. A fix has been
+# merged and will be part of arduino-cli 0.18.4, but that has yet to be published.
+# This change is only needed to upload code (not compile) for the Spresense.
+# https://github.com/arduino/arduino-cli/issues/1198
 SPRESENSE_FLASH_WRITER_BUGFIX_PATH=~/.arduino15/packages/SPRESENSE/hardware/spresense/2.2.1/platform.txt
+sed -i 's/tools.spresense-tools.cmd.path={path}\/flash_writer\/{runtime.os}\/flash_writer/tools.spresense-tools.cmd.path={path}\/flash_writer\/linux\/flash_writer/g' $SPRESENSE_FLASH_WRITER_BUGFIX_PATH
 sed -i 's/tools.spresense-tools.cmd.path.linux={path}\/flash_writer\/{runtime.os}\/flash_writer/tools.spresense-tools.cmd.path.linux={path}\/flash_writer\/linux\/flash_writer/g' $SPRESENSE_FLASH_WRITER_BUGFIX_PATH
 
 # Cleanup
