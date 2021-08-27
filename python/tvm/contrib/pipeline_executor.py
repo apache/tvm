@@ -324,9 +324,9 @@ class PipelineModuleConfig:
                         dep_item["input_name"] = dname
                         dep_conf.append(dep_item)
 
-                # in configuration the ouput_indx start from 1.
+                # in configuration the ouput_indx start from 0.
 
-                output["output_indx"] = int(interface.name_) + 1
+                output["output_indx"] = int(interface.name_)
                 output["dependent"] = dep_conf
                 output_conf.append(output)
             mconf["mod_indx"] = instance.indx_

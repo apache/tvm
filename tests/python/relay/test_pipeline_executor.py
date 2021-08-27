@@ -93,9 +93,9 @@ def get_manual_conf(mods):
     mconfig1["pipeline"] = {
         "mod_indx": 1,
         "output": [
-            {"output_indx": 1, "dependent": [{"mod_indx": 2, "input_name": "data_0"}]},
-            {"output_indx": 2, "dependent": [{"mod_indx": 3, "input_name": "data_0"}]},
-            {"output_indx": 3, "dependent": [{"mod_indx": 0, "input_name": "1"}]},
+            {"output_indx": 0, "dependent": [{"mod_indx": 2, "input_name": "data_0"}]},
+            {"output_indx": 1, "dependent": [{"mod_indx": 3, "input_name": "data_0"}]},
+            {"output_indx": 2, "dependent": [{"mod_indx": 0, "input_name": "0"}]},
         ],
     }
     mod_config[mods[0]] = mconfig1
@@ -104,7 +104,7 @@ def get_manual_conf(mods):
     mconfig2["pipeline"] = {
         "mod_indx": 2,
         "output": [
-            {"output_indx": 1, "dependent": [{"mod_indx": 3, "input_name": "data_1"}]},
+            {"output_indx": 0, "dependent": [{"mod_indx": 3, "input_name": "data_1"}]},
         ],
     }
     mod_config[mods[1]] = mconfig2
@@ -113,7 +113,7 @@ def get_manual_conf(mods):
 
     mconfig3["pipeline"] = {
         "mod_indx": 3,
-        "output": [{"output_indx": 1, "dependent": [{"mod_indx": 0, "input_name": "2"}]}],
+        "output": [{"output_indx": 0, "dependent": [{"mod_indx": 0, "input_name": "1"}]}],
     }
     mod_config[mods[2]] = mconfig3
     return mod_config
@@ -150,10 +150,10 @@ def pipeline_module_create(target):
     pipe_config.connect(pipe_config[mod2].output(0), pipe_config[mod3].input("data_1"))
 
     # mod1 output(2) would get forward as final pipeline compute output(1)
-    pipe_config.connect(pipe_config[mod1].output(2), pipe_config.pipe_output("1"))
+    pipe_config.connect(pipe_config[mod1].output(2), pipe_config.pipe_output("0"))
 
     # mod3 output(0) would get forward as final pipeline compute output(2)
-    pipe_config.connect(pipe_config[mod3].output(0), pipe_config.pipe_output("2"))
+    pipe_config.connect(pipe_config[mod3].output(0), pipe_config.pipe_output("1"))
     """
     # print configueration, the expect result like following.
     #
