@@ -328,6 +328,23 @@ def cache_read_multi_consumer() -> None:
             C[vi] = A_global[vi]
 
 
+@tvm.script.tir
+def continuous_cache_read(a: ty.handle, c: ty.handle) -> None:
+    A = tir.match_buffer(a, (128, 128))
+    C = tir.match_buffer(c, (128, 128))
+    B = tir.alloc_buffer((128, 128))
+    B_shared = tir.alloc_buffer((128, 128), scope="shared")
+    B_local = tir.alloc_buffer((128, 128), scope="local")
+    with tir.block([128, 128], "B") as [vi, vj]:
+        B[vi, vj] = A[vi, vj] * 2.0
+    with tir.block([128, 128], "B_shared") as [vi, vj]:
+        B_shared[vi, vj] = B[vi, vj]
+    with tir.block([128, 128], "B_local") as [vi, vj]:
+        B_local[vi, vj] = B_shared[vi, vj]
+    with tir.block([128, 128], "C") as [vi, vj]:
+        C[vi, vj] = B_local[vi, vj] + 1.0
+
+
 ########## Expected function after cache_write ##########
 
 
@@ -336,8 +353,8 @@ def cache_write_elementwise(a: ty.handle, c: ty.handle) -> None:
     A = tir.match_buffer(a, (128, 128))
     C = tir.match_buffer(c, (128, 128))
     B = tir.alloc_buffer((128, 128))
-    B_global = tir.alloc_buffer((128, 128))
-    C_local = tir.alloc_buffer((128, 128), scope="local")
+    B_global = tir.alloc_buffer((128, 128), scope="local")
+    C_local = tir.alloc_buffer((128, 128))
     with tir.block([128, 128], "B_global") as [vi, vj]:
         B_global[vi, vj] = A[vi, vj] * 2.0
     with tir.block([128, 128], "B") as [vi, vj]:
@@ -498,6 +515,23 @@ def cache_write_multi_consumer() -> None:
             C[vi] = A[vi]
 
 
+@tvm.script.tir
+def continuous_cache_write(a: ty.handle, c: ty.handle) -> None:
+    A = tir.match_buffer(a, (128, 128))
+    B = tir.alloc_buffer((128, 128))
+    C = tir.match_buffer(c, (128, 128))
+    B_shared = tir.alloc_buffer((128, 128), scope="shared")
+    B_local = tir.alloc_buffer((128, 128), scope="local")
+    with tir.block([128, 128], "B") as [vi, vj]:
+        B_local[vi, vj] = A[vi, vj] * 2.0
+    with tir.block([128, 128], "B") as [vi, vj]:
+        B_shared[vi, vj] = B_local[vi, vj]
+    with tir.block([128, 128], "B") as [vi, vj]:
+        B[vi, vj] = B_shared[vi, vj]
+    with tir.block([128, 128], "C") as [vi, vj]:
+        C[vi, vj] = B[vi, vj] + 1.0
+
+
 ########## Testcases for cache_read ##########
 
 
@@ -519,8 +553,8 @@ def test_cache_read_under_scope():
     sch = tir.Schedule(access_under_scope, debug_mask="all")
     block_b = sch.get_block("B")
     block_c = sch.get_block("C")
-    sch.cache_read(block_b, 0, "global")
-    sch.cache_read(block_c, 0, "local")
+    sch.cache_read(block_b, 0, "local")
+    sch.cache_read(block_c, 0, "global")
     tvm.ir.assert_structural_equal(cache_read_under_scope, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=access_under_scope)
 
@@ -539,6 +573,15 @@ def test_cache_read_location():
     sch.cache_read(block_b, 0, "global")
     tvm.ir.assert_structural_equal(cache_read_multi_consumer, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=func_multi_consumer)
+
+
+def test_continuous_cache_read():
+    sch = tir.Schedule(elementwise, debug_mask="all")
+    block_c = sch.get_block("C")
+    sch.cache_read(block_c, 0, "shared")
+    sch.cache_read(block_c, 0, "local")
+    tvm.ir.assert_structural_equal(continuous_cache_read, sch.mod["main"])
+    verify_trace_roundtrip(sch=sch, mod=elementwise)
 
 
 def test_cache_read_fail_multi_producer():
@@ -602,6 +645,15 @@ def test_cache_write_location():
     sch.cache_write(block_a, 0, "global")
     tvm.ir.assert_structural_equal(cache_write_multi_consumer, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=func_multi_consumer)
+
+
+def test_continuous_cache_write():
+    sch = tir.Schedule(elementwise, debug_mask="all")
+    block_b = sch.get_block("B")
+    sch.cache_write(block_b, 0, "shared")
+    sch.cache_write(block_b, 0, "local")
+    tvm.ir.assert_structural_equal(continuous_cache_write, sch.mod["main"])
+    verify_trace_roundtrip(sch=sch, mod=elementwise)
 
 
 def test_cache_write_fail_multi_producer():
