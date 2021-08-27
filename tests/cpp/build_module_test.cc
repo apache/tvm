@@ -50,7 +50,6 @@ TEST(BuildModule, Basic) {
   auto args = Array<Tensor>({A, B, C});
   std::unordered_map<Tensor, Buffer> binds;
 
-  // Target("llvm") created here
   auto target = Target("llvm");
 
   auto lowered = LowerSchedule(s, args, "func", binds);
@@ -89,7 +88,6 @@ TEST(BuildModule, Heterogeneous) {
     return;
   }
 
-  // Target("llvm") created here
   auto target_llvm = Target("llvm");
   auto target_cuda = Target("cuda");
 

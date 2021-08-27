@@ -324,7 +324,6 @@ class LLVMModuleNode final : public runtime::ModuleNode {
       return;
     }
     if (!target_.defined()) {
-    // Target("llvm") created here
       target_ = Target("llvm");
     }
     llvm::EngineBuilder builder(std::move(module_));

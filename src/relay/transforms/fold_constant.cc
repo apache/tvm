@@ -232,7 +232,6 @@ class ConstantFolder : public MixedModeMutator {
     Device dev;
     dev.device_type = kDLCPU;
     dev.device_id = 0;
-    // Target("llvm") created here
     Target target = Target("llvm");
 
     // use a fresh build context in case we are already in a build context.

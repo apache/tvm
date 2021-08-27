@@ -384,7 +384,6 @@ class RelayBuildModule : public runtime::ModuleNode {
    */
   Target CreateDefaultTarget(int device_type) {
     std::string name = runtime::DeviceName(device_type);
-    // Target("llvm") created here
     if (name == "cpu") return Target("llvm");
     if (name == "cuda") return Target("cuda");
     return Target(name);
