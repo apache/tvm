@@ -30,12 +30,12 @@ _LOG = logging.getLogger(__name__)
 
 logging.basicConfig(level="INFO")
 
-TEMPLATE_PROJECT_DIR = tvm_repo_root() + "/apps/microtvm/zephyr/template_project"
+TEMPLATE_PROJECT_DIR = tvm_repo_root() + "/apps/microtvm/grovety/template_project"
 
 verbose = False
-# platform = "stm32f746xx_disco"
+platform = "stm32f746xx_disco"
 # platform = "LPCXpresso5569"
-platform = "stm32f746xx_nucleo"
+# platform = "stm32f746xx_nucleo"
 
 if __name__ == '__main__':
     workspace_dir = create_workspace_dir(platform, 'sine_zephyr', mkdir=True)

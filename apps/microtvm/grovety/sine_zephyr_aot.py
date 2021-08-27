@@ -35,7 +35,7 @@ _LOG = logging.getLogger(__name__)
 
 logging.basicConfig(level="DEBUG")
 
-TEMPLATE_PROJECT_DIR = tvm_repo_root() + "/apps/microtvm/zephyr/template_project"
+TEMPLATE_PROJECT_DIR = tvm_repo_root() + "/apps/microtvm/grovety/template_project"
 
 verbose = True
 platform = "stm32f746xx_nucleo"
@@ -104,15 +104,16 @@ if __name__ == "__main__":
     workspace_dir = create_workspace_dir(platform, 'sine_zephyr_aot', mkdir=False)
     model, zephyr_board = PLATFORMS[platform]
 
-    relay_mod, params, input = open_sine_model()
+    sine_model_path = download_sine_model()
+
+    relay_mod, params, input = open_tflite_model(sine_model_path)
     input_tensor, input_shape, input_dtype = input
+
 
 
     target = tvm.target.target.micro(model, options=["-link-params=1", "--executor=aot", "--unpacked-api=1", "--interface-api=c"])
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         lowered = relay.build(relay_mod, target, params=params)
-
-
 
     project = tvm.micro.generate_project(
         str(TEMPLATE_PROJECT_DIR),
@@ -125,7 +126,6 @@ if __name__ == "__main__":
             "zephyr_board": zephyr_board,
         },
     )
-
 
     os.makedirs(workspace_dir / "include", exist_ok=True)
     generate_c_interface_header(lowered.libmod_name, [input_tensor], ["output"], workspace_dir / "include")
