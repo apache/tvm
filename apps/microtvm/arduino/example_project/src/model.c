@@ -18,9 +18,10 @@
  */
 
 #include "model.h"
+
+#include "Arduino.h"
 #include "standalone_crt/include/dlpack/dlpack.h"
 #include "standalone_crt/include/tvm/runtime/crt/stack_allocator.h"
-#include "Arduino.h"
 
 // AOT memory array
 static uint8_t g_aot_memory[WORKSPACE_SIZE];
