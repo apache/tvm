@@ -135,7 +135,8 @@ s = te.create_schedule(C.op)
 
 # Blocking by loop tiling
 mo, no, mi, ni = s[C].tile(C.op.axis[0], C.op.axis[1], bn, bn)
-ko, ki = s[C].split(k, factor=kfactor)
+(kaxis,) = s[C].op.reduce_axis
+ko, ki = s[C].split(kaxis, factor=kfactor)
 
 # Hoist reduction domain outside the blocking loop
 s[C].reorder(mo, no, ko, ki, mi, ni)
@@ -169,7 +170,8 @@ print(tvm.lower(s, [A, B, C], simple_mode=True))
 
 s = te.create_schedule(C.op)
 mo, no, mi, ni = s[C].tile(C.op.axis[0], C.op.axis[1], bn, bn)
-ko, ki = s[C].split(k, factor=kfactor)
+(kaxis,) = s[C].op.reduce_axis
+ko, ki = s[C].split(kaxis, factor=kfactor)
 
 s[C].reorder(mo, no, ko, ki, mi, ni)
 
@@ -201,7 +203,8 @@ print(tvm.lower(s, [A, B, C], simple_mode=True))
 
 s = te.create_schedule(C.op)
 mo, no, mi, ni = s[C].tile(C.op.axis[0], C.op.axis[1], bn, bn)
-ko, ki = s[C].split(k, factor=kfactor)
+(kaxis,) = s[C].op.reduce_axis
+ko, ki = s[C].split(kaxis, factor=kfactor)
 
 # re-ordering
 s[C].reorder(mo, no, ko, mi, ki, ni)
@@ -258,7 +261,8 @@ C = te.compute(
 s = te.create_schedule(C.op)
 
 mo, no, mi, ni = s[C].tile(C.op.axis[0], C.op.axis[1], bn, bn)
-ko, ki = s[C].split(k, factor=kfactor)
+(kaxis,) = s[C].op.reduce_axis
+ko, ki = s[C].split(kaxis, factor=kfactor)
 
 s[C].reorder(mo, no, ko, mi, ki, ni)
 s[C].vectorize(ni)
@@ -303,7 +307,8 @@ s[CC].compute_at(s[C], no)
 # New inner axes
 mc, nc = s[CC].op.axis
 
-ko, ki = s[CC].split(k, factor=kfactor)
+(kaxis,) = s[CC].op.reduce_axis
+ko, ki = s[CC].split(kaxis, factor=kfactor)
 s[CC].reorder(ko, mc, ki, nc)
 s[CC].vectorize(nc)
 
@@ -347,7 +352,8 @@ s[CC].compute_at(s[C], no)
 
 mc, nc = s[CC].op.axis
 
-ko, ki = s[CC].split(k, factor=kfactor)
+(kaxis,) = s[CC].op.reduce_axis
+ko, ki = s[CC].split(kaxis, factor=kfactor)
 s[CC].reorder(ko, mc, ki, nc)
 s[CC].vectorize(nc)
 
