@@ -19,7 +19,7 @@
 
 import tvm
 from tvm import relay
-from tvm.relay.op.contrib.ethosn import ethosn_available
+from tvm.testing import requires_ethosn
 from . import infrastructure as tei
 import numpy as np
 
@@ -30,10 +30,8 @@ def _get_model(shape, block, dtype, layout):
     return depth
 
 
+@requires_ethosn
 def test_depth_to_space():
-    if not ethosn_available():
-        return
-
     trials = [
         (1, 16, 16, 16),
         (1, 64, 32, 16),
@@ -52,10 +50,8 @@ def test_depth_to_space():
         tei.verify(outputs, 1)
 
 
+@requires_ethosn
 def test_depth_to_space_failure():
-    if not ethosn_available():
-        return
-
     trials = [
         ((2, 16, 16, 16), 2, "uint8", "NHWC", "batch size=2, batch size must = 1"),
         ((1, 16, 16, 16), 2, "int8", "NHWC", "dtype='int8', dtype must be either uint8 or int32"),
