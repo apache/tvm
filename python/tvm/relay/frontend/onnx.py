@@ -41,6 +41,7 @@ from .common import (
     fold_constant,
     get_name,
     get_relay_op,
+    gru_cell,
     infer_channels,
     infer_shape,
     infer_type,
