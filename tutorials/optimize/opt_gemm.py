@@ -356,9 +356,6 @@ mc, nc = s[CC].op.axis
 ko, ki = s[CC].split(kaxis, factor=kfactor)
 s[CC].reorder(ko, mc, ki, nc)
 s[CC].vectorize(nc)
-
-# unroll kfactor loops
-# this is a separate optimization not discussed in this tutorial
 s[CC].unroll(ki)
 
 # parallel
