@@ -1066,12 +1066,16 @@ struct SparseTransposeAttrs : public tvm::AttrsNode<SparseTransposeAttrs> {
 /*! \brief Attributes for sparse_dense operator */
 struct SparseConv2DAttrs : public tvm::AttrsNode<SparseConv2DAttrs> {
   std::string layout;
+  Array<IndexExpr> kernel_size;
 
   TVM_DECLARE_ATTRS(SparseConv2DAttrs, "relay.attrs.SparseConv2DAttrs") {
     TVM_ATTR_FIELD(layout).set_default("NHWC").describe(
         "Dimension ordering of input data. Can be 'NCHW', 'NHWC'"
         "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
         "dimensions respectively.");
+    TVM_ATTR_FIELD(kernel_size)
+        .set_default(Array<IndexExpr>{1, 1})
+        .describe("Kernel size for SparseConv2D, 1x1 or 3x3. ");
   }
 };
 
