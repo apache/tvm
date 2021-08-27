@@ -31,5 +31,44 @@ Block WithAnnotation(const BlockNode* block, const String& attr_key, const Objec
   return Block(new_block);
 }
 
+/******** Buffer Related ********/
+Buffer WithScope(const Buffer& buffer, const String& scope) {
+  auto n = make_object<BufferNode>(*buffer.get());
+  auto new_ptr = make_object<VarNode>(*n->data.get());
+  const auto* ptr_type = new_ptr->type_annotation.as<PointerTypeNode>();
+  ICHECK(ptr_type);
+  new_ptr->type_annotation = PointerType(ptr_type->element_type, scope);
+  n->data = Var(new_ptr->name_hint + "_" + scope, new_ptr->type_annotation);
+  n->name = buffer->name + "_" + scope;
+  return Buffer(n);
+}
+
+Array<BufferRegion> ReplaceBuffer(Array<BufferRegion> regions, const Buffer& source,
+                                  const Buffer& target) {
+  regions.MutateByApply([&source, &target](BufferRegion region) -> BufferRegion {
+    if (region->buffer.same_as(source)) {
+      ObjectPtr<BufferRegionNode> n = make_object<BufferRegionNode>(*region.get());
+      n->buffer = target;
+      return BufferRegion(n);
+    }
+    return region;
+  });
+  return regions;
+}
+
+Array<MatchBufferRegion> ReplaceBuffer(Array<MatchBufferRegion> match_buffers, const Buffer& source,
+                                       const Buffer& target) {
+  match_buffers.MutateByApply([&source,
+                               &target](MatchBufferRegion match_buffer) -> MatchBufferRegion {
+    if (match_buffer->source->buffer.same_as(source)) {
+      ObjectPtr<MatchBufferRegionNode> n = make_object<MatchBufferRegionNode>(*match_buffer.get());
+      n->source = BufferRegion(target, n->source->region);
+      return MatchBufferRegion(n);
+    }
+    return match_buffer;
+  });
+  return match_buffers;
+}
+
 }  // namespace tir
 }  // namespace tvm

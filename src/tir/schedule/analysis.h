@@ -56,6 +56,14 @@ void VerifyCachedFlags(const ScheduleState& self);
 const PrimFuncNode* GetRootPrimFunc(const IRModule& mod, const StmtNode* root_block,
                                     GlobalVar* result_g_var);
 
+/******** SRef Tree Related ********/
+/*!
+ * \brief Get the root node of the sref tree, which is the root block of the PrimFunc.
+ * \param sref The given sref.
+ * \return The root node of the sref tree which contains the given node.
+ */
+StmtSRef GetSRefTreeRoot(const StmtSRef& sref);
+
 /******** Scope ********/
 /*!
  * \brief Checks if scope the specified sref is in is a stage-pipeline and return it
@@ -228,15 +236,15 @@ BlockRealize GetBlockRealize(const ScheduleState& self, const StmtSRef& block_sr
 /******** Block-buffer relation ********/
 
 /*!
- * \brief Get the BlockRealize of the single child block of the block or loop specified by
- * `parent_sref` on SRef tree, or throw an exception if there is 0 or multiple child blocks
- * \param self The schedule state
- * \param block The queried block
- * \param n The index of the queried buffer
- * \return The buffer of the n-th write region of the block.
+ * \brief Get the n-th read or write buffer of the given block.
+ * \param self The schedule state.
+ * \param block The queried block.
+ * \param n The index of the queried buffer.
+ * \param is_write A boolean flag to indicate querying write buffer or read buffer.
+ * \return The buffer of the n-th read/write region of the block.
  * \throw ScheduleError If the buffer index is out of bound.
  */
-Buffer GetNthWriteBuffer(const ScheduleState& self, const Block& block, int n);
+Buffer GetNthAccessBuffer(const ScheduleState& self, const Block& block, int n, bool is_write);
 
 /******** Commutative Reducer ********/
 
