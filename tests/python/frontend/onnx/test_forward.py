@@ -3185,15 +3185,18 @@ def test_max_roi_pool(target, dev):
 @tvm.testing.parametrize_targets
 def test_lppool(target, dev):
     def verify_lppool(x_shape, kernel_shape, p, strides, pads, out_shape, auto_pad="NOTSET"):
+        kwargs = {}
+        if p is not None:
+            kwargs["p"] = p
         if pads is None:
             pool_node = helper.make_node(
                 "LpPool",
                 inputs=["x"],
                 outputs=["y"],
                 kernel_shape=kernel_shape,
-                p=p,
                 auto_pad=auto_pad,
                 strides=strides,
+                **kwargs,
             )
         else:
             pool_node = helper.make_node(
@@ -3201,9 +3204,9 @@ def test_lppool(target, dev):
                 inputs=["x"],
                 outputs=["y"],
                 kernel_shape=kernel_shape,
-                p=p,
                 pads=pads,
                 strides=strides,
+                **kwargs,
             )
 
         graph = helper.make_graph(
@@ -3295,6 +3298,15 @@ def test_lppool(target, dev):
         pads=None,
         out_shape=[1, 1, 16, 16, 16],
         auto_pad="SAME_UPPER",
+    )
+    # Pool2D with empty p
+    verify_lppool(
+        x_shape=[1, 1, 32, 32],
+        kernel_shape=[3, 3],
+        p=None,
+        strides=[1, 1],
+        pads=[1, 1, 1, 1],
+        out_shape=[1, 1, 32, 32],
     )
 
 
