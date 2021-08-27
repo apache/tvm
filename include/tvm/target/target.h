@@ -212,7 +212,7 @@ struct TargetStrHash {
   /*!
    * \brief Calculate the hash code of a Target based on the string value of the Target
    This will be removed when maps from Targets to IRModules are removed from the codebase.
-   * \param a The given Target
+   * \param target The Target to hash
    * \return String hash of the target
    */
   size_t operator()(const Target& target) const {
@@ -226,13 +226,13 @@ codebase.*/
 struct TargetStrEqual {
   /*!
    * \brief Check if the two Targets are equal
-   * \param a One Target
-   * \param b The other Target
+   * \param target One Target
+   * \param other_target The other Target
    * \return String equality of the targets
    */
-  const bool operator()(const Target& a, const Target& b) const {
+  const bool operator()(const Target& target, const Target& other_target) const {
     TargetStrHash target_hash = TargetStrHash();
-    return target_hash(a) == target_hash(b);
+    return target_hash(target) == target_hash(other_target);
   }
 };
 
