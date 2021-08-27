@@ -235,6 +235,7 @@ class ComputeDAG(Object):
         )
 
         if hash_func is None:
+            str_dag = str_dag.encode("utf-8")
             hash_key = hashlib.md5(str_dag).hexdigest()
         else:
             hash_key = hash_func(str_dag)
