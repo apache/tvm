@@ -18,6 +18,7 @@
 
 """ The auto-scheduler's computational graph and related program analyses. """
 
+import hashlib
 import json
 
 import tvm._ffi
@@ -228,11 +229,15 @@ class ComputeDAG(Object):
         key: str
             The workload key of this compute DAG
         """
-        hash_key = _ffi_api.ComputeDAGPrintDAG(self, True)
-        # TODO: forward a "use_hash" flag down here
-        # if use_hash:
-        #     hash_key = hash_key.encode(encoding="utf-8")
-        #     hash_key = hashlib.md5(hash_key).hexdigest()
+        str_dag = _ffi_api.ComputeDAGPrintDAG(self, True)
+        hash_func = tvm._ffi.get_global_func(
+            "auto_scheduler.compute_dag.hash_func", allow_missing=True
+        )
+
+        if hash_func is None:
+            hash_key = hashlib.md5(str_dag).hexdigest()
+        else:
+            hash_key = hash_func(str_dag)
 
         io_shapes = []
         for tensor in self.tensors:

@@ -22,6 +22,7 @@ Integrate auto_scheduler into relay. It implements the following items:
 2. Provide auto-scheduling for all TOPI compute functions
 """
 
+import json
 import logging
 import threading
 from copy import deepcopy
@@ -30,11 +31,10 @@ import tvm
 from tvm import autotvm, transform
 from tvm.ir.transform import PassContext
 from tvm.runtime import convert_to_object
-
+from tvm.target import Target
 from tvm.te.tensor import ComputeOp, PlaceholderOp, Tensor
 from tvm.tir import Reduce
 from tvm.tir import expr as _expr
-from tvm.target import Target
 
 from . import _ffi_api
 from .compute_dag import ComputeDAG, LayoutRewriteOption
@@ -97,6 +97,7 @@ def extract_tasks(
     target_host=None,
     hardware_params=None,
     include_simple_tasks=False,
+    dump_workload_to_dag_log=None,
     opt_level=3,
 ):
     """Extract tuning tasks from a relay program.
@@ -115,6 +116,8 @@ def extract_tasks(
         Hardware parameters used for the search tasks
     include_simple_tasks: bool
         Whether to extract simple tasks that do not include complicated ops.
+    dump_workloads_extract_tasks: Optional[str]
+        A file to dump an association between the workload keys and the actual DAG
     opt_level : Optional[int]
         The optimization level of the task extractions.
 
@@ -169,6 +172,10 @@ def extract_tasks(
             )
         )
         weights.append(weight)
+
+    if dump_workload_to_dag_log is not None:
+        with open(dump_workload_to_dag_log, "wb") as f:
+            json.dump({task.workload_key: str(task.compute_dag) for task in tasks}, f)
 
     return tasks, weights
 
