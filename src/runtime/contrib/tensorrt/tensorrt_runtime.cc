@@ -265,7 +265,10 @@ class TensorRTRuntime : public JSONRuntimeBase {
     int batch_size = GetBatchSize();
     int compatible_engine_batch_size = -1;
     bool find_engine_flag = FindCompatibleEngine(batch_size, &compatible_engine_batch_size);
-    if (find_engine_flag && calibrator_ == nullptr){
+    const bool use_int8 = (dmlc::GetEnv("TVM_TENSORRT_USE_INT8", 0) != 0);
+    if (find_engine_flag && 
+        (!use_int8 || calibrator_ == nullptr 
+        || (calibrator_ != nullptr && num_calibration_batches_remaining_!=0))){
       // A compatible engine already exists.
       return trt_engine_cache_.at(std::make_pair(symbol_name_, compatible_engine_batch_size));
     }
@@ -308,8 +311,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
     }
 
     // Build engine.
-    // trt_engine_cache_[std::make_pair(symbol_name_, batch_size)] = builder.BuildEngine();
-    const bool use_int8 = (dmlc::GetEnv("TVM_TENSORRT_USE_INT8", 0) != 0);
+    
     TensorRTEngineAndContext engine_and_context = builder.BuildEngine();
     trt_engine_cache_[std::make_pair(symbol_name_, batch_size)] = engine_and_context;
     if(use_int8){
