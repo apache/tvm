@@ -51,3 +51,6 @@ run_pytest cython python-frontend-darknet tests/python/frontend/darknet
 
 echo "Running relay PyTorch frontend test..."
 run_pytest cython python-frontend-pytorch tests/python/frontend/pytorch
+
+echo "Running relay PaddlePaddle frontend test..."
+run_pytest cython python-frontend-paddlepaddle tests/python/frontend/paddlepaddle
