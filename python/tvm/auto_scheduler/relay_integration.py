@@ -116,7 +116,7 @@ def extract_tasks(
         Hardware parameters used for the search tasks
     include_simple_tasks: bool
         Whether to extract simple tasks that do not include complicated ops.
-    dump_workloads_extract_tasks: Optional[str]
+    dump_workload_to_dag_log: Optional[str]
         A file to dump an association between the workload keys and the actual DAG
     opt_level : Optional[int]
         The optimization level of the task extractions.
