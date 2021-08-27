@@ -36,9 +36,10 @@ class PageAllocatorTest : public ::testing::Test {
  protected:
   void SetUp() override {
     memset(raw_memory_pool, 0, sizeof(raw_memory_pool));
-    memory_pool = (uint8_t*)(ROUND_UP(((uintptr_t)raw_memory_pool), (1 << kPageSizeBytesLog)));
+    memory_pool = reinterpret_cast<uint8_t*>(
+        ROUND_UP(((uintptr_t)raw_memory_pool), (1 << kPageSizeBytesLog)));
     PageMemoryManagerCreate(&interface, memory_pool, kMemoryPoolSizeBytes, kPageSizeBytesLog);
-    mgr = (MemoryManager*)interface;
+    mgr = reinterpret_cast<MemoryManager*>(interface);
     ASSERT_EQ(kNumUsablePages, mgr->ptable.max_pages);
     dev_ = {kDLCPU, 0};
   }
