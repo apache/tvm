@@ -59,7 +59,6 @@ Target DefaultTargetHost(Target target) {
     return target;
   } else {
     if (LLVMEnabled()) {
-      // Target("llvm") created here
       return Target("llvm");
     } else {
       return Target("stackvm");
@@ -523,7 +522,6 @@ runtime::Module build(const Map<String, IRModule>& inputs_arg, const Target& tar
     CheckAndUpdateHostConsistency(&target, &target_host);
     Optional<String> device = target->GetAttr<String>("device");
     if (device.defined() && device.value() == "vta") {
-      // Target("ext_dev") created here
       target = Target("ext_dev");
     }
     updated_inputs.Set(target, it.second);
