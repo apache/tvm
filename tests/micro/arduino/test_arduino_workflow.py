@@ -19,12 +19,14 @@ import datetime
 import pathlib
 import shutil
 import sys
+import tempfile
 
 import pytest
-import tvm
-from tvm import micro, relay
 
 import conftest
+import tvm
+from tvm import micro, relay
+from tvm.micro.project_api.server import ServerError
 
 """
 This unit test simulates a simple user workflow, where we:
@@ -47,6 +49,30 @@ def workspace_dir(request, platform):
 @pytest.fixture(scope="module")
 def project_dir(workspace_dir):
     return workspace_dir / "project"
+
+
+# Saves the Arduino project's state, runs the test, then resets it
+@pytest.fixture(scope="function")
+def does_not_affect_state(project_dir):
+    with tempfile.TemporaryDirectory() as temp_dir:
+        prev_project_state = pathlib.Path(temp_dir)
+        shutil.copytree(project_dir, prev_project_state / "project")
+        yield
+
+        # We can't delete project_dir or it'll mess up the Arduino CLI working directory
+        # Instead, delete everything in project_dir, and then copy over the files
+        for item in project_dir.iterdir():
+            if item.is_dir():
+                shutil.rmtree(item)
+            else:
+                item.unlink()  # Delete file
+        # Once we upgrade to Python 3.7, this can be replaced with
+        # shutil.copytree(dirs_exist_ok=True)
+        for item in (prev_project_state / "project").iterdir():
+            if item.is_dir():
+                shutil.copytree(item, project_dir / item.name)
+            else:
+                shutil.copy2(item, project_dir)
 
 
 def _generate_project(arduino_board, arduino_cli_cmd, workspace_dir, mod, build_config):
@@ -133,6 +159,20 @@ def test_import_rerouting(project_dir, project):
         c_backend_api_c = f.read()
         assert '#include "inttypes.h"' in c_backend_api_c
         assert "include/tvm/runtime/crt/platform.h" in c_backend_api_c
+
+
+@pytest.mark.usefixtures("does_not_affect_state")
+def test_blank_project_compiles(project):
+    project.build()
+
+
+# Add a bug (an extra curly brace) and make sure the project doesn't compile
+@pytest.mark.usefixtures("does_not_affect_state")
+def test_bugged_project_compile_fails(project_dir, project):
+    with open(project_dir / "project.ino", "a") as main_file:
+        main_file.write("}\n")
+    with pytest.raises(ServerError):
+        project.build()
 
 
 # Build on top of the generated project by replacing the
