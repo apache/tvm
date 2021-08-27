@@ -1031,8 +1031,7 @@ TVM_DLL Array<Bool> GetCachedFlags(const ScheduleState& self, const StmtSRef& bl
 
 TVM_DLL void ScheduleStateNode::UpdateAffineFlag(const StmtSRef& scope_sref) {
   auto it = this->block_info.find(scope_sref);
-  ICHECK(it != this->block_info.end())
-      << "Cannot find the block info of the given block.";
+  ICHECK(it != this->block_info.end()) << "Cannot find the block info of the given block.";
   BlockInfo& info = it->second;
 
   bool is_root_block = scope_sref->parent == nullptr;

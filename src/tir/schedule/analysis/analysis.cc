@@ -634,7 +634,7 @@ Buffer GetNthAccessBuffer(const ScheduleState& self, const Block& block, int n, 
 
   const Array<BufferRegion>& access_region = is_write ? block->writes : block->reads;
 
-  if (n < 0 || access_region.size() <= n) {
+  if (n < 0 || static_cast<int>(access_region.size()) <= n) {
     throw BufferIndexOutOfRangeError(self->mod, block, n, is_write);
   }
   return access_region[n]->buffer;

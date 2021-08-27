@@ -185,7 +185,8 @@ SeqStmt InsertCacheStage(const Stmt& stmt, int pos, const Stmt& stage) {
  * \param self The state of the schedule
  * \param scope_sref The scope block where the write is considered
  * \param buffer The queried buffer
- * \return The sref of the only writer of the input buffer in the given scope, or `NullOpt` if no block writes it in the scope.
+ * \return The sref of the only writer of the input buffer in the given scope,
+ *         or `NullOpt` if no block writes it in the scope.
  * \throw NotSingleWriteBlock if there are more than one intrested block.
  */
 Optional<StmtSRef> GetOnlyWriteBlock(ScheduleState self, const StmtSRef& scope_sref,
@@ -239,11 +240,10 @@ BufferRegion RelaxBufferRegion(ScheduleState self, const BufferRegion& buffer_re
 class CacheLocDetector : public StmtVisitor {
  public:
   /*!
-   * \brief Detect the insertion position of the cache stage, and write the position into the CacheStageInfo
-   * \param self The state of the schedule
-   * \param block_sref The sref of the unique writer block of the buffer being applied cache_read or cache_write
-   * \param scope_sref The sref of the scope block of the cached block
-   * \param info The cache stage info.
+   * \brief Detect the insertion position of the cache stage, and write the position into the
+   * CacheStageInfo \param self The state of the schedule \param block_sref The sref of the unique
+   * writer block of the buffer being applied cache_read or cache_write \param scope_sref The sref
+   * of the scope block of the cached block \param info The cache stage info.
    */
   static void Detect(const ScheduleState& self, const StmtSRef& block_sref,
                      const StmtSRef& scope_sref, CacheStageInfo* info) {
@@ -269,9 +269,9 @@ class CacheLocDetector : public StmtVisitor {
   /*!
    * \brief Constructor
    * \param self The state of the schedule
-   * \param block_sref The sref of the unique writer block of the buffer being applied cache_read or cache_write
-   * \param scope_sref The sref of the scope block of the cached block
-   * \param related_blocks Producer blocks for cache_write, or consumer blocks for cache_read
+   * \param block_sref The sref of the unique writer block of the buffer being applied cache_read or
+   * cache_write \param scope_sref The sref of the scope block of the cached block \param
+   * related_blocks Producer blocks for cache_write, or consumer blocks for cache_read
    */
   CacheLocDetector(const ScheduleState self, const StmtSRef& block_sref, const StmtSRef& scope_sref,
                    const std::vector<StmtSRef>& related_blocks)

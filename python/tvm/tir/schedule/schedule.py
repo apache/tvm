@@ -853,7 +853,9 @@ class Schedule(Object):
                         B[vi, vj] = A_local[vi, vj] * 2.0
 
         """
-        return _ffi_api.ScheduleCacheRead(self, block, read_buffer_index, storage_scope)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.ScheduleCacheRead(  # type: ignore # pylint: disable=no-member
+            self, block, read_buffer_index, storage_scope
+        )
 
     def cache_write(self, block: BlockRV, write_buffer_index: int, storage_scope: str) -> BlockRV:
         """Create a block that reads a buffer region into a write cache. It requires:
@@ -919,7 +921,9 @@ class Schedule(Object):
                         B[vi, vj] = B_local[vi, vj]
 
         """
-        return _ffi_api.ScheduleCacheWrite(self, block, write_buffer_index, storage_scope)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.ScheduleCacheWrite(  # type: ignore # pylint: disable=no-member
+            self, block, write_buffer_index, storage_scope
+        )
 
     ########## Schedule: Compute location ##########
 
