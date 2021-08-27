@@ -201,6 +201,7 @@ class TECompilerImpl : public TECompilerNode {
       const auto name_node = key->source_func->GetAttr<String>(tvm::attr::kGlobalSymbol);
       ICHECK(name_node.defined()) << "External function has not been attached a name yet.";
       auto func_name = GetUniqueName(name_node.value(), &name_map_);
+      // Target("ext_dev") created here
       auto target = Target("ext_dev");
       auto global_var = GlobalVar(func_name);
       global_var->checked_type_ = key->source_func->checked_type();

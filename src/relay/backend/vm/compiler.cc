@@ -527,6 +527,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
     Target target;
 
     if (func->GetAttr<String>(attr::kCompiler).defined()) {
+      // Target("ext_dev") created here
       target = Target("ext_dev");
     } else {
       // Next generate the invoke instruction.

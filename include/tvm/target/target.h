@@ -203,5 +203,38 @@ void CheckAndUpdateHostConsistency(Map<Integer, Target>* target, Target* host);
  * \param host The Target typed object for target host to be updated
  */
 void CheckAndUpdateHostConsistency(Map<Target, IRModule>* target, Target* host);
+
+// TODO(@electriclilies): Move to somewhere in backend and add note about appropriate use
+
+/*! \brief Target hash function */
+struct TargetStrHash {
+  /*!
+   * \brief Calculate the hash code of a Target based on the string
+   * \param a The given Target
+   * \return String hash of the target
+   */
+  size_t operator()(const Target& target) const {
+  return String::HashBytes(target->str().c_str(), target->str().size());
+  }
+};
+
+/*! \brief Target equality functino based on string */
+struct TargetStrEqual {
+  /*!
+   * \brief Check if the two Targets are equal
+   * \param a One Target
+   * \param b The other Target
+   * \return String equality of the targets
+   */
+  const bool operator()(const Target& a, const Target& b) const {
+    TargetStrHash target_hash = TargetStrHash();
+    return target_hash(a) == target_hash(b);
+  }
+};
+
+// TODO(@electriclilies): Add documentation
+std::unordered_map<Target, IRModule, TargetStrHash, TargetStrEqual> TargetModuleMapToStdMap(Map<Target, IRModule> input_map);
+
+
 }  // namespace tvm
 #endif  // TVM_TARGET_TARGET_H_
