@@ -573,6 +573,12 @@ class PyTorchOpConverter:
         if isinstance(inputs[1], int):
             repeats = inputs[1]
             axis = inputs[2]
+        elif isinstance(inputs[1], _expr.Expr):
+            if isinstance(inputs[1], _expr.Constant):
+                repeats = int(inputs[1].data.numpy())
+            else:
+                repeats, _ = try_infer_value(inputs[1], lambda ret: ret.tolist())
+            axis = inputs[2]
         else:
             msg = "Only repeat with one value as repeat is currently supported."
             raise AssertionError(msg)
