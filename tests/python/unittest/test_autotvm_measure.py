@@ -17,6 +17,7 @@
 """Test builder and runner"""
 import logging
 import multiprocessing
+import concurrent
 
 import numpy as np
 
@@ -76,7 +77,9 @@ def test_task_runner_with_ref_input():
             self.ran_dummy_executor = True
             sig = Signature.from_callable(func)
             assert sig.bind(*args, **kwargs).arguments["ref_input"] == refinp
-            return executor.LocalFutureNoFork(None)
+            dummy_future = concurrent.futures.Future()
+            dummy_future.set_result(None)
+            return dummy_future
 
     runner.executor = DummyExecutor()
     runner.run([None], [None])
