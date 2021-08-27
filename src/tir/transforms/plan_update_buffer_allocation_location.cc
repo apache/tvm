@@ -93,7 +93,8 @@ class BufferAllocationLocator : public StmtExprMutator {
     op = stmt.as<BlockNode>();
     ICHECK(op != nullptr);
 
-    // No longer consider buffers created by match_buffer inside the block when updating access region.
+    // No longer consider buffers created by match_buffer inside the block when updating access
+    // region.
     for (const MatchBufferRegion match_buffer : op->match_buffers) {
       const Var& target_var = match_buffer->buffer->data;
       buffer_data_to_buffer_.erase(target_var);
@@ -108,8 +109,8 @@ class BufferAllocationLocator : public StmtExprMutator {
     ObjectPtr<BlockNode> n = CopyOnWrite(op);
     n->alloc_buffers = std::move(alloc_buffers);
     // Erase buffer allocated inside the block from access region.
-    n->reads = UpdateRegion(n->reads);
-    n->writes = UpdateRegion(n->writes);
+    n->reads = RemoveRedundantBufferRegion(n->reads);
+    n->writes = RemoveRedundantBufferRegion(n->writes);
     return Stmt(n);
   }
 
@@ -133,7 +134,7 @@ class BufferAllocationLocator : public StmtExprMutator {
     return std::move(realize);
   }
 
-  Array<BufferRegion> UpdateRegion(const Array<BufferRegion>& region) const {
+  Array<BufferRegion> RemoveRedundantBufferRegion(const Array<BufferRegion>& region) const {
     Array<BufferRegion> result;
     for (const BufferRegion& buffer_region : region) {
       if (buffer_data_to_buffer_.count(buffer_region->buffer->data)) {
