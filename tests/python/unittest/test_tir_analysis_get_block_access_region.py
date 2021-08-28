@@ -92,9 +92,7 @@ def opaque_access_func() -> None:
             tir.reads([A[v * 128 : v * 128 + 128]])
             tir.writes([B[v * 128 : v * 128 + 128]])
             tir.evaluate(
-                tir.call_extern(
-                    "test", B.data, v * 128, 128, A.data, v * 128, 128, dtype="float32"
-                )
+                tir.call_extern("test", B.data, v * 128, 128, A.data, v * 128, 128, dtype="float32")
             )
 
 
