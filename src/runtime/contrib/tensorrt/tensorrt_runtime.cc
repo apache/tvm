@@ -285,33 +285,9 @@ class TensorRTRuntime : public JSONRuntimeBase {
                             use_fp16, batch_size);
 
     // Add inputs and constants.
-    for (size_t i = 0; i < input_nodes_.size(); ++i) {
-      auto nid = input_nodes_[i];
-      const auto& node = nodes_[nid];
-      std::string name = node.GetOpName();
-      if (node.GetOpType() == "input") {
-        builder.AddInput(nid, EntryID(nid, 0), node);
-      } else {
-        ICHECK_EQ(node.GetOpType(), "const");
-        uint32_t eid = EntryID(nid, 0);
-        builder.AddConstant(nid, data_entry_[eid]);
-      }
-    }
+    SetUpInputAndOutput(builder);
 
-    // Add layers.
-    for (size_t nid = 0; nid < nodes_.size(); ++nid) {
-      const auto& node = nodes_[nid];
-      if (node.GetOpType() != "kernel") continue;
-      builder.AddLayer(nid, node);
-    }
-
-    // Add outputs.
-    for (size_t i = 0; i < outputs_.size(); ++i) {
-      builder.AddOutput(outputs_[i], EntryID(outputs_[i]));
-    }
-
-    // Build engine.
-    
+    // Build engine.  
     TensorRTEngineAndContext engine_and_context = builder.BuildEngine();
     trt_engine_cache_[std::make_pair(symbol_name_, batch_size)] = engine_and_context;
     if(use_int8){
@@ -338,7 +314,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
         LOG(INFO)<<"rebuild builder using INT8 mode";
         TensorRTBuilder builder2(&logger_, data_entry_, max_workspace_size_, use_implicit_batch_,
                               use_fp16, batch_size, calibrator_.get());
-        set_up_input_output(builder2);
+        SetUpInputAndOutput(builder2);
         TensorRTEngineAndContext new_engine_and_context = builder2.BuildEngine();
         trt_engine_cache_[std::make_pair(symbol_name_, batch_size)] = new_engine_and_context;
         calibrator_.reset(nullptr);
@@ -347,7 +323,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
   }
 
 
-  void set_up_input_output(TensorRTBuilder& builder){
+  void SetUpInputAndOutput(TensorRTBuilder& builder){
           for (size_t i = 0; i < input_nodes_.size(); ++i) {
           auto nid = input_nodes_[i];
           const auto& node = nodes_[nid];
