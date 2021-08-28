@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Pipeline executor that executes pipeline containing TVM PackedFunc."""
+"""Pipeline executor that executes a series of modules in a pipeline fashion."""
 import json
 import tvm._ffi
 from tvm import relay
@@ -22,21 +22,14 @@ from tvm.contrib import graph_executor
 
 
 def pipeline_executor_enabled():
-    """check if pipeline executor enabled.
-    Return
-    ------
-    enable: bool
-        return pipeline executor get enabled or not
-    """
-    pipeline_enabled = False
-    try:
-        pipelinecreate = tvm._ffi.get_global_func("tvm.pipeline_executor.create")
-        assert pipelinecreate
-        pipeline_enabled = True
-    except ValueError:
-        print("pipeline executor not enabled!")
+    """check if pipeline executor is enabled.
 
-    return pipeline_enabled
+    Return
+    -------
+    enable: bool
+        Return pipeline executor is enabled or not.
+    """
+    return tvm._ffi.get_global_func("tvm.pipeline_executor.create", allow_missing=True) is not None
 
 
 def build_pipeline(mod_n_configs):
