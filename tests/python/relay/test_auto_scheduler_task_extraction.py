@@ -15,10 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 """Test task extraction for auto-scheduler"""
-import pytest
+import json
+import tempfile
 
+import pytest
 import tvm.relay.testing
 import tvm.testing
+from tvm import _ffi as _ffi_api
 from tvm import auto_scheduler, relay
 
 
@@ -246,6 +249,45 @@ def test_task_extraction_cpu(params):
         assert len(task_weights) == expected_task
 
     verify_task_extraction(*params)
+
+
+def test_dump_workload_to_dag_extract_tasks():
+    mod, _ = get_network("mobilenet", layout="NHWC")
+    with tempfile.NamedTemporaryFile() as f:
+        tasks, _ = auto_scheduler.extract_tasks(
+            mod["main"], None, "llvm", include_simple_tasks=True, dump_workload_to_dag_log=f.name
+        )
+        expected = {task.workload_key: str(task.compute_dag) for task in tasks}
+        actual = json.load(f)
+        assert expected == actual
+
+
+def test_custom_hash_func_extract_tasks():
+    @_ffi_api.register_func("auto_scheduler.compute_dag.hash_func")
+    def counting_unique_hash(str_dag):
+        ret = counting_unique_hash.i
+        counting_unique_hash.i += 1
+        return ret
+
+    counting_unique_hash.i = 0
+
+    mod, _ = get_network("mobilenet", layout="NHWC")
+    tasks, _ = auto_scheduler.extract_tasks(mod["main"], None, "llvm", include_simple_tasks=True)
+
+    hash_values = []
+    for task in tasks:
+        # task.workload_key should look like
+        # [43, [3, 3, 1024, 1], [1024], [3, 3, 1024, 1]] where the first int is the result of the hash
+        # Extract the hash and keep track of every hash
+        hash_value = int(task.workload_key[1:].split(",")[0])
+        hash_values.append(hash_value)
+
+    # All values are unique, and we know the min and max
+    # This is a sufficient condition to know that hashes in hash_values are an increasing list
+    # of hashes up to counting_unique_hash.i - 1
+    assert len(hash_values) == len(set(hash_values))
+    assert min(hash_values) == 0
+    assert max(hash_values) == counting_unique_hash.i - 1
 
 
 if __name__ == "__main__":
