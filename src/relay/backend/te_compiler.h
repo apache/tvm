@@ -217,7 +217,7 @@ LoweredModule IRModuleToLoweredModule(IRModule mod);
  * each function that we lower
  * \return The lowered module, see above.
  */
-LoweredModule LowerTE(
+IRModule LowerTE(
     const IRModule& module, TargetMap targets, DeviceMap device_map,
     backend::StaticMemoryPlan memory_plan, const String& module_name,
     ProcessFn process_fn = [](Function f) {});

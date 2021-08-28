@@ -821,7 +821,7 @@ void UpdateFunctionMetadata(Function relay_func,
   function_metadata.Set(prim_fn_var.value()->name_hint, fi);
 }
 
-LoweredModule LowerTE(const IRModule& module, TargetMap targets, DeviceMap device_context_map,
+IRModule LowerTE(const IRModule& module, TargetMap targets, DeviceMap device_context_map,
                       backend::StaticMemoryPlan memory_plan, const String& module_name,
                       std::function<void(Function)> process_fn) {
   DLOG(INFO) << "lowering module:\n" << PrettyPrint(module);
@@ -855,12 +855,16 @@ LoweredModule LowerTE(const IRModule& module, TargetMap targets, DeviceMap devic
     (*te_compiler_update_weights)(weight_map);
   }
 
-  LoweredModule lowered_module;
-  lowered_module.main_module = updated_module;
-  lowered_module.per_target_module = GetPerTargetModules(compiler->GetLoweredFunctions());
-  lowered_module.external_mods = compiler->LowerExternalFunctions();
-  lowered_module.main_func_info = func_info;
-  return lowered_module;
+  // Copy the lowered functions into the return module
+  for (const auto& kv : compiler->GetLoweredFunctions()->functions) {
+    updated_module->Add(kv.first, kv.second);
+  }
+
+  // Annotate the module with the external modules and function info
+  updated_module = WithAttr(updated_module, "external_mods", compiler->LowerExternalFunctions());
+  updated_module = WithAttr(updated_module, "main_func_info", func_info);
+
+  return updated_module;
 }
 
 Map<Target, IRModule> GetPerTargetModules(IRModule mod) {
@@ -981,8 +985,8 @@ Pass LowerTEPass(TargetMap targets, DeviceMap device_context_map,
                  std::function<void(Function)> process_fn) {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule module,
                                                                             PassContext ctx) {
-    return LoweredModuleToIRModule(
-        LowerTE(module, targets, device_context_map, memory_plan, module_name, process_fn));
+    return
+        LowerTE(module, targets, device_context_map, memory_plan, module_name, process_fn);
   };
   return tvm::transform::CreateModulePass(pass_func, 1, "LowerTE", {});
 }
