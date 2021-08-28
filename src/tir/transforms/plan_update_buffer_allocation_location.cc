@@ -75,8 +75,6 @@ class BufferAllocationLocator : public StmtExprMutator {
 
   Stmt VisitStmt_(const BlockNode* op) final {
     ICHECK(!op->init.defined());
-    bool is_root = is_root_;
-    is_root_ = false;
     Array<Buffer> alloc_buffers;
     auto it = alloc_buffers_.find(op);
     if (it != alloc_buffers_.end()) {
@@ -85,11 +83,23 @@ class BufferAllocationLocator : public StmtExprMutator {
         buffer_data_to_buffer_.Set(buf->data, buf);
       }
     }
+    for (const MatchBufferRegion match_buffer : op->match_buffers) {
+      const Var& target_var = match_buffer->buffer->data;
+      const Var& source_var = match_buffer->source->buffer->data;
+      ICHECK(buffer_data_to_buffer_.count(source_var));
+      buffer_data_to_buffer_.Set(target_var, match_buffer->buffer);
+    }
     Stmt stmt = StmtMutator::VisitStmt_(op);
     op = stmt.as<BlockNode>();
     ICHECK(op != nullptr);
 
-    // Ignore buffer allocated inside the block when getting access region.
+    // No longer consider buffers created by match_buffer inside the block when updating access
+    // region.
+    for (const MatchBufferRegion match_buffer : op->match_buffers) {
+      const Var& target_var = match_buffer->buffer->data;
+      buffer_data_to_buffer_.erase(target_var);
+    }
+    // No longer consider buffers allocated inside the block when updating access region.
     if (it != alloc_buffers_.end()) {
       for (const Buffer& buf : it->second) {
         buffer_data_to_buffer_.erase(buf->data);
@@ -98,12 +108,9 @@ class BufferAllocationLocator : public StmtExprMutator {
 
     ObjectPtr<BlockNode> n = CopyOnWrite(op);
     n->alloc_buffers = std::move(alloc_buffers);
-    // The read/write regions of root block are always empty.
-    if (!is_root) {
-      // Recalculate block access region
-      CollectReadWrite(GetRef<Block>(op), &n->reads, &n->writes);
-    }
-
+    // Erase buffer allocated inside the block from access region.
+    n->reads = RemoveRedundantBufferRegion(n->reads);
+    n->writes = RemoveRedundantBufferRegion(n->writes);
     return Stmt(n);
   }
 
@@ -127,8 +134,18 @@ class BufferAllocationLocator : public StmtExprMutator {
     return std::move(realize);
   }
 
+  Array<BufferRegion> RemoveRedundantBufferRegion(const Array<BufferRegion>& region) const {
+    Array<BufferRegion> result;
+    for (const BufferRegion& buffer_region : region) {
+      if (buffer_data_to_buffer_.count(buffer_region->buffer->data)) {
+        result.push_back(buffer_region);
+      }
+    }
+    return result;
+  }
+
   void CollectReadWrite(const Block& block, Array<BufferRegion>* reads,
-                        Array<BufferRegion>* writes) {
+                        Array<BufferRegion>* writes) const {
     Array<Array<BufferRegion>> access = GetBlockAccessRegion(block, buffer_data_to_buffer_);
     *reads = access[0];
     *writes = access[1];
@@ -142,8 +159,6 @@ class BufferAllocationLocator : public StmtExprMutator {
   std::unordered_map<const StmtNode*, Array<Buffer>> alloc_buffers_;
   /*! \brief The buffer already allocated during recursive visiting. */
   Map<Var, Buffer> buffer_data_to_buffer_;
-  /*! \brief indicate the whether the block is root. */
-  bool is_root_{true};
 };
 
 PrimFunc PlanAndUpdateBufferAllocationLocation(PrimFunc func) {

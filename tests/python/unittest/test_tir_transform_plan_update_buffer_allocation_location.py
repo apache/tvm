@@ -137,6 +137,63 @@ def transformed_match_buffer_func() -> None:
                 C1[()] = 0
 
 
+@tvm.script.tir
+def opaque_access(a: ty.handle, b: ty.handle) -> None:
+    A = tir.match_buffer(a, [1024])
+    B = tir.match_buffer(b, [1024])
+    A_cache = tir.alloc_buffer([1024])
+    for i in tir.serial(0, 8):
+        with tir.block([8]) as [vi]:
+            with tir.block([8]) as [v]:
+                tir.bind(v, vi)
+                tir.reads([A[(v * 128) : ((v * 128) + 128)]])
+                tir.writes([A_cache[(v * 128) : ((v * 128) + 128)]])
+                tir.evaluate(
+                    tir.call_extern(
+                        "test",
+                        A_cache.data,
+                        (v * 128),
+                        128,
+                        A.data,
+                        (v * 128),
+                        128,
+                        dtype="float32",
+                    )
+                )
+            for j in tir.serial(0, 128):
+                with tir.block([1024]) as [v]:
+                    tir.bind(v, ((vi * 128) + j))
+                    tir.reads([A_cache[v]])
+                    tir.writes([B[v]])
+                    B[v] = A_cache[v]
+
+
+@tvm.script.tir
+def transformed_opaque_access(a: ty.handle, b: ty.handle) -> None:
+    A = tir.match_buffer(a, [1024])
+    B = tir.match_buffer(b, [1024])
+    for i in tir.serial(0, 8):
+        with tir.block([8]) as [vi]:
+            tir.reads(A[vi * 128 : vi * 128 + 128])
+            tir.writes(B[vi * 128 : vi * 128 + 128])
+            A_cache = tir.alloc_buffer([1024])
+            with tir.block([8]) as [v]:
+                tir.bind(v, vi)
+                tir.reads([A[v * 128 : v * 128 + 128]])
+                tir.writes([A_cache[v * 128 : v * 128 + 128]])
+                tir.evaluate(
+                    tir.call_extern(
+                        "test", A_cache.data, v * 128, 128, A.data, v * 128, 128, dtype="float32"
+                    )
+                )
+            for j in tir.serial(0, 128):
+                with tir.block([1024]) as [v]:
+                    tir.bind(v, ((vi * 128) + j))
+                    tir.reads([A_cache[v]])
+                    tir.writes([B[v]])
+                    B[v] = A_cache[v]
+
+
 def test_elementwise():
     _check(element_func, transformed_element_func)
 
@@ -147,6 +204,10 @@ def test_locate_buffer_allocation():
 
 def test_match_buffer_allocation():
     _check(match_buffer_func, transformed_match_buffer_func)
+
+
+def test_opaque_access():
+    _check(opaque_access, transformed_opaque_access)
 
 
 def test_lower_te():
@@ -164,4 +225,5 @@ if __name__ == "__main__":
     test_elementwise()
     test_locate_buffer_allocation()
     test_match_buffer_allocation()
+    test_opaque_access()
     test_lower_te()
