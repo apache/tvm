@@ -96,8 +96,8 @@ class TECompilerNode : public Object {
    */
   virtual CachedFunc Lower(const CCacheKey& key, const String mod_name) = 0;
 
-  /* Return all functions which have been lowered by the compiler, keyed by target. */
-  virtual Map<Target, IRModule> GetLoweredFunctions() = 0;
+  /* Return all functions which have been lowered by the compiler in an IRModule, annotated with their Target. */
+  virtual IRModule GetLoweredFunctions() = 0;
 
   /*!
    * \brief Just in time compile to get a PackedFunc.
@@ -113,7 +113,7 @@ class TECompilerNode : public Object {
   virtual CachedFunc LowerShapeFunc(const CCacheKey& key) = 0;
   /*!
    * \brief Lower the external function using external codegen tools.
-   * \return The runtime moduels for each needed external codegen tool.
+   * \return The runtime modules for each needed external codegen tool.
    */
   virtual tvm::Array<tvm::runtime::Module> LowerExternalFunctions() = 0;
 

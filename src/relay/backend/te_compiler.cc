@@ -85,18 +85,13 @@ class TECompilerImpl : public TECompilerNode {
     return LowerShapeFuncInternal(key)->cached_func;
   }
 
-  Map<Target, IRModule> GetLoweredFunctions() {
-    std::unordered_map<Target, IRModule, TargetStrHash, TargetStrEqual> lowered_functions;
+  IRModule GetLoweredFunctions() {
+    // std::unordered_map<Target, IRModule, TargetStrHash, TargetStrEqual> lowered_functions;
+    IRModule mod;
     for (const auto& it : cache_) {
       auto source_func = it.first;
       auto lowered_func = it.second;
-      auto target = source_func->target;
-
-      if (!lowered_functions.count(target)) {
-        lowered_functions[target] = IRModule(Map<GlobalVar, BaseFunc>({}));
-      }
-
-      lowered_functions[target]->Update(lowered_func->cached_func->funcs);
+      mod->Update(WithAttr(lowered_func->cached_func->funcs, tvm::attr::kTarget, source_func->target));
     }
 
     for (const auto& it : shape_func_cache_) {
@@ -104,13 +99,10 @@ class TECompilerImpl : public TECompilerNode {
       auto lowered_func = it.second;
       auto target = source_func->target;
 
-      if (!lowered_functions.count(target)) {
-        lowered_functions[target] = IRModule(Map<GlobalVar, BaseFunc>({}));
-      }
-
-      lowered_functions[target]->Update(lowered_func->cached_func->funcs);
+      mod->Update(WithAttr(lowered_func->cached_func->funcs, tvm::attr::kTarget, source_func->target));
     }
-    return TargetStrModuleMapToTargetModuleMap(lowered_functions);
+
+    return mod;
   }
 
   Array<tvm::runtime::Module> LowerExternalFunctions() {
@@ -865,7 +857,7 @@ LoweredModule LowerTE(const IRModule& module, TargetMap targets, DeviceMap devic
 
   LoweredModule lowered_module;
   lowered_module.main_module = updated_module;
-  lowered_module.per_target_module = compiler->GetLoweredFunctions();
+  lowered_module.per_target_module = GetPerTargetModules(compiler->GetLoweredFunctions());
   lowered_module.external_mods = compiler->LowerExternalFunctions();
   lowered_module.main_func_info = func_info;
   return lowered_module;
