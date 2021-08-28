@@ -137,23 +137,6 @@ class TECompiler : public ObjectRef {
   using ContainerType = TECompilerNode;
 };
 
-/*! \brief The result of lowering a module, for now we need to pass an aggregate data structure
- * which contains more then a single module in order to interact with the today API.
- */
-struct LoweredModule {
-  /*! \brief The module which contains the Relay code. */
-  IRModule main_module;
-  /*! \brief The module which contains per target code. */
-  Map<Target, IRModule> per_target_module;
-  /*! \brief The external runtime modules which must be combined with the lowered code. */
-  Array<tvm::runtime::Module> external_mods;
-  // TODO(@electriclilies): THis might need to become a map
-  /*! \brief The info for this function (not sure what a better description is??)
-   *
-   */
-  backend::FunctionInfo main_func_info;
-};
-
 /*!
  * \brief A function to create the function metadata for an input function (ie calculate buffer
  * input/output sizes)
@@ -181,28 +164,6 @@ Target GetTargetFromInteger(DLDeviceType dev_type, TargetMap targets);
  */
 Map<Target, IRModule> GetPerTargetModules(IRModule mod);
 
-/*! \brief Utility to convert a LoweredModule to an IRModule.
- *
- * This function takes all the target specific modules in LoweredModule and
- * annotates their functions with the correct target, and puts all those functions
- * in one IRModule.
- * The purpose of this utility is to allow us to slowly remove LoweredModule from the codebase.
- *
- * \param mod The LoweredModule to convert.
- * \return The IRModule form of the input LoweredModule.
- */
-IRModule LoweredModuleToIRModule(LoweredModule mod);
-
-/*! \brief Utility to convert an IRModule to a LoweredModule.
- *
- * This function takes all the functions in the IRModule and moves them into target-specific
- * IRModules stored inside a LoweredModule.
- * The purpose of this utility is to allow us to slowly remove LoweredModule from the codebase.
- * \param mod The IRModule to convert.
- * \return The LoweredModule form of the input IRModule.
- */
-LoweredModule IRModuleToLoweredModule(IRModule mod);
-
 /*! \brief Lower an IRModule's primitive functions to TIR.
  *
  * This is the "back half" of the Relay compiler which lowers "primitive functions"
@@ -225,9 +186,8 @@ IRModule LowerTE(
 /*! \brief Pass to lower an IRModule's primitive functions to TIR.
  *
  * This is the "back half" of the Relay compiler which lowers "primitive functions"
- * to TE expressions, schedules them, and then to TIR. This Pass calls LowerTE, and
- * uses LoweredModuleToIRModule utility to convert the output LowerTE's output
- * LoweredModule into an IRModule before returning it.
+ * to TE expressions, schedules them, and then to TIR. It annotates all functions
+ * with their target.
  *
  * \param targets The mapping for devices to targets.
  * \param device_context_map An analysis result mapping each sub-expression to a device.
