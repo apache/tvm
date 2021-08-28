@@ -114,19 +114,28 @@ def test_match_buffer():
     root_block = match_buffer_func.body.block
     block = root_block.body.body.body.block
     block_inner = block.body[0].body.body.block
-    alloc_buffers = func.body.block.alloc_buffers
+    alloc_buffers = match_buffer_func.body.block.alloc_buffers
     buffer_var_map = {buf.data: buf for buf in alloc_buffers}
-
-    # Check inner block AAA
-    ret = tir.analysis.get_block_access_region(block_inner, buffer_var_map)
-    tvm.ir.assert_structural_equal(block_inner.reads, ret[0])
-    tvm.ir.assert_structural_equal(block_inner.writes, ret[1])
 
     # Check block
     ret = tir.analysis.get_block_access_region(block, buffer_var_map)
     tvm.ir.assert_structural_equal(block.writes, ret[1])
     # B is opaque access
     tvm.ir.assert_structural_equal(block.reads, ret[2])
+
+    # Check inner block AAA without updating buffer_var_map
+    ret = tir.analysis.get_block_access_region(block_inner, buffer_var_map)
+    # Since AA is not in the buffer_var_map, region of AA will not be collected.
+    tvm.ir.assert_structural_equal([], ret[1])
+
+    # Check inner block AAA
+    for match_buffer in block.match_buffers:
+        target_buffer = match_buffer.buffer
+        buffer_var_map[target_buffer.data] = target_buffer
+
+    ret = tir.analysis.get_block_access_region(block_inner, buffer_var_map)
+    tvm.ir.assert_structural_equal(block_inner.reads, ret[0])
+    tvm.ir.assert_structural_equal(block_inner.writes, ret[1])
 
 
 if __name__ == "__main__":
