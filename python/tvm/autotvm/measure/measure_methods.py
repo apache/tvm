@@ -114,53 +114,43 @@ class LocalBuilder(Builder):
                 futures.append(ret)
 
             for future in futures:
-                res = future.result()
-
-                if isinstance(res, Exception):
-                    # timeout or fleet error, return MeasureResult directly
+                try:
+                    res = future.result()
+                    results.append(res)
+                except TimeoutError as ex:
                     results.append(
                         MeasureResult(
-                            (res,), MeasureErrorNo.BUILD_TIMEOUT, self.timeout, time.time()
+                            (ex,), MeasureErrorNo.BUILD_TIMEOUT, self.timeout, time.time()
                         )
                     )
-                elif res.error is not None:
-                    # instantiation error
-                    if isinstance(res.error, InstantiationError):
-                        results.append(
-                            MeasureResult(
-                                (res.error,),
-                                MeasureErrorNo.INSTANTIATION_ERROR,
-                                res.time_cost,
-                                time.time(),
-                            )
+                except ChildProcessError as ex:
+                    results.append(
+                        MeasureResult(
+                            (ex,),
+                            MeasureErrorNo.RUNTIME_DEVICE,
+                            self.timeout,
+                            time.time(),
                         )
-                    else:
-                        if "InstantiationError" in str(res.error):
-                            msg = str(res.error)
-                            try:
-                                msg = msg.split("\n")[-2].split(": ")[1]
-                            except Exception:  # pylint: disable=broad-except
-                                pass
-                            results.append(
-                                MeasureResult(
-                                    (InstantiationError(msg),),
-                                    MeasureErrorNo.INSTANTIATION_ERROR,
-                                    res.time_cost,
-                                    time.time(),
-                                )
-                            )
-                        else:  # tvm error
-                            results.append(
-                                MeasureResult(
-                                    (res.error,),
-                                    MeasureErrorNo.COMPILE_HOST,
-                                    res.time_cost,
-                                    time.time(),
-                                )
-                            )
-                else:
-                    # return BuildResult
-                    results.append(res)
+                    )
+                except InstantiationError as ex:
+                    results.append(
+                        MeasureResult(
+                            (ex,),
+                            MeasureErrorNo.INSTANTIATION_ERROR,
+                            None,
+                            time.time(),
+                        )
+                    )
+                except Exception as ex:  # pylint: disable=broad-except
+                    # tvm error
+                    results.append(
+                        MeasureResult(
+                            (ex,),
+                            MeasureErrorNo.COMPILE_HOST,
+                            ex.time_cost,
+                            time.time(),
+                        )
+                    )
 
         return results
 
@@ -337,15 +327,15 @@ class RPCRunner(Runner):
                 futures.append(ret)
 
             for future in futures:
-                res = future.result()
-                if isinstance(res, Exception):  # executor error or timeout
+                try:
+                    res = future.result()
+                    results.append(res)
+                except Exception as ex:  # pylint: disable=broad-except
                     results.append(
                         MeasureResult(
-                            (str(res),), MeasureErrorNo.RUN_TIMEOUT, self.timeout, time.time()
+                            (str(ex),), MeasureErrorNo.RUN_TIMEOUT, self.timeout, time.time()
                         )
                     )
-                else:
-                    results.append(res)
 
         return results
 
