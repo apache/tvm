@@ -583,7 +583,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     // performing the preexisting AOT executor code generation phase.
     IRModule mod = IRModule::FromExpr(func);
 
-    IRModule lowered_mod =
+    mod =
         LowerTEPass(targets_, device_context_map, memory_plan, mod_name, [this](Function func) {
           // We need to maintain the constant map for external
           // functions so we pass this processing function which
@@ -598,11 +598,11 @@ class AOTExecutorCodegen : public MixedModeVisitor {
           tec::UpdateFunctionMetadata(func, this->function_metadata_);
         })(mod);
 
-    Optional<backend::FunctionInfo> main_func_info = lowered_mod->GetAttr<backend::FunctionInfo>("main_func_info");
+    Optional<backend::FunctionInfo> main_func_info = mod->GetAttr<backend::FunctionInfo>("main_func_info");
     ICHECK(main_func_info) << "The attribute \"main_func_info\" should be set at this point.";
     function_metadata_.Set(runtime::symbol::tvm_module_main, main_func_info.value());
 
-    auto lowered_main = lowered_mod->Lookup("main");
+    auto lowered_main = mod->Lookup("main");
     auto lowered_main_func = GetRef<Function>(lowered_main.as<FunctionNode>());
 
     // Post-lowering storage map for writing main func - this should be the same map as previously
@@ -664,11 +664,11 @@ class AOTExecutorCodegen : public MixedModeVisitor {
 
     ret.function_metadata = std::move(function_metadata_);
 
-    Optional<Array<tvm::runtime::Module>> external_modules = lowered_mod->GetAttr<Array<tvm::runtime::Module>>("external_mods");
+    Optional<Array<tvm::runtime::Module>> external_modules = mod->GetAttr<Array<tvm::runtime::Module>>("external_mods");
     ICHECK(external_modules) << "External module attribute should be set at this point.";
     
     // This is the point where we separate the functions in the module by target
-    ret.lowered_funcs = tec::GetPerTargetModules(lowered_mod);
+    ret.lowered_funcs = tec::GetPerTargetModules(mod);
     ret.external_mods = external_modules.value();
 
     if (ret.lowered_funcs.find(target_host_) != ret.lowered_funcs.end()) {

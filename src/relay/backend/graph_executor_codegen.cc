@@ -221,7 +221,7 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
       device_context_map.insert({expr, dev});
     }
 
-    IRModule lowered_mod =
+     mod =
         LowerTEPass(targets_, device_context_map, memory_plan_, mod_name_, [this](Function func) {
           // We need to maintain the constant map for external
           // functions so we pass this processing function which
@@ -236,11 +236,11 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
           tec::UpdateFunctionMetadata(func, this->function_metadata_);
         })(mod);
 
-    Optional<backend::FunctionInfo> main_func_info = lowered_mod->GetAttr<backend::FunctionInfo>("main_func_info");
+    Optional<backend::FunctionInfo> main_func_info = mod->GetAttr<backend::FunctionInfo>("main_func_info");
     ICHECK(main_func_info) << "The attribute \"main_func_info\" should be set at this point.";
     function_metadata_.Set(runtime::symbol::tvm_module_main, main_func_info.value());
 
-    auto main_module = relay::transform::InferType()(lowered_mod);
+    auto main_module = relay::transform::InferType()(mod);
     relay::Function main_func = Downcast<relay::Function>(main_module->Lookup("main"));
 
     // Now that we have lowered all operators to TIR code, we can proceed with compilation.
@@ -272,11 +272,11 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
     }
     ret.function_metadata = std::move(function_metadata_);
 
-    Optional<Array<tvm::runtime::Module>> external_modules = lowered_mod->GetAttr<Array<tvm::runtime::Module>>("external_mods");
+    Optional<Array<tvm::runtime::Module>> external_modules = mod->GetAttr<Array<tvm::runtime::Module>>("external_mods");
     ICHECK(external_modules) << "External module attribute should be set at this point.";
     
     // This is the point where we separate the functions in the module by target
-    ret.lowered_funcs = tec::GetPerTargetModules(lowered_mod);
+    ret.lowered_funcs = tec::GetPerTargetModules(mod);
     ret.external_mods = external_modules.value();
     return ret;
   }

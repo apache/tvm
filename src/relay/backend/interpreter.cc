@@ -901,20 +901,8 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
  * functions needed by the rewritten module.
  */
 std::pair<IRModule, Map<Target, IRModule>> Prepare(IRModule mod, Device device, Target target) {
-  // Run minimal transforms on module to establish invariants needed by interpreter.
-  transform::Sequential seq({transform::SimplifyInference(),
-                             // FuseOps will mark wrapped calls to prim-ops with the 'Primitive'
-                             // attribute.
-                             transform::FuseOps(/*fuse_opt_level=*/0), transform::ToANormalForm(),
-                             // eta expand to support constructors in argument position
-                             transform::EtaExpand(
-                                 /*expand_constructor=*/true, /*expand_global_var=*/false),
-                             transform::InferType()});
-
-  transform::PassContext pass_ctx = transform::PassContext::Current();
-  With<transform::PassContext> ctx(pass_ctx);
-  mod = seq(mod);
-
+  
+  // Things we need to initialize tec::LowerTEPass
   // We only have one device-specific target.
   tec::TargetMap targets = {{device.device_type, target}};
 
@@ -924,13 +912,25 @@ std::pair<IRModule, Map<Target, IRModule>> Prepare(IRModule mod, Device device, 
   // No need for a memory plan.
   backend::StaticMemoryPlan memory_plan; /*=nullptr*/
 
-  // Lower all primitive functions reachable from expr.
-  // TODO(mbs): This should be just another pass in seq above, which requires LoweredModule to
-  // be merged into IRModule.
-  LoweredModule lowered_module =
-      tec::LowerTE(mod, targets, device_map, memory_plan, /*module_name=*/"intrp",
-                   [](Function func) { /* no-op */ });
-  return {lowered_module.main_module, lowered_module.per_target_module};
+  // Run minimal transforms on module to establish invariants needed by interpreter.
+  transform::Sequential seq({transform::SimplifyInference(),
+                             // FuseOps will mark wrapped calls to prim-ops with the 'Primitive'
+                             // attribute.
+                             transform::FuseOps(/*fuse_opt_level=*/0), transform::ToANormalForm(),
+                             // eta expand to support constructors in argument position
+                             transform::EtaExpand(
+                                 /*expand_constructor=*/true, /*expand_global_var=*/false),
+                             transform::InferType(),
+                             tec::LowerTEPass(targets, device_map, memory_plan, /*module_name=*/"intrp",
+                   [](Function func) { /* no-op */ })});
+
+  transform::PassContext pass_ctx = transform::PassContext::Current();
+  With<transform::PassContext> ctx(pass_ctx);
+  mod = seq(mod);
+
+  // TODO(@electriclilies): Is it OK that mod is just the first arg or do we need to extract the "main" function?
+  Map<Target, IRModule> per_target_module = tec::GetPerTargetModules(mod);
+  return {mod, per_target_module};
 }
 
 /*! \brief Check if an expression could be changed by \p Prepare.
