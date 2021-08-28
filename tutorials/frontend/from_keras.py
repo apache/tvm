@@ -103,14 +103,14 @@ dev = tvm.cuda(0)
 # due to a latent bug. Note that the pass context only has an effect within
 # evaluate() and is not captured by create_executor().
 with tvm.transform.PassContext(opt_level=0):
-    model = relay.build_module.create_executor("graph", mod, dev, target).evaluate()
+    model = relay.build_module.create_executor("graph", mod, dev, target, params).evaluate()
 
 
 ######################################################################
 # Execute on TVM
 # ---------------
 dtype = "float32"
-tvm_out = model(tvm.nd.array(data.astype(dtype)), **params)
+tvm_out = model(tvm.nd.array(data.astype(dtype)))
 top1_tvm = np.argmax(tvm_out.numpy()[0])
 
 #####################################################################
