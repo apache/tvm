@@ -158,7 +158,7 @@ def dense(expr, type_map):
     out = relay.qnn.op.dense(
         x, weight, x_t.zero_point, w_t.zero_point, x_t.scale, w_t.scale, **attrs
     )
-    return [out, TensorAffineType(dense_scale, dense_zp, out.attrs.out_dtype, x_t.axis)]
+    return [out, TensorAffineType(dense_scale, dense_zp, out.attrs.out_dtype, 1)]
 
 
 @register_fake_quantization_to_integer("nn.batch_matmul")

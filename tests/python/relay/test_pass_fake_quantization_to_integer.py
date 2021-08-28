@@ -108,6 +108,31 @@ def test_fake_quantize_dense():
         compare_fq_to_int(op, [x_np, w_np])
 
 
+def test_fake_quantize_dense_per_channel():
+    for out_dtype in ["int8", "uint8"]:
+        x = relay.var("x", shape=[128, 64], dtype="int8")
+        w = relay.var("w", shape=[256, 64], dtype="int8")
+        one = relay.const(1.0)
+        zero = relay.const(0)
+
+        op = relay.op.nn.dense(
+            relay.qnn.op.dequantize(x, relay.const(2.0), zero),
+            relay.qnn.op.dequantize(
+                w,
+                relay.const(np.random.random([256]).astype("float32")),
+                relay.const([0] * 256),
+                axis=0,
+            ),
+            units=256,
+        )
+        op = relay.qnn.op.quantize(op, one, zero, out_dtype=out_dtype)
+
+        x_np = np.random.randint(-128, 127, size=[128, 64], dtype="int8")
+        w_np = np.random.randint(-128, 127, size=[256, 64], dtype="int8")
+
+        compare_fq_to_int(op, [x_np, w_np])
+
+
 def test_fake_quantize_batch_matmul():
     for out_dtype in ["int8", "uint8"]:
         x = relay.var("x", shape=[1, 128, 64], dtype="int8")
@@ -166,6 +191,32 @@ def test_fake_transpose_quantize_conv_bias_add():
     bias_np = np.random.randint(-32768, 32767, size=[16], dtype="int32")
 
     compare_fq_to_int(op, [x_np, w_np, bias_np])
+
+
+def test_fake_transpose_quantize_conv_bias_add_per_channel():
+    x = relay.var("x", shape=[1, 224, 224, 3], dtype="int8")
+    w = relay.var("w", shape=[16, 3, 5, 5], dtype="int8")
+    bias = relay.var("bias", shape=[16], dtype="int32")
+    one = relay.const(1.0)
+    zero = relay.const(0)
+    w_scale = (np.random.random([16]).astype("float32") - 0.5) / 10 + 0.5
+    w_zp = relay.const([0] * 16)
+
+    x = relay.qnn.op.dequantize(x, relay.const(2.0), zero)
+    x = relay.transpose(x, [0, 3, 1, 2])
+    op = relay.op.nn.conv2d(
+        x, relay.qnn.op.dequantize(w, relay.const(w_scale), w_zp, axis=0), kernel_size=[5, 5]
+    )
+    op = relay.op.nn.bias_add(
+        op, relay.qnn.op.dequantize(bias, relay.const(2.0 * w_scale), w_zp, axis=0)
+    )
+    op = relay.qnn.op.quantize(op, one, zero)
+
+    x_np = np.random.randint(-128, 127, size=[1, 224, 224, 3], dtype="int8")
+    w_np = np.random.randint(-128, 127, size=[16, 3, 5, 5], dtype="int8")
+    bias_np = np.random.randint(-32768, 32767, size=[16], dtype="int32")
+
+    compare_fq_to_int(op, [x_np, w_np, bias_np], allow_rounding_error=True)
 
 
 def test_fake_transpose_quantize_conv_bias_add_mismatch():
