@@ -871,6 +871,36 @@ LoweredModule LowerTE(const IRModule& module, TargetMap targets, DeviceMap devic
   return lowered_module;
 }
 
+Map<Target, IRModule> GetPerTargetModules(IRModule mod) {
+  Map<Target, IRModule> per_target_modules;
+  for (const auto& kv : mod->functions) {
+    const GlobalVar& var = kv.first;
+    const BaseFunc& func = kv.second;
+    if (func->IsInstance<tir::PrimFuncNode>()) {
+      // Extract target
+      Optional<Target> target = func->GetAttr<Target>(tvm::attr::kTarget);
+      ICHECK(target) << "Target should be set at this point";
+
+      // Put the function in per_target_modules
+      if (!per_target_modules.count(target.value())) {
+        // Initialize the IRModule for this target and add the function
+        IRModule target_module;
+        target_module->Add(var, func);
+        per_target_modules.Set(target.value(), target_module);
+      } else {
+        // The IRModule for this target is initialized, so just add the function.
+        IRModule target_module = per_target_modules.at(target.value());
+        target_module->Add(var, func);
+      }
+    } else if (!func->IsInstance<relay::FunctionNode>()) {
+      LOG(FATAL)
+          << "The function types in the IRModule should be RelayFunction or PrimFunc, but got "
+          << func->GetTypeKey();
+    }
+  }
+  return per_target_modules;
+}
+
 IRModule LoweredModuleToIRModule(LoweredModule mod) {
   IRModule unified_module;
 
@@ -925,35 +955,17 @@ LoweredModule IRModuleToLoweredModule(IRModule mod) {
   for (const auto& kv : mod->type_definitions) {
     main_mod->AddTypeDef(kv.first, kv.second);
   }
-
-  Map<Target, IRModule> per_target_modules;
+  // Put relay functions in the main module
   for (const auto& kv : mod->functions) {
     const GlobalVar& var = kv.first;
     const BaseFunc& func = kv.second;
     if (func->IsInstance<relay::FunctionNode>()) {
       main_mod->Add(var, func);
-    } else if (func->IsInstance<tir::PrimFuncNode>()) {
-      // Extract target
-      Optional<Target> target = func->GetAttr<Target>(tvm::attr::kTarget);
-      ICHECK(target) << "Target should be set at this point";
-
-      // Put the function in per_target_modules
-      if (!per_target_modules.count(target.value())) {
-        // Initialize the IRModule for this target and add the function
-        IRModule target_module;
-        target_module->Add(var, func);
-        per_target_modules.Set(target.value(), target_module);
-      } else {
-        // The IRModule for this target is initialized, so just add the function.
-        IRModule target_module = per_target_modules.at(target.value());
-        target_module->Add(var, func);
-      }
-    } else {
-      LOG(FATAL)
-          << "The function types in the IRModule should be RelayFunction or PrimFunc, but got "
-          << func->GetTypeKey();
-    }
+    } 
   }
+
+  // Extract per_target_modules
+  Map<Target, IRModule> per_target_modules = GetPerTargetModules(mod);
 
   // Put the LoweredModule together
   LoweredModule lowered_module;
