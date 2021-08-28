@@ -91,7 +91,8 @@ class TECompilerImpl : public TECompilerNode {
     for (const auto& it : cache_) {
       auto source_func = it.first;
       auto lowered_func = it.second;
-      mod->Update(WithAttr(lowered_func->cached_func->funcs, tvm::attr::kTarget, source_func->target));
+      mod->Update(
+          WithAttr(lowered_func->cached_func->funcs, tvm::attr::kTarget, source_func->target));
     }
 
     for (const auto& it : shape_func_cache_) {
@@ -99,7 +100,8 @@ class TECompilerImpl : public TECompilerNode {
       auto lowered_func = it.second;
       auto target = source_func->target;
 
-      mod->Update(WithAttr(lowered_func->cached_func->funcs, tvm::attr::kTarget, source_func->target));
+      mod->Update(
+          WithAttr(lowered_func->cached_func->funcs, tvm::attr::kTarget, source_func->target));
     }
 
     return mod;
@@ -822,8 +824,8 @@ void UpdateFunctionMetadata(Function relay_func,
 }
 
 IRModule LowerTE(const IRModule& module, TargetMap targets, DeviceMap device_context_map,
-                      backend::StaticMemoryPlan memory_plan, const String& module_name,
-                      std::function<void(Function)> process_fn) {
+                 backend::StaticMemoryPlan memory_plan, const String& module_name,
+                 std::function<void(Function)> process_fn) {
   DLOG(INFO) << "lowering module:\n" << PrettyPrint(module);
 
   TECompiler compiler;
@@ -902,8 +904,7 @@ Pass LowerTEPass(TargetMap targets, DeviceMap device_context_map,
                  std::function<void(Function)> process_fn) {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule module,
                                                                             PassContext ctx) {
-    return
-        LowerTE(module, targets, device_context_map, memory_plan, module_name, process_fn);
+    return LowerTE(module, targets, device_context_map, memory_plan, module_name, process_fn);
   };
   return tvm::transform::CreateModulePass(pass_func, 1, "LowerTE", {});
 }

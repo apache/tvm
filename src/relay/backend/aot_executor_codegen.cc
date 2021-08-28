@@ -583,22 +583,22 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     // performing the preexisting AOT executor code generation phase.
     IRModule mod = IRModule::FromExpr(func);
 
-    mod =
-        LowerTEPass(targets_, device_context_map, memory_plan, mod_name, [this](Function func) {
-          // We need to maintain the constant map for external
-          // functions so we pass this processing function which
-          // allows us to process each function as we lower it.
-          if (func->GetAttr<String>(attr::kCompiler).defined()) {
-            UpdateConstants(func, &params_);
-          }
+    mod = LowerTEPass(targets_, device_context_map, memory_plan, mod_name, [this](Function func) {
+      // We need to maintain the constant map for external
+      // functions so we pass this processing function which
+      // allows us to process each function as we lower it.
+      if (func->GetAttr<String>(attr::kCompiler).defined()) {
+        UpdateConstants(func, &params_);
+      }
 
-          // TODO(@areusch, @jroesch): We should refactor this to
-          // execute as a further pass, instead writing data to the
-          // lowering process directly.
-          tec::UpdateFunctionMetadata(func, this->function_metadata_);
-        })(mod);
+      // TODO(@areusch, @jroesch): We should refactor this to
+      // execute as a further pass, instead writing data to the
+      // lowering process directly.
+      tec::UpdateFunctionMetadata(func, this->function_metadata_);
+    })(mod);
 
-    Optional<backend::FunctionInfo> main_func_info = mod->GetAttr<backend::FunctionInfo>("main_func_info");
+    Optional<backend::FunctionInfo> main_func_info =
+        mod->GetAttr<backend::FunctionInfo>("main_func_info");
     ICHECK(main_func_info) << "The attribute \"main_func_info\" should be set at this point.";
     function_metadata_.Set(runtime::symbol::tvm_module_main, main_func_info.value());
 
@@ -664,9 +664,10 @@ class AOTExecutorCodegen : public MixedModeVisitor {
 
     ret.function_metadata = std::move(function_metadata_);
 
-    Optional<Array<tvm::runtime::Module>> external_modules = mod->GetAttr<Array<tvm::runtime::Module>>("external_mods");
+    Optional<Array<tvm::runtime::Module>> external_modules =
+        mod->GetAttr<Array<tvm::runtime::Module>>("external_mods");
     ICHECK(external_modules) << "External module attribute should be set at this point.";
-    
+
     // This is the point where we separate the functions in the module by target
     ret.lowered_funcs = tec::GetPerTargetModules(mod);
     ret.external_mods = external_modules.value();

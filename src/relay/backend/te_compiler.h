@@ -96,7 +96,8 @@ class TECompilerNode : public Object {
    */
   virtual CachedFunc Lower(const CCacheKey& key, const String mod_name) = 0;
 
-  /* Return all functions which have been lowered by the compiler in an IRModule, annotated with their Target. */
+  /* Return all functions which have been lowered by the compiler in an IRModule, annotated with
+   * their Target. */
   virtual IRModule GetLoweredFunctions() = 0;
 
   /*!
