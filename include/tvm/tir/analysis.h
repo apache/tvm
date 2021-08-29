@@ -178,8 +178,8 @@ TVM_DLL Array<Array<BufferRegion>> GetBlockAccessRegion(const Block& block,
  *                       It is a map from buffer var to the buffer
  * \return An array only consisting of the read regions and write regions of the input block
  */
-TVM_DLL Array<Array<BufferRegion>> GetBlockReadWriteRegion(Block block,
-                                                           Map<Var, Buffer> buffer_var_map);
+TVM_DLL Array<Array<BufferRegion>> GetBlockReadWriteRegion(const Block& block,
+                                                           const Map<Var, Buffer>& buffer_var_map);
 
 /*!
  * \brief Calculate the expresion complexity based on number of symbols it contains.
@@ -243,3 +243,4 @@ TVM_DLL Pass VerifyGPUCode(Map<String, PrimExpr> constraints);
 }  // namespace tir
 }  // namespace tvm
 #endif  // TVM_TIR_ANALYSIS_H_
+
