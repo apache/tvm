@@ -18,6 +18,7 @@
 """x86 nn operators"""
 from tvm import te
 from .. import tag
+from ..utils import traverse_inline
 
 
 def schedule_softmax(outs):
@@ -36,7 +37,6 @@ def schedule_softmax(outs):
     """
     outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
     s = te.create_schedule([x.op for x in outs])
-    scheduled_ops = []
 
     def _schedule(softmax_op):
         op_tag = softmax_op.tag
@@ -81,17 +81,17 @@ def schedule_softmax(outs):
         if exp is not None:
             s[exp].compute_at(s[softmax_op], fused_outer_axes)
 
-    def traverse(OP):
-        if tag.is_broadcast(OP.tag):
-            if OP not in s.outputs:
-                s[OP].compute_inline()
-            for tensor in OP.input_tensors:
-                if isinstance(tensor.op, te.tensor.ComputeOp) and tensor.op not in scheduled_ops:
-                    traverse(tensor.op)
-        elif "softmax" in OP.tag:
-            _schedule(OP)
+        if softmax_op != outs[0]:
+            # fuse softmax output with following elemwise ops.
+            output = outs[0]
+            outer_axes = [s[output].op.axis[i] for i in range(0, axis)]
+            fused_outer_axes = s[output].fuse(*outer_axes)
+            s[output].parallel(fused_outer_axes)
+            s[softmax_op].compute_at(s[output], fused_outer_axes)
 
-        scheduled_ops.append(OP)
+    def _callback(op):
+        if "softmax" in op.tag:
+            _schedule(op)
 
-    traverse(outs[0].op)
+    traverse_inline(s, outs[0].op, _callback)
     return s
