@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import numpy as np
+import pytest
 
 import tvm
 from tvm import relay
@@ -784,23 +785,35 @@ def test_fuse_dynamic_squeeze_slice_take():
     assert np.allclose(result.numpy(), np_result)
 
 
+@tvm.testing.uses_gpu
+def test_fuse_softmax():
+    """Test if softmax can be fused with following ops."""
+
+    def before():
+        x = relay.var("x", shape=(16, 16))
+        softmax = relay.nn.softmax(x)
+        out = relay.cast(softmax, "float16")
+        return relay.Function([x], out)
+
+    def expected():
+        p0 = relay.var("p0", shape=(16, 16))
+        softmax = relay.nn.softmax(p0)
+        out = relay.cast(softmax, "float16")
+
+        x = relay.var("x", shape=(16, 16))
+
+        f0 = relay.Function([p0], out)
+        f0 = f0.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
+        y = relay.Call(f0, [x])
+        return relay.Function([x], y)
+
+    orig = before()
+    m = fuse2(tvm.IRModule.from_expr(orig))
+    after = run_opt_pass(expected(), transform.InferType())
+    assert tvm.ir.structural_equal(m["main"], after)
+
+    # relay.build(m, "llvm")
+
+
 if __name__ == "__main__":
-    test_fuse_simple()
-    test_conv2d_fuse()
-    test_concatenate()
-    test_tuple_root()
-    test_stop_fusion()
-    test_fuse_myia_regression()
-    test_fuse_tuple_get_elemwise()
-    test_tuple_get_root()
-    test_tuple_intermediate()
-    test_tuple_consecutive()
-    test_inception_like()
-    test_fuse_parallel_injective()
-    test_immutable()
-    test_split()
-    test_fuse_max()
-    test_fuse_take()
-    test_fuse_gather_nd()
-    test_fuse_bcast_reduce_scalar()
-    test_fuse_max_diamond()
+    pytest.main([__file__])
