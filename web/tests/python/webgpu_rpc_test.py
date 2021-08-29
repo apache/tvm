@@ -70,11 +70,11 @@ def test_rpc():
         a = tvm.nd.array(adata, dev)
         b = tvm.nd.array(np.zeros(n, dtype=A.dtype), dev)
 
-        np.testing.assert_equal(a.numpy(), adata)
+        np.testing.assert_equal(a.asnumpy(), adata)
         f1 = remote.system_lib()
         addone = f1.get_function("addone")
         addone(a, b)
-        np.testing.assert_equal(b.numpy(), a.numpy() + 1)
+        np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
         print("Test pass..")
 
     check(remote)

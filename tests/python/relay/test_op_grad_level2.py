@@ -51,9 +51,8 @@ def verify_max_pool2d_grad(x_shape, pool_size, strides, padding, ceil_mode):
     )
 
     for target, dev in tvm.testing.enabled_targets():
-        op_res, (op_grad,) = relay.create_executor(device=dev, target=target).evaluate(bwd_func)(
-            data
-        )
+        intrp = relay.create_executor(device=dev, target=target)
+        op_res, (op_grad,) = intrp.evaluate(bwd_func)(data)
         np.testing.assert_allclose(op_grad.numpy(), ref_grad, rtol=0.01)
 
 
@@ -101,9 +100,8 @@ def verify_avg_pool2d_grad(
         )
 
         for target, dev in tvm.testing.enabled_targets():
-            op_res, (op_grad,) = relay.create_executor(device=dev, target=target).evaluate(
-                bwd_func
-            )(data)
+            intrp = relay.create_executor(device=dev, target=target)
+            op_res, (op_grad,) = intrp.evaluate(bwd_func)(data)
             np.testing.assert_allclose(op_grad.numpy(), ref_grad, rtol=0.01)
 
 
@@ -158,9 +156,8 @@ def verify_global_avg_pool2d_grad(x_shape):
     )
 
     for target, dev in tvm.testing.enabled_targets():
-        op_res, (op_grad,) = relay.create_executor(device=dev, target=target).evaluate(bwd_func)(
-            data
-        )
+        intrp = relay.create_executor(device=dev, target=target)
+        op_res, (op_grad,) = intrp.evaluate(bwd_func)(data)
         np.testing.assert_allclose(op_grad.numpy(), ref_grad, rtol=0.01)
 
 

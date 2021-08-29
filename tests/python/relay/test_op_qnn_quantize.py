@@ -88,20 +88,6 @@ def test_float32_to_int8():
     )
 
 
-def test_scalar_float32_to_int8():
-    data = np.array(-63.5).astype("float32")
-    output = np.array(-128).astype("int8")
-    quant_args = {"out_zero_point": np.int32(-1), "out_scale": np.float32(0.5)}
-    quantize_test_driver(
-        in_dtype="float32",
-        quant_args=quant_args,
-        axis=-1,
-        out_dtype="int8",
-        in_data=data,
-        verify_output_data=output,
-    )
-
-
 def test_channelwise_axis_0():
     data = (
         np.array([-63.5, -63, -62.5, -62, -61.5, 30, 31, 31.5, 31.75, 32])
@@ -177,7 +163,6 @@ def test_dynamic_quantize():
 if __name__ == "__main__":
     test_float32_to_uint8()
     test_float32_to_int8()
-    test_scalar_float32_to_int8()
     test_channelwise_axis_0()
     test_channelwise_axis_1()
     test_dynamic_quantize()

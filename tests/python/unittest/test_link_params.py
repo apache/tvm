@@ -348,7 +348,7 @@ def test_c_link_params():
 
 @tvm.testing.requires_micro
 def test_crt_link_params():
-    from tvm import micro
+    import tvm.micro
 
     for dtype in LINKABLE_DTYPES:
         mod, param_init = _make_mod_and_params(dtype)
@@ -356,21 +356,34 @@ def test_crt_link_params():
         main_func = mod["main"]
         target = "c --system-lib --runtime=c --link-params"
         with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-            factory = tvm.relay.build(mod, target, params=param_init)
-            assert set(factory.get_params().keys()) == {"p0", "p1"}  # NOTE: op folded
+            graph_json, lib, params = tvm.relay.build(mod, target, params=param_init)
+            assert set(params.keys()) == {"p0", "p1"}  # NOTE: op folded
 
-            temp_dir = tvm.contrib.utils.tempdir()
-            template_project_dir = os.path.join(
-                tvm.micro.get_standalone_crt_dir(), "template", "host"
+            workspace = tvm.micro.Workspace()
+            compiler = tvm.micro.DefaultCompiler(target=target)
+            opts = tvm.micro.default_options(
+                os.path.join(tvm.micro.get_standalone_crt_dir(), "template", "host")
             )
-            project = tvm.micro.generate_project(
-                template_project_dir, factory, temp_dir / "project", {"verbose": 1}
+            opts["bin_opts"]["ldflags"].append("-DTVM_HOST_USE_GRAPH_EXECUTOR_MODULE")
+
+            micro_binary = tvm.micro.build_static_runtime(
+                workspace,
+                compiler,
+                lib,
+                compiler_options=opts,
+                extra_libs=[
+                    tvm.micro.get_standalone_crt_lib(m)
+                    for m in ("memory", "graph_executor_module", "graph_executor")
+                ],
             )
-            project.build()
-            project.flash()
-            with tvm.micro.Session(project.transport()) as sess:
+
+            flasher_kw = {
+                "debug": False,
+            }
+            flasher = compiler.flasher(**flasher_kw)
+            with tvm.micro.Session(binary=micro_binary, flasher=flasher) as sess:
                 graph_rt = tvm.micro.session.create_local_graph_executor(
-                    factory.get_graph_json(), sess.get_system_lib(), sess.device
+                    graph_json, sess.get_system_lib(), sess.device
                 )
 
                 # NOTE: not setting params here.

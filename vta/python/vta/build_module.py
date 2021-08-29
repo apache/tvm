@@ -17,9 +17,8 @@
 # pylint: disable=unused-argument, invalid-name
 """VTA specific buildin for runtime."""
 import tvm
-from tvm.ir import register_intrin_lowering
 from . import transform
-from .environment import get_env, Environment
+from .environment import get_env
 
 
 def EarlyRewrite():
@@ -135,65 +134,3 @@ tvm.ir.register_op_attr("tir.vta.uop_push", "TGlobalSymbol", "VTAUopPush")
 
 tvm.ir.register_op_attr("tir.vta.command_handle", "TGlobalSymbol", "VTATLSCommandHandle")
 tvm.ir.register_op_attr("tir.vta.command_handle", "TCallEffectKind", tvm.tir.CallEffectKind.Opaque)
-
-# The memory information for the compiler
-@tvm.register_func("tvm.info.mem.%s" % Environment.inp_scope)
-def mem_info_inp_buffer():
-    spec = get_env()
-    return tvm.ir.make_node(
-        "MemoryInfo",
-        unit_bits=spec.INP_ELEM_BITS,
-        max_simd_bits=spec.INP_ELEM_BITS,
-        max_num_bits=spec.INP_BUFF_SIZE * 8,
-        head_address=None,
-    )
-
-
-@tvm.register_func("tvm.info.mem.%s" % Environment.wgt_scope)
-def mem_info_wgt_buffer():
-    spec = get_env()
-    return tvm.ir.make_node(
-        "MemoryInfo",
-        unit_bits=spec.WGT_ELEM_BITS,
-        max_simd_bits=spec.WGT_ELEM_BITS,
-        max_num_bits=spec.WGT_BUFF_SIZE * 8,
-        head_address=None,
-    )
-
-
-@tvm.register_func("tvm.info.mem.%s" % Environment.acc_scope)
-def mem_info_acc_buffer():
-    spec = get_env()
-    return tvm.ir.make_node(
-        "MemoryInfo",
-        unit_bits=spec.ACC_ELEM_BITS,
-        max_simd_bits=spec.ACC_ELEM_BITS,
-        max_num_bits=spec.ACC_BUFF_SIZE * 8,
-        head_address=None,
-    )
-
-
-# TVM Op related registration
-@register_intrin_lowering("tir.vta.coproc_sync", "default")
-def coproc_sync(op):
-    _ = op
-    return tvm.tir.call_extern(
-        "int32",
-        "VTASynchronize",
-        get_env().dev.command_handle,
-        tvm.runtime.const(1 << 31, dtype="uint32"),
-    )
-
-
-@register_intrin_lowering("tir.vta.coproc_dep_push", "default")
-def coproc_dep_push(op):
-    return tvm.tir.call_extern(
-        "int32", "VTADepPush", get_env().dev.command_handle, op.args[0], op.args[1]
-    )
-
-
-@register_intrin_lowering("tir.vta.coproc_dep_pop", "default")
-def coproc_dep_pop(op):
-    return tvm.tir.call_extern(
-        "int32", "VTADepPop", get_env().dev.command_handle, op.args[0], op.args[1]
-    )

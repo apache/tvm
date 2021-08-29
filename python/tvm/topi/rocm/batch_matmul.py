@@ -23,9 +23,7 @@ from ..utils import get_const_tuple
 
 
 @autotvm.register_topi_compute("batch_matmul_rocblas.rocm")
-def batch_matmul_rocblas(
-    cfg, x, y, out_shape=None, out_dtype=None, transpose_a=False, transpose_b=True
-):
+def batch_matmul_rocblas(cfg, x, y, out_shape=None):
     """Computes matrix multiplication of `x` and `y` via rocblas when
     `x` and `y` are batched matrices.
 
@@ -42,13 +40,12 @@ def batch_matmul_rocblas(
     output : tvm.te.Tensor
         3-D with shape [batch, M, N]
     """
-    del out_dtype
     batch, M, K = get_const_tuple(x.shape)
     _, N, _ = get_const_tuple(y.shape)
     if out_shape is not None:
         assert out_shape[0] == batch, "Input and output batch sizes must match"
         assert out_shape[1] == M and out_shape[2] == N, "Invalid output shape"
-    result = rocblas.batch_matmul(x, y, transpose_a, transpose_b)
+    result = rocblas.batch_matmul(x, y, False, True)
     cfg.add_flop(batch * M * N * K * 2)
     return result
 

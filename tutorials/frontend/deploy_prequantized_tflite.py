@@ -232,7 +232,9 @@ print("TFLite Top-5 labels:", tflite_pred)
 # Here we give an example of how to measure performance of TVM compiled models.
 n_repeat = 100  # should be bigger to make the measurement more accurate
 dev = tvm.cpu(0)
-print(rt_mod.benchmark(dev, number=1, repeat=n_repeat))
+ftimer = rt_mod.module.time_evaluator("run", dev, number=1, repeat=n_repeat)
+prof_res = np.array(ftimer().results) * 1e3
+print("Elapsed average ms:", np.mean(prof_res))
 
 ######################################################################
 # .. note::

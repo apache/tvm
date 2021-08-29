@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
-from tvm import tir, te
+from tvm import tir
 from tvm.script import ty
 
 
@@ -35,7 +35,7 @@ def compacted_elementwise_func(a: ty.handle, c: ty.handle) -> None:
         with tir.block([]):
             tir.reads(A[i, 0:16])
             tir.writes(C[i, 0:16])
-            B = tir.alloc_buffer([1, 16], "float32", scope="global")
+            B = tir.alloc_buffer([1, 16], "float32")
             for j in range(0, 16):
                 with tir.block() as []:
                     tir.reads(A[i, j])
@@ -111,7 +111,7 @@ def compacted_symbolic_func(a: ty.handle, c: ty.handle, n: ty.int32, m: ty.int32
         with tir.block([]):
             tir.reads(A[i, m])
             tir.writes(C[i, m])
-            B = tir.alloc_buffer((m,), "float32", scope="global")
+            B = tir.alloc_buffer((m,), "float32")
             for j in range(0, m):
                 with tir.block([]) as []:
                     tir.reads(A[i, j])
@@ -190,8 +190,8 @@ def compacted_multi_alloc_func(a: ty.handle, d: ty.handle) -> None:
         with tir.block([]) as []:
             tir.reads(A[i])
             tir.writes(D[i])
-            B = tir.alloc_buffer((32,), scope="global")
-            C = tir.alloc_buffer((32,), scope="global")
+            B = tir.alloc_buffer((32,))
+            C = tir.alloc_buffer((32,))
             B[i] = A[i] + 1.0
             C[i] = A[i] + B[i]
             D[i] = C[i] * 2.0
@@ -234,15 +234,6 @@ def test_multi_alloc():
     _check(compacted_multi_alloc_func, flattened_multi_alloc_func)
 
 
-def test_lower_te():
-    x = te.placeholder((1,))
-    y = te.compute((1,), lambda i: x[i] + 2)
-    s = te.create_schedule(y.op)
-    orig_mod = tvm.driver.build_module.schedule_to_module(s, [x, y])
-    mod = tvm.tir.transform.FlattenBuffer()(orig_mod)
-    tvm.ir.assert_structural_equal(mod, orig_mod)  # FlattenBuffer should do nothing on TE
-
-
 if __name__ == "__main__":
     test_elementwise()
     test_gpu_workload()
@@ -250,4 +241,3 @@ if __name__ == "__main__":
     test_predicate()
     test_unit_loops()
     test_multi_alloc()
-    test_lower_te()

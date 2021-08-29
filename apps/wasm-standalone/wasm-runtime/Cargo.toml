@@ -26,8 +26,8 @@ license = "Apache-2.0"
 keywords = ["wasm", "machine learning", "wasmtime"]
 
 [dependencies]
-wasmtime = "0.28.0"
-wasmtime-wasi = "0.28.0"
+wasmtime = "0.16.0"
+wasmtime-wasi = "0.16.0"
 anyhow = "1.0.31"
 serde = "1.0.53"
 serde_json = "1.0.53"

@@ -277,8 +277,8 @@ class Module3:
             }
         )
         # var definition
-        C_global = tir.buffer_var("float32", "global")
-        packedB = tir.buffer_var("float32", "global")
+        C_global = tir.var("handle")
+        packedB = tir.var("handle")
         # body
         assert num_args == 3, "mmult: num_args should be 3"
         arg0: ty.handle = tir.tvm_struct_get(args, 0, 12, dtype="handle")
@@ -2821,43 +2821,6 @@ def test_for_thread_binding():
 
 
 @tvm.script.tir
-def match_buffer_region(a: ty.handle, b: ty.handle) -> None:
-    A = tir.match_buffer(a, (16, 16, 16), "float32")
-    B = tir.match_buffer(b, (1), "float32")
-
-    with tir.block([16, 4]) as [vi, vj]:
-        C = tir.match_buffer(A[0:16, vi, vj * 4 : vj * 4 + 4], (16, 1, 4))
-        with tir.block([4]) as [vii]:
-            D = tir.match_buffer(C[vii * 4 : vii * 4 + 4, 0, 0:4], (4, 1, 4))
-            for i, j in tir.grid(4, 4):
-                B[0] += D[i, 0, j]
-
-
-def test_match_buffer_region():
-    func = match_buffer_region
-    rt_func = tvm.script.from_source(tvm.script.asscript(func, True))
-    tvm.ir.assert_structural_equal(func, rt_func)
-
-    assert isinstance(rt_func.body, tir.stmt.BlockRealize)
-    root = rt_func.body.block
-
-    assert isinstance(root.body, tir.stmt.For)
-    assert isinstance(root.body.body, tir.stmt.For)
-    assert isinstance(root.body.body.body, tir.stmt.BlockRealize)
-    outer_block = root.body.body.body.block
-    assert len(outer_block.match_buffers) == 1
-    buffer_C = outer_block.match_buffers[0].buffer
-    tvm.ir.assert_structural_equal(buffer_C.shape, [16, 1, 4])
-
-    assert isinstance(outer_block.body, tir.stmt.For)
-    assert isinstance(outer_block.body.body, tir.stmt.BlockRealize)
-    inner_block = outer_block.body.body.block
-    assert len(inner_block.match_buffers) == 1
-    buffer_D = inner_block.match_buffers[0].buffer
-    tvm.ir.assert_structural_equal(buffer_D.shape, [4, 1, 4])
-
-
-@tvm.script.tir
 def block_elements(a: ty.handle, b: ty.handle) -> None:
     A = tir.match_buffer(a, (16, 16), "float32")
     B = tir.match_buffer(b, (1, 1), "float32")
@@ -2869,10 +2832,10 @@ def block_elements(a: ty.handle, b: ty.handle) -> None:
         tir.writes(B[0, 0])
         tir.block_attr({"attr_key": "attr_value"})
         C = tir.alloc_buffer((4, 4), dtype="float32")
-        D = tir.match_buffer(A[0:4, 0], (4, 1))
+        D = tir.match_buffer_region(A[0:4, 0])
         with tir.init():
             B[0, 0] = tir.float32(0)
-        B[0, 0] = A[0, 0] + B[0, 0] + C[1, 1] + D[2]
+        B[0, 0] = A[0, 0] + B[0, 0] + C[1, 1] + D[2, 0]
 
 
 def test_block_elements():
@@ -2983,34 +2946,6 @@ def test_minmax():
     tvm.ir.assert_structural_equal(func, rt_func)
 
 
-@tvm.script.tir
-def abs(a: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128), "float32")
-
-    with tir.block([128, 128], "A") as [vi, vj]:
-        A[vi, vj] = tir.abs(A[vi, vj])
-
-
-def test_abs():
-    func = abs
-    rt_func = tvm.script.from_source(tvm.script.asscript(func, True))
-    tvm.ir.assert_structural_equal(func, rt_func)
-
-
-@tvm.script.tir
-def constant_folding(a: ty.handle) -> None:
-    A = tir.match_buffer(a, (), "float32")
-    A[()] = tir.min(2.2, 5.2)
-    A[()] = tir.max(tir.float32(2.2), tir.float32(tir.float32(5.2)))
-    A[()] = tir.min(2.2, 5.0)
-
-
-def test_script_printer():
-    func = constant_folding
-    rt_func = tvm.script.from_source(tvm.script.asscript(func, True))
-    tvm.ir.assert_structural_equal(func, rt_func)
-
-
 if __name__ == "__main__":
     test_opt_gemm_normalize()
     test_opt_gemm_mod_host()
@@ -3025,8 +2960,5 @@ if __name__ == "__main__":
     test_element_wise()
     test_predicate()
     test_for_thread_binding()
-    test_match_buffer_region()
     test_block_elements()
     test_opaque_block()
-    test_abs()
-    test_script_printer()

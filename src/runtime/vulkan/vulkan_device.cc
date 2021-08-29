@@ -156,27 +156,6 @@ VulkanDeviceProperties::VulkanDeviceProperties(const VulkanInstance& instance,
   device_name = properties.properties.deviceName;
   driver_version = properties.properties.driverVersion;
 
-  switch (properties.properties.deviceType) {
-    case VK_PHYSICAL_DEVICE_TYPE_OTHER:
-      device_type = "other";
-      break;
-    case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU:
-      device_type = "integrated";
-      break;
-    case VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU:
-      device_type = "discrete";
-      break;
-    case VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU:
-      device_type = "virtual";
-      break;
-    case VK_PHYSICAL_DEVICE_TYPE_CPU:
-      device_type = "cpu";
-      break;
-    default:
-      LOG(FATAL) << "Unknown vulkan device type: " << properties.properties.deviceType;
-      break;
-  }
-
   // By default, use the maximum API version that the driver allows,
   // so that any supported features can be used by TVM shaders.
   // However, if we can query the conformance version, then limit to

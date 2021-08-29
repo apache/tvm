@@ -178,7 +178,7 @@ class MetalWrappedFunc {
   // initialize the METAL function.
   void Init(MetalModuleNode* m, ObjectPtr<Object> sptr, const std::string& func_name,
             size_t num_buffer_args, size_t num_pack_args,
-            const std::vector<std::string>& launch_param_tags) {
+            const std::vector<std::string>& thread_axis_tags) {
     w_ = metal::MetalWorkspace::Global();
     m_ = m;
     sptr_ = sptr;
@@ -186,7 +186,7 @@ class MetalWrappedFunc {
     num_buffer_args_ = num_buffer_args;
     num_pack_args_ = num_pack_args;
     std::fill(scache_.begin(), scache_.end(), (id<MTLComputePipelineState>)nil);
-    launch_param_config_.Init(num_buffer_args + num_pack_args, launch_param_tags);
+    thread_axis_cfg_.Init(num_buffer_args + num_pack_args, thread_axis_tags);
     metal::MetalThreadEntry* t = metal::MetalThreadEntry::ThreadLocal();
     int dev_id = t->device.device_id;
     scache_[dev_id] = m->GetPipelineState(dev_id, func_name);
@@ -201,7 +201,7 @@ class MetalWrappedFunc {
       if (scache_[device_id] == nil) {
         scache_[device_id] = m_->GetPipelineState(device_id, func_name_);
       }
-      ThreadWorkLoad wl = launch_param_config_.Extract(args);
+      ThreadWorkLoad wl = thread_axis_cfg_.Extract(args);
       int blockSize = wl.block_dim(0) * wl.block_dim(1) * wl.block_dim(2);
       auto maxTotalThreadsPerThreadgroup = scache_[device_id].maxTotalThreadsPerThreadgroup;
       CHECK_LE(blockSize, maxTotalThreadsPerThreadgroup);
@@ -242,8 +242,8 @@ class MetalWrappedFunc {
   // Device state cache per device.
   // mark as mutable, to enable lazy initialization
   mutable std::array<id<MTLComputePipelineState>, kMetalMaxNumDevice> scache_;
-  // launch parameters configuration
-  LaunchParamConfig launch_param_config_;
+  // thread axis configuration
+  ThreadAxisConfig thread_axis_cfg_;
 };
 
 PackedFunc MetalModuleNode::GetFunction(const std::string& name,
@@ -261,7 +261,7 @@ PackedFunc MetalModuleNode::GetFunction(const std::string& name,
     MetalWrappedFunc f;
     size_t num_buffer_args = NumBufferArgs(info.arg_types);
     f.Init(this, sptr_to_self, name, num_buffer_args, info.arg_types.size() - num_buffer_args,
-           info.launch_param_tags);
+           info.thread_axis_tags);
     pf = PackFuncNonBufferArg(f, info.arg_types);
   };
   return pf;

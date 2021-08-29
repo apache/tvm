@@ -18,7 +18,6 @@
 import pytest
 import os
 import shlex
-import sys
 
 import tvm
 from tvm.driver import tvmc
@@ -131,7 +130,3 @@ def test_tvmc_import_package_mlf_aot(tflite_mobilenet_v1_1_quant, tflite_compile
     assert tvmc_package.graph is None, ".graph must not be set in the MLF archive for AOT executor."
     assert tvmc_package.params is not None, ".params must be set in the MLF archive."
     assert tvmc_package.type == "mlf", ".type must be set to 'mlf' in the MLF format."
-
-
-if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))

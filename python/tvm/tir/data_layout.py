@@ -15,8 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """Data layout."""
-from typing import Union
-
 import tvm._ffi
 
 from tvm.runtime import Object
@@ -38,7 +36,7 @@ class Layout(Object):
     """
 
     def __len__(self):
-        return _ffi_api.LayoutNdim(self)  # type: ignore
+        return _ffi_api.LayoutNdim(self)
 
     def __contains__(self, axis):
         return len(axis) == 1 and axis[0].isalpha() and axis[0] in self.name
@@ -46,7 +44,7 @@ class Layout(Object):
     def __getitem__(self, index):
         if index >= len(self):
             raise IndexError("Layout index out of range")
-        return _ffi_api.LayoutGetItem(self, index)  # type: ignore
+        return _ffi_api.LayoutGetItem(self, index)
 
     def index_of(self, axis):
         """Get the index of an axis
@@ -61,7 +59,7 @@ class Layout(Object):
         index : int
             The index of the axis, -1 if not found.
         """
-        return _ffi_api.LayoutIndexOf(self, axis)  # type: ignore
+        return _ffi_api.LayoutIndexOf(self, axis)
 
     def factor_of(self, axis):
         """Get the factor size of the subordinate axis.
@@ -78,7 +76,7 @@ class Layout(Object):
             or the size of axis itself (if axis is a subordinate-axis).
             Return -1 if axis is not in the layout.
         """
-        return _ffi_api.LayoutFactorOf(self, axis)  # type: ignore
+        return _ffi_api.LayoutFactorOf(self, axis)
 
 
 @tvm._ffi.register_object("tir.BijectiveLayout")
@@ -115,7 +113,7 @@ class BijectiveLayout(Object):
         dst_index: Array of Expr
             The inferred indices in dst-layout.
         """
-        return _ffi_api.BijectiveLayoutForwardIndex(self, index)  # type: ignore
+        return _ffi_api.BijectiveLayoutForwardIndex(self, index)
 
     def backward_index(self, index):
         """Given the indices of the dst-layout, infer the src index.
@@ -130,7 +128,7 @@ class BijectiveLayout(Object):
         src_index: Array of Expr
             The inferred indices in src-layout.
         """
-        return _ffi_api.BijectiveLayoutBackwardIndex(self, index)  # type: ignore
+        return _ffi_api.BijectiveLayoutBackwardIndex(self, index)
 
     def forward_shape(self, shape):
         """Given the shape of the src-layout, infer the dst shape.
@@ -145,7 +143,7 @@ class BijectiveLayout(Object):
         dst_shape: Array of Expr
             The inferred shape in dst-layout.
         """
-        return _ffi_api.BijectiveLayoutForwardShape(self, shape)  # type: ignore
+        return _ffi_api.BijectiveLayoutForwardShape(self, shape)
 
     def backward_shape(self, shape):
         """Given the shape of the dst-layout, infer the src shape.
@@ -160,10 +158,10 @@ class BijectiveLayout(Object):
         src_shape: Array of Expr
             The inferred shape in src-layout.
         """
-        return _ffi_api.BijectiveLayoutBackwardShape(self, shape)  # type: ignore
+        return _ffi_api.BijectiveLayoutBackwardShape(self, shape)
 
 
-def layout(layout_str: str) -> Layout:
+def layout(layout_str):
     """Create a layout node from a string.
 
     Parameters
@@ -182,12 +180,10 @@ def layout(layout_str: str) -> Layout:
     layout : Layout
         The created layout
     """
-    return _ffi_api.Layout(layout_str)  # type: ignore
+    return _ffi_api.Layout(layout_str)
 
 
-def bijective_layout(
-    src_layout: Union[str, Layout], dst_layout: Union[str, Layout]
-) -> BijectiveLayout:
+def bijective_layout(src_layout, dst_layout):
     """Create a bijective layout mapping.
 
     Parameters
@@ -207,4 +203,4 @@ def bijective_layout(
         src_layout = layout(src_layout)
     if isinstance(dst_layout, str):
         dst_layout = layout(dst_layout)
-    return _ffi_api.BijectiveLayout(src_layout, dst_layout)  # type: ignore
+    return _ffi_api.BijectiveLayout(src_layout, dst_layout)

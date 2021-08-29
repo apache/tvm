@@ -82,7 +82,7 @@ def test_rpc():
         time_f(a, b)
         cost = time_f(a, b).mean
         print("%g secs/op" % cost)
-        np.testing.assert_equal(b.numpy(), a.numpy() + 1)
+        np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
 
     check(remote)
 

@@ -47,4 +47,3 @@ poetry run pip3 install -r ${ZEPHYR_BASE}/scripts/requirements.txt
 echo "export TVM_LIBRARY_PATH=\"$TVM_HOME\"/build-microtvm" >>~/.profile
 echo "VENV_PATH=\$((cd \"$TVM_HOME\"/apps/microtvm/reference-vm/zephyr && poetry env list --full-path) | sed -E 's/^(.*)[[:space:]]\(Activated\)\$/\1/g')" >>~/.profile
 echo "source \$VENV_PATH/bin/activate" >>~/.profile
-echo "export PATH=\"\${PATH}:\${HOME}/zephyr-sdk/sysroots/x86_64-pokysdk-linux/usr/bin\"" >>~/.profile

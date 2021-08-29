@@ -27,63 +27,18 @@
 #include <vector>
 
 #include "../../runtime/opencl/opencl_module.h"
-#include "../../runtime/texture.h"
 #include "../../runtime/thread_storage_scope.h"
 #include "../build_common.h"
 
 namespace tvm {
 namespace codegen {
 
-class InferTextureAccess : public StmtExprVisitor {
- public:
-  static constexpr const uint8_t kReadAccess = 1;
-  static constexpr const uint8_t kWriteAccess = 2;
-
-  InferTextureAccess() {}
-  std::unordered_map<const VarNode*, std::string> Infer(const Stmt& n) {
-    StmtExprVisitor::VisitStmt(n);
-    std::unordered_map<const VarNode*, std::string> storage_scope_qualifiers;
-    for (auto& texture : var_access_map_) {
-      if (texture.second == kReadAccess) {
-        storage_scope_qualifiers.insert({texture.first, "texture_read"});
-      } else if (texture.second == kWriteAccess) {
-        storage_scope_qualifiers.insert({texture.first, "texture_write"});
-      } else if (texture.second == (kReadAccess | kWriteAccess)) {
-        storage_scope_qualifiers.insert({texture.first, ""});
-      }
-    }
-    return storage_scope_qualifiers;
-  }
-  void VisitExpr_(const CallNode* op) {
-    if (op->op.same_as(builtin::texture2d_load())) {
-      var_access_map_[op->args[0].as<VarNode>()] |= kReadAccess;
-    } else if (op->op.same_as(builtin::texture2d_store())) {
-      var_access_map_[op->args[0].as<VarNode>()] |= kWriteAccess;
-    } else {
-      StmtExprVisitor::VisitExpr_(op);
-    }
-    StmtExprVisitor::VisitExpr_(op);
-  }
-
- private:
-  std::unordered_map<const VarNode*, uint8_t> var_access_map_;
-};
-
-CodeGenOpenCL::CodeGenOpenCL() {
-  // Set OpenCL specific restrict keyword
-  restrict_keyword_ = "restrict";
-}
+CodeGenOpenCL::CodeGenOpenCL() { restrict_keyword_ = "restrict"; }
 
 void CodeGenOpenCL::InitFuncState(const PrimFunc& f) {
   CodeGenC::InitFuncState(f);
-  this->SetTextureScope(InferTextureAccess().Infer(f->body));
   for (Var arg : f->params) {
-    auto ptr_type = arg->type_annotation.as<PointerTypeNode>();
-    if (ptr_type && runtime::IsTextureStorage(std::string(ptr_type->storage_scope))) {
-      // Storage scope qualifiers for textures are inferred
-      // and set prior to function codegen.
-      continue;
-    } else if (arg.dtype().is_handle()) {
+    if (arg.dtype().is_handle()) {
       alloc_storage_scope_[arg.get()] = "global";
     }
   }
@@ -119,40 +74,6 @@ std::string CodeGenOpenCL::Finish() {
   if (enable_atomics_) {
     decl_stream << "#pragma OPENCL EXTENSION cl_khr_global_int32_base_atomics : enable\n"
                    "#pragma OPENCL EXTENSION cl_khr_global_int32_extended_atomics : enable\n\n";
-  }
-
-  // Enable OpenCL 1.2 sampler-less texture reads, but utilize
-  // provided sampler in OpenCL 2.0.
-  if (enable_compliant_texture_reads_) {
-    // TODO(csullivan, lunderberg): Extend device attribute querying to support remote devices
-    // generically through the device API such that a target can be created from a specific device's
-    // attributes and utilized during codegen. Potential generlization of #8127 (c02cafb) for remote
-    // devices.
-    //
-    // E.g. Only provide an image sampler when the local or remote device supports OpenCL 2.0,
-    //      see below for context.
-    //
-    // For backwards compatibility with OpenCL 1.2, sampler-less read_image calls are used.
-    // By default in sampler-less read_image calls OpenCL defaults to
-    // sampler_ = "CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_NONE | CLK_FILTER_NEAREST";
-    // See section 6.12.14.3 Built-in Image Sampler-less Read Functions in the OpenCL 1.2
-    // specification. For OpenCL 2.0 it can be preferable to use,
-    // sampler_ = "CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP | CLK_FILTER_NEAREST";
-    // For now we rely on OpenCL preprocessor directives to utilize the correct behavior
-    // depending on the OpenCL version detected at OpenCL compile time.
-    decl_stream << "#ifdef __OPENCL_VERSION__\n"
-                << "#if __OPENCL_VERSION__ == CL_VERSION_2_0\n"
-                << "#define READ_IMAGEH(image, sampler, coord) "
-                << "read_imageh(image, sampler, coord)\n"
-                << "#define READ_IMAGEF(image, sampler, coord) "
-                << "read_imagef(image, sampler, coord)\n"
-                << "#else\n"
-                << "#define READ_IMAGEH(image, sampler, coord) "
-                << "read_imageh(image, coord)\n"
-                << "#define READ_IMAGEF(image, sampler, coord) "
-                << "read_imagef(image, coord)\n"
-                << "#endif\n"
-                << "#endif\n\n";
   }
   return CodeGenC::Finish();
 }
@@ -241,23 +162,6 @@ void CodeGenOpenCL::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
   LOG(FATAL) << "Cannot convert type " << t << " to OpenCL type";
 }
 
-void CodeGenOpenCL::PrintType(const Type& type, std::ostream& os) {  // NOLINT(*)
-  if (auto* ptr = type.as<PrimTypeNode>()) {
-    return PrintType(ptr->dtype, os);
-  } else if (auto* ptr = type.as<PointerTypeNode>()) {
-    if (runtime::IsTextureStorage(std::string(ptr->storage_scope))) {
-      os << "image2d_t";
-    } else {
-      PrintType(ptr->element_type, os);
-      os << '*';
-    }
-  } else if (IsVoidType(type)) {
-    os << "void";
-  } else {
-    LOG(FATAL) << "Type " << type << " does not have a corresponding C Type";
-  }
-}
-
 void CodeGenOpenCL::PrintVecAddr(const VarNode* buffer, DataType t, PrimExpr base,
                                  std::ostream& os) {  // NOLINT(*)
   if (!HandleTypeMatch(buffer, t.element_of())) {
@@ -306,19 +210,6 @@ void CodeGenOpenCL::PrintStorageScope(const std::string& scope, std::ostream& os
     os << "__global ";
   } else if (scope == "shared") {
     os << "__local ";
-  } else if (scope == "texture_read") {
-    os << "__read_only ";
-  } else if (scope == "texture_write") {
-    os << "__write_only ";
-  }
-}
-
-void CodeGenOpenCL::PrintRestrict(const Var& v, std::ostream& os) {
-  // Apply restrict qualifer for non-texture types only
-  if (auto* ptr = v->type_annotation.as<PointerTypeNode>()) {
-    if (!runtime::IsTextureStorage(std::string(ptr->storage_scope))) {
-      os << ' ' << restrict_keyword_;
-    }
   }
 }
 
@@ -338,39 +229,6 @@ std::string CodeGenOpenCL::CastFromTo(std::string value, DataType from, DataType
   return os.str();
 }
 
-void CodeGenOpenCL::VisitStmt_(const StoreNode* op) {
-  if (auto call = op->value.as<CallNode>()) {
-    if (call->op.same_as(builtin::texture2d_load())) {
-      need_texture_ssa_ = false;
-      // If storing a texture load into a buffer, don't use an
-      // intermediate local unless the buffer allocation is a
-      // single element selected from the texture read.
-      auto it = allocation_size_.find(op->buffer_var.get());
-      if (it != allocation_size_.end() && it->second == 1) {
-        need_texture_ssa_ = true;
-      }
-    }
-  }
-  CodeGenC::VisitStmt_(op);
-  need_texture_ssa_ = true;
-}
-
-void CodeGenOpenCL::VisitExpr_(const CastNode* op, std::ostream& os) {
-  if (auto call = op->value.as<CallNode>()) {
-    if (call->op.same_as(builtin::texture2d_load())) {
-      need_texture_ssa_ = false;
-    }
-  }
-  CodeGenC::VisitExpr_(op, os);
-  need_texture_ssa_ = true;
-}
-
-void CodeGenOpenCL::VisitStmt_(const AllocateNode* op) {
-  allocation_size_.insert(
-      {op->buffer_var.get(), op->constant_allocation_size() * op->dtype.lanes()});
-  CodeGenC::VisitStmt_(op);
-}
-
 void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
   if (op->op.same_as(builtin::address_of())) {
     // Overload tvm_address_of to add storage scope (e.g. __global).
@@ -385,64 +243,6 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
     os << " *)" << this->GetVarID(load->buffer_var.get()) << " + ";
     this->PrintExpr(load->index, os);
     os << ')';
-  } else if (op->op.same_as(builtin::texture2d_store())) {
-    auto* ptr_type = op->args[0].as<VarNode>()->type_annotation.as<PointerTypeNode>();
-    ICHECK(ptr_type != nullptr) << "Texture Var's must be of PointerType";
-    ICHECK(runtime::IsTextureStorage(std::string(ptr_type->storage_scope)))
-        << "builtin::texture2d_store() only supports storing to texture buffers";
-    DataType buffer_type = ptr_type->element_type.as<PrimTypeNode>()->dtype;
-    if (buffer_type.is_float16()) {
-      os << "write_imageh(";
-    } else if (buffer_type.is_float()) {
-      os << "write_imagef(";
-    } else {
-      LOG(FATAL) << "Unsupported type: " << buffer_type
-                 << ", currently only float and half are supported for image2d OpenCL codegen.";
-    }
-    this->PrintExpr(op->args[0], os);
-    os << ", ";
-    os << "(int2)(";
-    this->PrintExpr(op->args[1], os);
-    os << ", ";
-    this->PrintExpr(op->args[2], os);
-    os << "), ";
-    this->PrintExpr(op->args[3], os);
-    os << ")";
-  } else if (op->op.same_as(builtin::texture2d_load())) {
-    enable_compliant_texture_reads_ = true;
-    std::stringstream ss;
-    if (op->dtype.is_float16()) {
-      ss << "READ_IMAGEH(";
-    } else if (op->dtype.is_float()) {
-      ss << "READ_IMAGEF(";
-    } else {
-      LOG(FATAL) << "Unsupported type: " << op->dtype
-                 << ", currently only float and half are supported for image2d OpenCL codegen.";
-    }
-    this->PrintExpr(op->args[0], ss);
-    ss << ", ";
-    ss << "CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP | CLK_FILTER_NEAREST, ";
-    ss << "((int2)(";
-    this->PrintExpr(op->args[1], ss);
-    ss << ", ";
-    this->PrintExpr(op->args[2], ss);
-    ss << ")))";
-
-    // Only use local SSA if texture is not already being stored
-    if (need_texture_ssa_) {
-      std::string rhs = SSAGetID(ss.str(), op->dtype.with_lanes(4));
-      if (op->args.back().as<RampNode>()) {
-        os << rhs;
-      } else {
-        os << "((";
-        this->PrintType(op->dtype.with_lanes(1), os);
-        os << "*)&" << rhs << ")[";
-        this->PrintExpr(op->args.back(), os);
-        os << "]";
-      }
-    } else {
-      os << ss.str();
-    }
   } else if (op->op.same_as(builtin_call_extern_)) {
     auto func = Downcast<StringImm>(op->args[0]);
     // Enable atomics extension if used.
@@ -477,13 +277,6 @@ void CodeGenOpenCL::VisitExpr_(const FloatImmNode* op, std::ostream& os) {  // N
     os << "NAN";
   } else {
     CodeGenC::VisitExpr_(op, os);
-  }
-}
-
-void CodeGenOpenCL::SetTextureScope(
-    const std::unordered_map<const VarNode*, std::string>& scope) {  // NOLINT(*)
-  for (auto& texture : scope) {
-    alloc_storage_scope_.insert(texture);
   }
 }
 

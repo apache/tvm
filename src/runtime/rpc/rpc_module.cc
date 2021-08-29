@@ -417,9 +417,8 @@ TVM_REGISTER_GLOBAL("runtime.RPCTimeEvaluator")
                 << "Cannot find " << f_preproc_name << " in the global function";
             f_preproc = *pf_preproc;
           }
-          PackedFunc pf = m.GetFunction(name, false);
-          CHECK(pf != nullptr) << "Cannot find " << name << " in the global registry";
-          return WrapTimeEvaluator(pf, dev, number, repeat, min_repeat_ms, f_preproc);
+          return WrapTimeEvaluator(m.GetFunction(name, false), dev, number, repeat, min_repeat_ms,
+                                   f_preproc);
         }
       } else {
         auto* pf = runtime::Registry::Get(name);

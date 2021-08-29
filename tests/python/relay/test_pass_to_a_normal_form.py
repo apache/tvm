@@ -37,7 +37,9 @@ def run_opt_pass(expr, passes):
 
 def check_eval(expr, expected_result, mod=None, rtol=1e-07):
     dev = tvm.device("llvm", 0)
-    result = create_executor(mod=mod, device=dev, target="llvm").evaluate(expr)
+    intrp = create_executor(mod=mod, device=dev, target="llvm")
+
+    result = intrp.evaluate(expr)
     np.testing.assert_allclose(result.numpy(), expected_result, rtol=rtol)
 
 
@@ -149,7 +151,6 @@ def test_nat_add():
     add = p.mod.get_global_var("nat_add")
     dev = tvm.device("llvm", 0)
     intrp = create_executor(mod=mod, device=dev, target="llvm")
-    # CAUTION: Following calls to intrp.evaluate(...) will re-prepare the prelude.
     assert mod[add].checked_type == relay.FuncType([nat(), nat()], nat())
     assert count(p, intrp.evaluate(add(s(z()), s(z())))) == 2
     expr = add(s(z()), s(z()))

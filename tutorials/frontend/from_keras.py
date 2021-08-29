@@ -97,20 +97,14 @@ mod, params = relay.frontend.from_keras(keras_resnet50, shape_dict)
 # compile the model
 target = "cuda"
 dev = tvm.cuda(0)
-
-# TODO(mbs): opt_level=3 causes nn.contrib_conv2d_winograd_weight_transform
-# to end up in the module which fails memory validation on cuda most likely
-# due to a latent bug. Note that the pass context only has an effect within
-# evaluate() and is not captured by create_executor().
-with tvm.transform.PassContext(opt_level=0):
-    model = relay.build_module.create_executor("graph", mod, dev, target, params).evaluate()
-
+with tvm.transform.PassContext(opt_level=3):
+    executor = relay.build_module.create_executor("graph", mod, dev, target)
 
 ######################################################################
 # Execute on TVM
 # ---------------
 dtype = "float32"
-tvm_out = model(tvm.nd.array(data.astype(dtype)))
+tvm_out = executor.evaluate()(tvm.nd.array(data.astype(dtype)), **params)
 top1_tvm = np.argmax(tvm_out.numpy()[0])
 
 #####################################################################

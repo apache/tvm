@@ -24,12 +24,6 @@
 #ifndef TVM_RUNTIME_CRT_CRT_CONFIG_TEMPLATE_H_
 #define TVM_RUNTIME_CRT_CRT_CONFIG_TEMPLATE_H_
 
-/*! Log level of the CRT runtime */
-#define TVM_CRT_LOG_LEVEL TVM_CRT_LOG_LEVEL_DEBUG
-
-/*! Support low-level debugging in MISRA-C runtime */
-#define TVM_CRT_DEBUG 0
-
 /*! Maximum supported dimension in NDArray */
 #define TVM_CRT_MAX_NDIM 6
 
@@ -37,7 +31,7 @@
 #define TVM_CRT_MAX_ARGS 10
 
 /*! Size of the global function registry, in bytes. */
-#define TVM_CRT_GLOBAL_FUNC_REGISTRY_SIZE_BYTES 250
+#define TVM_CRT_GLOBAL_FUNC_REGISTRY_SIZE_BYTES 200
 
 /*! Maximum number of registered modules. */
 #define TVM_CRT_MAX_REGISTERED_MODULES 2
@@ -53,6 +47,9 @@
 
 /*! \brief Maximum length of a PackedFunc function name. */
 #define TVM_CRT_MAX_FUNCTION_NAME_LENGTH_BYTES 30
+
+/*! \brief DLDataType for the return value from strlen */
+#define TVM_CRT_STRLEN_DLTYPE 10
 
 /*! \brief Enable checks to enforce the stack allocator with a FIFO ordering. Off by default */
 // #define TVM_CRT_STACK_ALLOCATOR_ENABLE_FIFO_CHECK

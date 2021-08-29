@@ -332,7 +332,9 @@ top1 = np.argmax(out.numpy())
 print("TVM prediction top-1: {}".format(synset[top1]))
 
 print("Evaluate inference time cost...")
-print(module.benchmark(dev, number=1, repeat=10))
+ftimer = module.module.time_evaluator("run", dev, number=1, repeat=10)
+prof_res = np.array(ftimer().results) * 1000  # convert to millisecond
+print("Mean inference time (std dev): %.2f ms (%.2f ms)" % (np.mean(prof_res), np.std(prof_res)))
 
 ######################################################################
 # Sample Output

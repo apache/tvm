@@ -51,8 +51,11 @@ Stmt MakePipeline(const Stage& s, const std::unordered_map<IterVar, Range>& dom_
   if (consumer.defined() && !is_no_op(consumer)) {
     pipeline = SeqStmt({producer, consumer});
   }
+  pipeline = s->op->BuildRealize(s, dom_map, pipeline);
+  // use attribute to mark scope of the operation.
+  pipeline = AttrStmt(s->op, tir::attr::realize_scope, StringImm(s->scope), pipeline);
 
-  return s->op->BuildRealize(s, dom_map, pipeline, s->scope);
+  return pipeline;
 }
 
 // inject the operator's realization on the stmt.
@@ -172,7 +175,8 @@ class SchedulePostProc : public StmtExprMutator {
         thread_extent_scope_.erase(op->node.get());
         return ret;
       }
-    } else if (op->attr_key == tir::attr::double_buffer_scope) {
+    } else if (op->attr_key == tir::attr::realize_scope ||
+               op->attr_key == tir::attr::double_buffer_scope) {
       auto it = replace_op_.find(op->node.get());
       if (it != replace_op_.end()) {
         if (it->second.defined()) {
@@ -214,8 +218,7 @@ class SchedulePostProc : public StmtExprMutator {
     auto it = replace_realize_.find(key);
     if (it != replace_realize_.end()) {
       if (it->second.defined()) {
-        Stmt ret =
-            ProducerRealize(it->second, op->bounds, op->condition, op->body, op->storage_scope);
+        Stmt ret = ProducerRealize(it->second, op->bounds, op->condition, op->body);
         return this->VisitStmt(ret);
       } else {
         return this->VisitStmt(op->body);

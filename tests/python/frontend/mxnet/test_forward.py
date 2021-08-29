@@ -333,9 +333,8 @@ def test_forward_where():
     mod, _ = relay.frontend.from_mxnet(mx_sym, shapes, args, auxs)
     for target, dev in tvm.testing.enabled_targets():
         for kind in ["graph", "debug"]:
-            op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-                np_cond, np_x, np_y
-            )
+            intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+            op_res = intrp.evaluate()(np_cond, np_x, np_y)
             tvm.testing.assert_allclose(op_res.numpy(), mx_out)
 
 
@@ -353,15 +352,14 @@ def test_forward_arange():
         return sym
 
     def verify(start, stop, step):
-        ref_res = _mx_symbol(mx.nd, start, stop, step)
+        ref_res = _mx_symbol(mx.nd, start, stop, step).asnumpy()
         mx_sym = _mx_symbol(mx.sym, start, stop, step)
         mod, _ = relay.frontend.from_mxnet(mx_sym, {})
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                op_res = relay.create_executor(
-                    kind, mod=mod, device=dev, target=target
-                ).evaluate()()
-                tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy())
+                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+                op_res = intrp.evaluate()()
+                tvm.testing.assert_allclose(op_res.numpy(), ref_res)
 
     verify(0, 20, None)
     verify(0, 20, 2)
@@ -418,9 +416,8 @@ def test_forward_broadcast_ops():
         mod, _ = relay.frontend.from_mxnet(mx_sym, shapes, dtype)
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-                    a_np, b_np
-                )
+                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+                op_res = intrp.evaluate()(a_np, b_np)
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy())
 
 
@@ -454,9 +451,8 @@ def test_forward_elemwise_ops():
         mod, _ = relay.frontend.from_mxnet(mx_sym, shapes, dtype)
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-                    a_np, b_np
-                )
+                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+                op_res = intrp.evaluate()(a_np, b_np)
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy())
 
 
@@ -504,9 +500,8 @@ def test_forward_unary_ops():
         mod, _ = relay.frontend.from_mxnet(mx_sym, shapes, dtype)
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-                    a_np
-                )
+                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+                op_res = intrp.evaluate()(a_np)
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy(), rtol=1e-5, atol=1e-5)
 
 
@@ -535,9 +530,8 @@ def test_forward_scalar_ops():
         mod, _ = relay.frontend.from_mxnet(mx_sym, shapes, dtype)
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-                    a_np
-                )
+                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+                op_res = intrp.evaluate()(a_np)
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy())
     for op in ["maximum", "minimum"]:
         dtype = "float32"
@@ -550,9 +544,8 @@ def test_forward_scalar_ops():
         mod, _ = relay.frontend.from_mxnet(mx_sym, shapes, dtype)
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-                    a_np
-                )
+                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+                op_res = intrp.evaluate()(a_np)
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy())
 
 
@@ -565,9 +558,8 @@ def test_forward_slice_axis():
         mod, _ = relay.frontend.from_mxnet(mx_sym, {"data": shape})
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-                    data_np
-                )
+                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+                op_res = intrp.evaluate()(data_np)
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy())
 
     verify((3, 4), 0, 1, 2)
@@ -591,9 +583,8 @@ def test_forward_slice_like():
         mod, _ = relay.frontend.from_mxnet(mx_sym, {"x": x_shape, "y": y_shape})
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-                    x_np, y_np
-                )
+                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+                op_res = intrp.evaluate()(x_np, y_np)
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy())
 
     verify((3, 4), (2, 3), None)
@@ -626,9 +617,8 @@ def test_forward_sequence_reverse():
 
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-                    *in_data
-                )
+                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+                op_res = intrp.evaluate()(*in_data)
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy())
 
     verify((3, 4), [1, 2, 3, 1], True, 0)
@@ -663,9 +653,8 @@ def test_forward_logistic_regression_output():
     mod, _ = relay.frontend.from_mxnet(mx_sym, shapes, dtype)
     for target, dev in tvm.testing.enabled_targets():
         for kind in ["graph", "debug"]:
-            op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-                data_np
-            )
+            intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+            op_res = intrp.evaluate()(data_np)
             tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy())
 
 
@@ -681,9 +670,8 @@ def test_forward_dot():
         mod, _ = relay.frontend.from_mxnet(mx_sym, shapes, dtype)
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-                    a_np, b_np
-                )
+                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+                op_res = intrp.evaluate()(a_np, b_np)
                 tvm.testing.assert_allclose(
                     op_res.numpy(), ref_res.asnumpy(), rtol=1e-05, atol=1e-05
                 )
@@ -701,9 +689,8 @@ def test_forward_shape_array():
         mod, _ = relay.frontend.from_mxnet(mx_sym, {"x": shape})
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["debug"]:
-                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-                    x_np
-                )
+                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+                op_res = intrp.evaluate()(x_np)
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy())
 
     verify((1,))
@@ -724,9 +711,8 @@ def test_forward_squeeze():
         mod, _ = relay.frontend.from_mxnet(mx_sym, {"x": shape})
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-                    x_np
-                )
+                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+                op_res = intrp.evaluate()(x_np)
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy())
 
     verify((1, 3, 1), None)
@@ -745,9 +731,8 @@ def test_forward_broadcast_axis():
             mod, _ = relay.frontend.from_mxnet(mx_sym, {"x": shape})
             for target, dev in tvm.testing.enabled_targets():
                 for kind in ["graph", "debug"]:
-                    op_res = relay.create_executor(
-                        kind, mod=mod, device=dev, target=target
-                    ).evaluate()(x_np)
+                    intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+                    op_res = intrp.evaluate()(x_np)
                     tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy())
 
     verify((1, 2, 1), 2, 3)
@@ -763,9 +748,8 @@ def test_forward_broadcast_to():
         mod, _ = relay.frontend.from_mxnet(mx_sym, {"x": input_shape})
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-                    x_np
-                )
+                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+                op_res = intrp.evaluate()(x_np)
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy())
 
     verify((1, 2, 3), (3, 2, 3))
@@ -782,9 +766,8 @@ def test_forward_broadcast_like():
         mod, _ = relay.frontend.from_mxnet(mx_sym, {"x": input_shape, "y": like_shape})
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-                    x_np, y_np
-                )
+                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+                op_res = intrp.evaluate()(x_np, y_np)
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy())
 
     verify((1, 2, 3), (3, 2, 3))
@@ -802,9 +785,8 @@ def test_forward_logical_not():
     mod, _ = relay.frontend.from_mxnet(mx_sym, shapes, dtype)
     for target, dev in tvm.testing.enabled_targets():
         for kind in ["graph", "debug"]:
-            op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-                a_np
-            )
+            intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+            op_res = intrp.evaluate()(a_np)
             tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy())
 
 
@@ -819,9 +801,8 @@ def test_forward_full():
             # Skip testing graph executor because this op will be optimized out
             # by constant folding.
             for kind in ["debug"]:
-                op_res = relay.create_executor(
-                    kind, mod=mod, device=dev, target=target
-                ).evaluate()()
+                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+                op_res = intrp.evaluate()()
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy())
 
     verify(2, (3, 4), "float32")
@@ -844,9 +825,8 @@ def test_forward_embedding():
         mod, _ = relay.frontend.from_mxnet(mx_sym, {"x": data_shape, "w": weight_shape})
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-                    x=x_np, w=w_np
-                )
+                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+                op_res = intrp.evaluate()(x=x_np, w=w_np)
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy())
 
     verify((2, 2), (4, 5))
@@ -872,9 +852,8 @@ def test_forward_take():
         mod, _ = relay.frontend.from_mxnet(mx_sym, {"x": shape, "y": indices_np.shape})
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-                    x_np, indices_np
-                )
+                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+                op_res = intrp.evaluate()(x_np, indices_np)
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy())
 
     verify((2, 2), [[[1, 0], [0, 1]]], 0)
@@ -897,9 +876,8 @@ def test_forward_gather_nd():
         )
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-                    x_data, y_data
-                )
+                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+                op_res = intrp.evaluate()(x_data, y_data)
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy())
 
     verify((2, 2), (2, 3), [[1, 1, 0], [0, 1, 0]])
@@ -927,9 +905,8 @@ def test_forward_grid_generator():
         mod, _ = relay.frontend.from_mxnet(mx_sym, shape_dict)
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-                    x
-                )
+                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+                op_res = intrp.evaluate()(x)
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy(), rtol=1e-5, atol=1e-5)
 
     verify((4, 6), "affine", (16, 32))
@@ -948,9 +925,8 @@ def test_forward_bilinear_sampler():
         mod, _ = relay.frontend.from_mxnet(mx_sym, shape_dict)
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-                    data, grid
-                )
+                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+                op_res = intrp.evaluate()(data, grid)
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy(), rtol=1e-5, atol=1e-5)
 
     verify((4, 4, 16, 32), (4, 2, 8, 8))
@@ -1012,9 +988,8 @@ def test_forward_rnn_layer():
         for target, dev in tvm.testing.enabled_targets():
             # only test graph executor because debug runtime is too slow
             for kind in ["graph"]:
-                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-                    **inputs, **params
-                )
+                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+                op_res = intrp.evaluate()(**inputs, **params)
                 if init_states:
                     assert len(op_res) == len(mx_res)
                     for i, val in enumerate(op_res):
@@ -1047,11 +1022,11 @@ def test_forward_Crop():
         mod, _ = relay.frontend.from_mxnet(mx_sym, {"x": xshape, "y": yshape})
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                func = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()
+                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
                 if offset is None or offset == (0, 0):
-                    op_res = func(x_data, y_data)
+                    op_res = intrp.evaluate()(x_data, y_data)
                 else:
-                    op_res = func(x_data)
+                    op_res = intrp.evaluate()(x_data)
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy())
 
     verify((1, 3, 40, 40), (1, 3, 20, 20))
@@ -1070,9 +1045,8 @@ def test_forward_argsort():
         mod, _ = relay.frontend.from_mxnet(mx_sym, {"x": shape})
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-                    x_np
-                )
+                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+                op_res = intrp.evaluate()(x_np)
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy())
 
     verify((2, 3, 4), axis=0, is_ascend=False)
@@ -1102,9 +1076,8 @@ def test_forward_topk():
         mod, _ = relay.frontend.from_mxnet(mx_sym, {"x": shape})
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-                    x_np
-                )
+                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+                op_res = intrp.evaluate()(x_np)
                 if isinstance(ref_res, list):
                     assert len(op_res) == len(ref_res)
                     for i, t in enumerate(op_res):
@@ -1160,11 +1133,11 @@ def test_forward_sequence_mask():
                 if use_sequence_length is False and kind == "graph":
                     # Disable the test for 'graph' when it's identity.
                     continue
-                func = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()
+                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
                 if use_sequence_length:
-                    op_res = func(data_np, valid_length_np)
+                    op_res = intrp.evaluate()(data_np, valid_length_np)
                 else:
-                    op_res = func(data_np)
+                    op_res = intrp.evaluate()(data_np)
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy())
 
     verify((5, 10), True, 0.0, 0, "float32", "float32")
@@ -1182,9 +1155,8 @@ def test_forward_contrib_div_sqrt_dim():
         mod, _ = relay.frontend.from_mxnet(mx_sym, {"x": shape})
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-                    x_np
-                )
+                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+                op_res = intrp.evaluate()(x_np)
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy())
 
     verify((3, 4))
@@ -1231,9 +1203,8 @@ def test_forward_batch_norm():
         # print(mod)
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-                    x, gamma, beta, moving_mean, moving_var
-                )
+                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+                op_res = intrp.evaluate()(x, gamma, beta, moving_mean, moving_var)
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy(), rtol=1e-3)
 
     verify((2, 3, 4, 5))
@@ -1256,10 +1227,11 @@ def test_forward_instance_norm():
         mod, _ = relay.frontend.from_mxnet(mx_sym, shape_dict)
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-                    x, gamma, beta
+                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+                op_res = intrp.evaluate()(x, gamma, beta)
+                tvm.testing.assert_allclose(
+                    op_res.asnumpy(), ref_res.asnumpy(), rtol=2e-5, atol=1e-5
                 )
-                tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy(), rtol=2e-5, atol=1e-5)
 
     verify((2, 3, 4, 5))
     verify((32, 64, 80, 64))
@@ -1281,9 +1253,8 @@ def test_forward_layer_norm():
         mod, _ = relay.frontend.from_mxnet(mx_sym, shape_dict)
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-                    x, gamma, beta
-                )
+                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+                op_res = intrp.evaluate()(x, gamma, beta)
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy(), rtol=1e-3, atol=1e-5)
 
     verify((2, 5))
@@ -1310,9 +1281,8 @@ def test_forward_group_norm():
         mod, _ = relay.frontend.from_mxnet(mx_sym, shape_dict)
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-                    x, gamma, beta
-                )
+                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+                op_res = intrp.evaluate()(x, gamma, beta)
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy(), rtol=1e-3, atol=1e-5)
 
     verify((1, 4, 2), num_groups=4)
@@ -1332,9 +1302,8 @@ def test_forward_one_hot():
         mod, _ = relay.frontend.from_mxnet(mx_sym, shape_dict)
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-                    x.astype("float32")
-                )
+                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+                op_res = intrp.evaluate()(x.astype("float32"))
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy(), rtol=1e-3, atol=1e-5)
 
     verify((3,), 3, 1, 0, "int32")
@@ -1459,9 +1428,8 @@ def test_forward_convolution():
         mod, _ = relay.frontend.from_mxnet(mx_sym, shape_dict)
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-                    x, weight, bias
-                )
+                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+                op_res = intrp.evaluate()(x, weight, bias)
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy(), rtol=1e-3)
 
     verify(data_shape=(1, 1, 1024 * 16), kernel_size=(17,), stride=(2,), pad=(8,), num_filter=4)
@@ -1541,9 +1509,8 @@ def test_forward_deconvolution():
         mod, _ = relay.frontend.from_mxnet(mx_sym, shape_dict)
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-                    x, weight, bias
-                )
+                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+                op_res = intrp.evaluate()(x, weight, bias)
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy(), rtol=1e-3, atol=1e-5)
 
     verify(data_shape=(1, 1, 1024 * 16), kernel_size=(17,), stride=(2,), pad=(8,), num_filter=4)
@@ -1575,9 +1542,8 @@ def test_forward_cond():
         mod, _ = relay.frontend.from_mxnet(mx_sym, shape_dict)
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["debug", "vm"]:
-                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-                    a_np, b_np
-                )
+                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+                op_res = intrp.evaluate()(a_np, b_np)
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy(), rtol=1e-3)
 
     verify(np.asarray([1.0], "float32"), np.asarray([2.0], "float32"))
@@ -1595,9 +1561,8 @@ def test_forward_amp_cast():
         mod, _ = relay.frontend.from_mxnet(mx_sym, shape_dict, dtype_dict)
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "vm", "debug"]:
-                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-                    from_np
-                )
+                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+                op_res = intrp.evaluate()(from_np)
                 assert op_res.dtype == to_dtype, op_res.dtype
                 tvm.testing.assert_allclose(op_res.numpy(), from_np.astype(to_dtype))
 
@@ -1619,9 +1584,8 @@ def test_forward_amp_multicast():
         mod, _ = relay.frontend.from_mxnet(mx_sym, shape_dict, dtype_dict)
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "vm", "debug"]:
-                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-                    *x_nps
-                )
+                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+                op_res = intrp.evaluate()(*x_nps)
                 for i, res in enumerate(op_res):
                     assert res.dtype == expected_dtype, res.dtype
                     tvm.testing.assert_allclose(res.numpy(), x_nps[i].astype(expected_dtype))
@@ -1645,9 +1609,8 @@ def test_forward_unravel_index():
 
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "vm", "debug"]:
-                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-                    a_np
-                )
+                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+                op_res = intrp.evaluate()(a_np)
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy())
 
     for dtype in ["int32", "int64"]:
@@ -1687,9 +1650,8 @@ def test_forward_depth_to_space():
         mod, _ = relay.frontend.from_mxnet(mx_sym, shape_dict)
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-                    x
-                )
+                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+                op_res = intrp.evaluate()(x)
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy(), rtol=1e-3, atol=1e-5)
 
     verify((1, 18, 3, 3), 3)
@@ -1707,9 +1669,8 @@ def test_forward_space_to_depth():
         mod, _ = relay.frontend.from_mxnet(mx_sym, shape_dict)
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-                    x
-                )
+                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+                op_res = intrp.evaluate()(x)
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy(), rtol=1e-3, atol=1e-5)
 
     verify((1, 1, 9, 9), 3)
@@ -1744,9 +1705,8 @@ def test_forward_correlation():
         mod, _ = relay.frontend.from_mxnet(mx_sym, shape_dict)
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-                    data1, data2
-                )
+                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+                op_res = intrp.evaluate()(data1, data2)
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy(), rtol=1e-3, atol=1e-5)
 
     verify(
@@ -1850,9 +1810,8 @@ def test_forward_arange_like():
         mod, _ = relay.frontend.from_mxnet(mx_sym, {"data": data_shape})
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph"]:
-                op_res = relay.create_executor(
-                    kind, mod=mod, device=dev, target=target
-                ).evaluate()()
+                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+                op_res = intrp.evaluate()()
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy())
 
     verify(data_shape=(3,), start=0.0, step=1.0)
@@ -1873,9 +1832,8 @@ def test_forward_interleaved_matmul_selfatt_qk():
         mod, _ = relay.frontend.from_mxnet(mx_sym, {"data": data_shape})
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph"]:
-                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-                    data_np
-                )
+                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+                op_res = intrp.evaluate()(data_np)
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy(), rtol=1e-5)
 
     verify(1, 10, 3, 16)
@@ -1899,9 +1857,8 @@ def test_forward_interleaved_matmul_selfatt_valatt():
         mod, _ = relay.frontend.from_mxnet(mx_sym, {"data": data_shape, "weight": weight_shape})
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph"]:
-                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-                    data=data_np, weight=weight_np
-                )
+                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+                op_res = intrp.evaluate()(data=data_np, weight=weight_np)
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy(), rtol=1e-5)
 
     verify(1, 10, 4, 16)
@@ -1957,9 +1914,8 @@ def test_forward_box_nms():
             ):
                 target += " -libs=thrust"
             for kind in ["graph", "debug"]:
-                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-                    data
-                )
+                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+                op_res = intrp.evaluate()(data)
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy(), rtol=1e-3, atol=1e-5)
 
     verify((1, 10, 6))
@@ -1997,9 +1953,8 @@ def test_forward_box_decode():
         mod, _ = relay.frontend.from_mxnet(mx_sym, shape_dict)
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-                    data, anchors
-                )
+                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+                op_res = intrp.evaluate()(data, anchors)
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy(), rtol=1e-3, atol=1e-5)
 
     verify((1, 10, 4), (1, 10, 4))
@@ -2038,11 +1993,11 @@ def test_forward_softmax():
 
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                func = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()
+                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
                 if use_length:
-                    op_res = func(x, length)
+                    op_res = intrp.evaluate()(x, length)
                 else:
-                    op_res = func(x)
+                    op_res = intrp.evaluate()(x)
 
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy(), rtol=1e-3, atol=1e-5)
 
@@ -2078,7 +2033,8 @@ def test_forward_npi_pad(data_shape, pad_width, mode, dtype, constant_value, tar
         ref_res = np.pad(data_np, mode=mode, pad_width=pad_width)
         mx_sym = mx.sym.np.pad(data.as_np_ndarray(), mode=mode, pad_width=pad_width)
     mod, _ = relay.frontend.from_mxnet(mx_sym, {"data": data_shape}, dtype=dtype)
-    op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(data_np)
+    intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+    op_res = intrp.evaluate()(data_np)
     tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
 
@@ -2096,7 +2052,8 @@ def test_forward_npi_transpose(data_shape, axes, dtype, target, dev, kind):
     ref_res = mx.np.transpose(mx.np.array(data_np), axes=axes)
     mx_sym = mx.sym.np.transpose(data.as_np_ndarray(), axes=axes)
     mod, _ = relay.frontend.from_mxnet(mx_sym, {"data": data_shape}, dtype=dtype)
-    op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(data_np)
+    intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+    op_res = intrp.evaluate()(data_np)
     tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy(), rtol=1e-5)
 
 
@@ -2123,9 +2080,8 @@ def test_forward_npi_concatenate(data_shape1, data_shape2, axis, dtype, target, 
     mod, _ = relay.frontend.from_mxnet(
         mx_sym, shape={"data1": data_shape1, "data2": data_shape2}, dtype=dtype
     )
-    op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-        data_np1, data_np2
-    )
+    intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+    op_res = intrp.evaluate()(data_np1, data_np2)
     tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy(), rtol=1e-5)
 
 
@@ -2152,9 +2108,8 @@ def test_forward_npi_stack(data_shape1, data_shape2, axis, dtype, target, dev, k
     mod, _ = relay.frontend.from_mxnet(
         mx_sym, shape={"data1": data_shape1, "data2": data_shape2}, dtype=dtype
     )
-    op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-        data_np1, data_np2
-    )
+    intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+    op_res = intrp.evaluate()(data_np1, data_np2)
     tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy(), rtol=1e-5)
 
 
@@ -2168,7 +2123,8 @@ def test_forward_np_copy(data_shape, dtype, target, dev, kind):
     ref_res = mx.np.copy(mx.np.array(data_np))
     mx_sym = mx.sym.np.copy(data.as_np_ndarray())
     mod, _ = relay.frontend.from_mxnet(mx_sym, {"data": data_shape}, dtype=dtype)
-    op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(data_np)
+    intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+    op_res = intrp.evaluate()(data_np)
     tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy(), rtol=1e-5)
 
 
@@ -2195,7 +2151,8 @@ def test_forward_npx_reshape(data_shape, out_shape, dtype, target, reverse, dev,
     ref_res = mx.npx.reshape(mx.np.array(data_np), newshape=out_shape, reverse=reverse)
     mx_sym = mx.sym.npx.reshape(data.as_np_ndarray(), newshape=out_shape, reverse=reverse)
     mod, _ = relay.frontend.from_mxnet(mx_sym, {"data": data_shape}, dtype=dtype)
-    op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(data_np)
+    intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+    op_res = intrp.evaluate()(data_np)
     tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy(), rtol=1e-5)
 
 
@@ -2229,9 +2186,8 @@ def test_forward_npi_binary(data_shape, dtype, target, dev, kind):
         mod, _ = relay.frontend.from_mxnet(
             mx_sym, shape={"lhs": data_shape, "rhs": data_shape}, dtype=dtype
         )
-        op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-            data_np1, data_np2
-        )
+        intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+        op_res = intrp.evaluate()(data_np1, data_np2)
         tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy(), rtol=1e-5)
 
 
@@ -2262,9 +2218,8 @@ def test_forward_npi_binary_scalar(data_shape, dtype, scalar, target, dev, kind)
         ref_res = ref_op(mx.np.array(data_np1), scalar)
         mx_sym = mx_op(data1.as_np_ndarray(), scalar)
         mod, _ = relay.frontend.from_mxnet(mx_sym, shape={"lhs": data_shape}, dtype=dtype)
-        op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-            data_np1
-        )
+        intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+        op_res = intrp.evaluate()(data_np1)
         tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy(), rtol=1e-5)
 
 
@@ -2280,7 +2235,8 @@ def test_forward_npi_tanh(data_shape, dtype, target, dev, kind):
     ref_res = mx.np.tanh(mx.np.array(data_np1))
     mx_sym = mx.sym.np.tanh(data1.as_np_ndarray())
     mod, _ = relay.frontend.from_mxnet(mx_sym, shape={"data": data_shape}, dtype=dtype)
-    op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(data_np1)
+    intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+    op_res = intrp.evaluate()(data_np1)
     tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy(), rtol=1e-5)
 
 
@@ -2311,9 +2267,8 @@ def test_forward_npi_where_rscalar(
     mod, _ = relay.frontend.from_mxnet(
         mx_sym, shape={"condition": cond_shape, "x": data_shape}, dtype=dtypeDic
     )
-    op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-        cond_np, data_np
-    )
+    intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+    op_res = intrp.evaluate()(cond_np, data_np)
     tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy(), rtol=1e-5)
 
 
@@ -2341,7 +2296,8 @@ def test_forward_split_v2(
         data.as_nd_ndarray(), indices_or_sections, axis=axis, squeeze_axis=squeeze_axis
     )
     mod, _ = relay.frontend.from_mxnet(mx_sym, {"data": data_shape}, dtype=dtype)
-    op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(data_np)
+    intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+    op_res = intrp.evaluate()(data_np)
     op_res_ = []
     for arr in op_res:
         op_res_.append(arr.numpy().tolist())

@@ -222,7 +222,7 @@ class ComputeDAG(Object):
 
     def workload_key(self):
         """Return the workload key of this compute DAG.
-        The workload key is a JSON string from a tuple of (hash of DAG, tensor shapes...)
+        The workload key is a JSON string from a tuple of (hash-key, tensor shapes...)
 
         Returns
         -------
@@ -230,19 +230,12 @@ class ComputeDAG(Object):
             The workload key of this compute DAG
         """
         str_dag = _ffi_api.ComputeDAGPrintDAG(self, True)
-        hash_func = tvm._ffi.get_global_func(
-            "auto_scheduler.compute_dag.hash_func", allow_missing=True
-        )
-
-        if hash_func is None:
-            str_dag = str_dag.encode("utf-8")
-            hash_key = hashlib.md5(str_dag).hexdigest()
-        else:
-            hash_key = hash_func(str_dag)
+        str_dag = str_dag.encode(encoding="utf-8")
+        hash_key = hashlib.md5(str_dag).hexdigest()
 
         io_shapes = []
         for tensor in self.tensors:
-            io_shapes.append(get_const_tuple(tensor.shape))
+            io_shapes += get_const_tuple(tensor.shape)
         return json.dumps([hash_key] + io_shapes)
 
     def __str__(self):

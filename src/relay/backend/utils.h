@@ -44,12 +44,7 @@
 
 namespace tvm {
 namespace relay {
-namespace transform {
-Pass InlinePrimitives();
-}
-
 namespace backend {
-using Pass = tvm::transform::Pass;
 
 /*!
  * \brief The static storage information produced by memory planning.
@@ -414,18 +409,6 @@ inline bool IsCompileEngineCacheDisabled() {
       ->GetConfig<Bool>("relay.backend.disable_compile_engine_cache", Bool(false))
       .value();
 }
-
-/*!
- * \brief Get the sequence of Relay optimization passes based on backend type.
- * The prefix of the Relay passes almost overlaps between the vm and graph backend, with some slight
- * difference. This function unifies the shared optimization pass prefix between vm and graph
- * runtime, and returns the pass prefix given the backend type.
- *
- * \param targets The device type to `Target` mapping.
- * \param is_vm A boolean indicating if the passes are used for vm or graph runtime.
- * \return An array of passes.
- */
-Array<Pass> GetPassPrefix(const Map<tvm::Integer, tvm::Target>& targets, bool is_vm);
 
 }  // namespace backend
 }  // namespace relay

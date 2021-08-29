@@ -24,7 +24,7 @@ use tvm_sys::{ffi::DLTensor, DataType, Device};
 
 use crate::allocator::Allocation;
 use crate::errors::ArrayError;
-use std::alloc::LayoutError;
+use std::alloc::LayoutErr;
 
 /// A `Storage` is a container which holds `Tensor` data.
 #[derive(PartialEq)]
@@ -37,7 +37,7 @@ pub enum Storage<'a> {
 }
 
 impl<'a> Storage<'a> {
-    pub fn new(size: usize, align: Option<usize>) -> Result<Storage<'static>, LayoutError> {
+    pub fn new(size: usize, align: Option<usize>) -> Result<Storage<'static>, LayoutErr> {
         Ok(Storage::Owned(Allocation::new(size, align)?))
     }
 

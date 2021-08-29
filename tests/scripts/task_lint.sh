@@ -39,15 +39,11 @@ tests/lint/cpplint.sh
 echo "clang-format check..."
 tests/lint/clang_format.sh
 
-echo "Rust check..."
-tests/lint/rust_format.sh
-
 echo "black check..."
 tests/lint/python_format.sh
 
 echo "Linting the Python code..."
 tests/lint/pylint.sh
-tests/lint/flake8.sh
 
 echo "Lintinf the JNI code..."
 tests/lint/jnilint.sh

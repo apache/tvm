@@ -834,7 +834,7 @@ std::pair<PrimExpr, PrimExpr> ImplicationNotContainingVars(
     return {pair_a.first || pair_b.first, (pair_a.first || pair_b.second) &&
                                               (pair_b.first || pair_a.second) &&
                                               (pair_a.second || pair_b.second)};
-  } else if (!tir::UsesVar(cond, [&vars](const VarNode* var) { return vars.count(var); })) {
+  } else if (!tir::ExprUseVar(cond, [&vars](const VarNode* var) { return vars.count(var); })) {
     return {cond, const_true()};
   } else {
     return {const_true(), cond};
@@ -1014,7 +1014,7 @@ PrimExpr TrySimplifyCompute(const PrimExpr& expr, const PrimExpr& cond,
   // Keep only those variables of the new vars which are used in the new_expr
   Array<Var> used_res_variables;
   for (const Var& var : res->dst->variables) {
-    if (tir::UsesVar(new_expr, [&var](const VarNode* var_) { return var_ == var.get(); })) {
+    if (ExprUseVar(new_expr, var)) {
       ICHECK(res->dst->ranges.count(var)) << "Range of " << var << " cannot be inferred.";
       used_res_variables.push_back(var);
     }

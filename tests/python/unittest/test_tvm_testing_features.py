@@ -148,22 +148,6 @@ class TestFixtureCaching:
             assert self.cached_calls == len(self.param1_vals)
 
 
-class TestCachedFixtureIsCopy:
-    param = tvm.testing.parameter(1, 2, 3, 4)
-
-    @tvm.testing.fixture(cache_return_value=True)
-    def cached_mutable_fixture(self):
-        return {"val": 0}
-
-    def test_modifies_fixture(self, param, cached_mutable_fixture):
-        assert cached_mutable_fixture["val"] == 0
-
-        # The tests should receive a copy of the fixture value.  If
-        # the test receives the original and not a copy, then this
-        # will cause the next parametrization to fail.
-        cached_mutable_fixture["val"] = param
-
-
 class TestBrokenFixture:
     # Tests that use a fixture that throws an exception fail, and are
     # marked as setup failures.  The tests themselves are never run.
@@ -194,80 +178,6 @@ class TestBrokenFixture:
 
     def test_num_uses_cached(self):
         assert self.num_uses_broken_cached_fixture == 0
-
-
-class TestAutomaticMarks:
-    @staticmethod
-    def check_marks(request, target):
-        parameter = tvm.testing.plugin._pytest_target_params([target])[0]
-        required_marks = [decorator.mark for decorator in parameter.marks]
-        applied_marks = list(request.node.iter_markers())
-
-        for required_mark in required_marks:
-            assert required_mark in applied_marks
-
-    def test_automatic_fixture(self, request, target):
-        self.check_marks(request, target)
-
-    @tvm.testing.parametrize_targets
-    def test_bare_parametrize(self, request, target):
-        self.check_marks(request, target)
-
-    @tvm.testing.parametrize_targets("llvm", "cuda", "vulkan")
-    def test_explicit_parametrize(self, request, target):
-        self.check_marks(request, target)
-
-    @pytest.mark.parametrize("target", ["llvm", "cuda", "vulkan"])
-    def test_pytest_mark(self, request, target):
-        self.check_marks(request, target)
-
-    @pytest.mark.parametrize("target,other_param", [("llvm", 0), ("cuda", 1), ("vulkan", 2)])
-    def test_pytest_mark_covariant(self, request, target, other_param):
-        self.check_marks(request, target)
-
-
-@pytest.mark.skipif(
-    bool(int(os.environ.get("TVM_TEST_DISABLE_CACHE", "0"))),
-    reason="Cannot test cache behavior while caching is disabled",
-)
-class TestCacheableTypes:
-    class EmptyClass:
-        pass
-
-    @tvm.testing.fixture(cache_return_value=True)
-    def uncacheable_fixture(self):
-        return self.EmptyClass()
-
-    def test_uses_uncacheable(self, request):
-        # Normally the num_tests_use_this_fixture would be set before
-        # anything runs.  For this test case only, because we are
-        # delaying the use of the fixture, we need to manually
-        # increment it.
-        self.uncacheable_fixture.num_tests_use_this_fixture[0] += 1
-        with pytest.raises(TypeError):
-            request.getfixturevalue("uncacheable_fixture")
-
-    class ImplementsReduce:
-        def __reduce__(self):
-            return super().__reduce__()
-
-    @tvm.testing.fixture(cache_return_value=True)
-    def fixture_with_reduce(self):
-        return self.ImplementsReduce()
-
-    def test_uses_reduce(self, fixture_with_reduce):
-        pass
-
-    class ImplementsDeepcopy:
-        def __deepcopy__(self, memo):
-            return type(self)()
-
-    @tvm.testing.fixture(cache_return_value=True)
-    def fixture_with_deepcopy(self):
-        return self.ImplementsDeepcopy()
-
-    def test_uses_deepcopy(self, fixture_with_deepcopy):
-        pass
 
 
 if __name__ == "__main__":

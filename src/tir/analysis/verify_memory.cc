@@ -172,9 +172,6 @@ std::vector<String> VerifyMemory_(const PrimFunc& func) {
   auto target = func->GetAttr<Target>(tvm::attr::kTarget);
   ICHECK(target.defined()) << "VerifyMemory: Require the target attribute";
 
-  DLOG(INFO) << "verifying memory for target '" << target.value()->str() << "' for primitive\n"
-             << PrettyPrint(func);
-
   if (func->GetAttr<Integer>(tvm::attr::kCallingConv, Integer(CallingConv::kDefault)) ==
       CallingConv::kDefault) {
     MemoryAccessVerifier v(func, target.value()->kind->device_type);

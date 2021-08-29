@@ -19,6 +19,5 @@
 
 python3 3rdparty/dmlc-core/scripts/lint.py vta cpp vta/include vta/src
 python3 3rdparty/dmlc-core/scripts/lint.py tvm cpp \
-	include src \
-	examples/extension/src examples/graph_executor/src \
-	tests/cpp tests/crt
+	 include src \
+	 examples/extension/src examples/graph_executor/src

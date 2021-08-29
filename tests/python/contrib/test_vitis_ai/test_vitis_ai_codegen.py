@@ -288,8 +288,8 @@ def test_annotate():
         func0 = relay.Function(
             [data0, weight0, bn_gamma0, bn_beta0, bn_mmean0, bn_mvar0], bn.astuple()
         )
-        func0 = set_func_attr(func0, "vitis_ai", "tvmgen_default_vitis_ai_main_0")
-        gv0 = relay.GlobalVar("tvmgen_default_vitis_ai_main_0")
+        func0 = set_func_attr(func0, "vitis_ai", "tvmgen_default_vitis_ai_0")
+        gv0 = relay.GlobalVar("tvmgen_default_vitis_ai_0")
         mod = tvm.IRModule()
         mod[gv0] = func0
         mod = relay.transform.InferType()(mod)

@@ -26,7 +26,7 @@ use tvm::{
 };
 
 fn main() {
-    fn error<'a>(_args: Vec<ArgValue<'a>>) -> Result<RetValue, Error> {
+    fn error(_args: Vec<ArgValue<'static>>) -> Result<RetValue, Error> {
         Err(errors::NDArrayError::DataTypeMismatch {
             expected: DataType::int(64, 1),
             actual: DataType::float(64, 1),

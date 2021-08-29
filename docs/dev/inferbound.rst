@@ -447,11 +447,13 @@ Here is the IR after ScheduleOps (note that loops with extent 1 have been preser
 
 ::
 
+   // attr [compute(D, 0x2c070b0)] realize_scope = ""
    realize D([0, 4], [0, 5], [0, 16]) {
      produce D {
        for (di, 0, 4) {
          for (dj, 0, 5) {
            for (dk, 0, 16) {
+             // attr [compute(C, 0x2c29990)] realize_scope = ""
              realize C([dj, 1], [dk, 1]) {
                produce C {
                  for (i, 0, 1) {

@@ -19,7 +19,7 @@
 import numpy as np
 
 
-def dilate_python(input_np, strides, dilation_value=0.0, out_dtype=None):
+def dilate_python(input_np, strides, dilation_value=0.0):
     """Dilate operation.
 
     Parameters
@@ -33,34 +33,23 @@ def dilate_python(input_np, strides, dilation_value=0.0, out_dtype=None):
     dilation_value : int/float, optional
         Value used to dilate the input.
 
-    out_dtype : Option[str]
-        The datatype of the dilated array.  If unspecified, will use
-        the same dtype as the input array.
-
     Returns
     -------
     output_np : numpy.ndarray
         n-D, the same layout as Input.
-
     """
-    assert len(input_np.shape) == len(
-        strides
-    ), "Input dimension and strides size dismatch : %d vs %d" % (
-        len(input_np.shape),
+    n = len(input_np.shape)
+    assert len(strides) == n, "Input dimension and strides size dismatch : %d vs %d" % (
+        n,
         len(strides),
     )
-
-    if out_dtype is None:
-        out_dtype = input_np.dtype
-
-    output_size = [
-        (input_dim - 1) * stride + 1 for input_dim, stride in zip(input_np.shape, strides)
-    ]
-    non_zero_elements = np.ix_(
-        *[range(0, output_dim, stride) for output_dim, stride in zip(output_size, strides)]
-    )
-
-    output_np = np.full(shape=output_size, fill_value=dilation_value, dtype=out_dtype)
-    output_np[non_zero_elements] = input_np
+    output_size = ()
+    no_zero = ()
+    for i in range(n):
+        output_size += ((input_np.shape[i] - 1) * strides[i] + 1,)
+        no_zero += ((range(0, output_size[i], strides[i])),)
+    output_np = np.ones(shape=output_size)
+    output_np = dilation_value * output_np
+    output_np[np.ix_(*no_zero)] = input_np
 
     return output_np

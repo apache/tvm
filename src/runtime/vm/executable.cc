@@ -234,8 +234,8 @@ TVMByteArray Executable::Save() {
 }
 
 void Executable::SaveGlobalSection(dmlc::Stream* strm) {
-  std::vector<std::pair<std::string, Index>> globals(this->global_map.begin(),
-                                                     this->global_map.end());
+  std::vector<std::pair<std::string, Index> > globals(this->global_map.begin(),
+                                                      this->global_map.end());
   auto comp = [](const std::pair<std::string, Index>& a, const std::pair<std::string, Index>& b) {
     return a.second < b.second;
   };
@@ -273,20 +273,6 @@ void Executable::SavePrimitiveOpNames(dmlc::Stream* strm) {
     primitive_names[packed_index] = it.first;
   }
   strm->Write(primitive_names);
-  std::map<size_t, std::map<std::string, std::string>> primitive_attrs;
-  for (const auto& it : this->op_attrs) {
-    auto packed_index = static_cast<size_t>(it.first);
-    std::map<std::string, std::string> attrs;
-    for (const auto& elem : it.second) {
-      // TODO(tkonolige): cannot serialize ObjectRefs with dmlc's serializer, so we just serialize
-      // strings for now
-      if (elem.second.as<StringObj>()) {
-        attrs[elem.first] = Downcast<String>(elem.second);
-      }
-    }
-    primitive_attrs[packed_index] = attrs;
-  }
-  strm->Write(primitive_attrs);
 }
 
 // Serialize a virtual machine instruction. It creates a list that contains the
@@ -583,16 +569,6 @@ void Executable::LoadPrimitiveOpNames(dmlc::Stream* strm) {
   for (size_t i = 0; i < primitive_names.size(); i++) {
     this->primitive_map.insert({primitive_names[i], i});
   }
-
-  std::map<size_t, std::map<std::string, std::string>> primitive_attrs;
-  STREAM_CHECK(strm->Read(&primitive_attrs), "primitive attrs");
-  for (const auto& fn : primitive_attrs) {
-    std::vector<std::pair<String, ObjectRef>> attrs;
-    for (const auto& elem : fn.second) {
-      attrs.push_back({elem.first, String(elem.second)});
-    }
-    this->op_attrs[fn.first] = Map<String, ObjectRef>(attrs.begin(), attrs.end());
-  }
 }
 
 // Extract the `cnt` number of fields started at `start` from the list
@@ -875,8 +851,8 @@ TVM_REGISTER_GLOBAL("runtime.GetGlobalFields").set_body([](TVMArgs args, TVMRetV
   const auto* exec = dynamic_cast<Executable*>(mod.operator->());
   ICHECK(exec);
   int idx = args[1];
-  std::vector<std::pair<std::string, Index>> globals(exec->global_map.begin(),
-                                                     exec->global_map.end());
+  std::vector<std::pair<std::string, Index> > globals(exec->global_map.begin(),
+                                                      exec->global_map.end());
   auto comp = [](const std::pair<std::string, Index>& a, const std::pair<std::string, Index>& b) {
     return a.second < b.second;
   };

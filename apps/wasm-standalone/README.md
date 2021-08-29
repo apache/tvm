@@ -116,10 +116,16 @@ This project should be considered **experimental** at the very early stage, all 
 
 - Build DL library in the WebAssembly format.
 
-  - Compile the model
+  - Download model
 
     ```
-    cd wasm-graph/tools && LLVM_AR=llvm-ar-10 python ./build_graph_lib.py -O3
+    cd wasm-graph/tools && wget https://s3.amazonaws.com/onnx-model-zoo/resnet/resnet50v1/resnet50v1.onnx
+    ```
+
+  - Compile
+
+    ```
+    LLVM_AR=llvm-ar-10 python ./build_graph_lib.py -O3 ./resnet50v1.onnx
     ```
 
 ### Build wasm-graph package
@@ -164,13 +170,8 @@ $ wget -O synset.csv https://raw.githubusercontent.com/kazum/tvm-wasm/master/syn
 $ ./target/debug/test_graph_resnet50 -g ./wasm_graph_resnet50.wasm -i ./cat.png -l ./synset.csv
 original image dimensions: (256, 256)
 resized image dimensions: (224, 224)
-input image belongs to the class `tiger cat`
+input image belongs to the class `tabby, tabby cat`
 ```
-
-Note: this example also works without WASI support. Please modify `wasm-graph/.cargo/config` to change the target to
-`wasm32-unknown-unknown` and uncomment the raw wasm engine in `wasm-runtime/src/graph.rs` to run in pure wasm32. SIMD
-may not be supported without WASI support. You may also need to delete ` -mattr=+simd128` in the 
-[build script](apps/wasm-standalone/wasm-graph/tools/build_graph_lib.py).  
 
 ## Future Work
 

@@ -120,17 +120,14 @@ def conv2d_strategy_mali(attrs, inputs, out_type, target):
         elif layout == "NHWC":
             assert kernel_layout == "HWOI"
             if not is_auto_scheduler_enabled():
-                strategy.add_implementation(
-                    wrap_compute_conv2d(topi.mali.depthwise_conv2d_nhwc),
-                    wrap_topi_schedule(topi.mali.schedule_depthwise_conv2d_nhwc),
-                    name="depthwise_conv2d_nhwc.mali",
+                raise RuntimeError(
+                    "depthwise_conv2d NHWC layout is not enabled for mali without auto_scheduler."
                 )
-            else:
-                strategy.add_implementation(
-                    wrap_compute_conv2d(topi.nn.depthwise_conv2d_nhwc),
-                    naive_schedule,
-                    name="depthwise_conv2d_nhwc.mali",
-                )
+            strategy.add_implementation(
+                wrap_compute_conv2d(topi.nn.depthwise_conv2d_nhwc),
+                naive_schedule,
+                name="depthwise_conv2d_nhwc.mali",
+            )
         else:
             raise RuntimeError("Unsupported depthwise_conv2d layout {} for mali".format(layout))
     else:  # group_conv2d

@@ -40,6 +40,7 @@ Source::Source(SourceName src_name, std::string source) {
   // NB(@jroesch):
   std::string source_str = n->source;
   for (auto c : source_str) {
+    DLOG(INFO) << "char=" << c;
     if (c == '\n') {
       // Record the length of the line.
       n->line_map.back().second = length;

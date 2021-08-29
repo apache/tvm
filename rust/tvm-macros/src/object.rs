@@ -147,8 +147,8 @@ pub fn macro_impl(input: proc_macro::TokenStream) -> TokenStream {
             }
         }
 
-        impl<'a> From<&'a #ref_id> for #tvm_rt_crate::ArgValue<'a> {
-            fn from(object_ref: &'a #ref_id) -> #tvm_rt_crate::ArgValue<'a> {
+        impl<'a> From<#ref_id> for #tvm_rt_crate::ArgValue<'a> {
+            fn from(object_ref: #ref_id) -> #tvm_rt_crate::ArgValue<'a> {
                 use std::ffi::c_void;
                 let object_ptr = &object_ref.0;
                 match object_ptr {
@@ -156,8 +156,15 @@ pub fn macro_impl(input: proc_macro::TokenStream) -> TokenStream {
                         #tvm_rt_crate::ArgValue::
                             ObjectHandle(std::ptr::null::<c_void>() as *mut c_void)
                     }
-                    Some(value) => value.into()
+                    Some(value) => value.clone().into()
                 }
+            }
+        }
+
+        impl<'a> From<&#ref_id> for #tvm_rt_crate::ArgValue<'a> {
+            fn from(object_ref: &#ref_id) -> #tvm_rt_crate::ArgValue<'a> {
+                let oref: #ref_id = object_ref.clone();
+                #tvm_rt_crate::ArgValue::<'a>::from(oref)
             }
         }
 

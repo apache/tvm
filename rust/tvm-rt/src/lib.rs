@@ -26,40 +26,8 @@
 //! The TVM object system enables cross-language interoperability including that of closures for all
 //! supported languages including C++, and Python.
 
-// Macro to check the return call to TVM runtime shared library.
-
-#[macro_export]
-macro_rules! tvm_call {
-    ($e:expr) => {{
-        if unsafe { $e } != 0 {
-            Err($crate::get_last_error().into())
-        } else {
-            Ok(())
-        }
-    }};
-}
-
-#[macro_export]
-macro_rules! check_call {
-    ($e:expr) => {{
-        if unsafe { $e } != 0 {
-            panic!("{}", $crate::get_last_error());
-        }
-    }};
-}
-
-// Define all sumodules.
-pub mod array;
-pub mod device;
-pub mod errors;
-pub mod function;
-pub mod graph_rt;
-pub mod map;
-pub mod module;
-pub mod ndarray;
 pub mod object;
 pub mod string;
-mod to_function;
 
 pub use object::*;
 pub use string::*;
@@ -84,6 +52,28 @@ use tvm_sys::ffi;
 
 pub use tvm_macros::external;
 
+// Macro to check the return call to TVM runtime shared library.
+
+#[macro_export]
+macro_rules! tvm_call {
+    ($e:expr) => {{
+        if unsafe { $e } != 0 {
+            Err($crate::get_last_error().into())
+        } else {
+            Ok(())
+        }
+    }};
+}
+
+#[macro_export]
+macro_rules! check_call {
+    ($e:expr) => {{
+        if unsafe { $e } != 0 {
+            panic!("{}", $crate::get_last_error());
+        }
+    }};
+}
+
 /// Gets the last error message.
 pub fn get_last_error() -> &'static str {
     unsafe {
@@ -100,6 +90,15 @@ pub(crate) fn set_last_error<E: std::error::Error>(err: &E) {
         ffi::TVMAPISetLastError(c_string.as_ptr());
     }
 }
+
+pub mod array;
+pub mod device;
+pub mod errors;
+pub mod function;
+pub mod map;
+pub mod module;
+pub mod ndarray;
+mod to_function;
 
 /// Outputs the current TVM version.
 pub fn version() -> &'static str {
@@ -130,17 +129,16 @@ mod tests {
         );
     }
 
-    // todo(@jroesch): #8800 Follow up with ByteArray RetValue ownership.
-    // #[test]
-    // fn bytearray() {
-    //     let w = vec![1u8, 2, 3, 4, 5];
-    //     let v = ByteArray::from(w.as_slice());
-    //     let tvm: ByteArray = RetValue::from(v).try_into().unwrap();
-    //     assert_eq!(
-    //         tvm.data(),
-    //         w.iter().copied().collect::<Vec<u8>>().as_slice()
-    //     );
-    // }
+    #[test]
+    fn bytearray() {
+        let w = vec![1u8, 2, 3, 4, 5];
+        let v = ByteArray::from(w.as_slice());
+        let tvm: ByteArray = RetValue::from(v).try_into().unwrap();
+        assert_eq!(
+            tvm.data(),
+            w.iter().copied().collect::<Vec<u8>>().as_slice()
+        );
+    }
 
     #[test]
     fn ty() {

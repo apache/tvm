@@ -39,7 +39,7 @@ class TensorRTLogger : public nvinfer1::ILogger {
  public:
   TensorRTLogger() : TensorRTLogger(Severity::kWARNING) {}
   explicit TensorRTLogger(Severity severity) : reportable_severity(severity) {}
-  void log(Severity severity, const char* msg) noexcept override {
+  void log(Severity severity, const char* msg) override {
     // suppress messages with severity enum value greater than the reportable
     if (severity > reportable_severity) return;
 

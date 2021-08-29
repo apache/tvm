@@ -515,6 +515,7 @@ class IterMapRewriter : public ExprMutator {
    */
   Optional<IterSplitExpr> TryFuseIters(IterSumExpr expr) {
     if (!is_zero(expr->base)) return NullOpt;
+    if (expr->args.size() == 1) return expr->args[0];
     // select the iterators in order
     std::vector<bool> visited(expr->args.size(), false);
     std::vector<IterSplitExpr> flattened_iters, grouped_iters;
@@ -1084,21 +1085,6 @@ PrimExpr NormalizeIterMapToExpr(const IterMapExpr& expr) {
 TVM_REGISTER_GLOBAL("arith.NormalizeIterMapToExpr").set_body_typed([](const IterMapExpr& expr) {
   return NormalizeIterMapToExpr(expr);
 });
-
-Array<PrimExpr> IterMapSimplify(const Array<PrimExpr>& indices, const Map<Var, Range>& input_iters,
-                                const PrimExpr& input_pred, bool require_bijective) {
-  Analyzer analyzer;
-  Array<IterSumExpr> rewrite =
-      DetectIterMap(indices, input_iters, input_pred, require_bijective, &analyzer);
-  if (rewrite.empty()) {
-    return indices;
-  }
-  Array<PrimExpr> res;
-  res.reserve(rewrite.size());
-  IterMapToExprNormalizer converter(&analyzer);
-  for (const auto& expr : rewrite) res.push_back(converter.Convert(expr));
-  return res;
-}
 
 /*!
  * \brief Divider to divide the bindings into two sets of bindings(outer and inner)

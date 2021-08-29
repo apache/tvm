@@ -18,16 +18,7 @@
 import pytest
 import time
 from tvm.contrib.popen_pool import PopenWorker, PopenPoolExecutor
-from tvm.testing import (
-    identity_after,
-    terminate_self,
-    initializer,
-    after_initializer,
-    register_ffi,
-    call_py_ffi,
-    call_cpp_ffi,
-    call_cpp_py_ffi,
-)
+from tvm.testing import identity_after, terminate_self
 
 
 def test_popen_worker():
@@ -75,37 +66,6 @@ def test_popen_pool_executor():
         assert val.value == idx
 
 
-def test_popen_initializer():
-    initargs = [1, 2, 3]
-    proc = PopenWorker(initializer=initializer, initargs=initargs)
-    proc.send(after_initializer)
-    test_global_state_1, test_global_state_2, test_global_state_3 = proc.recv()
-    assert test_global_state_1 == initargs[0]
-    assert test_global_state_2 == initargs[1]
-    assert test_global_state_3 == initargs[2]
-
-
-def test_popen_ffi():
-    proc = PopenWorker(register_ffi)
-
-    # call python function via ffi
-    initargs = [0]
-    proc.send(call_py_ffi, initargs)
-    assert proc.recv() == initargs[0]
-
-    # call cpp function via ffi
-    initargs = [1]
-    proc.send(call_cpp_ffi, initargs)
-    assert proc.recv() == initargs[0]
-
-    # call python function from cpp function via ffi
-    initargs = [2]
-    proc.send(call_cpp_py_ffi, initargs)
-    assert proc.recv() == initargs[0]
-
-
 if __name__ == "__main__":
     test_popen_worker()
     test_popen_pool_executor()
-    test_popen_initializer()
-    test_popen_ffi()

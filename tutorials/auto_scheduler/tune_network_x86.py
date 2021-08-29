@@ -322,7 +322,9 @@ module.set_input("data", data_tvm)
 
 # Evaluate
 print("Evaluate inference time cost...")
-print(module.benchmark(dev, repeat=3, min_repeat_ms=500))
+ftimer = module.module.time_evaluator("run", dev, repeat=3, min_repeat_ms=500)
+prof_res = np.array(ftimer().results) * 1e3  # convert to millisecond
+print("Mean inference time (std dev): %.2f ms (%.2f ms)" % (np.mean(prof_res), np.std(prof_res)))
 
 
 #################################################################

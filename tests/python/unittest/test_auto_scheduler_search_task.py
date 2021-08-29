@@ -24,7 +24,7 @@ import tvm
 import tvm.testing
 from tvm import auto_scheduler
 from tvm.auto_scheduler.utils import get_const_tuple
-from tvm.testing.auto_scheduler import (
+from test_auto_scheduler_common import (
     matmul_auto_scheduler_test,
     zero_rank_compute_auto_scheduler_test,
     zero_rank_reduce_auto_scheduler_test,

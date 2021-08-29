@@ -54,9 +54,8 @@ def test_unary_op():
             bwd_func = run_infer_type(gradient(fwd_func))
 
             for target, dev in tvm.testing.enabled_targets():
-                op_res, (op_grad, _) = relay.create_executor(device=dev, target=target).evaluate(
-                    bwd_func
-                )(data, grad_in)
+                intrp = relay.create_executor(device=dev, target=target)
+                op_res, (op_grad, _) = intrp.evaluate(bwd_func)(data, grad_in)
                 np.testing.assert_allclose(op_grad.numpy(), ref_grad, rtol=0.01)
 
     for opfunc, ref in [
@@ -106,9 +105,8 @@ def test_binary_op():
         bwd_func = run_infer_type(gradient(fwd_func))
 
         for target, dev in tvm.testing.enabled_targets():
-            op_res, (op_grad0, op_grad1) = relay.create_executor(
-                device=dev, target=target
-            ).evaluate(bwd_func)(x_data, y_data)
+            intrp = relay.create_executor(device=dev, target=target)
+            op_res, (op_grad0, op_grad1) = intrp.evaluate(bwd_func)(x_data, y_data)
             np.testing.assert_allclose(op_grad0.numpy(), ref_grad0, rtol=0.01)
             np.testing.assert_allclose(op_grad1.numpy(), ref_grad1, rtol=0.01)
 

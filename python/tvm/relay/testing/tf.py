@@ -91,7 +91,7 @@ def vmobj_to_list(o):
     """
 
     if isinstance(o, tvm.nd.NDArray):
-        result = [o.numpy()]
+        result = [o.asnumpy()]
     elif isinstance(o, tvm.runtime.container.ADT):
         result = []
         for f in o:
@@ -107,7 +107,7 @@ def vmobj_to_list(o):
         elif "tensor_nil" in o.constructor.name_hint:
             result = [0]
         elif "tensor" in o.constructor.name_hint:
-            result = [o.fields[0].numpy()]
+            result = [o.fields[0].asnumpy()]
         else:
             raise RuntimeError("Unknown object type: %s" % o.constructor.name_hint)
     else:

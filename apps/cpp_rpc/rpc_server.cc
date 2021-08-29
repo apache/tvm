@@ -140,7 +140,7 @@ class RPCServer {
    * \brief ListenLoopProc The listen process.
    */
   void ListenLoopProc() {
-    TrackerClient tracker(tracker_addr_, key_, custom_addr_, port_);
+    TrackerClient tracker(tracker_addr_, key_, custom_addr_);
     while (true) {
       support::TCPSocket conn;
       support::SockAddr addr("0.0.0.0", 0);

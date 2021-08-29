@@ -66,26 +66,6 @@ void Unframer::Reset() {
   num_buffer_bytes_valid_ = 0;
 }
 
-size_t Unframer::BytesNeeded() {
-  size_t bytes_needed = 0;
-  switch (state_) {
-    case State::kFindPacketStart:
-      return 1;
-    case State::kFindPacketLength:
-      bytes_needed = PacketFieldSizeBytes::kPayloadLength;
-      break;
-    case State::kFindPacketCrc:
-      return num_payload_bytes_remaining_;
-    case State::kFindCrcEnd:
-      bytes_needed = PacketFieldSizeBytes::kCrc;
-      break;
-    default:
-      CHECK(false);
-  }
-
-  return bytes_needed > num_buffer_bytes_valid_ ? bytes_needed - num_buffer_bytes_valid_ : 0;
-}
-
 tvm_crt_error_t Unframer::Write(const uint8_t* data, size_t data_size_bytes,
                                 size_t* bytes_consumed) {
   tvm_crt_error_t return_code = kTvmErrorNoError;

@@ -1548,9 +1548,9 @@ def dense(data, weight, units=None, out_dtype=""):
     return _make.dense(data, weight, units, out_dtype)
 
 
-def contrib_dense_pack(data, weight, weight_layout="NK", units=None, out_dtype=""):
+def contrib_dense_pack(data, weight, units=None, out_dtype=""):
     """Dense operator.
-    Applies a linear transformation with packed weight
+    Applies a linear transformation
 
     .. math::
 
@@ -1560,27 +1560,25 @@ def contrib_dense_pack(data, weight, weight_layout="NK", units=None, out_dtype="
     ----------
     data : tvm.relay.Expr
         The input data to the operator,
-        of shape `(batch, units_in)`.
+        of shape `(d_1, d_2, ..., d_n, units_in)`.
 
     weight : tvm.relay.Expr
         The transformed weight expressions, 3-D matrix,
         of shape `(units // pack_weight_tile, units_in, pack_weight_tile)`.
 
-    weight_layout: str
-        The layout of weight, such as "NK" or "NK8n".
-
     units : int, optional
         Number of hidden units of the dense transformation.
 
     out_dtype : str, optional
-        Specifies the output data type for mixed precision dense.
+        Specifies the output data type for mixed precision dense,
+        of shape `(d_1, d_2, ..., d_n, units)`.
 
     Returns
     -------
     result : tvm.relay.Expr
         The computed result.
     """
-    return _make.contrib_dense_pack(data, weight, weight_layout, units, out_dtype)
+    return _make.contrib_dense_pack(data, weight, units, out_dtype)
 
 
 def fifo_buffer(data, buffer, axis):
@@ -2139,40 +2137,32 @@ def group_norm(data, gamma, beta, num_groups, axis=1, epsilon=1e-5, center=True,
     return _make.group_norm(data, gamma, beta, num_groups, axis, epsilon, center, scale)
 
 
-def batch_matmul(tensor_a, tensor_b, out_dtype="", transpose_a=False, transpose_b=True):
+def batch_matmul(x, y, out_dtype=""):
     r"""
-    Compute batch matrix multiplication of `tensor_a` and `tensor_b`.
-
-    Both `tensor_a` and `tensor_b` can be transposed. For legacy reason, we use NT format
-    (transpose_a=False, transpose_b=True) by default.
+    Computes batch matrix multiplication of `x` and `y` when `x` and `y` are data
+    in batch.
 
     .. math::
 
-        \mbox{batch_matmul}(A, B)[i, :, :] = \mbox{matmul}(A[i, :, :], B[i, :, :])
+        \mbox{batch_matmul}(x, y)[i, :, :] = \mbox{matmul}(x[i, :, :], y[i, :, :]^T)
 
     Parameters
     ----------
-    tensor_a : tvm.relay.Expr
+    x : tvm.relay.Expr
         The first input.
 
-    tensor_b : tvm.relay.Expr
+    y : tvm.relay.Expr
         The second input.
 
-    out_dtype : Optional[str]
-        Specifies the output data type for mixed precision batch matmul.
-
-    transpose_a : Optional[bool] = False
-        Whether the first tensor is in transposed format.
-
-    transpose_b : Optional[bool] = True
-        Whether the second tensor is in transposed format.
+    out_dtype : str, optional
+        Specifies the output data type for mixed precision batch matmul
 
     Returns
     -------
     result: tvm.relay.Expr
         The computed result.
     """
-    return _make.batch_matmul(tensor_a, tensor_b, out_dtype, transpose_a, transpose_b)
+    return _make.batch_matmul(x, y, out_dtype)
 
 
 # pylint: disable=no-else-return,inconsistent-return-statements

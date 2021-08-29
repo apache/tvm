@@ -29,7 +29,7 @@ def scale_shift_nchw(Input, Scale, Shift):
     Parameters
     ----------
     Input : tvm.te.Tensor
-        4-D input tensor, NCHW layout [batch, channel, height, width]
+        Input tensor, layout is NCHW
 
     Scale : tvm.te.Tensor
         Scale tensor, 1-D of size channel number
@@ -54,7 +54,7 @@ def scale_shift_nhwc(Input, Scale, Shift):
     Parameters
     ----------
     Input : tvm.te.Tensor
-        4-D input tensor, NHWC layout [batch, height, width, channel]
+        Input tensor, layout is NHWC
 
     Scale : tvm.te.Tensor
         Scale tensor, 1-D of size channel number
@@ -69,31 +69,4 @@ def scale_shift_nhwc(Input, Scale, Shift):
     """
     return te.compute(
         Input.shape, lambda b, i, j, c: Input[b, i, j, c] * Scale[c] + Shift[c], name="ScaleShift"
-    )
-
-
-@tvm.te.tag_scope(tag=tag.BROADCAST)
-def scale_shift_nchwc(Input, Scale, Shift):
-    """Batch normalization operator in inference.
-
-    Parameters
-    ----------
-    Input : tvm.te.Tensor
-        5-D input tensor, NCHWc layout [batch, channel_chunk, height, width, channel_block]
-
-    Scale : tvm.te.Tensor
-        Scale tensor, 2-D of size [channel_chunk, channel_block]
-
-    Shift : tvm.te.Tensor
-        Shift tensor, 2-D of size [channel_chunk, channel_block]
-
-    Returns
-    -------
-    Output : tvm.te.Tensor
-        Output tensor, layout is NHWC
-    """
-    return te.compute(
-        Input.shape,
-        lambda b, cc, i, j, cb: Input[b, cc, i, j, cb] * Scale[cc, cb] + Shift[cc, cb],
-        name="ScaleShift",
     )

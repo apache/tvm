@@ -49,3 +49,9 @@ TEST(Tensor, Reduce) {
       {m, n}, [&](Var i, Var j) { return sum(max(1 + A[i][rv] + 1, B[j][rv]), {rv}); }, "C");
   LOG(INFO) << C->op.as<te::ComputeOpNode>()->body;
 }
+
+int main(int argc, char** argv) {
+  testing::InitGoogleTest(&argc, argv);
+  testing::FLAGS_gtest_death_test_style = "threadsafe";
+  return RUN_ALL_TESTS();
+}

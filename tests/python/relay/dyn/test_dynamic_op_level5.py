@@ -64,9 +64,8 @@ def test_resize2d():
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["vm", "debug"]:
                 mod = tvm.ir.IRModule.from_expr(func)
-                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-                    x_data, size
-                )
+                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+                op_res = intrp.evaluate()(x_data, size)
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-4, atol=1e-6)
 
     for method in ["linear", "nearest_neighbor"]:

@@ -26,7 +26,6 @@
 //! See the tests and examples repository for more examples.
 
 use std::convert::{TryFrom, TryInto};
-use std::sync::Arc;
 use std::{
     ffi::CString,
     os::raw::{c_char, c_int},
@@ -35,49 +34,41 @@ use std::{
 
 use crate::errors::Error;
 
-pub use super::to_function::{RawArgs, ToFunction, Typed};
-use crate::object::AsArgValue;
+pub use super::to_function::{ToFunction, Typed};
 pub use tvm_sys::{ffi, ArgValue, RetValue};
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-#[derive(Debug, Hash)]
-struct FunctionPtr {
-    handle: ffi::TVMFunctionHandle,
-}
-
-// NB(@jroesch): I think this is ok, need to double check,
-// if not we should mutex the pointer or move to Rc.
-unsafe impl Send for FunctionPtr {}
-unsafe impl Sync for FunctionPtr {}
-
-impl FunctionPtr {
-    fn from_raw(handle: ffi::TVMFunctionHandle) -> Self {
-        FunctionPtr { handle }
-    }
-}
-
-impl Drop for FunctionPtr {
-    fn drop(&mut self) {
-        check_call!(ffi::TVMFuncFree(self.handle));
-    }
-}
-
-/// An owned thread-safe version of `tvm::PackedFunc` for consumption in Rust.
+/// Wrapper around TVM function handle which includes `is_global`
+/// indicating whether the function is global or not, and `is_cloned` showing
+/// not to drop a cloned function from Rust side.
+/// The value of these fields can be accessed through their respective methods.
 #[derive(Debug, Hash)]
 pub struct Function {
-    inner: Arc<FunctionPtr>,
+    pub(crate) handle: ffi::TVMFunctionHandle,
+    // whether the registered function is global or not.
+    is_global: bool,
+    from_rust: bool,
 }
 
+unsafe impl Send for Function {}
+unsafe impl Sync for Function {}
+
 impl Function {
-    pub(crate) fn from_raw(handle: ffi::TVMFunctionHandle) -> Self {
+    pub(crate) fn new(handle: ffi::TVMFunctionHandle) -> Self {
         Function {
-            inner: Arc::new(FunctionPtr::from_raw(handle)),
+            handle,
+            is_global: false,
+            from_rust: false,
         }
     }
 
     pub unsafe fn null() -> Self {
-        Function::from_raw(std::ptr::null_mut())
+        Function {
+            handle: std::ptr::null_mut(),
+            is_global: false,
+            from_rust: false,
+        }
     }
 
     /// For a given function, it returns a function by name.
@@ -93,7 +84,11 @@ impl Function {
         if handle.is_null() {
             None
         } else {
-            Some(Function::from_raw(handle))
+            Some(Function {
+                handle,
+                is_global: true,
+                from_rust: false,
+            })
         }
     }
 
@@ -108,7 +103,12 @@ impl Function {
 
     /// Returns the underlying TVM function handle.
     pub fn handle(&self) -> ffi::TVMFunctionHandle {
-        self.inner.handle
+        self.handle
+    }
+
+    /// Returns `true` if the underlying TVM function is global and `false` otherwise.
+    pub fn is_global(&self) -> bool {
+        self.is_global
     }
 
     /// Calls the function that created from `Builder`.
@@ -122,7 +122,7 @@ impl Function {
 
         let ret_code = unsafe {
             ffi::TVMFuncCall(
-                self.handle(),
+                self.handle,
                 values.as_mut_ptr() as *mut ffi::TVMValue,
                 type_codes.as_mut_ptr() as *mut c_int,
                 num_args as c_int,
@@ -154,12 +154,12 @@ macro_rules! impl_to_fn {
         where
             Error: From<Err>,
             Out: TryFrom<RetValue, Error = Err>,
-            $($t: for<'a> AsArgValue<'a>),*
+            $($t: Into<ArgValue<'static>>),*
         {
             fn from(func: Function) -> Self {
                 #[allow(non_snake_case)]
                 Box::new(move |$($t : $t),*| {
-                    let args = vec![ $((&$t).as_arg_value()),* ];
+                    let args = vec![ $($t.into()),* ];
                     Ok(func.invoke(args)?.try_into()?)
                 })
             }
@@ -171,15 +171,25 @@ impl_to_fn!(T1, T2, T3, T4, T5, T6,);
 
 impl Clone for Function {
     fn clone(&self) -> Function {
-        Function {
-            inner: self.inner.clone(),
+        Self {
+            handle: self.handle,
+            is_global: self.is_global,
+            from_rust: true,
         }
     }
 }
 
+// impl Drop for Function {
+//     fn drop(&mut self) {
+//         if !self.is_global && !self.is_cloned {
+//             check_call!(ffi::TVMFuncFree(self.handle));
+//         }
+//     }
+// }
+
 impl From<Function> for RetValue {
     fn from(func: Function) -> RetValue {
-        RetValue::FuncHandle(func.handle())
+        RetValue::FuncHandle(func.handle)
     }
 }
 
@@ -188,7 +198,7 @@ impl TryFrom<RetValue> for Function {
 
     fn try_from(ret_value: RetValue) -> Result<Function> {
         match ret_value {
-            RetValue::FuncHandle(handle) => Ok(Function::from_raw(handle)),
+            RetValue::FuncHandle(handle) => Ok(Function::new(handle)),
             _ => Err(Error::downcast(
                 format!("{:?}", ret_value),
                 "FunctionHandle",
@@ -197,12 +207,12 @@ impl TryFrom<RetValue> for Function {
     }
 }
 
-impl<'a> From<&'a Function> for ArgValue<'a> {
-    fn from(func: &'a Function) -> ArgValue<'a> {
-        if func.handle().is_null() {
+impl<'a> From<Function> for ArgValue<'a> {
+    fn from(func: Function) -> ArgValue<'a> {
+        if func.handle.is_null() {
             ArgValue::Null
         } else {
-            ArgValue::FuncHandle(func.handle())
+            ArgValue::FuncHandle(func.handle)
         }
     }
 }
@@ -212,7 +222,7 @@ impl<'a> TryFrom<ArgValue<'a>> for Function {
 
     fn try_from(arg_value: ArgValue<'a>) -> Result<Function> {
         match arg_value {
-            ArgValue::FuncHandle(handle) => Ok(Function::from_raw(handle)),
+            ArgValue::FuncHandle(handle) => Ok(Function::new(handle)),
             _ => Err(Error::downcast(
                 format!("{:?}", arg_value),
                 "FunctionHandle",
@@ -226,7 +236,7 @@ impl<'a> TryFrom<&ArgValue<'a>> for Function {
 
     fn try_from(arg_value: &ArgValue<'a>) -> Result<Function> {
         match arg_value {
-            ArgValue::FuncHandle(handle) => Ok(Function::from_raw(*handle)),
+            ArgValue::FuncHandle(handle) => Ok(Function::new(*handle)),
             _ => Err(Error::downcast(
                 format!("{:?}", arg_value),
                 "FunctionHandle",
@@ -292,12 +302,12 @@ where
 }
 
 pub fn register_untyped<S: Into<String>>(
-    f: for<'a> fn(Vec<ArgValue<'a>>) -> Result<RetValue>,
+    f: fn(Vec<ArgValue<'static>>) -> Result<RetValue>,
     name: S,
     override_: bool,
 ) -> Result<()> {
-    //TODO(@jroesch): can we unify the untpyed and typed registration functions.
-    let func = ToFunction::<RawArgs, RetValue>::to_function(f);
+    // TODO(@jroesch): can we unify all the code.
+    let func = f.to_function();
     let name = name.into();
     // Not sure about this code
     let handle = func.handle();

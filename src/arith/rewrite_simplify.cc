@@ -799,8 +799,6 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
     TVM_TRY_REWRITE_IF(floordiv(x + c1, c2), floordiv(x, c2) + floordiv(c1, c2),
                        c2.Eval()->value > 0 && c1.Eval()->value % c2.Eval()->value == 0);
 
-    TVM_TRY_REWRITE_IF(floordiv(x * c1, x * c2), floordiv(c1, c2), c2.Eval()->value > 0);
-
     TVM_TRY_REWRITE_IF(floordiv(x + y, x), floordiv(y, x) + 1, CanProveGreaterEqual(x.Eval(), 0));
 
     TVM_TRY_REWRITE_IF(floordiv(y + x, x), floordiv(y, x) + 1, CanProveGreaterEqual(x.Eval(), 0));
@@ -858,18 +856,14 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
       ModularSet bmod = analyzer_->modular_set(b1.Eval());
       int64_t ramp_min = floordiv(bmod->base, c2val);
       int64_t ramp_max = floordiv(bmod->base + (lanes.Eval() - 1) * c1val, c2val);
-      if (ramp_min == ramp_max) {
-        // If b1 can devide c2
-        if (bmod->coeff % c2val == 0) {
-          return ramp(floormod(bmod->base, c2), c1, lanes).Eval();
-        }
-        // If all indices can be guaranteed to settle inside a coeff range
-        if (c2val % bmod->coeff == 0 && bmod->base + (lanes.Eval() - 1) * c1val < bmod->coeff) {
-          return ramp(floormod(b1, c2), c1, lanes).Eval();
-        }
-      }
       if (bmod->coeff % c2val == 0) {
-        return floormod(ramp(floormod(bmod->base, c2), c1, lanes), broadcast(c2, lanes)).Eval();
+        if (ramp_min == ramp_max) {
+          return ramp(floormod(bmod->base, c2), c1, lanes).Eval();
+        } else {
+          return floormod(ramp(floormod(bmod->base, c2), c1, lanes), broadcast(c2, lanes)).Eval();
+        }
+      } else if (c2val % bmod->coeff == 0 && ramp_min == ramp_max) {
+        return ramp(floormod(b1, c2), c1, lanes).Eval();
       }
     }
   }
@@ -887,8 +881,6 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
 
     TVM_TRY_REWRITE_IF(floormod(x + y * c1, c2), floormod(x, c2),
                        c2.Eval()->value > 0 && c1.Eval()->value % c2.Eval()->value == 0);
-
-    TVM_TRY_REWRITE_IF(floormod(x * c1, x * c2), x * floormod(c1, c2), c2.Eval()->value != 0);
 
     TVM_TRY_REWRITE(floormod(x * y, y), ZeroWithTypeLike(x));
     TVM_TRY_REWRITE(floormod(y * x, y), ZeroWithTypeLike(y));

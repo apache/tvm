@@ -52,9 +52,8 @@ def qnn_subtract_driver(x_datas, y_datas, golden_outputs, scale_and_zp, data_dty
         x_data = x_datas[i]
         y_data = y_datas[i]
         golden_output = golden_outputs[i]
-        op_res = relay.create_executor("graph", device=tvm.cpu(0), target="llvm").evaluate(func)(
-            x_data, y_data
-        )
+        intrp = relay.create_executor("graph", device=tvm.cpu(0), target="llvm")
+        op_res = intrp.evaluate(func)(x_data, y_data)
         np.testing.assert_equal(op_res.numpy(), golden_output)
 
 

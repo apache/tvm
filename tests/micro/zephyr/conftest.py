@@ -14,34 +14,28 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import datetime
-import os
-import pathlib
-
 import pytest
 
-import tvm.contrib.utils
 import tvm.target.target
 
 # The models that should pass this configuration. Maps a short, identifying platform string to
 # (model, zephyr_board).
 PLATFORMS = {
-    "qemu_x86": ("host", "qemu_x86"),
-    "qemu_riscv32": ("host", "qemu_riscv32"),
-    "qemu_riscv64": ("host", "qemu_riscv64"),
-    "mps2_an521": ("mps2_an521", "mps2_an521"),
+    "host": ("host", "qemu_x86"),
+    "host_riscv32": ("host", "qemu_riscv32"),
+    "host_riscv64": ("host", "qemu_riscv64"),
+    "mps2_an521": ("mps2_an521", "mps2_an521-qemu"),
     "nrf5340dk": ("nrf5340dk", "nrf5340dk_nrf5340_cpuapp"),
     "stm32f746xx_disco": ("stm32f746xx", "stm32f746g_disco"),
     "stm32f746xx_nucleo": ("stm32f746xx", "nucleo_f746zg"),
     "stm32l4r5zi_nucleo": ("stm32l4r5zi", "nucleo_l4r5zi"),
-    "zynq_mp_r5": ("zynq_mp_r5", "qemu_cortex_r5"),
 }
 
 
 def pytest_addoption(parser):
     parser.addoption(
         "--microtvm-platforms",
-        default="qemu_x86",
+        default="host",
         choices=PLATFORMS.keys(),
         help=(
             "Specify a comma-separated list of test models (i.e. as passed to tvm.target.micro()) "
@@ -50,6 +44,11 @@ def pytest_addoption(parser):
     )
     parser.addoption(
         "--west-cmd", default="west", help="Path to `west` command for flashing device."
+    )
+    parser.addoption(
+        "--skip-build",
+        action="store_true",
+        help="If set true, reuses build from the previous test run. Otherwise, build from the scratch.",
     )
     parser.addoption(
         "--tvm-debug",
@@ -70,27 +69,10 @@ def west_cmd(request):
 
 
 @pytest.fixture
-def tvm_debug(request):
-    return request.config.getoption("--tvm-debug")
+def skip_build(request):
+    return request.config.getoption("--skip-build")
 
 
 @pytest.fixture
-def temp_dir(platform):
-    _, zephyr_board = PLATFORMS[platform]
-    parent_dir = pathlib.Path(os.path.dirname(__file__))
-    filename = os.path.splitext(os.path.basename(__file__))[0]
-    board_workspace = (
-        parent_dir
-        / f"workspace_{filename}_{zephyr_board}"
-        / datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
-    )
-    board_workspace_base = str(board_workspace)
-    number = 1
-    while board_workspace.exists():
-        board_workspace = pathlib.Path(board_workspace_base + f"-{number}")
-        number += 1
-
-    if not os.path.exists(board_workspace.parent):
-        os.makedirs(board_workspace.parent)
-
-    return tvm.contrib.utils.tempdir(board_workspace)
+def tvm_debug(request):
+    return request.config.getoption("--tvm-debug")

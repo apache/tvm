@@ -95,7 +95,16 @@ class DoubleBufferInjector : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
-    if (op->attr_key == attr::double_buffer_scope) {
+    if (op->attr_key == attr::storage_scope) {
+      const VarNode* buf = op->node.as<VarNode>();
+      auto it = dbuffer_info_.find(buf);
+      if (it != dbuffer_info_.end()) {
+        it->second.scope = op->value.as<StringImmNode>()->value;
+        return this->VisitStmt(op->body);
+      } else {
+        return StmtExprMutator::VisitStmt_(op);
+      }
+    } else if (op->attr_key == attr::double_buffer_scope) {
       return MakeProducer(op);
     } else {
       return StmtExprMutator::VisitStmt_(op);
@@ -103,10 +112,8 @@ class DoubleBufferInjector : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const AllocateNode* op) final {
-    const VarNode* buf = op->buffer_var.as<VarNode>();
-    auto it = dbuffer_info_.find(buf);
+    auto it = dbuffer_info_.find(op->buffer_var.get());
     if (it != dbuffer_info_.end()) {
-      it->second.scope = GetPtrStorageScope(op->buffer_var);
       it->second.stride = foldl([](PrimExpr a, PrimExpr b, Span span) { return mul(a, b, span); },
                                 make_const(DataType::Int(32), 1), op->extents) *
                           op->dtype.lanes();
@@ -118,6 +125,8 @@ class DoubleBufferInjector : public StmtExprMutator {
       }
       ICHECK(it->second.loop != nullptr);
       auto& alloc_nest = loop_allocs_[it->second.loop];
+      alloc_nest.emplace_back(
+          AttrStmt(op->buffer_var, attr::storage_scope, StringImm(it->second.scope), Evaluate(0)));
       alloc_nest.emplace_back(
           Allocate(op->buffer_var, op->dtype, new_extents, op->condition, Evaluate(0)));
       return op->body;

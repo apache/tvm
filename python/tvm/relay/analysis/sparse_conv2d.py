@@ -54,9 +54,7 @@ def _search_conv2d_op_weight(expr):
     return _ffi_api.search_conv2d_op_weight(expr)
 
 
-def process_params(
-    expr, params, block_size, sparsity_threshold, layout, kernel_size, reg_task_input=True
-):
+def process_params(expr, params, block_size, sparsity_threshold, layout):
     """Process parameters of conv2d from dense to sparse.
 
     Parameters
@@ -88,18 +86,14 @@ def process_params(
     for name in weight_names:
         name = str(name)
         w_np = params[name].numpy()
-
-        if layout == "NHWC":  # HWIO
-            weight_kernel = (w_np.shape[0], w_np.shape[1])
-        elif layout == "NCHW":  # OIHW
-            weight_kernel = (w_np.shape[2], w_np.shape[3])
-        if weight_kernel[0] != weight_kernel[1]:
+        # currently only support conv2d_1*1
+        if not (
+            (w_np.shape[0] == 1 and w_np.shape[1] == 1)
+            or (w_np.shape[2] == 1 and w_np.shape[3] == 1)
+        ):
             continue
-
-        if weight_kernel[0] == kernel_size == 1:
-            sparsity = 1.0 - (np.count_nonzero(w_np) / w_np.size)
-            if sparsity < sparsity_threshold:
-                continue
+        sparsity = 1.0 - (np.count_nonzero(w_np) / w_np.size)
+        if sparsity >= sparsity_threshold:
             if layout == "NHWC":
                 w_np = w_np.squeeze().T
             elif layout == "NCHW":
@@ -114,31 +108,19 @@ def process_params(
                 )
             else:
                 sparse_weight_data = sparse_weight.data
-        elif weight_kernel[0] == kernel_size == 3:
-            if layout == "NHWC":  # HWIO
-                w_np = w_np.reshape((-1, w_np.shape[-1])).T
-            elif layout == "NCHW":  # OIHW
-                w_np = w_np.reshape((w_np.shape[0], -1))
-            sparse_weight = sp.bsr_matrix(w_np, blocksize=block_size)
-            if 1 - (sparse_weight.nnz / w_np.size) < sparsity_threshold:
-                continue
-            sparse_weight_data = sparse_weight.data
-        else:
-            continue
 
-        # remove dense weight
-        del params[name]
-        memo.weight_name.append(name)
-        memo.weight_shape.append(
-            list(sparse_weight_data.shape)
-            + list(sparse_weight.indices.shape)
-            + list(sparse_weight.indptr.shape)
-        )
-        params[name + ".data"] = tvm.nd.array(sparse_weight_data)
-        params[name + ".indices"] = tvm.nd.array(sparse_weight.indices)
-        params[name + ".indptr"] = tvm.nd.array(sparse_weight.indptr)
+            # remove dense weight
+            del params[name]
+            memo.weight_name.append(name)
+            memo.weight_shape.append(
+                list(sparse_weight_data.shape)
+                + list(sparse_weight.indices.shape)
+                + list(sparse_weight.indptr.shape)
+            )
+            params[name + ".data"] = tvm.nd.array(sparse_weight_data)
+            params[name + ".indices"] = tvm.nd.array(sparse_weight.indices)
+            params[name + ".indptr"] = tvm.nd.array(sparse_weight.indptr)
 
-        if reg_task_input:
             prefix = "sparse_conv2d_bsr_%d_%d_%d_%d_%d_%d_" % (
                 w_np.shape[0],
                 w_np.shape[1],

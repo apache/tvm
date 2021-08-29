@@ -20,7 +20,7 @@
 source "$(dirname $0)/dev_common.sh"
 
 SCRIPT_NAME="$0"
-DEFAULT_STEPS=( file_type asf cpplint clang_format pylint python_format jnilint cppdocs mypy )
+DEFAULT_STEPS=( file_type asf cpplint clang_format pylint python_format jnilint cppdocs )
 
 inplace_fix=0
 
@@ -66,9 +66,6 @@ function run_lint_step() {
             ;;
         cppdocs)
             cmd=( tests/lint/cppdocs.sh )
-            ;;
-        mypy)
-            cmd=( tests/scripts/task_mypy.sh )
             ;;
         *)
             echo "error: don't know how to run lint step: $1" >&2

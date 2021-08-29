@@ -147,7 +147,7 @@ public class GraphModule {
     if (fdebugGetOutput != null) {
       fdebugGetOutput.pushArg(node).pushArg(out).invoke();
     } else {
-      throw new RuntimeException("Please compile runtime with USE_PROFILER = ON");
+      throw new RuntimeException("Please compile runtime with USE_GRAPH_EXECUTOR_DEBUG = 0");
     }
     return out;
   }
@@ -162,7 +162,7 @@ public class GraphModule {
     if (fdebugGetOutput != null) {
       fdebugGetOutput.pushArg(node).pushArg(out).invoke();
     } else {
-      throw new RuntimeException("Please compile runtime with USE_PROFILER = ON");
+      throw new RuntimeException("Please compile runtime with USE_GRAPH_EXECUTOR_DEBUG = 0");
     }
     return out;
   }

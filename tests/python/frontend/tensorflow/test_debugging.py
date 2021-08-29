@@ -28,7 +28,8 @@ from tvm.relay.frontend.tensorflow import from_tensorflow
 
 def run_relay(graph, shape_dict=None, *vars):
     mod, params = from_tensorflow(graph.as_graph_def(add_shapes=True), shape=shape_dict)
-    return relay.create_executor("debug", mod=mod).evaluate()(*vars)
+    ex = relay.create_executor("debug", mod=mod)
+    return ex.evaluate()(*vars)
 
 
 def test_assert_true():

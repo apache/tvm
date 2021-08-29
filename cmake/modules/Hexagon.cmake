@@ -16,12 +16,12 @@
 # under the License.
 
 include(ExternalProject)
-include(cmake/modules/HexagonSDK.cmake)
 
 set(PICK_SIM  "sim")
 set(PICK_HW   "target")
 set(PICK_NONE "OFF")
 
+set(FOUND_HEXAGON_SDK_ROOT  FALSE)
 set(FOUND_HEXAGON_TOOLCHAIN FALSE)
 
 function(find_hexagon_toolchain)
@@ -47,10 +47,41 @@ function(find_hexagon_toolchain)
   endif()
 endfunction()
 
+function(find_hexagon_sdk_root)
+  if(FOUND_HEXAGON_SDK_ROOT)
+    return()
+  endif()
+  message(STATUS "Checking Hexagon SDK root: ${USE_HEXAGON_SDK}")
+  file(GLOB_RECURSE HEXAGON_AEESTDDEF "${USE_HEXAGON_SDK}/*/AEEStdDef.h")
+  if(HEXAGON_AEESTDDEF)
+    # The path is ${HEXAGON_SDK_ROOT}/incs/stddef/AEEStdDef.h.
+    get_filename_component(HEXAGON_TMP0 "${HEXAGON_AEESTDDEF}" DIRECTORY)
+    get_filename_component(HEXAGON_TMP1 "${HEXAGON_TMP0}" DIRECTORY)
+    get_filename_component(HEXAGON_TMP2 "${HEXAGON_TMP1}" DIRECTORY)
+    set(HEXAGON_SDK_ROOT "${HEXAGON_TMP2}" CACHE PATH
+        "Root directory of Hexagon SDK")
+    set(FOUND_HEXAGON_SDK_ROOT TRUE)
+  else(HEXAGON_AEESTDDEF)
+    message(SEND_ERROR "Cannot validate Hexagon SDK in ${USE_HEXAGON_SDK}")
+  endif()
+endfunction()
+
 if(BUILD_FOR_HEXAGON)
-  find_hexagon_sdk_root("${USE_HEXAGON_SDK}" "${USE_HEXAGON_ARCH}")
-  # Add SDK and QuRT includes when building for Hexagon.
-  include_directories(SYSTEM ${HEXAGON_SDK_INCLUDES} ${HEXAGON_QURT_INCLUDES})
+  find_hexagon_sdk_root()
+  if(HEXAGON_SDK_ROOT MATCHES "3.5.1")
+    message(SEND_ERROR "Hexagon SDK 3.5.1 is not supported")
+  elseif(HEXAGON_SDK_ROOT MATCHES "3\.[0-9]+\.[0-9]+")
+    include_directories(
+      SYSTEM "${USE_HEXAGON_SDK}/libs/common/qurt/ADSPv62MP/include/posix"
+      SYSTEM "${USE_HEXAGON_SDK}/libs/common/qurt/ADSPv62MP/include/qurt")
+  else()
+    include_directories(
+      SYSTEM "${HEXAGON_SDK_ROOT}/rtos/qurt/computev65/include/posix"
+      SYSTEM "${HEXAGON_SDK_ROOT}/rtos/qurt/computev65/include/qurt")
+  endif()
+  include_directories(
+    SYSTEM "${HEXAGON_SDK_ROOT}/incs"
+    SYSTEM "${HEXAGON_SDK_ROOT}/incs/stddef")
 endif()
 
 if(USE_HEXAGON_DEVICE STREQUAL "OFF")
@@ -82,19 +113,29 @@ if(USE_HEXAGON_DEVICE STREQUAL "${PICK_SIM}")
     CMAKE_ARGS
       "-DCMAKE_C_COMPILER=${HEXAGON_TOOLCHAIN}/bin/hexagon-clang"
       "-DCMAKE_CXX_COMPILER=${HEXAGON_TOOLCHAIN}/bin/hexagon-clang++"
-      "-DHEXAGON_ARCH=${USE_HEXAGON_ARCH}"
     INSTALL_COMMAND "true"
   )
 elseif(USE_HEXAGON_DEVICE STREQUAL "${PICK_HW}")
-  find_hexagon_sdk_root("${USE_HEXAGON_SDK}" "${USE_HEXAGON_ARCH}")
+  find_hexagon_sdk_root()
   find_hexagon_toolchain()
+  message(STATUS "Hexagon SDK: ${HEXAGON_SDK_ROOT}")
+  if(HEXAGON_SDK_ROOT MATCHES "3.5.1")
+    message(SEND_ERROR "Hexagon SDK 3.5.1 is not supported")
+  elseif(HEXAGON_SDK_ROOT MATCHES "3\.[0-9]+\.[0-9]+")
+      set(RPCMEM_DIR "libs/common/rpcmem")
+      set(REMOTE_DIR "libs/common/remote/ship/android_Release_aarch64")
+  else()
+      set(RPCMEM_DIR "ipc/fastrpc/rpcmem")
+      set(REMOTE_DIR "ipc/fastrpc/remote/ship/android_aarch64")
+  endif()
   file(GLOB RUNTIME_HEXAGON_DEVICE_SRCS src/runtime/hexagon/target/*.cc)
-
-  include_directories(SYSTEM
-    ${HEXAGON_SDK_INCLUDES}
-    ${HEXAGON_RPCMEM_ROOT}/inc
-    ${HEXAGON_REMOTE_ROOT}
-  )
+  include_directories(SYSTEM "${HEXAGON_SDK_ROOT}/incs/stddef")
+  include_directories(SYSTEM "${HEXAGON_SDK_ROOT}/${RPCMEM_DIR}/inc")
+  include_directories(
+      SYSTEM "${HEXAGON_SDK_ROOT}/incs")
+  include_directories(
+      SYSTEM "${HEXAGON_SDK_ROOT}/${REMOTE_DIR}")
+  include_directories(SYSTEM "${HEXAGON_TOOLCHAIN}/include/iss")
   list(APPEND TVM_RUNTIME_LINKER_LIBS "dl")
   if(BUILD_FOR_ANDROID)
     # Hexagon runtime uses __android_log_print, which is in liblog.

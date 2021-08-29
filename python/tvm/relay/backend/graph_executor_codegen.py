@@ -20,14 +20,14 @@ A compiler from a Relay expression to TVM's graph executor.
 The compiler is built from a few pieces.
 
 First we define a compiler from a single Relay expression to the
-graph language. We require the expression to be a function.
+graph langauge. We require the expression to be a function.
 The function's parameters correspond to the placeholder/inputs
 and model parameters found in the computation graph representation.
 The body of the function represents the computation graph.
 
 The compiler's output is a program in the graph language, which is composed of
-Node, NodeRef, InputNode, OpNode. This "little language" represents programs in
-TVM's graph format.
+graph langauge is composed of Node, NodeRef, InputNode, OpNode.
+This "little language" represents programs in TVM's graph format.
 
 To connect to the graph executor, we use a printer that converts our graph format
 into TVM's JSON format. The resulting string can be loaded by

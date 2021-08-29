@@ -521,16 +521,14 @@ def batch_matmul_strategy_cpu(attrs, inputs, out_type, target):
     strategy = _op.OpStrategy()
     if is_dynamic(out_type) or is_auto_scheduler_enabled():
         strategy.add_implementation(
-            wrap_compute_batch_matmul(
-                topi.nn.batch_matmul, need_auto_scheduler_layout=True, need_out_dtype=True
-            ),
+            wrap_compute_batch_matmul(topi.nn.batch_matmul, need_auto_scheduler_layout=True),
             wrap_topi_schedule(topi.generic.nn.schedule_batch_matmul),
             name="batch_matmul.generic",
             plevel=10,
         )
     else:
         strategy.add_implementation(
-            wrap_compute_batch_matmul(topi.x86.batch_matmul, need_out_dtype=True),
+            wrap_compute_batch_matmul(topi.x86.batch_matmul),
             wrap_topi_schedule(topi.x86.schedule_batch_matmul),
             name="batch_matmul.x86",
             plevel=10,
@@ -562,31 +560,6 @@ def sparse_dense_strategy_cpu(attrs, inputs, out_type, target):
         name="sparse_dense.x86",
         plevel=10,
     )
-    return strategy
-
-
-@sparse_conv2d_strategy.register("cpu")
-def sparse_conv2d_strategy_cpu(attrs, inputs, out_type, target):
-    """sparse conv2d x86 strategy"""
-    strategy = _op.OpStrategy()
-    if attrs["kernel_size"][0] == 1:
-        strategy.add_implementation(
-            wrap_compute_sparse_conv2d(topi.nn.sparse_conv2d),
-            wrap_topi_schedule(topi.generic.schedule_sparse_conv2d),
-            name="sparse_conv2d.generic",
-        )
-    elif attrs["kernel_size"][0] == 3:
-        if attrs["layout"] == "NHWC":
-            strategy.add_implementation(
-                wrap_compute_sparse_conv2d(topi.x86.spconv2d_3x3_nhwc),
-                wrap_topi_schedule(topi.x86.schedule_spconv2d_3x3_nhwc),
-                name="conv3x3_spNHWC.x86",
-            )
-        elif attrs["layout"] == "NCHW":
-            strategy.add_implementation(
-                wrap_compute_sparse_conv2d(topi.x86.spconv2d_3x3_nchw),
-                wrap_topi_schedule(topi.x86.schedule_spconv2d_3x3_nchw),
-            )
     return strategy
 
 

@@ -91,11 +91,6 @@ void GraphExecutor::Init(const std::string& graph_json, tvm::runtime::Module mod
     std::string& name = nodes_[nid].name;
     input_map_[name] = i;
   }
-  for (size_t i = 0; i < outputs_.size(); i++) {
-    const uint32_t nid = outputs_[i].node_id;
-    std::string& name = nodes_[nid].name;
-    output_map_[name] = i;
-  }
 }
 /*!
  * \brief Get the input index given the name of input.
@@ -105,18 +100,6 @@ void GraphExecutor::Init(const std::string& graph_json, tvm::runtime::Module mod
 int GraphExecutor::GetInputIndex(const std::string& name) {
   auto it = input_map_.find(name);
   if (it != input_map_.end()) {
-    return it->second;
-  }
-  return -1;
-}
-/*!
- * \brief Get the output index given the name of output.
- * \param name The name of the output.
- * \return The index of output.
- */
-int GraphExecutor::GetOutputIndex(const std::string& name) {
-  auto it = output_map_.find(name);
-  if (it != output_map_.end()) {
     return it->second;
   }
   return -1;
@@ -132,23 +115,6 @@ void GraphExecutor::SetInput(int index, DLTensor* data_in) {
   data_entry_[eid].CopyFrom(data_in);
 }
 /*!
- * \brief Check the legality of external DLTensor*.
- * \param external The external DLTensor*.
- * \param eid The data_enrty_ index.
- */
-void GraphExecutor::CheckExternalDLTensor(const DLTensor* external, uint32_t eid) const {
-  const DLTensor* internal = data_entry_[eid].operator->();
-
-  ICHECK_EQ(data_alignment_[eid], details::GetDataAlignment(*external));
-  ICHECK_EQ(reinterpret_cast<size_t>(external->data) % kAllocAlignment, 0);
-  ICHECK_EQ(internal->ndim, static_cast<size_t>(external->ndim));
-  ICHECK_EQ(internal->device.device_type, external->device.device_type);
-  ICHECK_EQ(internal->device.device_id, external->device.device_id);
-  for (auto i = 0; i < external->ndim; ++i) {
-    ICHECK_EQ(internal->shape[i], external->shape[i]);
-  }
-}
-/*!
  * \brief set index-th input to the graph without copying the data.
  * \param index The input index.
  * \param data_ref The input data that is referred.
@@ -156,34 +122,20 @@ void GraphExecutor::CheckExternalDLTensor(const DLTensor* external, uint32_t eid
 void GraphExecutor::SetInputZeroCopy(int index, DLTensor* data_ref) {
   ICHECK_LT(static_cast<size_t>(index), input_nodes_.size());
   uint32_t eid = this->entry_id(input_nodes_[index], 0);
+  const DLTensor* old_t = data_entry_[eid].operator->();
+
   // check the consistency of input
-  CheckExternalDLTensor(data_ref, eid);
+  ICHECK_EQ(data_alignment_[eid], details::GetDataAlignment(*data_ref));
+  ICHECK_EQ(reinterpret_cast<size_t>(data_ref->data) % kAllocAlignment, 0);
+  ICHECK_EQ(old_t->ndim, static_cast<size_t>(data_ref->ndim));
+  ICHECK_EQ(old_t->device.device_type, data_ref->device.device_type);
+  ICHECK_EQ(old_t->device.device_id, data_ref->device.device_id);
+  for (auto i = 0; i < data_ref->ndim; ++i) {
+    ICHECK_EQ(old_t->shape[i], data_ref->shape[i]);
+  }
+
   // Update the data pointer for each argument of each op
   for (DLTensor* t : input_dltensors_[eid]) {
-    t->data = data_ref->data;
-  }
-}
-/*!
- * \brief set index-th output to the graph without copying the data.
- * \param index The output index.
- * \param data_ref The output data that is referred.
- */
-void GraphExecutor::SetOutputZeroCopy(int index, DLTensor* data_ref) {
-  ICHECK_LT(static_cast<size_t>(index), outputs_.size());
-  ICHECK_LT(static_cast<size_t>(index), output_dltensors_.size());
-  const NodeEntry& output_node = outputs_[index];
-  uint32_t output_node_eid = this->entry_id(output_node);
-
-  // check the consistency of output
-  CheckExternalDLTensor(data_ref, output_node_eid);
-
-  // Update the data pointer for output op
-  for (DLTensor* t : output_dltensors_[output_node_eid]) {
-    t->data = data_ref->data;
-  }
-
-  // Update the input of the op connected to the output
-  for (DLTensor* t : both_output_opinput_dltensors_[output_node_eid]) {
     t->data = data_ref->data;
   }
 }
@@ -406,16 +358,10 @@ void GraphExecutor::SetupStorage() {
 void GraphExecutor::SetupOpExecs() {
   op_execs_.resize(this->GetNumOfNodes());
   input_dltensors_.resize(num_node_entries());
-  output_dltensors_.resize(num_node_entries());
-  both_output_opinput_dltensors_.resize(num_node_entries());
   std::unordered_set<uint32_t> input_node_eids;
   for (size_t i = 0; i < input_nodes_.size(); i++) {
     uint32_t nid = input_nodes_[i];
     input_node_eids.insert(entry_id(nid, 0));
-  }
-  std::unordered_set<uint32_t> output_node_eids;
-  for (size_t i = 0; i < outputs_.size(); i++) {
-    output_node_eids.insert(entry_id(outputs_[i]));
   }
 
   // setup the array and requirements.
@@ -434,35 +380,21 @@ void GraphExecutor::SetupOpExecs() {
     ICHECK(inode.op_type == "tvm_op") << "Can only take tvm_op as op";
 
     std::shared_ptr<OpArgs> op_args = nullptr;
-    std::tie(op_execs_[nid], op_args) = CreateTVMOp(inode.param, args);
+    std::tie(op_execs_[nid], op_args) = CreateTVMOp(inode.param, args, inode.inputs.size());
 
     for (size_t i = 0; i < inode.inputs.size(); i++) {
-      uint32_t input_eid = this->entry_id(inode.inputs[i]);
+      uint32_t eid = this->entry_id(inode.inputs[i]);
       // check if op input is model input
-      if (input_node_eids.count(input_eid) > 0) {
-        input_dltensors_[input_eid].push_back(
-            static_cast<DLTensor*>(op_args->arg_values[i].v_handle));
-      }
-      // check if any model output is the input of the op
-      if (output_node_eids.count(input_eid) > 0) {
-        both_output_opinput_dltensors_[input_eid].push_back(
-            static_cast<DLTensor*>(op_args->arg_values[i].v_handle));
-      }
-    }
-
-    for (uint32_t i = inode.inputs.size(); i < inode.inputs.size() + inode.param.num_outputs; ++i) {
-      uint32_t output_eid = this->entry_id(nid, i - inode.inputs.size());
-      // check if op output is model output
-      if (output_node_eids.count(output_eid) > 0) {
-        output_dltensors_[output_eid].push_back(
-            static_cast<DLTensor*>(op_args->arg_values[i].v_handle));
+      if (input_node_eids.count(eid) > 0) {
+        input_dltensors_[eid].push_back(static_cast<DLTensor*>(op_args->arg_values[i].v_handle));
       }
     }
   }
 }
 
 std::pair<std::function<void()>, std::shared_ptr<GraphExecutor::OpArgs> >
-GraphExecutor::CreateTVMOp(const TVMOpParam& param, const std::vector<DLTensor>& args) {
+GraphExecutor::CreateTVMOp(const TVMOpParam& param, const std::vector<DLTensor>& args,
+                           size_t num_inputs) {
   std::shared_ptr<GraphExecutor::OpArgs> arg_ptr = std::make_shared<GraphExecutor::OpArgs>();
   // setup address.
   arg_ptr->args = args;
@@ -531,15 +463,6 @@ PackedFunc GraphExecutor::GetFunction(const std::string& name,
         this->SetInputZeroCopy(args[0], args[1]);
       }
     });
-  } else if (name == "set_output_zero_copy") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      if (String::CanConvertFrom(args[0])) {
-        int out_idx = this->GetOutputIndex(args[0].operator String());
-        if (out_idx >= 0) this->SetOutputZeroCopy(out_idx, args[1]);
-      } else {
-        this->SetOutputZeroCopy(args[0], args[1]);
-      }
-    });
   } else if (name == "get_output") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       if (args.num_args == 2) {
@@ -568,34 +491,6 @@ PackedFunc GraphExecutor::GetFunction(const std::string& name,
         [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->NumInputs(); });
   } else if (name == "run") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { this->Run(); });
-  } else if (name == "run_from_inputs") {
-    return PackedFunc(
-        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-          CHECK(args.size() % 2 == 0)
-              << "Number of arguments to run_from_inputs must be an even number of key-value pairs";
-          Device host{static_cast<DLDeviceType>(args[0].operator int()), args[1].operator int()};
-          for (int i = 2; i < args.size(); i += 2) {
-            if (String::CanConvertFrom(args[i])) {
-              int in_idx = this->GetInputIndex(args[i].operator String());
-              if (in_idx >= 0) {
-                this->SetInput(in_idx, args[i + 1]);
-              } else {
-                LOG(FATAL) << args[i].operator String() << " is not a valid input name";
-              }
-            } else {
-              this->SetInput(args[i], args[i + 1]);
-            }
-          }
-          this->Run();
-          Array<NDArray> outputs;
-          for (int i = 0; i < this->NumOutputs(); i++) {
-            NDArray out = this->GetOutput(i);
-            NDArray a = NDArray::Empty(out.Shape(), out.DataType(), host);
-            a.CopyFrom(out);
-            outputs.push_back(a);
-          }
-          *rv = outputs;
-        });
   } else if (name == "load_params") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       this->LoadParams(args[0].operator std::string());
@@ -607,11 +502,6 @@ PackedFunc GraphExecutor::GetFunction(const std::string& name,
       const auto& param_blob = args[1].operator std::string();
       dmlc::MemoryStringStream strm(const_cast<std::string*>(&param_blob));
       this->ShareParams(dynamic_cast<const GraphExecutor&>(*module.operator->()), &strm);
-    });
-  } else if (name == "get_input_index") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      CHECK(String::CanConvertFrom(args[0])) << "Input key is not a string";
-      *rv = this->GetInputIndex(args[0].operator String());
     });
   } else {
     return PackedFunc();

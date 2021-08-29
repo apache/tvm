@@ -43,7 +43,7 @@ Array<arith::IntSet> AnalyzeRegionUpperBound(const BufferRegion& region,
       AsIntSet(LoopDomainOfSRefTreePath(
           /*low_inclusive=*/dom_low_inclusive,
           /*high_exclusive=*/dom_high_exclusive,
-          /*extra_relax_scope=*/runtime::StorageScope::Create(region->buffer.scope()))));
+          /*extra_relax_scope=*/runtime::StorageScope::Create(region->buffer->scope))));
 }
 
 /*!
@@ -67,7 +67,7 @@ Array<arith::IntSet> AnalyzeRegionLowerBound(const BlockRealize& realize,
           LoopDomainOfSRefTreePath(
               /*low_inclusive=*/dom_low_inclusive,
               /*high_exclusive=*/dom_high_exclusive,
-              /*extra_relax_scope=*/runtime::StorageScope::Create(region->buffer.scope())),
+              /*extra_relax_scope=*/runtime::StorageScope::Create(region->buffer->scope)),
           /*predicate=*/realize->predicate, /*analyzer=*/analyzer)) {
     return result.value();
   }
@@ -112,7 +112,7 @@ bool ProducerCoversConsumer(const Array<PrimExpr>& buffer_shape,
  * \param self The schedule class
  * \param stmt The statement, or the realize node of the statement whose sref to be set
  * \param seq_index The seq_index to be set
- * \note The method is NOP for statements that are not schedulable, i.e. not For or Block
+ * \note The method is NOP for statements that are not scheduleable, i.e. not For or Block
  */
 void SetSeqIndex(ScheduleStateNode* self, const Stmt& stmt, int seq_index) {
   if (const auto* realize = stmt.as<BlockRealizeNode>()) {
@@ -161,6 +161,34 @@ void UpdateSRef(ScheduleStateNode* self, StmtSRefNode* sref, const StmtNode* new
   sref->stmt = new_stmt;
 }
 
+/*!
+ * \brief Get PrimFunc and GlobalVar that the root block belongs to
+ * \param mod The IRModule
+ * \param root_block The root block of the PrimFunc
+ * \param result_g_var The result GlobalVar
+ * \return The result PrimFunc where the root block belongs to
+ * \note This function returns the pointer instead of ObjectRef to avoid later copy-on-write
+ */
+const PrimFuncNode* GetRootPrimFunc(const IRModule& mod, const StmtNode* root_block,
+                                    GlobalVar* result_g_var) {
+  for (const auto& kv : mod->functions) {
+    const GlobalVar& g_var = kv.first;
+    const BaseFunc& base_func = kv.second;
+    if (const auto* func = base_func.as<PrimFuncNode>()) {
+      if (const auto* realize = func->body.as<BlockRealizeNode>()) {
+        if (realize->block.get() == root_block) {
+          *result_g_var = g_var;
+          return func;
+        }
+      }
+    }
+  }
+  LOG(FATAL) << "IndexError: Could not get the correpsonding function in the schedule state of the "
+                "statement:\n"
+             << GetRef<Stmt>(root_block);
+  throw;
+}
+
 /**************** Creation ****************/
 
 /*! \brief A helper class to create a new ScheduleStateNode from an IRModule */
@@ -170,13 +198,13 @@ class StateCreator : private StmtVisitor {
    * \brief The entry function
    * \param self The schedule state to be completed
    */
-  static ObjectPtr<ScheduleStateNode> Create(IRModule mod, int debug_mask) {
+  static ObjectPtr<ScheduleStateNode> Create(IRModule mod, int debug_mode) {
     ObjectPtr<ScheduleStateNode> n = make_object<ScheduleStateNode>();
     ScheduleStateNode* self = n.get();
     // Set `n->mod`
     n->mod = std::move(mod);
-    // Set `n->debug_mask`
-    n->debug_mask = debug_mask;
+    // Set `n->debug_mode`
+    n->debug_mode = debug_mode;
     // Set `n->stmt2ref` and `n->block_info`
     StateCreator creator(self);
     for (const auto& kv : n->mod->functions) {
@@ -405,16 +433,19 @@ class StateCreator : private StmtVisitor {
   std::unordered_map<const StmtNode*, BlockRealize> block2realize_;
   /*! \brief The stack frames of blocks in the DFS visit. */
   std::vector<Array<StmtSRef>> block_frames_;
-  /*! \brief The auxiliary analyzer */
+  /*! \brief The auxilary analyzer */
   arith::Analyzer analyzer_;
 };
 
 /**************** Constructor ****************/
 
-ScheduleState::ScheduleState(IRModule mod, int debug_mask) {
-  CHECK_GE(debug_mask, -1) << "ValueError: negative `debug_mask` other than -1 is not supported";
-  data_ = StateCreator::Create(mod, debug_mask);
+ScheduleState::ScheduleState(IRModule mod, int debug_mode) {
+  CHECK_GE(debug_mode, -1) << "ValueError: negative `debug_mode` other than -1 is not supported";
+  data_ = StateCreator::Create(mod, debug_mode);
 }
+
+ScheduleState::ScheduleState(PrimFunc func, int debug_mode)
+    : ScheduleState(IRModule({{GlobalVar("main"), func}}), debug_mode) {}
 
 /**************** Replace ****************/
 
@@ -565,7 +596,7 @@ class SRefTreePruner : public StmtVisitor {
     }
     auto it = self_->stmt2ref.find(op);
     ICHECK(it != self_->stmt2ref.end())
-        << "IndexError: Cannot find corresponding StmtSRef for the loop:\n"
+        << "IndexError: Cannot find correpsonding StmtSRef for the loop:\n"
         << GetRef<For>(op);
     StmtSRef& sref = it->second;
     // Detect reuse
@@ -588,7 +619,7 @@ class SRefTreePruner : public StmtVisitor {
     }
     auto it = self_->stmt2ref.find(op);
     ICHECK(it != self_->stmt2ref.end())
-        << "IndexError: Cannot find corresponding StmtSRef for the block:\n"
+        << "IndexError: Cannot find correpsonding StmtSRef for the block:\n"
         << GetRef<Block>(op);
     StmtSRef& sref = it->second;
     // Detect reuse
@@ -706,7 +737,7 @@ class SRefUpdater : public StmtVisitor {
   void UpdateBlockInfo(const StmtSRef& block_sref) {
     using TIter = std::unordered_map<StmtSRef, BlockInfo, ObjectPtrHash, ObjectPtrEqual>::iterator;
     // The caller is responsible for correcting the flags
-    BlockInfo new_info((BlockScope(GetChildBlockSRefOnSRefTree(self_, block_sref))));
+    BlockInfo new_info(BlockScope(GetChildBlocks(self_, block_sref)));
     std::pair<TIter, bool> insert_result = self_->block_info.emplace(block_sref, new_info);
     bool inserted = insert_result.second;
     BlockInfo& info = insert_result.first->second;
@@ -836,7 +867,7 @@ class ChildReplacer : private StmtMutator {
 
 void ScheduleStateNode::Replace(const tir::StmtSRef& _src_sref, const Stmt& tgt_stmt,
                                 const Map<Block, Block>& _block_sref_reuse) {
-  if (this->debug_mask != 0) {
+  if (this->debug_mode != 0) {
     const StmtNode* src_stmt = _src_sref->stmt;
     bool input_correct =
         (src_stmt->IsInstance<ForNode>() && tgt_stmt->IsInstance<ForNode>()) ||
@@ -990,8 +1021,8 @@ void ScheduleStateNode::Replace(const tir::StmtSRef& _src_sref, const Stmt& tgt_
     new_map->at(g_var) = std::move(ref_new_func);
     this->mod = GetRef<IRModule>(new_mod);
   }
-  uint32_t flag = (debug_mask != -1)                       //
-                      ? static_cast<uint32_t>(debug_mask)  //
+  uint32_t flag = (debug_mode != -1)                       //
+                      ? static_cast<uint32_t>(debug_mode)  //
                       : std::numeric_limits<uint32_t>::max();
   if (flag & ScheduleDebugMask::kVerifySRefTree) {
     VerifySRefTree(GetRef<ScheduleState>(this));
@@ -999,9 +1030,9 @@ void ScheduleStateNode::Replace(const tir::StmtSRef& _src_sref, const Stmt& tgt_
 }
 
 void ScheduleStateNode::DebugVerify() const {
-  ICHECK_GE(debug_mask, -1);
-  uint32_t flag = (debug_mask != -1)                       //
-                      ? static_cast<uint32_t>(debug_mask)  //
+  ICHECK_GE(debug_mode, -1);
+  uint32_t flag = (debug_mode != -1)                       //
+                      ? static_cast<uint32_t>(debug_mode)  //
                       : std::numeric_limits<uint32_t>::max();
   if (flag & ScheduleDebugMask::kVerifySRefTree) {
     VerifySRefTree(GetRef<ScheduleState>(this));
@@ -1014,7 +1045,7 @@ void ScheduleStateNode::DebugVerify() const {
 /**************** BlockInfo-related ****************/
 
 BlockInfo ScheduleStateNode::GetBlockInfo(const StmtSRef& block_sref) const {
-  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  const auto* block = TVM_SREF_TO_BLOCK(block, block_sref);
   auto it = this->block_info.find(block_sref);
   CHECK(it != this->block_info.end())
       << "IndexError: Cannot find the corresponding BlockScope to the block sref:\n"
@@ -1032,10 +1063,16 @@ TVM_DLL Array<Bool> GetCachedFlags(const ScheduleState& self, const StmtSRef& bl
 /**************** FFI ****************/
 
 TVM_REGISTER_NODE_TYPE(ScheduleStateNode);
-TVM_REGISTER_GLOBAL("tir.schedule.ScheduleState")
-    .set_body_typed([](IRModule mod, int debug_mask) -> ScheduleState {
-      return ScheduleState(mod, debug_mask);
-    });
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleState").set_body_typed([](ObjectRef obj, int debug_mode) {
+  if (const auto* func = obj.as<PrimFuncNode>()) {
+    return ScheduleState(GetRef<PrimFunc>(func), debug_mode);
+  }
+  if (const auto* mod = obj.as<IRModuleNode>()) {
+    return ScheduleState(GetRef<IRModule>(mod), debug_mode);
+  }
+  LOG(FATAL) << "TypeError: Expects `IRModule` or `PrimFunc`, but gets: " << obj->GetTypeKey();
+  throw;
+});
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleStateGetBlockScope")
     .set_body_method<ScheduleState>(&ScheduleStateNode::GetBlockScope);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleStateReplace")

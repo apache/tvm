@@ -98,9 +98,8 @@ def test_conv1d_run():
             if target in except_targets:
                 continue
             dev = tvm.device(target, 0)
-            op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
-                data, kernel
-            )
+            intrp1 = relay.create_executor("graph", device=dev, target=target)
+            op_res1 = intrp1.evaluate(func)(data, kernel)
             tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
     # normal conv1d
@@ -227,9 +226,8 @@ def test_conv2d_run():
             if target in except_targets:
                 continue
             dev = tvm.device(target, 0)
-            op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
-                data, kernel
-            )
+            intrp1 = relay.create_executor("graph", device=dev, target=target)
+            op_res1 = intrp1.evaluate(func)(data, kernel)
             tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-4, atol=1e-4)
 
     def compile_test_conv2d_arm_cpu(
@@ -515,9 +513,8 @@ def test_conv3d_run():
                 continue
             dev = tvm.device(target, 0)
 
-            op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
-                data, kernel
-            )
+            intrp1 = relay.create_executor("graph", device=dev, target=target)
+            op_res1 = intrp1.evaluate(func)(data, kernel)
             tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
     # normal conv3d
@@ -581,9 +578,8 @@ def test_conv3d_ndhwc_run():
                 continue
             dev = tvm.device(target, 0)
 
-            op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
-                data, kernel
-            )
+            intrp1 = relay.create_executor("graph", device=dev, target=target)
+            op_res1 = intrp1.evaluate(func)(data, kernel)
             tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
     # normal conv3d
@@ -765,9 +761,8 @@ def test_conv3d_transpose_ncdhw_run():
     ref_res = tvm.topi.testing.conv3d_transpose_ncdhw_python(data, kernel, 1, 1, 0)
 
     for target, dev in tvm.testing.enabled_targets():
-        op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
-            data, kernel
-        )
+        intrp1 = relay.create_executor("graph", device=dev, target=target)
+        op_res1 = intrp1.evaluate(func)(data, kernel)
         tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
 
@@ -809,9 +804,8 @@ def test_conv2d_transpose_nchw_run():
     ref_res = tvm.topi.testing.conv2d_transpose_nchw_python(data, kernel, 2, 1, (1, 1))
 
     for target, dev in tvm.testing.enabled_targets():
-        op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
-            data, kernel
-        )
+        intrp1 = relay.create_executor("graph", device=dev, target=target)
+        op_res1 = intrp1.evaluate(func)(data, kernel)
         tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
 
@@ -846,9 +840,8 @@ def test_conv2d_transpose_nhwc_run():
     )
 
     for target, dev in tvm.testing.enabled_targets():
-        op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
-            data, kernel
-        )
+        intrp1 = relay.create_executor("graph", device=dev, target=target)
+        op_res1 = intrp1.evaluate(func)(data, kernel)
         tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
 
@@ -869,9 +862,8 @@ def test_conv1d_transpose_ncw_run():
     ref_res = tvm.topi.testing.conv1d_transpose_ncw_python(data, kernel, 2, 1, output_padding=(1,))
 
     for target, dev in tvm.testing.enabled_targets():
-        op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
-            data, kernel
-        )
+        intrp1 = relay.create_executor("graph", device=dev, target=target)
+        op_res1 = intrp1.evaluate(func)(data, kernel)
         tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
 
@@ -955,7 +947,8 @@ def _test_global_pool2d(opfunc, reffunc):
     data = np.random.uniform(size=dshape).astype(dtype)
     ref_res = reffunc(data, axis=(2, 3), keepdims=True)
     for target, dev in tvm.testing.enabled_targets():
-        op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(data)
+        intrp1 = relay.create_executor("graph", device=dev, target=target)
+        op_res1 = intrp1.evaluate(func)(data)
         tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
 
@@ -987,7 +980,8 @@ def test_pool2d():
             ceil_mode=False,
         )
         for target, dev in tvm.testing.enabled_targets():
-            op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(data)
+            intrp1 = relay.create_executor("graph", device=dev, target=target)
+            op_res1 = intrp1.evaluate(func)(data)
             tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
     def _test_pool2d_int(opfunc, reffunc, dtype):
@@ -1007,9 +1001,8 @@ def test_pool2d():
             data = np.random.randint(low=-128, high=128, size=dshape)
             ref_res = reffunc(data.reshape(1, 3, 14, 2, 14, 2), axis=(3, 5)).astype(dtype)
             for target, dev in tvm.testing.enabled_targets():
-                op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
-                    data
-                )
+                intrp1 = relay.create_executor("graph", device=dev, target=target)
+                op_res1 = intrp1.evaluate(func)(data)
                 tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
     _test_pool2d(relay.nn.max_pool2d, "max")
@@ -1046,7 +1039,8 @@ def _test_global_pool1d(opfunc, reffunc):
     data = np.random.uniform(size=dshape).astype(dtype)
     ref_res = reffunc(data, axis=(2,), keepdims=True)
     for target, dev in tvm.testing.enabled_targets():
-        op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(data)
+        intrp1 = relay.create_executor("graph", device=dev, target=target)
+        op_res1 = intrp1.evaluate(func)(data)
         tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
 
@@ -1081,9 +1075,8 @@ def test_pool1d():
                 ceil_mode=False,
             )
             for target, dev in tvm.testing.enabled_targets():
-                op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
-                    data
-                )
+                intrp1 = relay.create_executor("graph", device=dev, target=target)
+                op_res1 = intrp1.evaluate(func)(data)
                 tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
     _test_pool1d(relay.nn.max_pool1d, "max")
@@ -1142,9 +1135,8 @@ def test_pool3d():
                 ceil_mode=False,
             )
             for target, dev in tvm.testing.enabled_targets():
-                op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
-                    data
-                )
+                intrp1 = relay.create_executor("graph", device=dev, target=target)
+                op_res1 = intrp1.evaluate(func)(data)
                 tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
     _test_pool3d(relay.nn.max_pool3d, "max")
@@ -1195,7 +1187,8 @@ def test_avg_pool2d_no_count_pad():
     data = a_np
 
     for target, dev in tvm.testing.enabled_targets():
-        op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(data)
+        intrp1 = relay.create_executor("graph", device=dev, target=target)
+        op_res1 = intrp1.evaluate(func)(data)
         tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
 
@@ -1229,9 +1222,11 @@ def test_flatten_infer_type():
     ref_res = x_data.flatten().reshape(o_shape)
 
     for target, dev in tvm.testing.enabled_targets():
-        op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(x_data)
+        intrp1 = relay.create_executor("graph", device=dev, target=target)
+        intrp2 = relay.create_executor("debug", device=dev, target=target)
+        op_res1 = intrp1.evaluate(func)(x_data)
         tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5)
-        op_res2 = relay.create_executor("debug", device=dev, target=target).evaluate(func)(x_data)
+        op_res2 = intrp2.evaluate(func)(x_data)
         tvm.testing.assert_allclose(op_res2.numpy(), ref_res, rtol=1e-5)
 
 
@@ -1301,9 +1296,8 @@ def test_pad_run():
             data = np.random.uniform(size=dshape).astype(dtype)
             ref_res = _get_numpy_pad(dshape, data, pad)
             for target, dev in tvm.testing.enabled_targets():
-                op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
-                    data
-                )
+                intrp1 = relay.create_executor("graph", device=dev, target=target)
+                op_res1 = intrp1.evaluate(func)(data)
                 tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
     _test_run("float32")
@@ -1326,9 +1320,8 @@ def test_pad_run_dynamic_pad_value():
         ref_res = _get_numpy_pad(dshape, data_arr, pad, pad_value=pad_value_arr)
 
         for target, dev in tvm.testing.enabled_targets():
-            result = relay.create_executor(kind="graph", device=dev, target=target).evaluate(f)(
-                data_arr, pad_value_arr
-            )
+            intrp = relay.create_executor(kind="graph", device=dev, target=target)
+            result = intrp.evaluate(f)(data_arr, pad_value_arr)
             tvm.testing.assert_allclose(result.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
     _test_run("float32")
@@ -1360,9 +1353,11 @@ def test_lrn():
     ref_res = tvm.topi.testing.lrn_python(x_data, size, axis, bias, alpha, beta)
 
     for target, dev in tvm.testing.enabled_targets():
-        op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(x_data)
+        intrp1 = relay.create_executor("graph", device=dev, target=target)
+        intrp2 = relay.create_executor("debug", device=dev, target=target)
+        op_res1 = intrp1.evaluate(func)(x_data)
         tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5)
-        op_res2 = relay.create_executor("debug", device=dev, target=target).evaluate(func)(x_data)
+        op_res2 = intrp2.evaluate(func)(x_data)
         tvm.testing.assert_allclose(op_res2.numpy(), ref_res, rtol=1e-5)
 
 
@@ -1388,9 +1383,11 @@ def test_l2_normalize():
     ref_res = tvm.topi.testing.l2_normalize_python(x_data, eps, axis)
 
     for target, dev in tvm.testing.enabled_targets():
-        op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(x_data)
+        intrp1 = relay.create_executor("graph", device=dev, target=target)
+        intrp2 = relay.create_executor("debug", device=dev, target=target)
+        op_res1 = intrp1.evaluate(func)(x_data)
         tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5)
-        op_res2 = relay.create_executor("debug", device=dev, target=target).evaluate(func)(x_data)
+        op_res2 = intrp2.evaluate(func)(x_data)
         tvm.testing.assert_allclose(op_res2.numpy(), ref_res, rtol=1e-5)
 
 
@@ -1411,7 +1408,8 @@ def test_batch_flatten():
     data = np.random.rand(5, 10, 5).astype(t1.dtype)
     ref_res = batch_flatten(data)
     for target, dev in tvm.testing.enabled_targets():
-        op_res = relay.create_executor("graph", device=dev, target=target).evaluate(func)(data)
+        intrp = relay.create_executor("graph", device=dev, target=target)
+        op_res = intrp.evaluate(func)(data)
         np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=0.01)
 
 
@@ -1460,7 +1458,8 @@ def _test_upsampling(layout, method, align_corners=False):
         "align_corners" if align_corners else "asymmetric",
     )
     for target, dev in tvm.testing.enabled_targets():
-        out = relay.create_executor("graph", device=dev, target=target).evaluate(func)(data)
+        executor = relay.create_executor("graph", device=dev, target=target)
+        out = executor.evaluate(func)(data)
         tvm.testing.assert_allclose(out.numpy(), ref, rtol=1e-5, atol=1e-5)
 
 
@@ -1531,7 +1530,8 @@ def _test_upsampling3d(layout, method, coordinate_transformation_mode="half_pixe
         coordinate_transformation_mode,
     )
     for target, dev in tvm.testing.enabled_targets():
-        out = relay.create_executor("graph", device=dev, target=target).evaluate(func)(data)
+        executor = relay.create_executor("graph", device=dev, target=target)
+        out = executor.evaluate(func)(data)
         tvm.testing.assert_allclose(out.numpy(), ref, rtol=1e-5, atol=1e-5)
 
 
@@ -1602,7 +1602,7 @@ def test_conv2d_int8_intrinsics():
     targets = ["llvm -mcpu=skylake-avx512", "llvm -mcpu=cascadelake"]
     llvm_version = tvm.target.codegen.llvm_version_major()
     for target in targets:
-        if tvm.testing.device_enabled(target) and llvm_version >= 8:
+        if llvm_version >= 8:
             dtypes = ("uint8", "int8", "int32")
             # Sweep the input channels to check int8 robustness
             # Input channels should be a multiple of 4 internally.
@@ -1654,7 +1654,7 @@ def test_conv2d_int8_intrinsics():
 
     # Check that int8 x int8 goes through legalization so that fast instructions can be picked up.
     for target in targets:
-        if tvm.testing.device_enabled(target) and llvm_version >= 8:
+        if llvm_version >= 8:
             dtypes = ("int8", "int8", "int32")
             # Check that both non-divisible oc and ic work
             asm = _compile(
@@ -1676,18 +1676,17 @@ def test_conv2d_int8_intrinsics():
     # Check that a vectorized instruction is generated for older Intel
     # generations, because we default to NCHWc layout.
     target = "llvm -mcpu=core-avx2"
-    if tvm.testing.device_enabled(target):
-        fast_int8_dtypes = ("uint8", "int8", "int32")
-        asm = _compile(
-            ic=16,
-            oc=32,
-            target=target,
-            data_layout="NCHW",
-            kernel_layout="OIHW",
-            dtypes=fast_int8_dtypes,
-        )
-        # Check that vector int mult and add instructions are generated.
-        assert "vpmulld" in asm and "vpadd" in asm
+    fast_int8_dtypes = ("uint8", "int8", "int32")
+    asm = _compile(
+        ic=16,
+        oc=32,
+        target=target,
+        data_layout="NCHW",
+        kernel_layout="OIHW",
+        dtypes=fast_int8_dtypes,
+    )
+    # Check that vector int mult and add instructions are generated.
+    assert "vpmulld" in asm and "vpadd" in asm
 
 
 @tvm.testing.uses_gpu
@@ -1798,9 +1797,8 @@ def test_correlation():
         )
 
         for target, dev in tvm.testing.enabled_targets():
-            op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
-                data1_np, data2_np
-            )
+            intrp1 = relay.create_executor("graph", device=dev, target=target)
+            op_res1 = intrp1.evaluate(func)(data1_np, data2_np)
             tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
     _test_correlation(

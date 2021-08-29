@@ -433,7 +433,8 @@ def get_calibration_data(mod, data):
     mod = _ffi_api.get_calibrate_module(mod)
     mod = transform.Inline()(mod)
 
-    ref_res = build_module.create_executor("graph", mod=mod, device=cpu(0)).evaluate()(**data)
+    ref_ex = build_module.create_executor("graph", mod=mod, device=cpu(0))
+    ref_res = ref_ex.evaluate()(**data)
 
     calib_data = {}
     for gvar, indices in output_map.items():

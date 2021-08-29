@@ -138,12 +138,8 @@ class TypeContext {
 
   std::string TypeIndex2Key(uint32_t tindex) {
     std::lock_guard<std::mutex> lock(mutex_);
-    if (tindex != 0) {
-      // always return the right type key for root
-      // for non-root type nodes, allocated slots should not equal 0
-      ICHECK(tindex < type_table_.size() && type_table_[tindex].allocated_slots != 0)
-          << "Unknown type index " << tindex;
-    }
+    ICHECK(tindex < type_table_.size() && type_table_[tindex].allocated_slots != 0)
+        << "Unknown type index " << tindex;
     return type_table_[tindex].name;
   }
 
@@ -260,13 +256,5 @@ int TVMObjectDerivedFrom(uint32_t child_type_index, uint32_t parent_type_index, 
 int TVMObjectTypeKey2Index(const char* type_key, unsigned* out_tindex) {
   API_BEGIN();
   out_tindex[0] = tvm::runtime::ObjectInternal::ObjectTypeKey2Index(type_key);
-  API_END();
-}
-
-int TVMObjectTypeIndex2Key(unsigned tindex, char** out_type_key) {
-  API_BEGIN();
-  auto key = tvm::runtime::Object::TypeIndex2Key(tindex);
-  *out_type_key = static_cast<char*>(malloc(key.size() + 1));
-  strncpy(*out_type_key, key.c_str(), key.size());
   API_END();
 }

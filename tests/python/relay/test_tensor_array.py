@@ -63,9 +63,8 @@ def check_tensor_array(ta_mod, ref_res, *args, dtype="float32", rtol=1e-5):
         for target, dev in [("llvm", tvm.cpu(0))]:  # testing.enabled_targets():
             if kind == "debug" and dev.device_type != tvm.cpu().device_type:
                 continue
-            result = relay.create_executor(kind, mod=ta_mod, device=dev, target=target).evaluate()(
-                *args
-            )
+            ex = relay.create_executor(kind, mod=ta_mod, device=dev, target=target)
+            result = ex.evaluate()(*args)
             got = vmobj_to_list(ta_mod, result, dtype)
             tvm.testing.assert_allclose(ref_res, got, rtol=rtol, atol=rtol)
 

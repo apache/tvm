@@ -96,20 +96,22 @@ TVM_DLL Array<Var> UndefinedVars(const PrimExpr& expr);
 TVM_DLL CallEffectKind SideEffect(const PrimExpr& expr);
 
 /*!
- * \brief Whether the given Stmt uses any var in the given variable set.
- * \param stmt The Stmt to be checked.
- * \param vset_contains The check function to see if a var is in the variable set.
- * \return Whether `stmt` uses any var in the given variable set.
+ * \brief Whether e expression used any var in variable set.
+ * \param expr The expression to be checked.
+ * \param vset_contains The check function to see if var is in the vset.
+ * \return Whether e uses vset.
  */
-TVM_DLL bool UsesVar(const Stmt& stmt, std::function<bool(const VarNode*)> vset_contains);
+TVM_DLL bool ExprUseVar(const PrimExpr& expr, std::function<bool(const VarNode*)> vset_contains);
 
 /*!
- * \brief Whether the given PrimExpr uses any var in the given variable set.
- * \param expr The PrimExpr to be checked.
- * \param vset_contains The check function to see if var is in the variable set.
- * \return Whether `expr` uses any var in the given variable set.
+ * \brief Whether e expression used var.
+ * \param expr The expression to be checked.
+ * \param var The variable.
+ * \return Whether e uses v.
  */
-TVM_DLL bool UsesVar(const PrimExpr& expr, std::function<bool(const VarNode*)> vset_contains);
+inline bool ExprUseVar(const PrimExpr& expr, const Var& var) {
+  return ExprUseVar(expr, [&](const VarNode* node) { return var.get() == node; });
+}
 
 /*!
  * \brief Verifies whether the IR stmt or Expr is in SSA form.

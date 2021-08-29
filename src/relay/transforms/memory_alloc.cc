@@ -41,8 +41,7 @@
 #include <unordered_set>
 #include <vector>
 
-#include "../backend/te_compiler.h"
-#include "../backend/te_compiler_cache.h"
+#include "../backend/compile_engine.h"
 #include "../op/memory/memory.h"
 #include "../op/vm/vm.h"
 #include "./pass_utils.h"
@@ -50,7 +49,6 @@
 #include "pattern_utils.h"
 
 using namespace tvm::runtime;
-using namespace tvm::relay::tec;
 
 namespace tvm {
 namespace relay {
@@ -273,11 +271,9 @@ class DialectRewriter : public ExprMutator {
   Array<Expr> EmitShapeFunc(LetList* scope, const Function& func,
                             const std::vector<Expr>& new_args) {
     Array<Expr> shape_func_ins;
-
-    TECompiler compiler;
-
+    auto engine = CompileEngine::Global();
     CCacheKey key(func, target_host_);
-    auto cfunc = compiler->LowerShapeFunc(key);
+    auto cfunc = engine->LowerShapeFunc(key);
     auto input_states = cfunc->shape_func_param_states;
 
     Array<Integer> is_inputs;

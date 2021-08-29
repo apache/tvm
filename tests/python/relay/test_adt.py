@@ -34,14 +34,7 @@ def count(e):
 
 
 dev = tvm.device("llvm", 0)
-
-
-def eval(expr):
-    # CAUTION: These tests re-process the entire prelude for each test expression.
-    # Hoisting the create_executor won't improve that since preprocessing won't begin
-    # until the evaluate.
-    return create_executor(mod=prelude.mod, device=dev, target="llvm").evaluate(expr)
-
+intrp = create_executor(mod=prelude.mod, device=dev, target="llvm")
 
 nat, z, s = prelude.mod.get_type("nat")
 
@@ -146,7 +139,7 @@ def get_scalar(tv):
 # @tvm.testing.uses_gpu
 def test_nat_value():
     assert count(make_nat_value(p, 10)) == 10
-    assert count(eval(s(s(z())))) == 2
+    assert count(intrp.evaluate(s(s(z())))) == 2
 
 
 @tvm.testing.uses_gpu
@@ -165,14 +158,14 @@ def test_nat_constructor():
 @tvm.testing.uses_gpu
 def test_double():
     assert prelude.mod[double].checked_type == relay.FuncType([nat()], nat())
-    res = eval(double(s(z())))
+    res = intrp.evaluate(double(s(z())))
     assert count(res) == 2
 
 
 @tvm.testing.uses_gpu
 def test_add():
     assert prelude.mod[add].checked_type == relay.FuncType([nat(), nat()], nat())
-    res = eval(add(s(z()), s(z())))
+    res = intrp.evaluate(add(s(z()), s(z())))
     assert count(res) == 2
 
 
@@ -194,7 +187,7 @@ def test_hd_tl():
 
     got = []
     for i in range(len(expected)):
-        got.append(count(eval(hd(l))))
+        got.append(count(intrp.evaluate(hd(l))))
         l = tl(l)
 
     assert got == expected
@@ -209,7 +202,7 @@ def test_nth():
 
     for i in range(len(expected)):
         nth = prelude.mod.get_global_var("nth")
-        item = eval(nth(l, relay.const(i)))
+        item = intrp.evaluate(nth(l, relay.const(i)))
         assert get_scalar(item) == i
 
 
@@ -227,7 +220,7 @@ def test_update():
 
     got = []
     for i in range(len(expected)):
-        got.append(count(eval(nth(l, relay.const(i)))))
+        got.append(count(intrp.evaluate(nth(l, relay.const(i)))))
 
     assert got == expected
 
@@ -238,7 +231,7 @@ def test_length():
     assert prelude.mod[length].checked_type == relay.FuncType(
         [rlist(a)], relay.scalar_type("int32"), [a]
     )
-    res = eval(length(cons(z(), cons(z(), cons(z(), nil())))))
+    res = intrp.evaluate(length(cons(z(), cons(z(), cons(z(), nil())))))
     assert get_scalar(res) == 3
 
 
@@ -252,7 +245,7 @@ def test_map():
 
     x = relay.Var("x")
     add_one = relay.Function([x], s(x))
-    res = eval(map(add_one, cons(z(), cons(z(), nil()))))
+    res = intrp.evaluate(map(add_one, cons(z(), cons(z(), nil()))))
     ones = to_list(res)
     assert len(ones) == 2
     assert count(ones[0]) == 1 and count(ones[1]) == 1
@@ -270,7 +263,7 @@ def test_foldl():
     x = relay.Var("x")
     y = relay.Var("y")
     rev_dup = relay.Function([y, x], cons(x, cons(x, y)))
-    res = eval(
+    res = intrp.evaluate(
         foldl(
             rev_dup,
             nil(),
@@ -298,7 +291,7 @@ def test_foldr():
     x = relay.Var("x")
     y = relay.Var("y")
     identity = relay.Function([x, y], cons(x, y))
-    res = eval(
+    res = intrp.evaluate(
         foldr(
             identity,
             nil(),
@@ -323,7 +316,7 @@ def test_foldr1():
     x = relay.Var("x")
     y = relay.Var("y")
     f = relay.Function([x, y], add(x, y))
-    res = eval(
+    res = intrp.evaluate(
         foldr1(
             f,
             cons(
@@ -341,7 +334,7 @@ def test_sum():
     assert prelude.mod[sum].checked_type == relay.FuncType(
         [rlist(relay.scalar_type("int32"))], relay.scalar_type("int32")
     )
-    res = eval(sum(cons(relay.const(1), cons(relay.const(2), nil()))))
+    res = intrp.evaluate(sum(cons(relay.const(1), cons(relay.const(2), nil()))))
     assert get_scalar(res) == 3
 
 
@@ -352,7 +345,7 @@ def test_concat():
 
     l1 = cons(make_nat_expr(prelude, 1), cons(make_nat_expr(prelude, 2), nil()))
     l2 = cons(make_nat_expr(prelude, 3), cons(make_nat_expr(prelude, 4), nil()))
-    res = eval(concat(l1, l2))
+    res = intrp.evaluate(concat(l1, l2))
 
     catted = to_list(res)
     assert len(catted) == 4
@@ -386,7 +379,7 @@ def test_filter():
             ],
         ),
     )
-    res = eval(
+    res = intrp.evaluate(
         filter(
             greater_than_one,
             cons(
@@ -423,7 +416,7 @@ def test_zip():
     )
     l2 = cons(nil(), cons(cons(nil(), nil()), cons(cons(nil(), cons(nil(), nil())), nil())))
 
-    res = eval(zip(l1, l2))
+    res = intrp.evaluate(zip(l1, l2))
     zipped = to_list(res)
     assert len(zipped) == 3
     assert count(zipped[0][0]) == 1
@@ -435,7 +428,7 @@ def test_zip():
 
     # test truncation
     l3 = cons(make_nat_expr(prelude, 4), cons(make_nat_expr(prelude, 5), nil()))
-    shorter_res = eval(zip(l3, l2))
+    shorter_res = intrp.evaluate(zip(l3, l2))
     truncated = to_list(shorter_res)
     assert len(truncated) == 2
     assert count(truncated[0][0]) == 4
@@ -444,7 +437,7 @@ def test_zip():
     assert len(to_list(truncated[1][1])) == 1
 
     l4 = cons(nil(), nil())
-    shortest_res = eval(zip(l3, l4))
+    shortest_res = intrp.evaluate(zip(l3, l4))
     singleton = to_list(shortest_res)
     assert len(singleton) == 1
     assert count(singleton[0][0]) == 4
@@ -456,7 +449,7 @@ def test_rev():
     a = relay.TypeVar("a")
     assert prelude.mod[rev].checked_type == relay.FuncType([rlist(a)], rlist(a), [a])
 
-    res = eval(
+    res = intrp.evaluate(
         rev(
             cons(
                 make_nat_expr(prelude, 1),
@@ -495,7 +488,7 @@ def test_unfoldr():
         ),
     )
 
-    res = eval(unfoldr(count_down, make_nat_expr(prelude, 3)))
+    res = intrp.evaluate(unfoldr(count_down, make_nat_expr(prelude, 3)))
     unfolded = to_list(res)
 
     assert len(unfolded) == 3
@@ -527,7 +520,7 @@ def test_unfoldl():
         ),
     )
 
-    res = eval(unfoldl(count_down, make_nat_expr(prelude, 3)))
+    res = intrp.evaluate(unfoldl(count_down, make_nat_expr(prelude, 3)))
     unfolded = to_list(res)
 
     assert len(unfolded) == 3
@@ -556,7 +549,7 @@ def test_map_accumr():
         make_nat_expr(prelude, 1),
         cons(make_nat_expr(prelude, 2), cons(make_nat_expr(prelude, 3), nil())),
     )
-    res = eval(map_accumr(add_acc_to_each, z(), vals))
+    res = intrp.evaluate(map_accumr(add_acc_to_each, z(), vals))
 
     sum = count(res[0])
     new_vals = to_list(res[1])
@@ -588,7 +581,7 @@ def test_map_accuml():
         make_nat_expr(prelude, 1),
         cons(make_nat_expr(prelude, 2), cons(make_nat_expr(prelude, 3), nil())),
     )
-    res = eval(map_accuml(add_to_acc, z(), vals))
+    res = intrp.evaluate(map_accuml(add_to_acc, z(), vals))
 
     sum = count(res[0])
     new_vals = to_list(res[1])
@@ -616,7 +609,7 @@ def test_optional_matching():
         ),
     )
 
-    res = eval(
+    res = intrp.evaluate(
         foldr(
             condense,
             nil(),
@@ -643,7 +636,9 @@ def test_tmap():
 
     x = relay.Var("x")
     add_one = relay.Function([x], s(x))
-    res = eval(tmap(add_one, rose(z(), cons(rose(z(), nil()), cons(rose(z(), nil()), nil())))))
+    res = intrp.evaluate(
+        tmap(add_one, rose(z(), cons(rose(z(), nil()), cons(rose(z(), nil()), nil()))))
+    )
 
     tree_dict = tree_to_dict(res)
     assert count(tree_dict["member"]) == 1
@@ -662,7 +657,7 @@ def test_size():
 
     root = rose(z(), cons(rose(z(), nil()), cons(rose(z(), nil()), nil())))
     t = rose(z(), cons(root, cons(root, cons(root, nil()))))
-    res = eval(size(t))
+    res = intrp.evaluate(size(t))
     assert get_scalar(res) == 10
 
 
@@ -671,7 +666,7 @@ def test_wildcard_match_solo():
     x = relay.Var("x", nat())
     copy = relay.Function([x], relay.Match(x, [relay.Clause(relay.PatternWildcard(), x)]), nat())
 
-    res = eval(copy(s(s(s(z())))))
+    res = intrp.evaluate(copy(s(s(s(z())))))
     assert count(res) == 3
 
 
@@ -695,7 +690,7 @@ def test_wildcard_match_order():
         nat(),
     )
 
-    res = eval(return_zero(cons(s(z()), nil())))
+    res = intrp.evaluate(return_zero(cons(s(z()), nil())))
     # wildcard pattern is evaluated first
     assert count(res) == 0
 
@@ -749,7 +744,7 @@ def test_nested_matches():
     )
     final_list = cons(first_list, cons(second_list, nil()))
 
-    res = eval(flatten(final_list))
+    res = intrp.evaluate(flatten(final_list))
 
     flat = to_list(res)
     assert len(flat) == 6
@@ -763,8 +758,8 @@ def test_match_full_var():
     v = relay.Var("v")
     id_func = relay.Function([x], relay.Match(x, [relay.Clause(relay.PatternVar(v), v)]))
 
-    res1 = eval(id_func(nil()))
-    res2 = eval(id_func(cons(z(), cons(z(), nil()))))
+    res1 = intrp.evaluate(id_func(nil()))
+    res2 = intrp.evaluate(id_func(cons(z(), cons(z(), nil()))))
 
     empty = to_list(res1)
     assert len(empty) == 0
@@ -799,7 +794,7 @@ def test_nested_pattern_match():
     )
     get_second = relay.Function([x], match)
 
-    res = eval(get_second(cons(s(z()), cons(s(s(z())), nil()))))
+    res = intrp.evaluate(get_second(cons(s(z()), cons(s(s(z())), nil()))))
 
     assert count(res) == 2
 
@@ -809,14 +804,14 @@ def test_compose():
     n = relay.Var("n")
     inc = relay.Function([n], s(n))
     x = relay.Var("x")
-    res = eval(relay.Call(compose(inc, double), [s(s(z()))]))
+    res = intrp.evaluate(relay.Call(compose(inc, double), [s(s(z()))]))
     assert count(res) == 5
 
 
 @tvm.testing.uses_gpu
 def test_iterate():
     expr = relay.Call(iterate(double, relay.const(2)), [make_nat_expr(prelude, 3)])
-    res = eval(relay.Function([], expr)())
+    res = intrp.evaluate(relay.Function([], expr)())
     assert count(res) == 12
 
 

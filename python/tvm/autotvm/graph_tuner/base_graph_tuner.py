@@ -375,7 +375,6 @@ class BaseGraphTuner(object):
         layout_records=None,
         target_host=None,
         infer_layout=False,
-        runner=None,
     ):
         """Benchmark all possible layout transformation in the graph,
         given a set of schedule candidates for each workload of target operator.
@@ -439,8 +438,6 @@ class BaseGraphTuner(object):
             of benchmarking on target device.
 
             This might bring performance loss comparing to benchmarking layout transformation.
-        runner : Runner, optional
-            Accept a user-supplied runner
         """
         self._logger.info("Start to benchmark layout transformation...")
         self._target, target_host = Target.check_and_update_host_consist(self._target, target_host)
@@ -486,6 +483,7 @@ class BaseGraphTuner(object):
             return _callback
 
         builder = autotvm.LocalBuilder(n_parallel=n_parallel, build_func=build_func)
+        runner = autotvm.LocalRunner(number=min_exec_num, repeat=1, timeout=timeout)
         if use_rpc:
             if device_key is None:
                 raise RuntimeError("device_key need to be set to use rpc tracker mode.")
@@ -498,8 +496,6 @@ class BaseGraphTuner(object):
                 repeat=1,
                 timeout=timeout,
             )
-        elif not runner:
-            runner = autotvm.LocalRunner(number=min_exec_num, repeat=1, timeout=timeout)
         measure_option = autotvm.measure_option(builder=builder, runner=runner)
         for args in args_list:
             data, in_layout, out_layout = args

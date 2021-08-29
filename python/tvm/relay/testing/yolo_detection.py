@@ -103,8 +103,8 @@ def _get_yolo_detections(l, im_shape, net_shape, thresh, relative, dets):
             l["biases"],
             np.asarray(l["mask"])[location[0]],
             location,
-            data.shape[3],
             data.shape[2],
+            data.shape[3],
             net_shape[0],
             net_shape[1],
         )
@@ -139,10 +139,10 @@ def _get_region_detections(l, im_shape, net_shape, thresh, relative, dets):
                     l["biases"],
                     n,
                     location,
-                    data.shape[3],
                     data.shape[2],
                     data.shape[3],
                     data.shape[2],
+                    data.shape[3],
                 )
                 objectness = scale if scale > thresh else 0
                 if objectness:

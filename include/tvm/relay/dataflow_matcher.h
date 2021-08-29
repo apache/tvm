@@ -47,13 +47,10 @@ class DFPatternCallbackNode : public Object {
   PackedFunc function;
   /*! \brief Require InferType to be run before the callback */
   bool require_type;
-  /*! \brief Run the callback only once */
-  bool rewrite_once;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("pattern", &pattern);
     v->Visit("require_type", &require_type);
-    v->Visit("rewrite_once", &rewrite_once);
   }
 
   static constexpr const char* _type_key = "DFPatternCallbackNode";
@@ -66,8 +63,7 @@ class DFPatternCallbackNode : public Object {
  */
 class DFPatternCallback : public ObjectRef {
  public:
-  TVM_DLL DFPatternCallback(DFPattern pattern, PackedFunc callback, bool require_type,
-                            bool rewrite_once = false);
+  TVM_DLL DFPatternCallback(DFPattern pattern, PackedFunc callback, bool require_type);
   TVM_DEFINE_OBJECT_REF_METHODS(DFPatternCallback, ObjectRef, DFPatternCallbackNode);
 };
 

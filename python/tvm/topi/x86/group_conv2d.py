@@ -43,9 +43,7 @@ def schedule_group_conv2d_nchw(outs):
     return schedule_group_conv2d_nchwc(outs)
 
 
-def _get_default_config(
-    cfg, data, kernel, strides, padding, dilation, groups, out_dtype, layout="NCHW"
-):
+def _get_default_config(cfg, data, kernel, strides, padding, groups, out_dtype, layout="NCHW"):
     """
     Get default schedule config for the workload
     """
@@ -57,7 +55,7 @@ def _get_default_config(
             static_data_shape.append(dim)
     data = te.placeholder(static_data_shape, dtype=data.dtype)
 
-    wkl = _get_conv2d_workload(data, kernel, strides, padding, dilation, out_dtype, layout)
+    wkl = _get_conv2d_workload(data, kernel, strides, padding, out_dtype, layout)
     _fallback_schedule(cfg, wkl)
 
 
@@ -161,7 +159,6 @@ def group_conv2d_nchw_spatial_pack(
             ),
             strides,
             padding,
-            dilation,
             groups,
             out_dtype,
         )

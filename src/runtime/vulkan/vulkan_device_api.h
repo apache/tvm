@@ -106,7 +106,7 @@ class VulkanDeviceAPI final : public DeviceAPI {
    * Returns the results of feature/property queries done during the
    * device initialization.
    */
-  void GetTargetProperty(Device dev, const std::string& property, TVMRetValue* rv) final;
+  void GetTargetProperty(Device dev, const std::string& property, TVMRetValue* rv);
 
  private:
   std::vector<uint32_t> GetComputeQueueFamilies(VkPhysicalDevice phy_dev);

@@ -31,7 +31,9 @@ from tvm.relay.testing import make_nat_expr, run_infer_type
 
 def check_eval(expr, expected_result, mod=None, rtol=1e-07):
     dev = tvm.device("llvm", 0)
-    result = create_executor(mod=mod, device=dev, target="llvm").evaluate(expr)
+    intrp = create_executor(mod=mod, device=dev, target="llvm")
+
+    result = intrp.evaluate(expr)
     np.testing.assert_allclose(result.numpy(), expected_result, rtol=rtol)
 
 
@@ -142,8 +144,9 @@ def test_if_ref():
     body = Let(eff, body, RefRead(r))
     f = Function([d], Let(r, RefCreate(const(1)), Let(u, update, body)))
     pe_f = tipe(f)
-    f_res = create_executor().evaluate(f)(const(True))
-    pe_f_res = create_executor().evaluate(pe_f)(const(True))
+    ex = create_executor()
+    f_res = ex.evaluate(f)(const(True))
+    pe_f_res = ex.evaluate(pe_f)(const(True))
     np.testing.assert_allclose(f_res.numpy(), 2 * np.ones_like(f_res.numpy()))
     np.testing.assert_allclose(pe_f_res.numpy(), 2 * np.ones_like(pe_f_res.numpy()))
 
@@ -165,8 +168,9 @@ def test_function_invalidate():
     body = Let(r, RefCreate(const(0)), body)
     f = Function([d], body)
     pe_f = tipe(f)
-    f_res = create_executor().evaluate(f)(const(True))
-    pe_f_res = create_executor().evaluate(pe_f)(const(True))
+    ex = create_executor()
+    f_res = ex.evaluate(f)(const(True))
+    pe_f_res = ex.evaluate(pe_f)(const(True))
     np.testing.assert_allclose(f_res.numpy(), np.ones_like(f_res.numpy()))
     np.testing.assert_allclose(pe_f_res.numpy(), np.ones_like(pe_f_res.numpy()))
 

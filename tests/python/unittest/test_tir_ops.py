@@ -119,8 +119,7 @@ def test_binary_dtype_match():
             [("bool", "int32"), "int32"],
             [("int32", "float32"), "float32"],
             [("int32", "int64"), "int64"],
-            [("uint32", "int8"), "uint32"],
-            [("uint32", "int32"), "uint32"],
+            [("uint32", "int32"), "int32"],
         ]
         for (lhs_dtype, rhs_dtype), out_dtype in rules:
             lhs = te.var("lhs", dtype=lhs_dtype)
@@ -147,22 +146,13 @@ def test_binary_dtype_match():
                 rhs = te.var("rhs", dtype=rhs_dtype)
                 if "float" not in lhs_dtype and "float" not in rhs_dtype:
                     check_throws(lambda: f(lhs, rhs))
+                elif "float" in lhs_dtype and "float" in rhs_dtype and lhs_dtype != rhs_dtype:
+                    check_throws(lambda: f(lhs, rhs))
                 elif "float" in lhs_dtype:
                     out = f(lhs, rhs)
-
-                    # Upcasting for floating point types
-                    dtypes = [lhs_dtype, rhs_dtype]
-                    if "float64" in dtypes:
-                        target_dtype = "float64"
-                    elif "float32" in dtypes:
-                        target_dtype = "float32"
-                    else:
-                        target_dtype = "int32"
-                    assert out.dtype == target_dtype
-
-                    # Final inputs are the right type
-                    assert out.args[0].dtype == target_dtype
-                    assert out.args[1].dtype == target_dtype
+                    assert out.dtype == lhs_dtype
+                    assert out.args[0].dtype == lhs_dtype
+                    assert out.args[1].dtype == lhs_dtype
                 else:
                     out = f(lhs, rhs)
                     assert out.dtype == rhs_dtype
@@ -175,18 +165,14 @@ def test_binary_dtype_match():
     verify_general_dtype_support(lambda a, b: a <= b, is_conditional=True)
     verify_callop_float_only(lambda a, b: te.power(a, b))
 
-    # verify bool & int32 constant folding
-    assert tvm.tir.const(1) == tvm.tir.const(True)
-    assert tvm.tir.const(2) != tvm.tir.const(True)
-
 
 def test_if_then_else():
     cases = [
         [(te.var("cond", dtype="bool"), "bool", "int32"), "int32"],
         [(True, "int32", "float32"), "float32"],
         [(False, "int32", "int64"), "int64"],
-        [(te.var("cond", dtype="bool"), "uint32", "int32"), "uint32"],
-        [(te.var("cond", dtype="int32"), "uint32", "int32"), "uint32"],
+        [(te.var("cond", dtype="bool"), "uint32", "int32"), "int32"],
+        [(te.var("cond", dtype="int32"), "uint32", "int32"), "int32"],
     ]
     for (cond, lhs_dtype, rhs_dtype), out_dtype in cases:
         lhs = te.var("lhs", dtype=lhs_dtype)

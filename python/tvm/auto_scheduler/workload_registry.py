@@ -245,9 +245,7 @@ def deserialize_workload_registry_entry(data):
     name, value = data
     if name not in WORKLOAD_FUNC_REGISTRY:
         # pylint: disable=assignment-from-no-return
-        if not callable(value):
-            value = LoadJSON(value)
-        WORKLOAD_FUNC_REGISTRY[name] = value
+        WORKLOAD_FUNC_REGISTRY[name] = LoadJSON(value)
 
 
 def save_workload_func_registry(filename):

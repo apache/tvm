@@ -682,44 +682,6 @@ def subtract(
     )
 
 
-def batch_matmul(x, y, x_zero_point, y_zero_point, x_scale, y_scale, out_dtype="int32"):
-    r"""
-    Computes batch matrix multiplication of `x` and `y` when `x` and `y` are data
-    in batch.
-
-    .. math::
-
-        \mbox{batch_matmul}(x, y)[i, :, :] = \mbox{matmul}(x[i, :, :], y[i, :, :]^T)
-
-    Parameters
-    ----------
-    x : tvm.relay.Expr
-        The first quantized input.
-        A quantized tensor is represented in following manner
-        `A = scale_a x (QA - zp_A)`
-        where QA is quantized tensor, scale_a and zp_A are quantization
-        params.
-    y : tvm.relay.Expr
-        The second quantized input.
-    x_zero_point: tvm.relay.Expr
-        The first input zero point.
-    y_zero_point: tvm.relay.Expr
-        The second input zero point.
-    x_scale: tvm.relay.Expr
-        The scale for the first input tensor.
-    y_scale: tvm.relay.Expr
-        The scale for the second input tensor.
-    out_dtype : str, optional
-        Specifies the output data type for mixed precision dense can be int32 or int16.
-
-    Returns
-    -------
-    result: tvm.relay.Expr
-        The computed result.
-    """
-    return _make.batch_matmul(x, y, x_zero_point, y_zero_point, x_scale, y_scale, out_dtype)
-
-
 # register fuse pattern for qnn ops
 reg.register_pattern("qnn.quantize", OpPattern.OPAQUE)
 reg.register_pattern("qnn.dequantize", OpPattern.OPAQUE)

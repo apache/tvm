@@ -90,20 +90,6 @@ from tensorflow.python.framework.convert_to_constants import (
 import scipy.sparse as sp
 
 
-# Ask tensorflow to limit its GPU memory to what's actually needed
-# instead of gobbling everything that's available.
-# https://www.tensorflow.org/guide/gpu#limiting_gpu_memory_growth
-# This way this tutorial is a little more friendly to sphinx-gallery.
-gpus = tf.config.list_physical_devices("GPU")
-if gpus:
-    try:
-        for gpu in gpus:
-            tf.config.experimental.set_memory_growth(gpu, True)
-        print("tensorflow will use experimental.set_memory_growth(True)")
-    except RuntimeError as e:
-        print("experimental.set_memory_growth option is not available: {}".format(e))
-
-
 ###############################################################################
 # Configure Settings
 # ------------------
@@ -233,7 +219,12 @@ def run_relay_graph(mod, params, shape_dict, target, dev):
     m.run()
     tvm_output = m.get_output(0)
 
-    print(m.benchmark(dev, repeat=5, number=5))
+    ftimer = m.module.time_evaluator("run", dev, repeat=5, number=5)
+    prof_res = np.array(ftimer().results) * 1000
+    print(
+        "%-20s %-19s (%s)"
+        % ("Runtime:", "%.2f ms" % np.mean(prof_res), "%.2f ms" % np.std(prof_res))
+    )
     return tvm_output
 
 

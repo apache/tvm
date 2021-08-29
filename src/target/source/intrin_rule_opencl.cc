@@ -49,9 +49,6 @@ TVM_REGISTER_OP("tir.round")
 TVM_REGISTER_OP("tir.exp").set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic",
                                                      DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tir.erf").set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic",
-                                                     DispatchPureExtern<Direct>);
-
 TVM_REGISTER_OP("tir.exp2")
     .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", DispatchPureExtern<Direct>);
 

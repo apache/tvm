@@ -46,7 +46,7 @@ and finally run.
 import os
 import tarfile
 import json
-from typing import Optional, Union, Dict, Callable, TextIO
+from typing import Optional, Union, List, Dict, Callable, TextIO
 import numpy as np
 
 import tvm
@@ -54,7 +54,6 @@ import tvm.contrib.cc
 from tvm import relay
 from tvm.contrib import utils
 from tvm.relay.backend.executor_factory import GraphExecutorFactoryModule
-from tvm.runtime.module import BenchmarkResult
 
 try:
     from tvm.micro import export_model_library_format
@@ -337,8 +336,8 @@ class TVMCPackage(object):
             with open(temp.relpath("metadata.json")) as metadata_json:
                 metadata = json.load(metadata_json)
 
-            has_graph_executor = "graph" in metadata["executors"]
-            graph = temp.relpath("executor-config/graph/graph.json") if has_graph_executor else None
+            is_graph_runtime = "graph" in metadata["runtimes"]
+            graph = temp.relpath("runtime-config/graph/graph.json") if is_graph_runtime else None
             params = temp.relpath("parameters/default.params")
 
             self.type = "mlf"
@@ -372,14 +371,14 @@ class TVMCPackage(object):
 class TVMCResult(object):
     """A class that stores the results of tvmc.run and provides helper utilities."""
 
-    def __init__(self, outputs: Dict[str, np.ndarray], times: BenchmarkResult):
+    def __init__(self, outputs: Dict[str, np.ndarray], times: List[str]):
         """Create a convenience wrapper around the output of tvmc.run
 
         Parameters
         ----------
         outputs : dict
             Outputs dictionary mapping the name of the output to its numpy value.
-        times : BenchmarkResult
+        times : list of float
             The execution times measured by the time evaluator in seconds to produce outputs.
         """
         self.outputs = outputs
@@ -391,15 +390,29 @@ class TVMCResult(object):
         This has the effect of producing a small table that looks like:
         .. code-block::
             Execution time summary:
-            mean (ms)  median (ms) max (ms)    min (ms)    std (ms)
-            0.14310      0.14310   0.16161     0.12933    0.01004
+            mean (ms)   max (ms)    min (ms)    std (ms)
+            0.14310    0.16161    0.12933    0.01004
 
         Returns
         -------
         str
             A formatted string containing the statistics.
         """
-        return str(self.times)
+
+        # timestamps
+        mean_ts = np.mean(self.times) * 1000
+        std_ts = np.std(self.times) * 1000
+        max_ts = np.max(self.times) * 1000
+        min_ts = np.min(self.times) * 1000
+
+        header = "Execution time summary:\n{0:^10} {1:^10} {2:^10} {3:^10}".format(
+            "mean (ms)", "max (ms)", "min (ms)", "std (ms)"
+        )
+        stats = "{0:^10.2f} {1:^10.2f} {2:^10.2f} {3:^10.2f}".format(
+            mean_ts, max_ts, min_ts, std_ts
+        )
+
+        return "%s\n%s\n" % (header, stats)
 
     def get_output(self, name: str):
         """A helper function to grab one of the outputs by name.

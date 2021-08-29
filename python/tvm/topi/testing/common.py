@@ -18,8 +18,6 @@
 """Common utility for topi test"""
 
 import numpy as np
-import scipy.signal
-
 import tvm
 from tvm import topi
 from tvm.testing import assert_allclose
@@ -110,52 +108,3 @@ def compare_numpy_tvm(inputs, output, target, device, compute, schedule):
         arys = [tvm.nd.array(x, device=device) for x in inputs]
         func(*(arys + [te_out]))
         assert_allclose(te_out.numpy(), output, atol=1e-4, rtol=1e-4)
-
-
-def _convolve2d(data, weights):
-    """2d convolution operator in HW layout.
-
-    This is intended to be used as a replacement for
-    scipy.signals.convolve2d, with wider support for different dtypes.
-    scipy.signal.convolve2d does not support all TVM-supported
-    dtypes (e.g. float16).  Where possible, this function uses
-    scipy.signal.convolve2d to take advantage of compiled scipy
-    routines, falling back to an explicit loop only where needed.
-
-    Parameters
-    ----------
-    data : numpy.ndarray
-        2-D with shape [in_height, in_width]
-
-    weights : numpy.ndarray
-        2-D with shape [filter_height, filter_width].
-
-    Returns
-    -------
-    b_np : np.ndarray
-        2-D with shape [out_height, out_width]
-
-        Return value and layout conventions are matched to
-        ``scipy.signal.convolve2d(data, weights, mode="valid")``
-    """
-
-    try:
-        return scipy.signal.convolve2d(data, weights, mode="valid")
-    except ValueError:
-        pass
-
-    weights = np.rot90(weights, k=2)
-
-    assert len(data.shape) == len(weights.shape) == 2
-
-    dtype = data.dtype
-    kernel_h, kernel_w = weights.shape
-
-    output_shape = [a_dim - w_dim + 1 for a_dim, w_dim in zip(data.shape, weights.shape)]
-    output = np.zeros(output_shape, dtype=dtype)
-
-    for y in range(output_shape[0]):
-        for x in range(output_shape[1]):
-            output[y][x] = np.sum(data[y : y + kernel_h, x : x + kernel_w] * weights)
-
-    return output

@@ -16,17 +16,13 @@
 # under the License.
 """Wrapping existing analysis utils."""
 # pylint: disable=invalid-name
-from typing import Dict, List
-
-from tvm.tir.stmt import Block, BufferRegion
-from tvm.tir.stmt import PrimExpr
-from tvm.tir.expr import Var
+from typing import Dict
 from . import _ffi_api
 from ..function import PrimFunc
 from .. import Buffer, Stmt
 
 
-def expr_deep_equal(lhs: PrimExpr, rhs: PrimExpr) -> bool:
+def expr_deep_equal(lhs, rhs):
     """Deeply compare two nested expressions.
 
     Parameters
@@ -60,10 +56,10 @@ def expr_deep_equal(lhs: PrimExpr, rhs: PrimExpr) -> bool:
     --------
     tvm.ir.structural_equal
     """
-    return _ffi_api.expr_deep_equal(lhs, rhs)  # type: ignore
+    return _ffi_api.expr_deep_equal(lhs, rhs)
 
 
-def verify_ssa(func: PrimFunc) -> bool:
+def verify_ssa(func):
     """Verify if the func is in SSA form.
 
     Parameters
@@ -76,10 +72,10 @@ def verify_ssa(func: PrimFunc) -> bool:
     result : bool
         The result of verification.
     """
-    return _ffi_api.verify_ssa(func)  # type: ignore
+    return _ffi_api.verify_ssa(func)
 
 
-def verify_memory(func: PrimFunc) -> bool:
+def verify_memory(func):
     """Verify if func contains illegal host side direct memory access.
 
     Parameters
@@ -92,10 +88,10 @@ def verify_memory(func: PrimFunc) -> bool:
     result : bool
         The result of verification.
     """
-    return _ffi_api.verify_memory(func)  # type: ignore
+    return _ffi_api.verify_memory(func)
 
 
-def verify_gpu_code(func: PrimFunc, constraints: Dict[str, int]) -> None:
+def verify_gpu_code(func, constraints):
     """Verify if module contains illegal host side direct memory access.
 
     Parameters
@@ -111,12 +107,10 @@ def verify_gpu_code(func: PrimFunc, constraints: Dict[str, int]) -> None:
     result : bool
         The result of verification.
     """
-    return _ffi_api.verify_gpu_code(func, constraints)  # type: ignore
+    return _ffi_api.verify_gpu_code(func, constraints)
 
 
-def get_block_access_region(
-    block: Block, buffer_var_map: Dict[Var, Buffer]
-) -> List[List[BufferRegion]]:
+def get_block_access_region(block, buffer_var_map):
     """Detect which regions of tensors in this block are read or written to.
        Regions are sorted by order of appearance in the AST.
 
@@ -136,10 +130,10 @@ def get_block_access_region(
             - second: write regions
             - third: opaque regions
     """
-    return _ffi_api.get_block_access_region(block, buffer_var_map)  # type: ignore
+    return _ffi_api.get_block_access_region(block, buffer_var_map)
 
 
-def calculate_workspace_bytes(func: PrimFunc, workspace_byte_alignment: int) -> int:
+def calculate_workspace_bytes(func: PrimFunc, workspace_byte_alignment: int):
     """Calculate the workspace size in bytes needed by the TIR allocates inside the TIR
     PrimFunc.
 
@@ -155,7 +149,7 @@ def calculate_workspace_bytes(func: PrimFunc, workspace_byte_alignment: int) -> 
     result : int
         Workspace size in bytes.
     """
-    return _ffi_api.calculate_workspace_bytes(func, workspace_byte_alignment)  # type: ignore
+    return _ffi_api.calculate_workspace_bytes(func, workspace_byte_alignment)
 
 
 def detect_buffer_access_lca(func: PrimFunc) -> Dict[Buffer, Stmt]:
@@ -173,4 +167,4 @@ def detect_buffer_access_lca(func: PrimFunc) -> Dict[Buffer, Stmt]:
     result : Dict[Buffer, Stmt]
         Map from buffer to the LCA of all access to it.
     """
-    return _ffi_api.detect_buffer_access_lca(func)  # type: ignore # pylint: disable=no-member
+    return _ffi_api.detect_buffer_access_lca(func)  # pylint: disable=no-member

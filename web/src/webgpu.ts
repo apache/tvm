@@ -39,7 +39,7 @@ export async function detectGPUDevice(): Promise<GPUDevice | undefined | null> {
 interface FunctionInfo {
   name: string;
   arg_types: Array<string>;
-  launch_param_tags: Array<string>;
+  thread_axis_tags: Array<string>;
 }
 
 /**
@@ -114,8 +114,8 @@ export class WebGPUContext {
 
     const dispatchToDim: Array<number> = [];
 
-    for (let i = 0; i < finfo.launch_param_tags.length; ++i) {
-      const tag: string = finfo.launch_param_tags[i];
+    for (let i = 0; i < finfo.thread_axis_tags.length; ++i) {
+      const tag: string = finfo.thread_axis_tags[i];
       if (tag.startsWith("blockIdx.")) {
         const target: number = tag.charCodeAt(tag.length - 1) - ("x".charCodeAt(0));
         assert(target >= 0 && target < 3);

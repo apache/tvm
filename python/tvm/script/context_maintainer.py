@@ -57,7 +57,7 @@ class BlockInfo:
 
                     # match_buffers of the block,
                     # which bind a sub-region of source buffer into a new buffer
-                    D = tir.match_buffer(C[vi, vj], ())
+                    D = tir.match_buffer_region(C[vi, vj])
 
                     # init part of the block, executed when all reduce axes are the beginning value
                     with tir.init():
@@ -65,13 +65,13 @@ class BlockInfo:
 
                     # block body
                     CC[0, 0] = A[vi, vk] * B[vj, vk]
-                    D[()] += CC[0, 0]         # The same as C[vi, vj] += CC[0, 0]
+                    D[0, 0] += CC[0, 0]         # The same as C[vi, vj] += CC[0, 0]
     """
 
     alloc_buffers: List[Buffer] = []
     """List[Buffer]: list of tir.alloc_buffer statements in the block signature"""
     match_buffers: List[MatchBufferRegion] = []
-    """List[MatchBufferRegion]: list of tir.match_buffer statements in the block signature"""
+    """List[MatchBufferRegion]: list of tir.match_buffer_region statements in the block signature"""
     iter_bindings: Mapping[Var, PrimExpr] = {}
     """Mapping[Var, PrimExpr]: map of block iter var to its values"""
     reads: Optional[List[BufferSlice]] = None

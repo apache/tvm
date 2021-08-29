@@ -30,7 +30,9 @@ export VTA_HW_PATH=`pwd`/3rdparty/vta-hw
 export TVM_BIND_THREADS=0
 export OMP_NUM_THREADS=1
 
-# Build cpptest suite
+# Remove existing testcases
+rm -f build/*_test
+
 make cpptest -j2
 
 # "make crttest" requires USE_MICRO to be enabled, which is not always the case.
@@ -38,7 +40,9 @@ if grep crttest build/Makefile > /dev/null; then
     make crttest  # NOTE: don't parallelize, due to issue with build deps.
 fi
 
-cd build && ctest --gtest_death_test_style=threadsafe && cd ..
+for test in build/*_test; do
+    ./$test
+done
 
 # Test MISRA-C runtime
 cd apps/bundle_deploy

@@ -25,7 +25,7 @@ edition = "2018"
 
 [dependencies]
 ndarray = "0.12"
-tvm-rt = { path = "../../../tvm-rt", features = ["standalone"] }
+tvm = { path = "../../" }
 image = "0.20"
 csv = "1.1"
 anyhow = "^1.0"

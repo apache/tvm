@@ -53,3 +53,8 @@ TEST(Simplify, Mod) {
   auto es = ana.canonical_simplify(mod - x);
   ICHECK(tvm::tir::is_zero(es));
 }
+int main(int argc, char** argv) {
+  testing::InitGoogleTest(&argc, argv);
+  testing::FLAGS_gtest_death_test_style = "threadsafe";
+  return RUN_ALL_TESTS();
+}

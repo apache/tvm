@@ -26,7 +26,7 @@ use std::{
 
 use crate::allocator::Allocation;
 use crate::errors::InvalidPointer;
-use std::alloc::LayoutError;
+use std::alloc::LayoutErr;
 
 const WS_ALIGN: usize = 64; // taken from `kTempAllocaAlignment` in `device_api.h`
 
@@ -50,13 +50,13 @@ impl WorkspacePool {
         }
     }
 
-    fn alloc_new(&mut self, size: usize) -> Result<*mut u8, LayoutError> {
+    fn alloc_new(&mut self, size: usize) -> Result<*mut u8, LayoutErr> {
         self.workspaces.push(Allocation::new(size, Some(WS_ALIGN))?);
         self.in_use.push(self.workspaces.len() - 1);
         Ok(self.workspaces[self.workspaces.len() - 1].as_mut_ptr())
     }
 
-    fn alloc(&mut self, size: usize) -> Result<*mut u8, LayoutError> {
+    fn alloc(&mut self, size: usize) -> Result<*mut u8, LayoutErr> {
         if self.free.is_empty() {
             return self.alloc_new(size);
         }

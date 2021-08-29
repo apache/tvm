@@ -327,7 +327,7 @@ class TrackerSession(object):
         res += "----------------------------\n"
         for item in data["server_info"]:
             addr = item["addr"]
-            res += str(addr[0]) + ":" + str(addr[1]) + "\t"
+            res += addr[0] + ":" + str(addr[1]) + "\t"
             res += item["key"] + "\n"
             key = item["key"].split(":")[1]  # 'server:rasp3b` -> 'rasp3b'
             if key not in total_ct:

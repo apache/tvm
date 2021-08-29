@@ -18,32 +18,12 @@ import numpy as np
 import pytest
 from io import StringIO
 import csv
-import os
-import json
 
 import tvm.testing
 from tvm.runtime import profiler_vm
 from tvm import relay
 from tvm.relay.testing import mlp
 from tvm.contrib.debugger import debug_executor
-
-
-def read_csv(report):
-    f = StringIO(report.csv())
-    headers = []
-    rows = []
-    reader = csv.reader(f, delimiter=",")
-    # force parsing
-    in_header = True
-    for row in reader:
-        if in_header:
-            headers = row
-            in_header = False
-            rows = [[] for x in headers]
-        else:
-            for i in range(len(row)):
-                rows[i].append(row[i])
-    return dict(zip(headers, rows))
 
 
 @pytest.mark.skipif(not profiler_vm.enabled(), reason="VM Profiler not enabled")
@@ -59,9 +39,14 @@ def test_vm(target, dev):
     assert "fused_nn_softmax" in str(report)
     assert "Total" in str(report)
 
-    csv = read_csv(report)
-    assert "Hash" in csv.keys()
-    assert all([float(x) > 0 for x in csv["Duration (us)"]])
+    f = StringIO(report.csv())
+    reader = csv.reader(f, delimiter=",")
+    # force parsing
+    in_header = True
+    for row in reader:
+        if in_header:
+            assert "Hash" in row
+            in_header = False
 
 
 @tvm.testing.parametrize_targets
@@ -76,60 +61,3 @@ def test_graph_executor(target, dev):
     assert "fused_nn_softmax" in str(report)
     assert "Total" in str(report)
     assert "Hash" in str(report)
-
-
-@tvm.testing.parametrize_targets("cuda", "llvm")
-@pytest.mark.skipif(
-    tvm.get_global_func("runtime.profiling.PAPIMetricCollector", allow_missing=True) is None,
-    reason="PAPI profiling not enabled",
-)
-def test_papi(target, dev):
-    target = tvm.target.Target(target)
-    if str(target.kind) == "llvm":
-        metric = "PAPI_FP_OPS"
-    elif str(target.kind) == "cuda":
-        metric = "cuda:::event:shared_load:device=0"
-    else:
-        pytest.skip(f"Target {target.kind} not supported by this test")
-    mod, params = mlp.get_workload(1)
-
-    exe = relay.vm.compile(mod, target, params=params)
-    vm = profiler_vm.VirtualMachineProfiler(exe, dev)
-
-    data = tvm.nd.array(np.random.rand(1, 1, 28, 28).astype("float32"), device=dev)
-    report = vm.profile(
-        [data],
-        func_name="main",
-        collectors=[tvm.runtime.profiling.PAPIMetricCollector({dev: [metric]})],
-    )
-    print(report)
-    assert metric in str(report)
-
-    csv = read_csv(report)
-    assert metric in csv.keys()
-    assert any([float(x) > 0 for x in csv[metric]])
-
-
-@tvm.testing.requires_llvm
-def test_json():
-    mod, params = mlp.get_workload(1)
-
-    exe = relay.vm.compile(mod, "llvm", params=params)
-    vm = profiler_vm.VirtualMachineProfiler(exe, tvm.cpu())
-
-    data = np.random.rand(1, 1, 28, 28).astype("float32")
-    report = vm.profile(data, func_name="main")
-    parsed = json.loads(report.json())
-    assert "device_metrics" in parsed
-    assert "calls" in parsed
-    assert "Duration (us)" in parsed["calls"][0]
-    assert "microseconds" in parsed["calls"][0]["Duration (us)"]
-    assert len(parsed["calls"]) > 0
-    for call in parsed["calls"]:
-        assert isinstance(call["Name"], str)
-        assert isinstance(call["Count"]["count"], int)
-        assert isinstance(call["Duration (us)"]["microseconds"], float)
-
-
-if __name__ == "__main__":
-    test_papi("llvm", tvm.cpu())

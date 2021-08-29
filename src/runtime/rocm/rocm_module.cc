@@ -147,12 +147,12 @@ class ROCMWrappedFunc {
  public:
   // initialize the ROCM function.
   void Init(ROCMModuleNode* m, ObjectPtr<Object> sptr, const std::string& func_name,
-            size_t num_void_args, const std::vector<std::string>& launch_param_tags) {
+            size_t num_void_args, const std::vector<std::string>& thread_axis_tags) {
     m_ = m;
     sptr_ = sptr;
     func_name_ = func_name;
     std::fill(fcache_.begin(), fcache_.end(), nullptr);
-    launch_param_config_.Init(num_void_args, launch_param_tags);
+    thread_axis_cfg_.Init(num_void_args, thread_axis_tags);
   }
   // invoke the function with void arguments
   void operator()(TVMArgs args, TVMRetValue* rv, void* packed_args, size_t packed_nbytes) const {
@@ -164,14 +164,13 @@ class ROCMWrappedFunc {
 
     hipStream_t strm = static_cast<hipStream_t>(ROCMThreadEntry::ThreadLocal()->stream);
 
-    ThreadWorkLoad wl = launch_param_config_.Extract(args);
+    ThreadWorkLoad wl = thread_axis_cfg_.Extract(args);
     void* config[] = {HIP_LAUNCH_PARAM_BUFFER_POINTER, packed_args, HIP_LAUNCH_PARAM_BUFFER_SIZE,
                       &packed_nbytes, HIP_LAUNCH_PARAM_END};
     // HIP supports only extra_args.
-    ROCM_DRIVER_CALL(hipModuleLaunchKernel(fcache_[device_id], wl.grid_dim(0), wl.grid_dim(1),
-                                           wl.grid_dim(2), wl.block_dim(0), wl.block_dim(1),
-                                           wl.block_dim(2), wl.dyn_shmem_size, strm, nullptr,
-                                           reinterpret_cast<void**>(&config)));
+    ROCM_DRIVER_CALL(hipModuleLaunchKernel(
+        fcache_[device_id], wl.grid_dim(0), wl.grid_dim(1), wl.grid_dim(2), wl.block_dim(0),
+        wl.block_dim(1), wl.block_dim(2), 0, strm, nullptr, reinterpret_cast<void**>(&config)));
   }
 
  private:
@@ -184,8 +183,8 @@ class ROCMWrappedFunc {
   // Device function cache per device.
   // mark as mutable, to enable lazy initialization
   mutable std::array<hipFunction_t, kMaxNumGPUs> fcache_;
-  // launch parameters configuration
-  LaunchParamConfig launch_param_config_;
+  // thread axis configuration
+  ThreadAxisConfig thread_axis_cfg_;
 };
 
 PackedFunc ROCMModuleNode::GetFunction(const std::string& name,
@@ -196,7 +195,7 @@ PackedFunc ROCMModuleNode::GetFunction(const std::string& name,
   if (it == fmap_.end()) return PackedFunc();
   const FunctionInfo& info = it->second;
   ROCMWrappedFunc f;
-  f.Init(this, sptr_to_self, name, info.arg_types.size(), info.launch_param_tags);
+  f.Init(this, sptr_to_self, name, info.arg_types.size(), info.thread_axis_tags);
   return PackFuncPackedArg(f, info.arg_types);
 }
 

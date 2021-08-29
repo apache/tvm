@@ -29,14 +29,9 @@ from .tensor_intrin import (
 
 
 @autotvm.register_topi_compute("batch_matmul_tensorcore.cuda")
-def batch_matmul_tensorcore(
-    cfg, x, y, out_shape=None, out_dtype=None, transpose_a=False, transpose_b=True
-):
+def batch_matmul_tensorcore(cfg, x, y, out_shape=None, out_dtype=None):
     """batch matmul tensorcore operator on cuda"""
-    # TODO(jcf94): Deal with different transpose combinations
-    assert not transpose_a and transpose_b
-    # TODO(liuxin.ai): Deal with out_shape for broadcast
-    del out_shape
+    # todo: deal with out_shape for broadcast, liuxin.ai
     return batch_matmul_tensorcore_cuda(x, y, out_dtype)
 
 

@@ -59,12 +59,10 @@ def test_extern_vitis_ai_resnet18():
     mod, params = relay.testing.resnet.get_workload(num_layers=18, batch_size=1)
     ref_mod, params = relay.testing.resnet.get_workload(num_layers=18, batch_size=1)
 
+    ref_ex = relay.create_executor("graph", mod=ref_mod, device=tvm.cpu(0))
     i_data = np.random.uniform(0, 1, ishape).astype(dtype)
 
-    ref_res = relay.create_executor("graph", mod=ref_mod, device=tvm.cpu(0)).evaluate()(
-        i_data, **params
-    )
-
+    ref_res = ref_ex.evaluate()(i_data, **params)
     verify_result(
         mod,
         {"data": i_data},

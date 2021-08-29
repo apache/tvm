@@ -151,6 +151,7 @@ local QEMU emulator running within the VM, run the following commands instead:
 .. code-block:: bash
 
     $ cd /Users/yourusername/path/to/tvm
+    $ sudo ./docker/install/ubuntu_install_qemu.sh
     $ cd apps/microtvm/reference-vm/zephyr/
     $ poetry run pytest ../../../../tests/micro/qemu/test_zephyr.py --microtvm-platforms=host
 

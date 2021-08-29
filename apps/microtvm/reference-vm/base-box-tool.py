@@ -43,8 +43,7 @@ ALL_PROVIDERS = (
 
 # List of microTVM platforms for testing.
 ALL_MICROTVM_PLATFORMS = (
-    "stm32f746xx_nucleo",
-    "stm32f746xx_disco",
+    "stm32f746xx",
     "nrf5340dk",
     "mps2_an521",
 )
@@ -178,7 +177,10 @@ ATTACH_USB_DEVICE = {
 
 # Extra scripts required to execute on provisioning
 # in zephyr/base-box/base_box_provision.sh
-EXTRA_SCRIPTS = ("docker/install/ubuntu_init_zephyr_project.sh",)
+EXTRA_SCRIPTS = (
+    "docker/install/ubuntu_init_zephyr_project.sh",
+    "docker/install/ubuntu_install_qemu.sh",
+)
 
 
 def generate_packer_config(file_path, providers):

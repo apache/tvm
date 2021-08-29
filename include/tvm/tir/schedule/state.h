@@ -80,7 +80,7 @@ enum ScheduleDebugMask : uint32_t {
  * 2) The sref tree of schedulable statements (indicated by the srefs)
  * 3) The dependency information of each block scope (block_info)
  * 4) A reverse mapping from the AST nodes to that in the sref tree (stmt2ref)
- * 5) A debug flag, if set, extra checking is enabled (debug_mask)
+ * 5) A debug flag, if set, extra checking is enabled (debug_mode)
  */
 class ScheduleStateNode : public Object {
  public:
@@ -99,13 +99,13 @@ class ScheduleStateNode : public Object {
    * and each time after calling the Replace method.
    * \sa ScheduleDebugMask
    */
-  int debug_mask;
+  int debug_mode;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("mod", &mod);
     // `block_info` is not visited
     // `stmt2ref` is not visited
-    v->Visit("debug_mask", &debug_mask);
+    v->Visit("debug_mode", &debug_mode);
   }
   /*!
    * \brief Replace the part of the AST, as being pointed to by `src_sref`,
@@ -129,7 +129,7 @@ class ScheduleStateNode : public Object {
   TVM_DLL void Replace(const tir::StmtSRef& src_sref, const Stmt& tgt_stmt,
                        const Map<Block, Block>& block_sref_reuse);
   /*!
-   * \brief Trigger the verification according to the `debug_mask` bitmask.
+   * \brief Trigger the verification according to the `debug_mode` bitmask.
    * 1) If the bitmask `kVerifySRefTree` is on, verify the correctness of the sref tree.
    * 2) If the bitmask `kVerifyCachedFlags` is on, verify the correctness of `affine_binding`,
    * `region_cover` and `stage_pipeline`
@@ -186,10 +186,18 @@ class ScheduleState : public ObjectRef {
   /*!
    * \brief Construct a schedule state from an IRModule
    * \param mod The IRModule to be scheduled
-   * \param debug_mask Do extra correctness checking after the class creation
+   * \param debug_mode Do extra correctness checking after the class creation
    * and each time after calling the Replace method.
    */
-  TVM_DLL explicit ScheduleState(IRModule mod, int debug_mask = 0);
+  TVM_DLL explicit ScheduleState(IRModule mod, int debug_mode = 0);
+  /*!
+   * \brief Construct a schedule state from a PrimFunc
+   * \param func The PrimFunc to be scheduled. A new IRModule will be created with
+   * this specific PrimFunc as "main" function in the module to be scheduled
+   * \param debug_mode Do extra correctness checking after the class creation
+   * and each time after calling the Replace method.
+   */
+  TVM_DLL explicit ScheduleState(PrimFunc func, int debug_mode = 0);
 
   /*! \return The mutable pointer to the ScheduleStateNode */
   ScheduleStateNode* get() const { return static_cast<ScheduleStateNode*>(data_.get()); }

@@ -18,58 +18,10 @@
 """Ground truth max and average pooling operators in python."""
 import itertools
 import math
-from typing import List, Tuple, Optional
+from typing import List, Tuple
 
 import numpy as np
 import tvm
-
-
-def _get_supported_layout(dims: int):
-    """
-    Returns layout that is supported by poolnd_python based on number of
-    dimensions of input tensor
-    """
-    assert dims in [3, 4, 5], f"{dims}-dimensional tensor is not supported"
-    if dims == 3:
-        return "NCW"
-    if dims == 4:
-        return "NCHW"
-    # dims == 5
-    return "NCDHW"
-
-
-def _convert_to_layout(
-    input_tensor: np.ndarray,
-    layout: str,
-) -> np.ndarray:
-    """
-    Converts back to original layout after the algorithm is finished
-    """
-    supported_layout = _get_supported_layout(input_tensor.ndim)
-    if layout is not None and supported_layout != layout:
-        # Generate transpose list
-        transpose_list = []
-        for d in layout:
-            transpose_list.append(supported_layout.index(d))
-        return input_tensor.transpose(transpose_list)
-    return input_tensor
-
-
-def _convert_from_layout(
-    input_tensor: np.ndarray,
-    layout: str,
-) -> np.ndarray:
-    """
-    Converts tensor to one of suppored layouts
-    """
-    supported_layout = _get_supported_layout(input_tensor.ndim)
-    if layout is not None and supported_layout != layout:
-        # Generate transpose list
-        transpose_list = []
-        for d in supported_layout:
-            transpose_list.append(layout.index(d))
-        return input_tensor.transpose(transpose_list)
-    return input_tensor
 
 
 def get_slice(
@@ -138,12 +90,8 @@ def poolnd_python(
     count_include_pad: bool = True,
     ceil_mode: bool = False,
     dtype: str = "float32",
-    layout: Optional[str] = None,
 ) -> np.array:
     """Ground truth pooling operator impelmented in numpy."""
-
-    np_data = _convert_from_layout(np_data, layout)
-
     out_shape = [np_data.shape[0], np_data.shape[1]]
     for dim in range(2, len(np_data.shape)):
         i = dim - 2
@@ -210,4 +158,4 @@ def poolnd_python(
         else:
             raise ValueError("Pool type {} is not supported".format(pool_type))
 
-    return _convert_to_layout(ret_np, layout)
+    return ret_np

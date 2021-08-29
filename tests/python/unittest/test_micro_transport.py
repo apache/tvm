@@ -132,25 +132,25 @@ class TransportLoggerTests(unittest.TestCase):
             transport.to_return = 3
             transport_logger.write(b"data", 3.0)
             assert test_log.records[-1].getMessage() == (
-                "foo: write { 3.00s}        <- [  4 B]: 64 61 74 61"
-                "                                      data"
+                "foo: write { 3.00s}        <- [  3 B]: 64 61 74   "
+                "                                      dat"
             )
 
             # Normal log, multi-line data written.
             transport.to_return = 20
             transport_logger.write(b"data" * 6, 3.0)
             assert test_log.records[-1].getMessage() == (
-                "foo: write { 3.00s}        <- [ 24 B]:\n"
+                "foo: write { 3.00s}        <- [ 20 B]:\n"
                 "0000  64 61 74 61 64 61 74 61 64 61 74 61 64 61 74 61  datadatadatadata\n"
-                "0010  64 61 74 61 64 61 74 61                          datadata"
+                "0010  64 61 74 61                                      data"
             )
 
             # Lack of timeout prints.
             transport.to_return = 3
             transport_logger.write(b"data", None)
             assert test_log.records[-1].getMessage() == (
-                "foo: write { None }        <- [  4 B]: 64 61 74 61"
-                "                                      data"
+                "foo: write { None }        <- [  3 B]: 64 61 74   "
+                "                                      dat"
             )
 
             # IoTimeoutError includes the timeout value.

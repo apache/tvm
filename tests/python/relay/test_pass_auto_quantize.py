@@ -185,9 +185,8 @@ def verify_partition(mod, params):
     params = [gen_rand_tvm(param.type_annotation, 0, 1) for param in partitioned_mod["main"].params]
 
     def _eval_mod(mod):
-        return relay.create_executor("vm", device=tvm.cpu(0), target="llvm", mod=mod).evaluate()(
-            *params
-        )
+        vm = relay.create_executor("vm", device=tvm.cpu(0), target="llvm", mod=mod)
+        return vm.evaluate()(*params)
 
     partitioned_mod_result = _eval_mod(partitioned_mod)
     unpartitioned_mod_result = _eval_mod(unpartitioned_mod)

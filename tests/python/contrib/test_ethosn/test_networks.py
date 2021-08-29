@@ -122,13 +122,13 @@ def test_mobilenet_v1():
     # codegen, which could come about from either a change in Support Library
     # version or a change in the Ethos-N codegen. To update this requires running
     # on hardware that isn't available in CI.
-    _compile_hash = {"1fd4ef29a1ea9f3a015cab87c0b8014a"}
+    _compile_hash = {"5d3cee6ecc488c40ecf533c5cbacc534"}
     if tei.get_ethosn_variant() == "Ethos-N78_1TOPS_2PLE_RATIO":
-        _compile_hash = {"b879dfbff1f907eaf6129dfd41b44ece"}
+        _compile_hash = {"896c28b4f06341ea638ead3a593e1aed"}
     if tei.get_ethosn_api_version() == 2011:
-        _compile_hash = {"9c9f63b30824f5b223cdb27d2f22c857"}
+        _compile_hash = {"9298b6c51e2a82f70e91dd11dd6af412"}
         if tei.get_ethosn_variant() == "Ethos-N78_1TOPS_2PLE_RATIO":
-            _compile_hash = {"cd13279061df2319124a7aac81581d81"}
+            _compile_hash = {"407eb47346c8afea2d15e8f0d1c079f2"}
     _test_image_network(
         model_url="https://storage.googleapis.com/download.tensorflow.org/"
         "models/mobilenet_v1_2018_08_02/mobilenet_v1_1.0_224_quant.tgz",
@@ -148,13 +148,13 @@ def test_inception_v3():
     # codegen, which could come about from either a change in Support Library
     # version or a change in the Ethos-N codegen. To update this requires running
     # on hardware that isn't available in CI.
-    _compile_hash = {"b90ed315639c6a0e97584c2dbc42a55c"}
+    _compile_hash = {"1bc66e83c3de5a9773a719b179c65b1a"}
     if tei.get_ethosn_variant() == "Ethos-N78_1TOPS_2PLE_RATIO":
-        _compile_hash = {"5693569055695e581a8739194d0301aa"}
+        _compile_hash = {"551cde850c6ef960d19be4f317fb8e68"}
     if tei.get_ethosn_api_version() == 2011:
-        _compile_hash = {"46ccafc840633633aca441645e41b444"}
+        _compile_hash = {"d44eece5027ff56e5e7fcf014367378d"}
         if tei.get_ethosn_variant() == "Ethos-N78_1TOPS_2PLE_RATIO":
-            _compile_hash = {"4a33f397ac3e15c0f9869f7b8286fc2f"}
+            _compile_hash = {"1ba555b4bc60c428018a0f2de9d90532"}
     _test_image_network(
         model_url="https://storage.googleapis.com/download.tensorflow.org/"
         "models/tflite_11_05_08/inception_v3_quant.tgz",
@@ -173,13 +173,13 @@ def test_inception_v4():
     # codegen, which could come about from either a change in Support Library
     # version or a change in the Ethos-N codegen. To update this requires running
     # on hardware that isn't available in CI.
-    _compile_hash = {"b36877d2386d9f9c37a11772e3c4072c"}
+    _compile_hash = {"578b8ee279911b49912a77a64f5ff620"}
     if tei.get_ethosn_variant() == "Ethos-N78_1TOPS_2PLE_RATIO":
-        _compile_hash = {"b5046a6f56d78af0b4f51960bf2deeda"}
+        _compile_hash = {"30f078bd42757e8686eafa1f28d0d352"}
     if tei.get_ethosn_api_version() == 2011:
-        _compile_hash = {"4a1a56393078367dd27915a188d6a6af"}
+        _compile_hash = {"53f126cf654d4cf61ebb23c767f6740b"}
         if tei.get_ethosn_variant() == "Ethos-N78_1TOPS_2PLE_RATIO":
-            _compile_hash = {"905caf389dd6b868aeff6acbca1fecef"}
+            _compile_hash = {"851665c060cf4719248919d17325ae02"}
     _test_image_network(
         model_url="https://storage.googleapis.com/download.tensorflow.org/"
         "models/inception_v4_299_quant_20181026.tgz",
@@ -198,13 +198,13 @@ def test_ssd_mobilenet_v1():
     # codegen, which could come about from either a change in Support Library
     # version or a change in the Ethos-N codegen. To update this requires running
     # on hardware that isn't available in CI.
-    _compile_hash = {"956caf9e7fe5cfd5c042bd17857f7407", "4313033d14328e2aa022b1bd71b27b1c"}
+    _compile_hash = {"cd335229a2052f30273f127a233bd319", "95dedc29d911cdc6b28207ca08e42470"}
     if tei.get_ethosn_variant() == "Ethos-N78_1TOPS_2PLE_RATIO":
-        _compile_hash = {"dc60cc687d892cd2877873094e9dfc0b", "6b3deeec16c24c0dcef23df0db5fb162"}
+        _compile_hash = {"deee52e136327436411fc725624ae2ea", "6526509d3cbee014e38c79e22bb29d7f"}
     if tei.get_ethosn_api_version() == 2011:
-        _compile_hash = {"10826406ae724e52f360a06c35ced09d", "9a484d5ecec7acb18c9d6bc6058be031"}
+        _compile_hash = {"6e8c4586bdd26527c642a4f016f52284", "057c5efb094c79fbe4483b561147f1d2"}
         if tei.get_ethosn_variant() == "Ethos-N78_1TOPS_2PLE_RATIO":
-            _compile_hash = {"425b38830f34b6eb448fa77dbfe9ac96", "de49128643cbf1c659a9a63aad1cba62"}
+            _compile_hash = {"dc687e60a4b6750fe740853f22aeb2dc", "1949d86100004eca41099c8e6fa919ab"}
     _test_image_network(
         model_url="https://storage.googleapis.com/download.tensorflow.org/"
         "models/tflite/coco_ssd_mobilenet_v1_1.0_quant_2018_06_29.zip",

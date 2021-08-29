@@ -32,7 +32,6 @@ from tvm.contrib.debugger import debug_executor
 
 
 @tvm.testing.requires_llvm
-@tvm.testing.requires_rpc
 def test_graph_simple():
     n = 4
     A = te.placeholder((n,), name="A")
@@ -161,8 +160,9 @@ def test_graph_simple():
         # verify dump root delete after cleanup
         assert not os.path.exists(directory)
 
-    def check_remote(server):
+    def check_remote():
         mlib = tvm.build(s, [A, B], "llvm", name="myadd")
+        server = rpc.Server("127.0.0.1")
         remote = rpc.connect(server.host, server.port)
         temp = utils.tempdir()
         dev = remote.cpu(0)
@@ -182,7 +182,7 @@ def test_graph_simple():
         np.testing.assert_equal(out.numpy(), a + 1)
 
     check_verify()
-    check_remote(rpc.Server("127.0.0.1"))
+    check_remote()
 
 
 if __name__ == "__main__":

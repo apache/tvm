@@ -85,7 +85,7 @@ void PlaceholderOpNode::GatherBound(const Operation& self,
 
 Stmt PlaceholderOpNode::BuildRealize(const Stage& stage,
                                      const std::unordered_map<IterVar, Range>& realize_map,
-                                     const Stmt& body, String storage_scope) const {
+                                     const Stmt& body) const {
   return body;
 }
 

@@ -54,7 +54,7 @@ def test_relu(target, dev, m, n, dtype):
     b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), dev)
     foo = tvm.build(s, [A, B], target, name="relu")
     foo(a, b)
-    tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-5)
+    tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
 
 size, alpha = tvm.testing.parameters((100, 0.1))

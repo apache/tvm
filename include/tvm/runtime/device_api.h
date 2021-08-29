@@ -85,15 +85,6 @@ class TVM_DLL DeviceAPI {
    * \sa DeviceAttrKind
    */
   virtual void GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) = 0;
-
-  /*!
-   * \brief Query the device for specified properties.
-   *
-   * This is used to expand "-from_device=N" in the target string to
-   * all properties that can be determined from that device.
-   */
-  virtual void GetTargetProperty(Device dev, const std::string& property, TVMRetValue* rv) {}
-
   /*!
    * \brief Allocate a data space on device.
    * \param dev The device device to perform operation.
@@ -300,14 +291,7 @@ inline Device RemoveRPCSessionMask(Device dev) {
   return dev;
 }
 
-inline std::ostream& operator<<(std::ostream& os, DLDevice dev) {  // NOLINT(*)
-  if (tvm::runtime::IsRPCSessionDevice(dev)) {
-    os << "remote[" << tvm::runtime::GetRPCSessionIndex(dev) << "]-";
-    dev = tvm::runtime::RemoveRPCSessionMask(dev);
-  }
-  os << tvm::runtime::DeviceName(static_cast<int>(dev.device_type)) << "(" << dev.device_id << ")";
-  return os;
-}
+inline std::ostream& operator<<(std::ostream& os, DLDevice dev);
 
 /*!
  * \brief Add a RPC session mask to a Device.
@@ -324,6 +308,14 @@ inline Device AddRPCSessionMask(Device dev, int session_table_index) {
   return dev;
 }
 
+inline std::ostream& operator<<(std::ostream& os, DLDevice dev) {  // NOLINT(*)
+  if (IsRPCSessionDevice(dev)) {
+    os << "remote[" << GetRPCSessionIndex(dev) << "]-";
+    dev = RemoveRPCSessionMask(dev);
+  }
+  os << runtime::DeviceName(static_cast<int>(dev.device_type)) << "(" << dev.device_id << ")";
+  return os;
+}
 }  // namespace runtime
 }  // namespace tvm
 

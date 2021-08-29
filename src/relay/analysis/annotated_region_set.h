@@ -62,9 +62,6 @@ class AnnotatedRegionNode : public Object {
   /*! \brief Get the region ID. */
   int GetID() const { return id_; }
 
-  /*! \brief Get the region name. */
-  std::string GetName() const { return func_name_; }
-
   /*! \brief Get the region target. */
   std::string GetTarget() const { return target_; }
 
@@ -83,8 +80,6 @@ class AnnotatedRegionNode : public Object {
  protected:
   /*! \brief The region ID. */
   int id_{-1};
-  /*! \brief The func name. */
-  std::string func_name_ = "default";
   /*! \brief The target for this region. */
   std::string target_ = "default";
   /*! \brief The inputs to this region. */
@@ -182,7 +177,7 @@ class AnnotatedRegionSetNode : public Object {
    *
    * \return The new region.
    */
-  AnnotatedRegion MakeRegion(const std::string& func_name, const std::string& target);
+  AnnotatedRegion MakeRegion(const std::string& target);
 
   std::unordered_set<AnnotatedRegion, ObjectPtrHash, ObjectPtrEqual> regions_;
   /*! \brief The next region ID to assign. */
@@ -261,12 +256,10 @@ class AnnotatedRegionSet : public ObjectRef {
    * \param expr The relay expr from which to construct the set.
    * \param begin Region begin annotation operator.
    * \param end Region end annotation operator.
-   * \param func_name function name
    *
    * \return The created RegionSet for the expression.
    */
-  static AnnotatedRegionSet Create(const Expr& expr, const Op& begin, const Op& end,
-                                   const std::string& func_name = "default");
+  static AnnotatedRegionSet Create(const Expr& expr, const Op& begin, const Op& end);
 
  private:
   /*! \brief Helper class to construct a RegionSet from an expr.*/

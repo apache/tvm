@@ -275,31 +275,29 @@ def test_mod_export():
 
         from tvm import rpc
 
-        def check_remote(server):
-            remote = rpc.connect(server.host, server.port)
-            remote.upload(path_lib)
-            loaded_lib = remote.load_module(path_lib)
-            data = np.random.uniform(-1, 1, size=input_shape(mod)).astype("float32")
-            dev = remote.cuda()
+        server = rpc.Server("127.0.0.1", port=9094)
+        remote = rpc.connect(server.host, server.port)
+        remote.upload(path_lib)
+        loaded_lib = remote.load_module(path_lib)
+        data = np.random.uniform(-1, 1, size=input_shape(mod)).astype("float32")
+        dev = remote.cuda()
 
-            # raw api
-            gmod = loaded_lib["default"](dev)
-            set_input = gmod["set_input"]
-            run = gmod["run"]
-            get_output = gmod["get_output"]
-            set_input("data", tvm.nd.array(data, device=dev))
-            run()
-            out = get_output(0).numpy()
-            tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
+        # raw api
+        gmod = loaded_lib["default"](dev)
+        set_input = gmod["set_input"]
+        run = gmod["run"]
+        get_output = gmod["get_output"]
+        set_input("data", tvm.nd.array(data, device=dev))
+        run()
+        out = get_output(0).numpy()
+        tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
-            # graph executor wrapper
-            gmod = graph_executor.GraphModule(loaded_lib["default"](dev))
-            gmod.set_input("data", data)
-            gmod.run()
-            out = gmod.get_output(0).numpy()
-            tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
-
-        check_remote(rpc.Server("127.0.0.1"))
+        # graph executor wrapper
+        gmod = graph_executor.GraphModule(loaded_lib["default"](dev))
+        gmod.set_input("data", data)
+        gmod.run()
+        out = gmod.get_output(0).numpy()
+        tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
     for obj_format in [".so", ".tar"]:
         verify_cpu_export(obj_format)

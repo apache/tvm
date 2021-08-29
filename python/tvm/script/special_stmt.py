@@ -96,24 +96,12 @@ class SpecialStmt:
 
 @register
 class MatchBuffer(SpecialStmt):
-    """Special Stmt match_buffer(param, shape, dtype, data, strides, elem_offset, scope, align,
+    """Special Stmt match_buffer(var, shape, dtype, data, strides, elem_offset, scope, align,
                                  offset_factor, buffer_type)
-
-    Note
-    ----
-    This Special Stmt will perform different behavior depends on the type of param.
-    If the param is a var in function parameter, it will create a buffer from DLTensor.
-    Else if the param is a subregion of other buffers, then create a subregion match inside a block.
-
     Example
     -------
-    Match buffer from function parameter
     .. code-block:: python
         A = tir.match_buffer(a, (128, 128), dtype="float32")
-
-    Match buffer from Buffer subregion
-    .. code-block:: python
-        A = tir.match_buffer(B[0:128, i * 128 : i * 128 + 128], (128, 128), dtype="float32")
     """
 
     def __init__(self):
@@ -135,6 +123,10 @@ class MatchBuffer(SpecialStmt):
                     "match_buffer must be assigned to a buffer, e.g. A = match_buffer(...)",
                     self.node.span,
                 )
+            if param not in self.context.func_params:
+                self.context.report_error(
+                    "Can not bind non-input param to buffer", self.node.rhs.params[0].span
+                )
             if strides is None:
                 strides = []
             align = convert_to_int(align, "align", self.context.report_error, self.node.span)
@@ -154,23 +146,7 @@ class MatchBuffer(SpecialStmt):
                 buffer_type,
                 span=span,
             )
-            if isinstance(param, tvm.tir.Var):
-                if param not in self.context.func_params:
-                    self.context.report_error(
-                        "Can not bind non-input param to buffer", self.node.rhs.params[0].span
-                    )
-                self.context.func_buffer_map[param] = buffer
-            elif isinstance(param, BufferSlice):
-                buffer_region = buffer_slice_to_region(param)
-                self.context.current_block_scope().match_buffers.append(
-                    tvm.tir.MatchBufferRegion(buffer, buffer_region)
-                )
-            else:
-                self.context.report_error(
-                    "The source of match_buffer expected Var or BufferSlice, but got "
-                    + str(type(param)),
-                    self.node.rhs.params[0].span,
-                )
+            self.context.func_buffer_map[param] = buffer
             self.context.update_symbol(self.node.lhs.id.name, buffer, self.node)
 
         super().__init__(match_buffer, def_symbol=True)
@@ -249,7 +225,7 @@ class AllocBuffer(SpecialStmt):
             data=None,
             strides=None,
             elem_offset=None,
-            scope="global",
+            scope="",
             align=-1,
             offset_factor=0,
             buffer_type="default",
@@ -439,6 +415,68 @@ class BlockPredicate(SpecialStmt):
 
 
 @register
+class BlockMatchBufferRegion(SpecialStmt):
+    """Special function match_buffer_region(source, strides, elem_offset, align, offset_factor)
+
+    Example
+    -------
+    .. code-block:: python
+
+        B = tir.match_buffer_region(A[0: 4])
+    """
+
+    def __init__(self):
+        def match_buffer_region(
+            source,
+            strides=None,
+            elem_offset=None,
+            align=-1,
+            offset_factor=0,
+            span=None,
+        ):
+            assert self.context, "call 'exit_scope' before 'enter_scope'"
+            if not isinstance(self.node, ast.Assign):
+                self.context.report_error(
+                    "match_buffer_region must be assigned to a buffer, "
+                    + "e.g. A = match_buffer_region(...)",
+                    self.node.span,
+                )
+
+            if strides is None:
+                strides = []
+            align = convert_to_int(align, "align", self.context.report_error, self.node.span)
+            offset_factor = convert_to_int(
+                offset_factor, "offset_factor", self.context.report_error, self.node.span
+            )
+
+            if not isinstance(source, BufferSlice):
+                self.context.report_error(
+                    "match_buffer_region needs a buffer region as source",
+                    span=span,
+                )
+            buffer_region = buffer_slice_to_region(source)
+            shape = [r.extent for r in buffer_region.region]
+            buffer = tvm.tir.decl_buffer(
+                shape,
+                buffer_region.buffer.dtype,
+                self.node.lhs.id.name,
+                data=None,
+                strides=strides,
+                elem_offset=elem_offset,
+                scope=buffer_region.buffer.scope,
+                data_alignment=align,
+                offset_factor=offset_factor,
+                span=span,
+            )
+            self.context.current_block_scope().match_buffers.append(
+                tvm.tir.MatchBufferRegion(buffer, buffer_region)
+            )
+            self.context.update_symbol(self.node.lhs.id.name, buffer, self.node)
+
+        super().__init__(match_buffer_region, def_symbol=True)
+
+
+@register
 class VarDef(SpecialStmt):
     """Special function for defining a Var"""
 
@@ -451,22 +489,6 @@ class VarDef(SpecialStmt):
             self.context.update_symbol(v.name, v, self.node)
 
         super().__init__(var, def_symbol=True)
-
-
-@register
-class BufferVarDef(SpecialStmt):
-    """Special function for defining a variable of pointer type"""
-
-    def __init__(self):
-        def buffer_var(dtype, storage_scope, span):
-            assert isinstance(
-                self.node, ast.Assign
-            ), f"BufferVarDef expected ast.Assign but got {type(self.node)}"
-            ptr_type = tvm.ir.PointerType(tvm.ir.PrimType(dtype), storage_scope)
-            v = te.var(self.node.lhs.id.name, ptr_type, span=span)
-            self.context.update_symbol(v.name, v, self.node)
-
-        super().__init__(buffer_var, def_symbol=True)
 
 
 @register

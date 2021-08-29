@@ -157,3 +157,9 @@ TEST(TargetKindRegistryListTargetKinds, Basic) {
   ICHECK_EQ(names.empty(), false);
   ICHECK_EQ(std::count(std::begin(names), std::end(names), "llvm"), 1);
 }
+
+int main(int argc, char** argv) {
+  testing::InitGoogleTest(&argc, argv);
+  testing::FLAGS_gtest_death_test_style = "threadsafe";
+  return RUN_ALL_TESTS();
+}

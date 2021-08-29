@@ -118,7 +118,7 @@ class StorageAccessVisitor : public StmtExprVisitor {
    * \brief Get the scope of the buffer array.
    * \return The scope of the final buffer array.
    */
-  StorageScope GetScope(Var buffer_var) const;
+  StorageScope GetScope(const VarNode* buf) const;
   // access scope
   std::vector<std::vector<StmtEntry> > scope_;
 
@@ -135,6 +135,8 @@ class StorageAccessVisitor : public StmtExprVisitor {
   StmtEntry curr_stmt_;
   // The involving threads
   Array<IterVar> env_threads_;
+  // The storage scope of each buffer
+  std::unordered_map<const VarNode*, StorageScope> storage_scope_;
 };
 
 }  // namespace tir

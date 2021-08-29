@@ -27,7 +27,7 @@ from tvm import te, auto_scheduler
 from tvm.auto_scheduler import _ffi_api
 from tvm.auto_scheduler.loop_state import Stage
 
-from tvm.testing.auto_scheduler import (
+from test_auto_scheduler_common import (
     matmul_auto_scheduler_test,
     double_matmul_auto_scheduler_test,
     conv2d_nchw_bn_relu_auto_scheduler_test,

@@ -27,49 +27,9 @@ from .tensor_intrin import dp4a
 
 
 @autotvm.register_topi_compute("batch_matmul.cuda")
-def batch_matmul(cfg, x, y, out_shape=None, out_dtype=None, transpose_a=False, transpose_b=True):
-    """Compute batch matrix multiplication of `tensor_a` and `tensor_b`.
-
-    Both `tensor_a` and `tensor_b` can be transposed. For legacy reason, we use NT format
-    (transpose_a=False, transpose_b=True) by default.
-
-    Parameters
-    ----------
-    cfg : ConfigSpace
-        Autotvm tuning space config file.
-
-    tensor_a : tvm.te.Tensor
-        3-D with shape [batch, M, K] or [batch, K, M].
-
-    tensor_b : tvm.te.Tensor
-        3-D with shape [batch, K, N] or [batch, N, K].
-
-    out_shape : List[Optional]
-        Explicit intended output shape of the computation. Can be useful in cases
-        with dynamic input shapes.
-
-    out_dtype : Optional[str]
-        Specifies the output data type for mixed precision batch matmul.
-
-    transpose_a : Optional[bool] = False
-        Whether the first tensor is in transposed format.
-
-    transpose_b : Optional[bool] = True
-        Whether the second tensor is in transposed format.
-
-    Returns
-    -------
-    output : tvm.te.Tensor
-        3-D with shape [batch, M, N]
-    """
-    return nn.batch_matmul(
-        x,
-        y,
-        oshape=out_shape,
-        out_dtype=out_dtype,
-        transpose_a=transpose_a,
-        transpose_b=transpose_b,
-    )
+def batch_matmul(cfg, x, y, out_shape=None):
+    """Compute conv2d with NCHW layout"""
+    return nn.batch_matmul(x, y)
 
 
 @autotvm.register_topi_schedule("batch_matmul.cuda")
@@ -180,54 +140,31 @@ def schedule_batch_matmul(cfg, outs):
 
 
 @autotvm.register_topi_compute("batch_matmul_cublas.cuda")
-def batch_matmul_cublas(
-    cfg, x, y, out_shape=None, out_dtype=None, transpose_a=False, transpose_b=True
-):
-    """Compute batch matrix multiplication of `x` and `y`.
-
-    Both `x` and `y` can be transposed. For legacy reason, we use NT format
-    (transpose_a=False, transpose_b=True) by default.
+def batch_matmul_cublas(cfg, x, y, out_shape=None):
+    """Computes batch matrix multiplication of `x` and `y` when `x` and `y` are
+    data in batch.
 
     Parameters
     ----------
-    cfg : ConfigSpace
-        Autotvm tuning space config file.
-
     x : tvm.te.Tensor
-        3-D with shape [batch, M, K] or [batch, K, M].
+        3-D with shape [batch, M, K]
 
     y : tvm.te.Tensor
-        3-D with shape [batch, K, N] or [batch, N, K].
+        3-D with shape [batch, N, K]
 
-    out_shape : List[Optional]
-        Explicit intended output shape of the computation. Can be useful in cases
-        with dynamic input shapes.
-
-    out_dtype : Optional[str]
-        Specifies the output data type for mixed precision batch matmul.
-
-    transpose_a : Optional[bool] = False
-        Whether the first tensor is in transposed format.
-
-    transpose_b : Optional[bool] = True
-        Whether the second tensor is in transposed format.
+    out_shape : None
+        The output shape
 
     Returns
     -------
     output : tvm.te.Tensor
         3-D with shape [batch, M, N]
     """
-    if transpose_a:
-        b, k, m = get_const_tuple(x.shape)
-    else:
-        b, m, k = get_const_tuple(x.shape)
-    if transpose_b:
-        b, n, k = get_const_tuple(y.shape)
-    else:
-        b, k, n = get_const_tuple(y.shape)
+    b, m, k = get_const_tuple(x.shape)
+    b, n, k = get_const_tuple(y.shape)
     if all([isinstance(s, int) for s in [b, m, n, k]]):
         cfg.add_flop(b * m * k * n * 2)
-    return cublas.batch_matmul(x, y, transa=transpose_a, transb=transpose_b)
+    return cublas.batch_matmul(x, y, False, True)
 
 
 @autotvm.register_topi_schedule("batch_matmul_cublas.cuda")
@@ -237,43 +174,8 @@ def schedule_batch_matmul_cublas(_, outs):
 
 
 @autotvm.register_topi_compute("batch_matmul_int8.cuda")
-def batch_matmul_int8(
-    cfg, x, y, out_shape=None, out_dtype=None, transpose_a=False, transpose_b=True
-):
-    """Batch Matmul operator for int8 on CUDA.
-
-    Parameters
-    ----------
-    cfg : ConfigSpace
-        Autotvm tuning space config file.
-
-    x : tvm.te.Tensor
-        3-D with shape [batch, M, K] or [batch, K, M].
-
-    y : tvm.te.Tensor
-        3-D with shape [batch, K, N] or [batch, N, K].
-
-    out_shape : List[Optional]
-        Explicit intended output shape of the computation. Can be useful in cases
-        with dynamic input shapes.
-
-    out_dtype : Optional[str]
-        Specifies the output data type for mixed precision batch matmul.
-
-    transpose_a : Optional[bool] = False
-        Whether the first tensor is in transposed format.
-
-    transpose_b : Optional[bool] = True
-        Whether the second tensor is in transposed format.
-
-    Returns
-    -------
-    output : tvm.te.Tensor
-        3-D with shape [batch, M, N]
-    """
-    del out_shape
-    # TODO(jcf94): Deal with different transpose combinations
-    assert not transpose_a and transpose_b
+def batch_matmul_int8(cfg, x, y, out_shape=None, out_dtype=None):
+    """Batch Matmul operator for int8 on CUDA"""
     if out_dtype is None:
         out_dtype = x.dtype
 

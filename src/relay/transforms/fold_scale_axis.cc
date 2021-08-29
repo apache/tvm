@@ -202,7 +202,7 @@ using FForwardRewrite = TypedPackedFunc<Expr(const Call& ref_call, const Array<E
 //----------------------------------------------
 // Generic Visitors for FScaleAxisForward
 //----------------------------------------------
-class ForwardPrep : private MixedModeVisitor {
+class ForwardPrep : private ExprVisitor {
  public:
   std::unordered_map<const Object*, Message> Prepare(const Expr& body) {
     this->Update(body, NullValue<Message>());
@@ -585,22 +585,15 @@ RELAY_REGISTER_OP("nn.conv2d")
 
 Expr ForwardFoldScaleAxis(const Expr& data) {
   auto message = ForwardPrep().Prepare(data);
-  for (const auto& m : message) {
-    if (m.second.defined()) {
-      // run optimization
-      auto fcontext = [&](const Call& call) -> ObjectRef {
-        auto it = message.find(call.get());
-        if (it != message.end()) {
-          return it->second;
-        } else {
-          return ObjectRef(nullptr);
-        }
-      };
-      return ForwardRewrite(data, "FScaleAxisForwardRewrite", fcontext);
+  auto fcontext = [&](const Call& call) -> ObjectRef {
+    auto it = message.find(call.get());
+    if (it != message.end()) {
+      return it->second;
+    } else {
+      return ObjectRef(nullptr);
     }
-  }
-  // no messages - no optimization
-  return data;
+  };
+  return ForwardRewrite(data, "FScaleAxisForwardRewrite", fcontext);
 }
 
 //----------------------------------------
@@ -625,7 +618,7 @@ using FBackwardTransform =
 // Generic Visitors for FScaleAxisBackward
 //----------------------------------------------
 
-class BackwardPrep : private MixedModeVisitor {
+class BackwardPrep : private ExprVisitor {
  public:
   // The message on each node.
   std::unordered_map<const Object*, Message> Prepare(const Expr& body) {
@@ -650,14 +643,6 @@ class BackwardPrep : private MixedModeVisitor {
     // We only allow propagation of scale backward
     // if the expression is only referred by a single parent.
     if (rit->second != 1) return;
-    Array<Message> in_messages = GetInMessages(call);
-    Message out_message = f(GetRef<Call>(call), in_messages);
-    if (out_message.defined()) {
-      message_[call] = out_message;
-    }
-  }
-
-  Array<Message> GetInMessages(const CallNode* call) {
     Array<Message> in_messages;
     for (Expr arg : call->args) {
       auto it = message_.find(arg.get());
@@ -667,34 +652,52 @@ class BackwardPrep : private MixedModeVisitor {
         in_messages.push_back(NullValue<Message>());
       }
     }
-    return in_messages;
+    Message out_message = f(GetRef<Call>(call), in_messages);
+    if (out_message.defined()) {
+      message_[call] = out_message;
+    }
   }
 };
 
-/*
- * Hybrid apporach is used with the transformation
- * itself is recursive but the traversal is non-recursive
- */
-class BackwardTransformerNode : public Object, private MixedModeMutator {
+class BackwardTransformerNode : public Object, private ExprMutator {
  public:
-  using MixedModeMutator::Mutate;
   // Run forward transform.
   Expr Fold(Expr expr) {
     message_ = BackwardPrep().Prepare(expr);
-    for (const auto& m : message_) {
-      if (m.second.defined()) {
-        // run optimization
-        return this->Mutate(expr);
-      }
-    }
-    // no messages - no optimization
-    return expr;
+    return this->Mutate(expr);
   }
-
   /*!
    * \brief Transform the expr to consider the scaling.
+   *
+   * \param expr The input expression.
+   * \param axes The axes to scale.
+   * \param scale The scale applied to the axes.
+   * \return The result of transformation.
    */
-  Expr Transform(const Expr& expr, Message message, Expr scale);
+  Expr Transform(const Expr& expr, Message message, Expr scale) {
+    // NOTE: the result of Transform is memoized.
+    if (const CallNode* call_node = expr.as<CallNode>()) {
+      return Transform(call_node, message, scale);
+    } else {
+      ICHECK(!message.defined()) << "outstanding scale";
+      return ExprMutator::VisitExpr(expr);
+    }
+  }
+  /*!
+   * \brief Normal way of mutating call node.
+   * \param call_node The call node to be mutated.
+   * \return the result of the call Mutation.
+   */
+  Expr NormalCallTransform(const CallNode* call_node) {
+    const Call call = GetRef<Call>(call_node);
+    const auto it = memo_.find(call);
+    if (it != memo_.end()) {
+      return it->second;
+    }
+    Expr new_expr = ExprMutator::VisitExpr_(call_node);
+    memo_[call] = new_expr;
+    return new_expr;
+  }
   /*!
    * \brief Get the message propogated to the expr.
    * \param expr The expresison.
@@ -716,12 +719,11 @@ class BackwardTransformerNode : public Object, private MixedModeMutator {
   // Valid axes on each node.
   std::unordered_map<const Object*, Message> message_;
   // Override mutation of call.
-  Expr Rewrite_(const CallNode* call_node, const Expr& post) final {
-    return Transform(GetRef<Call>(call_node), NullValue<Message>(), NullValue<Expr>());
+  Expr VisitExpr_(const CallNode* call_node) final {
+    return Transform(call_node, NullValue<Message>(), NullValue<Expr>());
   }
-
- public:
-  Expr NormalCallTransform(const CallNode* call_node) { return ExprMutator::VisitExpr_(call_node); }
+  // Transform of CallNode.
+  Expr Transform(const CallNode* call_node, Message message, Expr scale);
 };
 
 class BackwardTransformer : public ObjectRef {
@@ -734,39 +736,21 @@ class BackwardTransformer : public ObjectRef {
   using ContainerType = BackwardTransformerNode;
 };
 
-/*!
- * \brief Transform the expr to consider the scaling.
- *
- * \param expr The input expression.
- * \param message The axes to scale.
- * \param scale The scale applied to the axes.
- * \return The result of transformation.
- */
-Expr BackwardTransformerNode::Transform(const Expr& expr, Message message, Expr scale) {
-  if (const CallNode* call_node = expr.as<CallNode>()) {
-    static const auto& ftransform =
-        Op::GetAttrMap<FBackwardTransform>("FScaleAxisBackwardTransform");
-    auto f = ftransform.get(call_node->op, nullptr);
+Expr BackwardTransformerNode::Transform(const CallNode* call_node, Message message, Expr scale) {
+  static const auto& ftransform = Op::GetAttrMap<FBackwardTransform>("FScaleAxisBackwardTransform");
+  auto f = ftransform.get(call_node->op, nullptr);
+  if (f != nullptr) {
     const Call call = GetRef<Call>(call_node);
-    // ignore if there is a message
-    if (!message.defined()) {
-      const auto it = memo_.find(call);
-      if (it != memo_.end()) {
-        return it->second;
-      }
+    const auto it = memo_.find(call);
+    if (it != memo_.end()) {
+      return it->second;
     }
-    Expr new_expr = NullValue<Expr>();
-    if (f != nullptr) {
-      new_expr = f(call, message, scale, GetRef<BackwardTransformer>(this));
-    } else {
-      ICHECK(!message.defined()) << "outstanding scale";
-      new_expr = NormalCallTransform(call.operator->());
-    }
+    Expr new_expr = f(GetRef<Call>(call_node), message, scale, GetRef<BackwardTransformer>(this));
     memo_[call] = new_expr;
     return new_expr;
   } else {
     ICHECK(!message.defined()) << "outstanding scale";
-    return this->Mutate(expr);
+    return NormalCallTransform(call_node);
   }
 }
 
@@ -829,7 +813,6 @@ Expr AddSubBackwardTransform(const Call& call, const Message& message, const Exp
   if (!message.defined()) {
     return transformer->NormalCallTransform(call.operator->());
   }
-
   Message lhs_message = transformer->GetMessage(call->args[0]);
   Message rhs_message = transformer->GetMessage(call->args[1]);
   StructuralEqual equal;
@@ -976,9 +959,7 @@ Expr Conv2DBackwardTransform(const Call& call, const Message& message, const Exp
   } else {
     wscale = ReshapeToMatchAxis(scale, weight->type_as<TensorTypeNode>()->shape,
                                 {big_ko_axis, small_ko_axis});
-    if (!wscale.defined()) {
-      return transformer->NormalCallTransform(call.operator->());
-    }
+    if (!wscale.defined()) return transformer->NormalCallTransform(call.operator->());
   }
   weight = Multiply(weight, wscale);
   return Call(call->op, {data, weight}, call->attrs, call->type_args);

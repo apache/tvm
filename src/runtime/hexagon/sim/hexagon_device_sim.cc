@@ -17,10 +17,12 @@
  * under the License.
  */
 
-#include <dmlc/optional.h>
-#include <stdlib.h>
+#include <llvm/ADT/Optional.h>
+#include <llvm/ADT/STLExtras.h>
+#include <llvm/ADT/StringRef.h>
+#include <llvm/Support/FileSystem.h>
+#include <llvm/Support/Process.h>
 #include <tvm/runtime/logging.h>
-#include <unistd.h>
 
 #include <algorithm>
 #include <deque>
@@ -29,7 +31,6 @@
 #include <memory>
 #include <sstream>
 #include <string>
-#include <utility>
 #include <vector>
 
 #include "../hexagon_module.h"
@@ -83,18 +84,6 @@ std::unique_ptr<T> make_unique(size_t size) {
   return std::unique_ptr<T>(new U[size]());
 }
 
-// An "Optional" class, originally a replacement for llvm::Optional, then an
-// extension of dmlc::optional to make it compatible with C++17's std::optional.
-template <typename T>
-struct Optional : public dmlc::optional<T> {
-  using dmlc::optional<T>::optional;
-  using dmlc::optional<T>::operator=;
-  Optional(const T& val) : dmlc::optional<T>(val) {}  // NOLINT(*)
-
-  T* operator->() { return &this->operator*(); }
-  const T* operator->() const { return &this->operator*(); }
-};
-
 // Converter class to translate vector<string> to char**. This relieves the
 // user from memory reallocation and copying.
 struct non_const_str {
@@ -128,7 +117,7 @@ struct non_const_str {
   std::vector<std::unique_ptr<char[]>> storage_;
 };
 
-using MaybeString = Optional<std::string>;
+using MaybeString = llvm::Optional<std::string>;
 
 MaybeString front(const string_list& deq) {
   return !deq.empty() ? MaybeString(deq.front()) : MaybeString();
@@ -141,47 +130,47 @@ MaybeString pop_front(string_list& deq) {  // NOLINT(*)
   return MaybeString(f);
 }
 
-Optional<int64_t> to_int(const MaybeString& str) {
-  auto none = Optional<int64_t>();
-  if (str.has_value()) {
+llvm::Optional<int64_t> to_int(const MaybeString& str) {
+  auto none = llvm::Optional<int64_t>();
+  if (str.hasValue()) {
     try {
       size_t pos;
       int64_t val = std::stoll(*str, &pos, 0);
-      return pos == str->size() ? Optional<int64_t>(val) : none;
+      return pos == str->size() ? llvm::Optional<int64_t>(val) : none;
     } catch (std::invalid_argument) {
     }
   }
   return none;
 }
 
-Optional<uint64_t> to_uint(const MaybeString& str) {
-  auto none = Optional<uint64_t>();
-  if (str.has_value()) {
+llvm::Optional<uint64_t> to_uint(const MaybeString& str) {
+  auto none = llvm::Optional<uint64_t>();
+  if (str.hasValue()) {
     try {
       size_t pos;
       uint64_t val = std::stoull(*str, &pos, 0);
-      return pos == str->size() ? Optional<uint64_t>(val) : none;
+      return pos == str->size() ? llvm::Optional<uint64_t>(val) : none;
     } catch (std::invalid_argument) {
     }
   }
   return none;
 }
 
-Optional<float> to_float(const MaybeString& str) {
-  auto none = Optional<float>();
-  if (str.has_value()) {
+llvm::Optional<float> to_float(const MaybeString& str) {
+  auto none = llvm::Optional<float>();
+  if (str.hasValue()) {
     try {
       size_t pos;
       float val = std::stof(*str, &pos);
-      return pos == str->size() ? Optional<float>(val) : none;
+      return pos == str->size() ? llvm::Optional<float>(val) : none;
     } catch (std::invalid_argument) {
     }
   }
   return none;
 }
 
-Optional<bool> to_bool(const MaybeString& str) {
-  auto none = Optional<bool>();
+llvm::Optional<bool> to_bool(const MaybeString& str) {
+  auto none = llvm::Optional<bool>();
   if (auto num = to_int(str)) {
     if (*num == 0) return false;
     if (*num == 1) return true;
@@ -195,9 +184,9 @@ Optional<bool> to_bool(const MaybeString& str) {
 }
 
 template <typename T>
-using MaybeRange = Optional<std::pair<T, T>>;
+using MaybeRange = llvm::Optional<std::pair<T, T>>;
 
-template <typename T, Optional<T> Parse(const MaybeString&)>
+template <typename T, llvm::Optional<T> Parse(const MaybeString&)>
 MaybeRange<T> to_range(const MaybeString& str) {
   auto none = MaybeRange<T>();
   if (str && !str->empty()) {
@@ -213,72 +202,6 @@ MaybeRange<T> to_range(const MaybeString& str) {
   return none;
 }
 
-// Replacement for llvm::StringSwitch.
-template <typename T>
-class StringSwitch {
- public:
-  explicit StringSwitch(const std::string& key) : key(key) {}
-  operator T() const {
-    auto f = map.find(key);
-    if (f != map.end()) {
-      return f->second;
-    }
-    ICHECK(static_cast<bool>(def_val)) << "default value not set";
-    return *def_val;
-  }
-  StringSwitch& Case(const std::string& key, T val) {
-    map.insert(std::make_pair(key, val));
-    return *this;
-  }
-  StringSwitch& Default(T val) {
-    ICHECK(!static_cast<bool>(def_val)) << "default value already set";
-    def_val = val;
-    return *this;
-  }
-
- private:
-  const std::string key;
-  std::map<std::string, T> map;
-  Optional<T> def_val;
-};
-
-// Replacement for llvm::sys::fs::access with AccessMode = Execute.
-bool FileExists(const std::string& file) { return access(file.c_str(), X_OK) == 0; }
-
-// Replacement for llvm::sys::Process::FindInEnvPath.
-MaybeString FindInEnvPath(const std::string& env_var, const std::string& file) {
-  auto none = MaybeString();
-  if (file.empty() || file[0] == '/') {
-    return none;
-  }
-
-  const char* e = getenv(env_var.c_str());
-  std::string env_val = e != nullptr ? std::string(e) : std::string();
-
-  std::vector<std::string> paths;
-  // Split the environment variable into individual paths.
-  size_t first = 0, env_size = env_val.size();
-  for (size_t last = 0; last != env_size; ++last) {
-    if (env_val[last] == ':') {
-      if (last > first) {
-        paths.emplace_back(env_val, first, last - first);
-      }
-      first = last + 1;
-    }
-  }
-  if (first < env_size) {
-    paths.emplace_back(env_val, first, env_size - first);
-  }
-
-  // Search for the file.
-  for (const std::string& dir : paths) {
-    std::string full = dir + '/' + file;
-    if (FileExists(full)) {
-      return full;
-    }
-  }
-  return none;
-}
 }  // namespace detail
 
 class HexagonSimulator final : public tvm::runtime::hexagon::Device {
@@ -381,17 +304,17 @@ class HexagonSimulator final : public tvm::runtime::hexagon::Device {
   bool HandleV2PTranslation(string_list& rest);     // NOLINT(*)
   bool HandleVerbose(string_list& rest);            // NOLINT(*)
 
-  using MaybeUInt64 = detail::Optional<uint64_t>;
+  using MaybeUInt64 = llvm::Optional<uint64_t>;
   using MaybeUIntRange = std::pair<MaybeUInt64, MaybeUInt64>;
 
   bool should_parse_next(const string_list& rest);
-  detail::Optional<HEXAPI_Interval> to_interval(const detail::MaybeString& str);
-  detail::Optional<HEXAPI_TimingMode> to_timingmode(const detail::MaybeString& str);
-  detail::Optional<HEXAPI_VerboseMode> to_verbosemode(const detail::MaybeString& str);
-  detail::Optional<HEXAPI_Nullptr> to_nullptr(const detail::MaybeString& str);
+  llvm::Optional<HEXAPI_Interval> to_interval(const detail::MaybeString& str);
+  llvm::Optional<HEXAPI_TimingMode> to_timingmode(const detail::MaybeString& str);
+  llvm::Optional<HEXAPI_VerboseMode> to_verbosemode(const detail::MaybeString& str);
+  llvm::Optional<HEXAPI_Nullptr> to_nullptr(const detail::MaybeString& str);
 
   MaybeUIntRange ahb_, axi2_;
-  detail::Optional<uint32_t> debug_port_;
+  llvm::Optional<uint32_t> debug_port_;
   detail::non_const_str sim_dev_args_;
 
   using OptionHandler = bool (HexagonSimulator::*)(string_list&);
@@ -633,13 +556,13 @@ HexagonSimulator::HexagonSimulator(bool enable_queuing) {
   LOG(INFO) << "HexagonSimulator: Core version: " << arch_;
 
   // Locate the sim_dev binary in PATH, or in the current working directory.
-  std::string sim_dev = "sim_dev";
-  detail::MaybeString path_sim_dev = detail::FindInEnvPath("PATH", sim_dev);
+  llvm::StringRef sim_dev = "sim_dev";
+  detail::MaybeString path_sim_dev = llvm::sys::Process::FindInEnvPath("PATH", sim_dev);
   if (!path_sim_dev) {
-    if (!detail::FileExists(sim_dev)) {
+    if (!llvm::sys::fs::exists(sim_dev)) {
       LOG(FATAL) << "Cannot find sim_dev in PATH.";
     }
-    path_sim_dev = sim_dev;
+    path_sim_dev = sim_dev.str();
   }
 
   CHECKED_CALL(ConfigureExecutableBinary, path_sim_dev->c_str());
@@ -844,19 +767,19 @@ bool HexagonSimulator::Configure(string_list& opts) {
   }
 
   // Check AHB.
-  if (ahb_.first.has_value() && ahb_.second.has_value()) {
+  if (ahb_.first.hasValue() && ahb_.second.hasValue()) {
     CHECKED_CALL(ConfigureAHB, *ahb_.first, *ahb_.second);
   } else {
-    ICHECK(!ahb_.first.has_value() && !ahb_.second.has_value())
+    ICHECK(!ahb_.first.hasValue() && !ahb_.second.hasValue())
         << "HexagonSimulator: please specify both low and high addresses "
            "for AHB";
   }
 
   // Check AXI2.
-  if (axi2_.first.has_value() && axi2_.second.has_value()) {
+  if (axi2_.first.hasValue() && axi2_.second.hasValue()) {
     CHECKED_CALL(ConfigureAXI2, *axi2_.first, *axi2_.second);
   } else {
-    ICHECK(!axi2_.first.has_value() && !axi2_.second.has_value())
+    ICHECK(!axi2_.first.hasValue() && !axi2_.second.hasValue())
         << "HexagonSimulator: please specify both low and high addresses "
            "for AXI2";
   }
@@ -1337,8 +1260,8 @@ bool HexagonSimulator::should_parse_next(const string_list& rest) {
   return false;
 }
 
-detail::Optional<HEXAPI_Interval> HexagonSimulator::to_interval(const detail::MaybeString& str) {
-  auto none = detail::Optional<HEXAPI_Interval>();
+llvm::Optional<HEXAPI_Interval> HexagonSimulator::to_interval(const detail::MaybeString& str) {
+  auto none = llvm::Optional<HEXAPI_Interval>();
   if (!str) return none;
 
   if (auto val = detail::to_int(*str)) {
@@ -1352,7 +1275,7 @@ detail::Optional<HEXAPI_Interval> HexagonSimulator::to_interval(const detail::Ma
     }
   }
 
-  return detail::StringSwitch<detail::Optional<HEXAPI_Interval>>(*str)
+  return llvm::StringSwitch<llvm::Optional<HEXAPI_Interval>>(*str)
       .Case("MILLISEC", HEX_MILLISEC)
       .Case("MICROSEC", HEX_MICROSEC)
       .Case("NANOSEC", HEX_NANOSEC)
@@ -1361,9 +1284,8 @@ detail::Optional<HEXAPI_Interval> HexagonSimulator::to_interval(const detail::Ma
       .Default(none);
 }
 
-detail::Optional<HEXAPI_TimingMode> HexagonSimulator::to_timingmode(
-    const detail::MaybeString& str) {
-  auto none = detail::Optional<HEXAPI_TimingMode>();
+llvm::Optional<HEXAPI_TimingMode> HexagonSimulator::to_timingmode(const detail::MaybeString& str) {
+  auto none = llvm::Optional<HEXAPI_TimingMode>();
   if (!str) return none;
 
   if (auto val = detail::to_int(*str)) {
@@ -1376,7 +1298,7 @@ detail::Optional<HEXAPI_TimingMode> HexagonSimulator::to_timingmode(
     }
   }
 
-  return detail::StringSwitch<detail::Optional<HEXAPI_TimingMode>>(*str)
+  return llvm::StringSwitch<llvm::Optional<HEXAPI_TimingMode>>(*str)
       .Case("NOTIMING", HEX_NOTIMING)
       .Case("TIMING_NODBC", HEX_TIMING_NODBC)
       .Case("TIMING", HEX_TIMING)
@@ -1384,9 +1306,9 @@ detail::Optional<HEXAPI_TimingMode> HexagonSimulator::to_timingmode(
       .Default(none);
 }
 
-detail::Optional<HEXAPI_VerboseMode> HexagonSimulator::to_verbosemode(
+llvm::Optional<HEXAPI_VerboseMode> HexagonSimulator::to_verbosemode(
     const detail::MaybeString& str) {
-  auto none = detail::Optional<HEXAPI_VerboseMode>();
+  auto none = llvm::Optional<HEXAPI_VerboseMode>();
   if (!str) return none;
 
   if (auto val = detail::to_int(*str)) {
@@ -1400,7 +1322,7 @@ detail::Optional<HEXAPI_VerboseMode> HexagonSimulator::to_verbosemode(
     }
   }
 
-  return detail::StringSwitch<detail::Optional<HEXAPI_VerboseMode>>(*str)
+  return llvm::StringSwitch<llvm::Optional<HEXAPI_VerboseMode>>(*str)
       .Case("SILENT", HEX_SILENT)
       .Case("QUIET", HEX_QUIET)
       .Case("NORMAL", HEX_NORMAL)
@@ -1409,8 +1331,8 @@ detail::Optional<HEXAPI_VerboseMode> HexagonSimulator::to_verbosemode(
       .Default(none);
 }
 
-detail::Optional<HEXAPI_Nullptr> HexagonSimulator::to_nullptr(const detail::MaybeString& str) {
-  auto none = detail::Optional<HEXAPI_Nullptr>();
+llvm::Optional<HEXAPI_Nullptr> HexagonSimulator::to_nullptr(const detail::MaybeString& str) {
+  auto none = llvm::Optional<HEXAPI_Nullptr>();
   if (!str) return none;
 
   if (auto val = detail::to_int(*str)) {
@@ -1423,7 +1345,7 @@ detail::Optional<HEXAPI_Nullptr> HexagonSimulator::to_nullptr(const detail::Mayb
     }
   }
 
-  return detail::StringSwitch<detail::Optional<HEXAPI_Nullptr>>(*str)
+  return llvm::StringSwitch<llvm::Optional<HEXAPI_Nullptr>>(*str)
       .Case("IGNORE", HEX_NULLPTR_IGNORE)
       .Case("WARN", HEX_NULLPTR_WARN)
       .Case("FATAL", HEX_NULLPTR_FATAL)

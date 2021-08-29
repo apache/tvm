@@ -32,11 +32,7 @@ from .conv2d_transpose_python import conv2d_transpose_nchw_python, conv2d_transp
 from .conv1d_transpose_ncw_python import conv1d_transpose_ncw_python
 from .correlation_nchw_python import correlation_nchw_python
 from .deformable_conv2d_python import deformable_conv2d_nchw_python, deformable_conv2d_nhwc_python
-from .depthwise_conv2d_python import (
-    depthwise_conv2d_python_nchw,
-    depthwise_conv2d_python_nhwc,
-    depthwise_conv2d_python_nchwc,
-)
+from .depthwise_conv2d_python import depthwise_conv2d_python_nchw, depthwise_conv2d_python_nhwc
 from .dilate_python import dilate_python
 from .softmax_python import softmax_python, log_softmax_python
 from .resize_python import resize1d_python, resize2d_python, resize3d_python

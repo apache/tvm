@@ -36,6 +36,7 @@
 #include <string>
 #include <vector>
 
+#include "compile_engine.h"
 #include "te_compiler.h"
 #include "utils.h"
 
@@ -183,7 +184,7 @@ class GraphOpNode : public GraphNode {
  */
 class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<GraphNodeRef>> {
  public:
-  GraphExecutorCodegen(runtime::Module* mod, const tec::TargetMap& targets) : mod_(mod) {
+  GraphExecutorCodegen(runtime::Module* mod, const TargetMap& targets) : mod_(mod) {
     targets_ = targets;
   }
 
@@ -221,22 +222,21 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
       device_context_map.insert({expr, dev});
     }
 
-    IRModule new_mod =
-        LowerTEPass(targets_, device_context_map, memory_plan_, mod_name_, [this](Function func) {
-          // We need to maintain the constant map for external
-          // functions so we pass this processing function which
-          // allows us to process each function as we lower it.
-          if (func->GetAttr<String>(attr::kCompiler).defined()) {
-            UpdateConstants(func, &params_);
-          }
+    auto lowered_module = tec::LowerTE(mod, targets_, device_context_map, memory_plan_, mod_name_,
+                                       [this](Function func) {
+                                         // We need to maintain the constant map for external
+                                         // functions so we pass this processing function which
+                                         // allows us to process each function as we lower it.
+                                         if (func->GetAttr<String>(attr::kCompiler).defined()) {
+                                           UpdateConstants(func, &params_);
+                                         }
 
-          // TODO(@areusch, @jroesch): We should refactor this to
-          // execute as a further pass, instead writing data to the
-          // lowering process directly.
-          tec::UpdateFunctionMetadata(func, this->function_metadata_);
-        })(mod);
+                                         // TODO(@areusch, @jroesch): We should refactor this to
+                                         // execute as a further pass, instead writing data to the
+                                         // lowering process directly.
+                                         UpdateFunctionMetadata(func, this->function_metadata_);
+                                       });
 
-    tec::LoweredModule lowered_module = tec::IRModuleToLoweredModule(new_mod);
     function_metadata_.Set(runtime::symbol::tvm_module_main, lowered_module.main_func_info);
     auto main_module = lowered_module.main_module;
     main_module = relay::transform::InferType()(main_module);
@@ -580,7 +580,7 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
   /*! \brief variable map */
   std::unordered_map<const Object*, std::vector<GraphNodeRef>> var_map_;
   /*! \brief target device */
-  tec::TargetMap targets_;
+  TargetMap targets_;
   /*!
    * \brief parameters (i.e. ConstantNodes found in the graph).
    * These are take as inputs to the GraphExecutor.
@@ -593,7 +593,9 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
   StaticMemoryPlan memory_plan_;
   /*! \brief the module name we use to mangle the function names */
   String mod_name_;
-  /*! \brief function metadata */
+  /*! \brief lowered funcs */
+  std::unordered_map<std::string, IRModule> lowered_funcs_;
+  /*! \brief lowered funcs */
   Map<String, FunctionInfo> function_metadata_;
   /*! \brief name map */
   std::unordered_map<std::string, size_t> name_map_;
@@ -609,7 +611,7 @@ class GraphExecutorCodegenModule : public runtime::ModuleNode {
                                     << "runtime::Module mod and Map<int, Target> targets";
         void* mod = args[0];
         Map<Integer, tvm::Target> tmp = args[1];
-        tec::TargetMap targets;
+        TargetMap targets;
         for (const auto& it : tmp) {
           auto dev_type = it.first.as<tir::IntImmNode>();
           ICHECK(dev_type);

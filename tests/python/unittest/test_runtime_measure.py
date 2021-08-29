@@ -20,7 +20,6 @@ import ctypes
 import tvm
 from tvm import te
 from tvm.contrib.utils import tempdir
-from tvm.runtime.module import BenchmarkResult
 
 
 def test_min_repeat_ms():
@@ -57,15 +56,5 @@ def test_min_repeat_ms():
     assert ct > 10 + 2
 
 
-def test_benchmark_result():
-    r = BenchmarkResult([1, 2, 2, 5])
-    assert r.mean == 2.5
-    assert r.median == 2.0
-    assert r.min == 1
-    assert r.max == 5
-    assert r.std == 1.5
-
-
 if __name__ == "__main__":
     test_min_repeat_ms()
-    test_benchmark_result()

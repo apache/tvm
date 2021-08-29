@@ -24,7 +24,7 @@
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/target/target.h>
 #include <vulkan/vulkan.h>
 
 #include <memory>

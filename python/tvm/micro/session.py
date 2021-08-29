@@ -60,6 +60,8 @@ class Session:
 
     def __init__(
         self,
+        binary=None,
+        flasher=None,
         transport_context_manager=None,
         session_name="micro-rpc",
         timeout_override=None,
@@ -68,6 +70,12 @@ class Session:
 
         Parameters
         ----------
+        binary : MicroBinary
+            If given, `flasher` must also be given. During session initialization, this binary will
+            be flashed to the device before the transport is created.
+        flasher : Flasher
+            If given, `binary` must also be given. Used to flash `binary` during session
+            initialization.
         transport_context_manager : ContextManager[transport.Transport]
             If given, `flasher` and `binary` should not be given. On entry, this context manager
             should establish a tarnsport between this TVM instance and the device.
@@ -77,6 +85,8 @@ class Session:
             If given, TransportTimeouts that govern the way Receive() behaves. If not given, this is
             determined by calling has_flow_control() on the transport.
         """
+        self.binary = binary
+        self.flasher = flasher
         self.transport_context_manager = transport_context_manager
         self.session_name = session_name
         self.timeout_override = timeout_override
@@ -96,11 +106,12 @@ class Session:
             return bytes([])
 
     def _wrap_transport_write(self, data, timeout_microsec):
-        self.transport.write(
-            data, float(timeout_microsec) / 1e6 if timeout_microsec is not None else None
-        )
-
-        return len(data)  # TODO(areusch): delete
+        try:
+            return self.transport.write(
+                data, float(timeout_microsec) / 1e6 if timeout_microsec is not None else None
+            )
+        except IoTimeoutError:
+            return 0
 
     def __enter__(self):
         """Initialize this session and establish an RPC session with the on-device RPC server.
@@ -110,6 +121,9 @@ class Session:
         Session :
             Returns self.
         """
+        if self.flasher is not None:
+            self.transport_context_manager = self.flasher.flash(self.binary)
+
         self.transport = TransportLogger(
             self.session_name, self.transport_context_manager, level=logging.DEBUG
         ).__enter__()

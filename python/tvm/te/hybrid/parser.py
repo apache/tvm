@@ -207,7 +207,8 @@ class HybridParser(ast.NodeVisitor):
             _domain = [Range.from_min_extent(0, i) for i in _buf.shape]
             _dtype = _buf.dtype
             _true = tvm.runtime.convert(True)
-            body = tvm.tir.ProducerRealize(_buf, _domain, _true, body, tvm.runtime.convert(_scope))
+            body = tvm.tir.ProducerRealize(_buf, _domain, _true, body)
+            body = tvm.tir.AttrStmt(_buf.op, "realize_scope", tvm.runtime.convert(_scope), body)
 
         for elem in to_pop:
             self.symbols.pop(elem)

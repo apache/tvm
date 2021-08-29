@@ -35,7 +35,7 @@ fn main() {
     let mut arr = NDArray::empty(shape, dev, dtype);
     arr.copy_from_buffer(data.as_mut_slice());
     let ret = NDArray::empty(shape, dev, dtype);
-    let fadd = Module::load(&concat!(env!("OUT_DIR"), "/test_add.so")).unwrap();
+    let mut fadd = Module::load(&concat!(env!("OUT_DIR"), "/test_add.so")).unwrap();
     if !fadd.enabled(dev_name) {
         return;
     }

@@ -86,9 +86,9 @@ TEST(Relay, BuildModule) {
   auto B = tvm::runtime::NDArray::Empty({2, 3}, {kDLFloat, 32, 1}, {kDLCPU, 0});
   auto C = tvm::runtime::NDArray::Empty({2, 3}, {kDLFloat, 32, 1}, {kDLCPU, 0});
 
-  auto pA = static_cast<float*>(A->data);
-  auto pB = static_cast<float*>(B->data);
-  auto pC = static_cast<float*>(C->data);
+  auto pA = (float*)A->data;
+  auto pB = (float*)B->data;
+  auto pC = (float*)C->data;
 
   for (int i = 0; i < 6; ++i) {
     pA[i] = i;
@@ -127,8 +127,7 @@ TEST(Relay, BuildModule) {
   auto dev = A->device;
   auto pfr = tvm::runtime::Registry::Get("tvm.graph_executor.create");
   ICHECK(mod.defined()) << "Module must be defined";
-  tvm::runtime::Module run_mod =
-      (*pfr)(json, mod, static_cast<int>(dev.device_type), dev.device_id);
+  tvm::runtime::Module run_mod = (*pfr)(json, mod, (int)dev.device_type, (int)dev.device_id);
   auto set_input_f = run_mod.GetFunction("set_input_zero_copy", false);
   auto run_f = run_mod.GetFunction("run", false);
   auto get_output_f = run_mod.GetFunction("get_output", false);
@@ -137,7 +136,7 @@ TEST(Relay, BuildModule) {
   set_input_f("c", const_cast<DLTensor*>(C.operator->()));
   run_f();
   tvm::runtime::NDArray Y = get_output_f(0);
-  auto pY = static_cast<float*>(Y->data);
+  auto pY = (float*)Y->data;
   for (int i = 0; i < 6; ++i) {
     ICHECK_LT(fabs(pY[i] - (i + (i + 1) + (i + 2))), 1e-4);
   }
@@ -147,20 +146,20 @@ TEST(Relay, BuildModule) {
   }
   run_f();
   tvm::runtime::NDArray Y2 = get_output_f(0);
-  auto pY2 = static_cast<float*>(Y2->data);
+  auto pY2 = (float*)Y2->data;
   for (int i = 0; i < 6; ++i) {
     ICHECK_LT(fabs(pY2[i] - (i + (i + 3) + (i + 2))), 1e-4);
   }
   // attach a different input and run it again
   auto C2 = tvm::runtime::NDArray::Empty({2, 3}, {kDLFloat, 32, 1}, {kDLCPU, 0});
-  auto pC2 = static_cast<float*>(C2->data);
+  auto pC2 = (float*)C2->data;
   for (int i = 0; i < 6; ++i) {
     pC2[i] = i + 4;
   }
   set_input_f("c", const_cast<DLTensor*>(C2.operator->()));
   run_f();
   tvm::runtime::NDArray Y3 = get_output_f(0);
-  auto pY3 = static_cast<float*>(Y3->data);
+  auto pY3 = (float*)Y3->data;
   for (int i = 0; i < 6; ++i) {
     ICHECK_LT(fabs(pY3[i] - (i + (i + 3) + (i + 4))), 1e-4);
   }
@@ -181,4 +180,10 @@ TEST(Relay, GetExprRefCount) {
   ICHECK(ref_count[x.get()] == 2);
   ICHECK(ref_count[y.get()] == 1);
   ICHECK(ref_count[z.get()] == 1);
+}
+
+int main(int argc, char** argv) {
+  testing::InitGoogleTest(&argc, argv);
+  testing::FLAGS_gtest_death_test_style = "threadsafe";
+  return RUN_ALL_TESTS();
 }

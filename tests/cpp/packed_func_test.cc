@@ -185,10 +185,9 @@ TEST(TypedPackedFunc, Deduce) {
   auto f = [](int x) -> int { return x + 1; };
   std::function<void(float)> y;
 
-  static_assert(
-      std::is_same<function_signature<decltype(x)>::FType, int(float)>::value,  // NOLINT(*)
-      "invariant1");
-  static_assert(std::is_same<function_signature<decltype(f)>::FType, int(int)>::value,  // NOLINT(*)
+  static_assert(std::is_same<function_signature<decltype(x)>::FType, int(float)>::value,
+                "invariant1");
+  static_assert(std::is_same<function_signature<decltype(f)>::FType, int(int)>::value,
                 "invariant2");
   static_assert(std::is_same<function_signature<decltype(y)>::FType, void(float)>::value,
                 "invariant3");
@@ -306,4 +305,10 @@ TEST(TypedPackedFunc, RValue) {
     // auto conversion.
     tf(1, true);
   }
+}
+
+int main(int argc, char** argv) {
+  testing::InitGoogleTest(&argc, argv);
+  testing::FLAGS_gtest_death_test_style = "threadsafe";
+  return RUN_ALL_TESTS();
 }

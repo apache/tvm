@@ -91,7 +91,6 @@ class OperatorConverter(object):
             "EQUAL": self.convert_equal,
             "EXP": self.convert_exp,
             "EXPAND_DIMS": self.convert_expand_dims,
-            "FAKE_QUANT": self.convert_fake_quant,
             "FILL": self.convert_fill,
             "FLOOR_DIV": self.convert_floor_div,
             "FLOOR_MOD": self.convert_floor_mod,
@@ -256,23 +255,23 @@ class OperatorConverter(object):
         op_c = self.model.OperatorCodes(op_code_list_idx)
         # In TFlite 2.4.x there was a change where the type of the field that contained
         # the builtin code changed from int8 to int32 in the flat buffer representation.
-        # However, to retain support for old flat buffers that were created, they retained
-        # the original 8 bit field, but named it "deprecated_builtin_code" in TFLite 2.4.
-        # This means that the API function BuiltinCode() which originally returned the value
-        # of the 8 bit field would now look for the value in the new int32 field in the
-        # schema and DeprecatedBuiltinCode() will look at the old 8 bit field.
-        # In TFLite 2.4, if the opcode value is less than 127, it can be in either field
-        # (however, if it is only in the "builtin_code" field, the model is not backward
-        # compatible), so similarly to TFLite 2.4 reader, we'll pick the higher value of the
-        # two fields.
+        # However to retain support for old flat buffers that were created, they retained
+        # the original 8 bit encoding for the operator but in a new field accessed by the
+        # DeprecatedBuiltinCode method.
+        # This means that the API function BuiltinCode() is used on an operator
+        # which was originally encoded as an 8 bit quantity it would look for the
+        # code in the new int32 field in the schema and this creates the need
+        # for the check for the magic number of 127 which is indicated by
+        # BuiltinOperator.PLACEHOLDER_FOR_GREATER_OP_CODES
         # Remember however that this value came into existence only after Tensorflow
         # lite 2.4.x and hence encase it in a try -except block.
         # Phew !
         try:
-            opc = max(op_c.DeprecatedBuiltinCode(), op_c.BuiltinCode())
+            if op_c.BuiltinCode() < BuiltinOperator.PLACEHOLDER_FOR_GREATER_OP_CODES:
+                opc = op_c.DeprecatedBuiltinCode()
+            else:
+                opc = op_c.BuiltinCode()
         except AttributeError:
-            # In versions before 2.4 the int8 field that holds the builtin code is accessed
-            # by BuiltinCode() and DeprecatedBuiltinCode() doesn't exist
             opc = op_c.BuiltinCode()
 
         op_code_id = opc
@@ -643,12 +642,9 @@ class OperatorConverter(object):
             op_options = op.BuiltinOptions()
             resize_options.Init(op_options.Bytes, op_options.Pos)
             align_corners = resize_options.AlignCorners()
-            half_pixel_centers = resize_options.HalfPixelCenters()
 
         # Use layout NHWC
         coord_trans = "align_corners" if align_corners else "asymmetric"
-        coord_trans = "half_pixel" if half_pixel_centers else coord_trans
-
         if bilinear_method and input_tensor.qnn_params:
             in_expr = self.dequantize(in_expr, input_tensor)
         out = _op.image.resize2d(
@@ -3337,56 +3333,6 @@ class OperatorConverter(object):
 
         self.set_prefetched_node(output_tensor.tensor_idx, dense_weight)
 
-    def convert_fake_quant(self, op):
-        """Convert TFLite FAKE_QUANT"""
-        input_tensors = self.get_input_tensors(op)
-        assert len(input_tensors) == 1, "input tensors length should be 1"
-
-        input_tensor = input_tensors[0]
-        in_expr = self.get_expr(input_tensor.tensor_idx)
-
-        from tflite.BuiltinOptions import BuiltinOptions
-        from tflite.FakeQuantOptions import FakeQuantOptions
-
-        assert op.BuiltinOptionsType() == BuiltinOptions.FakeQuantOptions
-
-        op_options = op.BuiltinOptions()
-        fake_quant_options = FakeQuantOptions()
-        fake_quant_options.Init(op_options.Bytes, op_options.Pos)
-
-        opt_min = fake_quant_options.Min()
-        opt_max = fake_quant_options.Max()
-        narrow_range = fake_quant_options.NarrowRange()
-        num_bits = fake_quant_options.NumBits()
-
-        assert 2 <= num_bits <= 16
-
-        quant_min = 1 if narrow_range else 0
-        quant_max = (1 << num_bits) - 1
-        scale = (opt_max - opt_min) / (quant_max - quant_min)
-
-        zero_point_from_min = quant_min - opt_min / scale
-        if zero_point_from_min <= quant_min:
-            nudged_zero_point = quant_min
-        elif zero_point_from_min >= quant_max:
-            nudged_zero_point = quant_max
-        else:
-            nudged_zero_point = round(zero_point_from_min)
-
-        nudged_min = (quant_min - nudged_zero_point) * scale
-        nudged_max = (quant_max - nudged_zero_point) * scale
-
-        nudged_min_expr = _op.const(nudged_min)
-        clamped = _op.clip(in_expr, nudged_min, nudged_max)
-        clamped_shifted = _op.subtract(clamped, nudged_min_expr)
-
-        half = _op.const(0.5)
-        one = _op.const(1.0)
-        scale_expr = _op.const(scale)
-        inv_scale = _op.divide(one, scale_expr)
-        rounded = _op.floor(_op.add(_op.multiply(clamped_shifted, inv_scale), half))
-        return _op.add(_op.multiply(rounded, scale_expr), nudged_min_expr)
-
     def get_expr(self, input_tensor_idx):
         return self.exp_tab.get_expr(get_tensor_name(self.subgraph, input_tensor_idx))
 
@@ -3525,7 +3471,7 @@ def prepare_dense_matrix_from_sparse(sparse_tensor, sparse_tensor_value, sparse_
     indices_list = []
 
     # Below function iterates through each applicable indices per dimension
-    # based on format type specified and finally produce the dense matrix and the NZ indices.
+    # based on format type specified and finaly produce the dense matrix and the NZ indices.
     def _def_prepare_dense_matrix_from_sparse(indices, level, prev_idx):
         if level == len(indices):
             start_pos = 0

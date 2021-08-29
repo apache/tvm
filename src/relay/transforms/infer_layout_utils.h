@@ -97,16 +97,7 @@ class InferCorrectLayoutOutputNode : public Object {
   Array<Layout> input_layouts;
   Array<Layout> output_layouts;
   Attrs new_attrs;
-
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("input_layouts", &input_layouts);
-    v->Visit("output_layouts", &output_layouts);
-    v->Visit("new_attrs", &new_attrs);
-  }
-
   TVM_DECLARE_BASE_OBJECT_INFO(InferCorrectLayoutOutputNode, Object);
-
-  static constexpr const char* _type_key = "relay._transform.InferCorrectLayoutOutput";
 };
 
 class InferCorrectLayoutOutput : public ObjectRef {

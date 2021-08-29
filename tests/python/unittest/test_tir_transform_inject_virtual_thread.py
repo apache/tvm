@@ -49,13 +49,13 @@ def test_vthread():
 
     stmt = tvm.tir.transform.InjectVirtualThread()(
         tvm.IRModule.from_expr(tvm.tir.PrimFunc([], get_vthread("vthread")))
-    )["main"]
+    )["main"].body
 
     assert stmt.body.body.extents[0].value == 2
 
     stmt = tvm.tir.transform.InjectVirtualThread()(
         tvm.IRModule.from_expr(tvm.tir.PrimFunc([], get_vthread("cthread")))
-    )["main"]
+    )["main"].body
 
     assert len(stmt.body.body.extents) == 3
 
@@ -94,11 +94,11 @@ def test_vthread_extern():
 
     stmt = tvm.tir.transform.InjectVirtualThread()(
         tvm.IRModule.from_expr(tvm.tir.PrimFunc([], get_vthread("cthread")))
-    )["main"]
+    )["main"].body
 
     assert stmt.body.body.extents[0].value == 2
-    assert stmt.body.body.body.body.extents[0].value == 2
-    assert len(stmt.body.body.body.body.extents) == 3
+    assert stmt.body.body.body.body.body.body.extents[0].value == 2
+    assert len(stmt.body.body.body.body.body.body.extents) == 3
 
 
 def test_vthread_if_then_else():
@@ -119,7 +119,7 @@ def test_vthread_if_then_else():
 
     stmt = tvm.tir.transform.InjectVirtualThread()(
         tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
-    )["main"]
+    )["main"].body
 
     assert stmt.body.body.body[0].else_case != None
     assert stmt.body.body.body[1].else_case == None

@@ -18,7 +18,6 @@
 import inspect
 import types
 import functools
-from typing import Callable, List, Optional, Union
 
 import tvm._ffi
 from tvm.ir.transform import Pass, PassInfo
@@ -48,10 +47,7 @@ def _wrap_class_function_pass(pass_cls, pass_info):
             def _pass_func(func, mod, ctx):
                 return inst.transform_function(func, mod, ctx)
 
-            self.__init_handle_by_constructor__(
-                _ffi_api.CreatePrimFuncPass, _pass_func, pass_info  # type: ignore
-            )
-
+            self.__init_handle_by_constructor__(_ffi_api.CreatePrimFuncPass, _pass_func, pass_info)
             self._inst = inst
 
         def __getattr__(self, name):
@@ -65,12 +61,7 @@ def _wrap_class_function_pass(pass_cls, pass_info):
     return PyFunctionPass
 
 
-def prim_func_pass(
-    pass_func=None,
-    opt_level: int = None,
-    name: Optional[str] = None,
-    required: Optional[List[str]] = None,
-) -> Union[Callable, PrimFuncPass]:
+def prim_func_pass(pass_func=None, opt_level=None, name=None, required=None):
     """Decorate a function pass.
 
     This function returns a callback when pass_func
@@ -132,7 +123,7 @@ def prim_func_pass(
         assert isinstance(function_pass, transform.FunctionPass)
         assert function_pass.info.opt_level == 2
 
-        # Given a module m, the optimization could be invoked as the following:
+        # Given a module m, the optimization could be invoked as the follwoing:
         updated_mod = function_pass(m)
         # Now constant folding should have been applied to every function in
         # the provided module m. And the updated module will be returned.
@@ -153,7 +144,7 @@ def prim_func_pass(
             return _wrap_class_function_pass(pass_arg, info)
         if not isinstance(pass_arg, (types.FunctionType, types.LambdaType)):
             raise TypeError("pass_func must be a callable for Module pass")
-        return _ffi_api.CreatePrimFuncPass(pass_arg, info)  # type: ignore
+        return _ffi_api.CreatePrimFuncPass(pass_arg, info)
 
     if pass_func:
         return create_function_pass(pass_func)

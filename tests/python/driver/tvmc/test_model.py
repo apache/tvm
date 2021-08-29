@@ -21,7 +21,6 @@ from os import path
 
 from tvm.driver import tvmc
 from tvm.driver.tvmc.model import TVMCModel, TVMCPackage, TVMCResult
-from tvm.runtime.module import BenchmarkResult
 
 
 def test_tvmc_workflow(keras_simple):
@@ -36,7 +35,7 @@ def test_tvmc_workflow(keras_simple):
     assert type(result) is TVMCResult
     assert path.exists(tuning_records)
     assert type(result.outputs) is dict
-    assert type(result.times) is BenchmarkResult
+    assert type(result.times) is tuple
     assert "output_0" in result.outputs.keys()
 
 

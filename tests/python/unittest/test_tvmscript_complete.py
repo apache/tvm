@@ -177,6 +177,19 @@ def test_complete_part_region():
     _check_elementwise(func_with_part_access_region)
 
 
+def test_complete_opaque_block_error():
+    def render(e):
+        pass
+
+    override_renderer(render)
+
+    try:
+        from_source(func_with_opaque_block)
+    except tvm.error.DiagnosticError:
+        return
+    assert False
+
+
 @tvm.script.tir
 def func_with_bufferslice_indices(data: ty.handle, index: ty.handle) -> None:
     data_buf = tir.match_buffer(data, (16, 16), "float32")
@@ -242,46 +255,10 @@ def test_complete_buffer_indices():
     tvm.ir.assert_structural_equal(new_func, expected_recursive_bufferslice_indices)
 
 
-@tvm.script.tir
-def match_buffer_func(a: ty.handle) -> None:
-    A = tir.match_buffer(a, (16, 16))
-    for i in range(0, 16):
-        with tir.block([]):
-            A0 = tir.match_buffer(A[i, 0:16], (16))
-            with tir.block([]):
-                for j in range(0, 16):
-                    with tir.block([]) as []:
-                        A1 = tir.match_buffer(A0[j], ())
-                        A1[()] = 1.0
-
-
-@tvm.script.tir
-def expected_match_buffer_func(a: ty.handle) -> None:
-    A = tir.match_buffer(a, (16, 16))
-    for i in range(0, 16):
-        with tir.block([]):
-            tir.reads([])
-            tir.writes(A[i, 0:16])
-            A0 = tir.match_buffer(A[i, 0:16], (16))
-            with tir.block([]):
-                tir.reads([])
-                tir.writes(A0[0:16])
-                for j in range(0, 16):
-                    with tir.block([]) as []:
-                        tir.reads([])
-                        tir.writes(A0[j])
-                        A1 = tir.match_buffer(A0[j], ())
-                        A1[()] = 1.0
-
-
-def test_complete_match_buffer():
-    tvm.ir.assert_structural_equal(match_buffer_func, expected_match_buffer_func)
-
-
 if __name__ == "__main__":
     test_complete_matmul()
     test_complete_matmul_original()
     test_complete_with_root()
+    test_complete_opaque_block_error()
     test_complete_part_region()
     test_complete_buffer_indices()
-    test_complete_match_buffer()

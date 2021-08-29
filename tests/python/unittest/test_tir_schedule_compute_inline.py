@@ -15,13 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-function-docstring,missing-module-docstring
-import sys
-
 import pytest
 import tvm
 from tvm import tir
 from tvm.script import ty
-from tvm.tir.schedule.testing import verify_trace_roundtrip
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
@@ -174,7 +171,7 @@ def buffer_matched(a: ty.handle, c: ty.handle) -> None:
     with tir.block([128, 128], "B") as [vi, vj]:
         B[vi, vj] = A[vi, vj] * 2.0
     with tir.block([128, 128], "C") as [vi, vj]:
-        Bb = tir.match_buffer(B[vi : vi + 1, vj], (1, 1))
+        Bb = tir.match_buffer_region(B[vi : vi + 1, vj])
         C[vi, vj] = Bb[0, 0] + 1.0
 
 
@@ -224,37 +221,34 @@ def elementwise_multi_loads_inlined(a: ty.handle, c: ty.handle) -> None:
 
 
 def test_compute_inline_elementwise():
-    sch = tir.Schedule(elementwise, debug_mask="all")
+    sch = tir.Schedule(elementwise, debug_mode=True)
     block_b = sch.get_block("B")
     block_c = sch.get_block("C")
     sch.compute_inline(block_b)
     tvm.ir.assert_structural_equal(elementwise_inlined, sch.mod["main"])
     assert sch.get(block_c).name_hint == "C"
-    verify_trace_roundtrip(sch=sch, mod=elementwise)
 
 
 def test_compute_inline_under_loop():
-    sch = tir.Schedule(elementwise_under_loop, debug_mask="all")
+    sch = tir.Schedule(elementwise_under_loop, debug_mode=True)
     block_b = sch.get_block("B")
     block_c = sch.get_block("C")
     sch.compute_inline(block_b)
     tvm.ir.assert_structural_equal(elementwise_inlined, sch.mod["main"])
     assert sch.get(block_c).name_hint == "C"
-    verify_trace_roundtrip(sch=sch, mod=elementwise_under_loop)
 
 
 def test_compute_inline_as_dce():
-    sch = tir.Schedule(elementwise_standalone, debug_mask="all")
+    sch = tir.Schedule(elementwise_standalone, debug_mode=True)
     block_b = sch.get_block("B")
     block_c = sch.get_block("C")
     sch.compute_inline(block_b)
     tvm.ir.assert_structural_equal(elementwise_standalone_dce, sch.mod["main"])
     assert sch.get(block_c).name_hint == "C"
-    verify_trace_roundtrip(sch=sch, mod=elementwise_standalone)
 
 
 def test_compute_inline_multi_consumer():
-    sch = tir.Schedule(elementwise_multi_producer_consumer, debug_mask="all")
+    sch = tir.Schedule(elementwise_multi_producer_consumer, debug_mode=True)
     block_b = sch.get_block("B")
     block_c = sch.get_block("C")
     block_d = sch.get_block("D")
@@ -262,108 +256,118 @@ def test_compute_inline_multi_consumer():
     tvm.ir.assert_structural_equal(elementwise_multi_consumer_inlined, sch.mod["main"])
     assert sch.get(block_c).name_hint == "C"
     assert sch.get(block_d).name_hint == "D"
-    verify_trace_roundtrip(sch=sch, mod=elementwise_multi_producer_consumer)
 
 
 def test_compute_inline_fail_multi_writer():
-    sch = tir.Schedule(fail_multi_reader_writer, debug_mask="all")
+    sch = tir.Schedule(fail_multi_reader_writer, debug_mode=True, error_render_level="detail")
     block_b = sch.get_block("B")
     with pytest.raises(tvm.tir.ScheduleError):
         sch.compute_inline(block_b)
 
 
 def test_reverse_compute_inline_elementwise():
-    sch = tir.Schedule(elementwise, debug_mask="all")
+    sch = tir.Schedule(elementwise, debug_mode=True)
     block_b = sch.get_block("B")
     block_c = sch.get_block("C")
     sch.reverse_compute_inline(block_c)
     tvm.ir.assert_structural_equal(elementwise_inlined, sch.mod["main"])
     assert sch.get(block_b).name_hint == "B"
-    verify_trace_roundtrip(sch=sch, mod=elementwise)
 
 
 def test_reverse_compute_inline_under_loop():
-    sch = tir.Schedule(elementwise_under_loop, debug_mask="all")
+    sch = tir.Schedule(elementwise_under_loop, debug_mode=True)
     block_b = sch.get_block("B")
     block_c = sch.get_block("C")
     sch.reverse_compute_inline(block_c)
     tvm.ir.assert_structural_equal(elementwise_inlined, sch.mod["main"])
     assert sch.get(block_b).name_hint == "B"
-    verify_trace_roundtrip(sch=sch, mod=elementwise_under_loop)
 
 
 def test_reverse_compute_inline_fail_as_dce():
-    sch = tir.Schedule(elementwise_standalone, debug_mask="all")
+    sch = tir.Schedule(elementwise_standalone, debug_mode=True)
     block_b = sch.get_block("B")
     with pytest.raises(tvm.tir.ScheduleError):
         sch.reverse_compute_inline(block_b)
 
 
 def test_reverse_compute_inline_fail_multi_producer():
-    sch = tir.Schedule(elementwise_multi_producer_consumer, debug_mask="all")
+    sch = tir.Schedule(elementwise_multi_producer_consumer, debug_mode=True)
     block_d = sch.get_block("D")
     with pytest.raises(tvm.tir.ScheduleError):
         sch.reverse_compute_inline(block_d)
 
 
 def test_reverse_compute_inline_fail_multi_reader():
-    sch = tir.Schedule(fail_multi_reader_writer, debug_mask="all")
+    sch = tir.Schedule(fail_multi_reader_writer, debug_mode=True)
     block_c = sch.get_block("C")
     with pytest.raises(tvm.tir.ScheduleError):
         sch.reverse_compute_inline(block_c)
 
 
 def test_reverse_compute_multi_reverse_loads():
-    sch = tir.Schedule(elementwise_multi_reverse_loads, debug_mask="all")
+    sch = tir.Schedule(elementwise_multi_reverse_loads, debug_mode=True)
     block_c = sch.get_block("C")
     sch.reverse_compute_inline(block_c)
     tvm.ir.assert_structural_equal(elementwise_multi_reverse_loads_inlined, sch.mod["main"])
-    verify_trace_roundtrip(sch=sch, mod=elementwise_multi_reverse_loads)
 
 
 def test_reverse_compute_fail_multi_reverse_loads():
-    sch = tir.Schedule(elementwise_multi_loads, debug_mask="all")
+    sch = tir.Schedule(elementwise_multi_loads, debug_mode=True)
     block_c = sch.get_block("C")
     with pytest.raises(tvm.tir.ScheduleError):
         sch.reverse_compute_inline(block_c)
 
 
 def test_opaque_access_load():
-    sch = tir.Schedule(opaque_access_load, debug_mask="all")
+    sch = tir.Schedule(opaque_access_load, debug_mode=True)
     block_b = sch.get_block("B")
     with pytest.raises(tvm.tir.ScheduleError):
         sch.compute_inline(block_b)
 
 
 def test_opaque_access_store():
-    sch = tir.Schedule(opaque_access_store, debug_mask="all")
+    sch = tir.Schedule(opaque_access_store, debug_mode=True)
     block_b = sch.get_block("B")
     with pytest.raises(tvm.tir.ScheduleError):
         sch.compute_inline(block_b)
 
 
 def test_buffer_matched():
-    sch = tir.Schedule(buffer_matched, debug_mask="all")
+    sch = tir.Schedule(buffer_matched, debug_mode=True)
     block_b = sch.get_block("B")
     with pytest.raises(tvm.tir.ScheduleError):
         sch.compute_inline(block_b)
 
 
 def test_compute_inline_predicate():
-    sch = tir.Schedule(elementwise_predicate, debug_mask="all")
+    sch = tir.Schedule(elementwise_predicate, debug_mode=True)
     block_b = sch.get_block("B")
     sch.compute_inline(block_b)
     tvm.ir.assert_structural_equal(elementwise_predicate_inlined, sch.mod["main"])
-    verify_trace_roundtrip(sch=sch, mod=elementwise_predicate)
 
 
 def test_compute_inline_multi_loads():
-    sch = tir.Schedule(elementwise_multi_loads, debug_mask="all")
+    sch = tir.Schedule(elementwise_multi_loads, debug_mode=True)
     block_b = sch.get_block("B")
     sch.compute_inline(block_b)
     tvm.ir.assert_structural_equal(elementwise_multi_loads_inlined, sch.mod["main"])
-    verify_trace_roundtrip(sch=sch, mod=elementwise_multi_loads)
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    test_compute_inline_elementwise()
+    test_compute_inline_under_loop()
+    test_compute_inline_as_dce()
+    test_compute_inline_multi_consumer()
+    test_compute_inline_fail_multi_writer()
+    test_reverse_compute_inline_elementwise()
+    test_reverse_compute_inline_under_loop()
+    test_reverse_compute_inline_fail_as_dce()
+    test_reverse_compute_inline_fail_multi_producer()
+    test_reverse_compute_inline_fail_multi_reader()
+    test_reverse_compute_multi_reverse_loads()
+    test_reverse_compute_fail_multi_reverse_loads()
+    test_opaque_access_load()
+    test_opaque_access_store()
+    test_buffer_matched()
+    test_compute_inline_predicate()
+    test_compute_inline_multi_loads()

@@ -43,31 +43,26 @@ namespace vm {
 PackedFunc VirtualMachineDebug::GetFunction(const std::string& name,
                                             const ObjectPtr<Object>& sptr_to_self) {
   if (name == "profile") {
-    return TypedPackedFunc<profiling::Report(String, Array<profiling::MetricCollector>)>(
-        [sptr_to_self, this](String arg_name, Array<profiling::MetricCollector> collectors) {
-          std::vector<Device> devices;
-          for (auto dev : devices_) {
-            if (dev.device_type > 0) {
-              devices.push_back(dev);
-            }
-          }
+    return TypedPackedFunc<profiling::Report(String)>([sptr_to_self, this](String arg_name) {
+      std::vector<Device> devices;
+      for (auto dev : devices_) {
+        if (dev.device_type > 0) {
+          devices.push_back(dev);
+        }
+      }
 
-          std::vector<profiling::MetricCollector> cs(collectors.begin(), collectors.end());
-          prof_ = profiling::Profiler(devices, cs);
+      auto invoke = VirtualMachine::GetFunction("invoke", sptr_to_self);
+      // warmup
+      for (int i = 0; i < 3; i++) {
+        invoke(arg_name);
+      }
 
-          auto invoke = VirtualMachine::GetFunction("invoke", sptr_to_self);
-          // warmup
-          for (int i = 0; i < 3; i++) {
-            invoke(arg_name);
-          }
-
-          prof_.operator*().Start();
-          invoke(arg_name);
-          prof_.operator*().Stop();
-          auto report = prof_.operator*().Report();
-          prof_ = dmlc::optional<profiling::Profiler>();  // releases hardware counters
-          return report;
-        });
+      prof_ = profiling::Profiler();  // reset profiler
+      prof_.Start(devices);
+      invoke(arg_name);
+      prof_.Stop();
+      return prof_.Report();
+    });
   } else {
     return VirtualMachine::GetFunction(name, sptr_to_self);
   }
@@ -85,7 +80,7 @@ void VirtualMachineDebug::InvokePacked(Index packed_index, const PackedFunc& fun
                                        Index output_size, const std::vector<ObjectRef>& args) {
   ICHECK(exec_);
   ICHECK(!devices_.empty()) << "Device has not been initialized yet.";
-  if (prof_ && prof_.operator*().IsRunning()) {
+  if (prof_.IsRunning()) {
     // The device of any input of the operator is used for synchronization.
     ICHECK_GT(arg_count, 0U);
     ObjectRef arg = args[0];
@@ -127,11 +122,11 @@ void VirtualMachineDebug::InvokePacked(Index packed_index, const PackedFunc& fun
     }
     metrics["Argument Shapes"] = profiling::ShapeString(shapes);
 
-    prof_.operator*().StartCall(packed_index_map_[packed_index], dev, metrics);
+    prof_.StartCall(packed_index_map_[packed_index], dev, metrics);
   }
   VirtualMachine::InvokePacked(packed_index, func, arg_count, output_size, args);
-  if (prof_ && prof_.operator*().IsRunning()) {
-    prof_.operator*().StopCall();
+  if (prof_.IsRunning()) {
+    prof_.StopCall();
   }
 }
 

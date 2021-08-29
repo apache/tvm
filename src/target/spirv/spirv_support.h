@@ -102,22 +102,6 @@ struct SPIRVSupport {
   uint32_t max_storage_buffer_range{1 << 27};
 
   /*!
-   * \brief The maximum amount of shared memory usable by a shader
-   *
-   * Vulkan extension: N/A
-   * Vulkan struct: VkPhysicalDeviceLimits
-   * Device Property: maxComputeSharedMemorySize
-   * SPV Extension name: N/A
-   * SPV Capability: N/A
-   *
-   * The maximum amount of shared memory (Workgroup scope) that may be
-   * allocated by a shader.  Default value is from Vulkan spec,
-   * "Required Limits" table.  Implementations may have a larger
-   * limit.
-   */
-  uint32_t max_shared_memory_per_block{16384};
-
-  /*!
    * \brief The maximum number of storage buffers accessible by a single shader.
    *
    * Vulkan struct: VkPhysicalDeviceLimits

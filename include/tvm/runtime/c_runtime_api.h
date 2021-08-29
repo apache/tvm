@@ -521,14 +521,6 @@ TVM_DLL int TVMObjectGetTypeIndex(TVMObjectHandle obj, unsigned* out_tindex);
 TVM_DLL int TVMObjectTypeKey2Index(const char* type_key, unsigned* out_tindex);
 
 /*!
- * \brief Convert type index to type key.
- * \param tindex The type index.
- * \param out_type_key The output type key.
- * \return 0 when success, nonzero when failure happens
- */
-TVM_DLL int TVMObjectTypeIndex2Key(unsigned tindex, char** out_type_key);
-
-/*!
  * \brief Increase the reference count of an object.
  *
  * \param obj The object handle.

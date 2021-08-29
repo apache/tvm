@@ -155,13 +155,6 @@ Pass ConvertLayout(const Map<String, Array<String>>& desired_layouts) {
 
 TVM_REGISTER_GLOBAL("relay._transform.ConvertLayout").set_body_typed(ConvertLayout);
 
-TVM_REGISTER_GLOBAL("relay._transform.InferCorrectLayoutOutput")
-    .set_body_typed([](Array<Layout> input_layouts, Array<Layout> output_layouts, Attrs new_attrs) {
-      return InferCorrectLayoutOutput(input_layouts, output_layouts, new_attrs);
-    });
-
-TVM_REGISTER_NODE_TYPE(InferCorrectLayoutOutputNode);
-
 }  // namespace transform
 
 }  // namespace relay

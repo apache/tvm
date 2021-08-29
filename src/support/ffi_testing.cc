@@ -91,14 +91,6 @@ TVM_REGISTER_GLOBAL("testing.run_check_signal").set_body_typed([](int nsec) {
   LOG(INFO) << "Function finished without catching signal";
 });
 
-TVM_REGISTER_GLOBAL("testing.identity_cpp").set_body([](TVMArgs args, TVMRetValue* ret) {
-  const auto* identity_func = tvm::runtime::Registry::Get("testing.identity_py");
-  ICHECK(identity_func != nullptr)
-      << "AttributeError: \"testing.identity_py\" is not registered. Please check "
-         "if the python module is properly loaded";
-  *ret = (*identity_func)(args[0]);
-});
-
 // in src/api_test.cc
 void ErrorTest(int x, int y) {
   // raise ValueError

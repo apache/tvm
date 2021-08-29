@@ -124,7 +124,8 @@ def to_adt_list(mod, arr):
     li = nil()
     for a in arr:
         li = cons(relay.const(a), li)
-    adt = relay.create_executor(mod=mod).evaluate(li)
+    ex = relay.create_executor(mod=mod)
+    adt = ex.evaluate(li)
     mod["main"] = expr
     return adt
 
@@ -147,9 +148,11 @@ def @main(%l: Tensor[(5, 5), float32]) -> Tensor[(5, 5), float32] {
 
     input = np.random.rand(5, 5).astype("float32")
 
-    out = relay.create_executor("debug", mod=mod).evaluate()(input)
+    ex = relay.create_executor("debug", mod=mod)
+    defunc_ex = relay.create_executor("debug", mod=defunc_mod)
 
-    defunc_out = relay.create_executor("debug", mod=defunc_mod).evaluate()(input)
+    out = ex.evaluate()(input)
+    defunc_out = defunc_ex.evaluate()(input)
 
     np.testing.assert_equal(out.numpy(), defunc_out.numpy())
 
@@ -179,11 +182,11 @@ def @main(%l: List[float32]) -> List[float32] {
 
     input = np.random.rand(10).astype("float32")
 
-    out = relay.create_executor("debug", mod=mod).evaluate(mod["main"])(to_adt_list(mod, input))
+    ex = relay.create_executor("debug", mod=mod)
+    defunc_ex = relay.create_executor("debug", mod=defunc_mod)
 
-    defunc_out = relay.create_executor("debug", mod=defunc_mod).evaluate()(
-        to_adt_list(defunc_mod, input)
-    )
+    out = ex.evaluate(mod["main"])(to_adt_list(mod, input))
+    defunc_out = defunc_ex.evaluate()(to_adt_list(defunc_mod, input))
 
     np.testing.assert_array_equal(to_list(mod, out), to_list(defunc_mod, defunc_out))
 
@@ -217,11 +220,11 @@ def @main(%l: List[int32]) -> int32 {
 
     input = np.random.randint(1, 100, 10)
 
-    out = relay.create_executor("debug", mod=mod).evaluate(mod["main"])(to_adt_list(mod, input))
+    ex = relay.create_executor("debug", mod=mod)
+    defunc_ex = relay.create_executor("debug", mod=defunc_mod)
 
-    defunc_out = relay.create_executor("debug", mod=defunc_mod).evaluate()(
-        to_adt_list(defunc_mod, input)
-    )
+    out = ex.evaluate(mod["main"])(to_adt_list(mod, input))
+    defunc_out = defunc_ex.evaluate()(to_adt_list(defunc_mod, input))
 
     tvm.testing.assert_allclose(out.numpy(), defunc_out.numpy())
 

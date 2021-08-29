@@ -183,7 +183,7 @@ The first time you invoke the compiled module with ``fadd(a, b, c)``, ``GetFunct
      auto it = fmap_.find(name);
      const FunctionInfo& info = it->second;
      CUDAWrappedFunc f;
-     f.Init(this, sptr_to_self, name, info.arg_types.size(), info.launch_param_tags);
+     f.Init(this, sptr_to_self, name, info.arg_types.size(), info.thread_axis_tags);
      return PackFuncVoidAddr(f, info.arg_types);
    }
 
@@ -204,7 +204,7 @@ The ``PackedFunc``'s overloaded ``operator()`` will be called, which in turn cal
          fcache_[device_id] = m_->GetFunc(device_id, func_name_);
        }
        CUstream strm = static_cast<CUstream>(CUDAThreadEntry::ThreadLocal()->stream);
-       ThreadWorkLoad wl = launch_param_config_.Extract(args);
+       ThreadWorkLoad wl = thread_axis_cfg_.Extract(args);
        CUresult result = cuLaunchKernel(
            fcache_[device_id],
            wl.grid_dim(0),

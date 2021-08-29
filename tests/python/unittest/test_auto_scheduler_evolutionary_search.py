@@ -18,7 +18,7 @@
 
 import tvm
 import pytest
-from tvm.testing.auto_scheduler import matmul_auto_scheduler_test
+from test_auto_scheduler_common import matmul_auto_scheduler_test
 from tvm import auto_scheduler, te
 from tvm.auto_scheduler.cost_model.cost_model import PythonBasedModel
 

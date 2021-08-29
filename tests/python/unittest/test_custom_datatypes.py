@@ -90,17 +90,17 @@ def change_dtype(src, dst, module, params):
 def compare(module, input, src_dtype, dst_dtype, rtol, atol, params={}, target="llvm"):
     module = relay.transform.InferType()(module)
     module = relay.transform.SimplifyInference()(module)
+    ex = relay.create_executor("graph", mod=module)
 
-    correct = relay.create_executor("graph", mod=module).evaluate()(*input, **params)
+    correct = ex.evaluate()(*input, **params)
     module, converted_params = change_dtype(src_dtype, dst_dtype, module, params)
+    ex = relay.create_executor("graph", mod=module, target=target)
     # converts all inputs to dst_dtype
     x_converted = [convert_ndarray(dst_dtype, arr) for arr in input]
 
     # Vectorization is not implemented with custom datatypes
     with tvm.transform.PassContext(config={"tir.disable_vectorize": True}):
-        maybe_correct = relay.create_executor("graph", mod=module, target=target).evaluate()(
-            *x_converted, **converted_params
-        )
+        maybe_correct = ex.evaluate()(*x_converted, **converted_params)
         # currently this only works for comparing single output
         maybe_correct_converted = convert_ndarray(src_dtype, maybe_correct)
     np.testing.assert_allclose(

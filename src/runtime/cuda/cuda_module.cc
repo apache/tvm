@@ -153,12 +153,12 @@ class CUDAWrappedFunc {
  public:
   // initialize the CUDA function.
   void Init(CUDAModuleNode* m, ObjectPtr<Object> sptr, const std::string& func_name,
-            size_t num_void_args, const std::vector<std::string>& launch_param_tags) {
+            size_t num_void_args, const std::vector<std::string>& thread_axis_tags) {
     m_ = m;
     sptr_ = sptr;
     func_name_ = func_name;
     std::fill(fcache_.begin(), fcache_.end(), nullptr);
-    launch_param_config_.Init(num_void_args, launch_param_tags);
+    thread_axis_cfg_.Init(num_void_args, thread_axis_tags);
   }
   // invoke the function with void arguments
   void operator()(TVMArgs args, TVMRetValue* rv, void** void_args) const {
@@ -168,10 +168,10 @@ class CUDAWrappedFunc {
       fcache_[device_id] = m_->GetFunc(device_id, func_name_);
     }
     CUstream strm = static_cast<CUstream>(CUDAThreadEntry::ThreadLocal()->stream);
-    ThreadWorkLoad wl = launch_param_config_.Extract(args);
+    ThreadWorkLoad wl = thread_axis_cfg_.Extract(args);
     CUresult result = cuLaunchKernel(fcache_[device_id], wl.grid_dim(0), wl.grid_dim(1),
                                      wl.grid_dim(2), wl.block_dim(0), wl.block_dim(1),
-                                     wl.block_dim(2), wl.dyn_shmem_size, strm, void_args, nullptr);
+                                     wl.block_dim(2), 0, strm, void_args, nullptr);
     if (result != CUDA_SUCCESS && result != CUDA_ERROR_DEINITIALIZED) {
       const char* msg;
       cuGetErrorName(result, &msg);
@@ -201,8 +201,8 @@ class CUDAWrappedFunc {
   // Device function cache per device.
   // mark as mutable, to enable lazy initialization
   mutable std::array<CUfunction, kMaxNumGPUs> fcache_;
-  // launch parameters configuration
-  LaunchParamConfig launch_param_config_;
+  // thread axis configuration
+  ThreadAxisConfig thread_axis_cfg_;
 };
 
 class CUDAPrepGlobalBarrier {
@@ -241,7 +241,7 @@ PackedFunc CUDAModuleNode::GetFunction(const std::string& name,
   if (it == fmap_.end()) return PackedFunc();
   const FunctionInfo& info = it->second;
   CUDAWrappedFunc f;
-  f.Init(this, sptr_to_self, name, info.arg_types.size(), info.launch_param_tags);
+  f.Init(this, sptr_to_self, name, info.arg_types.size(), info.thread_axis_tags);
   return PackFuncVoidAddr(f, info.arg_types);
 }
 

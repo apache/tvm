@@ -43,7 +43,7 @@ def ir_transform(stmt, preorder, postorder, only_enable=None):
     result : tvm.tir.Stmt
         The result.
     """
-    return _ffi_api.IRTransform(stmt, preorder, postorder, only_enable)  # type: ignore
+    return _ffi_api.IRTransform(stmt, preorder, postorder, only_enable)
 
 
 def post_order_visit(stmt, fvisit):
@@ -55,7 +55,7 @@ def post_order_visit(stmt, fvisit):
     fvisit: function
         The visitor function.
     """
-    return _ffi_api.PostOrderVisit(stmt, fvisit)  # type: ignore
+    return _ffi_api.PostOrderVisit(stmt, fvisit)
 
 
 def substitute(node, vmap):
@@ -74,4 +74,4 @@ def substitute(node, vmap):
     result : tvm.tir.Stmt
         The result.
     """
-    return _ffi_api.Substitute(node, vmap)  # type: ignore
+    return _ffi_api.Substitute(node, vmap)

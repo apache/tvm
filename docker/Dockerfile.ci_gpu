@@ -28,9 +28,6 @@ RUN bash /install/ubuntu_install_core.sh
 COPY install/ubuntu1804_install_python.sh /install/ubuntu1804_install_python.sh
 RUN bash /install/ubuntu1804_install_python.sh
 
-# Globally disable pip cache
-RUN pip config set global.cache-dir false
-
 COPY install/ubuntu1804_install_llvm.sh /install/ubuntu1804_install_llvm.sh
 RUN bash /install/ubuntu1804_install_llvm.sh
 
@@ -83,12 +80,8 @@ RUN bash /install/ubuntu_install_caffe2.sh
 COPY install/ubuntu_install_dgl.sh /install/ubuntu_install_dgl.sh
 RUN bash /install/ubuntu_install_dgl.sh
 
-ENV NVIDIA_DRIVER_CAPABILITIES compute,graphics,utility
 COPY install/ubuntu_install_vulkan.sh /install/ubuntu_install_vulkan.sh
 RUN bash /install/ubuntu_install_vulkan.sh
-
-COPY install/ubuntu_install_paddle.sh /install/ubuntu_install_paddle.sh
-RUN bash /install/ubuntu_install_paddle.sh
 
 # Rust env (build early; takes a while)
 COPY install/ubuntu_install_rust.sh /install/ubuntu_install_rust.sh

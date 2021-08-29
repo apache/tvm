@@ -47,7 +47,7 @@ namespace {
 std::string GenerateUntarCommand(const std::string& tar_file, const std::string& output_dir) {
   std::string untar_cmd;
   untar_cmd.reserve(512);
-#if defined(__linux__) || defined(__ANDROID__) || defined(__APPLE__)
+#if defined(__linux__) || defined(__ANDROID__)
   untar_cmd += "tar -C ";
   untar_cmd += output_dir;
   untar_cmd += " -zxf ";
@@ -224,7 +224,7 @@ std::vector<std::string> ListDir(const std::string& dirname) {
   return vec;
 }
 
-#if defined(__linux__) || defined(__ANDROID__) || defined(__APPLE__)
+#if defined(__linux__) || defined(__ANDROID__)
 /*!
  * \brief LinuxShared Creates a linux shared library
  * \param output The output file name
@@ -280,7 +280,7 @@ void WindowsShared(const std::string& output, const std::vector<std::string>& fi
  * \param files The files for building
  */
 void CreateShared(const std::string& output, const std::vector<std::string>& files) {
-#if defined(__linux__) || defined(__ANDROID__) || defined(__APPLE__)
+#if defined(__linux__) || defined(__ANDROID__)
   LinuxShared(output, files);
 #elif defined(_WIN32)
   WindowsShared(output, files);
@@ -290,8 +290,7 @@ void CreateShared(const std::string& output, const std::vector<std::string>& fil
 }
 
 std::string BuildSharedLibrary(std::string file) {
-  if (support::EndsWith(file, ".so") || support::EndsWith(file, ".dll") ||
-      support::EndsWith(file, ".dylib")) {
+  if (support::EndsWith(file, ".so") || support::EndsWith(file, ".dll")) {
     return file;
   }
 

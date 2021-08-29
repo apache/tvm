@@ -313,7 +313,57 @@ class RelayBuildModule : public runtime::ModuleNode {
       relay_module_ptr->Update(main_glb_var, new_main);
     }
 
-    Array<Pass> pass_seqs = GetPassPrefix(targets, false);
+    Array<Pass> pass_seqs;
+    Array<runtime::String> entry_functions{"main"};
+    pass_seqs.push_back(transform::RemoveUnusedFunctions(entry_functions));
+    pass_seqs.push_back(transform::ToBasicBlockNormalForm());
+
+    // Run all dialect legalization passes.
+    pass_seqs.push_back(relay::qnn::transform::Legalize());
+
+    // Legalize pass is restricted to homogeneous execution for now.
+    if (targets.size() == 1) {
+      pass_seqs.push_back(transform::Legalize());
+    }
+
+    pass_seqs.push_back(transform::SimplifyInference());
+
+    // Convert Dynamic ops to static versions
+    pass_seqs.push_back(transform::DynamicToStatic());
+
+    PackedFunc fskip = PackedFunc([](TVMArgs args, TVMRetValue* rv) {
+      Expr expr = args[0];
+      *rv = false;
+      if (expr.as<CallNode>()) {
+        auto call_node = expr.as<CallNode>();
+        auto op_node = call_node->op.as<OpNode>();
+        if (op_node->name == "cast") {
+          auto attrs = call_node->attrs.as<CastAttrs>();
+          if (attrs->dtype == DataType::Int(32)) {
+            *rv = true;
+          }
+        }
+      }
+    });
+    pass_seqs.push_back(transform::EliminateCommonSubexpr(fskip));
+    pass_seqs.push_back(transform::SimplifyExpr());
+    pass_seqs.push_back(transform::CombineParallelConv2D(3));
+    pass_seqs.push_back(transform::CombineParallelDense(3));
+    pass_seqs.push_back(transform::CombineParallelBatchMatmul(3));
+    pass_seqs.push_back(transform::FoldConstant());
+    pass_seqs.push_back(transform::FoldScaleAxis());
+    pass_seqs.push_back(transform::CanonicalizeCast());
+    pass_seqs.push_back(transform::CanonicalizeOps());
+
+    // Alter layout transformation is only applied to homogeneous execution yet.
+    if (targets.size() == 1) {
+      pass_seqs.push_back(transform::InferType());
+      pass_seqs.push_back(transform::AlterOpLayout());
+    }
+
+    // Fast math optimizations.
+    pass_seqs.push_back(transform::FastMath());
+    pass_seqs.push_back(transform::FoldConstant());
 
     if (targets.size() == 1) {
       const auto& target = (*targets.begin()).second;
@@ -489,11 +539,6 @@ class RelayBuildModule : public runtime::ModuleNode {
     ret_.params = executor_codegen_->GetParams();
 
     auto lowered_funcs = executor_codegen_->GetIRModule();
-
-    // No need to build for external functions.
-    if (lowered_funcs.find("ext_dev") != lowered_funcs.end()) {
-      lowered_funcs.Set("ext_dev", IRModule());
-    }
 
     // Generate a placeholder function that attaches linked params as its arguments.
     if (target_host->GetAttr<Bool>("link-params").value_or(Bool(false))) {

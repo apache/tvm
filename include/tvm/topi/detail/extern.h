@@ -48,7 +48,7 @@ using namespace tvm::te;
 inline Buffer DeclExternBuffer(Array<PrimExpr> shape, DataType dtype, std::string name) {
   auto data = var(name, DataType::Handle());
   auto elem_offset = PrimExpr();
-  return Buffer(data, dtype, shape, Array<PrimExpr>(), elem_offset, name, -1, 0, kDefault);
+  return Buffer(data, dtype, shape, Array<PrimExpr>(), elem_offset, name, "", -1, 0, kDefault);
 }
 
 /*!

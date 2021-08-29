@@ -46,12 +46,7 @@ Vagrant.configure("2") do |config|
     end
   end
 
-  config.vm.provision "shell",
-    path: "provision_setup.sh",
-    env: {"TVM_HOME": dirs_to_mount[0],
-          "TVM_CI_NUM_CORES": num_cores
-    },
-    privileged: false
+  config.vm.provision "shell", path: "provision_setup.sh", env: {"TVM_HOME": dirs_to_mount[0]}, privileged: false
 
   # Enable USB Controller on VirtualBox
   vm_name = "microtvm-#{Time.now.tv_sec}"

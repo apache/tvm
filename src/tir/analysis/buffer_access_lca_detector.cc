@@ -85,17 +85,9 @@ class LCADetector : public StmtExprVisitor {
     for (const Buffer& buf : op->alloc_buffers) {
       buffer_var_map_.emplace(buf->data.get(), buf.get());
     }
-
     const ScopeInfo* parent_scope = ancestor_scopes_.back();
     auto* current_scope = arena_.make<ScopeInfo>(parent_scope, op, n);
-
     ancestor_scopes_.push_back(current_scope);
-    // Update match_buffers
-    for (const MatchBufferRegion& match_buffer : op->match_buffers) {
-      UpdateBufferLCA(match_buffer->source->buffer.get());
-      match_buffers_.insert(match_buffer->buffer.get());
-    }
-
     StmtExprVisitor::VisitStmt_(op);
     ancestor_scopes_.pop_back();
   }
@@ -137,11 +129,8 @@ class LCADetector : public StmtExprVisitor {
   }
 
   void UpdateBufferLCA(const BufferNode* buffer) {
-    if (match_buffers_.find(buffer) == match_buffers_.end()) {
-      // Ingore buffer created by block match_buffer
-      const ScopeInfo*& lca = buffer_lca_[buffer];
-      lca = LowestCommonAncestor(lca, ancestor_scopes_.back());
-    }
+    const ScopeInfo*& lca = buffer_lca_[buffer];
+    lca = LowestCommonAncestor(lca, ancestor_scopes_.back());
   }
 
   static const ScopeInfo* LowestCommonAncestor(const ScopeInfo* lhs, const ScopeInfo* rhs) {
@@ -175,8 +164,6 @@ class LCADetector : public StmtExprVisitor {
   std::unordered_map<const BufferNode*, const ScopeInfo*> buffer_lca_ = {};
   /*! \brief The map from Buffer data to the Buffer. */
   std::unordered_map<const VarNode*, const BufferNode*> buffer_var_map_ = {};
-  /*! \brief The match buffers inside blocks. */
-  std::unordered_set<const BufferNode*> match_buffers_ = {};
   /*! \brief Internal arena. */
   support::Arena arena_;
 };

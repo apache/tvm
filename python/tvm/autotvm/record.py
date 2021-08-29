@@ -21,6 +21,7 @@
 import argparse
 import base64
 import logging
+import multiprocessing
 import pickle
 import json
 import time
@@ -31,7 +32,6 @@ import numpy as np
 
 from .. import build, lower
 from ..target import Target
-from ..contrib import popen_pool
 from .. import __version__
 from . import task
 from .task import ConfigEntity, ApplyHistoryBest
@@ -230,7 +230,7 @@ def split_workload(in_file, clean=True):
     lines = list(open(in_file).readlines())
 
     logger.info("start converting...")
-    pool = popen_pool.PopenPoolExecutor()
+    pool = multiprocessing.Pool()
     lines = [rec for rec in pool.map(decode, lines) if rec is not None]
     logger.info("map done %.2f", time.time() - tic)
 

@@ -189,7 +189,9 @@ def test_fanout():
     assert ir.min.value == 0
     assert tvm.ir.structural_equal(ir.extent, n - 3)
     # Check loopbody
-    abody = ir.body
+    ibody = ir.body
+    assert isinstance(ibody, tvm.tir.AttrStmt)
+    abody = ibody.body
     assert isinstance(abody, tvm.tir.ProducerRealize)
     assert abody.bounds[0].min.value == 0
     assert abody.bounds[0].extent.value == 1

@@ -144,7 +144,7 @@ void HybridOpNode::GatherBound(const Operation& self,
 
 Stmt HybridOpNode::BuildRealize(const Stage& stage,
                                 const std::unordered_map<IterVar, Range>& realize_map,
-                                const Stmt& body, String storage_scope) const {
+                                const Stmt& body) const {
   // TODO(@were): Add attribute inject here and remove it from hybrid parser.
   ICHECK_EQ(stage->op.get(), this);
   Stmt realize_body = body;
@@ -154,7 +154,7 @@ Stmt HybridOpNode::BuildRealize(const Stage& stage,
     for (size_t i = 0; i < t->shape.size(); ++i) {
       bounds.push_back(Range::FromMinExtent(make_const(t->shape[i].dtype(), 0), t->shape[i]));
     }
-    realize_body = tir::ProducerRealize(t, bounds, const_true(), realize_body, storage_scope);
+    realize_body = tir::ProducerRealize(t, bounds, const_true(), realize_body);
   }
   return realize_body;
 }

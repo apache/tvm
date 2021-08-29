@@ -21,8 +21,6 @@ from tvm import te
 from tvm import relay
 from tvm.relay.op import register_alter_op_layout
 from tvm.relay import transform, analysis
-from tvm.relay.transform.infer_layout_utils import InferCorrectLayoutOutput
-from tvm.relay.op import op as reg
 
 
 def run_opt_pass(expr, passes):
@@ -1883,48 +1881,6 @@ def test_conv_image_resize2d_convert_layout():
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
 
-def test_infer_correct_layout():
-    test_infer_correct_layout_flag = False
-
-    def before():
-        x = relay.var("x", shape=(1, 56, 56, 64))
-        weight = relay.var("weight", shape=(3, 3, 64, 64))
-        y = relay.nn.conv2d(
-            x,
-            weight,
-            channels=64,
-            kernel_size=(3, 3),
-            padding=(1, 1),
-            data_layout="NHWC",
-            kernel_layout="HWIO",
-        )
-        y = relay.nn.relu(y)
-        y = relay.Function([x, weight], y)
-        return y
-
-    @reg.register_infer_correct_layout("nn.relu", level=11)
-    def infer_correct_layout_relu(attrs, new_in_layouts, old_in_layouts, old_in_types):
-        nonlocal test_infer_correct_layout_flag
-        test_infer_correct_layout_flag = True
-        ret = tvm.tir.layout("")
-        if new_in_layouts:
-            assert len(new_in_layouts) >= 1
-            ret = new_in_layouts[0]
-        else:
-            for i in range(len(old_in_layouts)):
-                if old_in_layouts[i]:
-                    ret = old_in_layouts[i]
-                    break
-        input_layouts = []
-        for i in range(len(old_in_layouts)):
-            input_layouts.append(ret)
-        return InferCorrectLayoutOutput(input_layouts, [ret], attrs)
-
-    a = before()
-    a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": ["NCHW", "default"]}))
-    assert test_infer_correct_layout_flag == True
-
-
 if __name__ == "__main__":
     test_qnn_binary_no_convert_layout()
     test_no_convert_layout()
@@ -1958,4 +1914,3 @@ if __name__ == "__main__":
     test_conv_strided_slice_axes_convert_layout()
     test_image_resize_convert_layout()
     test_conv_image_resize_convert_layout()
-    test_infer_correct_layout()

@@ -188,49 +188,6 @@ def test_graph_tuner_layout_transform():
         )
 
 
-def test_graph_tuner_layout_transform_runner():
-    log_file = "%s/test_tuner.log" % (os.getcwd())
-    target = "llvm"
-    dshape = (1, 3, 8, 8)
-    dtype = "float32"
-    layout = "NCHW"
-    conv2d = relay.op.get("nn.conv2d")
-    target_ops = [conv2d]
-
-    g, records, ltf_records, ltf_keys, _ = _create_data(target, dshape, dtype, layout)
-    executor = DPTuner(g, {"data": dshape}, records, target_ops, target=target, log_file=log_file)
-    runner = autotvm.LocalRunner(number=100, repeat=1, timeout=10)
-    executor.benchmark_layout_transform(
-        layout_records=ltf_records, infer_layout=True, runner=runner
-    )
-    out = executor._layout_transform_perf_records
-
-    num_flops = 0
-    total_time = 0
-    for record in ltf_records:
-        ltf_wkl = record[0].task.workload
-        input_shape = ltf_wkl[1][1]
-        flops = np.prod(input_shape)
-        num_flops += flops
-        total_time += record[1].costs[0]
-    avg_time = total_time / num_flops
-
-    for ltf_workload in out:
-        input_shape = ltf_workload[1][1]
-        flops = 1
-        for i in input_shape:
-            flops *= i
-        expected_time = flops * avg_time
-        out_time = out[ltf_workload][1].costs[0]
-        assert (
-            expected_time == out_time
-        ), "Inferred layout transformation time mismatch for %s: " "expecting %f but got %f" % (
-            str(ltf_workload),
-            expected_time,
-            out_time,
-        )
-
-
 def test_DPTuner_run():
     log_file = "%s/test_tuner.log" % (os.getcwd())
     target = "llvm"

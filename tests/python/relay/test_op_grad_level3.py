@@ -41,9 +41,8 @@ def test_clip():
         bwd_func = run_infer_type(gradient(fwd_func))
 
         for target, dev in tvm.testing.enabled_targets():
-            op_res, (op_grad,) = relay.create_executor(device=dev, target=target).evaluate(
-                bwd_func
-            )(data)
+            intrp = relay.create_executor(device=dev, target=target)
+            op_res, (op_grad,) = intrp.evaluate(bwd_func)(data)
             np.testing.assert_allclose(op_grad.numpy(), ref_grad, rtol=0.01)
 
 
@@ -182,9 +181,8 @@ def test_zeros_ones_grad_dynamic():
         bwd_func = run_infer_type(gradient(run_infer_type(fwd_func)))
 
         for target, dev in tvm.testing.enabled_targets():
-            res, (grad,) = relay.create_executor(device=dev, target=target).evaluate(bwd_func)(
-                dyn_shape
-            )
+            intrp = relay.create_executor(device=dev, target=target)
+            res, (grad,) = intrp.evaluate(bwd_func)(dyn_shape)
             tvm.testing.assert_allclose(res.numpy(), op_ref(dyn_shape, dtype="float32"))
             tvm.testing.assert_allclose(grad.numpy(), np.zeros((rank,), dtype="int32"))
 

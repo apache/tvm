@@ -141,7 +141,7 @@ class IRBuilder(object):
     """
 
     def __init__(self):
-        self._seq_stack = [[]]  # type: ignore
+        self._seq_stack = [[]]
         self.nidx = 0
 
     def _pop_seq(self):
@@ -394,7 +394,7 @@ class IRBuilder(object):
         self.emit(lambda x: _stmt.LetStmt(var, value, x))
         return var
 
-    def allocate(self, dtype, shape, name="buf", scope=""):
+    def allocate(self, dtype, shape, name="buf", scope=None):
         """Create a allocate statement.
 
         Parameters
@@ -416,13 +416,15 @@ class IRBuilder(object):
         buffer : BufferVar
             The buffer var representing the buffer.
         """
-        buffer_var = _expr.Var(name, PointerType(PrimType(dtype), scope))
+        buffer_var = _expr.Var(name, PointerType(PrimType(dtype)))
         if not isinstance(shape, (list, tuple, _container.Array)):
             shape = [shape]
+        if scope:
+            self.scope_attr(buffer_var, "storage_scope", scope)
         self.emit(lambda x: _stmt.Allocate(buffer_var, dtype, shape, const(1, dtype="uint1"), x))
         return BufferVar(self, buffer_var, shape, dtype)
 
-    def pointer(self, content_type, name="ptr", scope=""):
+    def pointer(self, content_type, name="ptr"):
         """Create pointer variable with content type.
 
         Parameters
@@ -433,15 +435,12 @@ class IRBuilder(object):
         name : str, optional
             The name of the pointer.
 
-        scope : str, optional
-            The scope of the pointer.
-
         Returns
         -------
         ptr : BufferVar
             The buffer var representing the buffer.
         """
-        buffer_var = _expr.Var(name, PointerType(PrimType(content_type), scope))
+        buffer_var = _expr.Var(name, dtype="handle")
         return BufferVar(self, buffer_var, None, content_type)
 
     def buffer_ptr(self, buf, shape=None):

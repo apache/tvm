@@ -20,7 +20,6 @@ import tvm
 from tvm import te
 from .. import tag
 from ..utils import simplify
-from ...tir.generic import cast
 
 
 def csrmm_default(data, indices, indptr, weight, bias=None):
@@ -58,12 +57,6 @@ def csrmm_default(data, indices, indptr, weight, bias=None):
     assert isinstance(
         weight, te.tensor.Tensor
     ), "weight matrix is assumed to be tvm.te.Tensor, but weight is `%s`" % (type(weight))
-    assert (
-        data.dtype == weight.dtype
-    ), "Data and weight must have the same dtype, but they have %s and %s" % (
-        data.dtype,
-        weight.dtype,
-    )
     if bias is not None:
         assert len(bias.shape) == 1
     M = simplify(indptr.shape[0] - 1)
@@ -81,9 +74,9 @@ def csrmm_default(data, indices, indptr, weight, bias=None):
         _, N = weight.shape
         with irb.for_range(0, N, kind="vectorize", name="n") as n:
             with irb.for_range(0, M, kind="parallel", name="row") as row:
-                dot = irb.allocate(data.dtype, (1,), name="dot", scope="local")
-                out_ptr[row * N + n] = cast(0, data.dtype)
-                dot[0] = cast(0, data.dtype)
+                dot = irb.allocate("float32", (1,), name="dot", scope="local")
+                out_ptr[row * N + n] = 0.0
+                dot[0] = 0.0
                 row_start = indptr_ptr[row]
                 row_end = indptr_ptr[row + 1]
                 row_elems = row_end - row_start
@@ -99,7 +92,7 @@ def csrmm_default(data, indices, indptr, weight, bias=None):
         [data, indices, indptr, weight],
         lambda ins, outs: csrmm_default_ir(ins[0], ins[1], ins[2], ins[3], outs[0]),
         tag="csrmm",
-        dtype=data.dtype,
+        dtype="float32",
         name="out",
     )
     if bias is not None:

@@ -214,7 +214,6 @@ class DictAttrsNode : public BaseAttrsNode {
   void VisitNonDefaultAttrs(AttrVisitor* v) final;
   void InitByPackedArgs(const runtime::TVMArgs& args, bool allow_unknown) final;
   Array<AttrFieldInfo> ListFieldInfo() const final;
-
   // type info
   static constexpr const char* _type_key = "DictAttrs";
   TVM_DECLARE_FINAL_OBJECT_INFO(DictAttrsNode, BaseAttrsNode);
@@ -233,72 +232,6 @@ class DictAttrs : public Attrs {
    */
   TVM_DLL explicit DictAttrs(Map<String, ObjectRef> dict);
 
-  // Utils for accessing attributes
-  // This needs to be on DictAttrs, not DictAttrsNode because we return the default
-  // value if DictAttrsNode is not defined.
-  /*!
-   * \brief Get a function attribute.
-   *
-   * \param attr_key The attribute key.
-   * \param default_value The default value if the key does not exist, defaults to nullptr.
-   *
-   * \return The result
-   *
-   * \tparam TOBjectRef the expected object type.
-   * \throw Error if the key exists but the value does not match TObjectRef
-   *
-   * \code
-   *
-   *  void GetAttrExample(const BaseFunc& f) {
-   *    auto value = f->attrs.GetAttr<Integer>("AttrKey", 0);
-   *  }
-   *
-   * \endcode
-   */
-  template <typename TObjectRef>
-  Optional<TObjectRef> GetAttr(
-      const std::string& attr_key,
-      Optional<TObjectRef> default_value = Optional<TObjectRef>(nullptr)) const {
-    static_assert(std::is_base_of<ObjectRef, TObjectRef>::value,
-                  "Can only call GetAttr with ObjectRef types.");
-    if (!defined()) return default_value;
-    const DictAttrsNode* node = this->as<DictAttrsNode>();
-
-    auto it = node->dict.find(attr_key);
-    if (it != node->dict.end()) {
-      return Downcast<Optional<TObjectRef>>((*it).second);
-    } else {
-      return default_value;
-    }
-  }
-  // variant that uses TObjectRef to enable implicit conversion to default value.
-  template <typename TObjectRef>
-  Optional<TObjectRef> GetAttr(const std::string& attr_key, TObjectRef default_value) const {
-    return GetAttr<TObjectRef>(attr_key, Optional<TObjectRef>(default_value));
-  }
-  /*!
-   * \brief Check whether the function has an non-zero integer attr.
-   *
-   * This function can be used to check whether an optional
-   * attribute mark(e.g. inline) exists.
-   *
-   * \param attr_key The key to the attribute.
-   * \return The check result.
-   *
-   * \code
-   *
-   *  void HasNonzeroAttrExample(const BaseFunc& f) {
-   *    if (f->HasNonzeroAttr(attr::kInline)) {
-   *      // inline the function.
-   *    }
-   *  }
-   *
-   * \endcode
-   */
-  bool HasNonzeroAttr(const std::string& attr_key) const {
-    return GetAttr<Integer>(attr_key, 0) != 0;
-  }
-
   TVM_DEFINE_OBJECT_REF_METHODS(DictAttrs, Attrs, DictAttrsNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(DictAttrsNode);
 };
@@ -314,47 +247,6 @@ inline TAttrs AttrsWithDefaultValues() {
   auto n = make_object<typename TAttrs::ContainerType>();
   n->InitByPackedArgs(runtime::TVMArgs(nullptr, nullptr, 0), false);
   return TAttrs(n);
-}
-
-/*!
- * \brief Copy the function or module, but overrides
- *        the attribute value key with the value.
- *
- * \param input The thing to annotate (BaseFunc or IRModule)
- * \param attr_key The attribute key.
- * \param attr_value The value attribute value.
- *
- * \tparam TFunc The corresponding function or module type.
- *
- * \returns The new function or module with updated attributes.
- *
- * \note This function performs copy on write optimization for func and module.
- *       If we move a uniquely referenced func or module into WithAttr,
- *       then no additional copy will be performed.
- *
- *       This is also why we make it as a function instead of a member function
- *       and why we pass by value in the first argument.
- *
- * \code
- *
- *  // Recommended way to trigger copy on write
- *  func = WithAttr(std::move(func), "key1", value1);
- *  func = WithAttr(std::move(func), "key2", value2);
- *
- * \endcode
- */
-template <typename TFunc>
-inline TFunc WithAttr(TFunc input, const std::string& attr_key, ObjectRef attr_value) {
-  using TNode = typename TFunc::ContainerType;
-  static_assert(TNode::_type_final, "Can only operate on the leaf nodes");
-  TNode* node = input.CopyOnWrite();
-  if (node->attrs.defined()) {
-    node->attrs.CopyOnWrite()->dict.Set(attr_key, attr_value);
-  } else {
-    Map<String, ObjectRef> dict = {{attr_key, attr_value}};
-    node->attrs = DictAttrs(dict);
-  }
-  return input;
 }
 
 // Namespace containing detail implementations

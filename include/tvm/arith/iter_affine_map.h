@@ -282,18 +282,6 @@ class IterSumExpr : public IterMapExpr {
 Array<IterSumExpr> DetectIterMap(const Array<PrimExpr>& indices, const Map<Var, Range>& input_iters,
                                  const PrimExpr& predicate, bool require_bijective,
                                  arith::Analyzer* analyzer);
-/*!
- * \brief Use IterVarMap detector to rewrite and simplify the indices
- *
- * \param indices The indices to detect pattern for.
- * \param input_iters Map from variable to iterator's range.
- * \param input_pred The predicate constraints on the input iterators
- * \param require_bijective A boolean flag that indicates whether the mapping should be bijective.
- *
- * \return The indices after rewrite
- */
-Array<PrimExpr> IterMapSimplify(const Array<PrimExpr>& indices, const Map<Var, Range>& input_iters,
-                                const PrimExpr& input_pred, bool require_bijective);
 
 /*!
  * \brief Apply the inverse of the affine transformation to the outputs.

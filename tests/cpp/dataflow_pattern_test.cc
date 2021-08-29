@@ -192,3 +192,9 @@ TEST(DFPattern, HasShape) {
   ICHECK(node->pattern == a);
   ICHECK(node->shape == shape);
 }
+
+int main(int argc, char** argv) {
+  testing::InitGoogleTest(&argc, argv);
+  testing::FLAGS_gtest_death_test_style = "threadsafe";
+  return RUN_ALL_TESTS();
+}

@@ -281,17 +281,10 @@ def intel_graphics(model="unknown", options=None):
 
 MICRO_SUPPORTED_MODELS = {
     "host": [],
-    "atsamd51": ["-mcpu=cortex-m4"],
-    "cxd5602gg": ["-mcpu=cortex-m4"],
-    "esp32": [],
-    "imxrt1060": ["-mcpu=cortex-m7"],
     "mps2_an521": ["-mcpu=cortex-m33"],
-    "nrf52840": ["-mcpu=cortex-m4"],
     "nrf5340dk": ["-mcpu=cortex-m33"],
-    "sam3x8e": ["-mcpu=cortex-m3"],
     "stm32f746xx": ["-mcpu=cortex-m7", "-march=armv7e-m"],
     "stm32l4r5zi": ["-mcpu=cortex-m4"],
-    "zynq_mp_r5": ["-mcpu=cortex-r5"],
 }
 
 
@@ -313,7 +306,7 @@ def micro(model="unknown", options=None):
         options,
     )
 
-    if (not options) or (options and not any("-executor=aot" in o for o in options)):
+    if (not options) or (options and "--executor=aot" not in options):
         opts = _merge_opts(opts, "--system-lib")
 
     # NOTE: in the future, the default micro target will be LLVM except when
@@ -413,118 +406,79 @@ def bifrost(model="unknown", options=None):
     return Target(" ".join(["opencl"] + opts))
 
 
-def hexagon(cpu_ver="v66", **kwargs):
+def hexagon(cpu_ver="v66", sim_args=None, llvm_args=None, hvx=128):
     """Returns a Hexagon target.
 
     Parameters
     ----------
-    cpu_ver : str (default: "v66")
+    cpu_ver : str
         CPU version used for code generation. Not all allowed cpu str
         will be valid, LLVM will throw an error.
-
-    Recognized keyword parameters
-    -----------------------------
-    hvx : int (default: 128)
-        Size of HVX vector in bytes. Value of 0 disables HVX codegen.
-    sim_options : str or list of str (default: None)
+    sim_args : str or list of str
         User defined sim arguments. CPU version defaults to cpu_ver.
         Otherwise, separate versions are used for codegen and sim. Not
         all allowed cpu strings will be valid, simulator will throw an
         error if invalid. Does not affect codegen.
-    llvm_options : str or list of str (default: None)
+    llvm_args : str or list of str
         User defined compiler arguments.
+    hvx : int
+        Size of hvx register. Value of 0 indicates disabled hvx.
     """
-
-    # Some of the target parameters correspond to target kind attributes
-    # listed in src/target/target_kind.cc. For those parameters, their
-    # names follow the attribute names with the exception of '_' being used
-    # in place of '-'.
-
     # Example compiler arguments
     # llvm -mtriple=hexagon -mcpu=hexagonv66 -mattr=+hvxv66,+hvx-length128b
 
     # Check for valid codegen cpu
-    valid_hex = ["v60", "v62", "v65", "v66", "v67", "v67t", "v68"]
+    valid_hex = ["v60", "v62", "v65", "v66", "v67", "v67t"]
     try:
         cpu_ver = cpu_ver[cpu_ver.index("v") :].lower()
-        assert cpu_ver in valid_hex
+        assert 3 <= len(cpu_ver) <= 4
     except:
         msg = "{} is not a valid Hexagon version\nvalid versions include {}"
         raise ValueError(msg.format(cpu_ver, valid_hex)) from None
 
-    # Target configuration:
-    config = {
-        "hvx": 128,
-        "sim_options": None,
-        "llvm_options": None,
-    }
-    config.update(kwargs)
+    assert hvx in [0, 64, 128]
 
-    # Warn about obsolete parameter names.
-    if config.get("sim_args"):
-        msg = "The keyword parameter 'sim_args' is deprecated, use 'sim_options' instead"
-        warnings.warn(msg, stacklevel=2)
-        config.update({"sim_options": config["sim_args"]})
-    if config.get("llvm_args"):
-        msg = "The keyword parameter 'llvm_args' is deprecated, use 'llvm_options' instead"
-        warnings.warn(msg, stacklevel=2)
-        config.update({"llvm_options": config["llvm_args"]})
-
-    # LLVM target string
-    def create_llvm_target(cpu_ver, config):
-        """ Create LLVM target string. """
-
+    # Target string
+    def create_target(cpu_ver):
         target = " -mtriple=hexagon"
         mcpu = " -mcpu=hexagon" + cpu_ver
+        mattr = ""
+        # HVX enable
+        if hvx:
+            mattr = " -mattr=+hvx" + cpu_ver + ",+hvx-length" + str(hvx) + "b"
+        return target + mcpu + mattr
 
-        # Process the options that affect target features and return the
-        # target feature string.
-        def create_target_features(config):
-            tfs = []
-            if config["hvx"] > 0:
-                valid_hvx = [0, 64, 128]
-                if not config["hvx"] in valid_hvx:
-                    raise ValueError("Invalid hvx value, should be one of " + str(valid_hvx))
-                tfs += ["+hvx" + cpu_ver, "+hvx-length" + str(config["hvx"]) + "b"]
-            else:
-                tfs += ["-hvx"]
-            return "-mattr=" + ",".join(tfs) if tfs else ""
-
-        return target + mcpu + " " + create_target_features(config)
-
-    # Simulator options string
-    def create_sim_options(cpu_ver, config):
-        """ Create simulator option string. """
-
-        def validate_hvx_length(codegen_hvx, sim_options):
-            if sim_options and "--hvx_length" in sim_options:
+    # Simulator string
+    def create_sim(cpu_ver, sim_args):
+        def validate_hvx_length(codegen_hvx, sim_args):
+            if sim_args and "--hvx_length" in sim_args:
                 # If --hvx_length was specified, check HVX length of sim
                 # vs codegen
-                i = sim_options.index("hvx_length") + len("hvx_length") + 1
-                sim_hvx = sim_options[i : i + 3]
+                i = sim_args.index("hvx_length") + len("hvx_length") + 1
+                sim_hvx = sim_args[i : i + 3]
                 if sim_hvx != str(codegen_hvx):
-                    msg = "sim hvx {} and codegen hvx {} mismatch!".format(sim_hvx, codegen_hvx)
-                    # Set the stacklevel to the tvm.target.hexagon() call.
-                    warnings.warn(msg, stacklevel=4)
+                    print(
+                        "WARNING: sim hvx {} and codegen hvx {} mismatch!".format(
+                            sim_hvx, codegen_hvx
+                        )
+                    )
             elif codegen_hvx != 0:
                 # If --hvx_length was not given, add it if HVX is enabled
-                sim_options = sim_options + " " if isinstance(sim_options, str) else ""
-                sim_options += "--hvx_length " + str(codegen_hvx)
-            return sim_options or ""
+                sim_args = sim_args + " " if isinstance(sim_args, str) else ""
+                sim_args += "--hvx_length " + str(codegen_hvx)
+            return sim_args or ""
 
-        hvx = config["hvx"]
-        sim_options = config["sim_options"]
-        if not sim_options:
-            return cpu_ver + " " + validate_hvx_length(hvx, sim_options)
+        if not sim_args:
+            return cpu_ver + " " + validate_hvx_length(hvx, sim_args)
 
         sim_cpu = cpu_ver + " "
 
         # Add user defined args
-        if isinstance(sim_options, list):
-            sim_options = " ".join(sim_options)
+        if isinstance(sim_args, list):
+            sim_args = " ".join(sim_args)
 
         # Check for supplied sim cpu version
-        if "v6" in sim_options:
+        if "v6" in sim_args:
             sim_cpu = ""
 
             # Regex match for allowed cpus
@@ -533,13 +487,13 @@ def hexagon(cpu_ver="v66", **kwargs):
                 + r"(?P<base_version>v6[25678])(?P<sub_version>[a-z])?"
                 + r"(?P<l2_size>_[0-9]+)?(?P<rev>_rev[0-9])?\s?(?P<post>--.*)?"
             )
-            m = re.match(valid_cpu_str_regex, sim_options.lower())
+            m = re.match(valid_cpu_str_regex, sim_args.lower())
             if not m:
-                raise ValueError('Invalid simulator argument string "{}"'.format(sim_options))
+                raise ValueError('Invalid simulator argument string "{}"'.format(sim_args))
 
             # Parse options into correct order
             cpu_attr = {x: str(m.groupdict()[x] or "") for x in m.groupdict()}
-            sim_options = (
+            sim_args = (
                 cpu_attr["base_version"]
                 + cpu_attr["sub_version"]
                 + cpu_attr["l2_size"]
@@ -549,27 +503,23 @@ def hexagon(cpu_ver="v66", **kwargs):
                 + cpu_attr["post"]
             )
 
-        return sim_cpu + " " + validate_hvx_length(hvx, sim_options)
+        return sim_cpu + " " + validate_hvx_length(hvx, sim_args)
 
-    # LLVM options string
-    def create_llvm_options(cpu_ver, config):  # pylint: disable=unused-argument
-        """ Create LLVM options string. """
-
-        llvm_options = config["llvm_options"]
-
+    # LLVM string
+    def create_llvm(llvm_args):
         # TVM's option parser doesn't allow '=' in values, but '=' can
         # appear in LLVM flags. Replace it with '@', since it's unlikely
         # that '@' will be used in another context.
-        if llvm_options is None or len(llvm_options.strip()) == 0:
+        if llvm_args is None or len(llvm_args.replace(" ", "")) == 0:
             return ""
-        args = [s.replace("=", "@") for s in llvm_options.split()]
+        args = [s.replace("=", "@") for s in llvm_args.split()]
         return "--llvm-options=" + ",".join(args)
 
     # Sim args
-    os.environ["HEXAGON_SIM_ARGS"] = create_sim_options(cpu_ver, config)
+    os.environ["HEXAGON_SIM_ARGS"] = create_sim(cpu_ver, sim_args)
 
-    target_str = create_llvm_target(cpu_ver, config)
-    llvm_str = create_llvm_options(cpu_ver, config)
+    target_str = create_target(cpu_ver)
+    llvm_str = create_llvm(llvm_args)
     args_list = target_str.split() + llvm_str.split()
 
     return Target(" ".join(["hexagon"] + args_list))

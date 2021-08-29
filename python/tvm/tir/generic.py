@@ -43,7 +43,7 @@ def add(lhs, rhs, span=None):
     op : tvm.Expr
         The result Expr of add operaton.
     """
-    return _ffi_api._OpAdd(lhs, rhs, span)  # type: ignore
+    return _ffi_api._OpAdd(lhs, rhs, span)
 
 
 def subtract(lhs, rhs, span=None):
@@ -63,7 +63,7 @@ def subtract(lhs, rhs, span=None):
     op : tvm.Expr
         The result Expr of subtract operaton.
     """
-    return _ffi_api._OpSub(lhs, rhs, span)  # type: ignore
+    return _ffi_api._OpSub(lhs, rhs, span)
 
 
 def multiply(lhs, rhs, span=None):
@@ -83,7 +83,7 @@ def multiply(lhs, rhs, span=None):
     op : tvm.Expr
         The result Expr of multiply operaton.
     """
-    return _ffi_api._OpMul(lhs, rhs, span)  # type: ignore
+    return _ffi_api._OpMul(lhs, rhs, span)
 
 
 def divide(lhs, rhs, span=None):
@@ -103,7 +103,7 @@ def divide(lhs, rhs, span=None):
     op : tvm.Expr
         The result Expr of divide operaton.
     """
-    return _ffi_api._OpDiv(lhs, rhs, span)  # type: ignore
+    return _ffi_api._OpDiv(lhs, rhs, span)
 
 
 def floordiv(lhs, rhs, span=None):
@@ -123,7 +123,7 @@ def floordiv(lhs, rhs, span=None):
     op : tvm.Expr
         The result Expr of divide operaton.
     """
-    return _ffi_api._OpFloorDiv(lhs, rhs, span)  # type: ignore
+    return _ffi_api._OpFloorDiv(lhs, rhs, span)
 
 
 def cast(src, dtype, span=None):
@@ -141,4 +141,4 @@ def cast(src, dtype, span=None):
     op : tvm.Expr
         The result Expr of divide operaton.
     """
-    return _ffi_api._cast(dtype, src, span)  # type: ignore
+    return _ffi_api._cast(dtype, src, span)

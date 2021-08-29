@@ -220,7 +220,8 @@ def test_vulkan_bool_load(target, dev):
 
 
 def check_mod(target, dev, mod, x_np, res_np):
-    res = relay.create_executor("vm", mod=mod, device=dev, target=target).evaluate()(x_np).numpy()
+    ex = relay.create_executor("vm", mod=mod, device=dev, target=target)
+    res = ex.evaluate()(x_np).numpy()
     tvm.testing.assert_allclose(res, res_np, atol=1e-5)
 
 
@@ -430,130 +431,6 @@ def test_vulkan_local_threadidx(target, dev):
     b = tvm.nd.array(b_np, dev)
     func(a, b)
     tvm.testing.assert_allclose(b.numpy(), a_np)
-
-
-class TestVectorizedIndices:
-    load_type, store_type = tvm.testing.parameters(
-        # Load N values, write to N locations.
-        # Vectorized copy.
-        ("ramp", "ramp"),
-        # Load 1 value, write to N locations.
-        # Scalar load, vectorized store.
-        #
-        # Most TVM operations (e.g. schedule[tensor].vectorize(axis)) have
-        # the broadcast outside of the index, but it is semantically okay
-        # for the broadcast to be inside the index, and it shows up with
-        # some optimizations.
-        ("broadcast", "ramp"),
-        # Load 1 values, write to 1 location.
-        # Broadcasting on both sides should be equivalent to a scalar copy.
-        ("broadcast", "broadcast"),
-        # Loads N values, write to 1 location.
-        # Disabled as it would have unclear semantics.
-        # ("ramp","broadcoast"),
-    )
-    indirect_indices = tvm.testing.parameter(True, False, ids=["reorder", "no_reorder"])
-
-    @tvm.testing.fixture
-    def ref_data(self, load_type, store_type, indirect_indices):
-        n = 4
-
-        index_map = {
-            "ramp": np.arange(n),
-            "broadcast": np.zeros(n, dtype="int32"),
-        }
-
-        a_np = np.random.randint(np.iinfo("int32").max, size=n).astype("int32")
-        b_np = np.zeros(shape=n, dtype=a_np.dtype)
-        reorder_np = np.arange(n, dtype="int32")[::-1]
-
-        load_index = index_map[load_type]
-        store_index = index_map[store_type]
-
-        if indirect_indices:
-            load_index = reorder_np[load_index]
-
-        b_np[store_index] = a_np[load_index]
-
-        return a_np, reorder_np, b_np
-
-    @tvm.testing.fixture
-    def mod(self, target, load_type, store_type, indirect_indices):
-        target = tvm.target.Target(target)
-
-        n = 4
-        dtype = "int32"
-        A = te.placeholder((n,), dtype=dtype, name="A")
-        R = te.placeholder((n,), dtype=dtype, name="R")
-
-        def do_compute(ins, outs):
-            ib = tvm.tir.ir_builder.create()
-            A, R = map(ib.buffer_ptr, ins)
-            B = ib.buffer_ptr(outs[0])
-
-            if "gpu" in target.keys:
-                ib.scope_attr(te.thread_axis("blockIdx.x"), "thread_extent", 0)
-
-            index_map = {
-                "ramp": tvm.tir.Ramp(0, 1, 4),
-                "broadcast": tvm.tir.Broadcast(0, 4),
-            }
-
-            load_index = index_map[load_type]
-            store_index = index_map[store_type]
-
-            if indirect_indices:
-                load_index = tvm.tir.expr.Load("int32x4", R, load_index)
-
-            transfer = tvm.tir.expr.Load("int32x4", A, load_index)
-            ib.emit(tvm.tir.stmt.Store(B, transfer, store_index))
-
-            return ib.get()
-
-        B = te.extern(A.shape, [A, R], do_compute, dtype="int32")
-        s = te.create_schedule(B.op)
-
-        return tvm.lower(s, [A, R, B])
-
-    def test_ramp_broadcast_index(self, target, dev, mod, ref_data):
-        f = tvm.build(mod, target=target)
-
-        a_np, reorder_np, b_np = ref_data
-        a = tvm.nd.array(a_np, dev)
-        r = tvm.nd.array(reorder_np, dev)
-        b = tvm.nd.array(np.zeros(shape=b_np.shape, dtype="int32"), dev)
-        f(a, r, b)
-        tvm.testing.assert_allclose(b.numpy(), b_np)
-
-
-@tvm.testing.parametrize_targets("vulkan -max_shared_memory_per_block=16384")
-def test_shared_mem_alloc(target, dev):
-    alloc_nbytes = 16384 * 2
-
-    def do_compute(ins, outs):
-        ib = tvm.tir.ir_builder.create()
-        out = ib.buffer_ptr(outs[0])
-
-        ib.scope_attr(te.thread_axis("blockIdx.x"), "thread_extent", 0)
-
-        array = ib.allocate("int32", (alloc_nbytes,), name="array", scope="shared")
-        array[0] = 0
-        out[0] = array[0]
-
-        return ib.get()
-
-    Out = te.extern(
-        shape=(1,),
-        inputs=[],
-        fcompute=do_compute,
-        dtype="int32",
-    )
-    s = te.create_schedule(Out.op)
-
-    # Codegen should raise error when allocating more memory than the
-    # target supports.
-    with pytest.raises(tvm.TVMError):
-        tvm.build(s, [Out], target)
 
 
 if __name__ == "__main__":

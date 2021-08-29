@@ -23,7 +23,4 @@ set -o pipefail
 #install the necessary dependancies, cffi, opencv
 wget -q 'https://github.com/siju-samuel/darknet/blob/master/lib/libdarknet.so?raw=true' -O libdarknet.so
 debian_version=`cat /etc/debian_version`
-
-pip3 install \
-    cffi \
-    opencv-python
+pip3 install opencv-python cffi

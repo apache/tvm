@@ -26,8 +26,6 @@ from tvm import te
 from test_autotvm_common import DummyRunner, bad_matmul, get_sample_task
 from tvm import autotvm
 from tvm.autotvm.measure.measure import MeasureErrorNo, MeasureResult
-from tvm.autotvm import measure
-from inspect import Signature
 
 
 def test_task_tuner_without_measurement():
@@ -62,30 +60,8 @@ def test_task_tuner_without_measurement_spawn():
     p.join()
 
 
-def test_task_runner_with_ref_input():
-    """test runner ref_input without measurement"""
-    refinp = [np.random.rand(128, 128) for i in range(3)]
-    runner = measure.LocalRunner()
-    runner.ref_input = refinp
-
-    class DummyExecutor(measure.executor.Executor):
-        def __init__(self):
-            self.ran_dummy_executor = False
-
-        def submit(self, func, *args, **kwargs):
-            self.ran_dummy_executor = True
-            sig = Signature.from_callable(func)
-            assert sig.bind(*args, **kwargs).arguments["ref_input"] == refinp
-            return measure.local_executor.LocalFutureNoFork(None)
-
-    runner.executor = DummyExecutor()
-    runner.run([None], [None])
-    assert runner.executor.ran_dummy_executor
-
-
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
 
     test_task_tuner_without_measurement()
     test_task_tuner_without_measurement_spawn()
-    test_task_runner_with_ref_input()

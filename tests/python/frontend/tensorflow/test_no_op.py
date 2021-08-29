@@ -26,7 +26,8 @@ from tvm.relay.frontend.tensorflow import from_tensorflow
 
 def run_relay(graph):
     mod, params = from_tensorflow(graph.as_graph_def(add_shapes=True))
-    return relay.create_executor("debug", mod=mod).evaluate()(**params)
+    ex = relay.create_executor("debug", mod=mod)
+    return ex.evaluate()(**params)
 
 
 def test_no_op():
