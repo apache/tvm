@@ -409,7 +409,7 @@ class BaseInliner : public StmtExprMutator {
     Array<BufferRegion> reads = std::move(block->reads);
     Array<BufferRegion> writes = std::move(block->writes);
     if (!is_scope_root) {
-      Array<Array<BufferRegion>> inspected = GetBlockAccessRegion(block, buffer_var_map_);
+      Array<Array<BufferRegion>> inspected = GetBlockReadWriteRegion(block, buffer_var_map_);
       reads = std::move(inspected[0]);
       writes = std::move(inspected[1]);
     }
