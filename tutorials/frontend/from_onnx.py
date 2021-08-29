@@ -29,7 +29,7 @@ A quick solution is to install protobuf compiler, and
 
     pip install onnx --user
 
-or please refer to offical site.
+or please refer to official site.
 https://github.com/onnx/onnx
 """
 import onnx
@@ -92,13 +92,15 @@ shape_dict = {input_name: x.shape}
 mod, params = relay.frontend.from_onnx(onnx_model, shape_dict)
 
 with tvm.transform.PassContext(opt_level=1):
-    intrp = relay.build_module.create_executor("graph", mod, tvm.cpu(0), target)
+    executor = relay.build_module.create_executor(
+        "graph", mod, tvm.cpu(0), target, params
+    ).evaluate()
 
 ######################################################################
 # Execute on TVM
 # ---------------------------------------------
 dtype = "float32"
-tvm_output = intrp.evaluate()(tvm.nd.array(x.astype(dtype)), **params).numpy()
+tvm_output = executor(tvm.nd.array(x.astype(dtype))).numpy()
 
 ######################################################################
 # Display results
@@ -122,7 +124,7 @@ plt.show()
 # Notes
 # ---------------------------------------------
 # By default, ONNX defines models in terms of dynamic shapes. The ONNX importer
-# retains that dynamism upon import, and the compiler attemps to convert the model
+# retains that dynamism upon import, and the compiler attempts to convert the model
 # into a static shapes at compile time. If this fails, there may still be dynamic
 # operations in the model. Not all TVM kernels currently support dynamic shapes,
 # please file an issue on discuss.tvm.apache.org if you hit an error with dynamic kernels.

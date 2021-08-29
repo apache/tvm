@@ -17,6 +17,7 @@
 import numpy as np
 import pytest
 import time
+from unittest.mock import patch
 
 import tvm
 from tvm import runtime
@@ -30,6 +31,7 @@ from tvm.contrib import utils
 from tvm import rpc
 import tvm.testing
 from tvm.relay.transform import InferType
+from tvm.relay.testing import mlp
 
 
 def check_result(args, expected_result, mod=None):
@@ -46,8 +48,9 @@ def check_result(args, expected_result, mod=None):
         The expected result of running the expression.
     """
     for target, dev in tvm.testing.enabled_targets():
-        vm = relay.create_executor("vm", device=dev, target=target, mod=mod)
-        rts_result = vm.evaluate()(*args)
+        rts_result = relay.create_executor("vm", device=dev, target=target, mod=mod).evaluate()(
+            *args
+        )
         tvm.testing.assert_allclose(expected_result, rts_result.numpy())
 
 
@@ -182,8 +185,8 @@ def test_multiple_ifs():
     fn = relay.Function([b], out)
     mod["main"] = fn
     dev = tvm.runtime.device("llvm", 0)
-    vm = relay.create_executor(device=dev, mod=mod, kind="vm")
-    res = vmobj_to_list(vm.evaluate()(False))
+    func = relay.create_executor(device=dev, mod=mod, kind="vm").evaluate()
+    res = vmobj_to_list(func(False))
     assert res == [1, 0]
 
 
@@ -647,13 +650,39 @@ def test_add_op_scalar():
         }
     """
     mod = tvm.IRModule()
-    x = relay.var("x", shape=())
-    y = relay.var("y", shape=())
+    x = relay.var("x", shape=())  # Default to float32
+    y = relay.var("y", shape=())  # Default to float32
     func = relay.Function([x, y], relay.op.add(x, y))
-    x_data = np.array(10.0, dtype="float32")
-    y_data = np.array(1.0, dtype="float32")
-    mod["main"] = func
-    check_result([x_data, y_data], x_data + y_data, mod=mod)
+    x_y_data = [
+        (np.array(10.0, dtype="float32"), np.array(1.0, dtype="float32")),
+        (np.float32(10.0), np.float32(1.0)),
+        (10.0, 1.0),
+    ]
+    for (x_data, y_data) in x_y_data:
+        mod["main"] = func
+        check_result([x_data, y_data], x_data + y_data, mod=mod)
+
+
+@tvm.testing.uses_gpu
+def test_add_op_scalar_int():
+    """
+    test_add_op_scalar_int:
+        fn (x, y) {
+            return x + y;
+        }
+    """
+    mod = tvm.IRModule()
+    x = relay.var("x", shape=(), dtype="int32")
+    y = relay.var("y", shape=(), dtype="int32")
+    func = relay.Function([x, y], relay.op.add(x, y))
+    x_y_data = [
+        (np.array(10.0, dtype="int32"), np.array(1.0, dtype="int32")),
+        (np.int32(10), np.int32(1)),
+        (10, 1),
+    ]
+    for (x_data, y_data) in x_y_data:
+        mod["main"] = func
+        check_result([x_data, y_data], x_data + y_data, mod=mod)
 
 
 @tvm.testing.uses_gpu
@@ -853,29 +882,25 @@ def test_vm_rpc():
     # Use local rpc server for testing.
     # Server must use popen so it doesn't inherit the current process state. It
     # will crash otherwise.
-    server = rpc.Server("localhost", port=9120)
-    remote = rpc.connect(server.host, server.port, session_timeout=10)
+    def check_remote(server):
+        remote = rpc.connect(server.host, server.port, session_timeout=10)
 
-    # Upload the serialized Executable.
-    remote.upload(path)
-    # Get a handle to remote Executable.
-    rexec = remote.load_module("vm_library.so")
+        # Upload the serialized Executable.
+        remote.upload(path)
+        # Get a handle to remote Executable.
+        rexec = remote.load_module("vm_library.so")
 
-    ctx = remote.cpu()
-    # Build a VM out of the executable and context.
-    vm_factory = runtime.vm.VirtualMachine(rexec, ctx)
-    np_input = np.random.uniform(size=(10, 1)).astype("float32")
-    input_tensor = tvm.nd.array(np_input, ctx)
-    # Invoke its "main" function.
-    out = vm_factory.invoke("main", input_tensor)
-    # Check the result.
-    np.testing.assert_allclose(out.numpy(), np_input + np_input)
+        ctx = remote.cpu()
+        # Build a VM out of the executable and context.
+        vm_factory = runtime.vm.VirtualMachine(rexec, ctx)
+        np_input = np.random.uniform(size=(10, 1)).astype("float32")
+        input_tensor = tvm.nd.array(np_input, ctx)
+        # Invoke its "main" function.
+        out = vm_factory.invoke("main", input_tensor)
+        # Check the result.
+        np.testing.assert_allclose(out.numpy(), np_input + np_input)
 
-    # delete tensors before the server shuts down so we don't throw errors.
-    del input_tensor
-    del out
-
-    server.terminate()
+    check_remote(rpc.Server("127.0.0.1"))
 
 
 def test_get_output_single():
@@ -913,6 +938,79 @@ def test_get_output_multiple():
     assert len(outputs) == 2
     np.testing.assert_allclose(outputs[0].numpy(), inp + inp)
     np.testing.assert_allclose(outputs[1].numpy(), inp)
+
+
+def test_get_input_index():
+    target = tvm.target.Target("llvm")
+
+    # Build a IRModule.
+    data_0, data_1 = ["d1", "d2"]
+    x, y = [relay.var(c, shape=(10,)) for c in [data_0, data_1]]
+    f = relay.Function([x, y], x + y)
+    mod = IRModule.from_expr(f)
+
+    # Compile to VMExecutable.
+    vm_exec = vm.compile(mod, target=target)
+    vm_factory = runtime.vm.VirtualMachine(vm_exec, tvm.cpu())
+    assert vm_factory.get_input_index(data_1) == 1
+    assert vm_factory.get_input_index(data_0) == 0
+    assert vm_factory.get_input_index("invalid") == -1
+
+
+@tvm.testing.requires_llvm
+def test_benchmark():
+    mod, params = mlp.get_workload(1)
+    lib = vm.compile(mod, target="llvm", params=params)
+    exe = runtime.vm.VirtualMachine(lib, tvm.cpu())
+    data = tvm.nd.array(np.random.rand(1, 1, 28, 28).astype("float32"))
+    result = exe.benchmark(tvm.cpu(), data, func_name="main", repeat=2, number=1)
+    assert result.mean == result.median
+    assert result.mean > 0
+    assert len(result.results) == 2
+
+    with patch.object(
+        tvm.runtime.module.Module,
+        "time_evaluator",
+        return_value=lambda x: tvm.runtime.module.BenchmarkResult([1, 2, 2, 5]),
+    ) as method:
+        result = exe.benchmark(tvm.cpu(), data, func_name="main", repeat=2, number=1)
+        assert result.mean == 2.5
+        assert result.median == 2.0
+        assert result.max == 5
+        assert result.min == 1
+        assert result.std == 1.5
+
+
+@tvm.testing.parametrize_targets("cuda", "llvm")
+def test_benchmark_end_to_end(dev, target):
+    mod, params = mlp.get_workload(1)
+    lib = vm.compile(mod, target=target, params=params)
+    exe = runtime.vm.VirtualMachine(lib, dev)
+    data = tvm.nd.array(np.random.rand(1, 1, 28, 28).astype("float32"), device=dev)
+    result = exe.benchmark(dev, data, func_name="main", repeat=2, number=1, end_to_end=True)
+    assert result.mean > 0
+
+
+@tvm.testing.requires_llvm
+def test_benchmark_end_to_end_rpc():
+    server = rpc.Server("127.0.0.1")
+    remote = rpc.connect(server.host, server.port)
+
+    mod, params = mlp.get_workload(1)
+    lib = vm.compile(mod, target="llvm", params=params)
+
+    temp = utils.tempdir()
+    path = temp.relpath("vm_library.so")
+    lib.mod.export_library(path)
+    remote.upload(path)
+    rlib = remote.load_module("vm_library.so")
+
+    exe = runtime.vm.VirtualMachine(rlib, remote.cpu())
+    data = tvm.nd.array(np.random.rand(1, 1, 28, 28).astype("float32"), device=remote.cpu())
+    result = exe.benchmark(
+        remote.cpu(), data=data, func_name="main", repeat=2, number=1, end_to_end=True
+    )
+    assert result.mean > 0
 
 
 if __name__ == "__main__":

@@ -64,8 +64,7 @@ def create(graph_json_str, libmod, device, dump_root=None):
             fcreate = tvm._ffi.get_global_func("tvm.graph_executor_debug.create")
     except ValueError:
         raise ValueError(
-            "Please set '(USE_GRAPH_EXECUTOR_DEBUG ON)' in "
-            "config.cmake and rebuild TVM to enable debug mode"
+            "Please set '(USE_PROFILER ON)' in " "config.cmake and rebuild TVM to enable debug mode"
         )
     func_obj = fcreate(graph_json_str, libmod, *device_type_id)
     return GraphModuleDebug(func_obj, dev, graph_json_str, dump_root)
@@ -268,23 +267,28 @@ class GraphModuleDebug(graph_executor.GraphModule):
         ret = self._run_individual(number, repeat, min_repeat_ms)
         return ret.strip(",").split(",") if ret else []
 
-    def profile(self, **input_dict):
+    def profile(self, collectors=None, **input_dict):
         """Run forward execution of the graph and collect overall and per-op
         performance metrics.
 
         Parameters
         ----------
+        collectors : Optional[Sequence[MetricCollector]]
+            Extra metrics to collect.
+
         input_dict : dict of str to NDArray
             List of input values to be feed to
+
         Return
         ------
         timing_results : str
             Per-operator and whole graph timing results in a table format.
         """
+        collectors = [] if collectors is None else collectors
         if input_dict:
             self.set_input(**input_dict)
 
-        return self._profile()
+        return self._profile(collectors)
 
     def exit(self):
         """Exits the dump folder and all its contents"""

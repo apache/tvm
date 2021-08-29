@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 import numpy as np
+import pytest
+from unittest.mock import patch
 
 import tvm
 import json
@@ -22,6 +24,9 @@ from tvm import relay
 from tvm.contrib import graph_executor
 from tvm.relay.op import add
 import tvm.testing
+from tvm.relay.testing import mlp
+from tvm import rpc
+from tvm.contrib import utils
 
 # @tq, @jr should we put this in testing ns?
 def check_rts(expr, args, expected_result, mod=None):
@@ -40,27 +45,48 @@ def check_rts(expr, args, expected_result, mod=None):
     expected_result:
         The expected result of running the expression.
     """
-    intrp = relay.create_executor("debug", mod=mod)
-    graph = relay.create_executor("graph", mod=mod)
-    eval_result = intrp.evaluate(expr)(*args)
-    rts_result = graph.evaluate(expr)(*args)
+    eval_result = relay.create_executor("debug", mod=mod).evaluate(expr)(*args)
+    rts_result = relay.create_executor("graph", mod=mod).evaluate(expr)(*args)
     tvm.testing.assert_allclose(eval_result.numpy(), rts_result.numpy())
     tvm.testing.assert_allclose(eval_result.numpy(), expected_result)
 
 
 def test_add_op_scalar():
     """
-    Program:
+    test_add_op_scalar:
         fn (x, y) {
             return x + y;
         }
     """
-    x = relay.var("x", shape=())
-    y = relay.var("y", shape=())
+    x = relay.var("x", shape=())  # Default to float32
+    y = relay.var("y", shape=())  # Default to float32
     func = relay.Function([x, y], add(x, y))
-    x_data = np.array(10.0, dtype="float32")
-    y_data = np.array(1.0, dtype="float32")
-    check_rts(func, [x_data, y_data], x_data + y_data)
+    x_y_data = [
+        (np.array(10.0, dtype="float32"), np.array(1.0, dtype="float32")),
+        (np.float32(10.0), np.float32(1.0)),
+        (10.0, 1.0),
+    ]
+    for (x_data, y_data) in x_y_data:
+        check_rts(func, [x_data, y_data], x_data + y_data)
+
+
+def test_add_op_scalar_int():
+    """
+    test_add_op_scalar_int:
+        fn (x, y) {
+            return x + y;
+        }
+    """
+    x = relay.var("x", shape=(), dtype="int32")
+    y = relay.var("y", shape=(), dtype="int32")
+    func = relay.Function([x, y], add(x, y))
+    x_y_data = [
+        (np.array(10.0, dtype="int32"), np.array(1.0, dtype="int32")),
+        (np.int32(10), np.int32(1)),
+        (10, 1),
+    ]
+    for (x_data, y_data) in x_y_data:
+        check_rts(func, [x_data, y_data], x_data + y_data)
 
 
 def test_add_op_tensor():
@@ -271,10 +297,9 @@ def test_graph_executor_nested_tuples():
     out = relay.Tuple([x, relay.Tuple([y, relay.Tuple([z, w])])])
     func = relay.Function([x, y, z, w], out)
 
-    exe = relay.create_executor(
+    f = relay.create_executor(
         kind="graph", mod=tvm.IRModule.from_expr(func), device=tvm.cpu(0), target="llvm"
-    )
-    f = exe.evaluate()
+    ).evaluate()
 
     data = [np.random.uniform(size=(2, 3)).astype("float32") for _ in "xyzw"]
     out = f(*data)
@@ -287,5 +312,77 @@ def test_graph_executor_nested_tuples():
     tvm.testing.assert_allclose(out[1][1][1].numpy(), data[3])
 
 
+def test_graph_executor_api():
+    dname_0, dname_1 = "data_0", "data_1"
+    data_0, data_1 = [relay.var(c, shape=(1, 1), dtype="float32") for c in [dname_0, dname_1]]
+    net = relay.add(data_0, data_1)
+    func = relay.Function((data_0, data_1), net)
+
+    lib = relay.build(tvm.IRModule.from_expr(func), "llvm")
+    mod = graph_executor.GraphModule(lib["default"](tvm.cpu(0)))
+
+    assert mod.get_input_index(dname_1) == 1
+    assert mod.get_input_index(dname_0) == 0
+    assert mod.get_input_index("Invalid") == -1
+
+
+@tvm.testing.requires_llvm
+def test_benchmark():
+    mod, params = mlp.get_workload(1)
+    lib = relay.build(mod, target="llvm", params=params)
+    exe = graph_executor.create(lib.get_graph_json(), lib.lib, tvm.cpu())
+    data = tvm.nd.array(np.random.rand(1, 1, 28, 28).astype("float32"))
+    result = exe.benchmark(tvm.cpu(), data=data, func_name="run", repeat=2, number=1)
+    assert result.mean == result.median
+    assert result.mean > 0
+    assert len(result.results) == 2
+
+    with patch.object(
+        tvm.runtime.module.Module,
+        "time_evaluator",
+        return_value=lambda: tvm.runtime.module.BenchmarkResult([1, 2, 2, 5]),
+    ) as method:
+        result = exe.benchmark(tvm.cpu(), data=data, func_name="run", repeat=2, number=1)
+        assert result.mean == 2.5
+        assert result.median == 2.0
+        assert result.max == 5
+        assert result.min == 1
+        assert result.std == 1.5
+
+
+@tvm.testing.parametrize_targets("cuda", "llvm")
+def test_benchmark_end_to_end(dev, target):
+    mod, params = mlp.get_workload(1)
+    lib = relay.build(mod, target=target, params=params)
+    exe = graph_executor.create(lib.get_graph_json(), lib.lib, dev)
+    data = tvm.nd.array(np.random.rand(1, 1, 28, 28).astype("float32"))
+    result = exe.benchmark(dev, data=data, func_name="run", repeat=2, number=1, end_to_end=True)
+    assert result.mean > 0
+    assert len(result.results) == 2
+
+
+@tvm.testing.requires_llvm
+def test_benchmark_end_to_end_rpc():
+    server = rpc.Server("127.0.0.1")
+    remote = rpc.connect(server.host, server.port)
+
+    mod, params = mlp.get_workload(1)
+    lib = relay.build(mod, target="llvm", params=params)
+
+    temp = utils.tempdir()
+    path = temp.relpath("library.so")
+    lib.export_library(path)
+    remote.upload(path)
+    rlib = remote.load_module("library.so")
+
+    dev = remote.cpu()
+    exe = graph_executor.create(lib.get_graph_json(), rlib, dev)
+
+    data = tvm.nd.array(np.random.rand(1, 1, 28, 28).astype("float32"), device=dev)
+    result = exe.benchmark(dev, data=data, func_name="run", repeat=2, number=1, end_to_end=True)
+    assert result.mean > 0
+    assert len(result.results) == 2
+
+
 if __name__ == "__main__":
-    sys.exit(pytest.main([file] + sys.argv[1:]))
+    pytest.main([__file__])

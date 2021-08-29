@@ -824,7 +824,10 @@ class ConfigSpace(object):
 
     def _add_new_transform(self, space_class, name, axes, policy, **kwargs):
         """Add a new transform space in template"""
-        if self._collect:
+        # if we do not have tuned info (_collect == True) but defined KNOB value
+        # for "default" scheduling before call of _add_new_transform, in this case
+        # no need to create new space and override previously pointed KNOB values
+        if self._collect and not (self.is_fallback and name in self._entity_map):
             # convert schedule axis to space definition axis
             axes = [x if isinstance(x, (VirtualAxis, Axis)) else self.axis(x) for x in axes]
 

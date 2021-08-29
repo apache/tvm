@@ -168,8 +168,6 @@ class CodeGenHybrid : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
    * \param tensor The tensor to allocate a name.
    */
   std::string GetTensorID(const Tensor& tensor);
-  /*! \brief the storage scope of allocation */
-  std::map<Operation, std::string> alloc_storage_scope_;
 };
 
 }  // namespace contrib

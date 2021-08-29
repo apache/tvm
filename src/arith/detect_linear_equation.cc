@@ -108,7 +108,7 @@ class LinearEqDetector : public ExprFunctor<LinearEqEntry(const PrimExpr&, const
   }
   LinearEqEntry VisitExprDefault_(const Object* op, const PrimExpr& e) final {
     if (fail_) return LinearEqEntry();
-    if (ExprUseVar(e, var_)) {
+    if (UsesVar(e, [this](const VarNode* var) { return var == var_.get(); })) {
       fail_ = true;
       return LinearEqEntry();
     } else {
@@ -159,7 +159,7 @@ Array<PrimExpr> DetectLinearEquation(const PrimExpr& e, const Array<Var>& vars) 
   for (size_t i = vars.size(); i > 1; --i) {
     vset.insert(vars[i - 1].get());
     // The previous coeff contains the variable
-    if (ExprUseVar(coeff[i - 2], vset_contains)) {
+    if (UsesVar(coeff[i - 2], vset_contains)) {
       return Array<PrimExpr>();
     }
   }

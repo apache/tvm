@@ -15,11 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-function-docstring,missing-module-docstring
+import sys
+
 import pytest
 import tvm
 from tvm import tir
 from tvm.script import ty
-
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
@@ -41,7 +42,7 @@ def matmul(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
 
 
 def test_tir_schedule_error_detail():
-    sch = tir.Schedule(matmul, debug_mode=True, error_render_level="detail")
+    sch = tir.Schedule(matmul, debug_mask="all", error_render_level="detail")
     with pytest.raises(tir.ScheduleError) as excinfo:
         sch.get_block("wrong_name")
     (msg,) = excinfo.value.args
@@ -49,7 +50,7 @@ def test_tir_schedule_error_detail():
 
 
 def test_tir_schedule_error_fast():
-    sch = tir.Schedule(matmul, debug_mode=True, error_render_level="fast")
+    sch = tir.Schedule(matmul, debug_mask="all", error_render_level="fast")
     with pytest.raises(tir.ScheduleError) as excinfo:
         sch.get_block("wrong_name")
     (msg,) = excinfo.value.args
@@ -57,7 +58,7 @@ def test_tir_schedule_error_fast():
 
 
 def test_tir_schedule_error_none():
-    sch = tir.Schedule(matmul, debug_mode=True, error_render_level="none")
+    sch = tir.Schedule(matmul, debug_mask="all", error_render_level="none")
     with pytest.raises(tir.ScheduleError) as excinfo:
         sch.get_block("wrong_name")
     (msg,) = excinfo.value.args
@@ -65,6 +66,4 @@ def test_tir_schedule_error_none():
 
 
 if __name__ == "__main__":
-    test_tir_schedule_error_detail()
-    test_tir_schedule_error_fast()
-    test_tir_schedule_error_none()
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

@@ -15,9 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-function-docstring,missing-module-docstring
-
 import gc
+import sys
 
+import pytest
 import tvm
 from tvm import tir
 from tvm.ir import IRModule
@@ -77,7 +78,7 @@ def block_in_opaque_block(a: ty.handle, b: ty.handle) -> None:
 
 def replace_ir_builder(deep_copy=False, realize=False):
     new_func = tvm.script.from_source(tvm.script.asscript(elementwise))
-    s = tir.ScheduleState(new_func, debug_mode=True)
+    s = tir.ScheduleState(new_func, debug_mask="all")
     target = tvm.tir.Block(
         iter_vars=[],
         reads=[],
@@ -105,7 +106,7 @@ def replace_ir_builder_module(deep_copy=False, realize=False):
     new_func = tvm.script.from_source(tvm.script.asscript(elementwise))
     other_func = tvm.script.from_source(tvm.script.asscript(elementwise))
     mod = IRModule(functions={"main": new_func, "other": other_func})
-    s = tir.ScheduleState(mod, debug_mode=True)
+    s = tir.ScheduleState(mod, debug_mask="all")
     target = tvm.tir.Block(
         iter_vars=[],
         reads=[],
@@ -131,7 +132,7 @@ def replace_ir_builder_module(deep_copy=False, realize=False):
 
 def replace_ir_builder_with_opaque():
     func = tvm.script.from_source(tvm.script.asscript(block_in_opaque_block))
-    s = tir.ScheduleState(func, debug_mode=True)
+    s = tir.ScheduleState(func, debug_mask="all")
     gc.collect()
     return s
 
@@ -291,7 +292,7 @@ def test_replace_root_copy3():
 
 def test_replace_block_remap():
     func = elementwise
-    s = tir.ScheduleState(func, debug_mode=True)
+    s = tir.ScheduleState(func, debug_mask="all")
     # The target stmt
     target = matmul.body.block.body.body.body[0].block
     sref = s.get_sref(s.mod["main"].body.block.body[0].body.body.block)
@@ -338,16 +339,4 @@ def test_replace_ir_module():
 
 
 if __name__ == "__main__":
-    test_replace_direct_write0()
-    test_replace_direct_write1()
-    test_replace_copy()
-    test_replace_partial_copy0()
-    test_replace_partial_copy1()
-    test_replace_root_write()
-    test_replace_root_copy0()
-    test_replace_root_copy1()
-    test_replace_root_copy2()
-    test_replace_root_copy3()
-    test_replace_block_remap()
-    test_replace_block_in_opaque_block()
-    test_replace_ir_module()
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

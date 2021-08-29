@@ -63,9 +63,9 @@ TEST(MicroStandaloneRuntime, BuildModule) {
   auto B = tvm::runtime::NDArray::Empty({2, 3}, {kDLFloat, 32, 1}, {kDLCPU, 0});
   auto C = tvm::runtime::NDArray::Empty({2, 3}, {kDLFloat, 32, 1}, {kDLCPU, 0});
 
-  auto pA = (float*)A->data;
-  auto pB = (float*)B->data;
-  auto pC = (float*)C->data;
+  auto pA = static_cast<float*>(A->data);
+  auto pB = static_cast<float*>(B->data);
+  auto pC = static_cast<float*>(C->data);
 
   for (int i = 0; i < 6; ++i) {
     pA[i] = i;
@@ -118,7 +118,7 @@ TEST(MicroStandaloneRuntime, BuildModule) {
   MicroTVMRuntimeRun(handle);
   auto Y = tvm::runtime::NDArray::Empty({2, 3}, {kDLFloat, 32, 1}, {kDLCPU, 0});
   MicroTVMRuntimeGetOutput(handle, 0, const_cast<DLTensor*>(Y.operator->()));
-  auto* pY = (float*)Y->data;
+  auto* pY = static_cast<float*>(Y->data);
   for (int i = 0; i < 6; ++i) {
     CHECK_LT(fabs(pY[i] - (i + (i + 1) + (i + 2))), 1e-4);
   }
@@ -128,9 +128,3 @@ TEST(MicroStandaloneRuntime, BuildModule) {
 
 #endif
 #endif
-
-int main(int argc, char** argv) {
-  testing::InitGoogleTest(&argc, argv);
-  testing::FLAGS_gtest_death_test_style = "threadsafe";
-  return RUN_ALL_TESTS();
-}

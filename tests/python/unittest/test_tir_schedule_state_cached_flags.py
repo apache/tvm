@@ -15,7 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-function-docstring,missing-module-docstring
+import sys
 
+import pytest
 import tvm
 from tvm import tir
 from tvm.script import ty
@@ -280,7 +282,7 @@ def _get_block(s: tir.ScheduleState, name_hint: str) -> tir.StmtSRef:
 
 
 def test_elementwise():
-    s = tir.ScheduleState(elementwise, debug_mode=True)
+    s = tir.ScheduleState(elementwise, debug_mask="all")
     # pylint: disable=protected-access
     assert s._get_cached_flags(_get_block(s, "B")) == CachedFlags(
         affine_binding=True,
@@ -301,7 +303,7 @@ def test_elementwise():
 
 
 def test_matmul():
-    s = tir.ScheduleState(matmul, debug_mode=True)
+    s = tir.ScheduleState(matmul, debug_mask="all")
     # pylint: disable=protected-access
     assert s._get_cached_flags(_get_block(s, "init")) == CachedFlags(
         affine_binding=True,
@@ -322,7 +324,7 @@ def test_matmul():
 
 
 def test_block_in_opaque_block():
-    s = tir.ScheduleState(block_in_opaque_block, debug_mode=True)
+    s = tir.ScheduleState(block_in_opaque_block, debug_mask="all")
     # pylint: disable=protected-access
     assert s._get_cached_flags(_get_block(s, "B")) == CachedFlags(
         affine_binding=True,
@@ -353,7 +355,7 @@ def test_block_in_opaque_block():
 
 
 def test_write_after_read():
-    s = tir.ScheduleState(write_after_read, debug_mode=True)
+    s = tir.ScheduleState(write_after_read, debug_mask="all")
     # pylint: disable=protected-access
     assert s._get_cached_flags(_get_block(s, "B")) == CachedFlags(
         affine_binding=True,
@@ -374,7 +376,7 @@ def test_write_after_read():
 
 
 def test_loop_carried_dependency():
-    s = tir.ScheduleState(loop_carried_dependency, debug_mode=True)
+    s = tir.ScheduleState(loop_carried_dependency, debug_mask="all")
     # pylint: disable=protected-access
     assert s._get_cached_flags(_get_block(s, "B")) == CachedFlags(
         affine_binding=True,
@@ -395,7 +397,7 @@ def test_loop_carried_dependency():
 
 
 def test_concatenate_multi_producer_covered():  # pylint: disable=invalid-name
-    s = tir.ScheduleState(concatenate_multi_producer, debug_mode=True)
+    s = tir.ScheduleState(concatenate_multi_producer, debug_mask="all")
     # pylint: disable=protected-access
     assert s._get_cached_flags(_get_block(s, "A_0")) == CachedFlags(
         affine_binding=True,
@@ -421,7 +423,7 @@ def test_concatenate_multi_producer_covered():  # pylint: disable=invalid-name
 
 
 def test_concatenate_multi_producer_uncovered():  # pylint: disable=invalid-name
-    s = tir.ScheduleState(concatenate_multi_producer_uncovered, debug_mode=True)
+    s = tir.ScheduleState(concatenate_multi_producer_uncovered, debug_mask="all")
     # pylint: disable=protected-access
     assert s._get_cached_flags(_get_block(s, "A_0")) == CachedFlags(
         affine_binding=True,
@@ -447,7 +449,7 @@ def test_concatenate_multi_producer_uncovered():  # pylint: disable=invalid-name
 
 
 def test_lca_at_loop():
-    s = tir.ScheduleState(lca_at_loop, debug_mode=True)
+    s = tir.ScheduleState(lca_at_loop, debug_mask="all")
     # pylint: disable=protected-access
     assert s._get_cached_flags(_get_block(s, "B")) == CachedFlags(
         affine_binding=True,
@@ -468,7 +470,7 @@ def test_lca_at_loop():
 
 
 def test_multi_producer_consumer():
-    s = tir.ScheduleState(multi_producer_consumer, debug_mode=True)
+    s = tir.ScheduleState(multi_producer_consumer, debug_mask="all")
     # pylint: disable=protected-access
     assert s._get_cached_flags(_get_block(s, "A_0")) == CachedFlags(
         affine_binding=True,
@@ -494,7 +496,7 @@ def test_multi_producer_consumer():
 
 
 def test_elementwise_affine_producer():
-    s = tir.ScheduleState(elementwise_affine_producer, debug_mode=True)
+    s = tir.ScheduleState(elementwise_affine_producer, debug_mask="all")
     # pylint: disable=protected-access
     assert s._get_cached_flags(_get_block(s, "root")) == CachedFlags(
         affine_binding=True,
@@ -515,7 +517,7 @@ def test_elementwise_affine_producer():
 
 
 def test_subblock():
-    s = tir.ScheduleState(elementwise_subblock, debug_mode=True)
+    s = tir.ScheduleState(elementwise_subblock, debug_mask="all")
     # pylint: disable=protected-access
     assert s._get_cached_flags(_get_block(s, "root")) == CachedFlags(
         affine_binding=True,
@@ -541,7 +543,7 @@ def test_subblock():
 
 
 def test_subblock_uncovered():
-    s = tir.ScheduleState(elementwise_subblock_uncovered, debug_mode=True)
+    s = tir.ScheduleState(elementwise_subblock_uncovered, debug_mask="all")
     # pylint: disable=protected-access
     assert s._get_cached_flags(_get_block(s, "root")) == CachedFlags(
         affine_binding=True,
@@ -567,7 +569,7 @@ def test_subblock_uncovered():
 
 
 def test_thread_binding():
-    s = tir.ScheduleState(bound_to_thread, debug_mode=True)
+    s = tir.ScheduleState(bound_to_thread, debug_mask="all")
     # pylint: disable=protected-access
     assert s._get_cached_flags(_get_block(s, "root")) == CachedFlags(
         affine_binding=True,
@@ -588,7 +590,7 @@ def test_thread_binding():
 
 
 def test_equal_ranked_threads():
-    s = tir.ScheduleState(equal_ranked_threads, debug_mode=True)
+    s = tir.ScheduleState(equal_ranked_threads, debug_mask="all")
     # pylint: disable=protected-access
     assert s._get_cached_flags(_get_block(s, "root")) == CachedFlags(
         affine_binding=True,
@@ -609,7 +611,7 @@ def test_equal_ranked_threads():
 
 
 def test_warp_memory():
-    s = tir.ScheduleState(warp_memory, debug_mode=True)
+    s = tir.ScheduleState(warp_memory, debug_mask="all")
     # pylint: disable=protected-access
     assert s._get_cached_flags(_get_block(s, "root")) == CachedFlags(
         affine_binding=True,
@@ -630,7 +632,7 @@ def test_warp_memory():
 
 
 def test_warp_memory_negative():
-    s = tir.ScheduleState(warp_memory_negative, debug_mode=True)
+    s = tir.ScheduleState(warp_memory_negative, debug_mask="all")
     # pylint: disable=protected-access
     assert s._get_cached_flags(_get_block(s, "root")) == CachedFlags(
         affine_binding=True,
@@ -651,19 +653,4 @@ def test_warp_memory_negative():
 
 
 if __name__ == "__main__":
-    test_elementwise()
-    test_matmul()
-    test_block_in_opaque_block()
-    test_write_after_read()
-    test_loop_carried_dependency()
-    test_concatenate_multi_producer_covered()
-    test_concatenate_multi_producer_uncovered()
-    test_lca_at_loop()
-    test_multi_producer_consumer()
-    test_elementwise_affine_producer()
-    test_subblock()
-    test_subblock_uncovered()
-    test_thread_binding()
-    test_equal_ranked_threads()
-    test_warp_memory()
-    test_warp_memory_negative()
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

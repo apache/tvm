@@ -189,7 +189,6 @@ def run_tvm_graph(
     )
 
     if mode in ["debug", "vm"]:
-        ex = relay.create_executor(mode, mod=mod, device=tvm.cpu(), target="llvm")
         inputs = []
         for param in mod["main"].params:
             found = False
@@ -201,7 +200,9 @@ def run_tvm_graph(
             # Interpreter doesn't bind constants, so still need to find in params
             if not found:
                 inputs.append(tvm.nd.array(params[param.name_hint]))
-        result = ex.evaluate()(*inputs)
+        result = relay.create_executor(mode, mod=mod, device=tvm.cpu(), target="llvm").evaluate()(
+            *inputs
+        )
         return vmobj_to_list(result)
     else:
         with tvm.transform.PassContext(opt_level=3):
@@ -321,7 +322,6 @@ def compare_tflite_with_tvm(
                 out_names=out_names,
                 mode=mode,
             )
-
             # WARNING: the results could well be random values clipped to 0 or 255 because of badly tuned output
             # range for the specific operator. While adding test ensure that we aren't getting only clipped values
             # in output tensors that still pass the assertion. For reference see _test_elemwise_qnn_out_range()
@@ -1516,7 +1516,9 @@ def test_forward_reshape():
 # ------
 
 
-def _test_resize(tf_resize_op, images_data, size_data, align_corners, quantized=False):
+def _test_resize(
+    tf_resize_op, images_data, size_data, align_corners, half_pixel_centers, quantized=False
+):
     """One iteration of Resize"""
     # Test with tensor and constant
     with tf.Graph().as_default():
@@ -1529,7 +1531,10 @@ def _test_resize(tf_resize_op, images_data, size_data, align_corners, quantized=
             )
             input_range = {"in": (-3, 2)}
             out_tensor = tf_resize_op(
-                images=images_tensor_q, size=size, align_corners=align_corners
+                images=images_tensor_q,
+                size=size,
+                align_corners=align_corners,
+                half_pixel_centers=half_pixel_centers,
             )
             out_tensor = tf.quantization.fake_quant_with_min_max_args(
                 out_tensor, min=-3, max=2, name="out_tensor"
@@ -1544,7 +1549,12 @@ def _test_resize(tf_resize_op, images_data, size_data, align_corners, quantized=
                 input_range=input_range,
             )
         else:
-            out_tensor = tf_resize_op(images=images_tensor, size=size, align_corners=align_corners)
+            out_tensor = tf_resize_op(
+                images=images_tensor,
+                size=size,
+                align_corners=align_corners,
+                half_pixel_centers=half_pixel_centers,
+            )
             compare_tflite_with_tvm([images_data], ["in:0"], [images_tensor], [out_tensor])
 
 
@@ -1560,6 +1570,7 @@ def test_all_resize():
         images_data_float32,
         size_data,
         align_corners=False,
+        half_pixel_centers=False,
         quantized=False,
     )
     _test_resize(
@@ -1567,13 +1578,32 @@ def test_all_resize():
         images_data_float32,
         size_data,
         align_corners=True,
+        half_pixel_centers=False,
         quantized=False,
     )
     _test_resize(
-        tf.image.resize_bilinear, images_data_uint8, size_data, align_corners=False, quantized=True
+        tf.image.resize_bilinear,
+        images_data_uint8,
+        size_data,
+        align_corners=False,
+        half_pixel_centers=False,
+        quantized=True,
     )
     _test_resize(
-        tf.image.resize_bilinear, images_data_uint8, size_data, align_corners=True, quantized=True
+        tf.image.resize_bilinear,
+        images_data_uint8,
+        size_data,
+        align_corners=True,
+        half_pixel_centers=False,
+        quantized=True,
+    )
+    _test_resize(
+        tf.image.resize_bilinear,
+        images_data_uint8,
+        size_data,
+        align_corners=False,
+        half_pixel_centers=True,
+        quantized=True,
     )
     ### RESIZE_NEAREST_NEIGHBOR (was added in v1.13)
     # According to topi resize.h
@@ -1582,7 +1612,11 @@ def test_all_resize():
 
     if "RESIZE_NEAREST_NEIGHBOR" in dir(BuiltinOperator()):
         _test_resize(
-            tf.image.resize_nearest_neighbor, images_data_float32, size_data, align_corners=False
+            tf.image.resize_nearest_neighbor,
+            images_data_float32,
+            size_data,
+            align_corners=False,
+            half_pixel_centers=False,
         )
 
 
@@ -2581,6 +2615,22 @@ def test_forward_select():
             compare_tflite_with_tvm(
                 [in_data1, in_data2], ["input1:0", "input2:0"], [input1, input2], [out]
             )
+
+
+@pytest.mark.parametrize("quant_bits", [2, 4, 8, 16])
+@pytest.mark.parametrize(
+    "value, min, max", [[-10.11, -6, 6], [-3.55, -6, 6], [0, -6, 6], [3.55, -6, 6], [10.11, -6, 6]]
+)
+def test_forward_fake_quant(value, min, max, quant_bits):
+    with tf.Graph().as_default():
+        with tf.Session() as sess:
+            input = tf.placeholder(tf.float32, shape=[1], name="input")
+            out = tf.quantization.fake_quant_with_min_max_args(
+                input, min=min, max=max, num_bits=quant_bits, name=None
+            )
+
+            in_data = np.float32(value)
+            compare_tflite_with_tvm([in_data], ["input:0"], [input], [out])
 
 
 # Squeeze
@@ -4412,7 +4462,7 @@ def test_forward_mediapipe_hand_landmark():
 # --------------
 def test_prevent_tensorflow_dynamic_range():
     """
-    Should prevent runnung "dynamic range quantization" optimized TFLite graph
+    Should prevent running "dynamic range quantization" optimized TFLite graph
     """
     data_array = np.random.randint(0, 2, (1, 1024, 1024)).astype(dtype=np.float32)
     filter_array = np.random.randint(0, 2, (1024, 1024)).astype(dtype=np.float32)

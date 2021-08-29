@@ -80,6 +80,12 @@ ALLOW_EXTENSION = {
     "idl",
     # opencl file
     "cl",
+    # zephyr config file
+    "conf",
+    # arduino sketch file
+    "ino",
+    # linker scripts
+    "ld",
 }
 
 # List of file names allowed
@@ -127,35 +133,17 @@ ALLOW_SPECIFIC_FILE = {
     # pytest config
     "pytest.ini",
     # microTVM tests
-    "tests/micro/zephyr/testdata/digit-2.jpg",
-    "tests/micro/zephyr/testdata/digit-9.jpg",
-    "tests/micro/zephyr/testdata/mnist-8.onnx",
-    "tests/micro/zephyr/testdata/ic_sample_fp32_8.npy",
+    "tests/micro/testdata/mnist/digit-2.jpg",
+    "tests/micro/testdata/mnist/digit-9.jpg",
+    "tests/micro/testdata/mnist/mnist-8.onnx",
+    "tests/micro/testdata/kws/yes_no.tflite",
     # microTVM Zephyr runtime
-    "apps/microtvm/zephyr/qemu-hack/qemu-system-i386",
-    "apps/microtvm/zephyr/qemu-hack/qemu-system-arm",
-    "apps/microtvm/zephyr/qemu-hack/qemu-system-riscv32",
-    "apps/microtvm/zephyr/qemu-hack/qemu-system-riscv64",
-    "apps/microtvm/zephyr/host_driven/prj.conf",
-    "apps/microtvm/zephyr/host_driven/boards/qemu_x86.conf",
-    "apps/microtvm/zephyr/host_driven/boards/qemu_riscv32.conf",
-    "apps/microtvm/zephyr/host_driven/boards/qemu_riscv64.conf",
-    "apps/microtvm/zephyr/host_driven/boards/nrf5340dk_nrf5340_cpuapp.conf",
-    "apps/microtvm/zephyr/host_driven/boards/nucleo_f746zg.conf",
-    "apps/microtvm/zephyr/host_driven/boards/stm32f746g_disco.conf",
-    "apps/microtvm/zephyr/host_driven/boards/mps2_an521.conf",
-    "apps/microtvm/zephyr/host_driven/boards/nucleo_l4r5zi.conf",
-    "apps/microtvm/zephyr/host_driven/qemu-hack",
-    "apps/microtvm/zephyr/aot_demo/prj.conf",
-    "apps/microtvm/zephyr/aot_demo/boards/qemu_x86.conf",
-    "apps/microtvm/zephyr/aot_demo/boards/qemu_riscv32.conf",
-    "apps/microtvm/zephyr/aot_demo/boards/qemu_riscv64.conf",
-    "apps/microtvm/zephyr/aot_demo/boards/nrf5340dk_nrf5340_cpuapp.conf",
-    "apps/microtvm/zephyr/aot_demo/boards/nucleo_f746zg.conf",
-    "apps/microtvm/zephyr/aot_demo/boards/stm32f746g_disco.conf",
-    "apps/microtvm/zephyr/aot_demo/boards/mps2_an521.conf",
-    "apps/microtvm/zephyr/aot_demo/boards/nucleo_l4r5zi.conf",
-    "apps/microtvm/zephyr/aot_demo/qemu-hack",
+    "apps/microtvm/zephyr/template_project/CMakeLists.txt.template",
+    "apps/microtvm/zephyr/template_project/qemu-hack/qemu-system-arm",
+    "apps/microtvm/zephyr/template_project/qemu-hack/qemu-system-xilinx-aarch64",
+    "apps/microtvm/zephyr/template_project/qemu-hack/qemu-system-i386",
+    "apps/microtvm/zephyr/template_project/qemu-hack/qemu-system-riscv32",
+    "apps/microtvm/zephyr/template_project/qemu-hack/qemu-system-riscv64",
     # microTVM Virtual Machines
     "apps/microtvm/reference-vm/zephyr/Vagrantfile",
     "apps/microtvm/reference-vm/zephyr/base-box/Vagrantfile.packer-template",

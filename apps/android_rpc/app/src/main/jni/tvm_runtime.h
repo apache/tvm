@@ -34,6 +34,7 @@
 #define TVM_LOG_CUSTOMIZE 1
 
 #include "../src/runtime/c_runtime_api.cc"
+#include "../src/runtime/container.cc"
 #include "../src/runtime/cpu_device_api.cc"
 #include "../src/runtime/dso_library.cc"
 #include "../src/runtime/file_utils.cc"
@@ -67,7 +68,14 @@
 #endif
 
 #ifdef TVM_VULKAN_RUNTIME
-#include "../src/runtime/vulkan/vulkan.cc"
+#include "../src/runtime/vulkan/vulkan_buffer.cc"
+#include "../src/runtime/vulkan/vulkan_common.cc"
+#include "../src/runtime/vulkan/vulkan_device.cc"
+#include "../src/runtime/vulkan/vulkan_device_api.cc"
+#include "../src/runtime/vulkan/vulkan_instance.cc"
+#include "../src/runtime/vulkan/vulkan_module.cc"
+#include "../src/runtime/vulkan/vulkan_stream.cc"
+#include "../src/runtime/vulkan/vulkan_wrapped_func.cc"
 #endif
 
 #ifdef USE_SORT

@@ -19,6 +19,7 @@ from __future__ import absolute_import
 import tvm
 from tvm import te
 from .. import tag
+from ...tir.generic import cast
 
 
 def csrmv_default(data, indices, indptr, weight, bias=None):
@@ -50,6 +51,12 @@ def csrmv_default(data, indices, indptr, weight, bias=None):
     assert isinstance(
         weight, te.tensor.Tensor
     ), "weight matrix is assumed to be tvm.te.Tensor, but weight is `%s`" % (type(weight))
+    assert (
+        data.dtype == weight.dtype
+    ), "Data and weight must have the same dtype, but they have %s and %s" % (
+        data.dtype,
+        weight.dtype,
+    )
     if bias is not None:
         assert len(bias.shape) == 1
     batch = indptr.shape[0] - 1
@@ -64,9 +71,9 @@ def csrmv_default(data, indices, indptr, weight, bias=None):
         out_ptr = irb.buffer_ptr(out)
         num_rows = indptr.shape[0] - 1
         with irb.for_range(0, num_rows, kind="parallel", name="row") as row:
-            dot = irb.allocate("float32", (1,), name="dot", scope="local")
-            out_ptr[row] = 0.0
-            dot[0] = 0.0
+            dot = irb.allocate(data.dtype, (1,), name="dot", scope="local")
+            out_ptr[row] = cast(0, data.dtype)
+            dot[0] = cast(0, data.dtype)
             row_start = indptr_ptr[row]
             row_end = indptr_ptr[row + 1]
             row_elems = row_end - row_start
@@ -82,7 +89,7 @@ def csrmv_default(data, indices, indptr, weight, bias=None):
         [data, indices, indptr, weight],
         lambda ins, outs: csrmv_default_ir(ins[0], ins[1], ins[2], ins[3], outs[0]),
         tag="csrmv",
-        dtype="float32",
+        dtype=data.dtype,
         name="csrmv",
     )
     if bias is not None:
