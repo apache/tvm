@@ -180,7 +180,7 @@ data_shape = (batch_size,) + image_shape
 # set it as :code:`nvidia/jetson-nano`. Set :code:`local_demo` to False 
 # if you want to run this tutorial with a real device.
 
-local_demo = False
+local_demo = True
 
 if local_demo:
     target = tvm.target.Target("llvm")
