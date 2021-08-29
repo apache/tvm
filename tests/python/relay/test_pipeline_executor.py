@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import pytest
 import numpy as np
 import tvm
 import tvm.testing
@@ -75,7 +76,7 @@ def get_mannual_mod():
     return mods, dshape
 
 
-def get_manual_conf(mods):
+def get_manual_conf(mods, target):
     """
     # This function use to generate manual pipe line configueration,
     # the result use to verify if the pipe configuration can generate
@@ -85,12 +86,12 @@ def get_manual_conf(mods):
     """
     # set configure
     """
-    mconfig1 = {}
+
     """
     # third output is final output, second output for mod3, first for mod2
     # input
     """
-    mconfig1["pipeline"] = {
+    pipe_config1 = {
         "mod_indx": 1,
         "output": [
             {"output_indx": 0, "dependent": [{"mod_indx": 2, "input_name": "data_0"}]},
@@ -98,28 +99,46 @@ def get_manual_conf(mods):
             {"output_indx": 2, "dependent": [{"mod_indx": 0, "input_name": "0"}]},
         ],
     }
-    mod_config[mods[0]] = mconfig1
+    mod_config[mods[0]] = {"pipeline": pipe_config1,
+                           "target_host": None,
+                           "mod_name": "default",
+			   "build": None,
+                           "params": None,
+                           "target": target[0],
+                           "dev": target[1],
+                          }
 
-    mconfig2 = {}
-    mconfig2["pipeline"] = {
+    pipe_config2 = {
         "mod_indx": 2,
         "output": [
             {"output_indx": 0, "dependent": [{"mod_indx": 3, "input_name": "data_1"}]},
         ],
     }
-    mod_config[mods[1]] = mconfig2
+    mod_config[mods[1]] = {"pipeline": pipe_config2,
+                           "target_host": None,
+                           "mod_name": "default",
+			   "build": None,
+                           "params": None,
+                           "target": "llvm",
+                           "dev": tvm.cpu(0),
+                          }
 
-    mconfig3 = {}
-
-    mconfig3["pipeline"] = {
+    pipe_config3 = {
         "mod_indx": 3,
         "output": [{"output_indx": 0, "dependent": [{"mod_indx": 0, "input_name": "1"}]}],
     }
-    mod_config[mods[2]] = mconfig3
+    mod_config[mods[2]] = {"pipeline": pipe_config3,
+                           "target_host": None,
+                           "mod_name": "default",
+			   "build": None,
+                           "params": None,
+                           "target": "llvm",
+                           "dev": tvm.cpu(0),
+                          }
     return mod_config
 
 
-def pipeline_module_create(target):
+def pipeline(target):
     """
     #Get 3 pipeline module.
     """
@@ -130,7 +149,7 @@ def pipeline_module_create(target):
     for i in range(5):
         datas.append(np.full(dshape, 3 + i).astype("float32"))
 
-    pipe_config = pipeline_executor.PipelineModuleConfig([mod1, mod2, mod3])
+    pipe_config = pipeline_executor.PipelineConfig([mod1, mod2, mod3])
 
     # Create pipeline compute input/output and subgraph dependent relation.
 
@@ -155,7 +174,7 @@ def pipeline_module_create(target):
     # mod3 output(0) would get forward as final pipeline compute output(2)
     pipe_config.connect(pipe_config[mod3].output(0), pipe_config.pipe_output("1"))
     """
-    # print configueration, the expect result like following.
+    # print configueration (print(pipe_config)), the expect result like following.
     #
     #Inputs
     #  |data_0: mod1:data_0
@@ -171,78 +190,50 @@ def pipeline_module_create(target):
     #  |mod2.output(0)-> mod3.data_1
     """
 
-    print(pipe_config)
-
     """
     # connection correctness veify
     """
-    try:
+
+    """
+    # try wrong module order connection check, expect assert.
+    """
+
+    with pytest.raises(AssertionError):
         pipe_config.connect(pipe_config[mod2].output(0), pipe_config[mod1].input("data_0"))
-        assert 0, f"wrong module connect order check not pass!"
+
+    """
+    # try pipeline module input with module output connection check, expect assert.
+    """
+
+    with pytest.raises(AssertionError):
         pipe_config.connect(pipe_config.pipe_input("data_0"), pipe_config[mod1].output(0))
         assert 0, f"wrong global input connect check not pass!"
-    except:
-        print("connection correctness check pass")
 
     """
-    # get text format configuration.
+    # set other parameter.
     """
+    pipe_config[mod1].set_target(target[0])
+    pipe_config[mod1].set_dev(target[1])
 
-    pconfig = pipe_config.get_config()
+    pipe_config[mod2].set_target("llvm")
+    pipe_config[mod2].set_dev(tvm.cpu(0))
+
+    pipe_config[mod3].set_target("llvm")
+    pipe_config[mod3].set_dev(tvm.cpu(0))
 
     """
     # check if the configuration match expectation.
     """
-    assert pconfig == get_manual_conf([mod1, mod2, mod3])
-
-    """
-    # generate configure for build process
-    """
-
-    mod_config = {}
-    mconfig1 = pconfig[mod1]
-    mconfig1["target_host"] = None
-    mconfig1["mod_name"] = "default"
-    mconfig1["build"] = None
-    mconfig1["params"] = None
-    mconfig1["target"] = target[0]
-    mconfig1["dev"] = target[1]
-    mod_config[mod1] = mconfig1
-
-    mconfig2 = pconfig[mod2]
-    mconfig2["target_host"] = None
-    mconfig2["mod_name"] = "default"
-    mconfig2["build"] = None
-    mconfig2["params"] = None
-    mconfig2["target"] = "llvm"
-    mconfig2["dev"] = tvm.cpu(0)
-    mod_config[mod2] = mconfig2
-
-    mconfig3 = pconfig[mod3]
-    mconfig3["target_host"] = None
-    mconfig3["mod_name"] = "default"
-    mconfig3["build"] = None
-    mconfig3["params"] = None
-    mconfig3["target"] = "llvm"
-    mconfig3["dev"] = tvm.cpu(0)
-    mod_config[mod3] = mconfig3
+    assert pipe_config.get_config() == get_manual_conf([mod1, mod2, mod3], target)
 
     """
     # Test build and create pipeline module
     """
     with relay.build_config(opt_level=3):
-        pipeline_mods, string_config = pipeline_executor.build_pipeline(mod_config)
+        pipeline_mods, string_config = pipeline_executor.build(pipe_config)
 
     pipeline_module = pipeline_executor.create(pipeline_mods, string_config)
-    return pipeline_module
-
-
-def pipeline(target):
-    module = pipeline_module_create(target)
-    """
-    # Check if pipeline executor create value is valid.
-    """
-    assert module
+    assert pipeline_module
 
 
 def test_pipeline():

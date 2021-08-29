@@ -30,11 +30,6 @@ void SubGraphRuntime::Init(const Array<tvm::runtime::Module>& modules,
   return;
 }
 
-PackedFunc SubGraphRuntime::GetFunction(const std::string& name,
-                                        const ObjectPtr<Object>& sptr_to_self) {
-  return PackedFunc();
-}
-
 Module PipelineRuntimeCreate(const Array<tvm::runtime::Module>& m,
                              const std::string& pipeline_json) {
   auto exec = make_object<SubGraphRuntime>();

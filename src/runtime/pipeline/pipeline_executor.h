@@ -59,13 +59,6 @@ class TVM_DLL SubGraphRuntime : public ModuleNode {
    *  which is not compatible with RPCModules.
    */
   void Init(const Array<tvm::runtime::Module>& modules, const std::string& pipeline_json);
-  /*!
-   * \brief Get member function to front-end
-   * \param name The name of the function.
-   * \param sptr_to_self The pointer to the module node.
-   * \return The corresponding member function.
-   */
-  virtual PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self);
 };
 }  // namespace runtime
 }  // namespace tvm

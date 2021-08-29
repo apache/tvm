@@ -32,7 +32,7 @@ def pipeline_executor_enabled():
     return tvm._ffi.get_global_func("tvm.pipeline_executor.create", allow_missing=True) is not None
 
 
-def build_pipeline(mod_n_configs):
+def build(pipe_configs):
     """build module list that can use for pipeline execution.
 
     Parameters
@@ -53,9 +53,11 @@ def build_pipeline(mod_n_configs):
         pipeline configuration
     """
     mods = {}
+    mod_n_configs = pipe_configs.get_config()
     config_len = len(mod_n_configs)
     string_config = [{} for _ in range(config_len)]
-    for _, (ir_mod, mod_config) in enumerate(mod_n_configs.items()):
+    #for _, (ir_mod, mod_config) in enumerate(mod_n_configs.items()):
+    for ir_mod, mod_config in mod_n_configs.items():
         # init lib_name and json_name params with empty
         lib_name = ""
         json_name = ""
@@ -133,15 +135,18 @@ class PipelineModule(object):
         self.pipeline_mods = pipeline_mods
         self.mod_config = pipeline_config
         mods, config = self.graph_executor_create(pipeline_mods, pipeline_config)
-
-        pipelinecreate = tvm._ffi.get_global_func("tvm.pipeline_executor.create")
+        assert pipeline_executor_enabled(), \
+              "Pipeline executor is not enabled. Please \
+              re-build TVM with USE_PIPELINE_EXECUTOR=ON"
+        pipelinecreate = tvm._ffi.get_global_func("tvm.pipeline_executor.create",
+                                                  allow_missing=False)
         assert pipelinecreate
         module = pipelinecreate(mods, config)
 
         self.module_ = module
 
     def graph_executor_create(self, pipeline_mods, mod_config):
-        """Create a pipeline runtime executor.
+        """Create graph_executor list and return string format config.
 
         Parameters
         ----------
@@ -167,19 +172,19 @@ class PipelineModule(object):
         return mods, json.dumps(mod_config)
 
 
-class PipelineModuleConfig:
+class PipelineConfig(object):
     """Pipeline Configuration Class, in this class there are 2 internal class,
-    first is Instance which use to represent Module, second is Interface which use
+    first is Module which use to represent Module, second is Interface which use
     to represent Module input/output and Pipeline Module input/output, by setting
     dependency relation between Interfaces this class can build the module
     connection relation.
 
     The class Hierarchical as following.
-         PipelineModuleConfig ---> Pipe   Instance ---> Interface(input/output)
-                              ---> Module Instance ---> Interface(input/output)
+         PipelineConfig ---> Pipeline Module ---> Interface(input/output)
+                        ---> Subgraph Module ---> Interface(input/output)
     """
 
-    class Instance:
+    class Module:
         """The class use use to represent Module and storage module index and
         Interface information.
         """
@@ -190,7 +195,7 @@ class PipelineModuleConfig:
             Parameters
             ----------
 
-            owner : Instance
+            owner : Module
                 The class that own this interface, in such class there are
                 Module information like index, module name
 
@@ -251,6 +256,13 @@ class PipelineModuleConfig:
             self.indx_ = indx
             self.name_ = "mod" + str(indx) if indx else ""
             self.interfaces_ = {1: {}, 2: {}}
+            self.target_host_ = None
+            self.mod_name_ = "default"
+            self.build_func_ = None
+            self.params_ = None
+            self.target_ = None
+            self.dev_ = None
+
 
         def get_interface(self, itype, name):
             if name not in self.interfaces_[itype]:
@@ -264,23 +276,41 @@ class PipelineModuleConfig:
         def output(self, index):
             return self.get_interface(2, index)
 
+        def set_target_host(self, host):
+            self.target_host_ = host
+
+        def set_mod_name(self, name):
+            self.mod_name_ = name
+
+        def set_build_func(self, build_func):
+            self.build_func_ = build_func
+
+        def set_params(self, params):
+            self.params_ = params
+
+        def set_target(self, target):
+            self.target_ = target
+
+        def set_dev(self, dev):
+            self.dev_ = dev
+
     def __init__(self, mods):
-        self.pipe_instance = self.Instance(0)
-        self.mod_instance = {m: self.Instance(i + 1) for m, i in zip(mods, range(len(mods)))}
+        self.pipe_module = self.Module(0)
+        self.mod_module = {m: self.Module(i + 1) for m, i in zip(mods, range(len(mods)))}
 
     def __str__(self):
         """ Get configuration in string type"""
         # get input
         input_dump = "Inputs\n"
-        for input_name in self.pipe_instance.interfaces_[1]:
-            inf = self.pipe_instance.interfaces_[1][input_name]
+        for input_name in self.pipe_module.interfaces_[1]:
+            inf = self.pipe_module.interfaces_[1][input_name]
             input_dump += "  |" + input_name + ": " + inf.get_dependent_str() + "\n"
 
         # get connections
         output = {}
         connections_dump = "\nconnections\n"
-        for mod in self.mod_instance:
-            for _, interface in self.mod_instance[mod].interfaces_[2].items():
+        for mod in self.mod_module:
+            for _, interface in self.mod_module[mod].interfaces_[2].items():
                 if interface.dependent_:
                     mname, dname = interface.get_name()
                     iname = mname + ".output(" + dname + ")->"
@@ -302,11 +332,12 @@ class PipelineModuleConfig:
     def get_config(self):
         """ Get configuration in dictionary format."""
         mconfig = {}
-        for mod in self.mod_instance:
+        for mod in self.mod_module:
+            # get pipeline configure
             mconf = {}
             output_conf = []
-            instance = self.mod_instance[mod]
-            for _, interface in instance.interfaces_[2].items():
+            module = self.mod_module[mod]
+            for _, interface in module.interfaces_[2].items():
                 dep_conf = []
                 output = {}
                 if interface.dependent_:
@@ -317,29 +348,43 @@ class PipelineModuleConfig:
                         dep_item["input_name"] = dname
                         dep_conf.append(dep_item)
 
-                # in configuration the ouput_indx start from 0.
+                # ouput_indx start from 0.
 
                 output["output_indx"] = int(interface.name_)
                 output["dependent"] = dep_conf
                 output_conf.append(output)
-            mconf["mod_indx"] = instance.indx_
+            mconf["mod_indx"] = module.indx_
             mconf["output"] = output_conf
-            mconfig[mod] = {"pipeline": mconf}
+
+            # build module configuration with pipeline and other parameters.
+            mconfig[mod] = {"pipeline": mconf,
+                            "target_host": module.target_host_,
+                            "mod_name": module.mod_name_,
+			    "build": module.build_func_,
+                            "params": module.params_,
+                            "target": module.target_,
+                            "dev": module.dev_,
+                           }
 
         return mconfig
 
     def __getitem__(self, key):
-        return self.mod_instance[key]
+        return self.mod_module[key]
 
     def get_mod_indx(self, mod):
-        indx = self.mod_instance[mod].indx_
+        indx = self.mod_module[mod].indx_
         return indx
 
     def pipe_input(self, name):
-        return self.pipe_instance.input(name)
+        return self.pipe_module.input(name)
 
     def pipe_output(self, index):
-        return self.pipe_instance.output(index)
+        return self.pipe_module.output(index)
 
-    def connect(self, left: Instance.Interface, right: Instance.Interface):
+    def connect(self, left: Module.Interface, right: Module.Interface):
         left.add_dependent(right)
+
+
+def PipeModuleConfig(object):
+    def __init__(self):
+        return
