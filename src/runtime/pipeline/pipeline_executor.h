@@ -41,12 +41,12 @@ namespace runtime {
  *  This runtime can be acccesibly in various language via
  *  TVM runtime PackedFunc API.
  */
-class TVM_DLL SubGraphRuntime : public ModuleNode {
+class TVM_DLL PipelineRuntime : public ModuleNode {
  public:
   /*!
    * \return The type key of the executor.
    */
-  const char* type_key() const final { return "SubGraphRuntime"; }
+  const char* type_key() const final { return "PipelineRuntime"; }
   /*!
    * \brief Initialize the graph executor with graph and context.
    * \param graph_json The execution graph.

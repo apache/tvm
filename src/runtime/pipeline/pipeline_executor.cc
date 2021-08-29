@@ -25,14 +25,14 @@
 namespace tvm {
 namespace runtime {
 
-void SubGraphRuntime::Init(const Array<tvm::runtime::Module>& modules,
+void PipelineRuntime::Init(const Array<tvm::runtime::Module>& modules,
                            const std::string& pipeline_json) {
   return;
 }
 
 Module PipelineRuntimeCreate(const Array<tvm::runtime::Module>& m,
                              const std::string& pipeline_json) {
-  auto exec = make_object<SubGraphRuntime>();
+  auto exec = make_object<PipelineRuntime>();
   exec->Init(m, pipeline_json);
   return Module(exec);
 }

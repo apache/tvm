@@ -230,9 +230,9 @@ def pipeline(target):
     # Test build and create pipeline module
     """
     with relay.build_config(opt_level=3):
-        pipeline_mods, string_config = pipeline_executor.build(pipe_config)
+        pipeline_mod_config = pipeline_executor.build(pipe_config)
 
-    pipeline_module = pipeline_executor.create(pipeline_mods, string_config)
+    pipeline_module = pipeline_executor.create(pipeline_mod_config)
     assert pipeline_module
 
 

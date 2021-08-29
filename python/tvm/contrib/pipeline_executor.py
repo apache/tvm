@@ -29,7 +29,8 @@ def pipeline_executor_enabled():
     enable: bool
         Return pipeline executor is enabled or not.
     """
-    return tvm._ffi.get_global_func("tvm.pipeline_executor.create", allow_missing=True) is not None
+    return tvm._ffi.get_global_func("tvm.pipeline_executor.create",
+                                    allow_missing=True) is not None
 
 
 def build(pipe_configs):
@@ -58,19 +59,11 @@ def build(pipe_configs):
     string_config = [{} for _ in range(config_len)]
     #for _, (ir_mod, mod_config) in enumerate(mod_n_configs.items()):
     for ir_mod, mod_config in mod_n_configs.items():
-        # init lib_name and json_name params with empty
-        lib_name = ""
-        json_name = ""
-        params_name = ""
-        # Get module configuration
-        assert "pipeline" in mod_config and "mod_indx" in mod_config["pipeline"]
-        # Get module index in pipeline configuration
         mconf = mod_config["pipeline"].copy()
+        mod_indx = mconf["mod_indx"] - 1
         # Get mod device config
         dev = mod_config["dev"]
-        mod_indx = mconf["mod_indx"] - 1
         target = mod_config["target"]
-        assert mod_indx < config_len
         build_func = relay.build
         # if there is a self defined build function then use it.
         if "build" in mod_config and mod_config["build"]:
@@ -85,29 +78,24 @@ def build(pipe_configs):
             mod_name=mod_config["mod_name"],
         )
 
-        mconf["lib_name"] = lib_name
-        mconf["json_name"] = json_name
-        mconf["params_name"] = params_name
         mconf["dev"] = "{},{}".format(dev.device_type, dev.device_id)
         # Create pipeline configuration
         string_config[mod_indx] = mconf
         # associate mod with device
         mods[mod] = {"dev": dev}
 
-    # return IRModule list and pipeline configuration
-    return mods, string_config
+    # return PipeModuleConfig
+    return PipeModuleConfig(mods, string_config)
 
 
-def create(pipeline_mods, mod_config):
+def create(pipe_mod_config):
     """Create a pipeline runtime executor.
 
     Parameters
     ----------
-    pipeline_mods : List[IRModule]
-        list of IRModule
 
-    mod_config : Dict[int, Dict[str, Any]]
-        modules and modules dependency configuration informaiton.
+    pipe_mod_config : PipeModuleConfig
+        class to storage IRModule list and pipeline configuration.
 
     Returns
     -------
@@ -115,26 +103,23 @@ def create(pipeline_mods, mod_config):
         Runtime pipeline module.
     """
 
-    submodule = PipelineModule(pipeline_mods, mod_config)
-    return submodule
-
+    return PipelineModule(pipe_mod_config)
 
 class PipelineModule(object):
     """Wrapper runtime module. This is a thin wrapper of the underlying TVM module.
+
     Parameters
     ----------
     pipeline_mods : List[GraphModule]
         The internal tvm module that holds the actual graph functions.
-
     pipeline_config : Dict[IRModule, Dict[str, Any]]
         modules and modules dependency configuration informaiton.
-
     """
 
-    def __init__(self, pipeline_mods, pipeline_config):
-        self.pipeline_mods = pipeline_mods
-        self.mod_config = pipeline_config
-        mods, config = self.graph_executor_create(pipeline_mods, pipeline_config)
+    def __init__(self, pipe_mod_config):
+        self.pipeline_mods_ = pipe_mod_config.pipeline_mods_
+        self.mod_config_ = pipe_mod_config.mods_config_
+        mods, config = self.graph_executor_create(self.pipeline_mods_, self.mod_config_)
         assert pipeline_executor_enabled(), \
               "Pipeline executor is not enabled. Please \
               re-build TVM with USE_PIPELINE_EXECUTOR=ON"
@@ -150,6 +135,7 @@ class PipelineModule(object):
 
         Parameters
         ----------
+
         pipeline_mods : List[IRModule]
           list of IRModule
 
@@ -158,8 +144,11 @@ class PipelineModule(object):
 
         Returns
         -------
-        mods : GreaphModule
+        mods : List[GraphModule]
             Runtime graph module.
+
+	mod_config : str
+	    mods configuration
         """
 
         mods = []
@@ -180,11 +169,10 @@ class PipelineConfig(object):
     connection relation.
 
     The class Hierarchical as following.
-         PipelineConfig ---> Pipeline Module ---> Interface(input/output)
-                        ---> Subgraph Module ---> Interface(input/output)
+         PipelineConfig ---> ModuleWrapper ---> Interface(input/output)
     """
 
-    class Module:
+    class ModuleWrapper:
         """The class use use to represent Module and storage module index and
         Interface information.
         """
@@ -195,7 +183,7 @@ class PipelineConfig(object):
             Parameters
             ----------
 
-            owner : Module
+            owner : ModuleWrapper
                 The class that own this interface, in such class there are
                 Module information like index, module name
 
@@ -295,22 +283,23 @@ class PipelineConfig(object):
             self.dev_ = dev
 
     def __init__(self, mods):
-        self.pipe_module = self.Module(0)
-        self.mod_module = {m: self.Module(i + 1) for m, i in zip(mods, range(len(mods)))}
+        self.pipe_module_name_ = "pipeline_module"
+        self.mod_wrapper = {m: self.ModuleWrapper(i + 1) for m, i in zip(mods, range(len(mods)))}
+        self.mod_wrapper[self.pipe_module_name_] = self.ModuleWrapper(0)
 
     def __str__(self):
         """ Get configuration in string type"""
         # get input
         input_dump = "Inputs\n"
-        for input_name in self.pipe_module.interfaces_[1]:
-            inf = self.pipe_module.interfaces_[1][input_name]
+        for input_name in self.mod_wrapper["pipeline_module"].interfaces_[1]:
+            inf = self.mod_wrapper["pipeline_module"].interfaces_[1][input_name]
             input_dump += "  |" + input_name + ": " + inf.get_dependent_str() + "\n"
 
         # get connections
         output = {}
         connections_dump = "\nconnections\n"
-        for mod in self.mod_module:
-            for _, interface in self.mod_module[mod].interfaces_[2].items():
+        for mod in self.mod_wrapper:
+            for _, interface in self.mod_wrapper[mod].interfaces_[2].items():
                 if interface.dependent_:
                     mname, dname = interface.get_name()
                     iname = mname + ".output(" + dname + ")->"
@@ -332,11 +321,13 @@ class PipelineConfig(object):
     def get_config(self):
         """ Get configuration in dictionary format."""
         mconfig = {}
-        for mod in self.mod_module:
+        for mod in self.mod_wrapper:
+            if mod == self.pipe_module_name_:
+                continue
             # get pipeline configure
             mconf = {}
             output_conf = []
-            module = self.mod_module[mod]
+            module = self.mod_wrapper[mod]
             for _, interface in module.interfaces_[2].items():
                 dep_conf = []
                 output = {}
@@ -369,22 +360,36 @@ class PipelineConfig(object):
         return mconfig
 
     def __getitem__(self, key):
-        return self.mod_module[key]
+        return self.mod_wrapper[key]
 
     def get_mod_indx(self, mod):
-        indx = self.mod_module[mod].indx_
+        indx = self.mod_wrapper[mod].indx_
         return indx
 
     def pipe_input(self, name):
-        return self.pipe_module.input(name)
+        return self.mod_wrapper[self.pipe_module_name_].input(name)
 
     def pipe_output(self, index):
-        return self.pipe_module.output(index)
+        return self.mod_wrapper[self.pipe_module_name_].output(index)
 
-    def connect(self, left: Module.Interface, right: Module.Interface):
+    def connect(self, left: ModuleWrapper.Interface, right: ModuleWrapper.Interface):
         left.add_dependent(right)
 
 
-def PipeModuleConfig(object):
-    def __init__(self):
-        return
+class PipeModuleConfig(object):
+    """This class use to storage pipeline IRModule and configurations.
+
+    Parameters
+    ----------
+
+    pipeline_mods : List[IRModule]
+        list of IRModule
+
+    mod_config : Dict[int, Dict[str, Any]]
+        modules and modules dependency configuration informaiton.
+
+    """
+
+    def __init__(self, pipeline_mods, mods_config):
+        self.pipeline_mods_ = pipeline_mods
+        self.mods_config_ = mods_config
