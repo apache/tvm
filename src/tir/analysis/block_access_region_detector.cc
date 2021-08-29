@@ -288,8 +288,7 @@ Array<Array<BufferRegion>> GetBlockAccessRegion(const Block& block,
 Array<Array<BufferRegion>> GetBlockReadWriteRegion(const Block& block,
                                                    const Map<Var, Buffer>& buffer_var_map) {
   // Step 1. Get all the read/write/opaque accesses in the input block.
-  Array<Array<BufferRegion>> access_regions =
-      GetBlockAccessRegion(block, buffer_var_map);
+  Array<Array<BufferRegion>> access_regions = GetBlockAccessRegion(block, buffer_var_map);
   // Step 2. Collect all the buffers that are opaquely accessed.
   std::unordered_set<const BufferNode*> opaque_accessed_buffers;
   for (const BufferRegion& opaque_access : access_regions[2]) {
