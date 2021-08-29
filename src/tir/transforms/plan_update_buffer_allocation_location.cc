@@ -129,7 +129,10 @@ class BufferAllocationLocator : public StmtExprMutator {
                        /*init=*/NullOpt,
                        /*alloc_buffers=*/alloc_buffers);
     ObjectPtr<BlockNode> n = CopyOnWrite(opaque_block.get());
-    CollectReadWrite(opaque_block, &n->reads, &n->writes);
+    Array<Array<BufferRegion>> access =
+        GetBlockReadWriteRegion(opaque_block, buffer_data_to_buffer_);
+    n->reads = access[0];
+    n->writes = access[1];
     BlockRealize realize({}, Bool(true), Block(n));
     return std::move(realize);
   }
@@ -142,17 +145,6 @@ class BufferAllocationLocator : public StmtExprMutator {
       }
     }
     return result;
-  }
-
-  void CollectReadWrite(const Block& block, Array<BufferRegion>* reads,
-                        Array<BufferRegion>* writes) const {
-    Array<Array<BufferRegion>> access = GetBlockAccessRegion(block, buffer_data_to_buffer_);
-    *reads = access[0];
-    *writes = access[1];
-    for (const auto& opaque_access : access[2]) {
-      reads->push_back(opaque_access);
-      writes->push_back(opaque_access);
-    }
   }
 
   /*! \brief The map from stmt to the buffers to be allocated under it. */
