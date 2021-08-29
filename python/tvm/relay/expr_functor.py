@@ -152,8 +152,10 @@ class ExprVisitor(ExprFunctor):
         self.visit(let.value)
         self.visit(let.body)
 
-    def visit_function(self, f):
-        self.visit(f.body)
+    def visit_function(self, fn):
+        for x in fn.params:
+            self.visit(x)
+        self.visit(fn.body)
 
     def visit_if(self, i):
         self.visit(i.cond)

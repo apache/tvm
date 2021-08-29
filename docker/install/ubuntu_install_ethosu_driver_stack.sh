@@ -1,0 +1,94 @@
+#!/bin/bash
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+set -e
+set -u
+set -o pipefail
+
+fvp_dir="/opt/arm/FVP_Corstone_SSE-300_Ethos-U55"
+cmake_dir="/opt/arm/cmake"
+ethosu_dir="/opt/arm/ethosu"
+ethosu_driver_ver="21.05"
+cmsis_ver="5.7.0"
+
+mkdir -p /opt/arm
+
+tmpdir=$(mktemp -d)
+
+cleanup()
+{
+  rm -rf "$tmpdir"
+}
+
+trap cleanup 0
+
+# Ubuntu 18.04 dependencies
+apt-get update
+
+apt-get install -y \
+    bsdmainutils \
+    build-essential \
+    cpp \
+    git \
+    linux-headers-generic \
+    make \
+    python-dev \
+    python3 \
+    ssh \
+    wget \
+    xxd
+
+# Download the FVP
+mkdir -p "$fvp_dir"
+cd "$tmpdir"
+curl -sL https://developer.arm.com/-/media/Arm%20Developer%20Community/Downloads/OSS/FVP/Corstone-300/MPS3/FVP_Corstone_SSE-300_Ethos-U55_11.14_24.tgz | tar -xz
+./FVP_Corstone_SSE-300_Ethos-U55.sh --i-agree-to-the-contained-eula --no-interactive -d "$fvp_dir"
+rm -rf FVP_Corstone_SSE-300_Ethos-U55.sh license_terms
+
+# Setup cmake 3.19.5
+mkdir -p "${cmake_dir}"
+cd "$tmpdir"
+curl -sL -o cmake-3.19.5-Linux-x86_64.sh https://github.com/Kitware/CMake/releases/download/v3.19.5/cmake-3.19.5-Linux-x86_64.sh
+chmod +x cmake-3.19.5-Linux-x86_64.sh
+./cmake-3.19.5-Linux-x86_64.sh --prefix="${cmake_dir}" --skip-license
+rm cmake-3.19.5-Linux-x86_64.sh
+export PATH="${cmake_dir}/bin:${PATH}"
+
+# Install the GCC toolchain
+mkdir -p /opt/arm/gcc-arm-none-eabi/
+gcc_arm_url='https://developer.arm.com/-/media/Files/downloads/gnu-rm/10-2020q4/gcc-arm-none-eabi-10-2020-q4-major-x86_64-linux.tar.bz2?revision=ca0cbf9c-9de2-491c-ac48-898b5bbc0443&la=en&hash=68760A8AE66026BCF99F05AC017A6A50C6FD832A'
+curl --retry 64 -sSL ${gcc_arm_url} | tar -C /opt/arm/gcc-arm-none-eabi --strip-components=1 -jx
+export PATH="/opt/arm/gcc-arm-none-eabi/bin:${PATH}"
+
+# Clone Arm(R) Ethos(TM)-U NPU driver stack
+mkdir "${ethosu_dir}"
+cd "${ethosu_dir}"
+git clone "https://review.mlplatform.org/ml/ethos-u/ethos-u-core-driver" core_driver
+cd core_driver
+git checkout tags/${ethosu_driver_ver}
+
+cd "${ethosu_dir}"
+git clone "https://review.mlplatform.org/ml/ethos-u/ethos-u-core-platform" core_platform
+cd core_platform
+git checkout tags/${ethosu_driver_ver}
+
+# Clone CMSIS
+cd "${ethosu_dir}"
+git clone "https://github.com/ARM-software/CMSIS_5.git" cmsis
+cd cmsis
+git checkout -f tags/${cmsis_ver}

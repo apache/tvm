@@ -27,6 +27,9 @@ RUN bash /install/ubuntu_install_core.sh
 COPY install/ubuntu1804_install_python.sh /install/ubuntu1804_install_python.sh
 RUN bash /install/ubuntu1804_install_python.sh
 
+# Globally disable pip cache
+RUN pip config set global.cache-dir false
+
 COPY install/ubuntu_install_python_package.sh /install/ubuntu_install_python_package.sh
 RUN bash /install/ubuntu_install_python_package.sh
 
@@ -48,6 +51,7 @@ COPY install/ubuntu_install_rust.sh /install/ubuntu_install_rust.sh
 RUN bash /install/ubuntu_install_rust.sh
 ENV RUSTUP_HOME /opt/rust
 ENV CARGO_HOME /opt/rust
+ENV PATH $PATH:$CARGO_HOME/bin
 
 # AutoTVM deps
 COPY install/ubuntu_install_redis.sh /install/ubuntu_install_redis.sh
@@ -56,12 +60,11 @@ RUN bash /install/ubuntu_install_redis.sh
 # Golang environment
 COPY install/ubuntu_install_golang.sh /install/ubuntu_install_golang.sh
 RUN bash /install/ubuntu_install_golang.sh
+ENV PATH $PATH:/usr/lib/go-1.10/bin
 
 # NNPACK deps
 COPY install/ubuntu_install_nnpack.sh /install/ubuntu_install_nnpack.sh
 RUN bash /install/ubuntu_install_nnpack.sh
-
-ENV PATH $PATH:$CARGO_HOME/bin:/usr/lib/go-1.10/bin
 
 # ANTLR deps
 COPY install/ubuntu_install_java.sh /install/ubuntu_install_java.sh
@@ -109,3 +112,17 @@ RUN bash /install/ubuntu_install_androidsdk.sh
 ENV ANDROID_HOME=/opt/android-sdk-linux/
 ENV ANDROID_NDK_HOME=/opt/android-sdk-linux/ndk/21.3.6528147/
 
+# Arm(R) Ethos(TM)-U NPU driver
+COPY install/ubuntu_install_ethosu_driver_stack.sh /install/ubuntu_install_ethosu_driver_stack.sh
+RUN bash /install/ubuntu_install_ethosu_driver_stack.sh
+
+# Install Vela compiler
+COPY install/ubuntu_install_vela.sh /install/ubuntu_install_vela.sh
+RUN bash /install/ubuntu_install_vela.sh
+
+# Update PATH
+ENV PATH /opt/arm/gcc-arm-none-eabi/bin:$PATH
+
+# PaddlePaddle deps
+COPY install/ubuntu_install_paddle.sh /install/ubuntu_install_paddle.sh
+RUN bash /install/ubuntu_install_paddle.sh

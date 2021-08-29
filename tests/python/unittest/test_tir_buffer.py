@@ -131,6 +131,23 @@ def test_buffer_index_merge_mult_mod():
     )
     assert_simplified_equal(index_simplified, index_direct)
 
+    # Test Case5
+    B = tvm.tir.decl_buffer((1, 14, 14, 1024))
+    i = te.size_var("i")
+    j = te.size_var("j")
+    k = te.size_var("k")
+
+    index_simplified = B.vload(
+        (
+            idxd(idxd(idxd((i * 50176 + j * 28672 + k), 1024), 14), 14),
+            idxm(idxd(idxd((i * 50176 + j * 28672 + k), 1024), 14), 14),
+            idxm(idxd((i * 50176 + j * 28672 + k), 1024), 14),
+            idxm((i * 50176 + j * 28672 + k), 1024),
+        )
+    )
+    index_direct = B.vload((0, 0, 0, (i * 50176 + j * 28672 + k)))
+    assert_simplified_equal(index_simplified, index_direct)
+
 
 @tvm.testing.requires_llvm
 def test_buffer_broadcast():

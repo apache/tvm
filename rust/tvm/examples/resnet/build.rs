@@ -22,17 +22,25 @@ use std::{io::Write, path::Path, process::Command};
 
 fn main() -> Result<()> {
     let out_dir = std::env::var("CARGO_MANIFEST_DIR")?;
+    let python_script = concat!(env!("CARGO_MANIFEST_DIR"), "/src/build_resnet.py");
+    let synset_txt = concat!(env!("CARGO_MANIFEST_DIR"), "/synset.txt");
+
+    println!("cargo:rerun-if-changed={}", python_script);
+    println!("cargo:rerun-if-changed={}", synset_txt);
+
     let output = Command::new("python3")
-        .arg(concat!(env!("CARGO_MANIFEST_DIR"), "/src/build_resnet.py"))
+        .arg(python_script)
         .arg(&format!("--build-dir={}", out_dir))
         .output()
         .with_context(|| anyhow::anyhow!("failed to run python3"))?;
+
     if !output.status.success() {
         std::io::stdout()
             .write_all(&output.stderr)
             .context("Failed to write error")?;
         panic!("Failed to execute build script");
     }
+
     assert!(
         Path::new(&format!("{}/deploy_lib.o", out_dir)).exists(),
         "Could not prepare demo: {}",

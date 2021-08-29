@@ -83,6 +83,7 @@ void CodeGenC::AddFunction(const PrimFunc& f) {
   bool no_alias = f->HasNonzeroAttr(tir::attr::kNoAlias);
 
   this->PrintFuncPrefix();
+  this->PrintExtraAttrs(f);
   this->stream << " " << static_cast<std::string>(global_symbol.value()) << "(";
 
   for (size_t i = 0; i < f->params.size(); ++i) {
@@ -105,8 +106,8 @@ void CodeGenC::AddFunction(const PrimFunc& f) {
         }
       }
 
-      if (no_alias && restrict_keyword_.length() != 0) {
-        stream << ' ' << restrict_keyword_;
+      if (no_alias) {
+        PrintRestrict(v, stream);
       }
     } else {
       PrintType(GetType(v), stream);
@@ -124,6 +125,8 @@ void CodeGenC::AddFunction(const PrimFunc& f) {
 }
 
 void CodeGenC::PrintFuncPrefix() { stream << "void"; }
+
+void CodeGenC::PrintExtraAttrs(const PrimFunc& f) {}
 
 void CodeGenC::PrintFinalReturn() {}
 
@@ -861,12 +864,11 @@ void CodeGenC::VisitStmt_(const AllocateNode* op) {
   this->PrintIndent();
   int32_t constant_size = op->constant_allocation_size();
   ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation for now";
-  const VarNode* buffer = op->buffer_var.as<VarNode>();
-  auto it = alloc_storage_scope_.find(buffer);
-  if (it != alloc_storage_scope_.end()) {
-    std::string scope = alloc_storage_scope_.at(buffer);
-    PrintStorageScope(scope, stream);
-  }
+
+  auto scope = GetPtrStorageScope(op->buffer_var);
+  alloc_storage_scope_[op->buffer_var.get()] = scope;
+  PrintStorageScope(scope, stream);
+
   PrintType(op->dtype, stream);
   stream << ' ' << vid << '[' << constant_size << "];\n";
 
@@ -882,10 +884,6 @@ void CodeGenC::VisitStmt_(const AttrStmtNode* op) {
         BindThreadIndex(iv);
       }
     }
-  } else if (op->attr_key == tir::attr::storage_scope) {
-    const VarNode* v = op->node.as<VarNode>();
-    ICHECK(v);
-    alloc_storage_scope_[v] = op->value.as<StringImmNode>()->value;
   } else if (op->attr_key == tir::attr::volatile_scope) {
     const VarNode* v = op->node.as<VarNode>();
     ICHECK(v);
@@ -1018,6 +1016,12 @@ void CodeGenC::PrintVecElemLoadExpr(DataType t, int i, const std::string& value,
     os << "))";
   }
   return;
+}
+
+void CodeGenC::PrintRestrict(const Var& v, std::ostream& os) {
+  if (restrict_keyword_.length() != 0) {
+    os << ' ' << restrict_keyword_;
+  }
 }
 
 static bool CheckOutermostBracketMatch(const std::string& s) {

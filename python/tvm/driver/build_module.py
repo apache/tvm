@@ -107,7 +107,7 @@ def lower(
         It should be None if we want to lower TensorIR.
 
     name : str
-        The name of result function.
+        The name of the result function.
 
     binds : Optional[Mapping[tensor.Tensor, tvm.tir.Buffer]]
         Dictionary that maps the Tensor to Buffer which specified the data layout
@@ -161,7 +161,10 @@ def _build_for_device(input_mod, target, target_host):
     mod_mixed = input_mod
     mod_mixed = tvm.tir.transform.Apply(lambda f: f.with_attr("target", target))(mod_mixed)
 
-    opt_mixed = [tvm.tir.transform.VerifyMemory()]
+    opt_mixed = [
+        tvm.tir.transform.VerifyMemory(),
+        tvm.tir.transform.MergeDynamicSharedMemoryAllocations(),
+    ]
     if len(mod_mixed.functions) == 1:
         opt_mixed += [tvm.tir.transform.Apply(lambda f: f.with_attr("tir.is_entry_func", True))]
 

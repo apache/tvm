@@ -124,7 +124,7 @@ void ExternOpNode::GatherBound(const Operation& self,
 
 Stmt ExternOpNode::BuildRealize(const Stage& stage,
                                 const std::unordered_map<IterVar, Range>& realize_map,
-                                const Stmt& body) const {
+                                const Stmt& body, String storage_scope) const {
   ICHECK_EQ(stage->op.get(), this);
   Stmt realize_body = body;
   for (int k = 0; k < num_outputs(); ++k) {
@@ -133,7 +133,7 @@ Stmt ExternOpNode::BuildRealize(const Stage& stage,
     for (size_t i = 0; i < t->shape.size(); ++i) {
       bounds.push_back(Range::FromMinExtent(make_const(t->shape[i].dtype(), 0), t->shape[i]));
     }
-    realize_body = tir::ProducerRealize(t, bounds, const_true(), realize_body);
+    realize_body = tir::ProducerRealize(t, bounds, const_true(), realize_body, storage_scope);
   }
   return realize_body;
 }

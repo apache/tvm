@@ -23,6 +23,7 @@
  */
 #include "ir_utils.h"
 
+#include <tvm/arith/analyzer.h>
 #include <tvm/tir/stmt_functor.h>
 
 #include <unordered_map>
@@ -172,16 +173,6 @@ class IRConvertSSA final : public StmtExprMutator {
   }
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (const VarNode* v = op->node.as<VarNode>()) {
-      if (op->attr_key == attr::storage_scope) {
-        const AllocateNode* alloc = op->body.as<AllocateNode>();
-        if (alloc && op->node.same_as(alloc->buffer_var)) {
-          Stmt new_alloc = this->VisitStmt(op->body);
-          if (new_alloc.same_as(op->body)) return GetRef<Stmt>(op);
-          alloc = new_alloc.as<AllocateNode>();
-          ICHECK(alloc);
-          return AttrStmt(alloc->buffer_var, op->attr_key, op->value, new_alloc);
-        }
-      }
       Stmt stmt = StmtExprMutator::VisitStmt_(op);
       op = stmt.as<AttrStmtNode>();
       if (scope_.count(v) && scope_[v].size() != 0) {
@@ -200,6 +191,63 @@ class IRConvertSSA final : public StmtExprMutator {
 };
 
 Stmt ConvertSSA(Stmt stmt) { return IRConvertSSA()(std::move(stmt)); }
+
+String GetPtrStorageScope(Var buffer_var) {
+  const auto* ptr_type = buffer_var->type_annotation.as<PointerTypeNode>();
+  ICHECK(ptr_type) << "The provided variable is not of pointer type";
+  return ptr_type->storage_scope;
+}
+
+Array<PrimExpr> ConvertIndices(const MatchBufferRegion& match_buffer,
+                               const Array<PrimExpr>& indices) {
+  const Buffer& target = match_buffer->buffer;
+  const BufferRegion& source = match_buffer->source;
+  ICHECK_EQ(indices.size(), target->shape.size());
+
+  arith::Analyzer analyzer;
+  Array<PrimExpr> result;
+  result.reserve(source->region.size());
+  size_t offset = source->region.size() - indices.size();
+  for (size_t i = 0; i < offset; ++i) {
+    const Range& range = source->region[i];
+    ICHECK(analyzer.CanProve(range->extent == 1));
+    result.push_back(range->min);
+  }
+  for (size_t i = 0; i < indices.size(); ++i) {
+    const Range& range = source->region[i + offset];
+    const PrimExpr& index = indices[i];
+    result.push_back(range->min + index);
+  }
+  return result;
+}
+
+Region ConvertRegion(const MatchBufferRegion& match_buffer, const Region& region) {
+  const Buffer& target = match_buffer->buffer;
+  const BufferRegion& source = match_buffer->source;
+  ICHECK_EQ(region.size(), target->shape.size());
+
+  arith::Analyzer analyzer;
+  Region result;
+  result.reserve(source->region.size());
+  size_t offset = source->region.size() - region.size();
+  for (size_t i = 0; i < offset; ++i) {
+    const Range& source_range = source->region[i];
+    ICHECK(analyzer.CanProve(source_range->extent == 1));
+    result.push_back(Range::FromMinExtent(source_range->min, 1));
+  }
+  for (size_t i = 0; i < region.size(); ++i) {
+    const Range& source_range = source->region[i + offset];
+    const Range& target_range = region[i];
+    result.push_back(
+        Range::FromMinExtent(source_range->min + target_range->min, target_range->extent));
+  }
+  return result;
+}
+
+Bool IsFromLegacyTESchedule(PrimFunc f) {
+  Optional<Bool> from_legacy_te_schedule = f->GetAttr("from_legacy_te_schedule", Bool(false));
+  return from_legacy_te_schedule.value();
+}
 
 }  // namespace tir
 }  // namespace tvm

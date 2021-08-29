@@ -157,6 +157,7 @@ class GraphModule(object):
         self._get_output = module["get_output"]
         self._get_input = module["get_input"]
         self._get_num_outputs = module["get_num_outputs"]
+        self._get_input_index = module["get_input_index"]
         self._get_num_inputs = module["get_num_inputs"]
         self._load_params = module["load_params"]
         self._share_params = module["share_params"]
@@ -242,6 +243,21 @@ class GraphModule(object):
 
         return self._get_input(index)
 
+    def get_input_index(self, name):
+        """Get inputs index via input name.
+
+        Parameters
+        ----------
+        name : str
+           The input key name
+
+        Returns
+        -------
+        index: int
+            The input index. -1 will be returned if the given input name is not found.
+        """
+        return self._get_input_index(name)
+
     def get_output(self, index, out=None):
         """Get index-th output to out
 
@@ -304,3 +320,90 @@ class GraphModule(object):
             The key to the module.
         """
         return self.module[key]
+
+    def benchmark(
+        self,
+        device,
+        func_name="run",
+        repeat=5,
+        number=5,
+        min_repeat_ms=None,
+        end_to_end=False,
+        **kwargs,
+    ):
+        """Calculate runtime of a function by repeatedly calling it.
+
+        Use this function to get an accurate measurement of the runtime of a function. The function
+        is run multiple times in order to account for variability in measurements, processor speed
+        or other external factors.  Mean, median, standard deviation, min and max runtime are all
+        reported.  On GPUs, CUDA and ROCm specifically, special on-device timers are used so that
+        synchonization and data transfer operations are not counted towards the runtime. This allows
+        for fair comparison of runtimes across different functions and models. The `end_to_end` flag
+        switches this behavior to include data transfer operations in the runtime.
+
+        The benchmarking loop looks approximately like so:
+
+        .. code-block:: python
+
+            for r in range(repeat):
+                time_start = now()
+                for n in range(number):
+                    func_name()
+                time_end = now()
+                total_times.append((time_end - time_start)/number)
+
+
+        Parameters
+        ----------
+        func_name : str
+            The function to benchmark. This is ignored if `end_to_end` is true.
+
+        repeat : int
+            Number of times to run the outer loop of the timing code (see above). The output will
+            contain `repeat` number of datapoints.
+
+        number : int
+            Number of times to run the inner loop of the timing code. This inner loop is run in
+            between the timer starting and stopping. In order to amortize any timing overhead,
+            `number` should be increased when the runtime of the function is small (less than a 1/10
+            of a millisecond).
+
+        min_repeat_ms : Optional[float]
+            If set, the inner loop will be run until it takes longer than `min_repeat_ms`
+            milliseconds. This can be used to ensure that the function is run enough to get an
+            accurate measurement.
+
+        end_to_end : bool
+            If set, include time to transfer input tensors to the device and time to transfer
+            returned tensors in the total runtime. This will give accurate timings for end to end
+            workloads.
+
+        kwargs : Dict[str, Object]
+            Named arguments to the function. These are cached before running timing code, so that
+            data transfer costs are not counted in the runtime.
+
+        Returns
+        -------
+        timing_results : BenchmarkResult
+            Runtimes of the function. Use `.mean` to access the mean runtime, use `.results` to
+            access the individual runtimes (in seconds).
+        """
+        min_repeat_ms = 0 if min_repeat_ms is None else min_repeat_ms
+        if end_to_end:
+            # Have to unpack kwargs into a single list
+            args = []
+            for k, v in kwargs.items():
+                args.append(k)
+                args.append(v)
+            return self.module.time_evaluator(
+                "run_from_inputs",
+                device,
+                repeat=repeat,
+                number=number,
+                min_repeat_ms=min_repeat_ms,
+            )(device.device_type, device.device_id, *args)
+        if kwargs:
+            self.set_input(**kwargs)
+        return self.module.time_evaluator(
+            func_name, device, repeat=repeat, number=number, min_repeat_ms=min_repeat_ms
+        )()

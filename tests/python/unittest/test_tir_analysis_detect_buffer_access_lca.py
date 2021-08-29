@@ -70,6 +70,22 @@ def lca_is_func_root(a: ty.handle) -> None:
     A.data[0] = 1.0
 
 
+@tvm.script.tir
+def match_buffer_func(a: ty.handle, b: ty.handle) -> None:
+    A = tir.match_buffer(a, (128, 128), "float32")
+    B = tir.match_buffer(b, (128, 128), "float32")
+    with tir.block([8, 8], "block") as [vi, vj]:
+        tir.reads(B[vi * 16 + 2 : vi * 16 + 12, vj * 16 + 2 : vj * 16 + 16])
+        tir.writes(A[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
+        B0 = tir.match_buffer(B[vi * 16 + 2 : vi * 16 + 6, vj * 16 + 2 : vj * 16 + 6], (4, 4))
+        B1 = tir.match_buffer(B[vi * 16 + 8 : vi * 16 + 12, vj * 16 + 8 : vj * 16 + 16], (4, 8))
+        with tir.block([16, 16], "AAA") as [i, j]:
+            AA = tir.match_buffer(A[i, j], ())
+            AA[()] = 1.0
+        tir.evaluate(B0.data)
+        tir.evaluate(B1.data)
+
+
 def test_buffer_load_store():
     func = buffer_load_store_func
     A, B = [func.buffer_map[x] for x in func.params]
@@ -115,7 +131,24 @@ def test_lca_func_root():
     assert lca[A] is None
 
 
+def test_match_buffer():
+    func = match_buffer_func
+    A, B = [func.buffer_map[x] for x in func.params]
+    lca = tir.analysis.detect_buffer_access_lca(func)
+
+    root_block = func.body.block
+    block = root_block.body.body.body.block
+    block_inner = block.body[0].body.body.block
+
+    # LCA of Buffer C is the inner block
+    assert lca[A] == block_inner
+
+    # LCA of Buffer C is the main block
+    assert lca[B] == block
+
+
 if __name__ == "__main__":
     test_buffer_load_store()
     test_opaque_access()
     test_lca_func_root()
+    test_match_buffer()

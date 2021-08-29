@@ -138,6 +138,18 @@ def _get_more_static_shape(shape0, shape1):
     return shape1
 
 
+def _get_more_static_shape_rank(shape0, shape1):
+    """Compare two shapes with different rank,
+    and return the one with fewer symbolic dimension.
+    """
+    num_sym_dim0 = sum([not isinstance(dim, (int, tvm.tir.expr.IntImm)) for dim in list(shape0)])
+    num_sym_dim1 = sum([not isinstance(dim, (int, tvm.tir.expr.IntImm)) for dim in list(shape1)])
+
+    if num_sym_dim0 < num_sym_dim1:
+        return shape0
+    return shape1
+
+
 def _rsqrt():
     def _impl(inputs, attr, params, mod):
         inputs.append(tvm.relay.const(-0.5, attr["T"].name))
@@ -1137,6 +1149,8 @@ def _matmul():
 
 def _batch_matmul():
     def _impl(inputs, attr, params, mod):
+        from .tensorflow import TF_DEFAULT_CONFIGS
+
         input_x = inputs[0]
         input_y = inputs[1]
         orig_shape_x = _infer_shape(input_x, mod)
@@ -1173,9 +1187,16 @@ def _batch_matmul():
             input_y = _op.reshape(input_y, (1, orig_shape_y[-2], orig_shape_y[-1]))
         adj_x = attr["adj_x"]
         adj_y = attr["adj_y"]
-        input_x = _op.transpose(input_x, axes=[0, 2, 1]) if adj_x else input_x
-        input_y = _op.transpose(input_y, axes=[0, 2, 1]) if not adj_y else input_y
-        ret = get_relay_op("batch_matmul")(input_x, input_y)
+
+        if TF_DEFAULT_CONFIGS["use_nt_batch_matmul"]:
+            # Strictly convert all batch_matmul to NT format
+            input_x = _op.transpose(input_x, axes=[0, 2, 1]) if adj_x else input_x
+            input_y = _op.transpose(input_y, axes=[0, 2, 1]) if not adj_y else input_y
+            ret = get_relay_op("batch_matmul")(input_x, input_y)
+        else:
+            ret = get_relay_op("batch_matmul")(
+                input_x, input_y, transpose_a=adj_x, transpose_b=adj_y
+            )
 
         # reshape result back to n-dimensional
         if ndim > 3:
@@ -1483,7 +1504,13 @@ def _identityn():
 def _concatV2():
     def _impl(inputs, attr, params, mod):
         pop_node = inputs.pop(len(inputs) - 1)
-        axis = int(_get_num_param(params, pop_node))
+        try:
+            axis = int(_get_num_param(params, pop_node))
+        except (IndexError, KeyError, AttributeError):
+            try:
+                axis = int(_infer_value(pop_node, params, mod).numpy())
+            except Exception:
+                axis = int(pop_node)
         return AttrCvt(op_name="concatenate", ignores=["T", "N", "Tidx"], extras={"axis": axis})(
             [inputs], attr
         )
@@ -2244,7 +2271,7 @@ def _stridedSlice():
                             if begin[index] < 0
                             else begin[index]
                         )
-                        m_end[final_index] = begin[index] + 1
+                        m_end[final_index] = m_begin[final_index] + 1
                         m_stride[final_index] = 1
                         fshape_indices.append(-2)
                     else:
