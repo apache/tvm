@@ -312,6 +312,7 @@ TVM_REGISTER_TARGET_KIND("vulkan", kDLVulkan)
     // Other device properties
     .add_attr_option<String>("device_type")
     .add_attr_option<String>("device_name")
+    .add_attr_option<String>("driver_name")
     .add_attr_option<Integer>("driver_version")
     .add_attr_option<Integer>("vulkan_api_version")
     .add_attr_option<Integer>("max_spirv_version")
