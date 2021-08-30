@@ -61,8 +61,6 @@ class TensorRTCalibrator : public nvinfer1::IInt8EntropyCalibrator2 {
                     const std::vector<size_t>& binding_sizes) {
     // Copy data from GPU
     std::vector<float*> data_host(bindings.size(), nullptr);
-    // LOG(INFO) << "bindings.size() is : " << bindings.size();
-    // LOG(INFO) << "binding_sizes.size() is : " << binding_sizes.size();
     for (size_t i = 0; i < bindings.size(); ++i) {
       data_host[i] = new float[batch_size_ * binding_sizes[i]];
       CUDA_CALL(cudaMemcpy(static_cast<void*>(data_host[i]), bindings[i],
