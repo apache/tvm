@@ -265,6 +265,50 @@ def convert_conv2d(g, op, block):
     g.add_node(op.output("Output")[0], out)
 
 
+def convert_conv2d_transpose(g, op, block):
+    """Operator converter for conv2d_transpose."""
+
+    dilations = op.attr("dilations")
+    groups = op.attr("groups")
+    paddings = op.attr("paddings")
+    padding_algorithm = op.attr("padding_algorithm")
+    strides = op.attr("strides")
+    output_padding = op.attr("output_padding") if op.attr(
+        "output_padding") else [0, 0]
+
+    kernel = g.get_node(op.input("Filter")[0])
+    input_x = g.get_node(op.input("Input")[0])
+    _, out_channels, k_h, k_w = infer_shape(kernel)
+    in_h, in_w = infer_shape(input_x)[2:]
+    if padding_algorithm == "VALID":
+        paddings = [0, 0]
+    elif padding_algorithm == "SAME":
+        pad_h = _get_pad_size(in_h, (k_h - 1) * dilations[0] + 1, strides[0])
+        pad_w = _get_pad_size(in_w, (k_w - 1) * dilations[1] + 1, strides[1])
+        paddings = [pad_h[0], pad_w[0], pad_h[1], pad_w[1]]
+    elif padding_algorithm == "EXPLICIT":
+        if len(paddings) == 2:
+            paddings = [paddings[0], paddings[1], paddings[0], paddings[1]]
+        if len(paddings) == 4:
+            paddings = [paddings[0], paddings[2], paddings[1], paddings[3]]
+    else:
+        msg = 'Value {} in attribute "padding" of operator Conv is not "valid."'
+        raise tvm.error.OpAttributeInvalid(msg.format(padding_algorithm))
+
+    out = _op.nn.conv2d_transpose(
+        input_x,
+        kernel,
+        strides=strides,
+        padding=paddings,
+        dilation=dilations,
+        groups=groups,
+        channels=out_channels,
+        kernel_size=[k_h, k_w],
+        output_padding=output_padding,
+    )
+    g.add_node(op.output("Output")[0], out)
+
+
 def convert_cumsum(g, op, block):
     """Operator converter for cumsum."""
 
@@ -863,7 +907,16 @@ def convert_unsqueeze(g, op, block):
     g.add_node(op.output("Out")[0], x)
 
 
+def convert_sigmoid(g, op, block):
+    """Operator converter for sigmoid."""
+
+    x = g.get_node(op.input("X")[0])
+    out = _op.sigmoid(x)
+    g.add_node(op.output("Out")[0], out)
+
+
 _convert_map = {
+    "sigmoid": convert_sigmoid,
     "arg_max": convert_arg_max,
     "assign": convert_assign,
     "batch_norm": convert_batch_norm,
@@ -872,6 +925,7 @@ _convert_map = {
     "cast": convert_cast,
     "concat": convert_concat,
     "conv2d": convert_conv2d,
+    "conv2d_transpose": convert_conv2d_transpose,
     "cumsum": convert_cumsum,
     "depthwise_conv2d": convert_conv2d,
     "dropout": convert_dropout,
@@ -1048,7 +1102,6 @@ class GraphProto:
 
 def from_paddle(program_or_layer, shape_dict=None, scope=None):
     """Convert a PaddlePaddle model into an equivalent Relay Function.
-
     PaddlePaddle Program/TranslatedLayer represent the computation graph of PaddlePaddle model,
     and PaddlePaddle scope stores all the weights of PaddlePaddle model.
     """
