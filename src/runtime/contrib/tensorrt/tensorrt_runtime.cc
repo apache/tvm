@@ -288,21 +288,20 @@ class TensorRTRuntime : public JSONRuntimeBase {
     if (trt_engine_cache_.find(std::make_pair(symbol_name_, batch_size)) == trt_engine_cache_.end()) {
       BuildEngineFromJson(use_fp16, batch_size);
     }
-    
     if (use_int8) {
-      TensorRTEngineAndContext& engine_and_context = 
+      TensorRTEngineAndContext& engine_and_context =
                                 trt_engine_cache_[std::make_pair(symbol_name_, batch_size)];
       if (calibrator_ == nullptr) {
         this->CreateCalibratorIfUsingInt8(engine_and_context);
       }
      
-      if (num_calibration_batches_remaining_ == 0) { 
+      if (num_calibration_batches_remaining_ == 0) {
         engine_and_context.context->destroy();
         engine_and_context.engine->destroy();
-        LOG(INFO)<<"rebuild builder using INT8 mode";
+        LOG(INFO) << "rebuild builder using INT8 mode";
         BuildEngineFromJson(use_fp16, batch_size);
         calibrator_.reset(nullptr);
-        LOG(INFO) <<"finished rebuilding using INT8 mode ... ";
+        LOG(INFO) << "finished rebuilding using INT8 mode ... ";
       }
     }
 
@@ -315,10 +314,8 @@ class TensorRTRuntime : public JSONRuntimeBase {
 
 
   void BuildEngineFromJson(bool use_fp16, int batch_size){
-       
       TensorRTBuilder builder(&logger_, data_entry_, max_workspace_size_, use_implicit_batch_,
                             use_fp16, batch_size, calibrator_.get());
-       
       for (size_t i = 0; i < input_nodes_.size(); ++i) {
           auto nid = input_nodes_[i];
           const auto& node = nodes_[nid];
@@ -450,15 +447,13 @@ class TensorRTRuntime : public JSONRuntimeBase {
   void CreateCalibratorIfUsingInt8(const TensorRTEngineAndContext& engine_and_context) {
     // Get input names in binding order.
     std::vector<std::string> input_names;
-    for(size_t i=0; i<engine_and_context.inputs.size(); i++){
+    for (size_t i = 0; i < engine_and_context.inputs.size(); i++) {
       std::string ele = engine_and_context.inputs[i];
       input_names.push_back(ele);
     }
     const int batch_size = GetBatchSize();
     calibrator_.reset(new TensorRTCalibrator(batch_size, input_names));
-
   }
-
 
   /*! \brief Map of function name and max batch size to TRT engine if built already. */
   std::unordered_map<std::pair<std::string, int>, TensorRTEngineAndContext, PairHash>
