@@ -49,11 +49,15 @@ TensorRTBuilder::TensorRTBuilder(TensorRTLogger* logger,
   // Create TRT builder and network.
   builder_ = nvinfer1::createInferBuilder(*logger);
   use_int8_ = false;
-  // Use INetwork with implicit batch.
-  builder_->setMaxBatchSize(batch_size_);
-  builder_->setMaxWorkspaceSize(max_workspace_size_);
-  builder_->setFp16Mode(use_fp16_);
-  
+
+#if TRT_VERSION_GE(6, 0, 1)
+  // Use INetworkV2.
+  auto flags =
+      1U << static_cast<uint32_t>(nvinfer1::NetworkDefinitionCreationFlag::kEXPLICIT_BATCH);
+  if (use_implicit_batch_) {
+    flags = 0U;
+    builder_->setMaxBatchSize(batch_size_);
+  }
   this->calibrator_ = calibrator;
   if (calibrator != nullptr)
   {    
@@ -62,7 +66,13 @@ TensorRTBuilder::TensorRTBuilder(TensorRTLogger* logger,
     builder_->setInt8Mode(true);
     builder_->setInt8Calibrator(calibrator);
   }
+  network_ = builder_->createNetworkV2(flags);
+#else
+  builder_->setMaxBatchSize(batch_size_);
+  builder_->setMaxWorkspaceSize(max_workspace_size_);
+  builder_->setFp16Mode(use_fp16_);
   network_ = builder_->createNetwork();
+#endif
 }
 
 void TensorRTBuilder::AddInput(int nid, uint32_t entry_id, const JSONGraphNode& node) {

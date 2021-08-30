@@ -41,6 +41,7 @@
 #include "NvInfer.h"
 #include "tensorrt_builder.h"
 #include "tensorrt_calibrator.h"
+#include "tensorrt_utils.h"
 #endif
 
 namespace tvm {
@@ -77,6 +78,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
           const bool use_int8 = dmlc::GetEnv("TVM_TENSORRT_USE_INT8", false);
           if(use_int8){
             const int extract_cali_num = dmlc::GetEnv("TENSORRT_NUM_CALI_INT8", 0);
+            ICHECK(extract_cali_num != 0);
             num_calibration_batches_remaining_ = extract_cali_num;
             LOG(INFO) << "settiing up num_calibration_batches_remaining_ as " << num_calibration_batches_remaining_ << " for calibrating data ... ";
           }
@@ -149,7 +151,6 @@ class TensorRTRuntime : public JSONRuntimeBase {
     std::vector<void*> bindings(num_bindings, nullptr);
     std::vector<size_t> binding_sizes(num_bindings, 0);
     // Setup input bindings.
-    const size_t num_inputs = input_nodes_.size();
     for (size_t i = 0; i < input_nodes_.size(); ++i) {
       auto nid = input_nodes_[i];
       if (nodes_[nid].GetOpType() == "input") {
@@ -448,8 +449,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
   }
 
   void CreateCalibratorIfUsingInt8(const TensorRTEngineAndContext& engine_and_context) {
-    LOG(INFO) << "Using INT8. Now in calibration mode, will create inference engine after " << num_calibration_batches_remaining_ << " input batches are provided.";
-      // Get input names in binding order.
+    // Get input names in binding order.
     std::vector<std::string> input_names;
     for(size_t i=0; i<engine_and_context.inputs.size(); i++){
       std::string ele = engine_and_context.inputs[i];
