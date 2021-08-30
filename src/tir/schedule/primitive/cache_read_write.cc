@@ -694,11 +694,7 @@ StmtSRef CacheWrite(ScheduleState self, const StmtSRef& block_sref, int write_bu
   const BlockNode* scope_block = TVM_SREF_TO_BLOCK(scope_block, scope_sref);
 
   // Step 4. Check the only writer block.
-  Optional<StmtSRef> _write_block_sref = GetOnlyWriteBlock(self, scope_sref, write_buffer);
-  // We have provide a block_sref who write the buffer, so use ICHECK here.
-  ICHECK(_write_block_sref.defined());
-  // Check the only producer is same as the input block.
-  ICHECK(_write_block_sref.value().same_as(block_sref));
+  ICHECK_EQ(block_sref.get(), GetOnlyWriteBlock(self, scope_sref, write_buffer).get());
 
   // Step 5. Find the producing region and insert position
   Optional<BufferRegion> region = RelatedBufferRegion(block->writes, write_buffer);
