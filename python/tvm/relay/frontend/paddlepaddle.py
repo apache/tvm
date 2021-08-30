@@ -64,6 +64,23 @@ def _get_pad_size(in_size, dilated_kernel_size, stride_size):
     return [pad_before, pad_after]
 
 
+def convert_activation(g, op, block):
+    """Operator converter for all the activation."""
+
+    op_map = {
+        "exp": _op.exp,
+        "relu": _op.nn.relu,
+        "tanh": _op.tanh,
+        "sqrt": _op.sqrt,
+        "erf": _op.erf,
+        "abs": _op.abs,
+        "sigmoid": _op.sigmoid,
+    }
+    act_func = op_map[op.type]
+    out = act_func(g.get_node(op.input("X")[0]))
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_arg_max(g, op, block):
     """Operator converter for arg_max."""
 
@@ -371,22 +388,6 @@ def convert_equal(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
-def convert_activation(g, op, block):
-    """Operator converter for all the activation."""
-
-    op_map = {
-        "exp": _op.exp,
-        "relu": _op.nn.relu,
-        "tanh": _op.tanh,
-        "sqrt": _op.sqrt,
-        "erf": _op.erf,
-        "abs": _op.abs,
-    }
-    act_func = op_map[op.type]
-    out = act_func(g.get_node(op.input("X")[0]))
-    g.add_node(op.output("Out")[0], out)
-
-
 def convert_feed(g, op, block):
     """Converter for model input node."""
 
@@ -430,12 +431,13 @@ def convert_fill_constant(g, op, block):
     shape = block.var(op.output("Out")[0]).shape
     dtype = block.var(op.output("Out")[0]).dtype
     dtype = str(dtype).strip().split(".")[1]
-    if op.input("ValueTensor"):
-        shape = g.get_node(op.input("ValueTensor")[0])
-        shape = infer_value(shape, g.get_params()).numpy()
-    if op.input("ShapeTensor"):
-        shape = g.get_node(op.input("ShapeTensor")[0])
-        shape = infer_value(shape, g.get_params()).numpy()
+    if len(op.input_names) > 0:
+        if op.input("ValueTensor"):
+            shape = g.get_node(op.input("ValueTensor")[0])
+            shape = infer_value(shape, g.get_params()).numpy()
+        if op.input("ShapeTensor"):
+            shape = g.get_node(op.input("ShapeTensor")[0])
+            shape = infer_value(shape, g.get_params()).numpy()
     value = np.full(shape, value, dtype)
     out = _expr.const(value.astype(dtype)).astype(dtype)
     g.add_node(op.output("Out")[0], out)
@@ -907,16 +909,7 @@ def convert_unsqueeze(g, op, block):
     g.add_node(op.output("Out")[0], x)
 
 
-def convert_sigmoid(g, op, block):
-    """Operator converter for sigmoid."""
-
-    x = g.get_node(op.input("X")[0])
-    out = _op.sigmoid(x)
-    g.add_node(op.output("Out")[0], out)
-
-
 _convert_map = {
-    "sigmoid": convert_sigmoid,
     "arg_max": convert_arg_max,
     "assign": convert_assign,
     "batch_norm": convert_batch_norm,
@@ -956,6 +949,7 @@ _convert_map = {
     "reshape2": convert_reshape,
     "scale": convert_scale,
     "shape": convert_shape,
+    "sigmoid": convert_activation,
     "slice": convert_slice,
     "softmax": convert_softmax,
     "squeeze2": convert_squeeze,
