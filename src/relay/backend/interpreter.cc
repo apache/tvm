@@ -386,10 +386,11 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
 
     // Project out just the function(s) we need.
     IRModule lowered_projected_mod;
-    std::unordered_map<Target, IRModule, TargetStrHash, TargetStrEqual> per_target_module_std_map_ =
-        TargetModuleMapToTargetStrModuleMap(per_target_module_);
-    auto mod_itr = per_target_module_std_map_.find(target);
-    ICHECK(mod_itr != per_target_module_std_map_.end())
+    std::unordered_map<Target, IRModule, backend::TargetStrHash, backend::TargetStrEqual>
+        per_target_module_std_map =
+            backend::TargetModuleMapToTargetStrModuleMap(per_target_module_);
+    auto mod_itr = per_target_module_std_map.find(target);
+    ICHECK(mod_itr != per_target_module_std_map.end())
         << "No target module for target '" << target->str() << "'";
     const IRModule& target_module = (*mod_itr).second;
     for (const auto& var : all_tir_fn_vars) {

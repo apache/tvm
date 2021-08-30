@@ -86,7 +86,8 @@ class TECompilerImpl : public TECompilerNode {
   }
 
   Map<Target, IRModule> GetLoweredFunctions() {
-    std::unordered_map<Target, IRModule, TargetStrHash, TargetStrEqual> lowered_functions;
+    std::unordered_map<Target, IRModule, backend::TargetStrHash, backend::TargetStrEqual>
+        lowered_functions;
     for (const auto& it : cache_) {
       auto source_func = it.first;
       auto lowered_func = it.second;
@@ -110,7 +111,7 @@ class TECompilerImpl : public TECompilerNode {
 
       lowered_functions[target]->Update(lowered_func->cached_func->funcs);
     }
-    return TargetStrModuleMapToTargetModuleMap(lowered_functions);
+    return backend::TargetStrModuleMapToTargetModuleMap(lowered_functions);
   }
 
   Array<tvm::runtime::Module> LowerExternalFunctions() {

@@ -205,58 +205,5 @@ void CheckAndUpdateHostConsistency(Map<Integer, Target>* target, Target* host);
  */
 void CheckAndUpdateHostConsistency(Map<Target, IRModule>* target, Target* host);
 
-// TODO(@electriclilies): Move to somewhere in backend and add note about appropriate use
-
-/*! \brief Target hash function */
-struct TargetStrHash {
-  /*!
-   * \brief Calculate the hash code of a Target based on the string value of the Target
-   This will be removed when maps from Targets to IRModules are removed from the codebase.
-   * \param target The Target to hash
-   * \return String hash of the target
-   */
-  size_t operator()(const Target& target) const {
-    return String::HashBytes(target->str().c_str(), target->str().size());
-  }
-};
-
-/*! \brief Target equality function based on the string value of Target
-This will be removed when maps from Targets to IRModules are removed from the
-codebase.*/
-struct TargetStrEqual {
-  /*!
-   * \brief Check if the two Targets are equal
-   * \param target One Target
-   * \param other_target The other Target
-   * \return String equality of the targets
-   */
-  const bool operator()(const Target& target, const Target& other_target) const {
-    TargetStrHash target_hash = TargetStrHash();
-    return target_hash(target) == target_hash(other_target);
-  }
-};
-
-/*!
- * \brief Convert a Map<Target, IRModule> to std::unordered_map<Target, IRmodule, TargetStrHash,
- * TargetStrEqual> Target equality is currently based on pointer equality, which is a problem since
- * we have a lot of Map<Target, IRModule> in the codebase. This function converts the map to a
- * version that is keyed based on string value of the Target instead. Note that once we remove
- * Map<Target, IRModule>, this function will be removed.
- * \param input_map The map to convert
- * \return The converted map
- */
-std::unordered_map<Target, IRModule, TargetStrHash, TargetStrEqual>
-TargetModuleMapToTargetStrModuleMap(Map<Target, IRModule> input_map);
-
-/*!
- * \brief Convert a std::unordered_map<Target, IRmodule, TargetStrHash, TargetStrEqual> to
- * Map<Target, IRModule> This function is a helper that undoes TargetModuleMapToTargetStr. Note that
- * once we remove Map<Target, IRModule>, this function will be removed.
- * \param input_map The map to convert
- * \return The converted map
- */
-Map<Target, IRModule> TargetStrModuleMapToTargetModuleMap(
-    std::unordered_map<Target, IRModule, TargetStrHash, TargetStrEqual> input_map);
-
 }  // namespace tvm
 #endif  // TVM_TARGET_TARGET_H_
