@@ -65,7 +65,7 @@ struct CacheStageInfo {
   Buffer read_buffer;
   /*! \brief The buffer to be written. */
   Buffer write_buffer;
-  /*! \brief The buffer allocation statement to be inserted. */
+  /*! \brief The buffer allocation to be inserted into the block signature. */
   Buffer alloc;
   /*! \brief The AST node whose body is where the cache stage should be inserted. */
   StmtSRef loc_sref;
