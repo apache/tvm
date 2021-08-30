@@ -180,10 +180,11 @@ class TensorRTRuntime : public JSONRuntimeBase {
     }
 
     // add batch data to calibrator
-    if(num_calibration_batches_remaining_ > 0){
+    if (num_calibration_batches_remaining_ > 0) {
       if (calibrator_ != nullptr) {
-        LOG(INFO) << "starting adding last " << num_calibration_batches_remaining_ << 
-                                                "-th batch data to calibrator";
+        LOG(INFO) << "Starting adding last " <<
+                    num_calibration_batches_remaining_ <<
+                    "-th batch data to the calibrator";
         std::vector<size_t> input_sizes(binding_sizes.begin(),
                                         binding_sizes.begin() + num_bindings);
         calibrator_->AddBatchData(bindings, input_sizes);
@@ -285,7 +286,8 @@ class TensorRTRuntime : public JSONRuntimeBase {
                             use_fp16, batch_size);
 
     // Build engine.
-    if (trt_engine_cache_.find(std::make_pair(symbol_name_, batch_size)) == trt_engine_cache_.end()) {
+    if (trt_engine_cache_.find(std::make_pair(symbol_name_, batch_size)) ==
+          trt_engine_cache_.end()) {
       BuildEngineFromJson(use_fp16, batch_size);
     }
     if (use_int8) {
