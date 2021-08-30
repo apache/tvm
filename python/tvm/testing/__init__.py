@@ -24,6 +24,7 @@ from .utils import fixture, parameter, parameters, parametrize_targets, uses_gpu
 from .utils import known_failing_targets, requires_cuda, requires_cudagraph
 from .utils import requires_gpu, requires_llvm, requires_rocm, requires_rpc
 from .utils import requires_tensorcore, requires_metal, requires_micro, requires_opencl
+from .utils import requires_package
 from .utils import identity_after, terminate_self
 
 from ._ffi_api import nop, echo, device_test, run_check_signal, object_use_count
