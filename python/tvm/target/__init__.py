@@ -43,6 +43,10 @@ The list of options include:
    such as whether SIMD operations are enabled or not. The
    default set of attributes is set by the current CPU.
 
+- **-mabi=<abi>**
+
+   Generate code for the specified ABI, for example "lp64d".
+
 - **-system-lib**
 
    Build TVM system library module. System lib is a global module that contains
@@ -55,7 +59,18 @@ We can use :py:func:`tvm.target.Target` to create a tvm.target.Target from the t
 We can also use other specific function in this module to create specific targets.
 """
 from .target import Target, create
-from .target import cuda, rocm, mali, intel_graphics, arm_cpu, rasp, vta, bifrost, hexagon
+from .target import (
+    cuda,
+    rocm,
+    mali,
+    intel_graphics,
+    arm_cpu,
+    rasp,
+    vta,
+    bifrost,
+    riscv_cpu,
+    hexagon,
+)
 from .tag import list_tags
 from .generic_func import GenericFunc
 from .generic_func import generic_func, get_native_generic_func, override_native_generic_func
