@@ -25,9 +25,6 @@
 #ifndef TVM_RUNTIME_CONTRIB_TENSORRT_TENSORRT_CALIBRATOR_H_
 #define TVM_RUNTIME_CONTRIB_TENSORRT_TENSORRT_CALIBRATOR_H_
 
-#include <string>
-#include <vector>
-
 #include "../../cuda/cuda_common.h"
 #include "NvInfer.h"
 
@@ -61,6 +58,8 @@ class TensorRTCalibrator : public nvinfer1::IInt8EntropyCalibrator2 {
                     const std::vector<size_t>& binding_sizes) {
     // Copy data from GPU
     std::vector<float*> data_host(bindings.size(), nullptr);
+    // LOG(INFO) << "bindings.size() is : " << bindings.size();
+    // LOG(INFO) << "binding_sizes.size() is : " << binding_sizes.size();
     for (size_t i = 0; i < bindings.size(); ++i) {
       data_host[i] = new float[batch_size_ * binding_sizes[i]];
       CUDA_CALL(cudaMemcpy(static_cast<void*>(data_host[i]), bindings[i],
