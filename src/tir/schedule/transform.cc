@@ -33,10 +33,9 @@ Block WithAnnotation(const BlockNode* block, const String& attr_key, const Objec
 
 /******** Buffer Related ********/
 Buffer WithScope(const Buffer& buffer, const String& scope) {
-  auto n = make_object<BufferNode>(*buffer.get());
-  auto new_ptr = make_object<VarNode>(*n->data.get());
-  const auto* ptr_type = new_ptr->type_annotation.as<PointerTypeNode>();
-  ICHECK(ptr_type);
+  ObjectPtr<BufferNode> new_buffer = make_object<BufferNode>(*buffer.get());
+  ObjectPtr<VarNode> new_var = make_object<VarNode>(buffer->data.get());
+  const auto* ptr_type = TVM_TYPE_AS(ptr_type, buffer->data->type_annotation, PointerTypeNode);
   new_ptr->type_annotation = PointerType(ptr_type->element_type, scope);
   n->data = Var(new_ptr->name_hint + "_" + scope, new_ptr->type_annotation);
   n->name = buffer->name + "_" + scope;
