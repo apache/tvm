@@ -69,12 +69,22 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     } else if (name == "get_const_vars") {
       return PackedFunc(nullptr);
     } else if (name == "_get_target_triple") {
-      std::string target_triple = tm_->getTargetTriple().str();
+      std::ostringstream target_triple_ss;
+      target_triple_ss << tm_->getTargetTriple().str();
       // getTargetTriple() doesn't include other flags besides the triple. Add back flags which are
       // important for ModulePackImportsToLLVM.
       if (tm_->Options.FloatABIType == llvm::FloatABI::ABIType::Soft) {
-        target_triple += " -mfloat-abi=soft";
+        target_triple_ss << " -mfloat-abi=soft";
       }
+      std::string mabi = tm_->Options.MCOptions.ABIName;
+      if (!mabi.empty()) {
+        target_triple_ss << " -mabi=" << mabi;
+      }
+      llvm::StringRef mcpu = tm_->getTargetCPU();
+      if (!mcpu.empty() && mcpu != "generic") {
+        target_triple_ss << " -mcpu=" << mcpu.str();
+      }
+      std::string target_triple = target_triple_ss.str();
       return PackedFunc([target_triple](TVMArgs args, TVMRetValue* rv) { *rv = target_triple; });
     }
     if (ee_ == nullptr) LazyInitJIT();
