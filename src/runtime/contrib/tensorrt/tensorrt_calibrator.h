@@ -27,6 +27,8 @@
 
 #include "../../cuda/cuda_common.h"
 #include "NvInfer.h"
+#include <string>
+#include <vector>
 
 namespace tvm {
 namespace runtime {

@@ -27,7 +27,6 @@
 #include <tvm/runtime/registry.h>
 
 #include <fstream>
-#include <stdlib.h>
 #include <memory>
 #include <string>
 #include <unordered_map>

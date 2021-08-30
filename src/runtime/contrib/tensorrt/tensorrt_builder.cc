@@ -59,8 +59,7 @@ TensorRTBuilder::TensorRTBuilder(TensorRTLogger* logger,
     builder_->setMaxBatchSize(batch_size_);
   }
   this->calibrator_ = calibrator;
-  if (calibrator != nullptr)
-  {    
+  if (calibrator != nullptr){
     use_int8_ = true;
     builder_->setFp16Mode(true);
     builder_->setInt8Mode(true);
@@ -168,10 +167,10 @@ TensorRTEngineAndContext TensorRTBuilder::BuildEngine() {
     config_->setFlag(nvinfer1::BuilderFlag::kFP16);
   }
 
-  if(use_int8_) {
+  if (use_int8_) {
     config_->setFlag(nvinfer1::BuilderFlag::kINT8);
     config_->setInt8Calibrator(calibrator_);
-    LOG(INFO)<<"config finishes setting up calibrator as INT8 mode ... ";
+    LOG(INFO) << "config finishes setting up calibrator as INT8 mode ... ";
   }
 
   // Add profiles.
@@ -256,7 +255,7 @@ void TensorRTBuilder::CleanUp() {
   for (auto weight : trt_weights_) {
     if (weight.type == nvinfer1::DataType::kFLOAT) {
       delete[] static_cast<const float*>(weight.values);
-    }else{
+    } else {
       delete[] static_cast<const uint16_t*>(weight.values);
     }
   }
