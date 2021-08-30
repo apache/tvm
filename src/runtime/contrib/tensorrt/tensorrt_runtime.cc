@@ -314,8 +314,6 @@ class TensorRTRuntime : public JSONRuntimeBase {
     return trt_engine_cache_.at(std::make_pair(symbol_name_, batch_size));
   }
 
-
-
   void BuildEngineFromJson(bool use_fp16, int batch_size) {
       TensorRTBuilder builder(&logger_, data_entry_, max_workspace_size_, use_implicit_batch_,
                             use_fp16, batch_size, calibrator_.get());
@@ -347,7 +345,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
       TensorRTEngineAndContext engine_and_context = builder.BuildEngine();
       trt_engine_cache_[std::make_pair(symbol_name_, batch_size)] = engine_and_context;
   }
-  
+
   /*! \brief If TVM_TENSORRT_CACHE_DIR is set, will check that directory for
    * already built TRT engines and load into trt_engine_cache_ so they don't
    * have to be built at first inference.
@@ -458,7 +456,6 @@ class TensorRTRuntime : public JSONRuntimeBase {
   /*! \brief Map of function name and max batch size to TRT engine if built already. */
   std::unordered_map<std::pair<std::string, int>, TensorRTEngineAndContext, PairHash>
       trt_engine_cache_;
-    
 
   /*! \brief Calibrator for INT8 mode. */
   std::unique_ptr<TensorRTCalibrator> calibrator_;
