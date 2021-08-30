@@ -115,6 +115,9 @@ void ParseLLVMTargetOptions(const Target& target, std::string* triple, std::stri
   } else {
     opt.FloatABIType = llvm::FloatABI::Hard;
   }
+  if (const Optional<String>& v = target->GetAttr<String>("mabi")) {
+    opt.MCOptions.ABIName = v.value();
+  }
 }
 
 std::unique_ptr<llvm::TargetMachine> GetLLVMTargetMachine(const Target& target, bool allow_null) {
@@ -163,6 +166,9 @@ std::string LLVMTargetToString(const Target& target) {
   }
   if (Optional<String> mfloat_abo = target->GetAttr<String>("mfloat-abi")) {
     os << " -mfloat-abi=" << mfloat_abo.value();
+  }
+  if (Optional<String> mabi = target->GetAttr<String>("mabi")) {
+    os << " -mabi=" << mabi.value();
   }
   return os.str();
 }
