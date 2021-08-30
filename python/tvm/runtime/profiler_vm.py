@@ -22,8 +22,8 @@ Provides extra APIs for profiling vm execution.
 """
 import warnings
 from tvm.runtime import _ffi_api
-from . import vm
 from tvm.rpc import base as rpc_base
+from . import vm
 from .profiling import Report
 
 

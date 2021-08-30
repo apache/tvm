@@ -543,7 +543,7 @@ Report::Report(Array<Map<String, ObjectRef>> calls,
   data_ = std::move(node);
 }
 
-Map<String, ObjectRef> parse_metrics(dmlc::JSONReader& reader) {
+Map<String, ObjectRef> parse_metrics(dmlc::JSONReader* reader) {
   reader.BeginObject();
   std::string metric_name, metric_value_name;
   Map<String, ObjectRef> metrics;
@@ -593,18 +593,18 @@ Report Report::FromJSON(String json) {
     if (key == "calls") {
       reader.BeginArray();
       while (reader.NextArrayItem()) {
-        calls.push_back(parse_metrics(reader));
+        calls.push_back(parse_metrics(&reader));
       }
       // reader.EndArray();
     } else if (key == "device_metrics") {
       reader.BeginObject();
       std::string device_name;
       while (reader.NextObjectItem(&device_name)) {
-        device_metrics.Set(device_name, parse_metrics(reader));
+        device_metrics.Set(device_name, parse_metrics(&reader));
       }
       // reader.EndObject();
     }
-  };
+  }
 
   return Report(calls, device_metrics);
 }
