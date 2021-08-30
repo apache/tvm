@@ -72,8 +72,8 @@ class TensorRTBuilder {
    * \param batch_size If use_implicit_batch,
    */
   TensorRTBuilder(TensorRTLogger* logger, const std::vector<const DLTensor*>& data_entry,
-                  size_t max_workspace_size, bool use_implicit_batch, bool use_fp16,
-                  int batch_size, nvinfer1::IInt8Calibrator* calibrator = nullptr);
+                  size_t max_workspace_size, bool use_implicit_batch, bool use_fp16, int batch_size,
+                  nvinfer1::IInt8Calibrator* calibrator = nullptr);
 
   /*!
    * \brief Add TensorRT input(s) for input node in network definition.
