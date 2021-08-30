@@ -796,11 +796,14 @@ class DFPatternCallback:
     ----------
     require_type: bool
         Whether InferType is required to be run before the callback.
+    rewrite_once: bool
+        If True, run the callback only once.
     """
 
-    def __init__(self, require_type=False):
+    def __init__(self, require_type=False, rewrite_once=False):
         self.pattern = None
         self.require_type = require_type
+        self.rewrite_once = rewrite_once
 
     def rewrite(self, expr: Expr) -> Expr:
         """
@@ -842,8 +845,10 @@ class DFPatternCallback:
 class _DFPatternCallback(Object):
     """C++ implemenation"""
 
-    def __init__(self, pattern, callback, require_type):
-        self.__init_handle_by_constructor__(ffi.DFPatternCallback, pattern, callback, require_type)
+    def __init__(self, pattern, callback, require_type, rewrite_once):
+        self.__init_handle_by_constructor__(
+            ffi.DFPatternCallback, pattern, callback, require_type, rewrite_once
+        )
 
 
 def rewrite(callbacks, expr: Expr, mod: Optional[_ir.IRModule] = None) -> Expr:
@@ -870,7 +875,11 @@ def rewrite(callbacks, expr: Expr, mod: Optional[_ir.IRModule] = None) -> Expr:
     tmp = []
     for callback in callbacks:
         assert callback.pattern is not None
-        tmp.append(_DFPatternCallback(callback.pattern, callback.callback, callback.require_type))
+        tmp.append(
+            _DFPatternCallback(
+                callback.pattern, callback.callback, callback.require_type, callback.rewrite_once
+            )
+        )
 
     return ffi.rewrite(tmp, expr, mod)
 

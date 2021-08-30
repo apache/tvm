@@ -16,6 +16,8 @@
 # under the License.
 import tvm
 from tvm import te
+from tvm.script import ty
+from tvm.relay import GlobalVar
 
 
 def test_flatten2():
@@ -102,7 +104,9 @@ def test_flatten_double_buffer():
 
     stmt = ib.get()
 
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([A, C], stmt))
+    mod = tvm.IRModule.from_expr(
+        tvm.tir.PrimFunc([A, C], stmt).with_attr("from_legacy_te_schedule", True)
+    )
 
     with tvm.transform.PassContext(config={"tir.InjectDoubleBuffer": {"split_loop": 2}}):
         mod = tvm.transform.Sequential(
@@ -130,8 +134,24 @@ def test_flatten_double_buffer():
     assert count[0] == 4
 
 
+@tvm.script.tir
+def tir_func(a: ty.handle, b: ty.handle) -> None:
+    A = tir.match_buffer(a, [2, 2])
+    B = tir.match_buffer(a, [2, 2])
+    A[0, 1] = B[1, 1]
+
+
+def test_flatten_tir():
+    orig_mod = tvm.IRModule({GlobalVar("main"): tir_func})
+    mod = tvm.tir.transform.StorageFlatten(64)(orig_mod)
+    tvm.ir.assert_structural_equal(
+        orig_mod, mod
+    )  # StorageFlatten should do nothing to TIR functions
+
+
 if __name__ == "__main__":
     test_flatten2()
     test_flatten_storage_align()
     test_flatten_double_buffer()
     test_flatten_prefetch()
+    test_flatten_tir()

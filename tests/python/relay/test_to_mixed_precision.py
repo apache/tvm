@@ -27,13 +27,12 @@ from tvm.relay.transform import InferType, ToMixedPrecision, mixed_precision
 
 def run_module(mod: tvm.runtime.Module, mod_params: Dict[str, Any]) -> List:
     dev = tvm.device("llvm", 0)
-    intrp = relay.create_executor("debug", mod, device=dev, target="llvm")
-    result = intrp.evaluate()(**mod_params)
+    result = relay.create_executor("debug", mod, device=dev, target="llvm").evaluate()(**mod_params)
     if isinstance(result, tvm.runtime.container.ADT):
-        result = [r.asnumpy() for r in result]
+        result = [r.numpy() for r in result]
         return result
     else:
-        return [result.asnumpy()]
+        return [result.numpy()]
 
 
 def verify_mixed_precision_output_close(
@@ -222,12 +221,9 @@ def test_do_not_convert_softmax():
     b = relay.nn.softmax(a)
     mod = tvm.IRModule.from_expr(b)
     mod = tvm.relay.transform.InferType()(mod)
-
-    mod_params = {
-        "a": np.random.uniform(-1, 1, size=shape).astype("float32"),
-    }
-    output_mod = verify_mixed_precision_output_close(mod, mod_params, atol=0.0, rtol=0)
-    assert tvm.ir.structural_equal(mod, output_mod)
+    out_mod = ToMixedPrecision("float16")(mod)
+    orig_mod = tvm.relay.transform.InferType()(mod)
+    assert tvm.ir.structural_equal(orig_mod, out_mod)
 
 
 def test_do_not_convert_arange():
@@ -235,10 +231,26 @@ def test_do_not_convert_arange():
     dtype = "float32"
     arange = relay.arange(relay.const(1, dtype), relay.const(128, dtype))
     mod = tvm.IRModule.from_expr(arange)
-    mod = tvm.relay.transform.InferType()(mod)
+    out_mod = ToMixedPrecision("float16")(mod)
+    orig_mod = tvm.relay.transform.InferType()(mod)
+    assert tvm.ir.structural_equal(orig_mod, out_mod)
 
-    output_mod = verify_mixed_precision_output_close(mod, {}, atol=0.0, rtol=0)
-    assert tvm.ir.structural_equal(mod, output_mod)
+
+def test_do_not_convert_summation():
+    """Ops that could involve a large summation are not allowed in fp16."""
+    shape = [1, 3, 16, 16]
+    a = relay.var("a", shape=shape)
+    ops = [
+        relay.sum,
+        relay.mean,
+        relay.nn.global_avg_pool2d,
+        lambda inp: relay.nn.adaptive_avg_pool2d(inp, (1, 1)),
+    ]
+    for op in ops:
+        mod = tvm.IRModule.from_expr(op(a))
+        out_mod = ToMixedPrecision("float16")(mod)
+        orig_mod = tvm.relay.transform.InferType()(mod)
+        assert tvm.ir.structural_equal(orig_mod, out_mod)
 
 
 def test_green_gray_propagates_simple():
@@ -374,7 +386,7 @@ def test_let_statement_simple():
         "data": np.random.uniform(-1, 1, size=[1, 20]).astype("float32"),
         "weight": np.random.uniform(-1, 1, size=[20, 20]).astype("float32"),
     }
-    output_mod = verify_mixed_precision_output_close(mod, mod_params, atol=0.01, rtol=0.01)
+    output_mod = verify_mixed_precision_output_close(mod, mod_params, atol=0.05, rtol=0.15)
 
     # Construct expected structure
     var1 = relay.var("var1", shape=[1, 20], dtype="float16")

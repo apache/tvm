@@ -16,20 +16,22 @@
 # under the License.
 
 from collections import OrderedDict
+import sys
 
 import numpy as np
 import pytest
 
 import tvm
 from tvm import relay
+from tvm.ir.module import IRModule
 from tvm.relay import testing, transform
-from tvm.relay.op.annotation import compiler_begin, compiler_end
-from tvm.relay.expr_functor import ExprMutator
+from tvm.relay.testing import byoc
 from aot_test_utils import (
+    AOTTestModel,
+    AOT_DEFAULT_RUNNER,
     generate_ref_data,
     convert_to_relay,
     compile_and_run,
-    compile_and_run_multiple_models,
     parametrize_aot_options,
 )
 
@@ -37,26 +39,24 @@ from aot_test_utils import (
 def test_error_c_interface_with_packed_api():
     interface_api = "c"
     use_unpacked_api = False
-    use_calculated_workspaces = True
+    test_runner = AOT_DEFAULT_RUNNER
 
     two = relay.add(relay.const(1), relay.const(1))
     func = relay.Function([], two)
-    output_list = generate_ref_data(func, {})
-    input_list = []
 
     with pytest.raises(tvm.TVMError, match="Packed interface required for packed operators"):
         compile_and_run(
-            func,
-            input_list,
-            output_list,
+            AOTTestModel(
+                module=IRModule.from_expr(func), inputs={}, outputs=generate_ref_data(func, {})
+            ),
+            test_runner,
             interface_api,
             use_unpacked_api,
-            use_calculated_workspaces,
         )
 
 
 @parametrize_aot_options
-def test_conv_with_params(interface_api, use_unpacked_api, use_calculated_workspaces):
+def test_conv_with_params(interface_api, use_unpacked_api, test_runner):
     RELAY_MODEL = """
 #[version = "0.0.5"]
 def @main(%data : Tensor[(1, 3, 64, 64), uint8], %weight : Tensor[(8, 3, 5, 5), int8]) {
@@ -85,18 +85,15 @@ def @main(%data : Tensor[(1, 3, 64, 64), uint8], %weight : Tensor[(8, 3, 5, 5), 
     output_list = generate_ref_data(mod, inputs, params)
 
     compile_and_run(
-        mod,
-        inputs,
-        output_list,
+        AOTTestModel(module=mod, inputs=inputs, outputs=output_list, params=params),
+        test_runner,
         interface_api,
         use_unpacked_api,
-        use_calculated_workspaces,
-        params,
     )
 
 
 @parametrize_aot_options
-def test_add_with_params(interface_api, use_unpacked_api, use_calculated_workspaces):
+def test_add_with_params(interface_api, use_unpacked_api, test_runner):
     x = relay.var("x", shape=(1, 10))
     y = relay.var("y", shape=(1, 10))
     z = relay.add(x, y)
@@ -110,72 +107,47 @@ def test_add_with_params(interface_api, use_unpacked_api, use_calculated_workspa
     output_list = generate_ref_data(func, inputs, params)
 
     compile_and_run(
-        func,
-        inputs,
-        output_list,
+        AOTTestModel(
+            module=IRModule.from_expr(func), inputs=inputs, outputs=output_list, params=params
+        ),
+        test_runner,
         interface_api,
         use_unpacked_api,
-        use_calculated_workspaces,
-        params,
     )
 
 
 @parametrize_aot_options
-def test_conv2d(use_calculated_workspaces, interface_api, use_unpacked_api):
+@pytest.mark.parametrize("groups,weight_shape", [(1, 32), (32, 1)])
+def test_conv2d(interface_api, use_unpacked_api, test_runner, groups, weight_shape):
     """Test a subgraph with a single conv2d operator."""
+    dtype = "float32"
+    ishape = (1, 32, 14, 14)
+    wshape = (32, weight_shape, 3, 3)
 
-    def conv2d_direct():
-        dtype = "float32"
-        ishape = (1, 32, 14, 14)
-        w1shape = (32, 32, 3, 3)
+    data0 = relay.var("data", shape=ishape, dtype=dtype)
+    weight0 = relay.var("weight", shape=wshape, dtype=dtype)
+    out = relay.nn.conv2d(data0, weight0, kernel_size=(3, 3), padding=(1, 1), groups=groups)
+    main_f = relay.Function([data0, weight0], out)
+    mod = tvm.IRModule()
+    mod["main"] = main_f
+    mod = transform.InferType()(mod)
 
-        data0 = relay.var("data", shape=ishape, dtype=dtype)
-        weight0 = relay.var("weight", shape=w1shape, dtype=dtype)
-        out = relay.nn.conv2d(data0, weight0, kernel_size=(3, 3), padding=(1, 1))
-        main_f = relay.Function([data0, weight0], out)
-        mod = tvm.IRModule()
-        mod["main"] = main_f
-        mod = transform.InferType()(mod)
+    i_data = np.random.uniform(0, 1, ishape).astype(dtype)
+    w1_data = np.random.uniform(0, 1, wshape).astype(dtype)
 
-        i_data = np.random.uniform(0, 1, ishape).astype(dtype)
-        w1_data = np.random.uniform(0, 1, w1shape).astype(dtype)
+    inputs = OrderedDict([("data", i_data), ("weight", w1_data)])
 
-        inputs = OrderedDict([("data", i_data), ("weight", w1_data)])
-        return mod, inputs, (1, 32, 14, 14)
-
-    def group_conv2d():
-        dtype = "float32"
-        ishape = (1, 32, 14, 14)
-        w2shape = (32, 1, 3, 3)
-
-        data0 = relay.var("data", shape=(ishape), dtype=dtype)
-        weight0 = relay.var("weight", shape=(w2shape), dtype=dtype)
-        out = relay.nn.conv2d(data0, weight0, kernel_size=(3, 3), padding=(1, 1), groups=32)
-        main_f = relay.Function([data0, weight0], out)
-        mod = tvm.IRModule()
-        mod["main"] = main_f
-        mod = transform.InferType()(mod)
-
-        i_data = np.random.uniform(0, 1, ishape).astype(dtype)
-        w_data = np.random.uniform(0, 1, w2shape).astype(dtype)
-
-        inputs = OrderedDict([("data", i_data), ("weight", w_data)])
-        return mod, inputs, (1, 32, 14, 14)
-
-    for mod, inputs, out_shape in [conv2d_direct(), group_conv2d()]:
-        output_list = generate_ref_data(mod, inputs)
-        compile_and_run(
-            mod,
-            inputs,
-            output_list,
-            interface_api,
-            use_unpacked_api,
-            use_calculated_workspaces,
-        )
+    output_list = generate_ref_data(mod, inputs)
+    compile_and_run(
+        AOTTestModel(module=mod, inputs=inputs, outputs=output_list),
+        test_runner,
+        interface_api,
+        use_unpacked_api,
+    )
 
 
 @parametrize_aot_options
-def test_concatenate(interface_api, use_unpacked_api, use_calculated_workspaces):
+def test_concatenate(interface_api, use_unpacked_api, test_runner):
     dtype = "float32"
     x = relay.var("x", shape=(10, 5), dtype=dtype)
     y = relay.var("y", shape=(10, 5), dtype=dtype)
@@ -191,17 +163,15 @@ def test_concatenate(interface_api, use_unpacked_api, use_calculated_workspaces)
 
     output_list = generate_ref_data(func, inputs)
     compile_and_run(
-        func,
-        inputs,
-        output_list,
+        AOTTestModel(module=IRModule.from_expr(func), inputs=inputs, outputs=output_list),
+        test_runner,
         interface_api,
         use_unpacked_api,
-        use_calculated_workspaces,
     )
 
 
 @parametrize_aot_options
-def test_nested_tuples(interface_api, use_unpacked_api, use_calculated_workspaces):
+def test_nested_tuples(interface_api, use_unpacked_api, test_runner):
     x = relay.var("x", shape=(10,))
     x1 = x + relay.const(1.0)
     x2 = x1 + relay.const(1.0)
@@ -215,33 +185,28 @@ def test_nested_tuples(interface_api, use_unpacked_api, use_calculated_workspace
     output_list = generate_ref_data(func, inputs)
 
     compile_and_run(
-        func,
-        inputs,
-        output_list,
+        AOTTestModel(module=IRModule.from_expr(func), inputs=inputs, outputs=output_list),
+        test_runner,
         interface_api,
         use_unpacked_api,
-        use_calculated_workspaces,
     )
 
 
 @parametrize_aot_options
-def test_tuple_getitem(interface_api, use_unpacked_api, use_calculated_workspaces):
+def test_tuple_getitem(interface_api, use_unpacked_api, test_runner):
     func = relay.Function([], relay.TupleGetItem(relay.Tuple([relay.const(1), relay.const(2)]), 0))
     output_list = generate_ref_data(func, {})
-    inputs = {}
 
     compile_and_run(
-        func,
-        inputs,
-        output_list,
+        AOTTestModel(module=IRModule.from_expr(func), inputs={}, outputs=output_list),
+        test_runner,
         interface_api,
         use_unpacked_api,
-        use_calculated_workspaces,
     )
 
 
 @parametrize_aot_options
-def test_id(interface_api, use_unpacked_api, use_calculated_workspaces):
+def test_id(interface_api, use_unpacked_api, test_runner):
     x = relay.var("x", "float32")
     ident = relay.Function([x], x)
     one = np.array(1.0, "float32")
@@ -249,34 +214,29 @@ def test_id(interface_api, use_unpacked_api, use_calculated_workspaces):
     output_list = generate_ref_data(ident, inputs)
 
     compile_and_run(
-        ident,
-        inputs,
-        output_list,
+        AOTTestModel(module=IRModule.from_expr(ident), inputs=inputs, outputs=output_list),
+        test_runner,
         interface_api,
         use_unpacked_api,
-        use_calculated_workspaces,
     )
 
 
 @parametrize_aot_options
-def test_add_const(interface_api, use_unpacked_api, use_calculated_workspaces):
+def test_add_const(interface_api, use_unpacked_api, test_runner):
     two = relay.add(relay.const(1), relay.const(1))
     func = relay.Function([], two)
     output_list = generate_ref_data(func, {})
-    inputs = {}
 
     compile_and_run(
-        func,
-        inputs,
-        output_list,
+        AOTTestModel(module=IRModule.from_expr(func), inputs={}, outputs=output_list),
+        test_runner,
         interface_api,
         use_unpacked_api,
-        use_calculated_workspaces,
     )
 
 
 @parametrize_aot_options
-def test_mul_param(interface_api, use_unpacked_api, use_calculated_workspaces):
+def test_mul_param(interface_api, use_unpacked_api, test_runner):
     x = relay.var("x", shape=(10, 10))
     y = relay.var("y", shape=(1, 10))
     func = relay.Function([x, y], relay.multiply(x, y))
@@ -287,17 +247,15 @@ def test_mul_param(interface_api, use_unpacked_api, use_calculated_workspaces):
     output_list = generate_ref_data(func, inputs)
 
     compile_and_run(
-        func,
-        inputs,
-        output_list,
+        AOTTestModel(module=IRModule.from_expr(func), inputs=inputs, outputs=output_list),
+        test_runner,
         interface_api,
         use_unpacked_api,
-        use_calculated_workspaces,
     )
 
 
 @parametrize_aot_options
-def test_subtract(interface_api, use_unpacked_api, use_calculated_workspaces):
+def test_subtract(interface_api, use_unpacked_api, test_runner):
     i = relay.var("i", shape=[], dtype="int32")
     sub = relay.subtract(i, relay.const(1, dtype="int32"))
     func = relay.Function([i], sub, ret_type=relay.TensorType([], "int32"))
@@ -305,43 +263,39 @@ def test_subtract(interface_api, use_unpacked_api, use_calculated_workspaces):
     inputs = {"i": i_data}
     output_list = generate_ref_data(func, inputs)
     compile_and_run(
-        func,
-        inputs,
-        output_list,
+        AOTTestModel(module=IRModule.from_expr(func), inputs=inputs, outputs=output_list),
+        test_runner,
         interface_api,
         use_unpacked_api,
-        use_calculated_workspaces,
     )
 
 
 @parametrize_aot_options
-def test_tuple_output(interface_api, use_unpacked_api, use_calculated_workspaces):
+def test_tuple_output(interface_api, use_unpacked_api, test_runner):
     x = relay.var("x", shape=(6, 9))
     y = relay.split(x, 3).astuple()
     a = relay.TupleGetItem(y, 0)
     b = relay.TupleGetItem(y, 1)
-    c = relay.TupleGetItem(y, 2)
     out = relay.Tuple([a, b])
     func = relay.Function([x], out)
     x_data = np.random.rand(6, 9).astype("float32")
     inputs = {"x": x_data}
     output_list = generate_ref_data(func, inputs)
     compile_and_run(
-        func,
-        inputs,
-        output_list,
+        AOTTestModel(module=IRModule.from_expr(func), inputs=inputs, outputs=output_list),
+        test_runner,
         interface_api,
         use_unpacked_api,
-        use_calculated_workspaces,
     )
 
 
 @pytest.mark.parametrize(
-    ["use_calculated_workspaces", "workspace_byte_alignment"], [(True, 1), (True, 16), (False, 1)]
+    ["debug_calculated_workspaces", "workspace_byte_alignment"], [(True, 1), (True, 16), (False, 1)]
 )
-def test_mobilenet(use_calculated_workspaces, workspace_byte_alignment):
+def test_mobilenet(debug_calculated_workspaces, workspace_byte_alignment):
     use_unpacked_api = True
     interface_api = "c"
+    test_runner = AOT_DEFAULT_RUNNER
 
     mod, params = testing.mobilenet.get_workload(batch_size=1)
     data_shape = [int(x) for x in mod["main"].checked_type.arg_types[0].shape]
@@ -349,76 +303,20 @@ def test_mobilenet(use_calculated_workspaces, workspace_byte_alignment):
     inputs = {"data": data}
     output_list = generate_ref_data(mod, inputs, params)
     compile_and_run(
-        mod,
-        inputs,
-        output_list,
+        AOTTestModel(module=mod, inputs=inputs, outputs=output_list, params=params),
+        test_runner,
         interface_api,
         use_unpacked_api,
-        use_calculated_workspaces,
-        params,
-        workspace_byte_alignment,
+        workspace_byte_alignment=workspace_byte_alignment,
+        debug_calculated_workspaces=debug_calculated_workspaces,
     )
 
 
-class CcompilerAnnotator(ExprMutator):
-    """
-    This is used to create external functions for ccompiler.
-    A simple annotator that creates the following program:
-           |
-      -- begin --
-           |
-          add
-           |
-        subtract
-           |
-        multiply
-           |
-       -- end --
-           |
-    """
-
-    def __init__(self):
-        super(CcompilerAnnotator, self).__init__()
-        self.in_compiler = 0
-
-    def visit_call(self, call):
-        if call.op.name == "add":  # Annotate begin at args
-            if self.in_compiler == 1:
-                lhs = compiler_begin(super().visit(call.args[0]), "ccompiler")
-                rhs = compiler_begin(super().visit(call.args[1]), "ccompiler")
-                op = relay.add(lhs, rhs)
-                self.in_compiler = 2
-                return op
-        elif call.op.name == "subtract":
-            if self.in_compiler == 1:
-                lhs = super().visit(call.args[0])
-                rhs = super().visit(call.args[1])
-                if isinstance(lhs, relay.expr.Var):
-                    lhs = compiler_begin(lhs, "ccompiler")
-                if isinstance(rhs, relay.expr.Var):
-                    rhs = compiler_begin(rhs, "ccompiler")
-                return relay.subtract(lhs, rhs)
-        elif call.op.name == "multiply":  # Annotate end at output
-            self.in_compiler = 1
-            lhs = super().visit(call.args[0])
-            rhs = super().visit(call.args[1])
-            if isinstance(lhs, relay.expr.Var):
-                lhs = compiler_begin(lhs, "ccompiler")
-            if isinstance(rhs, relay.expr.Var):
-                rhs = compiler_begin(rhs, "ccompiler")
-            op = relay.multiply(lhs, rhs)
-            if self.in_compiler == 2:
-                op = compiler_end(op, "ccompiler")
-            self.in_compiler = 0
-            return op
-        return super().visit_call(call)
-
-
-@pytest.mark.parametrize("use_calculated_workspaces", [True, False])
-def test_byoc_microtvm(use_calculated_workspaces):
+def test_byoc_microtvm():
     """This is a simple test case to check BYOC capabilities of AOT"""
     use_unpacked_api = False
     interface_api = "packed"
+    test_runner = AOT_DEFAULT_RUNNER
 
     x = relay.var("x", shape=(10, 10))
     w0 = relay.var("w0", shape=(10, 10))
@@ -446,7 +344,7 @@ def test_byoc_microtvm(use_calculated_workspaces):
     r = relay.concatenate((q0, q1, q2), axis=0)
     f = relay.Function([x, w0, w1, w2, w3, w4, w5, w6, w7], r)
     mod = tvm.IRModule()
-    ann = CcompilerAnnotator()
+    ann = byoc.CcompilerAnnotator()
     mod["main"] = ann.visit(f)
 
     mod = tvm.relay.transform.PartitionGraph("mod_name")(mod)
@@ -462,18 +360,15 @@ def test_byoc_microtvm(use_calculated_workspaces):
     input_list = [map_inputs["x"]]
     input_list.extend([map_inputs["w{}".format(i)] for i in range(8)])
     compile_and_run(
-        mod,
-        map_inputs,
-        output_list,
+        AOTTestModel(name="my_mod", module=mod, inputs=map_inputs, outputs=output_list),
+        test_runner,
         interface_api,
         use_unpacked_api,
-        use_calculated_workspaces,
-        mod_name="my_mod",
     )
 
 
 @parametrize_aot_options
-def test_add_name_mangling_with_params(interface_api, use_unpacked_api, use_calculated_workspaces):
+def test_add_name_mangling_with_params(interface_api, use_unpacked_api, test_runner):
     x = relay.var("x", shape=(1, 10))
     y = relay.var("y", shape=(1, 10))
     z = relay.add(x, y)
@@ -487,19 +382,15 @@ def test_add_name_mangling_with_params(interface_api, use_unpacked_api, use_calc
     output_list = generate_ref_data(func, inputs, params)
 
     compile_and_run(
-        func,
-        inputs,
-        output_list,
+        AOTTestModel(name="my_mod", module=func, inputs=inputs, outputs=output_list, params=params),
+        test_runner,
         interface_api,
         use_unpacked_api,
-        use_calculated_workspaces,
-        params=params,
-        mod_name="my_mod",
     )
 
 
 @parametrize_aot_options
-def test_multiple_models(interface_api, use_unpacked_api, use_calculated_workspaces):
+def test_multiple_models(interface_api, use_unpacked_api, test_runner):
     # Identity model without params
     x = relay.var("x", "float32")
     mod1 = relay.Function([x], x)
@@ -536,19 +427,18 @@ def @main(%data : Tensor[(1, 3, 64, 64), uint8], %weight : Tensor[(8, 3, 5, 5), 
     inputs2 = {"data": input_data}
     output_list2 = generate_ref_data(mod2, inputs2, params2)
 
-    input_list_map = {"mod1": inputs1, "mod2": inputs2}
-    output_list_map = {"mod1": output_list1, "mod2": output_list2}
-    mod_map = {"mod1": mod1, "mod2": mod2}
-    param_map = {"mod1": params1, "mod2": params2}
-
-    compile_and_run_multiple_models(
-        mod_map,
-        input_list_map,
-        output_list_map,
+    compile_and_run(
+        [
+            AOTTestModel(
+                name="mod1", module=mod1, inputs=inputs1, outputs=output_list1, params=params1
+            ),
+            AOTTestModel(
+                name="mod2", module=mod2, inputs=inputs2, outputs=output_list2, params=params2
+            ),
+        ],
+        test_runner,
         interface_api,
         use_unpacked_api,
-        use_calculated_workspaces,
-        param_map,
     )
 
 
@@ -562,7 +452,7 @@ def test_quant_mobilenet_tfl():
 
     interface_api = "packed"
     use_unpacked_api = False
-    use_calculated_workspaces = True
+    test_runner = AOT_DEFAULT_RUNNER
 
     tflite_model_file = tf_testing.get_workload_official(
         "https://storage.googleapis.com/download.tensorflow.org/"
@@ -578,18 +468,15 @@ def test_quant_mobilenet_tfl():
     inputs = {"input": data}
     output_list = generate_ref_data(mod, inputs, params)
     compile_and_run(
-        mod,
-        inputs,
-        output_list,
+        AOTTestModel(module=mod, inputs=inputs, outputs=output_list, params=params),
+        test_runner,
         interface_api,
         use_unpacked_api,
-        use_calculated_workspaces,
-        params=params,
     )
 
 
 @parametrize_aot_options
-def test_transpose(interface_api, use_unpacked_api, use_calculated_workspaces):
+def test_transpose(interface_api, use_unpacked_api, test_runner):
     """Test that non-inpleaceable operations (e.g., transpose) do not happen in-place."""
 
     dtype = "float32"
@@ -608,15 +495,13 @@ def test_transpose(interface_api, use_unpacked_api, use_calculated_workspaces):
     inputs = {"x": x_data, "y": y_data, "z": t_data}
     output_list = generate_ref_data(func, inputs)
     compile_and_run(
-        func,
-        inputs,
-        output_list,
+        AOTTestModel(module=IRModule.from_expr(func), inputs=inputs, outputs=output_list),
+        test_runner,
         interface_api,
         use_unpacked_api,
-        use_calculated_workspaces,
         enable_op_fusion=False,
     )
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

@@ -139,6 +139,18 @@ def dense(expr, type_map):
     return [out, TensorAffineType(dense_scale, dense_zp, out.attrs.out_dtype)]
 
 
+@register_fake_quantization_to_integer("nn.batch_matmul")
+def batch_matmul(expr, type_map):
+    """Rewrite a batch_matmul op"""
+    x, y = expr.args
+    x_t = type_map[x]
+    y_t = type_map[y]
+    matmul_scale = fold_constant(x_t.scale * y_t.scale)
+    matmul_zp = relay.const(0)
+    out = relay.qnn.op.batch_matmul(x, y, x_t.zero_point, y_t.zero_point, x_t.scale, y_t.scale)
+    return [out, TensorAffineType(matmul_scale, matmul_zp, out.attrs.out_dtype)]
+
+
 @register_fake_quantization_to_integer("concatenate")
 def concat(expr, type_map):
     """Rewrite a concat op"""
