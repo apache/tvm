@@ -629,18 +629,20 @@ StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int read_buff
   // Step 5. Update cache stage info.
   BufferRegion cache_region{nullptr};
   if (Optional<StmtSRef> _write_block_sref = GetOnlyWriteBlock(self, scope_sref, read_buffer)) {
-    // Cond 1. The buffer is the input block for the scope.
+    // Case 1. The buffer is the input block for the scope.
     info.loc_sref = scope_sref;
     info.loc_pos = 0;
-    Optional<BufferRegion> region = RelatedBufferRegion(scope_block->reads, read_buffer);
-    cache_region = region.value_or(BufferRegion::FullRegion(read_buffer));
+    if (Optional<BufferRegion> region = RelatedBufferRegion(scope_block->reads, read_buffer)) {
+      cache_region = region.value();
+    } else {
+      cache_region = BufferRegion::FullRegion(read_buffer);
+    }
   } else {
-    // Cond 2. The buffer is written inside the block.
-    const StmtSRef& write_block_sref = _write_block_sref.value();
+    // Case 2. The buffer is written inside the block.
+    StmtSRef write_block_sref = _write_block_sref.value();
     const BlockNode* write_block = TVM_SREF_TO_BLOCK(write_block, write_block_sref);
     // Find the producing region
-    Optional<BufferRegion> region = RelatedBufferRegion(write_block->writes, read_buffer);
-    ICHECK(region.defined());
+    BufferRegion region = RelatedBufferRegion(write_block->writes, read_buffer).value();
     StmtSRef parent_sref = GetRef<StmtSRef>(write_block_sref->parent);
 
     // Detect insert position
@@ -697,8 +699,7 @@ StmtSRef CacheWrite(ScheduleState self, const StmtSRef& block_sref, int write_bu
   ICHECK_EQ(block_sref.get(), GetOnlyWriteBlock(self, scope_sref, write_buffer).get());
 
   // Step 5. Find the producing region and insert position
-  Optional<BufferRegion> region = RelatedBufferRegion(block->writes, write_buffer);
-  ICHECK(region.defined());
+  BufferRegion region = RelatedBufferRegion(block->writes, write_buffer).value();
   StmtSRef parent_sref = GetRef<StmtSRef>(block_sref->parent);
   // Detect insert position
   CacheLocDetector::Detect(self, block_sref, scope_sref, &info);
