@@ -20,6 +20,7 @@ import numpy as np
 
 import tvm
 from tvm import relay
+from tvm._ffi.base import TVMError
 from .. import op as reg
 
 #################################################
@@ -148,8 +149,21 @@ def helper_no_fast_int8_hw_legalization(attrs, inputs, types, relay_op):
         )
     # Otherwise it needs to be broadcast.
     else:
-        # Determine output axis of kernel.
-        output_axis = tvm.tir.layout(attrs["kernel_layout"]).index_of("O")
+        # Determine output axis of kernel for spatial operations.
+        if hasattr(attrs, "kernel_layout"):
+            output_axis = tvm.tir.layout(attrs["kernel_layout"]).index_of("O")
+        # For dense operations, broadcast to [N, K] layout.
+        elif isinstance(attrs, relay.op.op_attrs.DenseAttrs):
+            output_axis = 0
+        # For matrix multiplication instead expand to [K, N] layout.
+        elif isinstance(attrs, relay.op.op_attrs.MatmulAttrs):
+            output_axis = 1
+        else:
+            raise TVMError(
+                "Legalization of %s is not yet supported with per channel parameters"
+                % str(type(attrs))
+            )
+
         shift_kernel = relay.nn.bias_add(
             relay.cast(kernel, dtype="int16"),
             relay.cast(kernel_zero_point, dtype="int16"),
