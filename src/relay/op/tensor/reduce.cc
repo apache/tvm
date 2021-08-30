@@ -213,8 +213,8 @@ Array<te::Tensor> ReduceCompute(const Attrs& attrs, const Array<te::Tensor>& inp
 }
 
 template <typename F>
-Array<te::Tensor> OneElementReduceCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
-                                          const Type& out_type, F f) {
+Array<te::Tensor> ArgReduceCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
+                                   const Type& out_type, F f) {
   const ArgReduceAttrs* param = attrs.as<ArgReduceAttrs>();
   ICHECK(param != nullptr);
   if (inputs[0]->shape.size() == 0) {
@@ -377,7 +377,7 @@ Expr MakeOneElementReduce(Expr data, Array<Integer> axis, bool keepdims, bool ex
 
 Array<te::Tensor> ArgMaxCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                 const Type& out_type) {
-  return OneElementReduceCompute(attrs, inputs, out_type, topi::argmax);
+  return ArgReduceCompute(attrs, inputs, out_type, topi::argmax);
 }
 
 RELAY_REGISTER_ONE_ELEMENT_REDUCE_OP("argmax")
@@ -393,7 +393,7 @@ values over a given axis.
 
 Array<te::Tensor> ArgMinCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                 const Type& out_type) {
-  return OneElementReduceCompute(attrs, inputs, out_type, topi::argmin);
+  return ArgReduceCompute(attrs, inputs, out_type, topi::argmin);
 }
 
 RELAY_REGISTER_ONE_ELEMENT_REDUCE_OP("argmin")
