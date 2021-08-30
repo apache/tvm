@@ -124,41 +124,60 @@ def convert_batch_norm(g, op, block):
     g.add_node(op.output("Y")[0], out[0])
 
 
-def get_interpolate_mode(op):
-    """conver 'interp_method' attr of paddle to tvm"""
+def convert_bmm(g, op, block):
+    """Operator converter for bmm."""
 
-    interp_method = op.attr("interp_method")
-    align_corners = op.attr("align_corners")
-    align_mode = op.attr("align_mode")
-
-    rounding_method = ""
-    if interp_method == "nearest":
-        interp_method = "nearest_neighbor"
-        coordinate_transformation_mode = "asymmetric"
-        rounding_method = "floor"
-    elif interp_method == "bilinear":
-        interp_method = "linear"
-        if not align_corners and align_mode == 0:
-            coordinate_transformation_mode = "half_pixel"
-        else:
-            if align_corners:
-                coordinate_transformation_mode = "align_corners"
-            else:
-                coordinate_transformation_mode = "asymmetric"
-    elif interp_method == "bicubic":
-        interp_method = "cubic"
-        if align_corners:
-            coordinate_transformation_mode = "align_corners"
-        else:
-            coordinate_transformation_mode = "half_pixel"
+    x = g.get_node(op.input('X')[0])
+    y = g.get_node(op.input('Y')[0])
+    x_shape = infer_shape(x)
+    y_shape = infer_shape(y)
+    if x_shape[0] == 1 and y_shape == 1:
+        x = _op.reshape(x, x_shape[1:])
+        y = _op.reshape(y, y_shape[1:])
+        y = _op.transpose(y, [1, 0])
+        out = _op.nn.dense(x, y)
+        out = _op.expand_dims(out, axis=0)
+        g.add_node(op.output('Out')[0], out)
     else:
-        msg = "interp_method {} is not supported for PaddlePaddle's interpolate"
-        raise tvm.error.OpAttributeInvalid(msg.format(interp_method))
-    return rounding_method, interp_method, coordinate_transformation_mode
+        y = _op.transpose(y, [0, 2, 1])
+        out = _op.nn.batch_matmul(x, y)
+        g.add_node(op.output('Out')[0], out)
 
 
 def convert_interpolate2d(g, op, x, input_shape):
     """Operator converter for interpolate 2D(dims == 4)."""
+
+    def get_interpolate_mode(op):
+        """conver 'interp_method' attr of paddle to tvm"""
+    
+        interp_method = op.attr("interp_method")
+        align_corners = op.attr("align_corners")
+        align_mode = op.attr("align_mode")
+    
+        rounding_method = ""
+        if interp_method == "nearest":
+            interp_method = "nearest_neighbor"
+            coordinate_transformation_mode = "asymmetric"
+            rounding_method = "floor"
+        elif interp_method == "bilinear":
+            interp_method = "linear"
+            if not align_corners and align_mode == 0:
+                coordinate_transformation_mode = "half_pixel"
+            else:
+                if align_corners:
+                    coordinate_transformation_mode = "align_corners"
+                else:
+                    coordinate_transformation_mode = "asymmetric"
+        elif interp_method == "bicubic":
+            interp_method = "cubic"
+            if align_corners:
+                coordinate_transformation_mode = "align_corners"
+            else:
+                coordinate_transformation_mode = "half_pixel"
+        else:
+            msg = "interp_method {} is not supported for PaddlePaddle's interpolate"
+            raise tvm.error.OpAttributeInvalid(msg.format(interp_method))
+        return rounding_method, interp_method, coordinate_transformation_mode
 
     layout = op.attr("data_layout")
     if layout == "NCHW":
@@ -899,6 +918,14 @@ def convert_squeeze(g, op, block):
     g.add_node(op.output("Out")[0], x)
 
 
+def convert_transpose(g, op, block):
+    """Operator converter for transpose."""
+
+    perm = op.attr('axis')
+    out = _op.transpose(g.get_node(op.input('X')[0]), axes=perm)
+    g.add_node(op.output('Out')[0], out)
+
+
 def convert_unsqueeze(g, op, block):
     """Operator converter for unsqueeze."""
 
@@ -915,6 +942,7 @@ _convert_map = {
     "batch_norm": convert_batch_norm,
     "bicubic_interp_v2": convert_interpolate,
     "bilinear_interp_v2": convert_interpolate,
+    "bmm": convert_bmm,
     "cast": convert_cast,
     "concat": convert_concat,
     "conv2d": convert_conv2d,
@@ -954,6 +982,7 @@ _convert_map = {
     "softmax": convert_softmax,
     "squeeze2": convert_squeeze,
     "tanh": convert_activation,
+    "transpose2": convert_transpose,
     "unsqueeze2": convert_unsqueeze,
 }
 
