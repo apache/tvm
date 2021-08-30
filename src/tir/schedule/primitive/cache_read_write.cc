@@ -74,7 +74,7 @@ struct CacheStageInfo {
   /*! \brief The cache_read/cache_write stage to be inserted. */
   Stmt cache_stage;
   /*! \brief The map used for ScheduleStateNode::Replace. */
-  Map<Block, Block> block_map;
+  Map<Block, Block> block_reuse;
 };
 
 /*! \brief Return the buffer region realted with the buffer */
