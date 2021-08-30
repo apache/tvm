@@ -139,9 +139,8 @@ def conv2d(expr, type_map):
     out = relay.qnn.op.conv2d(
         x, weight, x_t.zero_point, w_t.zero_point, x_t.scale, w_t.scale, **attrs
     )
-    scale_shape = infer_shape(conv_scale)
     out_layout = attrs["out_layout"] if attrs["out_layout"] != "" else attrs["data_layout"]
-    out_axis = tvm.tir.bijective_layout(out_layout, "NCHW").backward_index(list(range(4)))[1]
+    out_axis = bijective_layout(out_layout, "NCHW").backward_index(list(range(4)))[1]
     return [out, TensorAffineType(conv_scale, conv_zp, out.attrs.out_dtype, out_axis.value)]
 
 
@@ -252,6 +251,7 @@ def clip(expr, type_map):
 
 @register_fake_quantization_to_integer("nn.relu")
 def relu(expr, type_map):
+    """Rewrite a relu op"""
     arg = expr.args[0]
     t = type_map[arg]
     scale_shape = infer_shape(t.scale)
