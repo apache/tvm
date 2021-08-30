@@ -81,7 +81,7 @@ def schedule_softmax(outs):
         if exp is not None:
             s[exp].compute_at(s[softmax_op], fused_outer_axes)
 
-        if softmax_op != outs[0]:
+        if softmax_op != outs[0].op:
             # fuse softmax output with following elemwise ops.
             output = outs[0]
             outer_axes = [s[output].op.axis[i] for i in range(0, axis)]

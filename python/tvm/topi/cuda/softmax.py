@@ -74,7 +74,8 @@ def schedule_softmax(outs):
         # TODO(tvm-team) Fix nvptx codegen or deprecate nvptx backend.
         def sched_warp_softmax():
             if tgt.kind.name == "nvptx" or tgt.kind.name == "rocm":
-                return softmax_op.dtype == "float32" or softmax_op.dtype == "int32"
+                dtype = softmax_op.output(0).dtype
+                return dtype == "float32" or dtype == "int32"
             if tgt.kind.name != "cuda":
                 # this is used as the gpu schedule for other arches which may not have warp reductions
                 return False
@@ -99,17 +100,25 @@ def schedule_softmax(outs):
             thread_x = te.thread_axis((0, num_thread), "threadIdx.x")
 
             # (4) softmax
-            xo, xi = s[softmax_op].split(softmax_op.axis[1], nparts=num_thread)
-            _, xii = s[softmax_op].split(xi, factor=4)
-            s[softmax_op].vectorize(xii)
-            s[softmax_op].bind(xo, thread_x)
-            s[softmax_op].bind(softmax_op.axis[0], block_x)
+            output = outs[0]
+            xo, xi = s[output].split(output.op.axis[1], nparts=num_thread)
+            _, xii = s[output].split(xi, factor=4)
+            s[output].vectorize(xii)
+            s[output].bind(xo, thread_x)
+            s[output].bind(output.op.axis[0], block_x)
+
+            if softmax_op != outs[0].op:
+                xo2, xi2 = s[softmax_op].split(softmax_op.axis[1], nparts=num_thread)
+                _, xii2 = s[softmax_op].split(xi2, factor=4)
+                s[softmax_op].vectorize(xii2)
+                s[softmax_op].bind(xo2, thread_x)
+                s[softmax_op].compute_at(s[output], xo)
 
             # (3) expsum
             k = expsum.op.reduce_axis[0]
             ko, _ = s[expsum].split(k, nparts=num_thread)
             s[expsum].bind(ko, thread_x)
-            s[expsum].compute_at(s[softmax_op], xo)
+            s[expsum].compute_at(s[output], xo)
 
             # (2) exp
             if delta is not None:
@@ -121,7 +130,7 @@ def schedule_softmax(outs):
                 s[exp].vectorize(xii)
                 s[exp].bind(xo, thread_x)
                 s[exp].compute_at(s[expsum], expsum.op.axis[0])
-                s[exp].compute_at(s[softmax_op], softmax_op.axis[0])
+                s[exp].compute_at(s[output], output.op.axis[0])
                 s[exp].set_scope("warp")
 
             # (1) max_elem
@@ -159,7 +168,7 @@ def schedule_softmax(outs):
             s[output].bind(output.op.axis[0], block_x)
             s[output].bind(tx, thread_x)
 
-            if softmax_op != outs[0]:
+            if softmax_op != outs[0].op:
                 s[softmax_op].compute_at(s[output], tx)
 
     def _callback(op):
