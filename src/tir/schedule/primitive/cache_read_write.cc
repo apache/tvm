@@ -626,12 +626,9 @@ StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int read_buff
   StmtSRef scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/true);
   const BlockNode* scope_block = TVM_SREF_TO_BLOCK(scope_block, scope_sref);
 
-  // Step 4. Find the only writer block if exist.
-  Optional<StmtSRef> _write_block_sref = GetOnlyWriteBlock(self, scope_sref, read_buffer);
-
   // Step 5. Update cache stage info.
-  BufferRegion cache_region;
-  if (!_write_block_sref.defined()) {
+  BufferRegion cache_region{nullptr};
+  if (Optional<StmtSRef> _write_block_sref = GetOnlyWriteBlock(self, scope_sref, read_buffer)) {
     // Cond 1. The buffer is the input block for the scope.
     info.loc_sref = scope_sref;
     info.loc_pos = 0;
