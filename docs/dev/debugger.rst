@@ -153,6 +153,7 @@ How to use Debugger?
      of debug runtime will be slightly different
 
 ::
+
     lib = tvm.runtime.load_module("network.so")
     m = graph_executor.create(lib["get_graph_json"](), lib, dev, dump_root="/tmp/tvmdbg")
     # set inputs
