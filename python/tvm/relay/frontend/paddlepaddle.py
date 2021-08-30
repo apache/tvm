@@ -1096,8 +1096,9 @@ class GraphProto:
 
 def from_paddle(program_or_layer, shape_dict=None, scope=None):
     """Convert a PaddlePaddle model into an equivalent Relay Function.
-    PaddlePaddle Program/TranslatedLayer represent the computation graph of PaddlePaddle model,
-    and PaddlePaddle scope stores all the weights of PaddlePaddle model.
+    PaddlePaddle Program/TranslatedLayer represent the computation
+    graph of PaddlePaddle model, and PaddlePaddle scope stores all the
+    weights of PaddlePaddle model.
     """
 
     import paddle
