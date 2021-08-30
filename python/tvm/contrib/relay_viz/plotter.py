@@ -49,7 +49,7 @@ class Graph(abc.ABC):
         id_start : object
                         the ID to the starting node.
 
-        id_start : object
+        id_end : object
                         the ID to the ending node.
         """
 

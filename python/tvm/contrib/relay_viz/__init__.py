@@ -15,11 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 """Relay IR Visualizer"""
+import logging
 import copy
 from tvm import relay
+from enum import Enum
 
+_LOGGER = logging.getLogger(__name__)
 
-class PlotterBackend:
+class PlotterBackend(Enum):
     """Enumeration for available plotters."""
 
     BOKEH = "bokeh"
@@ -44,10 +47,11 @@ class RelayVisualizer:
                         The backend of plotting. Default "bokeh"
         """
 
-        self._plotter, self._render_cb = get_plotter_and_render_cb(backend)
+        self._plotter, self.render_rules = get_plotter_and_render_cb(backend)
         self._relay_param = relay_param if relay_param is not None else {}
         # This field is used for book-keeping for each graph.
         self._node_to_id = {}
+        # self.test_type = set()
 
         global_vars = relay_mod.get_global_vars()
         graph_names = []
@@ -75,18 +79,50 @@ class RelayVisualizer:
             return
         self._node_to_id[node] = len(self._node_to_id)
 
+    def _render_cb(self, graph, node_to_id, relay_param):
+        """a callback to Add nodes and edges to the graph.
+
+        Parameters
+        ----------
+        graph : class plotter.Graph
+
+        node_to_id : Dict[relay.expr, int]
+
+        relay_param : Dict[string, NDarray]
+        """
+        # Based on https://tvm.apache.org/2020/07/14/bert-pytorch-tvm
+        unknown_type = "unknown"
+        for node, node_id in node_to_id.items():
+            # self.test_type.add(type(node))
+            if type(node) in self.render_rules:
+                graph_info, edge_info = self.render_rules[type(node)](node, relay_param, node_to_id)
+                if graph_info:
+                    graph.node(*graph_info)
+                while edge_info:
+                    this_edge = edge_info.pop(0)
+                    graph.edge(*this_edge)
+            else:
+                unknown_info = "Unknown node: {}".format(type(node))
+                _LOGGER.warning(unknown_info)
+                graph.node(node_id, unknown_type, unknown_info)
+
     def render(self, filename):
         return self._plotter.render(filename=filename)
 
 
 def get_plotter_and_render_cb(backend):
-    if backend == PlotterBackend.BOKEH:
-        from ._bokeh import BokehPlotter, relay_render_cb  # pylint: disable=import-outside-toplevel
+    if backend in PlotterBackend:
+        if backend == PlotterBackend.BOKEH:
+            from ._bokeh import BokehPlotter, BokehRenderCallback  # pylint: disable=import-outside-toplevel
+            plotter = BokehPlotter()
+            render = BokehRenderCallback()
 
-        return BokehPlotter(), relay_render_cb
-    if backend == PlotterBackend.TERMINAL:
-        from ._terminal import TermPlotter, render_cb
+        elif backend == PlotterBackend.TERMINAL:
+            from ._terminal import TermPlotter, TermRenderCallback
+            plotter = TermPlotter()
+            render = TermRenderCallback()
 
-        return TermPlotter(), render_cb
+        render_rules = render.get_rules()
+        return plotter, render_rules
 
     raise ValueError("Unknown plotter backend {}".format(backend))

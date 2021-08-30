@@ -24,84 +24,53 @@ from .plotter import (
     Plotter,
     Graph,
 )
+import functools
 
 import tvm
 from tvm import relay
+from .render_callback import RenderCallback
 
-def render_cb(graph, node_to_id, relay_param):
-    # Based on https://tvm.apache.org/2020/07/14/bert-pytorch-tvm
-    unknown_type = "unknown"
-    for node, node_id in node_to_id.items():
-        if isinstance(node, relay.Function):
-            graph.node(node_id, f"Func", str(node.params))
-            graph.edge(node_to_id[node.body], node_id)
-        elif isinstance(node, relay.Var):
-            name_hint = node.name_hint
-            node_detail = ""
-            node_type = "Var(Param)" if name_hint in relay_param else "Var(Input)"
-            if node.type_annotation is not None:
-                if hasattr(node.type_annotation, "shape"):
-                    shape = tuple(map(int, node.type_annotation.shape))
-                    dtype = node.type_annotation.dtype
-                    node_detail = "name_hint: {}\nshape: {}\ndtype: {}".format(
-                        name_hint, shape, dtype
-                    )
-                else:
-                    node_detail = "name_hint: {}\ntype_annotation: {}".format(
-                        name_hint, node.type_annotation
-                    )
-            graph.node(node_id, node_type, node_detail)
-        elif isinstance(node, relay.GlobalVar):
-            # Dont render this because GlobalVar is put to another graph.
-            pass
-        elif isinstance(node, relay.Tuple):
-            graph.node(node_id, "Tuple", "")
-            for field in node.fields:
-                graph.edge(node_to_id[field], node_id)
-        elif isinstance(node, relay.expr.Constant):
-            node_detail = "shape: {}, dtype: {}".format(node.data.shape, node.data.dtype)
-            graph.node(node_id, "Const", str(node))
-        elif isinstance(node, relay.expr.Call):
-            op_name = unknown_type
-            node_details = []
-            if isinstance(node.op, tvm.ir.Op):
-                op_name = node.op.name
-                if node.attrs:
-                    node_details = [
-                        "{}: {}".format(k, node.attrs.get_str(k)) for k in node.attrs.keys()
-                    ]
-            elif isinstance(node.op, relay.Function):
-                func_attrs = node.op.attrs
-                op_name = "Anonymous Func"
-                if func_attrs:
-                    node_details = [
-                        "{}: {}".format(k, func_attrs.get_str(k)) for k in func_attrs.keys()
-                    ]
-                    # "Composite" might from relay.transform.MergeComposite
-                    if "Composite" in func_attrs.keys():
-                        op_name = func_attrs["Composite"]
-            elif isinstance(node.op, relay.GlobalVar):
-                op_name = "GlobalVar"
-                node_details = [f"GlobalVar.name_hint: {node.op.name_hint}"]
-            else:
-                op_name = str(type(node.op)).split(".")[-1].split("'")[0]
+class TermRenderCallback(RenderCallback):
+    def __init__(self):
+        super().__init__()
 
-            graph.node(node_id, f"Call {op_name}", "\n".join(node_details))
-            args = [node_to_id[arg] for arg in node.args]
-            for arg in args:
-                graph.edge(arg, node_id)
-        elif isinstance(node, relay.expr.TupleGetItem):
-            graph.node(node_id, "TupleGetItem", "idx: {}".format(node.index))
-            graph.edge(node_to_id[node.tuple_value], node_id)
-        elif isinstance(node, tvm.ir.Op):
-            pass
-        elif isinstance(node, relay.Let):
-            graph.node(node_id, "Let", "")
-            graph.edge(node_to_id[node.value], node_id)
-            graph.edge(node_id, node_to_id[node.var])
-        else:
-            unknown_info = "Unknown node: {}".format(type(node))
-            graph.node(node_id, unknown_type, unknown_info)
+    def Call_node(self, node, relay_param, node_to_id):
+        node_id = node_to_id[node]
+        graph_info = [node_id, f"Call", ""]
+        edge_info = [[node_to_id[node.op], node_id]]
+        args = [node_to_id[arg] for arg in node.args]
+        for arg in args:
+            edge_info.append([arg, node_id])
+        return graph_info, edge_info
+
+    def Let_node(self, node, relay_param, node_to_id):
+        node_id = node_to_id[node]
+        graph_info = [node_id, "Let", "(var, val, body)"]
+        edge_info = [[node_to_id[node.var], node_id]]
+        edge_info.append([node_to_id[node.value], node_id])
+        edge_info.append([node_to_id[node.body], node_id])
+        return graph_info, edge_info
+
+    def Global_var_node(self, node, relay_param, node_to_id):
+        node_id = node_to_id[node]
+        graph_info = [node_id, "GlobalVar", node.name_hint]
+        edge_info  = []
+        return graph_info, edge_info
+
+    def If_node(self, node, relay_param, node_to_id):
+        node_id = node_to_id[node]
+        graph_info = [node_id, "If", "(cond, true, false)"]
+        edge_info = [[node_to_id[node.cond], node_id]]
+        edge_info.append([node_to_id[node.true_branch], node_id])
+        edge_info.append([node_to_id[node.false_branch], node_id])
+        return graph_info, edge_info
+
+    def Op_node(self, node, relay_param, node_to_id):
+        node_id = node_to_id[node]
+        op_name = node.name
+        graph_info = [node_id, op_name, ""]
+        edge_info = []
+        return graph_info, edge_info
 
 
 class Node:
@@ -138,23 +107,23 @@ class TermGraph(Graph):
             self._graph[id_end] = [id_start]
 
     def render(self):
-
         lines = []
 
+        @functools.lru_cache()
         def gen_line(indent, n_id):
-            conn_symbol = "|--"
-            last_idx = len(lines) + len(self._graph[n_id]) - 1
-            for next_n_id in self._graph[n_id]:
+            conn_symbol = ["|--", "`--"]
+            last = len(self._graph[n_id]) - 1
+            for i, next_n_id in enumerate(self._graph[n_id]):
                 node = self._id_to_node[next_n_id]
-                lines.append(f"{indent}{conn_symbol}{node.type} {node.other_info}")
-                gen_line(f"  {indent}", next_n_id)
-            if len(self._graph[n_id]):
-                lines[last_idx] = lines[last_idx].replace("|", "`")
+                lines.append(f"{indent}{conn_symbol[i==last]}{node.type} {node.other_info}")
+                next_indent = indent
+                next_indent += "   " if (i == last) else "|  "
+                gen_line(next_indent, next_n_id)
 
         first_node_id = self._node_ids_rpo[0]
         node = self._id_to_node[first_node_id]
         lines.append(f"@{self._name}({node.other_info})")
-        gen_line("  ", first_node_id)
+        gen_line("", first_node_id)
 
         return "\n".join(lines)
 

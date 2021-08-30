@@ -55,101 +55,11 @@ from tvm import relay
 
 _LOGGER = logging.getLogger(__name__)
 
-
-def relay_render_cb(graph, node_to_id, relay_param):
-    """a callback to Add nodes and edges to the graph.
-
-    Parameters
-    ----------
-    graph : class plotter.Graph
-
-    node_to_id : Dict[relay.expr, int]
-
-    relay_param : Dict[string, NDarray]
-    """
-    # Based on https://tvm.apache.org/2020/07/14/bert-pytorch-tvm
-    unknown_type = "unknown"
-    for node, node_id in node_to_id.items():
-        if isinstance(node, relay.Function):
-            node_details = []
-            func_attrs = node.attrs
-            if func_attrs:
-                node_details = [
-                    "{}: {}".format(k, func_attrs.get_str(k)) for k in func_attrs.keys()
-                ]
-
-            graph.node(node_id, f"Func", "\n".join(node_details))
-            graph.edge(node_to_id[node.body], node_id)
-        elif isinstance(node, relay.Var):
-            name_hint = node.name_hint
-            node_detail = ""
-            node_type = "Var(Param)" if name_hint in relay_param else "Var(Input)"
-            if node.type_annotation is not None:
-                if hasattr(node.type_annotation, "shape"):
-                    shape = tuple(map(int, node.type_annotation.shape))
-                    dtype = node.type_annotation.dtype
-                    node_detail = "name_hint: {}\nshape: {}\ndtype: {}".format(
-                        name_hint, shape, dtype
-                    )
-                else:
-                    node_detail = "name_hint: {}\ntype_annotation: {}".format(
-                        name_hint, node.type_annotation
-                    )
-            graph.node(node_id, node_type, node_detail)
-        elif isinstance(node, relay.GlobalVar):
-            # Dont render this because GlobalVar is put to another graph.
-            pass
-        elif isinstance(node, relay.Tuple):
-            graph.node(node_id, "Tuple", "")
-            for field in node.fields:
-                graph.edge(node_to_id[field], node_id)
-        elif isinstance(node, relay.expr.Constant):
-            node_detail = "shape: {}, dtype: {}".format(node.data.shape, node.data.dtype)
-            graph.node(node_id, "Const", node_detail)
-        elif isinstance(node, relay.expr.Call):
-            op_name = unknown_type
-            node_details = []
-            if isinstance(node.op, tvm.ir.Op):
-                op_name = node.op.name
-                if node.attrs:
-                    node_details = [
-                        "{}: {}".format(k, node.attrs.get_str(k)) for k in node.attrs.keys()
-                    ]
-            elif isinstance(node.op, relay.Function):
-                func_attrs = node.op.attrs
-                op_name = "Anonymous Func"
-                if func_attrs:
-                    node_details = [
-                        "{}: {}".format(k, func_attrs.get_str(k)) for k in func_attrs.keys()
-                    ]
-                    # "Composite" might from relay.transform.MergeComposite
-                    if "Composite" in func_attrs.keys():
-                        op_name = func_attrs["Composite"]
-            elif isinstance(node.op, relay.GlobalVar):
-                op_name = "GlobalVar"
-                node_details = [f"name_hint: {node.op.name_hint}"]
-            else:
-                op_name = str(type(node.op)).split(".")[-1].split("'")[0]
-
-            graph.node(node_id, op_name, "\n".join(node_details))
-            args = [node_to_id[arg] for arg in node.args]
-            for arg in args:
-                graph.edge(arg, node_id)
-        elif isinstance(node, relay.expr.TupleGetItem):
-            graph.node(node_id, "TupleGetItem", "idx: {}".format(node.index))
-            graph.edge(node_to_id[node.tuple_value], node_id)
-        elif isinstance(node, tvm.ir.Op):
-            pass
-        elif isinstance(node, relay.Let):
-            graph.node(node_id, "Let", "")
-            graph.edge(node_to_id[node.value], node_id)
-            graph.edge(node_id, node_to_id[node.var])
-        else:
-            unknown_info = "Unknown node: {}".format(type(node))
-            _LOGGER.warning(unknown_info)
-            graph.node(node_id, unknown_type, unknown_info)
+from .render_callback import RenderCallback
 
 
+class BokehRenderCallback(RenderCallback):
+    pass
 
 class NodeDescriptor:
     """Descriptor used by Bokeh plotter."""
