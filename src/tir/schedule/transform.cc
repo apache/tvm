@@ -18,6 +18,7 @@
  */
 
 #include "./transform.h"
+#include "./utils.h"
 
 namespace tvm {
 namespace tir {
@@ -34,12 +35,12 @@ Block WithAnnotation(const BlockNode* block, const String& attr_key, const Objec
 /******** Buffer Related ********/
 Buffer WithScope(const Buffer& buffer, const String& scope) {
   ObjectPtr<BufferNode> new_buffer = make_object<BufferNode>(*buffer.get());
-  ObjectPtr<VarNode> new_var = make_object<VarNode>(buffer->data.get());
+  ObjectPtr<VarNode> new_var = make_object<VarNode>(*buffer->data.get());
   const auto* ptr_type = TVM_TYPE_AS(ptr_type, buffer->data->type_annotation, PointerTypeNode);
-  new_ptr->type_annotation = PointerType(ptr_type->element_type, scope);
-  n->data = Var(new_ptr->name_hint + "_" + scope, new_ptr->type_annotation);
-  n->name = buffer->name + "_" + scope;
-  return Buffer(n);
+  new_var->type_annotation = PointerType(ptr_type->element_type, scope);
+  new_buffer->data = Var(new_var->name_hint + "_" + scope, new_var->type_annotation);
+  new_buffer->name = buffer->name + "_" + scope;
+  return Buffer(new_buffer);
 }
 
 Array<BufferRegion> ReplaceBuffer(Array<BufferRegion> regions, const Buffer& source,

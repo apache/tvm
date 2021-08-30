@@ -78,8 +78,8 @@ struct CacheStageInfo {
 };
 
 /*! \brief Return the buffer region realted with the buffer */
-Optional<BufferRegion> RelatedBufferRegion(const Array<BufferRegion>& buffer_regions,
-                                           const Buffer& buffer) {
+Optional<BufferRegion> GetBufferRegionFromBuffer(const Array<BufferRegion>& buffer_regions,
+                                                 const Buffer& buffer) {
   Optional<BufferRegion> res = NullOpt;
   for (const auto& region : buffer_regions) {
     if (region->buffer.same_as(buffer)) {
@@ -395,7 +395,7 @@ class CacheReadRewriter : public StmtExprMutator {
     Block old_stmt = GetRef<Block>(block);
     // We don't mutate the block which generates info->read_buffer
     if (block != scope_sref_->stmt &&
-        RelatedBufferRegion(block->writes, info_->read_buffer).defined()) {
+        GetBufferRegionFromBuffer(block->writes, info_->read_buffer).defined()) {
       return std::move(old_stmt);
     }
     // Mutate the body
@@ -426,7 +426,7 @@ class CacheReadRewriter : public StmtExprMutator {
         stmt = Block(n);
       }
     }
-    info_->block_map.Set(old_stmt, stmt);
+    info_->block_reuse.Set(old_stmt, stmt);
     return std::move(stmt);
   }
 
@@ -534,7 +534,7 @@ class CacheWriteRewriter : public StmtExprMutator {
         stmt = Block(n);
       }
     }
-    info_->block_map.Set(old_stmt, stmt);
+    info_->block_reuse.Set(old_stmt, stmt);
     return std::move(stmt);
   }
 
@@ -609,10 +609,12 @@ StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int read_buff
    *   - Copy the buffer with the consumed region.
    */
 
-  // Step 1. Check index and getting the target buffer.
+  // Step 1. Check index, getting the target buffer and the parent scope
   const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
   Buffer read_buffer =
       GetNthAccessBuffer(self, GetRef<Block>(block), read_buffer_index, /*is_write=*/false);
+  StmtSRef scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/true);
+  const BlockNode* scope_block = TVM_SREF_TO_BLOCK(scope_block, scope_sref);
 
   // Step 2. Creat CacheStageInfo
   CacheStageInfo info;
@@ -622,17 +624,14 @@ StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int read_buff
   // Create the corresponding buffer allocation
   info.alloc = info.write_buffer;
 
-  // Step 3. Find the parent scope
-  StmtSRef scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/true);
-  const BlockNode* scope_block = TVM_SREF_TO_BLOCK(scope_block, scope_sref);
-
-  // Step 5. Update cache stage info.
+  // Step 3. Update cache stage info.
   BufferRegion cache_region{nullptr};
   if (Optional<StmtSRef> _write_block_sref = GetOnlyWriteBlock(self, scope_sref, read_buffer)) {
     // Case 1. The buffer is the input block for the scope.
     info.loc_sref = scope_sref;
     info.loc_pos = 0;
-    if (Optional<BufferRegion> region = RelatedBufferRegion(scope_block->reads, read_buffer)) {
+    if (Optional<BufferRegion> region =
+            GetBufferRegionFromBuffer(scope_block->reads, read_buffer)) {
       cache_region = region.value();
     } else {
       cache_region = BufferRegion::FullRegion(read_buffer);
@@ -642,22 +641,21 @@ StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int read_buff
     StmtSRef write_block_sref = _write_block_sref.value();
     const BlockNode* write_block = TVM_SREF_TO_BLOCK(write_block, write_block_sref);
     // Find the producing region
-    BufferRegion region = RelatedBufferRegion(write_block->writes, read_buffer).value();
+    BufferRegion region = GetBufferRegionFromBuffer(write_block->writes, read_buffer).value();
     StmtSRef parent_sref = GetRef<StmtSRef>(write_block_sref->parent);
 
     // Detect insert position
     CacheLocDetector::Detect(self, write_block_sref, scope_sref, &info);
-    cache_region =
-        RelaxBufferRegion(self, region.value(), write_block_sref, parent_sref, info.loc_sref);
+    cache_region = RelaxBufferRegion(self, region, write_block_sref, parent_sref, info.loc_sref);
   }
 
-  // Step 6. Making new cache stage block and rewrite readers.
+  // Step 4. Making new cache stage block and rewrite readers.
   Block cache_read_stage = MakeCacheStage(/*cache_region=*/cache_region, /*info=*/&info,
                                           /*storage_scope=*/storage_scope);
   Stmt new_scope = CacheReadRewriter::Rewrite(/*scope_sref=*/scope_sref, /*info=*/&info);
 
-  // Step 7. Replacing and updating flags.
-  self->Replace(scope_sref, new_scope, info.block_map);
+  // Step 5. Replacing and updating flags.
+  self->Replace(scope_sref, new_scope, info.block_reuse);
   StmtSRef result_block_sref = self->stmt2ref.at(cache_read_stage.get());
   self->UpdateAffineFlag(result_block_sref);
   BlockInfo& block_info = self->block_info[result_block_sref];
@@ -678,10 +676,11 @@ StmtSRef CacheWrite(ScheduleState self, const StmtSRef& block_sref, int write_bu
    *   - Find the lowest ancestor of the block and ANY ONE of the producer blocks.
    *   - Copy the buffer with the consumed region.
    */
-  // Step 1. Checking index
+  // Step 1. Checking index, getting the target buffer and the parent scope
   const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
   Buffer write_buffer =
       GetNthAccessBuffer(self, GetRef<Block>(block), write_buffer_index, /*is_write=*/true);
+  StmtSRef scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/true);
 
   // Step 2. Creating CacheStageInfo
   CacheStageInfo info;
@@ -691,29 +690,25 @@ StmtSRef CacheWrite(ScheduleState self, const StmtSRef& block_sref, int write_bu
   // Create the corresponding buffer allocation
   info.alloc = info.read_buffer;
 
-  // Step 3. Find the parent scope
-  StmtSRef scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/true);
-  const BlockNode* scope_block = TVM_SREF_TO_BLOCK(scope_block, scope_sref);
-
-  // Step 4. Check the only writer block.
+  // Step 3. Check the only writer block.
   ICHECK_EQ(block_sref.get(), GetOnlyWriteBlock(self, scope_sref, write_buffer).get());
 
-  // Step 5. Find the producing region and insert position
-  BufferRegion region = RelatedBufferRegion(block->writes, write_buffer).value();
+  // Step 4. Find the producing region and insert position
+  BufferRegion region = GetBufferRegionFromBuffer(block->writes, write_buffer).value();
   StmtSRef parent_sref = GetRef<StmtSRef>(block_sref->parent);
   // Detect insert position
   CacheLocDetector::Detect(self, block_sref, scope_sref, &info);
   BufferRegion cache_region =
-      RelaxBufferRegion(self, region.value(), block_sref, parent_sref, info.loc_sref);
+      RelaxBufferRegion(self, region, block_sref, parent_sref, info.loc_sref);
 
-  // Step 6. Making new cache stage block and rewrite readers.
+  // Step 5. Making new cache stage block and rewrite readers.
   Block cache_write_stage = MakeCacheStage(/*cache_region=*/cache_region, /*info=*/&info,
                                            /*storage_scope=*/storage_scope);
   Stmt new_scope = CacheWriteRewriter::Rewrite(/*scope_sref=*/scope_sref,
                                                /*writer_block_sref=*/block_sref, /*info=*/&info);
 
-  // Step 7. Replacing and updating flags.
-  self->Replace(scope_sref, new_scope, info.block_map);
+  // Step 6. Replacing and updating flags.
+  self->Replace(scope_sref, new_scope, info.block_reuse);
   StmtSRef result_block_sref = self->stmt2ref.at(cache_write_stage.get());
   self->UpdateAffineFlag(result_block_sref);
   BlockInfo& block_info = self->block_info[result_block_sref];

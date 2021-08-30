@@ -56,7 +56,6 @@ void VerifyCachedFlags(const ScheduleState& self);
 const PrimFuncNode* GetRootPrimFunc(const IRModule& mod, const StmtNode* root_block,
                                     GlobalVar* result_g_var);
 
-/******** SRef Tree Related ********/
 /*!
  * \brief Get the root node of the sref tree, which is the root block of the PrimFunc.
  * \param sref The given sref.
