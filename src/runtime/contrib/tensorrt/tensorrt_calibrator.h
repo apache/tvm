@@ -25,6 +25,9 @@
 #ifndef TVM_RUNTIME_CONTRIB_TENSORRT_TENSORRT_CALIBRATOR_H_
 #define TVM_RUNTIME_CONTRIB_TENSORRT_TENSORRT_CALIBRATOR_H_
 
+#include <string>
+#include <vector>
+
 #include "../../cuda/cuda_common.h"
 #include "NvInfer.h"
 
@@ -137,5 +140,4 @@ class TensorRTCalibrator : public nvinfer1::IInt8EntropyCalibrator2 {
 
 }  // namespace runtime
 }  // namespace tvm
-
 #endif  // TVM_RUNTIME_CONTRIB_TENSORRT_TENSORRT_CALIBRATOR_H_
