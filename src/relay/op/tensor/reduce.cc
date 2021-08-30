@@ -320,18 +320,6 @@ bool ArgReduceRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 }
 
 /*!
- * \brief SingleElementArgReduceRel Output type and shape relation evaluation function.
- * \param num_inputs Number of input types in the args.
- * \param attrs The additional attributes of the operator.
- * \param reporter The reporter to report solution to.
- * \return false if This relation cannot be resolved. true if this relation has been resolved.
- */
-bool SingleElementArgReduceRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
-                               const TypeReporter& reporter) {
-  return GenericReduceRel<ArgReduceAttrs>(types, num_inputs, attrs, reporter);
-}
-
-/*!
  * \brief ReduceRel Output type and shape relation evaluation function.
  * \param num_inputs Number of input types in the args.
  * \param attrs The additional attributes of the operator.
@@ -399,7 +387,7 @@ values over a given axis.
 )code" TVM_ADD_FILELINE)
     .set_attrs_type<ArgReduceAttrs>()
     .set_support_level(4)
-    .add_type_rel("ArgReduce", SingleElementArgReduceRel)
+    .add_type_rel("ArgReduce", GenericReduceRel<ArgReduceAttrs>)
     .set_attr<FTVMCompute>("FTVMCompute", ArgMaxCompute)
     .set_attr<TOpPattern>("TOpPattern", kCommReduce);
 
@@ -415,7 +403,7 @@ values over a given axis.
 )code" TVM_ADD_FILELINE)
     .set_attrs_type<ArgReduceAttrs>()
     .set_support_level(4)
-    .add_type_rel("ArgReduce", SingleElementArgReduceRel)
+    .add_type_rel("ArgReduce", GenericReduceRel<ArgReduceAttrs>)
     .set_attr<FTVMCompute>("FTVMCompute", ArgMinCompute)
     .set_attr<TOpPattern>("TOpPattern", kCommReduce);
 
