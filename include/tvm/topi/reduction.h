@@ -520,7 +520,6 @@ inline FCommReduce MakeArgmaxReducer(bool select_last_index = false) {
     PrimExpr update_index = is_bigger || (is_same && proper_index);
     result.push_back(tvm::tir::Select(update_index, lhs[0], rhs[0]));  // idx
     result.push_back(tvm::tir::Select(is_bigger, lhs[1], rhs[1]));     // val
-    LOG(WARNING) << result;
     return result;
   };
   auto fidentity = [&](std::vector<DataType> types) {
