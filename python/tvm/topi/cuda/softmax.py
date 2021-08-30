@@ -102,17 +102,14 @@ def schedule_softmax(outs):
             # (4) softmax
             output = outs[0]
             xo, xi = s[output].split(output.op.axis[1], nparts=num_thread)
-            _, xii = s[output].split(xi, factor=4)
+            xio, xii = s[output].split(xi, factor=4)
             s[output].vectorize(xii)
             s[output].bind(xo, thread_x)
             s[output].bind(output.op.axis[0], block_x)
 
             if softmax_op != outs[0].op:
-                xo2, xi2 = s[softmax_op].split(softmax_op.axis[1], nparts=num_thread)
-                _, xii2 = s[softmax_op].split(xi2, factor=4)
-                s[softmax_op].vectorize(xii2)
-                s[softmax_op].bind(xo2, thread_x)
-                s[softmax_op].compute_at(s[output], xo)
+                s[softmax_op].compute_at(s[output], xio)
+                s[softmax_op].vectorize(softmax_op.axis[1])  # vec_len == 4
 
             # (3) expsum
             k = expsum.op.reduce_axis[0]
