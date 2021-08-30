@@ -41,6 +41,7 @@ We do encourage everyone to work anything they are interested in.
 - [Animesh Jain](https://github.com/anijain2305): @anijain2305 - quantization, relay
 - [Chenfan Jia](https://github.com/jcf94): @jcf94 - auto_scheduler
 - [Ziheng Jiang](https://github.com/ZihengJiang) (PMC): @ZihengJiang - relay, compiler
+- [Manupa Karunaratne](https://github.com/manupa-arm): @manupa-arm - ethos-u, memory planner
 - [Marisa Kirisame](https://github.com/MarisaKirisame): @MarisaKirisame - relay
 - [Wuwei Lin](https://github.com/vinx13): @vinx13 - relay, topi
 - [Yizhi Liu](https://github.com/yzhliu) (PMC): @yzhliu - jvm, topi, relay
@@ -139,6 +140,7 @@ We do encourage everyone to work anything they are interested in.
 - [Leyuan Wang](https://github.com/Laurawly): @Laurawly
 - [Alex Weaver](https://github.com/alex-weaver): @alex-weaver
 - [Logan Weber](https://github.com/weberlo): @weberlo
+- [Matt Welsh](https://github.com/mdw-octoml): @mdw-octoml
 - [Jian Weng](https://github.com/were): @were
 - [Yong Wu](https://github.com/yongwww): @yongwww
 - [Zhao Wu](https://github.com/FrozenGene): @FrozenGene

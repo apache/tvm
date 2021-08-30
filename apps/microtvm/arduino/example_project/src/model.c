@@ -20,7 +20,6 @@
 #include "model.h"
 
 #include "Arduino.h"
-#include "standalone_crt/include/tvm/runtime/crt/internal/aot_executor/aot_executor.h"
 #include "standalone_crt/include/tvm/runtime/crt/stack_allocator.h"
 
 // AOT memory array
