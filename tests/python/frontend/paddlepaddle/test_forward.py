@@ -14,19 +14,20 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import os
 from pathlib import Path
 import shutil
 
 import numpy as np
+
+import paddle
+import paddle.nn as nn
+
 import tvm
 import tvm.testing
 import tvm.topi.testing
 from tvm import relay
 from tvm.contrib import graph_executor
 
-import paddle
-import paddle.nn as nn
 
 PADDLE_TEST_DATA_ROOT_PATH = Path(Path("~").expanduser(), ".tvm_test_data", "paddle")
 PADDLE_TEST_DATA_ROOT_PATH.mkdir(parents=True, exist_ok=True)
@@ -321,6 +322,50 @@ def test_forward_conv():
 
 
 @tvm.testing.uses_gpu
+def test_forward_conv_transpose():
+    # Note we do not test with groups  > 1 because that is not supported
+    # in tvm for conv transpose operations
+
+    class Conv2DTranspose1(nn.Layer):
+        def __init__(self):
+            super(Conv2DTranspose1, self).__init__()
+            self.conv_transpose = nn.Conv2DTranspose(3, 5, 3)
+
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return self.conv_transpose(inputs)
+
+    class Conv2DTranspose2(nn.Layer):
+        def __init__(self):
+            super(Conv2DTranspose2, self).__init__()
+            self.conv_transpose = nn.Conv2DTranspose(
+                3, 5, 3, stride=2, padding=[[0,0],[0,0],[1,2],[3,4]], output_padding=1, bias_attr=True
+            )
+
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return self.conv_transpose(inputs)
+
+    class Conv2DTranspose3(nn.Layer):
+        def __init__(self):
+            super(Conv2DTranspose3, self).__init__()
+            self.conv_transpose = nn.Conv2DTranspose(
+                3, 5, 3, stride=3, padding='VALID', output_padding=2, bias_attr=True
+            )
+
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return self.conv_transpose(inputs)
+
+    # Conv 2D Transpose Tests
+    conv2d_transpose_input_shape = [1, 3, 128, 256]
+    conv2d_transpose_input_data = paddle.rand(conv2d_transpose_input_shape, dtype="float32")
+    verify_model(Conv2DTranspose1(), input_data=conv2d_transpose_input_data)
+    verify_model(Conv2DTranspose2(), input_data=conv2d_transpose_input_data)
+    verify_model(Conv2DTranspose3(), input_data=conv2d_transpose_input_data)
+
+
+@tvm.testing.uses_gpu
 def test_forward_dropout():
     @paddle.jit.to_static
     def dropout(inputs):
@@ -395,6 +440,46 @@ def test_forward_hard_swish():
     input_shape = [1, 3, 10, 10]
     input_data = paddle.rand(input_shape, dtype="float32")
     verify_model(hard_swish, input_data=input_data)
+
+
+@tvm.testing.uses_gpu
+def test_forward_interpolate():
+    class TestBilinear(nn.Layer):
+        def __init__(self):
+            super(TestBilinear, self).__init__()
+            self.conv = nn.Conv2D(3, 5, 3, stride=2)
+
+        def forward(self, x):
+            shape = paddle.shape(x)[2:]
+            y = self.conv(x)
+            return nn.functional.interpolate(y, size=shape, mode="nearest")
+
+    def bilinear_interp1(inputs):
+        return nn.functional.interpolate(inputs, size=[12, 12], mode="bilinear")
+
+    @paddle.jit.to_static
+    def bilinear_interp2(inputs):
+        return nn.functional.interpolate(
+            inputs, scale_factor=[2.0, 1.0], mode="bilinear", align_corners=True, align_mode=1
+        )
+
+    @paddle.jit.to_static
+    def bilinear_interp3(inputs):
+        return nn.functional.interpolate(inputs, scale_factor=[1.0, 2.0], mode="bicubic")
+
+    @paddle.jit.to_static
+    def bilinear_interp4(inputs):
+        return nn.functional.interpolate(
+            inputs, scale_factor=3.0, mode="bicubic", align_corners=True, align_mode=0
+        )
+
+    input_shape = [2, 3, 6, 12]
+    input_data = paddle.rand(input_shape, dtype="float32")
+    verify_model(TestBilinear(), input_data=input_data)
+    verify_model(bilinear_interp1, input_data=input_data)
+    verify_model(bilinear_interp2, input_data=input_data)
+    verify_model(bilinear_interp3, input_data=input_data)
+    verify_model(bilinear_interp4, input_data=input_data)
 
 
 @tvm.testing.uses_gpu
@@ -527,6 +612,44 @@ def test_forward_pool2d():
 
 
 @tvm.testing.uses_gpu
+def test_forward_pad():
+    class Pad1(nn.Layer):
+        def __init__(self):
+            super(Pad1, self).__init__()
+            self.pad = nn.Pad3D(padding=[1, 2, 3, 4, 5, 6], mode="replicate", value=0.5)
+
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return self.pad(inputs)
+
+    @paddle.jit.to_static
+    def pad2(inputs):
+        return paddle.nn.functional.pad(
+            inputs, [1, 3, 1, 4, 1, 0], mode="constant", value=2.2, data_format="NDHWC"
+        )
+
+    @paddle.jit.to_static
+    def pad3(inputs):
+        return paddle.nn.functional.pad(
+            inputs, [2, 3, 1, 0], mode="reflect", value=2.0, data_format="NCHW"
+        )
+
+    @paddle.jit.to_static
+    def pad4(inputs):
+        return paddle.nn.functional.pad(
+            inputs, [2, 1], mode="replicate", value=2.0, data_format="NLC"
+        )
+
+    input_data = paddle.rand([2, 3, 6, 7, 8], dtype="float32")
+    verify_model(Pad1(), input_data=input_data)
+    verify_model(pad2, input_data=input_data)
+    input_data = paddle.rand([2, 4, 3, 5], dtype="float32")
+    verify_model(pad3, input_data=input_data)
+    input_data = paddle.rand([2, 4, 5], dtype="float32")
+    verify_model(pad4, input_data=input_data)
+
+
+@tvm.testing.uses_gpu
 def test_forward_relu():
     @paddle.jit.to_static
     def relu(inputs):
@@ -623,6 +746,27 @@ def test_forward_slice():
 
 
 @tvm.testing.uses_gpu
+def test_forward_squeeze2():
+    @paddle.jit.to_static
+    def squeeze(inputs):
+        return paddle.squeeze(inputs)
+
+    @paddle.jit.to_static
+    def squeeze2(inputs):
+        return paddle.squeeze(inputs, axis=0)
+
+    @paddle.jit.to_static
+    def squeeze3(inputs):
+        return paddle.squeeze(inputs, axis=[0, -1])
+
+    input_shape = [1, 2, 1, 3, 1]
+    input_data = paddle.rand(input_shape, dtype="float32")
+    verify_model(squeeze, input_data=input_data)
+    verify_model(squeeze2, input_data=input_data)
+    verify_model(squeeze3, input_data=input_data)
+
+
+@tvm.testing.uses_gpu
 def test_forward_tanh():
     @paddle.jit.to_static
     def tanh(inputs):
@@ -631,6 +775,17 @@ def test_forward_tanh():
     input_shape = [1, 3, 10, 10]
     input_data = paddle.rand(input_shape, dtype="float32")
     verify_model(tanh, input_data=input_data)
+
+
+@tvm.testing.uses_gpu
+def test_forward_sigmoid():
+    @paddle.jit.to_static
+    def sigmoid(inputs):
+        return nn.functional.sigmoid(inputs)
+
+    input_shape = [10, 10]
+    input_data = paddle.rand(input_shape, dtype="float32")
+    verify_model(sigmoid, input_data=input_data)
 
 
 if __name__ == "__main__":
@@ -648,14 +803,19 @@ if __name__ == "__main__":
     test_forward_gelu()
     test_forward_hard_sigmoid()
     test_forward_hard_swish()
+    test_forward_interpolate()
     test_forward_layer_norm()
     test_forward_leaky_relu()
     test_forward_look_up()
     test_forward_multiply()
     test_forward_matmul()
     test_forward_pool2d()
+    test_forward_pad()
     test_forward_relu()
     test_forward_reshape()
     test_forward_scale()
     test_forward_slice()
+    test_forward_squeeze2()
     test_forward_tanh()
+    test_forward_conv_transpose()
+    test_forward_sigmoid()
