@@ -544,36 +544,36 @@ Report::Report(Array<Map<String, ObjectRef>> calls,
 }
 
 Map<String, ObjectRef> parse_metrics(dmlc::JSONReader* reader) {
-  reader.BeginObject();
+  reader->BeginObject();
   std::string metric_name, metric_value_name;
   Map<String, ObjectRef> metrics;
-  while (reader.NextObjectItem(&metric_name)) {
+  while (reader->NextObjectItem(&metric_name)) {
     ObjectRef o;
-    reader.BeginObject();
-    reader.NextObjectItem(&metric_value_name);
+    reader->BeginObject();
+    reader->NextObjectItem(&metric_value_name);
     if (metric_value_name == "microseconds") {
       double microseconds;
-      reader.Read(&microseconds);
+      reader->Read(&microseconds);
       o = ObjectRef(make_object<DurationNode>(microseconds));
     } else if (metric_value_name == "percent") {
       double percent;
-      reader.Read(&percent);
+      reader->Read(&percent);
       o = ObjectRef(make_object<PercentNode>(percent));
     } else if (metric_value_name == "count") {
       int64_t count;
-      reader.Read(&count);
+      reader->Read(&count);
       o = ObjectRef(make_object<CountNode>(count));
     } else if (metric_value_name == "string") {
       std::string s;
-      reader.Read(&s);
+      reader->Read(&s);
       o = String(s);
     } else {
       LOG(FATAL) << "Cannot parse metric of type " << metric_value_name
                  << " valid types are microseconds, percent, count.";
     }
     metrics.Set(metric_name, o);
-    ICHECK(!reader.NextObjectItem(
-        &metric_value_name));  // Necessary to make sure that the parser hits the end of the object.
+    // Necessary to make sure that the parser hits the end of the object.
+    ICHECK(!reader->NextObjectItem(&metric_value_name));
     // EndObject does not exist, leaving this here for clarity
     // reader.EndObject();
   }
