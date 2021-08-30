@@ -79,7 +79,9 @@ class TensorRTRuntime : public JSONRuntimeBase {
             const int extract_cali_num = dmlc::GetEnv("TENSORRT_NUM_CALI_INT8", 0);
             ICHECK(extract_cali_num != 0);
             num_calibration_batches_remaining_ = extract_cali_num;
-            LOG(INFO) << "settiing up " << num_calibration_batches_remaining_ << " sample data to calibrate data ... ";
+            LOG(INFO) << "settiing up " <<
+                      num_calibration_batches_remaining_ <<
+                      " sample data to calibrate data ... ";
           }
         }
 
@@ -296,7 +298,6 @@ class TensorRTRuntime : public JSONRuntimeBase {
       if (calibrator_ == nullptr) {
         this->CreateCalibratorIfUsingInt8(engine_and_context);
       }
-     
       if (num_calibration_batches_remaining_ == 0) {
         engine_and_context.context->destroy();
         engine_and_context.engine->destroy();
@@ -315,7 +316,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
 
 
 
-  void BuildEngineFromJson(bool use_fp16, int batch_size){
+  void BuildEngineFromJson(bool use_fp16, int batch_size) {
       TensorRTBuilder builder(&logger_, data_entry_, max_workspace_size_, use_implicit_batch_,
                             use_fp16, batch_size, calibrator_.get());
       for (size_t i = 0; i < input_nodes_.size(); ++i) {
@@ -343,13 +344,10 @@ class TensorRTRuntime : public JSONRuntimeBase {
         builder.AddOutput(outputs_[i], EntryID(outputs_[i]));
       }
 
-
       TensorRTEngineAndContext engine_and_context = builder.BuildEngine();
       trt_engine_cache_[std::make_pair(symbol_name_, batch_size)] = engine_and_context;
-        
   }
   
-
   /*! \brief If TVM_TENSORRT_CACHE_DIR is set, will check that directory for
    * already built TRT engines and load into trt_engine_cache_ so they don't
    * have to be built at first inference.

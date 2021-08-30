@@ -25,10 +25,11 @@
 #ifndef TVM_RUNTIME_CONTRIB_TENSORRT_TENSORRT_CALIBRATOR_H_
 #define TVM_RUNTIME_CONTRIB_TENSORRT_TENSORRT_CALIBRATOR_H_
 
-#include "../../cuda/cuda_common.h"
-#include "NvInfer.h"
 #include <string>
 #include <vector>
+
+#include "../../cuda/cuda_common.h"
+#include "NvInfer.h"
 
 namespace tvm {
 namespace runtime {
