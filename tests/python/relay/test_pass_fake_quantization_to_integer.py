@@ -130,7 +130,7 @@ def test_fake_quantize_dense_per_channel():
         x_np = np.random.randint(-128, 127, size=[128, 64], dtype="int8")
         w_np = np.random.randint(-128, 127, size=[256, 64], dtype="int8")
 
-        compare_fq_to_int(op, [x_np, w_np])
+        compare_fq_to_int(op, [x_np, w_np], allow_rounding_error=True)
 
 
 def test_fake_quantize_batch_matmul():
