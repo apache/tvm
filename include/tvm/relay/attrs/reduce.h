@@ -62,13 +62,13 @@ struct ReduceAttrs : public tvm::AttrsNode<ReduceAttrs> {
 };
 
 /*! \brief Attributes for Reduce operators which reduce by finding a single element. E.g. argmin */
-struct OneElementReduceAttrs : public tvm::AttrsNode<OneElementReduceAttrs> {
+struct ArgReduceAttrs : public tvm::AttrsNode<ArgReduceAttrs> {
   Array<Integer> axis;
   bool keepdims;
   bool select_last_index;
   bool exclude;
 
-  TVM_DECLARE_ATTRS(OneElementReduceAttrs, "relay.attrs.OneElementReduceAttrs") {
+  TVM_DECLARE_ATTRS(ArgReduceAttrs, "relay.attrs.ArgReduceAttrs") {
     TVM_ATTR_FIELD(axis)
         .set_default(NullValue<Array<Integer>>())
         .describe(R"code(The axis or axes along which to perform the reduction.

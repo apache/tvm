@@ -38,7 +38,7 @@ namespace tvm {
 namespace relay {
 
 TVM_REGISTER_NODE_TYPE(ReduceAttrs);
-TVM_REGISTER_NODE_TYPE(OneElementReduceAttrs);
+TVM_REGISTER_NODE_TYPE(ArgReduceAttrs);
 TVM_REGISTER_NODE_TYPE(VarianceAttrs);
 
 /*!
@@ -215,7 +215,7 @@ Array<te::Tensor> ReduceCompute(const Attrs& attrs, const Array<te::Tensor>& inp
 template <typename F>
 Array<te::Tensor> OneElementReduceCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                           const Type& out_type, F f) {
-  const OneElementReduceAttrs* param = attrs.as<OneElementReduceAttrs>();
+  const ArgReduceAttrs* param = attrs.as<ArgReduceAttrs>();
   ICHECK(param != nullptr);
   if (inputs[0]->shape.size() == 0) {
     return {topi::identity(inputs[0])};
@@ -328,7 +328,7 @@ bool ArgReduceRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
  */
 bool SingleElementArgReduceRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                                const TypeReporter& reporter) {
-  return GenericReduceRel<OneElementReduceAttrs>(types, num_inputs, attrs, reporter);
+  return GenericReduceRel<ArgReduceAttrs>(types, num_inputs, attrs, reporter);
 }
 
 /*!
@@ -364,7 +364,7 @@ Expr MakeReduce(Expr data, Array<Integer> axis, bool keepdims, bool exclude, Str
 
 Expr MakeOneElementReduce(Expr data, Array<Integer> axis, bool keepdims, bool exclude,
                           bool select_last_index, String op_name) {
-  auto attrs = make_object<OneElementReduceAttrs>();
+  auto attrs = make_object<ArgReduceAttrs>();
   attrs->axis = std::move(axis);
   attrs->keepdims = keepdims;
   attrs->exclude = exclude;
@@ -397,7 +397,7 @@ RELAY_REGISTER_ONE_ELEMENT_REDUCE_OP("argmax")
 values over a given axis.
 
 )code" TVM_ADD_FILELINE)
-    .set_attrs_type<OneElementReduceAttrs>()
+    .set_attrs_type<ArgReduceAttrs>()
     .set_support_level(4)
     .add_type_rel("ArgReduce", SingleElementArgReduceRel)
     .set_attr<FTVMCompute>("FTVMCompute", ArgMaxCompute)
@@ -413,7 +413,7 @@ RELAY_REGISTER_ONE_ELEMENT_REDUCE_OP("argmin")
 values over a given axis.
 
 )code" TVM_ADD_FILELINE)
-    .set_attrs_type<OneElementReduceAttrs>()
+    .set_attrs_type<ArgReduceAttrs>()
     .set_support_level(4)
     .add_type_rel("ArgReduce", SingleElementArgReduceRel)
     .set_attr<FTVMCompute>("FTVMCompute", ArgMinCompute)
