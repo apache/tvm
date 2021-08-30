@@ -75,11 +75,11 @@ class TensorRTRuntime : public JSONRuntimeBase {
         max_batch_size_(-1),
         multi_engine_mode_(false) {
           const bool use_int8 = dmlc::GetEnv("TVM_TENSORRT_USE_INT8", false);
-          if(use_int8){
+          if (use_int8) {
             const int extract_cali_num = dmlc::GetEnv("TENSORRT_NUM_CALI_INT8", 0);
             ICHECK(extract_cali_num != 0);
             num_calibration_batches_remaining_ = extract_cali_num;
-            LOG(INFO) << "settiing up num_calibration_batches_remaining_ as " << num_calibration_batches_remaining_ << " for calibrating data ... ";
+            LOG(INFO) << "settiing up " << num_calibration_batches_remaining_ << " sample data to calibrate data ... ";
           }
         }
 
@@ -140,7 +140,6 @@ class TensorRTRuntime : public JSONRuntimeBase {
 
   /*! \brief Run inference using built engine. */
   void Run() override {
-    
     auto& engine_and_context = GetOrBuildEngine();
     int batch_size = GetBatchSize();
     if (batch_size == 0) return;
@@ -176,15 +175,15 @@ class TensorRTRuntime : public JSONRuntimeBase {
           int num_elements = 1;
           for (int i = 0; i < dims.nbDims; ++i) num_elements *= dims.d[i];
           binding_sizes[binding_index] = num_elements;
-
         }
       }
     }
 
     // add batch data to calibrator
     if(num_calibration_batches_remaining_ > 0){
-      if(calibrator_ != nullptr){
-        LOG(INFO) << "starting adding last " << num_calibration_batches_remaining_ << "-th batch data to calibrator";
+      if (calibrator_ != nullptr) {
+        LOG(INFO) << "starting adding last " << num_calibration_batches_remaining_ << 
+                                                "-th batch data to calibrator";
         std::vector<size_t> input_sizes(binding_sizes.begin(),
                                         binding_sizes.begin() + num_bindings);
         calibrator_->AddBatchData(bindings, input_sizes);
@@ -266,10 +265,10 @@ class TensorRTRuntime : public JSONRuntimeBase {
     int compatible_engine_batch_size = -1;
     bool find_engine_flag = FindCompatibleEngine(batch_size, &compatible_engine_batch_size);
     const bool use_int8 = (dmlc::GetEnv("TVM_TENSORRT_USE_INT8", 0) != 0);
-    if (find_engine_flag && 
-        (!use_int8 || 
-        calibrator_ == nullptr || 
-        (calibrator_ != nullptr && num_calibration_batches_remaining_!=0))){
+    if (find_engine_flag &&
+        (!use_int8 ||
+        calibrator_ == nullptr ||
+        (calibrator_ != nullptr && num_calibration_batches_remaining_ != 0))) {
       // A compatible engine already exists.
       return trt_engine_cache_.at(std::make_pair(symbol_name_, compatible_engine_batch_size));
     }
@@ -286,17 +285,18 @@ class TensorRTRuntime : public JSONRuntimeBase {
                             use_fp16, batch_size);
 
     // Build engine.
-    if(trt_engine_cache_.find(std::make_pair(symbol_name_, batch_size)) == trt_engine_cache_.end()){
+    if (trt_engine_cache_.find(std::make_pair(symbol_name_, batch_size)) == trt_engine_cache_.end()) {
       BuildEngineFromJson(use_fp16, batch_size);
     }
     
-    if(use_int8){
-      TensorRTEngineAndContext& engine_and_context = trt_engine_cache_[std::make_pair(symbol_name_, batch_size)];
-      if(calibrator_ == nullptr){
+    if (use_int8) {
+      TensorRTEngineAndContext& engine_and_context = 
+                                trt_engine_cache_[std::make_pair(symbol_name_, batch_size)];
+      if (calibrator_ == nullptr) {
         this->CreateCalibratorIfUsingInt8(engine_and_context);
       }
      
-      if(num_calibration_batches_remaining_ == 0){ 
+      if (num_calibration_batches_remaining_ == 0) { 
         engine_and_context.context->destroy();
         engine_and_context.engine->destroy();
         LOG(INFO)<<"rebuild builder using INT8 mode";

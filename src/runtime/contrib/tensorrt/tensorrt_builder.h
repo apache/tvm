@@ -27,14 +27,14 @@
 
 #include <tvm/runtime/ndarray.h>
 
-#include <string>
-#include <unordered_map>
-#include <vector>
-
 #include "../json/json_node.h"
 #include "NvInfer.h"
 #include "tensorrt_logger.h"
 #include "tensorrt_ops.h"
+
+#include <string>
+#include <unordered_map>
+#include <vector>
 
 namespace tvm {
 namespace runtime {

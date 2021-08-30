@@ -59,7 +59,7 @@ TensorRTBuilder::TensorRTBuilder(TensorRTLogger* logger,
     builder_->setMaxBatchSize(batch_size_);
   }
   this->calibrator_ = calibrator;
-  if (calibrator != nullptr){
+  if (calibrator != nullptr) {
     use_int8_ = true;
     builder_->setFp16Mode(true);
     builder_->setInt8Mode(true);
