@@ -4752,6 +4752,7 @@ unsupported_onnx_tests = [
     "test_momentum_multiple",
     "test_mvn",
     "test_nesterov_momentum",
+    # When unsqueeze is fully supported, remaining nllloss tests should work:
     "test_nllloss_NC_expanded",
     "test_nllloss_NCd1_expanded",
     "test_nllloss_NCd1_ii_expanded",
