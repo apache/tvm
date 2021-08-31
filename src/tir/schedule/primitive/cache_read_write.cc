@@ -627,17 +627,7 @@ StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int read_buff
   // Step 3. Update cache stage info.
   BufferRegion cache_region{nullptr};
   if (Optional<StmtSRef> _write_block_sref = GetOnlyWriteBlock(self, scope_sref, read_buffer)) {
-    // Case 1. The buffer is the input block for the scope.
-    info.loc_sref = scope_sref;
-    info.loc_pos = 0;
-    if (Optional<BufferRegion> region =
-            GetBufferRegionFromBuffer(scope_block->reads, read_buffer)) {
-      cache_region = region.value();
-    } else {
-      cache_region = BufferRegion::FullRegion(read_buffer);
-    }
-  } else {
-    // Case 2. The buffer is written inside the block.
+    // Case 1. The buffer is written inside the block.
     StmtSRef write_block_sref = _write_block_sref.value();
     const BlockNode* write_block = TVM_SREF_TO_BLOCK(write_block, write_block_sref);
     // Find the producing region
@@ -647,6 +637,16 @@ StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int read_buff
     // Detect insert position
     CacheLocDetector::Detect(self, write_block_sref, scope_sref, &info);
     cache_region = RelaxBufferRegion(self, region, write_block_sref, parent_sref, info.loc_sref);
+  } else {
+    // Case 2. The buffer is the input block for the scope.
+    info.loc_sref = scope_sref;
+    info.loc_pos = 0;
+    if (Optional<BufferRegion> region =
+            GetBufferRegionFromBuffer(scope_block->reads, read_buffer)) {
+      cache_region = region.value();
+    } else {
+      cache_region = BufferRegion::FullRegion(read_buffer);
+    }
   }
 
   // Step 4. Making new cache stage block and rewrite readers.
