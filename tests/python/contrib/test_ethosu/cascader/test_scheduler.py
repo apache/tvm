@@ -14,27 +14,29 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""The NPU cascader.
+import pytest
 
-This component performs inter-operator scheduling to optimize
-for both performance and memory usage on Arm(R) Ethos(TM)-U NPUs.
-"""
-from .stripe_config import StripeConfig
-from .block_config import BlockConfig
-from .propagator import Propagator
-from .graph import (
-    PerformanceInfo,
-    Tensor,
-    Part,
-    TESubgraph,
-    CascaderGraph,
-    BufferMode,
-    register_matcher,
-    create_cascader_graph,
-)
-from .parts import InlinePart, EthosuPart
-from .device_config import EthosuDeviceConfig
-from .tensor_config import TensorConfigState, MemoryRegion, TensorConfig
-from .plan import Plan
-from .scheduler import apply_proposal, cascade
-from .cascader_options import CascaderOptions
+import tvm.contrib.ethosu.cascader as cs
+
+
+def test_cascade(SRAM, FLASH, TwoConv2DWithSliceTE, TwoConv2DTE, MobileNetv1StartTE, MobileNetv1TE):
+    fixtures = [
+        TwoConv2DTE,
+        TwoConv2DWithSliceTE,
+        MobileNetv1StartTE,
+        MobileNetv1TE,
+    ]
+    device_config = cs.EthosuDeviceConfig("ethos-u55-256")
+    for sch, te_graph, const_dict in fixtures:
+        options = cs.CascaderOptions(
+            cascade_region=SRAM,
+            max_proposals=64,
+            stripe_factors=4,
+            max_plan_size=10,
+            always_copy_size=1024,
+        )
+        cs.cascade(sch, te_graph, const_dict, options, SRAM, FLASH, [SRAM], device_config)
+
+
+if __name__ == "__main__":
+    pytest.main([__file__])
