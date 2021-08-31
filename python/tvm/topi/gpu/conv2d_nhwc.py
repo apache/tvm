@@ -54,7 +54,7 @@ def schedule_conv2d_nhwc_direct(cfg, s, Conv):
     cfg.define_knob("vthread_n", [1] if dynamic_batch else [1, 2])
     cfg.define_knob("vthread_c", [1, 2])
     cfg.define_knob("step", [16, 3, 32, 64])
-    cfg.define_knob("vectorize", [1, 2, 4, 8, 16])
+    cfg.define_knob("vectorize", [1, 2, 4, 8])
 
     # fallback support
     target = tvm.target.Target.current()
