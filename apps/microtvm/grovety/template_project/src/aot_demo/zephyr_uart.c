@@ -73,6 +73,21 @@ uint32_t TVMPlatformWriteSerial(const char* data, uint32_t size) {
   return size;
 }
 
+int tvm_printf_cb(char c, void* ctx)
+{
+    uart_poll_out(g_microtvm_uart, c);
+    return (int)(unsigned char)c;
+}
+
+
+void TVMLogf(const char* msg, ...) {
+  va_list args;
+  va_start(args, msg);
+  cbvprintf(tvm_printf_cb, NULL, msg, args);
+  va_end(args);
+}
+
+
 // Initialize UART
 void TVMPlatformUARTInit() {
   // Claim console device.

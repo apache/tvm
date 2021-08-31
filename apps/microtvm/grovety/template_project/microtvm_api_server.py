@@ -61,7 +61,12 @@ IS_TEMPLATE = not (API_SERVER_DIR / MODEL_LIBRARY_FORMAT_RELPATH).exists()
 def check_call(cmd_args, *args, **kwargs):
     cwd_str = "" if "cwd" not in kwargs else f" (in cwd: {kwargs['cwd']})"
     _LOG.info("run%s: %s", cwd_str, " ".join(shlex.quote(a) for a in cmd_args))
-    return subprocess.check_call(cmd_args, *args, **kwargs)
+    try:
+        subprocess.check_call(cmd_args, *args, **kwargs)
+    except subprocess.CalledProcessError as e:
+        print(e.output)
+        raise e
+
 
 
 CACHE_ENTRY_RE = re.compile(r"(?P<name>[^:]+):(?P<type>[^=]+)=(?P<value>.*)")
@@ -291,6 +296,10 @@ class Handler(server.ProjectAPIHandler):
                 "CONFIG_RING_BUFFER=y\n"
                 "CONFIG_UART_CONSOLE=n\n"
                 "CONFIG_UART_INTERRUPT_DRIVEN=y\n"
+                "CONFIG_NEWLIB_LIBC_FLOAT_PRINTF=y\n"
+                "CONFIG_NEWLIB_LIBC_FLOAT_SCANF=y\n"
+                "CONFIG_CBPRINTF_FP_SUPPORT=y\n"
+                "CONFIG_CBPRINTF_FULL_INTEGRAL=y\n"
                 "\n"
             )
             f.write("# For TVMPlatformAbort().\n" "CONFIG_REBOOT=y\n" "\n")

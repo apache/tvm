@@ -61,6 +61,15 @@ if __name__ == "__main__":
     data_dir = current_dir / "mnist_data"
     relay_mod, params, input, output = open_mnist8_model(data_dir)
 
+    # from PIL import Image
+    # digit_2 = Image.open(data_dir / "digit-2.jpg").resize((28, 28))
+    # digit_2 = np.asarray(digit_2).astype("float32")
+    # digit_2 = np.reshape(digit_2, -1)
+    # print(','.join(str(e) for e in digit_2))
+    # # print(np.array2string(digit_2, precision=2, separator=',', suppress_small=True, suffix='', prefix='', max_line_width=10000))
+    # exit(0)
+
+
     input_tensor, input_shape, input_dtype = input
     output = 'output', output[1], output[2] # TODO check TVM's code generation of default_lib0.c
     output_tensor, output_shape, output_dtype = output
@@ -90,22 +99,22 @@ if __name__ == "__main__":
     create_header_file(generated_include_path, input, output)
 
     project.build()
-
-    from PIL import Image
-    digit_2 = Image.open(data_dir / "digit-2.jpg").resize((28, 28))
-    digit_2 = np.asarray(digit_2).astype("float32")
-    digit_2 = np.expand_dims(digit_2, axis=0)
-
-    digit_9 = Image.open(data_dir / "digit-9.jpg").resize((28, 28))
-    digit_9 = np.asarray(digit_9).astype("float32")
-    digit_9 = np.expand_dims(digit_9, axis=0)
+    project.flash()
 
 
-    # project.flash()
+    with project.transport() as transport:
+        from PIL import Image
+        image_files = ["digit-2.jpg", "digit-9.jpg"]
+        
+        for file in image_files:
+            img = Image.open(data_dir / file).resize((28, 28))
+            img = np.asarray(img).astype("float32")
+            img = np.reshape(img, -1)
+            str = ','.join(str(e) for e in img)
 
-    # with project.transport() as transport:
-    #     for x in np.arange(0, 2, 0.1):
-    #         transport.write(bytes(f"#input:{x}\n", 'UTF-8'), timeout_sec=5)
-    #         result_line = get_message(transport, "#result", timeout_sec=5)
-    #         r = result_line.strip("\n").split(":")
-    #         logging.info(f"sin({x:.2f}) = {r[1]:.3f}     time: {r[2]} us")
+            transport.write(bytes(f"#input:{str}\n", 'UTF-8'), timeout_sec=10)
+            result_line = get_message(transport, "#result", timeout_sec=10)
+            r = result_line.strip("\n").split(":")
+            elapsed = int(r[2])
+
+            logging.info(f"mnist result = {r[1]}     time: {elapsed} us")

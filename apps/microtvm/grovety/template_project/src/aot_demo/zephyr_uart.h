@@ -33,18 +33,12 @@
  */
 uint32_t TVMPlatformUartRxRead(uint8_t* data, uint32_t data_size_bytes);
 
-/*!
- * \brief Write data in serial.
- * \param data Pointer to data to write.
- * \param size Size of data in bytes.
- *
- * \return Number of write in bytes.
- */
-uint32_t TVMPlatformWriteSerial(const char* data, uint32_t size);
 
 /*!
  * \brief Initialize Uart.
  */
 void TVMPlatformUARTInit();
+
+void TVMLogf(const char* msg, ...);
 
 #endif /* TVM_APPS_MICROTVM_ZEPHYR_AOT_DEMO_INCLUDE_ZEPHYR_UART_H_ */

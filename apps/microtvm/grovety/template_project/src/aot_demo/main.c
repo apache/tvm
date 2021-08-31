@@ -37,7 +37,7 @@
 #include "posix_board_if.h"
 #endif
 
-#define WORKSPACE_SIZE (200 * 1024)
+#define WORKSPACE_SIZE (216 * 1024)
 
 static uint8_t g_aot_memory[WORKSPACE_SIZE];
 tvm_workspace_t app_workspace;
@@ -45,16 +45,6 @@ tvm_workspace_t app_workspace;
 size_t TVMPlatformFormatMessage(char* out_buf, size_t out_buf_size_bytes, const char* fmt,
                                 va_list args) {
   return vsnprintk(out_buf, out_buf_size_bytes, fmt, args);
-}
-
-void TVMLogf(const char* msg, ...) {
-  char buffer[256];
-  int size;
-  va_list args;
-  va_start(args, msg);
-  size = vsprintf(buffer, msg, args);
-  va_end(args);
-  TVMPlatformWriteSerial(buffer, (uint32_t)size);
 }
 
 void TVMPlatformAbort(tvm_crt_error_t error) {
@@ -150,12 +140,14 @@ void* TVMBackendAllocWorkspace(int device_type, int device_id, uint64_t nbytes, 
   return ptr;
 }
 
+
 int TVMBackendFreeWorkspace(int device_type, int device_id, void* ptr) {
   tvm_crt_error_t err = kTvmErrorNoError;
   DLDevice dev = {device_type, device_id};
   err = TVMPlatformMemoryFree(ptr, dev);
   return err;
 }
+
 
 static uint8_t cmd_buf[512];
 #include <ctype.h>
@@ -189,6 +181,7 @@ float _strtof(const char* start, const char** end) {
   *end = ptr;
   return sign * (i_part + f_part);
 }
+
 
 // Wait for input command
 float get_input() {
@@ -229,12 +222,26 @@ float get_input() {
 
     int val1 = (int)(val * 1000);
 
-    TVMLogf("Readed val: %d.%03d  len = %d\n", val1 / 1000, abs(val1 % 1000), (int)(end - ptr));
+    // TVMLogf("Readed val: %d.%03d  len = %d\n", val1 / 1000, abs(val1 % 1000), (int)(end - ptr));
 
     return val;
   }
   return 0;
 }
+
+
+void print_result(double elapsed_time)
+{
+    TVMLogf("#result:");
+    for (int i = 0; i < OUTPUT_DATA_LEN; i++) {
+      float y = output_data[i];
+      TVMLogf("%.3f", y);
+      if (i < OUTPUT_DATA_LEN - 1)
+        TVMLogf(",");
+    }
+    TVMLogf(":%d\n", (uint32_t)(elapsed_time * 1000000));
+}
+
 
 void main(void) {
   TVMPlatformUARTInit();
@@ -252,26 +259,20 @@ void main(void) {
   StackMemoryManager_Init(&app_workspace, g_aot_memory, WORKSPACE_SIZE);
 
   for (int index = 0;; index++) {
-    TVMLogf("Step %3d..... ", index);
-    input_data[0] = get_input();
-    double elapsed_time = 0;
 
+    input_data[0] = get_input();
+
+    double elapsed_time = 0;
     TVMPlatformTimerStart();
     int ret_val = tvmgen_default_run(&inputs, &outputs);
     TVMPlatformTimerStop(&elapsed_time);
-    TVMLogf("DONE: \n");
 
     if (ret_val != 0) {
       TVMLogf("Error: %d\n", ret_val);
       TVMPlatformAbort(kTvmErrorPlatformCheckFailure);
     }
 
-    float y = output_data[0];
-
-    int y1 = (int)(y * 1000);
-    TVMLogf("#result:%d.%03d:%d\n", y1 / 1000, abs(y1 % 1000), (uint32_t)(elapsed_time * 1000000));
-
-    printf("%f\n", y);
+    print_result(elapsed_time);
   }
 #ifdef CONFIG_ARCH_POSIX
   posix_exit(0);
