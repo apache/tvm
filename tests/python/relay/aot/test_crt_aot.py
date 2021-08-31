@@ -503,9 +503,12 @@ def test_transpose(interface_api, use_unpacked_api, test_runner):
     )
 
 
-@parametrize_aot_options
-def test_name_sanitiser(interface_api, use_unpacked_api, test_runner):
+def test_name_sanitiser():
     """Test that input tensors with special characters in the name don't break compilation"""
+
+    interface_api = "c"
+    use_unpacked_api = True
+    test_runner = AOT_DEFAULT_RUNNER
 
     func = relay.var("input-x::2", "float32")
     ident = relay.Function([func], func)
@@ -522,9 +525,12 @@ def test_name_sanitiser(interface_api, use_unpacked_api, test_runner):
     )
 
 
-@parametrize_aot_options
-def test_name_sanitiser_name_clash(interface_api, use_unpacked_api, test_runner):
+def test_name_sanitiser_name_clash():
     """Test that 2 input tensors with names that clash once sanitized, generates an error"""
+
+    interface_api = "c"
+    use_unpacked_api = True
+    test_runner = AOT_DEFAULT_RUNNER
 
     dtype = "float32"
     x = relay.var("input::-1", shape=(10, 5), dtype=dtype)
