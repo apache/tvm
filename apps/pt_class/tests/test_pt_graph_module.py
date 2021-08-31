@@ -52,7 +52,7 @@ def test_use_pt_graph_module():
             ctx = tvm.cpu(0)
 
         graph, lib, params = relay.build(tvm.IRModule.from_expr(func), target=target, params=params)
-        mod = graph_runtime.create(graph, lib, ctx=ctx)
+        mod = graph_runtime.create(graph, lib, device=ctx)
         mod.set_input(**params)
         mod.set_input(x=x_data)
         mod.run()
@@ -85,7 +85,15 @@ def test_use_pt_graph_module():
         tvm_assets = ["mod.so", "graph.json", "params"]
         assets = [os.path.join(export_dir, i) for i in tvm_assets]
         engine.init((x.shape, y.shape), *assets)
-        outputs = engine.forward([torch.Tensor(x), torch.Tensor(y)])
+
+        def get_inputs_by_device(device):
+            if device == 'cpu':
+                inputs = [torch.Tensor(x), torch.Tensor(y)]
+            else:
+                inputs = [torch.Tensor(x).cuda(), torch.Tensor(y).cuda()]
+            return inputs
+
+        outputs = engine.forward(get_inputs_by_device(device))
         tvm.testing.assert_allclose(outputs[0].cpu(), expect, atol=1e-5, rtol=1e-5)
 
         if trace:
@@ -95,7 +103,7 @@ def test_use_pt_graph_module():
             scripted_path = os.path.join(scripted_dir, 'model.pt')
             scripted.save(scripted_path)
             loaded = torch.jit.load(scripted_path)
-            outputs = loaded.forward([torch.Tensor(x), torch.Tensor(y)])
+            outputs = loaded.forward(get_inputs_by_device(device))
             tvm.testing.assert_allclose(outputs[0].cpu(), expect, atol=1e-5, rtol=1e-5)
             del scripted
             del loaded
@@ -103,7 +111,7 @@ def test_use_pt_graph_module():
         if to_device:
             print('################ Test move from [{}] to [{}] #################'.format(device, to_device))
             engine = engine.to(to_device)
-            outputs = engine.forward([torch.Tensor(x), torch.Tensor(y)])
+            outputs = engine.forward(get_inputs_by_device(to_device))
             tvm.testing.assert_allclose(outputs[0].cpu(), expect, atol=1e-5, rtol=1e-5)
         del engine
 

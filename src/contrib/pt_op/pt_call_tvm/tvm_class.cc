@@ -22,15 +22,17 @@
 #include "../unset_log_macros.h"
 // clang-format on
 #include <dlpack/dlpack.h>
+#include <tvm/runtime/container/adt.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/module.h>
-#include <tvm/runtime/container/adt.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/vm/vm.h>
+
 #include <map>
 #include <string>
 #include <vector>
+
 #include "../utils.h"
 
 namespace tvm {
@@ -82,6 +84,7 @@ class TvmGraphModulePack {
     set_input = module_.GetFunction("set_input_zero_copy");
     run = module_.GetFunction("run");
     get_output = module_.GetFunction("get_output");
+    set_output = module_.GetFunction("set_output_zero_copy");
     num_outputs_ = module_.GetFunction("get_num_outputs")();
   }
 
@@ -131,6 +134,7 @@ class TvmGraphModulePack {
   tvm::runtime::PackedFunc set_input;
   tvm::runtime::PackedFunc run;
   tvm::runtime::PackedFunc get_output;
+  tvm::runtime::PackedFunc set_output;
 
  private:
   tvm::runtime::Module module_;
@@ -299,11 +303,20 @@ class BaseTvmClass : public torch::jit::CustomClassHolder {
 
   int64_t device_id() const { return device_id_; }
 
-  std::string device() const {
-    auto torch_device_type =
-        device_type() == kDLCUDA ? torch::DeviceType::CUDA : torch::DeviceType::CPU;
-    return torch::Device(torch_device_type, device_id()).str();
+  c10::DeviceType torch_device_type() const {
+    return device_type() == kDLCUDA ? torch::DeviceType::CUDA : torch::DeviceType::CPU;
   }
+
+  bool is_on_same_device(const torch::Tensor& tensor) const {
+    auto tensor_device_type = tensor.device().type();
+    if (tensor_device_type == torch::DeviceType::CUDA) {
+      return tensor_device_type == torch_device_type() && device_id() == tensor.device().index();
+    }
+    CHECK_EQ(tensor_device_type, torch::DeviceType::CPU);
+    return tensor_device_type == torch_device_type();
+  }
+
+  std::string device() const { return torch::Device(torch_device_type(), device_id()).str(); }
 
   /*!
    * \brief Module forward.
@@ -347,16 +360,18 @@ class TvmGraphRuntimeClass : public BaseTvmClass {
 
     for (int i = 0; i < num_inputs_; ++i) {
       at::Tensor inp = inputs[i];
+      CHECK(is_on_same_device(inp))
+          << "input #" << i
+          << " of forward is not on the same device with TvmGraphRuntime, expected " << device()
+          << " but got " << inp.device().str();
       inp = inp.contiguous();
       buf_infos.emplace_back(inp);
-      auto& input_buf = buf_infos.back();
+      auto& input_buf = buf_infos[i];
       input_buf.CopyFromOrigin();
       input_buf.MakeDLTensor(&args[i]);
       tvm_pack.set_input(i, &args[i]);
     }
-    // run tvm
-    tvm_pack.run();
-    // get outputs
+    // prepare output buffers
     c10::List<at::Tensor> outputs;
     outputs.reserve(num_outputs_);
 
@@ -374,9 +389,13 @@ class TvmGraphRuntimeClass : public BaseTvmClass {
 
       outputs.emplace_back(torch::empty(output_shape, options));
       buf_infos.emplace_back(outputs[i]);
-      auto& output_buf = buf_infos.back();
+      auto& output_buf = buf_infos[num_inputs_ + i];
       output_buf.MakeDLTensor(&args[num_inputs_ + i]);
-      output_arr.CopyTo(&args[num_inputs_ + i]);
+      tvm_pack.set_output(i, &args[num_inputs_ + i]);
+    }
+    tvm_pack.run();
+    for (int i = 0; i < num_outputs_; ++i) {
+      auto& output_buf = buf_infos[num_inputs_ + i];
       output_buf.CopyToOrigin();
     }
     return outputs;
