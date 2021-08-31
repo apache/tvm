@@ -156,6 +156,10 @@ VulkanDeviceProperties::VulkanDeviceProperties(const VulkanInstance& instance,
   device_name = properties.properties.deviceName;
   driver_version = properties.properties.driverVersion;
 
+  if (device.HasExtension("VK_KHR_driver_properties")) {
+    driver_name = driver.driverName;
+  }
+
   switch (properties.properties.deviceType) {
     case VK_PHYSICAL_DEVICE_TYPE_OTHER:
       device_type = "other";
