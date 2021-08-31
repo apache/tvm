@@ -44,19 +44,15 @@ if __name__ == '__main__':
     sine_model_path = download_sine_model()
 
 
-    relay_mod, params, input = open_tflite_model(sine_model_path)
+    relay_mod, params, input, _ = open_tflite_model(sine_model_path)
     input_tensor, input_shape, input_dtype = input
 
-    print_relay(relay_mod, params)
-
     relay_mod = relay.transform.DynamicToStatic()(relay_mod)
-
 
     target = tvm.target.target.micro(target, options=["-link-params=1"])
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         lowered = relay.build(relay_mod, target, params=params)
         graph = lowered.get_graph_json()
-
 
     project = tvm.micro.generate_project(
         str(TEMPLATE_PROJECT_DIR),
