@@ -221,7 +221,7 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
       device_context_map.insert({expr, dev});
     }
 
-    IRModule new_mod =
+    IRModule lowered_mod =
         LowerTEPass(targets_, device_context_map, memory_plan_, mod_name_, [this](Function func) {
           // We need to maintain the constant map for external
           // functions so we pass this processing function which
@@ -236,9 +236,13 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
           tec::UpdateFunctionMetadata(func, this->function_metadata_);
         })(mod);
 
-    tec::LoweredModule lowered_module = tec::IRModuleToLoweredModule(new_mod);
-    function_metadata_.Set(runtime::symbol::tvm_module_main, lowered_module.main_func_info);
-    auto main_module = lowered_module.main_module;
+    Optional<backend::FunctionInfo> main_func_info =
+        lowered_mod->GetAttr<backend::FunctionInfo>("main_func_info");
+    ICHECK(main_func_info) << "The attribute \"main_func_info\" should be set at this point.";
+    function_metadata_.Set(runtime::symbol::tvm_module_main, main_func_info.value());
+
+    // Get only the Relay functions out of the lowered module so we can run type inference on them
+    IRModule main_module = tec::GetMainModule(lowered_mod);
     main_module = relay::transform::InferType()(main_module);
     relay::Function main_func = Downcast<relay::Function>(main_module->Lookup("main"));
 
@@ -270,8 +274,13 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
           std::make_pair(static_cast<int>(param_storage_ids_[param.first]), param.second)));
     }
     ret.function_metadata = std::move(function_metadata_);
-    ret.lowered_funcs = lowered_module.per_target_module;
-    ret.external_mods = lowered_module.external_mods;
+
+    Optional<Array<tvm::runtime::Module>> external_modules =
+        lowered_mod->GetAttr<Array<tvm::runtime::Module>>("external_mods");
+    // This is the point where we separate the functions in the module by target
+
+    ret.lowered_funcs = tec::GetPerTargetModules(lowered_mod);
+    ret.external_mods = external_modules.value();
     return ret;
   }
 
