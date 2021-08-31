@@ -25,9 +25,9 @@ def tvm_repo_root():
 
 def create_workspace_dir(platform, project_name, mkdir=True):
     _, zephyr_board = PLATFORMS[platform]
-    parent_dir = pathlib.Path(os.path.dirname(__file__)).resolve()
+    current_dir = pathlib.Path(os.path.dirname(__file__)).resolve()
     board_workspace = (
-        parent_dir
+        current_dir
         / f"workspace/{project_name}_{zephyr_board}"
         / datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
     )
@@ -75,13 +75,14 @@ def open_tflite_model(model_path: str):
     input_details = interpreter.get_input_details()
     output_details = interpreter.get_output_details()
 
-    input = input_details[0]
-    input_tensor = input["name"]
-    input_shape = tuple(input["shape"])
-    input_dtype = input["dtype"].__name__
+    in0 = input_details[0]
+    out0 = output_details[0]
 
-    relay_mod, params = relay.frontend.from_tflite(tflite_model, shape_dict={input_tensor: input_shape}, dtype_dict={input_tensor: input_dtype})
-    return (relay_mod, params, (input_tensor, input_shape, input_dtype))
+    input = (in0["name"], tuple(in0["shape"]), in0["dtype"].__name__)
+    output = (out0["name"], tuple(out0["shape"]), out0["dtype"].__name__)
+
+    relay_mod, params = relay.frontend.from_tflite(tflite_model)#, shape_dict={input_tensor: input_shape}, dtype_dict={input_tensor: input_dtype})
+    return (relay_mod, params, input, output)
 
 
 def print_relay(relay, params, show_metadata=True, optimize=False):
@@ -90,3 +91,54 @@ def print_relay(relay, params, show_metadata=True, optimize=False):
 
     text = relay.astext(show_meta_data=show_metadata)
     print(text)
+
+
+def create_header_file(output_path, input, output):
+    import numpy as np
+    
+    c_types = {
+        'int8': 'int8_t',
+        'int32': 'int32_t',
+        'uint8': 'uint8_t',
+        'float32': 'float'
+    }
+
+    input_tensor, input_shape, input_dtype = input
+    output_tensor, output_shape, output_dtype = output
+
+    file_path = pathlib.Path(f"{output_path}/model_data.h").resolve()
+
+    with open(file_path, "w") as header_file:
+        header_file.write(
+            "#include <stddef.h>\n"\
+            "#include <stdint.h>\n"\
+            "#include <dlpack/dlpack.h>\n\n"\
+            f"#define model_input_0 {input_tensor}\n"\
+            f"#define INPUT_DATA_LEN {np.prod(input_shape)}\n\n"\
+            f"{c_types[input_dtype]} input_data[INPUT_DATA_LEN] = {{0}};\n\n"\
+            f"#define OUTPUT_DATA_LEN {np.prod(output_shape)}\n"\
+            f"{c_types[output_dtype]} output_data[OUTPUT_DATA_LEN] = {{0}};\n\n"
+        )
+
+
+def read_line(fd, timeout_sec: int):
+    data = ""
+    new_line = False
+    while True:
+        if new_line:
+            break
+        new_data = fd.read(1, timeout_sec=timeout_sec)
+        for item in new_data:
+            new_c = chr(item)
+            data = data + new_c
+            if new_c == "\n":
+                new_line = True
+                break
+    return data
+
+
+def get_message(fd, expr: str, timeout_sec: int):
+    while True:
+        data = read_line(fd, timeout_sec)
+        if expr in data:
+            return data

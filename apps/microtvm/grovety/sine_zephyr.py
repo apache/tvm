@@ -33,12 +33,12 @@ logging.basicConfig(level="INFO")
 TEMPLATE_PROJECT_DIR = tvm_repo_root() + "/apps/microtvm/grovety/template_project"
 
 verbose = False
-platform = "stm32f746xx_disco"
+# platform = "stm32f746xx_disco"
 # platform = "LPCXpresso5569"
-# platform = "stm32f746xx_nucleo"
+platform = "stm32f746xx_nucleo"
 
 if __name__ == '__main__':
-    workspace_dir = create_workspace_dir(platform, 'sine_zephyr', mkdir=True)
+    workspace_dir = create_workspace_dir(platform, os.path.splitext(__file__)[0], mkdir=True)
     target, zephyr_board = PLATFORMS[platform]
 
     sine_model_path = download_sine_model()

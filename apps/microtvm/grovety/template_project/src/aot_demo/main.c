@@ -29,8 +29,7 @@
 #include <unistd.h>
 #include <zephyr.h>
 
-#include "input_data.h"
-#include "output_data.h"
+#include "model_data.h"
 #include "tvmgen_default.h"
 #include "zephyr_uart.h"
 
@@ -42,10 +41,6 @@
 
 static uint8_t g_aot_memory[WORKSPACE_SIZE];
 tvm_workspace_t app_workspace;
-
-// Wakeup sequence used to wake up QEMU on the host.
-const unsigned char g_wakeup_sequence[] = "#wakeup\n";
-const char g_start_cmd[] = "start\n";
 
 size_t TVMPlatformFormatMessage(char* out_buf, size_t out_buf_size_bytes, const char* fmt,
                                 va_list args) {
@@ -162,38 +157,93 @@ int TVMBackendFreeWorkspace(int device_type, int device_id, void* ptr) {
   return err;
 }
 
-static uint8_t main_rx_buf[128];
-static uint8_t cmd_buf[128];
-static size_t g_cmd_buf_ind;
+static uint8_t cmd_buf[512];
+#include <ctype.h>
 
-void main(void) {
-  g_cmd_buf_ind = 0;
-  memset((char*)cmd_buf, 0, sizeof(cmd_buf));
-  TVMPlatformUARTInit();
-  k_timer_init(&g_microtvm_timer, NULL, NULL);
-  // Wake up host side.
-  TVMPlatformWriteSerial(g_wakeup_sequence, sizeof(g_wakeup_sequence));
+float _strtof(const char* start, const char** end) {
+  float f_part = 0.0f;
+  float i_part = 0.0f;
+  float sign = 1;
 
-  // Wait for start command
-  while (true) {
-    int bytes_read = TVMPlatformUartRxRead(main_rx_buf, sizeof(main_rx_buf));
-    if (bytes_read > 0) {
-      memcpy((char*)cmd_buf + g_cmd_buf_ind, main_rx_buf, bytes_read);
-      g_cmd_buf_ind += bytes_read;
+  const char* ptr = start;
+  while (*ptr && !isdigit(*ptr)) ptr++;
+
+  if (isdigit(*ptr) && ptr > start && *(ptr - 1) == '-') sign = -1;
+
+  while (*ptr && isdigit(*ptr)) {
+    i_part = i_part * 10 + (*ptr - '0');
+    ptr++;
+  }
+
+  if (*ptr == '.') {
+    ptr++;
+    int d = 10;
+
+    while (*ptr && isdigit(*ptr)) {
+      f_part += (float)(*ptr - '0') / d;
+      ptr++;
+      d *= 10;
     }
-    if (g_cmd_buf_ind >= 6) {
-      if (!strcmp((char*)(cmd_buf), g_start_cmd)) {
-        break;
+  }
+
+  *end = ptr;
+  return sign * (i_part + f_part);
+}
+
+// Wait for input command
+float get_input() {
+  char* ptr = cmd_buf;
+
+  // waiting for statrting '#' symbol
+  while (true) {
+    int readed = TVMPlatformUartRxRead(ptr, 1);
+    if (readed > 0 && *ptr == '#') {
+      ptr++;
+      break;
+    }
+  }
+
+  char* str_end = NULL;
+  // waiting for EOL
+  while (true) {
+    int readed = TVMPlatformUartRxRead(ptr, 1);
+    if (readed > 0) {
+      if (*ptr != '\n') {
+        ptr++;
       } else {
-        memset((char*)cmd_buf, 0, sizeof(cmd_buf));
-        g_cmd_buf_ind = 0;
+        *ptr = 0;
+        str_end = ptr;
+        break;
       }
     }
   }
+
+  TVMLogf("Readed str: %s\n", cmd_buf);
+
+  if (!strncmp((char*)(cmd_buf), "#input:", 7)) {
+    ptr = cmd_buf + 7;
+    char* end = NULL;
+    // float val = strtof(ptr, &end);
+    // float val = (float)atof(ptr);
+    float val = _strtof(ptr, &end);
+
+    int val1 = (int)(val * 1000);
+
+    TVMLogf("Readed val: %d.%03d  len = %d\n", val1 / 1000, abs(val1 % 1000), (int)(end - ptr));
+
+    return val;
+  }
+  return 0;
+}
+
+void main(void) {
+  TVMPlatformUARTInit();
+  k_timer_init(&g_microtvm_timer, NULL, NULL);
+
   TVMLogf("Zephyr AOT Runtime\n");
 
   struct tvmgen_default_inputs inputs = {
-      .input_1 = input_data,
+      .model_input_0 = input_data,
   };
   struct tvmgen_default_outputs outputs = {
       .output = output_data,
@@ -201,20 +251,28 @@ void main(void) {
 
   StackMemoryManager_Init(&app_workspace, g_aot_memory, WORKSPACE_SIZE);
 
-  double elapsed_time = 0;
-  TVMPlatformTimerStart();
-  int ret_val = tvmgen_default_run(&inputs, &outputs);
-  TVMPlatformTimerStop(&elapsed_time);
-  
-  if (ret_val != 0) {
-    TVMLogf("Error: %d\n", ret_val);
-    TVMPlatformAbort(kTvmErrorPlatformCheckFailure);
+  for (int index = 0;; index++) {
+    TVMLogf("Step %3d..... ", index);
+    input_data[0] = get_input();
+    double elapsed_time = 0;
+
+    TVMPlatformTimerStart();
+    int ret_val = tvmgen_default_run(&inputs, &outputs);
+    TVMPlatformTimerStop(&elapsed_time);
+    TVMLogf("DONE: \n");
+
+    if (ret_val != 0) {
+      TVMLogf("Error: %d\n", ret_val);
+      TVMPlatformAbort(kTvmErrorPlatformCheckFailure);
+    }
+
+    float y = output_data[0];
+
+    int y1 = (int)(y * 1000);
+    TVMLogf("#result:%d.%03d:%d\n", y1 / 1000, abs(y1 % 1000), (uint32_t)(elapsed_time * 1000000));
+
+    printf("%f\n", y);
   }
-
-  int y = (int)(output_data[0] * 1000);
-
-  TVMLogf("#result:%d.%03d:%d\n", y / 1000, y % 1000, (uint32_t)(elapsed_time * 1000));
-
 #ifdef CONFIG_ARCH_POSIX
   posix_exit(0);
 #endif
