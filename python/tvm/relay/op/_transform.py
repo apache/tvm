@@ -812,12 +812,12 @@ def split_shape_func(attrs, inputs, _):
         indices_or_sections = [indices_or_sections]
     return [
         _split_shape_func(
-		    inputs[0],
-			convert(i),
-			convert(indices_or_sections),
-			convert(param_is_indices),
-			convert(axis),
-		)
+            inputs[0],
+            convert(i),
+            convert(indices_or_sections),
+            convert(param_is_indices),
+            convert(axis),
+        )
         for i in range(num_out)
     ]
 
