@@ -42,6 +42,7 @@
 #include "./error.h"
 #include "./instruction_traits.h"
 #include "./primitive.h"
+#include "./transform.h"
 
 namespace tvm {
 namespace tir {

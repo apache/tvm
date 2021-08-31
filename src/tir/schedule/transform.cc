@@ -19,6 +19,8 @@
 
 #include "./transform.h"
 
+#include "./utils.h"
+
 namespace tvm {
 namespace tir {
 
@@ -29,6 +31,44 @@ Block WithAnnotation(const BlockNode* block, const String& attr_key, const Objec
   ObjectPtr<BlockNode> new_block = make_object<BlockNode>(*block);
   new_block->annotations = std::move(annotations);
   return Block(new_block);
+}
+
+/******** Buffer Related ********/
+Buffer WithScope(const Buffer& buffer, const String& scope) {
+  ObjectPtr<BufferNode> new_buffer = make_object<BufferNode>(*buffer.get());
+  ObjectPtr<VarNode> new_var = make_object<VarNode>(*buffer->data.get());
+  const auto* ptr_type = TVM_TYPE_AS(ptr_type, buffer->data->type_annotation, PointerTypeNode);
+  new_var->type_annotation = PointerType(ptr_type->element_type, scope);
+  new_buffer->data = Var(new_var->name_hint + "_" + scope, new_var->type_annotation);
+  new_buffer->name = buffer->name + "_" + scope;
+  return Buffer(new_buffer);
+}
+
+Array<BufferRegion> ReplaceBuffer(Array<BufferRegion> regions, const Buffer& source,
+                                  const Buffer& target) {
+  regions.MutateByApply([&source, &target](BufferRegion region) -> BufferRegion {
+    if (region->buffer.same_as(source)) {
+      ObjectPtr<BufferRegionNode> n = make_object<BufferRegionNode>(*region.get());
+      n->buffer = target;
+      return BufferRegion(n);
+    }
+    return region;
+  });
+  return regions;
+}
+
+Array<MatchBufferRegion> ReplaceBuffer(Array<MatchBufferRegion> match_buffers, const Buffer& source,
+                                       const Buffer& target) {
+  match_buffers.MutateByApply([&source,
+                               &target](MatchBufferRegion match_buffer) -> MatchBufferRegion {
+    if (match_buffer->source->buffer.same_as(source)) {
+      ObjectPtr<MatchBufferRegionNode> n = make_object<MatchBufferRegionNode>(*match_buffer.get());
+      n->source = BufferRegion(target, n->source->region);
+      return MatchBufferRegion(n);
+    }
+    return match_buffer;
+  });
+  return match_buffers;
 }
 
 }  // namespace tir
