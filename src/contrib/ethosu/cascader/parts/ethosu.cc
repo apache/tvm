@@ -56,7 +56,6 @@ const std::vector<int64_t> EthosuPartNode::GetBytesRead(const std::vector<int>& 
   int i = 0;
   for (const auto& input_block_config : input_block_configs) {
     std::map<std::vector<int>, int> input_blocks = CountStripes(input_block_config, false);
-
     for (const auto& block : input_blocks) {
       bytes_per_input[i] += mul_reduce(block.first) * block.second;
     }
@@ -82,8 +81,8 @@ const BlockConfig EthosuPartNode::GetBlockConfig(const StripeConfig& output_stri
     bytes_per_input[0] *= subkernels_;
 
     // Calculate bytes read per output element
-    float relative_cost =
-        (bytes_per_input[0] + bytes_per_input[1]) / mul_reduce(output_stripe_shape);
+    float relative_cost = static_cast<float>(bytes_per_input[0] + bytes_per_input[1]) /
+                          mul_reduce(output_stripe_shape);
 
     // Single buffering hardware optimization
     if (mul_reduce(output_stripe_shape) <= 2 * mul_reduce(output_block)) {
@@ -116,7 +115,8 @@ const PerformanceInfo EthosuPartNode::GetPerformanceInfo(const StripeConfig& out
                                        output_stripe_config->GetStripes()[i]) /
                     block_shape[i];
     } else {
-      num_blocks *= static_cast<float>(output_stripe_config->GetExtent()[i]) / block_shape[i];
+      num_blocks *=
+          std::max(static_cast<float>(output_stripe_config->GetExtent()[i]) / block_shape[i], 1.0f);
     }
   }
   float num_stripes = mul_reduce(output_stripe_config->GetStripes()) - 1.0f;

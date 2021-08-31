@@ -29,6 +29,7 @@ from .infra import make_matrices
 @pytest.mark.parametrize(
     "id, op_type, activation, kernel, stride, dilation, padding, in_shape, out_shape",
     [
+        # Conv2D
         (
             0,
             "ethosu_conv2d",
@@ -94,6 +95,52 @@ from .infra import make_matrices
             (0, 0, 0, 0),
             (1, 62, 94, 32),
             (1, 58, 90, 16),
+        ),
+        # Depthwise Conv2D
+        (
+            "ethosu_depthwise_conv2d",
+            "NONE",
+            (3, 5),
+            (1, 1),
+            (1, 1),
+            (0, 0, 0, 0),
+            (1, 77, 23, 18),
+            (1, 75, 19, 18),
+            (1, 7, 10, 16),
+        ),
+        (
+            "ethosu_depthwise_conv2d",
+            "NONE",
+            (3, 3),
+            (2, 2),
+            (1, 1),
+            (1, 1, 1, 1),
+            (1, 25, 10, 276),
+            (1, 13, 5, 276),
+            (1, 7, 6, 16),
+        ),
+        # Pooling
+        (
+            "ethosu_pooling",
+            "NONE",
+            (13, 5),
+            (1, 1),
+            (1, 1),
+            (0, 0, 0, 0),
+            (1, 13, 5, 276),
+            (1, 1, 1, 276),
+            (1, 1, 2, 80),
+        ),
+        (
+            "ethosu_pooling",
+            "NONE",
+            (7, 3),
+            (2, 1),
+            (1, 1),
+            (0, 0, 0, 0),
+            (1, 317, 14, 21),
+            (1, 156, 12, 21),
+            (1, 10, 6, 16),
         ),
     ],
 )
@@ -185,7 +232,7 @@ def test_best_block_config(
         [0, 0, 0, 0, 0, 1],
     ]
     ifm_matrix, ifm_offset, weight_matrix, weight_offset, _, _ = make_matrices(
-        kernel, stride, dilation, padding, in_shape[3], layouts[0], layouts[1]
+        op_type, kernel, stride, padding, layouts[0], layouts[1], dilation, in_shape[3]
     )
 
     ofm_channels = out_shape[3]

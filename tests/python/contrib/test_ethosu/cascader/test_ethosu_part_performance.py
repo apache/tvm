@@ -122,6 +122,34 @@ def test_device_config_cycles(acc_config, expected):
             (1, 18, 14, 8),
             174105,
         ),
+        (
+            "ethos-u55-128",
+            "ethosu_depthwise_conv2d",
+            "NONE",
+            (3, 3),
+            (2, 2),
+            (1, 1),
+            (1, 1, 1, 1),
+            (1, 25, 10, 276),
+            (1, 13, 5, 276),
+            (1, 7, 6, 16),
+            (1, 15, 14, 16),
+            17590,
+        ),
+        (
+            "ethos-u55-128",
+            "ethosu_depthwise_conv2d",
+            "NONE",
+            (4, 9),
+            (1, 1),
+            (1, 1),
+            (0, 0, 0, 0),
+            (1, 28, 81, 42),
+            (1, 25, 73, 41),
+            (1, 4, 16, 16),
+            (1, 7, 24, 16),
+            173414,
+        ),
     ],
 )
 def test_conv_performance(
@@ -138,16 +166,17 @@ def test_conv_performance(
     input_block_shape,
     expected,
 ):
+    ifm_channels = in_shape[3]
     ifm_matrix, ifm_offset, weight_matrix, weight_offset, _, _ = make_matrices(
+        op_type,
         kernel,
         stride,
-        dilation,
         padding,
-        in_shape[3],
         "NHWC",
         "NHWC",
+        dilation,
+        ifm_channels,
     )
-    ifm_channels = in_shape[3]
 
     propagator = cs.Propagator(ifm_matrix, ifm_offset)
     weight_propagator = cs.Propagator(weight_matrix, weight_offset)
@@ -191,7 +220,7 @@ def test_conv_performance(
     stripe_config = cs.StripeConfig(out_shape, out_shape, out_shape, order, stripes, offset)
 
     compute_cycles = part.get_performance_info(stripe_config, cs.BufferMode.ROLLING).compute_cycles
-    tolerance = expected * 0.05
+    tolerance = expected * 0.1
 
     assert expected - tolerance <= compute_cycles <= expected + tolerance
 
