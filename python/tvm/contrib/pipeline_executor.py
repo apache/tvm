@@ -242,8 +242,9 @@ class PipelineConfig(object):
 
         def __init__(self, indx=0):
             self.indx_ = indx
-            self.name_ = "mod" + str(indx) if indx else ""
-            self.interfaces_ = {1: {}, 2: {}}
+            self.name = "mod{}".format(str(index) if index else "")
+            self.input_bindings = {}
+            self.output_bindings = {}
             self.target_host_ = None
             self.mod_name_ = "default"
             self.build_func_ = None
