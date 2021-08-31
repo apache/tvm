@@ -3532,7 +3532,7 @@ class NegativeLogLikelihoodLoss(OnnxOpConverter):
 
         if reduction == "mean":
             return relay.sum(loss) / weight_total
-        elif reduction == "sum":
+        if reduction == "sum":
             return relay.sum(loss)
         # Case reduction == 'none'
         return loss
