@@ -19,7 +19,6 @@
 """ONNX: Open Neural Network Exchange frontend for Relay."""
 import copy
 import warnings
-from os import read
 
 import numpy as np
 import tvm
@@ -3535,9 +3534,8 @@ class NegativeLogLikelihoodLoss(OnnxOpConverter):
             return relay.sum(loss) / weight_total
         elif reduction == "sum":
             return relay.sum(loss)
-        else:
-            # Case reduction == 'none'
-            return loss
+        # Case reduction == 'none'
+        return loss
 
 
 # compatible operators that do NOT require any conversion.
