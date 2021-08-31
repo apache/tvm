@@ -43,10 +43,10 @@ __all__ = ["from_paddle"]
 def shape_of(x, dtype="int32"):
     """Get shape of a tensor"""
 
-    ttype = infer_type(x).checked_type
-    if not _ty.is_dynamic(ttype):
-        shape = list(ttype.shape)
-        return _expr.const(shape, dtype)
+    # ttype = infer_type(x).checked_type
+    # if not _ty.is_dynamic(ttype):
+    #     shape = list(ttype.shape)
+    #     return _expr.const(shape, dtype)
     return _op.shape_of(x, dtype)
 
 
@@ -62,6 +62,26 @@ def _get_pad_size(in_size, dilated_kernel_size, stride_size):
     pad_after = pad - pad_before
 
     return [pad_before, pad_after]
+
+
+def _infer_value(x, params):
+    try:
+        if isinstance(x, _expr.Constant):
+            return np.atleast_1d(x.data.numpy())
+        return params[x.name_hint].numpy()
+    except (IndexError, KeyError, AttributeError):
+        try:
+            return infer_value(x, params).numpy().tolist()
+        except Exception:
+            return x
+
+
+def _infer_shape(x, mod=None):
+    try:
+        shape = infer_shape(x, mod)
+        return (shape, True)
+    except Exception as e:
+        return (e, False)
 
 
 def convert_arg_max(g, op, block):
@@ -140,49 +160,51 @@ def get_interpolate_mode(op):
     return rounding_method, interp_method, coordinate_transformation_mode
 
 
-def convert_interpolate2d(g, op, x, input_shape):
+def convert_interpolate2d(g, op, x):
     """Operator converter for interpolate 2D(dims == 4)."""
 
     layout = op.attr("data_layout")
-    if layout == "NCHW":
-        in_h, in_w = input_shape[2], input_shape[3]
-    else:
-        in_h, in_w = input_shape[1], input_shape[2]
-
     out_h = op.attr("out_h")
     out_w = op.attr("out_w")
+    out_size = [out_h, out_w]
 
     input_out_size = op.input("OutSize")
     input_size_tensor = op.input("SizeTensor")
     input_scale = op.input("Scale")
     if input_size_tensor:
         out_size = g.get_node(input_size_tensor[0])
-        out_size = infer_value(out_size, g.get_params()).numpy().tolist()
-        out_h, out_w = out_size
+        out_size = _infer_value(out_size, g.get_params())
     elif input_out_size:
         out_size = g.get_node(input_out_size[0])
-        out_size = infer_value(out_size, g.get_params()).numpy().tolist()
-        out_h, out_w = out_size
-    elif input_scale:
-        scale_data = g.get_node(input_scale[0])
-        scale_data = infer_value(scale_data, g.get_params()).numpy().tolist()
-        if len(scale_data) > 1:
-            out_h = int(scale_data[0] * in_h)
-            out_w = int(scale_data[1] * in_w)
-        else:
-            out_h = int(scale_data[0] * in_h)
-            out_w = int(scale_data[0] * in_w)
+        out_size = _infer_value(out_size, g.get_params())
     else:
-        scale = op.attr("scale")
-        scale = [float(i) for i in scale]
-        if len(scale) > 1:
-            out_h = int(scale[0] * in_h)
-            out_w = int(scale[1] * in_w)
+        input_shape = infer_shape(x)
+        if layout == "NCHW":
+            in_h, in_w = input_shape[2], input_shape[3]
+        else:
+            in_h, in_w = input_shape[1], input_shape[2]
+        if input_scale:
+            scale_data = g.get_node(input_scale[0])
+            scale_data = infer_value(scale_data, g.get_params()).numpy().tolist()
+            if len(scale_data) > 1:
+                out_h = int(scale_data[0] * in_h)
+                out_w = int(scale_data[1] * in_w)
+            else:
+                out_h = int(scale_data[0] * in_h)
+                out_w = int(scale_data[0] * in_w)
+            out_size = [out_h, out_w]
+        else:
+            scale = op.attr("scale")
+            scale = [float(i) for i in scale]
+            if len(scale) > 1:
+                out_h = int(scale[0] * in_h)
+                out_w = int(scale[1] * in_w)
+            out_size = [out_h, out_w]
 
     rounding_method, interp_method, coordinate_transformation_mode = get_interpolate_mode(op)
     out = _op.image.resize2d(
         x,
-        [out_h, out_w],
+        size=out_size,
         layout=layout,
         method=interp_method,
         coordinate_transformation_mode=coordinate_transformation_mode,
@@ -196,13 +218,12 @@ def convert_interpolate(g, op, block):
     """Operator converter for interpolate."""
 
     x = g.get_node(op.input("X")[0])
-    input_shape = infer_shape(x)
-    dims = len(input_shape)
-    if dims == 4:
-        convert_interpolate2d(g, op, x, input_shape)
+    layout = op.attr("data_layout")
+    if layout in ("NCHW", "NHWC"):
+        convert_interpolate2d(g, op, x)
     else:
-        msg = "input_shape {} is not supported for PaddlePaddle's interpolate"
-        raise tvm.error.OpAttributeInvalid(msg.format(dims))
+        msg = "layout {} is not supported for PaddlePaddle's interpolate"
+        raise tvm.error.OpAttributeInvalid(msg.format(layout))
 
 
 def convert_cast(g, op, block):
@@ -236,12 +257,20 @@ def convert_conv2d(g, op, block):
     kernel = g.get_node(op.input("Filter")[0])
     input_x = g.get_node(op.input("Input")[0])
     out_channels, _, k_h, k_w = infer_shape(kernel)
-    in_h, in_w = infer_shape(input_x)[2:]
     if padding_algorithm == "VALID":
         paddings = [0, 0]
     elif padding_algorithm == "SAME":
-        pad_h = _get_pad_size(in_h, (k_h - 1) * dilations[0] + 1, strides[0])
-        pad_w = _get_pad_size(in_w, (k_w - 1) * dilations[1] + 1, strides[1])
+        if strides[0] == 0 and strides[1] == 0:
+            pad_h = _get_pad_size(0, (k_h - 1) * dilations[0] + 1, strides[0])
+            pad_w = _get_pad_size(0, (k_w - 1) * dilations[1] + 1, strides[1])
+        else:
+            input_shape, is_succeed = _infer_shape(input_x)
+            assert is_succeed, "{} \n SAME Padding of conv2d only support fixed shape.".format(
+                input_shape
+            )
+            in_h, in_w = input_shape[2:]
+            pad_h = _get_pad_size(in_h, (k_h - 1) * dilations[0] + 1, strides[0])
+            pad_w = _get_pad_size(in_w, (k_w - 1) * dilations[1] + 1, strides[1])
         paddings = [pad_h[0], pad_w[0], pad_h[1], pad_w[1]]
     elif padding_algorithm == "EXPLICIT":
         if len(paddings) == 2:
@@ -388,12 +417,14 @@ def convert_fill_constant(g, op, block):
     dtype = str(dtype).strip().split(".")[1]
     if op.input("ValueTensor"):
         shape = g.get_node(op.input("ValueTensor")[0])
-        shape = infer_value(shape, g.get_params()).numpy()
+        shape = _infer_value(shape, g.get_params())
     if op.input("ShapeTensor"):
         shape = g.get_node(op.input("ShapeTensor")[0])
-        shape = infer_value(shape, g.get_params()).numpy()
-    value = np.full(shape, value, dtype)
-    out = _expr.const(value.astype(dtype)).astype(dtype)
+        shape = _infer_value(shape, g.get_params())
+    print("------", dtype)
+    out = _op.full(value, shape, dtype="float")
+    # value = np.full(shape, value, dtype)
+    # out = _expr.const(value.astype(dtype)).astype(dtype)
     g.add_node(op.output("Out")[0], out)
 
 
@@ -656,7 +687,6 @@ def convert_pool2d(g, op, block):
         ksize = [1, 1]
 
     input_x = g.get_node(op.input("X")[0])
-    in_h, in_w = infer_shape(input_x)[2:]
 
     op_map = {
         "avg": "avg_pool2d",
@@ -673,6 +703,7 @@ def convert_pool2d(g, op, block):
     if padding_algorithm == "VALID":
         paddings = [0, 0]
     elif padding_algorithm == "SAME":
+        in_h, in_w = infer_shape(input_x)[2:]
         pad_h = _get_pad_size(in_h, ksize[0], strides[0])
         pad_w = _get_pad_size(in_w, ksize[1], strides[1])
         paddings = [pad_h[0], pad_w[0], pad_h[1], pad_w[1]]
@@ -712,9 +743,9 @@ def convert_padding(g, op, block):
     if mode == "replicate":
         mode = "edge"
 
-    new_pad_len = len(infer_shape(input_x)) * 2
-    new_paddings = [0] * new_pad_len
-    for i in range(0, len(padding), 2):
+    pad_len = len(padding)
+    new_paddings = [0] * (pad_len + 4)
+    for i in range(0, pad_len, 2):
         index = -1 - i
         if data_format[:2] != "NC":
             index = -3 - i
@@ -791,7 +822,7 @@ def convert_shape(g, op, block):
 def convert_slice(g, op, block):
     """Operator converter for slice."""
 
-    def parameter_process(starts, ends, axes, dshape):
+    def parameter_process(starts, ends, axes):
         new_axes = []
         new_starts = []
         new_ends = []
@@ -804,11 +835,10 @@ def convert_slice(g, op, block):
                 pop_index += 1
             else:
                 new_starts.append(0)
-                new_ends.append(dshape[i])
+                new_ends.append(np.iinfo(np.int32).max)
         return new_starts, new_ends, new_axes
 
     data = g.get_node(op.input("Input")[0])
-    dshape = infer_shape(data)
     starts = op.attr("starts")
     ends = op.attr("ends")
     axes = op.attr("axes")
@@ -821,7 +851,7 @@ def convert_slice(g, op, block):
         axes = [axes]
     if isinstance(decrease_axis, int):
         decrease_axis = [decrease_axis]
-    starts, ends, axes = parameter_process(starts, ends, axes, dshape)
+    starts, ends, axes = parameter_process(starts, ends, axes)
     out = _op.strided_slice(data, begin=starts, end=ends)
     if decrease_axis:
         out = _op.squeeze(out, axis=decrease_axis)
