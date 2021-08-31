@@ -187,6 +187,24 @@ Array<Pass> GetPassPrefix(const Map<tvm::Integer, tvm::Target>& targets, bool is
   return pass_seqs;
 }
 
+std::unordered_map<Target, IRModule, TargetStrHash, TargetStrEqual>
+TargetModuleMapToTargetStrModuleMap(Map<Target, IRModule> input_map) {
+  std::unordered_map<Target, IRModule, TargetStrHash, TargetStrEqual> std_map;
+  for (auto kv : input_map) {
+    std_map[kv.first] = kv.second;
+  }
+  return std_map;
+}
+
+Map<Target, IRModule> TargetStrModuleMapToTargetModuleMap(
+    std::unordered_map<Target, IRModule, TargetStrHash, TargetStrEqual> input_map) {
+  Map<Target, IRModule> tvm_map;
+  for (auto kv : input_map) {
+    tvm_map.Set(kv.first, kv.second);
+  }
+  return tvm_map;
+}
+
 }  // namespace backend
 }  // namespace relay
 }  // namespace tvm

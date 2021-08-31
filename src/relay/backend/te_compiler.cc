@@ -85,18 +85,19 @@ class TECompilerImpl : public TECompilerNode {
     return LowerShapeFuncInternal(key)->cached_func;
   }
 
-  Map<String, IRModule> GetLoweredFunctions() {
-    Map<String, IRModule> lowered_functions;
+  Map<Target, IRModule> GetLoweredFunctions() {
+    std::unordered_map<Target, IRModule, backend::TargetStrHash, backend::TargetStrEqual>
+        lowered_functions;
     for (const auto& it : cache_) {
       auto source_func = it.first;
       auto lowered_func = it.second;
       auto target = source_func->target;
 
-      if (!lowered_functions.count(target->str())) {
-        lowered_functions.Set(target->str(), IRModule(Map<GlobalVar, BaseFunc>({})));
+      if (!lowered_functions.count(target)) {
+        lowered_functions[target] = IRModule(Map<GlobalVar, BaseFunc>({}));
       }
 
-      lowered_functions[target->str()]->Update(lowered_func->cached_func->funcs);
+      lowered_functions[target]->Update(lowered_func->cached_func->funcs);
     }
 
     for (const auto& it : shape_func_cache_) {
@@ -104,13 +105,13 @@ class TECompilerImpl : public TECompilerNode {
       auto lowered_func = it.second;
       auto target = source_func->target;
 
-      if (!lowered_functions.count(target->str())) {
-        lowered_functions.Set(target->str(), IRModule(Map<GlobalVar, BaseFunc>({})));
+      if (!lowered_functions.count(target)) {
+        lowered_functions[target] = IRModule(Map<GlobalVar, BaseFunc>({}));
       }
 
-      lowered_functions[target->str()]->Update(lowered_func->cached_func->funcs);
+      lowered_functions[target]->Update(lowered_func->cached_func->funcs);
     }
-    return lowered_functions;
+    return backend::TargetStrModuleMapToTargetModuleMap(lowered_functions);
   }
 
   Array<tvm::runtime::Module> LowerExternalFunctions() {
@@ -884,7 +885,7 @@ IRModule LoweredModuleToIRModule(LoweredModule mod) {
 
   // Annotate the per-target functions with their target and add them to the unified module
   for (const auto& kv : mod.per_target_module) {
-    const String target = kv.first;
+    const Target target = kv.first;
     const IRModule target_module = kv.second;
 
     // Right now, per-target functions are TIR functions, which don't have type definitions, so
@@ -926,7 +927,7 @@ LoweredModule IRModuleToLoweredModule(IRModule mod) {
     main_mod->AddTypeDef(kv.first, kv.second);
   }
 
-  Map<String, IRModule> per_target_modules;
+  Map<Target, IRModule> per_target_modules;
   for (const auto& kv : mod->functions) {
     const GlobalVar& var = kv.first;
     const BaseFunc& func = kv.second;
@@ -934,7 +935,7 @@ LoweredModule IRModuleToLoweredModule(IRModule mod) {
       main_mod->Add(var, func);
     } else if (func->IsInstance<tir::PrimFuncNode>()) {
       // Extract target
-      Optional<String> target = func->GetAttr<String>(tvm::attr::kTarget);
+      Optional<Target> target = func->GetAttr<Target>(tvm::attr::kTarget);
       ICHECK(target) << "Target should be set at this point";
 
       // Put the function in per_target_modules
