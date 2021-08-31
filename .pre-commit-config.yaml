@@ -23,7 +23,7 @@
 # Requirements:
 #   - How to configure:
 #        - $ pip install pre-commit
-#        - $ pre-commit install
+#        - $ pre-commit install --hook-type pre-push
 #   - How to prevent running it:
 #        - git options: --no-verify or -n
 #        - $ git commit -n -m "YOUR COMMIT MESSAGE"
@@ -32,8 +32,9 @@
 #
 
 default_language_version:
-    python: python3.8
+    python: python3.6
 fail_fast: True
+default_stages: [push]
 repos:
     - repo: https://github.com/pre-commit/pre-commit-hooks
       rev: v2.3.0
@@ -42,7 +43,9 @@ repos:
         - id: check-merge-conflict
         - id: check-yaml
         - id: end-of-file-fixer
+          stages: [push]
         - id: trailing-whitespace
+          stages: [push]
     - repo: local
       hooks:
         -   id: run-black
