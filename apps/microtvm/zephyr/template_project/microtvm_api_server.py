@@ -234,7 +234,7 @@ PROJECT_OPTIONS = [
         help="Type of project to generate.",
         choices=tuple(PROJECT_TYPES),
     ),
-    server.ProjectOption("verbose", help="Run build with verbose output."),
+    server.ProjectOption("verbose", help="Run build with verbose output.", choices=(True, False)),
     server.ProjectOption(
         "west_cmd",
         help=(
