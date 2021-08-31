@@ -32,23 +32,23 @@ from .. import function as _function
 from .. import loops as _loops
 from .. import op as _op
 from .. import qnn as _qnn
+from .. import random as _random
 from .. import ty as _ty
 from .. import vision as _vision
-from .. import random as _random
 from .common import (
     AttrCvt,
     Renamer,
     fold_constant,
     get_name,
     get_relay_op,
+    gru_cell,
     infer_channels,
     infer_shape,
     infer_type,
     infer_value,
+    lstm_cell,
     new_var,
     unbind,
-    gru_cell,
-    lstm_cell,
 )
 
 __all__ = ["from_onnx"]
@@ -1786,12 +1786,11 @@ class ArgMax(OnnxOpConverter):
     """Operator converter for ArgMax."""
 
     @classmethod
-    def _impl_v1(cls, inputs, attr, params):
-        if "select_last_index" in attr:
-            raise NotImplementedError("select_last_index not supported in ArgMax")
+    def _impl_v13(cls, inputs, attr, params):
         axis = attr.get("axis", 0)
         keepdims = attr.get("keepdims", True)
-        attr = {"axis": axis, "keepdims": keepdims}
+        select_last_index = attr.get("select_last_index", False)
+        attr = {"axis": axis, "keepdims": keepdims, "select_last_index": select_last_index}
         return _op.cast(AttrCvt("argmax")(inputs, attr), "int64")
 
 
@@ -1799,12 +1798,11 @@ class ArgMin(OnnxOpConverter):
     """Operator converter for ArgMin."""
 
     @classmethod
-    def _impl_v1(cls, inputs, attr, params):
-        if "select_last_index" in attr:
-            raise NotImplementedError("select_last_index not supported in ArgMin")
+    def _impl_v13(cls, inputs, attr, params):
         axis = attr.get("axis", 0)
         keepdims = attr.get("keepdims", True)
-        attr = {"axis": axis, "keepdims": keepdims}
+        select_last_index = attr.get("select_last_index", False)
+        attr = {"axis": axis, "keepdims": keepdims, "select_last_index": select_last_index}
         return _op.cast(AttrCvt("argmin")(inputs, attr), "int64")
 
 
