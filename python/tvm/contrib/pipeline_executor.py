@@ -162,24 +162,19 @@ class PipelineModule(object):
 
 
 class PipelineConfig(object):
-    """Pipeline Configuration Class, in this class there are 2 internal class,
-    first is Module which use to represent Module, second is Interface which use
-    to represent Module input/output and Pipeline Module input/output, by setting
-    dependency relation between Interfaces this class can build the module
-    connection relation.
-
-    The class Hierarchical as following.
-         PipelineConfig ---> ModuleWrapper ---> Interface(input/output)
+    """The wrapper of each module to be pipelined. The wrapper mainly includes the
+    module itself as well as the binding that represents the connections of this
+    module's inputs and outputs to other modules.
     """
 
     class ModuleWrapper:
         """The class use use to represent Module and storage module index and
-        Interface information.
+        Binding information.
         """
 
-        class Interface:
+        class Binding:
             """The class that use to storage module connection information.
-               There are 2 types Interface Input:1 Output:2
+               There are 2 types Binding Input:1 Output:2
             Parameters
             ----------
 
@@ -187,36 +182,33 @@ class PipelineConfig(object):
                 The class that own this interface, in such class there are
                 Module information like index, module name
 
-            itype : integer
-                Interface type, 1 is input interface, 2 is output interface
+            io_type : str
+                The type of this binding. It can be either "input" or "output".
 
             name : str/integer
-                Interface name, for input that is string for example "data0"
+                Binding name, for input that is string for example "data0"
                 for output that is integer for example 0.
             """
 
-            def __init__(self, owner, itype, name):
-                self.owner_ = owner
-                self.itype_ = itype
-                self.name_ = str(name)
-                self.dependent_ = []
+            def __init__(self, owner, stype, name):
+                self.io_owner = owner
+                self.io_type = stype
+                self.name = str(name)
+                self.bindings = []
 
             def get_name(self):
-                mname = ""
-                if self.owner_:
-                    mname = self.owner_.name_
-
-                return mname, self.name_
+                return self.io_owner.name, self.name
 
             def get_owner_indx(self):
-                return self.owner_.indx_
+                return self.io_owner.indx_
 
-            def get_dependent_str(self):
+            def get_bindings_str(self):
                 name = ""
-                for dependent in self.dependent_:
+                for dependent in self.bindings:
                     mname, dname = dependent.get_name()
-                    name = name + (mname + ":output(" + dname if self.itype_ == 2 else "")
-                    name = name + (")" if self.itype_ == 2 else mname + ":" + dname)
+                    name += (mname + ":output(" + dname \
+                          if self.io_type == "output" else "")
+                    name += (")" if self.io_type == "output" else mname + ":" + dname)
                 return name
 
             def add_dependent(self, dependent):
@@ -232,44 +224,40 @@ class PipelineConfig(object):
                 assert owner_indx != dep_owner_indx, f"can not set self as dependent."
                 assert not (
                     owner_indx > dep_owner_indx
-                    and not (dependent.itype_ == 2 and dep_owner_indx == 0)
+                    and not (dependent.io_type == "output" and dep_owner_indx == 0)
                 ), f"dependent only can be next module interface or global output."
                 assert not (
-                    owner_indx == 0 and dependent.itype_ != 1
+                    owner_indx == 0 and dependent.io_type != "input"
                 ), f"global input only can set dependent with module input."
 
-                self.dependent_.append(dependent)
+                self.bindings.append(dependent)
 
-        def __init__(self, indx=0):
-            self.indx_ = indx
+        def __init__(self, index=0):
+            self.indx_ = index
             self.name = "mod{}".format(str(index) if index else "")
             self.input_bindings = {}
             self.output_bindings = {}
             self.target_host_ = None
-            self.mod_name_ = "default"
             self.build_func_ = None
             self.params_ = None
             self.target_ = None
             self.dev_ = None
 
 
-        def get_interface(self, itype, name):
-            if name not in self.interfaces_[itype]:
-                self.interfaces_[itype][name] = self.Interface(self, itype, name)
-
-            return self.interfaces_[itype][name]
-
         def input(self, name):
-            return self.get_interface(1, name)
+            if name not in self.input_bindings:
+                self.input_bindings[name] = self.Binding(self, "input", name)
+
+            return self.input_bindings[name]
 
         def output(self, index):
-            return self.get_interface(2, index)
+            if index not in self.output_bindings:
+                self.output_bindings[index] = self.Binding(self, "output", index)
+
+            return self.output_bindings[index]
 
         def set_target_host(self, host):
             self.target_host_ = host
-
-        def set_mod_name(self, name):
-            self.mod_name_ = name
 
         def set_build_func(self, build_func):
             self.build_func_ = build_func
@@ -294,17 +282,17 @@ class PipelineConfig(object):
         input_dump = "Inputs\n"
         for input_name in self.mod_wrapper["pipeline_module"].interfaces_[1]:
             inf = self.mod_wrapper["pipeline_module"].interfaces_[1][input_name]
-            input_dump += "  |" + input_name + ": " + inf.get_dependent_str() + "\n"
+            input_dump += "  |" + input_name + ": " + inf.get_bindings_str() + "\n"
 
         # get connections
         output = {}
         connections_dump = "\nconnections\n"
         for mod in self.mod_wrapper:
             for _, interface in self.mod_wrapper[mod].interfaces_[2].items():
-                if interface.dependent_:
+                if interface.bindings:
                     mname, dname = interface.get_name()
                     iname = mname + ".output(" + dname + ")->"
-                    for dep in interface.dependent_:
+                    for dep in interface.bindings:
                         dep_mname, dep_dname = dep.get_name()
                         if dep.owner_.indx_ > 0:
                             iname += " " + dep_mname + "." + dep_dname
@@ -329,11 +317,11 @@ class PipelineConfig(object):
             mconf = {}
             output_conf = []
             module = self.mod_wrapper[mod]
-            for _, interface in module.interfaces_[2].items():
+            for _, binding in module.output_bindings.items():
                 dep_conf = []
                 output = {}
-                if interface.dependent_:
-                    for dep in interface.dependent_:
+                if binding.bindings:
+                    for dep in binding.bindings:
                         dep_item = {}
                         _, dname = dep.get_name()
                         dep_item["mod_indx"] = dep.get_owner_indx()
@@ -342,7 +330,7 @@ class PipelineConfig(object):
 
                 # ouput_indx start from 0.
 
-                output["output_indx"] = int(interface.name_)
+                output["output_indx"] = int(binding.name)
                 output["dependent"] = dep_conf
                 output_conf.append(output)
             mconf["mod_indx"] = module.indx_
@@ -351,7 +339,7 @@ class PipelineConfig(object):
             # build module configuration with pipeline and other parameters.
             mconfig[mod] = {"pipeline": mconf,
                             "target_host": module.target_host_,
-                            "mod_name": module.mod_name_,
+                            "mod_name": "default",
 			    "build": module.build_func_,
                             "params": module.params_,
                             "target": module.target_,
@@ -373,7 +361,7 @@ class PipelineConfig(object):
     def pipe_output(self, index):
         return self.mod_wrapper[self.pipe_module_name_].output(index)
 
-    def connect(self, left: ModuleWrapper.Interface, right: ModuleWrapper.Interface):
+    def connect(self, left: ModuleWrapper.Binding, right: ModuleWrapper.Binding):
         left.add_dependent(right)
 
 
