@@ -1588,7 +1588,7 @@ def test_conv2d_int8_intrinsics():
         return assembly
 
     def _has_fast_int8_instructions(asm, target):
-        if "x86-64-v2" in target or "core-avx2" in target or "skylake-avx512" in target:
+        if "nehalem" in target or "core-avx2" in target or "skylake-avx512" in target:
             return "pmaddubs" in asm
         elif "cascadelake" in target:
             return "vpdpbusd" in asm
@@ -1600,7 +1600,7 @@ def test_conv2d_int8_intrinsics():
 
     # compile conv2d for x86 (SSE3/AVX2/AVX512/VNNI capable) and test assembly contains *pmadd* instructions
     targets = [
-        "llvm -mcpu=x86-64-v2",
+        "llvm -mcpu=nehalem",
         "llvm -mcpu=core-avx2",
         "llvm -mcpu=skylake-avx512",
         "llvm -mcpu=cascadelake",
