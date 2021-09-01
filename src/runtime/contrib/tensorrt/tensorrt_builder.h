@@ -165,7 +165,8 @@ class TensorRTBuilder {
   /*! \brief Output names. */
   std::vector<std::string> network_output_names_;
 
-  // calibrator pointer
+  /*! \brief calibrator pointer to add batch data when using int8 mode */
+  /*! \brief pointer will be nullptr when it is fp16 or fp32 precision */
   nvinfer1::IInt8Calibrator* calibrator_;
 };
 
