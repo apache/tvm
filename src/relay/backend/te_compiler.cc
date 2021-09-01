@@ -87,12 +87,9 @@ class TECompilerImpl : public TECompilerNode {
 
   IRModule GetLoweredFunctions() {
     IRModule mod;
-    // TODO(@electriclilies): This chunk of code is pretty much the same for
-    // normal cache and shape func cache. Consider making a helper here to do that.
-    // Additionaly, might be good to overhaul the mod->Update(mod) function (it's broken!)
+    // Extract lowered functions from the cache
     for (const auto& it : cache_) {
       auto source_func = it.first;
-      // TODO(@electriclilies): Does the lowered_func module only contain one function?
       auto lowered_func = it.second;
 
       IRModule lowered_mod = lowered_func->cached_func->funcs;
@@ -102,6 +99,8 @@ class TECompilerImpl : public TECompilerNode {
         const GlobalVar& var = kv.first;
         const BaseFunc& func = kv.second;
 
+        // TODO(@electriclilies): There shouldn't be a Relay function in here.
+        // Figure out where it's coming from!
         if (func->IsInstance<relay::FunctionNode>()) {
           const relay::Function relay_func = Downcast<relay::Function>(func);
           mod->Update(var, WithAttr(relay_func, tvm::attr::kTarget, source_func->target));
@@ -115,13 +114,14 @@ class TECompilerImpl : public TECompilerNode {
         }
       }
     }
-
+    // Extract lowered frunctions from the shape cache
     for (const auto& it : shape_func_cache_) {
       auto source_func = it.first;
       auto lowered_func = it.second;
       auto target = source_func->target;
       IRModule lowered_mod = lowered_func->cached_func->funcs;
 
+      // Annotate functions with their target and put them in the return module
       for (auto kv : lowered_mod->functions) {
         const GlobalVar& var = kv.first;
         const BaseFunc& func = kv.second;
