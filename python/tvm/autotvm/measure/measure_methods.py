@@ -116,22 +116,50 @@ class LocalBuilder(Builder):
             for future in futures:
                 try:
                     res = future.result()
-                    results.append(res)
+                    if res.error is not None:
+                        # instantiation error
+                        if isinstance(res.error, InstantiationError):
+                            res = MeasureResult(
+                                (res.error,),
+                                MeasureErrorNo.INSTANTIATION_ERROR,
+                                res.time_cost,
+                                time.time(),
+                            )
+
+                        else:
+                            if "InstantiationError" in str(res.error):
+                                msg = str(res.error)
+                                try:
+                                    msg = msg.split("\n")[-2].split(": ")[1]
+                                except Exception:  # pylint: disable=broad-except
+                                    pass
+                                res = MeasureResult(
+                                    (InstantiationError(msg),),
+                                    MeasureErrorNo.INSTANTIATION_ERROR,
+                                    res.time_cost,
+                                    time.time(),
+                                )
+
+                            else:  # tvm error
+                                res = MeasureResult(
+                                    (res.error,),
+                                    MeasureErrorNo.COMPILE_HOST,
+                                    res.time_cost,
+                                    time.time(),
+                                )
                 except TimeoutError as ex:
-                    results.append(
-                        MeasureResult(
-                            (ex,), MeasureErrorNo.BUILD_TIMEOUT, self.timeout, time.time()
-                        )
+                    res = MeasureResult(
+                        (ex,), MeasureErrorNo.BUILD_TIMEOUT, self.timeout, time.time()
                     )
                 except ChildProcessError as ex:
-                    results.append(
-                        MeasureResult(
-                            (ex,),
-                            MeasureErrorNo.RUNTIME_DEVICE,
-                            self.timeout,
-                            time.time(),
-                        )
+                    res = MeasureResult(
+                        (ex,),
+                        MeasureErrorNo.RUNTIME_DEVICE,
+                        self.timeout,
+                        time.time(),
                     )
+
+                results.append(res)
 
         return results
 
