@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -e
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -17,20 +17,27 @@
 # under the License.
 
 set -e
-set -u
-set -o pipefail
 
-export DEBIAN_FRONTEND=noninteractive
-apt-get install -y ca-certificates
+# Get number of cores for build
+if [ -n "${TVM_CI_NUM_CORES}" ]; then
+  num_cores=${TVM_CI_NUM_CORES}
+else
+  # default setup for Vagrantfile
+  num_cores=2
+fi
 
-# Install arduino-cli latest version
-wget -O - https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh -s
+cd "$(dirname $0)"
+cd "$(git rev-parse --show-toplevel)"
+BUILD_DIR=build-microtvm
 
-# Install the cores we want to test on
-arduino-cli core install arduino:mbed_nano
-arduino-cli core install arduino:sam
-
-# ARDUINO_DIRECTORIES_USER wouldn't normally be created until we
-# install a package, which would casue chmod to fail
-mkdir -p "${ARDUINO_DIRECTORIES_DATA}" "${ARDUINO_DIRECTORIES_USER}" "${ARDUINO_DIRECTORIES_DOWNLOADS}"
-chmod -R o+rw "${ARDUINO_DIRECTORIES_DATA}" "${ARDUINO_DIRECTORIES_USER}" "${ARDUINO_DIRECTORIES_DOWNLOADS}"
+if [ ! -e "${BUILD_DIR}" ]; then
+    mkdir "${BUILD_DIR}"
+fi
+cp cmake/config.cmake "${BUILD_DIR}"
+cd "${BUILD_DIR}"
+sed -i 's/USE_MICRO OFF/USE_MICRO ON/' config.cmake
+sed -i 's/USE_GRAPH_EXECUTOR_DEBUG OFF/USE_GRAPH_EXECUTOR_DEBUG ON/' config.cmake
+sed -i 's/USE_LLVM OFF/USE_LLVM ON/' config.cmake
+cmake ..
+rm -rf standalone_crt host_standalone_crt  # remove stale generated files
+make -j${num_cores}

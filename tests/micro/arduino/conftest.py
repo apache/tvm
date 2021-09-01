@@ -26,6 +26,7 @@ import tvm.target.target
 PLATFORMS = {
     "due": ("sam3x8e", "due"),
     "feathers2": ("esp32", "feathers2"),
+    "metrom4": ("atsamd51", "metrom4"),
     "nano33ble": ("nrf52840", "nano33ble"),
     "pybadge": ("atsamd51", "pybadge"),
     "spresense": ("cxd5602gg", "spresense"),
