@@ -394,6 +394,8 @@ def run_module(
         dev = session.metal()
     elif device == "vulkan":
         dev = session.vulkan()
+    elif device == "rocm":
+        dev = session.rocm()
     else:
         assert device == "cpu"
         dev = session.cpu()
