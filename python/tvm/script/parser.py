@@ -536,7 +536,7 @@ class TVMScriptParser(Transformer):
             if len(indexes) != 1:
                 self.report_error(
                     f"Store is only allowed with one index, but {len(indexes)} were provided.",
-                    tvm.ir.Span.union([x.span for x in indexes]),
+                    node.params[1].span,
                 )
             # Store
             return tvm.tir.Store(
