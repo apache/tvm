@@ -195,6 +195,17 @@ def dimension_constraint():
     return _dim_check, "Only 1d, 2d and 3d kernel supported."
 
 
+def get_scalar(x, dtype="float32"):
+    """Helper to get a scalar value for Quantized operators."""
+    if isinstance(x, _expr.Var) and x.name_hint in params:
+        return _op.const(params[x.name_hint].numpy(), dtype)
+    rank = len(infer_shape(x))
+    assert rank <= 1, "scale and zero_point input must be scalars"
+    if rank == 1:
+        x = _op.squeeze(x, [0])
+    return _op.cast(x, dtype)
+
+
 class OnnxOpConverter(object):
     """A helper class for holding onnx op converters."""
 
@@ -3135,15 +3146,6 @@ class QLinearConv(OnnxOpConverter):
 
     @classmethod
     def _impl_v10(cls, inputs, attr, params):
-        def get_scalar(x, dtype="float32"):
-            if isinstance(x, _expr.Var) and x.name_hint in params:
-                return _op.const(params[x.name_hint].numpy(), dtype)
-            rank = len(infer_shape(x))
-            assert rank <= 1, "QLinearConv scale and zero_point input must be scalars"
-            if rank == 1:
-                x = _op.squeeze(x, [0])
-            return _op.cast(x, dtype)
-
         data = inputs[0]
         x_scale = get_scalar(inputs[1])
         x_zero_point = get_scalar(inputs[2], "int32")
@@ -3239,15 +3241,6 @@ class QLinearAdd(OnnxOpConverter):
 
     @classmethod
     def _impl_v10(cls, inputs, attr, params):
-        def get_scalar(x, dtype="float32"):
-            if isinstance(x, _expr.Var) and x.name_hint in params:
-                return _op.const(params[x.name_hint].numpy(), dtype)
-            rank = len(infer_shape(x))
-            assert rank <= 1, "QLinearConv scale and zero_point input must be scalars"
-            if rank == 1:
-                x = _op.squeeze(x, [0])
-            return _op.cast(x, dtype)
-
         a = inputs[0]
         a_scale = get_scalar(inputs[1])
         a_zero_point = get_scalar(inputs[2], "int32")
@@ -3304,6 +3297,32 @@ class QLinearMul(OnnxOpConverter):
         b = _qnn.op.dequantize(inputs[3], b_scale, b_zero_point)
         out = _op.multiply(a, b)
         return _qnn.op.quantize(out, y_scale, y_zero_point, out_dtype=dtype)
+
+
+class QLinearConcat(OnnxOpConverter):
+    """Operator converter for QLinearConcat from Microsoft onnxruntime contrib opset."""
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        # which axis to concat on
+        axis = attr["axis"]
+
+        y_scale = inputs[0]
+        y_zero_point = get_scalar(inputs[1], "int8")
+
+        # input tensors, scales, zero_points
+        assert (
+            len(inputs) % 3 == 2
+        ), "Additional number of inputs beyond y_scale, y_zero_point for QLinearConcat must be a multiple of 3, indicating a complete input tensor/scale/zero_point trifecta"
+        tensors = []
+        scales = []
+        zero_points = []
+        for i in range(2, len(inputs), 3):
+            tensors.append(inputs[i])
+            scales.append(get_scalar(inputs[i + 1]))
+            zero_points.append(get_scalar(inputs[i + 2], "int8"))
+
+        return _qnn.op.concatenate(tensors, scales, zero_points, y_scale, y_zero_point, axis)
 
 
 class ConvInteger(OnnxOpConverter):

@@ -5267,6 +5267,39 @@ def test_qlinearconv(target, dev):
 
 
 @tvm.testing.parametrize_targets
+def test_qlinearconcat(target, dev):
+    def verify_qlinearconcat(shapes, out_shape, axis=None):
+        input_names = []
+        input_values = []
+        input_nodes = []
+        for i in range(len(shapes)):
+            tensor_name = str(chr(ord("a") + i))
+            shape = shapes[i]
+            node = helper.make_tensor_value_info(tensor_name, TensorProto.FLOAT, list(shape))
+
+            input_names.append(tensor_name)
+            input_values.append(np.random.random(shape).astype("float32"))
+            input_nodes.append(node)
+
+        node = helper.make_node("Concat", input_names, ["OUT"])
+        if axis is not None:
+            axis_attr = helper.make_attribute("axis", axis)
+            node.attribute.append(axis_attr)
+        graph = helper.make_graph(
+            [node],
+            "qlinearconcat_test",
+            inputs=input_nodes,
+            outputs=[helper.make_tensor_value_info("OUT", TensorProto.FLOAT, list(out_shape))],
+        )
+        model = helper.make_model(graph, producer_name="qlinearconcat_test")
+        quantize_and_verify_with_ort(model, input_names, shapes, target, dev)
+
+    verify_qlinearconcat([[2, 1], [2, 1]], [4, 1], 0)
+    verify_qlinearconcat([[2, 1], [2, 1]], [2, 2], 1)
+    verify_qlinearconcat([[1, 2, 2], [1, 2, 3]], [1, 2, 5], 2)
+
+
+@tvm.testing.parametrize_targets
 def test_qlinearadd(target, dev):
     def verify_qlinearadd(a_shape, b_shape, c_shape):
 
@@ -5623,6 +5656,7 @@ if __name__ == "__main__":
     test_aten()
     test_reverse_sequence()
     test_eyelike()
+    test_qlinearconcat()
     test_qlinearconv()
     test_random_uniform()
     test_convinteger()
