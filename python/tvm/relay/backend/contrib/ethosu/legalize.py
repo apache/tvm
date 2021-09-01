@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, unused-argument, import-outside-toplevel, no-value-for-parameter
-""" A set of passes to legalize some of operations for the NPU"""
+"""A set of passes to legalize some of operations for the NPU"""
 import numpy as np
 
 import tvm
@@ -58,7 +58,7 @@ class SplitRewriter(DFPatternCallback):
 
         Returns
         -------
-        section_begins : list
+        section_begins : list[int]
             A list containing integers corresponding to section
             begins
         """
@@ -71,16 +71,10 @@ class SplitRewriter(DFPatternCallback):
             return [0] + list(indices_or_sections)
         split_axis_len = input_shape[split_axis].value
         section_length = split_axis_len // indices_or_sections.value
-        section_begins = list(range(0, split_axis_len, section_length))
-        return section_begins
+        return list(range(0, split_axis_len, section_length))
 
     def callback(self, pre, post, node_map):
-        splits_types = dict()
         split_input = post.args[0]
-        for idx, field_type in enumerate(post.checked_type.fields):
-            split = relay.TupleGetItem(post, idx)
-            splits_types[split] = field_type
-
         split_begins = list()
         split_ends = list()
         section_begins_in_split_axis = self.get_section_begin_coords(post)

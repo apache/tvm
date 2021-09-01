@@ -247,5 +247,9 @@ def qnn_conv2d_pattern():
 @register_pattern_table("ethosu")
 def pattern_table():
     return [
-        ("ethosu.qnn_conv2d", qnn_conv2d_pattern(), lambda pat: QnnConv2DParams(pat).is_valid())
+        (
+            QnnConv2DParams.composite_name,
+            qnn_conv2d_pattern(),
+            lambda pat: QnnConv2DParams(pat).is_valid(),
+        )
     ]

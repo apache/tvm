@@ -327,7 +327,11 @@ def test_ethosu_conv2d_legalize_errors():
     for test_case in test_cases:
         mod, conv_params = test_case[0](*test_case[1])
         mod = ethosu.partition_for_ethosu(mod)
-        try:
+        with pytest.raises(
+            tvm._ffi.base.TVMError, match="EthosUCodegenError: Unsupported Layout NCHW"
+        ):
             mod = legalize.LegalizeEthosUConv2D()(mod)
-        except Exception as e:
-            assert "EthosUCodegenError: Unsupported Layout NCHW" in e.args[0]
+
+
+if __name__ == "__main__":
+    pytest.main([__file__])

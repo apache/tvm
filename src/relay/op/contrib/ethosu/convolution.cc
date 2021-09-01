@@ -180,7 +180,7 @@ RELAY_REGISTER_OP("contrib.ethosu.conv2d")
 
 This Relay operator corresponds to the hardware-implemented quantized
 convolution operation found on Ethos(TM)-U NPUs. It accepts either NHWC
-or NHCWB16 format for the input data (input feature map, or IFM) and
+or NHCWB16 format for the input data (Input Feature Map, or IFM) and
 OHWI format for the kernel weights.
 
 Reference: https://developer.arm.com/documentation/102420/0200/

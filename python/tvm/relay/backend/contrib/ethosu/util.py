@@ -128,13 +128,13 @@ def get_range_for_dtype_str(dtype):
 
 
 def round_away_zero(f):
-    """round the number away from zero towards +inf / -inf"""
+    """Round the number away from zero towards +inf / -inf"""
     offset = -0.5 if (f < 0) else 0.5
     return np.trunc(f + offset)
 
 
 def round_up(a, b):
-    """round up to a multiple of b"""
+    """Round up to a multiple of b"""
     return ((a + b - 1) // b) * b
 
 

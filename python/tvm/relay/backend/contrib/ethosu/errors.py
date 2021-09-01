@@ -33,6 +33,3 @@ class UnsupportedLayout(EthosUCodegenError):
 
     def __init__(self, layout):
         super().__init__(f"Unsupported Layout {layout}")
-
-    def __str__(self):
-        return self.message

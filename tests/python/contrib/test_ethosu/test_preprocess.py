@@ -340,7 +340,4 @@ def test_4ins_2outs():
 
 
 if __name__ == "__main__":
-    test_2ins_single_out()
-    test_single_io()
-    test_4ins_2outs()
-    test_single_in_2outs()
+    pytest.main([__file__])

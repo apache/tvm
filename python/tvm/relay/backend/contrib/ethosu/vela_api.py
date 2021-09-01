@@ -56,6 +56,7 @@ def get_optimal_block_config(npu_op, accel_type):
         The NPU operation and its params
     accel_type : ethosu.vela.api.NpuAccelerator
         The NPU accelerator variant
+
     Returns
     -------
     ethosu.vela.api.NpuShape3d :
