@@ -5281,7 +5281,7 @@ def test_qlinearconcat(target, dev):
             input_values.append(np.random.random(shape).astype("float32"))
             input_nodes.append(node)
 
-        node = helper.make_node("Concat", input_names, ["OUT"])
+        node = helper.make_node("Concat", input_names, ["C"])
         if axis is not None:
             axis_attr = helper.make_attribute("axis", axis)
             node.attribute.append(axis_attr)
@@ -5289,14 +5289,15 @@ def test_qlinearconcat(target, dev):
             [node],
             "qlinearconcat_test",
             inputs=input_nodes,
-            outputs=[helper.make_tensor_value_info("OUT", TensorProto.FLOAT, list(out_shape))],
+            outputs=[helper.make_tensor_value_info("C", TensorProto.FLOAT, list(out_shape))],
         )
+        breakpoint()
         model = helper.make_model(graph, producer_name="qlinearconcat_test")
         quantize_and_verify_with_ort(model, input_names, shapes, target, dev)
 
     verify_qlinearconcat([[2, 1], [2, 1]], [4, 1], 0)
     verify_qlinearconcat([[2, 1], [2, 1]], [2, 2], 1)
-    verify_qlinearconcat([[1, 2, 2], [1, 2, 3]], [1, 2, 5], 2)
+    verify_qlinearconcat([[1, 2], [2, 2], [3,2]], [6, 2], 0)
 
 
 @tvm.testing.parametrize_targets
