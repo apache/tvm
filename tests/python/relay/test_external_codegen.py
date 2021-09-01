@@ -27,7 +27,6 @@ from tvm import relay, runtime
 from tvm.contrib import utils
 from tvm.relay.build_module import bind_params_by_name
 from tvm.relay.op.annotation import compiler_begin, compiler_end
-from aot.aot_test_utils import compile_and_run
 
 
 def update_lib(lib):
@@ -77,8 +76,21 @@ def check_graph_executor_result(
 def check_aot_executor_result(
     mod, map_inputs, out_shape, result, tol=1e-5, target="llvm", device=tvm.cpu()
 ):
-    use_calculated_workspaces = True
-    compile_and_run(mod, map_inputs, [result], "packed", 0, use_calculated_workspaces)
+    if tvm.support.libinfo().get("USE_MICRO", "OFF") != "ON":
+        pytest.skip("MicroTVM support not enabled. Set USE_MICRO=ON in config.cmake to enable.")
+
+    # Late import to avoid breaking test with USE_MICRO=OFF.
+    from aot.aot_test_utils import AOTTestModel, AOT_DEFAULT_RUNNER, compile_and_run
+
+    interface_api = "packed"
+    use_unpacked_api = False
+    test_runner = AOT_DEFAULT_RUNNER
+    compile_and_run(
+        AOTTestModel(module=mod, inputs=map_inputs, outputs=[result]),
+        test_runner,
+        interface_api,
+        use_unpacked_api,
+    )
 
 
 def set_external_func_attr(func, compiler, ext_symbol):
@@ -315,8 +327,9 @@ def test_extern_dnnl(check_result):
     i_data = np.random.uniform(0, 1, ishape).astype(dtype)
     w_data = np.random.uniform(0, 1, w1shape).astype(dtype)
 
-    ref_ex = relay.create_executor("graph", mod=ref_mod, device=tvm.cpu())
-    ref_res = ref_ex.evaluate()(i_data, w_data, w_data)
+    ref_res = relay.create_executor("graph", mod=ref_mod, device=tvm.cpu()).evaluate()(
+        i_data, w_data, w_data
+    )
     check_result(
         mod, {"data0": i_data, "weight0": w_data}, (1, 32, 14, 14), ref_res.numpy(), tol=1e-5
     )
@@ -356,8 +369,7 @@ def test_extern_dnnl_const(check_result):
 
     i_data = np.random.uniform(0, 1, ishape).astype(dtype)
 
-    ref_ex = relay.create_executor("graph", mod=ref_mod, device=tvm.cpu())
-    ref_res = ref_ex.evaluate()(i_data)
+    ref_res = relay.create_executor("graph", mod=ref_mod, device=tvm.cpu()).evaluate()(i_data)
     check_result(mod, {"data0": i_data}, (1, 32, 14, 14), ref_res.numpy(), tol=1e-5)
 
 

@@ -49,10 +49,21 @@ def get_ref_func(
     groups,
     channels=None,
 ):
+    if isinstance(input_zero_point, (int, float)):
+        input_zero_point = relay.const(input_zero_point, "int32")
+    if isinstance(kernel_zero_point, (int, float)):
+        kernel_zero_point = relay.const(kernel_zero_point, "int32")
+    else:
+        # Kernel zero point expression requires manual broadcasting for some layouts.
+        if kernel_layout == "OIHW":
+            kernel_zero_point = relay.reshape(kernel_zero_point, [-1, 1, 1, 1])
+        elif kernel_layout == "HWOI":
+            kernel_zero_point = relay.reshape(kernel_zero_point, [1, 1, -1, 1])
+
     casted_data = relay.op.cast(data, "int32")
     casted_kernel = relay.op.cast(kernel, "int32")
-    shifted_data = relay.op.subtract(casted_data, relay.const(input_zero_point, "int32"))
-    shifted_kernel = relay.op.subtract(casted_kernel, relay.const(kernel_zero_point, "int32"))
+    shifted_data = relay.op.subtract(casted_data, input_zero_point)
+    shifted_kernel = relay.op.subtract(casted_kernel, kernel_zero_point)
     func = relay.op.nn.conv2d(
         shifted_data,
         shifted_kernel,
@@ -88,11 +99,16 @@ def get_qnn_func(
     channels,
     groups,
 ):
+    if isinstance(input_zero_point, (int, float)):
+        input_zero_point = relay.const(input_zero_point, "int32")
+    if isinstance(kernel_zero_point, (int, float)):
+        kernel_zero_point = relay.const(kernel_zero_point, "int32")
+
     func = relay.qnn.op.conv2d(
         data,
         kernel,
-        input_zero_point=relay.const(input_zero_point, "int32"),
-        kernel_zero_point=relay.const(kernel_zero_point, "int32"),
+        input_zero_point=input_zero_point,
+        kernel_zero_point=kernel_zero_point,
         input_scale=relay.const(input_scale, "float32"),
         kernel_scale=relay.const(kernel_scale, "float32"),
         kernel_size=kernel_size,
@@ -406,6 +422,62 @@ def test_both_zero_point():
             kernel_dtype=kernel_dtype,
             input_zero_point=5,
             kernel_zero_point=3,
+            input_scale=1.0,
+            kernel_scale=1.0,
+            kernel_size=(2, 2),
+            padding=(0, 0),
+            strides=(1, 1),
+            dilation=(1, 1),
+            data_layout="NCHW",
+            kernel_layout="OIHW",
+            out_dtype="int32",
+        )
+        verify(ref_func, qnn_func, data_shape, data_dtype, kernel_shape, kernel_dtype)
+
+
+def test_dynamic_zero_point():
+    with TempOpAttr("qnn.conv2d", "FTVMQnnLegalize", legalize_qnn_conv2d):
+
+        # uint8 input with non static zero points.
+        data_shape = (2, 4, 2, 4)
+        data_dtype = "uint8"
+        kernel_shape = (3, 4, 2, 2)
+        kernel_dtype = "uint8"
+        input_zero_point = relay.op.multiply(
+            relay.const(2, dtype="int32"), relay.const(2, dtype="int32")
+        )
+        kernel_zero_point = relay.const(np.random.randint(10, size=[3]), "int32")
+        ref_func, qnn_func = get_funcs(
+            data_shape=data_shape,
+            data_dtype=data_dtype,
+            kernel_shape=kernel_shape,
+            kernel_dtype=kernel_dtype,
+            input_zero_point=input_zero_point,
+            kernel_zero_point=kernel_zero_point,
+            input_scale=1.0,
+            kernel_scale=1.0,
+            kernel_size=(2, 2),
+            padding=(0, 0),
+            strides=(1, 1),
+            dilation=(1, 1),
+            data_layout="NCHW",
+            kernel_layout="OIHW",
+            out_dtype="int32",
+        )
+        verify(ref_func, qnn_func, data_shape, data_dtype, kernel_shape, kernel_dtype)
+
+        # int8 input
+        data_shape = (2, 4, 2, 4)
+        data_dtype = "int8"
+        kernel_shape = (3, 4, 2, 2)
+        kernel_dtype = "int8"
+        ref_func, qnn_func = get_funcs(
+            data_shape=data_shape,
+            data_dtype=data_dtype,
+            kernel_shape=kernel_shape,
+            kernel_dtype=kernel_dtype,
+            input_zero_point=input_zero_point,
+            kernel_zero_point=kernel_zero_point,
             input_scale=1.0,
             kernel_scale=1.0,
             kernel_size=(2, 2),
@@ -888,13 +960,17 @@ def test_depthwise_depth_multiplier():
         data_dtype = "uint8"
         kernel_shape = (4, 1, 3, 3)
         kernel_dtype = "uint8"
+        input_zero_point = relay.op.multiply(
+            relay.const(2, dtype="int32"), relay.const(2, dtype="int32")
+        )
+        kernel_zero_point = relay.const(np.random.randint(10, size=[4]), "int32")
         ref_func, qnn_func = get_funcs(
             data_shape=data_shape,
             data_dtype=data_dtype,
             kernel_shape=kernel_shape,
             kernel_dtype=kernel_dtype,
-            input_zero_point=5,
-            kernel_zero_point=3,
+            input_zero_point=input_zero_point,
+            kernel_zero_point=kernel_zero_point,
             input_scale=1.0,
             kernel_scale=1.0,
             kernel_size=(3, 3),
@@ -905,6 +981,7 @@ def test_depthwise_depth_multiplier():
             kernel_layout="OIHW",
             out_dtype="int32",
             groups=4,
+            channels=4,
         )
 
         verify(ref_func, qnn_func, data_shape, data_dtype, kernel_shape, kernel_dtype)
@@ -919,8 +996,8 @@ def test_depthwise_depth_multiplier():
             data_dtype=data_dtype,
             kernel_shape=kernel_shape,
             kernel_dtype=kernel_dtype,
-            input_zero_point=5,
-            kernel_zero_point=3,
+            input_zero_point=input_zero_point,
+            kernel_zero_point=kernel_zero_point,
             input_scale=1.0,
             kernel_scale=1.0,
             kernel_size=(3, 3),
@@ -946,8 +1023,8 @@ def test_depthwise_depth_multiplier():
             data_dtype=data_dtype,
             kernel_shape=kernel_shape,
             kernel_dtype=kernel_dtype,
-            input_zero_point=5,
-            kernel_zero_point=3,
+            input_zero_point=input_zero_point,
+            kernel_zero_point=kernel_zero_point,
             input_scale=1.0,
             kernel_scale=1.0,
             kernel_size=(3, 3),
@@ -971,8 +1048,8 @@ def test_depthwise_depth_multiplier():
             data_dtype=data_dtype,
             kernel_shape=kernel_shape,
             kernel_dtype=kernel_dtype,
-            input_zero_point=5,
-            kernel_zero_point=3,
+            input_zero_point=input_zero_point,
+            kernel_zero_point=kernel_zero_point,
             input_scale=1.0,
             kernel_scale=1.0,
             kernel_size=(3, 3),

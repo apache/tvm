@@ -220,8 +220,7 @@ def test_vulkan_bool_load(target, dev):
 
 
 def check_mod(target, dev, mod, x_np, res_np):
-    ex = relay.create_executor("vm", mod=mod, device=dev, target=target)
-    res = ex.evaluate()(x_np).numpy()
+    res = relay.create_executor("vm", mod=mod, device=dev, target=target).evaluate()(x_np).numpy()
     tvm.testing.assert_allclose(res, res_np, atol=1e-5)
 
 
@@ -525,6 +524,36 @@ class TestVectorizedIndices:
         b = tvm.nd.array(np.zeros(shape=b_np.shape, dtype="int32"), dev)
         f(a, r, b)
         tvm.testing.assert_allclose(b.numpy(), b_np)
+
+
+@tvm.testing.parametrize_targets("vulkan -max_shared_memory_per_block=16384")
+def test_shared_mem_alloc(target, dev):
+    alloc_nbytes = 16384 * 2
+
+    def do_compute(ins, outs):
+        ib = tvm.tir.ir_builder.create()
+        out = ib.buffer_ptr(outs[0])
+
+        ib.scope_attr(te.thread_axis("blockIdx.x"), "thread_extent", 0)
+
+        array = ib.allocate("int32", (alloc_nbytes,), name="array", scope="shared")
+        array[0] = 0
+        out[0] = array[0]
+
+        return ib.get()
+
+    Out = te.extern(
+        shape=(1,),
+        inputs=[],
+        fcompute=do_compute,
+        dtype="int32",
+    )
+    s = te.create_schedule(Out.op)
+
+    # Codegen should raise error when allocating more memory than the
+    # target supports.
+    with pytest.raises(tvm.TVMError):
+        tvm.build(s, [Out], target)
 
 
 if __name__ == "__main__":

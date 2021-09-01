@@ -29,18 +29,31 @@
 #
 # All configuration values have a default; values that are commented out
 # serve to show the default.
-import sys
+import gc
+import importlib.util
 import inspect
-import os, subprocess
+import os
+from pathlib import Path
 import shlex
+import subprocess
+import sys
+
 import sphinx_gallery
+
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
-curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
-sys.path.insert(0, os.path.join(curr_path, "../python/"))
-sys.path.insert(0, os.path.join(curr_path, "../vta/python"))
+curr_path = Path(__file__).expanduser().absolute().parent
+if curr_path.name == "_staging":
+    # Can't use curr_path.parent, because sphinx_gallery requires a relative path.
+    tvm_path = Path(os.pardir, os.pardir)
+else:
+    tvm_path = Path(os.pardir)
+
+
+sys.path.insert(0, str(tvm_path / "python"))
+sys.path.insert(0, str(tvm_path / "vta" / "python"))
 
 # -- General configuration ------------------------------------------------
 
@@ -55,7 +68,7 @@ os.environ["TVM_BUILD_DOC"] = "1"
 
 def git_describe_version(original_version):
     """Get git describe version."""
-    ver_py = os.path.join(curr_path, "..", "version.py")
+    ver_py = tvm_path.joinpath("version.py")
     libver = {"__file__": ver_py}
     exec(compile(open(ver_py, "rb").read(), ver_py, "exec"), libver, libver)
     _, gd_version = libver["git_describe_version"]()
@@ -117,7 +130,7 @@ language = None
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
-exclude_patterns = ["_build"]
+exclude_patterns = ["_build", "_staging"]
 
 # The reST default role (used for this markup: `text`) to use for all
 # documents.
@@ -196,24 +209,25 @@ intersphinx_mapping = {
 
 from sphinx_gallery.sorting import ExplicitOrder
 
-examples_dirs = ["../tutorials/", "../vta/tutorials/"]
+examples_dirs = [tvm_path.joinpath("tutorials"), tvm_path.joinpath("vta", "tutorials")]
 gallery_dirs = ["tutorials", "vta/tutorials"]
 
 subsection_order = ExplicitOrder(
-    [
-        "../tutorials/get_started",
-        "../tutorials/frontend",
-        "../tutorials/language",
-        "../tutorials/optimize",
-        "../tutorials/autotvm",
-        "../tutorials/auto_scheduler",
-        "../tutorials/dev",
-        "../tutorials/topi",
-        "../tutorials/deployment",
-        "../tutorials/micro",
-        "../vta/tutorials/frontend",
-        "../vta/tutorials/optimize",
-        "../vta/tutorials/autotvm",
+    str(p)
+    for p in [
+        tvm_path / "tutorials" / "get_started",
+        tvm_path / "tutorials" / "frontend",
+        tvm_path / "tutorials" / "language",
+        tvm_path / "tutorials" / "optimize",
+        tvm_path / "tutorials" / "autotvm",
+        tvm_path / "tutorials" / "auto_scheduler",
+        tvm_path / "tutorials" / "dev",
+        tvm_path / "tutorials" / "topi",
+        tvm_path / "tutorials" / "deployment",
+        tvm_path / "tutorials" / "micro",
+        tvm_path / "vta" / "tutorials" / "frontend",
+        tvm_path / "vta" / "tutorials" / "optimize",
+        tvm_path / "vta" / "tutorials" / "autotvm",
     ]
 )
 
@@ -300,6 +314,14 @@ class WithinSubsectionOrder:
         return filename
 
 
+# When running the tutorials on GPUs we are dependent on the Python garbage collector
+# collecting TVM packed function closures for any device memory to also be released. This
+# is not a good setup for machines with lots of CPU ram but constrained GPU ram, so force
+# a gc after each example.
+def force_gc(gallery_conf, fname):
+    gc.collect()
+
+
 sphinx_gallery_conf = {
     "backreferences_dir": "gen_modules/backreferences",
     "doc_module": ("tvm", "numpy"),
@@ -317,6 +339,7 @@ sphinx_gallery_conf = {
     "download_all_examples": False,
     "min_reported_time": 60,
     "expected_failing_examples": [],
+    "reset_modules": ("matplotlib", "seaborn", force_gc),
 }
 
 autodoc_default_options = {

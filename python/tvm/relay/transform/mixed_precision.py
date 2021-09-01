@@ -81,8 +81,6 @@ DEFAULT_FOLLOW_LIST = [
     "divide",
     "nn.bias_add",
     "nn.batch_norm",
-    "sum",
-    "mean",
     "sqrt",
     "shape_of",
     # Simple activations
@@ -107,15 +105,9 @@ DEFAULT_FOLLOW_LIST = [
     # "nn.global_max_pool1d", # does not exist yet
     "nn.global_max_pool2d",
     # "nn.global_max_pool3d", # does not exist yet
-    # "nn.global_avg_pool1d", # does not exist yet
-    "nn.global_avg_pool2d",
-    # "nn.global_avg_pool3d", # does not exist yet
     "nn.adaptive_max_pool1d",
     "nn.adaptive_max_pool2d",
     "nn.adaptive_max_pool3d",
-    "nn.adaptive_avg_pool1d",
-    "nn.adaptive_avg_pool2d",
-    "nn.adaptive_avg_pool3d",
 ]
 DEFAULT_NEVER_LIST = [
     # In general if |f(x)| >> |x| for expected inputs then put the op here.
@@ -128,6 +120,16 @@ DEFAULT_NEVER_LIST = [
     # Error function doesn't seem to be able to be lowered into fp16 version in llvm.
     # Move to follow list when it does.
     "erf",
+    # Do not allow arange arguments (begin/end) to be fp16. "end" can be a big fp32 number
+    # not representable in fp16.
+    "arange",
+    # Ops that could involve a large summation are not allowed in fp16.
+    "nn.global_avg_pool2d",
+    "nn.adaptive_avg_pool1d",
+    "nn.adaptive_avg_pool2d",
+    "nn.adaptive_avg_pool3d",
+    "sum",
+    "mean",
 ]
 
 

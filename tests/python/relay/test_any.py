@@ -58,8 +58,7 @@ def check_result(
                 continue
             if kind == "debug" and (only_vm or dev.device_type != tvm.cpu().device_type):
                 continue
-            ex = relay.create_executor(kind, mod=mod, device=dev, target=tgt)
-            result = ex.evaluate()(*args)
+            result = relay.create_executor(kind, mod=mod, device=dev, target=tgt).evaluate()(*args)
             if isinstance(result, tvm.runtime.container.ADT):
                 result = [r.numpy() for r in result]
             else:
@@ -615,7 +614,6 @@ def verify_any_conv2d_NCHWc(
 
 
 # TODO(@kevinthesun): Support dynamic input height and width.
-@tvm.testing.uses_gpu
 def test_any_conv2d_NCHWc():
     verify_any_conv2d_NCHWc(
         (relay.Any(), 8, 224, 224, 8),
@@ -852,8 +850,9 @@ def verify_any_split(data_shape, indices_or_sections, axis, static_data_shape, r
     mod["main"] = relay.Function([data], y.astuple())
     data_np = np.random.uniform(size=static_data_shape).astype(dtype)
     for kind in ["vm"]:
-        ex = relay.create_executor(kind, mod=mod, device=tvm.cpu(), target="llvm")
-        result = ex.evaluate()(data_np)
+        result = relay.create_executor(kind, mod=mod, device=tvm.cpu(), target="llvm").evaluate()(
+            data_np
+        )
         for ret, ref_ret in zip(result, ref_out_shape):
             assert ret.numpy().shape == ref_ret, "Shape mismatch: expect %s but got %s." % (
                 str(ref_ret),
@@ -942,8 +941,9 @@ def verify_any_batch_matmul(
     for target, dev in tvm.testing.enabled_targets():
         for kind in ["vm", "debug"]:
             mod = tvm.ir.IRModule.from_expr(func)
-            intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
-            z = intrp.evaluate()(x_np, y_np)
+            z = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
+                x_np, y_np
+            )
             tvm.testing.assert_allclose(z.numpy(), z_np, rtol=1e-5)
 
 

@@ -351,6 +351,50 @@ def test_forward_conv():
 
 
 @tvm.testing.uses_gpu
+def test_forward_conv_transpose():
+    # Note we do not test with groups  > 1 because that is not supported
+    # in tvm for conv transpose operations
+
+    class Conv2DTranspose1(nn.Layer):
+        def __init__(self):
+            super(Conv2DTranspose1, self).__init__()
+            self.conv_transpose = nn.Conv2DTranspose(3, 5, 3)
+
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return self.conv_transpose(inputs)
+
+    class Conv2DTranspose2(nn.Layer):
+        def __init__(self):
+            super(Conv2DTranspose2, self).__init__()
+            self.conv_transpose = nn.Conv2DTranspose(
+                3, 5, 3, stride=2, padding=[[0,0],[0,0],[1,2],[3,4]], output_padding=1, bias_attr=True
+            )
+
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return self.conv_transpose(inputs)
+
+    class Conv2DTranspose3(nn.Layer):
+        def __init__(self):
+            super(Conv2DTranspose3, self).__init__()
+            self.conv_transpose = nn.Conv2DTranspose(
+                3, 5, 3, stride=3, padding='VALID', output_padding=2, bias_attr=True
+            )
+
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return self.conv_transpose(inputs)
+
+    # Conv 2D Transpose Tests
+    conv2d_transpose_input_shape = [1, 3, 128, 256]
+    conv2d_transpose_input_data = paddle.rand(conv2d_transpose_input_shape, dtype="float32")
+    verify_model(Conv2DTranspose1(), input_data=conv2d_transpose_input_data)
+    verify_model(Conv2DTranspose2(), input_data=conv2d_transpose_input_data)
+    verify_model(Conv2DTranspose3(), input_data=conv2d_transpose_input_data)
+
+
+@tvm.testing.uses_gpu
 def test_forward_dropout():
     @paddle.jit.to_static
     def dropout(inputs):
@@ -767,6 +811,17 @@ def test_forward_tanh():
     verify_model(tanh, input_data=input_data)
 
 
+@tvm.testing.uses_gpu
+def test_forward_sigmoid():
+    @paddle.jit.to_static
+    def sigmoid(inputs):
+        return nn.functional.sigmoid(inputs)
+
+    input_shape = [10, 10]
+    input_data = paddle.rand(input_shape, dtype="float32")
+    verify_model(sigmoid, input_data=input_data)
+
+
 if __name__ == "__main__":
     test_forward_add_subtract()
     test_forward_argmax()
@@ -796,3 +851,5 @@ if __name__ == "__main__":
     test_forward_slice()
     test_forward_squeeze2()
     test_forward_tanh()
+    test_forward_conv_transpose()
+    test_forward_sigmoid()

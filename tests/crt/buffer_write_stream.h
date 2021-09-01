@@ -24,6 +24,8 @@
 #include <tvm/runtime/crt/rpc_common/frame_buffer.h>
 #include <tvm/runtime/crt/rpc_common/write_stream.h>
 
+#include <string>
+
 using ::tvm::runtime::micro_rpc::FrameBuffer;
 using ::tvm::runtime::micro_rpc::WriteStream;
 
@@ -51,7 +53,7 @@ class BufferWriteStream : public WriteStream {
 
   std::string BufferContents() { return std::string((const char*)buffer_data_, buffer_.Size()); }
 
-  static constexpr unsigned int capacity() { return N; };
+  static constexpr unsigned int capacity() { return N; }
 
  private:
   bool packet_done_{false};

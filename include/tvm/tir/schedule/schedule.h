@@ -19,7 +19,9 @@
 #ifndef TVM_TIR_SCHEDULE_SCHEDULE_H_
 #define TVM_TIR_SCHEDULE_SCHEDULE_H_
 
+#include <tvm/support/random_engine.h>
 #include <tvm/tir/schedule/state.h>
+#include <tvm/tir/schedule/trace.h>
 
 namespace tvm {
 namespace tir {
@@ -95,19 +97,21 @@ class ScheduleNode : public runtime::Object {
   virtual ~ScheduleNode() = default;
 
   static constexpr const char* _type_key = "tir.Schedule";
-  TVM_DECLARE_BASE_OBJECT_INFO(ScheduleNode, runtime::Object);
+  TVM_DECLARE_FINAL_OBJECT_INFO(ScheduleNode, runtime::Object);
 
  public:
   /*! \brief Get the IRModule associated with this schedule. */
   virtual IRModule mod() const { return state()->mod; }
   /*! \return The internal state of scheduling */
   virtual ScheduleState state() const = 0;
+  /*! \return The internally maintained trace of scheduling program execution */
+  virtual Optional<Trace> trace() const = 0;
   /*!
    * \brief Returns a copy of the schedule, including both its state and its symbol table,
    * guaranteeing that
    * 1) SRef tree is completely reconstructed;
    * 2) The IRModule being scheduled is not modified;
-   * 3) All the random variables are valid in the copy, pointing to the correpsonding sref
+   * 3) All the random variables are valid in the copy, pointing to the corresponding sref
    * reconstructed
    */
   virtual Schedule Copy() const = 0;
@@ -115,9 +119,9 @@ class ScheduleNode : public runtime::Object {
    * \brief Seed the randomness
    * \param seed The new random seed, -1 if use device random, otherwise non-negative
    */
-  virtual void Seed(int64_t seed = -1) {
-    LOG(FATAL) << "ValueError: The schedule cannot be seeded because no randomness is allowed";
-  }
+  virtual void Seed(support::LinearCongruentialEngine::TRandState seed = -1) = 0;
+  /*! \brief Fork the random state */
+  virtual support::LinearCongruentialEngine::TRandState ForkSeed() = 0;
 
  public:
   /******** Lookup/Remove random variables ********/
@@ -181,6 +185,16 @@ class ScheduleNode : public runtime::Object {
 
  public:
   /******** Schedule: Sampling ********/
+  /*!
+   * \brief Sample an integer given the probability distribution
+   * \param candidates The candidates
+   * \param probs The probability distribution of the candidates
+   * \param decision The sampling decision
+   * \return The random variable sampled from candidates
+   */
+  virtual ExprRV SampleCategorical(const Array<Integer>& candidates, const Array<FloatImm>& probs,
+                                   Optional<Integer> decision = NullOpt) = 0;
+
   /******** Schedule: Get blocks & loops ********/
   /*!
    * \brief Retrieve a block in a specific function with its name
@@ -216,7 +230,57 @@ class ScheduleNode : public runtime::Object {
    * \return The new loops after split
    */
   virtual Array<LoopRV> Split(const LoopRV& loop_rv, const Array<Optional<ExprRV>>& factors) = 0;
+  /*!
+   * \brief Reorder a list of loops. It doesn't require the loops to be consecutive.
+   * It requires:
+   * 1) The loops are in the same chain. That means: the loops can be ordered to [l_1, l_2, ... ,
+   *     l_n] where l_i is an ancestor of l_{i+1} and there are only single-branch loops between
+   *     l_1 and l_n (which also indicates they are under the same scope).
+   * 2) After reordering, the domain of an outer loop cannot depend on any of the inner loops.
+   * 3) For every block under the loop nests, its block binding must be affine, and the block
+   *    variables must be either data parallel or reduction.
+   * 4) No duplicated loops are allowed in the arguments.
+   * \param ordered_loop_rvs The loops in the new order
+   */
+  virtual void Reorder(const Array<LoopRV>& ordered_loop_rvs) = 0;
   /******** Schedule: Manipulate ForKind ********/
+  /*!
+   * \brief Parallelize the input loop. It requires:
+   * 1) The scope block that the loop is in should have stage-pipeline property
+   * 2) All the blocks under the loop are complete blocks or reduction blocks, and have affine
+   * bindings
+   * 3) For each block under the loop, the loop can only be contained in data-parallel block iters'
+   * bindings
+   * \param loop_rv The loop to be parallelized
+   */
+  virtual void Parallel(const LoopRV& loop_rv) = 0;
+  /*!
+   * \brief Vectorize the input loop. It requires:
+   * 1) The scope block that the loop is in should have stage-pipeline property
+   * 2) All the blocks under the loop are complete blocks or reduction blocks, and have affine
+   * bindings
+   * 3) For each block under the loop, the loop can only be contained in data-parallel block iters'
+   * bindings
+   * \param loop_rv The loop to be vectorized
+   */
+  virtual void Vectorize(const LoopRV& loop_rv) = 0;
+  /*!
+   * \brief Bind the input loop to the given thread axis. It requires:
+   * 1) The scope block that the loop is in should have stage-pipeline property
+   * 2) All the blocks under the loop are complete blocks or reduction blocks, and have affine
+   * bindings
+   * 3) For each block under the loop, if the thread axis starts with "threadIdx`, the loop can only
+   * be contained in data-parallel block iter and reduction block iters' bindings. Otherwise the
+   * loop can only be contained in data-parallel block iters' bindings
+   * \param loop_rv The loop to be bound to the thread axis
+   * \param thread_axis The thread axis to be bound to the loop
+   */
+  virtual void Bind(const LoopRV& loop_rv, const String& thread_axis) = 0;
+  /*!
+   * \brief Unroll the input loop. It requires nothing
+   * \param loop_rv The loop to be unrolled
+   */
+  virtual void Unroll(const LoopRV& loop_rv) = 0;
   /******** Schedule: Insert cache stages ********/
   /******** Schedule: Compute location ********/
   /*!
@@ -261,6 +325,21 @@ class ScheduleNode : public runtime::Object {
    * \return The rfactor block
    */
   virtual BlockRV RFactor(const LoopRV& loop_rv, int factor_axis) = 0;
+  /******** Schedule: Block annotation ********/
+  /*!
+   * \brief Set alignment requirement for specific dimension such that
+   *        stride[axis] == k * factor + offset for some k. This is useful to set memory layout for
+   *        more friendly memory access pattern. For example, we can set alignment to be factor=2,
+   *        offset=1 to avoid bank conflict for thread access on higher dimension in GPU shared
+   *        memory.
+   * \param block_rv The producer block of the buffer
+   * \param buffer_index The index of the buffer in block's write region
+   * \param axis The dimension to be specified for alignment
+   * \param factor The factor multiple of alignment
+   * \param offset The required offset factor
+   */
+  virtual void StorageAlign(const BlockRV& block_rv, int buffer_index, int axis, int factor,
+                            int offset) = 0;
   /******** Schedule: Blockize & Tensorize ********/
   /******** Schedule: Annotation ********/
   /******** Schedule: Misc ********/
@@ -288,7 +367,8 @@ class Schedule : public runtime::ObjectRef {
   /*!
    * \brief Construct a concrete TensorIR schedule from an IRModule
    * \param mod The IRModule to be scheduled
-   * \param debug_mode Do extra correctness checking after the class creation
+   * \param seed The seed value for schedule's random state
+   * \param debug_mask Do extra correctness checking after the class creation
    * and each time after calling the Replace method.
    * \param error_render_level The level of error rendering
    * \return The concrete schedule created
@@ -297,8 +377,23 @@ class Schedule : public runtime::ObjectRef {
    * 1) VerifySRefTree
    * 2) VerifyCachedFlags
    */
-  TVM_DLL static Schedule Concrete(IRModule mod, int debug_mode,
-                                   ScheduleErrorRenderLevel error_render_level);
+  TVM_DLL static Schedule Concrete(IRModule mod, support::LinearCongruentialEngine::TRandState seed,
+                                   int debug_mask, ScheduleErrorRenderLevel error_render_level);
+  /*!
+   * \brief Construct a traced concrete TensorIR schedule from an IRModule
+   * \param mod The IRModule to be scheduled
+   * \param seed The seed value for schedule's random state
+   * \param debug_mask Do extra correctness checking after the class creation
+   * and each time after calling the Replace method.
+   * \param error_render_level The level of error rendering
+   * \return The concrete schedule created
+   * \sa ScheduleDebugMask
+   * \note The checks performed include:
+   * 1) VerifySRefTree
+   * 2) VerifyCachedFlags
+   */
+  TVM_DLL static Schedule Traced(IRModule mod, support::LinearCongruentialEngine::TRandState seed,
+                                 int debug_mask, ScheduleErrorRenderLevel error_render_level);
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Schedule, runtime::ObjectRef, ScheduleNode);
 };
 

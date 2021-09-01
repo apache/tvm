@@ -75,6 +75,23 @@ def _infer_value(x, params):
             return x
 
 
+def convert_activation(g, op, block):
+    """Operator converter for all the activation."""
+
+    op_map = {
+        "exp": _op.exp,
+        "relu": _op.nn.relu,
+        "tanh": _op.tanh,
+        "sqrt": _op.sqrt,
+        "erf": _op.erf,
+        "abs": _op.abs,
+        "sigmoid": _op.sigmoid,
+    }
+    act_func = op_map[op.type]
+    out = act_func(g.get_node(op.input("X")[0]))
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_arg_max(g, op, block):
     """Operator converter for arg_max."""
 
@@ -118,41 +135,60 @@ def convert_batch_norm(g, op, block):
     g.add_node(op.output("Y")[0], out[0])
 
 
-def get_interpolate_mode(op):
-    """conver 'interp_method' attr of paddle to tvm"""
+def convert_bmm(g, op, block):
+    """Operator converter for bmm."""
 
-    interp_method = op.attr("interp_method")
-    align_corners = op.attr("align_corners")
-    align_mode = op.attr("align_mode")
-
-    rounding_method = ""
-    if interp_method == "nearest":
-        interp_method = "nearest_neighbor"
-        coordinate_transformation_mode = "asymmetric"
-        rounding_method = "floor"
-    elif interp_method == "bilinear":
-        interp_method = "linear"
-        if not align_corners and align_mode == 0:
-            coordinate_transformation_mode = "half_pixel"
-        else:
-            if align_corners:
-                coordinate_transformation_mode = "align_corners"
-            else:
-                coordinate_transformation_mode = "asymmetric"
-    elif interp_method == "bicubic":
-        interp_method = "cubic"
-        if align_corners:
-            coordinate_transformation_mode = "align_corners"
-        else:
-            coordinate_transformation_mode = "half_pixel"
+    x = g.get_node(op.input('X')[0])
+    y = g.get_node(op.input('Y')[0])
+    x_shape = infer_shape(x)
+    y_shape = infer_shape(y)
+    if x_shape[0] == 1 and y_shape == 1:
+        x = _op.reshape(x, x_shape[1:])
+        y = _op.reshape(y, y_shape[1:])
+        y = _op.transpose(y, [1, 0])
+        out = _op.nn.dense(x, y)
+        out = _op.expand_dims(out, axis=0)
+        g.add_node(op.output('Out')[0], out)
     else:
-        msg = "interp_method {} is not supported for PaddlePaddle's interpolate"
-        raise tvm.error.OpAttributeInvalid(msg.format(interp_method))
-    return rounding_method, interp_method, coordinate_transformation_mode
+        y = _op.transpose(y, [0, 2, 1])
+        out = _op.nn.batch_matmul(x, y)
+        g.add_node(op.output('Out')[0], out)
 
 
 def convert_interpolate2d(g, op, x):
     """Operator converter for interpolate 2D(dims == 4)."""
+
+    def get_interpolate_mode(op):
+        """conver 'interp_method' attr of paddle to tvm"""
+    
+        interp_method = op.attr("interp_method")
+        align_corners = op.attr("align_corners")
+        align_mode = op.attr("align_mode")
+    
+        rounding_method = ""
+        if interp_method == "nearest":
+            interp_method = "nearest_neighbor"
+            coordinate_transformation_mode = "asymmetric"
+            rounding_method = "floor"
+        elif interp_method == "bilinear":
+            interp_method = "linear"
+            if not align_corners and align_mode == 0:
+                coordinate_transformation_mode = "half_pixel"
+            else:
+                if align_corners:
+                    coordinate_transformation_mode = "align_corners"
+                else:
+                    coordinate_transformation_mode = "asymmetric"
+        elif interp_method == "bicubic":
+            interp_method = "cubic"
+            if align_corners:
+                coordinate_transformation_mode = "align_corners"
+            else:
+                coordinate_transformation_mode = "half_pixel"
+        else:
+            msg = "interp_method {} is not supported for PaddlePaddle's interpolate"
+            raise tvm.error.OpAttributeInvalid(msg.format(interp_method))
+        return rounding_method, interp_method, coordinate_transformation_mode
 
     layout = op.attr("data_layout")
     out_h = op.attr("out_h")
@@ -281,6 +317,50 @@ def convert_conv2d(g, op, block):
     g.add_node(op.output("Output")[0], out)
 
 
+def convert_conv2d_transpose(g, op, block):
+    """Operator converter for conv2d_transpose."""
+
+    dilations = op.attr("dilations")
+    groups = op.attr("groups")
+    paddings = op.attr("paddings")
+    padding_algorithm = op.attr("padding_algorithm")
+    strides = op.attr("strides")
+    output_padding = op.attr("output_padding") if op.attr(
+        "output_padding") else [0, 0]
+
+    kernel = g.get_node(op.input("Filter")[0])
+    input_x = g.get_node(op.input("Input")[0])
+    _, out_channels, k_h, k_w = infer_shape(kernel)
+    in_h, in_w = infer_shape(input_x)[2:]
+    if padding_algorithm == "VALID":
+        paddings = [0, 0]
+    elif padding_algorithm == "SAME":
+        pad_h = _get_pad_size(in_h, (k_h - 1) * dilations[0] + 1, strides[0])
+        pad_w = _get_pad_size(in_w, (k_w - 1) * dilations[1] + 1, strides[1])
+        paddings = [pad_h[0], pad_w[0], pad_h[1], pad_w[1]]
+    elif padding_algorithm == "EXPLICIT":
+        if len(paddings) == 2:
+            paddings = [paddings[0], paddings[1], paddings[0], paddings[1]]
+        if len(paddings) == 4:
+            paddings = [paddings[0], paddings[2], paddings[1], paddings[3]]
+    else:
+        msg = 'Value {} in attribute "padding" of operator Conv is not "valid."'
+        raise tvm.error.OpAttributeInvalid(msg.format(padding_algorithm))
+
+    out = _op.nn.conv2d_transpose(
+        input_x,
+        kernel,
+        strides=strides,
+        padding=paddings,
+        dilation=dilations,
+        groups=groups,
+        channels=out_channels,
+        kernel_size=[k_h, k_w],
+        output_padding=output_padding,
+    )
+    g.add_node(op.output("Output")[0], out)
+
+
 def convert_cumsum(g, op, block):
     """Operator converter for cumsum."""
 
@@ -340,22 +420,6 @@ def convert_equal(g, op, block):
     x = g.get_node(op.input("X")[0])
     y = g.get_node(op.input("Y")[0])
     out = _op.equal(x, y)
-    g.add_node(op.output("Out")[0], out)
-
-
-def convert_activation(g, op, block):
-    """Operator converter for all the activation."""
-
-    op_map = {
-        "exp": _op.exp,
-        "relu": _op.nn.relu,
-        "tanh": _op.tanh,
-        "sqrt": _op.sqrt,
-        "erf": _op.erf,
-        "abs": _op.abs,
-    }
-    act_func = op_map[op.type]
-    out = act_func(g.get_node(op.input("X")[0]))
     g.add_node(op.output("Out")[0], out)
 
 
@@ -863,6 +927,14 @@ def convert_squeeze(g, op, block):
     g.add_node(op.output("Out")[0], x)
 
 
+def convert_transpose(g, op, block):
+    """Operator converter for transpose."""
+
+    perm = op.attr('axis')
+    out = _op.transpose(g.get_node(op.input('X')[0]), axes=perm)
+    g.add_node(op.output('Out')[0], out)
+
+
 def convert_unsqueeze(g, op, block):
     """Operator converter for unsqueeze."""
 
@@ -879,9 +951,11 @@ _convert_map = {
     "batch_norm": convert_batch_norm,
     "bicubic_interp_v2": convert_interpolate,
     "bilinear_interp_v2": convert_interpolate,
+    "bmm": convert_bmm,
     "cast": convert_cast,
     "concat": convert_concat,
     "conv2d": convert_conv2d,
+    "conv2d_transpose": convert_conv2d_transpose,
     "cumsum": convert_cumsum,
     "depthwise_conv2d": convert_conv2d,
     "dropout": convert_dropout,
@@ -912,10 +986,12 @@ _convert_map = {
     "reshape2": convert_reshape,
     "scale": convert_scale,
     "shape": convert_shape,
+    "sigmoid": convert_activation,
     "slice": convert_slice,
     "softmax": convert_softmax,
     "squeeze2": convert_squeeze,
     "tanh": convert_activation,
+    "transpose2": convert_transpose,
     "unsqueeze2": convert_unsqueeze,
 }
 
@@ -1058,18 +1134,18 @@ class GraphProto:
 
 def from_paddle(program_or_layer, shape_dict=None, scope=None):
     """Convert a PaddlePaddle model into an equivalent Relay Function.
-
-    PaddlePaddle Program/TranslatedLayer represent the computation graph of PaddlePaddle model,
-    and PaddlePaddle scope stores all the weights of PaddlePaddle model.
+    PaddlePaddle Program/TranslatedLayer represent the computation
+    graph of PaddlePaddle model, and PaddlePaddle scope stores all the
+    weights of PaddlePaddle model.
     """
 
     import paddle
 
     g = GraphProto()
-    if isinstance(program_or_layer, paddle.fluid.dygraph.TranslatedLayer):
+    if isinstance(program_or_layer, paddle.jit.TranslatedLayer):
         # model is loaded by `paddle.jit.load`
         mod, params = g.from_translated_layer(program_or_layer, shape_dict)
-    elif isinstance(program_or_layer, paddle.fluid.framework.Program):
+    elif isinstance(program_or_layer, paddle.static.Program):
         # model is loaded by `paddle.static.load_inference_model`
         mod, params = g.from_program(program_or_layer, shape_dict, scope)
     else:
