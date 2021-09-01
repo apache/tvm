@@ -99,18 +99,13 @@ class TECompilerImpl : public TECompilerNode {
         const GlobalVar& var = kv.first;
         const BaseFunc& func = kv.second;
 
-        // TODO(@electriclilies): There shouldn't be a Relay function in here.
-        // Figure out where it's coming from!
-        if (func->IsInstance<relay::FunctionNode>()) {
-          const relay::Function relay_func = Downcast<relay::Function>(func);
-          mod->Update(var, WithAttr(relay_func, tvm::attr::kTarget, source_func->target));
-        } else if (func->IsInstance<tir::PrimFuncNode>()) {
+        // Only add functions that are not external functions
+        if (!func->GetAttr<String>(attr::kCompiler).defined()) {
+          ICHECK(func->IsInstance<tir::PrimFuncNode>())
+              << "Expected all functions that are not external to be PrimFuncs, but found "
+              << func->GetTypeKey();
           const tir::PrimFunc& prim_func = Downcast<tir::PrimFunc>(func);
           mod->Update(var, WithAttr(prim_func, tvm::attr::kTarget, source_func->target));
-        } else {
-          LOG(FATAL) << "Expected to find only relay functions and prim functions in the cache, "
-                        "but found: "
-                     << func->GetTypeKey();
         }
       }
     }
@@ -883,7 +878,6 @@ IRModule LowerTE(const IRModule& module, TargetMap targets, DeviceMap device_con
   }
 
   // Copy the lowered functions into the return module
-  std::cout << "Getting lowered funcs" << std::endl;
   updated_module->Update(compiler->GetLoweredFunctions());
 
   // Annotate the module with the external modules and function info
