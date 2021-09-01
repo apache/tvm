@@ -1,8 +1,8 @@
 ---
 name: "\U0001F527 Feature Tracking"
 about: List clear, small actionable items so we can track the progress of the change.
-labels: type:rfc-tracking
 title: "[Tracking Issue] "
+labels: type:rfc-tracking
 
 ---
 

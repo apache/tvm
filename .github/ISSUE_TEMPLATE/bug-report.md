@@ -2,6 +2,7 @@
 name: "\U0001F41B Bug report"
 about: To help the developer act on the issues, please include a description of your environment, preferably a minimum script to reproduce the problem.
 title: "[Bug] "
+labels: "type: bug"
 
 ---
 
