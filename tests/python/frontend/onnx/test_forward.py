@@ -3306,7 +3306,7 @@ def test_lppool(target, dev):
         p=None,
         strides=[1, 1],
         pads=[1, 1, 1, 1],
-        out_shape=[1, 1, 31, 31],
+        out_shape=[1, 1, 32, 32],
     )
 
 
