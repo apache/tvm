@@ -3019,6 +3019,7 @@ class ATen(OnnxOpConverter):
         op_map = {
             "size": cls._size,
             "arange": cls._arange,
+            "index_put": cls._index_put,
             "reshape": cls._reshape,
             "embedding_bag": cls._embedding_bag,
         }
@@ -3037,6 +3038,43 @@ class ATen(OnnxOpConverter):
     @classmethod
     def _arange(cls, inputs, attr, params):
         return _op.arange(inputs[0], inputs[1], inputs[2], dtype="int64")
+
+    @classmethod
+    def _check_index(cls, indices, values):
+        def unfolding_indices(indices, values):
+            n = len(indices)
+            flatten_indices = []
+            slices_size = []
+            for index in indices:
+                flatten_indices.append(_op.reshape(index, _op.const([-1])))
+                slices_size.append(infer_shape(flatten_indices[-1])[0])
+            repeat_size = [1]
+            tile_size = [1]
+            for i in range(1, n):
+                repeat_size.append(slices_size[-i] * repeat_size[-1])
+                tile_size.append(slices_size[i - 1] * tile_size[-1])
+            repeat_size.reverse()
+            unflod_slices = []
+            for i in range(n):
+                unflod_slices.append(fold_constant(_op.repeat(_op.tile(flatten_indices[i], (tile_size[i],)), repeat_size[i], 0)))
+            return unflod_slices, _op.reshape(values, _op.const([-1]))
+
+        values_shape = infer_shape(values)
+        if len(values_shape) != 1:
+            return unfolding_indices(indices, values)
+        return indices, values
+
+    @classmethod
+    def _index_put(cls, inputs, attr, params):
+        in_tensor = inputs[0]
+        indices, values = cls._check_index(inputs[1: -2], inputs[-2])
+        accumulate = inputs[-1].data.asnumpy() != 0
+        if not accumulate:
+            mode = 'update'
+        else:
+            mode = 'add'
+        index_tensor = _op.stack(indices, axis=0)
+        return _op.transform.scatter_nd(in_tensor, index_tensor, values, mode)
 
     @classmethod
     def _reshape(cls, inputs, attr, params):
