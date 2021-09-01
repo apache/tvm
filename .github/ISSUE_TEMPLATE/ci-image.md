@@ -1,7 +1,7 @@
 ---
 name: "\U0001F40B Update CI Docker Image"
 about: Provide information on CI Docker Images requiring updates
-title: "[CI] "
+title: "[CI Image] "
 
 ---
 
