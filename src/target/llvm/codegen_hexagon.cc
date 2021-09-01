@@ -708,7 +708,6 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
   std::unique_ptr<CodeGenHexagon> cg(new CodeGenHexagon());
 
   std::vector<PrimFunc> funcs;
-  std::string entry_func;
   Map<String, LinkedParam> linked_params;
   bool found_linked_params = false;
   bool could_have_linked_params = target->GetAttr<Bool>("link-params").value_or(Bool(false));
@@ -726,11 +725,6 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
       continue;
     }
     auto f = Downcast<PrimFunc>(kv.second);
-    if (f->HasNonzeroAttr(tir::attr::kIsEntryFunc)) {
-      auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
-      ICHECK(global_symbol.defined());
-      entry_func = global_symbol.value();
-    }
     funcs.emplace_back(f);
   }
 
