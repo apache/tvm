@@ -22,71 +22,9 @@ from tvm import te
 import tvm.contrib.ethosu.cascader as cs
 from tvm.relay.backend.contrib.ethosu.te.convolution import match_ethosu_conv2d, conv2d_compute
 
-import numpy as np
+from .infra import make_matrices
 
-
-def _make_matrices(kernel, stride, dilation, padding, ifm_channels, ifm_layout, ofm_layout):
-    kernel_h, kernel_w = kernel
-    stride_h, stride_w = stride
-    dilation_h, dilation_w = dilation
-    dilated_kernel_h = (kernel_h - 1) * dilation_h + 1
-    dilated_kernel_w = (kernel_w - 1) * dilation_w + 1
-    nhwc_to_nhcwb16 = [
-        [1, 0, 0, 0, 0],
-        [0, 1, 0, 0, 0],
-        [0, 0, 0, 1 / 16, 0],
-        [0, 0, 1, 0, 0],
-        [0, 0, 0, 0, 16],
-        [0, 0, 0, 0, 1],
-    ]
-    nhcwb16_to_nhwc = [
-        [1, 0, 0, 0, 0, 0],
-        [0, 1, 0, 0, 0, 0],
-        [0, 0, 0, 1, 0, 0],
-        [0, 0, 16, 0, 0, 0],
-        [0, 0, 0, 0, 0, 1],
-    ]
-    ifm_matrix = [
-        [1, 0, 0, 0, 0],
-        [0, stride_h, 0, 0, (dilated_kernel_h - stride_h)],
-        [0, 0, stride_w, 0, (dilated_kernel_w - stride_w)],
-        [0, 0, 0, 0, ifm_channels],
-        [0, 0, 0, 0, 1],
-    ]
-    weight_matrix = [
-        [0, 0, 0, 1, 0],
-        [0, 0, 0, 0, kernel_h],
-        [0, 0, 0, 0, kernel_w],
-        [0, 0, 0, 0, ifm_channels],
-        [0, 0, 0, 0, 1],
-    ]
-    scale_bias_matrix = [
-        [0, 0, 0, 1, 0],
-        [0, 0, 0, 0, 10],
-        [0, 0, 0, 0, 1],
-    ]
-    if ofm_layout == "NHCWB16":
-        ifm_matrix = np.matmul(ifm_matrix, nhcwb16_to_nhwc).tolist()
-        weight_matrix = np.matmul(weight_matrix, nhcwb16_to_nhwc).tolist()
-        scale_bias_matrix = np.matmul(scale_bias_matrix, nhcwb16_to_nhwc).tolist()
-    if ifm_layout == "NHCWB16":
-        ifm_matrix = np.matmul(nhwc_to_nhcwb16, ifm_matrix).tolist()
-
-    ifm_offset = (
-        [0, -padding[0], -padding[1], 0]
-        if ifm_layout == "NHWC"
-        else [0, -padding[0], 0, -padding[1], 0]
-    )
-    weight_offset = [0, 0, 0, 0]
-    scale_bias_offset = [0, 0]
-    return (
-        ifm_matrix,
-        ifm_offset,
-        weight_matrix,
-        weight_offset,
-        scale_bias_matrix,
-        scale_bias_offset,
-    )
+import pytest
 
 
 @pytest.mark.parametrize("kernel", [(3, 3), (2, 1), (3, 5)])
@@ -137,7 +75,7 @@ def test_ethosu_conv2d_matcher(
         weight_offset,
         scale_bias_transform,
         scale_bias_offset,
-    ) = _make_matrices(
+    ) = make_matrices(
         kernel,
         stride,
         dilation,
@@ -147,7 +85,8 @@ def test_ethosu_conv2d_matcher(
         ofm_layout,
     )
 
-    part = match_ethosu_conv2d(out)
+    device_config = cs.EthosuDeviceConfig("ethos-u55-256")
+    part = match_ethosu_conv2d(out, device_config)
 
     assert isinstance(part, cs.EthosuPart)
     assert len(part.propagators) == 3

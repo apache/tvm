@@ -180,7 +180,7 @@ def conv2d_compute(
         [1, 0, 0, 0, 0, 0],
         [0, 1, 0, 0, 0, 0],
         [0, 0, 0, 1, 0, 0],
-        [0, 0, 16, 0, 0, 0],
+        [0, 0, 16, 0, 1, -16],
         [0, 0, 0, 0, 0, 1],
     ]
     ifm_matrix = [
@@ -236,7 +236,7 @@ def conv2d_compute(
 
 
 @register_matcher
-def match_ethosu_conv2d(output_tensor):
+def match_ethosu_conv2d(output_tensor, device_config):
     """Match a Tensor Expression corresponding to an NPU Conv2D.
 
     If the Tensor Expression matches, an EthosuPart will be created that models the
@@ -246,6 +246,8 @@ def match_ethosu_conv2d(output_tensor):
     ----------
     output_tensor : tvm.te.Tensor
         The tensor to attempt to match with.
+    device_config : EthosuDeviceConfig
+        Target device configuration
 
     Returns
     -------
@@ -277,17 +279,50 @@ def match_ethosu_conv2d(output_tensor):
         conv2d.op.input_tensors[1],
         conv2d.op.input_tensors[2],
     ]
+
     subgraph = TESubgraph(input_tensors, output_tensor)
     propagators = [
         write.op.attrs["ifm_propagator"],
         write.op.attrs["weights_propagator"],
         write.op.attrs["bias_propagator"],
     ]
-    # TODO(@jacobbohlin) Both the output_quantum and quantum_cycles here are placeholders,
-    # needs true implementation.
-    if convert_to_nhcwb16.op.attrs["layout"] == "NHWC":
-        output_quantum = [1, 2, 2, 1]
-    else:
-        output_quantum = [1, 2, 1, 2, 1]
-    quantum_cycles = 1000
-    return EthosuPart(subgraph, propagators, output_quantum, quantum_cycles)
+    ifm_dtype = input_tensors[0].dtype
+    ofm_dtype = output_tensor.dtype
+
+    ifm_channels = int(input_tensors[0].shape[3])
+    ofm_channels, kernel_height, kernel_width = (int(axis) for axis in input_tensors[1].shape[0:3])
+    kernel_elements = kernel_height * kernel_width
+
+    is_part_kernel = device_config.is_partkernel(
+        conv2d.op.name, ifm_channels, ifm_dtype, kernel_elements
+    )
+    subkernels = len(
+        device_config.get_kernel_steps(kernel_height, kernel_width, ifm_dtype, is_part_kernel)
+    )
+
+    output_layout = convert_to_nhcwb16.op.attrs["layout"]
+    input_layout = convert_to_nhwc.op.attrs["layout"]
+    output_quantum = device_config.get_output_quantum(output_layout)
+
+    valid_block_configs = device_config.get_valid_block_configs(
+        propagators[0],
+        conv2d.op.attrs,
+        output_tensor.shape,
+        ofm_channels,
+        ifm_channels,
+        output_layout,
+        input_layout,
+        ifm_dtype,
+        ofm_dtype,
+        kernel_height,
+        kernel_width,
+    )
+
+    return EthosuPart(
+        subgraph,
+        propagators,
+        output_quantum,
+        subkernels,
+        valid_block_configs,
+        1,
+    )
