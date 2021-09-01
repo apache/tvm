@@ -1,7 +1,7 @@
 ---
-name: "\U0000274C CI Issue"
-about: To help the developers act on these issues, please give us as many details of the CI failure as possible.
-title: "[CI Issue] "
+name: "\U0000274C CI Problem"
+about: To help the developers act on these problems, please give us as many details of the CI failure as possible.
+title: "[CI Problem] "
 
 ---
 
