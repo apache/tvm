@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include "../transform.h"
 #include "../utils.h"
 
 namespace tvm {
@@ -237,7 +236,8 @@ class StorageAlignInvalidAnnotationError : public ScheduleError {
 void StorageAlign(ScheduleState self, const StmtSRef& block_sref, int buffer_index, int axis,
                   int factor, int offset) {
   const BlockNode* block_ptr = TVM_SREF_TO_BLOCK(block_ptr, block_sref);
-  Buffer buffer = GetNthWriteBuffer(self, GetRef<Block>(block_ptr), buffer_index);
+  Buffer buffer =
+      GetNthAccessBuffer(self, GetRef<Block>(block_ptr), buffer_index, /*is_write=*/true);
   StorageAlignInvalidFactorError::Check(self->mod, factor);
   axis = StorageAlignAxisOutOfRangeError::CheckAndUpdate(self->mod, buffer, axis);
   NonAllocatedBufferError::CheckBufferAllocated(self->mod, block_sref, buffer);

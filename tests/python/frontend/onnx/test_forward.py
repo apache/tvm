@@ -17,7 +17,6 @@
 import glob
 import os
 import re
-import glob
 
 import numpy as np
 import pytest
@@ -236,7 +235,7 @@ def verify_with_ort(
 
 
 def quantize_and_verify_with_ort(onnx_model, input_names, input_shapes, target, dev):
-    from onnxruntime.quantization import quantize_static, CalibrationDataReader, QuantType
+    from onnxruntime.quantization import CalibrationDataReader, QuantType, quantize_static
 
     input_arrays = [np.random.random(shape).astype("float32") for shape in input_shapes]
 
@@ -4680,22 +4679,6 @@ unsupported_onnx_tests = [
     "test_adagrad_multiple",
     "test_adam",
     "test_adam_multiple",
-    "test_argmax_default_axis_example_select_last_index",
-    "test_argmax_default_axis_random_select_last_index",
-    "test_argmax_keepdims_example_select_last_index",
-    "test_argmax_keepdims_random_select_last_index",
-    "test_argmax_negative_axis_keepdims_example_select_last_index",
-    "test_argmax_negative_axis_keepdims_random_select_last_index",
-    "test_argmax_no_keepdims_example_select_last_index",
-    "test_argmax_no_keepdims_random_select_last_index",
-    "test_argmin_default_axis_example_select_last_index",
-    "test_argmin_default_axis_random_select_last_index",
-    "test_argmin_keepdims_example_select_last_index",
-    "test_argmin_keepdims_random_select_last_index",
-    "test_argmin_negative_axis_keepdims_example_select_last_index",
-    "test_argmin_negative_axis_keepdims_random_select_last_index",
-    "test_argmin_no_keepdims_example_select_last_index",
-    "test_argmin_no_keepdims_random_select_last_index",
     "test_cast_BFLOAT16_to_FLOAT",
     "test_cast_DOUBLE_to_FLOAT16",
     "test_cast_FLOAT_to_BFLOAT16",

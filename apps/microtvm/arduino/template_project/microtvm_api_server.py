@@ -65,6 +65,11 @@ BOARD_PROPERTIES = {
         "architecture": "esp32",
         "board": "feathers2",
     },
+    "metrom4": {
+        "package": "adafruit",
+        "architecture": "samd",
+        "board": "adafruit_metro_m4",
+    },
     # Spresense only works as of its v2.3.0 sdk
     "spresense": {
         "package": "SPRESENSE",
