@@ -25,7 +25,7 @@ cd "${TVM_HOME}"
 apps/microtvm/reference-vm/rebuild-tvm.sh
 
 # Build poetry
-cd apps/microtvm/reference-vm/zephyr
+cd apps/microtvm/reference-vm/arduino
 
 poetry env use 3.6
 # NOTE: due to https://github.com/python-poetry/poetry/issues/2247, download torch here.
@@ -42,9 +42,7 @@ echo "downloaded and cached for future use."
 echo "------------------------------[ TVM Message ]------------------------------"
 poetry lock -vvv
 poetry install
-poetry run pip3 install -r ${ZEPHYR_BASE}/scripts/requirements.txt
 
 echo "export TVM_LIBRARY_PATH=\"$TVM_HOME\"/build-microtvm" >>~/.profile
-echo "VENV_PATH=\$((cd \"$TVM_HOME\"/apps/microtvm/reference-vm/zephyr && poetry env list --full-path) | sed -E 's/^(.*)[[:space:]]\(Activated\)\$/\1/g')" >>~/.profile
+echo "VENV_PATH=\$((cd \"$TVM_HOME\"/apps/microtvm/reference-vm/arduino && poetry env list --full-path) | sed -E 's/^(.*)[[:space:]]\(Activated\)\$/\1/g')" >>~/.profile
 echo "source \$VENV_PATH/bin/activate" >>~/.profile
-echo "export PATH=\"\${PATH}:\${HOME}/zephyr-sdk/sysroots/x86_64-pokysdk-linux/usr/bin\"" >>~/.profile
