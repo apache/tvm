@@ -1069,7 +1069,7 @@ Doc TVMScriptPrinter::PrintLoop(const For& loop) {
     res << Print(loop->thread_binding.value()->thread_tag);
   }
   if (!loop->annotations.empty()) {
-    res << ", annotation = {";
+    res << ", annotations = {";
     res << PrintAnnotations(loop->annotations);
     res << "}";
   }
