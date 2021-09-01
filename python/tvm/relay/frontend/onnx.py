@@ -24,6 +24,7 @@ import numpy as np
 import tvm
 from tvm import relay
 from tvm.ir import IRModule
+from tvm.relay.op.tensor import log
 from tvm.topi.utils import get_const_tuple
 
 from ... import nd as _nd
@@ -1839,6 +1840,13 @@ class LogSoftmax(OnnxOpConverter):
     """Operator converter for Softmax."""
 
     @classmethod
+    def run_calculation(cls, x, axes):
+        m = _op.max(x, axes, keepdims=True)
+        e = _op.exp(x - m)
+        s = _op.sum(e, axes, keepdims=True)
+        return x - m - _op.log(s)
+
+    @classmethod
     def _impl_v1(cls, inputs, attr, params):
         axis = attr.get("axis", 1)
         ndim = len(infer_shape(inputs[0]))
@@ -1846,10 +1854,7 @@ class LogSoftmax(OnnxOpConverter):
             axis += ndim
         axes = list(range(axis, ndim))
         x = inputs[0]
-        m = _op.max(x, axes, keepdims=True)
-        e = _op.exp(x - m)
-        s = _op.sum(e, axes, keepdims=True)
-        return x - m - _op.log(s)
+        return cls.run_calculation(inputs[0], axes)
 
     @classmethod
     def _impl_v13(cls, inputs, attr, params):
@@ -1858,11 +1863,7 @@ class LogSoftmax(OnnxOpConverter):
         if axis < 0:
             axis += ndim
         axes = [axis]
-        x = inputs[0]
-        m = _op.max(x, axes, keepdims=True)
-        e = _op.exp(x - m)
-        s = _op.sum(e, axes, keepdims=True)
-        return x - m - _op.log(s)
+        return cls.run_calculation(inputs[0], axes)
 
 
 class Hardmax(OnnxOpConverter):
@@ -3461,23 +3462,14 @@ class NegativeLogLikelihoodLoss(OnnxOpConverter):
     VALID_REDUCTIONS = {"mean", "sum", "none"}
 
     @classmethod
-    def _impl_v13(cls, inputs, attr, params):
-        ignore_index = attr.get("ignore_index", None)
-        reduction = attr.get("reduction", b"mean").decode("utf-8")
-
-        if reduction not in cls.VALID_REDUCTIONS:
-            raise ValueError(
-                f"Unknown reduction type {reduction}, choices are {cls.VALID_REDUCTIONS}"
-            )
-
-        input_tensor, target_tensor = inputs[0], inputs[1]
-        if len(inputs) == 3:
-            weight_tensor = inputs[2]
-        else:
+    def run_calculation(
+        cls, input_tensor, target_tensor, weight_tensor=None, ignore_index=None, reduction="none"
+    ):
+        if weight_tensor is None:
             channels = infer_shape(input_tensor)[1]
             weight_tensor = relay.ones(
                 [channels],
-                dtype=input_tensor.type_annotation.dtype,
+                dtype=infer_type(input_tensor).checked_type.dtype,
             )
 
         loss = -relay.gather(input_tensor, axis=1, indices=relay.expand_dims(target_tensor, 1))
@@ -3502,12 +3494,70 @@ class NegativeLogLikelihoodLoss(OnnxOpConverter):
             select_weights *= relay.cast_like(mask_tensor, select_weights)
 
         weight_total = relay.sum(select_weights)
+        return loss, weight_total
 
+    @classmethod
+    def _impl_v13(cls, inputs, attr, params):
+        ignore_index = attr.get("ignore_index", None)
+        reduction = attr.get("reduction", b"mean").decode("utf-8")
+
+        if reduction not in cls.VALID_REDUCTIONS:
+            raise ValueError(
+                f"Unknown reduction type {reduction}, choices are {cls.VALID_REDUCTIONS}"
+            )
+
+        input_tensor, target_tensor = inputs[0], inputs[1]
+        if len(inputs) == 3:
+            weight_tensor = inputs[2]
+        else:
+            weight_tensor = None
+
+        loss, weight_total = cls.run_calculation(
+            input_tensor,
+            target_tensor,
+            weight_tensor=weight_tensor,
+            ignore_index=ignore_index,
+            reduction=reduction,
+        )
         if reduction == "mean":
             return relay.sum(loss) / weight_total
         if reduction == "sum":
-            return relay.sum(loss)
+            return relay.sum(loss), weight_total
         # Case reduction == 'none'
+        return loss
+
+
+class SoftmaxCrossEntropyLoss(OnnxOpConverter):
+    """Operator converter for SCE_loss"""
+
+    @classmethod
+    def _impl_v13(cls, inputs, attr, params):
+        ignore_index = attr.get("ignore_index", None)
+        reduction = attr.get("reduction", b"mean").decode("utf-8")
+        input_tensor, target_tensor = inputs[0], inputs[1]
+        if len(inputs) == 3:
+            weight_tensor = inputs[2]
+        else:
+            weight_tensor = None
+
+        get_log_prob = attr["tvm_custom"]["num_outputs"] == 2
+        log_softmax_tensor = LogSoftmax.run_calculation(input_tensor, axes=[1])
+
+        loss, weight_total = NegativeLogLikelihoodLoss.run_calculation(
+            log_softmax_tensor,
+            target_tensor,
+            weight_tensor,
+            ignore_index=ignore_index,
+            reduction="none",
+        )
+
+        if reduction == "mean":
+            loss = relay.sum(loss) / weight_total
+        elif reduction == "sum":
+            loss = relay.sum(loss)
+
+        if get_log_prob:
+            return relay.TupleWrapper(relay.Tuple((loss, log_softmax_tensor)), 2)
         return loss
 
 
@@ -3695,6 +3745,7 @@ def _get_convert_map(opset):
         "RandomUniform": RandomUniform.get_converter(opset),
         # Loss functions
         "NegativeLogLikelihoodLoss": NegativeLogLikelihoodLoss.get_converter(opset),
+        "SoftmaxCrossEntropyLoss": SoftmaxCrossEntropyLoss.get_converter(opset),
     }
 
 
