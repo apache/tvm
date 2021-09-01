@@ -132,25 +132,6 @@ class LocalBuilder(Builder):
                             time.time(),
                         )
                     )
-                except InstantiationError as ex:
-                    results.append(
-                        MeasureResult(
-                            (ex,),
-                            MeasureErrorNo.INSTANTIATION_ERROR,
-                            None,
-                            time.time(),
-                        )
-                    )
-                except Exception as ex:  # pylint: disable=broad-except
-                    # tvm error
-                    results.append(
-                        MeasureResult(
-                            (ex,),
-                            MeasureErrorNo.COMPILE_HOST,
-                            ex.time_cost,
-                            time.time(),
-                        )
-                    )
 
         return results
 
