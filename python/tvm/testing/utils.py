@@ -989,7 +989,7 @@ def known_failing_targets(*args):
     return wraps
 
 
-def parameter(*values, ids=None):
+def parameter(*values, ids=None, by_dict=None):
     """Convenience function to define pytest parametrized fixtures.
 
     Declaring a variable using ``tvm.testing.parameter`` will define a
@@ -1009,15 +1009,22 @@ def parameter(*values, ids=None):
 
     Parameters
     ----------
-    values
+    values : Any
+
        A list of parameter values.  A unit test that accepts this
        parameter as an argument will be run once for each parameter
        given.
 
     ids : List[str], optional
+
        A list of names for the parameters.  If None, pytest will
        generate a name from the value.  These generated names may not
        be readable/useful for composite types such as tuples.
+
+    by_dict : Dict[str, Any]
+
+       A mapping from parameter name to parameter value, to set both the
+       values and ids.
 
     Returns
     -------
@@ -1036,7 +1043,21 @@ def parameter(*values, ids=None):
     >>> def test_using_size(shape):
     >>>     ... # Test code here
 
+    Or
+
+    >>> shape = tvm.testing.parameter(by_dict={'small': (5,10), 'large': (512,1024)})
+    >>> def test_using_size(shape):
+    >>>     ... # Test code here
+
     """
+
+    if by_dict is not None:
+        if values or ids:
+            raise RuntimeError(
+                "Use of the by_dict parameter cannot be used alongside positional arguments"
+            )
+
+        ids, values = zip(*by_dict.items())
 
     # Optional cls parameter in case a parameter is defined inside a
     # class scope.
