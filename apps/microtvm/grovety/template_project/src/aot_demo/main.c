@@ -140,7 +140,6 @@ void* TVMBackendAllocWorkspace(int device_type, int device_id, uint64_t nbytes, 
   return ptr;
 }
 
-
 int TVMBackendFreeWorkspace(int device_type, int device_id, void* ptr) {
   tvm_crt_error_t err = kTvmErrorNoError;
   DLDevice dev = {device_type, device_id};
@@ -148,8 +147,7 @@ int TVMBackendFreeWorkspace(int device_type, int device_id, void* ptr) {
   return err;
 }
 
-
-static uint8_t cmd_buf[512];
+static uint8_t cmd_buf[128];
 #include <ctype.h>
 
 float _strtof(const char* start, const char** end) {
@@ -178,10 +176,10 @@ float _strtof(const char* start, const char** end) {
     }
   }
 
-  *end = ptr;
+  if (end != NULL)
+    *end = ptr;
   return sign * (i_part + f_part);
 }
-
 
 // Wait for input command
 float get_input() {
@@ -196,52 +194,54 @@ float get_input() {
     }
   }
 
-  char* str_end = NULL;
-  // waiting for EOL
   while (true) {
     int readed = TVMPlatformUartRxRead(ptr, 1);
-    if (readed > 0) {
-      if (*ptr != '\n') {
-        ptr++;
-      } else {
-        *ptr = 0;
-        str_end = ptr;
-        break;
-      }
+    if (readed <= 0) continue;
+    if (*ptr == '\n' || *ptr == ':') {
+      *ptr = 0;
+      break;
     }
+    ptr++;
   }
 
-  TVMLogf("Readed str: %s\n", cmd_buf);
+  if (strncmp((char*)(cmd_buf), "#input", 6))
+    return -1;
 
-  if (!strncmp((char*)(cmd_buf), "#input:", 7)) {
-    ptr = cmd_buf + 7;
-    char* end = NULL;
-    // float val = strtof(ptr, &end);
-    // float val = (float)atof(ptr);
-    float val = _strtof(ptr, &end);
 
-    int val1 = (int)(val * 1000);
-
-    // TVMLogf("Readed val: %d.%03d  len = %d\n", val1 / 1000, abs(val1 % 1000), (int)(end - ptr));
-
-    return val;
+  // TVMLogf("input readed\n");
+  ptr = cmd_buf;
+  int index = 0;
+  while (index < INPUT_DATA_LEN) {
+    int readed = TVMPlatformUartRxRead(ptr, 1);
+    if (readed > 0)
+      if (*ptr == ',') {
+        *ptr = 0;
+        input_data[index] = _strtof(cmd_buf, NULL);
+        // TVMLogf("value %s readed, parsed to %f\n", cmd_buf, input_data[index]);
+        ptr = cmd_buf;
+        index++;
+      } else if (*ptr == '\n') {
+        *ptr = 0;
+        input_data[index] = _strtof(cmd_buf, NULL);
+        // TVMLogf("final value %s readed, parsed to %f\n", cmd_buf, input_data[index]);
+        break;
+      } else {
+        ptr++;
+      }
   }
+
   return 0;
 }
 
-
-void print_result(double elapsed_time)
-{
-    TVMLogf("#result:");
-    for (int i = 0; i < OUTPUT_DATA_LEN; i++) {
-      float y = output_data[i];
-      TVMLogf("%.3f", y);
-      if (i < OUTPUT_DATA_LEN - 1)
-        TVMLogf(",");
-    }
-    TVMLogf(":%d\n", (uint32_t)(elapsed_time * 1000000));
+void print_result(double elapsed_time) {
+  TVMLogf("#result:");
+  for (int i = 0; i < OUTPUT_DATA_LEN; i++) {
+    float y = output_data[i];
+    TVMLogf("%.3f", y);
+    if (i < OUTPUT_DATA_LEN - 1) TVMLogf(",");
+  }
+  TVMLogf(":%d\n", (uint32_t)(elapsed_time * 1000000));
 }
-
 
 void main(void) {
   TVMPlatformUARTInit();
@@ -259,7 +259,6 @@ void main(void) {
   StackMemoryManager_Init(&app_workspace, g_aot_memory, WORKSPACE_SIZE);
 
   for (int index = 0;; index++) {
-
     input_data[0] = get_input();
 
     double elapsed_time = 0;
