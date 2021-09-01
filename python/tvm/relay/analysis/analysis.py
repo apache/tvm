@@ -384,6 +384,21 @@ def extract_fused_functions(mod):
     return ret
 
 
+def extract_operators(mod):
+    """Pass to extract operator frequencies from an IRModule.
+
+    Parameters
+    ----------
+    mod : tvm.IRModule
+
+    Returns
+    -------
+    ret : Dict[str, int]
+        Dict of operator name to the number of times it appears in mod
+    """
+    return _ffi_api.ExtractOperators(mod)
+
+
 def search_fc_transpose(expr):
     """Search fc weight name in the patten: y = nn.dense(x, transpose(w, [1, 0]))
 
