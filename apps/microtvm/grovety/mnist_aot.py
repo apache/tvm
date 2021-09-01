@@ -53,6 +53,13 @@ def open_mnist8_model(data_dir: str):
     return (relay_mod, params, input, output)
 
 
+def apply_Ilya_hack(relay_mod):
+    desired_layouts = {'nn.conv2d': ['NHWC', 'default']}
+    seq = tvm.transform.Sequential([relay.transform.RemoveUnusedFunctions(), relay.transform.ConvertLayout(desired_layouts)])
+    with tvm.transform.PassContext(opt_level=3):
+        return seq(relay_mod)
+
+
 if __name__ == "__main__":
     workspace_dir = create_workspace_dir(platform, os.path.splitext(__file__)[0], mkdir=False)
     model, zephyr_board = PLATFORMS[platform]
@@ -60,6 +67,8 @@ if __name__ == "__main__":
     current_dir = pathlib.Path(os.path.dirname(__file__)).resolve()
     data_dir = current_dir / "mnist_data"
     relay_mod, params, input, output = open_mnist8_model(data_dir)
+
+    relay_mod = apply_Ilya_hack(relay_mod)
 
     input_tensor, input_shape, input_dtype = input
     output = 'output', output[1], output[2] # TODO check TVM's code generation of default_lib0.c
