@@ -709,19 +709,19 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
 
   std::vector<PrimFunc> funcs;
   Map<String, LinkedParam> linked_params;
-  bool found_linked_params = false;
   bool could_have_linked_params = target->GetAttr<Bool>("link-params").value_or(Bool(false));
 
   for (auto kv : mod->functions) {
     ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "Can only lower IR Module with PrimFuncs";
     if (could_have_linked_params &&
         kv.first->name_hint == ::tvm::runtime::symbol::tvm_lookup_linked_param) {
-      Map<String, ObjectRef> attrs_dict = Downcast<Map<String, ObjectRef>>(kv.second->attrs->dict);
+      // If `f` is the linked-params function, extract the parameters from the
+      // attribute dictionary, and skip the codegen.
+      auto attrs_dict = Downcast<Map<String, ObjectRef>>(kv.second->attrs->dict);
       CHECK(attrs_dict.find(::tvm::tir::attr::kLinkedParams) != attrs_dict.end())
           << "no " << ::tvm::tir::attr::kLinkedParams << " attribute found!";
       linked_params =
           Downcast<Map<String, LinkedParam>>(attrs_dict[::tvm::tir::attr::kLinkedParams]);
-      found_linked_params = true;
       continue;
     }
     auto f = Downcast<PrimFunc>(kv.second);
@@ -732,7 +732,7 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
   for (const PrimFunc& f : funcs) {
     cg->AddFunction(f);
   }
-  if (found_linked_params) {
+  if (linked_params.defined()) {
     cg->LinkParameters(linked_params);
   }
 
