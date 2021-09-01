@@ -149,10 +149,11 @@ def pipeline(target):
     for i in range(5):
         datas.append(np.full(dshape, 3 + i).astype("float32"))
 
-    pipe_config = pipeline_executor.PipelineConfig([mod1, mod2, mod3])
+    pipe_config = pipeline_executor.PipelineConfig()
 
     # Create pipeline compute input/output and subgraph dependent relation.
 
+    # Test in key mode for binding find.
     # pipeline compute input "data_0" would get forward to mod1 as input "data_0"
     pipe_config["input"]["data_0"].connect(pipe_config[mod1]["input"]["data_0"])
 
@@ -168,6 +169,7 @@ def pipeline(target):
     # mod2 output(0) would get forward to mod3 as input "data_1"
     pipe_config[mod2]["output"][0].connect(pipe_config[mod3]["input"]["data_1"])
 
+    # Testing in API mode for binding find.
     # mod1 output(2) would get forward as final pipeline compute output(1)
     pipe_config[mod1].output_bindings[2].connect(pipe_config.output_bindings["0"])
 
@@ -189,7 +191,6 @@ def pipeline(target):
     #  |mod1.output(1)-> mod3.data_0
     #  |mod2.output(0)-> mod3.data_1
     """
-    print(pipe_config)
     """
     # connection correctness veify
     """

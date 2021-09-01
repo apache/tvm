@@ -194,6 +194,7 @@ class PipelineConfig(object):
                 self.io_type = stype
                 self.name = str(name)
                 self.bindings = []
+                self.parents = []
 
             def get_name(self):
                 owner_name = ""
@@ -203,9 +204,11 @@ class PipelineConfig(object):
                 return owner_name, self.name
 
             def get_owner_indx(self):
-                owner_indx = 0
                 if isinstance(self.io_owner, PipelineConfig.ModuleWrapper):
-                    return self.io_owner.indx_
+                    return self.io_owner.index
+
+                # if not ModuleWrapper then owner is PipelineConfig, return 0
+                # to identify this is global interface
                 return 0
 
             def get_bindings_str(self):
@@ -238,10 +241,11 @@ class PipelineConfig(object):
                 ), f"global input only can set dependent with module input."
                 '''
                 self.bindings.append(dependent)
+                if isinstance(self, PipelineConfig.ModuleWrapper):
+                    dependent.parents.append(self)
 
         def __init__(self, index=0):
-            self.indx_ = index
-            self.name = "mod{}".format(str(index) if index else "")
+            self.set_index(index)
             self.input_bindings = PipelineConfig.BindingList(self, "input")
             self.output_bindings = PipelineConfig.BindingList(self, "output")
             self.target_host_ = None
@@ -257,7 +261,24 @@ class PipelineConfig(object):
 
                 if (key == "output"):
                     return self.output_bindings
-            assert 0, "key not found"
+
+            assert 0, "{} not found!".format(key)
+
+        def set_index(self, index):
+            self.index = index
+            self.name = "mod{}".format(str(index))
+
+        def is_root_mod(self):
+            for name, binding in self.input_bindings.bindings.items():
+                if binding.parents:
+                    return False
+
+            return True
+
+        def remove_self_from_bindings(self):
+            for _, binding in self.input_bindings.bindings.items():
+                if binding in binding.bindings:
+                    binding.bindings.remove(binding)
 
         def input(self, name):
             if name not in self.input_bindings:
@@ -300,13 +321,16 @@ class PipelineConfig(object):
 
             return self.bindings[key]
 
-    def __init__(self, mods):
-        self.mod_wrapper = {m: self.ModuleWrapper(i + 1) for m, i in zip(mods, range(len(mods)))}
+    def __init__(self):
+        self.mod_wrapper = {}
         self.input_bindings = self.BindingList(self, "input")
         self.output_bindings = self.BindingList(self, "output")
 
     def __str__(self):
         """ Get configuration in string type"""
+        # Sort moudles
+        self.sub_module_sort()
+
         # get input
         input_dump = "Inputs\n"
         for input_name in self.input_bindings.bindings:
@@ -336,8 +360,27 @@ class PipelineConfig(object):
 
         return input_dump + output_dump + connections_dump
 
+    def __getitem__(self, key):
+        if (isinstance(key, tvm.ir.module.IRModule)):
+            if key not in self.mod_wrapper:
+                self.mod_wrapper[key] = self.ModuleWrapper()
+
+            return self.mod_wrapper[key]
+
+        if (isinstance(key, str)):
+            if (key == "input"):
+                return self.input_bindings
+            if (key == "output"):
+                return self.output_bindings
+
+        assert 0, "key not find!"
+
     def get_config(self):
         """ Get configuration in dictionary format."""
+
+        # Sort moudles
+        self.sub_module_sort()
+
         mconfig = {}
         for mod in self.mod_wrapper:
             # get pipeline configure
@@ -360,7 +403,7 @@ class PipelineConfig(object):
                 output["output_indx"] = int(binding.name)
                 output["dependent"] = dep_conf
                 output_conf.append(output)
-            mconf["mod_indx"] = module.indx_
+            mconf["mod_indx"] = module.index
             mconf["output"] = output_conf
 
             # build module configuration with pipeline and other parameters.
@@ -375,20 +418,28 @@ class PipelineConfig(object):
 
         return mconfig
 
-    def __getitem__(self, key):
-        if (isinstance(key, tvm.ir.module.IRModule)):
-            return self.mod_wrapper[key]
+    def sub_module_sort(self):
+        mlist = []
+        mod_wrapper = self.mod_wrapper.copy()
+        while mod_wrapper:
+            temp_list = []
+            for mod, wrapper in mod_wrapper.items():
+                if wrapper.is_root_mod():
+                    temp_list.append(mod)
+                    wrapper.remove_self_from_bindings()
 
-        if (isinstance(key, str)):
-            if (key == "input"):
-                return self.input_bindings
-            if (key == "output"):
-                return self.output_bindings
+            for mod in temp_list:
+                mod_wrapper.pop(mod, None)
 
-        assert 0, "key not find!"
+            mlist += temp_list
+
+        for mod, i in zip(mlist, range(len(mlist))):
+            self.mod_wrapper[mod].set_index(i + 1)
+
+        return
 
     def get_mod_indx(self, mod):
-        indx = self.mod_wrapper[mod].indx_
+        indx = self.mod_wrapper[mod].index
         return indx
 
     def pipe_input(self, name):
@@ -396,9 +447,6 @@ class PipelineConfig(object):
 
     def pipe_output(self, index):
         return self.output_bindings[index]
-
-    def connect(self, left: ModuleWrapper.Binding, right: ModuleWrapper.Binding):
-        left.add_dependent(right)
 
 
 class PipeModuleConfig(object):
