@@ -448,7 +448,7 @@ def convert_fill_any_like(g, op, block):
     out_dtype = block.var(out_name).dtype
     out_dtype = str(out_dtype).strip().split(".")[1]
     x = g.get_node(op.input("X")[0])
-    value = op.attr("value")
+    value = _expr.const(op.attr("value"))
     out = _op.transform.full_like(x, value).astype(out_dtype)
     g.add_node(op.output("Out")[0], out)
 

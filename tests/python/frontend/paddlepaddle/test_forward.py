@@ -422,9 +422,9 @@ def test_forward_shape_full():
 
     input_shape = [1, 3, 10, 10]
     input_data = paddle.rand(input_shape, dtype="float32")
-    verify_model(shape1, input_data=[input_data], input_shape=[[-1, 3, 10, 10]])
+    verify_model(shape1, input_data=[input_data])
     # verify_model(full1, input_data=[input_data])
-    verify_model(full2, input_data=[input_data], input_shape=[[-1, 3, 10, 10]])
+    verify_model(full2, input_data=[input_data])
 
 
 @tvm.testing.uses_gpu
@@ -691,7 +691,7 @@ def test_forward_relu():
 
     input_shape = [10, 10]
     input_data = paddle.rand(input_shape, dtype="float32")
-    verify_model(relu, input_data=input_data, input_shape=[[-1, -1]])
+    verify_model(relu, input_data=input_data)
 
 
 @tvm.testing.uses_gpu
