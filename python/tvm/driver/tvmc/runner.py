@@ -50,7 +50,7 @@ def add_run_parser(subparsers):
     #      like 'webgpu', etc (@leandron)
     parser.add_argument(
         "--device",
-        choices=["cpu", "cuda", "cl", "metal", "vulkan"],
+        choices=["cpu", "cuda", "cl", "metal", "vulkan", "rocm"],
         default="cpu",
         help="target device to run the compiled module. Defaults to 'cpu'",
     )
