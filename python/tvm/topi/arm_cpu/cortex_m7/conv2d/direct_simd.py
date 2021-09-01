@@ -115,7 +115,7 @@ def conv2d_direct_simd_compute(cfg, data, kernel, strides, padding, dilation, ou
     assert in_channels.value % 4 == 0
     owo, owi = cfg.define_split("tile_ow", ow, policy="factors", num_outputs=2)
     cio, cii = cfg.define_split(
-        "tile_ci", ci, policy="factors", num_outputs=2, filter=lambda x: x.size[-1] % 4 == 0
+        "tile_ci", ci, policy="factors", num_outputs=2, filter=lambda x: x.size[-1] % 1 == 0
     )
     coo, coi = cfg.define_split("tile_co", co, policy="factors", num_outputs=2)
 
