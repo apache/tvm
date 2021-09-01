@@ -38,7 +38,7 @@ set -euo pipefail
 
 function show_usage() {
     cat <<EOF
-Usage: docker/bash.sh [-i|--interactive] [--net=host]
+Usage: docker/bash.sh [-i|--interactive] [--net=host] [-t|--tty]
          [--mount MOUNT_DIR] [--repo-mount-point REPO_MOUNT_POINT]
          [--dry-run]
          <DOCKER_IMAGE_NAME> [--] [COMMAND]
@@ -95,7 +95,7 @@ DOCKER_IMAGE_NAME
 COMMAND
 
     The command to be run inside the docker container.  If this is set
-    to "bash", both the --interactive and --net=host flags are set.
+    to "bash", the --interactive, --tty and --net=host flags are set.
     If no command is specified, defaults to "bash".  If the command
     contains dash-prefixed arguments, the command should be preceded
     by -- to indicate arguments that are not intended for bash.sh.
@@ -235,6 +235,7 @@ fi
 
 if [[ ${COMMAND[@]+"${COMMAND[@]}"} = bash ]]; then
     INTERACTIVE=true
+    TTY=true
     USE_NET_HOST=true
 fi
 
