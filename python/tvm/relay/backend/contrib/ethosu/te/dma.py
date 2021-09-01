@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name,unnecessary-lambda
-"""Tensor Expressions for operations supported by the DMA engine"""
+"""Tensor Expressions for operations supported by the NPU DMA engine"""
 import tvm
 from tvm import te
 from tvm.topi.utils import equal_const_int
@@ -62,7 +62,7 @@ def _pad_tensor(tensor, pad_before, pad_after=None):
 
 
 def read_compute(tensor, layout, zero_point, scale):
-    """A TE compute operator to represent a read.
+    """A tensor expression which represents a read.
 
     Parameters
     ----------
@@ -92,7 +92,7 @@ def read_compute(tensor, layout, zero_point, scale):
 
 
 def write_compute(tensor, layout, zero_point, scale):
-    """A TE compute operator to represent a write.
+    """A tensor expression which represents a write.
 
     Parameters
     ----------
