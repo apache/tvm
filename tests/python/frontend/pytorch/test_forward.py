@@ -2240,8 +2240,7 @@ def verify_model_vm(input_model, ishapes, idtype=None, idata=None, targets=["llv
         print("Running on target", tgt)
         dev = tvm.device(tgt, 0)
 
-        executor = relay.create_executor("vm", mod=mod, device=dev, target=tgt)
-        evaluator = executor.evaluate()
+        evaluator = relay.create_executor("vm", mod=mod, device=dev, target=tgt).evaluate()
 
         # Inference
         for name, inp in zip(input_names, input_data):

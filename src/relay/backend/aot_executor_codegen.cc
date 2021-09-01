@@ -53,7 +53,7 @@ using StorageMap =
  * This is an on demand allocator for AOT. A new temporary
  * (storage allocator identifier) is allocated for each operation.
  */
-class AOTOnDemandAllocator : public ExprVisitor {
+class AOTOnDemandAllocator : public MixedModeVisitor {
  public:
   // run the visitor on a function.
   void Run(const Function& func) {
@@ -84,10 +84,7 @@ class AOTOnDemandAllocator : public ExprVisitor {
     AssignReturnSid(GetRef<Expr>(op));
   }
 
-  void VisitExpr_(const VarNode* op) final {
-    ExprVisitor::VisitExpr_(op);
-    AssignReturnSid(GetRef<Expr>(op));
-  }
+  void VisitExpr_(const VarNode* op) final { AssignReturnSid(GetRef<Expr>(op)); }
 
   void VisitExpr_(const FunctionNode* op) final {
     // do not recurse into sub function.
@@ -218,7 +215,7 @@ class AOTOnDemandAllocator : public ExprVisitor {
 };
 
 /*! \brief Code generator for AOT executor */
-class AOTExecutorCodegen : public ExprVisitor {
+class AOTExecutorCodegen : public MixedModeVisitor {
  protected:
   /*!
    * \brief Utility function to allocate a DLTensor or TVMValue
@@ -437,7 +434,6 @@ class AOTExecutorCodegen : public ExprVisitor {
   void VisitExpr_(const OpNode* op) override {
     throw std::runtime_error("can not compile op in non-eta expanded form");
   }
-  void VisitExpr_(const GlobalVarNode* op) override { throw std::runtime_error(""); }
   void VisitExpr_(const IfNode* op) override { throw std::invalid_argument("if not supported"); }
   void VisitExpr_(const FunctionNode* op) override {
     ICHECK(op->GetAttr<String>(attr::kCompiler).defined())
@@ -586,8 +582,9 @@ class AOTExecutorCodegen : public ExprVisitor {
     // to instead explicitly lowering the incoming IRModule, and then
     // performing the preexisting AOT executor code generation phase.
     IRModule mod = IRModule::FromExpr(func);
-    auto lowered_module = tec::LowerTE(
-        mod, targets_, device_context_map, memory_plan, mod_name, [this](Function func) {
+
+    IRModule new_mod =
+        LowerTEPass(targets_, device_context_map, memory_plan, mod_name, [this](Function func) {
           // We need to maintain the constant map for external
           // functions so we pass this processing function which
           // allows us to process each function as we lower it.
@@ -599,8 +596,9 @@ class AOTExecutorCodegen : public ExprVisitor {
           // execute as a further pass, instead writing data to the
           // lowering process directly.
           tec::UpdateFunctionMetadata(func, this->function_metadata_);
-        });
+        })(mod);
 
+    tec::LoweredModule lowered_module = tec::IRModuleToLoweredModule(new_mod);
     function_metadata_.Set(runtime::symbol::tvm_module_main, lowered_module.main_func_info);
     auto lowered_main = lowered_module.main_module->Lookup("main");
     auto lowered_main_func = GetRef<Function>(lowered_main.as<FunctionNode>());
@@ -667,11 +665,10 @@ class AOTExecutorCodegen : public ExprVisitor {
     ret.lowered_funcs = lowered_module.per_target_module;
     ret.external_mods = lowered_module.external_mods;
 
-    auto target_host_str = target_host_->str();
-    if (ret.lowered_funcs.find(target_host_str) != ret.lowered_funcs.end()) {
-      ret.lowered_funcs[target_host_str]->Update(mod_run);
+    if (ret.lowered_funcs.find(target_host_) != ret.lowered_funcs.end()) {
+      ret.lowered_funcs[target_host_]->Update(mod_run);
     } else {
-      ret.lowered_funcs.Set(target_host_str, mod_run);
+      ret.lowered_funcs.Set(target_host_, mod_run);
     }
 
     std::vector<String> input_var_names(input_vars_.size());
@@ -776,7 +773,7 @@ class AOTExecutorCodegenModule : public runtime::ModuleNode {
     return (*it).second.first;
   }
 
-  Map<String, IRModule> get_irmodule() { return this->output_.lowered_funcs; }
+  Map<Target, IRModule> get_irmodule() { return this->output_.lowered_funcs; }
 
   std::shared_ptr<AOTExecutorCodegen> codegen_;
   LoweredOutput output_;

@@ -14,14 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import tvm
-from tvm import te
 import numpy as np
-from tvm import relay
+import numpy.random
+import tvm
+import tvm.testing
+import tvm.topi.testing
+from tvm import relay, te
 from tvm.relay import transform
 from tvm.relay.testing import run_infer_type
-import tvm.topi.testing
-import tvm.testing
 
 
 @tvm.testing.uses_gpu
@@ -50,8 +50,9 @@ def test_binary_op():
             func = relay.Function([x, y], z)
 
             for target, dev in tvm.testing.enabled_targets():
-                intrp = relay.create_executor("graph", device=dev, target=target)
-                op_res = intrp.evaluate(func)(x_data, y_data)
+                op_res = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
+                    x_data, y_data
+                )
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res)
 
     for opfunc, ref in [(relay.power, np.power)]:
@@ -88,8 +89,9 @@ def test_cmp_type():
             func = relay.Function([x, y], z)
 
             for target, dev in tvm.testing.enabled_targets():
-                intrp = relay.create_executor("graph", device=dev, target=target)
-                op_res = intrp.evaluate(func)(x_data, y_data)
+                op_res = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
+                    x_data, y_data
+                )
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res)
 
 
@@ -113,8 +115,9 @@ def test_binary_int_broadcast_1():
             ref_res = ref(x_data, y_data)
 
             for target, dev in tvm.testing.enabled_targets():
-                intrp = relay.create_executor("graph", device=dev, target=target)
-                op_res = intrp.evaluate(func)(x_data, y_data)
+                op_res = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
+                    x_data, y_data
+                )
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res)
 
 
@@ -138,8 +141,9 @@ def test_binary_int_broadcast_2():
             ref_res = ref(x_data, y_data)
 
             for target, dev in tvm.testing.enabled_targets():
-                intrp = relay.create_executor("graph", device=dev, target=target)
-                op_res = intrp.evaluate(func)(x_data, y_data)
+                op_res = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
+                    x_data, y_data
+                )
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res)
 
 
@@ -148,8 +152,9 @@ def test_where():
     def run(func, inputs, ref_res):
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, device=dev, target=target)
-                op_res = intrp.evaluate(func)(*inputs)
+                op_res = relay.create_executor(kind, device=dev, target=target).evaluate(func)(
+                    *inputs
+                )
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
     def verify(x_np, y_np, cond_np):
@@ -258,11 +263,9 @@ def verify_reduce(funcs, data, axis, keepdims, exclude, output, dtype="float32")
         ref_res = ref_func(x_data + 0, axis=axis, keepdims=keepdims)
 
     for target, dev in tvm.testing.enabled_targets():
-        intrp1 = relay.create_executor("graph", device=dev, target=target)
-        intrp2 = relay.create_executor("debug", device=dev, target=target)
-        op_res1 = intrp1.evaluate(func)(x_data)
+        op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(x_data)
         tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5)
-        op_res2 = intrp2.evaluate(func)(x_data)
+        op_res2 = relay.create_executor("debug", device=dev, target=target).evaluate(func)(x_data)
         tvm.testing.assert_allclose(op_res2.numpy(), ref_res, rtol=1e-5)
 
 
@@ -339,6 +342,34 @@ def test_reduce_functions():
         verify_reduce(func, (128, 24, 128), (0, 2), True, False, (1, 24, 1))
 
 
+@tvm.testing.uses_gpu
+def test_argmin_argmax_get_last_elements():
+    def get_test_case(shape, gt_func, test_argmin=False):
+        total_ele = np.product(shape)
+        arr = np.zeros(total_ele)
+        target_value = -1 if test_argmin else 1
+        arr[: total_ele // 3] = target_value
+        np.random.shuffle(arr)
+        arr = arr.reshape(shape)
+        ans = gt_func(np.flip(arr))
+        return arr, len(arr) - ans - 1
+
+    funcs_and_gt_funcs = [(relay.argmax, np.argmax), (relay.argmin, np.argmin)]
+    lengths = [5, 10, 15]
+    for func, gt_func in funcs_and_gt_funcs:
+        for shape in lengths:
+            x_in = relay.var("x_in", shape=[shape])
+            output = func(x_in, select_last_index=True)
+            arr, ans = get_test_case(shape, gt_func, test_argmin=func == relay.argmin)
+
+            mod = tvm.IRModule.from_expr(output)
+            for target, dev in tvm.testing.enabled_targets():
+                op_res = relay.create_executor(
+                    "graph", mod=mod, device=dev, target=target
+                ).evaluate()(arr)
+                assert op_res.numpy().item() == ans
+
+
 def verify_mean_var_std(funcs, shape, axis, keepdims):
     test_func = funcs[0]
     ref_func = funcs[1]
@@ -352,12 +383,10 @@ def verify_mean_var_std(funcs, shape, axis, keepdims):
     ref_res = ref_func(x_data, axis=axis, dtype=dtype, keepdims=keepdims)
 
     for target, dev in tvm.testing.enabled_targets():
-        intrp1 = relay.create_executor("graph", device=dev, target=target)
-        intrp2 = relay.create_executor("debug", device=dev, target=target)
-        op_res1 = intrp1.evaluate(func)(x_data)
+        op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(x_data)
         tvm.testing.assert_allclose(op_res1[0].numpy(), ref_mean, rtol=1e-5)
         tvm.testing.assert_allclose(op_res1[1].numpy(), ref_res, rtol=1e-5)
-        op_res2 = intrp2.evaluate(func)(x_data)
+        op_res2 = relay.create_executor("debug", device=dev, target=target).evaluate(func)(x_data)
         tvm.testing.assert_allclose(op_res2[0].numpy(), ref_mean, rtol=1e-5)
         tvm.testing.assert_allclose(op_res2[1].numpy(), ref_res, rtol=1e-5)
 
@@ -425,8 +454,9 @@ def test_strided_slice():
         if not test_ref:
             return
         for target, dev in tvm.testing.enabled_targets():
-            intrp = relay.create_executor("graph", device=dev, target=target)
-            op_res = intrp.evaluate(func)(x_data)
+            op_res = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
+                x_data
+            )
             tvm.testing.assert_allclose(op_res.numpy(), ref_res)
 
     verify((1, 3, 10, 10), [0, 0, 0, 0], [-1, 3, 10, 10], [1], (0, 3, 10, 10), dtype="int64")
@@ -503,8 +533,9 @@ def test_dyn_strided_slice():
             return
         for target, dev in tvm.testing.enabled_targets():
             mod = tvm.ir.IRModule.from_expr(func)
-            intrp = relay.create_executor("vm", mod=mod, device=dev, target=target)
-            op_res = intrp.evaluate()(x_data)
+            op_res = relay.create_executor("vm", mod=mod, device=dev, target=target).evaluate()(
+                x_data
+            )
             tvm.testing.assert_allclose(op_res.numpy(), ref_res)
 
     verify(
@@ -562,8 +593,9 @@ def test_strided_set():
         v_data = np.random.uniform(size=vshape).astype("float32")
         ref_res = tvm.topi.testing.strided_set_python(x_data, v_data, begin, end, strides)
         for target, dev in tvm.testing.enabled_targets():
-            intrp = relay.create_executor("graph", device=dev, target=target)
-            op_res = intrp.evaluate(func)(x_data, v_data)
+            op_res = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
+                x_data, v_data
+            )
             tvm.testing.assert_allclose(op_res.numpy(), ref_res)
 
     verify((3, 4, 16), [0, 0, 0], [4, -5, 4], [1, -1, 2], (3, 1, 2))

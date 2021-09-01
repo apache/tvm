@@ -242,6 +242,9 @@ void VulkanDeviceAPI::GetTargetProperty(Device dev, const std::string& property,
   if (property == "device_type") {
     *rv = prop.device_type;
   }
+  if (property == "driver_name") {
+    *rv = prop.driver_name;
+  }
   if (property == "driver_version") {
     *rv = int64_t(prop.driver_version);
   }

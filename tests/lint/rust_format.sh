@@ -1,3 +1,4 @@
+#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -14,13 +15,21 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-[pytest]
-markers =
-    gpu: mark a test as requiring a gpu
-    tensorcore: mark a test as requiring a tensorcore
-    cuda: mark a test as requiring cuda
-    opencl: mark a test as requiring opencl
-    rocm: mark a test as requiring rocm
-    vulkan: mark a test as requiring vulkan
-    metal: mark a test as requiring metal
-    llvm: mark a test as requiring llvm
+
+TVM_HOME="$(git rev-parse --show-toplevel)"
+RUST_DIR="$TVM_HOME/rust"
+
+if [[ "$1" == "-i" ]]; then
+    INPLACE_FORMAT=1
+    shift 1
+else
+    INPLACE_FORMAT=0
+fi
+
+cd $RUST_DIR
+
+if [[ ${INPLACE_FORMAT} -eq 1 ]]; then
+    cargo fmt
+else
+    cargo fmt -- --check
+fi

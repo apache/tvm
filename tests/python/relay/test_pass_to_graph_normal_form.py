@@ -34,9 +34,7 @@ def check_eval(expr, args, expected_result, mod=None, rtol=1e-07):
         mod = tvm.IRModule()
 
     dev = tvm.device("llvm", 0)
-    intrp = create_executor(mod=mod, device=dev, target="llvm")
-
-    result = intrp.evaluate(expr)(*args)
+    result = create_executor(mod=mod, device=dev, target="llvm").evaluate(expr)(*args)
     np.testing.assert_allclose(result.numpy(), expected_result, rtol=rtol)
 
 

@@ -56,6 +56,13 @@ void VerifyCachedFlags(const ScheduleState& self);
 const PrimFuncNode* GetRootPrimFunc(const IRModule& mod, const StmtNode* root_block,
                                     GlobalVar* result_g_var);
 
+/*!
+ * \brief Get the root node of the sref tree, which is the root block of the PrimFunc.
+ * \param sref The given sref.
+ * \return The root node of the sref tree which contains the given node.
+ */
+StmtSRef GetSRefTreeRoot(const StmtSRef& sref);
+
 /******** Scope ********/
 /*!
  * \brief Checks if scope the specified sref is in is a stage-pipeline and return it
@@ -120,6 +127,20 @@ bool IsReductionBlock(const ScheduleState& self, const StmtSRef& block_sref,
 void CheckReductionBlock(const ScheduleState& self, const StmtSRef& block_sref,
                          const StmtSRef& scope_root_sref);
 
+/*!
+ * \brief Check whether a subtree on SRef tree has compact data flow, and throw an exception if the
+ * subtree does not have compact data flow
+ * \details For a given StmtSRef, We say the subtree rooted from the StmtSRef has "compact data
+ * flow" property if:
+ * - the scope root of the input subtree root has stage-pipeline property, and
+ * - all its child blocks on SRef tree are complete blocks or reduction blocks.
+ * \param self The schedule state
+ * \param subtree_root_sref The root of the subtree to be checked in the SRef tree
+ * \throw ScheduleError If the subtree does not have compact data flow
+ * \sa IsCompleteBlock, IsReductionBlock
+ */
+void CheckSRefSubtreeCompactDataFlow(const ScheduleState& self, const StmtSRef& subtree_root_sref);
+
 /******** Binding ********/
 /*!
  * \brief Verifies if the block binding in a specific BlockRealize is an affine binding.
@@ -131,6 +152,15 @@ void CheckReductionBlock(const ScheduleState& self, const StmtSRef& block_sref,
  */
 bool IsAffineBinding(const BlockRealize& realize, const Map<Var, Range>& loop_var_ranges,
                      arith::Analyzer* analyzer);
+
+/*!
+ * \brief Check whether a block has an affine binding using the cached flag, and throw an exception
+ * if the block does not have an affine binding.
+ * \param self The schedule state
+ * \param block The block to be checked
+ * \throw ScheduleError If the input block does not have an affine binding
+ */
+void CheckAffineBinding(const ScheduleState& self, Block block);
 
 /*!
  * \brief Extracts the ranges of loop variables in a path of the sref tree
@@ -205,15 +235,15 @@ BlockRealize GetBlockRealize(const ScheduleState& self, const StmtSRef& block_sr
 /******** Block-buffer relation ********/
 
 /*!
- * \brief Get the BlockRealize of the single child block of the block or loop specified by
- * `parent_sref` on SRef tree, or throw an exception if there is 0 or multiple child blocks
- * \param self The schedule state
- * \param block The queried block
- * \param n The index of the queried buffer
- * \return The buffer of the n-th write region of the block.
+ * \brief Get the n-th read or write buffer of the given block.
+ * \param self The schedule state.
+ * \param block The queried block.
+ * \param n The index of the queried buffer.
+ * \param is_write A boolean flag to indicate querying write buffer or read buffer.
+ * \return The buffer of the n-th read/write region of the block.
  * \throw ScheduleError If the buffer index is out of bound.
  */
-Buffer GetNthWriteBuffer(const ScheduleState& self, const Block& block, int n);
+Buffer GetNthAccessBuffer(const ScheduleState& self, const Block& block, int n, bool is_write);
 
 /******** Commutative Reducer ********/
 

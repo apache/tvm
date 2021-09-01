@@ -42,15 +42,11 @@ aot_test_runner: $(build_dir)/aot_test_runner
 source_libs= $(wildcard $(build_dir)/../codegen/host/src/*.c)
 lib_objs =$(source_libs:.c=.o)
 
-$(build_dir)/aot_test_runner: $(build_dir)/test.c  $(build_dir)/aot_executor.o  $(source_libs) $(build_dir)/stack_allocator.o $(build_dir)/crt_backend_api.o
+$(build_dir)/aot_test_runner: $(build_dir)/test.c  $(source_libs) $(build_dir)/stack_allocator.o $(build_dir)/crt_backend_api.o
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)$(CC) $(CFLAGS) $(PKG_CFLAGS) -o $@ $^ $(PKG_LDFLAGS) $(BACKTRACE_LDFLAGS) $(BACKTRACE_CFLAGS) -lm
 
 $(build_dir)/%.o: $(build_dir)/../codegen/host/src/%.c
-	$(QUIET)mkdir -p $(@D)
-	$(QUIET)$(CC) $(CFLAGS) -c $(PKG_CFLAGS) -o $@  $^ $(BACKTRACE_CFLAGS)
-
-$(build_dir)/aot_executor.o: $(STANDALONE_CRT_DIR)/src/runtime/crt/aot_executor/aot_executor.c
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)$(CC) $(CFLAGS) -c $(PKG_CFLAGS) -o $@  $^ $(BACKTRACE_CFLAGS)
 
@@ -66,5 +62,13 @@ clean:
 	$(QUIET)rm -rf $(build_dir)/crt
 cleanall:
 	$(QUIET)rm -rf $(build_dir)
+
+run: $(build_dir)/aot_test_runner
+	$(build_dir)/aot_test_runner
+
 # Don't define implicit rules; they tend to match on logical target names that aren't targets (i.e. bundle_static)
 .SUFFIXES:
+
+.DEFAULT: aot_test_runner
+
+.PHONY: run

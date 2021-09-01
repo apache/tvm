@@ -43,7 +43,7 @@ using runtime::ObjectPtr;
 using runtime::ObjectRef;
 
 /*!
- * \brief Visitor class for to get the attributesof a AST/IR node.
+ * \brief Visitor class to get the attributes of an AST/IR node.
  *  The content is going to be called for each field.
  *
  *  Each objects that wants reflection will need to implement
@@ -75,7 +75,7 @@ class AttrVisitor {
 /*!
  * \brief Virtual function table to support IR/AST node reflection.
  *
- * Functions are stored  in columar manner.
+ * Functions are stored in columnar manner.
  * Each column is a vector indexed by Object's type_index.
  */
 class ReflectionVTable {
@@ -205,7 +205,7 @@ class ReflectionVTable::Registry {
   /*!
    * \brief Set fcreate function.
    * \param f The creator function.
-   * \return rference to self.
+   * \return Reference to self.
    */
   Registry& set_creator(FCreate f) {  // NOLINT(*)
     ICHECK_LT(type_index_, parent_->fcreate_.size());
@@ -215,7 +215,7 @@ class ReflectionVTable::Registry {
   /*!
    * \brief Set bytes repr function.
    * \param f The ReprBytes function.
-   * \return rference to self.
+   * \return Reference to self.
    */
   Registry& set_repr_bytes(FReprBytes f) {  // NOLINT(*)
     ICHECK_LT(type_index_, parent_->frepr_bytes_.size());
@@ -374,7 +374,7 @@ inline ReflectionVTable::Registry ReflectionVTable::Register() {
     fsequal_reduce_.resize(tindex + 1, nullptr);
     fshash_reduce_.resize(tindex + 1, nullptr);
   }
-  // functor that implemnts the redirection.
+  // functor that implements the redirection.
   fvisit_attrs_[tindex] = ::tvm::detail::SelectVisitAttrs<T, TraitName>::VisitAttrs;
 
   fsequal_reduce_[tindex] = ::tvm::detail::SelectSEqualReduce<T, TraitName>::SEqualReduce;

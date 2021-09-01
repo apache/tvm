@@ -221,8 +221,8 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
       device_context_map.insert({expr, dev});
     }
 
-    auto lowered_module = tec::LowerTE(
-        mod, targets_, device_context_map, memory_plan_, mod_name_, [this](Function func) {
+    IRModule new_mod =
+        LowerTEPass(targets_, device_context_map, memory_plan_, mod_name_, [this](Function func) {
           // We need to maintain the constant map for external
           // functions so we pass this processing function which
           // allows us to process each function as we lower it.
@@ -234,8 +234,9 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
           // execute as a further pass, instead writing data to the
           // lowering process directly.
           tec::UpdateFunctionMetadata(func, this->function_metadata_);
-        });
+        })(mod);
 
+    tec::LoweredModule lowered_module = tec::IRModuleToLoweredModule(new_mod);
     function_metadata_.Set(runtime::symbol::tvm_module_main, lowered_module.main_func_info);
     auto main_module = lowered_module.main_module;
     main_module = relay::transform::InferType()(main_module);

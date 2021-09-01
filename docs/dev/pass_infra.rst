@@ -325,7 +325,7 @@ favorably use Python APIs to create a specific pass object.
 .. code:: c++
 
     Pass CreateFunctionPass(
-        const runtime::TypedPackedFunc<PrimFunc(PrimFunc, IRModule, PassContext)>& pass_func,
+        const runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)>& pass_func,
         int opt_level,
         String name,
         Array<String> required);
@@ -337,7 +337,7 @@ favorably use Python APIs to create a specific pass object.
         Array<String> required);
 
     Pass CreateModulePass(
-        const runtime::TypedPackedFunc<PrimFunc(PrimFunc, IRModule, PassContext)>& pass_func,
+        const runtime::TypedPackedFunc<IRModule(IRModule, PassContext)>& pass_func,
         int opt_level,
         String name,
         Array<String> required);

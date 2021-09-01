@@ -704,8 +704,8 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
   (void)CallOnce;
 
   std::unique_ptr<llvm::TargetMachine> tm = GetLLVMTargetMachine(target);
-  std::unique_ptr<CodeGenHexagon> cg(new CodeGenHexagon());
   std::unique_ptr<llvm::LLVMContext> ctx(new llvm::LLVMContext());
+  std::unique_ptr<CodeGenHexagon> cg(new CodeGenHexagon());
   cg->Init("TVMHexagonModule", tm.get(), ctx.get(), false, false, false);
   for (auto kv : mod->functions) {
     ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "Can only lower IR Module with PrimFuncs";
