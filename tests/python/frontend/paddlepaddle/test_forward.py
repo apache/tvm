@@ -89,6 +89,7 @@ def verify_model(func, input_data, rtol=1e-5, atol=1e-5, input_shape=None):
         input_name = "input{}".format(idx)
         if input_shape:
             shape = input_shape[idx]
+            input_shape_dict[input_name] = [relay.Any()] * len(shape)
         else:
             shape = data.shape
             input_shape_dict[input_name] = shape
@@ -371,10 +372,15 @@ def test_forward_shape_full():
     def full2(inputs):
         return paddle.full(paddle.shape(inputs), 1.0, dtype=inputs.dtype)
 
+    @paddle.jit.to_static
+    def shape1(inputs):
+        return paddle.shape(inputs)
+
     input_shape = [1, 3, 10, 10]
     input_data = paddle.rand(input_shape, dtype="float32")
-    verify_model(full1, input_data=[input_data])
-    verify_model(full2, input_data=[input_data])
+    verify_model(shape1, input_data=[input_data], input_shape=[[-1, 3, 10, 10]])
+    # verify_model(full1, input_data=[input_data])
+    verify_model(full2, input_data=[input_data], input_shape=[[-1, 3, 10, 10]])
 
 
 @tvm.testing.uses_gpu
@@ -641,7 +647,7 @@ def test_forward_relu():
 
     input_shape = [10, 10]
     input_data = paddle.rand(input_shape, dtype="float32")
-    verify_model(relu, input_data=input_data)
+    verify_model(relu, input_data=input_data, input_shape=[[-1, -1]])
 
 
 @tvm.testing.uses_gpu
@@ -658,7 +664,7 @@ def test_forward_reshape():
     @paddle.jit.to_static
     def reshape3(inputs):
         data_shape = inputs.shape
-        return inputs.reshape([data_shape[0] * data_shape[1], data_shape[2]])
+        return inputs.reshape([data_shape[1], data_shape[2], data_shape[0]])
 
     @paddle.jit.to_static
     def reshape4(inputs, x):

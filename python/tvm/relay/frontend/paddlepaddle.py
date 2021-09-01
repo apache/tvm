@@ -43,10 +43,6 @@ __all__ = ["from_paddle"]
 def shape_of(x, dtype="int32"):
     """Get shape of a tensor"""
 
-    # ttype = infer_type(x).checked_type
-    # if not _ty.is_dynamic(ttype):
-    #     shape = list(ttype.shape)
-    #     return _expr.const(shape, dtype)
     return _op.shape_of(x, dtype)
 
 
@@ -65,23 +61,18 @@ def _get_pad_size(in_size, dilated_kernel_size, stride_size):
 
 
 def _infer_value(x, params):
+    """Try running infer_value, and if successful, return the inferred value.
+    Otherwise, return input"""
+
     try:
         if isinstance(x, _expr.Constant):
-            return np.atleast_1d(x.data.numpy())
-        return params[x.name_hint].numpy()
+            return x.data.numpy().tolist()
+        return params[x.name_hint].numpy().tolist()
     except (IndexError, KeyError, AttributeError):
         try:
             return infer_value(x, params).numpy().tolist()
         except Exception:
             return x
-
-
-def _infer_shape(x, mod=None):
-    try:
-        shape = infer_shape(x, mod)
-        return (shape, True)
-    except Exception as e:
-        return (e, False)
 
 
 def convert_arg_max(g, op, block):
@@ -264,11 +255,7 @@ def convert_conv2d(g, op, block):
             pad_h = _get_pad_size(0, (k_h - 1) * dilations[0] + 1, strides[0])
             pad_w = _get_pad_size(0, (k_w - 1) * dilations[1] + 1, strides[1])
         else:
-            input_shape, is_succeed = _infer_shape(input_x)
-            assert is_succeed, "{} \n SAME Padding of conv2d only support fixed shape.".format(
-                input_shape
-            )
-            in_h, in_w = input_shape[2:]
+            in_h, in_w = infer_shape(input_x)[2:]
             pad_h = _get_pad_size(in_h, (k_h - 1) * dilations[0] + 1, strides[0])
             pad_w = _get_pad_size(in_w, (k_w - 1) * dilations[1] + 1, strides[1])
         paddings = [pad_h[0], pad_w[0], pad_h[1], pad_w[1]]
@@ -397,14 +384,8 @@ def convert_fill_any_like(g, op, block):
     out_dtype = block.var(out_name).dtype
     out_dtype = str(out_dtype).strip().split(".")[1]
     x = g.get_node(op.input("X")[0])
-    ipt_type = infer_type(x).checked_type
     value = op.attr("value")
-    if not _ty.is_dynamic(ipt_type):
-        shape = infer_shape(x)
-        const = np.ones(shape) * value
-        out = _expr.const(const.astype(out_dtype))
-    else:
-        out = _op.transform.full_like(x, value).astype(out_dtype)
+    out = _op.transform.full_like(x, value).astype(out_dtype)
     g.add_node(op.output("Out")[0], out)
 
 
@@ -415,16 +396,15 @@ def convert_fill_constant(g, op, block):
     shape = block.var(op.output("Out")[0]).shape
     dtype = block.var(op.output("Out")[0]).dtype
     dtype = str(dtype).strip().split(".")[1]
+    value = _expr.const(value).astype(dtype)
     if op.input("ValueTensor"):
         shape = g.get_node(op.input("ValueTensor")[0])
         shape = _infer_value(shape, g.get_params())
     if op.input("ShapeTensor"):
         shape = g.get_node(op.input("ShapeTensor")[0])
         shape = _infer_value(shape, g.get_params())
-    print("------", dtype)
-    out = _op.full(value, shape, dtype="float")
-    # value = np.full(shape, value, dtype)
-    # out = _expr.const(value.astype(dtype)).astype(dtype)
+
+    out = _op.full(value, shape=shape, dtype=dtype)
     g.add_node(op.output("Out")[0], out)
 
 
