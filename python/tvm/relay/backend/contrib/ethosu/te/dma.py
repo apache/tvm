@@ -44,8 +44,8 @@ def _pad_tensor(tensor, pad_before, pad_after=None):
     assert len(pad_after) == dims
 
     def _pad(*indices):
-        not_zero = []
-        index_tuple = []
+        not_zero = []  # A list of padding conditions that aren't trivial (zero padding)
+        index_tuple = []  # The indices with which to access the padded tensor
         for i in range(dims):
             if equal_const_int(pad_before[i], 0) and equal_const_int(pad_after[i], 0):
                 index_tuple.append(indices[i])
@@ -256,11 +256,8 @@ def dma_ifm_compute(ifm, layout, zero_point, scale, channels, padding):
         The scale of the data.
     channels : int
         The number of valid channels for the data.
-    padding : Union[int, tuple, list]
-        The desired padding.
-        int -> padding applied to both height and width axes.
-        2D -> padding applied equally on both sides of the (height, width) axes.
-        4D -> padding applied as (top, left, bottom, right)
+    padding : tuple
+        The 4 dimensional padding as (pad_top, pad_left, pad_bottom, pad_right).
 
     Returns
     -------

@@ -20,56 +20,6 @@ from tvm import te
 from .dma import dma_ofm_compute, dma_ifm_compute
 
 
-def process_stride(stride):
-    """Process the striding into a common format.
-
-    Parameters
-    ----------
-    stride : Union[int, tuple, list]
-        The 2D striding.
-        int -> striding is the same in the height and width axis.
-        2D -> striding specified as (stride height, stride width).
-
-    Returns
-    -------
-    int
-        The stride in the height axis.
-    int
-        The stride in the width axis.
-
-    """
-    assert isinstance(stride, int) or len(stride) == 2
-    if isinstance(stride, int):
-        return stride, stride
-
-    return stride
-
-
-def process_dilation(dilation):
-    """Process the dilation into a common format.
-
-    Parameters
-    ----------
-    dilation : Union[int, tuple, list]
-        The 2D dilation.
-        int -> dilation is the same in the height and width axis.
-        2D -> dilation specified as (dilation height, dilation width).
-
-    Returns
-    -------
-    int
-        The dilation in the height axis.
-    int
-        The dilation in the width axis.
-
-    """
-    assert isinstance(dilation, int) or len(dilation) == 2
-    if isinstance(dilation, int):
-        return dilation, dilation
-
-    return dilation
-
-
 def conv2d_compute(
     ifm,
     weight,
