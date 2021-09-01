@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-argument, missing-docstring, unused-import
+# pylint: disable=invalid-name, unused-argument, missing-docstring, unused-import, line-too-long
 """
 Relay pass transformation infrastructure.
 """
@@ -264,6 +264,27 @@ def FoldConstant():
     -------
     ret : tvm.transform.Pass
         The registered pass for constant folding.
+
+    Example
+    -------
+    Before/After from the test_fold_const() in `test_pass_fold_constant.py
+    <https://github.com/apache/tvm/blob/main/tests/python/relay/test_pass_fold_constant.py>`_.
+
+        .. code-block:: cpp
+
+            // Before :
+            fn (%x: Tensor[(1, 2, 3), float32]) -> Tensor[(1, 2, 3), float32] {
+                %0 = add(meta[relay.Constant][0] /* ty=Tensor[(3), float32] */, meta[relay.Constant][0] /* ty=Tensor[(3), float32] */) /* ty=Tensor[(3), float32] */;
+                %1 = multiply(%0, 2f /* ty=float32 */) /* ty=Tensor[(3), float32] */;
+                %2 = add(%x, %1) /* ty=Tensor[(1, 2, 3), float32] */;
+                add(%2, meta[relay.Constant][0] /* ty=Tensor[(3), float32] */) /* ty=Tensor[(1, 2, 3), float32] */
+              }
+
+            // After :
+              fn (%x: Tensor[(1, 2, 3), float32]) -> Tensor[(1, 2, 3), float32] {
+                %0 = add(%x, meta[relay.Constant][0] /* ty=Tensor[(3), float32] */) /* ty=Tensor[(1, 2, 3), float32] */;
+                add(%0, meta[relay.Constant][1] /* ty=Tensor[(3), float32] */) /* ty=Tensor[(1, 2, 3), float32] */
+              }
     """
     return _ffi_api.FoldConstant()
 
