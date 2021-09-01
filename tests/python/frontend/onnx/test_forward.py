@@ -5291,7 +5291,6 @@ def test_qlinearconcat(target, dev):
             inputs=input_nodes,
             outputs=[helper.make_tensor_value_info("C", TensorProto.FLOAT, list(out_shape))],
         )
-        breakpoint()
         model = helper.make_model(graph, producer_name="qlinearconcat_test")
         quantize_and_verify_with_ort(model, input_names, shapes, target, dev)
 

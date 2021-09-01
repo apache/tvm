@@ -3301,10 +3301,12 @@ class QLinearConcat(OnnxOpConverter):
         y_scale = fold_constant(get_scalar(inputs[0], params))
         y_zero_point = get_scalar(inputs[1], params, "int32")
 
+        out_dtype = infer_type(inputs[1]).checked_type.dtype
+
         # input tensors, scales, zero_points
         assert (
             len(inputs) % 3 == 2
-        ), "Additional number of inputs beyond y_scale, y_zero_point for QLinearConcat must be a multiple of 3, indicating complete input tensor/scale/zero_point tubles"
+        ), "Additional number of inputs beyond y_scale, y_zero_point for QLinearConcat must be a multiple of 3, indicating complete input tensor/scale/zero_point tuples"
         tensors = []
         scales = []
         zero_points = []
