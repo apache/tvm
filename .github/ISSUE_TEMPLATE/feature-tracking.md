@@ -11,4 +11,4 @@ Thanks for participating in the TVM community! We use https://discuss.tvm.ai for
 Issues that are inactive for a period of time may get closed. We adopt this policy so that we won't lose track of actionable issues that may fall at the bottom of the pile. Feel free to reopen a new one if you feel there is an additional problem that needs attention when an old one gets closed.
 
 ### This issue to track progress for FEATURE NAME
-[] P1. Title of this piece of the feature (PR link if available)
+- [ ] P1. Title of this piece of the feature (PR link if available)
