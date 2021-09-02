@@ -908,8 +908,9 @@ class LpPool(OnnxOpConverter):
         else:
             attr["layout"] = onnx_default_layout(dims=(len(input_shape) - 2), op_name="LpPool")
 
-        p = _expr.const(attr["p"], dtype)
-        reci_p = _expr.const(1.0 / attr["p"], dtype)
+        p_value = attr.get("p", 2)
+        p = _expr.const(p_value, dtype)
+        reci_p = _expr.const(1.0 / p_value, dtype)
         data = _op.power(data, p)
 
         out = AttrCvt(
