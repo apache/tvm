@@ -37,21 +37,9 @@ from .. import qnn as _qnn
 from .. import random as _random
 from .. import ty as _ty
 from .. import vision as _vision
-from .common import (
-    AttrCvt,
-    Renamer,
-    fold_constant,
-    get_name,
-    get_relay_op,
-    gru_cell,
-    infer_channels,
-    infer_shape,
-    infer_type,
-    infer_value,
-    lstm_cell,
-    new_var,
-    unbind,
-)
+from .common import (AttrCvt, Renamer, fold_constant, get_name, get_relay_op,
+                     gru_cell, infer_channels, infer_shape, infer_type,
+                     infer_value, lstm_cell, new_var, unbind)
 
 __all__ = ["from_onnx"]
 
@@ -909,8 +897,9 @@ class LpPool(OnnxOpConverter):
         else:
             attr["layout"] = onnx_default_layout(dims=(len(input_shape) - 2), op_name="LpPool")
 
-        p = _expr.const(attr["p"], dtype)
-        reci_p = _expr.const(1.0 / attr["p"], dtype)
+        p_value = attr.get("p", 2)
+        p = _expr.const(p_value, dtype)
+        reci_p = _expr.const(1.0 / p_value, dtype)
         data = _op.power(data, p)
 
         out = AttrCvt(
