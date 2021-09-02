@@ -44,7 +44,9 @@ def schedule_softmax(outs):
 
     def _schedule(softmax_op):
         op_tag = softmax_op.tag
-        nonlocal s  # This is required due to the assignment s = schedule_injective_from_existing(...) below
+        # This is required due to the assignment
+        # s = schedule_injective_from_existing(...) below
+        nonlocal s
         if op_tag == "softmax_output":
             expsum = softmax_op.input_tensors[1]
             exp = softmax_op.input_tensors[0]
@@ -73,11 +75,12 @@ def schedule_softmax(outs):
         #
         # TODO(tvm-team) Fix nvptx codegen or deprecate nvptx backend.
         def sched_warp_softmax():
-            if tgt.kind.name == "nvptx" or tgt.kind.name == "rocm":
+            if tgt.kind.name in ["nvptx", "rocm"]:
                 dtype = softmax_op.output(0).dtype
-                return dtype == "float32" or dtype == "int32"
+                return dtype in ["float32", "int32"]
             if tgt.kind.name != "cuda":
-                # this is used as the gpu schedule for other arches which may not have warp reductions
+                # this is used as the gpu schedule for other arches which
+                # may not have warp reductions
                 return False
             return True
 

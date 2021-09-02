@@ -17,7 +17,6 @@
 # pylint: disable=invalid-name,too-many-locals,unused-variable
 """x86 nn operators"""
 from tvm import te
-from .. import tag
 from ..utils import traverse_inline
 
 
