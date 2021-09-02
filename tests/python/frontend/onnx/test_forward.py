@@ -5296,7 +5296,7 @@ def test_qlinearconcat(target, dev):
 
     verify_qlinearconcat([[2, 1], [2, 1]], [4, 1], 0)
     verify_qlinearconcat([[2, 1], [2, 1]], [2, 2], 1)
-    verify_qlinearconcat([[1, 2], [2, 2], [3,2]], [6, 2], 0)
+    verify_qlinearconcat([[1, 2], [2, 2], [3, 2]], [6, 2], 0)
 
 
 @tvm.testing.parametrize_targets
