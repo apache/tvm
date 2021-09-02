@@ -79,12 +79,8 @@ def _infer_value(x, params):
 def convert_unary_op(g, op, block):
     """Operator converter for all the activation."""
 
-    op_map = {}
-    if op.type in op_map:
-        act_func = op_map[op.type]
-    else:
-        act_func = get_relay_op(op.type)
-    out = act_func(g.get_node(op.input("X")[0]))
+    unary_func = get_relay_op(op.type)
+    out = unary_func(g.get_node(op.input("X")[0]))
     g.add_node(op.output("Out")[0], out)
 
 
@@ -557,6 +553,16 @@ def convert_lookup_table(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_log1p(g, op, block):
+    """Operator converter for log1p."""
+
+    x = g.get_node(op.input("X")[0])
+    dtype = infer_type(x).checked_type.dtype
+    one = _expr.const(1, dtype=dtype)
+    out = _op.log(x + one)
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_matmul(g, op, block):
     """Operator converter for matmul."""
 
@@ -973,6 +979,9 @@ _convert_map = {
     "layer_norm": convert_layer_norm,
     "leaky_relu": convert_leaky_relu,
     "lookup_table_v2": convert_lookup_table,
+    "log": convert_unary_op,
+    "log10": convert_unary_op,
+    "log1p": convert_log1p,
     "matmul": convert_matmul,
     "matmul_v2": convert_matmul,
     "mul": convert_mul,

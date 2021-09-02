@@ -147,12 +147,16 @@ def test_forward_unary_op():
     input_data = paddle.rand([1, 2, 5, 5], dtype="float32")
     op_list = [
         "abs",
-        "cosh" "exp",
+        "cosh",
+        "exp",
         "floor",
-        "isinf",
+        "log",
+        "log10",
+        "log1p",
         "relu",
         "sigmoid",
-        "sin" "tanh",
+        "sin",
+        "tanh",
         "tan",
     ]
     for op_name in op_list:
@@ -512,6 +516,17 @@ def test_forward_hard_swish():
 
 
 @tvm.testing.uses_gpu
+def test_forward_isinf():
+    @paddle.jit.to_static
+    def isinf(inputs):
+        return paddle.cast(paddle.isinf(inputs), "int")
+
+    input_shape = [5, 5]
+    input_data = paddle.rand(input_shape, dtype="float32")
+    verify_model(isinf, input_data=input_data)
+
+
+@tvm.testing.uses_gpu
 def test_forward_interpolate():
     class TestBilinear(nn.Layer):
         def __init__(self):
@@ -840,6 +855,7 @@ if __name__ == "__main__":
     test_forward_hard_sigmoid()
     test_forward_hard_swish()
     test_forward_interpolate()
+    test_forward_isinf()
     test_forward_layer_norm()
     test_forward_leaky_relu()
     test_forward_look_up()
