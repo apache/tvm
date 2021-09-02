@@ -131,6 +131,32 @@ def verify_model(func, input_data, rtol=1e-5, atol=1e-5, input_shape=None):
 
 
 @tvm.testing.uses_gpu
+def test_forward_unary_op():
+    class UnaryOp(nn.Layer):
+        def __init__(self, op_name):
+            super(UnaryOp, self).__init__()
+            for candidate in (paddle, paddle.nn.functional):
+                self.func = getattr(candidate, op_name, None)
+                if self.func:
+                    break
+
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return self.func(inputs)
+
+    input_data = paddle.rand([1, 2, 5, 5], dtype="float32")
+    op_list = [
+        "abs",
+        "exp",
+        "relu",
+        "sigmoid",
+        "tanh",
+    ]
+    for op_name in op_list:
+        verify_model(UnaryOp(op_name), input_data)
+
+
+@tvm.testing.uses_gpu
 def test_forward_add_subtract():
     input_shape = [10]
 
@@ -368,7 +394,13 @@ def test_forward_conv_transpose():
         def __init__(self):
             super(Conv2DTranspose2, self).__init__()
             self.conv_transpose = nn.Conv2DTranspose(
-                3, 5, 3, stride=2, padding=[[0,0],[0,0],[1,2],[3,4]], output_padding=1, bias_attr=True
+                3,
+                5,
+                3,
+                stride=2,
+                padding=[[0, 0], [0, 0], [1, 2], [3, 4]],
+                output_padding=1,
+                bias_attr=True,
             )
 
         @paddle.jit.to_static
@@ -379,7 +411,7 @@ def test_forward_conv_transpose():
         def __init__(self):
             super(Conv2DTranspose3, self).__init__()
             self.conv_transpose = nn.Conv2DTranspose(
-                3, 5, 3, stride=3, padding='VALID', output_padding=2, bias_attr=True
+                3, 5, 3, stride=3, padding="VALID", output_padding=2, bias_attr=True
             )
 
         @paddle.jit.to_static
@@ -684,17 +716,6 @@ def test_forward_pad():
 
 
 @tvm.testing.uses_gpu
-def test_forward_relu():
-    @paddle.jit.to_static
-    def relu(inputs):
-        return nn.functional.relu(inputs)
-
-    input_shape = [10, 10]
-    input_data = paddle.rand(input_shape, dtype="float32")
-    verify_model(relu, input_data=input_data)
-
-
-@tvm.testing.uses_gpu
 def test_forward_reshape():
     @paddle.jit.to_static
     def reshape1(inputs, x):
@@ -800,28 +821,6 @@ def test_forward_squeeze2():
     verify_model(squeeze3, input_data=input_data)
 
 
-@tvm.testing.uses_gpu
-def test_forward_tanh():
-    @paddle.jit.to_static
-    def tanh(inputs):
-        return paddle.tanh(inputs)
-
-    input_shape = [1, 3, 10, 10]
-    input_data = paddle.rand(input_shape, dtype="float32")
-    verify_model(tanh, input_data=input_data)
-
-
-@tvm.testing.uses_gpu
-def test_forward_sigmoid():
-    @paddle.jit.to_static
-    def sigmoid(inputs):
-        return nn.functional.sigmoid(inputs)
-
-    input_shape = [10, 10]
-    input_data = paddle.rand(input_shape, dtype="float32")
-    verify_model(sigmoid, input_data=input_data)
-
-
 if __name__ == "__main__":
     test_forward_add_subtract()
     test_forward_argmax()
@@ -845,11 +844,9 @@ if __name__ == "__main__":
     test_forward_matmul()
     test_forward_pool2d()
     test_forward_pad()
-    test_forward_relu()
     test_forward_reshape()
     test_forward_scale()
     test_forward_slice()
     test_forward_squeeze2()
-    test_forward_tanh()
     test_forward_conv_transpose()
-    test_forward_sigmoid()
+    test_forward_unary_op()
