@@ -398,20 +398,13 @@ int RPCGetCRTMaxPacketSize(TVMValue* args, int* type_codes, int num_args, TVMVal
 tvm_crt_error_t TVMInitializeRuntime() {
   int idx = 0;
   tvm_crt_error_t error = kTvmErrorNoError;
-  void* func_registry_memory = NULL;
 
   DLDevice dev = {kDLCPU, 0};
-  error = TVMPlatformMemoryAllocate(TVM_CRT_GLOBAL_FUNC_REGISTRY_SIZE_BYTES, dev,
-                                    &func_registry_memory);
-  if (error != kTvmErrorNoError) {
-    return error;
-  }
 
   void* registry_backing_memory;
   error = TVMPlatformMemoryAllocate(TVM_CRT_GLOBAL_FUNC_REGISTRY_SIZE_BYTES, dev,
                                     &registry_backing_memory);
   if (error != kTvmErrorNoError) {
-    TVMPlatformMemoryFree(func_registry_memory, dev);
     return error;
   }
 
@@ -441,7 +434,6 @@ tvm_crt_error_t TVMInitializeRuntime() {
 
   if (error != kTvmErrorNoError) {
     TVMPlatformMemoryFree(registry_backing_memory, dev);
-    TVMPlatformMemoryFree(func_registry_memory, dev);
   }
 
   return error;

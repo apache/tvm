@@ -274,10 +274,11 @@ bool SparseConv2dRel(const Array<Type>& types, int num_inputs, const Attrs& attr
 }
 
 Expr MakeSparseConv2d(Expr data, Expr weight_data, Expr weight_indices, Expr weight_indptr,
-                      std::string layout) {
+                      std::string layout, Array<IndexExpr> kernel_size) {
   static const Op& op = Op::Get("nn.sparse_conv2d");
   auto attrs = make_object<SparseConv2DAttrs>();
   attrs->layout = std::move(layout);
+  attrs->kernel_size = std::move(kernel_size);
   return Call(op, {data, weight_data, weight_indices, weight_indptr}, Attrs(attrs), {});
 }
 

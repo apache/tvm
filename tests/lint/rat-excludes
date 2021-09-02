@@ -20,6 +20,9 @@
 .*\.interp
 .*\.tokens
 
+# microTVM test data files
+testdata
+
 # Generated modules
 .*\.egg-info
 .*gen_modules

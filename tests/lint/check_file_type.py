@@ -82,6 +82,8 @@ ALLOW_EXTENSION = {
     "cl",
     # zephyr config file
     "conf",
+    # arduino sketch file
+    "ino",
     # linker scripts
     "ld",
 }
@@ -131,10 +133,10 @@ ALLOW_SPECIFIC_FILE = {
     # pytest config
     "pytest.ini",
     # microTVM tests
-    "tests/micro/zephyr/testdata/digit-2.jpg",
-    "tests/micro/zephyr/testdata/digit-9.jpg",
-    "tests/micro/zephyr/testdata/mnist-8.onnx",
-    "tests/micro/zephyr/testdata/ic_sample_fp32_8.npy",
+    "tests/micro/testdata/mnist/digit-2.jpg",
+    "tests/micro/testdata/mnist/digit-9.jpg",
+    "tests/micro/testdata/mnist/mnist-8.onnx",
+    "tests/micro/testdata/kws/yes_no.tflite",
     # microTVM Zephyr runtime
     "apps/microtvm/zephyr/template_project/CMakeLists.txt.template",
     "apps/microtvm/zephyr/template_project/qemu-hack/qemu-system-arm",
@@ -143,6 +145,8 @@ ALLOW_SPECIFIC_FILE = {
     "apps/microtvm/zephyr/template_project/qemu-hack/qemu-system-riscv32",
     "apps/microtvm/zephyr/template_project/qemu-hack/qemu-system-riscv64",
     # microTVM Virtual Machines
+    "apps/microtvm/reference-vm/arduino/Vagrantfile",
+    "apps/microtvm/reference-vm/arduino/base-box/Vagrantfile.packer-template",
     "apps/microtvm/reference-vm/zephyr/Vagrantfile",
     "apps/microtvm/reference-vm/zephyr/base-box/Vagrantfile.packer-template",
 }

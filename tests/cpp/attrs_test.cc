@@ -81,9 +81,3 @@ TEST(Attrs, Basic) {
   LOG(INFO) << "docstring\n" << os.str();
   ICHECK(os.str().find("expr : PrimExpr, default=1") != std::string::npos);
 }
-
-int main(int argc, char** argv) {
-  testing::InitGoogleTest(&argc, argv);
-  testing::FLAGS_gtest_death_test_style = "threadsafe";
-  return RUN_ALL_TESTS();
-}
