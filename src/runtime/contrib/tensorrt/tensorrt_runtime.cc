@@ -283,23 +283,16 @@ class TensorRTRuntime : public JSONRuntimeBase {
                << " with batch size " << batch_size;
 
     // Build engine.
-    if (trt_engine_cache_.find(std::make_pair(symbol_name_, batch_size)) ==
-          trt_engine_cache_.end()) {
+    if (calibrator_ != nullptr && num_calibration_batches_remaining_ == 0) {
+      // Calibration complete. Delete fp32 engine and build int8 engine
       BuildEngineFromJson(batch_size);
-    }
-    if (use_int8) {
-      TensorRTEngineAndContext& engine_and_context =
-                                trt_engine_cache_[std::make_pair(symbol_name_, batch_size)];
-      if (calibrator_ == nullptr) {
+      calibrator_.reset(nullptr);
+    } else {
+      // Build new engine
+      BuildEngineFromJson(batch_size);
+      TensorRTEngineAndContext& engine_and_context = trt_engine_cache_[std::make_pair(symbol_name_, batch_size)];
+      if (use_int8) {
         this->CreateInt8Calibrator(engine_and_context);
-      }
-      if (num_calibration_batches_remaining_ == 0) {
-        engine_and_context.context->destroy();
-        engine_and_context.engine->destroy();
-        LOG(INFO) << "rebuild builder using INT8 mode";
-        BuildEngineFromJson(batch_size);
-        calibrator_.reset(nullptr);
-        LOG(INFO) << "finished rebuilding using INT8 mode ... ";
       }
     }
 
