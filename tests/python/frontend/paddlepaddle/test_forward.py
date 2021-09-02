@@ -50,7 +50,34 @@ def get_paddle_model(func, input_spec):
     return baseline_model
 
 
-def verify_model(func, input_data, rtol=1e-5, atol=1e-5):
+def get_tvm_output_with_vm(mod, params, target, device, input_data):
+    """Generic function to execute and get tvm output with vm executor"""
+
+    ex = relay.create_executor("vm", mod=mod, device=device, target=target)
+    params.update(input_data)
+    result = ex.evaluate()(**params)
+    if isinstance(result, tvm.runtime.NDArray):
+        return [
+            result.numpy(),
+        ]
+    return [r.numpy() for r in result]
+
+
+def get_tvm_output(mod, params, target, device, input_data, compiled_names, num):
+    """Generic function to execute and get tvm output"""
+
+    lib = relay.build(mod, target=target, params=params)
+    gmod = graph_executor.GraphModule(lib["default"](device))
+    for name in compiled_names:
+        gmod.set_input(name, input_data[name])
+    gmod.run()
+    outputs = []
+    for i in range(num):
+        outputs.append(gmod.get_output(i).numpy())
+    return outputs
+
+
+def verify_model(func, input_data, rtol=1e-5, atol=1e-5, input_shape=None):
     if not (isinstance(input_data, (tuple, list))):
         input_data = [input_data]
 
@@ -60,11 +87,14 @@ def verify_model(func, input_data, rtol=1e-5, atol=1e-5):
     compiled_input = {}
     for idx, data in enumerate(input_data):
         input_name = "input{}".format(idx)
-        input_spec.append(
-            paddle.static.InputSpec(dtype=data.dtype, shape=data.shape, name=input_name)
-        )
+        if input_shape:
+            shape = input_shape[idx]
+            input_shape_dict[input_name] = [relay.Any()] * len(shape)
+        else:
+            shape = data.shape
+            input_shape_dict[input_name] = shape
+        input_spec.append(paddle.static.InputSpec(dtype=data.dtype, shape=shape, name=input_name))
         input_names.append(input_name)
-        input_shape_dict[input_name] = data.shape
         if isinstance(data, np.ndarray):
             compiled_input[input_name] = data
         else:
@@ -88,15 +118,14 @@ def verify_model(func, input_data, rtol=1e-5, atol=1e-5):
 
     with tvm.transform.PassContext(opt_level=3):
         for target, dev in tvm.testing.enabled_targets():
-            lib = relay.build(mod, target=target, params=params)
-            gmod = graph_executor.GraphModule(lib["default"](dev))
-            for name in compiled_names:
-                gmod.set_input(name, compiled_input[name])
-            gmod.run()
+            if input_shape:
+                tvm_output = get_tvm_output_with_vm(mod, params, target, dev, compiled_input)
+            else:
+                tvm_output = get_tvm_output(
+                    mod, params, target, dev, compiled_input, compiled_names, len(baseline_outputs)
+                )
 
-            for i, baseline_output in enumerate(baseline_outputs):
-                compiled_output = gmod.get_output(i).numpy()
-
+            for baseline_output, compiled_output in zip(baseline_outputs, tvm_output):
                 assert_shapes_match(baseline_output, compiled_output)
                 tvm.testing.assert_allclose(baseline_output, compiled_output, rtol=rtol, atol=atol)
 
@@ -387,9 +416,14 @@ def test_forward_shape_full():
     def full2(inputs):
         return paddle.full(paddle.shape(inputs), 1.0, dtype=inputs.dtype)
 
+    @paddle.jit.to_static
+    def shape1(inputs):
+        return paddle.shape(inputs)
+
     input_shape = [1, 3, 10, 10]
     input_data = paddle.rand(input_shape, dtype="float32")
-    verify_model(full1, input_data=[input_data])
+    verify_model(shape1, input_data=[input_data])
+    # verify_model(full1, input_data=[input_data])
     verify_model(full2, input_data=[input_data])
 
 
@@ -674,7 +708,7 @@ def test_forward_reshape():
     @paddle.jit.to_static
     def reshape3(inputs):
         data_shape = inputs.shape
-        return inputs.reshape([data_shape[0] * data_shape[1], data_shape[2]])
+        return inputs.reshape([data_shape[1], data_shape[2], data_shape[0]])
 
     @paddle.jit.to_static
     def reshape4(inputs, x):
