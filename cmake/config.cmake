@@ -108,7 +108,7 @@ set(USE_GRAPH_EXECUTOR_CUDA_GRAPH OFF)
 # Whether to enable the profiler for the graph executor and vm
 set(USE_PROFILER ON)
 
-# Whether enable uTVM standalone runtime
+# Whether enable microTVM standalone runtime
 set(USE_MICRO_STANDALONE_RUNTIME OFF)
 
 # Whether build with LLVM support
