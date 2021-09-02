@@ -46,10 +46,8 @@ def verify(data):
     return out
 
 
+@tvm.testing.requires_llvm
 def test_legacy_compatibility():
-    if not tvm.testing.device_enabled("llvm"):
-        print("Skip because llvm is not enabled")
-        return
     mod, params = relay.testing.synthetic.get_workload()
     with relay.build_config(opt_level=3):
         graph, lib, graph_params = relay.build_module.build(mod, "llvm", params=params)
@@ -63,10 +61,8 @@ def test_legacy_compatibility():
     tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
 
+@tvm.testing.requires_llvm
 def test_cpu():
-    if not tvm.testing.device_enabled("llvm"):
-        print("Skip because llvm is not enabled")
-        return
     mod, params = relay.testing.synthetic.get_workload()
     with relay.build_config(opt_level=3):
         complied_graph_lib = relay.build_module.build(mod, "llvm", params=params)
@@ -88,6 +84,23 @@ def test_cpu():
     gmod.run()
     out = gmod.get_output(0).numpy()
     tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
+
+
+@tvm.testing.requires_llvm
+def test_cpu_get_graph_json():
+    mod, params = relay.testing.synthetic.get_workload()
+    with relay.build_config(opt_level=3):
+        complied_graph_lib = relay.build_module.build(mod, "llvm", params=params)
+    from tvm.contrib import utils
+
+    temp = utils.tempdir()
+    file_name = "deploy_lib.so"
+    path_lib = temp.relpath(file_name)
+    complied_graph_lib.export_library(path_lib)
+    loaded_lib = tvm.runtime.load_module(path_lib)
+    json = loaded_lib["get_graph_json"]()
+    assert isinstance(json, str) == True
+    assert json.find("tvmgen_default_fused_nn_softmax1") > -1
 
 
 @tvm.testing.requires_cuda
@@ -120,9 +133,6 @@ def test_gpu():
 @tvm.testing.uses_gpu
 def test_mod_export():
     def verify_cpu_export(obj_format):
-        if not tvm.testing.device_enabled("llvm"):
-            print("Skip because llvm is not enabled")
-            return
         mod, params = relay.testing.synthetic.get_workload()
         with relay.build_config(opt_level=3):
             complied_graph_lib = relay.build_module.build(mod, "llvm", params=params)
@@ -210,10 +220,8 @@ def test_mod_export():
         out = gmod.get_output(0).numpy()
         tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
+    @tvm.testing.requires_llvm
     def verify_rpc_cpu_export(obj_format):
-        if not tvm.testing.device_enabled("llvm"):
-            print("Skip because llvm is not enabled")
-            return
         mod, params = relay.testing.synthetic.get_workload()
         with relay.build_config(opt_level=3):
             complied_graph_lib = relay.build_module.build(mod, "llvm", params=params)
@@ -308,12 +316,10 @@ def test_mod_export():
         verify_rpc_gpu_export(obj_format)
 
 
+@tvm.testing.requires_llvm
 @tvm.testing.uses_gpu
 def test_remove_package_params():
     def verify_cpu_remove_package_params(obj_format):
-        if not tvm.testing.device_enabled("llvm"):
-            print("Skip because llvm is not enabled")
-            return
         mod, params = relay.testing.synthetic.get_workload()
         with relay.build_config(opt_level=3):
             complied_graph_lib = relay.build_module.build(mod, "llvm", params=params)
@@ -404,10 +410,8 @@ def test_remove_package_params():
         out = gmod.get_output(0).numpy()
         tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
+    @tvm.testing.requires_llvm
     def verify_rpc_cpu_remove_package_params(obj_format):
-        if not tvm.testing.device_enabled("llvm"):
-            print("Skip because llvm is not enabled")
-            return
         mod, params = relay.testing.synthetic.get_workload()
         with relay.build_config(opt_level=3):
             complied_graph_lib = relay.build_module.build(mod, "llvm", params=params)
@@ -517,10 +521,8 @@ def test_remove_package_params():
         verify_rpc_gpu_remove_package_params(obj_format)
 
 
+@tvm.testing.requires_llvm
 def test_debug_graph_executor():
-    if not tvm.testing.device_enabled("llvm"):
-        print("Skip because llvm is not enabled")
-        return
     mod, params = relay.testing.synthetic.get_workload()
     with relay.build_config(opt_level=3):
         complied_graph_lib = relay.build_module.build(mod, "llvm", params=params)
@@ -619,3 +621,4 @@ if __name__ == "__main__":
     test_remove_package_params()
     test_debug_graph_executor()
     test_multiple_imported_modules()
+    test_cpu_get_graph_json()
