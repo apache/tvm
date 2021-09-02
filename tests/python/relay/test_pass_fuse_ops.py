@@ -817,8 +817,8 @@ def test_fuse_softmax():
     inp = np.random.randn(16, channel_size).astype("float32")
     ref = tvm.topi.testing.softmax_python(inp).astype("float16")
 
-    for target in ["llvm", "cuda"]:
-        ex = relay.create_executor("graph", mod=m, device=tvm.device(target, 0), target=target)
+    for tgt, dev in tvm.testing.enabled_targets():
+        ex = relay.create_executor("graph", mod=m, device=dev, target=tgt)
         result = ex.evaluate()(inp).numpy()
         tvm.testing.assert_allclose(result, ref, rtol=1e-4, atol=1e-4)
 
