@@ -693,7 +693,9 @@ def local_builder_build(inputs, timeout, n_parallel, build_func="default", verbo
     res : List[BuildResult]
         The build results of these MeasureInputs.
     """
-    executor = PopenPoolExecutor(n_parallel, timeout, reset_global_scope, (AutotvmGlobalScope.current,))
+    executor = PopenPoolExecutor(
+        n_parallel, timeout, reset_global_scope, (AutotvmGlobalScope.current,)
+    )
     tuple_res = executor.map_with_error_catching(
         local_build_worker,
         [
