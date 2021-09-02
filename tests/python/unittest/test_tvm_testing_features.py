@@ -57,7 +57,10 @@ class TestTargetAutoParametrization:
         self.targets_with_explicit_list.append(target)
 
     def test_no_repeats_in_explicit_list(self):
-        assert self.targets_with_explicit_list == ["llvm"]
+        if tvm.testing.device_enabled("llvm"):
+            assert self.targets_with_explicit_list == ["llvm"]
+        else:
+            assert self.targets_with_explicit_list == []
 
     targets_with_exclusion = []
 
