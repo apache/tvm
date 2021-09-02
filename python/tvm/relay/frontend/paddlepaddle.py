@@ -31,6 +31,7 @@ from .. import ty as _ty
 from .. import op as _op
 from .common import (
     fold_constant,
+    get_relay_op,
     infer_shape,
     infer_type,
     infer_value,
@@ -75,19 +76,14 @@ def _infer_value(x, params):
             return x
 
 
-def convert_activation(g, op, block):
+def convert_unary_op(g, op, block):
     """Operator converter for all the activation."""
 
-    op_map = {
-        "exp": _op.exp,
-        "relu": _op.nn.relu,
-        "tanh": _op.tanh,
-        "sqrt": _op.sqrt,
-        "erf": _op.erf,
-        "abs": _op.abs,
-        "sigmoid": _op.sigmoid,
-    }
-    act_func = op_map[op.type]
+    op_map = {}
+    if op.type in op_map:
+        act_func = op_map[op.type]
+    else:
+        act_func = get_relay_op(op.type)
     out = act_func(g.get_node(op.input("X")[0]))
     g.add_node(op.output("Out")[0], out)
 
@@ -138,8 +134,8 @@ def convert_batch_norm(g, op, block):
 def convert_bmm(g, op, block):
     """Operator converter for bmm."""
 
-    x = g.get_node(op.input('X')[0])
-    y = g.get_node(op.input('Y')[0])
+    x = g.get_node(op.input("X")[0])
+    y = g.get_node(op.input("Y")[0])
     x_shape = infer_shape(x)
     y_shape = infer_shape(y)
     if x_shape[0] == 1 and y_shape == 1:
@@ -148,11 +144,11 @@ def convert_bmm(g, op, block):
         y = _op.transpose(y, [1, 0])
         out = _op.nn.dense(x, y)
         out = _op.expand_dims(out, axis=0)
-        g.add_node(op.output('Out')[0], out)
+        g.add_node(op.output("Out")[0], out)
     else:
         y = _op.transpose(y, [0, 2, 1])
         out = _op.nn.batch_matmul(x, y)
-        g.add_node(op.output('Out')[0], out)
+        g.add_node(op.output("Out")[0], out)
 
 
 def convert_interpolate2d(g, op, x):
@@ -160,11 +156,11 @@ def convert_interpolate2d(g, op, x):
 
     def get_interpolate_mode(op):
         """conver 'interp_method' attr of paddle to tvm"""
-    
+
         interp_method = op.attr("interp_method")
         align_corners = op.attr("align_corners")
         align_mode = op.attr("align_mode")
-    
+
         rounding_method = ""
         if interp_method == "nearest":
             interp_method = "nearest_neighbor"
@@ -325,8 +321,7 @@ def convert_conv2d_transpose(g, op, block):
     paddings = op.attr("paddings")
     padding_algorithm = op.attr("padding_algorithm")
     strides = op.attr("strides")
-    output_padding = op.attr("output_padding") if op.attr(
-        "output_padding") else [0, 0]
+    output_padding = op.attr("output_padding") if op.attr("output_padding") else [0, 0]
 
     kernel = g.get_node(op.input("Filter")[0])
     input_x = g.get_node(op.input("Input")[0])
@@ -930,9 +925,9 @@ def convert_squeeze(g, op, block):
 def convert_transpose(g, op, block):
     """Operator converter for transpose."""
 
-    perm = op.attr('axis')
-    out = _op.transpose(g.get_node(op.input('X')[0]), axes=perm)
-    g.add_node(op.output('Out')[0], out)
+    perm = op.attr("axis")
+    out = _op.transpose(g.get_node(op.input("X")[0]), axes=perm)
+    g.add_node(op.output("Out")[0], out)
 
 
 def convert_unsqueeze(g, op, block):
@@ -946,6 +941,7 @@ def convert_unsqueeze(g, op, block):
 
 
 _convert_map = {
+    "abs": convert_unary_op,
     "arg_max": convert_arg_max,
     "assign": convert_assign,
     "batch_norm": convert_batch_norm,
@@ -964,7 +960,7 @@ _convert_map = {
     "elementwise_mul": convert_elementwise_op,
     "elementwise_sub": convert_elementwise_op,
     "equal": convert_equal,
-    "exp": convert_activation,
+    "exp": convert_unary_op,
     "feed": convert_feed,
     "fill_any_like": convert_fill_any_like,
     "fill_constant": convert_fill_constant,
@@ -982,15 +978,15 @@ _convert_map = {
     "pad1d": convert_padding,
     "pad2d": convert_padding,
     "pad3d": convert_padding,
-    "relu": convert_activation,
+    "relu": convert_unary_op,
     "reshape2": convert_reshape,
     "scale": convert_scale,
     "shape": convert_shape,
-    "sigmoid": convert_activation,
+    "sigmoid": convert_unary_op,
     "slice": convert_slice,
     "softmax": convert_softmax,
     "squeeze2": convert_squeeze,
-    "tanh": convert_activation,
+    "tanh": convert_unary_op,
     "transpose2": convert_transpose,
     "unsqueeze2": convert_unsqueeze,
 }
