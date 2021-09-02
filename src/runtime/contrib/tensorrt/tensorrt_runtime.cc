@@ -284,7 +284,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
 
     // Build engine.
     if (calibrator_ != nullptr && num_calibration_batches_remaining_ == 0) {
-      // Calibration complete. Delete fp32 engine and build int8 engine
+      // Calibration complete and build int8 engine
       BuildEngineFromJson(batch_size);
       calibrator_.reset(nullptr);
     } else {
