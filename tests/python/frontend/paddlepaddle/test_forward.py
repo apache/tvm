@@ -137,7 +137,7 @@ def test_forward_unary_op():
             super(UnaryOp, self).__init__()
             for candidate in (paddle, paddle.nn.functional):
                 self.func = getattr(candidate, op_name, None)
-                if not self.func:
+                if self.func:
                     break
 
         @paddle.jit.to_static
