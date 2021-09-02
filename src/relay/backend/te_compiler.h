@@ -158,7 +158,7 @@ void UpdateFunctionMetadata(Function relay_func,
  */
 Target GetTargetFromInteger(DLDeviceType dev_type, TargetMap targets);
 
-/*! \brief Utility to separate the the functions in an IRModule by Target.
+/*! \brief Utility to separate the functions in an IRModule by Target.
  *
  * \param mod The IRModule to extract the per target module from
  * \return The map from Target to IRModule

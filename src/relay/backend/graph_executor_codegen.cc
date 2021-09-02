@@ -277,8 +277,9 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
 
     Optional<Array<tvm::runtime::Module>> external_modules =
         lowered_mod->GetAttr<Array<tvm::runtime::Module>>("external_mods");
-    // This is the point where we separate the functions in the module by target
+    ICHECK(external_modules) << "Attribute \"external_modules\" should be set at this point.";
 
+    // This is the point where we separate the functions in the module by target
     ret.lowered_funcs = tec::GetPerTargetModules(lowered_mod);
     ret.external_mods = external_modules.value();
     return ret;

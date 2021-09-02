@@ -109,7 +109,7 @@ class TECompilerImpl : public TECompilerNode {
         }
       }
     }
-    // Extract lowered frunctions from the shape cache
+    // Extract lowered dynamic shape functions from the shape cache
     for (const auto& it : shape_func_cache_) {
       auto source_func = it.first;
       auto lowered_func = it.second;
@@ -942,6 +942,8 @@ Pass LowerTEPass(TargetMap targets, DeviceMap device_context_map,
                                                                             PassContext ctx) {
     return LowerTE(module, targets, device_context_map, memory_plan, module_name, process_fn);
   };
+  // TODO(@electriclilies, mbs): Fold InferType() pass into LowerTEPass since it will always need to
+  // be called afterwards
   return tvm::transform::CreateModulePass(pass_func, 1, "LowerTE", {});
 }
 }  // namespace tec
