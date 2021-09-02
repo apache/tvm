@@ -517,6 +517,21 @@ def test_split_infer_type():
         ),
         axis=1,
     )
+    verify_split(
+        (d1, d2, d3, d4),
+        tuple(np.array([2, 4, 7]).astype(np.int64)),
+        relay.ty.TupleType(
+            tvm.runtime.convert(
+                [
+                    relay.ty.TensorType((d1, 2, d3, d4), "float32"),
+                    relay.ty.TensorType((d1, 2, d3, d4), "float32"),
+                    relay.ty.TensorType((d1, 3, d3, d4), "float32"),
+                    relay.ty.TensorType((d1, (d2 - 7), d3, d4), "float32"),
+                ]
+            )
+        ),
+        axis=1,
+    )
 
 
 def test_full_infer_type():
