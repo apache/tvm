@@ -774,7 +774,51 @@ def requires_rpc(*args):
     return _compose(args, _requires_rpc)
 
 
+def requires_package(*packages):
+    """Mark a test as requiring python packages to run.
+
+    If the packages listed are not available, tests marked with
+    `requires_package` will appear in the pytest results as being skipped.
+    This is equivalent to using ``foo = pytest.importorskip('foo')`` inside
+    the test body.
+
+    Parameters
+    ----------
+    packages : List[str]
+
+        The python packages that should be available for the test to
+        run.
+
+    Returns
+    -------
+    mark: pytest mark
+
+        The pytest mark to be applied to unit tests that require this
+
+    """
+
+    def has_package(package):
+        try:
+            __import__(package)
+            return True
+        except ImportError:
+            return False
+
+    marks = [
+        pytest.mark.skipif(not has_package(package), reason=f"Cannot import '{package}'")
+        for package in packages
+    ]
+
+    def wrapper(func):
+        for mark in marks:
+            func = mark(func)
+        return func
+
+    return wrapper
+
+
 def parametrize_targets(*args):
+
     """Parametrize a test over a specific set of targets.
 
     Use this decorator when you want your test to be run over a
