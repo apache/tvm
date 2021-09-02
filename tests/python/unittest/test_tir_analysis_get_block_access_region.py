@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pytest
 import tvm
 from tvm import tir, script
 from tvm.ir import Range
@@ -81,6 +82,20 @@ def opaque_block_func() -> None:
                         B[i, j] = A[i, j] + 1.0
 
 
+@tvm.script.tir
+def opaque_access_func() -> None:
+    A = tir.alloc_buffer([1024])
+    B = tir.alloc_buffer([1024])
+    for i in tir.serial(0, 8):
+        with tir.block([8]) as [v]:
+            tir.bind(v, i)
+            tir.reads([A[v * 128 : v * 128 + 128]])
+            tir.writes([B[v * 128 : v * 128 + 128]])
+            tir.evaluate(
+                tir.call_extern("test", B.data, v * 128, 128, A.data, v * 128, 128, dtype="float32")
+            )
+
+
 def test_block_access_region_detector():
     block = func.body.block.body.block
     alloc_buffers = func.body.block.alloc_buffers
@@ -110,17 +125,25 @@ def test_opaque_block():
     tvm.ir.assert_structural_equal(block1.writes, ret[1])
 
 
+def test_opaque_access():
+    block = opaque_access_func.body.block.body.body.block
+    alloc_buffers = opaque_access_func.body.block.alloc_buffers
+    buffer_var_map = {buf.data: buf for buf in alloc_buffers}
+
+    ret0 = tir.analysis.get_block_read_write_region(block, buffer_var_map)
+    ret1 = tir.analysis.get_block_access_region(block, buffer_var_map)
+    with pytest.raises(ValueError):
+        tvm.ir.assert_structural_equal(ret0[0], ret1[0])
+    with pytest.raises(ValueError):
+        tvm.ir.assert_structural_equal(ret0[1], ret1[1])
+
+
 def test_match_buffer():
     root_block = match_buffer_func.body.block
     block = root_block.body.body.body.block
     block_inner = block.body[0].body.body.block
-    alloc_buffers = func.body.block.alloc_buffers
+    alloc_buffers = match_buffer_func.body.block.alloc_buffers
     buffer_var_map = {buf.data: buf for buf in alloc_buffers}
-
-    # Check inner block AAA
-    ret = tir.analysis.get_block_access_region(block_inner, buffer_var_map)
-    tvm.ir.assert_structural_equal(block_inner.reads, ret[0])
-    tvm.ir.assert_structural_equal(block_inner.writes, ret[1])
 
     # Check block
     ret = tir.analysis.get_block_access_region(block, buffer_var_map)
@@ -128,8 +151,23 @@ def test_match_buffer():
     # B is opaque access
     tvm.ir.assert_structural_equal(block.reads, ret[2])
 
+    # Check inner block AAA without updating buffer_var_map
+    ret = tir.analysis.get_block_access_region(block_inner, buffer_var_map)
+    # Since AA is not in the buffer_var_map, region of AA will not be collected.
+    tvm.ir.assert_structural_equal([], ret[1])
+
+    # Check inner block AAA
+    for match_buffer in block.match_buffers:
+        target_buffer = match_buffer.buffer
+        buffer_var_map[target_buffer.data] = target_buffer
+
+    ret = tir.analysis.get_block_access_region(block_inner, buffer_var_map)
+    tvm.ir.assert_structural_equal(block_inner.reads, ret[0])
+    tvm.ir.assert_structural_equal(block_inner.writes, ret[1])
+
 
 if __name__ == "__main__":
     test_block_access_region_detector()
     test_opaque_block()
+    test_opaque_access()
     test_match_buffer()

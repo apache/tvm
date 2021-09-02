@@ -104,6 +104,12 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
    */
   virtual void PrintFuncPrefix();  // NOLINT(*)
   /*!
+   * \brief Print extra function attributes
+   *
+   *  Example: __launch_bounds__(256) for CUDA functions
+   */
+  virtual void PrintExtraAttrs(const PrimFunc& f);
+  /*!
    * \brief Print the final return at the end the function.
    */
   virtual void PrintFinalReturn();  // NOLINT(*)
@@ -194,6 +200,8 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   virtual std::string CastFromTo(std::string value, DataType from, DataType target);
   // Get load of single element with expression
   virtual void PrintVecElemLoadExpr(DataType t, int i, const std::string& value, std::ostream& os);
+  // Print restrict keyword for a given Var if applicable
+  virtual void PrintRestrict(const Var& v, std::ostream& os);
 
  protected:
   // Print reference to struct location

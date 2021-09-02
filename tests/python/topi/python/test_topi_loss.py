@@ -25,9 +25,17 @@ import tvm.topi.testing
 import tvm.testing
 
 
-def verify_nll_loss(
-    dev, target, prediction_shape, reduction="mean", ignore_index=-100, dtype="float32"
-):
+prediction_shape, reduction, ignore_index, dtype = tvm.testing.parameters(
+    ((10, 5), "mean", -100, "float32"),
+    ((10, 5, 2, 2), "mean", -100, "float32"),
+    ((10, 5), "sum", -100, "float32"),
+    ((10, 5), "none", -100, "float32"),
+    ((10, 5), "mean", 3, "float32"),
+    ((10, 5), "mean", -100, "float64"),
+)
+
+
+def test_nll_loss(target, dev, prediction_shape, reduction, ignore_index, dtype):
     C = prediction_shape[1]
     target_shape = prediction_shape[:1] + prediction_shape[2:]
     predictions = te.placeholder(shape=prediction_shape, name="predictions", dtype=dtype)
@@ -52,19 +60,9 @@ def verify_nll_loss(
     weights_nd = tvm.nd.array(weights_npy, dev)
     out_nd = tvm.nd.array(np.empty(out_npy.shape).astype(nll_loss_result.dtype), dev)
     fn(predictions_nd, targets_nd, weights_nd, out_nd)
-    out_topi = out_nd.asnumpy()
+    out_topi = out_nd.numpy()
     tvm.testing.assert_allclose(out_topi, out_npy, rtol=1e-4, atol=1e-5)
 
 
-@tvm.testing.parametrize_targets
-def test_nll_loss(dev, target):
-    verify_nll_loss(dev, target, (10, 5))
-    verify_nll_loss(dev, target, (10, 5, 2, 2))
-    verify_nll_loss(dev, target, (10, 5), reduction="sum")
-    verify_nll_loss(dev, target, (10, 5), reduction="none")
-    verify_nll_loss(dev, target, (10, 5), ignore_index=3)
-    verify_nll_loss(dev, target, (10, 5), dtype="float64")
-
-
 if __name__ == "__main__":
-    test_nll_loss(tvm.device("cpu"), tvm.target.Target("llvm"))
+    sys.exit(pytest.main(sys.argv))

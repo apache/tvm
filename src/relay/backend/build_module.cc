@@ -92,8 +92,8 @@ struct ExecutorCodegen {
     return CallFunc<Array<tvm::runtime::Module>>("get_external_modules", nullptr);
   }
 
-  Map<String, IRModule> GetIRModule() {
-    return CallFunc<Map<String, IRModule>>("get_irmodule", nullptr);
+  Map<Target, IRModule> GetIRModule() {
+    return CallFunc<Map<Target, IRModule>>("get_irmodule", nullptr);
   }
 
   runtime::Metadata GetMetadata() { return CallFunc<runtime::Metadata>("get_metadata"); }
@@ -490,6 +490,12 @@ class RelayBuildModule : public runtime::ModuleNode {
 
     auto lowered_funcs = executor_codegen_->GetIRModule();
 
+    // No need to build for external functions.
+    Target ext_dev("ext_dev");
+    if (lowered_funcs.find(ext_dev) != lowered_funcs.end()) {
+      lowered_funcs.Set(ext_dev, IRModule());
+    }
+
     // Generate a placeholder function that attaches linked params as its arguments.
     if (target_host->GetAttr<Bool>("link-params").value_or(Bool(false))) {
       CHECK(pf != nullptr) << "Unable to link-params with no target_host and no llvm codegen.";
@@ -505,11 +511,11 @@ class RelayBuildModule : public runtime::ModuleNode {
       DictAttrs attrs{dict};
       auto prim = tir::PrimFunc(Array<tir::Var>(), tir::SeqStmt(Array<tir::Stmt>()), VoidType(),
                                 Map<tir::Var, tir::Buffer>(), attrs);
-      if (lowered_funcs.find(target_host->str()) == lowered_funcs.end()) {
-        lowered_funcs.Set(target_host->str(), IRModule(Map<GlobalVar, BaseFunc>({})));
+      if (lowered_funcs.find(target_host) == lowered_funcs.end()) {
+        lowered_funcs.Set(target_host, IRModule(Map<GlobalVar, BaseFunc>({})));
       }
-      lowered_funcs[target_host->str()]->Add(
-          GlobalVar(::tvm::runtime::symbol::tvm_lookup_linked_param), prim);
+      lowered_funcs[target_host]->Add(GlobalVar(::tvm::runtime::symbol::tvm_lookup_linked_param),
+                                      prim);
     }
 
     // When there is no lowered_funcs due to reasons such as optimization.

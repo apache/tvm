@@ -19,10 +19,13 @@
 
 extern crate bindgen;
 
-use std::path::{Path, PathBuf};
+use std::{
+    path::{Path, PathBuf},
+    str::FromStr,
+};
 
 use anyhow::{Context, Result};
-use tvm_build::BuildConfig;
+use tvm_build::{BuildConfig, CMakeSetting};
 
 /// The necessary information for detecting a TVM installation.
 struct TVMInstall {
@@ -59,6 +62,149 @@ fn find_using_tvm_build() -> Result<TVMInstall> {
     let mut build_config = BuildConfig::default();
     build_config.repository = Some("https://github.com/apache/tvm".to_string());
     build_config.branch = Some(option_env!("TVM_BRANCH").unwrap_or("main").into());
+
+    if cfg!(feature = "use-cuda") {
+        build_config.settings.use_cuda = CMakeSetting::from_str("on").ok();
+    }
+    if cfg!(feature = "use-opencl") {
+        build_config.settings.use_opencl = CMakeSetting::from_str("on").ok();
+    }
+    if cfg!(feature = "use-vulkan") {
+        build_config.settings.use_vulkan = CMakeSetting::from_str("on").ok();
+    }
+    if cfg!(feature = "use-rocm") {
+        build_config.settings.use_rocm = CMakeSetting::from_str("on").ok();
+    }
+    if cfg!(feature = "use-metal") {
+        build_config.settings.use_metal = CMakeSetting::from_str("on").ok();
+    }
+    if cfg!(feature = "use-hexagon-device") {
+        build_config.settings.use_hexagon_device = Some(true);
+    }
+    if cfg!(feature = "use-rpc") {
+        build_config.settings.use_rpc = Some(true);
+    }
+    if cfg!(feature = "use-threads") {
+        build_config.settings.use_threads = Some(true);
+    }
+    if cfg!(feature = "use-llvm") {
+        build_config.settings.use_llvm = CMakeSetting::from_str("on").ok();
+    }
+    if cfg!(feature = "use-stackvm-runtime") {
+        build_config.settings.use_stackvm_runtime = Some(true);
+    }
+    if cfg!(feature = "use-graph-runtime") {
+        build_config.settings.use_graph_runtime = Some(true);
+    }
+    if cfg!(feature = "use-graph-runtime-debug") {
+        build_config.settings.use_graph_runtime_debug = Some(true);
+    }
+    if cfg!(feature = "use-openmp") {
+        build_config.settings.use_openmp = Some(true);
+    }
+    if cfg!(feature = "use-relay-debug") {
+        build_config.settings.use_relay_debug = Some(true);
+    }
+    if cfg!(feature = "use-rtti") {
+        build_config.settings.use_rtti = Some(true);
+    }
+    if cfg!(feature = "use-mscv-mt") {
+        build_config.settings.use_mscv_mt = Some(true);
+    }
+    if cfg!(feature = "use-micro") {
+        build_config.settings.use_micro = Some(true);
+    }
+    if cfg!(feature = "use-install-dev") {
+        build_config.settings.use_install_dev = Some(true);
+    }
+    if cfg!(feature = "hide_private-symbols") {
+        build_config.settings.hide_private_symbols = Some(true);
+    }
+    if cfg!(feature = "use-fallback-stl-map") {
+        build_config.settings.use_fallback_stl_map = Some(true);
+    }
+    if cfg!(feature = "use-ethosn") {
+        build_config.settings.use_ethosn = Some(true);
+    }
+    if cfg!(feature = "use-index_default-i64") {
+        build_config.settings.use_index_default_i64 = Some(true);
+    }
+    if cfg!(feature = "use-tf-tvmdsoop") {
+        build_config.settings.use_tf_tvmdsoop = Some(true);
+    }
+    if cfg!(feature = "use-byodt-posit") {
+        build_config.settings.use_byodt_posit = Some(true);
+    }
+    if cfg!(feature = "use-mkl") {
+        build_config.settings.use_mkl = CMakeSetting::from_str("on").ok();
+    }
+    if cfg!(feature = "use-mkldnn") {
+        build_config.settings.use_mkldnn = CMakeSetting::from_str("on").ok();
+    }
+    if cfg!(feature = "use-dnnl-codegen") {
+        build_config.settings.use_dnnl_codegen = Some(true);
+    }
+    if cfg!(feature = "use-cudnn") {
+        build_config.settings.use_cudnn = Some(true);
+    }
+    if cfg!(feature = "use-cublas") {
+        build_config.settings.use_cublas = Some(true);
+    }
+    if cfg!(feature = "use-thrust") {
+        build_config.settings.use_thrust = Some(true);
+    }
+    if cfg!(feature = "use-miopen") {
+        build_config.settings.use_miopen = Some(true);
+    }
+    if cfg!(feature = "use-rocblas") {
+        build_config.settings.use_rocblas = Some(true);
+    }
+    if cfg!(feature = "use-sort") {
+        build_config.settings.use_sort = Some(true);
+    }
+    if cfg!(feature = "use-nnpack") {
+        build_config.settings.use_nnpack = Some(true);
+    }
+    if cfg!(feature = "use-random") {
+        build_config.settings.use_random = Some(true);
+    }
+    if cfg!(feature = "use-micro-standalone-runtime") {
+        build_config.settings.use_micro_standalone_runtime = Some(true);
+    }
+    if cfg!(feature = "use-cpp-rpc") {
+        build_config.settings.use_cpp_rpc = Some(true);
+    }
+    if cfg!(feature = "use-tflite") {
+        build_config.settings.use_tflite = Some(true);
+    }
+    if cfg!(feature = "use-coreml") {
+        build_config.settings.use_coreml = Some(true);
+    }
+    if cfg!(feature = "use-target-onnx") {
+        build_config.settings.use_target_onnx = Some(true);
+    }
+    if cfg!(feature = "use-arm-compute-lib") {
+        build_config.settings.use_arm_compute_lib = Some(true);
+    }
+    if cfg!(feature = "use-arm-compute-lib-graph-runtime") {
+        build_config.settings.use_arm_compute_lib_graph_runtime = CMakeSetting::from_str("on").ok();
+    }
+    if cfg!(feature = "use-tensorrt-codegen") {
+        build_config.settings.use_tensorrt_codegen = Some(true);
+    }
+    if cfg!(feature = "use-tensorrt-runtime") {
+        build_config.settings.use_tensorrt_runtime = CMakeSetting::from_str("on").ok();
+    }
+    if cfg!(feature = "use-vitis-ai") {
+        build_config.settings.use_vitis_ai = Some(true);
+    }
+    if cfg!(any(
+        feature = "static-linking",
+        feature = "build-static-runtime"
+    )) {
+        build_config.settings.build_static_runtime = Some(true);
+    }
+
     let build_result = tvm_build::build(build_config)?;
     let source_path = build_result.revision.source_path();
     let build_path = build_result.revision.build_path();
@@ -84,11 +230,19 @@ fn main() -> Result<()> {
     println!("cargo:rerun-if-changed={}", build_path.display());
     println!("cargo:rerun-if-changed={}/include", source_path.display());
 
-    match &std::env::var("CARGO_CFG_TARGET_ARCH").unwrap()[..] {
+    let library_name = if cfg!(feature = "runtime-only") {
+        "tvm_runtime"
+    } else {
+        "tvm"
+    };
+
+    match &std::env::var("CARGO_CFG_TARGET_ARCH")
+        .expect("CARGO_CFG_TARGET_ARCH must be set by CARGO")[..]
+    {
         "wasm32" => {}
         _ => {
             if cfg!(feature = "static-linking") {
-                println!("cargo:rustc-link-lib=static=tvm");
+                println!("cargo:rustc-link-lib=static={}", library_name);
                 // TODO(@jroesch): move this to tvm-build as library_path?
                 println!(
                     "cargo:rustc-link-search=native={}/build",
@@ -97,14 +251,14 @@ fn main() -> Result<()> {
             }
 
             if cfg!(feature = "dynamic-linking") {
-                println!("cargo:rustc-link-lib=dylib=tvm");
+                println!("cargo:rustc-link-lib=dylib={}", library_name);
                 println!(
                     "cargo:rustc-link-search=native={}/build",
                     build_path.display()
                 );
             }
         }
-    }
+    };
 
     let runtime_api = source_path.join("include/tvm/runtime/c_runtime_api.h");
     let backend_api = source_path.join("include/tvm/runtime/c_backend_api.h");

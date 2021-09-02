@@ -25,7 +25,9 @@ import re
 import tarfile
 import typing
 
+from tvm.ir.type import TupleType
 from .._ffi import get_global_func
+from .interface_api import generate_c_interface_header
 from ..contrib import utils
 from ..driver import build_module
 from ..runtime import ndarray as _nd
@@ -55,7 +57,6 @@ def _populate_codegen_dir(mod, codegen_dir: str, module_name: str = None):
 
     """
     dso_modules = mod._collect_dso_modules()
-    dso_module_handles = [m.handle.value for m in dso_modules]
     non_dso_modules = mod._collect_from_import_tree(lambda m: m not in dso_modules)
     if non_dso_modules:
         raise UnsupportedInModelLibraryFormatError(
@@ -169,9 +170,14 @@ def _build_function_memory_map(function_metadata):
             target_local_entries[func_name] = list()
 
         for func_name, finfo in function_metadata.items():
-            if func_name == MAIN_FUNC_NAME_STR:
+            # Skip a few unsupported cases:
+            # 1. The main function metadata is exported elsewhere.
+            # 2. BYOC operator implementations do not currently export useful FunctionInfo.
+            if func_name == MAIN_FUNC_NAME_STR or not finfo.tir_primfuncs:
                 continue
-            assert len(finfo.constant_sizes.items()) == num_targets
+            assert (
+                len(finfo.constant_sizes.items()) == num_targets
+            ), f"{func_name}: found {finfo.constant_sizes!r} vs {num_targets}"
             assert len(finfo.io_sizes.items()) == num_targets
             target = finfo.workspace_sizes.items()[i][0]
             workspace_size = finfo.workspace_sizes.items()[i][1]
@@ -211,6 +217,39 @@ def _build_function_memory_map(function_metadata):
         "main": target_main_entries,
     }
     return ret
+
+
+def _get_main_relay_func(mod: executor_factory.ExecutorFactoryModule):
+    main_func = mod.function_metadata[MAIN_FUNC_NAME_STR]
+    target = list(main_func.relay_primfuncs.keys())[0]
+    return main_func.relay_primfuncs[target]
+
+
+def _convert_tuple_to_outputs(ret_type, offset=0):
+    outputs = []
+    added_fields = len(ret_type.fields)
+    for output_index in range(added_fields):
+        next_output = offset + len(outputs)
+        if isinstance(ret_type.fields[output_index], TupleType):
+            outputs.extend(_convert_tuple_to_outputs(ret_type.fields[output_index], next_output))
+        else:
+            outputs.append(f"output{next_output}")
+    return outputs
+
+
+def _get_inputs_and_outputs_from_module(mod):
+    main_func = _get_main_relay_func(mod)
+    inputs = [argument.name_hint for argument in main_func.params]
+
+    outputs = ["output"]
+    if isinstance(main_func.ret_type, TupleType):
+        outputs = _convert_tuple_to_outputs(main_func.ret_type)
+
+    return inputs, outputs
+
+
+def _should_generate_interface_header(mod):
+    return any(target.attrs.get("interface-api") == "c" for target in mod.target.values())
 
 
 def _make_tar(source_dir, tar_file_path):
@@ -259,6 +298,12 @@ def _export_graph_model_library_format(
     codegen_dir = tempdir / "codegen"
     codegen_dir.mkdir()
     _populate_codegen_dir(mod.lib, codegen_dir, mod.libmod_name)
+
+    if _should_generate_interface_header(mod):
+        include_path = codegen_dir / "host" / "include"
+        include_path.mkdir()
+        inputs, outputs = _get_inputs_and_outputs_from_module(mod)
+        generate_c_interface_header(mod.libmod_name, inputs, outputs, include_path)
 
     parameters_dir = tempdir / "parameters"
     parameters_dir.mkdir()

@@ -35,7 +35,7 @@ extern "C" {
  * \brief Module container of TVM.
  */
 typedef struct TVMModule {
-  /*! \brief The function registry associated with this mdoule. */
+  /*! \brief The function registry associated with this module. */
   const TVMFuncRegistry* registry;
 } TVMModule;
 

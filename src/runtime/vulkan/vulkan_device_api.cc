@@ -122,7 +122,7 @@ void VulkanDeviceAPI::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) 
       break;
     }
     case kDeviceName:
-      *rv = prop.device_name;
+      *rv = std::string(prop.device_name);
       break;
 
     case kMaxClockRate:
@@ -237,7 +237,13 @@ void VulkanDeviceAPI::GetTargetProperty(Device dev, const std::string& property,
     *rv = int64_t(prop.max_shared_memory_per_block);
   }
   if (property == "device_name") {
-    *rv = String(prop.device_name);
+    *rv = prop.device_name;
+  }
+  if (property == "device_type") {
+    *rv = prop.device_type;
+  }
+  if (property == "driver_name") {
+    *rv = prop.driver_name;
   }
   if (property == "driver_version") {
     *rv = int64_t(prop.driver_version);
