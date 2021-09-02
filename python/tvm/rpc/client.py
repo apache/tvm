@@ -217,6 +217,10 @@ class RPCSession(object):
         """Construct Metal device."""
         return self.device(8, dev_id)
 
+    def rocm(self, dev_id=0):
+        """Construct ROCm device."""
+        return self.device(10, dev_id)
+
     def ext_dev(self, dev_id=0):
         """Construct extension device."""
         return self.device(12, dev_id)
