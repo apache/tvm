@@ -274,7 +274,7 @@ def _target_to_requirement(target):
 
 
 def _parametrize_correlated_parameters(metafunc):
-    parametrize_needed = collections.defaultdict(list)
+    parametrize_needed = {}
 
     for name, fixturedefs in metafunc.definition._fixtureinfo.name2fixturedefs.items():
         fixturedef = fixturedefs[-1]
@@ -283,13 +283,20 @@ def _parametrize_correlated_parameters(metafunc):
         ):
             group = fixturedef.func.parametrize_group
             values = fixturedef.func.parametrize_values
-            parametrize_needed[group].append((name, values))
+            ids = fixturedef.func.parametrize_ids
+            if group in parametrize_needed:
+                assert ids == parametrize_needed[group]["ids"]
+            else:
+                parametrize_needed[group] = {"ids": ids, "params": []}
+            parametrize_needed[group]["params"].append((name, values))
 
     for parametrize_group in parametrize_needed.values():
-        if len(parametrize_group) == 1:
-            name, values = parametrize_group[0]
-            metafunc.parametrize(name, values, indirect=True)
+        params = parametrize_group["params"]
+        ids = parametrize_group["ids"]
+        if len(params) == 1:
+            name, values = params[0]
+            metafunc.parametrize(name, values, indirect=True, ids=ids)
         else:
-            names = ",".join(name for name, values in parametrize_group)
-            value_sets = zip(*[values for name, values in parametrize_group])
-            metafunc.parametrize(names, value_sets, indirect=True)
+            names = ",".join(name for name, values in params)
+            value_sets = zip(*[values for name, values in params])
+            metafunc.parametrize(names, value_sets, indirect=True, ids=ids)

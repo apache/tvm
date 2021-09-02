@@ -1029,7 +1029,7 @@ def parameter(*values, ids=None):
 _parametrize_group = 0
 
 
-def parameters(*value_sets):
+def parameters(*value_sets, ids=None):
     """Convenience function to define pytest parametrized fixtures.
 
     Declaring a variable using tvm.testing.parameters will define a
@@ -1052,10 +1052,17 @@ def parameters(*value_sets):
     Parameters
     ----------
     values : List[tuple]
+
        A list of parameter value sets.  Each set of values represents
        a single combination of values to be tested.  A unit test that
        accepts parameters defined will be run once for every set of
        parameters in the list.
+
+    ids : List[str], optional
+
+       A list of names for the parameter sets.  If None, pytest will
+       generate a name from each parameter set.  These generated names may
+       not be readable/useful for composite types such as tuples.
 
     Returns
     -------
@@ -1085,6 +1092,7 @@ def parameters(*value_sets):
 
         fixture_func.parametrize_group = parametrize_group
         fixture_func.parametrize_values = param_values
+        fixture_func.parametrize_ids = ids
         outputs.append(pytest.fixture(fixture_func))
 
     return outputs
