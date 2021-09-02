@@ -519,7 +519,7 @@ def test_forward_hard_swish():
 def test_forward_isinf():
     @paddle.jit.to_static
     def isinf(inputs):
-        return paddle.cast(paddle.isinf(inputs), "int")
+        return paddle.cast(paddle.isinf(inputs), "int32")
 
     input_shape = [5, 5]
     input_data = paddle.rand(input_shape, dtype="float32")

@@ -79,7 +79,13 @@ def _infer_value(x, params):
 def convert_unary_op(g, op, block):
     """Operator converter for all the activation."""
 
-    unary_func = get_relay_op(op.type)
+    op_map = {
+        "isinf_v2": _op.isinf,
+    }
+    if op.type in op_map:
+        unary_func = op_map[op.type]
+    else:
+        unary_func = get_relay_op(op.type)
     out = unary_func(g.get_node(op.input("X")[0]))
     g.add_node(op.output("Out")[0], out)
 
@@ -976,6 +982,7 @@ _convert_map = {
     "hard_sigmoid": convert_hard_sigmoid,
     "hard_swish": convert_hard_swish,
     "isinf": convert_unary_op,
+    "isinf_v2": convert_unary_op,
     "layer_norm": convert_layer_norm,
     "leaky_relu": convert_leaky_relu,
     "lookup_table_v2": convert_lookup_table,
