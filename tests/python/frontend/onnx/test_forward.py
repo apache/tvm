@@ -5273,7 +5273,7 @@ def test_qlinearconcat(target, dev):
         input_values = []
         input_nodes = []
         for i in range(len(shapes)):
-            tensor_name = str(chr(ord("a") + i))
+            tensor_name = chr(ord("a") + i)
             shape = shapes[i]
             node = helper.make_tensor_value_info(tensor_name, TensorProto.FLOAT, list(shape))
 

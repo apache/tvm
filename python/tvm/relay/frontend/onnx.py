@@ -197,7 +197,8 @@ def dimension_constraint():
 
 def get_scalar(x, params, dtype="float32"):
     """Helper to get a scalar value for Quantized operators."""
-    if isinstance(x, _expr.Var) and x.name_hint in params:
+    if isinstance(x, _expr.Var):
+        assert x.name_hint in params, "Var should be found in params lookup"
         return _op.const(params[x.name_hint].numpy(), dtype)
     rank = len(infer_shape(x))
     assert rank <= 1, "scale and zero_point input must be scalars"
