@@ -18,6 +18,7 @@
 import json
 import tvm._ffi
 from tvm import relay
+from tvm.relay.transform import InferType
 from tvm.contrib import graph_executor
 
 
@@ -96,9 +97,9 @@ def create(pipe_mod_config):
 
     pipe_mod_config : PipeModuleConfig
         class to storage IRModule list and pipeline configuration.
+    -------
 
     Returns
-    -------
     submodule : PipelineModule
         Runtime pipeline module.
     """
@@ -189,12 +190,16 @@ class PipelineConfig(object):
                 for output that is integer for example 0.
             """
 
-            def __init__(self, owner, stype, name):
+            def __init__(self, owner, stype, name, data_type):
                 self.io_owner = owner
                 self.io_type = stype
                 self.name = str(name)
+                # These item that have dependency relation with self
                 self.bindings = []
+                # The item that self depend
                 self.parents = []
+
+                self.data_type = data_type
 
             def get_name(self):
                 owner_name = ""
@@ -211,41 +216,69 @@ class PipelineConfig(object):
                 # to identify this is global interface
                 return 0
 
-            def get_bindings_str(self):
-                name = ""
-                for dependent in self.bindings:
-                    mname, dname = dependent.get_name()
-                    name += (mname + ":output(" + dname \
-                          if self.io_type == "output" else "")
-                    name += (")" if self.io_type == "output" else mname + ":" + dname)
-                return name
+            def __repr__(self):
+                # Get all binding(input data), exepect like |data_0: mod1:data_0
+                ret = "  |{}: ".format(self.name)
+                for binding in self.bindings:
+                    mname, dname = binding.get_name()
+                    ret += "{0}:{1} ".format(mname, dname)
+                return ret
 
-            def connect(self, dependent):
+            def dag_acircle_check(self, start, inputs):
+                for name, binding in inputs.items():
+                    if start == binding.io_owner:
+                        return False
+                    for p in binding.parents:
+                        if not self.dag_acircle_check(start, p.io_owner.input_bindings.bindings):
+                            return False
+
+                return True
+
+            def connect(self, binding):
                 """
-                # check if the dependency setting correct.
+                # check if the bindendency setting correct.
                 # correct connection are following
                 # 1. global input to module input
-                # 2. module output to next module input
-                # 3. module output to global output
+                # 2. module output to global output
                 """
-                '''
                 owner_indx = self.get_owner_indx()
-                dep_owner_indx = dependent.get_owner_indx()
-                assert owner_indx != dep_owner_indx, f"can not set self as dependent."
-                assert not (
-                    owner_indx > dep_owner_indx
-                    and not (dependent.io_type == "output" and dep_owner_indx == 0)
-                ), f"dependent only can be next module interface or global output."
-                assert not (
-                    owner_indx == 0 and dependent.io_type != "input"
-                ), f"global input only can set dependent with module input."
-                '''
-                self.bindings.append(dependent)
-                if isinstance(self, PipelineConfig.ModuleWrapper):
-                    dependent.parents.append(self)
+                bind_owner_indx = binding.get_owner_indx()
+                if owner_indx == bind_owner_indx:
+                    raise RuntimeError(f"can not set self as binding.")
 
-        def __init__(self, index=0):
+                if owner_indx != 0 and self.io_type == "input":
+                    raise RuntimeError(f"Module only can start binding from output!")
+
+                if owner_indx != 0 and bind_owner_indx != 0 and binding.io_type == "output":
+                        raise RuntimeError(f"Module output can not binding with module output!")
+
+                if owner_indx != 0 and bind_owner_indx == 0 and binding.io_type == "input":
+                        raise RuntimeError(f"Module output can not binding with global input!")
+                
+                if owner_indx == 0 and self.io_type != "input":
+                    raise RuntimeError(f"Global only can start binding from input!")
+
+                if owner_indx == 0 and binding.io_type != "input":
+                    raise RuntimeError(f"Global input only can set binding with module input.")
+
+                self.bindings.append(binding)
+                if isinstance(self.io_owner, PipelineConfig.ModuleWrapper):
+                    # check if the source and target data_type same
+                    if (isinstance(binding.io_owner, PipelineConfig.ModuleWrapper)
+                    and self.data_type != binding.data_type):
+                        raise RuntimeError(f"Illegal type:binding type is not same!")
+
+                    binding.parents.append(self)
+                    # after 
+                    if not self.dag_acircle_check(binding.io_owner,
+                                                  self.io_owner.input_bindings.bindings):
+                        raise RuntimeError(f"Illegal connection: cause a circle!")
+
+        def __init__(self, mod = None, index = 0):
+            self.input_params = InferType()(mod)["main"].params
+            self.output_values = InferType()(mod)["main"].checked_type.ret_type
             self.set_index(index)
+            self.mod = mod
             self.input_bindings = PipelineConfig.BindingList(self, "input")
             self.output_bindings = PipelineConfig.BindingList(self, "output")
             self.target_host_ = None
@@ -264,6 +297,22 @@ class PipelineConfig(object):
 
             assert 0, "{} not found!".format(key)
 
+        def get_type(self, key, stype):
+            if stype == "input":
+                for param in self.input_params:
+                    if param.name_hint == key:
+                        return param._checked_type_
+
+            if stype == "output":
+                if isinstance(self.output_values, tvm.ir.type.TupleType):
+                    if int(key) < len(self.output_values.fields):
+                        return self.output_values.fields[int(key)]
+                elif int(key) == 0:
+                        return  self.output_values
+
+            return None
+
+
         def set_index(self, index):
             self.index = index
             self.name = "mod{}".format(str(index))
@@ -276,9 +325,10 @@ class PipelineConfig(object):
             return True
 
         def remove_self_from_bindings(self):
-            for _, binding in self.input_bindings.bindings.items():
-                if binding in binding.bindings:
-                    binding.bindings.remove(binding)
+            for _, binding in self.output_bindings.bindings.items():
+                for child in binding.bindings:
+                    if binding in child.parents:
+                        child.parents.remove(binding)
 
         def input(self, name):
             if name not in self.input_bindings:
@@ -313,15 +363,28 @@ class PipelineConfig(object):
             self.io_owner = owner
             self.binding_type = type_name
 
+        def get_binding_type(self, key):
+            if isinstance(self.io_owner, PipelineConfig.ModuleWrapper):
+                return self.io_owner.get_type(key, self.binding_type)
+
+            return None
+
         def __getitem__(self, key):
             if key not in self.bindings:
+                data_type = self.get_binding_type(key)
+                if not data_type and isinstance(self.io_owner, PipelineConfig.ModuleWrapper):
+                    raise RuntimeError(f"Illegal name: {self.binding_type}:{key} cannot find")
+
                 self.bindings[key] = \
                     PipelineConfig.ModuleWrapper.Binding(self.io_owner,
-                                                         self.binding_type, key)
+                                                         self.binding_type,
+                                                         key,
+                                                         data_type)
 
             return self.bindings[key]
 
     def __init__(self):
+        self.last_mod_indx = 0
         self.mod_wrapper = {}
         self.input_bindings = self.BindingList(self, "input")
         self.output_bindings = self.BindingList(self, "output")
@@ -329,13 +392,13 @@ class PipelineConfig(object):
     def __str__(self):
         """ Get configuration in string type"""
         # Sort moudles
-        self.sub_module_sort()
+        self.dag_topology_sort()
 
         # get input
         input_dump = "Inputs\n"
         for input_name in self.input_bindings.bindings:
             inf = self.input_bindings.bindings[input_name]
-            input_dump += "  |" + input_name + ": " + inf.get_bindings_str() + "\n"
+            input_dump += inf.__repr__() + "\n"
 
         # get connections
         output = {}
@@ -363,7 +426,11 @@ class PipelineConfig(object):
     def __getitem__(self, key):
         if (isinstance(key, tvm.ir.module.IRModule)):
             if key not in self.mod_wrapper:
-                self.mod_wrapper[key] = self.ModuleWrapper()
+                # self.last_mod_indx start from 1 and be initialize value,
+                # the final value for mod index would get generate by function
+                # dag_topology_sort
+                self.last_mod_indx += 1
+                self.mod_wrapper[key] = self.ModuleWrapper(key, self.last_mod_indx)
 
             return self.mod_wrapper[key]
 
@@ -379,7 +446,7 @@ class PipelineConfig(object):
         """ Get configuration in dictionary format."""
 
         # Sort moudles
-        self.sub_module_sort()
+        self.dag_topology_sort()
 
         mconfig = {}
         for mod in self.mod_wrapper:
@@ -418,7 +485,9 @@ class PipelineConfig(object):
 
         return mconfig
 
-    def sub_module_sort(self):
+    def dag_topology_sort(self):
+        """ Do topology sort to get pipeline module order."""
+
         mlist = []
         mod_wrapper = self.mod_wrapper.copy()
         while mod_wrapper:

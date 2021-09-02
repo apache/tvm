@@ -149,6 +149,9 @@ def pipeline(target):
     for i in range(5):
         datas.append(np.full(dshape, 3 + i).astype("float32"))
 
+    # Runtime error check
+    pipe_config_check(mod1, mod2, mod3)
+
     pipe_config = pipeline_executor.PipelineConfig()
 
     # Create pipeline compute input/output and subgraph dependent relation.
@@ -194,21 +197,7 @@ def pipeline(target):
     """
     # connection correctness veify
     """
-
-    """
-    # try wrong module order connection check, expect assert.
-    """
-
-    #with pytest.raises(AssertionError):
-    #    pipe_config[mod2].output(0).connect(pipe_config[mod1].input("data_0"))
-
-    """
-    # try pipeline module input with module output connection check, expect assert.
-    """
-
-    #with pytest.raises(AssertionError):
-    #    pipe_config.pipe_input("data_0").connect(pipe_config[mod1].output(0))
-    #    assert 0, f"wrong global input connect check not pass!"
+    print(pipe_config)
 
     """
     # set other parameter.
@@ -235,6 +224,47 @@ def pipeline(target):
 
     pipeline_module = pipeline_executor.create(pipeline_mod_config)
     assert pipeline_module
+
+
+def pipe_config_check(mod1, mod2, mod3):
+    """
+    # try invalid input/output name exepect runtime error
+    """
+    pipe_error = pipeline_executor.PipelineConfig()
+    with pytest.raises(RuntimeError):
+        pipe_error[mod1]["output"][9]
+
+    with pytest.raises(RuntimeError):
+        pipe_error[mod1]["input"]["data_9"]
+
+    """
+    # try cirle connection , expect runtime error
+    """
+    with pytest.raises(RuntimeError):
+         pipe_error[mod1]["output"][0].connect(pipe_error[mod2]["input"]["data_0"])
+         pipe_error[mod2]["output"][0].connect(pipe_error[mod1]["input"]["data_0"])
+
+    """
+    # try wrong module order connection check, expect runtime error.
+    """
+
+    with pytest.raises(RuntimeError):
+        pipe_error[mod1]["output"][0].connect(pipe_error[mod1]["input"]["data_0"])
+
+    with pytest.raises(RuntimeError):
+        pipe_error[mod1]["input"]["data_0"].connect(pipe_error[mod1]["input"]["data_0"])
+
+    with pytest.raises(RuntimeError):
+        pipe_error[mod1]["input"]["data_0"].connect(pipe_error[mod2]["input"]["data_0"])
+
+    with pytest.raises(RuntimeError):
+        pipe_error[mod1]["output"][0].connect(pipe_error["input"]["data_0"])
+
+    with pytest.raises(RuntimeError):
+        pipe_error["input"]["data_0"].connect(pipe_error[mod1]["output"][0])
+
+    with pytest.raises(RuntimeError):
+        pipe_error["output"]["0"].connect(pipe_error[mod1]["output"][0])
 
 
 def test_pipeline():
