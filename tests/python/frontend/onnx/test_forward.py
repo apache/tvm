@@ -5044,6 +5044,7 @@ def test_aten(target, dev):
     verify_embedding_bag(10, 3, [2, 10])
     verify_embedding_bag(32, 2, [3, 3])
 
+
 def test_index_put():
     class _index_put_model(torch.nn.Module):
         def __init__(self, indices, values, accumulate):
@@ -5082,7 +5083,7 @@ def test_index_put():
                 onnx_model, tvm_inputs, target, ctx, freeze_params=True, convert_to_static=True
             )
             tvm.testing.assert_allclose(torch_out.numpy(), tvm_out)
-    
+
     shape = (3, 5)
     xidx = torch.tensor([0, 1, 2, 2])
     yidx = torch.tensor([0, 1, 3, 4])
@@ -5093,7 +5094,6 @@ def test_index_put():
     yidx = torch.tensor([0, 1, 3, 4, 0])
     zidx = torch.tensor([0, 1, 1, 2, 0])
     verify_index_put(shape, [xidx, yidx, zidx], False)
-
 
     def verify_index_put_slice(data_shape, value_shape, accumulate):
         dummy_data = torch.ones(data_shape)

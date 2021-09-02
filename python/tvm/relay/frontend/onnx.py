@@ -3056,7 +3056,11 @@ class ATen(OnnxOpConverter):
             repeat_size.reverse()
             unflod_slices = []
             for i in range(n):
-                unflod_slices.append(fold_constant(_op.repeat(_op.tile(flatten_indices[i], (tile_size[i],)), repeat_size[i], 0)))
+                unflod_slices.append(
+                    fold_constant(
+                        _op.repeat(_op.tile(flatten_indices[i], (tile_size[i],)), repeat_size[i], 0)
+                    )
+                )
             return unflod_slices, _op.reshape(values, _op.const([-1]))
 
         values_shape = infer_shape(values)
@@ -3067,12 +3071,12 @@ class ATen(OnnxOpConverter):
     @classmethod
     def _index_put(cls, inputs, attr, params):
         in_tensor = inputs[0]
-        indices, values = cls._check_index(inputs[1: -2], inputs[-2])
+        indices, values = cls._check_index(inputs[1:-2], inputs[-2])
         accumulate = inputs[-1].data.asnumpy() != 0
         if not accumulate:
-            mode = 'update'
+            mode = "update"
         else:
-            mode = 'add'
+            mode = "add"
         index_tensor = _op.stack(indices, axis=0)
         return _op.transform.scatter_nd(in_tensor, index_tensor, values, mode)
 
