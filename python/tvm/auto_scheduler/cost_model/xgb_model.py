@@ -175,13 +175,16 @@ class XGBModel(PythonBasedModel):
             # Set a training threshold related to `last_train_length` to reduce the training
             # overhead when there're too many logs
             return
-        self.last_train_length = len(self.inputs)
-
+        
         # extract feature
         n_cached = len(self.inputs_feature_cache)
         features, normalized_throughputs, task_ids = get_per_store_features_from_measure_pairs(
             self.inputs, self.results, skip_first_n_feature_extraction=n_cached
         )
+        if len(features) <= 0:
+            return
+
+        self.last_train_length = len(self.inputs)
         if n_cached > 0:
             features = list(features)
             features[:n_cached] = self.inputs_feature_cache
