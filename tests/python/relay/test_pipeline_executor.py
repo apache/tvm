@@ -99,14 +99,15 @@ def get_manual_conf(mods, target):
             {"output_indx": 2, "dependent": [{"mod_indx": 0, "input_name": "0"}]},
         ],
     }
-    mod_config[mods[0]] = {"pipeline": pipe_config1,
-                           "target_host": None,
-                           "mod_name": "default",
-			   "build": None,
-                           "params": None,
-                           "target": target[0],
-                           "dev": target[1],
-                          }
+    mod_config[mods[0]] = {
+        "pipeline": pipe_config1,
+        "target_host": None,
+        "mod_name": "default",
+        "build": None,
+        "params": None,
+        "target": target[0],
+        "dev": target[1],
+    }
 
     pipe_config2 = {
         "mod_indx": 2,
@@ -114,27 +115,29 @@ def get_manual_conf(mods, target):
             {"output_indx": 0, "dependent": [{"mod_indx": 3, "input_name": "data_1"}]},
         ],
     }
-    mod_config[mods[1]] = {"pipeline": pipe_config2,
-                           "target_host": None,
-                           "mod_name": "default",
-			   "build": None,
-                           "params": None,
-                           "target": "llvm",
-                           "dev": tvm.cpu(0),
-                          }
+    mod_config[mods[1]] = {
+        "pipeline": pipe_config2,
+        "target_host": None,
+        "mod_name": "default",
+        "build": None,
+        "params": None,
+        "target": "llvm",
+        "dev": tvm.cpu(0),
+    }
 
     pipe_config3 = {
         "mod_indx": 3,
         "output": [{"output_indx": 0, "dependent": [{"mod_indx": 0, "input_name": "1"}]}],
     }
-    mod_config[mods[2]] = {"pipeline": pipe_config3,
-                           "target_host": None,
-                           "mod_name": "default",
-			   "build": None,
-                           "params": None,
-                           "target": "llvm",
-                           "dev": tvm.cpu(0),
-                          }
+    mod_config[mods[2]] = {
+        "pipeline": pipe_config3,
+        "target_host": None,
+        "mod_name": "default",
+        "build": None,
+        "params": None,
+        "target": "llvm",
+        "dev": tvm.cpu(0),
+    }
     return mod_config
 
 
@@ -172,12 +175,11 @@ def pipeline(target):
     # mod2 output(0) would get forward to mod3 as input "data_1"
     pipe_config[mod2]["output"][0].connect(pipe_config[mod3]["input"]["data_1"])
 
-    # Testing in API mode for binding find.
     # mod1 output(2) would get forward as final pipeline compute output(1)
-    pipe_config[mod1].output_bindings[2].connect(pipe_config.output_bindings["0"])
+    pipe_config[mod1]["output"][2].connect(pipe_config["output"]["0"])
 
     # mod3 output(0) would get forward as final pipeline compute output(2)
-    pipe_config[mod3].output_bindings[0].connect(pipe_config.output_bindings["1"])
+    pipe_config[mod3]["output"][0].connect(pipe_config["output"]["1"])
     """
     # print configueration (print(pipe_config)), the expect result like following.
     #
@@ -194,10 +196,6 @@ def pipeline(target):
     #  |mod1.output(1)-> mod3.data_0
     #  |mod2.output(0)-> mod3.data_1
     """
-    """
-    # connection correctness veify
-    """
-    print(pipe_config)
 
     """
     # set other parameter.
@@ -241,8 +239,8 @@ def pipe_config_check(mod1, mod2, mod3):
     # try cirle connection , expect runtime error
     """
     with pytest.raises(RuntimeError):
-         pipe_error[mod1]["output"][0].connect(pipe_error[mod2]["input"]["data_0"])
-         pipe_error[mod2]["output"][0].connect(pipe_error[mod1]["input"]["data_0"])
+        pipe_error[mod1]["output"][0].connect(pipe_error[mod2]["input"]["data_0"])
+        pipe_error[mod2]["output"][0].connect(pipe_error[mod1]["input"]["data_0"])
 
     """
     # try wrong module order connection check, expect runtime error.
