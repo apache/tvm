@@ -3071,8 +3071,8 @@ class ATen(OnnxOpConverter):
     @classmethod
     def _index_put(cls, inputs, attr, params):
         in_tensor = inputs[0]
-        indices, values = cls._check_index(inputs[1:-2], inputs[-2])
-        accumulate = inputs[-1].data.asnumpy() != 0
+        indices, values = cls._check_index(inputs[1 : len(inputs) - 2], inputs[len(inputs) - 2])
+        accumulate = inputs[len(inputs) - 1].data.asnumpy() != 0
         if not accumulate:
             mode = "update"
         else:
