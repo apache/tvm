@@ -22,6 +22,7 @@ from tvm import relay
 from tvm.relay import transform
 from tvm.relay.testing import run_opt_pass
 import tvm.testing
+import tvm.topi.testing
 
 
 def test_fuse_simple():
@@ -788,19 +789,20 @@ def test_fuse_dynamic_squeeze_slice_take():
 @tvm.testing.uses_gpu
 def test_fuse_softmax():
     """Test if softmax can be fused with following ops."""
+    channel_size = 16
 
     def before():
-        x = relay.var("x", shape=(16, 16))
+        x = relay.var("x", shape=(16, channel_size))
         softmax = relay.nn.softmax(x)
         out = relay.cast(softmax, "float16")
         return relay.Function([x], out)
 
     def expected():
-        p0 = relay.var("p0", shape=(16, 16))
+        p0 = relay.var("p0", shape=(16, channel_size))
         softmax = relay.nn.softmax(p0)
         out = relay.cast(softmax, "float16")
 
-        x = relay.var("x", shape=(16, 16))
+        x = relay.var("x", shape=(16, channel_size))
 
         f0 = relay.Function([p0], out)
         f0 = f0.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
@@ -812,8 +814,14 @@ def test_fuse_softmax():
     after = run_opt_pass(expected(), transform.InferType())
     assert tvm.ir.structural_equal(m["main"], after)
 
-    # relay.build(m, "llvm")
+    inp = np.random.randn(16, channel_size).astype("float32")
+    ref = tvm.topi.testing.softmax_python(inp).astype("float16")
+
+    for target in ["llvm", "cuda"]:
+        ex = relay.create_executor("graph", mod=m, device=tvm.device(target, 0), target=target)
+        result = ex.evaluate()(inp).numpy()
+        tvm.testing.assert_allclose(result, ref, rtol=1e-4, atol=1e-4)
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    pytest.main([__pfile__])
