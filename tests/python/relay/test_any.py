@@ -724,6 +724,8 @@ def test_any_split():
     verify_any_split((relay.Any(), relay.Any()), 2, 1, (9, 4), [(9, 2), (9, 2)])
     verify_any_split((relay.Any(), 12), (1, 4, 8), 1, (7, 12), [(7, 1), (7, 3), (7, 4)])
     verify_any_split((relay.Any(), relay.Any()), (1, 4, 8), 1, (7, 12), [(7, 1), (7, 3), (7, 4)])
+    verify_any_split((relay.Any(), 12), (8,), 1, (7, 12), [(7, 8), (7, 4)])
+    verify_any_split((relay.Any(), relay.Any()), (8,), 1, (7, 12), [(7, 8), (7, 4)])
 
 
 @tvm.testing.uses_gpu
