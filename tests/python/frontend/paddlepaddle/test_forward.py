@@ -147,10 +147,13 @@ def test_forward_unary_op():
     input_data = paddle.rand([1, 2, 5, 5], dtype="float32")
     op_list = [
         "abs",
-        "exp",
+        "cosh" "exp",
+        "floor",
+        "isinf",
         "relu",
         "sigmoid",
-        "tanh",
+        "sin" "tanh",
+        "tan",
     ]
     for op_name in op_list:
         verify_model(UnaryOp(op_name), input_data)
