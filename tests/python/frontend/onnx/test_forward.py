@@ -5045,7 +5045,8 @@ def test_aten(target, dev):
     verify_embedding_bag(32, 2, [3, 3])
 
 
-def test_index_put():
+@tvm.testing.parametrize_targets
+def test_index_put(target, dev):
     class _index_put_model(torch.nn.Module):
         def __init__(self, indices, values, accumulate):
             super(_index_put_model, self).__init__()
@@ -5078,11 +5079,10 @@ def test_index_put():
         onnx_model = _convert_to_onnx(model, dummy_data)
         torch_out = model(dummy_data)
 
-        for target, ctx in tvm.testing.enabled_targets():
-            tvm_out = get_tvm_output_with_vm(
-                onnx_model, tvm_inputs, target, ctx, freeze_params=True, convert_to_static=True
-            )
-            tvm.testing.assert_allclose(torch_out.numpy(), tvm_out)
+        tvm_out = get_tvm_output_with_vm(
+            onnx_model, tvm_inputs, target, dev, freeze_params=True, convert_to_static=True
+        )
+        tvm.testing.assert_allclose(torch_out.numpy(), tvm_out)
 
     shape = (3, 5)
     xidx = torch.tensor([0, 1, 2, 2])
@@ -5110,11 +5110,10 @@ def test_index_put():
         onnx_model = _convert_to_onnx(model, dummy_data)
         torch_out = model(dummy_data)
 
-        for target, ctx in tvm.testing.enabled_targets():
-            tvm_out = get_tvm_output_with_vm(
-                onnx_model, tvm_inputs, target, ctx, freeze_params=True, convert_to_static=True
-            )
-            tvm.testing.assert_allclose(torch_out.numpy(), tvm_out)
+        tvm_out = get_tvm_output_with_vm(
+            onnx_model, tvm_inputs, target, dev, freeze_params=True, convert_to_static=True
+        )
+        tvm.testing.assert_allclose(torch_out.numpy(), tvm_out)
 
     verify_index_put_slice((3, 3), (2, 2), False)
     verify_index_put_slice((2, 3, 4), (1, 2, 3), True)
@@ -5696,8 +5695,8 @@ if __name__ == "__main__":
     test_softplus()
     test_cumsum()
     test_wrong_input()
-    test_aten()
     test_index_put()
+    test_aten()
     test_reverse_sequence()
     test_eyelike()
     test_qlinearconv()
