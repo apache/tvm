@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name, unused-argument, import-outside-toplevel, no-value-for-parameter
 """A set of passes to legalize some of operations for the NPU"""
+from typing import List
 import numpy as np
 
 import tvm
@@ -44,7 +45,7 @@ class SplitRewriter(DFPatternCallback):
         self.pattern = is_op("split")(self.split_in)
 
     @staticmethod
-    def get_section_begin_coords(split):
+    def get_section_begin_coords(split: tvm.relay.Expr) -> List[int]:
         """Currently, the split operator takes an array of indices or an integer
         indicating the number of splits. However, its an array of indices could
         represent both cases, therefore this function just make it an array of
@@ -53,12 +54,12 @@ class SplitRewriter(DFPatternCallback):
 
         Parameters
         ----------
-        split : relay.Expr
+        split : tvm.relay.Expr
             The Relay Call expression for a split operator
 
         Returns
         -------
-        section_begins : list[int]
+        section_begins : List[int]
             A list containing integers corresponding to section
             begins
         """
@@ -73,7 +74,9 @@ class SplitRewriter(DFPatternCallback):
         section_length = split_axis_len // indices_or_sections.value
         return list(range(0, split_axis_len, section_length))
 
-    def callback(self, pre, post, node_map):
+    def callback(
+        self, pre: tvm.relay.Expr, post: tvm.relay.Expr, node_map: tvm.ir.container.Map
+    ) -> tvm.relay.Expr:
         split_input = post.args[0]
         split_begins = list()
         split_ends = list()
@@ -106,10 +109,12 @@ class SplitRewriter(DFPatternCallback):
 class LegalizeSplit:
     """This is the pass that wraps SplitRewriter"""
 
-    def transform_module(self, mod, ctx):
-        for gv, func in mod.functions.items():
+    def transform_module(
+        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
+    ) -> tvm.ir.IRModule:
+        for global_var, func in mod.functions.items():
             func = rewrite(SplitRewriter(), func)
-            mod.update_func(gv, func)
+            mod.update_func(global_var, func)
         return mod
 
     def __call__(self, *args, **kwargs):
@@ -123,7 +128,9 @@ class EthosUConv2DRewriter(DFPatternCallback):
         super().__init__(require_type=True)
         self.pattern = (wildcard().has_attr({"Composite": "ethosu.qnn_conv2d"}))(wildcard())
 
-    def callback(self, pre, post, node_map):
+    def callback(
+        self, pre: tvm.relay.Expr, post: tvm.relay.Expr, node_map: tvm.ir.container.Map
+    ) -> tvm.relay.Expr:
         params = ethosu_patterns.QnnConv2DParams(post.op.body)
         params.ifm.tensor = post.args[0]
         channels_map = {
@@ -189,10 +196,12 @@ class EthosUConv2DRewriter(DFPatternCallback):
 class LegalizeEthosUConv2D:
     """This is the pass that wraps the EthosUConv2DRewriter"""
 
-    def transform_module(self, mod, ctx):
-        for gv, func in mod.functions.items():
+    def transform_module(
+        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
+    ) -> tvm.ir.IRModule:
+        for global_var, func in mod.functions.items():
             func = rewrite(EthosUConv2DRewriter(), func)
-            mod.update_func(gv, func)
+            mod.update_func(global_var, func)
         return mod
 
     def __call__(self, *args, **kwargs):
@@ -206,7 +215,9 @@ class LegalizeEthosU:
     operations.
     """
 
-    def transform_module(self, mod, ctx):
+    def transform_module(
+        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
+    ) -> tvm.ir.IRModule:
         mod = LegalizeSplit()(mod)
         mod = LegalizeEthosUConv2D()(mod)
         return mod

@@ -16,6 +16,8 @@
 # under the License.
 # pylint: disable=unused-argument
 """Relay operators for convolutions for Arm(R) Ethos(TM)-U NPU"""
+from typing import Tuple
+
 import tvm
 from tvm.relay.op import _make
 from tvm.topi.generic import schedule_injective
@@ -89,27 +91,27 @@ def conv2d_strategy_ethosu(attrs, inputs, out_type, target):
 
 
 def ethosu_conv2d(
-    ifm,
-    weight,
-    scale_bias,
-    lut,
-    ifm_scale,
-    ifm_zero_point,
-    weight_zero_point,
-    ofm_scale,
-    ofm_zero_point,
-    kernel_shape,
-    ofm_channels,
-    strides=(1, 1),
-    padding=(0, 0, 0, 0),
-    dilation=(1, 1),
-    activation="NONE",
-    clip_min=0,
-    clip_max=0,
-    upscale="NONE",
-    ifm_layout="NHWC",
-    ofm_layout="NHWC",
-):
+    ifm: tvm.relay.Expr,
+    weight: tvm.relay.Expr,
+    scale_bias: tvm.relay.Expr,
+    lut: tvm.relay.Expr,
+    ifm_scale: float,
+    ifm_zero_point: int,
+    weight_zero_point: int,
+    ofm_scale: float,
+    ofm_zero_point: int,
+    kernel_shape: Tuple[int, int],
+    ofm_channels: int,
+    strides: Tuple[int, int] = (1, 1),
+    padding: Tuple[int, int, int, int] = (0, 0, 0, 0),
+    dilation: Tuple[int, int] = (1, 1),
+    activation: str = "NONE",
+    clip_min: int = 0,
+    clip_max: int = 0,
+    upscale: str = "NONE",
+    ifm_layout: str = "NHWC",
+    ofm_layout: str = "NHWC",
+) -> tvm.relay.Call:
     """This is a quantized 2D convolution operation as supported by the
     the NPU. It accepts either NHWC or NHCWB16 format
     for the input data and OHWI format for the kernel weights.

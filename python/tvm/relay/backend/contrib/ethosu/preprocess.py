@@ -19,10 +19,11 @@
 NPU code generation. These set of passes will mutate both the main and the
 external functions.
 """
+import tvm
 from . import _ffi_api
 
 
-def preprocess_ext_io():
+def preprocess_ext_io() -> tvm.transform.Pass:
     """This pass mutates the number of inputs going to / outputs coming out to/from
     external functions to one. This is achieved via concatenation
     of inputs and splitting of outputs in around the call to the external function.

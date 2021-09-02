@@ -73,9 +73,7 @@ def check_weights(weights, dilation):
         get_dim_value(weights.layout, "I"),
     )
     sum_weights = np.amax(np.sum(np.absolute(weights.values), axis=axis))
-    if not sum_weights <= weights_limit:
-        return False
-    return True
+    return sum_weights <= weights_limit
 
 
 def check_bias(bias):
@@ -88,9 +86,7 @@ def check_bias(bias):
 
 def check_batch_size(ifm):
     """This function checks for the number of batches vela currently supports"""
-    if ifm.shape[0] != 1:
-        return False
-    return True
+    return ifm.shape[0] == 1
 
 
 def check_dilation(dilation):
@@ -110,9 +106,7 @@ def check_padding(padding, bounds):
         return False
     top, left, bottom, right = padding
     topb, leftb, bottomb, rightb = bounds
-    if top > topb or left > leftb or bottom > bottomb or right > rightb:
-        return False
-    return True
+    return not (top > topb or left > leftb or bottom > bottomb or right > rightb)
 
 
 class TensorParams:
@@ -224,9 +218,7 @@ class QnnConv2DParams:
         if self.groups not in legal_groups:
             return False
         # This should be a valid QnnDepthwise2DParams, not QnnConv2DParams
-        if self.is_depthwise:
-            return False
-        return True
+        return not self.is_depthwise
 
 
 def qnn_conv2d_pattern():

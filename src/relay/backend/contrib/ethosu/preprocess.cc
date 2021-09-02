@@ -64,8 +64,8 @@ class ExternalFuncIOHandler : public ExprRewriter {
    */
   int64_t CalcSize(const Array<Integer>& shape) {
     int size = 1;
-    for (auto dim_sz : shape) {
-      size = size * Downcast<Integer>(dim_sz)->value;
+    for (auto dim_size : shape) {
+      size = size * Downcast<Integer>(dim_size)->value;
     }
     return size;
   }
@@ -77,8 +77,8 @@ class ExternalFuncIOHandler : public ExprRewriter {
   Expr CreateFlattenTensor(const Expr& input) {
     auto ishape = Downcast<Array<Integer>>(Downcast<TensorType>(input->checked_type())->shape);
     int flatten_size = CalcSize(ishape);
-    Array<Integer> oshape = {Integer(flatten_size)};
-    return MakeReshape(input, oshape);
+    Array<Integer> output_shape = {Integer(flatten_size)};
+    return MakeReshape(input, output_shape);
   }
 
   /*!

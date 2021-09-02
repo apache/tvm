@@ -16,12 +16,14 @@
 # under the License.
 # pylint: disable=invalid-name,unnecessary-lambda
 """Tensor Expressions for operations supported by the NPU DMA engine"""
+from typing import Callable, Tuple
+
 import tvm
 from tvm import te
 from tvm.topi.utils import equal_const_int
 
 
-def _pad_tensor(tensor, pad_before, pad_after=None):
+def _pad_tensor(tensor: te.Tensor, pad_before: tuple, pad_after: tuple = None) -> Callable:
     """Generate a padded tensor.
 
     Parameters
@@ -61,7 +63,7 @@ def _pad_tensor(tensor, pad_before, pad_after=None):
     return _pad
 
 
-def read_compute(tensor, layout, zero_point, scale):
+def read_compute(tensor: te.Tensor, layout: str, zero_point: int, scale: float) -> te.Tensor:
     """A tensor expression which represents a read.
 
     Parameters
@@ -91,7 +93,7 @@ def read_compute(tensor, layout, zero_point, scale):
     return te.compute(tensor.shape, lambda *i: tensor(*i), name="ethosu_read", attrs=read_attrs)
 
 
-def write_compute(tensor, layout, zero_point, scale):
+def write_compute(tensor: te.Tensor, layout: str, zero_point: int, scale: float) -> te.Tensor:
     """A tensor expression which represents a write.
 
     Parameters
@@ -126,7 +128,7 @@ def write_compute(tensor, layout, zero_point, scale):
     )
 
 
-def convert_to_nhwc_compute(tensor, layout, channels):
+def convert_to_nhwc_compute(tensor: te.Tensor, layout: str, channels: int) -> te.Tensor:
     """Converts a tensor into NHWC layout if it's in NHWCB16 layout.
 
     Parameters
@@ -165,7 +167,7 @@ def convert_to_nhwc_compute(tensor, layout, channels):
     )
 
 
-def convert_to_nhcwb16_compute(tensor, layout, channels):
+def convert_to_nhcwb16_compute(tensor: te.Tensor, layout: str, channels: int) -> te.Tensor:
     """Converts a tensor into NHCWB16 layout if it's in NHWC layout.
 
     Parameters
@@ -210,7 +212,7 @@ def convert_to_nhcwb16_compute(tensor, layout, channels):
     )
 
 
-def pad_compute(tensor, padding):
+def pad_compute(tensor: te.Tensor, padding: tuple):
     """Pad an NHWC tensor in the height and width axes.
 
     Parameters
@@ -241,7 +243,14 @@ def pad_compute(tensor, padding):
     )
 
 
-def dma_ifm_compute(ifm, layout, zero_point, scale, channels, padding):
+def dma_ifm_compute(
+    ifm: te.Tensor,
+    layout: str,
+    zero_point: int,
+    scale: float,
+    channels: int,
+    padding: Tuple[int, int, int, int],
+) -> te.Tensor:
     """A sequence of compute operators representing the DMA capabilities for an IFM.
 
     Parameters
@@ -270,7 +279,9 @@ def dma_ifm_compute(ifm, layout, zero_point, scale, channels, padding):
     return pad_compute(convert_to_nhwc_ifm, padding)
 
 
-def dma_ofm_compute(ofm, layout, zero_point, scale, channels):
+def dma_ofm_compute(
+    ofm: te.Tensor, layout: str, zero_point: int, scale: float, channels: int
+) -> te.Tensor:
     """A sequence of compute operators representing the DMA capabilities for an OFM.
 
     Parameters

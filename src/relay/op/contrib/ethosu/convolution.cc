@@ -54,8 +54,8 @@ struct EthosuConv2DAttrs : public tvm::AttrsNode<EthosuConv2DAttrs> {
   int clip_min;
   int clip_max;
   String upscale;
-  tvm::String ifm_layout;
-  tvm::String ofm_layout;
+  String ifm_layout;
+  String ofm_layout;
 
   TVM_DECLARE_ATTRS(EthosuConv2DAttrs, "relay.attrs.EthosuConv2DAttrs") {
     TVM_ATTR_FIELD(ifm_scale).describe("The quantization scale for the Input Feature Map tensor.");
@@ -68,7 +68,7 @@ struct EthosuConv2DAttrs : public tvm::AttrsNode<EthosuConv2DAttrs> {
         .describe("The quantization zero point for the Output Feature Map tensor.");
     TVM_ATTR_FIELD(kernel_shape)
         .describe("The 2 dimensional kernel shape as (kernel_height, kernel_width).")
-        .set_default(NullValue<Array<IndexExpr> >());
+        .set_default(NullValue<Array<IndexExpr>>());
     TVM_ATTR_FIELD(ofm_channels)
         .describe("The number of OFM channels.")
         .set_default(NullValue<IndexExpr>());

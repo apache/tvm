@@ -16,30 +16,32 @@
 # under the License.
 # pylint: disable=invalid-name,unused-argument
 """Tensor Expressions for convolutions for the NPU"""
+from typing import Tuple, Union, List
+
 from tvm import te
 from .dma import dma_ofm_compute, dma_ifm_compute
 
 
 def conv2d_compute(
-    ifm,
-    weight,
-    scale_bias,
-    lut,
-    ifm_scale,
-    ifm_zero_point,
-    weight_zero_point,
-    ofm_scale,
-    ofm_zero_point,
-    strides,
-    padding,
-    dilation,
-    activation,
-    clip_min,
-    clip_max,
-    upscale,
-    ifm_layout,
-    ofm_layout,
-):
+    ifm: te.Tensor,
+    weight: te.Tensor,
+    scale_bias: te.Tensor,
+    lut: te.Tensor,
+    ifm_scale: float,
+    ifm_zero_point: int,
+    weight_zero_point: int,
+    ofm_scale: float,
+    ofm_zero_point: int,
+    strides: Tuple[int, int],
+    padding: Tuple[int, int, int, int],
+    dilation: Union[int, Tuple[int, int], List[int]],
+    activation: str,
+    clip_min: int,
+    clip_max: int,
+    upscale: str,
+    ifm_layout: str,
+    ofm_layout: str,
+) -> te.Tensor:
     """A compute operator representing the capabilities of a 2D convolution for the NPU.
 
     Parameters

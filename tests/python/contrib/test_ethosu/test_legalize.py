@@ -34,8 +34,8 @@ def test_split_indices_legalize():
     def create_graph(axis):
         x = relay.var("x", shape=(1, 50, 50, 3))
         x_relu = relay.nn.relu(x)
-        split_o = relay.split(x_relu, [5, 20, 45], axis).tuple_value
-        return relay.Function([x], split_o)
+        split_output = relay.split(x_relu, [5, 20, 45], axis).tuple_value
+        return relay.Function([x], split_output)
 
     def expected_mod_axis1():
         expected_ir_string = """

@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file src/relay/op/contrib/ethosu/op_common.cc
+ * \file src/relay/op/contrib/ethosu/common.cc
  * \brief A set of utilities and common functionality for Arm(R) Ethos(TM)-U NPU QNN ops.
  */
 
@@ -40,22 +40,22 @@ Array<IndexExpr> EthosuInferKernelOutput(Array<IndexExpr> ifm_shape, String ifm_
   if (ifm_layout == "NHCWB16") {
     ifm_shape = {ifm_shape[0], ifm_shape[1], ifm_shape[3]};
   }
-  Array<IndexExpr> oshape({ifm_shape[0], 0, 0, ofm_channels});
+  Array<IndexExpr> output_shape({ifm_shape[0], 0, 0, ofm_channels});
 
   IndexExpr dilated_ksize_y = 1 + (kernel_shape[0] - 1) * dilation[0];
   IndexExpr dilated_ksize_x = 1 + (kernel_shape[1] - 1) * dilation[1];
   IndexExpr pad_h, pad_w;
   GetPaddingHeightWidth(padding, &pad_h, &pad_w);
-  oshape.Set(1, indexdiv(ifm_shape[1] + pad_h - dilated_ksize_y, strides[0]) + 1);
-  oshape.Set(2, indexdiv(ifm_shape[2] + pad_w - dilated_ksize_x, strides[1]) + 1);
+  output_shape.Set(1, indexdiv(ifm_shape[1] + pad_h - dilated_ksize_y, strides[0]) + 1);
+  output_shape.Set(2, indexdiv(ifm_shape[2] + pad_w - dilated_ksize_x, strides[1]) + 1);
 
   // If the ofm is NHCWB16, convert the layout
   if (ofm_layout == "NHCWB16") {
-    int channel_bricks = 1 + (oshape[3].as<IntImmNode>()->value - 1) / 16;
-    oshape = {oshape[0], oshape[1], channel_bricks, oshape[2], 16};
+    int channel_bricks = 1 + (output_shape[3].as<IntImmNode>()->value - 1) / 16;
+    output_shape = {output_shape[0], output_shape[1], channel_bricks, output_shape[2], 16};
   }
 
-  return oshape;
+  return output_shape;
 }
 
 }  // namespace ethosu

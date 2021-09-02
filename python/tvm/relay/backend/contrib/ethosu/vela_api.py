@@ -23,6 +23,7 @@ The following conversion APIs are added :
 """
 import logging
 import math
+from typing import Tuple, Optional, List
 import numpy as np
 from ethosu.vela import api as vapi
 
@@ -42,7 +43,9 @@ VELA_TO_NP_DTYPES = {
 SCALE_BIAS_LENGTH = 10
 
 
-def get_optimal_block_config(npu_op, accel_type):
+def get_optimal_block_config(
+    npu_op: vapi.NpuOperation, accel_type: vapi.NpuAccelerator
+) -> vapi.NpuShape3D:
     """
     "The NPU's unit of work is known as a block. It will fetch block(s) from Input
     Feature Map (IFM) and a compute block for Output Feature Map (OFM).
@@ -59,21 +62,21 @@ def get_optimal_block_config(npu_op, accel_type):
 
     Returns
     -------
-    ethosu.vela.api.NpuShape3d :
+    ethosu.vela.api.NpuShape3D :
         The optimal block config for the operator
     """
     all_valid_block_configs = vapi.npu_find_block_configs(npu_op, accel_type)
     return _get_optimal_block_config(all_valid_block_configs)
 
 
-def _get_optimal_block_config(all_valid_block_configs):
+def _get_optimal_block_config(all_valid_block_configs: List[vapi.NpuShape3D]) -> vapi.NpuShape3D:
     """An internal function to get block config with largest depth
     and then highest volume/area"""
     assert isinstance(all_valid_block_configs, list)
     for block_cfg in all_valid_block_configs:
         assert isinstance(block_cfg, vapi.NpuShape3D)
 
-    # Getting the largest volume block for benchmarksing
+    # Getting the largest volume block for benchmarking
     all_valid_block_configs.sort(
         key=lambda _cfg: _cfg.depth * _cfg.height * _cfg.width, reverse=True
     )
@@ -109,15 +112,15 @@ def _get_optimal_block_config(all_valid_block_configs):
 
 
 def compress_weights(
-    weights,
-    weights_zp,
-    weights_layout,
-    ifm_bitdepth,
-    block_depth,
-    dilation,
-    accel_type,
-    is_depthwise=False,
-):
+    weights: np.ndarray,
+    weights_zp: int,
+    weights_layout: str,
+    ifm_bitdepth: int,
+    block_depth: int,
+    dilation: Tuple[int, int],
+    accel_type: vapi.NpuAccelerator,
+    is_depthwise: Optional[bool] = False,
+) -> bytearray:
     """The NPU requires the weights to be compressed
     to be executed. Therefore, this function calls into
     the Vela APIs to compress the weights.
@@ -172,7 +175,9 @@ def compress_weights(
     return compressed_weights
 
 
-def calculate_block_traversal_mode(is_depthwise, weights_shape_ohwi, ifm_bitdepth):
+def calculate_block_traversal_mode(
+    is_depthwise: bool, weights_shape_ohwi: List[int], ifm_bitdepth: int
+) -> vapi.NpuBlockTraversal:
     """Calculate a block traversal mode given whether the op is depthwise convolution,
     shape of weights and bit-depth of the ifm.
     """
@@ -194,13 +199,13 @@ def calculate_block_traversal_mode(is_depthwise, weights_shape_ohwi, ifm_bitdept
 
 
 def pack_biases(
-    biases,
-    ifm_scale,
-    ifm_dtype,
-    weight_scales,
-    ofm_scale,
-    is_activation_tanh_or_sigmoid=False,
-):
+    biases: np.ndarray,
+    ifm_scale: float,
+    ifm_dtype: np.dtype,
+    weight_scales: np.ndarray,
+    ofm_scale: float,
+    is_activation_tanh_or_sigmoid: bool = False,
+) -> np.ndarray:
     """
     The NPU requires the each bias value to be packed with
     output scale parameters in a 80-bit format (that is returned
@@ -249,7 +254,7 @@ def pack_biases(
     return scale_bias
 
 
-def _quantize_scale(scale):
+def _quantize_scale(scale: float) -> Tuple[int, int]:
     """Quantize floating point scale into 32-bit int scale with a 6-bit shift.
     This is to be used with 8-bit data.
     """
@@ -261,7 +266,7 @@ def _quantize_scale(scale):
     return mantissa_scaled, required_shift
 
 
-def _reduced_quantize_scale(scale):
+def _reduced_quantize_scale(scale: float) -> Tuple[int, int]:
     """A reduction of precision is required for 16 bit data."""
     mantissa_scaled, required_shift = _quantize_scale(scale)
     # This is max a signed 16-bit number could represent
@@ -277,8 +282,12 @@ def _reduced_quantize_scale(scale):
 
 
 def _calculate_hw_bias_scales(
-    ifm_scale, weight_scales, ofm_scale, ifm_dtype, is_faf_tanh_sigmoid=False
-):
+    ifm_scale: float,
+    weight_scales: List[float],
+    ofm_scale: float,
+    ifm_dtype: np.dtype,
+    is_faf_tanh_sigmoid: bool = False,
+) -> List[Tuple[int, int]]:
     """This function will produce a scale that is calculated using scales of ifm,
     weights and ofm. It is also important to note that if per-channel / per-value
     quantization required they should go into hw bias scales"""
@@ -301,7 +310,7 @@ def _calculate_hw_bias_scales(
     return hw_bias_scales
 
 
-def get_target_accel_type():
+def get_target_accel_type() -> vapi.NpuAccelerator:
     """This is a helper function to convert TVMC command line argument to NpuAccelerator type"""
     npu_accel_str_map = {
         "ethos-u55-256": vapi.NpuAccelerator.Ethos_U55_256,

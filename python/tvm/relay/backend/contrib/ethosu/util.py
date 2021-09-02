@@ -22,8 +22,10 @@ Refer to the description inside such functions
 """
 
 from enum import Enum
+from typing import Union, Tuple, Dict, Optional
 import numpy as np
 
+import tvm
 from tvm import relay
 from tvm.relay.build_module import bind_params_by_name
 from tvm.relay.backend.contrib.ethosu import preprocess
@@ -74,7 +76,7 @@ class ClipArgs(Enum):
     A_MAX = 2
 
 
-def is_composite_func(func, name):
+def is_composite_func(func: relay.Function, name: str) -> bool:
     """
     This method checks whether the call is to
     a composite function of a given name.
@@ -98,12 +100,10 @@ def is_composite_func(func, name):
         return False
     composite_name = func.attrs["Composite"]
 
-    if composite_name != name:
-        return False
-    return True
+    return composite_name == name
 
 
-def get_range_for_dtype_str(dtype):
+def get_range_for_dtype_str(dtype: str) -> Tuple[int, int]:
     """
     Produce the min,max for a give data type.
 
@@ -127,28 +127,30 @@ def get_range_for_dtype_str(dtype):
     return type_info.min, type_info.max
 
 
-def round_away_zero(f):
+def round_away_zero(f: Union[float, np.double, np.single, np.float32, np.float64]) -> np.float64:
     """Round the number away from zero towards +inf / -inf"""
     offset = -0.5 if (f < 0) else 0.5
     return np.trunc(f + offset)
 
 
-def round_up(a, b):
+def round_up(a: int, b: int) -> int:
     """Round up to a multiple of b"""
     return ((a + b - 1) // b) * b
 
 
 # pylint: disable=unused-argument
-def partition_for_ethosu(mod, params=None, **opts):
+def partition_for_ethosu(
+    mod: tvm.ir.IRModule, params: Optional[Dict[str, tvm.runtime.NDArray]] = None, **opts
+):
     """This helper function partition the relay graph as produced by the
     relay frontend for a given model into external functions
     to be presented to the codegen.
 
     Parameters
     ----------
-    mod : IRModule
+    mod : tvm.ir.IRModule
         The IRModule that gets generated from a relay frontend
-    params : Optional[Dict[str, NDArray]]
+    params : Optional[Dict[str, tvm.runtime.NDArray]]
         Constant input parameters.
 
     Returns
@@ -171,7 +173,7 @@ def partition_for_ethosu(mod, params=None, **opts):
     return mod
 
 
-def get_dim_value(layout, dim):
+def get_dim_value(layout: str, dim: int):
     """This is a helper function to retrieve the value
     of the dimension given the shape and the layout
     """
