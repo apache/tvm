@@ -22,6 +22,7 @@ import warnings
 
 import numpy as np
 import tvm
+from tvm import relay
 from tvm.ir import IRModule
 from tvm.topi.utils import get_const_tuple
 
@@ -3454,6 +3455,62 @@ class RandomUniform(OnnxOpConverter):
         return vals
 
 
+class NegativeLogLikelihoodLoss(OnnxOpConverter):
+    """Operator converter for random_uniform"""
+
+    VALID_REDUCTIONS = {"mean", "sum", "none"}
+
+    @classmethod
+    def _impl_v13(cls, inputs, attr, params):
+        ignore_index = attr.get("ignore_index", None)
+        reduction = attr.get("reduction", b"mean").decode("utf-8")
+
+        if reduction not in cls.VALID_REDUCTIONS:
+            raise ValueError(
+                f"Unknown reduction type {reduction}, choices are {cls.VALID_REDUCTIONS}"
+            )
+
+        input_tensor, target_tensor = inputs[0], inputs[1]
+        if len(inputs) == 3:
+            weight_tensor = inputs[2]
+        else:
+            channels = infer_shape(input_tensor)[1]
+            weight_tensor = relay.ones(
+                [channels],
+                dtype=input_tensor.type_annotation.dtype,
+            )
+
+        loss = -relay.gather(input_tensor, axis=1, indices=relay.expand_dims(target_tensor, 1))
+        loss = relay.squeeze(loss, axis=[1])
+
+        expanded_target_tensor = relay.expand_dims(target_tensor, 0)
+        expanded_target_tensor = relay.nn.batch_flatten(expanded_target_tensor)
+        flattened_weights = relay.gather_nd(weight_tensor, expanded_target_tensor)
+        select_weights = relay.reshape_like(flattened_weights, loss)
+        loss *= select_weights
+
+        if ignore_index is not None:
+            # "Ignore" values whose target is the ignore_index
+            mask_tensor = relay.equal(
+                target_tensor, relay.const(ignore_index, dtype=target_tensor.type_annotation.dtype)
+            )
+            mask_tensor = relay.const(1, dtype="int8") - relay.cast(mask_tensor, "int8")
+            loss *= relay.cast_like(mask_tensor, loss)
+
+            # This is not explained super clearly in the onnx spec, but masked values don't
+            # contribute toward the final value in reduction
+            select_weights *= relay.cast_like(mask_tensor, select_weights)
+
+        weight_total = relay.sum(select_weights)
+
+        if reduction == "mean":
+            return relay.sum(loss) / weight_total
+        if reduction == "sum":
+            return relay.sum(loss)
+        # Case reduction == 'none'
+        return loss
+
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -3636,6 +3693,8 @@ def _get_convert_map(opset):
         "ConvInteger": ConvInteger.get_converter(opset),
         # Random number generation.
         "RandomUniform": RandomUniform.get_converter(opset),
+        # Loss functions
+        "NegativeLogLikelihoodLoss": NegativeLogLikelihoodLoss.get_converter(opset),
     }
 
 
