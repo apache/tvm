@@ -27,8 +27,8 @@ import tvm.testing
 
 
 _conv2d_nhwc_implement = {
-    "llvm": (topi.nn.conv2d_nhwc, topi.generic.schedule_conv2d_nhwc),
-    "cuda": (topi.cuda.conv2d_nhwc, topi.cuda.schedule_conv2d_nhwc),
+    "generic": (topi.nn.conv2d_nhwc, topi.generic.schedule_conv2d_nhwc),
+    "gpu": (topi.cuda.conv2d_nhwc, topi.cuda.schedule_conv2d_nhwc),
     "cpu": (topi.nn.conv2d_nhwc, topi.x86.schedule_conv2d_nhwc),
     "arm_cpu": (
         topi.arm_cpu.conv2d_nhwc_spatial_pack,
@@ -45,61 +45,55 @@ _conv2d_nhwc_implement = {
     "hls": (topi.nn.conv2d_nhwc, topi.hls.schedule_conv2d_nhwc),
 }
 
+dtype = tvm.testing.parameter("float32")
 
-def verify_conv2d_nhwc(batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation=1):
+batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation = tvm.testing.parameters(
+    (1, 256, 32, 256, 3, 1, "SAME", 1),
+    (4, 128, 16, 128, 5, 2, "SAME", 1),
+    (4, 128, 16, 256, 5, 2, "SAME", 1),
+    (1, 256, 32, 256, 3, 1, "VALID", 1),
+    (1, 256, 32, 256, 3, 1, "VALID", 1),
+    (4, 128, 16, 128, 5, 2, "VALID", 1),
+    (4, 128, 16, 256, 5, 2, "VALID", 1),
+    (1, 128, 16, 256, 3, 2, (0, 0, 1, 1), 1),
+    (1, 128, 16, 256, 3, 2, (1, 1, 2, 2), 1),
+    (1, 128, 16, 128, 5, 2, (3, 3, 2, 2), 1),
+    (1, 128, 16, 256, 3, 2, (0, 1, 2, 3), 1),
+    (1, 256, 32, 256, 3, 1, "SAME", 2),
+    (1, 256, 32, 256, 3, 1, (1, 1, 2, 2), 2),
+)
+
+
+@tvm.testing.fixture(cache_return_value=True)
+def ref_data(dtype, batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation):
     in_height = in_width = in_size
+    a_shape = (batch, in_height, in_width, in_channel)
+    w_shape = (kernel, kernel, in_channel, num_filter)
 
-    A = te.placeholder((batch, in_height, in_width, in_channel), name="A")
-    W = te.placeholder((kernel, kernel, in_channel, num_filter), name="W")
-
-    a_shape = get_const_tuple(A.shape)
-    w_shape = get_const_tuple(W.shape)
-    dtype = A.dtype
-
-    @memoize("topi.tests.test_topi_conv2d_nhwc.verify_nhwc.v2")
-    def get_ref_data():
-        a_np = np.random.uniform(size=a_shape).astype(dtype)
-        w_np = np.random.uniform(size=w_shape).astype(dtype)
-        dw_np = tvm.topi.testing.dilate_python(w_np, (dilation, dilation, 1, 1))
-        b_np = tvm.topi.testing.conv2d_nhwc_python(a_np, dw_np, stride, padding)
-        return a_np, w_np, b_np
-
-    a_np, w_np, b_np = get_ref_data()
-
-    def check_device(target, dev):
-        print("Running on target: %s" % target)
-        with tvm.target.Target(target):
-            fcompute, fschedule = tvm.topi.testing.dispatch(target, _conv2d_nhwc_implement)
-            B = fcompute(A, W, stride, padding, dilation, dtype)
-            s = fschedule([B])
-        a = tvm.nd.array(a_np, dev)
-        w = tvm.nd.array(w_np, dev)
-        b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), dev)
-        func = tvm.build(s, [A, W, B], target)
-        func(a, w, b)
-        tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-5)
-
-    for target, dev in tvm.testing.enabled_targets():
-        check_device(target, dev)
+    a_np = np.random.uniform(size=a_shape).astype(dtype)
+    w_np = np.random.uniform(size=w_shape).astype(dtype)
+    dw_np = tvm.topi.testing.dilate_python(w_np, (dilation, dilation, 1, 1))
+    b_np = tvm.topi.testing.conv2d_nhwc_python(a_np, dw_np, stride, padding)
+    return a_np, w_np, b_np
 
 
-@tvm.testing.uses_gpu
-def test_conv2d_nhwc():
-    verify_conv2d_nhwc(1, 256, 32, 256, 3, 1, "SAME")
-    verify_conv2d_nhwc(4, 128, 16, 128, 5, 2, "SAME")
-    verify_conv2d_nhwc(4, 128, 16, 256, 5, 2, "SAME")
-    verify_conv2d_nhwc(1, 256, 32, 256, 3, 1, "VALID")
-    verify_conv2d_nhwc(1, 256, 32, 256, 3, 1, "VALID")
-    verify_conv2d_nhwc(4, 128, 16, 128, 5, 2, "VALID")
-    verify_conv2d_nhwc(4, 128, 16, 256, 5, 2, "VALID")
-    verify_conv2d_nhwc(1, 128, 16, 256, 3, 2, (0, 0, 1, 1))
-    verify_conv2d_nhwc(1, 128, 16, 256, 3, 2, (1, 1, 2, 2))
-    verify_conv2d_nhwc(1, 128, 16, 128, 5, 2, (3, 3, 2, 2))
-    verify_conv2d_nhwc(1, 128, 16, 256, 3, 2, (0, 1, 2, 3))
-    # dilation = 2
-    verify_conv2d_nhwc(1, 256, 32, 256, 3, 1, "SAME", dilation=2)
-    verify_conv2d_nhwc(1, 256, 32, 256, 3, 1, (1, 1, 2, 2), dilation=2)
+def test_conv2d_nhwc(target, dev, ref_data, dtype, stride, padding, dilation):
+    a_np, w_np, b_np = ref_data
+
+    A = te.placeholder(a_np.shape, name="A", dtype=dtype)
+    W = te.placeholder(w_np.shape, name="W", dtype=dtype)
+
+    with tvm.target.Target(target):
+        fcompute, fschedule = tvm.topi.testing.dispatch(target, _conv2d_nhwc_implement)
+        B = fcompute(A, W, stride, padding, dilation, dtype)
+        s = fschedule([B])
+    a = tvm.nd.array(a_np, dev)
+    w = tvm.nd.array(w_np, dev)
+    b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), dev)
+    func = tvm.build(s, [A, W, B], target)
+    func(a, w, b)
+    tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-5)
 
 
 if __name__ == "__main__":
-    test_conv2d_nhwc()
+    sys.exit(pytest.main(sys.argv))

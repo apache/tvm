@@ -139,7 +139,19 @@ def test_ldexp():
     tvm.testing.assert_allclose(c.numpy(), np.ldexp(a.numpy(), b.numpy()), atol=1e-5, rtol=1e-5)
 
 
-def test_clz():
+dtype = tvm.testing.parameter("int32", "int64")
+
+
+@tvm.testing.parametrize_targets("llvm", "vulkan -from_device=0")
+def test_clz(target, dev, dtype):
+    target = tvm.target.Target(target)
+    if (
+        target.kind.name == "vulkan"
+        and dtype == "int64"
+        and not target.attrs.get("supports_int64", False)
+    ):
+        pytest.xfail("Vulkan target does not support Int64 types")
+
     def clz_np(x, dtype):
         ceil_log2 = np.ceil(np.log2(x)).astype(dtype)
         bits = int(dtype[-2:])
@@ -147,38 +159,32 @@ def test_clz():
         clz[np.bitwise_and(x, x - 1) == 0] -= 1
         return clz
 
-    for target in ["llvm", "vulkan"]:
-        if not tvm.testing.device_enabled("vulkan"):
-            continue
+    m = te.var("m")
+    A = te.placeholder((m,), name="A", dtype=dtype)
+    B = te.compute((m,), lambda *i: tvm.tir.clz(A(*i)), name="B")
+    s = te.create_schedule(B.op)
 
-        for dtype in ["int32", "int64"]:
-            m = te.var("m")
-            A = te.placeholder((m,), name="A", dtype=dtype)
-            B = te.compute((m,), lambda *i: tvm.tir.clz(A(*i)), name="B")
-            s = te.create_schedule(B.op)
+    if target.kind.name == "vulkan":
+        bx, tx = s[B].split(B.op.axis[0], factor=64)
 
-            if target == "vulkan":
-                bx, tx = s[B].split(B.op.axis[0], factor=64)
+        s[B].bind(bx, te.thread_axis("blockIdx.x"))
+        s[B].bind(tx, te.thread_axis("threadIdx.x"))
 
-                s[B].bind(bx, te.thread_axis("blockIdx.x"))
-                s[B].bind(tx, te.thread_axis("threadIdx.x"))
+    f = tvm.build(s, [A, B], target)
+    n = 10
 
-            f = tvm.build(s, [A, B], target)
-            dev = tvm.device(target, 0)
-            n = 10
+    highs = [10, 100, 1000, 10000, 100000, 1000000]
 
-            highs = [10, 100, 1000, 10000, 100000, 1000000]
+    if dtype == "int64":
+        highs.append((1 << 63) - 1)
 
-            if dtype == "int64":
-                highs.append((1 << 63) - 1)
-
-            for high in highs:
-                a_np = np.random.randint(1, high=high, size=(n,)).astype(dtype)
-                a = tvm.nd.array(a_np, dev)
-                b = tvm.nd.array(np.zeros((n,)).astype("int32"), dev)
-                f(a, b)
-                ref = clz_np(a_np, dtype)
-                np.testing.assert_equal(b.numpy(), ref)
+    for high in highs:
+        a_np = np.random.randint(1, high=high, size=(n,), dtype=dtype)
+        a = tvm.nd.array(a_np, dev)
+        b = tvm.nd.array(np.zeros((n,)).astype("int32"), dev)
+        f(a, b)
+        ref = clz_np(a_np, dtype)
+        np.testing.assert_equal(b.numpy(), ref)
 
 
 @tvm.script.tir
