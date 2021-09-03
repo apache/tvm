@@ -1548,7 +1548,7 @@ def dense(data, weight, units=None, out_dtype=""):
     return _make.dense(data, weight, units, out_dtype)
 
 
-def contrib_dense_pack(data, weight, weight_layout="NK", units=None, out_dtype=""):
+def contrib_dense_pack(data, weight, weight_layout="NC", units=None, out_dtype=""):
     """Dense operator.
     Applies a linear transformation with packed weight
 
