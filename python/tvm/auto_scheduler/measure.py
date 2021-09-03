@@ -661,10 +661,6 @@ def local_build_worker(args):
         The build result of this Builder thread.
     """
     inp, build_func, verbose = args
-    assert build_func == BuildFunc.name, (
-        "BuildFunc.name: " + BuildFunc.name + ", but args is: " + build_func
-    )
-    build_func = BuildFunc.build_func
 
     return _local_build_worker(inp, build_func, verbose)
 
@@ -701,7 +697,7 @@ def local_builder_build(inputs, timeout, n_parallel, build_func="default", verbo
         [
             (
                 i.serialize(),
-                build_func,
+                BuildFunc.build_func,
                 verbose,
             )
             for i in inputs
