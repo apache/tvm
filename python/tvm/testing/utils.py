@@ -594,6 +594,27 @@ def requires_cudnn(*args):
     return _compose(args, requirements)
 
 
+def requires_cublas(*args):
+    """Mark a test as requiring the cuBLAS library.
+
+    This also marks the test as requiring a cuda gpu.
+
+    Parameters
+    ----------
+    f : function
+        Function to mark
+    """
+
+    requirements = [
+        pytest.mark.skipif(
+            tvm.get_global_func("tvm.contrib.cublas.matmul", True),
+            reason="cuDNN library not enabled",
+        ),
+        *requires_cuda(),
+    ]
+    return _compose(args, requirements)
+
+
 def requires_nvptx(*args):
     """Mark a test as requiring the NVPTX compilation on the CUDA runtime
 
