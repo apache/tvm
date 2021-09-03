@@ -138,19 +138,9 @@ def convert_bmm(g, op, block):
 
     x = g.get_node(op.input("X")[0])
     y = g.get_node(op.input("Y")[0])
-    x_shape = infer_shape(x)
-    y_shape = infer_shape(y)
-    if x_shape[0] == 1 and y_shape == 1:
-        x = _op.reshape(x, x_shape[1:])
-        y = _op.reshape(y, y_shape[1:])
-        y = _op.transpose(y, [1, 0])
-        out = _op.nn.dense(x, y)
-        out = _op.expand_dims(out, axis=0)
-        g.add_node(op.output("Out")[0], out)
-    else:
-        y = _op.transpose(y, [0, 2, 1])
-        out = _op.nn.batch_matmul(x, y)
-        g.add_node(op.output("Out")[0], out)
+    y = _op.transpose(y, [0, 2, 1])
+    out = _op.nn.batch_matmul(x, y)
+    g.add_node(op.output("Out")[0], out)
 
 
 def convert_interpolate2d(g, op, x):
@@ -328,10 +318,10 @@ def convert_conv2d_transpose(g, op, block):
     kernel = g.get_node(op.input("Filter")[0])
     input_x = g.get_node(op.input("Input")[0])
     _, out_channels, k_h, k_w = infer_shape(kernel)
-    in_h, in_w = infer_shape(input_x)[2:]
     if padding_algorithm == "VALID":
         paddings = [0, 0]
     elif padding_algorithm == "SAME":
+        in_h, in_w = infer_shape(input_x)[2:]
         pad_h = _get_pad_size(in_h, (k_h - 1) * dilations[0] + 1, strides[0])
         pad_w = _get_pad_size(in_w, (k_w - 1) * dilations[1] + 1, strides[1])
         paddings = [pad_h[0], pad_w[0], pad_h[1], pad_w[1]]
@@ -1006,8 +996,8 @@ _convert_map = {
     "slice": convert_slice,
     "softmax": convert_softmax,
     "squeeze2": convert_squeeze,
-    "tanh": convert_unary_op,
     "tan": convert_unary_op,
+    "tanh": convert_unary_op,
     "transpose2": convert_transpose,
     "unsqueeze2": convert_unsqueeze,
 }

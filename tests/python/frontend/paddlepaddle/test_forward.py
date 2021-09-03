@@ -156,8 +156,8 @@ def test_forward_unary_op():
         "relu",
         "sigmoid",
         "sin",
-        "tanh",
         "tan",
+        "tanh",
     ]
     for op_name in op_list:
         verify_model(UnaryOp(op_name), input_data)
