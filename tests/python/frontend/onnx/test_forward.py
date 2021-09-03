@@ -5041,6 +5041,81 @@ def test_aten(target, dev):
 
 
 @tvm.testing.parametrize_targets
+def test_index_put(target, dev):
+    class _index_put_model(torch.nn.Module):
+        def __init__(self, indices, values, accumulate):
+            super(_index_put_model, self).__init__()
+            self.indices = indices
+            self.values = values
+            self.accumulate = accumulate
+
+        def forward(self, x):
+            return x.index_put(self.indices, self.values, self.accumulate)
+
+    def _convert_to_onnx(model, dummy_data):
+        file_name = "{}.onnx".format("aten_model")
+        torch.onnx.export(
+            model,
+            dummy_data,
+            file_name,
+            export_params=True,
+            verbose=False,
+            opset_version=11,
+            operator_export_type=torch.onnx.OperatorExportTypes.ONNX_ATEN_FALLBACK,
+        )
+        onnx_model = onnx.load(file_name)
+        return onnx_model
+
+    def verify_index_put(data_shape, indices, accumulate):
+        dummy_data = torch.ones(data_shape)
+        tvm_inputs = [dummy_data.numpy()]
+        values = torch.rand(indices[0].size())
+        model = _index_put_model(indices, values, accumulate)
+        onnx_model = _convert_to_onnx(model, dummy_data)
+        torch_out = model(dummy_data)
+
+        tvm_out = get_tvm_output_with_vm(
+            onnx_model, tvm_inputs, target, dev, freeze_params=True, convert_to_static=True
+        )
+        tvm.testing.assert_allclose(torch_out.numpy(), tvm_out)
+
+    shape = (3, 5)
+    xidx = torch.tensor([0, 1, 2, 2])
+    yidx = torch.tensor([0, 1, 3, 4])
+    verify_index_put(shape, [xidx, yidx], True)
+
+    shape = (3, 5, 3)
+    xidx = torch.tensor([0, 1, 2, 2, 0])
+    yidx = torch.tensor([0, 1, 3, 4, 0])
+    zidx = torch.tensor([0, 1, 1, 2, 0])
+    verify_index_put(shape, [xidx, yidx, zidx], False)
+
+    def verify_index_put_slice(data_shape, value_shape, accumulate):
+        dummy_data = torch.ones(data_shape)
+        tvm_inputs = [dummy_data.numpy()]
+        indices = []
+        index_shape = [1] * len(value_shape)
+        index_shape[0] = -1
+        for i in range(len(value_shape)):
+            indices.append(torch.arange(0, value_shape[i]).reshape(tuple(index_shape)))
+            index_shape.pop()
+        values = torch.rand(value_shape)
+
+        model = _index_put_model(indices, values, accumulate)
+        onnx_model = _convert_to_onnx(model, dummy_data)
+        torch_out = model(dummy_data)
+
+        tvm_out = get_tvm_output_with_vm(
+            onnx_model, tvm_inputs, target, dev, freeze_params=True, convert_to_static=True
+        )
+        tvm.testing.assert_allclose(torch_out.numpy(), tvm_out)
+
+    verify_index_put_slice((3, 3), (2, 2), False)
+    verify_index_put_slice((2, 3, 4), (1, 2, 3), True)
+    verify_index_put_slice((2, 3, 4, 5), (1, 2, 3, 1), False)
+
+
+@tvm.testing.parametrize_targets
 def test_reverse_sequence(target, dev):
     def verify_reverse_sequence(x, sequence_lens, batch_axis, time_axis):
         node = onnx.helper.make_node(
@@ -5616,6 +5691,7 @@ if __name__ == "__main__":
     test_cumsum()
     test_wrong_input()
     test_aten()
+    test_index_put()
     test_reverse_sequence()
     test_eyelike()
     test_qlinearconv()
