@@ -85,10 +85,8 @@ def create(pipe_mod_config):
 
     Parameters
     ----------
-
     pipe_mod_config : PipeModuleConfig
         class to storage IRModule list and pipeline configuration.
-    -------
 
     Returns
     submodule : PipelineModule
@@ -130,7 +128,6 @@ class PipelineModule(object):
 
         Parameters
         ----------
-
         pipeline_mods : List[IRModule]
           list of IRModule
 
@@ -250,13 +247,17 @@ class PipelineConfig(object):
                 if not self.is_global_interface() and self.io_type == "input":
                     raise RuntimeError(f"Module only can start binding from output!")
 
-                if (not self.is_global_interface() and
-                    not binding.is_global_interface() and binding.io_type == "output"
+                if (
+                    not self.is_global_interface()
+                    and not binding.is_global_interface()
+                    and binding.io_type == "output"
                 ):
                     raise RuntimeError(f"Module output can not binding with module output!")
 
-                if (not self.is_global_interface() and
-                    binding.is_global_interface() and binding.io_type == "input"
+                if (
+                    not self.is_global_interface()
+                    and binding.is_global_interface()
+                    and binding.io_type == "input"
                 ):
                     raise RuntimeError(f"Module output can not binding with global input!")
 
@@ -273,10 +274,13 @@ class PipelineConfig(object):
                         isinstance(binding.io_owner, PipelineConfig.ModuleWrapper)
                         and self.data_type != binding.data_type
                     ):
-                        raise RuntimeError(f"Illegal type (%s vs. %s): binding type is not same!" % (self.data_type, binding.data_type))
+                        raise RuntimeError(
+                            f"Illegal type (%s vs. %s): binding type is not same!"
+                            % (self.data_type, binding.data_type)
+                        )
 
                     binding.parents.append(self)
-                    # Do acircle check after add the in-degree.
+                    # Do acyclic check after increase the in-degree.
                     if not self.check_dag_acyclic(
                         binding.io_owner, self.io_owner.input_bindings.bindings
                     ):
@@ -284,18 +288,18 @@ class PipelineConfig(object):
 
         def __init__(self, mod=None):
             """init class"""
-            self.input_params = InferType()(mod)["main"].params
-            self.output_values = InferType()(mod)["main"].checked_type.ret_type
-            self.idx = None
-            self.name = None
-            self.mod = mod
-            self.input_bindings = PipelineConfig.BindingList(self, "input")
-            self.output_bindings = PipelineConfig.BindingList(self, "output")
             self.target_host = None
             self.build_func = None
             self.params = None
             self.target = None
+            self.name = None
             self.dev = None
+            self.idx = None
+            self.mod = mod
+            self.input_params = InferType()(mod)["main"].params
+            self.output_values = InferType()(mod)["main"].checked_type.ret_type
+            self.input_bindings = PipelineConfig.BindingList(self, "input")
+            self.output_bindings = PipelineConfig.BindingList(self, "output")
 
         def __eq__(self, other):
             """check if self equl other"""
@@ -317,7 +321,6 @@ class PipelineConfig(object):
 
         def get_data_type(self, key, stype):
             """get module input/output data type."""
-
             if stype == "input":
                 for param in self.input_params:
                     if param.name_hint == key:
@@ -338,7 +341,7 @@ class PipelineConfig(object):
             self.name = "mod{}".format(str(idx))
 
         def is_root_mod(self):
-            """use by DAG topology sort, identify if this item is root item and in-degree is 0"""
+            """use by dag topology sort, identify if this item is root item"""
             for _, binding in self.input_bindings.bindings.items():
                 if binding.parents:
                     return False
@@ -354,9 +357,9 @@ class PipelineConfig(object):
 
     class BindingList:
         """Use to storage Binding list.
+
         Parameters
         ----------
-
         owner : ModuleWrapper/PipelineConfig
             who own this list, it can be ModuleWrapper or PipelineConfig
 
@@ -373,7 +376,6 @@ class PipelineConfig(object):
             """return binding data type"""
             if isinstance(self.io_owner, PipelineConfig.ModuleWrapper):
                 return self.io_owner.get_data_type(key, self.binding_type)
-
             return None
 
         def __getitem__(self, key):
@@ -396,9 +398,8 @@ class PipelineConfig(object):
 
     def __str__(self):
         """ Get configuration in string type"""
-        # Sort moudles
+        # topology sort to get correct module order in list.
         self.dag_topology_sort()
-
         # get input
         input_dump = "Inputs\n"
         for input_name in self.input_bindings.bindings:
@@ -433,7 +434,6 @@ class PipelineConfig(object):
         if isinstance(key, tvm.ir.module.IRModule):
             if key not in self.mod_wrapper:
                 self.mod_wrapper[key] = self.ModuleWrapper(key)
-
             return self.mod_wrapper[key]
 
         if isinstance(key, str):
@@ -447,9 +447,8 @@ class PipelineConfig(object):
     def get_config(self):
         """ Get configuration in dictionary format."""
 
-        # Sort moudles
+        # topology sort to get correct module order in list.
         self.dag_topology_sort()
-
         mconfig = {}
         for mod in self.mod_wrapper:
             # get pipeline configure
@@ -468,10 +467,10 @@ class PipelineConfig(object):
                         dep_conf.append(dep_item)
 
                 # ouput_idx start from 0.
-
                 output["output_idx"] = int(binding.name)
                 output["dependent"] = dep_conf
                 output_conf.append(output)
+
             mconf["mod_idx"] = module.idx
             mconf["output"] = output_conf
 
@@ -490,7 +489,6 @@ class PipelineConfig(object):
 
     def dag_topology_sort(self):
         """ Do topology sort to get pipeline module order."""
-
         mlist = []
         mod_wrapper = self.mod_wrapper.copy()
         while mod_wrapper:
@@ -527,7 +525,6 @@ class PipelineExecutorFactoryModule(object):
 
     Parameters
     ----------
-
     pipeline_mods : List[IRModule]
         list of IRModule
 

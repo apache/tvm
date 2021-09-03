@@ -270,6 +270,4 @@ def test_pipeline():
 
 
 if __name__ == "__main__":
-    #pytest.main([__file__])
-    test_pipeline()
-    test_pipe_config_check()
+    pytest.main([__file__])
