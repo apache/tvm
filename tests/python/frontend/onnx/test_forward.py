@@ -235,8 +235,7 @@ def verify_with_ort(
 
 
 def quantize_and_verify_with_ort(onnx_model, input_names, input_shapes, target, dev):
-    from onnxruntime.quantization import (CalibrationDataReader, QuantType,
-                                          quantize_static)
+    from onnxruntime.quantization import CalibrationDataReader, QuantType, quantize_static
 
     input_arrays = [np.random.random(shape).astype("float32") for shape in input_shapes]
 
@@ -4926,12 +4925,12 @@ def test_onnx_nodes(target, dev, onnx_test):
         # for some reason the ONNX test crops the
         # roialign results to 4 decimal places
         atol = 1e-4
-        
+
     if "_sce_" in test_dir:
         # complicated loss functions like SoftmaxCrossEntropy can have minor variations
         # in accuracy depending on implementation
         atol = 1e-4
-        
+
     onnx_model = onnx.load(test_dir + "/model.onnx")
     inputs = []
     outputs = []
