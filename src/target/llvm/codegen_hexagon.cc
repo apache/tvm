@@ -720,6 +720,8 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
       auto attrs_dict = Downcast<Map<String, ObjectRef>>(kv.second->attrs->dict);
       CHECK(attrs_dict.find(::tvm::tir::attr::kLinkedParams) != attrs_dict.end())
           << "no " << ::tvm::tir::attr::kLinkedParams << " attribute found!";
+
+      CHECK(!linked_params.defined()) << "Multiple linked-param functions";
       linked_params =
           Downcast<Map<String, LinkedParam>>(attrs_dict[::tvm::tir::attr::kLinkedParams]);
       continue;
