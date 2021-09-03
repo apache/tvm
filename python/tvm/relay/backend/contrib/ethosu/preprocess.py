@@ -19,8 +19,8 @@
 NPU code generation. These set of passes will mutate both the main and the
 external functions.
 """
-import tvm
-from . import _ffi_api
+import tvm  # type: ignore
+from . import _ffi_api  # type: ignore
 
 
 def preprocess_ext_io() -> tvm.transform.Pass:
@@ -33,4 +33,4 @@ def preprocess_ext_io() -> tvm.transform.Pass:
     ret : tvm.transform.Pass
         The registered pass to mutate the IO of the external functions and their calls.
     """
-    return _ffi_api.PreprocessExternalFuncIO()
+    return _ffi_api.PreprocessExternalFuncIO()  # type: ignore # pylint: disable=no-member

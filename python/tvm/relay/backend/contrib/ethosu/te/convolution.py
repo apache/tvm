@@ -18,7 +18,7 @@
 """Tensor Expressions for convolutions for the NPU"""
 from typing import Tuple, Union, List
 
-from tvm import te
+from tvm import te  # type: ignore
 from .dma import dma_ofm_compute, dma_ifm_compute
 
 
@@ -34,7 +34,7 @@ def conv2d_compute(
     ofm_zero_point: int,
     strides: Tuple[int, int],
     padding: Tuple[int, int, int, int],
-    dilation: Union[int, Tuple[int, int], List[int]],
+    dilation: Union[Tuple[int, int], List[int]],
     activation: str,
     clip_min: int,
     clip_max: int,
@@ -68,7 +68,7 @@ def conv2d_compute(
         The 2 dimensional strides as (stride_height, stride_width).
     padding : tuple
         The 4 dimensional padding as (pad_top, pad_left, pad_bottom, pad_right).
-    dilation : Union[int, tuple, list]
+    dilation : Union[Tuple[int, int], List[int]]
         The 2 dimensional dilation as (dilation_height, dilation_width).
     activation : str
         The activation function to use.

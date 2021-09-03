@@ -24,10 +24,10 @@ The following conversion APIs are added :
 import logging
 import math
 from typing import Tuple, Optional, List
-import numpy as np
-from ethosu.vela import api as vapi
+import numpy as np  # type: ignore
+from ethosu.vela import api as vapi  # type: ignore
 
-from tvm.relay.backend.contrib.ethosu import util
+from tvm.relay.backend.contrib.ethosu import util  # type: ignore
 
 # pylint: disable=invalid-name
 logger = logging.getLogger("Ethos-U")

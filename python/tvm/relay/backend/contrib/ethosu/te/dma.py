@@ -16,14 +16,16 @@
 # under the License.
 # pylint: disable=invalid-name,unnecessary-lambda
 """Tensor Expressions for operations supported by the NPU DMA engine"""
-from typing import Callable, Tuple
+from typing import Callable, Tuple, Optional, List
 
-import tvm
+import tvm  # type: ignore
 from tvm import te
-from tvm.topi.utils import equal_const_int
+from tvm.topi.utils import equal_const_int  # type: ignore
 
 
-def _pad_tensor(tensor: te.Tensor, pad_before: tuple, pad_after: tuple = None) -> Callable:
+def _pad_tensor(
+    tensor: te.Tensor, pad_before: List[int], pad_after: Optional[List[int]] = None
+) -> Callable:
     """Generate a padded tensor.
 
     Parameters
@@ -212,7 +214,7 @@ def convert_to_nhcwb16_compute(tensor: te.Tensor, layout: str, channels: int) ->
     )
 
 
-def pad_compute(tensor: te.Tensor, padding: tuple):
+def pad_compute(tensor: te.Tensor, padding: tuple) -> te.Tensor:
     """Pad an NHWC tensor in the height and width axes.
 
     Parameters
@@ -229,8 +231,8 @@ def pad_compute(tensor: te.Tensor, padding: tuple):
 
     """
     pad_top, pad_left, pad_down, pad_right = padding
-    pad_before = [0, pad_top, pad_left, 0]
-    pad_after = [0, pad_down, pad_right, 0]
+    pad_before = [0, int(pad_top), int(pad_left), 0]
+    pad_after = [0, int(pad_down), int(pad_right), 0]
     pad_attrs = {
         "op": "ethosu_pad",
     }

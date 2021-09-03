@@ -18,10 +18,10 @@
 """Relay operators for convolutions for Arm(R) Ethos(TM)-U NPU"""
 from typing import Tuple
 
-import tvm
-from tvm.relay.op import _make
-from tvm.topi.generic import schedule_injective
-from tvm.relay.op.op import OpStrategy
+import tvm  # type: ignore
+from tvm.relay.op import _make  # type: ignore
+from tvm.topi.generic import schedule_injective  # type: ignore
+from tvm.relay.op.op import OpStrategy  # type: ignore
 from tvm.relay.op import strategy as _strategy
 
 from ..te import conv2d_compute

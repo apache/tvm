@@ -19,7 +19,7 @@
 
 /*!
  * \file src/relay/op/contrib/ethosu/convolution.cc
- * \brief Property def of the Arm(R) Ethos(TM)-U NPU convolution ops.
+ * \brief Operator definitions for the Arm(R) Ethos(TM)-U NPU convolution ops.
  */
 #include "../../nn/convolution.h"
 

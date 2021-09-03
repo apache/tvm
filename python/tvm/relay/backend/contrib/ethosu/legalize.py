@@ -17,19 +17,19 @@
 # pylint: disable=invalid-name, unused-argument, import-outside-toplevel, no-value-for-parameter
 """A set of passes to legalize some of operations for the NPU"""
 from typing import List
-import numpy as np
+import numpy as np  # type: ignore
 
-import tvm
+import tvm  # type: ignore
 from tvm import relay
 from tvm import ir
-from tvm.relay.dataflow_pattern import DFPatternCallback
+from tvm.relay.dataflow_pattern import DFPatternCallback  # type: ignore
 from tvm.relay.dataflow_pattern import wildcard
 from tvm.relay.dataflow_pattern import is_op
 from tvm.relay.dataflow_pattern import rewrite
-from tvm.relay.backend.contrib.ethosu import op as ethosu_ops
-from tvm.relay.backend.contrib.ethosu.errors import UnsupportedLayout
+from tvm.relay.backend.contrib.ethosu import op as ethosu_ops  # type: ignore
+from tvm.relay.backend.contrib.ethosu.errors import UnsupportedLayout  # type: ignore
 from tvm.relay.backend.contrib.ethosu import vela_api
-from tvm.relay.op.contrib import ethosu as ethosu_patterns
+from tvm.relay.op.contrib import ethosu as ethosu_patterns  # type: ignore
 
 
 class SplitRewriter(DFPatternCallback):

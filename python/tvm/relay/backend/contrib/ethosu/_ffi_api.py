@@ -15,6 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """FFI APIs for relay transformation passes."""
-import tvm._ffi
+import tvm._ffi  # type: ignore
 
 tvm._ffi._init_api("relay.ext.ethosu", __name__)

@@ -23,12 +23,12 @@ Refer to the description inside such functions
 
 from enum import Enum
 from typing import Union, Tuple, Dict, Optional
-import numpy as np
+import numpy as np  # type: ignore
 
-import tvm
+import tvm  # type: ignore
 from tvm import relay
-from tvm.relay.build_module import bind_params_by_name
-from tvm.relay.backend.contrib.ethosu import preprocess
+from tvm.relay.build_module import bind_params_by_name  # type: ignore
+from tvm.relay.backend.contrib.ethosu import preprocess  # type: ignore
 
 
 class QConv2DArgs(Enum):
