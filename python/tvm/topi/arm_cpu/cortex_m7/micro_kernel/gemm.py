@@ -47,8 +47,8 @@ def intrin_gemm_MxKxN(M, K, N, in_dtype, out_dtype):
     if isinstance(N, tvm.tir.IntImm):
         N = N.value
     # TODO(weberlo, areusch): support more dtypes?
-    assert in_dtype == "int8"
-    assert out_dtype == "int32"
+    # assert in_dtype == "int8"
+    # assert out_dtype == "int32"
     A = te.placeholder((M, K), name="a", dtype=in_dtype)
     B = te.placeholder((N, K), name="b", dtype=in_dtype)
     k = te.reduce_axis((0, K), name="k")
@@ -170,7 +170,7 @@ __STATIC_FORCEINLINE int32_t gemm_{M}x{N}_body_rest_{uniq_id}(
 			}}
 		}}
 		break;
-	}}		
+	}}
   return 0;
 }}
 
@@ -200,19 +200,19 @@ extern "C"
 #endif
 __STATIC_FORCEINLINE int32_t gemm_{M}x{K}x{N}_body_{uniq_id}(
     int8_t *aa, int8_t *bb, int32_t *cc,
-    int A_stride, int B_stride, int C_stride) {{	
+    int A_stride, int B_stride, int C_stride) {{
 	int16_t bb_pad[{bb_pad_size}];
-	
-  if ( {M} < 16 || {N} < 16 )
-		return gemm_{M}x{K}x{N}_body_loop_{uniq_id}(aa, bb, cc, A_stride, B_stride, C_stride);	
 
-  for (int i = 0; i < {N}; i++) 
-    for (int j = 0; j < {K} / 4; j++) 
+  if ( {M} < 16 || {N} < 16 )
+		return gemm_{M}x{K}x{N}_body_loop_{uniq_id}(aa, bb, cc, A_stride, B_stride, C_stride);
+
+  for (int i = 0; i < {N}; i++)
+    for (int j = 0; j < {K} / 4; j++)
       read_and_pad(&bb[i*B_stride + j*4], (int32_t*) &bb_pad[i*{K} + j*4], (int32_t*) &bb_pad[i*{K} + j*4 + 2]);
 
   for (int i = 0; i < {M}; i++) {{
 		int16_t aa_pad_line[{K}];
-    for (int l = 0; l < {K} / 4; l++) 
+    for (int l = 0; l < {K} / 4; l++)
       read_and_pad(&aa[i*A_stride + l*4], (int32_t*) &aa_pad_line[l*4], (int32_t*) &aa_pad_line[l*4 + 2]);
 
     for (int j = 0; j < {N}; j++) {{
@@ -229,10 +229,10 @@ __STATIC_FORCEINLINE int32_t gemm_{M}x{K}x{N}_body_{uniq_id}(
       cc[i*C_stride + j] = sum;
     }}
   }}
-	
+
   if ( {K} % 4 != 0 )
 		gemm_{M}x{N}_body_rest_{uniq_id}({K}, aa, bb, cc, A_stride, B_stride, C_stride);
-	
+
   return 0;
 }}
 
@@ -276,7 +276,7 @@ __STATIC_FORCEINLINE int32_t gemm_{M}x{N}_update_rest_{uniq_id}(
 			}}
 		}}
 		break;
-	}}		
+	}}
   return 0;
 }}
 
@@ -303,19 +303,19 @@ extern "C"
 #endif
 __STATIC_FORCEINLINE int32_t gemm_{M}x{K}x{N}_update_{uniq_id}(
     int8_t *aa, int8_t *bb, int32_t *cc,
-    int A_stride, int B_stride, int C_stride) {{	
+    int A_stride, int B_stride, int C_stride) {{
 	int16_t bb_pad[{bb_pad_size}];
-	
-  if ( {M} < 16 || {N} < 16 )
-		return gemm_{M}x{K}x{N}_update_loop_{uniq_id}(aa, bb, cc, A_stride, B_stride, C_stride);	
 
-  for (int i = 0; i < {N}; i++) 
-    for (int j = 0; j < {K} / 4; j++) 
+  if ( {M} < 16 || {N} < 16 )
+		return gemm_{M}x{K}x{N}_update_loop_{uniq_id}(aa, bb, cc, A_stride, B_stride, C_stride);
+
+  for (int i = 0; i < {N}; i++)
+    for (int j = 0; j < {K} / 4; j++)
       read_and_pad(&bb[i*B_stride + j*4], (int32_t*) &bb_pad[i*{K} + j*4], (int32_t*) &bb_pad[i*{K} + j*4 + 2]);
 
   for (int i = 0; i < {M}; i++) {{
 		int16_t aa_pad_line[{K}];
-    for (int l = 0; l < {K} / 4; l++) 
+    for (int l = 0; l < {K} / 4; l++)
       read_and_pad(&aa[i*A_stride + l*4], (int32_t*) &aa_pad_line[l*4], (int32_t*) &aa_pad_line[l*4 + 2]);
 
 		for (int j = 0; j < {N}; j++) {{
@@ -329,10 +329,10 @@ __STATIC_FORCEINLINE int32_t gemm_{M}x{K}x{N}_update_{uniq_id}(
       cc[i*C_stride + j] += sum;
     }}
   }}
-	
+
   if ( {K} % 4 != 0 )
 		gemm_{M}x{N}_update_rest_{uniq_id}({K}, aa, bb, cc, A_stride, B_stride, C_stride);
-	
+
   return 0;
 }}
 
