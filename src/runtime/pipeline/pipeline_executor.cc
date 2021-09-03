@@ -30,6 +30,13 @@ void PipelineRuntime::Init(const Array<tvm::runtime::Module>& modules,
   return;
 }
 
+/* GetFunction can not be pure abstract function, implement a empty function for initial.
+ */
+PackedFunc PipelineRuntime::GetFunction(const std::string& name,
+                                        const ObjectPtr<Object>& sptr_to_self) {
+  return nullptr;
+}
+
 Module PipelineRuntimeCreate(const Array<tvm::runtime::Module>& m,
                              const std::string& pipeline_json) {
   auto exec = make_object<PipelineRuntime>();

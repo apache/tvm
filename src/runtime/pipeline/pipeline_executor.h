@@ -25,16 +25,9 @@
 #define TVM_RUNTIME_PIPELINE_PIPELINE_EXECUTOR_H_
 #include <tvm/runtime/registry.h>
 
-#include <memory>
 #include <string>
-#include <unordered_map>
-#include <vector>
-
-#include "../file_utils.h"
-using namespace std;
 namespace tvm {
 namespace runtime {
-
 /*!
  * \brief pipeline runtime.
  *
@@ -59,6 +52,13 @@ class TVM_DLL PipelineRuntime : public ModuleNode {
    *  which is not compatible with RPCModules.
    */
   void Init(const Array<tvm::runtime::Module>& modules, const std::string& pipeline_json);
+  /*!
+   * \brief Get member function to front-end
+   * \param name The name of the function.
+   * \param sptr_to_self The pointer to the module node.
+   * \return The corresponding member function.
+   */
+  virtual PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self);
 };
 }  // namespace runtime
 }  // namespace tvm
