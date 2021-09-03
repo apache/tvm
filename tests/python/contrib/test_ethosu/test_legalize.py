@@ -96,10 +96,10 @@ def test_split_sections_legalize():
     def create_graph(axis, sections):
         x = relay.var("x", shape=(1, 50, 50, 3))
         x_abs = relay.abs(x)
-        split_o = relay.split(x_abs, sections, axis).tuple_value
+        split_output = relay.split(x_abs, sections, axis).tuple_value
         outputs = list()
         for section_idx in range(sections):
-            split_single_out = relay.TupleGetItem(split_o, section_idx)
+            split_single_out = relay.TupleGetItem(split_output, section_idx)
             tanh = relay.tanh(split_single_out)
             outputs.append(tanh)
         tuple_out = relay.Tuple(outputs)
