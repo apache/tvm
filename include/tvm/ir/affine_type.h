@@ -71,7 +71,7 @@ class TensorAffineTypeNode : public AffineTypeNode {
   RelayExpr zero_point;
   /*! \brief The data type of this type */
   DataType dtype;
-  /*! \brief The data type of this type */
+  /*! \brief The axis for per-channel quantization */
   int axis;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
