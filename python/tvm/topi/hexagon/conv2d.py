@@ -15,17 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# pylint: disable=wildcard-import
-"""Relay op strategies."""
-from __future__ import absolute_import as _abs
+""" Schedules for conv2d. """
 
-from .generic import *
-from . import x86
-from . import arm_cpu
-from . import cuda
-from . import hls
-from . import mali
-from . import bifrost
-from . import rocm
-from . import intel_graphics
-from . import hexagon
+import tvm
+
+
+def schedule_conv2d_nhwc(outs):
+    """Schedule for Conv2d NHWC operator."""
+    s = tvm.te.create_schedule([x.op for x in outs])
+    return s
