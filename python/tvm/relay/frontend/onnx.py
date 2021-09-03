@@ -1899,6 +1899,22 @@ class Hardmax(OnnxOpConverter):
         )
         return _op.reshape(onehot, shape_of(inputs[0]))
 
+    @classmethod
+    def _impl_v13(cls, inputs, attr, params) -> relay.Expr:
+        inferred_type = infer_type(inputs[0])
+        dtype = inferred_type.checked_type.dtype
+        ndim = len(inferred_type.checked_type.shape)
+        axis = attr.get("axis", -1) % ndim
+
+        argmax = _op.argmax(inputs[0], axis=axis)
+        return _op.one_hot(
+            argmax,
+            _op.const(1.0, dtype),
+            _op.const(0.0, dtype),
+            fold_constant(_op.take(shape_of(inputs[0]), _op.const([axis], "int64"))),
+            axis,
+            dtype,
+        )
 
 class OneHot(OnnxOpConverter):
     """Operator converter for OneHot."""
