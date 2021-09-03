@@ -79,12 +79,14 @@ def _infer_value(x, params):
 def convert_unary_op(g, op, block):
     """Operator converter for all the activation."""
 
-    op_map = {}
+    op_map = {
+        "isinf_v2": _op.isinf,
+    }
     if op.type in op_map:
-        act_func = op_map[op.type]
+        unary_func = op_map[op.type]
     else:
-        act_func = get_relay_op(op.type)
-    out = act_func(g.get_node(op.input("X")[0]))
+        unary_func = get_relay_op(op.type)
+    out = unary_func(g.get_node(op.input("X")[0]))
     g.add_node(op.output("Out")[0], out)
 
 
@@ -136,19 +138,9 @@ def convert_bmm(g, op, block):
 
     x = g.get_node(op.input("X")[0])
     y = g.get_node(op.input("Y")[0])
-    x_shape = infer_shape(x)
-    y_shape = infer_shape(y)
-    if x_shape[0] == 1 and y_shape == 1:
-        x = _op.reshape(x, x_shape[1:])
-        y = _op.reshape(y, y_shape[1:])
-        y = _op.transpose(y, [1, 0])
-        out = _op.nn.dense(x, y)
-        out = _op.expand_dims(out, axis=0)
-        g.add_node(op.output("Out")[0], out)
-    else:
-        y = _op.transpose(y, [0, 2, 1])
-        out = _op.nn.batch_matmul(x, y)
-        g.add_node(op.output("Out")[0], out)
+    y = _op.transpose(y, [0, 2, 1])
+    out = _op.nn.batch_matmul(x, y)
+    g.add_node(op.output("Out")[0], out)
 
 
 def convert_interpolate2d(g, op, x):
@@ -326,10 +318,10 @@ def convert_conv2d_transpose(g, op, block):
     kernel = g.get_node(op.input("Filter")[0])
     input_x = g.get_node(op.input("Input")[0])
     _, out_channels, k_h, k_w = infer_shape(kernel)
-    in_h, in_w = infer_shape(input_x)[2:]
     if padding_algorithm == "VALID":
         paddings = [0, 0]
     elif padding_algorithm == "SAME":
+        in_h, in_w = infer_shape(input_x)[2:]
         pad_h = _get_pad_size(in_h, (k_h - 1) * dilations[0] + 1, strides[0])
         pad_w = _get_pad_size(in_w, (k_w - 1) * dilations[1] + 1, strides[1])
         paddings = [pad_h[0], pad_w[0], pad_h[1], pad_w[1]]
@@ -554,6 +546,16 @@ def convert_lookup_table(g, op, block):
         g.add_node(op.input("W")[0], _expr.const(g.params[op.input("W")[0]]))
     weights = g.get_node(op.input("W")[0])
     out = _op.take(weights, indices.astype("int32"), axis=0)
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_log1p(g, op, block):
+    """Operator converter for log1p."""
+
+    x = g.get_node(op.input("X")[0])
+    dtype = infer_type(x).checked_type.dtype
+    one = _expr.const(1, dtype=dtype)
+    out = _op.log(x + one)
     g.add_node(op.output("Out")[0], out)
 
 
@@ -952,6 +954,7 @@ _convert_map = {
     "concat": convert_concat,
     "conv2d": convert_conv2d,
     "conv2d_transpose": convert_conv2d_transpose,
+    "cosh": convert_unary_op,
     "cumsum": convert_cumsum,
     "depthwise_conv2d": convert_conv2d,
     "dropout": convert_dropout,
@@ -964,12 +967,18 @@ _convert_map = {
     "feed": convert_feed,
     "fill_any_like": convert_fill_any_like,
     "fill_constant": convert_fill_constant,
+    "floor": convert_unary_op,
     "gelu": convert_gelu,
     "hard_sigmoid": convert_hard_sigmoid,
     "hard_swish": convert_hard_swish,
+    "isinf": convert_unary_op,
+    "isinf_v2": convert_unary_op,
     "layer_norm": convert_layer_norm,
     "leaky_relu": convert_leaky_relu,
     "lookup_table_v2": convert_lookup_table,
+    "log": convert_unary_op,
+    "log10": convert_unary_op,
+    "log1p": convert_log1p,
     "matmul": convert_matmul,
     "matmul_v2": convert_matmul,
     "mul": convert_mul,
@@ -983,9 +992,11 @@ _convert_map = {
     "scale": convert_scale,
     "shape": convert_shape,
     "sigmoid": convert_unary_op,
+    "sin": convert_unary_op,
     "slice": convert_slice,
     "softmax": convert_softmax,
     "squeeze2": convert_squeeze,
+    "tan": convert_unary_op,
     "tanh": convert_unary_op,
     "transpose2": convert_transpose,
     "unsqueeze2": convert_unsqueeze,
