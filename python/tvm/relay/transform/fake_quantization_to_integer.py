@@ -255,12 +255,13 @@ def relu(expr, type_map):
     arg = expr.args[0]
     t = type_map[arg]
     scale_shape = infer_shape(t.scale)
-    zero = relay.const(0, dtype="float32")
-    if len(scale_shape) > 0 and scale_shape[0] > 1:
+    z_p = t.zero_point
+    assert len(scale_shape) <= 1
+    if len(scale_shape) == 1 and scale_shape[0] > 1:
         b_shape = [1] * len(infer_shape(arg))
         b_shape[t.axis] = -1
-        zero = relay.op.reshape(relay.op.broadcast_to(zero, scale_shape), b_shape)
-    zero = relay.qnn.op.quantize(zero, t.scale, t.zero_point, t.axis, t.dtype)
+        z_p = relay.op.reshape(relay.op.broadcast_to(z_p, scale_shape), b_shape)
+    zero = relay.op.cast(z_p, t.dtype)
     return [relay.op.maximum(arg, fold_constant(zero)), t]
 
 
