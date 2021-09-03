@@ -176,10 +176,10 @@ class PipelineConfig(object):
 
         class Binding:
             """The class that use to storage module connection information.
-               There are 2 types Binding Input:1 Output:2
+            The binding can be either "input" or "output".
+
             Parameters
             ----------
-
             owner : ModuleWrapper
                 The class that own this interface, in such class there are
                 Module information like index, module name
@@ -188,8 +188,8 @@ class PipelineConfig(object):
                 The type of this binding. It can be either "input" or "output".
 
             name : str/integer
-                Binding name, for input that is string for example "data0"
-                for output that is integer for example 0.
+                Binding name, for input it is string such as "data0";
+                for output it is the index integer such as 0.
             """
 
             def __init__(self, owner, stype, name, data_type=None):
@@ -230,7 +230,7 @@ class PipelineConfig(object):
 
             def dag_acircle_check(self, start, inputs):
                 """check if the DAG that current binding stay is acircle"""
-                for _, binding in inputs.items():
+                for binding in inputs.values():
                     if start == binding.io_owner:
                         return False
                     for p in binding.parents:
@@ -274,7 +274,7 @@ class PipelineConfig(object):
                         isinstance(binding.io_owner, PipelineConfig.ModuleWrapper)
                         and self.data_type != binding.data_type
                     ):
-                        raise RuntimeError(f"Illegal type:binding type is not same!")
+                        raise RuntimeError(f"Illegal type (%s vs. %s): binding type is not same!" % (self.data_type, binding.data_type))
 
                     binding.parents.append(self)
                     # Do acircle check after add the in-degree.
