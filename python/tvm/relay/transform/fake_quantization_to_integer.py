@@ -295,6 +295,12 @@ def pad(expr, type_map):
     return [out, t]
 
 
+@register_fake_quantization_to_integer("nn.depth_to_space")
+def depth_to_space(exp, type_map):
+    """Rewrite an nn.depth_to_space op"""
+    breakpoint()
+
+
 def get_binary_types(expr, type_map):
     """Get Affine types of a binary op's inputs and unify them"""
     ##Support the case where one input is quantized and the other is a constant float
