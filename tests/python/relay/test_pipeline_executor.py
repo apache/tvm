@@ -92,11 +92,11 @@ def get_manual_conf(mods, target):
     # input
     """
     pipe_config1 = {
-        "mod_indx": 1,
+        "mod_idx": 1,
         "output": [
-            {"output_indx": 0, "dependent": [{"mod_indx": 2, "input_name": "data_0"}]},
-            {"output_indx": 1, "dependent": [{"mod_indx": 3, "input_name": "data_0"}]},
-            {"output_indx": 2, "dependent": [{"mod_indx": 0, "input_name": "0"}]},
+            {"output_idx": 0, "dependent": [{"mod_idx": 2, "input_name": "data_0"}]},
+            {"output_idx": 1, "dependent": [{"mod_idx": 3, "input_name": "data_0"}]},
+            {"output_idx": 2, "dependent": [{"mod_idx": 0, "input_name": "0"}]},
         ],
     }
     mod_config[mods[0]] = {
@@ -110,9 +110,9 @@ def get_manual_conf(mods, target):
     }
 
     pipe_config2 = {
-        "mod_indx": 2,
+        "mod_idx": 2,
         "output": [
-            {"output_indx": 0, "dependent": [{"mod_indx": 3, "input_name": "data_1"}]},
+            {"output_idx": 0, "dependent": [{"mod_idx": 3, "input_name": "data_1"}]},
         ],
     }
     mod_config[mods[1]] = {
@@ -126,8 +126,8 @@ def get_manual_conf(mods, target):
     }
 
     pipe_config3 = {
-        "mod_indx": 3,
-        "output": [{"output_indx": 0, "dependent": [{"mod_indx": 0, "input_name": "1"}]}],
+        "mod_idx": 3,
+        "output": [{"output_idx": 0, "dependent": [{"mod_idx": 0, "input_name": "1"}]}],
     }
     mod_config[mods[2]] = {
         "pipeline": pipe_config3,
@@ -141,90 +141,11 @@ def get_manual_conf(mods, target):
     return mod_config
 
 
-def pipeline(target):
+def test_pipe_config_check():
     """
     #Get 3 pipeline module.
     """
     (mod1, mod2, mod3), dshape = get_mannual_mod()
-
-    # Prepare batch data for pipeline feeding
-    datas = []
-    for i in range(5):
-        datas.append(np.full(dshape, 3 + i).astype("float32"))
-
-    # Runtime error check
-    pipe_config_check(mod1, mod2, mod3)
-
-    pipe_config = pipeline_executor.PipelineConfig()
-
-    # Create pipeline compute input/output and subgraph dependent relation.
-
-    # Test in key mode for binding find.
-    # pipeline compute input "data_0" would get forward to mod1 as input "data_0"
-    pipe_config["input"]["data_0"].connect(pipe_config[mod1]["input"]["data_0"])
-
-    # pipeline compute input "data_1" would get forward to mod2 as input "data_1"
-    pipe_config["input"]["data_1"].connect(pipe_config[mod2]["input"]["data_1"])
-
-    # mod1 output(0) would get forward to mod2 as input "data_0"
-    pipe_config[mod1]["output"][0].connect(pipe_config[mod2]["input"]["data_0"])
-
-    # mod1 output(1) would get forward to mod3 as input "data_0"
-    pipe_config[mod1]["output"][1].connect(pipe_config[mod3]["input"]["data_0"])
-
-    # mod2 output(0) would get forward to mod3 as input "data_1"
-    pipe_config[mod2]["output"][0].connect(pipe_config[mod3]["input"]["data_1"])
-
-    # mod1 output(2) would get forward as final pipeline compute output(1)
-    pipe_config[mod1]["output"][2].connect(pipe_config["output"]["0"])
-
-    # mod3 output(0) would get forward as final pipeline compute output(2)
-    pipe_config[mod3]["output"][0].connect(pipe_config["output"]["1"])
-    """
-    # print configueration (print(pipe_config)), the expect result like following.
-    #
-    #Inputs
-    #  |data_0: mod1:data_0
-    #  |data_1: mod2:data_1
-    #
-    #output
-    #  |output(1) : mod1.output(2)
-    #  |output(2) : mod3.output(0)
-    #
-    #connections
-    #  |mod1.output(0)-> mod2.data_0
-    #  |mod1.output(1)-> mod3.data_0
-    #  |mod2.output(0)-> mod3.data_1
-    """
-
-    """
-    # set other parameter.
-    """
-    pipe_config[mod1].set_target(target[0])
-    pipe_config[mod1].set_dev(target[1])
-
-    pipe_config[mod2].set_target("llvm")
-    pipe_config[mod2].set_dev(tvm.cpu(0))
-
-    pipe_config[mod3].set_target("llvm")
-    pipe_config[mod3].set_dev(tvm.cpu(0))
-
-    """
-    # check if the configuration match expectation.
-    """
-    assert pipe_config.get_config() == get_manual_conf([mod1, mod2, mod3], target)
-
-    """
-    # Test build and create pipeline module
-    """
-    with relay.build_config(opt_level=3):
-        pipeline_mod_config = pipeline_executor.build(pipe_config)
-
-    pipeline_module = pipeline_executor.create(pipeline_mod_config)
-    assert pipeline_module
-
-
-def pipe_config_check(mod1, mod2, mod3):
     """
     # try invalid input/output name exepect runtime error
     """
@@ -269,8 +190,86 @@ def test_pipeline():
     if pipeline_executor.pipeline_executor_enabled():
         target_list = tvm.testing.enabled_targets()
         for target in target_list:
-            pipeline(target)
+            """
+            #Get 3 pipeline module.
+            """
+            (mod1, mod2, mod3), dshape = get_mannual_mod()
+
+            # Prepare batch data for pipeline feeding
+            datas = []
+            for i in range(5):
+                datas.append(np.full(dshape, 3 + i).astype("float32"))
+
+            pipe_config = pipeline_executor.PipelineConfig()
+
+            # Create pipeline compute input/output and subgraph dependent relation.
+
+            # Test in key mode for binding find.
+            # pipeline compute input "data_0" would get forward to mod1 as input "data_0"
+            pipe_config["input"]["data_0"].connect(pipe_config[mod1]["input"]["data_0"])
+
+            # pipeline compute input "data_1" would get forward to mod2 as input "data_1"
+            pipe_config["input"]["data_1"].connect(pipe_config[mod2]["input"]["data_1"])
+
+            # mod1 output(0) would get forward to mod2 as input "data_0"
+            pipe_config[mod1]["output"][0].connect(pipe_config[mod2]["input"]["data_0"])
+
+            # mod1 output(1) would get forward to mod3 as input "data_0"
+            pipe_config[mod1]["output"][1].connect(pipe_config[mod3]["input"]["data_0"])
+
+            # mod2 output(0) would get forward to mod3 as input "data_1"
+            pipe_config[mod2]["output"][0].connect(pipe_config[mod3]["input"]["data_1"])
+
+            # mod1 output(2) would get forward as final pipeline compute output(1)
+            pipe_config[mod1]["output"][2].connect(pipe_config["output"]["0"])
+
+            # mod3 output(0) would get forward as final pipeline compute output(2)
+            pipe_config[mod3]["output"][0].connect(pipe_config["output"]["1"])
+            """
+            # print configueration (print(pipe_config)), the expect result like following.
+            #
+            #Inputs
+            #  |data_0: mod1:data_0
+            #  |data_1: mod2:data_1
+            #
+            #output
+            #  |output(1) : mod1.output(2)
+            #  |output(2) : mod3.output(0)
+            #
+            #connections
+            #  |mod1.output(0)-> mod2.data_0
+            #  |mod1.output(1)-> mod3.data_0
+            #  |mod2.output(0)-> mod3.data_1
+            """
+
+            """
+            # set other parameter.
+            """
+            pipe_config[mod1].target = target[0]
+            pipe_config[mod1].dev = target[1]
+
+            pipe_config[mod2].target = "llvm"
+            pipe_config[mod2].dev = tvm.cpu(0)
+
+            pipe_config[mod3].target = "llvm"
+            pipe_config[mod3].dev = tvm.cpu(0)
+
+            """
+            # check if the configuration match expectation.
+            """
+            assert pipe_config.get_config() == get_manual_conf([mod1, mod2, mod3], target)
+
+            """
+            # Test build and create pipeline module
+            """
+            with tvm.transform.PassContext(opt_level=3):
+                pipeline_mod_config = pipeline_executor.build(pipe_config)
+
+            pipeline_module = pipeline_executor.create(pipeline_mod_config)
+            assert pipeline_module
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    #pytest.main([__file__])
+    test_pipeline()
+    test_pipe_config_check()
