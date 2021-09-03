@@ -1916,6 +1916,7 @@ class Hardmax(OnnxOpConverter):
             dtype,
         )
 
+
 class OneHot(OnnxOpConverter):
     """Operator converter for OneHot."""
 
