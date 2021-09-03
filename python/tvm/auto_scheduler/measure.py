@@ -43,6 +43,7 @@ from tvm.runtime import Object, module, ndarray
 from tvm.driver import build_module
 from tvm.ir import transform
 from tvm.autotvm.measure.measure_methods import set_cuda_target_arch
+from tvm.autotvm.env import AutotvmGlobalScope, reset_global_scope
 from tvm.contrib import tar, ndk
 from tvm.contrib.popen_pool import PopenWorker, PopenPoolExecutor, StatusKind
 from tvm.target import Target
@@ -692,7 +693,9 @@ def local_builder_build(inputs, timeout, n_parallel, build_func="default", verbo
     res : List[BuildResult]
         The build results of these MeasureInputs.
     """
-    executor = PopenPoolExecutor(n_parallel, timeout)
+    executor = PopenPoolExecutor(
+        n_parallel, timeout, reset_global_scope, (AutotvmGlobalScope.current,)
+    )
     tuple_res = executor.map_with_error_catching(
         local_build_worker,
         [
