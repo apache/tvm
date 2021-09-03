@@ -17,6 +17,7 @@
 
 import datetime
 import pathlib
+import re
 import shutil
 import sys
 
@@ -80,7 +81,16 @@ def test_model_header_templating(project_dir, project):
     # Ensure model.h was templated with correct WORKSPACE_SIZE
     with (project_dir / "src" / "model.h").open() as f:
         model_h = f.read()
-        assert "#define WORKSPACE_SIZE 21312" in model_h
+        workspace_size_defs = re.findall(r"\#define WORKSPACE_SIZE ([0-9]*)", model_h)
+        assert workspace_size_defs
+        assert len(workspace_size_defs) == 1
+
+        # Make sure the WORKSPACE_SIZE we define is a reasonable size. We don't want
+        # to set an exact value, as this test shouldn't break if an improvement to
+        # TVM causes the amount of memory needed to decrease.
+        workspace_size = int(workspace_size_defs[0])
+        assert workspace_size < 30000
+        assert workspace_size > 10000
 
 
 def test_import_rerouting(project_dir, project):
