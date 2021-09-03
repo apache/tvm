@@ -234,6 +234,8 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
     code_ << "}\n";
   }
 
+  static int isNotAlnum(char c) { return !std::isalnum(c); }
+
   void GenerateCInterfaceEntrypoint(const std::string& entrypoint_name, const std::string& run_func,
                                     const std::string& mod_name) {
     code_ << "#include <" << mod_name << ".h>\n";
@@ -252,7 +254,9 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
           << ") {";
     code_ << "return " << run_func << "(";
     for (const auto& input : metadata_->inputs) {
-      code_ << "inputs->" << input << ",";
+      std::string sanitised_input = input;
+      std::replace_if(sanitised_input.begin(), sanitised_input.end(), isNotAlnum, '_');
+      code_ << "inputs->" << sanitised_input << ",";
     }
     if (metadata_->num_outputs == 1) {
       code_ << "outputs->output";
