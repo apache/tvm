@@ -34,6 +34,21 @@ def test_array_save_load_json():
     assert a_loaded[1].value == 2
 
 
+def test_dir_array():
+    a = tvm.runtime.convert([1, 2, 3])
+    dir(a)
+
+
+def test_getattr_array():
+    a = tvm.runtime.convert([1, 2, 3])
+    type_key = getattr(a, "type_key")
+    assert type_key == "Array"
+    try:
+        getattr(a, "test_key")
+    except AttributeError:
+        pass
+
+
 def test_map():
     a = te.var("a")
     b = te.var("b")
@@ -70,6 +85,25 @@ def test_map_save_load_json():
     assert dd == {"a": 2, "b": 3}
 
 
+def test_dir_map():
+    a = te.var("a")
+    b = te.var("b")
+    amap = tvm.runtime.convert({a: 2, b: 3})
+    dir(amap)
+
+
+def test_getattr_map():
+    a = te.var("a")
+    b = te.var("b")
+    amap = tvm.runtime.convert({a: 2, b: 3})
+    type_key = getattr(amap, "type_key")
+    assert type_key == "Map"
+    try:
+        getattr(amap, "test_key")
+    except AttributeError:
+        pass
+
+
 def test_in_container():
     arr = tvm.runtime.convert(["a", "b", "c"])
     assert "a" in arr
@@ -91,5 +125,10 @@ if __name__ == "__main__":
     test_map()
     test_array_save_load_json()
     test_map_save_load_json()
+    test_dir_array()
+    test_dir_map()
+    test_getattr_array()
+    test_getattr_map()
     test_in_container()
     test_ndarray_container()
+    
