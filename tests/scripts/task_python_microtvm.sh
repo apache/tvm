@@ -24,7 +24,9 @@ source tests/scripts/setup-pytest-env.sh
 
 make cython3
 run_pytest ctypes python-microtvm-zephyr tests/micro/zephyr --microtvm-platforms=qemu_x86
-run_pytest ctypes python-microtvm-zephyr tests/micro/zephyr --microtvm-platforms=mps2_an521
+# Temporarily removing mps2_an512 from CI due to issue 8728:
+# https://github.com/apache/tvm/issues/8728
+# run_pytest ctypes python-microtvm-zephyr tests/micro/zephyr --microtvm-platforms=mps2_an521
 
 run_pytest ctypes python-microtvm-arduino apps/microtvm/arduino/template_project/tests
 run_pytest ctypes python-microtvm-arduino-nano33ble tests/micro/arduino  --test-build-only --microtvm-platforms=nano33ble
