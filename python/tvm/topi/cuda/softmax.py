@@ -69,7 +69,7 @@ def _schedule_softmax(softmax_op, s, outs, tgt):
             ops.append(delta.op)
         if exp is not None:
             ops.append(exp.op)
-        if softmax_op != outs[0]:
+        if softmax_op != outs[0].op:
             ops.append(outs[0].op)
 
         for op in ops:
