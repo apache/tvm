@@ -370,7 +370,7 @@ class Handler(server.ProjectAPIHandler):
             compile_cmd.append("--verbose")
 
         # Specify project to compile
-        subprocess.run(compile_cmd)
+        subprocess.run(compile_cmd, check=True)
 
     BOARD_LIST_HEADERS = ("Port", "Type", "Board Name", "FQBN", "Core")
 
@@ -407,7 +407,9 @@ class Handler(server.ProjectAPIHandler):
 
     def _auto_detect_port(self, options):
         list_cmd = [options["arduino_cli_cmd"], "board", "list"]
-        list_cmd_output = subprocess.run(list_cmd, stdout=subprocess.PIPE).stdout.decode("utf-8")
+        list_cmd_output = subprocess.run(
+            list_cmd, check=True, stdout=subprocess.PIPE
+        ).stdout.decode("utf-8")
 
         desired_fqbn = self._get_fqbn(options)
         for line in self._parse_boards_tabular_str(list_cmd_output):
@@ -444,7 +446,7 @@ class Handler(server.ProjectAPIHandler):
         if options.get("verbose"):
             upload_cmd.append("--verbose")
 
-        subprocess.run(upload_cmd)
+        subprocess.run(upload_cmd, check=True)
 
     def open_transport(self, options):
         # Zephyr example doesn't throw an error in this case
