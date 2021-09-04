@@ -95,7 +95,7 @@ class LabelOpsMutator : public MixedModeMutator {
     };
     ExpandANormalForm(op, pre_visit, post_visit);
     return memo_[GetRef<Expr>(op)];
-  }
+  } 
 
   Expr Rewrite_(const CallNode* op, const Expr& post) final {
     auto updated = MixedModeMutator::Rewrite_(op, post);
