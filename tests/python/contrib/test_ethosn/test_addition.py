@@ -19,7 +19,7 @@
 
 import tvm
 from tvm import relay
-from tvm.relay.op.contrib.ethosn import ethosn_available
+from tvm.testing import requires_ethosn
 from . import infrastructure as tei
 import numpy as np
 
@@ -54,10 +54,8 @@ def _get_addition_qnn_params(input1_zp, input1_sc, input2_zp, input2_sc):
     return output_zp, output_sc
 
 
+@requires_ethosn
 def test_addition():
-    if not ethosn_available():
-        return
-
     trials = [
         ((1, 22, 9, 9), 24, 1.057, 253, 0.452),
         ((1, 27, 21, 16), 79, 0.850, 24, 0.380),
@@ -81,10 +79,8 @@ def test_addition():
         tei.verify(outputs, 2)
 
 
+@requires_ethosn
 def test_addition_failure():
-    if not ethosn_available():
-        return
-
     trials = [
         (
             (2, 4, 4, 4),

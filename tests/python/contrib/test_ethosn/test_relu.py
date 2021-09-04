@@ -19,7 +19,7 @@
 
 import tvm
 from tvm import relay
-from tvm.relay.op.contrib.ethosn import ethosn_available
+from tvm.testing import requires_ethosn
 from . import infrastructure as tei
 import numpy as np
 
@@ -30,10 +30,8 @@ def _get_model(shape, dtype, a_min, a_max):
     return relu
 
 
+@requires_ethosn
 def test_relu():
-    if not ethosn_available():
-        return
-
     trials = [
         ((1, 4, 4, 4), 65, 178),
         ((1, 8, 4, 2), 1, 254),
@@ -53,10 +51,8 @@ def test_relu():
         tei.verify(outputs, 1)
 
 
+@requires_ethosn
 def test_relu_failure():
-    if not ethosn_available():
-        return
-
     trials = [
         ((1, 4, 4, 4, 4), "uint8", 65, 78, "dimensions=5, dimensions must be <= 4"),
         ((1, 8, 4, 2), "int8", 1, 254, "dtype='int8', dtype must be either uint8 or int32"),

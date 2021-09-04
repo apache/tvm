@@ -81,6 +81,7 @@ import tvm._ffi
 
 from tvm.contrib import nvcc, cudnn
 from tvm.error import TVMError
+from tvm.relay.op.contrib.ethosn import ethosn_available
 
 
 def assert_allclose(actual, desired, rtol=1e-7, atol=1e-7):
@@ -772,6 +773,28 @@ def requires_rpc(*args):
         )
     ]
     return _compose(args, _requires_rpc)
+
+
+def requires_ethosn(*args):
+    """Mark a test as requiring ethosn to run.
+
+    Parameters
+    ----------
+    f : function
+        Function to mark
+    """
+    marks = [
+        pytest.mark.ethosn,
+        pytest.mark.skipif(
+            not ethosn_available(),
+            reason=(
+                "Ethos-N support not enabled.  "
+                "Set USE_ETHOSN=ON in config.cmake to enable, "
+                "and ensure that hardware support is present."
+            ),
+        ),
+    ]
+    return _compose(args, marks)
 
 
 def requires_package(*packages):

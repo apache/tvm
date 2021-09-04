@@ -49,6 +49,7 @@ MARKERS = {
     "vulkan": "mark a test as requiring vulkan",
     "metal": "mark a test as requiring metal",
     "llvm": "mark a test as requiring llvm",
+    "ethosn": "mark a test as requiring ethosn",
 }
 
 

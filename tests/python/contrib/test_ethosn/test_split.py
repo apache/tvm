@@ -20,7 +20,7 @@
 import numpy as np
 import tvm
 from tvm import relay
-from tvm.relay.op.contrib.ethosn import ethosn_available
+from tvm.testing import requires_ethosn
 from . import infrastructure as tei
 
 
@@ -30,10 +30,8 @@ def _get_model(shape, dtype, splits, axis):
     return split.astuple()
 
 
+@requires_ethosn
 def test_split():
-    if not ethosn_available():
-        return
-
     trials = [
         ((1, 16, 16, 32), (2, 7, 10), 2),
         ((1, 12, 8, 16), 3, 1),
@@ -53,10 +51,8 @@ def test_split():
         tei.verify(outputs, 0)
 
 
+@requires_ethosn
 def test_split_failure():
-    if not ethosn_available():
-        return
-
     trials = [
         ((1, 4, 4, 4, 4), "uint8", 4, 2, "dimensions=5, dimensions must be <= 4;"),
         ((1, 4, 4, 4), "int8", 4, 2, "dtype='int8', dtype must be either uint8 or int32;"),

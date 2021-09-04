@@ -19,7 +19,7 @@
 
 import tvm
 from tvm import relay
-from tvm.relay.op.contrib.ethosn import ethosn_available
+from tvm.testing import requires_ethosn
 from . import infrastructure as tei
 import numpy as np
 
@@ -41,10 +41,8 @@ def _get_model(shape, input_zp, input_sc, output_zp, output_sc, dtype):
     return model
 
 
+@requires_ethosn
 def test_sigmoid():
-    if not ethosn_available():
-        return
-
     trials = [
         (1, 16, 16, 16),
         (1, 8, 8),
@@ -64,10 +62,8 @@ def test_sigmoid():
         tei.verify(outputs, 1)
 
 
+@requires_ethosn
 def test_sigmoid_failure():
-    if not ethosn_available():
-        return
-
     trials = [
         ((2, 4, 4, 4), 64, 0.2, 0, 1 / 256, "uint8", "batch size=2, batch size must = 1"),
         (
