@@ -20,11 +20,11 @@
 #include "model.h"
 
 #include "Arduino.h"
+#include "standalone_crt/include/dlpack/dlpack.h"
 #include "standalone_crt/include/tvm/runtime/crt/stack_allocator.h"
 
 // AOT memory array
 static uint8_t g_aot_memory[WORKSPACE_SIZE];
-extern tvm_model_t tvmgen_default_network;
 tvm_workspace_t app_workspace;
 
 // Blink code for debugging purposes

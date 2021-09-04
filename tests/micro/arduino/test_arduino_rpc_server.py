@@ -37,8 +37,8 @@ from tvm.relay.testing import byoc
 import conftest
 
 
-# We'll make a new workspace for each test
-@pytest.fixture(scope="function")
+# # A new project and workspace dir is created for EVERY test
+@pytest.fixture
 def workspace_dir(platform):
     return conftest.make_workspace_dir("arduino_rpc_server", platform)
 
