@@ -4766,6 +4766,9 @@ unsupported_onnx_tests = [
     "test_nllloss_NCd1d2d3_sum_weight_high_ii_expanded",
     "test_nllloss_NCd1d2d3d4d5_mean_weight_expanded",
     "test_nllloss_NCd1d2d3d4d5_none_no_weight_expanded",
+    # This nllloss test is flaky and sometimes gives NaNs
+    # Investigate it here: https://github.com/apache/tvm/issues/8918
+    "test_nllloss_NCd1d2d3_none_no_weight_negative_ii",
     "test_pow_types_float",
     "test_pow_types_float32_int32",
     "test_pow_types_float32_int64",
