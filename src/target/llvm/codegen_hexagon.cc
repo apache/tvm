@@ -721,7 +721,7 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
       CHECK(attrs_dict.find(::tvm::tir::attr::kLinkedParams) != attrs_dict.end())
           << "no " << ::tvm::tir::attr::kLinkedParams << " attribute found!";
 
-      CHECK(!linked_params.defined()) << "Multiple linked-param functions";
+      CHECK(linked_params.empty()) << "Multiple linked-param functions";
       linked_params =
           Downcast<Map<String, LinkedParam>>(attrs_dict[::tvm::tir::attr::kLinkedParams]);
       continue;
@@ -734,7 +734,7 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
   for (const PrimFunc& f : funcs) {
     cg->AddFunction(f);
   }
-  if (linked_params.defined()) {
+  if (!linked_params.empty()) {
     cg->LinkParameters(linked_params);
   }
 
