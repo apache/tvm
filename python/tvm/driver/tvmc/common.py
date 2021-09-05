@@ -73,6 +73,10 @@ class TVMCSuppressedArgumentParser(argparse.ArgumentParser):
         raise TVMCException()
 
 
+class TVMCImportError(TVMCException):
+    """TVMC TVMCImportError"""
+
+
 def convert_graph_layout(mod, desired_layout):
     """Alter the layout of the input graph.
 

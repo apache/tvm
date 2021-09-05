@@ -26,6 +26,7 @@ import sys
 import tvm
 
 from tvm.driver.tvmc.common import TVMCException
+from tvm.driver.tvmc.common import TVMCImportError
 
 
 REGISTERED_PARSER = []
@@ -91,6 +92,11 @@ def _main(argv):
 
     try:
         return args.func(args)
+    except TVMCImportError as err:
+        sys.stderr.write(
+            f'Package "{err}" is not installed. ' f'Hint: "pip install tlcpack[tvmc]".'
+        )
+        return 5
     except TVMCException as err:
         sys.stderr.write("Error: %s\n" % err)
         return 4
