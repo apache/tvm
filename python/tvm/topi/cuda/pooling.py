@@ -70,6 +70,7 @@ def schedule_adaptive_pool(outs, layout="NCHW"):
     scheduled_ops = []
 
     def traverse(OP):
+        nonlocal s
         """Internal traverse function"""
         # inline all one-to-one-mapping operators except the last stage (output)
         if tag.is_broadcast(OP.tag):
@@ -80,8 +81,12 @@ def schedule_adaptive_pool(outs, layout="NCHW"):
                     traverse(tensor.op)
         # schedule global_pool
         elif OP.tag.startswith("adaptive_pool"):
-            Pool = OP.output(0)
-            _schedule(Pool)
+            # Pool = OP.output(0)
+            # _schedule(Pool)
+            from .reduction import _schedule_reduce
+            from .injective import schedule_injective_from_existing
+            _schedule_reduce(OP, s)
+            s = schedule_injective_from_existing(s, outs[0])
         else:
             raise RuntimeError("Unsupported operator: %s" % OP.tag)
 
