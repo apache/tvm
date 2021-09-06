@@ -391,7 +391,7 @@ def test_command(args):
     providers = args.provider
     provider_passed = {p: False for p in providers}
 
-    release_test_dir = os.path.join(THIS_DIR, f"release-test-{args.platform}")
+    release_test_dir = os.path.join(THIS_DIR, "release-test")
 
     if args.skip_build:
         assert len(providers) == 1, "--skip-build was given, but >1 provider specified"
