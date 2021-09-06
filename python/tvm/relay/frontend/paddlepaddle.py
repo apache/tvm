@@ -970,6 +970,27 @@ def convert_padding(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_range(g, op, block):
+    """Operator converter for range."""
+
+    start = g.get_node(op.input("Start")[0])
+    stop = g.get_node(op.input("End")[0])
+    step = g.get_node(op.input("Step")[0])
+    dtype = infer_type(start).checked_type.dtype
+
+    attr_list = []
+    for attr in (start, stop, step):
+        attr = _infer_value(attr, g.get_params())
+        if isinstance(attr, _expr.Expr):
+            attr = _op.squeeze(attr)
+        else:
+            attr = _op.const(attr[0], dtype=dtype)
+        attr_list.append(attr)
+
+    out = _op.transform.arange(attr_list[0], attr_list[1], attr_list[2], dtype=dtype)
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_reduce(g, op, block):
     """Operator converter for reduce."""
 
@@ -1328,6 +1349,7 @@ _convert_map = {
     "pad1d": convert_padding,
     "pad2d": convert_padding,
     "pad3d": convert_padding,
+    "range": convert_range,
     "reduce_all": convert_reduce,
     "relu": convert_unary_op,
     "reshape2": convert_reshape,

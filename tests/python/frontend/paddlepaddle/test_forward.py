@@ -23,6 +23,7 @@ import paddle
 import paddle.nn as nn
 
 import tvm
+from tvm.contrib.sparse import array
 import tvm.testing
 import tvm.topi.testing
 from tvm import relay
@@ -205,6 +206,22 @@ def test_forward_addmm():
     x_data = paddle.rand(x_shape, dtype="float32")
     y_data = paddle.rand(y_shape, dtype="float32")
     verify_model(addmm, input_data=[input_data, x_data, y_data])
+
+
+@tvm.testing.uses_gpu
+def test_forward_arange():
+    @paddle.jit.to_static
+    def arange(inputs):
+        return paddle.arange(paddle.shape(inputs)[0], 9, 2.0)
+
+    @paddle.jit.to_static
+    def arange2(inputs):
+        return paddle.arange(0, 10.0, paddle.shape(inputs)[1], dtype="float32")
+
+    input_shape = [2, 2]
+    input_data = paddle.rand(input_shape, dtype="float32")
+    verify_model(arange, input_data)
+    verify_model(arange2, input_data=input_data)
 
 
 @tvm.testing.uses_gpu
@@ -1048,6 +1065,7 @@ def test_forward_squeeze2():
 if __name__ == "__main__":
     test_forward_add_subtract()
     test_forward_addmm()
+    test_forward_arange()
     test_forward_argmax()
     test_forward_argmin()
     test_forward_assign()
