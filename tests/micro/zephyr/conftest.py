@@ -17,35 +17,40 @@
 import datetime
 import os
 import pathlib
+import sys
 
 import pytest
 
 import tvm.contrib.utils
 import tvm.target.target
 
-# The models that should pass this configuration. Maps a short, identifying platform string to
-# (model, zephyr_board).
-PLATFORMS = {
-    "qemu_x86": ("host", "qemu_x86"),
-    "qemu_riscv32": ("host", "qemu_riscv32"),
-    "qemu_riscv64": ("host", "qemu_riscv64"),
-    "mps2_an521": ("mps2_an521", "mps2_an521"),
-    "nrf5340dk": ("nrf5340dk", "nrf5340dk_nrf5340_cpuapp"),
-    "stm32f746xx_disco": ("stm32f746xx", "stm32f746g_disco"),
-    "stm32f746xx_nucleo": ("stm32f746xx", "nucleo_f746zg"),
-    "stm32l4r5zi_nucleo": ("stm32l4r5zi", "nucleo_l4r5zi"),
-    "zynq_mp_r5": ("zynq_mp_r5", "qemu_cortex_r5"),
-}
+TEMPLATE_PROJECT_DIR = (
+    pathlib.Path(__file__).parent
+    / ".."
+    / ".."
+    / ".."
+    / "apps"
+    / "microtvm"
+    / "zephyr"
+    / "template_project"
+).resolve()
 
+def zephyr_micro_devices() -> dict:
+    sys.path.insert(0, str(TEMPLATE_PROJECT_DIR))
+    try:
+        import microtvm_api_server
+    finally:
+        sys.path.pop(0)
+
+    return microtvm_api_server.MICRO_DEVICES
 
 def pytest_addoption(parser):
     parser.addoption(
-        "--microtvm-platforms",
+        "--microtvm-device",
         default="qemu_x86",
-        choices=PLATFORMS.keys(),
+        choices=zephyr_micro_devices().keys(),
         help=(
-            "Specify a comma-separated list of test models (i.e. as passed to tvm.target.micro()) "
-            "for microTVM tests."
+            "Specify a microtvm device (i.e. as passed to tvm.target.micro()) for microTVM tests."
         ),
     )
     parser.addoption(
@@ -60,8 +65,8 @@ def pytest_addoption(parser):
 
 
 def pytest_generate_tests(metafunc):
-    if "platform" in metafunc.fixturenames:
-        metafunc.parametrize("platform", metafunc.config.getoption("microtvm_platforms").split(","))
+    if "device" in metafunc.fixturenames:
+        metafunc.parametrize("device", metafunc.config.getoption("microtvm_device"))
 
 
 @pytest.fixture
@@ -75,8 +80,8 @@ def tvm_debug(request):
 
 
 @pytest.fixture
-def temp_dir(platform):
-    _, zephyr_board = PLATFORMS[platform]
+def temp_dir(device):
+    _, zephyr_board = zephyr_micro_devices()[device]
     parent_dir = pathlib.Path(os.path.dirname(__file__))
     filename = os.path.splitext(os.path.basename(__file__))[0]
     board_workspace = (

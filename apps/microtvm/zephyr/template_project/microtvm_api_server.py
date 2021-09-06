@@ -57,6 +57,18 @@ MODEL_LIBRARY_FORMAT_RELPATH = "model.tar"
 
 IS_TEMPLATE = not (API_SERVER_DIR / MODEL_LIBRARY_FORMAT_RELPATH).exists()
 
+# Maps a short, identifying microtvm device string to (target, zephyr_board).
+MICRO_DEVICES = {
+    "qemu_x86": ("host", "qemu_x86"),
+    "qemu_riscv32": ("host", "qemu_riscv32"),
+    "qemu_riscv64": ("host", "qemu_riscv64"),
+    "mps2_an521": ("mps2_an521", "mps2_an521"),
+    "nrf5340dk": ("nrf5340dk", "nrf5340dk_nrf5340_cpuapp"),
+    "stm32f746xx_disco": ("stm32f746xx", "stm32f746g_disco"),
+    "stm32f746xx_nucleo": ("stm32f746xx", "nucleo_f746zg"),
+    "stm32l4r5zi_nucleo": ("stm32l4r5zi", "nucleo_l4r5zi"),
+    "zynq_mp_r5": ("zynq_mp_r5", "qemu_cortex_r5"),
+}
 
 def check_call(cmd_args, *args, **kwargs):
     cwd_str = "" if "cwd" not in kwargs else f" (in cwd: {kwargs['cwd']})"
