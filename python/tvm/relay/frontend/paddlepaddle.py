@@ -974,7 +974,7 @@ def convert_reduce(g, op, block):
     """Operator converter for reduce."""
 
     op_map = {
-        "reduce_all" : "all",
+        "reduce_all": "all",
     }
     op_name = op_map[op.type]
     input_x = g.get_node(op.input("X")[0])
@@ -986,7 +986,6 @@ def convert_reduce(g, op, block):
     if not axis and not keepdims:
         out = _op.expand_dims(out, axis=0)
     g.add_node(op.output("Out")[0], out)
-
 
 
 def convert_reshape(g, op, block):
@@ -1329,7 +1328,7 @@ _convert_map = {
     "pad1d": convert_padding,
     "pad2d": convert_padding,
     "pad3d": convert_padding,
-    "reduce_all": convert_reduce("all"),
+    "reduce_all": convert_reduce,
     "relu": convert_unary_op,
     "reshape2": convert_reshape,
     "rnn": convert_rnn,
