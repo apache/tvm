@@ -79,8 +79,9 @@ def schedule_adaptive_pool(outs, layout="NCHW"):
                 layout == "NHWC" and oshape[1] == 1 and oshape[2] == 1
             ):
                 _schedule_reduce(OP, s)
-                if OP.tag == "adaptive_pool_sum":
-                    schedule_injective_from_existing(s, outs[0])  # the final division
+                if OP != outs[0].op:
+                    # the final division for adaptive pool or fused elemwise ops
+                    schedule_injective_from_existing(s, outs[0])
             else:
                 _schedule_non_global(Pool)
         else:
