@@ -20,6 +20,8 @@ import tvm
 from tvm import te
 from .. import tag
 from ..utils import traverse_inline
+from .reduction import _schedule_reduce
+from .injective import schedule_injective_from_existing
 
 
 def schedule_adaptive_pool(outs, layout="NCHW"):
@@ -55,17 +57,33 @@ def schedule_adaptive_pool(outs, layout="NCHW"):
         by, ty = s[Out].split(s[Out].op.axis[0], factor=num_thread)
         if layout == "NHWC":
             bx, tx = s[Out].split(s[Out].op.axis[3], factor=num_thread)
+            fused_hw_axis = s[Out].fuse(*s[Out].op.axis[1:3])
+            fused_hw_size = Out.shape[1] * Out.shape[2]
         else:
             bx, tx = s[Out].split(s[Out].op.axis[1], factor=num_thread)
+            fused_hw_axis = s[Out].fuse(*s[Out].op.axis[2:4])
+            fused_hw_size = Out.shape[2] * Out.shape[3]
+
         s[Out].reorder(by, bx, ty, tx)
         s[Out].bind(ty, thread_y)
         s[Out].bind(tx, thread_x)
         s[Out].bind(by, block_y)
         s[Out].bind(bx, block_x)
+
+        max_threads = tvm.tir.floordiv(
+            tvm.tir.min(
+                fused_hw_size, int(tvm.target.Target.current(allow_none=False).max_num_threads)
+            ),
+            (num_thread * num_thread),
+        )
+        bz, tz = s[Out].split(fused_hw_axis, factor=max_threads)
+        s[Out].bind(bz, te.thread_axis("blockIdx.z"))
+        s[Out].bind(tz, te.thread_axis("threadIdx.z"))
+
         if Pool.op in s.outputs:
             s[OL].compute_at(s[Out], tx)
         else:
-            s[Pool].compute_at(s[Out], tx)
+            s[Pool].compute_at(s[Out], tz)
 
     scheduled_ops = []
 
@@ -81,12 +99,17 @@ def schedule_adaptive_pool(outs, layout="NCHW"):
                     traverse(tensor.op)
         # schedule global_pool
         elif OP.tag.startswith("adaptive_pool"):
-            # Pool = OP.output(0)
-            # _schedule(Pool)
-            from .reduction import _schedule_reduce
-            from .injective import schedule_injective_from_existing
-            _schedule_reduce(OP, s)
-            s = schedule_injective_from_existing(s, outs[0])
+            Pool = OP.output(0)
+            oshape = Pool.shape
+            if (layout == "NCHW" and oshape[2] == 1 and oshape[3] == 1) or (
+                layout == "NHWC" and oshape[1] == 1 and oshape[2] == 1
+            ):
+                _schedule_reduce(OP, s)
+                if OP.tag == "adaptive_pool_sum":
+                    schedule_injective_from_existing(s, outs[0])  # the final division
+            else:
+                print("foo")
+                _schedule(Pool)
         else:
             raise RuntimeError("Unsupported operator: %s" % OP.tag)
 
