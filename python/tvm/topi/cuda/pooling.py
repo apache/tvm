@@ -41,12 +41,7 @@ def schedule_adaptive_pool(outs, layout="NCHW"):
     outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
     s = te.create_schedule([x.op for x in outs])
 
-    def _schedule(Pool):
-        num_thread = 8
-        block_x = te.thread_axis("blockIdx.x")
-        block_y = te.thread_axis("blockIdx.y")
-        thread_x = te.thread_axis((0, num_thread), "threadIdx.x")
-        thread_y = te.thread_axis((0, num_thread), "threadIdx.y")
+    def _schedule_non_global(Pool):
         if Pool.op in s.outputs:
             Out = Pool
             OL = s.cache_write(Pool, "local")
@@ -54,41 +49,20 @@ def schedule_adaptive_pool(outs, layout="NCHW"):
             Out = outs[0].op.output(0)
             s[Pool].set_scope("local")
 
-        by, ty = s[Out].split(s[Out].op.axis[0], factor=num_thread)
-        if layout == "NHWC":
-            bx, tx = s[Out].split(s[Out].op.axis[3], factor=num_thread)
-            fused_hw_axis = s[Out].fuse(*s[Out].op.axis[1:3])
-            fused_hw_size = Out.shape[1] * Out.shape[2]
-        else:
-            bx, tx = s[Out].split(s[Out].op.axis[1], factor=num_thread)
-            fused_hw_axis = s[Out].fuse(*s[Out].op.axis[2:4])
-            fused_hw_size = Out.shape[2] * Out.shape[3]
-
-        s[Out].reorder(by, bx, ty, tx)
-        s[Out].bind(ty, thread_y)
-        s[Out].bind(tx, thread_x)
-        s[Out].bind(by, block_y)
-        s[Out].bind(bx, block_x)
-
-        max_threads = tvm.tir.floordiv(
-            tvm.tir.min(
-                fused_hw_size, int(tvm.target.Target.current(allow_none=False).max_num_threads)
-            ),
-            (num_thread * num_thread),
-        )
-        bz, tz = s[Out].split(fused_hw_axis, factor=max_threads)
-        s[Out].bind(bz, te.thread_axis("blockIdx.z"))
-        s[Out].bind(tz, te.thread_axis("threadIdx.z"))
+        max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
+        fused_axis = s[Out].fuse(*s[Out].op.axis)
+        bx, tx = s[Out].split(fused_axis, factor=max_threads)
+        s[Out].bind(bx, te.thread_axis("blockIdx.x"))
+        s[Out].bind(tx, te.thread_axis("threadIdx.x"))
 
         if Pool.op in s.outputs:
             s[OL].compute_at(s[Out], tx)
         else:
-            s[Pool].compute_at(s[Out], tz)
+            s[Pool].compute_at(s[Out], tx)
 
     scheduled_ops = []
 
     def traverse(OP):
-        nonlocal s
         """Internal traverse function"""
         # inline all one-to-one-mapping operators except the last stage (output)
         if tag.is_broadcast(OP.tag):
@@ -108,8 +82,7 @@ def schedule_adaptive_pool(outs, layout="NCHW"):
                 if OP.tag == "adaptive_pool_sum":
                     schedule_injective_from_existing(s, outs[0])  # the final division
             else:
-                print("foo")
-                _schedule(Pool)
+                _schedule_non_global(Pool)
         else:
             raise RuntimeError("Unsupported operator: %s" % OP.tag)
 
