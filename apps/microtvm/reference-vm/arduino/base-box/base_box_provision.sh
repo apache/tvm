@@ -30,9 +30,9 @@ cd ~
 
 sudo apt-get install -y ca-certificates
 
-# Install Arduino-CLI (latest version)
+# Install Arduino-CLI (specific version)
 export PATH="/home/vagrant/bin:$PATH"
-wget -O - https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh -s
+wget -O - https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh -s 0.18.3
 
 # Arduino (the CLI and GUI) require the dialout permission for uploading
 sudo usermod -a -G dialout $USER
@@ -49,6 +49,7 @@ SPRESENSE_BOARDS_URL="https://github.com/sonydevworld/spresense-arduino-compatib
 arduino-cli core update-index --additional-urls $ADAFRUIT_BOARDS_URL,$ESP32_BOARDS_URL,$SPARKFUN_BOARDS_URL,$SEEED_BOARDS_URL,$SPRESENSE_BOARDS_URL
 
 # Install supported cores from those URLS
+arduino-cli version
 arduino-cli core install arduino:mbed_nano
 arduino-cli core install arduino:sam
 arduino-cli core install adafruit:samd --additional-urls $ADAFRUIT_BOARDS_URL
