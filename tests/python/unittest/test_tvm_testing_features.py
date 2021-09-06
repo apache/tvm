@@ -57,7 +57,10 @@ class TestTargetAutoParametrization:
         self.targets_with_explicit_list.append(target)
 
     def test_no_repeats_in_explicit_list(self):
-        assert self.targets_with_explicit_list == ["llvm"]
+        if tvm.testing.device_enabled("llvm"):
+            assert self.targets_with_explicit_list == ["llvm"]
+        else:
+            assert self.targets_with_explicit_list == []
 
     targets_with_exclusion = []
 
@@ -199,7 +202,7 @@ class TestBrokenFixture:
 class TestAutomaticMarks:
     @staticmethod
     def check_marks(request, target):
-        parameter = tvm.testing._pytest_target_params([target])[0]
+        parameter = tvm.testing.plugin._pytest_target_params([target])[0]
         required_marks = [decorator.mark for decorator in parameter.marks]
         applied_marks = list(request.node.iter_markers())
 
@@ -239,6 +242,11 @@ class TestCacheableTypes:
         return self.EmptyClass()
 
     def test_uses_uncacheable(self, request):
+        # Normally the num_tests_use_this_fixture would be set before
+        # anything runs.  For this test case only, because we are
+        # delaying the use of the fixture, we need to manually
+        # increment it.
+        self.uncacheable_fixture.num_tests_use_this_fixture[0] += 1
         with pytest.raises(TypeError):
             request.getfixturevalue("uncacheable_fixture")
 

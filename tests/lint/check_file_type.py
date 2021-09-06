@@ -145,6 +145,8 @@ ALLOW_SPECIFIC_FILE = {
     "apps/microtvm/zephyr/template_project/qemu-hack/qemu-system-riscv32",
     "apps/microtvm/zephyr/template_project/qemu-hack/qemu-system-riscv64",
     # microTVM Virtual Machines
+    "apps/microtvm/reference-vm/arduino/Vagrantfile",
+    "apps/microtvm/reference-vm/arduino/base-box/Vagrantfile.packer-template",
     "apps/microtvm/reference-vm/zephyr/Vagrantfile",
     "apps/microtvm/reference-vm/zephyr/base-box/Vagrantfile.packer-template",
 }

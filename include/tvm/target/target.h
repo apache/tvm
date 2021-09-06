@@ -203,5 +203,6 @@ void CheckAndUpdateHostConsistency(Map<Integer, Target>* target, Target* host);
  * \param host The Target typed object for target host to be updated
  */
 void CheckAndUpdateHostConsistency(Map<Target, IRModule>* target, Target* host);
+
 }  // namespace tvm
 #endif  // TVM_TARGET_TARGET_H_

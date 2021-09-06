@@ -583,7 +583,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     // performing the preexisting AOT executor code generation phase.
     IRModule mod = IRModule::FromExpr(func);
 
-    IRModule new_mod =
+    IRModule lowered_mod =
         LowerTEPass(targets_, device_context_map, memory_plan, mod_name, [this](Function func) {
           // We need to maintain the constant map for external
           // functions so we pass this processing function which
@@ -598,9 +598,12 @@ class AOTExecutorCodegen : public MixedModeVisitor {
           tec::UpdateFunctionMetadata(func, this->function_metadata_);
         })(mod);
 
-    tec::LoweredModule lowered_module = tec::IRModuleToLoweredModule(new_mod);
-    function_metadata_.Set(runtime::symbol::tvm_module_main, lowered_module.main_func_info);
-    auto lowered_main = lowered_module.main_module->Lookup("main");
+    Optional<backend::FunctionInfo> main_func_info =
+        lowered_mod->GetAttr<backend::FunctionInfo>("main_func_info");
+    ICHECK(main_func_info) << "The attribute \"main_func_info\" should be set at this point.";
+    function_metadata_.Set(runtime::symbol::tvm_module_main, main_func_info.value());
+    auto lowered_main = lowered_mod->Lookup("main");
+
     auto lowered_main_func = GetRef<Function>(lowered_main.as<FunctionNode>());
 
     // Post-lowering storage map for writing main func - this should be the same map as previously
@@ -662,14 +665,18 @@ class AOTExecutorCodegen : public MixedModeVisitor {
 
     ret.function_metadata = std::move(function_metadata_);
 
-    ret.lowered_funcs = lowered_module.per_target_module;
-    ret.external_mods = lowered_module.external_mods;
+    Optional<Array<tvm::runtime::Module>> external_modules =
+        lowered_mod->GetAttr<Array<tvm::runtime::Module>>("external_mods");
+    ICHECK(external_modules) << "Attribute \"external_modules\" should be set at this point.";
 
-    auto target_host_str = target_host_->str();
-    if (ret.lowered_funcs.find(target_host_str) != ret.lowered_funcs.end()) {
-      ret.lowered_funcs[target_host_str]->Update(mod_run);
+    // This is the point where we separate the functions in the module by target
+    ret.lowered_funcs = tec::GetPerTargetModules(lowered_mod);
+    ret.external_mods = external_modules.value();
+
+    if (ret.lowered_funcs.find(target_host_) != ret.lowered_funcs.end()) {
+      ret.lowered_funcs[target_host_]->Update(mod_run);
     } else {
-      ret.lowered_funcs.Set(target_host_str, mod_run);
+      ret.lowered_funcs.Set(target_host_, mod_run);
     }
 
     std::vector<String> input_var_names(input_vars_.size());
@@ -774,7 +781,7 @@ class AOTExecutorCodegenModule : public runtime::ModuleNode {
     return (*it).second.first;
   }
 
-  Map<String, IRModule> get_irmodule() { return this->output_.lowered_funcs; }
+  Map<Target, IRModule> get_irmodule() { return this->output_.lowered_funcs; }
 
   std::shared_ptr<AOTExecutorCodegen> codegen_;
   LoweredOutput output_;

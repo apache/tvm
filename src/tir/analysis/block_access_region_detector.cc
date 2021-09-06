@@ -110,8 +110,11 @@ void BlockReadWriteDetector::operator()(const Stmt& stmt) {
   ICHECK(block != nullptr) << "Only visiting Blocks is allowed, but got " << stmt->GetTypeKey();
   for (const MatchBufferRegion& match_buffer : block->match_buffers) {
     const Var& target_var = match_buffer->buffer->data;
-    match_buffers_[target_var.get()] = match_buffer;
-    buffer_var_map_.Set(target_var, match_buffer->buffer);
+    const Var& source_var = match_buffer->source->buffer->data;
+    if (buffer_var_map_.find(source_var) != buffer_var_map_.end()) {
+      match_buffers_[target_var.get()] = match_buffer;
+      buffer_var_map_.Set(target_var, match_buffer->buffer);
+    }
   }
   StmtExprVisitor::operator()(stmt);
 }
@@ -282,7 +285,39 @@ Array<Array<BufferRegion>> GetBlockAccessRegion(const Block& block,
   return {detector.CollectReads(), detector.CollectWrites(), detector.CollectOpaques()};
 }
 
-TVM_REGISTER_GLOBAL("tir.analysis.get_block_access_region").set_body_typed(GetBlockAccessRegion);
+Array<Array<BufferRegion>> GetBlockReadWriteRegion(const Block& block,
+                                                   const Map<Var, Buffer>& buffer_var_map) {
+  // Step 1. Get all the read/write/opaque accesses in the input block.
+  Array<Array<BufferRegion>> access_regions = GetBlockAccessRegion(block, buffer_var_map);
+  // Step 2. Collect all the buffers that are opaquely accessed.
+  std::unordered_set<const BufferNode*> opaque_accessed_buffers;
+  for (const BufferRegion& opaque_access : access_regions[2]) {
+    opaque_accessed_buffers.insert(opaque_access->buffer.get());
+  }
+  // Step 3. Create new arrays of read/write regions.
+  Array<BufferRegion> new_read_regions;
+  Array<BufferRegion> new_write_regions;
+  new_read_regions.reserve(access_regions[0].size() + access_regions[2].size());
+  new_write_regions.reserve(access_regions[1].size() + access_regions[2].size());
+  for (const BufferRegion& read_access : access_regions[0]) {
+    if (!opaque_accessed_buffers.count(read_access->buffer.get())) {
+      new_read_regions.push_back(read_access);
+    }
+  }
+  for (const BufferRegion& write_access : access_regions[1]) {
+    if (!opaque_accessed_buffers.count(write_access->buffer.get())) {
+      new_write_regions.push_back(write_access);
+    }
+  }
+  for (const BufferRegion& opaque_access : access_regions[2]) {
+    new_read_regions.push_back(opaque_access);
+    new_write_regions.push_back(opaque_access);
+  }
+  return {new_read_regions, new_write_regions};
+}
+
+TVM_REGISTER_GLOBAL("tir.analysis.GetBlockAccessRegion").set_body_typed(GetBlockAccessRegion);
+TVM_REGISTER_GLOBAL("tir.analysis.GetBlockReadWriteRegion").set_body_typed(GetBlockReadWriteRegion);
 
 }  // namespace tir
 }  // namespace tvm

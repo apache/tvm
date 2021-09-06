@@ -19,14 +19,13 @@
 import numpy as np
 import tvm
 from tvm import relay
-from tvm.relay.op.contrib.ethosn import ethosn_available, Available
+from tvm.testing import requires_ethosn
+from tvm.relay.op.contrib.ethosn import Available
 from . import infrastructure as tei
 
 
+@requires_ethosn
 def test_split_add_concat():
-    if not ethosn_available():
-        return
-
     def get_model(input_shape, var_names):
         """Return a model"""
 
@@ -71,6 +70,7 @@ def test_split_add_concat():
     tei.verify(outputs, 2)
 
 
+@requires_ethosn
 def test_multiple_command_streams():
     """Check that multiple Ethos-N partitions are correctly handled.
 
@@ -80,8 +80,6 @@ def test_multiple_command_streams():
     simple graph which creates two Ethos-N partitions and checks the result
     against an 'all-CPU' run through TVM.
     """
-    if not ethosn_available():
-        return
 
     def get_model():
         """
@@ -107,10 +105,8 @@ def test_multiple_command_streams():
     )
 
 
+@requires_ethosn
 def test_output_order():
-    if not ethosn_available():
-        return
-
     def get_model(input_shape, var_names):
         """Return a model"""
 
@@ -140,10 +136,8 @@ def test_output_order():
     tei.verify(outputs, 1)
 
 
+@requires_ethosn
 def test_split_with_asym_concats():
-    if not ethosn_available():
-        return
-
     def get_model(shape, splits, axis):
         a = relay.var("a", shape=shape, dtype="uint8")
         split = relay.op.split(a, indices_or_sections=splits, axis=axis)
@@ -183,11 +177,10 @@ def test_split_with_asym_concats():
         tei.verify(outputs, 0)
 
 
+@requires_ethosn
 def test_output_tuple_propagation():
     """This tests the case where the output tuple must be inferred
     as having dummy tensor information."""
-    if not ethosn_available():
-        return
 
     def get_model():
         a = relay.var("a", shape=(1, 4, 4, 16), dtype="uint8")
@@ -205,10 +198,8 @@ def test_output_tuple_propagation():
     tei.verify(outputs, 0)
 
 
+@requires_ethosn
 def test_input_tuples():
-    if not ethosn_available():
-        return
-
     def get_model(shapes, axis):
         tup = []
         for i, shape in enumerate(shapes):
