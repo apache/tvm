@@ -93,7 +93,7 @@ def convert_unary_op(g, op, block):
 def convert_addmm(g, op, block):
     """Operator converter for addmm."""
 
-    input = g.get_node(op.input('Input')[0])
+    input_x = g.get_node(op.input('Input')[0])
     x = g.get_node(op.input('X')[0])
     y = g.get_node(op.input('Y')[0])
 
@@ -108,11 +108,11 @@ def convert_addmm(g, op, block):
 
     if not isinstance(beta, _expr.Expr) and beta != 1:
         beta = _expr.const(beta, dtype)
-        input *= beta
+        input_x *= beta
 
     transposed_y = _op.transpose(y, axes=[1, 0])
     dense_out = _op.nn.dense(x, transposed_y)
-    out = dense_out + input
+    out = dense_out + input_x
     g.add_node(op.output('Out')[0], out)
 
 
@@ -242,7 +242,8 @@ def convert_interpolate2d(g, op, x):
             in_h, in_w = input_shape[1], input_shape[2]
         if input_scale:
             scale_data = g.get_node(input_scale[0])
-            scale_data = infer_value(scale_data, g.get_params()).numpy().tolist()
+            scale_data = infer_value(
+                scale_data, g.get_params()).numpy().tolist()
             if len(scale_data) > 1:
                 out_h = int(scale_data[0] * in_h)
                 out_w = int(scale_data[1] * in_w)
@@ -258,7 +259,8 @@ def convert_interpolate2d(g, op, x):
                 out_w = int(scale[1] * in_w)
             out_size = [out_h, out_w]
 
-    rounding_method, interp_method, coordinate_transformation_mode = get_interpolate_mode(op)
+    rounding_method, interp_method, coordinate_transformation_mode = get_interpolate_mode(
+        op)
     out = _op.image.resize2d(
         x,
         size=out_size,
@@ -322,8 +324,10 @@ def convert_conv2d(g, op, block):
             pad_w = _get_pad_size(0, (k_w - 1) * dilations[1] + 1, strides[1])
         else:
             in_h, in_w = infer_shape(input_x)[2:]
-            pad_h = _get_pad_size(in_h, (k_h - 1) * dilations[0] + 1, strides[0])
-            pad_w = _get_pad_size(in_w, (k_w - 1) * dilations[1] + 1, strides[1])
+            pad_h = _get_pad_size(
+                in_h, (k_h - 1) * dilations[0] + 1, strides[0])
+            pad_w = _get_pad_size(
+                in_w, (k_w - 1) * dilations[1] + 1, strides[1])
         paddings = [pad_h[0], pad_w[0], pad_h[1], pad_w[1]]
     elif padding_algorithm == "EXPLICIT":
         if len(paddings) == 2:
@@ -355,7 +359,8 @@ def convert_conv2d_transpose(g, op, block):
     paddings = op.attr("paddings")
     padding_algorithm = op.attr("padding_algorithm")
     strides = op.attr("strides")
-    output_padding = op.attr("output_padding") if op.attr("output_padding") else [0, 0]
+    output_padding = op.attr("output_padding") if op.attr(
+        "output_padding") else [0, 0]
 
     kernel = g.get_node(op.input("Filter")[0])
     input_x = g.get_node(op.input("Input")[0])
@@ -465,7 +470,8 @@ def convert_elementwise_op(g, op, block):
         if axis < 0:
             axis = axis + len(ipt0_shape)
         if axis != len(ipt0_shape) - 1:
-            ipt1 = _op.expand_dims(ipt1, axis=axis, num_newaxis=(len(ipt0_shape) - axis - 1))
+            ipt1 = _op.expand_dims(
+                ipt1, axis=axis, num_newaxis=(len(ipt0_shape) - axis - 1))
     out = op_func(ipt0, ipt1)
     g.add_node(op.output("Out")[0], out)
 
@@ -603,7 +609,8 @@ def convert_gelu(g, op, block):
     x = g.get_node(op.input("X")[0])
     out = x * (
         _expr.const(0.5, dtype="float32")
-        + _op.erf(x * _expr.const(0.5 ** 0.5, dtype="float32")) * _expr.const(0.5, dtype="float32")
+        + _op.erf(x * _expr.const(0.5 ** 0.5, dtype="float32")) *
+        _expr.const(0.5, dtype="float32")
     )
     g.add_node(op.output("Out")[0], out)
 
@@ -624,9 +631,12 @@ def convert_hard_swish(g, op, block):
     offset = op.attr("offset")
     scale = op.attr("scale")
     threshold = op.attr("threshold")
-    assert np.isclose(offset, 3.0), "Only support offset==3.0 for PaddlePaddle's hard_swish"
-    assert np.isclose(scale, 6.0), "Only support scale==6.0 for PaddlePaddle's hard_swish"
-    assert np.isclose(threshold, 6.0), "Only support threshold==6.0 for PaddlePaddle's hard_swish"
+    assert np.isclose(
+        offset, 3.0), "Only support offset==3.0 for PaddlePaddle's hard_swish"
+    assert np.isclose(
+        scale, 6.0), "Only support scale==6.0 for PaddlePaddle's hard_swish"
+    assert np.isclose(
+        threshold, 6.0), "Only support threshold==6.0 for PaddlePaddle's hard_swish"
     x = g.get_node(op.input("X")[0])
     out = _op.clip(x, -1 * offset, offset)
     out = out / _expr.const(threshold) + _expr.const(0.5)
@@ -737,7 +747,8 @@ def convert_matmul(g, op, block):
                 return x
             newshape = _op.concatenate(
                 [
-                    _expr.const([-1], dtype=infer_type(x_shape).checked_type.dtype),
+                    _expr.const(
+                        [-1], dtype=infer_type(x_shape).checked_type.dtype),
                     _op.strided_slice(x_shape, [ndims - nd + 1], [ndims]),
                 ],
                 0,
@@ -782,10 +793,12 @@ def convert_matmul(g, op, block):
             [
                 out_batch,
                 _op.strided_slice(
-                    a_shape, [infer_shape(a_shape)[0] - 2], [infer_shape(a_shape)[0] - 1]
+                    a_shape, [infer_shape(a_shape)[0] -
+                              2], [infer_shape(a_shape)[0] - 1]
                 ),
                 _op.strided_slice(
-                    b_shape, [infer_shape(b_shape)[0] - 1], [infer_shape(b_shape)[0]]
+                    b_shape, [infer_shape(b_shape)[0] -
+                              1], [infer_shape(b_shape)[0]]
                 ),
             ],
             0,
@@ -824,7 +837,8 @@ def convert_mul(g, op, block):
     if x_num_col_dims == 1:
         x = _op.nn.batch_flatten(x)
     else:
-        pre_shape = _op.prod(_op.strided_slice(x_shape, [0], [x_num_col_dims], [1]), keepdims=True)
+        pre_shape = _op.prod(_op.strided_slice(
+            x_shape, [0], [x_num_col_dims], [1]), keepdims=True)
         post_shape = _op.prod(
             _op.strided_slice(x_shape, [x_num_col_dims], [x_dim], [1]), keepdims=True
         )
@@ -834,7 +848,8 @@ def convert_mul(g, op, block):
     if y_num_col_dims == 1:
         y = _op.nn.batch_flatten(y)
     else:
-        pre_shape = _op.prod(_op.strided_slice(y_shape, [0], [y_num_col_dims], [1]), keepdims=True)
+        pre_shape = _op.prod(_op.strided_slice(
+            y_shape, [0], [y_num_col_dims], [1]), keepdims=True)
         post_shape = _op.prod(
             _op.strided_slice(y_shape, [y_num_col_dims], [y_dim], [1]), keepdims=True
         )
@@ -900,7 +915,8 @@ def convert_pool2d(g, op, block):
             input_x, pool_size=ksize, strides=strides, padding=paddings, ceil_mode=ceil_mode
         )
     else:
-        out = getattr(_op.nn, "adaptive_" + op_map[pooling_type])(input_x, output_size=ksize)
+        out = getattr(_op.nn, "adaptive_" +
+                      op_map[pooling_type])(input_x, output_size=ksize)
     g.add_node(op.output("Out")[0], out)
 
 
@@ -931,7 +947,8 @@ def convert_padding(g, op, block):
         new_paddings[index] = padding[i + 1]
         new_paddings[index - 1] = padding[i]
 
-    new_paddings = [new_paddings[i : i + 2] for i in range(0, len(new_paddings), 2)]
+    new_paddings = [new_paddings[i: i + 2]
+                    for i in range(0, len(new_paddings), 2)]
 
     out = _op.nn.pad(input_x, new_paddings, pad_value=value, pad_mode=mode)
     g.add_node(op.output("Out")[0], out)
@@ -966,12 +983,13 @@ def convert_reshape(g, op, block):
 
 def convert_rnn(g, op, block):
     """Operator converter for rnn."""
-    
+
     def generate_lstm(X_steps, H_t, C_t, W, R, WB, RB, f_act, g_act, h_act, backwards=False):
         h_list = []
         seq_length = len(X_steps)
         for i in range(seq_length):
-            step = X_steps[i] if not backwards else X_steps[seq_length - (i + 1)]
+            step = X_steps[i] if not backwards else X_steps[seq_length -
+                                                            (i + 1)]
             step = _op.squeeze(step, axis=[0])
             gates = _op.nn.dense(step, W) + _op.nn.dense(H_t, R)
             if WB is not None:
@@ -985,7 +1003,7 @@ def convert_rnn(g, op, block):
 
             c = g_act(c)
             C = f * C_t + i * c
-            
+
             o = f_act(o)
 
             H = o * h_act(C)
@@ -1010,7 +1028,6 @@ def convert_rnn(g, op, block):
         all_layer_param_len = len(node.input('WeightList'))
         weight_list = node.input('WeightList')[:all_layer_param_len // 2]
         bias_list = node.input('WeightList')[all_layer_param_len // 2:]
-        single_layer_param_len = all_layer_param_len // num_layers
 
         layer_weight_list = weight_list[layer * bidirect_len:layer *
                                         bidirect_len + bidirect_len]
@@ -1031,14 +1048,12 @@ def convert_rnn(g, op, block):
         all_init_h, all_init_c = node.input('PreState')
         bidirect_len = 2 if node.attr('is_bidirec') else 1
         init_h = _op.strided_slice(g.get_node(all_init_h), [layer * bidirect_len],
-            [layer * bidirect_len + bidirect_len], axes=[0])
+                                   [layer * bidirect_len + bidirect_len], axes=[0])
         init_c = _op.strided_slice(g.get_node(all_init_c), [layer * bidirect_len],
-            [layer * bidirect_len + bidirect_len], axes=[0])
+                                   [layer * bidirect_len + bidirect_len], axes=[0])
         return init_h, init_c
 
-    dropout_prob = op.attr('dropout_prob')
     hidden_size = op.attr('hidden_size')
-    input_size = op.attr('input_size')
     num_layers = op.attr('num_layers')
     is_bidirec = op.attr('is_bidirec')
 
@@ -1047,12 +1062,13 @@ def convert_rnn(g, op, block):
     num_directions = 1
     if is_bidirec:
         num_directions = 2
-    
+
     X_shape = infer_shape(input_x)
     time_steps = X_shape[0]
     X_steps = _op.split(input_x, indices_or_sections=time_steps, axis=0)
     for layer in range(num_layers):
-        input_weights, hidden_weights, input_bias, hidden_bias = make_param_inputs(g, op, layer, hidden_size, num_layers)
+        input_weights, hidden_weights, input_bias, hidden_bias = make_param_inputs(
+            g, op, layer, hidden_size, num_layers)
 
         init_h, init_c = make_init_param_inputs(g, op, layer)
         init_hs = _op.split(init_h, num_directions)
@@ -1091,7 +1107,7 @@ def convert_rnn(g, op, block):
         output = _op.reshape(output, newshape=(0, 0, -1))
         X_steps = output
         X_steps = _op.split(X_steps, indices_or_sections=time_steps, axis=0)
-    
+
     g.add_node(op.output('Out')[0], output)
 
 
@@ -1439,5 +1455,6 @@ def from_paddle(program_or_layer, shape_dict=None, scope=None):
         # model is loaded by `paddle.static.load_inference_model`
         mod, params = g.from_program(program_or_layer, shape_dict, scope)
     else:
-        raise Exception("Only PaddlePaddle's Program and TranslatedLayer are supported.")
+        raise Exception(
+            "Only PaddlePaddle's Program and TranslatedLayer are supported.")
     return mod, params
