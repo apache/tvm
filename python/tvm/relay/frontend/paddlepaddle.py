@@ -90,6 +90,32 @@ def convert_unary_op(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_addmm(g, op, block):
+    """Operator converter for addmm."""
+
+    input_x = g.get_node(op.input('Input')[0])
+    x = g.get_node(op.input('X')[0])
+    y = g.get_node(op.input('Y')[0])
+
+    alpha = op.attr('Alpha')
+    beta = op.attr('Beta')
+    dtype = block.var(op.output('Out')[0]).dtype
+    dtype = str(dtype).strip().split('.')[1]
+
+    if not isinstance(alpha, _expr.Expr) and alpha != 1:
+        alpha = _expr.const(alpha, dtype)
+        x *= alpha
+
+    if not isinstance(beta, _expr.Expr) and beta != 1:
+        beta = _expr.const(beta, dtype)
+        input_x *= beta
+
+    transposed_y = _op.transpose(y, axes=[1, 0])
+    dense_out = _op.nn.dense(x, transposed_y)
+    out = dense_out + input_x
+    g.add_node(op.output('Out')[0], out)
+
+
 def convert_arg_max(g, op, block):
     """Operator converter for arg_max."""
 
@@ -103,6 +129,22 @@ def convert_arg_max(g, op, block):
         out = _op.argmax(x, axis=None, keepdims=True)
     else:
         out = _op.argmax(x, axis=axis, keepdims=keepdims)
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_arg_min(g, op, block):
+    """Operator converter for arg_min."""
+
+    axis = op.attr("axis")
+    keepdims = op.attr("keepdims")
+    flatten = op.attr("flatten")
+
+    x = g.get_node(op.input("X")[0])
+    if axis is None or flatten:
+        x = _op.reshape(x, [-1])
+        out = _op.argmin(x, axis=None, keepdims=True)
+    else:
+        out = _op.argmin(x, axis=axis, keepdims=keepdims)
     g.add_node(op.output("Out")[0], out)
 
 
@@ -200,7 +242,8 @@ def convert_interpolate2d(g, op, x):
             in_h, in_w = input_shape[1], input_shape[2]
         if input_scale:
             scale_data = g.get_node(input_scale[0])
-            scale_data = infer_value(scale_data, g.get_params()).numpy().tolist()
+            scale_data = infer_value(
+                scale_data, g.get_params()).numpy().tolist()
             if len(scale_data) > 1:
                 out_h = int(scale_data[0] * in_h)
                 out_w = int(scale_data[1] * in_w)
@@ -216,7 +259,8 @@ def convert_interpolate2d(g, op, x):
                 out_w = int(scale[1] * in_w)
             out_size = [out_h, out_w]
 
-    rounding_method, interp_method, coordinate_transformation_mode = get_interpolate_mode(op)
+    rounding_method, interp_method, coordinate_transformation_mode = get_interpolate_mode(
+        op)
     out = _op.image.resize2d(
         x,
         size=out_size,
@@ -280,8 +324,10 @@ def convert_conv2d(g, op, block):
             pad_w = _get_pad_size(0, (k_w - 1) * dilations[1] + 1, strides[1])
         else:
             in_h, in_w = infer_shape(input_x)[2:]
-            pad_h = _get_pad_size(in_h, (k_h - 1) * dilations[0] + 1, strides[0])
-            pad_w = _get_pad_size(in_w, (k_w - 1) * dilations[1] + 1, strides[1])
+            pad_h = _get_pad_size(
+                in_h, (k_h - 1) * dilations[0] + 1, strides[0])
+            pad_w = _get_pad_size(
+                in_w, (k_w - 1) * dilations[1] + 1, strides[1])
         paddings = [pad_h[0], pad_w[0], pad_h[1], pad_w[1]]
     elif padding_algorithm == "EXPLICIT":
         if len(paddings) == 2:
@@ -313,7 +359,8 @@ def convert_conv2d_transpose(g, op, block):
     paddings = op.attr("paddings")
     padding_algorithm = op.attr("padding_algorithm")
     strides = op.attr("strides")
-    output_padding = op.attr("output_padding") if op.attr("output_padding") else [0, 0]
+    output_padding = op.attr("output_padding") if op.attr(
+        "output_padding") else [0, 0]
 
     kernel = g.get_node(op.input("Filter")[0])
     input_x = g.get_node(op.input("Input")[0])
@@ -348,6 +395,23 @@ def convert_conv2d_transpose(g, op, block):
     g.add_node(op.output("Output")[0], out)
 
 
+def convert_crop(g, op, block):
+    """Operator converter for crop."""
+
+    x = g.get_node(op.input('X')[0])
+    offsets = op.attr('offsets')
+    shape = op.attr('shape')
+
+    crop_len = len(shape)
+    slice_start = [0] * crop_len
+    slice_end = shape
+    for i in range(crop_len):
+        slice_start[i] += offsets[i]
+        slice_end[i] += offsets[i]
+    out = _op.strided_slice(x, slice_start, slice_end)
+    g.add_node(op.output('Out')[0], out)
+
+
 def convert_cumsum(g, op, block):
     """Operator converter for cumsum."""
 
@@ -376,6 +440,16 @@ def convert_dropout(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_dot(g, op, block):
+    """Operator converter for dot."""
+
+    x = g.get_node(op.input('X')[0])
+    y = g.get_node(op.input('Y')[0])
+
+    out = _op.sum(_op.multiply(x, y), axis=[-1], keepdims=True)
+    g.add_node(op.output('Out')[0], out)
+
+
 def convert_elementwise_op(g, op, block):
     """Operator converter for all the elementwise operators."""
 
@@ -396,7 +470,8 @@ def convert_elementwise_op(g, op, block):
         if axis < 0:
             axis = axis + len(ipt0_shape)
         if axis != len(ipt0_shape) - 1:
-            ipt1 = _op.expand_dims(ipt1, axis=axis, num_newaxis=(len(ipt0_shape) - axis - 1))
+            ipt1 = _op.expand_dims(
+                ipt1, axis=axis, num_newaxis=(len(ipt0_shape) - axis - 1))
     out = op_func(ipt0, ipt1)
     g.add_node(op.output("Out")[0], out)
 
@@ -408,6 +483,31 @@ def convert_equal(g, op, block):
     y = g.get_node(op.input("Y")[0])
     out = _op.equal(x, y)
     g.add_node(op.output("Out")[0], out)
+
+
+def convert_expand(g, op, block):
+    """Operator converter for expand."""
+
+    x = g.get_node(op.input('X')[0])
+    input_shape = list(infer_shape(x))
+
+    ndims = len(input_shape)
+    sizes = op.attr('shape')
+    out = x
+
+    out_dims = len(sizes)
+    if ndims < out_dims:
+        num_newaxis = out_dims - ndims
+        out = _op.expand_dims(out, axis=0, num_newaxis=num_newaxis)
+        input_shape = [1] * num_newaxis + input_shape
+
+    for i in range(out_dims):
+        if sizes[i] != -1 and input_shape[i] == 1:
+            if not isinstance(sizes[i], int):
+                sizes[i] = int(infer_value(sizes[i], {}).numpy())
+            out = _op.repeat(out, sizes[i], axis=i)
+
+    g.add_node(op.output('Out')[0], out)
 
 
 def convert_feed(g, op, block):
@@ -459,13 +559,58 @@ def convert_fill_constant(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_fill_constant_batch_size_like(g, op, block):
+    """Operator converter for fill_constant_batch_size_like."""
+
+    x = g.get_node(op.input('Input')[0])
+    input_shape = infer_shape(x)
+    out_shape = op.attr('shape')
+    input_dim_idx = op.attr('input_dim_idx')
+    output_dim_idx = op.attr('output_dim_idx')
+    value = op.attr('value')
+    dtype = block.var(op.output('Out')[0]).dtype
+    dtype = str(dtype).strip().split('.')[1]
+    out_shape[output_dim_idx] = input_shape[input_dim_idx]
+    value = np.full(out_shape, value, dtype)
+    out = _expr.const(value.astype(dtype)).astype(dtype)
+    g.add_node(op.output('Out')[0], out)
+
+
+def convert_flatten(g, op, block):
+    """Operator converter for flatten."""
+
+    x = g.get_node(op.input('X')[0])
+    input_shape = list(infer_shape(x))
+
+    start = op.attr('start_axis')
+    end = op.attr('stop_axis')
+    ndim = len(input_shape)
+    if end < 0:
+        end += ndim
+    new_shape = [0] * start
+
+    new_shape.append(-1)
+    squeeze_axes = []
+    for i in range(start + 1, end + 1):
+        new_shape.append(1)
+        squeeze_axes.append(i)
+    for _ in range(end + 1, ndim):
+        new_shape.append(0)
+    out = _op.reshape(x, new_shape)
+    if squeeze_axes:
+        out = _op.squeeze(out, axis=squeeze_axes)
+
+    g.add_node(op.output('Out')[0], out)
+
+
 def convert_gelu(g, op, block):
     """Operator converter for gelu."""
 
     x = g.get_node(op.input("X")[0])
     out = x * (
         _expr.const(0.5, dtype="float32")
-        + _op.erf(x * _expr.const(0.5 ** 0.5, dtype="float32")) * _expr.const(0.5, dtype="float32")
+        + _op.erf(x * _expr.const(0.5 ** 0.5, dtype="float32")) *
+        _expr.const(0.5, dtype="float32")
     )
     g.add_node(op.output("Out")[0], out)
 
@@ -486,9 +631,12 @@ def convert_hard_swish(g, op, block):
     offset = op.attr("offset")
     scale = op.attr("scale")
     threshold = op.attr("threshold")
-    assert np.isclose(offset, 3.0), "Only support offset==3.0 for PaddlePaddle's hard_swish"
-    assert np.isclose(scale, 6.0), "Only support scale==6.0 for PaddlePaddle's hard_swish"
-    assert np.isclose(threshold, 6.0), "Only support threshold==6.0 for PaddlePaddle's hard_swish"
+    assert np.isclose(
+        offset, 3.0), "Only support offset==3.0 for PaddlePaddle's hard_swish"
+    assert np.isclose(
+        scale, 6.0), "Only support scale==6.0 for PaddlePaddle's hard_swish"
+    assert np.isclose(
+        threshold, 6.0), "Only support threshold==6.0 for PaddlePaddle's hard_swish"
     x = g.get_node(op.input("X")[0])
     out = _op.clip(x, -1 * offset, offset)
     out = out / _expr.const(threshold) + _expr.const(0.5)
@@ -599,7 +747,8 @@ def convert_matmul(g, op, block):
                 return x
             newshape = _op.concatenate(
                 [
-                    _expr.const([-1], dtype=infer_type(x_shape).checked_type.dtype),
+                    _expr.const(
+                        [-1], dtype=infer_type(x_shape).checked_type.dtype),
                     _op.strided_slice(x_shape, [ndims - nd + 1], [ndims]),
                 ],
                 0,
@@ -644,10 +793,12 @@ def convert_matmul(g, op, block):
             [
                 out_batch,
                 _op.strided_slice(
-                    a_shape, [infer_shape(a_shape)[0] - 2], [infer_shape(a_shape)[0] - 1]
+                    a_shape, [infer_shape(a_shape)[0] -
+                              2], [infer_shape(a_shape)[0] - 1]
                 ),
                 _op.strided_slice(
-                    b_shape, [infer_shape(b_shape)[0] - 1], [infer_shape(b_shape)[0]]
+                    b_shape, [infer_shape(b_shape)[0] -
+                              1], [infer_shape(b_shape)[0]]
                 ),
             ],
             0,
@@ -686,7 +837,8 @@ def convert_mul(g, op, block):
     if x_num_col_dims == 1:
         x = _op.nn.batch_flatten(x)
     else:
-        pre_shape = _op.prod(_op.strided_slice(x_shape, [0], [x_num_col_dims], [1]), keepdims=True)
+        pre_shape = _op.prod(_op.strided_slice(
+            x_shape, [0], [x_num_col_dims], [1]), keepdims=True)
         post_shape = _op.prod(
             _op.strided_slice(x_shape, [x_num_col_dims], [x_dim], [1]), keepdims=True
         )
@@ -696,7 +848,8 @@ def convert_mul(g, op, block):
     if y_num_col_dims == 1:
         y = _op.nn.batch_flatten(y)
     else:
-        pre_shape = _op.prod(_op.strided_slice(y_shape, [0], [y_num_col_dims], [1]), keepdims=True)
+        pre_shape = _op.prod(_op.strided_slice(
+            y_shape, [0], [y_num_col_dims], [1]), keepdims=True)
         post_shape = _op.prod(
             _op.strided_slice(y_shape, [y_num_col_dims], [y_dim], [1]), keepdims=True
         )
@@ -762,7 +915,8 @@ def convert_pool2d(g, op, block):
             input_x, pool_size=ksize, strides=strides, padding=paddings, ceil_mode=ceil_mode
         )
     else:
-        out = getattr(_op.nn, "adaptive_" + op_map[pooling_type])(input_x, output_size=ksize)
+        out = getattr(_op.nn, "adaptive_" +
+                      op_map[pooling_type])(input_x, output_size=ksize)
     g.add_node(op.output("Out")[0], out)
 
 
@@ -793,7 +947,8 @@ def convert_padding(g, op, block):
         new_paddings[index] = padding[i + 1]
         new_paddings[index - 1] = padding[i]
 
-    new_paddings = [new_paddings[i : i + 2] for i in range(0, len(new_paddings), 2)]
+    new_paddings = [new_paddings[i: i + 2]
+                    for i in range(0, len(new_paddings), 2)]
 
     out = _op.nn.pad(input_x, new_paddings, pad_value=value, pad_mode=mode)
     g.add_node(op.output("Out")[0], out)
@@ -824,6 +979,136 @@ def convert_reshape(g, op, block):
         new_shape = op.attr("shape")
     out = _op.reshape(data, new_shape)
     g.add_node(op.output("Out")[0], out)
+
+
+def convert_rnn(g, op, block):
+    """Operator converter for rnn."""
+
+    def generate_lstm(X_steps, H_t, C_t, W, R, WB, RB, f_act, g_act, h_act, backwards=False):
+        h_list = []
+        seq_length = len(X_steps)
+        for i in range(seq_length):
+            step = X_steps[i] if not backwards else X_steps[seq_length -
+                                                            (i + 1)]
+            step = _op.squeeze(step, axis=[0])
+            gates = _op.nn.dense(step, W) + _op.nn.dense(H_t, R)
+            if WB is not None:
+                gates += WB
+            if RB is not None:
+                gates += RB
+            i, f, c, o = _op.split(gates, 4, axis=-1)
+
+            i = f_act(i)
+            f = f_act(f)
+
+            c = g_act(c)
+            C = f * C_t + i * c
+
+            o = f_act(o)
+
+            H = o * h_act(C)
+
+            H_t = H
+            C_t = C
+            h_list.append(_op.expand_dims(H, axis=0))
+
+        if backwards:
+            h_list = h_list[::-1]
+
+        # Concatenate outputs and add back in direction axis.
+        concatenated = _op.concatenate(h_list, 0)
+        output = _op.expand_dims(concatenated, axis=1)
+        H_t = _op.expand_dims(H_t, axis=0)
+        C_t = _op.expand_dims(C_t, axis=0)
+
+        return output, H_t, C_t
+
+    def make_param_inputs(g, node, layer, hidden_size, num_layers):
+        bidirect_len = 4 if node.attr('is_bidirec') else 2
+        all_layer_param_len = len(node.input('WeightList'))
+        weight_list = node.input('WeightList')[:all_layer_param_len // 2]
+        bias_list = node.input('WeightList')[all_layer_param_len // 2:]
+
+        layer_weight_list = weight_list[layer * bidirect_len:layer *
+                                        bidirect_len + bidirect_len]
+        layer_bias_list = bias_list[layer * bidirect_len:layer * bidirect_len +
+                                    bidirect_len]
+        param_list = layer_weight_list + layer_bias_list
+        param_list_len = len(param_list)
+
+        input_weights = param_list[0:param_list_len // 2:2]
+        hidden_weights = param_list[1:param_list_len // 2:2]
+
+        input_bias = param_list[param_list_len // 2:param_list_len:2]
+        hidden_bias = param_list[param_list_len // 2 + 1:param_list_len:2]
+
+        return input_weights, hidden_weights, input_bias, hidden_bias
+
+    def make_init_param_inputs(g, node, layer):
+        all_init_h, all_init_c = node.input('PreState')
+        bidirect_len = 2 if node.attr('is_bidirec') else 1
+        init_h = _op.strided_slice(g.get_node(all_init_h), [layer * bidirect_len],
+                                   [layer * bidirect_len + bidirect_len], axes=[0])
+        init_c = _op.strided_slice(g.get_node(all_init_c), [layer * bidirect_len],
+                                   [layer * bidirect_len + bidirect_len], axes=[0])
+        return init_h, init_c
+
+    hidden_size = op.attr('hidden_size')
+    num_layers = op.attr('num_layers')
+    is_bidirec = op.attr('is_bidirec')
+
+    input_x = g.get_node(op.input('Input')[0])
+
+    num_directions = 1
+    if is_bidirec:
+        num_directions = 2
+
+    X_shape = infer_shape(input_x)
+    time_steps = X_shape[0]
+    X_steps = _op.split(input_x, indices_or_sections=time_steps, axis=0)
+    for layer in range(num_layers):
+        input_weights, hidden_weights, input_bias, hidden_bias = make_param_inputs(
+            g, op, layer, hidden_size, num_layers)
+
+        init_h, init_c = make_init_param_inputs(g, op, layer)
+        init_hs = _op.split(init_h, num_directions)
+        init_cs = _op.split(init_c, num_directions)
+        result_output = []
+        result_H = []
+        result_C = []
+        for i in range(num_directions):
+            H_t = _op.squeeze(init_hs[i], axis=[0])
+            C_t = _op.squeeze(init_cs[i], axis=[0])
+            W = g.get_node(input_weights[i])
+            R = g.get_node(hidden_weights[i])
+            WB = g.get_node(input_bias[i])
+            RB = g.get_node(hidden_bias[i])
+            output, H, C = generate_lstm(
+                X_steps=X_steps,
+                H_t=H_t,
+                C_t=C_t,
+                W=W,
+                R=R,
+                WB=WB,
+                RB=RB,
+                f_act=_op.sigmoid,
+                g_act=_op.tanh,
+                h_act=_op.tanh,
+                backwards=i == 1
+            )
+            result_output.append(output)
+            result_H.append(H)
+            result_C.append(C)
+        output = _op.concatenate(result_output, axis=1)
+        H = _op.concatenate(result_H, axis=0)
+        C = _op.concatenate(result_C, axis=0)
+
+        output = _op.transpose(output, axes=[0, 2, 1, 3])
+        output = _op.reshape(output, newshape=(0, 0, -1))
+        X_steps = output
+        X_steps = _op.split(X_steps, indices_or_sections=time_steps, axis=0)
+
+    g.add_node(op.output('Out')[0], output)
 
 
 def convert_scale(g, op, block):
@@ -944,19 +1229,28 @@ def convert_unsqueeze(g, op, block):
 
 _convert_map = {
     "abs": convert_unary_op,
+    "acos": convert_unary_op,
+    "addmm": convert_addmm,
     "arg_max": convert_arg_max,
+    "arg_min": convert_arg_min,
+    "asin": convert_unary_op,
     "assign": convert_assign,
+    "atan": convert_unary_op,
     "batch_norm": convert_batch_norm,
     "bicubic_interp_v2": convert_interpolate,
     "bilinear_interp_v2": convert_interpolate,
     "bmm": convert_bmm,
     "cast": convert_cast,
+    "ceil": convert_unary_op,
     "concat": convert_concat,
     "conv2d": convert_conv2d,
     "conv2d_transpose": convert_conv2d_transpose,
+    "cos": convert_unary_op,
     "cosh": convert_unary_op,
+    "crop_tensor": convert_crop,
     "cumsum": convert_cumsum,
     "depthwise_conv2d": convert_conv2d,
+    "dot": convert_dot,
     "dropout": convert_dropout,
     "elementwise_add": convert_elementwise_op,
     "elementwise_div": convert_elementwise_op,
@@ -964,9 +1258,12 @@ _convert_map = {
     "elementwise_sub": convert_elementwise_op,
     "equal": convert_equal,
     "exp": convert_unary_op,
+    "expand_v2": convert_expand,
     "feed": convert_feed,
     "fill_any_like": convert_fill_any_like,
     "fill_constant": convert_fill_constant,
+    'fill_constant_batch_size_like': convert_fill_constant_batch_size_like,
+    "flatten_contiguous_range": convert_flatten,
     "floor": convert_unary_op,
     "gelu": convert_gelu,
     "hard_sigmoid": convert_hard_sigmoid,
@@ -975,6 +1272,7 @@ _convert_map = {
     "isinf_v2": convert_unary_op,
     "layer_norm": convert_layer_norm,
     "leaky_relu": convert_leaky_relu,
+    "lookup_table": convert_lookup_table,
     "lookup_table_v2": convert_lookup_table,
     "log": convert_unary_op,
     "log10": convert_unary_op,
@@ -989,6 +1287,7 @@ _convert_map = {
     "pad3d": convert_padding,
     "relu": convert_unary_op,
     "reshape2": convert_reshape,
+    "rnn": convert_rnn,
     "scale": convert_scale,
     "shape": convert_shape,
     "sigmoid": convert_unary_op,
@@ -1156,5 +1455,6 @@ def from_paddle(program_or_layer, shape_dict=None, scope=None):
         # model is loaded by `paddle.static.load_inference_model`
         mod, params = g.from_program(program_or_layer, shape_dict, scope)
     else:
-        raise Exception("Only PaddlePaddle's Program and TranslatedLayer are supported.")
+        raise Exception(
+            "Only PaddlePaddle's Program and TranslatedLayer are supported.")
     return mod, params

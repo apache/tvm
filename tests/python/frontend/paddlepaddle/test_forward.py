@@ -147,6 +147,11 @@ def test_forward_unary_op():
     input_data = paddle.rand([1, 2, 5, 5], dtype="float32")
     op_list = [
         "abs",
+        "acos",
+        "asin",
+        "atan",
+        "ceil",
+        "cos",
         "cosh",
         "exp",
         "floor",
@@ -188,6 +193,21 @@ def test_forward_add_subtract():
 
 
 @tvm.testing.uses_gpu
+def test_forward_addmm():
+    @paddle.jit.to_static
+    def addmm(input, x, y, alpha=1, beta=1):
+        return paddle.addmm(input, x, y, alpha, beta)
+
+    input_shape = [10, 10]
+    x_shape = [10, 3]
+    y_shape = [3, 10]
+    input_data = paddle.rand(input_shape, dtype="float32")
+    x_data = paddle.rand(x_shape, dtype="float32")
+    y_data = paddle.rand(y_shape, dtype="float32")
+    verify_model(addmm, input_data=[input_data, x_data, y_data])
+
+
+@tvm.testing.uses_gpu
 def test_forward_argmax():
     input_shape = [1, 3, 10, 10]
 
@@ -216,6 +236,37 @@ def test_forward_argmax():
     verify_model(ArgMax1(), input_data=input_data)
     verify_model(ArgMax2(), input_data=input_data)
     verify_model(ArgMax3(), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
+def test_forward_argmin():
+    input_shape = [1, 3, 10, 10]
+
+    class ArgMin(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.argmin(inputs)
+
+    class ArgMin1(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return inputs.argmin(axis=1)
+
+    class ArgMin2(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return inputs.argmin(axis=1, keepdim=False)
+
+    class ArgMin3(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return inputs.argmin(axis=2, keepdim=True)
+
+    input_data = paddle.rand(input_shape, dtype="float32")
+    verify_model(ArgMin(), input_data=input_data)
+    verify_model(ArgMin1(), input_data=input_data)
+    verify_model(ArgMin2(), input_data=input_data)
+    verify_model(ArgMin3(), input_data=input_data)
 
 
 @tvm.testing.uses_gpu
@@ -321,6 +372,37 @@ def test_forward_concat_unsqueeze():
     input_data = paddle.rand(input_shape, dtype="float32")
     verify_model(concat_unsqueeze1, input_data=input_data)
     verify_model(concat_unsqueeze2, input_data=input_data)
+
+
+@tvm.testing.uses_gpu
+def test_forward_crop():
+    input_shape = [10, 10]
+
+    class Crop(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.crop(inputs, shape=[2, 2])
+
+    class Crop1(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.crop(inputs, shape=[3, 3], offsets=[0, 1])
+
+    class Crop2(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.crop(inputs, shape=[3, 3], offsets=[1, 0])
+
+    class Crop3(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.crop(inputs, shape=[3, 3], offsets=[1, 1])
+
+    input_data = paddle.rand(input_shape, dtype="float32")
+    verify_model(Crop(), input_data=input_data)
+    verify_model(Crop1(), input_data=input_data)
+    verify_model(Crop2(), input_data=input_data)
+    verify_model(Crop3(), input_data=input_data)
 
 
 @tvm.testing.uses_gpu
@@ -434,6 +516,19 @@ def test_forward_conv_transpose():
 
 
 @tvm.testing.uses_gpu
+def test_forward_dot():
+    @paddle.jit.to_static
+    def dot(x, y):
+        return paddle.dot(x, y)
+
+    x_shape = [10, 3]
+    y_shape = [10, 3]
+    x_data = paddle.rand(x_shape, dtype="float32")
+    y_data = paddle.rand(y_shape, dtype="float32")
+    verify_model(dot, input_data=[x_data, y_data])
+
+
+@tvm.testing.uses_gpu
 def test_forward_dropout():
     @paddle.jit.to_static
     def dropout(inputs):
@@ -443,6 +538,32 @@ def test_forward_dropout():
     input_data = paddle.rand(input_shape, dtype="float32")
     verify_model(dropout, input_data=input_data[0, 0])
     verify_model(dropout, input_data=input_data)
+
+
+@tvm.testing.uses_gpu
+def test_forward_expand():
+    @paddle.jit.to_static
+    def expand(inputs):
+        return paddle.expand(inputs, shape=[2, 3])
+
+    x_shape = [3]
+    x_data = paddle.rand(x_shape, dtype="float32")
+    verify_model(expand, input_data=[x_data])
+
+
+@tvm.testing.uses_gpu
+def test_forward_flatten():
+    @paddle.jit.to_static
+    def flatten1(inputs):
+        return paddle.flatten(inputs, start_axis=1, stop_axis=2)
+
+    def flatten2(inputs):
+        return paddle.flatten(inputs, start_axis=0, stop_axis=-1)
+
+    x_shape = [3, 100, 100, 4]
+    x_data = paddle.rand(x_shape, dtype="float32")
+    verify_model(flatten1, input_data=[x_data])
+    verify_model(flatten2, input_data=[x_data])
 
 
 @tvm.testing.uses_gpu
@@ -621,6 +742,26 @@ def test_forward_look_up():
     weight = paddle.rand([10, 4], dtype="float32")
     verify_model(look_up, input_data=[input_data, weight])
     verify_model(LookUp(), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
+def test_forward_lstm():
+    lstm_input_shape = [25, 1, 288]
+
+    class LSTM1(nn.Layer):
+        def __init__(self):
+            super(LSTM1, self).__init__()
+            self.lstm = nn.LSTM(288, 48, 2, direction="bidirect", time_major=True)
+
+        @paddle.jit.to_static
+        def forward(self, inputs, prev_h, prev_c):
+            y, (h, c) = self.lstm(inputs, (prev_h, prev_c))
+            return y
+
+    lstm_input_data = paddle.rand(lstm_input_shape, dtype="float32")
+    prev_h = paddle.rand([4, 1, 48], dtype="float32")
+    prev_c = paddle.rand([4, 1, 48], dtype="float32")
+    verify_model(LSTM1(), input_data=[lstm_input_data, prev_h, prev_c])
 
 
 @tvm.testing.uses_gpu
@@ -841,14 +982,20 @@ def test_forward_squeeze2():
 
 if __name__ == "__main__":
     test_forward_add_subtract()
+    test_forward_addmm()
     test_forward_argmax()
+    test_forward_argmin()
     test_forward_assign()
     test_forward_batch_norm()
     test_forward_cast()
     test_forward_concat_unsqueeze()
-    test_forward_cumsum()
     test_forward_conv()
+    test_forward_crop()
+    test_forward_cumsum()
+    test_forward_dot()
     test_forward_dropout()
+    test_forward_expand()
+    test_forward_flatten()
     test_forward_shape_full()
     test_forward_ones_like()
     test_forward_gelu()
@@ -859,6 +1006,7 @@ if __name__ == "__main__":
     test_forward_layer_norm()
     test_forward_leaky_relu()
     test_forward_look_up()
+    test_forward_lstm()
     test_forward_multiply()
     test_forward_matmul()
     test_forward_pool2d()
