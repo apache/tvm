@@ -3591,6 +3591,8 @@ def test_lstm(target, dev):
 
 @tvm.testing.parametrize_targets
 def test_gru(target, dev):
+    # Set seed for test reproduction
+    np.random.seed(137)
     for directions in [1, 2]:
         # No bias.
         verify_rnn(
