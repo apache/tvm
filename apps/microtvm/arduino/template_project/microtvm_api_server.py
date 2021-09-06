@@ -56,6 +56,7 @@ MICRO_DEVICES = {
     "wioterminal": ("atsamd51", "wioterminal"),
 }
 
+
 class BoardAutodetectFailed(Exception):
     """Raised when no attached hardware is found matching the requested board"""
 

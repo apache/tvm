@@ -35,6 +35,7 @@ TEMPLATE_PROJECT_DIR = (
     / "template_project"
 ).resolve()
 
+
 def zephyr_micro_devices() -> dict:
     sys.path.insert(0, str(TEMPLATE_PROJECT_DIR))
     try:
@@ -43,6 +44,7 @@ def zephyr_micro_devices() -> dict:
         sys.path.pop(0)
 
     return microtvm_api_server.MICRO_DEVICES
+
 
 def pytest_addoption(parser):
     parser.addoption(

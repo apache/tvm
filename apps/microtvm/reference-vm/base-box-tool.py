@@ -57,11 +57,9 @@ EXTRA_SCRIPTS = {
 
 PACKER_FILE_NAME = "packer.json"
 
+
 def get_micro_devices(platform: str) -> dict:
-    template_project = (pathlib.Path(__file__).parent
-    / platform
-    / "template_project"
-    ).resolve()
+    template_project = (pathlib.Path(__file__).parent / platform / "template_project").resolve()
 
     sys.path.insert(0, str(arduino_template_project))
     try:
@@ -71,12 +69,14 @@ def get_micro_devices(platform: str) -> dict:
 
     return microtvm_api_server.MICRO_DEVICES
 
+
 # List of identifying strings for microTVM devices for testing.
 # TODO add a way to declare supported platforms to ProjectAPI
 ALL_MICROTVM_DEVICES = {
     "arduino": get_micro_devices("arduino").keys(),
     "zephyr": get_micro_devices("zephyr").keys(),
 }
+
 
 def parse_virtualbox_devices():
     output = subprocess.check_output(["VBoxManage", "list", "usbhost"], encoding="utf-8")

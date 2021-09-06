@@ -17,6 +17,7 @@
 
 import datetime
 import pathlib
+import sys
 
 import pytest
 import tvm.target.target
@@ -32,6 +33,7 @@ TEMPLATE_PROJECT_DIR = (
     / "arduino"
     / "template_project"
 ).resolve()
+
 
 def arduino_micro_devices() -> dict:
     sys.path.insert(0, str(TEMPLATE_PROJECT_DIR))

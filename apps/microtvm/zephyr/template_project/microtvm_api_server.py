@@ -70,6 +70,7 @@ MICRO_DEVICES = {
     "zynq_mp_r5": ("zynq_mp_r5", "qemu_cortex_r5"),
 }
 
+
 def check_call(cmd_args, *args, **kwargs):
     cwd_str = "" if "cwd" not in kwargs else f" (in cwd: {kwargs['cwd']})"
     _LOG.info("run%s: %s", cwd_str, " ".join(shlex.quote(a) for a in cmd_args))
