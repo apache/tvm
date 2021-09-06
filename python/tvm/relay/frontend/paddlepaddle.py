@@ -970,21 +970,23 @@ def convert_padding(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
-def convert_reduce(op_name):
+def convert_reduce(g, op, block):
     """Operator converter for reduce."""
 
-    def _impl(g, op, block):
-        input_x = g.get_node(op.input("X")[0])
-        axis = op.attr("dim")
-        if op.attr("reduce_all"):
-            axis = None
-        keepdims = op.attr("keep_dim")
-        out = get_relay_op(op_name)(input_x, axis=axis, keepdims=keepdims)
-        if not axis and not keepdims:
-            out = _op.expand_dims(out, axis=0)
-        g.add_node(op.output("Out")[0], out)
+    op_map = {
+        "reduce_all" : "all",
+    }
+    op_name = op_map[op.type]
+    input_x = g.get_node(op.input("X")[0])
+    axis = op.attr("dim")
+    if op.attr("reduce_all"):
+        axis = None
+    keepdims = op.attr("keep_dim")
+    out = get_relay_op(op_name)(input_x, axis=axis, keepdims=keepdims)
+    if not axis and not keepdims:
+        out = _op.expand_dims(out, axis=0)
+    g.add_node(op.output("Out")[0], out)
 
-    return _impl
 
 
 def convert_reshape(g, op, block):
