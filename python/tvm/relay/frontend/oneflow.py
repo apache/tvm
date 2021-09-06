@@ -311,7 +311,7 @@ class Conv(OneFlowOpConverter):
             if "strides" in attrs:
                 attrs["strides"] = [1] + list(attrs["strides"])
             if "dilations" in attrs:
-                attrs["dilation"] = [1] + list(attrs["dilation"])
+                attrs["dilation"] = [1] + list(attrs["dilations"])
 
         out = AttrCvt(
             op_name=cls.name,
@@ -1337,7 +1337,9 @@ def get_convert_map():
         "flatten": Flatten.get_converter(),
         "sigmoid": Renamer("sigmoid"),
         "sigmoid_v2": Renamer("sigmoid"),
-        "hardgsigmoid": HardSigmoid.get_converter(),
+        "hardsigmoid": HardSigmoid.get_converter(),
+        "squeeze": AttrCvt("squeeze", {"axes": "axis"}),
+        "unsqueeze": Unsqueeze.get_converter(),
     }
 
 
@@ -1430,17 +1432,14 @@ class OneflowGraph(object):
         for layer_name in model:
             layer = model[layer_name]
             layer_node = {}
-            layer_node['path'] = layer.file_path     # get path
-            if layer.has_meta_info_:
-                layer_node['params'] = layer.numpy() # get array
-            else:
-                if "System-Train" in layer_name:
-                    continue
-                node_name = "m." + layer_name
-                shape = self._shape[node_name]
-                dtype = self._dtype[node_name]
-                array = np.fromfile(layer_node['path'], dtype=dtype)
-                layer_node['params'] = array.reshape(shape)
+            layer_node['path'] = os.path.join(model_dir_path, layer_name, "out")     # get path
+            if "System-Train" in layer_name:
+                continue
+            node_name = "m." + layer_name
+            shape = self._shape[node_name]
+            dtype = self._dtype[node_name]
+            array = np.fromfile(layer_node['path'], dtype=dtype)
+            layer_node['params'] = array.reshape(shape)
             self._model_array[layer_name] = layer_node
 
         """
@@ -1782,6 +1781,9 @@ def from_oneflow(graph, model_dir_path, freeze_params=True, user_input=None):
         raise ValueError("if you want to specify graph input, please give the 'user_input'")
     if freeze_params and user_input is not None:
         warnings.warn("'user_input' will not work, please check the 'freeze_params'")
+    
+    if not graph._is_compiled:
+        graph._compile(flow.rand(shape_input))
 
     # get info of nodes
     shape = {}
@@ -1791,39 +1793,41 @@ def from_oneflow(graph, model_dir_path, freeze_params=True, user_input=None):
     size_where = 2
     if "cuda" in graph_str:
         size_where = 3
-    # TODO(hujiakui): prepare for float16 and int8
-    # if "float16" in graph_str:
-    #     DTYPE = 9
-    # elif "int8" in graph_str:
-    #     DTYPE = 4
 
-    p1 = re.compile(r"size=\(.*?\)", re.S)
+    p_size = re.compile(r"size=\(.*?\)", re.S)
+    p_type = re.compile(r"dtype=.*?\)", re.S)
     types = ["INPUT", "PARAMETER", "BUFFER", "OUTPUT"]
     for t in types:
         data = re.finditer(t+":.*", graph_str)
         for i in data:
             attrs = i.group().split(":")
-            size_str = re.findall(p1, attrs[size_where])
-            assert size_str != [], "size should not be None, please check your inputs dtype"
+            size_str = re.findall(p_size, attrs[size_where])
+            type_str = re.findall(p_type, attrs[size_where])
+            assert size_str != [], "size should not be None, please check your repr(graph)"
+
             size_attr = size_str[0].replace("size=", "")
             if size_attr[-2] == ",":
                 size_attr = size_attr.replace(",", "")
             data_size = tuple(map(int, size_attr[1:-1].split(", ")))
             node_name = attrs[1]
             shape[node_name] = data_size
-            dtype[node_name] = FLOW_2_STR_DTYPE[DTYPE]
+            dtype[node_name] = "float32"
+
+            if type_str != []:
+                type_attr = type_str[0].replace("dtype=", "").replace(")", "")
+                if type_attr[-1] == ",":
+                    type_attr = type_attr.replace(",", "")
+                dtype[node_name] = type_attr.replace("oneflow.", "")
 
     # get graph proto, if you don't _compile the graph, the _graph_proto will be None
     graph_input = re.search(r"INPUT:.*", graph_str).group().split(":")
     shape_input = tuple(
         map(
             int, re.findall(
-                p1, graph_input[size_where]
+                p_size, graph_input[size_where]
             )[0].replace("size=", "")[1:-1].split(", ")
         )
     )
-    if not graph._is_compiled:
-        _ = graph._compile(np.random.rand(shape_input))
     graph_proto = graph._graph_proto
 
     # get all nodes
