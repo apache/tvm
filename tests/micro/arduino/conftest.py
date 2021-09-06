@@ -20,12 +20,14 @@ import pathlib
 
 import pytest
 import tvm.target.target
+from tvm import micro, relay
 
 # The models that should pass this configuration. Maps a short, identifying platform string to
 # (model, zephyr_board).
 PLATFORMS = {
     "due": ("sam3x8e", "due"),
     "feathers2": ("esp32", "feathers2"),
+    "metrom4": ("atsamd51", "metrom4"),
     "nano33ble": ("nrf52840", "nano33ble"),
     "pybadge": ("atsamd51", "pybadge"),
     "spresense": ("cxd5602gg", "spresense"),
@@ -121,3 +123,42 @@ def make_workspace_dir(test_name, platform):
     t = tvm.contrib.utils.tempdir(board_workspace)
     # time.sleep(200)
     return t
+
+
+def make_kws_project(platform, arduino_cli_cmd, tvm_debug, workspace_dir):
+    this_dir = pathlib.Path(__file__).parent
+    model, arduino_board = PLATFORMS[platform]
+    build_config = {"debug": tvm_debug}
+
+    with open(this_dir.parent / "testdata" / "kws" / "yes_no.tflite", "rb") as f:
+        tflite_model_buf = f.read()
+
+    # TFLite.Model.Model has changed to TFLite.Model from 1.14 to 2.1
+    try:
+        import tflite.Model
+
+        tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model_buf, 0)
+    except AttributeError:
+        import tflite
+
+        tflite_model = tflite.Model.GetRootAsModel(tflite_model_buf, 0)
+
+    mod, params = relay.frontend.from_tflite(tflite_model)
+    target = tvm.target.target.micro(
+        model, options=["--link-params=1", "--unpacked-api=1", "--executor=aot"]
+    )
+
+    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
+        mod = relay.build(mod, target, params=params)
+
+    return tvm.micro.generate_project(
+        str(TEMPLATE_PROJECT_DIR),
+        mod,
+        workspace_dir / "project",
+        {
+            "arduino_board": arduino_board,
+            "arduino_cli_cmd": arduino_cli_cmd,
+            "project_type": "example_project",
+            "verbose": bool(build_config.get("debug")),
+        },
+    )
