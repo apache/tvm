@@ -14,26 +14,21 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+import pytest
 import tvm
 from tvm import tir
 
-import pytest
 
 def test_convert_ssa():
     zero = tir.const(0)
     nop = tir.Evaluate(zero)
-
-    v = tir.Var('i1', 'int32')
+    v = tir.Var("i1", "int32")
     for_stmt = tir.For(v, zero, zero, tir.ForKind.SERIAL, nop)
-    load = tir.Evaluate(tir.Load('int32', v, zero))
+    load = tir.Evaluate(tir.Load("int32", v, zero))
     seq = tir.SeqStmt([for_stmt, for_stmt, load])
     func = tir.PrimFunc([], seq)
     mod = tvm.IRModule({"main": func})
-
-    """use tir pass InjectVirtualThread to trigger ConvertSSA"""
-    with tvm.transform.PassContext(opt_level=4):
-        tir.transform.InjectVirtualThread()(mod)
+    mod = tir.transform.InjectVirtualThread()(mod)
 
 
 if __name__ == "__main__":
