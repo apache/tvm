@@ -1010,6 +1010,21 @@ class ParametricSoftPlus(OnnxOpConverter):
         return _op.log(_op.exp(beta * inputs[0]) + _expr.const(1.0)) * alpha
 
 
+class Pow(OnnxOpConverter):
+    """Operator converter for Pow."""
+
+    @classmethod
+    def _impl_v13(cls, inputs, attr, params):
+        x = inputs[0]
+        y = inputs[1]
+        x_type = infer_type(x).checked_type.dtype
+        y_type = infer_type(y).checked_type.dtype
+
+        if x_type != y_type:
+            y = _op.cast(y, x_type)
+        return _op.power(x, y)
+
+
 class Prelu(OnnxOpConverter):
     """Operator converter for Prelu."""
 
@@ -3644,7 +3659,7 @@ def _get_convert_map(opset):
         "Sinh": Renamer("sinh"),
         "Tan": Renamer("tan"),
         "Tanh": Renamer("tanh"),
-        "Pow": Renamer("power"),
+        "Pow": Pow.get_converter(opset),
         "PRelu": Prelu.get_converter(opset),
         "Sigmoid": Renamer("sigmoid"),
         "HardSigmoid": HardSigmoid.get_converter(opset),
