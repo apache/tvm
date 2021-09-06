@@ -72,6 +72,9 @@ SPIRVSupport::SPIRVSupport(tvm::Target target) {
   if (target->GetAttr<Bool>("supports_float16")) {
     supports_float16 = target->GetAttr<Bool>("supports_float16").value();
   }
+  if (target->GetAttr<Bool>("supports_float64")) {
+    supports_float64 = target->GetAttr<Bool>("supports_float64").value();
+  }
   if (target->GetAttr<Bool>("supports_int8")) {
     supports_int8 = target->GetAttr<Bool>("supports_int8").value();
   }

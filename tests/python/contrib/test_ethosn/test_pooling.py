@@ -20,7 +20,7 @@
 import numpy as np
 import tvm
 from tvm import relay
-from tvm.relay.op.contrib.ethosn import ethosn_available
+from tvm.testing import requires_ethosn
 from . import infrastructure as tei
 
 
@@ -35,10 +35,8 @@ def _get_model(shape, typef, sizes, strides, pads, layout, dtype):
     return req
 
 
+@requires_ethosn
 def test_pooling():
-    if not ethosn_available():
-        return
-
     trials = [
         ((1, 8, 8, 8), relay.nn.max_pool2d, (2, 2), (2, 2), (0, 0, 0, 0), "NHWC"),
         ((1, 9, 9, 9), relay.nn.max_pool2d, (2, 2), (2, 2), (0, 0, 1, 1), "NHWC"),
@@ -60,10 +58,8 @@ def test_pooling():
         tei.verify(outputs, 1)
 
 
+@requires_ethosn
 def test_pooling_failure():
-    if not ethosn_available():
-        return
-
     trials = [
         (
             (2, 8, 8, 8),

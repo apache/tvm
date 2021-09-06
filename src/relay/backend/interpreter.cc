@@ -53,7 +53,11 @@ namespace {
 struct PairHash {
   template <typename T1, typename T2>
   std::size_t operator()(const std::pair<T1, T2>& k) const {
-    return std::hash<T1>()(k.first) ^ std::hash<T2>()(k.second);
+    return dmlc::HashCombine(std::hash<T1>()(k.first), std::hash<T2>()(k.second));
+  }
+  template <typename T2>
+  std::size_t operator()(const std::pair<Target, T2>& k) const {
+    return dmlc::HashCombine(ObjectHash()(k.first), std::hash<T2>()(k.second));
   }
 };
 
@@ -288,8 +292,9 @@ InterpreterState::InterpreterState(Expr current_expr, InterpreterState::Stack st
 class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
                     PatternFunctor<bool(const Pattern& p, const ObjectRef& v)> {
  public:
-  // TODO(mbs): Collapse mod and per_target_module once IRModule subsumes LoweredModule.
-  Interpreter(IRModule mod, Map<String, IRModule> per_target_module, Device device, Target target)
+  // TODO(mbs, electriclilies): Collapse mod and per_target_module once IRModule subsumes
+  // LoweredModule.
+  Interpreter(IRModule mod, Map<Target, IRModule> per_target_module, Device device, Target target)
       : mod_(mod),
         per_target_module_(per_target_module),
         device_(device),
@@ -373,7 +378,7 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
    */
   PackedFunc TIRToPackedFunc(const GlobalVar& tir_fn_var, const Array<GlobalVar>& all_tir_fn_vars,
                              Target target) {
-    std::pair<std::string, std::string> packed_func_key(target->str(), tir_fn_var->name_hint);
+    std::pair<Target, std::string> packed_func_key(target, tir_fn_var->name_hint);
     auto packed_itr = compiled_packed_funcs_.find(packed_func_key);
     if (packed_itr != compiled_packed_funcs_.end()) {
       // Already compiled.
@@ -382,8 +387,11 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
 
     // Project out just the function(s) we need.
     IRModule lowered_projected_mod;
-    auto mod_itr = per_target_module_.find(target->str());
-    ICHECK(mod_itr != per_target_module_.end())
+    std::unordered_map<Target, IRModule, backend::TargetStrHash, backend::TargetStrEqual>
+        per_target_module_std_map =
+            backend::TargetModuleMapToTargetStrModuleMap(per_target_module_);
+    auto mod_itr = per_target_module_std_map.find(target);
+    ICHECK(mod_itr != per_target_module_std_map.end())
         << "No target module for target '" << target->str() << "'";
     const IRModule& target_module = (*mod_itr).second;
     for (const auto& var : all_tir_fn_vars) {
@@ -407,7 +415,7 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
       PackedFunc packed_func = runtime_module.GetFunction(var->name_hint);
       ICHECK(packed_func != nullptr) << "No packed function for global var '" << var->name_hint
                                      << "' in compiled module for target '" << target->str() << "'";
-      compiled_packed_funcs_.emplace(std::make_pair(target->str(), var->name_hint), packed_func);
+      compiled_packed_funcs_.emplace(std::make_pair(target, var->name_hint), packed_func);
     }
 
     // Return just what we need for this call.
@@ -874,11 +882,10 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
   // Map from target key to lowered TIR functions derived from mod_.
   // Note that primitives are implicitly executed on target_, while shape functions are implicitly
   // executed on the default 'cpu' host. Thus this map has at most two entries.
-  Map<String, IRModule> per_target_module_;
+  Map<Target, IRModule> per_target_module_;
   // Cached packed functions for the primitives and shape functions, keyed by target and
   // global var name.
-  std::unordered_map<std::pair<std::string, std::string>, PackedFunc, PairHash>
-      compiled_packed_funcs_;
+  std::unordered_map<std::pair<Target, std::string>, PackedFunc, PairHash> compiled_packed_funcs_;
   // Unique device on which primitives (but not shape functions) will be executed.
   // (For simplicity we only run the interpreter on a single device.)
   Device device_;
@@ -895,21 +902,8 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
  * rewritten \p mod and target-specific modules containing bindings for all TIR primitive
  * functions needed by the rewritten module.
  */
-std::pair<IRModule, Map<String, IRModule>> Prepare(IRModule mod, Device device, Target target) {
-  // Run minimal transforms on module to establish invariants needed by interpreter.
-  transform::Sequential seq({transform::SimplifyInference(),
-                             // FuseOps will mark wrapped calls to prim-ops with the 'Primitive'
-                             // attribute.
-                             transform::FuseOps(/*fuse_opt_level=*/0), transform::ToANormalForm(),
-                             // eta expand to support constructors in argument position
-                             transform::EtaExpand(
-                                 /*expand_constructor=*/true, /*expand_global_var=*/false),
-                             transform::InferType()});
-
-  transform::PassContext pass_ctx = transform::PassContext::Current();
-  With<transform::PassContext> ctx(pass_ctx);
-  mod = seq(mod);
-
+std::pair<IRModule, Map<Target, IRModule>> Prepare(IRModule mod, Device device, Target target) {
+  // Things to initialize to pass into tec::LowerTEPass
   // We only have one device-specific target.
   tec::TargetMap targets = {{device.device_type, target}};
 
@@ -919,13 +913,25 @@ std::pair<IRModule, Map<String, IRModule>> Prepare(IRModule mod, Device device, 
   // No need for a memory plan.
   backend::StaticMemoryPlan memory_plan; /*=nullptr*/
 
+  // Run minimal transforms on module to establish invariants needed by interpreter.
+  transform::Sequential seq(
+      {transform::SimplifyInference(),
+       // FuseOps will mark wrapped calls to prim-ops with the 'Primitive'
+       // attribute.
+       transform::FuseOps(/*fuse_opt_level=*/0), transform::ToANormalForm(),
+       // eta expand to support constructors in argument position
+       transform::EtaExpand(
+           /*expand_constructor=*/true, /*expand_global_var=*/false),
+       transform::InferType(),
+       tec::LowerTEPass(targets, device_map, memory_plan, /*module_name=*/"intrp",
+                        [](Function func) { /* no-op */ })});
+
+  transform::PassContext pass_ctx = transform::PassContext::Current();
+  With<transform::PassContext> ctx(pass_ctx);
+  mod = seq(mod);
+
   // Lower all primitive functions reachable from expr.
-  // TODO(mbs): This should be just another pass in seq above, which requires LoweredModule to
-  // be merged into IRModule.
-  LoweredModule lowered_module =
-      tec::LowerTE(mod, targets, device_map, memory_plan, /*module_name=*/"intrp",
-                   [](Function func) { /* no-op */ });
-  return {lowered_module.main_module, lowered_module.per_target_module};
+  return {tec::GetMainModule(mod), tec::GetPerTargetModules(mod)};
 }
 
 /*! \brief Check if an expression could be changed by \p Prepare.
@@ -1014,7 +1020,7 @@ TypedPackedFunc<ObjectRef(Array<Expr>)> EvalFunction(IRModule mod, Expr expr, De
     // and can just eval it directly.
     expr_to_eval = expr;
   }
-  std::pair<IRModule, Map<String, IRModule>> main_and_lowered =
+  std::pair<IRModule, Map<Target, IRModule>> main_and_lowered =
       Prepare(mod_with_expr, device, target);
   std::shared_ptr<Interpreter> intrp = std::make_shared<Interpreter>(
       /*mod=*/main_and_lowered.first, /*per_target_module=*/main_and_lowered.second, device,
@@ -1057,7 +1063,7 @@ ObjectRef Eval(Expr expr, Map<GlobalTypeVar, TypeData> type_definitions,
                std::unordered_set<String> import_set, Device device, Target target) {
   std::pair<IRModule, GlobalVar> mod_and_global =
       IRModule::FromExprInContext(expr, /*global_funcs=*/{}, type_definitions, import_set);
-  std::pair<IRModule, Map<String, IRModule>> main_and_lowered =
+  std::pair<IRModule, Map<Target, IRModule>> main_and_lowered =
       Prepare(mod_and_global.first, device, target);
   Interpreter intrp(
       /*mod=*/main_and_lowered.first, /*per_target_module=*/main_and_lowered.second, device,

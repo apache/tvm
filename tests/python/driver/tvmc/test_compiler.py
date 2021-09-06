@@ -22,8 +22,8 @@ from unittest import mock
 import pytest
 
 import tvm
+import tvm.testing
 
-from tvm.relay.op.contrib.ethosn import ethosn_available
 from tvm.contrib.target.vitis_ai import vitis_ai_available
 
 from tvm.driver import tvmc
@@ -290,10 +290,7 @@ def test_compile_opencl(tflite_mobilenet_v1_0_25_128):
     assert os.path.exists(dumps_path)
 
 
-@pytest.mark.skipif(
-    not ethosn_available(),
-    reason="--target=ethos-n77 is not available. TVM built with 'USE_ETHOSN OFF'",
-)
+@tvm.testing.requires_ethosn
 def test_compile_tflite_module_with_external_codegen(tflite_mobilenet_v1_1_quant):
     pytest.importorskip("tflite")
     tvmc_model = tvmc.load(tflite_mobilenet_v1_1_quant)
