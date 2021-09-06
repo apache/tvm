@@ -1013,16 +1013,31 @@ class ParametricSoftPlus(OnnxOpConverter):
 class Pow(OnnxOpConverter):
     """Operator converter for Pow."""
 
+
+class Pow(OnnxOpConverter):
+    """Operator converter for Pow."""
+
     @classmethod
     def _impl_v13(cls, inputs, attr, params):
         x = inputs[0]
         y = inputs[1]
+
         x_type = infer_type(x).checked_type.dtype
+        output_type = x_type
         y_type = infer_type(y).checked_type.dtype
+
+        if not x_type.startswith("float"):
+            x_type = "float32"
+            x = _op.cast(x, x_type)
 
         if x_type != y_type:
             y = _op.cast(y, x_type)
-        return _op.power(x, y)
+
+        # TODO: come up with good default integer pow() func for common backends
+        result = _op.power(x, y)
+        if x_type != output_type:
+            return _op.cast(result, output_type)
+        return result
 
 
 class Prelu(OnnxOpConverter):
