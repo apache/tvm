@@ -15,6 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import sys
+import pytest
+
 import tvm
 from tvm import tir
 from tvm.script import ty
@@ -2675,9 +2678,9 @@ def vthread_func(a: ty.handle, c: ty.handle) -> None:
     tir.launch_thread(i1, 2)
     tir.launch_thread(i2, 2)
     B = tir.allocate([16], "float32", "local")
-    for j in range(0, 16):
+    for j in range(16):
         B[j] = tir.load("float32", A.data, i0 * 64 + i1 * 32 + i2 * 16 + j) + tir.float32(1)
-    for j in range(0, 16):
+    for j in range(16):
         C.data[i0 * 64 + i1 * 32 + i2 * 16 + j] = tir.load("float32", B, j) * tir.float32(2)
 
 
@@ -2709,7 +2712,7 @@ def matmul_original(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
         with tir.block([128, 128], "init") as [vi, vj]:
             C[vi, vj] = tir.float32(0)
 
-        for k in range(0, 128):
+        for k in range(128):
             with tir.block([128, 128, tir.reduce_axis(0, 128)], "update") as [vi, vj, vk]:
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
@@ -2898,8 +2901,8 @@ def opaque_block(a: ty.handle, b: ty.handle) -> None:
     A = tir.match_buffer(a, (16, 16), "float32")
     B = tir.match_buffer(b, (16, 16), "float32")
 
-    for i in range(0, 16):
-        for j in range(0, 16):
+    for i in range(16):
+        for j in range(16):
             with tir.block([]):
                 tir.reads([])
                 tir.writes(A[i, j])
@@ -2907,7 +2910,7 @@ def opaque_block(a: ty.handle, b: ty.handle) -> None:
         with tir.block([]):
             tir.reads([A[i, 0:16]])
             tir.writes([B[i, 0:16]])
-            for j in range(0, 16):
+            for j in range(16):
                 B[i, j] = A[i, j]
 
 
@@ -2951,7 +2954,7 @@ def rank0_block(a: ty.handle) -> None:
     with tir.block([], "update") as []:
         tir.reads([A[()]])
         tir.writes([B[()]])
-        for i in range(0, 1):
+        for i in range(1):
             B[()] = A[()]
 
 
@@ -3008,28 +3011,60 @@ def constant_folding(a: ty.handle) -> None:
     A[()] = tir.min(2.2, 5.0)
 
 
-def test_script_printer():
+def test_constant_folding():
     func = constant_folding
     rt_func = tvm.script.from_source(tvm.script.asscript(func, True))
     tvm.ir.assert_structural_equal(func, rt_func)
 
 
+@tvm.script.tir
+def simplify_bracket() -> None:
+    a = tir.var("int32")
+    b = tir.var("int32")
+    c = tir.var("int32")
+    d = tir.var("int32")
+    tir.evaluate(a + b * (c + d))
+
+
+def test_simplify_bracket():
+    func = simplify_bracket
+    out_str = tvm.script.asscript(func, True)
+    assert out_str.count("a + b*(c + d)") == 1
+
+
+@tvm.script.tir
+def var_with_same_name(a: ty.handle) -> None:
+    A = tir.match_buffer(a, (16, 16), "float32")
+    with tir.block([16, 16]) as [vi, vj]:
+        A[vi, vj] = 0
+    with tir.block([16, 16]) as [vi, vj]:
+        A[vi, vj] = 0
+    for i, j in tir.grid(16, 16):
+        with tir.block([16, 16]) as [vi, vj]:
+            A[vi, vj] = 0
+    for i, j in tir.grid(16, 16):
+        with tir.block([16, 16]) as [vi, vj]:
+            A[vi, vj] = 0
+
+
+def test_same_name_var():
+    func = var_with_same_name
+    out_str = tvm.script.asscript(func, True)
+    rt_func = tvm.script.from_source(out_str)
+    tvm.ir.assert_structural_equal(func, rt_func)
+
+    assert out_str.count("with tir.block([16, 16]) as [vi, vj]") == 4
+    assert out_str.find("vi_") == -1
+    assert out_str.find("vj_") == -1
+
+    assert out_str.count("for i0, i1 in tir.grid(16, 16)") == 2
+    assert out_str.find("i0_") == -1
+    assert out_str.find("i1_") == -1
+
+    assert out_str.count("for i, j in tir.grid(16, 16)") == 2
+    assert out_str.find("i_") == -1
+    assert out_str.find("i_") == -1
+
+
 if __name__ == "__main__":
-    test_opt_gemm_normalize()
-    test_opt_gemm_mod_host()
-    test_opt_gemm_lower()
-    test_opt_conv_tensorcore_normalize()
-    test_opt_conv_tensorcore_lower()
-    test_opt_conv_tensorcore_mod_host()
-    test_vthread()
-    test_module_define()
-    test_matmul()
-    test_matmul_original()
-    test_element_wise()
-    test_predicate()
-    test_for_thread_binding()
-    test_match_buffer_region()
-    test_block_elements()
-    test_opaque_block()
-    test_abs()
-    test_script_printer()
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))
