@@ -27,7 +27,6 @@ import shlex
 import shutil
 import subprocess
 import sys
-import pathlib
 
 _LOG = logging.getLogger(__name__)
 
@@ -58,23 +57,26 @@ EXTRA_SCRIPTS = {
 PACKER_FILE_NAME = "packer.json"
 
 
-def get_micro_devices(platform: str) -> dict:
-    template_project = (pathlib.Path(__file__).parent / platform / "template_project").resolve()
-
-    sys.path.insert(0, str(arduino_template_project))
-    try:
-        import microtvm_api_server
-    finally:
-        sys.path.pop(0)
-
-    return microtvm_api_server.MICRO_DEVICES
-
-
 # List of identifying strings for microTVM devices for testing.
-# TODO add a way to declare supported platforms to ProjectAPI
+# TODO add a way to declare supported devices to ProjectAPI
 ALL_MICROTVM_DEVICES = {
-    "arduino": get_micro_devices("arduino").keys(),
-    "zephyr": get_micro_devices("zephyr").keys(),
+    "arduino": (
+        "due",
+        "feathers2",
+        "metrom4",
+        "nano33ble",
+        "pybadge",
+        "spresense",
+        "teensy40",
+        "teensy41",
+        "wioterminal",
+    ),
+    "zephyr": (
+        "stm32f746xx_nucleo",
+        "stm32f746xx_disco",
+        "nrf5340dk",
+        "mps2_an521",
+    ),
 }
 
 
