@@ -22,20 +22,6 @@ import pytest
 import tvm.target.target
 from tvm import micro, relay
 
-# The models that should pass this configuration. Maps a short, identifying platform string to
-# (model, zephyr_board).
-PLATFORMS = {
-    "due": ("sam3x8e", "due"),
-    "feathers2": ("esp32", "feathers2"),
-    "metrom4": ("atsamd51", "metrom4"),
-    "nano33ble": ("nrf52840", "nano33ble"),
-    "pybadge": ("atsamd51", "pybadge"),
-    "spresense": ("cxd5602gg", "spresense"),
-    "teensy40": ("imxrt1060", "teensy40"),
-    "teensy41": ("imxrt1060", "teensy41"),
-    "wioterminal": ("atsamd51", "wioterminal"),
-}
-
 TEMPLATE_PROJECT_DIR = (
     pathlib.Path(__file__).parent
     / ".."
@@ -47,14 +33,23 @@ TEMPLATE_PROJECT_DIR = (
     / "template_project"
 ).resolve()
 
+def arduino_micro_devices() -> dict:
+    sys.path.insert(0, str(TEMPLATE_PROJECT_DIR))
+    try:
+        import microtvm_api_server
+    finally:
+        sys.path.pop(0)
+
+    return microtvm_api_server.MICRO_DEVICES
+
 
 def pytest_addoption(parser):
     parser.addoption(
-        "--microtvm-platforms",
+        "--microtvm-device",
         nargs="+",
         required=True,
-        choices=PLATFORMS.keys(),
-        help="Target platforms for microTVM tests.",
+        choices=arduino_micro_devices().keys(),
+        help="MicroTVM device for tests.",
     )
     parser.addoption(
         "--arduino-cli-cmd",
@@ -92,8 +87,8 @@ def pytest_collection_modifyitems(config, items):
 # (to take advantage of multiple cores / external memory / etc.), so all tests
 # are parameterized by board
 def pytest_generate_tests(metafunc):
-    platforms = metafunc.config.getoption("microtvm_platforms")
-    metafunc.parametrize("platform", platforms, scope="session")
+    device = metafunc.config.getoption("microtvm_device")
+    metafunc.parametrize("device", device, scope="session")
 
 
 @pytest.fixture(scope="session")
@@ -106,8 +101,8 @@ def tvm_debug(request):
     return request.config.getoption("--tvm-debug")
 
 
-def make_workspace_dir(test_name, platform):
-    _, arduino_board = PLATFORMS[platform]
+def make_workspace_dir(test_name, device):
+    _, arduino_board = arduino_micro_devices()[device]
     filepath = pathlib.Path(__file__)
     board_workspace = (
         filepath.parent
@@ -125,9 +120,9 @@ def make_workspace_dir(test_name, platform):
     return t
 
 
-def make_kws_project(platform, arduino_cli_cmd, tvm_debug, workspace_dir):
+def make_kws_project(device, arduino_cli_cmd, tvm_debug, workspace_dir):
     this_dir = pathlib.Path(__file__).parent
-    model, arduino_board = PLATFORMS[platform]
+    model, arduino_board = arduino_micro_devices()[device]
     build_config = {"debug": tvm_debug}
 
     with open(this_dir.parent / "testdata" / "kws" / "yes_no.tflite", "rb") as f:

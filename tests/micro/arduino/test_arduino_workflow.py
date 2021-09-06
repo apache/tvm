@@ -29,7 +29,7 @@ import conftest
 This unit test simulates a simple user workflow, where we:
 1. Generate a base sketch using a simple audio model
 2. Modify the .ino file, much like a user would
-3. Compile the sketch for the target platform
+3. Compile the sketch for the target device
 -- If physical hardware is present --
 4. Upload the sketch to a connected board
 5. Open a serial connection to the board
@@ -40,8 +40,8 @@ This unit test simulates a simple user workflow, where we:
 # Since these tests are sequential, we'll use the same project/workspace
 # directory for all tests in this file
 @pytest.fixture(scope="module")
-def workspace_dir(request, platform):
-    return conftest.make_workspace_dir("arduino_workflow", platform)
+def workspace_dir(request, device):
+    return conftest.make_workspace_dir("arduino_workflow", device)
 
 
 @pytest.fixture(scope="module")
@@ -51,8 +51,8 @@ def project_dir(workspace_dir):
 
 # We MUST pass workspace_dir, not project_dir, or the workspace will be dereferenced too soon
 @pytest.fixture(scope="module")
-def project(platform, arduino_cli_cmd, tvm_debug, workspace_dir):
-    return conftest.make_kws_project(platform, arduino_cli_cmd, tvm_debug, workspace_dir)
+def project(device, arduino_cli_cmd, tvm_debug, workspace_dir):
+    return conftest.make_kws_project(device, arduino_cli_cmd, tvm_debug, workspace_dir)
 
 
 def _get_directory_elements(directory):

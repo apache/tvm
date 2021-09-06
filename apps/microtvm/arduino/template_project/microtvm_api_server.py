@@ -43,6 +43,18 @@ MODEL_LIBRARY_FORMAT_PATH = API_SERVER_DIR / MODEL_LIBRARY_FORMAT_RELPATH
 
 IS_TEMPLATE = not (API_SERVER_DIR / MODEL_LIBRARY_FORMAT_RELPATH).exists()
 
+# Maps a short, identifying microtvm device string to (target, arduino_board).
+MICRO_DEVICES = {
+    "due": ("sam3x8e", "due"),
+    "feathers2": ("esp32", "feathers2"),
+    "metrom4": ("atsamd51", "metrom4"),
+    "nano33ble": ("nrf52840", "nano33ble"),
+    "pybadge": ("atsamd51", "pybadge"),
+    "spresense": ("cxd5602gg", "spresense"),
+    "teensy40": ("imxrt1060", "teensy40"),
+    "teensy41": ("imxrt1060", "teensy41"),
+    "wioterminal": ("atsamd51", "wioterminal"),
+}
 
 class BoardAutodetectFailed(Exception):
     """Raised when no attached hardware is found matching the requested board"""
