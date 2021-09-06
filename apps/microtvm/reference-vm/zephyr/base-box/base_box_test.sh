@@ -16,7 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 #
-# Usage: base_box_test.sh <MICROTVM_PLATFORM>
+# Usage: base_box_test.sh <MICROTVM_DEVICE>
 #     Execute microTVM Zephyr tests.
 #
 
@@ -24,16 +24,16 @@ set -e
 set -x
 
 if [ "$#" -lt 1 ]; then
-    echo "Usage: base_box_test.sh <MICROTVM_PLATFORM>"
+    echo "Usage: base_box_test.sh <MICROTVM_DEVICE>"
     exit -1
 fi
 
-microtvm_platform=$1
+microtvm_device=$1
 
-pytest tests/micro/zephyr/test_zephyr.py --microtvm-platforms=${microtvm_platform}
+pytest tests/micro/zephyr/test_zephyr.py --microtvm-device=${microtvm_device}
 
-if [ $microtvm_platform == "stm32f746xx" ]; then
-    echo "NOTE: skipped test_zephyr_aot.py on $microtvm_platform -- known failure"
+if [ $microtvm_device == "stm32f746xx" ]; then
+    echo "NOTE: skipped test_zephyr_aot.py on $microtvm_device -- known failure"
 else
-    pytest tests/micro/zephyr/test_zephyr_aot.py --microtvm-platforms=${microtvm_platform}
+    pytest tests/micro/zephyr/test_zephyr_aot.py --microtvm-device=${microtvm_device}
 fi

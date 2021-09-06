@@ -27,7 +27,7 @@ import shlex
 import shutil
 import subprocess
 import sys
-
+import pathlib
 
 _LOG = logging.getLogger(__name__)
 
@@ -48,29 +48,6 @@ ALL_PLATFORMS = (
     "zephyr",
 )
 
-# List of identifying strings for microTVM platforms for testing.
-# Must match PLATFORMS as defined in tvm/tests/micro/[platform]/conftest.py
-# TODO add a way to declare supported platforms to ProjectAPI
-ALL_MICROTVM_PLATFORMS = {
-    "arduino": (
-        "due",
-        "feathers2",
-        "metrom4",
-        "nano33ble",
-        "pybadge",
-        "spresense",
-        "teensy40",
-        "teensy41",
-        "wioterminal",
-    ),
-    "zephyr": (
-        "stm32f746xx_nucleo",
-        "stm32f746xx_disco",
-        "nrf5340dk",
-        "mps2_an521",
-    ),
-}
-
 # Extra scripts required to execute on provisioning
 # in [platform]/base-box/base_box_provision.sh
 EXTRA_SCRIPTS = {
@@ -80,6 +57,26 @@ EXTRA_SCRIPTS = {
 
 PACKER_FILE_NAME = "packer.json"
 
+def get_micro_devices(platform: str) -> dict:
+    template_project = (pathlib.Path(__file__).parent
+    / platform
+    / "template_project"
+    ).resolve()
+
+    sys.path.insert(0, str(arduino_template_project))
+    try:
+        import microtvm_api_server
+    finally:
+        sys.path.pop(0)
+
+    return microtvm_api_server.MICRO_DEVICES
+
+# List of identifying strings for microTVM devices for testing.
+# TODO add a way to declare supported platforms to ProjectAPI
+ALL_MICROTVM_DEVICES = {
+    "arduino": get_micro_devices("arduino").keys(),
+    "zephyr": get_micro_devices("zephyr").keys(),
+}
 
 def parse_virtualbox_devices():
     output = subprocess.check_output(["VBoxManage", "list", "usbhost"], encoding="utf-8")
@@ -362,7 +359,7 @@ def do_run_release_test(release_test_dir, platform, provider_name, test_config, 
         + _quote_cmd(
             [
                 f"apps/microtvm/reference-vm/{platform}/base-box/base_box_test.sh",
-                test_config["microtvm_platform"],
+                test_config["microtvm_device"],
             ]
         )
     )
@@ -376,17 +373,17 @@ def test_command(args):
     with open(test_config_file) as f:
         test_config = json.load(f)
 
-        # select microTVM test platform
-        microtvm_test_platform = test_config[args.microtvm_platform]
+        # select microTVM test device
+        microtvm_test_device = test_config[args.microtvm_device]
 
         for key, expected_type in REQUIRED_TEST_CONFIG_KEYS.items():
-            assert key in microtvm_test_platform and isinstance(
-                microtvm_test_platform[key], expected_type
+            assert key in microtvm_test_device and isinstance(
+                microtvm_test_device[key], expected_type
             ), f"Expected key {key} of type {expected_type} in {test_config_file}: {test_config!r}"
 
-        microtvm_test_platform["vid_hex"] = microtvm_test_platform["vid_hex"].lower()
-        microtvm_test_platform["pid_hex"] = microtvm_test_platform["pid_hex"].lower()
-        microtvm_test_platform["microtvm_platform"] = args.microtvm_platform
+        microtvm_test_device["vid_hex"] = microtvm_test_device["vid_hex"].lower()
+        microtvm_test_device["pid_hex"] = microtvm_test_device["pid_hex"].lower()
+        microtvm_test_device["microtvm_device"] = args.microtvm_device
 
     providers = args.provider
     provider_passed = {p: False for p in providers}
@@ -406,7 +403,7 @@ def test_command(args):
                 release_test_dir,
                 args.platform,
                 provider_name,
-                microtvm_test_platform,
+                microtvm_test_device,
                 args.test_device_serial,
             )
             provider_passed[provider_name] = True
@@ -511,10 +508,10 @@ def parse_args():
         platform_specific_parser = parser_test_platform_subparsers.add_parser(platform)
         platform_specific_parser.set_defaults(platform=platform)
         platform_specific_parser.add_argument(
-            "--microtvm-platform",
-            choices=ALL_MICROTVM_PLATFORMS[platform],
+            "--microtvm-device",
+            choices=ALL_MICROTVM_DEVICES[platform],
             required=True,
-            help="MicroTVM platfrom used for testing.",
+            help="MicroTVM device used for testing.",
         )
 
     # Options for release subcommand
