@@ -66,7 +66,7 @@ def pytest_addoption(parser):
 
 def pytest_generate_tests(metafunc):
     if "device" in metafunc.fixturenames:
-        metafunc.parametrize("device", metafunc.config.getoption("microtvm_device"))
+        metafunc.parametrize("device", [metafunc.config.getoption("microtvm_device")])
 
 
 @pytest.fixture
