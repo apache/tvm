@@ -1013,10 +1013,6 @@ class ParametricSoftPlus(OnnxOpConverter):
 class Pow(OnnxOpConverter):
     """Operator converter for Pow."""
 
-
-class Pow(OnnxOpConverter):
-    """Operator converter for Pow."""
-
     @classmethod
     def _impl_v13(cls, inputs, attr, params):
         x = inputs[0]
