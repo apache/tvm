@@ -24,7 +24,6 @@ import numpy as np
 import tvm
 from tvm import relay
 from tvm.ir import IRModule
-from tvm.relay.op.tensor import log
 from tvm.topi.utils import get_const_tuple
 
 from ... import nd as _nd
@@ -1842,6 +1841,7 @@ class LogSoftmax(OnnxOpConverter):
 
     @classmethod
     def run_calculation(cls, x, axes):
+        """Run the calculation for Log Softmax calculation."""
         m = _op.max(x, axes, keepdims=True)
         e = _op.exp(x - m)
         s = _op.sum(e, axes, keepdims=True)
@@ -1854,7 +1854,6 @@ class LogSoftmax(OnnxOpConverter):
         if axis < 0:
             axis += ndim
         axes = list(range(axis, ndim))
-        x = inputs[0]
         return cls.run_calculation(inputs[0], axes)
 
     @classmethod
@@ -3466,6 +3465,7 @@ class NegativeLogLikelihoodLoss(OnnxOpConverter):
     def run_calculation(
         cls, input_tensor, target_tensor, weight_tensor=None, ignore_index=None, reduction="none"
     ):
+        """Run main calculation for onnx spec of NegativeLogLikehoodLoss"""
         if weight_tensor is None:
             channels = infer_shape(input_tensor)[1]
             weight_tensor = relay.ones(
