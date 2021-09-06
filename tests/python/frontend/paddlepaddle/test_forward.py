@@ -604,6 +604,42 @@ def test_forward_ones_like():
 
 
 @tvm.testing.uses_gpu
+def test_forward_gather_assign_value():
+    @paddle.jit.to_static
+    def gather1(x):
+        index = paddle.to_tensor(np.array([1, 3, 5, 7, 9]).astype("int64"))
+        return paddle.gather(x, index, axis=None)
+
+    @paddle.jit.to_static
+    def gather2(x):
+        index = paddle.to_tensor(np.array([1, 3, 5, 7, 9]).astype("int64"))
+        return paddle.gather(x, index, axis=1)
+
+    x_shape = [30, 40]
+    x_data = paddle.rand(x_shape, dtype="float32")
+    verify_model(gather1, input_data=[x_data])
+    verify_model(gather2, input_data=[x_data])
+
+
+@tvm.testing.uses_gpu
+def test_forward_gather_nd():
+    @paddle.jit.to_static
+    def gather_nd1(x):
+        index = paddle.to_tensor(np.array([[0, 1]]).astype("int64"))
+        return paddle.gather_nd(x, index)
+
+    @paddle.jit.to_static
+    def gather_nd2(x):
+        index = paddle.to_tensor(np.array([[0, 1], [1, 2]]).astype("int32"))
+        return paddle.gather_nd(x, index)
+
+    x_shape = [30, 40, 20]
+    x_data = paddle.rand(x_shape, dtype="float32")
+    verify_model(gather_nd1, input_data=[x_data])
+    verify_model(gather_nd2, input_data=[x_data])
+
+
+@tvm.testing.uses_gpu
 def test_forward_gelu():
     @paddle.jit.to_static
     def gelu(inputs):
@@ -998,6 +1034,8 @@ if __name__ == "__main__":
     test_forward_flatten()
     test_forward_shape_full()
     test_forward_ones_like()
+    test_forward_gather_assign_value()
+    test_forward_gather_nd()
     test_forward_gelu()
     test_forward_hard_sigmoid()
     test_forward_hard_swish()
