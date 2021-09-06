@@ -32,11 +32,11 @@ device) using:
 
 ```
 $ cd tvm/tests/micro/zephyr
-$ pytest test_zephyr.py --microtvm-platforms=host       # For QEMU emulation
-$ pytest test_zephyr.py --microtvm-platforms=nrf5340dk  # For nRF5340DK
+$ pytest test_zephyr.py --microtvm-device=qemu_x86       # For QEMU emulation
+$ pytest test_zephyr.py --microtvm-device=nrf5340dk  # For nRF5340DK
 ```
 
-To see the list of supported values for `--microtvm-platforms`, run:
+To see the list of supported values for `--microtvm-device`, run:
 ```
 $ pytest test_zephyr.py --help
 ```
