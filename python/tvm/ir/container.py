@@ -44,10 +44,9 @@ class Array(Object):
     def __getattr__(self, name):
         if name == "handle":
             raise AttributeError("handle is not set")
-        elif name == "type_key":
+        if name == "type_key":
             return super().__getattr__(name)
-        else:
-            raise AttributeError("%s has no attribute %s" % (str(type(self)), name))
+        raise AttributeError("%s has no attribute %s" % (str(type(self)), name))
 
 
 @tvm._ffi.register_object
@@ -76,10 +75,9 @@ class Map(Object):
     def __getattr__(self, name):
         if name == "handle":
             raise AttributeError("handle is not set")
-        elif name == "type_key":
+        if name == "type_key":
             return super().__getattr__(name)
-        else:
-            raise AttributeError("%s has no attribute %s" % (str(type(self)), name))
+        raise AttributeError("%s has no attribute %s" % (str(type(self)), name))
 
     def keys(self):
         return iter(self)
