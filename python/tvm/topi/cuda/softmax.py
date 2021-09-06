@@ -75,10 +75,7 @@ def _schedule_softmax(softmax_op, s, outs, tgt):
         for op in ops:
             s = schedule_injective_from_existing(s, op.output(0))
 
-    elif sched_warp_softmax() and softmax_op == outs[0].op:
-        # TODO(masahi): Fix LowerThreadAllreduce pass to remove
-        # softmax_op == outs[0].op condition
-
+    elif sched_warp_softmax():
         # A warp of 32 threads performs a row reduction.
         num_thread = tgt.thread_warp_size
         block_x = te.thread_axis("blockIdx.x")
