@@ -598,12 +598,8 @@ class AOTExecutorCodegen : public MixedModeVisitor {
           tec::UpdateFunctionMetadata(func, this->function_metadata_);
         })(mod);
 
-    Optional<backend::FunctionInfo> main_func_info =
-        lowered_mod->GetAttr<backend::FunctionInfo>("main_func_info");
-    ICHECK(main_func_info) << "The attribute \"main_func_info\" should be set at this point.";
-    function_metadata_.Set(runtime::symbol::tvm_module_main, main_func_info.value());
-
-    Function lowered_main_func = Downcast<relay::Function>(lowered_mod->Lookup("main"));
+    auto lowered_main = lowered_mod->Lookup("main");
+    auto lowered_main_func = GetRef<Function>(lowered_main.as<FunctionNode>());
 
     // Post-lowering storage map for writing main func - this should be the same map as previously
     // created, just referencing the new expressions created from lowering
