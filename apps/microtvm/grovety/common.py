@@ -23,8 +23,7 @@ def tvm_repo_root():
     return subprocess.check_output(["git", "rev-parse", "--show-toplevel"], encoding='utf-8').strip()
 
 
-def create_workspace_dir(platform, project_name, mkdir=True):
-    _, zephyr_board = PLATFORMS[platform]
+def create_workspace_dir(zephyr_board, project_name, mkdir=True):
     current_dir = pathlib.Path(os.path.dirname(__file__)).resolve()
     board_workspace = (
         current_dir
