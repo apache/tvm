@@ -442,6 +442,7 @@ DEFAULT_TEST_TARGETS = [
     "opencl -device=intel_graphics",
     "metal",
     "rocm",
+    "hexagon",
 ]
 
 
@@ -816,6 +817,26 @@ def requires_ethosn(*args):
         ),
     ]
     return _compose(args, marks)
+
+
+def requires_hexagon(*args):
+    """Mark a test as requiring Hexagon to run.
+
+    Parameters
+    ----------
+    f : function
+        Function to mark
+    """
+    _requires_hexagon = [
+        pytest.mark.hexagon,
+        pytest.mark.skipif(not device_enabled("hexagon"), reason="Hexagon support not enabled"),
+        *requires_llvm(),
+        pytest.mark.skipif(
+            tvm.target.codegen.llvm_version_major() < 7,
+            reason="Hexagon requires LLVM 7 or later"
+        ),
+    ]
+    return _compose(args, _requires_hexagon)
 
 
 def requires_package(*packages):
