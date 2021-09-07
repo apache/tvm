@@ -39,6 +39,7 @@ class VirtualMachineProfiler(vm.VirtualMachine):
         super(VirtualMachineProfiler, self).__init__(exe, device, memory_cfg)
 
         # Make sure the constructor of the VM module is on the proper device
+        # Remote devices have device_type of their actual device_type + RPC_SESS_MASK
         if device.device_type >= rpc_base.RPC_SESS_MASK:
             self.module = device._rpc_sess.get_function("runtime._VirtualMachineDebug")(exe)
         else:
