@@ -20,7 +20,6 @@ from __future__ import absolute_import as _abs
 
 import tvm
 from tvm import te
-from .. import cpp
 from ..utils import traverse_inline
 
 
