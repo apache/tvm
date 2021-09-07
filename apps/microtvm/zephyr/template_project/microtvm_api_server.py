@@ -215,28 +215,26 @@ if IS_TEMPLATE:
 
 PROJECT_OPTIONS = [
     server.ProjectOption(
-        "extra_files",
-        help="If given, during generate_project, uncompress the tarball at this path into the project dir",
+        "extra_files_tar",
+        help="If given, during generate_project, uncompress the tarball at this path into the project dir.",
     ),
     server.ProjectOption(
-        "gdbserver_port", help=("If given, port number to use when running the local gdbserver")
+        "gdbserver_port", help=("If given, port number to use when running the local gdbserver.")
     ),
     server.ProjectOption(
         "nrfjprog_snr",
-        help=(
-            "When used with nRF targets, serial # of the " "attached board to use, from nrfjprog"
-        ),
+        help=("When used with nRF targets, serial # of the attached board to use, from nrfjprog."),
     ),
     server.ProjectOption(
         "openocd_serial",
-        help=("When used with OpenOCD targets, serial # of the " "attached board to use"),
+        help=("When used with OpenOCD targets, serial # of the attached board to use."),
     ),
     server.ProjectOption(
         "project_type",
         help="Type of project to generate.",
         choices=tuple(PROJECT_TYPES),
     ),
-    server.ProjectOption("verbose", help="Run build with verbose output"),
+    server.ProjectOption("verbose", help="Run build with verbose output."),
     server.ProjectOption(
         "west_cmd",
         help=(
@@ -245,7 +243,7 @@ PROJECT_OPTIONS = [
         ),
     ),
     server.ProjectOption("zephyr_base", help="Path to the zephyr base directory."),
-    server.ProjectOption("zephyr_board", help="Name of the Zephyr board to build for"),
+    server.ProjectOption("zephyr_board", help="Name of the Zephyr board to build for."),
 ]
 
 
