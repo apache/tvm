@@ -34,17 +34,12 @@ import cv2
 from PIL import Image
 from scipy.spatial import distance
 
-def compare_tvm_torch_output(tvm_res, torch_res):
-    tvm_res = tvm_res.flatten()
-    torch_res = torch_res.flatten()
-    return np.max(np.abs(tvm_res-torch_res))
-
-def cosine_distance(matrix1 , matrix2):
-    res = distance.cosine(matrix1, matrix2)
+def cosine_distance(a, b):
+    res = distance.cosine(a, b)
     return res
 
-# model_name = "resnet34"
-model_name = "mobilenet_v2"
+# you can change model name into resnet18, mobilenet_v2 ...  
+model_name = "resnet34"
 model = getattr(torchvision.models, model_name)(pretrained=True)
 model = model.eval()
 
@@ -123,9 +118,6 @@ model = model.eval()
 model = model.to(device)
 torch_output = model(torch_data)
 
-
-max_diff = compare_tvm_torch_output(out.numpy(), torch_output.detach().cpu().numpy())
-print("the largest difference between two arrays: {}".format(str(max_diff)))
 print("the cosine distance between torch output and trt int8 output of tvm : ")
 cosine_distance_res = cosine_distance(out.numpy(), torch_output.detach().cpu().numpy())
 print(cosine_distance_res)
