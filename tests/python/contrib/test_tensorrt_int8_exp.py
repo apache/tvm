@@ -38,7 +38,6 @@ def cosine_distance(a, b):
     res = distance.cosine(a, b)
     return res
 
-# you can change model name into resnet18, mobilenet_v2 ...  
 model_name = "resnet34"
 model = getattr(torchvision.models, model_name)(pretrained=True)
 model = model.eval()
