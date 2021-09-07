@@ -916,6 +916,35 @@ def test_forward_pad():
 
 
 @tvm.testing.uses_gpu
+def test_forward_reduce():
+    @paddle.jit.to_static
+    def reduce_all(inputs):
+        inputs = paddle.assign(inputs)
+        inputs = paddle.cast(inputs, "bool")
+        inputs = paddle.all(inputs)
+        return paddle.cast(inputs, "int32")
+
+    @paddle.jit.to_static
+    def reduce_all2(inputs):
+        inputs = paddle.assign(inputs)
+        inputs = paddle.cast(inputs, "bool")
+        inputs = paddle.all(inputs, axis=0)
+        return paddle.cast(inputs, "int32")
+
+    @paddle.jit.to_static
+    def reduce_all3(inputs):
+        inputs = paddle.assign(inputs)
+        inputs = paddle.cast(inputs, "bool")
+        inputs = paddle.all(inputs, axis=[0, 1, -1], keepdim=True)
+        return paddle.cast(inputs, "int32")
+
+    input_data = paddle.randn([1, 2, 3])
+    verify_model(reduce_all, input_data=input_data)
+    verify_model(reduce_all2, input_data=input_data)
+    verify_model(reduce_all3, input_data=input_data)
+
+
+@tvm.testing.uses_gpu
 def test_forward_reshape():
     @paddle.jit.to_static
     def reshape1(inputs, x):
@@ -1054,6 +1083,7 @@ if __name__ == "__main__":
     test_forward_matmul()
     test_forward_pool2d()
     test_forward_pad()
+    test_forward_reduce()
     test_forward_reshape()
     test_forward_scale()
     test_forward_slice()
