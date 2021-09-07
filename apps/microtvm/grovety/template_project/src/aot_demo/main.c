@@ -26,7 +26,6 @@
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/crt/logging.h>
 #include <tvm/runtime/crt/stack_allocator.h>
-#include <unistd.h>
 #include <zephyr.h>
 
 #include "model_data.h"

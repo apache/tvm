@@ -95,7 +95,7 @@ def print_relay(relay, params, show_metadata=True, optimize=False):
 
 def create_header_file(output_path, input, output):
     import numpy as np
-    
+
     c_types = {
         'int8': 'int8_t',
         'int32': 'int32_t',
