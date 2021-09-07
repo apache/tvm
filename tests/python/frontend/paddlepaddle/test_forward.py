@@ -1062,6 +1062,37 @@ def test_forward_squeeze2():
     verify_model(squeeze3, input_data=input_data)
 
 
+@tvm.testing.uses_gpu
+def test_forward_tile():
+    @paddle.jit.to_static
+    def tile(inputs):
+        return paddle.tile(inputs, [3, 2])
+
+    @paddle.jit.to_static
+    def tile2(inputs, inputs2):
+        inputs2 = paddle.shape(inputs2)
+        inputs2 = paddle.cast(inputs2, "int32")
+        return paddle.tile(inputs, inputs2)
+
+    @paddle.jit.to_static
+    def tile3(inputs, inputs2):
+        inputs2 = paddle.shape(inputs2)[0]
+        inputs2 = paddle.cast(inputs2, "int32")
+        return paddle.tile(inputs, [inputs2, 3])
+
+    input_shape = [2, 2]
+    input_data = paddle.rand(input_shape, dtype="float32")
+    verify_model(
+        tile,
+        input_data=[
+            input_data,
+        ],
+    )
+    input_data2 = paddle.rand([1, 2], dtype="float32")
+    verify_model(tile2, input_data=[input_data, input_data2])
+    verify_model(tile3, input_data=[input_data, input_data2])
+
+
 if __name__ == "__main__":
     test_forward_add_subtract()
     test_forward_addmm()
@@ -1101,5 +1132,6 @@ if __name__ == "__main__":
     test_forward_scale()
     test_forward_slice()
     test_forward_squeeze2()
+    test_forward_tile()
     test_forward_conv_transpose()
     test_forward_unary_op()

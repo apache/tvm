@@ -1270,6 +1270,34 @@ def convert_squeeze(g, op, block):
     g.add_node(op.output("Out")[0], x)
 
 
+def convert_tile(g, op, block):
+    """Operator converter for tile."""
+
+    print("op:", op)
+    input_x = g.get_node(op.input("X")[0])
+    repeat_times = op.input("RepeatTimes")
+    repeat_times_tensor = op.input("repeat_times_tensor")
+    if repeat_times:
+        repeat_times = g.get_node(repeat_times[0])
+    elif repeat_times_tensor:
+        tmp_shape = []
+        for shape_name in repeat_times_tensor:
+            shape = g.get_node(shape_name)
+            if len(infer_shape(shape)) == 0:
+                shape = _op.reshape(shape, [-1])
+            if isinstance(shape, _expr.Constant):
+                tmp_shape.append(shape)
+            elif isinstance(shape, _expr.Expr):
+                tmp_shape.append(shape)
+            else:
+                tmp_shape.append(_expr.const(np.array(shape).astype("int32")))
+        repeat_times = _op.concatenate(tmp_shape, axis=0)
+    else:
+        repeat_times = op.attr("repeat_times")
+    out = _op.tile(input_x, repeat_times)
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_transpose(g, op, block):
     """Operator converter for transpose."""
 
@@ -1363,6 +1391,7 @@ _convert_map = {
     "squeeze2": convert_squeeze,
     "tan": convert_unary_op,
     "tanh": convert_unary_op,
+    "tile": convert_tile,
     "transpose2": convert_transpose,
     "unsqueeze2": convert_unsqueeze,
 }
