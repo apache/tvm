@@ -3165,6 +3165,7 @@ def test_forward_unpack():
     """UNPACK"""
     _test_unpack(np.array(np.random.uniform(0, 5, (3, 1)), dtype=np.int32), axis=1, num_unpacks=1)
     _test_unpack(np.array(np.random.uniform(0, 5, (3, 4)), dtype=np.float32), axis=0, num_unpacks=3)
+    _test_unpack(np.array(np.random.uniform(0, 5, (1, 3, 4, 1)), dtype=np.float32), axis=0, num_unpacks=1)
     # tflite 1.13 doesn't accept negative axis
     if package_version.parse(tf.VERSION) >= package_version.parse("1.14.0"):
         _test_unpack(
