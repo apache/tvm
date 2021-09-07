@@ -17,6 +17,7 @@
 
 # pylint: disable=redefined-builtin, wildcard-import
 """Utility Python functions for TVM testing"""
+
 from .utils import *
 
 from ._ffi_api import nop, echo, device_test, run_check_signal, object_use_count
