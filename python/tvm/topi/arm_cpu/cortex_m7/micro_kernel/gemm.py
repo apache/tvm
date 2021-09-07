@@ -47,8 +47,9 @@ def intrin_gemm_MxKxN(M, K, N, in_dtype, out_dtype):
     if isinstance(N, tvm.tir.IntImm):
         N = N.value
     # TODO(weberlo, areusch): support more dtypes?
-    # assert in_dtype == "int8"
-    # assert out_dtype == "int32"
+    # use gemm16 for int16 dtype
+    assert in_dtype == "int8"
+    assert out_dtype == "int32"
     A = te.placeholder((M, K), name="a", dtype=in_dtype)
     B = te.placeholder((N, K), name="b", dtype=in_dtype)
     k = te.reduce_axis((0, K), name="k")
@@ -335,6 +336,146 @@ __STATIC_FORCEINLINE int32_t gemm_{M}x{K}x{N}_update_{uniq_id}(
 
   return 0;
 }}
+
+
+
+#ifdef __cplusplus
+extern "C"
+#endif
+__STATIC_FORCEINLINE int32_t gemm16_{M}x{N}_body_rest_{uniq_id}(
+    int K,
+    int16_t *aa, int16_t *bb, int32_t *cc,
+    int A_stride, int B_stride, int C_stride) {{
+	int k_base = (K / 2) * 2;
+	for (int i = 0; i < {M}; i++) {{
+		for (int j = 0; j < {N}; j++) {{
+			int16_t *a_ptr = &aa[i * A_stride + k_base];
+			int16_t *b_ptr = &bb[j * B_stride + k_base];
+			cc[i * C_stride + j] = (int32_t) a_ptr[0] * (int32_t) b_ptr[0];
+		}}
+	}}
+  return 0;
+}}
+
+#ifdef __cplusplus
+extern "C"
+#endif
+__STATIC_FORCEINLINE int32_t gemm16_{M}x{K}x{N}_body_loop_{uniq_id}(
+    int16_t *aa, int16_t *bb, int32_t *cc,
+    int A_stride, int B_stride, int C_stride) {{
+  for (int i = 0; i < {M}; i++) {{
+    for (int j = 0; j < {N}; j++) {{
+      int32_t sum = 0;
+      for (int l = 0; l < {K}; l++) {{
+        sum += (int32_t) aa[i*A_stride + l] * (int32_t) bb[j*B_stride + l];
+      }}
+      // NOTE: this is the line where `*_body` differs from `*_update`. here
+      // we're *setting* the result, instead of accumulating, because we know
+      // the `i` and `j` itervars span their entire respective axes.
+      cc[i*C_stride + j] = sum;
+    }}
+  }}
+  return 0;
+}}
+
+#ifdef __cplusplus
+extern "C"
+#endif
+__STATIC_FORCEINLINE int32_t gemm16_{M}x{K}x{N}_body_{uniq_id}(
+    int16_t *aa, int16_t *bb, int32_t *cc,
+    int A_stride, int B_stride, int C_stride) {{	
+  if ( {M} < 2 || {N} < 2 )
+		return gemm16_{M}x{K}x{N}_body_loop_{uniq_id}(aa, bb, cc, A_stride, B_stride, C_stride);	
+
+  for (int i = 0; i < {M}; i++) {{
+    for (int j = 0; j < {N}; j++) {{
+      int32_t *aa_ptr = (int32_t *) &aa[i*A_stride];
+      int32_t *bb_ptr = (int32_t *) &bb[j*B_stride];
+		
+      int32_t sum = 0;
+      for (int l = 0; l < {K} / 2; l++) {{
+        sum = __SMLAD(*aa_ptr, *bb_ptr, sum);
+        ++ aa_ptr; ++ bb_ptr;
+      }}
+      // NOTE: this is the line where `*_body` differs from `*_update`. here
+      // we're *setting* the result, instead of accumulating, because we know
+      // the `i` and `j` itervars span their entire respective axes.
+      cc[i*C_stride + j] = sum;
+    }}
+  }}
+	
+  if ( {K} % 2 != 0 )
+		gemm16_{M}x{N}_body_rest_{uniq_id}({K}, aa, bb, cc, A_stride, B_stride, C_stride);
+	
+  return 0;
+}}
+
+
+#ifdef __cplusplus
+extern "C"
+#endif
+__STATIC_FORCEINLINE int32_t gemm16_{M}x{N}_update_rest_{uniq_id}(
+    int K,
+    int16_t *aa, int16_t *bb, int32_t *cc,
+    int A_stride, int B_stride, int C_stride) {{
+	int k_base = (K / 2) * 2;
+	for (int i = 0; i < {M}; i++) {{
+		for (int j = 0; j < {N}; j++) {{
+			int16_t *a_ptr = &aa[i * A_stride + k_base];
+			int16_t *b_ptr = &bb[j * B_stride + k_base];
+			cc[i * C_stride + j] += (int32_t) a_ptr[0] * (int32_t) b_ptr[0];
+		}}
+	}}
+  return 0;
+}}
+
+#ifdef __cplusplus
+extern "C"
+#endif
+__STATIC_FORCEINLINE int32_t gemm16_{M}x{K}x{N}_update_loop_{uniq_id}(
+    int16_t *aa, int16_t *bb, int32_t *cc,
+    int A_stride, int B_stride, int C_stride) {{
+  for (int i = 0; i < {M}; i++) {{
+    for (int j = 0; j < {N}; j++) {{
+      int32_t sum = 0;
+      for (int l = 0; l < {K}; l++) {{
+        sum += (int32_t) aa[i*A_stride + l] * (int32_t) bb[j*B_stride + l];
+      }}
+      cc[i*C_stride + j] += sum;
+    }}
+  }}
+  return 0;
+}}
+
+#ifdef __cplusplus
+extern "C"
+#endif
+__STATIC_FORCEINLINE int32_t gemm16_{M}x{K}x{N}_update_{uniq_id}(
+    int16_t *aa, int16_t *bb, int32_t *cc,
+    int A_stride, int B_stride, int C_stride) {{	
+  if ( {M} < 2 || {N} < 2 )
+		return gemm16_{M}x{K}x{N}_body_loop_{uniq_id}(aa, bb, cc, A_stride, B_stride, C_stride);	
+
+  for (int i = 0; i < {M}; i++) {{
+    for (int j = 0; j < {N}; j++) {{
+      int32_t *aa_ptr = (int32_t *) &aa[i*A_stride];
+      int32_t *bb_ptr = (int32_t *) &bb[j*B_stride];
+		
+      int32_t sum = 0;
+      for (int l = 0; l < {K} / 2; l++) {{
+        sum = __SMLAD(*aa_ptr, *bb_ptr, sum);
+        ++ aa_ptr; ++ bb_ptr;
+      }}
+      cc[i*C_stride + j] += sum;
+    }}
+  }}
+	
+  if ( {K} % 2 != 0 )
+		gemm16_{M}x{N}_body_rest_{uniq_id}({K}, aa, bb, cc, A_stride, B_stride, C_stride);
+	
+  return 0;
+}}
+
 
 
 #ifdef __cplusplus

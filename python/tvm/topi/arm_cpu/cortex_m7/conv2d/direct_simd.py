@@ -134,6 +134,11 @@ def conv2d_direct_simd_compute(cfg, data, kernel, strides, padding, dilation, ou
     cfg.define_knob("auto_unroll_max_step", [0, 2, 4, 8, 16, 32])
     cfg.define_knob("unroll_explicit", [0, 1])
 
+    if cfg.is_fallback:
+        cfg.fallback_split("tile_ow", [-1, out_width.value])
+        cfg.fallback_split("tile_ci", [-1, in_channels.value])
+        cfg.fallback_split("tile_co", [-1, out_channels.value])		
+
     return conv
 
 
