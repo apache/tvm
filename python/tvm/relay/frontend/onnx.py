@@ -40,6 +40,7 @@ from .. import vision as _vision
 from .common import (
     AttrCvt,
     Renamer,
+    ensure_scalar_shape,
     fold_constant,
     get_name,
     get_relay_op,
@@ -50,6 +51,7 @@ from .common import (
     infer_value,
     lstm_cell,
     new_var,
+    try_resolve_var_to_const,
     unbind,
 )
 
@@ -3506,6 +3508,156 @@ class QLinearAdd(OnnxOpConverter):
         return _qnn.op.quantize(out, c_scale, c_zero_point, out_dtype=dtype)
 
 
+class QLinearMatMul(OnnxOpConverter):
+    """
+    Operator converter for QLinearMatMul from Microsoft onnxruntime contrib opset.
+
+    Limitations:
+    - Only supports 2D input tensors.
+    - Not guaranteed to meet the integer-overflow behavior stipulated in the
+      ONNX documentation for this operator.
+    """
+
+    @classmethod
+    def _impl_v10(cls, inputs, attr, params):
+
+        # Some of the ops used below take scalar-like inputs, and may require either
+        # of the following:
+        #
+        # - the input is Const node (not merely an expression that *could* be reduced
+        #   to a single Const at graph-compilation time)
+        #
+        # - the input has a specific dtype
+        #
+        # This function attempts to present 'x' in a form that meets both of those
+        # requirements.
+        def try_resolve_to_const_scalar(x, dtype_override=None):
+            x2 = try_resolve_var_to_const(x, params)
+            x3 = ensure_scalar_shape(x2)
+
+            x_dtype = infer_type(x).checked_type.dtype
+            if (dtype_override is not None) and (dtype_override != x_dtype):
+                x4 = _op.cast(x3, dtype_override)
+            else:
+                x4 = x3
+
+            x5 = fold_constant(x4)
+            return x5
+
+        # Unpack the inputs and obtain some type info...
+        a, a_scale, a_zp, b, b_scale, b_zp, y_scale, y_zp = inputs
+
+        a_type = infer_type(a).checked_type  # 'T1' in ONNX doc for this op
+        a_scale_type = infer_type(a_scale).checked_type
+        a_zp_type = infer_type(a_zp).checked_type
+
+        b_type = infer_type(b).checked_type  # 'T2' in ONNX doc for this op
+        b_scale_type = infer_type(b_scale).checked_type
+        b_zp_type = infer_type(b_zp).checked_type
+
+        y_scale_type = infer_type(y_scale).checked_type
+        y_zp_type = infer_type(y_zp).checked_type  # 'T3' in ONNX doc for this op
+
+        a_shape = infer_shape(a)
+        b_shape = infer_shape(b)
+
+        # Verify type assumptions, based on the ONNX doc for this op...
+        assert a_type.dtype in ["int8", "uint8"]
+        assert a_scale_type.dtype == "float32"
+        assert a_zp_type.dtype == a_type.dtype
+
+        assert b_type.dtype in ["int8", "uint8"]
+        assert b_scale_type.dtype == "float32"
+        assert b_zp_type.dtype == b_type.dtype
+
+        assert y_scale_type.dtype == "float32"
+        assert y_zp_type.dtype in ["int8", "uint8"]
+
+        # TODO: relax this limitation in a future version of this importer.
+        a_rank = len(a_shape)
+        b_rank = len(b_shape)
+        assert (a_rank == 2) and (b_rank == 2), (
+            "QLinearMatMul importer currently requires both 'a' and 'b' tensors to be 2D, but"
+            " rank(a)={}, rank(b)={}".format(a_rank, b_rank)
+        )
+
+        # _qnn.op.dense requires the zero-point values to have dtype int32.
+        a_scale_scalar = try_resolve_to_const_scalar(a_scale)
+        a_zp_scalar = try_resolve_to_const_scalar(a_zp, "int32")
+
+        b_scale_scalar = try_resolve_to_const_scalar(b_scale)
+        b_zp_scalar = try_resolve_to_const_scalar(b_zp, "int32")
+
+        y_scale_scalar = try_resolve_to_const_scalar(y_scale)
+        y_zp_scalar = try_resolve_to_const_scalar(y_zp, "int32")
+
+        # TODO: Confirm that we're using 'num_hidden_units' correctly / as intended with
+        # the '_qnn.op.dense' instance below.
+        num_hidden_units = infer_shape(b)[-1]
+
+        # - Specify the matmul result dtype as int32, so that hopefully the matmul will use
+        #   a 32-bit accumulator as seems to be required by the ONNX op's documentation.
+        #
+        # TL;DR:
+        # The ONNX documentation for this op is clear about acceptable overflow
+        # behavior during the matmul operation:
+        #   - The scalar multiplication ops MAY NOT overflow.
+        #   - The scalar addition ops, which sum the results of the scalar multiplication,
+        #     MAY overflow, but if they do so, it must behave as one would expect during
+        #     32-bit integer-addition overflow.
+        # As of this writing, Relay's qnn.op.dense operator doesn't expose a way for us to
+        # express these constraints.
+        #
+        # TODO: Extend TVM / Relay / TIR / etc. to allow this kind of constraint to be
+        # expressed in a Relay graph. And then update this importer and various TVM
+        # backends accordingly.
+        matmul_result_dtype = "int32"
+
+        matmul_result = _qnn.op.dense(
+            a,
+            _op.transpose(b),
+            a_zp_scalar,
+            b_zp_scalar,
+            a_scale_scalar,
+            b_scale_scalar,
+            num_hidden_units,
+            matmul_result_dtype,
+        )
+
+        # This information might only be found in the C++ code-comments for the
+        # dense.matmul op, but the quantized tensor returned by _qnn.op.dense
+        # has scale==(a_scale_scalar * b_scale_scalar), and zero_point==0.
+        #
+        # 'matmul_result_zp_scalar' has type 'int32' to satisfy input requirements
+        # of the [de/re]quantize ops below.
+        matmul_result_scale_scalar = fold_constant(_op.multiply(a_scale_scalar, b_scale_scalar))
+        matmul_result_zp_scalar = _op.const(0, dtype="int32")
+
+        # requantize requires y_scale to be constant,
+        # if y_scale is not constant, doing dequantize -> quantize
+        if isinstance(y_scale_scalar, _expr.Constant):
+            y = _qnn.op.requantize(
+                matmul_result,
+                matmul_result_scale_scalar,
+                matmul_result_zp_scalar,
+                y_scale_scalar,
+                y_zp_scalar,
+                axis=-1,
+                rounding="TONEAREST",
+                out_dtype=y_zp_type.dtype,
+            )
+        else:
+            matmul_result_deq = _qnn.op.dequantize(
+                matmul_result, matmul_result_scale_scalar, matmul_result_zp_scalar, axis=0
+            )
+
+            y = _qnn.op.quantize(
+                matmul_result_deq, y_scale_scalar, y_zp_scalar, axis=0, out_dtype=y_zp_type.dtype
+            )
+
+        return y
+
+
 class QLinearMul(OnnxOpConverter):
     """Operator converter for QLinearMul from Microsoft onnxruntime contrib opset."""
 
@@ -4234,6 +4386,7 @@ def _get_convert_map(opset):
         "QLinearConv": QLinearConv.get_converter(opset),
         "QLinearConcat": QLinearConcat.get_converter(opset),
         "QLinearAdd": QLinearAdd.get_converter(opset),
+        "QLinearMatMul": QLinearMatMul.get_converter(opset),
         "QLinearMul": QLinearMul.get_converter(opset),
         "QLinearSigmoid": QLinearSigmoid.get_converter(opset),
         "ConvInteger": ConvInteger.get_converter(opset),
