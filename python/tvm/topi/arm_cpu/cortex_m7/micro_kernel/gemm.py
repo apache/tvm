@@ -70,74 +70,47 @@ def intrin_gemm_MxKxN(M, K, N, in_dtype, out_dtype):
     def intrin_func(ins, outs):
         aa, bb = ins
         cc = outs[0]
+        gemm_func_prefix = "gemm" if in_dtype == "int8" else "gemm16"
 
         def _reduce_update():
             ib = tvm.tir.ir_builder.create()
-            if in_dtype == "int8":
-                ib.emit(
-                    tvm.tir.call_extern(
-                        "int32",
-                        f"gemm_{M}x{K}x{N}_update_{uniq_id}",
-                        aa.access_ptr("r"),
-                        bb.access_ptr("r"),
-                        cc.access_ptr("w"),
-                        aa.strides[0],
-                        bb.strides[0],
-                        cc.strides[0],
-                    )
+            ib.emit(
+                tvm.tir.call_extern(
+                    "int32",
+                    f"{gemm_func_prefix}_{M}x{K}x{N}_update_{uniq_id}",
+                    aa.access_ptr("r"),
+                    bb.access_ptr("r"),
+                    cc.access_ptr("w"),
+                    aa.strides[0],
+                    bb.strides[0],
+                    cc.strides[0],
                 )
-            else:
-                ib.emit(
-                    tvm.tir.call_extern(
-                        "int32",
-                        f"gemm16_{M}x{K}x{N}_update_{uniq_id}",
-                        aa.access_ptr("r"),
-                        bb.access_ptr("r"),
-                        cc.access_ptr("w"),
-                        aa.strides[0],
-                        bb.strides[0],
-                        cc.strides[0],
-                    )
-                )
+            )
             return ib.get()
 
         def _reduce_reset():
             ib = tvm.tir.ir_builder.create()
             ib.emit(
                 tvm.tir.call_extern(
-                    "int32", f"gemm_{M}x{K}x{N}_reset_{uniq_id}", cc.access_ptr("w"), cc.strides[0]
+                    "int32", f"{gemm_func_prefix}_{M}x{K}x{N}_reset_{uniq_id}", cc.access_ptr("w"), cc.strides[0]
                 )
             )
             return ib.get()
 
         def _body():
             ib = tvm.tir.ir_builder.create()
-            if in_dtype == "int8":
-                ib.emit(
-                    tvm.tir.call_extern(
-                        "int32",
-                        f"gemm_{M}x{K}x{N}_body_{uniq_id}",
-                        aa.access_ptr("r"),
-                        bb.access_ptr("r"),
-                        cc.access_ptr("w"),
-                        aa.strides[0],
-                        bb.strides[0],
-                        cc.strides[0],
-                    )
+            ib.emit(
+                tvm.tir.call_extern(
+                    "int32",
+                    f"{gemm_func_prefix}_{M}x{K}x{N}_body_{uniq_id}",
+                    aa.access_ptr("r"),
+                    bb.access_ptr("r"),
+                    cc.access_ptr("w"),
+                    aa.strides[0],
+                    bb.strides[0],
+                    cc.strides[0],
                 )
-            else:
-                ib.emit(
-                    tvm.tir.call_extern(
-                        "int32",
-                        f"gemm16_{M}x{K}x{N}_body_{uniq_id}",
-                        aa.access_ptr("r"),
-                        bb.access_ptr("r"),
-                        cc.access_ptr("w"),
-                        aa.strides[0],
-                        bb.strides[0],
-                        cc.strides[0],
-                    )
-                )
+            )
             return ib.get()
 
         return _body(), _reduce_reset(), _reduce_update()
@@ -166,39 +139,39 @@ __STATIC_FORCEINLINE int32_t gemm_{M}x{N}_body_rest_{uniq_id}(
     int K,
     int8_t *aa, int8_t *bb, int32_t *cc,
     int A_stride, int B_stride, int C_stride) {{
-	int k_base = (K / 4) * 4;
-	switch ( K % 4 ) {{
-	case 1:
-		for (int i = 0; i < {M}; i++) {{
-			for (int j = 0; j < {N}; j++) {{
-				int8_t *a_ptr = &aa[i * A_stride + k_base];
-				int8_t *b_ptr = &bb[j * B_stride + k_base];
-				cc[i * C_stride + j] = (int32_t) a_ptr[0] * (int32_t) b_ptr[0];
-			}}
-		}}
-		break;
-	case 2:
-		for (int i = 0; i < {M}; i++) {{
-			for (int j = 0; j < {N}; j++) {{
-				int8_t *a_ptr = &aa[i * A_stride + k_base];
-				int8_t *b_ptr = &bb[j * B_stride + k_base];
-				cc[i * C_stride + j] =   (int32_t) a_ptr[0] * (int32_t) b_ptr[0]
-				                       + (int32_t) a_ptr[1] * (int32_t) b_ptr[1];
-			}}
-		}}
-		break;
-	case 3:
-		for (int i = 0; i < {M}; i++) {{
-			for (int j = 0; j < {N}; j++) {{
-				int8_t *a_ptr = &aa[i * A_stride + k_base];
-				int8_t *b_ptr = &bb[j * B_stride + k_base];
-				cc[i * C_stride + j] =   (int32_t) a_ptr[0] * (int32_t) b_ptr[0]
-				                       + (int32_t) a_ptr[1] * (int32_t) b_ptr[1]
-				                       + (int32_t) a_ptr[2] * (int32_t) b_ptr[2];
-			}}
-		}}
-		break;
-	}}
+  int k_base = (K / 4) * 4;
+  switch ( K % 4 ) {{
+  case 1:
+    for (int i = 0; i < {M}; i++) {{
+      for (int j = 0; j < {N}; j++) {{
+        int8_t *a_ptr = &aa[i * A_stride + k_base];
+        int8_t *b_ptr = &bb[j * B_stride + k_base];
+        cc[i * C_stride + j] = (int32_t) a_ptr[0] * (int32_t) b_ptr[0];
+      }}
+    }}
+    break;
+  case 2:
+    for (int i = 0; i < {M}; i++) {{
+      for (int j = 0; j < {N}; j++) {{
+        int8_t *a_ptr = &aa[i * A_stride + k_base];
+        int8_t *b_ptr = &bb[j * B_stride + k_base];
+        cc[i * C_stride + j] =   (int32_t) a_ptr[0] * (int32_t) b_ptr[0]
+                               + (int32_t) a_ptr[1] * (int32_t) b_ptr[1];
+      }}
+    }}
+    break;
+  case 3:
+    for (int i = 0; i < {M}; i++) {{
+      for (int j = 0; j < {N}; j++) {{
+        int8_t *a_ptr = &aa[i * A_stride + k_base];
+        int8_t *b_ptr = &bb[j * B_stride + k_base];
+        cc[i * C_stride + j] =   (int32_t) a_ptr[0] * (int32_t) b_ptr[0]
+                               + (int32_t) a_ptr[1] * (int32_t) b_ptr[1]
+                               + (int32_t) a_ptr[2] * (int32_t) b_ptr[2];
+      }}
+    }}
+    break;
+  }}
   return 0;
 }}
 
@@ -229,17 +202,17 @@ extern "C"
 __STATIC_FORCEINLINE int32_t gemm_{M}x{K}x{N}_body_{uniq_id}(
     int8_t *aa, int8_t *bb, int32_t *cc,
     int A_stride, int B_stride, int C_stride) {{
-	int16_t bb_pad[{bb_pad_size}];
+  int16_t bb_pad[{bb_pad_size}];
 
   if ( {M} < 16 || {N} < 16 )
-		return gemm_{M}x{K}x{N}_body_loop_{uniq_id}(aa, bb, cc, A_stride, B_stride, C_stride);
+    return gemm_{M}x{K}x{N}_body_loop_{uniq_id}(aa, bb, cc, A_stride, B_stride, C_stride);
 
   for (int i = 0; i < {N}; i++)
     for (int j = 0; j < {K} / 4; j++)
       read_and_pad(&bb[i*B_stride + j*4], (int32_t*) &bb_pad[i*{K} + j*4], (int32_t*) &bb_pad[i*{K} + j*4 + 2]);
 
   for (int i = 0; i < {M}; i++) {{
-		int16_t aa_pad_line[{K}];
+    int16_t aa_pad_line[{K}];
     for (int l = 0; l < {K} / 4; l++)
       read_and_pad(&aa[i*A_stride + l*4], (int32_t*) &aa_pad_line[l*4], (int32_t*) &aa_pad_line[l*4 + 2]);
 
@@ -259,11 +232,10 @@ __STATIC_FORCEINLINE int32_t gemm_{M}x{K}x{N}_body_{uniq_id}(
   }}
 
   if ( {K} % 4 != 0 )
-		gemm_{M}x{N}_body_rest_{uniq_id}({K}, aa, bb, cc, A_stride, B_stride, C_stride);
+    gemm_{M}x{N}_body_rest_{uniq_id}({K}, aa, bb, cc, A_stride, B_stride, C_stride);
 
   return 0;
 }}
-
 
 #ifdef __cplusplus
 extern "C"
@@ -272,39 +244,39 @@ __STATIC_FORCEINLINE int32_t gemm_{M}x{N}_update_rest_{uniq_id}(
     int K,
     int8_t *aa, int8_t *bb, int32_t *cc,
     int A_stride, int B_stride, int C_stride) {{
-	int k_base = (K / 4) * 4;
-	switch ( K % 4 ) {{
-	case 1:
-		for (int i = 0; i < {M}; i++) {{
-			for (int j = 0; j < {N}; j++) {{
-				int8_t *a_ptr = &aa[i * A_stride + k_base];
-				int8_t *b_ptr = &bb[j * B_stride + k_base];
-				cc[i * C_stride + j] += (int32_t) a_ptr[0] * (int32_t) b_ptr[0];
-			}}
-		}}
-		break;
-	case 2:
-		for (int i = 0; i < {M}; i++) {{
-			for (int j = 0; j < {N}; j++) {{
-				int8_t *a_ptr = &aa[i * A_stride + k_base];
-				int8_t *b_ptr = &bb[j * B_stride + k_base];
-				cc[i * C_stride + j] +=   (int32_t) a_ptr[0] * (int32_t) b_ptr[0]
-				                        + (int32_t) a_ptr[1] * (int32_t) b_ptr[1];
-			}}
-		}}
-		break;
-	case 3:
-		for (int i = 0; i < {M}; i++) {{
-			for (int j = 0; j < {N}; j++) {{
-				int8_t *a_ptr = &aa[i * A_stride + k_base];
-				int8_t *b_ptr = &bb[j * B_stride + k_base];
-				cc[i * C_stride + j] +=   (int32_t) a_ptr[0] * (int32_t) b_ptr[0]
-				                        + (int32_t) a_ptr[1] * (int32_t) b_ptr[1]
-				                        + (int32_t) a_ptr[2] * (int32_t) b_ptr[2];
-			}}
-		}}
-		break;
-	}}
+  int k_base = (K / 4) * 4;
+  switch ( K % 4 ) {{
+  case 1:
+    for (int i = 0; i < {M}; i++) {{
+      for (int j = 0; j < {N}; j++) {{
+        int8_t *a_ptr = &aa[i * A_stride + k_base];
+        int8_t *b_ptr = &bb[j * B_stride + k_base];
+        cc[i * C_stride + j] += (int32_t) a_ptr[0] * (int32_t) b_ptr[0];
+      }}
+    }}
+    break;
+  case 2:
+    for (int i = 0; i < {M}; i++) {{
+      for (int j = 0; j < {N}; j++) {{
+        int8_t *a_ptr = &aa[i * A_stride + k_base];
+        int8_t *b_ptr = &bb[j * B_stride + k_base];
+        cc[i * C_stride + j] +=   (int32_t) a_ptr[0] * (int32_t) b_ptr[0]
+                                + (int32_t) a_ptr[1] * (int32_t) b_ptr[1];
+      }}
+    }}
+    break;
+  case 3:
+    for (int i = 0; i < {M}; i++) {{
+      for (int j = 0; j < {N}; j++) {{
+        int8_t *a_ptr = &aa[i * A_stride + k_base];
+        int8_t *b_ptr = &bb[j * B_stride + k_base];
+        cc[i * C_stride + j] +=   (int32_t) a_ptr[0] * (int32_t) b_ptr[0]
+                                + (int32_t) a_ptr[1] * (int32_t) b_ptr[1]
+                                + (int32_t) a_ptr[2] * (int32_t) b_ptr[2];
+      }}
+    }}
+    break;
+  }}
   return 0;
 }}
 
@@ -332,21 +304,21 @@ extern "C"
 __STATIC_FORCEINLINE int32_t gemm_{M}x{K}x{N}_update_{uniq_id}(
     int8_t *aa, int8_t *bb, int32_t *cc,
     int A_stride, int B_stride, int C_stride) {{
-	int16_t bb_pad[{bb_pad_size}];
+  int16_t bb_pad[{bb_pad_size}];
 
   if ( {M} < 16 || {N} < 16 )
-		return gemm_{M}x{K}x{N}_update_loop_{uniq_id}(aa, bb, cc, A_stride, B_stride, C_stride);
+    return gemm_{M}x{K}x{N}_update_loop_{uniq_id}(aa, bb, cc, A_stride, B_stride, C_stride);
 
   for (int i = 0; i < {N}; i++)
     for (int j = 0; j < {K} / 4; j++)
       read_and_pad(&bb[i*B_stride + j*4], (int32_t*) &bb_pad[i*{K} + j*4], (int32_t*) &bb_pad[i*{K} + j*4 + 2]);
 
   for (int i = 0; i < {M}; i++) {{
-		int16_t aa_pad_line[{K}];
+    int16_t aa_pad_line[{K}];
     for (int l = 0; l < {K} / 4; l++)
       read_and_pad(&aa[i*A_stride + l*4], (int32_t*) &aa_pad_line[l*4], (int32_t*) &aa_pad_line[l*4 + 2]);
 
-		for (int j = 0; j < {N}; j++) {{
+    for (int j = 0; j < {N}; j++) {{
       int32_t *aa_ptr = (int32_t *) aa_pad_line;
       int32_t *bb_ptr = (int32_t *) &bb_pad[j*{K}];
       int32_t sum = 0;
@@ -359,12 +331,10 @@ __STATIC_FORCEINLINE int32_t gemm_{M}x{K}x{N}_update_{uniq_id}(
   }}
 
   if ( {K} % 4 != 0 )
-		gemm_{M}x{N}_update_rest_{uniq_id}({K}, aa, bb, cc, A_stride, B_stride, C_stride);
+    gemm_{M}x{N}_update_rest_{uniq_id}({K}, aa, bb, cc, A_stride, B_stride, C_stride);
 
   return 0;
 }}
-
-
 
 #ifdef __cplusplus
 extern "C"
@@ -373,14 +343,14 @@ __STATIC_FORCEINLINE int32_t gemm16_{M}x{N}_body_rest_{uniq_id}(
     int K,
     int16_t *aa, int16_t *bb, int32_t *cc,
     int A_stride, int B_stride, int C_stride) {{
-	int k_base = (K / 2) * 2;
-	for (int i = 0; i < {M}; i++) {{
-		for (int j = 0; j < {N}; j++) {{
-			int16_t *a_ptr = &aa[i * A_stride + k_base];
-			int16_t *b_ptr = &bb[j * B_stride + k_base];
-			cc[i * C_stride + j] = (int32_t) a_ptr[0] * (int32_t) b_ptr[0];
-		}}
-	}}
+  int k_base = (K / 2) * 2;
+  for (int i = 0; i < {M}; i++) {{
+    for (int j = 0; j < {N}; j++) {{
+      int16_t *a_ptr = &aa[i * A_stride + k_base];
+      int16_t *b_ptr = &bb[j * B_stride + k_base];
+      cc[i * C_stride + j] = (int32_t) a_ptr[0] * (int32_t) b_ptr[0];
+    }}
+  }}
   return 0;
 }}
 
@@ -410,15 +380,15 @@ extern "C"
 #endif
 __STATIC_FORCEINLINE int32_t gemm16_{M}x{K}x{N}_body_{uniq_id}(
     int16_t *aa, int16_t *bb, int32_t *cc,
-    int A_stride, int B_stride, int C_stride) {{	
+    int A_stride, int B_stride, int C_stride) {{  
   if ( {M} < 2 || {N} < 2 )
-		return gemm16_{M}x{K}x{N}_body_loop_{uniq_id}(aa, bb, cc, A_stride, B_stride, C_stride);	
+    return gemm16_{M}x{K}x{N}_body_loop_{uniq_id}(aa, bb, cc, A_stride, B_stride, C_stride);  
 
   for (int i = 0; i < {M}; i++) {{
     for (int j = 0; j < {N}; j++) {{
       int32_t *aa_ptr = (int32_t *) &aa[i*A_stride];
       int32_t *bb_ptr = (int32_t *) &bb[j*B_stride];
-		
+    
       int32_t sum = 0;
       for (int l = 0; l < {K} / 2; l++) {{
         sum = __SMLAD(*aa_ptr, *bb_ptr, sum);
@@ -430,13 +400,12 @@ __STATIC_FORCEINLINE int32_t gemm16_{M}x{K}x{N}_body_{uniq_id}(
       cc[i*C_stride + j] = sum;
     }}
   }}
-	
+  
   if ( {K} % 2 != 0 )
-		gemm16_{M}x{N}_body_rest_{uniq_id}({K}, aa, bb, cc, A_stride, B_stride, C_stride);
-	
+    gemm16_{M}x{N}_body_rest_{uniq_id}({K}, aa, bb, cc, A_stride, B_stride, C_stride);
+  
   return 0;
 }}
-
 
 #ifdef __cplusplus
 extern "C"
@@ -445,14 +414,14 @@ __STATIC_FORCEINLINE int32_t gemm16_{M}x{N}_update_rest_{uniq_id}(
     int K,
     int16_t *aa, int16_t *bb, int32_t *cc,
     int A_stride, int B_stride, int C_stride) {{
-	int k_base = (K / 2) * 2;
-	for (int i = 0; i < {M}; i++) {{
-		for (int j = 0; j < {N}; j++) {{
-			int16_t *a_ptr = &aa[i * A_stride + k_base];
-			int16_t *b_ptr = &bb[j * B_stride + k_base];
-			cc[i * C_stride + j] += (int32_t) a_ptr[0] * (int32_t) b_ptr[0];
-		}}
-	}}
+  int k_base = (K / 2) * 2;
+  for (int i = 0; i < {M}; i++) {{
+    for (int j = 0; j < {N}; j++) {{
+      int16_t *a_ptr = &aa[i * A_stride + k_base];
+      int16_t *b_ptr = &bb[j * B_stride + k_base];
+      cc[i * C_stride + j] += (int32_t) a_ptr[0] * (int32_t) b_ptr[0];
+    }}
+  }}
   return 0;
 }}
 
@@ -479,15 +448,15 @@ extern "C"
 #endif
 __STATIC_FORCEINLINE int32_t gemm16_{M}x{K}x{N}_update_{uniq_id}(
     int16_t *aa, int16_t *bb, int32_t *cc,
-    int A_stride, int B_stride, int C_stride) {{	
+    int A_stride, int B_stride, int C_stride) {{  
   if ( {M} < 2 || {N} < 2 )
-		return gemm16_{M}x{K}x{N}_body_loop_{uniq_id}(aa, bb, cc, A_stride, B_stride, C_stride);	
+    return gemm16_{M}x{K}x{N}_body_loop_{uniq_id}(aa, bb, cc, A_stride, B_stride, C_stride);  
 
   for (int i = 0; i < {M}; i++) {{
     for (int j = 0; j < {N}; j++) {{
       int32_t *aa_ptr = (int32_t *) &aa[i*A_stride];
       int32_t *bb_ptr = (int32_t *) &bb[j*B_stride];
-		
+    
       int32_t sum = 0;
       for (int l = 0; l < {K} / 2; l++) {{
         sum = __SMLAD(*aa_ptr, *bb_ptr, sum);
@@ -496,14 +465,12 @@ __STATIC_FORCEINLINE int32_t gemm16_{M}x{K}x{N}_update_{uniq_id}(
       cc[i*C_stride + j] += sum;
     }}
   }}
-	
+  
   if ( {K} % 2 != 0 )
-		gemm16_{M}x{N}_body_rest_{uniq_id}({K}, aa, bb, cc, A_stride, B_stride, C_stride);
-	
+    gemm16_{M}x{N}_body_rest_{uniq_id}({K}, aa, bb, cc, A_stride, B_stride, C_stride);
+  
   return 0;
 }}
-
-
 
 #ifdef __cplusplus
 extern "C"
