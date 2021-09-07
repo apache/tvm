@@ -559,5 +559,35 @@ def test_name_sanitiser_name_clash():
         )
 
 
+@pytest.mark.parametrize(
+    "workspace_byte_alignment,main_workspace_size,sum_workspace_size",
+    [
+        (8, 10368, 15392),
+        (16, 10368, 15424),
+        (256, 10752, 17664),
+    ],
+)
+def test_memory_planning(workspace_byte_alignment, main_workspace_size, sum_workspace_size):
+    mod, params = tvm.relay.testing.synthetic.get_workload()
+
+    target = f"c -runtime=c --link-params --executor=aot --workspace-byte-alignment={workspace_byte_alignment}"
+    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
+        lib = tvm.relay.build(mod, target, params=params)
+
+    assert (
+        sum(lib.function_metadata["__tvm_main__"].workspace_sizes.values()) == main_workspace_size
+    )
+    assert (
+        sum(
+            [
+                size
+                for metadata in lib.function_metadata.values()
+                for size in metadata.workspace_sizes.values()
+            ]
+        )
+        == sum_workspace_size
+    )
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__] + sys.argv[1:]))
