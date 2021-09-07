@@ -673,7 +673,8 @@ typedef enum {
     case RPCServerTracker_ServerInfoToSend: {
       std::ostringstream ss;
       ss << "[" << static_cast<int>(tvm::runtime::TrackerCode::kUpdateInfo)
-         << ", {\"key\": \"server:" << self.key.UTF8String << "\"}]";
+         << ", {\"key\": \"server:" << self.key.UTF8String << "\", \"addr\": ["
+         << self.custom_addr.UTF8String << ", \"" << self.port << "\"]}]";
       std::string data_s = ss.str();
       [self toSendPacked:[NSData dataWithBytes:data_s.data() length:data_s.length()]];
       self.state = RPCServerTracker_ServerInfoToRecv;

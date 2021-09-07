@@ -46,7 +46,7 @@ struct RPCArgs_cpp {
   int host_port = 9190;
 
   string key;
-  string custom_addr = "";
+  string custom_addr = "null";
 
   bool immediate_connect = false;
   bool verbose = false;
