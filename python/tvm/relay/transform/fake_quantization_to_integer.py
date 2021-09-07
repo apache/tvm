@@ -87,6 +87,7 @@ register_unary_identity("transpose")
 register_unary_identity("expand_dims")
 register_unary_identity("nn.max_pool2d")
 register_unary_identity("nn.batch_flatten")
+register_unary_identity("nn.depth_to_space")
 
 
 @register_fake_quantization_to_integer("nn.avg_pool2d")
@@ -293,15 +294,6 @@ def pad(expr, type_map):
 
     out = relay.op.nn.pad(arg, pad_value=pad_value, **expr.attrs)
     return [out, t]
-
-
-@register_fake_quantization_to_integer("nn.depth_to_space")
-def depth_to_space(expr, type_map):
-    """Rewrite an nn.depth_to_space op"""
-    data = expr.args[0]
-    breakpoint()
-    # out = relay.op.nn.depth_to_space(data, block_size, layout, mode)
-    return []
 
 
 def get_binary_types(expr, type_map):
