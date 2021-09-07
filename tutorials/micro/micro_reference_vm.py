@@ -111,13 +111,13 @@ forwarding again. It may not be obvious to the end user when this occurs. Instru
 Rebuilding TVM inside the Reference VM
 --------------------------------------
 
-After the first boot, you'll need to ensure you keep the build, in ``$TVM_HOME/build-microtvm``,
+After the first boot, you'll need to ensure you keep the build, in ``$TVM_HOME/build-microtvm-zephyr``,
 up-to-date when you modify the C++ runtime or checkout a different revision. You can either
 re-provision the machine (``vagrant provision`` in the same directory you ran ``vagrant up`` before)
 or manually rebuild TVM yourself.
 
 Remember: the TVM ``.so`` built inside the VM is different from the one you may use on your host
-machine. This is why it's built inside the special directory ``build-microtvm``.
+machine. This is why it's built inside the special directory ``build-microtvm-zephyr``.
 
 Logging in to the VM
 --------------------
