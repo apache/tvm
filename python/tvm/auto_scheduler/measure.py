@@ -689,6 +689,9 @@ def local_builder_build(inputs, timeout, n_parallel, build_func="default", verbo
     res : List[BuildResult]
         The build results of these MeasureInputs.
     """
+    assert build_func == BuildFunc.name, (
+        "BuildFunc.name: " + BuildFunc.name + ", but args is: " + build_func
+    )
     executor = PopenPoolExecutor(
         n_parallel, timeout, reset_global_scope, (AutotvmGlobalScope.current,)
     )
