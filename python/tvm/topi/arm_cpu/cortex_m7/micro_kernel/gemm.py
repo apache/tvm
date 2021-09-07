@@ -153,11 +153,42 @@ def gemm_MxKxN_impl(M, K, N, uniq_id):
     bb_pad_size = N * K
     # code reference: CMSIS-NN paper (https://arxiv.org/abs/1801.06601)
     cc_code = f"""
+#ifndef __STATIC_FORCEINLINE
+    #define __STATIC_FORCEINLINE  static inline
+#endif
+
 #ifdef __cplusplus
 extern "C"
 #endif
-#include <arm_math.h>
-#include <arm_nnsupportfunctions.h>
+__STATIC_FORCEINLINE int32_t arm_nn_read_q7x4_ia(const int8_t **in_q7)
+{
+    int32_t val;
+    memcpy(&val, *in_q7, 4);
+    *in_q7 += 4;
+
+    return (val);
+}
+
+#ifdef __cplusplus
+extern "C"
+#endif
+__STATIC_FORCEINLINE const int8_t *read_and_pad(const int8_t *source, int32_t *out1, int32_t *out2)
+{
+    int32_t inA = arm_nn_read_q7x4_ia(&source);
+    int32_t inAbuf1 = __SXTB16(__ROR((uint32_t)inA, 8));
+    int32_t inAbuf2 = __SXTB16(inA);
+
+#ifndef ARM_MATH_BIG_ENDIAN
+    *out2 = (int32_t)(__PKHTB(inAbuf1, inAbuf2, 16));
+    *out1 = (int32_t)(__PKHBT(inAbuf2, inAbuf1, 16));
+#else
+    *out1 = (int32_t)(__PKHTB(inAbuf1, inAbuf2, 16));
+    *out2 = (int32_t)(__PKHBT(inAbuf2, inAbuf1, 16));
+#endif
+
+    return source;
+}
+
 
 #ifdef __cplusplus
 extern "C"
