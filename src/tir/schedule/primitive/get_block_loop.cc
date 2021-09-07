@@ -55,7 +55,7 @@ Array<StmtSRef> GetLoops(const StmtSRef& block_sref) {
   return {result.rbegin(), result.rend()};
 }
 
-/******** Instruction Registration ********/
+/******** InstructionKind Registration ********/
 
 struct GetBlockTraits : public UnpackedInstTraits<GetBlockTraits> {
   static constexpr const char* kName = "GetBlock";

@@ -30,6 +30,7 @@
 #include <stack>
 
 #include "../../support/arena.h"
+#include "../../support/nd_int_set.h"
 #include "../../support/utils.h"
 #include "../schedule/utils.h"
 #include "ir_utils.h"
@@ -37,62 +38,7 @@
 namespace tvm {
 namespace tir {
 
-using NDIntSet = std::vector<arith::IntSet>;
-
-arith::IntSet IntSetFromMinExtent(const PrimExpr& min, const PrimExpr& extent) {
-  return arith::IntSet::FromRange(Range::FromMinExtent(min, extent));
-}
-
-NDIntSet NDIntSetFromRegion(const Region& region) {
-  NDIntSet result;
-  result.reserve(region.size());
-  for (const Range& range : region) {
-    result.push_back(arith::IntSet::FromRange(range));
-  }
-  return result;
-}
-
-NDIntSet NDIntSetFromShape(const Array<PrimExpr>& shape) {
-  PrimExpr zero = Integer(0);
-  NDIntSet result;
-  result.reserve(shape.size());
-  for (const PrimExpr& extent : shape) {
-    result.push_back(IntSetFromMinExtent(zero, extent));
-  }
-  return result;
-}
-
-NDIntSet NDIntSetFromPoint(const Array<PrimExpr>& indices) {
-  NDIntSet result;
-  result.reserve(indices.size());
-  for (const PrimExpr& index : indices) {
-    result.push_back(arith::IntSet::SinglePoint(index));
-  }
-  return result;
-}
-
-void NDIntSetUnionWith(NDIntSet* lhs, const NDIntSet& rhs) {
-  ICHECK_EQ(lhs->size(), rhs.size());
-  int ndim = rhs.size();
-  for (int i = 0; i < ndim; ++i) {
-    arith::IntSet& int_set = lhs->at(i);
-    int_set = arith::Union({int_set, rhs.at(i)});
-  }
-}
-
-NDIntSet NDIntSetEmpty(int ndim) {
-  return std::vector<arith::IntSet>(ndim, arith::IntSet::Nothing());
-}
-
-NDIntSet EvalNDIntSet(const NDIntSet& nd_int_set,
-                      const std::unordered_map<const VarNode*, arith::IntSet>& dom_map) {
-  NDIntSet ret;
-  ret.reserve(nd_int_set.size());
-  for (const arith::IntSet& s : nd_int_set) {
-    ret.push_back(arith::EvalSet(s, dom_map));
-  }
-  return ret;
-}
+using support::NDIntSet;
 
 /*!
  * \brief return the region collected by NDIntSet. return the oroginal buffer shape if the
@@ -164,7 +110,8 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     // The iter_dom_map is updated by post DFS order.
     // If the union point is under the for node, the loop var will not be relaxed.
     // If the union point is outer of the for loop, the loop var should be relaxed.
-    iter_dom_map_on_post_order_[op->loop_var.get()] = IntSetFromMinExtent(op->min, op->extent);
+    iter_dom_map_on_post_order_[op->loop_var.get()] =
+        arith::IntSet::FromMinExtent(op->min, op->extent);
   }
 
   void VisitStmt_(const BlockNode* op) final {
@@ -205,10 +152,10 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
       for (const ForNode* loop : ancestor_loops_) {
         const VarNode* loop_var = loop->loop_var.get();
         if (NeedRelaxThread(GetRef<For>(loop), runtime::StorageScope::Create(buffer.scope()))) {
-          dom_map[loop_var] = IntSetFromMinExtent(loop->min, loop->extent);
+          dom_map[loop_var] = arith::IntSet::FromMinExtent(loop->min, loop->extent);
         }
       }
-      NDIntSet int_set = EvalNDIntSet(nd_int_set, dom_map);
+      NDIntSet int_set = support::EvalNDIntSet(nd_int_set, dom_map);
       buffer_access_region_[buffer] = NarrowBufferRegionFromNDIntSet(int_set, buffer->shape);
     }
   }
@@ -221,7 +168,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     if (it != buffer_var_in_scope_.end()) {
       const Buffer& buffer = it->second;
       const BufferAccessInfo* info =
-          arena_.make<BufferAccessInfo>(buffer, NDIntSetFromRegion(buffer_region->region));
+          arena_.make<BufferAccessInfo>(buffer, support::NDIntSetFromRegion(buffer_region->region));
       buffer_access_stack_.push(info);
     }
   }
@@ -246,10 +193,11 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     while (buffer_access_stack_.size() > stack_top) {
       const BufferAccessInfo* info = buffer_access_stack_.top();
       buffer_access_stack_.pop();
-      NDIntSet nd_int_set = EvalNDIntSet(info->accessed_region, iter_dom_map_on_post_order_);
+      NDIntSet nd_int_set =
+          support::EvalNDIntSet(info->accessed_region, iter_dom_map_on_post_order_);
       auto it = accesses.find(info->buffer);
       if (it != accesses.end()) {
-        NDIntSetUnionWith(&it->second, nd_int_set);
+        support::NDIntSetUnionWith(&it->second, nd_int_set);
       } else {
         accesses[info->buffer] = nd_int_set;
       }

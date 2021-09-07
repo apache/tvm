@@ -192,6 +192,28 @@ BlockRV TracedScheduleNode::CacheWrite(const BlockRV& block_rv, int write_buffer
 
 /******** Schedule: Compute location ********/
 
+void TracedScheduleNode::ComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv,
+                                   bool preserve_unit_loops) {
+  ConcreteScheduleNode::ComputeAt(block_rv, loop_rv, preserve_unit_loops);
+
+  static const InstructionKind& kind = InstructionKind::Get("ComputeAt");
+  trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
+                                      /*inputs=*/{block_rv, loop_rv},
+                                      /*attrs=*/{Integer(preserve_unit_loops)},
+                                      /*outputs=*/{}));
+}
+
+void TracedScheduleNode::ReverseComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv,
+                                          bool preserve_unit_loops) {
+  ConcreteScheduleNode::ReverseComputeAt(block_rv, loop_rv, preserve_unit_loops);
+
+  static const InstructionKind& kind = InstructionKind::Get("ReverseComputeAt");
+  trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
+                                      /*inputs=*/{block_rv, loop_rv},
+                                      /*attrs=*/{Integer(preserve_unit_loops)},
+                                      /*outputs=*/{}));
+}
+
 void TracedScheduleNode::ComputeInline(const BlockRV& block_rv) {
   ConcreteScheduleNode::ComputeInline(block_rv);
 

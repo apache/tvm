@@ -439,6 +439,44 @@ BlockRV ConcreteScheduleNode::CacheWrite(const BlockRV& block_rv, int write_buff
 
 /******** Schedule: Compute location ********/
 
+void ConcreteScheduleNode::ComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv,
+                                     bool preserve_unit_loops) {
+  static StmtSRef inline_mark = StmtSRef::InlineMark();
+  static StmtSRef root_mark = StmtSRef::RootMark();
+  StmtSRef loop_sref = this->GetSRef(loop_rv);
+  if (loop_sref.same_as(root_mark)) {
+    return;
+  } else if (loop_sref.same_as(inline_mark)) {
+    TVM_TIR_SCHEDULE_BEGIN();
+    tir::ComputeInline(state_, this->GetSRef(block_rv));
+    TVM_TIR_SCHEDULE_END("compute-at", this->error_render_level_);
+  } else {
+    TVM_TIR_SCHEDULE_BEGIN();
+    tir::ComputeAt(state_, this->GetSRef(block_rv), loop_sref, preserve_unit_loops);
+    TVM_TIR_SCHEDULE_END("compute-at", this->error_render_level_);
+  }
+  this->state_->DebugVerify();
+}
+
+void ConcreteScheduleNode::ReverseComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv,
+                                            bool preserve_unit_loops) {
+  static StmtSRef inline_mark = StmtSRef::InlineMark();
+  static StmtSRef root_mark = StmtSRef::RootMark();
+  StmtSRef loop_sref = this->GetSRef(loop_rv);
+  if (loop_sref.same_as(root_mark)) {
+    // do nothing
+  } else if (loop_sref.same_as(inline_mark)) {
+    TVM_TIR_SCHEDULE_BEGIN();
+    tir::ReverseComputeInline(state_, this->GetSRef(block_rv));
+    TVM_TIR_SCHEDULE_END("reverse-compute-at", this->error_render_level_);
+  } else {
+    TVM_TIR_SCHEDULE_BEGIN();
+    tir::ReverseComputeAt(state_, this->GetSRef(block_rv), loop_sref, preserve_unit_loops);
+    TVM_TIR_SCHEDULE_END("reverse-compute-at", this->error_render_level_);
+  }
+  this->state_->DebugVerify();
+}
+
 void ConcreteScheduleNode::ComputeInline(const BlockRV& block_rv) {
   TVM_TIR_SCHEDULE_BEGIN();
   tir::ComputeInline(state_, this->GetSRef(block_rv));

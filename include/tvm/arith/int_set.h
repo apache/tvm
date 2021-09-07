@@ -122,6 +122,13 @@ class IntSet : public ObjectRef {
    */
   static IntSet Vector(PrimExpr vec);
   /*!
+   * \brief Construct a set representing a range [min, min + extent).
+   * \param min The minimum of the range range
+   * \param extent The extent of the range.
+   * \return constructed set.
+   */
+  static IntSet FromMinExtent(PrimExpr min, PrimExpr extent);
+  /*!
    * \brief Construct a set representing a range.
    * \param r The range
    * \return constructed set.
