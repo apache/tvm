@@ -47,8 +47,7 @@ def intrin_gemm_MxKxN(M, K, N, in_dtype, out_dtype):
     if isinstance(N, tvm.tir.IntImm):
         N = N.value
     # TODO(weberlo, areusch): support more dtypes?
-    # use gemm16 for int16 dtype
-    assert in_dtype == "int8"
+    assert in_dtype == "int8" or in_dtype == "int16"
     assert out_dtype == "int32"
     A = te.placeholder((M, K), name="a", dtype=in_dtype)
     B = te.placeholder((N, K), name="b", dtype=in_dtype)
@@ -74,18 +73,32 @@ def intrin_gemm_MxKxN(M, K, N, in_dtype, out_dtype):
 
         def _reduce_update():
             ib = tvm.tir.ir_builder.create()
-            ib.emit(
-                tvm.tir.call_extern(
-                    "int32",
-                    f"gemm_{M}x{K}x{N}_update_{uniq_id}",
-                    aa.access_ptr("r"),
-                    bb.access_ptr("r"),
-                    cc.access_ptr("w"),
-                    aa.strides[0],
-                    bb.strides[0],
-                    cc.strides[0],
+            if in_dtype == "int8":
+                ib.emit(
+                    tvm.tir.call_extern(
+                        "int32",
+                        f"gemm_{M}x{K}x{N}_update_{uniq_id}",
+                        aa.access_ptr("r"),
+                        bb.access_ptr("r"),
+                        cc.access_ptr("w"),
+                        aa.strides[0],
+                        bb.strides[0],
+                        cc.strides[0],
+                    )
                 )
-            )
+            else:
+                ib.emit(
+                    tvm.tir.call_extern(
+                        "int32",
+                        f"gemm16_{M}x{K}x{N}_update_{uniq_id}",
+                        aa.access_ptr("r"),
+                        bb.access_ptr("r"),
+                        cc.access_ptr("w"),
+                        aa.strides[0],
+                        bb.strides[0],
+                        cc.strides[0],
+                    )
+                )
             return ib.get()
 
         def _reduce_reset():
@@ -99,18 +112,32 @@ def intrin_gemm_MxKxN(M, K, N, in_dtype, out_dtype):
 
         def _body():
             ib = tvm.tir.ir_builder.create()
-            ib.emit(
-                tvm.tir.call_extern(
-                    "int32",
-                    f"gemm_{M}x{K}x{N}_body_{uniq_id}",
-                    aa.access_ptr("r"),
-                    bb.access_ptr("r"),
-                    cc.access_ptr("w"),
-                    aa.strides[0],
-                    bb.strides[0],
-                    cc.strides[0],
+            if in_dtype == "int8":
+                ib.emit(
+                    tvm.tir.call_extern(
+                        "int32",
+                        f"gemm_{M}x{K}x{N}_body_{uniq_id}",
+                        aa.access_ptr("r"),
+                        bb.access_ptr("r"),
+                        cc.access_ptr("w"),
+                        aa.strides[0],
+                        bb.strides[0],
+                        cc.strides[0],
+                    )
                 )
-            )
+            else:
+                ib.emit(
+                    tvm.tir.call_extern(
+                        "int32",
+                        f"gemm16_{M}x{K}x{N}_body_{uniq_id}",
+                        aa.access_ptr("r"),
+                        bb.access_ptr("r"),
+                        cc.access_ptr("w"),
+                        aa.strides[0],
+                        bb.strides[0],
+                        cc.strides[0],
+                    )
+                )
             return ib.get()
 
         return _body(), _reduce_reset(), _reduce_update()
