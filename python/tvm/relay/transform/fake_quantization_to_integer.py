@@ -296,9 +296,12 @@ def pad(expr, type_map):
 
 
 @register_fake_quantization_to_integer("nn.depth_to_space")
-def depth_to_space(exp, type_map):
+def depth_to_space(expr, type_map):
     """Rewrite an nn.depth_to_space op"""
+    data = expr.args[0]
     breakpoint()
+    # out = relay.op.nn.depth_to_space(data, block_size, layout, mode)
+    return []
 
 
 def get_binary_types(expr, type_map):

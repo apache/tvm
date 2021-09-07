@@ -501,3 +501,7 @@ def test_fake_quantize_pad():
     x_np = np.random.randint(-25, 25, size=[1, 383, 128], dtype="int8")
 
     compare_fq_to_int(op, [x_np])
+
+
+def test_fake_quantize_depth_to_space():
+    
