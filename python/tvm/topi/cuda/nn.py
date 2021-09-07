@@ -38,7 +38,6 @@ def schedule_lrn(outs):
     sch: Schedule
         The computation schedule for the op.
     """
-    # return cpp.cuda.schedule_lrn(outs)
     outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
     s = te.create_schedule([x.op for x in outs])
     max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
@@ -47,18 +46,11 @@ def schedule_lrn(outs):
         if "sqr_sum" in op.tag:
             pad = op.input_tensors[0]
             s[pad].compute_inline()
-            n, c, h, w = s[op].op.axis
-            fused_axis = s[op].fuse(n, c, h, w)
-            bx, tx = s[op].split(fused_axis, factor=max_threads)
-            s[op].bind(bx, te.thread_axis("blockIdx.x"))
-            s[op].bind(tx, te.thread_axis("threadIdx.x"))
-        elif outs[0].op == op:
-            n, c, h, w = s[op].op.axis
-            fused_axis = s[op].fuse(n, c, h, w)
-            bx, tx = s[op].split(fused_axis, factor=max_threads)
-            s[op].bind(bx, te.thread_axis("blockIdx.x"))
-            s[op].bind(tx, te.thread_axis("threadIdx.x"))
-
+            fused_axis = s[outs[0]].fuse(*s[outs[0]].op.axis)
+            bx, tx = s[outs[0]].split(fused_axis, factor=max_threads)
+            s[outs[0]].bind(bx, te.thread_axis("blockIdx.x"))
+            s[outs[0]].bind(tx, te.thread_axis("threadIdx.x"))
+            s[op].compute_at(s[outs[0]], tx)
 
     traverse_inline(s, outs[0].op, _callback)
     return s
