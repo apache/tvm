@@ -30,7 +30,7 @@ def test_convert_ssa():
     mod = tvm.IRModule({"main": func})
     mod = tir.transform.InjectVirtualThread()(
         mod
-    ) # Use pass InjectVirtualThread to invoke ConvertSSA
+    )  # Use pass InjectVirtualThread to invoke ConvertSSA
 
 
 if __name__ == "__main__":
