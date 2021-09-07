@@ -78,9 +78,12 @@ inline Tensor lrn(const Tensor& data, int size, int axis = 1, float alpha = 0.00
         },
         "tensor", "sqr_sum");
   }
-  auto sqrt_sum_up = tvm::te::compute(input_shape, [&](Var i, Var j, Var k, Var l) {
-    return tvm::pow(bias + (div(alpha * sqr_sum(i, j, k, l), size)), beta);
-  });
+  auto sqrt_sum_up = tvm::te::compute(
+      input_shape,
+      [&](Var i, Var j, Var k, Var l) {
+        return tvm::pow(bias + (div(alpha * sqr_sum(i, j, k, l), size)), beta);
+      },
+      "tensor", kElementWise);
   return topi::divide(data, sqrt_sum_up);
 }
 }  // namespace nn
