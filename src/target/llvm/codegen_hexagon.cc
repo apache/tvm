@@ -730,6 +730,12 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
     funcs.emplace_back(f);
   }
 
+  std::sort(funcs.begin(), funcs.end(), [](PrimFunc func_a, PrimFunc func_b) {
+    std::string name_a = func_a->GetAttr<String>(tvm::attr::kGlobalSymbol).value();
+    std::string name_b = func_b->GetAttr<String>(tvm::attr::kGlobalSymbol).value();
+    return name_a < name_b;
+  });
+
   cg->Init("TVMHexagonModule", tm.get(), ctx.get(), false, false, false);
   for (const PrimFunc& f : funcs) {
     cg->AddFunction(f);
