@@ -29,12 +29,12 @@ namespace tvm {
 namespace support {
 
 /*! \brief An N-dimensional integer set representing a rectangle region */
-using NDIntSet = std::vector<tvm::arith::IntSet>;
+using NDIntSet = std::vector<arith::IntSet>;
 
 /*!
  * \brief Construct an N-dimensional integer set representing a region.
  * \param region The region.
- * \return constructed set.
+ * \return The constructed set.
  */
 inline NDIntSet NDIntSetFromRegion(const tir::Region& region) {
   NDIntSet result;
@@ -48,7 +48,7 @@ inline NDIntSet NDIntSetFromRegion(const tir::Region& region) {
 /*!
  * \brief Construct an N-dimensional integer set representing a shape.
  * \param shape The shape which is an array of the length of each dimension.
- * \return constructed set.
+ * \return The constructed set.
  */
 inline NDIntSet NDIntSetFromShape(const Array<PrimExpr>& shape) {
   PrimExpr zero = Integer(0);
@@ -63,7 +63,7 @@ inline NDIntSet NDIntSetFromShape(const Array<PrimExpr>& shape) {
 /*!
  * \brief Construct an N-dimensional integer set representing a point.
  * \param indices The N-dimensional indices representing the point.
- * \return constructed set.
+ * \return The constructed set.
  */
 inline NDIntSet NDIntSetFromPoint(const Array<PrimExpr>& indices) {
   NDIntSet result;
@@ -119,7 +119,7 @@ inline NDIntSet NDIntSetUnion(const std::vector<NDIntSet>& nd_int_sets) {
 /*!
  * \brief Create an empty N-dimensional integer set.
  * \param ndim The number of dimensions.
- * \return constructed set.
+ * \return The constructed set.
  */
 inline NDIntSet NDIntSetEmpty(int ndim) {
   return std::vector<arith::IntSet>(ndim, arith::IntSet::Nothing());
@@ -133,7 +133,7 @@ inline NDIntSet NDIntSetEmpty(int ndim) {
  *         integer set.
  * \sa EvalSet
  */
-inline NDIntSet EvalNDIntSet(
+inline NDIntSet NDIntSetEval(
     const NDIntSet& nd_int_set,
     const std::unordered_map<const tir::VarNode*, arith::IntSet>& dom_map) {
   NDIntSet ret;

@@ -125,20 +125,20 @@ class IntSet : public ObjectRef {
    * \brief Construct a set representing a range [min, min + extent).
    * \param min The minimum of the range range
    * \param extent The extent of the range.
-   * \return constructed set.
+   * \return The constructed set.
    */
   static IntSet FromMinExtent(PrimExpr min, PrimExpr extent);
   /*!
    * \brief Construct a set representing a range.
    * \param r The range
-   * \return constructed set.
+   * \return The constructed set.
    */
   static IntSet FromRange(tvm::Range r);
   /*!
    * \brief Construct a set representing a interval.
    * \param min The minimum value of the interval.
    * \param max The maximum value of the interval.
-   * \return constructed set.
+   * \return The constructed set.
    */
   static IntSet Interval(PrimExpr min, PrimExpr max);
 

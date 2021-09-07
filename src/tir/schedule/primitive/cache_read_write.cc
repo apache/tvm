@@ -161,8 +161,8 @@ Block MakeCacheStage(const BufferRegion& cache_region, CacheStageInfo* info,
 }
 
 /*!
- * \brief Recalculate the `affine_binding` flag of the scope block info.
- * \param block_sref The sref to the interested scope block.
+ * \brief Recalculate the `affine_binding` flag of a specifc block
+ * \param block_sref The sref to the specific block
  */
 bool CalculateAffineFlag(const ScheduleState& self, const StmtSRef& block_sref) {
   if (block_sref->parent == nullptr) {

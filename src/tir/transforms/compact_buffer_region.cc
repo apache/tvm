@@ -155,7 +155,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
           dom_map[loop_var] = arith::IntSet::FromMinExtent(loop->min, loop->extent);
         }
       }
-      NDIntSet int_set = support::EvalNDIntSet(nd_int_set, dom_map);
+      NDIntSet int_set = support::NDIntSetEval(nd_int_set, dom_map);
       buffer_access_region_[buffer] = NarrowBufferRegionFromNDIntSet(int_set, buffer->shape);
     }
   }
@@ -194,7 +194,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
       const BufferAccessInfo* info = buffer_access_stack_.top();
       buffer_access_stack_.pop();
       NDIntSet nd_int_set =
-          support::EvalNDIntSet(info->accessed_region, iter_dom_map_on_post_order_);
+          support::NDIntSetEval(info->accessed_region, iter_dom_map_on_post_order_);
       auto it = accesses.find(info->buffer);
       if (it != accesses.end()) {
         support::NDIntSetUnionWith(&it->second, nd_int_set);

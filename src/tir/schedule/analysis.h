@@ -142,14 +142,14 @@ void CheckReductionBlock(const ScheduleState& self, const StmtSRef& block_sref,
  * \param self The schedule state
  * \param block_sref The sref of the block to be checked
  * \param scope_root_sref The scope root of the block
- * \throw ScheduleError If the block is not a reduction block
+ * \throw ScheduleError If the block is neither a complete block nor a reduction block
  */
 void CheckCompleteOrReductionBlock(const ScheduleState& self, const StmtSRef& block_sref,
                                    const StmtSRef& scope_root_sref);
 
 /*!
- * \brief Check if the block is an output block, i.e. the buffer regions written by the block are
- * allocated under the current scope
+ * \brief Check if the block is an output block, i.e. the block writes to at least a buffer that is
+ * not allocated under the current scope
  * \param self The schedule state
  * \param block_sref The block to be checked
  * \param scope_root_sref The scope root of the block
@@ -159,8 +159,8 @@ bool IsOutputBlock(const ScheduleState& self, const StmtSRef& block_sref,
                    const StmtSRef& scope_root_sref);
 
 /*!
- * \brief Check if the block is an output block, i.e. the buffer regions written by the block are
- * allocated under the current scope
+ * \brief Check if the block is not an output block, i.e. all the buffers the block writes to
+ * are allocated under the current scope
  * \param self The schedule state
  * \param block_sref The block to be checked
  * \param scope_root_sref The scope root of the block
