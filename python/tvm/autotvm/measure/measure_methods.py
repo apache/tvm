@@ -38,6 +38,7 @@ import tvm._ffi
 import tvm.ir.transform
 from tvm import nd
 from tvm import rpc as _rpc
+from tvm.autotvm.env import AutotvmGlobalScope, reset_global_scope
 from tvm.contrib import ndk, nvcc, stackvm, tar
 from tvm.contrib.popen_pool import PopenPoolExecutor
 from tvm.driver import build
@@ -98,7 +99,9 @@ class LocalBuilder(Builder):
             else:
                 raise ValueError("Invalid build_func" + build_func)
         self.build_func = _WrappedBuildFunc(build_func)
-        self.executor = PopenPoolExecutor(timeout=timeout)
+        self.executor = PopenPoolExecutor(
+            timeout=timeout, initializer=reset_global_scope, initargs=(AutotvmGlobalScope.current,)
+        )
         self.tmp_dir = tempfile.mkdtemp()
 
     def build(self, measure_inputs):
@@ -241,7 +244,11 @@ class RPCRunner(Runner):
         self.cooldown_interval = cooldown_interval
         self.module_loader = module_loader
 
-        self.executor = PopenPoolExecutor(timeout=timeout * (self.n_parallel + 1))
+        self.executor = PopenPoolExecutor(
+            timeout=timeout * (self.n_parallel + 1),
+            initializer=reset_global_scope,
+            initargs=(AutotvmGlobalScope.current,),
+        )
 
     @property
     def ref_input(self):
