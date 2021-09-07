@@ -1270,10 +1270,19 @@ def convert_squeeze(g, op, block):
     g.add_node(op.output("Out")[0], x)
 
 
+def convert_stack(g, op, block):
+    """Operator converter for stack."""
+
+    x = op.input("X")
+    x = [g.get_node(i) for i in x]
+    axis = op.attr("axis")
+    out = _op.stack(x, axis)
+    g.add_node(op.output("Y")[0], out)
+
+
 def convert_tile(g, op, block):
     """Operator converter for tile."""
 
-    print("op:", op)
     input_x = g.get_node(op.input("X")[0])
     repeat_times = op.input("RepeatTimes")
     repeat_times_tensor = op.input("repeat_times_tensor")
@@ -1389,6 +1398,7 @@ _convert_map = {
     "slice": convert_slice,
     "softmax": convert_softmax,
     "squeeze2": convert_squeeze,
+    "stack": convert_stack,
     "tan": convert_unary_op,
     "tanh": convert_unary_op,
     "tile": convert_tile,

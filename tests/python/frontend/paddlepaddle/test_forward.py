@@ -1063,6 +1063,24 @@ def test_forward_squeeze2():
 
 
 @tvm.testing.uses_gpu
+def test_forward_stack():
+    @paddle.jit.to_static
+    def stack(input1, input2, input3):
+        return paddle.stack([input1, input2, input3])
+
+    @paddle.jit.to_static
+    def stack2(input1, input2, input3):
+        return paddle.stack([input1, input2, input3], axis=-1)
+
+    input_shape = [2, 3]
+    input_data = paddle.rand(input_shape, dtype="float32")
+    input_data2 = paddle.rand(input_shape, dtype="float32")
+    input_data3 = paddle.rand(input_shape, dtype="float32")
+    verify_model(stack, input_data=[input_data, input_data2, input_data3])
+    verify_model(stack2, input_data=[input_data, input_data2, input_data3])
+
+
+@tvm.testing.uses_gpu
 def test_forward_tile():
     @paddle.jit.to_static
     def tile(inputs):
