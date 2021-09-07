@@ -418,13 +418,13 @@ def convert_crop(g, op, block):
     input_offsets = op.input("Offsets")
     if input_shape:
         shape = g.get_node(input_shape[0])
-        shape = infer_value(shape, g.get_params()).numpy().tolist()
+        shape = _infer_value(shape, g.get_params())
     else:
         shape = op.attr("shape")
 
     if input_offsets:
         offsets = g.get_node(input_offsets[0])
-        offsets = infer_value(offsets, g.get_params()).numpy().tolist()
+        offsets = _infer_value(offsets, g.get_params())
     else:
         offsets = op.attr("offsets")
 
@@ -519,7 +519,7 @@ def convert_expand(g, op, block):
     ndims = len(input_shape)
     if op.input("Shape"):
         sizes = g.get_node(op.input("Shape")[0])
-        sizes = infer_value(sizes, g.get_params()).numpy().tolist()
+        sizes = _infer_value(sizes, g.get_params())
     else:
         sizes = op.attr("shape")
 
