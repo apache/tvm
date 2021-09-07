@@ -63,8 +63,8 @@ using FEventHandler = PackedFunc;
  */
 FEventHandler CreateServerEventHandler(NSOutputStream* outputStream, std::string name,
                                        std::string remote_key) {
-  const PackedFunc* event_handler_factor = Registry::Get("rpc.CreateEventDrivenServer");
-  ICHECK(event_handler_factor != nullptr)
+  const PackedFunc* event_handler_factory = Registry::Get("rpc.CreateEventDrivenServer");
+  ICHECK(event_handler_factory != nullptr)
       << "You are using tvm_runtime module built without RPC support. "
       << "Please rebuild it with USE_RPC flag.";
 
@@ -79,7 +79,7 @@ FEventHandler CreateServerEventHandler(NSOutputStream* outputStream, std::string
     *rv = nbytes;
   });
 
-  return (*event_handler_factor)(writer_func, name, remote_key);
+  return (*event_handler_factory)(writer_func, name, remote_key);
 }
 
 /*!
@@ -527,7 +527,7 @@ typedef enum {
 @end
 
 @implementation RPCServerPure {
-  // Socket to listen incomming connections
+  // Socket to listen incoming connections
   CFSocketRef socket_;
   /// Current socket connection handler
   CFSocketNativeHandle connection_;
