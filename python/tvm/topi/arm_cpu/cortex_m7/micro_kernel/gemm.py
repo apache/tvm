@@ -161,19 +161,19 @@ def gemm_MxKxN_impl(M, K, N, uniq_id):
 extern "C"
 #endif
 __STATIC_FORCEINLINE int32_t arm_nn_read_q7x4_ia(const int8_t **in_q7)
-{
+{{
     int32_t val;
     memcpy(&val, *in_q7, 4);
     *in_q7 += 4;
 
     return (val);
-}
+}}
 
 #ifdef __cplusplus
 extern "C"
 #endif
 __STATIC_FORCEINLINE const int8_t *read_and_pad(const int8_t *source, int32_t *out1, int32_t *out2)
-{
+{{
     int32_t inA = arm_nn_read_q7x4_ia(&source);
     int32_t inAbuf1 = __SXTB16(__ROR((uint32_t)inA, 8));
     int32_t inAbuf2 = __SXTB16(inA);
@@ -187,7 +187,7 @@ __STATIC_FORCEINLINE const int8_t *read_and_pad(const int8_t *source, int32_t *o
 #endif
 
     return source;
-}
+}}
 
 
 #ifdef __cplusplus
