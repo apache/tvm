@@ -64,13 +64,19 @@ inline Tensor lrn(const Tensor& data, int size, int axis = 1, float alpha = 0.00
   auto rxs = tvm::te::reduce_axis(Range(0, size), "rxs");
   Tensor sqr_sum;
   if (axis == 1) {
-    sqr_sum = tvm::te::compute(input_shape, [&](Var i, Var l, Var j, Var k) {
-      return tvm::sum(pad_data(i, l + rxs, j, k) * pad_data(i, l + rxs, j, k), {rxs});
-    });
+    sqr_sum = tvm::te::compute(
+        input_shape,
+        [&](Var i, Var l, Var j, Var k) {
+          return tvm::sum(pad_data(i, l + rxs, j, k) * pad_data(i, l + rxs, j, k), {rxs});
+        },
+        "tensor", "sqr_sum");
   } else if (axis == 3) {
-    sqr_sum = tvm::te::compute(input_shape, [&](Var i, Var l, Var j, Var k) {
-      return tvm::sum(pad_data(i, l, j, k + rxs) * pad_data(i, l, j, k + rxs), {rxs});
-    });
+    sqr_sum = tvm::te::compute(
+        input_shape,
+        [&](Var i, Var l, Var j, Var k) {
+          return tvm::sum(pad_data(i, l, j, k + rxs) * pad_data(i, l, j, k + rxs), {rxs});
+        },
+        "tensor", "sqr_sum");
   }
   auto sqrt_sum_up = tvm::te::compute(input_shape, [&](Var i, Var j, Var k, Var l) {
     return tvm::pow(bias + (div(alpha * sqr_sum(i, j, k, l), size)), beta);
