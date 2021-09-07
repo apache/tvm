@@ -15,8 +15,19 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+#
+# "Usage ./apps/microtvm/reference-vm/rebuild-tvm.sh <PLATFORM>"
+#
 
 set -e
+
+if [ "$#" -lt 1 -o "$1" == "--help" ]; then
+    echo "Usage ./apps/microtvm/reference-vm/rebuild-tvm.sh <PLATFORM>"
+    exit -1
+fi
+
+platform=$1
+shift 1
 
 # Get number of cores for build
 if [ -n "${TVM_CI_NUM_CORES}" ]; then
@@ -28,7 +39,7 @@ fi
 
 cd "$(dirname $0)"
 cd "$(git rev-parse --show-toplevel)"
-BUILD_DIR=build-microtvm
+BUILD_DIR="build-microtvm-${platform}"
 
 if [ ! -e "${BUILD_DIR}" ]; then
     mkdir "${BUILD_DIR}"
