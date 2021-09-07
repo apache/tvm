@@ -14,14 +14,21 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import sys
+
 import numpy as np
 import numpy.random
+import pytest
+
 import tvm
 import tvm.testing
 import tvm.topi.testing
+
 from tvm import relay, te
 from tvm.relay import transform
 from tvm.relay.testing import run_infer_type
+
+executor_kind = tvm.testing.parameter("graph", "debug")
 
 
 @tvm.testing.uses_gpu
@@ -223,123 +230,146 @@ def test_where():
     verify(x_np.astype(dtype), y_np.astype(dtype), cond_np)
 
 
-def verify_reduce(funcs, data, axis, keepdims, exclude, output, dtype="float32"):
-    test_func = funcs[0]
-    ref_func = funcs[1]
-    dtype = "bool" if ref_func in [np.all, np.any] else dtype
+def _with_keepdims(func):
+    def _wrapper(data, axis=None, keepdims=False):
+        if not keepdims:
+            return func(data, axis=axis)
+        else:
+            if axis is not None:
+                axis = axis if isinstance(axis, int) else axis[0]
+                out_shape = list(data.shape)
+                out_shape[axis] = 1
+            else:
+                out_shape = [1 for _ in range(len(data.shape))]
+            return func(data, axis=axis).reshape(out_shape)
 
-    x = relay.var("x", relay.TensorType(data, dtype))
-    if test_func == relay.logsumexp:
-        z = test_func(x, axis, keepdims)
-    else:
-        z = test_func(x, axis, keepdims, exclude)
-    zz = run_infer_type(z)
-    if axis:
-        assert "axis=" in z.astext()
-    if keepdims:
-        assert "keepdims=" in z.astext()
-    if exclude:
-        assert "exclude=" in z.astext()
-    out_type = "int32" if test_func in [relay.argmin, relay.argmax] else dtype
-    assert zz.checked_type == relay.ty.TensorType(output, out_type)
+    return _wrapper
 
-    if all(isinstance(v, tvm.tir.Var) == 1 for v in data):
-        return
 
-    func = relay.Function([x], z)
-    x_data = (
-        np.random.choice([True, False], size=data)
-        if ref_func in [np.all]
-        else np.random.uniform(size=data).astype(dtype)
+def _np_log_sum_exp(x, axis, keepdims=False):
+    max_x = np.max(x, axis=axis, keepdims=True)
+    x = np.log(np.sum(np.exp(x - max_x), axis=axis, keepdims=True))
+    x = x + max_x
+    if not keepdims:
+        x = np.squeeze(x, axis=axis)
+    return x
+
+
+def _unbiased_relay_wrapper(f):
+    def _unbiased_func(x, axis=None, keepdims=False, exclude=False):
+        return f(x, axis=axis, keepdims=keepdims, exclude=exclude, unbiased=True)
+
+    return _unbiased_func
+
+
+def _unbiased_np_wrapper(f):
+    def _unbiased_func(a, axis=None, dtype=None, keepdims=None):
+        return f(a, axis=axis, dtype=dtype, ddof=1, keepdims=keepdims)
+
+    return _unbiased_func
+
+
+class TestReduceFunctions:
+    funcs = {
+        "sum": (relay.sum, np.sum),
+        "max": (relay.max, np.max),
+        "min": (relay.min, np.min),
+        "mean": (relay.mean, np.mean),
+        "var": (relay.variance, np.var),
+        "unbiased_var": (_unbiased_relay_wrapper(relay.variance), _unbiased_np_wrapper(np.var)),
+        "std": (relay.std, np.std),
+        "unbiased_std": (_unbiased_relay_wrapper(relay.std), _unbiased_np_wrapper(np.std)),
+        "prod": (relay.prod, np.prod),
+        "all": (relay.all, np.all),
+        "any": (relay.any, np.any),
+        "logsumexp": (relay.logsumexp, _np_log_sum_exp),
+        "argmin": (relay.argmin, _with_keepdims(np.argmin)),
+        "argmax": (relay.argmax, _with_keepdims(np.argmax)),
+    }
+    relay_func, ref_func = tvm.testing.parameters(
+        *funcs.values(),
+        ids=list(funcs),
     )
 
-    if ref_func in [np.sum]:
-        ref_res = ref_func(x_data + 0, axis=axis, dtype=dtype, keepdims=keepdims)
-    elif ref_func in [np.max, np.min, np.mean, np.prod]:
-        ref_res = ref_func(x_data + 0, axis=axis, keepdims=keepdims)
-    else:  # argmin/argmax
-        if axis and not isinstance(axis, int) and len(axis) > 1:
-            return
-        ref_res = ref_func(x_data + 0, axis=axis, keepdims=keepdims)
-
-    for target, dev in tvm.testing.enabled_targets():
-        op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(x_data)
-        tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5)
-        op_res2 = relay.create_executor("debug", device=dev, target=target).evaluate(func)(x_data)
-        tvm.testing.assert_allclose(op_res2.numpy(), ref_res, rtol=1e-5)
-
-
-@tvm.testing.uses_gpu
-def test_reduce_functions():
-    def _with_keepdims(func):
-        def _wrapper(data, axis=None, keepdims=False):
-            if not keepdims:
-                return func(data, axis=axis)
-            else:
-                if axis is not None:
-                    axis = axis if isinstance(axis, int) else axis[0]
-                    out_shape = list(data.shape)
-                    out_shape[axis] = 1
-                else:
-                    out_shape = [1 for _ in range(len(data.shape))]
-                return func(data, axis=axis).reshape(out_shape)
-
-        return _wrapper
-
-    def _np_log_sum_exp(x, axis, keepdims=False):
-        max_x = np.max(x, axis=axis, keepdims=True)
-        x = np.log(np.sum(np.exp(x - max_x), axis=axis, keepdims=True))
-        x = x + max_x
-        if not keepdims:
-            x = np.squeeze(x, axis=axis)
-        return x
-
-    def _unbiased_relay_wrapper(f):
-        def _unbiased_func(x, axis=None, keepdims=False, exclude=False):
-            return f(x, axis=axis, keepdims=keepdims, exclude=exclude, unbiased=True)
-
-        return _unbiased_func
-
-    def _unbiased_np_wrapper(f):
-        def _unbiased_func(a, axis=None, dtype=None, keepdims=None):
-            return f(a, axis=axis, dtype=dtype, ddof=1, keepdims=keepdims)
-
-        return _unbiased_func
-
     d1, d2, d3, d4 = te.var("d1"), te.var("d2"), te.var("d3"), te.var("d4")
-    for func in [
-        [relay.sum, np.sum],
-        [relay.max, np.max],
-        [relay.min, np.min],
-        [relay.mean, np.mean],
-        [relay.variance, np.var],
-        [_unbiased_relay_wrapper(relay.variance), _unbiased_np_wrapper(np.var)],
-        [relay.std, np.std],
-        [_unbiased_relay_wrapper(relay.std), _unbiased_np_wrapper(np.std)],
-        [relay.prod, np.prod],
-        [relay.all, np.all],
-        [relay.any, np.any],
-        [relay.logsumexp, _np_log_sum_exp],
-        [relay.argmin, _with_keepdims(np.argmin)],
-        [relay.argmax, _with_keepdims(np.argmax)],
-    ]:
-        verify_reduce(func, (d1, d2, d3, d4), None, False, False, ())
-        verify_reduce(func, (d1, d2, d3, d4), 2, True, False, (d1, d2, 1, d4))
-        verify_reduce(func, (d1, d2, d3, d4), 0, True, False, (1, d2, d3, d4))
-        verify_reduce(func, (d1, d2, d3), 1, True, False, (d1, 1, d3))
-        verify_reduce(func, (d1, d2, d3), 0, True, False, (1, d2, d3))
-        verify_reduce(func, (d1, d2, d3), None, True, False, (1, 1, 1))
-        verify_reduce(func, (d1, d2, d3), (0, 1), True, False, (1, 1, d3))
-        verify_reduce(func, (2, 3, 4), 1, True, False, (2, 1, 4))
-        verify_reduce(func, (2, 3, 4), (1,), True, False, (2, 1, 4))
-        verify_reduce(func, (2, 3, 4), -1, True, False, (2, 3, 1))
-        verify_reduce(func, (2, 3, 4), (0, 1, 2), False, False, ())
-        verify_reduce(func, (4, 4, 3), None, False, False, ())
-        verify_reduce(func, (4, 4, 3), (0, 2), False, False, (4,))
-        verify_reduce(func, (128, 24, 128), (0, 1), False, False, (128,))
-        verify_reduce(func, (128, 24, 128), (0, 2), False, False, (24,))
-        verify_reduce(func, (128, 24, 128), (0, 1), True, False, (1, 1, 128))
-        verify_reduce(func, (128, 24, 128), (0, 2), True, False, (1, 24, 1))
+
+    data, axis, keepdims, exclude, output = tvm.testing.parameters(
+        ((d1, d2, d3, d4), None, False, False, ()),
+        ((d1, d2, d3, d4), 2, True, False, (d1, d2, 1, d4)),
+        ((d1, d2, d3, d4), 0, True, False, (1, d2, d3, d4)),
+        ((d1, d2, d3), 1, True, False, (d1, 1, d3)),
+        ((d1, d2, d3), 0, True, False, (1, d2, d3)),
+        ((d1, d2, d3), None, True, False, (1, 1, 1)),
+        ((d1, d2, d3), (0, 1), True, False, (1, 1, d3)),
+        ((2, 3, 4), 1, True, False, (2, 1, 4)),
+        ((2, 3, 4), (1,), True, False, (2, 1, 4)),
+        ((2, 3, 4), -1, True, False, (2, 3, 1)),
+        ((2, 3, 4), (0, 1, 2), False, False, ()),
+        ((4, 4, 3), None, False, False, ()),
+        ((4, 4, 3), (0, 2), False, False, (4,)),
+        ((128, 24, 128), (0, 1), False, False, (128,)),
+        ((128, 24, 128), (0, 2), False, False, (24,)),
+        ((128, 24, 128), (0, 1), True, False, (1, 1, 128)),
+        ((128, 24, 128), (0, 2), True, False, (1, 24, 1)),
+    )
+
+    def test_reduce(
+        self,
+        target,
+        dev,
+        relay_func,
+        ref_func,
+        executor_kind,
+        data,
+        axis,
+        keepdims,
+        exclude,
+        output,
+    ):
+        dtype = "bool" if ref_func in [np.all, np.any] else "float32"
+        out_type = "int32" if relay_func in [relay.argmin, relay.argmax] else dtype
+
+        target = tvm.target.Target(target)
+        if target.kind.name == "vulkan" and dtype == "bool":
+            pytest.xfail("Known failing test on vulkan runtime")
+
+        x = relay.var("x", relay.TensorType(data, dtype))
+        if relay_func == relay.logsumexp:
+            z = relay_func(x, axis, keepdims)
+        else:
+            z = relay_func(x, axis, keepdims, exclude)
+        zz = run_infer_type(z)
+        if axis:
+            assert "axis=" in z.astext()
+        if keepdims:
+            assert "keepdims=" in z.astext()
+        if exclude:
+            assert "exclude=" in z.astext()
+        assert zz.checked_type == relay.ty.TensorType(output, out_type)
+
+        if all(isinstance(v, tvm.tir.Var) == 1 for v in data):
+            return
+
+        func = relay.Function([x], z)
+        x_data = (
+            np.random.choice([True, False], size=data)
+            if ref_func in [np.all]
+            else np.random.uniform(size=data).astype(dtype)
+        )
+
+        if ref_func in [np.sum]:
+            ref_res = ref_func(x_data + 0, axis=axis, dtype=dtype, keepdims=keepdims)
+        elif ref_func in [np.max, np.min, np.mean, np.prod]:
+            ref_res = ref_func(x_data + 0, axis=axis, keepdims=keepdims)
+        else:  # argmin/argmax
+            if axis and not isinstance(axis, int) and len(axis) > 1:
+                return
+            ref_res = ref_func(x_data + 0, axis=axis, keepdims=keepdims)
+
+        op_res1 = relay.create_executor(executor_kind, device=dev, target=target).evaluate(func)(
+            x_data
+        )
+        tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5)
 
 
 @tvm.testing.uses_gpu
@@ -611,13 +641,4 @@ def test_strided_set():
 
 
 if __name__ == "__main__":
-    test_strided_slice()
-    test_dyn_strided_slice()
-    # test_strided_set()
-    # test_binary_op()
-    # test_cmp_type()
-    # test_binary_int_broadcast_1()
-    # test_binary_int_broadcast_2()
-    # test_where()
-    # test_reduce_functions()
-    # test_mean_var_std()
+    sys.exit(pytest.main(sys.argv))
