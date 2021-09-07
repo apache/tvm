@@ -28,7 +28,9 @@ def test_convert_ssa():
     seq = tir.SeqStmt([for_stmt, for_stmt, load])
     func = tir.PrimFunc([], seq)
     mod = tvm.IRModule({"main": func})
-    mod = tir.transform.InjectVirtualThread()(mod)
+    mod = tir.transform.InjectVirtualThread()(
+        mod
+    ) # Use pass InjectVirtualThread to invoke ConvertSSA
 
 
 if __name__ == "__main__":
