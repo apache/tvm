@@ -832,8 +832,7 @@ def requires_hexagon(*args):
         pytest.mark.skipif(not device_enabled("hexagon"), reason="Hexagon support not enabled"),
         *requires_llvm(),
         pytest.mark.skipif(
-            tvm.target.codegen.llvm_version_major() < 7,
-            reason="Hexagon requires LLVM 7 or later"
+            tvm.target.codegen.llvm_version_major() < 7, reason="Hexagon requires LLVM 7 or later"
         ),
     ]
     return _compose(args, _requires_hexagon)
