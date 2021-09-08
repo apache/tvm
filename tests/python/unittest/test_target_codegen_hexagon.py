@@ -26,8 +26,10 @@ import tvm.testing
 import tvm.contrib.hexagon as hexagon
 
 
-# Register a phony linker, so that we can test codegen without a Hexagon toolchain.
-hexagon.register_linker(lambda: "/bin/true")
+@pytest.fixture(scope="session", autouse=True)
+def register_linker():
+    # Register a phony linker, so that we can test codegen without a Hexagon toolchain.
+    hexagon.register_linker(lambda: "/bin/true")
 
 
 @tvm.testing.requires_hexagon
