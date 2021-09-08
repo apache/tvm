@@ -77,11 +77,11 @@ def test_trt_int8():
     target = "cuda"
     dev = tvm.cuda(1)
     mod, config = partition_for_tensorrt(mod, params)
-    with tvm.transform.PassContext(opt_level=3, config={'relay.ext.tensorrt.options': config}):
+    with tvm.transform.PassContext(opt_level=3, config={"relay.ext.tensorrt.options": config}):
         lib = relay.build(mod, target=target, params=params)
 
     dtype = "float32"
-    gen_module = tvm.contrib.graph_executor.GraphModule(lib['default'](dev))
+    gen_module = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
 
     num_cali_int8 = int(os.environ["TENSORRT_NUM_CALI_INT8"])
     if num_cali_int8 != 0:
@@ -92,7 +92,7 @@ def test_trt_int8():
             gen_module.run(data=tvm_data)
         print("finished calibrating data ... ")
 
-    # get output of tvm model 
+    # get output of tvm model
     print("rebuild engine and test to run ... ")
     tvm_data = tvm.nd.array(img)
     gen_module.set_input(input_name, tvm_data)
@@ -113,7 +113,7 @@ def test_trt_int8():
     prof_res = np.array(ftimer().results) * 1e3  # convert to millisecond
     message = "Mean inference time (std dev): %.2f ms (%.2f ms)" % (
         np.mean(prof_res), 
-        np.std(prof_res)
+        np.std(prof_res),
     )
     print(message)
 
