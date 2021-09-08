@@ -119,7 +119,5 @@ def test_trt_int8():
     message = "Mean inference time (std dev): %.2f ms (%.2f ms)" % (np.mean(prof_res), np.std(prof_res))
     print(message)
 
-
-
 if __name__ == "__main__":
     pytest.main([__file__])
