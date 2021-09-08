@@ -542,7 +542,7 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
    *
    * @param prim_fn_var Global bound to lowered primitive.
    * @param all_prim_fn_vars  All globals references by lowered primitive, plus prim_fn_var itself.
-   * @param prim_shape_fn_var Global bound to lowered shape function for primitive, if neeeded.
+   * @param prim_shape_fn_var Global bound to lowered shape function for primitive, if needed.
    * @param all_prim_shape_fn_vars All globals references by lowered shape function, plus
    * prim_shape_fn_var itself.
    * @param prim_shape_fn_states Records whether shape and/or data is needed by the dynamic
@@ -763,7 +763,7 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
   ObjectRef VisitExpr_(const TupleGetItemNode* op) final {
     ObjectRef val = Eval(op->tuple);
     const auto* adt_obj = val.as<ADTObj>();
-    ICHECK(adt_obj) << "interal error: when evaluating TupleGetItem expected an ADT value";
+    ICHECK(adt_obj) << "internal error: when evaluating TupleGetItem expected an ADT value";
     auto adt = GetRef<ADT>(adt_obj);
     ICHECK_LT(static_cast<size_t>(op->index), adt.size()) << "internal error: index out of bounds";
     return adt[op->index];

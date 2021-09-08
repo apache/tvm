@@ -89,7 +89,7 @@ Or a convolution with a specific kernel size:
         x = relay.var('x')
         y = relay.var('y')
         assert is_conv2d.match(relay.op.nn.conv2d(x, y, kernel_size=[3, 3]))
-      
+
 
 
 Matching an Optional Op

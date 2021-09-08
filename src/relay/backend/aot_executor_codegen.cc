@@ -392,17 +392,17 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     }
 
     for (const auto& dev_and_size : device_workspace) {
-      auto tgt = GetTargetFromInteger(dev_and_size.first, targets);
+      auto tgt = tec::GetTargetFromInteger(dev_and_size.first, targets);
       workspace_sizes.Set(tgt, dev_and_size.second);
       relay_primfuncs.Set(tgt, func);
     }
     for (const auto& dev_and_size : device_io) {
-      auto tgt = GetTargetFromInteger(dev_and_size.first, targets);
+      auto tgt = tec::GetTargetFromInteger(dev_and_size.first, targets);
       io_sizes.Set(tgt, dev_and_size.second);
     }
 
     for (const auto& dev_and_size : device_consts) {
-      auto tgt = GetTargetFromInteger(dev_and_size.first, targets);
+      auto tgt = tec::GetTargetFromInteger(dev_and_size.first, targets);
       constant_sizes.Set(tgt, dev_and_size.second);
     }
 
@@ -445,36 +445,6 @@ class AOTExecutorCodegen : public MixedModeVisitor {
 
     tir::Stmt body = tir::SeqStmt(create_func_call_stmts);
     stmts_.push_back(body);
-  }
-
-  Target GetTargetFromInteger(DLDeviceType dev_type, tec::TargetMap targets) {
-    if (targets.size() == 1) {
-      // The homogeneous execution case, return the only target.
-      const auto& it = targets.begin();
-      return (*it).second;
-    } else {
-      // The heterogeneous execution case, return the target associated with the
-      // given device type.
-      // If "dev_type" equals to 0, the device name only can be got from
-      // "targets", and it may not be "llvm", so here just set it to "unknown".
-      std::string dev_name = "unknown";
-      if (dev_type != 0) {
-        dev_name = runtime::DeviceName(dev_type);
-      }
-
-      if (targets.count(dev_type) == 0) {
-        std::stringstream msg;
-        msg << "No target is specified for provided device name: `" << dev_name << "`\n\n"
-            << dev_name << " mapped to device type (" << dev_type
-            << ") which was not found in the target map.\n"
-            << "Availible targets: \n";
-        for (auto target : targets) {
-          msg << "  " << target.first << "-> " << target.second << "\n";
-        }
-        LOG(FATAL) << msg.str();
-      }
-      return targets[dev_type];
-    }
   }
 
   /*!

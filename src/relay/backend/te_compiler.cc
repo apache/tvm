@@ -596,6 +596,36 @@ class LowerTensorExprMutator : public ExprMutator {
   const Op& debug_op_;
 };
 
+Target GetTargetFromInteger(DLDeviceType dev_type, tec::TargetMap targets) {
+  if (targets.size() == 1) {
+    // The homogeneous execution case, return the only target.
+    const auto& it = targets.begin();
+    return (*it).second;
+  } else {
+    // The heterogeneous execution case, return the target associated with the
+    // given device type.
+    // If "dev_type" equals to 0, the device name only can be got from
+    // "targets", and it may not be "llvm", so here just set it to "unknown".
+    std::string dev_name = "unknown";
+    if (dev_type != 0) {
+      dev_name = runtime::DeviceName(dev_type);
+    }
+
+    if (targets.count(dev_type) == 0) {
+      std::stringstream msg;
+      msg << "No target is specified for provided device name: `" << dev_name << "`\n\n"
+          << dev_name << " mapped to device type (" << dev_type
+          << ") which was not found in the target map.\n"
+          << "Availible targets: \n";
+      for (auto target : targets) {
+        msg << "  " << target.first << "-> " << target.second << "\n";
+      }
+      LOG(FATAL) << msg.str();
+    }
+    return targets[dev_type];
+  }
+}
+
 Pass LowerTensorExpr(TargetMap targets, DeviceMap device_context_map, const String& module_name,
                      TECompiler compiler, std::function<void(Function)> process_fn) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =

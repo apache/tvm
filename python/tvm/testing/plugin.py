@@ -31,8 +31,6 @@ directory as the test scripts.
 
 """
 
-import collections
-
 import pytest
 import _pytest
 
@@ -67,6 +65,7 @@ def pytest_generate_tests(metafunc):
     """Called once per unit test, modifies/parametrizes it as needed."""
     _parametrize_correlated_parameters(metafunc)
     _auto_parametrize_target(metafunc)
+    _add_target_specific_marks(metafunc)
 
 
 def pytest_collection_modifyitems(config, items):
@@ -100,7 +99,39 @@ def _auto_parametrize_target(metafunc):
 
     """
 
+    if "target" in metafunc.fixturenames:
+        # Check if any explicit parametrizations exist, and apply one
+        # if they do not.  If the function is marked with either
+        # excluded or known failing targets, use these to determine
+        # the targets to be used.
+        parametrized_args = [
+            arg.strip()
+            for mark in metafunc.definition.iter_markers("parametrize")
+            for arg in mark.args[0].split(",")
+        ]
+        if "target" not in parametrized_args:
+            excluded_targets = getattr(metafunc.function, "tvm_excluded_targets", [])
+
+            # Add a parametrize marker instead of calling
+            # metafunc.parametrize so that the parametrize rewriting
+            # can still occur.
+            mark = pytest.mark.parametrize(
+                "target",
+                [
+                    t["target"]
+                    for t in utils._get_targets()
+                    if t["target_kind"] not in excluded_targets
+                ],
+                scope="session",
+            )
+            metafunc.definition.add_marker(mark)
+
+
+def _add_target_specific_marks(metafunc):
+    """Add any target-specific marks to parametrizations over target"""
+
     def update_parametrize_target_arg(
+        mark,
         argnames,
         argvalues,
         *args,
@@ -131,6 +162,16 @@ def _auto_parametrize_target(metafunc):
                     target = param_set[target_i]
                     additional_marks = []
 
+                if mark in metafunc.definition.own_markers:
+                    xfail_targets = getattr(metafunc.function, "tvm_known_failing_targets", [])
+                    target_kind = target.split()[0] if isinstance(target, str) else target.kind.name
+                    if target_kind in xfail_targets:
+                        additional_marks.append(
+                            pytest.mark.xfail(
+                                reason=f'Known failing test for target "{target_kind}"'
+                            )
+                        )
+
                 new_argvalues.append(
                     pytest.param(
                         *param_set, marks=_target_to_requirement(target) + additional_marks
@@ -155,25 +196,7 @@ def _auto_parametrize_target(metafunc):
         # parametrize over targets.  This adds the appropriate
         # @tvm.testing.requires_* markers for each target.
         for mark in metafunc.definition.iter_markers("parametrize"):
-            update_parametrize_target_arg(*mark.args, **mark.kwargs)
-
-        # Check if any explicit parametrizations exist, and apply one
-        # if they do not.  If the function is marked with either
-        # excluded or known failing targets, use these to determine
-        # the targets to be used.
-        parametrized_args = [
-            arg.strip()
-            for mark in metafunc.definition.iter_markers("parametrize")
-            for arg in mark.args[0].split(",")
-        ]
-        if "target" not in parametrized_args:
-            excluded_targets = getattr(metafunc.function, "tvm_excluded_targets", [])
-            xfail_targets = getattr(metafunc.function, "tvm_known_failing_targets", [])
-            metafunc.parametrize(
-                "target",
-                _pytest_target_params(None, excluded_targets, xfail_targets),
-                scope="session",
-            )
+            update_parametrize_target_arg(mark, *mark.args, **mark.kwargs)
 
 
 def _count_num_fixture_uses(items):
@@ -212,43 +235,6 @@ def _remove_global_fixture_definitions(items):
                 delattr(module, name)
 
 
-def _pytest_target_params(targets, excluded_targets=None, xfail_targets=None):
-    # Include unrunnable targets here.  They get skipped by the
-    # pytest.mark.skipif in _target_to_requirement(), showing up as
-    # skipped tests instead of being hidden entirely.
-    if targets is None:
-        if excluded_targets is None:
-            excluded_targets = set()
-
-        if xfail_targets is None:
-            xfail_targets = set()
-
-        target_marks = []
-        for t in utils._get_targets():
-            # Excluded targets aren't included in the params at all.
-            if t["target_kind"] not in excluded_targets:
-
-                # Known failing targets are included, but are marked
-                # as expected to fail.
-                extra_marks = []
-                if t["target_kind"] in xfail_targets:
-                    extra_marks.append(
-                        pytest.mark.xfail(
-                            reason='Known failing test for target "{}"'.format(t["target_kind"])
-                        )
-                    )
-
-                target_marks.append((t["target"], extra_marks))
-
-    else:
-        target_marks = [(target, []) for target in targets]
-
-    return [
-        pytest.param(target, marks=_target_to_requirement(target) + extra_marks)
-        for target, extra_marks in target_marks
-    ]
-
-
 def _target_to_requirement(target):
     if isinstance(target, str):
         target = tvm.target.Target(target)
@@ -256,6 +242,8 @@ def _target_to_requirement(target):
     # mapping from target to decorator
     if target.kind.name == "cuda" and "cudnn" in target.attrs.get("libs", []):
         return utils.requires_cudnn()
+    if target.kind.name == "cuda" and "cublas" in target.attrs.get("libs", []):
+        return utils.requires_cublas()
     if target.kind.name == "cuda":
         return utils.requires_cuda()
     if target.kind.name == "rocm":
@@ -274,7 +262,7 @@ def _target_to_requirement(target):
 
 
 def _parametrize_correlated_parameters(metafunc):
-    parametrize_needed = collections.defaultdict(list)
+    parametrize_needed = {}
 
     for name, fixturedefs in metafunc.definition._fixtureinfo.name2fixturedefs.items():
         fixturedef = fixturedefs[-1]
@@ -283,13 +271,20 @@ def _parametrize_correlated_parameters(metafunc):
         ):
             group = fixturedef.func.parametrize_group
             values = fixturedef.func.parametrize_values
-            parametrize_needed[group].append((name, values))
+            ids = fixturedef.func.parametrize_ids
+            if group in parametrize_needed:
+                assert ids == parametrize_needed[group]["ids"]
+            else:
+                parametrize_needed[group] = {"ids": ids, "params": []}
+            parametrize_needed[group]["params"].append((name, values))
 
     for parametrize_group in parametrize_needed.values():
-        if len(parametrize_group) == 1:
-            name, values = parametrize_group[0]
-            metafunc.parametrize(name, values, indirect=True)
+        params = parametrize_group["params"]
+        ids = parametrize_group["ids"]
+        if len(params) == 1:
+            name, values = params[0]
+            metafunc.parametrize(name, values, indirect=True, ids=ids)
         else:
-            names = ",".join(name for name, values in parametrize_group)
-            value_sets = zip(*[values for name, values in parametrize_group])
-            metafunc.parametrize(names, value_sets, indirect=True)
+            names = ",".join(name for name, values in params)
+            value_sets = zip(*[values for name, values in params])
+            metafunc.parametrize(names, value_sets, indirect=True, ids=ids)
