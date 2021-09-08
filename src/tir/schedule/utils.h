@@ -165,6 +165,12 @@ inline Stmt RemoveFromSeqStmt(const SeqStmt& seq, const Stmt& to_remove) {
   return SeqStmt::Flatten(new_stmts);
 }
 
+/*!
+ * \brief Convert a Stmt to an Array.
+ * \param stmt The Stmt ti be converted to
+ * \return If the Stmt is SeqStmt, then returns the sequence;
+ * Otherwise, returns a single-element Array with the Stmt inside.
+ */
 inline Array<Stmt> AsArray(const Stmt& stmt) {
   if (const auto* seq_stmt = stmt.as<SeqStmtNode>()) {
     return seq_stmt->seq;

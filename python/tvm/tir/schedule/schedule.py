@@ -945,8 +945,8 @@ class Schedule(Object):
         dataflow condition. i.e. all the blocks in the scope block's subtree must be either
         complete block or reduction block
 
-        4) The block is not an output block, i.e. the buffer regions written by the block are
-        allocated under the current scope
+        4) The block is not an output block with regard to the scope block, i.e. the buffers written
+        by the block are allocated under the scope block
 
         5) All the consumers of the block are under the given loop
 

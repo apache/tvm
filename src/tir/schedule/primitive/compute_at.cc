@@ -131,6 +131,7 @@ class NotInSameScopeError : public ScheduleError {
  * \param block2realize A cache that maps a block to its realize
  * \return The last position the new block can be inserted onto, and the
  * producer-consumer-relationship is still satisfied.
+ * \throws ScheduleError if there is no such insertion point found
  */
 template <bool require_all_producers_visited, bool require_all_consumers_visited>
 int FindInsertionPoint(
@@ -298,8 +299,9 @@ void RelaxBufferRegions(const Map<Var, PrimExpr>& binding,
           /*extra_relax_scope=*/scope));
     }
     // Relax the region
-    Array<arith::IntSet> relaxed = arith::EvalSet(Substitute(region, binding), var_dom.value());
-    relaxed_regions.push_back({relaxed.begin(), relaxed.end()});
+    Array<arith::IntSet> relaxed_region =
+        arith::EvalSet(Substitute(region, binding), var_dom.value());
+    relaxed_regions.push_back({relaxed_region.begin(), relaxed_region.end()});
   }
 }
 
@@ -483,7 +485,10 @@ void ComputeAtOrReverseComputeAtImpl(ScheduleState self, const StmtSRef& block_s
       /*producer_srefs=*/producer_srefs,
       /*consumer_srefs=*/consumer_srefs, /*block2realize=*/&block2realize);
   // Step 4. Calculate the region provided by a single execution instance of `block`,
-  // as well as the region required by dependent blocks under `loop`
+  // as well as the region required by dependent blocks under `loop`.
+  // Here is the definition of `provide` and `require`:
+  // - In compute-at, `provide` means `produce`, and `require` means `consume`
+  // - In reverse-compute-at, `provide` means `consume`, and `require` means `produce`
   std::unordered_map<const BufferNode*, std::vector<NDIntSet>> provided_regions;
   std::unordered_map<const BufferNode*, std::vector<NDIntSet>> required_regions;
   CalculateProvidedRequiredRegions<is_compute_at>(
