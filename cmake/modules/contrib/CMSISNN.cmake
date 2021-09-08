@@ -14,11 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""scheduler for normalization functions on rocm backend"""
-from __future__ import absolute_import as _abs
 
-from .. import cpp
-
-
-def schedule_lrn(outs):
-    return cpp.rocm.schedule_lrn(outs)
+if(USE_CMSISNN)
+  message(STATUS "Build with CMSIS-NN support")
+  file(GLOB RELAY_CONTRIB_CMSISNN_SRCS src/relay/backend/contrib/cmsisnn/*.cc)
+  list(APPEND COMPILER_SRCS ${RELAY_CONTRIB_CMSISNN_SRCS})
+endif(USE_CMSISNN)

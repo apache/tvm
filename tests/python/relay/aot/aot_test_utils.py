@@ -155,6 +155,10 @@ def parametrize_aot_options(test):
     skip_i386 = pytest.mark.skipif(
         platform.machine() == "i686", reason="Reference system unavailable in i386 container"
     )
+    requires_arm_eabi = pytest.mark.skipif(
+        shutil.which("arm-none-eabi-gcc") is None, reason="ARM embedded toolchain unavailable"
+    )
+
     interface_api = ["packed", "c"]
     use_unpacked_api = [True, False]
     test_runner = [AOT_DEFAULT_RUNNER, AOT_CORSTONE300_RUNNER]
@@ -178,7 +182,7 @@ def parametrize_aot_options(test):
 
     # Skip reference system tests if running in i386 container
     marked_combinations = map(
-        lambda parameters: pytest.param(*parameters, marks=skip_i386)
+        lambda parameters: pytest.param(*parameters, marks=[skip_i386, requires_arm_eabi])
         if parameters[2] == AOT_CORSTONE300_RUNNER
         else parameters,
         valid_combinations,

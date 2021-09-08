@@ -92,33 +92,35 @@ class TemplateProject:
     """Defines a glue interface to interact with a template project through the API Server."""
 
     @classmethod
-    def from_directory(cls, template_project_dir, options):
-        return cls(client.instantiate_from_dir(template_project_dir), options)
+    def from_directory(cls, template_project_dir):
+        return cls(client.instantiate_from_dir(template_project_dir))
 
-    def __init__(self, api_client, options):
+    def __init__(self, api_client):
         self._api_client = api_client
-        self._options = options
         self._info = self._api_client.server_info_query(__version__)
         if not self._info["is_template"]:
             raise NotATemplateProjectError()
 
-    def generate_project_from_mlf(self, model_library_format_path, project_dir):
+    def generate_project_from_mlf(self, model_library_format_path, project_dir, options):
         self._api_client.generate_project(
             model_library_format_path=str(model_library_format_path),
             standalone_crt_dir=get_standalone_crt_dir(),
-            project_dir=str(project_dir),
-            options=self._options,
+            project_dir=project_dir,
+            options=options,
         )
 
-        return GeneratedProject.from_directory(project_dir, self._options)
+        return GeneratedProject.from_directory(project_dir, options)
 
-    def generate_project(self, graph_executor_factory, project_dir):
+    def info(self):
+        return self._info
+
+    def generate_project(self, graph_executor_factory, project_dir, options):
         """Generate a project given GraphRuntimeFactory."""
         model_library_dir = utils.tempdir()
         model_library_format_path = model_library_dir.relpath("model.tar")
         export_model_library_format(graph_executor_factory, model_library_format_path)
 
-        return self.generate_project_from_mlf(model_library_format_path, project_dir)
+        return self.generate_project_from_mlf(model_library_format_path, project_dir, options)
 
 
 def generate_project(
@@ -150,5 +152,5 @@ def generate_project(
     GeneratedProject :
         A class that wraps the generated project and which can be used to further interact with it.
     """
-    template = TemplateProject.from_directory(str(template_project_dir), options)
-    return template.generate_project(module, str(generated_project_dir))
+    template = TemplateProject.from_directory(str(template_project_dir))
+    return template.generate_project(module, str(generated_project_dir), options)
