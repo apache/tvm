@@ -88,7 +88,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
       ICHECK(multi_engine_mode_ == false) << "When using int8 mode, "
                                           << "multi-engine is not allowed";
     }
- }
+  }
 
   /*!
    * \brief The type key of the module.
