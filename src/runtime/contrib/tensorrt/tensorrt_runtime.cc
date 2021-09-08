@@ -83,13 +83,12 @@ class TensorRTRuntime : public JSONRuntimeBase {
                                     << "must also be set to specify the number of "
                                     << "calibration times";
       num_calibration_batches_remaining_ = extract_cali_num;
-      LOG(INFO) << "settiing up " <<
-                num_calibration_batches_remaining_ <<
+      LOG(INFO) << "settiing up " << num_calibration_batches_remaining_ <<
                 " sample data to calibrate data ... ";
       ICHECK(multi_engine_mode_ == false) << "When using int8 mode, "
                                           << "multi-engine is not allowed";
-      }
     }
+ }
 
   /*!
    * \brief The type key of the module.
@@ -189,9 +188,8 @@ class TensorRTRuntime : public JSONRuntimeBase {
     // add batch data to calibrator
     if (num_calibration_batches_remaining_ > 0) {
       if (calibrator_ != nullptr) {
-        LOG(INFO) << "Starting adding last " <<
-                    num_calibration_batches_remaining_ <<
-                    "-th batch data to the calibrator";
+        LOG(INFO) << "Starting adding last " << num_calibration_batches_remaining_
+                  << "-th batch data to the calibrator";
         calibrator_->AddBatchData(bindings, binding_sizes);
         num_calibration_batches_remaining_--;
       }
@@ -273,8 +271,8 @@ class TensorRTRuntime : public JSONRuntimeBase {
     const bool use_int8 = (dmlc::GetEnv("TVM_TENSORRT_USE_INT8", 0) != 0);
     const bool int8_calibration_not_used_or_not_complete =
                   (calibrator_ != nullptr && num_calibration_batches_remaining_ != 0);
-    if (find_engine_flag && (!use_int8 || calibrator_ == nullptr
-                    || int8_calibration_not_used_or_not_complete)) {
+    if (find_engine_flag &&
+        (!use_int8 || calibrator_ == nullptr || int8_calibration_not_used_or_not_complete)) {
       // A compatible engine already exists.
       return trt_engine_cache_.at(std::make_pair(symbol_name_, compatible_engine_batch_size));
     }
@@ -296,49 +294,49 @@ class TensorRTRuntime : public JSONRuntimeBase {
       // Build new engine
       BuildEngineFromJson(batch_size);
       TensorRTEngineAndContext& engine_and_context =
-                  trt_engine_cache_[std::make_pair(symbol_name_, batch_size)];
+          trt_engine_cache_[std::make_pair(symbol_name_, batch_size)];
       if (use_int8) {
         this->CreateInt8Calibrator(engine_and_context);
       }
     }
 
     LOG(INFO) << "Finished building TensorRT engine for subgraph " << symbol_name_
-               << " with batch size " << batch_size;
+              << " with batch size " << batch_size;
     CacheEngineToDisk();
     return trt_engine_cache_.at(std::make_pair(symbol_name_, batch_size));
   }
 
   void BuildEngineFromJson(int batch_size) {
-      const bool use_fp16 = dmlc::GetEnv("TVM_TENSORRT_USE_FP16", false);
-      TensorRTBuilder builder(&logger_, data_entry_, max_workspace_size_, use_implicit_batch_,
+    const bool use_fp16 = dmlc::GetEnv("TVM_TENSORRT_USE_FP16", false);
+    TensorRTBuilder builder(&logger_, data_entry_, max_workspace_size_, use_implicit_batch_,
                             use_fp16, batch_size, calibrator_.get());
-      for (size_t i = 0; i < input_nodes_.size(); ++i) {
-          auto nid = input_nodes_[i];
-          const auto& node = nodes_[nid];
-          std::string name = node.GetOpName();
-          if (node.GetOpType() == "input") {
-              builder.AddInput(nid, EntryID(nid, 0), node);
-            } else {
-              ICHECK_EQ(node.GetOpType(), "const");
-              uint32_t eid = EntryID(nid, 0);
-              builder.AddConstant(nid, data_entry_[eid]);
-            }
-          }
-
-      // Add layers.
-      for (size_t nid = 0; nid < nodes_.size(); ++nid) {
+    for (size_t i = 0; i < input_nodes_.size(); ++i) {
+        auto nid = input_nodes_[i];
         const auto& node = nodes_[nid];
-        if (node.GetOpType() != "kernel") continue;
-        builder.AddLayer(nid, node);
-      }
+        std::string name = node.GetOpName();
+        if (node.GetOpType() == "input") {
+            builder.AddInput(nid, EntryID(nid, 0), node);
+          } else {
+            ICHECK_EQ(node.GetOpType(), "const");
+            uint32_t eid = EntryID(nid, 0);
+            builder.AddConstant(nid, data_entry_[eid]);
+          }
+        }
 
-      // Add outputs.
-      for (size_t i = 0; i < outputs_.size(); ++i) {
-        builder.AddOutput(outputs_[i], EntryID(outputs_[i]));
-      }
+    // Add layers.
+    for (size_t nid = 0; nid < nodes_.size(); ++nid) {
+      const auto& node = nodes_[nid];
+      if (node.GetOpType() != "kernel") continue;
+      builder.AddLayer(nid, node);
+    }
 
-      TensorRTEngineAndContext engine_and_context = builder.BuildEngine();
-      trt_engine_cache_[std::make_pair(symbol_name_, batch_size)] = engine_and_context;
+    // Add outputs.
+    for (size_t i = 0; i < outputs_.size(); ++i) {
+      builder.AddOutput(outputs_[i], EntryID(outputs_[i]));
+    }
+
+    TensorRTEngineAndContext engine_and_context = builder.BuildEngine();
+    trt_engine_cache_[std::make_pair(symbol_name_, batch_size)] = engine_and_context;
   }
 
   /*! \brief If TVM_TENSORRT_CACHE_DIR is set, will check that directory for
