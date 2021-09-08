@@ -52,7 +52,7 @@ IRModule ToBasicBlockNormalForm(const IRModule& mod) {
   DLOG(INFO) << "ToBBlock:" << std::endl << mod;
 
   // Create a new module by shallow copy.
-  auto mod_ = mod->ShallowCopy();
+  IRModule mod_ = mod->ShallowCopy();
 
   tvm::Map<GlobalVar, Function> updates;
   auto funcs = mod_->functions;
