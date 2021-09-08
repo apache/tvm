@@ -81,9 +81,7 @@ def test_trt_int8():
 
 
     dtype = "float32"
-    lib.export_library('compiled.so')
-    loaded_lib = tvm.runtime.load_module('compiled.so')
-    gen_module = tvm.contrib.graph_executor.GraphModule(loaded_lib['default'](dev))
+    gen_module = tvm.contrib.graph_executor.GraphModule(lib['default'](dev))
 
     num_cali_int8 = int(os.environ["TENSORRT_NUM_CALI_INT8"])
     if num_cali_int8 != 0:
@@ -119,4 +117,5 @@ def test_trt_int8():
     print(message)
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    test_trt_int8()
+    # pytest.main([__file__])
