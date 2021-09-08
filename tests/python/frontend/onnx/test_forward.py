@@ -4813,7 +4813,7 @@ unsupported_onnx_tests = [
     "test_resize_upsample_sizes_nearest_ceil_half_pixel",
     "test_resize_upsample_sizes_nearest_floor_align_corners",
     "test_resize_upsample_sizes_nearest_round_prefer_ceil_asymmetric",
-    #"test_rnn_seq_length",
+    "test_rnn_seq_length",
     "test_round",
     "test_scan9_sum",
     "test_scan_sum",
