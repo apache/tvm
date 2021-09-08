@@ -112,7 +112,7 @@ def test_trt_int8():
     ftimer = gen_module.module.time_evaluator("run", dev, repeat=10, min_repeat_ms=500)
     prof_res = np.array(ftimer().results) * 1e3  # convert to millisecond
     message = "Mean inference time (std dev): %.2f ms (%.2f ms)" % (
-        np.mean(prof_res), 
+        np.mean(prof_res),
         np.std(prof_res),
     )
     print(message)
