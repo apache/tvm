@@ -90,6 +90,28 @@ class BinaryElementwiseArgs(Enum):
     ofm_zero_point = 7
 
 
+class QuantizeArgs(Enum):
+    """
+    This is a helper enums to access the correct index of
+    quantize arguments
+    """
+
+    ifm = 0
+    ofm_scale = 1
+    ofm_zero_point = 2
+
+
+class DequantizeArgs(Enum):
+    """
+    This is a helper enums to access the correct index of
+    dequantize arguments
+    """
+
+    ifm = 0
+    ifm_scale = 1
+    ifm_zero_point = 2
+
+
 def is_composite_func(func: relay.Function, name: str) -> bool:
     """
     This method checks whether the call is to

@@ -41,6 +41,8 @@ try:
     from tvm.relay.backend.contrib.ethosu.util import BiasAddArgs
     from tvm.relay.backend.contrib.ethosu.util import RequantArgs
     from tvm.relay.backend.contrib.ethosu.util import BinaryElementwiseArgs
+    from tvm.relay.backend.contrib.ethosu.util import DequantizeArgs
+    from tvm.relay.backend.contrib.ethosu.util import QuantizeArgs
     from tvm.relay.backend.contrib.ethosu.util import get_dim_value
 except ImportError:
     vapi = None
@@ -852,6 +854,60 @@ def strided_slice_pattern():
     return pattern
 
 
+class AbsParams:
+    """
+    A class to extract and store parameters of Abs in an NPU friendly way
+    """
+
+    composite_name = "ethos-u.abs"
+
+    def __init__(self, func_body: Call):
+        quantize = func_body
+        abs_op = quantize.args[0]
+        dequantize = abs_op.args[0]
+
+        layout = "NHWC"
+
+        self.ifm = TensorParams(
+            dequantize.args[DequantizeArgs.ifm.value],
+            layout,
+            dequantize.args[DequantizeArgs.ifm_scale.value],
+            dequantize.args[DequantizeArgs.ifm_zero_point.value],
+        )
+        self.ofm = TensorParams(
+            quantize,
+            layout,
+            quantize.args[QuantizeArgs.ofm_scale.value],
+            quantize.args[QuantizeArgs.ofm_zero_point.value],
+        )
+
+        self.operator_type = "ABS"
+        self.activation = None
+
+    def is_valid(self):
+        """Checks whether Abs has compatible attributes with HW"""
+        tensor_params = [self.ifm, self.ofm]
+        if not check_valid_dtypes(tensor_params, supported_dtypes=[np.int8, np.uint8]):
+            return False
+        if self.ifm.dtype != self.ofm.dtype:
+            return False
+        if not check_dimensions(self.ifm):
+            return False
+        if len(self.ifm.shape) == 4 and self.ifm.shape[0] != 1:
+            return False
+        if self.ifm.shape != self.ofm.shape:
+            return False
+        return True
+
+
+def abs_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
+    """Create pattern for abs"""
+    pattern = is_op("qnn.dequantize")(wildcard(), is_constant(), is_constant())
+    pattern = is_op("abs")(pattern)
+    pattern = is_op("qnn.quantize")(pattern, is_constant(), is_constant())
+    return pattern
+
+
 @register_pattern_table("ethos-u")
 def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Callable]]:
     return [
@@ -914,6 +970,11 @@ def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Cal
             StridedSliceParams.composite_name,
             strided_slice_pattern(),
             lambda pat: StridedSliceParams(pat).is_valid(),
+        ),
+        (
+            AbsParams.composite_name,
+            abs_pattern(),
+            lambda pat: AbsParams(pat).is_valid(),
         ),
     ]
 
