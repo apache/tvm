@@ -62,39 +62,39 @@ IS_TEMPLATE = not (API_SERVER_DIR / MODEL_LIBRARY_FORMAT_RELPATH).exists()
 BOARD_PROPERTIES = {
     "qemu_x86": {
         "board": "qemu_x86",
-        "target": "host",
+        "model": "host",
     },
     "qemu_riscv32": {
         "board": "qemu_riscv32",
-        "target": "host",
+        "model": "host",
     },
     "qemu_riscv64": {
         "board": "qemu_riscv64",
-        "target": "host",
+        "model": "host",
     },
     "mps2_an521": {
         "board": "mps2_an521",
-        "target": "mps2_an521",
+        "model": "mps2_an521",
     },
     "nrf5340dk_nrf5340_cpuapp": {
         "board": "nrf5340dk_nrf5340_cpuapp",
-        "target": "nrf5340dk",
+        "model": "nrf5340dk",
     },
     "stm32f746xx_disco": {
         "board": "stm32f746xx_disco",
-        "target": "stm32f746xx",
+        "model": "stm32f746xx",
     },
     "nucleo_f746zg": {
         "board": "nucleo_f746zg",
-        "target": "stm32f746xx",
+        "model": "stm32f746xx",
     },
     "nucleo_l4r5zi": {
         "board": "nucleo_l4r5zi",
-        "target": "stm32l4r5zi",
+        "model": "stm32l4r5zi",
     },
     "qemu_cortex_r5": {
         "board": "qemu_cortex_r5",
-        "target": "zynq_mp_r5",
+        "model": "zynq_mp_r5",
     },
 }
 
@@ -284,11 +284,15 @@ PROJECT_OPTIONS = [
         ),
     ),
     server.ProjectOption("zephyr_base", help="Path to the zephyr base directory."),
-    server.ProjectOption("zephyr_board", choices=list(BOARD_PROPERTIES), help="Name of the Zephyr board to build for."),
     server.ProjectOption(
-        "zephyr_target",
-        choices=[board["target"] for _,board in BOARD_PROPERTIES.items()],
-        help="Name of the target for each Zephyr board.",
+        "zephyr_board",
+        choices=list(BOARD_PROPERTIES),
+        help="Name of the Zephyr board to build for.",
+    ),
+    server.ProjectOption(
+        "zephyr_model",
+        choices=[board["model"] for _, board in BOARD_PROPERTIES.items()],
+        help="Name of the model for each Zephyr board.",
     ),
 ]
 

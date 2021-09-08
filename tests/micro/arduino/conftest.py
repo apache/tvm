@@ -17,7 +17,6 @@
 
 import datetime
 import pathlib
-import sys
 
 import pytest
 import tvm.target.target
@@ -43,13 +42,15 @@ def arduino_boards() -> dict:
     for option in project_options:
         if option["name"] == "arduino_board":
             boards = option["choices"]
-        if option["name"] == "arduino_target":
-            targets = option["choices"]
+        if option["name"] == "arduino_model":
+            models = option["choices"]
 
-    arduino_boards = {boards[i]: targets[i] for i in range(len(boards))}
+    arduino_boards = {boards[i]: models[i] for i in range(len(boards))}
     return arduino_boards
 
+
 ARDUINO_BOARDS = arduino_boards()
+
 
 def pytest_addoption(parser):
     parser.addoption(

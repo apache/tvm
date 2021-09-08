@@ -155,9 +155,7 @@ def test_relay(board, arduino_cli_cmd, tvm_debug, workspace_dir):
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         mod = tvm.relay.build(func, target=target)
 
-    with _make_session(
-        model, board, arduino_cli_cmd, workspace_dir, mod, build_config
-    ) as session:
+    with _make_session(model, board, arduino_cli_cmd, workspace_dir, mod, build_config) as session:
         graph_mod = tvm.micro.create_local_graph_executor(
             mod.get_graph_json(), session.get_system_lib(), session.device
         )

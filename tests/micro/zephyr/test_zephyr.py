@@ -143,9 +143,7 @@ def test_add_float(temp_dir, board, west_cmd, tvm_debug):
         system_lib.get_function("add")(A_data, B_data, C_data)
         assert (C_data.numpy() == np.array([7, 8])).all()
 
-    with _make_add_sess(
-        temp_dir, model, board, west_cmd, build_config, dtype="float32"
-    ) as sess:
+    with _make_add_sess(temp_dir, model, board, west_cmd, build_config, dtype="float32") as sess:
         test_basic_add(sess)
 
 
@@ -381,9 +379,7 @@ def test_rpc_large_array(temp_dir, board, west_cmd, tvm_debug, shape):
         C_data = tvm.nd.array(np.zeros(shape, dtype="int8"), device=sess.device)
         assert (C_data.numpy() == np.zeros(shape)).all()
 
-    with _make_add_sess_with_shape(
-        temp_dir, model, board, west_cmd, shape, build_config
-    ) as sess:
+    with _make_add_sess_with_shape(temp_dir, model, board, west_cmd, shape, build_config) as sess:
         test_tensors(sess)
 
 

@@ -136,7 +136,13 @@ def _get_message(fd, expr: str, timeout_sec: int):
 def test_tflite(temp_dir, board, west_cmd, tvm_debug):
     """Testing a TFLite model."""
 
-    if board not in ["qemu_x86", "mps2_an521", "nrf5340dk", "stm32l4r5zi_nucleo", "zynq_mp_r5"]:
+    if board not in [
+        "qemu_x86",
+        "mps2_an521",
+        "nrf5340dk_nrf5340_cpuapp",
+        "stm32l4r5zi_nucleo",
+        "zynq_mp_r5",
+    ]:
         pytest.skip(msg="Model does not fit.")
 
     model = conftest.ZEPHYR_BOARDS[board]

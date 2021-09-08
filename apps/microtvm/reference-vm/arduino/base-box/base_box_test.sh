@@ -16,7 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 #
-# Usage: base_box_test.sh <MICROTVM_DEVICE>
+# Usage: base_box_test.sh <ARDUINO_BOARD>
 #     Execute microTVM Arduino tests.
 #
 
@@ -24,17 +24,17 @@ set -e
 set -x
 
 if [ "$#" -lt 1 ]; then
-    echo "Usage: base_box_test.sh <MICROTVM_DEVICE>"
+    echo "Usage: base_box_test.sh <ARDUINO_BOARD>"
     exit -1
 fi
 
-microtvm_device=$1
+board=$1
 
-pytest tests/micro/arduino/test_arduino_workflow.py --microtvm-device=${microtvm_device}
+pytest tests/micro/arduino/test_arduino_workflow.py --arduino-board=${board}
 
-if [ $microtvm_device == "nano33ble" ]; then
+if [ $board == "nano33ble" ]; then
     # https://github.com/apache/tvm/issues/8730
-    echo "NOTE: skipped test_arduino_rpc_server.py on $microtvm_device -- known failure"
+    echo "NOTE: skipped test_arduino_rpc_server.py on $board -- known failure"
 else
-    pytest tests/micro/arduino/test_arduino_rpc_server.py --microtvm-device=${microtvm_device}
+    pytest tests/micro/arduino/test_arduino_rpc_server.py --arduino-board=${board}
 fi

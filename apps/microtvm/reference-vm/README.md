@@ -72,20 +72,20 @@ For example:
 $ ./base-box-tool.py --provider virtualbox build zephyr
 ```
 
-2. **Run** release tests for each microTVM device:
+2. **Run** release tests for each platform:
 
    A. Connect any needed hardware to the VM host machine;
 
    B. Run tests:
    ```bash
-   $ ./base-box-tool.py [--provider=PROVIDER] test --microtvm-device=MICROTVM_DEVICE [--test-device-serial=SERIAL] PLATFORM
+   $ ./base-box-tool.py [--provider=PROVIDER] test --microtvm-board=MICROTVM_DEVICE [--test-device-serial=SERIAL] PLATFORM
    ```
    where MICROTVM_DEVICE is one of the options listed in the
    PLATFORM/base-box/test-config.json file.
 
    For example:
    ```base
-   $ ./base-box-tool.py --provider virtualbox test --microtvm-device=stm32f746xx_disco zephyr
+   $ ./base-box-tool.py --provider virtualbox test --microtvm-board=stm32f746xx_disco zephyr
    ```
 
    This command does the following for the specified provider:

@@ -17,7 +17,6 @@
 import datetime
 import os
 import pathlib
-import sys
 
 import pytest
 
@@ -44,13 +43,15 @@ def zephyr_boards() -> dict:
     for option in project_options:
         if option["name"] == "zephyr_board":
             boards = option["choices"]
-        if option["name"] == "zephyr_target":
-            targets = option["choices"]
+        if option["name"] == "zephyr_model":
+            models = option["choices"]
 
-    arduino_boards = {boards[i]: targets[i] for i in range(len(boards))}
+    arduino_boards = {boards[i]: models[i] for i in range(len(boards))}
     return arduino_boards
 
+
 ZEPHYR_BOARDS = zephyr_boards()
+
 
 def pytest_addoption(parser):
     parser.addoption(
