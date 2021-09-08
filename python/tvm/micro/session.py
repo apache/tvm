@@ -274,11 +274,11 @@ def compile_and_create_micro_session(
         mlf_f.write(mod_src_bytes)
 
     try:
-        template_project = project.TemplateProject.from_directory(
-            template_project_dir, options=json.loads(project_options)
-        )
+        template_project = project.TemplateProject.from_directory(template_project_dir)
         generated_project = template_project.generate_project_from_mlf(
-            model_library_format_path, temp_dir / "generated-project"
+            model_library_format_path,
+            temp_dir / "generated-project",
+            options=json.loads(project_options),
         )
     except Exception as exception:
         logging.error("Project Generate Error: %s", str(exception))
