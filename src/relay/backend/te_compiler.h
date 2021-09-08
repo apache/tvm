@@ -192,15 +192,13 @@ IRModule LowerTE(
  *
  * \param targets The mapping for devices to targets.
  * \param device_context_map An analysis result mapping each sub-expression to a device.
- * \param memory_plan The memory plan used during lowering
  * \param module_name The name of this module
  * \param process_fn Callback allowing one-level up code generators to process
  * each function that we lower
  * \returns The pass which lowers primative functions to TIR
  */
 transform::Pass LowerTEPass(TargetMap targets, DeviceMap device_context_map,
-                            backend::StaticMemoryPlan memory_plan, const String& module_name,
-                            std::function<void(Function)> process_fn);
+                            const String& module_name, std::function<void(Function)> process_fn);
 }  // namespace tec
 }  // namespace relay
 }  // namespace tvm

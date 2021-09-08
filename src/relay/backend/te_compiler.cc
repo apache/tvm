@@ -596,8 +596,7 @@ class LowerTensorExprMutator : public ExprMutator {
   const Op& debug_op_;
 };
 
-Pass LowerTensorExpr(TargetMap targets, DeviceMap device_context_map,
-                     backend::StaticMemoryPlan memory_plan, const String& module_name,
+Pass LowerTensorExpr(TargetMap targets, DeviceMap device_context_map, const String& module_name,
                      TECompiler compiler, std::function<void(Function)> process_fn) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function func, IRModule module, PassContext ctx) {
@@ -606,162 +605,6 @@ Pass LowerTensorExpr(TargetMap targets, DeviceMap device_context_map,
         return Downcast<Function>(lower_te.Mutate(func));
       };
   return CreateFunctionPass(pass_func, 0, "LowerTensorExpr", {});
-}
-
-Target GetTargetFromInteger(DLDeviceType dev_type, TargetMap targets) {
-  if (targets.size() == 1) {
-    // The homogeneous execution case, return the only target.
-    const auto& it = targets.begin();
-    return (*it).second;
-  } else {
-    // The heterogeneous execution case, return the target associated with the
-    // given device type.
-    // If "dev_type" equals to 0, the device name only can be got from
-    // "targets", and it may not be "llvm", so here just set it to "unknown".
-    std::string dev_name = "unknown";
-    if (dev_type != 0) {
-      dev_name = runtime::DeviceName(dev_type);
-    }
-
-    if (targets.count(dev_type) == 0) {
-      std::stringstream msg;
-      msg << "No target is specified for provided device name: `" << dev_name << "`\n\n"
-          << dev_name << " mapped to device type (" << dev_type
-          << ") which was not found in the target map.\n"
-          << "Availible targets: \n";
-      for (auto target : targets) {
-        msg << "  " << target.first << "-> " << target.second << "\n";
-      }
-      LOG(FATAL) << msg.str();
-    }
-    return targets[dev_type];
-  }
-}
-
-/*!
- * \brief Update the "main" control function's metadata
- *
- * \param mod The module
- * \param targets Map of targets
- * \return function_infos Function info for each function in the module
- */
-
-backend::FunctionInfo UpdateMainWorkspaceSize(const IRModule& mod, TargetMap targets,
-                                              Map<Expr, backend::StorageInfo> storage_info_map) {
-  CHECK_EQ(mod->functions.size(), 1)
-      << "There should only be one function in the module passed to UpdateMainWorkspaceSize";
-  Function func = Downcast<Function>(mod->Lookup("main"));
-
-  // This is a Map<device,Map<storage_id, size>>
-  std::unordered_map<DLDeviceType, std::unordered_map<int, int>, EnumClassHash> sid_workspace;
-  // This is a Map<device, size_of_inputs_and_outputs>
-  std::unordered_map<DLDeviceType, int, EnumClassHash> device_io;
-  // This is a Map<device, size_of_constants>
-  std::unordered_map<DLDeviceType, int, EnumClassHash> device_consts;
-
-  // Initialize the mapping from all storage identifiers to workspace sizes,
-  // the amount of device io, and the device constants.
-  for (const auto& kv : storage_info_map) {
-    backend::StorageInfo storage_info = kv.second;
-    std::vector<int64_t> storage_ids = storage_info->storage_ids;
-    std::vector<DLDeviceType> devices = storage_info->device_types;
-
-    CHECK_EQ(storage_ids.size(), devices.size());
-    for (uint32_t i = 0; i < devices.size(); i++) {
-      sid_workspace[devices[i]][storage_ids[i]] = 0;
-      device_io[devices[i]] = 0;
-      device_consts[devices[i]] = 0;
-    }
-  }
-
-  // Iterate the storage map to compute all the tensor sizes in the program.
-  // There are 3 cases in this code:
-  //
-  // First we need to compute the sizes of all
-  // inline constants.
-  //
-  // Second we compute the size of any bound variable as these are input and output
-  // sizes of the program.
-  //
-  // Finally for all other expressions we check which storage identifier they have
-  // been assigned and we compute the maximal size of the storage, as tensors can
-  // share storage with other tensors which are the same size or larger.
-  //
-  // In this final case there is only one allocation for all tensors which share storage
-  // which will be the maximal size of all tensors which were assigned to it.
-  for (const auto& kv : storage_info_map) {
-    Expr expr = kv.first;
-    int64_t size_bytes = backend::CalculateRelayExprSizeBytes(expr->checked_type());
-    backend::StorageInfo storage_info = kv.second;
-    std::vector<int64_t> storage_ids = storage_info->storage_ids;
-    std::vector<DLDeviceType> devices = storage_info->device_types;
-
-    if (expr->IsInstance<ConstantNode>()) {
-      for (const auto& dev : devices) {
-        device_consts[dev] += size_bytes;
-      }
-      continue;
-    } else if (expr->IsInstance<VarNode>() || expr.same_as(func->body)) {
-      CHECK_GE(devices.size(), 1) << "must be at least one device";
-      for (const auto& dev : devices) {
-        device_io[dev] += size_bytes;
-      }
-      continue;
-    }
-
-    // TODO(@electriclilies): This code is never being called which means sid_workspace is not
-    // updated.. This means that storage info is probably not being created correctly. Or is not
-    // equivalent to what was here previously
-    for (uint32_t i = 0; i < storage_ids.size(); i++) {
-      // Here we record the largest size of the tensor
-      // that share the same storage id, because storage_id will
-      // be shared between multiple tensors that are not live simultaneously.
-      if (size_bytes > sid_workspace[devices[i]][storage_ids[i]]) {
-        sid_workspace[devices[i]][storage_ids[i]] = size_bytes;
-      }
-    }
-  }
-
-  // This is a Map<device, workspace_size>
-  std::unordered_map<DLDeviceType, int, EnumClassHash> device_workspace;
-  // Once we know the sizes of sids, we need to accumulate per device
-  for (const auto& dev_sid_size : sid_workspace) {
-    auto dev = dev_sid_size.first;
-    device_workspace[dev] = 0;
-    for (const auto& sid_size : dev_sid_size.second) {
-      device_workspace[dev] += sid_size.second;
-    }
-  }
-
-  Map<Target, Integer> workspace_sizes;
-  Map<Target, Integer> io_sizes;
-  Map<Target, Integer> constant_sizes;
-  Map<Target, tir::PrimFunc> tir_primfuncs;
-  Map<Target, Function> relay_primfuncs;
-
-  // Initialize all target workspaces to zero
-  for (const auto& kv : targets) {
-    auto tgt = kv.second;
-    workspace_sizes.Set(tgt, 0);
-  }
-
-  for (const auto& dev_and_size : device_workspace) {
-    auto tgt = GetTargetFromInteger(dev_and_size.first, targets);
-    workspace_sizes.Set(tgt, dev_and_size.second);
-    relay_primfuncs.Set(tgt, func);
-  }
-  for (const auto& dev_and_size : device_io) {
-    auto tgt = GetTargetFromInteger(dev_and_size.first, targets);
-    io_sizes.Set(tgt, dev_and_size.second);
-  }
-
-  for (const auto& dev_and_size : device_consts) {
-    auto tgt = GetTargetFromInteger(dev_and_size.first, targets);
-    constant_sizes.Set(tgt, dev_and_size.second);
-  }
-
-  return backend::FunctionInfo(workspace_sizes, io_sizes, constant_sizes, tir_primfuncs,
-                               relay_primfuncs);
 }
 
 /*!
@@ -844,20 +687,13 @@ void UpdateFunctionMetadata(Function relay_func,
 }
 
 IRModule LowerTE(const IRModule& module, TargetMap targets, DeviceMap device_context_map,
-                 backend::StaticMemoryPlan memory_plan, const String& module_name,
-                 std::function<void(Function)> process_fn) {
+                 const String& module_name, std::function<void(Function)> process_fn) {
   DLOG(INFO) << "lowering module:\n" << PrettyPrint(module);
 
   TECompiler compiler;
 
-  backend::FunctionInfo func_info;
-  if (memory_plan.defined()) {
-    // TODO(@electriclilies, @jroesch): remove UpdateMainWorkspaceSize
-    func_info = UpdateMainWorkspaceSize(module, targets, memory_plan->expr_to_storage_info);
-  }
-
-  auto updated_module = LowerTensorExpr(targets, device_context_map, memory_plan, module_name,
-                                        compiler, process_fn)(module);
+  auto updated_module =
+      LowerTensorExpr(targets, device_context_map, module_name, compiler, process_fn)(module);
 
   // A temporary solution until we can rewrite the auto-scheduler task extraction code to work
   // in a more reasonable way.
@@ -876,6 +712,7 @@ IRModule LowerTE(const IRModule& module, TargetMap targets, DeviceMap device_con
 
     (*te_compiler_update_weights)(weight_map);
   }
+  backend::FunctionInfo func_info;
 
   // Copy the lowered functions into the return module
   updated_module->Update(compiler->GetLoweredFunctions());
@@ -919,12 +756,11 @@ Map<Target, IRModule> GetPerTargetModules(IRModule mod) {
   return per_target_modules;
 }
 
-Pass LowerTEPass(TargetMap targets, DeviceMap device_context_map,
-                 backend::StaticMemoryPlan memory_plan, const String& module_name,
+Pass LowerTEPass(TargetMap targets, DeviceMap device_context_map, const String& module_name,
                  std::function<void(Function)> process_fn) {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule module,
                                                                             PassContext ctx) {
-    return LowerTE(module, targets, device_context_map, memory_plan, module_name, process_fn);
+    return LowerTE(module, targets, device_context_map, module_name, process_fn);
   };
   return tvm::transform::Sequential(
       {tvm::transform::CreateModulePass(pass_func, 0, "LowerTE", {}), InferType()});

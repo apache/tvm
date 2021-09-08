@@ -906,17 +906,16 @@ IRModule Prepare(IRModule mod, Device device, Target target) {
   backend::StaticMemoryPlan memory_plan; /*=nullptr*/
 
   // Run minimal transforms on module to establish invariants needed by interpreter.
-  transform::Sequential seq(
-      {transform::SimplifyInference(),
-       // FuseOps will mark wrapped calls to prim-ops with the 'Primitive'
-       // attribute.
-       transform::FuseOps(/*fuse_opt_level=*/0), transform::ToANormalForm(),
-       // eta expand to support constructors in argument position
-       transform::EtaExpand(
-           /*expand_constructor=*/true, /*expand_global_var=*/false),
-       transform::InferType(),
-       tec::LowerTEPass(targets, device_map, memory_plan, /*module_name=*/"intrp",
-                        [](Function func) { /* no-op */ })});
+  transform::Sequential seq({transform::SimplifyInference(),
+                             // FuseOps will mark wrapped calls to prim-ops with the 'Primitive'
+                             // attribute.
+                             transform::FuseOps(/*fuse_opt_level=*/0), transform::ToANormalForm(),
+                             // eta expand to support constructors in argument position
+                             transform::EtaExpand(
+                                 /*expand_constructor=*/true, /*expand_global_var=*/false),
+                             transform::InferType(),
+                             tec::LowerTEPass(targets, device_map, /*module_name=*/"intrp",
+                                              [](Function func) { /* no-op */ })});
 
   transform::PassContext pass_ctx = transform::PassContext::Current();
   With<transform::PassContext> ctx(pass_ctx);
