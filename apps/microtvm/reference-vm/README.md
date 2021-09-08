@@ -78,9 +78,9 @@ $ ./base-box-tool.py --provider virtualbox build zephyr
 
    B. Run tests:
    ```bash
-   $ ./base-box-tool.py [--provider=PROVIDER] test --microtvm-board=MICROTVM_DEVICE [--test-device-serial=SERIAL] PLATFORM
+   $ ./base-box-tool.py [--provider=PROVIDER] test --microtvm-board=MICROTVM_BOARD [--test-device-serial=SERIAL] PLATFORM
    ```
-   where MICROTVM_DEVICE is one of the options listed in the
+   where MICROTVM_BOARD is one of the options listed in the
    PLATFORM/base-box/test-config.json file.
 
    For example:

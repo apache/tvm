@@ -29,7 +29,7 @@ import conftest
 This unit test simulates a simple user workflow, where we:
 1. Generate a base sketch using a simple audio model
 2. Modify the .ino file, much like a user would
-3. Compile the sketch for the target device
+3. Compile the sketch for the target board
 -- If physical hardware is present --
 4. Upload the sketch to a connected board
 5. Open a serial connection to the board

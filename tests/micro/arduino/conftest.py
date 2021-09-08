@@ -58,7 +58,7 @@ def pytest_addoption(parser):
         nargs="+",
         required=True,
         choices=ARDUINO_BOARDS.keys(),
-        help="MicroTVM device for tests.",
+        help="Arduino board for tests.",
     )
     parser.addoption(
         "--arduino-cli-cmd",

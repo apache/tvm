@@ -57,9 +57,7 @@ def pytest_addoption(parser):
     parser.addoption(
         "--zephyr-board",
         choices=ZEPHYR_BOARDS.keys(),
-        help=(
-            "Specify a microtvm device (i.e. as passed to tvm.target.micro()) for microTVM tests."
-        ),
+        help=("Zephyr board for test."),
     )
     parser.addoption(
         "--west-cmd", default="west", help="Path to `west` command for flashing device."
