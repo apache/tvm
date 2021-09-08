@@ -941,8 +941,9 @@ class Schedule(Object):
 
         2) The scope block has stage-pipeline property
 
-        3) The given block's subtree of the scope block satisfies compact dataflow condition. i.e.
-        all the blocks in the scope block's subtree must be either complete block or reduction block
+        3) The subtree of the scope block, where the given block is in, satisfies the compact
+        dataflow condition. i.e. all the blocks in the scope block's subtree must be either
+        complete block or reduction block
 
         4) The block is not an output block, i.e. the buffer regions written by the block are
         allocated under the current scope
@@ -1030,8 +1031,9 @@ class Schedule(Object):
 
         2) The scope block has stage-pipeline property
 
-        3) The given block's subtree of the scope block satisfies compact dataflow condition.
-        i.e. all the blocks in the scope's subtree must be either complete block or reduction block
+        3) The subtree of the scope block, where the given block is in, satisfies the compact
+        dataflow condition. i.e. all the blocks in the scope block's subtree must be either
+        complete block or reduction block
 
         4) All the producers of the block are under the given loop
 

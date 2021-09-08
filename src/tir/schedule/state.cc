@@ -932,8 +932,8 @@ void ScheduleStateNode::Replace(const tir::StmtSRef& _src_sref, const Stmt& tgt_
   // Before step `i`:
   // 1) `child_sref` is `src_sref` going up by `i` steps
   // 2) `child_tgt_stmt` is the subtree that `child_sref` should correspond to after replacement
-  // 3) except for the subtree root, srefs that point to the subtree of `child_tgt_stmt` are
-  // correct 4) for the subtree root of `child_tgt_stmt`, `child_sref` has not pointed to it yet
+  // 3) except for the subtree root, srefs that point to the subtree of `child_tgt_stmt` are correct
+  // 4) for the subtree root of `child_tgt_stmt`, `child_sref` has not pointed to it yet
   // 5) `tgt_stmt` is of type Loop, Block or BlockRealize
   //
   // During step `i`:

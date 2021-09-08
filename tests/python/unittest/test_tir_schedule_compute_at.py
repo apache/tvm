@@ -24,7 +24,7 @@ from tvm.script import ty
 from tvm.tir.schedule.testing import verify_trace_roundtrip
 
 # fmt: off
-# pylint: disable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,unexpected-keyword-arg
+# pylint: disable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,unexpected-keyword-arg,too-many-nested-blocks
 
 @tvm.script.tir
 def two_elementwise(a: ty.handle, c: ty.handle) -> None:
@@ -667,7 +667,7 @@ def read_out_of_bound_after_compute_at(a: ty.handle, c: ty.handle) -> None:
             C[v] = tir.if_then_else(v < 15, tir.max(B[v], B[v + 1]), B[v], dtype="float32")
 
 
-# pylint: enable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,unexpected-keyword-arg
+# pylint: enable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,unexpected-keyword-arg,too-many-nested-blocks
 # fmt: on
 
 

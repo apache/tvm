@@ -311,8 +311,9 @@ class ScheduleNode : public runtime::Object {
    * written by the producers. It requires:
    * 1) `block` and `loop` are under the same scope, `loop` is not the ancestor of `block`
    * 2) The scope block has stage-pipeline property
-   * 3) The given block's subtree of the scope block satisfies compact dataflow condition. i.e. all
-   * the blocks in the scope block's subtree must be either complete block or reduction block
+   * 3) The subtree of the scope block, where the given block is in, satisfies the compact dataflow
+   * condition. i.e. all the blocks in the scope block's subtree must be either complete block or
+   * reduction block
    * 4) The block is not an output block, i.e. the buffer regions written by the block are allocated
    * under the current scope
    * 5) All the consumers of the block are under the given loop
@@ -329,8 +330,9 @@ class ScheduleNode : public runtime::Object {
    * by the consumers. It requires:
    * 1) `block` and `loop` are under the same scope, `loop` is not the ancestor of `block`
    * 2) The scope block has stage-pipeline property
-   * 3) The given block's subtree of the scope block satisfies compact dataflow condition.
-   * i.e. all the blocks in the scope's subtree must be either complete block or reduction block
+   * 3) The subtree of the scope block, where the given block is in, satisfies the compact dataflow
+   * condition. i.e. all the blocks in the scope block's subtree must be either complete block or
+   * reduction block
    * 4) All the producers of the block are under the given loop
    *
    * \param block_rv The block to be moved
