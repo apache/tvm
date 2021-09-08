@@ -108,9 +108,8 @@ def test_trt_int8():
     model = scripted_model.eval()
     torch_output = model(torch_data)
 
-    print("the cosine distance between torch output and trt int8 output of tvm : ")
     cosine_distance_res = cosine_distance(out.numpy(), torch_output.detach().cpu().numpy())
-    assert cosine_distance_res <= 0.02
+    assert cosine_distance_res <= 0.01
 
     # Evaluate
     print("Evaluate inference time cost...")
