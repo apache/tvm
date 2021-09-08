@@ -74,18 +74,19 @@ class TensorRTRuntime : public JSONRuntimeBase {
         max_workspace_size_(size_t(1) << 30),
         max_batch_size_(-1),
         multi_engine_mode_(false) {
-          const bool use_int8 = dmlc::GetEnv("TVM_TENSORRT_USE_INT8", false);
-          multi_engine_mode_ = dmlc::GetEnv("TVM_TENSORRT_MULTI_ENGINE", false);
-          if (use_int8) {
-            const int extract_cali_num = dmlc::GetEnv("TENSORRT_NUM_CALI_INT8", 0);
-            ICHECK(extract_cali_num != 0) << "When using INT8 mode, "
-                                          << "environment variable TENSORRT_NUM_CALI_INT8"
-                                          << "must also be set to specify the number of calibration times";
-            num_calibration_batches_remaining_ = extract_cali_num;
-            LOG(INFO) << "settiing up " <<
-                      num_calibration_batches_remaining_ <<
-                      " sample data to calibrate data ... ";
-            ICHECK(multi_engine_mode_ == false) << "When using int8 mode, multi-engine is not allowed";
+        const bool use_int8 = dmlc::GetEnv("TVM_TENSORRT_USE_INT8", false);
+        multi_engine_mode_ = dmlc::GetEnv("TVM_TENSORRT_MULTI_ENGINE", false);
+        if (use_int8) {
+          const int extract_cali_num = dmlc::GetEnv("TENSORRT_NUM_CALI_INT8", 0);
+          ICHECK(extract_cali_num != 0) << "When using INT8 mode, "
+                                        << "environment variable TENSORRT_NUM_CALI_INT8"
+                                        << "must also be set to specify the number of "
+                                        << "calibration times";
+          num_calibration_batches_remaining_ = extract_cali_num;
+          LOG(INFO) << "settiing up " <<
+                    num_calibration_batches_remaining_ <<
+                    " sample data to calibrate data ... ";
+          ICHECK(multi_engine_mode_ == false) << "When using int8 mode, multi-engine is not allowed";
           }
         }
 
@@ -271,7 +272,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
     const bool use_int8 = (dmlc::GetEnv("TVM_TENSORRT_USE_INT8", 0) != 0);
     const bool int8_calibration_not_used_or_not_complete =
                   (calibrator_ != nullptr && num_calibration_batches_remaining_ != 0);
-    if (find_engine_flag && (!use_int8 || calibrator_ == nullptr 
+    if (find_engine_flag && (!use_int8 || calibrator_ == nullptr
                     || int8_calibration_not_used_or_not_complete)) {
       // A compatible engine already exists.
       return trt_engine_cache_.at(std::make_pair(symbol_name_, compatible_engine_batch_size));
@@ -293,7 +294,8 @@ class TensorRTRuntime : public JSONRuntimeBase {
     } else {
       // Build new engine
       BuildEngineFromJson(batch_size);
-      TensorRTEngineAndContext& engine_and_context = trt_engine_cache_[std::make_pair(symbol_name_, batch_size)];
+      TensorRTEngineAndContext& engine_and_context = 
+                  trt_engine_cache_[std::make_pair(symbol_name_, batch_size)];
       if (use_int8) {
         this->CreateInt8Calibrator(engine_and_context);
       }
