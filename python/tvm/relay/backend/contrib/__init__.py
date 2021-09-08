@@ -16,4 +16,3 @@
 # under the License.
 """External backend codegen modules for Relay."""
 from . import cmsisnn
-from . import ethosu
