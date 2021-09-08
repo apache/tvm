@@ -42,8 +42,8 @@ def assert_shapes_match(tru, est):
 def get_paddle_model(func, input_spec):
     global PADDLE_TEST_DATA_ROOT_PATH
     model_path = Path(PADDLE_TEST_DATA_ROOT_PATH, "model")
-
     paddle.jit.save(func, str(model_path), input_spec=input_spec)
+    paddle.jit.save(func, "/paddle/pr_for_tvm/0905/tvm/inference_model_test/inference", input_spec=input_spec)
     baseline_model = paddle.jit.load(str(model_path))
 
     shutil.rmtree(str(PADDLE_TEST_DATA_ROOT_PATH))
@@ -572,6 +572,29 @@ def test_forward_flatten():
 
 
 @tvm.testing.uses_gpu
+def test_forward_floor_divide():
+    class Floor_divide(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, x, y):
+            return paddle.floor_divide(x, y)
+
+    x_shape = [10]
+    y_shape = [10]
+    x_data = paddle.randint(1, 10, x_shape, dtype="int32")
+    y_data = paddle.randint(1, 10, y_shape, dtype="int32")
+    x_data_1 = paddle.randint(1, 10, x_shape, dtype="int64")
+    y_data_1 = paddle.randint(1, 10, y_shape, dtype="int64")
+    verify_model(Floor_divide(), input_data=[x_data, y_data])
+    verify_model(Floor_divide(), input_data=[x_data_1, y_data_1])
+    # For broadcast
+    x_shape_1 = [10]
+    y_shape_1 = [10, 1]
+    x_data_2 = paddle.randint(1, 10, x_shape_1, dtype="int32")
+    y_data_2 = paddle.randint(1, 10, y_shape_1, dtype="int32")
+    verify_model(Floor_divide(), input_data=[x_data_2, y_data_2])
+
+
+@tvm.testing.uses_gpu
 def test_forward_shape_full():
     @paddle.jit.to_static
     def full1(inputs):
@@ -764,6 +787,31 @@ def test_forward_leaky_relu():
 
 
 @tvm.testing.uses_gpu
+def test_forward_less_than():
+    class Less_than(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, x, y):
+            output = paddle.less_than(x, y)
+            output = paddle.cast(output, "int32")
+            return output
+
+    x_shape = [10]
+    y_shape = [10]
+    x_data = paddle.randint(1, 10, x_shape, dtype="int32")
+    y_data = paddle.randint(1, 10, y_shape, dtype="int32")
+    x_data_1 = paddle.randint(1, 10, x_shape, dtype="int64")
+    y_data_1 = paddle.randint(1, 10, y_shape, dtype="int64")
+    verify_model(Less_than(), input_data=[x_data, y_data])
+    verify_model(Less_than(), input_data=[x_data_1, y_data_1])
+    # For broadcast
+    x_shape_1 = [10]
+    y_shape_1 = [10, 1]
+    x_data_2 = paddle.rand(x_shape_1, dtype="float32")
+    y_data_2 = paddle.rand(y_shape_1, dtype="float32")
+    verify_model(Less_than(), input_data=[x_data_2, y_data_2])
+
+
+@tvm.testing.uses_gpu
 def test_forward_look_up():
     @paddle.jit.to_static
     def look_up(inputs, weight):
@@ -856,6 +904,32 @@ def test_forward_matmul():
 
 
 @tvm.testing.uses_gpu
+def test_forward_not_equal():
+    class Not_equal(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, x, y):
+            output = paddle.not_equal(x, y)
+            output = paddle.cast(output, "int32")
+            return output
+
+    x_shape = [10]
+    y_shape = [10]
+    x_data = paddle.randint(1, 10, x_shape, dtype="int32")
+    y_data = paddle.randint(1, 10, y_shape, dtype="int32")
+    x_data_1 = paddle.randint(1, 10, x_shape, dtype="int64")
+    y_data_1 = paddle.randint(1, 10, y_shape, dtype="int64")
+    verify_model(Not_equal(), input_data=[x_data, y_data])
+    verify_model(Not_equal(), input_data=[x_data_1, y_data_1])
+    # For broadcast
+    x_shape_1 = [10]
+    y_shape_1 = [10, 1]
+    x_data_2 = paddle.rand(x_shape_1, dtype="float32")
+    y_data_2 = paddle.rand(y_shape_1, dtype="float32")
+    verify_model(Not_equal(), input_data=[x_data_2, y_data_2])
+
+
+
+@tvm.testing.uses_gpu
 def test_forward_pool2d():
     @paddle.jit.to_static
     def pool2d1(inputs):
@@ -916,32 +990,106 @@ def test_forward_pad():
 
 
 @tvm.testing.uses_gpu
-def test_forward_reduce():
-    @paddle.jit.to_static
-    def reduce_all(inputs):
-        inputs = paddle.assign(inputs)
-        inputs = paddle.cast(inputs, "bool")
-        inputs = paddle.all(inputs)
-        return paddle.cast(inputs, "int32")
+def test_forward_pow():
+    class Pow(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, x):
+            output = paddle.pow(x, 2)
+            return output
 
-    @paddle.jit.to_static
-    def reduce_all2(inputs):
-        inputs = paddle.assign(inputs)
-        inputs = paddle.cast(inputs, "bool")
-        inputs = paddle.all(inputs, axis=0)
-        return paddle.cast(inputs, "int32")
+    class Pow1(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, x):
+            output = paddle.pow(x, 2.5)
+            return output
 
-    @paddle.jit.to_static
-    def reduce_all3(inputs):
-        inputs = paddle.assign(inputs)
-        inputs = paddle.cast(inputs, "bool")
-        inputs = paddle.all(inputs, axis=[0, 1, -1], keepdim=True)
-        return paddle.cast(inputs, "int32")
+    class Pow2(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, x, y):
+            output = paddle.pow(x, y)
+            return output
+
+    x_data = paddle.to_tensor([1, 2, 3], dtype='float32')
+    y_data = paddle.to_tensor([2], dtype='float32')
+    verify_model(Pow(), input_data=[x_data])
+    verify_model(Pow1(), input_data=[x_data])
+    verify_model(Pow2(), input_data=[x_data, y_data])
+
+
+@tvm.testing.uses_gpu
+def test_forward_reduce_op():
+    class ReduceOp_Bool(nn.Layer):
+        def __init__(self, op_name):
+            super(ReduceOp_Bool, self).__init__()
+            self.func = getattr(paddle, op_name, None)
+
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            inputs = paddle.cast(inputs, "bool")
+            output = self.func(inputs)
+            output = paddle.cast(output, "int32")
+            return output
+    
+    class ReduceOp_Bool1(ReduceOp_Bool):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            inputs = paddle.cast(inputs, "bool")
+            output = self.func(inputs, axis=0)
+            output = paddle.cast(output, "int32")
+            return output
+    
+    class ReduceOp_Bool2(ReduceOp_Bool):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            inputs = paddle.cast(inputs, "bool")
+            output = self.func(inputs, axis=[0, 1, -1], keepdim=True)
+            output = paddle.cast(output, "int32")
+            return output
+
+    class ReduceOp_Math(nn.Layer):
+        def __init__(self, op_name):
+            super(ReduceOp_Math, self).__init__()
+            self.func = getattr(paddle, op_name, None)
+
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            output = self.func(inputs)
+            return output
+    
+    class ReduceOp_Math1(ReduceOp_Math):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            output = self.func(inputs, axis=0)
+            return output
+    
+    class ReduceOp_Math2(ReduceOp_Math):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            output = self.func(inputs, axis=[0, 1], keepdim=True)
+            return output
 
     input_data = paddle.randn([1, 2, 3])
-    verify_model(reduce_all, input_data=input_data)
-    verify_model(reduce_all2, input_data=input_data)
-    verify_model(reduce_all3, input_data=input_data)
+    op_list_bool = [
+        "all",
+        "any",
+    ]
+    for op_name in op_list_bool:
+        verify_model(ReduceOp_Bool(op_name), input_data)
+        verify_model(ReduceOp_Bool1(op_name), input_data)
+        verify_model(ReduceOp_Bool2(op_name), input_data)
+    input_data1 = paddle.rand([2, 4, 5], dtype="float32")
+    op_list_math = [
+        "max",
+        "min",
+        "prod",
+        "sum",
+        "mean",
+        "logsumexp",
+    ]
+    for op_name in op_list_math:
+        verify_model(ReduceOp_Math(op_name), input_data1)
+        verify_model(ReduceOp_Math1(op_name), input_data1)
+        verify_model(ReduceOp_Math2(op_name), input_data1)
 
 
 @tvm.testing.uses_gpu
@@ -1050,6 +1198,48 @@ def test_forward_squeeze2():
     verify_model(squeeze3, input_data=input_data)
 
 
+@tvm.testing.uses_gpu
+def test_forward_topk():
+    class Topk1(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.topk(inputs, k=3)
+
+    class Topk2(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.topk(inputs, k=3, axis=-2)
+
+    class Topk3(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.topk(inputs, k=3, axis=3)
+
+    class Topk4(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.topk(inputs, k=3, largest=True)
+
+    class Topk5(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.topk(inputs, k=3, largest=False)
+
+    class Topk6(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.topk(inputs, k=3, sorted=True)
+
+    input_shape = [1, 3, 10, 10]
+    input_data = paddle.rand(input_shape, dtype="float32")
+    verify_model(Topk1(), input_data=input_data)
+    verify_model(Topk2(), input_data=input_data)
+    verify_model(Topk3(), input_data=input_data)
+    verify_model(Topk4(), input_data=input_data)
+    verify_model(Topk5(), input_data=input_data)
+    verify_model(Topk6(), input_data=input_data)
+
+
 if __name__ == "__main__":
     test_forward_add_subtract()
     test_forward_addmm()
@@ -1066,6 +1256,7 @@ if __name__ == "__main__":
     test_forward_dropout()
     test_forward_expand()
     test_forward_flatten()
+    test_forward_floor_divide()
     test_forward_shape_full()
     test_forward_ones_like()
     test_forward_gather_assign_value()
@@ -1077,16 +1268,20 @@ if __name__ == "__main__":
     test_forward_isinf()
     test_forward_layer_norm()
     test_forward_leaky_relu()
+    test_forward_less_than()
     test_forward_look_up()
     test_forward_lstm()
-    test_forward_multiply()
     test_forward_matmul()
+    test_forward_multiply()
+    test_forward_not_equal()
     test_forward_pool2d()
     test_forward_pad()
-    test_forward_reduce()
+    test_forward_pow()
+    test_forward_reduce_op()
     test_forward_reshape()
     test_forward_scale()
     test_forward_slice()
     test_forward_squeeze2()
+    test_forward_topk()
     test_forward_conv_transpose()
     test_forward_unary_op()
