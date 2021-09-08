@@ -117,5 +117,4 @@ def test_trt_int8():
     print(message)
 
 if __name__ == "__main__":
-    test_trt_int8()
-    # pytest.main([__file__])
+    pytest.main([__file__])
