@@ -77,10 +77,11 @@ class TensorRTRuntime : public JSONRuntimeBase {
     multi_engine_mode_ = dmlc::GetEnv("TVM_TENSORRT_MULTI_ENGINE", false);
     num_calibration_batches_remaining_ = dmlc::GetEnv("TENSORRT_NUM_CALI_INT8", 0);
     if (use_int8) {
-      ICHECK(num_calibration_batches_remaining_ != 0) << "When using INT8 mode, "
-                                    << "environment variable TENSORRT_NUM_CALI_INT8"
-                                    << "must also be set to specify the number of "
-                                    << "calibration times";
+      ICHECK(num_calibration_batches_remaining_ != 0)
+          << "When using INT8 mode, "
+          << "environment variable TENSORRT_NUM_CALI_INT8"
+          << "must also be set to specify the number of "
+          << "calibration times";
       LOG(INFO) << "settiing up " << num_calibration_batches_remaining_
                 << " sample data to calibrate data ... ";
       ICHECK(multi_engine_mode_ == false) << "When using int8 mode, "
