@@ -54,7 +54,6 @@ struct PairHash {
   }
 };
 
-
 using namespace tvm::runtime::json;
 
 class TensorRTRuntime : public JSONRuntimeBase {
