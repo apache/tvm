@@ -43,7 +43,7 @@ def build(pipe_configs):
 
     Returns
     -------
-    ret: PipeModuleConfig
+    ret: PipelineExecutorFactoryModule
         the class that wrap module list and configuration.
     """
     mods = {}
@@ -80,20 +80,20 @@ def build(pipe_configs):
     return PipelineExecutorFactoryModule(mods, string_config)
 
 
-def create(pipe_mod_config):
+def create(pipe_executor_factory_module):
     """Create a pipeline runtime executor.
 
     Parameters
     ----------
-    pipe_mod_config : PipeModuleConfig
-        class to storage IRModule list and pipeline configuration.
+    pipe_executor_factory_module : PipelineExecutorFactoryModule
+        Executor factory to storage IRModule list and pipeline configuration.
 
     Returns
     submodule : PipelineModule
         Runtime pipeline module.
     """
 
-    return PipelineModule(pipe_mod_config)
+    return PipelineModule(pipe_executor_factory_module)
 
 
 class PipelineModule(object):
@@ -342,15 +342,11 @@ class PipelineConfig(object):
 
         def is_root_mod(self):
             """use by dag topology sort, identify if this item is root item"""
-            for _, binding in self.input_bindings.bindings.items():
-                if binding.parents:
-                    return False
-
-            return True
+            return all([not b.parents for b in self.input_bindings.bindings.values()])
 
         def remove_self_from_bindings(self):
             """use by DAG topology sort, by remove self from binding to reduce child in-degree"""
-            for _, binding in self.output_bindings.bindings.items():
+            for binding in self.output_bindings.bindings.values():
                 for child in binding.bindings:
                     if binding in child.parents:
                         child.parents.remove(binding)
@@ -383,7 +379,7 @@ class PipelineConfig(object):
             if key not in self.bindings:
                 data_type = self.get_binding_data_type(key)
                 if not data_type and isinstance(self.io_owner, PipelineConfig.ModuleWrapper):
-                    raise RuntimeError(f"Illegal name: {self.binding_type}:{key} cannot find")
+                    raise RuntimeError(f"Cannot find {key} in binding list {self.binding_type}")
 
                 self.bindings[key] = PipelineConfig.ModuleWrapper.Binding(
                     self.io_owner, self.binding_type, key, data_type
@@ -410,22 +406,22 @@ class PipelineConfig(object):
         output = {}
         connections_dump = "\nconnections\n"
         for mod in self.mod_wrapper:
-            for _, interface in self.mod_wrapper[mod].output_bindings.bindings.items():
+            for interface in self.mod_wrapper[mod].output_bindings.bindings.values():
                 if interface.bindings:
                     mname, dname = interface.get_name()
                     iname = mname + ".output(" + dname + ")->"
                     for dep in interface.bindings:
                         dep_mname, dep_dname = dep.get_name()
                         if isinstance(dep.io_owner, PipelineConfig.ModuleWrapper):
-                            iname += " " + dep_mname + "." + dep_dname
-                            connections_dump += "  |" + iname + "\n"
+                            iname += f" {dep_mname}.{dep_dname}"
+                            connections_dump += f"  |{iname}\n"
                         else:
-                            output[dep_dname] = mname + ".output(" + dname + ")"
+                            output[dep_dname] = f"{mname}.output({dname})"
 
         # get output
         output_dump = "\noutput\n"
         for name in sorted(output.keys()):
-            output_dump += "  |output(" + name + ") : " + output[name] + "\n"
+            output_dump += f"  |output({name}) : {output[name]}\n"
 
         return input_dump + output_dump + connections_dump
 
