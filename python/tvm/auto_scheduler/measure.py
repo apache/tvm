@@ -652,8 +652,8 @@ def local_build_worker(args):
 
     Parameters
     ----------
-    args: Tuple[MeasureInput, str, int, int]
-        inputs, build-func, time, verbose args passed to local_builder_build
+    args: Tuple[MeasureInput, callable, int]
+        inputs, build-func, verbose args passed to local_builder_build
 
     Returns
     -------
