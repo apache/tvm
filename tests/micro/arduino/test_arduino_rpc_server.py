@@ -36,12 +36,10 @@ from tvm.relay.testing import byoc
 
 import conftest
 
-MICRO_DEVICES = conftest.arduino_micro_devices()
-
 # # A new project and workspace dir is created for EVERY test
 @pytest.fixture
-def workspace_dir(device):
-    return conftest.make_workspace_dir("arduino_rpc_server", device)
+def workspace_dir(board):
+    return conftest.make_workspace_dir("arduino_rpc_server", board)
 
 
 def _make_session(model, arduino_board, arduino_cli_cmd, workspace_dir, mod, build_config):
@@ -84,10 +82,10 @@ def _make_add_sess(model, arduino_board, arduino_cli_cmd, workspace_dir, build_c
 # The same test code can be executed on both the QEMU simulation and on real hardware.
 @tvm.testing.requires_micro
 @pytest.mark.requires_hardware
-def test_compile_runtime(device, arduino_cli_cmd, tvm_debug, workspace_dir):
+def test_compile_runtime(board, arduino_cli_cmd, tvm_debug, workspace_dir):
     """Test compiling the on-device runtime."""
 
-    model, arduino_board = MICRO_DEVICES[device]
+    model = conftest.ARDUINO_BOARDS[board]
     build_config = {"debug": tvm_debug}
 
     # NOTE: run test in a nested function so cPython will delete arrays before closing the session.
@@ -103,16 +101,16 @@ def test_compile_runtime(device, arduino_cli_cmd, tvm_debug, workspace_dir):
         system_lib.get_function("add")(A_data, B_data, C_data)
         assert (C_data.numpy() == np.array([6, 7])).all()
 
-    with _make_add_sess(model, arduino_board, arduino_cli_cmd, workspace_dir, build_config) as sess:
+    with _make_add_sess(model, board, arduino_cli_cmd, workspace_dir, build_config) as sess:
         test_basic_add(sess)
 
 
 @tvm.testing.requires_micro
 @pytest.mark.requires_hardware
-def test_platform_timer(device, arduino_cli_cmd, tvm_debug, workspace_dir):
+def test_platform_timer(board, arduino_cli_cmd, tvm_debug, workspace_dir):
     """Test compiling the on-device runtime."""
 
-    model, arduino_board = MICRO_DEVICES[device]
+    model = conftest.ARDUINO_BOARDS[board]
     build_config = {"debug": tvm_debug}
 
     # NOTE: run test in a nested function so cPython will delete arrays before closing the session.
@@ -133,15 +131,15 @@ def test_platform_timer(device, arduino_cli_cmd, tvm_debug, workspace_dir):
         assert result.mean > 0
         assert len(result.results) == 3
 
-    with _make_add_sess(model, arduino_board, arduino_cli_cmd, workspace_dir, build_config) as sess:
+    with _make_add_sess(model, board, arduino_cli_cmd, workspace_dir, build_config) as sess:
         test_basic_add(sess)
 
 
 @tvm.testing.requires_micro
 @pytest.mark.requires_hardware
-def test_relay(device, arduino_cli_cmd, tvm_debug, workspace_dir):
+def test_relay(board, arduino_cli_cmd, tvm_debug, workspace_dir):
     """Testing a simple relay graph"""
-    model, arduino_board = MICRO_DEVICES[device]
+    model = conftest.ARDUINO_BOARDS[board]
     build_config = {"debug": tvm_debug}
 
     shape = (10,)
@@ -158,7 +156,7 @@ def test_relay(device, arduino_cli_cmd, tvm_debug, workspace_dir):
         mod = tvm.relay.build(func, target=target)
 
     with _make_session(
-        model, arduino_board, arduino_cli_cmd, workspace_dir, mod, build_config
+        model, board, arduino_cli_cmd, workspace_dir, mod, build_config
     ) as session:
         graph_mod = tvm.micro.create_local_graph_executor(
             mod.get_graph_json(), session.get_system_lib(), session.device
@@ -173,9 +171,9 @@ def test_relay(device, arduino_cli_cmd, tvm_debug, workspace_dir):
 
 @tvm.testing.requires_micro
 @pytest.mark.requires_hardware
-def test_onnx(device, arduino_cli_cmd, tvm_debug, workspace_dir):
+def test_onnx(board, arduino_cli_cmd, tvm_debug, workspace_dir):
     """Testing a simple ONNX model."""
-    model, arduino_board = MICRO_DEVICES[device]
+    model = conftest.ARDUINO_BOARDS[board]
     build_config = {"debug": tvm_debug}
 
     # Load test images.
@@ -201,7 +199,7 @@ def test_onnx(device, arduino_cli_cmd, tvm_debug, workspace_dir):
         graph = lowered.get_graph_json()
 
     with _make_session(
-        model, arduino_board, arduino_cli_cmd, workspace_dir, lowered, build_config
+        model, board, arduino_cli_cmd, workspace_dir, lowered, build_config
     ) as session:
         graph_mod = tvm.micro.create_local_graph_executor(
             graph, session.get_system_lib(), session.device
@@ -261,9 +259,9 @@ def check_result(
 
 @tvm.testing.requires_micro
 @pytest.mark.requires_hardware
-def test_byoc_microtvm(device, arduino_cli_cmd, tvm_debug, workspace_dir):
+def test_byoc_microtvm(board, arduino_cli_cmd, tvm_debug, workspace_dir):
     """This is a simple test case to check BYOC capabilities of microTVM"""
-    model, arduino_board = MICRO_DEVICES[device]
+    model = conftest.ARDUINO_BOARDS[board]
     build_config = {"debug": tvm_debug}
 
     x = relay.var("x", shape=(10, 10))
@@ -318,7 +316,7 @@ def test_byoc_microtvm(device, arduino_cli_cmd, tvm_debug, workspace_dir):
         ),
         model=model,
         build_config=build_config,
-        arduino_board=arduino_board,
+        arduino_board=board,
         arduino_cli_cmd=arduino_cli_cmd,
         workspace_dir=workspace_dir,
     )
@@ -345,9 +343,9 @@ def _make_add_sess_with_shape(
 )
 @tvm.testing.requires_micro
 @pytest.mark.requires_hardware
-def test_rpc_large_array(device, arduino_cli_cmd, tvm_debug, workspace_dir, shape):
+def test_rpc_large_array(board, arduino_cli_cmd, tvm_debug, workspace_dir, shape):
     """Test large RPC array transfer."""
-    model, arduino_board = MICRO_DEVICES[device]
+    model = conftest.ARDUINO_BOARDS[board]
     build_config = {"debug": tvm_debug}
 
     # NOTE: run test in a nested function so cPython will delete arrays before closing the session.
@@ -360,7 +358,7 @@ def test_rpc_large_array(device, arduino_cli_cmd, tvm_debug, workspace_dir, shap
         assert (C_data.numpy() == np.zeros(shape)).all()
 
     with _make_add_sess_with_shape(
-        model, arduino_board, arduino_cli_cmd, workspace_dir, shape, build_config
+        model, board, arduino_cli_cmd, workspace_dir, shape, build_config
     ) as sess:
         test_tensors(sess)
 

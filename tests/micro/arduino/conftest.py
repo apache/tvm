@@ -21,6 +21,7 @@ import sys
 
 import pytest
 import tvm.target.target
+from tvm.micro import project
 from tvm import micro, relay
 
 TEMPLATE_PROJECT_DIR = (
@@ -35,22 +36,27 @@ TEMPLATE_PROJECT_DIR = (
 ).resolve()
 
 
-def arduino_micro_devices() -> dict:
-    sys.path.insert(0, str(TEMPLATE_PROJECT_DIR))
-    try:
-        import microtvm_api_server
-    finally:
-        sys.path.pop(0)
+def arduino_boards() -> dict:
+    """Returns a dict mapping board to target"""
+    template = project.TemplateProject.from_directory(TEMPLATE_PROJECT_DIR)
+    project_options = template.info()["project_options"]
+    for option in project_options:
+        if option["name"] == "arduino_board":
+            boards = option["choices"]
+        if option["name"] == "arduino_target":
+            targets = option["choices"]
 
-    return microtvm_api_server.MICRO_DEVICES
+    arduino_boards = {boards[i]: targets[i] for i in range(len(boards))}
+    return arduino_boards
 
+ARDUINO_BOARDS = arduino_boards()
 
 def pytest_addoption(parser):
     parser.addoption(
-        "--microtvm-device",
+        "--arduino-board",
         nargs="+",
         required=True,
-        choices=arduino_micro_devices().keys(),
+        choices=ARDUINO_BOARDS.keys(),
         help="MicroTVM device for tests.",
     )
     parser.addoption(
@@ -89,8 +95,8 @@ def pytest_collection_modifyitems(config, items):
 # (to take advantage of multiple cores / external memory / etc.), so all tests
 # are parameterized by board
 def pytest_generate_tests(metafunc):
-    device = metafunc.config.getoption("microtvm_device")
-    metafunc.parametrize("device", device, scope="session")
+    board = metafunc.config.getoption("arduino_board")
+    metafunc.parametrize("board", board, scope="session")
 
 
 @pytest.fixture(scope="session")
@@ -103,12 +109,11 @@ def tvm_debug(request):
     return request.config.getoption("--tvm-debug")
 
 
-def make_workspace_dir(test_name, device):
-    _, arduino_board = arduino_micro_devices()[device]
+def make_workspace_dir(test_name, board):
     filepath = pathlib.Path(__file__)
     board_workspace = (
         filepath.parent
-        / f"workspace_{test_name}_{arduino_board}"
+        / f"workspace_{test_name}_{board}"
         / datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
     )
 
@@ -122,9 +127,9 @@ def make_workspace_dir(test_name, device):
     return t
 
 
-def make_kws_project(device, arduino_cli_cmd, tvm_debug, workspace_dir):
+def make_kws_project(board, arduino_cli_cmd, tvm_debug, workspace_dir):
     this_dir = pathlib.Path(__file__).parent
-    model, arduino_board = arduino_micro_devices()[device]
+    model = ARDUINO_BOARDS[board]
     build_config = {"debug": tvm_debug}
 
     with open(this_dir.parent / "testdata" / "kws" / "yes_no.tflite", "rb") as f:
@@ -153,7 +158,7 @@ def make_kws_project(device, arduino_cli_cmd, tvm_debug, workspace_dir):
         mod,
         workspace_dir / "project",
         {
-            "arduino_board": arduino_board,
+            "arduino_board": board,
             "arduino_cli_cmd": arduino_cli_cmd,
             "project_type": "example_project",
             "verbose": bool(build_config.get("debug")),

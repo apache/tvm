@@ -43,20 +43,6 @@ MODEL_LIBRARY_FORMAT_PATH = API_SERVER_DIR / MODEL_LIBRARY_FORMAT_RELPATH
 
 IS_TEMPLATE = not (API_SERVER_DIR / MODEL_LIBRARY_FORMAT_RELPATH).exists()
 
-# Maps a short, identifying microtvm device string to (target, arduino_board).
-MICRO_DEVICES = {
-    "due": ("sam3x8e", "due"),
-    "feathers2": ("esp32", "feathers2"),
-    "metrom4": ("atsamd51", "metrom4"),
-    "nano33ble": ("nrf52840", "nano33ble"),
-    "pybadge": ("atsamd51", "pybadge"),
-    "spresense": ("cxd5602gg", "spresense"),
-    "teensy40": ("imxrt1060", "teensy40"),
-    "teensy41": ("imxrt1060", "teensy41"),
-    "wioterminal": ("atsamd51", "wioterminal"),
-}
-
-
 class BoardAutodetectFailed(Exception):
     """Raised when no attached hardware is found matching the requested board"""
 
@@ -70,6 +56,7 @@ BOARD_PROPERTIES = {
         "package": "arduino",
         "architecture": "sam",
         "board": "arduino_due_x_dbg",
+        "target": "sam3x8e",
     },
     # Due to the way the Feather S2 bootloader works, compilation
     # behaves fine but uploads cannot be done automatically
@@ -77,27 +64,32 @@ BOARD_PROPERTIES = {
         "package": "esp32",
         "architecture": "esp32",
         "board": "feathers2",
+        "target": "esp32",
     },
     "metrom4": {
         "package": "adafruit",
         "architecture": "samd",
         "board": "adafruit_metro_m4",
+        "target": "atsamd51"
     },
     # Spresense only works as of its v2.3.0 sdk
     "spresense": {
         "package": "SPRESENSE",
         "architecture": "spresense",
         "board": "spresense",
+        "target": "cxd5602gg",
     },
     "nano33ble": {
         "package": "arduino",
         "architecture": "mbed_nano",
         "board": "nano33ble",
+        "target": "nrf52840",
     },
     "pybadge": {
         "package": "adafruit",
         "architecture": "samd",
         "board": "adafruit_pybadge_m4",
+        "target": "atsamd51",
     },
     # The Teensy boards are listed here for completeness, but they
     # won't work until https://github.com/arduino/arduino-cli/issues/700
@@ -106,16 +98,19 @@ BOARD_PROPERTIES = {
         "package": "teensy",
         "architecture": "avr",
         "board": "teensy40",
+        "target": "imxrt1060",
     },
     "teensy41": {
         "package": "teensy",
         "architecture": "avr",
         "board": "teensy41",
+        "target": "imxrt1060",
     },
     "wioterminal": {
         "package": "Seeeduino",
         "architecture": "samd",
         "board": "seeed_wio_terminal",
+        "target": "atsamd51",
     },
 }
 
@@ -126,6 +121,11 @@ PROJECT_OPTIONS = [
         "arduino_board",
         choices=list(BOARD_PROPERTIES),
         help="Name of the Arduino board to build for",
+    ),
+    server.ProjectOption(
+        "arduino_target",
+        choices=[board["target"] for _,board in BOARD_PROPERTIES.items()],
+        help="Name of the target for each Arduino board.",
     ),
     server.ProjectOption("arduino_cli_cmd", help="Path to the arduino-cli tool."),
     server.ProjectOption("port", help="Port to use for connecting to hardware"),
