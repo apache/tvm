@@ -150,6 +150,17 @@ REQUIREMENTS_BY_PIECE: RequirementsByPieceType = [
             ],
         ),
     ),
+    # Vitis AI requirements
+    (
+        "vitis-ai",
+        (
+            "Requirements for the Vitis AI codegen",
+            [
+                "h5py",
+                "progressbar",
+            ],
+        ),
+    ),
     # XGBoost, useful for autotuning on some targets.
     (
         "xgboost",
@@ -217,6 +228,7 @@ CONSTRAINTS = [
     ),  # Work around https://github.com/readthedocs/sphinx_rtd_theme/issues/1115
     ("ethos-u-vela", "==2.1.1"),
     ("future", None),
+    ("h5py", "==2.10.0"),
     ("image", None),
     ("matplotlib", None),
     ("numpy", None),
@@ -224,6 +236,7 @@ CONSTRAINTS = [
     ("onnxruntime", None),
     ("opencv-python", None),
     ("pillow", None),
+    ("progressbar", None),
     ("psutil", None),
     ("pylint", None),
     ("scipy", None),
