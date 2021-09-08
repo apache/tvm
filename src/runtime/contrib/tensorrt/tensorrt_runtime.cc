@@ -78,9 +78,9 @@ class TensorRTRuntime : public JSONRuntimeBase {
           multi_engine_mode_ = dmlc::GetEnv("TVM_TENSORRT_MULTI_ENGINE", false);
           if (use_int8) {
             const int extract_cali_num = dmlc::GetEnv("TENSORRT_NUM_CALI_INT8", 0);
-            ICHECK(extract_cali_num != 0) << "When using INT8 mode, environment variable TENSORRT_NUM_CALI_INT8" 
-                                          << "must also be set to specify the number of inputs which will be" 
-                                          << " used for calibration.";
+            ICHECK(extract_cali_num != 0) << "When using INT8 mode, "
+                                          << "environment variable TENSORRT_NUM_CALI_INT8"
+                                          << "must also be set to specify the number of calibration times";
             num_calibration_batches_remaining_ = extract_cali_num;
             LOG(INFO) << "settiing up " <<
                       num_calibration_batches_remaining_ <<
@@ -269,8 +269,10 @@ class TensorRTRuntime : public JSONRuntimeBase {
     int compatible_engine_batch_size = -1;
     bool find_engine_flag = FindCompatibleEngine(batch_size, &compatible_engine_batch_size);
     const bool use_int8 = (dmlc::GetEnv("TVM_TENSORRT_USE_INT8", 0) != 0);
-    const bool int8_calibration_not_used_or_not_complete = (calibrator_ != nullptr && num_calibration_batches_remaining_ != 0); 
-    if (find_engine_flag && (!use_int8 || calibrator_ == nullptr || int8_calibration_not_used_or_not_complete)) {
+    const bool int8_calibration_not_used_or_not_complete =
+                  (calibrator_ != nullptr && num_calibration_batches_remaining_ != 0);
+    if (find_engine_flag && (!use_int8 || calibrator_ == nullptr 
+                    || int8_calibration_not_used_or_not_complete)) {
       // A compatible engine already exists.
       return trt_engine_cache_.at(std::make_pair(symbol_name_, compatible_engine_batch_size));
     }

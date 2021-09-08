@@ -33,7 +33,7 @@ namespace tvm {
 namespace runtime {
 
 class TensorRTCalibrator : public nvinfer1::IInt8EntropyCalibrator2 {
-public:
+ public:
   TensorRTCalibrator(int batch_size,
                      const std::vector<std::string> &input_names)
       : batch_size_(batch_size), num_batches_calibrated_(0),
@@ -100,7 +100,7 @@ public:
     calibration_cache_.assign(static_cast<const char *>(cache), length);
   }
 
-private:
+ private:
   /*! \brief Batch size. */
   int batch_size_;
   /*! \brief Number of batches already fed to calibrator. */
@@ -133,6 +133,6 @@ private:
   }
 };
 
-} // namespace runtime
-} // namespace tvm
-#endif // TVM_RUNTIME_CONTRIB_TENSORRT_TENSORRT_CALIBRATOR_H_
+}  // namespace runtime
+}  // namespace tvm
+#endif  // TVM_RUNTIME_CONTRIB_TENSORRT_TENSORRT_CALIBRATOR_H_
