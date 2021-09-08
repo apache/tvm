@@ -937,7 +937,7 @@ def test_div_zero_simplify():
     ck = RewriteChecker()
 
     with pytest.raises(tvm.error.TVMError) as cm:
-        ck.analyzer.rewrite_simplify(tvm.tir.Div(tvm.tir.Ramp(1,1,2), tvm.tir.Broadcast(0, 2)))
+        ck.analyzer.rewrite_simplify(tvm.tir.Div(tvm.tir.Ramp(1, 1, 2), tvm.tir.Broadcast(0, 2)))
         assert "division by zero" in str(cm.execption)
 
 
