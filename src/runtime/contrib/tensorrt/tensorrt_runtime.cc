@@ -83,8 +83,8 @@ class TensorRTRuntime : public JSONRuntimeBase {
                                     << "must also be set to specify the number of "
                                     << "calibration times";
       num_calibration_batches_remaining_ = extract_cali_num;
-      LOG(INFO) << "settiing up " << num_calibration_batches_remaining_ <<
-                " sample data to calibrate data ... ";
+      LOG(INFO) << "settiing up " << num_calibration_batches_remaining_ 
+                << " sample data to calibrate data ... ";
       ICHECK(multi_engine_mode_ == false) << "When using int8 mode, "
                                           << "multi-engine is not allowed";
     }
@@ -196,7 +196,6 @@ class TensorRTRuntime : public JSONRuntimeBase {
       return;
     }
 
-
     // Setup output bindings.
     for (size_t i = 0; i < outputs_.size(); ++i) {
       uint32_t eid = EntryID(outputs_[i]);
@@ -210,7 +209,6 @@ class TensorRTRuntime : public JSONRuntimeBase {
         bindings[binding_index] = device_buffer->data;
       }
     }
-
 
 #if TRT_VERSION_GE(6, 0, 1)
     if (use_implicit_batch_) {
@@ -270,7 +268,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
     bool find_engine_flag = FindCompatibleEngine(batch_size, &compatible_engine_batch_size);
     const bool use_int8 = (dmlc::GetEnv("TVM_TENSORRT_USE_INT8", 0) != 0);
     const bool int8_calibration_not_used_or_not_complete =
-                  (calibrator_ != nullptr && num_calibration_batches_remaining_ != 0);
+        (calibrator_ != nullptr && num_calibration_batches_remaining_ != 0);
     if (find_engine_flag &&
         (!use_int8 || calibrator_ == nullptr || int8_calibration_not_used_or_not_complete)) {
       // A compatible engine already exists.
@@ -311,17 +309,17 @@ class TensorRTRuntime : public JSONRuntimeBase {
     TensorRTBuilder builder(&logger_, data_entry_, max_workspace_size_, use_implicit_batch_,
                             use_fp16, batch_size, calibrator_.get());
     for (size_t i = 0; i < input_nodes_.size(); ++i) {
-        auto nid = input_nodes_[i];
-        const auto& node = nodes_[nid];
-        std::string name = node.GetOpName();
-        if (node.GetOpType() == "input") {
-            builder.AddInput(nid, EntryID(nid, 0), node);
-          } else {
-            ICHECK_EQ(node.GetOpType(), "const");
-            uint32_t eid = EntryID(nid, 0);
-            builder.AddConstant(nid, data_entry_[eid]);
-          }
-        }
+      auto nid = input_nodes_[i];
+      const auto& node = nodes_[nid];
+      std::string name = node.GetOpName();
+      if (node.GetOpType() == "input") {
+          builder.AddInput(nid, EntryID(nid, 0), node);
+      } else {
+          ICHECK_EQ(node.GetOpType(), "const");
+          uint32_t eid = EntryID(nid, 0);
+          builder.AddConstant(nid, data_entry_[eid]);
+      }
+    }
 
     // Add layers.
     for (size_t nid = 0; nid < nodes_.size(); ++nid) {
