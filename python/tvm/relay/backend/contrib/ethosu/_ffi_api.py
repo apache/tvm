@@ -14,20 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Distributed executor infrastructure to scale up the tuning"""
+"""FFI APIs for relay transformation passes."""
+import tvm._ffi  # type: ignore
 
-from .measure import (
-    MeasureInput,
-    MeasureResult,
-    MeasureErrorNo,
-    measure_option,
-    create_measure_batch,
-)
-from .measure_methods import (
-    LocalBuilder,
-    LocalRunner,
-    RPCRunner,
-    default_module_loader,
-    request_remote,
-)
-from .executor import Executor
+tvm._ffi._init_api("relay.ext.ethosu", __name__)

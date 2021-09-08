@@ -14,20 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Distributed executor infrastructure to scale up the tuning"""
+"Relay operators for the Arm(R) Ethos(TM)-U NPU"
 
-from .measure import (
-    MeasureInput,
-    MeasureResult,
-    MeasureErrorNo,
-    measure_option,
-    create_measure_batch,
-)
-from .measure_methods import (
-    LocalBuilder,
-    LocalRunner,
-    RPCRunner,
-    default_module_loader,
-    request_remote,
-)
-from .executor import Executor
+from .convolution import ethosu_conv2d

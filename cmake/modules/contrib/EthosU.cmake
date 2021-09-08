@@ -14,20 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Distributed executor infrastructure to scale up the tuning"""
 
-from .measure import (
-    MeasureInput,
-    MeasureResult,
-    MeasureErrorNo,
-    measure_option,
-    create_measure_batch,
-)
-from .measure_methods import (
-    LocalBuilder,
-    LocalRunner,
-    RPCRunner,
-    default_module_loader,
-    request_remote,
-)
-from .executor import Executor
+if(USE_ETHOSU)
+  file(GLOB ETHOSU_RELAY_CONTRIB_SRC src/relay/backend/contrib/ethosu/*)
+  list(APPEND COMPILER_SRCS ${ETHOSU_RELAY_CONTRIB_SRC})
+endif(USE_ETHOSU)
