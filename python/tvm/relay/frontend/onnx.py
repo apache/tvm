@@ -490,7 +490,7 @@ class Conv(OnnxOpConverter):
                 attr["dilations"] = [1] + list(attr["dilations"])
             if "pads" in attr:
                 attr["pads"] = [0, attr["pads"][0], 0, attr["pads"][1]]
-
+        attr["channels"] = kernel_shapes[0][0]
         out = AttrCvt(
             op_name=dimension_picker("conv"),
             transforms={
