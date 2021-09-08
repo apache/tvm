@@ -313,11 +313,11 @@ class TensorRTRuntime : public JSONRuntimeBase {
       const auto& node = nodes_[nid];
       std::string name = node.GetOpName();
       if (node.GetOpType() == "input") {
-          builder.AddInput(nid, EntryID(nid, 0), node);
+        builder.AddInput(nid, EntryID(nid, 0), node);
       } else {
-          ICHECK_EQ(node.GetOpType(), "const");
-          uint32_t eid = EntryID(nid, 0);
-          builder.AddConstant(nid, data_entry_[eid]);
+        ICHECK_EQ(node.GetOpType(), "const");
+        uint32_t eid = EntryID(nid, 0);
+        builder.AddConstant(nid, data_entry_[eid]);
       }
     }
 
