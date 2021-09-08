@@ -60,14 +60,14 @@ def test_trt_int8():
     """
     if skip_codegen_test() or skip_runtime_test():
         return
-    
+
     try:
         from PIL import Image
         from scipy.spatial import distance
     except:
         print("install scipy and Image python package")
         return
-    
+
     os.environ["TVM_TENSORRT_USE_INT8"] = "1"
     os.environ["TENSORRT_NUM_CALI_INT8"] = "10"
     model_name = "resnet34"
