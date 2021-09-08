@@ -978,16 +978,16 @@ def convert_range(g, op, block):
     step = g.get_node(op.input("Step")[0])
     dtype = infer_type(start).checked_type.dtype
 
-    attr_list = []
-    for attr in (start, stop, step):
-        attr = _infer_value(attr, g.get_params())
-        if isinstance(attr, _expr.Expr):
-            attr = _op.squeeze(attr)
+    params = []
+    for param in (start, stop, step):
+        param = _infer_value(param, g.get_params())
+        if isinstance(param, _expr.Expr):
+            param = _op.squeeze(param)
         else:
-            attr = _op.const(attr[0], dtype=dtype)
-        attr_list.append(attr)
+            param = _op.const(param[0], dtype=dtype)
+        params.append(param)
 
-    out = _op.transform.arange(attr_list[0], attr_list[1], attr_list[2], dtype=dtype)
+    out = _op.transform.arange(params[0], params[1], params[2], dtype=dtype)
     g.add_node(op.output("Out")[0], out)
 
 
