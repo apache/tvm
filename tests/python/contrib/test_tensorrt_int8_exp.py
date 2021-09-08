@@ -54,6 +54,7 @@ def skip_runtime_test():
         return True
     return False
 
+
 def cosine_distance(a, b):
     res = distance.cosine(a, b)
     return res
