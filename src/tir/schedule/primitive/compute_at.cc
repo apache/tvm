@@ -33,7 +33,7 @@ template <bool is_consumer>
 class NotAllRequiredBlocksAreVisitedError : public ScheduleError {
  public:
   explicit NotAllRequiredBlocksAreVisitedError(IRModule mod, int num_not_visited,
-                                               Array<StmtSRef> required)
+                                               const Array<StmtSRef>& required)
       : mod_(mod), num_not_visited_(num_not_visited) {
     required_.reserve(required.size());
     for (const StmtSRef& block_sref : required) {
@@ -51,8 +51,8 @@ class NotAllRequiredBlocksAreVisitedError : public ScheduleError {
     std::ostringstream os;
     os << "The primitive requires all the " << relation
        << " of the given block to be present under the target loop. However, there are "
-       << num_not_visited_ << " " << relation
-       << " not satisfying the constraint. List of the producers:";
+       << num_not_visited_ << " " << relation << " not satisfying the constraint. List of the "
+       << relation << ":";
     for (int i = 0, n = required_.size(); i < n; ++i) {
       os << "{" << i << "}";
     }
