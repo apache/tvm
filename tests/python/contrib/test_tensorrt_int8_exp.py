@@ -31,7 +31,6 @@ from tvm.relay.op.contrib.tensorrt import partition_for_tensorrt
 import torch
 import torchvision
 from torchvision import transforms
-from test_tensorrt import 
 
 
 def skip_codegen_test():
@@ -67,7 +66,7 @@ def test_trt_int8():
     """
     if skip_codegen_test() or skip_runtime_test():
         return
-        
+
     os.environ["TVM_TENSORRT_USE_INT8"] = "1"
     os.environ["TENSORRT_NUM_CALI_INT8"] = "10"
     model_name = "resnet34"
