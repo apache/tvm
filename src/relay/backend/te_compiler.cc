@@ -800,7 +800,7 @@ void UpdateFunctionMetadata(Function relay_func,
     CHECK(prim_fn.defined()) << "the primitive function must be defined";
 
     auto workspace_byte_alignment =
-        relay_target.value()->GetAttr<Integer>("workspace_byte_alignment").value_or(16);
+        relay_target.value()->GetAttr<Integer>("workspace-byte-alignment").value_or(16);
 
     Integer workspace_size = CalculateWorkspaceBytes(prim_fn, workspace_byte_alignment);
 

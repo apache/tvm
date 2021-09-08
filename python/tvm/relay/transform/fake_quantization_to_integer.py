@@ -257,7 +257,8 @@ def relu(expr, type_map):
     t = type_map[arg]
     scale_shape = infer_shape(t.scale)
     z_p = t.zero_point
-    if len(scale_shape) > 0 and scale_shape[0] > 1:
+    assert len(scale_shape) <= 1
+    if len(scale_shape) == 1 and scale_shape[0] > 1:
         b_shape = [1] * len(infer_shape(arg))
         b_shape[t.axis] = -1
         z_p = relay.op.reshape(relay.op.broadcast_to(z_p, scale_shape), b_shape)

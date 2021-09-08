@@ -14,11 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""scheduler for normalization functions on rocm backend"""
-from __future__ import absolute_import as _abs
 
-from .. import cpp
+""" Schedules for Hexagon. """
 
+# pylint: disable=wildcard-import
 
-def schedule_lrn(outs):
-    return cpp.rocm.schedule_lrn(outs)
+from .conv2d import *

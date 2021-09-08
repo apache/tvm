@@ -48,6 +48,9 @@ class TensorAffineType(AffineType):
 
     dtype : str
         The content data type.
+
+    axis : int
+        The axis for per-channel quantization.
     """
 
     def __init__(self, scale, zero_point, dtype, axis=-1):

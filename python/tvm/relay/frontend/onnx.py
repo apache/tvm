@@ -196,6 +196,17 @@ def dimension_constraint():
     return _dim_check, "Only 1d, 2d and 3d kernel supported."
 
 
+def get_scalar(x, params, dtype="float32"):
+    """Helper to get a scalar value for Quantized operators."""
+    if isinstance(x, _expr.Var) and x.name_hint in params:
+        return _op.const(params[x.name_hint].numpy(), dtype)
+    rank = len(infer_shape(x))
+    assert rank <= 1, "scale and zero_point input must be scalars"
+    if rank == 1:
+        x = _op.squeeze(x, [0])
+    return _op.cast(x, dtype)
+
+
 class OnnxOpConverter(object):
     """A helper class for holding onnx op converters."""
 
@@ -1010,6 +1021,32 @@ class ParametricSoftPlus(OnnxOpConverter):
         return _op.log(_op.exp(beta * inputs[0]) + _expr.const(1.0)) * alpha
 
 
+class Pow(OnnxOpConverter):
+    """Operator converter for Pow."""
+
+    @classmethod
+    def _impl_v13(cls, inputs, attr, params):
+        x = inputs[0]
+        y = inputs[1]
+
+        x_type = infer_type(x).checked_type.dtype
+        output_type = x_type
+        y_type = infer_type(y).checked_type.dtype
+
+        if not x_type.startswith("float"):
+            x_type = "float32"
+            x = _op.cast(x, x_type)
+
+        if x_type != y_type:
+            y = _op.cast(y, x_type)
+
+        # TODO: come up with good default integer pow() func for common backends
+        result = _op.power(x, y)
+        if x_type != output_type:
+            return _op.cast(result, output_type)
+        return result
+
+
 class Prelu(OnnxOpConverter):
     """Operator converter for Prelu."""
 
@@ -1382,20 +1419,13 @@ class Slice(OnnxOpConverter):
 
     @classmethod
     def _common(cls, starts, ends, axes):
-        new_axes = []
-        new_starts = []
-        new_ends = []
-        pop_index = 0
-        for i in range(max(axes) + 1):
-            if i in axes:
-                new_axes.append(i)
-                new_starts.append(starts[pop_index])
-                new_ends.append(ends[pop_index])
-                pop_index += 1
-            else:
-                new_axes.append(i)
-                new_starts.append(0)
-                new_ends.append(np.iinfo(np.int32).max)
+        N = max(axes) + 1
+        new_axes = list(range(N))
+        new_starts = [0] * N
+        new_ends = [np.iinfo(np.int32).max] * N
+        for i, axis in enumerate(axes):
+            new_starts[axis] = starts[i]
+            new_ends[axis] = ends[i]
         return new_starts, new_ends, new_axes
 
     @classmethod
@@ -1408,13 +1438,10 @@ class Slice(OnnxOpConverter):
             # Update the starts and ends according to axes if required.
             if isinstance(attr["axes"], int):
                 attr["axes"] = (attr["axes"],)
-            if (max(attr["axes"]) + 1) != len(attr["axes"]):
-                new_starts, new_ends, new_axes = cls._common(
-                    attr["starts"], attr["ends"], attr["axes"]
-                )
-                attr["axes"] = new_axes
-                attr["starts"] = new_starts
-                attr["ends"] = new_ends
+            new_starts, new_ends, new_axes = cls._common(attr["starts"], attr["ends"], attr["axes"])
+            attr["axes"] = new_axes
+            attr["starts"] = new_starts
+            attr["ends"] = new_ends
         except KeyError:
             pass
         begin = list(attr["starts"])
@@ -1898,6 +1925,23 @@ class Hardmax(OnnxOpConverter):
             dtype,
         )
         return _op.reshape(onehot, shape_of(inputs[0]))
+
+    @classmethod
+    def _impl_v13(cls, inputs, attr, params) -> relay.Expr:
+        inferred_type = infer_type(inputs[0])
+        dtype = inferred_type.checked_type.dtype
+        ndim = len(inferred_type.checked_type.shape)
+        axis = attr.get("axis", -1) % ndim
+
+        argmax = _op.argmax(inputs[0], axis=axis)
+        return _op.one_hot(
+            argmax,
+            _op.const(1.0, dtype),
+            _op.const(0.0, dtype),
+            fold_constant(_op.take(shape_of(inputs[0]), _op.const([axis], "int64"))),
+            axis,
+            dtype,
+        )
 
 
 class OneHot(OnnxOpConverter):
@@ -3179,23 +3223,14 @@ class QLinearConv(OnnxOpConverter):
 
     @classmethod
     def _impl_v10(cls, inputs, attr, params):
-        def get_scalar(x, dtype="float32"):
-            if isinstance(x, _expr.Var) and x.name_hint in params:
-                return _op.const(params[x.name_hint].numpy(), dtype)
-            rank = len(infer_shape(x))
-            assert rank <= 1, "QLinearConv scale and zero_point input must be scalars"
-            if rank == 1:
-                x = _op.squeeze(x, [0])
-            return _op.cast(x, dtype)
-
         data = inputs[0]
-        x_scale = get_scalar(inputs[1])
-        x_zero_point = get_scalar(inputs[2], "int32")
+        x_scale = get_scalar(inputs[1], params)
+        x_zero_point = get_scalar(inputs[2], params, "int32")
         weight = inputs[3]
-        w_scale = get_scalar(inputs[4])
-        w_zero_point = get_scalar(inputs[5], "int32")
-        y_scale = fold_constant(get_scalar(inputs[6]))
-        y_zero_point = get_scalar(inputs[7], "int32")
+        w_scale = get_scalar(inputs[4], params)
+        w_zero_point = get_scalar(inputs[5], params, "int32")
+        y_scale = fold_constant(get_scalar(inputs[6], params))
+        y_zero_point = get_scalar(inputs[7], params, "int32")
 
         input_shape = infer_shape(data)
 
@@ -3283,23 +3318,14 @@ class QLinearAdd(OnnxOpConverter):
 
     @classmethod
     def _impl_v10(cls, inputs, attr, params):
-        def get_scalar(x, dtype="float32"):
-            if isinstance(x, _expr.Var) and x.name_hint in params:
-                return _op.const(params[x.name_hint].numpy(), dtype)
-            rank = len(infer_shape(x))
-            assert rank <= 1, "QLinearConv scale and zero_point input must be scalars"
-            if rank == 1:
-                x = _op.squeeze(x, [0])
-            return _op.cast(x, dtype)
-
         a = inputs[0]
-        a_scale = get_scalar(inputs[1])
-        a_zero_point = get_scalar(inputs[2], "int32")
+        a_scale = get_scalar(inputs[1], params)
+        a_zero_point = get_scalar(inputs[2], params, "int32")
         b = inputs[3]
-        b_scale = get_scalar(inputs[4])
-        b_zero_point = get_scalar(inputs[5], "int32")
-        c_scale = get_scalar(inputs[6])
-        c_zero_point = get_scalar(inputs[7], "int32")
+        b_scale = get_scalar(inputs[4], params)
+        b_zero_point = get_scalar(inputs[5], params, "int32")
+        c_scale = get_scalar(inputs[6], params)
+        c_zero_point = get_scalar(inputs[7], params, "int32")
 
         dtype = infer_type(a).checked_type.dtype
 
@@ -3321,23 +3347,14 @@ class QLinearMul(OnnxOpConverter):
 
     @classmethod
     def _impl_v10(cls, inputs, attr, params):
-        def get_scalar(x, dtype="float32"):
-            if isinstance(x, _expr.Var) and x.name_hint in params:
-                return _op.const(params[x.name_hint].numpy(), dtype)
-            rank = len(infer_shape(x))
-            assert rank <= 1, "QLinearMul scale and zero_point input must be scalars"
-            if rank == 1:
-                x = _op.squeeze(x, [0])
-            return _op.cast(x, dtype)
-
         a = inputs[0]
-        a_scale = get_scalar(inputs[1])
-        a_zero_point = get_scalar(inputs[2], "int32")
+        a_scale = get_scalar(inputs[1], params)
+        a_zero_point = get_scalar(inputs[2], params, "int32")
         b = inputs[3]
-        b_scale = get_scalar(inputs[4])
-        b_zero_point = get_scalar(inputs[5], "int32")
-        y_scale = fold_constant(get_scalar(inputs[6]))
-        y_zero_point = get_scalar(inputs[7], "int32")
+        b_scale = get_scalar(inputs[4], params)
+        b_zero_point = get_scalar(inputs[5], params, "int32")
+        y_scale = fold_constant(get_scalar(inputs[6], params))
+        y_zero_point = get_scalar(inputs[7], params, "int32")
 
         dtype = infer_type(a).checked_type.dtype
 
@@ -3348,6 +3365,32 @@ class QLinearMul(OnnxOpConverter):
         b = _qnn.op.dequantize(inputs[3], b_scale, b_zero_point)
         out = _op.multiply(a, b)
         return _qnn.op.quantize(out, y_scale, y_zero_point, out_dtype=dtype)
+
+
+class QLinearConcat(OnnxOpConverter):
+    """Operator converter for QLinearConcat from Microsoft onnxruntime contrib opset."""
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        # which axis to concat on
+        axis = attr["axis"]
+
+        y_scale = fold_constant(get_scalar(inputs[0], params))
+        y_zero_point = get_scalar(inputs[1], params, "int32")
+
+        # input tensors, scales, zero_points
+        assert (
+            len(inputs) % 3 == 2
+        ), "Additional input count must be a multiple of 3 -- tensor/scale/zero_point tuples"
+        tensors = []
+        scales = []
+        zero_points = []
+        for i in range(2, len(inputs), 3):
+            tensors.append(inputs[i])
+            scales.append(get_scalar(inputs[i + 1], params))
+            zero_points.append(get_scalar(inputs[i + 2], params, "int32"))
+
+        return _qnn.op.concatenate(tensors, scales, zero_points, y_scale, y_zero_point, axis)
 
 
 class ConvInteger(OnnxOpConverter):
@@ -3627,7 +3670,7 @@ def _get_convert_map(opset):
         "Sinh": Renamer("sinh"),
         "Tan": Renamer("tan"),
         "Tanh": Renamer("tanh"),
-        "Pow": Renamer("power"),
+        "Pow": Pow.get_converter(opset),
         "PRelu": Prelu.get_converter(opset),
         "Sigmoid": Renamer("sigmoid"),
         "HardSigmoid": HardSigmoid.get_converter(opset),
@@ -3731,6 +3774,7 @@ def _get_convert_map(opset):
         "DynamicQuantizeLinear": DynamicQuantizeLinear.get_converter(opset),
         "ReverseSequence": ReverseSequence.get_converter(opset),
         "QLinearConv": QLinearConv.get_converter(opset),
+        "QLinearConcat": QLinearConcat.get_converter(opset),
         "QLinearAdd": QLinearAdd.get_converter(opset),
         "QLinearMul": QLinearMul.get_converter(opset),
         "ConvInteger": ConvInteger.get_converter(opset),
