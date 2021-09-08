@@ -26,6 +26,7 @@ import tvm.relay.testing
 from tvm import relay
 from tvm.contrib.download import download_testdata
 from tvm.relay.op.contrib.tensorrt import partition_for_tensorrt
+from tvm.relay.op.contrib import tensorrt
 
 # PyTorch imports
 import torch
@@ -142,4 +143,5 @@ def test_trt_int8():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    test_trt_int8()
+    # pytest.main([__file__])
