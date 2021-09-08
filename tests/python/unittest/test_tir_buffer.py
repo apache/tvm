@@ -86,11 +86,13 @@ def test_buffer_vload():
 
 
 def test_buffer_vload_nullptr():
-    var = tvm.tir.Var('v',dtype='int32')
-    buf = tvm.tir.decl_buffer((1,), name='buf')
+    var = tvm.tir.Var("v", dtype="int32")
+    buf = tvm.tir.decl_buffer((1,), name="buf")
     buf_load = tvm.tir.expr.BufferLoad(buffer=buf, indices=tvm.runtime.convert([0]))
     buf_load_stmt = tvm.tir.stmt.Evaluate(buf_load)
-    for_loop = tvm.tir.stmt.For(loop_var=var, kind=0, min_val=0, extent=buf_load, body=buf_load_stmt)
+    for_loop = tvm.tir.stmt.For(
+        loop_var=var, kind=0, min_val=0, extent=buf_load, body=buf_load_stmt
+    )
     buf_func = tvm.tir.PrimFunc(params={}, body=for_loop)
     mod = tvm.IRModule({"main": buf_func})
     # Trigger nullptr buffer bug by pass
@@ -99,7 +101,7 @@ def test_buffer_vload_nullptr():
             [
                 tvm.tir.transform.PlanAndUpdateBufferAllocationLocation(),
                 tvm.tir.transform.CompactBufferAllocation(),
-                tvm.tir.transform.FlattenBuffer()
+                tvm.tir.transform.FlattenBuffer(),
             ]
         )(mod)
         assert "(n != nullptr) is false" in str(cm.execption)
