@@ -1007,6 +1007,27 @@ def convert_padding(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_range(g, op, block):
+    """Operator converter for range."""
+
+    start = g.get_node(op.input("Start")[0])
+    stop = g.get_node(op.input("End")[0])
+    step = g.get_node(op.input("Step")[0])
+    dtype = infer_type(start).checked_type.dtype
+
+    params = []
+    for param in (start, stop, step):
+        param = _infer_value(param, g.get_params())
+        if isinstance(param, _expr.Expr):
+            param = _op.squeeze(param)
+        else:
+            param = _op.const(param[0], dtype=dtype)
+        params.append(param)
+
+    out = _op.transform.arange(params[0], params[1], params[2], dtype=dtype)
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_reduce(g, op, block):
     """Operator converter for reduce."""
 
@@ -1286,6 +1307,43 @@ def convert_squeeze(g, op, block):
     g.add_node(op.output("Out")[0], x)
 
 
+def convert_stack(g, op, block):
+    """Operator converter for stack."""
+
+    x = op.input("X")
+    x = [g.get_node(i) for i in x]
+    axis = op.attr("axis")
+    out = _op.stack(x, axis)
+    g.add_node(op.output("Y")[0], out)
+
+
+def convert_tile(g, op, block):
+    """Operator converter for tile."""
+
+    input_x = g.get_node(op.input("X")[0])
+    repeat_times = op.input("RepeatTimes")
+    repeat_times_tensor = op.input("repeat_times_tensor")
+    if repeat_times:
+        repeat_times = g.get_node(repeat_times[0])
+    elif repeat_times_tensor:
+        tmp_shape = []
+        for shape_name in repeat_times_tensor:
+            shape = g.get_node(shape_name)
+            if len(infer_shape(shape)) == 0:
+                shape = _op.reshape(shape, [-1])
+            if isinstance(shape, _expr.Constant):
+                tmp_shape.append(shape)
+            elif isinstance(shape, _expr.Expr):
+                tmp_shape.append(shape)
+            else:
+                tmp_shape.append(_expr.const(np.array(shape).astype("int32")))
+        repeat_times = _op.concatenate(tmp_shape, axis=0)
+    else:
+        repeat_times = op.attr("repeat_times")
+    out = _op.tile(input_x, repeat_times)
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_transpose(g, op, block):
     """Operator converter for transpose."""
 
@@ -1365,6 +1423,7 @@ _convert_map = {
     "pad1d": convert_padding,
     "pad2d": convert_padding,
     "pad3d": convert_padding,
+    "range": convert_range,
     "reduce_all": convert_reduce,
     "relu": convert_unary_op,
     "reshape2": convert_reshape,
@@ -1376,8 +1435,10 @@ _convert_map = {
     "slice": convert_slice,
     "softmax": convert_softmax,
     "squeeze2": convert_squeeze,
+    "stack": convert_stack,
     "tan": convert_unary_op,
     "tanh": convert_unary_op,
+    "tile": convert_tile,
     "transpose2": convert_transpose,
     "unsqueeze2": convert_unsqueeze,
 }
