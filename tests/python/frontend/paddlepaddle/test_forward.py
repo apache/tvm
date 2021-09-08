@@ -23,6 +23,7 @@ import paddle
 import paddle.nn as nn
 
 import tvm
+from tvm.contrib.sparse import array
 import tvm.testing
 import tvm.topi.testing
 from tvm import relay
@@ -204,6 +205,22 @@ def test_forward_addmm():
     x_data = paddle.rand(x_shape, dtype="float32")
     y_data = paddle.rand(y_shape, dtype="float32")
     verify_model(addmm, input_data=[input_data, x_data, y_data])
+
+
+@tvm.testing.uses_gpu
+def test_forward_arange():
+    @paddle.jit.to_static
+    def arange(inputs):
+        return paddle.arange(paddle.shape(inputs)[0], 9, 2.0)
+
+    @paddle.jit.to_static
+    def arange2(inputs):
+        return paddle.arange(0, 10.0, paddle.shape(inputs)[1], dtype="float32")
+
+    input_shape = [2, 2]
+    input_data = paddle.rand(input_shape, dtype="float32")
+    verify_model(arange, input_data)
+    verify_model(arange2, input_data=input_data)
 
 
 @tvm.testing.uses_gpu
@@ -1239,9 +1256,59 @@ def test_forward_topk():
     verify_model(Topk6(), input_data=input_data)
 
 
+@tvm.testing.uses_gpu
+def test_forward_stack():
+    @paddle.jit.to_static
+    def stack(input1, input2, input3):
+        return paddle.stack([input1, input2, input3])
+
+    @paddle.jit.to_static
+    def stack2(input1, input2, input3):
+        return paddle.stack([input1, input2, input3], axis=-1)
+
+    input_shape = [2, 3]
+    input_data = paddle.rand(input_shape, dtype="float32")
+    input_data2 = paddle.rand(input_shape, dtype="float32")
+    input_data3 = paddle.rand(input_shape, dtype="float32")
+    verify_model(stack, input_data=[input_data, input_data2, input_data3])
+    verify_model(stack2, input_data=[input_data, input_data2, input_data3])
+
+
+@tvm.testing.uses_gpu
+def test_forward_tile():
+    @paddle.jit.to_static
+    def tile(inputs):
+        return paddle.tile(inputs, [3, 2])
+
+    @paddle.jit.to_static
+    def tile2(inputs, inputs2):
+        inputs2 = paddle.shape(inputs2)
+        inputs2 = paddle.cast(inputs2, "int32")
+        return paddle.tile(inputs, inputs2)
+
+    @paddle.jit.to_static
+    def tile3(inputs, inputs2):
+        inputs2 = paddle.shape(inputs2)[0]
+        inputs2 = paddle.cast(inputs2, "int32")
+        return paddle.tile(inputs, [inputs2, 3])
+
+    input_shape = [2, 2]
+    input_data = paddle.rand(input_shape, dtype="float32")
+    verify_model(
+        tile,
+        input_data=[
+            input_data,
+        ],
+    )
+    input_data2 = paddle.rand([1, 2], dtype="float32")
+    verify_model(tile2, input_data=[input_data, input_data2])
+    verify_model(tile3, input_data=[input_data, input_data2])
+
+
 if __name__ == "__main__":
     test_forward_add_subtract()
     test_forward_addmm()
+    test_forward_arange()
     test_forward_argmax()
     test_forward_argmin()
     test_forward_assign()
@@ -1282,5 +1349,6 @@ if __name__ == "__main__":
     test_forward_slice()
     test_forward_squeeze2()
     test_forward_topk()
+    test_forward_tile()
     test_forward_conv_transpose()
     test_forward_unary_op()
