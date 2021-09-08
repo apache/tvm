@@ -210,7 +210,7 @@ InferCorrectLayoutOutput DenseInferCorrectLayout(const Attrs& attrs,
                                                  const Array<Layout>& new_in_layouts,
                                                  const Array<Layout>& old_in_layouts,
                                                  const Array<tvm::relay::Type>& old_in_types) {
-  return InferCorrectLayoutOutput({"NC", "NK"}, {"NC"}, attrs);
+  return InferCorrectLayoutOutput({"NC", "NC"}, {"NC"}, attrs);
 }
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.dense").set_body_typed(MakeDense);

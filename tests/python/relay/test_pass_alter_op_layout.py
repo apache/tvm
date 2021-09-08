@@ -712,7 +712,8 @@ def test_alter_layout_nchw_dyn_upsamping_op():
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
 
-def test_alter_layout_strided_slice():
+@tvm.testing.parametrize_targets("llvm")
+def test_alter_layout_strided_slice(target, dev):
     """Test rewriting strided_slice during alter_iop_layout"""
 
     def before():
@@ -756,24 +757,20 @@ def test_alter_layout_strided_slice():
     mod_before = transform.InferType()(mod_before)
     mod_new = transform.InferType()(mod_new)
     with relay.build_config(opt_level=3):
-        for target, dev in tvm.testing.enabled_targets():
-            for kind in ["graph", "debug", "vm"]:
-                np_data = np.random.uniform(size=(1, 32, 28, 28)).astype("float32")
-                np_weight = np.random.uniform(size=(32, 32, 3, 3)).astype("float32")
-                f_before = relay.create_executor(
-                    kind, mod=mod_before, device=dev, target=target
-                ).evaluate()
-                result_before = f_before(np_data, np_weight)
-                f_new = relay.create_executor(
-                    kind, mod=mod_new, device=dev, target=target
-                ).evaluate()
-                result_new = f_new(np_data, np_weight)
-                tvm.testing.assert_allclose(
-                    result_before.numpy(), result_new.numpy(), rtol=1e-5, atol=1e-5
-                )
+        for kind in ["graph", "debug", "vm"]:
+            np_data = np.random.uniform(size=(1, 32, 28, 28)).astype("float32")
+            np_weight = np.random.uniform(size=(32, 32, 3, 3)).astype("float32")
+            f_before = relay.create_executor(
+                kind, mod=mod_before, device=dev, target=target
+            ).evaluate()
+            result_before = f_before(np_data, np_weight)
+            f_new = relay.create_executor(kind, mod=mod_new, device=dev, target=target).evaluate()
+            result_new = f_new(np_data, np_weight)
+            tvm.testing.assert_allclose(
+                result_before.numpy(), result_new.numpy(), rtol=1e-5, atol=1e-5
+            )
 
 
-@tvm.testing.uses_gpu
 def test_alter_layout_strided_slice_axes_nhwc():
     """Test rewriting strided_slice with axes during alter_iop_layout"""
 
@@ -1317,8 +1314,8 @@ def test_alter_op_dense():
     def expected():
         x = relay.var("x", shape=(32, 64))
         weight = relay.var("weight", shape=(48, 64))
-        target_layout = "NK16n"
-        weight_transform = relay.layout_transform(weight, "NK", target_layout)
+        target_layout = "NC16n"
+        weight_transform = relay.layout_transform(weight, "NC", target_layout)
         y = relay.nn.contrib_dense_pack(
             x, weight_transform, target_layout, units=None, out_dtype="float32"
         )
@@ -1387,8 +1384,8 @@ def test_alter_op_dense_packed_data():
         squeeze = relay.squeeze(pool, axis=[2, 3])
         dense = relay.nn.contrib_dense_pack(
             relay.layout_transform(squeeze, "NC8c", "NC"),
-            relay.layout_transform(dense_weight, "NK", "NK16n"),
-            "NK16n",
+            relay.layout_transform(dense_weight, "NC", "NC16n"),
+            "NC16n",
             out_dtype="float32",
         )
         return relay.Function(analysis.free_vars(dense), dense)

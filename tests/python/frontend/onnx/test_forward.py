@@ -3323,6 +3323,8 @@ def verify_rnn(
     use_peep=False,
     linear_before_reset=False,
     directions=1,
+    rtol=1e-5,
+    atol=1e-5,
     target=None,
     dev=None,
 ):
@@ -3445,7 +3447,7 @@ def verify_rnn(
     model = helper.make_model(graph, producer_name="rnn_test")
 
     verify_with_ort_with_inputs(
-        model, input_values, output_shapes, atol=1e-2, rtol=1e-2, target=target, dev=dev
+        model, input_values, output_shapes, atol=atol, rtol=rtol, target=target, dev=dev
     )
 
 
@@ -3601,6 +3603,8 @@ def test_lstm(target, dev):
 
 @tvm.testing.parametrize_targets
 def test_gru(target, dev):
+    # Set seed for test reproduction
+    np.random.seed(137)
     for directions in [1, 2]:
         # No bias.
         verify_rnn(
@@ -3611,10 +3615,12 @@ def test_gru(target, dev):
             use_bias=False,
             rnn_type="GRU",
             directions=directions,
+            rtol=1e-6,
+            atol=1e-6,
             target=target,
             dev=dev,
         )
-        # large batch.
+        # large batch. linear before reset
         verify_rnn(
             seq_length=4,
             batch_size=8,
@@ -3636,6 +3642,8 @@ def test_gru(target, dev):
             use_bias=True,
             rnn_type="GRU",
             directions=directions,
+            rtol=1e-6,
+            atol=1e-6,
             target=target,
             dev=dev,
         )
@@ -3648,6 +3656,8 @@ def test_gru(target, dev):
             use_bias=True,
             rnn_type="GRU",
             directions=directions,
+            rtol=1e-6,
+            atol=1e-6,
             target=target,
             dev=dev,
         )
@@ -3660,6 +3670,8 @@ def test_gru(target, dev):
             use_bias=True,
             rnn_type="GRU",
             directions=directions,
+            rtol=1e-6,
+            atol=1e-6,
             target=target,
             dev=dev,
         )
@@ -3672,6 +3684,8 @@ def test_gru(target, dev):
             use_bias=True,
             rnn_type="GRU",
             directions=directions,
+            rtol=1e-6,
+            atol=1e-6,
             target=target,
             dev=dev,
         )
@@ -3687,6 +3701,8 @@ def test_gru(target, dev):
             activations=["HardSigmoid", "Softsign"] * directions,
             rnn_type="GRU",
             directions=directions,
+            rtol=1e-6,
+            atol=1e-6,
             target=target,
             dev=dev,
         )
@@ -3702,6 +3718,8 @@ def test_gru(target, dev):
             betas=[0.3, 0.0] * directions,
             rnn_type="GRU",
             directions=directions,
+            rtol=1e-8,
+            atol=1e-8,
             target=target,
             dev=dev,
         )
@@ -3717,6 +3735,8 @@ def test_gru(target, dev):
             betas=[0.3, 0.1] * directions,
             rnn_type="GRU",
             directions=directions,
+            rtol=1e-8,
+            atol=1e-8,
             target=target,
             dev=dev,
         )
@@ -3731,6 +3751,8 @@ def test_gru(target, dev):
             use_initial_state=True,
             rnn_type="GRU",
             directions=directions,
+            rtol=1e-6,
+            atol=1e-6,
             target=target,
             dev=dev,
         )
@@ -4766,16 +4788,6 @@ unsupported_onnx_tests = [
     # This nllloss test is flaky and sometimes gives NaNs
     # Investigate it here: https://github.com/apache/tvm/issues/8918
     "test_nllloss_NCd1d2d3_none_no_weight_negative_ii",
-    "test_pow_types_float",
-    "test_pow_types_float32_int32",
-    "test_pow_types_float32_int64",
-    "test_pow_types_float32_uint32",
-    "test_pow_types_float32_uint64",
-    "test_pow_types_int",
-    "test_pow_types_int32_float32",
-    "test_pow_types_int32_int32",
-    "test_pow_types_int64_float32",
-    "test_pow_types_int64_int64",
     "test_qlinearmatmul_2D",
     "test_qlinearmatmul_3D",
     "test_range_float_type_positive_delta_expanded",
@@ -5337,6 +5349,39 @@ def test_qlinearconv(target, dev):
 
 
 @tvm.testing.parametrize_targets
+def test_qlinearconcat(target, dev):
+    def verify_qlinearconcat(shapes, out_shape, axis=None):
+        input_names = []
+        input_values = []
+        input_nodes = []
+        for i in range(len(shapes)):
+            tensor_name = chr(ord("a") + i)
+            shape = shapes[i]
+            node = helper.make_tensor_value_info(tensor_name, TensorProto.FLOAT, list(shape))
+
+            input_names.append(tensor_name)
+            input_values.append(np.random.random(shape).astype("float32"))
+            input_nodes.append(node)
+
+        node = helper.make_node("Concat", input_names, ["C"])
+        if axis is not None:
+            axis_attr = helper.make_attribute("axis", axis)
+            node.attribute.append(axis_attr)
+        graph = helper.make_graph(
+            [node],
+            "qlinearconcat_test",
+            inputs=input_nodes,
+            outputs=[helper.make_tensor_value_info("C", TensorProto.FLOAT, list(out_shape))],
+        )
+        model = helper.make_model(graph, producer_name="qlinearconcat_test")
+        quantize_and_verify_with_ort(model, input_names, shapes, target, dev)
+
+    verify_qlinearconcat([[2, 1], [2, 1]], [4, 1], 0)
+    verify_qlinearconcat([[2, 1], [2, 1]], [2, 2], 1)
+    verify_qlinearconcat([[1, 2], [2, 2], [3, 2]], [6, 2], 0)
+
+
+@tvm.testing.parametrize_targets
 def test_qlinearadd(target, dev):
     def verify_qlinearadd(a_shape, b_shape, c_shape):
 
@@ -5694,6 +5739,7 @@ if __name__ == "__main__":
     test_index_put()
     test_reverse_sequence()
     test_eyelike()
+    test_qlinearconcat()
     test_qlinearconv()
     test_random_uniform()
     test_convinteger()

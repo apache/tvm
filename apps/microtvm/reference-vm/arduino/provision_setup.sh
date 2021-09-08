@@ -22,7 +22,8 @@ set -ex
 # NOTE: TVM is presumed to be mounted already by Vagrantfile.
 cd "${TVM_HOME}"
 
-apps/microtvm/reference-vm/rebuild-tvm.sh
+platform="arduino"
+apps/microtvm/reference-vm/rebuild-tvm.sh ${platform}
 
 # Build poetry
 cd apps/microtvm/reference-vm/arduino
@@ -43,6 +44,6 @@ echo "------------------------------[ TVM Message ]-----------------------------
 poetry lock -vvv
 poetry install
 
-echo "export TVM_LIBRARY_PATH=\"$TVM_HOME\"/build-microtvm" >>~/.profile
+echo "export TVM_LIBRARY_PATH=\"$TVM_HOME\"/build-microtvm-${platform}" >>~/.profile
 echo "VENV_PATH=\$((cd \"$TVM_HOME\"/apps/microtvm/reference-vm/arduino && poetry env list --full-path) | sed -E 's/^(.*)[[:space:]]\(Activated\)\$/\1/g')" >>~/.profile
 echo "source \$VENV_PATH/bin/activate" >>~/.profile
