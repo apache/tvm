@@ -34,10 +34,8 @@ namespace runtime {
 
 class TensorRTCalibrator : public nvinfer1::IInt8EntropyCalibrator2 {
  public:
-  TensorRTCalibrator(int batch_size,
-                     const std::vector<std::string> &input_names)
-      : batch_size_(batch_size), num_batches_calibrated_(0),
-        input_names_(input_names) {}
+  TensorRTCalibrator(int batch_size, const std::vector<std::string> &input_names)
+      : batch_size_(batch_size), num_batches_calibrated_(0), input_names_(input_names) {}
 
   ~TensorRTCalibrator() {
     // Free calibration data
