@@ -4788,16 +4788,6 @@ unsupported_onnx_tests = [
     # This nllloss test is flaky and sometimes gives NaNs
     # Investigate it here: https://github.com/apache/tvm/issues/8918
     "test_nllloss_NCd1d2d3_none_no_weight_negative_ii",
-    "test_pow_types_float",
-    "test_pow_types_float32_int32",
-    "test_pow_types_float32_int64",
-    "test_pow_types_float32_uint32",
-    "test_pow_types_float32_uint64",
-    "test_pow_types_int",
-    "test_pow_types_int32_float32",
-    "test_pow_types_int32_int32",
-    "test_pow_types_int64_float32",
-    "test_pow_types_int64_int64",
     "test_qlinearmatmul_2D",
     "test_qlinearmatmul_3D",
     "test_range_float_type_positive_delta_expanded",
