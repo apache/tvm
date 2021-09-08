@@ -37,6 +37,7 @@ def cosine_distance(a, b):
     res = distance.cosine(a, b)
     return res
 
+
 def test_trt_int8():
     """
     This Function is used to use tensorrt int8 to compile a resnet34 model,
@@ -79,7 +80,6 @@ def test_trt_int8():
     with tvm.transform.PassContext(opt_level=3, config={'relay.ext.tensorrt.options': config}):
         lib = relay.build(mod, target=target, params=params)
 
-
     dtype = "float32"
     gen_module = tvm.contrib.graph_executor.GraphModule(lib['default'](dev))
 
@@ -92,14 +92,12 @@ def test_trt_int8():
             gen_module.run(data=tvm_data)
         print("finished calibrating data ... ")
 
-
     # get output of tvm model 
     print("rebuild engine and test to run ... ")
     tvm_data = tvm.nd.array(img)
     gen_module.set_input(input_name, tvm_data)
     gen_module.run(data=tvm_data)
     out = gen_module.get_output(0)
-
 
     # check output of tvm and output of pytorch model are equal
     torch_data = torch.from_numpy(img)
@@ -113,8 +111,12 @@ def test_trt_int8():
     print("Evaluate inference time cost...")
     ftimer = gen_module.module.time_evaluator("run", dev, repeat=10, min_repeat_ms=500)
     prof_res = np.array(ftimer().results) * 1e3  # convert to millisecond
-    message = "Mean inference time (std dev): %.2f ms (%.2f ms)" % (np.mean(prof_res), np.std(prof_res))
+    message = "Mean inference time (std dev): %.2f ms (%.2f ms)" % (
+        np.mean(prof_res), 
+        np.std(prof_res)
+    )
     print(message)
+
 
 if __name__ == "__main__":
     pytest.main([__file__])
