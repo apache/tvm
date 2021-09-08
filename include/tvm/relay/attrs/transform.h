@@ -136,11 +136,15 @@ struct ScatterNDAttrs : public tvm::AttrsNode<ScatterNDAttrs> {
 
 struct GatherAttrs : public tvm::AttrsNode<GatherAttrs> {
   Integer axis;
+  Bool support_negative_indices = Bool(false);
 
   TVM_DECLARE_ATTRS(GatherAttrs, "relay.attrs.GatherAttrs") {
     TVM_ATTR_FIELD(axis)
         .set_default(NullValue<Integer>())
         .describe("The axis over which to select values.");
+    TVM_ATTR_FIELD(support_negative_indices)
+        .set_default(Bool(false))
+        .describe("If negative indices are supported.");
   }
 };
 

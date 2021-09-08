@@ -3550,7 +3550,12 @@ class NegativeLogLikelihoodLoss(OnnxOpConverter):
                 dtype=input_tensor.type_annotation.dtype,
             )
 
-        loss = -relay.gather(input_tensor, axis=1, indices=relay.expand_dims(target_tensor, 1))
+        loss = -relay.gather(
+            input_tensor,
+            axis=1,
+            indices=relay.expand_dims(target_tensor, 1),
+            support_negative_indices=True,
+        )
         loss = relay.squeeze(loss, axis=[1])
 
         expanded_target_tensor = relay.expand_dims(target_tensor, 0)

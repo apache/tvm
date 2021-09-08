@@ -1219,11 +1219,13 @@ inline Tensor dyn_tile(const Tensor& x, Array<PrimExpr> new_shape, size_t rdim,
  * \param indices The indices of values to gather.
  * \param name The name of the operation.
  * \param tag The tag to mark the operation.
+ * \param support_negative_indices If negative indices are supported
  *
  * \return A Tensor whose op member is the gather operation
  */
 inline Tensor gather(const Tensor& data, int axis, const Tensor& indices,
-                     std::string name = "T_gather", std::string tag = kInjective) {
+                     bool support_negative_indices = false, std::string name = "T_gather",
+                     std::string tag = kInjective) {
   size_t ndim_d = data->shape.size();
   size_t ndim_i = indices->shape.size();
   ICHECK_GE(ndim_d, 1) << "Cannot gather from a scalar.";
@@ -1242,6 +1244,8 @@ inline Tensor gather(const Tensor& data, int axis, const Tensor& indices,
     out_shape.push_back(indices->shape[i]);
   }
 
+  PrimExpr axis_size = data->shape[axis];
+
   return compute(
       out_shape,
       [&](const Array<Var>& out_index) {
@@ -1252,7 +1256,13 @@ inline Tensor gather(const Tensor& data, int axis, const Tensor& indices,
         Array<PrimExpr> real_indices;
         for (size_t i = 0; i < ndim_i; ++i) {
           if (i == static_cast<size_t>(axis)) {
-            real_indices.push_back(indices(indices_position));
+            PrimExpr index = indices(indices_position);
+
+            // negative indices support is expensive so make it optional
+            if (support_negative_indices) {
+              index = indexmod(index, axis_size);
+            }
+            real_indices.push_back(index);
           } else {
             real_indices.push_back(indices_position[i]);
           }
@@ -1302,11 +1312,12 @@ inline Tensor gather_nd(const Tensor& data, const Tensor& indices, int batch_dim
         }
         for (size_t i = 0; i < indices_dim0; ++i) {
           indices_position.Set(0, make_const(DataType::Int(32), i));
-          if (indices->dtype.is_int()) {
-            real_indices.push_back(indices(indices_position));
-          } else {
-            real_indices.push_back(tvm::cast(tvm::DataType::Int(32), indices(indices_position)));
+          PrimExpr index = indices(indices_position);
+
+          if (!indices->dtype.is_int()) {
+            index = tvm::cast(tvm::DataType::Int(32), index);
           }
+          real_indices.push_back(index);
         }
         if (real_indices.size() == ndim_d) {
           return data(real_indices);

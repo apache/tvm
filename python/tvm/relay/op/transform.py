@@ -1046,7 +1046,7 @@ def reverse_reshape(data, newshape):
     return _make.contrib_reverse_reshape(data, list(newshape))
 
 
-def gather(data, axis, indices):
+def gather(data, axis, indices, support_negative_indices=False):
     """Gather values along given axis from given indices.
 
     E.g. for a 3D tensor, output is computed as:
@@ -1071,6 +1071,10 @@ def gather(data, axis, indices):
     indices: relay.Expr
         The indices of values to gather.
 
+    support_negative_indices: bool
+        If True, support indices being negative. This is slower than supporting only
+        positive indices.
+
     Examples
     --------
     .. code-block:: python
@@ -1080,7 +1084,7 @@ def gather(data, axis, indices):
         indices = [[0, 0], [1, 0]]
         relay.gather(data, axis, indices) = [[1, 1], [4, 3]]
     """
-    return _make.gather(data, axis, indices)
+    return _make.gather(data, axis, indices, support_negative_indices)
 
 
 def gather_nd(data, indices, batch_dims=0, index_rank=None):

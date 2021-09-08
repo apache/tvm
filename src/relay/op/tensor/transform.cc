@@ -3274,12 +3274,13 @@ bool GatherRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 Array<te::Tensor> GatherCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                 const Type& out_type) {
   const auto* param = attrs.as<GatherAttrs>();
-  return {topi::gather(inputs[0], param->axis, inputs[1])};
+  return {topi::gather(inputs[0], param->axis, inputs[1], param->support_negative_indices)};
 }
 
-Expr MakeGather(Expr data, Integer axis, Expr indices) {
+Expr MakeGather(Expr data, Integer axis, Expr indices, Bool support_negative_indices) {
   auto attrs = make_object<GatherAttrs>();
   attrs->axis = std::move(axis);
+  attrs->support_negative_indices = std::move(support_negative_indices);
   static const Op& op = Op::Get("gather");
   return Call(op, {data, indices}, Attrs(attrs), {});
 }
