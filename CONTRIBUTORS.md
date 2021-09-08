@@ -56,6 +56,7 @@ We do encourage everyone to work anything they are interested in.
 - [Krzysztof Parzyszek](https://github.com/kparzysz-quic): @kparzysz-quic - hexagon, llvm
 - [Andrew Reusch](https://github.com/areusch): @areusch - runtime, microTVM
 - [Jared Roesch](https://github.com/jroesch) (PMC): @jroesch - relay
+- [Giuseppe Rossini](https://github.com/giuseros): @giuseros - aot, arm
 - [Siju Samuel](https://github.com/siju-samuel): @siju-samuel - frontends
 - [Junru Shao](https://github.com/junrushao1994) (PMC): @junrushao1994 - relay, compiler
 - [Haichen Shen](https://github.com/icemelon9) (PMC): @icemelon9 - relay, topi
