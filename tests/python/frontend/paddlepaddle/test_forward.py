@@ -621,6 +621,18 @@ def test_forward_ones_like():
 
 
 @tvm.testing.uses_gpu
+def test_forward_greater_than():
+    @paddle.jit.to_static
+    def greater_than(input, input2):
+        paddle.greater_than(input, input2)
+
+    input_shape = [1, 3, 10, 10]
+    input_data = paddle.rand(input_shape, dtype="float32")
+    input_data2 = paddle.rand(input_shape, dtype="float32")
+    verify_model(greater_than, input_data=[input_data, input_data2])
+
+
+@tvm.testing.uses_gpu
 def test_forward_gather_assign_value():
     @paddle.jit.to_static
     def gather1(x):
@@ -1130,6 +1142,7 @@ if __name__ == "__main__":
     test_forward_flatten()
     test_forward_shape_full()
     test_forward_ones_like()
+    test_forward_greater_than()
     test_forward_gather_assign_value()
     test_forward_gather_nd()
     test_forward_gelu()

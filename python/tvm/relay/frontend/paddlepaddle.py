@@ -464,6 +464,7 @@ def convert_elementwise_op(g, op, block):
         "elementwise_mul": lambda x, y: x * y,
         "elementwise_sub": lambda x, y: x - y,
         "elementwise_mod": lambda x, y: x % y,
+        "greater_than": "greater",
     }
     op_func = op_map[op.type]
     ipt0 = g.get_node(op.input("X")[0])
@@ -476,6 +477,8 @@ def convert_elementwise_op(g, op, block):
             axis = axis + len(ipt0_shape)
         if axis != len(ipt0_shape) - 1:
             ipt1 = _op.expand_dims(ipt1, axis=axis, num_newaxis=(len(ipt0_shape) - axis - 1))
+    if isinstance(op_func, str):
+        op_func = get_relay_op(op_func)
     out = op_func(ipt0, ipt1)
     g.add_node(op.output("Out")[0], out)
 
