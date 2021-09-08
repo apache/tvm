@@ -3323,6 +3323,8 @@ def verify_rnn(
     use_peep=False,
     linear_before_reset=False,
     directions=1,
+    rtol=1e-5,
+    atol=1e-5,
     target=None,
     dev=None,
 ):
@@ -3445,7 +3447,7 @@ def verify_rnn(
     model = helper.make_model(graph, producer_name="rnn_test")
 
     verify_with_ort_with_inputs(
-        model, input_values, output_shapes, atol=1e-2, rtol=1e-2, target=target, dev=dev
+        model, input_values, output_shapes, atol=atol, rtol=rtol, target=target, dev=dev
     )
 
 
@@ -3601,6 +3603,8 @@ def test_lstm(target, dev):
 
 @tvm.testing.parametrize_targets
 def test_gru(target, dev):
+    # Set seed for test reproduction
+    np.random.seed(137)
     for directions in [1, 2]:
         # No bias.
         verify_rnn(
@@ -3611,10 +3615,12 @@ def test_gru(target, dev):
             use_bias=False,
             rnn_type="GRU",
             directions=directions,
+            rtol=1e-6,
+            atol=1e-6,
             target=target,
             dev=dev,
         )
-        # large batch.
+        # large batch. linear before reset
         verify_rnn(
             seq_length=4,
             batch_size=8,
@@ -3636,6 +3642,8 @@ def test_gru(target, dev):
             use_bias=True,
             rnn_type="GRU",
             directions=directions,
+            rtol=1e-6,
+            atol=1e-6,
             target=target,
             dev=dev,
         )
@@ -3648,6 +3656,8 @@ def test_gru(target, dev):
             use_bias=True,
             rnn_type="GRU",
             directions=directions,
+            rtol=1e-6,
+            atol=1e-6,
             target=target,
             dev=dev,
         )
@@ -3660,6 +3670,8 @@ def test_gru(target, dev):
             use_bias=True,
             rnn_type="GRU",
             directions=directions,
+            rtol=1e-6,
+            atol=1e-6,
             target=target,
             dev=dev,
         )
@@ -3672,6 +3684,8 @@ def test_gru(target, dev):
             use_bias=True,
             rnn_type="GRU",
             directions=directions,
+            rtol=1e-6,
+            atol=1e-6,
             target=target,
             dev=dev,
         )
@@ -3687,6 +3701,8 @@ def test_gru(target, dev):
             activations=["HardSigmoid", "Softsign"] * directions,
             rnn_type="GRU",
             directions=directions,
+            rtol=1e-6,
+            atol=1e-6,
             target=target,
             dev=dev,
         )
@@ -3702,6 +3718,8 @@ def test_gru(target, dev):
             betas=[0.3, 0.0] * directions,
             rnn_type="GRU",
             directions=directions,
+            rtol=1e-8,
+            atol=1e-8,
             target=target,
             dev=dev,
         )
@@ -3717,6 +3735,8 @@ def test_gru(target, dev):
             betas=[0.3, 0.1] * directions,
             rnn_type="GRU",
             directions=directions,
+            rtol=1e-8,
+            atol=1e-8,
             target=target,
             dev=dev,
         )
@@ -3731,6 +3751,8 @@ def test_gru(target, dev):
             use_initial_state=True,
             rnn_type="GRU",
             directions=directions,
+            rtol=1e-6,
+            atol=1e-6,
             target=target,
             dev=dev,
         )

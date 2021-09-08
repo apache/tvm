@@ -726,12 +726,13 @@ def gru_cell(
                 b_ir, b_iz, b_in = _op.split(b_inp, 3, axis=-1)
                 b_hr, b_hz, b_hn = _op.split(b_hid, 3, axis=-1)
                 r_gate += b_ir + b_hr
+                r_gate = rz_act(r_gate)
                 z_gate += b_iz + b_hz
                 i_n += b_in
                 h_n = _op.nn.dense((r_gate * hidden_state), w_hn) + b_hn
             else:
+                r_gate = rz_act(r_gate)
                 h_n = _op.nn.dense((r_gate * hidden_state), w_hn)
-            r_gate = rz_act(r_gate)
             z_gate = rz_act(z_gate)
             n_gate = n_act(i_n + h_n)
 
