@@ -76,7 +76,6 @@ def build(pipe_configs):
         # associate mod with device
         mods[mod] = {"dev": dev}
 
-    # return PipelineExecutorFactoryModule
     return PipelineExecutorFactoryModule(mods, string_config)
 
 
@@ -108,18 +107,18 @@ class PipelineModule(object):
     """
 
     def __init__(self, pipe_mod_config):
-        self.pipeline_mods_ = pipe_mod_config.pipeline_mods_
-        self.mod_config_ = pipe_mod_config.mods_config_
-        mods, config = self.graph_executor_create(self.pipeline_mods_, self.mod_config_)
+        self.pipeline_mods = pipe_mod_config.pipeline_mods
+        self.mod_config = pipe_mod_config.mods_config
+        mods, config = self.graph_executor_create(self.pipeline_mods, self.mod_config)
         assert (
             pipeline_executor_enabled()
         ), "Pipeline executor is not enabled. Please \
               re-build TVM with USE_PIPELINE_EXECUTOR=ON"
-        pipelinecreate = tvm._ffi.get_global_func(
+        pipeline_create = tvm._ffi.get_global_func(
             "tvm.pipeline_executor.create", allow_missing=False
         )
-        assert pipelinecreate
-        module = pipelinecreate(mods, config)
+        assert pipeline_create
+        module = pipeline_create(mods, config)
 
         self.module_ = module
 
@@ -128,16 +127,16 @@ class PipelineModule(object):
 
         Parameters
         ----------
-        pipeline_mods : List[IRModule]
-          list of IRModule
+        pipeline_mods : List[GraphExecutorFactoryModule]
+          list of GraphExecutorFactoryModule
 
-        mod_config : Dict[int, Dict[str, Any]]
-            modules and modules dependency configuration informaiton.
+        mod_config : Dict[str, Any]
+            modules dependency configuration informaiton.
 
         Returns
         -------
-        mods : List[GraphModule]
-            Runtime graph module.
+        mods : List[Module]
+            Module list.
 
         mod_config : str
             mods configuration
@@ -159,133 +158,168 @@ class PipelineConfig(object):
     module's inputs and outputs to other modules.
     """
 
-    class ModuleWrapper:
-        """The class use use to represent Module and storage module idx and
-        Binding information.
+    class Binding:
+        """The class that use to storage module connection information.
+        The binding can be either "input" or "output".
+
+        Parameters
+        ----------
+        owner : ModuleWrapper
+            The class that own this interface, in such class there are
+            Module information like idx, module name
+
+        io_type : str
+            The type of this binding. It can be either "input" or "output".
+
+        name : str/integer
+            Binding name, for input it is string such as "data0";
+            for output it is the idx integer such as 0.
         """
 
-        class Binding:
-            """The class that use to storage module connection information.
-            The binding can be either "input" or "output".
+        def __init__(self, owner, stype, name, data_type=None):
+            self.io_owner = owner
+            self.io_type = stype
+            self.name = str(name)
+            # These item that have dependency relation with self
+            self.bindings = []
+            # The item that self depend
+            self.parents = []
 
-            Parameters
-            ----------
-            owner : ModuleWrapper
-                The class that own this interface, in such class there are
-                Module information like idx, module name
+            self.data_type = data_type
 
-            io_type : str
-                The type of this binding. It can be either "input" or "output".
+        def get_name(self):
+            """get owner name and self name"""
+            owner_name = ""
+            if isinstance(self.io_owner, PipelineConfig.ModuleWrapper):
+                owner_name = self.io_owner.name
 
-            name : str/integer
-                Binding name, for input it is string such as "data0";
-                for output it is the idx integer such as 0.
-            """
+            return owner_name, self.name
 
-            def __init__(self, owner, stype, name, data_type=None):
-                self.io_owner = owner
-                self.io_type = stype
-                self.name = str(name)
-                # These item that have dependency relation with self
-                self.bindings = []
-                # The item that self depend
-                self.parents = []
+        def get_owner_idx(self):
+            """return idx if owner is ModuleWrapper, if not return 0"""
+            if isinstance(self.io_owner, PipelineConfig.ModuleWrapper):
+                return self.io_owner.idx
 
-                self.data_type = data_type
+            # if not ModuleWrapper then owner is PipelineConfig, return 0
+            # to identify this is global interface
+            return 0
 
-            def get_name(self):
-                """get owner name and self name"""
-                owner_name = ""
-                if isinstance(self.io_owner, PipelineConfig.ModuleWrapper):
-                    owner_name = self.io_owner.name
+        def is_global_interface(self):
+            """check if this interface is global"""
+            return not isinstance(self.io_owner, PipelineConfig.ModuleWrapper)
 
-                return owner_name, self.name
+        def __repr__(self):
+            """Get all binding(input data), exepect like |data_0: mod1:data_0"""
+            ret = "  |{}: ".format(self.name)
+            for binding in self.bindings:
+                mname, dname = binding.get_name()
+                ret += "{0}:{1} ".format(mname, dname)
+            return ret
 
-            def get_owner_idx(self):
-                """return idx if owner is ModuleWrapper, if not return 0"""
-                if isinstance(self.io_owner, PipelineConfig.ModuleWrapper):
-                    return self.io_owner.idx
-
-                # if not ModuleWrapper then owner is PipelineConfig, return 0
-                # to identify this is global interface
-                return 0
-
-            def is_global_interface(self):
-                """check if this interface is global"""
-                return not isinstance(self.io_owner, PipelineConfig.ModuleWrapper)
-
-            def __repr__(self):
-                """Get all binding(input data), exepect like |data_0: mod1:data_0"""
-                ret = "  |{}: ".format(self.name)
-                for binding in self.bindings:
-                    mname, dname = binding.get_name()
-                    ret += "{0}:{1} ".format(mname, dname)
-                return ret
-
-            def check_dag_acyclic(self, start, inputs):
-                """check if the DAG that current binding stay is acircle"""
-                for binding in inputs.values():
-                    if start == binding.io_owner:
+        def check_dag_acyclic(self, start, inputs):
+            """check if the DAG that current binding stay is acircle"""
+            for binding in inputs.values():
+                if start == binding.io_owner:
+                    return False
+                for p in binding.parents:
+                    if not self.check_dag_acyclic(start, p.io_owner.input_bindings.bindings):
                         return False
-                    for p in binding.parents:
-                        if not self.check_dag_acyclic(start, p.io_owner.input_bindings.bindings):
-                            return False
 
-                return True
+            return True
 
-            def connect(self, binding):
-                """
-                # check if the bindendency setting correct.
-                # correct connection are following
-                # 1. global input to module input
-                # 2. module output to global output
-                # 3. module output to moudle input
-                """
-                if self.io_owner == binding.io_owner:
-                    raise RuntimeError(f"can not set self as binding.")
+        def connect(self, binding):
+            """
+            # check if the bindendency setting correct.
+            # correct connection are following
+            # 1. global input to module input
+            # 2. module output to global output
+            # 3. module output to moudle input
+            """
+            if self.io_owner == binding.io_owner:
+                raise RuntimeError(f"can not set self as binding.")
 
-                if not self.is_global_interface() and self.io_type == "input":
-                    raise RuntimeError(f"Module only can start binding from output!")
+            if not self.is_global_interface() and self.io_type == "input":
+                raise RuntimeError(f"Module only can start binding from output!")
 
+            if (
+                not self.is_global_interface()
+                and not binding.is_global_interface()
+                and binding.io_type == "output"
+            ):
+                raise RuntimeError(f"Module output can not binding with module output!")
+
+            if (
+                not self.is_global_interface()
+                and binding.is_global_interface()
+                and binding.io_type == "input"
+            ):
+                raise RuntimeError(f"Module output can not binding with global input!")
+
+            if self.is_global_interface() and self.io_type != "input":
+                raise RuntimeError(f"Global only can start binding from input!")
+
+            if self.is_global_interface() and binding.io_type != "input":
+                raise RuntimeError(f"Global input only can set binding with module input.")
+
+            self.bindings.append(binding)
+            if not self.is_global_interface():
+                # check if the source and target data_type same
                 if (
-                    not self.is_global_interface()
-                    and not binding.is_global_interface()
-                    and binding.io_type == "output"
+                    isinstance(binding.io_owner, PipelineConfig.ModuleWrapper)
+                    and self.data_type != binding.data_type
                 ):
-                    raise RuntimeError(f"Module output can not binding with module output!")
+                    raise RuntimeError(
+                        f"Illegal type (%s vs. %s): binding type is not same!"
+                        % (self.data_type, binding.data_type)
+                    )
 
-                if (
-                    not self.is_global_interface()
-                    and binding.is_global_interface()
-                    and binding.io_type == "input"
+                binding.parents.append(self)
+                # Do acyclic check after increase the in-degree.
+                if not self.check_dag_acyclic(
+                    binding.io_owner, self.io_owner.input_bindings.bindings
                 ):
-                    raise RuntimeError(f"Module output can not binding with global input!")
+                    raise RuntimeError(f"Illegal connection: cause a circle!")
 
-                if self.is_global_interface() and self.io_type != "input":
-                    raise RuntimeError(f"Global only can start binding from input!")
+    class BindingList:
+        """Container for bindings(input or output interface).
 
-                if self.is_global_interface() and binding.io_type != "input":
-                    raise RuntimeError(f"Global input only can set binding with module input.")
+        Parameters
+        ----------
+        owner : ModuleWrapper/PipelineConfig
+            The owner of this list, it can be ModuleWrapper or PipelineConfig
 
-                self.bindings.append(binding)
-                if not self.is_global_interface():
-                    # check if the source and target data_type same
-                    if (
-                        isinstance(binding.io_owner, PipelineConfig.ModuleWrapper)
-                        and self.data_type != binding.data_type
-                    ):
-                        raise RuntimeError(
-                            f"Illegal type (%s vs. %s): binding type is not same!"
-                            % (self.data_type, binding.data_type)
-                        )
+        type_name : str
+            The type of this binding list. It can be either "input" or "output".
+        """
 
-                    binding.parents.append(self)
-                    # Do acyclic check after increase the in-degree.
-                    if not self.check_dag_acyclic(
-                        binding.io_owner, self.io_owner.input_bindings.bindings
-                    ):
-                        raise RuntimeError(f"Illegal connection: cause a circle!")
+        def __init__(self, owner, type_name):
+            self.bindings = {}
+            self.io_owner = owner
+            self.binding_type = type_name
 
+        def get_binding_data_type(self, key):
+            """return binding data type"""
+            if isinstance(self.io_owner, PipelineConfig.ModuleWrapper):
+                return self.io_owner.get_data_type(key, self.binding_type)
+            return None
+
+        def __getitem__(self, key):
+            """return item by key"""
+            if key not in self.bindings:
+                data_type = self.get_binding_data_type(key)
+                if not data_type and isinstance(self.io_owner, PipelineConfig.ModuleWrapper):
+                    raise RuntimeError(f"Cannot find {key} in binding list {self.binding_type}")
+
+                self.bindings[key] = PipelineConfig.Binding(
+                    self.io_owner, self.binding_type, key, data_type
+                )
+
+            return self.bindings[key]
+
+    class ModuleWrapper:
+        """Module Wrapper with information like module index, binding information
+        and building informations.
+        """
         def __init__(self, mod=None):
             """init class"""
             self.target_host = None
@@ -336,56 +370,21 @@ class PipelineConfig(object):
             return None
 
         def set_idx_name(self, idx):
-            """generate name by idx and storage idx value"""
+            """Set index and generating name by index"""
             self.idx = idx
             self.name = "mod{}".format(str(idx))
 
         def is_root_mod(self):
-            """use by dag topology sort, identify if this item is root item"""
+            """Identify if this item is root item, used by DAG topological sort."""
             return all([not b.parents for b in self.input_bindings.bindings.values()])
 
         def remove_self_from_bindings(self):
-            """use by DAG topology sort, by remove self from binding to reduce child in-degree"""
+            """Remove self from binding to reduce child in-degree, used by DAG topological sort."""
             for binding in self.output_bindings.bindings.values():
                 for child in binding.bindings:
                     if binding in child.parents:
                         child.parents.remove(binding)
 
-    class BindingList:
-        """Use to storage Binding list.
-
-        Parameters
-        ----------
-        owner : ModuleWrapper/PipelineConfig
-            who own this list, it can be ModuleWrapper or PipelineConfig
-
-        type_name : str
-            The type of this binding list. It can be either "input" or "output".
-        """
-
-        def __init__(self, owner, type_name):
-            self.bindings = {}
-            self.io_owner = owner
-            self.binding_type = type_name
-
-        def get_binding_data_type(self, key):
-            """return binding data type"""
-            if isinstance(self.io_owner, PipelineConfig.ModuleWrapper):
-                return self.io_owner.get_data_type(key, self.binding_type)
-            return None
-
-        def __getitem__(self, key):
-            """return item by key"""
-            if key not in self.bindings:
-                data_type = self.get_binding_data_type(key)
-                if not data_type and isinstance(self.io_owner, PipelineConfig.ModuleWrapper):
-                    raise RuntimeError(f"Cannot find {key} in binding list {self.binding_type}")
-
-                self.bindings[key] = PipelineConfig.ModuleWrapper.Binding(
-                    self.io_owner, self.binding_type, key, data_type
-                )
-
-            return self.bindings[key]
 
     def __init__(self):
         self.mod_wrapper = {}
@@ -394,7 +393,7 @@ class PipelineConfig(object):
 
     def __str__(self):
         """ Get configuration in string type"""
-        # topology sort to get correct module order in list.
+        # topological sort to get correct module order in list.
         self.dag_topology_sort()
         # get input
         input_dump = "Inputs\n"
@@ -443,7 +442,7 @@ class PipelineConfig(object):
     def get_config(self):
         """ Get configuration in dictionary format."""
 
-        # topology sort to get correct module order in list.
+        # topological sort to get correct module order in list.
         self.dag_topology_sort()
         mconfig = {}
         for mod in self.mod_wrapper:
@@ -484,7 +483,7 @@ class PipelineConfig(object):
         return mconfig
 
     def dag_topology_sort(self):
-        """ Do topology sort to get pipeline module order."""
+        """ Do topological sort to get pipeline module order."""
         mlist = []
         mod_wrapper = self.mod_wrapper.copy()
         while mod_wrapper:
@@ -530,5 +529,5 @@ class PipelineExecutorFactoryModule(object):
     """
 
     def __init__(self, pipeline_mods, mods_config):
-        self.pipeline_mods_ = pipeline_mods
-        self.mods_config_ = mods_config
+        self.pipeline_mods = pipeline_mods
+        self.mods_config = mods_config

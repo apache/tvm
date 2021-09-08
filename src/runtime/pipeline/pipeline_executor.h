@@ -29,9 +29,12 @@
 namespace tvm {
 namespace runtime {
 /*!
- * \brief pipeline runtime.
+ * \brief pipeline executor.
+ *  This executor take Module list and Dependency relations of Modules as
+ *  inputs, then execute modules on heterogeneous hardware target in
+ *  pipeline parallism mode to improve processing throughput. 
  *
- *  This runtime can be acccesibly in various language via
+ *  This executor can be acccesibly in various language via
  *  TVM runtime PackedFunc API.
  */
 class TVM_DLL PipelineRuntime : public ModuleNode {
@@ -41,22 +44,16 @@ class TVM_DLL PipelineRuntime : public ModuleNode {
    */
   const char* type_key() const final { return "PipelineRuntime"; }
   /*!
-   * \brief Initialize the graph executor with graph and context.
-   * \param graph_json The execution graph.
-   * \param module The module containing the compiled functions for the host
-   *  processor.
-   * \param ctxs The context of the host and devices where graph nodes will be
-   *  executed on.
-   * \param lookup_linked_param_func If given, a PackedFunc invoked to lookup linked parameters
-   *  by storage_id. If not given, linked parameters are looked-up using an internal implementation,
-   *  which is not compatible with RPCModules.
+   * \brief Initialize the pipeline executor with module Array and json text.
+   * \param modules The module list that use for pipeline build.
+   * \param pipeline_json The configuration for module dependent in pipeline.
    */
   void Init(const Array<tvm::runtime::Module>& modules, const std::string& pipeline_json);
   /*!
-   * \brief Get member function to front-end.
+   * \brief Give frontends an access to packed functions.
    * \param name The name of the function.
    * \param sptr_to_self The pointer to the module node.
-   * \return The corresponding member function.
+   * \return The corresponding packed functions.
    */
   virtual PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self);
 };
