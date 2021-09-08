@@ -42,8 +42,6 @@ import conftest
 
 _LOG = logging.getLogger(__name__)
 
-MICRO_DEVICES = conftest.zephyr_micro_devices()
-
 
 def _build_project(temp_dir, zephyr_board, west_cmd, mod, build_config, extra_files_tar=None):
     template_project_dir = (
@@ -135,13 +133,13 @@ def _get_message(fd, expr: str, timeout_sec: int):
 
 
 @tvm.testing.requires_micro
-def test_tflite(temp_dir, device, west_cmd, tvm_debug):
+def test_tflite(temp_dir, board, west_cmd, tvm_debug):
     """Testing a TFLite model."""
 
-    if device not in ["qemu_x86", "mps2_an521", "nrf5340dk", "stm32l4r5zi_nucleo", "zynq_mp_r5"]:
+    if board not in ["qemu_x86", "mps2_an521", "nrf5340dk", "stm32l4r5zi_nucleo", "zynq_mp_r5"]:
         pytest.skip(msg="Model does not fit.")
 
-    model, zephyr_board = MICRO_DEVICES[device]
+    model = conftest.ZEPHYR_BOARDS[board]
     input_shape = (1, 32, 32, 3)
     output_shape = (1, 10)
     build_config = {"debug": tvm_debug}
@@ -195,7 +193,7 @@ def test_tflite(temp_dir, device, west_cmd, tvm_debug):
 
         project, _ = _build_project(
             temp_dir,
-            zephyr_board,
+            board,
             west_cmd,
             lowered,
             build_config,
@@ -218,12 +216,12 @@ def test_tflite(temp_dir, device, west_cmd, tvm_debug):
 
 
 @tvm.testing.requires_micro
-def test_qemu_make_fail(temp_dir, device, west_cmd, tvm_debug):
+def test_qemu_make_fail(temp_dir, board, west_cmd, tvm_debug):
     """Testing QEMU make fail."""
-    if device not in ["qemu_x86", "mps2_an521"]:
+    if board not in ["qemu_x86", "mps2_an521"]:
         pytest.skip(msg="Only for QEMU targets.")
 
-    model, zephyr_board = MICRO_DEVICES[device]
+    model = conftest.ZEPHYR_BOARDS[board]
     build_config = {"debug": tvm_debug}
     shape = (10,)
     dtype = "float32"
@@ -254,7 +252,7 @@ def test_qemu_make_fail(temp_dir, device, west_cmd, tvm_debug):
 
         project, project_dir = _build_project(
             temp_dir,
-            zephyr_board,
+            board,
             west_cmd,
             lowered,
             build_config,

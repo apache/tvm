@@ -57,17 +57,45 @@ MODEL_LIBRARY_FORMAT_RELPATH = "model.tar"
 
 IS_TEMPLATE = not (API_SERVER_DIR / MODEL_LIBRARY_FORMAT_RELPATH).exists()
 
-# Maps a short, identifying microtvm device string to (target, zephyr_board).
-MICRO_DEVICES = {
-    "qemu_x86": ("host", "qemu_x86"),
-    "qemu_riscv32": ("host", "qemu_riscv32"),
-    "qemu_riscv64": ("host", "qemu_riscv64"),
-    "mps2_an521": ("mps2_an521", "mps2_an521"),
-    "nrf5340dk": ("nrf5340dk", "nrf5340dk_nrf5340_cpuapp"),
-    "stm32f746xx_disco": ("stm32f746xx", "stm32f746g_disco"),
-    "stm32f746xx_nucleo": ("stm32f746xx", "nucleo_f746zg"),
-    "stm32l4r5zi_nucleo": ("stm32l4r5zi", "nucleo_l4r5zi"),
-    "zynq_mp_r5": ("zynq_mp_r5", "qemu_cortex_r5"),
+# Data structure to hold the information microtvm_api_server.py needs
+# to communicate with each of these boards.
+BOARD_PROPERTIES = {
+    "qemu_x86": {
+        "board": "qemu_x86",
+        "target": "host",
+    },
+    "qemu_riscv32": {
+        "board": "qemu_riscv32",
+        "target": "host",
+    },
+    "qemu_riscv64": {
+        "board": "qemu_riscv64",
+        "target": "host",
+    },
+    "mps2_an521": {
+        "board": "mps2_an521",
+        "target": "mps2_an521",
+    },
+    "nrf5340dk_nrf5340_cpuapp": {
+        "board": "nrf5340dk_nrf5340_cpuapp",
+        "target": "nrf5340dk",
+    },
+    "stm32f746xx_disco": {
+        "board": "stm32f746xx_disco",
+        "target": "stm32f746xx",
+    },
+    "nucleo_f746zg": {
+        "board": "nucleo_f746zg",
+        "target": "stm32f746xx",
+    },
+    "nucleo_l4r5zi": {
+        "board": "nucleo_l4r5zi",
+        "target": "stm32l4r5zi",
+    },
+    "qemu_cortex_r5": {
+        "board": "qemu_cortex_r5",
+        "target": "zynq_mp_r5",
+    },
 }
 
 
@@ -256,7 +284,12 @@ PROJECT_OPTIONS = [
         ),
     ),
     server.ProjectOption("zephyr_base", help="Path to the zephyr base directory."),
-    server.ProjectOption("zephyr_board", help="Name of the Zephyr board to build for."),
+    server.ProjectOption("zephyr_board", choices=list(BOARD_PROPERTIES), help="Name of the Zephyr board to build for."),
+    server.ProjectOption(
+        "zephyr_target",
+        choices=[board["target"] for _,board in BOARD_PROPERTIES.items()],
+        help="Name of the target for each Zephyr board.",
+    ),
 ]
 
 

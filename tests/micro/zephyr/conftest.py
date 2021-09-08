@@ -21,6 +21,7 @@ import sys
 
 import pytest
 
+from tvm.micro import project
 import tvm.contrib.utils
 import tvm.target.target
 
@@ -36,21 +37,25 @@ TEMPLATE_PROJECT_DIR = (
 ).resolve()
 
 
-def zephyr_micro_devices() -> dict:
-    sys.path.insert(0, str(TEMPLATE_PROJECT_DIR))
-    try:
-        import microtvm_api_server
-    finally:
-        sys.path.pop(0)
+def zephyr_boards() -> dict:
+    """Returns a dict mapping board to target model"""
+    template = project.TemplateProject.from_directory(TEMPLATE_PROJECT_DIR)
+    project_options = template.info()["project_options"]
+    for option in project_options:
+        if option["name"] == "zephyr_board":
+            boards = option["choices"]
+        if option["name"] == "zephyr_target":
+            targets = option["choices"]
 
-    return microtvm_api_server.MICRO_DEVICES
+    arduino_boards = {boards[i]: targets[i] for i in range(len(boards))}
+    return arduino_boards
 
+ZEPHYR_BOARDS = zephyr_boards()
 
 def pytest_addoption(parser):
     parser.addoption(
-        "--microtvm-device",
-        default="qemu_x86",
-        choices=zephyr_micro_devices().keys(),
+        "--zephyr-board",
+        choices=ZEPHYR_BOARDS.keys(),
         help=(
             "Specify a microtvm device (i.e. as passed to tvm.target.micro()) for microTVM tests."
         ),
@@ -67,8 +72,8 @@ def pytest_addoption(parser):
 
 
 def pytest_generate_tests(metafunc):
-    if "device" in metafunc.fixturenames:
-        metafunc.parametrize("device", [metafunc.config.getoption("microtvm_device")])
+    if "board" in metafunc.fixturenames:
+        metafunc.parametrize("board", [metafunc.config.getoption("zephyr_board")])
 
 
 @pytest.fixture
@@ -82,13 +87,12 @@ def tvm_debug(request):
 
 
 @pytest.fixture
-def temp_dir(device):
-    _, zephyr_board = zephyr_micro_devices()[device]
+def temp_dir(board):
     parent_dir = pathlib.Path(os.path.dirname(__file__))
     filename = os.path.splitext(os.path.basename(__file__))[0]
     board_workspace = (
         parent_dir
-        / f"workspace_{filename}_{zephyr_board}"
+        / f"workspace_{filename}_{board}"
         / datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
     )
     board_workspace_base = str(board_workspace)

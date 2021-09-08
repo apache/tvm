@@ -37,7 +37,7 @@ TEMPLATE_PROJECT_DIR = (
 
 
 def arduino_boards() -> dict:
-    """Returns a dict mapping board to target"""
+    """Returns a dict mapping board to target model"""
     template = project.TemplateProject.from_directory(TEMPLATE_PROJECT_DIR)
     project_options = template.info()["project_options"]
     for option in project_options:
