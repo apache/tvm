@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name, missing-function-docstring
 """Common functions for popen_pool test cases"""
+import time
 import tvm
 
 TEST_GLOBAL_STATE_1 = 0
@@ -57,3 +58,18 @@ def call_cpp_ffi(arg):
 
 def call_cpp_py_ffi(arg):
     return tvm.testing.identity_cpp(arg)
+
+
+def fast_summation(n):
+    return n * (n + 1) // 2
+
+
+def slow_summation(n):
+    r = 0
+    for i in range(0, n + 1):
+        r += i
+    return r
+
+
+def timeout_job(n):
+    time.sleep(n * 1.5)
