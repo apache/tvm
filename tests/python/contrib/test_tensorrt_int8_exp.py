@@ -25,11 +25,6 @@ from tvm.contrib.download import download_testdata
 from tvm.relay.op.contrib.tensorrt import partition_for_tensorrt
 from tvm.relay.op.contrib import tensorrt
 
-# PyTorch imports
-import torch
-import torchvision
-from torchvision import transforms
-
 
 def skip_codegen_test():
     """Skip test if TensorRT and CUDA codegen are not present"""
@@ -65,7 +60,15 @@ def test_trt_int8():
         from PIL import Image
         from scipy.spatial import distance
     except:
-        print("install scipy and Image python package")
+        print("please install scipy and Image python packages")
+        return
+
+    try:
+        import torch
+        import torchvision
+        from torchvision import transforms
+    except:
+        print("please install pytorch python package")
         return
 
     os.environ["TVM_TENSORRT_USE_INT8"] = "1"
