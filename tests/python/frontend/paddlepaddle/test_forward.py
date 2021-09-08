@@ -623,8 +623,9 @@ def test_forward_ones_like():
 @tvm.testing.uses_gpu
 def test_forward_greater_than():
     @paddle.jit.to_static
-    def greater_than(input, input2):
-        paddle.greater_than(input, input2)
+    def greater_than(input1, input2):
+        y = paddle.greater_than(input1, input2)
+        return paddle.cast(y, "int32")
 
     input_shape = [1, 3, 10, 10]
     input_data = paddle.rand(input_shape, dtype="float32")
@@ -1142,10 +1143,10 @@ if __name__ == "__main__":
     test_forward_flatten()
     test_forward_shape_full()
     test_forward_ones_like()
-    test_forward_greater_than()
     test_forward_gather_assign_value()
     test_forward_gather_nd()
     test_forward_gelu()
+    test_forward_greater_than()
     test_forward_hard_sigmoid()
     test_forward_hard_swish()
     test_forward_interpolate()

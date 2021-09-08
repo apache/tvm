@@ -1370,6 +1370,7 @@ _convert_map = {
     "gather": convert_gather,
     "gather_nd": convert_gather_nd,
     "gelu": convert_gelu,
+    "greater_than": convert_elementwise_op,
     "hard_sigmoid": convert_hard_sigmoid,
     "hard_swish": convert_hard_swish,
     "isinf": convert_unary_op,
