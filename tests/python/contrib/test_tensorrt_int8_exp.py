@@ -31,7 +31,28 @@ from tvm.relay.op.contrib.tensorrt import partition_for_tensorrt
 import torch
 import torchvision
 from torchvision import transforms
+from test_tensorrt import 
 
+
+def skip_codegen_test():
+    """Skip test if TensorRT and CUDA codegen are not present"""
+    if not tvm.runtime.enabled("cuda") or not tvm.cuda(0).exist:
+        print("Skip because CUDA is not enabled.")
+        return True
+    if not tvm.get_global_func("relay.ext.tensorrt", True):
+        print("Skip because TensorRT codegen is not available.")
+        return True
+    return False
+
+
+def skip_runtime_test():
+    if not tvm.runtime.enabled("cuda") or not tvm.cuda(0).exist:
+        print("Skip because CUDA is not enabled.")
+        return True
+    if not tensorrt.is_tensorrt_runtime_enabled():
+        print("Skip because TensorRT runtime is not available.")
+        return True
+    return False
 
 def cosine_distance(a, b):
     res = distance.cosine(a, b)
@@ -44,6 +65,9 @@ def test_trt_int8():
     and compare cosine distance between the output of the original model and trt int8 tvm ouput
 
     """
+    if skip_codegen_test() or skip_runtime_test():
+        return
+        
     os.environ["TVM_TENSORRT_USE_INT8"] = "1"
     os.environ["TENSORRT_NUM_CALI_INT8"] = "10"
     model_name = "resnet34"
