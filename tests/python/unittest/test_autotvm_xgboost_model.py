@@ -25,7 +25,7 @@ from tvm import autotvm
 from tvm.autotvm import MeasureInput, MeasureResult
 from tvm.autotvm.tuner.xgboost_cost_model import XGBoostCostModel
 
-from test_autotvm_common import get_sample_task, get_sample_records
+from tvm.testing.autotvm import get_sample_task, get_sample_records
 
 
 def test_fit():
