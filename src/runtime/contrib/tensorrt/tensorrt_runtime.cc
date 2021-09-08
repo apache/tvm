@@ -83,7 +83,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
                                     << "must also be set to specify the number of "
                                     << "calibration times";
       num_calibration_batches_remaining_ = extract_cali_num;
-      LOG(INFO) << "settiing up " << num_calibration_batches_remaining_ 
+      LOG(INFO) << "settiing up " << num_calibration_batches_remaining_
                 << " sample data to calibrate data ... ";
       ICHECK(multi_engine_mode_ == false) << "When using int8 mode, "
                                           << "multi-engine is not allowed";
