@@ -50,9 +50,9 @@ class TensorRTCalibrator : public nvinfer1::IInt8EntropyCalibrator2 {
     }
   }
 
-  void AddBatchData(const std::vector<void *>& bindings, const std::vector<size_t>& binding_sizes) {
+  void AddBatchData(const std::vector<void*>& bindings, const std::vector<size_t>& binding_sizes) {
     // Copy data from GPU
-    std::vector<float *> data_host(bindings.size(), nullptr);
+    std::vector<float*> data_host(bindings.size(), nullptr);
     for (size_t i = 0; i < bindings.size(); ++i) {
       data_host[i] = new float[batch_size_ * binding_sizes[i]];
       CUDA_CALL(cudaMemcpy(static_cast<void*>(data_host[i]), bindings[i],
@@ -74,8 +74,8 @@ class TensorRTCalibrator : public nvinfer1::IInt8EntropyCalibrator2 {
     for (size_t i = 0; i < input_names_.size(); ++i) {
       CHECK_EQ(input_names_[i], names[i]);
       CUDA_CALL(cudaMemcpy(buffers_[i], data_[num_batches_calibrated_][i],
-          batch_size_ * data_sizes_[num_batches_calibrated_][i] * sizeof(float),
-          cudaMemcpyHostToDevice));
+                           batch_size_ * data_sizes_[num_batches_calibrated_][i] * sizeof(float),
+                           cudaMemcpyHostToDevice));
       bindings[i] = buffers_[i];
     }
     num_batches_calibrated_++;
@@ -83,7 +83,7 @@ class TensorRTCalibrator : public nvinfer1::IInt8EntropyCalibrator2 {
     return (num_batches_calibrated_ < data_.size());
   }
 
-  const void *readCalibrationCache(size_t& length) override {
+  const void* readCalibrationCache(size_t& length) override {
     if (calibration_cache_.empty()) return nullptr;
     length = calibration_cache_.size();
     return calibration_cache_.data();
@@ -102,12 +102,12 @@ class TensorRTCalibrator : public nvinfer1::IInt8EntropyCalibrator2 {
   std::string calibration_cache_;
 
   /*! \brief Data to be used for calibration. */
-  std::vector<std::vector<float *>> data_;
+  std::vector<std::vector<float*>> data_;
   /*! \brief Number of elements for data to be used for calibration. */
   std::vector<std::vector<size_t>> data_sizes_;
 
   /*! \brief Device buffers to be used for calibration. */
-  std::vector<void *> buffers_;
+  std::vector<void*> buffers_;
 
   /*! \brief Names of inputs */
   const std::vector<std::string> input_names_;
@@ -115,8 +115,7 @@ class TensorRTCalibrator : public nvinfer1::IInt8EntropyCalibrator2 {
   /*! \brief Allocate device memory buffers. data_sizes_ must already have one
    * entry. */
   void AllocateBuffersIfNotAllocated() {
-    if (!buffers_.empty())
-      return;
+    if (!buffers_.empty()) return;
     CHECK_GE(data_sizes_.size(), 1);
     const int num_inputs = data_sizes_[0].size();
     buffers_.assign(num_inputs, nullptr);

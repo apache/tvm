@@ -74,22 +74,22 @@ class TensorRTRuntime : public JSONRuntimeBase {
         max_workspace_size_(size_t(1) << 30),
         max_batch_size_(-1),
         multi_engine_mode_(false) {
-        const bool use_int8 = dmlc::GetEnv("TVM_TENSORRT_USE_INT8", false);
-        multi_engine_mode_ = dmlc::GetEnv("TVM_TENSORRT_MULTI_ENGINE", false);
-        if (use_int8) {
-          const int extract_cali_num = dmlc::GetEnv("TENSORRT_NUM_CALI_INT8", 0);
-          ICHECK(extract_cali_num != 0) << "When using INT8 mode, "
-                                        << "environment variable TENSORRT_NUM_CALI_INT8"
-                                        << "must also be set to specify the number of "
-                                        << "calibration times";
-          num_calibration_batches_remaining_ = extract_cali_num;
-          LOG(INFO) << "settiing up " <<
-                    num_calibration_batches_remaining_ <<
-                    " sample data to calibrate data ... ";
-          ICHECK(multi_engine_mode_ == false) << "When using int8 mode, "
-                                              << "multi-engine is not allowed";
-          }
-        }
+    const bool use_int8 = dmlc::GetEnv("TVM_TENSORRT_USE_INT8", false);
+    multi_engine_mode_ = dmlc::GetEnv("TVM_TENSORRT_MULTI_ENGINE", false);
+    if (use_int8) {
+      const int extract_cali_num = dmlc::GetEnv("TENSORRT_NUM_CALI_INT8", 0);
+      ICHECK(extract_cali_num != 0) << "When using INT8 mode, "
+                                    << "environment variable TENSORRT_NUM_CALI_INT8"
+                                    << "must also be set to specify the number of "
+                                    << "calibration times";
+      num_calibration_batches_remaining_ = extract_cali_num;
+      LOG(INFO) << "settiing up " <<
+                num_calibration_batches_remaining_ <<
+                " sample data to calibrate data ... ";
+      ICHECK(multi_engine_mode_ == false) << "When using int8 mode, "
+                                          << "multi-engine is not allowed";
+      }
+    }
 
   /*!
    * \brief The type key of the module.
