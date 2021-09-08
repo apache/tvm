@@ -34,12 +34,12 @@ namespace runtime {
 
 class TensorRTCalibrator : public nvinfer1::IInt8EntropyCalibrator2 {
  public:
-  TensorRTCalibrator(int batch_size, const std::vector<std::string> &input_names)
+  TensorRTCalibrator(int batch_size, const std::vector<std::string>& input_names)
       : batch_size_(batch_size), num_batches_calibrated_(0), input_names_(input_names) {}
 
   ~TensorRTCalibrator() {
     // Free calibration data
-    for (auto &inputs : data_) {
+    for (auto& inputs : data_) {
       for (size_t i = 0; i < inputs.size(); ++i) {
         delete[] inputs[i];
       }
@@ -50,15 +50,13 @@ class TensorRTCalibrator : public nvinfer1::IInt8EntropyCalibrator2 {
     }
   }
 
-  void AddBatchData(const std::vector<void *> &bindings,
-                    const std::vector<size_t> &binding_sizes) {
+  void AddBatchData(const std::vector<void *>& bindings, const std::vector<size_t>& binding_sizes) {
     // Copy data from GPU
     std::vector<float *> data_host(bindings.size(), nullptr);
     for (size_t i = 0; i < bindings.size(); ++i) {
       data_host[i] = new float[batch_size_ * binding_sizes[i]];
-      CUDA_CALL(cudaMemcpy(static_cast<void *>(data_host[i]), bindings[i],
-                           batch_size_ * binding_sizes[i] * sizeof(float),
-                           cudaMemcpyDeviceToHost));
+      CUDA_CALL(cudaMemcpy(static_cast<void*>(data_host[i]), bindings[i],
+                           batch_size_ * binding_sizes[i] * sizeof(float), cudaMemcpyDeviceToHost));
     }
     data_.push_back(data_host);
     data_sizes_.push_back(binding_sizes);
@@ -70,14 +68,12 @@ class TensorRTCalibrator : public nvinfer1::IInt8EntropyCalibrator2 {
    * \brief TensorRT will call this method to get next batch of data to
    * calibrate with.
    */
-  bool getBatch(void *bindings[], const char *names[],
-                int nbBindings) override {
+  bool getBatch(void* bindings[], const char* names[], int nbBindings) override {
     AllocateBuffersIfNotAllocated();
     CHECK_EQ(input_names_.size(), nbBindings);
     for (size_t i = 0; i < input_names_.size(); ++i) {
       CHECK_EQ(input_names_[i], names[i]);
-      CUDA_CALL(cudaMemcpy(
-          buffers_[i], data_[num_batches_calibrated_][i],
+      CUDA_CALL(cudaMemcpy(buffers_[i], data_[num_batches_calibrated_][i],
           batch_size_ * data_sizes_[num_batches_calibrated_][i] * sizeof(float),
           cudaMemcpyHostToDevice));
       bindings[i] = buffers_[i];
@@ -87,15 +83,14 @@ class TensorRTCalibrator : public nvinfer1::IInt8EntropyCalibrator2 {
     return (num_batches_calibrated_ < data_.size());
   }
 
-  const void *readCalibrationCache(size_t &length) override {
-    if (calibration_cache_.empty())
-      return nullptr;
+  const void *readCalibrationCache(size_t& length) override {
+    if (calibration_cache_.empty()) return nullptr;
     length = calibration_cache_.size();
     return calibration_cache_.data();
   }
 
-  void writeCalibrationCache(const void *cache, size_t length) override {
-    calibration_cache_.assign(static_cast<const char *>(cache), length);
+  void writeCalibrationCache(const void* cache, size_t length) override {
+    calibration_cache_.assign(static_cast<const char*>(cache), length);
   }
 
  private:
