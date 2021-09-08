@@ -17,9 +17,6 @@
 import pytest
 import os
 import numpy as np
-import cv2
-from PIL import Image
-from scipy.spatial import distance
 
 import tvm
 import tvm.relay.testing
@@ -55,11 +52,6 @@ def skip_runtime_test():
     return False
 
 
-def cosine_distance(a, b):
-    res = distance.cosine(a, b)
-    return res
-
-
 def test_trt_int8():
     """
     This Function is used to use tensorrt int8 to compile a resnet34 model,
@@ -68,7 +60,14 @@ def test_trt_int8():
     """
     if skip_codegen_test() or skip_runtime_test():
         return
-
+    
+    try:
+        from PIL import Image
+        from scipy.spatial import distance
+    except:
+        print("install scipy and Image python package")
+        return
+    
     os.environ["TVM_TENSORRT_USE_INT8"] = "1"
     os.environ["TENSORRT_NUM_CALI_INT8"] = "10"
     model_name = "resnet34"
@@ -129,7 +128,7 @@ def test_trt_int8():
     model = scripted_model.eval()
     torch_output = model(torch_data)
 
-    cosine_distance_res = cosine_distance(out.numpy(), torch_output.detach().cpu().numpy())
+    cosine_distance_res = distance.cosine(out.numpy(), torch_output.detach().cpu().numpy())
     assert cosine_distance_res <= 0.01
 
     # Evaluate
