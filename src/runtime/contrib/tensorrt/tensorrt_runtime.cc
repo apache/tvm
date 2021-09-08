@@ -86,7 +86,8 @@ class TensorRTRuntime : public JSONRuntimeBase {
           LOG(INFO) << "settiing up " <<
                     num_calibration_batches_remaining_ <<
                     " sample data to calibrate data ... ";
-          ICHECK(multi_engine_mode_ == false) << "When using int8 mode, multi-engine is not allowed";
+          ICHECK(multi_engine_mode_ == false) << "When using int8 mode, "
+                                              << "multi-engine is not allowed";
           }
         }
 
@@ -294,7 +295,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
     } else {
       // Build new engine
       BuildEngineFromJson(batch_size);
-      TensorRTEngineAndContext& engine_and_context = 
+      TensorRTEngineAndContext& engine_and_context =
                   trt_engine_cache_[std::make_pair(symbol_name_, batch_size)];
       if (use_int8) {
         this->CreateInt8Calibrator(engine_and_context);
