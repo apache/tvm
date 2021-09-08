@@ -276,8 +276,10 @@ def conv2d(
 ):
     r"""Quantized 2D convolution.
 
-    This operator convolves quantized data with quantized kernel. The scale of
-    the output quantized tensor is the product of the kernel_scale and
+    This operator convolves quantized data with quantized kernel.
+    If doing Per-channel quantization, qnn expects the kernel_zero_scale
+    and optionally the kernel_zero_point will be 1-D vectors instead of scalars.
+    The scale of the output quantized tensor is the product of the kernel_scale and
     input_scale of the input quantized tensors. The zero point of the output
     quantized tensor is 0. By default, the dtype of output is int32. Please also
     refer to Requantize operator to understand how to scale back the int32
@@ -543,6 +545,9 @@ def dense(
      .. math::
 
      `Y = X * W`
+
+    If doing Per-channel quantization, qnn expects the kernel_zero_scale
+    and optionally the kernel_zero_point will be 1-D vectors instead of scalars.
 
     Parameters
     ----------

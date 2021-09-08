@@ -53,8 +53,15 @@ bool QuantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   int axis = quantize_attrs->axis;
   auto rank = static_cast<int>(data->shape.size());
   axis = (axis < 0) ? ((rank > 0) ? data->shape.size() + axis : 0) : axis;
-  ICHECK_LT(axis, rank > 0 ? rank : 1) << "axis " << quantize_attrs->axis << " is out of range";
-  ICHECK_GE(axis, 0) << "axis " << quantize_attrs->axis << " is out of range";
+
+  // If zero point and scale are scalar then axis doesnt matter.
+  bool scale_is_scalar = (types[1].as<TensorTypeNode>())->shape.size() == 0;
+  bool zp_is_scalar = (types[2].as<TensorTypeNode>())->shape.size() == 0;
+
+  if (!(scale_is_scalar && zp_is_scalar)) {
+    ICHECK_LT(axis, rank > 0 ? rank : 1) << "axis " << quantize_attrs->axis << " is out of range";
+    ICHECK_GE(axis, 0) << "axis " << quantize_attrs->axis << " is out of range";
+  }
 
   PrimExpr axis_shape;
   if (rank > 0) {

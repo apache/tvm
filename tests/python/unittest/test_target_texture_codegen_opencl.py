@@ -514,7 +514,7 @@ def schedule_conv2d_1x1_WCHNc_CRSKk(data, filt, packed_data, packed_filter, conv
 
 
 def compute_conv2d_NCHWc_KCRSk(Input, Filter, stride, padding, dilation, out_dtype=None):
-    """Convolution operator in NCHWc layout. """
+    """Convolution operator in NCHWc layout."""
 
     if out_dtype is None:
         out_dtype = Input.dtype
@@ -694,7 +694,7 @@ def schedule_conv2d_NCHWc_KCRSk(cfg, s, conv):
 
 
 def compute_conv2d_NCHWc_KCRSk_acc32(Input, Filter, stride, padding, dilation, out_dtype=None):
-    """Convolution operator in NCHWc layout. """
+    """Convolution operator in NCHWc layout."""
 
     if out_dtype is None:
         out_dtype = Input.dtype
@@ -879,7 +879,7 @@ def schedule_conv2d_NCHWc_KCRSk_acc32(cfg, s, output):
 def compute_depthwise_conv2d_NCHWc_KCRSk_acc32(
     Input, Filter, stride, padding, dilation, out_dtype=None
 ):
-    """Depthwise convolution operator in NCHWc layout. """
+    """Depthwise convolution operator in NCHWc layout."""
     if out_dtype is None:
         out_dtype = Input.dtype
     assert isinstance(stride, int) or len(stride) == 2
