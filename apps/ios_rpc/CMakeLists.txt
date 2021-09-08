@@ -54,6 +54,10 @@ ExternalProject_Add(custom_dso_loader
             -DCMAKE_BUILD_WITH_INSTALL_NAME_DIR=${CMAKE_BUILD_WITH_INSTALL_NAME_DIR}
         )
 
+if(NOT CMAKE_IOS_RPC_BUNDLE)
+    set(CMAKE_IOS_RPC_BUNDLE org.apache.tvmrpc)
+endif()
+
 # iOS RPC Xcode project wrapper to integrate into Cmake
 ExternalProject_Add(ios_rpc
         PREFIX ios_rpc
@@ -68,10 +72,12 @@ ExternalProject_Add(ios_rpc
             -sdk ${CMAKE_OSX_SYSROOT}
             -arch ${CMAKE_OSX_ARCHITECTURES}
             -hideShellScriptEnvironment
+            -allowProvisioningUpdates
             build
                 SYMROOT=<BINARY_DIR>
                 IPHONEOS_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}
                 DEVELOPMENT_TEAM=${CMAKE_XCODE_ATTRIBUTE_DEVELOPMENT_TEAM}
                 TVM_BUILD_DIR=${CMAKE_BINARY_DIR}
                 USE_CUSTOM_DSO_LOADER=1
+                PRODUCT_BUNDLE_IDENTIFIER=${CMAKE_IOS_RPC_BUNDLE}
         )
