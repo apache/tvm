@@ -55,6 +55,16 @@ def _get_pad_size(in_size, dilated_kernel_size, stride_size):
     return [pad_before, pad_after]
 
 
+def shape_of(x, dtype="int32"):
+    """Get shape of a tensor"""
+
+    ttype = infer_type(x).checked_type
+    if not _ty.is_dynamic(ttype):
+        shape = list(ttype.shape)
+        return _expr.const(shape, dtype)
+    return _op.shape_of(x, dtype)
+
+
 def _infer_value(x, params):
     """Try running infer_value, and if successful, return the inferred value.
     Otherwise, return input"""
@@ -404,8 +414,19 @@ def convert_crop(g, op, block):
     """Operator converter for crop."""
 
     x = g.get_node(op.input("X")[0])
-    offsets = op.attr("offsets")
-    shape = op.attr("shape")
+    input_shape = op.input("Shape")
+    input_offsets = op.input("Offsets")
+    if input_shape:
+        shape = g.get_node(input_shape[0])
+        shape = _infer_value(shape, g.get_params())
+    else:
+        shape = op.attr("shape")
+
+    if input_offsets:
+        offsets = g.get_node(input_offsets[0])
+        offsets = _infer_value(offsets, g.get_params())
+    else:
+        offsets = op.attr("offsets")
 
     crop_len = len(shape)
     slice_start = [0] * crop_len
@@ -499,9 +520,13 @@ def convert_expand(g, op, block):
     input_shape = list(infer_shape(x))
 
     ndims = len(input_shape)
-    sizes = op.attr("shape")
-    out = x
+    if op.input("Shape"):
+        sizes = g.get_node(op.input("Shape")[0])
+        sizes = _infer_value(sizes, g.get_params())
+    else:
+        sizes = op.attr("shape")
 
+    out = x
     out_dims = len(sizes)
     if ndims < out_dims:
         num_newaxis = out_dims - ndims
@@ -570,16 +595,28 @@ def convert_fill_constant_batch_size_like(g, op, block):
     """Operator converter for fill_constant_batch_size_like."""
 
     x = g.get_node(op.input("Input")[0])
-    input_shape = infer_shape(x)
-    out_shape = op.attr("shape")
+    value = op.attr("value")
+    shape = op.attr("shape")
     input_dim_idx = op.attr("input_dim_idx")
     output_dim_idx = op.attr("output_dim_idx")
-    value = op.attr("value")
+
     dtype = block.var(op.output("Out")[0]).dtype
     dtype = str(dtype).strip().split(".")[1]
-    out_shape[output_dim_idx] = input_shape[input_dim_idx]
-    value = np.full(out_shape, value, dtype)
-    out = _expr.const(value.astype(dtype)).astype(dtype)
+    input_shape = shape_of(x)
+    batch = _op.strided_slice(input_shape, begin=[input_dim_idx], end=[input_dim_idx+1]).astype("int32")
+    shape_before = shape[:output_dim_idx]
+    shape_before = _expr.const(shape_before, dtype="int32")
+    shape_after = shape[output_dim_idx+1:]
+    shape_after = _expr.const(shape_after, dtype="int32")
+
+    out_shape = _op.concatenate([shape_before, batch, shape_after], axis=0)
+    constant = _expr.const(value, dtype=dtype).astype(dtype)
+    out = _op.full(constant, out_shape, dtype=dtype)
+
+    # reshape for dynamic
+    shape[output_dim_idx] = -1
+    out = _op.reshape(out, shape)
+
     g.add_node(op.output("Out")[0], out)
 
 
@@ -760,9 +797,9 @@ def convert_matmul(g, op, block):
 
     # This implemention almost keeps same with ONNX
     # Need to check input shape as batch matmul must be supported.
-    a_shape = _op.shape_of(inputs[0])
+    a_shape = shape_of(inputs[0])
     a_rank = infer_shape(a_shape)[0]
-    b_shape = _op.shape_of(inputs[1])
+    b_shape = shape_of(inputs[1])
     b_rank = infer_shape(b_shape)[0]
     # When performing a batch matmul, we need to properly handle N-dim shapes.
     if a_rank > 2 or b_rank > 2:
@@ -1427,8 +1464,10 @@ class GraphProto:
 
     def add_node(self, name, node):
         """add a node to graph"""
-
-        self.nodes[name] = fold_constant(node)
+        if self.shape_dict:
+            self.nodes[name] = fold_constant(node)
+        else:
+            self.nodes[name] = node
 
     def get_params(self, name=None):
         """get params from graph"""

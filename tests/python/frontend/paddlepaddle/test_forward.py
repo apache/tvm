@@ -393,33 +393,32 @@ def test_forward_concat_unsqueeze():
 
 @tvm.testing.uses_gpu
 def test_forward_crop():
+    @paddle.jit.to_static
+    def crop1(inputs):
+        return paddle.crop(inputs, shape=[2, 2])
+
+    @paddle.jit.to_static
+    def crop2(inputs):
+        shape = paddle.to_tensor(np.array([3, 3]).astype("int32"))
+        return paddle.crop(inputs, shape=shape, offsets=[0, 1])
+
+    @paddle.jit.to_static
+    def crop3(inputs):
+        offsets = paddle.to_tensor(np.array([1, 0]).astype("int32"))
+        return paddle.crop(inputs, shape=[3, 3], offsets=offsets)
+
+    @paddle.jit.to_static
+    def crop4(inputs):
+        shape = paddle.to_tensor(np.array([3, 3]).astype("int32"))
+        offsets = paddle.to_tensor(np.array([1, 1]).astype("int32"))
+        return paddle.crop(inputs, shape=shape, offsets=offsets)
+
     input_shape = [10, 10]
-
-    class Crop(nn.Layer):
-        @paddle.jit.to_static
-        def forward(self, inputs):
-            return paddle.crop(inputs, shape=[2, 2])
-
-    class Crop1(nn.Layer):
-        @paddle.jit.to_static
-        def forward(self, inputs):
-            return paddle.crop(inputs, shape=[3, 3], offsets=[0, 1])
-
-    class Crop2(nn.Layer):
-        @paddle.jit.to_static
-        def forward(self, inputs):
-            return paddle.crop(inputs, shape=[3, 3], offsets=[1, 0])
-
-    class Crop3(nn.Layer):
-        @paddle.jit.to_static
-        def forward(self, inputs):
-            return paddle.crop(inputs, shape=[3, 3], offsets=[1, 1])
-
     input_data = paddle.rand(input_shape, dtype="float32")
-    verify_model(Crop(), input_data=input_data)
-    verify_model(Crop1(), input_data=input_data)
-    verify_model(Crop2(), input_data=input_data)
-    verify_model(Crop3(), input_data=input_data)
+    verify_model(crop1, input_data=[input_data])
+    verify_model(crop2, input_data=[input_data])
+    verify_model(crop3, input_data=[input_data])
+    verify_model(crop4, input_data=[input_data])
 
 
 @tvm.testing.uses_gpu
@@ -560,12 +559,18 @@ def test_forward_dropout():
 @tvm.testing.uses_gpu
 def test_forward_expand():
     @paddle.jit.to_static
-    def expand(inputs):
+    def expand1(inputs):
         return paddle.expand(inputs, shape=[2, 3])
+
+    @paddle.jit.to_static
+    def expand2(inputs):
+        shape = paddle.to_tensor(np.array([2, 3]).astype("int32"))
+        return paddle.expand(inputs, shape=shape)
 
     x_shape = [3]
     x_data = paddle.rand(x_shape, dtype="float32")
-    verify_model(expand, input_data=[x_data])
+    verify_model(expand1, input_data=[x_data])
+    verify_model(expand2, input_data=[x_data])
 
 
 @tvm.testing.uses_gpu
@@ -600,7 +605,7 @@ def test_forward_shape_full():
     input_shape = [1, 3, 10, 10]
     input_data = paddle.rand(input_shape, dtype="float32")
     verify_model(shape1, input_data=[input_data])
-    # verify_model(full1, input_data=[input_data])
+    verify_model(full1, input_data=[input_data])
     verify_model(full2, input_data=[input_data])
 
 
@@ -899,7 +904,7 @@ def test_forward_pool2d():
     input_data = paddle.uniform(shape=[1, 2, 32, 32], dtype="float32", min=-1, max=1)
     verify_model(pool2d1, input_data=input_data)
     verify_model(pool2d2, input_data=input_data)
-    # verify_model(pool2d3, input_data=input_data)
+    verify_model(pool2d3, input_data=input_data)
 
 
 @tvm.testing.uses_gpu
