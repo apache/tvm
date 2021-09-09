@@ -109,11 +109,9 @@ def test_mobilenet():
         lib.export_library(path_dso, xcode.create_dylib, arch=arch, sdk=sdk)
         xcode.codesign(path_dso)
 
-        # Start RPC test server that contains the compiled library.
-        xcode.popen_test_rpc(proxy_host, proxy_port, key, destination=destination, libs=[path_dso])
-
         # connect to the proxy
         remote = rpc.connect(proxy_host, proxy_port, key=key)
+        remote.upload(path_dso)
 
         if target == "metal":
             dev = remote.metal(0)
