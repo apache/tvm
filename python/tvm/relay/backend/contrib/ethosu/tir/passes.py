@@ -16,7 +16,6 @@
 # under the License.
 # pylint: disable=invalid-name, unused-argument
 """The TIR passes to be run on Arm(R) Ethos(TM)-U NPU TIR Compiler"""
-from typing import Dict
 import numpy as np  # type: ignore
 
 import tvm
