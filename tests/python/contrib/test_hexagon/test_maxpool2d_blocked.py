@@ -21,9 +21,13 @@ import tvm
 from tvm import te
 from tvm import topi
 from tvm.topi import testing
-from .infrastructure import ceildiv
-from .infrastructure import get_packed_layout
-from .infrastructure import build_and_run
+from .infrastructure import (
+    ceildiv,
+    build_and_run,
+    get_block_shape,
+    get_packed_filter_layout,
+    get_packed_activation_layout,
+)
 
 import numpy as np
 import pytest
@@ -43,16 +47,16 @@ def maxpool2d_logical(
     activation is nhwc8h8w32c.
     """
 
-    block_shape = 8, 8, 32
+    block_shape = get_block_shape()
     block_H, block_W, block_C = block_shape
-    shape = get_packed_layout(shape_nhwc, block_shape)
+    shape = get_packed_activation_layout(shape_nhwc, block_shape)
     logical_output_shape = (
         shape_nhwc[0],
         (shape_nhwc[1] - window_shape[0] + padding[0] + padding[1]) // stride[0] + 1,
         (shape_nhwc[2] - window_shape[1] + padding[2] + padding[3]) // stride[0] + 1,
         shape_nhwc[3],
     )
-    output_shape = get_packed_layout(logical_output_shape, block_shape)
+    output_shape = get_packed_activation_layout(logical_output_shape, block_shape)
 
     N, H, W, C = shape_nhwc
     X = te.placeholder(shape_nhwc, dtype=dtype)

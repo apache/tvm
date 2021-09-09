@@ -19,7 +19,7 @@
     values from testing parameters """
 
 import tvm
-from .infrastructure import ceildiv
+from .infrastructure import get_packed_filter_layout
 
 
 @tvm.testing.fixture
@@ -34,13 +34,4 @@ def shape_oihw(out_channel, in_channel, kernel):
 
 @tvm.testing.fixture
 def shape_oihw8i32o4i(out_channel, in_channel, kernel):
-    out_factor, in_factor, in_second_factor = 32, 32, 4
-    return (
-        int(ceildiv(out_channel, out_factor)),
-        int(ceildiv(in_channel, in_factor)),
-        kernel,
-        kernel,
-        in_factor // in_second_factor,
-        out_factor,
-        in_second_factor,
-    )
+    return get_packed_filter_layout(out_channel, in_channel, kernel, kernel)

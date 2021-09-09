@@ -25,23 +25,37 @@ def ceildiv(o, d):
     return tvm.tir.floordiv(o + d - 1, d)
 
 
-def get_packed_layout(logical_shape_nhwc, block_shape, packed_C=True):
-    shape = [logical_shape_nhwc[0]]
+def get_packed_activation_layout(shape_nhwc, block_shape, packed_C=True):
+    assert len(shape_nhwc) == 4
+    shape = [shape_nhwc[0]]
     off_h, off_w, off_c = block_shape
-    shape.append(ceildiv(logical_shape_nhwc[1], off_h))
-    shape.append(ceildiv(logical_shape_nhwc[2], off_w))
+    shape.append(ceildiv(shape_nhwc[1], off_h))
+    shape.append(ceildiv(shape_nhwc[2], off_w))
     if packed_C:
-        shape.append(ceildiv(logical_shape_nhwc[3], off_c))
+        shape.append(ceildiv(shape_nhwc[3], off_c))
         shape.extend(block_shape)
     else:
-        shape.extend([off_h, off_w, logical_shape_nhwc[-1]])
+        shape.extend([off_h, off_w, shape_nhwc[3]])
     return shape
 
 
-def build_and_run(inputs, func, target, target_host, *args, **kwargs):
-    s, placeholders, binds = func(*args, **kwargs)
+def get_packed_filter_layout(out_channel, in_channel, kernel_h, kernel_w):
+    out_factor, in_first_factor, in_second_factor = 32, 32, 4
+    return (
+        int(ceildiv(out_channel, out_factor)),
+        int(ceildiv(in_channel, in_first_factor)),
+        kernel_h,
+        kernel_w,
+        in_first_factor // in_second_factor,
+        out_factor,
+        in_second_factor,
+    )
 
-    func = tvm.build(s, placeholders, target=target, target_host=target_host, binds=binds)
+
+def build_and_run(inputs, func, target, target_host, *args, **kwargs):
+    schedule, placeholders, binds = func(*args, **kwargs)
+
+    func = tvm.build(schedule, placeholders, target=target, target_host=target_host, binds=binds)
     dev = tvm.device(target)
     tensors = []
     for tensor in inputs:
@@ -55,3 +69,20 @@ def build_and_run(inputs, func, target, target_host, *args, **kwargs):
     func(*tensors)
 
     return tensors[-1].asnumpy()
+
+
+def get_block_shape():
+    return 8, 8, 32
+
+
+def get_conv2d_nhwc_shape(shape_nhwc, kernel_size, strides, padding, dilation, out_channels):
+    assert len(shape_nhwc) == 4
+    kernel = []
+    kernel.append((kernel_size[0] - 1) * dilation[0] + 1)
+    kernel.append((kernel_size[1] - 1) * dilation[1] + 1)
+    return (
+        shape_nhwc[0],
+        (shape_nhwc[1] - kernel[0] + padding[0] + padding[1]) // strides[0] + 1,
+        (shape_nhwc[2] - kernel[1] + padding[2] + padding[3]) // strides[1] + 1,
+        out_channels,
+    )
