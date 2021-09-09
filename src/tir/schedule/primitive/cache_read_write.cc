@@ -146,7 +146,7 @@ Block MakeCacheStage(const BufferRegion& cache_region, CacheStageInfo* info,
       /*annotations=*/{});
   // Create the block realize node
   Stmt body = BlockRealize(/*values=*/iter_values,
-                           /*predicate=*/Bool(true),
+                           /*predicate=*/const_true(),
                            /*block=*/block);
   // Create surrounding loops
   for (size_t i = loop_vars.size(); i >= 1; --i) {
@@ -158,6 +158,21 @@ Block MakeCacheStage(const BufferRegion& cache_region, CacheStageInfo* info,
   }
   info->cache_stage = std::move(body);
   return block;
+}
+
+/*!
+ * \brief Recalculate the `affine_binding` flag of a specifc block
+ * \param block_sref The sref to the specific block
+ */
+bool CalculateAffineFlag(const ScheduleState& self, const StmtSRef& block_sref) {
+  if (block_sref->parent == nullptr) {
+    return true;
+  }
+  arith::Analyzer analyzer;
+  StmtSRef parent_sref = GetRef<StmtSRef>(block_sref->parent);
+  return IsAffineBinding(/*realize=*/GetBlockRealize(self, block_sref),
+                         /*loop_var_ranges=*/LoopDomainOfSRefTreePath(parent_sref),
+                         /*analyzer=*/&analyzer);
 }
 
 /*!
@@ -613,7 +628,8 @@ StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int read_buff
   const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
   Buffer read_buffer =
       GetNthAccessBuffer(self, GetRef<Block>(block), read_buffer_index, /*is_write=*/false);
-  StmtSRef scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/true);
+  StmtSRef scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/true,
+                                     /*require_subtree_compact_dataflow=*/false);
   const BlockNode* scope_block = TVM_SREF_TO_BLOCK(scope_block, scope_sref);
 
   // Step 2. Creat CacheStageInfo
@@ -657,8 +673,8 @@ StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int read_buff
   // Step 5. Replacing and updating flags.
   self->Replace(scope_sref, new_scope, info.block_reuse);
   StmtSRef result_block_sref = self->stmt2ref.at(cache_read_stage.get());
-  self->UpdateAffineFlag(result_block_sref);
   BlockInfo& block_info = self->block_info[result_block_sref];
+  block_info.affine_binding = CalculateAffineFlag(self, result_block_sref);
   block_info.region_cover = true;
   block_info.scope->stage_pipeline = true;
   return result_block_sref;
@@ -680,7 +696,8 @@ StmtSRef CacheWrite(ScheduleState self, const StmtSRef& block_sref, int write_bu
   const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
   Buffer write_buffer =
       GetNthAccessBuffer(self, GetRef<Block>(block), write_buffer_index, /*is_write=*/true);
-  StmtSRef scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/true);
+  StmtSRef scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/true,
+                                     /*require_subtree_compact_dataflow=*/false);
 
   // Step 2. Creating CacheStageInfo
   CacheStageInfo info;
@@ -710,8 +727,8 @@ StmtSRef CacheWrite(ScheduleState self, const StmtSRef& block_sref, int write_bu
   // Step 6. Replacing and updating flags.
   self->Replace(scope_sref, new_scope, info.block_reuse);
   StmtSRef result_block_sref = self->stmt2ref.at(cache_write_stage.get());
-  self->UpdateAffineFlag(result_block_sref);
   BlockInfo& block_info = self->block_info[result_block_sref];
+  block_info.affine_binding = CalculateAffineFlag(self, result_block_sref);
   block_info.region_cover = true;
   block_info.scope->stage_pipeline = true;
   return result_block_sref;

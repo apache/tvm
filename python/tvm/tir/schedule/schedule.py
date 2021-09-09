@@ -927,6 +927,183 @@ class Schedule(Object):
 
     ########## Schedule: Compute location ##########
 
+    def compute_at(
+        self,
+        block: BlockRV,
+        loop: LoopRV,
+        preserve_unit_loops: bool = False,
+    ) -> None:
+        """Compute-At. Move a producer block under the specific loop, and regenerate the
+        loops induced by the block so that the buffer region produced by the producer block could
+        cover those regions consumed by its consumer blocks under the given loop. It requires:
+
+        1) `block` and `loop` are under the same scope, `loop` is not the ancestor of `block`
+
+        2) The scope block has stage-pipeline property
+
+        3) The subtree of the scope block, where the given block is in, satisfies the compact
+        dataflow condition. i.e. all the blocks in the scope block's subtree must be either
+        complete block or reduction block
+
+        4) The block is not an output block with regard to the scope block, i.e. the buffers written
+        by the block are allocated under the scope block
+
+        5) All the consumers of the block are under the given loop
+
+        Parameters
+        ----------
+        block : BlockRV
+            The block to be moved
+
+        loop: LoopRV
+            The loop where the block to be moved under
+
+        preserve_unit_loops: bool
+            Whether to keep the trivial loops whose extents are 1
+
+        Examples
+        --------
+
+        Before compute-at, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @tvm.script.tir
+            def before_compute_at(a: ty.handle, c: ty.handle) -> None:
+                A = tir.match_buffer(a, (128, 128), "float32")
+                B = tir.alloc_buffer((128, 128), "float32")
+                C = tir.match_buffer(c, (128, 128), "float32")
+                with tir.block([128, 128], "B") as [vi, vj]:
+                    B[vi, vj] = A[vi, vj] * 2.0
+                with tir.block([128, 128], "C") as [vi, vj]:
+                    C[vi, vj] = B[vi, vj] + 1.0
+
+        Create the schedule and do compute-at:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(before_compute_at)
+            block = sch.get_block("B")
+            loop, _ = sch.get_loops(sch.get_block("C"))
+            sch.compute_at(block, loop, preserve_unit_loops=False)
+            print(tvm.script.asscript(sch.mod["main"]))
+
+        After applying compute-at, the IR becomes:
+
+        .. code-block:: python
+
+            @tvm.script.tir
+            def after_compute_at(a: ty.handle, c: ty.handle) -> None:
+                A = tir.match_buffer(a, (128, 128), "float32")
+                B = tir.alloc_buffer((128, 128), "float32")
+                C = tir.match_buffer(c, (128, 128), "float32")
+                for i in tir.serial(0, 128):
+                    for j in tir.serial(0, 128):
+                        with tir.block([128, 128], "B") as [vi, vj]:
+                            tir.bind(vi, i)
+                            tir.bind(vj, j)
+                            B[vi, vj] = A[vi, vj] * 2.0
+                    for j in tir.serial(0, 128):
+                        with tir.block([128, 128], "C") as [vi, vj]:
+                            tir.bind(vi, i)
+                            tir.bind(vj, j)
+                            C[vi, vj] = B[vi, vj] + 1.0
+
+        """
+        _ffi_api.ScheduleComputeAt(  # type: ignore # pylint: disable=no-member
+            self,
+            block,
+            loop,
+            preserve_unit_loops,
+        )
+
+    def reverse_compute_at(
+        self,
+        block: BlockRV,
+        loop: LoopRV,
+        preserve_unit_loops: bool = False,
+    ) -> None:
+        """Reverse-Compute-At. Move a consumer block under the specific loop, and regenerate the
+        loops induced by the block so that the buffer region consumed by the consumer block could
+        cover those regions produced by its producer blocks under the given loop. It requires:
+
+        1) `block` and `loop` are under the same scope, `loop` is not the ancestor of `block`
+
+        2) The scope block has stage-pipeline property
+
+        3) The subtree of the scope block, where the given block is in, satisfies the compact
+        dataflow condition. i.e. all the blocks in the scope block's subtree must be either
+        complete block or reduction block
+
+        4) All the producers of the block are under the given loop
+
+        Parameters
+        ----------
+        block : BlockRV
+            The block to be moved
+
+        loop: LoopRV
+            The loop where the block to be moved under
+
+        preserve_unit_loops: bool
+            Whether to keep the trivial loops whose extents are 1
+
+        Examples
+        --------
+
+        Before reverse-compute-at, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @tvm.script.tir
+            def before_reverse_compute_at(a: ty.handle, c: ty.handle) -> None:
+                A = tir.match_buffer(a, (128, 128), "float32")
+                B = tir.alloc_buffer((128, 128), "float32")
+                C = tir.match_buffer(c, (128, 128), "float32")
+                with tir.block([128, 128], "B") as [vi, vj]:
+                    B[vi, vj] = A[vi, vj] * 2.0
+                with tir.block([128, 128], "C") as [vi, vj]:
+                    C[vi, vj] = B[vi, vj] + 1.0
+
+        Create the schedule and do reverse-compute-at:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(before_reverse_compute_at)
+            block = sch.get_block("C")
+            loop, _ = sch.get_loops(sch.get_block("B"))
+            sch.reverse_compute_at(block, loop, preserve_unit_loops=False)
+            print(tvm.script.asscript(sch.mod["main"]))
+
+        After applying reverse-compute-at, the IR becomes:
+
+        .. code-block:: python
+
+            @tvm.script.tir
+            def after_reverse_compute_at(a: ty.handle, c: ty.handle) -> None:
+                A = tir.match_buffer(a, (128, 128), "float32")
+                B = tir.alloc_buffer((128, 128), "float32")
+                C = tir.match_buffer(c, (128, 128), "float32")
+                for i in tir.serial(0, 128):
+                    for j in tir.serial(0, 128):
+                        with tir.block([128, 128], "B") as [vi, vj]:
+                            tir.bind(vi, i)
+                            tir.bind(vj, j)
+                            B[vi, vj] = A[vi, vj] * 2.0
+                    for j in tir.serial(0, 128):
+                        with tir.block([128, 128], "C") as [vi, vj]:
+                            tir.bind(vi, i)
+                            tir.bind(vj, j)
+                            C[vi, vj] = B[vi, vj] + 1.0
+
+        """
+        _ffi_api.ScheduleReverseComputeAt(  # type: ignore # pylint: disable=no-member
+            self,
+            block,
+            loop,
+            preserve_unit_loops,
+        )
+
     def compute_inline(self, block: BlockRV) -> None:
         """Inline a block into its consumer(s). It requires:
 
@@ -1189,10 +1366,15 @@ class Schedule(Object):
         """
         return _ffi_api.ScheduleRFactor(self, loop, factor_axis)  # type: ignore # pylint: disable=no-member
 
-    ######## Schedule: Block annotatoin ########
+    ######## Schedule: Block annotation ########
 
     def storage_align(  # pylint: disable=too-many-arguments
-        self, block: BlockRV, buffer_index: int, axis: int, factor: int, offset: int
+        self,
+        block: BlockRV,
+        buffer_index: int,
+        axis: int,
+        factor: int,
+        offset: int,
     ) -> None:
         """Set alignment requirement for specific dimension such that
         stride[axis] == k * factor + offset for some k. This is useful to set memory layout for more

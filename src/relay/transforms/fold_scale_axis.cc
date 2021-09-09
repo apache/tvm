@@ -243,7 +243,9 @@ class ForwardPrep : private MixedModeVisitor {
     }
   }
   // Visitor pattern override.
-  void VisitExpr_(const LetNode* op) {
+  void VisitExpr_(const TupleGetItemNode* op) final { MixedModeVisitor::VisitExpr_(op); }
+
+  void VisitExpr_(const LetNode* op) final {
     ExprVisitor::VisitExpr_(op);
     // do pass through condition
     // by assigning NullValue<Message>
@@ -256,13 +258,13 @@ class ForwardPrep : private MixedModeVisitor {
     flist_.push_back(flazy);
   }
 
-  void VisitExpr_(const FunctionNode* op) {
+  void VisitExpr_(const FunctionNode* op) final {
     ExprVisitor::VisitExpr_(op);
     auto flazy = [this, op] { this->Update(op->body, NullValue<Message>()); };
     flist_.push_back(flazy);
   }
 
-  void VisitExpr_(const CallNode* call) {
+  void VisitExpr_(const CallNode* call) final {
     ExprVisitor::VisitExpr_(call);
     // function to be lazily invoked
     auto flazy = [this, call]() {
@@ -292,7 +294,7 @@ class ForwardPrep : private MixedModeVisitor {
     flist_.push_back(flazy);
   }
 
-  void VisitExpr_(const TupleNode* op) {
+  void VisitExpr_(const TupleNode* op) final {
     ExprVisitor::VisitExpr_(op);
     // do not support pass scale through tuple for now.
     auto flazy = [this, op]() {
@@ -303,7 +305,7 @@ class ForwardPrep : private MixedModeVisitor {
     flist_.push_back(flazy);
   }
 
-  void VisitExpr_(const IfNode* op) {
+  void VisitExpr_(const IfNode* op) final {
     ExprVisitor::VisitExpr_(op);
     // do pass through condition
     // by assigning NullValue<Message>

@@ -687,7 +687,7 @@ void Reorder(ScheduleState self, const Array<StmtSRef>& ordered_loop_srefs) {
   self->Replace(GetRef<StmtSRef>(top), new_loop, {});
 }
 
-/******** Instruction Registration ********/
+/******** InstructionKind Registration ********/
 
 struct SplitTraits : public UnpackedInstTraits<SplitTraits> {
   static constexpr const char* kName = "Split";

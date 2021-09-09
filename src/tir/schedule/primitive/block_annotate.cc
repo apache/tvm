@@ -270,7 +270,7 @@ void StorageAlign(ScheduleState self, const StmtSRef& block_sref, int buffer_ind
   self->Replace(block_sref, new_block, {{GetRef<Block>(block_ptr), new_block}});
 }
 
-/******** Instruction Registration ********/
+/******** InstructionKind Registration ********/
 
 struct StorageAlignTraits : public UnpackedInstTraits<StorageAlignTraits> {
   static constexpr const char* kName = "StorageAlign";

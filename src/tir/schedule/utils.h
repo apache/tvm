@@ -34,10 +34,12 @@
 #include <unordered_map>
 #include <utility>
 
+#include "../../arith/pattern_match.h"
 #include "../../node/attr_registry.h"
 #include "../../printer/text_printer.h"
 #include "../../runtime/thread_storage_scope.h"
 #include "../../support/array.h"
+#include "../../support/nd_int_set.h"
 #include "./analysis.h"
 #include "./error.h"
 #include "./instruction_traits.h"
@@ -162,6 +164,21 @@ inline Stmt RemoveFromSeqStmt(const SeqStmt& seq, const Stmt& to_remove) {
   }
   return SeqStmt::Flatten(new_stmts);
 }
+
+/*!
+ * \brief Convert a Stmt to an Array.
+ * \param stmt The Stmt to be converted to
+ * \return If the Stmt is SeqStmt, then returns the sequence;
+ * Otherwise, returns a single-element Array with the Stmt inside.
+ */
+inline Array<Stmt> AsArray(const Stmt& stmt) {
+  if (const auto* seq_stmt = stmt.as<SeqStmtNode>()) {
+    return seq_stmt->seq;
+  }
+  return {stmt};
+}
+
+/******** IterVar ********/
 
 /*!
  * \brief Create a new IterVar for the input For loop, with specified name and type

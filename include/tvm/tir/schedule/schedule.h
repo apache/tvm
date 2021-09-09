@@ -306,6 +306,41 @@ class ScheduleNode : public runtime::Object {
                              const String& storage_scope) = 0;
   /******** Schedule: Compute location ********/
   /*!
+   * \brief Move a producer block under the specific loop, and regenerate the
+   * loops induced by the block so that the buffer region produced by the producer block could
+   * cover those regions consumed by its consumer blocks under the given loop. It requires:
+   * 1) `block` and `loop` are under the same scope, `loop` is not the ancestor of `block`
+   * 2) The scope block has stage-pipeline property
+   * 3) The subtree of the scope block, where the given block is in, satisfies the compact dataflow
+   * condition. i.e. all the blocks in the scope block's subtree must be either complete block or
+   * reduction block
+   * 4) The block is not an output block with regard to the scope block, i.e. the buffers written by
+   * the block are allocated under the scope block
+   * 5) All the consumers of the block are under the given loop
+   * \param block_rv The block to be moved
+   * \param loop_rv The loop where the block to be moved under
+   * \param preserve_unit_loops Whether to keep the trivial loops whose extents are 1
+   */
+  virtual void ComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv,
+                         bool preserve_unit_loops) = 0;
+  /*!
+   * \brief Move a consumer block under the specific loop, and regenerate the
+   * loops induced by the block so that the buffer region consumed by the consumer block could
+   * cover those regions produced by its producer blocks under the given loop. It requires:
+   * 1) `block` and `loop` are under the same scope, `loop` is not the ancestor of `block`
+   * 2) The scope block has stage-pipeline property
+   * 3) The subtree of the scope block, where the given block is in, satisfies the compact dataflow
+   * condition. i.e. all the blocks in the scope block's subtree must be either complete block or
+   * reduction block
+   * 4) All the producers of the block are under the given loop
+   *
+   * \param block_rv The block to be moved
+   * \param loop_rv The loop where the block to be moved under
+   * \param preserve_unit_loops Whether to keep the trivial loops whose extents are 1
+   */
+  virtual void ReverseComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv,
+                                bool preserve_unit_loops) = 0;
+  /*!
    * \brief Inline a block into its consumer(s). It requires:
    * 1) The block is a complete non-root block, which only produces one buffer
    * 2) The block must not be the only leaf in the scope.

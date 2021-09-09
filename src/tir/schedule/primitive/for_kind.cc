@@ -27,7 +27,7 @@ class WrongBlockIterTypeError : public ScheduleError {
       : mod_(std::move(mod)), loop_var_(std::move(loop_var)), block_(std::move(block)) {
     op_str_ = for_kind == ForKind::kParallel
                   ? "parallel"
-                  : for_kind == ForKind::kVectorized ? "vectorize" : "bind";
+                  : (for_kind == ForKind::kVectorized ? "vectorize" : "bind");
   }
   String FastErrorString() const final {
     std::ostringstream os;
@@ -151,7 +151,9 @@ void ParallelizeComputation(const ScheduleState& self, const StmtSRef& loop_sref
    * parallelized/vectorized/bound.
    */
   // Step 1. Check whether the subtree rooted from the `loop` in sref tree has compact data flow.
-  CheckSRefSubtreeCompactDataFlow(self, loop_sref);
+  GetScopeRoot(self, loop_sref,  //
+               /*require_stage_pipeline=*/true,
+               /*require_subtree_compact_dataflow=*/true);
 
   // Step 2. Check whether the loop can be parallelized/vectorized/bound with regard to each
   // underlying block.
@@ -187,7 +189,7 @@ void Unroll(ScheduleState self, const StmtSRef& loop_sref) {
   self->Replace(loop_sref, For(new_loop), {});
 }
 
-/******** Instruction Registration ********/
+/******** InstructionKind Registration ********/
 
 struct ParallelTraits : public UnpackedInstTraits<ParallelTraits> {
   static constexpr const char* kName = "Parallel";
@@ -251,7 +253,7 @@ struct BindTraits : public UnpackedInstTraits<BindTraits> {
   static String UnpackedAsPython(Array<String> outputs, String loop_rv, String thread) {
     PythonAPICall py("bind");
     py.Input("loop", loop_rv);
-    py.Input("thread", thread);
+    py.Input("thread_axis", thread);
     return py.Str();
   }
 
