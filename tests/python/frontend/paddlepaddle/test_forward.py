@@ -643,7 +643,8 @@ def test_forward_elemwise():
 
     op_list = [
         "floor_divide",
-        "floor_mod" "equal",
+        "floor_mod",
+        "equal",
         "greater_than",
         "less_equal",
         "less_than",
@@ -658,7 +659,8 @@ def test_forward_elemwise():
     x_data_2 = paddle.randint(1, 100, input_shape_2, dtype="int32")
     y_data_2 = paddle.randint(1, 100, input_shape, dtype="int32")
     for op_name in op_list:
-        verify_model(ElemwiseOp(op_name), [x_data, y_data])
+        if op_name not in ["floor_divide"]:
+            verify_model(ElemwiseOp(op_name), [x_data, y_data])
         verify_model(ElemwiseOp(op_name), [x_data_2, y_data_2])
 
 
