@@ -1544,8 +1544,7 @@ class GatherElements(OnnxOpConverter):
         data = inputs[0]
         indices = inputs[1]
         axis = attr.get("axis", 0)
-        indices = normalize_gather_indices(data, indices, axis)
-        return _op.gather(data, axis, indices)
+        return _op.gather(data, axis, indices, support_negative_indices=True)
 
 
 class GatherND(OnnxOpConverter):
@@ -3560,7 +3559,9 @@ class NegativeLogLikelihoodLoss(OnnxOpConverter):
 
         expanded_target_tensor = relay.expand_dims(target_tensor, 0)
         expanded_target_tensor = relay.nn.batch_flatten(expanded_target_tensor)
-        flattened_weights = relay.gather_nd(weight_tensor, expanded_target_tensor)
+        flattened_weights = relay.gather_nd(
+            weight_tensor, expanded_target_tensor, support_negative_indices=True
+        )
         select_weights = relay.reshape_like(flattened_weights, loss)
         loss *= select_weights
 
