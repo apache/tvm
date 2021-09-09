@@ -1049,6 +1049,7 @@ def convert_pow(g, op, block):
     factor = _expr.const(factor, dtype="float32").astype("float32")
 
     out = _op.power(x, factor)
+    g.add_node(op.output("Out")[0], out)
 
     
 def convert_range(g, op, block):
