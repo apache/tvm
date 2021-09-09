@@ -87,6 +87,7 @@ register_unary_identity("transpose")
 register_unary_identity("expand_dims")
 register_unary_identity("nn.max_pool2d")
 register_unary_identity("nn.batch_flatten")
+register_unary_identity("nn.depth_to_space")
 
 
 @register_fake_quantization_to_integer("nn.avg_pool2d")
