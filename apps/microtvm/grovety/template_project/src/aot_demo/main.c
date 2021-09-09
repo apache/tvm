@@ -212,7 +212,7 @@ float get_input() {
   int index = 0;
   while (index < INPUT_DATA_LEN) {
     int readed = TVMPlatformUartRxRead(ptr, 1);
-    if (readed > 0)
+    if (readed > 0) {
       if (*ptr == ',') {
         *ptr = 0;
         input_data[index] = _strtof(cmd_buf, NULL);
@@ -227,6 +227,7 @@ float get_input() {
       } else {
         ptr++;
       }
+    }
   }
 
   return 0;
