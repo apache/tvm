@@ -167,7 +167,7 @@ inline Stmt RemoveFromSeqStmt(const SeqStmt& seq, const Stmt& to_remove) {
 
 /*!
  * \brief Convert a Stmt to an Array.
- * \param stmt The Stmt ti be converted to
+ * \param stmt The Stmt to be converted to
  * \return If the Stmt is SeqStmt, then returns the sequence;
  * Otherwise, returns a single-element Array with the Stmt inside.
  */

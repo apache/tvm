@@ -445,7 +445,7 @@ void ConcreteScheduleNode::ComputeAt(const BlockRV& block_rv, const LoopRV& loop
   static StmtSRef root_mark = StmtSRef::RootMark();
   StmtSRef loop_sref = this->GetSRef(loop_rv);
   if (loop_sref.same_as(root_mark)) {
-    return;
+    // do nothing
   } else if (loop_sref.same_as(inline_mark)) {
     TVM_TIR_SCHEDULE_BEGIN();
     tir::ComputeInline(state_, this->GetSRef(block_rv));
