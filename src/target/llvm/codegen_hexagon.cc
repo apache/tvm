@@ -731,9 +731,8 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
   }
 
   cg->Init("TVMHexagonModule", tm.get(), ctx.get(), false, false, false);
-  for (const PrimFunc& f : funcs) {
-    cg->AddFunction(f);
-  }
+  cg->AddFunctionsOrdered(funcs.begin(), funcs.end());
+
   if (!linked_params.empty()) {
     cg->LinkParameters(linked_params);
   }
