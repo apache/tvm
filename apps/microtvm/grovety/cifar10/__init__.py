@@ -24,9 +24,9 @@ def open_model():
 
 
 def get_data():
-    import numpy as np
     import pickle
     import os, pathlib
+    import numpy as np
 
     current_dir = pathlib.Path(os.path.dirname(__file__)).resolve()
     with open(current_dir / 'data/batches.meta', 'rb') as file:
@@ -37,13 +37,20 @@ def get_data():
 
     dataset = []
     i = 0
-    while len(dataset) < 30:
+    while len(dataset) < 10:
         label = test_batch[b'labels'][i]
         label_str = label_names[b'label_names'][label].decode('UTF-8')
         data = test_batch[b'data'][i]
+
         i += 1
         if label_str not in ['cat', 'dog', 'frog']:
             continue
+
+        data = data.reshape(3, 32, 32).transpose(1, 2, 0)
+        # convert RGB to grayscale
+        gray = 0.07 * data[:,:,2] + 0.72 * data[:,:,1] + 0.21 * data[:,:,0]
+        data = gray.astype(np.uint8)
+
         dataset.append((label_str, data))
 
     return dataset
