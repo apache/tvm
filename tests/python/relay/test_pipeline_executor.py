@@ -43,32 +43,35 @@ def get_mannual_mod():
     mv3 = relay.Constant(tvm.nd.array(mvalue3))
 
     """
-    # Net1 have three output, output3 is final output.
+    # The first model has three output.
     """
 
-    net_output1 = relay.add(data, mv1)
-    net_output2 = relay.subtract(data, mv2)
-    net_output3 = relay.multiply(data, mv3)
+    net1_output1 = relay.add(data, mv1)
+    net1_output2 = relay.subtract(data, mv2)
+    net1_output3 = relay.multiply(data, mv3)
 
     """
-    # Net2 use net1 output1 as input.
+    # The second model use first model net1_output1 as first input,
+    # here data_net1_output_1 represent net_output1, the second input
+    # of this model is data21.
     """
     net2 = relay.add(data_net1_output_1, mv2)
     net2 = relay.add(net2, data21)
-    net2 = relay.add(net2, mv3)
+    net2_output = relay.add(net2, mv3)
 
     """
-    # Net3 use net2 output1 and net1 outpu2 as input.
+    # The third model use the second model net2_output as first input
+    # and use the first model net1_output2 as second input.
     """
     net3 = relay.multiply(data_net2_output_1, mv3)
     net3 = relay.add(net3, data_net1_output_2)
 
     mods.append(
         tvm.IRModule.from_expr(
-            relay.Function([data], relay.Tuple([net_output1, net_output2, net_output3]))
+            relay.Function([data], relay.Tuple([net1_output1, net1_output2, net1_output3]))
         )
     )
-    mods.append(tvm.IRModule.from_expr(relay.Function([data_net1_output_1, data21], net2)))
+    mods.append(tvm.IRModule.from_expr(relay.Function([data_net1_output_1, data21], net2_output)))
     mods.append(
         tvm.IRModule.from_expr(relay.Function([data_net1_output_2, data_net2_output_1], net3))
     )
@@ -78,18 +81,12 @@ def get_mannual_mod():
 
 def get_manual_conf(mods, target):
     """
-    # This function use to generate manual pipe line configueration,
-    # the result use to verify if the pipe configuration can generate
-    # correct result.
+    # This function is used to generate manual pipeline configuration.
     """
     mod_config = {}
     """
-    # Set configure
-    """
-
-    """
-    # Third output is final output, second output for mod3, first for mod2
-    # input
+    # The third output is the final output, the second output is for mod3, the first is for mod2
+    # input.
     """
     pipe_config1 = {
         "mod_idx": 1,
@@ -143,11 +140,15 @@ def get_manual_conf(mods, target):
 
 def test_pipe_config_check():
     """
-    #Get 3 pipeline module.
+    # This function is used to trigger runtime error by appling wrong logic connection.
+    """
+
+    """
+    #Here get three pipeline modules.
     """
     (mod1, mod2, mod3), dshape = get_mannual_mod()
     """
-    # Try invalid input/output name exepect runtime error
+    # Runing error will be expected by trying invalid input/output name.
     """
     pipe_error = pipeline_executor.PipelineConfig()
     with pytest.raises(RuntimeError):
@@ -157,14 +158,14 @@ def test_pipe_config_check():
         pipe_error[mod1]["input"]["data_9"]
 
     """
-    # Try cirle connection , expect runtime error
+    # Runtime error will be expected by trying circle connection.
     """
     with pytest.raises(RuntimeError):
         pipe_error[mod1]["output"][0].connect(pipe_error[mod2]["input"]["data_0"])
         pipe_error[mod2]["output"][0].connect(pipe_error[mod1]["input"]["data_0"])
 
     """
-    # Try wrong module order connection check, expect runtime error.
+    # Runtime error will be expected by trying wrong module order connection check.
     """
 
     with pytest.raises(RuntimeError):
@@ -190,40 +191,40 @@ def test_pipeline():
     if pipeline_executor.pipeline_executor_enabled():
         target_list = tvm.testing.enabled_targets()
         for target in target_list:
-            """
-            #Get 3 pipeline module.
-            """
+            # Here get three pipeline modules.
             (mod1, mod2, mod3), dshape = get_mannual_mod()
 
-            # Prepare batch data for pipeline feeding
+            # Batch data is prepared for pipeline feeding.
             datas = []
             for i in range(5):
                 datas.append(np.full(dshape, 3 + i).astype("float32"))
 
             pipe_config = pipeline_executor.PipelineConfig()
 
-            # Create pipeline compute input/output and subgraph dependent relation.
-
-            # Test in key mode for binding find.
-            # Pipeline compute input "data_0" would get forward to mod1 as input "data_0"
+            # Input named "data_0" of global pipeline will be transfered to input
+            # named "data_0" of mod1 when executor is running after the 'connect'
+            # function calling.
             pipe_config["input"]["data_0"].connect(pipe_config[mod1]["input"]["data_0"])
 
-            # Pipeline compute input "data_1" would get forward to mod2 as input "data_1"
+            # Input named "data_1" of global pipeline will be transfered to input
+            # named "data_1" of mod2 when executor is running.
             pipe_config["input"]["data_1"].connect(pipe_config[mod2]["input"]["data_1"])
 
-            # Mod1 output(0) would get forward to mod2 as input "data_0"
+            # Output[0] of mod1 will be transfered to input named "data_0" of mod2 when
+            # executor is running.
             pipe_config[mod1]["output"][0].connect(pipe_config[mod2]["input"]["data_0"])
 
-            # Mod1 output(1) would get forward to mod3 as input "data_0"
+            # Output[1] of mod1 will be transfered to input named "data_0" of mod3 when
+            # executor is running.
             pipe_config[mod1]["output"][1].connect(pipe_config[mod3]["input"]["data_0"])
 
-            # Mod2 output(0) would get forward to mod3 as input "data_1"
+            # Output[2] of mod2 will be transfered to input named "data_1" of mod3"
             pipe_config[mod2]["output"][0].connect(pipe_config[mod3]["input"]["data_1"])
 
-            # Mod1 output(2) would get forward as final pipeline compute output(1)
+            # Output[2] of mod1 will be transfered to global pipeline output[1]
             pipe_config[mod1]["output"][2].connect(pipe_config["output"]["0"])
 
-            # Mod3 output(0) would get forward as final pipeline compute output(2)
+            # Output[0] of mod3 will be transfered to global pipeline output[2]
             pipe_config[mod3]["output"][0].connect(pipe_config["output"]["1"])
             """
             # Print configueration (print(pipe_config)), the expect result like following.
@@ -255,12 +256,12 @@ def test_pipeline():
             pipe_config[mod3].dev = tvm.cpu(0)
 
             """
-            # Check if the configuration match expectation.
+            # Here is to check correctness for configuration generated by API.
             """
             assert pipe_config.get_config() == get_manual_conf([mod1, mod2, mod3], target)
 
             """
-            # Test build and create pipeline module
+            # build then create pipeline module.
             """
             with tvm.transform.PassContext(opt_level=3):
                 pipeline_mod_config = pipeline_executor.build(pipe_config)

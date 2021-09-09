@@ -23,7 +23,7 @@ from tvm.contrib import graph_executor
 
 
 def pipeline_executor_enabled():
-    """Check if pipeline executor get enabled.
+    """Check if pipeline executor is enabled.
 
     Return
     -------
@@ -45,7 +45,7 @@ def build(pipe_configs):
     Returns
     -------
     ret: PipelineExecutorFactoryModule
-        the class that wrap module list and module dependency configuration.
+        a class that wraps module list and module dependency configuration.
     """
     mods = {}
     mod_n_configs = pipe_configs.get_config()
@@ -123,7 +123,7 @@ class PipelineModule(object):
         self.module_ = module
 
     def graph_executor_create(self, pipeline_mods, mod_config):
-        """Create graph_executor list and return text format configuration.
+        """Create graph_executor list and return configuration as a json string.
 
         Parameters
         ----------
@@ -159,13 +159,13 @@ class PipelineConfig(object):
     """
 
     class Binding:
-        """The class that use to storage module connection information.
+        """The class to storage module connection information.
         The binding can be either "input" or "output".
 
         Parameters
         ----------
         owner : ModuleWrapper
-            The class that own this interface, in such class there are
+            The class that owns this interface, in such class there are
             Module information like idx, module name
 
         io_type : str
@@ -176,19 +176,19 @@ class PipelineConfig(object):
             for output it is the idx integer such as 0.
         """
 
-        def __init__(self, owner, stype, name, data_type=None):
+        def __init__(self, owner, io_type, name, data_type=None):
             self.io_owner = owner
-            self.io_type = stype
+            self.io_type = io_type
             self.name = str(name)
             # These item that have dependency relation with self
             self.bindings = []
-            # The item that self depend
+            # The items that this binding depend on.
             self.parents = []
 
             self.data_type = data_type
 
         def get_name(self):
-            """Get owner name and self name"""
+            """Return this interface name and name of owner who own this interface."""
             owner_name = ""
             if isinstance(self.io_owner, PipelineConfig.ModuleWrapper):
                 owner_name = self.io_owner.name
@@ -217,7 +217,7 @@ class PipelineConfig(object):
             return ret
 
         def check_dag_acyclic(self, start, inputs):
-            """Check if the DAG that current binding stay is acircle"""
+            """Here to check if the DAG that build by bindings connections is acyclic."""
             for binding in inputs.values():
                 if start == binding.io_owner:
                     return False
@@ -229,11 +229,11 @@ class PipelineConfig(object):
 
         def connect(self, binding):
             """
-            # Check if the bindendency setting correct.
+            # Check if the binding settings is correct.
             # correct connection are following
             # 1. global input to module input
             # 2. module output to global output
-            # 3. module output to moudle input
+            # 3. module output to module input
             """
             if self.io_owner == binding.io_owner:
                 raise RuntimeError(f"can not set self as binding.")
@@ -298,13 +298,11 @@ class PipelineConfig(object):
             self.binding_type = type_name
 
         def get_binding_data_type(self, key):
-            """return binding data type"""
             if isinstance(self.io_owner, PipelineConfig.ModuleWrapper):
                 return self.io_owner.get_data_type(key, self.binding_type)
             return None
 
         def __getitem__(self, key):
-            """return item by key"""
             if key not in self.bindings:
                 data_type = self.get_binding_data_type(key)
                 if not data_type and isinstance(self.io_owner, PipelineConfig.ModuleWrapper):
@@ -337,14 +335,12 @@ class PipelineConfig(object):
             self.output_bindings = PipelineConfig.BindingList(self, "output")
 
         def __eq__(self, other):
-            """Check if self equl other"""
             if isinstance(other, PipelineConfig.ModuleWrapper):
                 return self.mod == other.mod
 
             return False
 
         def __getitem__(self, key):
-            """Get item by key"""
             if isinstance(key, str):
                 if key == "input":
                     return self.input_bindings
@@ -371,7 +367,7 @@ class PipelineConfig(object):
             return None
 
         def set_idx_name(self, idx):
-            """Set index and generating name by index"""
+            """Set index and generate name by index"""
             self.idx = idx
             self.name = "mod{}".format(str(idx))
 
@@ -392,14 +388,15 @@ class PipelineConfig(object):
         self.output_bindings = self.BindingList(self, "output")
 
     def __str__(self):
-        """ Get configuration in string type"""
+        """ Get configuration as string"""
         # topological sort to get correct module order in list.
         self.dag_topology_sort()
         # get input
         input_dump = "Inputs\n"
         for input_name in self.input_bindings.bindings:
             inf = self.input_bindings.bindings[input_name]
-            input_dump += inf.__repr__() + "\n"
+            #input_dump += inf.__repr__() + "\n"
+            input_dump += str(inf) + "\n"
 
         # get connections
         output = {}
@@ -425,7 +422,6 @@ class PipelineConfig(object):
         return input_dump + output_dump + connections_dump
 
     def __getitem__(self, key):
-        """Return item by key"""
         if isinstance(key, tvm.ir.module.IRModule):
             if key not in self.mod_wrapper:
                 self.mod_wrapper[key] = self.ModuleWrapper(key)
@@ -442,7 +438,7 @@ class PipelineConfig(object):
     def get_config(self):
         """ Get configuration in dictionary format."""
 
-        # Tpological sort to get correct module order in list.
+        # Topological sort to get correct module order in list.
         self.dag_topology_sort()
         mconfig = {}
         for mod in self.mod_wrapper:
@@ -502,7 +498,7 @@ class PipelineConfig(object):
             self.mod_wrapper[mod].set_idx_name(i + 1)
 
     def get_mod_idx(self, mod):
-        """Return idx for specify mod"""
+        """Return idx for specified mod"""
         idx = self.mod_wrapper[mod].idx
         return idx
 
@@ -516,7 +512,7 @@ class PipelineConfig(object):
 
 
 class PipelineExecutorFactoryModule(object):
-    """This is a factory with list of GraphExecutorFactoryModule and Module configurations.
+    """This class is a wrapper of GraphExecutorFactoryModule list and Module configurations.
 
     Parameters
     ----------

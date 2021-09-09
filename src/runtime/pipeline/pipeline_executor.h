@@ -45,8 +45,8 @@ class TVM_DLL PipelineRuntime : public ModuleNode {
   const char* type_key() const final { return "PipelineRuntime"; }
   /*!
    * \brief Initialize the pipeline executor with module Array and json text.
-   * \param modules The module list that use for pipeline build.
-   * \param pipeline_json The configuration for module dependent in pipeline.
+   * \param modules The module list that used for building pipeline.
+   * \param pipeline_json The configuration of modules dependencies.
    */
   void Init(const Array<tvm::runtime::Module>& modules, const std::string& pipeline_json);
   /*!
