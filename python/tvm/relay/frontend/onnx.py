@@ -1611,22 +1611,6 @@ class EyeLike(OnnxOpConverter):
         return _op.scatter_nd(zeros, _op.stack([indices, indices + k], axis=0), ones, "update")
 
 
-class Greater(OnnxOpConverter):
-    """Operator logical greater."""
-
-    @classmethod
-    def _impl_v7(cls, inputs, attr, params):
-        return _op.greater(inputs[0], inputs[1])
-
-
-class Less(OnnxOpConverter):
-    """Operator logical less than."""
-
-    @classmethod
-    def _impl_v7(cls, inputs, attr, params):
-        return _op.less(inputs[0], inputs[1])
-
-
 class LRN(OnnxOpConverter):
     """Operator converter for Local Response Normalization."""
 
@@ -3655,8 +3639,8 @@ def _get_convert_map(opset):
         "Selu": Selu.get_converter(opset),
         "Elu": Elu.get_converter(opset),
         "Exp": Renamer("exp"),
-        "Greater": Greater.get_converter(opset),
-        "Less": Less.get_converter(opset),
+        "Greater": Renamer("greater"),
+        "Less": Renamer("less"),
         "Log": Renamer("log"),
         "Acos": Renamer("acos"),
         "Acosh": Renamer("acosh"),
