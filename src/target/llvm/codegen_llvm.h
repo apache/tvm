@@ -36,6 +36,7 @@
 #include <tvm/tir/stmt.h>
 #include <tvm/tir/stmt_functor.h>
 
+#include <algorithm>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -92,6 +93,25 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    * \return the created module.
    */
   virtual std::unique_ptr<llvm::Module> Finish();
+  /*!
+   * \brief Add functions from the (unordered) range to the current module in a deterministic order.
+   *        The range consists of objects convertible to PrimFunc.
+   * \param begin The beginning of the range.
+   * \param end The end of the range.
+   * \param pfunc Converter function from the range element type to PrimFunc.
+   */
+  template <typename IterType, typename ConvType>
+  void AddFunctionsOrdered(IterType begin, IterType end, ConvType pfunc);
+  /*!
+   * \brief Add functions from the (unordered) range of elements of type PrimFunc to the current
+   *        module in a deterministic order.
+   * \param begin The beginning of the range.
+   * \param end The end of the range.
+   */
+  template <typename IterType>
+  void AddFunctionsOrdered(IterType begin, IterType end) {
+    this->AddFunctionsOrdered(begin, end, [](auto f) { return f; });
+  }
   /*!
    * \brief Add mod to be linked with the generated module
    * \param mod The module to be linked.
@@ -375,6 +395,22 @@ inline int CodeGenLLVM::GetVectorNumElements(llvm::Value* vec) {
 #else
   return llvm::cast<llvm::VectorType>(vec->getType())->getNumElements();
 #endif
+}
+
+template <typename IterType, typename ConvType>
+void CodeGenLLVM::AddFunctionsOrdered(IterType begin, IterType end, ConvType pfunc) {
+  std::vector<PrimFunc> funcs;
+  for (auto it = begin; it != end; ++it) {
+    funcs.push_back(pfunc(*it));
+  }
+  std::sort(funcs.begin(), funcs.end(), [](PrimFunc func_a, PrimFunc func_b) {
+    std::string name_a = func_a->GetAttr<String>(tvm::attr::kGlobalSymbol).value();
+    std::string name_b = func_b->GetAttr<String>(tvm::attr::kGlobalSymbol).value();
+    return name_a < name_b;
+  });
+  for (auto& f : funcs) {
+    AddFunction(f);
+  }
 }
 
 }  // namespace codegen
