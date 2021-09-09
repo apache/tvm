@@ -30,6 +30,7 @@ from ..nn.depthwise_conv2d import _get_workload as _get_depthwise_conv2d_workloa
 from ..utils import get_const_tuple, traverse_inline
 from .. import nn
 from . import conv2d_avx_1x1, conv2d_avx_common
+from .utils import target_has_sse42
 
 
 def _get_default_config_int8(
@@ -73,9 +74,7 @@ def is_int8_hw_support(data_dtype, kernel_dtype):
 
     # 3) Check target
     mcpu = tvm.target.Target.current().mcpu
-    is_target_support = False
-    if mcpu in ("skylake-avx512", "cascadelake"):
-        is_target_support = True
+    is_target_support = target_has_sse42(mcpu)
 
     return is_dtype_support and is_llvm_support and is_target_support
 

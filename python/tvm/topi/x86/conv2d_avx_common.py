@@ -22,11 +22,11 @@ from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
 from ..generic import conv2d as conv2d_generic
 from ..utils import get_const_tuple
 from .tensor_intrin import dot_16x1x16_uint8_int8_int32
-from .utils import get_fp32_len
+from .utils import get_simd_32bit_lanes
 
 
 def _fallback_schedule(cfg, wkl):
-    simd_width = get_fp32_len()
+    simd_width = get_simd_32bit_lanes()
     pt, pl, pb, pr = wkl.padt, wkl.padl, wkl.padb, wkl.padr
     HSTR, WSTR = wkl.stride_h, wkl.stride_w
     dilated_kernel_w = (wkl.kernel_w - 1) * wkl.dilation_w + 1
@@ -174,6 +174,6 @@ def _schedule_conv_NCHWc_int8(s, cfg, data_vec, kernel_vec, conv_out, last):
         kernel_vec,
         conv_out,
         last,
-        int32_lanes=16,
+        int32_lanes=get_simd_32bit_lanes(),
         intrin=dot_16x1x16_uint8_int8_int32(),
     )

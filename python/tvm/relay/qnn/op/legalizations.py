@@ -22,6 +22,7 @@ import tvm
 from tvm import relay
 from tvm._ffi.base import TVMError
 from .. import op as reg
+from ....topi.x86.utils import target_has_sse42
 
 #################################################
 # Register the functions for different operators.
@@ -343,7 +344,7 @@ def helper_change_dtypes_to_be_same(attrs, inputs, types, relay_op):
 def is_fast_int8_on_intel():
     """Checks whether the hardware has support for fast Int8 arithmetic operations."""
     target = tvm.target.Target.current(allow_none=False)
-    return target.mcpu in {"skylake-avx512", "cascadelake"}
+    return target_has_sse42(target.mcpu)
 
 
 def is_fast_int8_on_arm():
