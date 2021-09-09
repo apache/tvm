@@ -294,6 +294,7 @@ inline PrimExpr BufferOffset(const BufferNode* n, Array<PrimExpr> index, DataTyp
 PrimExpr Buffer::vload(Array<PrimExpr> begin, DataType dtype) const {
   // specially handle bool, stored as DataType::Int(8)
   const BufferNode* n = operator->();
+  ICHECK(n != nullptr);
   ICHECK(dtype.element_of() == n->dtype.element_of() && dtype.lanes() % n->dtype.lanes() == 0)
       << "Cannot load " << dtype << " from buffer of " << n->dtype;
   if (dtype == DataType::Bool()) {
@@ -308,6 +309,7 @@ PrimExpr Buffer::vload(Array<PrimExpr> begin, DataType dtype) const {
 Stmt Buffer::vstore(Array<PrimExpr> begin, PrimExpr value) const {
   // specially handle bool, stored as DataType::Int(8)
   const BufferNode* n = operator->();
+  ICHECK(n != nullptr);
   DataType dtype = value.dtype();
   ICHECK(dtype.element_of() == n->dtype.element_of() && dtype.lanes() % n->dtype.lanes() == 0)
       << "Cannot store " << dtype << " to buffer of " << n->dtype;
@@ -332,7 +334,9 @@ Buffer Buffer::MakeStrideView() const {
   if ((*this)->strides.size() != 0) return *this;
   if ((*this)->shape.size() == 0) return *this;
   std::vector<PrimExpr> temp;
-  auto n = make_object<BufferNode>(*operator->());
+  const BufferNode* self = operator->();
+  ICHECK(self != nullptr);
+  auto n = make_object<BufferNode>(*self);
   PrimExpr acc = make_const(n->DefaultIndexType(), 1);
   for (size_t i = n->shape.size(); i != 0; --i) {
     temp.push_back(acc);
@@ -346,6 +350,7 @@ Buffer Buffer::MakeStrideView() const {
 
 Buffer Buffer::MakeSlice(Array<PrimExpr> begins, Array<PrimExpr> extents) const {
   const BufferNode* n = operator->();
+  ICHECK(n != nullptr);
   arith::Analyzer ana;
   begins = SimplifyArray(&ana, begins);
   PrimExpr elem_offset = ana.Simplify(ElemOffset(n, begins));
@@ -374,6 +379,7 @@ Buffer Buffer::MakeSlice(Array<PrimExpr> begins, Array<PrimExpr> extents) const 
 PrimExpr Buffer::access_ptr(int access_mask, DataType ptr_type, int content_lanes,
                             PrimExpr offset) const {
   const BufferNode* self = operator->();
+  ICHECK(self != nullptr);
   PrimExpr e_dtype;
   PrimExpr extent;
   if (self->shape.size() == 0) {
