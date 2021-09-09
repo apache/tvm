@@ -1087,7 +1087,7 @@ def gather(data, axis, indices, support_negative_indices=False):
     return _make.gather(data, axis, indices, support_negative_indices)
 
 
-def gather_nd(data, indices, batch_dims=0, index_rank=None):
+def gather_nd(data, indices, batch_dims=0, support_negative_indices=False, index_rank=None):
     """Gather elements or slices from data and store to a tensor whose shape is
     defined by indices.
 
@@ -1105,6 +1105,10 @@ def gather_nd(data, indices, batch_dims=0, index_rank=None):
     index_rank : int, optional
         The size of an indexing tuple, which is a fixed value and the same as indices.shape[0]
         Only needed when other dimensions of indices are dynamic.
+
+    support_negative_indices: bool
+        If True, support indices being negative. This is slower than supporting only
+        positive indices.
 
     Returns
     -------
@@ -1127,7 +1131,7 @@ def gather_nd(data, indices, batch_dims=0, index_rank=None):
         indices = [[1, 0]]
         relay.gather_nd(data, indices, batch_dims=1) = [[2,3],[4,5]]
     """
-    return _make.gather_nd(data, indices, batch_dims, index_rank)
+    return _make.gather_nd(data, indices, batch_dims, support_negative_indices, index_rank)
 
 
 def sequence_mask(data, valid_length, mask_value=0, axis=0):

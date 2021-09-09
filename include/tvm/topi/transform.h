@@ -1257,17 +1257,12 @@ inline Tensor gather(const Tensor& data, int axis, const Tensor& indices,
         for (size_t i = 0; i < ndim_i; ++i) {
           if (i == static_cast<size_t>(axis)) {
             PrimExpr index = indices(indices_position);
-
-            // negative indices support is expensive so make it optional
-            if (support_negative_indices) {
-              index = indexmod(index, axis_size);
-            }
             real_indices.push_back(index);
           } else {
             real_indices.push_back(indices_position[i]);
           }
         }
-        return data(real_indices);
+        return data(real_indices, support_negative_indices);
       },
       name, tag);
 }
@@ -1280,11 +1275,13 @@ inline Tensor gather(const Tensor& data, int axis, const Tensor& indices,
  * \param batch_dims The number of batch dimensions.
  * \param name The name of the operation.
  * \param tag The tag to mark the operation.
+ * \param support_negative_indices If negative indices are supported
  *
  * \return A Tensor whose op member is the gather_nd operation
  */
 inline Tensor gather_nd(const Tensor& data, const Tensor& indices, int batch_dims = 0,
-                        std::string name = "T_gather_nd", std::string tag = kInjective) {
+                        bool support_negative_indices = false, std::string name = "T_gather_nd",
+                        std::string tag = kInjective) {
   size_t ndim_d = data->shape.size();
   size_t ndim_i = indices->shape.size();
   ICHECK_GE(ndim_i, 1) << "indices tensor must have at least 1 dimensions";
@@ -1325,7 +1322,7 @@ inline Tensor gather_nd(const Tensor& data, const Tensor& indices, int batch_dim
         for (size_t i = ndim_i - 1; i < out_index.size(); ++i) {
           real_indices.push_back(out_index[i]);
         }
-        return data(real_indices);
+        return data(real_indices, support_negative_indices);
       },
       name, tag);
 }

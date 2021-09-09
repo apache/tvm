@@ -3354,15 +3354,18 @@ Array<te::Tensor> GatherNDCompute(const Attrs& attrs, const Array<te::Tensor>& i
                                   const Type& out_type) {
   const auto* param = attrs.as<GatherNDAttrs>();
   ICHECK(param);
-  return {topi::gather_nd(inputs[0], inputs[1], param->batch_dims)};
+  return {
+      topi::gather_nd(inputs[0], inputs[1], param->batch_dims, param->support_negative_indices)};
 }
 
 Expr MakeGatherND(Expr data, Expr indices, int batch_dims = 0,
+                  Bool support_negative_indices = Bool(0),
                   Optional<Integer> index_rank = NullValue<Integer>()) {
   static const Op& op = Op::Get("gather_nd");
   auto attrs = make_object<GatherNDAttrs>();
   attrs->batch_dims = batch_dims;
   attrs->index_rank = index_rank;
+  attrs->support_negative_indices = support_negative_indices;
   return Call(op, {data, indices}, Attrs(attrs));
 }
 
