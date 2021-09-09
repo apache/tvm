@@ -48,6 +48,8 @@ def _convert(arg, cargs):
         dtype = "int32" if isinstance(arg, (_base.integer_types, bool)) else "float32"
         value = tvm.nd.array(np.array(arg, dtype=dtype), device=tvm.cpu(0))
         cargs.append(value)
+    elif isinstance(arg, str):
+        cargs.append(arg)
     else:
         raise TypeError("Unsupported type: %s" % (type(arg)))
 
