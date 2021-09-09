@@ -31,7 +31,7 @@ _DUMP_ROOT_PREFIX = "tvmdbg_"
 _DUMP_PATH_PREFIX = "_tvmdbg_"
 
 
-def create(graph_json_str, libmod, device, dump_root=None):
+def create(graph_json_str, libmod, device, dump_root=None, iters_num=10, repeat=1):
     """Create a runtime executor module given a graph and module.
 
     Parameters
@@ -50,6 +50,10 @@ def create(graph_json_str, libmod, device, dump_root=None):
     dump_root : str
         To select which folder the outputs should be kept.
         None will make a temp folder in /tmp/tvmdbg<rand_string> and does the dumping
+    iters_num : int
+        Number of iterations for average performance time measurement
+    repeat: int
+        Repeat argument for individual node run
     Returns
     -------
     graph_module : GraphModuleDebug
@@ -68,7 +72,7 @@ def create(graph_json_str, libmod, device, dump_root=None):
             "Please set '(USE_PROFILER ON)' in " "config.cmake and rebuild TVM to enable debug mode"
         )
     func_obj = fcreate(graph_json_str, libmod, *device_type_id)
-    return GraphModuleDebug(func_obj, dev, graph_json_str, dump_root)
+    return GraphModuleDebug(func_obj, dev, graph_json_str, dump_root, iters_num, repeat)
 
 
 class GraphModuleDebug(graph_executor.GraphModule):
@@ -93,9 +97,15 @@ class GraphModuleDebug(graph_executor.GraphModule):
     dump_root : str
         To select which folder the outputs should be kept.
         None will make a temp folder in /tmp/tvmdbg<rand_string> and does the dumping
+    iters_num : int
+        Number of iterations for average performance time measurement
+    repeat: int
+        Repeat argument for individual node run
     """
 
-    def __init__(self, module, device, graph_json_str, dump_root):
+    def __init__(self, module, device, graph_json_str, dump_root, iters_num=10, repeat=1):
+        self.iters_num = iters_num
+        self.repeat = repeat
         self._dump_root = dump_root
         self._dump_path = None
         self._run_individual = module["run_individual"]
@@ -214,7 +224,9 @@ class GraphModuleDebug(graph_executor.GraphModule):
 
         """
         # Get timing.
-        self.debug_datum._time_list = [[float(t)] for t in self.run_individual(10, 1, 1)]
+        self.debug_datum._time_list = [
+            [float(t)] for t in self.run_individual(self.iters_num, self.repeat, 1)
+        ]
 
         # Get outputs.
         self._run_per_layer()
