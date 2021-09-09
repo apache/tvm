@@ -79,15 +79,22 @@ class LocalBuilder(Builder):
         The timeout of a compilation
     n_parallel: int
         The number of tasks run in parallel. "None" will use all cpu cores
+    build_kwargs: dict
+        If supplied, additional kwargs passed to build_func. Overrides any build_kwargs supplied
+        by the Runner.
     build_func: callable or str
         If is 'default', use default build function
         If is 'ndk', use function for android ndk
         If id 'stackvm', use function for stackvm
         If is callable, use it as custom build function, expect lib_format field.
+    do_fork: bool
+        If False, do not fork when building. Requires n_parallel=1.
     """
 
-    def __init__(self, timeout=10, n_parallel=None, build_func="default"):
-        super(LocalBuilder, self).__init__(timeout, n_parallel)
+    def __init__(
+        self, timeout=10, n_parallel=None, build_kwargs=None, build_func="default", do_fork=False
+    ):
+        super(LocalBuilder, self).__init__(timeout, n_parallel, build_kwargs)
 
         if isinstance(build_func, str):
             if build_func == "default":
@@ -99,6 +106,11 @@ class LocalBuilder(Builder):
             else:
                 raise ValueError("Invalid build_func" + build_func)
         self.build_func = _WrappedBuildFunc(build_func)
+        if not do_fork:
+            assert n_parallel in (
+                None,
+                1,
+            ), f"if do_fork=False, need n_parallel=None or 1; got {n_parallel}"
         self.executor = PopenPoolExecutor(
             timeout=timeout, initializer=reset_global_scope, initargs=(AutotvmGlobalScope.current,)
         )
@@ -518,7 +530,16 @@ class _WrappedBuildFunc:
             )
             # TODO(tvm-team) consider linline _build_func_common
             func, arg_info = _build_func_common(measure_input, **kwargs)
-            func.export_library(filename, self.build_func)
+            if self.build_func.output_format == ".model-library-format":
+                # Late import to preserve autoTVM with USE_MICRO OFF
+                try:
+                    from tvm import micro  # pylint: disable=import-outside-toplevel
+                except ImportError:
+                    raise ImportError("Requires USE_MICRO")
+
+                micro.export_model_library_format(func, filename)
+            else:
+                func.export_library(filename, self.build_func)
         except Exception as e:  # pylint: disable=broad-except
             return BuildResult(None, None, e, time.time() - tic)
         return BuildResult(filename, arg_info, None, time.time() - tic)
