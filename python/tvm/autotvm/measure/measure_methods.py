@@ -38,7 +38,9 @@ import tvm._ffi
 import tvm.ir.transform
 from tvm import nd
 from tvm import rpc as _rpc
+from tvm.autotvm.env import AutotvmGlobalScope, reset_global_scope
 from tvm.contrib import ndk, nvcc, stackvm, tar
+from tvm.contrib.popen_pool import PopenPoolExecutor
 from tvm.driver import build
 from tvm.error import TVMError
 from tvm.target import Target
@@ -46,7 +48,6 @@ from tvm.target import Target
 from ..env import AutotvmGlobalScope
 from ..task.space import InstantiationError
 from ..utils import get_const_tuple
-from .local_executor import LocalExecutor
 from .measure import Builder, MeasureErrorNo, MeasureResult, Runner
 
 logger = logging.getLogger("autotvm")
@@ -98,7 +99,9 @@ class LocalBuilder(Builder):
             else:
                 raise ValueError("Invalid build_func" + build_func)
         self.build_func = _WrappedBuildFunc(build_func)
-        self.executor = LocalExecutor(timeout=timeout)
+        self.executor = PopenPoolExecutor(
+            timeout=timeout, initializer=reset_global_scope, initargs=(AutotvmGlobalScope.current,)
+        )
         self.tmp_dir = tempfile.mkdtemp()
 
     def build(self, measure_inputs):
@@ -114,53 +117,52 @@ class LocalBuilder(Builder):
                 futures.append(ret)
 
             for future in futures:
-                res = future.get()
-
-                if isinstance(res, Exception):
-                    # timeout or fleet error, return MeasureResult directly
-                    results.append(
-                        MeasureResult(
-                            (res,), MeasureErrorNo.BUILD_TIMEOUT, self.timeout, time.time()
-                        )
-                    )
-                elif res.error is not None:
-                    # instantiation error
-                    if isinstance(res.error, InstantiationError):
-                        results.append(
-                            MeasureResult(
+                try:
+                    res = future.result()
+                    if res.error is not None:
+                        # instantiation error
+                        if isinstance(res.error, InstantiationError):
+                            res = MeasureResult(
                                 (res.error,),
                                 MeasureErrorNo.INSTANTIATION_ERROR,
                                 res.time_cost,
                                 time.time(),
                             )
-                        )
-                    else:
-                        if "InstantiationError" in str(res.error):
-                            msg = str(res.error)
-                            try:
-                                msg = msg.split("\n")[-2].split(": ")[1]
-                            except Exception:  # pylint: disable=broad-except
-                                pass
-                            results.append(
-                                MeasureResult(
+
+                        else:
+                            if "InstantiationError" in str(res.error):
+                                msg = str(res.error)
+                                try:
+                                    msg = msg.split("\n")[-2].split(": ")[1]
+                                except Exception:  # pylint: disable=broad-except
+                                    pass
+                                res = MeasureResult(
                                     (InstantiationError(msg),),
                                     MeasureErrorNo.INSTANTIATION_ERROR,
                                     res.time_cost,
                                     time.time(),
                                 )
-                            )
-                        else:  # tvm error
-                            results.append(
-                                MeasureResult(
+
+                            else:  # tvm error
+                                res = MeasureResult(
                                     (res.error,),
                                     MeasureErrorNo.COMPILE_HOST,
                                     res.time_cost,
                                     time.time(),
                                 )
-                            )
-                else:
-                    # return BuildResult
-                    results.append(res)
+                except TimeoutError as ex:
+                    res = MeasureResult(
+                        (ex,), MeasureErrorNo.BUILD_TIMEOUT, self.timeout, time.time()
+                    )
+                except ChildProcessError as ex:
+                    res = MeasureResult(
+                        (ex,),
+                        MeasureErrorNo.RUNTIME_DEVICE,
+                        self.timeout,
+                        time.time(),
+                    )
+
+                results.append(res)
 
         return results
 
@@ -242,7 +244,11 @@ class RPCRunner(Runner):
         self.cooldown_interval = cooldown_interval
         self.module_loader = module_loader
 
-        self.executor = LocalExecutor(timeout=timeout * (self.n_parallel + 1))
+        self.executor = PopenPoolExecutor(
+            timeout=timeout * (self.n_parallel + 1),
+            initializer=reset_global_scope,
+            initargs=(AutotvmGlobalScope.current,),
+        )
 
     @property
     def ref_input(self):
@@ -254,13 +260,14 @@ class RPCRunner(Runner):
 
     @ref_input.setter
     def ref_input(self, val):
-        warnings.warn(
-            "You are specifying fixed input for tuning the operator. "
-            "Be sure your input always fits the operator. Some "
-            "operators may conduct layout transformation during tuning, "
-            "thus can lead to unexpected behaviors. ",
-            RuntimeWarning,
-        )
+        if val is not None:
+            warnings.warn(
+                "You are specifying fixed input for tuning the operator. "
+                "Be sure your input always fits the operator. Some "
+                "operators may conduct layout transformation during tuning, "
+                "thus can lead to unexpected behaviors. ",
+                RuntimeWarning,
+            )
         self._ref_input = val
 
     def set_task(self, task):
@@ -336,15 +343,15 @@ class RPCRunner(Runner):
                 futures.append(ret)
 
             for future in futures:
-                res = future.get()
-                if isinstance(res, Exception):  # executor error or timeout
+                try:
+                    res = future.result()
+                    results.append(res)
+                except Exception as ex:  # pylint: disable=broad-except
                     results.append(
                         MeasureResult(
-                            (str(res),), MeasureErrorNo.RUN_TIMEOUT, self.timeout, time.time()
+                            (str(ex),), MeasureErrorNo.RUN_TIMEOUT, self.timeout, time.time()
                         )
                     )
-                else:
-                    results.append(res)
 
         return results
 

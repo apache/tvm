@@ -14,13 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-[pytest]
-markers =
-    gpu: mark a test as requiring a gpu
-    tensorcore: mark a test as requiring a tensorcore
-    cuda: mark a test as requiring cuda
-    opencl: mark a test as requiring opencl
-    rocm: mark a test as requiring rocm
-    vulkan: mark a test as requiring vulkan
-    metal: mark a test as requiring metal
-    llvm: mark a test as requiring llvm
+"Relay operators for the Arm(R) Ethos(TM)-U NPU"
+
+from .convolution import ethosu_conv2d

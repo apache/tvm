@@ -1576,6 +1576,13 @@ def test_forward_linear():
         def forward(self, input, weight):
             return F.linear(input, weight)
 
+    class LinearNested(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, x, y, z):
+            return F.linear(x, F.linear(y, z))
+
     input2d = torch.rand([2, 2]).float()
     input3d = torch.rand([4, 3, 2]).float()
     weight1d = torch.rand([2]).float()
@@ -1595,6 +1602,9 @@ def test_forward_linear():
     verify_model(LinearNoBias(), input_data=[input2d, weight1d])
     # 3D input, 2D weight, no bias
     verify_model(LinearNoBias(), input_data=[input3d, weight3x2])
+
+    verify_model(LinearNested(), input_data=[torch.randn(10, 10) for _ in range(3)])
+
     # TODO: Add the following cases when matmul(1D, _) is supported by TVM
     # 1D input, 2D weight, 1D bias
     # 1D input, 2D weight, no bias

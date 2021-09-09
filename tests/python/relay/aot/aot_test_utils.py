@@ -22,6 +22,7 @@ import logging
 import os
 import pathlib
 import platform
+import re
 import shutil
 import subprocess
 import tarfile
@@ -154,6 +155,10 @@ def parametrize_aot_options(test):
     skip_i386 = pytest.mark.skipif(
         platform.machine() == "i686", reason="Reference system unavailable in i386 container"
     )
+    requires_arm_eabi = pytest.mark.skipif(
+        shutil.which("arm-none-eabi-gcc") is None, reason="ARM embedded toolchain unavailable"
+    )
+
     interface_api = ["packed", "c"]
     use_unpacked_api = [True, False]
     test_runner = [AOT_DEFAULT_RUNNER, AOT_CORSTONE300_RUNNER]
@@ -177,7 +182,7 @@ def parametrize_aot_options(test):
 
     # Skip reference system tests if running in i386 container
     marked_combinations = map(
-        lambda parameters: pytest.param(*parameters, marks=skip_i386)
+        lambda parameters: pytest.param(*parameters, marks=[skip_i386, requires_arm_eabi])
         if parameters[2] == AOT_CORSTONE300_RUNNER
         else parameters,
         valid_combinations,
@@ -250,7 +255,10 @@ int main(){\n
 
 def emit_main_data(main_file, input_map, output_list, mod_name):
     for key in input_map:
-        main_file.write(f'#include "{mangle_name(mod_name,"input_data")}_{key}.h"\n')
+        sanitized_tensor_name = re.sub(r"\W", "_", key)
+        main_file.write(
+            f'#include "{mangle_name(mod_name,"input_data")}_{sanitized_tensor_name}.h"\n'
+        )
 
     for i in range(0, len(output_list)):
         main_file.write(f'#include "{mangle_name(mod_name,"expected_output_data")}{i}.h"\n')
@@ -262,7 +270,10 @@ def emit_main_data_structs(main_file, input_map, output_list, mod_name):
         f"struct {mangle_name(mod_name, 'inputs')} {mangle_name(mod_name, 'inputs')} = {{"
     )
     for key in input_map:
-        main_file.write(f"\t.{key} = {mangle_name(mod_name, 'input_data')}_{key},\n")
+        sanitized_tensor_name = re.sub(r"\W", "_", key)
+        main_file.write(
+            f"\t.{sanitized_tensor_name} = {mangle_name(mod_name, 'input_data')}_{sanitized_tensor_name},\n"
+        )
     main_file.write("};\n")
 
     main_file.write(
@@ -283,7 +294,8 @@ def emit_main_data_setup(main_file, input_map, output_list, mod_name):
 
     main_file.write(f'void* {mangle_name(mod_name,"inputs")}[{num_inputs}] = {{ ')
     for key in input_map:
-        main_file.write(f'{mangle_name(mod_name,"input_data")}_{key}, ')
+        sanitized_tensor_name = re.sub(r"\W", "_", key)
+        main_file.write(f'{mangle_name(mod_name,"input_data")}_{sanitized_tensor_name}, ')
     main_file.write("};\n")
 
     main_file.write(f'void* {mangle_name(mod_name,"outputs")}[{num_outputs}]  = {{ ')
@@ -521,8 +533,9 @@ def compile_and_run(
         workspace_bytes += extract_main_workspace_size_bytes(base_path)
 
         for key in model.inputs:
+            sanitized_tensor_name = re.sub(r"\W", "_", key)
             create_header_file(
-                f'{mangle_name(model.name, "input_data")}_{key}',
+                f'{mangle_name(model.name, "input_data")}_{sanitized_tensor_name}',
                 model.inputs[key],
                 include_path,
             )

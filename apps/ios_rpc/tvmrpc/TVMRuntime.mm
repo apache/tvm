@@ -34,6 +34,7 @@
 #include "../../../src/runtime/object.cc"
 #include "../../../src/runtime/profiling.cc"
 #include "../../../src/runtime/registry.cc"
+#include "../../../src/runtime/source_utils.cc"
 #include "../../../src/runtime/system_library.cc"
 #include "../../../src/runtime/thread_pool.cc"
 #include "../../../src/runtime/threading_backend.cc"

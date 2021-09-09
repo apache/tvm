@@ -15,9 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import numpy as np
 import os
 import re
 import tvm
+import tvm.relay
 import tvm.contrib.hexagon as hexagon
 
 
@@ -107,7 +109,71 @@ def test_alloc_vtcm():
     assert "HexagonBackendFreeVTCM" in calls
 
 
+def test_linked_params_codegen():
+    if not check_prereq_and_setup():
+        return
+
+    # A simple model (a single conv2d) to trigger parameter separation:
+    mod_lines = [
+        '#[version = "0.0.5"]',
+        "def @main(%input: Tensor[(1, 16, 16, 3), uint8], %weights: Tensor[(3, 3, 3, 3), uint8])"
+        " -> Tensor[(1, 14, 14, 3), uint8] {",
+        '  nn.conv2d(%input, %weights, data_layout="NHWC", kernel_layout="HWIO", '
+        'kernel_size=[3, 3], out_dtype="uint8")',
+        "}",
+    ]
+    mod = tvm.parser.fromtext("\n".join(mod_lines))
+    # Make the params be 81 x 'T':
+    params = {"weights": np.full([3, 3, 3, 3], fill_value=ord("T"), dtype=np.uint8)}
+
+    target = tvm.target.hexagon("v68", link_params=True)
+
+    with tvm.transform.PassContext(opt_level=3):
+        lib = tvm.relay.build(mod, target=target, target_host=target, params=params)
+        llvm_ir = lib.get_lib().get_source("ll")
+
+    # The definition of the parameter:
+    p0_def_re = r"@__tvm_param__p0 = internal constant \[81 x i8\] c\"T{81}\", align 128"
+    assert re.search(p0_def_re, llvm_ir)
+
+    # The body of the _lookup_linked_param function:
+    linked_param_re = r"(define.*@_lookup_linked_param\(.*\).* {[^}]*})"
+    linked_param_body = re.search(linked_param_re, llvm_ir, flags=re.MULTILINE)
+    assert linked_param_body and linked_param_body.groups()
+
+    # Reference to the parameter:
+    p0_use_re = r"\[81 x i8\]\* @__tvm_param__p0"
+    assert re.search(p0_use_re, linked_param_body.groups()[0])
+
+    """
+    A snippet of actual LLVM IR containing the definition of the linked
+    parameter, and the the body of the _lookup_linked_param function.
+
+
+    @__tvm_param__p0 = internal constant [81 x i8] c"TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT", align 128
+
+    define dllexport i32 @_lookup_linked_param(i8* nocapture readonly %0, i32* nocapture readnone %1, i32 %2, i8* nocapture %3, i32* nocapture %4, i8* nocapture readnone %5) local_unnamed_addr #2 {
+    entry:
+      %6 = bitcast i8* %0 to i64*
+      %7 = load i64, i64* %6, align 8
+      %cond = icmp eq i64 %7, 1
+      br i1 %cond, label %case___tvm_param__p0, label %common.ret
+
+    common.ret:                                       ; preds = %entry, %case___tvm_param__p0
+      %storemerge = phi i32 [ 3, %case___tvm_param__p0 ], [ 4, %entry ]
+      store i32 %storemerge, i32* %4, align 4
+      ret i32 0
+
+    case___tvm_param__p0:                             ; preds = %entry
+      %8 = bitcast i8* %3 to i8**
+      store i8* getelementptr inbounds ([81 x i8], [81 x i8]* @__tvm_param__p0, i32 0, i32 0), i8** %8, align 4
+      br label %common.ret
+    }
+    """
+
+
 if __name__ == "__main__":
     test_basic()
     test_llvm_target_features()
     test_alloc_vtcm()
+    test_linked_params_codegen()

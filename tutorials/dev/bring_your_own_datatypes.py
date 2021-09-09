@@ -257,8 +257,9 @@ module, params = get_mobilenet()
 ######################################################################
 # It's easy to execute MobileNet with native TVM:
 
+ex = tvm.relay.create_executor("graph", mod=module, params=params)
 input = get_cat_image()
-result = tvm.relay.create_executor("graph", mod=module).evaluate()(input, **params).numpy()
+result = ex.evaluate()(input).numpy()
 # print first 10 elements
 print(result.flatten()[:10])
 

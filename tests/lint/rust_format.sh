@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -16,28 +16,20 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
+TVM_HOME="$(git rev-parse --show-toplevel)"
+RUST_DIR="$TVM_HOME/rust"
 
-# Get number of cores for build
-if [ -n "${TVM_CI_NUM_CORES}" ]; then
-  num_cores=${TVM_CI_NUM_CORES}
+if [[ "$1" == "-i" ]]; then
+    INPLACE_FORMAT=1
+    shift 1
 else
-  # default setup for Vagrantfile
-  num_cores=2
+    INPLACE_FORMAT=0
 fi
 
-cd "$(dirname $0)"
-cd "$(git rev-parse --show-toplevel)"
-BUILD_DIR=build-microtvm
+cd $RUST_DIR
 
-if [ ! -e "${BUILD_DIR}" ]; then
-    mkdir "${BUILD_DIR}"
+if [[ ${INPLACE_FORMAT} -eq 1 ]]; then
+    cargo fmt
+else
+    cargo fmt -- --check
 fi
-cp cmake/config.cmake "${BUILD_DIR}"
-cd "${BUILD_DIR}"
-sed -i 's/USE_MICRO OFF/USE_MICRO ON/' config.cmake
-sed -i 's/USE_PROFILER OFF/USE_PROFILER ON/' config.cmake
-sed -i 's/USE_LLVM OFF/USE_LLVM ON/' config.cmake
-cmake ..
-rm -rf standalone_crt host_standalone_crt  # remove stale generated files
-make -j${num_cores}
