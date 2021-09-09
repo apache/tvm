@@ -485,8 +485,9 @@ def convert_elementwise_op(g, op, block):
         "elementwise_mul": "multiply",
         "elementwise_sub": "subtract",
         "elementwise_mod": "mod",
-        "elementwise_pow": "pow",
+        "elementwise_pow": "power",
         "elementwise_floordiv": "floor_divide",
+        "floor_mod": "floor_mod",
         "equal": "equal",
         "greater_than": "greater",
         "less_equal": "less_equal",
@@ -1295,16 +1296,43 @@ def convert_slice(g, op, block):
         return new_starts, new_ends, new_axes
 
     data = g.get_node(op.input("Input")[0])
-    starts = op.attr("starts")
-    ends = op.attr("ends")
+
+    starts = op.input("StartsTensor")
+    if starts:
+        starts = g.get_node(starts[0])
+        starts = infer_value(starts, g.get_params()).numpy().tolist()
+    elif op.input("StartsTensorList"):
+        starts = []
+        for start_index in op.input("StartsTensorList"):
+            start_index = g.get_node(start_index)
+            if isinstance(start_index, _expr.Expr):
+                start_index = infer_value(start_index, g.get_params()).numpy().tolist()
+            starts.extend(start_index)
+    else:
+        starts = op.attr("starts")
+        if isinstance(starts, int):
+            starts = [starts]
+
+    ends = op.input("EndsTensor")
+    if ends:
+        ends = g.get_node(ends[0])
+        ends = infer_value(ends, g.get_params()).numpy().tolist()
+    elif op.input("EndsTensorList"):
+        ends = []
+        for end_index in op.input("EndsTensorList"):
+            end_index = g.get_node(end_index)
+            if isinstance(end_index, _expr.Expr):
+                end_index = infer_value(end_index, g.get_params()).numpy().tolist()
+            ends.extend(end_index)
+    else:
+        ends = op.attr("ends")
+        if isinstance(ends, int):
+            ends = [ends]
+
     axes = op.attr("axes")
-    decrease_axis = op.attr("decrease_axis")
-    if isinstance(starts, int):
-        starts = [starts]
-    if isinstance(ends, int):
-        ends = [ends]
     if isinstance(axes, int):
         axes = [axes]
+    decrease_axis = op.attr("decrease_axis")
     if isinstance(decrease_axis, int):
         decrease_axis = [decrease_axis]
     starts, ends, axes = parameter_process(starts, ends, axes)
@@ -1501,7 +1529,7 @@ _convert_map = {
     "fill_constant_batch_size_like": convert_fill_constant_batch_size_like,
     "flatten_contiguous_range": convert_flatten,
     "floor": convert_unary_op,
-    "floor_mod": convert_unary_op,
+    "floor_mod": convert_elementwise_op,
     "gather": convert_gather,
     "gather_nd": convert_gather_nd,
     "gelu": convert_gelu,
