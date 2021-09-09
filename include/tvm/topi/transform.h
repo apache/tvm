@@ -1317,7 +1317,7 @@ inline Tensor gather_nd(const Tensor& data, const Tensor& indices, int batch_dim
           real_indices.push_back(index);
         }
         if (real_indices.size() == ndim_d) {
-          return data(real_indices);
+          return data(real_indices, support_negative_indices);
         }
         for (size_t i = ndim_i - 1; i < out_index.size(); ++i) {
           real_indices.push_back(out_index[i]);
