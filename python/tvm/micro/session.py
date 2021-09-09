@@ -17,14 +17,17 @@
 
 """Defines a top-level glue class that operates the Transport and Flasher classes."""
 
+import json
 import logging
 import sys
 
 from ..error import register_error
-from .._ffi import get_global_func
+from .._ffi import get_global_func, register_func
 from ..contrib import graph_executor
+from ..contrib import utils
 from ..contrib.debugger import debug_executor
 from ..rpc import RPCSession
+from . import project
 from .transport import IoTimeoutError
 from .transport import TransportLogger
 
@@ -234,3 +237,71 @@ def create_local_debug_executor(graph_json_str, mod, device, dump_root=None):
         graph_json_str,
         dump_root=dump_root,
     )
+
+
+RPC_SESSION = None
+
+
+@register_func("tvm.micro.compile_and_create_micro_session")
+def compile_and_create_micro_session(
+    mod_src_bytes: bytes,
+    template_project_dir: str,
+    project_options: dict = None,
+):
+    """Compile the given libraries and sources into a MicroBinary, then invoke create_micro_session.
+
+    Parameters
+    ----------
+    mod_src_bytes : bytes
+        The content of a tarfile which contains the TVM-generated sources which together form the
+        SystemLib. This tar is expected to be created by export_library. The tar will be extracted
+        into a directory and the sources compiled into a MicroLibrary using the Compiler.
+
+    template_project_dir: str
+        The path to a template microTVM Project API project which is used to generate the embedded
+        project that is built and flashed onto the target device.
+
+    project_options: dict
+        Options for the microTVM API Server contained in template_project_dir.
+    """
+    global RPC_SESSION
+
+    temp_dir = utils.tempdir()
+    # Keep temp directory for generate project
+    temp_dir.set_keep_for_debug(True)
+    model_library_format_path = temp_dir / "model.tar.gz"
+    with open(model_library_format_path, "wb") as mlf_f:
+        mlf_f.write(mod_src_bytes)
+
+    try:
+        template_project = project.TemplateProject.from_directory(template_project_dir)
+        generated_project = template_project.generate_project_from_mlf(
+            model_library_format_path,
+            temp_dir / "generated-project",
+            options=json.loads(project_options),
+        )
+    except Exception as exception:
+        logging.error("Project Generate Error: %s", str(exception))
+        raise exception
+
+    generated_project.build()
+    generated_project.flash()
+    transport = generated_project.transport()
+
+    RPC_SESSION = Session(transport_context_manager=transport)
+    RPC_SESSION.__enter__()
+    return RPC_SESSION._rpc._sess
+
+
+@register_func
+def destroy_micro_session():
+    """Destroy RPC session for microTVM autotune."""
+    global RPC_SESSION
+
+    if RPC_SESSION is not None:
+        exc_type, exc_value, traceback = RPC_SESSION.__exit__(None, None, None)
+        RPC_SESSION = None
+        if (exc_type, exc_value, traceback) != (None, None, None):
+            exc = exc_type(exc_value)  # See PEP 3109
+            exc.__traceback__ = traceback
+            raise exc

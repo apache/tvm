@@ -101,14 +101,9 @@ class TemplateProject:
         if not self._info["is_template"]:
             raise NotATemplateProjectError()
 
-    def generate_project(self, graph_executor_factory, project_dir, options):
-        """Generate a project given GraphRuntimeFactory."""
-        model_library_dir = utils.tempdir()
-        model_library_format_path = model_library_dir.relpath("model.tar")
-        export_model_library_format(graph_executor_factory, model_library_format_path)
-
+    def generate_project_from_mlf(self, model_library_format_path, project_dir, options):
         self._api_client.generate_project(
-            model_library_format_path=model_library_format_path,
+            model_library_format_path=str(model_library_format_path),
             standalone_crt_dir=get_standalone_crt_dir(),
             project_dir=project_dir,
             options=options,
@@ -118,6 +113,14 @@ class TemplateProject:
 
     def info(self):
         return self._info
+
+    def generate_project(self, graph_executor_factory, project_dir, options):
+        """Generate a project given GraphRuntimeFactory."""
+        model_library_dir = utils.tempdir()
+        model_library_format_path = model_library_dir.relpath("model.tar")
+        export_model_library_format(graph_executor_factory, model_library_format_path)
+
+        return self.generate_project_from_mlf(model_library_format_path, project_dir, options)
 
 
 def generate_project(

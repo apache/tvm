@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=pointless-string-statement,consider-using-enumerate,invalid-name
 """User facing API for specifying how to measure the generated code"""
+import enum
 import multiprocessing
 from collections import namedtuple
 
@@ -52,8 +53,19 @@ class MeasureResult(namedtuple("MeasureResult", ["costs", "error_no", "all_cost"
         The absolute time stamp when we finish measurement.
     """
 
+    def __repr__(self):
+        error_no_str = (
+            str(self.error_no)
+            if self.error_no not in MeasureErrorNo
+            else str(MeasureErrorNo(self.error_no))
+        )
+        return (
+            f"{self.__class__.__name__}(costs={self.costs!r}, error_no={error_no_str}, "
+            f"all_cost={self.all_cost}, timestamp={self.timestamp!r})"
+        )
 
-class MeasureErrorNo(object):
+
+class MeasureErrorNo(enum.IntEnum):
     """Error type for MeasureResult"""
 
     NO_ERROR = 0  # no error
@@ -77,12 +89,15 @@ class Builder(object):
     n_parallel: int, optional
         The number of tasks submitted in parallel
         By default it will use all cpu cores
+    build_kwargs: dict, optional
+        Keyword args given to the build function.
     """
 
-    def __init__(self, timeout=10, n_parallel=None):
+    def __init__(self, timeout=10, n_parallel=None, build_kwargs=None):
         self.timeout = timeout
         self.n_parallel = n_parallel or multiprocessing.cpu_count()
-        self.build_kwargs = {}
+        self.user_build_kwargs = build_kwargs if build_kwargs is not None else {}
+        self.runner_build_kwargs = None
         self.task = None
 
     def set_task(self, task, build_kwargs=None):
@@ -97,7 +112,17 @@ class Builder(object):
             The additional kwargs for build function
         """
         self.task = task
-        self.build_kwargs = build_kwargs
+        self.build_kwargs = dict(build_kwargs.items()) if build_kwargs is not None else {}
+        if any(k in self.build_kwargs for k in self.user_build_kwargs):
+            logging.warn(
+                "Overriding these runner-supplied kwargs with user-supplied:\n%s",
+                "\n".join(
+                    f" * {k}: from {build_kwargs[k]!r} to {self.user_build_kwargs[k]!r}"
+                    for k in sorted([k for k in build_kwargs if k in self.user_build_kwargs])
+                ),
+            )
+        for k, v in self.user_build_kwargs.items():
+            self.build_kwargs[k] = v
 
     def build(self, measure_inputs):
         """Build programs

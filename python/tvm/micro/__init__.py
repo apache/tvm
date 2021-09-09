@@ -16,6 +16,8 @@
 # under the License.
 """MicroTVM module for bare-metal backends"""
 
+from .build import autotvm_build_func
+from .build import AutoTvmModuleLoader
 from .build import get_standalone_crt_dir
 from .model_library_format import export_model_library_format, UnsupportedInModelLibraryFormatError
 from .project import generate_project, GeneratedProject, TemplateProject
