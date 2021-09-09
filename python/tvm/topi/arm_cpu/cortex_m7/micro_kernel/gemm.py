@@ -153,42 +153,11 @@ def gemm_MxKxN_impl(M, K, N, uniq_id):
     bb_pad_size = N * K
     # code reference: CMSIS-NN paper (https://arxiv.org/abs/1801.06601)
     cc_code = f"""
-#ifndef __STATIC_FORCEINLINE
-    #define __STATIC_FORCEINLINE  static inline
-#endif
-
 #ifdef __cplusplus
 extern "C"
 #endif
-__STATIC_FORCEINLINE int32_t arm_nn_read_q7x4_ia(const int8_t **in_q7)
-{{
-    int32_t val;
-    memcpy(&val, *in_q7, 4);
-    *in_q7 += 4;
-
-    return (val);
-}}
-
-#ifdef __cplusplus
-extern "C"
-#endif
-__STATIC_FORCEINLINE const int8_t *read_and_pad(const int8_t *source, int32_t *out1, int32_t *out2)
-{{
-    int32_t inA = arm_nn_read_q7x4_ia(&source);
-    int32_t inAbuf1 = __SXTB16(__ROR((uint32_t)inA, 8));
-    int32_t inAbuf2 = __SXTB16(inA);
-
-#ifndef ARM_MATH_BIG_ENDIAN
-    *out2 = (int32_t)(__PKHTB(inAbuf1, inAbuf2, 16));
-    *out1 = (int32_t)(__PKHBT(inAbuf2, inAbuf1, 16));
-#else
-    *out1 = (int32_t)(__PKHTB(inAbuf1, inAbuf2, 16));
-    *out2 = (int32_t)(__PKHBT(inAbuf2, inAbuf1, 16));
-#endif
-
-    return source;
-}}
-
+#include <arm_math.h>
+#include <arm_nnsupportfunctions.h>
 
 #ifdef __cplusplus
 extern "C"
@@ -441,15 +410,15 @@ extern "C"
 #endif
 __STATIC_FORCEINLINE int32_t gemm16_{M}x{K}x{N}_body_{uniq_id}(
     int16_t *aa, int16_t *bb, int32_t *cc,
-    int A_stride, int B_stride, int C_stride) {{
+    int A_stride, int B_stride, int C_stride) {{	
   if ( {M} < 2 || {N} < 2 )
-		return gemm16_{M}x{K}x{N}_body_loop_{uniq_id}(aa, bb, cc, A_stride, B_stride, C_stride);
+		return gemm16_{M}x{K}x{N}_body_loop_{uniq_id}(aa, bb, cc, A_stride, B_stride, C_stride);	
 
   for (int i = 0; i < {M}; i++) {{
     for (int j = 0; j < {N}; j++) {{
       int32_t *aa_ptr = (int32_t *) &aa[i*A_stride];
       int32_t *bb_ptr = (int32_t *) &bb[j*B_stride];
-
+		
       int32_t sum = 0;
       for (int l = 0; l < {K} / 2; l++) {{
         sum = __SMLAD(*aa_ptr, *bb_ptr, sum);
@@ -461,10 +430,10 @@ __STATIC_FORCEINLINE int32_t gemm16_{M}x{K}x{N}_body_{uniq_id}(
       cc[i*C_stride + j] = sum;
     }}
   }}
-
+	
   if ( {K} % 2 != 0 )
 		gemm16_{M}x{N}_body_rest_{uniq_id}({K}, aa, bb, cc, A_stride, B_stride, C_stride);
-
+	
   return 0;
 }}
 
@@ -510,15 +479,15 @@ extern "C"
 #endif
 __STATIC_FORCEINLINE int32_t gemm16_{M}x{K}x{N}_update_{uniq_id}(
     int16_t *aa, int16_t *bb, int32_t *cc,
-    int A_stride, int B_stride, int C_stride) {{
+    int A_stride, int B_stride, int C_stride) {{	
   if ( {M} < 2 || {N} < 2 )
-		return gemm16_{M}x{K}x{N}_body_loop_{uniq_id}(aa, bb, cc, A_stride, B_stride, C_stride);
+		return gemm16_{M}x{K}x{N}_update_loop_{uniq_id}(aa, bb, cc, A_stride, B_stride, C_stride);	
 
   for (int i = 0; i < {M}; i++) {{
     for (int j = 0; j < {N}; j++) {{
       int32_t *aa_ptr = (int32_t *) &aa[i*A_stride];
       int32_t *bb_ptr = (int32_t *) &bb[j*B_stride];
-
+		
       int32_t sum = 0;
       for (int l = 0; l < {K} / 2; l++) {{
         sum = __SMLAD(*aa_ptr, *bb_ptr, sum);
@@ -527,10 +496,10 @@ __STATIC_FORCEINLINE int32_t gemm16_{M}x{K}x{N}_update_{uniq_id}(
       cc[i*C_stride + j] += sum;
     }}
   }}
-
+	
   if ( {K} % 2 != 0 )
-		gemm16_{M}x{N}_body_rest_{uniq_id}({K}, aa, bb, cc, A_stride, B_stride, C_stride);
-
+		gemm16_{M}x{N}_update_rest_{uniq_id}({K}, aa, bb, cc, A_stride, B_stride, C_stride);
+	
   return 0;
 }}
 
