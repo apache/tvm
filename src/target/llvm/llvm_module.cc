@@ -258,9 +258,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     // makes sense when we start to use multiple modules.
     cg->Init("TVMMod", tm_.get(), ctx_.get(), system_lib, system_lib, target_c_runtime);
 
-    for (const auto& f : funcs) {
-      cg->AddFunction(f);
-    }
+    cg->AddFunctionsOrdered(funcs.begin(), funcs.end());
 
     if (entry_func.length() != 0) {
       cg->AddMainFunction(entry_func);
