@@ -27,13 +27,13 @@ from tvm.micro.project_api.server import ServerError
 
 # A new project and workspace dir is created for EVERY test
 @pytest.fixture
-def workspace_dir(request, platform):
-    return conftest.make_workspace_dir("arduino_error_detection", platform)
+def workspace_dir(request, board):
+    return conftest.make_workspace_dir("arduino_error_detection", board)
 
 
 @pytest.fixture
-def project(platform, arduino_cli_cmd, tvm_debug, workspace_dir):
-    return conftest.make_kws_project(platform, arduino_cli_cmd, tvm_debug, workspace_dir)
+def project(board, arduino_cli_cmd, tvm_debug, workspace_dir):
+    return conftest.make_kws_project(board, arduino_cli_cmd, tvm_debug, workspace_dir)
 
 
 def test_blank_project_compiles(workspace_dir, project):
