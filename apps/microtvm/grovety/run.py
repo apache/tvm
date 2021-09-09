@@ -58,10 +58,11 @@ if __name__ == "__main__":
         exit(0)
 
     # convert layouts
-    desired_layouts = {'qnn.conv2d': ['NHWC', 'HWOI'], 'nn.conv2d': ['NHWC', 'HWOI']}
-    seq = tvm.transform.Sequential([relay.transform.RemoveUnusedFunctions(), relay.transform.ConvertLayout(desired_layouts)])
-    with tvm.transform.PassContext(opt_level=3):
-        relay_mod = seq(relay_mod)
+    if not args.disable_optimization:
+        desired_layouts = {'qnn.conv2d': ['NHWC', 'HWOI'], 'nn.conv2d': ['NHWC', 'HWOI']}
+        seq = tvm.transform.Sequential([relay.transform.RemoveUnusedFunctions(), relay.transform.ConvertLayout(desired_layouts)])
+        with tvm.transform.PassContext(opt_level=3):
+            relay_mod = seq(relay_mod)
 
     # build relay for the target
     target_str = f"c -keys=arm_cpu -mcpu={platform['mcpu']} -model={platform['model']} -runtime=c -link-params=1 --executor=aot --unpacked-api=1 --interface-api=c"
