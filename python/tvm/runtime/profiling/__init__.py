@@ -104,6 +104,22 @@ class Report(Object):
         """
         return _ffi_api.AsJSON(self)
 
+    @classmethod
+    def from_json(cls, s):
+        """Deserialize a report from JSON.
+
+        Parameters
+        ----------
+        s : str
+            Report serialize via :py:meth:`json`.
+
+        Returns
+        -------
+        report : Report
+            The deserialized report.
+        """
+        return _ffi_api.FromJSON(s)
+
 
 @_ffi.register_object("runtime.profiling.MetricCollector")
 class MetricCollector(Object):
