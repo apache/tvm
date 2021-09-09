@@ -26,7 +26,7 @@ from tvm.contrib import graph_executor, pipeline_executor
 
 def get_mannual_mod():
     """
-    # get list of module that represent a subgraph
+    # Get list of module that represent a subgraph.
     """
     mods = []
     dshape = (3, 3)
@@ -43,7 +43,7 @@ def get_mannual_mod():
     mv3 = relay.Constant(tvm.nd.array(mvalue3))
 
     """
-    # net1 have three output, output3 is final output.
+    # Net1 have three output, output3 is final output.
     """
 
     net_output1 = relay.add(data, mv1)
@@ -51,14 +51,14 @@ def get_mannual_mod():
     net_output3 = relay.multiply(data, mv3)
 
     """
-    # net2 use net1 output1 as input.
+    # Net2 use net1 output1 as input.
     """
     net2 = relay.add(data_net1_output_1, mv2)
     net2 = relay.add(net2, data21)
     net2 = relay.add(net2, mv3)
 
     """
-    # net3 use net2 output1 and net1 outpu2 as input.
+    # Net3 use net2 output1 and net1 outpu2 as input.
     """
     net3 = relay.multiply(data_net2_output_1, mv3)
     net3 = relay.add(net3, data_net1_output_2)
@@ -84,11 +84,11 @@ def get_manual_conf(mods, target):
     """
     mod_config = {}
     """
-    # set configure
+    # Set configure
     """
 
     """
-    # third output is final output, second output for mod3, first for mod2
+    # Third output is final output, second output for mod3, first for mod2
     # input
     """
     pipe_config1 = {
@@ -147,7 +147,7 @@ def test_pipe_config_check():
     """
     (mod1, mod2, mod3), dshape = get_mannual_mod()
     """
-    # try invalid input/output name exepect runtime error
+    # Try invalid input/output name exepect runtime error
     """
     pipe_error = pipeline_executor.PipelineConfig()
     with pytest.raises(RuntimeError):
@@ -157,14 +157,14 @@ def test_pipe_config_check():
         pipe_error[mod1]["input"]["data_9"]
 
     """
-    # try cirle connection , expect runtime error
+    # Try cirle connection , expect runtime error
     """
     with pytest.raises(RuntimeError):
         pipe_error[mod1]["output"][0].connect(pipe_error[mod2]["input"]["data_0"])
         pipe_error[mod2]["output"][0].connect(pipe_error[mod1]["input"]["data_0"])
 
     """
-    # try wrong module order connection check, expect runtime error.
+    # Try wrong module order connection check, expect runtime error.
     """
 
     with pytest.raises(RuntimeError):
@@ -205,28 +205,28 @@ def test_pipeline():
             # Create pipeline compute input/output and subgraph dependent relation.
 
             # Test in key mode for binding find.
-            # pipeline compute input "data_0" would get forward to mod1 as input "data_0"
+            # Pipeline compute input "data_0" would get forward to mod1 as input "data_0"
             pipe_config["input"]["data_0"].connect(pipe_config[mod1]["input"]["data_0"])
 
-            # pipeline compute input "data_1" would get forward to mod2 as input "data_1"
+            # Pipeline compute input "data_1" would get forward to mod2 as input "data_1"
             pipe_config["input"]["data_1"].connect(pipe_config[mod2]["input"]["data_1"])
 
-            # mod1 output(0) would get forward to mod2 as input "data_0"
+            # Mod1 output(0) would get forward to mod2 as input "data_0"
             pipe_config[mod1]["output"][0].connect(pipe_config[mod2]["input"]["data_0"])
 
-            # mod1 output(1) would get forward to mod3 as input "data_0"
+            # Mod1 output(1) would get forward to mod3 as input "data_0"
             pipe_config[mod1]["output"][1].connect(pipe_config[mod3]["input"]["data_0"])
 
-            # mod2 output(0) would get forward to mod3 as input "data_1"
+            # Mod2 output(0) would get forward to mod3 as input "data_1"
             pipe_config[mod2]["output"][0].connect(pipe_config[mod3]["input"]["data_1"])
 
-            # mod1 output(2) would get forward as final pipeline compute output(1)
+            # Mod1 output(2) would get forward as final pipeline compute output(1)
             pipe_config[mod1]["output"][2].connect(pipe_config["output"]["0"])
 
-            # mod3 output(0) would get forward as final pipeline compute output(2)
+            # Mod3 output(0) would get forward as final pipeline compute output(2)
             pipe_config[mod3]["output"][0].connect(pipe_config["output"]["1"])
             """
-            # print configueration (print(pipe_config)), the expect result like following.
+            # Print configueration (print(pipe_config)), the expect result like following.
             #
             #Inputs
             #  |data_0: mod1:data_0
@@ -243,7 +243,7 @@ def test_pipeline():
             """
 
             """
-            # set other parameter.
+            # Set other parameter.
             """
             pipe_config[mod1].target = target[0]
             pipe_config[mod1].dev = target[1]
@@ -255,7 +255,7 @@ def test_pipeline():
             pipe_config[mod3].dev = tvm.cpu(0)
 
             """
-            # check if the configuration match expectation.
+            # Check if the configuration match expectation.
             """
             assert pipe_config.get_config() == get_manual_conf([mod1, mod2, mod3], target)
 

@@ -32,7 +32,7 @@ namespace runtime {
  * \brief pipeline executor.
  *  This executor take Module list and Dependency relations of Modules as
  *  inputs, then execute modules on heterogeneous hardware target in
- *  pipeline parallism mode to improve processing throughput. 
+ *  pipeline parallism mode to improve processing throughput.
  *
  *  This executor can be acccesibly in various language via
  *  TVM runtime PackedFunc API.
