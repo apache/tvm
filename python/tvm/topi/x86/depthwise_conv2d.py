@@ -27,7 +27,7 @@ from ..nn.utils import get_pad_tuple
 from ..nn.depthwise_conv2d import _get_workload, depthwise_conv2d_infer_layout
 from ..nn.conv2d import unpack_NCHWc_to_nchw
 from ..utils import traverse_inline
-from .utils import get_fp32_len
+from .utils import get_simd_32bit_lanes
 
 
 def _fallback_schedule(cfg, wkl):
@@ -40,7 +40,7 @@ def _fallback_schedule(cfg, wkl):
     wkl : topi.nn.depthwise_conv2d.Workload
         Convolution workload
     """
-    simd_width = get_fp32_len()
+    simd_width = get_simd_32bit_lanes()
 
     pt, pl, pb, pr = wkl.padt, wkl.padl, wkl.padb, wkl.padr
     HSTR, WSTR = wkl.stride_h, wkl.stride_w
