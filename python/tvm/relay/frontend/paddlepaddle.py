@@ -480,12 +480,13 @@ def convert_elementwise_op(g, op, block):
     """Operator converter for all the elementwise operators."""
 
     op_map = {
-        "elementwise_div": lambda x, y: x / y,
-        "elementwise_add": lambda x, y: x + y,
-        "elementwise_mul": lambda x, y: x * y,
-        "elementwise_sub": lambda x, y: x - y,
-        "elementwise_mod": lambda x, y: x % y,
+        "elementwise_div": "divide",
+        "elementwise_add": "add",
+        "elementwise_mul": "multiply",
+        "elementwise_sub": "subtract",
+        "elementwise_mod": "mod",
         "greater_than": "greater",
+        "less_equal": "less_equal",
     }
     op_func = op_map[op.type]
     ipt0 = g.get_node(op.input("X")[0])
@@ -498,8 +499,7 @@ def convert_elementwise_op(g, op, block):
             axis = axis + len(ipt0_shape)
         if axis != len(ipt0_shape) - 1:
             ipt1 = _op.expand_dims(ipt1, axis=axis, num_newaxis=(len(ipt0_shape) - axis - 1))
-    if isinstance(op_func, str):
-        op_func = get_relay_op(op_func)
+    op_func = get_relay_op(op_func)
     out = op_func(ipt0, ipt1)
     g.add_node(op.output("Out")[0], out)
 
@@ -603,10 +603,12 @@ def convert_fill_constant_batch_size_like(g, op, block):
     dtype = block.var(op.output("Out")[0]).dtype
     dtype = str(dtype).strip().split(".")[1]
     input_shape = shape_of(x)
-    batch = _op.strided_slice(input_shape, begin=[input_dim_idx], end=[input_dim_idx+1]).astype("int32")
+    batch = _op.strided_slice(input_shape, begin=[input_dim_idx], end=[input_dim_idx + 1]).astype(
+        "int32"
+    )
     shape_before = shape[:output_dim_idx]
     shape_before = _expr.const(shape_before, dtype="int32")
-    shape_after = shape[output_dim_idx+1:]
+    shape_after = shape[output_dim_idx + 1 :]
     shape_after = _expr.const(shape_after, dtype="int32")
 
     out_shape = _op.concatenate([shape_before, batch, shape_after], axis=0)
@@ -1299,6 +1301,52 @@ def convert_softmax(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_split(g, op, block):
+    """Operator converter for split."""
+
+    x = g.get_node(op.input("X")[0])
+    axis = op.input("AxisTensor")
+    if axis:
+        axis = g.get_node(axis[0])
+        axis = infer_value(axis, g.get_params()).numpy().tolist()[0]
+    else:
+        axis = op.attr("axis")
+
+    sections = op.input("SectionsTensorList")
+    if sections:
+        tmp_section = []
+        for i in sections:
+            i = g.get_node(i)
+            i = infer_value(i, g.get_params()).numpy().tolist()
+            tmp_section.extend(i)
+        sections = tmp_section
+    else:
+        sections = op.attr("sections")
+    if sections:
+        indices = []
+        split_index = 0
+        for i in sections[:-1]:
+            if i == -1:
+                input_shape = infer_shape(x)[axis]
+                i = input_shape - np.sum(sections) - 1
+            split_index += i
+            indices.append(split_index)
+    else:
+        indices = op.attr("num")
+
+    out = _op.split(x, indices, axis)
+    for i, out_i in enumerate(out):
+        g.add_node(op.output("Out")[i], out_i)
+
+
+def convert_square(g, op, block):
+    """Operator converter for square."""
+
+    x = g.get_node(op.input("X")[0])
+    out = _op.multiply(x, x)
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_squeeze(g, op, block):
     """Operator converter for squeeze2."""
 
@@ -1395,6 +1443,7 @@ _convert_map = {
     "elementwise_div": convert_elementwise_op,
     "elementwise_mul": convert_elementwise_op,
     "elementwise_sub": convert_elementwise_op,
+    "elementwise_mod": convert_elementwise_op,
     "equal": convert_equal,
     "exp": convert_unary_op,
     "expand_v2": convert_expand,
@@ -1404,6 +1453,7 @@ _convert_map = {
     "fill_constant_batch_size_like": convert_fill_constant_batch_size_like,
     "flatten_contiguous_range": convert_flatten,
     "floor": convert_unary_op,
+    "floor_mod": convert_unary_op,
     "gather": convert_gather,
     "gather_nd": convert_gather_nd,
     "gelu": convert_gelu,
@@ -1414,6 +1464,7 @@ _convert_map = {
     "isinf_v2": convert_unary_op,
     "layer_norm": convert_layer_norm,
     "leaky_relu": convert_leaky_relu,
+    "less_equal": convert_elementwise_op,
     "lookup_table": convert_lookup_table,
     "lookup_table_v2": convert_lookup_table,
     "log": convert_unary_op,
@@ -1432,12 +1483,15 @@ _convert_map = {
     "relu": convert_unary_op,
     "reshape2": convert_reshape,
     "rnn": convert_rnn,
+    "rsqrt": convert_unary_op,
     "scale": convert_scale,
     "shape": convert_shape,
     "sigmoid": convert_unary_op,
     "sin": convert_unary_op,
     "slice": convert_slice,
     "softmax": convert_softmax,
+    "split": convert_split,
+    "square": convert_square,
     "squeeze2": convert_squeeze,
     "stack": convert_stack,
     "tan": convert_unary_op,

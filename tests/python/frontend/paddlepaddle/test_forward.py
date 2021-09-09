@@ -156,12 +156,15 @@ def test_forward_unary_op():
         "cosh",
         "exp",
         "floor",
+        "floor_mod",
         "log",
         "log10",
         "log1p",
         "relu",
+        "rsqrt",
         "sigmoid",
         "sin",
+        "square",
         "tan",
         "tanh",
     ]
@@ -626,16 +629,31 @@ def test_forward_ones_like():
 
 
 @tvm.testing.uses_gpu
-def test_forward_greater_than():
-    @paddle.jit.to_static
-    def greater_than(input1, input2):
-        y = paddle.greater_than(input1, input2)
-        return paddle.cast(y, "int32")
+def test_forward_than():
+    class ThanOp(nn.Layer):
+        def __init__(self, op_name):
+            super(ThanOp, self).__init__()
+            for candidate in (paddle, paddle.nn.functional):
+                self.func = getattr(candidate, op_name, None)
+                if self.func:
+                    break
+
+        @paddle.jit.to_static
+        def forward(self, input1, input2):
+            y = self.func(input1, input2)
+            return paddle.cast(y, "int32")
+
+    op_list = [
+        "greater_than",
+        "less_than",
+        "less_equal",
+    ]
 
     input_shape = [1, 3, 10, 10]
     input_data = paddle.rand(input_shape, dtype="float32")
     input_data2 = paddle.rand(input_shape, dtype="float32")
-    verify_model(greater_than, input_data=[input_data, input_data2])
+    for op_name in op_list:
+        verify_model(ThanOp(op_name), [input_data, input_data2])
 
 
 @tvm.testing.uses_gpu
@@ -1046,17 +1064,32 @@ def test_forward_slice():
 
     input_shape = [1, 3, 10, 10]
     input_data = paddle.rand(input_shape, dtype="float32")
-    verify_model(
-        slice1,
-        input_data=[
-            input_data,
-        ],
-    )
+    verify_model(slice1, input_data=input_data)
     verify_model(slice2, input_data=input_data)
     # need op "strided_slice"
     # verify_model(slice3, input_data=paddle.randn((4, 4)))
-    # need op "assign_value"
-    # verify_model(slice4, input_data=input_data)
+    verify_model(slice4, input_data=input_data)
+
+
+@tvm.testing.uses_gpu
+def test_forward_split():
+    @paddle.jit.to_static
+    def split(inputs):
+        return paddle.split(inputs, 2, axis=paddle.to_tensor([0], "int32"))
+
+    @paddle.jit.to_static
+    def split2(inputs):
+        return paddle.split(inputs, [1, 2, -1], axis=1)
+
+    @paddle.jit.to_static
+    def split3(inputs):
+        return paddle.split(inputs, [paddle.to_tensor([2]), 1, paddle.to_tensor(3)], axis=0)
+
+    input_shape = [6, 10]
+    input_data = paddle.rand(input_shape, dtype="float32")
+    verify_model(split, input_data=input_data)
+    verify_model(split2, input_data=input_data)
+    verify_model(split3, input_data=input_data)
 
 
 @tvm.testing.uses_gpu
@@ -1151,7 +1184,6 @@ if __name__ == "__main__":
     test_forward_gather_assign_value()
     test_forward_gather_nd()
     test_forward_gelu()
-    test_forward_greater_than()
     test_forward_hard_sigmoid()
     test_forward_hard_swish()
     test_forward_interpolate()
@@ -1168,7 +1200,9 @@ if __name__ == "__main__":
     test_forward_reshape()
     test_forward_scale()
     test_forward_slice()
+    test_forward_split()
     test_forward_squeeze2()
+    test_forward_than()
     test_forward_tile()
     test_forward_conv_transpose()
     test_forward_unary_op()
