@@ -16,7 +16,8 @@
 # under the License.
 # pylint: disable=invalid-name, unused-argument
 """The TIR passes to be run on Arm(R) Ethos(TM)-U NPU TIR Compiler"""
-import numpy as np
+from typing import Dict
+import numpy as np  # type: ignore
 
 import tvm
 from tvm.relay.backend.contrib.ethosu import vela_api
@@ -216,7 +217,7 @@ def DivideConstants(const_dict):
 
     The purpose of this pass is to transform the IR into a form we can apply
     constant encoding to (which will compress weights and encode biases)."""
-    buffer_to_const = {}
+    buffer_to_const = {}  # type: ignore
     new_buffers = []
     new_consts = []
     keep_buffers = set()
@@ -253,7 +254,7 @@ def DivideConstants(const_dict):
 
         new_body = tvm.tir.stmt_functor.ir_transform(f.body, _visit, None, ["tir.Call"])
         # Both the params and buffer map need updating for the newly introduced buffers
-        new_params = []
+        new_params = []  # type: ignore
         new_buffer_map = {}
         for i, param in enumerate(f.params):
             buffer = f.buffer_map[param]
@@ -299,7 +300,7 @@ def EncodeConstants(const_dict):
     pointer_to_buffer = {}
     rewrite_buffer = {}
     rewrite_pointer = {}
-    accel_type = vela_api.get_target_accel_type()
+    accel_type = vela_api.get_target_accel_type()  # type: ignore
 
     def _align_scale_bias(tir_extern_call, bias):
         """Align the scale_bias to 16 bytes."""

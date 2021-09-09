@@ -127,7 +127,7 @@ def copy_constants():
     """
 
     def _planner(te_graph, const_dict, sch):
-        planned = set()
+        planned = set()  # type: ignore
 
         def _visit(tensor, reader):
             if tensor is not planned:

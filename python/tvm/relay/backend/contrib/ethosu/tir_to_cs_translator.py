@@ -21,8 +21,8 @@ generate command stream.
 from typing import NamedTuple
 from enum import auto
 from enum import Enum
-import numpy as np
-import ethosu.vela.api as vapi
+import numpy as np  # type: ignore
+import ethosu.vela.api as vapi  # type: ignore
 
 import tvm
 from tvm.relay.backend.contrib.ethosu import vela_api
@@ -165,7 +165,7 @@ def _create_npu_op_conv2d(serial_2d_convolution):
         _convert_clip_bounds(npu_conv2d_op)
 
     npu_conv2d_op.upscale = _create_npu_resampling_mode(serial_2d_convolution.upscale)
-    target_accel_type = vela_api.get_target_accel_type()
+    target_accel_type = vela_api.get_target_accel_type()  # type: ignore
     block_config = vela_api.get_optimal_block_config(npu_conv2d_op, target_accel_type)
     npu_conv2d_op.block_config = block_config
     weights_shape_ohwi = [
