@@ -21,7 +21,6 @@ import numpy as np
 
 import paddle
 import paddle.nn as nn
-from frontend.mxnet.test_forward import test_forward_elemwise_ops
 
 import tvm
 from tvm.contrib.sparse import array
