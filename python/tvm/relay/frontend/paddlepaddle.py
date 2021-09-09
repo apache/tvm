@@ -1279,63 +1279,61 @@ def convert_shape(g, op, block):
 def convert_slice(g, op, block):
     """Operator converter for slice."""
 
-    def parameter_process(starts, ends, axes):
-        new_axes = []
-        new_starts = []
-        new_ends = []
-        pop_index = 0
-        for i in range(max(axes) + 1):
-            new_axes.append(i)
-            if i in axes:
-                new_starts.append(starts[pop_index])
-                new_ends.append(ends[pop_index])
-                pop_index += 1
-            else:
-                new_starts.append(0)
-                new_ends.append(np.iinfo(np.int32).max)
-        return new_starts, new_ends, new_axes
-
     data = g.get_node(op.input("Input")[0])
+    dims = len(block.var(op.input("Input")[0]).shape)
+    dtype = "int64"
+
+    axes = op.attr("axes")
+    axes = _op.const(axes)
+    decrease_axis = op.attr("decrease_axis")
+    if isinstance(decrease_axis, int):
+        decrease_axis = [decrease_axis]
 
     starts = op.input("StartsTensor")
     if starts:
         starts = g.get_node(starts[0])
-        starts = infer_value(starts, g.get_params()).numpy().tolist()
     elif op.input("StartsTensorList"):
         starts = []
         for start_index in op.input("StartsTensorList"):
             start_index = g.get_node(start_index)
-            if isinstance(start_index, _expr.Expr):
-                start_index = infer_value(start_index, g.get_params()).numpy().tolist()
-            starts.extend(start_index)
+            if not isinstance(start_index, _expr.Expr):
+                start_index = _expr.const(start_index, dtype=dtype)
+            else:
+                start_index = start_index.astype(dtype)
+            starts.append(start_index)
+        starts = _op.concatenate(starts, axis=0)
     else:
         starts = op.attr("starts")
-        if isinstance(starts, int):
-            starts = [starts]
+        starts = _expr.const(starts)
+    if isinstance(starts, _expr.Expr):
+        starts = _op.scatter(
+            _op.const([0] * dims, dtype=infer_type(starts).checked_type.dtype),
+            axes,
+            starts,
+            axis=0,
+        )
 
+    data_shape = shape_of(data)
     ends = op.input("EndsTensor")
     if ends:
         ends = g.get_node(ends[0])
-        ends = infer_value(ends, g.get_params()).numpy().tolist()
     elif op.input("EndsTensorList"):
         ends = []
+        data_shape = data_shape.astype(dtype)
         for end_index in op.input("EndsTensorList"):
             end_index = g.get_node(end_index)
-            if isinstance(end_index, _expr.Expr):
-                end_index = infer_value(end_index, g.get_params()).numpy().tolist()
-            ends.extend(end_index)
+            if not isinstance(end_index, _expr.Expr):
+                end_index = _expr.const(end_index, dtype=dtype)
+            else:
+                end_index = end_index.astype(dtype)
+            ends.append(end_index)
+        ends = _op.concatenate(ends, axis=0)
     else:
         ends = op.attr("ends")
-        if isinstance(ends, int):
-            ends = [ends]
+        ends = _expr.const(ends)
+    if isinstance(ends, _expr.Expr):
+        ends = _op.scatter(data_shape, axes, ends, axis=0)
 
-    axes = op.attr("axes")
-    if isinstance(axes, int):
-        axes = [axes]
-    decrease_axis = op.attr("decrease_axis")
-    if isinstance(decrease_axis, int):
-        decrease_axis = [decrease_axis]
-    starts, ends, axes = parameter_process(starts, ends, axes)
     out = _op.strided_slice(data, begin=starts, end=ends)
     if decrease_axis:
         out = _op.squeeze(out, axis=decrease_axis)
