@@ -30,9 +30,9 @@ namespace tvm {
 namespace runtime {
 /*!
  * \brief pipeline executor.
- *  This executor take Module list and Dependency relations of Modules as
- *  inputs, then execute modules on heterogeneous hardware target in
- *  pipeline parallism mode to improve processing throughput.
+ *  This executor class use module list and dependency relations of modules as
+ *  the parameters and executes these modules on heterogeneous pipeline parallel
+ *  to improve throughput.
  *
  *  This executor can be acccesibly in various language via
  *  TVM runtime PackedFunc API.
@@ -40,11 +40,11 @@ namespace runtime {
 class TVM_DLL PipelineRuntime : public ModuleNode {
  public:
   /*!
-   * \return The type key of the executor.
+   * \Return the type key of the executor.
    */
   const char* type_key() const final { return "PipelineRuntime"; }
   /*!
-   * \brief Initialize the pipeline executor with module Array and json text.
+   * \brief Initialize the pipeline executor with module array and json text.
    * \param modules The module list that used for building pipeline.
    * \param pipeline_json The configuration of modules dependencies.
    */
