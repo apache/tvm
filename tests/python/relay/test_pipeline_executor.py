@@ -261,7 +261,7 @@ def test_pipeline():
             assert pipe_config.get_config() == get_manual_conf([mod1, mod2, mod3], target)
 
             """
-            # build then create pipeline module.
+            # Build then create pipeline module.
             """
             with tvm.transform.PassContext(opt_level=3):
                 pipeline_mod_config = pipeline_executor.build(pipe_config)

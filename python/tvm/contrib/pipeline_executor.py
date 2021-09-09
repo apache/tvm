@@ -194,7 +194,7 @@ class PipelineConfig(object):
             return owner_name, self.name
 
         def get_owner_idx(self):
-            """Return owner idex if owner is ModuleWrapper, if not return 0"""
+            """Return owner idex if owner is ModuleWrapper, if not return 0."""
             if isinstance(self.io_owner, PipelineConfig.ModuleWrapper):
                 return self.io_owner.idx
 
@@ -207,7 +207,7 @@ class PipelineConfig(object):
             return not isinstance(self.io_owner, PipelineConfig.ModuleWrapper)
 
         def __repr__(self):
-            """Get all binding(input data) informations that looks like '|data_0: mod1:data_0'"""
+            """Get all binding(input data) informations that looks like '|data_0: mod1:data_0'."""
             ret = "  |{}: ".format(self.name)
             for binding in self.bindings:
                 mname, dname = binding.get_name()
@@ -284,7 +284,7 @@ class PipelineConfig(object):
         Parameters
         ----------
         owner : ModuleWrapper/PipelineConfig
-            The owner of this list can be ModuleWrapper or PipelineConfig
+            The owner of this list can be ModuleWrapper or PipelineConfig.
 
         type_name : str
             The type of this binding list can be either "input" or "output".
@@ -304,7 +304,7 @@ class PipelineConfig(object):
             if key not in self.bindings:
                 data_type = self.get_binding_data_type(key)
                 if not data_type and isinstance(self.io_owner, PipelineConfig.ModuleWrapper):
-                    raise RuntimeError(f"Can not find {key} in binding list {self.binding_type}")
+                    raise RuntimeError(f"Can not find {key} in binding list {self.binding_type}.")
 
                 self.bindings[key] = PipelineConfig.Binding(
                     self.io_owner, self.binding_type, key, data_type
@@ -397,7 +397,7 @@ class PipelineConfig(object):
             inf = self.input_bindings.bindings[input_name]
             input_dump += str(inf) + "\n"
 
-        # get connections
+        # get connections.
         output = {}
         connections_dump = "\nconnections\n"
         for mod in self.mod_wrapper:
@@ -502,22 +502,22 @@ class PipelineConfig(object):
         return idx
 
     def pipe_input(self, name):
-        """Return the corresponding input binding interface accordding the name"""
+        """Return the corresponding input binding interface accordding the name."""
         return self.input_bindings[name]
 
     def pipe_output(self, idx):
-        """Return the corresponding output binding interface accordding the name"""
+        """Return the corresponding output binding interface accordding the name."""
         return self.output_bindings[idx]
 
 
 class PipelineExecutorFactoryModule(object):
-    """This is a wrapper class which contains GraphExecutorFactoryModule list
+    """This is a wrapper class which contains GraphExecutorFactoryModule list.
     and Module configurations.
 
     Parameters
     ----------
     pipeline_mods : List[GraphExecutorFactoryModule]
-        list of GraphExecutorFactoryModule
+        list of GraphExecutorFactoryModule.
 
     mod_config : Dict[int, Dict[str, Any]]
         modules and modules dependency configuration informaiton.
