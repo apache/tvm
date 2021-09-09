@@ -140,7 +140,7 @@ How to use Debugger?
 ::
 
     from tvm.contrib.debugger import debug_executor as graph_executor
-    m = graph_executor.create(graph, lib, dev, dump_root="/tmp/tvmdbg")
+    m = graph_executor.create(graph, lib, dev, dump_root="/tmp/tvmdbg", iters_num=10, repeat=1)
     # set inputs
     m.set_input('data', tvm.nd.array(data.astype(dtype)))
     m.set_input(**params)
@@ -155,7 +155,7 @@ How to use Debugger?
 ::
 
     lib = tvm.runtime.load_module("network.so")
-    m = graph_executor.create(lib["get_graph_json"](), lib, dev, dump_root="/tmp/tvmdbg")
+    m = graph_executor.create(lib["get_graph_json"](), lib, dev, dump_root="/tmp/tvmdbg", iters_num=10, repeat=1)
     # set inputs
     m.set_input('data', tvm.nd.array(data.astype(dtype)))
     m.set_input(**params)
@@ -166,6 +166,8 @@ How to use Debugger?
 
 The outputs are dumped to a temporary folder in ``/tmp`` folder or the
 folder specified while creating the runtime.
+iters_num is number of runs for measurement of average performance time for each op.
+repeat is number of iterations group. As a result, the number of outputs (see below) will be equal to repeat
 
 ***************************************
 Sample Output

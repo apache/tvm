@@ -53,7 +53,8 @@ def create(graph_json_str, libmod, device, dump_root=None, iters_num=10, repeat=
     iters_num : int
         Number of iterations for average performance time measurement
     repeat: int
-        Repeat argument for individual node run
+        number of iterations group. As a result, the number of output tables with time measured
+        will be equal to repea
     Returns
     -------
     graph_module : GraphModuleDebug
@@ -100,7 +101,8 @@ class GraphModuleDebug(graph_executor.GraphModule):
     iters_num : int
         Number of iterations for average performance time measurement
     repeat: int
-        Repeat argument for individual node run
+        number of iterations group. As a result, the number of output tables with time measured
+        will be equal to repeat
     """
 
     def __init__(self, module, device, graph_json_str, dump_root, iters_num=10, repeat=1):
