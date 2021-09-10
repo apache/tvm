@@ -89,10 +89,9 @@ def verify_model(func, input_data, rtol=1e-5, atol=1e-5, input_shape=None):
         input_name = "input{}".format(idx)
         if input_shape:
             shape = input_shape[idx]
-            input_shape_dict[input_name] = [relay.Any()] * len(shape)
         else:
             shape = data.shape
-            input_shape_dict[input_name] = shape
+        input_shape_dict[input_name] = shape
         input_spec.append(paddle.static.InputSpec(dtype=data.dtype, shape=shape, name=input_name))
         input_names.append(input_name)
         if isinstance(data, np.ndarray):
@@ -158,6 +157,8 @@ def test_forward_unary_op():
         "log",
         "log10",
         "log1p",
+        "numel",
+        "reciprocal",
         "relu",
         "rsqrt",
         "sigmoid",
@@ -631,6 +632,7 @@ def test_forward_elemwise():
     class ElemwiseOp(nn.Layer):
         def __init__(self, op_name):
             super(ElemwiseOp, self).__init__()
+            self.op_name_ = op_name
             for candidate in (paddle, paddle.nn.functional):
                 self.func = getattr(candidate, op_name, None)
                 if self.func:
@@ -639,11 +641,15 @@ def test_forward_elemwise():
         @paddle.jit.to_static
         def forward(self, input1, input2):
             y = self.func(input1, input2)
-            return paddle.cast(y, "int32")
+            if "equal" in self.op_name_ or "than" in self.op_name_:
+                y = paddle.cast(y, "int32")
+            return y
 
     op_list = [
         "floor_divide",
         "floor_mod",
+        "maximum",
+        "minimum",
         "equal",
         "greater_than",
         "less_equal",
@@ -909,6 +915,23 @@ def test_forward_matmul():
     input_data1 = paddle.randn((10, 3, 4), dtype="float32")
     input_data2 = paddle.randn((4, 5), dtype="float32")
     verify_model(MatMul1(), input_data=[input_data1, input_data2])
+
+
+@tvm.testing.uses_gpu
+def test_forward_nonzero():
+    class Nonzero(nn.Layer):
+        def __init__(self, as_tuple=False):
+            super().__init__()
+            self.as_tuple = as_tuple
+
+        def forward(self, inputs):
+            return paddle.nonzero(inputs, self.as_tuple)
+
+    x1 = paddle.to_tensor([[1.0, 0.0, 0.0, 2.0], [0.0, 2.0, 0.0, 1.1], [0.0, 0.0, 3.0, 0.0]])
+    verify_model(Nonzero(), x1, input_shape=[[3, 4]])
+    verify_model(Nonzero(True), x1, input_shape=[[3, 4]])
+    x2 = paddle.to_tensor([0, 1, 0, 3])
+    verify_model(Nonzero(), x2, input_shape=[[3, 4]])
 
 
 @tvm.testing.uses_gpu
@@ -1320,6 +1343,7 @@ if __name__ == "__main__":
     test_forward_lstm()
     test_forward_matmul()
     test_forward_multiply()
+    test_forward_nonzero()
     test_forward_pool2d()
     test_forward_pad()
     test_forward_pow()
