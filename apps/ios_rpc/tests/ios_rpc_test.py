@@ -28,25 +28,18 @@ import sys
 from tvm import rpc
 from tvm.contrib import utils, xcode
 import numpy as np
-
-# Set to be address of tvm proxy.
-proxy_host = os.environ["TVM_IOS_RPC_PROXY_HOST"]
-# Set your destination via env variable.
-# Should in format "platform=iOS,id=<the test device uuid>"
-destination = os.environ["TVM_IOS_RPC_DESTINATION"]
-
-if not re.match(r"^platform=.*,id=.*$", destination):
-    print("Bad format: {}".format(destination))
-    print("Example of expected string: platform=iOS,id=1234567890abcabcabcabc1234567890abcabcab")
-    sys.exit(1)
-
-proxy_port = 9090
-key = "iphone"
+import argparse
 
 # Change target configuration, this is setting for iphone6s
 arch = "arm64"
 sdk = "iphoneos"
 target = "llvm -mtriple=%s-apple-darwin" % arch
+
+MODES = {
+    'proxy': rpc.connect,
+    'tracker': rpc.connect_tracker,
+    'pure_server': rpc.connect
+}
 
 # override metal compiler to compile to iphone
 @tvm.register_func("tvm_callback_metal_compile")
@@ -54,7 +47,7 @@ def compile_metal(src):
     return xcode.compile_metal(src, sdk=sdk)
 
 
-def test_rpc_module():
+def test_rpc_module(host, port, key, mode):
     # graph
     n = tvm.runtime.convert(1024)
     A = te.placeholder((n,), name="A")
@@ -81,8 +74,13 @@ def test_rpc_module():
     f.export_library(path_dso2, xcode.create_dylib, arch=arch, sdk=sdk)
     xcode.codesign(path_dso2)
 
+    print("before connection")
     # connect to the proxy
-    remote = rpc.connect(proxy_host, proxy_port, key=key)
+    if mode == "tracker":
+        remote = MODES[mode](host, port).request(key)
+    else:
+        remote = MODES[mode](host, port, key=key)
+    print("after connection")
     remote.upload(path_dso1)
     dev = remote.metal(0)
     f1 = remote.load_module("dev_lib.dylib")
@@ -107,4 +105,13 @@ def test_rpc_module():
 
 
 if __name__ == "__main__":
-    test_rpc_module()
+    parser = argparse.ArgumentParser(description='Demo app demonstrates how ios_rpc works.')
+    parser.add_argument('--host', required=True, type=str, help='Adress of rpc server')
+    parser.add_argument('--port', type=int, default=9090, help='rpc port (default: 9090)')
+    parser.add_argument('--key', type=str, default='iphone', help='device key (default: iphone)')
+    parser.add_argument('--mode', type=str, default='tracker',
+            help='type of RPC connection (default: tracker), possible values: {}'.format(", ".join(MODES.keys())))
+
+    args = parser.parse_args()
+    assert(args.mode in MODES.keys())
+    test_rpc_module(args.host, args.port, args.key, args.mode)

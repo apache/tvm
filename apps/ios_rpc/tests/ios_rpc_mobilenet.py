@@ -32,20 +32,7 @@ import numpy as np
 from mxnet import gluon
 from PIL import Image
 import coremltools
-
-# Set to be address of tvm proxy.
-proxy_host = os.environ["TVM_IOS_RPC_PROXY_HOST"]
-# Set your desination via env variable.
-# Should in format "platform=iOS,id=<the test device uuid>"
-destination = os.environ["TVM_IOS_RPC_DESTINATION"]
-
-if not re.match(r"^platform=.*,id=.*$", destination):
-    print("Bad format: {}".format(destination))
-    print("Example of expected string: platform=iOS,id=1234567890abcabcabcabc1234567890abcabcab")
-    sys.exit(1)
-
-proxy_port = 9090
-key = "iphone"
+import argparse
 
 # Change target configuration, this is setting for iphone6s
 # arch = "x86_64"
@@ -53,6 +40,12 @@ key = "iphone"
 arch = "arm64"
 sdk = "iphoneos"
 target_host = "llvm -mtriple=%s-apple-darwin" % arch
+
+MODES = {
+    'proxy': rpc.connect,
+    'tracker': rpc.connect_tracker,
+    'pure_server': rpc.connect
+}
 
 # override metal compiler to compile to iphone
 @tvm.register_func("tvm_callback_metal_compile")
@@ -97,7 +90,7 @@ def get_model(model_name, data_shape):
     return func, params
 
 
-def test_mobilenet():
+def test_mobilenet(host, port, key, mode):
     temp = utils.tempdir()
     image, synset = prepare_input()
     model, params = get_model("mobilenetv2_1.0", image.shape)
@@ -110,7 +103,10 @@ def test_mobilenet():
         xcode.codesign(path_dso)
 
         # connect to the proxy
-        remote = rpc.connect(proxy_host, proxy_port, key=key)
+        if mode == "tracker":
+            remote = MODES[mode](host, port).request(key)
+        else:
+            remote = MODES[mode](host, port, key=key)
         remote.upload(path_dso)
 
         if target == "metal":
@@ -173,4 +169,13 @@ def test_mobilenet():
 
 
 if __name__ == "__main__":
-    test_mobilenet()
+    parser = argparse.ArgumentParser(description='Demo app demonstrates how ios_rpc works.')
+    parser.add_argument('--host', required=True, type=str, help='Adress of rpc server')
+    parser.add_argument('--port', type=int, default=9090, help='rpc port (default: 9090)')
+    parser.add_argument('--key', type=str, default='iphone', help='device key (default: iphone)')
+    parser.add_argument('--mode', type=str, default='tracker',
+            help='type of RPC connection (default: tracker), possible values: {}'.format(", ".join(MODES.keys())))
+
+    args = parser.parse_args()
+    assert(args.mode in MODES.keys())
+    test_mobilenet(args.host, args.port, args.key, args.mode)
