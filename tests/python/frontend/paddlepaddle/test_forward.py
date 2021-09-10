@@ -160,8 +160,10 @@ def test_forward_unary_op():
         "log10",
         "log1p",
         "relu",
+        "rsqrt",
         "sigmoid",
         "sin",
+        "square",
         "tan",
         "tanh",
     ]
@@ -589,29 +591,6 @@ def test_forward_flatten():
 
 
 @tvm.testing.uses_gpu
-def test_forward_floor_divide():
-    class Floor_divide(nn.Layer):
-        @paddle.jit.to_static
-        def forward(self, x, y):
-            return paddle.floor_divide(x, y)
-
-    x_shape = [10]
-    y_shape = [10]
-    x_data = paddle.randint(1, 10, x_shape, dtype="int32")
-    y_data = paddle.randint(1, 10, y_shape, dtype="int32")
-    x_data_1 = paddle.randint(1, 10, x_shape, dtype="int64")
-    y_data_1 = paddle.randint(1, 10, y_shape, dtype="int64")
-    verify_model(Floor_divide(), input_data=[x_data, y_data])
-    verify_model(Floor_divide(), input_data=[x_data_1, y_data_1])
-    # For broadcast
-    x_shape_1 = [10]
-    y_shape_1 = [10, 1]
-    x_data_2 = paddle.randint(1, 10, x_shape_1, dtype="int32")
-    y_data_2 = paddle.randint(1, 10, y_shape_1, dtype="int32")
-    verify_model(Floor_divide(), input_data=[x_data_2, y_data_2])
-
-
-@tvm.testing.uses_gpu
 def test_forward_shape_full():
     @paddle.jit.to_static
     def full1(inputs):
@@ -667,6 +646,43 @@ def test_forward_ones():
     input_data = paddle.rand(input_shape, dtype="float32")
     verify_model(ones1, input_data=input_data)
     verify_model(ones2, input_data=input_data)
+
+
+def test_forward_elemwise():
+    class ElemwiseOp(nn.Layer):
+        def __init__(self, op_name):
+            super(ElemwiseOp, self).__init__()
+            for candidate in (paddle, paddle.nn.functional):
+                self.func = getattr(candidate, op_name, None)
+                if self.func:
+                    break
+
+        @paddle.jit.to_static
+        def forward(self, input1, input2):
+            y = self.func(input1, input2)
+            return paddle.cast(y, "int32")
+
+    op_list = [
+        "floor_divide",
+        "floor_mod",
+        "equal",
+        "greater_than",
+        "less_equal",
+        "less_than",
+        "not_equal",
+    ]
+    input_shape = [10, 10]
+    input_shape_2 = [
+        10,
+    ]
+    x_data = paddle.rand(input_shape, dtype="float32")
+    y_data = paddle.rand(input_shape_2, dtype="float32")
+    x_data_2 = paddle.randint(1, 100, input_shape_2, dtype="int32")
+    y_data_2 = paddle.randint(1, 100, input_shape, dtype="int32")
+    for op_name in op_list:
+        if op_name not in ["floor_divide"]:
+            verify_model(ElemwiseOp(op_name), [x_data, y_data])
+        verify_model(ElemwiseOp(op_name), [x_data_2, y_data_2])
 
 
 @tvm.testing.uses_gpu
@@ -839,31 +855,6 @@ def test_forward_leaky_relu():
     input_shape = [1, 3, 10, 10]
     input_data = paddle.rand(input_shape, dtype="float32")
     verify_model(leaky_relu, input_data=input_data)
-
-
-@tvm.testing.uses_gpu
-def test_forward_less_than():
-    class Less_than(nn.Layer):
-        @paddle.jit.to_static
-        def forward(self, x, y):
-            output = paddle.less_than(x, y)
-            output = paddle.cast(output, "int32")
-            return output
-
-    x_shape = [10]
-    y_shape = [10]
-    x_data = paddle.randint(1, 10, x_shape, dtype="int32")
-    y_data = paddle.randint(1, 10, y_shape, dtype="int32")
-    x_data_1 = paddle.randint(1, 10, x_shape, dtype="int64")
-    y_data_1 = paddle.randint(1, 10, y_shape, dtype="int64")
-    verify_model(Less_than(), input_data=[x_data, y_data])
-    verify_model(Less_than(), input_data=[x_data_1, y_data_1])
-    # For broadcast
-    x_shape_1 = [10]
-    y_shape_1 = [10, 1]
-    x_data_2 = paddle.rand(x_shape_1, dtype="float32")
-    y_data_2 = paddle.rand(y_shape_1, dtype="float32")
-    verify_model(Less_than(), input_data=[x_data_2, y_data_2])
 
 
 @tvm.testing.uses_gpu
@@ -1049,7 +1040,6 @@ def test_forward_not_equal():
     verify_model(Not_equal(), input_data=[x_data_2, y_data_2])
 
 
-
 @tvm.testing.uses_gpu
 def test_forward_pool2d():
     @paddle.jit.to_static
@@ -1069,7 +1059,8 @@ def test_forward_pool2d():
     input_data = paddle.uniform(shape=[1, 2, 32, 32], dtype="float32", min=-1, max=1)
     verify_model(pool2d1, input_data=input_data)
     verify_model(pool2d2, input_data=input_data)
-    verify_model(pool2d3, input_data=input_data)
+    # need op max_pool2d_with_index
+    # verify_model(pool2d3, input_data=input_data)
 
 
 @tvm.testing.uses_gpu
@@ -1130,8 +1121,8 @@ def test_forward_pow():
             output = paddle.pow(x, y)
             return output
 
-    x_data = paddle.to_tensor([1, 2, 3], dtype='float32')
-    y_data = paddle.to_tensor([2], dtype='float32')
+    x_data = paddle.to_tensor([1, 2, 3], dtype="float32")
+    y_data = paddle.to_tensor([2], dtype="float32")
     verify_model(Pow(), input_data=[x_data])
     verify_model(Pow1(), input_data=[x_data])
     verify_model(Pow2(), input_data=[x_data, y_data])
@@ -1150,7 +1141,7 @@ def test_forward_reduce_op():
             output = self.func(inputs)
             output = paddle.cast(output, "int32")
             return output
-    
+
     class ReduceOp_Bool1(ReduceOp_Bool):
         @paddle.jit.to_static
         def forward(self, inputs):
@@ -1158,7 +1149,7 @@ def test_forward_reduce_op():
             output = self.func(inputs, axis=0)
             output = paddle.cast(output, "int32")
             return output
-    
+
     class ReduceOp_Bool2(ReduceOp_Bool):
         @paddle.jit.to_static
         def forward(self, inputs):
@@ -1176,13 +1167,13 @@ def test_forward_reduce_op():
         def forward(self, inputs):
             output = self.func(inputs)
             return output
-    
+
     class ReduceOp_Math1(ReduceOp_Math):
         @paddle.jit.to_static
         def forward(self, inputs):
             output = self.func(inputs, axis=0)
             return output
-    
+
     class ReduceOp_Math2(ReduceOp_Math):
         @paddle.jit.to_static
         def forward(self, inputs):
@@ -1285,17 +1276,32 @@ def test_forward_slice():
 
     input_shape = [1, 3, 10, 10]
     input_data = paddle.rand(input_shape, dtype="float32")
-    verify_model(
-        slice1,
-        input_data=[
-            input_data,
-        ],
-    )
+    verify_model(slice1, input_data=input_data)
     verify_model(slice2, input_data=input_data)
     # need op "strided_slice"
     # verify_model(slice3, input_data=paddle.randn((4, 4)))
-    # need op "assign_value"
-    # verify_model(slice4, input_data=input_data)
+    verify_model(slice4, input_data=input_data)
+
+
+@tvm.testing.uses_gpu
+def test_forward_split():
+    @paddle.jit.to_static
+    def split(inputs):
+        return paddle.split(inputs, 2, axis=paddle.to_tensor([0], "int32"))
+
+    @paddle.jit.to_static
+    def split2(inputs):
+        return paddle.split(inputs, [1, 2, -1], axis=1)
+
+    @paddle.jit.to_static
+    def split3(inputs):
+        return paddle.split(inputs, [paddle.to_tensor([2]), 1, paddle.to_tensor(3)], axis=0)
+
+    input_shape = [6, 10]
+    input_data = paddle.rand(input_shape, dtype="float32")
+    verify_model(split, input_data=input_data)
+    verify_model(split2, input_data=input_data)
+    verify_model(split3, input_data=input_data)
 
 
 @tvm.testing.uses_gpu
@@ -1446,9 +1452,9 @@ if __name__ == "__main__":
     test_forward_cumsum()
     test_forward_dot()
     test_forward_dropout()
+    test_forward_elemwise()
     test_forward_expand()
     test_forward_flatten()
-    test_forward_floor_divide()
     test_forward_shape_full()
     test_forward_ones()
     test_forward_ones_like()
@@ -1462,7 +1468,6 @@ if __name__ == "__main__":
     test_forward_isinf()
     test_forward_layer_norm()
     test_forward_leaky_relu()
-    test_forward_less_than()
     test_forward_look_up()
     test_forward_lstm()
     test_forward_matmul()
@@ -1476,6 +1481,7 @@ if __name__ == "__main__":
     test_forward_reshape()
     test_forward_scale()
     test_forward_slice()
+    test_forward_split()
     test_forward_squeeze2()
     test_forward_topk()
     test_forward_tile()
