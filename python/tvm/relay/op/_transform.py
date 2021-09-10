@@ -185,7 +185,6 @@ _reg.register_shape_func("invert_permutation", False, elemwise_shape_func)
 
 # einsum
 _reg.register_strategy("einsum", strategy.einsum_strategy)
-_reg.register_shape_func("einsum", False, elemwise_shape_func)
 
 
 #####################

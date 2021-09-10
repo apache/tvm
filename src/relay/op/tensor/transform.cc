@@ -2436,7 +2436,7 @@ RELAY_REGISTER_OP("broadcast_to_like")
 TVM_REGISTER_NODE_TYPE(EinsumAttrs);
 
 bool EinsumRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
-                        const TypeReporter& reporter) {
+               const TypeReporter& reporter) {
   // Check attrs
   const EinsumAttrs* param = attrs.as<EinsumAttrs>();
   if (param == nullptr) {
@@ -2485,7 +2485,7 @@ bool EinsumRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 }
 
 Array<te::Tensor> EinsumCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
-                                         const Type& out_type) {
+                                const Type& out_type) {
   const EinsumAttrs* param = attrs.as<EinsumAttrs>();
   ICHECK(param != nullptr);
   return Array<te::Tensor>{topi::einsum(param->equation, inputs)};
