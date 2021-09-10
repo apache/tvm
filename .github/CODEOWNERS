@@ -78,9 +78,9 @@ tests/**  @comaniac @junrushao1994 @tqchen @jroesch @areusch @yzhliu @merrymercy
 ##############################
 
 # automation related
-src/auto_scheduler/**  @merrymercy @jcf94 @comaniac @junrushao1994 @vinx13
-include/tvm/auto_scheduler/**  @merrymercy @jcf94 @comaniac @junrushao1994 @vinx13
-python/tvm/auto_scheduler/**  @merrymercy @jcf94 @comaniac @junrushao1994 @vinx13
+src/auto_scheduler/**  @merrymercy @jcf94 @comaniac @junrushao1994 @vinx13 @Hzfengsy
+include/tvm/auto_scheduler/**  @merrymercy @jcf94 @comaniac @junrushao1994 @vinx13 @Hzfengsy
+python/tvm/auto_scheduler/**  @merrymercy @jcf94 @comaniac @junrushao1994 @vinx13 @Hzfengsy
 
 python/tvm/autotvm/**  @merrymercy @jcf94 @comaniac @junrushao1994 @vinx13
 
@@ -94,9 +94,9 @@ include/tvm/ir/**      @junrushao1994 @vinx13 @tqchen @jroesch @comaniac
 python/tvm/ir/**      @junrushao1994 @vinx13 @tqchen @jroesch @comaniac
 
 # tir
-src/tir/**      @junrushao1994 @vinx13 @tqchen @kparzysz-quic @ZihengJiang @masahi @were
-include/tvm/tir/**      @junrushao1994 @vinx13 @tqchen @kparzysz-quic @ZihengJiang @masahi @were
-python/tvm/tir/**      @junrushao1994 @vinx13 @tqchen @kparzysz-quic @ZihengJiang @masahi @were
+src/tir/**      @junrushao1994 @vinx13 @tqchen @kparzysz-quic @ZihengJiang @masahi @were @Hzfengsy
+include/tvm/tir/**      @junrushao1994 @vinx13 @tqchen @kparzysz-quic @ZihengJiang @masahi @were @Hzfengsy
+python/tvm/tir/**      @junrushao1994 @vinx13 @tqchen @kparzysz-quic @ZihengJiang @masahi @were @Hzfengsy
 
 # te
 src/te/**      @junrushao1994 @vinx13 @tqchen @kparzysz-quic @ZihengJiang @masahi @were
@@ -122,11 +122,11 @@ include/tvm/runtime/**  @vinx13 @tqchen @FronzenGene @liangfu @areusch @tmoreau8
 python/tvm/runtime/**  @vinx13 @tqchen @FronzenGene @liangfu @areusch @tmoreau89 @ajtulloch @masahi @kazum @ZihengJiang  @junrushao1994
 
 # runtime/micro
-src/runtime/micro/** @areusch @liangfu @tmoreau89
-src/runtime/crt/** @areusch @liangfu @tmoreau89
-include/tvm/runtime/crt/** @areusch @liangfu @tmoreau89
-include/tvm/runtime/micro/** @areusch @liangfu @tmoreau89
-python/tvm/micro/** @areusch @liangfu @tmoreau89
+src/runtime/micro/** @areusch @liangfu @tmoreau89 @manupa-arm
+src/runtime/crt/** @areusch @liangfu @tmoreau89 @manupa-arm
+include/tvm/runtime/crt/** @areusch @liangfu @tmoreau89 @manupa-arm
+include/tvm/runtime/micro/** @areusch @liangfu @tmoreau89 @manupa-arm
+python/tvm/micro/** @areusch @liangfu @tmoreau89 @manupa-arm
 
 # relay
 src/relay/** @jroesch @slyubomirsky @icemelon9 @MarisaKirisame @ZihengJiang @yzhliu @vinx13 @mbrookhart @jwfromm @zhiics @anijain2305 @wweic @eqy @junrushao1994
@@ -140,7 +140,7 @@ inlcude/tvm/relay/qnn/**  @jwfromm @anijain2305 @ZihengJiang
 python/tvm/relay/qnn/**  @jwfromm @anijain2305 @ZihengJiang
 
 # relay/backend/contrib: BYOC
-src/relay/backend/contrib/** @zhiics @trevor-m @comaniac @mbaret
+src/relay/backend/contrib/** @zhiics @trevor-m @comaniac @mbaret @manupa-arm
 
 # relay/frontends
 python/tvm/relay/frontend/**  @jwfromm @mbrookhart @srkreddy1238 @siju-samuel @Huyuwei @hlu1 @kazum @PariksheetPinjari909

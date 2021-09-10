@@ -251,6 +251,12 @@ class Report : public ObjectRef {
    */
   explicit Report(Array<Map<String, ObjectRef>> calls,
                   Map<String, Map<String, ObjectRef>> device_metrics);
+
+  /*! Deserialize a Report from a JSON object. Needed for sending the report over RPC.
+   * \param json Serialized json report from `ReportNode::AsJSON`.
+   * \returns A Report.
+   */
+  static Report FromJSON(String json);
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Report, ObjectRef, ReportNode);
 };
 

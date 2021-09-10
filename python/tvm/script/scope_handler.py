@@ -591,10 +591,13 @@ class RangeHandler(ForScopeHandler):
     def __init__(self):
         def for_range(
             begin: PrimExpr,
-            end: PrimExpr,
+            end: PrimExpr = None,
             annotations: Optional[Mapping[str, Object]] = None,
             span: Optional[Span] = None,
         ):
+            if end is None:
+                end = begin
+                begin = 0
             return self.create_loop(begin, end, ForKind.SERIAL, annotations=annotations, span=span)
 
         super().__init__(for_range)

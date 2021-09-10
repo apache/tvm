@@ -57,7 +57,10 @@ class TestTargetAutoParametrization:
         self.targets_with_explicit_list.append(target)
 
     def test_no_repeats_in_explicit_list(self):
-        assert self.targets_with_explicit_list == ["llvm"]
+        if tvm.testing.device_enabled("llvm"):
+            assert self.targets_with_explicit_list == ["llvm"]
+        else:
+            assert self.targets_with_explicit_list == []
 
     targets_with_exclusion = []
 
@@ -84,6 +87,11 @@ class TestTargetAutoParametrization:
     def test_all_targets_ran(self):
         assert self.run_targets_with_known_failure == self.enabled_targets
 
+    @tvm.testing.known_failing_targets("llvm")
+    @tvm.testing.parametrize_targets("llvm")
+    def test_known_failing_explicit_list(self, target):
+        assert target != "llvm"
+
 
 class TestJointParameter:
     param1_vals = [1, 2, 3]
@@ -95,7 +103,8 @@ class TestJointParameter:
 
     joint_usages = 0
     joint_param_vals = list(zip(param1_vals, param2_vals))
-    joint_param1, joint_param2 = tvm.testing.parameters(*joint_param_vals)
+    joint_param_ids = ["apple", "pear", "banana"]
+    joint_param1, joint_param2 = tvm.testing.parameters(*joint_param_vals, ids=joint_param_ids)
 
     def test_using_independent(self, param1, param2):
         type(self).independent_usages += 1
@@ -109,6 +118,14 @@ class TestJointParameter:
 
     def test_joint(self):
         assert self.joint_usages == len(self.joint_param_vals)
+
+    def test_joint_test_id(self, joint_param1, joint_param2, request):
+        param_string = (
+            request.node.name.replace(request.node.originalname, "")
+            .replace("[", "")
+            .replace("]", "")
+        )
+        assert param_string in self.joint_param_ids
 
 
 class TestFixtureCaching:
@@ -199,8 +216,8 @@ class TestBrokenFixture:
 class TestAutomaticMarks:
     @staticmethod
     def check_marks(request, target):
-        parameter = tvm.testing.plugin._pytest_target_params([target])[0]
-        required_marks = [decorator.mark for decorator in parameter.marks]
+        decorators = tvm.testing.plugin._target_to_requirement(target)
+        required_marks = [decorator.mark for decorator in decorators]
         applied_marks = list(request.node.iter_markers())
 
         for required_mark in required_marks:

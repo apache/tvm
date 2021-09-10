@@ -1017,8 +1017,8 @@ struct DensePackAttrs : public tvm::AttrsNode<DensePackAttrs> {
         .set_default(NullValue<DataType>())
         .describe("Output data type, set to explicit type under mixed precision setting");
     TVM_ATTR_FIELD(weight_layout)
-        .set_default("NK")
-        .describe("Dimension ordering of weight. Packed layouts, such as NK8n, are possible.");
+        .set_default("NC")
+        .describe("Dimension ordering of weight. Packed layouts, such as NC8n, are possible.");
   }
 };
 

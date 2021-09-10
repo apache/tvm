@@ -503,5 +503,91 @@ def test_transpose(interface_api, use_unpacked_api, test_runner):
     )
 
 
+def test_name_sanitiser():
+    """Test that input tensors with special characters in the name don't break compilation"""
+
+    interface_api = "c"
+    use_unpacked_api = True
+    test_runner = AOT_DEFAULT_RUNNER
+
+    func = relay.var("input-x::2", "float32")
+    ident = relay.Function([func], func)
+    one = np.array(1.0, "float32")
+    inputs = {"input-x::2": one}
+    output_list = generate_ref_data(ident, inputs)
+
+    compile_and_run(
+        AOTTestModel(module=IRModule.from_expr(func), inputs=inputs, outputs=output_list),
+        test_runner,
+        interface_api,
+        use_unpacked_api,
+        enable_op_fusion=False,
+    )
+
+
+def test_name_sanitiser_name_clash():
+    """Test that 2 input tensors with names that clash once sanitized, generates an error"""
+
+    interface_api = "c"
+    use_unpacked_api = True
+    test_runner = AOT_DEFAULT_RUNNER
+
+    dtype = "float32"
+    x = relay.var("input::-1", shape=(10, 5), dtype=dtype)
+    # Next 2 input tensor names will clash once sanitized.
+    y = relay.var("input::-2", shape=(10, 5), dtype=dtype)
+    t = relay.var("input:--2", shape=(), dtype=dtype)
+    a = relay.add(x, y)
+    b = relay.transpose(a)
+    z = relay.add(b, t)
+    # Check result.
+    func = relay.Function([x, y, t], z)
+    x_data = np.random.rand(10, 5).astype(dtype)
+    y_data = np.random.rand(10, 5).astype(dtype)
+    t_data = np.random.uniform(size=()).astype(dtype)
+
+    inputs = {"input::-1": x_data, "input::-2": y_data, "input:--2": t_data}
+    output_list = generate_ref_data(func, inputs)
+
+    with pytest.raises(ValueError, match="Sanitized input tensor name clash"):
+        compile_and_run(
+            AOTTestModel(module=IRModule.from_expr(func), inputs=inputs, outputs=output_list),
+            test_runner,
+            interface_api,
+            use_unpacked_api,
+            enable_op_fusion=False,
+        )
+
+
+@pytest.mark.parametrize(
+    "workspace_byte_alignment,main_workspace_size,sum_workspace_size",
+    [
+        (8, 10368, 15392),
+        (16, 10368, 15424),
+        (256, 10752, 17664),
+    ],
+)
+def test_memory_planning(workspace_byte_alignment, main_workspace_size, sum_workspace_size):
+    mod, params = tvm.relay.testing.synthetic.get_workload()
+
+    target = f"c -runtime=c --link-params --executor=aot --workspace-byte-alignment={workspace_byte_alignment}"
+    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
+        lib = tvm.relay.build(mod, target, params=params)
+
+    assert (
+        sum(lib.function_metadata["__tvm_main__"].workspace_sizes.values()) == main_workspace_size
+    )
+    assert (
+        sum(
+            [
+                size
+                for metadata in lib.function_metadata.values()
+                for size in metadata.workspace_sizes.values()
+            ]
+        )
+        == sum_workspace_size
+    )
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__] + sys.argv[1:]))
