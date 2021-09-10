@@ -356,3 +356,17 @@ def _calculate_hw_bias_scales(
         hw_bias_scales = [_quantize_scale(bs) for bs in bias_scales]
 
     return hw_bias_scales
+
+
+def get_target_accel_type():
+    """This is a helper function to convert cli accelerator type str argument
+    to NpuAccelerator"""
+    npu_accel_str_map = {
+        "ethos-u55-256": vapi.NpuAccelerator.Ethos_U55_256,
+        "ethos-u55-128": vapi.NpuAccelerator.Ethos_U55_128,
+        "ethos-u55-64": vapi.NpuAccelerator.Ethos_U55_64,
+        "ethos-u55-32": vapi.NpuAccelerator.Ethos_U55_32,
+    }
+    accel_type_str = util.get_accelerator_config()
+    assert accel_type_str in npu_accel_str_map.keys(), f"{accel_type_str} is not supported"
+    return npu_accel_str_map[accel_type_str]
