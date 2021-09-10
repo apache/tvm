@@ -4788,7 +4788,6 @@ unsupported_onnx_tests = [
     "test_nllloss_NCd1d2d3_sum_weight_high_ii_expanded",
     "test_nllloss_NCd1d2d3d4d5_mean_weight_expanded",
     "test_nllloss_NCd1d2d3d4d5_none_no_weight_expanded",
-    # These nllloss tests are flaky and sometimes gives NaNs
     "test_qlinearmatmul_2D",
     "test_qlinearmatmul_3D",
     "test_range_float_type_positive_delta_expanded",
