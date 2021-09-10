@@ -562,9 +562,9 @@ def test_name_sanitiser_name_clash():
 @pytest.mark.parametrize(
     "workspace_byte_alignment,main_workspace_size,sum_workspace_size",
     [
-        (8, 10368, 15392),
-        (16, 10368, 15424),
-        (256, 10752, 17664),
+        (8, 10368, 15200),
+        (16, 10368, 15232),
+        (256, 10752, 17408),
     ],
 )
 def test_memory_planning(workspace_byte_alignment, main_workspace_size, sum_workspace_size):

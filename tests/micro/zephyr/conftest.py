@@ -56,6 +56,7 @@ ZEPHYR_BOARDS = zephyr_boards()
 def pytest_addoption(parser):
     parser.addoption(
         "--zephyr-board",
+        required=True,
         choices=ZEPHYR_BOARDS.keys(),
         help=("Zephyr board for test."),
     )
