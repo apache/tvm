@@ -192,7 +192,7 @@ class Target(Object):
         if target is None:
             assert host is None, "Target host is not empty when target is empty."
             return target, host
-        if isinstance(target, dict) and "kind" not in target:
+        if isinstance(target, dict) and "kind" not in target: # Well this is awful.
             new_target = {}
             for tgt, mod in target.items():
                 if not target_is_dict_key:

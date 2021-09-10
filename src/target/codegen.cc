@@ -40,6 +40,21 @@
 namespace tvm {
 namespace codegen {
 
+/*
+runtime::Module BuildSchedule(Schedule sch, Target target) {
+  // call lower schedule to module
+  // call build??
+}
+
+runtime::Module BuildFunc(PrimFunc func, Target target) {
+
+}
+
+// Maybe don't need this here... 
+runtime::Module BuildTargetMap(Map<String, IRModule>, Target Target) {
+
+}
+*/
 runtime::Module Build(IRModule mod, Target target) {
   if (transform::PassContext::Current()
           ->GetConfig<Bool>("tir.disable_assert", Bool(false))
@@ -311,6 +326,7 @@ runtime::Module PackImportsToLLVM(const runtime::Module& mod, bool system_lib,
   return (*codegen_f)(blob_byte_array, system_lib, target_triple);
 }
 
+// Where build is registered
 TVM_REGISTER_GLOBAL("target.Build").set_body_typed(Build);
 
 // Export two auxiliary function to the runtime namespace.

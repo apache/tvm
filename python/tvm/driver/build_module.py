@@ -302,23 +302,26 @@ def build(
     ----
     See the note on :any:`tvm.target` on target string format.
     """
-    if isinstance(inputs, schedule.Schedule):
-        if args is None:
-            raise ValueError("args must be given for build from schedule")
+    # TODO: After we move to C++, can we actually change the lower / build APIs?
+    
+    if isinstance(inputs, (schedule.Schedule, tvm.IRModule, PrimFunc)):
         input_mod = lower(inputs, args, name=name, binds=binds)
-    elif isinstance(inputs, (list, tuple, container.Array)):
-        merged_mod = tvm.IRModule({})
-        for x in inputs:
-            merged_mod.update(lower(x))
-        input_mod = merged_mod
-    elif isinstance(inputs, (tvm.IRModule, PrimFunc)):
-        input_mod = lower(inputs)
     elif not isinstance(inputs, (dict, container.Map)):
         raise ValueError(
-            f"Inputs must be Schedule, IRModule or dict of target to IRModule, "
+            f"Inputs must be Schedule, PrimFunc, IRModule or dict of target to IRModule, "
             f"but got {type(inputs)}."
         )
+    
+    # More target maps here... is inputs ever a map?
+    # prepping and cutting module into chunks
 
+    # 1. get into c++
+    # 2. Remove everywhere that takes map<string, IRModule>
+    # after talking to xiyou he said a lot of difficulty was trying to maintain
+    # map<target, irmodule> correctly so I may just remove that.
+    if isinstance(inputs, (dict, container.Map)):
+        print("Inputs are: ", inputs)
+        assert False
     if not isinstance(inputs, (dict, container.Map)):
         target = Target.current() if target is None else target
         target = target if target else "llvm"
@@ -332,23 +335,29 @@ def build(
         if not isinstance(mod, tvm.IRModule):
             raise ValueError("inputs must be Schedule, IRModule," "or dict of str to IRModule.")
 
+    # This is for backwards compatibility but uses a map unfortunately
+    """
     target_input_mod, target_host = Target.check_and_update_host_consist(
         target_input_mod, target_host
     )
-
+    """
+    
     if not target_host:
         for tar, mod in target_input_mod.items():
             tar = Target(tar)
             device_type = ndarray.device(tar.kind.name, 0).device_type
+            # This seems broken
             if device_type == ndarray.cpu(0).device_type:
                 target_host = tar
                 break
     if not target_host:
         target_host = "llvm" if tvm.runtime.enabled("llvm") else "stackvm"
-
+    
+    """
     target_input_mod, target_host = Target.check_and_update_host_consist(
         target_input_mod, target_host
     )
+    """
 
     mod_host_all = tvm.IRModule({})
 
@@ -359,8 +368,10 @@ def build(
         device_modules.append(mdev)
 
     # Generate a unified host module.
+    print("codegen build module")
     rt_mod_host = codegen.build_module(mod_host_all, target_host)
 
+    # To start, push everything up to here into C++, then deal with the rest. Not sure what the rest is doing TBH.
     # Import all modules.
     for mdev in device_modules:
         if mdev:

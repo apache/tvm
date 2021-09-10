@@ -399,6 +399,8 @@ def test_duplex_data_transferring():
         )
 
         lower_add0.update(lower_add1)
+        # TODO: fix this
+        print("lower_add0 attrs: ", lower_add0.attr)
         target_flist = {target_device: lower_add0, target_host: lower_sub}
         target = tvm.target.Target(target, target_host)
         mhost = tvm.build(target_flist, target=target)
