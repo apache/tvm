@@ -447,6 +447,9 @@ class Handler(server.ProjectAPIHandler):
         if options.get("zephyr_base"):
             cmake_args.append(f"-DZEPHYR_BASE:STRING={options['zephyr_base']}")
 
+        if options.get("west_cmd"):
+            cmake_args.append(f"-DWEST={options['west_cmd']}")
+
         cmake_args.append(f"-DBOARD:STRING={options['zephyr_board']}")
 
         check_call(cmake_args, cwd=BUILD_DIR)
