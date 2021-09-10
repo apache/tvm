@@ -43,7 +43,7 @@ def max_pool2d_direct_simd_nhwc_schedule(outs):
         def intrin_max(in_channels):
             UNIQ_ID_LEN = 8
             uniq_id = "".join(random.choices(string.ascii_uppercase, k=UNIQ_ID_LEN))
-            func_prefix = "max"
+            func_prefix = "max_pool8"
 
             if isinstance(in_channels, tvm.tir.IntImm):
                 in_channels = in_channels.value
@@ -99,3 +99,64 @@ def max_pool2d_direct_simd_nhwc_schedule(outs):
 
     traverse_inline(s, outs[-1].op, _callback)
     return s
+
+def max_pool_impl(uniq_id):
+    """Emit C code for pool impl."""
+    cc_code = f"""
+#ifdef __cplusplus
+extern "C"
+#endif
+#include <arm_math.h>
+#include <arm_nnsupportfunctions.h>
+
+#ifdef __cplusplus
+extern "C"
+#endif
+__STATIC_FORCEINLINE int32_t max_pool8_reset_{uniq_id}(
+    int8_t *res,
+    int N) {{
+  memset(res, (int8_t)-128, N * sizeof(*res));  
+  return 0;
+}}
+
+#ifdef __cplusplus
+extern "C"
+#endif
+__STATIC_FORCEINLINE int32_t max_pool8_loop_{uniq_id}(
+    int8_t *arg, 
+    int8_t *res, 
+    int N) {{
+  for ( int i = 0; i < N; ++ i )
+    if ( arg[i] > res[i] )
+      res[i] = arg[i];
+  return 0;
+}}
+
+#ifdef __cplusplus
+extern "C"
+#endif
+__STATIC_FORCEINLINE int32_t max_pool8_{uniq_id}(
+    int8_t *arg, 
+    int8_t *res, 
+    int8 N) {{
+	int32_t *parg32 = (int32_t *)arg;
+	int32_t *pres32 = (int32_t *)res;
+	
+	if ( N < 4 )
+		return max_pool8_loop_{uniq_id}(arg, res, N);
+
+  for ( int i = 0; i < N / 4; ++ i ) {{
+		int32_t arg32 = *parg32 ++;
+		int32_t res32 = *pres32;
+		__SSUB8(arg32, res32);
+		res32 = __SEL(arg32, res32);
+		*pres32 ++ = res32;
+	}}
+
+	if ( N % 4 != 0 )
+		return max_pool8_loop_{uniq_id}((int8_t *)parg32, (int8_t *)pres32, N % 4);
+
+  return 0;
+}}
+    """
+    return cc_code
