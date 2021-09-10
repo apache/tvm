@@ -50,7 +50,7 @@ def _get_unary_elementwise_args(call, include_buffers=False, remove_constants=Fa
         ((1, 8, 9, 40), 40, "NHWC", "NHCWB16", "TFL"),
     ],
 )
-@pytest.mark.parametrize("operator_type", ["ABS"])
+@pytest.mark.parametrize("operator_type, data_type", [("ABS", "int8"), ("CLZ", "int32")])
 @pytest.mark.parametrize("activation", ["NONE"])
 def test_unary_elementwise_single(
     ifm_shape,
@@ -60,8 +60,9 @@ def test_unary_elementwise_single(
     rounding_mode,
     operator_type,
     activation,
+    data_type,
 ):
-    ifm = relay.var("ifm", shape=ifm_shape, dtype="int8")
+    ifm = relay.var("ifm", shape=ifm_shape, dtype=data_type)
 
     unary_elementwise = make_ethosu_unary_elementwise(
         ifm, ifm_channels, operator_type, activation, ifm_layout, ofm_layout, rounding_mode
@@ -102,7 +103,7 @@ def test_unary_elementwise_single(
 
     serial_unary_elementwise = spec.SerialUnaryElementwise(
         ifm=spec.SerialFeatureMap(
-            data_type="int8",
+            data_type=data_type,
             height=ifm_shape[1],
             width=ifm_shape[2] if ifm_layout == "NHWC" else ifm_shape[3],
             channels=ifm_channels,
@@ -121,7 +122,7 @@ def test_unary_elementwise_single(
             stride_c=ifm_stride_c,
         ),
         ofm=spec.SerialFeatureMap(
-            data_type="int8",
+            data_type=data_type,
             height=ofm_height,
             width=ofm_width,
             channels=ifm_channels,
