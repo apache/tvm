@@ -148,7 +148,7 @@ def test_pipe_config_check():
     """
     (mod1, mod2, mod3), dshape = get_mannual_mod()
     """
-    # The input/output name is illegal and expects a runtime error.
+    # The input or output name is illegal and expects a runtime error.
     """
     pipe_error = pipeline_executor.PipelineConfig()
     with pytest.raises(RuntimeError):
