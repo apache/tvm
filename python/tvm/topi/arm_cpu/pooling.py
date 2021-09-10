@@ -14,17 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=wildcard-import
-"""Schedule for ARM CPU"""
+# pylint: disable=invalid-name, unused-variable
+"""Schedule for pooling operators"""
+import tvm
+from tvm import te
+from tvm import autotvm
 
-from .conv2d import *
-from .depthwise_conv2d import *
-from .conv2d_transpose import *
-from .conv2d_int8 import *
-from . import conv2d_alter_op
-from .bitserial_conv2d import *
-from .bitserial_dense import *
-from .injective import *
-from . import cortex_m7
-from .group_conv2d import *
-from .pooling import *
+from .cortex_m7.pool import direct_simd
+
+
+def schedule_max_pool2d_direct_simd(outs):
+    """Create schedule for conv2d_direct_simd"""
+    return direct_simd.max_pool2d_direct_simd_nhwc_schedule(outs)
