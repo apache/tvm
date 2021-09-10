@@ -380,11 +380,11 @@ def test_rpc_large_array(temp_dir, board, west_cmd, tvm_debug, shape):
 
 
 @tvm.testing.requires_micro
-def test_autotune_conv2d(temp_dir, platform, west_cmd, tvm_debug):
+def test_autotune_conv2d(temp_dir, board, west_cmd, tvm_debug):
     """Test AutoTune for microTVM Zephyr"""
     import tvm.relay as relay
 
-    model, zephyr_board = PLATFORMS[platform]
+    model = conftest.ZEPHYR_BOARDS[board]
 
     # Create a Relay model
     data_shape = (1, 3, 16, 16)
@@ -424,7 +424,7 @@ def test_autotune_conv2d(temp_dir, platform, west_cmd, tvm_debug):
     module_loader = tvm.micro.AutoTvmModuleLoader(
         template_project_dir=template_project_dir,
         project_options={
-            "zephyr_board": zephyr_board,
+            "zephyr_board": board,
             "west_cmd": west_cmd,
             "verbose": 1,
             "project_type": "host_driven",
@@ -467,7 +467,7 @@ def test_autotune_conv2d(temp_dir, platform, west_cmd, tvm_debug):
         lowered,
         temp_dir / "project",
         {
-            "zephyr_board": zephyr_board,
+            "zephyr_board": board,
             "west_cmd": west_cmd,
             "verbose": 1,
             "project_type": "host_driven",
@@ -496,7 +496,7 @@ def test_autotune_conv2d(temp_dir, platform, west_cmd, tvm_debug):
         lowered_tuned,
         temp_dir / "project",
         {
-            "zephyr_board": zephyr_board,
+            "zephyr_board": board,
             "west_cmd": west_cmd,
             "verbose": 1,
             "project_type": "host_driven",
