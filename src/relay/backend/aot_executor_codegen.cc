@@ -38,19 +38,12 @@
 #include <string>
 #include <vector>
 
-#include "te_compiler.h"
-#include "utils.h"
+#include "./te_compiler.h"
+#include "./utils.h"
 
 namespace tvm {
 namespace relay {
 namespace backend {
-
-struct EnumClassHash {
-  template <typename T>
-  std::size_t operator()(T t) const {
-    return static_cast<std::size_t>(t);
-  }
-};
 
 using IntegerArray = Array<Integer>;
 using StorageMap =
@@ -724,7 +717,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     }
 
     IRModule lowered_mod =
-        LowerTEPass(targets_, device_context_map, mod_name, [this](Function func) {
+        tec::LowerTEPass(targets_, device_context_map, mod_name, [this](Function func) {
           // We need to maintain the constant map for external
           // functions so we pass this processing function which
           // allows us to process each function as we lower it.

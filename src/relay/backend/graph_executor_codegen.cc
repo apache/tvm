@@ -222,7 +222,7 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
     }
 
     IRModule lowered_mod =
-        LowerTEPass(targets_, device_context_map, mod_name_, [this](Function func) {
+        tec::LowerTEPass(targets_, device_context_map, mod_name_, [this](Function func) {
           // We need to maintain the constant map for external
           // functions so we pass this processing function which
           // allows us to process each function as we lower it.

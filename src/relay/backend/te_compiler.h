@@ -52,24 +52,15 @@
 #include "../transforms/infer_layout_utils.h"
 #include "../transforms/pass_utils.h"
 #include "./te_compiler_cache.h"
-#include "utils.h"
+#include "./utils.h"
 
 namespace tvm {
 namespace relay {
 namespace tec {
 
-// This class is needed to avoid a GCC 5 bug that prevents maps containing enums
-// from being compiled. If i386 GCC version is increased, we can remove it.
-struct EnumClassHash {
-  template <typename T>
-  std::size_t operator()(T t) const {
-    return static_cast<std::size_t>(t);
-  }
-};
-
 // TODO(@jroesch, @chrisS) these should be a tvm::Map for uniformity sake
 // we should a version of context which works in Map
-using TargetMap = std::unordered_map<DLDeviceType, Target, EnumClassHash>;
+using TargetMap = std::unordered_map<DLDeviceType, Target, backend::EnumClassHash>;
 using DeviceMap =
     std::unordered_map<Expr, tvm::Device, runtime::ObjectPtrHash, runtime::ObjectPtrEqual>;
 using ProcessFn = std::function<void(Function)>;
