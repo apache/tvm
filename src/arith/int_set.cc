@@ -607,6 +607,13 @@ inline bool ProveEqual(Analyzer* analyzer, PrimExpr lhs, PrimExpr rhs) {
   return is_zero(analyzer->Simplify(lhs - rhs));
 }
 
+IntSet IntSet::FromMinExtent(PrimExpr min, PrimExpr extent) {
+  if (is_one(extent)) {
+    return IntSet::SinglePoint(min);
+  }
+  return IntervalSet(min, extent + min - 1);
+}
+
 IntSet IntSet::FromRange(Range r) {
   // must make sure it can be matched back by MatchRange.
   if (is_one(r->extent)) {
@@ -815,19 +822,18 @@ IntSet EvalSet(Range r, const Map<IterVar, IntSet>& dom_map) {
   return EvalSet(r, ConvertDomMap(dom_map));
 }
 
-Optional<Array<arith::IntSet>> EstimateRegionLowerBound(const Array<Range>& region,
-                                                        const Map<Var, Range>& var_dom,
-                                                        const PrimExpr& predicate,
-                                                        arith::Analyzer* analyzer) {
+Optional<Array<IntSet>> EstimateRegionLowerBound(const Array<Range>& region,
+                                                 const Map<Var, Range>& var_dom,
+                                                 const PrimExpr& predicate, Analyzer* analyzer) {
   int ndim = region.size();
-  Array<arith::IterSumExpr> iter_sum_exprs{nullptr};
+  Array<IterSumExpr> iter_sum_exprs{nullptr};
   {
     Array<PrimExpr> affine_indices;
     affine_indices.reserve(ndim);
     for (const Range& range : region) {
       affine_indices.push_back(range->min);
     }
-    iter_sum_exprs = arith::DetectIterMap(
+    iter_sum_exprs = DetectIterMap(
         /*indices=*/affine_indices, /*input_iters=*/var_dom,
         /*predicate=*/predicate, /*require_bijective=*/false, analyzer);
   }
@@ -835,17 +841,17 @@ Optional<Array<arith::IntSet>> EstimateRegionLowerBound(const Array<Range>& regi
     return NullOpt;
   }
   ICHECK_EQ(iter_sum_exprs.size(), ndim);
-  Array<arith::IntSet> result;
+  Array<IntSet> result;
   result.reserve(ndim);
   for (int i = 0; i < ndim; ++i) {
-    const arith::IterSumExpr& sum_expr = iter_sum_exprs[i];
+    const IterSumExpr& sum_expr = iter_sum_exprs[i];
     const Range& range = region[i];
     if (sum_expr->args.empty()) {
-      result.push_back(arith::IntSet::Interval(sum_expr->base, sum_expr->base + range->extent));
+      result.push_back(IntSet::FromMinExtent(sum_expr->base, range->extent));
       continue;
     }
     ICHECK_EQ(sum_expr->args.size(), 1);
-    const arith::IterSplitExpr& split = sum_expr->args[0];
+    const IterSplitExpr& split = sum_expr->args[0];
     if (!analyzer->CanProve(range->extent >= split->scale)) {
       return NullOpt;
     }
@@ -853,8 +859,8 @@ Optional<Array<arith::IntSet>> EstimateRegionLowerBound(const Array<Range>& regi
     // IterSplitExpr: (source // lower_factor) % extent * scale
     // where `(source // lower_factor) % extent` is within [0, extent - 1]
     // Therefore, the range of `region[i]->min` is `base + [0, (extent - 1) * scale]`
-    result.push_back(arith::IntSet::Interval(
-        base, split->extent * split->scale + base + (range->extent - split->scale) - 1));
+    result.push_back(
+        IntSet::FromMinExtent(base, split->extent * split->scale + (range->extent - split->scale)));
   }
   return result;
 }
