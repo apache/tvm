@@ -1259,7 +1259,7 @@ def test_gather(target, dev, executor_kind, data, axis, indices, ref_res):
     verify_gather(data, axis, indices, ref_res)
 
     # Verify negative indices also work properly, we should not change results
-    verify_gather(data, axis, indices, ref_res)
+    verify_gather(data, axis, indices, ref_res, check_negative=True)
 
 
 def test_gather_nd(target, dev, executor_kind):
