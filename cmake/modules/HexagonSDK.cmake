@@ -120,4 +120,3 @@ function(find_hexagon_sdk_root HEXAGON_SDK_PATH HEXAGON_ARCH)
 
   set(FOUND_HEXAGON_SDK_ROOT TRUE)
 endfunction()
-

@@ -105,4 +105,3 @@ endif()
 file(GLOB RUNTIME_HEXAGON_SRCS src/runtime/hexagon/*.cc)
 list(APPEND RUNTIME_SRCS ${RUNTIME_HEXAGON_SRCS} ${RUNTIME_HEXAGON_SIM_SRCS}
                          ${RUNTIME_HEXAGON_DEVICE_SRCS})
-

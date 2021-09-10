@@ -283,7 +283,7 @@ stage('Build') {
         timeout(time: max_time, unit: 'MINUTES') {
           try {
             sh "${docker_run} ${ci_qemu} ./tests/scripts/task_ci_setup.sh"
-            sh "${docker_run} ${ci_qemu} ./tests/scripts/task_python_microtvm.sh"          
+            sh "${docker_run} ${ci_qemu} ./tests/scripts/task_python_microtvm.sh"
           } catch (err) {
             echo err.getMessage()
             echo "Error detected, check pytest logs..."
@@ -328,7 +328,7 @@ stage('Unit Test') {
             sh "${docker_run} ${ci_i386} ./tests/scripts/task_ci_setup.sh"
             sh "${docker_run} ${ci_i386} ./tests/scripts/task_python_unittest.sh"
             sh "${docker_run} ${ci_i386} ./tests/scripts/task_python_integration.sh"
-            sh "${docker_run} ${ci_i386} ./tests/scripts/task_python_vta_fsim.sh" 
+            sh "${docker_run} ${ci_i386} ./tests/scripts/task_python_vta_fsim.sh"
           } catch (err) {
             echo err.getMessage()
             echo "Error detected, check pytest logs..."
@@ -348,13 +348,13 @@ stage('Unit Test') {
           try {
             sh "${docker_run} ${ci_arm} ./tests/scripts/task_ci_setup.sh"
             sh "${docker_run} ${ci_arm} ./tests/scripts/task_python_unittest.sh"
-            sh "${docker_run} ${ci_arm} ./tests/scripts/task_python_arm_compute_library.sh"    
+            sh "${docker_run} ${ci_arm} ./tests/scripts/task_python_arm_compute_library.sh"
           } catch (err) {
             echo err.getMessage()
             echo "Error detected, check pytest logs..."
           } finally {
             junit "build/pytest-results/*.xml"
-            // sh "${docker_run} ${ci_arm} ./tests/scripts/task_python_integration.sh"          
+            // sh "${docker_run} ${ci_arm} ./tests/scripts/task_python_integration.sh"
           }
         }
       }
