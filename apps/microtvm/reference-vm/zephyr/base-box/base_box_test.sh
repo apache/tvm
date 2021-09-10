@@ -37,3 +37,5 @@ if [ $microtvm_platform == "stm32f746xx" ]; then
 else
     pytest tests/micro/zephyr/test_zephyr_aot.py --microtvm-platforms=${microtvm_platform}
 fi
+
+pytest tests/micro/zephyr/test_zephyr_armv7m.py --microtvm-platforms=${microtvm_platform}
