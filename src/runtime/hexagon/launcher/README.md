@@ -1,0 +1,142 @@
+<!--- Licensed to the Apache Software Foundation (ASF) under one -->
+<!--- or more contributor license agreements.  See the NOTICE file -->
+<!--- distributed with this work for additional information -->
+<!--- regarding copyright ownership.  The ASF licenses this file -->
+<!--- to you under the Apache License, Version 2.0 (the -->
+<!--- "License"); you may not use this file except in compliance -->
+<!--- with the License.  You may obtain a copy of the License at -->
+
+<!---   http://www.apache.org/licenses/LICENSE-2.0 -->
+
+<!--- Unless required by applicable law or agreed to in writing, -->
+<!--- software distributed under the License is distributed on an -->
+<!--- "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY -->
+<!--- KIND, either express or implied.  See the License for the -->
+<!--- specific language governing permissions and limitations -->
+<!--- under the License. -->
+# Hexagon Graph Launcher
+
+## Compilation
+
+The launcher consists of two parts: part running on Hexagon, and part running
+on Android. They need to be compiled separately. Since some source files are
+shared between these two parts, make sure to delete all object files beteween
+compilations. Compile the Hexagon code first.
+
+### Prerequisites
+
+1. Android NDK version r19c or later.
+2. Hexagon SDK version 4.0.0 or later.
+
+Android NDK can be downloaded from https://developer.android.com/ndk.
+Hexagon SDK is available at //developer.qualcomm.com/software/hexagon-dsp-sdk.
+
+### Compilation of the Hexagon part
+
+1. Build the static version of TVM runtime for Hexagon: this step is the same
+   as building the shared version, except at the cmake step, add
+   `-DBUILD_STATIC_RUNTIME=ON`. The compilation step should create
+   `libtvm_runtime.a`.
+
+2. Create a subdirectory for the build files, and run `cmake` with the
+   following variables set:
+   - `FASTRPC_LIBS=SKEL`
+   - `HEXAGON_SDK_ROOT` to the path to the Hexagon SDK
+   - `CMAKE_C_COMPILER=hexagon-clang`
+   - `CMAKE_CXX_COMPILER=hexagon-clang++`
+   - `HEXAGON_ARCH` to one of v65, v66, v68
+   - `TVM_RUNTIME_HEXAGON=/path/to/libtvm_runtime.a` _statically_ linked
+     TVM runtime
+   Make sure to provide the path to launcher's `CMakeLists.txt` directory
+   in `cmake` invocation.
+
+3. Run `make`. This will create `liblauncher_rpc_skel.so`.
+
+### Compilation of the Android part
+
+1. Build TVM runtime for Android. Unlike in the Hexagon case, this should be
+   the dynamic library (which is the default), i.e. `libtvm_runtime.so`.
+
+2. Create a subdirectory for the build files (different from the one used for
+   Hexagon files), and run `cmake` with the following variables set:
+   - `FASTRPC_LIBS=STUB`
+   - `HEXAGON_SDK_ROOT` to the path to the Hexagon SDK
+   - `CMAKE_C_COMPILER=aarch64-linux-android28-clang` (or later)
+   - `CMAKE_CXX_COMPILER=aarch64-linux-android28-clang++` (or later)
+   - `HEXAGON_ARCH` to one of v65, v66, v68 (same as for the Hexagon part)
+   - `TVM_RUNTIME_ANDROID=/path/to/libtvm_runtime.so` dynamically or
+     statically linked TVM runtime
+
+3. Run `make`. This will create `launcher_android`.
+
+## Execution
+
+From the Android shell, do
+```
+./launcher_android --in_config input.json --out_config output.json
+```
+
+You may need to add the location of `libtvm_runtime.so` to `LD_LIBRARY_PATH`.
+See below for more information about the setup and launcher's inputs.
+
+### Preparation steps
+
+Copy the set of binaries created in the compilation step to the device:
+- `liblauncher_rpc_skel.so`,
+- `libgcc.so` (this one should come from the Hexagon toolchain),
+- `launcher_android`,
+- `libtvm_runtime.so` (for Android).
+
+These are only the binaries related to the launcher itself. To run a model
+copy the shared object with the model and the model JSON file over to the
+device (both are obtained from relay).  Also, copy all input files for the
+model as well.
+
+The final thing is to prepare a JSON configuration file for the launcher.
+The JSON has two attributes describing the model: `model-library` and
+`model-json`, and an attribute `inputs`, which is a list of records, one
+for each input file.
+An input file record has three attributes: `file`, `shape`, and `dtype`.
+
+Below is an example of the input config file for Inception V3:
+```
+{
+  "model-library": "inceptionv3-float32.so",
+  "model-json": "inceptionv3-float32.json",
+  "inputs" : [
+    {
+      "file": "panda_299x299_fp.dat",
+      "shape": [1,299,299,3],
+      "dtype": "float32"
+    }
+  ]
+}
+```
+
+The launcher will then create the output JSON file (with the name given via
+`--out_config`) containing information about the execution time and the model
+outputs. The output JSON file has three attributes: "pcycles", "usecs" that
+contain the execution duration in terms of processor cycles and microseconds
+respectivaly, and an attribute `outputs`, which is a list of output file records
+whose syntax is identical to the input file records in the input file.
+A sample output JSON from running the Inception V3 model may look like
+```
+{
+  "pcycles": 112965680178,
+  "usecs": 79532302,
+  "outputs": [
+    {
+      "file": "output0.dat",
+      "shape": [1, 1001],
+      "dtype": "float32"
+    }
+  ]
+}
+```
+
+The launcher does not perform any correctness verification. In order to verify
+correctness, the user needs to copy the output files from the device and
+verify their contents.
+
+This launcher is intended for use with prototyping and does not utilize any
+performance acceleration, as such the measured performance may be very poor.
