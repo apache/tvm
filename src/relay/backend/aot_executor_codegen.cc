@@ -278,132 +278,6 @@ class AOTExecutorCodegen : public MixedModeVisitor {
   }
 
   /*!
-   * \brief Update the "main" control function's metadata
-   *
-   * \param mod The module
-   * \param targets Map of targets
-   * \return function_infos Function info for each function in the module
-   */
-
-  backend::FunctionInfo UpdateMainWorkspaceSize(const IRModule& mod, tec::TargetMap targets,
-                                                Map<Expr, backend::StorageInfo> storage_info_map) {
-    CHECK_EQ(mod->functions.size(), 1)
-        << "There should only be one function in the module passed to UpdateMainWorkspaceSize";
-    Function func = Downcast<Function>(mod->Lookup("main"));
-
-    // This is a Map<device,Map<storage_id, size>>
-    std::unordered_map<DLDeviceType, std::unordered_map<int, int>, EnumClassHash> sid_workspace;
-    // This is a Map<device, size_of_inputs_and_outputs>
-    std::unordered_map<DLDeviceType, int, EnumClassHash> device_io;
-    // This is a Map<device, size_of_constants>
-    std::unordered_map<DLDeviceType, int, EnumClassHash> device_consts;
-
-    // Initialize the mapping from all storage identifiers to workspace sizes,
-    // the amount of device io, and the device constants.
-    for (const auto& kv : storage_info_map) {
-      backend::StorageInfo storage_info = kv.second;
-      std::vector<int64_t> storage_ids = storage_info->storage_ids;
-      std::vector<DLDeviceType> devices = storage_info->device_types;
-
-      CHECK_EQ(storage_ids.size(), devices.size());
-      for (uint32_t i = 0; i < devices.size(); i++) {
-        sid_workspace[devices[i]][storage_ids[i]] = 0;
-        device_io[devices[i]] = 0;
-        device_consts[devices[i]] = 0;
-      }
-    }
-
-    // Iterate the storage map to compute all the tensor sizes in the program.
-    // There are 3 cases in this code:
-    //
-    // First we need to compute the sizes of all
-    // inline constants.
-    //
-    // Second we compute the size of any bound variable as these are input and output
-    // sizes of the program.
-    //
-    // Finally for all other expressions we check which storage identifier they have
-    // been assigned and we compute the maximal size of the storage, as tensors can
-    // share storage with other tensors which are the same size or larger.
-    //
-    // In this final case there is only one allocation for all tensors which share storage
-    // which will be the maximal size of all tensors which were assigned to it.
-    for (const auto& kv : storage_info_map) {
-      Expr expr = kv.first;
-      int64_t size_bytes = backend::CalculateRelayExprSizeBytes(expr->checked_type());
-      backend::StorageInfo storage_info = kv.second;
-      std::vector<int64_t> storage_ids = storage_info->storage_ids;
-      std::vector<DLDeviceType> devices = storage_info->device_types;
-
-      if (expr->IsInstance<ConstantNode>()) {
-        for (const auto& dev : devices) {
-          device_consts[dev] += size_bytes;
-        }
-        continue;
-      } else if (expr->IsInstance<VarNode>() || expr.same_as(func->body)) {
-        CHECK_GE(devices.size(), 1) << "must be at least one device";
-        for (const auto& dev : devices) {
-          device_io[dev] += size_bytes;
-        }
-        continue;
-      }
-
-      // TODO(@electriclilies): This code is never being called which means sid_workspace is not
-      // updated.. This means that storage info is probably not being created correctly. Or is not
-      // equivalent to what was here previously
-      for (uint32_t i = 0; i < storage_ids.size(); i++) {
-        // Here we record the largest size of the tensor
-        // that share the same storage id, because storage_id will
-        // be shared between multiple tensors that are not live simultaneously.
-        if (size_bytes > sid_workspace[devices[i]][storage_ids[i]]) {
-          sid_workspace[devices[i]][storage_ids[i]] = size_bytes;
-        }
-      }
-    }
-
-    // This is a Map<device, workspace_size>
-    std::unordered_map<DLDeviceType, int, EnumClassHash> device_workspace;
-    // Once we know the sizes of sids, we need to accumulate per device
-    for (const auto& dev_sid_size : sid_workspace) {
-      auto dev = dev_sid_size.first;
-      device_workspace[dev] = 0;
-      for (const auto& sid_size : dev_sid_size.second) {
-        device_workspace[dev] += sid_size.second;
-      }
-    }
-
-    Map<Target, Integer> workspace_sizes;
-    Map<Target, Integer> io_sizes;
-    Map<Target, Integer> constant_sizes;
-    Map<Target, tir::PrimFunc> tir_primfuncs;
-    Map<Target, Function> relay_primfuncs;
-
-    // Initialize all target workspaces to zero
-    for (const auto& kv : targets) {
-      auto tgt = kv.second;
-      workspace_sizes.Set(tgt, 0);
-    }
-
-    for (const auto& dev_and_size : device_workspace) {
-      auto tgt = tec::GetTargetFromInteger(dev_and_size.first, targets);
-      workspace_sizes.Set(tgt, dev_and_size.second);
-      relay_primfuncs.Set(tgt, func);
-    }
-    for (const auto& dev_and_size : device_io) {
-      auto tgt = tec::GetTargetFromInteger(dev_and_size.first, targets);
-      io_sizes.Set(tgt, dev_and_size.second);
-    }
-
-    for (const auto& dev_and_size : device_consts) {
-      auto tgt = tec::GetTargetFromInteger(dev_and_size.first, targets);
-      constant_sizes.Set(tgt, dev_and_size.second);
-    }
-
-    return backend::FunctionInfo(workspace_sizes, io_sizes, constant_sizes, tir_primfuncs,
-                                 relay_primfuncs);
-  }
-
-  /*!
    * brief Call a function with a given name
    */
   void CreateFuncCall(Call call, std::string func_name) {
@@ -713,7 +587,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
 
     if (memory_plan.defined()) {
       // TODO(@electriclilies, @jroesch): remove UpdateMainWorkspaceSize
-      func_info = UpdateMainWorkspaceSize(mod, targets_, memory_plan->expr_to_storage_info);
+      func_info = tec::UpdateMainWorkspaceSize(mod, targets_, memory_plan->expr_to_storage_info);
     }
 
     IRModule lowered_mod =
