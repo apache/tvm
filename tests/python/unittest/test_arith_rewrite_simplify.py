@@ -944,11 +944,11 @@ def test_div_zero_simplify():
     with pytest.raises(tvm.error.TVMError) as cm:
         ck.analyzer.rewrite_simplify(tvm.tir.Mod(ramp, broadcast))
         assert "division by zero" in str(cm.execption)
-    
+
     with pytest.raises(tvm.error.TVMError) as cm:
         ck.analyzer.rewrite_simplify(tvm.tir.FloorDiv(ramp, broadcast))
         assert "division by zero" in str(cm.execption)
-    
+
     with pytest.raises(tvm.error.TVMError) as cm:
         ck.analyzer.rewrite_simplify(tvm.tir.FloorMod(ramp, broadcast))
         assert "division by zero" in str(cm.execption)
