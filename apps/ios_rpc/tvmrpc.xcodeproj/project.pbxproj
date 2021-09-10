@@ -376,7 +376,7 @@
 					"${TVM_BUILD_DIR}",
 				);
 				OTHER_LDFLAGS = "${_DSO_LOADER_NAME_${USE_CUSTOM_DSO_LOADER}}";
-				PRODUCT_BUNDLE_IDENTIFIER = org.apache.tvmrpc;
+				PRODUCT_BUNDLE_IDENTIFIER = org.apache.tvmiosrpc;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				TVM_BUILD_DIR = "path-to-tvm-ios-build-folder";
 				USE_CUSTOM_DSO_LOADER = 1;
@@ -411,7 +411,7 @@
 					"${TVM_BUILD_DIR}",
 				);
 				OTHER_LDFLAGS = "${_DSO_LOADER_NAME_${USE_CUSTOM_DSO_LOADER}}";
-				PRODUCT_BUNDLE_IDENTIFIER = org.apache.tvmrpc;
+				PRODUCT_BUNDLE_IDENTIFIER = org.apache.tvmiosrpc;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				TVM_BUILD_DIR = "path-to-tvm-ios-build-folder";
 				USE_CUSTOM_DSO_LOADER = 1;

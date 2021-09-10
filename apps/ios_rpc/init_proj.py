@@ -18,7 +18,6 @@ import argparse
 import re
 
 default_team_id = "3FR42MXLK9"
-default_bundle_identifier = "org.apache.tvmrpc"
 default_tvm_build_dir = "path-to-tvm-ios-build-folder"
 
 parser = argparse.ArgumentParser(
@@ -45,21 +44,9 @@ parser.add_argument(
     help="Path to directory with libtvm_runtime.dylib",
 )
 
-parser.add_argument(
-    "--bundle_identifier",
-    type=str,
-    required=False,
-    default=default_bundle_identifier,
-    help="The new bundle identifier\n\
-                    (example: {})".format(
-        default_bundle_identifier
-    ),
-)
-
 args = parser.parse_args()
 team_id = args.team_id
 tvm_build_dir = args.tvm_build_dir
-bundle_identifier = args.bundle_identifier
 
 fi = open("tvmrpc.xcodeproj/project.pbxproj")
 proj_config = fi.read()
@@ -67,7 +54,6 @@ fi.close()
 
 proj_config = proj_config.replace(default_team_id, team_id)
 proj_config = proj_config.replace(default_tvm_build_dir, tvm_build_dir)
-proj_config = proj_config.replace(default_bundle_identifier, bundle_identifier)
 fo = open("tvmrpc.xcodeproj/project.pbxproj", "w")
 fo.write(proj_config)
 fo.close()
