@@ -156,6 +156,7 @@ def test_forward_unary_op():
         "exp",
         "floor",
         "log",
+        "log2",
         "log10",
         "log1p",
         "relu",
@@ -627,6 +628,26 @@ def test_forward_ones_like():
 
 
 @tvm.testing.uses_gpu
+def test_forward_ones():
+    @paddle.jit.to_static
+    def ones1(inputs):
+        ones = paddle.ones([1, 3, 10, 10])
+        out = inputs + ones
+        return out
+
+    @paddle.jit.to_static
+    def ones2(inputs):
+        shape = paddle.to_tensor([1, 3, 10, 10], dtype="int32")
+        ones = paddle.ones(shape)
+        out = inputs + ones
+        return out
+
+    input_shape = [1, 3, 10, 10]
+    input_data = paddle.rand(input_shape, dtype="float32")
+    verify_model(ones1, input_data=input_data)
+    verify_model(ones2, input_data=input_data)
+
+
 def test_forward_elemwise():
     class ElemwiseOp(nn.Layer):
         def __init__(self, op_name):
@@ -731,6 +752,23 @@ def test_forward_hard_swish():
     input_shape = [1, 3, 10, 10]
     input_data = paddle.rand(input_shape, dtype="float32")
     verify_model(hard_swish, input_data=input_data)
+
+
+@tvm.testing.uses_gpu
+def test_forward_index_select():
+    @paddle.jit.to_static
+    def index_select1(x, index):
+        return paddle.index_select(x, index)
+
+    @paddle.jit.to_static
+    def index_select2(x, index):
+        return paddle.index_select(x, index, axis=1)
+
+    input_shape = [3, 10]
+    input_data = paddle.rand(input_shape, dtype="float32")
+    index = paddle.to_tensor(np.array([0, 1, 1]).astype('int32'))
+    verify_model(index_select1, input_data=[input_data, index])
+    verify_model(index_select2, input_data=[input_data, index])
 
 
 @tvm.testing.uses_gpu
@@ -909,6 +947,97 @@ def test_forward_matmul():
     input_data1 = paddle.randn((10, 3, 4), dtype="float32")
     input_data2 = paddle.randn((4, 5), dtype="float32")
     verify_model(MatMul1(), input_data=[input_data1, input_data2])
+
+
+@tvm.testing.uses_gpu
+def test_forward_norm():
+    class Norm1(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.norm(inputs, p=float("inf"), axis=None, keepdim=False)
+
+    class Norm2(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.norm(inputs, p=float("-inf"), axis=None, keepdim=False)
+
+    class Norm3(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.norm(inputs, p=float("-inf"), axis=None, keepdim=True)
+
+    class Norm4(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.norm(inputs, p=float("inf"), axis=[1, 2], keepdim=False)
+
+    class Norm5(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.norm(inputs, p=float("inf"), axis=-1, keepdim=True)
+
+    class Norm6(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.norm(inputs, p=float(0.5), axis=1, keepdim=True)
+
+    class Norm7(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.norm(inputs, p=float(1), axis=None, keepdim=False)
+    
+    class Norm8(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.norm(inputs, p=float(2.0), axis=1, keepdim=False)
+    
+    class Norm9(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.norm(inputs, p=float(-0.5), axis=[1, 2], keepdim=False)
+    
+    class Norm10(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.norm(inputs, p=float(-2), axis=(1), keepdim=False)
+
+    input_shape = [1, 3, 10, 10]
+    input_data = paddle.rand(input_shape, dtype="float32")
+    verify_model(Norm1(), input_data=input_data)
+    verify_model(Norm2(), input_data=input_data)
+    verify_model(Norm3(), input_data=input_data)
+    verify_model(Norm4(), input_data=input_data)
+    verify_model(Norm5(), input_data=input_data)
+    verify_model(Norm6(), input_data=input_data)
+    verify_model(Norm7(), input_data=input_data)
+    verify_model(Norm8(), input_data=input_data)
+    verify_model(Norm9(), input_data=input_data)
+    verify_model(Norm10(), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
+def test_forward_not_equal():
+    class Not_equal(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, x, y):
+            output = paddle.not_equal(x, y)
+            output = paddle.cast(output, "int32")
+            return output
+
+    x_shape = [10]
+    y_shape = [10]
+    x_data = paddle.randint(1, 10, x_shape, dtype="int32")
+    y_data = paddle.randint(1, 10, y_shape, dtype="int32")
+    x_data_1 = paddle.randint(1, 10, x_shape, dtype="int64")
+    y_data_1 = paddle.randint(1, 10, y_shape, dtype="int64")
+    verify_model(Not_equal(), input_data=[x_data, y_data])
+    verify_model(Not_equal(), input_data=[x_data_1, y_data_1])
+    # For broadcast
+    x_shape_1 = [10]
+    y_shape_1 = [10, 1]
+    x_data_2 = paddle.rand(x_shape_1, dtype="float32")
+    y_data_2 = paddle.rand(y_shape_1, dtype="float32")
+    verify_model(Not_equal(), input_data=[x_data_2, y_data_2])
 
 
 @tvm.testing.uses_gpu
@@ -1287,6 +1416,27 @@ def test_forward_tile():
     verify_model(tile3, input_data=[input_data, input_data2])
 
 
+@tvm.testing.uses_gpu
+def test_forward_zeros():
+    @paddle.jit.to_static
+    def zeros1(inputs):
+        zeros = paddle.zeros([1, 3, 10, 10])
+        out = inputs + zeros
+        return out
+
+    @paddle.jit.to_static
+    def zeros2(inputs):
+        shape = paddle.to_tensor([1, 3, 10, 10], dtype="int32")
+        zeros = paddle.zeros(shape)
+        out = inputs + zeros
+        return out
+
+    input_shape = [1, 3, 10, 10]
+    input_data = paddle.rand(input_shape, dtype="float32")
+    verify_model(zeros1, input_data=input_data)
+    verify_model(zeros2, input_data=input_data)
+
+
 if __name__ == "__main__":
     test_forward_add_subtract()
     test_forward_addmm()
@@ -1306,12 +1456,14 @@ if __name__ == "__main__":
     test_forward_expand()
     test_forward_flatten()
     test_forward_shape_full()
+    test_forward_ones()
     test_forward_ones_like()
     test_forward_gather_assign_value()
     test_forward_gather_nd()
     test_forward_gelu()
     test_forward_hard_sigmoid()
     test_forward_hard_swish()
+    test_forward_index_select()
     test_forward_interpolate()
     test_forward_isinf()
     test_forward_layer_norm()
@@ -1320,6 +1472,8 @@ if __name__ == "__main__":
     test_forward_lstm()
     test_forward_matmul()
     test_forward_multiply()
+    test_forward_not_equal()
+    test_forward_norm()
     test_forward_pool2d()
     test_forward_pad()
     test_forward_pow()
@@ -1333,3 +1487,4 @@ if __name__ == "__main__":
     test_forward_tile()
     test_forward_conv_transpose()
     test_forward_unary_op()
+    test_forward_zeros()
