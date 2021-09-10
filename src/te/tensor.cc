@@ -54,11 +54,13 @@ PrimExpr Tensor::operator()(Array<PrimExpr> indices, bool support_negative_indic
   }
 
   if (support_negative_indices) {
-    for (int i = 0; i < shape.size(); i++) {
-      PrimExpr new_index = indexmod(indices[i], shape[i]);
+    for (size_t i = 0; i < shape.size(); i++) {
+      PrimExpr new_index = if_then_else(indices[i] < make_const(indices[i]->dtype, 0),
+                                        indices[i] + shape[i], indices[i]);
       indices.Set(i, new_index);
     }
   }
+
   return ProducerLoad((*this), indices);
 }
 
