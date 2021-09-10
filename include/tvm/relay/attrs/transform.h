@@ -489,6 +489,15 @@ struct UniqueAttrs : public tvm::AttrsNode<UniqueAttrs> {
   }
 };  // struct UniqueAttrs
 
+/*! \brief Attributes used in einsum operator */
+struct EinsumAttrs : public tvm::AttrsNode<EinsumAttrs> {
+  String equation;
+
+  TVM_DECLARE_ATTRS(EinsumAttrs, "relay.attrs.EinsumAttrs") {
+    TVM_ATTR_FIELD(equation).describe("The einsum expression string");
+  }
+};
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_ATTRS_TRANSFORM_H_

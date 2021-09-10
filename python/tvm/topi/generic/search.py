@@ -86,3 +86,19 @@ def schedule_unique(outs):
       The computation schedule for the op.
     """
     return _default_schedule(outs, False)
+
+
+def schedule_einsum(outs):
+    """Schedule for einsum operator.
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+      The computation graph description of einsum.
+
+    Returns
+    -------
+    s: Schedule
+      The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)

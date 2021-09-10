@@ -1210,3 +1210,15 @@ def invert_permutation_strategy_cuda(attrs, inputs, out_type, target):
         name="invert_permutation.cuda",
     )
     return strategy
+
+
+@einsum_strategy.register(["cuda", "gpu"])
+def einsum_strategy_cuda(attrs, inputs, out_type, target):
+    """einsum cuda strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_einsum(topi.cuda.einsum),
+        wrap_topi_schedule(topi.cuda.schedule_einsum),
+        name="einsum.cuda",
+    )
+    return strategy
