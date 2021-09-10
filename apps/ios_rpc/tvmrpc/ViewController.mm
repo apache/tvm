@@ -95,7 +95,6 @@
   server_.key = self.proxyKey.text;
   server_.custom_addr = [NSString stringWithUTF8String:args.custom_addr];
   server_.delegate = self;
-  NSLog(@"value: %d", server_.verbose);
 
   [server_ start];
 

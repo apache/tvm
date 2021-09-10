@@ -74,13 +74,11 @@ def test_rpc_module(host, port, key, mode):
     f.export_library(path_dso2, xcode.create_dylib, arch=arch, sdk=sdk)
     xcode.codesign(path_dso2)
 
-    print("before connection")
     # connect to the proxy
     if mode == "tracker":
         remote = MODES[mode](host, port).request(key)
     else:
         remote = MODES[mode](host, port, key=key)
-    print("after connection")
     remote.upload(path_dso1)
     dev = remote.metal(0)
     f1 = remote.load_module("dev_lib.dylib")
@@ -89,7 +87,7 @@ def test_rpc_module(host, port, key, mode):
     b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), dev)
     time_f = f1.time_evaluator(f1.entry_name, dev, number=10)
     cost = time_f(a, b).mean
-    print("%g secs/op" % cost)
+    print("Metal: %g secs/op" % cost)
     np.testing.assert_equal(b.numpy(), a.numpy() + 1)
     # CPU
     dev = remote.cpu(0)
@@ -100,7 +98,7 @@ def test_rpc_module(host, port, key, mode):
     b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), dev)
     time_f = f2.time_evaluator(f2.entry_name, dev, number=10)
     cost = time_f(a, b).mean
-    print("%g secs/op" % cost)
+    print("CPU: %g secs/op" % cost)
     np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 
 
