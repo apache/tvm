@@ -129,12 +129,14 @@ class Tensor : public DataProducer {
   /*!
    * \brief Take elements from the tensor
    * \param indices the indices.
+   * \param support_negative_indices whether we support negative indexing which is slightly slower.
    * \return the result expression representing tensor read.
    */
   TVM_DLL PrimExpr operator()(Array<PrimExpr> indices, bool support_negative_indices = false) const;
   /*!
    * \brief Take elements from the tensor
    * \param indices the indices.
+   * \param support_negative_indices whether we support negative indexing which is slightly slower.
    * \return the result expression representing tensor read.
    */
   TVM_DLL PrimExpr operator()(Array<Var> indices, bool support_negative_indices = false) const;
