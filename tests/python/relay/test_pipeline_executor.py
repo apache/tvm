@@ -144,11 +144,11 @@ def test_pipe_config_check():
     """
 
     """
-    #Here get three pipeline modules.
+    # Get three pipeline modules here.
     """
     (mod1, mod2, mod3), dshape = get_mannual_mod()
     """
-    # Runing error will be expected by trying invalid input/output name.
+    # The input/output name is illegal and expects a runtime error.
     """
     pipe_error = pipeline_executor.PipelineConfig()
     with pytest.raises(RuntimeError):
@@ -158,14 +158,14 @@ def test_pipe_config_check():
         pipe_error[mod1]["input"]["data_9"]
 
     """
-    # Runtime error will be expected by trying circle connection.
+    # The connection will cause a circle in DAG and exepects runtime error.
     """
     with pytest.raises(RuntimeError):
         pipe_error[mod1]["output"][0].connect(pipe_error[mod2]["input"]["data_0"])
         pipe_error[mod2]["output"][0].connect(pipe_error[mod1]["input"]["data_0"])
 
     """
-    # Runtime error will be expected by trying wrong module order connection check.
+    # The module connection is illegal and expects runtime error.
     """
 
     with pytest.raises(RuntimeError):
@@ -191,7 +191,7 @@ def test_pipeline():
     if pipeline_executor.pipeline_executor_enabled():
         target_list = tvm.testing.enabled_targets()
         for target in target_list:
-            # Here get three pipeline modules.
+            # Get three pipeline modules here.
             (mod1, mod2, mod3), dshape = get_mannual_mod()
 
             # Batch data is prepared for pipeline feeding.
@@ -201,33 +201,29 @@ def test_pipeline():
 
             pipe_config = pipeline_executor.PipelineConfig()
 
-            # Input named "data_0" of global pipeline will be transfered to input
-            # named "data_0" of mod1 when executor is running after the 'connect'
-            # function calling.
+            # The global input named "data_0" will be connected to a input
+            # named "data_0" of mod1.
             pipe_config["input"]["data_0"].connect(pipe_config[mod1]["input"]["data_0"])
 
-            # Input named "data_1" of global pipeline will be transfered to input
-            # named "data_1" of mod2 when executor is running.
+            # The global Input named "data_1" will be connected to a input named "data_1" of mod2.
             pipe_config["input"]["data_1"].connect(pipe_config[mod2]["input"]["data_1"])
 
-            # Output[0] of mod1 will be transfered to input named "data_0" of mod2 when
-            # executor is running.
+            # The mod1 output[0] will be connected to a input named "data_0" of mod2.
             pipe_config[mod1]["output"][0].connect(pipe_config[mod2]["input"]["data_0"])
 
-            # Output[1] of mod1 will be transfered to input named "data_0" of mod3 when
-            # executor is running.
+            # Mod1 output[1] will be connected to a input named "data_0" of mod3.
             pipe_config[mod1]["output"][1].connect(pipe_config[mod3]["input"]["data_0"])
 
-            # Output[2] of mod2 will be transfered to input named "data_1" of mod3"
+            # Mod2 output[2] will be connected to a input named "data_1" of mod3.
             pipe_config[mod2]["output"][0].connect(pipe_config[mod3]["input"]["data_1"])
 
-            # Output[2] of mod1 will be transfered to global pipeline output[1]
+            # Mod1 output[2] will be connected to global output[1].
             pipe_config[mod1]["output"][2].connect(pipe_config["output"]["0"])
 
-            # Output[0] of mod3 will be transfered to global pipeline output[2]
+            # Mod3 output[0] will be connected to global output[2].
             pipe_config[mod3]["output"][0].connect(pipe_config["output"]["1"])
             """
-            # Print configueration (print(pipe_config)), the expect result like following.
+            # Print configueration (print(pipe_config)), the result looks like following.
             #
             #Inputs
             #  |data_0: mod1:data_0
@@ -261,7 +257,7 @@ def test_pipeline():
             assert pipe_config.get_config() == get_manual_conf([mod1, mod2, mod3], target)
 
             """
-            # Build then create pipeline module.
+            # Build and create pipeline module.
             """
             with tvm.transform.PassContext(opt_level=3):
                 pipeline_mod_config = pipeline_executor.build(pipe_config)
