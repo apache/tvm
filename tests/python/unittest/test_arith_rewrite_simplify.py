@@ -934,21 +934,23 @@ def test_shift_left_simplify():
 
 def test_div_zero_simplify():
     ck = RewriteChecker()
+    ramp = tvm.tir.Ramp(1, 1, 2)
+    broadcast = tvm.tir.Broadcast(0, 2)
 
     with pytest.raises(tvm.error.TVMError) as cm:
-        ck.analyzer.rewrite_simplify(tvm.tir.Div(tvm.tir.Ramp(1, 1, 2), tvm.tir.Broadcast(0, 2)))
+        ck.analyzer.rewrite_simplify(tvm.tir.Div(ramp, broadcast))
         assert "division by zero" in str(cm.execption)
 
     with pytest.raises(tvm.error.TVMError) as cm:
-        ck.analyzer.rewrite_simplify(tvm.tir.Mod(tvm.tir.Ramp(1, 1, 2), tvm.tir.Broadcast(0, 2)))
+        ck.analyzer.rewrite_simplify(tvm.tir.Mod(ramp, broadcast))
         assert "division by zero" in str(cm.execption)
     
     with pytest.raises(tvm.error.TVMError) as cm:
-        ck.analyzer.rewrite_simplify(tvm.tir.FloorDiv(tvm.tir.Ramp(1, 1, 2), tvm.tir.Broadcast(0, 2)))
+        ck.analyzer.rewrite_simplify(tvm.tir.FloorDiv(ramp, broadcast))
         assert "division by zero" in str(cm.execption)
     
     with pytest.raises(tvm.error.TVMError) as cm:
-        ck.analyzer.rewrite_simplify(tvm.tir.FloorMod(tvm.tir.Ramp(1, 1, 2), tvm.tir.Broadcast(0, 2)))
+        ck.analyzer.rewrite_simplify(tvm.tir.FloorMod(ramp, broadcast))
         assert "division by zero" in str(cm.execption)
 
 
