@@ -708,6 +708,17 @@ def convert_hard_swish(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_index_select(g, op, block):
+    """Operator converter for index_select."""
+
+    dim = op.attr("dim")
+    x = g.get_node(op.input("X")[0])
+    index = g.get_node(op.input("Index")[0])
+    out = _op.take(x, indices=index, axis=dim, mode="clip")
+
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_layer_norm(g, op, block):
     """Operator converter for layer_norm."""
 
@@ -1052,6 +1063,33 @@ def convert_pow(g, op, block):
     factor = _expr.const(factor, dtype="float32").astype("float32")
 
     out = _op.power(x, factor)
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_norm(g, op, block):
+    """Operator converter for norm."""
+
+    x = g.get_node(op.input("X")[0])
+    dtype = infer_type(x).checked_type.dtype
+    axis = op.attr("axis")
+    keepdim = op.attr("keepdim")
+    if op.attr("asvector"):
+        axis = None
+    order = op.attr("porder")
+    if order == np.inf:
+        out = _op.reduce.max(_op.abs(x), axis=axis, keepdims=keepdim)
+    elif order == np.NINF:
+        out = _op.reduce.min(_op.abs(x), axis=axis, keepdims=keepdim)
+    else:
+        reci_order = _expr.const(1.0 / order, dtype=dtype)
+        order = _expr.const(order)
+        out = _op.power(
+            _op.reduce.sum(_op.power(_op.abs(x), order), axis=axis, keepdims=keepdim),
+            reci_order,
+        )
+    if op.attr("asvector") and not keepdim:
+        out = _op.expand_dims(out, axis=0)
+
     g.add_node(op.output("Out")[0], out)
 
 
@@ -1567,6 +1605,7 @@ _convert_map = {
     "greater_than": convert_elementwise_op,
     "hard_sigmoid": convert_hard_sigmoid,
     "hard_swish": convert_hard_swish,
+    "index_select": convert_index_select,
     "isinf": convert_unary_op,
     "isinf_v2": convert_unary_op,
     "layer_norm": convert_layer_norm,
@@ -1576,6 +1615,7 @@ _convert_map = {
     "lookup_table": convert_lookup_table,
     "lookup_table_v2": convert_lookup_table,
     "log": convert_unary_op,
+    "log2": convert_unary_op,
     "log10": convert_unary_op,
     "log1p": convert_log1p,
     "logsumexp": convert_logsumexp,
@@ -1589,6 +1629,7 @@ _convert_map = {
     "pad2d": convert_padding,
     "pad3d": convert_padding,
     "pow": convert_pow,
+    "p_norm": convert_norm,
     "range": convert_range,
     "reciprocal": convert_reciprocal,
     "reduce_all": convert_reduce,
