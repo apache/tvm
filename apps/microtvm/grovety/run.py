@@ -30,6 +30,8 @@ if __name__ == "__main__":
     parser.add_argument("--platform", type=str, choices=PLATFORMS.keys(), default=list(PLATFORMS.keys())[0], help="Platform")
     parser.add_argument("--log-level", type=str, choices=["DEBUG", "INFO"], default="INFO", help="Log level")
     parser.add_argument("--verbose", action='store_true')
+    parser.add_argument("--skip-flash", action='store_true', help="Do not flash the MCU after the build")
+
 
     args = parser.parse_args()
     print(args)
@@ -65,9 +67,7 @@ if __name__ == "__main__":
             relay_mod = seq(relay_mod)
 
     # build relay for the target
-    target_str = f"c -keys=arm_cpu -mcpu={platform['mcpu']} -model={platform['model']} -runtime=c -link-params=1 --executor=aot --unpacked-api=1 --interface-api=c"
-    if not args.disable_optimization:
-        target_str += f" -march={platform['march']}"
+    target_str = f"c -keys=arm_cpu -mcpu={platform['mcpu']}  -march={platform['march']} -model={platform['model']} -runtime=c -link-params=1 --executor=aot --unpacked-api=1 --interface-api=c"
     target = tvm.target.target.Target(target_str)
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         lowered = relay.build(relay_mod, target, params=params)
@@ -100,6 +100,9 @@ if __name__ == "__main__":
 
     # build the project
     project.build()
+
+    if args.skip_flash:
+        exit(0)
 
     # flash to the MCU
     project.flash()

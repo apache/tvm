@@ -26,14 +26,9 @@ ARM_ISA_MAP = {
 class IsaAnalyzer(object):
     def __init__(self, target):
         self.target = target
-
-        parser = argparse.ArgumentParser()
-        parser.add_argument("-mcpu", type=str)
-        parser.add_argument("-march", type=str)
-        args, _ = parser.parse_known_args(str(target).split())
-
-        self._isa_map = ARM_ISA_MAP[args.march] if args.march in ARM_ISA_MAP else []
-
+        # TODO: actually parse -mcpu
+        arch = "armv7e-m"
+        self._isa_map = ARM_ISA_MAP[arch]
 
     def __contains__(self, instruction):
         return instruction in self._isa_map
