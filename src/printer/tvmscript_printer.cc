@@ -170,6 +170,7 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc VisitStmt_(const IfThenElseNode* op) override;
   Doc VisitStmt_(const SeqStmtNode* op) override;
   Doc VisitStmt_(const ForNode* op) override;
+  Doc VisitStmt_(const WhileNode* op) override;
   Doc VisitStmt_(const PrefetchNode* op) override;
   Doc VisitStmt_(const EvaluateNode* op) override;
   Doc VisitStmt_(const BlockRealizeNode* op) override;
@@ -827,6 +828,13 @@ Doc TVMScriptPrinter::VisitStmt_(const ForNode* op) {
 Doc TVMScriptPrinter::VisitStmt_(const PrefetchNode* op) {
   Doc doc;
   doc << "tir.prefetch(" << Print(op->buffer) << ", " << Print(op->bounds) << ")";
+  return doc;
+}
+
+Doc TVMScriptPrinter::VisitStmt_(const WhileNode* op) {
+  Doc doc;
+  doc << "while " << Print(op->condition) << ":";
+  doc << Doc::Indent(4, Doc::NewLine() << PrintBody(op->body));
   return doc;
 }
 
