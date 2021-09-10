@@ -39,7 +39,6 @@ from tvm.micro.interface_api import generate_c_interface_header
 import conftest
 
 _LOG = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
 
 PLATFORMS = conftest.PLATFORMS
 
@@ -230,11 +229,10 @@ def _run_model(temp_dir, zephyr_board, west_cmd, lowered, build_config, sample, 
     project = _generate_project(temp_dir, zephyr_board, west_cmd, lowered, build_config, sample, output_shape)
 
     project.flash()
-
+    
     with project.transport() as transport:
         timeout_read = 60
-        # _get_message(transport, "#wakeup", timeout_sec=timeout_read)
-        # logging.debug("Wakeup received")
+        _get_message(transport, "#wakeup", timeout_sec=timeout_read)
         transport.write(b"start\n", timeout_sec=5)
         result_line = _get_message(transport, "#result", timeout_sec=timeout_read)
 
@@ -251,14 +249,14 @@ def _run_model(temp_dir, zephyr_board, west_cmd, lowered, build_config, sample, 
 def test_armv7m_intrinsic(temp_dir, platform, west_cmd, tvm_debug):
     from tvm.relay.op import op as reg
     from tvm.relay.qnn.op import layout_conversions
-
+    
     @reg.register_convert_op_layout("qnn.conv2d", level=11)
     def convert_conv2d(attrs, inputs, tinfos, desired_layouts):
         channels = tinfos[0].shape[attrs["data_layout"].find("C")]
         if channels % 4 != 0:
             return None
         return layout_conversions.convert_qnn_conv2d(attrs, inputs, tinfos, desired_layouts)
-
+    
     """Testing a ARM v7m ISA extension."""
 
     if platform not in ["nrf5340dk", "stm32f746xx_disco", "stm32f746xx_nucleo", "stm32l4r5zi_nucleo"]:
@@ -271,7 +269,7 @@ def test_armv7m_intrinsic(temp_dir, platform, west_cmd, tvm_debug):
     this_dir = pathlib.Path(os.path.dirname(__file__))
     testdata_dir = this_dir.parent / "testdata" / "armv7m"
 
-    relay_mod, params = _open_tflite_model(testdata_dir / "mnist_model_quant_conv3.tflite")
+    relay_mod, params = _open_tflite_model(testdata_dir / "mnist_model_quant.tflite")
 
     sample, output_shape = _get_test_data(testdata_dir)
 
@@ -279,23 +277,19 @@ def test_armv7m_intrinsic(temp_dir, platform, west_cmd, tvm_debug):
     # kernel layout "HWIO" not supported by isa extension for now
     relay_mod_no_isa = _apply_desired_layout_no_isa(relay_mod)
 
-    target_isa = tvm.target.target.micro(
-        model, options=["-keys=arm_cpu,cpu", "-march=armv7e-m", "-link-params=1", "--executor=aot", "--unpacked-api=1", "--interface-api=c"]
+    target = tvm.target.target.micro(
+        model, options=["-keys=arm_cpu,cpu -link-params=1", "--executor=aot", "--unpacked-api=1", "--interface-api=c"]
     )
-
-    target_no_isa = tvm.target.target.micro(
-        model, options=["-keys=arm_cpu,cpu", "-link-params=1", "--executor=aot", "--unpacked-api=1", "--interface-api=c"]
-    )
-
+    
     temp_dir_isa = temp_dir / "isa"
     temp_dir_no_isa = temp_dir / "noisa"
 
-    os.makedirs(temp_dir_isa, exist_ok=True)
-    os.makedirs(temp_dir_no_isa, exist_ok=True)
+    os.mkdir(temp_dir_isa)
+    os.mkdir(temp_dir_no_isa)
 
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        lowered_isa = relay.build(relay_mod_isa, target_isa, params=params)
-        lowered_no_isa = relay.build(relay_mod_no_isa, target_no_isa, params=params)
+        lowered_isa = relay.build(relay_mod_isa, target, params=params)
+        lowered_no_isa = relay.build(relay_mod_no_isa, target, params=params)
         result_isa, time_isa = _run_model(temp_dir_isa, zephyr_board, west_cmd, lowered_isa, build_config, sample, output_shape)
         result_no_isa, time_no_isa = _run_model(temp_dir_no_isa, zephyr_board, west_cmd, lowered_no_isa, build_config, sample, output_shape)
 
