@@ -3577,7 +3577,9 @@ class NegativeLogLikelihoodLoss(OnnxOpConverter):
                 target_tensor, relay.const(ignore_index, dtype=target_tensor.type_annotation.dtype)
             )
             mask_tensor = relay.const(1, dtype="int8") - relay.cast(mask_tensor, "int8")
-            loss *= relay.cast_like(mask_tensor, loss)
+            loss = relay.where(
+                mask_tensor, loss, relay.const(0, infer_type(loss).checked_type.dtype)
+            )
 
             # This is not explained super clearly in the onnx spec, but masked values don't
             # contribute toward the final value in reduction
