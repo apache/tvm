@@ -924,6 +924,7 @@ def test_forward_nonzero():
             super().__init__()
             self.as_tuple = as_tuple
 
+        @paddle.jit.to_static
         def forward(self, inputs):
             return paddle.nonzero(inputs, self.as_tuple)
 
@@ -931,7 +932,15 @@ def test_forward_nonzero():
     verify_model(Nonzero(), x1, input_shape=[[3, 4]])
     verify_model(Nonzero(True), x1, input_shape=[[3, 4]])
     x2 = paddle.to_tensor([0, 1, 0, 3])
-    verify_model(Nonzero(), x2, input_shape=[[3, 4]])
+    verify_model(
+        Nonzero(),
+        x2,
+        input_shape=[
+            [
+                4,
+            ]
+        ],
+    )
 
 
 @tvm.testing.uses_gpu

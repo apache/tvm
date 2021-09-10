@@ -1310,7 +1310,7 @@ def convert_slice(g, op, block):
     """Operator converter for slice."""
 
     data = g.get_node(op.input("Input")[0])
-    dims = len(block.var(op.input("Input")[0]).shape)
+    dims = len(infer_shape(data))
     dtype = "int64"
 
     axes = op.attr("axes")
@@ -1335,21 +1335,20 @@ def convert_slice(g, op, block):
     else:
         starts = op.attr("starts")
         starts = _expr.const(starts)
+    start_dtype = infer_type(starts).checked_type.dtype
     if isinstance(starts, _expr.Expr):
         starts = _op.scatter(
-            _op.const([0] * dims, dtype=infer_type(starts).checked_type.dtype),
+            _op.const([0] * dims, dtype=start_dtype),
             axes,
             starts,
             axis=0,
         )
 
-    data_shape = shape_of(data)
     ends = op.input("EndsTensor")
     if ends:
         ends = g.get_node(ends[0])
     elif op.input("EndsTensorList"):
         ends = []
-        data_shape = data_shape.astype(dtype)
         for end_index in op.input("EndsTensorList"):
             end_index = g.get_node(end_index)
             if not isinstance(end_index, _expr.Expr):
@@ -1362,9 +1361,11 @@ def convert_slice(g, op, block):
         ends = op.attr("ends")
         ends = _expr.const(ends)
     if isinstance(ends, _expr.Expr):
+        data_shape = shape_of(data, infer_type(ends).checked_type.dtype)
         ends = _op.scatter(data_shape, axes, ends, axis=0)
 
-    out = _op.strided_slice(data, begin=starts, end=ends)
+    strides = _op.const([1] * dims, dtype=start_dtype)
+    out = _op.strided_slice(data, begin=starts, end=ends, strides=strides)
     if decrease_axis:
         out = _op.squeeze(out, axis=decrease_axis)
     g.add_node(op.output("Out")[0], out)
