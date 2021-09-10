@@ -742,14 +742,12 @@ IRModule LowerTE(const IRModule& module, TargetMap targets, DeviceMap device_con
 
     (*te_compiler_update_weights)(weight_map);
   }
-  backend::FunctionInfo func_info;
 
   // Copy the lowered functions into the return module
   updated_module->Update(compiler->GetLoweredFunctions());
 
   // Annotate the module with the external modules and function info
   updated_module = WithAttr(updated_module, "external_mods", compiler->LowerExternalFunctions());
-  updated_module = WithAttr(updated_module, "main_func_info", func_info);
 
   return updated_module;
 }
