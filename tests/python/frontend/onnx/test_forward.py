@@ -885,10 +885,12 @@ def test_slice(target, dev):
 
     x = np.random.randn(20, 10, 5).astype(np.float32)
     _test_slice_iteration_v1(x, x[0:3, 0:10], starts=(0, 0), ends=(3, 10), axes=(0, 1))
+    _test_slice_iteration_v1(x, x[0:3, 0:10], starts=(0, 0), ends=(10, 3), axes=(1, 0))
     _test_slice_iteration_v1(x, x[:, :, 3:4], starts=(0, 0, 3), ends=(20, 10, 4))
     _test_slice_iteration_v1(x, x[:, 1:1000], starts=(1,), ends=(1000,), axes=(1,))
     _test_slice_iteration_v1(x, x[:, 0:-1], starts=(0,), ends=(-1,), axes=(1,))
     _test_slice_iteration_v10(x, x[0:3, 0:10], starts=(0, 0), ends=(3, 10), axes=(0, 1))
+    _test_slice_iteration_v10(x, x[0:3, 0:10], starts=(0, 0), ends=(10, 3), axes=(1, 0))
     _test_slice_iteration_v10(x, x[:, :, 3:4], starts=(0, 0, 3), ends=(20, 10, 4))
     _test_slice_iteration_v10(x, x[:, 1:1000], starts=(1,), ends=(1000,), axes=(1,))
     _test_slice_iteration_v10(x, x[:, 0:-1], starts=(0,), ends=(-1,), axes=(1,))
@@ -4785,9 +4787,11 @@ unsupported_onnx_tests = [
     "test_nllloss_NCd1d2d3_sum_weight_high_ii_expanded",
     "test_nllloss_NCd1d2d3d4d5_mean_weight_expanded",
     "test_nllloss_NCd1d2d3d4d5_none_no_weight_expanded",
-    # This nllloss test is flaky and sometimes gives NaNs
+    # These nllloss tests are flaky and sometimes gives NaNs
     # Investigate it here: https://github.com/apache/tvm/issues/8918
     "test_nllloss_NCd1d2d3_none_no_weight_negative_ii",
+    # Investigate it here: https://github.com/apache/tvm/issues/8964
+    "test_nllloss_NCd1d2d3_sum_weight_high_ii",
     "test_qlinearmatmul_2D",
     "test_qlinearmatmul_3D",
     "test_range_float_type_positive_delta_expanded",

@@ -490,7 +490,7 @@ class Conv(OnnxOpConverter):
                 attr["dilations"] = [1] + list(attr["dilations"])
             if "pads" in attr:
                 attr["pads"] = [0, attr["pads"][0], 0, attr["pads"][1]]
-
+        attr["channels"] = kernel_shapes[0][0]
         out = AttrCvt(
             op_name=dimension_picker("conv"),
             transforms={
@@ -1419,20 +1419,13 @@ class Slice(OnnxOpConverter):
 
     @classmethod
     def _common(cls, starts, ends, axes):
-        new_axes = []
-        new_starts = []
-        new_ends = []
-        pop_index = 0
-        for i in range(max(axes) + 1):
-            if i in axes:
-                new_axes.append(i)
-                new_starts.append(starts[pop_index])
-                new_ends.append(ends[pop_index])
-                pop_index += 1
-            else:
-                new_axes.append(i)
-                new_starts.append(0)
-                new_ends.append(np.iinfo(np.int32).max)
+        N = max(axes) + 1
+        new_axes = list(range(N))
+        new_starts = [0] * N
+        new_ends = [np.iinfo(np.int32).max] * N
+        for i, axis in enumerate(axes):
+            new_starts[axis] = starts[i]
+            new_ends[axis] = ends[i]
         return new_starts, new_ends, new_axes
 
     @classmethod
@@ -1445,13 +1438,10 @@ class Slice(OnnxOpConverter):
             # Update the starts and ends according to axes if required.
             if isinstance(attr["axes"], int):
                 attr["axes"] = (attr["axes"],)
-            if (max(attr["axes"]) + 1) != len(attr["axes"]):
-                new_starts, new_ends, new_axes = cls._common(
-                    attr["starts"], attr["ends"], attr["axes"]
-                )
-                attr["axes"] = new_axes
-                attr["starts"] = new_starts
-                attr["ends"] = new_ends
+            new_starts, new_ends, new_axes = cls._common(attr["starts"], attr["ends"], attr["axes"])
+            attr["axes"] = new_axes
+            attr["starts"] = new_starts
+            attr["ends"] = new_ends
         except KeyError:
             pass
         begin = list(attr["starts"])
@@ -1619,22 +1609,6 @@ class EyeLike(OnnxOpConverter):
         ones = _op.full(_op.const(1), (dim,), dtype=dtype)
         k = _op.const(attr.get("k", 0), dtype="int32")
         return _op.scatter_nd(zeros, _op.stack([indices, indices + k], axis=0), ones, "update")
-
-
-class Greater(OnnxOpConverter):
-    """Operator logical greater."""
-
-    @classmethod
-    def _impl_v7(cls, inputs, attr, params):
-        return _op.greater(inputs[0], inputs[1])
-
-
-class Less(OnnxOpConverter):
-    """Operator logical less than."""
-
-    @classmethod
-    def _impl_v7(cls, inputs, attr, params):
-        return _op.less(inputs[0], inputs[1])
 
 
 class LRN(OnnxOpConverter):
@@ -3665,8 +3639,8 @@ def _get_convert_map(opset):
         "Selu": Selu.get_converter(opset),
         "Elu": Elu.get_converter(opset),
         "Exp": Renamer("exp"),
-        "Greater": Greater.get_converter(opset),
-        "Less": Less.get_converter(opset),
+        "Greater": Renamer("greater"),
+        "Less": Renamer("less"),
         "Log": Renamer("log"),
         "Acos": Renamer("acos"),
         "Acosh": Renamer("acosh"),

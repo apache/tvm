@@ -1751,7 +1751,7 @@ def test_conv2d_int8_intrinsics():
         return assembly
 
     def _has_fast_int8_instructions(asm, target):
-        if "skylake-avx512" in target:
+        if "nehalem" in target or "core-avx2" in target or "skylake-avx512" in target:
             return "pmaddubs" in asm
         elif "cascadelake" in target:
             return "vpdpbusd" in asm
@@ -1761,8 +1761,13 @@ def test_conv2d_int8_intrinsics():
     # TODO(@anijain2305, @icemelon9): disable conv2d_int8 for NHWC data layout.
     #   Re-enable this after adding conv2d_NCHWc_int8 support for NHWC.
 
-    # compile conv2d for x86 (skylake, cascadelake) and test assembly contains *pmadd* instructions
-    targets = ["llvm -mcpu=skylake-avx512", "llvm -mcpu=cascadelake"]
+    # compile conv2d for x86 (SSE3/AVX2/AVX512/VNNI capable) and test assembly contains *pmadd* instructions
+    targets = [
+        "llvm -mcpu=nehalem",
+        "llvm -mcpu=core-avx2",
+        "llvm -mcpu=skylake-avx512",
+        "llvm -mcpu=cascadelake",
+    ]
     llvm_version = tvm.target.codegen.llvm_version_major()
     for target in targets:
         if tvm.testing.device_enabled(target) and llvm_version >= 8:
@@ -1838,7 +1843,7 @@ def test_conv2d_int8_intrinsics():
 
     # Check that a vectorized instruction is generated for older Intel
     # generations, because we default to NCHWc layout.
-    target = "llvm -mcpu=core-avx2"
+    target = "llvm -mcpu=x86-64"
     if tvm.testing.device_enabled(target):
         fast_int8_dtypes = ("uint8", "int8", "int32")
         asm = _compile(
@@ -1850,7 +1855,7 @@ def test_conv2d_int8_intrinsics():
             dtypes=fast_int8_dtypes,
         )
         # Check that vector int mult and add instructions are generated.
-        assert "vpmulld" in asm and "vpadd" in asm
+        assert "pmulhw" in asm and "paddd" in asm
 
 
 @tvm.testing.uses_gpu
