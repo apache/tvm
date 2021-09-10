@@ -94,8 +94,8 @@
   server_.port = self.proxyPort.text.intValue;
   server_.key = self.proxyKey.text;
   server_.custom_addr = [NSString stringWithUTF8String:args.custom_addr];
-  server_.verbose = args.verbose;
   server_.delegate = self;
+  NSLog(@"value: %d", server_.verbose);
 
   [server_ start];
 
@@ -150,6 +150,9 @@
   dispatch_sync(dispatch_get_main_queue(), ^{
     switch (status) {
       case RPCServerStatus_Connected:
+        if (self.ModeSelector.selectedSegmentIndex == RPCServerMode_PureServer) {
+          self.infoText.text = [NSString stringWithFormat:@"IP: %@\nPort: %d", server_.device_addr, server_.actual_port];
+        }
         self.statusLabel.text = @"Connected";
         break;
       case RPCServerStatus_Disconnected:

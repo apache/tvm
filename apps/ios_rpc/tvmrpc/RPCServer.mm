@@ -547,6 +547,8 @@ typedef enum {
 
 - (void)setState:(RPCServerProxyState)new_state {
   if (state_ == RPCServerProxyState_Idle && new_state == RPCServerProxyState_HandshakeToSend) {
+    self.actual_port = _rpc_port;
+    self.device_addr = [NSString stringWithUTF8String:tvm::runtime::getWiFiAddress().c_str()];
     if (self.verbose) {
       // Notify host runner script with actual address
       NSLog(@"[IOS-RPC] IP: %s", tvm::runtime::getWiFiAddress().c_str());
