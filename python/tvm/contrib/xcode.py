@@ -45,29 +45,6 @@ def xcrun(cmd):
     return out.strip()
 
 
-def codesign(lib):
-    """Codesign the shared libary
-
-    This is an required step for library to be loaded in
-    the app.
-
-    Parameters
-    ----------
-    lib : The path to the library.
-    """
-    if "TVM_IOS_CODESIGN" not in os.environ:
-        raise RuntimeError("Require environment variable TVM_IOS_CODESIGN " " to be the signature")
-    signature = os.environ["TVM_IOS_CODESIGN"]
-    cmd = ["codesign", "--force", "--sign", signature]
-    cmd += [lib]
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    (out, _) = proc.communicate()
-    if proc.returncode != 0:
-        msg = "Codesign error:\n"
-        msg += py_str(out)
-        raise RuntimeError(msg)
-
-
 def create_dylib(output, objects, arch, sdk="macosx"):
     """Create dynamic library.
 

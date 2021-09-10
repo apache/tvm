@@ -100,7 +100,6 @@ def test_mobilenet(host, port, key, mode):
             lib = relay.build(mod, target=target, target_host=target_host, params=params)
         path_dso = temp.relpath("deploy.dylib")
         lib.export_library(path_dso, xcode.create_dylib, arch=arch, sdk=sdk)
-        xcode.codesign(path_dso)
 
         # connect to the proxy
         if mode == "tracker":
