@@ -88,6 +88,11 @@ extern "C"
 #include <arm_math.h>
 #include <arm_nnsupportfunctions.h>
 
+#ifdef GROVETY_PERF_TIMER
+extern "C" void perf_timer_start(uint32 op_id);
+extern "C" void perf_timer_stop(uint32 op_id);
+#endif
+
 #ifdef __cplusplus
 extern "C"
 #endif
@@ -120,9 +125,16 @@ __STATIC_FORCEINLINE int32_t max_pool8_{uniq_id}(
     int N) {{
   int32_t *parg32 = (int32_t *)arg;
   int32_t *pres32 = (int32_t *)res;
+  int32_t retcode = 0;
+  
+#ifdef GROVETY_PERF_TIMER
+  perf_timer_start(1);
+#endif
 
-  if ( N < 4 )
-    return max_pool8_loop_{uniq_id}(arg, res, N);
+  if ( N < 4 ) {{
+    retcode = max_pool8_loop_{uniq_id}(arg, res, N);
+    goto out;
+  }}
 
   for ( int i = 0; i < N / 4; ++ i ) {{
     int32_t arg32 = *parg32 ++;
@@ -132,10 +144,17 @@ __STATIC_FORCEINLINE int32_t max_pool8_{uniq_id}(
     *pres32 ++ = res32;
   }}
 
-  if ( N % 4 != 0 )
-    return max_pool8_loop_{uniq_id}((int8_t *)parg32, (int8_t *)pres32, N % 4);
+  if ( N % 4 != 0 ) {{
+    retcode = max_pool8_loop_{uniq_id}((int8_t *)parg32, (int8_t *)pres32, N % 4);
+    goto out;
+  }}
 
-  return 0;
+out:
+#ifdef GROVETY_PERF_TIMER
+  perf_timer_stop(1);
+#endif
+  
+  return retcode;
 }}
     """
     return cc_code
