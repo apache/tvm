@@ -242,6 +242,8 @@ class GPUCodeVerifier : public StmtExprVisitor {
 };
 
 std::vector<String> VerifyGPUCode_(const PrimFunc& func, Map<String, PrimExpr> constraints) {
+  ICHECK(nullptr != constraints.get()) << "Cannot pass null map to VerifyGPUCode_";
+
   GPUCodeVerifier verifier;
 
   int64_t max_local_memory_per_block = INT64_MAX;
