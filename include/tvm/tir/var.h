@@ -114,7 +114,8 @@ class Var : public PrimExpr {
    * \brief Get pointer to the internal value.
    * \return the corresponding Variable.
    */
-  const VarNode* operator->() const { return get(); }
+  const VarNode* operator->() const { ICHECK(nullptr != get()) << "Calling `->` to <VarNode>(null)"; return get(); }
+
   /*!
    * \brief Get pointer to the internal value.
    * \return the corresponding Variable.
