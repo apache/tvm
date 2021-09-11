@@ -106,6 +106,7 @@ class BlockReadWriteDetector : public StmtExprVisitor {
 };
 
 void BlockReadWriteDetector::operator()(const Stmt& stmt) {
+  ICHECK(nullptr != stmt.get()) << "Cannot pass null statement to BlockReadWriteDetector::operator()";
   const auto* block = stmt.as<BlockNode>();
   ICHECK(block != nullptr) << "Only visiting Blocks is allowed, but got " << stmt->GetTypeKey();
   for (const MatchBufferRegion& match_buffer : block->match_buffers) {
