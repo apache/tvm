@@ -480,6 +480,7 @@ class TaskScheduler:
 
     def _compute_score(self, costs):
         """compute the objective function"""
+        # Make sure to return float.
         score = self.objective_func(costs)
         return score.value if hasattr(score, "value") else score
 
