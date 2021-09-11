@@ -117,63 +117,59 @@ def test_exception():
     with pytest.raises(tvm.TVMError):
         x = tir.Var(name=1, dtype="int")
 
+
 def test_nullptr_exception():
     test_candidates = [
-            (tvm.tir.analysis.calculate_workspace_bytes, (None, None)),
-            (tvm.tir.analysis.detect_buffer_access_lca, (None, )),
-            (tvm.tir.analysis.get_block_access_region, (None, None)),
-            (tvm.tir.analysis.get_block_read_write_region, (None, None)),
-            (tvm.tir.analysis.verify_gpu_code, (None, None)),
-            (tvm.tir.analysis.verify_memory, (None, )),
-            (tvm.tir.analysis.verify_ssa, (None, )),
-            (tvm.tir.analysis.BufferRegion, (None, None)),
-
-            # tir.expr
-            (tvm.tir.expr.BufferLoad, (None, None, None)),
-            (tvm.tir.expr.Call, (None, None, None, None)),
-            (tvm.tir.expr.ProducerLoad, (None, None, None)),
-
-            # tir.generic
-            (tvm.tir.generic.add, (None, None, None)),
-            (tvm.tir.generic.cast, (None, None, None)),
-            (tvm.tir.generic.divide, (None, None, None)),
-            (tvm.tir.generic.floordiv, (None, None, None)),
-            (tvm.tir.generic.multiply, (None, None, None)),
-            (tvm.tir.generic.subtract, (None, None, None)),
-
-            # tir.op
-            (tvm.tir.op.abs, (None, None)),
-            (tvm.tir.op.ceil, (None, None)),
-            (tvm.tir.op.clz, (None, )),
-            (tvm.tir.op.div, (None, None, None)),
-            (tvm.tir.op.floor, (None, None)),
-            (tvm.tir.op.floordiv, (None, None, None)),
-            (tvm.tir.op.floormod, (None, None, None)),
-            (tvm.tir.op.if_then_else, (None, None, None, None)),
-            (tvm.tir.op.indexdiv, (None, None, None)),
-            (tvm.tir.op.indexmod, (None, None, None)),
-            (tvm.tir.op.isfinite, (None, None)),
-            (tvm.tir.op.isinf, (None, None)),
-            (tvm.tir.op.isnan, (None, None)),
-            (tvm.tir.op.nearbyint, (None, None)),
-            (tvm.tir.op.power, (None, None, None)),
-            (tvm.tir.op.q_multiply_shift, (None, None, None, None)),
-            (tvm.tir.op.round, (None, None)),
-            (tvm.tir.op.trunc, (None, None)),
-            (tvm.tir.op.truncdiv, (None, None, None)),
-            (tvm.tir.op.truncmod, (None, None, None)),
-            (tvm.tir.op.Call, (None, None, None, None)),
-
-            # tir.stmt_functor
-            (tvm.tir.stmt_functor.ir_transform, (None, None, None, None)),
-            (tvm.tir.stmt_functor.post_order_visit, (None, None)),
-            (tvm.tir.stmt_functor.substitute, (None, None)),
-
-            # tvm.stmt
-            (tvm.tir.stmt.Allocate, (None, None, None, None, None, None)),
-            (tvm.tir.stmt.BlockRealize, (None, None, None, None)),
-            (tvm.tir.stmt.BufferRegion, (None, None)),
-            (tvm.tir.stmt.MatchBufferRegion, (None, None)),
+        (tvm.tir.analysis.calculate_workspace_bytes, (None, None)),
+        (tvm.tir.analysis.detect_buffer_access_lca, (None,)),
+        (tvm.tir.analysis.get_block_access_region, (None, None)),
+        (tvm.tir.analysis.get_block_read_write_region, (None, None)),
+        (tvm.tir.analysis.verify_gpu_code, (None, None)),
+        (tvm.tir.analysis.verify_memory, (None,)),
+        (tvm.tir.analysis.verify_ssa, (None,)),
+        (tvm.tir.analysis.BufferRegion, (None, None)),
+        # tir.expr
+        (tvm.tir.expr.BufferLoad, (None, None, None)),
+        (tvm.tir.expr.Call, (None, None, None, None)),
+        (tvm.tir.expr.ProducerLoad, (None, None, None)),
+        # tir.generic
+        (tvm.tir.generic.add, (None, None, None)),
+        (tvm.tir.generic.cast, (None, None, None)),
+        (tvm.tir.generic.divide, (None, None, None)),
+        (tvm.tir.generic.floordiv, (None, None, None)),
+        (tvm.tir.generic.multiply, (None, None, None)),
+        (tvm.tir.generic.subtract, (None, None, None)),
+        # tir.op
+        (tvm.tir.op.abs, (None, None)),
+        (tvm.tir.op.ceil, (None, None)),
+        (tvm.tir.op.clz, (None,)),
+        (tvm.tir.op.div, (None, None, None)),
+        (tvm.tir.op.floor, (None, None)),
+        (tvm.tir.op.floordiv, (None, None, None)),
+        (tvm.tir.op.floormod, (None, None, None)),
+        (tvm.tir.op.if_then_else, (None, None, None, None)),
+        (tvm.tir.op.indexdiv, (None, None, None)),
+        (tvm.tir.op.indexmod, (None, None, None)),
+        (tvm.tir.op.isfinite, (None, None)),
+        (tvm.tir.op.isinf, (None, None)),
+        (tvm.tir.op.isnan, (None, None)),
+        (tvm.tir.op.nearbyint, (None, None)),
+        (tvm.tir.op.power, (None, None, None)),
+        (tvm.tir.op.q_multiply_shift, (None, None, None, None)),
+        (tvm.tir.op.round, (None, None)),
+        (tvm.tir.op.trunc, (None, None)),
+        (tvm.tir.op.truncdiv, (None, None, None)),
+        (tvm.tir.op.truncmod, (None, None, None)),
+        (tvm.tir.op.Call, (None, None, None, None)),
+        # tir.stmt_functor
+        (tvm.tir.stmt_functor.ir_transform, (None, None, None, None)),
+        (tvm.tir.stmt_functor.post_order_visit, (None, None)),
+        (tvm.tir.stmt_functor.substitute, (None, None)),
+        # tvm.stmt
+        (tvm.tir.stmt.Allocate, (None, None, None, None, None, None)),
+        (tvm.tir.stmt.BlockRealize, (None, None, None, None)),
+        (tvm.tir.stmt.BufferRegion, (None, None)),
+        (tvm.tir.stmt.MatchBufferRegion, (None, None)),
     ]
 
     for func, args in test_candidates:
@@ -182,7 +178,6 @@ def test_nullptr_exception():
             func(*args)
         except TVMError as _:
             pass
-            
 
 
 if __name__ == "__main__":
