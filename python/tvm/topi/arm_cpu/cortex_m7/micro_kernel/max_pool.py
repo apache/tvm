@@ -117,7 +117,7 @@ extern "C"
 __STATIC_FORCEINLINE int32_t max_pool8_{uniq_id}(
     int8_t *arg, 
     int8_t *res, 
-    int8 N) {{
+    int N) {{
   int32_t *parg32 = (int32_t *)arg;
   int32_t *pres32 = (int32_t *)res;
 
