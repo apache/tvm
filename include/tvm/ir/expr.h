@@ -119,10 +119,10 @@ class PrimExpr : public BaseExpr {
    */
   TVM_DLL PrimExpr(float value);  // NOLINT(*)
 
-  /*! \return the data type of this expression. */
-  DataType dtype() const { return static_cast<const PrimExprNode*>(get())->dtype; }
-
   TVM_DEFINE_OBJECT_REF_METHODS(PrimExpr, BaseExpr, PrimExprNode);
+
+  /*! \return the data type of this expression. */
+  DataType dtype() const { return operator->()->dtype; }
 
  private:
   // Internal function for conversion.
