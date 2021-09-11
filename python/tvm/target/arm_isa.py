@@ -16,6 +16,7 @@
 # under the License.
 """Defines functions to analyze available opcodes in the ARM ISA."""
 
+import argparse
 
 ARM_ISA_MAP = {
     "armv7e-m": ["SMLAD"],

@@ -23,8 +23,7 @@ def tvm_repo_root():
     return subprocess.check_output(["git", "rev-parse", "--show-toplevel"], encoding='utf-8').strip()
 
 
-def create_workspace_dir(platform, project_name, mkdir=True):
-    _, zephyr_board = PLATFORMS[platform]
+def create_workspace_dir(zephyr_board, project_name, mkdir=True):
     current_dir = pathlib.Path(os.path.dirname(__file__)).resolve()
     board_workspace = (
         current_dir
@@ -95,7 +94,7 @@ def print_relay(relay, params, show_metadata=True, optimize=False):
 
 def create_header_file(output_path, input, output):
     import numpy as np
-    
+
     c_types = {
         'int8': 'int8_t',
         'int32': 'int32_t',
