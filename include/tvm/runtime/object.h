@@ -538,7 +538,10 @@ class ObjectRef {
   /*! \return the internal object pointer */
   const Object* get() const { return data_.get(); }
   /*! \return the internal object pointer */
-  const Object* operator->() const { ICHECK(nullptr != get()) << "Calling `->` to nullptr"; return get(); }
+  const Object* operator->() const {
+    ICHECK(nullptr != get()) << "Calling `->` to nullptr";
+    return get();
+  }
   /*! \return whether the reference is unique */
   bool unique() const { return data_.unique(); }
   /*! \return The use count of the ptr, for debug purposes */
@@ -703,16 +706,16 @@ struct ObjectPtrEqual {
  * \param ParentType The parent type of the objectref
  * \param ObjectName The type name of the object.
  */
-#define TVM_DEFINE_OBJECT_REF_METHODS(TypeName, ParentType, ObjectName)                        \
-  TypeName() = default;                                                                        \
-  explicit TypeName(::tvm::runtime::ObjectPtr<::tvm::runtime::Object> n) : ParentType(n) {}    \
-  TVM_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(TypeName);                                           \
-  const ObjectName* operator->() const {                                                       \
-    auto ptr = static_cast<const ObjectName*>(data_.get());                                    \
+#define TVM_DEFINE_OBJECT_REF_METHODS(TypeName, ParentType, ObjectName)                     \
+  TypeName() = default;                                                                     \
+  explicit TypeName(::tvm::runtime::ObjectPtr<::tvm::runtime::Object> n) : ParentType(n) {} \
+  TVM_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(TypeName);                                        \
+  const ObjectName* operator->() const {                                                    \
+    auto ptr = static_cast<const ObjectName*>(data_.get());                                 \
     ICHECK(nullptr != ptr) << "Calling `->` to <" #ObjectName ">(null)";                    \
-    return ptr;                                                                                \
-  }                                                                                            \
-  const ObjectName* get() const { return static_cast<const ObjectName*>(data_.get()); }        \
+    return ptr;                                                                             \
+  }                                                                                         \
+  const ObjectName* get() const { return static_cast<const ObjectName*>(data_.get()); }     \
   using ContainerType = ObjectName;
 
 /*
@@ -744,7 +747,7 @@ struct ObjectPtrEqual {
   explicit TypeName(::tvm::runtime::ObjectPtr<::tvm::runtime::Object> n) : ParentType(n) {} \
   ObjectName* operator->() const {                                                          \
     auto ptr = static_cast<ObjectName*>(data_.get());                                       \
-    ICHECK(nullptr != ptr) << "Calling `->` to <" #ObjectName ">(null)";                 \
+    ICHECK(nullptr != ptr) << "Calling `->` to <" #ObjectName ">(null)";                    \
     return ptr;                                                                             \
   }                                                                                         \
   using ContainerType = ObjectName;
