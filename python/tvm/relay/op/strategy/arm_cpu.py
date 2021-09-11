@@ -53,10 +53,11 @@ def schedule_pool_arm_cpu(attrs, outs, target):
     """schedule pooling ops arm cpu"""
     isa = arm_isa.IsaAnalyzer(target)
     with target:
-        if "SMLAD" in isa:
+        if "SSUB8" in isa and "SEL" in isa:
             return topi.arm_cpu.schedule_max_pool2d_direct_simd(outs)
         else:
             return topi.generic.schedule_pool(outs, attrs.layout)
+
 
 @conv2d_strategy.register(["arm_cpu", "micro_dev"])
 def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):

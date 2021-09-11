@@ -34,13 +34,14 @@ def max_pool2d_direct_simd_nhwc_schedule(outs):
             return
 
         # extract tensors
+        output = op.output(0)
         data_vec = op.input_tensors[0]
 
         n, h, w, c = s[op].op.axis
         ko, ki = s[op].op.reduce_axis
         s[op].reorder(n, h, w, ko, ki, c)
 
-        def intrin_max(in_channels):
+        def intrin_max(in_channels, in_dtype, out_dtype):
             UNIQ_ID_LEN = 8
             uniq_id = "".join(random.choices(string.ascii_uppercase, k=UNIQ_ID_LEN))
             func_prefix = "max_pool8"
@@ -48,33 +49,33 @@ def max_pool2d_direct_simd_nhwc_schedule(outs):
             if isinstance(in_channels, tvm.tir.IntImm):
                 in_channels = in_channels.value
 
-            x = te.placeholder((1, 1, 1, in_channels), name="x", dtype="int8")
+            assert in_dtype == "int8"
+            assert out_dtype == "int8"
+
+            x = te.placeholder((1, 1, 1, in_channels), name="x", dtype=in_dtype)
             k = te.reduce_axis((0, 1), name="rc")
-            z = te.compute((1, 1, 1, in_channels), lambda *i: tvm.tir.max(x[i], axis=[k]))
+            z = te.compute((1, 1, 1, in_channels), lambda *i: tvm.tir.max(x[i], axis=[k]).astype(out_dtype))
 
             def _intrin_func(ins, outs):
                 aa = ins[0]
                 cc = outs[0]
 
                 def _body():
-                    func_name = f"{func_prefix}_{uniq_id}"
                     ib = tvm.tir.ir_builder.create()
-                    zz = tvm.tir.call_extern(cc.dtype, func_name,
-                                             aa.access_ptr("r"),
-                                             cc.access_ptr("w"),
-                                             cc.strides[0])
-                    ib.emit(zz)
+                    ib.emit(
+                        tvm.tir.call_extern(cc.dtype,
+                                            f"{func_prefix}_{uniq_id}",
+                                            aa.access_ptr("r"),
+                                            cc.access_ptr("w"),
+                                            cc.strides[0]))
                     return ib.get()
 
                 def _reduce_reset():
-                    func_name = f"{func_prefix}_reset_{uniq_id}"
                     ib = tvm.tir.ir_builder.create()
-                    ib.emit(
-                        tvm.tir.call_extern(
-                            cc.dtype, func_name, cc.access_ptr("w"),
-                            cc.strides[0]
-                        )
-                    )
+                    ib.emit(tvm.tir.call_extern(cc.dtype,
+                                                f"{func_prefix}_reset_{uniq_id}",
+                                                cc.access_ptr("w"),
+                                                cc.strides[0]))
                     return ib.get()
 
                 def _reduce_update():
@@ -91,14 +92,16 @@ def max_pool2d_direct_simd_nhwc_schedule(outs):
                 for t in [x, z]
             }
 
-            return te.decl_tensor_intrin(
-                z.op, _intrin_func, binds=binds
-            )
+            intrin_decl = te.decl_tensor_intrin(z.op, _intrin_func, binds=binds)
+            return intrin_decl, uniq_id
 
-        s[op].tensorize(c, intrin_max(data_vec.shape[-1]))
+        max, uniq_id = intrin_max(data_vec.shape[-1], data_vec.dtype, output.dtype)
+        s[op].tensorize(c, max)
+        s[output].pragma(n, "import_c", max_pool_impl(uniq_id))
 
     traverse_inline(s, outs[-1].op, _callback)
     return s
+
 
 def max_pool_impl(uniq_id):
     """Emit C code for pool impl."""
