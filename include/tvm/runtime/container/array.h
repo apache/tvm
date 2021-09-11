@@ -363,10 +363,14 @@ class Array : public ObjectRef {
   using reverse_iterator = ReverseIterAdapter<ValueConverter, const ObjectRef*>;
 
   /*! \return begin iterator */
-  iterator begin() const { return iterator(GetArrayNode()->begin()); }
+  iterator begin() const { 
+    return iterator(nullptr == GetArrayNode() ? static_cast<const ObjectRef*>(nullptr) : GetArrayNode()->begin()); 
+  }
 
   /*! \return end iterator */
-  iterator end() const { return iterator(GetArrayNode()->end()); }
+  iterator end() const { 
+    return iterator(nullptr == GetArrayNode() ? static_cast<const ObjectRef*>(nullptr) : GetArrayNode()->end()); 
+  }
 
   /*! \return rbegin iterator */
   reverse_iterator rbegin() const {
