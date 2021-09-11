@@ -50,7 +50,7 @@ def run_modules(mod_configs, dev, target, dname, data, iMod, iName, iData):
         # parse mod_config and set current output as next mod input data
         mconfig = mod_configs[mod]
         for output in mconfig["pipeline"]["output"]:
-            output_data = m.get_output(output["output_indx"] - 1).asnumpy()
+            output_data = m.get_output(output["output_indx"]).asnumpy()
             for dep in output["dependent"]:
                 # currnet output use as dependent input,
                 # input_name indicate the input index number.
@@ -136,9 +136,9 @@ def run_pipeline(target):
     mconfig1["pipeline"] = {
         "mod_indx": 1,
         "output": [
-            {"output_indx": 1, "dependent": [{"mod_indx": 2, "input_name": "data_0"}]},
-            {"output_indx": 2, "dependent": [{"mod_indx": 3, "input_name": "data_0"}]},
-            {"output_indx": 3, "dependent": [{"mod_indx": 0, "input_name": "1"}]},
+            {"output_indx": 0, "dependent": [{"mod_indx": 2, "input_name": "data_0"}]},
+            {"output_indx": 1, "dependent": [{"mod_indx": 3, "input_name": "data_0"}]},
+            {"output_indx": 2, "dependent": [{"mod_indx": 0, "input_name": "1"}]},
         ],
     }
     mod_config[mods[0]] = mconfig1
@@ -149,7 +149,7 @@ def run_pipeline(target):
     mconfig2["pipeline"] = {
         "mod_indx": 2,
         "output": [
-            {"output_indx": 1, "dependent": [{"mod_indx": 3, "input_name": "data_1"}]},
+            {"output_indx": 0, "dependent": [{"mod_indx": 3, "input_name": "data_1"}]},
         ],
     }
     mod_config[mods[1]] = mconfig2
@@ -160,7 +160,7 @@ def run_pipeline(target):
 
     mconfig3["pipeline"] = {
         "mod_indx": 3,
-        "output": [{"output_indx": 1, "dependent": [{"mod_indx": 0, "input_name": "2"}]}],
+        "output": [{"output_indx": 0, "dependent": [{"mod_indx": 0, "input_name": "2"}]}],
     }
     mod_config[mods[2]] = mconfig3
 
@@ -211,6 +211,7 @@ def run_pipeline(target):
     for ref_out, out in zip(outs, pipeline_outputs):
         for ref in ref_out:
             tvm.testing.assert_allclose(ref_out[ref], out[int(ref) - 1])
+            print(ref_out[ref])
 
 
 def test_pipeline():

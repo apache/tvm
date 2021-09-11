@@ -22,7 +22,7 @@
 #include <sched.h>
 #include <string.h>
 #include <sys/syscall.h>
-#include <tvm/runtime/container.h>
+//#include <tvm/runtime/container.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 #include <unistd.h>
@@ -100,7 +100,7 @@ class Dependent {
     assert(inputIndx <= TYP_MAX(DEP_INDX_TYPE));
     if (modIndx == 0) {
       bFinal = true;
-      outputIndx = inputIndx;
+      outputIndx = inputIndx - 1;
     } else {
       dependent[modIndx - 1] = inputIndx;
     }
@@ -307,7 +307,7 @@ class pipelineOutputData {
      */
     for (size_t i = 0; i < slot.data.num; i++) {
       auto dlTensor = slot.data.inputList[i]->dlData.data;
-      int outputIndx = slot.data.inputList[i]->dependent.GetOutputIndx() - 1;
+      int outputIndx = slot.data.inputList[i]->dependent.GetOutputIndx();
       assert(outputIndx < slot.data.num);
       dataMap[outputIndx] = dlTensor;
     }
@@ -562,7 +562,7 @@ class RuntimeItem {
     size_t outputsNum = runtimePtr->NumOutputs();
     for (size_t i = 0; i < outputsNum; i++) {
       shared_ptr<OutputData> output =
-          make_shared<OutputData>(runtimePtr->GetOutput(i), i + 1, runtime_pipeline_output_conf);
+          make_shared<OutputData>(runtimePtr->GetOutput(i), i , runtime_pipeline_output_conf);
 
       outputs->push_back(output);
     }
