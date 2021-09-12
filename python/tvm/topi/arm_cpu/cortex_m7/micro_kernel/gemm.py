@@ -132,7 +132,7 @@ extern "C"
 #include <arm_math.h>
 #include <arm_nnsupportfunctions.h>
 
-#ifdef GROVETY_PERF_TIMER
+#ifdef GROVETY_OP_BENCHMARK
 
 #ifdef __cplusplus
 extern "C"
@@ -144,7 +144,7 @@ extern "C"
 #endif // __cplusplus
 void perf_timer_stop(uint32_t op_id);
 
-#endif // GROVETY_PERF_TIMER
+#endif // GROVETY_OP_BENCHMARK
 
 #ifdef __cplusplus
 extern "C"
@@ -219,7 +219,7 @@ __STATIC_FORCEINLINE int32_t gemm_{M}x{K}x{N}_body_{uniq_id}(
   int16_t bb_pad[{bb_pad_size}];
   int32_t retcode = 0;
 
-#ifdef GROVETY_PERF_TIMER
+#ifdef GROVETY_OP_BENCHMARK
   perf_timer_start(0);
 #endif
 
@@ -256,7 +256,7 @@ __STATIC_FORCEINLINE int32_t gemm_{M}x{K}x{N}_body_{uniq_id}(
     gemm_{M}x{N}_body_rest_{uniq_id}({K}, aa, bb, cc, A_stride, B_stride, C_stride);
 
 out:
-#ifdef GROVETY_PERF_TIMER
+#ifdef GROVETY_OP_BENCHMARK
   perf_timer_stop(0);
 #endif
   return retcode;
@@ -333,7 +333,7 @@ __STATIC_FORCEINLINE int32_t gemm_{M}x{K}x{N}_update_{uniq_id}(
   int16_t bb_pad[{bb_pad_size}];
   int32_t retcode = 0;
 
-#ifdef GROVETY_PERF_TIMER
+#ifdef GROVETY_OP_BENCHMARK
   perf_timer_start(0);
 #endif
 
@@ -367,7 +367,7 @@ __STATIC_FORCEINLINE int32_t gemm_{M}x{K}x{N}_update_{uniq_id}(
     gemm_{M}x{N}_update_rest_{uniq_id}({K}, aa, bb, cc, A_stride, B_stride, C_stride);
 
 out:
-#ifdef GROVETY_PERF_TIMER
+#ifdef GROVETY_OP_BENCHMARK
   perf_timer_stop(0);
 #endif
   return retcode;
@@ -422,7 +422,7 @@ __STATIC_FORCEINLINE int32_t gemm16_{M}x{K}x{N}_body_{uniq_id}(
     int A_stride, int B_stride, int C_stride) {{
   int32_t retcode = 0;
 
-#ifdef GROVETY_PERF_TIMER
+#ifdef GROVETY_OP_BENCHMARK
   perf_timer_start(0);
 #endif
 
@@ -452,7 +452,7 @@ __STATIC_FORCEINLINE int32_t gemm16_{M}x{K}x{N}_body_{uniq_id}(
     gemm16_{M}x{N}_body_rest_{uniq_id}({K}, aa, bb, cc, A_stride, B_stride, C_stride);
 
 out:
-#ifdef GROVETY_PERF_TIMER
+#ifdef GROVETY_OP_BENCHMARK
   perf_timer_stop(0);
 #endif
   return retcode;
@@ -503,7 +503,7 @@ __STATIC_FORCEINLINE int32_t gemm16_{M}x{K}x{N}_update_{uniq_id}(
     int A_stride, int B_stride, int C_stride) {{
   int32_t retcode = 0;
 
-#ifdef GROVETY_PERF_TIMER
+#ifdef GROVETY_OP_BENCHMARK
   perf_timer_start(0);
 #endif
 
@@ -530,7 +530,7 @@ __STATIC_FORCEINLINE int32_t gemm16_{M}x{K}x{N}_update_{uniq_id}(
     gemm16_{M}x{N}_update_rest_{uniq_id}({K}, aa, bb, cc, A_stride, B_stride, C_stride);
 
 out:
-#ifdef GROVETY_PERF_TIMER
+#ifdef GROVETY_OP_BENCHMARK
   perf_timer_stop(0);
 #endif
   return retcode;

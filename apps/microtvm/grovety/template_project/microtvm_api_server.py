@@ -379,6 +379,8 @@ class Handler(server.ProjectAPIHandler):
                         line = line.replace("<API_SERVER_CRT_LIBS>", crt_libs)
 
                     cmake_f.write(line)
+                if 'benchmark' in options and options['benchmark']:
+                    cmake_f.write("add_definitions(-DGROVETY_OP_BENCHMARK)")
 
         self._create_prj_conf(project_dir, options)
 

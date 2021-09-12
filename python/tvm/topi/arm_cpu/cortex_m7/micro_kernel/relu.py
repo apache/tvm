@@ -5,6 +5,22 @@ def relu_MxN_impl(M, N, uniq_id):
     #define __STATIC_FORCEINLINE  static inline
 #endif
 
+
+#ifdef GROVETY_OP_BENCHMARK
+
+#ifdef __cplusplus
+extern "C"
+#endif // __cplusplus
+void perf_timer_start(uint32_t op_id);
+
+#ifdef __cplusplus
+extern "C"
+#endif // __cplusplus
+void perf_timer_stop(uint32_t op_id);
+
+#endif // GROVETY_OP_BENCHMARK
+
+
 #ifdef __cplusplus
 extern "C"
 #endif
@@ -32,8 +48,13 @@ extern "C"
 #endif
 __STATIC_FORCEINLINE int32_t relu_{M}x{N}_{uniq_id}(
     int8_t *mat) {{
+
 	int32_t *pmat32 = (int32_t *)mat;
-	
+
+#ifdef GROVETY_OP_BENCHMARK
+  perf_timer_start(3);
+#endif
+
 	if ( {M} * {N} < 4 )
 		return relu_{M}x{N}_loop_{uniq_id}(mat);
 
@@ -45,6 +66,10 @@ __STATIC_FORCEINLINE int32_t relu_{M}x{N}_{uniq_id}(
 
 	if ( ({M} * {N}) % 4 != 0 )
 		return relu_rest(({M} * {N}) % 4, (int8_t *)pmat32);
+
+#ifdef GROVETY_OP_BENCHMARK
+  perf_timer_stop(3);
+#endif
 
   return 0;
 }}

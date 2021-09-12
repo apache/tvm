@@ -1,5 +1,3 @@
-#ifdef GROVETY_PERF_TIMER
-
 #include "perf_timer.h"
 #include <kernel.h>
 #include <assert.h>
@@ -53,5 +51,3 @@ uint64_t perf_timer_get_counter(uint32_t op_id)
 
     return counters[op_id];
 }
-
-#endif // GROVETY_PERF_TIMER

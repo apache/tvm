@@ -30,7 +30,7 @@ if __name__ == "__main__":
     parser.add_argument("--log-level", type=str, choices=["DEBUG", "INFO"], default="INFO", help="Log level")
     parser.add_argument("--verbose", action='store_true')
     parser.add_argument("--skip-flash", action='store_true', help="Do not flash the MCU after the build")
-
+    parser.add_argument("--benchmark", action="store_true", help="Enable per-op benchmarking")
 
     args = parser.parse_args()
     print(args)
@@ -81,6 +81,7 @@ if __name__ == "__main__":
             "west_cmd": "west",
             "verbose": args.verbose,
             "zephyr_board": platform["board"],
+            "benchmark": args.benchmark
         }
     )
 
@@ -115,13 +116,16 @@ if __name__ == "__main__":
             transport.write(bytes(f"#input:{data_s}\n", 'UTF-8'), timeout_sec=5)
             result_line = get_message(transport, "#result", timeout_sec=5)
             r = result_line.strip("\n").split(":")
-            
+
             output_values = list(map(float, r[1].split(',')))
             max_index = np.argmax(output_values)
-            elapsed_conv = int(r[2]) / 1000.0
-            elapsed_max_pool = int(r[3]) / 1000.0
-            elapsed_total = int(r[4]) / 1000.0
 
-            benchmark_str = f"conv: {elapsed_conv}ms max_pool: {elapsed_max_pool}ms total: {elapsed_total}ms"
+            op_timers = ['gemm', 'max_pool', 'avg_pool', 'relu', 'total']
+            times = r[2:]
+
+            if len(times) < len(op_timers):
+                times = [0.0] * (len(op_timers) - len(times)) + times
+
+            benchmark_str = ' '.join([f"{n}: {float(t)/1000.0}ms" for n, t in zip(op_timers,times)])
 
             logging.info(f"input={label}; max_index={max_index}; {benchmark_str}; output={output_values}")

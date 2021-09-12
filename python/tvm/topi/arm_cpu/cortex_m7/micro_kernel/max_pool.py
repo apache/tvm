@@ -88,7 +88,7 @@ extern "C"
 #include <arm_math.h>
 #include <arm_nnsupportfunctions.h>
 
-#ifdef GROVETY_PERF_TIMER
+#ifdef GROVETY_OP_BENCHMARK
 
 #ifdef __cplusplus
 extern "C"
@@ -100,7 +100,7 @@ extern "C"
 #endif // __cplusplus
 void perf_timer_stop(uint32_t op_id);
 
-#endif // GROVETY_PERF_TIMER
+#endif // GROVETY_OP_BENCHMARK
 
 
 #ifdef __cplusplus
@@ -137,7 +137,7 @@ __STATIC_FORCEINLINE int32_t max_pool8_{uniq_id}(
   int32_t *pres32 = (int32_t *)res;
   int32_t retcode = 0;
 
-#ifdef GROVETY_PERF_TIMER
+#ifdef GROVETY_OP_BENCHMARK
   perf_timer_start(1);
 #endif
 
@@ -160,7 +160,7 @@ __STATIC_FORCEINLINE int32_t max_pool8_{uniq_id}(
   }}
 
 out:
-#ifdef GROVETY_PERF_TIMER
+#ifdef GROVETY_OP_BENCHMARK
   perf_timer_stop(1);
 #endif
 

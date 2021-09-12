@@ -178,12 +178,10 @@ void print_result() {
   }
   uint32_t elapsed_time_us = 0;
 
-#ifdef GROVETY_PERF_TIMER
   for (int i = 0; i < PERF_TIMER_NUMBER_OPS; i++) {
     elapsed_time_us = perf_timer_get_counter(i) / 1000;
     TVMLogf(":%d", elapsed_time_us);
   }
-#endif
 
   TVMLogf("\n");
 }
@@ -205,16 +203,12 @@ void main(void) {
   for (int index = 0;; index++) {
     input_data[0] = get_input();
 
-#ifdef GROVETY_PERF_TIMER
     perf_timer_clear_all();
     perf_timer_start(PERF_TIMER_TOTAL);
-#endif
 
     int ret_val = tvmgen_default_run(&inputs, &outputs);
 
-#ifdef GROVETY_PERF_TIMER
     perf_timer_stop(PERF_TIMER_TOTAL);
-#endif
 
     if (ret_val != 0) {
       TVMLogf("Error: %d\n", ret_val);
