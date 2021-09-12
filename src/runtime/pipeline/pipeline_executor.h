@@ -31,10 +31,10 @@ namespace runtime {
 /*!
  * \brief pipeline executor.
  *  This executor class use module list and dependency relations of modules as
- *  the parameters and executes these modules on heterogeneous pipeline parallel
- *  to improve throughput.
+ *  the parameters and executes these modules on heterogeneous targets in pipeline
+ *  parallel to improve throughput.
  *
- *  This executor can be acccesibly in various language via
+ *  This executor can be accessed by various language via
  *  TVM runtime PackedFunc API.
  */
 class TVM_DLL PipelineRuntime : public ModuleNode {
@@ -45,7 +45,7 @@ class TVM_DLL PipelineRuntime : public ModuleNode {
   const char* type_key() const final { return "PipelineRuntime"; }
   /*!
    * \brief Initialize the pipeline executor with module array and json text.
-   * \param modules The module list that used for building pipeline.
+   * \param modules The module list used for building pipeline.
    * \param pipeline_json The configuration of modules dependencies.
    */
   void Init(const Array<tvm::runtime::Module>& modules, const std::string& pipeline_json);
@@ -53,7 +53,7 @@ class TVM_DLL PipelineRuntime : public ModuleNode {
    * \brief Give frontends an access to packed functions.
    * \param name The name of the function.
    * \param sptr_to_self The pointer to the module node.
-   * \return The corresponding packed functions.
+   * \return The corresponding packed function.
    */
   virtual PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self);
 };

@@ -34,7 +34,7 @@ def pipeline_executor_enabled():
 
 
 def build(pipe_configs):
-    """Use pipe_config to build and return Module list and Module dependency configuration.
+    """Use pipe_config to build and return module list and module dependency configuration.
 
     Parameters
     ----------
@@ -97,58 +97,16 @@ def create(pipe_executor_factory_module):
 
 
 class PipelineModule(object):
-    """Wrapper of runtime module.
+    """Wrapper of runtime module, caller can use this module to set parameters and get outputs.
 
     Parameters
     ----------
-    pipeline_config : Dict[GraphExecutorFactoryModule, Dict[str, Any]]
-        Modules and modules dependency configuration informaitons.
+    module : PipelineExecutorFactoryModule
+        Common interface for pipeline executor factory modules.
     """
 
-    def __init__(self, pipe_mod_config):
-        self.pipeline_mods = pipe_mod_config.pipeline_mods
-        self.mod_config = pipe_mod_config.mods_config
-        mods, config = self.graph_executor_create(self.pipeline_mods, self.mod_config)
-        assert (
-            pipeline_executor_enabled()
-        ), "Pipeline executor is not enabled. Please \
-              re-build TVM with USE_PIPELINE_EXECUTOR=ON"
-        pipeline_create = tvm._ffi.get_global_func(
-            "tvm.pipeline_executor.create", allow_missing=False
-        )
-        assert pipeline_create
-        module = pipeline_create(mods, config)
-
-        self.module_ = module
-
-    def graph_executor_create(self, pipeline_mods, mod_config):
-        """Create graph_executor list and return configuration as a json string.
-
-        Parameters
-        ----------
-        pipeline_mods : List[GraphExecutorFactoryModule]
-          List of GraphExecutorFactoryModule
-
-        mod_config : Dict[str, Any]
-            Modules dependency configuration information.
-
-        Returns
-        -------
-        mods : List[Module]
-            Module list.
-
-        mod_config : str
-            Mods configuration.
-        """
-
-        mods = []
-        for pipeline_mod in pipeline_mods:
-            mod = graph_executor.GraphModule(
-                pipeline_mod["default"](pipeline_mods[pipeline_mod]["dev"])
-            )
-            mods.append(mod.module)
-
-        return mods, json.dumps(mod_config)
+    def __init__(self, module):
+        self.module = module.module
 
 
 class PipelineConfig(object):
@@ -186,7 +144,7 @@ class PipelineConfig(object):
             self.data_type = data_type
 
         def get_name(self):
-            """Return the interface name and name of owner who own this interface."""
+            """Return the interface name and name of owner who owns this interface."""
             owner_name = ""
             if isinstance(self.io_owner, PipelineConfig.ModuleWrapper):
                 owner_name = self.io_owner.name
@@ -203,7 +161,11 @@ class PipelineConfig(object):
             return 0
 
         def is_global_interface(self):
-            """It is to check whether this interface is global interface."""
+            """The global interface is the interface visible to the caller which use pipeline
+            executor, the global input interface is responsible for passing parameters to the
+            internal module interface, and the global output interface is responsible for
+            outputting the pipeline executor compute results to caller.
+            """
             return not isinstance(self.io_owner, PipelineConfig.ModuleWrapper)
 
         def __repr__(self):
@@ -215,7 +177,7 @@ class PipelineConfig(object):
             return ret
 
         def check_dag_acyclic(self, start, inputs):
-            """It is to check whether the DAG that contain the inputs interfaces is acyclic."""
+            """It is to check whether the DAG that contains the inputs interfaces is acyclic."""
             for binding in inputs.values():
                 if start == binding.io_owner:
                     return False
@@ -226,12 +188,11 @@ class PipelineConfig(object):
             return True
 
         def connect(self, binding):
-            """
-            # Check whether the binding settings is correct or not.
-            # correct connection are following
-            # 1. global input to module input
-            # 2. module output to global output
-            # 3. module output to module input
+            """Check whether the binding settings is correct or not.
+            correct connection are following
+            1. global input to module input
+            2. module output to global output
+            3. module output to module input
             """
             if self.io_owner == binding.io_owner:
                 raise RuntimeError(f"Can not bind itself.")
@@ -276,7 +237,7 @@ class PipelineConfig(object):
                 if not self.check_dag_acyclic(
                     binding.io_owner, self.io_owner.input_bindings.bindings
                 ):
-                    raise RuntimeError(f"Illegal connection: Cause a circle!")
+                    raise RuntimeError(f"Illegal connection: Cause a cycle!")
 
     class BindingList:
         """Container for bindings(input or output interface).
@@ -314,11 +275,10 @@ class PipelineConfig(object):
 
     class ModuleWrapper:
         """This class is a wrapper that represent the module, contains module informations,
-        binding informations and building informations.
+        binding informations and building information.
         """
 
         def __init__(self, mod=None):
-            """Init class"""
             self.target_host = None
             self.build_func = None
             self.params = None
@@ -348,14 +308,14 @@ class PipelineConfig(object):
 
             raise RuntimeError(f"{key} not found!")
 
-        def get_data_type(self, key, stype):
-            """Get the data type of the input or output interface of the module."""
-            if stype == "input":
+        def get_data_type(self, key, interface_type):
+            """Get module interface data type."""
+            if interface_type == "input":
                 for param in self.input_params:
                     if param.name_hint == key:
                         return param._checked_type_
 
-            if stype == "output":
+            if interface_type == "output":
                 if isinstance(self.output_values, tvm.ir.type.TupleType):
                     if int(key) < len(self.output_values.fields):
                         return self.output_values.fields[int(key)]
@@ -370,12 +330,12 @@ class PipelineConfig(object):
             self.name = "mod{}".format(str(idx))
 
         def is_root_mod(self):
-            """Check whether it is root node and use it in DAG topological sort."""
+            """Check whether it is root node, this function used by DAG topological sort."""
             return all([not b.parents for b in self.input_bindings.bindings.values()])
 
         def remove_self_from_bindings(self):
-            """Remove itself from child reference to reduce child node in-degree
-            and use it in DAG topological sort.
+            """Remove itself from child reference to reduce child node in-degree.
+            This function used by DAG topological sort.
             """
             for binding in self.output_bindings.bindings.values():
                 for child in binding.bindings:
@@ -502,17 +462,16 @@ class PipelineConfig(object):
         return idx
 
     def pipe_input(self, name):
-        """Return the corresponding input binding interface accordding the name."""
+        """Return the corresponding input binding interface accordding to the name."""
         return self.input_bindings[name]
 
     def pipe_output(self, idx):
-        """Return the corresponding output binding interface accordding the name."""
+        """Return the corresponding output binding interface accordding to the name."""
         return self.output_bindings[idx]
 
 
 class PipelineExecutorFactoryModule(object):
-    """This is a wrapper class which contains GraphExecutorFactoryModule list.
-    and Module configurations.
+    """Common interface for pipeline executor factory modules.
 
     Parameters
     ----------
@@ -520,10 +479,47 @@ class PipelineExecutorFactoryModule(object):
         list of GraphExecutorFactoryModule.
 
     mod_config : Dict[int, Dict[str, Any]]
-        modules and modules dependency configuration informaiton.
+        modules and modules dependency configuration information.
 
     """
 
     def __init__(self, pipeline_mods, mods_config):
-        self.pipeline_mods = pipeline_mods
-        self.mods_config = mods_config
+        mods, config = self.graph_executor_create(pipeline_mods, mods_config)
+        assert (
+            pipeline_executor_enabled()
+        ), "Pipeline executor is not enabled. Please \
+              re-build TVM with USE_PIPELINE_EXECUTOR=ON"
+        pipeline_create = tvm._ffi.get_global_func(
+            "tvm.pipeline_executor.create", allow_missing=False
+        )
+        assert pipeline_create
+        self.module = pipeline_create(mods, config)
+
+    def graph_executor_create(self, pipeline_mods, mod_config):
+        """Create graph_executor list and return configuration as a json string.
+
+        Parameters
+        ----------
+        pipeline_mods : List[GraphExecutorFactoryModule]
+          List of GraphExecutorFactoryModule
+
+        mod_config : Dict[str, Any]
+            Modules dependency configuration information.
+
+        Returns
+        -------
+        mods : List[Module]
+            Module list.
+
+        mod_config : str
+            Mods configuration.
+        """
+
+        mods = []
+        for pipeline_mod in pipeline_mods:
+            mod = graph_executor.GraphModule(
+                pipeline_mod["default"](pipeline_mods[pipeline_mod]["dev"])
+            )
+            mods.append(mod.module)
+
+        return mods, json.dumps(mod_config)

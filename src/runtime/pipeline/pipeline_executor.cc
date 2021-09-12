@@ -30,7 +30,7 @@ void PipelineRuntime::Init(const Array<tvm::runtime::Module>& modules,
   return;
 }
 
-/* GetFunction can not be pure abstract function, implement an empty function for initial.
+/* GetFunction can not be pure abstract function, implement an empty function for now.
  */
 PackedFunc PipelineRuntime::GetFunction(const std::string& name,
                                         const ObjectPtr<Object>& sptr_to_self) {
