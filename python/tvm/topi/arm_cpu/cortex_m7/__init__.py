@@ -18,3 +18,4 @@
 
 
 from . import conv2d
+from . import dense
