@@ -13,7 +13,7 @@ __STATIC_FORCEINLINE int32_t Sum16_{N}_{uniq_id}(
 	int n;
 	int32_t *p32;
 	int32_t res;
-	
+
 	if ( (long)arr % 4 != 0 ) {{
 		res = *arr;
 		p32 = (int32_t *)(&arr[1]);
@@ -23,16 +23,16 @@ __STATIC_FORCEINLINE int32_t Sum16_{N}_{uniq_id}(
 		p32 = (int32_t *)arr;
 		n = {N};
 	}}
-	
+
   for ( int i = 0; i < n / 2; ++ i ) {{
 		res += __SMUAD(*p32, 0x00010001);
 		++ p32;
 	}}
-	
-	if ( n % 2 != 0 ) 
+
+	if ( n % 2 != 0 )
 		res += *(int16_t *)p32;
-	
+
 	return res;
-}
+}}
     """
     return cc_code

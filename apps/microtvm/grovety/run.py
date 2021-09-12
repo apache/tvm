@@ -115,8 +115,13 @@ if __name__ == "__main__":
             transport.write(bytes(f"#input:{data_s}\n", 'UTF-8'), timeout_sec=5)
             result_line = get_message(transport, "#result", timeout_sec=5)
             r = result_line.strip("\n").split(":")
+            
             output_values = list(map(float, r[1].split(',')))
             max_index = np.argmax(output_values)
-            elapsed = int(r[2]) / 1000.0
+            elapsed_conv = int(r[2]) / 1000.0
+            elapsed_max_pool = int(r[3]) / 1000.0
+            elapsed_total = int(r[4]) / 1000.0
 
-            logging.info(f"time={elapsed}ms; input={label}; max_index={max_index}; output={output_values}")
+            benchmark_str = f"conv: {elapsed_conv}ms max_pool: {elapsed_max_pool}ms total: {elapsed_total}ms"
+
+            logging.info(f"input={label}; max_index={max_index}; {benchmark_str}; output={output_values}")
