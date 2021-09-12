@@ -133,8 +133,14 @@ extern "C"
 #include <arm_nnsupportfunctions.h>
 
 #ifdef GROVETY_PERF_TIMER
-extern "C" void perf_timer_start(uint32 op_id);
-extern "C" void perf_timer_stop(uint32 op_id);
+#ifdef __cplusplus
+extern "C" {
+#endif
+void perf_timer_start(uint32 op_id);
+void perf_timer_stop(uint32 op_id);
+#ifdef __cplusplus
+}
+#endif
 #endif
 
 #ifdef __cplusplus
