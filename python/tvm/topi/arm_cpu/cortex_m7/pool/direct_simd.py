@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name, no-value-for-parameter
 """Direct implementation of pool."""
+import tvm
 
 from tvm import te
 from tvm.topi.utils import simplify, traverse_inline
@@ -26,7 +27,7 @@ from ..micro_kernel.max_pool import (
 )
 
 
-def max_pool2d_direct_simd_nhwc_schedule(outs):
+def pool_direct_simd_nhwc_schedule(outs):
     """Schedule function for Cortex-M7 SIMD implementation of max_pool2d."""
     s = te.create_schedule([x.op for x in outs])
 
@@ -38,13 +39,18 @@ def max_pool2d_direct_simd_nhwc_schedule(outs):
         output = op.output(0)
         data_vec = op.input_tensors[0]
 
+        in_channels = data_vec.shape[-1]
+        if isinstance(in_channels, tvm.tir.IntImm):
+            in_channels = in_channels.value
+
         n, h, w, c = s[op].op.axis
         ko, ki = s[op].op.reduce_axis
-        s[op].reorder(n, h, w, ko, ki, c)
 
-        max, uniq_id = intrin_max(data_vec.shape[-1], data_vec.dtype, output.dtype)
-        s[op].tensorize(c, max)
-        s[output].pragma(n, "import_c", max_pool_impl(uniq_id))
+        if "pool_max" in op.tag:
+            s[op].reorder(n, h, w, ko, ki, c)
+            max, uniq_id = intrin_max(in_channels, data_vec.dtype, output.dtype)
+            s[op].tensorize(c, max)
+            s[output].pragma(n, "import_c", max_pool_impl(uniq_id))
 
     traverse_inline(s, outs[-1].op, _callback)
     return s

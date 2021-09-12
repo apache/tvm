@@ -54,7 +54,7 @@ def schedule_pool_arm_cpu(attrs, outs, target):
     isa = arm_isa.IsaAnalyzer(target)
     with target:
         if "SSUB8" in isa and "SEL" in isa:
-            return topi.arm_cpu.schedule_max_pool2d_direct_simd(outs)
+            return topi.arm_cpu.schedule_pool(outs)
         else:
             return topi.generic.schedule_pool(outs, attrs.layout)
 

@@ -23,6 +23,6 @@ from tvm import autotvm
 from .cortex_m7.pool import direct_simd
 
 
-def schedule_max_pool2d_direct_simd(outs):
+def schedule_pool(outs):
     """Create schedule for conv2d_direct_simd"""
-    return direct_simd.max_pool2d_direct_simd_nhwc_schedule(outs)
+    return direct_simd.pool_direct_simd_nhwc_schedule(outs)
