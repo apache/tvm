@@ -179,15 +179,17 @@ void print_result() {
   uint32_t elapsed_time_us = 0;
 
 #ifdef GROVETY_PERF_TIMER
-  elapsed_time_us = perf_timer_get_counter(PERF_TIMER_TOTAL) / 1000;
+  for (int i = 0; i < PERF_TIMER_NUMBER_OPS; i++) {
+    elapsed_time_us = perf_timer_get_counter(i) / 1000;
+    TVMLogf(":%d", elapsed_time_us);
+  }
 #endif
 
-  TVMLogf(":%d\n", elapsed_time_us);
+  TVMLogf("\n");
 }
 
 void main(void) {
   TVMPlatformUARTInit();
-  k_timer_init(&g_microtvm_timer, NULL, NULL);
 
   TVMLogf("Zephyr AOT Runtime\n");
 

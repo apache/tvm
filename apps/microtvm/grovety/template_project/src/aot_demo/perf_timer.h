@@ -15,6 +15,8 @@ enum PERF_TIMER_OPS {
     PERF_TIMER_TOTAL
 };
 
+#define PERF_TIMER_NUMBER_OPS (PERF_TIMER_TOTAL + 1)
+
 void perf_timer_start(uint32_t op_id);
 void perf_timer_stop(uint32_t op_id);
 
