@@ -14,18 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=wildcard-import
-"""Schedule for ARM CPU"""
+# pylint: disable=invalid-name, unused-variable, no-else-return, unused-argument, import-outside-toplevel
+"""Dense schedule for ARM CPU"""
 
-from .conv2d import *
-from .depthwise_conv2d import *
-from .conv2d_transpose import *
-from .conv2d_int8 import *
-from . import conv2d_alter_op
-from .bitserial_conv2d import *
-from .bitserial_dense import *
-from .injective import *
-from . import cortex_m7
-from .group_conv2d import *
-from .pooling import *
-from .dense import *
+from .cortex_m7.dense import direct_simd
+
+
+def schedule_dense_direct_simd(outs):
+    """Create schedule for dense_direct_simd"""
+    return direct_simd.dense_direct_simd_schedule(outs)

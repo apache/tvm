@@ -418,3 +418,15 @@ def schedule_bitserial_dense_arm_cpu(attrs, inputs, out_type, target):
         name="bitserial_dense.arm_cpu",
     )
     return strategy
+
+
+@dense_strategy.register(["arm_cpu", "micro_dev"])
+def schedule_dense_arm_cpu(attrs, inputs, out_type, target):
+    """dense arm cpu strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_dense(topi.nn.dense),
+        wrap_topi_schedule(topi.arm_cpu.schedule_dense_direct_simd),
+        name="dense_direct_simd.micro_dev",
+    )
+    return strategy
