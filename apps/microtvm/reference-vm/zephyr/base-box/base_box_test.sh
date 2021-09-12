@@ -37,3 +37,5 @@ if [ $board == "stm32f746g_disco" ] || [ $board == "nucleo_f746zg" ]; then
 else
     pytest tests/micro/zephyr/test_zephyr_aot.py --zephyr-board=${board}
 fi
+
+pytest tests/micro/zephyr/test_zephyr_armv7m.py --zephyr-board=${board}
