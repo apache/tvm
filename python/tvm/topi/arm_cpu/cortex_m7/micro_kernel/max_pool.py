@@ -89,9 +89,19 @@ extern "C"
 #include <arm_nnsupportfunctions.h>
 
 #ifdef GROVETY_PERF_TIMER
-extern "C" void perf_timer_start(uint32 op_id);
-extern "C" void perf_timer_stop(uint32 op_id);
-#endif
+
+#ifdef __cplusplus
+extern "C"
+#endif // __cplusplus
+void perf_timer_start(uint32_t op_id);
+
+#ifdef __cplusplus
+extern "C"
+#endif // __cplusplus
+void perf_timer_stop(uint32_t op_id);
+
+#endif // GROVETY_PERF_TIMER
+
 
 #ifdef __cplusplus
 extern "C"
@@ -99,7 +109,7 @@ extern "C"
 __STATIC_FORCEINLINE int32_t max_pool8_reset_{uniq_id}(
     int8_t *res,
     int N) {{
-  memset(res, (int8_t)-128, N * sizeof(*res));  
+  memset(res, (int8_t)-128, N * sizeof(*res));
   return 0;
 }}
 
@@ -107,8 +117,8 @@ __STATIC_FORCEINLINE int32_t max_pool8_reset_{uniq_id}(
 extern "C"
 #endif
 __STATIC_FORCEINLINE int32_t max_pool8_loop_{uniq_id}(
-    int8_t *arg, 
-    int8_t *res, 
+    int8_t *arg,
+    int8_t *res,
     int N) {{
   for ( int i = 0; i < N; ++ i )
     if ( arg[i] > res[i] )
@@ -120,13 +130,13 @@ __STATIC_FORCEINLINE int32_t max_pool8_loop_{uniq_id}(
 extern "C"
 #endif
 __STATIC_FORCEINLINE int32_t max_pool8_{uniq_id}(
-    int8_t *arg, 
-    int8_t *res, 
+    int8_t *arg,
+    int8_t *res,
     int N) {{
   int32_t *parg32 = (int32_t *)arg;
   int32_t *pres32 = (int32_t *)res;
   int32_t retcode = 0;
-  
+
 #ifdef GROVETY_PERF_TIMER
   perf_timer_start(1);
 #endif
@@ -153,7 +163,7 @@ out:
 #ifdef GROVETY_PERF_TIMER
   perf_timer_stop(1);
 #endif
-  
+
   return retcode;
 }}
     """

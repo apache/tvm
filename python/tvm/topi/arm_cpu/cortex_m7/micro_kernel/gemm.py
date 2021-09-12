@@ -133,15 +133,18 @@ extern "C"
 #include <arm_nnsupportfunctions.h>
 
 #ifdef GROVETY_PERF_TIMER
+
 #ifdef __cplusplus
-extern "C" {
-#endif
-void perf_timer_start(uint32 op_id);
-void perf_timer_stop(uint32 op_id);
+extern "C"
+#endif // __cplusplus
+void perf_timer_start(uint32_t op_id);
+
 #ifdef __cplusplus
-}
-#endif
-#endif
+extern "C"
+#endif // __cplusplus
+void perf_timer_stop(uint32_t op_id);
+
+#endif // GROVETY_PERF_TIMER
 
 #ifdef __cplusplus
 extern "C"
@@ -219,7 +222,7 @@ __STATIC_FORCEINLINE int32_t gemm_{M}x{K}x{N}_body_{uniq_id}(
 #ifdef GROVETY_PERF_TIMER
   perf_timer_start(0);
 #endif
-  
+
   if ( {M} < 16 || {N} < 16 ) {{
     retcode = gemm_{M}x{K}x{N}_body_loop_{uniq_id}(aa, bb, cc, A_stride, B_stride, C_stride);
     goto out;
@@ -253,6 +256,9 @@ __STATIC_FORCEINLINE int32_t gemm_{M}x{K}x{N}_body_{uniq_id}(
     gemm_{M}x{N}_body_rest_{uniq_id}({K}, aa, bb, cc, A_stride, B_stride, C_stride);
 
 out:
+#ifdef GROVETY_PERF_TIMER
+  perf_timer_stop(0);
+#endif
   return retcode;
 }}
 
@@ -413,7 +419,7 @@ extern "C"
 #endif
 __STATIC_FORCEINLINE int32_t gemm16_{M}x{K}x{N}_body_{uniq_id}(
     int16_t *aa, int16_t *bb, int32_t *cc,
-    int A_stride, int B_stride, int C_stride) {{  
+    int A_stride, int B_stride, int C_stride) {{
   int32_t retcode = 0;
 
 #ifdef GROVETY_PERF_TIMER
@@ -429,7 +435,7 @@ __STATIC_FORCEINLINE int32_t gemm16_{M}x{K}x{N}_body_{uniq_id}(
     for (int j = 0; j < {N}; j++) {{
       int32_t *aa_ptr = (int32_t *) &aa[i*A_stride];
       int32_t *bb_ptr = (int32_t *) &bb[j*B_stride];
-    
+
       int32_t sum = 0;
       for (int l = 0; l < {K} / 2; l++) {{
         sum = __SMLAD(*aa_ptr, *bb_ptr, sum);
@@ -494,7 +500,7 @@ extern "C"
 #endif
 __STATIC_FORCEINLINE int32_t gemm16_{M}x{K}x{N}_update_{uniq_id}(
     int16_t *aa, int16_t *bb, int32_t *cc,
-    int A_stride, int B_stride, int C_stride) {{  
+    int A_stride, int B_stride, int C_stride) {{
   int32_t retcode = 0;
 
 #ifdef GROVETY_PERF_TIMER
@@ -502,7 +508,7 @@ __STATIC_FORCEINLINE int32_t gemm16_{M}x{K}x{N}_update_{uniq_id}(
 #endif
 
   if ( {M} < 2 || {N} < 2 ) {{
-    retcode = gemm16_{M}x{K}x{N}_update_loop_{uniq_id}(aa, bb, cc, A_stride, B_stride, C_stride);  
+    retcode = gemm16_{M}x{K}x{N}_update_loop_{uniq_id}(aa, bb, cc, A_stride, B_stride, C_stride);
     goto out;
   }}
 
