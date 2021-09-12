@@ -26,7 +26,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run model on the MCU")
     parser.add_argument("--model", type=str, choices=["cifar10", "mnist8", "sine"], default="cifar10", help="Model type")
     parser.add_argument("--relay", action='store_true', help="print relay for the model and exit")
-    parser.add_argument("--disable-optimization", action="store_true", default=False, help="Disable arch optimizations")
     parser.add_argument("--platform", type=str, choices=PLATFORMS.keys(), default=list(PLATFORMS.keys())[0], help="Platform")
     parser.add_argument("--log-level", type=str, choices=["DEBUG", "INFO"], default="INFO", help="Log level")
     parser.add_argument("--verbose", action='store_true')
@@ -59,12 +58,11 @@ if __name__ == "__main__":
         print(relay_mod)
         exit(0)
 
-    # convert layouts
-    if not args.disable_optimization:
-        desired_layouts = {'qnn.conv2d': ['NHWC', 'HWOI'], 'nn.conv2d': ['NHWC', 'HWOI']}
-        seq = tvm.transform.Sequential([relay.transform.RemoveUnusedFunctions(), relay.transform.ConvertLayout(desired_layouts)])
-        with tvm.transform.PassContext(opt_level=3):
-            relay_mod = seq(relay_mod)
+    # CONV: layout conversion to met instrinsics requrements for conv2d
+    desired_layouts = {'qnn.conv2d': ['NHWC', 'HWOI'], 'nn.conv2d': ['NHWC', 'HWOI']}
+    seq = tvm.transform.Sequential([relay.transform.RemoveUnusedFunctions(), relay.transform.ConvertLayout(desired_layouts)])
+    with tvm.transform.PassContext(opt_level=3):
+        relay_mod = seq(relay_mod)
 
     # build relay for the target
     target_str = f"c -keys=arm_cpu -mcpu={platform['mcpu']}  -march={platform['march']} -model={platform['model']} -runtime=c -link-params=1 --executor=aot --unpacked-api=1 --interface-api=c"
