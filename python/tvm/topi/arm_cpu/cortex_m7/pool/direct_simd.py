@@ -26,15 +26,33 @@ from ..micro_kernel.max_pool import (
     max_pool_impl,
 )
 
+from ..micro_kernel.avg_pool import (
+    intrin_sum,
+    sum_impl,
+)
+
+
+def schedule_maxpool_2d(s, op):
+    output = op.output(0)
+    data_vec = op.input_tensors[0]
+
+    in_channels = data_vec.shape[-1]
+    if isinstance(in_channels, tvm.tir.IntImm):
+        in_channels = in_channels.value
+
+    n, h, w, c = s[op].op.axis
+    ko, ki = s[op].op.reduce_axis
+
+    s[op].reorder(n, h, w, ko, ki, c)
+    max, uniq_id = intrin_max(in_channels, data_vec.dtype, output.dtype)
+    s[op].tensorize(c, max)
+    s[output].pragma(n, "import_c", max_pool_impl(uniq_id))
 
 def pool_direct_simd_nhwc_schedule(outs):
     """Schedule function for Cortex-M7 SIMD implementation of max_pool2d."""
     s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
-        if "pool_max" not in op.tag:
-            return
-
         # extract tensors
         output = op.output(0)
         data_vec = op.input_tensors[0]
@@ -42,6 +60,10 @@ def pool_direct_simd_nhwc_schedule(outs):
         in_channels = data_vec.shape[-1]
         if isinstance(in_channels, tvm.tir.IntImm):
             in_channels = in_channels.value
+
+        # if "pool_max" not in op.tag and not ("pool_sum" in op.tag and data_vec.dtype == "int16"):
+        if "pool_max" not in op.tag and "pool_sum" not in op.tag:
+            return
 
         n, h, w, c = s[op].op.axis
         ko, ki = s[op].op.reduce_axis
@@ -51,6 +73,11 @@ def pool_direct_simd_nhwc_schedule(outs):
             max, uniq_id = intrin_max(in_channels, data_vec.dtype, output.dtype)
             s[op].tensorize(c, max)
             s[output].pragma(n, "import_c", max_pool_impl(uniq_id))
+        elif "pool_sum" in op.tag:
+            sum, uniq_id = intrin_sum(in_channels, data_vec.dtype, output.dtype)
+            s[op].tensorize(ki, sum)
+            s[output].pragma(n, "import_c", sum_impl(in_channels, uniq_id))
+            pass
 
     traverse_inline(s, outs[-1].op, _callback)
     return s
