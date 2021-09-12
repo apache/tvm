@@ -19,16 +19,21 @@
 import argparse
 
 ARM_ISA_MAP = {
-    "armv7e-m": ["SMLAD", "SSUB8", "SEL"],
+    "armv7e-m": ["SMLAD", "SSUB8", "SEL", "SMUAD"],
 }
 
 
 class IsaAnalyzer(object):
     def __init__(self, target):
         self.target = target
-        # TODO: actually parse -mcpu
-        arch = "armv7e-m"
-        self._isa_map = ARM_ISA_MAP[arch]
+
+        parser = argparse.ArgumentParser()
+        parser.add_argument("-mcpu", type=str)
+        parser.add_argument("-march", type=str)
+        args, _ = parser.parse_known_args(str(target).split())
+
+        self._isa_map = ARM_ISA_MAP[args.march] if args.march in ARM_ISA_MAP else []
+
 
     def __contains__(self, instruction):
         return instruction in self._isa_map
