@@ -31,6 +31,7 @@
 #include "model_data.h"
 #include "tvmgen_default.h"
 #include "zephyr_uart.h"
+#include "perf_timer.h"
 
 #ifdef CONFIG_ARCH_POSIX
 #include "posix_board_if.h"
@@ -61,70 +62,6 @@ tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
   return StackMemoryManager_Free(&app_workspace, ptr);
 }
 
-void timer_expiry_function(struct k_timer* timer_id) { return; }
-
-#define MILLIS_TIL_EXPIRY 200
-#define TIME_TIL_EXPIRY (K_MSEC(MILLIS_TIL_EXPIRY))
-struct k_timer g_microtvm_timer;
-uint32_t g_microtvm_start_time;
-int g_microtvm_timer_running = 0;
-
-// Called to start system timer.
-tvm_crt_error_t TVMPlatformTimerStart() {
-  if (g_microtvm_timer_running) {
-    TVMLogf("timer already running");
-    return kTvmErrorPlatformTimerBadState;
-  }
-
-  k_timer_start(&g_microtvm_timer, TIME_TIL_EXPIRY, TIME_TIL_EXPIRY);
-  g_microtvm_start_time = k_cycle_get_32();
-  g_microtvm_timer_running = 1;
-  return kTvmErrorNoError;
-}
-
-// Called to stop system timer.
-tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
-  if (!g_microtvm_timer_running) {
-    TVMLogf("timer not running");
-    return kTvmErrorSystemErrorMask | 2;
-  }
-
-  uint32_t stop_time = k_cycle_get_32();
-
-  // compute how long the work took
-  uint32_t cycles_spent = stop_time - g_microtvm_start_time;
-  if (stop_time < g_microtvm_start_time) {
-    // we rolled over *at least* once, so correct the rollover it was *only*
-    // once, because we might still use this result
-    cycles_spent = ~((uint32_t)0) - (g_microtvm_start_time - stop_time);
-  }
-
-  uint32_t ns_spent = (uint32_t)k_cyc_to_ns_floor64(cycles_spent);
-  double hw_clock_res_us = ns_spent / 1000.0;
-
-  // need to grab time remaining *before* stopping. when stopped, this function
-  // always returns 0.
-  int32_t time_remaining_ms = k_timer_remaining_get(&g_microtvm_timer);
-  k_timer_stop(&g_microtvm_timer);
-  // check *after* stopping to prevent extra expiries on the happy path
-  if (time_remaining_ms < 0) {
-    return kTvmErrorSystemErrorMask | 3;
-  }
-  uint32_t num_expiries = k_timer_status_get(&g_microtvm_timer);
-  uint32_t timer_res_ms = ((num_expiries * MILLIS_TIL_EXPIRY) + time_remaining_ms);
-  double approx_num_cycles =
-      (double)k_ticks_to_cyc_floor32(1) * (double)k_ms_to_ticks_ceil32(timer_res_ms);
-  // if we approach the limits of the HW clock datatype (uint32_t), use the
-  // coarse-grained timer result instead
-  if (approx_num_cycles > (0.5 * (~((uint32_t)0)))) {
-    *elapsed_time_seconds = timer_res_ms / 1000.0;
-  } else {
-    *elapsed_time_seconds = hw_clock_res_us / 1e6;
-  }
-
-  g_microtvm_timer_running = 0;
-  return kTvmErrorNoError;
-}
 
 void* TVMBackendAllocWorkspace(int device_type, int device_id, uint64_t nbytes, int dtype_code_hint,
                                int dtype_bits_hint) {
@@ -206,7 +143,6 @@ float get_input() {
   if (strncmp((char*)(cmd_buf), "#input", 6))
     return -1;
 
-
   // TVMLogf("input readed\n");
   ptr = cmd_buf;
   int index = 0;
@@ -233,14 +169,20 @@ float get_input() {
   return 0;
 }
 
-void print_result(double elapsed_time) {
+void print_result() {
   TVMLogf("#result:");
   for (int i = 0; i < OUTPUT_DATA_LEN; i++) {
     float y = output_data[i];
     TVMLogf("%.3f", y);
     if (i < OUTPUT_DATA_LEN - 1) TVMLogf(",");
   }
-  TVMLogf(":%d\n", (uint32_t)(elapsed_time * 1000000));
+  uint32_t elapsed_time_us = 0;
+
+#ifdef GROVETY_PERF_TIMER
+  elapsed_time_us = perf_timer_get_counter(PERF_TIMER_TOTAL) / 1000;
+#endif
+
+  TVMLogf(":%d\n", elapsed_time_us);
 }
 
 void main(void) {
@@ -261,17 +203,23 @@ void main(void) {
   for (int index = 0;; index++) {
     input_data[0] = get_input();
 
-    double elapsed_time = 0;
-    TVMPlatformTimerStart();
+#ifdef GROVETY_PERF_TIMER
+    perf_timer_clear_all();
+    perf_timer_start(PERF_TIMER_TOTAL);
+#endif
+
     int ret_val = tvmgen_default_run(&inputs, &outputs);
-    TVMPlatformTimerStop(&elapsed_time);
+
+#ifdef GROVETY_PERF_TIMER
+    perf_timer_stop(PERF_TIMER_TOTAL);
+#endif
 
     if (ret_val != 0) {
       TVMLogf("Error: %d\n", ret_val);
       TVMPlatformAbort(kTvmErrorPlatformCheckFailure);
     }
 
-    print_result(elapsed_time);
+    print_result();
   }
 #ifdef CONFIG_ARCH_POSIX
   posix_exit(0);
