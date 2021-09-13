@@ -386,7 +386,8 @@ def extract_fused_functions(mod):
 
 def list_op_frequencies(mod):
     """Pass to extract unique operator names and how frequently they appear
-    in an IRModule.
+    in an IRModule. Fused functions are traversed to count the operators
+    that compose them.
 
     Parameters
     ----------
