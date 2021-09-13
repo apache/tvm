@@ -36,11 +36,6 @@ class OperatorExtractorWrapper : private ExprVisitor {
   Map<String, tvm::Integer> Extract() {
     VisitExpr(this->mod_->Lookup("main"));
 
-    // Map<String, tvm::Integer> opname_freqs;
-    // for (const auto& kv : operator_freqs_) {
-    //   opname_freqs.Set(kv.first->name, kv.second);
-    // }
-    // return opname_freqs;
     return operator_freqs_;
   }
 
