@@ -156,7 +156,12 @@ stage('Prepare') {
 }
 
 stage("Sanity Check") {
-  echo("Changed files: ${changedFiles}")
+  when {
+    anyOf {
+        changeset "docs/**"
+        changeset "tutorials/**"
+    }
+  }
   timeout(time: max_time, unit: 'MINUTES') {
     node('CPU') {
       ws(per_exec_ws("tvm/sanity")) {
