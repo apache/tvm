@@ -201,6 +201,11 @@ def unpack_lib(name, libs) {
 }
 
 stage('Build') {
+  when {
+    not {
+      changeset pattern: "/(?i)\.(?:md|txt)$/", comparator: "REGEXP" 
+    }
+  }
   parallel 'BUILD: GPU': {
     node('GPUBUILD') {
       ws(per_exec_ws("tvm/build-gpu")) {
@@ -222,21 +227,15 @@ stage('Build') {
         make(ci_cpu, 'build', '-j2')
         pack_lib('cpu', tvm_multilib_tsim)
         timeout(time: max_time, unit: 'MINUTES') {
-          try{
-            sh "${docker_run} ${ci_cpu} ./tests/scripts/task_ci_setup.sh"
-            sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_unittest.sh"
-            sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh"
-            sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_fsim.sh"
-            sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_tsim.sh"
-            sh "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh"
-            // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
-            // TODO(@jroesch): need to resolve CI issue will turn back on in follow up patch
-          } catch {err} {
-            echo err.getMessage()
-            echo "Error detected, check pytest logs..."
-          } finally {
-            junit "build/pytest-results/*.xml"
-          }
+          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_ci_setup.sh"
+          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_unittest.sh"
+          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh"
+          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_fsim.sh"
+          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_tsim.sh"
+          // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
+          // TODO(@jroesch): need to resolve CI issue will turn back on in follow up patch
+          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh"
+          junit "build/pytest-results/*.xml"
         }
       }
     }
@@ -281,15 +280,9 @@ stage('Build') {
         sh "${docker_run} ${ci_qemu} ./tests/scripts/task_config_build_qemu.sh"
         make(ci_qemu, 'build', '-j2')
         timeout(time: max_time, unit: 'MINUTES') {
-          try {
-            sh "${docker_run} ${ci_qemu} ./tests/scripts/task_ci_setup.sh"
-            sh "${docker_run} ${ci_qemu} ./tests/scripts/task_python_microtvm.sh"
-          } catch (err) {
-            echo err.getMessage()
-            echo "Error detected, check pytest logs..."
-          } finally {
-            junit "build/pytest-results/*.xml"
-          }
+          sh "${docker_run} ${ci_qemu} ./tests/scripts/task_ci_setup.sh"
+          sh "${docker_run} ${ci_qemu} ./tests/scripts/task_python_microtvm.sh"
+          junit "build/pytest-results/*.xml"
         }
       }
     }
@@ -303,17 +296,11 @@ stage('Unit Test') {
         init_git()
         unpack_lib('gpu', tvm_multilib)
         timeout(time: max_time, unit: 'MINUTES') {
-          try {
-            sh "${docker_run} ${ci_gpu} ./tests/scripts/task_ci_setup.sh"
-            sh "${docker_run} ${ci_gpu} ./tests/scripts/task_sphinx_precheck.sh"
-            sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_unittest_gpuonly.sh"
-            sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_integration_gpuonly.sh"
-          } catch(err) {
-            echo err.getMessage()
-            echo "Error detected, check pytest logs..."
-          } finally {
-            junit "build/pytest-results/*.xml"
-          }
+          sh "${docker_run} ${ci_gpu} ./tests/scripts/task_ci_setup.sh"
+          sh "${docker_run} ${ci_gpu} ./tests/scripts/task_sphinx_precheck.sh"
+          sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_unittest_gpuonly.sh"
+          sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_integration_gpuonly.sh"
+          junit "build/pytest-results/*.xml"
         }
       }
     }
@@ -324,17 +311,11 @@ stage('Unit Test') {
         init_git()
         unpack_lib('i386', tvm_multilib)
         timeout(time: max_time, unit: 'MINUTES') {
-          try {
-            sh "${docker_run} ${ci_i386} ./tests/scripts/task_ci_setup.sh"
-            sh "${docker_run} ${ci_i386} ./tests/scripts/task_python_unittest.sh"
-            sh "${docker_run} ${ci_i386} ./tests/scripts/task_python_integration.sh"
-            sh "${docker_run} ${ci_i386} ./tests/scripts/task_python_vta_fsim.sh"
-          } catch (err) {
-            echo err.getMessage()
-            echo "Error detected, check pytest logs..."
-          } finally {
-            junit "build/pytest-results/*.xml"
-          }
+          sh "${docker_run} ${ci_i386} ./tests/scripts/task_ci_setup.sh"
+          sh "${docker_run} ${ci_i386} ./tests/scripts/task_python_unittest.sh"
+          sh "${docker_run} ${ci_i386} ./tests/scripts/task_python_integration.sh"
+          sh "${docker_run} ${ci_i386} ./tests/scripts/task_python_vta_fsim.sh"
+          junit "build/pytest-results/*.xml"
         }
       }
     }
@@ -345,17 +326,11 @@ stage('Unit Test') {
         init_git()
         unpack_lib('arm', tvm_multilib)
         timeout(time: max_time, unit: 'MINUTES') {
-          try {
-            sh "${docker_run} ${ci_arm} ./tests/scripts/task_ci_setup.sh"
-            sh "${docker_run} ${ci_arm} ./tests/scripts/task_python_unittest.sh"
-            sh "${docker_run} ${ci_arm} ./tests/scripts/task_python_arm_compute_library.sh"
-          } catch (err) {
-            echo err.getMessage()
-            echo "Error detected, check pytest logs..."
-          } finally {
-            junit "build/pytest-results/*.xml"
-            // sh "${docker_run} ${ci_arm} ./tests/scripts/task_python_integration.sh"
-          }
+          sh "${docker_run} ${ci_arm} ./tests/scripts/task_ci_setup.sh"
+          sh "${docker_run} ${ci_arm} ./tests/scripts/task_python_unittest.sh"
+          sh "${docker_run} ${ci_arm} ./tests/scripts/task_python_arm_compute_library.sh"
+          junit "build/pytest-results/*.xml"
+          // sh "${docker_run} ${ci_arm} ./tests/scripts/task_python_integration.sh"
         }
       }
     }
@@ -381,15 +356,9 @@ stage('Integration Test') {
         init_git()
         unpack_lib('gpu', tvm_multilib)
         timeout(time: max_time, unit: 'MINUTES') {
-          try {
-            sh "${docker_run} ${ci_gpu} ./tests/scripts/task_ci_setup.sh"
-            sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_topi.sh"
-          } catch (err) {
-            echo err.getMessage()
-            echo "Error detected, check pytest logs..."
-          } finally {
-            junit "build/pytest-results/*.xml"
-          }
+          sh "${docker_run} ${ci_gpu} ./tests/scripts/task_ci_setup.sh"
+          sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_topi.sh"
+          junit "build/pytest-results/*.xml"
         }
       }
     }
@@ -400,15 +369,9 @@ stage('Integration Test') {
         init_git()
         unpack_lib('gpu', tvm_multilib)
         timeout(time: max_time, unit: 'MINUTES') {
-          try {
-            sh "${docker_run} ${ci_gpu} ./tests/scripts/task_ci_setup.sh"
-            sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_frontend.sh"
-          } catch (err) {
-            echo err.getMessage()
-            echo "Error detected, check pytest logs..."
-        } finally {
-            junit "build/pytest-results/*.xml"
-          }
+          sh "${docker_run} ${ci_gpu} ./tests/scripts/task_ci_setup.sh"
+          sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_frontend.sh"
+          junit "build/pytest-results/*.xml"
         }
       }
     }
@@ -419,15 +382,9 @@ stage('Integration Test') {
         init_git()
         unpack_lib('cpu', tvm_multilib)
         timeout(time: max_time, unit: 'MINUTES') {
-          try {
-            sh "${docker_run} ${ci_cpu} ./tests/scripts/task_ci_setup.sh"
-            sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_frontend_cpu.sh"
-          } catch (err) {
-            echo err.getMessage()
-            echo "Error detected, check pytest logs..."
-          } finally {
-            junit "build/pytest-results/*.xml"
-          }
+          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_ci_setup.sh"
+          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_frontend_cpu.sh"
+          junit "build/pytest-results/*.xml"
         }
       }
     }
