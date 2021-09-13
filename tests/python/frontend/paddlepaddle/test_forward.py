@@ -434,17 +434,17 @@ def test_forward_crop():
 def test_forward_cumsum():
     class Cusum1(nn.Layer):
         @paddle.jit.to_static
-        def forward(inputs):
+        def forward(self, inputs):
             return paddle.cumsum(inputs)
 
     class Cusum2(nn.Layer):
         @paddle.jit.to_static
-        def forward(inputs):
+        def forward(self, inputs):
             return paddle.cumsum(inputs, axis=0)
 
     class Cusum3(nn.Layer):
         @paddle.jit.to_static
-        def forward(inputs):
+        def forward(self, inputs):
             return paddle.cumsum(inputs, axis=1)
 
     input_data = paddle.randint(0, 100, (10, 10), dtype=paddle.int32)
