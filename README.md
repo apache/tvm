@@ -26,7 +26,7 @@
 [![WinMacBuild](https://github.com/apache/tvm/workflows/WinMacBuild/badge.svg)](https://github.com/apache/tvm/actions?query=workflow%3AWinMacBuild)
 
 Apache TVM is a compiler stack for deep learning systems. It is designed to close the gap between the
-productivity-focused 
+productivity-focused
 deep learning frameworks, and the performance- and efficiency-focused hardware backends.
 TVM works with
 deep learning frameworks to provide end to end compilation to different backends.
