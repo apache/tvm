@@ -156,12 +156,6 @@ stage('Prepare') {
 }
 
 stage("Sanity Check") {
-  when {
-    anyOf {
-        changeset "docs/**"
-        changeset "tutorials/**"
-    }
-  }
   timeout(time: max_time, unit: 'MINUTES') {
     node('CPU') {
       ws(per_exec_ws("tvm/sanity")) {
@@ -214,6 +208,13 @@ def unpack_lib(name, libs) {
 }
 
 stage('Build') {
+  when {
+    not {
+       allOf {
+        changeset "docs/**"
+      } 
+    }
+  }
   parallel 'BUILD: GPU': {
     node('GPUBUILD') {
       ws(per_exec_ws("tvm/build-gpu")) {
@@ -298,6 +299,13 @@ stage('Build') {
 }
 
 stage('Unit Test') {
+  when {
+    not {
+       allOf {
+        changeset "docs/**"
+      } 
+    }
+  }
   parallel 'python3: GPU': {
     node('TensorCore') {
       ws(per_exec_ws("tvm/ut-python-gpu")) {
