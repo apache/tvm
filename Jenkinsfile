@@ -117,7 +117,6 @@ def changedFiles = currentBuild.changeSets
     .collect{ it.getAffectedPaths() }
     .flatten()
     .toSet() //Ensures uniqueness.
-echo("Changed files: ${changedFiles}")
 
 def cancel_previous_build() {
     // cancel previous build if it is not on main.
@@ -157,7 +156,7 @@ stage('Prepare') {
 }
 
 stage("Sanity Check") {
-  changedFiles()
+  echo("Changed files: ${changedFiles}")
   timeout(time: max_time, unit: 'MINUTES') {
     node('CPU') {
       ws(per_exec_ws("tvm/sanity")) {
