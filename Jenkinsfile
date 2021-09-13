@@ -201,6 +201,11 @@ def unpack_lib(name, libs) {
 }
 
 stage('Build') {
+  when {
+    not {
+      changeset "docs/**"
+    }
+  }
   parallel 'BUILD: GPU': {
     node('GPUBUILD') {
       ws(per_exec_ws("tvm/build-gpu")) {
@@ -285,6 +290,11 @@ stage('Build') {
 }
 
 stage('Unit Test') {
+  when {
+    not {
+      changeset "docs/**"
+    }
+  }
   parallel 'python3: GPU': {
     node('TensorCore') {
       ws(per_exec_ws("tvm/ut-python-gpu")) {
@@ -345,6 +355,11 @@ stage('Unit Test') {
 }
 
 stage('Integration Test') {
+  when {
+    not {
+      changeset "docs/**"
+    }
+  }
   parallel 'topi: GPU': {
     node('GPU') {
       ws(per_exec_ws("tvm/topi-python-gpu")) {
