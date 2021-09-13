@@ -3926,6 +3926,7 @@ def _get_convert_map(opset):
         "NegativeLogLikelihoodLoss": NegativeLogLikelihoodLoss.get_converter(opset),
         "Adagrad": Adagrad.get_converter(opset),
         "Adam": Adam.get_converter(opset),
+        "Momentum": Momentum.get_converter(opset),
     }
 
 

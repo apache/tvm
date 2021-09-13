@@ -235,7 +235,8 @@ def verify_with_ort(
 
 
 def quantize_and_verify_with_ort(onnx_model, input_names, input_shapes, target, dev):
-    from onnxruntime.quantization import CalibrationDataReader, QuantType, quantize_static
+    from onnxruntime.quantization import (CalibrationDataReader, QuantType,
+                                          quantize_static)
 
     input_arrays = [np.random.random(shape).astype("float32") for shape in input_shapes]
 
@@ -4760,10 +4761,7 @@ unsupported_onnx_tests = [
     "test_maxpool_with_argmax_2d_precomputed_pads",
     "test_maxpool_with_argmax_2d_precomputed_strides",
     "test_maxunpool_export_with_output_shape",
-    "test_momentum",
-    "test_momentum_multiple",
     "test_mvn",
-    "test_nesterov_momentum",
     # When unsqueeze is fully supported, remaining nllloss tests should work:
     "test_nllloss_NC_expanded",
     "test_nllloss_NCd1_expanded",
