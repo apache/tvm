@@ -20,6 +20,7 @@ import shutil
 import numpy as np
 
 import paddle
+from paddle.framework import dtype
 import paddle.nn as nn
 
 import tvm
@@ -152,6 +153,7 @@ def test_forward_unary_op():
         "ceil",
         "cos",
         "cosh",
+        "erf",
         "exp",
         "floor",
         "log",
@@ -535,6 +537,36 @@ def test_forward_conv_transpose():
 
 
 @tvm.testing.uses_gpu
+def test_forward_dist():
+    @paddle.jit.to_static
+    def dist(x, y):
+        return paddle.dist(x, y, p=2)
+
+    @paddle.jit.to_static
+    def dist2(x, y):
+        return paddle.dist(x, y, p=20)
+
+    @paddle.jit.to_static
+    def dist3(x, y):
+        return paddle.dist(x, y, p=float("-inf"))
+
+    @paddle.jit.to_static
+    def dist4(x, y):
+        return paddle.dist(x, y, p=float("inf"))
+
+    x_shape = [10, 3]
+    y_shape = [
+        10,
+    ]
+    x_data = paddle.rand(x_shape, dtype="float32")
+    y_data = paddle.rand(y_shape, dtype="float32")
+    verify_model(dist, input_data=[x_data, y_data])
+    verify_model(dist2, input_data=[x_data, y_data])
+    verify_model(dist3, input_data=[x_data, y_data])
+    verify_model(dist4, input_data=[x_data, y_data])
+
+
+@tvm.testing.uses_gpu
 def test_forward_dot():
     @paddle.jit.to_static
     def dot(x, y):
@@ -574,6 +606,19 @@ def test_forward_expand():
     x_data = paddle.rand(x_shape, dtype="float32")
     verify_model(expand1, input_data=[x_data])
     verify_model(expand2, input_data=[x_data])
+
+
+@tvm.testing.uses_gpu
+def test_forward_expand_as():
+    @paddle.jit.to_static
+    def expand_as(x, y):
+        z = paddle.expand(x, y)
+        z += y
+        return z
+
+    data_x = paddle.to_tensor([1, 2, 3], dtype="int32")
+    data_y = paddle.to_tensor([[1, 2, 3], [4, 5, 6]], dtype="float32")
+    verify_model(expand_as, [data_x, data_y])
 
 
 @tvm.testing.uses_gpu
@@ -1491,6 +1536,7 @@ if __name__ == "__main__":
     test_forward_dropout()
     test_forward_elemwise()
     test_forward_expand()
+    test_forward_expand_as()
     test_forward_flatten()
     test_forward_shape_full()
     test_forward_ones()

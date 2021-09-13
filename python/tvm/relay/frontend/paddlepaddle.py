@@ -466,6 +466,29 @@ def convert_dropout(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_dist(g, op, block):
+    """Operator converter for dist."""
+
+    x = g.get_node(op.input("X")[0])
+    y = g.get_node(op.input("Y")[0])
+    dtype = infer_type(x).checked_type.dtype
+    p = op.attr("p")
+
+    x -= y
+    if p == np.inf:
+        out = _op.reduce.max(_op.abs(x))
+    elif p == np.NINF:
+        out = _op.reduce.min(_op.abs(x))
+    else:
+        reci_order = _expr.const(1.0 / p, dtype=dtype)
+        p = _expr.const(p)
+        out = _op.power(
+            _op.reduce.sum(_op.power(_op.abs(x), p)),
+            reci_order,
+        )
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_dot(g, op, block):
     """Operator converter for dot."""
 
@@ -538,6 +561,19 @@ def convert_expand(g, op, block):
                 sizes[i] = int(infer_value(sizes[i], {}).numpy())
             out = _op.repeat(out, sizes[i], axis=i)
 
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_expand_as(g, op, block):
+    """Operator converter for expand_as."""
+
+    x = g.get_node(op.input("X")[0])
+    y = g.get_node(op.input("X")[0])
+    x_type = infer_type(x).dtype
+    y_type = infer_type(y).dtype
+    if str(x_type) != str(y_type):
+        y = _op.cast(y, x_type)
+    out = _op.broadcast_to_like(x, y)
     g.add_node(op.output("Out")[0], out)
 
 
@@ -1588,6 +1624,7 @@ _convert_map = {
     "crop_tensor": convert_crop,
     "cumsum": convert_cumsum,
     "depthwise_conv2d": convert_conv2d,
+    "dist": convert_dist,
     "dot": convert_dot,
     "dropout": convert_dropout,
     "elementwise_add": convert_elementwise_op,
@@ -1600,8 +1637,10 @@ _convert_map = {
     "elementwise_pow": convert_elementwise_op,
     "elementwise_floordiv": convert_elementwise_op,
     "equal": convert_elementwise_op,
+    "erf": convert_unary_op,
     "exp": convert_unary_op,
     "expand_v2": convert_expand,
+    "expand_as": convert_expand_as,
     "feed": convert_feed,
     "fill_any_like": convert_fill_any_like,
     "fill_constant": convert_fill_constant,
