@@ -3582,6 +3582,8 @@ class NegativeLogLikelihoodLoss(OnnxOpConverter):
 
 
 class Adagrad(OnnxOpConverter):
+    """Operator converter for adagrad op."""
+
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         decay_factor = attr.get("decay_factor", 0.0)
