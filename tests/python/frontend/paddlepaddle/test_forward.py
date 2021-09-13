@@ -39,6 +39,9 @@ def assert_shapes_match(tru, est):
     if tru.shape != est.shape:
         msg = "Output shapes {} and {} don't match"
         raise AssertionError(msg.format(tru.shape, est.shape))
+    if tru.dtype != est.dtype:
+        msg = "Output dtype {} and {} don't match"
+        raise AssertionError(msg.format(tru.dtype, est.dtype))
 
 
 def get_paddle_model(func, input_spec):
