@@ -41,10 +41,12 @@ class OperatorExtractorWrapper : private ExprVisitor {
 
  private:
   const IRModule mod_;
-  // Array of unique operator names
+  // Array of unique operator names.
   Array<String> operators;
 
   void VisitExpr_(const OpNode* n) final {
+    // NOTE: OpNode is visited only once for every operator kind
+    // regardless of how many times that op appears in the graph.
     this->operators.push_back(n->name);
 
     ExprVisitor::VisitExpr_(n);

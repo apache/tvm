@@ -385,7 +385,7 @@ def extract_fused_functions(mod):
 
 
 def extract_operators(mod):
-    """Pass to extract operator names from an IRModule.
+    """Pass to extract unique operator names from an IRModule.
 
     Parameters
     ----------
