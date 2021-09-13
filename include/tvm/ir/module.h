@@ -122,6 +122,7 @@ class IRModuleNode : public Object {
     v->Visit("global_var_map_", &global_var_map_);
     v->Visit("global_type_var_map_", &global_type_var_map_);
     v->Visit("source_map", &source_map);
+    v->Visit("attrs", &attrs);
   }
 
   TVM_DLL bool SEqualReduce(const IRModuleNode* other, SEqualReducer equal) const;
@@ -278,6 +279,12 @@ class IRModuleNode : public Object {
   TVM_DLL void Update(const IRModule& other);
 
   /*!
+   * \brief Create a shallow copy of this IRModule.
+   * \returns The shallow copy of the IRModule.
+   */
+  TVM_DLL IRModule ShallowCopy();
+
+  /*!
    * \brief Import Relay code from the file at path.
    * \param path The path of the Relay code to import.
    *
@@ -348,12 +355,14 @@ class IRModule : public ObjectRef {
    * \brief constructor
    * \param functions Functions in the module.
    * \param type_definitions Type definitions in the module.
-   * \param import_set Set of imported files in the module
+   * \param import_set Set of imported files in the module.
    * \param map The module source map.
+   * \param attrs The module attributes.
    */
   TVM_DLL explicit IRModule(Map<GlobalVar, BaseFunc> functions,
                             Map<GlobalTypeVar, TypeData> type_definitions = {},
-                            std::unordered_set<String> import_set = {}, parser::SourceMap map = {});
+                            std::unordered_set<String> import_set = {}, parser::SourceMap map = {},
+                            DictAttrs attrs = {});
 
   /*! \brief default constructor */
   IRModule() : IRModule(Map<GlobalVar, BaseFunc>({})) {}
@@ -414,6 +423,13 @@ class IRModule : public ObjectRef {
    * \return A Relay module.
    */
   TVM_DLL static IRModule FromText(const String& text, const String& source_path);
+
+  /*!
+   * \brief Create a shallow copy of an IRModule.
+   * \param mod The module to copy.
+   * \return The copied module.
+   */
+  IRModule ShallowCopyIRModule(IRModule mod);
 
   /*! \brief Declare the container type. */
   using ContainerType = IRModuleNode;
