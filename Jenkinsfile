@@ -203,7 +203,7 @@ def unpack_lib(name, libs) {
 stage('Build') {
   when {
     not {
-      changeset pattern: "/(?i)\.(?:md|txt)$/", comparator: "REGEXP" 
+      changeset pattern: "/(?i)\.(?:md|txt)$/", comparator: "REGEXP"
     }
   }
   parallel 'BUILD: GPU': {
