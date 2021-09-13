@@ -241,26 +241,23 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
     ICHECK(main_func_info) << "The attribute \"main_func_info\" should be set at this point.";
     function_metadata_.Set(runtime::symbol::tvm_module_main, main_func_info.value());
 
-    // Get only the Relay functions out of the lowered module so we can run type inference on them
-    IRModule main_module = tec::GetMainModule(lowered_mod);
-    main_module = relay::transform::InferType()(main_module);
-    relay::Function main_func = Downcast<relay::Function>(main_module->Lookup("main"));
+    Function lowered_main_func = Downcast<Function>(lowered_mod->Lookup("main"));
 
     // Now that we have lowered all operators to TIR code, we can proceed with compilation.
     //
     // We need to unfortunately re-plan as the previous results have been invalidated by lowering
     // we will fix this in future refactors.
-    memory_plan_ = GraphPlanMemory(main_func);
+    memory_plan_ = GraphPlanMemory(lowered_main_func);
 
     // The graph planner also can not handle planning calls to global variables to we must remap
 
     // First we convert all the parameters into input nodes.
-    for (auto param : main_func->params) {
+    for (auto param : lowered_main_func->params) {
       auto node_ptr = GraphInputNode::make_node_ptr(param->name_hint(), GraphAttrs());
       var_map_[param.get()] = AddNode(node_ptr, param);
     }
 
-    heads_ = VisitExpr(main_func->body);
+    heads_ = VisitExpr(lowered_main_func->body);
     std::ostringstream os;
 
     dmlc::JSONWriter writer(&os);
@@ -277,7 +274,7 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
 
     Optional<Array<tvm::runtime::Module>> external_modules =
         lowered_mod->GetAttr<Array<tvm::runtime::Module>>("external_mods");
-    ICHECK(external_modules) << "Attribute \"external_modules\" should be set at this point.";
+    ICHECK(external_modules) << "Attribute \"external_mods\" should be set at this point.";
 
     // This is the point where we separate the functions in the module by target
     ret.lowered_funcs = tec::GetPerTargetModules(lowered_mod);

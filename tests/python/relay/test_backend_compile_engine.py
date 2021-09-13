@@ -194,6 +194,8 @@ def test_compile_engine():
     engine.dump()
 
 
+# Note: Once compile engine is removed, we should keep this test so that
+# we make sure that opt_level=0 passes are being called correctly.
 def test_compile_placeholder_bypass():
     engine = relay.backend.compile_engine.get()
     x = relay.var("x", shape=(2, 3))

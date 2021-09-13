@@ -165,13 +165,6 @@ Target GetTargetFromInteger(DLDeviceType dev_type, TargetMap targets);
  */
 Map<Target, IRModule> GetPerTargetModules(IRModule mod);
 
-/*!
- * \brief Utility to extract all the Relay functions from an IRModule, with no PrimFuncs.
- * \param mod The IRModule to extract the Relay functions from
- * \return An IRModule containing only the Relay functions that are in the input mod (no PrimFuncs)
- */
-IRModule GetMainModule(IRModule mod);
-
 /*! \brief Lower an IRModule's primitive functions to TIR.
  *
  * This is the "back half" of the Relay compiler which lowers "primitive functions"
