@@ -54,7 +54,7 @@ class OperatorExtractorWrapper : private ExprVisitor {
 };
 
 Array<String> ExtractOperatorsPacked(const IRModule& mod) {
-    return OperatorExtractorWrapper(mod).Extract();
+  return OperatorExtractorWrapper(mod).Extract();
 }
 
 TVM_REGISTER_GLOBAL("relay.analysis.ExtractOperators").set_body_typed(ExtractOperatorsPacked);
