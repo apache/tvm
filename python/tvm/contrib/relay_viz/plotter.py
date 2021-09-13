@@ -53,13 +53,14 @@ class Graph(abc.ABC):
                         the ID to the ending node.
         """
 
+
 class Plotter(abc.ABC):
     """Abstract class for plotters.
 
     Implement this interface for various graph libraries.
     """
 
-    @abc.abstractclassmethod
+    @abc.abstractmethod
     def create_graph(name):
         """Create a graph
 

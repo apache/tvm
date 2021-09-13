@@ -19,8 +19,12 @@ import logging
 import copy
 from tvm import relay
 from enum import Enum
+from .plotter import Plotter
+from .render_callback import RenderCallback
+
 
 _LOGGER = logging.getLogger(__name__)
+
 
 class PlotterBackend(Enum):
     """Enumeration for available plotters."""
@@ -32,9 +36,7 @@ class PlotterBackend(Enum):
 class RelayVisualizer:
     """Relay IR Visualizer"""
 
-    def __init__(
-        self, relay_mod, relay_param=None, backend=PlotterBackend.BOKEH
-    ):
+    def __init__(self, relay_mod, relay_param=None, backend=PlotterBackend.BOKEH):
         """Visualize Relay IR.
 
         Parameters
@@ -43,15 +45,15 @@ class RelayVisualizer:
                         Relay IR module
         relay_param: dict
                         Relay parameter dictionary
-        backend: PlotterBackend.
-                        The backend of plotting. Default "bokeh"
+        backend: PlotterBackend or a tuple
+                        PlotterBackend: The backend of plotting. Default "bokeh"
+                        tuple: A tuple with two arguments. First is user-defined Plotter, the second is user-defined RenderCallback
         """
 
-        self._plotter, self.render_rules = get_plotter_and_render_cb(backend)
+        self._plotter, self._render_rules = get_plotter_and_render_rules(backend)
         self._relay_param = relay_param if relay_param is not None else {}
         # This field is used for book-keeping for each graph.
         self._node_to_id = {}
-        # self.test_type = set()
 
         global_vars = relay_mod.get_global_vars()
         graph_names = []
@@ -93,14 +95,14 @@ class RelayVisualizer:
         # Based on https://tvm.apache.org/2020/07/14/bert-pytorch-tvm
         unknown_type = "unknown"
         for node, node_id in node_to_id.items():
-            # self.test_type.add(type(node))
-            if type(node) in self.render_rules:
-                graph_info, edge_info = self.render_rules[type(node)](node, relay_param, node_to_id)
+            if type(node) in self._render_rules:
+                graph_info, edge_info = self._render_rules[type(node)](
+                    node, relay_param, node_to_id
+                )
                 if graph_info:
                     graph.node(*graph_info)
-                while edge_info:
-                    this_edge = edge_info.pop(0)
-                    graph.edge(*this_edge)
+                for edge in edge_info:
+                    graph.edge(*edge)
             else:
                 unknown_info = "Unknown node: {}".format(type(node))
                 _LOGGER.warning(unknown_info)
@@ -110,15 +112,31 @@ class RelayVisualizer:
         return self._plotter.render(filename=filename)
 
 
-def get_plotter_and_render_cb(backend):
+def get_plotter_and_render_rules(backend):
+    if type(backend) is tuple and len(backend) == 2:
+        if not isinstance(backend[0], Plotter):
+            raise ValueError("First elemnet of the backend should be a plotter")
+        plotter = backend[0]
+        if not isinstance(backend[1], RenderCallback):
+            raise ValueError("Second elemnet of the backend should be a callback")
+        render = backend[1]
+        render_rules = render.get_rules()
+        return plotter, render_rules
+
     if backend in PlotterBackend:
         if backend == PlotterBackend.BOKEH:
-            from ._bokeh import BokehPlotter, BokehRenderCallback  # pylint: disable=import-outside-toplevel
+            from ._bokeh import (
+                BokehPlotter,
+                BokehRenderCallback,
+            )  # pylint: disable=import-outside-toplevel
+
             plotter = BokehPlotter()
             render = BokehRenderCallback()
 
         elif backend == PlotterBackend.TERMINAL:
             from ._terminal import TermPlotter, TermRenderCallback
+
+            print(isinstance(TermPlotter(), Plotter))
             plotter = TermPlotter()
             render = TermRenderCallback()
 
