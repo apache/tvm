@@ -111,6 +111,14 @@ def init_git_win() {
     }
 }
 
+def changedFiles = currentBuild.changeSets
+    .collect{ it.getItems() }
+    .flatten() //Ensures that we look through each commit, not just the first.
+    .collect{ it.getAffectedPaths() }
+    .flatten()
+    .toSet() //Ensures uniqueness.
+echo("Changed files: ${changedFiles}")
+
 def cancel_previous_build() {
     // cancel previous build if it is not on main.
     if (env.BRANCH_NAME != "main") {
@@ -201,11 +209,7 @@ def unpack_lib(name, libs) {
 }
 
 stage('Build') {
-  when {
-    not {
-      changeset pattern: "/(?i)\.(?:md|txt)$/", comparator: "REGEXP"
-    }
-  }
+  changedFiles()  
   parallel 'BUILD: GPU': {
     node('GPUBUILD') {
       ws(per_exec_ws("tvm/build-gpu")) {
