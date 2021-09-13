@@ -156,10 +156,8 @@ class PopenWorker:
             cmd += [str(worker_read_handle), str(worker_write_handle)]
             self._proc = subprocess.Popen(cmd, close_fds=False)
         else:
-            import logging
-            logging.debug("mehrdad popen")
             cmd += [str(worker_read), str(worker_write)]
-            self._proc = subprocess.Popen(cmd, pass_fds=(worker_read, worker_write), stdout=subprocess.STDOUT)
+            self._proc = subprocess.Popen(cmd, pass_fds=(worker_read, worker_write))
 
         # close worker side of the pipe
         os.close(worker_read)

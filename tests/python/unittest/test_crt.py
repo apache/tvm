@@ -265,7 +265,7 @@ def test_autotune():
         do_fork=True,
         build_func=tvm.micro.autotvm_build_func,
     )
-    runner = tvm.autotvm.LocalRunner(number=1, repeat=1, timeout=0, module_loader=module_loader)
+    runner = tvm.autotvm.LocalRunner(number=1, repeat=1, module_loader=module_loader)
 
     measure_option = tvm.autotvm.measure_option(builder=builder, runner=runner)
 
@@ -285,6 +285,8 @@ def test_autotune():
             ],
             si_prefix="M",
         )
+
+    assert tuner.best_flops > 0
 
     # Build without tuning
     with pass_context:

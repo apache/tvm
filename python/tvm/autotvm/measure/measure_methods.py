@@ -359,9 +359,6 @@ class RPCRunner(Runner):
                     res = future.result()
                     results.append(res)
                 except Exception as ex:  # pylint: disable=broad-except
-                    # import pdb; pdb.set_trace()
-                    logging.debug("Mehrdad")
-                    logging.debug(f"exception: {str(ex)}")
                     results.append(
                         MeasureResult(
                             (str(ex),), MeasureErrorNo.RUN_TIMEOUT, self.timeout, time.time()

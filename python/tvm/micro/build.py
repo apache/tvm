@@ -89,13 +89,6 @@ class AutoTvmModuleLoader:
             build_result_bin = build_file.read()
 
         tracker = _rpc.connect_tracker(remote_kw["host"], remote_kw["port"])
-        import sys
-        with open("mehrdad_log.log", "w") as f:
-            f.write(f"mehrdad: {str(type(self._template_project_dir))}\n")
-            f.write(f"mehrdad: {self._template_project_dir}\n")
-        # import pdb; pdb.set_trace()
-        # sys.stdout.write("merhdad type:")
-        # sys.stderr.write(f"mehrdad: {str(type(self._template_project_dir))}")
         remote = tracker.request(
             remote_kw["device_key"],
             priority=remote_kw["priority"],
@@ -109,10 +102,6 @@ class AutoTvmModuleLoader:
         )
         system_lib = remote.get_function("runtime.SystemLib")()
         yield remote, system_lib
-        try:
-            remote.get_function("tvm.micro.destroy_micro_session")()
-        except tvm.error.TVMError as exception:
-            _LOG.warning("Error destroying remote session: %s", str(exception), exc_info=1)
 
 
 def autotvm_build_func():
