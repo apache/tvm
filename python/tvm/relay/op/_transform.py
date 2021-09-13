@@ -183,10 +183,6 @@ _reg.register_strategy("invert_permutation", strategy.invert_permutation_strateg
 _reg.register_shape_func("invert_permutation", False, elemwise_shape_func)
 
 
-# einsum
-_reg.register_strategy("einsum", strategy.einsum_strategy)
-
-
 #####################
 #  Shape functions  #
 #####################
