@@ -269,9 +269,16 @@ class Pool(OnnxOpConverter):
     """A helper class for pool op converters."""
 
     name = ""
+    is_quant = False
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
+        if cls.is_quant:
+            x_scale = get_scalar(inputs[1], params)
+            x_zero_point = get_scalar(inputs[2], params, dtype="int32")
+            y_scale = fold_constant(get_scalar(inputs[3], params))
+            y_zero_point = get_scalar(inputs[4], params, dtype="int32")
+
         data = inputs[0]
         input_shape = infer_shape(data)
         input_dtype = infer_type(data).checked_type.dtype
@@ -321,7 +328,7 @@ class Pool(OnnxOpConverter):
         else:
             attr["layout"] = onnx_default_layout(dims=(len(input_shape) - 2), op_name=cls.name)
 
-        return AttrCvt(
+        attr_cvt = AttrCvt(
             op_name=dimension_picker(cls.name),
             transforms={
                 "kernel_shape": "pool_size",
@@ -330,7 +337,16 @@ class Pool(OnnxOpConverter):
             },
             ignores=["storage_order"],
             custom_check=dimension_constraint(),
-        )([data], attr, params)
+        )
+        # Onnxruntime doesn't actually do this op in integer, they dequantize to fp32
+        # and then requantize afer
+        # https://github.com/microsoft/onnxruntime/blob/master/docs/ContribOperators.md#com.microsoft.QLinearAveragePool
+        if cls.is_quant:
+            input = _qnn.op.dequantize(data, x_scale, x_zero_point)
+            out = attr_cvt([input], attr, params)
+            return _qnn.op.quantize(out, y_scale, y_zero_point, out_dtype=input_dtype)
+        else:
+            return attr_cvt([data], attr, params)
 
 
 class Absolute(Unary):
@@ -349,6 +365,13 @@ class AveragePool(Pool):
     """Operator converter for AveragePool."""
 
     name = "avg_pool"
+
+
+class QLinearAveragePool(Pool):
+    """Operator converter for QLinearAveragePool from Microsoft onnxruntime contrib opset."""
+
+    name = "avg_pool"
+    is_quant = True
 
 
 class BatchNorm(OnnxOpConverter):
@@ -652,6 +675,40 @@ class GlobalAveragePool(OnnxOpConverter):
             "Global average pooling is only implemented for 1D, 2D, and 3D kernels, got %dD."
             % (rank - 2),
         )
+
+
+class QLinearGlobalAveragePool(OnnxOpConverter):
+    "Operator converter for QLinearGlobalAveragePool from Microsoft onnxruntime contrib opset."
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        rank = len(infer_shape(inputs[0]))
+
+        x_scale = get_scalar(inputs[1], params)
+        x_zero_point = get_scalar(inputs[2], params, dtype="int32")
+        y_scale = fold_constant(get_scalar(inputs[3], params))
+        y_zero_point = get_scalar(inputs[4], params, dtype="int32")
+
+        input_dtype = infer_type(inputs[0]).checked_type.dtype
+
+        # Onnxruntime documentation does not mention that this global avg_pool should follow the
+        # sequence dequantize -> float op -> quantize, but that is how QLinearAveragePool is done.
+        #
+        # This op also follows the same pattern since qnn op is not available right now.
+        # It can be modified once qnn support for GlobalAveragePool is added
+        x = _qnn.op.dequantize(inputs[0], x_scale, x_zero_point)
+        if rank == 3:
+            out = _op.nn.global_avg_pool1d(x)
+        elif rank == 4:
+            out = _op.nn.global_avg_pool2d(x)
+        elif rank == 5:
+            out = _op.nn.global_avg_pool3d(x)
+        else:
+            raise NotImplementedError(
+                "Global average pooling is only implemented for 1D, 2D, and 3D kernels, got %dD."
+                % (rank - 2),
+            )
+        return _qnn.op.quantize(out, y_scale, y_zero_point, out_dtype=input_dtype)
 
 
 class GlobalMaxPool(OnnxOpConverter):
@@ -3794,12 +3851,14 @@ def _get_convert_map(opset):
         "Xor": Renamer("logical_xor"),
         # defs/nn
         "AveragePool": AveragePool.get_converter(opset),
+        "QLinearAveragePool": QLinearAveragePool.get_converter(opset),
         "LpPool": LpPool.get_converter(opset),
         "MaxPool": MaxPool.get_converter(opset),
         "MaxUnpool": MaxUnpool.get_converter(opset),
         "Conv": Conv.get_converter(opset),
         "ConvTranspose": ConvTranspose.get_converter(opset),
         "GlobalAveragePool": GlobalAveragePool.get_converter(opset),
+        "QLinearGlobalAveragePool": QLinearGlobalAveragePool.get_converter(opset),
         "GlobalMaxPool": GlobalMaxPool.get_converter(opset),
         "BatchNormalization": BatchNorm.get_converter(opset),
         "InstanceNormalization": InstanceNorm.get_converter(opset),
