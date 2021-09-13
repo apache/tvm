@@ -887,10 +887,8 @@ def test_forward_logical_op():
         "logical_or",
         "logical_and",
     ]
-    x_data = np.array([True, False], dtype=np.bool).reshape(2, 1)
-    y_data = np.array([True, False, True, False], dtype=np.bool).reshape(2, 2)
-    x = paddle.to_tensor(x_data)
-    y = paddle.to_tensor(y_data)
+    x = paddle.to_tensor([True])
+    y = paddle.to_tensor([True, False, True, False])
     for op_name in op_list:
         verify_model(LogicalOp(op_name, False), [x, y])
         verify_model(LogicalOp(op_name, True), [x, y])

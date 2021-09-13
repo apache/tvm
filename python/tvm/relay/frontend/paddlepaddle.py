@@ -495,8 +495,6 @@ def convert_elementwise_op(g, op, block):
         "less_equal": "less_equal",
         "less_than": "less",
         "not_equal": "not_equal",
-        "logical_or": "logical_or",
-        "logical_and": "logical_and",
     }
     op_func = op_map[op.type]
     ipt0 = g.get_node(op.input("X")[0])
@@ -781,6 +779,16 @@ def convert_log1p(g, op, block):
     dtype = infer_type(x).checked_type.dtype
     one = _expr.const(1, dtype=dtype)
     out = _op.log(x + one)
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_logical_op(g, op, block):
+    """Operator converter for logical op."""
+
+    ipt0 = g.get_node(op.input("X")[0])
+    ipt1 = g.get_node(op.input("Y")[0])
+    op_func = get_relay_op(op.type)
+    out = op_func(ipt0, ipt1)
     g.add_node(op.output("Out")[0], out)
 
 
@@ -1620,8 +1628,8 @@ _convert_map = {
     "log2": convert_unary_op,
     "log10": convert_unary_op,
     "log1p": convert_log1p,
-    "logical_and": convert_elementwise_op,
-    "logical_or": convert_elementwise_op,
+    "logical_and": convert_logical_op,
+    "logical_or": convert_logical_op,
     "logsumexp": convert_logsumexp,
     "matmul": convert_matmul,
     "matmul_v2": convert_matmul,
