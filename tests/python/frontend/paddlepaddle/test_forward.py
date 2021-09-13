@@ -37,10 +37,10 @@ PADDLE_TEST_DATA_ROOT_PATH.mkdir(parents=True, exist_ok=True)
 
 def assert_shapes_match(tru, est):
     if tru.shape != est.shape:
-        msg = "Output shapes {} and {} don't match"
+        msg = "Paddle Output shapes {} and TVM shapes {} don't match"
         raise AssertionError(msg.format(tru.shape, est.shape))
     if tru.dtype != est.dtype:
-        msg = "Output dtype {} and {} don't match"
+        msg = "Paddle Output dtype {} and TVM dtype {} don't match"
         raise AssertionError(msg.format(tru.dtype, est.dtype))
 
 
@@ -296,21 +296,22 @@ def test_forward_argmin():
 
 @tvm.testing.uses_gpu
 def test_forward_assign():
-    @paddle.jit.to_static
-    def assign(inputs):
-        return paddle.assign(inputs)
+    class Assign(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.assign(inputs)
 
     input_shape = [2, 3]
     input_data = paddle.rand(input_shape, dtype="float32")
     verify_model(
-        assign,
+        Assign(),
         [
             input_data,
         ],
     )
     input_data2 = np.random.randint(100, size=input_shape)
     verify_model(
-        assign,
+        Assign(),
         [
             input_data2,
         ],
@@ -431,29 +432,32 @@ def test_forward_crop():
 
 @tvm.testing.uses_gpu
 def test_forward_cumsum():
-    @paddle.jit.to_static
-    def cusum1(inputs):
-        return paddle.cumsum(inputs)
+    class Cusum1(nn.Layer):
+        @paddle.jit.to_static
+        def forward(inputs):
+            return paddle.cumsum(inputs)
 
-    @paddle.jit.to_static
-    def cusum2(inputs):
-        return paddle.cumsum(inputs, axis=0)
+    class Cusum2(nn.Layer):
+        @paddle.jit.to_static
+        def forward(inputs):
+            return paddle.cumsum(inputs, axis=0)
 
-    @paddle.jit.to_static
-    def cusum3(inputs):
-        return paddle.cumsum(inputs, axis=1)
+    class Cusum3(nn.Layer):
+        @paddle.jit.to_static
+        def forward(inputs):
+            return paddle.cumsum(inputs, axis=1)
 
     input_data = paddle.randint(0, 100, (10, 10), dtype=paddle.int32)
-    verify_model(cusum1, [input_data])
-    verify_model(cusum1, [input_data.astype(paddle.int64)])
+    verify_model(Cusum1, [input_data])
+    verify_model(Cusum1, [input_data.astype(paddle.int64)])
     verify_model(
-        cusum2,
+        Cusum2,
         [
             input_data,
         ],
     )
     verify_model(
-        cusum3,
+        Cusum3,
         [
             input_data,
         ],

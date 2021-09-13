@@ -80,6 +80,26 @@ def _infer_value(x, params):
             return x
 
 
+def _convert_dtype_value(val):
+    """converts a Paddle type id to a string."""
+
+    convert_dtype_map = {
+        21: "int8",
+        20: "uint8",
+        6: "float64",
+        5: "float32",
+        4: "float16",
+        3: "int64",
+        2: "int32",
+        1: "int16",
+        0: "bool",
+    }
+    if val not in convert_dtype_map:
+        msg = "Paddle data type value %d is not handled yet." % (val)
+        raise NotImplementedError(msg)
+    return convert_dtype_map[val]
+
+
 def convert_unary_op(g, op, block):
     """Operator converter for all the activation."""
 
@@ -126,6 +146,8 @@ def convert_arg_max(g, op, block):
     axis = op.attr("axis")
     keepdims = op.attr("keepdims")
     flatten = op.attr("flatten")
+    dtype = op.attr("dtype")
+    dtype = _convert_dtype_value(dtype)
 
     x = g.get_node(op.input("X")[0])
     if axis is None or flatten:
@@ -133,6 +155,8 @@ def convert_arg_max(g, op, block):
         out = _op.argmax(x, axis=None, keepdims=True)
     else:
         out = _op.argmax(x, axis=axis, keepdims=keepdims)
+    if dtype != infer_type(out).checked_type.dtype:
+        out = _op.cast(out, dtype)
     g.add_node(op.output("Out")[0], out)
 
 
@@ -142,6 +166,8 @@ def convert_arg_min(g, op, block):
     axis = op.attr("axis")
     keepdims = op.attr("keepdims")
     flatten = op.attr("flatten")
+    dtype = op.attr("dtype")
+    dtype = _convert_dtype_value(dtype)
 
     x = g.get_node(op.input("X")[0])
     if axis is None or flatten:
@@ -149,13 +175,15 @@ def convert_arg_min(g, op, block):
         out = _op.argmin(x, axis=None, keepdims=True)
     else:
         out = _op.argmin(x, axis=axis, keepdims=keepdims)
+    if dtype != infer_type(out).checked_type.dtype:
+        out = _op.cast(out, dtype)
     g.add_node(op.output("Out")[0], out)
 
 
 def convert_assign(g, op, block):
     """Operator converter for assign."""
 
-    out = _op.copy(g.get_node(op.input("X")[0]))
+    out = g.get_node(op.input("X")[0])
     g.add_node(op.output("Out")[0], out)
 
 
@@ -997,7 +1025,7 @@ def convert_numel(g, op, block):
     """Operator converter for numel."""
 
     input_x = g.get_node(op.input("Input")[0])
-    out = _op.ndarray_size(input_x)
+    out = _op.ndarray_size(input_x, dtype="int64")
     out = _op.expand_dims(out, axis=0)
     g.add_node(op.output("Out")[0], out)
 
@@ -1536,7 +1564,7 @@ def convert_topk(g, op, block):
         k = _infer_value(k_node, g.get_params())
     else:
         k = op.attr("k")
-    outs = _op.topk(x, k=k, axis=axis, is_ascend=is_ascend, ret_type="both", dtype="int32")
+    outs = _op.topk(x, k=k, axis=axis, is_ascend=is_ascend, ret_type="both", dtype="int64")
 
     g.add_node(op.output("Out")[0], outs[0])
     g.add_node(op.output("Indices")[0], outs[1])
