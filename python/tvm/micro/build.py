@@ -21,6 +21,7 @@ import json
 import logging
 import os
 import pathlib
+import contextlib
 
 from .._ffi import libinfo
 from .. import rpc as _rpc
@@ -82,11 +83,19 @@ class AutoTvmModuleLoader:
         elif not isinstance(template_project_dir, str):
             raise TypeError(f"Incorrect type {type(template_project_dir)}.")
 
+    @contextlib.contextmanager
     def __call__(self, remote_kw, build_result):
         with open(build_result.filename, "rb") as build_file:
             build_result_bin = build_file.read()
 
         tracker = _rpc.connect_tracker(remote_kw["host"], remote_kw["port"])
+        import sys
+        with open("mehrdad_log.log", "w") as f:
+            f.write(f"mehrdad: {str(type(self._template_project_dir))}\n")
+            f.write(f"mehrdad: {self._template_project_dir}\n")
+        # import pdb; pdb.set_trace()
+        # sys.stdout.write("merhdad type:")
+        # sys.stderr.write(f"mehrdad: {str(type(self._template_project_dir))}")
         remote = tracker.request(
             remote_kw["device_key"],
             priority=remote_kw["priority"],
