@@ -448,16 +448,16 @@ def test_forward_cumsum():
             return paddle.cumsum(inputs, axis=1)
 
     input_data = paddle.randint(0, 100, (10, 10), dtype=paddle.int32)
-    verify_model(Cusum1, [input_data])
-    verify_model(Cusum1, [input_data.astype(paddle.int64)])
+    verify_model(Cusum1(), [input_data])
+    verify_model(Cusum1(), [input_data.astype(paddle.int64)])
     verify_model(
-        Cusum2,
+        Cusum2(),
         [
             input_data,
         ],
     )
     verify_model(
-        Cusum3,
+        Cusum3(),
         [
             input_data,
         ],
