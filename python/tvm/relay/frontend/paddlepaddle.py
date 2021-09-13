@@ -162,7 +162,7 @@ def convert_assign(g, op, block):
 def convert_assign_value(g, op, block):
     """Operator converter for assign_value."""
 
-    keys = ["fp32_values", "int32_values", "int64_values"]
+    keys = ["bool_values", "fp32_values", "int32_values", "int64_values"]
     for key in keys:
         value = np.array(op.attr(key))
         if value is not None and value.size >= 1:
@@ -495,6 +495,8 @@ def convert_elementwise_op(g, op, block):
         "less_equal": "less_equal",
         "less_than": "less",
         "not_equal": "not_equal",
+        "logical_or": "logical_or",
+        "logical_and": "logical_and",
     }
     op_func = op_map[op.type]
     ipt0 = g.get_node(op.input("X")[0])

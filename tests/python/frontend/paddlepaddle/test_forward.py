@@ -864,6 +864,39 @@ def test_forward_leaky_relu():
 
 
 @tvm.testing.uses_gpu
+def test_forward_logical_op():
+    class LogicalOp(nn.Layer):
+        def __init__(self, op_name, out=False):
+            super(LogicalOp, self).__init__()
+            self.out = out
+            for candidate in (paddle, paddle.nn.functional):
+                self.func = getattr(candidate, op_name, None)
+                if self.func:
+                    break
+
+        @paddle.jit.to_static
+        def forward(self, x, y):
+            if self.out:
+                out = paddle.to_tensor([True, True, True])
+                z = self.func(x, y, out=out)
+            else:
+                z = self.func(x, y)
+            return paddle.cast(z, "int32")
+
+    op_list = [
+        "logical_or",
+        "logical_and",
+    ]
+    x_data = np.array([True, False], dtype=np.bool).reshape(2, 1)
+    y_data = np.array([True, False, True, False], dtype=np.bool).reshape(2, 2)
+    x = paddle.to_tensor(x_data)
+    y = paddle.to_tensor(y_data)
+    for op_name in op_list:
+        verify_model(LogicalOp(op_name, False), [x, y])
+        verify_model(LogicalOp(op_name, True), [x, y])
+
+
+@tvm.testing.uses_gpu
 def test_forward_look_up():
     @paddle.jit.to_static
     def look_up(inputs, weight):
@@ -1474,6 +1507,7 @@ if __name__ == "__main__":
     test_forward_isinf()
     test_forward_layer_norm()
     test_forward_leaky_relu()
+    test_forward_logical_op()
     test_forward_look_up()
     test_forward_lstm()
     test_forward_matmul()
