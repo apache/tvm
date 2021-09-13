@@ -91,6 +91,4 @@ def test_extract_resnet():
 
 
 if __name__ == "__main__":
-    test_extract_identity()
-    test_extract_conv_net()
-    test_extract_resnet()
+    pytest.main([__file__])
