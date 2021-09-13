@@ -111,13 +111,6 @@ def init_git_win() {
     }
 }
 
-def changedFiles = currentBuild.changeSets
-    .collect{ it.getItems() }
-    .flatten() //Ensures that we look through each commit, not just the first.
-    .collect{ it.getAffectedPaths() }
-    .flatten()
-    .toSet() //Ensures uniqueness.
-
 def cancel_previous_build() {
     // cancel previous build if it is not on main.
     if (env.BRANCH_NAME != "main") {
@@ -156,7 +149,6 @@ stage('Prepare') {
 }
 
 stage("Sanity Check") {
-  timeout(time: max_time, unit: 'MINUTES') {
     node('CPU') {
       ws(per_exec_ws("tvm/sanity")) {
         init_git()
@@ -210,9 +202,7 @@ def unpack_lib(name, libs) {
 stage('Build') {
   when {
     not {
-       allOf {
-        changeset "docs/**"
-      }
+      changeset "docs/**"
     }
   }
   parallel 'BUILD: GPU': {
@@ -301,9 +291,7 @@ stage('Build') {
 stage('Unit Test') {
   when {
     not {
-       allOf {
-        changeset "docs/**"
-      }
+      changeset "docs/**"
     }
   }
   parallel 'python3: GPU': {
