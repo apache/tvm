@@ -3591,11 +3591,12 @@ class Adagrad(OnnxOpConverter):
         R = inputs[0]
         T = inputs[1]
 
-        # convert attributes to constants
+        # convert attributes to constants, proper types
         dtype_inputs = infer_type(inputs[3]).checked_type.dtype
         decay_factor = relay.const(decay_factor, dtype=dtype_inputs)
         epsilon = relay.const(epsilon, dtype=dtype_inputs)
         norm_coefficient = relay.const(norm_coefficient, dtype=dtype_inputs)
+        T = relay.cast_like(T, inputs[3])
 
         assert (
             len(inputs) - 2
@@ -3813,7 +3814,7 @@ def _get_convert_map(opset):
         "RandomUniform": RandomUniform.get_converter(opset),
         # Loss functions / training
         "NegativeLogLikelihoodLoss": NegativeLogLikelihoodLoss.get_converter(opset),
-        "Momentum": Momentum.get_converter(opset),
+        "Adagrad": Adagrad.get_converter(opset),
     }
 
 
