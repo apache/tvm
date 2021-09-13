@@ -19,7 +19,7 @@
 
 /*!
  * \file extract_operators.cc
- * \brief Extract operator frequencies from an IRModule
+ * \brief Extract unique operators from an IRModule
  */
 #include <tvm/node/structural_hash.h>
 #include <tvm/relay/analysis.h>
@@ -29,38 +29,29 @@
 namespace tvm {
 namespace relay {
 
-using PackedOperatorFrequencyMap = Map<String, Integer>;
-
 class OperatorExtractorWrapper : private ExprVisitor {
  public:
   explicit OperatorExtractorWrapper(const IRModule& mod) : mod_(mod) {}
 
-  Map<String, Integer> Extract() {
+  Array<String> Extract() {
     VisitExpr(this->mod_->Lookup("main"));
 
-    return this->operator_freqs;
+    return this->operators;
   }
 
  private:
   const IRModule mod_;
-  // Map of operator name to the number of times they appear in the module.
-  Map<String, tvm::Integer> operator_freqs;
+  // Array of unique operator names
+  Array<String> operators;
 
   void VisitExpr_(const OpNode* n) final {
-
-    auto it = this->operator_freqs.find(n->name);
-	if (it == this->operator_freqs.end()) {
-        this->operator_freqs.Set(n->name, 0U);
-	}
-    std::cout << n->name << std::endl;
-
-	this->operator_freqs.Set(n->name, 1 + this->operator_freqs.at(n->name));
+    this->operators.push_back(n->name);
 
     ExprVisitor::VisitExpr_(n);
   }
 };
 
-PackedOperatorFrequencyMap ExtractOperatorsPacked(const IRModule& mod) {
+Array<String> ExtractOperatorsPacked(const IRModule& mod) {
     return OperatorExtractorWrapper(mod).Extract();
 }
 
