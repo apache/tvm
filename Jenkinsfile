@@ -212,7 +212,7 @@ stage('Build') {
     not {
        allOf {
         changeset "docs/**"
-      } 
+      }
     }
   }
   parallel 'BUILD: GPU': {
@@ -303,7 +303,7 @@ stage('Unit Test') {
     not {
        allOf {
         changeset "docs/**"
-      } 
+      }
     }
   }
   parallel 'python3: GPU': {
