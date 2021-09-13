@@ -209,7 +209,7 @@ def unpack_lib(name, libs) {
 }
 
 stage('Build') {
-  changedFiles()  
+  changedFiles()
   parallel 'BUILD: GPU': {
     node('GPUBUILD') {
       ws(per_exec_ws("tvm/build-gpu")) {
