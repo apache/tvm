@@ -89,10 +89,9 @@ def verify_model(func, input_data, rtol=1e-5, atol=1e-5, input_shape=None):
         input_name = "input{}".format(idx)
         if input_shape:
             shape = input_shape[idx]
-            input_shape_dict[input_name] = [relay.Any()] * len(shape)
         else:
             shape = data.shape
-            input_shape_dict[input_name] = shape
+        input_shape_dict[input_name] = shape
         input_spec.append(paddle.static.InputSpec(dtype=data.dtype, shape=shape, name=input_name))
         input_names.append(input_name)
         if isinstance(data, np.ndarray):
@@ -159,6 +158,8 @@ def test_forward_unary_op():
         "log2",
         "log10",
         "log1p",
+        "numel",
+        "reciprocal",
         "relu",
         "rsqrt",
         "sigmoid",
@@ -652,6 +653,7 @@ def test_forward_elemwise():
     class ElemwiseOp(nn.Layer):
         def __init__(self, op_name):
             super(ElemwiseOp, self).__init__()
+            self.op_name_ = op_name
             for candidate in (paddle, paddle.nn.functional):
                 self.func = getattr(candidate, op_name, None)
                 if self.func:
@@ -660,11 +662,15 @@ def test_forward_elemwise():
         @paddle.jit.to_static
         def forward(self, input1, input2):
             y = self.func(input1, input2)
-            return paddle.cast(y, "int32")
+            if "equal" in self.op_name_ or "than" in self.op_name_:
+                y = paddle.cast(y, "int32")
+            return y
 
     op_list = [
         "floor_divide",
         "floor_mod",
+        "maximum",
+        "minimum",
         "equal",
         "greater_than",
         "less_equal",
@@ -766,7 +772,7 @@ def test_forward_index_select():
 
     input_shape = [3, 10]
     input_data = paddle.rand(input_shape, dtype="float32")
-    index = paddle.to_tensor(np.array([0, 1, 1]).astype('int32'))
+    index = paddle.to_tensor(np.array([0, 1, 1]).astype("int32"))
     verify_model(index_select1, input_data=[input_data, index])
     verify_model(index_select2, input_data=[input_data, index])
 
@@ -950,6 +956,31 @@ def test_forward_matmul():
 
 
 @tvm.testing.uses_gpu
+def test_forward_nonzero():
+    class Nonzero(nn.Layer):
+        def __init__(self, as_tuple=False):
+            super().__init__()
+            self.as_tuple = as_tuple
+
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.nonzero(inputs, self.as_tuple)
+
+    x1 = paddle.to_tensor([[1.0, 0.0, 0.0, 2.0], [0.0, 2.0, 0.0, 1.1], [0.0, 0.0, 3.0, 0.0]])
+    verify_model(Nonzero(), x1, input_shape=[[3, 4]])
+    verify_model(Nonzero(True), x1, input_shape=[[3, 4]])
+    x2 = paddle.to_tensor([0, 1, 0, 3])
+    verify_model(
+        Nonzero(),
+        x2,
+        input_shape=[
+            [
+                4,
+            ]
+        ],
+    )
+
+
 def test_forward_norm():
     class Norm1(nn.Layer):
         @paddle.jit.to_static
@@ -985,17 +1016,17 @@ def test_forward_norm():
         @paddle.jit.to_static
         def forward(self, inputs):
             return paddle.norm(inputs, p=float(1), axis=None, keepdim=False)
-    
+
     class Norm8(nn.Layer):
         @paddle.jit.to_static
         def forward(self, inputs):
             return paddle.norm(inputs, p=float(2.0), axis=1, keepdim=False)
-    
+
     class Norm9(nn.Layer):
         @paddle.jit.to_static
         def forward(self, inputs):
             return paddle.norm(inputs, p=float(-0.5), axis=[1, 2], keepdim=False)
-    
+
     class Norm10(nn.Layer):
         @paddle.jit.to_static
         def forward(self, inputs):
@@ -1013,31 +1044,6 @@ def test_forward_norm():
     verify_model(Norm8(), input_data=input_data)
     verify_model(Norm9(), input_data=input_data)
     verify_model(Norm10(), input_data=input_data)
-
-
-@tvm.testing.uses_gpu
-def test_forward_not_equal():
-    class Not_equal(nn.Layer):
-        @paddle.jit.to_static
-        def forward(self, x, y):
-            output = paddle.not_equal(x, y)
-            output = paddle.cast(output, "int32")
-            return output
-
-    x_shape = [10]
-    y_shape = [10]
-    x_data = paddle.randint(1, 10, x_shape, dtype="int32")
-    y_data = paddle.randint(1, 10, y_shape, dtype="int32")
-    x_data_1 = paddle.randint(1, 10, x_shape, dtype="int64")
-    y_data_1 = paddle.randint(1, 10, y_shape, dtype="int64")
-    verify_model(Not_equal(), input_data=[x_data, y_data])
-    verify_model(Not_equal(), input_data=[x_data_1, y_data_1])
-    # For broadcast
-    x_shape_1 = [10]
-    y_shape_1 = [10, 1]
-    x_data_2 = paddle.rand(x_shape_1, dtype="float32")
-    y_data_2 = paddle.rand(y_shape_1, dtype="float32")
-    verify_model(Not_equal(), input_data=[x_data_2, y_data_2])
 
 
 @tvm.testing.uses_gpu
@@ -1472,7 +1478,7 @@ if __name__ == "__main__":
     test_forward_lstm()
     test_forward_matmul()
     test_forward_multiply()
-    test_forward_not_equal()
+    test_forward_nonzero()
     test_forward_norm()
     test_forward_pool2d()
     test_forward_pad()
