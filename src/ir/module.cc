@@ -43,7 +43,8 @@ namespace tvm {
 
 IRModule::IRModule(tvm::Map<GlobalVar, BaseFunc> functions,
                    tvm::Map<GlobalTypeVar, TypeData> type_definitions,
-                   std::unordered_set<String> import_set, parser::SourceMap source_map) {
+                   std::unordered_set<String> import_set, parser::SourceMap source_map,
+                   DictAttrs attrs) {
   auto n = make_object<IRModuleNode>();
   n->functions = std::move(functions);
   n->type_definitions = std::move(type_definitions);
@@ -52,6 +53,7 @@ IRModule::IRModule(tvm::Map<GlobalVar, BaseFunc> functions,
   n->constructor_tag_map_ = {};
   n->import_set_ = std::move(import_set);
   n->source_map = source_map;
+  n->attrs = std::move(attrs);
 
   for (const auto& kv : n->functions) {
     // set global var map
@@ -72,6 +74,7 @@ IRModule::IRModule(tvm::Map<GlobalVar, BaseFunc> functions,
 
 bool IRModuleNode::SEqualReduce(const IRModuleNode* other, SEqualReducer equal) const {
   if (functions.size() != other->functions.size()) return false;
+  if (!equal(this->attrs, other->attrs)) return false;
   for (const auto& kv : this->functions) {
     if (!other->ContainGlobalVar(kv.first->name_hint)) return false;
     if (!equal(kv.second, other->Lookup(kv.first->name_hint))) return false;
@@ -112,6 +115,7 @@ void IRModuleNode::SHashReduce(SHashReducer hash_reduce) const {
     temp.emplace_back(kv.first->name_hint, kv.second);
   }
   reduce_temp();
+  hash_reduce(this->attrs);
 }
 
 bool IRModuleNode::ContainGlobalVar(const String& name) const {
@@ -359,6 +363,11 @@ void IRModuleNode::Update(const IRModule& mod) {
       this->AddUnchecked(pair.first, pair.second);
     }
   }
+}
+
+IRModule IRModuleNode::ShallowCopy() {
+  return IRModule(this->functions, this->type_definitions, this->Imports(), this->source_map,
+                  this->attrs);
 }
 
 std::pair<IRModule, GlobalVar> IRModule::FromExprInContext(
