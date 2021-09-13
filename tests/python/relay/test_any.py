@@ -419,30 +419,6 @@ class TestAnyReduce:
         check_result([data_np], mod, ref_out_shape, assert_shape=True, targets=[(target, dev)])
 
 
-def verify_any_reduce(
-    reduce_op, data_shape, axis, exclude, keepdims, static_data_shape, ref_out_shape
-):
-    mod = tvm.IRModule()
-    dtype = "bool" if reduce_op == relay.all else "float32"
-    data = relay.var("data", shape=data_shape, dtype=dtype)
-    y = reduce_op(data, axis, keepdims, exclude)
-    mod["main"] = relay.Function([data], y)
-    data_np = np.random.uniform(size=static_data_shape).astype(dtype)
-    check_result([data_np], mod, ref_out_shape, assert_shape=True)
-
-
-@tvm.testing.uses_gpu
-def test_any_reduce():
-    verify_any_reduce(relay.argmax, any_dims(3), None, False, False, (3, 4, 5), ())
-    verify_any_reduce(relay.argmin, any_dims(4), 1, False, True, (3, 4, 5, 6), (3, 1, 5, 6))
-    verify_any_reduce(relay.all, any_dims(3), (1, 2), True, False, (3, 4, 5), (4, 5))
-    verify_any_reduce(relay.max, any_dims(4), -1, True, True, (3, 4, 5, 6), (1, 1, 1, 6))
-    verify_any_reduce(relay.min, any_dims(3), (0, 1), False, False, (4, 5, 6), (6,))
-    verify_any_reduce(relay.prod, any_dims(4), 2, True, True, (3, 4, 5, 6), (1, 1, 5, 1))
-    verify_any_reduce(relay.mean, any_dims(2), 0, False, False, (1, 2), (2,))
-    verify_any_reduce(relay.variance, any_dims(5), (2, 4), False, False, (3, 4, 5, 6, 7), (3, 4, 6))
-
-
 def verify_any_layout_transform(
     data_shape, src_layout, dst_layout, static_data_shape, ref_out_shape
 ):
