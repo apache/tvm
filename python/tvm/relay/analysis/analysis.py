@@ -384,8 +384,9 @@ def extract_fused_functions(mod):
     return ret
 
 
-def extract_operators(mod):
-    """Pass to extract unique operator names from an IRModule.
+def list_op_frequencies(mod):
+    """Pass to extract unique operator names and how frequently they appear
+    in an IRModule.
 
     Parameters
     ----------
@@ -393,8 +394,8 @@ def extract_operators(mod):
 
     Returns
     -------
-    ret : List[str]
-        List of unique operator names
+    ret : Dict[str, int]
+        Dict of unique operator names to frequency
     """
     return _ffi_api.ExtractOperators(mod)
 

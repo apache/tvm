@@ -33,27 +33,45 @@ class OperatorExtractorWrapper : private ExprVisitor {
  public:
   explicit OperatorExtractorWrapper(const IRModule& mod) : mod_(mod) {}
 
-  Array<String> Extract() {
+  Map<String, tvm::Integer> Extract() {
     VisitExpr(this->mod_->Lookup("main"));
 
-    return this->operators;
+    // Map<String, tvm::Integer> opname_freqs;
+    // for (const auto& kv : operator_freqs_) {
+    //   opname_freqs.Set(kv.first->name, kv.second);
+    // }
+    // return opname_freqs;
+    return operator_freqs_;
   }
 
  private:
   const IRModule mod_;
-  // Array of unique operator names.
-  Array<String> operators;
+  /*! \brief Map of operator to frequency. */
+  Map<String, tvm::Integer> operator_freqs_;
 
-  void VisitExpr_(const OpNode* n) final {
-    // NOTE: OpNode is visited only once for every operator kind
-    // regardless of how many times that op appears in the graph.
-    this->operators.push_back(n->name);
+  void VisitExpr_(const CallNode* n) final {
+    VisitExpr(n->op);
+
+    auto op = n->op.as<OpNode>();
+    if (op) {
+      auto it = operator_freqs_.find(op->name);
+      ICHECK(it != operator_freqs_.end())
+          << "Call's OpNode must be visited and registered before access";
+      operator_freqs_.Set(op->name, 1 + operator_freqs_.at(op->name));
+    }
 
     ExprVisitor::VisitExpr_(n);
   }
+
+  void VisitExpr_(const OpNode* n) final {
+    std::cout << "here " << n->name << std::endl;
+    // NOTE: OpNode is visited only once for every operator kind
+    // regardless of how many times that op appears in the graph.
+    operator_freqs_.Set(n->name, 0U);
+  }
 };
 
-Array<String> ExtractOperatorsPacked(const IRModule& mod) {
+Map<String, tvm::Integer> ExtractOperatorsPacked(const IRModule& mod) {
   return OperatorExtractorWrapper(mod).Extract();
 }
 
