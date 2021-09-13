@@ -1620,6 +1620,8 @@ _convert_map = {
     "log2": convert_unary_op,
     "log10": convert_unary_op,
     "log1p": convert_log1p,
+    "logical_and": convert_elementwise_op,
+    "logical_or": convert_elementwise_op,
     "logsumexp": convert_logsumexp,
     "matmul": convert_matmul,
     "matmul_v2": convert_matmul,
