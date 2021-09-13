@@ -157,6 +157,7 @@ stage('Prepare') {
 }
 
 stage("Sanity Check") {
+  changedFiles()
   timeout(time: max_time, unit: 'MINUTES') {
     node('CPU') {
       ws(per_exec_ws("tvm/sanity")) {
@@ -209,7 +210,6 @@ def unpack_lib(name, libs) {
 }
 
 stage('Build') {
-  changedFiles()
   parallel 'BUILD: GPU': {
     node('GPUBUILD') {
       ws(per_exec_ws("tvm/build-gpu")) {
