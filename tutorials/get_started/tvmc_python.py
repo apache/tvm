@@ -47,6 +47,17 @@ Hi! Here we explain the scripting tool designed for the complete TVM beginner. ð
 # If you'd like to see the relay, you can run: 
 # ``model.summary()``
 # 
+# All frameworks support over writing the input shapes with a shape_dict argument. 
+# For most frameworks this is optional but for Pytorch this is necessary. 
+#
+# .. code-block:: python
+#      ### Step 1: Load shape_dict Style 
+#      # shape_dict = {'model_input_name1': [1, 3, 224, 224], 'input2': [1, 2, 3, 4], ...} #example format with random numbers
+#      # model = tvmc.load(model_path, shape_dict=shape_dict) #Step 1: Load + shape_dict
+# 
+# One way to see the model's input/shape_dict is via `netron <https://netron.app/>`_, . After opening the model, 
+# click the first node to see the name(s) and shape(s) in the inputs section.
+
 
 ################################################################################
 # Step 2: Compile
@@ -195,18 +206,6 @@ Hi! Here we explain the scripting tool designed for the complete TVM beginner. ð
 # 
 
 ################################################################################
-# Using an RPC Server:
-# 
-# 
-# This thing needs some love
-# 
-# 
-# 
-# 
-# 
-# 
-
-################################################################################
 # Tuning a more complex model:
 # ----------------------------
 # If you notice T's (timeouts) printed, increase the searching time frame: 
@@ -214,5 +213,22 @@ Hi! Here we explain the scripting tool designed for the complete TVM beginner. ð
 #    .. code-block:: python
 #      tvmc.tune(model,trials=10000,timeout=10,)
 #
+
+################################################################################
+# Compiling a model for a remote device:
+# 
+# A remote procedural call is useful when you would like to compile for hardware 
+# that is not on your local machine. The tvmc methods support this. 
+# To set up the RPC server take a look at the 'Set up RPC Server on Device' 
+# section in this `document <https://tvm.apache.org/docs/tutorials/get_started/cross_compilation_and_rpc.html>`_. 
+# 
+# Within the TVMC Script include the following and adjust accordingly:
+# 
+#    .. code-block:: python
+#      tvmc.tune(model,trials=10000,timeout=10,)
+#      tvmc.tune(model,trials=10000,timeout=10,) 
+#      tvmc.tune(model,trials=10000,timeout=10,) 
+#      tvmc.tune(model,trials=10000,timeout=10,) 
+# 
 
 """
