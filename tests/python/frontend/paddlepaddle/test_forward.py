@@ -555,9 +555,7 @@ def test_forward_dist():
         return paddle.dist(x, y, p=float("inf"))
 
     x_shape = [10, 3]
-    y_shape = [
-        10,
-    ]
+    y_shape = [10, 1]
     x_data = paddle.rand(x_shape, dtype="float32")
     y_data = paddle.rand(y_shape, dtype="float32")
     verify_model(dist, input_data=[x_data, y_data])
@@ -612,7 +610,7 @@ def test_forward_expand():
 def test_forward_expand_as():
     @paddle.jit.to_static
     def expand_as(x, y):
-        z = paddle.expand(x, y)
+        z = paddle.expand_as(x, y)
         z += y
         return z
 
@@ -1532,6 +1530,7 @@ if __name__ == "__main__":
     test_forward_conv()
     test_forward_crop()
     test_forward_cumsum()
+    test_forward_dist()
     test_forward_dot()
     test_forward_dropout()
     test_forward_elemwise()

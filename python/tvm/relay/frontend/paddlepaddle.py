@@ -486,6 +486,7 @@ def convert_dist(g, op, block):
             _op.reduce.sum(_op.power(_op.abs(x), p)),
             reci_order,
         )
+    out = _op.expand_dims(out, axis=0)
     g.add_node(op.output("Out")[0], out)
 
 
@@ -568,12 +569,8 @@ def convert_expand_as(g, op, block):
     """Operator converter for expand_as."""
 
     x = g.get_node(op.input("X")[0])
-    y = g.get_node(op.input("X")[0])
-    x_type = infer_type(x).dtype
-    y_type = infer_type(y).dtype
-    if str(x_type) != str(y_type):
-        y = _op.cast(y, x_type)
-    out = _op.broadcast_to_like(x, y)
+    target_shape = op.attr("target_shape")
+    out = _op.broadcast_to(x, target_shape)
     g.add_node(op.output("Out")[0], out)
 
 
@@ -1640,7 +1637,7 @@ _convert_map = {
     "erf": convert_unary_op,
     "exp": convert_unary_op,
     "expand_v2": convert_expand,
-    "expand_as": convert_expand_as,
+    "expand_as_v2": convert_expand_as,
     "feed": convert_feed,
     "fill_any_like": convert_fill_any_like,
     "fill_constant": convert_fill_constant,
