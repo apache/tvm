@@ -17,7 +17,6 @@
  * under the License.
  */
 
-#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <tvm/runtime/logging.h>
 
@@ -28,26 +27,26 @@ namespace {
 
 TEST(ParseTvmLogDebugSpec, Disabled) {
   auto map = ParseTvmLogDebugSpec(nullptr);
-  EXPECT_THAT(map.size(), testing::Eq(0));
+  EXPECT_EQ(map.size(), 0);
 
   map = ParseTvmLogDebugSpec("");
-  EXPECT_THAT(map.size(), testing::Eq(0));
+  EXPECT_EQ(map.size(), 0);
 
   map = ParseTvmLogDebugSpec("0");
-  EXPECT_THAT(map.size(), testing::Eq(0));
+  EXPECT_EQ(map.size(), 0);
 
   map = ParseTvmLogDebugSpec("1");
-  EXPECT_THAT(map.size(), testing::Eq(0));
+  EXPECT_EQ(map.size(), 0);
 }
 
 TEST(ParseTvmLogDebugSpec, SomeEnabled) {
   auto map = ParseTvmLogDebugSpec("1;foo/bar.cc=3;baz.cc=-1;*=2;another/file.cc=4;");
-  EXPECT_THAT(map.size(), testing::Eq(4));
+  EXPECT_EQ(map.size(), 4);
 
-  EXPECT_THAT(map, testing::Contains(testing::Pair("*", 2)));
-  EXPECT_THAT(map, testing::Contains(testing::Pair("foo/bar.cc", 3)));
-  EXPECT_THAT(map, testing::Contains(testing::Pair("baz.cc", -1)));
-  EXPECT_THAT(map, testing::Contains(testing::Pair("another/file.cc", 4)));
+  EXPECT_EQ(map["*"], 2);
+  EXPECT_EQ(map["foo/bar.cc"], 3);
+  EXPECT_EQ(map["baz.cc"], -1);
+  EXPECT_EQ(map["another/file.cc"], 4);
 }
 
 TEST(ParseTvmLogDebugSpec, IllFormed) {
