@@ -30,11 +30,11 @@ fi
 
 board=$1
 
-pytest tests/micro/arduino/test_arduino_workflow.py --arduino-board=${board}
+pytest tests/micro/arduino/test_arduino_workflow.py --arduino-board=${board} -s
 
 if [ $board == "nano33ble" ]; then
     # https://github.com/apache/tvm/issues/8730
     echo "NOTE: skipped test_arduino_rpc_server.py on $board -- known failure"
 else
-    pytest tests/micro/arduino/test_arduino_rpc_server.py --arduino-board=${board}
+    pytest tests/micro/arduino/test_arduino_rpc_server.py --arduino-board=${board} -s
 fi
