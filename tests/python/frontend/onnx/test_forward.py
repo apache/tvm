@@ -4711,8 +4711,6 @@ onnx_test_folders = sorted(
 )
 
 unsupported_onnx_tests = [
-    "test_adagrad",
-    "test_adagrad_multiple",
     "test_adam",
     "test_adam_multiple",
     "test_cast_BFLOAT16_to_FLOAT",
