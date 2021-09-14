@@ -57,6 +57,7 @@ BOARD_PROPERTIES = {
         "package": "arduino",
         "architecture": "sam",
         "board": "arduino_due_x_dbg",
+        "model": "sam3x8e",
     },
     # Due to the way the Feather S2 bootloader works, compilation
     # behaves fine but uploads cannot be done automatically
@@ -64,27 +65,32 @@ BOARD_PROPERTIES = {
         "package": "esp32",
         "architecture": "esp32",
         "board": "feathers2",
+        "model": "esp32",
     },
     "metrom4": {
         "package": "adafruit",
         "architecture": "samd",
         "board": "adafruit_metro_m4",
+        "model": "atsamd51",
     },
     # Spresense only works as of its v2.3.0 sdk
     "spresense": {
         "package": "SPRESENSE",
         "architecture": "spresense",
         "board": "spresense",
+        "model": "cxd5602gg",
     },
     "nano33ble": {
         "package": "arduino",
         "architecture": "mbed_nano",
         "board": "nano33ble",
+        "model": "nrf52840",
     },
     "pybadge": {
         "package": "adafruit",
         "architecture": "samd",
         "board": "adafruit_pybadge_m4",
+        "model": "atsamd51",
     },
     # The Teensy boards are listed here for completeness, but they
     # won't work until https://github.com/arduino/arduino-cli/issues/700
@@ -93,16 +99,19 @@ BOARD_PROPERTIES = {
         "package": "teensy",
         "architecture": "avr",
         "board": "teensy40",
+        "model": "imxrt1060",
     },
     "teensy41": {
         "package": "teensy",
         "architecture": "avr",
         "board": "teensy41",
+        "model": "imxrt1060",
     },
     "wioterminal": {
         "package": "Seeeduino",
         "architecture": "samd",
         "board": "seeed_wio_terminal",
+        "model": "atsamd51",
     },
 }
 
@@ -113,6 +122,11 @@ PROJECT_OPTIONS = [
         "arduino_board",
         choices=list(BOARD_PROPERTIES),
         help="Name of the Arduino board to build for",
+    ),
+    server.ProjectOption(
+        "arduino_model",
+        choices=[board["model"] for _, board in BOARD_PROPERTIES.items()],
+        help="Name of the model for each Arduino board.",
     ),
     server.ProjectOption("arduino_cli_cmd", help="Path to the arduino-cli tool."),
     server.ProjectOption("port", help="Port to use for connecting to hardware"),
@@ -370,7 +384,7 @@ class Handler(server.ProjectAPIHandler):
             compile_cmd.append("--verbose")
 
         # Specify project to compile
-        subprocess.run(compile_cmd)
+        subprocess.run(compile_cmd, check=True)
 
     BOARD_LIST_HEADERS = ("Port", "Type", "Board Name", "FQBN", "Core")
 
@@ -407,7 +421,9 @@ class Handler(server.ProjectAPIHandler):
 
     def _auto_detect_port(self, options):
         list_cmd = [options["arduino_cli_cmd"], "board", "list"]
-        list_cmd_output = subprocess.run(list_cmd, stdout=subprocess.PIPE).stdout.decode("utf-8")
+        list_cmd_output = subprocess.run(
+            list_cmd, check=True, stdout=subprocess.PIPE
+        ).stdout.decode("utf-8")
 
         desired_fqbn = self._get_fqbn(options)
         for line in self._parse_boards_tabular_str(list_cmd_output):
@@ -444,7 +460,7 @@ class Handler(server.ProjectAPIHandler):
         if options.get("verbose"):
             upload_cmd.append("--verbose")
 
-        subprocess.run(upload_cmd)
+        subprocess.run(upload_cmd, check=True)
 
     def open_transport(self, options):
         # Zephyr example doesn't throw an error in this case

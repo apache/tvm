@@ -292,13 +292,8 @@ InterpreterState::InterpreterState(Expr current_expr, InterpreterState::Stack st
 class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
                     PatternFunctor<bool(const Pattern& p, const ObjectRef& v)> {
  public:
-  // TODO(mbs): Collapse mod and per_target_module once IRModule subsumes LoweredModule.
-  Interpreter(IRModule mod, Map<Target, IRModule> per_target_module, Device device, Target target)
-      : mod_(mod),
-        per_target_module_(per_target_module),
-        device_(device),
-        target_(target),
-        debug_op_(Op::Get("debug")) {}
+  Interpreter(IRModule unified_mod, Device device, Target target)
+      : unified_mod_(unified_mod), device_(device), target_(target), debug_op_(Op::Get("debug")) {}
 
   template <typename T>
   T WithFrame(const Frame& fr, const std::function<T()>& f) {
@@ -315,7 +310,7 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
   ObjectRef VisitExpr_(const VarNode* var_node) final { return Lookup(GetRef<Var>(var_node)); }
 
   ObjectRef VisitExpr_(const GlobalVarNode* op) final {
-    return Eval(mod_->Lookup(GetRef<GlobalVar>(op)));
+    return Eval(unified_mod_->Lookup(GetRef<GlobalVar>(op)));
   }
 
   ObjectRef VisitExpr_(const OpNode* id) override {
@@ -386,9 +381,9 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
 
     // Project out just the function(s) we need.
     IRModule lowered_projected_mod;
+    Map<Target, IRModule> per_target_module = tec::GetPerTargetModules(unified_mod_);
     std::unordered_map<Target, IRModule, backend::TargetStrHash, backend::TargetStrEqual>
-        per_target_module_std_map =
-            backend::TargetModuleMapToTargetStrModuleMap(per_target_module_);
+        per_target_module_std_map = backend::TargetModuleMapToTargetStrModuleMap(per_target_module);
     auto mod_itr = per_target_module_std_map.find(target);
     ICHECK(mod_itr != per_target_module_std_map.end())
         << "No target module for target '" << target->str() << "'";
@@ -875,13 +870,11 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
   }
 
  private:
-  // Main module. All expressions are eval'ed w.r.t. the definitions in this module. This module
-  // may contain calls to TIR functions bound in a per_target_module_ below.
-  IRModule mod_;
-  // Map from target key to lowered TIR functions derived from mod_.
-  // Note that primitives are implicitly executed on target_, while shape functions are implicitly
-  // executed on the default 'cpu' host. Thus this map has at most two entries.
-  Map<Target, IRModule> per_target_module_;
+  // Unified module. Functions are annotated with their target.
+  // All expressions are eval'ed w.r.t. the definitions in this module.
+  // This module contains functions that used to be in main_module and the per_target_module (TIR
+  // functions) in one module.
+  IRModule unified_mod_;
   // Cached packed functions for the primitives and shape functions, keyed by target and
   // global var name.
   std::unordered_map<std::pair<Target, std::string>, PackedFunc, PairHash> compiled_packed_funcs_;
@@ -901,21 +894,8 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
  * rewritten \p mod and target-specific modules containing bindings for all TIR primitive
  * functions needed by the rewritten module.
  */
-std::pair<IRModule, Map<Target, IRModule>> Prepare(IRModule mod, Device device, Target target) {
-  // Run minimal transforms on module to establish invariants needed by interpreter.
-  transform::Sequential seq({transform::SimplifyInference(),
-                             // FuseOps will mark wrapped calls to prim-ops with the 'Primitive'
-                             // attribute.
-                             transform::FuseOps(/*fuse_opt_level=*/0), transform::ToANormalForm(),
-                             // eta expand to support constructors in argument position
-                             transform::EtaExpand(
-                                 /*expand_constructor=*/true, /*expand_global_var=*/false),
-                             transform::InferType()});
-
-  transform::PassContext pass_ctx = transform::PassContext::Current();
-  With<transform::PassContext> ctx(pass_ctx);
-  mod = seq(mod);
-
+IRModule Prepare(IRModule mod, Device device, Target target) {
+  // Things to initialize to pass into tec::LowerTEPass
   // We only have one device-specific target.
   tec::TargetMap targets = {{device.device_type, target}};
 
@@ -925,13 +905,24 @@ std::pair<IRModule, Map<Target, IRModule>> Prepare(IRModule mod, Device device, 
   // No need for a memory plan.
   backend::StaticMemoryPlan memory_plan; /*=nullptr*/
 
-  // Lower all primitive functions reachable from expr.
-  // TODO(mbs): This should be just another pass in seq above, which requires LoweredModule to
-  // be merged into IRModule.
-  LoweredModule lowered_module =
-      tec::LowerTE(mod, targets, device_map, memory_plan, /*module_name=*/"intrp",
-                   [](Function func) { /* no-op */ });
-  return {lowered_module.main_module, lowered_module.per_target_module};
+  // Run minimal transforms on module to establish invariants needed by interpreter.
+  transform::Sequential seq(
+      {transform::SimplifyInference(),
+       // FuseOps will mark wrapped calls to prim-ops with the 'Primitive'
+       // attribute.
+       transform::FuseOps(/*fuse_opt_level=*/0), transform::ToANormalForm(),
+       // eta expand to support constructors in argument position
+       transform::EtaExpand(
+           /*expand_constructor=*/true, /*expand_global_var=*/false),
+       transform::InferType(),
+       tec::LowerTEPass(targets, device_map, memory_plan, /*module_name=*/"intrp",
+                        [](Function func) { /* no-op */ })});
+
+  transform::PassContext pass_ctx = transform::PassContext::Current();
+  With<transform::PassContext> ctx(pass_ctx);
+  mod = seq(mod);
+
+  return mod;
 }
 
 /*! \brief Check if an expression could be changed by \p Prepare.
@@ -1020,11 +1011,9 @@ TypedPackedFunc<ObjectRef(Array<Expr>)> EvalFunction(IRModule mod, Expr expr, De
     // and can just eval it directly.
     expr_to_eval = expr;
   }
-  std::pair<IRModule, Map<Target, IRModule>> main_and_lowered =
-      Prepare(mod_with_expr, device, target);
-  std::shared_ptr<Interpreter> intrp = std::make_shared<Interpreter>(
-      /*mod=*/main_and_lowered.first, /*per_target_module=*/main_and_lowered.second, device,
-      target);
+  IRModule lowered_mod = Prepare(mod_with_expr, device, target);
+
+  std::shared_ptr<Interpreter> intrp = std::make_shared<Interpreter>(lowered_mod, device, target);
 
   //
   // Step 2: Evaluate target function to a closure.
@@ -1063,12 +1052,11 @@ ObjectRef Eval(Expr expr, Map<GlobalTypeVar, TypeData> type_definitions,
                std::unordered_set<String> import_set, Device device, Target target) {
   std::pair<IRModule, GlobalVar> mod_and_global =
       IRModule::FromExprInContext(expr, /*global_funcs=*/{}, type_definitions, import_set);
-  std::pair<IRModule, Map<Target, IRModule>> main_and_lowered =
-      Prepare(mod_and_global.first, device, target);
-  Interpreter intrp(
-      /*mod=*/main_and_lowered.first, /*per_target_module=*/main_and_lowered.second, device,
-      target);
-  Expr expr_to_eval = main_and_lowered.first->GetGlobalVar(mod_and_global.second->name_hint);
+
+  IRModule mod = Prepare(mod_and_global.first, device, target);
+
+  Interpreter intrp(mod, device, target);
+  Expr expr_to_eval = mod->GetGlobalVar(mod_and_global.second->name_hint);
   if (expr.as<BaseFuncNode>() == nullptr) {
     // TODO(mbs): IRModule::FromExpr will implicitly close over the free vars of expr
     // unless it is a function, so we must reverse that in the expression to eval.

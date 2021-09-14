@@ -871,8 +871,12 @@ bool Conv1DTransposeRel(const Array<Type>& types, int num_inputs, const Attrs& a
     dilated_ksize_x = 1 + (param->kernel_size[0] - 1) * param->dilation[0];
     channels = param->channels;
 
+    DataType weight_dtype = data->dtype;
+    if (weight != nullptr) {
+      weight_dtype = weight->dtype;
+    }
     // assign result to reporter
-    reporter->Assign(types[1], TensorType(wshape, data->dtype));
+    reporter->Assign(types[1], TensorType(wshape, weight_dtype));
   } else {
     // use weight to infer the conv shape.
     if (weight == nullptr) return false;
@@ -965,8 +969,12 @@ bool Conv3DTransposeRel(const Array<Type>& types, int num_inputs, const Attrs& a
     dilated_ksize_x = 1 + (param->kernel_size[2] - 1) * param->dilation[2];
     channels = param->channels;
 
+    DataType weight_dtype = data->dtype;
+    if (weight != nullptr) {
+      weight_dtype = weight->dtype;
+    }
     // assign result to reporter
-    reporter->Assign(types[1], TensorType(wshape, data->dtype));
+    reporter->Assign(types[1], TensorType(wshape, weight_dtype));
   } else {
     // use weight to infer the conv shape.
     if (weight == nullptr) return false;
@@ -1076,8 +1084,12 @@ bool Conv2DTransposeRel(const Array<Type>& types, int num_inputs, const Attrs& a
     dilated_ksize_x = 1 + (param->kernel_size[1] - 1) * param->dilation[1];
     channels = param->channels;
 
+    DataType weight_dtype = data->dtype;
+    if (weight != nullptr) {
+      weight_dtype = weight->dtype;
+    }
     // assign result to reporter
-    reporter->Assign(types[1], TensorType(wshape, data->dtype));
+    reporter->Assign(types[1], TensorType(wshape, weight_dtype));
   } else {
     // use weight to infer the conv shape.
     if (weight == nullptr) return false;

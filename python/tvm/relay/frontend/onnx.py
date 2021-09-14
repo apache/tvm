@@ -196,6 +196,17 @@ def dimension_constraint():
     return _dim_check, "Only 1d, 2d and 3d kernel supported."
 
 
+def get_scalar(x, params, dtype="float32"):
+    """Helper to get a scalar value for Quantized operators."""
+    if isinstance(x, _expr.Var) and x.name_hint in params:
+        return _op.const(params[x.name_hint].numpy(), dtype)
+    rank = len(infer_shape(x))
+    assert rank <= 1, "scale and zero_point input must be scalars"
+    if rank == 1:
+        x = _op.squeeze(x, [0])
+    return _op.cast(x, dtype)
+
+
 class OnnxOpConverter(object):
     """A helper class for holding onnx op converters."""
 
@@ -479,7 +490,7 @@ class Conv(OnnxOpConverter):
                 attr["dilations"] = [1] + list(attr["dilations"])
             if "pads" in attr:
                 attr["pads"] = [0, attr["pads"][0], 0, attr["pads"][1]]
-
+        attr["channels"] = kernel_shapes[0][0]
         out = AttrCvt(
             op_name=dimension_picker("conv"),
             transforms={
@@ -1010,6 +1021,32 @@ class ParametricSoftPlus(OnnxOpConverter):
         return _op.log(_op.exp(beta * inputs[0]) + _expr.const(1.0)) * alpha
 
 
+class Pow(OnnxOpConverter):
+    """Operator converter for Pow."""
+
+    @classmethod
+    def _impl_v13(cls, inputs, attr, params):
+        x = inputs[0]
+        y = inputs[1]
+
+        x_type = infer_type(x).checked_type.dtype
+        output_type = x_type
+        y_type = infer_type(y).checked_type.dtype
+
+        if not x_type.startswith("float"):
+            x_type = "float32"
+            x = _op.cast(x, x_type)
+
+        if x_type != y_type:
+            y = _op.cast(y, x_type)
+
+        # TODO: come up with good default integer pow() func for common backends
+        result = _op.power(x, y)
+        if x_type != output_type:
+            return _op.cast(result, output_type)
+        return result
+
+
 class Prelu(OnnxOpConverter):
     """Operator converter for Prelu."""
 
@@ -1382,20 +1419,13 @@ class Slice(OnnxOpConverter):
 
     @classmethod
     def _common(cls, starts, ends, axes):
-        new_axes = []
-        new_starts = []
-        new_ends = []
-        pop_index = 0
-        for i in range(max(axes) + 1):
-            if i in axes:
-                new_axes.append(i)
-                new_starts.append(starts[pop_index])
-                new_ends.append(ends[pop_index])
-                pop_index += 1
-            else:
-                new_axes.append(i)
-                new_starts.append(0)
-                new_ends.append(np.iinfo(np.int32).max)
+        N = max(axes) + 1
+        new_axes = list(range(N))
+        new_starts = [0] * N
+        new_ends = [np.iinfo(np.int32).max] * N
+        for i, axis in enumerate(axes):
+            new_starts[axis] = starts[i]
+            new_ends[axis] = ends[i]
         return new_starts, new_ends, new_axes
 
     @classmethod
@@ -1408,13 +1438,10 @@ class Slice(OnnxOpConverter):
             # Update the starts and ends according to axes if required.
             if isinstance(attr["axes"], int):
                 attr["axes"] = (attr["axes"],)
-            if (max(attr["axes"]) + 1) != len(attr["axes"]):
-                new_starts, new_ends, new_axes = cls._common(
-                    attr["starts"], attr["ends"], attr["axes"]
-                )
-                attr["axes"] = new_axes
-                attr["starts"] = new_starts
-                attr["ends"] = new_ends
+            new_starts, new_ends, new_axes = cls._common(attr["starts"], attr["ends"], attr["axes"])
+            attr["axes"] = new_axes
+            attr["starts"] = new_starts
+            attr["ends"] = new_ends
         except KeyError:
             pass
         begin = list(attr["starts"])
@@ -1582,22 +1609,6 @@ class EyeLike(OnnxOpConverter):
         ones = _op.full(_op.const(1), (dim,), dtype=dtype)
         k = _op.const(attr.get("k", 0), dtype="int32")
         return _op.scatter_nd(zeros, _op.stack([indices, indices + k], axis=0), ones, "update")
-
-
-class Greater(OnnxOpConverter):
-    """Operator logical greater."""
-
-    @classmethod
-    def _impl_v7(cls, inputs, attr, params):
-        return _op.greater(inputs[0], inputs[1])
-
-
-class Less(OnnxOpConverter):
-    """Operator logical less than."""
-
-    @classmethod
-    def _impl_v7(cls, inputs, attr, params):
-        return _op.less(inputs[0], inputs[1])
 
 
 class LRN(OnnxOpConverter):
@@ -1898,6 +1909,23 @@ class Hardmax(OnnxOpConverter):
             dtype,
         )
         return _op.reshape(onehot, shape_of(inputs[0]))
+
+    @classmethod
+    def _impl_v13(cls, inputs, attr, params) -> relay.Expr:
+        inferred_type = infer_type(inputs[0])
+        dtype = inferred_type.checked_type.dtype
+        ndim = len(inferred_type.checked_type.shape)
+        axis = attr.get("axis", -1) % ndim
+
+        argmax = _op.argmax(inputs[0], axis=axis)
+        return _op.one_hot(
+            argmax,
+            _op.const(1.0, dtype),
+            _op.const(0.0, dtype),
+            fold_constant(_op.take(shape_of(inputs[0]), _op.const([axis], "int64"))),
+            axis,
+            dtype,
+        )
 
 
 class OneHot(OnnxOpConverter):
@@ -3021,6 +3049,7 @@ class ATen(OnnxOpConverter):
         op_map = {
             "size": cls._size,
             "arange": cls._arange,
+            "index_put": cls._index_put,
             "reshape": cls._reshape,
             "embedding_bag": cls._embedding_bag,
         }
@@ -3039,6 +3068,47 @@ class ATen(OnnxOpConverter):
     @classmethod
     def _arange(cls, inputs, attr, params):
         return _op.arange(inputs[0], inputs[1], inputs[2], dtype="int64")
+
+    @classmethod
+    def _check_index(cls, indices, values):
+        def unfolding_indices(indices, values):
+            n = len(indices)
+            flatten_indices = []
+            slices_size = []
+            for index in indices:
+                flatten_indices.append(_op.reshape(index, _op.const([-1])))
+                slices_size.append(infer_shape(flatten_indices[-1])[0])
+            repeat_size = [1]
+            tile_size = [1]
+            for i in range(1, n):
+                repeat_size.append(slices_size[-i] * repeat_size[-1])
+                tile_size.append(slices_size[i - 1] * tile_size[-1])
+            repeat_size.reverse()
+            unflod_slices = []
+            for i in range(n):
+                unflod_slices.append(
+                    fold_constant(
+                        _op.repeat(_op.tile(flatten_indices[i], (tile_size[i],)), repeat_size[i], 0)
+                    )
+                )
+            return unflod_slices, _op.reshape(values, _op.const([-1]))
+
+        values_shape = infer_shape(values)
+        if len(values_shape) != 1:
+            return unfolding_indices(indices, values)
+        return indices, values
+
+    @classmethod
+    def _index_put(cls, inputs, attr, params):
+        in_tensor = inputs[0]
+        indices, values = cls._check_index(inputs[1 : len(inputs) - 2], inputs[len(inputs) - 2])
+        accumulate = inputs[len(inputs) - 1].data.asnumpy() != 0
+        if not accumulate:
+            mode = "update"
+        else:
+            mode = "add"
+        index_tensor = _op.stack(indices, axis=0)
+        return _op.transform.scatter_nd(in_tensor, index_tensor, values, mode)
 
     @classmethod
     def _reshape(cls, inputs, attr, params):
@@ -3137,23 +3207,14 @@ class QLinearConv(OnnxOpConverter):
 
     @classmethod
     def _impl_v10(cls, inputs, attr, params):
-        def get_scalar(x, dtype="float32"):
-            if isinstance(x, _expr.Var) and x.name_hint in params:
-                return _op.const(params[x.name_hint].numpy(), dtype)
-            rank = len(infer_shape(x))
-            assert rank <= 1, "QLinearConv scale and zero_point input must be scalars"
-            if rank == 1:
-                x = _op.squeeze(x, [0])
-            return _op.cast(x, dtype)
-
         data = inputs[0]
-        x_scale = get_scalar(inputs[1])
-        x_zero_point = get_scalar(inputs[2], "int32")
+        x_scale = get_scalar(inputs[1], params)
+        x_zero_point = get_scalar(inputs[2], params, "int32")
         weight = inputs[3]
-        w_scale = get_scalar(inputs[4])
-        w_zero_point = get_scalar(inputs[5], "int32")
-        y_scale = fold_constant(get_scalar(inputs[6]))
-        y_zero_point = get_scalar(inputs[7], "int32")
+        w_scale = get_scalar(inputs[4], params)
+        w_zero_point = get_scalar(inputs[5], params, "int32")
+        y_scale = fold_constant(get_scalar(inputs[6], params))
+        y_zero_point = get_scalar(inputs[7], params, "int32")
 
         input_shape = infer_shape(data)
 
@@ -3241,23 +3302,14 @@ class QLinearAdd(OnnxOpConverter):
 
     @classmethod
     def _impl_v10(cls, inputs, attr, params):
-        def get_scalar(x, dtype="float32"):
-            if isinstance(x, _expr.Var) and x.name_hint in params:
-                return _op.const(params[x.name_hint].numpy(), dtype)
-            rank = len(infer_shape(x))
-            assert rank <= 1, "QLinearConv scale and zero_point input must be scalars"
-            if rank == 1:
-                x = _op.squeeze(x, [0])
-            return _op.cast(x, dtype)
-
         a = inputs[0]
-        a_scale = get_scalar(inputs[1])
-        a_zero_point = get_scalar(inputs[2], "int32")
+        a_scale = get_scalar(inputs[1], params)
+        a_zero_point = get_scalar(inputs[2], params, "int32")
         b = inputs[3]
-        b_scale = get_scalar(inputs[4])
-        b_zero_point = get_scalar(inputs[5], "int32")
-        c_scale = get_scalar(inputs[6])
-        c_zero_point = get_scalar(inputs[7], "int32")
+        b_scale = get_scalar(inputs[4], params)
+        b_zero_point = get_scalar(inputs[5], params, "int32")
+        c_scale = get_scalar(inputs[6], params)
+        c_zero_point = get_scalar(inputs[7], params, "int32")
 
         dtype = infer_type(a).checked_type.dtype
 
@@ -3279,23 +3331,14 @@ class QLinearMul(OnnxOpConverter):
 
     @classmethod
     def _impl_v10(cls, inputs, attr, params):
-        def get_scalar(x, dtype="float32"):
-            if isinstance(x, _expr.Var) and x.name_hint in params:
-                return _op.const(params[x.name_hint].numpy(), dtype)
-            rank = len(infer_shape(x))
-            assert rank <= 1, "QLinearMul scale and zero_point input must be scalars"
-            if rank == 1:
-                x = _op.squeeze(x, [0])
-            return _op.cast(x, dtype)
-
         a = inputs[0]
-        a_scale = get_scalar(inputs[1])
-        a_zero_point = get_scalar(inputs[2], "int32")
+        a_scale = get_scalar(inputs[1], params)
+        a_zero_point = get_scalar(inputs[2], params, "int32")
         b = inputs[3]
-        b_scale = get_scalar(inputs[4])
-        b_zero_point = get_scalar(inputs[5], "int32")
-        y_scale = fold_constant(get_scalar(inputs[6]))
-        y_zero_point = get_scalar(inputs[7], "int32")
+        b_scale = get_scalar(inputs[4], params)
+        b_zero_point = get_scalar(inputs[5], params, "int32")
+        y_scale = fold_constant(get_scalar(inputs[6], params))
+        y_zero_point = get_scalar(inputs[7], params, "int32")
 
         dtype = infer_type(a).checked_type.dtype
 
@@ -3306,6 +3349,32 @@ class QLinearMul(OnnxOpConverter):
         b = _qnn.op.dequantize(inputs[3], b_scale, b_zero_point)
         out = _op.multiply(a, b)
         return _qnn.op.quantize(out, y_scale, y_zero_point, out_dtype=dtype)
+
+
+class QLinearConcat(OnnxOpConverter):
+    """Operator converter for QLinearConcat from Microsoft onnxruntime contrib opset."""
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        # which axis to concat on
+        axis = attr["axis"]
+
+        y_scale = fold_constant(get_scalar(inputs[0], params))
+        y_zero_point = get_scalar(inputs[1], params, "int32")
+
+        # input tensors, scales, zero_points
+        assert (
+            len(inputs) % 3 == 2
+        ), "Additional input count must be a multiple of 3 -- tensor/scale/zero_point tuples"
+        tensors = []
+        scales = []
+        zero_points = []
+        for i in range(2, len(inputs), 3):
+            tensors.append(inputs[i])
+            scales.append(get_scalar(inputs[i + 1], params))
+            zero_points.append(get_scalar(inputs[i + 2], params, "int32"))
+
+        return _qnn.op.concatenate(tensors, scales, zero_points, y_scale, y_zero_point, axis)
 
 
 class ConvInteger(OnnxOpConverter):
@@ -3512,6 +3581,56 @@ class NegativeLogLikelihoodLoss(OnnxOpConverter):
         return loss
 
 
+class Adagrad(OnnxOpConverter):
+    """Operator converter for adagrad op."""
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        decay_factor = attr.get("decay_factor", 0.0)
+        epsilon = attr.get("epsilon", 0.0)
+        norm_coefficient = attr.get("norm_coefficient", 0.0)
+
+        R = inputs[0]
+        T = inputs[1]
+
+        # convert attributes to constants, proper types
+        dtype_inputs = infer_type(inputs[3]).checked_type.dtype
+        decay_factor = relay.const(decay_factor, dtype=dtype_inputs)
+        epsilon = relay.const(epsilon, dtype=dtype_inputs)
+        norm_coefficient = relay.const(norm_coefficient, dtype=dtype_inputs)
+        T = relay.cast_like(T, inputs[3])
+
+        assert (
+            len(inputs) - 2
+        ) % 3 == 0, f"Expect triplets for remaining inputs, found {len(inputs) - 2}"
+
+        # Remaining inputs are:
+        # [x_1, x_2 ..., x_1_gradient, x_2_gradient, ... x_1_sq_g, x_2_sq_g...]
+        num_input_tensors = (len(inputs) - 2) // 3
+        output_tensors = []
+        output_accumulated_squared_gradients = []
+        for i in range(num_input_tensors):
+            x = inputs[i + 2]
+            gradient = inputs[i + 2 + num_input_tensors]
+            accumulated_squared_gradient = inputs[i + 2 + 2 * num_input_tensors]
+
+            r = R / (relay.const(1.0, dtype=dtype_inputs) + T * decay_factor)
+            g_regularized = norm_coefficient * x + gradient
+            new_accumulated_squared_gradient = (
+                accumulated_squared_gradient + g_regularized * g_regularized
+            )
+            h_adaptive = relay.sqrt(new_accumulated_squared_gradient) + epsilon
+
+            x_new = x - r * g_regularized / h_adaptive
+
+            output_tensors.append(x_new)
+            output_accumulated_squared_gradients.append(new_accumulated_squared_gradient)
+
+        # append lists together, momentums come after result tensors
+        result = output_tensors + output_accumulated_squared_gradients
+        return _expr.TupleWrapper(_expr.Tuple(result), len(result))
+
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -3570,8 +3689,8 @@ def _get_convert_map(opset):
         "Selu": Selu.get_converter(opset),
         "Elu": Elu.get_converter(opset),
         "Exp": Renamer("exp"),
-        "Greater": Greater.get_converter(opset),
-        "Less": Less.get_converter(opset),
+        "Greater": Renamer("greater"),
+        "Less": Renamer("less"),
         "Log": Renamer("log"),
         "Acos": Renamer("acos"),
         "Acosh": Renamer("acosh"),
@@ -3585,7 +3704,7 @@ def _get_convert_map(opset):
         "Sinh": Renamer("sinh"),
         "Tan": Renamer("tan"),
         "Tanh": Renamer("tanh"),
-        "Pow": Renamer("power"),
+        "Pow": Pow.get_converter(opset),
         "PRelu": Prelu.get_converter(opset),
         "Sigmoid": Renamer("sigmoid"),
         "HardSigmoid": HardSigmoid.get_converter(opset),
@@ -3689,13 +3808,15 @@ def _get_convert_map(opset):
         "DynamicQuantizeLinear": DynamicQuantizeLinear.get_converter(opset),
         "ReverseSequence": ReverseSequence.get_converter(opset),
         "QLinearConv": QLinearConv.get_converter(opset),
+        "QLinearConcat": QLinearConcat.get_converter(opset),
         "QLinearAdd": QLinearAdd.get_converter(opset),
         "QLinearMul": QLinearMul.get_converter(opset),
         "ConvInteger": ConvInteger.get_converter(opset),
         # Random number generation.
         "RandomUniform": RandomUniform.get_converter(opset),
-        # Loss functions
+        # Loss functions / training
         "NegativeLogLikelihoodLoss": NegativeLogLikelihoodLoss.get_converter(opset),
+        "Adagrad": Adagrad.get_converter(opset),
     }
 
 

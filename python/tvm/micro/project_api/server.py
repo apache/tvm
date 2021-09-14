@@ -34,7 +34,6 @@ import pathlib
 import re
 import select
 import sys
-import textwrap
 import time
 import traceback
 import typing
@@ -100,6 +99,7 @@ class JSONRPCError(Exception):
     """An error class with properties that meet the JSON-RPC error spec."""
 
     def __init__(self, code, message, data, client_context=None):
+        Exception.__init__(self)
         self.code = code
         self.message = message
         self.data = data
@@ -123,9 +123,7 @@ class JSONRPCError(Exception):
 
     @classmethod
     def from_json(cls, client_context, json_error):
-        # Subclasses of ServerError capture exceptions that occur in the Handler, and thus return a
-        # traceback. The encoding in `json_error` is also slightly different to allow the specific subclass
-        # to be identified.
+        """Convert an encapsulated ServerError into JSON-RPC compliant format."""
         found_server_error = False
         try:
             if ErrorCode(json_error["code"]) == ErrorCode.SERVER_ERROR:
@@ -145,6 +143,8 @@ class JSONRPCError(Exception):
 
 
 class ServerError(JSONRPCError):
+    """Superclass for JSON-RPC errors which occur while processing valid requests."""
+
     @classmethod
     def from_exception(cls, exc, **kw):
         to_return = cls(**kw)
@@ -168,21 +168,25 @@ class ServerError(JSONRPCError):
         super_str = super(ServerError, self).__str__()
         return context_str + super_str
 
-    def set_traceback(self, traceback):
+    def set_traceback(self, traceback):  # pylint: disable=redefined-outer-name
+        """Format a traceback to be embedded in the JSON-RPC format."""
+
         if self.data is None:
             self.data = {}
 
         if "traceback" not in self.data:
             # NOTE: TVM's FFI layer reorders Python stack traces several times and strips
             # intermediary lines that start with "Traceback". This logic adds a comment to the first
-            # stack frame to explicitly identify the first stack frame line that occurs on the server.
+            # stack frame to explicitly identify the first stack frame line that occurs on the
+            # server.
             traceback_list = list(traceback)
 
-            # The traceback list contains one entry per stack frame, and each entry contains 1-2 lines:
+            # The traceback list contains one entry per stack frame, and each entry contains 1-2
+            # lines:
             #    File "path/to/file", line 123, in <method>:
             #      <copy of the line>
-            # We want to place a comment on the first line of the outermost frame to indicate this is the
-            # server-side stack frame.
+            # We want to place a comment on the first line of the outermost frame to indicate this
+            # is the server-side stack frame.
             first_frame_list = traceback_list[1].split("\n")
             self.data["traceback"] = (
                 traceback_list[0]
@@ -307,7 +311,8 @@ class ProjectAPIHandler(metaclass=abc.ABCMeta):
     def open_transport(self, options: dict) -> TransportTimeouts:
         """Open resources needed for the transport layer.
 
-        This function might e.g. open files or serial ports needed in write_transport or read_transport.
+        This function might e.g. open files or serial ports needed in write_transport or
+        read_transport.
 
         Calling this function enables the write_transport and read_transport calls. If the
         transport is not open, this method is a no-op.
@@ -323,7 +328,8 @@ class ProjectAPIHandler(metaclass=abc.ABCMeta):
     def close_transport(self):
         """Close resources needed to operate the transport layer.
 
-        This function might e.g. close files or serial ports needed in write_transport or read_transport.
+        This function might e.g. close files or serial ports needed in write_transport or
+        read_transport.
 
         Calling this function disables the write_transport and read_transport calls. If the
         transport is not open, this method is a no-op.
@@ -331,6 +337,7 @@ class ProjectAPIHandler(metaclass=abc.ABCMeta):
         raise NotImplementedError()
 
     @abc.abstractmethod
+    # pylint: disable=unidiomatic-typecheck
     def read_transport(self, n: int, timeout_sec: typing.Union[float, type(None)]) -> bytes:
         """Read data from the transport.
 
@@ -389,7 +396,8 @@ class ProjectAPIHandler(metaclass=abc.ABCMeta):
 class ProjectAPIServer:
     """Base class for Project API Servers.
 
-    This API server implements communication using JSON-RPC 2.0: https://www.jsonrpc.org/specification
+    This API server implements communication using JSON-RPC 2.0:
+        https://www.jsonrpc.org/specification
 
     Suggested use of this class is to import this module or copy this file into Project Generator
     implementations, then instantiate it with server.start().
@@ -451,7 +459,7 @@ class ProjectAPIServer:
             _LOG.error("EOF")
             return False
 
-        except Exception as exc:
+        except Exception as exc:  # pylint: disable=broad-except
             _LOG.error("Caught error reading request", exc_info=1)
             return False
 
@@ -466,7 +474,7 @@ class ProjectAPIServer:
             request_id = None if not did_validate else request.get("id")
             self._reply_error(request_id, exc)
             return did_validate
-        except Exception as exc:
+        except Exception as exc:  # pylint: disable=broad-except
             message = "validating request"
             if did_validate:
                 message = f"calling method {request['method']}"
@@ -481,7 +489,7 @@ class ProjectAPIServer:
     VALID_METHOD_RE = re.compile("^[a-zA-Z0-9_]+$")
 
     def _validate_request(self, request):
-        if type(request) is not dict:
+        if not isinstance(request, dict):
             raise JSONRPCError(
                 ErrorCode.INVALID_REQUEST, f"request: want dict; got {request!r}", None
             )
@@ -493,7 +501,7 @@ class ProjectAPIServer:
             )
 
         method = request.get("method")
-        if type(method) != str:
+        if not isinstance(method, str):
             raise JSONRPCError(
                 ErrorCode.INVALID_REQUEST, f'request["method"]: want str; got {method!r}', None
             )
@@ -501,18 +509,20 @@ class ProjectAPIServer:
         if not self.VALID_METHOD_RE.match(method):
             raise JSONRPCError(
                 ErrorCode.INVALID_REQUEST,
-                f'request["method"]: should match regex {self.VALID_METHOD_RE.pattern}; got {method!r}',
+                f'request["method"]: should match regex {self.VALID_METHOD_RE.pattern}; '
+                f"got {method!r}",
                 None,
             )
 
         params = request.get("params")
-        if type(params) != dict:
+        if not isinstance(params, dict):
             raise JSONRPCError(
                 ErrorCode.INVALID_REQUEST, f'request["params"]: want dict; got {type(params)}', None
             )
 
         request_id = request.get("id")
-        if type(request_id) not in (str, int, type(None)):
+        # pylint: disable=unidiomatic-typecheck
+        if not isinstance(request_id, (str, int, type(None))):
             raise JSONRPCError(
                 ErrorCode.INVALID_REQUEST,
                 f'request["id"]: want str, number, null; got {request_id!r}',
@@ -538,10 +548,11 @@ class ProjectAPIServer:
         params = {}
 
         for var_name, var_type in typing.get_type_hints(interface_method).items():
-            if var_name == "self" or var_name == "return":
+            if var_name in ("self", "return"):
                 continue
 
-            # NOTE: types can only be JSON-compatible types, so var_type is expected to be of type 'type'.
+            # NOTE: types can only be JSON-compatible types, so var_type is expected to be of type
+            # 'type'.
             if var_name not in request_params:
                 raise JSONRPCError(
                     ErrorCode.INVALID_PARAMS,
@@ -553,7 +564,8 @@ class ProjectAPIServer:
             if not has_preprocessing and not isinstance(param, var_type):
                 raise JSONRPCError(
                     ErrorCode.INVALID_PARAMS,
-                    f'method {request["method"]}: parameter {var_name}: want {var_type!r}, got {type(param)!r}',
+                    f'method {request["method"]}: parameter {var_name}: want {var_type!r}, '
+                    f"got {type(param)!r}",
                     None,
                 )
 
@@ -636,7 +648,7 @@ def _await_nonblocking_ready(rlist, wlist, timeout_sec=None, end_time=None):
     return True
 
 
-def read_with_timeout(fd, n, timeout_sec):
+def read_with_timeout(fd, n, timeout_sec):  # pylint: disable=invalid-name
     """Read data from a file descriptor, with timeout.
 
     This function is intended as a helper function for implementations of ProjectAPIHandler
@@ -683,7 +695,7 @@ def read_with_timeout(fd, n, timeout_sec):
     return to_return
 
 
-def write_with_timeout(fd, data, timeout_sec):
+def write_with_timeout(fd, data, timeout_sec):  # pylint: disable=invalid-name
     """Write data to a file descriptor, with timeout.
 
     This function is intended as a helper function for implementations of ProjectAPIHandler

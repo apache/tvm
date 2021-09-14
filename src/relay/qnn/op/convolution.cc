@@ -495,7 +495,7 @@ Expr Conv2DSecondTerm(const Expr& padded_data, const Expr& kernel_zero_point,
  * \param input_zero_point The input zero point expr.
  * \param param The qnn conv2d attributes.
  * \param out_channels The number of output channels.
- * \return The sequence of Relay operatos for term3.
+ * \return The sequence of Relay operators for term3.
  * \note The term3 looks like this
  *
  *       Sigma(c,r,s) zp_a * QW(k, c, r, s)
@@ -625,7 +625,7 @@ Expr Conv2DCombineTerms(const Expr& term1, const Expr& term2, const Expr& term3,
  * \node Lowering of the qnn.conv2d operator
  *       A quantized tensor is represented in following manner
  *          A = scale_a x (QA - zp_A)
- *       where QA is quantized tensor, scale_a and zp_A are quantizations
+ *       where QA is quantized tensor, scale_a and zp_A are quantization
  *       params.
  *
  *       Quantized convolution will convolve two quantized tensors and returns a
@@ -662,8 +662,8 @@ Expr Conv2DCombineTerms(const Expr& term1, const Expr& term2, const Expr& term3,
  *         a workaround, we fall back to simpler lowering using int32 conv if
  *         the conv is dilated. We fallback also in case of grouped conv.
  *
- *       For depthwise, we can similarly unroll the computation. The intial compute is as follows
- *       wehere cm = channel_multiplier
+ *       For depthwise, we can similarly unroll the computation. The initial compute is as follows
+ *       where cm = channel_multiplier
  *
  *       Qc(n, oc, oh, ow) = Sigma(r, s) (Qw(oc/m, oc%/m, r, s) - zp_w)
  *                                     * (Qa(n, oc/cm, oh + r, ow + s) - zp_a)
@@ -693,12 +693,13 @@ Expr QnnConv2DCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   Expr kernel_zero_point = new_args[3];
   const auto* param = attrs.as<Conv2DAttrs>();
   ICHECK(param != nullptr);
-  // Assertion checks for exisiing support.
+  // Assertion checks for existing support.
   ICHECK(param->data_layout == "NCHW" || param->data_layout == "NHWC")
       << "qnn.conv2d supports only NCHW/NHWC input data layout.";
   ICHECK(param->kernel_layout == "OIHW" || param->kernel_layout == "HWIO" ||
          param->kernel_layout == "HWOI")
       << "qnn.conv2d supports only OIHW/HWIO/HWOI kernel data layout.";
+  ICHECK(param->kernel_size.defined()) << "qnn.conv2d requires kernel size to be specified.";
 
   int batch_size, in_channels, out_channels, kernel_h, kernel_w, channel_multiplier;
   std::tie(batch_size, in_channels, out_channels, kernel_h, kernel_w, channel_multiplier) =

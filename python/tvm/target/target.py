@@ -484,6 +484,8 @@ def hexagon(cpu_ver="v66", **kwargs):
         error if invalid. Does not affect codegen.
     llvm_options : str or list of str (default: None)
         User defined compiler arguments.
+    link_params : bool (default: False)
+        Whether to link graph parameters into the LLVM module.
     """
 
     # Some of the target parameters correspond to target kind attributes
@@ -508,6 +510,7 @@ def hexagon(cpu_ver="v66", **kwargs):
         "hvx": 128,
         "sim_options": None,
         "llvm_options": None,
+        "link_params": False,
     }
     config.update(kwargs)
 
@@ -616,12 +619,27 @@ def hexagon(cpu_ver="v66", **kwargs):
         args = [s.replace("=", "@") for s in llvm_options.split()]
         return "--llvm-options=" + ",".join(args)
 
+    # TVM target attributes string
+    def create_tvm_options(cpu_ver, config):  # pylint: disable=unused-argument
+        """ Create TVM target features string. """
+
+        features = {
+            "link_params": "link-params",
+        }
+        opts = ""
+        for k in config:
+            if k in features:
+                opts += " --" + features[k] + "=" + str(config[k])
+        return opts
+
     # Sim args
     os.environ["HEXAGON_SIM_ARGS"] = create_sim_options(cpu_ver, config)
 
     target_str = create_llvm_target(cpu_ver, config)
     llvm_str = create_llvm_options(cpu_ver, config)
-    args_list = target_str.split() + llvm_str.split()
+    tvm_str = create_tvm_options(cpu_ver, config)
+
+    args_list = target_str.split() + llvm_str.split() + tvm_str.split()
 
     return Target(" ".join(["hexagon"] + args_list))
 

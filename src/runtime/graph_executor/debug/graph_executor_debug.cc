@@ -365,8 +365,23 @@ PackedFunc GraphExecutorDebug::GetFunction(const std::string& name,
   } else if (name == "profile") {
     return TypedPackedFunc<profiling::Report(Array<profiling::MetricCollector>)>(
         [sptr_to_self, this](Array<profiling::MetricCollector> collectors) {
-          return this->Profile(collectors);
+          // We cannot send Arrays over rpc, so in order to support profiling
+          // on remotes, we accept a nullptr for collectors.
+          if (collectors.defined()) {
+            return this->Profile(collectors);
+          } else {
+            return this->Profile({});
+          }
         });
+  } else if (name == "profile_rpc") {
+    // We cannot return a Report over RPC because TMV RPC mechanism only
+    // supports a subset of Object classes. Instead we serialize it on the
+    // remote (here) and deserialize it on the other end.
+    return TypedPackedFunc<std::string()>([sptr_to_self, this]() {
+      PackedFunc profile = GetFunction("profile", sptr_to_self);
+      profiling::Report report = profile(Array<profiling::MetricCollector>());
+      return report->AsJSON();
+    });
   } else {
     return GraphExecutor::GetFunction(name, sptr_to_self);
   }

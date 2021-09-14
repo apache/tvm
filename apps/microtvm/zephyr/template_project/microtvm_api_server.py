@@ -57,6 +57,47 @@ MODEL_LIBRARY_FORMAT_RELPATH = "model.tar"
 
 IS_TEMPLATE = not (API_SERVER_DIR / MODEL_LIBRARY_FORMAT_RELPATH).exists()
 
+# Data structure to hold the information microtvm_api_server.py needs
+# to communicate with each of these boards.
+BOARD_PROPERTIES = {
+    "qemu_x86": {
+        "board": "qemu_x86",
+        "model": "host",
+    },
+    "qemu_riscv32": {
+        "board": "qemu_riscv32",
+        "model": "host",
+    },
+    "qemu_riscv64": {
+        "board": "qemu_riscv64",
+        "model": "host",
+    },
+    "mps2_an521": {
+        "board": "mps2_an521",
+        "model": "mps2_an521",
+    },
+    "nrf5340dk_nrf5340_cpuapp": {
+        "board": "nrf5340dk_nrf5340_cpuapp",
+        "model": "nrf5340dk",
+    },
+    "stm32f746xx_disco": {
+        "board": "stm32f746xx_disco",
+        "model": "stm32f746xx",
+    },
+    "nucleo_f746zg": {
+        "board": "nucleo_f746zg",
+        "model": "stm32f746xx",
+    },
+    "nucleo_l4r5zi": {
+        "board": "nucleo_l4r5zi",
+        "model": "stm32l4r5zi",
+    },
+    "qemu_cortex_r5": {
+        "board": "qemu_cortex_r5",
+        "model": "zynq_mp_r5",
+    },
+}
+
 
 def check_call(cmd_args, *args, **kwargs):
     cwd_str = "" if "cwd" not in kwargs else f" (in cwd: {kwargs['cwd']})"
@@ -216,28 +257,26 @@ if IS_TEMPLATE:
 
 PROJECT_OPTIONS = [
     server.ProjectOption(
-        "extra_files",
-        help="If given, during generate_project, uncompress the tarball at this path into the project dir",
+        "extra_files_tar",
+        help="If given, during generate_project, uncompress the tarball at this path into the project dir.",
     ),
     server.ProjectOption(
-        "gdbserver_port", help=("If given, port number to use when running the local gdbserver")
+        "gdbserver_port", help=("If given, port number to use when running the local gdbserver.")
     ),
     server.ProjectOption(
         "nrfjprog_snr",
-        help=(
-            "When used with nRF targets, serial # of the " "attached board to use, from nrfjprog"
-        ),
+        help=("When used with nRF targets, serial # of the attached board to use, from nrfjprog."),
     ),
     server.ProjectOption(
         "openocd_serial",
-        help=("When used with OpenOCD targets, serial # of the " "attached board to use"),
+        help=("When used with OpenOCD targets, serial # of the attached board to use."),
     ),
     server.ProjectOption(
         "project_type",
         help="Type of project to generate.",
         choices=tuple(PROJECT_TYPES),
     ),
-    server.ProjectOption("verbose", help="Run build with verbose output"),
+    server.ProjectOption("verbose", help="Run build with verbose output.", choices=(True, False)),
     server.ProjectOption(
         "west_cmd",
         help=(
@@ -246,7 +285,16 @@ PROJECT_OPTIONS = [
         ),
     ),
     server.ProjectOption("zephyr_base", help="Path to the zephyr base directory."),
-    server.ProjectOption("zephyr_board", help="Name of the Zephyr board to build for"),
+    server.ProjectOption(
+        "zephyr_board",
+        choices=list(BOARD_PROPERTIES),
+        help="Name of the Zephyr board to build for.",
+    ),
+    server.ProjectOption(
+        "zephyr_model",
+        choices=[board["model"] for _, board in BOARD_PROPERTIES.items()],
+        help="Name of the model for each Zephyr board.",
+    ),
 ]
 
 
@@ -400,6 +448,9 @@ class Handler(server.ProjectAPIHandler):
 
         if options.get("zephyr_base"):
             cmake_args.append(f"-DZEPHYR_BASE:STRING={options['zephyr_base']}")
+
+        if options.get("west_cmd"):
+            cmake_args.append(f"-DWEST={options['west_cmd']}")
 
         cmake_args.append(f"-DBOARD:STRING={options['zephyr_board']}")
 
