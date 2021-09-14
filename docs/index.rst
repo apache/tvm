@@ -15,76 +15,64 @@
     specific language governing permissions and limitations
     under the License.
 
-TVM Documentation
-=================
+Apache TVM Documentation
+========================
 
-TVM is an open deep learning compiler stack for CPUs, GPUs, and specialized accelerators. It aims to close the gap between the productivity-focused deep learning frameworks, and the performance- or efficiency-oriented hardware backends.
+Welcome to the the documentation for Apache TVM, a deep learning compiler that
+enables access to high-performance machine learning anywhere for everyone.
+TVM's diverse community of hardware vendors, compiler engineers and ML
+researchers work together to build a unified, programmable software stack, that
+enriches the entire ML technology ecosystem and make it accessible to the wider
+ML community. TVM empowers users to leverage community-driven ML-based
+optimizations to push the limits and amplify the reach of their research and
+development, which in turn raises the collective performance of all ML, while
+driving its costs down.
 
-
-Get Started
------------
-
-- Follow the :doc:`instructions <install/index>` to install TVM.
-- Checkout the :doc:`Getting Started with TVM Tutorial <tutorials/index>`.
-
-For Developers
---------------
-
-- :doc:`dev/index` is useful for developers who want to understand the
-  architecture of TVM and/or actively develop on the project.
-- :doc:`dev/how_to` gives quick development tips on various topics.
-
+.. raw::
+  <hr>
 
 .. toctree::
    :maxdepth: 1
-   :caption: How to
-   :hidden:
+   :caption: Getting Started
 
-   install/index
-   contribute/index
-   deploy/index
+   get_started/about
+   get_started/install
+   get_started/contribute
+
+.. toctree::
+   :maxdepth: 1
+   :caption: User Guide
+
+   tutorial/index
+   how_to/index
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Developer Guide
+
+   dev/tutorial
    dev/how_to
-   microtvm/index
-   errors
-   faq
 
 .. toctree::
    :maxdepth: 1
-   :caption: Tutorials
-   :hidden:
+   :caption: Architecture  Guide
 
-   tutorials/index
-
-
-.. toctree::
-   :maxdepth: 2
-   :caption: References
-   :hidden:
-
-   langref/index
-   api/python/index
-   api/links
-
-.. toctree::
-   :maxdepth: 2
-   :hidden:
-   :caption: Deep Dive
-
-   dev/index
-
-.. toctree::
-   :maxdepth: 2
-   :hidden:
-   :caption: MISC
-
-   vta/index
-   profiling/index
-
-
-Index
------
+   architecture/index
 
 .. toctree::
    :maxdepth: 1
+   :caption: Topic Guide
 
+   topic/microtvm/index
+   topic/vta/index
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Reference Guide
+
+   reference/deploy/index
+   reference/langref
+   reference/api/python/index
+   reference/api/links
+   reference/publications
    genindex

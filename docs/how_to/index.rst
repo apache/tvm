@@ -15,18 +15,24 @@
     specific language governing permissions and limitations
     under the License.
 
-.. _dev-how-to:
+How To Guides
+=============
 
-Developer How-To Guides
-=======================
-
-This section contains a collection of tips about how to work on various areas
-of the TVM stack.
+These user-focused "how to" guides are designed to help you find answers to
+specific questions, like "How do I compile a model?" or "How to I optimize a
+schedule with tesor expressions?"
 
 .. toctree::
    :maxdepth: 1
 
-   how_to/relay_add_op
-   how_to/relay_add_pass
-   how_to/relay_bring_your_own_codegen
-   how_to/pytest_target_parametrization
+   compile_models/index
+   deploy/index
+   work_with_relay/index
+   work_with_schedules/index
+   optimize_operators/index
+   tune_with_autotvm/index
+   tune_with_autoscheduler/index
+   work_with_microtvm/index
+   profiling/index
+   ../errors
+   ../faq

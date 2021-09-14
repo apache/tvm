@@ -15,18 +15,35 @@
     specific language governing permissions and limitations
     under the License.
 
-.. _dev-how-to:
-
-Developer How-To Guides
-=======================
-
-This section contains a collection of tips about how to work on various areas
-of the TVM stack.
+Python API
+==========
 
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 2
 
-   how_to/relay_add_op
-   how_to/relay_add_pass
-   how_to/relay_bring_your_own_codegen
-   how_to/pytest_target_parametrization
+   runtime
+   ndarray
+   error
+   ir
+   target
+   tir
+   te
+   driver
+   relay/index
+   relay/frontend
+   relay/nn
+   relay/vision
+   relay/image
+   relay/transform
+   relay/analysis
+   relay/backend
+   relay/dataflow_pattern
+   relay/testing
+   autotvm
+   auto_scheduler
+   rpc
+   micro
+   contrib
+   graph_executor
+   topi
+   vta/index

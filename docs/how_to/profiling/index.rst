@@ -15,18 +15,10 @@
     specific language governing permissions and limitations
     under the License.
 
-.. _dev-how-to:
-
-Developer How-To Guides
-=======================
-
-This section contains a collection of tips about how to work on various areas
-of the TVM stack.
+Profile Models
+==============
 
 .. toctree::
    :maxdepth: 1
 
-   how_to/relay_add_op
-   how_to/relay_add_pass
-   how_to/relay_bring_your_own_codegen
-   how_to/pytest_target_parametrization
+   papi

@@ -15,18 +15,17 @@
     specific language governing permissions and limitations
     under the License.
 
-.. _dev-how-to:
+Publications
+============
 
-Developer How-To Guides
-=======================
+TVM is developed as part of peer-reviewed research in machine learning compiler
+framework for CPUs, GPUs, and machine learning accelerators.
 
-This section contains a collection of tips about how to work on various areas
-of the TVM stack.
+This document includes references to publications describing the research,
+results, and design underlying TVM.
 
-.. toctree::
-   :maxdepth: 1
-
-   how_to/relay_add_op
-   how_to/relay_add_pass
-   how_to/relay_bring_your_own_codegen
-   how_to/pytest_target_parametrization
+* `TVM: An Automated End-to-End Optimizing Compiler for Deep Learning <https://arxiv.org/abs/1802.04799>`_
+* `Learning to Optimize Tensor Programs <https://arxiv.org/pdf/1805.08166.pdf>`_
+* `Ansor: Generating High-Performance Tensor Programs for Deep Learning <https://arxiv.org/abs/2006.06762>`_
+* `Nimble: Efficiently Compiling Dynamic Neural Networks for Model Inference
+  <https://arxiv.org/abs/2006.03031>`_

@@ -15,18 +15,17 @@
     specific language governing permissions and limitations
     under the License.
 
-.. _dev-how-to:
+Design and Developer Guide
+==========================
 
-Developer How-To Guides
-=======================
+This developer guide details the complete VTA-TVM hardware-software stack.
 
-This section contains a collection of tips about how to work on various areas
-of the TVM stack.
+.. image:: https://raw.githubusercontent.com/uwsampl/web-data/main/vta/blogpost/vta_stack.png
+   :align: center
+   :width: 60%
 
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 2
 
-   how_to/relay_add_op
-   how_to/relay_add_pass
-   how_to/relay_bring_your_own_codegen
-   how_to/pytest_target_parametrization
+   config
+   hardware

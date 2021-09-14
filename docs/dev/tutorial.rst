@@ -17,16 +17,13 @@
 
 .. _dev-how-to:
 
-Developer How-To Guides
-=======================
+Developer Tutorial
+==================
 
-This section contains a collection of tips about how to work on various areas
-of the TVM stack.
+This section is a guide to the TVM codebase, and an introduction on how to
+contribute to different parts of the platform.
 
 .. toctree::
    :maxdepth: 1
 
-   how_to/relay_add_op
-   how_to/relay_add_pass
-   how_to/relay_bring_your_own_codegen
-   how_to/pytest_target_parametrization
+   tutorial/codebase_walkthrough
