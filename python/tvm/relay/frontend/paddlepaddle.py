@@ -1544,6 +1544,7 @@ def convert_slice(g, op, block):
                 base[axis] = ends[i]
             ends = base
 
+    strides = None
     if "StridesTensor" in op.input_names and op.input("StridesTensor"):
         strides = g.get_node(op.input("StridesTensor")[0])
         strides = _infer_value(strides, g.get_params())
@@ -1556,7 +1557,24 @@ def convert_slice(g, op, block):
         strides = _infer_value(strides, g.get_params())
     elif op.has_attr("strides"):
         strides = op.attr("strides")
-    else:
+
+    if len(axes) < dims:
+        if isinstance(strides, _expr.Expr):
+            strides = _op.scatter(
+                _expr.const(
+                    np.array([1] * dims),
+                    dtype=infer_type(strides).checked_type.dtype,
+                ),
+                indices,
+                strides,
+                axis=0,
+            )
+        elif strides:
+            base = [1] * dims
+            for i, axis in enumerate(axes):
+                base[axis] = strides[i]
+            strides = base
+    if not strides:
         strides = _op.const([1] * dims, dtype="int64")
 
     out = _op.strided_slice(data, begin=starts, end=ends, strides=strides)

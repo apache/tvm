@@ -1413,7 +1413,7 @@ def test_forward_slice():
     @paddle.jit.to_static
     def slice5(inputs):
         x0 = paddle.to_tensor([3])
-        return inputs[0, 1::1, 2::x0, 4:10]
+        return inputs[:, 1::1, 2::x0, 4:10]
 
     input_shape = [1, 3, 10, 10]
     input_data = paddle.rand(input_shape, dtype="float32")
