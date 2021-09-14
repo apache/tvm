@@ -23,6 +23,7 @@ import os
 import pathlib
 import contextlib
 
+from typing import Union
 from .._ffi import libinfo
 from .. import rpc as _rpc
 
@@ -68,17 +69,19 @@ class AutoTvmModuleLoader:
 
     Parameters
     ----------
-    template_project_dir : str
+    template_project_dir : Union[pathlib.Path, str]
         project template path
 
     project_options : dict
         project generation option
     """
 
-    def __init__(self, template_project_dir: str, project_options: dict = None):
+    def __init__(
+        self, template_project_dir: Union[pathlib.Path, str], project_options: dict = None
+    ):
         self._project_options = project_options
 
-        if isinstance(template_project_dir, pathlib.Path):
+        if isinstance(template_project_dir, (pathlib.Path, str)):
             self._template_project_dir = str(template_project_dir)
         elif not isinstance(template_project_dir, str):
             raise TypeError(f"Incorrect type {type(template_project_dir)}.")

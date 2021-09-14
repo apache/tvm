@@ -248,7 +248,7 @@ def test_autotune():
     inputs = {"data": input_data}
 
     target = tvm.target.target.micro("host")
-    template_project_dir = os.path.join(tvm.micro.get_standalone_crt_dir(), "template", "host")
+    template_project_dir = pathlib.Path(tvm.micro.get_standalone_crt_dir()) / "template" / "host"
 
     pass_context = tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True})
     with pass_context:
