@@ -88,12 +88,6 @@ def sum_impl(N, uniq_id):
 extern "C"
 #endif // __cplusplus
 void perf_timer_start(uint32_t op_id);
-#endif
-__STATIC_FORCEINLINE int32_t sum16_{N}_reset_{uniq_id}(
-    int16_t *res) {{
-  memset(res, (int16_t)0, {N} * sizeof(*res));  
-  return 0;
-}}
 
 #ifdef __cplusplus
 extern "C"
@@ -101,6 +95,15 @@ extern "C"
 void perf_timer_stop(uint32_t op_id);
 
 #endif // GROVETY_OP_BENCHMARK
+
+#ifdef __cplusplus
+extern "C"
+#endif // __cplusplus
+__STATIC_FORCEINLINE int32_t sum16_{N}_reset_{uniq_id}(
+    int16_t *res) {{
+  memset(res, (int16_t)0, {N} * sizeof(*res));  
+  return 0;
+}}
 
 #ifdef __cplusplus
 extern "C"

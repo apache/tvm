@@ -19,7 +19,7 @@
 import tvm
 
 from tvm import te
-from tvm.topi.utils import simplify, traverse_inline
+from tvm.topi.utils import traverse_inline
 
 from ..micro_kernel.max_pool import (
     intrin_max,
