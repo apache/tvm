@@ -30,6 +30,7 @@ import tvm
 from tvm import relay
 from .render_callback import RenderCallback
 
+
 class TermRenderCallback(RenderCallback):
     def __init__(self):
         super().__init__()
@@ -54,7 +55,7 @@ class TermRenderCallback(RenderCallback):
     def Global_var_node(self, node, relay_param, node_to_id):
         node_id = node_to_id[node]
         graph_info = [node_id, "GlobalVar", node.name_hint]
-        edge_info  = []
+        edge_info = []
         return graph_info, edge_info
 
     def If_node(self, node, relay_param, node_to_id):
@@ -80,7 +81,6 @@ class Node:
 
 
 class TermGraph(Graph):
-
     def __init__(self, name):
         # node_id: [ connected node_id]
         self._name = name
@@ -129,7 +129,6 @@ class TermGraph(Graph):
 
 
 class TermPlotter(Plotter):
-
     def __init__(self):
         self._name_to_graph = {}
 

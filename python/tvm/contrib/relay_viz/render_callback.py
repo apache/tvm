@@ -1,11 +1,29 @@
-
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+"""Default render callback rules"""
 import tvm
 from tvm import relay
 
 unknown_type = "unknown"
 
-class RenderCallback():
-    '''This is the default callback rules, which is also the _bokeh backend drawing way'''
+
+class RenderCallback:
+    """This is the default callback rules, which is also the _bokeh backend drawing way"""
+
     def __init__(self):
         self.render_rules = {}
         self.build_rules()
@@ -19,9 +37,7 @@ class RenderCallback():
             if hasattr(node.type_annotation, "shape"):
                 shape = tuple(map(int, node.type_annotation.shape))
                 dtype = node.type_annotation.dtype
-                node_detail = "name_hint: {}\nshape: {}\ndtype: {}".format(
-                    name_hint, shape, dtype
-                )
+                node_detail = "name_hint: {}\nshape: {}\ndtype: {}".format(name_hint, shape, dtype)
             else:
                 node_detail = "name_hint: {}\ntype_annotation: {}".format(
                     name_hint, node.type_annotation
@@ -76,12 +92,12 @@ class RenderCallback():
 
     def Global_var_node(self, node, relay_param, node_to_id):
         graph_info = []
-        edge_info  = []
+        edge_info = []
         return graph_info, edge_info
 
     def If_node(self, node, relay_param, node_to_id):
         graph_info = []
-        edge_info  = []
+        edge_info = []
         return graph_info, edge_info
 
     def Tuple_node(self, node, relay_param, node_to_id):
@@ -110,16 +126,16 @@ class RenderCallback():
 
     def build_rules(self):
         self.render_rules = {
-            tvm.relay.Function          : self.Function_node,
-            tvm.relay.expr.Call         : self.Call_node,
-            tvm.relay.expr.Let          : self.Let_node,
-            tvm.relay.expr.Var          : self.Var_node,
-            tvm.relay.expr.GlobalVar    : self.Global_var_node,
-            tvm.relay.expr.If           : self.If_node,
-            tvm.relay.expr.Tuple        : self.Tuple_node,
-            tvm.relay.expr.TupleGetItem : self.TupleGetItem_node,
-            tvm.relay.expr.Constant     : self.Constant_node,
-            tvm.ir.Op                   : self.Op_node,
+            tvm.relay.Function: self.Function_node,
+            tvm.relay.expr.Call: self.Call_node,
+            tvm.relay.expr.Let: self.Let_node,
+            tvm.relay.expr.Var: self.Var_node,
+            tvm.relay.expr.GlobalVar: self.Global_var_node,
+            tvm.relay.expr.If: self.If_node,
+            tvm.relay.expr.Tuple: self.Tuple_node,
+            tvm.relay.expr.TupleGetItem: self.TupleGetItem_node,
+            tvm.relay.expr.Constant: self.Constant_node,
+            tvm.ir.Op: self.Op_node,
         }
 
     def get_rules(self):

@@ -61,6 +61,7 @@ from .render_callback import RenderCallback
 class BokehRenderCallback(RenderCallback):
     pass
 
+
 class NodeDescriptor:
     """Descriptor used by Bokeh plotter."""
 
@@ -376,7 +377,9 @@ class BokehGraph(Graph):
             id_start = edge.get_source()
             id_end = edge.get_destination()
             x_pts, y_pts = shaper.get_edge_path(id_start, id_end)
-            x_loc, y_loc, angle = get_scatter_loc(x_pts[-2], x_pts[-1], y_pts[-2], y_pts[-1], id_end)
+            x_loc, y_loc, angle = get_scatter_loc(
+                x_pts[-2], x_pts[-1], y_pts[-2], y_pts[-1], id_end
+            )
             scatter_source["angle"].append(angle)
             scatter_source["x"].append(x_loc)
             scatter_source["y"].append(y_loc)
@@ -487,4 +490,3 @@ class BokehPlotter(Plotter):
         """
 
         save(layout_dom, filename=filename, title=filename, template=template)
-
