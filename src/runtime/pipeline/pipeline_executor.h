@@ -34,8 +34,7 @@ namespace runtime {
  *  the parameters and executes these modules on heterogeneous targets in a pipeline
  *  parallel manner to improve throughput.
  *
- *  This executor can be accessed by various language via
- *  TVM runtime PackedFunc API.
+ *  This executor can be accessed by various language via TVM runtime PackedFunc API.
  */
 class TVM_DLL PipelineRuntime : public ModuleNode {
  public:
