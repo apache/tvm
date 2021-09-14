@@ -265,7 +265,7 @@ bool VerboseLoggingEnabled(const char* filename, int level) {
   static const std::unordered_map<std::string, int>* map =
       new std::unordered_map<std::string, int>(ParseTvmLogDebugSpec(std::getenv("TVM_LOG_DEBUG")));
   return VerboseEnabledInMap(filename, level, *map);
-};
+}
 
 LogFatal::Entry& LogFatal::GetEntry() {
   static thread_local LogFatal::Entry result;

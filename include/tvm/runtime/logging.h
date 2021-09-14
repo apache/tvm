@@ -40,6 +40,7 @@
 #include <sstream>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 /*!
  * \brief Macro helper to force a function not to be inlined.
