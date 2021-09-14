@@ -1217,8 +1217,8 @@ def einsum_strategy_cuda(attrs, inputs, out_type, target):
     """einsum cuda strategy"""
     strategy = _op.OpStrategy()
     strategy.add_implementation(
-        wrap_compute_einsum(topi.cuda.einsum),
-        wrap_topi_schedule(topi.cuda.schedule_einsum),
+        wrap_compute_einsum(topi.einsum),
+        wrap_topi_schedule(topi.generic.schedule_extern),
         name="einsum.cuda",
     )
     return strategy
