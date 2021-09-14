@@ -34,7 +34,8 @@ def pipeline_executor_enabled():
 
 
 def build(pipe_configs):
-    """Use pipe_config to build and return PipelineExecutorFactoryModule.
+    """Build these modules used in the pipeline executor, then use these modules and configuration
+    to create a pipeline executor by using the PipelineExecutorFactoryModule class.
 
     Parameters
     ----------
@@ -44,8 +45,7 @@ def build(pipe_configs):
     Returns
     -------
     ret: PipelineExecutorFactoryModule
-        A factory class is responsible for receiving module and configuration
-        information and maintaining executor module
+        A factory class is responsible for maintaining executor module
     """
     mods = {}
     mod_n_configs = pipe_configs.get_config()
@@ -54,7 +54,6 @@ def build(pipe_configs):
     for ir_mod, mod_config in mod_n_configs.items():
         mconf = mod_config["pipeline"].copy()
         mod_idx = mconf["mod_idx"] - 1
-        # Get mod device configuration.
         dev = mod_config["dev"]
         target = mod_config["target"]
         build_func = relay.build
@@ -62,7 +61,6 @@ def build(pipe_configs):
         if "build" in mod_config and mod_config["build"]:
             build_func = mod_config["build"]
 
-        # Build.
         mod = build_func(
             ir_mod,
             target,
@@ -72,30 +70,11 @@ def build(pipe_configs):
         )
 
         mconf["dev"] = "{},{}".format(dev.device_type, dev.device_id)
-        # Create pipeline configuration.
+        # Create a pipeline configuration.
         string_config[mod_idx] = mconf
-        # Set device.
         mods[mod] = {"dev": dev}
 
     return PipelineExecutorFactoryModule(mods, string_config)
-
-
-def create(pipe_executor_factory_module):
-    """Create a pipeline runtime executor.
-
-    Parameters
-    ----------
-    pipe_executor_factory_module : PipelineExecutorFactoryModule
-        A factory class is responsible for receiving module and configuration
-        information and maintaining executor module.
-
-    Returns
-    -------
-    submodule : PipelineModule
-        Runtime pipeline module.
-    """
-
-    return PipelineModule(pipe_executor_factory_module)
 
 
 class PipelineModule(object):

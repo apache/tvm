@@ -238,7 +238,7 @@ def test_pipeline():
             with tvm.transform.PassContext(opt_level=3):
                 pipeline_mod_config = pipeline_executor.build(pipe_config)
 
-            pipeline_module = pipeline_executor.create(pipeline_mod_config)
+            pipeline_module = pipeline_executor.PipelineModule(pipeline_mod_config)
             assert pipeline_module
 
 
