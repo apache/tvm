@@ -672,6 +672,7 @@ def test_forward_elemwise():
         "maximum",
         "minimum",
         "equal",
+        "greater_equal",
         "greater_than",
         "less_equal",
         "less_than",
@@ -778,6 +779,17 @@ def test_forward_index_select():
 
 
 @tvm.testing.uses_gpu
+def test_forward_isfinite():
+    @paddle.jit.to_static
+    def isfinite(inputs):
+        return paddle.cast(paddle.isfinite(inputs), "int32")
+
+    input_shape = [5, 5]
+    input_data = paddle.rand(input_shape, dtype="float32")
+    verify_model(isfinite, input_data=input_data)
+
+
+@tvm.testing.uses_gpu
 def test_forward_isinf():
     @paddle.jit.to_static
     def isinf(inputs):
@@ -786,6 +798,17 @@ def test_forward_isinf():
     input_shape = [5, 5]
     input_data = paddle.rand(input_shape, dtype="float32")
     verify_model(isinf, input_data=input_data)
+
+
+@tvm.testing.uses_gpu
+def test_forward_isnan():
+    @paddle.jit.to_static
+    def isnan(inputs):
+        return paddle.cast(paddle.isnan(inputs), "int32")
+
+    input_shape = [5, 5]
+    input_data = paddle.rand(input_shape, dtype="float32")
+    verify_model(isnan, input_data=input_data)
 
 
 @tvm.testing.uses_gpu
@@ -861,6 +884,37 @@ def test_forward_leaky_relu():
     input_shape = [1, 3, 10, 10]
     input_data = paddle.rand(input_shape, dtype="float32")
     verify_model(leaky_relu, input_data=input_data)
+
+
+@tvm.testing.uses_gpu
+def test_forward_logical_op():
+    class LogicalOp(nn.Layer):
+        def __init__(self, op_name, out=False):
+            super(LogicalOp, self).__init__()
+            self.out = out
+            for candidate in (paddle, paddle.nn.functional):
+                self.func = getattr(candidate, op_name, None)
+                if self.func:
+                    break
+
+        @paddle.jit.to_static
+        def forward(self, x, y):
+            if self.out:
+                out = paddle.to_tensor([True, True, True])
+                z = self.func(x, y, out=out)
+            else:
+                z = self.func(x, y)
+            return paddle.cast(z, "int32")
+
+    op_list = [
+        "logical_and",
+        "logical_or",
+    ]
+    x = paddle.to_tensor([True])
+    y = paddle.to_tensor([True, False, True, False])
+    for op_name in op_list:
+        verify_model(LogicalOp(op_name, False), [x, y])
+        verify_model(LogicalOp(op_name, True), [x, y])
 
 
 @tvm.testing.uses_gpu
@@ -1444,53 +1498,56 @@ def test_forward_zeros():
 
 
 if __name__ == "__main__":
-    test_forward_add_subtract()
-    test_forward_addmm()
-    test_forward_arange()
-    test_forward_argmax()
-    test_forward_argmin()
-    test_forward_assign()
-    test_forward_batch_norm()
-    test_forward_cast()
-    test_forward_concat_unsqueeze()
-    test_forward_conv()
-    test_forward_crop()
-    test_forward_cumsum()
-    test_forward_dot()
-    test_forward_dropout()
-    test_forward_elemwise()
-    test_forward_expand()
-    test_forward_flatten()
-    test_forward_shape_full()
-    test_forward_ones()
-    test_forward_ones_like()
-    test_forward_gather_assign_value()
-    test_forward_gather_nd()
-    test_forward_gelu()
-    test_forward_hard_sigmoid()
-    test_forward_hard_swish()
-    test_forward_index_select()
-    test_forward_interpolate()
-    test_forward_isinf()
-    test_forward_layer_norm()
-    test_forward_leaky_relu()
-    test_forward_look_up()
-    test_forward_lstm()
-    test_forward_matmul()
-    test_forward_multiply()
-    test_forward_nonzero()
-    test_forward_norm()
-    test_forward_pool2d()
-    test_forward_pad()
-    test_forward_pow()
-    test_forward_reduce_op()
-    test_forward_reshape()
-    test_forward_scale()
-    test_forward_slice()
-    test_forward_split()
-    test_forward_squeeze2()
-    test_forward_topk()
-    test_forward_tile()
-    test_forward_conv_transpose()
-    test_forward_unary_op()
-    test_forward_zeros()
+    # test_forward_add_subtract()
+    # test_forward_addmm()
+    # test_forward_arange()
+    # test_forward_argmax()
+    # test_forward_argmin()
+    # test_forward_assign()
+    # test_forward_batch_norm()
+    # test_forward_cast()
+    # test_forward_concat_unsqueeze()
+    # test_forward_conv()
+    # test_forward_crop()
+    # test_forward_cumsum()
+    # test_forward_dot()
+    # test_forward_dropout()
+    # test_forward_elemwise()
+    # test_forward_expand()
+    # test_forward_flatten()
+    # test_forward_shape_full()
+    # test_forward_ones()
+    # test_forward_ones_like()
+    # test_forward_gather_assign_value()
+    # test_forward_gather_nd()
+    # test_forward_gelu()
+    # test_forward_hard_sigmoid()
+    # test_forward_hard_swish()
+    # test_forward_index_select()
+    # test_forward_interpolate()
+    # test_forward_isfinite()
+    # test_forward_isinf()
+    # test_forward_isnan()
+    # test_forward_layer_norm()
+    # test_forward_leaky_relu()
+    test_forward_logical_op()
+    # test_forward_look_up()
+    # test_forward_lstm()
+    # test_forward_matmul()
+    # test_forward_multiply()
+    # test_forward_nonzero()
+    # test_forward_norm()
+    # test_forward_pool2d()
+    # test_forward_pad()
+    # test_forward_pow()
+    # test_forward_reduce_op()
+    # test_forward_reshape()
+    # test_forward_scale()
+    # test_forward_slice()
+    # test_forward_split()
+    # test_forward_squeeze2()
+    # test_forward_topk()
+    # test_forward_tile()
+    # test_forward_conv_transpose()
+    # test_forward_unary_op()
+    # test_forward_zeros()
