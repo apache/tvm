@@ -416,22 +416,28 @@ def test_forward_cast():
 def test_forward_clip():
     @paddle.jit.to_static
     def clip(inputs):
-        return paddle.clip(inputs)
+        return paddle.clip(inputs, min=3, max=5)
 
     @paddle.jit.to_static
-    def clip2(inputs):
-        return paddle.clip(inputs, min=3.5, max=5.0)
+    def clip2(inputs, max_value):
+        return paddle.clip(inputs, max=max_value)
 
     @paddle.jit.to_static
-    def clip3(inputs):
-        Max = np.array([5], dtype="int32")
-        return paddle.clip(inputs, max=paddle.to_tensor(Max))
+    def clip3(inputs, min_value):
+        return paddle.clip(inputs, min=min_value)
 
+    @paddle.jit.to_static
+    def clip4(inputs, min_value, max_value):
+        return paddle.clip(inputs, min=min_value, max=max_value)
+
+    verify_model(clip, paddle.to_tensor([[1, 2], [4, 6]], dtype="int32"))
     x = np.array([[1.2, 3.5], [4.5, 6.4]])
     x1 = paddle.to_tensor(x, dtype="float32")
-    verify_model(clip, x1)
-    verify_model(clip2, x1)
-    verify_model(clip3, paddle.to_tensor([[1, 2], [4, 6]], dtype="int32"))
+    min_value = paddle.to_tensor(np.array([2.1]), dtype="float32")
+    max_value = paddle.to_tensor(np.array([4.5]), dtype="float32")
+    verify_model(clip2, [x1, max_value])
+    verify_model(clip3, [x1, min_value])
+    verify_model(clip4, [x1, min_value, max_value])
 
 
 @tvm.testing.uses_gpu

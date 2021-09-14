@@ -365,17 +365,38 @@ def convert_clip(g, op, block):
     """Operator converter for clip."""
 
     x = g.get_node(op.input("X")[0])
+    dtype = infer_type(x).checked_type.dtype
+    is_dynamic = False
     if op.input("Min"):
-        Min = g.get_node(op.input("Min")[0])
-        Min = infer_value(x, g.get_params()).numpy().tolist()[0]
+        min_value = g.get_node(op.input("Min")[0])
+        min_value = _infer_value(min_value, g.get_params())
+        if isinstance(min_value, _expr.Expr):
+            is_dynamic = True
+        else:
+            min_value = min_value[0]
     else:
-        Min = op.attr("min")
+        min_value = op.attr("min")
     if op.input("Max"):
-        Max = g.get_node(op.input("Max")[0])
-        Max = infer_value(Max, g.get_params()).numpy().tolist()[0]
+        max_value = g.get_node(op.input("Max")[0])
+        max_value = _infer_value(max_value, g.get_params())
+        if isinstance(max_value, _expr.Expr):
+            if not is_dynamic:
+                is_dynamic = True
+                min_value = _op.const(min_value, dtype)
+        else:
+            max_value = max_value[0]
+            if is_dynamic:
+                max_value = _op.const(max_value, dtype)
     else:
-        Max = op.attr("max")
-    out = _op.clip(x, Min, Max)
+        max_value = op.attr("max")
+        if is_dynamic:
+            max_value = _op.const(max_value, dtype)
+
+    if not is_dynamic:
+        out = _op.clip(x, min_value, max_value)
+    else:
+        out = _op.maximum(x, min_value)
+        out = _op.minimum(out, max_value)
     g.add_node(op.output("Out")[0], out)
 
 
