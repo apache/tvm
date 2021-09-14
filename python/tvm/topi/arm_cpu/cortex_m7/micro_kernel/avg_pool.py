@@ -24,20 +24,17 @@ import tvm
 from tvm import te
 
 
-def intrin_sum(in_channels, in_dtype, out_dtype):
+def intrin_sum(width: int, in_dtype, out_dtype):
     UNIQ_ID_LEN = 8
     uniq_id = "".join(random.choices(string.ascii_uppercase, k=UNIQ_ID_LEN))
     func_prefix = "sum16"
 
-    if isinstance(in_channels, tvm.tir.IntImm):
-        in_channels = in_channels.value
-
     assert in_dtype == "int16"
     assert out_dtype == "int16"
 
-    x = te.placeholder((1, 1, 1, in_channels), name="x", dtype=in_dtype)
-    k = te.reduce_axis((0, 1), name="rc")
-    z = te.compute((1, 1, 1, in_channels), lambda *i: tvm.tir.sum(x[i], axis=[k]).astype(out_dtype))
+    x = te.placeholder((1, 1, 1, width), name="x", dtype=in_dtype)
+    k = te.reduce_axis((0, width), name="rc")
+    z = te.compute((1, 1, 1, 1), lambda i1, i2, i3, i4: te.sum(x[i1, i2, i3, i4 + k], axis=[k]).astype(out_dtype))
 
     def _intrin_func(ins, outs):
         aa = ins[0]
@@ -47,15 +44,16 @@ def intrin_sum(in_channels, in_dtype, out_dtype):
             ib = tvm.tir.ir_builder.create()
             ib.emit(
                 tvm.tir.call_extern(cc.dtype,
-                                    f"{func_prefix}_{in_channels}_{uniq_id}",
+                                    f"{func_prefix}_{width}_{uniq_id}",
                                     aa.access_ptr("r"),
-                                    cc.access_ptr("w")))
+                                    cc.access_ptr("w"),
+                                    aa.elem_offset))
             return ib.get()
 
         def _reduce_reset():
             ib = tvm.tir.ir_builder.create()
             ib.emit(tvm.tir.call_extern(cc.dtype,
-                                        f"{func_prefix}_{in_channels}_reset_{uniq_id}",
+                                        f"{func_prefix}_{width}_reset_{uniq_id}",
                                         cc.access_ptr("w")))
             return ib.get()
 
@@ -78,7 +76,7 @@ def intrin_sum(in_channels, in_dtype, out_dtype):
 
 
 def sum_impl(N, uniq_id):
-    """Emit C code for avg_pool impl."""
+    """Emit C code for sum impl."""
     cc_code = f"""
 #ifndef __STATIC_FORCEINLINE
   #define __STATIC_FORCEINLINE  static inline
@@ -108,7 +106,9 @@ void perf_timer_stop(uint32_t op_id);
 extern "C"
 #endif
 __STATIC_FORCEINLINE int32_t sum16_{N}_{uniq_id}(
-    int16_t *arr) {{
+    int16_t *arr,
+    int16_t *res16,
+    long arr_offset) {{
   int n;
   int32_t *p32;
   int32_t res;
@@ -116,22 +116,22 @@ __STATIC_FORCEINLINE int32_t sum16_{N}_{uniq_id}(
 #ifdef GROVETY_OP_BENCHMARK
   perf_timer_start(2);
 #endif
-  
-  if ( (long)arr % 4 != 0 ) {{
+
+  if ( arr_offset % 4 != 0 ) {{
     res = *arr;
     p32 = (int32_t *)(&arr[1]);
     n = {N} - 1;
   }} else {{
-    res = 0;
+    res = 0
     p32 = (int32_t *)arr;
     n = {N};
   }}
-  
+
   for ( int i = 0; i < n / 2; ++ i ) {{
-    res += __SMUAD(*p32, 0x00010001);
+    res = __SMLAD(*p32, 0x00010001, res);
     ++ p32;
   }}
-  
+
   if ( n % 2 != 0 ) 
     res += *(int16_t *)p32;
 
@@ -139,7 +139,9 @@ __STATIC_FORCEINLINE int32_t sum16_{N}_{uniq_id}(
   perf_timer_stop(2);
 #endif
 
-  return res;
+  *res16 = res;
+
+  return 0;
 }}
 """
     return cc_code

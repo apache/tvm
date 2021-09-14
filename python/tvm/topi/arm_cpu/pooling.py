@@ -25,4 +25,4 @@ from .cortex_m7.pool import direct_simd
 
 def schedule_pool(outs):
     """Create schedule for conv2d_direct_simd"""
-    return direct_simd.pool_direct_simd_nhwc_schedule(outs)
+    return direct_simd.pool_direct_simd_schedule(outs)
