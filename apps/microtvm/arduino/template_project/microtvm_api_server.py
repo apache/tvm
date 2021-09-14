@@ -113,6 +113,12 @@ BOARD_PROPERTIES = {
         "board": "seeed_wio_terminal",
         "model": "atsamd51",
     },
+    "nicla_sense": {
+        "package": "arduino",
+        "architecture": "mbed_nicla",
+        "board": "nicla_sense",
+        "model": "nrf52832",
+    },
 }
 
 PROJECT_TYPES = ["example_project", "host_driven"]
@@ -386,7 +392,7 @@ class Handler(server.ProjectAPIHandler):
         # Specify project to compile
         subprocess.run(compile_cmd, check=True)
 
-    BOARD_LIST_HEADERS = ("Port", "Type", "Board Name", "FQBN", "Core")
+    BOARD_LIST_HEADERS = ("Port", "Protocol", "Type", "Board Name", "FQBN", "Core")
 
     def _parse_boards_tabular_str(self, tabular_str):
         """Parses the tabular output from `arduino-cli board list` into a 2D array
@@ -417,6 +423,8 @@ class Handler(server.ProjectAPIHandler):
 
                 # Remove trailing whitespace used for padding
                 parsed_row.append(str_cell.rstrip())
+                
+            del parsed_row[1]
             yield parsed_row
 
     def _auto_detect_port(self, options):
@@ -452,7 +460,7 @@ class Handler(server.ProjectAPIHandler):
             "--fqbn",
             self._get_fqbn(options),
             "--input-dir",
-            BUILD_DIR.resolve(),
+            str(BUILD_DIR.resolve()),
             "--port",
             port,
         ]
