@@ -3632,13 +3632,15 @@ class Adagrad(OnnxOpConverter):
 
 
 class Adam(OnnxOpConverter):
+    """Operator converter for Adam op."""
+
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         alpha = attr.get("alpha", 0.9)
         beta = attr.get("beta", 0.999)
 
-        # Note in the documentation epsilon is by default 0.0 but in the tests it is set to 1e-2 by default
-        # https://github.com/onnx/onnx/blob/07c494bf077e9e4a7898119f28a50585469ad4cd/onnx/backend/test/case/node/adam.py#L16
+        # Note in the docs epsilon default is 0.0 but in the tests it is set to 1e-2:
+        # https://git.io/Ju5C4
         epsilon = attr.get("epsilon", 1e-2)
         norm_coefficient = attr.get("norm_coefficient", 0.0)
         norm_coefficient_post = attr.get("norm_coefficient_post", 0.0)
@@ -3663,7 +3665,7 @@ class Adam(OnnxOpConverter):
         T = relay.cast_like(T, inputs[3])
 
         # Remaining inputs are:
-        # [x_1, x_2 ..., x_1_gradient, x_2_gradient, ... x_1_g_accum, x_2_g_accum..., x_1_g_sq_accum, ...]
+        # [x_1, x_2 ..., x_1_grad, x_2_grad, ... x_1_g_accum, x_2_g_accum..., x_1_g_sq_accum, ...]
         num_input_tensors = (len(inputs) - 2) // 4
         output_tensors = []
         output_accumulated_gradients = []
