@@ -140,8 +140,8 @@ def test_tflite(temp_dir, board, west_cmd, tvm_debug):
         "qemu_x86",
         "mps2_an521",
         "nrf5340dk_nrf5340_cpuapp",
-        "stm32l4r5zi_nucleo",
-        "zynq_mp_r5",
+        "nucleo_l4r5zi",
+        "qemu_cortex_r5",
     ]:
         pytest.skip(msg="Model does not fit.")
 
