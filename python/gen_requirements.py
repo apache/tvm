@@ -244,7 +244,7 @@ CONSTRAINTS = [
     ("sphinx_autodoc_annotation", None),
     ("sphinx_gallery", None),
     ("sphinx_rtd_theme", None),
-    ("synr", "==0.3.0"),
+    ("synr", "==0.4.0"),
     ("tensorflow", None),
     ("tensorflow-estimator", None),
     ("tflite", None),
