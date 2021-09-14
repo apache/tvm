@@ -80,6 +80,26 @@ def _infer_value(x, params):
             return x
 
 
+def _convert_dtype_value(val):
+    """converts a Paddle type id to a string."""
+
+    convert_dtype_map = {
+        21: "int8",
+        20: "uint8",
+        6: "float64",
+        5: "float32",
+        4: "float16",
+        3: "int64",
+        2: "int32",
+        1: "int16",
+        0: "bool",
+    }
+    if val not in convert_dtype_map:
+        msg = "Paddle data type value %d is not handled yet." % (val)
+        raise NotImplementedError(msg)
+    return convert_dtype_map[val]
+
+
 def convert_unary_op(g, op, block):
     """Operator converter for all the activation."""
 
@@ -128,6 +148,8 @@ def convert_arg_max(g, op, block):
     axis = op.attr("axis")
     keepdims = op.attr("keepdims")
     flatten = op.attr("flatten")
+    dtype = op.attr("dtype")
+    dtype = _convert_dtype_value(dtype)
 
     x = g.get_node(op.input("X")[0])
     if axis is None or flatten:
@@ -135,6 +157,8 @@ def convert_arg_max(g, op, block):
         out = _op.argmax(x, axis=None, keepdims=True)
     else:
         out = _op.argmax(x, axis=axis, keepdims=keepdims)
+    if dtype != infer_type(out).checked_type.dtype:
+        out = _op.cast(out, dtype)
     g.add_node(op.output("Out")[0], out)
 
 
@@ -144,6 +168,8 @@ def convert_arg_min(g, op, block):
     axis = op.attr("axis")
     keepdims = op.attr("keepdims")
     flatten = op.attr("flatten")
+    dtype = op.attr("dtype")
+    dtype = _convert_dtype_value(dtype)
 
     x = g.get_node(op.input("X")[0])
     if axis is None or flatten:
@@ -151,27 +177,27 @@ def convert_arg_min(g, op, block):
         out = _op.argmin(x, axis=None, keepdims=True)
     else:
         out = _op.argmin(x, axis=axis, keepdims=keepdims)
+    if dtype != infer_type(out).checked_type.dtype:
+        out = _op.cast(out, dtype)
     g.add_node(op.output("Out")[0], out)
 
 
 def convert_assign(g, op, block):
     """Operator converter for assign."""
 
-    out = _op.copy(g.get_node(op.input("X")[0]))
+    out = g.get_node(op.input("X")[0])
     g.add_node(op.output("Out")[0], out)
 
 
 def convert_assign_value(g, op, block):
     """Operator converter for assign_value."""
 
-    keys = ["fp32_values", "int32_values", "int64_values"]
+    keys = ["bool_values", "fp32_values", "int32_values", "int64_values"]
     for key in keys:
         value = np.array(op.attr(key))
         if value is not None and value.size >= 1:
             break
     shape = op.attr("shape")
-    dtype = block.var(op.output("Out")[0]).dtype
-    dtype = str(dtype).strip().split(".")[1]
     value = value.reshape(shape)
     out = _op.const(value)
     g.add_node(op.output("Out")[0], out)
@@ -308,8 +334,8 @@ def convert_interpolate(g, op, block):
 def convert_cast(g, op, block):
     """Operator converter for cast."""
 
-    dtype = block.var(op.output("Out")[0]).dtype
-    dtype = str(dtype).strip().split(".")[1]
+    dtype = op.attr("out_dtype")
+    dtype = _convert_dtype_value(dtype)
     x = g.get_node(op.input("X")[0])
     out = _op.cast(x, dtype=dtype)
     g.add_node(op.output("Out")[0], out)
@@ -468,6 +494,30 @@ def convert_dropout(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_dist(g, op, block):
+    """Operator converter for dist."""
+
+    x = g.get_node(op.input("X")[0])
+    y = g.get_node(op.input("Y")[0])
+    dtype = infer_type(x).checked_type.dtype
+    p = op.attr("p")
+
+    x -= y
+    if p == np.inf:
+        out = _op.reduce.max(_op.abs(x))
+    elif p == np.NINF:
+        out = _op.reduce.min(_op.abs(x))
+    else:
+        reci_order = _expr.const(1.0 / p, dtype=dtype)
+        p = _expr.const(p)
+        out = _op.power(
+            _op.reduce.sum(_op.power(_op.abs(x), p)),
+            reci_order,
+        )
+    out = _op.expand_dims(out, axis=0)
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_dot(g, op, block):
     """Operator converter for dot."""
 
@@ -544,6 +594,15 @@ def convert_expand(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_expand_as(g, op, block):
+    """Operator converter for expand_as."""
+
+    x = g.get_node(op.input("X")[0])
+    target_shape = op.attr("target_shape")
+    out = _op.broadcast_to(x, target_shape)
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_feed(g, op, block):
     """Converter for model input node."""
 
@@ -579,8 +638,8 @@ def convert_fill_constant(g, op, block):
 
     value = op.attr("value")
     shape = block.var(op.output("Out")[0]).shape
-    dtype = block.var(op.output("Out")[0]).dtype
-    dtype = str(dtype).strip().split(".")[1]
+    dtype = op.attr("dtype")
+    dtype = _convert_dtype_value(dtype)
     value = _expr.const(value).astype(dtype)
     if op.input("ValueTensor"):
         shape = g.get_node(op.input("ValueTensor")[0])
@@ -601,9 +660,9 @@ def convert_fill_constant_batch_size_like(g, op, block):
     shape = op.attr("shape")
     input_dim_idx = op.attr("input_dim_idx")
     output_dim_idx = op.attr("output_dim_idx")
+    dtype = op.attr("dtype")
 
-    dtype = block.var(op.output("Out")[0]).dtype
-    dtype = str(dtype).strip().split(".")[1]
+    dtype = _convert_dtype_value(dtype)
     input_shape = shape_of(x)
     batch = _op.strided_slice(input_shape, begin=[input_dim_idx], end=[input_dim_idx + 1]).astype(
         "int32"
@@ -967,7 +1026,7 @@ def convert_numel(g, op, block):
     """Operator converter for numel."""
 
     input_x = g.get_node(op.input("Input")[0])
-    out = _op.ndarray_size(input_x)
+    out = _op.ndarray_size(input_x, dtype="int64")
     out = _op.expand_dims(out, axis=0)
     g.add_node(op.output("Out")[0], out)
 
@@ -1506,7 +1565,7 @@ def convert_topk(g, op, block):
         k = _infer_value(k_node, g.get_params())
     else:
         k = op.attr("k")
-    outs = _op.topk(x, k=k, axis=axis, is_ascend=is_ascend, ret_type="both", dtype="int32")
+    outs = _op.topk(x, k=k, axis=axis, is_ascend=is_ascend, ret_type="both", dtype="int64")
 
     g.add_node(op.output("Out")[0], outs[0])
     g.add_node(op.output("Indices")[0], outs[1])
@@ -1591,6 +1650,7 @@ _convert_map = {
     "crop_tensor": convert_crop,
     "cumsum": convert_cumsum,
     "depthwise_conv2d": convert_conv2d,
+    "dist": convert_dist,
     "dot": convert_dot,
     "dropout": convert_dropout,
     "elementwise_add": convert_elementwise_op,
@@ -1603,8 +1663,10 @@ _convert_map = {
     "elementwise_pow": convert_elementwise_op,
     "elementwise_floordiv": convert_elementwise_op,
     "equal": convert_elementwise_op,
+    "erf": convert_unary_op,
     "exp": convert_unary_op,
     "expand_v2": convert_expand,
+    "expand_as_v2": convert_expand_as,
     "feed": convert_feed,
     "fill_any_like": convert_fill_any_like,
     "fill_constant": convert_fill_constant,
@@ -1636,9 +1698,9 @@ _convert_map = {
     "log2": convert_unary_op,
     "log10": convert_unary_op,
     "log1p": convert_log1p,
-    "logsumexp": convert_logsumexp,
     "logical_and": convert_logical_op,
     "logical_or": convert_logical_op,
+    "logsumexp": convert_logsumexp,
     "matmul": convert_matmul,
     "matmul_v2": convert_matmul,
     "mul": convert_mul,

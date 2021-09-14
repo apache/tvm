@@ -20,6 +20,7 @@ import shutil
 import numpy as np
 
 import paddle
+from paddle.framework import dtype
 import paddle.nn as nn
 
 import tvm
@@ -36,8 +37,11 @@ PADDLE_TEST_DATA_ROOT_PATH.mkdir(parents=True, exist_ok=True)
 
 def assert_shapes_match(tru, est):
     if tru.shape != est.shape:
-        msg = "Output shapes {} and {} don't match"
+        msg = "Paddle Output shapes {} and TVM shapes {} don't match"
         raise AssertionError(msg.format(tru.shape, est.shape))
+    if tru.dtype != est.dtype:
+        msg = "Paddle Output dtype {} and TVM dtype {} don't match"
+        raise AssertionError(msg.format(tru.dtype, est.dtype))
 
 
 def get_paddle_model(func, input_spec):
@@ -152,6 +156,7 @@ def test_forward_unary_op():
         "ceil",
         "cos",
         "cosh",
+        "erf",
         "exp",
         "floor",
         "log",
@@ -291,21 +296,22 @@ def test_forward_argmin():
 
 @tvm.testing.uses_gpu
 def test_forward_assign():
-    @paddle.jit.to_static
-    def assign(inputs):
-        return paddle.assign(inputs)
+    class Assign(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.assign(inputs)
 
     input_shape = [2, 3]
     input_data = paddle.rand(input_shape, dtype="float32")
     verify_model(
-        assign,
+        Assign(),
         [
             input_data,
         ],
     )
     input_data2 = np.random.randint(100, size=input_shape)
     verify_model(
-        assign,
+        Assign(),
         [
             input_data2,
         ],
@@ -426,29 +432,32 @@ def test_forward_crop():
 
 @tvm.testing.uses_gpu
 def test_forward_cumsum():
-    @paddle.jit.to_static
-    def cusum1(inputs):
-        return paddle.cumsum(inputs)
+    class Cusum1(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.cumsum(inputs)
 
-    @paddle.jit.to_static
-    def cusum2(inputs):
-        return paddle.cumsum(inputs, axis=0)
+    class Cusum2(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.cumsum(inputs, axis=0)
 
-    @paddle.jit.to_static
-    def cusum3(inputs):
-        return paddle.cumsum(inputs, axis=1)
+    class Cusum3(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.cumsum(inputs, axis=1)
 
     input_data = paddle.randint(0, 100, (10, 10), dtype=paddle.int32)
-    verify_model(cusum1, [input_data])
-    verify_model(cusum1, [input_data.astype(paddle.int64)])
+    verify_model(Cusum1(), [input_data])
+    verify_model(Cusum1(), [input_data.astype(paddle.int64)])
     verify_model(
-        cusum2,
+        Cusum2(),
         [
             input_data,
         ],
     )
     verify_model(
-        cusum3,
+        Cusum3(),
         [
             input_data,
         ],
@@ -535,6 +544,34 @@ def test_forward_conv_transpose():
 
 
 @tvm.testing.uses_gpu
+def test_forward_dist():
+    @paddle.jit.to_static
+    def dist(x, y):
+        return paddle.dist(x, y, p=2)
+
+    @paddle.jit.to_static
+    def dist2(x, y):
+        return paddle.dist(x, y, p=20)
+
+    @paddle.jit.to_static
+    def dist3(x, y):
+        return paddle.dist(x, y, p=float("-inf"))
+
+    @paddle.jit.to_static
+    def dist4(x, y):
+        return paddle.dist(x, y, p=float("inf"))
+
+    x_shape = [10, 3]
+    y_shape = [10, 1]
+    x_data = paddle.rand(x_shape, dtype="float32")
+    y_data = paddle.rand(y_shape, dtype="float32")
+    verify_model(dist, input_data=[x_data, y_data])
+    verify_model(dist2, input_data=[x_data, y_data])
+    verify_model(dist3, input_data=[x_data, y_data])
+    verify_model(dist4, input_data=[x_data, y_data])
+
+
+@tvm.testing.uses_gpu
 def test_forward_dot():
     @paddle.jit.to_static
     def dot(x, y):
@@ -574,6 +611,19 @@ def test_forward_expand():
     x_data = paddle.rand(x_shape, dtype="float32")
     verify_model(expand1, input_data=[x_data])
     verify_model(expand2, input_data=[x_data])
+
+
+@tvm.testing.uses_gpu
+def test_forward_expand_as():
+    @paddle.jit.to_static
+    def expand_as(x, y):
+        z = paddle.expand_as(x, y)
+        z += y
+        return z
+
+    data_x = paddle.to_tensor([1, 2, 3], dtype="int32")
+    data_y = paddle.to_tensor([[1, 2, 3], [4, 5, 6]], dtype="float32")
+    verify_model(expand_as, [data_x, data_y])
 
 
 @tvm.testing.uses_gpu
@@ -907,8 +957,8 @@ def test_forward_logical_op():
             return paddle.cast(z, "int32")
 
     op_list = [
-        "logical_and",
         "logical_or",
+        "logical_and",
     ]
     x = paddle.to_tensor([True])
     y = paddle.to_tensor([True, False, True, False])
@@ -1498,56 +1548,56 @@ def test_forward_zeros():
 
 
 if __name__ == "__main__":
-    # test_forward_add_subtract()
-    # test_forward_addmm()
-    # test_forward_arange()
-    # test_forward_argmax()
-    # test_forward_argmin()
-    # test_forward_assign()
-    # test_forward_batch_norm()
-    # test_forward_cast()
-    # test_forward_concat_unsqueeze()
-    # test_forward_conv()
-    # test_forward_crop()
-    # test_forward_cumsum()
-    # test_forward_dot()
-    # test_forward_dropout()
-    # test_forward_elemwise()
-    # test_forward_expand()
-    # test_forward_flatten()
-    # test_forward_shape_full()
-    # test_forward_ones()
-    # test_forward_ones_like()
-    # test_forward_gather_assign_value()
-    # test_forward_gather_nd()
-    # test_forward_gelu()
-    # test_forward_hard_sigmoid()
-    # test_forward_hard_swish()
-    # test_forward_index_select()
-    # test_forward_interpolate()
-    # test_forward_isfinite()
-    # test_forward_isinf()
-    # test_forward_isnan()
-    # test_forward_layer_norm()
-    # test_forward_leaky_relu()
+    test_forward_add_subtract()
+    test_forward_addmm()
+    test_forward_arange()
+    test_forward_argmax()
+    test_forward_argmin()
+    test_forward_assign()
+    test_forward_batch_norm()
+    test_forward_cast()
+    test_forward_concat_unsqueeze()
+    test_forward_conv()
+    test_forward_crop()
+    test_forward_cumsum()
+    test_forward_dist()
+    test_forward_dot()
+    test_forward_dropout()
+    test_forward_elemwise()
+    test_forward_expand()
+    test_forward_expand_as()
+    test_forward_flatten()
+    test_forward_shape_full()
+    test_forward_ones()
+    test_forward_ones_like()
+    test_forward_gather_assign_value()
+    test_forward_gather_nd()
+    test_forward_gelu()
+    test_forward_hard_sigmoid()
+    test_forward_hard_swish()
+    test_forward_index_select()
+    test_forward_interpolate()
+    test_forward_isinf()
+    test_forward_layer_norm()
+    test_forward_leaky_relu()
     test_forward_logical_op()
-    # test_forward_look_up()
-    # test_forward_lstm()
-    # test_forward_matmul()
-    # test_forward_multiply()
-    # test_forward_nonzero()
-    # test_forward_norm()
-    # test_forward_pool2d()
-    # test_forward_pad()
-    # test_forward_pow()
-    # test_forward_reduce_op()
-    # test_forward_reshape()
-    # test_forward_scale()
-    # test_forward_slice()
-    # test_forward_split()
-    # test_forward_squeeze2()
-    # test_forward_topk()
-    # test_forward_tile()
-    # test_forward_conv_transpose()
-    # test_forward_unary_op()
-    # test_forward_zeros()
+    test_forward_look_up()
+    test_forward_lstm()
+    test_forward_matmul()
+    test_forward_multiply()
+    test_forward_nonzero()
+    test_forward_norm()
+    test_forward_pool2d()
+    test_forward_pad()
+    test_forward_pow()
+    test_forward_reduce_op()
+    test_forward_reshape()
+    test_forward_scale()
+    test_forward_slice()
+    test_forward_split()
+    test_forward_squeeze2()
+    test_forward_topk()
+    test_forward_tile()
+    test_forward_conv_transpose()
+    test_forward_unary_op()
+    test_forward_zeros()
