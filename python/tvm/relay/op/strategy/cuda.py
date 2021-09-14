@@ -1216,6 +1216,7 @@ def invert_permutation_strategy_cuda(attrs, inputs, out_type, target):
 def einsum_strategy_cuda(attrs, inputs, out_type, target):
     """einsum cuda strategy"""
     strategy = _op.OpStrategy()
+    # TODO: Add cuda-specific op implementation for einsum
     strategy.add_implementation(
         wrap_compute_einsum(topi.einsum),
         wrap_topi_schedule(topi.generic.schedule_extern),
