@@ -3066,5 +3066,22 @@ def test_same_name_var():
     assert out_str.find("i_") == -1
 
 
+@tvm.script.tir
+def while_loop(a: ty.handle, b: ty.handle) -> None:
+    A = tir.match_buffer(a, (16,), "float32")
+    B = tir.match_buffer(b, (16,), "float32")
+    i = tir.alloc_buffer((), "int32", scope="local")
+    with tir.block([16]) as [vi]:
+        B[vi] = 0
+    while i[()] < 10:
+        for j in range(16):
+            B[j] += A[j]
+
+
+def test_while_loop():
+    rt_func = tvm.script.from_source(tvm.script.asscript(while_loop, True))
+    tvm.ir.assert_structural_equal(while_loop, rt_func)
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__] + sys.argv[1:]))
