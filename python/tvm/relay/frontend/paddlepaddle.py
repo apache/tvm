@@ -486,7 +486,7 @@ def convert_elementwise_op(g, op, block):
         "elementwise_sub": lambda x, y: x - y,
         "elementwise_mod": _op.mod,
         "elementwise_pow": _op.power,
-        "elementwise_floordiv": _op.floor_divide
+        "elementwise_floordiv": _op.floor_divide,
     }
     op_func = op_map[op.type]
     ipt0 = g.get_node(op.input("X")[0])
@@ -602,10 +602,12 @@ def convert_fill_constant_batch_size_like(g, op, block):
     dtype = block.var(op.output("Out")[0]).dtype
     dtype = str(dtype).strip().split(".")[1]
     input_shape = shape_of(x)
-    batch = _op.strided_slice(input_shape, begin=[input_dim_idx], end=[input_dim_idx+1]).astype("int32")
+    batch = _op.strided_slice(input_shape, begin=[input_dim_idx], end=[input_dim_idx + 1]).astype(
+        "int32"
+    )
     shape_before = shape[:output_dim_idx]
     shape_before = _expr.const(shape_before, dtype="int32")
-    shape_after = shape[output_dim_idx+1:]
+    shape_after = shape[output_dim_idx + 1 :]
     shape_after = _expr.const(shape_after, dtype="int32")
 
     out_shape = _op.concatenate([shape_before, batch, shape_after], axis=0)
@@ -1413,7 +1415,7 @@ def convert_topk(g, op, block):
 
     g.add_node(op.output("Out")[0], outs[0])
     g.add_node(op.output("Indices")[0], outs[1])
-   
+
 
 def convert_stack(g, op, block):
     """Operator converter for stack."""
