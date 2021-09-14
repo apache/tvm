@@ -29,6 +29,7 @@
 #include <iomanip>
 #include <iostream>
 #include <sstream>
+#include <unordered_map>
 #include <vector>
 
 namespace tvm {
@@ -119,7 +120,7 @@ int BacktraceFullCallback(void* data, uintptr_t pc, const char* filename, int li
 
 std::string Backtrace() {
   BacktraceInfo bt;
-  bt.max_size = 100;
+  bt.max_size = 500;
   if (_bt_state == nullptr) {
     return "";
   }
@@ -166,10 +167,121 @@ namespace tvm {
 namespace runtime {
 namespace detail {
 
+std::unordered_map<std::string, int> ParseTvmLogDebugSpec(const char* opt_spec) {
+  // Cache the verbosity level map.
+  std::unordered_map<std::string, int> map;
+  LOG(INFO) << "initializing VLOG map";
+  if (opt_spec == nullptr) {
+    LOG(INFO) << "VLOG disabled, no TVM_LOG_DEBUG environment variable";
+    return map;
+  }
+  std::string spec(opt_spec);
+  // Check we are enabled overall with at least one VLOG option.
+  if (spec.rfind("1;", 0) != 0) {
+    LOG(INFO) << "VLOG disabled, TVM_LOG_DEBUG does not start with '1;'";
+    return map;
+  }
+  size_t start = 2UL;
+  while (start < spec.size()) {
+    // We are looking for "name=level;" or "*=level;"
+    size_t end = start;
+    // Scan up to '='.
+    while (spec[end] != '=') {
+      ++end;
+      if (end >= spec.size()) {
+        LOG(FATAL) << "TVM_LOG_DEBUG ill-formed, missing '='";
+        return map;
+      }
+    }
+    if (end == start) {
+      LOG(FATAL) << "TVM_LOG_DEBUG ill-formed, empty name";
+      return map;
+    }
+    std::string name(spec.substr(start, end - start));
+    // Skip '='
+    ++end;
+    if (end >= spec.size()) {
+      LOG(FATAL) << "TVM_LOG_DEBUG ill-formed, missing level";
+      return map;
+    }
+    // Scan up to ';'.
+    start = end;
+    while (spec[end] != ';') {
+      ++end;
+      if (end >= spec.size()) {
+        LOG(FATAL) << "TVM_LOG_DEBUG ill-formed, missing ';'";
+        return map;
+      }
+    }
+    if (end == start) {
+      LOG(FATAL) << "TVM_LOG_DEBUG ill-formed, empty level";
+      return map;
+    }
+    std::string level_str(spec.substr(start, end - start));
+    // Skip ';'.
+    ++end;
+    // Parse level, default to 0 if ill-formed which we don't detect.
+    char* end_of_level = nullptr;
+    int level = static_cast<int>(strtol(level_str.c_str(), &end_of_level, 10));
+    if (end_of_level != level_str.c_str() + level_str.size()) {
+      LOG(FATAL) << "TVM_LOG_DEBUG ill-formed, invalid level";
+    }
+    LOG(INFO) << "adding VLOG entry for '" << name << "' at level " << level;
+    map.emplace(name, level);
+    start = end;
+  }
+  return map;
+}
+
+bool VerboseEnabledInMap(const char* filename, int level,
+                         const std::unordered_map<std::string, int>& map) {
+  if (filename == nullptr || level < 0) {
+    return false;
+  }
+  // Canonicalize filename.
+  std::string key(filename);
+  // TODO(mbs): Not Windows friendly.
+  size_t last_src = key.rfind("/src/", std::string::npos, 5);
+  if (last_src != std::string::npos) {
+    key = key.substr(last_src + 5);
+  }
+  // Assume disabled.
+  int limit = -1;
+  // Apply '*' wildcard if any.
+  auto itr = map.find("*");
+  if (itr != map.end()) {
+    limit = itr->second;
+  }
+  // Apply specific filename if any.
+  itr = map.find(key);
+  if (itr != map.end()) {
+    limit = itr->second;
+  }
+  return level <= limit;
+}
+
+bool VerboseLoggingEnabled(const char* filename, int level) {
+  // Cache the verbosity level map.
+  static const std::unordered_map<std::string, int>* map =
+      new std::unordered_map<std::string, int>(ParseTvmLogDebugSpec(std::getenv("TVM_LOG_DEBUG")));
+  return VerboseEnabledInMap(filename, level, *map);
+};
+
 LogFatal::Entry& LogFatal::GetEntry() {
   static thread_local LogFatal::Entry result;
   return result;
 }
+
+std::string VLogContext::str() const {
+  std::stringstream result;
+  for (const auto* entry : context_stack) {
+    ICHECK_NOTNULL(entry);
+    result << entry->str();
+    result << ": ";
+  }
+  return result.str();
+}
+
 }  // namespace detail
 }  // namespace runtime
 }  // namespace tvm
