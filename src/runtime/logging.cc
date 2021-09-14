@@ -26,6 +26,7 @@
 #include <backtrace.h>
 #include <cxxabi.h>
 
+#include <cstring>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
@@ -233,37 +234,43 @@ std::unordered_map<std::string, int> ParseTvmLogDebugSpec(const char* opt_spec) 
   return map;
 }
 
-bool VerboseEnabledInMap(const char* filename, int level,
+constexpr const char* kSrcPrefix = "/src/";
+
+bool VerboseEnabledInMap(const std::string& filename, int level,
                          const std::unordered_map<std::string, int>& map) {
-  if (filename == nullptr || level < 0) {
+  if (level < 0) {
     return false;
   }
   // Canonicalize filename.
-  std::string key(filename);
   // TODO(mbs): Not Windows friendly.
-  size_t last_src = key.rfind("/src/", std::string::npos, 5);
-  if (last_src != std::string::npos) {
-    key = key.substr(last_src + 5);
-  }
-  // Assume disabled.
-  int limit = -1;
-  // Apply '*' wildcard if any.
-  auto itr = map.find("*");
+
+  const size_t prefix_length = strlen(kSrcPrefix);
+  size_t last_src = filename.rfind(kSrcPrefix, std::string::npos, prefix_length);
+  // Strip anything before the /src/ prefix, on the assumption that will yield the
+  // TVM project relative filename. If no such prefix fallback to filename without
+  // canonicalization.
+  std::string key =
+      last_src == std::string::npos ? filename : filename.substr(last_src + prefix_length);
+  // Check for exact.
+  auto itr = map.find(key);
   if (itr != map.end()) {
-    limit = itr->second;
+    return level <= itr->second;
   }
-  // Apply specific filename if any.
-  itr = map.find(key);
+  // Check for '*' wildcard.
+  itr = map.find("*");
   if (itr != map.end()) {
-    limit = itr->second;
+    return level <= itr->second;
   }
-  return level <= limit;
+  return false;
 }
 
 bool VerboseLoggingEnabled(const char* filename, int level) {
   // Cache the verbosity level map.
   static const std::unordered_map<std::string, int>* map =
       new std::unordered_map<std::string, int>(ParseTvmLogDebugSpec(std::getenv("TVM_LOG_DEBUG")));
+  if (filename == nullptr) {
+    return false;
+  }
   return VerboseEnabledInMap(filename, level, *map);
 }
 
@@ -274,7 +281,7 @@ LogFatal::Entry& LogFatal::GetEntry() {
 
 std::string VLogContext::str() const {
   std::stringstream result;
-  for (const auto* entry : context_stack) {
+  for (const auto* entry : context_stack_) {
     ICHECK_NOTNULL(entry);
     result << entry->str();
     result << ": ";

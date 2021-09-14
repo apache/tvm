@@ -400,9 +400,12 @@ inline bool DebugLoggingEnabled() {
   static int state = 0;
   if (state == 0) {
     if (const char* var = std::getenv("TVM_LOG_DEBUG")) {
-      if (var[0] == '1') {
+      std::string var_str(var);
+      if (var_str == "1" || var_str.rfind("1;", 0) == 0) {
+        // Enabled, either without or with an additional VLOG specification.
         state = 1;
       } else {
+        // Not enabled.
         state = -1;
       }
     } else {
@@ -415,7 +418,7 @@ inline bool DebugLoggingEnabled() {
 
 /*! \brief Helpers for \p VerboseLoggingEnabled. Exposed for unit testing only. */
 std::unordered_map<std::string, int> ParseTvmLogDebugSpec(const char* opt_spec);
-bool VerboseEnabledInMap(const char* filename, int level,
+bool VerboseEnabledInMap(const std::string& filename, int level,
                          const std::unordered_map<std::string, int>& map);
 
 /*!
@@ -444,17 +447,17 @@ bool VerboseLoggingEnabled(const char* filename, int level);
  */
 class VLogContext {
  public:
-  void Push(std::stringstream* stream) { context_stack.push_back(stream); }
+  void Push(std::stringstream* stream) { context_stack_.push_back(stream); }
   void Pop() {
-    if (!context_stack.empty()) {
-      context_stack.pop_back();
+    if (!context_stack_.empty()) {
+      context_stack_.pop_back();
     }
   }
 
   std::string str() const;
 
  private:
-  std::vector<std::stringstream*> context_stack;
+  std::vector<std::stringstream*> context_stack_;
 };
 
 /*! \brief Thread local \p VLogContext for tracking a stack of VLOG context messages. */
@@ -644,7 +647,6 @@ TVM_CHECK_FUNC(_NE, !=)
    (x) : (x))  // NOLINT(*)
 
 }  // namespace runtime
-
 // Re-export error types
 using runtime::Error;
 using runtime::InternalError;
