@@ -485,6 +485,8 @@ def convert_elementwise_op(g, op, block):
         "elementwise_mul": "multiply",
         "elementwise_sub": "subtract",
         "elementwise_mod": "mod",
+        "elementwise_max": "maximum",
+        "elementwise_min": "minimum",
         "elementwise_pow": "power",
         "elementwise_floordiv": "floor_divide",
         "floor_mod": "floor_mod",
@@ -948,6 +950,25 @@ def convert_mul(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_numel(g, op, block):
+    """Operator converter for numel."""
+
+    input_x = g.get_node(op.input("Input")[0])
+    out = _op.ndarray_size(input_x)
+    out = _op.expand_dims(out, axis=0)
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_nonzero(g, op, block):
+    """Operator converter for nonzero."""
+
+    input_x = g.get_node(op.input("Condition")[0])
+    out = _op.transform.argwhere(input_x)
+    # Paddle NonZero always outputs int64
+    out = _op.cast(out, "int64")
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_pool2d(g, op, block):
     """Operator converter for pool2d."""
 
@@ -1090,6 +1111,15 @@ def convert_range(g, op, block):
         params.append(param)
 
     out = _op.transform.arange(params[0], params[1], params[2], dtype=dtype)
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_reciprocal(g, op, block):
+    """Operator converter for reciprocal."""
+
+    x = g.get_node(op.input("X")[0])
+    dtype = infer_type(x).checked_type.dtype
+    out = _expr.const(1.0, dtype) / x
     g.add_node(op.output("Out")[0], out)
 
 
@@ -1288,7 +1318,7 @@ def convert_scale(g, op, block):
     bias_after_scale = op.attr("bias_after_scale")
     x = g.get_node(op.input("X")[0])
     if np.isclose(scale, 1.0) and np.isclose(bias, 0.0):
-        out = _op.copy(x)
+        out = x
     else:
         if np.isclose(bias, 0.0):
             out = x * _expr.const(np.array(scale).astype("float32"))
@@ -1318,7 +1348,7 @@ def convert_slice(g, op, block):
     """Operator converter for slice."""
 
     data = g.get_node(op.input("Input")[0])
-    dims = len(block.var(op.input("Input")[0]).shape)
+    dims = len(infer_shape(data))
     dtype = "int64"
 
     axes = op.attr("axes")
@@ -1343,21 +1373,20 @@ def convert_slice(g, op, block):
     else:
         starts = op.attr("starts")
         starts = _expr.const(starts)
+    start_dtype = infer_type(starts).checked_type.dtype
     if isinstance(starts, _expr.Expr):
         starts = _op.scatter(
-            _op.const([0] * dims, dtype=infer_type(starts).checked_type.dtype),
+            _op.const([0] * dims, dtype=start_dtype),
             axes,
             starts,
             axis=0,
         )
 
-    data_shape = shape_of(data)
     ends = op.input("EndsTensor")
     if ends:
         ends = g.get_node(ends[0])
     elif op.input("EndsTensorList"):
         ends = []
-        data_shape = data_shape.astype(dtype)
         for end_index in op.input("EndsTensorList"):
             end_index = g.get_node(end_index)
             if not isinstance(end_index, _expr.Expr):
@@ -1370,9 +1399,11 @@ def convert_slice(g, op, block):
         ends = op.attr("ends")
         ends = _expr.const(ends)
     if isinstance(ends, _expr.Expr):
+        data_shape = shape_of(data, infer_type(ends).checked_type.dtype)
         ends = _op.scatter(data_shape, axes, ends, axis=0)
 
-    out = _op.strided_slice(data, begin=starts, end=ends)
+    strides = _op.const([1] * dims, dtype=start_dtype)
+    out = _op.strided_slice(data, begin=starts, end=ends, strides=strides)
     if decrease_axis:
         out = _op.squeeze(out, axis=decrease_axis)
     g.add_node(op.output("Out")[0], out)
@@ -1554,6 +1585,8 @@ _convert_map = {
     "elementwise_mul": convert_elementwise_op,
     "elementwise_sub": convert_elementwise_op,
     "elementwise_mod": convert_elementwise_op,
+    "elementwise_max": convert_elementwise_op,
+    "elementwise_min": convert_elementwise_op,
     "elementwise_pow": convert_elementwise_op,
     "elementwise_floordiv": convert_elementwise_op,
     "equal": convert_elementwise_op,
@@ -1598,6 +1631,7 @@ _convert_map = {
     "pow": convert_pow,
     "p_norm": convert_norm,
     "range": convert_range,
+    "reciprocal": convert_reciprocal,
     "reduce_all": convert_reduce,
     "reduce_any": convert_reduce,
     "reduce_max": convert_reduce,
@@ -1613,6 +1647,7 @@ _convert_map = {
     "shape": convert_shape,
     "sigmoid": convert_unary_op,
     "sin": convert_unary_op,
+    "size": convert_numel,
     "slice": convert_slice,
     "softmax": convert_softmax,
     "split": convert_split,
@@ -1625,6 +1660,7 @@ _convert_map = {
     "tile": convert_tile,
     "transpose2": convert_transpose,
     "unsqueeze2": convert_unsqueeze,
+    "where_index": convert_nonzero,
 }
 
 
