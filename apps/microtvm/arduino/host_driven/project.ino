@@ -28,10 +28,10 @@ ssize_t write_serial(void* unused_context, const uint8_t* data, size_t size) {
 }
 
 void setup() {
+  Serial.begin(115200);
   server = MicroTVMRpcServerInit(write_serial, NULL);
   TVMLogf("microTVM Arduino runtime - running");
-  Serial.begin(115200);
-
+  
   // If desired, initialize the RNG with random noise
   // randomSeed(analogRead(0));
 }
