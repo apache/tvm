@@ -130,6 +130,7 @@ class Session:
                     int(timeouts.session_start_retry_timeout_sec * 1e6),
                     int(timeouts.session_start_timeout_sec * 1e6),
                     int(timeouts.session_established_timeout_sec * 1e6),
+                    self._shutdown,
                 )
             )
             self.device = self._rpc.cpu(0)
@@ -142,6 +143,9 @@ class Session:
     def __exit__(self, exc_type, exc_value, exc_traceback):
         """Tear down this session and associated RPC session resources."""
         self.transport.__exit__(exc_type, exc_value, exc_traceback)
+
+    def _shutdown(self):
+        self.__exit__(None, None, None)
 
 
 def lookup_remote_linked_param(mod, storage_id, template_tensor, device):
@@ -239,9 +243,6 @@ def create_local_debug_executor(graph_json_str, mod, device, dump_root=None):
     )
 
 
-RPC_SESSION = None
-
-
 @register_func("tvm.micro.compile_and_create_micro_session")
 def compile_and_create_micro_session(
     mod_src_bytes: bytes,
@@ -264,7 +265,6 @@ def compile_and_create_micro_session(
     project_options: dict
         Options for the microTVM API Server contained in template_project_dir.
     """
-    global RPC_SESSION
 
     temp_dir = utils.tempdir()
     # Keep temp directory for generate project
@@ -277,7 +277,7 @@ def compile_and_create_micro_session(
         template_project = project.TemplateProject.from_directory(template_project_dir)
         generated_project = template_project.generate_project_from_mlf(
             model_library_format_path,
-            temp_dir / "generated-project",
+            str(temp_dir / "generated-project"),
             options=json.loads(project_options),
         )
     except Exception as exception:
@@ -288,20 +288,7 @@ def compile_and_create_micro_session(
     generated_project.flash()
     transport = generated_project.transport()
 
-    RPC_SESSION = Session(transport_context_manager=transport)
-    RPC_SESSION.__enter__()
-    return RPC_SESSION._rpc._sess
-
-
-@register_func
-def destroy_micro_session():
-    """Destroy RPC session for microTVM autotune."""
-    global RPC_SESSION
-
-    if RPC_SESSION is not None:
-        exc_type, exc_value, traceback = RPC_SESSION.__exit__(None, None, None)
-        RPC_SESSION = None
-        if (exc_type, exc_value, traceback) != (None, None, None):
-            exc = exc_type(exc_value)  # See PEP 3109
-            exc.__traceback__ = traceback
-            raise exc
+    rpc_session = Session(transport_context_manager=transport)
+    # RPC exit is called by shutdown function.
+    rpc_session.__enter__()
+    return rpc_session._rpc._sess
