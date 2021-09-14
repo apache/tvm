@@ -358,7 +358,7 @@ endif(USE_GRAPH_EXECUTOR)
 
 # convert old options for profiler
 if(USE_GRAPH_EXECUTOR_DEBUG)
-  message(WARNING "USE_GRAPH_EXECUTOR renamed to USE_PROFILER. Please update your config.cmake")
+  message(WARNING "USE_GRAPH_EXECUTOR_DEBUG renamed to USE_PROFILER. Please update your config.cmake")
   unset(USE_GRAPH_EXECUTOR_DEBUG CACHE)
   set(USE_PROFILER ON)
 endif()
