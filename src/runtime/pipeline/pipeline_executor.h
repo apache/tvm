@@ -30,7 +30,7 @@ namespace tvm {
 namespace runtime {
 /*!
  * \brief pipeline executor.
- *  This executor class use a module list and dependency relations of modules as
+ *  This executor class use the module list and dependency configuration of modules as
  *  the parameters and executes these modules on heterogeneous targets in a pipeline
  *  parallel manner to improve throughput.
  *

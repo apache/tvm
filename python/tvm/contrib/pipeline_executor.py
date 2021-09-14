@@ -35,7 +35,7 @@ def pipeline_executor_enabled():
 
 def build(pipe_configs):
     """Build these modules used in the pipeline executor, then use these modules and configuration
-    to create a pipeline executor by using the PipelineExecutorFactoryModule class.
+    to create a pipeline executor.
 
     Parameters
     ----------
@@ -98,7 +98,7 @@ class PipelineConfig(object):
 
     class Binding:
         """This class defines the module connections information.
-        The type can only be either "input" or "output".
+        The type can only be "input" or "output".
 
         Parameters
         ----------
@@ -106,7 +106,7 @@ class PipelineConfig(object):
             The class who owns this interface.
 
         io_type : str
-            The I/O type of this interface. It can only be either "input" or "output".
+            The I/O type of this interface. It can only be "input" or "output".
 
         name : str/integer
             Name, for input it is string such as "data0", for output it is an integer such as 0.
@@ -119,9 +119,9 @@ class PipelineConfig(object):
             self.io_owner = owner
             self.io_type = io_type
             self.name = str(name)
-            # Child nodes that depend on this interface.
+            # Child interfaces that depend on this interface.
             self.bindings = []
-            # Parents nodes that this interface depend on.
+            # Parents interfaces that this interface depend on.
             self.parents = []
 
             self.data_type = data_type
@@ -243,10 +243,10 @@ class PipelineConfig(object):
         Parameters
         ----------
         owner : ModuleWrapper/PipelineConfig
-            The owner of this list can be ModuleWrapper or PipelineConfig.
+            The owner of this class can be ModuleWrapper or PipelineConfig.
 
         io_type : str
-            The type of this binding list can be either "input" or "output".
+            The type of this class can be "input" or "output".
         """
 
         def __init__(self, owner, io_type):
@@ -341,13 +341,13 @@ class PipelineConfig(object):
 
         def is_root_mod(self):
             """Check whether this node is the root node in DAG, this function is used
-            in topological sorting.
+            in topological sort.
             """
             return all([not b.parents for b in self.input_bindings.bindings.values()])
 
         def remove_self_from_bindings(self):
             """Remove the current node from child dependencies to reduce the in-degree
-            of child node, this function is used in topological sorting.
+            of child node, this function is used in topological sort.
             """
             for binding in self.output_bindings.bindings.values():
                 for child in binding.bindings:
@@ -362,7 +362,7 @@ class PipelineConfig(object):
     def __str__(self):
         # Get configuration information as a string.
 
-        # Use topological sorting to get correct module order.
+        # Use topological sort to get correct module order.
         self.dag_topology_sort()
         # Get the input dependencies.
         input_dump = "Inputs\n"
@@ -408,13 +408,15 @@ class PipelineConfig(object):
         raise RuntimeError(f"{key} not found.")
 
     def get_config(self):
-        """Get the configuration information in dictionary form."""
+        """Get the configuration information in dictionary form, this configuration
+        will be used to create pipeline executor.
+        """
 
-        # Use topological sorting to get the correct order of modules.
+        # Use topological sort to get the correct order of modules.
         self.dag_topology_sort()
         mconfig = {}
         for mod in self.mod_wrapper:
-            # Generate pipeline configure.
+            # Generate pipeline configuration.
             mconf = {}
             output_conf = []
             module = self.mod_wrapper[mod]
@@ -429,7 +431,7 @@ class PipelineConfig(object):
                         dep_item["input_name"] = dname
                         dep_conf.append(dep_item)
 
-                # The ouput_idx start from 0.
+                # The value of ouput_idx start from 0.
                 output["output_idx"] = int(binding.name)
                 output["dependent"] = dep_conf
                 output_conf.append(output)
@@ -450,7 +452,7 @@ class PipelineConfig(object):
         return mconfig
 
     def dag_topology_sort(self):
-        """Use topological sorting to get order of pipeline modules."""
+        """Use topological sort to get order of pipeline modules."""
         mlist = []
         mod_wrapper = self.mod_wrapper.copy()
         while mod_wrapper:
