@@ -17,8 +17,8 @@
 """Relay IR Visualizer"""
 import logging
 import copy
-from tvm import relay
 from enum import Enum
+from tvm import relay
 from .plotter import Plotter
 from .render_callback import RenderCallback
 
@@ -47,7 +47,8 @@ class RelayVisualizer:
                         Relay parameter dictionary
         backend: PlotterBackend or a tuple
                         PlotterBackend: The backend of plotting. Default "bokeh"
-                        tuple: A tuple with two arguments. First is user-defined Plotter, the second is user-defined RenderCallback
+                        Tuple: A tuple with two arguments. First is user-defined Plotter, \
+                               the second is user-defined RenderCallback
         """
 
         self._plotter, self._render_rules = get_plotter_and_render_rules(backend)
@@ -95,7 +96,7 @@ class RelayVisualizer:
         # Based on https://tvm.apache.org/2020/07/14/bert-pytorch-tvm
         unknown_type = "unknown"
         for node, node_id in node_to_id.items():
-            if type(node) in self._render_rules:
+            if type(node) in self._render_rules:  # pylint: disable=unidiomatic-typecheck
                 graph_info, edge_info = self._render_rules[type(node)](
                     node, relay_param, node_to_id
                 )
@@ -113,7 +114,16 @@ class RelayVisualizer:
 
 
 def get_plotter_and_render_rules(backend):
-    if type(backend) is tuple and len(backend) == 2:
+    """Specify the Plottor and its render rules
+
+    Parameters
+        ----------
+        backend: PlotterBackend or a tuple
+                        PlotterBackend: The backend of plotting. Default "bokeh"
+                        Tuple: A tuple with two arguments. First is user-defined Plotter, \
+                               the second is user-defined RenderCallback
+    """
+    if type(backend) is tuple and len(backend) == 2:  # pylint: disable=unidiomatic-typecheck
         if not isinstance(backend[0], Plotter):
             raise ValueError("First elemnet of the backend should be a plotter")
         plotter = backend[0]
@@ -125,18 +135,22 @@ def get_plotter_and_render_rules(backend):
 
     if backend in PlotterBackend:
         if backend == PlotterBackend.BOKEH:
+            # pylint: disable=import-outside-toplevel
             from ._bokeh import (
                 BokehPlotter,
                 BokehRenderCallback,
-            )  # pylint: disable=import-outside-toplevel
+            )
 
             plotter = BokehPlotter()
             render = BokehRenderCallback()
 
         elif backend == PlotterBackend.TERMINAL:
-            from ._terminal import TermPlotter, TermRenderCallback
+            # pylint: disable=import-outside-toplevel
+            from ._terminal import (
+                TermPlotter,
+                TermRenderCallback,
+            )
 
-            print(isinstance(TermPlotter(), Plotter))
             plotter = TermPlotter()
             render = TermRenderCallback()
 

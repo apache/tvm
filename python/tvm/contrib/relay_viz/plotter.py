@@ -61,7 +61,7 @@ class Plotter(abc.ABC):
     """
 
     @abc.abstractmethod
-    def create_graph(name):
+    def create_graph(self, name):
         """Create a graph
 
         Parameters

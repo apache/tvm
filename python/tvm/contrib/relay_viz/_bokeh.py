@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """Bokeh backend for Relay IR Visualizer."""
-import os
 import html
 import logging
 import functools
@@ -50,12 +49,9 @@ from .plotter import (
     Graph,
 )
 
-import tvm
-from tvm import relay
+from .render_callback import RenderCallback  # pylint: disable=import-outside-toplevel
 
 _LOGGER = logging.getLogger(__name__)
-
-from .render_callback import RenderCallback
 
 
 class BokehRenderCallback(RenderCallback):
@@ -209,7 +205,7 @@ class BokehGraph(Graph):
         self._pydot_digraph.add_edge(pydot.Edge(id_start, id_end))
 
     def render(self, plot):
-
+        """To draw a Bokeh Graph"""
         shaper = GraphShaper(
             self._pydot_digraph,
             prog="dot",
@@ -453,11 +449,7 @@ class BokehPlotter(Plotter):
         return self._name_to_graph[name]
 
     def render(self, filename):
-
-        if filename.endswith(".html"):
-            graph_name = os.path.splitext(os.path.basename(filename))[0]
-        else:
-            graph_name = filename
+        if not filename.endswith(".html"):
             filename = "{}.html".format(filename)
 
         dom_list = []

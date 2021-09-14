@@ -17,34 +17,29 @@
 """Visualize Relay IR in AST text-form"""
 
 from collections import deque
-
-from pyparsing import line
+import functools
 
 from .plotter import (
     Plotter,
     Graph,
 )
-import functools
 
-import tvm
-from tvm import relay
 from .render_callback import RenderCallback
 
 
 class TermRenderCallback(RenderCallback):
-    def __init__(self):
-        super().__init__()
+    """Terminal render callback"""
 
-    def Call_node(self, node, relay_param, node_to_id):
+    def call_node(self, node, relay_param, node_to_id):
         node_id = node_to_id[node]
-        graph_info = [node_id, f"Call", ""]
+        graph_info = [node_id, "Call", ""]
         edge_info = [[node_to_id[node.op], node_id]]
         args = [node_to_id[arg] for arg in node.args]
         for arg in args:
             edge_info.append([arg, node_id])
         return graph_info, edge_info
 
-    def Let_node(self, node, relay_param, node_to_id):
+    def let_node(self, node, relay_param, node_to_id):
         node_id = node_to_id[node]
         graph_info = [node_id, "Let", "(var, val, body)"]
         edge_info = [[node_to_id[node.var], node_id]]
@@ -52,13 +47,13 @@ class TermRenderCallback(RenderCallback):
         edge_info.append([node_to_id[node.body], node_id])
         return graph_info, edge_info
 
-    def Global_var_node(self, node, relay_param, node_to_id):
+    def global_var_node(self, node, relay_param, node_to_id):
         node_id = node_to_id[node]
         graph_info = [node_id, "GlobalVar", node.name_hint]
         edge_info = []
         return graph_info, edge_info
 
-    def If_node(self, node, relay_param, node_to_id):
+    def if_node(self, node, relay_param, node_to_id):
         node_id = node_to_id[node]
         graph_info = [node_id, "If", "(cond, true, false)"]
         edge_info = [[node_to_id[node.cond], node_id]]
@@ -66,7 +61,7 @@ class TermRenderCallback(RenderCallback):
         edge_info.append([node_to_id[node.false_branch], node_id])
         return graph_info, edge_info
 
-    def Op_node(self, node, relay_param, node_to_id):
+    def op_node(self, node, relay_param, node_to_id):
         node_id = node_to_id[node]
         op_name = node.name
         graph_info = [node_id, op_name, ""]
@@ -81,6 +76,8 @@ class Node:
 
 
 class TermGraph(Graph):
+    """Terminal plot for a relay IR Module"""
+
     def __init__(self, name):
         # node_id: [ connected node_id]
         self._name = name
@@ -107,6 +104,7 @@ class TermGraph(Graph):
             self._graph[id_end] = [id_start]
 
     def render(self):
+        """To draw a terminal graph"""
         lines = []
 
         @functools.lru_cache()
@@ -129,6 +127,8 @@ class TermGraph(Graph):
 
 
 class TermPlotter(Plotter):
+    """Terminal plotter"""
+
     def __init__(self):
         self._name_to_graph = {}
 
@@ -138,7 +138,7 @@ class TermPlotter(Plotter):
 
     def render(self, filename):
         # if filename  == "stdio", print to terminal.
-        # Otherwise, print to the file?
+        # Otherwise, print to the file
         lines = []
         for name in self._name_to_graph:
             lines.append(self._name_to_graph[name].render())
