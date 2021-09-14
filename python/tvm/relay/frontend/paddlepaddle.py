@@ -1544,6 +1544,58 @@ def convert_slice(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_softmax(g, op, block):
+    """Operator converter for softmax."""
+
+    axis = op.attr("axis")
+    input_shape = block.var(op.input("X")[0]).shape
+    if axis < 0:
+        axis = len(input_shape) + axis
+    x = g.get_node(op.input("X")[0])
+    m = _op.max(x, axis, keepdims=True)
+    e = _op.exp(x - m)
+    out = e / _op.sum(e, axis, keepdims=True)
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_split(g, op, block):
+    """Operator converter for split."""
+
+    x = g.get_node(op.input("X")[0])
+    axis = op.input("AxisTensor")
+    if axis:
+        axis = g.get_node(axis[0])
+        axis = infer_value(axis, g.get_params()).numpy().tolist()[0]
+    else:
+        axis = op.attr("axis")
+
+    sections = op.input("SectionsTensorList")
+    if sections:
+        tmp_section = []
+        for i in sections:
+            i = g.get_node(i)
+            i = infer_value(i, g.get_params()).numpy().tolist()
+            tmp_section.extend(i)
+        sections = tmp_section
+    else:
+        sections = op.attr("sections")
+    if sections:
+        indices = []
+        split_index = 0
+        for i in sections[:-1]:
+            if i == -1:
+                input_shape = infer_shape(x)[axis]
+                i = input_shape - np.sum(sections) - 1
+            split_index += i
+            indices.append(split_index)
+    else:
+        indices = op.attr("num")
+
+    out = _op.split(x, indices, axis)
+    for i, out_i in enumerate(out):
+        g.add_node(op.output("Out")[i], out_i)
+
+
 def convert_square(g, op, block):
     """Operator converter for square."""
 
