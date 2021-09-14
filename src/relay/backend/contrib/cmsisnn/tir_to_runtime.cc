@@ -54,17 +54,6 @@ class CodeGenCMSISNN : public CodeGenC {
   }
 
  private:
-  void VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
-    if (!op->op.same_as(builtin::call_extern())) {
-      return;
-    }
-    std::string cmsis_func_name = op->args[0].as<StringImmNode>()->value;
-    if (cmsis_func_name == "arm_softmax_s8") {
-      EmitSoftmax(op);
-    }
-    return;
-  }
-
   /*!  * \brief Creates a cplusplus guard prefix for extern "C" printing */
   void PrintExternCPrefix(std::ostringstream& ss) {
     PrintIndent();
@@ -79,35 +68,6 @@ class CodeGenCMSISNN : public CodeGenC {
     ss << "#ifdef __cplusplus\n";
     ss << "}\n";
     ss << "#endif\n";
-  }
-
-  /*!  * \brief Emits CMSIS-NN code block for softmax */
-  void EmitSoftmax(const CallNode* op) {
-    // @tir.call_extern("arm_softmax_s8", buffer_0, num_rows, row_size,
-    //                  mult, shift, diff_min, buffer_1, dtype=int8)
-    std::string cmsis_func_name = op->args[0].as<StringImmNode>()->value;
-    int32_t num_rows = op->args[2].as<IntImmNode>()->value;
-    int32_t row_size = op->args[3].as<IntImmNode>()->value;
-    int32_t mult = op->args[4].as<IntImmNode>()->value;
-    int32_t shift = op->args[5].as<IntImmNode>()->value;
-    int32_t diff_min = op->args[6].as<IntImmNode>()->value;
-
-    PrintIndent();
-    stream << "int32_t num_rows = " << num_rows << ";\n";
-    PrintIndent();
-    stream << "int32_t row_size = " << row_size << ";\n";
-    PrintIndent();
-    stream << "int32_t mult = " << mult << ";\n";
-    PrintIndent();
-    stream << "int32_t shift = " << shift << ";\n";
-    PrintIndent();
-    stream << "int32_t diff_min = " << diff_min << ";\n";
-    PrintIndent();
-    stream << cmsis_func_name << "(input,";
-    PrintIndent();
-    stream << " num_rows, row_size, mult, shift, diff_min, output);\n";
-    PrintIndent();
-    stream << "return;\n";
   }
 };
 
