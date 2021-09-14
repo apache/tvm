@@ -35,7 +35,7 @@ import tensorflow as tf
 
 import tvm
 import tvm.relay as relay
-from tvm.contrib import stm32
+from tvm.micro.contrib import stm32
 from tvm.contrib.download import download
 from tvm import testing
 

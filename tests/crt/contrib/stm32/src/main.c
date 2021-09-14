@@ -103,7 +103,7 @@ static void aiLogErr(const char* fct, const char* msg) {
 //   aiPrintLayoutBuffer
 // ==================================================
 static void aiPrintLayoutBuffer(const char* msg, int idx, ai_tensor* tensor) {
-  DLTensor* dltensor = &tensor->dltensor;
+  DLTensor* dltensor = get_dltensor(tensor);
   DLDataType dtype = dltensor->dtype;
 
   printf("%s[%d] ", msg, idx);
@@ -111,7 +111,8 @@ static void aiPrintLayoutBuffer(const char* msg, int idx, ai_tensor* tensor) {
   //
   // Quantization info exists for input/output tensors
   //
-  if (tensor->quant != NULL) {
+  const ai_quantization_info* quant = ai_get_quantization(tensor);
+  if (quant != NULL) {
     printf(" -- TODO: quantization info \n");
   }
 
@@ -126,27 +127,25 @@ static void aiPrintLayoutBuffer(const char* msg, int idx, ai_tensor* tensor) {
 // ==================================================
 //   aiPrintNetworkInfo
 // ==================================================
-static void aiPrintNetworkInfo(ai_model_info* nn) {
-  const char* name = nn->name;
-  const char* datetime = nn->datetime;
-  const char* revision = nn->revision;
-  const char* tool_version = nn->tool_version;
+static void aiPrintNetworkInfo(ai_handle network) {
+  const char* name = ai_get_name(network);
+  const char* datetime = ai_get_datetime(network);
+  const char* revision = ai_get_revision(network);
+  const char* tool_version = ai_get_tool_version(network);
+  const char* api_version = ai_get_api_version(network);
 
-  uint32_t n_nodes = nn->n_nodes;
-  uint32_t n_inputs = nn->n_inputs;
-  uint32_t n_outputs = nn->n_outputs;
+  uint32_t n_nodes = ai_get_node_size(network);
+  uint32_t n_inputs = ai_get_input_size(network);
+  uint32_t n_outputs = ai_get_output_size(network);
 
-  uint32_t activations_size = nn->activations_size;
-  uint32_t params_size = nn->params_size;
+  uint32_t activations_size = ai_get_activations_size(network);
+  uint32_t params_size = ai_get_params_size(network);
 
   printf("Network configuration...\r\n");
   printf(" Model name         : %s\r\n", name);
-  printf(" Compile datetime     : %s\r\n", datetime);
-  // printf(" Runtime revision   : %d.%d.%d\r\n",
-  //          report->runtime_version.major,
-  //          report->runtime_version.minor,
-  //          report->runtime_version.micro);
+  printf(" Compile datetime   : %s\r\n", datetime);
   printf(" Tool revision      : %s (%s)\r\n", revision, tool_version);
+  printf(" API version        : %s\r\n", api_version);
   printf("Network info...\r\n");
   printf("  nodes             : %d\r\n", n_nodes);
   printf("  activation        : %d bytes\r\n", activations_size);
@@ -161,10 +160,6 @@ static int aiInit(void) {
   ai_status err = AI_STATUS_OK;
 
   const char* nn_name = AI_MODEL_name(_model_p);
-  uint32_t n_inputs = AI_MODEL_n_inputs(_model_p);
-  uint32_t n_outputs = AI_MODEL_n_outputs(_model_p);
-  uint32_t activations_size = AI_MODEL_activations_size(_model_p);
-  uint32_t params_size = AI_MODEL_params_size(_model_p);
   ai_ptr built_in_activations = AI_MODEL_activations(_model_p);
 
   //
@@ -182,7 +177,12 @@ static int aiInit(void) {
   //
   // Query the created network to get relevant info from it
   //
-  aiPrintNetworkInfo(_model_p);
+  aiPrintNetworkInfo(_network);
+
+  uint32_t n_inputs = ai_get_input_size(_network);
+  uint32_t n_outputs = ai_get_output_size(_network);
+  uint32_t activations_size = ai_get_activations_size(_network);
+  uint32_t params_size = ai_get_params_size(_network);
 
   const ai_ptr params = ai_get_params(_network);
   ai_ptr activations = ai_get_activations(_network);
@@ -302,7 +302,8 @@ static int aiRun(void) {
       return -1;
     }
 
-    if (output->quant == NULL) {
+    const ai_quantization_info* output_quant = ai_get_quantization(output);
+    if (output_quant == NULL) {
       //
       // Floating point model
       //
@@ -322,7 +323,7 @@ static int aiRun(void) {
         for (int i = 0; i < elts; i++) {
           int8_t qval = probabilities[i];
           // printf (" -- probability[%d] = %d \n", i, qval);
-          float val = dequantize_val(qval, output->quant);
+          float val = dequantize_val(qval, output_quant);
           fprintf(outfile, "%g ", val);
         }
       } else {
@@ -330,7 +331,7 @@ static int aiRun(void) {
         for (int i = 0; i < elts; i++) {
           uint8_t qval = probabilities[i];
           // printf (" -- probability[%d] = %d \n", i, qval);
-          float val = dequantize_val(qval, output->quant);
+          float val = dequantize_val(qval, output_quant);
           fprintf(outfile, "%g ", val);
         }
       }
@@ -369,6 +370,8 @@ static float dequantize_val(int32_t val, ai_quantization_info* quant) {
 // =================================================================
 uint8_t LoadInputImg(const char* filename, ai_tensor* input) {
   DLDataType dtype = input->dltensor.dtype;
+
+  const ai_quantization_info* input_quant = ai_get_quantization(input);
 
   if (dtype.lanes > 1) {
     printf("E: vector inputs are not supported ...\r\n");
@@ -415,13 +418,13 @@ uint8_t LoadInputImg(const char* filename, ai_tensor* input) {
     // Input image needs to be normalized into [0..1] interval
     //
     float nval = ((float)val) / 255.0;
-    if (input->quant != NULL) {
+    if (input_quant != NULL) {
       if (dtype.code == kDLInt) {
-        int8_t qval = quantize_val(nval, input->quant);
+        int8_t qval = quantize_val(nval, input_quant);
         *pg = qval;
         pg += sizeof(int8_t);
       } else {
-        uint8_t qval = quantize_val(nval, input->quant);
+        uint8_t qval = quantize_val(nval, input_quant);
         *pg = qval;
         pg += sizeof(uint8_t);
       }
