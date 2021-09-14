@@ -171,7 +171,7 @@ def extract_tasks(
                 desc=",".join(func_names),
             )
         )
-        weights.append(weight)
+        weights.append(int(weight))
 
     if dump_workload_to_dag_log is not None:
         with open(dump_workload_to_dag_log, "w") as f:
