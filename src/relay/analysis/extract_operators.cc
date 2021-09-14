@@ -29,7 +29,7 @@
 namespace tvm {
 namespace relay {
 
-class OperatorExtractorWrapper : private ExprVisitor {
+class OperatorExtractorWrapper : private MixedModeVisitor {
  public:
   explicit OperatorExtractorWrapper(const IRModule& mod) : mod_(mod) {}
 
@@ -55,7 +55,7 @@ class OperatorExtractorWrapper : private ExprVisitor {
       operator_freqs_.Set(op->name, 1 + operator_freqs_.at(op->name));
     }
 
-    ExprVisitor::VisitExpr_(n);
+    MixedModeVisitor::VisitExpr_(n);
   }
 
   void VisitExpr_(const OpNode* n) final {

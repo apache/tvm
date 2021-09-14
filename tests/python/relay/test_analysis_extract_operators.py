@@ -60,14 +60,14 @@ def get_conv2d():
 
 def test_extract_identity():
     mod = get_conv2d()
-    op_freqs = relay.analysis.list_op_frequencies(mod)
+    op_freqs = relay.analysis.list_op_freqs(mod)
     assert len(op_freqs) == 1
     assert op_freqs["nn.conv2d"] == 1
 
 
 def test_extract_conv_net():
     mod = get_conv_net()
-    op_freqs = relay.analysis.list_op_frequencies(mod)
+    op_freqs = relay.analysis.list_op_freqs(mod)
     assert len(op_freqs) == 2
     assert op_freqs["add"] == 1
     assert op_freqs["nn.conv2d"] == 2
@@ -78,7 +78,7 @@ def test_extract_fused():
     mod = relay.transform.InferType()(mod)
     mod = relay.transform.FuseOps(3)(mod)
 
-    op_freqs = relay.analysis.list_op_frequencies(mod)
+    op_freqs = relay.analysis.list_op_freqs(mod)
     assert len(op_freqs) == 2
     assert op_freqs["add"] == 1
     assert op_freqs["nn.conv2d"] == 2
@@ -98,7 +98,7 @@ def test_extract_resnet():
         "nn.bias_add": 1,
         "nn.softmax": 1,
     }
-    op_freqs = relay.analysis.list_op_frequencies(mod)
+    op_freqs = relay.analysis.list_op_freqs(mod)
     assert len(op_freqs) == len(expected_op_freqs)
     assert all([op_freqs[op] == expected_op_freqs[op] for op in expected_op_freqs])
 
