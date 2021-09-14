@@ -32,17 +32,6 @@
 
 #include "crt_config.h"
 
-// Handle internal errors
-
-static char g_last_error[1024];
-
-void TVMAPISetLastError(const char* msg) {
-  strncpy(g_last_error, msg, sizeof(g_last_error) - 1);
-  g_last_error[sizeof(g_last_error) - 1] = 0;
-}
-
-const char* TVMGetLastError(void) { return g_last_error; }
-
 void* TVMBackendAllocWorkspace(int device_type, int device_id, uint64_t nbytes, int dtype_code_hint,
                                int dtype_bits_hint) {
   tvm_crt_error_t err = kTvmErrorNoError;

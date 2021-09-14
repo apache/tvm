@@ -17,5 +17,4 @@
 
 """Module container of STM32 code generator."""
 
-from .BaseEmitter import get_input_tensor_name, get_output_tensor_name
-from .CodeEmitter import CodeEmitter
+from .emitter import CodeEmitter, get_input_tensor_name, get_output_tensor_name

@@ -36,7 +36,10 @@
 // =========================================================
 //   conv2d_nhwc_int8_smlad_reset_
 // =========================================================
-__attribute__((always_inline)) inline static int32_t conv2d_nhwc_int8_smlad_reset_(int32_t* conv) {
+__attribute__((always_inline)) inline static int32_t
+conv2d_nhwc_int8_smlad_reset_(
+  int32_t * conv
+) {
   *conv = 0;
   return 0;
 }
@@ -44,29 +47,35 @@ __attribute__((always_inline)) inline static int32_t conv2d_nhwc_int8_smlad_rese
 // =========================================================
 //   conv2d_nhwc_int8_smlad_update_
 // =========================================================
-__attribute__((always_inline)) inline static int32_t conv2d_nhwc_int8_smlad_update_(
-    int8_t* input, int8_t* weights, int32_t* conv, int16_t omaps, int16_t channels) {
+__attribute__((always_inline)) inline static int32_t
+conv2d_nhwc_int8_smlad_update_(
+  int8_t * input,
+  int8_t * weights,
+  int32_t * conv,
+  int16_t omaps,
+  int16_t channels
+) {
   // te.sum((a[k]*b[k,i]).astype('int32'), axis=k
 
 #ifdef __arm__
-  //
-  // Load and extend int8x2 => int16x2
-  //
+    //
+    // Load and extend int8x2 => int16x2
+    //
   int32_t in = *(int32_t*)input;  // TODO(stoa): fix it !!
-  //
-  // Pack 2 kernel values
-  //
-  int8_t ker0 = *(weights + 0 * channels);
-  int8_t ker1 = *(weights + 1 * channels);
-  int32_t ker = ((ker1 << 16) & 0x00FF) | (ker0 & 0x00FF);
+    //
+    // Pack 2 kernel values
+    //
+    int8_t ker0 = *(weights+0*channels);
+    int8_t ker1 = *(weights+1*channels);
+    int32_t ker = ((ker1<<16)&0x00FF)|(ker0&0x00FF);
 
-  *(conv) = __SMLAD(in, ker, *(conv));
+    *(conv) = __SMLAD(in, ker, *(conv));
 #else
-  int8_t in0 = *(input + 0);
-  int8_t ker0 = *(weights + 0 * channels);
-  int8_t in1 = *(input + 1);
-  int8_t ker1 = *(weights + 1 * channels);
-  *(conv) = *(conv) + in0 * ker0 + in1 * ker1;
+    int8_t in0 = *(input+0);
+    int8_t ker0 = *(weights+0*channels);
+    int8_t in1 = *(input+1);
+    int8_t ker1 = *(weights+1*channels);
+    *(conv) = *(conv) + in0*ker0 + in1*ker1;
 #endif
 
   return 0;
@@ -131,8 +140,10 @@ conv2d_nhwc_int16_smlad_update_(
 // =========================================================
 //   conv2d_NCHWc_int16_smlad_reset_
 // =========================================================
-__attribute__((always_inline)) inline static int32_t conv2d_NCHWc_int16_smlad_reset_(
-    int32_t* conv) {
+__attribute__((always_inline)) inline static int32_t
+conv2d_NCHWc_int16_smlad_reset_(
+  int32_t * conv
+) {
   *conv = 0;
   return 0;
 }
@@ -140,8 +151,13 @@ __attribute__((always_inline)) inline static int32_t conv2d_NCHWc_int16_smlad_re
 // =========================================================
 //   conv2d_NCHWc_int16_smlad_update_
 // =========================================================
-__attribute__((always_inline)) inline static int32_t conv2d_NCHWc_int16_smlad_update_(
-    int16_t* input, int16_t* weights, int32_t* conv, int16_t channels) {
+__attribute__((always_inline)) inline static int32_t
+conv2d_NCHWc_int16_smlad_update_(
+  int16_t * input,
+  int16_t * weights,
+  int32_t * conv,
+  int16_t channels
+) {
   //
   // Load input: int16x2
   //
@@ -152,27 +168,27 @@ __attribute__((always_inline)) inline static int32_t conv2d_NCHWc_int16_smlad_up
   //
   // Load weights:
   //
-  int16_t ker0 = *(weights + 0 * channels);
-  int16_t ker1 = *(weights + 1 * channels);
+  int16_t ker0 = *(weights+0*channels);
+  int16_t ker1 = *(weights+1*channels);
   //
   // Pack 2 kernel values
   //
-  int32_t ker = (ker1 << 16) | (ker0 & 0xFFFF);
+  int32_t ker = (ker1<<16)|(ker0&0xFFFF);
 
   *conv = __SMLAD(in, ker, *conv);
 
 #else
 
-  int16_t in0 = *(input + 0);
-  int16_t in1 = *(input + 1);
+  int16_t in0 = *(input+0);
+  int16_t in1 = *(input+1);
 
   //
   // Load weights:
   //
-  int16_t ker0 = *(weights + 0 * channels);
-  int16_t ker1 = *(weights + 1 * channels);
+  int16_t ker0 = *(weights+0*channels);
+  int16_t ker1 = *(weights+1*channels);
 
-  *conv = *conv + in0 * ker0 + in1 * ker1;
+  *conv = *conv + in0*ker0 + in1*ker1;
 
 #endif
 

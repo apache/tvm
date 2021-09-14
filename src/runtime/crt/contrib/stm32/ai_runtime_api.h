@@ -25,38 +25,45 @@
 #ifndef TVM_RUNTIME_CRT_CONTRIB_STM32_AI_RUNTIME_API_H_
 #define TVM_RUNTIME_CRT_CONTRIB_STM32_AI_RUNTIME_API_H_
 
+#include "dlpack/dlpack.h"   // From TVM
+
+#include "tvm/runtime/c_runtime_api.h"   // From TVM
+
 #include "ai_platform.h"
-#include "dlpack/dlpack.h"              // From TVM
-#include "tvm/runtime/c_runtime_api.h"  // From TVM
 
 //
 // This describes current ai_runtime version
 //
-#define AI_PLATFORM_RUNTIME_MAJOR 1
-#define AI_PLATFORM_RUNTIME_MINOR 0
-#define AI_PLATFORM_RUNTIME_MICRO 0
+#define AI_PLATFORM_RUNTIME_MAJOR  1
+#define AI_PLATFORM_RUNTIME_MINOR  0
+#define AI_PLATFORM_RUNTIME_MICRO  0
 
-#define AI_STATIC static
+
+#define AI_STATIC               static
 
 #if defined(_MSC_VER)
-#define AI_INLINE __inline
+  #define AI_INLINE             __inline
 #elif defined(__ICCARM__) || defined(__IAR_SYSTEMS_ICC__)
-#define AI_INLINE inline
+  #define AI_INLINE             inline
 #elif defined(__CC_ARM)
-#define AI_INLINE __inline
-/* Keil disallows anonymous union initialization by default */
-#pragma anon_unions
+  #define AI_INLINE             __inline
+  /* Keil disallows anonymous union initialization by default */
+  #pragma anon_unions
 #elif defined(__GNUC__)
-#define AI_INLINE __inline
+  #define AI_INLINE             __inline
 #else
-/* Dynamic libraries are not supported by the compiler */
+  /* Dynamic libraries are not supported by the compiler */
 #endif
 
 /*********************************************************/
 
-typedef uint8_t* ai_ptr;
+typedef uint8_t * ai_ptr;
 
-typedef enum { AI_STATUS_OK = 0, AI_STATUS_ERROR = 1, AI_STATUS_DELEGATE_ERROR = 2 } ai_status;
+typedef enum {
+  AI_STATUS_OK              = 0,
+  AI_STATUS_ERROR           = 1,
+  AI_STATUS_DELEGATE_ERROR  = 2
+} ai_status;
 
 // =======================================================
 //                  ai_quantization_info
@@ -74,9 +81,9 @@ typedef struct {
   /*!
    * \brief The quantization info, if quantized
    */
-  float* scale;
-  int32_t* zero_point;
-  int32_t dim;
+  float   * scale;
+  int32_t * zero_point;
+  int32_t   dim;
 } ai_quantization_info;
 
 // =======================================================
@@ -91,19 +98,21 @@ typedef struct {
   /*!
    * \brief The quantization info, if quantized
    */
-  ai_quantization_info* quant;
+  ai_quantization_info * quant;
 } ai_tensor;
 
 // =======================================================
 //   get_dltensor
 // =======================================================
-AI_STATIC AI_INLINE DLTensor* get_dltensor(ai_tensor* tensor) { return &tensor->dltensor; }
+AI_STATIC AI_INLINE DLTensor * get_dltensor(ai_tensor * tensor) {
+  return &tensor->dltensor;
+}
 
 // =======================================================
 //   get_tensor_elts
 // =======================================================
-AI_STATIC AI_INLINE uint32_t get_tensor_elts(const ai_tensor* tensor) {
-  const DLTensor* t = &tensor->dltensor;
+AI_STATIC AI_INLINE uint32_t get_tensor_elts(const ai_tensor * tensor) {
+  const DLTensor * t = &tensor->dltensor;
   uint32_t elts = 1;
   for (int i = 0; i < t->ndim; ++i) {
     elts *= t->shape[i];
@@ -114,8 +123,8 @@ AI_STATIC AI_INLINE uint32_t get_tensor_elts(const ai_tensor* tensor) {
 // =======================================================
 //   get_tensor_size
 // =======================================================
-AI_STATIC AI_INLINE uint32_t get_tensor_size(const ai_tensor* tensor) {
-  const DLTensor* t = &tensor->dltensor;
+AI_STATIC AI_INLINE uint32_t get_tensor_size(const ai_tensor * tensor) {
+  const DLTensor * t = &tensor->dltensor;
   uint32_t size = 1;
   for (int i = 0; i < t->ndim; ++i) {
     size *= t->shape[i];
@@ -129,38 +138,38 @@ AI_STATIC AI_INLINE uint32_t get_tensor_size(const ai_tensor* tensor) {
 // =======================================================
 
 typedef struct {
-  const char* name;
-  const char* datetime;
-  const char* revision;
-  const char* tool_version;
-  const char* api_version;
-  uint16_t n_nodes;
-  uint8_t n_inputs;
-  uint8_t n_outputs;
-  uint32_t activations_size;
-  uint32_t params_size;
-  ai_ptr activations;
-  ai_tensor** inputs;
-  ai_tensor** outputs;
+  const char          * name;
+  const char          * datetime;
+  const char          * revision;
+  const char          * tool_version;
+  const char          * api_version;
+  uint16_t              n_nodes;
+  uint8_t               n_inputs;
+  uint8_t               n_outputs;
+  uint32_t              activations_size;
+  uint32_t              params_size;
+  ai_ptr                activations;
+  ai_tensor          ** inputs;
+  ai_tensor          ** outputs;
   const ai_ptr (*ai_get_params)(void);
   ai_status (*ai_create)(const ai_ptr weights, const ai_ptr activations);
   ai_status (*ai_destroy)();
-  ai_status (*ai_run)(ai_tensor* input[], ai_tensor* output[]);
+  ai_status (*ai_run)(ai_tensor *input[], ai_tensor *output[]);
 } ai_model_info;
 
-#define AI_MODEL_name(x) (x->name)
-#define AI_MODEL_datetime(x) (x->datetime)
-#define AI_MODEL_revision(x) (x->revision)
-#define AI_MODEL_tool_version(x) (x->tool_version)
-#define AI_MODEL_api_version(x) (x->api_version)
-#define AI_MODEL_n_nodes(x) (x->n_nodes)
-#define AI_MODEL_n_inputs(x) (x->n_inputs)
-#define AI_MODEL_n_outputs(x) (x->n_outputs)
-#define AI_MODEL_activations_size(x) (x->activations_size)
-#define AI_MODEL_params_size(x) (x->params_size)
-#define AI_MODEL_inputs(x) (x->inputs)
-#define AI_MODEL_outputs(x) (x->outputs)
-#define AI_MODEL_activations(x) (x->activations)
+#define AI_MODEL_name(x)              (x->name)
+#define AI_MODEL_datetime(x)          (x->datetime)
+#define AI_MODEL_revision(x)          (x->revision)
+#define AI_MODEL_tool_version(x)      (x->tool_version)
+#define AI_MODEL_api_version(x)       (x->api_version)
+#define AI_MODEL_n_nodes(x)           (x->n_nodes)
+#define AI_MODEL_n_inputs(x)          (x->n_inputs)
+#define AI_MODEL_n_outputs(x)         (x->n_outputs)
+#define AI_MODEL_activations_size(x)  (x->activations_size)
+#define AI_MODEL_params_size(x)       (x->params_size)
+#define AI_MODEL_inputs(x)            (x->inputs)
+#define AI_MODEL_outputs(x)           (x->outputs)
+#define AI_MODEL_activations(x)       (x->activations)
 
 // =======================================================
 //                         Iterator
@@ -180,36 +189,36 @@ typedef uint32_t ai_model_iterator;
 ai_model_iterator ai_model_iterator_begin();
 ai_model_iterator ai_model_iterator_next(ai_model_iterator it);
 ai_model_iterator ai_model_iterator_end();
-ai_model_info* ai_model_iterator_value(ai_model_iterator it);
+ai_model_info * ai_model_iterator_value(ai_model_iterator it);
 
 // =======================================================
 //                    External Interface
 // =======================================================
 
-ai_status ai_create(ai_model_info* nn, void* context, ai_handle* handle);
+ai_status ai_create(ai_model_info * nn, ai_ptr activations, ai_handle  * handle);
 
 ai_status ai_destroy(ai_handle handle);
 
-const char* ai_get_error(ai_handle handle);
+const char * ai_get_error(ai_handle handle);
 
 int32_t ai_get_input_size(ai_handle handle);
 
 int32_t ai_get_output_size(ai_handle handle);
 
-ai_tensor* ai_get_input(ai_handle handle, int32_t index);
+ai_tensor * ai_get_input(ai_handle handle, int32_t index);
 
-ai_tensor* ai_get_output(ai_handle handle, int32_t index);
+ai_tensor * ai_get_output(ai_handle handle, int32_t index);
 
 ai_status ai_run(ai_handle handle);
 
 //
 // Additional methods
 //
-const char* ai_get_name(ai_handle handle);
-const char* ai_get_datetime(ai_handle handle);
-const char* ai_get_revision(ai_handle handle);
-const char* ai_get_tool_version(ai_handle handle);
-const char* ai_get_api_version(ai_handle handle);
+const char * ai_get_name(ai_handle handle);
+const char * ai_get_datetime(ai_handle handle);
+const char * ai_get_revision(ai_handle handle);
+const char * ai_get_tool_version(ai_handle handle);
+const char * ai_get_api_version(ai_handle handle);
 
 uint32_t ai_get_node_size(ai_handle handle);
 uint32_t ai_get_activations_size(ai_handle handle);
@@ -221,6 +230,6 @@ const ai_ptr ai_get_params(ai_handle handle);
 //
 // Quantization
 //
-const ai_quantization_info* ai_get_quantization(ai_tensor* tensor);
+const ai_quantization_info * ai_get_quantization(ai_tensor * tensor);
 
 #endif  // TVM_RUNTIME_CRT_CONTRIB_STM32_AI_RUNTIME_API_H_
