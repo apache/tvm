@@ -468,7 +468,18 @@ class Handler(server.ProjectAPIHandler):
         if options.get("verbose"):
             upload_cmd.append("--verbose")
 
-        subprocess.run(upload_cmd, check=True)
+        retry = 5
+        while retry > 0:
+            try:
+                subprocess.run(upload_cmd, check=True)
+                retry = 0
+            except Exception as e:
+                print("Retrying flash ...")
+                retry -= 1
+                time.sleep(1.0)
+                if retry <= 0:
+                    raise e
+
 
     def open_transport(self, options):
         # Zephyr example doesn't throw an error in this case
