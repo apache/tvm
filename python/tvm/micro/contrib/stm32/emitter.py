@@ -113,29 +113,24 @@ def _get_type_size(dltype):
 #   _get_type_data
 # ==========================================================
 
+C_TYPE_TO_DLTYPE = {
+    "uint64": "kDLUInt, 64, 1",
+    "int64": "kDLInt, 64, 1",
+    "float32": "kDLFloat, 32, 1",
+    "uint32": "kDLUInt, 32, 1",
+    "int32": "kDLInt, 32, 1",
+    "uint16": "kDLUInt, 16, 1",
+    "int16": "kDLInt, 16, 1",
+    "uint8": "kDLUInt, 8, 1",
+    "int8": "kDLInt, 8, 1",
+}
+
 
 def _get_type_data(dltype):
-
-    if dltype == "uint64":
-        return "kDLUInt, 64, 1"
-    if dltype == "int64":
-        return "kDLInt, 64, 1"
-    if dltype == "float32":
-        return "kDLFloat, 32, 1"
-    if dltype == "uint32":
-        return "kDLUInt, 32, 1"
-    if dltype == "int32":
-        return "kDLInt, 32, 1"
-    if dltype == "uint16":
-        return "kDLUInt, 16, 1"
-    if dltype == "int16":
-        return "kDLInt, 16, 1"
-    if dltype == "uint8":
-        return "kDLUInt, 8, 1"
-    if dltype == "int8":
-        return "kDLInt, 8, 1"
-
-    raise ValueError(f"Data type {dltype} is not supported")
+    try:
+        return C_TYPE_TO_DLTYPE[dltype]
+    except KeyError:
+        raise ValueError(f"Data type {dltype} is not supported")
 
 
 # ==========================================================
@@ -879,39 +874,40 @@ class CodeEmitter(object):
         # XXX.c
         #
 
+        if self.activations_static == 1:
+            out_c.write(
+                f'AI_ALIGNED({self.data_alignment}) __attribute__ ((section(".{name}.nn_data_act"))) uint8_t {name}_activations[{self.activations_size_}];\n'
+            )
+        else:
+            out_c.write(f"AI_STATIC ai_ptr {name}_activations = NULL;")
+        out_c.write(f"\n")
+
         #
         # Emit network structure
         #
         num_inputs = len(self.input_data_)
         num_outputs = len(self.output_data_)
 
+        tv_string = f"{AI_TOOLS_VERSION_MAJOR}.{AI_TOOLS_VERSION_MINOR}.{AI_TOOLS_VERSION_MICRO}.0"
+        av_string = f"{AI_API_VERSION_MAJOR}.{AI_API_VERSION_MINOR}.{AI_API_VERSION_MICRO}.0"
+
         out_c.write(
             f'AI_API_ENTRY  __attribute__ ((section(".nn_models"))) ai_model_info {name}_network = {{\n'
         )
-        out_c.write(f'  .name = "{name}",\n')
-        out_c.write(f'  .datetime = "{dt_string}",\n')
-        out_c.write(f'  .revision = "{AI_TOOLS_REVISION}",\n')
         out_c.write(
-            f'  .tool_version = "{AI_TOOLS_VERSION_MAJOR}.{AI_TOOLS_VERSION_MINOR}.{AI_TOOLS_VERSION_MICRO}.0",\n'
+            MODEL_TEMPLATE.format(
+                name=name,
+                dt_string=dt_string,
+                revision=AI_TOOLS_REVISION,
+                tool_version=tv_string,
+                api_version=av_string,
+                n_nodes=self.nodes_size_,
+                n_inputs=num_inputs,
+                n_outputs=num_outputs,
+                activations_size=self.activations_size_,
+                params_size=self.weights_size_,
+            )
         )
-        out_c.write(
-            f'  .api_version = "{AI_API_VERSION_MAJOR}.{AI_API_VERSION_MINOR}.{AI_API_VERSION_MICRO}.0",\n'
-        )
-        out_c.write(f"  .n_nodes = {self.nodes_size_},\n")
-        out_c.write(f"  .n_inputs = {num_inputs},\n")
-        out_c.write(f"  .n_outputs = {num_outputs},\n")
-        out_c.write(f"  .activations_size = {self.activations_size_},\n")
-        out_c.write(f"  .params_size = {self.weights_size_},\n")
-        if self.activations_static == 1:
-            out_c.write(f"  .activations = {name}_activations, \n")
-        else:
-            out_c.write(f"  .activations = NULL, \n")
-        out_c.write(f"  .inputs = _InputsList,\n")
-        out_c.write(f"  .outputs = _OutputsList,\n")
-        out_c.write(f"  .ai_get_params = &ai_{name}_data_weights_get,\n")
-        out_c.write(f"  .ai_create = &ai_{name}_create,\n")
-        out_c.write(f"  .ai_destroy = &ai_{name}_destroy,\n")
-        out_c.write(f"  .ai_run = &ai_{name}_run\n")
         out_c.write(f"}};\n")
         out_c.write(f"\n")
 
@@ -1011,22 +1007,11 @@ class CodeEmitter(object):
         out_c.write(
             f"AI_ALIGNED({self.data_alignment}) AI_STATIC ai_tensor {dl_tensor_name} = {{ \n"
         )
-        out_c.write(f"  .dltensor = {{ \n")
-        out_c.write(f"  .data = (ai_ptr)(NULL), \n")
-        #
-        # TODO: use the 'storage_id':
-        #   "    .ctx = {{ {} }}, \n".format(str(storage_id)[1:-1])
-        #
-        out_c.write(f"  .device = {{ kDLCPU, 0 }}, \n")
-        out_c.write(f"  .ndim = {ndim}, \n")
-        out_c.write(f"  .dtype = {{ {dtype} }}, \n")
-        out_c.write(f"  .shape = {dl_tensor_name}_shape, \n")
-        if strides is not None:
-            out_c.write(f"  .strides = {dl_tensor_name}_strides, \n")
-        else:
-            out_c.write(f"  .strides = NULL, \n")
-        out_c.write(f"  .byte_offset = {byte_offset} \n")
-        out_c.write(f"  }}, \n")
+        out_c.write(
+            DLTENSOR_TEMPLATE.format(
+                name=dl_tensor_name, device="kDLCPU,0", ndim=ndim, dtype=dtype, offset=byte_offset
+            )
+        )
         #
         # Figure out quantization, if exists
         #
@@ -1041,6 +1026,7 @@ class CodeEmitter(object):
     # ==========================================================
 
     def __emit_activation_buffers(self, name, out_c):
+        # pylint: disable=unused-argument
         """ Emits activation tensors, including inputs/outputs."""
         #
         # Inputs:
@@ -1098,12 +1084,6 @@ class CodeEmitter(object):
             idx = idx + 1
         out_c.write(f"}}; \n")
         out_c.write(f"\n")
-
-        if self.activations_static == 1:
-            out_c.write(
-                f'AI_ALIGNED({self.data_alignment}) __attribute__ ((section(".{name}.nn_data_act"))) uint8_t {name}_activations[{self.activations_size_}];\n'
-            )
-            out_c.write(f"\n")
 
     # ==========================================================
     #   __emit_params_buffers
@@ -1621,3 +1601,43 @@ class CodeEmitter(object):
         out_h.close()
         data_c.close()
         data_h.close()
+
+
+#
+# TODO: use the 'storage_id':
+#   "    .ctx = {{ {} }}, \n".format(str(storage_id)[1:-1])
+#
+#
+# TODO: systematically generate strides
+#
+DLTENSOR_TEMPLATE = """\
+  .dltensor = {{
+    .data = (ai_ptr)(NULL),
+    .device = {{{device}}},
+    .ndim = {ndim},
+    .dtype = {{{dtype}}},
+    .shape = {name}_shape,
+    .strides = {name}_strides,
+    .byte_offset = {offset}
+  }},
+"""
+
+MODEL_TEMPLATE = """\
+  .name = \"{name}\",
+  .datetime = \"{dt_string}\",
+  .revision = \"{revision}\",
+  .tool_version = \"{tool_version}\",
+  .api_version = \"{api_version}\",
+  .n_nodes = {n_nodes},
+  .n_inputs = {n_inputs},
+  .n_outputs = {n_outputs},
+  .activations_size = {activations_size},
+  .params_size = {params_size},
+  .activations = {name}_activations,
+  .inputs = _InputsList,
+  .outputs = _OutputsList,
+  .ai_get_params = &ai_{name}_data_weights_get,
+  .ai_create = &ai_{name}_create,
+  .ai_destroy = &ai_{name}_destroy,
+  .ai_run = &ai_{name}_run\
+"""
