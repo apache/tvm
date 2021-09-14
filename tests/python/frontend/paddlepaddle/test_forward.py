@@ -20,6 +20,7 @@ import shutil
 import numpy as np
 
 import paddle
+from paddle.framework import dtype
 import paddle.nn as nn
 
 import tvm
@@ -36,8 +37,11 @@ PADDLE_TEST_DATA_ROOT_PATH.mkdir(parents=True, exist_ok=True)
 
 def assert_shapes_match(tru, est):
     if tru.shape != est.shape:
-        msg = "Output shapes {} and {} don't match"
+        msg = "Paddle Output shapes {} and TVM shapes {} don't match"
         raise AssertionError(msg.format(tru.shape, est.shape))
+    if tru.dtype != est.dtype:
+        msg = "Paddle Output dtype {} and TVM dtype {} don't match"
+        raise AssertionError(msg.format(tru.dtype, est.dtype))
 
 
 def get_paddle_model(func, input_spec):
@@ -152,6 +156,7 @@ def test_forward_unary_op():
         "ceil",
         "cos",
         "cosh",
+        "erf",
         "exp",
         "floor",
         "log",
@@ -291,21 +296,22 @@ def test_forward_argmin():
 
 @tvm.testing.uses_gpu
 def test_forward_assign():
-    @paddle.jit.to_static
-    def assign(inputs):
-        return paddle.assign(inputs)
+    class Assign(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.assign(inputs)
 
     input_shape = [2, 3]
     input_data = paddle.rand(input_shape, dtype="float32")
     verify_model(
-        assign,
+        Assign(),
         [
             input_data,
         ],
     )
     input_data2 = np.random.randint(100, size=input_shape)
     verify_model(
-        assign,
+        Assign(),
         [
             input_data2,
         ],
@@ -426,29 +432,32 @@ def test_forward_crop():
 
 @tvm.testing.uses_gpu
 def test_forward_cumsum():
-    @paddle.jit.to_static
-    def cusum1(inputs):
-        return paddle.cumsum(inputs)
+    class Cusum1(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.cumsum(inputs)
 
-    @paddle.jit.to_static
-    def cusum2(inputs):
-        return paddle.cumsum(inputs, axis=0)
+    class Cusum2(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.cumsum(inputs, axis=0)
 
-    @paddle.jit.to_static
-    def cusum3(inputs):
-        return paddle.cumsum(inputs, axis=1)
+    class Cusum3(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.cumsum(inputs, axis=1)
 
     input_data = paddle.randint(0, 100, (10, 10), dtype=paddle.int32)
-    verify_model(cusum1, [input_data])
-    verify_model(cusum1, [input_data.astype(paddle.int64)])
+    verify_model(Cusum1(), [input_data])
+    verify_model(Cusum1(), [input_data.astype(paddle.int64)])
     verify_model(
-        cusum2,
+        Cusum2(),
         [
             input_data,
         ],
     )
     verify_model(
-        cusum3,
+        Cusum3(),
         [
             input_data,
         ],
@@ -535,6 +544,34 @@ def test_forward_conv_transpose():
 
 
 @tvm.testing.uses_gpu
+def test_forward_dist():
+    @paddle.jit.to_static
+    def dist(x, y):
+        return paddle.dist(x, y, p=2)
+
+    @paddle.jit.to_static
+    def dist2(x, y):
+        return paddle.dist(x, y, p=20)
+
+    @paddle.jit.to_static
+    def dist3(x, y):
+        return paddle.dist(x, y, p=float("-inf"))
+
+    @paddle.jit.to_static
+    def dist4(x, y):
+        return paddle.dist(x, y, p=float("inf"))
+
+    x_shape = [10, 3]
+    y_shape = [10, 1]
+    x_data = paddle.rand(x_shape, dtype="float32")
+    y_data = paddle.rand(y_shape, dtype="float32")
+    verify_model(dist, input_data=[x_data, y_data])
+    verify_model(dist2, input_data=[x_data, y_data])
+    verify_model(dist3, input_data=[x_data, y_data])
+    verify_model(dist4, input_data=[x_data, y_data])
+
+
+@tvm.testing.uses_gpu
 def test_forward_dot():
     @paddle.jit.to_static
     def dot(x, y):
@@ -574,6 +611,19 @@ def test_forward_expand():
     x_data = paddle.rand(x_shape, dtype="float32")
     verify_model(expand1, input_data=[x_data])
     verify_model(expand2, input_data=[x_data])
+
+
+@tvm.testing.uses_gpu
+def test_forward_expand_as():
+    @paddle.jit.to_static
+    def expand_as(x, y):
+        z = paddle.expand_as(x, y)
+        z += y
+        return z
+
+    data_x = paddle.to_tensor([1, 2, 3], dtype="int32")
+    data_y = paddle.to_tensor([[1, 2, 3], [4, 5, 6]], dtype="float32")
+    verify_model(expand_as, [data_x, data_y])
 
 
 @tvm.testing.uses_gpu
@@ -861,6 +911,37 @@ def test_forward_leaky_relu():
     input_shape = [1, 3, 10, 10]
     input_data = paddle.rand(input_shape, dtype="float32")
     verify_model(leaky_relu, input_data=input_data)
+
+
+@tvm.testing.uses_gpu
+def test_forward_logical_op():
+    class LogicalOp(nn.Layer):
+        def __init__(self, op_name, out=False):
+            super(LogicalOp, self).__init__()
+            self.out = out
+            for candidate in (paddle, paddle.nn.functional):
+                self.func = getattr(candidate, op_name, None)
+                if self.func:
+                    break
+
+        @paddle.jit.to_static
+        def forward(self, x, y):
+            if self.out:
+                out = paddle.to_tensor([True, True, True])
+                z = self.func(x, y, out=out)
+            else:
+                z = self.func(x, y)
+            return paddle.cast(z, "int32")
+
+    op_list = [
+        "logical_or",
+        "logical_and",
+    ]
+    x = paddle.to_tensor([True])
+    y = paddle.to_tensor([True, False, True, False])
+    for op_name in op_list:
+        verify_model(LogicalOp(op_name, False), [x, y])
+        verify_model(LogicalOp(op_name, True), [x, y])
 
 
 @tvm.testing.uses_gpu
@@ -1456,10 +1537,12 @@ if __name__ == "__main__":
     test_forward_conv()
     test_forward_crop()
     test_forward_cumsum()
+    test_forward_dist()
     test_forward_dot()
     test_forward_dropout()
     test_forward_elemwise()
     test_forward_expand()
+    test_forward_expand_as()
     test_forward_flatten()
     test_forward_shape_full()
     test_forward_ones()
@@ -1474,6 +1557,7 @@ if __name__ == "__main__":
     test_forward_isinf()
     test_forward_layer_norm()
     test_forward_leaky_relu()
+    test_forward_logical_op()
     test_forward_look_up()
     test_forward_lstm()
     test_forward_matmul()

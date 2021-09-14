@@ -146,6 +146,8 @@ def convert_arg_max(g, op, block):
     axis = op.attr("axis")
     keepdims = op.attr("keepdims")
     flatten = op.attr("flatten")
+    dtype = op.attr("dtype")
+    dtype = _convert_dtype_value(dtype)
 
     x = g.get_node(op.input("X")[0])
     if axis is None or flatten:
@@ -153,6 +155,8 @@ def convert_arg_max(g, op, block):
         out = _op.argmax(x, axis=None, keepdims=True)
     else:
         out = _op.argmax(x, axis=axis, keepdims=keepdims)
+    if dtype != infer_type(out).checked_type.dtype:
+        out = _op.cast(out, dtype)
     g.add_node(op.output("Out")[0], out)
 
 
@@ -162,6 +166,8 @@ def convert_arg_min(g, op, block):
     axis = op.attr("axis")
     keepdims = op.attr("keepdims")
     flatten = op.attr("flatten")
+    dtype = op.attr("dtype")
+    dtype = _convert_dtype_value(dtype)
 
     x = g.get_node(op.input("X")[0])
     if axis is None or flatten:
@@ -169,13 +175,15 @@ def convert_arg_min(g, op, block):
         out = _op.argmin(x, axis=None, keepdims=True)
     else:
         out = _op.argmin(x, axis=axis, keepdims=keepdims)
+    if dtype != infer_type(out).checked_type.dtype:
+        out = _op.cast(out, dtype)
     g.add_node(op.output("Out")[0], out)
 
 
 def convert_assign(g, op, block):
     """Operator converter for assign."""
 
-    out = _op.copy(g.get_node(op.input("X")[0]))
+    out = g.get_node(op.input("X")[0])
     g.add_node(op.output("Out")[0], out)
 
 
@@ -484,6 +492,30 @@ def convert_dropout(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_dist(g, op, block):
+    """Operator converter for dist."""
+
+    x = g.get_node(op.input("X")[0])
+    y = g.get_node(op.input("Y")[0])
+    dtype = infer_type(x).checked_type.dtype
+    p = op.attr("p")
+
+    x -= y
+    if p == np.inf:
+        out = _op.reduce.max(_op.abs(x))
+    elif p == np.NINF:
+        out = _op.reduce.min(_op.abs(x))
+    else:
+        reci_order = _expr.const(1.0 / p, dtype=dtype)
+        p = _expr.const(p)
+        out = _op.power(
+            _op.reduce.sum(_op.power(_op.abs(x), p)),
+            reci_order,
+        )
+    out = _op.expand_dims(out, axis=0)
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_dot(g, op, block):
     """Operator converter for dot."""
 
@@ -556,6 +588,15 @@ def convert_expand(g, op, block):
                 sizes[i] = int(infer_value(sizes[i], {}).numpy())
             out = _op.repeat(out, sizes[i], axis=i)
 
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_expand_as(g, op, block):
+    """Operator converter for expand_as."""
+
+    x = g.get_node(op.input("X")[0])
+    target_shape = op.attr("target_shape")
+    out = _op.broadcast_to(x, target_shape)
     g.add_node(op.output("Out")[0], out)
 
 
@@ -800,6 +841,16 @@ def convert_log1p(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_logical_op(g, op, block):
+    """Operator converter for logical op."""
+
+    ipt0 = g.get_node(op.input("X")[0])
+    ipt1 = g.get_node(op.input("Y")[0])
+    op_func = get_relay_op(op.type)
+    out = op_func(ipt0, ipt1)
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_logsumexp(g, op, block):
     """Operator converter for logsumexp."""
 
@@ -972,7 +1023,7 @@ def convert_numel(g, op, block):
     """Operator converter for numel."""
 
     input_x = g.get_node(op.input("Input")[0])
-    out = _op.ndarray_size(input_x)
+    out = _op.ndarray_size(input_x, dtype="int64")
     out = _op.expand_dims(out, axis=0)
     g.add_node(op.output("Out")[0], out)
 
@@ -1511,7 +1562,7 @@ def convert_topk(g, op, block):
         k = _infer_value(k_node, g.get_params())
     else:
         k = op.attr("k")
-    outs = _op.topk(x, k=k, axis=axis, is_ascend=is_ascend, ret_type="both", dtype="int32")
+    outs = _op.topk(x, k=k, axis=axis, is_ascend=is_ascend, ret_type="both", dtype="int64")
 
     g.add_node(op.output("Out")[0], outs[0])
     g.add_node(op.output("Indices")[0], outs[1])
@@ -1596,6 +1647,7 @@ _convert_map = {
     "crop_tensor": convert_crop,
     "cumsum": convert_cumsum,
     "depthwise_conv2d": convert_conv2d,
+    "dist": convert_dist,
     "dot": convert_dot,
     "dropout": convert_dropout,
     "elementwise_add": convert_elementwise_op,
@@ -1608,8 +1660,10 @@ _convert_map = {
     "elementwise_pow": convert_elementwise_op,
     "elementwise_floordiv": convert_elementwise_op,
     "equal": convert_elementwise_op,
+    "erf": convert_unary_op,
     "exp": convert_unary_op,
     "expand_v2": convert_expand,
+    "expand_as_v2": convert_expand_as,
     "feed": convert_feed,
     "fill_any_like": convert_fill_any_like,
     "fill_constant": convert_fill_constant,
@@ -1636,6 +1690,8 @@ _convert_map = {
     "log2": convert_unary_op,
     "log10": convert_unary_op,
     "log1p": convert_log1p,
+    "logical_and": convert_logical_op,
+    "logical_or": convert_logical_op,
     "logsumexp": convert_logsumexp,
     "matmul": convert_matmul,
     "matmul_v2": convert_matmul,
