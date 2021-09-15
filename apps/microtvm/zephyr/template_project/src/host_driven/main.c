@@ -144,7 +144,7 @@ tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
   return kTvmErrorNoError;
 }
 
-#define MILLIS_TIL_EXPIRY 200
+#define MILLIS_TIL_EXPIRY 500
 #define TIME_TIL_EXPIRY (K_MSEC(MILLIS_TIL_EXPIRY))
 K_TIMER_DEFINE(g_microtvm_timer, /* expiry func */ NULL, /* stop func */ NULL);
 
