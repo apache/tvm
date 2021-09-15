@@ -35,6 +35,7 @@ import tarfile
 import tempfile
 import threading
 import time
+import json
 
 import serial
 import serial.tools.list_ports
@@ -59,44 +60,13 @@ IS_TEMPLATE = not (API_SERVER_DIR / MODEL_LIBRARY_FORMAT_RELPATH).exists()
 
 # Data structure to hold the information microtvm_api_server.py needs
 # to communicate with each of these boards.
-BOARD_PROPERTIES = {
-    "qemu_x86": {
-        "board": "qemu_x86",
-        "model": "host",
-    },
-    "qemu_riscv32": {
-        "board": "qemu_riscv32",
-        "model": "host",
-    },
-    "qemu_riscv64": {
-        "board": "qemu_riscv64",
-        "model": "host",
-    },
-    "mps2_an521": {
-        "board": "mps2_an521",
-        "model": "mps2_an521",
-    },
-    "nrf5340dk_nrf5340_cpuapp": {
-        "board": "nrf5340dk_nrf5340_cpuapp",
-        "model": "nrf5340dk",
-    },
-    "stm32f746g_disco": {
-        "board": "stm32f746g_disco",
-        "model": "stm32f746xx",
-    },
-    "nucleo_f746zg": {
-        "board": "nucleo_f746zg",
-        "model": "stm32f746xx",
-    },
-    "nucleo_l4r5zi": {
-        "board": "nucleo_l4r5zi",
-        "model": "stm32l4r5zi",
-    },
-    "qemu_cortex_r5": {
-        "board": "qemu_cortex_r5",
-        "model": "zynq_mp_r5",
-    },
-}
+BOARD_PROPERTIES = None
+BOARDS_FILE_NAME = "boards.json"
+
+with open(
+    BOARDS_FILE_NAME,
+) as board_f:
+    BOARD_PROPERTIES = json.load(board_f)
 
 
 def check_call(cmd_args, *args, **kwargs):
@@ -294,6 +264,10 @@ PROJECT_OPTIONS = [
         choices=[board["model"] for _, board in BOARD_PROPERTIES.items()],
         help="Name of the model for each Zephyr board.",
     ),
+    server.ProjectOption(
+        "main_stack_size",
+        help="Sets CONFIG_MAIN_STACK_SIZE for Zephyr board.",
+    ),
 ]
 
 
@@ -351,13 +325,9 @@ class Handler(server.ProjectAPIHandler):
             if self._has_fpu(options["zephyr_board"]):
                 f.write("# For models with floating point.\n" "CONFIG_FPU=y\n" "\n")
 
-            main_stack_size = None
-            if self._is_qemu(options) and options["project_type"] == "host_driven":
-                main_stack_size = 1536
-
             # Set main stack size, if needed.
-            if main_stack_size is not None:
-                f.write(f"CONFIG_MAIN_STACK_SIZE={main_stack_size}\n")
+            if options["main_stack_size"] is not None:
+                f.write(f"CONFIG_MAIN_STACK_SIZE={options['main_stack_size']}\n")
 
             f.write("# For random number generation.\n" "CONFIG_TEST_RANDOM_GENERATOR=y\n")
 
@@ -383,6 +353,11 @@ class Handler(server.ProjectAPIHandler):
         # Copy ourselves to the generated project. TVM may perform further build steps on the generated project
         # by launching the copy.
         shutil.copy2(__file__, project_dir / os.path.basename(__file__))
+
+        # Copy boards.json file to generated project.
+        shutil.copy2(
+            pathlib.Path(__file__).parent / BOARDS_FILE_NAME, project_dir / BOARDS_FILE_NAME
+        )
 
         # Place Model Library Format tarball in the special location, which this script uses to decide
         # whether it's being invoked in a template or generated project.
@@ -471,20 +446,10 @@ class Handler(server.ProjectAPIHandler):
             or options["zephyr_board"] in cls._KNOWN_QEMU_ZEPHYR_BOARDS
         )
 
-    _KNOWN_FPU_ZEPHYR_BOARDS = (
-        "nucleo_f746zg",
-        "nucleo_l4r5zi",
-        "nrf5340dk_nrf5340_cpuapp",
-        "qemu_cortex_r5",
-        "qemu_riscv32",
-        "qemu_riscv64",
-        "qemu_x86",
-        "stm32f746g_disco",
-    )
-
     @classmethod
     def _has_fpu(cls, zephyr_board):
-        return zephyr_board in cls._KNOWN_FPU_ZEPHYR_BOARDS
+        fpu_boards = ([name for name, board in BOARD_PROPERTIES.items() if board["fpu"]],)
+        return zephyr_board in fpu_boards
 
     def flash(self, options):
         if self._is_qemu(options):

@@ -53,8 +53,11 @@ def _make_sess_from_op(
 
     return _make_session(temp_dir, zephyr_board, west_cmd, mod, build_config)
 
-
 def _make_session(temp_dir, zephyr_board, west_cmd, mod, build_config):
+    stack_size = None
+    if zephyr_board in conftest.qemu_boards():
+        stack_size = 1536
+
     project = tvm.micro.generate_project(
         str(conftest.TEMPLATE_PROJECT_DIR),
         mod,
@@ -64,6 +67,7 @@ def _make_session(temp_dir, zephyr_board, west_cmd, mod, build_config):
             "west_cmd": west_cmd,
             "verbose": bool(build_config.get("debug")),
             "zephyr_board": zephyr_board,
+            "main_stack_size": stack_size,
         },
     )
     project.build()
@@ -106,22 +110,12 @@ def test_add_uint(temp_dir, board, west_cmd, tvm_debug):
         test_basic_add(sess)
 
 
-def has_fpu(zephyr_board):
-    sys.path.insert(0, str(conftest.TEMPLATE_PROJECT_DIR))
-    try:
-        import microtvm_api_server
-    finally:
-        sys.path.pop(0)
-
-    return microtvm_api_server.Handler._has_fpu(zephyr_board)
-
-
 # The same test code can be executed on both the QEMU simulation and on real hardware.
 @tvm.testing.requires_micro
 def test_add_float(temp_dir, board, west_cmd, tvm_debug):
     """Test compiling the on-device runtime."""
     model = conftest.ZEPHYR_BOARDS[board]
-    if not has_fpu(board):
+    if not conftest.has_fpu(board):
         pytest.skip(f"FPU not enabled for {board}")
 
     build_config = {"debug": tvm_debug}
@@ -385,6 +379,7 @@ def test_autotune_conv2d(temp_dir, board, west_cmd, tvm_debug):
     import tvm.relay as relay
 
     model = conftest.ZEPHYR_BOARDS[board]
+    build_config = {"debug": tvm_debug}
 
     # Create a Relay model
     data_shape = (1, 3, 16, 16)
@@ -421,6 +416,11 @@ def test_autotune_conv2d(temp_dir, board, west_cmd, tvm_debug):
         subprocess.check_output(["git", "rev-parse", "--show-toplevel"], encoding="utf-8").strip()
     )
     template_project_dir = repo_root / "apps" / "microtvm" / "zephyr" / "template_project"
+    
+    stack_size = None
+    if board in conftest.qemu_boards():
+        stack_size = 1536
+
     module_loader = tvm.micro.AutoTvmModuleLoader(
         template_project_dir=template_project_dir,
         project_options={
@@ -428,9 +428,11 @@ def test_autotune_conv2d(temp_dir, board, west_cmd, tvm_debug):
             "west_cmd": west_cmd,
             "verbose": 1,
             "project_type": "host_driven",
+            "main_stack_size": stack_size,
         },
     )
     builder = tvm.autotvm.LocalBuilder(
+        timeout=100,
         n_parallel=1,
         build_kwargs={"build_option": {"tir.disable_vectorize": True}},
         do_fork=True,
@@ -444,7 +446,7 @@ def test_autotune_conv2d(temp_dir, board, west_cmd, tvm_debug):
     if log_path.exists():
         log_path.unlink()
 
-    n_trial = 10
+    n_trial = 1
     for task in tasks:
         tuner = tvm.autotvm.tuner.GATuner(task)
         tuner.tune(
@@ -464,21 +466,7 @@ def test_autotune_conv2d(temp_dir, board, west_cmd, tvm_debug):
         lowered = tvm.relay.build(mod, target=target, params=params)
 
     temp_dir = utils.tempdir()
-    project = tvm.micro.generate_project(
-        str(template_project_dir),
-        lowered,
-        temp_dir / "project",
-        {
-            "zephyr_board": board,
-            "west_cmd": west_cmd,
-            "verbose": 1,
-            "project_type": "host_driven",
-        },
-    )
-    project.build()
-    project.flash()
-
-    with tvm.micro.Session(project.transport()) as session:
+    with _make_session(temp_dir, board, west_cmd, mod, build_config) as session:
         graph_mod = tvm.micro.create_local_graph_executor(
             lowered.get_graph_json(), session.get_system_lib(), session.device
         )
@@ -493,21 +481,7 @@ def test_autotune_conv2d(temp_dir, board, west_cmd, tvm_debug):
             lowered_tuned = tvm.relay.build(mod, target=target, params=params)
 
     temp_dir = utils.tempdir()
-    project = tvm.micro.generate_project(
-        str(template_project_dir),
-        lowered_tuned,
-        temp_dir / "project",
-        {
-            "zephyr_board": board,
-            "west_cmd": west_cmd,
-            "verbose": 1,
-            "project_type": "host_driven",
-        },
-    )
-    project.build()
-    project.flash()
-
-    with tvm.micro.Session(project.transport()) as session:
+    with _make_session(temp_dir, board, west_cmd, lowered_tuned, build_config) as session:
         graph_mod = tvm.micro.create_local_graph_executor(
             lowered_tuned.get_graph_json(), session.get_system_lib(), session.device
         )

@@ -153,4 +153,12 @@ def generate_project(
         A class that wraps the generated project and which can be used to further interact with it.
     """
     template = TemplateProject.from_directory(str(template_project_dir))
+
+    # check if options are valid
+    valid_project_options = [item["name"] for item in template.info()["project_options"]]
+    if not all(element in list(valid_project_options) for element in list(options)):
+        raise ValueError(
+            f"options:{list(options)} include none valid ProjectOptions. Here is a list of valid options:{list(valid_project_options)}."
+        )
+
     return template.generate_project(module, str(generated_project_dir), options)

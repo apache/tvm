@@ -17,6 +17,7 @@
 import datetime
 import os
 import pathlib
+import json
 
 import pytest
 
@@ -35,6 +36,8 @@ TEMPLATE_PROJECT_DIR = (
     / "template_project"
 ).resolve()
 
+BOARD_JSON_PATH = TEMPLATE_PROJECT_DIR / "boards.json"
+
 
 def zephyr_boards() -> dict:
     """Returns a dict mapping board to target model"""
@@ -51,6 +54,24 @@ def zephyr_boards() -> dict:
 
 
 ZEPHYR_BOARDS = zephyr_boards()
+
+
+def qemu_boards() -> list:
+    """Returns a list of QEMU Zephyr boards."""
+    with open(BOARD_JSON_PATH) as f:
+        board_properties = json.load(f)
+
+    qemu_boards = [name for name, board in board_properties.items() if board["is_qemu"]]
+    return qemu_boards
+
+
+def has_fpu(board):
+    """Returns True if board has FPU."""
+    with open(BOARD_JSON_PATH) as f:
+        board_properties = json.load(f)
+
+    fpu_boards = [name for name, board in board_properties.items() if board["fpu"]]
+    return board in fpu_boards
 
 
 def pytest_addoption(parser):
