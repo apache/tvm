@@ -73,7 +73,7 @@ ALL_MICROTVM_BOARDS = {
     ),
     "zephyr": (
         "nucleo_f746zg",
-        "stm32f746xx_disco",
+        "stm32f746g_disco",
         "nrf5340dk_nrf5340_cpuapp",
         "mps2_an521",
     ),
