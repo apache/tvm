@@ -149,6 +149,7 @@ stage('Prepare') {
 }
 
 stage("Sanity Check") {
+  timeout(time: max_time, unit: 'MINUTES') {
     node('CPU') {
       ws(per_exec_ws("tvm/sanity")) {
         init_git()
@@ -200,11 +201,6 @@ def unpack_lib(name, libs) {
 }
 
 stage('Build') {
-  when {
-    not {
-      changeset "docs/**"
-    }
-  }
   parallel 'BUILD: GPU': {
     node('GPUBUILD') {
       ws(per_exec_ws("tvm/build-gpu")) {
@@ -227,14 +223,23 @@ stage('Build') {
         pack_lib('cpu', tvm_multilib_tsim)
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_ci_setup.sh"
-          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_unittest.sh"
-          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh"
-          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_fsim.sh"
-          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_tsim.sh"
-          // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
-          // TODO(@jroesch): need to resolve CI issue will turn back on in follow up patch
-          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh"
-          junit "build/pytest-results/*.xml"
+          script {
+            try {
+              sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_unittest.sh"
+              sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh"
+              sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_fsim.sh"
+              sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_tsim.sh"
+              // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
+              // TODO(@jroesch): need to resolve CI issue will turn back on in follow up patch
+              sh "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh"
+            } catch(all) {
+              sh """
+                echo "Failed test"
+              """
+            } finally {
+               junit "build/pytest-results/*.xml"
+            }
+          }
         }
       }
     }
@@ -289,11 +294,6 @@ stage('Build') {
 }
 
 stage('Unit Test') {
-  when {
-    not {
-      changeset "docs/**"
-    }
-  }
   parallel 'python3: GPU': {
     node('TensorCore') {
       ws(per_exec_ws("tvm/ut-python-gpu")) {
