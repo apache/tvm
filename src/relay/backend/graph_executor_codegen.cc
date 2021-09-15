@@ -36,8 +36,8 @@
 #include <string>
 #include <vector>
 
-#include "te_compiler.h"
-#include "utils.h"
+#include "./te_compiler.h"
+#include "./utils.h"
 
 namespace tvm {
 namespace relay {
@@ -221,8 +221,17 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
       device_context_map.insert({expr, dev});
     }
 
+    backend::FunctionInfo func_info;
+
+    if (memory_plan_.defined()) {
+      // TODO(@electriclilies, @jroesch): remove UpdateMainWorkspaceSize
+      func_info =
+          relay::tec::UpdateMainWorkspaceSize(mod, targets_, memory_plan_->expr_to_storage_info);
+      mod = WithAttr(mod, "main_func_info", func_info);
+    }
+
     IRModule lowered_mod =
-        LowerTEPass(targets_, device_context_map, memory_plan_, mod_name_, [this](Function func) {
+        tec::LowerTEPass(targets_, device_context_map, mod_name_, [this](Function func) {
           // We need to maintain the constant map for external
           // functions so we pass this processing function which
           // allows us to process each function as we lower it.
@@ -238,7 +247,7 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
 
     Optional<backend::FunctionInfo> main_func_info =
         lowered_mod->GetAttr<backend::FunctionInfo>("main_func_info");
-    ICHECK(main_func_info) << "The attribute \"main_func_info\" should be set at this point.";
+
     function_metadata_.Set(runtime::symbol::tvm_module_main, main_func_info.value());
 
     Function lowered_main_func = Downcast<Function>(lowered_mod->Lookup("main"));
