@@ -26,7 +26,6 @@
 #include <backtrace.h>
 #include <cxxabi.h>
 
-#include <cstring>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
@@ -235,6 +234,7 @@ std::unordered_map<std::string, int> ParseTvmLogDebugSpec(const char* opt_spec) 
 }
 
 constexpr const char* kSrcPrefix = "/src/";
+constexpr const size_t kSrcPrefixLength = 5;
 
 bool VerboseEnabledInMap(const std::string& filename, int level,
                          const std::unordered_map<std::string, int>& map) {
@@ -244,13 +244,12 @@ bool VerboseEnabledInMap(const std::string& filename, int level,
   // Canonicalize filename.
   // TODO(mbs): Not Windows friendly.
 
-  const size_t prefix_length = strlen(kSrcPrefix);
-  size_t last_src = filename.rfind(kSrcPrefix, std::string::npos, prefix_length);
+  size_t last_src = filename.rfind(kSrcPrefix, std::string::npos, kSrcPrefixLength);
   // Strip anything before the /src/ prefix, on the assumption that will yield the
   // TVM project relative filename. If no such prefix fallback to filename without
   // canonicalization.
   std::string key =
-      last_src == std::string::npos ? filename : filename.substr(last_src + prefix_length);
+      last_src == std::string::npos ? filename : filename.substr(last_src + kSrcPrefixLength);
   // Check for exact.
   auto itr = map.find(key);
   if (itr != map.end()) {
