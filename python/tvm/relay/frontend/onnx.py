@@ -3501,6 +3501,15 @@ class Unique(OnnxOpConverter):
         return _expr.TupleWrapper(_expr.Tuple([unique_vals, indices, inverse_indices, counts]), 4)
 
 
+class Einsum(OnnxOpConverter):
+    """Operator converter for Einsum"""
+
+    @classmethod
+    def _impl_v12(cls, inputs, attr, params):
+        equation = attr["equation"].decode("utf-8")
+        return _op.einsum(inputs, equation)
+
+
 class RandomUniform(OnnxOpConverter):
     """Operator converter for random_uniform"""
 
@@ -3864,6 +3873,7 @@ def _get_convert_map(opset):
         "Range": Range.get_converter(opset),
         "CumSum": CumSum.get_converter(opset),
         "Unique": Unique.get_converter(opset),
+        "Einsum": Einsum.get_converter(opset),
         # defs/control_flow
         "Loop": Loop.get_converter(opset),
         "If": If.get_converter(opset),

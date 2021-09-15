@@ -14,29 +14,21 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Generic math operators"""
+from .default import default_schedule as _default_schedule
 
-# pylint: disable=wildcard-import
-"""Generic declaration and schedules.
 
-This is a recommended way of using TOPI API.
-To use the generic schedule function, user must set
-the current target scope using with block. See also :any:`tvm.target`
+def schedule_einsum(outs):
+    """Schedule for einsum operator.
 
-Example
--------
-.. code-block:: python
+    Parameters
+    ----------
+    outs: Array of Tensor
+      The computation graph description of einsum.
 
-  # create schedule that dispatches to topi.cuda.schedule_injective
-  with tvm.target.Target("cuda"):
-    s = tvm.tir.generic.schedule_injective(outs)
-"""
-from __future__ import absolute_import as _abs
-
-from .nn import *
-from .injective import *
-from .extern import *
-from .vision import *
-from .sort import *
-from .search import *
-from .image import *
-from .math import *
+    Returns
+    -------
+    s: Schedule
+      The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)

@@ -483,7 +483,7 @@ struct ScanopAttrs : public tvm::AttrsNode<ScanopAttrs> {
         .describe("The first element is not included")
         .set_default(Bool(false));
   }
-};
+};  // struct ScanopAttrs
 
 /*! \brief Attributes used in unique operator */
 struct UniqueAttrs : public tvm::AttrsNode<UniqueAttrs> {
@@ -496,6 +496,15 @@ struct UniqueAttrs : public tvm::AttrsNode<UniqueAttrs> {
         .set_default(false);
   }
 };  // struct UniqueAttrs
+
+/*! \brief Attributes used in einsum operator */
+struct EinsumAttrs : public tvm::AttrsNode<EinsumAttrs> {
+  String equation;
+
+  TVM_DECLARE_ATTRS(EinsumAttrs, "relay.attrs.EinsumAttrs") {
+    TVM_ATTR_FIELD(equation).describe("The einsum expression string");
+  }
+};  // struct EinsumAttrs
 
 }  // namespace relay
 }  // namespace tvm
