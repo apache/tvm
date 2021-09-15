@@ -21,7 +21,9 @@ import json
 import logging
 import os
 import pathlib
+import contextlib
 
+from typing import Union
 from .._ffi import libinfo
 from .. import rpc as _rpc
 
@@ -67,21 +69,24 @@ class AutoTvmModuleLoader:
 
     Parameters
     ----------
-    template_project_dir : str
+    template_project_dir : Union[pathlib.Path, str]
         project template path
 
     project_options : dict
         project generation option
     """
 
-    def __init__(self, template_project_dir: str, project_options: dict = None):
+    def __init__(
+        self, template_project_dir: Union[pathlib.Path, str], project_options: dict = None
+    ):
         self._project_options = project_options
 
-        if isinstance(template_project_dir, pathlib.Path):
+        if isinstance(template_project_dir, (pathlib.Path, str)):
             self._template_project_dir = str(template_project_dir)
         elif not isinstance(template_project_dir, str):
             raise TypeError(f"Incorrect type {type(template_project_dir)}.")
 
+    @contextlib.contextmanager
     def __call__(self, remote_kw, build_result):
         with open(build_result.filename, "rb") as build_file:
             build_result_bin = build_file.read()
@@ -100,10 +105,6 @@ class AutoTvmModuleLoader:
         )
         system_lib = remote.get_function("runtime.SystemLib")()
         yield remote, system_lib
-        try:
-            remote.get_function("tvm.micro.destroy_micro_session")()
-        except tvm.error.TVMError as exception:
-            _LOG.warning("Error destroying remote session: %s", str(exception), exc_info=1)
 
 
 def autotvm_build_func():

@@ -900,8 +900,9 @@ Map<Target, IRModule> GetPerTargetModules(IRModule mod) {
 
       // Put the function in per_target_modules
       if (!per_target_modules.count(target.value())) {
-        // Initialize the IRModule for this target and add the function
-        IRModule target_module;
+        // Initialize the IRModule for this target with the attributes from the input IRModule
+        IRModule target_module = IRModule({}, {}, {}, {}, mod->attrs);
+        // Add the function to the IRModule
         target_module->Add(var, func);
         per_target_modules[target.value()] = target_module;
       } else {
@@ -918,23 +919,6 @@ Map<Target, IRModule> GetPerTargetModules(IRModule mod) {
   return per_target_modules;
 }
 
-IRModule GetMainModule(IRModule mod) {
-  IRModule main_module;
-  // Copy the type defs
-  for (const auto& kv : mod->type_definitions) {
-    main_module->AddTypeDef(kv.first, kv.second);
-  }
-  // Copy all Relay functions (we don't include PrimFuncs)
-  for (auto kv : mod->functions) {
-    const GlobalVar& var = kv.first;
-    const BaseFunc& func = kv.second;
-    if (func->IsInstance<tvm::relay::FunctionNode>()) {
-      main_module->Add(var, func);
-    }
-  }
-  return main_module;
-}
-
 Pass LowerTEPass(TargetMap targets, DeviceMap device_context_map,
                  backend::StaticMemoryPlan memory_plan, const String& module_name,
                  std::function<void(Function)> process_fn) {
@@ -942,9 +926,8 @@ Pass LowerTEPass(TargetMap targets, DeviceMap device_context_map,
                                                                             PassContext ctx) {
     return LowerTE(module, targets, device_context_map, memory_plan, module_name, process_fn);
   };
-  // TODO(@electriclilies, mbs): Fold InferType() pass into LowerTEPass since it will always need to
-  // be called afterwards
-  return tvm::transform::CreateModulePass(pass_func, 1, "LowerTE", {});
+  return tvm::transform::Sequential(
+      {tvm::transform::CreateModulePass(pass_func, 0, "LowerTE", {}), InferType()});
 }
 }  // namespace tec
 }  // namespace relay

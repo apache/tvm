@@ -153,7 +153,7 @@ stage("Sanity Check") {
     node('CPU') {
       ws(per_exec_ws("tvm/sanity")) {
         init_git()
-        // sh "${docker_run} ${ci_lint}  ./tests/scripts/task_lint.sh"
+        sh "${docker_run} ${ci_lint}  ./tests/scripts/task_lint.sh"
       }
     }
   }

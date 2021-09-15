@@ -80,8 +80,8 @@ BOARD_PROPERTIES = {
         "board": "nrf5340dk_nrf5340_cpuapp",
         "model": "nrf5340dk",
     },
-    "stm32f746xx_disco": {
-        "board": "stm32f746xx_disco",
+    "stm32f746g_disco": {
+        "board": "stm32f746g_disco",
         "model": "stm32f746xx",
     },
     "nucleo_f746zg": {
