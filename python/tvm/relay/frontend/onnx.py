@@ -69,7 +69,7 @@ class onnx_input(list):
 
     def __getitem__(self, item):
         if isinstance(item, slice):
-            if item.stop == None:
+            if item.stop is None:
                 stop = len(self)
             else:
                 stop = item.stop
