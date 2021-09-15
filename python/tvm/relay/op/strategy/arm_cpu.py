@@ -51,14 +51,15 @@ def schedule_concatenate_arm_cpu(_, outs, target):
 @schedule_pool.register(["arm_cpu", "micro_dev"])
 def schedule_pool_arm_cpu(attrs, outs, target):
     """schedule pooling ops arm cpu"""
+    layout = attrs.layout
     isa = arm_isa.IsaAnalyzer(target)
     avg_pool = hasattr(attrs, "count_include_pad")
     with target:
-        if avg_pool and attrs.layout == "NCHW" and "SMLAD" in isa or \
-                not avg_pool and "SSUB8" in isa and "SEL" in isa:
-            return topi.arm_cpu.schedule_pool(outs)
+        if avg_pool and layout == "NCHW" and "SMLAD" in isa or \
+                not avg_pool and "SSUB8" in isa and "SEL" in isa and (layout == "NWC" or layout == "NHWC"):
+            return topi.arm_cpu.schedule_pool(outs, layout)
         else:
-            return topi.generic.schedule_pool(outs, attrs.layout)
+            return topi.generic.schedule_pool(outs, layout)
 
 
 @conv2d_strategy.register(["arm_cpu", "micro_dev"])

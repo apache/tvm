@@ -32,19 +32,36 @@ from ..micro_kernel.avg_pool import (
 )
 
 
+def schedule_maxpool_1d_nwc(s, op):
+    output = op.output(0)
+    data_vec = op.input_tensors[0]
+
+    channels = data_vec.shape[-1]
+    if isinstance(channels, tvm.tir.IntImm):
+        channels = channels.value
+
+    n, w, c = s[op].op.axis
+    k, = s[op].op.reduce_axis
+
+    s[op].reorder(n, w, k, c)
+    max, uniq_id = intrin_max((1, 1, channels), data_vec.dtype, output.dtype)
+    s[op].tensorize(c, max)
+    s[output].pragma(n, "import_c", max_pool_impl(uniq_id))
+
+
 def schedule_maxpool_2d_nhwc(s, op):
     output = op.output(0)
     data_vec = op.input_tensors[0]
 
-    in_channels = data_vec.shape[-1]
-    if isinstance(in_channels, tvm.tir.IntImm):
-        in_channels = in_channels.value
+    channels = data_vec.shape[-1]
+    if isinstance(channels, tvm.tir.IntImm):
+        channels = channels.value
 
     n, h, w, c = s[op].op.axis
     ko, ki = s[op].op.reduce_axis
 
     s[op].reorder(n, h, w, ko, ki, c)
-    max, uniq_id = intrin_max(in_channels, data_vec.dtype, output.dtype)
+    max, uniq_id = intrin_max((1, 1, 1, channels), data_vec.dtype, output.dtype)
     s[op].tensorize(c, max)
     s[output].pragma(n, "import_c", max_pool_impl(uniq_id))
 
@@ -62,13 +79,16 @@ def schedule_avgpool_2d_nchw(s, op):
     s[output].pragma(n, "import_c", sum_impl(pool_w, uniq_id))
 
 
-def pool_direct_simd_schedule(outs):
+def pool_direct_simd_schedule(outs, layout):
     """Schedule function for Cortex-M7 SIMD implementation of pooling."""
     s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
         if "pool_max" in op.tag:
-            schedule_maxpool_2d_nhwc(s, op)
+            if layout == "NWC":
+                schedule_maxpool_1d_nwc(s, op)
+            elif layout == "NHWC":
+                schedule_maxpool_2d_nhwc(s, op)
         elif "pool_sum" in op.tag:
             schedule_avgpool_2d_nchw(s, op)
 

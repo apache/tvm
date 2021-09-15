@@ -24,20 +24,17 @@ import tvm
 from tvm import te
 
 
-def intrin_max(in_channels, in_dtype, out_dtype):
+def intrin_max(shape, in_dtype, out_dtype):
     UNIQ_ID_LEN = 8
     uniq_id = "".join(random.choices(string.ascii_uppercase, k=UNIQ_ID_LEN))
     func_prefix = "max_pool8"
 
-    if isinstance(in_channels, tvm.tir.IntImm):
-        in_channels = in_channels.value
-
     assert in_dtype == "int8"
     assert out_dtype == "int8"
 
-    x = te.placeholder((1, 1, 1, in_channels), name="x", dtype=in_dtype)
+    x = te.placeholder(shape, name="x", dtype=in_dtype)
     k = te.reduce_axis((0, 1), name="rc")
-    z = te.compute((1, 1, 1, in_channels), lambda *i: tvm.tir.max(x[i], axis=[k]).astype(out_dtype))
+    z = te.compute(shape, lambda *i: tvm.tir.max(x[i], axis=[k]).astype(out_dtype))
 
     def _intrin_func(ins, outs):
         aa = ins[0]
