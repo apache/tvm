@@ -671,11 +671,9 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
     }
     return vec;
   };
-  std::string llvm_options_str;
-  if (const Optional<String> llvm_options = target->GetAttr<String>("llvm-options")) {
-    llvm_options_str = "llvm," + llvm_options.value();
-  } else {
-    llvm_options_str = "llvm";
+  std::string llvm_options_str = "llvm";
+  if (const auto& llvm_options = target->GetAttr<Array<String>>("llvm-options")) {
+    for (const String& s : llvm_options.value()) llvm_options_str += "," + s;
   }
   // Postprocess the LLVM options string: replace '@' with '=', and ',' with ' '.
   for (int i = 0, e = llvm_options_str.size(); i != e; ++i) {
