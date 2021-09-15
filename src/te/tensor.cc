@@ -49,6 +49,7 @@ PrimExpr Tensor::operator()(Array<PrimExpr> indices) const {
     ICHECK_EQ(ndim(), indices.size()) << "Tensor dimension mismatch in read "
                                       << "ndim = " << ndim() << ", indices.size=" << indices.size();
   }
+
   return ProducerLoad((*this), indices);
 }
 
