@@ -133,18 +133,30 @@ __STATIC_FORCEINLINE int32_t max_pool8_{uniq_id}(
     int8_t *arg,
     int8_t *res,
     int N) {{
-  int32_t *parg32 = (int32_t *)arg;
-  int32_t *pres32 = (int32_t *)res;
+  int32_t *parg32, *pres32;
+  int una_arg = (int32_t)arg & 0x3, una_res = (int32_t)res & 0x3;
   int32_t retcode = 0;
 
 #ifdef GROVETY_OP_BENCHMARK
   perf_timer_start(1);
 #endif
 
-  if ( N < 4 ) {{
+  if ( N < 4 || ((una_arg || una_res) && una_arg != una_res) ) {{
     retcode = max_pool8_loop_{uniq_id}(arg, res, N);
     goto out;
   }}
+  if ( una_arg ) {{
+    int n = (4 - una_arg);
+    if ( n > N || (N - n) < 4 )
+      n = N;
+    retcode = max_pool8_loop_{uniq_id}(arg, res, n);
+    if ( (N -= n) == 0 )
+      goto out;
+    arg += n; res += n;
+  }}
+  
+  parg32 = (int32_t *)arg;
+  pres32 = (int32_t *)res;
 
   for ( int i = 0; i < N / 4; ++ i ) {{
     int32_t arg32 = *parg32 ++;
