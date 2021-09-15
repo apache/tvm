@@ -36,6 +36,7 @@ import _pytest
 
 import tvm
 from tvm.testing import utils
+from xdist.scheduler.loadscope import LoadScopeScheduling
 
 
 MARKERS = {
@@ -288,9 +289,6 @@ def _parametrize_correlated_parameters(metafunc):
             names = ",".join(name for name, values in params)
             value_sets = zip(*[values for name, values in params])
             metafunc.parametrize(names, value_sets, indirect=True, ids=ids)
-
-
-from xdist.scheduler.loadscope import LoadScopeScheduling
 
 
 class TvmTestScheduler(LoadScopeScheduling):
