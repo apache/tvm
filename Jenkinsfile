@@ -234,7 +234,7 @@ stage('Build') {
               sh "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh"
             } catch(all) {
               sh """
-                echo "Failed test"
+                echo "Failed tvm/build-cpu"
               """
             } finally {
                junit "build/pytest-results/*.xml"
@@ -300,11 +300,20 @@ stage('Unit Test') {
         init_git()
         unpack_lib('gpu', tvm_multilib)
         timeout(time: max_time, unit: 'MINUTES') {
-          sh "${docker_run} ${ci_gpu} ./tests/scripts/task_ci_setup.sh"
-          sh "${docker_run} ${ci_gpu} ./tests/scripts/task_sphinx_precheck.sh"
-          sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_unittest_gpuonly.sh"
-          sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_integration_gpuonly.sh"
-          junit "build/pytest-results/*.xml"
+          script {
+           try {
+            sh "${docker_run} ${ci_gpu} ./tests/scripts/task_ci_setup.sh"
+            sh "${docker_run} ${ci_gpu} ./tests/scripts/task_sphinx_precheck.sh"
+            sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_unittest_gpuonly.sh"
+            sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_integration_gpuonly.sh"
+           } catch (all) {
+               sh """
+                echo "Failed tvm/ut-python-gpu"
+              """
+           } finally {
+            junit "build/pytest-results/*.xml"
+           }
+          }
         }
       }
     }
