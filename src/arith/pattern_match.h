@@ -211,6 +211,73 @@ class PVar : public Pattern<PVar<T>> {
 };
 
 /*!
+ * \brief Wrapper for pattern variable container with extra match logic.
+ *
+ * \tparam Derived the type of derived class.
+ * \tparam T the type of the hole.
+ */
+template <typename Derived, typename T>
+class PVarWithCheck : public arith::Pattern<PVarWithCheck<Derived, T>> {
+ public:
+  // Store by reference in the expression.
+  using Nested = const PVarWithCheck<Derived, T>&;
+
+  void InitMatch_() const { pvar_.InitMatch_(); }
+
+  bool Match_(const T& value) const {
+    if (!static_cast<const Derived*>(this)->Match_(value)) return false;
+    return pvar_.Match_(value);
+  }
+
+  template <typename NodeRefType,
+            typename = typename std::enable_if<std::is_base_of<NodeRefType, T>::value>::type>
+  bool Match_(const NodeRefType& value) const {
+    if (const auto* ptr = value.template as<typename T::ContainerType>()) {
+      return Match_(GetRef<T>(ptr));
+    } else {
+      return false;
+    }
+  }
+
+  T Eval() const { return pvar_.Eval(); }
+
+ protected:
+  arith::PVar<T> pvar_;
+};
+
+/*!
+ * \brief Pattern variable container with expr type check.
+ *
+ * \tparam T the type of the hole.
+ * \tparam DType the Pattern type of dtype.
+ */
+template <typename T, typename DType,
+          typename = std::enable_if<std::is_base_of<T, PrimExpr>::value>>
+class PVarWithType : public PVarWithCheck<PVarWithType<T, DType>, T> {
+ public:
+  explicit PVarWithType(const DType& dtype) : dtype_(dtype) {}
+
+  bool Match_(const T& value) const { return dtype_.Match_(value->dtype); }
+
+ protected:
+  typename DType::Nested dtype_;
+};
+
+/*!
+ * \brief Pattern variable container for data type with lanes.
+ */
+class PVecType : public PVarWithCheck<PVecType, DataType> {
+ public:
+  /*! \brief construct vector dtype placeholder with element type check */
+  explicit PVecType(const DataType& elem_dtype) : elem_dtype_(elem_dtype) {}
+
+  bool Match_(const DataType& dtype) const { return dtype.code() == elem_dtype_.code(); }
+
+ protected:
+  DataType elem_dtype_;
+};
+
+/*!
  * \brief Constant Pattern variable container.
  *
  * \tparam T the type of the hole.
@@ -467,7 +534,7 @@ class PCastExpr : public Pattern<PCastExpr<DType, TA>> {
 /*!
  * \brief Construct a cast pattern.
  *
- * \param dtype The target data type, can be PVar<Type> or PConst<Type>.
+ * \param dtype The target data type, can be PVar<DataType> or PConst<DataType>.
  * \param value The input type.
  *
  * \return The result pattern.
