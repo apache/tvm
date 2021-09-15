@@ -43,10 +43,10 @@ Hexagon SDK is available at //developer.qualcomm.com/software/hexagon-dsp-sdk.
 2. Create a subdirectory for the build files, and run `cmake` with the
    following variables set:
    - `FASTRPC_LIBS=SKEL`
-   - `HEXAGON_SDK_ROOT` to the path to the Hexagon SDK
+   - `USE_HEXAGON_SDK` to the path to the Hexagon SDK
    - `CMAKE_C_COMPILER=hexagon-clang`
    - `CMAKE_CXX_COMPILER=hexagon-clang++`
-   - `HEXAGON_ARCH` to one of v65, v66, v68
+   - `USE_HEXAGON_ARCH` to one of v65, v66, v68
    - `TVM_RUNTIME_HEXAGON=/path/to/libtvm_runtime.a` _statically_ linked
      TVM runtime
    Make sure to provide the path to launcher's `CMakeLists.txt` directory
@@ -62,10 +62,10 @@ Hexagon SDK is available at //developer.qualcomm.com/software/hexagon-dsp-sdk.
 2. Create a subdirectory for the build files (different from the one used for
    Hexagon files), and run `cmake` with the following variables set:
    - `FASTRPC_LIBS=STUB`
-   - `HEXAGON_SDK_ROOT` to the path to the Hexagon SDK
+   - `USE_HEXAGON_SDK` to the path to the Hexagon SDK
    - `CMAKE_C_COMPILER=aarch64-linux-android28-clang` (or later)
    - `CMAKE_CXX_COMPILER=aarch64-linux-android28-clang++` (or later)
-   - `HEXAGON_ARCH` to one of v65, v66, v68 (same as for the Hexagon part)
+   - `USE_HEXAGON_ARCH` to one of v65, v66, v68 (same as for the Hexagon part)
    - `TVM_RUNTIME_ANDROID=/path/to/libtvm_runtime.so` dynamically or
      statically linked TVM runtime
 

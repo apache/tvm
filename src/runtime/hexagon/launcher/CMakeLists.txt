@@ -25,7 +25,7 @@ endif()
 
 include(../../../../cmake/modules/HexagonSDK.cmake)
 
-find_hexagon_sdk_root("${HEXAGON_SDK_ROOT}" "${HEXAGON_ARCH}")
+find_hexagon_sdk_root("${USE_HEXAGON_SDK}" "${USE_HEXAGON_ARCH}")
 
 include_directories(SYSTEM ${HEXAGON_SDK_INCLUDES} ${HEXAGON_REMOTE_ROOT})
 
@@ -80,7 +80,7 @@ if("${FASTRPC_LIBS}" STREQUAL "SKEL")
   # Extra compile flags (both C and C++).
   set(EXTRA_COMP_FLAGS
     "-O3"
-    "-m${HEXAGON_ARCH}"
+    "-m${USE_HEXAGON_ARCH}"
   )
   string(REGEX REPLACE ";" " " EXTRA_COMP_FLAGS_STR "${EXTRA_COMP_FLAGS}")
   set(CMAKE_C_FLAGS "${EXTRA_COMP_FLAGS_STR} ${CMAKE_C_FLAGS}")
