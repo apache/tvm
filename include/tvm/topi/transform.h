@@ -1301,6 +1301,7 @@ inline Tensor gather_nd(const Tensor& data, const Tensor& indices, int batch_dim
           real_indices.push_back(out_index[i]);
         }
         for (size_t i = 0; i < indices_dim0; ++i) {
+          indices_position.Set(0, make_const(DataType::Int(32), i));
           if (indices->dtype.is_int()) {
             real_indices.push_back(indices(indices_position));
           } else {
