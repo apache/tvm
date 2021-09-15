@@ -26,7 +26,10 @@ def _check_tune_log(log_path: Union[pathlib.Path, str]):
     """Reads tune log and check each result"""
     results = []
     with open(log_path, "r") as f:
-        results.append(json.loads(f.readline()))
+        line = f.readline()
+        while line:
+            results.append(json.loads(line))
+            line = f.readline()
 
     for item in results:
         tune_result = item["result"]
