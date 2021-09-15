@@ -28,7 +28,11 @@ CC ?= ${PREFIX}gcc
 CXX ?= ${PREFIX}g++
 RANLIB ?= ${PREFIX}ranlib
 
-QUIET ?= @
+$(ifeq VERBOSE,1)
+QUIET ?=
+$(else)
+QUIET = @
+$(endif)
 
 PWD = $(shell pwd)
 BUILD_DIR = build
@@ -38,7 +42,7 @@ CRT_LIBS = $(patsubst %, $(BUILD_DIR)/crt/lib%.a, $(CRT_LIB_NAMES))
 CRT_INCLUDES = $(glob crt/include/**)
 
 $(BUILD_DIR)/crt/lib%.a: $(glob crt/src/runtime/%/*.c)
-	${QUIET}cd crt && $(MAKE) \
+	${QUIET}cd crt && $(MAKE) -s \
 		BUILD_DIR=../$(BUILD_DIR)/crt \
 		CRT_CONFIG=$(PWD)/crt_config/crt_config.h \
 		EXTRA_CFLAGS="$(CFLAGS)" \
