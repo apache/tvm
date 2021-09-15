@@ -20,8 +20,10 @@
 
 The launcher consists of two parts: part running on Hexagon, and part running
 on Android. They need to be compiled separately. Since some source files are
-shared between these two parts, make sure to delete all object files beteween
+shared between these two parts, make sure to delete all object files between
 compilations. Compile the Hexagon code first.
+
+The supported Snapdragon architectures are 855, 865, and 888.
 
 ### Prerequisites
 
@@ -81,16 +83,43 @@ See below for more information about the setup and launcher's inputs.
 
 ### Preparation steps
 
-Copy the set of binaries created in the compilation step to the device:
-- `liblauncher_rpc_skel.so`,
-- `libgcc.so` (this one should come from the Hexagon toolchain),
-- `launcher_android`,
-- `libtvm_runtime.so` (for Android).
+Copy the following binaries to the device:
+- `liblauncher_rpc_skel.so`: created by the compilation step for Hexagon,
+- `libgcc.so`: take this one from the Hexagon toolchain,
+- `launcher_android`: created by the compilation step for Android,
+- `libtvm_runtime.so`: built for Android.
 
 These are only the binaries related to the launcher itself. To run a model
 copy the shared object with the model and the model JSON file over to the
 device (both are obtained from relay).  Also, copy all input files for the
 model as well.
+
+The following snippet illustrates how to obtain the shared object and the
+JSON file from a TFLite model (using Inception V3 as an example):
+
+```
+# Skipped imports, etc.
+
+with open("inception_v3.tflite", "rb") as f:
+    tflite_model_buf = f.read()
+tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model_buf, 0)
+
+shape_dict = { "input": [1,299,299,3] }
+dtype_dict = { "input": "float32" }
+
+mod, params = relay.frontend.from_tflite(
+    tflite_model, shape_dict=shape_dict, dtype_dict=dtype_dict
+)
+
+target = tvm.target.hexagon('v68', link_params=True)
+with tvm.transform.PassContext(opt_level=3):
+    lib = relay.build(mod, target, target_host=target, params=params, mod_name="default")
+
+# Save model.so and model.json:
+with open('model.json', 'w') as f:
+    f.write(lib.get_graph_json())
+lib.get_lib().save('model.so')
+```
 
 The final thing is to prepare a JSON configuration file for the launcher.
 The JSON has two attributes describing the model: `model-library` and
@@ -133,6 +162,8 @@ A sample output JSON from running the Inception V3 model may look like
   ]
 }
 ```
+
+# Disclaimer
 
 The launcher does not perform any correctness verification. In order to verify
 correctness, the user needs to copy the output files from the device and
