@@ -20,7 +20,9 @@
 
 Autotuning with micro TVM
 =========================
-**Author**: `Andrew Reusch <https://github.com/areusch>`_, `Mehrdad Hessar <https://github.com/mehrdadh>`
+**Authors**:
+`Andrew Reusch <https://github.com/areusch>`_,
+`Mehrdad Hessar <https://github.com/mehrdadh>`_
 
 This tutorial explains how to autotune a model using the C runtime.
 """

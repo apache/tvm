@@ -15,9 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 
+"""Defines testing methods used with microTVM."""
+
 import pathlib
 import json
 from typing import Union
+
 
 def _check_tune_log(log_path: Union[pathlib.Path, str]):
     """Reads tune log and check each result"""
