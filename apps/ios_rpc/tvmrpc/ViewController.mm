@@ -150,7 +150,8 @@
     switch (status) {
       case RPCServerStatus_Connected:
         if (self.ModeSelector.selectedSegmentIndex == RPCServerMode_PureServer) {
-          self.infoText.text = [NSString stringWithFormat:@"IP: %@\nPort: %d", server_.device_addr, server_.actual_port];
+          self.infoText.text = [NSString
+              stringWithFormat:@"IP: %@\nPort: %d", server_.device_addr, server_.actual_port];
         }
         self.statusLabel.text = @"Connected";
         break;
