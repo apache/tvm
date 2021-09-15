@@ -1102,10 +1102,6 @@ def gather_nd(data, indices, batch_dims=0, index_rank=None):
         The size of an indexing tuple, which is a fixed value and the same as indices.shape[0]
         Only needed when other dimensions of indices are dynamic.
 
-    support_negative_indices: bool
-        If True, support indices being negative. This is slower than supporting only
-        positive indices.
-
     Returns
     -------
     ret : relay.Expr

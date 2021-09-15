@@ -3546,6 +3546,11 @@ class NegativeLogLikelihoodLoss(OnnxOpConverter):
             )
 
         input_tensor, target_tensor = inputs[0], inputs[1]
+
+        # Convert negative indices --> positive indices for gather ops, note we have to
+        # use the original target tensor to interact with ignore_index to have proper behavior.
+        normalized_target_tensor = normalize_gather_indices(input_tensor, target_tensor, 1)
+
         if len(inputs) == 3:
             weight_tensor = inputs[2]
         else:
@@ -3558,13 +3563,15 @@ class NegativeLogLikelihoodLoss(OnnxOpConverter):
         loss = -relay.gather(
             input_tensor,
             axis=1,
-            indices=relay.expand_dims(target_tensor, 1),
+            indices=relay.expand_dims(normalized_target_tensor, 1),
         )
         loss = relay.squeeze(loss, axis=[1])
 
-        expanded_target_tensor = relay.expand_dims(target_tensor, 0)
-        expanded_target_tensor = relay.nn.batch_flatten(expanded_target_tensor)
-        flattened_weights = relay.gather_nd(weight_tensor, expanded_target_tensor)
+        expanded_normalized_target_tensor = relay.expand_dims(normalized_target_tensor, 0)
+        expanded_normalized_target_tensor = relay.nn.batch_flatten(
+            expanded_normalized_target_tensor
+        )
+        flattened_weights = relay.gather_nd(weight_tensor, expanded_normalized_target_tensor)
         select_weights = relay.reshape_like(flattened_weights, loss)
         loss *= select_weights
 
