@@ -142,6 +142,16 @@ def convert_addmm(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_addn(g, op, block):
+    """Operator converter for sum(add_n)."""
+
+    inputs = op.input("X")
+    out = g.get_node(inputs[0])
+    for i in range(1, len(inputs)):
+        out += g.get_node(inputs[i])
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_arg_max(g, op, block):
     """Operator converter for arg_max."""
 
@@ -180,6 +190,16 @@ def convert_arg_min(g, op, block):
     if dtype != infer_type(out).checked_type.dtype:
         out = _op.cast(out, dtype)
     g.add_node(op.output("Out")[0], out)
+
+
+def convert_argsort(g, op, block):
+    """Operator converter for argsort."""
+
+    x = g.get_node(op.inputs("X")[0])
+    axis = op.attr("axis")
+    descending = op.attr("descending")
+    out = _op.argsort(x, axis, not descending, dtype="int64")
+    g.add_node(op.output("Indices")[0], out)
 
 
 def convert_assign(g, op, block):
@@ -341,6 +361,45 @@ def convert_cast(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_clip(g, op, block):
+    """Operator converter for clip."""
+
+    x = g.get_node(op.input("X")[0])
+    dtype = infer_type(x).checked_type.dtype
+    is_dynamic = False
+    if op.input("Min"):
+        min_value = g.get_node(op.input("Min")[0])
+        min_value = _infer_value(min_value, g.get_params())
+        if isinstance(min_value, _expr.Expr):
+            is_dynamic = True
+        else:
+            min_value = min_value[0]
+    else:
+        min_value = op.attr("min")
+    if op.input("Max"):
+        max_value = g.get_node(op.input("Max")[0])
+        max_value = _infer_value(max_value, g.get_params())
+        if isinstance(max_value, _expr.Expr):
+            if not is_dynamic:
+                is_dynamic = True
+                min_value = _op.const(min_value, dtype)
+        else:
+            max_value = max_value[0]
+            if is_dynamic:
+                max_value = _op.const(max_value, dtype)
+    else:
+        max_value = op.attr("max")
+        if is_dynamic:
+            max_value = _op.const(max_value, dtype)
+
+    if not is_dynamic:
+        out = _op.clip(x, min_value, max_value)
+    else:
+        out = _op.maximum(x, min_value)
+        out = _op.minimum(out, max_value)
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_concat(g, op, block):
     """Operator converter for concat."""
 
@@ -490,7 +549,17 @@ def convert_dropout(g, op, block):
     """Operator converter for dropout."""
 
     x = g.get_node(op.input("X")[0])
-    out = _op.copy(x)
+    g.add_node(op.output("Out")[0], x)
+
+
+def convert_elu(g, op, block):
+    """Operator converter for elu."""
+
+    x = g.get_node(op.input("X")[0])
+    dtype = infer_type(x).checked_type.dtype
+    alpha = op.attr("alpha")
+    alpha = _expr.const(alpha, dtype=dtype)
+    out = alpha * _op.nn.relu(_expr.const(1, dtype=dtype) - _op.exp(x)) + _op.nn.relu(x)
     g.add_node(op.output("Out")[0], out)
 
 
@@ -744,12 +813,46 @@ def convert_gelu(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_group_norm(g, op, block):
+    """Operator converter for group_norm."""
+
+    x = g.get_node(op.input("X")[0])
+    num_groups = op.attr("groups")
+    epsilon = op.attr("epsilon")
+    gamma = g.get_node(op.input("Scale")[0])
+    beta = g.get_node(op.input("Bias")[0])
+    out = _op.nn.group_norm(
+        x,
+        gamma=gamma,
+        beta=beta,
+        num_groups=num_groups,
+        axis=1,
+        epsilon=epsilon,
+        center=True,
+        scale=True,
+    )
+    g.add_node(op.output("Y")[0], out)
+
+
+def convert_hard_shrink(g, op, block):
+    """Operator converter for hard_shrink."""
+
+    x = g.get_node(op.input("X")[0])
+    dtype = infer_type(x).checked_type.dtype
+    threshold = op.attr("threshold")
+    threshold = _op.const(threshold, dtype)
+    out = _op.logical_or(x < _op.const(-1.0, dtype) * threshold, x > threshold)
+    out = _op.cast(out, dtype) * x
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_hard_sigmoid(g, op, block):
     """Operator converter for hard_sigmoid."""
 
     slope = op.attr("slope")
     x = g.get_node(op.input("X")[0])
-    out = x * _expr.const(slope) + _expr.const(0.5)
+    dtype = infer_type(x).checked_type.dtype
+    out = x * _expr.const(slope, dtype) + _expr.const(0.5, dtype)
     out = _op.clip(out, 0, 1)
     g.add_node(op.output("Out")[0], out)
 
@@ -764,9 +867,20 @@ def convert_hard_swish(g, op, block):
     assert np.isclose(scale, 6.0), "Only support scale==6.0 for PaddlePaddle's hard_swish"
     assert np.isclose(threshold, 6.0), "Only support threshold==6.0 for PaddlePaddle's hard_swish"
     x = g.get_node(op.input("X")[0])
+    dtype = infer_type(x).checked_type.dtype
     out = _op.clip(x, -1 * offset, offset)
-    out = out / _expr.const(threshold) + _expr.const(0.5)
+    out = out / _expr.const(threshold, dtype) + _expr.const(0.5, dtype)
     out = x * out
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_hard_tanh(g, op, block):
+    """Operator converter for hard_tanh."""
+
+    x = g.get_node(op.input("X")[0])
+    t_max = op.attr("t_max")
+    t_min = op.attr("t_min")
+    out = _op.tensor.clip(x, t_min, t_max)
     g.add_node(op.output("Out")[0], out)
 
 
@@ -779,6 +893,19 @@ def convert_index_select(g, op, block):
     out = _op.take(x, indices=index, axis=dim, mode="clip")
 
     g.add_node(op.output("Out")[0], out)
+
+
+def convert_instance_norm(g, op, block):
+    """Operator converter for instance_norm."""
+
+    x = g.get_node(op.input("X")[0])
+    gamma = g.get_node(op.input("Scale")[0])
+    beta = g.get_node(op.input("Bias")[0])
+    epsilon = op.attr("epsilon")
+
+    scale = center = True
+    out = _op.nn.instance_norm(x, gamma, beta, axis=1, epsilon=epsilon, center=center, scale=scale)
+    g.add_node(op.output("Y")[0], out)
 
 
 def convert_layer_norm(g, op, block):
@@ -1421,60 +1548,104 @@ def convert_slice(g, op, block):
 
     data = g.get_node(op.input("Input")[0])
     dims = len(infer_shape(data))
-    dtype = "int64"
 
     axes = op.attr("axes")
-    axes = _op.const(axes)
+    indices = _expr.const(axes, dtype="int64")
+
     decrease_axis = op.attr("decrease_axis")
     if isinstance(decrease_axis, int):
         decrease_axis = [decrease_axis]
 
-    starts = op.input("StartsTensor")
-    if starts:
-        starts = g.get_node(starts[0])
+    if op.input("StartsTensor"):
+        starts = g.get_node(op.input("StartsTensor")[0])
+        starts = _infer_value(starts, g.get_params())
     elif op.input("StartsTensorList"):
         starts = []
         for start_index in op.input("StartsTensorList"):
-            start_index = g.get_node(start_index)
-            if not isinstance(start_index, _expr.Expr):
-                start_index = _expr.const(start_index, dtype=dtype)
-            else:
-                start_index = start_index.astype(dtype)
+            start_index = g.get_node(start_index).astype("int64")
             starts.append(start_index)
         starts = _op.concatenate(starts, axis=0)
+        starts = _infer_value(starts, g.get_params())
     else:
         starts = op.attr("starts")
-        starts = _expr.const(starts)
-    start_dtype = infer_type(starts).checked_type.dtype
-    if isinstance(starts, _expr.Expr):
-        starts = _op.scatter(
-            _op.const([0] * dims, dtype=start_dtype),
-            axes,
-            starts,
-            axis=0,
-        )
 
-    ends = op.input("EndsTensor")
-    if ends:
-        ends = g.get_node(ends[0])
+    if len(axes) < dims:
+        if isinstance(starts, _expr.Expr):
+            starts = _op.scatter(
+                _op.const([0] * dims, dtype=infer_type(starts).checked_type.dtype),
+                indices,
+                starts,
+                axis=0,
+            )
+        else:
+            base = [0] * dims
+            for i, axis in enumerate(axes):
+                base[axis] = starts[i]
+            starts = base
+
+    if op.input("EndsTensor"):
+        ends = g.get_node(op.input("EndsTensor")[0])
+        ends = _infer_value(ends, g.get_params())
     elif op.input("EndsTensorList"):
         ends = []
         for end_index in op.input("EndsTensorList"):
-            end_index = g.get_node(end_index)
-            if not isinstance(end_index, _expr.Expr):
-                end_index = _expr.const(end_index, dtype=dtype)
-            else:
-                end_index = end_index.astype(dtype)
+            end_index = g.get_node(end_index).astype("int64")
             ends.append(end_index)
         ends = _op.concatenate(ends, axis=0)
+        ends = _infer_value(ends, g.get_params())
     else:
         ends = op.attr("ends")
-        ends = _expr.const(ends)
-    if isinstance(ends, _expr.Expr):
-        data_shape = shape_of(data, infer_type(ends).checked_type.dtype)
-        ends = _op.scatter(data_shape, axes, ends, axis=0)
 
-    strides = _op.const([1] * dims, dtype=start_dtype)
+    if len(axes) < dims:
+        if isinstance(ends, _expr.Expr):
+            ends = _op.scatter(
+                _expr.const(
+                    np.array([np.iinfo(np.int32).max] * dims),
+                    dtype=infer_type(ends).checked_type.dtype,
+                ),
+                indices,
+                ends,
+                axis=0,
+            )
+        else:
+            base = [np.iinfo(np.int32).max] * dims
+            for i, axis in enumerate(axes):
+                base[axis] = ends[i]
+            ends = base
+
+    strides = None
+    if "StridesTensor" in op.input_names and op.input("StridesTensor"):
+        strides = g.get_node(op.input("StridesTensor")[0])
+        strides = _infer_value(strides, g.get_params())
+    elif "StridesTensorList" in op.input_names and op.input("StridesTensorList"):
+        strides = []
+        for strides_index in op.input("StridesTensorList"):
+            strides_index = g.get_node(strides_index).astype("int64")
+            strides.append(strides_index)
+        strides = _op.concatenate(strides, axis=0)
+        strides = _infer_value(strides, g.get_params())
+    elif op.has_attr("strides"):
+        strides = op.attr("strides")
+
+    if len(axes) < dims:
+        if isinstance(strides, _expr.Expr):
+            strides = _op.scatter(
+                _expr.const(
+                    np.array([1] * dims),
+                    dtype=infer_type(strides).checked_type.dtype,
+                ),
+                indices,
+                strides,
+                axis=0,
+            )
+        elif strides:
+            base = [1] * dims
+            for i, axis in enumerate(axes):
+                base[axis] = strides[i]
+            strides = base
+    if not strides:
+        strides = _op.const([1] * dims, dtype="int64")
+
     out = _op.strided_slice(data, begin=starts, end=ends, strides=strides)
     if decrease_axis:
         out = _op.squeeze(out, axis=decrease_axis)
@@ -1626,12 +1797,23 @@ def convert_unsqueeze(g, op, block):
     g.add_node(op.output("Out")[0], x)
 
 
+def convert_where(g, op, block):
+    """Operator converter for where."""
+
+    condition = g.get_node(op.input("Condition")[0])
+    x = g.get_node(op.input("X")[0])
+    y = g.get_node(op.input("Y")[0])
+    out = _op.where(condition, x, y)
+    g.add_node(op.output("Out")[0], out)
+
+
 _convert_map = {
     "abs": convert_unary_op,
     "acos": convert_unary_op,
     "addmm": convert_addmm,
     "arg_max": convert_arg_max,
     "arg_min": convert_arg_min,
+    "argsort": convert_argsort,
     "asin": convert_unary_op,
     "assign": convert_assign,
     "assign_value": convert_assign_value,
@@ -1640,8 +1822,10 @@ _convert_map = {
     "bicubic_interp_v2": convert_interpolate,
     "bilinear_interp_v2": convert_interpolate,
     "bmm": convert_bmm,
+    "brelu": convert_hard_tanh,
     "cast": convert_cast,
     "ceil": convert_unary_op,
+    "clip": convert_clip,
     "concat": convert_concat,
     "conv2d": convert_conv2d,
     "conv2d_transpose": convert_conv2d_transpose,
@@ -1662,6 +1846,7 @@ _convert_map = {
     "elementwise_min": convert_elementwise_op,
     "elementwise_pow": convert_elementwise_op,
     "elementwise_floordiv": convert_elementwise_op,
+    "elu": convert_elu,
     "equal": convert_elementwise_op,
     "erf": convert_unary_op,
     "exp": convert_unary_op,
@@ -1679,11 +1864,14 @@ _convert_map = {
     "gelu": convert_gelu,
     "greater_equal": convert_elementwise_op,
     "greater_than": convert_elementwise_op,
+    "group_norm": convert_group_norm,
+    "hard_shrink": convert_hard_shrink,
     "hard_sigmoid": convert_hard_sigmoid,
     "hard_swish": convert_hard_swish,
     "index_select": convert_index_select,
     "isfinite": convert_unary_op,
     "isfinite_v2": convert_unary_op,
+    "instance_norm": convert_instance_norm,
     "isinf": convert_unary_op,
     "isinf_v2": convert_unary_op,
     "isnan": convert_unary_op,
@@ -1736,12 +1924,15 @@ _convert_map = {
     "square": convert_square,
     "squeeze2": convert_squeeze,
     "stack": convert_stack,
+    "strided_slice": convert_slice,
+    "sum": convert_addn,
     "tan": convert_unary_op,
     "tanh": convert_unary_op,
     "top_k_v2": convert_topk,
     "tile": convert_tile,
     "transpose2": convert_transpose,
     "unsqueeze2": convert_unsqueeze,
+    "where": convert_where,
     "where_index": convert_nonzero,
 }
 
