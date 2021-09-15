@@ -3742,7 +3742,7 @@ def from_pytorch(
     use_parser_friendly_name : bool
         When True, replace '.' with `_' in a original parameter name.
         The Relay text parser treats a variable name followed by a period as a tuple element access,
-        so a variable name like "dense.weight" cannot be correctly parsed.
+        so a variable name like "dense.weight" cannot be parsed correctly.
         Use this option when you want to run the AnnotateSpans pass on the imported module.
 
     Returns

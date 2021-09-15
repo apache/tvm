@@ -3941,8 +3941,9 @@ def test_annotate_span():
     model = torchvision.models.resnet18().eval()
     inp = torch.randn([1, 3, 224, 224])
     trace = torch.jit.trace(model, inp).eval()
-    mod, params = relay.frontend.from_pytorch(trace, [('input', inp.shape)],
-                                              use_parser_friendly_name=True)
+    mod, params = relay.frontend.from_pytorch(
+        trace, [("input", inp.shape)], use_parser_friendly_name=True
+    )
     relay.transform.AnnotateSpans()(mod)
 
 
