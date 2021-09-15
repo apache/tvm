@@ -1238,16 +1238,13 @@ class TestScatterAdd:
     ],
 )
 def test_gather(target, dev, executor_kind, data, axis, indices, ref_res):
-    def verify_gather(data, axis, indices, ref_res, check_negative=False):
+    def verify_gather(data, axis, indices, ref_res):
         data = np.asarray(data, dtype="float32")
         indices = np.asarray(indices, dtype="int32")
         ref_res = np.asarray(ref_res)
-        if check_negative:
-            axis_size = data.shape[axis]
-            indices = indices - axis_size
         d = relay.var("x", relay.TensorType(data.shape, "float32"))
         i = relay.var("y", relay.TensorType(indices.shape, "int32"))
-        z = relay.gather(d, axis, i, support_negative_indices=True)
+        z = relay.gather(d, axis, i)
 
         func = relay.Function([d, i], z)
 
@@ -1258,15 +1255,12 @@ def test_gather(target, dev, executor_kind, data, axis, indices, ref_res):
 
     verify_gather(data, axis, indices, ref_res)
 
-    # Verify negative indices also work properly, we should not change results
-    verify_gather(data, axis, indices, ref_res, check_negative=True)
-
 
 def test_gather_nd(target, dev, executor_kind):
     def verify_gather_nd(xshape, yshape, y_data, batch_dims=0):
         x = relay.var("x", relay.TensorType(xshape, "float32"))
         y = relay.var("y", relay.TensorType(yshape, "int32"))
-        z = relay.gather_nd(x, y, batch_dims, support_negative_indices=True)
+        z = relay.gather_nd(x, y, batch_dims)
 
         func = relay.Function([x, y], z)
 
@@ -1311,11 +1305,6 @@ def test_gather_nd(target, dev, executor_kind):
     verify_gather_nd((3, 2, 2, 3, 4), (3, 3, 2, 1), None, 2)
     verify_gather_nd((3, 2, 2, 3, 4), (2, 3, 2, 2), None, 2)
     verify_gather_nd((3, 2, 2, 3, 4), (1, 3, 2, 3), None, 2)
-
-    # Verify negative indices work (copy of tests above with some indices replaced with negatives)
-    verify_gather_nd((2, 2, 2), (1, 2), [[-1, -2]], 1)
-    verify_gather_nd((2, 2, 2), (1, 2, 1), [[[-1], [-2]]], 1)
-    verify_gather_nd((3, 2), (2, 2, 3), [[[0, 1, -1], [2, 0, -2]], [[0, 0, 0], [1, 1, 1]]])
 
 
 def _verify_infiniteness_ops(relay_op, ref_op):

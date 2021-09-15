@@ -129,17 +129,15 @@ class Tensor : public DataProducer {
   /*!
    * \brief Take elements from the tensor
    * \param indices the indices.
-   * \param support_negative_indices whether we support negative indexing which is slightly slower.
    * \return the result expression representing tensor read.
    */
-  TVM_DLL PrimExpr operator()(Array<PrimExpr> indices, bool support_negative_indices = false) const;
+  TVM_DLL PrimExpr operator()(Array<PrimExpr> indices) const;
   /*!
    * \brief Take elements from the tensor
    * \param indices the indices.
-   * \param support_negative_indices whether we support negative indexing which is slightly slower.
    * \return the result expression representing tensor read.
    */
-  TVM_DLL PrimExpr operator()(Array<Var> indices, bool support_negative_indices = false) const;
+  TVM_DLL PrimExpr operator()(Array<Var> indices) const;
   /*!
    * \brief data structure to represent a slice that fixes first k coordinates.
    *  This is used to enable syntax sugar of Tensor[x][y][z] to get the element.

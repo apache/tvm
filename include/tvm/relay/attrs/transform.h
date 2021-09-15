@@ -136,22 +136,17 @@ struct ScatterNDAttrs : public tvm::AttrsNode<ScatterNDAttrs> {
 
 struct GatherAttrs : public tvm::AttrsNode<GatherAttrs> {
   Integer axis;
-  Bool support_negative_indices = Bool(false);
 
   TVM_DECLARE_ATTRS(GatherAttrs, "relay.attrs.GatherAttrs") {
     TVM_ATTR_FIELD(axis)
         .set_default(NullValue<Integer>())
         .describe("The axis over which to select values.");
-    TVM_ATTR_FIELD(support_negative_indices)
-        .set_default(Bool(false))
-        .describe("If negative indices are supported.");
   }
 };
 
 struct GatherNDAttrs : public tvm::AttrsNode<GatherNDAttrs> {
   Integer batch_dims;
   Optional<Integer> index_rank;
-  Bool support_negative_indices = Bool(false);
 
   TVM_DECLARE_ATTRS(GatherNDAttrs, "relay.attrs.GatherNDAttrs") {
     TVM_ATTR_FIELD(batch_dims).set_default(Integer(0)).describe("The number of batch dimensions.");
@@ -160,9 +155,6 @@ struct GatherNDAttrs : public tvm::AttrsNode<GatherNDAttrs> {
         .describe(
             "The size of an indexing tuple, which is a fixed value. Only needed when the number of "
             "indexting tuples is dynamic.");
-    TVM_ATTR_FIELD(support_negative_indices)
-        .set_default(Bool(false))
-        .describe("If negative indices are supported.");
   }
 };
 

@@ -3274,13 +3274,12 @@ bool GatherRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 Array<te::Tensor> GatherCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                 const Type& out_type) {
   const auto* param = attrs.as<GatherAttrs>();
-  return {topi::gather(inputs[0], param->axis, inputs[1], param->support_negative_indices)};
+  return {topi::gather(inputs[0], param->axis, inputs[1])};
 }
 
-Expr MakeGather(Expr data, Integer axis, Expr indices, Bool support_negative_indices) {
+Expr MakeGather(Expr data, Integer axis, Expr indices) {
   auto attrs = make_object<GatherAttrs>();
   attrs->axis = std::move(axis);
-  attrs->support_negative_indices = std::move(support_negative_indices);
   static const Op& op = Op::Get("gather");
   return Call(op, {data, indices}, Attrs(attrs), {});
 }
@@ -3354,18 +3353,15 @@ Array<te::Tensor> GatherNDCompute(const Attrs& attrs, const Array<te::Tensor>& i
                                   const Type& out_type) {
   const auto* param = attrs.as<GatherNDAttrs>();
   ICHECK(param);
-  return {
-      topi::gather_nd(inputs[0], inputs[1], param->batch_dims, param->support_negative_indices)};
+  return {topi::gather_nd(inputs[0], inputs[1], param->batch_dims)};
 }
 
 Expr MakeGatherND(Expr data, Expr indices, int batch_dims = 0,
-                  Bool support_negative_indices = Bool(0),
                   Optional<Integer> index_rank = NullValue<Integer>()) {
   static const Op& op = Op::Get("gather_nd");
   auto attrs = make_object<GatherNDAttrs>();
   attrs->batch_dims = batch_dims;
   attrs->index_rank = index_rank;
-  attrs->support_negative_indices = support_negative_indices;
   return Call(op, {data, indices}, Attrs(attrs));
 }
 

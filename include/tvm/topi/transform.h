@@ -1219,13 +1219,11 @@ inline Tensor dyn_tile(const Tensor& x, Array<PrimExpr> new_shape, size_t rdim,
  * \param indices The indices of values to gather.
  * \param name The name of the operation.
  * \param tag The tag to mark the operation.
- * \param support_negative_indices If negative indices are supported
  *
  * \return A Tensor whose op member is the gather operation
  */
 inline Tensor gather(const Tensor& data, int axis, const Tensor& indices,
-                     bool support_negative_indices = false, std::string name = "T_gather",
-                     std::string tag = kInjective) {
+                     std::string name = "T_gather", std::string tag = kInjective) {
   size_t ndim_d = data->shape.size();
   size_t ndim_i = indices->shape.size();
   ICHECK_GE(ndim_d, 1) << "Cannot gather from a scalar.";
@@ -1244,8 +1242,6 @@ inline Tensor gather(const Tensor& data, int axis, const Tensor& indices,
     out_shape.push_back(indices->shape[i]);
   }
 
-  PrimExpr axis_size = data->shape[axis];
-
   return compute(
       out_shape,
       [&](const Array<Var>& out_index) {
@@ -1256,13 +1252,12 @@ inline Tensor gather(const Tensor& data, int axis, const Tensor& indices,
         Array<PrimExpr> real_indices;
         for (size_t i = 0; i < ndim_i; ++i) {
           if (i == static_cast<size_t>(axis)) {
-            PrimExpr index = indices(indices_position);
-            real_indices.push_back(index);
+            real_indices.push_back(indices(indices_position));
           } else {
             real_indices.push_back(indices_position[i]);
           }
         }
-        return data(real_indices, support_negative_indices);
+        return data(real_indices);
       },
       name, tag);
 }
@@ -1275,13 +1270,11 @@ inline Tensor gather(const Tensor& data, int axis, const Tensor& indices,
  * \param batch_dims The number of batch dimensions.
  * \param name The name of the operation.
  * \param tag The tag to mark the operation.
- * \param support_negative_indices If negative indices are supported
  *
  * \return A Tensor whose op member is the gather_nd operation
  */
 inline Tensor gather_nd(const Tensor& data, const Tensor& indices, int batch_dims = 0,
-                        bool support_negative_indices = false, std::string name = "T_gather_nd",
-                        std::string tag = kInjective) {
+                        std::string name = "T_gather_nd", std::string tag = kInjective) {
   size_t ndim_d = data->shape.size();
   size_t ndim_i = indices->shape.size();
   ICHECK_GE(ndim_i, 1) << "indices tensor must have at least 1 dimensions";
@@ -1317,12 +1310,12 @@ inline Tensor gather_nd(const Tensor& data, const Tensor& indices, int batch_dim
           real_indices.push_back(index);
         }
         if (real_indices.size() == ndim_d) {
-          return data(real_indices, support_negative_indices);
+          return data(real_indices);
         }
         for (size_t i = ndim_i - 1; i < out_index.size(); ++i) {
           real_indices.push_back(out_index[i]);
         }
-        return data(real_indices, support_negative_indices);
+        return data(real_indices);
       },
       name, tag);
 }

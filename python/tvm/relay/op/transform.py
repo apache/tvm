@@ -1046,7 +1046,7 @@ def reverse_reshape(data, newshape):
     return _make.contrib_reverse_reshape(data, list(newshape))
 
 
-def gather(data, axis, indices, support_negative_indices=False):
+def gather(data, axis, indices):
     """Gather values along given axis from given indices.
 
     E.g. for a 3D tensor, output is computed as:
@@ -1071,10 +1071,6 @@ def gather(data, axis, indices, support_negative_indices=False):
     indices: relay.Expr
         The indices of values to gather.
 
-    support_negative_indices: bool
-        If True, support indices being negative. This is slower than supporting only
-        positive indices.
-
     Examples
     --------
     .. code-block:: python
@@ -1084,10 +1080,10 @@ def gather(data, axis, indices, support_negative_indices=False):
         indices = [[0, 0], [1, 0]]
         relay.gather(data, axis, indices) = [[1, 1], [4, 3]]
     """
-    return _make.gather(data, axis, indices, support_negative_indices)
+    return _make.gather(data, axis, indices)
 
 
-def gather_nd(data, indices, batch_dims=0, support_negative_indices=False, index_rank=None):
+def gather_nd(data, indices, batch_dims=0, index_rank=None):
     """Gather elements or slices from data and store to a tensor whose shape is
     defined by indices.
 
@@ -1131,7 +1127,7 @@ def gather_nd(data, indices, batch_dims=0, support_negative_indices=False, index
         indices = [[1, 0]]
         relay.gather_nd(data, indices, batch_dims=1) = [[2,3],[4,5]]
     """
-    return _make.gather_nd(data, indices, batch_dims, support_negative_indices, index_rank)
+    return _make.gather_nd(data, indices, batch_dims, index_rank)
 
 
 def sequence_mask(data, valid_length, mask_value=0, axis=0):

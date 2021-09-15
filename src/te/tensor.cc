@@ -39,26 +39,18 @@ IterVar reduce_axis(Range dom, std::string name) { return IterVar(dom, Var(name)
 Var var(std::string name_hint, DataType t) { return Var(name_hint, t); }
 
 // Tensor
-PrimExpr Tensor::operator()(Array<Var> indices, bool support_negative_indices) const {
+PrimExpr Tensor::operator()(Array<Var> indices) const {
   Array<PrimExpr> arr(indices.begin(), indices.end());
-  return operator()(arr, support_negative_indices);
+  return operator()(arr);
 }
 
-PrimExpr Tensor::operator()(Array<PrimExpr> indices, bool support_negative_indices) const {
+PrimExpr Tensor::operator()(Array<PrimExpr> indices) const {
   Array<PrimExpr> shape = (*this)->shape;
 
   if (shape.size() != 0) {
     ICHECK_EQ(shape.size(), indices.size())
         << "Tensor dimension mismatch in read "
         << "ndim = " << ndim() << ", indices.size=" << indices.size();
-  }
-
-  if (support_negative_indices) {
-    for (size_t i = 0; i < shape.size(); i++) {
-      PrimExpr new_index = if_then_else(indices[i] < make_const(indices[i]->dtype, 0),
-                                        indices[i] + shape[i], indices[i]);
-      indices.Set(i, new_index);
-    }
   }
 
   return ProducerLoad((*this), indices);
