@@ -414,6 +414,15 @@ class Handler(server.ProjectAPIHandler):
 
         check_call(cmake_args, cwd=BUILD_DIR)
 
+        # TODO find a proper way to enable Relase build
+        with open('build/CMakeFiles/tvm_model.dir/flags.make', 'r') as file:
+            text = file.read()
+            text = text.replace('-Os', '')
+            # print(text)
+
+        with open('build/CMakeFiles/tvm_model.dir/flags.make', 'w') as file:
+            file.write(text)
+
         args = ["make", "-j2"]
         if options.get("verbose"):
             args.append("VERBOSE=1")
