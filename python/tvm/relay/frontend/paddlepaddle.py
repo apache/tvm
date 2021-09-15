@@ -981,6 +981,15 @@ def convert_logical_op(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_logical_not(g, op, block):
+    """Operator converter for logical_not op."""
+
+    ipt0 = g.get_node(op.input("X")[0])
+    op_func = get_relay_op(op.type)
+    out = op_func(ipt0)
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_logsumexp(g, op, block):
     """Operator converter for logsumexp."""
 
@@ -1887,7 +1896,9 @@ _convert_map = {
     "log10": convert_unary_op,
     "log1p": convert_log1p,
     "logical_and": convert_logical_op,
+    "logical_not": convert_logical_not,
     "logical_or": convert_logical_op,
+    "logical_xor": convert_logical_op,
     "logsumexp": convert_logsumexp,
     "matmul": convert_matmul,
     "matmul_v2": convert_matmul,

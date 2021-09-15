@@ -1036,8 +1036,19 @@ def test_forward_logical_op():
                 z = self.func(x, y)
             return paddle.cast(z, "int32")
 
+    class LogicalOp_not(LogicalOp):
+        @paddle.jit.to_static
+        def forward(self, x):
+            if self.out:
+                out = paddle.to_tensor([True, True, True])
+                z = self.func(x, out=out)
+            else:
+                z = self.func(x)
+            return paddle.cast(z, "int32")
+
     op_list = [
         "logical_or",
+        "logical_xor",
         "logical_and",
     ]
     x = paddle.to_tensor([True])
@@ -1045,6 +1056,8 @@ def test_forward_logical_op():
     for op_name in op_list:
         verify_model(LogicalOp(op_name, False), [x, y])
         verify_model(LogicalOp(op_name, True), [x, y])
+    verify_model(LogicalOp_not("logical_not", False), [y])
+    verify_model(LogicalOp_not("logical_not", True), [y])
 
 
 @tvm.testing.uses_gpu
