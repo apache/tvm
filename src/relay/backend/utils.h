@@ -147,6 +147,17 @@ struct LoweredOutput {
 };
 
 /*!
+ * \brief This class is needed to avoid a GCC 5 bug that prevents maps containing enums from being
+ compiled. If i386 GCC version is increased, we can remove it.
+ */
+struct EnumClassHash {
+  template <typename T>
+  std::size_t operator()(T t) const {
+    return static_cast<std::size_t>(t);
+  }
+};
+
+/*!
  * \brief A helper to expand the params by adding the ones used in a given expression.
  */
 struct ConstantUpdater : public ExprVisitor {
