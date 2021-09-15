@@ -1301,13 +1301,11 @@ inline Tensor gather_nd(const Tensor& data, const Tensor& indices, int batch_dim
           real_indices.push_back(out_index[i]);
         }
         for (size_t i = 0; i < indices_dim0; ++i) {
-          indices_position.Set(0, make_const(DataType::Int(32), i));
-          PrimExpr index = indices(indices_position);
-
-          if (!indices->dtype.is_int()) {
-            index = tvm::cast(tvm::DataType::Int(32), index);
+          if (indices->dtype.is_int()) {
+            real_indices.push_back(indices(indices_position));
+          } else {
+            real_indices.push_back(tvm::cast(tvm::DataType::Int(32), indices(indices_position)));
           }
-          real_indices.push_back(index);
         }
         if (real_indices.size() == ndim_d) {
           return data(real_indices);
