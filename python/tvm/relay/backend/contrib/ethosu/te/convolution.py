@@ -140,7 +140,7 @@ def conv2d_compute(
             ).astype(ifm.dtype)
             * weight[cc, rh, rw, rc].astype(ifm.dtype)
             # This is a trick to load 10 elements of the scale_bias at once, not accurate maths
-            + (scale_bias[cc, 0] * scale_bias[cc, 9]),
+            + (scale_bias[cc, 0] * scale_bias[cc, 9]).astype(ifm.dtype),
             axis=[rh, rw, rc],
         ),
         name="ethosu_conv2d",

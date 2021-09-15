@@ -21,6 +21,7 @@ The rest of the utility functions are misc.
 Refer to the description inside such functions
 """
 
+from inspect import signature
 from enum import Enum
 from typing import Union, Tuple, Dict, Optional
 import numpy as np  # type: ignore
@@ -138,6 +139,12 @@ def round_up(a: int, b: int) -> int:
     return ((a + b - 1) // b) * b
 
 
+def get_accelerator_config():
+    """Get the variant of the accelerator to compile for"""
+    compiler_attrs = tvm.get_global_func("relay.ext.ethosu.get_compiler_attrs")()
+    return compiler_attrs.accelerator_config
+
+
 # pylint: disable=unused-argument
 def partition_for_ethosu(
     mod: tvm.ir.IRModule, params: Optional[Dict[str, tvm.runtime.NDArray]] = None, **opts
@@ -171,6 +178,13 @@ def partition_for_ethosu(
     mod = relay.transform.InferType()(mod)
     mod = preprocess.preprocess_ext_io()(mod)
     return mod
+
+
+def get_arg_count(func):
+    """Helper function to get the number of
+    arguments in a python function"""
+    sig = signature(func)
+    return len(sig.parameters)
 
 
 def get_dim_value(layout: str, dim: int):

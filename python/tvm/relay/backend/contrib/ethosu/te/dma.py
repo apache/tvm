@@ -59,7 +59,9 @@ def _pad_tensor(
                 not_zero.append(indices[i] < tensor.shape[i] + pad_before[i])
         if not_zero:
             not_zero = tvm.tir.all(*not_zero)
-            return tvm.tir.if_then_else(not_zero, tensor(*index_tuple), tvm.tir.const(0, "uint8"))
+            return tvm.tir.if_then_else(
+                not_zero, tensor(*index_tuple), tvm.tir.const(0, tensor.dtype)
+            )
         return tensor(*index_tuple)
 
     return _pad
