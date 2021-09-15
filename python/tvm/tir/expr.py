@@ -523,6 +523,9 @@ class FloatImm(ConstExpr):
             tvm.ir._ffi_api.FloatImm, dtype, value, span  # type: ignore
         )
 
+    def __float__(self):
+        return self.value
+
 
 @tvm._ffi.register_object
 class IntImm(ConstExpr):
