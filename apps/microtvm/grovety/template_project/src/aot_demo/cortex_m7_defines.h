@@ -1,7 +1,12 @@
 #ifndef __cortex_m7_defines_h
 #define __cortex_m7_defines_h
 
+#include <stdint.h>
 #include <stdlib.h>
+
+#ifndef   __ASM
+  #define __ASM  __asm
+#endif
 
 #ifndef   __STATIC_FORCEINLINE
   #define __STATIC_FORCEINLINE  __attribute__((always_inline)) static inline
