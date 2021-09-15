@@ -54,6 +54,7 @@ from . import _tensor_grad
 from . import _transform
 from . import _reduce
 from . import _algorithm
+from . import _math
 
 # mlas
 from .mlas import *
