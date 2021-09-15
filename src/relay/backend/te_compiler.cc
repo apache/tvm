@@ -596,6 +596,47 @@ class LowerTensorExprMutator : public ExprMutator {
   const Op& debug_op_;
 };
 
+Target GetTargetFromInteger(DLDeviceType dev_type, tec::TargetMap targets) {
+  if (targets.size() == 1) {
+    // The homogeneous execution case, return the only target.
+    const auto& it = targets.begin();
+    return (*it).second;
+  } else {
+    // The heterogeneous execution case, return the target associated with the
+    // given device type.
+    // If "dev_type" equals to 0, the device name only can be got from
+    // "targets", and it may not be "llvm", so here just set it to "unknown".
+    std::string dev_name = "unknown";
+    if (dev_type != 0) {
+      dev_name = runtime::DeviceName(dev_type);
+    }
+
+    if (targets.count(dev_type) == 0) {
+      std::stringstream msg;
+      msg << "No target is specified for provided device name: `" << dev_name << "`\n\n"
+          << dev_name << " mapped to device type (" << dev_type
+          << ") which was not found in the target map.\n"
+          << "Availible targets: \n";
+      for (auto target : targets) {
+        msg << "  " << target.first << "-> " << target.second << "\n";
+      }
+      LOG(FATAL) << msg.str();
+    }
+    return targets[dev_type];
+  }
+}
+
+Pass LowerTensorExpr(TargetMap targets, DeviceMap device_context_map, const String& module_name,
+                     TECompiler compiler, std::function<void(Function)> process_fn) {
+  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
+      [=](Function func, IRModule module, PassContext ctx) {
+        LowerTensorExprMutator lower_te(module, targets, device_context_map, process_fn,
+                                        module_name, compiler);
+        return Downcast<Function>(lower_te.Mutate(func));
+      };
+  return CreateFunctionPass(pass_func, 0, "LowerTensorExpr", {});
+}
+
 backend::FunctionInfo UpdateMainWorkspaceSize(const IRModule& mod, tec::TargetMap targets,
                                               Map<Expr, backend::StorageInfo> storage_info_map) {
   CHECK_EQ(mod->functions.size(), 1)
@@ -713,47 +754,6 @@ backend::FunctionInfo UpdateMainWorkspaceSize(const IRModule& mod, tec::TargetMa
 
   return backend::FunctionInfo(workspace_sizes, io_sizes, constant_sizes, tir_primfuncs,
                                relay_primfuncs);
-}
-
-Target GetTargetFromInteger(DLDeviceType dev_type, tec::TargetMap targets) {
-  if (targets.size() == 1) {
-    // The homogeneous execution case, return the only target.
-    const auto& it = targets.begin();
-    return (*it).second;
-  } else {
-    // The heterogeneous execution case, return the target associated with the
-    // given device type.
-    // If "dev_type" equals to 0, the device name only can be got from
-    // "targets", and it may not be "llvm", so here just set it to "unknown".
-    std::string dev_name = "unknown";
-    if (dev_type != 0) {
-      dev_name = runtime::DeviceName(dev_type);
-    }
-
-    if (targets.count(dev_type) == 0) {
-      std::stringstream msg;
-      msg << "No target is specified for provided device name: `" << dev_name << "`\n\n"
-          << dev_name << " mapped to device type (" << dev_type
-          << ") which was not found in the target map.\n"
-          << "Availible targets: \n";
-      for (auto target : targets) {
-        msg << "  " << target.first << "-> " << target.second << "\n";
-      }
-      LOG(FATAL) << msg.str();
-    }
-    return targets[dev_type];
-  }
-}
-
-Pass LowerTensorExpr(TargetMap targets, DeviceMap device_context_map, const String& module_name,
-                     TECompiler compiler, std::function<void(Function)> process_fn) {
-  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-      [=](Function func, IRModule module, PassContext ctx) {
-        LowerTensorExprMutator lower_te(module, targets, device_context_map, process_fn,
-                                        module_name, compiler);
-        return Downcast<Function>(lower_te.Mutate(func));
-      };
-  return CreateFunctionPass(pass_func, 0, "LowerTensorExpr", {});
 }
 
 /*!

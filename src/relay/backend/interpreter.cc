@@ -902,9 +902,6 @@ IRModule Prepare(IRModule mod, Device device, Target target) {
   // All calls to primitives will use the unique target.
   tec::DeviceMap device_map;
 
-  // No need for a memory plan.
-  backend::StaticMemoryPlan memory_plan; /*=nullptr*/
-
   // Run minimal transforms on module to establish invariants needed by interpreter.
   transform::Sequential seq({transform::SimplifyInference(),
                              // FuseOps will mark wrapped calls to prim-ops with the 'Primitive'
