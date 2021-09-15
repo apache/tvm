@@ -34,7 +34,7 @@ def pipeline_executor_enabled():
 
 
 def build(pipe_configs):
-    """Build these modules used in the pipeline executor, then use these modules and configuration
+    """Build modules used in the pipeline executor, then use these modules and configuration
     to create a pipeline executor.
 
     Parameters
@@ -92,8 +92,8 @@ class PipelineModule(object):
 
 class PipelineConfig(object):
     """Pipeline configuration information, this class contains the DAG that expresses
-    the dependency of each module involved by pipeline and the specific parameters
-    of each module build.
+    the dependency of each module involved in a pipeline and the parameters for building
+    each module.
     """
 
     class Binding:
@@ -182,8 +182,9 @@ class PipelineConfig(object):
 
         def connect(self, binding):
             """Connect the current interface to the destination interface.
-            correct connections as following 1. global input connect to module input,
-            2. module output connect to global output, 3. module output connect to module input
+            Correct connections are as follows: 1. global input connected to module input,
+            2. module output connected to global output, 3. module output connected to
+            module input.
 
             Parameters
             ----------
@@ -231,7 +232,10 @@ class PipelineConfig(object):
                     )
 
                 binding.parents.append(self)
-                # Do acyclic check after increase the in-degree.
+
+                # Do acyclic check after increasing the in-degree of child node by setting
+                # current interface as a parent of the child node.
+
                 if not self.check_dag_acyclic(
                     binding.io_owner, self.io_owner.input_bindings.bindings
                 ):

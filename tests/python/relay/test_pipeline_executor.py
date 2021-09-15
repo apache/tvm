@@ -46,16 +46,14 @@ def get_mannual_mod():
     net1_output2 = relay.subtract(data, mv2)
     net1_output3 = relay.multiply(data, mv3)
 
-    """The second model use output named net1_output1 of the first model as the first input,
-    the second input of the second model is data21.
-    """
+    # The second model use output named net1_output1 of the first model as the first input,
+    # the second input of the second model is data21.
     net2 = relay.add(data_net1_output_1, mv2)
     net2 = relay.add(net2, data21)
     net2_output = relay.add(net2, mv3)
 
-    """The third model use the output named net2_output of the second model as the first input
-    and use the output named net1_output2 of the first model as the second input.
-    """
+    # The third model use the output named net2_output of the second model as the first input
+    # and use the output named net1_output2 of the first model as the second input.
     net3 = relay.multiply(data_net2_output_1, mv3)
     net3 = relay.add(net3, data_net1_output_2)
 
@@ -75,9 +73,8 @@ def get_mannual_mod():
 def get_manual_conf(mods, target):
     # This function is used to generate manual pipeline configuration.
     mod_config = {}
-    """The third output is the final output, the second output is for mod3, the first output 
-    is for mod2 input.
-    """
+    # The third output is the final output, the second output is for mod3, the first output
+    # is for mod2 input.
     pipe_config1 = {
         "mod_idx": 1,
         "output": [
@@ -202,21 +199,20 @@ def test_pipeline():
 
             # The mod3 output[0] will be connected to global output[2].
             pipe_config[mod3]["output"][0].connect(pipe_config["output"]["1"])
-            """Print configueration (print(pipe_config)), the result looks like following.
-
-            Inputs
-              |data_0: mod1:data_0
-              |data_1: mod2:data_1
-            
-            output
-              |output(1) : mod1.output(2)
-              |output(2) : mod3.output(0)
-            
-            connections
-              |mod1.output(0)-> mod2.data_0
-              |mod1.output(1)-> mod3.data_0
-              |mod2.output(0)-> mod3.data_1
-            """
+            # Print configueration (print(pipe_config)), the result looks like following.
+            #
+            # Inputs
+            #   |data_0: mod1:data_0
+            #   |data_1: mod2:data_1
+            #
+            # output
+            #   |output(1) : mod1.output(2)
+            #   |output(2) : mod3.output(0)
+            #
+            # connections
+            #   |mod1.output(0)-> mod2.data_0
+            #   |mod1.output(1)-> mod3.data_0
+            #   |mod2.output(0)-> mod3.data_1
 
             # Set other parameters.
             pipe_config[mod1].target = target[0]
