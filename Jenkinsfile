@@ -153,6 +153,10 @@ stage("Sanity Check") {
     node('CPU') {
       ws(per_exec_ws("tvm/sanity")) {
         init_git()
+        def docs = sh (returnStatus: true, script: '''
+          git diff-tree origin/main --no-commit-id --name-only -r HEAD | grep -v -q docs/
+        '''
+        )
         sh "${docker_run} ${ci_lint}  ./tests/scripts/task_lint.sh"
       }
     }
@@ -218,10 +222,6 @@ stage('Build') {
     node('CPU') {
       ws(per_exec_ws("tvm/build-cpu")) {
         init_git()
-        def docs = sh (returnStatus: true, script: '''
-          git diff-tree --no-commit-id --name-only -r HEAD | grep -v -q docs/
-        '''
-        )
         if (docs == 0 ) {
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_config_build_cpu.sh"
           make(ci_cpu, 'build', '-j2')
@@ -265,7 +265,7 @@ stage('Build') {
       ws(per_exec_ws("tvm/build-i386")) {
         init_git()
         def docs = sh (returnStatus: true, script: '''
-          git diff-tree --no-commit-id --name-only -r HEAD | grep -v -q docs/
+          git diff-tree origin/main --no-commit-id --name-only -r HEAD | grep -v -q docs/
         '''
         )
         if (docs == 0 ) {
@@ -281,7 +281,7 @@ stage('Build') {
       ws(per_exec_ws("tvm/build-arm")) {
         init_git()
         def docs = sh (returnStatus: true, script: '''
-          git diff-tree --no-commit-id --name-only -r HEAD | grep -v -q docs/
+          git diff-tree origin/main --no-commit-id --name-only -r HEAD | grep -v -q docs/
         '''
         )
         if (docs == 0 ) {
@@ -297,7 +297,7 @@ stage('Build') {
       ws(per_exec_ws("tvm/build-qemu")) {
         init_git()
         def docs = sh (returnStatus: true, script: '''
-          git diff-tree --no-commit-id --name-only -r HEAD | grep -v -q docs/
+          git diff-tree origin/main --no-commit-id --name-only -r HEAD | grep -v -q docs/
         '''
         )
         if (docs == 0 ) {
@@ -320,7 +320,7 @@ stage('Unit Test') {
       ws(per_exec_ws("tvm/ut-python-gpu")) {
         init_git()
         def docs = sh (returnStatus: true, script: '''
-          git diff-tree --no-commit-id --name-only -r HEAD | grep -v -q docs/
+          git diff-tree origin/main --no-commit-id --name-only -r HEAD | grep -v -q docs/
         '''
         )
         if (docs == 0 ) {
@@ -341,7 +341,7 @@ stage('Unit Test') {
       ws(per_exec_ws("tvm/ut-python-i386")) {
         init_git()
              def docs = sh (returnStatus: true, script: '''
-          git diff-tree --no-commit-id --name-only -r HEAD | grep -v -q docs/
+          git diff-tree origin/main --no-commit-id --name-only -r HEAD | grep -v -q docs/
         '''
         )
         if (docs == 0 ) {
@@ -362,7 +362,7 @@ stage('Unit Test') {
       ws(per_exec_ws("tvm/ut-python-arm")) {
         init_git()
              def docs = sh (returnStatus: true, script: '''
-          git diff-tree --no-commit-id --name-only -r HEAD | grep -v -q docs/
+          git diff-tree origin/main --no-commit-id --name-only -r HEAD | grep -v -q docs/
         '''
         )
         if (docs == 0 ) {
@@ -383,7 +383,7 @@ stage('Unit Test') {
       ws(per_exec_ws("tvm/ut-java")) {
         init_git()
         def docs = sh (returnStatus: true, script: '''
-          git diff-tree --no-commit-id --name-only -r HEAD | grep -v -q docs/
+          git diff-tree origin/main --no-commit-id --name-only -r HEAD | grep -v -q docs/
         '''
         )
         if (docs == 0 ) {
