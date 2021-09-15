@@ -35,10 +35,10 @@ Hexagon SDK is available at //developer.qualcomm.com/software/hexagon-dsp-sdk.
 
 ### Compilation of the Hexagon part
 
-1. Build the static version of TVM runtime for Hexagon: this step is the same
-   as building the shared version, except at the cmake step, add
-   `-DBUILD_STATIC_RUNTIME=ON`. The compilation step should create
-   `libtvm_runtime.a`.
+1. Build the static version of TVM runtime for Hexagon. Use Hexagon clang
+   from the Hexagon SDK. This step is the same as building the shared version,
+   except at the cmake step, add `-DBUILD_STATIC_RUNTIME=ON`. The compilation
+   step should create `libtvm_runtime.a`.
 
 2. Create a subdirectory for the build files, and run `cmake` with the
    following variables set:
@@ -49,6 +49,7 @@ Hexagon SDK is available at //developer.qualcomm.com/software/hexagon-dsp-sdk.
    - `USE_HEXAGON_ARCH` to one of v65, v66, v68
    - `TVM_RUNTIME_HEXAGON=/path/to/libtvm_runtime.a` _statically_ linked
      TVM runtime
+
    Make sure to provide the path to launcher's `CMakeLists.txt` directory
    in `cmake` invocation.
 
@@ -56,8 +57,9 @@ Hexagon SDK is available at //developer.qualcomm.com/software/hexagon-dsp-sdk.
 
 ### Compilation of the Android part
 
-1. Build TVM runtime for Android. Unlike in the Hexagon case, this should be
-   the dynamic library (which is the default), i.e. `libtvm_runtime.so`.
+1. Build TVM runtime for Android, using clang for AArch64 from the Android
+   NDK. Unlike in the Hexagon case, this should be the dynamic library (which
+   is the default), i.e. `libtvm_runtime.so`.
 
 2. Create a subdirectory for the build files (different from the one used for
    Hexagon files), and run `cmake` with the following variables set:
