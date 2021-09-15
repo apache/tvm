@@ -325,10 +325,6 @@ class TestConv2D:
         kernel_size,
     ):
         target = tvm.target.Target(target)
-        if target.kind.name == "vulkan" and dtype == "int8":
-            # The schedule selection incorrectly picks an
-            # implementation that requires NCHWc packed input.
-            pytest.xfail("Known failing test for vulkan")
 
         x = relay.var("x", shape=dshape, dtype=dtype)
         w = relay.var("w", shape=kshape, dtype=dtype)
