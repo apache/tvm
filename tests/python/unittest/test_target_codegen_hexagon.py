@@ -109,6 +109,18 @@ def test_alloc_vtcm():
     assert "HexagonBackendFreeVTCM" in calls
 
 
+def test_llvm_options():
+    if not check_prereq_and_setup():
+        return
+    target = tvm.target.hexagon("v66", llvm_options="-hexagon-noopt")
+    Zero = tvm.te.compute((10,), lambda _: tvm.tir.const(0, "int32"))
+    s = tvm.te.create_schedule(Zero.op)
+    tvm.build(s, [Zero], target=target, name="zero")
+    # Check that BuildHexagon hasn't crashed because of target attribute
+    # type mismatch.
+    assert re.search("-hexagon-noopt", str(target))
+
+
 def test_linked_params_codegen():
     if not check_prereq_and_setup():
         return
@@ -176,4 +188,5 @@ if __name__ == "__main__":
     test_basic()
     test_llvm_target_features()
     test_alloc_vtcm()
+    test_llvm_options()
     test_linked_params_codegen()
