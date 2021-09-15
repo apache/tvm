@@ -161,13 +161,13 @@ class RPCEndpoint {
    * \param channel The communication channel.
    * \param name The local name of the session, used for debug
    * \param remote_key The remote key of the session
-   * \param fshutdown The shutdown Packed function
+   * \param fcleanup The cleanup Packed function
    *   if remote_key equals "%toinit", we need to re-intialize
    *   it by event handler.
    */
   static std::shared_ptr<RPCEndpoint> Create(std::unique_ptr<RPCChannel> channel, std::string name,
                                              std::string remote_key,
-                                             TypedPackedFunc<void()> fshutdown = nullptr);
+                                             TypedPackedFunc<void()> fcleanup = nullptr);
 
  private:
   class EventHandler;
@@ -192,8 +192,8 @@ class RPCEndpoint {
   std::string name_;
   // The remote key
   std::string remote_key_;
-  // The shutdown Packed Function
-  TypedPackedFunc<void()> fshutdown_;
+  // Invoked when the RPC session is terminated
+  TypedPackedFunc<void()> fcleanup_;
 };
 
 /*!
