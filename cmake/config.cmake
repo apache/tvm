@@ -326,3 +326,8 @@ set(USE_CCACHE AUTO)
 # - OFF: disable PAPI support.
 # - /path/to/folder/containing/: Path to folder containing papi.pc.
 set(USE_PAPI OFF)
+
+# Whether to use LibTorch as backend
+# To enable pass the path to the root libtorch (or PyTorch) directory
+# OFF or /path/to/torch/
+set(USE_LIBTORCH OFF)

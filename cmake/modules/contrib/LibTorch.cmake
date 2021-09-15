@@ -14,14 +14,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=wildcard-import
-"""Contrib modules."""
-from .register import get_pattern_table, register_pattern_table
 
-from .arm_compute_lib import *
-from .dnnl import *
-from .bnns import *
-from .coreml import *
-from .ethosn import *
-from .libtorch import *
-from .tensorrt import *
+if(USE_LIBTORCH)
+  find_package(Torch REQUIRED PATHS ${USE_LIBTORCH}/share/cmake/Torch
+               )
+  list(APPEND TVM_RUNTIME_LINKER_LIBS ${TORCH_LIBRARIES})
+  include_directories(${TORCH_INCLUDE_DIRS})
+
+  file(GLOB LIBTORCH_RELAY_CONTRIB_SRC
+    src/relay/backend/contrib/libtorch/libtorch_codegen.cc
+    src/runtime/contrib/libtorch/libtorch_runtime.cc
+    )
+  list(APPEND COMPILER_SRCS ${LIBTORCH_RELAY_CONTRIB_SRC})
+
+endif(USE_LIBTORCH)

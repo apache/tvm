@@ -14,14 +14,23 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=wildcard-import
-"""Contrib modules."""
-from .register import get_pattern_table, register_pattern_table
+# pylint: disable=invalid-name, unused-argument, no-else-return, E1102
+"""Torch codegen operators"""
 
-from .arm_compute_lib import *
-from .dnnl import *
-from .bnns import *
-from .coreml import *
-from .ethosn import *
-from .libtorch import *
-from .tensorrt import *
+from tvm import relay
+from tvm.relay.op.annotation import compiler_begin, compiler_end
+
+
+def torchop(script_fn, *params):
+    """Insert an Operation executed in the PyTorch JIT
+
+    The operation includes backend annotation
+
+    Currently, only tensors are supported. The shape inferrence
+    assumes that input shapes (and not values) determine output shapes."""
+    return compiler_end(
+        relay.op._make.torchop(
+            [compiler_begin(p, "torch") for p in params], script_fn.save_to_buffer()
+        ),
+        "torch",
+    )
