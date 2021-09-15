@@ -339,14 +339,13 @@ class Pool(OnnxOpConverter):
             custom_check=dimension_constraint(),
         )
         # Onnxruntime doesn't actually do this op in integer, they dequantize to fp32
-        # and then requantize afer
+        # and then requantize afer (according to documentation below)
         # https://github.com/microsoft/onnxruntime/blob/master/docs/ContribOperators.md#com.microsoft.QLinearAveragePool
         if cls.is_quant:
-            input = _qnn.op.dequantize(data, x_scale, x_zero_point)
-            out = attr_cvt([input], attr, params)
+            float_node = _qnn.op.dequantize(data, x_scale, x_zero_point)
+            out = attr_cvt([float_node], attr, params)
             return _qnn.op.quantize(out, y_scale, y_zero_point, out_dtype=input_dtype)
-        else:
-            return attr_cvt([data], attr, params)
+        return attr_cvt([data], attr, params)
 
 
 class Absolute(Unary):
