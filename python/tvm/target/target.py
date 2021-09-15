@@ -175,7 +175,7 @@ class Target(Object):
         return list(_ffi_api.ListTargetKinds())
 
 
-    # TODO: make this return IRModule?
+    # TODO: make this return IRModule? idk it seems 
     @staticmethod
     def check_and_update_host_consist(target, host=None, target_is_dict_key=True):
         """A helper function that merges a legacy "target, target_host" pair, then returns

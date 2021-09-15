@@ -201,6 +201,23 @@ IRModule LowerTE(
 transform::Pass LowerTEPass(TargetMap targets, DeviceMap device_context_map,
                             backend::StaticMemoryPlan memory_plan, const String& module_name,
                             std::function<void(Function)> process_fn);
+
+/*
+IRModule BuildForTargets(IRModule input_mod, Target target, Target target_host) {
+
+}*/
+
+// TODO(@electriclilies): Rename me
+// corresponds to point 1 thru point 2 in _build_for_device
+IRModule build_for_device_mixed_mod(IRModule input_mod, Target target, Target target_host) {
+  IRModule mod_mixed = input_mod;
+  // TODO: put target as an attr on all the funcs
+  // mod_mixed = tvm.tir.transform.Apply(lambda f: f.with_attr("target", target))(mod_mixed)
+
+  
+}
+ 
+
 }  // namespace tec
 }  // namespace relay
 }  // namespace tvm

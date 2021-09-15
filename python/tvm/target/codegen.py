@@ -35,8 +35,8 @@ def build_module(mod, target):
     module : runtime.Module
         The corressponding module.
     """
-    # this looks good!
     print("In codegen build module")
+    # Where is Build defined? can't find it, can only find target.build.something...
     target = Target(target) if isinstance(target, str) else target
     return _ffi_api.Build(mod, target)
 

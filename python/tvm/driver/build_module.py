@@ -132,6 +132,7 @@ def lower(
     raise ValueError("Expected input to be an IRModule, PrimFunc or Schedule, but got, ", type(inp))
 
 
+# TODO(@electriclilies): This should be moved into C++.
 def _build_for_device(input_mod, target, target_host):
     """Build the lowered functions for a device with the given compilation
     target.
@@ -155,10 +156,14 @@ def _build_for_device(input_mod, target, target_host):
     mdev : tvm.module
         A module that contains device code.
     """
+    # Ideally delete check_and_update_host_consist from here
     target, target_host = Target.check_and_update_host_consist(target, target_host)
+    # Point 1
     device_type = ndarray.device(target.kind.name, 0).device_type
 
     mod_mixed = input_mod
+    # Do I need this? it is already assigned upstream supposedly..
+    # get rid of it! delete as much as possible
     mod_mixed = tvm.tir.transform.Apply(lambda f: f.with_attr("target", target))(mod_mixed)
 
     opt_mixed = [
@@ -179,7 +184,7 @@ def _build_for_device(input_mod, target, target_host):
         tvm.tir.transform.SplitHostDevice(),
     ]
     mod_mixed = tvm.transform.Sequential(opt_mixed)(mod_mixed)
-
+    # point 2
     # device optimizations
     opt_device = tvm.transform.Sequential(
         [
@@ -220,7 +225,9 @@ def _build_for_device(input_mod, target, target_host):
             "Specified target %s, but cannot find device code, did you do " "bind?" % target
         )
 
+    # rt_mod_dev is runtime::Module so this can be moved out maybe?
     rt_mod_dev = codegen.build_module(mod_dev, target) if len(mod_dev.functions) != 0 else None
+    # TIR module, runtime module
     return mod_host, rt_mod_dev
 
 
@@ -303,7 +310,9 @@ def build(
     See the note on :any:`tvm.target` on target string format.
     """
     
+    # Lowering
     if isinstance(inputs, (schedule.Schedule, tvm.IRModule, PrimFunc)):
+        # should this be te_lower instead?
         input_mod = lower(inputs, args, name=name, binds=binds)
     elif isinstance(inputs, (list, tuple, container.Array)):
         merged_mod = tvm.IRModule({})
@@ -318,6 +327,7 @@ def build(
             f"but got {type(inputs)}."
         )
     
+    # rest is codegen?
     # More target maps here... is inputs ever a map?
     # prepping and cutting module into chunks
 
@@ -333,8 +343,6 @@ def build(
     else:
         target_input_mod = inputs
 
-    # TODO: turn into a unified module
-
     for tar, mod in target_input_mod.items():
         if not isinstance(tar, (str, Target)):
             raise ValueError("The key of inputs must be str or " "Target when inputs is dict.")
@@ -349,39 +357,40 @@ def build(
         for tar, mod in target_input_mod.items():
             tar = Target(tar)
             device_type = ndarray.device(tar.kind.name, 0).device_type
-            # This seems broken
             if device_type == ndarray.cpu(0).device_type:
                 target_host = tar
                 break
+    # Why is this here?
     if not target_host:
         target_host = "llvm" if tvm.runtime.enabled("llvm") else "stackvm"
     
-
+    # why do we need to call chcek_and_update_host_consist again?
     target_input_mod, target_host = Target.check_and_update_host_consist(
         target_input_mod, target_host
     )
 
-    # Turn into a map here
-    
-
     mod_host_all = tvm.IRModule({})
 
+    # This is building for target not device though..
+    # From here through importing the device modules could probably be consolidated into one C++ function.
     device_modules = []
     for tar, input_mod in target_input_mod.items():
+        # mod_host is the module of the host.. bad name.
+        # Start with moving _build_for_device into c++
         mod_host, mdev = _build_for_device(input_mod, tar, target_host)
+        # what are we updating here?
         mod_host_all.update(mod_host)
         device_modules.append(mdev)
 
     # Generate a unified host module.
-    print("codegen build module")
     rt_mod_host = codegen.build_module(mod_host_all, target_host)
 
-    # To start, push everything up to here into C++, then deal with the rest. Not sure what the rest is doing TBH.
     # Import all modules.
     for mdev in device_modules:
         if mdev:
             rt_mod_host.import_module(mdev)
 
+    # stop moving to C++ here.
     if not isinstance(target_host, Target):
         target_host = Target(target_host)
     if (
