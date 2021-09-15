@@ -16,11 +16,12 @@
 # under the License.
 """
 Getting Starting using TVMC Python, the simplified tvm API
-==========================================
+==========================================================
 **Authors**:
 `Jocelyn Shiue <https://github.com/CircleSpin>`_,
 
-<H1> Welcome to TVMC Python #TODO
+Welcome to TVMC Python
+======================
 Hi! Here we explain the scripting tool designed for the complete TVM beginner. ðŸ™‚ 
 
 ################################################################################
@@ -139,7 +140,8 @@ Hi! Here we explain the scripting tool designed for the complete TVM beginner. ð
 #       ['output_0']
 #
 
-<H1> Additional TVMC Functionalities #TODO
+Additional TVMC Functionalities
+===============================
 
 ################################################################################
 # Saving the model
