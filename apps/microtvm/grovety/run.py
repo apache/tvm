@@ -24,7 +24,7 @@ PLATFORMS = {
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run model on the MCU")
-    parser.add_argument("--model", type=str, choices=["cifar10", "mnist8", "sine"], default="cifar10", help="Model type")
+    parser.add_argument("--model", type=str, choices=["cifar10", "mnist8", "sine", "cifar10_2"], default="cifar10", help="Model type")
     parser.add_argument("--relay", action='store_true', help="print relay for the model and exit")
     parser.add_argument("--platform", type=str, choices=PLATFORMS.keys(), default=list(PLATFORMS.keys())[0], help="Platform")
     parser.add_argument("--log-level", type=str, choices=["DEBUG", "INFO"], default="INFO", help="Log level")
@@ -38,6 +38,8 @@ if __name__ == "__main__":
     logging.basicConfig(level=args.log_level)
     platform = PLATFORMS[args.platform]
 
+    target_str = f"c -keys=arm_cpu -mcpu={platform['mcpu']}  -march={platform['march']} -model={platform['model']} -runtime=c -link-params=1 --executor=aot --unpacked-api=1 --interface-api=c"
+
     # open model
     if args.model == "mnist8":
         import mnist8
@@ -47,6 +49,10 @@ if __name__ == "__main__":
         import cifar10
         relay_mod, params, input, output = cifar10.open_model()
         dataset = cifar10.get_data()
+    elif args.model == "cifar10_2":
+        import cifar10_2
+        relay_mod, params, input, output = cifar10_2.open_model(target_str)
+        dataset = cifar10_2.get_data()
     elif args.model == "sine":
         import sine
         relay_mod, params, input, output = sine.open_model()
@@ -65,7 +71,6 @@ if __name__ == "__main__":
         relay_mod = seq(relay_mod)
 
     # build relay for the target
-    target_str = f"c -keys=arm_cpu -mcpu={platform['mcpu']}  -march={platform['march']} -model={platform['model']} -runtime=c -link-params=1 --executor=aot --unpacked-api=1 --interface-api=c"
     target = tvm.target.target.Target(target_str)
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         lowered = relay.build(relay_mod, target, params=params)

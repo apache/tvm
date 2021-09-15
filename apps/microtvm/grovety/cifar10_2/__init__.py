@@ -1,34 +1,29 @@
 
-
-def open_model(target):
-    import pathlib, os
-    import tvm.relay as relay
-    import tvm
-    import pickle
+def open_model(target_str):
+    import pathlib, os, pickle
     import tvm
 
     current_dir = pathlib.Path(os.path.dirname(__file__)).resolve()
 
-    tmp = pickle.load(open(current_dir / 'cifar10_cnn.params', 'rb'))
-    params = dict((key, tvm.nd.array(value, tvm.context(str(target), 0))) for key, value in tmp.items())
-    relay_mod = pickle.load(open(current_dir / "cifar10_cnn.mod", 'rb'))
+    tmp = pickle.load(open(current_dir / 'cifar10_cnn_params', 'rb'))
+    params = dict((key, tvm.nd.array(value, device=tvm.device(target_str))) for key, value in tmp.items())
+    relay_mod = pickle.load(open(current_dir / "cifar10_cnn_mod", 'rb'))
 
-    input = ("input_input", (1, 32, 32, 1), "uint8")
+    input = ("data", (1, 32, 32, 1), "uint8")
     output = ("Identity", (1, 3), "float32")
 
     return (relay_mod, params, input, output)
 
 
 def get_data():
-    import pickle
-    import os, pathlib
+    import os, pathlib, pickle
     import numpy as np
 
     current_dir = pathlib.Path(os.path.dirname(__file__)).resolve()
-    with open(current_dir / 'data/batches.meta', 'rb') as file:
+    with open(current_dir / '../cifar10/data/batches.meta', 'rb') as file:
         label_names = pickle.load(file, encoding='bytes')
 
-    with open(current_dir / 'data/test_batch', 'rb') as file:
+    with open(current_dir / '../cifar10/data/test_batch', 'rb') as file:
         test_batch = pickle.load(file, encoding='bytes')
 
     dataset = []
