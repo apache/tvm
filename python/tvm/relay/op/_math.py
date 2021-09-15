@@ -14,29 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Backend compiler related feature registration"""
+from . import op as _reg
+from . import strategy
 
-# pylint: disable=wildcard-import
-"""Generic declaration and schedules.
-
-This is a recommended way of using TOPI API.
-To use the generic schedule function, user must set
-the current target scope using with block. See also :any:`tvm.target`
-
-Example
--------
-.. code-block:: python
-
-  # create schedule that dispatches to topi.cuda.schedule_injective
-  with tvm.target.Target("cuda"):
-    s = tvm.tir.generic.schedule_injective(outs)
-"""
-from __future__ import absolute_import as _abs
-
-from .nn import *
-from .injective import *
-from .extern import *
-from .vision import *
-from .sort import *
-from .search import *
-from .image import *
-from .math import *
+# einsum
+_reg.register_strategy("einsum", strategy.einsum_strategy)
