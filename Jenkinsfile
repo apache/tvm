@@ -153,7 +153,7 @@ stage("Sanity Check") {
     node('CPU') {
       ws(per_exec_ws("tvm/sanity")) {
         init_git()
-        sh "${docker_run} ${ci_lint}  ./tests/scripts/task_lint.sh"
+        // sh "${docker_run} ${ci_lint}  ./tests/scripts/task_lint.sh"
       }
     }
   }
@@ -223,27 +223,22 @@ stage('Build') {
         pack_lib('cpu', tvm_multilib_tsim)
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_ci_setup.sh"
-          script {
-            try {
-              sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_unittest.sh"
-              sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh"
-              sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_fsim.sh"
-              sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_tsim.sh"
-              // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
-              // TODO(@jroesch): need to resolve CI issue will turn back on in follow up patch
-              sh "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh"
-            } catch(all) {
-              sh """
-                echo "Failed tvm/build-cpu"
-              """
-            } finally {
-               junit "build/pytest-results/*.xml"
-            }
-          }
+          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_unittest.sh"
+          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh"
+          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_fsim.sh"
+          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_tsim.sh"
+          // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
+          // TODO(@jroesch): need to resolve CI issue will turn back on in follow up patch
+          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh"
         }
       }
     }
-    },
+    post {
+      always {
+        junit "build/pytest-results/*.xml"
+      }
+    }
+  },
   'BUILD: WASM': {
     node('CPU') {
       ws(per_exec_ws("tvm/build-wasm")) {
@@ -286,8 +281,12 @@ stage('Build') {
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} ${ci_qemu} ./tests/scripts/task_ci_setup.sh"
           sh "${docker_run} ${ci_qemu} ./tests/scripts/task_python_microtvm.sh"
-          junit "build/pytest-results/*.xml"
         }
+      }
+    }
+    post {
+      always {
+        junit "build/pytest-results/*.xml"
       }
     }
   }
@@ -300,21 +299,16 @@ stage('Unit Test') {
         init_git()
         unpack_lib('gpu', tvm_multilib)
         timeout(time: max_time, unit: 'MINUTES') {
-          script {
-           try {
-            sh "${docker_run} ${ci_gpu} ./tests/scripts/task_ci_setup.sh"
-            sh "${docker_run} ${ci_gpu} ./tests/scripts/task_sphinx_precheck.sh"
-            sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_unittest_gpuonly.sh"
-            sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_integration_gpuonly.sh"
-           } catch (all) {
-               sh """
-                echo "Failed tvm/ut-python-gpu"
-              """
-           } finally {
-            junit "build/pytest-results/*.xml"
-           }
-          }
+          sh "${docker_run} ${ci_gpu} ./tests/scripts/task_ci_setup.sh"
+          sh "${docker_run} ${ci_gpu} ./tests/scripts/task_sphinx_precheck.sh"
+          sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_unittest_gpuonly.sh"
+          sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_integration_gpuonly.sh"
         }
+      }
+    }
+    post {
+      always {
+        junit "build/pytest-results/*.xml"
       }
     }
   },
@@ -328,8 +322,12 @@ stage('Unit Test') {
           sh "${docker_run} ${ci_i386} ./tests/scripts/task_python_unittest.sh"
           sh "${docker_run} ${ci_i386} ./tests/scripts/task_python_integration.sh"
           sh "${docker_run} ${ci_i386} ./tests/scripts/task_python_vta_fsim.sh"
-          junit "build/pytest-results/*.xml"
         }
+      }
+    }
+    post {
+      always {
+       junit "build/pytest-results/*.xml"
       }
     }
   },
@@ -342,9 +340,13 @@ stage('Unit Test') {
           sh "${docker_run} ${ci_arm} ./tests/scripts/task_ci_setup.sh"
           sh "${docker_run} ${ci_arm} ./tests/scripts/task_python_unittest.sh"
           sh "${docker_run} ${ci_arm} ./tests/scripts/task_python_arm_compute_library.sh"
-          junit "build/pytest-results/*.xml"
           // sh "${docker_run} ${ci_arm} ./tests/scripts/task_python_integration.sh"
         }
+      }
+    }
+    post {
+      always {
+        junit "build/pytest-results/*.xml"
       }
     }
   },
@@ -371,8 +373,12 @@ stage('Integration Test') {
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} ${ci_gpu} ./tests/scripts/task_ci_setup.sh"
           sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_topi.sh"
-          junit "build/pytest-results/*.xml"
         }
+      }
+    }
+    post {
+      always {
+        junit "build/pytest-results/*.xml"
       }
     }
   },
@@ -384,8 +390,12 @@ stage('Integration Test') {
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} ${ci_gpu} ./tests/scripts/task_ci_setup.sh"
           sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_frontend.sh"
-          junit "build/pytest-results/*.xml"
         }
+      }
+    }
+    post {
+      always {
+        junit "build/pytest-results/*.xml"
       }
     }
   },
@@ -397,8 +407,12 @@ stage('Integration Test') {
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_ci_setup.sh"
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_frontend_cpu.sh"
-          junit "build/pytest-results/*.xml"
         }
+      }
+    }
+    post {
+      always {
+        junit "build/pytest-results/*.xml"
       }
     }
   },
