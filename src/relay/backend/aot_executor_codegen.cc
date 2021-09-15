@@ -588,6 +588,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     if (memory_plan.defined()) {
       // TODO(@electriclilies, @jroesch): remove UpdateMainWorkspaceSize
       func_info = tec::UpdateMainWorkspaceSize(mod, targets_, memory_plan->expr_to_storage_info);
+      mod = WithAttr(mod, "main_func_info", func_info);
     }
 
     IRModule lowered_mod =
@@ -666,12 +667,9 @@ class AOTExecutorCodegen : public MixedModeVisitor {
         Downcast<tir::PrimFunc>(mod_run->Lookup(::tvm::runtime::symbol::tvm_run_func_suffix)),
         workspace_byte_alignment);
 
-    lowered_mod = WithAttr(lowered_mod, "main_func_info", func_info);
-
     Optional<backend::FunctionInfo> main_func_info =
         lowered_mod->GetAttr<backend::FunctionInfo>("main_func_info");
 
-    ICHECK(main_func_info) << "The attribute \"main_func_info\" should be set at this point.";
     main_func_info.value()->workspace_sizes.Set(target_host_, main_workspace_size);
     function_metadata_.Set(runtime::symbol::tvm_module_main, main_func_info.value());
 

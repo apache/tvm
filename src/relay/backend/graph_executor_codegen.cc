@@ -227,6 +227,7 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
       // TODO(@electriclilies, @jroesch): remove UpdateMainWorkspaceSize
       func_info =
           relay::tec::UpdateMainWorkspaceSize(mod, targets_, memory_plan_->expr_to_storage_info);
+      mod = WithAttr(mod, "main_func_info", func_info);
     }
 
     IRModule lowered_mod =
@@ -244,12 +245,9 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
           tec::UpdateFunctionMetadata(func, this->function_metadata_);
         })(mod);
 
-    lowered_mod = WithAttr(lowered_mod, "main_func_info", func_info);
-
     Optional<backend::FunctionInfo> main_func_info =
         lowered_mod->GetAttr<backend::FunctionInfo>("main_func_info");
 
-    ICHECK(main_func_info) << "The attribute \"main_func_info\" should be set at this point.";
     function_metadata_.Set(runtime::symbol::tvm_module_main, main_func_info.value());
 
     Function lowered_main_func = Downcast<Function>(lowered_mod->Lookup("main"));

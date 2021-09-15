@@ -16,7 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 #
-#   Using this script we can reuse docker/install scripts to configure the reference
+#   Using this script we can reuse docker/install scripts to configure the reference 
 #   virtual machine similar to CI QEMU setup.
 #
 
