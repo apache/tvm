@@ -302,10 +302,16 @@ def build(
     ----
     See the note on :any:`tvm.target` on target string format.
     """
-    # TODO: After we move to C++, can we actually change the lower / build APIs?
     
     if isinstance(inputs, (schedule.Schedule, tvm.IRModule, PrimFunc)):
         input_mod = lower(inputs, args, name=name, binds=binds)
+    elif isinstance(inputs, (list, tuple, container.Array)):
+        merged_mod = tvm.IRModule({})
+        for x in inputs:
+            merged_mod.update(lower(x))
+        input_mod = merged_mod
+    elif isinstance(inputs, (tvm.IRModule, PrimFunc)):
+        input_mod = lower(inputs)
     elif not isinstance(inputs, (dict, container.Map)):
         raise ValueError(
             f"Inputs must be Schedule, PrimFunc, IRModule or dict of target to IRModule, "
@@ -319,9 +325,7 @@ def build(
     # 2. Remove everywhere that takes map<string, IRModule>
     # after talking to xiyou he said a lot of difficulty was trying to maintain
     # map<target, irmodule> correctly so I may just remove that.
-    if isinstance(inputs, (dict, container.Map)):
-        print("Inputs are: ", inputs)
-        assert False
+        
     if not isinstance(inputs, (dict, container.Map)):
         target = Target.current() if target is None else target
         target = target if target else "llvm"
@@ -329,19 +333,18 @@ def build(
     else:
         target_input_mod = inputs
 
+    # TODO: turn into a unified module
+
     for tar, mod in target_input_mod.items():
         if not isinstance(tar, (str, Target)):
             raise ValueError("The key of inputs must be str or " "Target when inputs is dict.")
         if not isinstance(mod, tvm.IRModule):
             raise ValueError("inputs must be Schedule, IRModule," "or dict of str to IRModule.")
-
-    # This is for backwards compatibility but uses a map unfortunately
-    """
+    
     target_input_mod, target_host = Target.check_and_update_host_consist(
         target_input_mod, target_host
     )
-    """
-    
+
     if not target_host:
         for tar, mod in target_input_mod.items():
             tar = Target(tar)
@@ -353,11 +356,13 @@ def build(
     if not target_host:
         target_host = "llvm" if tvm.runtime.enabled("llvm") else "stackvm"
     
-    """
+
     target_input_mod, target_host = Target.check_and_update_host_consist(
         target_input_mod, target_host
     )
-    """
+
+    # Turn into a map here
+    
 
     mod_host_all = tvm.IRModule({})
 

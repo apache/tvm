@@ -174,6 +174,8 @@ class Target(Object):
         """Returns the list of available target names."""
         return list(_ffi_api.ListTargetKinds())
 
+
+    # TODO: make this return IRModule?
     @staticmethod
     def check_and_update_host_consist(target, host=None, target_is_dict_key=True):
         """A helper function that merges a legacy "target, target_host" pair, then returns
@@ -192,7 +194,7 @@ class Target(Object):
         if target is None:
             assert host is None, "Target host is not empty when target is empty."
             return target, host
-        if isinstance(target, dict) and "kind" not in target: # Well this is awful.
+        if isinstance(target, dict) and "kind" not in target:
             new_target = {}
             for tgt, mod in target.items():
                 if not target_is_dict_key:
