@@ -59,7 +59,6 @@ class OperatorExtractorWrapper : private MixedModeVisitor {
   }
 
   void VisitExpr_(const OpNode* n) final {
-    std::cout << "here " << n->name << std::endl;
     // NOTE: OpNode is visited only once for every operator kind
     // regardless of how many times that op appears in the graph.
     operator_freqs_.Set(n->name, 0U);
