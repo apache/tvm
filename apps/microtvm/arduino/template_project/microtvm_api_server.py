@@ -461,14 +461,14 @@ class Handler(server.ProjectAPIHandler):
             self._get_fqbn(options),
             "--input-dir",
             str(BUILD_DIR.resolve()),
-            "--port",
-            port,
+            # "--port",
+            # port,
         ]
 
         if options.get("verbose"):
             upload_cmd.append("--verbose")
 
-        retry = 5
+        retry = 15
         while retry > 0:
             try:
                 subprocess.run(upload_cmd, check=True)
