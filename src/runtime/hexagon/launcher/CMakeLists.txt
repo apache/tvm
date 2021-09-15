@@ -68,7 +68,7 @@ if("${FASTRPC_LIBS}" STREQUAL "SKEL")
   # Skel libraries.
   #
   if (NOT DEFINED TVM_RUNTIME_HEXAGON)
-    message(FATAL_ERROR "Please set TVM_RUNTIME_HEXAGON=/path/to/libtvm_runtime.a")
+    message(SEND_ERROR "Please set TVM_RUNTIME_HEXAGON=/path/to/libtvm_runtime.a")
   endif()
 
   include_directories(SYSTEM ${HEXAGON_QURT_INCLUDES})
@@ -120,7 +120,7 @@ else()
   # Stub libraries.
   #
   if (NOT DEFINED TVM_RUNTIME_ANDROID)
-    message(FATAL_ERROR "Please set TVM_RUNTIME_ANDROID=/path/to/libtvm_runtime.so")
+    message(SEND_ERROR "Please set TVM_RUNTIME_ANDROID=/path/to/libtvm_runtime.so")
   endif()
 
   include_directories(SYSTEM
