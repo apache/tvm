@@ -76,6 +76,7 @@ function(find_hexagon_sdk_root HEXAGON_SDK_PATH HEXAGON_ARCH)
   # - HEXAGON_SDK_VERSION
   # - HEXAGON_SDK_INCLUDES
   # - HEXAGON_QURT_INCLUDES
+  # - HEXAGON_QURT_LIBS
   # - HEXAGON_RPCMEM_ROOT
   # - HEXAGON_REMOTE_ROOT
   # - HEXAGON_QAIC_EXE
@@ -95,6 +96,8 @@ function(find_hexagon_sdk_root HEXAGON_SDK_PATH HEXAGON_ARCH)
     set_parent(HEXAGON_QURT_INCLUDES
       "${HEXAGON_SDK_ROOT}/libs/common/qurt/${HEXARCH_DIR}/include/posix"
       "${HEXAGON_SDK_ROOT}/libs/common/qurt/${HEXARCH_DIR}/include/qurt")
+    set_parent(HEXAGON_QURT_LIBS
+      "${HEXAGON_SDK_ROOT}/libs/common/qurt/${HEXARCH_DIR}/lib")
     set_parent(HEXAGON_RPCMEM_ROOT "${HEXAGON_SDK_ROOT}/libs/common/rpcmem")
     set_parent(HEXAGON_REMOTE_ROOT
       "${HEXAGON_SDK_ROOT}/libs/common/remote/ship/android_Release_aarch64")
@@ -111,6 +114,8 @@ function(find_hexagon_sdk_root HEXAGON_SDK_PATH HEXAGON_ARCH)
     set_parent(HEXAGON_QURT_INCLUDES
       "${HEXAGON_SDK_ROOT}/rtos/qurt/${HEXARCH_DIR}/include/posix"
       "${HEXAGON_SDK_ROOT}/rtos/qurt/${HEXARCH_DIR}/include/qurt")
+    set_parent(HEXAGON_QURT_LIBS
+      "${HEXAGON_SDK_ROOT}/rtos/qurt/${HEXARCH_DIR}/lib/pic")
     set_parent(HEXAGON_RPCMEM_ROOT "${HEXAGON_SDK_ROOT}/ipc/fastrpc/rpcmem")
     set_parent(HEXAGON_REMOTE_ROOT  # libadsprpc.so
       "${HEXAGON_SDK_ROOT}/ipc/fastrpc/remote/ship/android_aarch64")
