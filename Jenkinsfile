@@ -151,7 +151,7 @@ stage('Prepare') {
 def GIT_DIFF = 
     sh(
             script: "git diff-tree --no-commit-id --name-only -r origin/main",
-            returnStdout: true
+            returnStatus: true
     ).split('\n')
 
 
