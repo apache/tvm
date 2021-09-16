@@ -9,8 +9,8 @@ def open_model(target_str):
     params = dict((key, tvm.nd.array(value, device=tvm.device(target_str))) for key, value in tmp.items())
     relay_mod = pickle.load(open(current_dir / "cifar10_cnn_mod", 'rb'))
 
-    input = ("data", (1, 32, 32, 1), "uint8")
-    output = ("Identity", (1, 3), "float32")
+    input = ("data", (1, 32, 32, 3), "uint8")
+    output = ("Identity", (1, 10), "int8")
 
     return (relay_mod, params, input, output)
 
@@ -39,8 +39,8 @@ def get_data():
 
         data = data.reshape(3, 32, 32).transpose(1, 2, 0)
         # convert RGB to grayscale
-        gray = 0.07 * data[:,:,2] + 0.72 * data[:,:,1] + 0.21 * data[:,:,0]
-        data = gray.astype(np.uint8)
+        # data = 0.07 * data[:,:,2] + 0.72 * data[:,:,1] + 0.21 * data[:,:,0]
+        data = data.astype(np.uint8)
 
         dataset.append((label_str, data))
 
