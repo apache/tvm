@@ -322,6 +322,8 @@ if(BUILD_FOR_HEXAGON)
   # static one.
   if(NOT BUILD_STATIC_RUNTIME)
     list(APPEND RUNTIME_SRCS src/runtime/hexagon/hexagon_posix.cc)
+    # Allow undefined symbols (there will be some from libc).
+    set(TVM_NO_UNDEFINED_SYMBOLS "")
   endif()
 
   add_definitions(-D_MACH_I32=int)
