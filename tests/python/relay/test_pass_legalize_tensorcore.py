@@ -307,7 +307,10 @@ def test_legalize_batch_matmul():
                 weight_pad = relay.nn.pad(weight, pad_width=((0, 0), (0, dn), (0, dk)))
             else:
                 weight_pad = weight
-            y_pad = relay.nn.batch_matmul(x_pad, weight_pad,)
+            y_pad = relay.nn.batch_matmul(
+                x_pad,
+                weight_pad,
+            )
             if dm or dn:
                 y = relay.strided_slice(y_pad, begin=[0, 0, 0], end=out_shape)
             else:
