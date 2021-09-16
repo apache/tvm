@@ -5571,6 +5571,7 @@ def test_qlinearsigmoid(target, dev):
     verify_qlinearsigmoid([4, 2])
     verify_qlinearsigmoid([5])
     verify_qlinearsigmoid([3, 4, 5])
+    verify_qlinearsigmoid([])
 
 
 @tvm.testing.parametrize_targets

@@ -3253,7 +3253,9 @@ class DequantizeLinear(OnnxOpConverter):
     @classmethod
     def _impl_v13(cls, inputs, attr, params):
         data, scale, zp = inputs
-        axis = attr.get("axis", 0)
+        axis = attr.get("axis", 1)
+        if len(infer_shape(data)) <= 1:
+            axis = 0
         return _qnn.op.dequantize(data, scale, _op.cast(zp, "int32"), axis)
 
 
@@ -3445,7 +3447,7 @@ class QLinearSigmoid(OnnxOpConverter):
         ## and then requantize after:
         ## https://github.com/microsoft/onnxruntime/blob/master/onnxruntime/core/
         ## providers/dml/DmlExecutionProvider/src/GraphTransformer.cpp#L245
-        x = _qnn.op.dequantize(inputs[0], x_scale, x_zero_point)
+        x = _qnn.op.dequantize(x, x_scale, x_zero_point)
         out = _op.sigmoid(x)
         return _qnn.op.quantize(out, y_scale, y_zero_point, out_dtype=dtype)
 
