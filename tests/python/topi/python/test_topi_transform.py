@@ -18,13 +18,10 @@
 import numpy as np
 import pytest
 import tvm
-from tvm import te
-from tvm import topi
-from tvm import relay
-import tvm.topi.testing
-from tvm.contrib.nvcc import have_fp16
-
 import tvm.testing
+import tvm.topi.testing
+from tvm import relay, te, topi
+from tvm.contrib.nvcc import have_fp16
 
 
 def verify_expand_dims(in_shape, out_shape, axis, num_newaxis):
@@ -36,6 +33,27 @@ def verify_expand_dims(in_shape, out_shape, axis, num_newaxis):
         with tvm.target.Target(target):
             s = tvm.topi.testing.get_broadcast_schedule(target)(B)
         foo = tvm.build(s, [A, B], target, name="expand_dims")
+        data_npy = np.random.uniform(size=in_shape).astype(A.dtype)
+        out_npy = data_npy.reshape(out_shape)
+        data_nd = tvm.nd.array(data_npy, dev)
+        out_nd = tvm.nd.array(np.empty(out_shape).astype(B.dtype), dev)
+        foo(data_nd, out_nd)
+        tvm.testing.assert_allclose(out_nd.numpy(), out_npy)
+
+    for target, dev in tvm.testing.enabled_targets():
+        check_device(target, dev)
+
+
+def verify_dynamic_expand_dims(in_shape, out_shape, axis_value):
+    A = te.placeholder(shape=in_shape, name="A")
+    B = topi.expand_dims(A, axis_value, dynamic=True)
+
+    def check_device(target, dev):
+        print("Running on target: %s" % target)
+        with tvm.target.Target(target):
+            s = tvm.topi.testing.get_injective_schedule(target)(B)
+        foo = tvm.build(s, [A, B], target, name="dynamic_expand_dims")
+
         data_npy = np.random.uniform(size=in_shape).astype(A.dtype)
         out_npy = data_npy.reshape(out_shape)
         data_nd = tvm.nd.array(data_npy, dev)
@@ -850,6 +868,16 @@ def test_strided_set():
 def test_expand_dims():
     verify_expand_dims((3, 10), (3, 10, 1, 1), 2, 2)
     verify_expand_dims((3, 10), (1, 3, 10), -3, 1)
+
+
+@tvm.testing.uses_gpu
+def test_dynamic_expand_dims():
+    verify_dynamic_expand_dims((3,), (1, 3), 0)
+    verify_dynamic_expand_dims((3,), (3, 1), 1)
+
+    verify_dynamic_expand_dims((3, 10), (1, 3, 10), 0)
+    verify_dynamic_expand_dims((3, 10), (3, 1, 10), 1)
+    verify_dynamic_expand_dims((3, 10), (3, 10, 1), 2)
 
 
 @tvm.testing.uses_gpu
