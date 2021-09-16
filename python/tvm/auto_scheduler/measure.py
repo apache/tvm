@@ -818,7 +818,7 @@ def prepare_input_map(args):
     return tensor_input_map
 
 
-def prepare_runner_args(inp, build_res):
+def prepare_runner_args(inp, build_res, dev):
     """This function prepares the pre-defined arguments in `TASK_INPUT_BUFFER_TABLE` for local/rpc
     runner in main process
 
@@ -840,6 +840,9 @@ def prepare_runner_args(inp, build_res):
     # pylint: disable=import-outside-toplevel
     from .search_task import get_task_input_buffer  # lazily import to avoid recursive dependency
 
+    random_fill = tvm.get_global_func("tvm.contrib.random.random_fill", True)
+    assert random_fill, "Please make sure USE_RANDOM is ON in the config.cmake"
+
     task_input_names = inp.task.task_input_names
     tensor_input_map = prepare_input_map(build_res.args)
     if not task_input_names:
@@ -852,7 +855,7 @@ def prepare_runner_args(inp, build_res):
             if tensor_name in task_input_names:
                 task_input_buffer = get_task_input_buffer(inp.task.workload_key, tensor_name)
                 # convert tvm.NDArray to picklable numpy.ndarray
-                args.append(task_input_buffer.numpy())
+                args.append(ndarray.array(task_input_buffer), dev)
                 task_inputs_count += 1
             else:
                 raise ValueError(
@@ -860,7 +863,9 @@ def prepare_runner_args(inp, build_res):
                     + "should provide with `SearchTask(..., task_inputs={...})`"
                 )
         else:
-            args.append(None)
+            empty_array = ndarray.empty(get_const_tuple(arg.shape), arg.dtype, dev)
+            random_fill(empty_array)
+            args.append(empty_array)
     if task_inputs_count != len(task_input_names):
         raise RuntimeError("task_inputs not fully matched, check if there's any unexpected error")
     return args
@@ -869,7 +874,6 @@ def prepare_runner_args(inp, build_res):
 def _timed_eval_func(
     inp_serialized,
     build_res,
-    args,
     number,
     repeat,
     min_repeat_ms,
@@ -906,20 +910,8 @@ def _timed_eval_func(
 
     if error_no == 0:
         try:
-            random_fill = tvm.get_global_func("tvm.contrib.random.random_fill", True)
-            assert random_fill, "Please make sure USE_RANDOM is ON in the config.cmake"
+            args = prepare_runner_args(inp, build_res, dev)
             assert len(args) == len(build_res.args)
-            # pylint: disable=consider-using-enumerate
-            for idx in range(len(args)):
-                if args[idx] is None:
-                    build_res_arg = build_res.args[idx]
-                    empty_array = ndarray.empty(
-                        get_const_tuple(build_res_arg.shape), build_res_arg.dtype, dev
-                    )
-                    random_fill(empty_array)
-                    args[idx] = empty_array
-                else:
-                    args[idx] = ndarray.array(args[idx], dev)
             dev.sync()
             costs = time_f(*args).results
         # pylint: disable=broad-except
@@ -1010,7 +1002,6 @@ def local_run(
                 time.time(),
             )
         else:
-            args = prepare_runner_args(inp, build_res)
             res = call_func_with_timeout(
                 worker,
                 timeout,
@@ -1018,7 +1009,6 @@ def local_run(
                 args=(
                     inp.serialize(),
                     build_res,
-                    args,
                     number,
                     repeat,
                     min_repeat_ms,
@@ -1059,7 +1049,6 @@ def local_run(
 def _rpc_run(
     inp_serialized,
     build_res,
-    args,
     key,
     host,
     port,
@@ -1106,23 +1095,9 @@ def _rpc_run(
         try:
             stream = dev.create_raw_stream()
             dev.set_raw_stream(stream)
-            random_fill = remote.get_function("tvm.contrib.random.random_fill")
-            assert (
-                random_fill
-            ), "Please make sure USE_RANDOM is ON in the config.cmake on the remote devices"
 
+            args = prepare_runner_args(inp, build_res, dev)
             assert len(args) == len(build_res.args)
-            # pylint: disable=consider-using-enumerate
-            for idx in range(len(args)):
-                if args[idx] is None:
-                    build_res_arg = build_res.args[idx]
-                    empty_array = ndarray.empty(
-                        get_const_tuple(build_res_arg.shape), build_res_arg.dtype, dev
-                    )
-                    random_fill(empty_array)
-                    args[idx] = empty_array
-                else:
-                    args[idx] = ndarray.array(args[idx], dev)
             dev.sync()
 
             # First run for check that the kernel is correct
@@ -1169,7 +1144,7 @@ def _rpc_run_worker(args):
     res : MeasureResult
         The measure result of this Runner thread.
     """
-    _, build_res, _, _, _, _, _, timeout, _, _, _, _, _, verbose = args
+    _, build_res, _, _, _, _, timeout, _, _, _, _, _, verbose = args
     if build_res.error_no != MeasureErrorNo.NO_ERROR:
         return (
             (MAX_FLOAT,),
@@ -1275,7 +1250,6 @@ def rpc_runner_run(
             (
                 inp.serialize(),
                 build_res,
-                prepare_runner_args(inp, build_res),
                 key,
                 host,
                 port,
