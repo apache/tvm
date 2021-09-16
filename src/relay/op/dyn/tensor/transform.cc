@@ -648,8 +648,6 @@ Array<te::Tensor> ExpandDimsCompute(const Attrs& attrs, const Array<te::Tensor>&
   ICHECK_EQ(inputs.size(), 2);
 
   Array<IndexExpr> ishape = inputs[0]->shape;
-  Array<IndexExpr> oshape;
-
   const TensorTypeNode* out_ttype = out_type.as<TensorTypeNode>();
   int ndim_out = out_ttype->shape.size();
   int ndim_in = ishape.size();
@@ -671,7 +669,7 @@ Array<te::Tensor> ExpandDimsCompute(const Attrs& attrs, const Array<te::Tensor>&
   If we copied the first R elements:
     Forward Pass : [a, b, c, d, ?]
     Answer       : [a, 1, b, c, d]
-  Likewise if we copy from the back, the first `R - N` elements will be correct:
+  Likewise if we copy from the back, the first `R - N - 1` elements will be correct:
     Backward Pass: [?, a, b, c, d]
     Answer       : [a, 1, b, c, d]
 
@@ -688,6 +686,8 @@ Array<te::Tensor> ExpandDimsCompute(const Attrs& attrs, const Array<te::Tensor>&
   Note we have to do this because we can only use the current index to determine the output
   of an array.
   */
+  Array<IndexExpr> oshape;
+  PrimExpr axis = inputs[1](0);  // unpack the scalar
 
   // Initialize output shape array
   for (int i = 0; i < ndim_out; i++) {
@@ -695,17 +695,17 @@ Array<te::Tensor> ExpandDimsCompute(const Attrs& attrs, const Array<te::Tensor>&
   }
 
   // Forward fill
-  IndexExpr cur_dim_out = IndexExpr(0);  // cur_dim in output array
+  IndexExpr cur_dim_out = IndexExpr(0);
   for (int i = 0; i < ndim_in; i++) {
-    IndexExpr next_index_dim = if_then_else(cur_dim_out < inputs[1], ishape[i], oshape[i]);
+    IndexExpr next_index_dim = if_then_else(cur_dim_out < axis, ishape[i], oshape[i]);
     oshape.Set(i, next_index_dim);
     cur_dim_out += 1;
   }
 
   // Backward fill
-  cur_dim_out = IndexExpr(ndim_out - 1);  // cur_dim in output array
+  cur_dim_out = IndexExpr(ndim_out - 1);
   for (int i = ndim_in - 1; i >= 0; i--) {
-    IndexExpr next_index_dim = if_then_else(inputs[1] < cur_dim_out, ishape[i], oshape[i + 1]);
+    IndexExpr next_index_dim = if_then_else(axis < cur_dim_out, ishape[i], oshape[i + 1]);
     oshape.Set(i + 1, next_index_dim);
     cur_dim_out -= 1;
   }
