@@ -187,6 +187,31 @@ def test_expand_dims():
 
 
 @tvm.testing.uses_gpu
+def test_dyn_expand_dims():
+    def verify_expand_dims(dshape, dtype, oshape, axis):
+        x = relay.Var("x", relay.TensorType(dshape, dtype))
+        y = relay.var("axis", shape=[], dtype="int32")
+        func = relay.Function([x, y], relay.expand_dims(x, axis=y, num_newaxis=1))
+        for target, dev in tvm.testing.enabled_targets():
+            if (
+                dtype == "float16"
+                and target == "cuda"
+                and not have_fp16(tvm.cuda(0).compute_version)
+            ):
+                continue
+            data = np.random.uniform(size=dshape).astype(dtype)
+            ref_res = data.reshape(oshape)
+            op_res = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
+                data, axis
+            )
+            np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=0.01)
+
+    for dtype in ["float16", "float32"]:
+        verify_expand_dims((3, 10), dtype, (3, 10, 1), 2)
+        verify_expand_dims((3, 10), dtype, (1, 3, 10), 0)
+
+
+@tvm.testing.uses_gpu
 def test_bias_add():
     for dtype in ["float16", "float32"]:
         xshape = (10, 2, 3, 4)

@@ -629,7 +629,7 @@ bool ExpandDimsRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     return false;
   }
   const auto* axis_type = types[1].as<TensorTypeNode>();
-  ICHECK(axis_type->shape.size() == 1) << "Axis should be one dimensional or scalar!";
+  ICHECK(axis_type->shape.size() == 0) << "Axis should scalar!";
 
   // We don't know the output shape until we see the value of the axis input
   int ndim = data_type->shape.size();
