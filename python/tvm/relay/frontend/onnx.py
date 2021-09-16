@@ -3550,7 +3550,8 @@ class NegativeLogLikelihoodLoss(OnnxOpConverter):
     VALID_REDUCTIONS = {"mean", "sum", "none"}
 
     @classmethod
-    def _run_calculation(
+    def run_calculation(
+        cls: "NegativeLogLikelihoodLoss",
         input_tensor: relay.Expr,
         target_tensor: relay.Expr,
         weight_tensor: Optional[relay.Expr],
