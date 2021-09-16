@@ -4145,11 +4145,7 @@ def test_non_max_suppression(target, dev):
     )
 
 
-# @tvm.testing.parametrize_targets
-@pytest.mark.skip(
-    "Test regressed due to not being run in CI"
-    + " tracked here: https://github.com/apache/tvm/pull/8274"
-)
+@tvm.testing.parametrize_targets
 def test_loop(target, dev):
     def verify_cond_loop():
         y_in = helper.make_tensor_value_info("y_in", TensorProto.FLOAT, [1])

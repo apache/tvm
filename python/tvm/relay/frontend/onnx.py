@@ -69,7 +69,11 @@ class onnx_input(list):
 
     def __getitem__(self, item):
         if isinstance(item, slice):
-            indices = list(range(item.stop)[item])
+            if item.stop is None:
+                stop = len(self)
+            else:
+                stop = item.stop
+            indices = list(range(stop)[item])
             return [self[i] for i in indices]
         if isinstance(item, int):
             return list(self)[item] if item < len(self) else None
