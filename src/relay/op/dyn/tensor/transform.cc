@@ -638,7 +638,9 @@ bool ExpandDimsRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   for (int i = 0; i < ndim + 1; i++) {
     oshape.push_back(Any());
   }
-  reporter->Assign(types[1], TensorType(oshape, data_type->dtype));
+
+  // Set output shape
+  reporter->Assign(types[2], TensorType(oshape, data_type->dtype));
   return true;
 }
 
@@ -709,7 +711,7 @@ Array<te::Tensor> ExpandDimsCompute(const Attrs& attrs, const Array<te::Tensor>&
     oshape.Set(i + 1, next_index_dim);
     cur_dim_out -= 1;
   }
-
+  LOG(WARNING) << "&&&&&&" << oshape;
   return {topi::reshape(inputs[0], oshape)};
 }
 
