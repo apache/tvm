@@ -645,6 +645,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const ModNode* op) {
     if (truncmod(ramp(b1, c1, lanes), broadcast(c2, lanes)).Match(ret)) {
       int64_t c1val = c1.Eval()->value;
       int64_t c2val = c2.Eval()->value;
+      ICHECK(c2val != 0) << "division by zero";
       if (c1val % c2val == 0) {
         return broadcast(truncmod(b1, c2), lanes).Eval();
       }
@@ -724,6 +725,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
     if (floordiv(ramp(b1, c1, lanes), broadcast(c2, lanes)).Match(ret)) {
       int64_t c1val = c1.Eval()->value;
       int64_t c2val = c2.Eval()->value;
+      ICHECK(c2val != 0) << "division by zero";
       if (c1val % c2val == 0) {
         return ramp(floordiv(b1, c2), floordiv(c1, c2), lanes).Eval();
       }
@@ -852,6 +854,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
     if (floormod(ramp(b1, c1, lanes), broadcast(c2, lanes)).Match(ret)) {
       int64_t c1val = c1.Eval()->value;
       int64_t c2val = c2.Eval()->value;
+      ICHECK(c2val != 0) << "division by zero";
       if (c1val % c2val == 0) {
         return broadcast(floormod(b1, c2), lanes).Eval();
       }
