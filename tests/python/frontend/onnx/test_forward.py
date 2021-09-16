@@ -4145,11 +4145,7 @@ def test_non_max_suppression(target, dev):
     )
 
 
-# @tvm.testing.parametrize_targets
-@pytest.mark.skip(
-    "Test regressed due to not being run in CI"
-    + " tracked here: https://github.com/apache/tvm/pull/8274"
-)
+@tvm.testing.parametrize_targets
 def test_loop(target, dev):
     def verify_cond_loop():
         y_in = helper.make_tensor_value_info("y_in", TensorProto.FLOAT, [1])
@@ -4711,8 +4707,6 @@ onnx_test_folders = sorted(
 )
 
 unsupported_onnx_tests = [
-    "test_adam",
-    "test_adam_multiple",
     "test_cast_BFLOAT16_to_FLOAT",
     "test_cast_DOUBLE_to_FLOAT16",
     "test_cast_FLOAT_to_BFLOAT16",
@@ -4737,11 +4731,6 @@ unsupported_onnx_tests = [
     "test_dropout_default_mask",
     "test_dropout_default_mask_ratio",
     "test_dropout_default_ratio",
-    "test_einsum_batch_diagonal",
-    "test_einsum_batch_matmul",
-    "test_einsum_inner_prod",
-    "test_einsum_sum",
-    "test_einsum_transpose",
     "test_greater_equal",
     "test_greater_equal_bcast",
     "test_if_seq",
@@ -4762,10 +4751,7 @@ unsupported_onnx_tests = [
     "test_maxpool_with_argmax_2d_precomputed_pads",
     "test_maxpool_with_argmax_2d_precomputed_strides",
     "test_maxunpool_export_with_output_shape",
-    "test_momentum",
-    "test_momentum_multiple",
     "test_mvn",
-    "test_nesterov_momentum",
     # When unsqueeze is fully supported, remaining nllloss tests should work:
     "test_nllloss_NC_expanded",
     "test_nllloss_NCd1_expanded",
@@ -4785,11 +4771,6 @@ unsupported_onnx_tests = [
     "test_nllloss_NCd1d2d3_sum_weight_high_ii_expanded",
     "test_nllloss_NCd1d2d3d4d5_mean_weight_expanded",
     "test_nllloss_NCd1d2d3d4d5_none_no_weight_expanded",
-    # These nllloss tests are flaky and sometimes gives NaNs
-    # Investigate it here: https://github.com/apache/tvm/issues/8918
-    "test_nllloss_NCd1d2d3_none_no_weight_negative_ii",
-    # Investigate it here: https://github.com/apache/tvm/issues/8964
-    "test_nllloss_NCd1d2d3_sum_weight_high_ii",
     "test_qlinearmatmul_2D",
     "test_qlinearmatmul_3D",
     "test_range_float_type_positive_delta_expanded",
