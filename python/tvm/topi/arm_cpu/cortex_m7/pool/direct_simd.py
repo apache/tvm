@@ -66,6 +66,19 @@ def schedule_maxpool_2d_nhwc(s, op):
     s[output].pragma(n, "import_c", max_pool_impl(uniq_id))
 
 
+def schedule_avgpool_1d_ncw(s, op):
+    output = op.output(0)
+    data_vec = op.input_tensors[0]
+
+    n, _, _ = s[op].op.axis
+    k, = s[op].op.reduce_axis
+    pool_w = k.dom.extent.value
+
+    sum, uniq_id = intrin_sum((1, 1, pool_w), data_vec.dtype, output.dtype)
+    s[op].tensorize(k, sum)
+    s[output].pragma(n, "import_c", sum_impl(pool_w, uniq_id))
+
+
 def schedule_avgpool_2d_nchw(s, op):
     output = op.output(0)
     data_vec = op.input_tensors[0]
@@ -74,7 +87,7 @@ def schedule_avgpool_2d_nchw(s, op):
     ko, ki = s[op].op.reduce_axis
     pool_w = ki.dom.extent.value
 
-    sum, uniq_id = intrin_sum(pool_w, data_vec.dtype, output.dtype)
+    sum, uniq_id = intrin_sum((1, 1, 1, pool_w), data_vec.dtype, output.dtype)
     s[op].tensorize(ki, sum)
     s[output].pragma(n, "import_c", sum_impl(pool_w, uniq_id))
 
@@ -90,7 +103,10 @@ def pool_direct_simd_schedule(outs, layout):
             elif layout == "NHWC":
                 schedule_maxpool_2d_nhwc(s, op)
         elif "pool_sum" in op.tag:
-            schedule_avgpool_2d_nchw(s, op)
+            if layout == "NCW":
+                schedule_avgpool_1d_ncw(s, op)
+            elif layout == "NCHW":
+                schedule_avgpool_2d_nchw(s, op)
 
     traverse_inline(s, outs[-1].op, _callback)
     return s
