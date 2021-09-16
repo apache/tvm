@@ -20,7 +20,6 @@
 import warnings
 
 import numpy as np
-from paddle.nn.functional.common import alpha_dropout
 
 import tvm
 from tvm.ir import IRModule
