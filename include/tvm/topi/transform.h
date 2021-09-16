@@ -197,14 +197,7 @@ inline Tensor dynamic_expand_dims(const Tensor& x, const PrimExpr& axis,
     cur_dim_out -= 1;
   }
 
-  return compute(
-      oshape,
-      [&](const Array<Var>& indices) {
-        return x(UnravelIndex(RavelIndex(Array<PrimExpr>{indices.begin(), indices.end()}, oshape),
-                              ishape));
-      },
-      name, tag);
-  // return reshape(x, oshape, name, tag);
+  return reshape(x, oshape, name, tag);
 }
 
 /*!
