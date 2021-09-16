@@ -16,15 +16,14 @@
 # under the License.
 import numpy as np
 import pytest
-import tvm
-from tvm import te
 import scipy
-from tvm import relay
+import tvm
+import tvm.testing
+import tvm.topi.testing
+from tvm import relay, te
+from tvm.contrib.nvcc import have_fp16
 from tvm.relay import transform
 from tvm.relay.testing import run_infer_type
-import tvm.topi.testing
-from tvm.contrib.nvcc import have_fp16
-import tvm.testing
 
 
 def sigmoid(x):
@@ -190,8 +189,8 @@ def test_expand_dims():
 def test_dyn_expand_dims():
     def verify_expand_dims(dshape, dtype, oshape, axis):
         x = relay.Var("x", relay.TensorType(dshape, dtype))
-        y = relay.var("axis", shape=[], dtype="int32")
-        func = relay.Function([x, y], relay.expand_dims(x, axis=y, num_newaxis=1))
+        y = relay.var("axis", shape=[], dtype="int16")
+        mod = tvm.IRModule.from_expr(relay.expand_dims(x, axis=y, num_newaxis=1))
         for target, dev in tvm.testing.enabled_targets():
             if (
                 dtype == "float16"
@@ -201,7 +200,7 @@ def test_dyn_expand_dims():
                 continue
             data = np.random.uniform(size=dshape).astype(dtype)
             ref_res = data.reshape(oshape)
-            op_res = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
+            op_res = relay.create_executor("vm", device=dev, target=target, mod=mod).evaluate(
                 data, axis
             )
             np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=0.01)
