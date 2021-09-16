@@ -5432,9 +5432,35 @@ def test_qlinearmul(target, dev):
         model = helper.make_model(graph, producer_name="qlinearmul_test")
         quantize_and_verify_with_ort(model, input_names, [a_shape, b_shape], target, dev)
 
+    verify_qlinearmul([7], [7], [7])
     verify_qlinearmul([4, 2], [4, 2], [4, 2])
     verify_qlinearmul([4, 2], [2], [4, 2])
     verify_qlinearmul([5, 1, 7], [2, 7], [5, 2, 7])
+
+
+@tvm.testing.parametrize_targets
+def test_qlinearsigmoid(target, dev):
+    def verify_qlinearsigmoid(a_shape):
+
+        a_array = np.random.random(a_shape).astype("float32")
+
+        input_nodes = [helper.make_tensor_value_info("a", TensorProto.FLOAT, list(a_shape))]
+
+        input_values = [a_array]
+
+        node = helper.make_node("Sigmoid", ["a"], ["B"])
+        graph = helper.make_graph(
+            [node],
+            "qlinearsigmoid_test",
+            inputs=input_nodes,
+            outputs=[helper.make_tensor_value_info("B", TensorProto.FLOAT, list(a_shape))],
+        )
+        model = helper.make_model(graph, producer_name="qlinearsigmoid_test")
+        quantize_and_verify_with_ort(model, ["a"], [a_shape], target, dev)
+
+    verify_qlinearsigmoid([4, 2])
+    verify_qlinearsigmoid([5])
+    verify_qlinearsigmoid([3, 4, 5])
 
 
 @tvm.testing.parametrize_targets
