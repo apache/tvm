@@ -85,7 +85,6 @@ class ControlFlow:
         loop_vars = list()
         loop_vars.append(cond_var)
         for i, name in enumerate(op.input("X")):
-            a = graph.get_node(name)
             shape = infer_shape(graph.get_node(name))
             dtype = program.blocks[0].var(name).dtype
             dtype = str(dtype).strip().split(".")[1]
@@ -1066,7 +1065,9 @@ def convert_lookup_table(g, op, block):
             weights = _expr.const(weights)
         else:
             shape = _infer_value(shape_of(weights), g.get_params())
-            assert not isinstance(shape, _expr.Expr), "Shape of weight has to be fixed for PaddlePaddle's lookup_table"
+            assert not isinstance(
+                shape, _expr.Expr
+            ), "Shape of weight has to be fixed for PaddlePaddle's lookup_table"
             filters = np.ones(shape).astype(infer_type(weights).checked_type.dtype)
             filters[padding_idx] = 0.0
             filters = _expr.const(filters)
@@ -2144,7 +2145,9 @@ class GraphProto:
             if self.freeze_params:
                 self.nodes[name] = _expr.const(self.params[name])
             else:
-                self.nodes[name] = _expr.var(name, shape=self.params[name].shape, dtype=str(self.params[name].dtype))
+                self.nodes[name] = _expr.var(
+                    name, shape=self.params[name].shape, dtype=str(self.params[name].dtype)
+                )
 
     def check_input_shape(self, op, block):
         """Check the shape information of model's inputs, fixed shape is recommended."""

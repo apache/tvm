@@ -892,7 +892,7 @@ def test_forward_activation():
 
     input_shape = [1, 3, 10, 10]
     input_data = paddle.rand(input_shape, dtype="float32")
-    input_data_2 = paddle.rand(1, 100, input_shape).astype("float16")
+    input_data_2 = paddle.rand(input_shape).astype("float16")
     op_list = ["elu", "hardshrink", "hardsigmoid", "hardswish", "hardtanh", "relu", "sigmoid"]
     for op_name in op_list:
         verify_model(Activation(op_name), input_data=input_data)
@@ -1757,7 +1757,7 @@ if __name__ == "__main__":
     test_forward_topk()
     test_forward_tile()
     test_forward_conv_transpose()
-    test_forward_unary_op()
+    test_forward_math()
     test_forward_zeros()
     test_forward_where()
     test_forward_while()
