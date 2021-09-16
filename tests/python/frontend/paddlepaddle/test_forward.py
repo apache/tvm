@@ -135,10 +135,10 @@ def verify_model(func, input_data, rtol=1e-5, atol=1e-5, input_shape=None):
 
 
 @tvm.testing.uses_gpu
-def test_forward_unary_op():
-    class UnaryOp(nn.Layer):
+def test_forward_math():
+    class MathOp(nn.Layer):
         def __init__(self, op_name):
-            super(UnaryOp, self).__init__()
+            super(MathOp, self).__init__()
             for candidate in (paddle, paddle.nn.functional):
                 self.func = getattr(candidate, op_name, None)
                 if self.func:
@@ -166,16 +166,14 @@ def test_forward_unary_op():
         "log1p",
         "numel",
         "reciprocal",
-        "relu",
         "rsqrt",
-        "sigmoid",
         "sin",
         "square",
         "tan",
         "tanh",
     ]
     for op_name in op_list:
-        verify_model(UnaryOp(op_name), input_data)
+        verify_model(MathOp(op_name), input_data)
 
 
 @tvm.testing.uses_gpu
@@ -516,7 +514,6 @@ def test_forward_cumsum():
 
 @tvm.testing.uses_gpu
 def test_forward_conv():
-    conv2d_input_shape = [1, 3, 10, 10]
 
     class Conv2D1(nn.Layer):
         def __init__(self):
@@ -528,6 +525,7 @@ def test_forward_conv():
         def forward(self, inputs):
             return self.softmax(self.conv(inputs))
 
+
     class Conv2D2(nn.Layer):
         def __init__(self):
             super(Conv2D2, self).__init__()
@@ -538,9 +536,32 @@ def test_forward_conv():
         def forward(self, inputs):
             return self.softmax(self.conv(inputs))
 
+
+    class Conv2D3(nn.Layer):
+        def __init__(self):
+            super(Conv2D3, self).__init__()
+            self.conv = nn.Conv2D(3, 6, 7, groups=3, bias_attr=False, padding="SAME")
+
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return self.conv(inputs)
+
+
+    class Conv2D4(nn.Layer):
+        def __init__(self):
+            super(Conv2D4, self).__init__()
+            self.conv = nn.Conv2D(3, 6, 7, groups=3, bias_attr=False, padding=[1, 2, 0, 1], stride=2, dilation=2)
+
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return self.conv(inputs)
+
+    conv2d_input_shape = [1, 3, 112, 112]
     conv2d_input_data = paddle.rand(conv2d_input_shape, dtype="float32")
     verify_model(Conv2D1(), input_data=conv2d_input_data)
     verify_model(Conv2D2(), input_data=conv2d_input_data)
+    verify_model(Conv2D3(), input_data=conv2d_input_data)
+    verify_model(Conv2D4(), input_data=conv2d_input_data)
 
 
 @tvm.testing.uses_gpu
@@ -843,19 +864,19 @@ def test_forward_gelu():
 def test_forward_group_norm():
     class GroupNorm(nn.Layer):
         def __init__(self, channels, groups):
-            super(GroupNorm).__init__()
+            super(GroupNorm, self).__init__()
             self.group_norm = paddle.nn.GroupNorm(num_channels=channels, num_groups=groups)
 
         def forward(self, inputs):
-            self.group_norm(inputs)
+            return self.group_norm(inputs)
 
-    x_data = np.random.random(size=(2, 6, 2, 2)).astype("float32")
-    x = paddle.to_tensor(x_data)
+    input_shape = [2, 6, 2, 2]
+    x = paddle.rand(input_shape, dtype="float32")
     verify_model(GroupNorm(6, 6), x)
 
 
 @tvm.testing.uses_gpu
-def test_forward_hard_activation():
+def test_forward_activation():
     class Activation(nn.Layer):
         def __init__(self, op_name):
             super(Activation, self).__init__()
@@ -871,11 +892,11 @@ def test_forward_hard_activation():
 
     input_shape = [1, 3, 10, 10]
     input_data = paddle.rand(input_shape, dtype="float32")
-    input_data_2 = paddle.randint(1, 100, input_shape, dtype="int32")
-    op_list = ["elu", "hardshrink", "hardsigmoid", "hardswish", "hardtanh"]
+    input_data_2 = paddle.rand(1, 100, input_shape).astype("float16")
+    op_list = ["elu", "hardshrink", "hardsigmoid", "hardswish", "hardtanh", "relu", "sigmoid"]
     for op_name in op_list:
         verify_model(Activation(op_name), input_data=input_data)
-        verify_model(Activation(op_name), input_data=input_data_2)
+        verify_model(Activation(op_name), input_data=input_data_2, rtol=1e-3, atol=1e-3)
 
 
 @tvm.testing.uses_gpu
@@ -1485,10 +1506,10 @@ def test_forward_slice():
 
     input_shape = [1, 3, 10, 10]
     input_data = paddle.rand(input_shape, dtype="float32")
-    #verify_model(slice1, input_data=input_data)
-    #verify_model(slice2, input_data=input_data)
-    #verify_model(slice3, input_data=paddle.randn((4, 4)))
-    #verify_model(slice4, input_data=input_data)
+    verify_model(slice1, input_data=input_data)
+    verify_model(slice2, input_data=input_data)
+    verify_model(slice3, input_data=paddle.randn((4, 4)))
+    verify_model(slice4, input_data=input_data)
     verify_model(slice5, input_data=input_data)
 
 
@@ -1662,6 +1683,24 @@ def test_forward_where():
     verify_model(Where(), [x < y, x, y])
 
 
+@tvm.testing.uses_gpu
+def test_forward_while():
+    class While(nn.Layer):
+        def __init__(self):
+            super(While, self).__init__()
+
+        def forward(self, x):
+            s = paddle.shape(x)
+            i = paddle.slice(s, axes=[0], starts=[0], ends=[1])
+            y = paddle.to_tensor(np.array([5]).astype("int32"))
+            while i < y:
+                i *= np.array([3], dtype="int32")
+            return i
+
+    input_data1 = paddle.rand([1, 3, 224, 224], dtype="float32")
+    verify_model(While(), input_data=[input_data1], input_shape=[[-1, 3, -1, -1]])
+
+
 if __name__ == "__main__":
     test_forward_add_subtract()
     test_forward_addmm()
@@ -1691,7 +1730,8 @@ if __name__ == "__main__":
     test_forward_gather_nd()
     test_forward_gelu()
     test_forward_group_norm()
-    test_forward_hard_activation()
+    test_forward_math()
+    test_forward_activation()
     test_forward_index_select()
     test_forward_instance_norm()
     test_forward_interpolate()
@@ -1720,3 +1760,4 @@ if __name__ == "__main__":
     test_forward_unary_op()
     test_forward_zeros()
     test_forward_where()
+    test_forward_while()

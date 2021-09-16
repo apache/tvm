@@ -25,6 +25,7 @@ import tvm
 from tvm.ir import IRModule
 
 from .. import analysis
+from .. import ty as _ty
 from .. import expr as _expr
 from ..loops import while_loop
 from .. import function as _function
@@ -786,6 +787,9 @@ def convert_feed(g, op, block):
         ipt_name = op.name
     if g.shape_dict is not None:
         ipt_shape = g.shape_dict[ipt_name]
+    for i, s in enumerate(ipt_shape):
+        if s < 0:
+            ipt_shape[i] = _ty.Any()
     out = new_var(ipt_name, shape=ipt_shape, dtype=ipt_dtype)
     g.add_node(ipt_name, out)
 
@@ -1098,6 +1102,29 @@ def convert_logical_not(g, op, block):
     ipt0 = g.get_node(op.input("X")[0])
     op_func = get_relay_op(op.type)
     out = op_func(ipt0)
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_logsigmoid(g, op, block):
+    """Operator converter for logsigmoid."""
+
+    x = g.get_node(op.input("X")[0])
+    out = _op.log(_op.tensor.sigmoid(x))
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_logsoftmax(g, op, block):
+    """Operator converter for logsoftmax."""
+
+    x = g.get_node(op.input("X")[0])
+    axis = op.attr("axis")
+    ndim = len(infer_shape(x))
+    if axis < 0:
+        axis += ndim
+    m = _op.max(x, [axis], keepdims=True)
+    e = _op.exp(x - m)
+    s = _op.sum(e, [axis], keepdims=True)
+    out = x - m - _op.log(s)
     g.add_node(op.output("Out")[0], out)
 
 
@@ -2014,6 +2041,8 @@ _convert_map = {
     "logical_not": convert_logical_not,
     "logical_or": convert_logical_op,
     "logical_xor": convert_logical_op,
+    "logsigmoid": convert_logsigmoid,
+    "log_softmax": convert_logsoftmax,
     "logsumexp": convert_logsumexp,
     "matmul": convert_matmul,
     "matmul_v2": convert_matmul,
