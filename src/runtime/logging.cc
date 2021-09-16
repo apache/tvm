@@ -226,7 +226,7 @@ std::unordered_map<std::string, int> ParseTvmLogDebugSpec(const char* opt_spec) 
 
 const std::unordered_map<std::string, int>& TvmLogDebugSpec() {
   // Parse and cache the verbosity level map.
-  const auto* map =
+  static const auto* map =
       new std::unordered_map<std::string, int>(ParseTvmLogDebugSpec(std::getenv("TVM_LOG_DEBUG")));
   return *map;
 }
