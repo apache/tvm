@@ -36,4 +36,3 @@ if [[ ($DOCS_DIR -eq !$OTHER_DIR) || ($OTHER_DIR -eq 1) ]]; then
 else
     exit 0
 fi
-

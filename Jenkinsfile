@@ -153,12 +153,12 @@ stage("Sanity Check") {
   timeout(time: max_time, unit: 'MINUTES') {
     node('CPU') {
       ws(per_exec_ws("tvm/sanity")) {
-        init_git()
-       def docs = sh (returnStatus: true, script: '''
-         ./git_changed_status.sh
+       init_git()
+       docs = sh (returnStatus: true, script: '''
+        ./tests/scripts/git_check_tree.sh
         '''
-        )        
-        sh "${docker_run} ${ci_lint}  ./tests/scripts/task_lint.sh"
+        )
+        // sh "${docker_run} ${ci_lint}  ./tests/scripts/task_lint.sh"
       }
     }
   }
@@ -206,47 +206,46 @@ def unpack_lib(name, libs) {
 }
 
 stage('Build') {
-  parallel 'BUILD: GPU': {
-    node('GPUBUILD') {
-      ws(per_exec_ws("tvm/build-gpu")) {
-        init_git()
-        sh "${docker_run} ${ci_gpu} ./tests/scripts/task_config_build_gpu.sh"
-        make(ci_gpu, 'build', '-j2')
-        pack_lib('gpu', tvm_multilib)
-        // compiler test
-        sh "${docker_run} ${ci_gpu} ./tests/scripts/task_config_build_gpu_vulkan.sh"
-        make(ci_gpu, 'build2', '-j2')
+    parallel 'BUILD: GPU': {
+    if( docs == 0) {
+      node('GPUBUILD') {
+        ws(per_exec_ws("tvm/build-gpu")) {
+          init_git()
+          sh "${docker_run} ${ci_gpu} ./tests/scripts/task_config_build_gpu.sh"
+          make(ci_gpu, 'build', '-j2')
+          pack_lib('gpu', tvm_multilib)
+          // compiler test
+          sh "${docker_run} ${ci_gpu} ./tests/scripts/task_config_build_gpu_vulkan.sh"
+          make(ci_gpu, 'build2', '-j2')
+        }
       }
     }
   },
   'BUILD: CPU': {
-    if (docs == 1 ) {
-      node('CPU') {
-          ws(per_exec_ws("tvm/build-cpu")) {
-            init_git() 
-              sh "${docker_run} ${ci_cpu} ./tests/scripts/task_config_build_cpu.sh"
-              make(ci_cpu, 'build', '-j2')
-              pack_lib('cpu', tvm_multilib_tsim)
-              timeout(time: max_time, unit: 'MINUTES') {
-                sh "${docker_run} ${ci_cpu} ./tests/scripts/task_ci_setup.sh"
-                sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_unittest.sh"
-                sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh"
-                sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_fsim.sh"
-                sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_tsim.sh"
-                // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
-                // TODO(@jroesch): need to resolve CI issue will turn back on in follow up patch
-                sh "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh"
-                junit "build/pytest-results/*.xml"
-              }
-          }
+    node('CPU') {
+      ws(per_exec_ws("tvm/build-cpu")) {
+        init_git()
+        sh "${docker_run} ${ci_cpu} ./tests/scripts/task_config_build_cpu.sh"
+        make(ci_cpu, 'build', '-j2')
+        pack_lib('cpu', tvm_multilib_tsim)
+        timeout(time: max_time, unit: 'MINUTES') {
+          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_ci_setup.sh"
+          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_unittest.sh"
+          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh"
+          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_fsim.sh"
+          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_tsim.sh"
+          // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
+          // TODO(@jroesch): need to resolve CI issue will turn back on in follow up patch
+          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh"
+          junit "build/pytest-results/*.xml"
+        }
       }
     }
-    },
+  },
   'BUILD: WASM': {
-    node('CPU') {
-      ws(per_exec_ws("tvm/build-wasm")) {
-        init_git()
-        if (docs == 0 ) {
+      node('CPU') {
+        ws(per_exec_ws("tvm/build-wasm")) {
+          init_git()
           sh "${docker_run} ${ci_wasm} ./tests/scripts/task_config_build_wasm.sh"
           make(ci_wasm, 'build', '-j2')
           timeout(time: max_time, unit: 'MINUTES') {
@@ -255,45 +254,31 @@ stage('Build') {
           }
         }
       }
-    }
   },
   'BUILD : i386': {
-    node('CPU') {
-      ws(per_exec_ws("tvm/build-i386")) {
-        init_git()
-        def docs = sh (returnStatus: true, script: '''
-          git diff-tree origin/main --no-commit-id --name-only -r HEAD | grep -v -q docs/
-        '''
-        )
-        if (docs == 0 ) {
+      node('CPU') {
+        ws(per_exec_ws("tvm/build-i386")) {
+          init_git()
           sh "${docker_run} ${ci_i386} ./tests/scripts/task_config_build_i386.sh"
           make(ci_i386, 'build', '-j2')
           pack_lib('i386', tvm_multilib_tsim)
         }
       }
-    }
   },
   'BUILD : arm': {
-    node('ARM') {
-      ws(per_exec_ws("tvm/build-arm")) {
-        init_git()
-        if (docs == 0 ) {
+      node('ARM') {
+        ws(per_exec_ws("tvm/build-arm")) {
+          init_git()
           sh "${docker_run} ${ci_arm} ./tests/scripts/task_config_build_arm.sh"
           make(ci_arm, 'build', '-j4')
           pack_lib('arm', tvm_multilib)
         }
       }
-    }
   },
   'BUILD: QEMU': {
-    node('CPU') {
-      ws(per_exec_ws("tvm/build-qemu")) {
-        init_git()
-        def docs = sh (returnStatus: true, script: '''
-          git diff-tree origin/main --no-commit-id --name-only -r HEAD | grep -v -q docs/
-        '''
-        )
-        if (docs == 0 ) {
+      node('CPU') {
+        ws(per_exec_ws("tvm/build-qemu")) {
+          init_git()
           sh "${docker_run} ${ci_qemu} ./tests/scripts/task_config_build_qemu.sh"
           make(ci_qemu, 'build', '-j2')
           timeout(time: max_time, unit: 'MINUTES') {
@@ -302,21 +287,18 @@ stage('Build') {
             junit "build/pytest-results/*.xml"
           }
         }
-      }
-    }
-  }
+     }
+  } 
 }
 
 stage('Unit Test') {
-  parallel 'python3: GPU': {
-    node('TensorCore') {
-      ws(per_exec_ws("tvm/ut-python-gpu")) {
-        init_git()
-        def docs = sh (returnStatus: true, script: '''
-          git diff-tree origin/main --no-commit-id --name-only -r HEAD | grep -v -q docs/
-        '''
-        )
-        if (docs == 0 ) {
+    when {
+      expression { docs == 1 }
+    }
+    parallel 'python3: GPU': {
+      node('TensorCore') {
+        ws(per_exec_ws("tvm/ut-python-gpu")) {
+          init_git()
           unpack_lib('gpu', tvm_multilib)
           timeout(time: max_time, unit: 'MINUTES') {
             sh "${docker_run} ${ci_gpu} ./tests/scripts/task_ci_setup.sh"
@@ -327,17 +309,11 @@ stage('Unit Test') {
           }
         }
       }
-    }
-  },
-  'python3: i386': {
-    node('CPU') {
-      ws(per_exec_ws("tvm/ut-python-i386")) {
-        init_git()
-             def docs = sh (returnStatus: true, script: '''
-          git diff-tree origin/main --no-commit-id --name-only -r HEAD | grep -v -q docs/
-        '''
-        )
-        if (docs == 0 ) {
+    },
+    'python3: i386': {
+      node('CPU') {
+        ws(per_exec_ws("tvm/ut-python-i386")) {
+          init_git()
           unpack_lib('i386', tvm_multilib)
           timeout(time: max_time, unit: 'MINUTES') {
             sh "${docker_run} ${ci_i386} ./tests/scripts/task_ci_setup.sh"
@@ -348,47 +324,34 @@ stage('Unit Test') {
           }
         }
       }
-    }
-  },
-  'python3: arm': {
-    node('ARM') {
-      ws(per_exec_ws("tvm/ut-python-arm")) {
-        init_git()
-             def docs = sh (returnStatus: true, script: '''
-          git diff-tree origin/main --no-commit-id --name-only -r HEAD | grep -v -q docs/
-        '''
-        )
-        if (docs == 0 ) {
-        unpack_lib('arm', tvm_multilib)
-        timeout(time: max_time, unit: 'MINUTES') {
-          sh "${docker_run} ${ci_arm} ./tests/scripts/task_ci_setup.sh"
-          sh "${docker_run} ${ci_arm} ./tests/scripts/task_python_unittest.sh"
-          sh "${docker_run} ${ci_arm} ./tests/scripts/task_python_arm_compute_library.sh"
-          junit "build/pytest-results/*.xml"
-            // sh "${docker_run} ${ci_arm} ./tests/scripts/task_python_integration.sh"
-        }
-        }
-      }
-    }
-  },
-  'java: GPU': {
-    node('GPU') {
-      ws(per_exec_ws("tvm/ut-java")) {
-        init_git()
-        def docs = sh (returnStatus: true, script: '''
-          git diff-tree origin/main --no-commit-id --name-only -r HEAD | grep -v -q docs/
-        '''
-        )
-        if (docs == 0 ) {
-          unpack_lib('gpu', tvm_multilib)
+    },
+    'python3: arm': {
+      node('ARM') {
+        ws(per_exec_ws("tvm/ut-python-arm")) {
+          init_git()
+          unpack_lib('arm', tvm_multilib)
           timeout(time: max_time, unit: 'MINUTES') {
-            sh "${docker_run} ${ci_gpu} ./tests/scripts/task_ci_setup.sh"
-            sh "${docker_run} ${ci_gpu} ./tests/scripts/task_java_unittest.sh"
-         }
+            sh "${docker_run} ${ci_arm} ./tests/scripts/task_ci_setup.sh"
+            sh "${docker_run} ${ci_arm} ./tests/scripts/task_python_unittest.sh"
+            sh "${docker_run} ${ci_arm} ./tests/scripts/task_python_arm_compute_library.sh"
+            junit "build/pytest-results/*.xml"
+              // sh "${docker_run} ${ci_arm} ./tests/scripts/task_python_integration.sh"
+          }
+        }
+      }
+    },
+    'java: GPU': {
+      node('GPU') {
+        ws(per_exec_ws("tvm/ut-java")) {
+          init_git()
+            unpack_lib('gpu', tvm_multilib)
+            timeout(time: max_time, unit: 'MINUTES') {
+              sh "${docker_run} ${ci_gpu} ./tests/scripts/task_ci_setup.sh"
+              sh "${docker_run} ${ci_gpu} ./tests/scripts/task_java_unittest.sh"
+          }
         }
       }
     }
-  }
 }
 
 stage('Integration Test') {
