@@ -705,7 +705,7 @@ class QLinearGlobalAveragePool(OnnxOpConverter):
         # sequence dequantize -> float op -> quantize, but that is how QLinearAveragePool is done.
         #
         # This op also follows the same pattern since qnn op is not available right now.
-        # TODO: Generate QNN op to perform quantized operation instead of dequant -> op -> float
+        # TODO: Generate QNN op to perform quantized operation instead of dequant -> op -> quant
         x = _qnn.op.dequantize(inputs[0], x_scale, x_zero_point)
         if rank == 3:
             out = _op.nn.global_avg_pool1d(x)
