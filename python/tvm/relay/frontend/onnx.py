@@ -3356,15 +3356,6 @@ class QLinearSigmoid(OnnxOpConverter):
 
     @classmethod
     def _impl_v10(cls, inputs, attr, params):
-        def get_scalar(x, dtype="float32"):
-            if isinstance(x, _expr.Var) and x.name_hint in params:
-                return _op.const(params[x.name_hint].numpy(), dtype)
-            rank = len(infer_shape(x))
-            assert rank <= 1, "QLinearSigmoid scale and zero_point input must be scalars"
-            if rank == 1:
-                x = _op.squeeze(x, [0])
-            return _op.cast(x, dtype)
-
         x = inputs[0]
         x_scale = get_scalar(inputs[1])
         x_zero_point = get_scalar(inputs[2], "int32")
@@ -3375,7 +3366,8 @@ class QLinearSigmoid(OnnxOpConverter):
 
         ## Apparently, onnxruntime doesn't do this op in integer, they dequantize to fp32
         ## and then requantize after:
-        ## https://github.com/microsoft/onnxruntime/blob/master/onnxruntime/core/providers/dml/DmlExecutionProvider/src/GraphTransformer.cpp#L245
+        ## https://github.com/microsoft/onnxruntime/blob/master/onnxruntime/core/
+        ## providers/dml/DmlExecutionProvider/src/GraphTransformer.cpp#L245
         x = _qnn.op.dequantize(inputs[0], x_scale, x_zero_point)
         out = _op.sigmoid(x)
         return _qnn.op.quantize(out, y_scale, y_zero_point, out_dtype=dtype)
