@@ -17,30 +17,28 @@
 """Hybrid Script Parser"""
 
 import ast
-import operator
 import logging
+import numbers
+import operator
 import sys
 import types
-import numbers
-
 from enum import Enum
-from tvm.ir import Array, Range
+
+import tvm.arith
 import tvm.runtime
-import tvm.tir
 import tvm.te
 import tvm.te._ffi_api
-import tvm.arith
-
-from tvm.tir import expr as _expr
-from tvm.tir import stmt as _stmt
-from tvm.te.tensor import Tensor, Operation
+import tvm.tir
+from tvm.ir import Array, Range
+from tvm.te.tensor import Operation, Tensor
 from tvm.tir import all as _all
 from tvm.tir import any as _any
+from tvm.tir import expr as _expr
+from tvm.tir import stmt as _stmt
 
-from .utils import _internal_assert
-from . import calls
-from . import utils
+from . import calls, utils
 from .preprocessor import determine_variable_usage
+from .utils import _internal_assert
 
 
 def concat_list_to_block(lst):
@@ -380,6 +378,7 @@ class HybridParser(ast.NodeVisitor):
                 if isinstance(i, numbers.Integral):
                     arr = arr[i]
                 else:
+                    print(i, type(i))
                     _internal_assert(
                         isinstance(i, (_expr.IntImm,)), "All indices are supposed to be constants"
                     )
