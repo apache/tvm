@@ -148,12 +148,12 @@ stage('Prepare') {
   }
 }
 
-def getPRChangelog() {
-    return sh(
+def GIT_DIFF = 
+    sh(
             script: "git diff-tree --no-commit-id --name-only -r origin/main",
             returnStdout: true
     ).split('\n')
-}
+
 
 stage("Sanity Check") {
   timeout(time: max_time, unit: 'MINUTES') {
@@ -161,7 +161,7 @@ stage("Sanity Check") {
       ws(per_exec_ws("tvm/sanity")) {
         init_git()
         def docs=1
-        echo ${getPRChangelog()}
+        echo "Git committer email: ${GIT_DIFF}"
         sh "${docker_run} ${ci_lint}  ./tests/scripts/task_lint.sh"
       }
     }
