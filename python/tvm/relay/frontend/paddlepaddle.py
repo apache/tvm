@@ -1164,7 +1164,7 @@ def convert_mul(g, op, block):
 def convert_mv(g, op, block):
     """Operator converter for mv."""
 
-    x = g.get_node(op.input("X")[0])    
+    x = g.get_node(op.input("X")[0])
     y = g.get_node(op.input("Vec")[0])
     y = _op.expand_dims(y, axis=-1)
     y = _op.transpose(y)
