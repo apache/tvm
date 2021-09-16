@@ -42,11 +42,8 @@ zephyr_library_named(tvm_model)
 file(GLOB_RECURSE tvm_model_srcs model/codegen/host/src/*.c model/codegen/host/lib/*.o)
 target_sources(tvm_model PRIVATE ${tvm_model_srcs})
 
-target_include_directories(tvm_model PRIVATE ${CMAKE_SOURCE_DIR}/include crt_config crt/include
-  $ENV{TVM_LIBRARY_PATH}/../3rdparty/CMSIS_5/CMSIS/DSP/Include
-  $ENV{TVM_LIBRARY_PATH}/../3rdparty/CMSIS_5/CMSIS/NN/Include
-  $ENV{TVM_LIBRARY_PATH}/../3rdparty/CMSIS_5/CMSIS/Core/Include
-)
+target_include_directories(tvm_model PRIVATE ${CMAKE_SOURCE_DIR}/include crt_config crt/include)
+
 set(CMAKE_BUILD_TYPE "Release")
 
 target_compile_options(tvm_model PRIVATE -Wno-unused-variable)  # TVM-generated code tends to include lots of these.

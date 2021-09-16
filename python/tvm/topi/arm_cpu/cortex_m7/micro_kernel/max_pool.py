@@ -79,11 +79,7 @@ def intrin_max(shape, in_dtype, out_dtype):
 def max_pool_impl(uniq_id):
     """Emit C code for pool impl."""
     cc_code = f"""
-#ifdef __cplusplus
-extern "C"
-#endif
-#include <arm_math.h>
-#include <arm_nnsupportfunctions.h>
+#include "cortex_m7_defines.h"
 
 #ifdef GROVETY_OP_BENCHMARK
 
@@ -151,7 +147,7 @@ __STATIC_FORCEINLINE int32_t max_pool8_{uniq_id}(
       goto out;
     arg += n; res += n;
   }}
-  
+
   parg32 = (int32_t *)arg;
   pres32 = (int32_t *)res;
 

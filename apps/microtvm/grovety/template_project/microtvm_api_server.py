@@ -395,6 +395,9 @@ class Handler(server.ProjectAPIHandler):
         src_dir = project_dir / "src"
         shutil.copytree(API_SERVER_DIR / "src" / options["project_type"], src_dir)
 
+        # Populate include/
+        shutil.copytree(API_SERVER_DIR / "include", project_dir / "include")
+
         # Populate extra_files
         if options.get("extra_files_tar"):
             with tarfile.open(options["extra_files_tar"], mode="r:*") as tf:
