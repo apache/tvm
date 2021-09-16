@@ -305,6 +305,24 @@ def _schedule_depthwise_conv2d_NCHWc_impl(s, cfg, data_vec, kernel_vec, conv_out
     return s
 
 
+def schedule_depthwise_conv2d_nhwc(outs):
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
+
+    def _callback(op):
+        """Traverse operators from computation graph"""
+        if "depthwise_conv2d_nhwc" in op.tag:
+            out = outs[0]
+            depthwise_conv2d_out = op.output(0)
+            data_pad = depthwise_conv2d_out.op.input_tensors[0]
+            s[data_pad].compute_inline()
+            s[depthwise_conv2d_out].compute_at(s[out], s[out].op.axis[3])
+            s[out].fuse(*s[out].op.axis)
+
+    traverse_inline(s, outs[0].op, _callback)
+    return s
+
+
 @depthwise_conv2d_infer_layout.register("cpu")
 def _depthwise_conv2d_infer_layout(workload, cfg):
     _, data, kernel, strides, padding, dilation, _, _, dtype = workload

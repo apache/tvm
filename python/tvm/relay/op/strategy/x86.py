@@ -214,7 +214,7 @@ def conv2d_strategy_cpu(attrs, inputs, out_type, target):
                 )
             strategy.add_implementation(
                 wrap_compute_conv2d(topi.nn.depthwise_conv2d_nhwc),
-                wrap_topi_schedule(topi.generic.schedule_depthwise_conv2d_nhwc),
+                wrap_topi_schedule(topi.x86.schedule_depthwise_conv2d_nhwc),
                 name="depthwise_conv2d_nhwc.generic",
             )
         else:
