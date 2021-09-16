@@ -3624,7 +3624,6 @@ class NegativeLogLikelihoodLoss(OnnxOpConverter):
             target_tensor,
             weight_tensor=weight_tensor,
             ignore_index=ignore_index,
-            reduction=reduction,
         )
         if reduction == "mean":
             return relay.sum(loss) / weight_total
@@ -3655,7 +3654,6 @@ class SoftmaxCrossEntropyLoss(OnnxOpConverter):
             target_tensor,
             weight_tensor,
             ignore_index=ignore_index,
-            reduction="none",
         )
 
         if reduction == "mean":
