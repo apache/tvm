@@ -133,15 +133,15 @@
  *   b = ...
  *   // if quit_on_assertion is true, if a==b, continue, otherwise quit.
  *   // if quit_on_assertion is false, if a==b, continue, otherwise 'return false'
- *   // (default behaviour)
+ *   //   (default behaviour)
  *   COND_CHECK_EQ(quit_on_assertion, a, b) << "some error message when  quiting"
  *   ...
  *   for (int i = 0; i < N; i++) {
  *     a = ...
  *     b = ...
  *     // if quit_on_assertion is true, if a==b, continue, otherwise quit.
- *     // if quit_on_assertion is false, if a==b, continue, otherwise 'break' (non-default
- *     // behaviour, therefore, has to be explicitly specified)
+ *     // if quit_on_assertion is false, if a==b, continue, otherwise 'break'
+ *     //   (non-default behaviour, therefore, has to be explicitly specified)
  *     COND_CHECK_EQ(quit_on_assertion, a, b, break) << "some error message when  quiting"
  *   }
  * }
@@ -395,31 +395,42 @@ class LogMessageVoidify {
   void operator&(std::ostream&) {}
 };
 
+// The following three methods are helpers for \p DebugLoggingEnabled and \p VerboseLoggingEnabled.
+// They are public for unit testing only.
+
+// Parses \p opt_spec as per specification for \p TVM_LOG_DEBUG given by \p DebugLoggingEnabled
+// and \p VerboseLoggingEnabled. The map is non-empty iff DLOG is enabled. The map has an
+// entry for a specific file iff that file is mentioned in \p TVM_LOG_DEBUG. Tha map has a
+// '*' wildcard entry iff \p TVM_LOG_DEBUG=1 or \p TVM_LOG_DEBUG has a wildcard entry.
+std::unordered_map<std::string, int> ParseTvmLogDebugSpec(const char* opt_spec);
+// As above, but using the actual \p TVM_LOG_DEBUG environment variable.
+const std::unordered_map<std::string, int>& TvmLogDebugSpec();
+// As for \p VerboseLoggingEnabled, but using given \p map.
+bool VerboseEnabledInMap(const std::string& filename, int level,
+                         const std::unordered_map<std::string, int>& map);
+
+/*!
+ * \brief Returns true if a DLOG statement is enabled by the \p TVM_LOG_DEBUG environment
+ * variable. Requires:
+ * \code
+ *   TVM_LOG_DEBUG=1
+ * \endcode
+ * or a valid setting as described by \p VerboseLoggingEnabled below.
+ */
 // Also from dmlc-core
 inline bool DebugLoggingEnabled() {
   static int state = 0;
   if (state == 0) {
-    if (const char* var = std::getenv("TVM_LOG_DEBUG")) {
-      std::string var_str(var);
-      if (var_str == "1" || var_str.rfind("1;", 0) == 0) {
-        // Enabled, either without or with an additional VLOG specification.
-        state = 1;
-      } else {
-        // Not enabled.
-        state = -1;
-      }
-    } else {
-      // by default hide debug logging.
+    if (TvmLogDebugSpec().empty()) {
+      // Not enabled.
       state = -1;
+    } else {
+      // At least one VLOG entry (possibly just '*'=-1), so DLOG enabled.
+      state = 1;
     }
   }
   return state == 1;
 }
-
-/*! \brief Helpers for \p VerboseLoggingEnabled. Exposed for unit testing only. */
-std::unordered_map<std::string, int> ParseTvmLogDebugSpec(const char* opt_spec);
-bool VerboseEnabledInMap(const std::string& filename, int level,
-                         const std::unordered_map<std::string, int>& map);
 
 /*!
  * \brief Returns true if a VLOG statement in \p filename is enabled by the \p TVM_LOG_DEBUG
@@ -430,15 +441,19 @@ bool VerboseEnabledInMap(const std::string& filename, int level,
  *
  * To enable file \p relay/foo.cc up to level 2 and \p ir/bar.cc for level 0 only set:
  * \code
- * TVM_LOG_DEBUG="1;relay/foo.cc=2;ir/bar.cc=0;"
+ * TVM_LOG_DEBUG="relay/foo.cc=2;ir/bar.cc=0;"
  * \endcode
  *
  * To enable all files up to level 3 but disable \p ir/bar.cc set:
  * \code
- * TVM_LOG_DEBUG="1;*=2;ir/bar.cc=-1;"
+ * TVM_LOG_DEBUG="*=2;ir/bar.cc=-1;"
  * \endcode
+ *
+ * Any of these settings will also enable DLOG statements.
  */
-bool VerboseLoggingEnabled(const char* filename, int level);
+inline bool VerboseLoggingEnabled(const char* opt_filename, int level) {
+  return opt_filename != nullptr && VerboseEnabledInMap(opt_filename, level, TvmLogDebugSpec());
+}
 
 /*!
  * \brief A stack of VLOG context messages.

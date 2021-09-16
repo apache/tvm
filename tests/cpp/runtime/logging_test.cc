@@ -26,21 +26,19 @@ namespace detail {
 namespace {
 
 TEST(ParseTvmLogDebugSpec, Disabled) {
-  auto map = ParseTvmLogDebugSpec(nullptr);
-  EXPECT_EQ(map.size(), 0);
-
-  map = ParseTvmLogDebugSpec("");
-  EXPECT_EQ(map.size(), 0);
-
-  map = ParseTvmLogDebugSpec("0");
-  EXPECT_EQ(map.size(), 0);
-
-  map = ParseTvmLogDebugSpec("1");
-  EXPECT_EQ(map.size(), 0);
+  EXPECT_TRUE(ParseTvmLogDebugSpec(nullptr).empty());
+  EXPECT_TRUE(ParseTvmLogDebugSpec("").empty());
+  EXPECT_TRUE(ParseTvmLogDebugSpec("0").empty());
 }
 
-TEST(ParseTvmLogDebugSpec, SomeEnabled) {
-  auto map = ParseTvmLogDebugSpec("1;foo/bar.cc=3;baz.cc=-1;*=2;another/file.cc=4;");
+TEST(ParseTvmLogDebugSpec, DlogOnly) {
+  auto map = ParseTvmLogDebugSpec("1");
+  EXPECT_EQ(map.size(), 1);
+  EXPECT_EQ(map["*"], -1);
+}
+
+TEST(ParseTvmLogDebugSpec, VLogEnabled) {
+  auto map = ParseTvmLogDebugSpec("foo/bar.cc=3;baz.cc=-1;*=2;another/file.cc=4");
   EXPECT_EQ(map.size(), 4);
 
   EXPECT_EQ(map["*"], 2);
@@ -50,11 +48,11 @@ TEST(ParseTvmLogDebugSpec, SomeEnabled) {
 }
 
 TEST(ParseTvmLogDebugSpec, IllFormed) {
-  EXPECT_THROW(ParseTvmLogDebugSpec("1;foo/bar.cc=bogus;"), InternalError);
+  EXPECT_THROW(ParseTvmLogDebugSpec("foo/bar.cc=bogus;"), InternalError);
 }
 
 TEST(VerboseEnabledInMap, Lookup) {
-  auto map = ParseTvmLogDebugSpec("1;foo/bar.cc=3;baz.cc=-1;*=2;another/file.cc=4;");
+  auto map = ParseTvmLogDebugSpec("foo/bar.cc=3;baz.cc=-1;*=2;another/file.cc=4;");
 
   EXPECT_TRUE(VerboseEnabledInMap("my/filesystem/src/foo/bar.cc", 3, map));
   EXPECT_FALSE(VerboseEnabledInMap("my/filesystem/src/foo/bar.cc", 4, map));
