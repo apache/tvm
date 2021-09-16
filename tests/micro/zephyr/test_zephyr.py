@@ -53,9 +53,10 @@ def _make_sess_from_op(
 
     return _make_session(temp_dir, zephyr_board, west_cmd, mod, build_config)
 
+
 def _make_session(temp_dir, zephyr_board, west_cmd, mod, build_config):
     stack_size = None
-    if zephyr_board in conftest.qemu_boards():
+    if conftest.qemu_boards(zephyr_board):
         stack_size = 1536
 
     project = tvm.micro.generate_project(
@@ -416,9 +417,9 @@ def test_autotune_conv2d(temp_dir, board, west_cmd, tvm_debug):
         subprocess.check_output(["git", "rev-parse", "--show-toplevel"], encoding="utf-8").strip()
     )
     template_project_dir = repo_root / "apps" / "microtvm" / "zephyr" / "template_project"
-    
+
     stack_size = None
-    if board in conftest.qemu_boards():
+    if conftest.qemu_boards(board):
         stack_size = 1536
 
     module_loader = tvm.micro.AutoTvmModuleLoader(
@@ -432,7 +433,6 @@ def test_autotune_conv2d(temp_dir, board, west_cmd, tvm_debug):
         },
     )
     builder = tvm.autotvm.LocalBuilder(
-        timeout=100,
         n_parallel=1,
         build_kwargs={"build_option": {"tir.disable_vectorize": True}},
         do_fork=True,
@@ -446,7 +446,7 @@ def test_autotune_conv2d(temp_dir, board, west_cmd, tvm_debug):
     if log_path.exists():
         log_path.unlink()
 
-    n_trial = 1
+    n_trial = 10
     for task in tasks:
         tuner = tvm.autotvm.tuner.GATuner(task)
         tuner.tune(
@@ -466,7 +466,7 @@ def test_autotune_conv2d(temp_dir, board, west_cmd, tvm_debug):
         lowered = tvm.relay.build(mod, target=target, params=params)
 
     temp_dir = utils.tempdir()
-    with _make_session(temp_dir, board, west_cmd, mod, build_config) as session:
+    with _make_session(temp_dir, board, west_cmd, lowered, build_config) as session:
         graph_mod = tvm.micro.create_local_graph_executor(
             lowered.get_graph_json(), session.get_system_lib(), session.device
         )

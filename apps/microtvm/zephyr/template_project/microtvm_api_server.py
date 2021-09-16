@@ -448,7 +448,7 @@ class Handler(server.ProjectAPIHandler):
 
     @classmethod
     def _has_fpu(cls, zephyr_board):
-        fpu_boards = ([name for name, board in BOARD_PROPERTIES.items() if board["fpu"]],)
+        fpu_boards = [name for name, board in BOARD_PROPERTIES.items() if board["fpu"]]
         return zephyr_board in fpu_boards
 
     def flash(self, options):

@@ -56,16 +56,16 @@ def zephyr_boards() -> dict:
 ZEPHYR_BOARDS = zephyr_boards()
 
 
-def qemu_boards() -> list:
-    """Returns a list of QEMU Zephyr boards."""
+def qemu_boards(board: str):
+    """Returns True if board is QEMU."""
     with open(BOARD_JSON_PATH) as f:
         board_properties = json.load(f)
 
     qemu_boards = [name for name, board in board_properties.items() if board["is_qemu"]]
-    return qemu_boards
+    return board in qemu_boards
 
 
-def has_fpu(board):
+def has_fpu(board: str):
     """Returns True if board has FPU."""
     with open(BOARD_JSON_PATH) as f:
         board_properties = json.load(f)
