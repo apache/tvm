@@ -629,7 +629,7 @@ bool ExpandDimsRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     return false;
   }
   const auto* axis_type = types[1].as<TensorTypeNode>();
-  ICHECK(axis_type->shape.size() == 0) << "Axis should scalar!";
+  ICHECK(axis_type->shape.size() == 1) << "Axis should be 1-d with a single value!";
 
   // We don't know the output shape until we see the value of the axis input
   int ndim = data_type->shape.size();
@@ -655,64 +655,9 @@ Array<te::Tensor> ExpandDimsCompute(const Attrs& attrs, const Array<te::Tensor>&
   int ndim_in = ishape.size();
   ICHECK_EQ(ndim_in + 1, ndim_out);
 
-  /*
-  We need to construct the new tensor shape. By limiting only one dimension to be expanded at a
-  time we therefore know the rank of the tensor after the expand op. Let `R` be the rank of the
-  input tensor. The output tensor has rank `R + 1`
+  LOG(FATAL) << "WHHHHATTT??";
 
-  The difficulty is then in determining the shape of the output tensor. Consider the case where we
-  want to expand dimension `N`. in a tensor with shape [a, b, c, d]. Note that if we copied all
-  `R` elements of the input tensor shape into the first `R` elements of the output tensor shape
-  we would have the shape be correct up to the `N`th location.
-
-  E.g. `N` = 1 we want a final shape of:
-    Initial shape: [?, ?, ?, ?, ?]
-    Answer       : [a, 1, b, c, d]
-  If we copied the first R elements:
-    Forward Pass : [a, b, c, d, ?]
-    Answer       : [a, 1, b, c, d]
-  Likewise if we copy from the back, the first `R - N - 1` elements will be correct:
-    Backward Pass: [?, a, b, c, d]
-    Answer       : [a, 1, b, c, d]
-
-  If we run the forward and then backward pass, being careful not to overwrite the contents
-  of the output array pass the `N`th dimension then it is clear we will get the output shape.
-  By initializing the output shape array with all 1's, we can get the right answer:
-
-    Initial shape  : [1, 1, 1, 1, 1]
-    + Forward Pass : [a, 1, 1, 1, 1]
-    + Backward Pass: [a, 1, b, c, d]
-    --------------------------------
-    Answer         : [a, 1, b, c, d]
-
-  Note we have to do this because we can only use the current index to determine the output
-  of an array.
-  */
-  Array<IndexExpr> oshape;
-  PrimExpr axis = inputs[1](0);  // unpack the scalar
-
-  // Initialize output shape array
-  for (int i = 0; i < ndim_out; i++) {
-    oshape.push_back(IndexExpr(1));
-  }
-
-  // Forward fill
-  IndexExpr cur_dim_out = IndexExpr(0);
-  for (int i = 0; i < ndim_in; i++) {
-    IndexExpr next_index_dim = if_then_else(cur_dim_out < axis, ishape[i], oshape[i]);
-    oshape.Set(i, next_index_dim);
-    cur_dim_out += 1;
-  }
-
-  // Backward fill
-  cur_dim_out = IndexExpr(ndim_out - 1);
-  for (int i = ndim_in - 1; i >= 0; i--) {
-    IndexExpr next_index_dim = if_then_else(axis < cur_dim_out, ishape[i], oshape[i + 1]);
-    oshape.Set(i + 1, next_index_dim);
-    cur_dim_out -= 1;
-  }
-  LOG(WARNING) << "&&&&&&" << oshape;
-  return {topi::reshape(inputs[0], oshape)};
+  return {topi::dynamic_expand_dims(inputs[0], inputs[1](0))};
 }
 
 Expr MakeExpandDims(Expr data, Expr reps) {

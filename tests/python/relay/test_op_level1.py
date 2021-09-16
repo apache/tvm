@@ -189,7 +189,7 @@ def test_expand_dims():
 def test_dyn_expand_dims():
     def verify_expand_dims(dshape, dtype, oshape, axis):
         x = relay.Var("x", relay.TensorType(dshape, dtype))
-        y = relay.var("axis", shape=[], dtype="int16")
+        y = relay.var("axis", shape=[1], dtype="int64")
         mod = tvm.IRModule.from_expr(relay.expand_dims(x, axis=y, num_newaxis=1))
         for target, dev in tvm.testing.enabled_targets():
             if (
@@ -201,7 +201,7 @@ def test_dyn_expand_dims():
             data = np.random.uniform(size=dshape).astype(dtype)
             ref_res = data.reshape(oshape)
             op_res = relay.create_executor("vm", device=dev, target=target, mod=mod).evaluate(
-                data, axis
+                data, np.array([axis]).astype("int64")
             )
             np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=0.01)
 
