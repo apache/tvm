@@ -618,6 +618,124 @@ RELAY_REGISTER_OP("dyn.sparse_to_dense")
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
     .set_attr<FTVMCompute>("FTVMCompute", SparseToDenseCompute);
 
+/* relay.dyn.unsqueeze */
+bool ExpandDimsRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                   const TypeReporter& reporter) {
+  ICHECK_EQ(num_inputs, 2);
+  const auto* data_type = types[0].as<TensorTypeNode>();
+  if (data_type == nullptr) {
+    ICHECK(types[0].as<IncompleteTypeNode>())
+        << "expand_dims: expect input type to be TensorType but get " << types[0];
+    return false;
+  }
+  const auto* axis_type = types[1].as<TensorTypeNode>();
+  ICHECK(axis_type->shape.size() == 1) << "Axis should be one dimensional or scalar!";
+
+  // We don't know the output shape until we see the value of the axis input
+  int ndim = data_type->shape.size();
+  Array<IndexExpr> oshape;
+  oshape.reserve(ndim + 1);
+  for (int i = 0; i < ndim + 1; i++) {
+    oshape.push_back(Any());
+  }
+  reporter->Assign(types[1], TensorType(oshape, data_type->dtype));
+  return true;
+}
+
+Array<te::Tensor> ExpandDimsCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
+                                    const Type& out_type) {
+  // inputs = [Input tensor, axis to expand]
+  ICHECK_EQ(inputs.size(), 2);
+
+  Array<IndexExpr> ishape = inputs[0]->shape;
+  Array<IndexExpr> oshape;
+
+  const TensorTypeNode* out_ttype = out_type.as<TensorTypeNode>();
+  int ndim_out = out_ttype->shape.size();
+  int ndim_in = ishape.size();
+  ICHECK_EQ(ndim_in + 1, ndim_out);
+
+  /*
+  We need to construct the new tensor shape. By limiting only one dimension to be expanded at a
+  time we therefore know the rank of the tensor after the expand op. Let `R` be the rank of the
+  input tensor. The output tensor has rank `R + 1`
+
+  The difficulty is then in determining the shape of the output tensor. Consider the case where we
+  want to expand dimension `N`. in a tensor with shape [a, b, c, d]. Note that if we copied all
+  `R` elements of the input tensor shape into the first `R` elements of the output tensor shape
+  we would have the shape be correct up to the `N`th location.
+
+  E.g. `N` = 1 we want a final shape of:
+    Initial shape: [?, ?, ?, ?, ?]
+    Answer       : [a, 1, b, c, d]
+  If we copied the first R elements:
+    Forward Pass : [a, b, c, d, ?]
+    Answer       : [a, 1, b, c, d]
+  Likewise if we copy from the back, the first `R - N` elements will be correct:
+    Backward Pass: [?, a, b, c, d]
+    Answer       : [a, 1, b, c, d]
+
+  If we run the forward and then backward pass, being careful not to overwrite the contents
+  of the output array pass the `N`th dimension then it is clear we will get the output shape.
+  By initializing the output shape array with all 1's, we can get the right answer:
+
+    Initial shape  : [1, 1, 1, 1, 1]
+    + Forward Pass : [a, 1, 1, 1, 1]
+    + Backward Pass: [a, 1, b, c, d]
+    --------------------------------
+    Answer         : [a, 1, b, c, d]
+
+  Note we have to do this because we can only use the current index to determine the output
+  of an array.
+  */
+
+  // Initialize output shape array
+  for (int i = 0; i < ndim_out; i++) {
+    oshape.push_back(IndexExpr(1));
+  }
+
+  // Forward fill
+  IndexExpr cur_dim_out = IndexExpr(0);  // cur_dim in output array
+  for (int i = 0; i < ndim_in; i++) {
+    IndexExpr next_index_dim = if_then_else(cur_dim_out < inputs[1], ishape[i], oshape[i]);
+    oshape.Set(i, next_index_dim);
+    cur_dim_out += 1;
+  }
+
+  // Backward fill
+  cur_dim_out = IndexExpr(ndim_out - 1);  // cur_dim in output array
+  for (int i = ndim_in - 1; i >= 0; i--) {
+    IndexExpr next_index_dim = if_then_else(inputs[1] < cur_dim_out, ishape[i], oshape[i + 1]);
+    oshape.Set(i + 1, next_index_dim);
+    cur_dim_out -= 1;
+  }
+
+  return {topi::reshape(inputs[0], oshape)};
+}
+
+Expr MakeExpandDims(Expr data, Expr reps) {
+  auto attrs = make_object<DynExpandDimsAttrs>();
+  static const Op& op = Op::Get("dyn.expand_dims");
+  return Call(op, {data, reps}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op.dyn._make.expand_dims").set_body_typed(MakeExpandDims);
+
+RELAY_REGISTER_OP("dyn.expand_dims")
+    .describe(R"code(Repeat the whole array multiple times.
+
+TODO
+
+)code" TVM_ADD_FILELINE)
+    .set_num_inputs(2)
+    .set_attrs_type<DynExpandDimsAttrs>()
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("axis", "Tensor", "The number of times to repeat the input on each axis.")
+    .set_support_level(3)
+    .add_type_rel("DynamicExpandDims", ExpandDimsRel)
+    .set_attr<FTVMCompute>("FTVMCompute", ExpandDimsCompute)
+    .set_attr<TOpPattern>("TOpPattern", kInjective);
+
 }  // namespace dyn
 }  // namespace relay
 }  // namespace tvm

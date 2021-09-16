@@ -60,6 +60,11 @@ struct ExpandDimsAttrs : public tvm::AttrsNode<ExpandDimsAttrs> {
   }
 };  // struct ExpandDimsAttrs
 
+struct DynExpandDimsAttrs : public tvm::AttrsNode<DynExpandDimsAttrs> {
+  // axis is an input and num_new_axis is always 1 for dynamic expand dims
+  TVM_DECLARE_ATTRS(ExpandDimsAttrs, "relay.attrs.DynExpandDimsAttrs") {}
+};  // struct DynExpandDimsAttrs
+
 /*! \brief Attributes used in concatenate operators */
 struct ConcatenateAttrs : public tvm::AttrsNode<ConcatenateAttrs> {
   int axis;
