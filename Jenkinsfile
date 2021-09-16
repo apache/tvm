@@ -148,20 +148,17 @@ stage('Prepare') {
   }
 }
 
-def GIT_DIFF { 
-  return   sh(
-            script: "git diff-tree --no-commit-id --name-only -r origin/main",
-            returnStatus: true
-    ).split('\n')
-}
 
 stage("Sanity Check") {
   timeout(time: max_time, unit: 'MINUTES') {
     node('CPU') {
       ws(per_exec_ws("tvm/sanity")) {
         init_git()
-        def docs=1
-        echo "Git committer email: ${GIT_DIFF}"
+       def docs = sh (returnStatus: true, script: '''
+         ./git_changed_status.sh
+        '''
+        )        
+        echo "Git committer email: ${docs}"
         sh "${docker_run} ${ci_lint}  ./tests/scripts/task_lint.sh"
       }
     }
@@ -250,10 +247,6 @@ stage('Build') {
     node('CPU') {
       ws(per_exec_ws("tvm/build-wasm")) {
         init_git()
-        def docs = sh (returnStatus: true, script: '''
-          git diff-tree --no-commit-id --name-only -r HEAD | grep -v -q docs/
-        '''
-        )
         if (docs == 0 ) {
           sh "${docker_run} ${ci_wasm} ./tests/scripts/task_config_build_wasm.sh"
           make(ci_wasm, 'build', '-j2')
@@ -285,10 +278,6 @@ stage('Build') {
     node('ARM') {
       ws(per_exec_ws("tvm/build-arm")) {
         init_git()
-        def docs = sh (returnStatus: true, script: '''
-          git diff-tree origin/main --no-commit-id --name-only -r HEAD | grep -v -q docs/
-        '''
-        )
         if (docs == 0 ) {
           sh "${docker_run} ${ci_arm} ./tests/scripts/task_config_build_arm.sh"
           make(ci_arm, 'build', '-j4')
