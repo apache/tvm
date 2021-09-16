@@ -82,8 +82,6 @@ def max_pool_impl(uniq_id):
 #ifdef __cplusplus
 extern "C"
 #endif
-#include <arm_math.h>
-#include <arm_nnsupportfunctions.h>
 
 #ifdef GROVETY_OP_BENCHMARK
 
@@ -151,7 +149,7 @@ __STATIC_FORCEINLINE int32_t max_pool8_{uniq_id}(
       goto out;
     arg += n; res += n;
   }}
-  
+
   parg32 = (int32_t *)arg;
   pres32 = (int32_t *)res;
 
