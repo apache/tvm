@@ -161,7 +161,7 @@ stage("Sanity Check") {
       ws(per_exec_ws("tvm/sanity")) {
         init_git()
         def docs=1
-        println getPRChangelog()
+        echo ${getPRChangelog()}
         sh "${docker_run} ${ci_lint}  ./tests/scripts/task_lint.sh"
       }
     }
