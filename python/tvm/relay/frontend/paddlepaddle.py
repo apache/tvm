@@ -201,6 +201,8 @@ def convert_unary_op(g, op, block):
 
     op_map = {
         "isinf_v2": _op.isinf,
+        "isfinite_v2": _op.isfinite,
+        "isnan_v2": _op.isnan,
     }
     if op.type in op_map:
         unary_func = op_map[op.type]
@@ -647,7 +649,17 @@ def convert_dropout(g, op, block):
     """Operator converter for dropout."""
 
     x = g.get_node(op.input("X")[0])
-    out = _op.copy(x)
+    g.add_node(op.output("Out")[0], x)
+
+
+def convert_elu(g, op, block):
+    """Operator converter for elu."""
+
+    x = g.get_node(op.input("X")[0])
+    dtype = infer_type(x).checked_type.dtype
+    alpha = op.attr("alpha")
+    alpha = _expr.const(alpha, dtype=dtype)
+    out = alpha * _op.nn.relu(_expr.const(1, dtype=dtype) - _op.exp(x)) + _op.nn.relu(x)
     g.add_node(op.output("Out")[0], out)
 
 
@@ -700,6 +712,7 @@ def convert_elementwise_op(g, op, block):
         "elementwise_floordiv": "floor_divide",
         "floor_mod": "floor_mod",
         "equal": "equal",
+        "greater_equal": "greater_equal",
         "greater_than": "greater",
         "less_equal": "less_equal",
         "less_than": "less",
@@ -902,12 +915,46 @@ def convert_gelu(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_group_norm(g, op, block):
+    """Operator converter for group_norm."""
+
+    x = g.get_node(op.input("X")[0])
+    num_groups = op.attr("groups")
+    epsilon = op.attr("epsilon")
+    gamma = g.get_node(op.input("Scale")[0])
+    beta = g.get_node(op.input("Bias")[0])
+    out = _op.nn.group_norm(
+        x,
+        gamma=gamma,
+        beta=beta,
+        num_groups=num_groups,
+        axis=1,
+        epsilon=epsilon,
+        center=True,
+        scale=True,
+    )
+    g.add_node(op.output("Y")[0], out)
+
+
+def convert_hard_shrink(g, op, block):
+    """Operator converter for hard_shrink."""
+
+    x = g.get_node(op.input("X")[0])
+    dtype = infer_type(x).checked_type.dtype
+    threshold = op.attr("threshold")
+    threshold = _op.const(threshold, dtype)
+    out = _op.logical_or(x < _op.const(-1.0, dtype) * threshold, x > threshold)
+    out = _op.cast(out, dtype) * x
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_hard_sigmoid(g, op, block):
     """Operator converter for hard_sigmoid."""
 
     slope = op.attr("slope")
     x = g.get_node(op.input("X")[0])
-    out = x * _expr.const(slope) + _expr.const(0.5)
+    dtype = infer_type(x).checked_type.dtype
+    out = x * _expr.const(slope, dtype) + _expr.const(0.5, dtype)
     out = _op.clip(out, 0, 1)
     g.add_node(op.output("Out")[0], out)
 
@@ -922,9 +969,20 @@ def convert_hard_swish(g, op, block):
     assert np.isclose(scale, 6.0), "Only support scale==6.0 for PaddlePaddle's hard_swish"
     assert np.isclose(threshold, 6.0), "Only support threshold==6.0 for PaddlePaddle's hard_swish"
     x = g.get_node(op.input("X")[0])
+    dtype = infer_type(x).checked_type.dtype
     out = _op.clip(x, -1 * offset, offset)
-    out = out / _expr.const(threshold) + _expr.const(0.5)
+    out = out / _expr.const(threshold, dtype) + _expr.const(0.5, dtype)
     out = x * out
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_hard_tanh(g, op, block):
+    """Operator converter for hard_tanh."""
+
+    x = g.get_node(op.input("X")[0])
+    t_max = op.attr("t_max")
+    t_min = op.attr("t_min")
+    out = _op.tensor.clip(x, t_min, t_max)
     g.add_node(op.output("Out")[0], out)
 
 
@@ -937,6 +995,19 @@ def convert_index_select(g, op, block):
     out = _op.take(x, indices=index, axis=dim, mode="clip")
 
     g.add_node(op.output("Out")[0], out)
+
+
+def convert_instance_norm(g, op, block):
+    """Operator converter for instance_norm."""
+
+    x = g.get_node(op.input("X")[0])
+    gamma = g.get_node(op.input("Scale")[0])
+    beta = g.get_node(op.input("Bias")[0])
+    epsilon = op.attr("epsilon")
+
+    scale = center = True
+    out = _op.nn.instance_norm(x, gamma, beta, axis=1, epsilon=epsilon, center=center, scale=scale)
+    g.add_node(op.output("Y")[0], out)
 
 
 def convert_layer_norm(g, op, block):
@@ -1018,6 +1089,15 @@ def convert_logical_op(g, op, block):
     ipt1 = g.get_node(op.input("Y")[0])
     op_func = get_relay_op(op.type)
     out = op_func(ipt0, ipt1)
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_logical_not(g, op, block):
+    """Operator converter for logical_not op."""
+
+    ipt0 = g.get_node(op.input("X")[0])
+    op_func = get_relay_op(op.type)
+    out = op_func(ipt0)
     g.add_node(op.output("Out")[0], out)
 
 
@@ -1866,6 +1946,7 @@ _convert_map = {
     "bicubic_interp_v2": convert_interpolate,
     "bilinear_interp_v2": convert_interpolate,
     "bmm": convert_bmm,
+    "brelu": convert_hard_tanh,
     "cast": convert_cast,
     "ceil": convert_unary_op,
     "clip": convert_clip,
@@ -1889,6 +1970,7 @@ _convert_map = {
     "elementwise_min": convert_elementwise_op,
     "elementwise_pow": convert_elementwise_op,
     "elementwise_floordiv": convert_elementwise_op,
+    "elu": convert_elu,
     "equal": convert_elementwise_op,
     "erf": convert_unary_op,
     "exp": convert_unary_op,
@@ -1904,12 +1986,20 @@ _convert_map = {
     "gather": convert_gather,
     "gather_nd": convert_gather_nd,
     "gelu": convert_gelu,
+    "greater_equal": convert_elementwise_op,
     "greater_than": convert_elementwise_op,
+    "group_norm": convert_group_norm,
+    "hard_shrink": convert_hard_shrink,
     "hard_sigmoid": convert_hard_sigmoid,
     "hard_swish": convert_hard_swish,
     "index_select": convert_index_select,
+    "isfinite": convert_unary_op,
+    "isfinite_v2": convert_unary_op,
+    "instance_norm": convert_instance_norm,
     "isinf": convert_unary_op,
     "isinf_v2": convert_unary_op,
+    "isnan": convert_unary_op,
+    "isnan_v2": convert_unary_op,
     "layer_norm": convert_layer_norm,
     "leaky_relu": convert_leaky_relu,
     "less_equal": convert_elementwise_op,
@@ -1921,7 +2011,9 @@ _convert_map = {
     "log10": convert_unary_op,
     "log1p": convert_log1p,
     "logical_and": convert_logical_op,
+    "logical_not": convert_logical_not,
     "logical_or": convert_logical_op,
+    "logical_xor": convert_logical_op,
     "logsumexp": convert_logsumexp,
     "matmul": convert_matmul,
     "matmul_v2": convert_matmul,
