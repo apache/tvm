@@ -148,15 +148,20 @@ stage('Prepare') {
   }
 }
 
+def getPRChangelog() {
+    return sh(
+            script: "git diff-tree --no-commit-id --name-only -r origin/main",
+            returnStdout: true
+    ).split('\n')
+}
+
 stage("Sanity Check") {
   timeout(time: max_time, unit: 'MINUTES') {
     node('CPU') {
       ws(per_exec_ws("tvm/sanity")) {
         init_git()
-        def docs = sh (returnStatus: true, script: '''
-          git diff-tree origin/main --no-commit-id --name-only -r HEAD | grep -v -q docs/
-        '''
-        )
+        def docs=1
+        println getPRChangelog()
         sh "${docker_run} ${ci_lint}  ./tests/scripts/task_lint.sh"
       }
     }
