@@ -26,6 +26,7 @@ from tvm.ir import IRModule
 
 from .. import analysis
 from .. import expr as _expr
+from ..loops import while_loop
 from .. import function as _function
 from .. import ty as _ty
 from .. import op as _op
@@ -39,6 +40,80 @@ from .common import (
 )
 
 __all__ = ["from_paddle"]
+
+
+class ControlFlow:
+    """Control flow converter for PaddlePaddle."""
+
+    operators = [
+        "while",
+    ]
+
+    @classmethod
+    def convert_block(cls, graph, block):
+        for i, op in enumerate(block.ops):
+            if op.type in ControlFlow.operators:
+                raise Exception("Nested Control Flow Not Support Yet.")
+            else:
+                convert_func = _convert_map[op.type]
+                convert_func(graph, op, block)
+
+    @classmethod
+    def convert(cls, graph, op, program):
+        func = getattr(cls, "convert_{}".format(op.type))
+        return func(graph, op, program)
+
+    @classmethod
+    def convert_while(cls, graph, op, program):
+        sub_block_id = op.attr("sub_block").id
+        sub_block = program.blocks[sub_block_id]
+        input_names = op.input("X")
+        output_names = op.output("Out")
+        cond_name = op.input("Condition")[0]
+
+        for name in output_names:
+            if name == cond_name:
+                continue
+            if name not in input_names:
+                raise Exception("Output '{}' not in inputs".format(name))
+        inputs = [graph.get_node(x) for x in op.input("X")]
+
+        sub_graph = GraphProto(graph.freeze_params)
+        sub_graph.set_params(graph.get_params())
+        cond_var = _expr.var(cond_name, shape=[1], dtype="bool")
+        loop_vars = list()
+        loop_vars.append(cond_var)
+        for i, name in enumerate(op.input("X")):
+            a = graph.get_node(name)
+            shape = infer_shape(graph.get_node(name))
+            dtype = program.blocks[0].var(name).dtype
+            dtype = str(dtype).strip().split(".")[1]
+            var = _expr.var(name, shape=shape, dtype=dtype)
+            loop_vars.append(var)
+
+        def cond_fn(*loop_inputs):
+            squeezed_cond = _op.squeeze(loop_inputs[0])
+            return _op.equal(squeezed_cond, _expr.const(True, "bool"))
+
+        def body_fn(*loop_inputs):
+            cond = loop_inputs[0]
+            body_inputs = loop_inputs[1:]
+            for i, ipt in enumerate(body_inputs):
+                sub_graph.add_node(input_names[i], ipt)
+            cls.convert_block(sub_graph, sub_block)
+            sub_outputs = [sub_graph.get_node(cond_name)]
+            sub_outputs += [sub_graph.get_node(name) for name in input_names]
+            return sub_outputs
+
+        loop = while_loop(cond_fn, loop_vars, body_fn)
+
+        init_cond = graph.get_node(op.input("Condition")[0])
+        init_inputs = [graph.get_node(x) for x in op.input("X")]
+        init_loop_vars = init_inputs
+
+        loop_vals = loop(init_cond, *init_loop_vars)
+        for i, name in enumerate(input_names):
+            graph.add_node(name, _expr.TupleGetItem(loop_vals, i + 1))
 
 
 def _get_pad_size(in_size, dilated_kernel_size, stride_size):
@@ -55,13 +130,34 @@ def _get_pad_size(in_size, dilated_kernel_size, stride_size):
     return [pad_before, pad_after]
 
 
+def _dtype_shape_promotion(inputs):
+    """promote data type and shape for list of tensors."""
+
+    dtype_order = ["bool", "int8", "int16", "int32", "int64", "float32", "float64"]
+
+    ranks = [len(infer_shape(x)) for x in inputs]
+    if set(ranks) == set([1, 0]):
+        for i, r in enumerate(ranks):
+            if r == 0:
+                inputs[i] = _op.expand_dims(inputs[i], axis=0)
+
+    dtypes = set([dtype_order.index(infer_type(x).checked_type.dtype) for x in inputs])
+    if len(dtypes) == 1:
+        return inputs
+    max_dtype = dtype_order(max(dtypes))
+    for i in range(len(inputs)):
+        if infer_type(inputs[i]).checked_type.dtype != max_dtype:
+            inputs[i] = inputs[i].astype(max_dtype)
+    return inputs
+
+
 def shape_of(x, dtype="int32"):
     """Get shape of a tensor"""
 
     ttype = infer_type(x).checked_type
     if not _ty.is_dynamic(ttype):
         shape = list(ttype.shape)
-        return _expr.const(shape, dtype)
+        return _expr.const(np.array(shape), dtype)
     return _op.shape_of(x, dtype)
 
 
@@ -211,13 +307,15 @@ def convert_assign_value(g, op, block):
     """Operator converter for assign_value."""
 
     keys = ["bool_values", "fp32_values", "int32_values", "int64_values"]
-    for key in keys:
-        value = np.array(op.attr(key))
+    dtypes = ["bool", "float32", "int32", "int64"]
+    for i, key in enumerate(keys):
+        dtype = dtypes[i]
+        value = np.array(op.attr(key)).astype(dtype)
         if value is not None and value.size >= 1:
             break
     shape = op.attr("shape")
     value = value.reshape(shape)
-    out = _op.const(value)
+    out = _op.const(value, dtype=dtype)
     g.add_node(op.output("Out")[0], out)
 
 
@@ -403,7 +501,9 @@ def convert_concat(g, op, block):
 
     inputs = [g.get_node(op.input("X")[i]) for i in range(len(op.input("X")))]
     axis = op.attr("axis")
+    inputs = _dtype_shape_promotion(inputs)
     out = _op.concatenate(inputs, axis=axis)
+    infer_shape(out)
     g.add_node(op.output("Out")[0], out)
 
 
@@ -608,8 +708,8 @@ def convert_elementwise_op(g, op, block):
     op_func = op_map[op.type]
     ipt0 = g.get_node(op.input("X")[0])
     ipt1 = g.get_node(op.input("Y")[0])
-    ipt0_shape = block.var(op.input("X")[0]).shape
-    ipt1_shape = block.var(op.input("Y")[0]).shape
+    ipt0_shape = infer_shape(ipt0)
+    ipt1_shape = infer_shape(ipt1)
     axis = op.attr("axis")
     if len(ipt0_shape) != len(ipt1_shape):
         if axis < 0:
@@ -697,10 +797,10 @@ def convert_fill_constant(g, op, block):
     dtype = op.attr("dtype")
     dtype = _convert_dtype_value(dtype)
     value = _expr.const(value).astype(dtype)
-    if op.input("ValueTensor"):
+    if "ValueTensor" in op.input_names and op.input("ValueTensor"):
         shape = g.get_node(op.input("ValueTensor")[0])
         shape = _infer_value(shape, g.get_params())
-    if op.input("ShapeTensor"):
+    if "ShapeTensor" in op.input_names and op.input("ShapeTensor"):
         shape = g.get_node(op.input("ShapeTensor")[0])
         shape = _infer_value(shape, g.get_params())
 
@@ -729,12 +829,14 @@ def convert_fill_constant_batch_size_like(g, op, block):
     shape_after = _expr.const(shape_after, dtype="int32")
 
     out_shape = _op.concatenate([shape_before, batch, shape_after], axis=0)
+    out_shape = _infer_value(out_shape, g.get_params())
     constant = _expr.const(value, dtype=dtype).astype(dtype)
     out = _op.full(constant, out_shape, dtype=dtype)
 
     # reshape for dynamic
-    shape[output_dim_idx] = -1
-    out = _op.reshape(out, shape)
+    if isinstance(out_shape, _expr.Expr):
+        shape[output_dim_idx] = -1
+        out = _op.reshape(out, shape)
 
     g.add_node(op.output("Out")[0], out)
 
@@ -882,10 +984,19 @@ def convert_lookup_table(g, op, block):
 
     indices = g.get_node(op.input("Ids")[0])
     padding_idx = op.attr("padding_idx")
-    if padding_idx != -1:
-        g.get_params[op.input("W")[0]][padding_idx] = 0.0
-        g.add_node(op.input("W")[0], _expr.const(g.params[op.input("W")[0]]))
     weights = g.get_node(op.input("W")[0])
+    if padding_idx != -1:
+        if op.input("W")[0] in g.get_params():
+            weights = g.get_params(op.input("W")[0])
+            weights[padding_idx] = 0.0
+            weights = _expr.const(weights)
+        else:
+            shape = _infer_value(shape_of(weights), g.get_params())
+            assert not isinstance(shape, _expr.Expr), "Shape of weight has to be fixed for PaddlePaddle's lookup_table"
+            filters = np.ones(shape).astype(infer_type(weights).checked_type.dtype)
+            filters[padding_idx] = 0.0
+            filters = _expr.const(filters)
+            weights = weights * filters
     out = _op.take(weights, indices.astype("int32"), axis=0)
     g.add_node(op.output("Out")[0], out)
 
@@ -1232,10 +1343,12 @@ def convert_range(g, op, block):
     params = []
     for param in (start, stop, step):
         param = _infer_value(param, g.get_params())
+        if isinstance(param, list):
+            param = param[0]
         if isinstance(param, _expr.Expr):
             param = _op.squeeze(param)
         else:
-            param = _op.const(param[0], dtype=dtype)
+            param = _op.const(param, dtype=dtype)
         params.append(param)
 
     out = _op.transform.arange(params[0], params[1], params[2], dtype=dtype)
@@ -1284,18 +1397,14 @@ def convert_reshape(g, op, block):
     if input_shape:
         new_shape = g.get_node(input_shape[0])
     elif input_shape_tensor:
-        tmp_shape = []
+        new_shape = []
         for shape_name in input_shape_tensor:
             shape = g.get_node(shape_name)
             if len(infer_shape(shape)) == 0:
                 shape = _op.reshape(shape, [-1])
-            if isinstance(shape, _expr.Constant):
-                tmp_shape.append(shape)
-            elif isinstance(shape, _expr.Expr):
-                tmp_shape.append(shape)
-            else:
-                tmp_shape.append(_expr.const(np.array(shape).astype("int64")))
-        new_shape = _op.concatenate(tmp_shape, axis=0)
+            new_shape.append(shape.astype("int64"))
+        new_shape = _op.concatenate(new_shape, axis=0)
+        new_shape = _infer_value(new_shape, g.get_params())
     else:
         new_shape = op.attr("shape")
     out = _op.reshape(data, new_shape)
@@ -1448,6 +1557,9 @@ def convert_scale(g, op, block):
     if np.isclose(scale, 1.0) and np.isclose(bias, 0.0):
         out = x
     else:
+        x_dtype = infer_type(x).checked_type.dtype
+        if x_dtype != "float32":
+            x = x.astype("float32")
         if np.isclose(bias, 0.0):
             out = x * _expr.const(np.array(scale).astype("float32"))
         elif np.isclose(scale, 1.0):
@@ -1461,6 +1573,8 @@ def convert_scale(g, op, block):
                 out = (x + _expr.const(np.array(bias).astype("float32"))) * _expr.const(
                     np.array(scale).astype("float32")
                 )
+        if x_dtype != "float32":
+            out = out.astype(x_dtype)
     g.add_node(op.output("Out")[0], out)
 
 
@@ -1468,7 +1582,7 @@ def convert_shape(g, op, block):
     """Operator converter for shape."""
 
     x = g.get_node(op.input("Input")[0])
-    out = _op.shape_of(x)
+    out = shape_of(x)
     g.add_node(op.output("Out")[0], out)
 
 
@@ -1674,10 +1788,11 @@ def convert_topk(g, op, block):
 def convert_stack(g, op, block):
     """Operator converter for stack."""
 
-    x = op.input("X")
-    x = [g.get_node(i) for i in x]
+    inputs = op.input("X")
+    inputs = [g.get_node(i) for i in inputs]
     axis = op.attr("axis")
-    out = _op.stack(x, axis)
+    inputs = _dtype_shape_promotion(inputs)
+    out = _op.stack(inputs, axis)
     g.add_node(op.output("Y")[0], out)
 
 
@@ -1859,15 +1974,16 @@ _convert_map = {
 class GraphProto:
     """A helper class for handling relay functions from PaddlePaddle model."""
 
-    def __init__(self):
+    def __init__(self, freeze_params=False):
         self.nodes = {}
         self.params = {}
         self.shape_dict = None
+        self.freeze_params = freeze_params
 
     def get_node(self, name):
         """get node from graph"""
 
-        assert name in self.nodes
+        assert name in self.nodes, "Node: {} not found".format(name)
         return self.nodes[name]
 
     def add_node(self, name, node):
@@ -1885,6 +2001,11 @@ class GraphProto:
         assert name in self.params
         return self.params[name]
 
+    def set_params(self, params):
+        """set params for graph"""
+
+        self.params = params
+
     def extract_parameters(self, program, scope=None):
         """Extract all the weights from PaddlePaddle program."""
 
@@ -1900,7 +2021,10 @@ class GraphProto:
                 self.params[name] = scope[name]
             else:
                 self.params[name] = np.array(scope.var(name).get_tensor())
-            self.nodes[name] = _expr.const(self.params[name])
+            if self.freeze_params:
+                self.nodes[name] = _expr.const(self.params[name])
+            else:
+                self.nodes[name] = _expr.var(name, shape=self.params[name].shape, dtype=str(self.params[name].dtype))
 
     def check_input_shape(self, op, block):
         """Check the shape information of model's inputs, fixed shape is recommended."""
@@ -1923,6 +2047,8 @@ class GraphProto:
             for op in block.ops:
                 if op.type == "fetch":
                     continue
+                if op.type in ControlFlow.operators:
+                    continue
                 if op.type not in _convert_map:
                     unsupported_ops.add(op.type)
         if len(unsupported_ops) > 0:
@@ -1936,12 +2062,15 @@ class GraphProto:
         if input_specs is not None:
             for input_spec in input_specs:
                 convert_feed(self, input_spec, None)
-        for block in program.blocks:
-            for op in block.ops:
-                if op.type == "fetch":
-                    continue
+        global_block = program.blocks[0]
+        for i, op in enumerate(global_block.ops):
+            if op.type == "fetch":
+                continue
+            if op.type in ControlFlow.operators:
+                ControlFlow.convert(self, op, program)
+            else:
                 convert_func = _convert_map[op.type]
-                convert_func(self, op, block)
+                convert_func(self, op, global_block)
 
     def from_program(self, program, shape_dict, scope):
         """Construct the TVM relay expression from PaddlePaddle program."""
@@ -1961,12 +2090,14 @@ class GraphProto:
                 if op.type == "fetch":
                     output_names.append(op.input("X")[0])
 
-        outputs = [self.nodes[name] for name in output_names]
+        outputs = [self.get_node(name) for name in output_names]
         outputs = outputs[0] if len(outputs) == 1 else _expr.Tuple(outputs)
 
         free_vars = analysis.free_vars(outputs)
         func = _function.Function(free_vars, outputs)
         mod = IRModule.from_expr(func)
+        if self.freeze_params:
+            self.params = {}
         return mod, self.params
 
     def from_translated_layer(self, layer, shape_dict):
@@ -1985,16 +2116,18 @@ class GraphProto:
 
         output_names = [x.name for x in layer._output_spec()]
 
-        outputs = [self.nodes[name] for name in output_names]
+        outputs = [self.get_node(name) for name in output_names]
         outputs = outputs[0] if len(outputs) == 1 else _expr.Tuple(outputs)
 
         free_vars = analysis.free_vars(outputs)
         func = _function.Function(free_vars, outputs)
         mod = IRModule.from_expr(func)
+        if self.freeze_params:
+            self.params = {}
         return mod, self.params
 
 
-def from_paddle(program_or_layer, shape_dict=None, scope=None):
+def from_paddle(program_or_layer, shape_dict=None, scope=None, freeze_params=False):
     """Convert a PaddlePaddle model into an equivalent Relay Function.
     PaddlePaddle Program/TranslatedLayer represent the computation
     graph of PaddlePaddle model, and PaddlePaddle scope stores all the
@@ -2003,7 +2136,7 @@ def from_paddle(program_or_layer, shape_dict=None, scope=None):
 
     import paddle
 
-    g = GraphProto()
+    g = GraphProto(freeze_params)
     if isinstance(program_or_layer, paddle.jit.TranslatedLayer):
         # model is loaded by `paddle.jit.load`
         mod, params = g.from_translated_layer(program_or_layer, shape_dict)
