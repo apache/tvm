@@ -79,9 +79,7 @@ def intrin_max(shape, in_dtype, out_dtype):
 def max_pool_impl(uniq_id):
     """Emit C code for pool impl."""
     cc_code = f"""
-#ifdef __cplusplus
-extern "C"
-#endif
+#include "cortex_m7_defines.h"
 
 #ifdef GROVETY_OP_BENCHMARK
 
