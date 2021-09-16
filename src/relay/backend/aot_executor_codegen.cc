@@ -38,8 +38,8 @@
 #include <string>
 #include <vector>
 
-#include "te_compiler.h"
-#include "utils.h"
+#include "./te_compiler.h"
+#include "./utils.h"
 
 namespace tvm {
 namespace relay {
@@ -583,8 +583,16 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     // performing the preexisting AOT executor code generation phase.
     IRModule mod = IRModule::FromExpr(func);
 
+    backend::FunctionInfo func_info;
+
+    if (memory_plan.defined()) {
+      // TODO(@electriclilies, @jroesch): remove UpdateMainWorkspaceSize
+      func_info = tec::UpdateMainWorkspaceSize(mod, targets_, memory_plan->expr_to_storage_info);
+      mod = WithAttr(mod, "main_func_info", func_info);
+    }
+
     IRModule lowered_mod =
-        LowerTEPass(targets_, device_context_map, memory_plan, mod_name, [this](Function func) {
+        tec::LowerTEPass(targets_, device_context_map, mod_name, [this](Function func) {
           // We need to maintain the constant map for external
           // functions so we pass this processing function which
           // allows us to process each function as we lower it.
@@ -661,7 +669,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
 
     Optional<backend::FunctionInfo> main_func_info =
         lowered_mod->GetAttr<backend::FunctionInfo>("main_func_info");
-    ICHECK(main_func_info) << "The attribute \"main_func_info\" should be set at this point.";
+
     main_func_info.value()->workspace_sizes.Set(target_host_, main_workspace_size);
     function_metadata_.Set(runtime::symbol::tvm_module_main, main_func_info.value());
 

@@ -24,7 +24,9 @@ from unittest.mock import patch
 import tvm
 from tvm import tir
 from tvm.script import ty
+from tvm.tir import stmt_functor
 from tvm.relay.backend.contrib.ethosu import vela_api
+import tvm.relay.backend.contrib.ethosu.tir_to_cs_translator as tirtocs
 
 ACCEL_TYPES = [
     vapi.NpuAccelerator.Ethos_U55_256,
@@ -449,6 +451,105 @@ def test_pack_biases():
     for _test_vec in test_vecs:
         mock_obj, packed_biases = create_mock(_test_vec)
         verify(_test_vec, mock_obj, packed_biases)
+
+
+def extract_ethosu_conv2d_extern_calls(mod):
+    """This function will obtain all ethosu_conv2d
+    calls from a NPU TIR module
+
+    Parameters
+    ----------
+    mod : tvm.IRModule
+        This is a NPU TIR Module
+
+    Returns
+    -------
+    list
+        List of tvm.tir.Call objects
+        that are tir extern calls
+        for ethosu_conv2d
+    """
+    # There should only be a single function
+    assert len(mod.functions.items()) == 1
+    primfunc = mod.functions.items()[0][1]
+
+    ethosu_conv2d_calls = list()
+
+    def populate_ethosu_conv2d_calls(stmt):
+        if (
+            isinstance(stmt, tvm.tir.Call)
+            and stmt.op.name == "tir.call_extern"
+            and stmt.args[0] == "ethosu_conv2d"
+        ):
+            ethosu_conv2d_calls.append(stmt)
+
+    stmt_functor.post_order_visit(primfunc.body, populate_ethosu_conv2d_calls)
+    return ethosu_conv2d_calls
+
+
+@pytest.mark.parametrize(
+    "accel",
+    ACCEL_TYPES,
+)
+def test_encode_weights(accel):
+    test_vecs = [
+        {
+            # Stimulus
+            "tir_module": Module1(),
+            "param_dict": {
+                1: np.random.randint(np.iinfo("uint8").min, np.iinfo("uint8").max, [48], "uint8"),
+                2: np.random.randint(np.iinfo("int32").min, np.iinfo("int32").max, [16], "int32"),
+            },
+            "accel_type": accel,
+            # Reference outputs
+            "block_traversal": vapi.NpuBlockTraversal.PART_KERNEL_FIRST,
+        },
+    ]
+
+    def create_mock(test_vec):
+        with patch(
+            "tvm.relay.backend.contrib.ethosu.vela_api.vapi.npu_encode_weights"
+        ) as mock_enc_w:
+            with patch(
+                "tvm.relay.backend.contrib.ethosu.vela_api.vapi.npu_find_block_configs"
+            ) as mock_blk_cfg:
+                mock_blk_cfg.return_value = [vapi.NpuShape3D(8, 8, 8)]
+                ethosu_conv2d_calls = extract_ethosu_conv2d_extern_calls(test_vec["tir_module"])
+                buffer_info = tirtocs.extract_buffer_info(
+                    test_vec["tir_module"], test_vec["param_dict"]
+                )
+                for ethosu_conv2d_call in ethosu_conv2d_calls:
+                    npu_op, _ = tirtocs.translate_ethosu_conv2d(ethosu_conv2d_call)
+                    weights = buffer_info[npu_op.weights[0].address.buffer_var][0]
+                    vela_api.encode_weights(ethosu_conv2d_call, weights, accel)
+                return mock_enc_w
+
+    def verify(test_vec, mock_enc_w):
+        ethosu_conv2d_calls = extract_ethosu_conv2d_extern_calls(test_vec["tir_module"])
+        buffer_info = tirtocs.extract_buffer_info(test_vec["tir_module"], test_vec["param_dict"])
+        for ethosu_conv2d_call in ethosu_conv2d_calls:
+            npu_op, w_zero_point = tirtocs.translate_ethosu_conv2d(ethosu_conv2d_call)
+            weights = buffer_info[npu_op.weights[0].address.buffer_var][0]
+
+            assert mock_enc_w.call_args[1]["accelerator"] == accel
+            assert (
+                mock_enc_w.call_args[1]["weights_volume"].flatten()
+                == weights.astype(np.int64) - w_zero_point
+            ).all()
+            assert mock_enc_w.call_args[1]["dilation_xy"] == (
+                npu_op.kernel.dilation_x,
+                npu_op.kernel.dilation_y,
+            )
+            assert mock_enc_w.call_args[1]["dilation_xy"] == (
+                npu_op.kernel.dilation_x,
+                npu_op.kernel.dilation_y,
+            )
+            assert mock_enc_w.call_args[1]["ifm_bitdepth"] == npu_op.ifm.data_type.size_in_bits()
+            assert mock_enc_w.call_args[1]["block_traversal"] == test_vec["block_traversal"]
+
+    for _test_vec in test_vecs:
+        _mock_enc_w = create_mock(_test_vec)
+        verify(_test_vec, _mock_enc_w)
 
 
 if __name__ == "__main__":
