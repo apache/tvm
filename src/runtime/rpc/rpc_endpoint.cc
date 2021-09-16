@@ -684,11 +684,12 @@ void RPCEndpoint::Init() {
 
 /*!
  * \brief Create a new RPCEndpoint instance.
- * \param channel RPCChannel used to communicate
+ * \param channel RPCChannel used to communicate.
  * \param name Name of this session, used to identify log messages from this RPCEndpoint instance.
- * \param The remote key reported during protocol initialization, or "%toinit" if the RPCEndpoint
- *     should handle this phase of the protocol for you. Some servers may prefer to access parts of
- *     the key to modify their behavior.
+ * \param remote_key The remote key reported during protocol initialization, or "%toinit" if the
+ * RPCEndpoint should handle this phase of the protocol for you. Some servers may prefer to access
+ * parts of the key to modify their behavior.
+ * \param fcleanup The cleanup Packed function.
  */
 std::shared_ptr<RPCEndpoint> RPCEndpoint::Create(std::unique_ptr<RPCChannel> channel,
                                                  std::string name, std::string remote_key,

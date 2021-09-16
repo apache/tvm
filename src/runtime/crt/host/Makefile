@@ -28,11 +28,11 @@ CC ?= ${PREFIX}gcc
 CXX ?= ${PREFIX}g++
 RANLIB ?= ${PREFIX}ranlib
 
-$(ifeq VERBOSE,1)
-QUIET ?=
-$(else)
-QUIET = @
-$(endif)
+ifeq (${VERBOSE}, 1)
+QUIET ?= 
+else
+QUIET ?= @
+endif
 
 PWD = $(shell pwd)
 BUILD_DIR = build

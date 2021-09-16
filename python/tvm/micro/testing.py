@@ -22,15 +22,12 @@ import json
 from typing import Union
 
 
-def _check_tune_log(log_path: Union[pathlib.Path, str]):
+def check_tune_log(log_path: Union[pathlib.Path, str]):
     """Reads tune log and check each result"""
-    results = []
     with open(log_path, "r") as f:
-        line = f.readline()
-        while line:
-            results.append(json.loads(line))
-            line = f.readline()
+        lines = f.readlines()
 
-    for item in results:
-        tune_result = item["result"]
-        assert tune_result[0][0] < 1000000000.0
+    for line in lines:
+        if len(line) > 0:
+            tune_result = json.loads(line)
+            assert tune_result["result"][0][0] < 1000000000.0

@@ -35,7 +35,7 @@ from tvm.target import Target
 from tvm.topi.utils import get_const_tuple
 from tvm.topi.testing import conv2d_nchw_python
 
-from tvm.micro.testing import _check_tune_log
+from tvm.micro.testing import check_tune_log
 
 BUILD = True
 DEBUG = False
@@ -285,7 +285,7 @@ def test_autotune():
         )
         assert tuner.best_flops > 0
 
-    _check_tune_log(tune_log_file)
+    check_tune_log(tune_log_file)
 
     # Build without tuning
     with pass_context:

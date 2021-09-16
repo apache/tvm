@@ -39,7 +39,7 @@ from tvm.contrib import utils
 from tvm.relay.expr_functor import ExprMutator
 from tvm.relay.op.annotation import compiler_begin, compiler_end
 
-from tvm.micro.testing import _check_tune_log
+from tvm.micro.testing import check_tune_log
 
 import conftest
 
@@ -466,7 +466,7 @@ def test_autotune_conv2d(temp_dir, board, west_cmd, tvm_debug):
         )
         assert tuner.best_flops > 0
 
-    _check_tune_log(log_path)
+    check_tune_log(log_path)
 
     # Build without tuning
     with pass_context:

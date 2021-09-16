@@ -144,12 +144,12 @@ class Session:
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
         """Tear down this session and associated RPC session resources."""
-        self.transport.__exit__(exc_type, exc_value, exc_traceback)
-
-    def _cleanup(self):
         if not self._exit_called:
             self._exit_called = True
-            self.__exit__(None, None, None)
+            self.transport.__exit__(exc_type, exc_value, exc_traceback)
+
+    def _cleanup(self):
+        self.__exit__(None, None, None)
 
 
 def lookup_remote_linked_param(mod, storage_id, template_tensor, device):
