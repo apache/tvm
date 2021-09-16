@@ -506,7 +506,6 @@ def convert_concat(g, op, block):
     axis = op.attr("axis")
     inputs = _dtype_shape_promotion(inputs)
     out = _op.concatenate(inputs, axis=axis)
-    infer_shape(out)
     g.add_node(op.output("Out")[0], out)
 
 
