@@ -206,7 +206,7 @@ def test_legalize_conv2d_HWNC():
 
 @tvm.testing.uses_gpu
 def test_legalize_dense():
-    def _test_legalize_dense(data_shape, kernel_shape, pad_shape, dtype, do_pad=True):
+    def _test_legalize_dense(data_shape, kernel_shape, pad_shape, dtype, do_pad=True, units=None):
         """test legalize dense to enable tensorcore"""
         M, K = data_shape
         N, _ = kernel_shape
@@ -216,7 +216,7 @@ def test_legalize_dense():
         def before():
             x = relay.var("x", shape=data_shape, dtype=dtype)
             weight = relay.var("weight", shape=kernel_shape, dtype=dtype)
-            y = relay.nn.dense(x, weight)
+            y = relay.nn.dense(x, weight, units)
             y = relay.Function([x, weight], y)
             return y
 
@@ -237,10 +237,7 @@ def test_legalize_dense():
                 weight_pad = relay.nn.pad(weight, pad_width=((0, dn), (0, dk)))
             else:
                 weight_pad = weight
-            y_pad = relay.nn.dense(
-                x_pad,
-                weight_pad,
-            )
+            y_pad = relay.nn.dense(x_pad, weight_pad, units=N + dn if units else None)
             if dm or dn:
                 y = relay.strided_slice(y_pad, begin=[0, 0], end=out_shape)
             else:
@@ -263,6 +260,9 @@ def test_legalize_dense():
         _test_legalize_dense((7, 15), (31, 15), (1, 1, 1), dtype)
         _test_legalize_dense((3, 16), (32, 16), (5, 0, 0), dtype)
         _test_legalize_dense((2, 16), (32, 16), (0, 0, 0), dtype, False)
+
+    # Test if units parameter is correctly updated
+    _test_legalize_dense((8, 16), (30, 16), (0, 0, 2), "float16", units=30)
 
     _test_legalize_dense((8, 32), (32, 32), (0, 0, 0), "int4", False)
     _test_legalize_dense((7, 32), (32, 32), (1, 0, 0), "int4")
@@ -307,10 +307,7 @@ def test_legalize_batch_matmul():
                 weight_pad = relay.nn.pad(weight, pad_width=((0, 0), (0, dn), (0, dk)))
             else:
                 weight_pad = weight
-            y_pad = relay.nn.batch_matmul(
-                x_pad,
-                weight_pad,
-            )
+            y_pad = relay.nn.batch_matmul(x_pad, weight_pad,)
             if dm or dn:
                 y = relay.strided_slice(y_pad, begin=[0, 0, 0], end=out_shape)
             else:
