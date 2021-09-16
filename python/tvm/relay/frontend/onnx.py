@@ -1561,7 +1561,12 @@ class GatherND(OnnxOpConverter):
         indices_shape = infer_shape(indices)
         indices = _op.transpose(indices, axes=[-1] + list(range(indices_dims - 1)))
         index_rank = indices_shape[-1]
-        return _op.gather_nd(data, indices, batch_dims, index_rank)
+        return _op.gather_nd(
+            data,
+            indices,
+            batch_dims=batch_dims,
+            index_rank=index_rank,
+        )
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
@@ -3554,6 +3559,11 @@ class NegativeLogLikelihoodLoss(OnnxOpConverter):
             )
 
         input_tensor, target_tensor = inputs[0], inputs[1]
+
+        # Convert negative indices --> positive indices for gather ops, note we have to
+        # use the original target tensor to interact with ignore_index to have proper behavior.
+        normalized_target_tensor = normalize_gather_indices(input_tensor, target_tensor, 1)
+
         if len(inputs) == 3:
             weight_tensor = inputs[2]
         else:
@@ -3563,12 +3573,18 @@ class NegativeLogLikelihoodLoss(OnnxOpConverter):
                 dtype=input_tensor.type_annotation.dtype,
             )
 
-        loss = -relay.gather(input_tensor, axis=1, indices=relay.expand_dims(target_tensor, 1))
+        loss = -relay.gather(
+            input_tensor,
+            axis=1,
+            indices=relay.expand_dims(normalized_target_tensor, 1),
+        )
         loss = relay.squeeze(loss, axis=[1])
 
-        expanded_target_tensor = relay.expand_dims(target_tensor, 0)
-        expanded_target_tensor = relay.nn.batch_flatten(expanded_target_tensor)
-        flattened_weights = relay.gather_nd(weight_tensor, expanded_target_tensor)
+        expanded_normalized_target_tensor = relay.expand_dims(normalized_target_tensor, 0)
+        expanded_normalized_target_tensor = relay.nn.batch_flatten(
+            expanded_normalized_target_tensor
+        )
+        flattened_weights = relay.gather_nd(weight_tensor, expanded_normalized_target_tensor)
         select_weights = relay.reshape_like(flattened_weights, loss)
         loss *= select_weights
 
@@ -3578,7 +3594,9 @@ class NegativeLogLikelihoodLoss(OnnxOpConverter):
                 target_tensor, relay.const(ignore_index, dtype=target_tensor.type_annotation.dtype)
             )
             mask_tensor = relay.const(1, dtype="int8") - relay.cast(mask_tensor, "int8")
-            loss *= relay.cast_like(mask_tensor, loss)
+            loss = relay.where(
+                mask_tensor, loss, relay.const(0, infer_type(loss).checked_type.dtype)
+            )
 
             # This is not explained super clearly in the onnx spec, but masked values don't
             # contribute toward the final value in reduction
