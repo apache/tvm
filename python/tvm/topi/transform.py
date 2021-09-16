@@ -26,7 +26,7 @@ from . import tag
 from .utils import within_index, make_idx, const_vector
 
 
-def expand_dims(a, axis, num_newaxis=1):
+def expand_dims(a, axis, num_newaxis=1, dynamic=False):
     """Expand the shape of an array.
 
     Parameters
@@ -34,14 +34,28 @@ def expand_dims(a, axis, num_newaxis=1):
     a : tvm.te.Tensor
         The tensor to be expanded.
 
+    axis: Union[int, tvm.te.Tensor]
+        The axis to be expanded
+
     num_newaxis: int, optional
         Number of newaxis to be inserted on axis
+
+    dynamic: bool
+        Whether to call the dynamic version of expand_dims. For testing.
 
     Returns
     -------
     ret : tvm.te.Tensor
     """
-    return cpp.expand_dims(a, axis, num_newaxis)
+
+    if isinstance(axis, int) and not dynamic:
+        return cpp.expand_dims(a, axis, num_newaxis)
+    elif isinstance(axis, te.Tensor) or dynamic:
+        if num_newaxis != 1:
+            raise ValueError("Dynamic expand_dims only supports num_newaxis=1!")
+        return cpp.dynamic_expand_dims(a, axis)
+    else:
+        raise ValueError(f"Unknown type for axis {type(axis)}")
 
 
 def expand_like(a, shape_like, axis):

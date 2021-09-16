@@ -48,6 +48,43 @@ using namespace tvm::te;
 using namespace topi::detail;
 
 /*!
+ * \brief Reshape a tensor
+ *
+ * \param x The input tensor
+ * \param newshape The new shape
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return A Tensor whose op member is the reshape operation
+ */
+inline Tensor reshape(const Tensor& x, Array<PrimExpr> newshape, std::string name = "T_reshape",
+                      std::string tag = kInjective) {
+  auto x_shape = x->shape;
+  Array<PrimExpr> target_shape;
+
+  for (const auto& ele : newshape) {
+    if (ele.as<IntImmNode>()) {
+      target_shape.push_back(cast(DataType::Int(32), ele));
+    } else {
+      target_shape.push_back(ele);
+    }
+  }
+
+  if (is_empty_shape(target_shape)) {
+    return compute(
+        target_shape, [&](const Array<Var>& indices) { return tvm::cast(x->dtype, 0); }, name, tag);
+  } else {
+    return compute(
+        target_shape,
+        [&](const Array<Var>& indices) {
+          return x(UnravelIndex(
+              RavelIndex(Array<PrimExpr>{indices.begin(), indices.end()}, target_shape), x_shape));
+        },
+        name, tag);
+  }
+}
+
+/*!
  * \brief Creates an operation to insert new dimensions of length 1
  *
  * \param x The input tensor
@@ -95,6 +132,79 @@ inline Tensor expand_dims(const Tensor& x, int axis, int num_newaxis = 1,
         return x(idx);
       },
       name, tag);
+}
+
+inline Tensor dynamic_expand_dims(const Tensor& x, const PrimExpr& axis,
+                                  std::string name = "T_dynamic_expand_dims",
+                                  std::string tag = kInjective) {
+  Array<PrimExpr> ishape = x->shape;
+  int ndim_in = ishape.size();
+  int ndim_out = ndim_in + 1;
+
+  /*
+  We need to construct the new tensor shape. By limiting only one dimension to be expanded at a
+  time we therefore know the rank of the tensor after the expand op. Let `R` be the rank of the
+  input tensor. The output tensor has rank `R + 1`
+
+  The difficulty is then in determining the shape of the output tensor. Consider the case where we
+  want to expand dimension `N`. in a tensor with shape [a, b, c, d]. Note that if we copied all
+  `R` elements of the input tensor shape into the first `R` elements of the output tensor shape
+  we would have the shape be correct up to the `N`th location.
+
+  E.g. `N` = 1 we want a final shape of:
+    Initial shape: [?, ?, ?, ?, ?]
+    Answer       : [a, 1, b, c, d]
+  If we copied the first R elements:
+    Forward Pass : [a, b, c, d, ?]
+    Answer       : [a, 1, b, c, d]
+  Likewise if we copy from the back, the first `R - N - 1` elements will be correct:
+    Backward Pass: [?, a, b, c, d]
+    Answer       : [a, 1, b, c, d]
+
+  If we run the forward and then backward pass, being careful not to overwrite the contents
+  of the output array pass the `N`th dimension then it is clear we will get the output shape.
+  By initializing the output shape array with all 1's, we can get the right answer:
+
+    Initial shape  : [1, 1, 1, 1, 1]
+    + Forward Pass : [a, 1, 1, 1, 1]
+    + Backward Pass: [a, 1, b, c, d]
+    --------------------------------
+    Answer         : [a, 1, b, c, d]
+
+  Note we have to do this because we can only use the current index to determine the output
+  of an array.
+  */
+  Array<PrimExpr> oshape;
+
+  // Initialize output shape array
+  for (int i = 0; i < ndim_out; i++) {
+    oshape.push_back(IntImm(DataType::Int(64), 1));
+  }
+
+  // Forward fill
+  PrimExpr cur_dim_out = PrimExpr(0);
+  for (int i = 0; i < ndim_in; i++) {
+    PrimExpr next_index_dim = if_then_else(cur_dim_out < axis, ishape[i], oshape[i]);
+    oshape.Set(i, next_index_dim);
+    cur_dim_out += 1;
+  }
+
+  // Backward fill
+  cur_dim_out = PrimExpr(ndim_out - 1);
+  for (int i = ndim_in - 1; i >= 0; i--) {
+    PrimExpr next_index_dim = if_then_else(axis < cur_dim_out, ishape[i], oshape[i + 1]);
+    oshape.Set(i + 1, next_index_dim);
+    cur_dim_out -= 1;
+  }
+
+  return compute(
+      oshape,
+      [&](const Array<Var>& indices) {
+        return x(UnravelIndex(RavelIndex(Array<PrimExpr>{indices.begin(), indices.end()}, oshape),
+                              ishape));
+      },
+      name, tag);
+  // return reshape(x, oshape, name, tag);
 }
 
 /*!
@@ -220,43 +330,6 @@ inline Tensor reverse_sequence(const Tensor& x, const Tensor& seq_lengths, int s
   };
 
   return compute(x->shape, func, name, tag);
-}
-
-/*!
- * \brief Reshape a tensor
- *
- * \param x The input tensor
- * \param newshape The new shape
- * \param name The name of the operation
- * \param tag The tag to mark the operation
- *
- * \return A Tensor whose op member is the reshape operation
- */
-inline Tensor reshape(const Tensor& x, Array<PrimExpr> newshape, std::string name = "T_reshape",
-                      std::string tag = kInjective) {
-  auto x_shape = x->shape;
-  Array<PrimExpr> target_shape;
-
-  for (const auto& ele : newshape) {
-    if (ele.as<IntImmNode>()) {
-      target_shape.push_back(cast(DataType::Int(32), ele));
-    } else {
-      target_shape.push_back(ele);
-    }
-  }
-
-  if (is_empty_shape(target_shape)) {
-    return compute(
-        target_shape, [&](const Array<Var>& indices) { return tvm::cast(x->dtype, 0); }, name, tag);
-  } else {
-    return compute(
-        target_shape,
-        [&](const Array<Var>& indices) {
-          return x(UnravelIndex(
-              RavelIndex(Array<PrimExpr>{indices.begin(), indices.end()}, target_shape), x_shape));
-        },
-        name, tag);
-  }
 }
 
 /*!
