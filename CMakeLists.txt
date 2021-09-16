@@ -310,6 +310,7 @@ if(BUILD_FOR_HEXAGON)
   endif()
 
   add_definitions(-D_MACH_I32=int)
+  add_definitions(-DDMLC_CXX11_THREAD_LOCAL=0)
 endif()
 
 # Package runtime rules
