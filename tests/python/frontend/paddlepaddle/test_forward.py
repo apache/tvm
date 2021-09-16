@@ -890,7 +890,7 @@ def test_forward_activation():
 
     input_shape = [1, 3, 10, 10]
     input_data = paddle.normal(shape=input_shape) * 10.0
-    input_data_2 = paddle.normal(shape=input_shape).astype("float16") * 10.0
+    input_data_2 = paddle.normal(shape=input_shape).astype("float64") * 10.0
     op_list = [
         "elu",
         "hardshrink",
@@ -903,10 +903,16 @@ def test_forward_activation():
         "relu6",
         "selu",
         "sigmoid",
+        "softplus",
+        "softshrink",
+        "softsign",
+        "swish",
+        "tanhshrink",
+        "thresholded_relu",
     ]
     for op_name in op_list:
         verify_model(Activation(op_name), input_data=input_data)
-        verify_model(Activation(op_name), input_data=input_data_2, rtol=1e-3, atol=1e-3)
+        verify_model(Activation(op_name), input_data=input_data_2, rtol=1e-9, atol=1e-6)
 
 
 @tvm.testing.uses_gpu

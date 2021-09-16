@@ -658,7 +658,7 @@ def convert_elu(g, op, block):
     x = g.get_node(op.input("X")[0])
     dtype = infer_type(x).checked_type.dtype
     alpha = op.attr("alpha")
-    alpha = _expr.const(alpha, dtype=dtype)
+    alpha = _expr.const(-1.0 * alpha, dtype=dtype)
     out = alpha * _op.nn.relu(_expr.const(1, dtype=dtype) - _op.exp(x)) + _op.nn.relu(x)
     g.add_node(op.output("Out")[0], out)
 
@@ -1723,11 +1723,16 @@ def convert_scale(g, op, block):
 def convert_selu(g, op, block):
     """Operator converter for selu."""
 
-    x = g.get_node(op.input("Input")[0])
+    x = g.get_node(op.input("x")[0])
     dtype = infer_type(x).checked_type.dtype
     alpha = _op.const(op.attr("alpha"), dtype)
     scale = _op.const(op.attr("scale"), dtype)
-    out = scale * (alpha * _op.nn.relu(_expr.const(1.0, dtype=dtype) - _op.exp(x)) + _op.nn.relu(x))
+    out = (
+        _expr.const(-1.0, dtype=dtype)
+        * alpha
+        * _op.nn.relu(_expr.const(1.0, dtype=dtype) - _op.exp(x))
+    )
+    out = scale * (out + _op.nn.relu(x))
     g.add_node(op.output("Out")[0], out)
 
 
@@ -1859,6 +1864,62 @@ def convert_softmax(g, op, block):
     m = _op.max(x, axis, keepdims=True)
     e = _op.exp(x - m)
     out = e / _op.sum(e, axis, keepdims=True)
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_softplus(g, op, block):
+    """Operator converter for softplus."""
+
+    x = g.get_node(op.input("X")[0])
+    dtype = infer_type(x).checked_type.dtype
+    beta = op.attr("beta")
+    beta = _expr.const(beta, dtype=dtype)
+    out = _op.log(_op.exp(x * beta) + _expr.const(1.0, dtype=dtype)) / beta
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_softshrink(g, op, block):
+    """Operator converter for softshrink."""
+
+    x = g.get_node(op.input("X")[0])
+    threshold = op.attr("lambda")
+    out = x - _op.clip(x, -1.0 * threshold, threshold)
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_softsign(g, op, block):
+    """Operator converter for softsign."""
+
+    x = g.get_node(op.input("X")[0])
+    dtype = infer_type(x).checked_type.dtype
+    out = x / (_op.const(1.0, dtype) + _op.abs(x))
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_swish(g, op, block):
+    """Operator converter for swish."""
+
+    x = g.get_node(op.input("X")[0])
+    dtype = infer_type(x).checked_type.dtype
+    out = x / (_op.const(1.0, dtype) + _op.exp(_op.const(-1.0, dtype) * x))
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_tanhshrink(g, op, block):
+    """Operator converter for swish."""
+
+    x = g.get_node(op.input("X")[0])
+    out = x - _op.tanh(x)
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_thresholded_relu(g, op, block):
+    """Operator converter for thresholded_relu."""
+
+    x = g.get_node(op.input("X")[0])
+    dtype = infer_type(x).checked_type.dtype
+    threshold = _op.const(op.attr("threshold"), dtype)
+    out = _op.where(_op.greater(x, threshold), x, _op.const(0.0, dtype))
     g.add_node(op.output("Out")[0], out)
 
 
@@ -2125,14 +2186,20 @@ _convert_map = {
     "size": convert_numel,
     "slice": convert_slice,
     "softmax": convert_softmax,
+    "softplus": convert_softplus,
+    "softshrink": convert_softshrink,
+    "softsign": convert_softsign,
     "split": convert_split,
     "square": convert_square,
     "squeeze2": convert_squeeze,
     "stack": convert_stack,
     "strided_slice": convert_slice,
     "sum": convert_addn,
+    "swish": convert_swish,
     "tan": convert_unary_op,
     "tanh": convert_unary_op,
+    "tanh_shrink": convert_tanhshrink,
+    "thresholded_relu": convert_thresholded_relu,
     "top_k_v2": convert_topk,
     "tile": convert_tile,
     "transpose2": convert_transpose,
