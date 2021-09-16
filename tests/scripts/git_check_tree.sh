@@ -31,7 +31,7 @@ for file in $changed_files; do
     fi
 done
 
-if [[ ($DOCS_DIR -eq !$OTHER_DIR) || ($OTHER_DIR -eq 1) ]]; then 
+if [[ ($DOCS_DIR -eq !$OTHER_DIR) || ($OTHER_DIR -eq 1) ]]; then
     exit 1
 else
     exit 0
