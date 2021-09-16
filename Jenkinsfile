@@ -148,12 +148,12 @@ stage('Prepare') {
   }
 }
 
-def GIT_DIFF = 
-    sh(
+def GIT_DIFF { 
+  return   sh(
             script: "git diff-tree --no-commit-id --name-only -r origin/main",
             returnStatus: true
     ).split('\n')
-
+}
 
 stage("Sanity Check") {
   timeout(time: max_time, unit: 'MINUTES') {
