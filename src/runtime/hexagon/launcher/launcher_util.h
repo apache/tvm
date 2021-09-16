@@ -17,30 +17,18 @@
  * under the License.
  */
 
-/*!
- * \file rocm/normalization.h
- * \brief rocm schedule for LRN and l2 normalization operations
- */
-#ifndef TVM_TOPI_ROCM_NORMALIZATION_H_
-#define TVM_TOPI_ROCM_NORMALIZATION_H_
+#ifndef TVM_RUNTIME_HEXAGON_LAUNCHER_LAUNCHER_UTIL_H_
+#define TVM_RUNTIME_HEXAGON_LAUNCHER_LAUNCHER_UTIL_H_
 
-#include <tvm/target/generic_func.h>
-#include <tvm/te/operation.h>
-#include <tvm/topi/tags.h>
+#include <cstddef>
+#include <fstream>
+#include <string>
 
-namespace tvm {
-namespace topi {
+size_t get_file_size(std::ifstream& in_file);
+size_t get_file_size(std::ifstream&& in_file);
 
-using namespace tvm::te;
-namespace rocm {
-/*!
- * \brief Create a rocm schedule for LRN
- * \param outs The output tensors.
- * \return A schedule for the given ops.
- */
-inline Schedule schedule_lrn(const Array<Tensor>& outs) { return topi::cuda::schedule_lrn(outs); }
+std::string load_text_file(const std::string& file_name);
+void* load_binary_file(const std::string& file_name, void* buffer, size_t buffer_size);
+void write_binary_file(const std::string& file_name, void* buffer, size_t buffer_size);
 
-}  // namespace rocm
-}  // namespace topi
-}  // namespace tvm
-#endif  // TVM_TOPI_ROCM_NORMALIZATION_H_
+#endif  // TVM_RUNTIME_HEXAGON_LAUNCHER_LAUNCHER_UTIL_H_

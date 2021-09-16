@@ -691,11 +691,13 @@ void RPCEndpoint::Init() {
  *     the key to modify their behavior.
  */
 std::shared_ptr<RPCEndpoint> RPCEndpoint::Create(std::unique_ptr<RPCChannel> channel,
-                                                 std::string name, std::string remote_key) {
+                                                 std::string name, std::string remote_key,
+                                                 TypedPackedFunc<void()> fshutdown) {
   std::shared_ptr<RPCEndpoint> endpt = std::make_shared<RPCEndpoint>();
   endpt->channel_ = std::move(channel);
   endpt->name_ = std::move(name);
   endpt->remote_key_ = std::move(remote_key);
+  endpt->fshutdown_ = fshutdown;
   endpt->Init();
   return endpt;
 }
@@ -734,6 +736,7 @@ void RPCEndpoint::ServerLoop() {
     (*f)();
   }
   channel_.reset(nullptr);
+  if (fshutdown_ != nullptr) fshutdown_();
 }
 
 int RPCEndpoint::ServerAsyncIOEventHandler(const std::string& in_bytes, int event_flag) {

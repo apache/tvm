@@ -19,7 +19,8 @@
 
 import tvm
 from tvm import relay
-from tvm.relay.op.contrib import ethosn_available, get_pattern_table
+from tvm.testing import requires_ethosn
+from tvm.relay.op.contrib import get_pattern_table
 from . import infrastructure as tei
 import numpy as np
 
@@ -32,10 +33,8 @@ def _get_model(input_shape, output_shape, dtype):
     return req, params
 
 
+@requires_ethosn
 def test_reshape():
-    if not ethosn_available():
-        return
-
     trials = [
         ((1, 15, 4, 1), (1, 60)),
         ((1, 15, 4, 1), (1, 30, 2)),
@@ -58,10 +57,8 @@ def test_reshape():
         tei.verify(outputs, 1)
 
 
+@requires_ethosn
 def test_reshape_failure():
-    if not ethosn_available():
-        return
-
     trials = [
         (
             (1, 15, 4, 1),

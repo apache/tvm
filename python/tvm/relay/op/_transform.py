@@ -182,6 +182,7 @@ _reg.register_strategy("unique", strategy.unique_strategy)
 _reg.register_strategy("invert_permutation", strategy.invert_permutation_strategy)
 _reg.register_shape_func("invert_permutation", False, elemwise_shape_func)
 
+
 #####################
 #  Shape functions  #
 #####################
@@ -899,9 +900,9 @@ def tile_shape_func(attrs, inputs, _):
 
 
 @script
-def _split_shape_func(data_shape, index, indices_or_sections, axis):
+def _split_shape_func(data_shape, index, indices_or_sections, param_is_indices, axis):
     out = output_tensor((data_shape.shape[0],), "int64")
-    if len(indices_or_sections) == 1:
+    if param_is_indices:
         for i in const_range(data_shape.shape[0]):
             if i == axis:
                 assert (
@@ -949,10 +950,18 @@ def split_shape_func(attrs, inputs, _):
         if isinstance(indices_or_sections, int)
         else len(indices_or_sections) + 1
     )
-    if isinstance(indices_or_sections, int):
+
+    param_is_indices = isinstance(indices_or_sections, int)
+    if param_is_indices:
         indices_or_sections = [indices_or_sections]
     return [
-        _split_shape_func(inputs[0], convert(i), convert(indices_or_sections), convert(axis))
+        _split_shape_func(
+            inputs[0],
+            convert(i),
+            convert(indices_or_sections),
+            convert(param_is_indices),
+            convert(axis),
+        )
         for i in range(num_out)
     ]
 

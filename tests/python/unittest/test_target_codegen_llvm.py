@@ -818,5 +818,32 @@ def test_llvm_gpu_lower_atomic():
         tvm.testing.assert_allclose(a.numpy(), ref, rtol=1e-5)
 
 
+@tvm.testing.requires_llvm
+def test_llvm_order_functions():
+    """Check that functions in the LLVM module are ordered alphabetically."""
+
+    # Note: the order is alphabetical because that's a predictable ordering. Any predictable
+    # ordering will work fine, but if the ordering changes, this test will need to be updated.
+    def make_call_extern(caller, callee):
+        # Create a function:
+        #   float32 caller(float32 v) { return callee(v); }
+        ib = tvm.tir.ir_builder.create()
+        v = tvm.te.var("v", dtype="float32")
+        t = tvm.tir.call_extern("float32", callee, v)
+        ib.emit(t)
+        return tvm.tir.PrimFunc([v], ib.get()).with_attr("global_symbol", caller)
+
+    # Create some functions in a random order.
+    functions = {
+        "Danny": make_call_extern("Danny", "Dave"),
+        "Sammy": make_call_extern("Sammy", "Eve"),
+        "Kirby": make_call_extern("Kirby", "Fred"),
+    }
+    mod = tvm.IRModule(functions=functions)
+    ir_text = tvm.build(mod, None, target="llvm").get_source("ll")
+    matches = re.findall(r"^define[^@]*@([a-zA-Z_][a-zA-Z0-9_]*)", ir_text, re.MULTILINE)
+    assert matches == sorted(matches)
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__] + sys.argv[1:]))

@@ -19,7 +19,6 @@
 
 #include <random>
 
-#include "../primitive.h"
 #include "../utils.h"
 
 namespace tvm {
@@ -51,6 +50,8 @@ int64_t SampleCategorical(support::LinearCongruentialEngine::TRandState* rand_st
   return candidates[i];
 }
 
+/******** InstructionKind Registration ********/
+
 struct SampleCategoricalTraits : public UnpackedInstTraits<SampleCategoricalTraits> {
   static constexpr const char* kName = "SampleCategorical";
   static constexpr bool kIsPure = true;
@@ -79,7 +80,8 @@ struct SampleCategoricalTraits : public UnpackedInstTraits<SampleCategoricalTrai
     return py.Str();
   }
 
-  friend struct UnpackedInstTraits<SampleCategoricalTraits>;
+  template <typename>
+  friend struct ::tvm::tir::UnpackedInstTraits;
 };
 
 TVM_REGISTER_INST_KIND_TRAITS(SampleCategoricalTraits);

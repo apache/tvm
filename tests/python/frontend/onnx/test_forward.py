@@ -885,10 +885,12 @@ def test_slice(target, dev):
 
     x = np.random.randn(20, 10, 5).astype(np.float32)
     _test_slice_iteration_v1(x, x[0:3, 0:10], starts=(0, 0), ends=(3, 10), axes=(0, 1))
+    _test_slice_iteration_v1(x, x[0:3, 0:10], starts=(0, 0), ends=(10, 3), axes=(1, 0))
     _test_slice_iteration_v1(x, x[:, :, 3:4], starts=(0, 0, 3), ends=(20, 10, 4))
     _test_slice_iteration_v1(x, x[:, 1:1000], starts=(1,), ends=(1000,), axes=(1,))
     _test_slice_iteration_v1(x, x[:, 0:-1], starts=(0,), ends=(-1,), axes=(1,))
     _test_slice_iteration_v10(x, x[0:3, 0:10], starts=(0, 0), ends=(3, 10), axes=(0, 1))
+    _test_slice_iteration_v10(x, x[0:3, 0:10], starts=(0, 0), ends=(10, 3), axes=(1, 0))
     _test_slice_iteration_v10(x, x[:, :, 3:4], starts=(0, 0, 3), ends=(20, 10, 4))
     _test_slice_iteration_v10(x, x[:, 1:1000], starts=(1,), ends=(1000,), axes=(1,))
     _test_slice_iteration_v10(x, x[:, 0:-1], starts=(0,), ends=(-1,), axes=(1,))
@@ -3323,6 +3325,8 @@ def verify_rnn(
     use_peep=False,
     linear_before_reset=False,
     directions=1,
+    rtol=1e-5,
+    atol=1e-5,
     target=None,
     dev=None,
 ):
@@ -3445,7 +3449,7 @@ def verify_rnn(
     model = helper.make_model(graph, producer_name="rnn_test")
 
     verify_with_ort_with_inputs(
-        model, input_values, output_shapes, atol=1e-2, rtol=1e-2, target=target, dev=dev
+        model, input_values, output_shapes, atol=atol, rtol=rtol, target=target, dev=dev
     )
 
 
@@ -3601,6 +3605,8 @@ def test_lstm(target, dev):
 
 @tvm.testing.parametrize_targets
 def test_gru(target, dev):
+    # Set seed for test reproduction
+    np.random.seed(137)
     for directions in [1, 2]:
         # No bias.
         verify_rnn(
@@ -3611,10 +3617,12 @@ def test_gru(target, dev):
             use_bias=False,
             rnn_type="GRU",
             directions=directions,
+            rtol=1e-6,
+            atol=1e-6,
             target=target,
             dev=dev,
         )
-        # large batch.
+        # large batch. linear before reset
         verify_rnn(
             seq_length=4,
             batch_size=8,
@@ -3636,6 +3644,8 @@ def test_gru(target, dev):
             use_bias=True,
             rnn_type="GRU",
             directions=directions,
+            rtol=1e-6,
+            atol=1e-6,
             target=target,
             dev=dev,
         )
@@ -3648,6 +3658,8 @@ def test_gru(target, dev):
             use_bias=True,
             rnn_type="GRU",
             directions=directions,
+            rtol=1e-6,
+            atol=1e-6,
             target=target,
             dev=dev,
         )
@@ -3660,6 +3672,8 @@ def test_gru(target, dev):
             use_bias=True,
             rnn_type="GRU",
             directions=directions,
+            rtol=1e-6,
+            atol=1e-6,
             target=target,
             dev=dev,
         )
@@ -3672,6 +3686,8 @@ def test_gru(target, dev):
             use_bias=True,
             rnn_type="GRU",
             directions=directions,
+            rtol=1e-6,
+            atol=1e-6,
             target=target,
             dev=dev,
         )
@@ -3687,6 +3703,8 @@ def test_gru(target, dev):
             activations=["HardSigmoid", "Softsign"] * directions,
             rnn_type="GRU",
             directions=directions,
+            rtol=1e-6,
+            atol=1e-6,
             target=target,
             dev=dev,
         )
@@ -3702,6 +3720,8 @@ def test_gru(target, dev):
             betas=[0.3, 0.0] * directions,
             rnn_type="GRU",
             directions=directions,
+            rtol=1e-8,
+            atol=1e-8,
             target=target,
             dev=dev,
         )
@@ -3717,6 +3737,8 @@ def test_gru(target, dev):
             betas=[0.3, 0.1] * directions,
             rnn_type="GRU",
             directions=directions,
+            rtol=1e-8,
+            atol=1e-8,
             target=target,
             dev=dev,
         )
@@ -3731,6 +3753,8 @@ def test_gru(target, dev):
             use_initial_state=True,
             rnn_type="GRU",
             directions=directions,
+            rtol=1e-6,
+            atol=1e-6,
             target=target,
             dev=dev,
         )
@@ -4121,11 +4145,7 @@ def test_non_max_suppression(target, dev):
     )
 
 
-# @tvm.testing.parametrize_targets
-@pytest.mark.skip(
-    "Test regressed due to not being run in CI"
-    + " tracked here: https://github.com/apache/tvm/pull/8274"
-)
+@tvm.testing.parametrize_targets
 def test_loop(target, dev):
     def verify_cond_loop():
         y_in = helper.make_tensor_value_info("y_in", TensorProto.FLOAT, [1])
@@ -4687,10 +4707,6 @@ onnx_test_folders = sorted(
 )
 
 unsupported_onnx_tests = [
-    "test_adagrad",
-    "test_adagrad_multiple",
-    "test_adam",
-    "test_adam_multiple",
     "test_cast_BFLOAT16_to_FLOAT",
     "test_cast_DOUBLE_to_FLOAT16",
     "test_cast_FLOAT_to_BFLOAT16",
@@ -4715,16 +4731,8 @@ unsupported_onnx_tests = [
     "test_dropout_default_mask",
     "test_dropout_default_mask_ratio",
     "test_dropout_default_ratio",
-    "test_einsum_batch_diagonal",
-    "test_einsum_batch_matmul",
-    "test_einsum_inner_prod",
-    "test_einsum_sum",
-    "test_einsum_transpose",
     "test_greater_equal",
     "test_greater_equal_bcast",
-    "test_hardmax_axis_0",
-    "test_hardmax_axis_1",
-    "test_hardmax_default_axis",
     "test_if_seq",
     "test_less_equal",
     "test_less_equal_bcast",
@@ -4743,10 +4751,7 @@ unsupported_onnx_tests = [
     "test_maxpool_with_argmax_2d_precomputed_pads",
     "test_maxpool_with_argmax_2d_precomputed_strides",
     "test_maxunpool_export_with_output_shape",
-    "test_momentum",
-    "test_momentum_multiple",
     "test_mvn",
-    "test_nesterov_momentum",
     # When unsqueeze is fully supported, remaining nllloss tests should work:
     "test_nllloss_NC_expanded",
     "test_nllloss_NCd1_expanded",
@@ -4766,16 +4771,6 @@ unsupported_onnx_tests = [
     "test_nllloss_NCd1d2d3_sum_weight_high_ii_expanded",
     "test_nllloss_NCd1d2d3d4d5_mean_weight_expanded",
     "test_nllloss_NCd1d2d3d4d5_none_no_weight_expanded",
-    "test_pow_types_float",
-    "test_pow_types_float32_int32",
-    "test_pow_types_float32_int64",
-    "test_pow_types_float32_uint32",
-    "test_pow_types_float32_uint64",
-    "test_pow_types_int",
-    "test_pow_types_int32_float32",
-    "test_pow_types_int32_int32",
-    "test_pow_types_int64_float32",
-    "test_pow_types_int64_int64",
     "test_qlinearmatmul_2D",
     "test_qlinearmatmul_3D",
     "test_range_float_type_positive_delta_expanded",
@@ -5020,6 +5015,81 @@ def test_aten(target, dev):
 
 
 @tvm.testing.parametrize_targets
+def test_index_put(target, dev):
+    class _index_put_model(torch.nn.Module):
+        def __init__(self, indices, values, accumulate):
+            super(_index_put_model, self).__init__()
+            self.indices = indices
+            self.values = values
+            self.accumulate = accumulate
+
+        def forward(self, x):
+            return x.index_put(self.indices, self.values, self.accumulate)
+
+    def _convert_to_onnx(model, dummy_data):
+        file_name = "{}.onnx".format("aten_model")
+        torch.onnx.export(
+            model,
+            dummy_data,
+            file_name,
+            export_params=True,
+            verbose=False,
+            opset_version=11,
+            operator_export_type=torch.onnx.OperatorExportTypes.ONNX_ATEN_FALLBACK,
+        )
+        onnx_model = onnx.load(file_name)
+        return onnx_model
+
+    def verify_index_put(data_shape, indices, accumulate):
+        dummy_data = torch.ones(data_shape)
+        tvm_inputs = [dummy_data.numpy()]
+        values = torch.rand(indices[0].size())
+        model = _index_put_model(indices, values, accumulate)
+        onnx_model = _convert_to_onnx(model, dummy_data)
+        torch_out = model(dummy_data)
+
+        tvm_out = get_tvm_output_with_vm(
+            onnx_model, tvm_inputs, target, dev, freeze_params=True, convert_to_static=True
+        )
+        tvm.testing.assert_allclose(torch_out.numpy(), tvm_out)
+
+    shape = (3, 5)
+    xidx = torch.tensor([0, 1, 2, 2])
+    yidx = torch.tensor([0, 1, 3, 4])
+    verify_index_put(shape, [xidx, yidx], True)
+
+    shape = (3, 5, 3)
+    xidx = torch.tensor([0, 1, 2, 2, 0])
+    yidx = torch.tensor([0, 1, 3, 4, 0])
+    zidx = torch.tensor([0, 1, 1, 2, 0])
+    verify_index_put(shape, [xidx, yidx, zidx], False)
+
+    def verify_index_put_slice(data_shape, value_shape, accumulate):
+        dummy_data = torch.ones(data_shape)
+        tvm_inputs = [dummy_data.numpy()]
+        indices = []
+        index_shape = [1] * len(value_shape)
+        index_shape[0] = -1
+        for i in range(len(value_shape)):
+            indices.append(torch.arange(0, value_shape[i]).reshape(tuple(index_shape)))
+            index_shape.pop()
+        values = torch.rand(value_shape)
+
+        model = _index_put_model(indices, values, accumulate)
+        onnx_model = _convert_to_onnx(model, dummy_data)
+        torch_out = model(dummy_data)
+
+        tvm_out = get_tvm_output_with_vm(
+            onnx_model, tvm_inputs, target, dev, freeze_params=True, convert_to_static=True
+        )
+        tvm.testing.assert_allclose(torch_out.numpy(), tvm_out)
+
+    verify_index_put_slice((3, 3), (2, 2), False)
+    verify_index_put_slice((2, 3, 4), (1, 2, 3), True)
+    verify_index_put_slice((2, 3, 4, 5), (1, 2, 3, 1), False)
+
+
+@tvm.testing.parametrize_targets
 def test_reverse_sequence(target, dev):
     def verify_reverse_sequence(x, sequence_lens, batch_axis, time_axis):
         node = onnx.helper.make_node(
@@ -5238,6 +5308,39 @@ def test_qlinearconv(target, dev):
         repeat(1, D),
         repeat(2, D),
     )
+
+
+@tvm.testing.parametrize_targets
+def test_qlinearconcat(target, dev):
+    def verify_qlinearconcat(shapes, out_shape, axis=None):
+        input_names = []
+        input_values = []
+        input_nodes = []
+        for i in range(len(shapes)):
+            tensor_name = chr(ord("a") + i)
+            shape = shapes[i]
+            node = helper.make_tensor_value_info(tensor_name, TensorProto.FLOAT, list(shape))
+
+            input_names.append(tensor_name)
+            input_values.append(np.random.random(shape).astype("float32"))
+            input_nodes.append(node)
+
+        node = helper.make_node("Concat", input_names, ["C"])
+        if axis is not None:
+            axis_attr = helper.make_attribute("axis", axis)
+            node.attribute.append(axis_attr)
+        graph = helper.make_graph(
+            [node],
+            "qlinearconcat_test",
+            inputs=input_nodes,
+            outputs=[helper.make_tensor_value_info("C", TensorProto.FLOAT, list(out_shape))],
+        )
+        model = helper.make_model(graph, producer_name="qlinearconcat_test")
+        quantize_and_verify_with_ort(model, input_names, shapes, target, dev)
+
+    verify_qlinearconcat([[2, 1], [2, 1]], [4, 1], 0)
+    verify_qlinearconcat([[2, 1], [2, 1]], [2, 2], 1)
+    verify_qlinearconcat([[1, 2], [2, 2], [3, 2]], [6, 2], 0)
 
 
 @tvm.testing.parametrize_targets
@@ -5595,8 +5698,10 @@ if __name__ == "__main__":
     test_cumsum()
     test_wrong_input()
     test_aten()
+    test_index_put()
     test_reverse_sequence()
     test_eyelike()
+    test_qlinearconcat()
     test_qlinearconv()
     test_random_uniform()
     test_convinteger()

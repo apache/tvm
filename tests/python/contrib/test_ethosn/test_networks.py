@@ -23,8 +23,10 @@ pytest.importorskip("tflite")
 pytest.importorskip("tensorflow")
 
 from tvm import relay
-from tvm.relay.op.contrib.ethosn import ethosn_available
+from tvm.testing import requires_ethosn
 from tvm.contrib import download
+from tvm.testing import requires_ethosn
+
 import tvm.relay.testing.tf as tf_testing
 import tflite.Model
 from . import infrastructure as tei
@@ -88,8 +90,6 @@ def _test_image_network(
         to check the correctness/accuracy.
 
     """
-    if not ethosn_available():
-        return
 
     def get_model():
         if model_url[-3:] in ("tgz", "zip"):
@@ -116,6 +116,7 @@ def _test_image_network(
         tei.run(m, inputs, output_count, npu=True)
 
 
+@requires_ethosn
 def test_mobilenet_v1():
     # If this test is failing due to a hash mismatch, please notify @mbaret and
     # @Leo-arm. The hash is there to catch any changes in the behaviour of the
@@ -142,6 +143,7 @@ def test_mobilenet_v1():
     )
 
 
+@requires_ethosn
 def test_inception_v3():
     # If this test is failing due to a hash mismatch, please notify @mbaret and
     # @Leo-arm. The hash is there to catch any changes in the behaviour of the
@@ -167,6 +169,7 @@ def test_inception_v3():
     )
 
 
+@requires_ethosn
 def test_inception_v4():
     # If this test is failing due to a hash mismatch, please notify @mbaret and
     # @Leo-arm. The hash is there to catch any changes in the behaviour of the
@@ -192,6 +195,7 @@ def test_inception_v4():
     )
 
 
+@requires_ethosn
 def test_ssd_mobilenet_v1():
     # If this test is failing due to a hash mismatch, please notify @mbaret and
     # @Leo-arm. The hash is there to catch any changes in the behaviour of the
