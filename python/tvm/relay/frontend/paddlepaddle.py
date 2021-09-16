@@ -105,6 +105,8 @@ def convert_unary_op(g, op, block):
 
     op_map = {
         "isinf_v2": _op.isinf,
+        "isfinite_v2": _op.isfinite,
+        "isnan_v2": _op.isnan,
     }
     if op.type in op_map:
         unary_func = op_map[op.type]
@@ -610,6 +612,7 @@ def convert_elementwise_op(g, op, block):
         "elementwise_floordiv": "floor_divide",
         "floor_mod": "floor_mod",
         "equal": "equal",
+        "greater_equal": "greater_equal",
         "greater_than": "greater",
         "less_equal": "less_equal",
         "less_than": "less",
@@ -975,6 +978,15 @@ def convert_logical_op(g, op, block):
     ipt1 = g.get_node(op.input("Y")[0])
     op_func = get_relay_op(op.type)
     out = op_func(ipt0, ipt1)
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_logical_not(g, op, block):
+    """Operator converter for logical_not op."""
+
+    ipt0 = g.get_node(op.input("X")[0])
+    op_func = get_relay_op(op.type)
+    out = op_func(ipt0)
     g.add_node(op.output("Out")[0], out)
 
 
@@ -1859,15 +1871,20 @@ _convert_map = {
     "gather": convert_gather,
     "gather_nd": convert_gather_nd,
     "gelu": convert_gelu,
+    "greater_equal": convert_elementwise_op,
     "greater_than": convert_elementwise_op,
     "group_norm": convert_group_norm,
     "hard_shrink": convert_hard_shrink,
     "hard_sigmoid": convert_hard_sigmoid,
     "hard_swish": convert_hard_swish,
     "index_select": convert_index_select,
+    "isfinite": convert_unary_op,
+    "isfinite_v2": convert_unary_op,
     "instance_norm": convert_instance_norm,
     "isinf": convert_unary_op,
     "isinf_v2": convert_unary_op,
+    "isnan": convert_unary_op,
+    "isnan_v2": convert_unary_op,
     "layer_norm": convert_layer_norm,
     "leaky_relu": convert_leaky_relu,
     "less_equal": convert_elementwise_op,
@@ -1879,7 +1896,9 @@ _convert_map = {
     "log10": convert_unary_op,
     "log1p": convert_log1p,
     "logical_and": convert_logical_op,
+    "logical_not": convert_logical_not,
     "logical_or": convert_logical_op,
+    "logical_xor": convert_logical_op,
     "logsumexp": convert_logsumexp,
     "matmul": convert_matmul,
     "matmul_v2": convert_matmul,

@@ -771,6 +771,7 @@ def test_forward_elemwise():
         "maximum",
         "minimum",
         "equal",
+        "greater_equal",
         "greater_than",
         "less_equal",
         "less_than",
@@ -894,6 +895,16 @@ def test_forward_index_select():
 
 
 @tvm.testing.uses_gpu
+def test_forward_isfinite():
+    @paddle.jit.to_static
+    def isfinite(inputs):
+        return paddle.cast(paddle.isfinite(inputs), "int32")
+
+    input_shape = [5, 5]
+    input_data = paddle.rand(input_shape, dtype="float32")
+    verify_model(isfinite, input_data=input_data)
+
+
 def test_forward_instance_norm():
     class InstanceNorm(nn.Layer):
         def __init__(self):
@@ -917,6 +928,17 @@ def test_forward_isinf():
     input_shape = [5, 5]
     input_data = paddle.rand(input_shape, dtype="float32")
     verify_model(isinf, input_data=input_data)
+
+
+@tvm.testing.uses_gpu
+def test_forward_isnan():
+    @paddle.jit.to_static
+    def isnan(inputs):
+        return paddle.cast(paddle.isnan(inputs), "int32")
+
+    input_shape = [5, 5]
+    input_data = paddle.rand(input_shape, dtype="float32")
+    verify_model(isnan, input_data=input_data)
 
 
 @tvm.testing.uses_gpu
@@ -1014,8 +1036,19 @@ def test_forward_logical_op():
                 z = self.func(x, y)
             return paddle.cast(z, "int32")
 
+    class LogicalOp_not(LogicalOp):
+        @paddle.jit.to_static
+        def forward(self, x):
+            if self.out:
+                out = paddle.to_tensor([True, True, True])
+                z = self.func(x, out=out)
+            else:
+                z = self.func(x)
+            return paddle.cast(z, "int32")
+
     op_list = [
         "logical_or",
+        "logical_xor",
         "logical_and",
     ]
     x = paddle.to_tensor([True])
@@ -1023,6 +1056,8 @@ def test_forward_logical_op():
     for op_name in op_list:
         verify_model(LogicalOp(op_name, False), [x, y])
         verify_model(LogicalOp(op_name, True), [x, y])
+    verify_model(LogicalOp_not("logical_not", False), [y])
+    verify_model(LogicalOp_not("logical_not", True), [y])
 
 
 @tvm.testing.uses_gpu
