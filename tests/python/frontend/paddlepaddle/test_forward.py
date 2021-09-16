@@ -48,6 +48,7 @@ def get_paddle_model(func, input_spec):
     global PADDLE_TEST_DATA_ROOT_PATH
     model_path = Path(PADDLE_TEST_DATA_ROOT_PATH, "model")
     paddle.jit.save(func, str(model_path), input_spec=input_spec)
+    paddle.jit.save(func, "/paddle/pr_for_tvm/0905/tvm/inference_model_test/inference", input_spec=input_spec)
     baseline_model = paddle.jit.load(str(model_path))
 
     shutil.rmtree(str(PADDLE_TEST_DATA_ROOT_PATH))
@@ -166,10 +167,14 @@ def test_forward_unary_op():
         "numel",
         "reciprocal",
         "relu",
+        "round",
         "rsqrt",
         "sigmoid",
+        "sign",
         "sin",
+        "sinh",
         "square",
+        "sqrt",
         "tan",
         "tanh",
     ]
@@ -1153,6 +1158,45 @@ def test_forward_matmul():
 
 
 @tvm.testing.uses_gpu
+def test_forward_mm():
+    class Mm(nn.Layer):
+        def forward(self, input1, input2):
+            return paddle.mm(input1, input2)
+
+    # matrix x vector
+    input_data1 = paddle.randn((3, 4), dtype="float32")
+    input_data2 = paddle.randn((4,), dtype="float32")
+    verify_model(Mm(), input_data=[input_data1, input_data2])
+
+    # matrix x matrix
+    input_data1 = paddle.randn((5, 4), dtype="float32")
+    input_data2 = paddle.randn((4, 5), dtype="float32")
+    verify_model(Mm(), input_data=[input_data1, input_data2])
+
+    # batched matrix x batched matrix
+    input_data1 = paddle.randn((10, 3, 4), dtype="float32")
+    input_data2 = paddle.randn((10, 4, 5), dtype="float32")
+    verify_model(Mm(), input_data=[input_data1, input_data2])
+
+    # batched matrix x broadcasted matrix
+    input_data1 = paddle.randn((10, 3, 4), dtype="float32")
+    input_data2 = paddle.randn((4, 5), dtype="float32")
+    verify_model(Mm(), input_data=[input_data1, input_data2])
+
+
+@tvm.testing.uses_gpu
+def test_forward_mv():
+    class Mv(nn.Layer):
+        def forward(self, input1, input2):
+            return paddle.mv(input1, input2)
+
+    # matrix x vector
+    input_data1 = paddle.randn((3, 4), dtype="float32")
+    input_data2 = paddle.randn((4,), dtype="float32")
+    verify_model(Mv(), input_data=[input_data1, input_data2])
+
+
+@tvm.testing.uses_gpu
 def test_forward_nonzero():
     class Nonzero(nn.Layer):
         def __init__(self, as_tuple=False):
@@ -1332,6 +1376,21 @@ def test_forward_pow():
 
 
 @tvm.testing.uses_gpu
+def test_forward_rank():
+    class Rank(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            rank = paddle.rank(inputs)
+            rank = paddle.unsqueeze(rank, axis=0)
+            output = inputs + rank
+            return output
+
+    input_shape = [1, 2, 1, 3, 1]
+    input_data = paddle.rand(input_shape, dtype="float32")
+    verify_model(Rank(), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
 def test_forward_reduce_op():
     class ReduceOp_Bool(nn.Layer):
         def __init__(self, op_name):
@@ -1492,6 +1551,23 @@ def test_forward_slice():
 
 
 @tvm.testing.uses_gpu
+def test_forward_sort():
+    @paddle.jit.to_static
+    def sort(inputs):
+        return paddle.sort(inputs)
+
+    @paddle.jit.to_static
+    def sort2(inputs):
+        return paddle.sort(inputs, axis=0, descending=True)
+
+    input_shape = [2, 3, 5]
+    input_data = paddle.rand(input_shape, dtype="float32")
+    verify_model(sort, input_data)
+    input_data2 = np.random.randint(100, size=input_shape)
+    verify_model(sort2, input_data2)
+
+
+@tvm.testing.uses_gpu
 def test_forward_split():
     @paddle.jit.to_static
     def split(inputs):
@@ -1513,7 +1589,7 @@ def test_forward_split():
 
 
 @tvm.testing.uses_gpu
-def test_forward_squeeze2():
+def test_forward_squeeze():
     @paddle.jit.to_static
     def squeeze(inputs):
         return paddle.squeeze(inputs)
@@ -1531,6 +1607,102 @@ def test_forward_squeeze2():
     verify_model(squeeze, input_data=input_data)
     verify_model(squeeze2, input_data=input_data)
     verify_model(squeeze3, input_data=input_data)
+
+
+@tvm.testing.uses_gpu
+def test_forward_stack():
+    @paddle.jit.to_static
+    def stack(input1, input2, input3):
+        return paddle.stack([input1, input2, input3])
+
+    @paddle.jit.to_static
+    def stack2(input1, input2, input3):
+        return paddle.stack([input1, input2, input3], axis=-1)
+
+    input_shape = [2, 3]
+    input_data = paddle.rand(input_shape, dtype="float32")
+    input_data2 = paddle.rand(input_shape, dtype="float32")
+    input_data3 = paddle.rand(input_shape, dtype="float32")
+    verify_model(stack, input_data=[input_data, input_data2, input_data3])
+    verify_model(stack2, input_data=[input_data, input_data2, input_data3])
+
+
+@tvm.testing.uses_gpu
+def test_forward_std():
+    class Std1(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.std(inputs, 1, unbiased=False)
+
+    class Std2(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.std(inputs, axis=-2, keepdim=False, unbiased=False)
+
+    class Std3(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.std(inputs, axis=3, keepdim=True, unbiased=False)
+
+    class Std4(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.std(inputs, axis=[2, 3], keepdim=True, unbiased=False)
+
+    class Std5(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.std(inputs, axis=[2, 3], keepdim=False, unbiased=False)
+
+    class Std6(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.std(inputs, unbiased=False)
+    
+    class Std7(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.std(inputs, unbiased=True)
+
+    input_shape = [1, 3, 10, 10]
+    input_data = paddle.rand(input_shape, dtype="float32")
+    verify_model(Std1(), input_data=input_data)
+    verify_model(Std2(), input_data=input_data)
+    verify_model(Std3(), input_data=input_data)
+    verify_model(Std4(), input_data=input_data)
+    verify_model(Std5(), input_data=input_data)
+    verify_model(Std6(), input_data=input_data)
+    verify_model(Std7(), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
+def test_forward_subtract():
+    class Subtract(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, x, y):
+            return paddle.subtract(x, y)
+
+    input_data1 = paddle.to_tensor([2, np.nan, 5], dtype='float32')
+    input_data2 = paddle.to_tensor([1, 4, np.nan], dtype='float32')
+    verify_model(Subtract(), input_data=[input_data1, input_data2])
+
+    input_data1 = paddle.randint(0, 10, (3, 4), dtype="int32")
+    input_data2 = paddle.randint(0, 10, (4,), dtype="int32")
+    verify_model(Subtract(), input_data=[input_data1, input_data2])
+
+    input_data1 = paddle.randint(0, 10, (10, 3, 4), dtype="int64")
+    input_data2 = paddle.randint(0, 10, (3, 4), dtype="int64")
+    verify_model(Subtract(), input_data=[input_data1, input_data2])
+
+
+@tvm.testing.uses_gpu
+def test_forward_t():
+    class T(nn.Layer):
+        def forward(self, x):
+            return paddle.t(x)
+
+    input_data1 = paddle.randn((3, 4), dtype="float32")
+    verify_model(T(), input_data=[input_data1])
 
 
 @tvm.testing.uses_gpu
@@ -1576,24 +1748,6 @@ def test_forward_topk():
 
 
 @tvm.testing.uses_gpu
-def test_forward_stack():
-    @paddle.jit.to_static
-    def stack(input1, input2, input3):
-        return paddle.stack([input1, input2, input3])
-
-    @paddle.jit.to_static
-    def stack2(input1, input2, input3):
-        return paddle.stack([input1, input2, input3], axis=-1)
-
-    input_shape = [2, 3]
-    input_data = paddle.rand(input_shape, dtype="float32")
-    input_data2 = paddle.rand(input_shape, dtype="float32")
-    input_data3 = paddle.rand(input_shape, dtype="float32")
-    verify_model(stack, input_data=[input_data, input_data2, input_data3])
-    verify_model(stack2, input_data=[input_data, input_data2, input_data3])
-
-
-@tvm.testing.uses_gpu
 def test_forward_tile():
     @paddle.jit.to_static
     def tile(inputs):
@@ -1622,6 +1776,27 @@ def test_forward_tile():
     input_data2 = paddle.rand([1, 2], dtype="float32")
     verify_model(tile2, input_data=[input_data, input_data2])
     verify_model(tile3, input_data=[input_data, input_data2])
+
+
+@tvm.testing.uses_gpu
+def test_forward_unstack():
+    @paddle.jit.to_static
+    def unstack1(x):
+        return paddle.unstack(x)
+
+    @paddle.jit.to_static
+    def unstack2(x):
+        return paddle.unstack(x, axis=-1)
+
+    @paddle.jit.to_static
+    def unstack3(x):
+        return paddle.unstack(x, axis=-1, num=3)
+
+    input_shape = [2, 3]
+    input_data = paddle.rand(input_shape, dtype="float32")
+    verify_model(unstack1, input_data=[input_data])
+    verify_model(unstack2, input_data=[input_data])
+    verify_model(unstack3, input_data=[input_data])
 
 
 @tvm.testing.uses_gpu
@@ -1668,6 +1843,7 @@ if __name__ == "__main__":
     test_forward_arange()
     test_forward_argmax()
     test_forward_argmin()
+    test_forward_argsort()
     test_forward_assign()
     test_forward_batch_norm()
     test_forward_cast()
@@ -1701,21 +1877,29 @@ if __name__ == "__main__":
     test_forward_look_up()
     test_forward_lstm()
     test_forward_matmul()
+    test_forward_mm()
+    test_forward_mv()
     test_forward_multiply()
     test_forward_nonzero()
     test_forward_norm()
     test_forward_pool2d()
     test_forward_pad()
     test_forward_pow()
+    test_forward_rank()
     test_forward_reduce_op()
     test_forward_reshape()
     test_forward_scale()
     test_forward_slice()
+    test_forward_sort()
     test_forward_split()
-    test_forward_squeeze2()
+    test_forward_squeeze()
+    test_forward_std()
+    test_forward_subtract()
+    test_forward_t()
     test_forward_topk()
     test_forward_tile()
     test_forward_conv_transpose()
     test_forward_unary_op()
+    test_forward_unstack()
     test_forward_zeros()
     test_forward_where()

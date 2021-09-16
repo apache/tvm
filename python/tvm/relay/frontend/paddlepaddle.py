@@ -195,11 +195,14 @@ def convert_arg_min(g, op, block):
 def convert_argsort(g, op, block):
     """Operator converter for argsort."""
 
-    x = g.get_node(op.inputs("X")[0])
+    x = g.get_node(op.input("X")[0])
     axis = op.attr("axis")
     descending = op.attr("descending")
-    out = _op.argsort(x, axis, not descending, dtype="int64")
-    g.add_node(op.output("Indices")[0], out)
+
+    out = _op.sort(x, axis, not descending)
+    out_indice = _op.argsort(x, axis, not descending, dtype="int64")
+    g.add_node(op.output("Out")[0], out)
+    g.add_node(op.output("Indices")[0], out_indice)
 
 
 def convert_assign(g, op, block):
@@ -1158,6 +1161,18 @@ def convert_mul(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_mv(g, op, block):
+    """Operator converter for mv."""
+
+    x = g.get_node(op.input("X")[0])    
+    y = g.get_node(op.input("Vec")[0])
+    y = _op.expand_dims(y, axis=-1)
+    y = _op.transpose(y)
+    out = _op.nn.dense(x, y)
+    out = _op.squeeze(out, axis=[-1])
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_numel(g, op, block):
     """Operator converter for numel."""
 
@@ -1902,6 +1917,7 @@ _convert_map = {
     "logsumexp": convert_logsumexp,
     "matmul": convert_matmul,
     "matmul_v2": convert_matmul,
+    "mv": convert_mv,
     "mul": convert_mul,
     "nearest_interp_v2": convert_interpolate,
     "not_equal": convert_elementwise_op,
@@ -1923,15 +1939,19 @@ _convert_map = {
     "relu": convert_unary_op,
     "reshape2": convert_reshape,
     "rnn": convert_rnn,
+    "round": convert_unary_op,
     "rsqrt": convert_unary_op,
     "scale": convert_scale,
     "shape": convert_shape,
     "sigmoid": convert_unary_op,
+    "sign": convert_unary_op,
     "sin": convert_unary_op,
+    "sinh": convert_unary_op,
     "size": convert_numel,
     "slice": convert_slice,
     "softmax": convert_softmax,
     "split": convert_split,
+    "sqrt": convert_unary_op,
     "square": convert_square,
     "squeeze2": convert_squeeze,
     "stack": convert_stack,
