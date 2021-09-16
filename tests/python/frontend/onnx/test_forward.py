@@ -235,7 +235,8 @@ def verify_with_ort(
 
 
 def quantize_and_verify_with_ort(onnx_model, input_names, input_shapes, target, dev):
-    from onnxruntime.quantization import CalibrationDataReader, QuantType, quantize_static
+    from onnxruntime.quantization import (CalibrationDataReader, QuantType,
+                                          quantize_static)
 
     input_arrays = [np.random.random(shape).astype("float32") for shape in input_shapes]
 
@@ -4833,12 +4834,6 @@ unsupported_onnx_tests = [
     "test_sce_none_weights_log_prob_expanded",
     "test_sce_sum_expanded",
     "test_sce_sum_log_prob_expanded",
-    # These sce tests seems to have the same issue as the nll_loss test
-    # referenced here: https://github.com/apache/tvm/issues/8918 and produce NaNs sometimes
-    "test_sce_NCd1d2d3_none_no_weight_negative_ii",
-    "test_sce_NCd1d2d3_none_no_weight_negative_ii_log_prob",
-    "test_sce_NCd1d2d3_sum_weight_high_ii",
-    "test_sce_NCd1d2d3_sum_weight_high_ii_log_prob",
     "test_sequence_insert_at_back",
     "test_sequence_insert_at_front",
     "test_simple_rnn_defaults",
