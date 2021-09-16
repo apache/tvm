@@ -514,7 +514,6 @@ def test_forward_cumsum():
 
 @tvm.testing.uses_gpu
 def test_forward_conv():
-
     class Conv2D1(nn.Layer):
         def __init__(self):
             super(Conv2D1, self).__init__()
@@ -524,7 +523,6 @@ def test_forward_conv():
         @paddle.jit.to_static
         def forward(self, inputs):
             return self.softmax(self.conv(inputs))
-
 
     class Conv2D2(nn.Layer):
         def __init__(self):
@@ -536,7 +534,6 @@ def test_forward_conv():
         def forward(self, inputs):
             return self.softmax(self.conv(inputs))
 
-
     class Conv2D3(nn.Layer):
         def __init__(self):
             super(Conv2D3, self).__init__()
@@ -546,11 +543,12 @@ def test_forward_conv():
         def forward(self, inputs):
             return self.conv(inputs)
 
-
     class Conv2D4(nn.Layer):
         def __init__(self):
             super(Conv2D4, self).__init__()
-            self.conv = nn.Conv2D(3, 6, 7, groups=3, bias_attr=False, padding=[1, 2, 0, 1], stride=2, dilation=2)
+            self.conv = nn.Conv2D(
+                3, 6, 7, groups=3, bias_attr=False, padding=[1, 2, 0, 1], stride=2, dilation=2
+            )
 
         @paddle.jit.to_static
         def forward(self, inputs):
@@ -891,9 +889,21 @@ def test_forward_activation():
             return self.func(inputs)
 
     input_shape = [1, 3, 10, 10]
-    input_data = paddle.rand(input_shape, dtype="float32")
-    input_data_2 = paddle.rand(input_shape).astype("float16")
-    op_list = ["elu", "hardshrink", "hardsigmoid", "hardswish", "hardtanh", "relu", "sigmoid"]
+    input_data = paddle.normal(shape=input_shape) * 10.0
+    input_data_2 = paddle.normal(shape=input_shape).astype("float16") * 10.0
+    op_list = [
+        "elu",
+        "hardshrink",
+        "hardsigmoid",
+        "hardswish",
+        "hardtanh",
+        "log_sigmoid",
+        "log_softmax",
+        "relu",
+        "relu6",
+        "selu",
+        "sigmoid",
+    ]
     for op_name in op_list:
         verify_model(Activation(op_name), input_data=input_data)
         verify_model(Activation(op_name), input_data=input_data_2, rtol=1e-3, atol=1e-3)
@@ -1327,6 +1337,43 @@ def test_forward_pad():
 
 
 @tvm.testing.uses_gpu
+def test_forward_pixel_shuffle():
+    class PixelShuffle(nn.Layer):
+        def __init__(self, upscale_factor):
+            super(PixelShuffle, self).__init__()
+            self.pixel_shuffle = paddle.nn.PixelShuffle(upscale_factor)
+
+        @paddle.jit.to_static
+        def forward(self, x):
+            return self.pixel_shuffle(x)
+
+    x = paddle.rand([2, 9, 5, 5], dtype="float32")
+    verify_model(PixelShuffle(3), x)
+    x2 = paddle.rand([3, 8, 9, 9], dtype="float32")
+    verify_model(PixelShuffle(2), x2)
+
+
+@tvm.testing.uses_gpu
+def test_forward_prelu():
+    class PRelu(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, x, w):
+            return paddle.nn.functional.prelu(x, w)
+
+    x = paddle.normal(shape=[4, 3, 5, 5])
+    w = paddle.to_tensor(
+        np.array(
+            [
+                0.25,
+            ]
+        ).astype("float32")
+    )
+    verify_model(PRelu(), [x, w])
+    w2 = paddle.to_tensor(np.array([0.25, 0.5, 0.8]).astype("float32"))
+    verify_model(PRelu(), [x, w2])
+
+
+@tvm.testing.uses_gpu
 def test_forward_pow():
     class Pow(nn.Layer):
         @paddle.jit.to_static
@@ -1747,6 +1794,8 @@ if __name__ == "__main__":
     test_forward_norm()
     test_forward_pool2d()
     test_forward_pad()
+    test_forward_pixel_shuffle()
+    test_forward_prelu()
     test_forward_pow()
     test_forward_reduce_op()
     test_forward_reshape()

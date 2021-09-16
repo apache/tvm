@@ -20,6 +20,7 @@
 import warnings
 
 import numpy as np
+from paddle.nn.functional.common import alpha_dropout
 
 import tvm
 from tvm.ir import IRModule
@@ -1401,14 +1402,40 @@ def convert_padding(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_pixel_shuffle(g, op, block):
+    """Operator converter for pixel_shuffle."""
+
+    x = g.get_node(op.input("X")[0])
+    upscale_factor = op.attr("upscale_factor")
+    out = _op.nn.depth_to_space(x, upscale_factor, mode="CRD")
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_pow(g, op, block):
     """Operator converter for pow."""
 
     x = g.get_node(op.input("X")[0])
     factor = op.attr("factor")
     factor = _expr.const(factor, dtype="float32").astype("float32")
-
     out = _op.power(x, factor)
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_prelu(g, op, block):
+    """Operator converter for prelu."""
+
+    x = g.get_node(op.input("X")[0])
+    alpha = g.get_node(op.input("Alpha")[0])
+    ndims = len(infer_shape(x))
+    axis = 0 if ndims <= 1 else 1
+    mode = op.attr("mode")
+    if mode == "all":
+        if ndims == 1:
+            shape = _op.strided_slice(shape_of(x), [0], [1])
+        else:
+            shape = _op.strided_slice(shape_of(x), [1], [2])
+        alpha = _op.broadcast_to(alpha, shape)
+    out = _op.nn.prelu(x, alpha, axis)
     g.add_node(op.output("Out")[0], out)
 
 
@@ -1492,6 +1519,14 @@ def convert_reduce(g, op, block):
     out = get_relay_op(op_name)(input_x, axis=axis, keepdims=keepdims)
     if not axis and not keepdims:
         out = _op.expand_dims(out, axis=0)
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_relu6(g, op, block):
+    """Operator converter for relu6."""
+
+    x = g.get_node(op.input("X")[0])
+    out = _op.clip(x, 0.0, 6.0)
     g.add_node(op.output("Out")[0], out)
 
 
@@ -1682,6 +1717,17 @@ def convert_scale(g, op, block):
                 )
         if x_dtype != "float32":
             out = out.astype(x_dtype)
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_selu(g, op, block):
+    """Operator converter for selu."""
+
+    x = g.get_node(op.input("Input")[0])
+    dtype = infer_type(x).checked_type.dtype
+    alpha = _op.const(op.attr("alpha"), dtype)
+    scale = _op.const(op.attr("scale"), dtype)
+    out = scale * (alpha * _op.nn.relu(_expr.const(1.0, dtype=dtype) - _op.exp(x)) + _op.nn.relu(x))
     g.add_node(op.output("Out")[0], out)
 
 
@@ -2053,7 +2099,9 @@ _convert_map = {
     "pad1d": convert_padding,
     "pad2d": convert_padding,
     "pad3d": convert_padding,
+    "pixel_shuffle": convert_pixel_shuffle,
     "pow": convert_pow,
+    "prelu": convert_prelu,
     "p_norm": convert_norm,
     "range": convert_range,
     "reciprocal": convert_reciprocal,
@@ -2065,10 +2113,12 @@ _convert_map = {
     "reduce_sum": convert_reduce,
     "reduce_mean": convert_reduce,
     "relu": convert_unary_op,
+    "relu6": convert_relu6,
     "reshape2": convert_reshape,
     "rnn": convert_rnn,
     "rsqrt": convert_unary_op,
     "scale": convert_scale,
+    "selu": convert_selu,
     "shape": convert_shape,
     "sigmoid": convert_unary_op,
     "sin": convert_unary_op,
