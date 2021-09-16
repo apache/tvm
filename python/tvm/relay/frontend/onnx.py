@@ -3357,10 +3357,10 @@ class QLinearSigmoid(OnnxOpConverter):
     @classmethod
     def _impl_v10(cls, inputs, attr, params):
         x = inputs[0]
-        x_scale = get_scalar(inputs[1])
-        x_zero_point = get_scalar(inputs[2], "int32")
-        y_scale = fold_constant(get_scalar(inputs[3]))
-        y_zero_point = get_scalar(inputs[4], "int32")
+        x_scale = get_scalar(inputs[1], params)
+        x_zero_point = get_scalar(inputs[2], params, "int32")
+        y_scale = fold_constant(get_scalar(inputs[3], params))
+        y_zero_point = get_scalar(inputs[4], params, "int32")
 
         dtype = infer_type(x).checked_type.dtype
 
