@@ -21,7 +21,7 @@ DOCS_DIR=0
 OTHER_DIR=0
 DOC_DIR="\docs"
 
-changed_files=`git diff --no-commit-id --name-only -r HEAD~1`
+changed_files=`git diff --no-commit-id --name-only -r origin/main`
 
 for file in $changed_files; do
     if grep -q "$DOC_DIR" <<< "$file"; then

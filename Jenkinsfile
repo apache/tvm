@@ -310,6 +310,7 @@ stage('Build') {
 
 stage('Unit Test') {
     parallel 'python3: GPU': {
+      if (docs == 1) {
         node('TensorCore') {
           ws(per_exec_ws('tvm/ut-python-gpu')) {
             init_git()
@@ -323,6 +324,9 @@ stage('Unit Test') {
             }
           }
         }
+      } else {
+        Utils.markStageSkippedForConditional('python3: i386')
+      }
     },
     'python3: i386': {
       if (docs == 1) {
@@ -340,7 +344,7 @@ stage('Unit Test') {
           }
         }
      } else {
-      Utils.markStageSkippedForConditional('python3: i386')
+        Utils.markStageSkippedForConditional('python3: i386')
       }
     },
     'python3: arm': {
@@ -363,7 +367,7 @@ stage('Unit Test') {
       }
     },
     'java: GPU': {
-      if (true) {
+      if ( docs == 1 ) {
         node('GPU') {
           ws(per_exec_ws('tvm/ut-java')) {
             init_git()
