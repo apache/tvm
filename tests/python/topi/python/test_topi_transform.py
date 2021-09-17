@@ -18,10 +18,13 @@
 import numpy as np
 import pytest
 import tvm
-import tvm.testing
+from tvm import te
+from tvm import topi
+from tvm import relay
 import tvm.topi.testing
-from tvm import relay, te, topi
 from tvm.contrib.nvcc import have_fp16
+
+import tvm.testing
 
 
 def verify_expand_dims(in_shape, out_shape, axis, num_newaxis):

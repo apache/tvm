@@ -37,10 +37,6 @@ TVM_REGISTER_GLOBAL("topi.expand_dims").set_body([](TVMArgs args, TVMRetValue* r
   *rv = expand_dims(args[0], args[1], args[2]);
 });
 
-TVM_REGISTER_GLOBAL("topi.dynamic_expand_dims").set_body([](TVMArgs args, TVMRetValue* rv) {
-  *rv = dynamic_expand_dims(args[0], args[1]);
-});
-
 TVM_REGISTER_GLOBAL("topi.transpose").set_body([](TVMArgs args, TVMRetValue* rv) {
   *rv = transpose(args[0], args[1]);
 });
