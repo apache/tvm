@@ -44,19 +44,9 @@ _LOG = logging.getLogger(__name__)
 
 
 def _build_project(temp_dir, zephyr_board, west_cmd, mod, build_config, extra_files_tar=None):
-    template_project_dir = (
-        pathlib.Path(__file__).parent
-        / ".."
-        / ".."
-        / ".."
-        / "apps"
-        / "microtvm"
-        / "zephyr"
-        / "template_project"
-    ).resolve()
     project_dir = temp_dir / "project"
     project = tvm.micro.generate_project(
-        str(template_project_dir),
+        str(conftest.TEMPLATE_PROJECT_DIR),
         mod,
         project_dir,
         {

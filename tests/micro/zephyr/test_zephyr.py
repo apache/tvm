@@ -419,14 +419,13 @@ def test_autotune_conv2d(temp_dir, board, west_cmd, tvm_debug):
     repo_root = pathlib.Path(
         subprocess.check_output(["git", "rev-parse", "--show-toplevel"], encoding="utf-8").strip()
     )
-    template_project_dir = repo_root / "apps" / "microtvm" / "zephyr" / "template_project"
 
     stack_size = None
     if conftest.qemu_boards(board):
         stack_size = 1536
 
     module_loader = tvm.micro.AutoTvmModuleLoader(
-        template_project_dir=template_project_dir,
+        template_project_dir=conftest.TEMPLATE_PROJECT_DIR,
         project_options={
             "zephyr_board": board,
             "west_cmd": west_cmd,
