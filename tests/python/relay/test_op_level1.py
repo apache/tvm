@@ -24,6 +24,7 @@ from tvm import relay, te
 from tvm.contrib.nvcc import have_fp16
 from tvm.relay import transform
 from tvm.relay.testing import run_infer_type
+from tvm.relay.transform.transform import InferType
 
 
 def sigmoid(x):
@@ -188,8 +189,9 @@ def test_expand_dims():
 @tvm.testing.uses_gpu
 def test_dyn_expand_dims():
     def verify_expand_dims(dshape, dtype, oshape, axis):
+        shape_encoding_shape = [0] * axis
         x = relay.Var("x", relay.TensorType(dshape, dtype))
-        y = relay.var("axis", shape=[1], dtype="int64")
+        y = relay.var("axis", shape=shape_encoding_shape, dtype="int64")
         mod = tvm.IRModule.from_expr(relay.expand_dims(x, axis=y, num_newaxis=1))
         for target, dev in tvm.testing.enabled_targets():
             if (
@@ -200,13 +202,13 @@ def test_dyn_expand_dims():
                 continue
             data = np.random.uniform(size=dshape).astype(dtype)
             ref_res = data.reshape(oshape)
-            op_res = relay.create_executor("vm", device=dev, target=target, mod=mod).evaluate(
-                data, np.array([axis]).astype("int64")
+            op_res = relay.create_executor("vm", device=dev, target=target, mod=mod).evaluate()(
+                data, np.empty(shape_encoding_shape).astype("int64")
             )
             np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=0.01)
 
     for dtype in ["float16", "float32"]:
-        verify_expand_dims((3, 10), dtype, (3, 10, 1), 2)
+        verify_expand_dims((3, 9), dtype, (3, 9, 1), 2)
         verify_expand_dims((3, 10), dtype, (1, 3, 10), 0)
 
 

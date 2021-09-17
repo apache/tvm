@@ -628,16 +628,13 @@ bool ExpandDimsRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
         << "expand_dims: expect input type to be TensorType but get " << types[0];
     return false;
   }
-  const auto* axis_type = types[1].as<TensorTypeNode>();
-  ICHECK(axis_type->shape.size() == 1) << "Axis should be 1-d with a single value!";
 
   // We don't know the output shape until we see the value of the axis input
   int ndim = data_type->shape.size();
-  Array<IndexExpr> oshape;
-  oshape.reserve(ndim + 1);
-  for (int i = 0; i < ndim + 1; i++) {
-    oshape.push_back(Any());
-  }
+  Array<IndexExpr> oshape(ndim + 1, Any());
+
+  const auto* axis_type = types[1].as<TensorTypeNode>();
+  ICHECK(axis_type->shape.size() <= ndim) << "Axis dimension should be encoded properly!";
 
   // Set output shape
   reporter->Assign(types[2], TensorType(oshape, data_type->dtype));
@@ -655,15 +652,14 @@ Array<te::Tensor> ExpandDimsCompute(const Attrs& attrs, const Array<te::Tensor>&
   int ndim_in = ishape.size();
   ICHECK_EQ(ndim_in + 1, ndim_out);
 
-  LOG(FATAL) << "WHHHHATTT??";
-
-  return {topi::dynamic_expand_dims(inputs[0], inputs[1](0))};
+  int axis_encoding = inputs[1]->shape.size();
+  return {topi::dynamic_expand_dims(inputs[0], IntImm(DataType::Int(64), axis_encoding))};
 }
 
-Expr MakeExpandDims(Expr data, Expr reps) {
+Expr MakeExpandDims(Expr data, Expr axis_tensor) {
   auto attrs = make_object<DynExpandDimsAttrs>();
   static const Op& op = Op::Get("dyn.expand_dims");
-  return Call(op, {data, reps}, Attrs(attrs), {});
+  return Call(op, {data, axis_tensor}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op.dyn._make.expand_dims").set_body_typed(MakeExpandDims);
@@ -677,7 +673,7 @@ TODO
     .set_num_inputs(2)
     .set_attrs_type<DynExpandDimsAttrs>()
     .add_argument("data", "Tensor", "The input tensor.")
-    .add_argument("axis", "Tensor", "The number of times to repeat the input on each axis.")
+    .add_argument("axis_tensor", "Tensor", "Encoded axis tensor... TODO")
     .set_support_level(3)
     .add_type_rel("DynamicExpandDims", ExpandDimsRel)
     .set_attr<FTVMCompute>("FTVMCompute", ExpandDimsCompute)

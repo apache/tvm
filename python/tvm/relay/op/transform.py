@@ -18,6 +18,8 @@
 # pylint: disable=import-outside-toplevel
 """Transform operators."""
 
+from numpy.lib.type_check import real
+
 from ...tir import expr as _expr
 from ..expr import Constant, Expr, Tuple, TupleWrapper, const
 from . import _make
