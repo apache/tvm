@@ -100,6 +100,7 @@ def _apply_desired_layout_simd(relay_mod):
     with tvm.transform.PassContext(opt_level=3):
         return seq(relay_mod)
 
+
 def _apply_desired_layout_no_simd(relay_mod):
 
     desired_layouts = {"qnn.conv2d": ["NHWC", "HWIO"], "nn.conv2d": ["NHWC", "HWIO"]}
