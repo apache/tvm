@@ -58,9 +58,9 @@ static float Convert_Fixed_To_Float(uint8_t data, int8_t fl) {
   uint8_t val = data;
   float x;
   if (fl >= 0) {
-    x = ((float)val) / (float)(1 << fl);
+    x = ((float)val) / (float)(1 << fl);  // NOLINT
   } else {
-    x = ((float)val) / (float)(1 >> fl);
+    x = ((float)val) / (float)(1 >> fl);  // NOLINT
   }
   return x;
 }
@@ -279,13 +279,13 @@ static int aiRun(void) {
   uint32_t elts = get_tensor_elts(output);
 
   char outfile_name[128];
-  sprintf(outfile_name, "%s/tvm_results.txt", BUILD_PATH);
+  sprintf(outfile_name, "%s/tvm_results.txt", BUILD_PATH);  // NOLINT
   FILE* outfile = fopen(outfile_name, "w");
 
   for (int i = 0; i <= 9; i++) {
     char image[128];
 
-    sprintf(image, "%s/0%d.raw", IMAGE_PATH, i);
+    sprintf(image, "%s/0%d.raw", IMAGE_PATH, i);  // NOLINT
     printf("Loading input image %s ... \n", image);
     if (LoadInputImg(image, input) != 0) {
       error("Loading image %s\n", image);
@@ -307,7 +307,7 @@ static int aiRun(void) {
       //
       // Floating point model
       //
-      float* probabilities = (float*)output->dltensor.data;
+      float* probabilities = (float*)output->dltensor.data;  // NOLINT
       for (int i = 0; i < elts; i++) {
         float val = probabilities[i];
         // printf (" -- probability[%d] = %g \n", i, val);
@@ -319,7 +319,7 @@ static int aiRun(void) {
       // Quantized model
       //
       if (out_dtype.code == kDLInt) {
-        int8_t* probabilities = (int8_t*)output->dltensor.data;
+        int8_t* probabilities = (int8_t*)output->dltensor.data;  // NOLINT
         for (int i = 0; i < elts; i++) {
           int8_t qval = probabilities[i];
           // printf (" -- probability[%d] = %d \n", i, qval);
@@ -327,7 +327,7 @@ static int aiRun(void) {
           fprintf(outfile, "%g ", val);
         }
       } else {
-        uint8_t* probabilities = (uint8_t*)output->dltensor.data;
+        uint8_t* probabilities = (uint8_t*)output->dltensor.data;  // NOLINT
         for (int i = 0; i < elts; i++) {
           uint8_t qval = probabilities[i];
           // printf (" -- probability[%d] = %d \n", i, qval);
@@ -398,7 +398,7 @@ uint8_t LoadInputImg(const char* filename, ai_tensor* input) {
 
   // printf ("== Image size = %d\n", img_size);
 
-  uint8_t* image = (uint8_t*)malloc(img_size);
+  uint8_t* image = (uint8_t*)malloc(img_size);  // NOLINT
   size_t size = fread(image, 1, img_size, file);
   if (size != img_size) {
     perror("fread");
@@ -410,14 +410,14 @@ uint8_t LoadInputImg(const char* filename, ai_tensor* input) {
 
   uint32_t x;
   uint8_t* p = image;
-  uint8_t* pg = (uint8_t*)input->dltensor.data;
+  uint8_t* pg = (uint8_t*)input->dltensor.data;  // NOLINT
 
   for (x = 0; x < img_size; x++) {
     uint8_t val = p[x];
     //
     // Input image needs to be normalized into [0..1] interval
     //
-    float nval = ((float)val) / 255.0;
+    float nval = ((float)val) / 255.0;  // NOLINT
     if (input_quant != NULL) {
       if (dtype.code == kDLInt) {
         int8_t qval = quantize_val(nval, input_quant);
@@ -429,7 +429,7 @@ uint8_t LoadInputImg(const char* filename, ai_tensor* input) {
         pg += sizeof(uint8_t);
       }
     } else {
-      *(float*)pg = nval;
+      *(float*)pg = nval;  // NOLINT
       pg += sizeof(float);
     }
   }
