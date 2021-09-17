@@ -174,12 +174,12 @@ inline Tensor dynamic_expand_dims(const Tensor& x, const PrimExpr& axis,
   Note we have to do this because we can only use the current index to determine the output
   of an array.
   */
-  Array<PrimExpr> oshape;
+  Array<PrimExpr> oshape(ndim_out, axis);
 
   // Initialize output shape array
-  for (int i = 0; i < ndim_out; i++) {
-    oshape.push_back(IntImm(DataType::Int(64), 1));
-  }
+  // for (int i = 0; i < ndim_out; i++) {
+  //  oshape.push_back(IntImm(DataType::Int(64), 1));
+  //}
 
   // Forward fill
   PrimExpr cur_dim_out = PrimExpr(0);

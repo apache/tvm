@@ -652,7 +652,18 @@ Array<te::Tensor> ExpandDimsCompute(const Attrs& attrs, const Array<te::Tensor>&
   int ndim_in = ishape.size();
   ICHECK_EQ(ndim_in + 1, ndim_out);
 
-  return {topi::dynamic_expand_dims(inputs[0], inputs[1]())};
+  Array<IndexExpr> newshape;
+  for (auto val : out_ttype->shape) {
+    if (val->IsInstance<tir::AnyNode>()) {
+      // These vars will be populated by the VM executor with the results
+      // of the shape_func for the op.
+      newshape.push_back(val.as<tir::AnyNode>()->ToVar());
+    } else {
+      newshape.push_back(val);
+    }
+  }
+
+  return {topi::reshape(inputs[0], newshape)};
 }
 
 Expr MakeExpandDims(Expr data, Expr axis_tensor) {
