@@ -188,11 +188,11 @@ def test_expand_dims():
 
 @tvm.testing.uses_gpu
 def test_dyn_expand_dims():
-    def verify_expand_dims(dshape, dtype, oshape, axis):
+    def verify_expand_dims(dshape, dtype, oshape, axis, num_newaxis):
         # Use 1 to avoid issues with invalid buffer sizes
         x = relay.Var("x", relay.TensorType(dshape, dtype))
         y = relay.var("axis", shape=[], dtype="int64")
-        mod = tvm.IRModule.from_expr(relay.expand_dims(x, axis=y, num_newaxis=1))
+        mod = tvm.IRModule.from_expr(relay.expand_dims(x, axis=y, num_newaxis=num_newaxis))
         for target, dev in tvm.testing.enabled_targets():
             if (
                 dtype == "float16"
@@ -202,15 +202,18 @@ def test_dyn_expand_dims():
                 continue
             data = np.random.uniform(size=dshape).astype(dtype)
             ref_res = data.reshape(oshape)
+            print
+            breakpoint()
             op_res = relay.create_executor("vm", device=dev, target=target, mod=mod).evaluate()(
                 data, np.array(axis).astype("int64")
             )
             np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=0.01)
 
     for dtype in ["float16", "float32"]:
-        verify_expand_dims((3, 9), dtype, (3, 9, 1), 2)
-        verify_expand_dims((3, 9), dtype, (3, 1, 9), 1)
-        verify_expand_dims((3, 9), dtype, (1, 3, 9), 0)
+        verify_expand_dims((2, 2), dtype, (2, 2, 1), 2, 1)
+        verify_expand_dims((2, 2), dtype, (2, 1, 2), 1, 1)
+        verify_expand_dims((2, 2), dtype, (1, 2, 2), 0, 1)
+        verify_expand_dims((2, 2), dtype, (2, 1, 1, 2), 1, 2)
 
 
 @tvm.testing.uses_gpu
