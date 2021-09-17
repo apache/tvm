@@ -363,7 +363,7 @@ stage('Unit Test') {
       }
     },
     'java: GPU': {
-      if (docs == 1) {
+      if (true) {
         node('GPU') {
           ws(per_exec_ws('tvm/ut-java')) {
             init_git()
