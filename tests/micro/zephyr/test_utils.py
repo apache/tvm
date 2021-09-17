@@ -24,6 +24,7 @@ import numpy as np
 
 import tvm.micro
 
+
 def build_project(temp_dir, zephyr_board, west_cmd, mod, build_config, extra_files_tar=None):
     template_project_dir = (
         pathlib.Path(__file__).parent

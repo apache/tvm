@@ -72,6 +72,7 @@ def _open_tflite_model():
 
     return relay_mod, params
 
+
 def _get_test_data(testdata_dir):
 
     from PIL import Image
@@ -90,18 +91,22 @@ def _get_test_data(testdata_dir):
 
 def _apply_desired_layout_simd(relay_mod):
 
-    desired_layouts = {'qnn.conv2d': ['NHWC', 'HWOI'], 'nn.conv2d': ['NHWC', 'HWOI']}
+    desired_layouts = {"qnn.conv2d": ["NHWC", "HWOI"], "nn.conv2d": ["NHWC", "HWOI"]}
 
-    seq = tvm.transform.Sequential([relay.transform.RemoveUnusedFunctions(), relay.transform.ConvertLayout(desired_layouts)])
+    seq = tvm.transform.Sequential(
+        [relay.transform.RemoveUnusedFunctions(), relay.transform.ConvertLayout(desired_layouts)]
+    )
 
     with tvm.transform.PassContext(opt_level=3):
         return seq(relay_mod)
 
 def _apply_desired_layout_no_simd(relay_mod):
 
-    desired_layouts = {'qnn.conv2d': ['NHWC', 'HWIO'], 'nn.conv2d': ['NHWC', 'HWIO']}
+    desired_layouts = {"qnn.conv2d": ["NHWC", "HWIO"], "nn.conv2d": ["NHWC", "HWIO"]}
 
-    seq = tvm.transform.Sequential([relay.transform.RemoveUnusedFunctions(), relay.transform.ConvertLayout(desired_layouts)])
+    seq = tvm.transform.Sequential(
+        [relay.transform.RemoveUnusedFunctions(), relay.transform.ConvertLayout(desired_layouts)]
+    )
 
     with tvm.transform.PassContext(opt_level=3):
         return seq(relay_mod)
@@ -120,7 +125,7 @@ def _loadCMSIS(temp_dir):
     include_trees = {}
 
     for file in res["tree"]:
-        if (file["path"] in {"CMSIS/DSP/Include", "CMSIS/DSP/Include/dsp", "CMSIS/NN/Include"}):
+        if file["path"] in {"CMSIS/DSP/Include", "CMSIS/DSP/Include/dsp", "CMSIS/NN/Include"}:
             include_trees.update({file["path"]: file["sha"]})
 
     for path, sha in include_trees.items():
@@ -131,7 +136,7 @@ def _loadCMSIS(temp_dir):
             temp_path = f"{temp_dir}/dsp"
             if not os.path.isdir(temp_path):
                 os.makedirs(temp_path)
-        for item in content['tree']:
+        for item in content["tree"]:
             if item["type"] == "blob":
                 file_name = item["path"]
                 file_url = f"{RAW_PATH_URL}/{path}/{file_name}"
@@ -157,7 +162,9 @@ def _generate_project(temp_dir, board, west_cmd, lowered, build_config, sample, 
                 tf.add(header_path, arcname=os.path.relpath(header_path, tar_temp_dir))
 
             create_header_file("input_data", sample, "include", tf)
-            create_header_file("output_data", np.zeros(shape=output_shape, dtype="float32"), "include", tf)
+            create_header_file(
+                "output_data", np.zeros(shape=output_shape, dtype="float32"), "include", tf
+            )
 
         project, _ = build_project(
             temp_dir,
@@ -173,7 +180,9 @@ def _generate_project(temp_dir, board, west_cmd, lowered, build_config, sample, 
 
 def _run_model(temp_dir, board, west_cmd, lowered, build_config, sample, output_shape):
 
-    project = _generate_project(temp_dir, board, west_cmd, lowered, build_config, sample, output_shape)
+    project = _generate_project(
+        temp_dir, board, west_cmd, lowered, build_config, sample, output_shape
+    )
 
     project.flash()
 
@@ -219,7 +228,14 @@ def test_armv7m_intrinsic(temp_dir, board, west_cmd, tvm_debug):
     relay_mod_no_simd = _apply_desired_layout_no_simd(relay_mod)
 
     target = tvm.target.target.micro(
-        model, options=["-keys=arm_cpu,cpu", "-link-params=1", "--executor=aot", "--unpacked-api=1", "--interface-api=c"]
+        model,
+        options=[
+            "-keys=arm_cpu,cpu",
+            "-link-params=1",
+            "--executor=aot",
+            "--unpacked-api=1",
+            "--interface-api=c",
+        ],
     )
 
     temp_dir_simd = temp_dir / "simd"
@@ -231,8 +247,12 @@ def test_armv7m_intrinsic(temp_dir, board, west_cmd, tvm_debug):
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         lowered_simd = relay.build(relay_mod_simd, target, params=params)
         lowered_no_simd = relay.build(relay_mod_no_simd, target, params=params)
-        result_simd, time_simd = _run_model(temp_dir_simd, board, west_cmd, lowered_simd, build_config, sample, output_shape)
-        result_no_simd, time_no_simd = _run_model(temp_dir_no_simd, board, west_cmd, lowered_no_simd, build_config, sample, output_shape)
+        result_simd, time_simd = _run_model(
+            temp_dir_simd, board, west_cmd, lowered_simd, build_config, sample, output_shape
+        )
+        result_no_simd, time_no_simd = _run_model(
+            temp_dir_no_simd, board, west_cmd, lowered_no_simd, build_config, sample, output_shape
+        )
 
     assert result_no_simd == result_simd
     assert time_no_simd > time_simd
