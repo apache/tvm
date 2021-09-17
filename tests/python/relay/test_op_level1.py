@@ -192,8 +192,7 @@ def test_dyn_expand_dims():
         # Use 1 to avoid issues with invalid buffer sizes
         x = relay.Var("x", relay.TensorType(dshape, dtype))
         y = relay.var("axis", shape=[], dtype="int64")
-        z = relay.arange(relay.const(-1, dtype="int64"), stop=y, dtype="int64")
-        mod = tvm.IRModule.from_expr(relay.expand_dims(x, axis=z, num_newaxis=1))
+        mod = tvm.IRModule.from_expr(relay.expand_dims(x, axis=y, num_newaxis=1))
         for target, dev in tvm.testing.enabled_targets():
             if (
                 dtype == "float16"
