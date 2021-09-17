@@ -634,7 +634,8 @@ bool ExpandDimsRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   Array<IndexExpr> oshape(ndim + 1, Any());
 
   const auto* axis_type = types[1].as<TensorTypeNode>();
-  ICHECK(axis_type->shape.size() <= ndim) << "Axis dimension should be encoded properly!";
+  ICHECK(axis_type->shape.size() == 1)
+      << "Axis dimension should be of rank 1! E.g. axis 1 should be encode with shape [2]";
 
   // Set output shape
   reporter->Assign(types[2], TensorType(oshape, data_type->dtype));
@@ -652,8 +653,9 @@ Array<te::Tensor> ExpandDimsCompute(const Attrs& attrs, const Array<te::Tensor>&
   int ndim_in = ishape.size();
   ICHECK_EQ(ndim_in + 1, ndim_out);
 
-  int axis_encoding = inputs[1]->shape.size();
-  return {topi::dynamic_expand_dims(inputs[0], IntImm(DataType::Int(64), axis_encoding))};
+  PrimExpr axis_encoding = (inputs[1]->shape)[0] - 1;
+  LOG(WARNING) << axis_encoding;
+  return {topi::dynamic_expand_dims(inputs[0], axis_encoding)};
 }
 
 Expr MakeExpandDims(Expr data, Expr axis_tensor) {
