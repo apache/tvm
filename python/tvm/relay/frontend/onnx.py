@@ -3254,6 +3254,8 @@ class DequantizeLinear(OnnxOpConverter):
     def _impl_v13(cls, inputs, attr, params):
         data, scale, zp = inputs
         axis = attr.get("axis", 1)
+        if len(infer_shape(data)) <= 1:
+            axis = 0
         return _qnn.op.dequantize(data, scale, _op.cast(zp, "int32"), axis)
 
 
@@ -3425,6 +3427,28 @@ class QLinearMul(OnnxOpConverter):
         a = _qnn.op.dequantize(inputs[0], a_scale, a_zero_point)
         b = _qnn.op.dequantize(inputs[3], b_scale, b_zero_point)
         out = _op.multiply(a, b)
+        return _qnn.op.quantize(out, y_scale, y_zero_point, out_dtype=dtype)
+
+
+class QLinearSigmoid(OnnxOpConverter):
+    """Operator converter for QLinearSigmoid from Microsoft onnxruntime contrib opset."""
+
+    @classmethod
+    def _impl_v10(cls, inputs, attr, params):
+        x = inputs[0]
+        x_scale = get_scalar(inputs[1], params)
+        x_zero_point = get_scalar(inputs[2], params, "int32")
+        y_scale = fold_constant(get_scalar(inputs[3], params))
+        y_zero_point = get_scalar(inputs[4], params, "int32")
+
+        dtype = infer_type(x).checked_type.dtype
+
+        ## Apparently, onnxruntime doesn't do this op in integer, they dequantize to fp32
+        ## and then requantize after:
+        ## https://github.com/microsoft/onnxruntime/blob/master/onnxruntime/core/
+        ## providers/dml/DmlExecutionProvider/src/GraphTransformer.cpp#L245
+        x = _qnn.op.dequantize(x, x_scale, x_zero_point)
+        out = _op.sigmoid(x)
         return _qnn.op.quantize(out, y_scale, y_zero_point, out_dtype=dtype)
 
 
@@ -4084,6 +4108,7 @@ def _get_convert_map(opset):
         "QLinearConcat": QLinearConcat.get_converter(opset),
         "QLinearAdd": QLinearAdd.get_converter(opset),
         "QLinearMul": QLinearMul.get_converter(opset),
+        "QLinearSigmoid": QLinearSigmoid.get_converter(opset),
         "ConvInteger": ConvInteger.get_converter(opset),
         "QLinearAveragePool": QLinearAveragePool.get_converter(opset),
         "QLinearGlobalAveragePool": QLinearGlobalAveragePool.get_converter(opset),
