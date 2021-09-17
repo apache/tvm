@@ -19,7 +19,10 @@
 from __future__ import absolute_import
 
 from tvm.runtime import convert
+from tvm.runtime.object_generic import const
 from tvm.te.hybrid import script
+from tvm.te.tensor import Tensor
+from tvm.tir.expr import ConstExpr
 
 from .. import op as _reg
 
@@ -100,14 +103,14 @@ def _expand_dims_shape_func_input_data(data, axis, ndims):
 
     # Forward pass
     for i in const_range(len(data.shape)):
-        if i < axis[0]:
+        if i < axis:
             out[i] = int64(data.shape[i])
         else:
             out[i] = int64(out[i])
 
     # Backward pass
     for i in const_range(len(data.shape)):
-        if len(data.shape) - i < axis[0]:
+        if len(data.shape) - i < axis:
             out[len(data.shape) - i] = int64(data.shape[len(data.shape) - i - 1])
         else:
             out[len(data.shape) - i] = int64(out[len(data.shape) - i])
@@ -117,7 +120,11 @@ def _expand_dims_shape_func_input_data(data, axis, ndims):
 
 @_reg.register_shape_func("dyn.expand_dims", [True, True])
 def dynamic_expand_dims_shape_func(attrs, inputs, out_ndims):
-    return [_expand_dims_shape_func_input_data(*inputs, out_ndims[0])]
+    # The axis is encoded in the rank of the tensor
+    # e.g. axis 3 would be encoded as [0, 0, 0]
+    axis = len(inputs[1].shape)
+    axis = const(axis, dtype="int64")
+    return [_expand_dims_shape_func_input_data(inputs[0], axis, out_ndims[0])]
 
 
 @script

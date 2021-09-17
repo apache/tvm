@@ -19,11 +19,11 @@
 import numpy as np
 import pytest
 import tvm
-from tvm import te
-from tvm import relay
+import tvm.testing
+from tvm import relay, te
 from tvm.relay import create_executor, transform
 from tvm.relay.testing import check_grad, run_infer_type
-import tvm.testing
+from tvm.relay.transform.transform import InferType
 
 
 def verify_func(func, data, ref_res, target_device=tvm.testing.enabled_targets()):
