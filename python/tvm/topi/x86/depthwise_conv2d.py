@@ -306,6 +306,18 @@ def _schedule_depthwise_conv2d_NCHWc_impl(s, cfg, data_vec, kernel_vec, conv_out
 
 
 def schedule_depthwise_conv2d_nhwc(outs):
+    """Create schedule for depthwise conv2d in NHWC layout.
+
+    Parameters
+    ----------
+    outs : list[te.tensor.Tensor]
+            The output tensors.
+
+    Returns
+    -------
+    s : tvm.te.schedule.Schedule
+        The computation schedule for depthwise conv2d.
+    """
     outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
     s = te.create_schedule([x.op for x in outs])
 
