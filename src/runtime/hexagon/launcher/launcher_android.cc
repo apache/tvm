@@ -32,7 +32,9 @@
 #include "launcher_rpc.h"
 
 AEEResult enable_unsigned_pd(bool enable) {
-  remote_rpc_control_unsigned_module data{static_cast<int>(enable), CDSP_DOMAIN_ID};
+  remote_rpc_control_unsigned_module data;
+  data.domain = CDSP_DOMAIN_ID;
+  data.enable = static_cast<int>(enable);
   AEEResult rc = remote_session_control(DSPRPC_CONTROL_UNSIGNED_MODULE, &data, sizeof(data));
   if (rc != AEE_SUCCESS) {
     std::cout << "error " << (enable ? "enabling" : "disabling") << " unsigned PD\n";
@@ -41,8 +43,11 @@ AEEResult enable_unsigned_pd(bool enable) {
 }
 
 AEEResult set_remote_stack_size(int size) {
-  remote_rpc_thread_params th_data{CDSP_DOMAIN_ID, -1, size};
-  AEEResult rc = remote_session_control(FASTRPC_THREAD_PARAMS, &th_data, sizeof(th_data));
+  remote_rpc_thread_params data;
+  data.domain = CDSP_DOMAIN_ID;
+  data.prio = -1;
+  data.stack_size = size;
+  AEEResult rc = remote_session_control(FASTRPC_THREAD_PARAMS, &data, sizeof(data));
   if (rc != AEE_SUCCESS) {
     std::cout << "error setting remote stack size: " << std::hex << rc << '\n';
   }
