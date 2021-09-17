@@ -15,18 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import contextlib
-import copy
-import glob
 import os
 import pathlib
 import pytest
 import shutil
+import json
 
 pytest.importorskip("pty")
 import sys
-import subprocess
-import textwrap
 
 import numpy as np
 import pytest
@@ -38,6 +34,8 @@ from tvm.target import Target
 
 from tvm.topi.utils import get_const_tuple
 from tvm.topi.testing import conv2d_nchw_python
+
+from tvm.micro.testing import check_tune_log
 
 BUILD = True
 DEBUG = False
@@ -291,8 +289,9 @@ def test_autotune():
             ],
             si_prefix="M",
         )
+        assert tuner.best_flops > 0
 
-    assert tuner.best_flops > 0
+    check_tune_log(tune_log_file)
 
     # Build without tuning
     with pass_context:
