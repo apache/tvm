@@ -971,4 +971,3 @@ def invert_permutation(data):
         r_ind = data[ind]
         result[r_ind] = ind
     return result
-    
