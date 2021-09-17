@@ -1,4 +1,41 @@
 #### How to generate Chinese-Docs
+
+```bash
+# run tests/scripts/task_python_generate_documents.sh can automaticly finish this work
+
+# run as: " ./task_python_generate_documents.sh [true/false] [true/false] [true/false] [language] "
+# the first [true/false]: re-generate gettext or not
+# the second [true/false]: update locales file or not
+# the third [true/false]: generate html or not
+# The two above will do their best to satisfy. if not exist, process will generate directly.
+# [language]: the language kind of documents, write as:
+# # bn – Bengali
+# # ca – Catalan
+# # cs – Czech
+# # da – Danish
+# # de – German
+# # en – English
+# # es – Spanish
+# # fi – Finnish
+# # fr – French
+# # hr – Croatian
+# # it – Italian
+# # lt – Lithuanian
+# # nl – Dutch
+# # pl – Polish
+# # pt_BR – Brazilian Portuguese
+# # ru – Russian
+# # sl – Slovenian
+# # sv – Swedish
+# # tr – Turkish
+# # uk_UA – Ukrainian
+# # zh_CN – Simplified Chinese
+# # zh_TW – Traditional Chinese
+
+./task_python_generate_documents.sh false true true zh_CN      # may help you generate Chinese manual     
+```
+
+#### The following document show the original method, it has been abondoned
 1. generate `gettext` fold
 
     ```bash

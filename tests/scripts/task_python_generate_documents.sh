@@ -27,6 +27,9 @@
 # # zh_CN – Simplified Chinese
 # # zh_TW – Traditional Chinese
 
+export LC_ALL=C.UTF-8
+export LANG=C.UTF-8
+
 MAXPROCESS=20
 
 if [ $# -ne 4 ] 
