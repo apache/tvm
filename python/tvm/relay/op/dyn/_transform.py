@@ -95,9 +95,8 @@ def dynamic_reshape_shape_func(attrs, inputs, out_ndims):
 
 
 @script
-def _expand_dims_shape_func_input_data(data, axis_plus_one, ndims):
+def _expand_dims_shape_func_input_data(data, axis, ndims):
     out = output_tensor((ndims,), "int64")
-    axis = axis_plus_one - 1
 
     for i in const_range(ndims):
         out[i] = int64(1)
@@ -115,11 +114,6 @@ def _expand_dims_shape_func_input_data(data, axis_plus_one, ndims):
             out[len(data.shape) - i] = int64(data.shape[len(data.shape) - i - 1])
         else:
             out[len(data.shape) - i] = int64(out[len(data.shape) - i])
-    """
-    out[0] = int64(3)
-    out[1] = int64(9)
-    out[2] = int64(1)
-    """
 
     return out
 
@@ -128,8 +122,7 @@ def _expand_dims_shape_func_input_data(data, axis_plus_one, ndims):
 def dynamic_expand_dims_shape_func(attrs, inputs, out_ndims):
     # The axis is encoded in the shape of the tensor
     # e.g. axis 3 would have shape [4] and axis 0 would have shape [1]
-    axis_plus_one = inputs[1].shape[0]
-    return [_expand_dims_shape_func_input_data(inputs[0], axis_plus_one, out_ndims[0])]
+    return [_expand_dims_shape_func_input_data(inputs[0], inputs[1], out_ndims[0])]
 
 
 @script
