@@ -674,14 +674,15 @@ Expr MakeExpandDims(Expr data, Expr axis_tensor) {
 TVM_REGISTER_GLOBAL("relay.op.dyn._make.expand_dims").set_body_typed(MakeExpandDims);
 
 RELAY_REGISTER_OP("dyn.expand_dims")
-    .describe(R"code(Repeat the whole array multiple times.
+    .describe(R"code(Insert one new axis at the position given by `axis`
 
-TODO
+- **data**: The input data to the operator.
+- **axis**: The axis to insert a new dimension
 
 )code" TVM_ADD_FILELINE)
     .set_num_inputs(2)
     .add_argument("data", "Tensor", "The input tensor.")
-    .add_argument("axis_tensor", "Tensor", "Encoded axis tensor... TODO")
+    .add_argument("axis", "Tensor", "The axis to insert at a dimension.")
     .set_support_level(3)
     .add_type_rel("DynamicExpandDims", ExpandDimsRel)
     .set_attr<FTVMCompute>("FTVMCompute", ExpandDimsCompute)
