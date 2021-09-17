@@ -21,6 +21,7 @@ import pathlib
 import subprocess
 import sys
 import logging
+import json
 
 import pytest
 import numpy as np
@@ -37,6 +38,8 @@ from tvm.relay.testing import byoc
 from tvm.contrib import utils
 from tvm.relay.expr_functor import ExprMutator
 from tvm.relay.op.annotation import compiler_begin, compiler_end
+
+from tvm.micro.testing import check_tune_log
 
 import conftest
 
@@ -430,13 +433,18 @@ def test_autotune_conv2d(temp_dir, board, west_cmd, tvm_debug):
             "project_type": "host_driven",
         },
     )
+
+    timeout = 200
     builder = tvm.autotvm.LocalBuilder(
+        timeout=timeout,
         n_parallel=1,
         build_kwargs={"build_option": {"tir.disable_vectorize": True}},
         do_fork=True,
         build_func=tvm.micro.autotvm_build_func,
     )
-    runner = tvm.autotvm.LocalRunner(number=1, repeat=1, timeout=100, module_loader=module_loader)
+    runner = tvm.autotvm.LocalRunner(
+        number=1, repeat=1, timeout=timeout, module_loader=module_loader
+    )
 
     measure_option = tvm.autotvm.measure_option(builder=builder, runner=runner)
 
@@ -456,8 +464,9 @@ def test_autotune_conv2d(temp_dir, board, west_cmd, tvm_debug):
             ],
             si_prefix="M",
         )
+        assert tuner.best_flops > 0
 
-    assert tuner.best_flops > 0
+    check_tune_log(log_path)
 
     # Build without tuning
     with pass_context:
