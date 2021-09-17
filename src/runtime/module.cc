@@ -63,10 +63,12 @@ void ModuleNode::Import(Module other) {
 
 PackedFunc ModuleNode::GetFunction(const std::string& name, bool query_imports) {
   ModuleNode* self = this;
+  // This must be the REAL GetFunction but IDK where it actually lives!!
   PackedFunc pf = self->GetFunction(name, GetObjectPtr<Object>(this));
   if (pf != nullptr) return pf;
   if (query_imports) {
     for (Module& m : self->imports_) {
+      // Where is this defined?
       pf = m.operator->()->GetFunction(name, query_imports);
       if (pf != nullptr) {
         return pf;

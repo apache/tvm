@@ -93,6 +93,8 @@ class BuildModule(object):
     """
 
     def __init__(self):
+        # This is implicitly calling GetFunction in RelayBuildModuleNode which then calls the correct
+        # executor's version of that function.
         self.mod = _build_module._BuildModule()
         self._get_graph_json = self.mod["get_graph_json"]
         self._get_module = self.mod["get_module"]

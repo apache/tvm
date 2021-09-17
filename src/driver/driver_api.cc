@@ -465,6 +465,7 @@ runtime::Module build(const Map<Target, IRModule>& inputs_arg, const Target& tar
   Target target_host = target_host_arg;
 
   // Fetch previous defined target host in targets
+  // this is redefined in python ahh
   CheckAndUpdateHostConsistency(&inputs, &target_host);
 
   if (!target_host.defined()) {
