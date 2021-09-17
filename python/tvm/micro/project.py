@@ -104,11 +104,19 @@ class TemplateProject:
     def _check_project_options(self, options: dict):
         """Check if options are valid ProjectOptions"""
         valid_project_options = [item["name"] for item in self.info()["project_options"]]
+        valid = True
 
-        if not all(element in list(valid_project_options) for element in list(options)):
+        if options is not None:
+            if valid_project_options is None:
+                valie = False
+            else:
+                if not all(element in list(valid_project_options) for element in list(options)):
+                    valid = False
+
+        if not valid:
             raise ValueError(
                 f"""options:{list(options)} include none valid ProjectOptions.
-                Here is a list of valid options:{list(valid_project_options)}."""
+                        Here is a list of valid options:{list(valid_project_options)}."""
             )
 
     def generate_project_from_mlf(self, model_library_format_path, project_dir, options):
