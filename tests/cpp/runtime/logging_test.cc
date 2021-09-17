@@ -34,14 +34,19 @@ TEST(ParseTvmLogDebugSpec, Disabled) {
 TEST(ParseTvmLogDebugSpec, DlogOnly) {
   auto map = ParseTvmLogDebugSpec("1");
   EXPECT_EQ(map.size(), 1);
-  EXPECT_EQ(map["*"], -1);
+  EXPECT_EQ(map["DEFAULT"], -1);
 }
 
-TEST(ParseTvmLogDebugSpec, VLogEnabled) {
-  auto map = ParseTvmLogDebugSpec("foo/bar.cc=3;baz.cc=-1;*=2;another/file.cc=4");
-  EXPECT_EQ(map.size(), 4);
+TEST(ParseTvmLogDebugSpec, VLogEnabledDefault) {
+  auto map = ParseTvmLogDebugSpec("DEFAULT=3");
+  EXPECT_EQ(map.size(), 1);
+  EXPECT_EQ(map["DEFAULT"], 3);
+}
 
-  EXPECT_EQ(map["*"], 2);
+TEST(ParseTvmLogDebugSpec, VLogEnabledComplex) {
+  auto map = ParseTvmLogDebugSpec("foo/bar.cc=3;baz.cc=-1;DEFAULT=2;another/file.cc=4");
+  EXPECT_EQ(map.size(), 4);
+  EXPECT_EQ(map["DEFAULT"], 2);
   EXPECT_EQ(map["foo/bar.cc"], 3);
   EXPECT_EQ(map["baz.cc"], -1);
   EXPECT_EQ(map["another/file.cc"], 4);
@@ -52,8 +57,7 @@ TEST(ParseTvmLogDebugSpec, IllFormed) {
 }
 
 TEST(VerboseEnabledInMap, Lookup) {
-  auto map = ParseTvmLogDebugSpec("foo/bar.cc=3;baz.cc=-1;*=2;another/file.cc=4;");
-
+  auto map = ParseTvmLogDebugSpec("foo/bar.cc=3;baz.cc=-1;DEFAULT=2;another/file.cc=4;");
   EXPECT_TRUE(VerboseEnabledInMap("my/filesystem/src/foo/bar.cc", 3, map));
   EXPECT_FALSE(VerboseEnabledInMap("my/filesystem/src/foo/bar.cc", 4, map));
   EXPECT_TRUE(VerboseEnabledInMap("my/filesystem/src/foo/other.cc", 2, map));

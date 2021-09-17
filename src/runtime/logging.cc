@@ -167,6 +167,12 @@ namespace tvm {
 namespace runtime {
 namespace detail {
 
+namespace {
+constexpr const char* kSrcPrefix = "/src/";
+constexpr const size_t kSrcPrefixLength = 5;
+constexpr const char* kDefaultKeyword = "DEFAULT";
+}  // namespace
+
 // Parse \p opt_spec as a VLOG specification as per comment in
 // DebugLoggingEnabled and VerboseLoggingEnabled.
 std::unordered_map<std::string, int> ParseTvmLogDebugSpec(const char* opt_spec) {
@@ -184,27 +190,26 @@ std::unordered_map<std::string, int> ParseTvmLogDebugSpec(const char* opt_spec) 
     // Legacy specification for enabling just DLOG.
     // A wildcard entry in the map will signal DLOG is on, but all VLOG levels are disabled.
     LOG(INFO) << "TVM_LOG_DEBUG enables DLOG statements only";
-    map.emplace("*", -1);
+    map.emplace(kDefaultKeyword, -1);
     return map;
   }
   std::istringstream spec_stream(spec);
-  for (std::string entry; std::getline(spec_stream, entry, ';'); /* no-op */) {
-    if (entry.empty()) {
-      LOG(FATAL) << "TVM_LOG_DEBUG ill-formed, empty entry";
-      return map;
-    }
-    std::istringstream entry_stream(entry);
+  while (spec_stream) {
     std::string name;
-    if (!std::getline(entry_stream, name, '=')) {
-      LOG(FATAL) << "TVM_LOG_DEBUG ill-formed, missing '='";
-      return map;
+    if (!std::getline(spec_stream, name, '=')) {
+      // Reached end.
+      break;
     }
     if (name.empty()) {
       LOG(FATAL) << "TVM_LOG_DEBUG ill-formed, empty name";
       return map;
     }
+
     std::string level;
-    entry_stream >> level;
+    if (!std::getline(spec_stream, level, ';')) {
+      LOG(FATAL) << "TVM_LOG_DEBUG ill-formed, expecting level";
+      return map;
+    }
     if (level.empty()) {
       LOG(FATAL) << "TVM_LOG_DEBUG ill-formed, empty level";
       return map;
@@ -214,6 +219,7 @@ std::unordered_map<std::string, int> ParseTvmLogDebugSpec(const char* opt_spec) 
     int level_val = static_cast<int>(strtol(level.c_str(), &end_of_level, 10));
     if (end_of_level != level.c_str() + level.size()) {
       LOG(FATAL) << "TVM_LOG_DEBUG ill-formed, invalid level";
+      return map;
     }
     if (map.empty()) {
       LOG(INFO) << "TVM_LOG_DEBUG enables DLOG statements";
@@ -231,9 +237,6 @@ const std::unordered_map<std::string, int>& TvmLogDebugSpec() {
   return *map;
 }
 
-constexpr const char* kSrcPrefix = "/src/";
-constexpr const size_t kSrcPrefixLength = 5;
-
 bool VerboseEnabledInMap(const std::string& filename, int level,
                          const std::unordered_map<std::string, int>& map) {
   if (level < 0) {
@@ -248,13 +251,13 @@ bool VerboseEnabledInMap(const std::string& filename, int level,
   // canonicalization.
   std::string key =
       last_src == std::string::npos ? filename : filename.substr(last_src + kSrcPrefixLength);
-  // Check for exact.
+  // Check for exact match.
   auto itr = map.find(key);
   if (itr != map.end()) {
     return level <= itr->second;
   }
-  // Check for '*' wildcard.
-  itr = map.find("*");
+  // Check for default.
+  itr = map.find(kDefaultKeyword);
   if (itr != map.end()) {
     return level <= itr->second;
   }

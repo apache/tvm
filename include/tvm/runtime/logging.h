@@ -441,12 +441,12 @@ inline bool DebugLoggingEnabled() {
  *
  * To enable file \p relay/foo.cc up to level 2 and \p ir/bar.cc for level 0 only set:
  * \code
- * TVM_LOG_DEBUG="relay/foo.cc=2;ir/bar.cc=0;"
+ * TVM_LOG_DEBUG="relay/foo.cc=2;ir/bar.cc=0"
  * \endcode
  *
  * To enable all files up to level 3 but disable \p ir/bar.cc set:
  * \code
- * TVM_LOG_DEBUG="*=2;ir/bar.cc=-1;"
+ * TVM_LOG_DEBUG="DEFAULT=2;ir/bar.cc=-1"
  * \endcode
  *
  * Any of these settings will also enable DLOG statements.
@@ -574,7 +574,7 @@ TVM_CHECK_FUNC(_NE, !=)
 
 /*!
  * \brief If the \p TVM_LOG_DEBUG build flag is enabled, push a context message onto an internal
- * stack. All VLOG messages will include this stack as their prefix to help with debugging. E.g.:
+ * stack. All VLOG messages will include this stack in their prefix to help with debugging. E.g.:
  * \code
  *   VLOG_CONTEXT << "my context";
  *   VLOG(1) << "my log message";
