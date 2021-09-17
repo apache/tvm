@@ -80,3 +80,5 @@ if __name__ == '__main__':
 
     test_rpc_proxy()
     test_rpc_tracker()
+
+    server_ios_launcher.ServerIOSLauncher.shutdown_booted_devices()
