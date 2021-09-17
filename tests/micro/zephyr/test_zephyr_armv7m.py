@@ -15,10 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import io
 import logging
 import os
 import pathlib
+import typing
 import sys
 import logging
 import tarfile
@@ -33,120 +33,23 @@ import tvm.micro
 import tvm.testing
 import tvm.relay as relay
 
+from tvm.contrib.download import download_testdata
 from tvm.micro.interface_api import generate_c_interface_header
 
 import conftest
+from test_utils import *
 
 _LOG = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
-PLATFORMS = conftest.PLATFORMS
-
-TEMPLATE_PROJECT_DIR = (
-    pathlib.Path(__file__).parent
-    / ".."
-    / ".."
-    / ".."
-    / "apps"
-    / "microtvm"
-    / "zephyr"
-    / "template_project"
-).resolve()
-
-
-def _read_line(fd, timeout_sec: int):
-    data = ""
-    new_line = False
-    while True:
-        if new_line:
-            break
-        new_data = fd.read(1, timeout_sec=timeout_sec)
-        logging.debug(f"read data: {new_data}")
-        for item in new_data:
-            new_c = chr(item)
-            data = data + new_c
-            if new_c == "\n":
-                new_line = True
-                break
-    return data
-
-
-def _get_message(fd, expr: str, timeout_sec: int):
-    while True:
-        data = _read_line(fd, timeout_sec)
-        logging.debug(f"new line: {data}")
-        if expr in data:
-            return data
-
-def _build_project(temp_dir, zephyr_board, west_cmd, mod, build_config, extra_files_tar=None):
-    template_project_dir = (
-        pathlib.Path(__file__).parent
-        / ".."
-        / ".."
-        / ".."
-        / "apps"
-        / "microtvm"
-        / "zephyr"
-        / "template_project"
-    ).resolve()
-    project_dir = temp_dir / "project"
-    project = tvm.micro.generate_project(
-        str(template_project_dir),
-        mod,
-        project_dir,
-        {
-            "extra_files_tar": extra_files_tar,
-            "project_type": "aot_demo",
-            "west_cmd": west_cmd,
-            "verbose": bool(build_config.get("debug")),
-            "zephyr_board": zephyr_board,
-        },
-    )
-    project.build()
-    return project, project_dir
-
-
-def _create_header_file(tensor_name, npy_data, output_path, tar_file):
-    """
-    This method generates a header file containing the data contained in the numpy array provided.
-    It is used to capture the tensor data (for both inputs and expected outputs).
-    """
-    header_file = io.StringIO()
-    header_file.write("#include <stddef.h>\n")
-    header_file.write("#include <stdint.h>\n")
-    header_file.write("#include <dlpack/dlpack.h>\n")
-    header_file.write(f"const size_t {tensor_name}_len = {npy_data.size};\n")
-
-    if npy_data.dtype == "int8":
-        header_file.write(f"int8_t {tensor_name}[] =")
-    elif npy_data.dtype == "int32":
-        header_file.write(f"int32_t {tensor_name}[] = ")
-    elif npy_data.dtype == "uint8":
-        header_file.write(f"uint8_t {tensor_name}[] = ")
-    elif npy_data.dtype == "float32":
-        header_file.write(f"float {tensor_name}[] = ")
-    else:
-        raise ValueError("Data type not expected.")
-
-    header_file.write("{")
-    for i in np.ndindex(npy_data.shape):
-        header_file.write(f"{npy_data[i]}, ")
-    header_file.write("};\n\n")
-
-    header_file_bytes = bytes(header_file.getvalue(), "utf-8")
-    raw_path = pathlib.Path(output_path) / f"{tensor_name}.h"
-    ti = tarfile.TarInfo(name=str(raw_path))
-    ti.size = len(header_file_bytes)
-    ti.mode = 0o644
-    ti.type = tarfile.REGTYPE
-    tar_file.addfile(ti, io.BytesIO(header_file_bytes))
-
-
-
-
-def _open_tflite_model(model_path: str):
+def _open_tflite_model():
     # Import TFLite model
+
+    model_url = "https://github.com/tlc-pack/web-data/raw/main/testdata/microTVM/model/mnist_model_quant.tflite"
+    model_path = download_testdata(model_url, "mnist_model_quant.tflite", module="model")
+
     tflite_model_buf = open(model_path, "rb").read()
+
     try:
         import tflite
 
@@ -176,7 +79,7 @@ def _get_test_data(testdata_dir):
     return sample, output_shape
 
 
-def _apply_desired_layout_isa(relay_mod):
+def _apply_desired_layout_simd(relay_mod):
 
     desired_layouts = {'qnn.conv2d': ['NHWC', 'HWOI'], 'nn.conv2d': ['NHWC', 'HWOI']}
 
@@ -185,7 +88,7 @@ def _apply_desired_layout_isa(relay_mod):
     with tvm.transform.PassContext(opt_level=3):
         return seq(relay_mod)
 
-def _apply_desired_layout_no_isa(relay_mod):
+def _apply_desired_layout_no_simd(relay_mod):
 
     desired_layouts = {'qnn.conv2d': ['NHWC', 'HWIO'], 'nn.conv2d': ['NHWC', 'HWIO']}
 
@@ -194,6 +97,47 @@ def _apply_desired_layout_no_isa(relay_mod):
     with tvm.transform.PassContext(opt_level=3):
         return seq(relay_mod)
 
+
+def _loadCMSIS(temp_dir):
+    import os
+    from urllib.request import urlopen, urlretrieve
+    from urllib.error import HTTPError
+    import json
+    import requests
+    REPO_PATH = "ARM-software/CMSIS_5"
+    BRANCH = "master"
+    API_PATH_URL = f"https://api.github.com/repos/{REPO_PATH}/git/trees"
+    RAW_PATH_URL = f"https://raw.githubusercontent.com/{REPO_PATH}/{BRANCH}"
+
+    url = "https://api.github.com/repos/ARM-software/CMSIS_5/git/trees/master?recursive=1"
+    r = requests.get(url)
+    res = r.json()
+
+    include_trees = {}
+
+    for file in res["tree"]:
+        if (file["path"] in {"CMSIS/DSP/Include", "CMSIS/DSP/Include/dsp", "CMSIS/NN/Include"}):
+            include_trees.update({file["path"]: file["sha"]})
+
+    for path, sha in include_trees.items():
+        url = f"{API_PATH_URL}/{sha}"
+        content = json.load(urlopen(url))
+        temp_path = f"{temp_dir}"
+        if path == "CMSIS/DSP/Include/dsp":
+            temp_path = f"{temp_dir}/dsp"
+            if not os.path.isdir(temp_path):
+                os.makedirs(temp_path)
+        for item in content['tree']:
+            if item["type"] == "blob":
+                file_name = item["path"]
+                file_url = f"{RAW_PATH_URL}/{path}/{file_name}"
+                print(file_name, "   ", file_url)
+                try:
+                    urlretrieve(file_url, f"{temp_path}/{file_name}")
+                except HTTPError as e:
+                    print(f"Failed to download {file_url}: {e}")
+
+
 def _generate_project(temp_dir, board, west_cmd, lowered, build_config, sample, output_shape):
 
     with tempfile.NamedTemporaryFile() as tar_temp_file:
@@ -201,15 +145,17 @@ def _generate_project(temp_dir, board, west_cmd, lowered, build_config, sample, 
             with tempfile.TemporaryDirectory() as tar_temp_dir:
                 model_files_path = os.path.join(tar_temp_dir, "include")
                 os.mkdir(model_files_path)
+                _loadCMSIS(model_files_path)
+                tf.add(model_files_path, arcname=os.path.relpath(model_files_path, tar_temp_dir))
                 header_path = generate_c_interface_header(
                     lowered.libmod_name, ["input_1"], ["output"], model_files_path
                 )
                 tf.add(header_path, arcname=os.path.relpath(header_path, tar_temp_dir))
 
-            _create_header_file("input_data", sample, "include", tf)
-            _create_header_file("output_data", np.zeros(shape=output_shape, dtype="float32"), "include", tf)
+            create_header_file("input_data", sample, "include", tf)
+            create_header_file("output_data", np.zeros(shape=output_shape, dtype="float32"), "include", tf)
 
-        project, _ = _build_project(
+        project, _ = build_project(
             temp_dir,
             board,
             west_cmd,
@@ -229,9 +175,8 @@ def _run_model(temp_dir, board, west_cmd, lowered, build_config, sample, output_
 
     with project.transport() as transport:
         timeout_read = 60
-        # _get_message(transport, "#wakeup", timeout_sec=timeout_read)
         transport.write(b"start\n", timeout_sec=5)
-        result_line = _get_message(transport, "#result", timeout_sec=timeout_read)
+        result_line = get_message(transport, "#result", timeout_sec=timeout_read)
 
     result_line = result_line.strip("\n")
     result_line = result_line.split(":")
@@ -247,10 +192,10 @@ def test_armv7m_intrinsic(temp_dir, board, west_cmd, tvm_debug):
     """Testing a ARM v7m SIMD extension."""
 
     if board not in [
-        "nrf5340dk",
+        "mps2_an521",
         "stm32f746xx_disco",
-        "stm32f746xx_nucleo",
-        "stm32l4r5zi_nucleo",
+        "nucleo_f746zg",
+        "nucleo_l4r5zi",
     ]:
         pytest.skip(msg="Platform does not support ARM v7m SIMD extenion.")
 
@@ -259,34 +204,34 @@ def test_armv7m_intrinsic(temp_dir, board, west_cmd, tvm_debug):
     build_config = {"debug": tvm_debug}
 
     this_dir = pathlib.Path(os.path.dirname(__file__))
-    testdata_dir = this_dir.parent / "testdata" / "armv7m"
+    testdata_dir = this_dir.parent / "testdata" / "mnist"
 
-    relay_mod, params = _open_tflite_model(testdata_dir / "mnist_model_quant.tflite")
+    relay_mod, params = _open_tflite_model()
 
     sample, output_shape = _get_test_data(testdata_dir)
 
-    relay_mod_isa = _apply_desired_layout_isa(relay_mod)
+    relay_mod_simd = _apply_desired_layout_simd(relay_mod)
     # kernel layout "HWIO" is not supported by arm_cpu SIMD extension (see tvm\python\relay\op\strategy\arm_cpu.py)
-    relay_mod_no_isa = _apply_desired_layout_no_isa(relay_mod)
+    relay_mod_no_simd = _apply_desired_layout_no_simd(relay_mod)
 
     target = tvm.target.target.micro(
         model, options=["-keys=arm_cpu,cpu", "-link-params=1", "--executor=aot", "--unpacked-api=1", "--interface-api=c"]
     )
 
-    temp_dir_isa = temp_dir / "isa"
-    temp_dir_no_isa = temp_dir / "noisa"
+    temp_dir_simd = temp_dir / "simd"
+    temp_dir_no_simd = temp_dir / "nosimd"
 
-    os.makedirs(temp_dir_isa, exist_ok=True)
-    os.makedirs(temp_dir_no_isa, exist_ok=True)
+    os.makedirs(temp_dir_simd, exist_ok=True)
+    os.makedirs(temp_dir_no_simd, exist_ok=True)
 
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        lowered_isa = relay.build(relay_mod_isa, target, params=params)
-        lowered_no_isa = relay.build(relay_mod_no_isa, target, params=params)
-        result_isa, time_isa = _run_model(temp_dir_isa, board, west_cmd, lowered_isa, build_config, sample, output_shape)
-        result_no_isa, time_no_isa = _run_model(temp_dir_no_isa, board, west_cmd, lowered_no_isa, build_config, sample, output_shape)
+        lowered_simd = relay.build(relay_mod_simd, target, params=params)
+        lowered_no_simd = relay.build(relay_mod_no_simd, target, params=params)
+        result_simd, time_simd = _run_model(temp_dir_simd, board, west_cmd, lowered_simd, build_config, sample, output_shape)
+        result_no_simd, time_no_simd = _run_model(temp_dir_no_simd, board, west_cmd, lowered_no_simd, build_config, sample, output_shape)
 
-    assert result_no_isa == result_isa
-    assert time_no_isa > time_isa
+    assert result_no_simd == result_simd
+    assert time_no_simd > time_simd
 
 
 if __name__ == "__main__":
