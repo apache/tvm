@@ -55,7 +55,7 @@ def schedule_pool_arm_cpu(attrs, outs, target):
     isa = arm_isa.IsaAnalyzer(target)
     avg_pool = hasattr(attrs, "count_include_pad")
     with target:
-        if avg_pool and layout == "NCHW" and "SMLAD" in isa or \
+        if avg_pool and (layout == "NCW" or layout == "NCHW") and "SMLAD" in isa or \
                 not avg_pool and "SSUB8" in isa and "SEL" in isa and (layout == "NWC" or layout == "NHWC"):
             return topi.arm_cpu.schedule_pool(outs, layout)
         else:
