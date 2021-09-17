@@ -652,8 +652,6 @@ Array<te::Tensor> ExpandDimsCompute(const Attrs& attrs, const Array<te::Tensor>&
   int ndim_in = ishape.size();
   ICHECK_EQ(ndim_in + 1, ndim_out);
 
-  int64_t axis = inputs[1]();
-  LOG(WARNING) << "*****" << axis;
   return {topi::dynamic_expand_dims(inputs[0], inputs[1]())};
 }
 
