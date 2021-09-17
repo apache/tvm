@@ -20,7 +20,9 @@
 
 Autotuning with micro TVM
 =========================
-**Author**: `Andrew Reusch <https://github.com/areusch>`_, `Mehrdad Hessar <https://github.com/mehrdadh>`
+**Authors**:
+`Andrew Reusch <https://github.com/areusch>`_,
+`Mehrdad Hessar <https://github.com/mehrdadh>`_
 
 This tutorial explains how to autotune a model using the C runtime.
 """
@@ -117,7 +119,7 @@ repo_root = pathlib.Path(
 
 module_loader = tvm.micro.AutoTvmModuleLoader(
     template_project_dir=repo_root / "src" / "runtime" / "crt" / "host",
-    project_options={},
+    project_options={"verbose": False},
 )
 builder = tvm.autotvm.LocalBuilder(
     n_parallel=1,
@@ -136,7 +138,7 @@ measure_option = tvm.autotvm.measure_option(builder=builder, runner=runner)
 #        project_options={
 #            "zephyr_board": BOARD,
 #            "west_cmd": "west",
-#            "verbose": 1,
+#            "verbose": False,
 #            "project_type": "host_driven",
 #        },
 #    )
@@ -147,8 +149,8 @@ measure_option = tvm.autotvm.measure_option(builder=builder, runner=runner)
 #        build_func=tvm.micro.autotvm_build_func,
 #    )
 #    runner = tvm.autotvm.LocalRunner(number=1, repeat=1, timeout=100, module_loader=module_loader)
-
-# measure_option = tvm.autotvm.measure_option(builder=builder, runner=runner)
+#
+#    measure_option = tvm.autotvm.measure_option(builder=builder, runner=runner)
 
 ################
 # Run Autotuning
@@ -181,7 +183,10 @@ with pass_context:
 temp_dir = tvm.contrib.utils.tempdir()
 
 project = tvm.micro.generate_project(
-    str(repo_root / "src" / "runtime" / "crt" / "host"), lowered, temp_dir / "project"
+    str(repo_root / "src" / "runtime" / "crt" / "host"),
+    lowered,
+    temp_dir / "project",
+    {"verbose": False},
 )
 
 # Compiling for physical hardware
@@ -193,7 +198,7 @@ project = tvm.micro.generate_project(
 #        {
 #            "zephyr_board": BOARD,
 #            "west_cmd": "west",
-#            "verbose": 1,
+#            "verbose": False,
 #            "project_type": "host_driven",
 #        },
 #    )
@@ -221,7 +226,10 @@ with tvm.autotvm.apply_history_best("microtvm_autotune.log.txt"):
 temp_dir = tvm.contrib.utils.tempdir()
 
 project = tvm.micro.generate_project(
-    str(repo_root / "src" / "runtime" / "crt" / "host"), lowered_tuned, temp_dir / "project"
+    str(repo_root / "src" / "runtime" / "crt" / "host"),
+    lowered_tuned,
+    temp_dir / "project",
+    {"verbose": False},
 )
 
 # Compiling for physical hardware
@@ -233,7 +241,7 @@ project = tvm.micro.generate_project(
 #        {
 #            "zephyr_board": BOARD,
 #            "west_cmd": "west",
-#            "verbose": 1,
+#            "verbose": False,
 #            "project_type": "host_driven",
 #        },
 #    )

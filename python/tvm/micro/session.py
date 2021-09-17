@@ -87,6 +87,8 @@ class Session:
         self._rpc = None
         self._graph_executor = None
 
+        self._exit_called = False
+
     def get_system_lib(self):
         return self._rpc.get_function("runtime.SystemLib")()
 
@@ -130,7 +132,7 @@ class Session:
                     int(timeouts.session_start_retry_timeout_sec * 1e6),
                     int(timeouts.session_start_timeout_sec * 1e6),
                     int(timeouts.session_established_timeout_sec * 1e6),
-                    self._shutdown,
+                    self._cleanup,
                 )
             )
             self.device = self._rpc.cpu(0)
@@ -142,9 +144,11 @@ class Session:
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
         """Tear down this session and associated RPC session resources."""
-        self.transport.__exit__(exc_type, exc_value, exc_traceback)
+        if not self._exit_called:
+            self._exit_called = True
+            self.transport.__exit__(exc_type, exc_value, exc_traceback)
 
-    def _shutdown(self):
+    def _cleanup(self):
         self.__exit__(None, None, None)
 
 
@@ -289,6 +293,6 @@ def compile_and_create_micro_session(
     transport = generated_project.transport()
 
     rpc_session = Session(transport_context_manager=transport)
-    # RPC exit is called by shutdown function.
+    # RPC exit is called by cleanup function.
     rpc_session.__enter__()
     return rpc_session._rpc._sess
