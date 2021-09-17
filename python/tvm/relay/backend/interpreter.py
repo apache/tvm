@@ -19,15 +19,16 @@
 from __future__ import absolute_import
 
 import numpy as np
-import tvm._ffi
-from tvm.runtime import Object, container
 
-from ... import nd
+import tvm._ffi
+from tvm.runtime import container, Object
+
+from . import _backend
 from .. import _make, analysis
-from ..expr import Call, Constant, GlobalVar, RefCreate, Tuple, const
+from ... import nd
+from ..expr import Tuple, RefCreate, Call, Constant, GlobalVar, const
 from ..function import Function
 from ..scope_builder import ScopeBuilder
-from . import _backend
 
 
 @tvm._ffi.register_object("relay.ConstructorValue")
