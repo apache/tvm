@@ -17,9 +17,11 @@
 # specific language governing permissions and limitations
 # under the License.
 
+set -eux
+
 DOCS_DIR=0
 OTHER_DIR=0
-DOC_DIR="\docs"
+DOC_DIR="docs/"
 
 changed_files=`git diff --no-commit-id --name-only -r origin/main`
 
@@ -32,7 +34,7 @@ for file in $changed_files; do
     fi
 done
 
-if [[ ($OTHER_DIR -eq 1) ]]; then
+if [ ${OTHER_DIR} -eq 1 ]; then
     exit 1
 else
     exit 0
