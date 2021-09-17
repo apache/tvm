@@ -158,7 +158,7 @@ stage('Sanity Check') {
         ./tests/scripts/git_check_tree.sh
         '''
         )
-      // sh "${docker_run} ${ci_lint}  ./tests/scripts/task_lint.sh"
+        sh "${docker_run} ${ci_lint}  ./tests/scripts/task_lint.sh"
       }
     }
   }
