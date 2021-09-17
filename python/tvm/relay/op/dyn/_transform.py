@@ -96,21 +96,21 @@ def _expand_dims_shape_func_input_data(data, axis, ndims):
     out = output_tensor((ndims,), "int64")
 
     for i in const_range(ndims):
-        out[i] = 1
+        out[i] = int64(1)
 
     # Forward pass
     for i in const_range(len(data.shape)):
         if i < axis[0]:
-            out[i] = data.shape[i]
+            out[i] = int64(data.shape[i])
         else:
-            out[i] = out[i]
+            out[i] = int64(out[i])
 
     # Backward pass
     for i in const_range(len(data.shape)):
         if len(data.shape) - i < axis[0]:
-            out[len(data.shape) - i] = data.shape[len(data.shape) - i - 1]
+            out[len(data.shape) - i] = int64(data.shape[len(data.shape) - i - 1])
         else:
-            out[len(data.shape) - i] = out[len(data.shape) - i]
+            out[len(data.shape) - i] = int64(out[len(data.shape) - i])
 
     return out
 
