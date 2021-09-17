@@ -210,6 +210,7 @@ def test_dyn_expand_dims():
     for dtype in ["float16", "float32"]:
         verify_expand_dims((3, 9), dtype, (3, 9, 1), 2)
         verify_expand_dims((3, 9), dtype, (3, 1, 9), 1)
+        verify_expand_dims((3, 9), dtype, (1, 3, 9), 0)
 
 
 @tvm.testing.uses_gpu
