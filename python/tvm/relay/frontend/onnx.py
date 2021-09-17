@@ -19,6 +19,7 @@
 """ONNX: Open Neural Network Exchange frontend for Relay."""
 import copy
 import warnings
+from typing import Optional
 
 import numpy as np
 import tvm
@@ -69,7 +70,11 @@ class onnx_input(list):
 
     def __getitem__(self, item):
         if isinstance(item, slice):
-            indices = list(range(item.stop)[item])
+            if item.stop is None:
+                stop = len(self)
+            else:
+                stop = item.stop
+            indices = list(range(stop)[item])
             return [self[i] for i in indices]
         if isinstance(item, int):
             return list(self)[item] if item < len(self) else None
@@ -272,6 +277,13 @@ class Pool(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
+        attr_cvt, data = cls._run_calculation(inputs, attr, params)
+        return attr_cvt([data], attr, params)
+
+    @classmethod
+    def _run_calculation(cls, inputs, attr, params):
+        """Helper method to return the processed input data and AttrCvt object"""
+
         data = inputs[0]
         input_shape = infer_shape(data)
         input_dtype = infer_type(data).checked_type.dtype
@@ -321,16 +333,19 @@ class Pool(OnnxOpConverter):
         else:
             attr["layout"] = onnx_default_layout(dims=(len(input_shape) - 2), op_name=cls.name)
 
-        return AttrCvt(
-            op_name=dimension_picker(cls.name),
-            transforms={
-                "kernel_shape": "pool_size",
-                "pads": ("padding", 0),
-                "dilations": ("dilation", 1),
-            },
-            ignores=["storage_order"],
-            custom_check=dimension_constraint(),
-        )([data], attr, params)
+        return (
+            AttrCvt(
+                op_name=dimension_picker(cls.name),
+                transforms={
+                    "kernel_shape": "pool_size",
+                    "pads": ("padding", 0),
+                    "dilations": ("dilation", 1),
+                },
+                ignores=["storage_order"],
+                custom_check=dimension_constraint(),
+            ),
+            data,
+        )
 
 
 class Absolute(Unary):
@@ -349,6 +364,29 @@ class AveragePool(Pool):
     """Operator converter for AveragePool."""
 
     name = "avg_pool"
+
+
+class QLinearAveragePool(Pool):
+    """Operator converter for QLinearAveragePool from Microsoft onnxruntime contrib opset."""
+
+    name = "avg_pool"
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        x_scale = get_scalar(inputs[1], params)
+        x_zero_point = get_scalar(inputs[2], params, dtype="int32")
+        y_scale = fold_constant(get_scalar(inputs[3], params))
+        y_zero_point = get_scalar(inputs[4], params, dtype="int32")
+
+        attr_cvt, data = cls._run_calculation(inputs, attr, params)
+
+        input_dtype = infer_type(data).checked_type.dtype
+        # Onnxruntime doesn't actually do this op in integer, they dequantize to fp32
+        # and then requantize afer (according to documentation below)
+        # https://github.com/microsoft/onnxruntime/blob/master/docs/ContribOperators.md#com.microsoft.QLinearAveragePool
+        float_node = _qnn.op.dequantize(data, x_scale, x_zero_point)
+        out = attr_cvt([float_node], attr, params)
+        return _qnn.op.quantize(out, y_scale, y_zero_point, out_dtype=input_dtype)
 
 
 class BatchNorm(OnnxOpConverter):
@@ -652,6 +690,40 @@ class GlobalAveragePool(OnnxOpConverter):
             "Global average pooling is only implemented for 1D, 2D, and 3D kernels, got %dD."
             % (rank - 2),
         )
+
+
+class QLinearGlobalAveragePool(OnnxOpConverter):
+    "Operator converter for QLinearGlobalAveragePool from Microsoft onnxruntime contrib opset."
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        rank = len(infer_shape(inputs[0]))
+
+        x_scale = get_scalar(inputs[1], params)
+        x_zero_point = get_scalar(inputs[2], params, dtype="int32")
+        y_scale = fold_constant(get_scalar(inputs[3], params))
+        y_zero_point = get_scalar(inputs[4], params, dtype="int32")
+
+        input_dtype = infer_type(inputs[0]).checked_type.dtype
+
+        # Onnxruntime documentation does not mention that this global avg_pool should follow the
+        # sequence dequantize -> float op -> quantize, but that is how QLinearAveragePool is done.
+        #
+        # This op also follows the same pattern since qnn op is not available right now.
+        # TODO: Generate QNN op to perform quantized operation instead of dequant -> op -> quant
+        x = _qnn.op.dequantize(inputs[0], x_scale, x_zero_point)
+        if rank == 3:
+            out = _op.nn.global_avg_pool1d(x)
+        elif rank == 4:
+            out = _op.nn.global_avg_pool2d(x)
+        elif rank == 5:
+            out = _op.nn.global_avg_pool3d(x)
+        else:
+            raise NotImplementedError(
+                "Global average pooling is only implemented for 1D, 2D, and 3D kernels, got %dD."
+                % (rank - 2),
+            )
+        return _qnn.op.quantize(out, y_scale, y_zero_point, out_dtype=input_dtype)
 
 
 class GlobalMaxPool(OnnxOpConverter):
@@ -1557,7 +1629,12 @@ class GatherND(OnnxOpConverter):
         indices_shape = infer_shape(indices)
         indices = _op.transpose(indices, axes=[-1] + list(range(indices_dims - 1)))
         index_rank = indices_shape[-1]
-        return _op.gather_nd(data, indices, batch_dims, index_rank)
+        return _op.gather_nd(
+            data,
+            indices,
+            batch_dims=batch_dims,
+            index_rank=index_rank,
+        )
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
@@ -1851,17 +1928,21 @@ class LogSoftmax(OnnxOpConverter):
     """Operator converter for Softmax."""
 
     @classmethod
+    def run_calculation(cls, x, axes):
+        """Run the calculation for Log Softmax calculation."""
+        m = _op.max(x, axes, keepdims=True)
+        e = _op.exp(x - m)
+        s = _op.sum(e, axes, keepdims=True)
+        return x - m - _op.log(s)
+
+    @classmethod
     def _impl_v1(cls, inputs, attr, params):
         axis = attr.get("axis", 1)
         ndim = len(infer_shape(inputs[0]))
         if axis < 0:
             axis += ndim
         axes = list(range(axis, ndim))
-        x = inputs[0]
-        m = _op.max(x, axes, keepdims=True)
-        e = _op.exp(x - m)
-        s = _op.sum(e, axes, keepdims=True)
-        return x - m - _op.log(s)
+        return cls.run_calculation(inputs[0], axes)
 
     @classmethod
     def _impl_v13(cls, inputs, attr, params):
@@ -1870,11 +1951,7 @@ class LogSoftmax(OnnxOpConverter):
         if axis < 0:
             axis += ndim
         axes = [axis]
-        x = inputs[0]
-        m = _op.max(x, axes, keepdims=True)
-        e = _op.exp(x - m)
-        s = _op.sum(e, axes, keepdims=True)
-        return x - m - _op.log(s)
+        return cls.run_calculation(inputs[0], axes)
 
 
 class Hardmax(OnnxOpConverter):
@@ -3535,9 +3612,63 @@ class RandomUniform(OnnxOpConverter):
 
 
 class NegativeLogLikelihoodLoss(OnnxOpConverter):
-    """Operator converter for random_uniform"""
+    """Operator converter for NegativeLogLikehoodLoss"""
 
     VALID_REDUCTIONS = {"mean", "sum", "none"}
+
+    @classmethod
+    def run_calculation(
+        cls: "NegativeLogLikelihoodLoss",
+        input_tensor: relay.Expr,
+        target_tensor: relay.Expr,
+        weight_tensor: Optional[relay.Expr],
+        ignore_index: int,
+    ):
+        """Run calculation for NegativeLogLikelihood, returning output tensor and
+        weight tensor used for mean-style reductions.
+        """
+        # Convert negative indices --> positive indices for gather ops, note we have to
+        # use the original target tensor to interact with ignore_index to have proper behavior.
+        normalized_target_tensor = normalize_gather_indices(input_tensor, target_tensor, 1)
+
+        if weight_tensor is None:
+            channels = infer_shape(input_tensor)[1]
+            weight_tensor = relay.ones(
+                [channels],
+                dtype=infer_type(input_tensor).checked_type.dtype,
+            )
+
+        loss = -relay.gather(
+            input_tensor,
+            axis=1,
+            indices=relay.expand_dims(normalized_target_tensor, 1),
+        )
+        loss = relay.squeeze(loss, axis=[1])
+
+        expanded_normalized_target_tensor = relay.expand_dims(normalized_target_tensor, 0)
+        expanded_normalized_target_tensor = relay.nn.batch_flatten(
+            expanded_normalized_target_tensor
+        )
+        flattened_weights = relay.gather_nd(weight_tensor, expanded_normalized_target_tensor)
+        select_weights = relay.reshape_like(flattened_weights, loss)
+        loss *= select_weights
+
+        if ignore_index is not None:
+            # "Ignore" values whose target is the ignore_index
+            mask_tensor = relay.equal(
+                target_tensor, relay.const(ignore_index, dtype=target_tensor.type_annotation.dtype)
+            )
+            mask_tensor = relay.const(1, dtype="int8") - relay.cast(mask_tensor, "int8")
+            loss = relay.where(
+                mask_tensor, loss, relay.const(0, infer_type(loss).checked_type.dtype)
+            )
+
+            # This is not explained super clearly in the onnx spec, but masked values don't
+            # contribute toward the final value in reduction
+            select_weights *= relay.cast_like(mask_tensor, select_weights)
+
+        weight_total = relay.sum(select_weights)
+        return loss, weight_total
 
     @classmethod
     def _impl_v13(cls, inputs, attr, params):
@@ -3553,40 +3684,52 @@ class NegativeLogLikelihoodLoss(OnnxOpConverter):
         if len(inputs) == 3:
             weight_tensor = inputs[2]
         else:
-            channels = infer_shape(input_tensor)[1]
-            weight_tensor = relay.ones(
-                [channels],
-                dtype=input_tensor.type_annotation.dtype,
-            )
+            weight_tensor = None
 
-        loss = -relay.gather(input_tensor, axis=1, indices=relay.expand_dims(target_tensor, 1))
-        loss = relay.squeeze(loss, axis=[1])
-
-        expanded_target_tensor = relay.expand_dims(target_tensor, 0)
-        expanded_target_tensor = relay.nn.batch_flatten(expanded_target_tensor)
-        flattened_weights = relay.gather_nd(weight_tensor, expanded_target_tensor)
-        select_weights = relay.reshape_like(flattened_weights, loss)
-        loss *= select_weights
-
-        if ignore_index is not None:
-            # "Ignore" values whose target is the ignore_index
-            mask_tensor = relay.equal(
-                target_tensor, relay.const(ignore_index, dtype=target_tensor.type_annotation.dtype)
-            )
-            mask_tensor = relay.const(1, dtype="int8") - relay.cast(mask_tensor, "int8")
-            loss *= relay.cast_like(mask_tensor, loss)
-
-            # This is not explained super clearly in the onnx spec, but masked values don't
-            # contribute toward the final value in reduction
-            select_weights *= relay.cast_like(mask_tensor, select_weights)
-
-        weight_total = relay.sum(select_weights)
-
+        loss, weight_total = cls.run_calculation(
+            input_tensor,
+            target_tensor,
+            weight_tensor=weight_tensor,
+            ignore_index=ignore_index,
+        )
         if reduction == "mean":
             return relay.sum(loss) / weight_total
         if reduction == "sum":
             return relay.sum(loss)
         # Case reduction == 'none'
+        return loss
+
+
+class SoftmaxCrossEntropyLoss(OnnxOpConverter):
+    """Operator converter for SCE_loss"""
+
+    @classmethod
+    def _impl_v13(cls, inputs, attr, params):
+        ignore_index = attr.get("ignore_index", None)
+        reduction = attr.get("reduction", b"mean").decode("utf-8")
+        input_tensor, target_tensor = inputs[0], inputs[1]
+        if len(inputs) == 3:
+            weight_tensor = inputs[2]
+        else:
+            weight_tensor = None
+
+        get_log_prob = attr["tvm_custom"]["num_outputs"] == 2
+        log_softmax_tensor = LogSoftmax.run_calculation(input_tensor, axes=[1])
+
+        loss, weight_total = NegativeLogLikelihoodLoss.run_calculation(
+            log_softmax_tensor,
+            target_tensor,
+            weight_tensor,
+            ignore_index=ignore_index,
+        )
+
+        if reduction == "mean":
+            loss = relay.sum(loss) / weight_total
+        elif reduction == "sum":
+            loss = relay.sum(loss)
+
+        if get_log_prob:
+            return relay.TupleWrapper(relay.Tuple((loss, log_softmax_tensor)), 2)
         return loss
 
 
@@ -3704,6 +3847,59 @@ class Adam(OnnxOpConverter):
         result = (
             output_tensors + output_accumulated_gradients + output_accumulated_squared_gradients
         )
+        return _expr.TupleWrapper(_expr.Tuple(result), len(result))
+
+
+class Momentum(OnnxOpConverter):
+    """Operator converter for Momentum op."""
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        alpha = attr["alpha"]
+        beta = attr["beta"]
+        mode = attr["mode"].decode("utf-8")
+        norm_coefficient = attr["norm_coefficient"]
+
+        assert mode in ["nesterov", "standard"], f"Unknown momentum mode {mode}"
+        R = inputs[0]
+        T = inputs[1]
+
+        assert (
+            len(inputs) - 2
+        ) % 3 == 0, f"Expect triplets for remaining inputs, found {len(inputs) - 2}"
+        # Remaining inputs are:
+        # [x_1, x_2 ..., x_1_gradient, x_2_gradient, ... x_1_momentum, x_2_momentum...]
+        num_input_tensors = (len(inputs) - 2) // 3
+
+        # convert attributes to constants
+        dtype_inputs = infer_type(inputs[3]).checked_type.dtype
+        alpha = relay.const(alpha, dtype=dtype_inputs)
+        beta = relay.const(beta, dtype=dtype_inputs)
+        norm_coefficient = relay.const(norm_coefficient, dtype=dtype_inputs)
+        default_beta = relay.const(1.0, dtype=dtype_inputs)
+
+        # Calculate updated values for every input
+        output_tensors = []
+        output_momentums = []
+        for i in range(num_input_tensors):
+            x = inputs[i + 2]
+            gradient = inputs[i + 2 + num_input_tensors]
+            momentum = inputs[i + 2 + 2 * num_input_tensors]
+            g_regularized = norm_coefficient * x + gradient
+            beta_adjusted = relay.If(T > relay.const(0, dtype="int64"), beta, default_beta)
+            new_momentum = alpha * momentum + beta_adjusted * g_regularized
+
+            if mode == "standard":
+                x_output = x - R * new_momentum
+            else:
+                # mode == 'nesterov'
+                x_output = x - R * (g_regularized + alpha * new_momentum)
+
+            output_tensors.append(x_output)
+            output_momentums.append(new_momentum)
+
+        # append lists together, momentums come after result tensors
+        result = output_tensors + output_momentums
         return _expr.TupleWrapper(_expr.Tuple(result), len(result))
 
 
@@ -3889,12 +4085,16 @@ def _get_convert_map(opset):
         "QLinearAdd": QLinearAdd.get_converter(opset),
         "QLinearMul": QLinearMul.get_converter(opset),
         "ConvInteger": ConvInteger.get_converter(opset),
+        "QLinearAveragePool": QLinearAveragePool.get_converter(opset),
+        "QLinearGlobalAveragePool": QLinearGlobalAveragePool.get_converter(opset),
         # Random number generation.
         "RandomUniform": RandomUniform.get_converter(opset),
         # Loss functions / training
         "NegativeLogLikelihoodLoss": NegativeLogLikelihoodLoss.get_converter(opset),
+        "SoftmaxCrossEntropyLoss": SoftmaxCrossEntropyLoss.get_converter(opset),
         "Adagrad": Adagrad.get_converter(opset),
         "Adam": Adam.get_converter(opset),
+        "Momentum": Momentum.get_converter(opset),
     }
 
 
