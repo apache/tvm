@@ -106,9 +106,9 @@ def init_git() {
 def init_git_win() {
   checkout scm
   retry(5) {
-        timeout(time: 2, unit: 'MINUTES') {
-      bat 'git submodule update --init -f'
-        }
+      timeout(time: 2, unit: 'MINUTES') {
+        bat 'git submodule update --init -f'
+      }
   }
 }
 
