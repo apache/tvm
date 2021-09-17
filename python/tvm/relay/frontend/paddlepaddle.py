@@ -1613,6 +1613,7 @@ def convert_rnn(g, op, block):
     hidden_size = op.attr("hidden_size")
     num_layers = op.attr("num_layers")
     is_bidirec = op.attr("is_bidirec")
+    mode = op.attr("mode")
 
     input_x = g.get_node(op.input("Input")[0])
 
