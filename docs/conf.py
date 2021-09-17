@@ -51,11 +51,16 @@ if curr_path.name == "_staging":
 else:
     tvm_path = Path(os.pardir)
 
-
+locale_dirs = ['locale/']   
+gettext_compact = False  
 sys.path.insert(0, str(tvm_path / "python"))
 sys.path.insert(0, str(tvm_path / "vta" / "python"))
 
 # -- General configuration ------------------------------------------------
+
+# for internationalization
+locale_dirs = ['locales/'] 
+gettext_compact=False
 
 # General information about the project.
 project = "tvm"

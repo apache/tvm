@@ -25,6 +25,10 @@ PAPER         =
 BUILDDIR      = _build
 STAGINGDIR    = _staging
 
+# for internationalization
+LOCALES		  = locales
+HTMLFOLD	  = html_zh
+
 # Internal variables.
 PAPEROPT_a4     = -D latex_paper_size=a4
 PAPEROPT_letter = -D latex_paper_size=letter
@@ -102,14 +106,18 @@ staging:
 	      -name "*.rst"  \
 	      -exec ln -s $(PWD)/{} $(STAGINGDIR)/{} \;
 
+	# symlinks docs/locales into the staging directory
+	find . \
+	      -path ./$(LOCALES) -prune \
+	      -exec ln -s $(PWD)/$(LOCALES) $(PWD)/$(STAGINGDIR)/$(LOCALES) \;
+
 	ln -s $(PWD)/conf.py $(STAGINGDIR)/conf.py
 	ln -s $(PWD)/_static $(STAGINGDIR)/_static
 
-
 html: staging
-	cd $(STAGINGDIR) && $(SPHINXBUILD) -b html $(ALLSPHINXOPTS) $(PWD)/$(BUILDDIR)/html
+	cd $(STAGINGDIR) && $(SPHINXBUILD) -b html $(ALLSPHINXOPTS) $(PWD)/$(BUILDDIR)/$(HTMLFOLD)
 	@echo
-	@echo "Build finished. The HTML pages are in $(BUILDDIR)/html."
+	@echo "Build finished. The HTML pages are in $(BUILDDIR)/$(HTMLFOLD)."
 
 dirhtml: staging
 	cd $(STAGINGDIR) && $(SPHINXBUILD) -b dirhtml $(ALLSPHINXOPTS) $(PWD)/$(BUILDDIR)/dirhtml
