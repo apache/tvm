@@ -21,6 +21,7 @@ The Relay Virtual Machine.
 Implements a Python interface to compiling and executing on the Relay VM.
 """
 import numpy as np
+
 import tvm
 import tvm.runtime.ndarray as _nd
 import tvm.runtime.vm as vm_rt
@@ -28,7 +29,6 @@ from tvm import autotvm
 from tvm.relay import expr as _expr
 from tvm.relay.backend.interpreter import Executor
 from tvm.target import Target
-
 from . import _vm
 
 
