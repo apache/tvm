@@ -110,11 +110,15 @@ def _expand_dims_shape_func_input_data(data, axis, ndims):
 
     # Backward pass
     for i in const_range(len(data.shape)):
-        if len(data.shape) - i < axis:
+        if len(data.shape) - i > axis:
             out[len(data.shape) - i] = int64(data.shape[len(data.shape) - i - 1])
         else:
             out[len(data.shape) - i] = int64(out[len(data.shape) - i])
-
+    """
+    out[0] = int64(3)
+    out[1] = int64(9)
+    out[2] = int64(1)
+    """
     return out
 
 
