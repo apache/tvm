@@ -275,6 +275,8 @@ def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True)
     return best_plevel_impl, outputs[best_plevel_impl]
 
 
+# Returns LoweredOutput
+
 @tvm._ffi.register_func("relay.backend.lower_call")
 def lower_call(call, inputs, target):
     """Lower the call expression to op implementation and tensor outputs."""

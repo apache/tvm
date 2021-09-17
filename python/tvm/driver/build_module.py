@@ -157,78 +157,26 @@ def _build_for_device(input_mod, target, target_host):
         A module that contains device code.
     """
     # Ideally delete check_and_update_host_consist from here
-    target, target_host = Target.check_and_update_host_consist(target, target_host)
+    # target, target_host = Target.check_and_update_host_consist(target, target_host)
     # Point 1
+    from tvm.driver import _ffi_api as _driver_ffi
+    mod_mixed = _driver_ffi.get_mod_mixed(input_mod)
+    device_mod = _driver_ffi.get_device_mod(mod_mixed)
+    host_mod = _driver_ffi.get_device_mod(mod_mixed)
+
     device_type = ndarray.device(target.kind.name, 0).device_type
-
-    mod_mixed = input_mod
-    # Do I need this? it is already assigned upstream supposedly..
-    # get rid of it! delete as much as possible
-    mod_mixed = tvm.tir.transform.Apply(lambda f: f.with_attr("target", target))(mod_mixed)
-
-    opt_mixed = [
-        tvm.tir.transform.VerifyMemory(),
-        tvm.tir.transform.MergeDynamicSharedMemoryAllocations(),
-    ]
-    if len(mod_mixed.functions) == 1:
-        opt_mixed += [tvm.tir.transform.Apply(lambda f: f.with_attr("tir.is_entry_func", True))]
-
-    if PassContext.current().config.get("tir.detect_global_barrier", False):
-        opt_mixed += [tvm.tir.transform.ThreadSync("global")]
-    opt_mixed += [
-        tvm.tir.transform.ThreadSync("shared"),
-        tvm.tir.transform.ThreadSync("warp"),
-        tvm.tir.transform.InferFragment(),
-        tvm.tir.transform.LowerThreadAllreduce(),
-        tvm.tir.transform.MakePackedAPI(),
-        tvm.tir.transform.SplitHostDevice(),
-    ]
-    mod_mixed = tvm.transform.Sequential(opt_mixed)(mod_mixed)
-    # point 2
-    # device optimizations
-    opt_device = tvm.transform.Sequential(
-        [
-            tvm.tir.transform.Filter(
-                lambda f: "calling_conv" in f.attrs
-                and f.attrs["calling_conv"].value == CallingConv.DEVICE_KERNEL_LAUNCH
-            ),
-            tvm.tir.transform.LowerWarpMemory(),
-            tvm.tir.transform.Simplify(),
-            tvm.tir.transform.LowerDeviceStorageAccessInfo(),
-            tvm.tir.transform.LowerCustomDatatypes(),
-            tvm.tir.transform.LowerIntrin(),
-        ]
-    )
-    mod_dev = opt_device(mod_mixed)
-
-    # host optimizations
-    opt_host = tvm.transform.Sequential(
-        [
-            tvm.tir.transform.Filter(
-                lambda f: "calling_conv" not in f.attrs
-                or f.attrs["calling_conv"].value != CallingConv.DEVICE_KERNEL_LAUNCH
-            ),
-            tvm.tir.transform.Apply(lambda f: f.with_attr("target", target_host)),
-            tvm.tir.transform.LowerTVMBuiltin(),
-            tvm.tir.transform.LowerDeviceStorageAccessInfo(),
-            tvm.tir.transform.LowerCustomDatatypes(),
-            tvm.tir.transform.LowerIntrin(),
-            tvm.tir.transform.CombineContextCall(),
-        ]
-    )
-    mod_host = opt_host(mod_mixed)
-
     if device_type == ndarray.cpu(0).device_type and target_host == target:
-        assert len(mod_dev.functions) == 0
-    if "gpu" in target.keys and len(mod_dev.functions) == 0:
+        assert len(device_mod.functions) == 0
+    if "gpu" in target.keys and len(device_mod.functions) == 0:
         warnings.warn(
             "Specified target %s, but cannot find device code, did you do " "bind?" % target
         )
 
     # rt_mod_dev is runtime::Module so this can be moved out maybe?
-    rt_mod_dev = codegen.build_module(mod_dev, target) if len(mod_dev.functions) != 0 else None
-    # TIR module, runtime module
-    return mod_host, rt_mod_dev
+    rt_mod_dev = codegen.build_module(device_mod, target) if len(device_mod.functions) != 0 else None
+    # TIR module for the host, runtime module for devices?
+    return host_mod, rt_mod_dev
+
 
 
 def build(
@@ -319,8 +267,6 @@ def build(
         for x in inputs:
             merged_mod.update(lower(x))
         input_mod = merged_mod
-    elif isinstance(inputs, (tvm.IRModule, PrimFunc)):
-        input_mod = lower(inputs)
     elif not isinstance(inputs, (dict, container.Map)):
         raise ValueError(
             f"Inputs must be Schedule, PrimFunc, IRModule or dict of target to IRModule, "
@@ -414,6 +360,7 @@ def build(
     return OperatorModule.from_module(to_return, ir_module_by_target=target_input_mod, name=name)
 
 
+# What is OperatorModule and how is it different from runtime::Module
 class OperatorModule(Module):
     """Wraps the Module returned by tvm.build() and captures additional outputs of that function."""
 

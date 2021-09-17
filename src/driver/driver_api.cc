@@ -455,6 +455,8 @@ std::pair<IRModule, IRModule> SplitDevHostFuncs(IRModule mod_mixed, const Target
 // Can we make this take one annotated IRModule?
 //
 // Build for heterogeneous execution.
+// 
+// It looks like this version of build doesn't lower, unlike the python version....
 runtime::Module build(const Map<Target, IRModule>& inputs_arg, const Target& target_host_arg) {
   auto pass_ctx = transform::PassContext::Current();
 
@@ -530,12 +532,90 @@ runtime::Module build(const Map<String, IRModule>& inputs_arg, const Target& tar
 }
 
 // Build for homogeneous execution.
+// Where is this called from?
 runtime::Module build(const IRModule& funcs, const Target& target_arg,
                       const Target& target_host_arg) {
   auto target = target_arg, target_host = target_host_arg;
   CheckAndUpdateHostConsistency(&target, &target_host);
+  // More maps of target and target host
   Map<Target, IRModule> inputs = {{target, funcs}};
   return build(inputs, target_host);
 }
+
+// Gets the "mixed_module" from python driver/build_module.py's build function.
+// Honestly not really sure what this actually is.
+IRModule GetModMixed(IRModule mod) {
+
+  transform::PassContext pass_ctx = transform::PassContext::Current();
+
+  Array<transform::Pass> pass_list;
+  pass_list.push_back(tir::transform::VerifyMemory());
+  pass_list.push_back(tir::transform::MergeDynamicSharedMemoryAllocations());
+
+  // Python annotates all functions in the mod with the Target passed in here; I think we shouldn't have to do that.
+
+  bool detect_global_barrier = pass_ctx->GetConfig<Bool>("tir.detect_global_barrier", Bool(false)).value();
+  if (detect_global_barrier) {
+    pass_list.push_back(tir::transform::ThreadSync("global"));
+  }
+
+  pass_list.push_back(tir::transform::ThreadSync("shared"));
+  pass_list.push_back(tir::transform::ThreadSync("warp"));
+  pass_list.push_back(tir::transform::InferFragment());
+  pass_list.push_back(tir::transform::LowerThreadAllreduce());
+  pass_list.push_back(tir::transform::MakePackedAPI(-1)); // -1 is the default input passed in in the python version
+  pass_list.push_back(tir::transform::SplitHostDevice());
+
+
+  return transform::Sequential(pass_list)(mod);
+
+}
+TVM_REGISTER_GLOBAL("driver.get_mod_mixed").set_body_typed([](IRModule mod) {
+  return GetModMixed(mod);
+});
+
+IRModule GetDeviceMod(IRModule mixed_mod) {
+  Array<transform::Pass> pass_list;
+    auto check_calling_conv_func = [=] (tir::PrimFunc func) {
+    Optional<Integer> calling_conv = func->GetAttr<Integer>(tvm::attr::kCallingConv);
+    return (!calling_conv) || (calling_conv.value() != CallingConv::kDeviceKernelLaunch);
+
+  };
+
+  pass_list.push_back(Filter(check_calling_conv_func)); // Filter by calling convention
+  pass_list.push_back(tir::transform::LowerWarpMemory());
+  pass_list.push_back(tir::transform::Simplify());
+  pass_list.push_back(tir::transform::LowerDeviceStorageAccessInfo());
+  pass_list.push_back(tir::transform::LowerCustomDatatypes());
+  pass_list.push_back(tir::transform::LowerIntrin());
+
+  return transform::Sequential(pass_list)(mixed_mod);
+}
+
+TVM_REGISTER_GLOBAL("driver.get_device_mod").set_body_typed([](IRModule mod) {
+  return GetDeviceMod(mod);
+});
+
+IRModule GetHostMod(IRModule mixed_mod) {
+  Array<transform::Pass> pass_list;
+    auto check_calling_conv_func = [=] (tir::PrimFunc func) {
+    Optional<Integer> calling_conv = func->GetAttr<Integer>(tvm::attr::kCallingConv);
+    return (!calling_conv) || (calling_conv.value() != CallingConv::kDeviceKernelLaunch);
+
+  };
+
+  pass_list.push_back(Filter(check_calling_conv_func)); // Filter by calling convention
+  // Python version added target_host as an attribute to every function here
+  pass_list.push_back(tir::transform::LowerTVMBuiltin());
+  pass_list.push_back(tir::transform::LowerDeviceStorageAccessInfo());
+  pass_list.push_back(tir::transform::LowerCustomDatatypes());
+  pass_list.push_back(tir::transform::LowerIntrin());
+  pass_list.push_back(tir::transform::CombineContextCall());
+
+  return transform::Sequential(pass_list)(mixed_mod);
+}
+TVM_REGISTER_GLOBAL("driver.get_host_mod").set_body_typed([](IRModule mod) {
+  return GetHostMod(mod);
+});
 
 }  // namespace tvm

@@ -22,6 +22,7 @@ from .expr import RelayExpr
 from . import _ffi_api
 
 
+# Python CallingConv
 class CallingConv(IntEnum):
     """Possible kinds of calling conventions."""
 

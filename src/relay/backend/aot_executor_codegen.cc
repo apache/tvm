@@ -557,6 +557,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
         target_host_(target_host),
         use_unpacked_api_(target_host->GetAttr<Bool>("unpacked-api").value_or(Bool(false))) {}
 
+  // Returns LoweredOutput
   LoweredOutput Codegen(relay::Function func, String mod_name) {
     auto aot_allocator = AOTOnDemandAllocator();
     aot_allocator.Run(func);

@@ -55,6 +55,8 @@ runtime::Module BuildTargetMap(Map<String, IRModule>, Target Target) {
 
 }
 */
+// Leave this -- why not called codegen?
+// TODO(@electriclilies): Rename this to Codegen (dont get consensus just try to put it in)
 runtime::Module Build(IRModule mod, Target target) {
   if (transform::PassContext::Current()
           ->GetConfig<Bool>("tir.disable_assert", Bool(false))

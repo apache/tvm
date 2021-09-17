@@ -66,6 +66,9 @@ TVM_REGISTER_GLOBAL("relay.backend.lower_call")
       OpStrategy strategy = fstrategy[op](call->attrs, inputs, out_type, target);
       auto impl = strategy->specializations[0]->implementations[0];
       auto outs = impl.Compute(call->attrs, inputs, out_type);
+      // Using make_LoweredOutput here
+      // wait ok is this the python LoweredOutput or the C++ LoweredOutput?
+      // This is a test. so its probably ok
       auto f = tvm::runtime::Registry::Get("relay.backend._make_LoweredOutput");
       if (!f) {
         LOG(FATAL) << "relay.backend._make_LoweredOutput is not registered";
