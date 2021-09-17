@@ -24,7 +24,7 @@ PLATFORMS = {
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run model on the MCU")
-    parser.add_argument("--model", type=str, choices=["cifar10", "mnist8", "sine", "cifar10_2"], default="cifar10", help="Model type")
+    parser.add_argument("--model", type=str, choices=["cifar10", "mnist8", "sine", "cifar10_2", "synth"], default="cifar10", help="Model type")
     parser.add_argument("--relay", action='store_true', help="print relay for the model and exit")
     parser.add_argument("--platform", type=str, choices=PLATFORMS.keys(), default=list(PLATFORMS.keys())[0], help="Platform")
     parser.add_argument("--log-level", type=str, choices=["DEBUG", "INFO"], default="INFO", help="Log level")
@@ -42,21 +42,25 @@ if __name__ == "__main__":
 
     # open model
     if args.model == "mnist8":
-        import mnist8
+        import test_models.mnist8 as mnist8
         relay_mod, params, input, output = mnist8.open_model()
         dataset = mnist8.get_data()
     elif args.model == "cifar10":
-        import cifar10
+        import test_models.cifar10 as cifar10
         relay_mod, params, input, output = cifar10.open_model()
         dataset = cifar10.get_data()
     elif args.model == "cifar10_2":
-        import cifar10_2
+        import test_models.cifar10_2 as cifar10_2
         relay_mod, params, input, output = cifar10_2.open_model(target_str)
         dataset = cifar10_2.get_data()
     elif args.model == "sine":
-        import sine
+        import test_models.sine as sine
         relay_mod, params, input, output = sine.open_model()
         dataset = sine.get_data()
+    elif args.model == "synth":
+        import test_models.synth as synth
+        relay_mod, params, input, output = synth.avgpool_1d_relay_mod()
+        dataset = synth.get_data()
     else:
         raise NotImplementedError
 
@@ -118,8 +122,8 @@ if __name__ == "__main__":
             data = np.reshape(data, -1)
             data_s = ','.join(str(e) for e in data)
 
-            transport.write(bytes(f"#input:{data_s}\n", 'UTF-8'), timeout_sec=5)
-            result_line = get_message(transport, "#result", timeout_sec=5)
+            transport.write(bytes(f"#input:{data_s}\n", 'UTF-8'), timeout_sec=30)
+            result_line = get_message(transport, "#result", timeout_sec=30)
             r = result_line.strip("\n").split(":")
 
             output_values = list(map(float, r[1].split(',')))
