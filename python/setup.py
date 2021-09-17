@@ -166,7 +166,7 @@ if wheel_include_libs:
             if os.path.isfile(path):
                 shutil.copy(path, os.path.join(CURRENT_DIR, "tvm"))
                 _, libname = os.path.split(path)
-                fo.write(f"include tvm/{libname}%s")
+                fo.write(f"include tvm/{libname}\n")
 
             if os.path.isdir(path):
                 _, libname = os.path.split(path)
