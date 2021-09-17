@@ -189,6 +189,7 @@ def test_expand_dims():
 @tvm.testing.uses_gpu
 def test_dyn_expand_dims():
     def verify_expand_dims(dshape, dtype, oshape, axis):
+        # Use 1 to avoid issues with invalid buffer sizes
         shape_encoding_shape = [1] * axis
         x = relay.Var("x", relay.TensorType(dshape, dtype))
         y = relay.var("axis", shape=shape_encoding_shape, dtype="int64")
