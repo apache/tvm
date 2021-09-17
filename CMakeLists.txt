@@ -305,9 +305,12 @@ if(BUILD_FOR_HEXAGON)
   # static one.
   if(NOT BUILD_STATIC_RUNTIME)
     list(APPEND RUNTIME_SRCS src/runtime/hexagon/hexagon_posix.cc)
+    # Allow undefined symbols (there will be some from libc).
+    set(TVM_NO_UNDEFINED_SYMBOLS "")
   endif()
 
   add_definitions(-D_MACH_I32=int)
+  add_definitions(-DDMLC_CXX11_THREAD_LOCAL=0)
 endif()
 
 # Package runtime rules
@@ -413,6 +416,7 @@ include(cmake/modules/contrib/EthosU.cmake)
 include(cmake/modules/contrib/BLAS.cmake)
 include(cmake/modules/contrib/CODEGENC.cmake)
 include(cmake/modules/contrib/DNNL.cmake)
+include(cmake/modules/contrib/ExampleTargetHooks.cmake)
 include(cmake/modules/contrib/Random.cmake)
 include(cmake/modules/contrib/Posit.cmake)
 include(cmake/modules/contrib/MicroStandaloneRuntime.cmake)

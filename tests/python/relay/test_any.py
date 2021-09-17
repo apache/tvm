@@ -24,8 +24,8 @@ from tvm import relay, te
 from tvm.relay.loops import while_loop
 from tvm.relay.testing import run_infer_type as infer_type
 
-from utils.assert_diagnostic import DiagnosticTesting
 from utils import ref_funcs
+from utils.assert_diagnostic import DiagnosticTesting
 
 
 def int32(val):
@@ -2022,7 +2022,7 @@ def test_gather_nd():
     def verify_gather_nd(data_shape, indices_shape, data_shape_np, indices_shape_np, batch_dims=0):
         x = relay.var("x", relay.TensorType(data_shape, "float32"))
         y = relay.var("y", relay.TensorType(indices_shape, "int32"))
-        z = relay.gather_nd(x, y, batch_dims, indices_shape[0])
+        z = relay.gather_nd(x, y, batch_dims=batch_dims, index_rank=indices_shape[0])
 
         mod = tvm.IRModule()
         mod["main"] = relay.Function([x, y], z)
