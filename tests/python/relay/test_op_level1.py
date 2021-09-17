@@ -16,15 +16,15 @@
 # under the License.
 import numpy as np
 import pytest
-import scipy
 import tvm
-import tvm.testing
-import tvm.topi.testing
-from tvm import relay, te
-from tvm.contrib.nvcc import have_fp16
+from tvm import te
+import scipy
+from tvm import relay
 from tvm.relay import transform
 from tvm.relay.testing import run_infer_type
-from tvm.relay.transform.transform import InferType
+import tvm.topi.testing
+from tvm.contrib.nvcc import have_fp16
+import tvm.testing
 
 
 def sigmoid(x):
@@ -184,36 +184,6 @@ def test_expand_dims():
     for dtype in ["float16", "float32"]:
         verify_expand_dims((3, 10), dtype, (3, 10, 1, 1), 2, 2)
         verify_expand_dims((3, 10), dtype, (1, 3, 10), -3, 1)
-
-
-@tvm.testing.uses_gpu
-def test_dyn_expand_dims():
-    def verify_expand_dims(dshape, dtype, oshape, axis, num_newaxis):
-        # Use 1 to avoid issues with invalid buffer sizes
-        x = relay.Var("x", relay.TensorType(dshape, dtype))
-        y = relay.var("axis", shape=[], dtype="int64")
-        mod = tvm.IRModule.from_expr(relay.expand_dims(x, axis=y, num_newaxis=num_newaxis))
-        for target, dev in tvm.testing.enabled_targets():
-            if (
-                dtype == "float16"
-                and target == "cuda"
-                and not have_fp16(tvm.cuda(0).compute_version)
-            ):
-                continue
-            data = np.random.uniform(size=dshape).astype(dtype)
-            ref_res = data.reshape(oshape)
-            print
-            breakpoint()
-            op_res = relay.create_executor("vm", device=dev, target=target, mod=mod).evaluate()(
-                data, np.array(axis).astype("int64")
-            )
-            np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=0.01)
-
-    for dtype in ["float16", "float32"]:
-        verify_expand_dims((2, 2), dtype, (2, 2, 1), 2, 1)
-        verify_expand_dims((2, 2), dtype, (2, 1, 2), 1, 1)
-        verify_expand_dims((2, 2), dtype, (1, 2, 2), 0, 1)
-        verify_expand_dims((2, 2), dtype, (2, 1, 1, 2), 1, 2)
 
 
 @tvm.testing.uses_gpu
