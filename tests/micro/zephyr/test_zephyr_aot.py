@@ -42,6 +42,7 @@ from test_utils import get_message
 
 _LOG = logging.getLogger(__name__)
 
+
 @tvm.testing.requires_micro
 def test_tflite(temp_dir, board, west_cmd, tvm_debug):
     """Testing a TFLite model."""
