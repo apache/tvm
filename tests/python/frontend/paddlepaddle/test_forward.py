@@ -48,7 +48,6 @@ def get_paddle_model(func, input_spec):
     global PADDLE_TEST_DATA_ROOT_PATH
     model_path = Path(PADDLE_TEST_DATA_ROOT_PATH, "model")
     paddle.jit.save(func, str(model_path), input_spec=input_spec)
-    paddle.jit.save(func, "/paddle/pr_for_tvm/0905/tvm/inference_model_test/inference", input_spec=input_spec)
     baseline_model = paddle.jit.load(str(model_path))
 
     shutil.rmtree(str(PADDLE_TEST_DATA_ROOT_PATH))
@@ -1825,6 +1824,52 @@ def test_forward_unstack():
 
 
 @tvm.testing.uses_gpu
+def test_forward_unique():
+    @paddle.jit.to_static
+    def unique1(x):
+        return paddle.unique(x)
+
+    @paddle.jit.to_static
+    def unique2(x):
+        return paddle.unique(x, return_index=True, return_inverse=False, return_counts=False)
+
+    @paddle.jit.to_static
+    def unique3(x):
+        return paddle.unique(x, return_index=False, return_inverse=True, return_counts=False)
+
+    @paddle.jit.to_static
+    def unique4(x):
+        return paddle.unique(x, return_index=False, return_inverse=False, return_counts=True)
+    
+    @paddle.jit.to_static
+    def unique5(x):
+        return paddle.unique(x, return_index=True, return_inverse=True, return_counts=False)
+
+    @paddle.jit.to_static
+    def unique6(x):
+        return paddle.unique(x, return_index=False, return_inverse=True, return_counts=True)
+
+    @paddle.jit.to_static
+    def unique7(x):
+        return paddle.unique(x, return_index=True, return_inverse=False, return_counts=True)
+
+    @paddle.jit.to_static
+    def unique8(x):
+        return paddle.unique(x, return_index=True, return_inverse=True, return_counts=True)
+
+    input_data = np.array([2, 3, 3, 1, 5, 3])
+    input_data = paddle.to_tensor(input_data)
+    verify_model(unique1, input_data=[input_data], input_shape=[[6]])
+    verify_model(unique2, input_data=[input_data], input_shape=[[6]])
+    verify_model(unique3, input_data=[input_data], input_shape=[[6]])
+    verify_model(unique4, input_data=[input_data], input_shape=[[6]])
+    verify_model(unique5, input_data=[input_data], input_shape=[[6]])
+    verify_model(unique6, input_data=[input_data], input_shape=[[6]])
+    verify_model(unique7, input_data=[input_data], input_shape=[[6]])
+    verify_model(unique8, input_data=[input_data], input_shape=[[6]])
+
+
+@tvm.testing.uses_gpu
 def test_forward_zeros():
     @paddle.jit.to_static
     def zeros1(inputs):
@@ -1944,6 +1989,7 @@ if __name__ == "__main__":
     test_forward_tile()
     test_forward_conv_transpose()
     test_forward_unstack()
+    test_forward_unique()
     test_forward_math()
     test_forward_zeros()
     test_forward_where()

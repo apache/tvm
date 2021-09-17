@@ -1620,9 +1620,9 @@ def convert_rnn(g, op, block):
     if is_bidirec:
         num_directions = 2
 
-    X_shape = infer_shape(input_x)
-    time_steps = X_shape[0]
-    X_steps = _op.split(input_x, indices_or_sections=time_steps, axis=0)
+    x_shape = infer_shape(input_x)
+    time_steps = x_shape[0]
+    x_steps = _op.split(input_x, indices_or_sections=time_steps, axis=0)
     for layer in range(num_layers):
         input_weights, hidden_weights, input_bias, hidden_bias = make_param_inputs(
             g, op, layer, hidden_size, num_layers
@@ -1642,7 +1642,7 @@ def convert_rnn(g, op, block):
             WB = g.get_node(input_bias[i])
             RB = g.get_node(hidden_bias[i])
             output, H, C = generate_lstm(
-                X_steps=X_steps,
+                X_steps=x_steps,
                 H_t=H_t,
                 C_t=C_t,
                 W=W,
@@ -1663,8 +1663,7 @@ def convert_rnn(g, op, block):
 
         output = _op.transpose(output, axes=[0, 2, 1, 3])
         output = _op.reshape(output, newshape=(0, 0, -1))
-        X_steps = output
-        X_steps = _op.split(X_steps, indices_or_sections=time_steps, axis=0)
+        x_steps = _op.split(output, indices_or_sections=time_steps, axis=0)
 
     g.add_node(op.output("Out")[0], output)
 
@@ -1963,6 +1962,53 @@ def convert_unsqueeze(g, op, block):
     g.add_node(op.output("Out")[0], x)
 
 
+def convert_unstack(g, op, block):
+    """Operator converter for unstack."""
+
+    x = g.get_node(op.input("X")[0])
+    axis = op.attr("axis")
+    num = op.attr("num")
+    out = _op.split(x, num, axis=axis)
+    for i, out_i in enumerate(out):
+        out_i = _op.squeeze(out_i, axis=[axis])
+        g.add_node(op.output("Y")[i], out_i)
+
+
+def convert_unique(g, op, block):
+    """Operator converter for unique."""
+
+    x = g.get_node(op.input("X")[0])
+    ndim = len(infer_shape(x))
+    assert ndim == 1, "Only support 1D Tensor for PaddlePaddle's unique"
+    is_sorted = op.attr("is_sorted")
+    return_counts = op.attr("return_counts")
+    return_index = op.attr("return_index")
+    return_inverse = op.attr("return_inverse")
+    if return_counts:
+        [unique, indices, inverse_indices, num_uniq, counts] = _op.unique(
+            x, is_sorted=is_sorted, return_counts=True
+        )
+        unique_sliced = _op.strided_slice(unique, begin=[0], end=num_uniq, slice_mode="size")
+        counts_sliced = _op.strided_slice(counts, begin=[0], end=num_uniq, slice_mode="size")
+        indices_sliced = _op.strided_slice(indices, begin=[0], end=num_uniq, slice_mode="size")
+        counts_sliced = _op.cast(counts_sliced, "int64")
+        g.add_node(op.output("Counts")[0], counts_sliced)
+    else:
+        [unique, indices, inverse_indices, num_uniq] = _op.unique(
+            x, is_sorted=is_sorted, return_counts=False
+        )
+        unique_sliced = _op.strided_slice(unique, begin=[0], end=num_uniq, slice_mode="size")
+        indices_sliced = _op.strided_slice(indices, begin=[0], end=num_uniq, slice_mode="size")
+
+    inverse_indices = _op.cast(inverse_indices, "int64")
+    indices_sliced = _op.cast(indices_sliced, "int64")
+    g.add_node(op.output("Out")[0], unique_sliced)
+    if return_index:
+        g.add_node(op.output("Indices")[0], indices_sliced)
+    if return_inverse:
+        g.add_node(op.output("Index")[0], inverse_indices)
+
+
 def convert_where(g, op, block):
     """Operator converter for where."""
 
@@ -2107,6 +2153,8 @@ _convert_map = {
     "tile": convert_tile,
     "transpose2": convert_transpose,
     "unsqueeze2": convert_unsqueeze,
+    "unstack": convert_unstack,
+    "unique": convert_unique,
     "where": convert_where,
     "where_index": convert_nonzero,
 }
