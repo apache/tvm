@@ -83,6 +83,9 @@ then
 
     # Multi-threading may cause errors
     make -e  SPHINXOPTS="-D language='$LANGUAGE'" html  LOCALES=$LOCALES  HTMLFOLD=html_$LANGUAGE
+    # fix github pages theme error
+    touch $SCRIPTFOLD/_build/html_$LANGUAGE/.nojekyll
+
     echo "--finish create the $SCRIPTFOLD/_build/html_$LANGUAGE"
     echo "done."
 fi
