@@ -667,9 +667,8 @@ Array<te::Tensor> ExpandDimsCompute(const Attrs& attrs, const Array<te::Tensor>&
 }
 
 Expr MakeExpandDims(Expr data, Expr axis_tensor) {
-  auto attrs = make_object<DynExpandDimsAttrs>();
   static const Op& op = Op::Get("dyn.expand_dims");
-  return Call(op, {data, axis_tensor}, Attrs(attrs), {});
+  return Call(op, {data, axis_tensor}, Attrs(), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op.dyn._make.expand_dims").set_body_typed(MakeExpandDims);
@@ -681,7 +680,6 @@ TODO
 
 )code" TVM_ADD_FILELINE)
     .set_num_inputs(2)
-    .set_attrs_type<DynExpandDimsAttrs>()
     .add_argument("data", "Tensor", "The input tensor.")
     .add_argument("axis_tensor", "Tensor", "Encoded axis tensor... TODO")
     .set_support_level(3)
