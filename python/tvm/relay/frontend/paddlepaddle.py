@@ -657,7 +657,7 @@ def convert_elu(g, op, block):
     x = g.get_node(op.input("X")[0])
     dtype = infer_type(x).checked_type.dtype
     alpha = op.attr("alpha")
-    alpha = _expr.const(alpha, dtype=dtype)
+    alpha = _expr.const(-1.0 * alpha, dtype=dtype)
     out = alpha * _op.nn.relu(_expr.const(1, dtype=dtype) - _op.exp(x)) + _op.nn.relu(x)
     g.add_node(op.output("Out")[0], out)
 
@@ -1401,14 +1401,40 @@ def convert_padding(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_pixel_shuffle(g, op, block):
+    """Operator converter for pixel_shuffle."""
+
+    x = g.get_node(op.input("X")[0])
+    upscale_factor = op.attr("upscale_factor")
+    out = _op.nn.depth_to_space(x, upscale_factor, mode="CRD")
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_pow(g, op, block):
     """Operator converter for pow."""
 
     x = g.get_node(op.input("X")[0])
     factor = op.attr("factor")
     factor = _expr.const(factor, dtype="float32").astype("float32")
-
     out = _op.power(x, factor)
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_prelu(g, op, block):
+    """Operator converter for prelu."""
+
+    x = g.get_node(op.input("X")[0])
+    alpha = g.get_node(op.input("Alpha")[0])
+    ndims = len(infer_shape(x))
+    axis = 0 if ndims <= 1 else 1
+    mode = op.attr("mode")
+    if mode == "all":
+        if ndims == 1:
+            shape = _op.strided_slice(shape_of(x), [0], [1])
+        else:
+            shape = _op.strided_slice(shape_of(x), [1], [2])
+        alpha = _op.broadcast_to(alpha, shape)
+    out = _op.nn.prelu(x, alpha, axis)
     g.add_node(op.output("Out")[0], out)
 
 
@@ -1492,6 +1518,14 @@ def convert_reduce(g, op, block):
     out = get_relay_op(op_name)(input_x, axis=axis, keepdims=keepdims)
     if not axis and not keepdims:
         out = _op.expand_dims(out, axis=0)
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_relu6(g, op, block):
+    """Operator converter for relu6."""
+
+    x = g.get_node(op.input("X")[0])
+    out = _op.clip(x, 0.0, 6.0)
     g.add_node(op.output("Out")[0], out)
 
 
@@ -1685,6 +1719,22 @@ def convert_scale(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_selu(g, op, block):
+    """Operator converter for selu."""
+
+    x = g.get_node(op.input("x")[0])
+    dtype = infer_type(x).checked_type.dtype
+    alpha = _op.const(op.attr("alpha"), dtype)
+    scale = _op.const(op.attr("scale"), dtype)
+    out = (
+        _expr.const(-1.0, dtype=dtype)
+        * alpha
+        * _op.nn.relu(_expr.const(1.0, dtype=dtype) - _op.exp(x))
+    )
+    out = scale * (out + _op.nn.relu(x))
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_shape(g, op, block):
     """Operator converter for shape."""
 
@@ -1813,6 +1863,62 @@ def convert_softmax(g, op, block):
     m = _op.max(x, axis, keepdims=True)
     e = _op.exp(x - m)
     out = e / _op.sum(e, axis, keepdims=True)
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_softplus(g, op, block):
+    """Operator converter for softplus."""
+
+    x = g.get_node(op.input("X")[0])
+    dtype = infer_type(x).checked_type.dtype
+    beta = op.attr("beta")
+    beta = _expr.const(beta, dtype=dtype)
+    out = _op.log(_op.exp(x * beta) + _expr.const(1.0, dtype=dtype)) / beta
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_softshrink(g, op, block):
+    """Operator converter for softshrink."""
+
+    x = g.get_node(op.input("X")[0])
+    threshold = op.attr("lambda")
+    out = x - _op.clip(x, -1.0 * threshold, threshold)
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_softsign(g, op, block):
+    """Operator converter for softsign."""
+
+    x = g.get_node(op.input("X")[0])
+    dtype = infer_type(x).checked_type.dtype
+    out = x / (_op.const(1.0, dtype) + _op.abs(x))
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_swish(g, op, block):
+    """Operator converter for swish."""
+
+    x = g.get_node(op.input("X")[0])
+    dtype = infer_type(x).checked_type.dtype
+    out = x / (_op.const(1.0, dtype) + _op.exp(_op.const(-1.0, dtype) * x))
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_tanhshrink(g, op, block):
+    """Operator converter for swish."""
+
+    x = g.get_node(op.input("X")[0])
+    out = x - _op.tanh(x)
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_thresholded_relu(g, op, block):
+    """Operator converter for thresholded_relu."""
+
+    x = g.get_node(op.input("X")[0])
+    dtype = infer_type(x).checked_type.dtype
+    threshold = _op.const(op.attr("threshold"), dtype)
+    out = _op.where(_op.greater(x, threshold), x, _op.const(0.0, dtype))
     g.add_node(op.output("Out")[0], out)
 
 
@@ -2053,7 +2159,9 @@ _convert_map = {
     "pad1d": convert_padding,
     "pad2d": convert_padding,
     "pad3d": convert_padding,
+    "pixel_shuffle": convert_pixel_shuffle,
     "pow": convert_pow,
+    "prelu": convert_prelu,
     "p_norm": convert_norm,
     "range": convert_range,
     "reciprocal": convert_reciprocal,
@@ -2065,24 +2173,32 @@ _convert_map = {
     "reduce_sum": convert_reduce,
     "reduce_mean": convert_reduce,
     "relu": convert_unary_op,
+    "relu6": convert_relu6,
     "reshape2": convert_reshape,
     "rnn": convert_rnn,
     "rsqrt": convert_unary_op,
     "scale": convert_scale,
+    "selu": convert_selu,
     "shape": convert_shape,
     "sigmoid": convert_unary_op,
     "sin": convert_unary_op,
     "size": convert_numel,
     "slice": convert_slice,
     "softmax": convert_softmax,
+    "softplus": convert_softplus,
+    "softshrink": convert_softshrink,
+    "softsign": convert_softsign,
     "split": convert_split,
     "square": convert_square,
     "squeeze2": convert_squeeze,
     "stack": convert_stack,
     "strided_slice": convert_slice,
     "sum": convert_addn,
+    "swish": convert_swish,
     "tan": convert_unary_op,
     "tanh": convert_unary_op,
+    "tanh_shrink": convert_tanhshrink,
+    "thresholded_relu": convert_thresholded_relu,
     "top_k_v2": convert_topk,
     "tile": convert_tile,
     "transpose2": convert_transpose,
