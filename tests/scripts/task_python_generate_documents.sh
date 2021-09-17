@@ -48,7 +48,6 @@ LOCALES="locales"
 LANGUAGE=$4
 
 cd $DOCS
-echo "$DOCS/$GETTEXT"
 if [ ! -d "$DOCS/$GETTEXT" ];
 then
     echo "--gettext is not exist, process will automaticly generate, start to execute: make -j$MAXPROCESS gettext."
@@ -57,7 +56,7 @@ else
     if $1
     then
         echo "--start to generate gettext, execute: make -j20 gettext."
-        make -j20 gettext
+        make -j$MAXPROCESS gettext
     else
         echo "--skip generate the gettext."
     fi 
@@ -66,12 +65,14 @@ fi
 if [ ! -d "$DOCS/$LOCALES" ];
 then
     echo "--$DOCS/$LOCALES/ is not exist, process will automaticly generate, start to execute: sphinx-intl update -p $GETTEXT -l $LANGUAGE."
+    pip3 install sphinx-intl
     sphinx-intl update -p $GETTEXT -l $LANGUAGE
 else
     if $2
     then
         echo "--start to update *.po, execute: sphinx-intl update -p $GETTEXT -l $LANGUAGE."
-        python3 -m sphinx-intl update -p $GETTEXT -l $LANGUAGE
+        pip3 install sphinx-intl
+        sphinx-intl update -p $GETTEXT -l $LANGUAGE
     else
         echo "--skip update the *.po ."
     fi 
