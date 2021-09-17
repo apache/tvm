@@ -15,11 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import io
 import logging
 import os
 import sys
-import logging
 import pathlib
 import tarfile
 import tempfile
@@ -32,14 +30,15 @@ import tvm.rpc
 import tvm.micro
 from tvm.micro.project_api import server
 import tvm.testing
-import tvm.relay as relay
+from tvm import relay
 
-from tvm.contrib import utils
 from tvm.contrib.download import download_testdata
 from tvm.micro.interface_api import generate_c_interface_header
 
 import conftest
-from test_utils import *
+from test_utils import create_header_file
+from test_utils import build_project
+from test_utils import get_message
 
 _LOG = logging.getLogger(__name__)
 
