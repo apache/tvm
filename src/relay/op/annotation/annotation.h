@@ -81,9 +81,6 @@ OnDeviceProps GetOnDeviceProps(const CallNode* call_node);
  */
 OnDeviceProps GetOnDeviceProps(const Expr& expr);
 
-/*! \brief Returns true if \p expr is an on_device CallNode. */
-inline bool IsOnDeviceCall(const Expr& expr) { return GetOnDeviceProps(expr).body.defined(); }
-
 /*!
  * \brief Returns \p function annotated with "param_device_types" and "result_device_type"
  * attributes capturing parameter and result devices types respectively.
