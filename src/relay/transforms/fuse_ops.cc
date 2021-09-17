@@ -31,8 +31,9 @@
 #include <tvm/tir/op.h>
 
 #include "../../support/arena.h"
-#include "pass_utils.h"
-#include "pattern_utils.h"
+#include "../op/annotation/annotation.h"
+#include "./pass_utils.h"
+#include "./pattern_utils.h"
 
 namespace tvm {
 namespace relay {
@@ -159,12 +160,6 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
   }
 
  private:
-  /*! \brief allocator of all the internal node object */
-  support::Arena* arena_;
-  // The output.
-  IndexedForwardGraph graph_;
-  // attribute equal comparator
-  StructuralEqual attr_equal_;
   // Update the message stored at the node.
   void Update(const Expr& node, IndexedForwardGraph::Node* parent, OpPatternKind pattern) {
     const tvm::Object* key = node.get();
@@ -367,6 +362,13 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
     ExprVisitor::VisitExpr_(op);
     this->AddNode(op);
   }
+
+  /*! \brief allocator of all the internal node object */
+  support::Arena* arena_;
+  // The output.
+  IndexedForwardGraph graph_;
+  // attribute equal comparator
+  StructuralEqual attr_equal_;
 };
 
 IndexedForwardGraph IndexedForwardGraph::Create(support::Arena* arena, const Expr& body) {
@@ -847,12 +849,6 @@ class FuseMutator : private MixedModeMutator {
       return var;
     }
   };
-  /*! \brief Internal arena. */
-  support::Arena arena_;
-  /*! \brief The group assignment map. */
-  std::unordered_map<const Object*, GraphPartitioner::Group*> gmap_;
-  /* \brief Internal group information map. */
-  std::unordered_map<GraphPartitioner::Group*, GroupInfo> ginfo_;
 
   // Skip primitive function.
   Expr VisitExpr_(const FunctionNode* fn_node) {
@@ -1013,6 +1009,13 @@ class FuseMutator : private MixedModeMutator {
     });
     LOG(INFO) << "Dump of group info:\n" << text;
   }
+
+  /*! \brief Internal arena. */
+  support::Arena arena_;
+  /*! \brief The group assignment map. */
+  std::unordered_map<const Object*, GraphPartitioner::Group*> gmap_;
+  /* \brief Internal group information map. */
+  std::unordered_map<GraphPartitioner::Group*, GroupInfo> ginfo_;
 };
 
 Expr FuseOps(const Expr& expr, int fuse_opt_level, size_t max_fuse_depth, const IRModule& module) {
@@ -1026,9 +1029,10 @@ Pass FuseOps(int fuse_opt_level) {
       [=](Function f, IRModule m, PassContext pc) {
         int opt_level = fuse_opt_level == -1 ? pc->opt_level : fuse_opt_level;
         auto max_fuse_depth = pc->GetConfig("relay.FuseOps.max_depth", Integer(kMaxFusedOps));
-        return Downcast<Function>(FuseOps(f, opt_level, max_fuse_depth.value(), m));
+        Function result = Downcast<Function>(FuseOps(f, opt_level, max_fuse_depth.value(), m));
+        return result;
       };
-  return CreateFunctionPass(pass_func, 1, "FuseOps", {"InferType"});
+  return CreateFunctionPass(pass_func, 0, "FuseOps", {"InferType"});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.FuseOps").set_body_typed(FuseOps);

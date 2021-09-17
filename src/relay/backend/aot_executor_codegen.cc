@@ -23,6 +23,7 @@
  */
 
 #include <tvm/ir/module.h>
+#include <tvm/relay/attrs/annotation.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/object.h>
@@ -38,6 +39,8 @@
 #include <string>
 #include <vector>
 
+#include "../op/annotation/annotation.h"
+#include "../transforms/device_aware_visitors.h"
 #include "./te_compiler.h"
 #include "./utils.h"
 
@@ -53,18 +56,12 @@ using StorageMap =
  * This is an on demand allocator for AOT. A new temporary
  * (storage allocator identifier) is allocated for each operation.
  */
-class AOTOnDemandAllocator : public MixedModeVisitor {
+class AOTOnDemandAllocator : public transform::DeviceAwareExprVisitor {
  public:
-  // run the visitor on a function.
-  void Run(const Function& func) {
-    node_device_map_ = CollectDeviceInfo(func);
+  AOTOnDemandAllocator() : transform::DeviceAwareExprVisitor(Optional<IRModule>()) {}
 
-    for (Expr param : func->params) {
-      CreateStorage(param.operator->());
-    }
-
-    GetStorage(func->body);
-  }
+  // run the visitor on a global function.
+  void Run(const Function& func) { VisitExpr(func); }
 
   std::vector<int> GetReturnIds() const { return return_ids_; }
 
@@ -75,8 +72,9 @@ class AOTOnDemandAllocator : public MixedModeVisitor {
     AssignReturnSid(GetRef<Expr>(op));
   }
 
-  void VisitExpr_(const CallNode* op) final {
+  void DeviceAwareVisitExpr_(const CallNode* op) final {
     // create token for the call node.
+    VisitExpr(op->op);
     CreateStorage(op);
     for (Expr arg : op->args) {
       GetStorage(arg);
@@ -86,8 +84,19 @@ class AOTOnDemandAllocator : public MixedModeVisitor {
 
   void VisitExpr_(const VarNode* op) final { AssignReturnSid(GetRef<Expr>(op)); }
 
-  void VisitExpr_(const FunctionNode* op) final {
-    // do not recurse into sub function.
+  void DeviceAwareVisitExpr_(const FunctionNode* func_node) final {
+    if (function_nesting() > 1) {
+      // do not recurse into sub functions.
+      return;
+    }
+    if (func_node->HasNonzeroAttr(attr::kPrimitive)) {
+      // No storage needed for primitive functions.
+      return;
+    }
+    for (const auto& param : func_node->params) {
+      CreateStorage(param.get());
+    }
+    GetStorage(func_node->body);
   }
 
   void VisitExpr_(const GlobalVarNode* op) final {
@@ -127,7 +136,9 @@ class AOTOnDemandAllocator : public MixedModeVisitor {
 
   void VisitExpr_(const IfNode* op) final { LOG(FATAL) << "if is not supported."; }
 
-  void VisitExpr_(const LetNode* op) final { LOG(FATAL) << "let is not supported."; }
+  void PreVisitLetBinding_(const Var& var, const Expr& value) final {
+    LOG(FATAL) << "let is not supported.";
+  }
 
  private:
   void AssignReturnSid(Expr e) {
@@ -151,9 +162,10 @@ class AOTOnDemandAllocator : public MixedModeVisitor {
    * \brief Get the memory requirement.
    * \param prototype The prototype token.
    * \return The required memory size.
+   *
+   * TODO(mbs): Cf CalculateRelayExprSizeBytes in utils.cc
    */
-  size_t GetMemorySizeBytes(const TensorTypeNode* ttype) {
-    ICHECK(ttype != nullptr);
+  size_t GetMemorySizeBytes(const TensorType& ttype) {
     size_t size = 1;
     for (IndexExpr dim : ttype->shape) {
       const int64_t* pval = tir::as_const_int(dim);
@@ -170,45 +182,43 @@ class AOTOnDemandAllocator : public MixedModeVisitor {
    * \return The corresponding token.
    */
   StorageInfo GetStorage(const Expr& expr) {
-    this->VisitExpr(expr);
-    auto it = storage_device_map_.find(expr);
+    auto props = GetOnDeviceProps(expr);
+    // See through "on_device" calls.
+    Expr true_expr = props.body.defined() ? props.body : expr;
+    VisitExpr(true_expr);
+    auto it = storage_device_map_.find(true_expr);
     ICHECK(it != storage_device_map_.end());
     return it->second;
   }
 
   /*!
    * \brief Create storage for the expression.
-   * \param expr The expression.
    */
   void CreateStorage(const ExprNode* op) {
+    Expr expr = GetRef<Expr>(op);
+    return CreateStorage(expr, GetInScopeDeviceType(expr));
+  }
+
+  /*!
+   * \brief Create storage to hold the result of evaluating \p expr on \p device_type.
+   */
+  void CreateStorage(const Expr& expr, DLDeviceType device_type) {
+    ICHECK(device_type != kInvalidDeviceType) << "invalid device type for expr:" << std::endl
+                                              << PrettyPrint(expr);
     std::vector<int64_t> storage_ids;
     std::vector<DLDeviceType> device_types;
     std::vector<int64_t> storage_sizes_in_bytes;
-    Expr expr = GetRef<Expr>(op);
-    int device_type_int =
-        node_device_map_.count(GetRef<Expr>(op)) ? node_device_map_[expr]->value : 0;
-    if (const auto* tuple_type = op->checked_type().as<TupleTypeNode>()) {
-      for (Type t : tuple_type->fields) {
-        const auto* ttype = t.as<TensorTypeNode>();
-        ICHECK(ttype);
-        storage_ids.push_back(next_available_sid_++);
-        storage_sizes_in_bytes.push_back(GetMemorySizeBytes(ttype));
-        device_types.push_back(DLDeviceType(device_type_int));
-      }
-    } else {
-      const auto* ttype = op->checked_type().as<TensorTypeNode>();
-      ICHECK(ttype);
+    for (const auto& ttype : FlattenTupleType(expr->checked_type())) {
       storage_ids.push_back(next_available_sid_++);
+      device_types.push_back(device_type);
       storage_sizes_in_bytes.push_back(GetMemorySizeBytes(ttype));
-      device_types.push_back(DLDeviceType(device_type_int));
     }
     storage_device_map_[expr] = StorageInfo(storage_ids, device_types, storage_sizes_in_bytes);
   }
-  /*! \brief mapping of expression -> storageInfo*/
+
+  /*! \brief mapping of expression -> storageInfo */
   StorageMap storage_device_map_;
-  /*! \brief mapping of expression -> device type*/
-  Map<Expr, Integer> node_device_map_;
-  /*! \brief current id of the temporary allocated*/
+  /*! \brief current id of the temporary allocated */
   int next_available_sid_{0};
   /*! \brief the set of intermediate tensors that are return variables */
   std::vector<int> return_ids_;
@@ -560,30 +570,16 @@ class AOTExecutorCodegen : public MixedModeVisitor {
         use_unpacked_api_(target_host->GetAttr<Bool>("unpacked-api").value_or(Bool(false))) {}
 
   LoweredOutput Codegen(relay::Function func, String mod_name) {
-    auto aot_allocator = AOTOnDemandAllocator();
-    aot_allocator.Run(func);
-
-    // Pre-lowering storage map and memory plan
-    StorageMap initial_storage_map = aot_allocator.GetStorageMap();
-    StaticMemoryPlan memory_plan(initial_storage_map);
-
-    // Build a map from each operation to device.
-    tec::DeviceMap device_context_map;
-    for (const auto& it : memory_plan->expr_to_storage_info) {
-      auto expr = it.first;
-      auto storage_info = it.second;
-      auto device_types = storage_info->device_types;
-      // CHECK_EQ(device_types.size(), 1);
-      tvm::Device dev;
-      dev.device_id = 0;
-      dev.device_type = device_types[0];
-      device_context_map.insert({expr, dev});
-    }
-
-    // This first phase moves from implicit use of compile engine,
-    // to instead explicitly lowering the incoming IRModule, and then
-    // performing the preexisting AOT executor code generation phase.
+    // TODO(mbs): Codegen at the IRModule level instead of one-function-at-a-time.
     IRModule mod = IRModule::FromExpr(func);
+
+    // TODO(mbs): Break LowerTE's dependence on the memory plan, which currently requires us
+    // to generate the storage map twice.
+    AOTOnDemandAllocator initial_aot_allocator;
+    initial_aot_allocator.Run(func);
+
+    StorageMap initial_storage_map = initial_aot_allocator.GetStorageMap();
+    StaticMemoryPlan memory_plan(initial_storage_map);
 
     backend::FunctionInfo func_info;
 
@@ -593,29 +589,28 @@ class AOTExecutorCodegen : public MixedModeVisitor {
       mod = WithAttr(mod, "main_func_info", func_info);
     }
 
-    IRModule lowered_mod =
-        tec::LowerTEPass(targets_, device_context_map, mod_name, [this](Function func) {
-          // We need to maintain the constant map for external
-          // functions so we pass this processing function which
-          // allows us to process each function as we lower it.
-          if (func->GetAttr<String>(attr::kCompiler).defined()) {
-            UpdateConstants(func, &params_);
-          }
+    IRModule lowered_mod = tec::LowerTEPass(targets_, mod_name, [this](Function func) {
+      // We need to maintain the constant map for external
+      // functions so we pass this processing function which
+      // allows us to process each function as we lower it.
+      if (func->GetAttr<String>(attr::kCompiler).defined()) {
+        UpdateConstants(func, &params_);
+      }
 
-          // TODO(@areusch, @jroesch): We should refactor this to
-          // execute as a further pass, instead writing data to the
-          // lowering process directly.
-          tec::UpdateFunctionMetadata(func, this->function_metadata_);
-        })(mod);
+      // TODO(@areusch, @jroesch): We should refactor this to
+      // execute as a further pass, instead writing data to the
+      // lowering process directly.
+      tec::UpdateFunctionMetadata(func, this->function_metadata_);
+    })(mod);
 
     auto lowered_main = lowered_mod->Lookup("main");
     auto lowered_main_func = GetRef<Function>(lowered_main.as<FunctionNode>());
 
     // Post-lowering storage map for writing main func - this should be the same map as previously
     // created, just referencing the new expressions created from lowering
-    auto new_allocator = AOTOnDemandAllocator();
-    new_allocator.Run(lowered_main_func);
-    storage_device_map_ = new_allocator.GetStorageMap();
+    AOTOnDemandAllocator final_aot_allocator;
+    final_aot_allocator.Run(lowered_main_func);
+    storage_device_map_ = final_aot_allocator.GetStorageMap();
 
     for (auto input : lowered_main_func->params) {
       input_vars_.push_back(input);
@@ -637,7 +632,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     }
 
     // Retrieve the return sids
-    return_sid_ = aot_allocator.GetReturnIds();
+    return_sid_ = final_aot_allocator.GetReturnIds();
     for (unsigned int output_index = 0; output_index < return_sid_.size(); output_index++) {
       main_signature_.push_back(tir::Var("output", DataType::Handle()));
     }

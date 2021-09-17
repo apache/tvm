@@ -126,6 +126,11 @@ std::string NVRTCCompile(const std::string& code, bool include_path = false) {
 }
 
 runtime::Module BuildCUDA(IRModule mod, Target target) {
+  VLOG_CONTEXT << "BuildCUDA";
+  VLOG(0) << "Building module:" << std::endl
+          << PrettyPrint(mod) << std::endl
+          << "for target '" << target->str() << "'";
+
   using tvm::runtime::Registry;
   bool output_ssa = false;
   CodeGenCUDA cg;

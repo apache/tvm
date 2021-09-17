@@ -298,7 +298,7 @@ bool DFPatternMatcher::VisitDFPattern_(const CallPatternNode* op, const Expr& ex
 // Recursively find the Dominator parent along all inputs paths.
 bool DFPatternMatcher::MatchesPath(const DominatorPatternNode* op, const Expr& expr) {
   auto call_node = expr.as<CallNode>();
-  for (auto node : expr_graph_.node_map_.at(expr)->inputs_) {
+  for (auto node : expr_graph_[expr]->inputs_) {
     if (!(call_node && node->ref_ == call_node->op)) {
       memoize_ = true;
       if (VisitDFPattern(op->parent, node->ref_)) {
@@ -322,7 +322,7 @@ bool DFPatternMatcher::DominatesParent(const DominatorPatternNode* op, const Exp
   while (!stack.empty()) {
     Expr current = stack.top();
     stack.pop();
-    for (auto node : expr_graph_.node_map_.at(current)->dominator_children_) {
+    for (auto node : expr_graph_[current]->dominator_children_) {
       if (visited.count(node->ref_) == 0) {
         if (VisitDFPattern(op->parent, node->ref_)) {
           return true;
@@ -707,11 +707,10 @@ void PatternGrouper::CreateGroup(const Expr& expr) {
         return;
       } else if (kv.second != body) {
         // if the node isn't the output of the group
-        auto node = matcher_->expr_graph_.node_map_.at(kv.first);
+        auto node = matcher_->expr_graph_[kv.first];
         for (auto* output : node->outputs_) {
           // and the node is used by nodes outside of the group
-          if (memo.count(output->ref_) == 0 &&
-              !matcher_->expr_graph_.node_map_.at(expr)->Dominates(output)) {
+          if (memo.count(output->ref_) == 0 && !matcher_->expr_graph_[expr]->Dominates(output)) {
             // Exit because nodes in this pattern's body are used outside the pattern
             // fusing it would be invalid
             return;

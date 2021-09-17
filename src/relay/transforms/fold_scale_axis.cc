@@ -242,6 +242,10 @@ class ForwardPrep : private MixedModeVisitor {
       message_[key] = message;
     }
   }
+
+  // We intended the following overrides on implementations from ExprVisitor.
+  using MixedModeVisitor::VisitExpr_;
+
   // Visitor pattern override.
   void VisitExpr_(const TupleGetItemNode* op) final { MixedModeVisitor::VisitExpr_(op); }
 
