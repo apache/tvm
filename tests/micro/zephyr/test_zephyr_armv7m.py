@@ -18,29 +18,38 @@
 import logging
 import os
 import pathlib
-import typing
 import sys
-import logging
 import tarfile
 import tempfile
 
+from urllib.request import urlopen, urlretrieve
+from urllib.error import HTTPError
+import json
+
 import pytest
 import numpy as np
+
+import requests
+
+from test_utils import create_header_file
+from test_utils import build_project
+from test_utils import get_message
 
 import tvm
 import tvm.rpc
 import tvm.micro
 import tvm.testing
-import tvm.relay as relay
+from tvm import relay
 
 from tvm.contrib.download import download_testdata
 from tvm.micro.interface_api import generate_c_interface_header
 
 import conftest
-from test_utils import *
+
 
 _LOG = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
+
 
 def _open_tflite_model():
     # Import TFLite model
@@ -99,11 +108,6 @@ def _apply_desired_layout_no_simd(relay_mod):
 
 
 def _loadCMSIS(temp_dir):
-    import os
-    from urllib.request import urlopen, urlretrieve
-    from urllib.error import HTTPError
-    import json
-    import requests
     REPO_PATH = "ARM-software/CMSIS_5"
     BRANCH = "master"
     API_PATH_URL = f"https://api.github.com/repos/{REPO_PATH}/git/trees"
